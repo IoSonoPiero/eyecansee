@@ -35,7 +35,8 @@ The full list of features, keys and limits is in the manual: [English](docs/manu
 
 ## Download
 
-There are no ready-made downloads yet: for now EyeCanSee has to be built from the source code, as described below.
+- **Windows**: download the zip from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), extract it anywhere and run `eyecansee.exe`. No installation needed. The program is not signed, so Windows may warn you the first time: click **More info**, then **Run anyway**.
+- **Linux**: no ready-made download yet; build it from the source code as described below.
 
 ## Build
 
