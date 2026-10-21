@@ -27,7 +27,7 @@ Mature viewers like XnView, IrfanView or digiKam do much more than EyeCanSee, an
 
 ### Formats
 
-- On Linux: JPEG, PNG, WebP, GIF, BMP, TIFF, HEIC, AVIF, JPEG XL, SVG, and many less common formats through ImageMagick (PSD, XCF, JPEG 2000, PCX and others). The AppImage download includes HEIC and AVIF but not the ImageMagick formats.
+- On Linux: JPEG, PNG, WebP, GIF, BMP, TIFF, HEIC, AVIF, JPEG XL, SVG, and many less common formats through ImageMagick (PSD, XCF, JPEG 2000, PCX and others).
 - On Windows: the same, **except** HEIC, AVIF and the ImageMagick formats, which are not included yet.
 - Camera RAW files (CR2, CR3, NEF, ARW, DNG and others) are supported by the code, but have not been tested with real camera files yet.
 
@@ -50,7 +50,7 @@ cargo build --release
 
 `./install-linux.sh` builds and installs it for the current user (applications menu, "Open with"), without `sudo`. `./install-linux.sh --uninstall` removes it.
 
-`tools/build-appimage.sh` builds the AppImage in an Ubuntu 22.04 container (needs `podman`), with libheif and its decoders compiled from source.
+`tools/build-appimage.sh` builds the AppImage in an Ubuntu 22.04 container (needs `podman`), with libheif, its decoders and ImageMagick compiled from source.
 
 ### Windows
 
