@@ -1,4 +1,3 @@
 /target
-# Private development notes, kept only on the developer's computer.
-/CLAUDE.md
-/DIARIO.md
+# Private development notes: a separate private repository, cloned here.
+/notes/
