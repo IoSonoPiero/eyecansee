@@ -505,7 +505,7 @@ impl App {
                     }
                     if dir == self.dir {
                         let no_storage = match &r {
-                            Err((id, _)) => *id == "error-no-storage",
+                            Err((id, _)) => *id == "error-no-storage" || *id == "error-no-device",
                             Ok(l) => l.dirs.is_empty() && l.files.is_empty() && self.phone_root(&dir).is_some(),
                         };
                         self.retry_at = no_storage.then(|| ctx.input(|i| i.time) + RETRY_SECS);
@@ -561,7 +561,8 @@ impl App {
         }
     }
 
-    /// Phone without storage (locked, charging or not yet in "File transfer"): the folder is
+    /// Phone without storage (locked, charging or not yet in "File transfer") or not found (it
+    /// reconnects when switched to "File transfer", or was unplugged): the folder is
     /// read again by itself every `RETRY_SECS`, without F5. Until then the message stays.
     fn retry(&mut self, ctx: &egui::Context) {
         let Some(at) = self.retry_at else { return };

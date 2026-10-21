@@ -44,6 +44,7 @@ Quando colleghi un telefono, una fotocamera, un disco esterno, una chiavetta o u
 - Su GNOME, aprendo il telefono in EyeCanSee il file manager perde il suo collegamento. Per riaverlo, chiudi EyeCanSee e fai clic sul telefono nel file manager, oppure scollegalo e ricollegalo.
 - **"Il dispositivo è in uso da un'altra applicazione"**: un altro programma tiene il telefono. Se il desktop lo ha collegato, EyeCanSee passa da solo al suo collegamento (più lento: nelle cartelle con centinaia di file circa una miniatura al secondo); altrimenti chiudi l'altro programma o scollega e ricollega il telefono.
 - **"Il dispositivo non mostra nessuna memoria"**: il telefono era bloccato o in "solo ricarica" quando è stato collegato: sbloccalo e scegli Trasferimento file. EyeCanSee riprova da solo ogni 2 secondi e mostra le memorie appena compaiono, senza bisogno di F5.
+- **"Il dispositivo non è stato trovato"**: il telefono si sta ricollegando (lo fa quando scegli Trasferimento file) oppure è stato scollegato. EyeCanSee riprova da solo ogni 2 secondi, senza bisogno di F5.
 - Aprendo un telefono collegato direttamente, il blocco mostra le sue cartelle e sotto c'è la voce per tornare alla tua cartella home.
 - Le miniature dei dispositivi restano in cache anche dopo averli scollegati.
 - I dischi esterni compaiono ovunque il sistema li monti. Una partizione che il sistema non ha montato da sola (per esempio perché ha una sua riga in `/etc/fstab`) compare col nome più chiaro: un clic la monta e la apre. Se serve, il sistema chiede la password.

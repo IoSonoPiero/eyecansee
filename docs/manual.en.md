@@ -44,6 +44,7 @@ When you connect a phone, a camera, an external disk, a USB stick or an SD card,
 - On GNOME, opening the phone in EyeCanSee takes it away from the file manager. To get it back, close EyeCanSee and click the phone in the file manager, or disconnect and reconnect it.
 - **"The device is in use by another application"**: another program holds the phone. If the desktop connected it, EyeCanSee switches to that connection by itself (slower: in folders with hundreds of files about one thumbnail per second); otherwise close the other program or disconnect and reconnect the phone.
 - **"The device shows no storage"**: the phone was locked or set to "charging only" when it was connected: unlock it and choose File transfer. EyeCanSee retries by itself every 2 seconds and shows the storage as soon as it appears, no need for F5.
+- **"The device was not found"**: the phone is reconnecting (it does so when you choose File transfer) or has been unplugged. EyeCanSee retries by itself every 2 seconds, no need for F5.
 - When you open a directly connected phone, the block shows its folders and below there is an item to go back to your home folder.
 - Thumbnails of devices stay in the cache after you disconnect them.
 - External disks appear wherever the system mounts them. A partition the system did not mount by itself (for example because it has its own line in `/etc/fstab`) appears with a dimmed name: one click mounts and opens it. If needed, the system asks for your password.

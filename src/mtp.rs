@@ -36,7 +36,12 @@ fn unix_seconds(m: mtp_rs::DateTime) -> Option<i64> {
 }
 
 fn error(e: mtp_rs::Error) -> Error {
-    let id = if e.is_exclusive_access() { "error-device-busy" } else { "error-detail" };
+    let id = match e {
+        _ if e.is_exclusive_access() => "error-device-busy",
+        // Also while the phone reconnects after switching to "File transfer": the UI retries.
+        mtp_rs::Error::NoDevice => "error-no-device",
+        _ => "error-detail",
+    };
     (id, e.to_string())
 }
 
