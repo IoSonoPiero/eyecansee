@@ -29,6 +29,7 @@ mod loader;
 mod meta;
 mod mtp;
 mod settings;
+mod single;
 mod source;
 mod theme;
 mod thumbcache;
@@ -212,6 +213,7 @@ impl App {
         };
         theme::apply(ctx, app.settings.theme);
         devices::watch(app.tx.clone(), ctx.clone());
+        single::listen(app.tx.clone(), ctx.clone());
         let home = std::env::home_dir().map_or(".".into(), |h| h.to_string_lossy().into_owned());
         let last = app.settings.last_location.clone().filter(|_| app.settings.remember_location);
         match (arg, last) {
@@ -554,6 +556,14 @@ impl App {
                 Msg::Mounted(Err(e)) => {
                     log!("mount failed: {e}");
                     self.error = Some(self.i18n.t_args("error-mount", &[("detail", &e)]));
+                }
+                Msg::Open(address) => {
+                    log!("handed over: {address:?}");
+                    if !address.is_empty() {
+                        self.open_source(ctx, &address);
+                    }
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                 }
                 Msg::Devices(d) => {
                     log!("devices: {:?}", d.iter().map(|d| &d.path).collect::<Vec<_>>());
@@ -1077,7 +1087,15 @@ fn debug_screenshot(ctx: &egui::Context) {
 }
 
 fn main() -> eframe::Result {
-    let arg = std::env::args().nth(1);
+    // A local path is made absolute: the instance it is handed to has another working folder.
+    let arg = std::env::args().nth(1).map(|a| match a.contains("://") {
+        true => a,
+        false => std::path::absolute(&a).map_or(a, |p| p.to_string_lossy().into_owned()),
+    });
+    // The screenshot of a test run must not end up in the user's window.
+    if std::env::var_os("EYECANSEE_SCREENSHOT").is_none() && single::hand_over(arg.as_deref().unwrap_or("")) {
+        return Ok(());
+    }
     let settings = Settings::load();
     let mut viewport = egui::ViewportBuilder::default().with_inner_size([1200.0, 800.0]).with_app_id("eyecansee");
     // Title bar and task bar (without it, eframe puts its own). On Windows the icon of the

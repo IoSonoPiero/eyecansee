@@ -1,6 +1,6 @@
 [package]
 name = "eyecansee"
-version = "0.14.0"
+version = "0.15.0"
 edition = "2024"
 description = "Image viewer for Linux and Windows"
 license = "GPL-3.0-or-later"
@@ -39,6 +39,7 @@ turbojpeg = { version = "1.5.1", default-features = false, features = ["cmake", 
 unic-langid = "0.9.6"
 url = "2.5.8"
 kamadak-exif = "0.6.1"
+interprocess = "2.4.6"
 
 [target."cfg(windows)".dependencies]
 # Drives (C:, D:, …): type, label and bus (USB/SD = external) for "This computer" and Devices.

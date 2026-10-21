@@ -19,6 +19,8 @@ pub const THUMB_SIDE: u32 = 256;
 
 pub enum Msg {
     Listed(String, Result<Listing, source::Error>),
+    /// Address handed over by EyeCanSee started again ("" = none): `single::listen`.
+    Open(String),
     /// Connected external devices, sent by `devices::watch` when the list changes.
     Devices(Vec<crate::devices::Device>),
     /// Outcome of mounting a partition: absolute path or error.

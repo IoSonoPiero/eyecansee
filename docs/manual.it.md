@@ -64,6 +64,8 @@ eyecansee ftps://utente@nas.lan/Foto
 eyecansee sftp://utente@server:2222/home/utente/Foto   (solo Linux)
 ```
 
+EyeCanSee è aperto in una sola copia alla volta (un telefono può usarlo un solo programma): se è già aperto, avviarlo di nuovo, per esempio con "Apri con" su una foto, mostra quella cartella o immagine nella finestra già aperta.
+
 Le cartelle remote si comportano come quelle locali: albero, griglia e visore funzionano allo stesso modo. Le password non compaiono mai nella barra degli indirizzi.
 
 Con SFTP, EyeCanSee usa il client `ssh` del sistema, quindi alias, chiavi e agent di `~/.ssh/config` funzionano come sempre.
