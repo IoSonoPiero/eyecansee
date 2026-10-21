@@ -35,8 +35,14 @@ The full list of features, keys and limits is in the manual: [English](docs/manu
 
 ## Download
 
-- **Windows**: download the zip from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), extract it anywhere and run `eyecansee.exe`. No installation needed. The program is not signed, so Windows may warn you the first time: click **More info**, then **Run anyway**.
-- **Linux**: download the `.AppImage` file from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), make it executable (`chmod +x EyeCanSee-*.AppImage`, or Properties → "Allow executing file as program" in the file manager) and run it. Nothing else to install. It needs a distribution from 2022 or later (glibc 2.35).
+- **Windows**: download the zip from the most recent [release](https://github.com/IoSonoPiero/eyecansee/releases) that has one (the Windows build sometimes follows a few days later), extract it anywhere and run `eyecansee.exe`. No installation needed. The program is not signed, so Windows may warn you the first time: click **More info**, then **Run anyway**.
+- **Fedora** (43 and later): install it from the [COPR repository](https://copr.fedorainfracloud.org/coprs/iosonopiero/eyecansee/), and updates arrive with the system ones:
+  ```bash
+  sudo dnf copr enable iosonopiero/eyecansee
+  sudo dnf install eyecansee
+  ```
+  HEIC photos also need `libheif-freeworld` from [RPM Fusion](https://rpmfusion.org/), which `dnf` installs by itself if RPM Fusion is enabled.
+- **Other Linux distributions**: download the `.AppImage` file from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), make it executable (`chmod +x EyeCanSee-*.AppImage`, or Properties → "Allow executing file as program" in the file manager) and run it. Nothing else to install. It needs a distribution from 2022 or later (glibc 2.35).
 
 ## Build
 
@@ -50,7 +56,7 @@ cargo build --release
 
 `./install-linux.sh` builds and installs it for the current user (applications menu, "Open with"), without `sudo`. `./install-linux.sh --uninstall` removes it.
 
-`tools/build-appimage.sh` builds the AppImage in an Ubuntu 22.04 container (needs `podman`), with libheif, its decoders and ImageMagick compiled from source.
+`tools/copr-build.sh` builds the source RPM from `eyecansee.spec` and sends it to COPR. `tools/build-appimage.sh` builds the AppImage in an Ubuntu 22.04 container (needs `podman`), with libheif, its decoders and ImageMagick compiled from source.
 
 ### Windows
 
