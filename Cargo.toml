@@ -1,0 +1,63 @@
+[package]
+name = "eyecansee"
+version = "0.13.0"
+edition = "2024"
+description = "Image viewer for Linux and Windows"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/IoSonoPiero/eyecansee"
+
+# HEIC/AVIF (libheif) and the ImageMagick fallback are heavy C libraries to set up on Windows:
+# `cargo build --no-default-features` builds without them, and those formats do not appear in the list.
+[features]
+default = ["heif", "magick"]
+heif = ["dep:libheif-rs"]
+magick = ["dep:magick_rust"]
+
+[dependencies]
+eframe = "0.37.0"
+# 🗀 and 🖴 icons from the bundled fonts: without it egui looks for them in system fonts (Windows lacks them).
+egui = { version = "0.37.0", features = ["monochrome_emoji_fonts"] }
+egui_commonmark = "0.26.0"
+fluent-bundle = "0.16.0"
+# File date in the status bar; already compiled for OpenDAL.
+jiff = "0.2.38"
+image = "0.25.10"
+jxl-oxide = { version = "0.12.6", features = ["image"] }
+libheif-rs = { version = "3.0.0", optional = true }
+magick_rust = { version = "2.1.1", optional = true }
+mtp-rs = "0.33.0"
+opendal = { version = "0.59.5", default-features = false, features = ["services-fs", "services-ftp"] }
+percent-encoding = "2.3.2"
+rawler = "0.8.0"
+resvg = "0.48.1"
+rusqlite = { version = "0.40.2", features = ["bundled"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sys-locale = "0.3.2"
+tokio = { version = "1.54.0", features = ["rt-multi-thread", "sync"] }
+turbojpeg = { version = "1.5.1", default-features = false, features = ["cmake", "require-simd"] }
+unic-langid = "0.9.6"
+url = "2.5.8"
+kamadak-exif = "0.6.1"
+
+[target."cfg(windows)".dependencies]
+# Drives (C:, D:, …): type, label and bus (USB/SD = external) for "This computer" and Devices.
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Ioctl"] }
+
+[target."cfg(windows)".build-dependencies]
+# Icon and version data inside eyecansee.exe (`build.rs`), with rc.exe from the Build Tools.
+winresource = "0.1.34"
+
+[target."cfg(unix)".dependencies]
+opendal = { version = "0.59.5", default-features = false, features = ["services-sftp"] }
+
+# mtp-rs 0.33.0 with a fix: on Windows (WPD) it read name and size but not the dates,
+# so no date in the status bar and sorting by date was useless on the phone.
+# Changes only in `vendor/mtp-rs/src/mtp/backend/wpd/` (props.rs `read_date`, com.rs); to be
+# removed when the fix lands in a published release
+# (proposed: https://github.com/vdavid/mtp-rs/pull/41).
+[patch.crates-io]
+mtp-rs = { path = "vendor/mtp-rs" }
+
+[profile.release]
+strip = true

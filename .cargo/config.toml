@@ -1,0 +1,4 @@
+# Static C runtime on Windows: the executable does not need vcruntime140.dll and Rust uses the same
+# runtime as libjpeg-turbo (which forces /MT), without the linker warning LNK4098.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

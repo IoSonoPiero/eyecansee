@@ -1,0 +1,132 @@
+# EyeCanSee manual
+
+Press **F1** at any time to open or close this manual.
+
+## The window
+
+- **Menu bar**: File, View, Go, Help. The version number is on the right. Every action you can do with the keyboard or a double click also has a menu item, with its key shown next to it.
+- **Toolbar**: parent folder, refresh, metadata (ℹ), the address bar, the image order and the thumbnail size slider.
+- **Folder tree** on the left, under **This computer** (and under **Devices** if you have any connected): click a folder to show its content. Folders open only when you expand them, so remote sources stay fast. When you change folder, also from the grid, the tree opens down to that folder and highlights it.
+- **Grid** on the right: subfolders first, then the images as thumbnails. When you enter a folder nothing is selected; when you go up, the folder you came from is selected.
+- **Image order** from the drop-down list in the toolbar (with the ▲/▼ button next to it to reverse it) or from the **View** menu: by name, modification date, size or type (extension), plus **Descending order**. Folders stay first, by name; files without a date stay at the end. The choice is remembered.
+- **Metadata** below the grid, for the selected image: boxes **Camera** (make, model, lens, software), **Shot** (date, exposure, aperture, ISO, focal length, flash), **Image** (size, color space) and **Location** (GPS coordinates, altitude, with a link to open them on the OpenStreetMap map). Each box closes with its X and reopens from the **View** menu; the ℹ button in the toolbar closes or reopens them all. The panel collapses and reopens with the ▼/▲ button at the right of its bar, or with a click on the bar itself; when collapsed only the bar stays, and the metadata is not read. EXIF metadata is read from JPEG, HEIC, AVIF, PNG, WebP and TIFF; to read it EyeCanSee reads the file again, so on a phone it takes a moment.
+- **Status bar** at the bottom: how many folders and images there are, and name, size and modification date of the selected item.
+- Arrows and Tab act on the side you clicked last, left or right: it is the one with the thin frame. There the selection is solid blue, on the other side it is lighter.
+
+Double-click an image, or select it and press Enter, to open it in the **viewer**. Press Esc, double-click the image or use the grid button in the toolbar to go back to the grid.
+
+## Thumbnails
+
+EyeCanSee creates the thumbnails in this order: the selected image first, then the ones visible in the window from top to bottom, then all the others in the folder from top to bottom. Clicking an image moves its thumbnail to the front of the queue. Up to 1000 thumbnails per folder stay in memory, so they do not disappear while scrolling, even when dragging the scrollbar; in bigger folders the ones far from the visible part are reloaded from disk.
+
+Thumbnails are saved on disk, so opening the same folder again is immediate: in the file `~/.cache/eyecansee/thumbs.db` on Linux and `%LOCALAPPDATA%\eyecansee\thumbs.db` on Windows. If an image changes (size or modification date), its thumbnail is created again. You can delete that file (with EyeCanSee closed) at any time: thumbnails are created again when needed.
+
+**Clean up the thumbnail cache** in **File > Options…** (off by default): once per session, for each opened location, removes thumbnails of deleted images and recreates those of changed images; then removes the least recently used thumbnails until the cache is within **Cache limit** (default 1024 MB). Folders that cannot be found or reached are skipped, so a disconnected disk or a switched-off NAS does not lose its thumbnails. Remote locations are checked only when you open them.
+
+## Options
+
+**File > Options…** opens the options window. Every change is saved immediately in `~/.config/eyecansee/settings.json` on Linux and `%APPDATA%\eyecansee\settings.json` on Windows, a text file you can also edit by hand.
+
+- **Reopen the last folder at startup** (on by default): when EyeCanSee starts without a folder, for example from the applications menu, it opens the folder you were viewing when you closed it. If that folder no longer exists, it opens your home folder. Remote locations reopen without the password, which you must type again.
+- **Remember the scroll position of each folder** (off by default): when you go back to a folder you already viewed, the grid starts where you left it. When off, every folder you open starts from the first thumbnail. It lasts until EyeCanSee is closed.
+- **Window at startup**, one choice only: **Normal size**, **Maximized** (fills the screen, leaving the system bars visible), or **Size it had when closed** (if it was maximized, it reopens maximized).
+- **Language**: **Same as the system** (default: the Windows or desktop language, English if it is not among the available ones) or one of the listed languages, each shown by its own name. The choice applies at once, this manual included.
+- **Colors**: **Same as the system** (default: light or dark like the Windows or desktop theme, following it when it changes), **Light** or **Dark**. The choice applies at once.
+- **Clean up the thumbnail cache** and **Cache limit**: see *Thumbnails*.
+- **Empty the thumbnail cache…**: deletes all saved thumbnails, after a confirmation showing how many and how much space is freed. Your images are not touched; thumbnails of the open folder are created again right away, the others when you open them again.
+
+## External devices
+
+When you connect a phone, a camera, an external disk, a USB stick or an SD card, the **Devices** block appears at the top left, with its folder structure to expand like the tree. When you disconnect it, it disappears.
+
+- **Android phone**: on the phone choose **Transfer photos** (PTP) or **Transfer files** (MTP). With Transfer photos you only see the photo folders (`DCIM`, `Pictures`); with Transfer files the whole storage.
+- EyeCanSee connects to the phone directly, even if the desktop has already connected it (for example GNOME): this is much faster, especially in folders with hundreds of files. The device appears within a couple of seconds.
+- On GNOME, opening the phone in EyeCanSee takes it away from the file manager. To get it back, close EyeCanSee and click the phone in the file manager, or disconnect and reconnect it.
+- **"The device is in use by another application"**: another program holds the phone. If the desktop connected it, EyeCanSee switches to that connection by itself (slower: in folders with hundreds of files about one thumbnail per second); otherwise close the other program or disconnect and reconnect the phone.
+- **"The device shows no storage"**: the phone was locked or set to "charging only" when it was connected: unlock it and choose File transfer. EyeCanSee retries by itself every 2 seconds and shows the storage as soon as it appears, no need for F5.
+- When you open a directly connected phone, the block shows its folders and below there is an item to go back to your home folder.
+- Thumbnails of devices stay in the cache after you disconnect them.
+- External disks appear wherever the system mounts them. A partition the system did not mount by itself (for example because it has its own line in `/etc/fstab`) appears with a dimmed name: one click mounts and opens it. If needed, the system asks for your password.
+- On Windows USB sticks, SD cards and disks connected via USB appear, with the name they have in File Explorer (for example "Backup (D:)"). Internal drives (C:, and any others) are under **This computer**: one click on another drive opens it. Phones connect through the Windows driver. Network drives and CDs/DVDs do not appear yet: open them with **File > Open location…** (for example `E:\`).
+
+## Opening images
+
+Type a folder, an image or a remote address in the address bar and press Enter (File > Open location focuses it), or start EyeCanSee with one:
+
+```text
+eyecansee                                  your home folder
+eyecansee ~/Pictures/Holidays              a folder
+eyecansee ~/Pictures/Holidays/beach.jpg    opens that image in the viewer
+eyecansee ftp://user:password@nas.lan/Photos
+eyecansee ftps://user@nas.lan/Photos
+eyecansee sftp://user@server:2222/home/user/Photos   (Linux only)
+```
+
+Remote folders behave exactly like local ones: the tree, the grid and the viewer work the same way. Passwords are never shown in the address bar.
+
+With SFTP, EyeCanSee uses the system `ssh` client, so your `~/.ssh/config` aliases, keys and agent work as usual.
+
+## Keyboard
+
+In the grid:
+
+| Key | Action |
+|---|---|
+| Arrows | Move the selection (the first press selects the first item) |
+| Home, End | First, last item |
+| Enter | Open the folder or the image |
+| Backspace | Parent folder |
+| Tab | Next item; from the last one it moves to the devices |
+| Shift+Tab | Previous item; from the first one it moves to the folder open on the left |
+
+In the tree on the left:
+
+| Key | Action |
+|---|---|
+| Down, up | Next, previous folder |
+| Right | Expands the folder; if already expanded, goes to its first subfolder |
+| Left | Collapses the folder; if already collapsed, goes to its parent |
+| Backspace | Parent folder |
+| Tab | Next folder; from the last one it moves to the grid |
+| Shift+Tab | Previous folder; from the first one it moves to the last device |
+
+In the devices: down and up change device (down on an expanded device enters its first folder), right and left expand and collapse it, Enter opens it on the right, Tab moves to the next one and from the last one to the computer's folders, Shift+Tab to the previous one and from the first one to the last item of the grid.
+
+In the viewer:
+
+| Key | Action |
+|---|---|
+| Right arrow, Space, Page Down | Next image |
+| Left arrow, Backspace, Page Up | Previous image |
+| Home, End | First, last image |
+| Esc | Back to the grid |
+
+Everywhere: **F1** opens this manual, **F5** reloads the folders. In the viewer F5 stays on the open image; if it has been deleted in the meantime, it goes back to the grid.
+
+The same actions are in the menus: **View** (Open, Back to the grid, Refresh) and **Go** (Next, Previous, First, Last, Parent folder). In the grid Next and Previous move the selection, in the viewer they change image.
+
+In the viewer, after the last image you go back to the first one, and the other way round. EyeCanSee loads the images around the current one in advance, so moving between them is immediate even on slow connections.
+
+## Supported formats
+
+- **Photos**: JPEG, PNG, WebP, HEIC/HEIF, AVIF, JPEG XL, TIFF, GIF (first frame), BMP.
+- **Camera RAW**: ARW, CR2, CR3, CRW, DNG, NEF, NRW, ORF, PEF, RAF, RW2, SRW, 3FR, IIQ, ERF, KDC, MEF, MOS, MRW and others. EyeCanSee shows the full-size preview stored by the camera; if there is none, it develops the sensor data.
+- **Vector**: SVG, SVGZ.
+- **Graphics and HDR**: PSD/PSB (merged image), XCF, ORA, OpenEXR, HDR, PFM, DDS, QOI, TGA, ICO, CUR, PCX, JPEG 2000, PNM, XPM, XBM, SGI, Sun Raster, PICT, MIFF, MNG, JNG, DPX, Cineon, FITS, MPO and other less common formats.
+
+Photos are rotated automatically using their EXIF orientation. The file extension is only a hint: an iPhone HEIC photo renamed to `.jpg` opens anyway.
+
+On Windows, for now, HEIC/HEIF, AVIF and the *Graphics and HDR* formats handled by ImageMagick (PSD, XCF, PCX, JPEG 2000 and similar) are not available yet: those files do not appear in the list.
+
+## Language
+
+EyeCanSee uses the system language when it is available, otherwise English. To force a language set `EYECANSEE_LANG`, for example `EYECANSEE_LANG=en eyecansee`.
+
+## Known limits
+
+- SFTP is not available on Windows yet.
+- Images larger than 8192 pixels per side are shown downscaled.
+- Files are sorted alphabetically: `img10` comes before `img2`.
+- Hidden files and folders (starting with a dot, or on Windows with the "hidden" attribute) are
+  not shown.
+- HDR images (EXR, HDR, PFM) are shown without tone mapping and may look overexposed.

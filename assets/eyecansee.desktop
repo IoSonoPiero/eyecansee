@@ -1,0 +1,14 @@
+[Desktop Entry]
+Type=Application
+Name=EyeCanSee
+GenericName=Image Viewer
+GenericName[it]=Visualizzatore di immagini
+Comment=Browse and view images from local folders, FTP and SFTP
+Comment[it]=Sfoglia e visualizza immagini da cartelle locali, FTP e SFTP
+Exec=eyecansee %f
+Icon=eyecansee
+Terminal=false
+Categories=Graphics;Viewer;Photography;
+Keywords=image;photo;viewer;heic;raw;immagini;foto;
+MimeType=image/jpeg;image/png;image/webp;image/gif;image/bmp;image/tiff;image/heic;image/heif;image/avif;image/jxl;image/svg+xml;image/x-tga;image/x-portable-anymap;image/x-exr;image/vnd.adobe.photoshop;image/x-xcf;image/x-dcraw;image/x-adobe-dng;image/x-canon-cr2;image/x-canon-cr3;image/x-nikon-nef;image/x-sony-arw;image/x-fuji-raf;image/x-olympus-orf;image/x-panasonic-rw2;inode/directory;
+StartupNotify=true
