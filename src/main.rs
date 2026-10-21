@@ -280,6 +280,7 @@ impl App {
         let (window, normal, maximized, remember_size) =
             (t("opt-window"), t("opt-window-normal"), t("opt-window-maximized"), t("opt-window-remember"));
         let (scroll, scroll_hint) = (t("opt-remember-scroll"), t("opt-remember-scroll-hint"));
+        let (wrap, wrap_hint) = (t("opt-wrap-around"), t("opt-wrap-around-hint"));
         let (language_label, language_system) = (t("opt-language"), t("opt-language-system"));
         let languages = self.languages.clone();
         let (theme_label, theme_system, theme_light, theme_dark) =
@@ -304,6 +305,7 @@ impl App {
         egui::Window::new(title).id(egui::Id::unique("options")).open(&mut open).collapsible(false).resizable(false).show(ctx, |ui| {
             ui.checkbox(&mut s.remember_location, remember).on_hover_text(remember_hint);
             ui.checkbox(&mut s.remember_scroll, scroll).on_hover_text(scroll_hint);
+            ui.checkbox(&mut s.wrap_around, wrap).on_hover_text(wrap_hint);
             ui.separator();
             ui.label(window);
             ui.radio_value(&mut s.window_start, WindowStart::Normal, normal);
@@ -625,14 +627,17 @@ impl App {
     }
 
     /// Next, previous, first, last: same action from the keyboard and from the Go menu.
-    /// In the viewer it changes image (after the last one it goes back to the first), in the grid it moves the selection.
+    /// In the viewer it changes image (after the last one back to the first only with `wrap_around`,
+    /// otherwise it stops there), in the grid it moves the selection.
     pub(crate) fn go(&mut self, to: Go) {
         if let Some(current) = self.viewing {
             let n = self.files().len();
             if n > 0 {
                 self.viewing = Some(match to {
-                    Go::Next => (current + 1) % n,
-                    Go::Prev => (current + n - 1) % n,
+                    Go::Next if self.settings.wrap_around => (current + 1) % n,
+                    Go::Prev if self.settings.wrap_around => (current + n - 1) % n,
+                    Go::Next => (current + 1).min(n - 1),
+                    Go::Prev => current.saturating_sub(1),
                     Go::First => 0,
                     Go::Last => n - 1,
                 });

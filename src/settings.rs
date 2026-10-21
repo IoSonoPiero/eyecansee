@@ -18,6 +18,8 @@ pub struct Settings {
     pub last_location: Option<String>,
     /// Every folder reopens at the scroll position it was left at; otherwise from the top.
     pub remember_scroll: bool,
+    /// In the viewer, after the last image the first one follows (and the other way round).
+    pub wrap_around: bool,
     /// Metadata boxes closed with the X (`meta::Group::key`); empty = all open.
     pub meta_hidden: Vec<String>,
     /// Metadata panel collapsed: only its bar remains.
@@ -86,6 +88,7 @@ impl Default for Settings {
             remember_location: true,
             last_location: None,
             remember_scroll: false,
+            wrap_around: false,
             meta_hidden: Vec::new(),
             meta_collapsed: false,
             sort_by: SortBy::Name,
