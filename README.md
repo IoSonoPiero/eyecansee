@@ -27,7 +27,7 @@ Mature viewers like XnView, IrfanView or digiKam do much more than EyeCanSee, an
 
 ### Formats
 
-- On Linux: JPEG, PNG, WebP, GIF, BMP, TIFF, HEIC, AVIF, JPEG XL, SVG, and many less common formats through ImageMagick (PSD, XCF, JPEG 2000, PCX and others).
+- On Linux: JPEG, PNG, WebP, GIF, BMP, TIFF, HEIC, AVIF, JPEG XL, SVG, and many less common formats through ImageMagick (PSD, XCF, JPEG 2000, PCX and others). The AppImage download includes HEIC and AVIF but not the ImageMagick formats.
 - On Windows: the same, **except** HEIC, AVIF and the ImageMagick formats, which are not included yet.
 - Camera RAW files (CR2, CR3, NEF, ARW, DNG and others) are supported by the code, but have not been tested with real camera files yet.
 
@@ -36,7 +36,7 @@ The full list of features, keys and limits is in the manual: [English](docs/manu
 ## Download
 
 - **Windows**: download the zip from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), extract it anywhere and run `eyecansee.exe`. No installation needed. The program is not signed, so Windows may warn you the first time: click **More info**, then **Run anyway**.
-- **Linux**: no ready-made download yet; build it from the source code as described below.
+- **Linux**: download the `.AppImage` file from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), make it executable (`chmod +x EyeCanSee-*.AppImage`, or Properties → "Allow executing file as program" in the file manager) and run it. Nothing else to install. It needs a distribution from 2022 or later (glibc 2.35).
 
 ## Build
 
@@ -49,6 +49,8 @@ cargo build --release
 ```
 
 `./install-linux.sh` builds and installs it for the current user (applications menu, "Open with"), without `sudo`. `./install-linux.sh --uninstall` removes it.
+
+`tools/build-appimage.sh` builds the AppImage in an Ubuntu 22.04 container (needs `podman`), with libheif and its decoders compiled from source.
 
 ### Windows
 
