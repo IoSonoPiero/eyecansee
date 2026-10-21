@@ -25,7 +25,7 @@ image = "0.25.10"
 jxl-oxide = { version = "0.12.6", features = ["image"] }
 libheif-rs = { version = "3.0.0", optional = true }
 magick_rust = { version = "2.1.1", optional = true }
-mtp-rs = "0.33.0"
+mtp-rs = "0.33.1"
 opendal = { version = "0.59.5", default-features = false, features = ["services-fs", "services-ftp"] }
 percent-encoding = "2.3.2"
 rawler = "0.8.0"
@@ -50,14 +50,6 @@ winresource = "0.1.34"
 
 [target."cfg(unix)".dependencies]
 opendal = { version = "0.59.5", default-features = false, features = ["services-sftp"] }
-
-# mtp-rs 0.33.0 with a fix: on Windows (WPD) it read name and size but not the dates,
-# so no date in the status bar and sorting by date was useless on the phone.
-# Changes only in `vendor/mtp-rs/src/mtp/backend/wpd/` (props.rs `read_date`, com.rs); to be
-# removed when the fix lands in a published release
-# (proposed: https://github.com/vdavid/mtp-rs/pull/41).
-[patch.crates-io]
-mtp-rs = { path = "vendor/mtp-rs" }
 
 [profile.release]
 strip = true
