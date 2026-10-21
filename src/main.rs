@@ -555,7 +555,17 @@ impl App {
                 }
                 Msg::Devices(d) => {
                     log!("devices: {:?}", d.iter().map(|d| &d.path).collect::<Vec<_>>());
+                    // Open phone unplugged: it disappears altogether, back to home as at startup
+                    // (otherwise it stayed in the tree with the folders read before).
+                    let serial = self.base.strip_prefix("mtp://").map(|s| s.trim_end_matches('/').to_string());
+                    let has = |devices: &[devices::Device], s: &str| devices.iter().any(|d| d.serial.as_deref() == Some(s));
+                    let unplugged = serial.is_some_and(|s| has(&self.devices, &s) && !has(&d, &s));
                     self.devices = d;
+                    if unplugged {
+                        log!("phone unplugged");
+                        let home = std::env::home_dir().map_or(".".into(), |h| h.to_string_lossy().into_owned());
+                        self.open_source(ctx, &home);
+                    }
                 }
             }
         }

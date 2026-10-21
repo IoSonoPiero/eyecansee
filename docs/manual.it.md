@@ -37,7 +37,7 @@ Le miniature vengono salvate su disco, così riaprire la stessa cartella è imme
 
 ## Dispositivi esterni
 
-Quando colleghi un telefono, una fotocamera, un disco esterno, una chiavetta o una scheda SD, in alto a sinistra compare il blocco **Dispositivi**, con la struttura delle sue cartelle da espandere come l'albero. Quando lo scolleghi, sparisce.
+Quando colleghi un telefono, una fotocamera, un disco esterno, una chiavetta o una scheda SD, in alto a sinistra compare il blocco **Dispositivi**, con la struttura delle sue cartelle da espandere come l'albero. Quando lo scolleghi, sparisce; se lo stavi guardando, EyeCanSee torna alla tua cartella personale.
 
 - **Telefono Android**: sul telefono scegli **Trasferimento foto** (PTP) o **Trasferimento file** (MTP). Con Trasferimento foto si vedono solo le cartelle delle foto (`DCIM`, `Pictures`); con Trasferimento file tutta la memoria.
 - EyeCanSee si collega al telefono direttamente, anche se il desktop lo ha già collegato (per esempio GNOME): così è molto più veloce, soprattutto nelle cartelle con centinaia di file. Il dispositivo compare entro un paio di secondi.

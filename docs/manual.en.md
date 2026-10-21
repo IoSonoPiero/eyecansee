@@ -37,7 +37,7 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 
 ## External devices
 
-When you connect a phone, a camera, an external disk, a USB stick or an SD card, the **Devices** block appears at the top left, with its folder structure to expand like the tree. When you disconnect it, it disappears.
+When you connect a phone, a camera, an external disk, a USB stick or an SD card, the **Devices** block appears at the top left, with its folder structure to expand like the tree. When you disconnect it, it disappears; if you were looking at it, EyeCanSee goes back to your home folder.
 
 - **Android phone**: on the phone choose **Transfer photos** (PTP) or **Transfer files** (MTP). With Transfer photos you only see the photo folders (`DCIM`, `Pictures`); with Transfer files the whole storage.
 - EyeCanSee connects to the phone directly, even if the desktop has already connected it (for example GNOME): this is much faster, especially in folders with hundreds of files. The device appears within a couple of seconds.
