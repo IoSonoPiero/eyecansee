@@ -236,7 +236,9 @@ impl Phone {
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
         let folder = match self.locate(to_dir).await {
             Ok((_, Some(h))) => h,
-            _ => {
+            // The top of a storage (restoring from its trash): it has no handle of its own.
+            Ok((_, None)) => ObjectHandle::ROOT,
+            Err(_) => {
                 let (_, parent) = self.locate(&source::parent(to_dir)).await?;
                 let h = storage.create_folder(parent, source::name(to_dir)).await.map_err(error)?;
                 self.handles.lock().unwrap().insert(to_dir.to_string(), h);

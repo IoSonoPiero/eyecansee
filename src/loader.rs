@@ -151,7 +151,11 @@ impl Loader {
                 if !failed {
                     thumbcache::delete(&base, &path);
                 }
+                let trash = source::parent(&path);
                 let _ = tx.send(Msg::Deleted(path, how, r));
+                if !failed && source::is_trash(&trash) {
+                    drop_empty_trash(&op, trash, &tx).await;
+                }
                 ctx.request_repaint();
                 if failed {
                     break;
@@ -164,7 +168,12 @@ impl Loader {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
             let r = op.restore(&path, conflict).await;
+            let ok = r.is_ok();
+            let trash = source::parent(&path);
             let _ = tx.send(Msg::Restored(path, r));
+            if ok {
+                drop_empty_trash(&op, trash, &tx).await;
+            }
             ctx.request_repaint();
         });
     }
@@ -326,5 +335,14 @@ async fn maintain(op: &Store, base: &str) {
                 Some(_) => {}
             }
         }
+    }
+}
+
+/// A trash folder left empty goes, so its strip does not say there is something to restore.
+async fn drop_empty_trash(op: &Store, trash: String, tx: &Sender<Msg>) {
+    if op.names(&trash).await.is_ok_and(|n| n.is_empty()) {
+        let how = source::Deletion::Permanent;
+        let r = op.delete(&trash, how).await;
+        let _ = tx.send(Msg::Deleted(trash, how, r));
     }
 }
