@@ -68,6 +68,7 @@ tb-thumb-size = Thumbnail size
 
 status-folders = Folders: { $n }
 status-images = Images: { $n }
+status-deleting = Deleting { $n }…
 status-copied = { $n } copied: Ctrl+V to paste
 status-cut = { $n } cut: Ctrl+V to move
 status-marked = Selected: { $n } ({ $size })

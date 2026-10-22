@@ -384,8 +384,8 @@ impl Store {
             }
             Store::Mtp(phone) => {
                 let mut download = phone.download(path).await?;
-                while let Some(window) = download.next_window().await {
-                    push(Bytes::from(window.map_err(|e| ("error-detail", e.to_string()))?)).await?;
+                while let Some(window) = phone.next_window(&mut download).await {
+                    push(Bytes::from(window?)).await?;
                 }
             }
         }

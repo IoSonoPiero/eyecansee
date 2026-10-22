@@ -67,6 +67,7 @@ tb-thumb-size = Dimensione miniature
 
 status-folders = Cartelle: { $n }
 status-images = Immagini: { $n }
+status-deleting = Eliminazione in corso: { $n }…
 status-copied = { $n } copiati: Ctrl+V per incollare
 status-cut = { $n } tagliati: Ctrl+V per spostare
 status-marked = Selezionati: { $n } ({ $size })

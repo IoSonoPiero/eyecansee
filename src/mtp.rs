@@ -25,6 +25,15 @@ pub struct Phone {
     /// Opened on first use: opening is asynchronous and can fail (device busy).
     open: OnceCell<(MtpDevice, Storages)>,
     handles: Mutex<HashMap<String, ObjectHandle>>,
+    /// Folders whose every child is in `handles` (read with `names` or `walk`, or created here):
+    /// a copy checks there whether a name is taken, without listing the folder again for each file
+    /// (70 files were 70 ever longer listings).
+    complete: Mutex<HashSet<String>>,
+    /// One request at a time, in order of arrival. mtp-rs serialises too, but its lock lets the
+    /// task that just released it take it again: during a copy the listing of the destination
+    /// waited until the copy ended (4 s for 77 files). Taken around single mtp-rs calls only,
+    /// never across our own methods, which call one another.
+    turn: tokio::sync::Mutex<()>,
 }
 
 /// Unix seconds of a phone date. Usually the phone does not write the time zone, and then mtp-rs
@@ -111,7 +120,7 @@ static PHONES: Mutex<Vec<(String, Weak<Phone>)>> = Mutex::new(Vec::new());
 
 impl Phone {
     pub fn new(serial: &str) -> Self {
-        Self { serial: serial.to_string(), open: OnceCell::new(), handles: Mutex::default() }
+        Self { serial: serial.to_string(), open: OnceCell::new(), handles: Mutex::default(), complete: Mutex::default(), turn: tokio::sync::Mutex::const_new(()) }
     }
 
     /// The phone already in use with this serial, or a new one.
@@ -182,7 +191,7 @@ impl Phone {
             return Ok(listing);
         }
         let (storage, handle) = self.locate(dir).await?;
-        let objects = storage.list_objects(handle).await.map_err(error)?;
+        let objects = self.queued(storage.list_objects(handle)).await.map_err(error)?;
         let mut handles = self.handles.lock().unwrap();
         for o in objects {
             // Hidden items are not shown, apart from EyeCanSee's trash folders.
@@ -207,13 +216,14 @@ impl Phone {
     pub async fn read(&self, path: &str) -> Result<Vec<u8>, Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-        match storage.download_to_vec(handle).await {
+        match self.queued(storage.download_to_vec(handle)).await {
             // Android can renumber handles during the session: list again and retry once.
             Err(e) if e.is_stale_handle() => {
                 self.handles.lock().unwrap().clear();
+                self.complete.lock().unwrap().clear();
                 let (storage, handle) = self.locate(path).await?;
                 let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-                storage.download_to_vec(handle).await.map_err(error)
+                self.queued(storage.download_to_vec(handle)).await.map_err(error)
             }
             r => r.map_err(error),
         }
@@ -223,7 +233,7 @@ impl Phone {
     pub async fn delete(&self, path: &str) -> Result<(), Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-        storage.delete(handle).await.map_err(error)?;
+        self.queued(storage.delete(handle)).await.map_err(error)?;
         // A folder takes the paths below it too.
         self.handles.lock().unwrap().retain(|p, _| !p.starts_with(path));
         Ok(())
@@ -235,8 +245,10 @@ impl Phone {
             return Ok(self.storages().await?.iter().map(|(n, _)| n.clone()).collect());
         }
         let (storage, handle) = self.locate(dir).await?;
-        let objects = storage.list_objects(handle).await.map_err(error)?;
+        let objects = self.queued(storage.list_objects(handle)).await.map_err(error)?;
         let mut handles = self.handles.lock().unwrap();
+        handles.retain(|p, _| !(p.starts_with(dir) && source::parent(p) == dir));
+        self.complete.lock().unwrap().insert(dir.to_string());
         Ok(objects
             .into_iter()
             .map(|o| {
@@ -258,16 +270,19 @@ impl Phone {
             Ok((_, None)) => ObjectHandle::ROOT,
             Err(_) => {
                 let (_, parent) = self.locate(&source::parent(to_dir)).await?;
-                let h = storage.create_folder(parent, source::name(to_dir)).await.map_err(error)?;
+                let h = self.queued(storage.create_folder(parent, source::name(to_dir))).await.map_err(error)?;
                 self.handles.lock().unwrap().insert(to_dir.to_string(), h);
                 h
             }
         };
         if new_name != source::name(path) {
-            storage.rename(handle, new_name).await.map_err(error)?;
+            self.queued(storage.rename(handle, new_name)).await.map_err(error)?;
         }
-        storage.move_object(handle, folder, None).await.map_err(error)?;
+        self.queued(storage.move_object(handle, folder, None)).await.map_err(error)?;
         self.handles.lock().unwrap().retain(|p, _| !p.starts_with(path));
+        let mut complete = self.complete.lock().unwrap();
+        complete.remove(to_dir);
+        complete.remove(&source::parent(path));
         Ok(())
     }
 
@@ -275,24 +290,26 @@ impl Phone {
     pub async fn rename(&self, path: &str, new_name: &str) -> Result<(), Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-        storage.rename(handle, new_name).await.map_err(error)?;
+        self.queued(storage.rename(handle, new_name)).await.map_err(error)?;
         // The folder's paths below it are stale too: the cache fills again at the next listing.
         self.handles.lock().unwrap().retain(|p, _| !p.starts_with(path));
+        self.complete.lock().unwrap().remove(&source::parent(path));
         Ok(())
     }
 
     pub async fn size(&self, path: &str) -> Result<u64, Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-        Ok(storage.get_object_info(handle).await.map_err(error)?.size)
+        Ok(self.queued(storage.get_object_info(handle)).await.map_err(error)?.size)
     }
 
     /// Everything below a folder, hidden items too, folders before what they contain: path and size
     /// (folders end in "/"). EyeCanSee's trash folders stay out.
     pub async fn walk(&self, dir: &str, counted: &AtomicUsize) -> Result<Vec<(String, u64)>, Error> {
         let (storage, handle) = self.locate(dir).await?;
-        let objects = storage.list_objects(handle).await.map_err(error)?;
+        let objects = self.queued(storage.list_objects(handle)).await.map_err(error)?;
         counted.fetch_add(objects.len(), Ordering::Relaxed);
+        self.complete.lock().unwrap().insert(dir.to_string());
         let mut found = Vec::new();
         for o in objects {
             let path = format!("{dir}{}{}", o.filename, if o.is_folder() { "/" } else { "" });
@@ -309,14 +326,24 @@ impl Phone {
         Ok(found)
     }
 
+    /// Is there an item at `path`? Lists its folder only the first time.
+    async fn taken(&self, path: &str) -> Result<bool, Error> {
+        let dir = source::parent(path);
+        if !self.complete.lock().unwrap().contains(&dir) {
+            self.names(&dir).await?;
+        }
+        Ok(self.handles.lock().unwrap().contains_key(path))
+    }
+
     /// Creates a folder whose parent exists; nothing if it is already there.
     pub async fn create_dir(&self, dir: &str) -> Result<(), Error> {
-        if self.locate(dir).await.is_ok() {
+        if self.taken(dir).await? {
             return Ok(());
         }
         let (storage, parent) = self.locate(&source::parent(dir)).await?;
-        let h = storage.create_folder(parent, source::name(dir)).await.map_err(error)?;
+        let h = self.queued(storage.create_folder(parent, source::name(dir))).await.map_err(error)?;
         self.handles.lock().unwrap().insert(dir.to_string(), h);
+        self.complete.lock().unwrap().insert(dir.to_string());
         Ok(())
     }
 
@@ -324,7 +351,39 @@ impl Phone {
     pub async fn download(&self, path: &str) -> Result<WindowedDownload, Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-        storage.download_windowed(handle, mtp_rs::mtp::ByteRange::Full, 4 << 20).await.map_err(error)
+        self.queued(storage.download_windowed(handle, mtp_rs::mtp::ByteRange::Full, 4 << 20)).await.map_err(error)
+    }
+
+    /// The next window of a `download`.
+    pub async fn next_window(&self, download: &mut WindowedDownload) -> Option<Result<Vec<u8>, Error>> {
+        self.queued(download.next_window()).await.map(|r| r.map_err(error))
+    }
+
+    /// Copies a file inside the phone, without passing through the computer (MTP `CopyObject`),
+    /// replacing an item with the same name.
+    pub async fn copy_inside(&self, path: &str, dest: &str) -> Result<(), Error> {
+        if self.taken(dest).await? {
+            self.delete(dest).await?;
+        }
+        let (storage, handle) = self.locate(path).await?;
+        let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
+        let dir = source::parent(dest);
+        let folder = match self.locate(&dir).await? {
+            (_, Some(h)) => h,
+            (_, None) => ObjectHandle::ROOT,
+        };
+        let h = self.queued(storage.copy_object(handle, folder, None)).await.map_err(error)?;
+        if source::name(dest) != source::name(path) {
+            self.queued(storage.rename(h, source::name(dest))).await.map_err(error)?;
+        }
+        self.handles.lock().unwrap().insert(dest.to_string(), h);
+        Ok(())
+    }
+
+    /// Runs one mtp-rs call in its turn (see `turn`).
+    async fn queued<T>(&self, call: impl std::future::Future<Output = T>) -> T {
+        let _turn = self.turn.lock().await;
+        call.await
     }
 
     /// Writes a file of `size` bytes from a stream, replacing one with the same name (MTP would
@@ -333,18 +392,18 @@ impl Phone {
     where
         S: futures_util::Stream<Item = Result<Bytes, std::io::Error>> + Unpin + Send,
     {
-        if self.locate(path).await.is_ok() {
+        if self.taken(path).await? {
             self.delete(path).await?;
         }
         let (storage, parent) = self.locate(&source::parent(path)).await?;
-        match storage.upload(parent, NewObjectInfo::file(source::name(path), size), data).await {
+        match self.queued(storage.upload(parent, NewObjectInfo::file(source::name(path), size), data)).await {
             Ok(h) => {
                 self.handles.lock().unwrap().insert(path.to_string(), h);
                 Ok(())
             }
             Err(e) => {
                 if let Some(h) = e.partial {
-                    let _ = storage.delete(h).await;
+                    let _ = self.queued(storage.delete(h)).await;
                 }
                 Err(error(e.source))
             }

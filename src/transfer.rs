@@ -38,6 +38,9 @@ pub struct Progress {
     pub files_total: AtomicUsize,
     /// Items found while looking inside the folders, before the copy starts.
     pub found: AtomicUsize,
+    /// Destination folders that got something new since the UI last looked: it reads them again,
+    /// so a copy shows up while it runs.
+    pub touched: Mutex<Vec<String>>,
     /// Seconds spent looking, for the log.
     pub looked: Mutex<f64>,
     /// Name of the file being copied.
@@ -135,11 +138,15 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
         for (from, dest, size) in list {
             if from.ends_with('/') {
                 to.create_dir(&dest).await?;
-                continue;
+            } else {
+                if p.cancel.load(Ordering::Relaxed) {
+                    return Err(("error-cancelled", String::new()));
+                }
+                *p.current.lock().unwrap() = name(&from).to_string();
+                copy_file(&clip.op, &from, to, &dest, size, p).await?;
+                p.files.fetch_add(1, Ordering::Relaxed);
             }
-            *p.current.lock().unwrap() = name(&from).to_string();
-            copy_file(&clip.op, &from, to, &dest, size, p).await?;
-            p.files.fetch_add(1, Ordering::Relaxed);
+            p.touched.lock().unwrap().push(parent(&dest));
         }
         // Moved between devices: the original goes only once all of it has been copied.
         if clip.cut {
@@ -151,6 +158,15 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
 }
 
 async fn copy_file(from: &Store, src: &str, to: &Store, dest: &str, size: u64, p: &Progress) -> Result<(), Error> {
+    // Inside the same phone: copied by the phone itself. Through the computer the upload would
+    // hold the phone while waiting for the download of the same file from it.
+    if let (Store::Mtp(a), Store::Mtp(b)) = (from, to)
+        && std::sync::Arc::ptr_eq(a, b)
+    {
+        a.copy_inside(src, dest).await?;
+        p.done.fetch_add(size, Ordering::Relaxed);
+        return Ok(());
+    }
     // A phone must receive a file whole: an upload broken off halfway left it answering nothing
     // ("operation timed out" for every listing, POCO X7 Pro, 2026-10-22). There Cancel waits for
     // the end of the file being copied, which stays.

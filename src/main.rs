@@ -239,6 +239,12 @@ struct App {
     paste_ask: Option<PasteAsk>,
     /// Copy running: progress, move, source (`base`) and folder where it goes.
     transfer: Option<(Arc<transfer::Progress>, bool, String, String)>,
+    /// When the folders filled by the copy were last read again.
+    touched_at: f64,
+    /// Items whose deletion is under way, for the status bar.
+    deleting: usize,
+    /// Window closed during a copy: it closes when the copy has stopped.
+    quit_after_transfer: bool,
     /// Rename in progress: name being written, path, first frame (focus and selection to set).
     rename: Option<(String, String, bool)>,
     /// Enter (true) or Esc (false) pressed while a confirmation is open (deletion, name taken).
@@ -309,6 +315,9 @@ impl App {
             clip: None,
             paste_ask: None,
             transfer: None,
+            touched_at: 0.0,
+            quit_after_transfer: false,
+            deleting: 0,
             about_icon: None,
             settings,
             reveal: true,
@@ -749,6 +758,8 @@ impl App {
                 Msg::Changed => self.changed_at = Some(ctx.input(|i| i.time) + 0.3),
                 Msg::Deleted(path, how, Ok(())) => {
                     log!("deleted {path:?}");
+                    // An emptied trash going away comes as one more: never below zero.
+                    self.deleting = self.deleting.saturating_sub(1);
                     self.remove_item(&path, how == source::Deletion::TrashFolder);
                 }
                 Msg::TrashItems(paths) => {
@@ -793,6 +804,9 @@ impl App {
                     self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
                 }
                 Msg::Pasted(gone, r) => {
+                    if self.quit_after_transfer {
+                        ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                    }
                     let Some((p, _, base, dir)) = self.transfer.take() else { continue };
                     log!(
                         "pasted: {} moved away, {r:?}; {} files, {} bytes, {:.1} s looking inside folders",
@@ -816,6 +830,8 @@ impl App {
                 }
                 Msg::Deleted(path, _, Err((id, detail))) => {
                     log!("delete {path:?}: ERROR {id} {detail}");
+                    // The loader stops at the first error: the others will not come.
+                    self.deleting = 0;
                     self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
                 }
                 Msg::Mounted(Ok(path)) => {
@@ -1129,6 +1145,21 @@ impl App {
 
     /// Progress of the copy, with Cancel; the window stays until the copy ends.
     fn transfer_window(&mut self, ctx: &egui::Context) {
+        let Some((p, _, base, _)) = &self.transfer else { return };
+        // Folders being filled, read again once a second if they are on screen (local ones update
+        // by themselves). After every file it was ten listings a second, slowing the copy down.
+        let now = ctx.input(|i| i.time);
+        if now - self.touched_at >= 1.0 {
+            self.touched_at = now;
+            let touched: HashSet<String> = p.touched.lock().unwrap().drain(..).collect();
+            if *base == self.base && self.base.contains("://") {
+                for dir in touched {
+                    if self.listings.contains_key(&dir) {
+                        self.relist(dir);
+                    }
+                }
+            }
+        }
         let Some((p, cut, _, _)) = &self.transfer else { return };
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
         let (done, total) = (p.done.load(Ordering::Relaxed), p.total.load(Ordering::Relaxed));
@@ -1162,6 +1193,11 @@ impl App {
     }
 
     fn ask_delete(&mut self, path: Option<String>, permanent: bool) {
+        // Not while a deletion runs: a click repeated while waiting landed on the next item
+        // (Download/Pipe, 2026-10-22).
+        if self.deleting > 0 {
+            return;
+        }
         let paths = self.chosen(path);
         let Some(path) = paths.first().cloned() else { return };
         let Some(loader) = &self.loader else { return };
@@ -1221,6 +1257,8 @@ impl App {
         match answer {
             Some(true) => {
                 if let Some(loader) = &self.loader {
+                    log!("delete confirmed: {} items", paths.len());
+                    self.deleting += paths.len();
                     loader.delete(paths, how);
                 }
                 self.marked.clear();
@@ -1753,6 +1791,11 @@ impl App {
         let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
         ui.horizontal(|ui| {
+            if self.deleting > 0 {
+                ui.spinner();
+                ui.label(self.i18n.t_args("status-deleting", &[("n", &self.deleting.to_string())]));
+                ui.separator();
+            }
             if let Some(clip) = &self.clip {
                 let (icon, id) = if clip.cut { (icons::Icon::Cut, "status-cut") } else { (icons::Icon::Copied, "status-copied") };
                 ui.add(icons::image(ui.ctx(), icon, 16.0));
@@ -1891,6 +1934,17 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
+        // Closing during a copy: it is cancelled, and the window closes once the file being copied
+        // is finished. Closed in the middle, a phone kept half an operation and the next session
+        // got its leftovers ("Transaction ID mismatch", until it was plugged in again).
+        if let Some((p, ..)) = &self.transfer
+            && ctx.input(|i| i.viewport().close_requested())
+        {
+            log!("close during a copy: cancelling it first");
+            p.cancel.store(true, Ordering::Relaxed);
+            self.quit_after_transfer = true;
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        }
         self.receive(&ctx);
         self.retry(&ctx);
         self.reread_changed(&ctx);

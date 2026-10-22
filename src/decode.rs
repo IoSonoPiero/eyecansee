@@ -300,10 +300,22 @@ fn extra(bytes: &[u8], name: &str) -> Result<DynamicImage> {
     Ok(match e.as_str() {
         "psd" => {
             // The composite image saved by Photoshop ("maximize compatibility"), not the layers.
+            // Without that option the composite can be blank (all white, with the only layer
+            // marked hidden: Regeneration.psd, 2016): then the layers are merged, all of them if
+            // none is visible. The result matched ImageMagick's pixel for pixel.
             // `psd` 0.3.5 panics on what it does not support (e.g. ZIP-compressed layers, some
             // channel layouts): an error instead, and on Linux ImageMagick takes over.
             let (w, h, rgba) = std::panic::catch_unwind(|| {
-                psd::Psd::from_bytes(bytes).map(|p| (p.width(), p.height(), p.rgba()))
+                psd::Psd::from_bytes(bytes).map(|p| {
+                    let mut rgba = p.rgba();
+                    if !p.layers().is_empty() && rgba.chunks(4).all(|c| c == &rgba[..4]) {
+                        let any_visible = p.layers().iter().any(|l| l.visible());
+                        if let Ok(merged) = p.flatten_layers_rgba(&|(_, l)| l.visible() || !any_visible) {
+                            rgba = merged;
+                        }
+                    }
+                    (p.width(), p.height(), rgba)
+                })
             })
             .map_err(|_| "PSD: unsupported variant")??;
             DynamicImage::ImageRgba8(RgbaImage::from_raw(w, h, rgba).ok_or("PSD: buffer")?)
