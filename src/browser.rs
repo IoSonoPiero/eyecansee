@@ -8,6 +8,7 @@ use eframe::egui::{
 use std::collections::HashSet;
 
 use crate::devices::Device;
+use crate::icons::{self, Icon};
 use crate::meta::Group;
 use crate::{Act, App, Focus, Go};
 use crate::source;
@@ -18,6 +19,8 @@ const MARGIN_ROWS: usize = 3;
 /// distant ones are reloaded from disk and disappear for a moment. At most 256×256 RGBA, so
 /// about 250 MB in the worst case; a smaller folder stays entirely in memory.
 const MAX_THUMBS: usize = 1000;
+/// Side of the icons in the left panel, in points.
+const TREE_ICON: f32 = 16.0;
 
 /// Selection colour: full in the part receiving the keyboard, faint in the other, so the two
 /// selections (folder open on the left, item on the right) do not look in conflict.
@@ -109,12 +112,17 @@ pub(crate) fn error_text(ui: &Ui, text: impl Into<String>) -> egui::RichText {
 }
 
 /// Item without an arrow, aligned with the tree nodes that have one.
-fn leaf(ui: &mut Ui, text: impl Into<egui::WidgetText>) -> egui::Response {
+fn leaf(ui: &mut Ui, icon: Icon, text: impl Into<egui::WidgetText>) -> egui::Response {
     ui.horizontal(|ui| {
         ui.add_space(ui.spacing().icon_width);
-        ui.selectable_label(false, text)
+        ui.selectable_label(false, (icons::image(ui.ctx(), icon, TREE_ICON), text.into()))
     })
     .inner
+}
+
+/// Title of a block of the left panel: small grey capitals, so it does not look like an item.
+fn block_title(ui: &mut Ui, text: &str) {
+    ui.label(egui::RichText::new(text.to_uppercase()).size(11.0).strong().color(ui.visuals().weak_text_color()));
 }
 
 impl App {
@@ -308,7 +316,7 @@ impl App {
         let (mut internal, external): (Vec<_>, Vec<_>) = self.devices.iter().cloned().partition(|d| d.internal);
         internal.sort_by(|a, b| a.path.cmp(&b.path));
         if !external.is_empty() {
-            ui.strong(self.i18n.t("devices"));
+            block_title(ui, &self.i18n.t("devices"));
             // At most half of the panel, the rest goes to the computer's tree.
             let max = ui.available_height() * 0.5;
             ScrollArea::both().id_salt("devices").max_height(max).auto_shrink([false, true]).show(ui, |ui| {
@@ -316,20 +324,20 @@ impl App {
                 // the tree; otherwise a click opens the device as a source (also the directly
                 // connected ones, `mtp://`), and from there it is browsed here.
                 for (i, d) in external.iter().enumerate() {
-                    let icon = if d.phone { "📱" } else { "🖴" };
-                    let label = format!("{icon} {}", d.name);
+                    let icon = if d.phone { Icon::Phone } else { Icon::Disk };
+                    let label = d.name.clone();
                     let (rect, clicked) = if let Some(block) = &d.block {
                         // Not mounted: dimmed name, a click mounts it.
                         let hint = self.i18n.t_args("device-mount-hint", &[("device", block)]);
-                        let r = leaf(ui, egui::RichText::new(label).weak()).on_hover_text(hint);
+                        let r = leaf(ui, icon, egui::RichText::new(label).weak()).on_hover_text(hint);
                         (r.rect, r.clicked())
                     } else if d.path == self.base {
-                        self.tree_node(ui, "device", String::new(), &label, true)
+                        self.tree_node(ui, "device", String::new(), icon, &label, true)
                     } else if local && d.path.starts_with('/') {
                         let dir = d.path.trim_start_matches('/').to_string();
-                        self.tree_node(ui, "device", dir, &label, true)
+                        self.tree_node(ui, "device", dir, icon, &label, true)
                     } else {
-                        let r = leaf(ui, label);
+                        let r = leaf(ui, icon, label);
                         (r.rect, r.clicked())
                     };
                     if clicked {
@@ -359,7 +367,7 @@ impl App {
         let device_open = external.iter().any(|d| d.path == self.base);
         if device_open || self.base.starts_with("mtp://") {
             let home = std::env::home_dir().map_or("/".into(), |h| h.to_string_lossy().into_owned());
-            if ui.selectable_label(false, format!("🏠 {home}")).clicked() {
+            if ui.selectable_label(false, (icons::image(ui.ctx(), Icon::Home, TREE_ICON), home.as_str())).clicked() {
                 let ctx = ui.ctx().clone();
                 self.open_source(&ctx, &home);
             }
@@ -373,17 +381,18 @@ impl App {
             && self.devices.iter().any(|d| d.path.starts_with('/') && self.dir.starts_with(d.path.trim_start_matches('/')));
         let base = self.base.clone();
         if !base.contains("://") {
-            ui.strong(self.i18n.t("this-computer"));
+            block_title(ui, &self.i18n.t("this-computer"));
         }
         ScrollArea::both().id_salt("tree").auto_shrink(false).show(ui, |ui| {
             // Tree of the open source; the other internal drives open with a click.
             if !internal.iter().any(|d| d.path == base) {
-                self.tree_node(ui, "tree", String::new(), &format!("🗀 {base}"), !in_device);
+                let icon = if base.starts_with("mtp://") { Icon::Phone } else { Icon::Folder };
+                self.tree_node(ui, "tree", String::new(), icon, &base, !in_device);
             }
             for d in &internal {
                 if d.path == base {
-                    self.tree_node(ui, "tree", String::new(), &format!("🖴 {}", d.name), !in_device);
-                } else if leaf(ui, format!("🖴 {}", d.name)).clicked() {
+                    self.tree_node(ui, "tree", String::new(), Icon::InternalDisk, &d.name, !in_device);
+                } else if leaf(ui, Icon::InternalDisk, d.name.as_str()).clicked() {
                     let ctx = ui.ctx().clone();
                     self.open_source(&ctx, &d.path);
                 }
@@ -394,7 +403,7 @@ impl App {
     /// `salt` tells apart the same path shown in two blocks (devices and tree).
     /// `may_reveal`: this block may open by itself down to the current folder.
     /// Returns the rectangle of the name and whether it was clicked.
-    fn tree_node(&mut self, ui: &mut Ui, salt: &str, dir: String, label: &str, may_reveal: bool) -> (Rect, bool) {
+    fn tree_node(&mut self, ui: &mut Ui, salt: &str, dir: String, icon: Icon, label: &str, may_reveal: bool) -> (Rect, bool) {
         let id = ui.make_persistent_id((salt, &dir));
         self.tree_rows.push((id, dir.clone()));
         let on_path = self.dir.starts_with(&dir);
@@ -412,8 +421,14 @@ impl App {
         let mut clicked = false;
         let mut rect = Rect::NOTHING;
         let header = state.show_header(ui, |ui| {
-            ui.visuals_mut().selection.bg_fill = selection_fill(ui, self.focus == Focus::Tree);
-            let response = ui.selectable_label(selected, label);
+            // In the part receiving the keyboard: solid blue with white text; elsewhere faint.
+            if self.focus == Focus::Tree {
+                ui.visuals_mut().selection.bg_fill = crate::theme::solid(ui.visuals());
+                ui.visuals_mut().selection.stroke.color = Color32::WHITE;
+            } else {
+                ui.visuals_mut().selection.bg_fill = selection_fill(ui, false);
+            }
+            let response = ui.selectable_label(selected, (icons::image(ui.ctx(), icon, TREE_ICON), label));
             rect = response.rect;
             if reveal && selected {
                 response.scroll_to_me(Some(egui::Align::Center));
@@ -433,9 +448,8 @@ impl App {
         header.body(|ui| match self.listings.get(&dir) {
             Some(Ok(listing)) => {
                 for child in listing.dirs.clone() {
-                    let icon = if source::is_trash(&child) { "🗑" } else { "🗀" };
-                    let label = format!("{icon} {}", self.item_name(&child));
-                    self.tree_node(ui, salt, child, &label, may_reveal);
+                    let label = self.item_name(&child);
+                    self.tree_node(ui, salt, child, Icon::Folder, &label, may_reveal);
                 }
             }
             Some(Err(e)) => {
@@ -743,13 +757,15 @@ impl App {
         }
         let t = |id| self.i18n.t(id);
         let mut act = None;
-        egui::Frame::group(ui.style()).fill(ui.visuals().faint_bg_color).show(ui, |ui| {
+        let [fill, stroke, text, button] = crate::theme::strip(ui.visuals());
+        let frame = egui::Frame::group(ui.style()).fill(fill).stroke(egui::Stroke::new(1.0, stroke)).inner_margin(egui::Margin::symmetric(10, 6));
+        frame.show(ui, |ui| {
             // Buttons with their border always shown: without it they looked like plain text.
-            let border = egui::Stroke::new(1.0, ui.visuals().weak_text_color());
-            ui.visuals_mut().widgets.inactive.bg_stroke = border;
-            ui.visuals_mut().widgets.hovered.bg_stroke = egui::Stroke::new(1.0, ui.visuals().text_color());
+            ui.visuals_mut().override_text_color = Some(text);
+            ui.visuals_mut().widgets.inactive.bg_stroke = egui::Stroke::new(1.0, button);
+            ui.visuals_mut().widgets.hovered.bg_stroke = egui::Stroke::new(1.5, button);
             ui.horizontal(|ui| {
-                ui.label(egui::RichText::new("🗑").size(18.0));
+                ui.add(icons::image(ui.ctx(), Icon::Trash, 20.0));
                 if inside {
                     let folder = source::parent(&self.dir);
                     let name = if folder.is_empty() { self.base.clone() } else { source::name(&folder).to_string() };
@@ -792,7 +808,7 @@ impl App {
         }
         let side = self.thumb_size;
         let thumb_rect = Rect::from_min_size(pos2(rect.center().x - side / 2.0, rect.min.y + 6.0), vec2(side, side));
-        painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "⬆", FontId::proportional(side * 0.4), visuals.weak_text_color());
+        icons::paint(&painter, Icon::Up, Rect::from_center_size(thumb_rect.center(), vec2(side, side) * 0.45));
         let label_rect = Rect::from_min_size(pos2(rect.min.x + 4.0, thumb_rect.max.y + 7.0), vec2(rect.width() - 8.0, 18.0));
         ui.put(label_rect, Label::new(egui::RichText::new("..").color(visuals.text_color())).selectable(false));
         if response.clicked() || response.secondary_clicked() {
@@ -821,7 +837,8 @@ impl App {
         let fill = selection_fill(ui, active);
         let visuals = ui.visuals();
         let selected = self.cursor && i == self.selected;
-        if selected {
+        // A selected folder fills its cell; a selected image colours its tile instead.
+        if selected && i < ndirs {
             painter.rect_filled(rect.shrink(2.0), 6.0, fill);
         } else if response.hovered() {
             painter.rect_filled(rect.shrink(2.0), 6.0, visuals.widgets.hovered.weak_bg_fill);
@@ -830,18 +847,18 @@ impl App {
         // Centred: cells widen to fill the row.
         let thumb_rect = Rect::from_min_size(pos2(rect.center().x - side / 2.0, rect.min.y + 6.0), vec2(side, side));
         let dim = visuals.weak_text_color();
+        let accent = crate::theme::accent(visuals);
         if i < ndirs {
-            let icon = if source::is_trash(&path) { "🗑" } else { "🗀" };
-            painter.text(thumb_rect.center(), Align2::CENTER_CENTER, icon, FontId::proportional(side * 0.5), dim);
+            icons::paint(&painter, Icon::Folder, Rect::from_center_size(thumb_rect.center(), vec2(side, side) * 0.7));
         } else {
             // Every image in its own tile, so you can see where one photo ends and the next begins
-            // (not folders: they stay recognisable at a glance). Selected: solid border.
+            // (not folders: they stay recognisable at a glance). Selected: thick border, tinted tile.
             let (tile, tile_stroke) = crate::theme::tile(visuals);
-            let accent = crate::theme::accent(visuals);
-            let stroke = match (selected, active) {
-                (true, true) => egui::Stroke::new(2.0, accent),
-                (true, false) => egui::Stroke::new(1.5, accent.gamma_multiply(0.6)),
-                _ => egui::Stroke::new(1.0, tile_stroke),
+            let tinted = crate::theme::tile_selected(visuals);
+            let (tile, stroke) = match (selected, active) {
+                (true, true) => (tinted, egui::Stroke::new(3.0, accent)),
+                (true, false) => (tinted, egui::Stroke::new(2.0, accent.gamma_multiply(0.6))),
+                _ => (tile, egui::Stroke::new(1.0, tile_stroke)),
             };
             painter.rect(thumb_rect.expand(4.0), 6.0, tile, stroke, egui::StrokeKind::Inside);
             match self.thumbs.get(&(i - ndirs)) {
@@ -864,7 +881,11 @@ impl App {
         let label_rect = Rect::from_min_size(pos2(rect.min.x + 4.0, thumb_rect.max.y + 7.0), vec2(rect.width() - 8.0, 18.0));
         // Image names brighter than folder names (they used to be all grey on grey).
         let color = if i < ndirs { visuals.text_color() } else { visuals.text_color().lerp_to_gamma(visuals.strong_text_color(), 0.6) };
-        ui.put(label_rect, Label::new(egui::RichText::new(name).color(color)).truncate().selectable(false));
+        let mut text = egui::RichText::new(name).color(color);
+        if selected && i >= ndirs {
+            text = text.color(accent).strong();
+        }
+        ui.put(label_rect, Label::new(text).truncate().selectable(false));
 
         if response.clicked() {
             self.selected = i;

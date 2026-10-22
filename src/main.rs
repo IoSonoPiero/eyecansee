@@ -25,6 +25,7 @@ mod browser;
 mod decode;
 mod devices;
 mod i18n;
+mod icons;
 mod loader;
 mod meta;
 mod mtp;
@@ -1343,25 +1344,28 @@ impl App {
     }
 
     fn toolbar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        // Coloured icons in square buttons with a border (style "B").
+        let icon = |icon| egui::Button::image(icons::image(ctx, icon, 18.0)).min_size(egui::vec2(32.0, 28.0));
         ui.horizontal(|ui| {
             if self.viewing.is_some() {
-                if ui.button("⊞").on_hover_text(self.i18n.t("menu-back-to-grid")).clicked() {
+                if ui.add(icon(icons::Icon::Grid)).on_hover_text(self.i18n.t("menu-back-to-grid")).clicked() {
                     self.close_viewer();
                 }
             } else if ui
-                .add_enabled(!self.dir.is_empty(), egui::Button::new("⬆"))
+                .add_enabled(!self.dir.is_empty(), icon(icons::Icon::UpButton))
                 .on_hover_text(self.i18n.t("tb-up"))
                 .clicked()
             {
                 self.go_up();
             }
-            if ui.button("⟳").on_hover_text(self.i18n.t("menu-refresh")).clicked() {
+            if ui.add(icon(icons::Icon::Refresh)).on_hover_text(self.i18n.t("menu-refresh")).clicked() {
                 self.refresh();
             }
             // Metadata: closes all the boxes if one is open, otherwise reopens them all.
             if self.viewing.is_none() {
                 let any = meta::Group::ALL.into_iter().any(|g| self.meta_shown(g));
-                if ui.selectable_label(any, "ℹ").on_hover_text(self.i18n.t("tb-meta")).clicked() {
+                let button = egui::Button::selectable(any, icons::image(ctx, icons::Icon::Info, 18.0)).min_size(egui::vec2(32.0, 28.0));
+                if ui.add(button).on_hover_text(self.i18n.t("tb-meta")).clicked() {
                     for g in meta::Group::ALL {
                         self.show_meta(g, !any);
                     }
@@ -1447,8 +1451,10 @@ impl App {
     }
 
     /// How many folders and images there are, and name and size of the selected item.
+    /// On the solid accent colour (style "B"), all in white.
     fn status_bar(&self, ui: &mut egui::Ui) {
         let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
+        ui.visuals_mut().override_text_color = Some(Color32::WHITE);
         ui.horizontal(|ui| {
             ui.label(self.i18n.t_args("status-folders", &[("n", &l.dirs.len().to_string())]));
             ui.label(self.i18n.t_args("status-images", &[("n", &l.files.len().to_string())]));
@@ -1459,9 +1465,9 @@ impl App {
             match self.selected.checked_sub(l.dirs.len()).and_then(|i| l.files.get(i)) {
                 Some(f) => {
                     ui.label(source::name(&f.path));
-                    ui.weak(self.human_size(f.size));
+                    ui.label(self.human_size(f.size));
                     if let Some(date) = self.file_date(&f.modified) {
-                        ui.weak(date);
+                        ui.label(date);
                     }
                 }
                 None => {
@@ -1593,7 +1599,8 @@ impl eframe::App for App {
                     .show(ui, |ui| self.viewer(ui, current));
             }
             None => {
-                egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
+                let bar = egui::Frame::side_top_panel(ui.style()).fill(theme::solid(ui.visuals()));
+                egui::Panel::bottom("status").frame(bar).show(ui, |ui| self.status_bar(ui));
                 if meta::Group::ALL.into_iter().any(|g| self.meta_shown(g)) {
                     egui::Panel::bottom("meta").show(ui, |ui| self.meta_panel(ui));
                 }

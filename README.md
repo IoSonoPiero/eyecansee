@@ -35,7 +35,7 @@ Mature viewers like XnView, IrfanView or digiKam do much more than EyeCanSee, an
 - Rename images and folders.
 
 **Interface**
-- English and Italian, light and dark theme, built-in manual (F1).
+- Coloured icons, English and Italian, light and dark theme, built-in manual (F1).
 
 ### Formats
 
