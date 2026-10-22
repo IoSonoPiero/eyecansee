@@ -33,6 +33,7 @@ Mature viewers like XnView, IrfanView or digiKam do much more than EyeCanSee, an
 **Managing files**
 - Delete images and folders, with a trash on every device: restore what you deleted, or empty it.
 - Rename images and folders.
+- Right-click menus on images, folders and the open image.
 
 **Interface**
 - Coloured icons, English and Italian, light and dark theme, built-in manual (F1).
@@ -47,7 +48,7 @@ The full list of features, keys and limits is in the manual: [English](docs/manu
 
 ## Download
 
-- **Windows**: download the zip from the most recent [release](https://github.com/IoSonoPiero/eyecansee/releases) that has one (the Windows build sometimes follows a few days later), extract it anywhere and run `eyecansee.exe`. No installation needed. The program is not signed, so Windows may warn you the first time: click **More info**, then **Run anyway**.
+- **Windows**: download the zip from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), extract it anywhere and run `eyecansee.exe`. No installation needed. The program is not signed, so Windows may warn you the first time: click **More info**, then **Run anyway**.
 - **Fedora** (43 and later): install it from the [COPR repository](https://copr.fedorainfracloud.org/coprs/iosonopiero/eyecansee/), and updates arrive with the system ones:
   ```bash
   sudo dnf copr enable iosonopiero/eyecansee
