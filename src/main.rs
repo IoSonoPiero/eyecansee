@@ -96,6 +96,7 @@ pub(crate) enum Act {
     Go(Go),
     Up,
     Manual,
+    About,
     Meta(meta::Group),
     Sort(settings::SortBy),
     SortDesc,
@@ -190,6 +191,9 @@ struct App {
     error: Option<String>,
     title: String,
     help: bool,
+    about: bool,
+    /// App icon for the About window, made the first time it opens.
+    about_icon: Option<TextureHandle>,
     help_cache: CommonMarkCache,
     settings: Settings,
     devices: Vec<devices::Device>,
@@ -275,6 +279,8 @@ impl App {
             title: String::new(),
             help: false,
             help_cache: CommonMarkCache::default(),
+            about: false,
+            about_icon: None,
             settings,
             reveal: true,
             // Straight away, not only from the thread: the fallback already needs it if the first address is a busy mtp://.
@@ -1313,13 +1319,15 @@ impl App {
         let viewing = self.viewing.is_some();
         let has_items = self.items() > 0;
         let can_go_up = !viewing && !self.dir.is_empty();
-        let mut act = None;
+        // A Cell: the plain items, the radio buttons and the check boxes all record into it.
+        let act = std::cell::Cell::new(None);
+        let pick = |r: egui::Response, a: Act| {
+            if r.clicked() {
+                act.set(Some(a));
+            }
+        };
         egui::MenuBar::new().ui(ui, |ui| {
-            let mut entry = |ui: &mut egui::Ui, enabled: bool, button: egui::Button, a: Act| {
-                if ui.add_enabled(enabled, button).clicked() {
-                    act = Some(a);
-                }
-            };
+            let entry = |ui: &mut egui::Ui, enabled: bool, button: egui::Button, a: Act| pick(ui.add_enabled(enabled, button), a);
             ui.menu_button(t("menu-file"), |ui| {
                 entry(ui, true, egui::Button::new(t("menu-open-location")), Act::Address);
                 entry(ui, true, egui::Button::new(t("menu-options")), Act::Options);
@@ -1337,17 +1345,21 @@ impl App {
                 ui.separator();
                 entry(ui, true, item(t("menu-refresh"), "F5".into()), Act::Refresh);
                 ui.separator();
-                ui.weak(t("sort-by"));
-                for by in settings::SortBy::ALL {
-                    let current = self.settings.sort_by == by;
-                    entry(ui, true, egui::Button::selectable(current, t(by.label())), Act::Sort(by));
-                }
-                entry(ui, true, egui::Button::selectable(self.settings.sort_desc, t("sort-desc")), Act::SortDesc);
-                ui.separator();
-                for g in meta::Group::ALL {
-                    let label = self.i18n.t(&format!("meta-{}", g.key()));
-                    entry(ui, !viewing, egui::Button::selectable(self.meta_shown(g), label), Act::Meta(g));
-                }
+                ui.menu_button(t("sort-by"), |ui| {
+                    for by in settings::SortBy::ALL {
+                        pick(ui.radio(self.settings.sort_by == by, t(by.label())), Act::Sort(by));
+                    }
+                    ui.separator();
+                    pick(ui.checkbox(&mut self.settings.sort_desc.clone(), t("sort-desc")), Act::SortDesc);
+                });
+                ui.add_enabled_ui(!viewing, |ui| {
+                    ui.menu_button(t("menu-meta"), |ui| {
+                        for g in meta::Group::ALL {
+                            let label = self.i18n.t(&format!("meta-{}", g.key()));
+                            pick(ui.checkbox(&mut self.meta_shown(g), label), Act::Meta(g));
+                        }
+                    });
+                });
             });
             ui.menu_button(t("menu-go"), |ui| {
                 entry(ui, has_items, item(t("menu-next"), "→".into()), Act::Go(Go::Next));
@@ -1359,12 +1371,14 @@ impl App {
             });
             ui.menu_button(t("menu-help"), |ui| {
                 entry(ui, true, item(t("menu-manual"), "F1".into()), Act::Manual);
+                ui.separator();
+                entry(ui, true, egui::Button::new(t("menu-about")), Act::About);
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.weak(format!("EyeCanSee {}", version()));
             });
         });
-        if let Some(a) = act {
+        if let Some(a) = act.take() {
             self.run(ui.ctx(), a);
         }
     }
@@ -1386,10 +1400,40 @@ impl App {
             Act::Go(to) => self.go(to),
             Act::Up => self.go_up(),
             Act::Manual => self.help = true,
+            Act::About => self.about = true,
             Act::Meta(g) => self.show_meta(g, !self.meta_shown(g)),
             Act::Sort(by) => self.set_sort(by, self.settings.sort_desc),
             Act::SortDesc => self.set_sort(self.settings.sort_by, !self.settings.sort_desc),
         }
+    }
+
+    fn about_window(&mut self, ctx: &egui::Context) {
+        let mut open = self.about;
+        let icon = self.about_icon.get_or_insert_with(|| {
+            let img = decode::app_icon(96).unwrap_or_default();
+            ctx.load_texture("about-icon", decode::to_color_image(img.into()), TextureOptions::LINEAR)
+        });
+        let t = |id| self.i18n.t(id);
+        egui::Window::new(t("menu-about"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+            .show(ctx, |ui| {
+                ui.vertical_centered(|ui| {
+                    ui.image((icon.id(), egui::vec2(96.0, 96.0)));
+                    ui.heading(format!("EyeCanSee {}", version()));
+                    ui.label(t("about-tagline"));
+                    ui.add_space(8.0);
+                    ui.label("© 2026 Pierluigi Montinaro");
+                    ui.label(t("about-license"));
+                    ui.hyperlink_to(t("about-license-link"), "https://www.gnu.org/licenses/gpl-3.0.html");
+                    ui.hyperlink_to(t("about-source"), env!("CARGO_PKG_REPOSITORY"));
+                    ui.add_space(8.0);
+                    ui.weak(t("about-third-party"));
+                });
+            });
+        self.about = open;
     }
 
     fn toolbar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
@@ -1681,6 +1725,7 @@ impl eframe::App for App {
                 });
             });
         self.help = open;
+        self.about_window(&ctx);
         self.options_window(&ctx);
         if let Some(a) = self.act.take() {
             self.run(&ctx, a);
