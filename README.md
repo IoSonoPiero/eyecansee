@@ -17,31 +17,25 @@ Mature viewers like XnView, IrfanView or digiKam do much more than EyeCanSee, an
 ## What it does today
 
 **Browsing**
-- Folder tree on the left and a grid of thumbnails on the right, in the style of XnView.
-- Thumbnails are saved on disk, so a folder opens immediately the second time.
-- Sorting by name, date, size or type.
-- Folders on the computer update by themselves when files are added, deleted or renamed by another program.
+- Folders on the left, thumbnails on the right.
+- Folders open instantly the second time.
+- Sort by name, date, size or type.
+- Folders on the computer update by themselves when files change.
 
 **Viewing**
-- Images full window, moving to the next and previous one with the keyboard; the images around the current one are loaded in advance.
-- EXIF metadata of the selected photo: camera, exposure, date, GPS position with a link to OpenStreetMap.
+- Full-window images, next and previous with the keyboard, no waiting.
+- Photo details: camera, exposure, date, place on the map.
 
 **Devices**
-- Phones and cameras connected via USB (Android, in "File transfer" or "Transfer photos" mode) are opened directly, without the file manager. Tested with a Xiaomi POCO X7 Pro on Fedora and on Windows 11.
-- External disks, USB sticks and SD cards appear by themselves when connected.
+- Phones and cameras open directly over USB.
+- External disks, USB sticks and SD cards appear by themselves.
 
 **Managing files**
-- Delete images and folders, after a confirmation. On the computer they go to the system trash; Shift+Del deletes for good.
-- Phones and servers have no trash: deleted items go to a hidden trash folder next to them, which EyeCanSee shows as **Trash**, where they can be restored or deleted for good.
-- Rename images and folders (F2).
-- A right-click menu on images, folders and the empty space of the grid.
+- Delete images and folders, with a trash on every device: restore what you deleted, or empty it.
+- Rename images and folders.
 
 **Interface**
 - English and Italian, light and dark theme, built-in manual (F1).
-- Options grouped in tabs.
-- Only one EyeCanSee at a time: opening another image hands it to the window already open.
-
-Deleting, renaming, the trash and the right-click menu are new and so far tested on Linux only.
 
 ### Formats
 
