@@ -467,6 +467,13 @@ impl App {
             if !self.dir.is_empty() {
                 items.push(Some((t("menu-parent"), t("key-backspace"), Act::Up)));
             }
+            // Inside the trash: what its own right-click menu offered when it was a cell.
+            if source::is_trash(&self.dir) {
+                let dir = Some(self.dir.clone());
+                items.push(None);
+                items.push(Some((t("menu-restore-all"), String::new(), Act::Restore(dir.clone()))));
+                items.push(Some((t("menu-empty-trash"), String::new(), Act::Delete(dir, true))));
+            }
             if let Some(a) = context_menu(ui, items) {
                 self.act = Some(a);
             }
@@ -474,6 +481,7 @@ impl App {
         if self.focus == Focus::Grid {
             focus_frame(ui);
         }
+        self.trash_bar(ui);
         let Some(Ok(listing)) = self.listings.get(&self.dir) else {
             ui.centered_and_justified(|ui| match self.listings.get(&self.dir) {
                 Some(Err(e)) => ui.label(error_text(ui, e.as_str()).size(16.0)),
@@ -483,35 +491,35 @@ impl App {
         };
         let (ndirs, nfiles) = (listing.dirs.len(), listing.files.len());
         let n = ndirs + nfiles;
-        if n == 0 {
+        // First cell "..", to go up with the mouse too; not at the root, where there is no up.
+        let up = usize::from(!self.dir.is_empty());
+        if n == 0 && up == 0 {
             let text = match self.phone_root(&self.dir) {
                 Some(d) => error_text(ui, self.i18n.t_args("error-no-storage", &[("detail", &d.name)])).size(16.0),
                 None => egui::RichText::new(self.i18n.t("folder-empty")),
             };
             ui.centered_and_justified(|ui| ui.label(text));
-            // Backspace goes up from an empty folder too.
-            if self.focus == Focus::Grid && !ui.ctx().egui_wants_keyboard_input() && ui.input(|i| i.key_pressed(Key::Backspace)) {
-                self.go_up();
-            }
             return;
         }
+        let total = n + up;
 
-        let side = self.thumb_size;
-        let cell = vec2(side + 16.0, side + 32.0);
-        let cols = ((ui.available_width() / cell.x).floor() as usize).max(1);
-        let rows = n.div_ceil(cols);
-
-        let mut visible_rows = 0..0;
-        // Double click and keys (Enter, Backspace) run once the grid is finished: changing folder
-        // before or during drawing, the cells would read the new listing with the old counts
-        // (crash of 2026-10-20 when re-entering a folder already visited).
-        let mut open = None;
         // Bar always visible and wide: the thin one that widens on hover was hard to grab. If
         // egui loses the drag (see `BarDrag`), `bar_offset` continues it.
         // Handle grey like the weak text, darker under the mouse: with the button colour it was
         // barely distinguishable from the light background.
         let mut scroll = egui::style::ScrollStyle::solid();
         scroll.bar_width = 10.0;
+        let side = self.thumb_size;
+        let cell = vec2(side + 16.0, side + 32.0);
+        let cols = (((ui.available_width() - scroll.allocated_width()) / cell.x).floor() as usize).max(1);
+        let rows = total.div_ceil(cols);
+
+        let mut visible_rows = 0..0;
+        // Double click and keys (Enter, Backspace) run once the grid is finished: changing folder
+        // before or during drawing, the cells would read the new listing with the old counts
+        // (crash of 2026-10-20 when re-entering a folder already visited).
+        let mut open = None;
+        let mut go_up = false;
         ui.spacing_mut().scroll = scroll;
         let (weak, strong, selection) = (ui.visuals().weak_text_color(), ui.visuals().text_color(), ui.visuals().selection.bg_fill);
         let widgets = &mut ui.visuals_mut().widgets;
@@ -533,29 +541,41 @@ impl App {
         let out = area.show_viewport(ui, |ui, viewport| {
             let origin = ui.max_rect().min;
             ui.set_height(rows as f32 * cell.y);
-            let cell_rect = |i: usize| {
-                let pos = origin + vec2((i % cols) as f32 * cell.x, (i / cols) as f32 * cell.y);
-                Rect::from_min_size(pos, cell)
+            // The width left over is shared among the columns: it used to stay as a gap on the right.
+            let width = (ui.max_rect().width() / cols as f32).max(cell.x);
+            // `p`: position in the grid, the ".." cell included.
+            let cell_rect = |p: usize| {
+                let pos = origin + vec2((p % cols) as f32 * width, (p / cols) as f32 * cell.y);
+                Rect::from_min_size(pos, vec2(width, cell.y))
             };
             let first = (viewport.min.y / cell.y).floor().max(0.0) as usize;
             let last = ((viewport.max.y / cell.y).ceil() as usize).min(rows);
             visible_rows = first..last;
-            for i in first * cols..(last * cols).min(n) {
-                if self.grid_cell(ui, cell_rect(i), i, ndirs) {
-                    open = Some(i);
+            for p in first * cols..(last * cols).min(total) {
+                if p < up {
+                    go_up |= self.up_cell(ui, cell_rect(p));
+                } else if self.grid_cell(ui, cell_rect(p), p - up, ndirs) {
+                    open = Some(p - up);
                 }
             }
             if std::mem::take(&mut self.scroll_to_selected) {
-                ui.scroll_to_rect(cell_rect(self.selected), None);
+                let p = if self.cursor { self.selected + up } else { 0 };
+                ui.scroll_to_rect(cell_rect(p), None);
             }
         });
+        if n == 0 {
+            let font = egui::TextStyle::Body.resolve(ui.style());
+            ui.painter().text(out.inner_rect.center(), Align2::CENTER_CENTER, self.i18n.t("folder-empty"), font, ui.visuals().text_color());
+        }
         self.grid_rect = Some(out.inner_rect);
         self.track_bar(ui, out.inner_rect, content, out.state.clamped_offset().y);
-        self.prefetch_thumbs(visible_rows, cols, ndirs, nfiles);
-        if let Some(i) = open {
+        self.prefetch_thumbs(visible_rows, cols, up, ndirs, nfiles);
+        if go_up {
+            self.go_up();
+        } else if let Some(i) = open {
             self.activate(i);
         } else if self.focus == Focus::Grid {
-            self.grid_keys(ui.ctx(), cols, n);
+            self.grid_keys(ui.ctx(), cols, n, up);
         }
     }
 
@@ -709,6 +729,86 @@ impl App {
         formatted.unwrap_or_else(|| value.to_string())
     }
 
+    /// Strip at the top of the grid, only where there is a trash: in a folder that has one, the
+    /// button to open it; inside a trash, whose it is and the actions on all of it. The buttons
+    /// run at the end of the frame (`App::act`).
+    fn trash_bar(&mut self, ui: &mut Ui) {
+        let inside = source::is_trash(&self.dir);
+        let trash = match self.listings.get(&self.dir) {
+            Some(Ok(l)) => l.trash.clone(),
+            _ => None,
+        };
+        if trash.is_none() && !inside {
+            return;
+        }
+        let t = |id| self.i18n.t(id);
+        let mut act = None;
+        egui::Frame::group(ui.style()).fill(ui.visuals().faint_bg_color).show(ui, |ui| {
+            // Buttons with their border always shown: without it they looked like plain text.
+            let border = egui::Stroke::new(1.0, ui.visuals().weak_text_color());
+            ui.visuals_mut().widgets.inactive.bg_stroke = border;
+            ui.visuals_mut().widgets.hovered.bg_stroke = egui::Stroke::new(1.0, ui.visuals().text_color());
+            ui.horizontal(|ui| {
+                ui.label(egui::RichText::new("🗑").size(18.0));
+                if inside {
+                    let folder = source::parent(&self.dir);
+                    let name = if folder.is_empty() { self.base.clone() } else { source::name(&folder).to_string() };
+                    ui.label(self.i18n.t_args("trash-bar-inside", &[("folder", &name)]));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let dir = Some(self.dir.clone());
+                        if ui.button(t("menu-empty-trash")).clicked() {
+                            act = Some(Act::Delete(dir.clone(), true));
+                        }
+                        if ui.button(t("menu-restore-all")).clicked() {
+                            act = Some(Act::Restore(dir));
+                        }
+                    });
+                } else if let Some(trash) = trash {
+                    ui.label(t("trash-bar-has"));
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        if ui.button(t("trash-open")).clicked() {
+                            act = Some(Act::OpenDir(trash));
+                        }
+                    });
+                }
+            });
+        });
+        if act.is_some() {
+            self.act = act;
+        }
+    }
+
+    /// Draws the ".." cell, which goes up one level; returns `true` if it was double-clicked.
+    fn up_cell(&mut self, ui: &mut Ui, rect: Rect) -> bool {
+        let name = self.i18n.t("menu-parent");
+        let response = ui.interact(rect, ui.scope_id().with("cell-up"), Sense::click()).on_hover_text(&name);
+        let painter = ui.painter_at(rect);
+        let fill = selection_fill(ui, self.focus == Focus::Grid);
+        let visuals = ui.visuals();
+        if self.up_selected && !self.cursor {
+            painter.rect_filled(rect.shrink(2.0), 6.0, fill);
+        } else if response.hovered() {
+            painter.rect_filled(rect.shrink(2.0), 6.0, visuals.widgets.hovered.weak_bg_fill);
+        }
+        let side = self.thumb_size;
+        let thumb_rect = Rect::from_min_size(pos2(rect.center().x - side / 2.0, rect.min.y + 6.0), vec2(side, side));
+        painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "⬆", FontId::proportional(side * 0.4), visuals.weak_text_color());
+        let label_rect = Rect::from_min_size(pos2(rect.min.x + 4.0, thumb_rect.max.y + 7.0), vec2(rect.width() - 8.0, 18.0));
+        ui.put(label_rect, Label::new(egui::RichText::new("..").color(visuals.text_color())).selectable(false));
+        if response.clicked() || response.secondary_clicked() {
+            self.up_selected = true;
+            self.cursor = false;
+            self.focus = Focus::Grid;
+        }
+        response.context_menu(|ui| {
+            let items = vec![Some((self.i18n.t("menu-parent"), self.i18n.t("key-backspace"), Act::Up))];
+            if let Some(a) = context_menu(ui, items) {
+                self.act = Some(a);
+            }
+        });
+        response.double_clicked()
+    }
+
     /// Draws a cell; returns `true` if it was double-clicked.
     fn grid_cell(&mut self, ui: &mut Ui, rect: Rect, i: usize, ndirs: usize) -> bool {
         let Some(Ok(listing)) = self.listings.get(&self.dir) else { return false };
@@ -727,7 +827,8 @@ impl App {
             painter.rect_filled(rect.shrink(2.0), 6.0, visuals.widgets.hovered.weak_bg_fill);
         }
         let side = self.thumb_size;
-        let thumb_rect = Rect::from_min_size(rect.min + vec2(8.0, 6.0), vec2(side, side));
+        // Centred: cells widen to fill the row.
+        let thumb_rect = Rect::from_min_size(pos2(rect.center().x - side / 2.0, rect.min.y + 6.0), vec2(side, side));
         let dim = visuals.weak_text_color();
         if i < ndirs {
             let icon = if source::is_trash(&path) { "🗑" } else { "🗀" };
@@ -767,11 +868,13 @@ impl App {
 
         if response.clicked() {
             self.selected = i;
+            self.up_selected = false;
             self.cursor = true;
         }
         // The right click selects the item too, so the menu acts on it.
         if response.secondary_clicked() {
             self.selected = i;
+            self.up_selected = false;
             self.cursor = true;
             self.focus = Focus::Grid;
         }
@@ -784,44 +887,50 @@ impl App {
         response.double_clicked()
     }
 
-    fn grid_keys(&mut self, ctx: &egui::Context, cols: usize, n: usize) {
+    /// Arrows, Home, End, Enter, Backspace. They work on positions in the grid, the ".." cell
+    /// (`up` = 1) included; Home goes to the first item, the ".." cell is reached with the arrows.
+    fn grid_keys(&mut self, ctx: &egui::Context, cols: usize, n: usize, up: usize) {
         if ctx.egui_wants_keyboard_input() {
             return;
         }
-        let before = (self.selected, self.cursor);
-        let cursor = self.cursor;
-        let mut activate = false;
-        let mut up = false;
-        let mut moves = Vec::new();
+        let total = n + up;
+        let pos = match (self.cursor, self.up_selected) {
+            (true, _) if n > 0 => Some(self.selected.min(n - 1) + up),
+            (false, true) if up == 1 => Some(0),
+            _ => None,
+        };
+        // With no selection shown, every movement starts from the first item.
+        let first = up.min(total - 1);
+        let mut to = pos;
+        let (mut enter, mut back) = (false, false);
         ctx.input(|i| {
-            for (key, to) in [(Key::ArrowRight, Go::Next), (Key::ArrowLeft, Go::Prev), (Key::Home, Go::First), (Key::End, Go::Last)] {
+            for (key, step) in [(Key::ArrowRight, 1), (Key::ArrowLeft, -1), (Key::ArrowDown, cols as isize), (Key::ArrowUp, -(cols as isize))] {
                 if i.key_pressed(key) {
-                    moves.push(to);
+                    to = Some(to.map_or(first, |p| p.saturating_add_signed(step).min(total - 1)));
                 }
             }
-            let s = &mut self.selected;
-            // With no selection shown, down and up start from the first item.
-            if i.key_pressed(Key::ArrowDown) {
-                *s = if cursor { (*s + cols).min(n - 1) } else { 0 };
-                self.cursor = true;
+            if i.key_pressed(Key::Home) {
+                to = Some(first);
             }
-            if i.key_pressed(Key::ArrowUp) {
-                *s = if cursor { s.saturating_sub(cols) } else { 0 };
-                self.cursor = true;
+            if i.key_pressed(Key::End) {
+                to = Some(total - 1);
             }
-            activate = i.key_pressed(Key::Enter) && cursor;
-            up = i.key_pressed(Key::Backspace);
+            enter = i.key_pressed(Key::Enter) && pos.is_some();
+            back = i.key_pressed(Key::Backspace);
         });
-        for to in moves {
-            self.go(to);
-        }
-        self.selected = self.selected.min(n - 1);
-        if (self.selected, self.cursor) != before {
+        if to != pos
+            && let Some(p) = to
+        {
+            self.up_selected = p < up;
+            self.cursor = p >= up;
+            self.selected = p.saturating_sub(up);
             self.scroll_to_selected = true;
         }
-        if activate {
+        if enter && pos == Some(0) && up == 1 {
+            self.go_up();
+        } else if enter {
             self.activate(self.selected);
-        } else if up {
+        } else if back {
             self.go_up();
         }
     }
@@ -838,9 +947,10 @@ impl App {
     /// Rewrites the thumbnail queue when the visible rows or the selection change.
     /// Priority: the selected image, then the visible ones from top to bottom, then the nearby
     /// rows, then all the others in the folder from top to bottom (saved to disk only).
-    fn prefetch_thumbs(&mut self, rows: std::ops::Range<usize>, cols: usize, ndirs: usize, nfiles: usize) {
+    /// `up`: 1 if the grid starts with the ".." cell.
+    fn prefetch_thumbs(&mut self, rows: std::ops::Range<usize>, cols: usize, up: usize, ndirs: usize, nfiles: usize) {
         let (Some(loader), Some(Ok(listing))) = (&self.loader, self.listings.get(&self.dir)) else { return };
-        let to_file = |cell: usize| cell.saturating_sub(ndirs).min(nfiles);
+        let to_file = |cell: usize| cell.saturating_sub(up + ndirs).min(nfiles);
         let visible = to_file(rows.start * cols)..to_file(rows.end * cols);
         let near = to_file(rows.start.saturating_sub(MARGIN_ROWS) * cols)..to_file((rows.end + MARGIN_ROWS) * cols);
         let end = (visible.start.saturating_sub(MAX_THUMBS / 2) + MAX_THUMBS).min(nfiles);

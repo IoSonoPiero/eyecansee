@@ -17,7 +17,7 @@ Mature viewers like XnView, IrfanView or digiKam do much more than EyeCanSee, an
 ## What it does today
 
 **Browsing**
-- Folders on the left, thumbnails on the right.
+- Folders on the left, thumbnails on the right, with a ".." cell to go up.
 - Folders open instantly the second time.
 - Sort by name, date, size or type.
 - Folders on the computer update by themselves when files change.

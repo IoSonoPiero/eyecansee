@@ -7,7 +7,7 @@ Press **F1** at any time to open or close this manual.
 - **Menu bar**: File, View, Go, Help. The version number is on the right. Every action you can do with the keyboard or a double click also has a menu item, with its key shown next to it.
 - **Toolbar**: parent folder, refresh, metadata (ℹ), the address bar, the image order and the thumbnail size slider.
 - **Folder tree** on the left, under **This computer** (and under **Devices** if you have any connected): click a folder to show its content. Folders open only when you expand them, so remote sources stay fast. When you change folder, also from the grid, the tree opens down to that folder and highlights it.
-- **Grid** on the right: subfolders first, then the images as thumbnails. When you enter a folder nothing is selected; when you go up, the folder you came from is selected.
+- **Grid** on the right: the **..** cell to go up one level (not at the top of a disk or device), the subfolders, then the images as thumbnails, spread over the whole width. When you enter a folder nothing is selected; when you go up, the folder you came from is selected.
 - **Image order** from the drop-down list in the toolbar (with the ▲/▼ button next to it to reverse it) or from the **View** menu: by name, modification date, size or type (extension), plus **Descending order**. Folders stay first, by name; files without a date stay at the end. The choice is remembered.
 - **Metadata** below the grid, for the selected image: boxes **Camera** (make, model, lens, software), **Shot** (date, exposure, aperture, ISO, focal length, flash), **Image** (size, color space) and **Location** (GPS coordinates, altitude, with a link to open them on the OpenStreetMap map). Each box closes with its X and reopens from the **View** menu; the ℹ button in the toolbar closes or reopens them all. The panel collapses and reopens with the ▼/▲ button at the right of its bar, or with a click on the bar itself; when collapsed only the bar stays, and the metadata is not read. EXIF metadata is read from JPEG, HEIC, AVIF, PNG, WebP and TIFF; to read it EyeCanSee reads the file again, so on a phone it takes a moment.
 - **Status bar** at the bottom: how many folders and images there are, and name, size and modification date of the selected item.
@@ -51,7 +51,7 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 
 The top folder of a source and the storages of a phone cannot be deleted or renamed.
 
-**The trash of phones and servers**: every folder where you deleted something has a **Trash** (🗑), the first item of the grid. Inside it you can look at the images, **restore** them (they go back to the folder containing the trash) or delete them for good: there **Del** always deletes forever, and there is no Rename. Right click on the Trash: **Restore all** and **Empty the trash…** (everything deleted forever, after a confirmation).
+**The trash of phones and servers**: every folder where you deleted something has a **Trash**: a strip at the top of the grid says so, with the **Open the trash** button. Inside it the strip says whose trash it is and has **Restore all** and **Empty the trash…**. Inside it you can look at the images, **restore** them (they go back to the folder containing the trash) or delete them for good: there **Del** always deletes forever, and there is no Rename. Right click on an empty space inside the Trash: **Restore all** and **Empty the trash…** (everything deleted forever, after a confirmation).
 
 If the name of an item being restored is already taken, EyeCanSee asks what to do: for a file **Replace** (the one already there is deleted) or **Keep both** (the restored one becomes for example `photo (2).jpg`); for a folder **Merge** (the contents add up; files with the same name are both kept) or **Keep both**. **Cancel** also stops the rest of a Restore all. In the trash too a name already there becomes `photo (2).jpg`.
 
@@ -95,9 +95,9 @@ In the grid:
 
 | Key | Action |
 |---|---|
-| Arrows | Move the selection (the first press selects the first item) |
+| Arrows | Move the selection (the first press selects the first item; left from the first item goes to **..**) |
 | Home, End | First, last item |
-| Enter | Open the folder or the image |
+| Enter | Open the folder or the image; on **..** go up |
 | Backspace | Parent folder |
 | F2 | Rename (see *Deleting and renaming*) |
 | Del | Delete |
@@ -134,7 +134,7 @@ Folders on this computer update by themselves: images added, deleted, renamed or
 
 The same actions are in the menus: **View** (Open, Back to the grid, Refresh) and **Go** (Next, Previous, First, Last, Parent folder). In the grid Next and Previous move the selection, in the viewer they change image.
 
-A **right click** opens a menu with the actions for what is under the mouse, and selects it. On an image or a folder (in the grid or the tree): Open, Rename, then, apart at the bottom, Delete and Delete for good. On the image open in the viewer the same, with Back to the grid instead of Open. On an empty space of the grid: Refresh and Parent folder.
+A **right click** opens a menu with the actions for what is under the mouse, and selects it. On an image or a folder (in the grid or the tree): Open, Rename, then, apart at the bottom, Delete and Delete for good. On the image open in the viewer the same, with Back to the grid instead of Open. On **..**: Parent folder. On an empty space of the grid: Refresh and Parent folder (inside the Trash also Restore all and Empty the trash).
 
 In the viewer, after the last image EyeCanSee stops; with the option **In the viewer, after the last image start again from the first** it goes back to the first one, and the other way round. EyeCanSee loads the images around the current one in advance, so moving between them is immediate even on slow connections.
 

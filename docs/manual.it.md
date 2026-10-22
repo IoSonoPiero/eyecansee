@@ -7,7 +7,7 @@ Premi **F1** in qualsiasi momento per aprire o chiudere questo manuale.
 - **Barra dei menù**: File, Visualizza, Vai, Aiuto. A destra il numero di versione. Ogni azione che si fa con la tastiera o col doppio clic ha anche una voce di menù, con il tasto scritto accanto.
 - **Barra strumenti**: cartella superiore, aggiorna, metadati (ℹ), barra degli indirizzi, ordine delle immagini e cursore per la dimensione delle miniature.
 - **Albero delle cartelle** a sinistra, sotto **Questo computer** (e sotto **Dispositivi** se ne hai collegati): clic su una cartella per mostrarne il contenuto. Le cartelle vengono lette solo quando le espandi, così le sorgenti remote restano veloci. Quando cambi cartella, anche dalla griglia, l'albero si apre fino a quella cartella e la evidenzia.
-- **Griglia** a destra: prima le sottocartelle, poi le immagini come miniature. Entrando in una cartella nessun elemento è selezionato; risalendo è selezionata la cartella da cui vieni.
+- **Griglia** a destra: la cella **..** per salire di un livello (non in cima a un disco o a un dispositivo), le sottocartelle, poi le immagini come miniature, distribuite su tutta la larghezza. Entrando in una cartella nessun elemento è selezionato; risalendo è selezionata la cartella da cui vieni.
 - **Ordine delle immagini** dalla tendina nella barra strumenti (con accanto il pulsante ▲/▼ per invertirlo) o dal menù **Visualizza**: per nome, data di modifica, dimensione o tipo (estensione), più **Ordine decrescente**. Le cartelle restano prima, per nome; i file senza data restano in fondo. La scelta viene ricordata.
 - **Metadati** sotto la griglia, per l'immagine selezionata: riquadri **Fotocamera** (marca, modello, obiettivo, software), **Scatto** (data, esposizione, diaframma, ISO, lunghezza focale, flash), **Immagine** (dimensioni, spazio colore) e **Posizione** (coordinate GPS, altitudine, con il link per aprirle sulla mappa di OpenStreetMap). Ogni riquadro si chiude con la sua X e si riapre dal menù **Visualizza**; il pulsante ℹ nella barra strumenti li chiude o li riapre tutti. Il pannello si comprime e si riapre col pulsante ▼/▲ a destra della sua barra, o con un clic sulla barra stessa; compresso resta solo la barra, e i metadati non vengono letti. Si leggono i metadati EXIF di JPEG, HEIC, AVIF, PNG, WebP e TIFF; per leggerli EyeCanSee rilegge il file, quindi su un telefono ci vuole un attimo.
 - **Barra di stato** in basso: quante cartelle e immagini ci sono, e nome, peso e data di modifica dell'elemento selezionato.
@@ -51,7 +51,7 @@ Le miniature vengono salvate su disco, così riaprire la stessa cartella è imme
 
 Non si possono eliminare né rinominare la cartella principale di una sorgente e le memorie di un telefono.
 
-**Il cestino di telefoni e server**: ogni cartella in cui hai eliminato qualcosa ha un **Cestino** (🗑), il primo elemento della griglia. Dentro puoi guardare le immagini, **ripristinarle** (tornano nella cartella che contiene il cestino) o eliminarle definitivamente: lì **Canc** elimina sempre per sempre, e Rinomina non c'è. Col clic destro sul Cestino: **Ripristina tutto** e **Svuota il cestino…** (tutto eliminato per sempre, dopo una conferma).
+**Il cestino di telefoni e server**: ogni cartella in cui hai eliminato qualcosa ha un **Cestino**: lo dice una striscia in cima alla griglia, col pulsante **Apri il cestino**. Dentro il cestino la striscia dice di quale cartella è e ha **Ripristina tutto** e **Svuota il cestino…**. Dentro puoi guardare le immagini, **ripristinarle** (tornano nella cartella che contiene il cestino) o eliminarle definitivamente: lì **Canc** elimina sempre per sempre, e Rinomina non c'è. Col clic destro su uno spazio vuoto dentro il Cestino: **Ripristina tutto** e **Svuota il cestino…** (tutto eliminato per sempre, dopo una conferma).
 
 Se ripristinando un elemento il suo nome è già usato, EyeCanSee chiede cosa fare: per un file **Sostituisci** (quello presente viene eliminato) o **Tieni entrambi** (il ripristinato diventa per esempio `foto (2).jpg`); per una cartella **Unisci** (i contenuti si sommano; i file con lo stesso nome restano tutti e due) o **Tieni entrambi**. **Annulla** ferma anche il resto di un Ripristina tutto. Anche nel cestino un nome già presente diventa `foto (2).jpg`.
 
@@ -95,9 +95,9 @@ Nella griglia:
 
 | Tasto | Azione |
 |---|---|
-| Frecce | Spostano la selezione (la prima pressione seleziona il primo elemento) |
+| Frecce | Spostano la selezione (la prima pressione seleziona il primo elemento; a sinistra dal primo elemento si va su **..**) |
 | Inizio, Fine | Primo, ultimo elemento |
-| Invio | Apre la cartella o l'immagine |
+| Invio | Apre la cartella o l'immagine; su **..** sale di un livello |
 | Backspace | Cartella superiore |
 | F2 | Rinomina (vedi *Eliminare e rinominare*) |
 | Canc | Elimina |
@@ -134,7 +134,7 @@ Le cartelle del computer si aggiornano da sole: immagini aggiunte, eliminate, ri
 
 Le stesse azioni sono nei menù: **Visualizza** (Apri, Torna alla griglia, Aggiorna) e **Vai** (Avanti, Indietro, Primo, Ultimo, Cartella superiore). Nella griglia Avanti e Indietro spostano la selezione, nel visore cambiano immagine.
 
-Il **clic destro** apre un menù con le azioni di ciò che hai sotto il mouse, e lo seleziona. Su un'immagine o una cartella (nella griglia o nell'albero): Apri, Rinomina, poi, separate in fondo, Elimina ed Elimina definitivamente. Sull'immagine aperta nel visore le stesse, con Torna alla griglia al posto di Apri. Su uno spazio vuoto della griglia: Aggiorna e Cartella superiore.
+Il **clic destro** apre un menù con le azioni di ciò che hai sotto il mouse, e lo seleziona. Su un'immagine o una cartella (nella griglia o nell'albero): Apri, Rinomina, poi, separate in fondo, Elimina ed Elimina definitivamente. Sull'immagine aperta nel visore le stesse, con Torna alla griglia al posto di Apri. Su **..**: Cartella superiore. Su uno spazio vuoto della griglia: Aggiorna e Cartella superiore (dentro il Cestino anche Ripristina tutto e Svuota il cestino).
 
 Nel visore, dopo l'ultima immagine EyeCanSee si ferma; con l'opzione **Nel visore, dopo l'ultima immagine ricomincia dalla prima** torna alla prima, e viceversa. EyeCanSee carica in anticipo le immagini vicine a quella corrente, così il passaggio è immediato anche con connessioni lente.
 

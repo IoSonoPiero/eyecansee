@@ -321,6 +321,9 @@ pub struct Source {
 pub struct Listing {
     pub dirs: Vec<String>,
     pub files: Vec<File>,
+    /// The trash folder in this folder, if any: kept out of `dirs`, it opens from its own button
+    /// in the toolbar (among the folders it was in the way).
+    pub trash: Option<String>,
 }
 
 #[derive(Clone)]
@@ -421,7 +424,11 @@ fn local(path: &Path) -> Result<Source, Error> {
 
 impl Listing {
     // ponytail: plain alphabetical order, "img10" before "img2"; natural sort if it bothers anyone
+    /// Also takes the trash folder out of `dirs`, into `trash`.
     pub fn sort(&mut self) {
+        if let Some(i) = self.dirs.iter().position(|d| is_trash(d)) {
+            self.trash = Some(self.dirs.remove(i));
+        }
         self.dirs.sort_by_key(|n| n.to_lowercase());
         self.files.sort_by_key(|f| f.path.to_lowercase());
     }
@@ -574,6 +581,16 @@ mod tests {
         assert_eq!(names(&l), ["b.png", "c.jpg", "A.jpg"]);
         l.sort_files(SortBy::Type, false);
         assert_eq!(names(&l), ["A.jpg", "c.jpg", "b.png"]);
+    }
+
+    #[test]
+    fn trash_apart() {
+        let dirs = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
+        let trash = format!("p/{TRASH_DIR}/");
+        let mut l = Listing { dirs: dirs(&["p/b/", &trash, "p/.a/", "p/A/"]), ..Default::default() };
+        l.sort();
+        assert_eq!(l.dirs, dirs(&["p/.a/", "p/A/", "p/b/"]));
+        assert_eq!(l.trash, Some(trash));
     }
 
     #[test]

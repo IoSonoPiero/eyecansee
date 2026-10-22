@@ -137,6 +137,9 @@ struct App {
     /// Selection shown. On entering a folder there is none: it appears at the first click or key
     /// (arrows from the first item), otherwise it looked like another folder chosen next to the tree.
     cursor: bool,
+    /// The ".." cell is selected (only while `cursor` is false: nothing else is, so Delete and
+    /// Rename have no target).
+    up_selected: bool,
     /// Part receiving arrows and Tab: the last click decides, then Tab moves from one to the other.
     focus: Focus,
     /// Tree nodes in the order they appear (block, folder), for the arrows; from `tree_split`
@@ -236,6 +239,7 @@ impl App {
             generation: 0,
             selected: 0,
             cursor: false,
+            up_selected: false,
             focus: Focus::Grid,
             tree_rows: Vec::new(),
             tree_split: 0,
@@ -528,6 +532,7 @@ impl App {
         self.pending.clear();
         self.selected = 0;
         self.cursor = false;
+        self.up_selected = false;
         self.scroll_top = true;
         self.meta = None;
         self.meta_asked = None;
@@ -1047,8 +1052,8 @@ impl App {
 
     /// Item deleted: out of the listing, as if read again. A deleted folder also takes the
     /// listings under it, and the current folder if it was inside. `to_trash`: moved into the
-    /// trash folder next to it, which appears if it was not there (phones and servers have no
-    /// watcher to tell).
+    /// trash folder next to it, whose button appears if it was not there (phones and servers have
+    /// no watcher to tell).
     fn remove_item(&mut self, path: &str, to_trash: bool) {
         let dir = source::parent(path);
         let trash = format!("{dir}{}/", source::TRASH_DIR);
@@ -1059,14 +1064,11 @@ impl App {
             return;
         }
         let Some(Ok(l)) = self.listings.get(&dir) else { return };
-        let mut new = Listing {
+        let new = Listing {
             dirs: l.dirs.iter().filter(|d| *d != path).cloned().collect(),
             files: l.files.iter().filter(|f| f.path != path).cloned().collect(),
+            trash: if to_trash { Some(trash) } else { l.trash.clone().filter(|t| t != path) },
         };
-        if to_trash && !new.dirs.contains(&trash) {
-            new.dirs.push(trash);
-            new.dirs.sort_by_key(|n| n.to_lowercase());
-        }
         self.swap_listing(&dir, new);
     }
 
