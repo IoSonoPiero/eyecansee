@@ -45,6 +45,7 @@ tb-thumb-size = Thumbnail size
 
 status-folders = Folders: { $n }
 status-images = Images: { $n }
+status-marked = Selected: { $n } ({ $size })
 decimal-separator = .
 date-format = %Y-%m-%d %H:%M
 date-day-format = %Y-%m-%d
@@ -138,6 +139,9 @@ key-shift-delete = Shift+Del
 delete-confirm-trash = Move "{ $name }" ({ $size }) to the trash?
 delete-confirm-folder = Move "{ $name }" ({ $size }) to the hidden folder .EyeCanSee-trash, in the same folder? You can get it back from there with a file manager.
 delete-confirm-permanent = Delete "{ $name }" ({ $size }) for good? It cannot be undone.
+delete-confirm-many-trash = Move { $n } items to the trash? Images: { $size }. Folders go with everything inside them.
+delete-confirm-many-folder = Move { $n } items to the hidden folder .EyeCanSee-trash, in the same folder? Images: { $size }. Folders go with everything inside them. You can get them back from there with a file manager.
+delete-confirm-many-permanent = Delete { $n } items for good? Images: { $size }. Folders go with everything inside them. It cannot be undone.
 delete-yes = Delete
 delete-no = Cancel
 error-no-trash-folder = This source cannot move files into the trash folder: choose "Delete for good" in the Options. ({ $detail })

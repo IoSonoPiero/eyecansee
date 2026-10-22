@@ -836,7 +836,11 @@ impl App {
         let active = self.focus == Focus::Grid;
         let fill = selection_fill(ui, active);
         let visuals = ui.visuals();
-        let selected = self.cursor && i == self.selected;
+        // Marked items, if any, are the selection; otherwise the cursor's item.
+        let selected = match self.marked.is_empty() {
+            true => self.cursor && i == self.selected,
+            false => self.marked.contains(&path),
+        };
         // A selected folder fills its cell; a selected image colours its tile instead.
         if selected && i < ndirs {
             painter.rect_filled(rect.shrink(2.0), 6.0, fill);
@@ -888,12 +892,36 @@ impl App {
         ui.put(label_rect, Label::new(text).truncate().selectable(false));
 
         if response.clicked() {
+            let mods = ui.input(|i| i.modifiers);
+            if mods.shift {
+                self.mark_range(i);
+            } else if mods.command {
+                // The item selected before is marked too, so Ctrl+click adds to it.
+                if self.marked.is_empty()
+                    && self.cursor
+                    && let Some(p) = self.item_path(self.selected)
+                {
+                    self.marked.insert(p);
+                }
+                if !self.marked.remove(&path) {
+                    self.marked.insert(path.clone());
+                }
+                self.anchor = i;
+            } else {
+                self.marked.clear();
+                self.anchor = i;
+            }
             self.selected = i;
             self.up_selected = false;
             self.cursor = true;
         }
-        // The right click selects the item too, so the menu acts on it.
+        // The right click selects the item too, so the menu acts on it (on all the marked ones, if
+        // it is one of them).
         if response.secondary_clicked() {
+            if !self.marked.contains(&path) {
+                self.marked.clear();
+                self.anchor = i;
+            }
             self.selected = i;
             self.up_selected = false;
             self.cursor = true;
@@ -908,8 +936,15 @@ impl App {
         response.double_clicked()
     }
 
-    /// Arrows, Home, End, Enter, Backspace. They work on positions in the grid, the ".." cell
-    /// (`up` = 1) included; Home goes to the first item, the ".." cell is reached with the arrows.
+    /// Marks the items from `anchor` to `i` (Shift+click, Shift+arrows), and only those.
+    fn mark_range(&mut self, i: usize) {
+        let (a, b) = (self.anchor.min(i), self.anchor.max(i));
+        self.marked = (a..=b).filter_map(|k| self.item_path(k)).collect();
+    }
+
+    /// Arrows, Home, End, Enter, Backspace, Ctrl+A. They work on positions in the grid, the ".."
+    /// cell (`up` = 1) included; Home goes to the first item, the ".." cell is reached with the
+    /// arrows. With Shift they mark from the anchor, without it they clear the marks.
     fn grid_keys(&mut self, ctx: &egui::Context, cols: usize, n: usize, up: usize) {
         if ctx.egui_wants_keyboard_input() {
             return;
@@ -923,8 +958,10 @@ impl App {
         // With no selection shown, every movement starts from the first item.
         let first = up.min(total - 1);
         let mut to = pos;
-        let (mut enter, mut back) = (false, false);
+        let (mut enter, mut back, mut shift, mut all) = (false, false, false, false);
         ctx.input(|i| {
+            shift = i.modifiers.shift;
+            all = i.modifiers.command && i.key_pressed(Key::A);
             for (key, step) in [(Key::ArrowRight, 1), (Key::ArrowLeft, -1), (Key::ArrowDown, cols as isize), (Key::ArrowUp, -(cols as isize))] {
                 if i.key_pressed(key) {
                     to = Some(to.map_or(first, |p| p.saturating_add_signed(step).min(total - 1)));
@@ -946,6 +983,16 @@ impl App {
             self.cursor = p >= up;
             self.selected = p.saturating_sub(up);
             self.scroll_to_selected = true;
+            match shift && self.cursor {
+                true => self.mark_range(self.selected),
+                false => {
+                    self.marked.clear();
+                    self.anchor = self.selected;
+                }
+            }
+        }
+        if all {
+            self.marked = (0..n).filter_map(|k| self.item_path(k)).collect();
         }
         if enter && pos == Some(0) && up == 1 {
             self.go_up();

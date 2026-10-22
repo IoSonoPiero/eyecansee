@@ -140,16 +140,23 @@ impl Loader {
         self.op.deletion(path, local_permanent, remote)
     }
 
-    /// Deletes in the background; the thumbnail goes too.
-    pub fn delete(&self, path: String, how: source::Deletion) {
+    /// Deletes in the background, one item after the other (on a phone they share the trash folder
+    /// being created), stopping at the first error; the thumbnails go too.
+    pub fn delete(&self, paths: Vec<String>, how: source::Deletion) {
         let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = op.delete(&path, how).await;
-            if r.is_ok() {
-                thumbcache::delete(&base, &path);
+            for path in paths {
+                let r = op.delete(&path, how).await;
+                let failed = r.is_err();
+                if !failed {
+                    thumbcache::delete(&base, &path);
+                }
+                let _ = tx.send(Msg::Deleted(path, how, r));
+                ctx.request_repaint();
+                if failed {
+                    break;
+                }
             }
-            let _ = tx.send(Msg::Deleted(path, how, r));
-            ctx.request_repaint();
         });
     }
 

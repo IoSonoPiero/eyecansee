@@ -10,7 +10,8 @@ Premi **F1** in qualsiasi momento per aprire o chiudere questo manuale.
 - **Griglia** a destra: la cella **..** per salire di un livello (non in cima a un disco o a un dispositivo), le sottocartelle, poi le immagini come miniature, distribuite su tutta la larghezza. Entrando in una cartella nessun elemento è selezionato; risalendo è selezionata la cartella da cui vieni.
 - **Ordine delle immagini** dalla tendina nella barra strumenti (con accanto il pulsante ▲/▼ per invertirlo) o dal menù **Visualizza**: per nome, data di modifica, dimensione o tipo (estensione), più **Ordine decrescente**. Le cartelle restano prima, per nome; i file senza data restano in fondo. La scelta viene ricordata.
 - **Metadati** sotto la griglia, per l'immagine selezionata: riquadri **Fotocamera** (marca, modello, obiettivo, software), **Scatto** (data, esposizione, diaframma, ISO, lunghezza focale, flash), **Immagine** (dimensioni, spazio colore) e **Posizione** (coordinate GPS, altitudine, con il link per aprirle sulla mappa di OpenStreetMap). Ogni riquadro si chiude con la sua X e si riapre dal menù **Visualizza**; il pulsante ℹ nella barra strumenti li chiude o li riapre tutti. Il pannello si comprime e si riapre col pulsante ▼/▲ a destra della sua barra, o con un clic sulla barra stessa; compresso resta solo la barra, e i metadati non vengono letti. Si leggono i metadati EXIF di JPEG, HEIC, AVIF, PNG, WebP e TIFF; per leggerli EyeCanSee rilegge il file, quindi su un telefono ci vuole un attimo.
-- **Barra di stato** in basso: quante cartelle e immagini ci sono, e nome, peso e data di modifica dell'elemento selezionato.
+- **Barra di stato** in basso: quante cartelle e immagini ci sono, e nome, peso e data di modifica dell'elemento selezionato; con più elementi selezionati, quanti sono e il peso delle loro immagini.
+- **Più elementi**: Ctrl+clic aggiunge o toglie un elemento, Maiusc+clic seleziona tutto dall'ultimo elemento cliccato fino a questo, Maiusc+frecce allargano la selezione, Ctrl+A seleziona tutto nella cartella. Un clic senza tasti, o una freccia, torna a un solo elemento.
 - Frecce e Tab agiscono sulla parte su cui hai cliccato per ultima, sinistra o destra: è quella con la cornice sottile. Lì la selezione è blu pieno, nell'altra più tenue.
 
 Doppio clic su un'immagine, oppure selezionala e premi Invio, per aprirla nel **visore**. Per tornare alla griglia premi Esc, fai doppio clic sull'immagine o usa il pulsante griglia nella barra strumenti.
@@ -41,6 +42,8 @@ Le miniature vengono salvate su disco, così riaprire la stessa cartella è imme
 ## Eliminare e rinominare
 
 **Canc** (o **File > Elimina…**) elimina l'immagine o la cartella selezionata nella griglia, o l'immagine aperta nel visore, dopo una conferma con il nome e la dimensione. Una cartella viene eliminata con tutto quello che contiene. Dall'albero a sinistra si eliminano le cartelle col clic destro. Nella conferma **Invio** elimina ed **Esc** annulla. Nel visore compare subito l'immagine successiva.
+
+Con più elementi selezionati, **Canc** (o **Elimina…** dal clic destro su uno di loro) li elimina tutti, dopo una conferma con quanti sono e il peso delle immagini. Se uno non riesce, i successivi non vengono eliminati.
 
 - **File del computer e dischi esterni**: vanno nel cestino del sistema, da cui si possono ripristinare. Con l'opzione **Elimina i file del computer definitivamente, senza cestino** vengono eliminati per sempre.
 - **Telefoni e server (FTP, SFTP)** non hanno un cestino raggiungibile. Nelle Opzioni, sotto **Eliminare su telefoni e server**, scegli tra **Sposta nella cartella nascosta .EyeCanSee-trash accanto all'immagine** (predefinita: l'immagine finisce in una cartella `.EyeCanSee-trash` dentro la sua cartella, e si recupera con un gestore di file) ed **Elimina definitivamente**. L'FTP non sa spostare i file: lì serve **Elimina definitivamente**.
@@ -101,6 +104,8 @@ Nella griglia:
 | Backspace | Cartella superiore |
 | F2 | Rinomina (vedi *Eliminare e rinominare*) |
 | Canc | Elimina |
+| Ctrl+A | Seleziona tutto nella cartella |
+| Maiusc+frecce | Allargano la selezione |
 | Maiusc+Canc | Elimina definitivamente |
 | Tab | Elemento successivo; dall'ultimo passa ai dispositivi |
 | Shift+Tab | Elemento precedente; dal primo passa alla cartella aperta a sinistra |

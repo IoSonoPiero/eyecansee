@@ -10,7 +10,8 @@ Press **F1** at any time to open or close this manual.
 - **Grid** on the right: the **..** cell to go up one level (not at the top of a disk or device), the subfolders, then the images as thumbnails, spread over the whole width. When you enter a folder nothing is selected; when you go up, the folder you came from is selected.
 - **Image order** from the drop-down list in the toolbar (with the ▲/▼ button next to it to reverse it) or from the **View** menu: by name, modification date, size or type (extension), plus **Descending order**. Folders stay first, by name; files without a date stay at the end. The choice is remembered.
 - **Metadata** below the grid, for the selected image: boxes **Camera** (make, model, lens, software), **Shot** (date, exposure, aperture, ISO, focal length, flash), **Image** (size, color space) and **Location** (GPS coordinates, altitude, with a link to open them on the OpenStreetMap map). Each box closes with its X and reopens from the **View** menu; the ℹ button in the toolbar closes or reopens them all. The panel collapses and reopens with the ▼/▲ button at the right of its bar, or with a click on the bar itself; when collapsed only the bar stays, and the metadata is not read. EXIF metadata is read from JPEG, HEIC, AVIF, PNG, WebP and TIFF; to read it EyeCanSee reads the file again, so on a phone it takes a moment.
-- **Status bar** at the bottom: how many folders and images there are, and name, size and modification date of the selected item.
+- **Status bar** at the bottom: how many folders and images there are, and name, size and modification date of the selected item; with several items selected, how many and the size of their images.
+- **Several items**: Ctrl+click adds or removes an item, Shift+click selects everything from the last clicked item to this one, Shift+arrows extend the selection, Ctrl+A selects everything in the folder. A click without keys, or an arrow, goes back to a single item.
 - Arrows and Tab act on the side you clicked last, left or right: it is the one with the thin frame. There the selection is solid blue, on the other side it is lighter.
 
 Double-click an image, or select it and press Enter, to open it in the **viewer**. Press Esc, double-click the image or use the grid button in the toolbar to go back to the grid.
@@ -41,6 +42,8 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 ## Deleting and renaming
 
 **Del** (or **File > Delete…**) deletes the image or folder selected in the grid, or the image open in the viewer, after a confirmation showing its name and size. A folder is deleted with everything inside it. Folders in the tree on the left are deleted with a right click. In the confirmation **Enter** deletes and **Esc** cancels. In the viewer the next image appears at once.
+
+With several items selected, **Del** (or **Delete…** from the right click on one of them) deletes all of them, after a confirmation with how many they are and the size of the images. If one fails, the following ones are not deleted.
 
 - **Files on this computer and external disks** go to the system trash, where they can be restored. With the option **Delete files on this computer for good, without the trash** they are deleted forever.
 - **Phones and servers (FTP, SFTP)** have no trash EyeCanSee can reach. In the Options, under **Deleting on phones and servers**, choose between **Move to the hidden .EyeCanSee-trash folder next to the image** (default: the image goes into a `.EyeCanSee-trash` folder inside its own folder, and you get it back with a file manager) and **Delete for good**. FTP cannot move files: there you need **Delete for good**.
@@ -101,6 +104,8 @@ In the grid:
 | Backspace | Parent folder |
 | F2 | Rename (see *Deleting and renaming*) |
 | Del | Delete |
+| Ctrl+A | Select everything in the folder |
+| Shift+arrows | Extend the selection |
 | Shift+Del | Delete for good |
 | Tab | Next item; from the last one it moves to the devices |
 | Shift+Tab | Previous item; from the first one it moves to the folder open on the left |

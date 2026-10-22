@@ -141,6 +141,11 @@ struct App {
     /// The ".." cell is selected (only while `cursor` is false: nothing else is, so Delete and
     /// Rename have no target).
     up_selected: bool,
+    /// Items marked with Ctrl+click, Shift+click, Shift+arrows or Ctrl+A (paths): when there are
+    /// any, they are the selection shown and Delete acts on all of them. `anchor`: where a Shift
+    /// range starts.
+    marked: HashSet<String>,
+    anchor: usize,
     /// Part receiving arrows and Tab: the last click decides, then Tab moves from one to the other.
     focus: Focus,
     /// Tree nodes in the order they appear (block, folder), for the arrows; from `tree_split`
@@ -199,7 +204,7 @@ struct App {
     maintained: HashSet<String>,
     /// Item waiting for the user to confirm its deletion: path, size (images only), what deleting
     /// it does, on an NTFS disk (warning: Nautilus does not restore from there).
-    delete_confirm: Option<(String, Option<u64>, source::Deletion, bool)>,
+    delete_confirm: Option<(Vec<String>, Option<u64>, source::Deletion, bool)>,
     /// Items to put back from the trash, one at a time; one is on its way (`restore_busy`), or its
     /// name is taken and the user is asked what to do (`restore_conflict`, its path in the trash).
     restore_queue: std::collections::VecDeque<String>,
@@ -241,6 +246,8 @@ impl App {
             selected: 0,
             cursor: false,
             up_selected: false,
+            marked: HashSet::new(),
+            anchor: 0,
             focus: Focus::Grid,
             tree_rows: Vec::new(),
             tree_split: 0,
@@ -534,6 +541,8 @@ impl App {
         self.selected = 0;
         self.cursor = false;
         self.up_selected = false;
+        self.marked.clear();
+        self.anchor = 0;
         self.scroll_top = true;
         self.meta = None;
         self.meta_asked = None;
@@ -923,35 +932,72 @@ impl App {
         !path.is_empty() && !(self.base.starts_with("mtp://") && path.ends_with('/') && source::parent(path).is_empty())
     }
 
-    /// `path`: `None` = `target`. `permanent`: Shift+Del, for good this time whatever the options say.
+    /// Path of a grid item (folders first, then images).
+    pub(crate) fn item_path(&self, i: usize) -> Option<String> {
+        let Some(Ok(l)) = self.listings.get(&self.dir) else { return None };
+        l.dirs.get(i).or_else(|| l.files.get(i.checked_sub(l.dirs.len())?).map(|f| &f.path)).cloned()
+    }
+
+    /// The marked items still in the folder, in the grid's order.
+    fn marked_paths(&self) -> Vec<String> {
+        let Some(Ok(l)) = self.listings.get(&self.dir) else { return Vec::new() };
+        l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).filter(|p| self.marked.contains(*p)).cloned().collect()
+    }
+
+    /// Total size of the images among `paths` (folders are not counted).
+    fn images_size(&self, paths: &[String]) -> u64 {
+        let Some(Ok(l)) = self.listings.get(&self.dir) else { return 0 };
+        l.files.iter().filter(|f| paths.contains(&f.path)).map(|f| f.size).sum()
+    }
+
+    /// `path`: `None` = `target`, or all the marked items if there are any (also when `path` is
+    /// one of them: the grid's context menu). `permanent`: Shift+Del, for good this time whatever
+    /// the options say.
     fn ask_delete(&mut self, path: Option<String>, permanent: bool) {
-        let Some(path) = path.or_else(|| self.target()).filter(|p| self.can_change(p)) else { return };
+        let marked = if self.viewing.is_none() { self.marked_paths() } else { Vec::new() };
+        let paths: Vec<String> = match path {
+            Some(p) if marked.contains(&p) => marked,
+            None if !marked.is_empty() && self.focus == Focus::Grid => marked,
+            p => p.or_else(|| self.target()).into_iter().collect(),
+        };
+        let paths: Vec<String> = paths.into_iter().filter(|p| self.can_change(p)).collect();
+        let Some(path) = paths.first().cloned() else { return };
         let Some(loader) = &self.loader else { return };
         // In the trash everything goes for good: there is no trash of the trash.
         let how = match permanent || source::is_trash(&path) || source::in_trash(&path) {
             true => source::Deletion::Permanent,
             false => loader.deletion(&path, self.settings.local_permanent, self.settings.remote_delete),
         };
-        log!("delete? {path:?} {how:?}");
-        let size = self.listings.get(&source::parent(&path)).and_then(|l| l.as_ref().ok()).and_then(|l| {
-            l.files.iter().find(|f| f.path == path).map(|f| f.size)
-        });
+        log!("delete? {paths:?} {how:?}");
+        let size = match paths.len() {
+            1 => self.listings.get(&source::parent(&path)).and_then(|l| l.as_ref().ok()).and_then(|l| {
+                l.files.iter().find(|f| f.path == path).map(|f| f.size)
+            }),
+            _ => Some(self.images_size(&paths)),
+        };
         let ntfs = how == source::Deletion::SystemTrash && !self.base.contains("://") && devices::on_ntfs(&format!("/{}", path.trim_end_matches('/')));
-        self.delete_confirm = Some((path, size, how, ntfs));
+        self.delete_confirm = Some((paths, size, how, ntfs));
     }
 
     /// Confirmation of the deletion: what will happen, name and size. Enter confirms, Esc cancels.
     fn delete_window(&mut self, ctx: &egui::Context) {
-        let Some((path, size, how, ntfs)) = self.delete_confirm.clone() else { return };
+        let Some((paths, size, how, ntfs)) = self.delete_confirm.clone() else { return };
+        let path = &paths[0];
         let dir = if path.ends_with('/') { "-dir" } else { "" };
         let id = match how {
-            _ if source::is_trash(&path) => "delete-confirm-empty-trash".to_string(),
+            _ if paths.len() > 1 => format!("delete-confirm-many-{}", match how {
+                source::Deletion::SystemTrash => "trash",
+                source::Deletion::TrashFolder => "folder",
+                source::Deletion::Permanent => "permanent",
+            }),
+            _ if source::is_trash(path) => "delete-confirm-empty-trash".to_string(),
             source::Deletion::SystemTrash => format!("delete-confirm{dir}-trash"),
             source::Deletion::TrashFolder => format!("delete-confirm{dir}-folder"),
             source::Deletion::Permanent => format!("delete-confirm{dir}-permanent"),
         };
         let size = size.map(|s| self.human_size(s)).unwrap_or_default();
-        let mut text = self.i18n.t_args(&id, &[("name", source::name(&path)), ("size", &size)]);
+        let n = paths.len().to_string();
+        let mut text = self.i18n.t_args(&id, &[("name", source::name(path)), ("size", &size), ("n", &n)]);
         if ntfs {
             text = format!("{text}\n\n{}", self.i18n.t("delete-ntfs"));
         }
@@ -973,8 +1019,9 @@ impl App {
         match answer {
             Some(true) => {
                 if let Some(loader) = &self.loader {
-                    loader.delete(path, how);
+                    loader.delete(paths, how);
                 }
+                self.marked.clear();
                 self.delete_confirm = None;
             }
             Some(false) => self.delete_confirm = None,
@@ -1056,6 +1103,7 @@ impl App {
     /// trash folder next to it, whose button appears if it was not there (phones and servers have
     /// no watcher to tell).
     fn remove_item(&mut self, path: &str, to_trash: bool) {
+        self.marked.remove(path);
         let dir = source::parent(path);
         let trash = format!("{dir}{}/", source::TRASH_DIR);
         self.listings.retain(|k, _| !(path.ends_with('/') && k.starts_with(path)) && !(to_trash && *k == trash));
@@ -1076,6 +1124,7 @@ impl App {
     /// Item renamed: its folder is read again (its place in the order may change); if the current
     /// folder was inside a renamed one, it follows the new name.
     fn renamed(&mut self, old: &str, new: &str) {
+        self.marked.remove(old);
         let dir = source::parent(old);
         if old.ends_with('/') {
             self.listings.retain(|k, _| !k.starts_with(old));
@@ -1458,6 +1507,13 @@ impl App {
         ui.horizontal(|ui| {
             ui.label(self.i18n.t_args("status-folders", &[("n", &l.dirs.len().to_string())]));
             ui.label(self.i18n.t_args("status-images", &[("n", &l.files.len().to_string())]));
+            let marked = self.marked_paths();
+            if !marked.is_empty() {
+                ui.separator();
+                let size = self.human_size(self.images_size(&marked));
+                ui.label(self.i18n.t_args("status-marked", &[("n", &marked.len().to_string()), ("size", &size)]));
+                return;
+            }
             if !self.cursor {
                 return;
             }

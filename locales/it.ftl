@@ -44,6 +44,7 @@ tb-thumb-size = Dimensione miniature
 
 status-folders = Cartelle: { $n }
 status-images = Immagini: { $n }
+status-marked = Selezionati: { $n } ({ $size })
 decimal-separator = ,
 date-format = %d/%m/%Y %H:%M
 date-day-format = %d/%m/%Y
@@ -137,6 +138,9 @@ key-shift-delete = Maiusc+Canc
 delete-confirm-trash = Spostare "{ $name }" ({ $size }) nel cestino?
 delete-confirm-folder = Spostare "{ $name }" ({ $size }) nella cartella nascosta .EyeCanSee-trash, nella stessa cartella? Da lì si recupera con un gestore di file.
 delete-confirm-permanent = Eliminare definitivamente "{ $name }" ({ $size })? Non si può annullare.
+delete-confirm-many-trash = Spostare { $n } elementi nel cestino? Immagini: { $size }. Le cartelle vanno con tutto il loro contenuto.
+delete-confirm-many-folder = Spostare { $n } elementi nella cartella nascosta .EyeCanSee-trash, nella stessa cartella? Immagini: { $size }. Le cartelle vanno con tutto il loro contenuto. Da lì si recuperano con un gestore di file.
+delete-confirm-many-permanent = Eliminare definitivamente { $n } elementi? Immagini: { $size }. Le cartelle vanno con tutto il loro contenuto. Non si può annullare.
 delete-yes = Elimina
 delete-no = Annulla
 error-no-trash-folder = Questa sorgente non può spostare i file nella cartella cestino: scegli "Elimina definitivamente" nelle Opzioni. ({ $detail })
