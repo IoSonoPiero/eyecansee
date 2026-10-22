@@ -160,3 +160,4 @@ restore-taken = In "{ $folder }" there is already an item named "{ $name }".
 restore-replace = Replace
 restore-keep-both = Keep both
 restore-merge = Merge
+delete-ntfs = This is an NTFS disk: the Files app (Nautilus) cannot restore from its trash. The file can still be restored from a terminal with "gio trash --restore" (see the manual, Known limits).

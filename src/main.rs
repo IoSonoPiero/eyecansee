@@ -193,8 +193,9 @@ struct App {
     purge_confirm: Option<(u64, u64)>,
     /// Sources already gone through cache maintenance in this session.
     maintained: HashSet<String>,
-    /// Item waiting for the user to confirm its deletion: path, size (images only), what deleting it does.
-    delete_confirm: Option<(String, Option<u64>, source::Deletion)>,
+    /// Item waiting for the user to confirm its deletion: path, size (images only), what deleting
+    /// it does, on an NTFS disk (warning: Nautilus does not restore from there).
+    delete_confirm: Option<(String, Option<u64>, source::Deletion, bool)>,
     /// Items to put back from the trash, one at a time; one is on its way (`restore_busy`), or its
     /// name is taken and the user is asked what to do (`restore_conflict`, its path in the trash).
     restore_queue: std::collections::VecDeque<String>,
@@ -929,12 +930,13 @@ impl App {
         let size = self.listings.get(&source::parent(&path)).and_then(|l| l.as_ref().ok()).and_then(|l| {
             l.files.iter().find(|f| f.path == path).map(|f| f.size)
         });
-        self.delete_confirm = Some((path, size, how));
+        let ntfs = how == source::Deletion::SystemTrash && !self.base.contains("://") && devices::on_ntfs(&format!("/{}", path.trim_end_matches('/')));
+        self.delete_confirm = Some((path, size, how, ntfs));
     }
 
     /// Confirmation of the deletion: what will happen, name and size. Enter confirms, Esc cancels.
     fn delete_window(&mut self, ctx: &egui::Context) {
-        let Some((path, size, how)) = self.delete_confirm.clone() else { return };
+        let Some((path, size, how, ntfs)) = self.delete_confirm.clone() else { return };
         let dir = if path.ends_with('/') { "-dir" } else { "" };
         let id = match how {
             _ if source::is_trash(&path) => "delete-confirm-empty-trash".to_string(),
@@ -943,7 +945,10 @@ impl App {
             source::Deletion::Permanent => format!("delete-confirm{dir}-permanent"),
         };
         let size = size.map(|s| self.human_size(s)).unwrap_or_default();
-        let text = self.i18n.t_args(&id, &[("name", source::name(&path)), ("size", &size)]);
+        let mut text = self.i18n.t_args(&id, &[("name", source::name(&path)), ("size", &size)]);
+        if ntfs {
+            text = format!("{text}\n\n{}", self.i18n.t("delete-ntfs"));
+        }
         let (yes, no) = (self.i18n.t("delete-yes"), self.i18n.t("delete-no"));
         let mut answer = self.delete_answer.take();
         egui::Modal::new(egui::Id::unique("delete")).show(ctx, |ui| {

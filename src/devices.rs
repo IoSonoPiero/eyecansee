@@ -136,6 +136,26 @@ fn is_external(dev: &str) -> bool {
     dev.starts_with("mmcblk") || sys.is_ok_and(|p| p.to_string_lossy().contains("/usb"))
 }
 
+/// Is this absolute path on an NTFS disk? (Linux: `ntfs3`, or `fuseblk`, which is ntfs-3g on the
+/// usual desktops [Inference: exFAT through FUSE would also match].) There Nautilus does not
+/// restore from the trash, not even what GNOME itself put there (2026-10-22): the confirmation says so.
+pub fn on_ntfs(path: &str) -> bool {
+    std::fs::read_to_string("/proc/self/mounts").is_ok_and(|m| ntfs_in(&m, path))
+}
+
+fn ntfs_in(mounts: &str, path: &str) -> bool {
+    let inside = |mount: &str| path == mount || path.starts_with(&format!("{}/", mount.trim_end_matches('/')));
+    mounts
+        .lines()
+        .filter_map(|l| {
+            let mut f = l.split(' ');
+            let (_, mount, kind) = (f.next()?, unescape_mount(f.next()?), f.next()?);
+            inside(&mount).then_some((mount.len(), kind))
+        })
+        .max_by_key(|(len, _)| *len)
+        .is_some_and(|(_, kind)| matches!(kind, "fuseblk" | "ntfs" | "ntfs3"))
+}
+
 /// /proc/self/mounts writes spaces and the like in octal: "Sea\040photos" → "Sea photos".
 fn unescape_mount(s: &str) -> String {
     let mut out = Vec::new();
@@ -350,6 +370,11 @@ mod tests {
         assert_eq!(name("mtp:host=Pixel"), Some(("Pixel".into(), String::new())));
         assert_eq!(gvfs_name("smb-share:server=nas,share=photos"), None);
         assert_eq!(unescape_mount("/mnt/Sea\\040photos"), "/mnt/Sea photos");
+        let mounts = "/dev/nvme0n1p3 / btrfs rw 0 0\n/dev/sda2 /run/media/u/My\\040Disk fuseblk rw 0 0\n/dev/sda1 /mnt/Linux ext4 rw 0 0\n";
+        assert!(ntfs_in(mounts, "/run/media/u/My Disk/photos/a.jpg"));
+        assert!(!ntfs_in(mounts, "/run/media/u/My Diskette/a.jpg"));
+        assert!(!ntfs_in(mounts, "/mnt/Linux/a.jpg"));
+        assert!(!ntfs_in(mounts, "/home/u/a.jpg"));
         assert_eq!(unescape_mount("/mnt/Linux"), "/mnt/Linux");
         assert_eq!(unescape_udev("MY\\x20DISK\\x2020\\x2f07"), "MY DISK 20/07");
     }

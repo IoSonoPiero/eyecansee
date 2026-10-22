@@ -155,6 +155,7 @@ EyeCanSee uses the system language when it is available, otherwise English. To f
 
 ## Known limits
 
+- On **NTFS** disks (for example an external disk also used with Windows) the Files app (Nautilus) cannot restore from the trash, not even files it deleted itself; EyeCanSee reminds you in the confirmation. The files are in the trash all the same and can be restored from a terminal: `gio trash --list` shows what is there, `gio trash --restore "<trash:/// address from that line>"` puts it back.
 - SFTP is not available on Windows yet.
 - Images larger than 8192 pixels per side are shown downscaled.
 - Files are sorted alphabetically: `img10` comes before `img2`.

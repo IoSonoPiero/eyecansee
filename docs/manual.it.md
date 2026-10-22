@@ -155,6 +155,7 @@ EyeCanSee usa la lingua del sistema se è disponibile, altrimenti l'inglese. Per
 
 ## Limiti noti
 
+- Sui dischi **NTFS** (per esempio un disco esterno usato anche con Windows) l'app File (Nautilus) non riesce a ripristinare dal cestino, nemmeno i file cancellati da lei stessa; EyeCanSee lo ricorda nella conferma. I file però sono nel cestino e si ripristinano dal terminale: `gio trash --list` mostra cosa c'è, `gio trash --restore "<indirizzo trash:/// della riga>"` lo rimette al suo posto.
 - SFTP non è ancora disponibile su Windows.
 - Le immagini più grandi di 8192 pixel per lato vengono mostrate ridotte.
 - I file sono ordinati alfabeticamente: `img10` viene prima di `img2`.

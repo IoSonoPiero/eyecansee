@@ -159,3 +159,4 @@ restore-taken = In "{ $folder }" c'è già un elemento chiamato "{ $name }".
 restore-replace = Sostituisci
 restore-keep-both = Tieni entrambi
 restore-merge = Unisci
+delete-ntfs = Questo è un disco NTFS: l'app File (Nautilus) non riesce a ripristinare dal suo cestino. Il file si può comunque ripristinare dal terminale con "gio trash --restore" (vedi il manuale, Limiti noti).
