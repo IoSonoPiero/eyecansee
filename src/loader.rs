@@ -26,6 +26,10 @@ pub enum Msg {
     /// Outcome of mounting a partition: absolute path or error.
     Mounted(Result<String, String>),
     Loaded { generation: u64, index: usize, thumb: bool, image: Result<ColorImage, String> },
+    /// Something changed in the watched local folder (`App::watch`).
+    Changed,
+    /// Outcome of deleting an image (path relative to the source).
+    Deleted(String, Result<(), source::Error>),
     /// Metadata of an image: `None` = no EXIF.
     Meta { generation: u64, index: usize, meta: Result<Option<crate::meta::Meta>, String> },
 }
@@ -123,6 +127,23 @@ impl Loader {
         self.rt.spawn(async move {
             maintain(&op, &base).await;
             thumbcache::trim(limit);
+        });
+    }
+
+    pub fn deletion(&self, path: &str, local_permanent: bool, remote: crate::settings::RemoteDelete) -> source::Deletion {
+        self.op.deletion(path, local_permanent, remote)
+    }
+
+    /// Deletes in the background; the thumbnail goes too.
+    pub fn delete(&self, path: String, how: source::Deletion) {
+        let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let r = op.delete(&path, how).await;
+            if r.is_ok() {
+                thumbcache::delete(&base, &path);
+            }
+            let _ = tx.send(Msg::Deleted(path, r));
+            ctx.request_repaint();
         });
     }
 

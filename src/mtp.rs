@@ -168,6 +168,10 @@ impl Phone {
         let mut handles = self.handles.lock().unwrap();
         for o in objects {
             if o.filename.starts_with('.') {
+                // Not shown, but the trash folder must be found again (see `delete`).
+                if o.is_folder() {
+                    handles.insert(format!("{dir}{}/", o.filename), o.handle);
+                }
                 continue;
             }
             if o.is_folder() {
@@ -198,6 +202,31 @@ impl Phone {
             }
             r => r.map_err(error),
         }
+    }
+
+    /// Deletes for good, or moves into the hidden trash folder next to the image.
+    pub async fn delete(&self, path: &str, permanent: bool) -> Result<(), Error> {
+        let (storage, handle) = self.locate(path).await?;
+        let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
+        if permanent {
+            storage.delete(handle).await.map_err(error)?;
+        } else {
+            let dir = source::parent(path);
+            let trash = format!("{dir}{}/", source::TRASH_DIR);
+            let folder = match self.locate(&trash).await {
+                Ok((_, Some(h))) => h,
+                _ => {
+                    let (_, parent) = self.locate(&dir).await?;
+                    let h = storage.create_folder(parent, source::TRASH_DIR).await.map_err(error)?;
+                    self.handles.lock().unwrap().insert(trash, h);
+                    h
+                }
+            };
+            // ponytail: a name already in the trash folder is left to the phone [Unverified: error or duplicate]
+            storage.move_object(handle, folder, None).await.map_err(error)?;
+        }
+        self.handles.lock().unwrap().remove(path);
+        Ok(())
     }
 
     /// Does the folder exist? (for cache maintenance).

@@ -35,6 +35,20 @@ pub struct Settings {
     pub theme: ThemeChoice,
     /// Code of the chosen language (`en`, `it`); `None` = the system's.
     pub language: Option<String>,
+    /// Local files deleted for good instead of going to the system trash (dangerous, off by default).
+    pub local_permanent: bool,
+    /// Deleting on phones and servers, which have no trash EyeCanSee can reach.
+    pub remote_delete: RemoteDelete,
+}
+
+/// For phones, FTP, SFTP; local files go by `local_permanent`.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum RemoteDelete {
+    /// Moved into a hidden `.EyeCanSee-trash` folder next to the image.
+    #[default]
+    TrashFolder,
+    Permanent,
 }
 
 /// Light colours, dark ones or like the system (changes by itself when the system's changes).
@@ -100,6 +114,8 @@ impl Default for Settings {
             window_maximized: false,
             theme: ThemeChoice::System,
             language: None,
+            local_permanent: false,
+            remote_delete: RemoteDelete::TrashFolder,
         }
     }
 }

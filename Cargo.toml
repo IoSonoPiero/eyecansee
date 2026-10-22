@@ -1,6 +1,6 @@
 [package]
 name = "eyecansee"
-version = "0.15.0"
+version = "0.16.0"
 edition = "2024"
 description = "Image viewer for Linux and Windows"
 license = "GPL-3.0-or-later"
@@ -40,6 +40,10 @@ unic-langid = "0.9.6"
 url = "2.5.8"
 kamadak-exif = "0.6.1"
 interprocess = "2.4.6"
+# Deleting local images: system trash (freedesktop on Linux, Recycle Bin on Windows).
+trash = "5.2.9"
+# Local folders updated by themselves when files change (inotify, ReadDirectoryChangesW).
+notify = "8.2.0"
 
 [target."cfg(windows)".dependencies]
 # Drives (C:, D:, …): type, label and bus (USB/SD = external) for "This computer" and Devices.

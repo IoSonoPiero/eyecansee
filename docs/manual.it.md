@@ -35,6 +35,17 @@ Le miniature vengono salvate su disco, così riaprire la stessa cartella è imme
 - **Colori**: **Come il sistema** (predefinito: chiari o scuri come il tema di Windows o del desktop, e cambiano insieme a lui), **Chiari** o **Scuri**. La scelta vale subito.
 - **Pulizia della cache miniature** e **Limite della cache**: vedi *Miniature*.
 - **Svuota la cache miniature…**: elimina tutte le miniature salvate, dopo una conferma con il numero di miniature e lo spazio liberato. Le immagini non vengono toccate; le miniature della cartella aperta si rifanno subito, le altre quando le riapri.
+- **Elimina i file del computer definitivamente, senza cestino (pericoloso)** (spenta all'inizio): vedi *Eliminare le immagini*.
+- **Eliminare su telefoni e server**: vedi *Eliminare le immagini*.
+
+## Eliminare le immagini
+
+**Canc** (o **File > Elimina…**) elimina l'immagine selezionata nella griglia o quella aperta nel visore, dopo una conferma con il nome e la dimensione. Nella conferma **Invio** elimina ed **Esc** annulla. Nel visore compare subito l'immagine successiva.
+
+- **File del computer e dischi esterni**: vanno nel cestino del sistema, da cui si possono ripristinare. Con l'opzione **Elimina i file del computer definitivamente, senza cestino** vengono eliminati per sempre.
+- **Telefoni e server (FTP, SFTP)** non hanno un cestino raggiungibile. Nelle Opzioni, sotto **Eliminare su telefoni e server**, scegli tra **Sposta nella cartella nascosta .EyeCanSee-trash accanto all'immagine** (predefinita: l'immagine finisce in una cartella `.EyeCanSee-trash` dentro la sua cartella, e si recupera con un gestore di file) ed **Elimina definitivamente**. L'FTP non sa spostare i file: lì serve **Elimina definitivamente**.
+
+**Maiusc+Canc** (o **File > Elimina definitivamente…**) elimina per sempre solo quella volta, qualunque sia l'opzione.
 
 ## Dispositivi esterni
 
@@ -80,6 +91,8 @@ Nella griglia:
 | Inizio, Fine | Primo, ultimo elemento |
 | Invio | Apre la cartella o l'immagine |
 | Backspace | Cartella superiore |
+| Canc | Elimina l'immagine (vedi *Eliminare le immagini*) |
+| Maiusc+Canc | Elimina l'immagine definitivamente |
 | Tab | Elemento successivo; dall'ultimo passa ai dispositivi |
 | Shift+Tab | Elemento precedente; dal primo passa alla cartella aperta a sinistra |
 
@@ -104,8 +117,11 @@ Nel visore:
 | Freccia sinistra, Backspace, Pagina su | Immagine precedente |
 | Inizio, Fine | Prima, ultima immagine |
 | Esc | Torna alla griglia |
+| Canc, Maiusc+Canc | Elimina l'immagine, come nella griglia |
 
 Ovunque: **F1** apre questo manuale, **F5** rilegge le cartelle. Nel visore F5 resta sull'immagine aperta; se nel frattempo è stata cancellata, torna alla griglia.
+
+Le cartelle del computer si aggiornano da sole: immagini aggiunte, eliminate, rinominate o ripristinate dal cestino da un altro programma compaiono e spariscono senza F5, anche nel visore, che resta sull'immagine aperta. Su telefoni e server serve F5.
 
 Le stesse azioni sono nei menù: **Visualizza** (Apri, Torna alla griglia, Aggiorna) e **Vai** (Avanti, Indietro, Primo, Ultimo, Cartella superiore). Nella griglia Avanti e Indietro spostano la selezione, nel visore cambiano immagine.
 

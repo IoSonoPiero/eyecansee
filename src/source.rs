@@ -3,7 +3,7 @@
 //! Every source has its root at the top, so the folder tree can climb all the way up.
 //! Folders are paths relative to the root ending in `/` ("" is the root).
 
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use opendal::{Operator, services};
@@ -11,13 +11,23 @@ use percent_encoding::percent_decode_str;
 use url::Url;
 
 use crate::decode::is_image;
-use crate::settings::SortBy;
+use crate::settings::{RemoteDelete, SortBy};
 
 /// Translatable error: Fluent message id and technical detail.
 pub type Error = (&'static str, String);
 
 /// Id of the "not found" error, recognised by cache maintenance.
 pub const NOT_FOUND: &str = "error-not-found";
+
+/// Hidden folder, next to the image, where images deleted on phones and servers go.
+pub const TRASH_DIR: &str = ".EyeCanSee-trash";
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Deletion {
+    SystemTrash,
+    TrashFolder,
+    Permanent,
+}
 
 /// The operations the app needs, the same for all sources.
 #[derive(Clone)]
@@ -39,7 +49,7 @@ async fn gvfs_permit(op: &Operator, path: &str) -> Option<tokio::sync::Semaphore
     if op.info().scheme() == "fs" && in_gvfs(&op.info().root(), path) { GVFS.acquire().await.ok() } else { None }
 }
 
-fn in_gvfs(root: &str, path: &str) -> bool {
+pub fn in_gvfs(root: &str, path: &str) -> bool {
     format!("{root}/{path}").contains("/gvfs/")
 }
 
@@ -66,6 +76,48 @@ impl Store {
         }
     }
 
+    /// What deleting `path` does: local files go to the system trash unless `local_permanent`;
+    /// phones and servers (also when mounted by gvfs, which has no trash) follow `remote`.
+    pub fn deletion(&self, path: &str, local_permanent: bool, remote: RemoteDelete) -> Deletion {
+        match self {
+            Store::Dal(op) if op.info().scheme() == "fs" && !in_gvfs(&op.info().root(), path) => {
+                if local_permanent { Deletion::Permanent } else { Deletion::SystemTrash }
+            }
+            _ if remote == RemoteDelete::Permanent => Deletion::Permanent,
+            _ => Deletion::TrashFolder,
+        }
+    }
+
+    pub async fn delete(&self, path: &str, how: Deletion) -> Result<(), Error> {
+        match (self, how) {
+            (Store::Dal(op), Deletion::SystemTrash) => {
+                // Pushed one element at a time: Windows' "\\?\" root does not accept "/".
+                let full: PathBuf = std::iter::once(op.info().root()).chain(path.split('/').map(String::from)).collect();
+                tokio::task::spawn_blocking(move || trash::delete(&full))
+                    .await
+                    .map_err(|e| ("error-detail", e.to_string()))?
+                    .map_err(|e| ("error-detail", e.to_string()))
+            }
+            (Store::Dal(op), Deletion::Permanent) => op.delete(path).await.map_err(dal_error),
+            (Store::Dal(op), Deletion::TrashFolder) => {
+                let folder = format!("{}{TRASH_DIR}/", parent(path));
+                let trash_error = |e: opendal::Error| match e.kind() {
+                    opendal::ErrorKind::Unsupported => ("error-no-trash-folder", e.to_string()),
+                    _ => dal_error(e),
+                };
+                op.create_dir(&folder).await.map_err(trash_error)?;
+                let mut to = format!("{folder}{}", name(path));
+                // ponytail: a name already in the trash gets a time prefix, no numbering
+                if op.exists(&to).await.unwrap_or(false) {
+                    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
+                    to = format!("{folder}{secs}-{}", name(path));
+                }
+                op.rename(path, &to).await.map_err(trash_error)
+            }
+            (Store::Mtp(phone), how) => phone.delete(path, how == Deletion::Permanent).await,
+        }
+    }
+
     /// Does the folder exist? OpenDAL (at least `fs`) lists a non-existent folder as empty.
     pub async fn check_dir(&self, dir: &str) -> Result<(), Error> {
         match self {
@@ -86,7 +138,7 @@ pub struct Source {
     pub start: Option<String>,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct Listing {
     pub dirs: Vec<String>,
     pub files: Vec<File>,
@@ -259,6 +311,29 @@ fn hidden(_: &Operator, _: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Trash folder and permanent deletion, through OpenDAL on a temporary folder.
+    #[test]
+    fn delete_to_folder_and_for_good() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-delete-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("photos")).unwrap();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let trash = dir.join("photos").join(TRASH_DIR);
+        for _ in 0..2 {
+            std::fs::write(dir.join("photos/a.jpg"), b"x").unwrap();
+            rt.block_on(op.delete("photos/a.jpg", Deletion::TrashFolder)).unwrap();
+        }
+        // The second one with the same name gets a prefix instead of replacing the first.
+        assert!(!dir.join("photos/a.jpg").exists());
+        assert!(trash.join("a.jpg").exists());
+        assert_eq!(std::fs::read_dir(&trash).unwrap().count(), 2);
+        std::fs::write(dir.join("photos/b.jpg"), b"x").unwrap();
+        rt.block_on(op.delete("photos/b.jpg", Deletion::Permanent)).unwrap();
+        assert!(!dir.join("photos/b.jpg").exists());
+        assert_eq!(std::fs::read_dir(&trash).unwrap().count(), 2);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn sort_files() {

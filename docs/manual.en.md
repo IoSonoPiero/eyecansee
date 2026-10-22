@@ -35,6 +35,17 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 - **Colors**: **Same as the system** (default: light or dark like the Windows or desktop theme, following it when it changes), **Light** or **Dark**. The choice applies at once.
 - **Clean up the thumbnail cache** and **Cache limit**: see *Thumbnails*.
 - **Empty the thumbnail cache…**: deletes all saved thumbnails, after a confirmation showing how many and how much space is freed. Your images are not touched; thumbnails of the open folder are created again right away, the others when you open them again.
+- **Delete files on this computer for good, without the trash (dangerous)** (off at first): see *Deleting images*.
+- **Deleting on phones and servers**: see *Deleting images*.
+
+## Deleting images
+
+**Del** (or **File > Delete…**) deletes the image selected in the grid or the one open in the viewer, after a confirmation showing its name and size. In the confirmation **Enter** deletes and **Esc** cancels. In the viewer the next image appears at once.
+
+- **Files on this computer and external disks** go to the system trash, where they can be restored. With the option **Delete files on this computer for good, without the trash** they are deleted forever.
+- **Phones and servers (FTP, SFTP)** have no trash EyeCanSee can reach. In the Options, under **Deleting on phones and servers**, choose between **Move to the hidden .EyeCanSee-trash folder next to the image** (default: the image goes into a `.EyeCanSee-trash` folder inside its own folder, and you get it back with a file manager) and **Delete for good**. FTP cannot move files: there you need **Delete for good**.
+
+**Shift+Del** (or **File > Delete for good…**) deletes forever that one time, whatever the option says.
 
 ## External devices
 
@@ -80,6 +91,8 @@ In the grid:
 | Home, End | First, last item |
 | Enter | Open the folder or the image |
 | Backspace | Parent folder |
+| Del | Deletes the image (see *Deleting images*) |
+| Shift+Del | Deletes the image for good |
 | Tab | Next item; from the last one it moves to the devices |
 | Shift+Tab | Previous item; from the first one it moves to the folder open on the left |
 
@@ -104,8 +117,11 @@ In the viewer:
 | Left arrow, Backspace, Page Up | Previous image |
 | Home, End | First, last image |
 | Esc | Back to the grid |
+| Del, Shift+Del | Deletes the image, as in the grid |
 
 Everywhere: **F1** opens this manual, **F5** reloads the folders. In the viewer F5 stays on the open image; if it has been deleted in the meantime, it goes back to the grid.
+
+Folders on this computer update by themselves: images added, deleted, renamed or restored from the trash by another program appear and disappear without F5, also in the viewer, which stays on the open image. On phones and servers you need F5.
 
 The same actions are in the menus: **View** (Open, Back to the grid, Refresh) and **Go** (Next, Previous, First, Last, Parent folder). In the grid Next and Previous move the selection, in the viewer they change image.
 

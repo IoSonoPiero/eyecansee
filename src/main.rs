@@ -41,7 +41,7 @@ use eframe::egui::{self, Color32, Key, TextureHandle, TextureOptions};
 use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
 use i18n::I18n;
 use loader::{Loader, Msg, THUMB_SIDE};
-use settings::{Settings, ThemeChoice, WindowStart};
+use settings::{RemoteDelete, Settings, ThemeChoice, WindowStart};
 use source::{File, Listing};
 
 /// Version number: it lives only in the `VERSION` file (and, identical, in `Cargo.toml`; a test checks it).
@@ -111,7 +111,7 @@ struct App {
     /// Metadata of the selected image (index among the images) and last request made.
     meta: Option<(usize, Result<Option<meta::Meta>, String>)>,
     meta_asked: Option<(u64, usize)>,
-    /// Height of the metadata panel with the data shown, kept while the new data loads.
+    /// Tallest height of the metadata panel so far: it never shrinks (see `meta_panel`).
     meta_height: f32,
     /// Phone without storage in the open folder: when to read it again (egui time).
     retry_at: Option<f64>,
@@ -155,6 +155,18 @@ struct App {
     purge_confirm: Option<(u64, u64)>,
     /// Sources already gone through cache maintenance in this session.
     maintained: HashSet<String>,
+    /// Image waiting for the user to confirm its deletion, and what deleting it does.
+    delete_confirm: Option<(File, source::Deletion)>,
+    /// Enter (true) or Esc (false) pressed while the confirmation is open.
+    delete_answer: Option<bool>,
+    /// The open local folder, watched for changes made outside EyeCanSee.
+    watcher: Option<notify::RecommendedWatcher>,
+    watched: Option<std::path::PathBuf>,
+    /// Folder changed on disk: when to read it again (egui time), so a burst of events
+    /// (a big file being copied) gives one listing.
+    changed_at: Option<f64>,
+    /// Folders being read again after a change: their new listing replaces the old one in place.
+    relisting: HashSet<String>,
 }
 
 impl App {
@@ -210,6 +222,22 @@ impl App {
             options: false,
             purge_confirm: None,
             maintained: HashSet::new(),
+            delete_confirm: None,
+            delete_answer: None,
+            watcher: None,
+            watched: None,
+            changed_at: None,
+            relisting: HashSet::new(),
+        };
+        app.watcher = {
+            let (tx, ctx) = (app.tx.clone(), ctx.clone());
+            notify::recommended_watcher(move |e: notify::Result<notify::Event>| {
+                if e.is_ok_and(|e| !e.kind.is_access()) && tx.send(Msg::Changed).is_ok() {
+                    ctx.request_repaint();
+                }
+            })
+            .inspect_err(|e| log!("folder watcher: ERROR {e}"))
+            .ok()
         };
         theme::apply(ctx, app.settings.theme);
         devices::watch(app.tx.clone(), ctx.clone());
@@ -295,6 +323,9 @@ impl App {
             t("opt-cache-maintenance-hint"),
             t("opt-cache-limit"),
         );
+        let (local_permanent, local_permanent_hint) = (t("opt-local-permanent"), t("opt-local-permanent-hint"));
+        let (remote_delete, remote_folder, remote_permanent) =
+            (t("opt-remote-delete"), t("opt-remote-delete-folder"), t("opt-remote-delete-permanent"));
         let (purge, purge_no) = (t("opt-purge"), t("opt-purge-no"));
         let purge_text = self.purge_confirm.map(|(n, bytes)| {
             let mb = format!("{:.1}", bytes as f64 / 1_048_576.0);
@@ -324,6 +355,11 @@ impl App {
             ui.radio_value(&mut s.theme, ThemeChoice::System, theme_system);
             ui.radio_value(&mut s.theme, ThemeChoice::Light, theme_light);
             ui.radio_value(&mut s.theme, ThemeChoice::Dark, theme_dark);
+            ui.separator();
+            ui.checkbox(&mut s.local_permanent, local_permanent).on_hover_text(local_permanent_hint);
+            ui.label(remote_delete);
+            ui.radio_value(&mut s.remote_delete, RemoteDelete::TrashFolder, remote_folder);
+            ui.radio_value(&mut s.remote_delete, RemoteDelete::Permanent, remote_permanent);
             ui.separator();
             ui.checkbox(&mut s.thumb_maintenance, maint).on_hover_text(maint_hint);
             ui.add_enabled_ui(s.thumb_maintenance, |ui| {
@@ -411,6 +447,27 @@ impl App {
         self.start = None;
         let dir = self.dir.clone();
         self.request_listing(&dir);
+        self.watch();
+    }
+
+    /// Watches the open folder if it is on this computer. Phones and servers send nothing (F5);
+    /// gvfs mounts neither: changes on the phone do not reach inotify.
+    fn watch(&mut self) {
+        use notify::Watcher;
+        let Some(watcher) = &mut self.watcher else { return };
+        if let Some(old) = self.watched.take() {
+            let _ = watcher.unwatch(&old);
+        }
+        self.changed_at = None;
+        if self.base.contains("://") || source::in_gvfs(&self.base, &self.dir) {
+            return;
+        }
+        let path: std::path::PathBuf =
+            std::iter::once(self.base.as_str()).chain(self.dir.split('/').filter(|s| !s.is_empty())).collect();
+        match watcher.watch(&path, notify::RecursiveMode::NonRecursive) {
+            Ok(()) => self.watched = Some(path),
+            Err(e) => log!("watch {path:?}: ERROR {e}"),
+        }
     }
 
     pub(crate) fn go_up(&mut self) {
@@ -515,7 +572,13 @@ impl App {
                         self.retry_at = no_storage.then(|| ctx.input(|i| i.time) + RETRY_SECS);
                     }
                     let r = r.map_err(|(id, detail)| self.i18n.t_args(id, &[("detail", &detail)]));
-                    self.listings.insert(dir, r);
+                    match r {
+                        Ok(l) if self.relisting.remove(&dir) => self.swap_listing(&dir, l),
+                        r => {
+                            self.relisting.remove(&dir);
+                            self.listings.insert(dir, r);
+                        }
+                    }
                 }
                 Msg::Loaded { generation, index, thumb, image } if generation == self.generation => {
                     let name = self.files().get(index).map(|f| f.path.clone()).unwrap_or_default();
@@ -544,6 +607,15 @@ impl App {
                     self.meta = Some((index, meta));
                 }
                 Msg::Loaded { .. } | Msg::Meta { .. } => {} // folder has changed in the meantime
+                Msg::Changed => self.changed_at = Some(ctx.input(|i| i.time) + 0.3),
+                Msg::Deleted(path, Ok(())) => {
+                    log!("deleted {path:?}");
+                    self.remove_file(&path);
+                }
+                Msg::Deleted(path, Err((id, detail))) => {
+                    log!("delete {path:?}: ERROR {id} {detail}");
+                    self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
+                }
                 Msg::Mounted(Ok(path)) => {
                     log!("mounted at {path:?}");
                     // Opened straight away: as a local folder, or reopening the disk if the source is remote.
@@ -586,6 +658,27 @@ impl App {
     /// Phone without storage (locked, charging or not yet in "File transfer") or not found (it
     /// reconnects when switched to "File transfer", or was unplugged): the folder is
     /// read again by itself every `RETRY_SECS`, without F5. Until then the message stays.
+    /// Reads the open folder again after a change on disk, once the events have calmed down.
+    fn reread_changed(&mut self, ctx: &egui::Context) {
+        let Some(at) = self.changed_at else { return };
+        let now = ctx.input(|i| i.time);
+        if now < at {
+            ctx.request_repaint_after(std::time::Duration::from_secs_f64(at - now));
+            return;
+        }
+        let Some(loader) = &self.loader else { return };
+        // A listing already on its way may have been read before the change: try again after it.
+        if !self.listing_pending.insert(self.dir.clone()) {
+            self.changed_at = Some(now + 0.3);
+            ctx.request_repaint_after(std::time::Duration::from_secs_f64(0.3));
+            return;
+        }
+        self.changed_at = None;
+        log!("changed on disk {:?}", self.dir);
+        self.relisting.insert(self.dir.clone());
+        loader.list(self.dir.clone());
+    }
+
     fn retry(&mut self, ctx: &egui::Context) {
         let Some(at) = self.retry_at else { return };
         let now = ctx.input(|i| i.time);
@@ -603,7 +696,11 @@ impl App {
     }
 
     fn global_keys(&mut self, ctx: &egui::Context) {
-        let (help, refresh) = ctx.input(|i| (i.key_pressed(Key::F1), i.key_pressed(Key::F5)));
+        let (help, refresh, delete, shift) =
+            ctx.input(|i| (i.key_pressed(Key::F1), i.key_pressed(Key::F5), i.key_pressed(Key::Delete), i.modifiers.shift));
+        if delete && !ctx.egui_wants_keyboard_input() {
+            self.ask_delete(shift);
+        }
         if help {
             self.help = !self.help;
         }
@@ -676,6 +773,118 @@ impl App {
         }
     }
 
+    /// The image Delete acts on: the one in the viewer, or the one selected in the grid.
+    fn delete_target(&self) -> Option<File> {
+        let Some(Ok(l)) = self.listings.get(&self.dir) else { return None };
+        let i = match self.viewing {
+            Some(i) => i,
+            None if self.cursor && self.focus == Focus::Grid => self.selected.checked_sub(l.dirs.len())?,
+            None => return None,
+        };
+        l.files.get(i).cloned()
+    }
+
+    /// `permanent`: Shift+Del, for good this time whatever the options say.
+    fn ask_delete(&mut self, permanent: bool) {
+        if let (Some(file), Some(loader)) = (self.delete_target(), &self.loader) {
+            let how = match permanent {
+                true => source::Deletion::Permanent,
+                false => loader.deletion(&file.path, self.settings.local_permanent, self.settings.remote_delete),
+            };
+            log!("delete? {:?} {how:?}", file.path);
+            self.delete_confirm = Some((file, how));
+        }
+    }
+
+    /// Confirmation of the deletion: what will happen, name and size. Enter confirms, Esc cancels.
+    fn delete_window(&mut self, ctx: &egui::Context) {
+        let Some((file, how)) = self.delete_confirm.clone() else { return };
+        let id = match how {
+            source::Deletion::SystemTrash => "delete-confirm-trash",
+            source::Deletion::TrashFolder => "delete-confirm-folder",
+            source::Deletion::Permanent => "delete-confirm-permanent",
+        };
+        let size = self.human_size(file.size);
+        let text = self.i18n.t_args(id, &[("name", source::name(&file.path)), ("size", &size)]);
+        let (yes, no) = (self.i18n.t("delete-yes"), self.i18n.t("delete-no"));
+        let mut answer = self.delete_answer.take();
+        egui::Modal::new(egui::Id::unique("delete")).show(ctx, |ui| {
+            ui.set_max_width(420.0);
+            ui.label(text);
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.button(yes).clicked() {
+                    answer = Some(true);
+                }
+                if ui.button(no).clicked() {
+                    answer = Some(false);
+                }
+            });
+        });
+        match answer {
+            Some(true) => {
+                if let Some(loader) = &self.loader {
+                    loader.delete(file.path.clone(), how);
+                }
+                self.delete_confirm = None;
+            }
+            Some(false) => self.delete_confirm = None,
+            None => {}
+        }
+    }
+
+    /// Deleted image: out of the listing, as if read again.
+    fn remove_file(&mut self, path: &str) {
+        let dir = source::parent(path);
+        let Some(Ok(l)) = self.listings.get(&dir) else { return };
+        let new = Listing { dirs: l.dirs.clone(), files: l.files.iter().filter(|f| f.path != path).cloned().collect() };
+        self.swap_listing(&dir, new);
+    }
+
+    /// New listing of a folder already shown (image deleted, folder changed on disk). Thumbnails
+    /// and viewer images are kept by position: they follow their file to its new place, so the
+    /// next image in the viewer is already there; those of files gone or changed are dropped.
+    /// Selection and viewer follow their item; if it is gone, what took its place.
+    /// Requests in flight carry the old positions: a new generation drops them and they are asked again.
+    fn swap_listing(&mut self, dir: &str, new: Listing) {
+        let Some(Ok(old)) = self.listings.insert(dir.to_string(), Ok(new)) else { return };
+        if dir != self.dir {
+            return;
+        }
+        let Some(Ok(new)) = self.listings.get(dir) else { return };
+        let at: HashMap<&str, usize> = new.files.iter().enumerate().map(|(i, f)| (f.path.as_str(), i)).collect();
+        let moved: HashMap<usize, usize> = old
+            .files
+            .iter()
+            .enumerate()
+            .filter_map(|(i, f)| {
+                let j = *at.get(f.path.as_str())?;
+                (new.files[j].size == f.size && new.files[j].modified == f.modified).then_some((i, j))
+            })
+            .collect();
+        fn remap<T>(map: &mut HashMap<usize, T>, moved: &HashMap<usize, usize>) {
+            *map = map.drain().filter_map(|(k, v)| Some((*moved.get(&k)?, v))).collect();
+        }
+        remap(&mut self.thumbs, &moved);
+        remap(&mut self.full, &moved);
+        self.generated = self.generated.iter().filter_map(|k| moved.get(k).copied()).collect();
+        let (ndirs, n) = (new.dirs.len(), new.files.len());
+        let file_at = |i: usize| old.files.get(i).and_then(|f| at.get(f.path.as_str()).copied());
+        let followed = match old.dirs.get(self.selected) {
+            Some(d) => new.dirs.iter().position(|x| x == d),
+            None => file_at(self.selected - old.dirs.len()).map(|j| ndirs + j),
+        };
+        self.selected = followed.unwrap_or(self.selected).min((ndirs + n).saturating_sub(1));
+        self.cursor &= ndirs + n > 0;
+        self.viewing = self.viewing.filter(|_| n > 0).map(|v| file_at(v).unwrap_or(v.min(n - 1)));
+        if let Some(loader) = &self.loader {
+            self.generation = loader.next_generation();
+        }
+        self.thumb_queue_key = None;
+        self.pending.clear();
+        self.meta_asked = None;
+    }
+
     fn close_viewer(&mut self) {
         if let (Some(i), Some(Ok(l))) = (self.viewing.take(), self.listings.get(&self.dir)) {
             self.selected = l.dirs.len() + i;
@@ -726,6 +935,7 @@ impl App {
         enum Act {
             Address,
             Options,
+            Delete(bool),
             Quit,
             Open,
             Back,
@@ -752,6 +962,10 @@ impl App {
             ui.menu_button(t("menu-file"), |ui| {
                 entry(ui, true, egui::Button::new(t("menu-open-location")), Act::Address);
                 entry(ui, true, egui::Button::new(t("menu-options")), Act::Options);
+                ui.separator();
+                let can_delete = self.delete_target().is_some();
+                entry(ui, can_delete, item(t("menu-delete"), t("key-delete")), Act::Delete(false));
+                entry(ui, can_delete, item(t("menu-delete-permanent"), t("key-shift-delete")), Act::Delete(true));
                 ui.separator();
                 entry(ui, true, egui::Button::new(t("menu-quit")), Act::Quit);
             });
@@ -794,6 +1008,7 @@ impl App {
         match act {
             Some(Act::Address) => ui.memory_mut(|m| m.request_focus(egui::Id::unique("address"))),
             Some(Act::Options) => self.options = true,
+            Some(Act::Delete(permanent)) => self.ask_delete(permanent),
             Some(Act::Quit) => ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close),
             Some(Act::Open) => self.activate(self.selected),
             Some(Act::Back) => self.close_viewer(),
@@ -908,6 +1123,7 @@ impl App {
         if !show {
             self.settings.meta_hidden.push(g.key().to_string());
         }
+        self.meta_height = 0.0;
         self.settings.save();
     }
 
@@ -971,6 +1187,23 @@ impl App {
 
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer).
+        if self.delete_confirm.is_some() {
+            let answer = &mut self.delete_answer;
+            raw_input.events.retain(|e| match e {
+                egui::Event::Key { key, pressed: true, .. } => {
+                    match key {
+                        Key::Enter => *answer = Some(true),
+                        Key::Escape => *answer = Some(false),
+                        _ => {}
+                    }
+                    false
+                }
+                egui::Event::Key { .. } | egui::Event::Text(_) => false,
+                _ => true,
+            });
+            return;
+        }
         if self.viewing.is_some() || ctx.egui_wants_keyboard_input() {
             return;
         }
@@ -999,6 +1232,7 @@ impl eframe::App for App {
         let ctx = ui.ctx().clone();
         self.receive(&ctx);
         self.retry(&ctx);
+        self.reread_changed(&ctx);
         self.global_keys(&ctx);
         if self.viewing.is_some() {
             self.viewer_keys(&ctx);
@@ -1059,6 +1293,7 @@ impl eframe::App for App {
             });
         self.help = open;
         self.options_window(&ctx);
+        self.delete_window(&ctx);
 
         #[cfg(debug_assertions)]
         debug_screenshot(&ctx);

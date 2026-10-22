@@ -547,8 +547,10 @@ impl App {
             loader.load_meta(self.generation, *i, path.clone());
             self.meta_asked = Some((self.generation, *i));
         }
+        // While the new data arrives the previous image's stay: the values that do not change
+        // (make, model, lens…) stay still instead of blinking through "Reading…".
         let meta = match (&file, &self.meta) {
-            (Some((i, _)), Some((j, m))) if i == j => Some(m.clone()),
+            (Some(_), Some((_, m))) => Some(m.clone()),
             _ => None,
         };
         let t = |id: &str| self.i18n.t(id);
@@ -559,15 +561,15 @@ impl App {
             (_, Some(Ok(None))) => t("meta-no-exif"),
             _ => String::new(),
         };
-        // While the data arrives the box keeps the height of last time: with only the
-        // "Loading…" line the panel shrank and grew back at every click.
-        let loading = file.is_some() && meta.is_none();
-        if loading {
-            ui.set_min_height(self.meta_height);
-        }
+        // The panel never shrinks: with a photo without EXIF, or while the data arrives (only
+        // one line), it shrank and grew back at every click and the grid above jumped.
+        // It starts again from its content when a box is opened or closed (`show_meta`).
+        // Only the boxes are measured: the whole panel includes the title bar and grew at every frame.
         let meta = meta.and_then(|m| m.ok().flatten());
         let mut close = None;
-        ScrollArea::horizontal().show(ui, |ui| {
+        let min_height = self.meta_height;
+        let boxes = ScrollArea::horizontal().show(ui, |ui| {
+            ui.set_min_height(min_height);
             ui.horizontal_top(|ui| {
                 for g in Group::ALL.into_iter().filter(|&g| self.meta_shown(g)) {
                     egui::Frame::group(ui.style()).show(ui, |ui| ui.vertical(|ui| {
@@ -610,9 +612,7 @@ impl App {
                 }
             });
         });
-        if !loading {
-            self.meta_height = ui.min_rect().height();
-        }
+        self.meta_height = self.meta_height.max(boxes.content_size.y);
         if let Some(g) = close {
             self.show_meta(g, false);
         }
