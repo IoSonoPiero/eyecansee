@@ -52,7 +52,7 @@ jobs:
       - uses: actions/cache@v5
         with:
           path: C:\eyecansee-vcpkg-cache
-          key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ env.HEIF_PORT }}
+          key: vcpkg-${{ env.VCPKG_COMMIT }}-libheif-libde265-dav1d-x64-windows-static
       - name: libheif
         run: |
           New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
