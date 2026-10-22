@@ -16,14 +16,32 @@ Mature viewers like XnView, IrfanView or digiKam do much more than EyeCanSee, an
 
 ## What it does today
 
-- **Browse folders** with a folder tree on the left and a grid of thumbnails on the right, in the style of XnView.
-- **View images** full window, moving to the next and previous image with the keyboard. The images around the current one are loaded in advance.
-- **Thumbnails** are saved on disk, so a folder opens immediately the second time.
-- **Phones and cameras** connected via USB (Android, in "File transfer" or "Transfer photos" mode) are opened directly, without the file manager. Tested with a Xiaomi POCO X7 Pro on Fedora and on Windows 11.
-- **External disks, USB sticks and SD cards** appear by themselves when connected.
-- **EXIF metadata** of the selected photo: camera, exposure, date, GPS position with a link to OpenStreetMap.
-- **Sorting** by name, date, size or type.
-- **Interface** in English and Italian, light and dark theme, built-in manual (F1).
+**Browsing**
+- Folder tree on the left and a grid of thumbnails on the right, in the style of XnView.
+- Thumbnails are saved on disk, so a folder opens immediately the second time.
+- Sorting by name, date, size or type.
+- Folders on the computer update by themselves when files are added, deleted or renamed by another program.
+
+**Viewing**
+- Images full window, moving to the next and previous one with the keyboard; the images around the current one are loaded in advance.
+- EXIF metadata of the selected photo: camera, exposure, date, GPS position with a link to OpenStreetMap.
+
+**Devices**
+- Phones and cameras connected via USB (Android, in "File transfer" or "Transfer photos" mode) are opened directly, without the file manager. Tested with a Xiaomi POCO X7 Pro on Fedora and on Windows 11.
+- External disks, USB sticks and SD cards appear by themselves when connected.
+
+**Managing files**
+- Delete images and folders, after a confirmation. On the computer they go to the system trash; Shift+Del deletes for good.
+- Phones and servers have no trash: deleted items go to a hidden trash folder next to them, which EyeCanSee shows as **Trash**, where they can be restored or deleted for good.
+- Rename images and folders (F2).
+- A right-click menu on images, folders and the empty space of the grid.
+
+**Interface**
+- English and Italian, light and dark theme, built-in manual (F1).
+- Options grouped in tabs.
+- Only one EyeCanSee at a time: opening another image hands it to the window already open.
+
+Deleting, renaming, the trash and the right-click menu are new and so far tested on Linux only.
 
 ### Formats
 
