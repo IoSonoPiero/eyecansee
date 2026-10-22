@@ -101,13 +101,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      # Only the C libraries compiled from source (decoders, ImageMagick): versions are in the script.
+      # Only the C libraries compiled from source (decoders, ImageMagick): the key is their versions in
+      # the script, so other changes to it keep the cache.
+      - id: deps
+        run: echo "key=$(grep -E '^(DE265|IM)=' tools/build-appimage.sh | tr -s '= \n' '-')" >> "$GITHUB_OUTPUT"
       - uses: actions/cache@v5
         with:
           path: |
             ${{ runner.temp }}/appimage-cache/deps-*
             ${{ runner.temp }}/appimage-cache/imagemagick-*
-          key: appimage-deps-${{ hashFiles('tools/build-appimage.sh') }}
+          key: appimage-deps-${{ steps.deps.outputs.key }}
       - name: Build
         env:
           APPIMAGE_CACHE: ${{ runner.temp }}/appimage-cache
