@@ -6,7 +6,7 @@
 //! ("Internal shared storage/"), folders are below them. MTP works with numeric handles:
 //! every listing remembers path → handle, and a path never seen is resolved by listing its parent.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use mtp_rs::mtp::{MtpDevice, ObjectHandle, Storage};
@@ -167,11 +167,8 @@ impl Phone {
         let objects = storage.list_objects(handle).await.map_err(error)?;
         let mut handles = self.handles.lock().unwrap();
         for o in objects {
-            if o.filename.starts_with('.') {
-                // Not shown, but the trash folder must be found again (see `delete`).
-                if o.is_folder() {
-                    handles.insert(format!("{dir}{}/", o.filename), o.handle);
-                }
+            // Hidden items are not shown, apart from EyeCanSee's trash folders.
+            if o.filename.starts_with('.') && !(o.is_folder() && o.filename == source::TRASH_DIR) {
                 continue;
             }
             if o.is_folder() {
@@ -204,28 +201,52 @@ impl Phone {
         }
     }
 
-    /// Deletes for good, or moves into the hidden trash folder next to the image.
-    pub async fn delete(&self, path: &str, permanent: bool) -> Result<(), Error> {
+    /// Deletes for good (a folder with what is inside it [Unverified on Android: tried with the trash]).
+    pub async fn delete(&self, path: &str) -> Result<(), Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-        if permanent {
-            storage.delete(handle).await.map_err(error)?;
-        } else {
-            let dir = source::parent(path);
-            let trash = format!("{dir}{}/", source::TRASH_DIR);
-            let folder = match self.locate(&trash).await {
-                Ok((_, Some(h))) => h,
-                _ => {
-                    let (_, parent) = self.locate(&dir).await?;
-                    let h = storage.create_folder(parent, source::TRASH_DIR).await.map_err(error)?;
-                    self.handles.lock().unwrap().insert(trash, h);
-                    h
-                }
-            };
-            // ponytail: a name already in the trash folder is left to the phone [Unverified: error or duplicate]
-            storage.move_object(handle, folder, None).await.map_err(error)?;
-        }
+        storage.delete(handle).await.map_err(error)?;
         // A folder takes the paths below it too.
+        self.handles.lock().unwrap().retain(|p, _| !p.starts_with(path));
+        Ok(())
+    }
+
+    /// Names of everything in a folder, of any type and hidden ones too: `list` keeps only images.
+    pub async fn names(&self, dir: &str) -> Result<HashSet<String>, Error> {
+        if dir.is_empty() {
+            return Ok(self.storages().await?.iter().map(|(n, _)| n.clone()).collect());
+        }
+        let (storage, handle) = self.locate(dir).await?;
+        let objects = storage.list_objects(handle).await.map_err(error)?;
+        let mut handles = self.handles.lock().unwrap();
+        Ok(objects
+            .into_iter()
+            .map(|o| {
+                let slash = if o.is_folder() { "/" } else { "" };
+                handles.insert(format!("{dir}{}{slash}", o.filename), o.handle);
+                o.filename
+            })
+            .collect())
+    }
+
+    /// Moves into `to_dir` (created if missing) with the name `new_name`: renamed in place first,
+    /// MTP moves keep the name. The name must be free in both folders (`Store::delete`, `restore`).
+    pub async fn move_into(&self, path: &str, to_dir: &str, new_name: &str) -> Result<(), Error> {
+        let (storage, handle) = self.locate(path).await?;
+        let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
+        let folder = match self.locate(to_dir).await {
+            Ok((_, Some(h))) => h,
+            _ => {
+                let (_, parent) = self.locate(&source::parent(to_dir)).await?;
+                let h = storage.create_folder(parent, source::name(to_dir)).await.map_err(error)?;
+                self.handles.lock().unwrap().insert(to_dir.to_string(), h);
+                h
+            }
+        };
+        if new_name != source::name(path) {
+            storage.rename(handle, new_name).await.map_err(error)?;
+        }
+        storage.move_object(handle, folder, None).await.map_err(error)?;
         self.handles.lock().unwrap().retain(|p, _| !p.starts_with(path));
         Ok(())
     }

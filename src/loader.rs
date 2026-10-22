@@ -30,6 +30,10 @@ pub enum Msg {
     Changed,
     /// Outcome of deleting an item (path relative to the source).
     Deleted(String, Result<(), source::Error>),
+    /// Outcome of putting an item back from the trash: its path in the trash, where it went.
+    Restored(String, Result<String, source::Error>),
+    /// Everything in a trash folder, to put back one at a time (Restore all).
+    TrashItems(Vec<String>),
     /// Outcome of renaming an item: old path, new path.
     Renamed(String, Result<String, source::Error>),
     /// Metadata of an image: `None` = no EXIF.
@@ -145,6 +149,30 @@ impl Loader {
                 thumbcache::delete(&base, &path);
             }
             let _ = tx.send(Msg::Deleted(path, r));
+            ctx.request_repaint();
+        });
+    }
+
+    pub fn restore(&self, path: String, conflict: source::Conflict) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let r = op.restore(&path, conflict).await;
+            let _ = tx.send(Msg::Restored(path, r));
+            ctx.request_repaint();
+        });
+    }
+
+    pub fn trash_items(&self, trash: String) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            match op.children(&trash).await {
+                Ok(paths) => {
+                    let _ = tx.send(Msg::TrashItems(paths));
+                }
+                Err(e) => {
+                    let _ = tx.send(Msg::Restored(trash, Err(e)));
+                }
+            }
             ctx.request_repaint();
         });
     }

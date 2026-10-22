@@ -51,6 +51,10 @@ Le miniature vengono salvate su disco, così riaprire la stessa cartella è imme
 
 Non si possono eliminare né rinominare la cartella principale di una sorgente e le memorie di un telefono.
 
+**Il cestino di telefoni e server**: ogni cartella in cui hai eliminato qualcosa ha un **Cestino** (🗑), il primo elemento della griglia. Dentro puoi guardare le immagini, **ripristinarle** (tornano nella cartella che contiene il cestino) o eliminarle definitivamente: lì **Canc** elimina sempre per sempre, e Rinomina non c'è. Col clic destro sul Cestino: **Ripristina tutto** e **Svuota il cestino…** (tutto eliminato per sempre, dopo una conferma).
+
+Se ripristinando un elemento il suo nome è già usato, EyeCanSee chiede cosa fare: per un file **Sostituisci** (quello presente viene eliminato) o **Tieni entrambi** (il ripristinato diventa per esempio `foto (2).jpg`); per una cartella **Unisci** (i contenuti si sommano; i file con lo stesso nome restano tutti e due) o **Tieni entrambi**. **Annulla** ferma anche il resto di un Ripristina tutto. Anche nel cestino un nome già presente diventa `foto (2).jpg`.
+
 ## Dispositivi esterni
 
 Quando colleghi un telefono, una fotocamera, un disco esterno, una chiavetta o una scheda SD, in alto a sinistra compare il blocco **Dispositivi**, con la struttura delle sue cartelle da espandere come l'albero. Quando lo scolleghi, sparisce; se lo stavi guardando, EyeCanSee torna alla tua cartella personale.

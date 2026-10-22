@@ -78,13 +78,29 @@ impl App {
             Some(a) => Some((t("menu-open-selected"), String::new(), a)),
             None => Some((t("menu-back-to-grid"), "Esc".into(), Act::Back)),
         }];
-        if path.as_deref().or(self.target().as_deref()).is_some_and(|p| self.can_change(p)) {
+        let Some(target) = path.clone().or_else(|| self.target()).filter(|p| self.can_change(p)) else { return items };
+        // The trash folder: only put everything back or empty it. What is inside it: look at it,
+        // put it back or delete it for good (Del does that too there).
+        if source::is_trash(&target) {
+            items.push(Some((t("menu-restore-all"), String::new(), Act::Restore(path.clone()))));
+            items.push(None);
+            items.push(Some((t("menu-empty-trash"), t("key-delete"), Act::Delete(path, true))));
+        } else if source::in_trash(&target) {
+            items.push(Some((t("menu-restore"), String::new(), Act::Restore(path.clone()))));
+            items.push(None);
+            items.push(Some((t("menu-delete-permanent"), t("key-delete"), Act::Delete(path, true))));
+        } else {
             items.push(Some((t("menu-rename"), "F2".into(), Act::Rename(path.clone()))));
             items.push(None);
             items.push(Some((t("menu-delete"), t("key-delete"), Act::Delete(path.clone(), false))));
             items.push(Some((t("menu-delete-permanent"), t("key-shift-delete"), Act::Delete(path, true))));
         }
         items
+    }
+
+    /// Name shown for a folder or image: trash folders have their own, in the user's language.
+    pub(crate) fn item_name(&self, path: &str) -> String {
+        if source::is_trash(path) { self.i18n.t("trash") } else { source::name(path).to_string() }
     }
 }
 
@@ -417,7 +433,8 @@ impl App {
         header.body(|ui| match self.listings.get(&dir) {
             Some(Ok(listing)) => {
                 for child in listing.dirs.clone() {
-                    let label = format!("🗀 {}", source::name(&child));
+                    let icon = if source::is_trash(&child) { "🗑" } else { "🗀" };
+                    let label = format!("{icon} {}", self.item_name(&child));
                     self.tree_node(ui, salt, child, &label, may_reveal);
                 }
             }
@@ -696,7 +713,7 @@ impl App {
     fn grid_cell(&mut self, ui: &mut Ui, rect: Rect, i: usize, ndirs: usize) -> bool {
         let Some(Ok(listing)) = self.listings.get(&self.dir) else { return false };
         let path = if i < ndirs { listing.dirs[i].clone() } else { listing.files[i - ndirs].path.clone() };
-        let name = source::name(&path).to_string();
+        let name = self.item_name(&path);
         let response = ui.interact(rect, ui.scope_id().with(("cell", i)), Sense::click()).on_hover_text(&name);
 
         let painter = ui.painter_at(rect);
@@ -713,7 +730,8 @@ impl App {
         let thumb_rect = Rect::from_min_size(rect.min + vec2(8.0, 6.0), vec2(side, side));
         let dim = visuals.weak_text_color();
         if i < ndirs {
-            painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "🗀", FontId::proportional(side * 0.5), dim);
+            let icon = if source::is_trash(&path) { "🗑" } else { "🗀" };
+            painter.text(thumb_rect.center(), Align2::CENTER_CENTER, icon, FontId::proportional(side * 0.5), dim);
         } else {
             // Every image in its own tile, so you can see where one photo ends and the next begins
             // (not folders: they stay recognisable at a glance). Selected: solid border.

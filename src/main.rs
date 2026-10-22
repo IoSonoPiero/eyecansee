@@ -83,6 +83,8 @@ pub(crate) enum Act {
     /// Item (`None` = the selected one or the one in the viewer); `true`: for good (Shift+Del).
     Delete(Option<String>, bool),
     Rename(Option<String>),
+    /// Puts back from the trash an item, or everything if it is a trash folder (`None` = selected).
+    Restore(Option<String>),
     Quit,
     /// The selected grid item.
     Open,
@@ -193,9 +195,14 @@ struct App {
     maintained: HashSet<String>,
     /// Item waiting for the user to confirm its deletion: path, size (images only), what deleting it does.
     delete_confirm: Option<(String, Option<u64>, source::Deletion)>,
+    /// Items to put back from the trash, one at a time; one is on its way (`restore_busy`), or its
+    /// name is taken and the user is asked what to do (`restore_conflict`, its path in the trash).
+    restore_queue: std::collections::VecDeque<String>,
+    restore_busy: bool,
+    restore_conflict: Option<String>,
     /// Rename in progress: name being written, path, first frame (focus and selection to set).
     rename: Option<(String, String, bool)>,
-    /// Enter (true) or Esc (false) pressed while the confirmation is open.
+    /// Enter (true) or Esc (false) pressed while a confirmation is open (deletion, name taken).
     delete_answer: Option<bool>,
     /// The open local folder, watched for changes made outside EyeCanSee.
     watcher: Option<notify::RecommendedWatcher>,
@@ -266,6 +273,9 @@ impl App {
             delete_confirm: None,
             delete_answer: None,
             rename: None,
+            restore_queue: Default::default(),
+            restore_busy: false,
+            restore_conflict: None,
             watcher: None,
             watched: None,
             changed_at: None,
@@ -690,6 +700,28 @@ impl App {
                     log!("deleted {path:?}");
                     self.remove_item(&path);
                 }
+                Msg::TrashItems(paths) => {
+                    log!("restore all: {} items", paths.len());
+                    self.restore_queue.extend(paths);
+                }
+                Msg::Restored(path, Ok(to)) => {
+                    log!("restored {path:?} -> {to:?}");
+                    self.restore_busy = false;
+                    self.listings.retain(|k, _| !(to.ends_with('/') && k.starts_with(&to)));
+                    self.remove_item(&path);
+                    self.relist(source::parent(&to));
+                }
+                Msg::Restored(path, Err(("error-exists", _))) => {
+                    log!("restore {path:?}: name taken");
+                    self.restore_busy = false;
+                    self.restore_conflict = Some(path);
+                }
+                Msg::Restored(path, Err((id, detail))) => {
+                    log!("restore {path:?}: ERROR {id} {detail}");
+                    self.restore_busy = false;
+                    self.restore_queue.clear();
+                    self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
+                }
                 Msg::Renamed(old, Ok(new)) => {
                     log!("renamed {old:?} -> {new:?}");
                     self.renamed(&old, &new);
@@ -888,7 +920,8 @@ impl App {
     fn ask_delete(&mut self, path: Option<String>, permanent: bool) {
         let Some(path) = path.or_else(|| self.target()).filter(|p| self.can_change(p)) else { return };
         let Some(loader) = &self.loader else { return };
-        let how = match permanent {
+        // In the trash everything goes for good: there is no trash of the trash.
+        let how = match permanent || source::is_trash(&path) || source::in_trash(&path) {
             true => source::Deletion::Permanent,
             false => loader.deletion(&path, self.settings.local_permanent, self.settings.remote_delete),
         };
@@ -904,6 +937,7 @@ impl App {
         let Some((path, size, how)) = self.delete_confirm.clone() else { return };
         let dir = if path.ends_with('/') { "-dir" } else { "" };
         let id = match how {
+            _ if source::is_trash(&path) => "delete-confirm-empty-trash".to_string(),
             source::Deletion::SystemTrash => format!("delete-confirm{dir}-trash"),
             source::Deletion::TrashFolder => format!("delete-confirm{dir}-folder"),
             source::Deletion::Permanent => format!("delete-confirm{dir}-permanent"),
@@ -938,7 +972,8 @@ impl App {
     }
 
     fn ask_rename(&mut self, path: Option<String>) {
-        if let Some(path) = path.or_else(|| self.target()).filter(|p| self.can_change(p)) {
+        let path = path.or_else(|| self.target()).filter(|p| self.can_change(p) && !source::is_trash(p) && !source::in_trash(p));
+        if let Some(path) = path {
             log!("rename? {path:?}");
             self.rename = Some((source::name(&path).to_string(), path, true));
         }
@@ -1036,11 +1071,86 @@ impl App {
                 return;
             }
         }
+        self.relist(dir);
+    }
+
+    /// Reads a folder again in the background; the new listing replaces the old one in place.
+    fn relist(&mut self, dir: String) {
         if let Some(loader) = &self.loader
             && self.listing_pending.insert(dir.clone())
         {
             self.relisting.insert(dir.clone());
             loader.list(dir);
+        }
+    }
+
+    fn ask_restore(&mut self, path: Option<String>) {
+        let Some(path) = path.or_else(|| self.target()) else { return };
+        log!("restore? {path:?}");
+        if source::is_trash(&path) {
+            if let Some(loader) = &self.loader {
+                loader.trash_items(path);
+            }
+        } else if source::in_trash(&path) {
+            self.restore_queue.push_back(path);
+        }
+    }
+
+    /// Sends the next item of the queue, when the previous one is done and nothing is being asked.
+    fn next_restore(&mut self) {
+        if self.restore_busy || self.restore_conflict.is_some() {
+            return;
+        }
+        if let (Some(path), Some(loader)) = (self.restore_queue.pop_front(), &self.loader) {
+            self.restore_busy = true;
+            loader.restore(path, source::Conflict::Ask);
+        }
+    }
+
+    /// The name of an item being put back is taken: files can replace or be kept both, folders
+    /// can merge or be kept both. Cancel also stops the rest of a Restore all.
+    fn restore_window(&mut self, ctx: &egui::Context) {
+        let Some(path) = self.restore_conflict.clone() else { return };
+        let folder = path.ends_with('/');
+        let place = source::name(&source::parent(&source::parent(&path))).to_string();
+        let text = self.i18n.t_args("restore-taken", &[("name", source::name(&path)), ("folder", &place)]);
+        let t = |id| self.i18n.t(id);
+        let first = if folder {
+            (t("restore-merge"), source::Conflict::Merge)
+        } else {
+            (t("restore-replace"), source::Conflict::Replace)
+        };
+        let buttons = [first, (t("restore-keep-both"), source::Conflict::KeepBoth)];
+        let cancel = t("delete-no");
+        let mut answer = self.delete_answer.take().and_then(|yes| (!yes).then_some(None));
+        egui::Modal::new(egui::Id::unique("restore")).show(ctx, |ui| {
+            ui.set_max_width(420.0);
+            ui.label(text);
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                for (label, conflict) in buttons {
+                    if ui.button(label).clicked() {
+                        answer = Some(Some(conflict));
+                    }
+                }
+                if ui.button(cancel).clicked() {
+                    answer = Some(None);
+                }
+            });
+        });
+        match answer {
+            Some(Some(conflict)) => {
+                if let Some(loader) = &self.loader {
+                    self.restore_busy = true;
+                    loader.restore(path, conflict);
+                }
+                self.restore_conflict = None;
+            }
+            Some(None) => {
+                self.restore_conflict = None;
+                self.restore_queue.clear();
+            }
+            None => {}
         }
     }
 
@@ -1203,6 +1313,7 @@ impl App {
             Act::Options => self.options = true,
             Act::Delete(path, permanent) => self.ask_delete(path, permanent),
             Act::Rename(path) => self.ask_rename(path),
+            Act::Restore(path) => self.ask_restore(path),
             Act::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
             Act::Open => self.activate(self.selected),
             Act::OpenDir(dir) => self.set_dir(dir),
@@ -1389,7 +1500,7 @@ impl App {
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer).
-        if self.delete_confirm.is_some() {
+        if self.delete_confirm.is_some() || self.restore_conflict.is_some() {
             let answer = &mut self.delete_answer;
             raw_input.events.retain(|e| match e {
                 egui::Event::Key { key, pressed: true, .. } => {
@@ -1499,6 +1610,8 @@ impl eframe::App for App {
         }
         self.delete_window(&ctx);
         self.rename_window(&ctx);
+        self.restore_window(&ctx);
+        self.next_restore();
 
         #[cfg(debug_assertions)]
         debug_screenshot(&ctx);

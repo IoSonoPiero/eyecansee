@@ -51,6 +51,10 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 
 The top folder of a source and the storages of a phone cannot be deleted or renamed.
 
+**The trash of phones and servers**: every folder where you deleted something has a **Trash** (🗑), the first item of the grid. Inside it you can look at the images, **restore** them (they go back to the folder containing the trash) or delete them for good: there **Del** always deletes forever, and there is no Rename. Right click on the Trash: **Restore all** and **Empty the trash…** (everything deleted forever, after a confirmation).
+
+If the name of an item being restored is already taken, EyeCanSee asks what to do: for a file **Replace** (the one already there is deleted) or **Keep both** (the restored one becomes for example `photo (2).jpg`); for a folder **Merge** (the contents add up; files with the same name are both kept) or **Keep both**. **Cancel** also stops the rest of a Restore all. In the trash too a name already there becomes `photo (2).jpg`.
+
 ## External devices
 
 When you connect a phone, a camera, an external disk, a USB stick or an SD card, the **Devices** block appears at the top left, with its folder structure to expand like the tree. When you disconnect it, it disappears; if you were looking at it, EyeCanSee goes back to your home folder.

@@ -3,6 +3,7 @@
 //! Every source has its root at the top, so the folder tree can climb all the way up.
 //! Folders are paths relative to the root ending in `/` ("" is the root).
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
@@ -21,6 +22,37 @@ pub const NOT_FOUND: &str = "error-not-found";
 
 /// Hidden folder, next to the image, where images deleted on phones and servers go.
 pub const TRASH_DIR: &str = ".EyeCanSee-trash";
+
+/// What to do when an item put back from the trash finds its name taken (`Store::restore`).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Conflict {
+    Ask,
+    Replace,
+    KeepBoth,
+    Merge,
+}
+
+/// Is this the trash folder of some folder?
+pub fn is_trash(path: &str) -> bool {
+    path.ends_with('/') && name(path) == TRASH_DIR
+}
+
+/// Is this item inside a trash folder?
+pub fn in_trash(path: &str) -> bool {
+    is_trash(&parent(path))
+}
+
+/// `name` if free, otherwise "name (2).ext", "name (3).ext"… as file managers do.
+pub fn free_name(taken: &HashSet<String>, name: &str) -> String {
+    if !taken.contains(name) {
+        return name.to_string();
+    }
+    let (stem, ext) = match name.rsplit_once('.') {
+        Some((s, e)) if !s.is_empty() => (s, format!(".{e}")),
+        _ => (name, String::new()),
+    };
+    (2..).map(|n| format!("{stem} ({n}){ext}")).find(|n| !taken.contains(n)).unwrap_or_default()
+}
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Deletion {
@@ -106,36 +138,129 @@ impl Store {
                 op.delete_with(path).recursive(true).await.map_err(dal_error)
             }
             (Store::Dal(op), Deletion::Permanent) => op.delete(path).await.map_err(dal_error),
-            // OpenDAL renames files only: folders are moved by hand, on gvfs mounts; elsewhere (SFTP) not.
-            (Store::Dal(op), Deletion::TrashFolder) if path.ends_with('/') => {
-                if op.info().scheme() != "fs" {
-                    return Err(("error-no-trash-folder", path.to_string()));
-                }
-                let (from, folder) = (local_path(op, path), local_path(op, &format!("{}{TRASH_DIR}", parent(path))));
+            (_, Deletion::TrashFolder) => {
+                let (dir, own) = (parent(path), name(path));
+                let trash = format!("{dir}{TRASH_DIR}/");
+                // Free in the trash and, apart from the item itself, in its folder: on a phone the
+                // item is renamed before being moved.
+                let mut taken = self.names(&trash).await.unwrap_or_default();
+                taken.extend(self.names(&dir).await?.into_iter().filter(|n| n != own));
+                self.move_into(path, &trash, &free_name(&taken, own)).await.map(|_| ())
+            }
+            (Store::Mtp(phone), _) => phone.delete(path).await,
+        }
+    }
+
+    /// Names of everything in a folder, of any type, hidden ones too (folders without the "/").
+    pub async fn names(&self, dir: &str) -> Result<HashSet<String>, Error> {
+        match self {
+            Store::Dal(op) => {
+                let entries = op.list(if dir.is_empty() { "/" } else { dir }).await.map_err(dal_error)?;
+                Ok(entries
+                    .iter()
+                    .filter(|e| e.path().trim_start_matches('/') != dir)
+                    .map(|e| e.name().trim_end_matches('/').to_string())
+                    .collect())
+            }
+            Store::Mtp(phone) => phone.names(dir).await,
+        }
+    }
+
+    /// Moves a file or folder (path ending in "/") into `to_dir`, created if missing, with the
+    /// name `new_name`; returns the new path. The name must be free (`free_name`).
+    pub async fn move_into(&self, path: &str, to_dir: &str, new_name: &str) -> Result<String, Error> {
+        let slash = if path.ends_with('/') { "/" } else { "" };
+        let to = format!("{to_dir}{new_name}{slash}");
+        match self {
+            // Local and gvfs: by hand, folders too (OpenDAL renames files only).
+            Store::Dal(op) if op.info().scheme() == "fs" => {
+                let (from, dir, dest) = (local_path(op, path), local_path(op, to_dir), local_path(op, &to));
                 tokio::task::spawn_blocking(move || {
-                    std::fs::create_dir_all(&folder)?;
-                    std::fs::rename(&from, folder.join(from.file_name().unwrap_or_default()))
+                    std::fs::create_dir_all(&dir)?;
+                    std::fs::rename(&from, &dest)
                 })
                 .await
-                .map_err(|e| detail(&e))?
-                .map_err(|e| detail(&e))
+                .map_err(|e| ("error-detail", e.to_string()))?
+                .map_err(|e| ("error-detail", e.to_string()))?;
             }
-            (Store::Dal(op), Deletion::TrashFolder) => {
-                let folder = format!("{}{TRASH_DIR}/", parent(path));
-                let trash_error = |e: opendal::Error| match e.kind() {
+            Store::Dal(_) if path.ends_with('/') => return Err(("error-no-trash-folder", path.to_string())),
+            Store::Dal(op) => {
+                let unsupported = |e: opendal::Error| match e.kind() {
                     opendal::ErrorKind::Unsupported => ("error-no-trash-folder", e.to_string()),
                     _ => dal_error(e),
                 };
-                op.create_dir(&folder).await.map_err(trash_error)?;
-                let mut to = format!("{folder}{}", name(path));
-                // ponytail: a name already in the trash gets a time prefix, no numbering
-                if op.exists(&to).await.unwrap_or(false) {
-                    let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map_or(0, |d| d.as_secs());
-                    to = format!("{folder}{secs}-{}", name(path));
-                }
-                op.rename(path, &to).await.map_err(trash_error)
+                op.create_dir(to_dir).await.map_err(unsupported)?;
+                op.rename(path, &to).await.map_err(unsupported)?;
             }
-            (Store::Mtp(phone), how) => phone.delete(path, how == Deletion::Permanent).await,
+            Store::Mtp(phone) => phone.move_into(path, to_dir, new_name).await?,
+        }
+        Ok(to)
+    }
+
+    /// Puts an item of a trash folder back in the folder containing the trash. With a name
+    /// already there: `Conflict::Ask` gives `error-exists` (the app asks what to do), the others
+    /// replace (files), keep both ("name (2)") or merge (folders: their contents, keeping both
+    /// files with the same name). Returns the path where it went.
+    pub async fn restore(&self, path: &str, conflict: Conflict) -> Result<String, Error> {
+        let (own, trash) = (name(path), parent(path));
+        let dest = parent(&trash);
+        let taken = self.names(&dest).await?;
+        if !taken.contains(own) {
+            return self.move_into(path, &dest, own).await;
+        }
+        match conflict {
+            Conflict::Ask => Err(("error-exists", own.to_string())),
+            Conflict::KeepBoth => {
+                let mut all = taken;
+                all.extend(self.names(&trash).await?.into_iter().filter(|n| n != own));
+                self.move_into(path, &dest, &free_name(&all, own)).await
+            }
+            Conflict::Replace => {
+                let target = format!("{dest}{own}");
+                self.delete(&target, Deletion::Permanent).await?;
+                self.move_into(path, &dest, own).await
+            }
+            Conflict::Merge => {
+                let target = format!("{dest}{own}/");
+                Box::pin(self.merge(path, &target)).await?;
+                Ok(target)
+            }
+        }
+    }
+
+    /// Moves the contents of folder `from` into folder `to`: folders on both sides merge, files
+    /// on both sides are both kept. Then `from`, now empty, goes.
+    async fn merge(&self, from: &str, to: &str) -> Result<(), Error> {
+        let present = self.names(to).await?;
+        for src in self.children(from).await? {
+            let (child, is_dir) = (name(&src).to_string(), src.ends_with('/'));
+            if !present.contains(&child) {
+                self.move_into(&src, to, &child).await?;
+            } else if is_dir && self.is_dir(&format!("{to}{child}/")).await {
+                Box::pin(self.merge(&src, &format!("{to}{child}/"))).await?;
+            } else {
+                let mut all = self.names(to).await?;
+                all.extend(self.names(from).await?.into_iter().filter(|n| *n != child));
+                self.move_into(&src, to, &free_name(&all, &child)).await?;
+            }
+        }
+        self.delete(from, Deletion::Permanent).await
+    }
+
+    /// Paths of everything in a folder, of any type (folders ending in "/").
+    pub async fn children(&self, dir: &str) -> Result<Vec<String>, Error> {
+        let mut paths = Vec::new();
+        for n in self.names(dir).await? {
+            let slash = if self.is_dir(&format!("{dir}{n}/")).await { "/" } else { "" };
+            paths.push(format!("{dir}{n}{slash}"));
+        }
+        Ok(paths)
+    }
+
+    async fn is_dir(&self, dir: &str) -> bool {
+        match self {
+            Store::Dal(op) => op.stat(dir).await.is_ok_and(|m| m.is_dir()),
+            Store::Mtp(phone) => phone.check_dir(dir).await.is_ok(),
         }
     }
 
@@ -329,7 +454,9 @@ async fn list(op: &Operator, dir: &str) -> opendal::Result<Listing> {
     let mut listing = Listing::default();
     for e in op.list(if dir.is_empty() { "/" } else { dir }).await? {
         let path = e.path().trim_start_matches('/');
-        if path == dir || e.name().starts_with('.') || hidden(op, path) {
+        // Hidden items are not shown, apart from EyeCanSee's trash folders.
+        let trash = e.metadata().is_dir() && e.name().trim_end_matches('/') == TRASH_DIR;
+        if path == dir || (e.name().starts_with('.') && !trash) || hidden(op, path) {
             continue;
         }
         if e.metadata().is_dir() {
@@ -395,7 +522,33 @@ mod tests {
         assert_eq!(rt.block_on(op.rename("photos/d.jpg", "renamed")).unwrap_err().0, "error-exists");
         rt.block_on(op.delete("photos/renamed/", Deletion::Permanent)).unwrap();
         assert!(!dir.join("photos/renamed").exists());
+
+        // Back from the trash: a taken name is asked about, then kept both or replaced.
+        assert!(trash.join("a (2).jpg").exists());
+        std::fs::write(dir.join("photos/a.jpg"), b"new").unwrap();
+        let t = format!("photos/{TRASH_DIR}/");
+        assert_eq!(rt.block_on(op.restore(&format!("{t}a.jpg"), Conflict::Ask)).unwrap_err().0, "error-exists");
+        assert_eq!(rt.block_on(op.restore(&format!("{t}a.jpg"), Conflict::KeepBoth)).unwrap(), "photos/a (3).jpg");
+        assert_eq!(rt.block_on(op.restore(&format!("{t}a (2).jpg"), Conflict::Ask)).unwrap(), "photos/a (2).jpg");
+        // Folders merge: what is only in the trash moves, the same name is kept twice.
+        std::fs::create_dir_all(dir.join("photos/f/inner")).unwrap();
+        std::fs::write(dir.join("photos/f/x.jpg"), b"1").unwrap();
+        rt.block_on(op.delete("photos/f/", Deletion::TrashFolder)).unwrap();
+        std::fs::create_dir_all(dir.join("photos/f")).unwrap();
+        std::fs::write(dir.join("photos/f/x.jpg"), b"2").unwrap();
+        assert_eq!(rt.block_on(op.restore(&format!("{t}f/"), Conflict::Merge)).unwrap(), "photos/f/");
+        assert!(dir.join("photos/f/inner").is_dir() && dir.join("photos/f/x (2).jpg").exists());
+        assert!(!trash.join("f").exists());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn free_names() {
+        let taken: HashSet<String> = ["a.jpg", "a (2).jpg", "dir", ".hidden"].map(String::from).into();
+        assert_eq!(free_name(&taken, "b.jpg"), "b.jpg");
+        assert_eq!(free_name(&taken, "a.jpg"), "a (3).jpg");
+        assert_eq!(free_name(&taken, "dir"), "dir (2)");
+        assert_eq!(free_name(&taken, ".hidden"), ".hidden (2)");
     }
 
     #[test]
