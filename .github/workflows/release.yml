@@ -1,0 +1,126 @@
+# Builds a release when a tag v<version> is pushed: the Windows zip, the Linux AppImage and the source
+# RPM for COPR. The files go into a draft GitHub release, published by hand once checked.
+# Tags with a suffix (v0.21.0-test) are trial runs: prerelease draft, and the RPM is not sent to COPR.
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      trial: ${{ steps.v.outputs.trial }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        run: |
+          VER=$(cat VERSION)
+          echo "version=$VER" >> "$GITHUB_OUTPUT"
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            echo "trial=true" >> "$GITHUB_OUTPUT"
+          elif [[ "$GITHUB_REF_NAME" != "v$VER" ]]; then
+            echo "::error::tag $GITHUB_REF_NAME does not match VERSION ($VER)"; exit 1
+          else
+            echo "trial=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  windows:
+    needs: version
+    runs-on: windows-latest
+    env:
+      VER: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Tools
+        run: |
+          rustup update stable --no-self-update
+          rustup default stable
+          choco install nasm -y --no-progress
+          "C:\Program Files\NASM" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+      - name: Build
+        run: cargo build --release --locked --no-default-features
+      - name: Zip
+        run: |
+          New-Item -ItemType Directory pkg | Out-Null
+          .\tools\third-party-licenses.ps1 -Project . -Out pkg\THIRD-PARTY-LICENSES.txt
+          Copy-Item target\release\eyecansee.exe pkg\
+          Copy-Item LICENSE pkg\LICENSE.txt
+          Compress-Archive -Path pkg\* -DestinationPath "EyeCanSee-$env:VER-windows-x64.zip"
+      - name: Startup test
+        run: |
+          Expand-Archive "EyeCanSee-$env:VER-windows-x64.zip" -DestinationPath test\app
+          $env:APPDATA = "$PWD\test\roaming"; $env:LOCALAPPDATA = "$PWD\test\local"; $env:EYECANSEE_LOG = "1"
+          $p = Start-Process -FilePath test\app\eyecansee.exe -ArgumentList $env:USERPROFILE -RedirectStandardError test\log.txt -PassThru
+          Start-Sleep 8
+          $alive = -not $p.HasExited
+          if ($alive) { Stop-Process -Id $p.Id }
+          Get-Content test\log.txt
+          if (-not $alive) { "::error::eyecansee.exe exited within 8 s"; exit 1 }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: EyeCanSee-*-windows-x64.zip
+
+  appimage:
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build
+        run: tools/build-appimage.sh
+      - name: Check
+        run: |
+          A=$(ls target/appimage/EyeCanSee-*-x86_64.AppImage)
+          cd target/appimage && "./$(basename "$A")" --appimage-extract >/dev/null
+          for lib in libdav1d.so libde265.so libMagickCore libMagickWand; do
+            ls squashfs-root/usr/lib | grep -q "^$lib" || { echo "::error::$lib missing"; exit 1; }
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: appimage
+          path: target/appimage/EyeCanSee-*-x86_64.AppImage
+
+  copr:
+    needs: version
+    runs-on: ubuntu-latest
+    container: registry.fedoraproject.org/fedora:44
+    steps:
+      - run: dnf install -y -q git rpm-build copr-cli
+      - uses: actions/checkout@v4
+      - name: Source RPM, sent to COPR for real releases
+        env:
+          COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
+        run: |
+          git config --global --add safe.directory "$PWD"
+          if [[ "${{ needs.version.outputs.trial }}" == true ]]; then
+            tools/copr-build.sh --srpm-only
+          else
+            mkdir -p ~/.config && printf '%s\n' "$COPR_CONFIG" > ~/.config/copr
+            tools/copr-build.sh
+          fi
+
+  release:
+    needs: [version, windows, appimage, copr]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "Draft built by GitHub Actions: release notes to be added."
+            echo
+            for f in EyeCanSee-*; do echo "SHA-256 of $f: \`$(sha256sum "$f" | cut -d' ' -f1)\`"; echo; done
+          } > notes.md
+          PRE=$([[ "${{ needs.version.outputs.trial }}" == true ]] && echo --prerelease || true)
+          gh release create "$GITHUB_REF_NAME" EyeCanSee-* --repo "$GITHUB_REPOSITORY" --draft $PRE \
+            --verify-tag --title "EyeCanSee ${{ needs.version.outputs.version }}" --notes-file notes.md
