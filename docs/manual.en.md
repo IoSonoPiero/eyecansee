@@ -25,7 +25,7 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 
 ## Options
 
-**File > Options…** opens the options window. Every change is saved immediately in `~/.config/eyecansee/settings.json` on Linux and `%APPDATA%\eyecansee\settings.json` on Windows, a text file you can also edit by hand.
+**File > Options…** opens the options window, divided into tabs: **General** (last folder, window at startup, language), **Look** (colors), **Browsing** (scrolling, viewer), **Deleting** and **Thumbnails**. Every change is saved immediately in `~/.config/eyecansee/settings.json` on Linux and `%APPDATA%\eyecansee\settings.json` on Windows, a text file you can also edit by hand.
 
 - **Reopen the last folder at startup** (on by default): when EyeCanSee starts without a folder, for example from the applications menu, it opens the folder you were viewing when you closed it. If that folder no longer exists, it opens your home folder. Remote locations reopen without the password, which you must type again.
 - **Remember the scroll position of each folder** (off by default): when you go back to a folder you already viewed, the grid starts where you left it. When off, every folder you open starts from the first thumbnail. It lasts until EyeCanSee is closed.
@@ -35,17 +35,21 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 - **Colors**: **Same as the system** (default: light or dark like the Windows or desktop theme, following it when it changes), **Light** or **Dark**. The choice applies at once.
 - **Clean up the thumbnail cache** and **Cache limit**: see *Thumbnails*.
 - **Empty the thumbnail cache…**: deletes all saved thumbnails, after a confirmation showing how many and how much space is freed. Your images are not touched; thumbnails of the open folder are created again right away, the others when you open them again.
-- **Delete files on this computer for good, without the trash (dangerous)** (off at first): see *Deleting images*.
-- **Deleting on phones and servers**: see *Deleting images*.
+- **Delete files on this computer for good, without the trash (dangerous)** (off at first): see *Deleting and renaming*.
+- **Deleting on phones and servers**: see *Deleting and renaming*.
 
-## Deleting images
+## Deleting and renaming
 
-**Del** (or **File > Delete…**) deletes the image selected in the grid or the one open in the viewer, after a confirmation showing its name and size. In the confirmation **Enter** deletes and **Esc** cancels. In the viewer the next image appears at once.
+**Del** (or **File > Delete…**) deletes the image or folder selected in the grid, or the image open in the viewer, after a confirmation showing its name and size. A folder is deleted with everything inside it. Folders in the tree on the left are deleted with a right click. In the confirmation **Enter** deletes and **Esc** cancels. In the viewer the next image appears at once.
 
 - **Files on this computer and external disks** go to the system trash, where they can be restored. With the option **Delete files on this computer for good, without the trash** they are deleted forever.
 - **Phones and servers (FTP, SFTP)** have no trash EyeCanSee can reach. In the Options, under **Deleting on phones and servers**, choose between **Move to the hidden .EyeCanSee-trash folder next to the image** (default: the image goes into a `.EyeCanSee-trash` folder inside its own folder, and you get it back with a file manager) and **Delete for good**. FTP cannot move files: there you need **Delete for good**.
 
 **Shift+Del** (or **File > Delete for good…**) deletes forever that one time, whatever the option says.
+
+**F2** (or **File > Rename…**) renames the selected item or the open image: type the new name and press **Enter** (**Esc** cancels). EyeCanSee does not accept a name already in the folder. On SFTP servers folders cannot be renamed, and over FTP nothing can.
+
+The top folder of a source and the storages of a phone cannot be deleted or renamed.
 
 ## External devices
 
@@ -91,8 +95,9 @@ In the grid:
 | Home, End | First, last item |
 | Enter | Open the folder or the image |
 | Backspace | Parent folder |
-| Del | Deletes the image (see *Deleting images*) |
-| Shift+Del | Deletes the image for good |
+| F2 | Rename (see *Deleting and renaming*) |
+| Del | Delete |
+| Shift+Del | Delete for good |
 | Tab | Next item; from the last one it moves to the devices |
 | Shift+Tab | Previous item; from the first one it moves to the folder open on the left |
 
@@ -117,13 +122,15 @@ In the viewer:
 | Left arrow, Backspace, Page Up | Previous image |
 | Home, End | First, last image |
 | Esc | Back to the grid |
-| Del, Shift+Del | Deletes the image, as in the grid |
+| F2, Del, Shift+Del | Rename and delete, as in the grid |
 
 Everywhere: **F1** opens this manual, **F5** reloads the folders. In the viewer F5 stays on the open image; if it has been deleted in the meantime, it goes back to the grid.
 
 Folders on this computer update by themselves: images added, deleted, renamed or restored from the trash by another program appear and disappear without F5, also in the viewer, which stays on the open image. On phones and servers you need F5.
 
 The same actions are in the menus: **View** (Open, Back to the grid, Refresh) and **Go** (Next, Previous, First, Last, Parent folder). In the grid Next and Previous move the selection, in the viewer they change image.
+
+A **right click** opens a menu with the actions for what is under the mouse, and selects it. On an image or a folder (in the grid or the tree): Open, Rename, then, apart at the bottom, Delete and Delete for good. On the image open in the viewer the same, with Back to the grid instead of Open. On an empty space of the grid: Refresh and Parent folder.
 
 In the viewer, after the last image EyeCanSee stops; with the option **In the viewer, after the last image start again from the first** it goes back to the first one, and the other way round. EyeCanSee loads the images around the current one in advance, so moving between them is immediate even on slow connections.
 

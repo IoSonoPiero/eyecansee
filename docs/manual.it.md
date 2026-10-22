@@ -25,7 +25,7 @@ Le miniature vengono salvate su disco, così riaprire la stessa cartella è imme
 
 ## Opzioni
 
-**File > Opzioni…** apre la finestra delle opzioni. Ogni modifica viene salvata subito in `~/.config/eyecansee/settings.json` su Linux e `%APPDATA%\eyecansee\settings.json` su Windows, un file di testo che puoi anche modificare a mano.
+**File > Opzioni…** apre la finestra delle opzioni, divisa in schede: **Generale** (ultima cartella, finestra all'avvio, lingua), **Aspetto** (colori), **Navigazione** (scorrimento, visore), **Eliminazione** e **Miniature**. Ogni modifica viene salvata subito in `~/.config/eyecansee/settings.json` su Linux e `%APPDATA%\eyecansee\settings.json` su Windows, un file di testo che puoi anche modificare a mano.
 
 - **Riapri l'ultima cartella all'avvio** (attiva all'inizio): quando EyeCanSee parte senza una cartella, per esempio dal menù delle applicazioni, apre quella che stavi guardando alla chiusura. Se quella cartella non esiste più, apre la tua cartella home. Gli indirizzi remoti si riaprono senza password, che va riscritta.
 - **Ricorda la posizione di scorrimento di ogni cartella** (spenta all'inizio): tornando in una cartella già vista, la griglia riparte dal punto in cui l'avevi lasciata. Spenta, ogni cartella aperta parte dalla prima anteprima. Vale finché EyeCanSee resta aperto.
@@ -35,17 +35,21 @@ Le miniature vengono salvate su disco, così riaprire la stessa cartella è imme
 - **Colori**: **Come il sistema** (predefinito: chiari o scuri come il tema di Windows o del desktop, e cambiano insieme a lui), **Chiari** o **Scuri**. La scelta vale subito.
 - **Pulizia della cache miniature** e **Limite della cache**: vedi *Miniature*.
 - **Svuota la cache miniature…**: elimina tutte le miniature salvate, dopo una conferma con il numero di miniature e lo spazio liberato. Le immagini non vengono toccate; le miniature della cartella aperta si rifanno subito, le altre quando le riapri.
-- **Elimina i file del computer definitivamente, senza cestino (pericoloso)** (spenta all'inizio): vedi *Eliminare le immagini*.
-- **Eliminare su telefoni e server**: vedi *Eliminare le immagini*.
+- **Elimina i file del computer definitivamente, senza cestino (pericoloso)** (spenta all'inizio): vedi *Eliminare e rinominare*.
+- **Eliminare su telefoni e server**: vedi *Eliminare e rinominare*.
 
-## Eliminare le immagini
+## Eliminare e rinominare
 
-**Canc** (o **File > Elimina…**) elimina l'immagine selezionata nella griglia o quella aperta nel visore, dopo una conferma con il nome e la dimensione. Nella conferma **Invio** elimina ed **Esc** annulla. Nel visore compare subito l'immagine successiva.
+**Canc** (o **File > Elimina…**) elimina l'immagine o la cartella selezionata nella griglia, o l'immagine aperta nel visore, dopo una conferma con il nome e la dimensione. Una cartella viene eliminata con tutto quello che contiene. Dall'albero a sinistra si eliminano le cartelle col clic destro. Nella conferma **Invio** elimina ed **Esc** annulla. Nel visore compare subito l'immagine successiva.
 
 - **File del computer e dischi esterni**: vanno nel cestino del sistema, da cui si possono ripristinare. Con l'opzione **Elimina i file del computer definitivamente, senza cestino** vengono eliminati per sempre.
 - **Telefoni e server (FTP, SFTP)** non hanno un cestino raggiungibile. Nelle Opzioni, sotto **Eliminare su telefoni e server**, scegli tra **Sposta nella cartella nascosta .EyeCanSee-trash accanto all'immagine** (predefinita: l'immagine finisce in una cartella `.EyeCanSee-trash` dentro la sua cartella, e si recupera con un gestore di file) ed **Elimina definitivamente**. L'FTP non sa spostare i file: lì serve **Elimina definitivamente**.
 
 **Maiusc+Canc** (o **File > Elimina definitivamente…**) elimina per sempre solo quella volta, qualunque sia l'opzione.
+
+**F2** (o **File > Rinomina…**) rinomina l'elemento selezionato o l'immagine aperta: scrivi il nuovo nome e premi **Invio** (**Esc** annulla). EyeCanSee non accetta un nome già presente nella cartella. Sui server SFTP le cartelle non si possono rinominare, e via FTP nulla.
+
+Non si possono eliminare né rinominare la cartella principale di una sorgente e le memorie di un telefono.
 
 ## Dispositivi esterni
 
@@ -91,8 +95,9 @@ Nella griglia:
 | Inizio, Fine | Primo, ultimo elemento |
 | Invio | Apre la cartella o l'immagine |
 | Backspace | Cartella superiore |
-| Canc | Elimina l'immagine (vedi *Eliminare le immagini*) |
-| Maiusc+Canc | Elimina l'immagine definitivamente |
+| F2 | Rinomina (vedi *Eliminare e rinominare*) |
+| Canc | Elimina |
+| Maiusc+Canc | Elimina definitivamente |
 | Tab | Elemento successivo; dall'ultimo passa ai dispositivi |
 | Shift+Tab | Elemento precedente; dal primo passa alla cartella aperta a sinistra |
 
@@ -117,13 +122,15 @@ Nel visore:
 | Freccia sinistra, Backspace, Pagina su | Immagine precedente |
 | Inizio, Fine | Prima, ultima immagine |
 | Esc | Torna alla griglia |
-| Canc, Maiusc+Canc | Elimina l'immagine, come nella griglia |
+| F2, Canc, Maiusc+Canc | Rinomina ed elimina, come nella griglia |
 
 Ovunque: **F1** apre questo manuale, **F5** rilegge le cartelle. Nel visore F5 resta sull'immagine aperta; se nel frattempo è stata cancellata, torna alla griglia.
 
 Le cartelle del computer si aggiornano da sole: immagini aggiunte, eliminate, rinominate o ripristinate dal cestino da un altro programma compaiono e spariscono senza F5, anche nel visore, che resta sull'immagine aperta. Su telefoni e server serve F5.
 
 Le stesse azioni sono nei menù: **Visualizza** (Apri, Torna alla griglia, Aggiorna) e **Vai** (Avanti, Indietro, Primo, Ultimo, Cartella superiore). Nella griglia Avanti e Indietro spostano la selezione, nel visore cambiano immagine.
+
+Il **clic destro** apre un menù con le azioni di ciò che hai sotto il mouse, e lo seleziona. Su un'immagine o una cartella (nella griglia o nell'albero): Apri, Rinomina, poi, separate in fondo, Elimina ed Elimina definitivamente. Sull'immagine aperta nel visore le stesse, con Torna alla griglia al posto di Apri. Su uno spazio vuoto della griglia: Aggiorna e Cartella superiore.
 
 Nel visore, dopo l'ultima immagine EyeCanSee si ferma; con l'opzione **Nel visore, dopo l'ultima immagine ricomincia dalla prima** torna alla prima, e viceversa. EyeCanSee carica in anticipo le immagini vicine a quella corrente, così il passaggio è immediato anche con connessioni lente.
 

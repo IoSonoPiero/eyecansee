@@ -9,7 +9,7 @@ use std::collections::HashSet;
 
 use crate::devices::Device;
 use crate::meta::Group;
-use crate::{App, Focus, Go};
+use crate::{Act, App, Focus, Go};
 use crate::source;
 
 /// Thumbnail rows loaded right after the visible ones, above and below.
@@ -46,6 +46,48 @@ fn handle_top(ui: &Ui, rect: Rect, content: f32, offset: f32) -> f32 {
 }
 
 /// Text of an error or warning: the former light red was barely readable on the light background.
+/// Item of a right-click menu: (label, shortcut, action); `None` = separator.
+pub(crate) type MenuItem = Option<(String, String, Act)>;
+
+/// Right-click menu; returns the chosen item, which the caller runs at the end of the frame (`App::act`).
+pub(crate) fn context_menu(ui: &mut Ui, items: Vec<MenuItem>) -> Option<Act> {
+    let mut chosen = None;
+    for item in items {
+        match item {
+            Some((label, keys, act)) => {
+                if ui.add(egui::Button::new(label).shortcut_text(keys)).clicked() {
+                    chosen = Some(act);
+                }
+            }
+            None => {
+                ui.separator();
+            }
+        }
+    }
+    chosen
+}
+
+impl App {
+    /// Right-click menu of an item, as in file managers: open first, the deletions last and
+    /// apart, so a slip of the mouse does not hit them. `path`: `None` = the selected item or
+    /// the one in the viewer; `open`: the action that opens it (`None` in the viewer).
+    pub(crate) fn item_menu(&self, path: Option<String>, open: Option<Act>) -> Vec<MenuItem> {
+        let t = |id| self.i18n.t(id);
+        let mut items = vec![match open {
+            Some(a @ Act::Open) => Some((t("menu-open-selected"), t("key-enter"), a)),
+            Some(a) => Some((t("menu-open-selected"), String::new(), a)),
+            None => Some((t("menu-back-to-grid"), "Esc".into(), Act::Back)),
+        }];
+        if path.as_deref().or(self.target().as_deref()).is_some_and(|p| self.can_change(p)) {
+            items.push(Some((t("menu-rename"), "F2".into(), Act::Rename(path.clone()))));
+            items.push(None);
+            items.push(Some((t("menu-delete"), t("key-delete"), Act::Delete(path.clone(), false))));
+            items.push(Some((t("menu-delete-permanent"), t("key-shift-delete"), Act::Delete(path, true))));
+        }
+        items
+    }
+}
+
 pub(crate) fn error_text(ui: &Ui, text: impl Into<String>) -> egui::RichText {
     egui::RichText::new(text).color(ui.visuals().error_fg_color)
 }
@@ -365,6 +407,12 @@ impl App {
                 self.set_dir(dir.clone());
                 clicked = true;
             }
+            response.context_menu(|ui| {
+                let items = self.item_menu(Some(dir.clone()), Some(Act::OpenDir(dir.clone())));
+                if let Some(a) = context_menu(ui, items) {
+                    self.act = Some(a);
+                }
+            });
         });
         header.body(|ui| match self.listings.get(&dir) {
             Some(Ok(listing)) => {
@@ -393,6 +441,19 @@ impl App {
         if ui.input(|i| i.pointer.primary_pressed()) && ui.rect_contains_pointer(ui.max_rect()) {
             self.focus = Focus::Grid;
         }
+        // Right click on the empty space: the actions of the whole folder. The cells come later
+        // and are on top, so they keep their own menu.
+        let background = ui.interact(ui.max_rect(), ui.scope_id().with("grid-background"), Sense::click());
+        background.context_menu(|ui| {
+            let t = |id| self.i18n.t(id);
+            let mut items = vec![Some((t("menu-refresh"), "F5".into(), Act::Refresh))];
+            if !self.dir.is_empty() {
+                items.push(Some((t("menu-parent"), t("key-backspace"), Act::Up)));
+            }
+            if let Some(a) = context_menu(ui, items) {
+                self.act = Some(a);
+            }
+        });
         if self.focus == Focus::Grid {
             focus_frame(ui);
         }
@@ -634,8 +695,8 @@ impl App {
     /// Draws a cell; returns `true` if it was double-clicked.
     fn grid_cell(&mut self, ui: &mut Ui, rect: Rect, i: usize, ndirs: usize) -> bool {
         let Some(Ok(listing)) = self.listings.get(&self.dir) else { return false };
-        let path = if i < ndirs { &listing.dirs[i] } else { &listing.files[i - ndirs].path };
-        let name = source::name(path).to_string();
+        let path = if i < ndirs { listing.dirs[i].clone() } else { listing.files[i - ndirs].path.clone() };
+        let name = source::name(&path).to_string();
         let response = ui.interact(rect, ui.scope_id().with(("cell", i)), Sense::click()).on_hover_text(&name);
 
         let painter = ui.painter_at(rect);
@@ -690,6 +751,18 @@ impl App {
             self.selected = i;
             self.cursor = true;
         }
+        // The right click selects the item too, so the menu acts on it.
+        if response.secondary_clicked() {
+            self.selected = i;
+            self.cursor = true;
+            self.focus = Focus::Grid;
+        }
+        response.context_menu(|ui| {
+            let items = self.item_menu(Some(path.clone()), Some(Act::Open));
+            if let Some(a) = context_menu(ui, items) {
+                self.act = Some(a);
+            }
+        });
         response.double_clicked()
     }
 

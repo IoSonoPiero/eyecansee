@@ -28,8 +28,10 @@ pub enum Msg {
     Loaded { generation: u64, index: usize, thumb: bool, image: Result<ColorImage, String> },
     /// Something changed in the watched local folder (`App::watch`).
     Changed,
-    /// Outcome of deleting an image (path relative to the source).
+    /// Outcome of deleting an item (path relative to the source).
     Deleted(String, Result<(), source::Error>),
+    /// Outcome of renaming an item: old path, new path.
+    Renamed(String, Result<String, source::Error>),
     /// Metadata of an image: `None` = no EXIF.
     Meta { generation: u64, index: usize, meta: Result<Option<crate::meta::Meta>, String> },
 }
@@ -143,6 +145,15 @@ impl Loader {
                 thumbcache::delete(&base, &path);
             }
             let _ = tx.send(Msg::Deleted(path, r));
+            ctx.request_repaint();
+        });
+    }
+
+    pub fn rename(&self, path: String, new_name: String) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let r = op.rename(&path, &new_name).await;
+            let _ = tx.send(Msg::Renamed(path, r));
             ctx.request_repaint();
         });
     }

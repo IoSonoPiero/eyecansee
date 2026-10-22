@@ -225,7 +225,18 @@ impl Phone {
             // ponytail: a name already in the trash folder is left to the phone [Unverified: error or duplicate]
             storage.move_object(handle, folder, None).await.map_err(error)?;
         }
-        self.handles.lock().unwrap().remove(path);
+        // A folder takes the paths below it too.
+        self.handles.lock().unwrap().retain(|p, _| !p.starts_with(path));
+        Ok(())
+    }
+
+    /// The name must not be in the folder already: `App::rename_window` checks it against the listing.
+    pub async fn rename(&self, path: &str, new_name: &str) -> Result<(), Error> {
+        let (storage, handle) = self.locate(path).await?;
+        let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
+        storage.rename(handle, new_name).await.map_err(error)?;
+        // The folder's paths below it are stale too: the cache fills again at the next listing.
+        self.handles.lock().unwrap().retain(|p, _| !p.starts_with(path));
         Ok(())
     }
 

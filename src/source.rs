@@ -53,6 +53,11 @@ pub fn in_gvfs(root: &str, path: &str) -> bool {
     format!("{root}/{path}").contains("/gvfs/")
 }
 
+/// Absolute path of a local file, pushed one element at a time: Windows' "\\?\" root does not accept "/".
+fn local_path(op: &Operator, path: &str) -> PathBuf {
+    std::iter::once(op.info().root()).chain(path.split('/').filter(|s| !s.is_empty()).map(String::from)).collect()
+}
+
 fn dal_error(e: opendal::Error) -> Error {
     let id = if e.kind() == opendal::ErrorKind::NotFound { NOT_FOUND } else { "error-detail" };
     (id, e.to_string())
@@ -88,17 +93,33 @@ impl Store {
         }
     }
 
+    /// Deletes an image, or a folder (path ending in "/") with everything inside it.
     pub async fn delete(&self, path: &str, how: Deletion) -> Result<(), Error> {
+        let detail = |e: &dyn std::fmt::Display| ("error-detail", e.to_string());
         match (self, how) {
             (Store::Dal(op), Deletion::SystemTrash) => {
-                // Pushed one element at a time: Windows' "\\?\" root does not accept "/".
-                let full: PathBuf = std::iter::once(op.info().root()).chain(path.split('/').map(String::from)).collect();
-                tokio::task::spawn_blocking(move || trash::delete(&full))
-                    .await
-                    .map_err(|e| ("error-detail", e.to_string()))?
-                    .map_err(|e| ("error-detail", e.to_string()))
+                let full = local_path(op, path);
+                tokio::task::spawn_blocking(move || trash::delete(&full)).await.map_err(|e| detail(&e))?.map_err(|e| detail(&e))
+            }
+            // Recursive only for folders: it works by prefix, "a.jpg" would also take "a.jpg.bak".
+            (Store::Dal(op), Deletion::Permanent) if path.ends_with('/') => {
+                op.delete_with(path).recursive(true).await.map_err(dal_error)
             }
             (Store::Dal(op), Deletion::Permanent) => op.delete(path).await.map_err(dal_error),
+            // OpenDAL renames files only: folders are moved by hand, on gvfs mounts; elsewhere (SFTP) not.
+            (Store::Dal(op), Deletion::TrashFolder) if path.ends_with('/') => {
+                if op.info().scheme() != "fs" {
+                    return Err(("error-no-trash-folder", path.to_string()));
+                }
+                let (from, folder) = (local_path(op, path), local_path(op, &format!("{}{TRASH_DIR}", parent(path))));
+                tokio::task::spawn_blocking(move || {
+                    std::fs::create_dir_all(&folder)?;
+                    std::fs::rename(&from, folder.join(from.file_name().unwrap_or_default()))
+                })
+                .await
+                .map_err(|e| detail(&e))?
+                .map_err(|e| detail(&e))
+            }
             (Store::Dal(op), Deletion::TrashFolder) => {
                 let folder = format!("{}{TRASH_DIR}/", parent(path));
                 let trash_error = |e: opendal::Error| match e.kind() {
@@ -116,6 +137,39 @@ impl Store {
             }
             (Store::Mtp(phone), how) => phone.delete(path, how == Deletion::Permanent).await,
         }
+    }
+
+    /// Renames an image or a folder (path ending in "/") in its folder; returns the new path.
+    /// Never over an existing item.
+    pub async fn rename(&self, path: &str, new_name: &str) -> Result<String, Error> {
+        let slash = if path.ends_with('/') { "/" } else { "" };
+        let to = format!("{}{new_name}{slash}", parent(path));
+        match self {
+            // Local and gvfs: by hand, folders too (OpenDAL renames files only).
+            Store::Dal(op) if op.info().scheme() == "fs" => {
+                let (from, dest) = (local_path(op, path), local_path(op, &to));
+                tokio::task::spawn_blocking(move || {
+                    if dest.symlink_metadata().is_ok() {
+                        return Err(("error-exists", dest.display().to_string()));
+                    }
+                    std::fs::rename(&from, &dest).map_err(|e| ("error-detail", e.to_string()))
+                })
+                .await
+                .map_err(|e| ("error-detail", e.to_string()))??;
+            }
+            Store::Dal(_) if path.ends_with('/') => return Err(("error-rename-unsupported", path.to_string())),
+            Store::Dal(op) => {
+                if op.exists(&to).await.unwrap_or(false) {
+                    return Err(("error-exists", to));
+                }
+                op.rename(path, &to).await.map_err(|e| match e.kind() {
+                    opendal::ErrorKind::Unsupported => ("error-rename-unsupported", e.to_string()),
+                    _ => dal_error(e),
+                })?;
+            }
+            Store::Mtp(phone) => phone.rename(path, new_name).await?,
+        }
+        Ok(to)
     }
 
     /// Does the folder exist? OpenDAL (at least `fs`) lists a non-existent folder as empty.
@@ -312,9 +366,9 @@ fn hidden(_: &Operator, _: &str) -> bool {
 mod tests {
     use super::*;
 
-    /// Trash folder and permanent deletion, through OpenDAL on a temporary folder.
+    /// Trash folder, permanent deletion and renaming, on a temporary folder.
     #[test]
-    fn delete_to_folder_and_for_good() {
+    fn delete_and_rename() {
         let dir = std::env::temp_dir().join(format!("eyecansee-delete-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("photos")).unwrap();
         let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
@@ -332,6 +386,15 @@ mod tests {
         rt.block_on(op.delete("photos/b.jpg", Deletion::Permanent)).unwrap();
         assert!(!dir.join("photos/b.jpg").exists());
         assert_eq!(std::fs::read_dir(&trash).unwrap().count(), 2);
+        // Folders: renamed, never over an existing name, and deleted with what is inside.
+        std::fs::create_dir_all(dir.join("photos/sub")).unwrap();
+        std::fs::write(dir.join("photos/sub/c.jpg"), b"x").unwrap();
+        assert_eq!(rt.block_on(op.rename("photos/sub/", "renamed")).unwrap(), "photos/renamed/");
+        assert!(dir.join("photos/renamed/c.jpg").exists());
+        std::fs::write(dir.join("photos/d.jpg"), b"x").unwrap();
+        assert_eq!(rt.block_on(op.rename("photos/d.jpg", "renamed")).unwrap_err().0, "error-exists");
+        rt.block_on(op.delete("photos/renamed/", Deletion::Permanent)).unwrap();
+        assert!(!dir.join("photos/renamed").exists());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

@@ -74,6 +74,41 @@ enum Go {
     Last,
 }
 
+/// Items of the menu bar and of the right-click menus: the menus only record the choice, which
+/// runs afterwards (`App::run`) with access to the whole app.
+#[derive(Debug)]
+pub(crate) enum Act {
+    Address,
+    Options,
+    /// Item (`None` = the selected one or the one in the viewer); `true`: for good (Shift+Del).
+    Delete(Option<String>, bool),
+    Rename(Option<String>),
+    Quit,
+    /// The selected grid item.
+    Open,
+    /// A folder of the tree.
+    OpenDir(String),
+    Back,
+    Refresh,
+    Go(Go),
+    Up,
+    Manual,
+    Meta(meta::Group),
+    Sort(settings::SortBy),
+    SortDesc,
+}
+
+/// Tabs of the Options window.
+#[derive(Clone, Copy, PartialEq, Debug, Default)]
+enum OptTab {
+    #[default]
+    General,
+    Look,
+    Browsing,
+    Deleting,
+    Thumbnails,
+}
+
 /// Images kept in memory around the one open in the viewer, on each side.
 const AROUND: usize = 2;
 /// Seconds between attempts on a phone that shows no storage (like the device check).
@@ -149,14 +184,17 @@ struct App {
     devices: Vec<devices::Device>,
     /// The tree must open down to the current folder (after every folder change).
     reveal: bool,
-    /// Options window open.
+    /// Options window open, and its tab.
     options: bool,
+    options_tab: OptTab,
     /// Confirmation of emptying the cache in progress: (thumbnails, bytes).
     purge_confirm: Option<(u64, u64)>,
     /// Sources already gone through cache maintenance in this session.
     maintained: HashSet<String>,
-    /// Image waiting for the user to confirm its deletion, and what deleting it does.
-    delete_confirm: Option<(File, source::Deletion)>,
+    /// Item waiting for the user to confirm its deletion: path, size (images only), what deleting it does.
+    delete_confirm: Option<(String, Option<u64>, source::Deletion)>,
+    /// Rename in progress: name being written, path, first frame (focus and selection to set).
+    rename: Option<(String, String, bool)>,
     /// Enter (true) or Esc (false) pressed while the confirmation is open.
     delete_answer: Option<bool>,
     /// The open local folder, watched for changes made outside EyeCanSee.
@@ -167,6 +205,8 @@ struct App {
     changed_at: Option<f64>,
     /// Folders being read again after a change: their new listing replaces the old one in place.
     relisting: HashSet<String>,
+    /// Item chosen from a right-click menu, run when the frame is drawn (never during the grid).
+    act: Option<Act>,
 }
 
 impl App {
@@ -220,14 +260,17 @@ impl App {
             // Straight away, not only from the thread: the fallback already needs it if the first address is a busy mtp://.
             devices: devices::scan(),
             options: false,
+            options_tab: OptTab::General,
             purge_confirm: None,
             maintained: HashSet::new(),
             delete_confirm: None,
             delete_answer: None,
+            rename: None,
             watcher: None,
             watched: None,
             changed_at: None,
             relisting: HashSet::new(),
+            act: None,
         };
         app.watcher = {
             let (tx, ctx) = (app.tx.clone(), ctx.clone());
@@ -332,64 +375,99 @@ impl App {
             (self.i18n.t_args("opt-purge-confirm", &[("n", &n.to_string()), ("mb", &mb)]), self.i18n.t("opt-purge-yes"))
         });
         let mut purged = false;
+        let tab_names = [
+            (OptTab::General, t("opt-tab-general")),
+            (OptTab::Look, t("opt-tab-look")),
+            (OptTab::Browsing, t("opt-tab-browsing")),
+            (OptTab::Deleting, t("opt-tab-deleting")),
+            (OptTab::Thumbnails, t("opt-tab-thumbnails")),
+        ];
+        let tab = &mut self.options_tab;
         let confirm = &mut self.purge_confirm;
         let s = &mut self.settings;
         // Fixed id: changing language changes the title, and the window must not move.
-        egui::Window::new(title).id(egui::Id::unique("options")).open(&mut open).collapsible(false).resizable(false).show(ctx, |ui| {
-            ui.checkbox(&mut s.remember_location, remember).on_hover_text(remember_hint);
-            ui.checkbox(&mut s.remember_scroll, scroll).on_hover_text(scroll_hint);
-            ui.checkbox(&mut s.wrap_around, wrap).on_hover_text(wrap_hint);
-            ui.separator();
-            ui.label(window);
-            ui.radio_value(&mut s.window_start, WindowStart::Normal, normal);
-            ui.radio_value(&mut s.window_start, WindowStart::Maximized, maximized);
-            ui.radio_value(&mut s.window_start, WindowStart::Remember, remember_size);
-            ui.separator();
-            ui.label(language_label);
-            ui.radio_value(&mut s.language, None, language_system);
-            for (code, name) in languages {
-                ui.radio_value(&mut s.language, Some(code.to_string()), name);
-            }
-            ui.separator();
-            ui.label(theme_label);
-            ui.radio_value(&mut s.theme, ThemeChoice::System, theme_system);
-            ui.radio_value(&mut s.theme, ThemeChoice::Light, theme_light);
-            ui.radio_value(&mut s.theme, ThemeChoice::Dark, theme_dark);
-            ui.separator();
-            ui.checkbox(&mut s.local_permanent, local_permanent).on_hover_text(local_permanent_hint);
-            ui.label(remote_delete);
-            ui.radio_value(&mut s.remote_delete, RemoteDelete::TrashFolder, remote_folder);
-            ui.radio_value(&mut s.remote_delete, RemoteDelete::Permanent, remote_permanent);
-            ui.separator();
-            ui.checkbox(&mut s.thumb_maintenance, maint).on_hover_text(maint_hint);
-            ui.add_enabled_ui(s.thumb_maintenance, |ui| {
+        // One tab per subject, as in other programs: the window stays short. Fixed size and in the
+        // middle, so changing tab does not make it jump.
+        egui::Window::new(title)
+            .id(egui::Id::unique("options"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .fixed_size([460.0, 300.0])
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .show(ctx, |ui| {
+                // As tall as the longest tab (General), so changing tab does not resize the window.
+                ui.set_min_height(300.0);
                 ui.horizontal(|ui| {
-                    ui.label(limit);
-                    ui.add(egui::DragValue::new(&mut s.thumb_cache_mb).range(16..=1_000_000).suffix(" MB"));
+                    for (value, name) in tab_names {
+                        ui.selectable_value(tab, value, name);
+                    }
                 });
-            });
-            ui.separator();
-            match &purge_text {
-                None => {
-                    if ui.button(&purge).clicked() {
-                        *confirm = Some(thumbcache::stats());
+                ui.separator();
+                match tab {
+                    OptTab::General => {
+                        ui.checkbox(&mut s.remember_location, remember).on_hover_text(remember_hint);
+                        ui.add_space(6.0);
+                        ui.label(window);
+                        ui.radio_value(&mut s.window_start, WindowStart::Normal, normal);
+                        ui.radio_value(&mut s.window_start, WindowStart::Maximized, maximized);
+                        ui.radio_value(&mut s.window_start, WindowStart::Remember, remember_size);
+                        ui.add_space(6.0);
+                        ui.label(language_label);
+                        ui.radio_value(&mut s.language, None, language_system);
+                        for (code, name) in languages {
+                            ui.radio_value(&mut s.language, Some(code.to_string()), name);
+                        }
+                    }
+                    OptTab::Look => {
+                        ui.label(theme_label);
+                        ui.radio_value(&mut s.theme, ThemeChoice::System, theme_system);
+                        ui.radio_value(&mut s.theme, ThemeChoice::Light, theme_light);
+                        ui.radio_value(&mut s.theme, ThemeChoice::Dark, theme_dark);
+                    }
+                    OptTab::Browsing => {
+                        ui.checkbox(&mut s.remember_scroll, scroll).on_hover_text(scroll_hint);
+                        ui.checkbox(&mut s.wrap_around, wrap).on_hover_text(wrap_hint);
+                    }
+                    OptTab::Deleting => {
+                        ui.checkbox(&mut s.local_permanent, local_permanent).on_hover_text(local_permanent_hint);
+                        ui.add_space(6.0);
+                        ui.label(remote_delete);
+                        ui.radio_value(&mut s.remote_delete, RemoteDelete::TrashFolder, remote_folder);
+                        ui.radio_value(&mut s.remote_delete, RemoteDelete::Permanent, remote_permanent);
+                    }
+                    OptTab::Thumbnails => {
+                        ui.checkbox(&mut s.thumb_maintenance, maint).on_hover_text(maint_hint);
+                        ui.add_enabled_ui(s.thumb_maintenance, |ui| {
+                            ui.horizontal(|ui| {
+                                ui.label(limit);
+                                ui.add(egui::DragValue::new(&mut s.thumb_cache_mb).range(16..=1_000_000).suffix(" MB"));
+                            });
+                        });
+                        ui.add_space(6.0);
+                        match &purge_text {
+                            None => {
+                                if ui.button(&purge).clicked() {
+                                    *confirm = Some(thumbcache::stats());
+                                }
+                            }
+                            Some((text, yes)) => {
+                                ui.label(text);
+                                ui.horizontal(|ui| {
+                                    if ui.button(yes).clicked() {
+                                        thumbcache::purge();
+                                        purged = true;
+                                        *confirm = None;
+                                    }
+                                    if ui.button(&purge_no).clicked() {
+                                        *confirm = None;
+                                    }
+                                });
+                            }
+                        }
                     }
                 }
-                Some((text, yes)) => {
-                    ui.label(text);
-                    ui.horizontal(|ui| {
-                        if ui.button(yes).clicked() {
-                            thumbcache::purge();
-                            purged = true;
-                            *confirm = None;
-                        }
-                        if ui.button(&purge_no).clicked() {
-                            *confirm = None;
-                        }
-                    });
-                }
-            }
-        });
+            });
         if !open {
             self.purge_confirm = None;
         }
@@ -610,7 +688,15 @@ impl App {
                 Msg::Changed => self.changed_at = Some(ctx.input(|i| i.time) + 0.3),
                 Msg::Deleted(path, Ok(())) => {
                     log!("deleted {path:?}");
-                    self.remove_file(&path);
+                    self.remove_item(&path);
+                }
+                Msg::Renamed(old, Ok(new)) => {
+                    log!("renamed {old:?} -> {new:?}");
+                    self.renamed(&old, &new);
+                }
+                Msg::Renamed(old, Err((id, detail))) => {
+                    log!("rename {old:?}: ERROR {id} {detail}");
+                    self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
                 }
                 Msg::Deleted(path, Err((id, detail))) => {
                     log!("delete {path:?}: ERROR {id} {detail}");
@@ -696,10 +782,16 @@ impl App {
     }
 
     fn global_keys(&mut self, ctx: &egui::Context) {
-        let (help, refresh, delete, shift) =
-            ctx.input(|i| (i.key_pressed(Key::F1), i.key_pressed(Key::F5), i.key_pressed(Key::Delete), i.modifiers.shift));
-        if delete && !ctx.egui_wants_keyboard_input() {
-            self.ask_delete(shift);
+        let (help, refresh, delete, shift, rename) = ctx.input(|i| {
+            (i.key_pressed(Key::F1), i.key_pressed(Key::F5), i.key_pressed(Key::Delete), i.modifiers.shift, i.key_pressed(Key::F2))
+        });
+        if !ctx.egui_wants_keyboard_input() && self.rename.is_none() {
+            if delete {
+                self.ask_delete(None, shift);
+            }
+            if rename {
+                self.ask_rename(None);
+            }
         }
         if help {
             self.help = !self.help;
@@ -773,39 +865,51 @@ impl App {
         }
     }
 
-    /// The image Delete acts on: the one in the viewer, or the one selected in the grid.
-    fn delete_target(&self) -> Option<File> {
+    /// The item Delete and Rename act on: the image in the viewer, or the item selected in the grid.
+    fn target(&self) -> Option<String> {
         let Some(Ok(l)) = self.listings.get(&self.dir) else { return None };
-        let i = match self.viewing {
-            Some(i) => i,
-            None if self.cursor && self.focus == Focus::Grid => self.selected.checked_sub(l.dirs.len())?,
+        let path = match self.viewing {
+            Some(i) => &l.files.get(i)?.path,
+            None if self.cursor && self.focus == Focus::Grid => match l.dirs.get(self.selected) {
+                Some(d) => d,
+                None => &l.files.get(self.selected - l.dirs.len())?.path,
+            },
             None => return None,
         };
-        l.files.get(i).cloned()
+        Some(path.clone()).filter(|p| self.can_change(p))
     }
 
-    /// `permanent`: Shift+Del, for good this time whatever the options say.
-    fn ask_delete(&mut self, permanent: bool) {
-        if let (Some(file), Some(loader)) = (self.delete_target(), &self.loader) {
-            let how = match permanent {
-                true => source::Deletion::Permanent,
-                false => loader.deletion(&file.path, self.settings.local_permanent, self.settings.remote_delete),
-            };
-            log!("delete? {:?} {how:?}", file.path);
-            self.delete_confirm = Some((file, how));
-        }
+    /// Never the root of the source, nor the storages of a phone.
+    fn can_change(&self, path: &str) -> bool {
+        !path.is_empty() && !(self.base.starts_with("mtp://") && path.ends_with('/') && source::parent(path).is_empty())
+    }
+
+    /// `path`: `None` = `target`. `permanent`: Shift+Del, for good this time whatever the options say.
+    fn ask_delete(&mut self, path: Option<String>, permanent: bool) {
+        let Some(path) = path.or_else(|| self.target()).filter(|p| self.can_change(p)) else { return };
+        let Some(loader) = &self.loader else { return };
+        let how = match permanent {
+            true => source::Deletion::Permanent,
+            false => loader.deletion(&path, self.settings.local_permanent, self.settings.remote_delete),
+        };
+        log!("delete? {path:?} {how:?}");
+        let size = self.listings.get(&source::parent(&path)).and_then(|l| l.as_ref().ok()).and_then(|l| {
+            l.files.iter().find(|f| f.path == path).map(|f| f.size)
+        });
+        self.delete_confirm = Some((path, size, how));
     }
 
     /// Confirmation of the deletion: what will happen, name and size. Enter confirms, Esc cancels.
     fn delete_window(&mut self, ctx: &egui::Context) {
-        let Some((file, how)) = self.delete_confirm.clone() else { return };
+        let Some((path, size, how)) = self.delete_confirm.clone() else { return };
+        let dir = if path.ends_with('/') { "-dir" } else { "" };
         let id = match how {
-            source::Deletion::SystemTrash => "delete-confirm-trash",
-            source::Deletion::TrashFolder => "delete-confirm-folder",
-            source::Deletion::Permanent => "delete-confirm-permanent",
+            source::Deletion::SystemTrash => format!("delete-confirm{dir}-trash"),
+            source::Deletion::TrashFolder => format!("delete-confirm{dir}-folder"),
+            source::Deletion::Permanent => format!("delete-confirm{dir}-permanent"),
         };
-        let size = self.human_size(file.size);
-        let text = self.i18n.t_args(id, &[("name", source::name(&file.path)), ("size", &size)]);
+        let size = size.map(|s| self.human_size(s)).unwrap_or_default();
+        let text = self.i18n.t_args(&id, &[("name", source::name(&path)), ("size", &size)]);
         let (yes, no) = (self.i18n.t("delete-yes"), self.i18n.t("delete-no"));
         let mut answer = self.delete_answer.take();
         egui::Modal::new(egui::Id::unique("delete")).show(ctx, |ui| {
@@ -824,7 +928,7 @@ impl App {
         match answer {
             Some(true) => {
                 if let Some(loader) = &self.loader {
-                    loader.delete(file.path.clone(), how);
+                    loader.delete(path, how);
                 }
                 self.delete_confirm = None;
             }
@@ -833,12 +937,111 @@ impl App {
         }
     }
 
-    /// Deleted image: out of the listing, as if read again.
-    fn remove_file(&mut self, path: &str) {
+    fn ask_rename(&mut self, path: Option<String>) {
+        if let Some(path) = path.or_else(|| self.target()).filter(|p| self.can_change(p)) {
+            log!("rename? {path:?}");
+            self.rename = Some((source::name(&path).to_string(), path, true));
+        }
+    }
+
+    /// New name, in a text field with the old one. Enter confirms, Esc cancels. The name is
+    /// checked here: not empty, no separators, not already in the folder.
+    fn rename_window(&mut self, ctx: &egui::Context) {
+        let Some((mut name, path, first)) = self.rename.clone() else { return };
+        let old = source::name(&path).to_string();
+        let parent = source::parent(&path);
+        let trimmed = name.trim().to_string();
+        let taken = self.listings.get(&parent).and_then(|l| l.as_ref().ok()).is_some_and(|l| {
+            l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).any(|p| source::name(p) == trimmed)
+        });
+        let problem = if trimmed.is_empty() || trimmed == "." || trimmed == ".." || trimmed.contains(['/', '\\']) {
+            Some(self.i18n.t("rename-bad"))
+        } else if trimmed != old && taken {
+            Some(self.i18n.t("rename-taken"))
+        } else {
+            None
+        };
+        let (title, ok, cancel) = (self.i18n.t("rename-title"), self.i18n.t("rename-ok"), self.i18n.t("delete-no"));
+        let mut answer = None;
+        egui::Modal::new(egui::Id::unique("rename")).show(ctx, |ui| {
+            ui.set_width(420.0);
+            ui.strong(title);
+            ui.add_space(4.0);
+            let edit = egui::TextEdit::singleline(&mut name).desired_width(f32::INFINITY);
+            let mut out = edit.show(ui);
+            if first {
+                // Focus, and the name selected without the extension, as file managers do.
+                out.response.request_focus();
+                let end = if path.ends_with('/') { old.chars().count() } else { old.rfind('.').map_or(old.chars().count(), |i| old[..i].chars().count()) };
+                let range = egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(end));
+                out.state.cursor.set_char_range(Some(range));
+                out.state.store(ui.ctx(), out.response.id);
+            }
+            if let Some(p) = &problem {
+                ui.label(browser::error_text(ui, p.as_str()));
+            }
+            ui.add_space(8.0);
+            let enter = out.response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+            ui.horizontal(|ui| {
+                if ui.add_enabled(problem.is_none(), egui::Button::new(ok)).clicked() || (enter && problem.is_none()) {
+                    answer = Some(true);
+                }
+                if ui.button(cancel).clicked() || ui.input(|i| i.key_pressed(Key::Escape)) {
+                    answer = Some(false);
+                }
+            });
+        });
+        match answer {
+            Some(true) => {
+                if trimmed != old
+                    && let Some(loader) = &self.loader
+                {
+                    loader.rename(path, trimmed);
+                }
+                self.rename = None;
+            }
+            Some(false) => self.rename = None,
+            None => self.rename = Some((name, path, false)),
+        }
+    }
+
+    /// Item deleted: out of the listing, as if read again. A deleted folder also takes the
+    /// listings under it, and the current folder if it was inside.
+    fn remove_item(&mut self, path: &str) {
         let dir = source::parent(path);
+        self.listings.retain(|k, _| !(path.ends_with('/') && k.starts_with(path)));
+        if self.dir.starts_with(path) {
+            self.listings.remove(&dir);
+            self.set_dir(dir);
+            return;
+        }
         let Some(Ok(l)) = self.listings.get(&dir) else { return };
-        let new = Listing { dirs: l.dirs.clone(), files: l.files.iter().filter(|f| f.path != path).cloned().collect() };
+        let new = Listing {
+            dirs: l.dirs.iter().filter(|d| *d != path).cloned().collect(),
+            files: l.files.iter().filter(|f| f.path != path).cloned().collect(),
+        };
         self.swap_listing(&dir, new);
+    }
+
+    /// Item renamed: its folder is read again (its place in the order may change); if the current
+    /// folder was inside a renamed one, it follows the new name.
+    fn renamed(&mut self, old: &str, new: &str) {
+        let dir = source::parent(old);
+        if old.ends_with('/') {
+            self.listings.retain(|k, _| !k.starts_with(old));
+            if self.dir.starts_with(old) {
+                let current = format!("{new}{}", &self.dir[old.len()..]);
+                self.listings.remove(&dir);
+                self.set_dir(current);
+                return;
+            }
+        }
+        if let Some(loader) = &self.loader
+            && self.listing_pending.insert(dir.clone())
+        {
+            self.relisting.insert(dir.clone());
+            loader.list(dir);
+        }
     }
 
     /// New listing of a folder already shown (image deleted, folder changed on disk). Thumbnails
@@ -931,22 +1134,6 @@ impl App {
     /// Every keyboard or double-click action also has a menu item, with the shortcut next to it.
     /// The menus only record the chosen item; the action runs afterwards, with access to the whole app.
     fn menu_bar(&mut self, ui: &mut egui::Ui) {
-        #[derive(Debug)]
-        enum Act {
-            Address,
-            Options,
-            Delete(bool),
-            Quit,
-            Open,
-            Back,
-            Refresh,
-            Go(Go),
-            Up,
-            Manual,
-            Meta(meta::Group),
-            Sort(settings::SortBy),
-            SortDesc,
-        }
         let t = |id| self.i18n.t(id);
         let item = |label: String, keys: String| egui::Button::new(label).shortcut_text(keys);
         let viewing = self.viewing.is_some();
@@ -963,9 +1150,10 @@ impl App {
                 entry(ui, true, egui::Button::new(t("menu-open-location")), Act::Address);
                 entry(ui, true, egui::Button::new(t("menu-options")), Act::Options);
                 ui.separator();
-                let can_delete = self.delete_target().is_some();
-                entry(ui, can_delete, item(t("menu-delete"), t("key-delete")), Act::Delete(false));
-                entry(ui, can_delete, item(t("menu-delete-permanent"), t("key-shift-delete")), Act::Delete(true));
+                let can_change = self.target().is_some();
+                entry(ui, can_change, item(t("menu-rename"), "F2".into()), Act::Rename(None));
+                entry(ui, can_change, item(t("menu-delete"), t("key-delete")), Act::Delete(None, false));
+                entry(ui, can_change, item(t("menu-delete-permanent"), t("key-shift-delete")), Act::Delete(None, true));
                 ui.separator();
                 entry(ui, true, egui::Button::new(t("menu-quit")), Act::Quit);
             });
@@ -1002,24 +1190,30 @@ impl App {
                 ui.weak(format!("EyeCanSee {}", version()));
             });
         });
-        if let Some(a) = &act {
-            log!("menu {a:?}");
+        if let Some(a) = act {
+            self.run(ui.ctx(), a);
         }
+    }
+
+    /// Runs an item chosen from the menu bar or from a right-click menu.
+    pub(crate) fn run(&mut self, ctx: &egui::Context, act: Act) {
+        log!("menu {act:?}");
         match act {
-            Some(Act::Address) => ui.memory_mut(|m| m.request_focus(egui::Id::unique("address"))),
-            Some(Act::Options) => self.options = true,
-            Some(Act::Delete(permanent)) => self.ask_delete(permanent),
-            Some(Act::Quit) => ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close),
-            Some(Act::Open) => self.activate(self.selected),
-            Some(Act::Back) => self.close_viewer(),
-            Some(Act::Refresh) => self.refresh(),
-            Some(Act::Go(to)) => self.go(to),
-            Some(Act::Up) => self.go_up(),
-            Some(Act::Manual) => self.help = true,
-            Some(Act::Meta(g)) => self.show_meta(g, !self.meta_shown(g)),
-            Some(Act::Sort(by)) => self.set_sort(by, self.settings.sort_desc),
-            Some(Act::SortDesc) => self.set_sort(self.settings.sort_by, !self.settings.sort_desc),
-            None => {}
+            Act::Address => ctx.memory_mut(|m| m.request_focus(egui::Id::unique("address"))),
+            Act::Options => self.options = true,
+            Act::Delete(path, permanent) => self.ask_delete(path, permanent),
+            Act::Rename(path) => self.ask_rename(path),
+            Act::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            Act::Open => self.activate(self.selected),
+            Act::OpenDir(dir) => self.set_dir(dir),
+            Act::Back => self.close_viewer(),
+            Act::Refresh => self.refresh(),
+            Act::Go(to) => self.go(to),
+            Act::Up => self.go_up(),
+            Act::Manual => self.help = true,
+            Act::Meta(g) => self.show_meta(g, !self.meta_shown(g)),
+            Act::Sort(by) => self.set_sort(by, self.settings.sort_desc),
+            Act::SortDesc => self.set_sort(self.settings.sort_by, !self.settings.sort_desc),
         }
     }
 
@@ -1167,12 +1361,16 @@ impl App {
     }
 
     fn viewer(&mut self, ui: &mut egui::Ui, current: usize) {
+        let mut chosen = None;
         ui.centered_and_justified(|ui| match self.full.get(&current) {
             Some(Ok(tex)) => {
                 let response = ui.add(egui::Image::new(tex).shrink_to_fit().sense(egui::Sense::click()));
                 if response.double_clicked() {
                     self.close_viewer();
                 }
+                response.context_menu(|ui| {
+                    chosen = browser::context_menu(ui, self.item_menu(None, None));
+                });
             }
             Some(Err(e)) => {
                 let name = self.files().get(current).map_or("", |f| source::name(&f.path));
@@ -1182,6 +1380,9 @@ impl App {
                 ui.spinner();
             }
         });
+        if chosen.is_some() {
+            self.act = chosen;
+        }
     }
 }
 
@@ -1293,7 +1494,11 @@ impl eframe::App for App {
             });
         self.help = open;
         self.options_window(&ctx);
+        if let Some(a) = self.act.take() {
+            self.run(&ctx, a);
+        }
         self.delete_window(&ctx);
+        self.rename_window(&ctx);
 
         #[cfg(debug_assertions)]
         debug_screenshot(&ctx);
