@@ -17,7 +17,7 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       trial: ${{ steps.v.outputs.trial }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - id: v
         run: |
           VER=$(cat VERSION)
@@ -35,20 +35,49 @@ jobs:
     runs-on: windows-latest
     env:
       VER: ${{ needs.version.outputs.version }}
+      # libheif with its decoders (HEIC, AVIF), static like the C runtime (.cargo/config.toml).
+      # vcpkg is pinned to a commit; its compiled packages are cached between runs.
+      VCPKG_ROOT: C:\eyecansee-vcpkg
+      VCPKG_COMMIT: 67972e92edd181d433927b42d8ab4bfa52ac164a
+      VCPKG_DEFAULT_BINARY_CACHE: C:\eyecansee-vcpkg-cache
+      HEIF_PORT: libheif[core,libde265,dav1d]:x64-windows-static
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Tools
         run: |
           rustup update stable --no-self-update
           rustup default stable
           choco install nasm -y --no-progress
           "C:\Program Files\NASM" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+      - uses: actions/cache@v5
+        with:
+          path: C:\eyecansee-vcpkg-cache
+          key: vcpkg-${{ env.VCPKG_COMMIT }}-${{ env.HEIF_PORT }}
+      - name: libheif
+        run: |
+          New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+          git clone -q https://github.com/microsoft/vcpkg.git $env:VCPKG_ROOT
+          git -C $env:VCPKG_ROOT checkout -q $env:VCPKG_COMMIT
+          & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
+          & "$env:VCPKG_ROOT\vcpkg.exe" install $env:HEIF_PORT
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Build
-        run: cargo build --release --locked --no-default-features
+        run: cargo build --release --locked --no-default-features --features heif
       - name: Zip
         run: |
           New-Item -ItemType Directory pkg | Out-Null
           .\tools\third-party-licenses.ps1 -Project . -Out pkg\THIRD-PARTY-LICENSES.txt
+          # The C libraries built by vcpkg are linked into the executable: their licences and sources too.
+          $sources = [ordered]@{ libheif = "https://github.com/strukturag/libheif"
+                                 libde265 = "https://github.com/strukturag/libde265"
+                                 dav1d = "https://code.videolan.org/videolan/dav1d" }
+          foreach ($p in $sources.Keys) {
+            $line = & "$env:VCPKG_ROOT\vcpkg.exe" list $p | Where-Object { $_ -match "^${p}:x64-windows-static\s" }
+            $ver = ($line -split '\s+')[1]
+            $bar = "=" * 78
+            Add-Content pkg\THIRD-PARTY-LICENSES.txt "`n$bar`n$p $ver (linked into eyecansee.exe, built with vcpkg)`nSource: $($sources[$p])`n$bar`n"
+            Get-Content -Raw "$env:VCPKG_ROOT\installed\x64-windows-static\share\$p\copyright" | Add-Content pkg\THIRD-PARTY-LICENSES.txt
+          }
           Copy-Item target\release\eyecansee.exe pkg\
           Copy-Item LICENSE pkg\LICENSE.txt
           Compress-Archive -Path pkg\* -DestinationPath "EyeCanSee-$env:VER-windows-x64.zip"
@@ -62,7 +91,7 @@ jobs:
           if ($alive) { Stop-Process -Id $p.Id }
           Get-Content test\log.txt
           if (-not $alive) { "::error::eyecansee.exe exited within 8 s"; exit 1 }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: windows
           path: EyeCanSee-*-windows-x64.zip
@@ -71,9 +100,20 @@ jobs:
     needs: version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
+      # Only the C libraries compiled from source (decoders, ImageMagick): versions are in the script.
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ${{ runner.temp }}/appimage-cache/deps-*
+            ${{ runner.temp }}/appimage-cache/imagemagick-*
+          key: appimage-deps-${{ hashFiles('tools/build-appimage.sh') }}
       - name: Build
-        run: tools/build-appimage.sh
+        env:
+          APPIMAGE_CACHE: ${{ runner.temp }}/appimage-cache
+        run: |
+          mkdir -p "$APPIMAGE_CACHE"
+          tools/build-appimage.sh
       - name: Check
         run: |
           A=$(ls target/appimage/EyeCanSee-*-x86_64.AppImage)
@@ -81,7 +121,7 @@ jobs:
           for lib in libdav1d.so libde265.so libMagickCore libMagickWand; do
             ls squashfs-root/usr/lib | grep -q "^$lib" || { echo "::error::$lib missing"; exit 1; }
           done
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: appimage
           path: target/appimage/EyeCanSee-*-x86_64.AppImage
@@ -92,7 +132,7 @@ jobs:
     container: registry.fedoraproject.org/fedora:44
     steps:
       - run: dnf install -y -q git rpm-build copr-cli
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Source RPM, sent to COPR for real releases
         env:
           COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
@@ -109,7 +149,7 @@ jobs:
     needs: [version, windows, appimage, copr]
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v7
         with:
           merge-multiple: true
       - name: Draft release

@@ -25,7 +25,7 @@ Mature viewers like XnView, IrfanView or digiKam do much more than EyeCanSee, an
 ### Formats
 
 - On Linux: JPEG, PNG, WebP, GIF, BMP, TIFF, HEIC, AVIF, JPEG XL, SVG, and many less common formats through ImageMagick (PSD, XCF, JPEG 2000, PCX and others).
-- On Windows: the same, **except** HEIC, AVIF and the ImageMagick formats, which are not included yet.
+- On Windows: the same, **except** the ImageMagick formats, which are not included yet.
 - Camera RAW files (CR2, CR3, NEF, ARW, DNG and others) are supported by the code, but have not been tested with real camera files yet.
 
 The full list of features, keys and limits is in the manual: [English](docs/manual.en.md), [Italiano](docs/manual.it.md).
@@ -79,12 +79,21 @@ If `nasm` is not found, add its folder to `PATH` for the current user and open a
 [Environment]::SetEnvironmentVariable("Path", [Environment]::GetEnvironmentVariable("Path", "User") + ";$env:LOCALAPPDATA\bin\NASM", "User")
 ```
 
-Build and run (`--no-default-features` leaves out HEIC/AVIF and ImageMagick, see *Formats*):
+HEIC and AVIF need libheif, built once with [vcpkg](https://vcpkg.io) (a few minutes):
+
+```powershell
+git clone https://github.com/microsoft/vcpkg.git $env:USERPROFILE\vcpkg
+& $env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat -disableMetrics
+& $env:USERPROFILE\vcpkg\vcpkg.exe install "libheif[core,libde265,dav1d]:x64-windows-static"
+```
+
+Build and run (`--features heif` without the default features leaves out ImageMagick, see *Formats*; without `--features heif` HEIC and AVIF are left out too, and vcpkg is not needed):
 
 ```powershell
 git clone https://github.com/IoSonoPiero/eyecansee.git
 cd eyecansee
-cargo build --release --no-default-features
+$env:VCPKG_ROOT = "$env:USERPROFILE\vcpkg"
+cargo build --release --no-default-features --features heif
 .\target\release\eyecansee.exe $env:USERPROFILE\Pictures
 ```
 

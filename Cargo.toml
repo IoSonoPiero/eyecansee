@@ -1,13 +1,14 @@
 [package]
 name = "eyecansee"
-version = "0.20.0"
+version = "0.21.0"
 edition = "2024"
 description = "Image viewer for Linux and Windows"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/IoSonoPiero/eyecansee"
 
-# HEIC/AVIF (libheif) and the ImageMagick fallback are heavy C libraries to set up on Windows:
-# `cargo build --no-default-features` builds without them, and those formats do not appear in the list.
+# HEIC/AVIF (libheif) and the ImageMagick fallback are C libraries: `cargo build --no-default-features`
+# builds without them, and those formats do not appear in the list. On Windows libheif comes from vcpkg
+# (see README) and is built with `--no-default-features --features heif`; ImageMagick is not set up yet.
 [features]
 default = ["heif", "magick"]
 heif = ["dep:libheif-rs"]

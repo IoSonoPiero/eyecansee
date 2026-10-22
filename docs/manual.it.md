@@ -147,7 +147,7 @@ Nel visore, dopo l'ultima immagine EyeCanSee si ferma; con l'opzione **Nel visor
 
 Le foto vengono ruotate in automatico secondo l'orientamento EXIF. L'estensione del file è solo un indizio: una foto HEIC di un iPhone rinominata in `.jpg` si apre lo stesso.
 
-Su Windows, per ora, HEIC/HEIF, AVIF e i formati della voce *Grafica e HDR* gestiti da ImageMagick (PSD, XCF, PCX, JPEG 2000 e simili) non sono ancora disponibili: quei file non compaiono nell'elenco.
+Su Windows, per ora, i formati della voce *Grafica e HDR* gestiti da ImageMagick (PSD, XCF, PCX, JPEG 2000 e simili) non sono ancora disponibili: quei file non compaiono nell'elenco.
 
 ## Lingua
 

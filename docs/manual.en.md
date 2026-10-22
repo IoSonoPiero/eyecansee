@@ -147,7 +147,7 @@ In the viewer, after the last image EyeCanSee stops; with the option **In the vi
 
 Photos are rotated automatically using their EXIF orientation. The file extension is only a hint: an iPhone HEIC photo renamed to `.jpg` opens anyway.
 
-On Windows, for now, HEIC/HEIF, AVIF and the *Graphics and HDR* formats handled by ImageMagick (PSD, XCF, PCX, JPEG 2000 and similar) are not available yet: those files do not appear in the list.
+On Windows, for now, the *Graphics and HDR* formats handled by ImageMagick (PSD, XCF, PCX, JPEG 2000 and similar) are not available yet: those files do not appear in the list.
 
 ## Language
 

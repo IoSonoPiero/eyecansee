@@ -6,11 +6,13 @@
 # built from source too, with its coders inside the library; the format libraries it uses come from Ubuntu.
 # LICENSE and THIRD-PARTY-LICENSES.txt go in usr/share/doc/eyecansee/ inside the AppImage.
 # Usage: tools/build-appimage.sh   (output in target/appimage/)
+# The cache (rustup, cargo, decoders, ImageMagick) is the podman volume eyecansee-appimage-cache, or the
+# folder in APPIMAGE_CACHE (used by GitHub Actions, which saves it between runs).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
 if [[ "${1:-}" != "--inside" ]]; then
-    podman run --rm -v "$PWD":/src:z -v eyecansee-appimage-cache:/cache -w /src \
+    podman run --rm -v "$PWD":/src:z -v "${APPIMAGE_CACHE:-eyecansee-appimage-cache}":/cache -w /src \
         docker.io/library/ubuntu:22.04 bash tools/build-appimage.sh --inside
     exit
 fi
