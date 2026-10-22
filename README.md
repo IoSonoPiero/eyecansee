@@ -24,8 +24,8 @@ Mature viewers like XnView, IrfanView or digiKam do much more than EyeCanSee, an
 
 ### Formats
 
-- On Linux: JPEG, PNG, WebP, GIF, BMP, TIFF, HEIC, AVIF, JPEG XL, SVG, and many less common formats through ImageMagick (PSD, XCF, JPEG 2000, PCX and others).
-- On Windows: the same, **except** the ImageMagick formats, which are not included yet.
+- On Linux and Windows: JPEG, PNG, WebP, GIF, BMP, TIFF, HEIC, AVIF, JPEG XL, SVG, and less common ones such as PSD, JPEG 2000, PCX, DDS and OpenRaster.
+- On Linux only: further rare formats through ImageMagick (XCF, PSB, DPX, FITS and others).
 - Camera RAW files (CR2, CR3, NEF, ARW, DNG and others) are supported by the code, but have not been tested with real camera files yet.
 
 The full list of features, keys and limits is in the manual: [English](docs/manual.en.md), [Italiano](docs/manual.it.md).

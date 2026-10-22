@@ -143,11 +143,12 @@ In the viewer, after the last image EyeCanSee stops; with the option **In the vi
 - **Photos**: JPEG, PNG, WebP, HEIC/HEIF, AVIF, JPEG XL, TIFF, GIF (first frame), BMP.
 - **Camera RAW**: ARW, CR2, CR3, CRW, DNG, NEF, NRW, ORF, PEF, RAF, RW2, SRW, 3FR, IIQ, ERF, KDC, MEF, MOS, MRW and others. EyeCanSee shows the full-size preview stored by the camera; if there is none, it develops the sensor data.
 - **Vector**: SVG, SVGZ.
-- **Graphics and HDR**: PSD/PSB (merged image), XCF, ORA, OpenEXR, HDR, PFM, DDS, QOI, TGA, ICO, CUR, PCX, JPEG 2000, PNM, XPM, XBM, SGI, Sun Raster, PICT, MIFF, MNG, JNG, DPX, Cineon, FITS, MPO and other less common formats.
+- **Graphics and HDR**: PSD (merged image), ORA, OpenEXR, HDR, DDS, ICNS, QOI, TGA, ICO, CUR, PCX, JPEG 2000, PNM, XPM, XBM, SGI, WBMP, OTB, MPO, JPS.
+- **Through ImageMagick, on Linux only**: PSB, XCF, PFM, Sun Raster, PICT, MIFF, MNG, JNG, DPX, Cineon, FITS and other less common formats. On Linux ImageMagick also opens the PSD files the built-in reader does not handle (for example 32-bit ones).
 
 Photos are rotated automatically using their EXIF orientation. The file extension is only a hint: an iPhone HEIC photo renamed to `.jpg` opens anyway.
 
-On Windows, for now, the *Graphics and HDR* formats handled by ImageMagick (PSD, XCF, PCX, JPEG 2000 and similar) are not available yet: those files do not appear in the list.
+On Windows the formats handled by ImageMagick are not available: those files do not appear in the list.
 
 ## Language
 

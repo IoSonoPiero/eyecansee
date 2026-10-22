@@ -143,11 +143,12 @@ Nel visore, dopo l'ultima immagine EyeCanSee si ferma; con l'opzione **Nel visor
 - **Foto**: JPEG, PNG, WebP, HEIC/HEIF, AVIF, JPEG XL, TIFF, GIF (primo fotogramma), BMP.
 - **RAW delle fotocamere**: ARW, CR2, CR3, CRW, DNG, NEF, NRW, ORF, PEF, RAF, RW2, SRW, 3FR, IIQ, ERF, KDC, MEF, MOS, MRW e altri. EyeCanSee mostra l'anteprima a piena risoluzione salvata dalla fotocamera; se manca, sviluppa i dati del sensore.
 - **Vettoriali**: SVG, SVGZ.
-- **Grafica e HDR**: PSD/PSB (immagine unita), XCF, ORA, OpenEXR, HDR, PFM, DDS, QOI, TGA, ICO, CUR, PCX, JPEG 2000, PNM, XPM, XBM, SGI, Sun Raster, PICT, MIFF, MNG, JNG, DPX, Cineon, FITS, MPO e altri formati meno comuni.
+- **Grafica e HDR**: PSD (immagine unita), ORA, OpenEXR, HDR, DDS, ICNS, QOI, TGA, ICO, CUR, PCX, JPEG 2000, PNM, XPM, XBM, SGI, WBMP, OTB, MPO, JPS.
+- **Tramite ImageMagick, solo su Linux**: PSB, XCF, PFM, Sun Raster, PICT, MIFF, MNG, JNG, DPX, Cineon, FITS e altri formati meno comuni. Su Linux ImageMagick apre anche i PSD che il lettore interno non gestisce (per esempio quelli a 32 bit).
 
 Le foto vengono ruotate in automatico secondo l'orientamento EXIF. L'estensione del file è solo un indizio: una foto HEIC di un iPhone rinominata in `.jpg` si apre lo stesso.
 
-Su Windows, per ora, i formati della voce *Grafica e HDR* gestiti da ImageMagick (PSD, XCF, PCX, JPEG 2000 e simili) non sono ancora disponibili: quei file non compaiono nell'elenco.
+Su Windows i formati gestiti da ImageMagick non sono disponibili: quei file non compaiono nell'elenco.
 
 ## Lingua
 

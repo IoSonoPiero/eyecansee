@@ -24,12 +24,29 @@ const SVG_SIDE: f32 = 2048.0;
 const HEIF: &[&str] = &["heic", "heif", "hif", "avif"];
 const SVG: &[&str] = &["svg", "svgz"];
 
+/// Rare formats with a decoder written in Rust (`image-extras`, `psd`, `hayro-jpeg2000`): they
+/// work on Windows too, and on Linux they come before ImageMagick, which stays the fallback.
+const EXTRA: &[&str] = &[
+    "psd", "ora", "pcx", "sgi", "rgb", "rgba", "bw", "wbmp", "xbm", "xpm", "otb", "dds", "icns",
+    "jp2", "j2k", "j2c", "jpf", "jpx",
+];
+const JPEG2000: &[&str] = &["jp2", "j2k", "j2c", "jpf", "jpx"];
+
+/// Extensions of formats that `image` reads under another name: cursors are icons, MPO
+/// (multi-picture) and JPS (stereo) start with an ordinary JPEG, which is the one shown.
+fn image_alias(ext: &str) -> &str {
+    match ext {
+        "cur" => "ico",
+        "mpo" | "jps" => "jpg",
+        e => e,
+    }
+}
+
 /// Formats handed directly to ImageMagick, checked for reading with `magick -list format`
 /// (ImageMagick 7.1.2, 2026-10-19). Documents (PDF, EPS) and non-photographic formats excluded.
 const MAGICK: &[&str] = &[
-    "psd", "psb", "xcf", "ora", "pcx", "jp2", "j2k", "xpm", "xbm", "sgi", "ras", "sun", "pict",
-    "pct", "miff", "mng", "jng", "cur", "dpx", "cin", "fits", "mpo", "jps", "wbmp", "xwd", "pfm",
-    "pgx", "wpg", "viff", "vicar",
+    "psb", "xcf", "ras", "sun", "pict", "pct", "miff", "mng", "jng", "dpx", "cin", "fits", "xwd",
+    "pfm", "pgx", "wpg", "viff", "vicar",
 ];
 
 #[derive(Clone, Copy, PartialEq)]
@@ -39,6 +56,7 @@ enum Kind {
     Heif,
     Svg,
     Raw,
+    Extra,
     Magick,
 }
 
@@ -57,8 +75,10 @@ fn kind(name: &str) -> Option<Kind> {
         Kind::Svg
     } else if rawler::decoders::supported_extensions().iter().any(|r| r.eq_ignore_ascii_case(e)) {
         Kind::Raw
-    } else if image::ImageFormat::from_extension(e).is_some_and(|f| f.reading_enabled()) {
+    } else if image::ImageFormat::from_extension(image_alias(e)).is_some_and(|f| f.reading_enabled()) {
         Kind::Image
+    } else if EXTRA.contains(&e) {
+        Kind::Extra
     } else if cfg!(feature = "magick") && MAGICK.contains(&e) {
         Kind::Magick
     } else {
@@ -89,6 +109,7 @@ fn run(kind: Kind, bytes: &[u8], name: &str) -> Result<DynamicImage> {
         Kind::Heif => heif(bytes),
         Kind::Svg => svg(bytes),
         Kind::Raw => raw(bytes),
+        Kind::Extra => extra(bytes, name),
         Kind::Magick => magick(bytes),
     }
 }
@@ -150,7 +171,7 @@ fn with_image(bytes: &[u8], name: &str) -> Result<DynamicImage> {
     let mut reader = ImageReader::new(Cursor::new(bytes)).with_guessed_format()?;
     // Formats without a signature (TGA): the extension counts.
     if reader.format().is_none()
-        && let Some(f) = ext(name).and_then(image::ImageFormat::from_extension)
+        && let Some(f) = ext(name).and_then(|e| image::ImageFormat::from_extension(image_alias(&e)))
     {
         reader.set_format(f);
     }
@@ -263,6 +284,37 @@ fn raw(bytes: &[u8]) -> Result<DynamicImage> {
     Ok(img)
 }
 
+fn extra(bytes: &[u8], name: &str) -> Result<DynamicImage> {
+    use image_extras::*;
+    let e = ext(name).unwrap_or_default();
+    let r = Cursor::new(bytes);
+    Ok(match e.as_str() {
+        "psd" => {
+            // The composite image saved by Photoshop ("maximize compatibility"), not the layers.
+            // `psd` 0.3.5 panics on what it does not support (e.g. ZIP-compressed layers, some
+            // channel layouts): an error instead, and on Linux ImageMagick takes over.
+            let (w, h, rgba) = std::panic::catch_unwind(|| {
+                psd::Psd::from_bytes(bytes).map(|p| (p.width(), p.height(), p.rgba()))
+            })
+            .map_err(|_| "PSD: unsupported variant")??;
+            DynamicImage::ImageRgba8(RgbaImage::from_raw(w, h, rgba).ok_or("PSD: buffer")?)
+        }
+        e if JPEG2000.contains(&e) => {
+            DynamicImage::from_decoder(hayro_jpeg2000::Image::new(bytes, &Default::default())?)?
+        }
+        "ora" => DynamicImage::from_decoder(ora::OpenRasterDecoder::with_limits(r, image::Limits::default())?)?,
+        "pcx" => DynamicImage::from_decoder(pcx::PCXDecoder::new(r)?)?,
+        "sgi" | "rgb" | "rgba" | "bw" => DynamicImage::from_decoder(sgi::SgiDecoder::new(r)?)?,
+        "wbmp" => DynamicImage::from_decoder(wbmp::WbmpDecoder::new(r)?)?,
+        "xbm" => DynamicImage::from_decoder(xbm::XbmDecoder::new(r)?)?,
+        "xpm" => DynamicImage::from_decoder(xpm::XpmDecoder::new(r)?)?,
+        "otb" => DynamicImage::from_decoder(otb::OtbDecoder::new(r)?)?,
+        "dds" => DynamicImage::from_decoder(dds::DdsDecoder::new(r)?)?,
+        "icns" => DynamicImage::from_decoder(icns::IcnsDecoder::new(r)?)?,
+        _ => return Err(format!("{e}: no decoder").into()),
+    })
+}
+
 /// Universal fallback. Recognises the format from the content: formats without a signature
 /// (e.g. TGA) only get here if their dedicated decoder already exists.
 #[cfg(feature = "magick")]
@@ -300,7 +352,8 @@ mod tests {
     fn decoders() {
         assert!(is_image("a.JXL") && is_image("c.CR3"));
         assert_eq!(is_image("b.heic"), cfg!(feature = "heif"));
-        assert_eq!(is_image("d.psd"), cfg!(feature = "magick"));
+        assert!(is_image("d.psd") && is_image("g.pcx") && is_image("h.jp2") && is_image("i.cur"));
+        assert_eq!(is_image("d.xcf"), cfg!(feature = "magick"));
         assert!(!is_image("e.txt") && !is_image("f.pdf") && !is_image("no_extension"));
 
         let svg_src = br#"<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="red"/></svg>"#;

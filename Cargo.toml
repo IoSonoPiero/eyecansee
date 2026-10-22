@@ -45,6 +45,9 @@ interprocess = "2.4.6"
 trash = "5.2.9"
 # Local folders updated by themselves when files change (inotify, ReadDirectoryChangesW).
 notify = "8.2.0"
+image-extras = "0.1.1"
+psd = "0.3.5"
+hayro-jpeg2000 = "0.4.1"
 
 [target."cfg(windows)".dependencies]
 # Drives (C:, D:, …): type, label and bus (USB/SD = external) for "This computer" and Devices.
