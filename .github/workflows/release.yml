@@ -1,11 +1,16 @@
 # Builds a release when a tag v<version> is pushed: the Windows zip, the Linux AppImage and the source
 # RPM for COPR. The files go into a draft GitHub release, published by hand once checked.
 # Tags with a suffix (v0.21.0-test) are trial runs: prerelease draft, and the RPM is not sent to COPR.
+# On main (when this file or the AppImage script change, or by hand) it only builds the zip and the
+# AppImage: GitHub ties caches to the ref that made them, and tags can read only their own and main's.
 name: Release
 
 on:
   push:
     tags: ["v*"]
+    branches: [main]
+    paths: [.github/workflows/release.yml, tools/build-appimage.sh]
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -22,7 +27,7 @@ jobs:
         run: |
           VER=$(cat VERSION)
           echo "version=$VER" >> "$GITHUB_OUTPUT"
-          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+          if [[ "$GITHUB_REF_TYPE" != tag || "$GITHUB_REF_NAME" == *-* ]]; then
             echo "trial=true" >> "$GITHUB_OUTPUT"
           elif [[ "$GITHUB_REF_NAME" != "v$VER" ]]; then
             echo "::error::tag $GITHUB_REF_NAME does not match VERSION ($VER)"; exit 1
@@ -131,6 +136,7 @@ jobs:
 
   copr:
     needs: version
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     container: registry.fedoraproject.org/fedora:44
     steps:
@@ -150,6 +156,7 @@ jobs:
 
   release:
     needs: [version, windows, appimage, copr]
+    if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v7
