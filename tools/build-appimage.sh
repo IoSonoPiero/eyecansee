@@ -56,8 +56,9 @@ export CMAKE_PREFIX_PATH=$DEPS
 
 FEATURES=(--no-default-features --features heif,magick,libheif-rs/embedded-libheif)
 # libheif caches the decoders it found in its CMake build folder: start clean every time.
-rm -rf "$CARGO_TARGET_DIR"/release/build/libheif-sys-*
-cargo build --release --locked "${FEATURES[@]}"
+rm -rf "$CARGO_TARGET_DIR"/dist/build/libheif-sys-*
+# Profile `dist` (Cargo.toml): smaller executable, slower build.
+cargo build --profile dist --locked "${FEATURES[@]}"
 
 VER=$(cat VERSION)
 APPDIR=$CARGO_TARGET_DIR/AppDir
@@ -79,6 +80,6 @@ LD=/cache/linuxdeploy-x86_64.AppImage
     chmod +x $LD; }
 cd "$CARGO_TARGET_DIR"
 APPIMAGE_EXTRACT_AND_RUN=1 LINUXDEPLOY_OUTPUT_VERSION=$VER $LD --appdir "$APPDIR" \
-    -e release/eyecansee -d /src/assets/eyecansee.desktop -i /src/assets/eyecansee.svg --output appimage
+    -e dist/eyecansee -d /src/assets/eyecansee.desktop -i /src/assets/eyecansee.svg --output appimage
 chown "$(stat -c %u:%g /src)" EyeCanSee-*.AppImage
 ls -l EyeCanSee-*.AppImage

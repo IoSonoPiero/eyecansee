@@ -62,3 +62,11 @@ opendal = { version = "0.59.5", default-features = false, features = ["services-
 
 [profile.release]
 strip = true
+
+# Packages for download (GitHub Actions: Windows zip, AppImage): whole-program optimisation.
+# Measured on Windows: 39.4 MB instead of 48.8, but ~20 min to build from scratch instead of ~5,
+# because the final optimisation runs on a single core. Everyday builds stay on `release`.
+[profile.dist]
+inherits = "release"
+lto = "fat"
+codegen-units = 1

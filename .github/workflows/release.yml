@@ -62,7 +62,7 @@ jobs:
           & "$env:VCPKG_ROOT\vcpkg.exe" install $env:HEIF_PORT
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Build
-        run: cargo build --release --locked --no-default-features --features heif
+        run: cargo build --profile dist --locked --no-default-features --features heif
       - name: Zip
         run: |
           New-Item -ItemType Directory pkg | Out-Null
@@ -78,7 +78,7 @@ jobs:
             Add-Content pkg\THIRD-PARTY-LICENSES.txt "`n$bar`n$p $ver (linked into eyecansee.exe, built with vcpkg)`nSource: $($sources[$p])`n$bar`n"
             Get-Content -Raw "$env:VCPKG_ROOT\installed\x64-windows-static\share\$p\copyright" | Add-Content pkg\THIRD-PARTY-LICENSES.txt
           }
-          Copy-Item target\release\eyecansee.exe pkg\
+          Copy-Item target\dist\eyecansee.exe pkg\
           Copy-Item LICENSE pkg\LICENSE.txt
           Compress-Archive -Path pkg\* -DestinationPath "EyeCanSee-$env:VER-windows-x64.zip"
       - name: Startup test
