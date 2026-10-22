@@ -11,7 +11,7 @@ Premi **F1** in qualsiasi momento per aprire o chiudere questo manuale.
 - **Ordine delle immagini** dalla tendina nella barra strumenti (con accanto il pulsante ▲/▼ per invertirlo) o da **Visualizza → Ordina per**: per nome, data di modifica, dimensione o tipo (estensione), più **Ordine decrescente**. Le cartelle restano prima, per nome; i file senza data restano in fondo. La scelta viene ricordata.
 - **Metadati** sotto la griglia, per l'immagine selezionata: riquadri **Fotocamera** (marca, modello, obiettivo, software), **Scatto** (data, esposizione, diaframma, ISO, lunghezza focale, flash), **Immagine** (dimensioni, spazio colore) e **Posizione** (coordinate GPS, altitudine, con il link per aprirle sulla mappa di OpenStreetMap). Ogni riquadro si chiude con la sua X e si riapre da **Visualizza → Riquadri dei metadati**; il pulsante ℹ nella barra strumenti li chiude o li riapre tutti. Il pannello si comprime e si riapre col pulsante ▼/▲ a destra della sua barra, o con un clic sulla barra stessa; compresso resta solo la barra, e i metadati non vengono letti. Si leggono i metadati EXIF di JPEG, HEIC, AVIF, PNG, WebP e TIFF; per leggerli EyeCanSee rilegge il file, quindi su un telefono ci vuole un attimo.
 - **Barra di stato** in basso: quante cartelle e immagini ci sono, e nome, peso e data di modifica dell'elemento selezionato; con più elementi selezionati, quanti sono e il peso delle loro immagini.
-- **Più elementi**: Ctrl+clic aggiunge o toglie un elemento, Maiusc+clic seleziona tutto dall'ultimo elemento cliccato fino a questo, Maiusc+frecce allargano la selezione, Ctrl+A seleziona tutto nella cartella. Un clic senza tasti, o una freccia, torna a un solo elemento.
+- **Più elementi**: Ctrl+clic aggiunge o toglie un elemento, Maiusc+clic seleziona tutto dall'ultimo elemento cliccato fino a questo, Maiusc+frecce allargano la selezione, Ctrl+A seleziona tutto nella cartella. **Trascinando** col mouse si disegna un rettangolo che seleziona le celle che tocca (con Ctrl le aggiunge a quelle già selezionate); vicino al bordo in alto o in basso la griglia scorre. Un clic senza tasti, o una freccia, torna a un solo elemento.
 - Frecce e Tab agiscono sulla parte su cui hai cliccato per ultima, sinistra o destra: è quella con la cornice sottile. Lì la selezione è blu pieno, nell'altra più tenue.
 
 Doppio clic su un'immagine, oppure selezionala e premi Invio, per aprirla nel **visore**. Per tornare alla griglia premi Esc, fai doppio clic sull'immagine o usa il pulsante griglia nella barra strumenti.
@@ -57,6 +57,17 @@ Non si possono eliminare né rinominare la cartella principale di una sorgente e
 **Il cestino di telefoni e server**: ogni cartella in cui hai eliminato qualcosa ha un **Cestino**: lo dice una striscia in cima alla griglia, col pulsante **Apri il cestino**. Dentro il cestino la striscia dice di quale cartella è e ha **Ripristina tutto** e **Svuota il cestino…**. Dentro puoi guardare le immagini, **ripristinarle** (tornano nella cartella che contiene il cestino) o eliminarle definitivamente: lì **Canc** elimina sempre per sempre, e Rinomina non c'è. Col clic destro su uno spazio vuoto dentro il Cestino: **Ripristina tutto** e **Svuota il cestino…** (tutto eliminato per sempre, dopo una conferma). Un cestino rimasto vuoto, dopo aver ripristinato o eliminato quello che conteneva, sparisce insieme alla sua striscia.
 
 Se ripristinando un elemento il suo nome è già usato, EyeCanSee chiede cosa fare: per un file **Sostituisci** (quello presente viene eliminato) o **Tieni entrambi** (il ripristinato diventa per esempio `foto (2).jpg`); per una cartella **Unisci** (i contenuti si sommano; i file con lo stesso nome restano tutti e due) o **Tieni entrambi**. **Annulla** ferma anche il resto di un Ripristina tutto. Anche nel cestino un nome già presente diventa `foto (2).jpg`.
+
+## Copiare e spostare
+
+**Ctrl+C** copia gli elementi selezionati (o l'immagine aperta nel visore), **Ctrl+X** li taglia; poi apri la cartella dove devono andare e premi **Ctrl+V**. Ogni copia o taglio si incolla una volta sola: per incollare di nuovo, copia di nuovo. Le stesse voci sono nel menù **File** e nel clic destro; il clic destro su una cartella ha anche **Incolla in questa cartella**. File e cartelle, con tutto quello che contengono, vanno ovunque: un'altra cartella dello stesso disco, un altro disco, un telefono, un server, anche da un dispositivo a un altro.
+
+- Gli elementi copiati hanno un simbolo blu nell'angolo della cella, quelli tagliati uno arancione con le forbici e diventano più chiari; la barra di stato dice quanti aspettano **Ctrl+V**.
+- Una finestra in basso a destra mostra quanti file e quanti dati sono stati copiati, con **Annulla**: il file che si sta copiando quando annulli non resta a metà, quelli già copiati restano. Verso un telefono, Annulla aspetta la fine del file in corso (un telefono che riceve mezzo file smette di rispondere).
+- Se c'è già un elemento con lo stesso nome, EyeCanSee chiede: **Sostituisci** (per una cartella **Unisci**: il suo contenuto va nella cartella esistente, sostituendo i file con lo stesso nome), **Salta** o **Tieni entrambi** (il nuovo diventa "nome (2)"). Con più elementi in questa situazione, una casella applica la stessa risposta a tutti.
+- Incollati nella cartella da cui vengono, le copie diventano "nome (2)"; uno spostamento non fa nulla.
+- **Spostare** sullo stesso disco cambia solo il posto, all'istante. Tra dispositivi diversi EyeCanSee copia e cancella l'originale solo dopo aver copiato tutto; l'originale non va nel cestino.
+- Una cartella non si può incollare dentro sé stessa, e non si può incollare in un cestino né nell'elenco delle memorie di un telefono.
 
 ## Dispositivi esterni
 
@@ -104,6 +115,7 @@ Nella griglia:
 | Backspace | Cartella superiore |
 | F2 | Rinomina (vedi *Eliminare e rinominare*) |
 | Canc | Elimina |
+| Ctrl+C, Ctrl+X, Ctrl+V | Copia, taglia, incolla (vedi *Copiare e spostare*) |
 | Ctrl+A | Seleziona tutto nella cartella |
 | Maiusc+frecce | Allargano la selezione |
 | Maiusc+Canc | Elimina definitivamente |
@@ -139,7 +151,7 @@ Le cartelle del computer si aggiornano da sole: immagini aggiunte, eliminate, ri
 
 Le stesse azioni sono nei menù: **Visualizza** (Apri, Torna alla griglia, Aggiorna) e **Vai** (Avanti, Indietro, Primo, Ultimo, Cartella superiore). Nella griglia Avanti e Indietro spostano la selezione, nel visore cambiano immagine.
 
-Il **clic destro** apre un menù con le azioni di ciò che hai sotto il mouse, e lo seleziona. Su un'immagine o una cartella (nella griglia o nell'albero): Apri, Rinomina, poi, separate in fondo, Elimina ed Elimina definitivamente. Sull'immagine aperta nel visore le stesse, con Torna alla griglia al posto di Apri. Su **..**: Cartella superiore. Su uno spazio vuoto della griglia: Aggiorna e Cartella superiore (dentro il Cestino anche Ripristina tutto e Svuota il cestino).
+Il **clic destro** apre un menù con le azioni di ciò che hai sotto il mouse, e lo seleziona. Su un'immagine o una cartella (nella griglia o nell'albero): Apri, Taglia, Copia (su una cartella anche Incolla in questa cartella, quando hai copiato qualcosa), Rinomina, poi, separate in fondo, Elimina ed Elimina definitivamente. Sull'immagine aperta nel visore le stesse, con Torna alla griglia al posto di Apri. Su **..**: Cartella superiore. Su uno spazio vuoto della griglia: Incolla (quando hai copiato qualcosa), Aggiorna e Cartella superiore (dentro il Cestino anche Ripristina tutto e Svuota il cestino).
 
 Nel visore, dopo l'ultima immagine EyeCanSee si ferma; con l'opzione **Nel visore, dopo l'ultima immagine ricomincia dalla prima** torna alla prima, e viceversa. EyeCanSee carica in anticipo le immagini vicine a quella corrente, così il passaggio è immediato anche con connessioni lente.
 

@@ -12,7 +12,7 @@ use tokio::runtime::Handle;
 use tokio::sync::{Notify, Semaphore};
 
 use crate::source::{self, File, Listing, Store};
-use crate::{decode, thumbcache};
+use crate::{decode, thumbcache, transfer};
 
 /// Side of the decoded thumbnails; the grid shows them at this size or smaller.
 pub const THUMB_SIDE: u32 = 256;
@@ -36,6 +36,10 @@ pub enum Msg {
     TrashItems(Vec<String>),
     /// Outcome of renaming an item: old path, new path.
     Renamed(String, Result<String, source::Error>),
+    /// Names already in the paste destination (to ask about), or an error.
+    PasteCheck(Result<Vec<String>, source::Error>),
+    /// End of a copy or move: source items that went away, outcome.
+    Pasted(Vec<String>, Result<(), source::Error>),
     /// Metadata of an image: `None` = no EXIF.
     Meta { generation: u64, index: usize, meta: Result<Option<crate::meta::Meta>, String> },
 }
@@ -133,6 +137,30 @@ impl Loader {
         self.rt.spawn(async move {
             maintain(&op, &base).await;
             thumbcache::trim(limit);
+        });
+    }
+
+    pub fn store(&self) -> Store {
+        self.op.clone()
+    }
+
+    pub fn paste_check(&self, clip: transfer::Clip, dir: String) {
+        let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let _ = tx.send(Msg::PasteCheck(transfer::conflicts(&clip, &op, &base, &dir).await));
+            ctx.request_repaint();
+        });
+    }
+
+    pub fn paste(&self, clip: transfer::Clip, dir: String, choices: HashMap<String, transfer::Choice>, progress: Arc<transfer::Progress>) {
+        let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let (gone, r) = transfer::run(&clip, &op, &base, &dir, &choices, &progress).await;
+            for path in &gone {
+                thumbcache::delete(&clip.base, path);
+            }
+            let _ = tx.send(Msg::Pasted(gone, r));
+            ctx.request_repaint();
         });
     }
 

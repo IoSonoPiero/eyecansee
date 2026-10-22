@@ -19,7 +19,7 @@ Mature viewers like XnView, IrfanView or digiKam do much more than EyeCanSee, an
 - **Browsing** of folders on the computer, external disks (also USB sticks, SD cards and dashcams that connect as a USB disk) and phones, with cached thumbnails; folders on the computer update by themselves when files change.
 - **Direct phone access**: Android phones and cameras open over USB, much faster than through the file manager.
 - **Viewer** with preloading, so moving between images never waits, and photo details such as camera, exposure, date and location.
-- **File management**: rename and delete, also several items at once, with a trash on every device to restore or empty.
+- **File management**: copy and move (also from one device to another), rename and delete, also several items at once, with a trash on every device to restore or empty.
 - English and Italian, light and dark theme, built-in manual.
 
 ### Formats

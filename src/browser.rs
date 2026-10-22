@@ -93,6 +93,16 @@ impl App {
             items.push(None);
             items.push(Some((t("menu-delete-permanent"), t("key-delete"), Act::Delete(path, true))));
         } else {
+            // As in file managers: cut, copy, paste, then rename.
+            items.push(None);
+            items.push(Some((t("menu-cut"), t("key-cut"), Act::Cut(path.clone()))));
+            items.push(Some((t("menu-copy"), t("key-copy"), Act::Copy(path.clone()))));
+            // Not into one of the folders being copied: it would go inside itself.
+            let copied = self.clip.as_ref().is_some_and(|c| c.base == self.base && c.paths.contains(&target));
+            if target.ends_with('/') && !copied && self.can_paste(&target) {
+                items.push(Some((t("menu-paste-into"), String::new(), Act::Paste(Some(target.clone())))));
+            }
+            items.push(None);
             items.push(Some((t("menu-rename"), "F2".into(), Act::Rename(path.clone()))));
             items.push(None);
             items.push(Some((t("menu-delete"), t("key-delete"), Act::Delete(path.clone(), false))));
@@ -474,10 +484,21 @@ impl App {
         }
         // Right click on the empty space: the actions of the whole folder. The cells come later
         // and are on top, so they keep their own menu.
-        let background = ui.interact(ui.max_rect(), ui.scope_id().with("grid-background"), Sense::click());
+        // Dragged, it draws a rectangle that selects the cells it touches.
+        let background = ui.interact(ui.max_rect(), ui.scope_id().with("grid-background"), Sense::click_and_drag());
+        let band = (background.drag_started(), background.dragged(), ui.input(|i| i.modifiers.command));
+        if background.drag_stopped() {
+            self.band = None;
+        }
         background.context_menu(|ui| {
             let t = |id| self.i18n.t(id);
-            let mut items = vec![Some((t("menu-refresh"), "F5".into(), Act::Refresh))];
+            let mut items = Vec::new();
+            // The main action here, when there is something to paste.
+            if self.can_paste(&self.dir) {
+                items.push(Some((t("menu-paste"), t("key-paste"), Act::Paste(None))));
+                items.push(None);
+            }
+            items.push(Some((t("menu-refresh"), "F5".into(), Act::Refresh)));
             if !self.dir.is_empty() {
                 items.push(Some((t("menu-parent"), t("key-backspace"), Act::Up)));
             }
@@ -571,6 +592,28 @@ impl App {
                 } else if self.grid_cell(ui, cell_rect(p), p - up, ndirs) {
                     open = Some(p - up);
                 }
+            }
+            let pointer = ui.ctx().pointer_interact_pos();
+            if let (true, _, keep, Some(at)) = (band.0, band.1, band.2, pointer) {
+                let before = if keep { self.marked.clone() } else { HashSet::new() };
+                self.band = Some(((at - origin).to_pos2(), before));
+            }
+            if let (Some((start, before)), true, Some(at)) = (&self.band, band.1, pointer) {
+                let start = origin + start.to_vec2();
+                let r = Rect::from_two_pos(start, at);
+                let mut marked = before.clone();
+                marked.extend((up..total).filter(|&p| cell_rect(p).shrink(6.0).intersects(r)).filter_map(|p| self.item_path(p - up)));
+                self.marked = marked;
+                let accent = crate::theme::accent(ui.visuals());
+                ui.painter().rect(r, 2.0, accent.gamma_multiply(0.15), egui::Stroke::new(1.0, accent), egui::StrokeKind::Inside);
+                // Near the top or bottom edge the grid scrolls, to reach the cells out of sight.
+                let edge = 24.0;
+                let clip = ui.clip_rect();
+                let dy = if at.y < clip.min.y + edge { 12.0 } else if at.y > clip.max.y - edge { -12.0 } else { 0.0 };
+                if dy != 0.0 {
+                    ui.scroll_with_delta(vec2(0.0, dy));
+                }
+                ui.ctx().request_repaint();
             }
             if std::mem::take(&mut self.scroll_to_selected) {
                 let p = if self.cursor { self.selected + up } else { 0 };
@@ -881,6 +924,17 @@ impl App {
                     painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "…", FontId::proportional(24.0), dim);
                 }
             }
+        }
+        // Copied or cut, waiting for Ctrl+V: a badge in the corner; cut items also fade.
+        if let Some(clip) = &self.clip
+            && clip.base == self.base
+            && clip.paths.contains(&path)
+        {
+            if clip.cut {
+                painter.rect_filled(thumb_rect.expand(4.0), 6.0, crate::theme::canvas(visuals).gamma_multiply(0.55));
+            }
+            let badge = Rect::from_center_size(thumb_rect.right_top() + vec2(-8.0, 8.0), vec2(22.0, 22.0));
+            icons::paint(&painter, if clip.cut { Icon::Cut } else { Icon::Copied }, badge);
         }
         let label_rect = Rect::from_min_size(pos2(rect.min.x + 4.0, thumb_rect.max.y + 7.0), vec2(rect.width() - 8.0, 18.0));
         // Image names brighter than folder names (they used to be all grey on grey).

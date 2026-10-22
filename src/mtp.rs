@@ -7,9 +7,11 @@
 //! every listing remembers path → handle, and a path never seen is resolved by listing its parent.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::{Arc, Mutex};
+use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::{Arc, Mutex, Weak};
 
-use mtp_rs::mtp::{MtpDevice, ObjectHandle, Storage};
+use bytes::Bytes;
+use mtp_rs::mtp::{MtpDevice, NewObjectInfo, ObjectHandle, Storage, WindowedDownload};
 use tokio::sync::OnceCell;
 
 use crate::decode::is_image;
@@ -103,9 +105,25 @@ fn release_from_gvfs(serial: &str) -> bool {
     released
 }
 
+/// Phones in use, by serial: the clipboard can keep the source of a copy, and a second opening
+/// of the same phone would find it busy.
+static PHONES: Mutex<Vec<(String, Weak<Phone>)>> = Mutex::new(Vec::new());
+
 impl Phone {
     pub fn new(serial: &str) -> Self {
         Self { serial: serial.to_string(), open: OnceCell::new(), handles: Mutex::default() }
+    }
+
+    /// The phone already in use with this serial, or a new one.
+    pub fn shared(serial: &str) -> Arc<Phone> {
+        let mut phones = PHONES.lock().unwrap();
+        phones.retain(|(_, p)| p.strong_count() > 0);
+        if let Some(p) = phones.iter().find(|(s, _)| s == serial).and_then(|(_, p)| p.upgrade()) {
+            return p;
+        }
+        let p = Arc::new(Phone::new(serial));
+        phones.push((serial.to_string(), Arc::downgrade(&p)));
+        p
     }
 
     async fn storages(&self) -> Result<&[(String, Arc<Storage>)], Error> {
@@ -261,6 +279,76 @@ impl Phone {
         // The folder's paths below it are stale too: the cache fills again at the next listing.
         self.handles.lock().unwrap().retain(|p, _| !p.starts_with(path));
         Ok(())
+    }
+
+    pub async fn size(&self, path: &str) -> Result<u64, Error> {
+        let (storage, handle) = self.locate(path).await?;
+        let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
+        Ok(storage.get_object_info(handle).await.map_err(error)?.size)
+    }
+
+    /// Everything below a folder, hidden items too, folders before what they contain: path and size
+    /// (folders end in "/"). EyeCanSee's trash folders stay out.
+    pub async fn walk(&self, dir: &str, counted: &AtomicUsize) -> Result<Vec<(String, u64)>, Error> {
+        let (storage, handle) = self.locate(dir).await?;
+        let objects = storage.list_objects(handle).await.map_err(error)?;
+        counted.fetch_add(objects.len(), Ordering::Relaxed);
+        let mut found = Vec::new();
+        for o in objects {
+            let path = format!("{dir}{}{}", o.filename, if o.is_folder() { "/" } else { "" });
+            self.handles.lock().unwrap().insert(path.clone(), o.handle);
+            if o.is_folder() {
+                if o.filename != source::TRASH_DIR {
+                    found.push((path.clone(), 0));
+                    found.extend(Box::pin(self.walk(&path, counted)).await?);
+                }
+            } else {
+                found.push((path, o.size));
+            }
+        }
+        Ok(found)
+    }
+
+    /// Creates a folder whose parent exists; nothing if it is already there.
+    pub async fn create_dir(&self, dir: &str) -> Result<(), Error> {
+        if self.locate(dir).await.is_ok() {
+            return Ok(());
+        }
+        let (storage, parent) = self.locate(&source::parent(dir)).await?;
+        let h = storage.create_folder(parent, source::name(dir)).await.map_err(error)?;
+        self.handles.lock().unwrap().insert(dir.to_string(), h);
+        Ok(())
+    }
+
+    /// A file read in windows of 4 MB: the phone stays free for listings between one and the next.
+    pub async fn download(&self, path: &str) -> Result<WindowedDownload, Error> {
+        let (storage, handle) = self.locate(path).await?;
+        let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
+        storage.download_windowed(handle, mtp_rs::mtp::ByteRange::Full, 4 << 20).await.map_err(error)
+    }
+
+    /// Writes a file of `size` bytes from a stream, replacing one with the same name (MTP would
+    /// keep both). A partial file left by an error is deleted.
+    pub async fn upload<S>(&self, path: &str, size: u64, data: S) -> Result<(), Error>
+    where
+        S: futures_util::Stream<Item = Result<Bytes, std::io::Error>> + Unpin + Send,
+    {
+        if self.locate(path).await.is_ok() {
+            self.delete(path).await?;
+        }
+        let (storage, parent) = self.locate(&source::parent(path)).await?;
+        match storage.upload(parent, NewObjectInfo::file(source::name(path), size), data).await {
+            Ok(h) => {
+                self.handles.lock().unwrap().insert(path.to_string(), h);
+                Ok(())
+            }
+            Err(e) => {
+                if let Some(h) = e.partial {
+                    let _ = storage.delete(h).await;
+                }
+                Err(error(e.source))
+            }
+        }
     }
 
     /// Does the folder exist? (for cache maintenance).

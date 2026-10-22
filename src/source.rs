@@ -6,7 +6,9 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 
+use bytes::Bytes;
 use opendal::{Operator, services};
 use percent_encoding::percent_decode_str;
 use url::Url;
@@ -19,6 +21,12 @@ pub type Error = (&'static str, String);
 
 /// Id of the "not found" error, recognised by cache maintenance.
 pub const NOT_FOUND: &str = "error-not-found";
+
+/// Chunks of a file being copied, from the reader to the writer (`Store::send_chunks`).
+pub type Chunks = tokio::sync::mpsc::Sender<std::io::Result<Bytes>>;
+
+/// Size of the chunks read from disks and servers.
+const CHUNK: u64 = 1 << 20;
 
 /// Hidden folder, next to the image, where images deleted on phones and servers go.
 pub const TRASH_DIR: &str = ".EyeCanSee-trash";
@@ -297,6 +305,133 @@ impl Store {
         Ok(to)
     }
 
+    pub async fn size(&self, path: &str) -> Result<u64, Error> {
+        match self {
+            Store::Dal(op) => op.stat(path).await.map(|m| m.content_length()).map_err(dal_error),
+            Store::Mtp(phone) => phone.size(path).await,
+        }
+    }
+
+    /// Everything below a folder, hidden items too, folders before what they contain: path and
+    /// size (folders end in "/", size 0). EyeCanSee's trash folders stay out.
+    /// `counted` grows as items are found, for the progress window.
+    pub async fn walk(&self, dir: &str, counted: &AtomicUsize) -> Result<Vec<(String, u64)>, Error> {
+        match self {
+            Store::Dal(op) => {
+                let entries = op.list_with(dir).recursive(true).await.map_err(dal_error)?;
+                let mut found = Vec::new();
+                for e in entries {
+                    let path = e.path().trim_start_matches('/').to_string();
+                    if path == dir || path.split('/').any(|p| p == TRASH_DIR) {
+                        continue;
+                    }
+                    // The size is not always in the listing (local files): asked one by one.
+                    let size = if path.ends_with('/') { 0 } else { self.size(&path).await? };
+                    found.push((path, size));
+                    counted.fetch_add(1, Ordering::Relaxed);
+                }
+                // A folder before its contents, whatever order the service lists them in.
+                found.sort_by(|a, b| a.0.cmp(&b.0));
+                Ok(found)
+            }
+            Store::Mtp(phone) => phone.walk(dir, counted).await,
+        }
+    }
+
+    /// Creates a folder whose parent exists; nothing if it is already there.
+    pub async fn create_dir(&self, dir: &str) -> Result<(), Error> {
+        match self {
+            Store::Dal(op) => {
+                let _permit = gvfs_permit(op, dir).await;
+                op.create_dir(dir).await.map_err(dal_error)
+            }
+            Store::Mtp(phone) => phone.create_dir(dir).await,
+        }
+    }
+
+    /// Reads a file of `size` bytes in chunks into `out`, adding them to `done`; stops with
+    /// `error-cancelled` when `cancel` is set. An error also goes into `out`, so the writer
+    /// knows the file is incomplete.
+    pub async fn send_chunks(&self, path: &str, size: u64, out: Chunks, done: &AtomicU64, cancel: &AtomicBool) -> Result<(), Error> {
+        let r = self.send(path, size, &out, done, cancel).await;
+        if let Err((_, detail)) = &r {
+            let _ = out.send(Err(std::io::Error::other(detail.clone()))).await;
+        }
+        r
+    }
+
+    async fn send(&self, path: &str, size: u64, out: &Chunks, done: &AtomicU64, cancel: &AtomicBool) -> Result<(), Error> {
+        let push = |chunk: Bytes| async move {
+            if cancel.load(Ordering::Relaxed) {
+                return Err(("error-cancelled", String::new()));
+            }
+            done.fetch_add(chunk.len() as u64, Ordering::Relaxed);
+            out.send(Ok(chunk)).await.map_err(|_| ("error-cancelled", String::new()))
+        };
+        match self {
+            Store::Dal(op) => {
+                let _permit = gvfs_permit(op, path).await;
+                let reader = op.reader(path).await.map_err(dal_error)?;
+                let mut at = 0;
+                while at < size {
+                    let chunk = reader.read(at..(at + CHUNK).min(size)).await.map_err(dal_error)?.to_bytes();
+                    if chunk.is_empty() {
+                        return Err(("error-detail", format!("{path}: file shorter than expected")));
+                    }
+                    at += chunk.len() as u64;
+                    push(chunk).await?;
+                }
+            }
+            Store::Mtp(phone) => {
+                let mut download = phone.download(path).await?;
+                while let Some(window) = download.next_window().await {
+                    push(Bytes::from(window.map_err(|e| ("error-detail", e.to_string()))?)).await?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Writes a file of `size` bytes from the chunks of `send_chunks`, replacing one with the same
+    /// name; deleted if the chunks end with an error.
+    pub async fn write_chunks(&self, path: &str, size: u64, chunks: tokio::sync::mpsc::Receiver<std::io::Result<Bytes>>) -> Result<(), Error> {
+        let detail = |e: std::io::Error| ("error-detail", e.to_string());
+        match self {
+            Store::Dal(op) => {
+                let _permit = gvfs_permit(op, path).await;
+                let mut writer = op.writer(path).await.map_err(dal_error)?;
+                let mut chunks = chunks;
+                let mut failed = None;
+                while let Some(chunk) = chunks.recv().await {
+                    match chunk {
+                        Ok(c) => {
+                            if let Err(e) = writer.write(c).await {
+                                failed = Some(dal_error(e));
+                                break;
+                            }
+                        }
+                        Err(e) => {
+                            failed = Some(detail(e));
+                            break;
+                        }
+                    }
+                }
+                match failed {
+                    None => writer.close().await.map(|_| ()).map_err(dal_error),
+                    Some(e) => {
+                        let _ = writer.abort().await;
+                        let _ = op.delete(path).await;
+                        Err(e)
+                    }
+                }
+            }
+            Store::Mtp(phone) => {
+                let stream = futures_util::stream::unfold(chunks, |mut c| async { c.recv().await.map(|x| (x, c)) });
+                phone.upload(path, size, Box::pin(stream)).await
+            }
+        }
+    }
+
     /// Does the folder exist? OpenDAL (at least `fs`) lists a non-existent folder as empty.
     pub async fn check_dir(&self, dir: &str) -> Result<(), Error> {
         match self {
@@ -377,7 +512,7 @@ pub fn open(arg: &str) -> Result<Source, Error> {
     if url.scheme() == "mtp" {
         let serial = decode(host);
         let base = format!("mtp://{serial}/");
-        let op = Store::Mtp(Arc::new(crate::mtp::Phone::new(&serial)));
+        let op = Store::Mtp(crate::mtp::Phone::shared(&serial));
         return Ok(Source { op, base, dir, start });
     }
     let user = match url.username() {

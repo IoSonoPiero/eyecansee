@@ -26,6 +26,10 @@ pub enum Icon {
     InternalDisk,
     Trash,
     Home,
+    /// Badge of the items copied with Ctrl+C.
+    Copied,
+    /// Badge of the items cut with Ctrl+X.
+    Cut,
 }
 
 const FOLDER: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2.5 6A1.5 1.5 0 0 1 4 4.5h5.2l2 2H20A1.5 1.5 0 0 1 21.5 8v10A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18z" fill="#d99a1e"/><path d="M2.5 9A1.5 1.5 0 0 1 4 7.5h16A1.5 1.5 0 0 1 21.5 9v9a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 18z" fill="#f4b63f"/></svg>"##;
@@ -40,6 +44,9 @@ const INTERNAL_DISK: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox=
 const TRASH: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="3" rx="1" fill="#c0392b"/><path d="M9 5V3.5h6V5" fill="none" stroke="#c0392b" stroke-width="1.8"/><path d="M6 9h12l-1 12H7z" fill="#e05a4b"/><path d="M10 12v6M14 12v6" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/></svg>"##;
 const HOME: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 11 12 3.5 21 11v9.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" fill="#1a62c9"/><rect x="9.5" y="14" width="5" height="7.5" rx="1" fill="#f4b63f"/></svg>"##;
 
+const COPIED: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11.5" fill="#1a62c9"/><rect x="6" y="5" width="8.5" height="10.5" rx="1.5" fill="none" stroke="#ffffff" stroke-width="1.8"/><rect x="9.5" y="8.5" width="8.5" height="10.5" rx="1.5" fill="#1a62c9" stroke="#ffffff" stroke-width="1.8"/></svg>"##;
+const CUT: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11.5" fill="#d9541e"/><circle cx="8" cy="16.5" r="2.4" fill="none" stroke="#ffffff" stroke-width="1.8"/><circle cx="16" cy="16.5" r="2.4" fill="none" stroke="#ffffff" stroke-width="1.8"/><path d="M9.6 14.6 16.5 5M14.4 14.6 7.5 5" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/></svg>"##;
+
 fn svg(icon: Icon) -> &'static str {
     match icon {
         Icon::Folder => FOLDER,
@@ -53,6 +60,8 @@ fn svg(icon: Icon) -> &'static str {
         Icon::InternalDisk => INTERNAL_DISK,
         Icon::Trash => TRASH,
         Icon::Home => HOME,
+        Icon::Copied => COPIED,
+        Icon::Cut => CUT,
     }
 }
 

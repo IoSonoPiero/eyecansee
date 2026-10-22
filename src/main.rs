@@ -34,8 +34,11 @@ mod single;
 mod source;
 mod theme;
 mod thumbcache;
+mod transfer;
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use std::sync::mpsc::{self, Receiver, Sender};
 
 use eframe::egui::{self, Color32, Key, TextureHandle, TextureOptions};
@@ -86,6 +89,10 @@ pub(crate) enum Act {
     Rename(Option<String>),
     /// Puts back from the trash an item, or everything if it is a trash folder (`None` = selected).
     Restore(Option<String>),
+    Copy(Option<String>),
+    Cut(Option<String>),
+    /// Into a folder (`None` = the one open).
+    Paste(Option<String>),
     Quit,
     /// The selected grid item.
     Open,
@@ -100,6 +107,16 @@ pub(crate) enum Act {
     Meta(meta::Group),
     Sort(settings::SortBy),
     SortDesc,
+}
+
+/// A paste waiting for answers about names already in the destination.
+struct PasteAsk {
+    dir: String,
+    /// Still to ask; `None` until the loader has looked.
+    conflicts: Option<Vec<String>>,
+    choices: HashMap<String, transfer::Choice>,
+    /// "Apply to all".
+    all: bool,
 }
 
 /// Tabs of the Options window.
@@ -147,6 +164,9 @@ struct App {
     /// range starts.
     marked: HashSet<String>,
     anchor: usize,
+    /// Rectangle being dragged on the grid: corner where it started (grid coordinates, so it
+    /// follows scrolling) and the marks there were already (kept with Ctrl).
+    band: Option<(egui::Pos2, HashSet<String>)>,
     /// Part receiving arrows and Tab: the last click decides, then Tab moves from one to the other.
     focus: Focus,
     /// Tree nodes in the order they appear (block, folder), for the arrows; from `tree_split`
@@ -214,6 +234,11 @@ struct App {
     restore_queue: std::collections::VecDeque<String>,
     restore_busy: bool,
     restore_conflict: Option<String>,
+    /// Ctrl+C / Ctrl+X.
+    clip: Option<transfer::Clip>,
+    paste_ask: Option<PasteAsk>,
+    /// Copy running: progress, move, source (`base`) and folder where it goes.
+    transfer: Option<(Arc<transfer::Progress>, bool, String, String)>,
     /// Rename in progress: name being written, path, first frame (focus and selection to set).
     rename: Option<(String, String, bool)>,
     /// Enter (true) or Esc (false) pressed while a confirmation is open (deletion, name taken).
@@ -251,6 +276,7 @@ impl App {
             cursor: false,
             up_selected: false,
             marked: HashSet::new(),
+            band: None,
             anchor: 0,
             focus: Focus::Grid,
             tree_rows: Vec::new(),
@@ -280,6 +306,9 @@ impl App {
             help: false,
             help_cache: CommonMarkCache::default(),
             about: false,
+            clip: None,
+            paste_ask: None,
+            transfer: None,
             about_icon: None,
             settings,
             reveal: true,
@@ -752,6 +781,39 @@ impl App {
                     log!("rename {old:?}: ERROR {id} {detail}");
                     self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
                 }
+                Msg::PasteCheck(Ok(conflicts)) => {
+                    log!("paste: {} names taken", conflicts.len());
+                    if let Some(ask) = &mut self.paste_ask {
+                        ask.conflicts = Some(conflicts);
+                    }
+                }
+                Msg::PasteCheck(Err((id, detail))) => {
+                    log!("paste: ERROR {id} {detail}");
+                    self.paste_ask = None;
+                    self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
+                }
+                Msg::Pasted(gone, r) => {
+                    let Some((p, _, base, dir)) = self.transfer.take() else { continue };
+                    log!(
+                        "pasted: {} moved away, {r:?}; {} files, {} bytes, {:.1} s looking inside folders",
+                        gone.len(),
+                        p.files.load(Ordering::Relaxed),
+                        p.done.load(Ordering::Relaxed),
+                        p.looked.lock().unwrap()
+                    );
+                    if base == self.base {
+                        for path in &gone {
+                            self.remove_item(path, false);
+                        }
+                        self.listings.retain(|k, _| !(k.starts_with(&dir) && *k != dir));
+                        self.relist(dir);
+                    }
+                    if let Err((id, detail)) = r
+                        && id != "error-cancelled"
+                    {
+                        self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
+                    }
+                }
                 Msg::Deleted(path, _, Err((id, detail))) => {
                     log!("delete {path:?}: ERROR {id} {detail}");
                     self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
@@ -959,14 +1021,148 @@ impl App {
     /// `path`: `None` = `target`, or all the marked items if there are any (also when `path` is
     /// one of them: the grid's context menu). `permanent`: Shift+Del, for good this time whatever
     /// the options say.
-    fn ask_delete(&mut self, path: Option<String>, permanent: bool) {
+    /// What an action on `path` works on: all the marked items if it is one of them (`None` with
+    /// marks in the grid too), otherwise just that one (`None` = the selected one or the one in the viewer).
+    fn chosen(&self, path: Option<String>) -> Vec<String> {
         let marked = if self.viewing.is_none() { self.marked_paths() } else { Vec::new() };
         let paths: Vec<String> = match path {
             Some(p) if marked.contains(&p) => marked,
             None if !marked.is_empty() && self.focus == Focus::Grid => marked,
             p => p.or_else(|| self.target()).into_iter().collect(),
         };
-        let paths: Vec<String> = paths.into_iter().filter(|p| self.can_change(p)).collect();
+        paths.into_iter().filter(|p| self.can_change(p)).collect()
+    }
+
+    /// Ctrl+C / Ctrl+X: remembers the items and their source. The paths also go on the system
+    /// clipboard as text: egui turns Ctrl+V into a paste only when the clipboard has something.
+    fn clip(&mut self, ctx: &egui::Context, path: Option<String>, cut: bool) {
+        let paths = self.chosen(path);
+        let Some(loader) = &self.loader else { return };
+        if paths.is_empty() || paths.iter().any(|p| source::is_trash(p) || source::in_trash(p)) {
+            return;
+        }
+        log!("clip {paths:?} cut {cut}");
+        ctx.copy_text(paths.iter().map(|p| self.display(p)).collect::<Vec<_>>().join("\n"));
+        self.clip = Some(transfer::Clip { op: loader.store(), base: self.base.clone(), paths, cut });
+    }
+
+    /// Where a paste can go: a folder of the open source, not its root on a phone, not a trash.
+    fn can_paste(&self, dir: &str) -> bool {
+        self.clip.is_some()
+            && self.transfer.is_none()
+            && self.paste_ask.is_none()
+            && !(self.base.starts_with("mtp://") && dir.is_empty())
+            && !source::is_trash(dir)
+    }
+
+    /// Ctrl+V: into `dir` (`None` = the folder open). First the loader looks for names already there.
+    fn paste(&mut self, dir: Option<String>) {
+        let dir = dir.unwrap_or_else(|| self.dir.clone());
+        if !self.can_paste(&dir) {
+            return;
+        }
+        let (Some(loader), Some(clip)) = (&self.loader, &self.clip) else { return };
+        log!("paste into {dir:?}");
+        loader.paste_check(clip.clone(), dir.clone());
+        self.paste_ask = Some(PasteAsk { dir, conflicts: None, choices: HashMap::new(), all: false });
+    }
+
+    fn start_paste(&mut self, dir: String, choices: HashMap<String, transfer::Choice>) {
+        let (Some(loader), Some(clip)) = (&self.loader, &self.clip) else { return };
+        let progress = Arc::new(transfer::Progress::default());
+        loader.paste(clip.clone(), dir.clone(), choices, progress.clone());
+        self.transfer = Some((progress, clip.cut, self.base.clone(), dir));
+        // One paste per copy (chosen by the user): the clip, and its badges, go.
+        self.clip = None;
+    }
+
+    /// Asks about each item whose name is already in the destination; then the copy starts.
+    fn paste_window(&mut self, ctx: &egui::Context) {
+        let Some(ask) = &mut self.paste_ask else { return };
+        let Some(conflicts) = &ask.conflicts else { return };
+        let Some(path) = conflicts.first().cloned() else {
+            let ask = self.paste_ask.take().unwrap();
+            self.start_paste(ask.dir, ask.choices);
+            return;
+        };
+        let many = conflicts.len() > 1;
+        let t = |id| self.i18n.t(id);
+        let text = self.i18n.t_args("paste-taken", &[("name", source::name(&path))]);
+        let first = if path.ends_with('/') { t("restore-merge") } else { t("restore-replace") };
+        let buttons = [
+            (first, transfer::Choice::Replace),
+            (t("paste-skip"), transfer::Choice::Skip),
+            (t("restore-keep-both"), transfer::Choice::KeepBoth),
+        ];
+        let (cancel, all_label) = (t("delete-no"), t("paste-all"));
+        let mut answer = self.delete_answer.take().and_then(|yes| (!yes).then_some(None));
+        egui::Modal::new(egui::Id::unique("paste")).show(ctx, |ui| {
+            ui.set_max_width(440.0);
+            ui.label(text);
+            if many {
+                ui.checkbox(&mut ask.all, all_label);
+            }
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                for (label, choice) in buttons {
+                    if ui.button(label).clicked() {
+                        answer = Some(Some(choice));
+                    }
+                }
+                if ui.button(cancel).clicked() {
+                    answer = Some(None);
+                }
+            });
+        });
+        match answer {
+            Some(Some(choice)) => {
+                let conflicts = ask.conflicts.as_mut().unwrap();
+                let n = if ask.all { conflicts.len() } else { 1 };
+                for p in conflicts.drain(..n) {
+                    ask.choices.insert(p, choice);
+                }
+            }
+            Some(None) => self.paste_ask = None,
+            None => {}
+        }
+    }
+
+    /// Progress of the copy, with Cancel; the window stays until the copy ends.
+    fn transfer_window(&mut self, ctx: &egui::Context) {
+        let Some((p, cut, _, _)) = &self.transfer else { return };
+        ctx.request_repaint_after(std::time::Duration::from_millis(200));
+        let (done, total) = (p.done.load(Ordering::Relaxed), p.total.load(Ordering::Relaxed));
+        let (files, files_total) = (p.files.load(Ordering::Relaxed), p.files_total.load(Ordering::Relaxed));
+        let found = p.found.load(Ordering::Relaxed);
+        let counts = if files_total == 0 && found > 0 {
+            self.i18n.t_args("transfer-looking", &[("n", &found.to_string())])
+        } else {
+            self.i18n.t_args("transfer-counts", &[
+            ("n", &files.to_string()),
+            ("total", &files_total.to_string()),
+            ("done", &self.human_size(done)),
+            ("size", &self.human_size(total)),
+        ])
+        };
+        let current = p.current.lock().unwrap().clone();
+        let cancelling = p.cancel.load(Ordering::Relaxed);
+        egui::Window::new(self.i18n.t(if *cut { "transfer-moving" } else { "transfer-copying" }))
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-16.0, -40.0))
+            .show(ctx, |ui| {
+                ui.set_width(320.0);
+                ui.label(counts);
+                ui.add(egui::Label::new(egui::RichText::new(current).weak()).truncate());
+                ui.add(egui::ProgressBar::new(if total > 0 { done as f32 / total as f32 } else { 0.0 }));
+                if ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no"))).clicked() {
+                    p.cancel.store(true, Ordering::Relaxed);
+                }
+            });
+    }
+
+    fn ask_delete(&mut self, path: Option<String>, permanent: bool) {
+        let paths = self.chosen(path);
         let Some(path) = paths.first().cloned() else { return };
         let Some(loader) = &self.loader else { return };
         // In the trash everything goes for good: there is no trash of the trash.
@@ -1332,6 +1528,11 @@ impl App {
                 entry(ui, true, egui::Button::new(t("menu-open-location")), Act::Address);
                 entry(ui, true, egui::Button::new(t("menu-options")), Act::Options);
                 ui.separator();
+                let can_clip = !self.chosen(None).is_empty();
+                entry(ui, can_clip, item(t("menu-cut"), t("key-cut")), Act::Cut(None));
+                entry(ui, can_clip, item(t("menu-copy"), t("key-copy")), Act::Copy(None));
+                entry(ui, !viewing && self.can_paste(&self.dir), item(t("menu-paste"), t("key-paste")), Act::Paste(None));
+                ui.separator();
                 let can_change = self.target().is_some();
                 entry(ui, can_change, item(t("menu-rename"), "F2".into()), Act::Rename(None));
                 entry(ui, can_change, item(t("menu-delete"), t("key-delete")), Act::Delete(None, false));
@@ -1392,6 +1593,9 @@ impl App {
             Act::Delete(path, permanent) => self.ask_delete(path, permanent),
             Act::Rename(path) => self.ask_rename(path),
             Act::Restore(path) => self.ask_restore(path),
+            Act::Copy(path) => self.clip(ctx, path, false),
+            Act::Cut(path) => self.clip(ctx, path, true),
+            Act::Paste(dir) => self.paste(dir),
             Act::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
             Act::Open => self.activate(self.selected),
             Act::OpenDir(dir) => self.set_dir(dir),
@@ -1549,6 +1753,12 @@ impl App {
         let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
         ui.horizontal(|ui| {
+            if let Some(clip) = &self.clip {
+                let (icon, id) = if clip.cut { (icons::Icon::Cut, "status-cut") } else { (icons::Icon::Copied, "status-copied") };
+                ui.add(icons::image(ui.ctx(), icon, 16.0));
+                ui.label(self.i18n.t_args(id, &[("n", &clip.paths.len().to_string())]));
+                ui.separator();
+            }
             ui.label(self.i18n.t_args("status-folders", &[("n", &l.dirs.len().to_string())]));
             ui.label(self.i18n.t_args("status-images", &[("n", &l.files.len().to_string())]));
             let marked = self.marked_paths();
@@ -1620,7 +1830,8 @@ impl App {
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer).
-        if self.delete_confirm.is_some() || self.restore_conflict.is_some() {
+        let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
+        if self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting {
             let answer = &mut self.delete_answer;
             raw_input.events.retain(|e| match e {
                 egui::Event::Key { key, pressed: true, .. } => {
@@ -1636,7 +1847,25 @@ impl eframe::App for App {
             });
             return;
         }
-        if self.viewing.is_some() || ctx.egui_wants_keyboard_input() {
+        if ctx.egui_wants_keyboard_input() || self.rename.is_some() {
+            return;
+        }
+        // Copy, cut and paste reach the app as events, not keys. On Windows Shift+Del is a cut
+        // for egui: here it is the deletion for good, as everywhere else in EyeCanSee.
+        let mods = ctx.input(|i| i.modifiers);
+        let shift_del = cfg!(windows) && mods.shift && !mods.command;
+        let act = &mut self.act;
+        raw_input.events.retain(|e| {
+            *act = match e {
+                egui::Event::Copy => Some(Act::Copy(None)),
+                egui::Event::Cut if shift_del => Some(Act::Delete(None, true)),
+                egui::Event::Cut => Some(Act::Cut(None)),
+                egui::Event::Paste(_) => Some(Act::Paste(None)),
+                _ => return true,
+            };
+            false
+        });
+        if self.viewing.is_some() {
             return;
         }
         raw_input.events.retain(|e| match e {
@@ -1731,6 +1960,8 @@ impl eframe::App for App {
             self.run(&ctx, a);
         }
         self.delete_window(&ctx);
+        self.paste_window(&ctx);
+        self.transfer_window(&ctx);
         self.rename_window(&ctx);
         self.restore_window(&ctx);
         self.next_restore();

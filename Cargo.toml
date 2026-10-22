@@ -1,6 +1,6 @@
 [package]
 name = "eyecansee"
-version = "0.23.0"
+version = "0.24.0"
 edition = "2024"
 description = "Image viewer for Linux and Windows"
 license = "GPL-3.0-or-later"
@@ -15,11 +15,14 @@ heif = ["dep:libheif-rs"]
 magick = ["dep:magick_rust"]
 
 [dependencies]
+bytes = "1.12.1"
 eframe = "0.37.0"
 # 🗀 and 🖴 icons from the bundled fonts: without it egui looks for them in system fonts (Windows lacks them).
 egui = { version = "0.37.0", features = ["monochrome_emoji_fonts"] }
 egui_commonmark = "0.26.0"
 fluent-bundle = "0.16.0"
+# Stream of chunks for uploads to phones (copy and move).
+futures-util = "0.3.34"
 # File date in the status bar; already compiled for OpenDAL.
 jiff = "0.2.38"
 image = "0.25.10"

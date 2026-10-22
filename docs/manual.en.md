@@ -11,7 +11,7 @@ Press **F1** at any time to open or close this manual.
 - **Image order** from the drop-down list in the toolbar (with the ▲/▼ button next to it to reverse it) or from **View → Sort by**: by name, modification date, size or type (extension), plus **Descending order**. Folders stay first, by name; files without a date stay at the end. The choice is remembered.
 - **Metadata** below the grid, for the selected image: boxes **Camera** (make, model, lens, software), **Shot** (date, exposure, aperture, ISO, focal length, flash), **Image** (size, color space) and **Location** (GPS coordinates, altitude, with a link to open them on the OpenStreetMap map). Each box closes with its X and reopens from **View → Metadata boxes**; the ℹ button in the toolbar closes or reopens them all. The panel collapses and reopens with the ▼/▲ button at the right of its bar, or with a click on the bar itself; when collapsed only the bar stays, and the metadata is not read. EXIF metadata is read from JPEG, HEIC, AVIF, PNG, WebP and TIFF; to read it EyeCanSee reads the file again, so on a phone it takes a moment.
 - **Status bar** at the bottom: how many folders and images there are, and name, size and modification date of the selected item; with several items selected, how many and the size of their images.
-- **Several items**: Ctrl+click adds or removes an item, Shift+click selects everything from the last clicked item to this one, Shift+arrows extend the selection, Ctrl+A selects everything in the folder. A click without keys, or an arrow, goes back to a single item.
+- **Several items**: Ctrl+click adds or removes an item, Shift+click selects everything from the last clicked item to this one, Shift+arrows extend the selection, Ctrl+A selects everything in the folder. **Dragging** with the mouse draws a rectangle that selects the cells it touches (with Ctrl it adds them to those already selected); near the top or bottom edge the grid scrolls. A click without keys, or an arrow, goes back to a single item.
 - Arrows and Tab act on the side you clicked last, left or right: it is the one with the thin frame. There the selection is solid blue, on the other side it is lighter.
 
 Double-click an image, or select it and press Enter, to open it in the **viewer**. Press Esc, double-click the image or use the grid button in the toolbar to go back to the grid.
@@ -57,6 +57,17 @@ The top folder of a source and the storages of a phone cannot be deleted or rena
 **The trash of phones and servers**: every folder where you deleted something has a **Trash**: a strip at the top of the grid says so, with the **Open the trash** button. Inside it the strip says whose trash it is and has **Restore all** and **Empty the trash…**. Inside it you can look at the images, **restore** them (they go back to the folder containing the trash) or delete them for good: there **Del** always deletes forever, and there is no Rename. Right click on an empty space inside the Trash: **Restore all** and **Empty the trash…** (everything deleted forever, after a confirmation). A trash left empty, after restoring or deleting what was inside it, goes away together with its strip.
 
 If the name of an item being restored is already taken, EyeCanSee asks what to do: for a file **Replace** (the one already there is deleted) or **Keep both** (the restored one becomes for example `photo (2).jpg`); for a folder **Merge** (the contents add up; files with the same name are both kept) or **Keep both**. **Cancel** also stops the rest of a Restore all. In the trash too a name already there becomes `photo (2).jpg`.
+
+## Copying and moving
+
+**Ctrl+C** copies the selected items (or the image open in the viewer), **Ctrl+X** cuts them; then open the folder where they should go and press **Ctrl+V**. Each copy or cut is pasted once: to paste again, copy again. The same items are in the **File** menu and in the right click; the right click on a folder also has **Paste into this folder**. Files and folders, with everything inside them, go anywhere: another folder of the same disk, another disk, a phone, a server, also from one device to another.
+
+- Copied items get a blue badge in the corner of their cell, cut items an orange one with scissors and fade; the status bar says how many are waiting for **Ctrl+V**.
+- A window at the bottom right shows how many files and how much data have been copied, with **Cancel**: the file being copied when you cancel is not left halfway, the ones already copied stay. Towards a phone, Cancel waits for the end of the file being copied (a phone receiving half a file stops answering).
+- If an item with the same name is already there, EyeCanSee asks: **Replace** (for a folder **Merge**: its contents go into the existing folder, replacing the files with the same name), **Skip** or **Keep both** (the new one becomes "name (2)"). With several such items, a check box applies the same answer to all of them.
+- Pasted into the folder they came from, copies become "name (2)"; a move does nothing.
+- **Moving** on the same disk only changes the place, instantly. Between different devices EyeCanSee copies and deletes the original only after everything has been copied; the original does not go to the trash.
+- A folder cannot be pasted inside itself, and nothing can be pasted into a trash or onto the list of a phone's storages.
 
 ## External devices
 
@@ -104,6 +115,7 @@ In the grid:
 | Backspace | Parent folder |
 | F2 | Rename (see *Deleting and renaming*) |
 | Del | Delete |
+| Ctrl+C, Ctrl+X, Ctrl+V | Copy, cut, paste (see *Copying and moving*) |
 | Ctrl+A | Select everything in the folder |
 | Shift+arrows | Extend the selection |
 | Shift+Del | Delete for good |
@@ -139,7 +151,7 @@ Folders on this computer update by themselves: images added, deleted, renamed or
 
 The same actions are in the menus: **View** (Open, Back to the grid, Refresh) and **Go** (Next, Previous, First, Last, Parent folder). In the grid Next and Previous move the selection, in the viewer they change image.
 
-A **right click** opens a menu with the actions for what is under the mouse, and selects it. On an image or a folder (in the grid or the tree): Open, Rename, then, apart at the bottom, Delete and Delete for good. On the image open in the viewer the same, with Back to the grid instead of Open. On **..**: Parent folder. On an empty space of the grid: Refresh and Parent folder (inside the Trash also Restore all and Empty the trash).
+A **right click** opens a menu with the actions for what is under the mouse, and selects it. On an image or a folder (in the grid or the tree): Open, Cut, Copy (on a folder also Paste into this folder, when something has been copied), Rename, then, apart at the bottom, Delete and Delete for good. On the image open in the viewer the same, with Back to the grid instead of Open. On **..**: Parent folder. On an empty space of the grid: Paste (when something has been copied), Refresh and Parent folder (inside the Trash also Restore all and Empty the trash).
 
 In the viewer, after the last image EyeCanSee stops; with the option **In the viewer, after the last image start again from the first** it goes back to the first one, and the other way round. EyeCanSee loads the images around the current one in advance, so moving between them is immediate even on slow connections.
 
