@@ -28,8 +28,8 @@ pub enum Msg {
     Loaded { generation: u64, index: usize, thumb: bool, image: Result<ColorImage, String> },
     /// Something changed in the watched local folder (`App::watch`).
     Changed,
-    /// Outcome of deleting an item (path relative to the source).
-    Deleted(String, Result<(), source::Error>),
+    /// Outcome of deleting an item (path relative to the source), and how.
+    Deleted(String, source::Deletion, Result<(), source::Error>),
     /// Outcome of putting an item back from the trash: its path in the trash, where it went.
     Restored(String, Result<String, source::Error>),
     /// Everything in a trash folder, to put back one at a time (Restore all).
@@ -148,7 +148,7 @@ impl Loader {
             if r.is_ok() {
                 thumbcache::delete(&base, &path);
             }
-            let _ = tx.send(Msg::Deleted(path, r));
+            let _ = tx.send(Msg::Deleted(path, how, r));
             ctx.request_repaint();
         });
     }

@@ -697,9 +697,9 @@ impl App {
                 }
                 Msg::Loaded { .. } | Msg::Meta { .. } => {} // folder has changed in the meantime
                 Msg::Changed => self.changed_at = Some(ctx.input(|i| i.time) + 0.3),
-                Msg::Deleted(path, Ok(())) => {
+                Msg::Deleted(path, how, Ok(())) => {
                     log!("deleted {path:?}");
-                    self.remove_item(&path);
+                    self.remove_item(&path, how == source::Deletion::TrashFolder);
                 }
                 Msg::TrashItems(paths) => {
                     log!("restore all: {} items", paths.len());
@@ -709,7 +709,7 @@ impl App {
                     log!("restored {path:?} -> {to:?}");
                     self.restore_busy = false;
                     self.listings.retain(|k, _| !(to.ends_with('/') && k.starts_with(&to)));
-                    self.remove_item(&path);
+                    self.remove_item(&path, false);
                     self.relist(source::parent(&to));
                 }
                 Msg::Restored(path, Err(("error-exists", _))) => {
@@ -731,7 +731,7 @@ impl App {
                     log!("rename {old:?}: ERROR {id} {detail}");
                     self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
                 }
-                Msg::Deleted(path, Err((id, detail))) => {
+                Msg::Deleted(path, _, Err((id, detail))) => {
                     log!("delete {path:?}: ERROR {id} {detail}");
                     self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
                 }
@@ -1046,20 +1046,27 @@ impl App {
     }
 
     /// Item deleted: out of the listing, as if read again. A deleted folder also takes the
-    /// listings under it, and the current folder if it was inside.
-    fn remove_item(&mut self, path: &str) {
+    /// listings under it, and the current folder if it was inside. `to_trash`: moved into the
+    /// trash folder next to it, which appears if it was not there (phones and servers have no
+    /// watcher to tell).
+    fn remove_item(&mut self, path: &str, to_trash: bool) {
         let dir = source::parent(path);
-        self.listings.retain(|k, _| !(path.ends_with('/') && k.starts_with(path)));
+        let trash = format!("{dir}{}/", source::TRASH_DIR);
+        self.listings.retain(|k, _| !(path.ends_with('/') && k.starts_with(path)) && !(to_trash && *k == trash));
         if self.dir.starts_with(path) {
             self.listings.remove(&dir);
             self.set_dir(dir);
             return;
         }
         let Some(Ok(l)) = self.listings.get(&dir) else { return };
-        let new = Listing {
+        let mut new = Listing {
             dirs: l.dirs.iter().filter(|d| *d != path).cloned().collect(),
             files: l.files.iter().filter(|f| f.path != path).cloned().collect(),
         };
+        if to_trash && !new.dirs.contains(&trash) {
+            new.dirs.push(trash);
+            new.dirs.sort_by_key(|n| n.to_lowercase());
+        }
         self.swap_listing(&dir, new);
     }
 
