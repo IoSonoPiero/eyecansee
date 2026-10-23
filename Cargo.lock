@@ -1645,6 +1645,7 @@ dependencies = [
  "jiff",
  "jxl-oxide",
  "kamadak-exif",
+ "libc",
  "libheif-rs",
  "magick_rust",
  "mtp-rs",

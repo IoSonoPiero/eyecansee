@@ -164,14 +164,24 @@ pub fn apply(ready: &Ready) -> Result<(), String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let pid = std::process::id();
     match &ready.kind {
-        Kind::AppImage(path) => std::process::Command::new("sh")
-            .args(["-c", r#"while kill -0 "$1" 2>/dev/null; do sleep 0.2; done; mv -f "$2" "$3" && exec "$3""#, "sh"])
-            .arg(pid.to_string())
-            .arg(&ready.file)
-            .arg(path)
-            .spawn()
-            .map(drop)
-            .map_err(|e| e.to_string()),
+        Kind::AppImage(path) => {
+            // The AppImage runtime leaves its mount open in EyeCanSee (fd 1023, not close-on-exec):
+            // passed on to the new AppImage, it kept the old one mounted and running until the new
+            // one exited. Every inherited descriptor is marked close-on-exec before the helper starts.
+            #[cfg(target_os = "linux")]
+            // SAFETY: only sets a flag on this process's own descriptors, closes none.
+            unsafe {
+                libc::close_range(3, u32::MAX, libc::CLOSE_RANGE_CLOEXEC as i32);
+            }
+            std::process::Command::new("sh")
+                .args(["-c", r#"while kill -0 "$1" 2>/dev/null; do sleep 0.2; done; mv -f "$2" "$3" && exec "$3""#, "sh"])
+                .arg(pid.to_string())
+                .arg(&ready.file)
+                .arg(path)
+                .spawn()
+                .map(drop)
+                .map_err(|e| e.to_string())
+        }
         Kind::Installer { all_users } => {
             let mode = if *all_users { "/ALLUSERS" } else { "/CURRENTUSER" };
             powershell(&format!(
