@@ -31,6 +31,8 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 - **Reopen the last folder at startup** (on by default): when EyeCanSee starts without a folder, for example from the applications menu, it opens the folder you were viewing when you closed it. If that folder no longer exists, it opens your home folder. Remote locations reopen without the password, which you must type again.
 - **Remember the scroll position of each folder** (off by default): when you go back to a folder you already viewed, the grid starts where you left it. When off, every folder you open starts from the first thumbnail. It lasts until EyeCanSee is closed.
 - **In the viewer, after the last image start again from the first** (off by default): and from the first image, going back shows the last one. When off, the viewer stops at the first and the last image.
+- **Mouse wheel in the viewer**: **Zooms in and out** (default) or **Shows the next or previous image**. Holding Ctrl, the wheel always zooms.
+- **Largest zoom in the viewer** (2000% at first): how far the wheel and + can enlarge an image.
 - **Window at startup**, one choice only: **Normal size**, **Maximized** (fills the screen, leaving the system bars visible), or **Size it had when closed** (if it was maximized, it reopens maximized).
 - **Check for updates at startup** (on by default): see *Updates*.
 - **Language**: **Same as the system** (default: the Windows or desktop language, English if it is not among the available ones) or one of the listed languages, each shown by its own name. The choice applies at once, this manual included.
@@ -163,6 +165,11 @@ In the viewer:
 | Home, End | First, last image |
 | Esc | Back to the grid |
 | F2, Del, Shift+Del | Rename and delete, as in the grid |
+| + and − (or the mouse wheel) | Zoom in and out |
+| 0 | Fit the image to the window |
+| 1 | 100%: one image pixel per screen pixel |
+
+The mouse wheel zooms around the pointer, + and − around the middle of the window; Ctrl and the wheel always zoom, also when the wheel is set to change image (see *Options*). A zoomed image is moved by dragging it. It never gets smaller than fitted to the window, nor larger than the largest zoom set in the options (2000% at first); the status bar shows the zoom. The next image starts fitted again.
 
 Everywhere: **F1** opens this manual, **F5** reloads the folders. In the viewer F5 stays on the open image; if it has been deleted in the meantime, it goes back to the grid.
 

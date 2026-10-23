@@ -84,6 +84,12 @@ opt-remember-scroll = Remember the scroll position of each folder
 opt-remember-scroll-hint = When you go back to a folder you already viewed, the grid starts where you left it instead of from the first thumbnail. It lasts until EyeCanSee is closed.
 opt-wrap-around = In the viewer, after the last image start again from the first
 opt-wrap-around-hint = And from the first image, going back shows the last one. When off, the viewer stops at the first and the last image.
+opt-wheel = Mouse wheel in the viewer:
+opt-wheel-zoom = Zooms in and out
+opt-wheel-next = Shows the next or previous image
+opt-wheel-hint = Holding Ctrl, the wheel always zooms.
+opt-max-zoom = Largest zoom in the viewer:
+opt-max-zoom-hint = How far the wheel and the + key can enlarge an image, in percent of its pixels (100% = one image pixel per screen pixel).
 opt-remember-location-hint = When EyeCanSee starts without a folder (for example from the applications menu), it opens the folder you were viewing when you closed it. Remote locations open without the password, which you must type again.
 opt-cache-maintenance = Clean up the thumbnail cache
 opt-cache-maintenance-hint = Once per session, for each opened location: removes thumbnails of deleted images, recreates those of changed images and keeps the cache within the limit. Folders that cannot be found or reached are skipped.

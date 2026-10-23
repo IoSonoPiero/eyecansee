@@ -31,6 +31,8 @@ Le miniature vengono salvate su disco, così riaprire la stessa cartella è imme
 - **Riapri l'ultima cartella all'avvio** (attiva all'inizio): quando EyeCanSee parte senza una cartella, per esempio dal menù delle applicazioni, apre quella che stavi guardando alla chiusura. Se quella cartella non esiste più, apre la tua cartella home. Gli indirizzi remoti si riaprono senza password, che va riscritta.
 - **Ricorda la posizione di scorrimento di ogni cartella** (spenta all'inizio): tornando in una cartella già vista, la griglia riparte dal punto in cui l'avevi lasciata. Spenta, ogni cartella aperta parte dalla prima anteprima. Vale finché EyeCanSee resta aperto.
 - **Nel visore, dopo l'ultima immagine ricomincia dalla prima** (spenta all'inizio): e dalla prima immagine, tornando indietro, mostra l'ultima. Spenta, il visore si ferma alla prima e all'ultima immagine.
+- **Rotellina del mouse nel visore**: **Ingrandisce e rimpicciolisce** (predefinita) oppure **Mostra l'immagine successiva o precedente**. Tenendo premuto Ctrl, la rotellina ingrandisce sempre.
+- **Ingrandimento massimo nel visore** (2000% all'inizio): fin dove la rotellina e il tasto + possono ingrandire un'immagine.
 - **Finestra all'avvio**, una sola scelta: **Dimensione normale**, **Massimizzata** (occupa tutto lo schermo lasciando visibili le barre del sistema), oppure **Dimensione che aveva alla chiusura** (se era massimizzata si riapre massimizzata).
 - **Controlla gli aggiornamenti all'avvio** (attiva all'inizio): vedi *Aggiornamenti*.
 - **Lingua**: **Come il sistema** (predefinita: la lingua di Windows o del desktop, inglese se non è tra quelle disponibili) oppure una delle lingue elencate, ognuna col suo nome. La scelta vale subito, anche per questo manuale.
@@ -163,6 +165,11 @@ Nel visore:
 | Inizio, Fine | Prima, ultima immagine |
 | Esc | Torna alla griglia |
 | F2, Canc, Maiusc+Canc | Rinomina ed elimina, come nella griglia |
+| + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |
+| 0 | Adatta l'immagine alla finestra |
+| 1 | 100%: un pixel dell'immagine per pixel dello schermo |
+
+La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della finestra; Ctrl con la rotellina ingrandisce sempre, anche quando la rotellina è impostata per cambiare immagine (vedi *Opzioni*). Un'immagine ingrandita si sposta trascinandola. Non diventa mai più piccola di quando è adattata alla finestra, né più grande dell'ingrandimento massimo impostato nelle opzioni (2000% all'inizio); la barra di stato mostra l'ingrandimento. L'immagine successiva riparte adattata.
 
 Ovunque: **F1** apre questo manuale, **F5** rilegge le cartelle. Nel visore F5 resta sull'immagine aperta; se nel frattempo è stata cancellata, torna alla griglia.
 

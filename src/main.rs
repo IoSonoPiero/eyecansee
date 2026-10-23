@@ -211,6 +211,15 @@ struct App {
     /// Last queue sent to the loader: (visible images, selected, generation).
     thumb_queue_key: Option<(std::ops::Range<usize>, Option<usize>, u64)>,
     full: HashMap<usize, Result<TextureHandle, String>>,
+    /// Zoom of the viewer in screen pixels per image pixel (`None` = fitted to the window), for the
+    /// image `zoom_of`; `pan` = centre of the view in image pixels. A new image starts fitted.
+    zoom: Option<f32>,
+    zoom_of: Option<usize>,
+    pan: egui::Vec2,
+    /// Zoom shown, for the status bar.
+    zoom_shown: f32,
+    /// Wheel turned towards the next image, in notches, when the wheel changes image.
+    wheel_notches: f32,
     /// Viewer images already requested from the loader.
     pending: HashSet<usize>,
     thumb_size: f32,
@@ -317,6 +326,11 @@ impl App {
             generated: HashSet::new(),
             thumb_queue_key: None,
             full: HashMap::new(),
+            zoom: None,
+            zoom_of: None,
+            pan: egui::Vec2::ZERO,
+            zoom_shown: 1.0,
+            wheel_notches: 0.0,
             pending: HashSet::new(),
             thumb_size: 160.0,
             address: String::new(),
@@ -440,6 +454,8 @@ impl App {
             (t("opt-window"), t("opt-window-normal"), t("opt-window-maximized"), t("opt-window-remember"));
         let (scroll, scroll_hint) = (t("opt-remember-scroll"), t("opt-remember-scroll-hint"));
         let (wrap, wrap_hint) = (t("opt-wrap-around"), t("opt-wrap-around-hint"));
+        let (wheel, wheel_zoom, wheel_next, wheel_hint) = (t("opt-wheel"), t("opt-wheel-zoom"), t("opt-wheel-next"), t("opt-wheel-hint"));
+        let (max_zoom, max_zoom_hint) = (t("opt-max-zoom"), t("opt-max-zoom-hint"));
         let (language_label, language_system) = (t("opt-language"), t("opt-language-system"));
         let languages = self.languages.clone();
         let (theme_label, theme_system, theme_light, theme_dark) =
@@ -517,6 +533,15 @@ impl App {
                     OptTab::Browsing => {
                         ui.checkbox(&mut s.remember_scroll, scroll).on_hover_text(scroll_hint);
                         ui.checkbox(&mut s.wrap_around, wrap).on_hover_text(wrap_hint);
+                        ui.add_space(6.0);
+                        ui.label(wheel).on_hover_text(&wheel_hint);
+                        ui.radio_value(&mut s.wheel_zoom, true, wheel_zoom).on_hover_text(&wheel_hint);
+                        ui.radio_value(&mut s.wheel_zoom, false, wheel_next).on_hover_text(&wheel_hint);
+                        ui.add_space(6.0);
+                        ui.horizontal(|ui| {
+                            ui.label(max_zoom).on_hover_text(&max_zoom_hint);
+                            ui.add(egui::DragValue::new(&mut s.max_zoom).range(100..=10_000).speed(10).suffix("%")).on_hover_text(&max_zoom_hint);
+                        });
                     }
                     OptTab::Deleting => {
                         ui.checkbox(&mut s.local_permanent, local_permanent).on_hover_text(local_permanent_hint);
@@ -1571,6 +1596,7 @@ impl App {
             self.scroll_to_selected = true;
         }
         self.full.clear();
+        self.zoom_of = None;
     }
 
     /// Requests the open image and its neighbours, frees the distant ones.
@@ -1967,16 +1993,24 @@ impl App {
 
     fn viewer(&mut self, ui: &mut egui::Ui, current: usize) {
         let mut chosen = None;
-        ui.centered_and_justified(|ui| match self.full.get(&current) {
-            Some(Ok(tex)) => {
-                let response = ui.add(egui::Image::new(tex).shrink_to_fit().sense(egui::Sense::click()));
-                if response.double_clicked() {
-                    self.close_viewer();
-                }
-                response.context_menu(|ui| {
-                    chosen = browser::context_menu(ui, self.item_menu(None, None));
-                });
+        if let Some(Ok(tex)) = self.full.get(&current) {
+            let tex = tex.clone();
+            let rect = ui.available_rect_before_wrap();
+            let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
+            self.zoom_view(ui, &response, &tex, current);
+            if response.double_clicked() {
+                self.close_viewer();
             }
+            response.context_menu(|ui| {
+                chosen = browser::context_menu(ui, self.item_menu(None, None));
+            });
+            if chosen.is_some() {
+                self.act = chosen;
+            }
+            return;
+        }
+        ui.centered_and_justified(|ui| match self.full.get(&current) {
+            Some(Ok(_)) => {}
             Some(Err(e)) => {
                 let name = self.files().get(current).map_or("", |f| source::name(&f.path));
                 ui.label(browser::error_text(ui, self.i18n.t_args("cannot-load", &[("file", name), ("error", e)])));
@@ -1988,6 +2022,101 @@ impl App {
         if chosen.is_some() {
             self.act = chosen;
         }
+    }
+
+    /// The open image, fitted to the window or zoomed (as GNOME's viewer, Loupe): the wheel ×1.3 a
+    /// notch around the pointer (or the next image, see `wheel_zoom`; Ctrl and the wheel always
+    /// zoom), + and − ×1.5 around the centre, 0 fitted, 1 at 100%, dragging moves the zoomed image.
+    /// Never smaller than fitted, never larger than `max_zoom`.
+    fn zoom_view(&mut self, ui: &egui::Ui, response: &egui::Response, tex: &TextureHandle, current: usize) {
+        let rect = response.rect;
+        let ppp = ui.ctx().pixels_per_point();
+        let t = tex.size_vec2();
+        let fit = (rect.width() * ppp / t.x).min(rect.height() * ppp / t.y).min(1.0);
+        let max = (self.settings.max_zoom as f32 / 100.0).max(fit);
+        if self.zoom_of != Some(current) {
+            (self.zoom, self.zoom_of) = (None, Some(current));
+        }
+        let scale = self.zoom.unwrap_or(fit).clamp(fit, max);
+
+        let (mut wheel, mut next) = (0.0, 0.0);
+        let mut pinch = 1.0;
+        if response.hovered() {
+            let wheel_zoom = self.settings.wheel_zoom;
+            ui.input(|i| {
+                for e in &i.events {
+                    match e {
+                        egui::Event::MouseWheel { unit, delta, modifiers, .. } => {
+                            // Notches: a mouse gives lines, a touchpad points.
+                            let notches = match unit {
+                                egui::MouseWheelUnit::Line => delta.y,
+                                egui::MouseWheelUnit::Point => delta.y / 50.0,
+                                egui::MouseWheelUnit::Page => delta.y * 3.0,
+                            };
+                            if wheel_zoom || modifiers.command {
+                                wheel += notches;
+                            } else {
+                                next -= notches;
+                            }
+                        }
+                        egui::Event::Zoom(f) => pinch *= f,
+                        _ => {}
+                    }
+                }
+            });
+        }
+        self.wheel_notches += next;
+        while self.wheel_notches.abs() >= 1.0 {
+            let forward = self.wheel_notches > 0.0;
+            self.wheel_notches -= self.wheel_notches.signum();
+            self.go(if forward { Go::Next } else { Go::Prev });
+        }
+        let (zoom_in, zoom_out, fitted, actual) = if ui.ctx().egui_wants_keyboard_input() {
+            (false, false, false, false)
+        } else {
+            ui.input(|i| {
+                let key = |k| i.key_pressed(k) && !i.modifiers.command;
+                (key(Key::Plus) || key(Key::Equals), key(Key::Minus), key(Key::Num0), key(Key::Num1))
+            })
+        };
+
+        let mut target = scale * 1.3f32.powf(wheel) * pinch;
+        let mut anchor = response.hover_pos().filter(|_| wheel != 0.0 || pinch != 1.0).unwrap_or(rect.center());
+        if zoom_in || zoom_out {
+            target = scale * if zoom_in { 1.5 } else { 1.0 / 1.5 };
+            anchor = rect.center();
+        }
+        if actual {
+            target = 1.0;
+        }
+        let target = target.clamp(fit, max);
+        if fitted || target <= fit {
+            (self.zoom, self.pan) = (None, t / 2.0);
+        } else if target != scale {
+            // The image point under the anchor stays under it.
+            let from_centre = (anchor - rect.center()) * ppp;
+            let base = if self.zoom.is_some() { self.pan } else { t / 2.0 };
+            self.pan = base + from_centre / scale - from_centre / target;
+            self.zoom = Some(target);
+        }
+        if self.zoom.is_some() && response.dragged() {
+            self.pan -= response.drag_delta() * ppp / self.zoom.unwrap_or(fit);
+        }
+
+        let painter = ui.painter_at(rect);
+        match self.zoom {
+            Some(scale) => {
+                if response.hovered() {
+                    ui.ctx().set_cursor_icon(if response.dragged() { egui::CursorIcon::Grabbing } else { egui::CursorIcon::Grab });
+                }
+                convert::paint_zoomed(&painter, rect, tex, scale, &mut self.pan);
+            }
+            None => {
+                let dest = egui::Rect::from_center_size(rect.center(), t * fit / ppp);
+                painter.image(tex.id(), dest, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), Color32::WHITE);
+            }
+        }
+        self.zoom_shown = self.zoom.unwrap_or(fit);
     }
 }
 

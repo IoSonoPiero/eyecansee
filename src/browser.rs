@@ -793,6 +793,8 @@ impl App {
                 let [w, h] = tex.size();
                 ui.separator();
                 ui.label(self.i18n.t_args("convert-pixels", &[("w", &w.to_string()), ("h", &h.to_string())]));
+                ui.separator();
+                ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
             }
             ui.separator();
             ui.label(self.human_size(f.size));

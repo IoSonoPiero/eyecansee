@@ -83,6 +83,12 @@ opt-remember-scroll = Ricorda la posizione di scorrimento di ogni cartella
 opt-remember-scroll-hint = Tornando in una cartella già vista, la griglia riparte dal punto in cui l'avevi lasciata invece che dalla prima anteprima. Vale finché EyeCanSee resta aperto.
 opt-wrap-around = Nel visore, dopo l'ultima immagine ricomincia dalla prima
 opt-wrap-around-hint = E dalla prima immagine, tornando indietro, mostra l'ultima. Spenta, il visore si ferma alla prima e all'ultima immagine.
+opt-wheel = Rotellina del mouse nel visore:
+opt-wheel-zoom = Ingrandisce e rimpicciolisce
+opt-wheel-next = Mostra l'immagine successiva o precedente
+opt-wheel-hint = Tenendo premuto Ctrl, la rotellina ingrandisce sempre.
+opt-max-zoom = Ingrandimento massimo nel visore:
+opt-max-zoom-hint = Fin dove la rotellina e il tasto + possono ingrandire un'immagine, in percentuale dei suoi pixel (100% = un pixel dell'immagine per pixel dello schermo).
 opt-remember-location-hint = Quando EyeCanSee parte senza una cartella (per esempio dal menù delle applicazioni), apre quella che stavi guardando alla chiusura. Gli indirizzi remoti si riaprono senza password, che va riscritta.
 opt-cache-maintenance = Pulizia della cache miniature
 opt-cache-maintenance-hint = Una volta per sessione, per ogni indirizzo aperto: elimina le miniature delle immagini cancellate, rifà quelle delle immagini modificate e tiene la cache entro il limite. Le cartelle che non si trovano o non si raggiungono vengono saltate.

@@ -836,22 +836,28 @@ fn preview(ui: &mut egui::Ui, size: egui::Vec2, tex: Option<&TextureHandle>, not
     let ppp = ui.ctx().pixels_per_point();
     let t = tex.size_vec2();
     if actual {
-        // Seen area in image pixels, kept inside the image; smaller images stay centred.
-        let view = rect.size() * ppp;
-        let half = view / 2.0;
-        let clamp = |c: f32, h: f32, full: f32| if full <= 2.0 * h { full / 2.0 } else { c.clamp(h, full - h) };
-        *pan = egui::vec2(clamp(pan.x, half.x, t.x), clamp(pan.y, half.y, t.y));
-        let min = (*pan - half).max(egui::Vec2::ZERO);
-        let max = (*pan + half).min(t);
-        let dest = egui::Rect::from_center_size(rect.center() + ((min + max) / 2.0 - *pan) / ppp, (max - min) / ppp);
-        let uv = egui::Rect::from_min_max((min / t).to_pos2(), (max / t).to_pos2());
-        painter.image(tex.id(), dest, uv, egui::Color32::WHITE);
+        paint_zoomed(&painter, rect, tex, 1.0, pan);
     } else {
         let scale = (rect.width() / t.x).min(rect.height() / t.y).min(1.0 / ppp);
         let dest = egui::Rect::from_center_size(rect.center(), t * scale);
         painter.image(tex.id(), dest, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
     }
     response
+}
+
+/// `tex` drawn in `rect` at `scale` screen pixels per image pixel, around `pan` (the centre of the
+/// view, in image pixels). `pan` is kept inside the image; a side smaller than the view stays centred.
+pub fn paint_zoomed(painter: &egui::Painter, rect: egui::Rect, tex: &TextureHandle, scale: f32, pan: &mut egui::Vec2) {
+    let ppp = painter.ctx().pixels_per_point();
+    let t = tex.size_vec2();
+    let half = rect.size() * ppp / scale / 2.0;
+    let clamp = |c: f32, h: f32, full: f32| if full <= 2.0 * h { full / 2.0 } else { c.clamp(h, full - h) };
+    *pan = egui::vec2(clamp(pan.x, half.x, t.x), clamp(pan.y, half.y, t.y));
+    let min = (*pan - half).max(egui::Vec2::ZERO);
+    let max = (*pan + half).min(t);
+    let dest = egui::Rect::from_center_size(rect.center() + ((min + max) / 2.0 - *pan) * scale / ppp, (max - min) * scale / ppp);
+    let uv = egui::Rect::from_min_max((min / t).to_pos2(), (max / t).to_pos2());
+    painter.image(tex.id(), dest, uv, egui::Color32::WHITE);
 }
 
 /// Dragging either preview moves both, at 100%.

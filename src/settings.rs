@@ -20,6 +20,10 @@ pub struct Settings {
     pub remember_scroll: bool,
     /// In the viewer, after the last image the first one follows (and the other way round).
     pub wrap_around: bool,
+    /// The mouse wheel zooms the viewer; otherwise it changes image (Ctrl and the wheel always zoom).
+    pub wheel_zoom: bool,
+    /// Largest zoom in the viewer, in percent of the image's pixels.
+    pub max_zoom: u32,
     /// Metadata boxes closed with the X (`meta::Group::key`); empty = all open.
     pub meta_hidden: Vec<String>,
     /// Metadata panel collapsed: only its bar remains.
@@ -105,6 +109,9 @@ impl Default for Settings {
             last_location: None,
             remember_scroll: false,
             wrap_around: false,
+            wheel_zoom: true,
+            // As GNOME's image viewer (Loupe).
+            max_zoom: 2000,
             meta_hidden: Vec::new(),
             meta_collapsed: false,
             sort_by: SortBy::Name,
