@@ -1,8 +1,8 @@
 # EyeCanSee
 
-An image viewer for Linux and Windows, written in Rust. Free and open source.
+An image viewer and manager for Linux and Windows, written in Rust: it browses photos on computers, disks and phones, copies and moves them from one device to another, and saves them in other formats. Free and open source.
 
-It is early in development: today it **views** images, it does not edit them yet. This page lists only what works now. The plan is to finish the viewing part first, then add the first editing features step by step, each one only when it is ready and tested.
+It is early in development. This page lists only what works now: new features arrive step by step, each one only when it is ready and tested.
 
 ## About
 
