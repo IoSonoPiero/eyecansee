@@ -42,7 +42,7 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 
 ## Updates
 
-The Windows installer, the Windows zip and the AppImage update themselves. At startup EyeCanSee asks GitHub, in the background, for the latest published version; if it is newer, it downloads it and checks it against the SHA-256 fingerprint GitHub publishes for it. When it is ready, a red **Install … and restart** button appears at the top right of the menu bar: EyeCanSee closes, installs the new version and opens again. Nothing is installed until you click it.
+The Windows installer, the Windows zip and the AppImage update themselves. At startup EyeCanSee asks GitHub, in the background, for the latest published version; if it is newer, it downloads it and checks it twice: against the SHA-256 fingerprint GitHub publishes for it (a broken download), and against the developer's signature, made with a key that never leaves the developer's PC (a file that does not come from the developer). A file without a valid signature is never installed, and Check for updates says why. When it is ready, a red **Install … and restart** button appears at the top right of the menu bar: EyeCanSee closes, installs the new version and opens again. Nothing is installed until you click it.
 
 - **Help > Check for updates** does the same check at any time and tells you the outcome.
 - The check can be turned off in **File > Options… > General**. When off, EyeCanSee contacts GitHub only when you choose Check for updates. Nothing about you or your images is sent: only the request for the latest version.

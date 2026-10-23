@@ -12,11 +12,12 @@ on:
     paths: [.github/workflows/release.yml, tools/build-appimage.sh]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
+# Each job gets only what it needs: just the release job can write to the repository (the draft), and
+# nothing here signs the files (tools/sign-release.sh does it on the developer's PC).
 jobs:
   version:
+    permissions:
+      contents: read
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.v.outputs.version }}
@@ -36,6 +37,8 @@ jobs:
           fi
 
   windows:
+    permissions:
+      contents: read
     needs: version
     runs-on: windows-latest
     env:
@@ -146,6 +149,8 @@ jobs:
             EyeCanSee-*-windows-x64-setup.exe
 
   appimage:
+    permissions:
+      contents: read
     needs: version
     runs-on: ubuntu-latest
     steps:
@@ -179,6 +184,8 @@ jobs:
           path: target/appimage/EyeCanSee-*-x86_64.AppImage
 
   copr:
+    permissions:
+      contents: read
     needs: version
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
@@ -199,6 +206,8 @@ jobs:
           fi
 
   release:
+    permissions:
+      contents: write
     needs: [version, windows, appimage, copr]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest

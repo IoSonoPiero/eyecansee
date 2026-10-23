@@ -42,7 +42,7 @@ Le miniature vengono salvate su disco, così riaprire la stessa cartella è imme
 
 ## Aggiornamenti
 
-L'installer per Windows, lo zip per Windows e l'AppImage si aggiornano da soli. All'avvio EyeCanSee chiede a GitHub, in background, l'ultima versione pubblicata; se è più nuova la scarica e la controlla con l'impronta SHA-256 che GitHub pubblica per lei. Quando è pronta, in alto a destra nella barra dei menù compare un pulsante rosso **Installa la … e riavvia**: EyeCanSee si chiude, installa la versione nuova e si riapre. Finché non lo premi non viene installato niente.
+L'installer per Windows, lo zip per Windows e l'AppImage si aggiornano da soli. All'avvio EyeCanSee chiede a GitHub, in background, l'ultima versione pubblicata; se è più nuova la scarica e la controlla due volte: con l'impronta SHA-256 che GitHub pubblica per lei (un download rovinato) e con la firma dello sviluppatore, fatta con una chiave che non lascia mai il suo PC (un file che non viene dallo sviluppatore). Un file senza firma valida non viene mai installato, e Verifica aggiornamenti dice perché. Quando è pronta, in alto a destra nella barra dei menù compare un pulsante rosso **Installa la … e riavvia**: EyeCanSee si chiude, installa la versione nuova e si riapre. Finché non lo premi non viene installato niente.
 
 - **Aiuto > Verifica aggiornamenti** fa lo stesso controllo quando vuoi e ti dice com'è andata.
 - Il controllo si può spegnere in **File > Opzioni… > Generale**. Spento, EyeCanSee contatta GitHub solo quando scegli Verifica aggiornamenti. Non viene inviato niente su di te o sulle tue immagini: solo la richiesta dell'ultima versione.

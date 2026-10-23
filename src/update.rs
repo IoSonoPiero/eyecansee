@@ -10,6 +10,11 @@ use std::time::Duration;
 
 const LATEST: &str = "https://api.github.com/repos/IoSonoPiero/eyecansee/releases/latest";
 
+/// minisign public keys whose signatures an update must carry (`tools/sign-release.sh` signs the
+/// release files on the developer's PC; the private key never goes to GitHub). To rotate the key, one
+/// release accepts both the old and the new one.
+const PUBLIC_KEYS: &[&str] = &["RWRgiMFmEPRN5JASovMqT3NdY1Ui/mhebEzDTdsmKDiXno3K/9B4/biD"];
+
 /// How this copy was installed.
 #[derive(Debug, Clone)]
 pub enum Kind {
@@ -88,24 +93,37 @@ pub fn check(kind: Kind, current: &str) -> Result<Option<Ready>, String> {
         (Some(new), Some(now)) if new > now => {}
         _ => return Ok(None),
     }
-    let asset = release["assets"]
-        .as_array()
-        .and_then(|a| a.iter().find(|a| a["name"].as_str().is_some_and(|n| n.ends_with(kind.asset_suffix()))))
+    let assets = release["assets"].as_array().map(Vec::as_slice).unwrap_or_default();
+    let asset = assets
+        .iter()
+        .find(|a| a["name"].as_str().is_some_and(|n| n.ends_with(kind.asset_suffix())))
         .ok_or_else(|| format!("no {} in {tag}", kind.asset_suffix()))?;
     let (Some(name), Some(url)) = (asset["name"].as_str(), asset["browser_download_url"].as_str()) else {
         return Err(format!("incomplete asset in {tag}"));
     };
     // GitHub works the digest out itself when the file is uploaded.
+    // It only catches a broken download: whoever can upload the file sets the digest too. The
+    // signature is what proves the file comes from the developer.
     let sha = asset["digest"].as_str().and_then(|d| d.strip_prefix("sha256:")).ok_or_else(|| format!("no SHA-256 for {name}"))?;
+    let minisig = agent
+        .get(signature_url(assets, name, tag)?)
+        .call()
+        .and_then(|mut r| r.body_mut().read_to_string())
+        .map_err(|e| e.to_string())?;
+    let signed = |path: &Path| {
+        let mut f = std::fs::File::open(path).map_err(|e| e.to_string())?;
+        verify_signature(&mut f, &minisig, name, version, PUBLIC_KEYS)
+    };
     let file = match &kind {
         // Next to the AppImage, so that putting it in place is a rename on the same disk.
         Kind::AppImage(path) => path.with_extension("AppImage.new"),
         _ => std::env::temp_dir().join(name),
     };
-    // Downloaded at an earlier start and never installed: no need to fetch it again.
+    // Downloaded at an earlier start and never installed: no need to fetch it again, but it is
+    // checked like a new download.
     let cached = std::fs::File::open(&file).ok().and_then(|mut f| sha256_of(&mut f).ok());
-    if cached.as_deref() != Some(sha) {
-        download(&agent, url, &file, sha)?;
+    if cached.as_deref() != Some(sha) || signed(&file).is_err() {
+        download(&agent, url, &file, sha, signed)?;
     }
     #[cfg(unix)]
     {
@@ -113,6 +131,44 @@ pub fn check(kind: Kind, current: &str) -> Result<Option<Ready>, String> {
         std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
     }
     Ok(Some(Ready { version: version.to_string(), kind, file }))
+}
+
+/// Download address of `<name>.minisig`: without it there is no update.
+fn signature_url<'a>(assets: &'a [serde_json::Value], name: &str, tag: &str) -> Result<&'a str, String> {
+    let sig = format!("{name}.minisig");
+    assets
+        .iter()
+        .find(|a| a["name"].as_str() == Some(sig.as_str()))
+        .and_then(|a| a["browser_download_url"].as_str())
+        .ok_or_else(|| format!("no signature ({sig}) in {tag}"))
+}
+
+/// Checks the minisign signature `minisig` of the file in `reader` with any of `keys`, then its
+/// trusted comment (signed as well): it must name this very file and version, so that a genuine
+/// signature of another file, or of an older release, cannot be passed off for this one.
+fn verify_signature(reader: &mut impl Read, minisig: &str, name: &str, version: &str, keys: &[&str]) -> Result<(), String> {
+    use minisign_verify::{PublicKey, Signature};
+    let sig = Signature::decode(minisig).map_err(|e| format!("signature of {name}: {e}"))?;
+    let keys = keys.iter().map(|k| PublicKey::from_base64(k)).collect::<Result<Vec<_>, _>>().map_err(|e| e.to_string())?;
+    // Only the key with the signature's key id starts a verifier.
+    let mut verifier = keys
+        .iter()
+        .find_map(|k| k.verify_stream(&sig).ok())
+        .ok_or_else(|| format!("{name} is not signed with an EyeCanSee key"))?;
+    let mut buf = vec![0; 1 << 16];
+    loop {
+        let n = reader.read(&mut buf).map_err(|e| e.to_string())?;
+        if n == 0 {
+            break;
+        }
+        verifier.update(&buf[..n]);
+    }
+    verifier.finalize().map_err(|e| format!("signature of {name}: {e}"))?;
+    let expected = format!("file:{name} version:{version}");
+    if sig.trusted_comment() != expected {
+        return Err(format!("signature of {name} is for \"{}\", expected \"{expected}\"", sig.trusted_comment()));
+    }
+    Ok(())
 }
 
 fn sha256_of(reader: &mut impl Read) -> Result<String, String> {
@@ -128,9 +184,15 @@ fn sha256_of(reader: &mut impl Read) -> Result<String, String> {
     Ok(ctx.finish().as_ref().iter().map(|b| format!("{b:02x}")).collect())
 }
 
-/// Into a temporary name, renamed only once its SHA-256 matches: a broken or altered download
-/// never sits where it would be installed.
-fn download(agent: &ureq::Agent, url: &str, file: &Path, sha: &str) -> Result<(), String> {
+/// Into a temporary name, renamed only once its SHA-256 matches and `signed` accepts it: a broken
+/// or altered download never sits where it would be installed.
+fn download(
+    agent: &ureq::Agent,
+    url: &str,
+    file: &Path,
+    sha: &str,
+    signed: impl Fn(&Path) -> Result<(), String>,
+) -> Result<(), String> {
     let part = file.with_extension("part");
     let r = (|| {
         let mut body = agent.get(url).call().map_err(|e| e.to_string())?.into_body().into_reader();
@@ -150,6 +212,7 @@ fn download(agent: &ureq::Agent, url: &str, file: &Path, sha: &str) -> Result<()
             return Err(format!("SHA-256 mismatch: {got}, expected {sha}"));
         }
         drop(out);
+        signed(&part)?;
         std::fs::rename(&part, file).map_err(|e| e.to_string())
     })();
     if r.is_err() {
@@ -249,5 +312,68 @@ mod tests {
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
         assert_eq!(quote(Path::new(r"C:\Users\O'Neil\a.exe")), r"'C:\Users\O''Neil\a.exe'");
+    }
+
+    // Made with minisign 0.12 and two throwaway keys without password, A and B:
+    // `minisign -S -s <key> -m <file> -t "<trusted comment>"` on a file holding FILE.
+    const FILE: &[u8] = b"EyeCanSee test file\n";
+    const KEY_A: &str = "RWQZas4plfKtEJBZ5hmmDaJ6b3pS5e9p43SogP/4U90uWV4qNdpucEOw";
+    const KEY_B: &str = "RWTctaf0T4JxFe/ws2QoOpbFdzLpTzrNikfnyhBa8vU/iFxn266hPx/b";
+    const NAME: &str = "EyeCanSee-9.9.9-x86_64.AppImage";
+    const SIGNED_A: &str = "untrusted comment: signature from minisign secret key
+RUQZas4plfKtEJWeS1kw6KBFBh/Gk49H9gWB0cwcsoEm0GUN8n+EEMyYU5OA7jncG838TUd94dwQsPkIPyFlV1IK295wzQwaVAs=
+trusted comment: file:EyeCanSee-9.9.9-x86_64.AppImage version:9.9.9
+50s9rYoeF2r919oMbb3E/9ju0fuk/aw6M/UFV03+YOmecrtJIkILMboq7P3ilOrRCcLlQ7Ukn4mIijcidD9xCA==
+";
+    const SIGNED_B: &str = "untrusted comment: signature from minisign secret key
+RUTctaf0T4JxFXtypyobDMlxP4olZ6YITt7yMA2UJFIFwjO3uEbxawI0Xi8oHLkLBFkFWkjfwiRa13Yx+uG3HbYtGSGk55q6dAw=
+trusted comment: file:EyeCanSee-9.9.9-x86_64.AppImage version:9.9.9
+YV6pBbYT/oRZIHaULe6Gz4knBaQYQqklKWfFMQrVOnRVXEHxKA9I3g3KJbtZBjrT+wd7oLYOJj9LXy/68nymBg==
+";
+    const OLDER_VERSION: &str = "untrusted comment: signature from minisign secret key
+RUQZas4plfKtEJWeS1kw6KBFBh/Gk49H9gWB0cwcsoEm0GUN8n+EEMyYU5OA7jncG838TUd94dwQsPkIPyFlV1IK295wzQwaVAs=
+trusted comment: file:EyeCanSee-9.9.9-x86_64.AppImage version:9.9.8
++krccYs+9AUVsctzjLDzMpzHGgo7XbeySQWuwWKvvLgS1ecaIXto5dda6jbIpkQNmcIZgl2jPc0ShdoCsXHHAQ==
+";
+    const OTHER_FILE: &str = "untrusted comment: signature from minisign secret key
+RUQZas4plfKtEJWeS1kw6KBFBh/Gk49H9gWB0cwcsoEm0GUN8n+EEMyYU5OA7jncG838TUd94dwQsPkIPyFlV1IK295wzQwaVAs=
+trusted comment: file:EyeCanSee-9.9.9-windows-x64.zip version:9.9.9
+ZNx9ootxLvzxqaW3Js8GQuuaRfw38173uezh9m7748ttQQ1wAqg5dxcDI9Q+3YopKvqk/hWD2HljErLOigFmAw==
+";
+
+    fn verify(file: &[u8], minisig: &str, keys: &[&str]) -> Result<(), String> {
+        verify_signature(&mut &file[..], minisig, NAME, "9.9.9", keys)
+    }
+
+    #[test]
+    fn signatures() {
+        assert_eq!(verify(FILE, SIGNED_A, &[KEY_A]), Ok(()));
+        // Any of the accepted keys (rotation).
+        assert_eq!(verify(FILE, SIGNED_B, &[KEY_A, KEY_B]), Ok(()));
+        assert!(verify(b"EyeCanSee test file!\n", SIGNED_A, &[KEY_A]).is_err());
+        assert!(verify(FILE, SIGNED_B, &[KEY_A]).is_err());
+        assert!(verify(FILE, OLDER_VERSION, &[KEY_A]).is_err());
+        assert!(verify(FILE, OTHER_FILE, &[KEY_A]).is_err());
+        assert!(verify(FILE, "", &[KEY_A]).is_err());
+        // The trusted comment cannot be edited: it is signed with the file.
+        assert!(verify(FILE, &SIGNED_A.replace("version:9.9.9", "version:9.9.8"), &[KEY_A]).is_err());
+    }
+
+    #[test]
+    fn public_keys() {
+        for k in PUBLIC_KEYS {
+            minisign_verify::PublicKey::from_base64(k).unwrap();
+        }
+    }
+
+    #[test]
+    fn signature_asset() {
+        let assets = serde_json::json!([
+            { "name": NAME, "browser_download_url": "https://example.org/a" },
+            { "name": "EyeCanSee-9.9.9-windows-x64.zip.minisig", "browser_download_url": "https://example.org/b" },
+        ]);
+        let assets = assets.as_array().unwrap();
+        assert!(signature_url(assets, NAME, "v9.9.9").unwrap_err().contains(".AppImage.minisig"));
+        assert_eq!(signature_url(assets, "EyeCanSee-9.9.9-windows-x64.zip", "v9.9.9"), Ok("https://example.org/b"));
     }
 }

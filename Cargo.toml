@@ -1,6 +1,6 @@
 [package]
 name = "eyecansee"
-version = "0.27.0"
+version = "0.28.0"
 edition = "2024"
 description = "Image viewer for Linux and Windows"
 license = "GPL-3.0-or-later"
@@ -54,6 +54,9 @@ hayro-jpeg2000 = "0.4.1"
 # Updates from the GitHub releases: download over HTTPS (on rustls, already built for FTPS) and SHA-256 check.
 ureq = { version = "3", default-features = false, features = ["rustls"] }
 ring = "0.17.14"
+# Updates install only files signed with the project's minisign key (Ed25519), so that whoever can upload
+# release assets cannot ship an update. Pure Rust, no dependencies.
+minisign-verify = "0.3.0"
 # Save in another format: all the options of each encoder. libjpeg-turbo, ravif and tiff are already built
 # (for decoding and inside `image`); libwebp adds lossy WebP, which `image` cannot write.
 ravif = "0.13.0"
