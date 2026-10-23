@@ -40,6 +40,8 @@ pub enum Msg {
     PasteCheck(Result<Vec<String>, source::Error>),
     /// End of a copy or move: source items that went away, outcome.
     Pasted(Vec<String>, Result<(), source::Error>),
+    /// Outcome of `update::check`: a newer version downloaded and checked, up to date, or an error.
+    Update(Result<Option<crate::update::Ready>, String>),
     /// Metadata of an image: `None` = no EXIF.
     Meta { generation: u64, index: usize, meta: Result<Option<crate::meta::Meta>, String> },
 }

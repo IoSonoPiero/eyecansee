@@ -39,6 +39,8 @@ pub struct Settings {
     pub local_permanent: bool,
     /// Deleting on phones and servers, which have no trash EyeCanSee can reach.
     pub remote_delete: RemoteDelete,
+    /// At startup, ask GitHub for a newer release and download it (`update`).
+    pub check_updates: bool,
 }
 
 /// For phones, FTP, SFTP; local files go by `local_permanent`.
@@ -116,6 +118,7 @@ impl Default for Settings {
             language: None,
             local_permanent: false,
             remote_delete: RemoteDelete::TrashFolder,
+            check_updates: true,
         }
     }
 }
@@ -137,7 +140,8 @@ impl Settings {
     pub fn load() -> Self {
         let Some(path) = path() else { return Self::default() };
         let Ok(text) = std::fs::read_to_string(&path) else { return Self::default() };
-        serde_json::from_str(&text).unwrap_or_else(|_| {
+        // A BOM (written by PowerShell and some editors) is not JSON: without this the file was set aside.
+        serde_json::from_str(text.trim_start_matches('\u{feff}')).unwrap_or_else(|_| {
             let _ = std::fs::rename(&path, path.with_extension("json.bad"));
             Self::default()
         })

@@ -35,6 +35,7 @@ mod source;
 mod theme;
 mod thumbcache;
 mod transfer;
+mod update;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -94,6 +95,8 @@ pub(crate) enum Act {
     /// Into a folder (`None` = the one open).
     Paste(Option<String>),
     Quit,
+    /// Install the downloaded update and start EyeCanSee again.
+    Update,
     /// The selected grid item.
     Open,
     /// A folder of the tree.
@@ -103,6 +106,7 @@ pub(crate) enum Act {
     Go(Go),
     Up,
     Manual,
+    CheckUpdates,
     About,
     Meta(meta::Group),
     Sort(settings::SortBy),
@@ -209,6 +213,10 @@ struct App {
     thumb_size: f32,
     address: String,
     error: Option<String>,
+    /// New version downloaded at startup, waiting for "Install and restart".
+    update: Option<update::Ready>,
+    /// Help > Check for updates: what to show (`None` = window closed).
+    update_note: Option<String>,
     title: String,
     help: bool,
     about: bool,
@@ -326,6 +334,8 @@ impl App {
             options: false,
             options_tab: OptTab::General,
             purge_confirm: None,
+            update: None,
+            update_note: None,
             maintained: HashSet::new(),
             delete_confirm: None,
             delete_answer: None,
@@ -352,6 +362,9 @@ impl App {
         theme::apply(ctx, app.settings.theme);
         devices::watch(app.tx.clone(), ctx.clone());
         single::listen(app.tx.clone(), ctx.clone());
+        if app.settings.check_updates {
+            app.check_updates(ctx);
+        }
         let home = std::env::home_dir().map_or(".".into(), |h| h.to_string_lossy().into_owned());
         let last = app.settings.last_location.clone().filter(|_| app.settings.remember_location);
         match (arg, last) {
@@ -434,6 +447,7 @@ impl App {
             t("opt-cache-limit"),
         );
         let (local_permanent, local_permanent_hint) = (t("opt-local-permanent"), t("opt-local-permanent-hint"));
+        let (updates, updates_hint) = (t("opt-check-updates"), t("opt-check-updates-hint"));
         let (remote_delete, remote_folder, remote_permanent) =
             (t("opt-remote-delete"), t("opt-remote-delete-folder"), t("opt-remote-delete-permanent"));
         let (purge, purge_no) = (t("opt-purge"), t("opt-purge-no"));
@@ -460,11 +474,11 @@ impl App {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            .fixed_size([460.0, 300.0])
+            .fixed_size([460.0, 330.0])
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 // As tall as the longest tab (General), so changing tab does not resize the window.
-                ui.set_min_height(300.0);
+                ui.set_min_height(330.0);
                 ui.horizontal(|ui| {
                     for (value, name) in tab_names {
                         ui.selectable_value(tab, value, name);
@@ -485,6 +499,8 @@ impl App {
                         for (code, name) in languages {
                             ui.radio_value(&mut s.language, Some(code.to_string()), name);
                         }
+                        ui.add_space(6.0);
+                        ui.checkbox(&mut s.check_updates, updates).on_hover_text(updates_hint);
                     }
                     OptTab::Look => {
                         ui.label(theme_label);
@@ -856,6 +872,21 @@ impl App {
                     }
                     ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
                     ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                }
+                // Shown in a window only when asked from the Help menu (the window is open).
+                Msg::Update(r) => {
+                    log!("update: {r:?}");
+                    let note = match &r {
+                        Ok(Some(ready)) => self.i18n.t_args("update-found", &[("version", &ready.version)]),
+                        Ok(None) => self.i18n.t_args("update-latest", &[("version", version())]),
+                        Err(e) => self.i18n.t_args("update-check-failed", &[("detail", e)]),
+                    };
+                    if self.update_note.is_some() {
+                        self.update_note = Some(note);
+                    }
+                    if let Ok(Some(ready)) = r {
+                        self.update = Some(ready);
+                    }
                 }
                 Msg::Devices(d) => {
                     log!("devices: {:?}", d.iter().map(|d| &d.path).collect::<Vec<_>>());
@@ -1633,10 +1664,16 @@ impl App {
             ui.menu_button(t("menu-help"), |ui| {
                 entry(ui, true, item(t("menu-manual"), "F1".into()), Act::Manual);
                 ui.separator();
+                entry(ui, true, egui::Button::new(t("menu-check-updates")), Act::CheckUpdates);
                 entry(ui, true, egui::Button::new(t("menu-about")), Act::About);
             });
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.weak(format!("EyeCanSee {}", version()));
+                if let Some(r) = &self.update {
+                    // Red with white text (contrast 5.6:1): as a plain button it went unnoticed.
+                    let text = egui::RichText::new(self.i18n.t_args("update-install", &[("version", &r.version)])).color(Color32::WHITE).strong();
+                    pick(ui.add(egui::Button::new(text).fill(Color32::from_rgb(0xC6, 0x28, 0x28))), Act::Update);
+                }
             });
         });
         if let Some(a) = act.take() {
@@ -1657,6 +1694,16 @@ impl App {
             Act::Cut(path) => self.clip(ctx, path, true),
             Act::Paste(dir) => self.paste(dir),
             Act::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            Act::Update => {
+                let Some(ready) = &self.update else { return };
+                match update::apply(ready) {
+                    Ok(()) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+                    Err(e) => {
+                        log!("update: ERROR {e}");
+                        self.error = Some(self.i18n.t_args("update-failed", &[("detail", &e)]));
+                    }
+                }
+            }
             Act::Open => self.activate(self.selected),
             Act::OpenDir(dir) => self.set_dir(dir),
             Act::Back => self.close_viewer(),
@@ -1665,9 +1712,51 @@ impl App {
             Act::Up => self.go_up(),
             Act::Manual => self.help = true,
             Act::About => self.about = true,
+            Act::CheckUpdates => {
+                let id = if let Some(r) = &self.update {
+                    self.update_note = Some(self.i18n.t_args("update-found", &[("version", &r.version)]));
+                    return;
+                } else if self.check_updates(ctx) {
+                    "update-checking"
+                } else {
+                    "update-unavailable"
+                };
+                self.update_note = Some(self.i18n.t(id));
+            }
             Act::Meta(g) => self.show_meta(g, !self.meta_shown(g)),
             Act::Sort(by) => self.set_sort(by, self.settings.sort_desc),
             Act::SortDesc => self.set_sort(self.settings.sort_by, !self.settings.sort_desc),
+        }
+    }
+
+    /// In the background; the answer comes as `Msg::Update`. `false` = this copy is not updated
+    /// by EyeCanSee (RPM, development build).
+    fn check_updates(&self, ctx: &egui::Context) -> bool {
+        let Some(kind) = update::Kind::detect() else { return false };
+        let (tx, ctx) = (self.tx.clone(), ctx.clone());
+        std::thread::spawn(move || {
+            if tx.send(Msg::Update(update::check(kind, version()))).is_ok() {
+                ctx.request_repaint();
+            }
+        });
+        true
+    }
+
+    /// Help > Check for updates: the outcome, until closed.
+    fn update_window(&mut self, ctx: &egui::Context) {
+        let Some(text) = &self.update_note else { return };
+        let mut open = true;
+        egui::Window::new(self.i18n.t("menu-check-updates"))
+            .open(&mut open)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+            .show(ctx, |ui| {
+                ui.set_max_width(360.0);
+                ui.label(text);
+            });
+        if !open {
+            self.update_note = None;
         }
     }
 
@@ -2031,6 +2120,7 @@ impl eframe::App for App {
             });
         self.help = open;
         self.about_window(&ctx);
+        self.update_window(&ctx);
         self.options_window(&ctx);
         if let Some(a) = self.act.take() {
             self.run(&ctx, a);

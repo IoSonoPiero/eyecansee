@@ -26,18 +26,27 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 
 ## Options
 
-**File > Options…** opens the options window, divided into tabs: **General** (last folder, window at startup, language), **Look** (colors), **Browsing** (scrolling, viewer), **Deleting** and **Thumbnails**. Every change is saved immediately in `~/.config/eyecansee/settings.json` on Linux and `%APPDATA%\eyecansee\settings.json` on Windows, a text file you can also edit by hand.
+**File > Options…** opens the options window, divided into tabs: **General** (last folder, window at startup, language, updates), **Look** (colors), **Browsing** (scrolling, viewer), **Deleting** and **Thumbnails**. Every change is saved immediately in `~/.config/eyecansee/settings.json` on Linux and `%APPDATA%\eyecansee\settings.json` on Windows, a text file you can also edit by hand.
 
 - **Reopen the last folder at startup** (on by default): when EyeCanSee starts without a folder, for example from the applications menu, it opens the folder you were viewing when you closed it. If that folder no longer exists, it opens your home folder. Remote locations reopen without the password, which you must type again.
 - **Remember the scroll position of each folder** (off by default): when you go back to a folder you already viewed, the grid starts where you left it. When off, every folder you open starts from the first thumbnail. It lasts until EyeCanSee is closed.
 - **In the viewer, after the last image start again from the first** (off by default): and from the first image, going back shows the last one. When off, the viewer stops at the first and the last image.
 - **Window at startup**, one choice only: **Normal size**, **Maximized** (fills the screen, leaving the system bars visible), or **Size it had when closed** (if it was maximized, it reopens maximized).
+- **Check for updates at startup** (on by default): see *Updates*.
 - **Language**: **Same as the system** (default: the Windows or desktop language, English if it is not among the available ones) or one of the listed languages, each shown by its own name. The choice applies at once, this manual included.
 - **Colors**: **Same as the system** (default: light or dark like the Windows or desktop theme, following it when it changes), **Light** or **Dark**. The choice applies at once.
 - **Clean up the thumbnail cache** and **Cache limit**: see *Thumbnails*.
 - **Empty the thumbnail cache…**: deletes all saved thumbnails, after a confirmation showing how many and how much space is freed. Your images are not touched; thumbnails of the open folder are created again right away, the others when you open them again.
 - **Delete files on this computer for good, without the trash (dangerous)** (off at first): see *Deleting and renaming*.
 - **Deleting on phones and servers**: see *Deleting and renaming*.
+
+## Updates
+
+The Windows installer, the Windows zip and the AppImage update themselves. At startup EyeCanSee asks GitHub, in the background, for the latest published version; if it is newer, it downloads it and checks it against the SHA-256 fingerprint GitHub publishes for it. When it is ready, a red **Install … and restart** button appears at the top right of the menu bar: EyeCanSee closes, installs the new version and opens again. Nothing is installed until you click it.
+
+- **Help > Check for updates** does the same check at any time and tells you the outcome.
+- The check can be turned off in **File > Options… > General**. When off, EyeCanSee contacts GitHub only when you choose Check for updates. Nothing about you or your images is sent: only the request for the latest version.
+- On Fedora, EyeCanSee is updated by `dnf` with the rest of the system.
 
 ## Deleting and renaming
 

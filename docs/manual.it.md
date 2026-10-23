@@ -26,18 +26,27 @@ Le miniature vengono salvate su disco, così riaprire la stessa cartella è imme
 
 ## Opzioni
 
-**File > Opzioni…** apre la finestra delle opzioni, divisa in schede: **Generale** (ultima cartella, finestra all'avvio, lingua), **Aspetto** (colori), **Navigazione** (scorrimento, visore), **Eliminazione** e **Miniature**. Ogni modifica viene salvata subito in `~/.config/eyecansee/settings.json` su Linux e `%APPDATA%\eyecansee\settings.json` su Windows, un file di testo che puoi anche modificare a mano.
+**File > Opzioni…** apre la finestra delle opzioni, divisa in schede: **Generale** (ultima cartella, finestra all'avvio, lingua, aggiornamenti), **Aspetto** (colori), **Navigazione** (scorrimento, visore), **Eliminazione** e **Miniature**. Ogni modifica viene salvata subito in `~/.config/eyecansee/settings.json` su Linux e `%APPDATA%\eyecansee\settings.json` su Windows, un file di testo che puoi anche modificare a mano.
 
 - **Riapri l'ultima cartella all'avvio** (attiva all'inizio): quando EyeCanSee parte senza una cartella, per esempio dal menù delle applicazioni, apre quella che stavi guardando alla chiusura. Se quella cartella non esiste più, apre la tua cartella home. Gli indirizzi remoti si riaprono senza password, che va riscritta.
 - **Ricorda la posizione di scorrimento di ogni cartella** (spenta all'inizio): tornando in una cartella già vista, la griglia riparte dal punto in cui l'avevi lasciata. Spenta, ogni cartella aperta parte dalla prima anteprima. Vale finché EyeCanSee resta aperto.
 - **Nel visore, dopo l'ultima immagine ricomincia dalla prima** (spenta all'inizio): e dalla prima immagine, tornando indietro, mostra l'ultima. Spenta, il visore si ferma alla prima e all'ultima immagine.
 - **Finestra all'avvio**, una sola scelta: **Dimensione normale**, **Massimizzata** (occupa tutto lo schermo lasciando visibili le barre del sistema), oppure **Dimensione che aveva alla chiusura** (se era massimizzata si riapre massimizzata).
+- **Controlla gli aggiornamenti all'avvio** (attiva all'inizio): vedi *Aggiornamenti*.
 - **Lingua**: **Come il sistema** (predefinita: la lingua di Windows o del desktop, inglese se non è tra quelle disponibili) oppure una delle lingue elencate, ognuna col suo nome. La scelta vale subito, anche per questo manuale.
 - **Colori**: **Come il sistema** (predefinito: chiari o scuri come il tema di Windows o del desktop, e cambiano insieme a lui), **Chiari** o **Scuri**. La scelta vale subito.
 - **Pulizia della cache miniature** e **Limite della cache**: vedi *Miniature*.
 - **Svuota la cache miniature…**: elimina tutte le miniature salvate, dopo una conferma con il numero di miniature e lo spazio liberato. Le immagini non vengono toccate; le miniature della cartella aperta si rifanno subito, le altre quando le riapri.
 - **Elimina i file del computer definitivamente, senza cestino (pericoloso)** (spenta all'inizio): vedi *Eliminare e rinominare*.
 - **Eliminare su telefoni e server**: vedi *Eliminare e rinominare*.
+
+## Aggiornamenti
+
+L'installer per Windows, lo zip per Windows e l'AppImage si aggiornano da soli. All'avvio EyeCanSee chiede a GitHub, in background, l'ultima versione pubblicata; se è più nuova la scarica e la controlla con l'impronta SHA-256 che GitHub pubblica per lei. Quando è pronta, in alto a destra nella barra dei menù compare un pulsante rosso **Installa la … e riavvia**: EyeCanSee si chiude, installa la versione nuova e si riapre. Finché non lo premi non viene installato niente.
+
+- **Aiuto > Verifica aggiornamenti** fa lo stesso controllo quando vuoi e ti dice com'è andata.
+- Il controllo si può spegnere in **File > Opzioni… > Generale**. Spento, EyeCanSee contatta GitHub solo quando scegli Verifica aggiornamenti. Non viene inviato niente su di te o sulle tue immagini: solo la richiesta dell'ultima versione.
+- Su Fedora EyeCanSee si aggiorna con `dnf`, insieme al resto del sistema.
 
 ## Eliminare e rinominare
 
