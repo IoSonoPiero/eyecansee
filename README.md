@@ -29,7 +29,7 @@ Mature programs like XnView, IrfanView or digiKam do much more than EyeCanSee, a
 - Further rare formats through ImageMagick (XCF, PSB, DPX, FITS and others).
 - Camera RAW files: CR2, CR3, NEF, ARW, RAF, ORF, RW2, DNG and others (tested with real files from Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic and Google cameras).
 
-All the formats it opens and saves, on Linux and Windows: [docs/formats.md](docs/formats.md).
+All the formats it opens and saves, on Linux and Windows: [docs/formats.md](docs/formats.md). Sample files to try them, including real HEIC and Camera RAW photos: [Test files](https://github.com/IoSonoPiero/eyecansee/releases/tag/test-files).
 
 The full list of features, keys and limits is in the manual: [English](docs/manual.en.md), [Italiano](docs/manual.it.md).
 
