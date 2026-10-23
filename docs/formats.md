@@ -63,6 +63,6 @@ The same formats on Linux and Windows: all the encoders are part of the program.
 | QOI | qoi | – | ✓ | – | – | `image` |
 
 - JPEG has no transparency: transparent parts are laid on white. Arithmetic coding and lossless JPEG make smaller or exact files that many programs cannot open.
-- Metadata are carried over only from originals whose decoder reads them: EXIF from JPEG, PNG and WebP, the colour profile from JPEG, PNG, WebP, TIFF and GIF. Other originals (HEIC, AVIF, JPEG XL, RAW…) are saved without them for now.
+- EXIF is carried over from every original whose EXIF the metadata panel reads: JPEG, PNG, WebP, TIFF, HEIC, AVIF and the RAW files built on TIFF (tested: CR2, NEF, ARW, DNG). From RAW and HEIC only the camera, shot and GPS fields go in, not the maker note. CR3, RAF, ORF and RW2 are not read yet. The colour profile comes only from JPEG, PNG, WebP, TIFF and GIF.
 - The EXIF orientation is reset to "upright", since the saved pixels are already turned.
 - Not saved: HEIC (patent licensing of HEVC) and JPEG XL (no encoder in the program yet).

@@ -73,7 +73,7 @@ Clic destro su un'immagine (nella griglia o nel visore), poi **Salva in un altro
 
 - **Formato**: JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF o QOI, con tutte le opzioni di ciascuno: qualità, dettaglio del colore, JPEG progressivo e senza perdita; livello di compressione e filtro per il PNG; WebP con o senza perdita; qualità, velocità e bit per canale per l'AVIF; compressione per il TIFF; riduzione dei colori per il GIF. La tabella completa è in [docs/formats.md](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/formats.md).
 - **100%** mostra i pixel veri; trascinando una delle due immagini si spostano entrambe, così confronti lo stesso punto.
-- **Mantieni i metadati (EXIF, profilo colore)** è attiva all'inizio. È grigia se l'originale non ne ha o se il formato non può contenerli. L'orientamento viene messo dritto, perché i pixel salvati sono già girati.
+- **Mantieni i metadati (EXIF, profilo colore)** è attiva all'inizio. È grigia se l'originale non ne ha o se il formato non può contenerli. L'EXIF salvato è quello che mostra il pannello dei metadati, anche dalle foto RAW e HEIC (fotocamera, scatto, GPS; non le note private del produttore). L'orientamento viene messo dritto, perché i pixel salvati sono già girati.
 - **Nome del file** e **Salva**: il file nuovo va nella stessa cartella dell'originale. Se il nome c'è già viene aggiunto " (2)", e la pagina lo dice prima del salvataggio.
 - Esc o ✕ chiudono la pagina senza salvare.
 

@@ -1,6 +1,6 @@
-//! EXIF metadata of the selected photo, for the panel below the grid. Read only, with
-//! `kamadak-exif` (pure Rust: files also come from phones and servers). Reads JPEG, HEIC/AVIF,
-//! PNG, WebP and TIFF.
+//! EXIF metadata of the selected photo, for the panel below the grid, with `kamadak-exif` (pure
+//! Rust: files also come from phones and servers). Reads JPEG, HEIC/AVIF, PNG, WebP, TIFF and the
+//! RAW files built on TIFF. `exif_chunk` hands the same EXIF to Save in another format.
 
 use std::io::Cursor;
 
@@ -56,6 +56,44 @@ const FIELDS: &[(Group, Tag, &str)] = &[
     (Group::Gps, Tag::GPSAltitude, "meta-altitude"),
     (Group::Gps, Tag::GPSDateStamp, "meta-gps-date"),
 ];
+
+/// The EXIF of any file the panel reads, rewritten as a standalone TIFF block for a converted copy:
+/// the camera, shot and GPS fields. Left out: the tags that describe the original's own image data
+/// (strips, sensor layout, DNG tags of a RAW) and the maker note, whose offsets point into the
+/// original file. `None` without EXIF.
+pub fn exif_chunk(bytes: &[u8]) -> Option<Vec<u8>> {
+    use exif::Context;
+    const TIFF: &[Tag] = &[
+        Tag::Make,
+        Tag::Model,
+        Tag::Software,
+        Tag::DateTime,
+        Tag::Artist,
+        Tag::Copyright,
+        Tag::ImageDescription,
+        Tag::Orientation,
+        Tag::XResolution,
+        Tag::YResolution,
+        Tag::ResolutionUnit,
+    ];
+    let exif = Reader::new().read_from_container(&mut Cursor::new(bytes)).ok()?;
+    let mut writer = exif::experimental::Writer::new();
+    let mut any = false;
+    for f in exif.fields().filter(|f| f.ifd_num == In::PRIMARY) {
+        let keep = match f.tag.context() {
+            Context::Tiff => TIFF.contains(&f.tag),
+            Context::Exif => f.tag != Tag::MakerNote,
+            Context::Gps => true,
+            _ => false,
+        };
+        if keep {
+            writer.push_field(f);
+            any = true;
+        }
+    }
+    let mut out = Cursor::new(Vec::new());
+    (any && writer.write(&mut out, exif.little_endian()).is_ok()).then(|| out.into_inner())
+}
 
 /// `None` if the file has no EXIF (or it cannot be read).
 pub fn read(bytes: &[u8]) -> Option<Meta> {
@@ -166,5 +204,29 @@ mod tests {
         assert!((lat - 45.5).abs() < 1e-9);
         assert!((lon + 9.26).abs() < 1e-9);
         assert_eq!(super::read(b"not an image"), None);
+    }
+
+    #[test]
+    fn exif_for_a_copy() {
+        let fields = [
+            field(Tag::Make, Value::Ascii(vec![b"SONY".to_vec()])),
+            field(Tag::Compression, Value::Short(vec![7])),
+            field(Tag::DateTimeOriginal, Value::Ascii(vec![b"2018:03:13 16:38:58".to_vec()])),
+            field(Tag::MakerNote, Value::Undefined(b"offsets into the original".to_vec(), 0)),
+            field(Tag::GPSAltitude, Value::Rational(vec![(98, 1).into()])),
+        ];
+        let mut writer = Writer::new();
+        for f in &fields {
+            writer.push_field(f);
+        }
+        let mut tiff = std::io::Cursor::new(Vec::new());
+        writer.write(&mut tiff, true).unwrap();
+
+        let chunk = super::exif_chunk(tiff.get_ref()).unwrap();
+        let exif = exif::Reader::new().read_raw(chunk).unwrap();
+        let has = |tag| exif.get_field(tag, In::PRIMARY).is_some();
+        assert!(has(Tag::Make) && has(Tag::DateTimeOriginal) && has(Tag::GPSAltitude));
+        assert!(!has(Tag::Compression) && !has(Tag::MakerNote));
+        assert_eq!(super::exif_chunk(b"not an image"), None);
     }
 }

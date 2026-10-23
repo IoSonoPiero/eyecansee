@@ -167,13 +167,15 @@ pub struct Original {
 impl Original {
     pub fn open(bytes: &[u8], name: &str) -> Result<Original, String> {
         let image = crate::decode::decode_full(bytes, name)?;
-        // shortcut: metadata only from the formats `image` reads (JPEG, PNG, WebP, TIFF); HEIC, AVIF and JPEG XL lose them.
-        let (mut exif, icc) = ImageReader::new(Cursor::new(bytes))
+        // As found in the formats `image` reads (JPEG, PNG, WebP, TIFF). The others (RAW, HEIC…)
+        // get the EXIF the metadata panel shows; their colour profile is still lost.
+        let (exif, icc) = ImageReader::new(Cursor::new(bytes))
             .with_guessed_format()
             .ok()
             .and_then(|r| r.into_decoder().ok())
             .map(|mut d| (d.exif_metadata().ok().flatten(), d.icc_profile().ok().flatten()))
             .unwrap_or_default();
+        let mut exif = exif.or_else(|| crate::meta::exif_chunk(bytes));
         if let Some(chunk) = &mut exif {
             let _ = Orientation::remove_from_exif_chunk(chunk);
         }

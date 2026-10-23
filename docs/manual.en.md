@@ -73,7 +73,7 @@ Right-click an image (in the grid or in the viewer) and choose **Save in another
 
 - **Format**: JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF or QOI, with all the options of each one: quality, colour detail, progressive and lossless JPEG; compression level and filter for PNG; lossy or lossless WebP; quality, speed and bit depth for AVIF; compression for TIFF; colour reduction for GIF. The full table is in [docs/formats.md](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/formats.md).
 - **100%** shows the real pixels; drag either image to move both, so you compare the same spot.
-- **Keep the metadata (EXIF, colour profile)** is on at first. It is greyed out when the original has none or the format cannot hold them. The orientation is set to upright, since the saved pixels are already turned.
+- **Keep the metadata (EXIF, colour profile)** is on at first. It is greyed out when the original has none or the format cannot hold them. The EXIF saved is what the metadata panel shows, also from RAW and HEIC photos (camera, shot, GPS; not the maker's private notes). The orientation is set to upright, since the saved pixels are already turned.
 - **File name** and **Save**: the new file goes into the same folder as the original. If the name is already taken, " (2)" is added, and the page says so before you save.
 - Esc or ✕ closes the page without saving.
 
