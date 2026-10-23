@@ -3,8 +3,9 @@
 //! reader to the writer, so a large video never sits whole in memory.
 
 use std::collections::HashMap;
-use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::{Mutex, OnceLock};
+use std::time::Instant;
 
 use crate::source::{Deletion, Error, Store, free_name, name, parent};
 
@@ -43,6 +44,8 @@ pub struct Progress {
     pub touched: Mutex<Vec<String>>,
     /// Seconds spent looking, for the log.
     pub looked: Mutex<f64>,
+    /// When the copy itself started, after looking: the UI works out speed and time left from it.
+    pub started: OnceLock<Instant>,
     /// Name of the file being copied.
     pub current: Mutex<String>,
     pub cancel: AtomicBool,
@@ -113,7 +116,7 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
     }
 
     // Everything to copy, with sizes for the progress bar.
-    let start = std::time::Instant::now();
+    let start = Instant::now();
     let mut lists = Vec::new();
     for (src, dest) in &copies {
         let list = if src.ends_with('/') {
@@ -133,6 +136,7 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
     p.files_total.store(files.clone().count(), Ordering::Relaxed);
     p.total.store(files.map(|(_, _, size)| size).sum(), Ordering::Relaxed);
     *p.looked.lock().unwrap() = start.elapsed().as_secs_f64();
+    let _ = p.started.set(Instant::now());
 
     for ((src, _), list) in copies.iter().zip(lists) {
         for (from, dest, size) in list {

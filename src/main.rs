@@ -565,8 +565,7 @@ impl App {
     }
 
     fn display(&self, dir: &str) -> String {
-        let sep = if self.base.contains("://") || !self.base.contains('\\') { "/" } else { "\\" };
-        format!("{}{}", self.base, dir.replace('/', sep))
+        shown(&self.base, dir)
     }
 
     pub(crate) fn set_dir(&mut self, dir: String) {
@@ -1160,7 +1159,7 @@ impl App {
                 }
             }
         }
-        let Some((p, cut, _, _)) = &self.transfer else { return };
+        let Some((p, cut, base, dest)) = &self.transfer else { return };
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
         let (done, total) = (p.done.load(Ordering::Relaxed), p.total.load(Ordering::Relaxed));
         let (files, files_total) = (p.files.load(Ordering::Relaxed), p.files_total.load(Ordering::Relaxed));
@@ -1175,6 +1174,16 @@ impl App {
             ("size", &self.human_size(total)),
         ])
         };
+        // Average speed since the copy started; the first second gives no meaningful estimate.
+        let left = p.started.get().map(|t| t.elapsed().as_secs_f64()).filter(|&secs| secs >= 1.0 && done > 0).map(|secs| {
+            let speed = done as f64 / secs;
+            self.i18n.t_args("transfer-left", &[
+                ("percent", &(done * 100 / total.max(1)).to_string()),
+                ("speed", &self.human_size(speed as u64)),
+                ("time", &human_time((total.saturating_sub(done) as f64 / speed) as u64)),
+            ])
+        });
+        let to = self.i18n.t_args("transfer-to", &[("dir", &shown(base, dest))]);
         let current = p.current.lock().unwrap().clone();
         let cancelling = p.cancel.load(Ordering::Relaxed);
         egui::Window::new(self.i18n.t(if *cut { "transfer-moving" } else { "transfer-copying" }))
@@ -1182,10 +1191,18 @@ impl App {
             .resizable(false)
             .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-16.0, -40.0))
             .show(ctx, |ui| {
-                ui.set_width(320.0);
+                ui.set_width(360.0);
+                ui.add(egui::Label::new(egui::RichText::new(current).strong()).truncate());
+                ui.add(egui::Label::new(to).truncate());
                 ui.label(counts);
-                ui.add(egui::Label::new(egui::RichText::new(current).weak()).truncate());
-                ui.add(egui::ProgressBar::new(if total > 0 { done as f32 / total as f32 } else { 0.0 }));
+                ui.label(left.unwrap_or_default());
+                // Accent fill on a grey track: the default (selection blue on white) hid the empty part.
+                ui.scope(|ui| {
+                    ui.visuals_mut().extreme_bg_color = ui.visuals().widgets.inactive.bg_fill;
+                    let fill = theme::accent(ui.visuals());
+                    let fraction = if total > 0 { done as f32 / total as f32 } else { 0.0 };
+                    ui.add(egui::ProgressBar::new(fraction).fill(fill).desired_height(16.0));
+                });
                 if ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no"))).clicked() {
                     p.cancel.store(true, Ordering::Relaxed);
                 }
@@ -2088,8 +2105,30 @@ fn parse_modified(modified: &str) -> Option<jiff::Timestamp> {
     }
 }
 
+/// A folder of a source as the address bar shows it: `base` plus the folder, with `\` on Windows.
+fn shown(base: &str, dir: &str) -> String {
+    let sep = if base.contains("://") || !base.contains('\\') { "/" } else { "\\" };
+    format!("{base}{}", dir.replace('/', sep))
+}
+
+/// "40 s", "1 min 15 s", "2 h 5 min": the time left of a copy.
+fn human_time(secs: u64) -> String {
+    match secs {
+        0..60 => format!("{secs} s"),
+        60..3600 => format!("{} min {} s", secs / 60, secs % 60),
+        _ => format!("{} h {} min", secs / 3600, secs % 3600 / 60),
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn human_times() {
+        assert_eq!(super::human_time(40), "40 s");
+        assert_eq!(super::human_time(75), "1 min 15 s");
+        assert_eq!(super::human_time(7500), "2 h 5 min");
+    }
+
     #[test]
     fn modified_formats() {
         let unix = super::parse_modified("1776333600").unwrap();

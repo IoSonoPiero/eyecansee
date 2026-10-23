@@ -1,4 +1,4 @@
-# Builds a release when a tag v<version> is pushed: the Windows zip, the Linux AppImage and the source
+# Builds a release when a tag v<version> is pushed: the Windows zip and installer, the Linux AppImage and the source
 # RPM for COPR. The files go into a draft GitHub release, published by hand once checked.
 # Tags with a suffix (v0.21.0-test) are trial runs: prerelease draft, and the RPM is not sent to COPR.
 # On main (when this file or the AppImage script change, or by hand) it only builds the zip and the
@@ -96,10 +96,32 @@ jobs:
           if ($alive) { Stop-Process -Id $p.Id }
           Get-Content test\log.txt
           if (-not $alive) { "::error::eyecansee.exe exited within 8 s"; exit 1 }
+      - name: Installer
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          & $iscc /Qp "/DAppVersion=$env:VER" "/DPkg=$PWD\pkg" "/O$PWD" tools\eyecansee.iss
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: Installer test
+        run: |
+          # Silent install for the current user, then uninstall: the exe and the "Open with" key must come and go.
+          $setup = "EyeCanSee-$env:VER-windows-x64-setup.exe"
+          $dir = "$env:LOCALAPPDATA\Programs\EyeCanSee"
+          $key = "HKCU:\Software\Classes\EyeCanSee.Image"
+          Start-Process -Wait -FilePath $setup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /CURRENTUSER /NORESTART"
+          if (-not (Test-Path "$dir\eyecansee.exe")) { "::error::eyecansee.exe not installed in $dir"; exit 1 }
+          if (-not (Test-Path $key)) { "::error::$key not created"; exit 1 }
+          Start-Process -Wait -FilePath "$dir\unins000.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"
+          # The uninstaller restarts itself from a temporary copy, so -Wait can return before it is done.
+          foreach ($i in 1..30) { if (-not (Test-Path "$dir\eyecansee.exe")) { break }; Start-Sleep 1 }
+          if (Test-Path "$dir\eyecansee.exe") { "::error::eyecansee.exe still there after uninstalling"; exit 1 }
+          if (Test-Path $key) { "::error::$key still there after uninstalling"; exit 1 }
       - uses: actions/upload-artifact@v6
         with:
           name: windows
-          path: EyeCanSee-*-windows-x64.zip
+          path: |
+            EyeCanSee-*-windows-x64.zip
+            EyeCanSee-*-windows-x64-setup.exe
 
   appimage:
     needs: version
