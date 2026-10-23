@@ -6,13 +6,13 @@ It is early in development. This page lists only what works now: new features ar
 
 ## About
 
-I am not a programmer any more, and have not been for years. I needed an image viewer that could open the photos on my phone and on my disks quickly, on both Linux and Windows, so I started writing EyeCanSee with the help of [Claude Code](https://claude.com/claude-code), an AI assistant. I test every feature on my own computers and devices before it goes in, and the manual says what is known not to work.
+I am not a programmer any more, and have not been for years. I needed a program that could open the photos on my phone and on my disks quickly, on both Linux and Windows, so I started writing EyeCanSee with the help of [Claude Code](https://claude.com/claude-code), an AI assistant. I test every feature on my own computers and devices before it goes in, and the manual says what is known not to work.
 
 Bug reports and suggestions are welcome in the [issues](https://github.com/IoSonoPiero/eyecansee/issues).
 
-## Why another image viewer?
+## Why another image manager?
 
-Mature viewers like XnView, IrfanView or digiKam do much more than EyeCanSee, and if you need editing, catalogues or batch tools they are the better choice today. EyeCanSee started from one need: browsing the photos on an Android phone quickly. It talks to the phone directly over USB instead of going through the file manager: on Linux, a folder with hundreds of photos that took minutes now takes seconds. It works the same way on Linux and Windows, and it is open source.
+Mature programs like XnView, IrfanView or digiKam do much more than EyeCanSee, and if you need editing, catalogues or batch tools they are the better choice today. EyeCanSee started from one need: browsing the photos on an Android phone quickly. It talks to the phone directly over USB instead of going through the file manager: on Linux, a folder with hundreds of photos that took minutes now takes seconds. From there it grew into the rest of the daily work with photos: copying and moving them between the phone, the disks and the computer, cleaning up, and saving them in another format. It works the same way on Linux and Windows, and it is open source.
 
 ## What it does today
 
@@ -35,7 +35,7 @@ The full list of features, keys and limits is in the manual: [English](docs/manu
 
 ## Download
 
-- **Windows**: from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), either run the installer (`-setup.exe`: Start menu entry, optional desktop shortcut, "Open with" for images, removal from Settings, no administrator rights needed) or download the zip, extract it anywhere and run `eyecansee.exe`. The program is not signed, so Windows may warn you the first time: click **More info**, then **Run anyway**.
+- **Windows**: from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), either run the installer (`-setup.exe`: Start menu entry, optional desktop shortcut, "Open with" for images, removal from Settings, no administrator rights needed) or download the zip, extract the whole folder anywhere and run `eyecansee.exe` (it needs the files next to it). The program is not signed, so Windows may warn you the first time: click **More info**, then **Run anyway**.
 - **Fedora** (43 and later): install it from the [COPR repository](https://copr.fedorainfracloud.org/coprs/iosonopiero/eyecansee/), and updates arrive with the system ones:
   ```bash
   sudo dnf copr enable iosonopiero/eyecansee
