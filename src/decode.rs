@@ -299,7 +299,16 @@ fn raw(bytes: &[u8]) -> Result<DynamicImage> {
         Ok(Some(img)) => img,
         _ => {
             let raw = decoder.raw_image(&src, &params, false)?;
-            RawDevelop::default().develop_intermediate(&raw)?.to_dynamic_image().ok_or("RAW: development failed")?
+            let img = RawDevelop::default().develop_intermediate(&raw)?.to_dynamic_image().ok_or("RAW: development failed")?;
+            // rawler 0.8.0 develops the DNGs of Samsung Galaxy phones (linear DNG with restart markers and
+            // black levels repeated per pixel: dnglab #805, #810) into a plain white image. Their preview
+            // is full size, so it takes the place of a development that came out of a single colour.
+            let px = img.as_bytes().len() / (img.width() as usize * img.height() as usize).max(1);
+            let flat = px > 0 && img.as_bytes().chunks_exact(px).all(|p| p == &img.as_bytes()[..px]);
+            match decoder.preview_image(&src, &params) {
+                Ok(Some(preview)) if flat => preview,
+                _ => img,
+            }
         }
     };
     let exif = decoder.raw_metadata(&src, &params).ok().and_then(|m| m.exif.orientation);
