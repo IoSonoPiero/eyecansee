@@ -32,7 +32,7 @@ What EyeCanSee opens and what it can save, on Linux (Fedora package and AppImage
 | SGI | sgi, rgb, rgba, bw | ✓ | ✓ | `image-extras` |
 | WBMP, XBM, XPM, OTB | wbmp, xbm, xpm, otb | ✓ | ✓ | `image-extras` |
 | Apple icon | icns | ✓ | ✓ | `image-extras` |
-| Camera RAW (not yet tested with real camera files) | cr2, cr3, nef, arw, dng, raf, orf, rw2 and others | ✓ | ✓ | `rawler` |
+| Camera RAW | cr2, cr3, nef, arw, dng, raf, orf, rw2 and others | ✓ | ✓ | `rawler` |
 | Photoshop large document | psb | ✓ | ✓ | ImageMagick |
 | GIMP | xcf | ✓ | ✓ | ImageMagick |
 | Sun raster | ras, sun | ✓ | ✓ | ImageMagick |
