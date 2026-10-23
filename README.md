@@ -32,7 +32,7 @@ The full list of features, keys and limits is in the manual: [English](docs/manu
 
 ## Download
 
-- **Windows**: download the zip from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), extract it anywhere and run `eyecansee.exe`. No installation needed. The program is not signed, so Windows may warn you the first time: click **More info**, then **Run anyway**.
+- **Windows**: from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), either run the installer (`-setup.exe`: Start menu entry, optional desktop shortcut, "Open with" for images, removal from Settings, no administrator rights needed) or download the zip, extract it anywhere and run `eyecansee.exe`. The program is not signed, so Windows may warn you the first time: click **More info**, then **Run anyway**.
 - **Fedora** (43 and later): install it from the [COPR repository](https://copr.fedorainfracloud.org/coprs/iosonopiero/eyecansee/), and updates arrive with the system ones:
   ```bash
   sudo dnf copr enable iosonopiero/eyecansee
