@@ -14,7 +14,7 @@ Press **F1** at any time to open or close this manual.
 - **Several items**: Ctrl+click adds or removes an item, Shift+click selects everything from the last clicked item to this one, Shift+arrows extend the selection, Ctrl+A selects everything in the folder. **Dragging** with the mouse draws a rectangle that selects the cells it touches (with Ctrl it adds them to those already selected); near the top or bottom edge the grid scrolls. A click without keys, or an arrow, goes back to a single item.
 - Arrows and Tab act on the side you clicked last, left or right: it is the one with the thin frame. There the selection is solid blue, on the other side it is lighter.
 
-Double-click an image, or select it and press Enter, to open it in the **viewer**. Press Esc, double-click the image or use the grid button in the toolbar to go back to the grid.
+Double-click an image, or select it and press Enter, to open it in the **viewer**. Press Esc, double-click the image or use the grid button in the toolbar to go back to the grid. The bar at the bottom of the viewer shows the file name, its position in the folder (for example 12 / 51), its size in pixels and on disk, and the date it was taken (the date it was modified when the photo has no such information or the metadata boxes are closed).
 
 ## Thumbnails
 
@@ -66,6 +66,16 @@ The top folder of a source and the storages of a phone cannot be deleted or rena
 **The trash of phones and servers**: every folder where you deleted something has a **Trash**: a strip at the top of the grid says so, with the **Open the trash** button. Inside it the strip says whose trash it is and has **Restore all** and **Empty the trash…**. Inside it you can look at the images, **restore** them (they go back to the folder containing the trash) or delete them for good: there **Del** always deletes forever, and there is no Rename. Right click on an empty space inside the Trash: **Restore all** and **Empty the trash…** (everything deleted forever, after a confirmation). A trash left empty, after restoring or deleting what was inside it, goes away together with its strip.
 
 If the name of an item being restored is already taken, EyeCanSee asks what to do: for a file **Replace** (the one already there is deleted) or **Keep both** (the restored one becomes for example `photo (2).jpg`); for a folder **Merge** (the contents add up; files with the same name are both kept) or **Keep both**. **Cancel** also stops the rest of a Restore all. In the trash too a name already there becomes `photo (2).jpg`.
+
+## Saving in another format
+
+Right-click an image (in the grid or in the viewer) and choose **Save in another format…**. A page takes the whole window: the original on the left, the converted image on the right, each with its size in pixels and on disk (for the converted one also as a percentage of the original). What you see on the right is the file as it will be saved: it is encoded and decoded back every time you change an option.
+
+- **Format**: JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF or QOI, with all the options of each one: quality, colour detail, progressive and lossless JPEG; compression level and filter for PNG; lossy or lossless WebP; quality, speed and bit depth for AVIF; compression for TIFF; colour reduction for GIF. The full table is in [docs/formats.md](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/formats.md).
+- **100%** shows the real pixels; drag either image to move both, so you compare the same spot.
+- **Keep the metadata (EXIF, colour profile)** is on at first. It is greyed out when the original has none or the format cannot hold them. The orientation is set to upright, since the saved pixels are already turned.
+- **File name** and **Save**: the new file goes into the same folder as the original. If the name is already taken, " (2)" is added, and the page says so before you save.
+- Esc or ✕ closes the page without saving.
 
 ## Copying and moving
 

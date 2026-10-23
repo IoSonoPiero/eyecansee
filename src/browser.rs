@@ -104,6 +104,9 @@ impl App {
             }
             items.push(None);
             items.push(Some((t("menu-rename"), "F2".into(), Act::Rename(path.clone()))));
+            if !target.ends_with('/') {
+                items.push(Some((t("menu-save-as"), String::new(), Act::Convert(path.clone()))));
+            }
             items.push(None);
             items.push(Some((t("menu-delete"), t("key-delete"), Act::Delete(path.clone(), false))));
             items.push(Some((t("menu-delete-permanent"), t("key-shift-delete"), Act::Delete(path, true))));
@@ -775,6 +778,35 @@ impl App {
         }
     }
 
+    /// Status bar of the viewer, like the grid's: name, position, pixels, size on disk, date
+    /// taken (or modified, without EXIF or with the metadata boxes closed).
+    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) {
+        let files = self.files();
+        let Some(f) = files.get(current) else { return };
+        ui.visuals_mut().override_text_color = Some(Color32::WHITE);
+        ui.horizontal(|ui| {
+            ui.label(source::name(&f.path));
+            ui.separator();
+            ui.label(format!("{} / {}", current + 1, files.len()));
+            // shortcut: images beyond 8192 px show the size of their scaled-down texture; the decoder would have to report the real one.
+            if let Some(Ok(tex)) = self.full.get(&current) {
+                let [w, h] = tex.size();
+                ui.separator();
+                ui.label(self.i18n.t_args("convert-pixels", &[("w", &w.to_string()), ("h", &h.to_string())]));
+            }
+            ui.separator();
+            ui.label(self.human_size(f.size));
+            let taken = match &self.meta {
+                Some((i, Ok(Some(m)))) if *i == current => m.fields.iter().find(|(_, l, _)| *l == "meta-taken").map(|(_, l, v)| self.meta_value(l, v)),
+                _ => None,
+            };
+            if let Some(date) = taken.or_else(|| self.file_date(&f.modified)) {
+                ui.separator();
+                ui.label(date);
+            }
+        });
+    }
+
     /// Value of a metadata field as shown: Fluent ids translated, dates in the language's format.
     fn meta_value(&self, label: &str, value: &str) -> String {
         if value.starts_with("meta-") {
@@ -842,7 +874,10 @@ impl App {
     /// Draws the ".." cell, which goes up one level; returns `true` if it was double-clicked.
     fn up_cell(&mut self, ui: &mut Ui, rect: Rect) -> bool {
         let name = self.i18n.t("menu-parent");
-        let response = ui.interact(rect, ui.scope_id().with("cell-up"), Sense::click()).on_hover_text(&name);
+        let mut response = ui.interact(rect, ui.scope_id().with("cell-up"), Sense::click());
+        if !self.asking() {
+            response = response.on_hover_text(&name);
+        }
         let painter = ui.painter_at(rect);
         let fill = selection_fill(ui, self.focus == Focus::Grid);
         let visuals = ui.visuals();
@@ -875,7 +910,11 @@ impl App {
         let Some(Ok(listing)) = self.listings.get(&self.dir) else { return false };
         let path = if i < ndirs { listing.dirs[i].clone() } else { listing.files[i - ndirs].path.clone() };
         let name = self.item_name(&path);
-        let response = ui.interact(rect, ui.scope_id().with(("cell", i)), Sense::click()).on_hover_text(&name);
+        let mut response = ui.interact(rect, ui.scope_id().with(("cell", i)), Sense::click());
+        // Not under a confirmation: the name popping up next to it looked like a highlighted item.
+        if !self.asking() {
+            response = response.on_hover_text(&name);
+        }
 
         let painter = ui.painter_at(rect);
         let active = self.focus == Focus::Grid;

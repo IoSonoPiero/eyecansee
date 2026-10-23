@@ -145,13 +145,29 @@ pub fn thumbnail(bytes: &[u8], name: &str, side: u32) -> std::result::Result<Dyn
     Ok(img)
 }
 
+/// For showing an image already decoded: scaled down only beyond the texture limit, as `decode`.
+pub fn preview(img: &DynamicImage) -> ColorImage {
+    if img.width().max(img.height()) > MAX_SIDE {
+        to_color_image(img.resize(MAX_SIDE, MAX_SIDE, FilterType::Triangle))
+    } else {
+        to_color_image(img.clone())
+    }
+}
+
+/// Whole image, at full size and upright: for saving in another format.
+pub fn decode_full(bytes: &[u8], name: &str) -> std::result::Result<DynamicImage, String> {
+    decode_any(bytes, name)
+}
+
 fn decode_any(bytes: &[u8], name: &str) -> std::result::Result<DynamicImage, String> {
     let kind = kind(name).unwrap_or(Kind::Image);
     // Wrong extension (e.g. an iPhone HEIC saved as .jpg): look at the content, then try
     // ImageMagick. The error shown is still the one from the decoder chosen by the extension.
     let img = run(kind, bytes, name)
-        .or_else(|e| match sniff(bytes) {
-            Some(k) if k != kind => run(k, bytes, name).map_err(|_| e),
+        // Neither HEIF nor JPEG XL inside: `image` recognises the rest from the content (a PNG named
+        // .heic failed on Windows, where there is no ImageMagick to fall back on).
+        .or_else(|e| match sniff(bytes).unwrap_or(Kind::Image) {
+            k if k != kind => run(k, bytes, name).map_err(|_| e),
             _ => Err(e),
         })
         .or_else(|e| magick(bytes).map_err(|_| e))

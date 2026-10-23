@@ -20,6 +20,7 @@ Mature viewers like XnView, IrfanView or digiKam do much more than EyeCanSee, an
 - **Direct phone access**: Android phones and cameras open over USB, much faster than through the file manager.
 - **Viewer** with preloading, so moving between images never waits, and photo details such as camera, exposure, date and location.
 - **File management**: copy and move (also from one device to another), rename and delete, also several items at once, with a trash on every device to restore or empty.
+- **Saving in another format** (JPEG, PNG, WebP, AVIF, TIFF and others) with every option of each format, the original and the result side by side, and the file size before you save.
 - English and Italian, light and dark theme, built-in manual.
 
 ### Formats
@@ -27,6 +28,8 @@ Mature viewers like XnView, IrfanView or digiKam do much more than EyeCanSee, an
 - On Linux and Windows: JPEG, PNG, WebP, GIF, BMP, TIFF, HEIC, AVIF, JPEG XL, SVG, and less common ones such as PSD, JPEG 2000, PCX, DDS and OpenRaster.
 - On Linux only: further rare formats through ImageMagick (XCF, PSB, DPX, FITS and others).
 - Camera RAW files (CR2, CR3, NEF, ARW, DNG and others) are supported by the code, but have not been tested with real camera files yet.
+
+All the formats it opens and saves, on Linux and Windows: [docs/formats.md](docs/formats.md).
 
 The full list of features, keys and limits is in the manual: [English](docs/manual.en.md), [Italiano](docs/manual.it.md).
 

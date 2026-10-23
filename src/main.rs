@@ -22,6 +22,7 @@ fn log_time() -> f64 {
 }
 
 mod browser;
+mod convert;
 mod decode;
 mod devices;
 mod i18n;
@@ -88,6 +89,8 @@ pub(crate) enum Act {
     /// Item (`None` = the selected one or the one in the viewer); `true`: for good (Shift+Del).
     Delete(Option<String>, bool),
     Rename(Option<String>),
+    /// "Save in another format" for an image (`None` = the selected one or the one in the viewer).
+    Convert(Option<String>),
     /// Puts back from the trash an item, or everything if it is a trash folder (`None` = selected).
     Restore(Option<String>),
     Copy(Option<String>),
@@ -217,6 +220,8 @@ struct App {
     update: Option<update::Ready>,
     /// Help > Check for updates: what to show (`None` = window closed).
     update_note: Option<String>,
+    /// "Save in another format" window.
+    convert: Option<convert::Window>,
     title: String,
     help: bool,
     about: bool,
@@ -336,6 +341,7 @@ impl App {
             purge_confirm: None,
             update: None,
             update_note: None,
+            convert: None,
             maintained: HashSet::new(),
             delete_confirm: None,
             delete_answer: None,
@@ -874,6 +880,9 @@ impl App {
                     ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                 }
                 // Shown in a window only when asked from the Help menu (the window is open).
+                Msg::Original(r) => self.convert_original(ctx, r),
+                Msg::Encoded(generation, r) => self.convert_encoded(ctx, generation, r),
+                Msg::Saved(r) => self.convert_saved(r),
                 Msg::Update(r) => {
                     log!("update: {r:?}");
                     let note = match &r {
@@ -1689,6 +1698,7 @@ impl App {
             Act::Options => self.options = true,
             Act::Delete(path, permanent) => self.ask_delete(path, permanent),
             Act::Rename(path) => self.ask_rename(path),
+            Act::Convert(path) => self.open_convert(path),
             Act::Restore(path) => self.ask_restore(path),
             Act::Copy(path) => self.clip(ctx, path, false),
             Act::Cut(path) => self.clip(ctx, path, true),
@@ -1981,11 +1991,18 @@ impl App {
     }
 }
 
+impl App {
+    /// A confirmation is open: deletion, or a name already taken when restoring or pasting.
+    pub(crate) fn asking(&self) -> bool {
+        let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
+        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting
+    }
+}
+
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer).
-        let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
-        if self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting {
+        if self.asking() {
             let answer = &mut self.delete_answer;
             raw_input.events.retain(|e| match e {
                 egui::Event::Key { key, pressed: true, .. } => {
@@ -2059,9 +2076,12 @@ impl eframe::App for App {
         self.receive(&ctx);
         self.retry(&ctx);
         self.reread_changed(&ctx);
-        self.global_keys(&ctx);
-        if self.viewing.is_some() {
-            self.viewer_keys(&ctx);
+        // "Save in another format" covers the window: the keys must not reach the grid under it.
+        if self.convert.is_none() {
+            self.global_keys(&ctx);
+            if self.viewing.is_some() {
+                self.viewer_keys(&ctx);
+            }
         }
         if let Some(current) = self.viewing {
             self.prefetch_full(current);
@@ -2074,37 +2094,43 @@ impl eframe::App for App {
             self.settings.window_size = Some([size.x, size.y]);
         }
 
-        egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
-        egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui, &ctx));
-        if let Some(e) = self.error.clone() {
-            egui::Panel::bottom("error").show(ui, |ui| {
-                ui.horizontal(|ui| {
-                    ui.label(browser::error_text(ui, e));
-                    if ui.small_button("✖").clicked() {
-                        self.error = None;
-                    }
+        if self.convert.is_some() {
+            egui::CentralPanel::default().show(ui, |ui| self.convert_page(ui));
+        } else {
+            egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
+            egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui, &ctx));
+            if let Some(e) = self.error.clone() {
+                egui::Panel::bottom("error").show(ui, |ui| {
+                    ui.horizontal(|ui| {
+                        ui.label(browser::error_text(ui, e));
+                        if ui.small_button("✖").clicked() {
+                            self.error = None;
+                        }
+                    });
                 });
-            });
-        }
-        match self.viewing {
-            Some(current) => {
-                egui::CentralPanel::default()
-                    .frame(egui::Frame::central_panel(ui.style()).fill(Color32::from_gray(18)))
-                    .show(ui, |ui| self.viewer(ui, current));
             }
-            None => {
-                let bar = egui::Frame::side_top_panel(ui.style()).fill(theme::solid(ui.visuals()));
-                egui::Panel::bottom("status").frame(bar).show(ui, |ui| self.status_bar(ui));
-                if meta::Group::ALL.into_iter().any(|g| self.meta_shown(g)) {
-                    egui::Panel::bottom("meta").show(ui, |ui| self.meta_panel(ui));
+            match self.viewing {
+                Some(current) => {
+                    let bar = egui::Frame::side_top_panel(ui.style()).fill(theme::solid(ui.visuals()));
+                    egui::Panel::bottom("viewer-status").frame(bar).show(ui, |ui| self.viewer_status(ui, current));
+                    egui::CentralPanel::default()
+                        .frame(egui::Frame::central_panel(ui.style()).fill(Color32::from_gray(18)))
+                        .show(ui, |ui| self.viewer(ui, current));
                 }
-                egui::Panel::left("tree").resizable(true).default_size(240.0).show(ui, |ui| self.tree(ui));
-                let canvas = theme::canvas(ui.visuals());
-                egui::CentralPanel::default()
-                    .frame(egui::Frame::central_panel(ui.style()).fill(canvas))
-                    .show(ui, |ui| self.grid(ui));
-                if let Some(back) = self.tab.take() {
-                    self.tab(&ctx, back);
+                None => {
+                    let bar = egui::Frame::side_top_panel(ui.style()).fill(theme::solid(ui.visuals()));
+                    egui::Panel::bottom("status").frame(bar).show(ui, |ui| self.status_bar(ui));
+                    if meta::Group::ALL.into_iter().any(|g| self.meta_shown(g)) {
+                        egui::Panel::bottom("meta").show(ui, |ui| self.meta_panel(ui));
+                    }
+                    egui::Panel::left("tree").resizable(true).default_size(240.0).show(ui, |ui| self.tree(ui));
+                    let canvas = theme::canvas(ui.visuals());
+                    egui::CentralPanel::default()
+                        .frame(egui::Frame::central_panel(ui.style()).fill(canvas))
+                        .show(ui, |ui| self.grid(ui));
+                    if let Some(back) = self.tab.take() {
+                        self.tab(&ctx, back);
+                    }
                 }
             }
         }

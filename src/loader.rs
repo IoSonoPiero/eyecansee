@@ -42,6 +42,13 @@ pub enum Msg {
     Pasted(Vec<String>, Result<(), source::Error>),
     /// Outcome of `update::check`: a newer version downloaded and checked, up to date, or an error.
     Update(Result<Option<crate::update::Ready>, String>),
+    /// "Save in another format": the original decoded, its preview and file size.
+    Original(Result<(Arc<crate::convert::Original>, ColorImage, u64), String>),
+    /// The image encoded with the options of `generation`, and the encoded file decoded back
+    /// (`None`: no decoder for that format in this build).
+    Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
+    /// The converted image written: its path, or an error.
+    Saved(Result<String, source::Error>),
     /// Metadata of an image: `None` = no EXIF.
     Meta { generation: u64, index: usize, meta: Result<Option<crate::meta::Meta>, String> },
 }
@@ -228,6 +235,39 @@ impl Loader {
         self.rt.spawn(async move {
             let r = op.rename(&path, &new_name).await;
             let _ = tx.send(Msg::Renamed(path, r));
+            ctx.request_repaint();
+        });
+    }
+
+    /// Original for "Save in another format": decoded in full, with a preview no larger than a texture.
+    pub fn load_original(&self, path: String) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let r = match op.read(&path).await {
+                Ok(bytes) => tokio::task::spawn_blocking(move || {
+                    let original = crate::convert::Original::open(&bytes, &path)?;
+                    let preview = decode::preview(&original.image);
+                    Ok((Arc::new(original), preview, bytes.len() as u64))
+                })
+                .await
+                .unwrap_or_else(|e| Err(e.to_string())),
+                Err((_, detail)) => Err(detail),
+            };
+            let _ = tx.send(Msg::Original(r));
+            ctx.request_repaint();
+        });
+    }
+
+    /// A file written whole (an image saved in another format).
+    pub fn save(&self, path: String, data: Arc<Vec<u8>>) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let (chunks, rx) = tokio::sync::mpsc::channel(1);
+            let size = data.len() as u64;
+            let _ = chunks.send(Ok(bytes::Bytes::from(data.to_vec()))).await;
+            drop(chunks);
+            let r = op.write_chunks(&path, size, rx).await.map(|()| path);
+            let _ = tx.send(Msg::Saved(r));
             ctx.request_repaint();
         });
     }

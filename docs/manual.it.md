@@ -14,7 +14,7 @@ Premi **F1** in qualsiasi momento per aprire o chiudere questo manuale.
 - **Più elementi**: Ctrl+clic aggiunge o toglie un elemento, Maiusc+clic seleziona tutto dall'ultimo elemento cliccato fino a questo, Maiusc+frecce allargano la selezione, Ctrl+A seleziona tutto nella cartella. **Trascinando** col mouse si disegna un rettangolo che seleziona le celle che tocca (con Ctrl le aggiunge a quelle già selezionate); vicino al bordo in alto o in basso la griglia scorre. Un clic senza tasti, o una freccia, torna a un solo elemento.
 - Frecce e Tab agiscono sulla parte su cui hai cliccato per ultima, sinistra o destra: è quella con la cornice sottile. Lì la selezione è blu pieno, nell'altra più tenue.
 
-Doppio clic su un'immagine, oppure selezionala e premi Invio, per aprirla nel **visore**. Per tornare alla griglia premi Esc, fai doppio clic sull'immagine o usa il pulsante griglia nella barra strumenti.
+Doppio clic su un'immagine, oppure selezionala e premi Invio, per aprirla nel **visore**. Per tornare alla griglia premi Esc, fai doppio clic sull'immagine o usa il pulsante griglia nella barra strumenti. La barra in basso nel visore mostra il nome del file, la sua posizione nella cartella (per esempio 12 / 51), le dimensioni in pixel e su disco, e la data di scatto (la data di modifica se la foto non ce l'ha o se i riquadri dei metadati sono chiusi).
 
 ## Miniature
 
@@ -66,6 +66,16 @@ Non si possono eliminare né rinominare la cartella principale di una sorgente e
 **Il cestino di telefoni e server**: ogni cartella in cui hai eliminato qualcosa ha un **Cestino**: lo dice una striscia in cima alla griglia, col pulsante **Apri il cestino**. Dentro il cestino la striscia dice di quale cartella è e ha **Ripristina tutto** e **Svuota il cestino…**. Dentro puoi guardare le immagini, **ripristinarle** (tornano nella cartella che contiene il cestino) o eliminarle definitivamente: lì **Canc** elimina sempre per sempre, e Rinomina non c'è. Col clic destro su uno spazio vuoto dentro il Cestino: **Ripristina tutto** e **Svuota il cestino…** (tutto eliminato per sempre, dopo una conferma). Un cestino rimasto vuoto, dopo aver ripristinato o eliminato quello che conteneva, sparisce insieme alla sua striscia.
 
 Se ripristinando un elemento il suo nome è già usato, EyeCanSee chiede cosa fare: per un file **Sostituisci** (quello presente viene eliminato) o **Tieni entrambi** (il ripristinato diventa per esempio `foto (2).jpg`); per una cartella **Unisci** (i contenuti si sommano; i file con lo stesso nome restano tutti e due) o **Tieni entrambi**. **Annulla** ferma anche il resto di un Ripristina tutto. Anche nel cestino un nome già presente diventa `foto (2).jpg`.
+
+## Salvare in un altro formato
+
+Clic destro su un'immagine (nella griglia o nel visore), poi **Salva in un altro formato…**. Si apre una pagina grande quanto la finestra: a sinistra l'originale, a destra l'immagine convertita, ognuna con le dimensioni in pixel e su disco (per la convertita anche in percentuale dell'originale). Quello che vedi a destra è il file come verrà salvato: viene codificato e riletto a ogni cambio di opzione.
+
+- **Formato**: JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF o QOI, con tutte le opzioni di ciascuno: qualità, dettaglio del colore, JPEG progressivo e senza perdita; livello di compressione e filtro per il PNG; WebP con o senza perdita; qualità, velocità e bit per canale per l'AVIF; compressione per il TIFF; riduzione dei colori per il GIF. La tabella completa è in [docs/formats.md](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/formats.md).
+- **100%** mostra i pixel veri; trascinando una delle due immagini si spostano entrambe, così confronti lo stesso punto.
+- **Mantieni i metadati (EXIF, profilo colore)** è attiva all'inizio. È grigia se l'originale non ne ha o se il formato non può contenerli. L'orientamento viene messo dritto, perché i pixel salvati sono già girati.
+- **Nome del file** e **Salva**: il file nuovo va nella stessa cartella dell'originale. Se il nome c'è già viene aggiunto " (2)", e la pagina lo dice prima del salvataggio.
+- Esc o ✕ chiudono la pagina senza salvare.
 
 ## Copiare e spostare
 
