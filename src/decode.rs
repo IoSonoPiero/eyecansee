@@ -383,8 +383,15 @@ fn magick(bytes: &[u8], format: Option<&str>) -> Result<DynamicImage> {
         wand.set_format(f)?;
     }
     wand.read_image_blob(bytes)?;
-    // Files with several images (GIF, MNG, layered PSD): the first is shown.
+    // Files with several images (GIF, MNG, layered PSD): the first is shown. An XCF gives one
+    // image per layer and no merged one: its layers are flattened, keeping the transparency.
     wand.set_first_iterator();
+    if wand.get_image_format().is_ok_and(|f| f == "XCF") {
+        let mut none = magick_rust::PixelWand::new();
+        none.set_color("none")?;
+        wand.set_image_background_color(&none)?;
+        wand = wand.merge_image_layers(magick_rust::LayerMethod::Flatten)?;
+    }
     wand.auto_orient();
     let (w, h) = (wand.get_image_width(), wand.get_image_height());
     let data = wand.export_image_pixels(0, 0, w, h, "RGBA").ok_or("ImageMagick: pixel export failed")?;
@@ -480,17 +487,26 @@ mod tests {
 
     /// Manual check on real files:
     /// `EYECANSEE_SAMPLES=/folder cargo test samples -- --ignored --nocapture`
+    /// With `EYECANSEE_SAMPLES_OUT=/folder` every decoded image is also saved there as PNG, to look at.
     #[test]
     #[ignore]
     fn samples() {
         let dir = std::env::var("EYECANSEE_SAMPLES").expect("EYECANSEE_SAMPLES not set");
-        let mut paths: Vec<_> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).collect();
+        let out = std::env::var_os("EYECANSEE_SAMPLES_OUT").map(std::path::PathBuf::from);
+        let mut paths: Vec<_> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).filter(|p| p.is_file()).collect();
         paths.sort();
         for p in paths {
             let name = p.file_name().unwrap().to_string_lossy().into_owned();
             let t = std::time::Instant::now();
             match decode(&std::fs::read(&p).unwrap(), &name) {
-                Ok(img) => println!("OK   {name:28} {:?} {:?}", img.size, t.elapsed()),
+                Ok(img) => {
+                    println!("OK   {name:28} {:?} {:?}", img.size, t.elapsed());
+                    if let Some(out) = &out {
+                        let [w, h] = img.size.map(|s| s as u32);
+                        let rgba = RgbaImage::from_raw(w, h, img.as_raw().to_vec()).unwrap();
+                        rgba.save(out.join(format!("{name}.png"))).unwrap();
+                    }
+                }
                 Err(e) => println!("ERR  {name:28} {e}"),
             }
         }
