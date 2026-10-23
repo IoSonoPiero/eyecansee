@@ -44,6 +44,8 @@ The full list of features, keys and limits is in the manual: [English](docs/manu
   HEIC photos also need `libheif-freeworld` from [RPM Fusion](https://rpmfusion.org/), which `dnf` installs by itself if RPM Fusion is enabled.
 - **Other Linux distributions**: download the `.AppImage` file from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), make it executable (`chmod +x EyeCanSee-*.AppImage`, or Properties → "Allow executing file as program" in the file manager) and run it. Nothing else to install. It needs a distribution from 2022 or later (glibc 2.35).
 
+The Windows installer, the zip and the AppImage update themselves: at startup EyeCanSee checks the latest release on GitHub in the background, downloads the new version, checks its SHA-256 and offers to install it with one click. The check can be turned off in Options. On Fedora updates come from `dnf`.
+
 ## Build
 
 ### Linux (Fedora)
