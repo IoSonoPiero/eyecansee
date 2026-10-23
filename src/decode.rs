@@ -110,7 +110,7 @@ fn run(kind: Kind, bytes: &[u8], name: &str) -> Result<DynamicImage> {
         Kind::Svg => svg(bytes),
         Kind::Raw => raw(bytes),
         Kind::Extra => extra(bytes, name),
-        Kind::Magick => magick(bytes),
+        Kind::Magick => magick(bytes, ext(name).as_deref()),
     }
 }
 
@@ -170,7 +170,7 @@ fn decode_any(bytes: &[u8], name: &str) -> std::result::Result<DynamicImage, Str
             k if k != kind => run(k, bytes, name).map_err(|_| e),
             _ => Err(e),
         })
-        .or_else(|e| magick(bytes).map_err(|_| e))
+        .or_else(|e| magick(bytes, None).map_err(|_| e))
         .map_err(|e| e.to_string())?;
     Ok(img)
 }
@@ -355,7 +355,7 @@ fn extra(bytes: &[u8], name: &str) -> Result<DynamicImage> {
 /// Universal fallback. Recognises the format from the content: formats without a signature
 /// (e.g. TGA) only get here if their dedicated decoder already exists.
 #[cfg(feature = "magick")]
-fn magick(bytes: &[u8]) -> Result<DynamicImage> {
+fn magick(bytes: &[u8], format: Option<&str>) -> Result<DynamicImage> {
     use magick_rust::{MagickWand, magick_wand_genesis};
     static INIT: std::sync::Once = std::sync::Once::new();
     INIT.call_once(|| {
@@ -376,7 +376,12 @@ fn magick(bytes: &[u8]) -> Result<DynamicImage> {
         }
         magick_wand_genesis();
     });
-    let wand = MagickWand::new();
+    let mut wand = MagickWand::new();
+    // The extension as a hint: some formats cannot be told from the content (PICT starts with
+    // 512 empty bytes). A wrong one fails here and the caller tries again without it.
+    if let Some(f) = format {
+        wand.set_format(f)?;
+    }
     wand.read_image_blob(bytes)?;
     // Files with several images (GIF, MNG, layered PSD): the first is shown.
     wand.set_first_iterator();
@@ -394,7 +399,7 @@ fn heif(_: &[u8]) -> Result<DynamicImage> {
 }
 
 #[cfg(not(feature = "magick"))]
-fn magick(_: &[u8]) -> Result<DynamicImage> {
+fn magick(_: &[u8], _: Option<&str>) -> Result<DynamicImage> {
     Err("ImageMagick: not included in this build".into())
 }
 
