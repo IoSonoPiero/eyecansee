@@ -1,0 +1,38 @@
+[package]
+name = "magick_rust"
+version = "2.1.1"
+authors = ["Nathan Fiedler <nathanfiedler@fastmail.fm>"]
+description = "Selection of Rust bindings for the ImageMagick library."
+homepage = "https://github.com/nlfiedler/magick-rust"
+repository = "https://github.com/nlfiedler/magick-rust.git"
+readme = "README.md"
+license = "Apache-2.0"
+keywords = ["magickwand", "imagemagick"]
+build = "build.rs"
+edition = "2024"
+rust-version = "1.85"
+exclude = [".github/*", "docker/*", "tests/*"]
+
+[dependencies]
+libc = "0.2"
+
+[build-dependencies]
+bindgen = "0.72.0"
+pkg-config = "0.3"
+
+[features]
+# Work-around for bindgen(?) not finding the QuantumRange definition ever since
+# MagickWand 7.1.1.17 (or .16) when this suddenly stopped working.
+default = ["disable-hdri"]
+# Workaround for bindgen bug when ImageMagick is compiled with disable-hdri
+disable-hdri = []
+
+[lints.clippy]
+missing_safety_doc = { level = "allow" }
+
+# docs.rs cannot install ImageMagick, so build.rs falls back to the checked-in
+# pre-generated bindings (docsrs_bindings.rs) when the DOCS_RS env var is set.
+[package.metadata.docs.rs]
+# The docs build never links the native library, so target the docs.rs default
+# host explicitly and document with the default features.
+default-target = "x86_64-unknown-linux-gnu"

@@ -46,6 +46,12 @@ jobs:
       VCPKG_COMMIT: 67972e92edd181d433927b42d8ab4bfa52ac164a
       VCPKG_DEFAULT_BINARY_CACHE: C:\eyecansee-vcpkg-cache
       HEIF_PORT: libheif[core,libde265,dav1d]:x64-windows-static
+      # ImageMagick for the rare formats: the official build, its DLLs and coders go next to the exe.
+      # magick_rust generates its bindings with libclang (LLVM, already on windows-latest).
+      IM_VERSION: 7.1.2-34
+      IM_SHA256: eb32ded8b605795dfcb08b8cadbeef6732fe2252af933b54b38df586332e1007
+      IMAGE_MAGICK_DIR: C:\eyecansee-imagemagick
+      LIBCLANG_PATH: C:\Program Files\LLVM\bin
     steps:
       - uses: actions/checkout@v6
       - name: Tools
@@ -66,8 +72,16 @@ jobs:
           & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
           & "$env:VCPKG_ROOT\vcpkg.exe" install $env:HEIF_PORT
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
+      - name: ImageMagick
+        run: |
+          $setup = "$env:RUNNER_TEMP\imagemagick-setup.exe"
+          Invoke-WebRequest "https://github.com/ImageMagick/ImageMagick/releases/download/$env:IM_VERSION/ImageMagick-$env:IM_VERSION-Q16-HDRI-x64-dll.exe" -OutFile $setup
+          if ((Get-FileHash $setup -Algorithm SHA256).Hash -ne $env:IM_SHA256) { "::error::ImageMagick installer: wrong SHA-256"; exit 1 }
+          Start-Process -Wait -FilePath $setup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOICONS /TASKS=install_devel /DIR=$env:IMAGE_MAGICK_DIR"
+          if (-not (Test-Path "$env:IMAGE_MAGICK_DIR\lib\CORE_RL_MagickWand_.lib")) { "::error::ImageMagick development files missing"; exit 1 }
+          if (-not (Test-Path "$env:LIBCLANG_PATH\libclang.dll")) { "::error::libclang.dll missing"; exit 1 }
       - name: Build
-        run: cargo build --profile dist --locked --no-default-features --features heif
+        run: cargo build --profile dist --locked --no-default-features --features heif,magick
       - name: Zip
         run: |
           New-Item -ItemType Directory pkg | Out-Null
@@ -83,12 +97,19 @@ jobs:
             Add-Content pkg\THIRD-PARTY-LICENSES.txt "`n$bar`n$p $ver (linked into eyecansee.exe, built with vcpkg)`nSource: $($sources[$p])`n$bar`n"
             Get-Content -Raw "$env:VCPKG_ROOT\installed\x64-windows-static\share\$p\copyright" | Add-Content pkg\THIRD-PARTY-LICENSES.txt
           }
+          # ImageMagick: NOTICE.txt holds its licence and those of the libraries it brings.
+          $bar = "=" * 78
+          Add-Content pkg\THIRD-PARTY-LICENSES.txt "`n$bar`nImageMagick $env:IM_VERSION (DLLs and modules\ next to eyecansee.exe, official Windows build)`nSource: https://github.com/ImageMagick/ImageMagick`n$bar`n"
+          Get-Content -Raw "$env:IMAGE_MAGICK_DIR\NOTICE.txt" | Add-Content pkg\THIRD-PARTY-LICENSES.txt
+          Copy-Item "$env:IMAGE_MAGICK_DIR\*.dll", "$env:IMAGE_MAGICK_DIR\*.xml", "$env:IMAGE_MAGICK_DIR\sRGB.icc" pkg\
+          Copy-Item "$env:IMAGE_MAGICK_DIR\modules" pkg\ -Recurse
           Copy-Item target\dist\eyecansee.exe pkg\
           Copy-Item LICENSE pkg\LICENSE.txt
           Compress-Archive -Path pkg\* -DestinationPath "EyeCanSee-$env:VER-windows-x64.zip"
       - name: Startup test
         run: |
           Expand-Archive "EyeCanSee-$env:VER-windows-x64.zip" -DestinationPath test\app
+          if (-not (Test-Path test\app\modules\coders\IM_MOD_RL_dpx_.dll)) { "::error::ImageMagick coders missing from the zip"; exit 1 }
           $env:APPDATA = "$PWD\test\roaming"; $env:LOCALAPPDATA = "$PWD\test\local"; $env:EYECANSEE_LOG = "1"
           $p = Start-Process -FilePath test\app\eyecansee.exe -ArgumentList $env:USERPROFILE -RedirectStandardError test\log.txt -PassThru
           Start-Sleep 8
@@ -111,6 +132,7 @@ jobs:
           Start-Process -Wait -FilePath $setup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /CURRENTUSER /NORESTART"
           if (-not (Test-Path "$dir\eyecansee.exe")) { "::error::eyecansee.exe not installed in $dir"; exit 1 }
           if (-not (Test-Path $key)) { "::error::$key not created"; exit 1 }
+          if (-not (Test-Path "$dir\modules\coders\IM_MOD_RL_dpx_.dll")) { "::error::ImageMagick coders not installed"; exit 1 }
           Start-Process -Wait -FilePath "$dir\unins000.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"
           # The uninstaller restarts itself from a temporary copy, so -Wait can return before it is done.
           foreach ($i in 1..30) { if (-not (Test-Path "$dir\eyecansee.exe")) { break }; Start-Sleep 1 }

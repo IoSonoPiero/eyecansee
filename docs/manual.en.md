@@ -180,11 +180,9 @@ In the viewer, after the last image EyeCanSee stops; with the option **In the vi
 - **Camera RAW**: ARW, CR2, CR3, CRW, DNG, NEF, NRW, ORF, PEF, RAF, RW2, SRW, 3FR, IIQ, ERF, KDC, MEF, MOS, MRW and others. EyeCanSee shows the full-size preview stored by the camera; if there is none, it develops the sensor data.
 - **Vector**: SVG, SVGZ.
 - **Graphics and HDR**: PSD (merged image), ORA, OpenEXR, HDR, DDS, ICNS, QOI, TGA, ICO, CUR, PCX, JPEG 2000, PNM, XPM, XBM, SGI, WBMP, OTB, MPO, JPS.
-- **Through ImageMagick, on Linux only**: PSB, XCF, PFM, Sun Raster, PICT, MIFF, MNG, JNG, DPX, Cineon, FITS and other less common formats. On Linux ImageMagick also opens the PSD files the built-in reader does not handle (for example 32-bit ones).
+- **Through ImageMagick**: PSB, XCF, PFM, Sun Raster, PICT, MIFF, MNG, JNG, DPX, Cineon, FITS and other less common formats (XWD on Linux only). ImageMagick also opens the PSD files the built-in reader does not handle (for example 32-bit ones).
 
 Photos are rotated automatically using their EXIF orientation. The file extension is only a hint: an iPhone HEIC photo renamed to `.jpg` opens anyway.
-
-On Windows the formats handled by ImageMagick are not available: those files do not appear in the list.
 
 ## Language
 

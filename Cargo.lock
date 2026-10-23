@@ -1630,7 +1630,7 @@ dependencies = [
 
 [[package]]
 name = "eyecansee"
-version = "0.26.0"
+version = "0.27.0"
 dependencies = [
  "bytes",
  "eframe",
@@ -3248,8 +3248,6 @@ dependencies = [
 [[package]]
 name = "magick_rust"
 version = "2.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e2cfa487056882d926629b5f617bae837cc35338b2a8f63d9f751752e71e169b"
 dependencies = [
  "bindgen",
  "libc",

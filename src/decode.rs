@@ -358,7 +358,24 @@ fn extra(bytes: &[u8], name: &str) -> Result<DynamicImage> {
 fn magick(bytes: &[u8]) -> Result<DynamicImage> {
     use magick_rust::{MagickWand, magick_wand_genesis};
     static INIT: std::sync::Once = std::sync::Once::new();
-    INIT.call_once(magick_wand_genesis);
+    INIT.call_once(|| {
+        // On Windows ImageMagick ships beside the exe (zip and installer): without these it looks
+        // for its coders only where the registry of an installed ImageMagick says.
+        #[cfg(windows)]
+        if let Some(dir) = std::env::current_exe().ok().and_then(|e| e.parent().map(|d| d.to_path_buf())) {
+            for (var, sub) in [
+                ("MAGICK_CODER_MODULE_PATH", "modules/coders"),
+                ("MAGICK_CODER_FILTER_PATH", "modules/filters"),
+                ("MAGICK_CONFIGURE_PATH", ""),
+            ] {
+                if std::env::var_os(var).is_none() && dir.join("modules").is_dir() {
+                    // SAFETY: once, before ImageMagick starts; no other code of ours reads these.
+                    unsafe { std::env::set_var(var, dir.join(sub)) };
+                }
+            }
+        }
+        magick_wand_genesis();
+    });
     let wand = MagickWand::new();
     wand.read_image_blob(bytes)?;
     // Files with several images (GIF, MNG, layered PSD): the first is shown.

@@ -26,7 +26,7 @@ Mature viewers like XnView, IrfanView or digiKam do much more than EyeCanSee, an
 ### Formats
 
 - On Linux and Windows: JPEG, PNG, WebP, GIF, BMP, TIFF, HEIC, AVIF, JPEG XL, SVG, and less common ones such as PSD, JPEG 2000, PCX, DDS and OpenRaster.
-- On Linux only: further rare formats through ImageMagick (XCF, PSB, DPX, FITS and others).
+- Further rare formats through ImageMagick (XCF, PSB, DPX, FITS and others).
 - Camera RAW files (CR2, CR3, NEF, ARW, DNG and others) are supported by the code, but have not been tested with real camera files yet.
 
 All the formats it opens and saves, on Linux and Windows: [docs/formats.md](docs/formats.md).
@@ -90,13 +90,24 @@ git clone https://github.com/microsoft/vcpkg.git $env:USERPROFILE\vcpkg
 & $env:USERPROFILE\vcpkg\vcpkg.exe install "libheif[core,libde265,dav1d]:x64-windows-static"
 ```
 
-Build and run (`--features heif` without the default features leaves out ImageMagick, see *Formats*; without `--features heif` HEIC and AVIF are left out too, and vcpkg is not needed):
+The rare formats (XCF, PSB, DPX, FITS and others) need the official ImageMagick build with its development files, and LLVM (libclang generates the bindings):
+
+```powershell
+winget install LLVM.LLVM
+# ImageMagick-<version>-Q16-HDRI-x64-dll.exe from https://imagemagick.org/script/download.php#windows
+.\ImageMagick-7.1.2-34-Q16-HDRI-x64-dll.exe /SILENT /TASKS=install_devel /DIR="$env:USERPROFILE\ImageMagick"
+```
+
+Build and run (without `--features magick` the rare formats are left out and ImageMagick and LLVM are not needed; without `heif` HEIC and AVIF are left out too, and vcpkg is not needed):
 
 ```powershell
 git clone https://github.com/IoSonoPiero/eyecansee.git
 cd eyecansee
 $env:VCPKG_ROOT = "$env:USERPROFILE\vcpkg"
-cargo build --release --no-default-features --features heif
+$env:IMAGE_MAGICK_DIR = "$env:USERPROFILE\ImageMagick"
+$env:LIBCLANG_PATH = "C:\Program Files\LLVM\bin"
+$env:Path += ";$env:IMAGE_MAGICK_DIR"   # the ImageMagick DLLs, for the exe in target\release
+cargo build --release --no-default-features --features heif,magick
 .\target\release\eyecansee.exe $env:USERPROFILE\Pictures
 ```
 

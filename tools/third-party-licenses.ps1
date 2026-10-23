@@ -2,7 +2,7 @@
 # THIRD-PARTY-LICENSES.txt file shipped with each release. Crates without a licence file are covered
 # by the standard texts from the SPDX License List, appended at the end.
 # Usage: .\tools\third-party-licenses.ps1 -Project . -Out THIRD-PARTY-LICENSES.txt
-param([string]$Project, [string]$Out, [string]$Target = "x86_64-pc-windows-msvc", [string]$Features = "--no-default-features")
+param([string]$Project, [string]$Out, [string]$Target = "x86_64-pc-windows-msvc", [string]$Features = "--no-default-features --features heif,magick")
 Push-Location $Project
 $json = cargo metadata --format-version 1 --filter-platform $Target $Features.Split(' ') 2>$null | ConvertFrom-Json
 Pop-Location

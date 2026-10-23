@@ -1,0 +1,250 @@
+/*
+ * Copyright 2016 Mattis Marjak
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+use std::ffi::{CStr, CString};
+use std::fmt;
+
+use crate::bindings;
+
+use crate::result::MagickError;
+use crate::result::Result;
+use crate::{
+    AlignType, ClipPathUnits, DecorationType, DirectionType, FillRule, GravityType, LineCap,
+    LineJoin, PaintMethod, StretchType, StyleType,
+};
+
+wand_common!(
+    DrawingWand,
+    NewDrawingWand,
+    ClearDrawingWand,
+    IsDrawingWand,
+    CloneDrawingWand,
+    DestroyDrawingWand,
+    DrawClearException,
+    DrawGetExceptionType,
+    DrawGetException
+);
+
+impl DrawingWand {
+    /// Draw the given `text` at `(x, y)` using the current font and fill color.
+    pub fn draw_annotation(&mut self, x: f64, y: f64, text: &str) -> Result<()> {
+        let c_string = CString::new(text).map_err(|_| "could not convert to cstring")?;
+        unsafe { bindings::DrawAnnotation(self.wand, x, y, c_string.as_ptr() as *const _) };
+        Ok(())
+    }
+
+    /// Draw a circle centered at `(ox, oy)` with `(px, py)` a point on its
+    /// perimeter.
+    pub fn draw_circle(&mut self, ox: f64, oy: f64, px: f64, py: f64) {
+        unsafe {
+            bindings::DrawCircle(self.wand, ox, oy, px, py);
+        }
+    }
+
+    /// Draw a rectangle from the upper-left corner `(upper_left_x, upper_left_y)`
+    /// to the lower-right corner `(lower_right_x, lower_right_y)`.
+    pub fn draw_rectangle(
+        &mut self,
+        upper_left_x: f64,
+        upper_left_y: f64,
+        lower_right_x: f64,
+        lower_right_y: f64,
+    ) {
+        unsafe {
+            bindings::DrawRectangle(
+                self.wand,
+                upper_left_x,
+                upper_left_y,
+                lower_right_x,
+                lower_right_y,
+            );
+        }
+    }
+
+    /// Draw a rectangle with rounded corners, where `rx` and `ry` are the corner
+    /// radii in the x and y directions.
+    pub fn draw_round_rectangle(
+        &mut self,
+        upper_left_x: f64,
+        upper_left_y: f64,
+        lower_right_x: f64,
+        lower_right_y: f64,
+        rx: f64,
+        ry: f64,
+    ) {
+        unsafe {
+            bindings::DrawRoundRectangle(
+                self.wand,
+                upper_left_x,
+                upper_left_y,
+                lower_right_x,
+                lower_right_y,
+                rx,
+                ry,
+            );
+        }
+    }
+
+    /// Draw a line from `(sx, sy)` to `(ex, ey)` using the current stroke color
+    /// and width.
+    pub fn draw_line(&mut self, sx: f64, sy: f64, ex: f64, ey: f64) {
+        unsafe {
+            bindings::DrawLine(self.wand, sx, sy, ex, ey);
+        }
+    }
+
+    /// Draw a single point at `(x, y)` using the current fill color.
+    pub fn draw_point(&mut self, x: f64, y: f64) {
+        unsafe {
+            bindings::DrawPoint(self.wand, x, y);
+        }
+    }
+
+    /// Draw an arc within the bounding rectangle `(sx, sy)`-`(ex, ey)`, sweeping
+    /// from `start_degrees` to `end_degrees`.
+    pub fn draw_arc(
+        &mut self,
+        sx: f64,
+        sy: f64,
+        ex: f64,
+        ey: f64,
+        start_degrees: f64,
+        end_degrees: f64,
+    ) {
+        unsafe {
+            bindings::DrawArc(self.wand, sx, sy, ex, ey, start_degrees, end_degrees);
+        }
+    }
+
+    /// Draw an ellipse centered at `(ox, oy)` with radii `rx` and `ry`, sweeping
+    /// from `start_degrees` to `end_degrees` (use 0 and 360 for a full ellipse).
+    pub fn draw_ellipse(
+        &mut self,
+        ox: f64,
+        oy: f64,
+        rx: f64,
+        ry: f64,
+        start_degrees: f64,
+        end_degrees: f64,
+    ) {
+        unsafe {
+            bindings::DrawEllipse(self.wand, ox, oy, rx, ry, start_degrees, end_degrees);
+        }
+    }
+
+    /// Draw a closed polygon connecting the given `(x, y)` coordinates.
+    pub fn draw_polygon(&mut self, coordinates: &[(f64, f64)]) {
+        let points = Self::to_point_info(coordinates);
+        unsafe {
+            bindings::DrawPolygon(self.wand, points.len(), points.as_ptr());
+        }
+    }
+
+    /// Draw an open series of line segments connecting the given `(x, y)`
+    /// coordinates.
+    pub fn draw_polyline(&mut self, coordinates: &[(f64, f64)]) {
+        let points = Self::to_point_info(coordinates);
+        unsafe {
+            bindings::DrawPolyline(self.wand, points.len(), points.as_ptr());
+        }
+    }
+
+    /// Draw a Bezier curve through the given `(x, y)` control points.
+    pub fn draw_bezier(&mut self, coordinates: &[(f64, f64)]) {
+        let points = Self::to_point_info(coordinates);
+        unsafe {
+            bindings::DrawBezier(self.wand, points.len(), points.as_ptr());
+        }
+    }
+
+    /// Paint at `(x, y)` using the current fill color and the given paint method
+    /// (for example flood-filling a region).
+    pub fn draw_color(&mut self, x: f64, y: f64, paint_method: PaintMethod) {
+        unsafe {
+            bindings::DrawColor(self.wand, x, y, paint_method);
+        }
+    }
+
+    fn to_point_info(coordinates: &[(f64, f64)]) -> Vec<bindings::PointInfo> {
+        coordinates
+            .iter()
+            .map(|&(x, y)| bindings::PointInfo { x, y })
+            .collect()
+    }
+
+    string_set_get!(
+        get_font,                   set_font,                     DrawGetFont,                  DrawSetFont
+        get_font_family,            set_font_family,              DrawGetFontFamily,            DrawSetFontFamily
+        get_vector_graphics,        set_vector_graphics,          DrawGetVectorGraphics,        DrawSetVectorGraphics
+        get_clip_path,              set_clip_path,                DrawGetClipPath,              DrawSetClipPath
+    );
+
+    string_set_get_unchecked!(
+        get_text_encoding,
+        set_text_encoding,
+        DrawGetTextEncoding,
+        DrawSetTextEncoding
+    );
+
+    pixel_set_get!(
+        get_border_color,           set_border_color,             DrawGetBorderColor,           DrawSetBorderColor
+        get_fill_color,             set_fill_color,               DrawGetFillColor,             DrawSetFillColor
+        get_stroke_color,           set_stroke_color,             DrawGetStrokeColor,           DrawSetStrokeColor
+        get_text_under_color,       set_text_under_color,         DrawGetTextUnderColor,        DrawSetTextUnderColor
+    );
+
+    set_get_unchecked!(
+        get_gravity,                set_gravity,                  DrawGetGravity,               DrawSetGravity,               GravityType
+        get_opacity,                set_opacity,                  DrawGetOpacity,               DrawSetOpacity,               f64
+        get_clip_rule,              set_clip_rule,                DrawGetClipRule,              DrawSetClipRule,              FillRule
+        get_clip_units,             set_clip_units,               DrawGetClipUnits,             DrawSetClipUnits,             ClipPathUnits
+        get_fill_rule,              set_fill_rule,                DrawGetFillRule,              DrawSetFillRule,              FillRule
+        get_fill_opacity,           set_fill_opacity,             DrawGetFillOpacity,           DrawSetFillOpacity,           f64
+
+        get_font_size,              set_font_size,                DrawGetFontSize,              DrawSetFontSize,              f64
+        get_font_style,             set_font_style,               DrawGetFontStyle,             DrawSetFontStyle,             StyleType
+        get_font_weight,            set_font_weight,              DrawGetFontWeight,            DrawSetFontWeight,            usize
+        get_font_stretch,           set_font_stretch,             DrawGetFontStretch,           DrawSetFontStretch,           StretchType
+
+        get_stroke_dash_offset,     set_stroke_dash_offset,       DrawGetStrokeDashOffset,      DrawSetStrokeDashOffset,      f64
+        get_stroke_line_cap,        set_stroke_line_cap,          DrawGetStrokeLineCap,         DrawSetStrokeLineCap,         LineCap
+        get_stroke_line_join,       set_stroke_line_join,         DrawGetStrokeLineJoin,        DrawSetStrokeLineJoin,        LineJoin
+        get_stroke_miter_limit,     set_stroke_miter_limit,       DrawGetStrokeMiterLimit,      DrawSetStrokeMiterLimit,      usize
+        get_stroke_opacity,         set_stroke_opacity,           DrawGetStrokeOpacity,         DrawSetStrokeOpacity,         f64
+        get_stroke_width,           set_stroke_width,             DrawGetStrokeWidth,           DrawSetStrokeWidth,           f64
+        get_stroke_antialias,       set_stroke_antialias,         DrawGetStrokeAntialias,       DrawSetStrokeAntialias,       bindings::MagickBooleanType
+
+        get_text_alignment,         set_text_alignment,           DrawGetTextAlignment,         DrawSetTextAlignment,         AlignType
+        get_text_antialias,         set_text_antialias,           DrawGetTextAntialias,         DrawSetTextAntialias,         bindings::MagickBooleanType
+        get_text_decoration,        set_text_decoration,          DrawGetTextDecoration,        DrawSetTextDecoration,        DecorationType
+        get_text_direction,         set_text_direction,           DrawGetTextDirection,         DrawSetTextDirection,         DirectionType
+        get_text_kerning,           set_text_kerning,             DrawGetTextKerning,           DrawSetTextKerning,           f64
+        get_text_interline_spacing, set_text_interline_spacing,   DrawGetTextInterlineSpacing,  DrawSetTextInterlineSpacing,  f64
+        get_text_interword_spacing, set_text_interword_spacing,   DrawGetTextInterwordSpacing,  DrawSetTextInterwordSpacing,  f64
+    );
+}
+
+impl fmt::Debug for DrawingWand {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        writeln!(f, "DrawingWand {{")?;
+        writeln!(f, "    Exception: {:?}", self.get_exception())?;
+        writeln!(f, "    IsWand: {:?}", self.is_wand())?;
+        self.fmt_unchecked_settings(f, "    ")?;
+        self.fmt_string_settings(f, "    ")?;
+        self.fmt_string_unchecked_settings(f, "    ")?;
+        self.fmt_pixel_settings(f, "    ")?;
+        writeln!(f, "}}")
+    }
+}

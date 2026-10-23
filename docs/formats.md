@@ -33,19 +33,19 @@ What EyeCanSee opens and what it can save, on Linux (Fedora package and AppImage
 | WBMP, XBM, XPM, OTB | wbmp, xbm, xpm, otb | ✓ | ✓ | `image-extras` |
 | Apple icon | icns | ✓ | ✓ | `image-extras` |
 | Camera RAW (not yet tested with real camera files) | cr2, cr3, nef, arw, dng, raf, orf, rw2 and others | ✓ | ✓ | `rawler` |
-| Photoshop large document | psb | ✓ | – | ImageMagick |
-| GIMP | xcf | ✓ | – | ImageMagick |
-| Sun raster | ras, sun | ✓ | – | ImageMagick |
-| PICT | pict, pct | ✓ | – | ImageMagick |
-| MIFF | miff | ✓ | – | ImageMagick |
-| MNG, JNG | mng, jng | ✓ | – | ImageMagick |
-| DPX, Cineon | dpx, cin | ✓ | – | ImageMagick |
-| FITS | fits | ✓ | – | ImageMagick |
+| Photoshop large document | psb | ✓ | ✓ | ImageMagick |
+| GIMP | xcf | ✓ | ✓ | ImageMagick |
+| Sun raster | ras, sun | ✓ | ✓ | ImageMagick |
+| PICT | pict, pct | ✓ | ✓ | ImageMagick |
+| MIFF | miff | ✓ | ✓ | ImageMagick |
+| MNG, JNG | mng, jng | ✓ | ✓ | ImageMagick |
+| DPX, Cineon | dpx, cin | ✓ | ✓ | ImageMagick |
+| FITS | fits | ✓ | ✓ | ImageMagick |
 | XWD | xwd | ✓ | – | ImageMagick |
-| PFM | pfm | ✓ | – | ImageMagick |
-| PGX, WPG, VIFF, VICAR | pgx, wpg, viff, vicar | ✓ | – | ImageMagick |
+| PFM | pfm | ✓ | ✓ | ImageMagick |
+| PGX, WPG, VIFF, VICAR | pgx, wpg, viff, vicar | ✓ | ✓ | ImageMagick |
 
-A file with the wrong extension (for example an iPhone HEIC saved as `.jpg`) is recognised from its content. On Linux, a file the dedicated decoder cannot read is tried once more with ImageMagick.
+A file with the wrong extension (for example an iPhone HEIC saved as `.jpg`) is recognised from its content. A file the dedicated decoder cannot read is tried once more with ImageMagick.
 
 ## Saving (right click > Save in another format…)
 

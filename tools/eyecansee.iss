@@ -38,6 +38,11 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 Source: "{#Pkg}\eyecansee.exe"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#Pkg}\LICENSE.txt"; DestDir: "{app}"
 Source: "{#Pkg}\THIRD-PARTY-LICENSES.txt"; DestDir: "{app}"
+; ImageMagick: its DLLs, configuration files and coders (modules\) next to the exe.
+Source: "{#Pkg}\*.dll"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Pkg}\*.xml"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Pkg}\sRGB.icc"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{#Pkg}\modules\*"; DestDir: "{app}\modules"; Flags: ignoreversion recursesubdirs
 
 [Icons]
 Name: "{autoprograms}\EyeCanSee"; Filename: "{app}\eyecansee.exe"

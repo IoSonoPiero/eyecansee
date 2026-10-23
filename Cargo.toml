@@ -1,6 +1,6 @@
 [package]
 name = "eyecansee"
-version = "0.26.0"
+version = "0.27.0"
 edition = "2024"
 description = "Image viewer for Linux and Windows"
 license = "GPL-3.0-or-later"
@@ -81,3 +81,7 @@ strip = true
 inherits = "release"
 lto = "fat"
 codegen-units = 1
+
+# magick_rust 2.1.1 imports ResourceType only on Linux and macOS, so it does not build on Windows.
+[patch.crates-io]
+magick_rust = { path = "vendor/magick_rust" }

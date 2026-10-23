@@ -1,0 +1,7 @@
+*.swp
+*.pyc
+Cargo.lock
+rust-bindgen
+target
+.idea
+.DS_Store
