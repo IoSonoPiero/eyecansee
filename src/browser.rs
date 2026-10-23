@@ -533,7 +533,9 @@ impl App {
                 Some(d) => error_text(ui, self.i18n.t_args("error-no-storage", &[("detail", &d.name)])).size(16.0),
                 None => egui::RichText::new(self.i18n.t("folder-empty")),
             };
-            ui.centered_and_justified(|ui| ui.label(text));
+            // Not selectable: a selectable label filling the grid took the right click from the
+            // background, so an empty drive offered no Paste.
+            ui.centered_and_justified(|ui| ui.add(egui::Label::new(text).selectable(false)));
             return;
         }
         let total = n + up;

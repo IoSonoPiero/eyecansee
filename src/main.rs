@@ -253,7 +253,7 @@ struct App {
     watcher: Option<notify::RecommendedWatcher>,
     watched: Option<std::path::PathBuf>,
     /// Folder changed on disk: when to read it again (egui time), so a burst of events
-    /// (a big file being copied) gives one listing.
+    /// (a big file being copied) gives one listing every 0.3 s.
     changed_at: Option<f64>,
     /// Folders being read again after a change: their new listing replaces the old one in place.
     relisting: HashSet<String>,
@@ -754,7 +754,10 @@ impl App {
                     self.meta = Some((index, meta));
                 }
                 Msg::Loaded { .. } | Msg::Meta { .. } => {} // folder has changed in the meantime
-                Msg::Changed => self.changed_at = Some(ctx.input(|i| i.time) + 0.3),
+                // Counted from the first event, not the last: a copy into a subfolder sends one for
+                // every file, and the folder was read again only when the copy ended.
+                Msg::Changed if self.changed_at.is_none() => self.changed_at = Some(ctx.input(|i| i.time) + 0.3),
+                Msg::Changed => {}
                 Msg::Deleted(path, how, Ok(())) => {
                     log!("deleted {path:?}");
                     // An emptied trash going away comes as one more: never below zero.
@@ -1145,13 +1148,14 @@ impl App {
     /// Progress of the copy, with Cancel; the window stays until the copy ends.
     fn transfer_window(&mut self, ctx: &egui::Context) {
         let Some((p, _, base, _)) = &self.transfer else { return };
-        // Folders being filled, read again once a second if they are on screen (local ones update
-        // by themselves). After every file it was ten listings a second, slowing the copy down.
+        // Folders being filled, read again once a second if they are on screen. Local ones too: the
+        // watcher sees only the folder open when the change happens, so a folder listed before and
+        // opened during the copy stayed old. After every file it was ten listings a second, slowing the copy down.
         let now = ctx.input(|i| i.time);
         if now - self.touched_at >= 1.0 {
             self.touched_at = now;
             let touched: HashSet<String> = p.touched.lock().unwrap().drain(..).collect();
-            if *base == self.base && self.base.contains("://") {
+            if *base == self.base {
                 for dir in touched {
                     if self.listings.contains_key(&dir) {
                         self.relist(dir);
@@ -1164,7 +1168,8 @@ impl App {
         let (done, total) = (p.done.load(Ordering::Relaxed), p.total.load(Ordering::Relaxed));
         let (files, files_total) = (p.files.load(Ordering::Relaxed), p.files_total.load(Ordering::Relaxed));
         let found = p.found.load(Ordering::Relaxed);
-        let counts = if files_total == 0 && found > 0 {
+        // Until the copy starts it is still looking inside the folders, even with nothing found yet.
+        let counts = if p.started.get().is_none() {
             self.i18n.t_args("transfer-looking", &[("n", &found.to_string())])
         } else {
             self.i18n.t_args("transfer-counts", &[

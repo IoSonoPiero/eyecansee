@@ -6,7 +6,7 @@
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use bytes::Bytes;
 use opendal::{Operator, services};
@@ -315,12 +315,16 @@ impl Store {
     /// Everything below a folder, hidden items too, folders before what they contain: path and
     /// size (folders end in "/", size 0). EyeCanSee's trash folders stay out.
     /// `counted` grows as items are found, for the progress window.
-    pub async fn walk(&self, dir: &str, counted: &AtomicUsize) -> Result<Vec<(String, u64)>, Error> {
+    pub async fn walk(&self, dir: &str, p: &crate::transfer::Progress) -> Result<Vec<(String, u64)>, Error> {
         match self {
             Store::Dal(op) => {
+                *p.current.lock().unwrap() = dir.to_string();
                 let entries = op.list_with(dir).recursive(true).await.map_err(dal_error)?;
                 let mut found = Vec::new();
                 for e in entries {
+                    if p.cancel.load(Ordering::Relaxed) {
+                        return Err(("error-cancelled", String::new()));
+                    }
                     let path = e.path().trim_start_matches('/').to_string();
                     if path == dir || path.split('/').any(|p| p == TRASH_DIR) {
                         continue;
@@ -328,13 +332,13 @@ impl Store {
                     // The size is not always in the listing (local files): asked one by one.
                     let size = if path.ends_with('/') { 0 } else { self.size(&path).await? };
                     found.push((path, size));
-                    counted.fetch_add(1, Ordering::Relaxed);
+                    p.found.fetch_add(1, Ordering::Relaxed);
                 }
                 // A folder before its contents, whatever order the service lists them in.
                 found.sort_by(|a, b| a.0.cmp(&b.0));
                 Ok(found)
             }
-            Store::Mtp(phone) => phone.walk(dir, counted).await,
+            Store::Mtp(phone) => phone.walk(dir, p).await,
         }
     }
 

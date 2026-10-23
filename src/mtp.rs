@@ -7,7 +7,7 @@
 //! every listing remembers path → handle, and a path never seen is resolved by listing its parent.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex, Weak};
 
 use bytes::Bytes;
@@ -305,10 +305,15 @@ impl Phone {
 
     /// Everything below a folder, hidden items too, folders before what they contain: path and size
     /// (folders end in "/"). EyeCanSee's trash folders stay out.
-    pub async fn walk(&self, dir: &str, counted: &AtomicUsize) -> Result<Vec<(String, u64)>, Error> {
+    pub async fn walk(&self, dir: &str, p: &crate::transfer::Progress) -> Result<Vec<(String, u64)>, Error> {
+        if p.cancel.load(Ordering::Relaxed) {
+            return Err(("error-cancelled", String::new()));
+        }
+        // Shown while waiting: a folder of thousands of files can take long to list.
+        *p.current.lock().unwrap() = dir.to_string();
         let (storage, handle) = self.locate(dir).await?;
         let objects = self.queued(storage.list_objects(handle)).await.map_err(error)?;
-        counted.fetch_add(objects.len(), Ordering::Relaxed);
+        p.found.fetch_add(objects.len(), Ordering::Relaxed);
         self.complete.lock().unwrap().insert(dir.to_string());
         let mut found = Vec::new();
         for o in objects {
@@ -317,7 +322,7 @@ impl Phone {
             if o.is_folder() {
                 if o.filename != source::TRASH_DIR {
                     found.push((path.clone(), 0));
-                    found.extend(Box::pin(self.walk(&path, counted)).await?);
+                    found.extend(Box::pin(self.walk(&path, p)).await?);
                 }
             } else {
                 found.push((path, o.size));

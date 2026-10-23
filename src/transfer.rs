@@ -120,7 +120,10 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
     let mut lists = Vec::new();
     for (src, dest) in &copies {
         let list = if src.ends_with('/') {
-            let below = clip.op.walk(src, &p.found).await?;
+            // Made before looking inside, which can take seconds on a phone: the folder shows up at once.
+            to.create_dir(dest).await?;
+            p.touched.lock().unwrap().push(parent(dest));
+            let below = clip.op.walk(src, p).await?;
             std::iter::once((src.clone(), dest.clone(), 0))
                 .chain(below.into_iter().map(|(path, size)| {
                     let to_path = format!("{dest}{}", &path[src.len()..]);
