@@ -1,0 +1,2 @@
+# Lines of code in a function (blank lines and comments not counted) before clippy::too_many_lines.
+too-many-lines-threshold = 80

@@ -109,6 +109,7 @@ impl App {
     /// notch around the pointer (or the next image, see `wheel_zoom`; Ctrl and the wheel always
     /// zoom), + and − ×1.5 around the centre, 0 fitted, 1 at 100%, dragging moves the zoomed image.
     /// Never smaller than fitted, never larger than `max_zoom`.
+    #[allow(clippy::too_many_lines)] // to be split
     fn zoom_view(&mut self, ui: &egui::Ui, response: &egui::Response, tex: &TextureHandle, current: usize) {
         let rect = response.rect;
         let ppp = ui.ctx().pixels_per_point();

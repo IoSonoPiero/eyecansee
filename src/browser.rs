@@ -503,6 +503,7 @@ impl App {
         (rect, clicked)
     }
 
+    #[allow(clippy::too_many_lines)] // to be split
     pub(crate) fn grid(&mut self, ui: &mut Ui) {
         if ui.input(|i| i.pointer.primary_pressed()) && ui.rect_contains_pointer(ui.max_rect()) {
             self.focus = Focus::Grid;
@@ -698,6 +699,7 @@ impl App {
 
     /// Metadata boxes of the selected image, side by side below the grid; each one closes with
     /// its X and reopens from the View menu or the ℹ button.
+    #[allow(clippy::too_many_lines)] // to be split
     pub(crate) fn meta_panel(&mut self, ui: &mut Ui) {
         // Title bar: a click anywhere, or on the button on the right, collapses and reopens the
         // panel. Dragging its edge was useless: it always went back to the content's height.
@@ -935,6 +937,7 @@ impl App {
     }
 
     /// Draws a cell; returns `true` if it was double-clicked.
+    #[allow(clippy::too_many_lines)] // to be split
     fn grid_cell(&mut self, ui: &mut Ui, rect: Rect, i: usize, ndirs: usize) -> bool {
         let Some(Ok(listing)) = self.listings.get(&self.dir) else { return false };
         let path = if i < ndirs { listing.dirs[i].clone() } else { listing.files[i - ndirs].path.clone() };

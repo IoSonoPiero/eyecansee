@@ -337,6 +337,7 @@ struct App {
 impl App {
     /// `arg`: address from the command line. Without it (e.g. started from the applications menu)
     /// the last folder viewed if the option is on, otherwise the home folder.
+    #[allow(clippy::too_many_lines)] // to be split
     fn new(ctx: &egui::Context, settings: Settings, arg: Option<String>) -> Self {
         ctx.set_fonts(fonts());
         let (tx, rx) = mpsc::channel();
@@ -1094,6 +1095,7 @@ impl eframe::App for App {
         self.settings.save();
     }
 
+    #[allow(clippy::too_many_lines)] // to be split
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         // Closing during a copy: it is cancelled, and the window closes once the file being copied

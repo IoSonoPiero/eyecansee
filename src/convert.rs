@@ -630,6 +630,7 @@ impl crate::App {
 
     /// Drawn in place of the whole interface, as a page of its own: a window could not cover the
     /// menu, tool and status bars, and the two images need all the room there is.
+    #[allow(clippy::too_many_lines)] // to be split
     pub(crate) fn convert_page(&mut self, ui: &mut egui::Ui) {
         let ctx = &ui.ctx().clone();
         let Some(mut w) = self.convert.take() else { return };

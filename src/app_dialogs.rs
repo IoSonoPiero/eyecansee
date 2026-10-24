@@ -10,6 +10,7 @@ use crate::settings::{RemoteDelete, ThemeChoice, WindowStart};
 
 impl App {
     /// Every change is saved immediately.
+    #[allow(clippy::too_many_lines)] // to be split
     pub(crate) fn options_window(&mut self, ctx: &egui::Context) {
         let mut open = self.options;
         let before = self.settings.clone();

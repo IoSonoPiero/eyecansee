@@ -8,6 +8,7 @@ use crate::loader::THUMB_SIDE;
 impl App {
     /// Every keyboard or double-click action also has a menu item, with the shortcut next to it.
     /// The menus only record the chosen item; the action runs afterwards, with access to the whole app.
+    #[allow(clippy::too_many_lines)] // to be split
     pub(crate) fn menu_bar(&mut self, ui: &mut egui::Ui) {
         let t = |id| self.i18n.t(id);
         let item = |label: String, keys: String| egui::Button::new(label).shortcut_text(keys);
