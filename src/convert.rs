@@ -7,6 +7,7 @@ use std::sync::Arc;
 
 use eframe::egui::{self, ColorImage, TextureHandle};
 
+use crate::i18n::I18n;
 use crate::encode::{Chroma, Format, Options, Original, PngFilter, TiffCompression};
 use crate::paint::{paint_turned, paint_zoomed};
 use crate::transform::Turn;
@@ -112,11 +113,33 @@ impl crate::App {
 
     /// Drawn in place of the whole interface, as a page of its own: a window could not cover the
     /// menu, tool and status bars, and the two images need all the room there is.
-    #[allow(clippy::too_many_lines)] // to be split
     pub(crate) fn convert_page(&mut self, ui: &mut egui::Ui) {
         let ctx = &ui.ctx().clone();
         let Some(mut w) = self.convert.take() else { return };
-        // One encoding at a time (AVIF takes seconds): a change made meanwhile starts when it ends.
+        self.start_encoding(&mut w, ctx);
+        let dir = crate::source::parent(&w.path);
+        let taken: HashSet<String> = match self.listings.get(&dir) {
+            Some(Ok(l)) => l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).collect(),
+            _ => HashSet::new(),
+        };
+        let final_name = crate::source::free_name(&taken, w.name.trim());
+        let open = convert_header(ui, &self.i18n);
+        let save = self.convert_body(ui, &mut w, &final_name);
+        if save
+            && let (Some(Ok((bytes, _))), Some(loader)) = (&w.result, &self.loader)
+        {
+            w.saving = true;
+            w.error = None;
+            loader.save(format!("{dir}{final_name}"), bytes.clone());
+        }
+        // Taken out while drawn (it needs the rest of the app), put back unless closed.
+        if open {
+            self.convert = Some(w);
+        }
+    }
+
+    /// One encoding at a time (AVIF takes seconds): a change made meanwhile starts when it ends.
+    fn start_encoding(&self, w: &mut Window, ctx: &egui::Context) {
         if !w.busy
             && w.encoded_with != Some(w.options)
             && let Some(Ok((original, _, _))) = &w.original
@@ -139,272 +162,313 @@ impl crate::App {
                 }
             });
         }
+    }
 
+    /// Everything under the title: the two images, then what each one is, with the options and
+    /// the name on the side of the new one. `true`: Save clicked.
+    fn convert_body(&self, ui: &mut egui::Ui, w: &mut Window, final_name: &str) -> bool {
         let i18n = &self.i18n;
         let t = |id| i18n.t(id);
-        let human = |b: u64| self.human_size(b);
-        let dir = crate::source::parent(&w.path);
-        let taken: HashSet<String> = match self.listings.get(&dir) {
-            Some(Ok(l)) => l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).collect(),
-            _ => HashSet::new(),
-        };
-        let final_name = crate::source::free_name(&taken, w.name.trim());
-        let mut open = true;
         let mut save = false;
-        ui.horizontal(|ui| {
-            ui.heading(t("convert-title"));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("✕").on_hover_text("Esc").clicked() {
-                    open = false;
-                }
+        let original = match &w.original {
+            None => {
+                ui.centered_and_justified(|ui| ui.spinner());
+                return save;
+            }
+            Some(Err(e)) => {
+                ui.label(crate::browser::error_text(ui, i18n.t_args("cannot-load", &[("file", crate::source::name(&w.path)), ("error", e)])));
+                return save;
+            }
+            Some(Ok(o)) => o.clone(),
+        };
+        let (image, tex, size) = (&original.0.image, &original.1, original.2);
+        let half = (ui.available_width() - GAP) / 2.0;
+        // The images get what the options below leave (their height measured at the last frame).
+        let pane = egui::vec2(half, (ui.available_height() - 22.0 - 16.0 - w.bottom_h).max(120.0));
+        convert_images(ui, w, i18n, tex, half, pane);
+        ui.add_space(4.0);
+        let pixels = i18n.t_args("convert-pixels", &[("w", &image.width().to_string()), ("h", &image.height().to_string())]);
+        let bottom = ui.horizontal_top(|ui| {
+            ui.spacing_mut().item_spacing.x = GAP;
+            ui.vertical(|ui| {
+                ui.set_width(half);
+                let ext = crate::source::name(&w.path).rsplit_once('.').map_or(String::new(), |(_, e)| e.to_uppercase());
+                ui.label(format!("{ext} · {pixels}"));
+                ui.label(i18n.t_args("convert-file-size", &[("size", &self.human_size(size))]));
+                ui.add_space(6.0);
+                ui.checkbox(&mut w.actual, t("convert-actual"));
             });
-        });
-        if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
-            open = false;
+            ui.vertical(|ui| {
+                ui.spacing_mut().item_spacing.x = 8.0;
+                ui.set_width(half);
+                self.result_info(ui, w, &pixels, size);
+                ui.add_space(6.0);
+                format_choice(ui, w, i18n);
+                format_options(ui, &mut w.options, original.0.image.color().has_alpha(), i18n);
+                meta_options(ui, &mut w.options, &original.0, i18n);
+                // The name belongs to the new image, so it sits on its side.
+                ui.add_space(6.0);
+                save = name_row(ui, w, i18n, half, final_name);
+            });
+        })
+        .response;
+        // Measured, for the next frame: the options change with the format.
+        let used = bottom.rect.height() + 8.0;
+        if (used - w.bottom_h).abs() > 1.0 {
+            w.bottom_h = used;
+            ui.ctx().request_repaint();
         }
-        ui.separator();
-        (|ui: &mut egui::Ui| {
-                let original = match &w.original {
-                    None => {
-                        ui.centered_and_justified(|ui| ui.spinner());
-                        return;
-                    }
-                    Some(Err(e)) => {
-                        ui.label(crate::browser::error_text(ui, i18n.t_args("cannot-load", &[("file", crate::source::name(&w.path)), ("error", e)])));
-                        return;
-                    }
-                    Some(Ok(o)) => o.clone(),
-                };
-                let (image, tex, size) = (&original.0.image, &original.1, original.2);
-                const GAP: f32 = 16.0;
-                let half = (ui.available_width() - GAP) / 2.0;
-                // The images get what the options below leave (their height measured at the last frame).
-                let pane = egui::vec2(half, (ui.available_height() - 22.0 - 16.0 - w.bottom_h).max(120.0));
-                let result_tex = match &w.result {
-                    Some(Ok((_, Some(tex)))) => Some(tex),
-                    _ => None,
-                };
-                // Titles in rows of the same height (the spinner is taller than the text), so the
-                // two images start at the same height.
-                let title = |ui: &mut egui::Ui, text: String, busy: bool| {
-                    ui.allocate_ui_with_layout(egui::vec2(half, 22.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                        ui.set_min_size(egui::vec2(half, 22.0));
-                        ui.strong(text);
-                        if busy {
-                            ui.spinner();
-                            ui.weak(t("convert-working"));
-                        }
-                    });
-                };
-                ui.horizontal_top(|ui| {
-                    ui.spacing_mut().item_spacing.x = GAP;
-                    ui.vertical(|ui| {
-                        title(ui, t("convert-original"), false);
-                        let r = preview(ui, pane, Some(tex), None, w.actual, &mut w.pan);
-                        drag(&r, w.actual, &mut w.pan);
-                    });
-                    ui.vertical(|ui| {
-                        title(ui, t("convert-result"), w.busy);
-                        let note = match &w.result {
-                            _ if w.busy && result_tex.is_none() => Some(t("convert-working")),
-                            Some(Ok((_, None))) => Some(t("convert-no-preview")),
-                            _ => None,
-                        };
-                        let r = preview(ui, pane, result_tex, note.as_deref(), w.actual, &mut w.pan);
-                        drag(&r, w.actual, &mut w.pan);
-                    });
-                });
-                ui.add_space(4.0);
-                let pixels = i18n.t_args("convert-pixels", &[("w", &image.width().to_string()), ("h", &image.height().to_string())]);
-                let bottom = ui.horizontal_top(|ui| {
-                    ui.spacing_mut().item_spacing.x = GAP;
-                    ui.vertical(|ui| {
-                        ui.set_width(half);
-                        let ext = crate::source::name(&w.path).rsplit_once('.').map_or(String::new(), |(_, e)| e.to_uppercase());
-                        ui.label(format!("{ext} · {pixels}"));
-                        ui.label(i18n.t_args("convert-file-size", &[("size", &human(size))]));
-                        ui.add_space(6.0);
-                        ui.checkbox(&mut w.actual, t("convert-actual"));
-                    });
-                    ui.vertical(|ui| {
-                        ui.spacing_mut().item_spacing.x = 8.0;
-                        ui.set_width(half);
-                        match &w.result {
-                            Some(Ok((bytes, _))) => {
-                                let percent = (bytes.len() as u64 * 100 / size.max(1)).to_string();
-                                ui.label(format!("{} · {pixels}", w.options.format.label()));
-                                ui.label(format!(
-                                    "{} ({})",
-                                    i18n.t_args("convert-file-size", &[("size", &human(bytes.len() as u64))]),
-                                    i18n.t_args("convert-ratio", &[("percent", &percent)])
-                                ));
-                            }
-                            Some(Err(e)) => {
-                                ui.label(crate::browser::error_text(ui, i18n.t_args("convert-error", &[("detail", e)])));
-                            }
-                            None => {
-                                ui.label(" ");
-                                ui.label(" ");
-                            }
-                        }
-                        ui.add_space(6.0);
-                        let o = &mut w.options;
-                        let before = o.format;
-                        egui::ComboBox::from_label(t("convert-format")).selected_text(o.format.label()).show_ui(ui, |ui| {
-                            for f in Format::ALL {
-                                ui.selectable_value(&mut o.format, f, f.label());
-                            }
-                        });
-                        if o.format != before {
-                            w.name = with_ext(&w.name, o.format);
-                        }
-                        let alpha = original.0.image.color().has_alpha();
-                        let quality = |ui: &mut egui::Ui, v: &mut u8, label: String| {
-                            ui.add(egui::Slider::new(v, 1..=100).text(label));
-                        };
-                        match o.format {
-                            Format::Jpeg => {
-                                ui.add_enabled_ui(!o.jpeg_lossless, |ui| {
-                                    quality(ui, &mut o.jpeg_quality, t("convert-quality"));
-                                    egui::ComboBox::from_label(t("convert-chroma"))
-                                        .selected_text(t(match o.chroma {
-                                            Chroma::Full => "convert-chroma-full",
-                                            Chroma::Half => "convert-chroma-half",
-                                            Chroma::Quarter => "convert-chroma-quarter",
-                                            Chroma::Grey => "convert-chroma-grey",
-                                        }))
-                                        .show_ui(ui, |ui| {
-                                            ui.selectable_value(&mut o.chroma, Chroma::Full, t("convert-chroma-full"));
-                                            ui.selectable_value(&mut o.chroma, Chroma::Half, t("convert-chroma-half"));
-                                            ui.selectable_value(&mut o.chroma, Chroma::Quarter, t("convert-chroma-quarter"));
-                                            ui.selectable_value(&mut o.chroma, Chroma::Grey, t("convert-chroma-grey"));
-                                        });
-                                });
-                                ui.checkbox(&mut o.progressive, t("convert-progressive"));
-                                ui.checkbox(&mut o.optimize, t("convert-optimize"));
-                                ui.checkbox(&mut o.arithmetic, t("convert-arithmetic"));
-                                ui.checkbox(&mut o.jpeg_lossless, t("convert-jpeg-lossless"));
-                            }
-                            Format::Png => {
-                                ui.add(egui::Slider::new(&mut o.png_level, 0..=9).text(t("convert-png-level")));
-                                let filters = [
-                                    (PngFilter::Adaptive, t("convert-filter-adaptive")),
-                                    (PngFilter::None, t("convert-none")),
-                                    (PngFilter::Sub, "Sub".to_string()),
-                                    (PngFilter::Up, "Up".to_string()),
-                                    (PngFilter::Avg, "Average".to_string()),
-                                    (PngFilter::Paeth, "Paeth".to_string()),
-                                ];
-                                let shown = filters.iter().find(|(f, _)| *f == o.png_filter).map(|(_, l)| l.clone()).unwrap_or_default();
-                                egui::ComboBox::from_label(t("convert-png-filter")).selected_text(shown).show_ui(ui, |ui| {
-                                    for (f, label) in filters {
-                                        ui.selectable_value(&mut o.png_filter, f, label);
-                                    }
-                                });
-                            }
-                            Format::Webp => {
-                                ui.horizontal(|ui| {
-                                    ui.radio_value(&mut o.webp_lossless, false, t("convert-lossy"));
-                                    ui.radio_value(&mut o.webp_lossless, true, t("convert-lossless-mode"));
-                                });
-                                if o.webp_lossless {
-                                    ui.add(egui::Slider::new(&mut o.near_lossless, 0..=100).text(t("convert-near-lossless")));
-                                } else {
-                                    quality(ui, &mut o.webp_quality, t("convert-quality"));
-                                    ui.checkbox(&mut o.sharp_yuv, t("convert-sharp-yuv"));
-                                }
-                                ui.add(egui::Slider::new(&mut o.webp_effort, 0..=6).text(t("convert-effort"))).on_hover_text(t("convert-speed-hint"));
-                            }
-                            Format::Avif => {
-                                quality(ui, &mut o.avif_quality, t("convert-quality"));
-                                if alpha {
-                                    quality(ui, &mut o.avif_alpha_quality, t("convert-alpha-quality"));
-                                }
-                                ui.add(egui::Slider::new(&mut o.avif_speed, 1..=10).text(t("convert-speed"))).on_hover_text(t("convert-speed-hint"));
-                                ui.checkbox(&mut o.avif_ten_bit, t("convert-ten-bit"));
-                                ui.checkbox(&mut o.avif_rgb, t("convert-avif-rgb"));
-                            }
-                            Format::Tiff => {
-                                let kinds = [
-                                    (TiffCompression::None, t("convert-none")),
-                                    (TiffCompression::Lzw, "LZW".to_string()),
-                                    (TiffCompression::DeflateFast, t("convert-deflate-fast")),
-                                    (TiffCompression::Deflate, "Deflate".to_string()),
-                                    (TiffCompression::DeflateBest, t("convert-deflate-best")),
-                                    (TiffCompression::PackBits, "PackBits".to_string()),
-                                ];
-                                let shown = kinds.iter().find(|(k, _)| *k == o.tiff).map(|(_, l)| l.clone()).unwrap_or_default();
-                                egui::ComboBox::from_label(t("convert-compression")).selected_text(shown).show_ui(ui, |ui| {
-                                    for (k, label) in kinds {
-                                        ui.selectable_value(&mut o.tiff, k, label);
-                                    }
-                                });
-                                let predictor = matches!(o.tiff, TiffCompression::Lzw | TiffCompression::DeflateFast | TiffCompression::Deflate | TiffCompression::DeflateBest);
-                                ui.add_enabled(predictor, egui::Checkbox::new(&mut o.tiff_predictor, t("convert-predictor")));
-                            }
-                            Format::Gif => {
-                                ui.add(egui::Slider::new(&mut o.gif_quality, 1..=30).text(t("convert-gif-quality")));
-                            }
-                            Format::Bmp | Format::Qoi => {}
-                        }
-                        let lossless = match o.format {
-                            Format::Png | Format::Tiff | Format::Bmp | Format::Qoi => true,
-                            Format::Webp => o.webp_lossless && o.near_lossless == 100,
-                            Format::Jpeg => o.jpeg_lossless,
-                            _ => false,
-                        };
-                        if lossless {
-                            ui.weak(t("convert-lossless"));
-                        } else if o.format == Format::Gif {
-                            ui.weak(t("convert-gif"));
-                        }
-                        let can_meta = original.0.has_meta() && o.format.holds_meta();
-                        let hint = if !original.0.has_meta() { t("convert-no-meta") } else if !o.format.holds_meta() { t("convert-meta-unsupported") } else { String::new() };
-                        let r = ui.add_enabled(can_meta, egui::Checkbox::new(&mut o.keep_meta, t("convert-keep-meta")));
-                        if !hint.is_empty() {
-                            r.on_disabled_hover_text(hint);
-                        }
-                        // The name belongs to the new image, so it sits on its side.
-                        ui.add_space(6.0);
-                        ui.horizontal(|ui| {
-                            ui.label(t("convert-name"));
-                            ui.add(egui::TextEdit::singleline(&mut w.name).desired_width((half - 200.0).clamp(160.0, 420.0)));
-                            let ready = matches!(w.result, Some(Ok(_))) && !w.busy && !w.saving && !w.name.trim().is_empty() && !w.name.contains(['/', '\\']);
-                            if ui.add_enabled(ready, egui::Button::new(t("convert-save"))).clicked() {
-                                save = true;
-                            }
-                            if w.saving {
-                                ui.spinner();
-                            }
-                        });
-                        if final_name != w.name.trim() && !w.name.trim().is_empty() {
-                            ui.weak(i18n.t_args("convert-exists", &[("name", &final_name)]));
-                        }
-                        if let Some(e) = &w.error {
-                            ui.label(crate::browser::error_text(ui, e.as_str()));
-                        }
-                    });
-                })
-                .response;
-                // Measured, for the next frame: the options change with the format.
-                let used = bottom.rect.height() + 8.0;
-                if (used - w.bottom_h).abs() > 1.0 {
-                    w.bottom_h = used;
-                    ui.ctx().request_repaint();
-                }
-            })(ui);
-        if save
-            && let (Some(Ok((bytes, _))), Some(loader)) = (&w.result, &self.loader)
-        {
-            w.saving = true;
-            w.error = None;
-            loader.save(format!("{dir}{final_name}"), bytes.clone());
-        }
-        // Taken out while drawn (it needs the rest of the app), put back unless closed.
-        if open {
-            self.convert = Some(w);
+        save
+    }
+
+    /// Format and size of the new file, against the original's; its error if it failed.
+    fn result_info(&self, ui: &mut egui::Ui, w: &Window, pixels: &str, size: u64) {
+        let i18n = &self.i18n;
+        match &w.result {
+            Some(Ok((bytes, _))) => {
+                let percent = (bytes.len() as u64 * 100 / size.max(1)).to_string();
+                ui.label(format!("{} · {pixels}", w.options.format.label()));
+                ui.label(format!(
+                    "{} ({})",
+                    i18n.t_args("convert-file-size", &[("size", &self.human_size(bytes.len() as u64))]),
+                    i18n.t_args("convert-ratio", &[("percent", &percent)])
+                ));
+            }
+            Some(Err(e)) => {
+                ui.label(crate::browser::error_text(ui, i18n.t_args("convert-error", &[("detail", e)])));
+            }
+            None => {
+                ui.label(" ");
+                ui.label(" ");
+            }
         }
     }
+}
+
+/// Space between the two halves of the page.
+const GAP: f32 = 16.0;
+
+/// Title and ✕ of the page; `false` once closed (✕ or Esc).
+fn convert_header(ui: &mut egui::Ui, i18n: &I18n) -> bool {
+    let mut open = true;
+    ui.horizontal(|ui| {
+        ui.heading(i18n.t("convert-title"));
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            if ui.button("✕").on_hover_text("Esc").clicked() {
+                open = false;
+            }
+        });
+    });
+    if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
+        open = false;
+    }
+    ui.separator();
+    open
+}
+
+/// The original and the new image side by side, each under its title.
+fn convert_images(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, tex: &TextureHandle, half: f32, pane: egui::Vec2) {
+    let t = |id| i18n.t(id);
+    let result_tex = match &w.result {
+        Some(Ok((_, Some(tex)))) => Some(tex),
+        _ => None,
+    };
+    // Titles in rows of the same height (the spinner is taller than the text), so the
+    // two images start at the same height.
+    let title = |ui: &mut egui::Ui, text: String, busy: bool| {
+        ui.allocate_ui_with_layout(egui::vec2(half, 22.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+            ui.set_min_size(egui::vec2(half, 22.0));
+            ui.strong(text);
+            if busy {
+                ui.spinner();
+                ui.weak(t("convert-working"));
+            }
+        });
+    };
+    ui.horizontal_top(|ui| {
+        ui.spacing_mut().item_spacing.x = GAP;
+        ui.vertical(|ui| {
+            title(ui, t("convert-original"), false);
+            let r = preview(ui, pane, Some(tex), None, w.actual, &mut w.pan);
+            drag(&r, w.actual, &mut w.pan);
+        });
+        ui.vertical(|ui| {
+            title(ui, t("convert-result"), w.busy);
+            let note = match &w.result {
+                _ if w.busy && result_tex.is_none() => Some(t("convert-working")),
+                Some(Ok((_, None))) => Some(t("convert-no-preview")),
+                _ => None,
+            };
+            let r = preview(ui, pane, result_tex, note.as_deref(), w.actual, &mut w.pan);
+            drag(&r, w.actual, &mut w.pan);
+        });
+    });
+}
+
+/// The output format; the name takes its extension.
+fn format_choice(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
+    let o = &mut w.options;
+    let before = o.format;
+    egui::ComboBox::from_label(i18n.t("convert-format")).selected_text(o.format.label()).show_ui(ui, |ui| {
+        for f in Format::ALL {
+            ui.selectable_value(&mut o.format, f, f.label());
+        }
+    });
+    if o.format != before {
+        w.name = with_ext(&w.name, o.format);
+    }
+}
+
+fn quality(ui: &mut egui::Ui, v: &mut u8, label: String) {
+    ui.add(egui::Slider::new(v, 1..=100).text(label));
+}
+
+/// The options of the chosen format's encoder.
+fn format_options(ui: &mut egui::Ui, o: &mut Options, alpha: bool, i18n: &I18n) {
+    let t = |id| i18n.t(id);
+    match o.format {
+        Format::Jpeg => jpeg_options(ui, o, i18n),
+        Format::Png => png_options(ui, o, i18n),
+        Format::Webp => webp_options(ui, o, i18n),
+        Format::Avif => {
+            quality(ui, &mut o.avif_quality, t("convert-quality"));
+            if alpha {
+                quality(ui, &mut o.avif_alpha_quality, t("convert-alpha-quality"));
+            }
+            ui.add(egui::Slider::new(&mut o.avif_speed, 1..=10).text(t("convert-speed"))).on_hover_text(t("convert-speed-hint"));
+            ui.checkbox(&mut o.avif_ten_bit, t("convert-ten-bit"));
+            ui.checkbox(&mut o.avif_rgb, t("convert-avif-rgb"));
+        }
+        Format::Tiff => tiff_options(ui, o, i18n),
+        Format::Gif => {
+            ui.add(egui::Slider::new(&mut o.gif_quality, 1..=30).text(t("convert-gif-quality")));
+        }
+        Format::Bmp | Format::Qoi => {}
+    }
+}
+
+fn jpeg_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
+    let t = |id| i18n.t(id);
+    ui.add_enabled_ui(!o.jpeg_lossless, |ui| {
+        quality(ui, &mut o.jpeg_quality, t("convert-quality"));
+        egui::ComboBox::from_label(t("convert-chroma"))
+            .selected_text(t(match o.chroma {
+                Chroma::Full => "convert-chroma-full",
+                Chroma::Half => "convert-chroma-half",
+                Chroma::Quarter => "convert-chroma-quarter",
+                Chroma::Grey => "convert-chroma-grey",
+            }))
+            .show_ui(ui, |ui| {
+                ui.selectable_value(&mut o.chroma, Chroma::Full, t("convert-chroma-full"));
+                ui.selectable_value(&mut o.chroma, Chroma::Half, t("convert-chroma-half"));
+                ui.selectable_value(&mut o.chroma, Chroma::Quarter, t("convert-chroma-quarter"));
+                ui.selectable_value(&mut o.chroma, Chroma::Grey, t("convert-chroma-grey"));
+            });
+    });
+    ui.checkbox(&mut o.progressive, t("convert-progressive"));
+    ui.checkbox(&mut o.optimize, t("convert-optimize"));
+    ui.checkbox(&mut o.arithmetic, t("convert-arithmetic"));
+    ui.checkbox(&mut o.jpeg_lossless, t("convert-jpeg-lossless"));
+}
+
+fn png_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
+    let t = |id| i18n.t(id);
+    ui.add(egui::Slider::new(&mut o.png_level, 0..=9).text(t("convert-png-level")));
+    let filters = [
+        (PngFilter::Adaptive, t("convert-filter-adaptive")),
+        (PngFilter::None, t("convert-none")),
+        (PngFilter::Sub, "Sub".to_string()),
+        (PngFilter::Up, "Up".to_string()),
+        (PngFilter::Avg, "Average".to_string()),
+        (PngFilter::Paeth, "Paeth".to_string()),
+    ];
+    let shown = filters.iter().find(|(f, _)| *f == o.png_filter).map(|(_, l)| l.clone()).unwrap_or_default();
+    egui::ComboBox::from_label(t("convert-png-filter")).selected_text(shown).show_ui(ui, |ui| {
+        for (f, label) in filters {
+            ui.selectable_value(&mut o.png_filter, f, label);
+        }
+    });
+}
+
+fn webp_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
+    let t = |id| i18n.t(id);
+    ui.horizontal(|ui| {
+        ui.radio_value(&mut o.webp_lossless, false, t("convert-lossy"));
+        ui.radio_value(&mut o.webp_lossless, true, t("convert-lossless-mode"));
+    });
+    if o.webp_lossless {
+        ui.add(egui::Slider::new(&mut o.near_lossless, 0..=100).text(t("convert-near-lossless")));
+    } else {
+        quality(ui, &mut o.webp_quality, t("convert-quality"));
+        ui.checkbox(&mut o.sharp_yuv, t("convert-sharp-yuv"));
+    }
+    ui.add(egui::Slider::new(&mut o.webp_effort, 0..=6).text(t("convert-effort"))).on_hover_text(t("convert-speed-hint"));
+}
+
+fn tiff_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
+    let t = |id| i18n.t(id);
+    let kinds = [
+        (TiffCompression::None, t("convert-none")),
+        (TiffCompression::Lzw, "LZW".to_string()),
+        (TiffCompression::DeflateFast, t("convert-deflate-fast")),
+        (TiffCompression::Deflate, "Deflate".to_string()),
+        (TiffCompression::DeflateBest, t("convert-deflate-best")),
+        (TiffCompression::PackBits, "PackBits".to_string()),
+    ];
+    let shown = kinds.iter().find(|(k, _)| *k == o.tiff).map(|(_, l)| l.clone()).unwrap_or_default();
+    egui::ComboBox::from_label(t("convert-compression")).selected_text(shown).show_ui(ui, |ui| {
+        for (k, label) in kinds {
+            ui.selectable_value(&mut o.tiff, k, label);
+        }
+    });
+    let predictor = matches!(o.tiff, TiffCompression::Lzw | TiffCompression::DeflateFast | TiffCompression::Deflate | TiffCompression::DeflateBest);
+    ui.add_enabled(predictor, egui::Checkbox::new(&mut o.tiff_predictor, t("convert-predictor")));
+}
+
+/// Whether the format loses quality, and the metadata kept when both the original and the format have some.
+fn meta_options(ui: &mut egui::Ui, o: &mut Options, original: &Original, i18n: &I18n) {
+    let t = |id| i18n.t(id);
+    let lossless = match o.format {
+        Format::Png | Format::Tiff | Format::Bmp | Format::Qoi => true,
+        Format::Webp => o.webp_lossless && o.near_lossless == 100,
+        Format::Jpeg => o.jpeg_lossless,
+        _ => false,
+    };
+    if lossless {
+        ui.weak(t("convert-lossless"));
+    } else if o.format == Format::Gif {
+        ui.weak(t("convert-gif"));
+    }
+    let can_meta = original.has_meta() && o.format.holds_meta();
+    let hint = if !original.has_meta() { t("convert-no-meta") } else if !o.format.holds_meta() { t("convert-meta-unsupported") } else { String::new() };
+    let r = ui.add_enabled(can_meta, egui::Checkbox::new(&mut o.keep_meta, t("convert-keep-meta")));
+    if !hint.is_empty() {
+        r.on_disabled_hover_text(hint);
+    }
+}
+
+/// Name of the new file and Save (`true` when clicked); the name it will really get if taken.
+fn name_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, half: f32, final_name: &str) -> bool {
+    let t = |id| i18n.t(id);
+    let mut save = false;
+    ui.horizontal(|ui| {
+        ui.label(t("convert-name"));
+        ui.add(egui::TextEdit::singleline(&mut w.name).desired_width((half - 200.0).clamp(160.0, 420.0)));
+        let ready = matches!(w.result, Some(Ok(_))) && !w.busy && !w.saving && !w.name.trim().is_empty() && !w.name.contains(['/', '\\']);
+        if ui.add_enabled(ready, egui::Button::new(t("convert-save"))).clicked() {
+            save = true;
+        }
+        if w.saving {
+            ui.spinner();
+        }
+    });
+    if final_name != w.name.trim() && !w.name.trim().is_empty() {
+        ui.weak(i18n.t_args("convert-exists", &[("name", final_name)]));
+    }
+    if let Some(e) = &w.error {
+        ui.label(crate::browser::error_text(ui, e.as_str()));
+    }
+    save
 }
 
 /// The image fitted into `size` (never enlarged), or at 100% around `pan`; grey when none.
