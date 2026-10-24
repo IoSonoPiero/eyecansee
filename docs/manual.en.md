@@ -71,7 +71,7 @@ If the name of an item being restored is already taken, EyeCanSee asks what to d
 
 ## Saving in another format
 
-Right-click an image (in the grid or in the viewer) and choose **Save in another format…**. A page takes the whole window: the original on the left, the converted image on the right, each with its size in pixels and on disk (for the converted one also as a percentage of the original). What you see on the right is the file as it will be saved: it is encoded and decoded back every time you change an option.
+Right-click an image (in the grid or in the viewer) and choose **Save as…**. A page takes the whole window: the original on the left, the converted image on the right, each with its size in pixels and on disk (for the converted one also as a percentage of the original). What you see on the right is the file as it will be saved: it is encoded and decoded back every time you change an option.
 
 - **Format**: JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF or QOI, with all the options of each one: quality, colour detail, progressive and lossless JPEG; compression level and filter for PNG; lossy or lossless WebP; quality, speed and bit depth for AVIF; compression for TIFF; colour reduction for GIF. The full table is in [docs/formats.md](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/formats.md).
 - **100%** shows the real pixels; drag either image to move both, so you compare the same spot.
@@ -83,11 +83,11 @@ Right-click an image (in the grid or in the viewer) and choose **Save in another
 
 In the viewer, **Image > Transform** flips the image horizontally or vertically and rotates it by 90° clockwise (Ctrl+R) or anticlockwise (Ctrl+Shift+R) or by 180°; the two rotations are also buttons on the toolbar, and everything is in the right-click menu. The change is only shown until you save it (the status bar says "Changed, not saved"); opening another image drops it.
 
-- **File > Save** (Ctrl+S) saves over the original, after asking; the original goes where a deletion would send it (the trash, usually). A JPEG is rotated without losing quality, as `jpegtran` does, when its width and height are multiples of 16 pixels (8 for some); otherwise it is encoded again at quality 95. PNG, WebP, AVIF, TIFF, BMP and QOI are encoded again in their own format. The confirmation says when the image will be encoded again with some loss of quality (a JPEG of other sizes, lossy WebP, AVIF). GIF and the formats EyeCanSee cannot write (HEIC, RAW, PSD…) can only use Save as, and so can images that would lose something: animated PNG, WebP and AVIF, TIFF files with several pages, and JPEG photos carrying more than one picture (the video of a motion photo, depth maps). On FTP servers images cannot be saved over themselves: renaming is not possible there.
+- **File > Save** (Ctrl+S) saves over the original, after asking; the original goes where a deletion would send it (the trash, usually). A JPEG is rotated without losing quality, as `jpegtran` does, when its width and height are multiples of 16 pixels (8 for some); otherwise it is encoded again at quality 95. PNG, WebP, AVIF, TIFF, BMP, GIF and QOI are encoded again in their own format. The confirmation says when the image will be encoded again with some loss of quality (a JPEG of other sizes, lossy WebP, AVIF, GIF). The formats EyeCanSee cannot write (HEIC, RAW, PSD…) can only use Save as, and so can images that would lose something: animated PNG, WebP, AVIF and GIF, TIFF files with several pages, and JPEG photos carrying more than one picture (the video of a motion photo, depth maps). On FTP servers images cannot be saved over themselves: renaming is not possible there. When an image cannot be saved over itself, Ctrl+S says why in a window with a **Save as…** button.
 - The new file is written under a hidden name first, and only takes the image's name once it is complete; if something goes wrong, or the program closes half way, the original stays (or comes back, the next time the folder is opened) under its name. If the program closes just after the new file has taken the name, a hidden file `.<name>.eyecansee-old` may stay next to the saved image: it is the original. The next Save of that image sends it where a deletion would; until then you can delete it or rename it yourself.
 - **File > Save as…** (Ctrl+Shift+S) opens *Save in another format* with the image already rotated: the original is not touched.
 
-In the grid the same operations (Image > Transform, or right-click) work on the selected image, or on all the marked ones, and save them straight away: EyeCanSee asks first, says where the originals go and warns that lossy formats may lose a little quality; images whose format cannot be saved back are left out, and so are animated and multi-page images and motion photos, whose names are listed at the end. Their thumbnails are then made again.
+In the grid the same operations (Image > Transform, or right-click > Transform) work on the selected image, or on all the marked ones, and save them straight away: EyeCanSee asks first, says where the originals go and warns that lossy formats may lose a little quality; images whose format cannot be saved back are left out, and so are animated and multi-page images and motion photos, listed by name in the window that says, at the end, how many images were saved. Their thumbnails are then made again.
 
 ## Copying and moving
 
@@ -117,7 +117,7 @@ When you connect a phone, a camera, an external disk, a USB stick or an SD card,
 
 ## Opening images
 
-Type a folder, an image or a remote address in the address bar and press Enter (File > Open location focuses it), or start EyeCanSee with one:
+Type a folder, an image or a remote address in the address bar and press Enter, or start EyeCanSee with one. **File > Open location…** opens a window where you type the whole address, or choose the protocol and fill in server, port, user, password and folder (without a user, FTP logs in as `anonymous`):
 
 ```text
 eyecansee                                  your home folder

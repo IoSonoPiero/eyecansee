@@ -64,12 +64,11 @@ impl Format {
         matches!(self, Format::Jpeg | Format::Png | Format::Webp | Format::Avif | Format::Tiff)
     }
 
-    /// The format a file can be saved back in after a turn ("Save"), from its name. Not GIF: its
-    /// animation would be lost, since only the first frame is decoded (the other formats are
-    /// looked at inside by `can_turn_in_place`).
+    /// The format a file can be saved back in after a turn ("Save"), from its name (what is
+    /// inside, animated or not, is looked at by `can_turn_in_place`).
     pub fn of_file(name: &str) -> Option<Format> {
         let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
-        Format::ALL.into_iter().filter(|f| *f != Format::Gif).find(|f| f.ext() == ext || (ext == "jpeg" && *f == Format::Jpeg) || (ext == "tiff" && *f == Format::Tiff))
+        Format::ALL.into_iter().find(|f| f.ext() == ext || (ext == "jpeg" && *f == Format::Jpeg) || (ext == "tiff" && *f == Format::Tiff))
     }
 }
 
@@ -257,7 +256,8 @@ pub fn turned_file(bytes: &[u8], name: &str, turn: Turn) -> Result<(Vec<u8>, boo
     }
     let webp_lossless = format == Format::Webp && bytes.windows(4).any(|w| w == b"VP8L");
     let o = Options { format, turn, jpeg_quality: 95, webp_lossless, ..Default::default() };
-    let lossy = matches!(format, Format::Jpeg | Format::Avif) || (format == Format::Webp && !webp_lossless);
+    // GIF too: its colours are chosen again (at most 256).
+    let lossy = matches!(format, Format::Jpeg | Format::Avif | Format::Gif) || (format == Format::Webp && !webp_lossless);
     Ok((Original::open(bytes, name)?.encode(&o)?, lossy))
 }
 
@@ -273,6 +273,8 @@ pub fn can_turn_in_place(bytes: &[u8], name: &str) -> bool {
         Some(Format::Webp) => image::codecs::webp::WebPDecoder::new(cursor()).is_ok_and(|d| !d.has_animation()),
         Some(Format::Tiff) => tiff::decoder::Decoder::new(cursor()).is_ok_and(|d| !d.more_images()),
         Some(Format::Avif) => !avif_sequence(bytes),
+        // Only the first frame is decoded: an animated GIF would lose the others.
+        Some(Format::Gif) => gif::GifDecoder::new(cursor()).is_ok_and(|d| image::AnimationDecoder::into_frames(d).take(2).count() == 1),
         Some(_) => true,
         None => false,
     }
@@ -1149,7 +1151,11 @@ pub(crate) mod tests {
         assert!(can_turn_in_place(&ftyp(b"avif"), "a.avif"));
         assert!(!can_turn_in_place(&ftyp(b"avis"), "a.avif"));
 
-        assert!(!can_turn_in_place(&file(image::ImageFormat::Gif), "a.gif"));
+        assert!(can_turn_in_place(&file(image::ImageFormat::Gif), "a.gif"));
+        let mut animated_gif = Vec::new();
+        let frame = || image::Frame::new(img.to_rgba8());
+        gif::GifEncoder::new(&mut animated_gif).encode_frames([frame(), frame()]).unwrap();
+        assert!(!can_turn_in_place(&animated_gif, "a.gif"));
         assert!(!can_turn_in_place(&jpeg, "a.heic"));
     }
 }

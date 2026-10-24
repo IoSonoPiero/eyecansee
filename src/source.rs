@@ -119,7 +119,12 @@ fn local_path(op: &Operator, path: &str) -> PathBuf {
 }
 
 fn dal_error(e: opendal::Error) -> Error {
-    let id = if e.kind() == opendal::ErrorKind::NotFound { NOT_FOUND } else { "error-detail" };
+    let id = match e.kind() {
+        opendal::ErrorKind::NotFound => NOT_FOUND,
+        // FTP "530 Not logged in" comes as an unexpected error.
+        _ if e.to_string().contains("[530]") => "error-login",
+        _ => "error-detail",
+    };
     (id, e.to_string())
 }
 
@@ -619,9 +624,11 @@ pub fn open(arg: &str) -> Result<Source, Error> {
         scheme @ ("ftp" | "ftps") => {
             let port = url.port_or_known_default().unwrap_or(21);
             let mut b = services::Ftp::default().endpoint(&format!("{scheme}://{host}:{port}")).root("/");
-            if !url.username().is_empty() {
-                b = b.user(&decode(url.username()));
-            }
+            // Without a user OpenDAL does not log in at all; FTP clients log in as "anonymous".
+            b = match url.username() {
+                "" => b.user("anonymous").password("anonymous@"),
+                u => b.user(&decode(u)),
+            };
             if let Some(p) = url.password() {
                 b = b.password(&decode(p));
             }

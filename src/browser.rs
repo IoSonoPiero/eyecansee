@@ -57,6 +57,13 @@ pub(crate) fn context_menu(ui: &mut Ui, items: Vec<MenuItem>) -> Option<Act> {
     let mut chosen = None;
     for item in items {
         match item {
+            Some((label, _, Act::Submenu(sub))) => {
+                ui.menu_button(label, |ui| {
+                    if let Some(a) = context_menu(ui, sub) {
+                        chosen = Some(a);
+                    }
+                });
+            }
             Some((label, keys, act)) => {
                 if ui.add(egui::Button::new(label).shortcut_text(keys)).clicked() {
                     chosen = Some(act);
@@ -108,15 +115,18 @@ impl App {
             // Flips and turns: in the viewer shown until saved, in the grid saved straight away.
             if !target.ends_with('/') {
                 items.push(None);
+                let mut turns = Vec::new();
                 for (op, label, keys) in crate::transform_items() {
-                    items.push(Some((t(label), if in_viewer { keys.map(t).unwrap_or_default() } else { String::new() }, Act::Transform(op, path.clone()))));
+                    turns.push(Some((t(label), if in_viewer { keys.map(t).unwrap_or_default() } else { String::new() }, Act::Transform(op, path.clone()))));
+                    if op == crate::transform::Op::FlipV {
+                        turns.push(None);
+                    }
                 }
+                items.push(Some((t("menu-transform"), String::new(), Act::Submenu(turns))));
                 if in_viewer && self.can_save() {
                     items.push(Some((t("menu-save"), t("key-save"), Act::Save)));
                 }
-            }
-            if !target.ends_with('/') {
-                items.push(Some((t("menu-save-as"), String::new(), Act::Convert(path.clone()))));
+                items.push(Some((t("menu-save-copy"), String::new(), Act::Convert(path.clone()))));
                 items.push(Some((t("menu-redo-thumbs"), String::new(), Act::RedoThumbs(path.clone()))));
             }
             items.push(None);

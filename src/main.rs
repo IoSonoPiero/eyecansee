@@ -85,6 +85,8 @@ enum Go {
 /// runs afterwards (`App::run`) with access to the whole app.
 #[derive(Debug)]
 pub(crate) enum Act {
+    /// A submenu of a right-click menu (Transform): never run itself.
+    Submenu(Vec<browser::MenuItem>),
     Address,
     Options,
     /// Item (`None` = the selected one or the one in the viewer); `true`: for good (Shift+Del).
@@ -247,6 +249,12 @@ struct App {
     saving: HashSet<String>,
     /// Names left out of a "Save" on the grid (animated…), shown once every save is done.
     skipped: Vec<String>,
+    /// Images saved by transforms on the grid, for the summary once every save is done.
+    batch_saved: Option<usize>,
+    /// A message in a window (a "Save" refused, how a grid save went); `true` offers "Save as…".
+    notice: Option<(String, bool)>,
+    /// File > Open location: the window, with what is typed in it.
+    open_address: Option<AddressForm>,
     /// A transform on images of the grid: the images and the operation, to confirm.
     batch_turn: Option<(Vec<String>, transform::Op)>,
     pan: egui::Vec2,
@@ -321,6 +329,7 @@ impl App {
     /// `arg`: address from the command line. Without it (e.g. started from the applications menu)
     /// the last folder viewed if the option is on, otherwise the home folder.
     fn new(ctx: &egui::Context, settings: Settings, arg: Option<String>) -> Self {
+        ctx.set_fonts(fonts());
         let (tx, rx) = mpsc::channel();
         let mut app = Self {
             i18n: I18n::detect(settings.language.as_deref()),
@@ -366,6 +375,9 @@ impl App {
             save_ready: None,
             saving: HashSet::new(),
             skipped: Vec::new(),
+            batch_saved: None,
+            notice: None,
+            open_address: None,
             batch_turn: None,
             pan: egui::Vec2::ZERO,
             zoom_shown: 1.0,
@@ -450,7 +462,7 @@ impl App {
 
     /// Opens an address (path or URL). If it fails, stays on the current source.
     fn open_source(&mut self, ctx: &egui::Context, address: &str) {
-        log!("open source {address:?}");
+        log!("open source {:?}", without_password(address));
         let opened = {
             let _guard = self.rt.enter();
             source::open(address.trim())
@@ -936,7 +948,7 @@ impl App {
                     self.error = Some(self.i18n.t_args("error-mount", &[("detail", &e)]));
                 }
                 Msg::Open(address) => {
-                    log!("handed over: {address:?}");
+                    log!("handed over: {:?}", without_password(&address));
                     if !address.is_empty() {
                         self.open_source(ctx, &address);
                     }
@@ -955,6 +967,16 @@ impl App {
                             self.save_ready = Some((path, turn, data, lossy));
                         }
                         Ok(_) => {}
+                        Err((loader::SKIPPED, name)) => {
+                            // Say exactly what would be lost.
+                            let id = match convert::Format::of_file(&name) {
+                                Some(convert::Format::Tiff) => "save-pages",
+                                Some(convert::Format::Jpeg) => "save-extra",
+                                Some(_) => "save-animated",
+                                None => loader::SKIPPED,
+                            };
+                            self.notice = Some((self.i18n.t_args(id, &[("detail", &md(&name))]), self.viewed(&path)));
+                        }
                         Err((id, detail)) => {
                             log!("save: ERROR {id} {detail}");
                             self.error = Some(self.i18n.t_args("save-failed", &[("detail", &self.i18n.t_args(id, &[("detail", &detail)]))]));
@@ -966,6 +988,9 @@ impl App {
                     match r {
                         Ok(()) => {
                             log!("saved {path:?}");
+                            if let Some(n) = &mut self.batch_saved {
+                                *n += 1;
+                            }
                             // Same name, maybe the same size: what is in memory is the old image.
                             if let Some(i) = self.files().iter().position(|f| f.path == path) {
                                 self.full.remove(&i);
@@ -982,9 +1007,15 @@ impl App {
                             self.error = Some(self.i18n.t_args("save-failed", &[("detail", &self.i18n.t_args(id, &[("detail", &detail)]))]));
                         }
                     }
-                    if self.saving.is_empty() && !self.skipped.is_empty() {
-                        let names = std::mem::take(&mut self.skipped).join("\n");
-                        self.error = Some(self.i18n.t_args("batch-skipped-names", &[("names", &names)]));
+                    if self.saving.is_empty()
+                        && let Some(n) = self.batch_saved.take()
+                    {
+                        let mut text = self.i18n.t_args("batch-done", &[("n", &n.to_string())]);
+                        if !self.skipped.is_empty() {
+                            let names: String = std::mem::take(&mut self.skipped).iter().map(|n| format!("\n- {}", md(n))).collect();
+                            text = format!("{text}\n\n{}\n{names}", self.i18n.t("batch-skipped-names"));
+                        }
+                        self.notice = Some((text, false));
                     }
                 }
                 Msg::Forgotten(paths) => {
@@ -1158,7 +1189,7 @@ impl App {
             source::Deletion::Permanent => "batch-originals-permanent",
         };
         let mut text = format!("{}\n\n{}", self.i18n.t_args("batch-turn-confirm", &[("op", &self.i18n.t(label)), ("n", &n)]), self.i18n.t(where_id));
-        if ok.iter().any(|p| matches!(convert::Format::of_file(p), Some(convert::Format::Jpeg | convert::Format::Webp | convert::Format::Avif))) {
+        if ok.iter().any(|p| matches!(convert::Format::of_file(p), Some(convert::Format::Jpeg | convert::Format::Webp | convert::Format::Avif | convert::Format::Gif))) {
             text = format!("{text}\n\n{}", self.i18n.t("batch-lossy"));
         }
         if !ok.is_empty() {
@@ -1170,7 +1201,8 @@ impl App {
             text = format!("{text}\n\n{}", self.i18n.t_args("batch-skipped", &[("n", &skipped.len().to_string())]));
         }
         let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
-        let mut answer = ctx.input(|i| if i.key_pressed(Key::Escape) { Some(false) } else { None });
+        // Only Esc (as `delete_answer`): Enter does not overwrite many images.
+        let mut answer = self.delete_answer.take().and_then(|yes| (!yes).then_some(false));
         egui::Modal::new(egui::Id::unique("batch-turn")).show(ctx, |ui| {
             ui.set_max_width(460.0);
             ui.label(text);
@@ -1189,6 +1221,7 @@ impl App {
                 log!("transform {op:?} on {} images, {how:?}", ok.len());
                 self.saving.extend(ok.iter().cloned());
                 loader.replace(ok, transform::Turn::default().then(op), how);
+                self.batch_saved.get_or_insert(0);
                 self.batch_turn = None;
             }
             Some(false) => self.batch_turn = None,
@@ -1217,6 +1250,20 @@ impl App {
     /// Ctrl+S: the image is turned in the background, then the confirmation opens (`Msg::Prepared`).
     fn ask_save(&mut self) {
         if !self.can_save() {
+            // Changed but not saveable over itself: say why and offer "Save as…".
+            let text = if self.turn.is_none() || self.save_ready.is_some() {
+                None
+            } else if self.loader.as_ref().is_some_and(|l| !l.can_rename()) {
+                Some(self.i18n.t("save-no-rename"))
+            } else {
+                self.viewing
+                    .and_then(|i| self.files().get(i))
+                    .filter(|f| convert::Format::of_file(&f.path).is_none())
+                    .map(|f| self.i18n.t_args("save-format", &[("name", &md(source::name(&f.path)))]))
+            };
+            if let Some(text) = text {
+                self.notice = Some((text, true));
+            }
             return;
         }
         let (Some(loader), Some(path)) = (&self.loader, self.viewing.and_then(|i| self.files().get(i)).map(|f| f.path.clone())) else { return };
@@ -1245,7 +1292,8 @@ impl App {
             text = format!("{text}\n\n{}", self.i18n.t("save-lossy"));
         }
         let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
-        let mut answer = ctx.input(|i| if i.key_pressed(Key::Enter) { Some(true) } else if i.key_pressed(Key::Escape) { Some(false) } else { None });
+        // Enter and Esc arrive as `delete_answer` (`raw_input_hook`).
+        let mut answer = self.delete_answer.take();
         egui::Modal::new(egui::Id::unique("save")).show(ctx, |ui| {
             ui.set_max_width(420.0);
             ui.label(text);
@@ -1268,6 +1316,35 @@ impl App {
             }
             Some(false) => self.save_ready = None,
             None => {}
+        }
+    }
+
+    /// A message that needs reading (Markdown: names in bold, lists), with "Save as…" for the
+    /// open image when it helps.
+    fn notice_window(&mut self, ctx: &egui::Context) {
+        let Some((mut text, save_as)) = self.notice.clone() else { return };
+        let (copy, close_label) = (self.i18n.t("menu-save-copy"), self.i18n.t("notice-close"));
+        if save_as {
+            text = format!("{text}\n\n{}", self.i18n.t("save-as-hint"));
+        }
+        // Enter and Esc arrive as `delete_answer` (`raw_input_hook`).
+        let mut close = self.delete_answer.take().is_some();
+        egui::Modal::new(egui::Id::unique("notice")).show(ctx, |ui| {
+            ui.set_max_width(460.0);
+            notice_text(ui, &text);
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if save_as && ui.button(copy).clicked() {
+                    self.act = Some(Act::Convert(None));
+                    close = true;
+                }
+                if ui.button(close_label).clicked() {
+                    close = true;
+                }
+            });
+        });
+        if close {
+            self.notice = None;
         }
     }
 
@@ -2002,7 +2079,7 @@ impl App {
     pub(crate) fn run(&mut self, ctx: &egui::Context, act: Act) {
         log!("menu {act:?}");
         match act {
-            Act::Address => ctx.memory_mut(|m| m.request_focus(egui::Id::unique("address"))),
+            Act::Address => self.open_address = Some(AddressForm { first: true, ..Default::default() }),
             Act::Options => self.options = true,
             Act::Delete(path, permanent) => self.ask_delete(path, permanent),
             Act::Rename(path) => self.ask_rename(path),
@@ -2020,6 +2097,7 @@ impl App {
                 }
             }
             Act::Save => self.ask_save(),
+            Act::Submenu(_) => {}
             Act::Restore(path) => self.ask_restore(path),
             Act::Copy(path) => self.clip(ctx, path, false),
             Act::Cut(path) => self.clip(ctx, path, true),
@@ -2432,14 +2510,15 @@ impl App {
     /// A confirmation is open: deletion, or a name already taken when restoring or pasting.
     pub(crate) fn asking(&self) -> bool {
         let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
-        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.batch_turn.is_some()
+        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.batch_turn.is_some() || self.notice.is_some() || self.open_address.is_some()
     }
 }
 
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer).
-        if self.asking() {
+        // Open location has fields to type in: there the keys go to the field.
+        if self.asking() && !(self.open_address.is_some() && ctx.egui_wants_keyboard_input()) {
             let answer = &mut self.delete_answer;
             raw_input.events.retain(|e| match e {
                 egui::Event::Key { key, pressed: true, .. } => {
@@ -2591,6 +2670,8 @@ impl eframe::App for App {
         self.delete_window(&ctx);
         self.save_window(&ctx);
         self.batch_turn_window(&ctx);
+        self.notice_window(&ctx);
+        self.address_window(&ctx);
         self.paste_window(&ctx);
         self.transfer_window(&ctx);
         self.rename_window(&ctx);
@@ -2680,8 +2761,221 @@ fn human_time(secs: u64) -> String {
     }
 }
 
+/// Protocols of File > Open location (SFTP only where OpenDAL has it).
+const SCHEMES: &[&str] = if cfg!(unix) { &["ftp", "ftps", "sftp"] } else { &["ftp", "ftps"] };
+
+/// File > Open location: a whole address, or its parts.
+#[derive(Clone, Default)]
+struct AddressForm {
+    url: String,
+    scheme: usize,
+    host: String,
+    port: String,
+    user: String,
+    password: String,
+    folder: String,
+    /// Just opened: the address field takes the focus.
+    first: bool,
+}
+
+impl AddressForm {
+    /// The address to open: the one typed whole, otherwise built from the parts (user and
+    /// password escaped). `None`: nothing to open yet, or a port that is not a number.
+    fn address(&self) -> Option<String> {
+        if !self.url.trim().is_empty() {
+            return Some(self.url.trim().to_string());
+        }
+        let host = self.host.trim();
+        if host.is_empty() {
+            return None;
+        }
+        let mut u = url::Url::parse(&format!("{}://{host}/", SCHEMES[self.scheme])).ok()?;
+        if !self.port.trim().is_empty() {
+            u.set_port(Some(self.port.trim().parse().ok()?)).ok()?;
+        }
+        if !self.user.is_empty() {
+            u.set_username(&self.user).ok()?;
+        }
+        if !self.password.is_empty() {
+            u.set_password(Some(&self.password)).ok()?;
+        }
+        // A folder: with "/" at the end, or its last part would be taken for a file.
+        let folder = self.folder.trim().trim_matches('/');
+        u.set_path(&if folder.is_empty() { "/".to_string() } else { format!("/{folder}/") });
+        Some(u.to_string())
+    }
+}
+
+impl App {
+    /// File > Open location: an address typed whole, or protocol, server, port, user, password
+    /// and folder in their own fields.
+    fn address_window(&mut self, ctx: &egui::Context) {
+        let Some(mut f) = self.open_address.clone() else { return };
+        let t = |id| self.i18n.t(id);
+        let address = f.address();
+        let bad_port = f.url.trim().is_empty() && !f.port.trim().is_empty() && f.port.trim().parse::<u16>().is_err();
+        // In a field Enter and Esc reach the window; elsewhere they arrive as `delete_answer`.
+        let keys = self.delete_answer.take();
+        let mut answer = ctx.input(|i| if i.key_pressed(Key::Escape) || keys == Some(false) { Some(false) } else { None });
+        egui::Modal::new(egui::Id::unique("open-address")).show(ctx, |ui| {
+            ui.set_width(460.0);
+            ui.strong(t("addr-title"));
+            ui.add_space(4.0);
+            let url = ui.add(egui::TextEdit::singleline(&mut f.url).hint_text(t("tb-address-hint")).desired_width(f32::INFINITY));
+            if f.first {
+                url.request_focus();
+                f.first = false;
+            }
+            ui.add_space(8.0);
+            ui.label(t("addr-or"));
+            ui.add_space(4.0);
+            let parts = f.url.trim().is_empty();
+            ui.add_enabled_ui(parts, |ui| {
+                egui::Grid::new("addr-parts").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| {
+                    ui.label(t("addr-protocol"));
+                    egui::ComboBox::from_id_salt("addr-scheme").selected_text(SCHEMES[f.scheme].to_uppercase()).show_ui(ui, |ui| {
+                        for (i, s) in SCHEMES.iter().enumerate() {
+                            ui.selectable_value(&mut f.scheme, i, s.to_uppercase());
+                        }
+                    });
+                    ui.end_row();
+                    let field = |ui: &mut egui::Ui, label: String, text: &mut String, hint: String, password: bool| {
+                        ui.label(label);
+                        ui.add(egui::TextEdit::singleline(text).hint_text(hint).password(password).desired_width(300.0));
+                        ui.end_row();
+                    };
+                    field(ui, t("addr-host"), &mut f.host, String::new(), false);
+                    let default_port = if SCHEMES[f.scheme] == "sftp" { "22" } else { "21" };
+                    field(ui, t("addr-port"), &mut f.port, default_port.to_string(), false);
+                    field(ui, t("addr-user"), &mut f.user, t("addr-user-hint"), false);
+                    field(ui, t("addr-password"), &mut f.password, String::new(), true);
+                    field(ui, t("addr-folder"), &mut f.folder, "/".to_string(), false);
+                });
+            });
+            if bad_port {
+                ui.label(browser::error_text(ui, t("addr-bad-port")));
+            }
+            ui.add_space(8.0);
+            let enter = keys == Some(true) || ui.input(|i| i.key_pressed(Key::Enter));
+            ui.horizontal(|ui| {
+                if ui.add_enabled(address.is_some(), egui::Button::new(t("addr-open"))).clicked() || (enter && address.is_some()) {
+                    answer = Some(true);
+                }
+                if ui.button(t("delete-no")).clicked() {
+                    answer = Some(false);
+                }
+            });
+        });
+        match answer {
+            Some(true) => {
+                self.open_address = None;
+                if let Some(a) = address {
+                    self.open_source(ctx, &a);
+                }
+            }
+            Some(false) => self.open_address = None,
+            None => self.open_address = Some(f),
+        }
+    }
+}
+
+/// The address for the log: a password becomes "***".
+fn without_password(address: &str) -> String {
+    match url::Url::parse(address.trim()) {
+        Ok(mut u) if u.password().is_some() => {
+            let _ = u.set_password(Some("***"));
+            u.to_string()
+        }
+        _ => address.to_string(),
+    }
+}
+
+/// Font family of the bold text in message windows (`notice_text`).
+const BOLD: &str = "bold";
+
+/// egui's fonts plus Ubuntu Bold, the bold of its Ubuntu Light (same licence), for what must
+/// stand out in a message: egui has no bold of its own, `strong` only darkens the colour.
+fn fonts() -> egui::FontDefinitions {
+    let mut fonts = egui::FontDefinitions::default();
+    fonts.font_data.insert(BOLD.into(), Arc::new(egui::FontData::from_static(include_bytes!("../assets/fonts/Ubuntu-Bold.ttf"))));
+    let mut family = vec![BOLD.to_string()];
+    family.extend(fonts.families[&egui::FontFamily::Proportional].iter().cloned());
+    fonts.families.insert(egui::FontFamily::Name(BOLD.into()), family);
+    fonts
+}
+
+/// Text of a message window: paragraphs apart, `**bold**`, lines starting with "- " as a list,
+/// `\` before a punctuation mark to keep it as it is (`md`).
+fn notice_text(ui: &mut egui::Ui, text: &str) {
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    let bold = egui::FontId::new(font.size, egui::FontFamily::Name(BOLD.into()));
+    let color = ui.visuals().text_color();
+    let format = |strong: bool| egui::TextFormat::simple(if strong { bold.clone() } else { font.clone() }, color);
+    for (i, paragraph) in text.split("\n\n").enumerate() {
+        if i > 0 {
+            ui.add_space(6.0);
+        }
+        for line in paragraph.lines() {
+            let mut job = egui::text::LayoutJob::default();
+            let line = match line.strip_prefix("- ") {
+                Some(item) => {
+                    job.append("•  ", 8.0, format(false));
+                    item
+                }
+                None => line,
+            };
+            let (mut strong, mut run, mut chars) = (false, String::new(), line.chars().peekable());
+            while let Some(c) = chars.next() {
+                match c {
+                    '\\' if chars.peek().is_some_and(|n| n.is_ascii_punctuation()) => run.extend(chars.next()),
+                    '*' if chars.peek() == Some(&'*') => {
+                        chars.next();
+                        job.append(&std::mem::take(&mut run), 0.0, format(strong));
+                        strong = !strong;
+                    }
+                    c => run.push(c),
+                }
+            }
+            job.append(&run, 0.0, format(strong));
+            ui.add(egui::Label::new(job).wrap());
+        }
+    }
+}
+
+/// `s` shown as it is in Markdown: every ASCII punctuation mark escaped (a name with `*` or `_`).
+fn md(s: &str) -> String {
+    s.chars().flat_map(|c| c.is_ascii_punctuation().then_some('\\').into_iter().chain([c])).collect()
+}
+
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn open_location_address() {
+        let f = |host: &str, port: &str, user: &str, password: &str, folder: &str| {
+            super::AddressForm { host: host.into(), port: port.into(), user: user.into(), password: password.into(), folder: folder.into(), ..Default::default() }.address()
+        };
+        assert_eq!(f("", "", "", "", ""), None);
+        assert_eq!(f("nas.lan", "", "", "", ""), Some("ftp://nas.lan/".into()));
+        assert_eq!(f("127.0.0.1", "2121", "", "", "/Foto/2026/"), Some("ftp://127.0.0.1:2121/Foto/2026/".into()));
+        assert_eq!(f("nas.lan", "", "me@home", "p:w/d", "Foto"), Some("ftp://me%40home:p%3Aw%2Fd@nas.lan/Foto/".into()));
+        assert_eq!(f("nas.lan", "porta", "", "", ""), None);
+        let whole = super::AddressForm { url: " C:\\Foto ".into(), host: "ignored".into(), ..Default::default() };
+        assert_eq!(whole.address(), Some("C:\\Foto".into()));
+    }
+
+    #[test]
+    fn password_out_of_log() {
+        assert_eq!(super::without_password("ftp://me:secret@nas.lan/Foto/"), "ftp://me:***@nas.lan/Foto/");
+        assert_eq!(super::without_password("ftp://nas.lan/"), "ftp://nas.lan/");
+        assert_eq!(super::without_password("C:\\Foto"), "C:\\Foto");
+    }
+
+    #[test]
+    fn markdown_escape() {
+        assert_eq!(super::md("a_b*c.jpg"), r"a\_b\*c\.jpg");
+        assert_eq!(super::md("foto è"), "foto è");
+    }
+
     #[test]
     fn human_times() {
         assert_eq!(super::human_time(40), "40 s");
