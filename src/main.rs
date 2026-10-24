@@ -91,6 +91,10 @@ pub(crate) enum Act {
     Rename(Option<String>),
     /// "Save in another format" for an image (`None` = the selected one or the one in the viewer).
     Convert(Option<String>),
+    /// Makes the thumbnails again (`None` = the selected images or the one in the viewer).
+    RedoThumbs(Option<String>),
+    /// Shift+F5: every thumbnail of the open folder made again, and the folder read again.
+    RedoAllThumbs,
     /// Puts back from the trash an item, or everything if it is a trash folder (`None` = selected).
     Restore(Option<String>),
     Copy(Option<String>),
@@ -995,7 +999,9 @@ impl App {
         if help {
             self.help = !self.help;
         }
-        if refresh {
+        if refresh && shift {
+            self.redo_all_thumbs();
+        } else if refresh {
             self.refresh();
         }
     }
@@ -1114,6 +1120,24 @@ impl App {
             p => p.or_else(|| self.target()).into_iter().collect(),
         };
         paths.into_iter().filter(|p| self.can_change(p)).collect()
+    }
+
+    /// Thumbnails gone from memory and from the disk cache: the grid asks for them again and they
+    /// are made from the file (a wrong one stays otherwise, since size and date do not change).
+    fn redo_thumbs(&mut self, paths: Vec<String>) {
+        let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
+        thumbcache::forget(&self.base, &paths);
+        for (i, _) in l.files.iter().enumerate().filter(|(_, f)| paths.contains(&f.path)) {
+            self.thumbs.remove(&i);
+            self.generated.remove(&i);
+        }
+        self.thumb_queue_key = None;
+    }
+
+    fn redo_all_thumbs(&mut self) {
+        let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
+        self.redo_thumbs(l.files.iter().map(|f| f.path.clone()).collect());
+        self.refresh();
     }
 
     /// Ctrl+C / Ctrl+X: remembers the items and their source. The paths also go on the system
@@ -1671,6 +1695,8 @@ impl App {
                 entry(ui, viewing, item(t("menu-back-to-grid"), "Esc".into()), Act::Back);
                 ui.separator();
                 entry(ui, true, item(t("menu-refresh"), "F5".into()), Act::Refresh);
+                entry(ui, self.chosen(None).iter().any(|p| !p.ends_with('/')), egui::Button::new(t("menu-redo-thumbs")), Act::RedoThumbs(None));
+                entry(ui, !viewing && has_items, item(t("menu-redo-all-thumbs"), t("key-shift-f5")), Act::RedoAllThumbs);
                 ui.separator();
                 ui.menu_button(t("sort-by"), |ui| {
                     for by in settings::SortBy::ALL {
@@ -1725,6 +1751,8 @@ impl App {
             Act::Delete(path, permanent) => self.ask_delete(path, permanent),
             Act::Rename(path) => self.ask_rename(path),
             Act::Convert(path) => self.open_convert(path),
+            Act::RedoThumbs(path) => self.redo_thumbs(self.chosen(path)),
+            Act::RedoAllThumbs => self.redo_all_thumbs(),
             Act::Restore(path) => self.ask_restore(path),
             Act::Copy(path) => self.clip(ctx, path, false),
             Act::Cut(path) => self.clip(ctx, path, true),

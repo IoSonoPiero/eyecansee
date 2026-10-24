@@ -106,6 +106,7 @@ impl App {
             items.push(Some((t("menu-rename"), "F2".into(), Act::Rename(path.clone()))));
             if !target.ends_with('/') {
                 items.push(Some((t("menu-save-as"), String::new(), Act::Convert(path.clone()))));
+                items.push(Some((t("menu-redo-thumbs"), String::new(), Act::RedoThumbs(path.clone()))));
             }
             items.push(None);
             items.push(Some((t("menu-delete"), t("key-delete"), Act::Delete(path.clone(), false))));

@@ -140,6 +140,7 @@ Nella griglia:
 | Ctrl+A | Seleziona tutto nella cartella |
 | Maiusc+frecce | Allargano la selezione |
 | Maiusc+Canc | Elimina definitivamente |
+| Maiusc+F5 | Rifà tutte le miniature della cartella |
 | Tab | Elemento successivo; dall'ultimo passa ai dispositivi |
 | Shift+Tab | Elemento precedente; dal primo passa alla cartella aperta a sinistra |
 
@@ -170,6 +171,8 @@ Nel visore:
 | 1 | 100%: un pixel dell'immagine per pixel dello schermo |
 
 La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della finestra; Ctrl con la rotellina ingrandisce sempre, anche quando la rotellina è impostata per cambiare immagine (vedi *Opzioni*). Un'immagine ingrandita si sposta trascinandola. Non diventa mai più piccola di quando è adattata alla finestra, né più grande dell'ingrandimento massimo impostato nelle opzioni (2000% all'inizio); la barra di stato mostra l'ingrandimento. L'immagine successiva riparte adattata.
+
+Una miniatura si fa una volta e resta: si rifà solo quando il file cambia dimensione o data. Se una sembra sbagliata (per esempio fatta da una versione vecchia), clic destro sull'immagine, o su più immagini selezionate, e scegli **Aggiorna miniature** (anche nel menù Visualizza). **Maiusc+F5** rifà tutte le miniature della cartella aperta.
 
 Ovunque: **F1** apre questo manuale, **F5** rilegge le cartelle. Nel visore F5 resta sull'immagine aperta; se nel frattempo è stata cancellata, torna alla griglia.
 

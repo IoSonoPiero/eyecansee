@@ -140,6 +140,7 @@ In the grid:
 | Ctrl+A | Select everything in the folder |
 | Shift+arrows | Extend the selection |
 | Shift+Del | Delete for good |
+| Shift+F5 | Redo all the thumbnails of the folder |
 | Tab | Next item; from the last one it moves to the devices |
 | Shift+Tab | Previous item; from the first one it moves to the folder open on the left |
 
@@ -170,6 +171,8 @@ In the viewer:
 | 1 | 100%: one image pixel per screen pixel |
 
 The mouse wheel zooms around the pointer, + and − around the middle of the window; Ctrl and the wheel always zoom, also when the wheel is set to change image (see *Options*). A zoomed image is moved by dragging it. It never gets smaller than fitted to the window, nor larger than the largest zoom set in the options (2000% at first); the status bar shows the zoom. The next image starts fitted again.
+
+A thumbnail is made once and kept: it is made again only when the file changes size or date. If one looks wrong (for example made by an older version), right-click the image, or select several, and choose **Redo thumbnails** (also in the View menu). **Shift+F5** redoes all the thumbnails of the open folder.
 
 Everywhere: **F1** opens this manual, **F5** reloads the folders. In the viewer F5 stays on the open image; if it has been deleted in the meantime, it goes back to the grid.
 

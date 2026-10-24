@@ -147,6 +147,17 @@ pub fn delete(source: &str, path: &str) {
     send(Write::Delete { source: source.to_string(), path: path.to_string() });
 }
 
+/// Removes the thumbnails at once, not through the writer: the grid asks for them again right
+/// after, and they must not come back from the cache.
+pub fn forget(source: &str, paths: &[String]) {
+    let Ok(mut conn) = open() else { return };
+    let Ok(tx) = conn.transaction() else { return };
+    for path in paths {
+        let _ = tx.execute("DELETE FROM thumbs WHERE source = ?1 AND path = ?2", params![source, path]);
+    }
+    let _ = tx.commit();
+}
+
 pub fn trim(limit: u64) {
     send(Write::Trim { limit });
 }
