@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
 Name=EyeCanSee
-GenericName=Image Viewer
-GenericName[it]=Visualizzatore di immagini
-Comment=Browse and view images from local folders, FTP and SFTP
-Comment[it]=Sfoglia e visualizza immagini da cartelle locali, FTP e SFTP
+GenericName=Image Viewer and Manager
+GenericName[it]=Visualizzatore e gestore di immagini
+Comment=Browse photos on computers, disks and phones, copy and move them between devices, save them in other formats
+Comment[it]=Sfoglia le foto di computer, dischi e telefoni, copiale e spostale tra dispositivi, salvale in altri formati
 Exec=eyecansee %f
 Icon=eyecansee
 Terminal=false
