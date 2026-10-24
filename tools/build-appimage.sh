@@ -6,6 +6,8 @@
 # built from source too, with its coders inside the library; the format libraries it uses come from Ubuntu.
 # LICENSE and THIRD-PARTY-LICENSES.txt go in usr/share/doc/eyecansee/ inside the AppImage.
 # Usage: tools/build-appimage.sh   (output in target/appimage/)
+#        tools/build-appimage.sh --check   (clippy and the tests with the same libraries, no AppImage;
+#                                           used by .github/workflows/check.yml)
 # The cache (rustup, cargo, decoders, ImageMagick) is the podman volume eyecansee-appimage-cache, or the
 # folder in APPIMAGE_CACHE (used by GitHub Actions, which saves it between runs).
 set -euo pipefail
@@ -13,7 +15,7 @@ cd "$(dirname "$0")/.."
 
 if [[ "${1:-}" != "--inside" ]]; then
     podman run --rm -v "$PWD":/src:z -v "${APPIMAGE_CACHE:-eyecansee-appimage-cache}":/cache -w /src \
-        docker.io/library/ubuntu:22.04 bash tools/build-appimage.sh --inside
+        docker.io/library/ubuntu:22.04 bash tools/build-appimage.sh --inside "$@"
     exit
 fi
 
@@ -55,6 +57,15 @@ export CMAKE_PREFIX_PATH=$DEPS
 [[ -x /cache/cargo/bin/cargo ]] || curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
 
 FEATURES=(--no-default-features --features heif,magick,libheif-rs/embedded-libheif)
+if [[ "${2:-}" == "--check" ]]; then
+    # Own target folder: the dev build must not touch the one of the AppImage. The #[ignore] tests
+    # (real trash, phone, USB stick, tools) do not run.
+    export CARGO_TARGET_DIR=/src/target/appimage-check
+    rustup component add clippy
+    cargo clippy --locked --all-targets "${FEATURES[@]}" -- -D warnings
+    cargo test --locked "${FEATURES[@]}"
+    exit
+fi
 # libheif caches the decoders it found in its CMake build folder: start clean every time.
 rm -rf "$CARGO_TARGET_DIR"/dist/build/libheif-sys-*
 # Profile `dist` (Cargo.toml): smaller executable, slower build.

@@ -1,0 +1,38 @@
+# Clippy (with a limit of 80 lines per function, clippy.toml) and the tests at every push and pull
+# request on main, with the same C libraries as the AppImage (tools/build-appimage.sh --check), plus a
+# warning for files over 800 lines. rustfmt is not used: the code does not follow its style.
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      # Only a warning, never a failure.
+      - name: File sizes
+        run: tools/check-sizes.sh
+      # The decoders and ImageMagick compiled by release.yml (same key): on main and its pull
+      # requests that cache is readable, so they are not compiled again.
+      - id: deps
+        run: echo "key=$(grep -E '^(DE265|IM)=' tools/build-appimage.sh | tr -s '= \n' '-')" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ${{ runner.temp }}/appimage-cache/deps-*
+            ${{ runner.temp }}/appimage-cache/imagemagick-*
+          key: appimage-deps-${{ steps.deps.outputs.key }}
+      - name: Clippy and tests
+        env:
+          APPIMAGE_CACHE: ${{ runner.temp }}/appimage-cache
+        run: |
+          mkdir -p "$APPIMAGE_CACHE"
+          tools/build-appimage.sh --check
