@@ -40,6 +40,7 @@ mod loader;
 mod menu;
 mod messages;
 mod meta;
+mod meta_panel;
 mod mtp;
 mod navigation;
 mod paint;
