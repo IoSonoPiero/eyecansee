@@ -1630,7 +1630,7 @@ dependencies = [
 
 [[package]]
 name = "eyecansee"
-version = "0.29.0"
+version = "0.29.1"
 dependencies = [
  "bytes",
  "eframe",
@@ -3380,9 +3380,9 @@ dependencies = [
 
 [[package]]
 name = "mtp-rs"
-version = "0.34.1"
+version = "0.34.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e5b720f2e4ea134dfbec6992a87869fe54bf582c3f0cd99ef4a3d745dab8661"
+checksum = "b25a331efb78d8d52a94019f993a417dbb556261ef075e22d63f73802abfbc37"
 dependencies = [
  "async-trait",
  "bytes",
