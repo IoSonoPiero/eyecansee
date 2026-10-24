@@ -23,23 +23,8 @@ impl App {
 
     /// Metadata boxes of the selected image, side by side below the grid; each one closes with
     /// its X and reopens from the View menu or the ℹ button.
-    #[allow(clippy::too_many_lines)] // to be split
     pub(crate) fn meta_panel(&mut self, ui: &mut Ui) {
-        // Title bar: a click anywhere, or on the button on the right, collapses and reopens the
-        // panel. Dragging its edge was useless: it always went back to the content's height.
-        let collapsed = self.settings.meta_collapsed;
-        let (rect, bar) = ui.allocate_exact_size(vec2(ui.available_width(), ui.spacing().interact_size.y), Sense::click());
-        let font = egui::TextStyle::Body.resolve(ui.style());
-        ui.painter().text(rect.left_center(), Align2::LEFT_CENTER, self.i18n.t("meta-title"), font, ui.visuals().strong_text_color());
-        let button_rect = Rect::from_min_max(pos2(rect.right() - 26.0, rect.top()), rect.max);
-        let hint = self.i18n.t(if collapsed { "meta-expand" } else { "meta-collapse" });
-        let button = ui.put(button_rect, egui::Button::new(if collapsed { "▲" } else { "▼" }).small()).on_hover_text(&hint);
-        let bar = bar.on_hover_text(hint).on_hover_cursor(egui::CursorIcon::PointingHand);
-        if bar.clicked() || button.clicked() {
-            self.settings.meta_collapsed = !collapsed;
-            log!("metadata collapsed: {}", !collapsed);
-            self.settings.save();
-        }
+        self.meta_title_bar(ui);
         if self.settings.meta_collapsed {
             return;
         }
@@ -81,41 +66,7 @@ impl App {
             ui.horizontal_top(|ui| {
                 for g in Group::ALL.into_iter().filter(|&g| self.meta_shown(g)) {
                     egui::Frame::group(ui.style()).show(ui, |ui| ui.vertical(|ui| {
-                        ui.set_width(250.0);
-                        ui.horizontal(|ui| {
-                            ui.strong(t(&format!("meta-{}", g.key())));
-                            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                if ui.small_button("✖").on_hover_text(t("meta-close")).clicked() {
-                                    close = Some(g);
-                                }
-                            });
-                        });
-                        ui.separator();
-                        let Some(m) = &meta else {
-                            ui.weak(&note);
-                            return;
-                        };
-                        let fields: Vec<_> = m.fields.iter().filter(|(fg, _, _)| *fg == g).collect();
-                        let gps = m.gps.filter(|_| g == Group::Gps);
-                        if fields.is_empty() && gps.is_none() {
-                            ui.weak(t("meta-empty"));
-                        }
-                        egui::Grid::new(("meta", g.key())).num_columns(2).show(ui, |ui| {
-                            if let Some((lat, lon)) = gps {
-                                ui.weak(t("meta-coords"));
-                                ui.label(format!("{lat:.6}, {lon:.6}"));
-                                ui.end_row();
-                            }
-                            for (_, label, value) in fields {
-                                ui.weak(t(label));
-                                ui.label(self.meta_value(label, value));
-                                ui.end_row();
-                            }
-                        });
-                        if let Some((lat, lon)) = gps {
-                            let url = format!("https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=16/{lat}/{lon}");
-                            ui.hyperlink_to(t("meta-map"), url);
-                        }
+                        self.meta_box(ui, g, meta.as_ref(), &note, &mut close);
                     }));
                 }
             });
@@ -123,6 +74,65 @@ impl App {
         self.meta_height = self.meta_height.max(boxes.content_size.y);
         if let Some(g) = close {
             self.show_meta(g, false);
+        }
+    }
+
+    /// Title bar of the metadata panel.
+    pub(crate) fn meta_title_bar(&mut self, ui: &mut Ui) {
+        // Title bar: a click anywhere, or on the button on the right, collapses and reopens the
+        // panel. Dragging its edge was useless: it always went back to the content's height.
+        let collapsed = self.settings.meta_collapsed;
+        let (rect, bar) = ui.allocate_exact_size(vec2(ui.available_width(), ui.spacing().interact_size.y), Sense::click());
+        let font = egui::TextStyle::Body.resolve(ui.style());
+        ui.painter().text(rect.left_center(), Align2::LEFT_CENTER, self.i18n.t("meta-title"), font, ui.visuals().strong_text_color());
+        let button_rect = Rect::from_min_max(pos2(rect.right() - 26.0, rect.top()), rect.max);
+        let hint = self.i18n.t(if collapsed { "meta-expand" } else { "meta-collapse" });
+        let button = ui.put(button_rect, egui::Button::new(if collapsed { "▲" } else { "▼" }).small()).on_hover_text(&hint);
+        let bar = bar.on_hover_text(hint).on_hover_cursor(egui::CursorIcon::PointingHand);
+        if bar.clicked() || button.clicked() {
+            self.settings.meta_collapsed = !collapsed;
+            log!("metadata collapsed: {}", !collapsed);
+            self.settings.save();
+        }
+    }
+
+    /// One metadata box (`g`) with its X (`close`), its fields, or `note` without metadata.
+    pub(crate) fn meta_box(&self, ui: &mut Ui, g: Group, meta: Option<&meta::Meta>, note: &str, close: &mut Option<Group>) {
+        let t = |id: &str| self.i18n.t(id);
+        ui.set_width(250.0);
+        ui.horizontal(|ui| {
+            ui.strong(t(&format!("meta-{}", g.key())));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.small_button("✖").on_hover_text(t("meta-close")).clicked() {
+                    *close = Some(g);
+                }
+            });
+        });
+        ui.separator();
+        let Some(m) = meta else {
+            ui.weak(note);
+            return;
+        };
+        let fields: Vec<_> = m.fields.iter().filter(|(fg, _, _)| *fg == g).collect();
+        let gps = m.gps.filter(|_| g == Group::Gps);
+        if fields.is_empty() && gps.is_none() {
+            ui.weak(t("meta-empty"));
+        }
+        egui::Grid::new(("meta", g.key())).num_columns(2).show(ui, |ui| {
+            if let Some((lat, lon)) = gps {
+                ui.weak(t("meta-coords"));
+                ui.label(format!("{lat:.6}, {lon:.6}"));
+                ui.end_row();
+            }
+            for (_, label, value) in fields {
+                ui.weak(t(label));
+                ui.label(self.meta_value(label, value));
+                ui.end_row();
+            }
+        });
+        if let Some((lat, lon)) = gps {
+            let url = format!("https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=16/{lat}/{lon}");
+            ui.hyperlink_to(t("meta-map"), url);
         }
     }
 
