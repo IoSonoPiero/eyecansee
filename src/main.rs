@@ -51,6 +51,7 @@ mod theme;
 mod thumbcache;
 mod transfer;
 mod transform;
+mod tree;
 mod update;
 mod viewer;
 mod watch;
