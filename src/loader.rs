@@ -721,7 +721,8 @@ mod tests {
         fixtures(&dir);
         let original = std::fs::read(dir.join("even.jpg")).unwrap();
         let ours = |dir: &Path| {
-            let canonical = dir.canonicalize().unwrap();
+            // Windows' Recycle Bin gives "C:\...", canonicalize "\\?\C:\...".
+            let canonical = PathBuf::from(dir.canonicalize().unwrap().to_string_lossy().trim_start_matches(r"\\?\").to_string());
             trash::os_limited::list().unwrap().into_iter().filter(|i| i.original_parent == canonical).collect::<Vec<_>>()
         };
         save(&tokio::runtime::Runtime::new().unwrap(), &op, "even.jpg", Turn::default().then(Op::Cw), Deletion::SystemTrash).unwrap();
