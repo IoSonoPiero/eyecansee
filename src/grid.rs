@@ -32,68 +32,30 @@ fn handle_top(ui: &Ui, rect: Rect, content: f32, offset: f32) -> f32 {
     rect.top() + offset / max * (rect.height() - handle_len(ui, rect, content))
 }
 
+/// The grid's scroll bar in `ui`: handle grey like the weak text, darker under the mouse.
+fn bar_style(ui: &mut Ui, scroll: egui::style::ScrollStyle) {
+    ui.spacing_mut().scroll = scroll;
+    let (weak, strong, selection) = (ui.visuals().weak_text_color(), ui.visuals().text_color(), ui.visuals().selection.bg_fill);
+    let widgets = &mut ui.visuals_mut().widgets;
+    widgets.inactive.bg_fill = weak;
+    widgets.hovered.bg_fill = strong;
+    widgets.active.bg_fill = selection;
+}
+
 impl App {
-    #[allow(clippy::too_many_lines)] // to be split
     pub(crate) fn grid(&mut self, ui: &mut Ui) {
         if ui.input(|i| i.pointer.primary_pressed()) && ui.rect_contains_pointer(ui.max_rect()) {
             self.focus = Focus::Grid;
         }
-        // Right click on the empty space: the actions of the whole folder. The cells come later
-        // and are on top, so they keep their own menu.
-        // Dragged, it draws a rectangle that selects the cells it touches.
-        let background = ui.interact(ui.max_rect(), ui.scope_id().with("grid-background"), Sense::click_and_drag());
-        let band = (background.drag_started(), background.dragged(), ui.input(|i| i.modifiers.command));
-        if background.drag_stopped() {
-            self.band = None;
-        }
-        background.context_menu(|ui| {
-            let t = |id| self.i18n.t(id);
-            let mut items = Vec::new();
-            // The main action here, when there is something to paste.
-            if self.can_paste(&self.dir) {
-                items.push(Some((t("menu-paste"), t("key-paste"), Act::Paste(None))));
-                items.push(None);
-            }
-            items.push(Some((t("menu-refresh"), "F5".into(), Act::Refresh)));
-            if !self.dir.is_empty() {
-                items.push(Some((t("menu-parent"), t("key-backspace"), Act::Up)));
-            }
-            // Inside the trash: what its own right-click menu offered when it was a cell.
-            if source::is_trash(&self.dir) {
-                let dir = Some(self.dir.clone());
-                items.push(None);
-                items.push(Some((t("menu-restore-all"), String::new(), Act::Restore(dir.clone()))));
-                items.push(Some((t("menu-empty-trash"), String::new(), Act::Delete(dir, true))));
-            }
-            if let Some(a) = context_menu(ui, items) {
-                self.act = Some(a);
-            }
-        });
+        let band = self.grid_background(ui);
         if self.focus == Focus::Grid {
             focus_frame(ui);
         }
         self.trash_bar(ui);
-        let Some(Ok(listing)) = self.listings.get(&self.dir) else {
-            ui.centered_and_justified(|ui| match self.listings.get(&self.dir) {
-                Some(Err(e)) => ui.label(error_text(ui, e.as_str()).size(16.0)),
-                _ => ui.spinner(),
-            });
-            return;
-        };
-        let (ndirs, nfiles) = (listing.dirs.len(), listing.files.len());
+        let Some((ndirs, nfiles)) = self.grid_counts(ui) else { return };
         let n = ndirs + nfiles;
         // First cell "..", to go up with the mouse too; not at the root, where there is no up.
         let up = usize::from(!self.dir.is_empty());
-        if n == 0 && up == 0 {
-            let text = match self.phone_root(&self.dir) {
-                Some(d) => error_text(ui, self.i18n.t_args("error-no-storage", &[("detail", &d.name)])).size(16.0),
-                None => egui::RichText::new(self.i18n.t("folder-empty")),
-            };
-            // Not selectable: a selectable label filling the grid took the right click from the
-            // background, so an empty drive offered no Paste.
-            ui.centered_and_justified(|ui| ui.add(egui::Label::new(text).selectable(false)));
-            return;
-        }
         let total = n + up;
 
         // Bar always visible and wide: the thin one that widens on hover was hard to grab. If
@@ -113,12 +75,7 @@ impl App {
         // (crash of 2026-10-20 when re-entering a folder already visited).
         let mut open = None;
         let mut go_up = false;
-        ui.spacing_mut().scroll = scroll;
-        let (weak, strong, selection) = (ui.visuals().weak_text_color(), ui.visuals().text_color(), ui.visuals().selection.bg_fill);
-        let widgets = &mut ui.visuals_mut().widgets;
-        widgets.inactive.bg_fill = weak;
-        widgets.hovered.bg_fill = strong;
-        widgets.active.bg_fill = selection;
+        bar_style(ui, scroll);
         let content = rows as f32 * cell.y;
         // One position per folder, so with `remember_scroll` each one is found where it was;
         // without it, every folder opened starts from the top.
@@ -151,28 +108,7 @@ impl App {
                     open = Some(p - up);
                 }
             }
-            let pointer = ui.ctx().pointer_interact_pos();
-            if let (true, _, keep, Some(at)) = (band.0, band.1, band.2, pointer) {
-                let before = if keep { self.marked.clone() } else { HashSet::new() };
-                self.band = Some(((at - origin).to_pos2(), before));
-            }
-            if let (Some((start, before)), true, Some(at)) = (&self.band, band.1, pointer) {
-                let start = origin + start.to_vec2();
-                let r = Rect::from_two_pos(start, at);
-                let mut marked = before.clone();
-                marked.extend((up..total).filter(|&p| cell_rect(p).shrink(6.0).intersects(r)).filter_map(|p| self.item_path(p - up)));
-                self.marked = marked;
-                let accent = crate::theme::accent(ui.visuals());
-                ui.painter().rect(r, 2.0, accent.gamma_multiply(0.15), egui::Stroke::new(1.0, accent), egui::StrokeKind::Inside);
-                // Near the top or bottom edge the grid scrolls, to reach the cells out of sight.
-                let edge = 24.0;
-                let clip = ui.clip_rect();
-                let dy = if at.y < clip.min.y + edge { 12.0 } else if at.y > clip.max.y - edge { -12.0 } else { 0.0 };
-                if dy != 0.0 {
-                    ui.scroll_with_delta(vec2(0.0, dy));
-                }
-                ui.ctx().request_repaint();
-            }
+            self.drag_band(ui, band, origin, &cell_rect, up, total);
             if std::mem::take(&mut self.scroll_to_selected) {
                 let p = if self.cursor { self.selected + up } else { 0 };
                 ui.scroll_to_rect(cell_rect(p), None);
@@ -191,6 +127,97 @@ impl App {
             self.activate(i);
         } else if self.focus == Focus::Grid {
             self.grid_keys(ui.ctx(), cols, n, up);
+        }
+    }
+
+    /// The empty space behind the cells: the right click gives the actions of the whole folder,
+    /// a drag the selection rectangle. Returns the drag: started, going on, Ctrl held.
+    pub(crate) fn grid_background(&mut self, ui: &mut Ui) -> (bool, bool, bool) {
+        // Right click on the empty space: the actions of the whole folder. The cells come later
+        // and are on top, so they keep their own menu.
+        // Dragged, it draws a rectangle that selects the cells it touches.
+        let background = ui.interact(ui.max_rect(), ui.scope_id().with("grid-background"), Sense::click_and_drag());
+        let band = (background.drag_started(), background.dragged(), ui.input(|i| i.modifiers.command));
+        if background.drag_stopped() {
+            self.band = None;
+        }
+        background.context_menu(|ui| {
+            let t = |id| self.i18n.t(id);
+            let mut items = Vec::new();
+            // The main action here, when there is something to paste.
+            if self.can_paste(&self.dir) {
+                items.push(Some((t("menu-paste"), t("key-paste"), Act::Paste(None))));
+                items.push(None);
+            }
+            items.push(Some((t("menu-refresh"), "F5".into(), Act::Refresh)));
+            if !self.dir.is_empty() {
+                items.push(Some((t("menu-parent"), t("key-backspace"), Act::Up)));
+            }
+            // Inside the trash: what its own right-click menu offered when it was a cell.
+            if source::is_trash(&self.dir) {
+                let dir = Some(self.dir.clone());
+                items.push(None);
+                items.push(Some((t("menu-restore-all"), String::new(), Act::Restore(dir.clone()))));
+                items.push(Some((t("menu-empty-trash"), String::new(), Act::Delete(dir, true))));
+            }
+            if let Some(a) = context_menu(ui, items) {
+                self.act = Some(a);
+            }
+        });
+        band
+    }
+
+    /// Item counts of the open folder (folders, images); `None` when there is nothing to lay
+    /// out: the folder still being read, an error, or empty at the root (the message drawn instead).
+    pub(crate) fn grid_counts(&self, ui: &mut Ui) -> Option<(usize, usize)> {
+        let Some(Ok(listing)) = self.listings.get(&self.dir) else {
+            ui.centered_and_justified(|ui| match self.listings.get(&self.dir) {
+                Some(Err(e)) => ui.label(error_text(ui, e.as_str()).size(16.0)),
+                _ => ui.spinner(),
+            });
+            return None;
+        };
+        let (ndirs, nfiles) = (listing.dirs.len(), listing.files.len());
+        let n = ndirs + nfiles;
+        // First cell "..", to go up with the mouse too; not at the root, where there is no up.
+        let up = usize::from(!self.dir.is_empty());
+        if n == 0 && up == 0 {
+            let text = match self.phone_root(&self.dir) {
+                Some(d) => error_text(ui, self.i18n.t_args("error-no-storage", &[("detail", &d.name)])).size(16.0),
+                None => egui::RichText::new(self.i18n.t("folder-empty")),
+            };
+            // Not selectable: a selectable label filling the grid took the right click from the
+            // background, so an empty drive offered no Paste.
+            ui.centered_and_justified(|ui| ui.add(egui::Label::new(text).selectable(false)));
+            return None;
+        }
+        Some((ndirs, nfiles))
+    }
+
+    /// Rectangle dragged on the grid (`band`: started, going on, Ctrl held): the cells it touches
+    /// are marked. `origin`: top left of the grid, so the corner follows scrolling.
+    pub(crate) fn drag_band(&mut self, ui: &mut Ui, band: (bool, bool, bool), origin: egui::Pos2, cell_rect: &impl Fn(usize) -> Rect, up: usize, total: usize) {
+        let pointer = ui.ctx().pointer_interact_pos();
+        if let (true, _, keep, Some(at)) = (band.0, band.1, band.2, pointer) {
+            let before = if keep { self.marked.clone() } else { HashSet::new() };
+            self.band = Some(((at - origin).to_pos2(), before));
+        }
+        if let (Some((start, before)), true, Some(at)) = (&self.band, band.1, pointer) {
+            let start = origin + start.to_vec2();
+            let r = Rect::from_two_pos(start, at);
+            let mut marked = before.clone();
+            marked.extend((up..total).filter(|&p| cell_rect(p).shrink(6.0).intersects(r)).filter_map(|p| self.item_path(p - up)));
+            self.marked = marked;
+            let accent = crate::theme::accent(ui.visuals());
+            ui.painter().rect(r, 2.0, accent.gamma_multiply(0.15), egui::Stroke::new(1.0, accent), egui::StrokeKind::Inside);
+            // Near the top or bottom edge the grid scrolls, to reach the cells out of sight.
+            let edge = 24.0;
+            let clip = ui.clip_rect();
+            let dy = if at.y < clip.min.y + edge { 12.0 } else if at.y > clip.max.y - edge { -12.0 } else { 0.0 };
+            if dy != 0.0 {
+                ui.scroll_with_delta(vec2(0.0, dy));
+            }
+            ui.ctx().request_repaint();
         }
     }
 
@@ -313,7 +340,6 @@ impl App {
     }
 
     /// Draws a cell; returns `true` if it was double-clicked.
-    #[allow(clippy::too_many_lines)] // to be split
     pub(crate) fn grid_cell(&mut self, ui: &mut Ui, rect: Rect, i: usize, ndirs: usize) -> bool {
         let Some(Ok(listing)) = self.listings.get(&self.dir) else { return false };
         let path = if i < ndirs { listing.dirs[i].clone() } else { listing.files[i - ndirs].path.clone() };
@@ -342,49 +368,13 @@ impl App {
         let side = self.thumb_size;
         // Centred: cells widen to fill the row.
         let thumb_rect = Rect::from_min_size(pos2(rect.center().x - side / 2.0, rect.min.y + 6.0), vec2(side, side));
-        let dim = visuals.weak_text_color();
         let accent = crate::theme::accent(visuals);
         if i < ndirs {
             icons::paint(&painter, Icon::Folder, Rect::from_center_size(thumb_rect.center(), vec2(side, side) * 0.7));
         } else {
-            // Every image in its own tile, so you can see where one photo ends and the next begins
-            // (not folders: they stay recognisable at a glance). Selected: thick border, tinted tile.
-            let (tile, tile_stroke) = crate::theme::tile(visuals);
-            let tinted = crate::theme::tile_selected(visuals);
-            let (tile, stroke) = match (selected, active) {
-                (true, true) => (tinted, egui::Stroke::new(3.0, accent)),
-                (true, false) => (tinted, egui::Stroke::new(2.0, accent.gamma_multiply(0.6))),
-                _ => (tile, egui::Stroke::new(1.0, tile_stroke)),
-            };
-            painter.rect(thumb_rect.expand(4.0), 6.0, tile, stroke, egui::StrokeKind::Inside);
-            match self.thumbs.get(&(i - ndirs)) {
-                Some(Ok(tex)) => {
-                    let size = tex.size_vec2();
-                    let scale = (side / size.x).min(side / size.y).min(1.0);
-                    let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
-                    // In the centre of the tile: the tile keeps the photo together with its name.
-                    let image = Rect::from_center_size(thumb_rect.center(), size * scale);
-                    painter.image(tex.id(), image, uv, Color32::WHITE);
-                }
-                Some(Err(_)) => {
-                    painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "⚠", FontId::proportional(side * 0.3), dim);
-                }
-                None => {
-                    painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "…", FontId::proportional(24.0), dim);
-                }
-            }
+            self.image_tile(&painter, visuals, thumb_rect, i - ndirs, selected, active);
         }
-        // Copied or cut, waiting for Ctrl+V: a badge in the corner; cut items also fade.
-        if let Some(clip) = &self.clip
-            && clip.base == self.base
-            && clip.paths.contains(&path)
-        {
-            if clip.cut {
-                painter.rect_filled(thumb_rect.expand(4.0), 6.0, crate::theme::canvas(visuals).gamma_multiply(0.55));
-            }
-            let badge = Rect::from_center_size(thumb_rect.right_top() + vec2(-8.0, 8.0), vec2(22.0, 22.0));
-            icons::paint(&painter, if clip.cut { Icon::Cut } else { Icon::Copied }, badge);
-        }
+        self.clip_badge(&painter, visuals, thumb_rect, &path);
         let label_rect = Rect::from_min_size(pos2(rect.min.x + 4.0, thumb_rect.max.y + 7.0), vec2(rect.width() - 8.0, 18.0));
         // Image names brighter than folder names (they used to be all grey on grey).
         let color = if i < ndirs { visuals.text_color() } else { visuals.text_color().lerp_to_gamma(visuals.strong_text_color(), 0.6) };
@@ -394,6 +384,60 @@ impl App {
         }
         ui.put(label_rect, Label::new(text).truncate().selectable(false));
 
+        self.cell_clicks(ui, &response, i, &path);
+        response.double_clicked()
+    }
+
+    /// The tile of an image (`file`: index among the images) with its thumbnail, a sign while it
+    /// is made or if it failed.
+    pub(crate) fn image_tile(&self, painter: &egui::Painter, visuals: &egui::Visuals, thumb_rect: Rect, file: usize, selected: bool, active: bool) {
+        let side = self.thumb_size;
+        let dim = visuals.weak_text_color();
+        let accent = crate::theme::accent(visuals);
+        // Every image in its own tile, so you can see where one photo ends and the next begins
+        // (not folders: they stay recognisable at a glance). Selected: thick border, tinted tile.
+        let (tile, tile_stroke) = crate::theme::tile(visuals);
+        let tinted = crate::theme::tile_selected(visuals);
+        let (tile, stroke) = match (selected, active) {
+            (true, true) => (tinted, egui::Stroke::new(3.0, accent)),
+            (true, false) => (tinted, egui::Stroke::new(2.0, accent.gamma_multiply(0.6))),
+            _ => (tile, egui::Stroke::new(1.0, tile_stroke)),
+        };
+        painter.rect(thumb_rect.expand(4.0), 6.0, tile, stroke, egui::StrokeKind::Inside);
+        match self.thumbs.get(&file) {
+            Some(Ok(tex)) => {
+                let size = tex.size_vec2();
+                let scale = (side / size.x).min(side / size.y).min(1.0);
+                let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+                // In the centre of the tile: the tile keeps the photo together with its name.
+                let image = Rect::from_center_size(thumb_rect.center(), size * scale);
+                painter.image(tex.id(), image, uv, Color32::WHITE);
+            }
+            Some(Err(_)) => {
+                painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "⚠", FontId::proportional(side * 0.3), dim);
+            }
+            None => {
+                painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "…", FontId::proportional(24.0), dim);
+            }
+        }
+    }
+
+    /// Copied or cut, waiting for Ctrl+V: a badge in the corner; cut items also fade.
+    pub(crate) fn clip_badge(&self, painter: &egui::Painter, visuals: &egui::Visuals, thumb_rect: Rect, path: &String) {
+        if let Some(clip) = &self.clip
+            && clip.base == self.base
+            && clip.paths.contains(path)
+        {
+            if clip.cut {
+                painter.rect_filled(thumb_rect.expand(4.0), 6.0, crate::theme::canvas(visuals).gamma_multiply(0.55));
+            }
+            let badge = Rect::from_center_size(thumb_rect.right_top() + vec2(-8.0, 8.0), vec2(22.0, 22.0));
+            icons::paint(painter, if clip.cut { Icon::Cut } else { Icon::Copied }, badge);
+        }
+    }
+
+    /// Click (with Shift or Ctrl), right click and right-click menu of the cell of item `i`.
+    pub(crate) fn cell_clicks(&mut self, ui: &mut Ui, response: &egui::Response, i: usize, path: &String) {
         if response.clicked() {
             let mods = ui.input(|i| i.modifiers);
             if mods.shift {
@@ -406,7 +450,7 @@ impl App {
                 {
                     self.marked.insert(p);
                 }
-                if !self.marked.remove(&path) {
+                if !self.marked.remove(path) {
                     self.marked.insert(path.clone());
                 }
                 self.anchor = i;
@@ -421,7 +465,7 @@ impl App {
         // The right click selects the item too, so the menu acts on it (on all the marked ones, if
         // it is one of them).
         if response.secondary_clicked() {
-            if !self.marked.contains(&path) {
+            if !self.marked.contains(path) {
                 self.marked.clear();
                 self.anchor = i;
             }
@@ -436,7 +480,6 @@ impl App {
                 self.act = Some(a);
             }
         });
-        response.double_clicked()
     }
 
     /// Marks the items from `anchor` to `i` (Shift+click, Shift+arrows), and only those.
