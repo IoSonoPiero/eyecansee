@@ -1,6 +1,7 @@
 //! File > Open location: the window with a whole address or its parts, and the address for the log.
 
 use eframe::egui::{self, Key};
+use percent_encoding::percent_decode_str;
 
 use crate::{App, browser};
 
@@ -19,9 +20,31 @@ pub(crate) struct AddressForm {
     pub(crate) folder: String,
     /// Just opened: the address field takes the focus.
     pub(crate) first: bool,
+    /// Opened to ask for the password (`asking_password`): the password field takes the focus.
+    pub(crate) password_focus: bool,
 }
 
 impl AddressForm {
+    /// An FTP or FTPS address with a user but no password, as the last location is saved: the
+    /// form filled in with its parts, waiting for the password. `None` for any other address.
+    pub(crate) fn asking_password(address: &str) -> Option<Self> {
+        let u = url::Url::parse(address).ok()?;
+        let scheme = SCHEMES.iter().position(|s| *s == u.scheme() && *s != "sftp")?;
+        if u.username().is_empty() || u.password().is_some() {
+            return None;
+        }
+        let decode = |s: &str| percent_decode_str(s).decode_utf8_lossy().into_owned();
+        Some(Self {
+            scheme,
+            host: u.host_str()?.to_string(),
+            port: u.port().map(|p| p.to_string()).unwrap_or_default(),
+            user: decode(u.username()),
+            folder: decode(u.path()),
+            password_focus: true,
+            ..Default::default()
+        })
+    }
+
     /// The address to open: the one typed whole, otherwise built from the parts (user and
     /// password escaped). `None`: nothing to open yet, or a port that is not a number.
     pub(crate) fn address(&self) -> Option<String> {
@@ -84,14 +107,19 @@ impl App {
                     ui.end_row();
                     let field = |ui: &mut egui::Ui, label: String, text: &mut String, hint: String, password: bool| {
                         ui.label(label);
-                        ui.add(egui::TextEdit::singleline(text).hint_text(hint).password(password).desired_width(300.0));
+                        let response = ui.add(egui::TextEdit::singleline(text).hint_text(hint).password(password).desired_width(300.0));
                         ui.end_row();
+                        response
                     };
                     field(ui, t("addr-host"), &mut f.host, String::new(), false);
                     let default_port = if SCHEMES[f.scheme] == "sftp" { "22" } else { "21" };
                     field(ui, t("addr-port"), &mut f.port, default_port.to_string(), false);
                     field(ui, t("addr-user"), &mut f.user, t("addr-user-hint"), false);
-                    field(ui, t("addr-password"), &mut f.password, String::new(), true);
+                    let password = field(ui, t("addr-password"), &mut f.password, String::new(), true);
+                    if f.password_focus {
+                        password.request_focus();
+                        f.password_focus = false;
+                    }
                     field(ui, t("addr-folder"), &mut f.folder, "/".to_string(), false);
                 });
             });
@@ -147,6 +175,20 @@ mod tests {
         assert_eq!(f("nas.lan", "porta", "", "", ""), None);
         let whole = super::AddressForm { url: " C:\\Foto ".into(), host: "ignored".into(), ..Default::default() };
         assert_eq!(whole.address(), Some("C:\\Foto".into()));
+    }
+
+    #[test]
+    fn password_asked_at_start() {
+        let f = super::AddressForm::asking_password("ftp://me%40home@nas.lan:2121/Sea%20photos/").unwrap();
+        assert_eq!((f.scheme, f.host.as_str(), f.port.as_str(), f.user.as_str()), (0, "nas.lan", "2121", "me@home"));
+        assert_eq!((f.folder.as_str(), f.password.as_str(), f.password_focus), ("/Sea photos/", "", true));
+        let typed = super::AddressForm { password: "p:w".into(), ..f };
+        assert_eq!(typed.address(), Some("ftp://me%40home:p%3Aw@nas.lan:2121/Sea%20photos/".into()));
+        assert_eq!(super::AddressForm::asking_password("ftps://me@nas.lan/").map(|f| f.scheme), Some(1));
+        // Anonymous FTP, a password already there, SFTP (keys), local folders: nothing to ask.
+        for a in ["ftp://nas.lan/Foto/", "ftp://me:secret@nas.lan/", "sftp://me@nas.lan/", "/home/me/Foto/", "mtp://X/"] {
+            assert!(super::AddressForm::asking_password(a).is_none(), "{a}");
+        }
     }
 
     #[test]

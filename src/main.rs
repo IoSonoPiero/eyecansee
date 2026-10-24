@@ -450,6 +450,12 @@ impl App {
         let last = app.settings.last_location.clone().filter(|_| app.settings.remember_location);
         match (arg, last) {
             (Some(arg), _) => app.open_source(ctx, &arg),
+            // An FTP server with a user: the password is never saved, so instead of a login sure to
+            // be refused File > Open location asks for it, with the rest filled in; home behind it.
+            (None, Some(last)) if let Some(form) = AddressForm::asking_password(&last) => {
+                app.open_address = Some(form);
+                app.open_source(ctx, &home);
+            }
             (None, Some(last)) => {
                 // Folder gone, disk or phone unplugged: start from home, without an error.
                 // An mtp:// would open anyway (the phone connects at the first listing, whose
