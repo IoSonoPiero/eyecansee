@@ -844,8 +844,10 @@ mod tests {
         assert_eq!((s.base.as_str(), s.dir.as_str()), ("ftp://me@nas.lan/", "Sea photos/"));
         assert_eq!(s.start.as_deref(), Some("Sea photos/a.png"));
         assert_eq!(open("gopher://x/").err().map(|e| e.0), Some("error-unsupported"));
+        // The checkout folder can have any name (/src in the AppImage container).
+        let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).file_name().unwrap().to_string_lossy();
         let l = open(env!("CARGO_MANIFEST_DIR")).unwrap();
-        assert!(l.dir.ends_with("eyecansee/") && l.start.is_none());
+        assert!(l.dir.ends_with(&format!("{here}/")) && l.start.is_none());
         assert!(in_gvfs("/", "run/user/1000/gvfs/mtp:host=X/DCIM/") && in_gvfs("/run/user/1000/gvfs/", "a.jpg"));
         assert!(!in_gvfs("/", "home/me/a.jpg"));
     }
