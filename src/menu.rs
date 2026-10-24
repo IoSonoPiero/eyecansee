@@ -2,7 +2,8 @@
 
 use eframe::egui::{self, Color32, Key};
 
-use crate::{Act, App, Go, icons, meta, settings, source, transform, transform_items, version};
+use crate::navigation::Go;
+use crate::{Act, App, icons, meta, settings, source, transform, transform_items, version};
 use crate::loader::THUMB_SIDE;
 
 impl App {

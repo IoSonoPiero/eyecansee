@@ -36,6 +36,7 @@ mod menu;
 mod messages;
 mod meta;
 mod mtp;
+mod navigation;
 mod save_dialogs;
 mod settings;
 mod single;
@@ -54,11 +55,12 @@ use std::sync::mpsc::{self, Receiver, Sender};
 
 use eframe::egui::{self, Color32, Key, TextureHandle};
 use egui_commonmark::{CommonMarkCache, CommonMarkViewer};
-use address::{AddressForm, without_password};
+use address::AddressForm;
 use i18n::I18n;
 use loader::{Loader, Msg};
 use settings::{Settings, WindowStart};
-use source::{File, Listing};
+use navigation::Go;
+use source::Listing;
 
 /// Version number: it lives only in the `VERSION` file (and, identical, in `Cargo.toml`; a test checks it).
 fn version() -> &'static str {
@@ -82,13 +84,6 @@ pub(crate) enum Focus {
     Tree,
 }
 
-#[derive(Clone, Copy, Debug)]
-enum Go {
-    Next,
-    Prev,
-    First,
-    Last,
-}
 
 /// Items of the menu bar and of the right-click menus: the menus only record the choice, which
 /// runs afterwards (`App::run`) with access to the whole app.
@@ -476,79 +471,6 @@ impl App {
         app
     }
 
-    /// Opens an address (path or URL). If it fails, stays on the current source.
-    fn open_source(&mut self, ctx: &egui::Context, address: &str) {
-        log!("open source {:?}", without_password(address));
-        let opened = {
-            let _guard = self.rt.enter();
-            source::open(address.trim())
-        };
-        match opened {
-            Ok(s) => {
-                let handle = self.rt.handle().clone();
-                self.loader = Some(Loader::new(handle, s.op, s.base.clone(), self.tx.clone(), ctx.clone()));
-                self.base = s.base;
-                self.listings.clear();
-                self.listing_pending.clear();
-                self.error = None;
-                self.set_dir(s.dir);
-                self.start = s.start;
-                self.maintain();
-            }
-            Err((id, detail)) => {
-                log!("open failed: {id} {detail}");
-                self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
-                self.address = self.display(&self.dir);
-            }
-        }
-    }
-
-    fn maintain(&mut self) {
-        if self.settings.thumb_maintenance
-            && let Some(loader) = &self.loader
-            && self.maintained.insert(self.base.clone())
-        {
-            loader.maintain(self.settings.thumb_cache_mb as u64 * 1024 * 1024);
-        }
-    }
-
-    /// For the `mtp://<serial>/` source, the desktop's mount of the same phone.
-    fn mounted_twin(&self) -> Option<String> {
-        devices::gvfs_mount(self.base.strip_prefix("mtp://")?.trim_end_matches('/'))
-    }
-
-    fn display(&self, dir: &str) -> String {
-        shown(&self.base, dir)
-    }
-
-    pub(crate) fn set_dir(&mut self, dir: String) {
-        log!("folder {dir:?}");
-        self.reveal = true;
-        if let Some(loader) = &self.loader {
-            self.generation = loader.next_generation();
-        }
-        self.address = self.display(&dir);
-        self.dir = dir;
-        self.thumbs.clear();
-        self.generated.clear();
-        self.thumb_queue_key = None;
-        self.full.clear();
-        self.pending.clear();
-        self.selected = 0;
-        self.cursor = false;
-        self.up_selected = false;
-        self.marked.clear();
-        self.anchor = 0;
-        self.scroll_top = true;
-        self.meta = None;
-        self.meta_asked = None;
-        self.retry_at = None;
-        self.viewing = None;
-        self.start = None;
-        let dir = self.dir.clone();
-        self.request_listing(&dir);
-        self.watch();
-    }
 
     /// Watches the open folder if it is on this computer. Phones and servers send nothing (F5);
     /// gvfs mounts neither: changes on the phone do not reach inotify.
@@ -570,53 +492,6 @@ impl App {
         }
     }
 
-    pub(crate) fn go_up(&mut self) {
-        if !self.dir.is_empty() {
-            let child = self.dir.clone();
-            self.set_dir(source::parent(&child));
-            // The folder we came up from is selected.
-            if let Some(Ok(l)) = self.listings.get(&self.dir)
-                && let Some(i) = l.dirs.iter().position(|d| *d == child)
-            {
-                self.selected = i;
-                self.cursor = true;
-                self.scroll_to_selected = true;
-            }
-        }
-    }
-
-    /// Reads the folders again. The viewer keeps the same image open, if it still exists: until
-    /// the new listing arrives the old one is used, so the grid does not flash for a moment.
-    fn refresh(&mut self) {
-        log!("refresh");
-        let viewing = self.viewing;
-        let path = viewing.and_then(|i| self.files().get(i)).map(|f| f.path.clone());
-        let old = self.listings.remove(&self.dir);
-        self.listings.clear();
-        let dir = self.dir.clone();
-        self.set_dir(dir);
-        if let (Some(i), Some(path), Some(old)) = (viewing, path, old) {
-            self.listings.insert(self.dir.clone(), old);
-            self.viewing = Some(i);
-            self.start = Some(path);
-        }
-    }
-
-    pub(crate) fn request_listing(&mut self, dir: &str) {
-        if let Some(loader) = &self.loader
-            && !self.listings.contains_key(dir)
-            && self.listing_pending.insert(dir.to_string())
-        {
-            loader.list(dir.to_string());
-        }
-    }
-
-    fn files(&self) -> &[File] {
-        match self.listings.get(&self.dir) {
-            Some(Ok(l)) => &l.files,
-            _ => &[],
-        }
-    }
 
     /// Phone without storage (locked, charging or not yet in "File transfer") or not found (it
     /// reconnects when switched to "File transfer", or was unplugged): the folder is
@@ -688,45 +563,6 @@ impl App {
         self.chosen(path).into_iter().filter(|p| !p.ends_with('/') && !source::in_trash(p)).collect()
     }
 
-    /// Next, previous, first, last: same action from the keyboard and from the Go menu.
-    /// In the viewer it changes image (after the last one back to the first only with `wrap_around`,
-    /// otherwise it stops there), in the grid it moves the selection.
-    pub(crate) fn go(&mut self, to: Go) {
-        if let Some(current) = self.viewing {
-            let n = self.files().len();
-            if n > 0 {
-                self.viewing = Some(match to {
-                    Go::Next if self.settings.wrap_around => (current + 1) % n,
-                    Go::Prev if self.settings.wrap_around => (current + n - 1) % n,
-                    Go::Next => (current + 1).min(n - 1),
-                    Go::Prev => current.saturating_sub(1),
-                    Go::First => 0,
-                    Go::Last => n - 1,
-                });
-            }
-        } else {
-            let n = self.items();
-            if n > 0 {
-                // With no selection shown, next and previous start from the first item.
-                self.selected = match to {
-                    Go::Next if self.cursor => (self.selected + 1).min(n - 1),
-                    Go::Prev => self.selected.saturating_sub(1),
-                    Go::First | Go::Next => 0,
-                    Go::Last => n - 1,
-                };
-                self.cursor = true;
-                self.scroll_to_selected = true;
-            }
-        }
-    }
-
-    /// Grid items: folders plus images.
-    fn items(&self) -> usize {
-        match self.listings.get(&self.dir) {
-            Some(Ok(l)) => l.dirs.len() + l.files.len(),
-            _ => 0,
-        }
-    }
 
     /// The item Delete and Rename act on: the image in the viewer, or the item selected in the grid.
     fn target(&self) -> Option<String> {
@@ -892,22 +728,6 @@ impl App {
         self.meta_asked = None;
     }
 
-    fn update_title(&mut self, ctx: &egui::Context) {
-        let title = match self.viewing {
-            Some(i) => {
-                let n = self.files().len();
-                let counter = self.i18n.t_args("counter", &[("n", &(i + 1).to_string()), ("total", &n.to_string())]);
-                let name = self.files().get(i).map_or("", |f| source::name(&f.path));
-                format!("{name} ({counter}) - EyeCanSee")
-            }
-            None => format!("{} - EyeCanSee", self.display(&self.dir)),
-        };
-        if title != self.title {
-            log!("title {title:?}");
-            ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
-            self.title = title;
-        }
-    }
 
     /// Runs an item chosen from the menu bar or from a right-click menu.
     pub(crate) fn run(&mut self, ctx: &egui::Context, act: Act) {
@@ -972,34 +792,6 @@ impl App {
         }
     }
 
-    /// Changes the sort order: re-sorts the listings already read and restarts from the current
-    /// folder (thumbnails and selection are by position), keeping the same image selected.
-    fn set_sort(&mut self, by: settings::SortBy, desc: bool) {
-        self.settings.sort_by = by;
-        self.settings.sort_desc = desc;
-        self.settings.save();
-        let selected = self.cursor.then(|| self.selected.checked_sub(self.listing_dirs())).flatten();
-        let path = selected.and_then(|i| self.files().get(i)).map(|f| f.path.clone());
-        for l in self.listings.values_mut().flatten() {
-            l.sort_files(by, desc);
-        }
-        self.set_dir(self.dir.clone());
-        if let Some(path) = path
-            && let Some(i) = self.files().iter().position(|f| f.path == path)
-        {
-            self.selected = self.listing_dirs() + i;
-            self.cursor = true;
-            self.scroll_to_selected = true;
-        }
-    }
-
-    /// Number of subfolders of the current folder (they come before the images).
-    fn listing_dirs(&self) -> usize {
-        match self.listings.get(&self.dir) {
-            Some(Ok(l)) => l.dirs.len(),
-            _ => 0,
-        }
-    }
 
     fn meta_shown(&self, g: meta::Group) -> bool {
         !self.settings.meta_hidden.iter().any(|k| k == g.key())
@@ -1272,11 +1064,6 @@ fn parse_modified(modified: &str) -> Option<jiff::Timestamp> {
     }
 }
 
-/// A folder of a source as the address bar shows it: `base` plus the folder, with `\` on Windows.
-fn shown(base: &str, dir: &str) -> String {
-    let sep = if base.contains("://") || !base.contains('\\') { "/" } else { "\\" };
-    format!("{base}{}", dir.replace('/', sep))
-}
 
 /// "40 s", "1 min 15 s", "2 h 5 min": the time left of a copy.
 fn human_time(secs: u64) -> String {

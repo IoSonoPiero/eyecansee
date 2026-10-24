@@ -10,7 +10,8 @@ use std::collections::HashSet;
 use crate::devices::Device;
 use crate::icons::{self, Icon};
 use crate::meta::Group;
-use crate::{Act, App, Focus, Go};
+use crate::navigation::Go;
+use crate::{Act, App, Focus};
 use crate::source;
 
 /// Thumbnail rows loaded right after the visible ones, above and below.

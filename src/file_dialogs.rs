@@ -6,7 +6,8 @@ use std::sync::atomic::Ordering;
 
 use eframe::egui::{self, Key};
 
-use crate::{App, PasteAsk, browser, confirm, devices, human_time, shown, source, theme, transfer};
+use crate::{App, PasteAsk, browser, confirm, devices, human_time, source, theme, transfer};
+use crate::navigation::shown;
 
 impl App {
     /// Ctrl+C / Ctrl+X: remembers the items and their source. The paths also go on the system

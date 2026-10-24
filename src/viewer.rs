@@ -2,7 +2,8 @@
 
 use eframe::egui::{self, Key, TextureHandle};
 
-use crate::{AROUND, Act, App, Go, browser, convert, source, transform};
+use crate::navigation::Go;
+use crate::{AROUND, Act, App, browser, convert, source, transform};
 
 impl App {
     pub(crate) fn viewer_keys(&mut self, ctx: &egui::Context) {
