@@ -40,6 +40,7 @@ mod messages;
 mod meta;
 mod mtp;
 mod navigation;
+mod paint;
 mod save_dialogs;
 mod selection;
 mod settings;

@@ -4,7 +4,7 @@ use eframe::egui::{self, Key, TextureHandle};
 
 use crate::navigation::Go;
 use crate::actions::Act;
-use crate::{AROUND, App, browser, convert, source, transform};
+use crate::{AROUND, App, browser, paint, source, transform};
 
 impl App {
     pub(crate) fn viewer_keys(&mut self, ctx: &egui::Context) {
@@ -119,7 +119,7 @@ impl App {
             // ponytail: changes not saved are dropped without asking, they are only turns
             (self.zoom, self.zoom_of, self.turn) = (None, Some(current), Default::default());
         }
-        let t = convert::turned_size(tex, self.turn);
+        let t = paint::turned_size(tex, self.turn);
         let fit = (rect.width() * ppp / t.x).min(rect.height() * ppp / t.y).min(1.0);
         let max = (self.settings.max_zoom as f32 / 100.0).max(fit);
         let scale = self.zoom.unwrap_or(fit).clamp(fit, max);
@@ -194,11 +194,11 @@ impl App {
                 if response.hovered() {
                     ui.ctx().set_cursor_icon(if response.dragged() { egui::CursorIcon::Grabbing } else { egui::CursorIcon::Grab });
                 }
-                convert::paint_zoomed(&painter, rect, tex, scale, &mut self.pan, self.turn);
+                paint::paint_zoomed(&painter, rect, tex, scale, &mut self.pan, self.turn);
             }
             None => {
                 let dest = egui::Rect::from_center_size(rect.center(), t * fit / ppp);
-                convert::paint_turned(&painter, tex, dest, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), self.turn);
+                paint::paint_turned(&painter, tex, dest, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), self.turn);
             }
         }
         self.zoom_shown = self.zoom.unwrap_or(fit);
