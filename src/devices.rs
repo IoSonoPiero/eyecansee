@@ -136,6 +136,14 @@ fn is_external(dev: &str) -> bool {
     dev.starts_with("mmcblk") || sys.is_ok_and(|p| p.to_string_lossy().contains("/usb"))
 }
 
+/// A device in `old` but no longer in `new` (by path) that holds the folder `current` (absolute,
+/// as the address bar shows it): unplugged, or unmounted, with one of its folders open.
+pub fn gone_under(old: &[Device], new: &[Device], current: &str) -> bool {
+    old.iter()
+        .filter(|d| !d.path.is_empty() && !new.iter().any(|n| n.path == d.path))
+        .any(|d| current.starts_with(&d.path) || current == d.path.trim_end_matches(['/', '\\']))
+}
+
 /// Is this absolute path on an NTFS disk? (Linux: `ntfs3`, or `fuseblk`, which is ntfs-3g on the
 /// usual desktops [Inference: exFAT through FUSE would also match].) There Nautilus does not
 /// restore from the trash, not even what GNOME itself put there (2026-10-22): the confirmation says so.
@@ -377,6 +385,22 @@ mod tests {
         assert!(!ntfs_in(mounts, "/home/u/a.jpg"));
         assert_eq!(unescape_mount("/mnt/Linux"), "/mnt/Linux");
         assert_eq!(unescape_udev("MY\\x20DISK\\x2020\\x2f07"), "MY DISK 20/07");
+    }
+
+    #[test]
+    fn unplugged() {
+        let disk = |path: &str| Device { name: "Stick".into(), path: path.into(), phone: false, serial: None, block: None, internal: false };
+        let old = [disk("/run/media/u/STICK/"), disk("/mnt/Linux/")];
+        let new = [disk("/mnt/Linux/")];
+        assert!(gone_under(&old, &new, "/run/media/u/STICK/DCIM/"));
+        assert!(gone_under(&old, &new, "/run/media/u/STICK/"));
+        assert!(!gone_under(&old, &new, "/run/media/u/STICKER/"));
+        assert!(!gone_under(&old, &new, "/mnt/Linux/photos/"));
+        assert!(!gone_under(&old, &old, "/run/media/u/STICK/DCIM/"));
+        // Windows: a drive is its own root.
+        assert!(gone_under(&[disk("D:\\")], &[], "D:\\Photos\\"));
+        // Unmounted partitions have no path: never a match.
+        assert!(!gone_under(&[disk("")], &[], "/home/u/"));
     }
 
     /// What it sees now: `cargo test devices_now -- --ignored --nocapture`

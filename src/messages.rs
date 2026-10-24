@@ -355,9 +355,12 @@ impl App {
         let serial = self.base.strip_prefix("mtp://").map(|s| s.trim_end_matches('/').to_string());
         let has = |devices: &[devices::Device], s: &str| devices.iter().any(|d| d.serial.as_deref() == Some(s));
         let unplugged = serial.is_some_and(|s| has(&self.devices, &s) && !has(&d, &s));
+        // The same for a disk, a stick or a mounted phone with one of its folders open: otherwise the
+        // grid stayed on the files read before.
+        let gone = self.loader.is_some() && devices::gone_under(&self.devices, &d, &self.display(&self.dir));
         self.devices = d;
-        if unplugged {
-            log!("phone unplugged");
+        if unplugged || gone {
+            log!("device with the open folder unplugged");
             let home = std::env::home_dir().map_or(".".into(), |h| h.to_string_lossy().into_owned());
             self.open_source(ctx, &home);
         }
