@@ -3,7 +3,7 @@
 use eframe::egui;
 
 use crate::actions::{Act, transform_items};
-use crate::{App, BOLD, confirm, convert, source, transform};
+use crate::{App, BOLD, confirm, encode, source, transform};
 
 impl App {
     /// Confirmation of a transform on images of the grid: they are overwritten (originals where a
@@ -15,7 +15,7 @@ impl App {
         // Images still being saved stay out: they would be turned twice.
         let paths = paths.into_iter().filter(|p| !self.saving.contains(p));
         let rename = loader.can_rename();
-        let (ok, skipped): (Vec<String>, Vec<String>) = paths.partition(|p| rename && convert::Format::of_file(p).is_some());
+        let (ok, skipped): (Vec<String>, Vec<String>) = paths.partition(|p| rename && encode::Format::of_file(p).is_some());
         let how = ok.first().map_or(source::Deletion::Permanent, |p| loader.deletion(p, self.settings.local_permanent, self.settings.remote_delete));
         let label = transform_items().into_iter().find(|(o, ..)| *o == op).map_or("", |(_, l, _)| l);
         let n = ok.len().to_string();
@@ -25,7 +25,7 @@ impl App {
             source::Deletion::Permanent => "batch-originals-permanent",
         };
         let mut text = format!("{}\n\n{}", self.i18n.t_args("batch-turn-confirm", &[("op", &self.i18n.t(label)), ("n", &n)]), self.i18n.t(where_id));
-        if ok.iter().any(|p| matches!(convert::Format::of_file(p), Some(convert::Format::Jpeg | convert::Format::Webp | convert::Format::Avif | convert::Format::Gif))) {
+        if ok.iter().any(|p| matches!(encode::Format::of_file(p), Some(encode::Format::Jpeg | encode::Format::Webp | encode::Format::Avif | encode::Format::Gif))) {
             text = format!("{text}\n\n{}", self.i18n.t("batch-lossy"));
         }
         if !ok.is_empty() {
@@ -61,7 +61,7 @@ impl App {
             && self.save_ready.is_none()
             && self.loader.as_ref().is_some_and(|l| l.can_rename())
             && self.files().get(current).is_some_and(|f| {
-                self.can_change(&f.path) && !self.saving.contains(&f.path) && convert::Format::of_file(&f.path).is_some()
+                self.can_change(&f.path) && !self.saving.contains(&f.path) && encode::Format::of_file(&f.path).is_some()
             })
     }
 
@@ -81,7 +81,7 @@ impl App {
             } else {
                 self.viewing
                     .and_then(|i| self.files().get(i))
-                    .filter(|f| convert::Format::of_file(&f.path).is_none())
+                    .filter(|f| encode::Format::of_file(&f.path).is_none())
                     .map(|f| self.i18n.t_args("save-format", &[("name", &md(source::name(&f.path)))]))
             };
             if let Some(text) = text {

@@ -14,7 +14,7 @@ use tokio::sync::{Notify, Semaphore};
 use crate::source::{self, File, Listing, Store};
 use crate::{decode, thumbcache, transfer};
 
-/// Error id of an image left out of "Save": animated, several pages, a Motion Photo (`convert::can_turn_in_place`).
+/// Error id of an image left out of "Save": animated, several pages, a Motion Photo (`encode::can_turn_in_place`).
 pub const SKIPPED: &str = "save-skipped";
 
 /// Side of the decoded thumbnails; the grid shows them at this size or smaller.
@@ -46,7 +46,7 @@ pub enum Msg {
     /// Outcome of `update::check`: a newer version downloaded and checked, up to date, or an error.
     Update(Result<Option<crate::update::Ready>, String>),
     /// "Save in another format": the original decoded, its preview and file size.
-    Original(Result<(Arc<crate::convert::Original>, ColorImage, u64), String>),
+    Original(Result<(Arc<crate::encode::Original>, ColorImage, u64), String>),
     /// The image encoded with the options of `generation`, and the encoded file decoded back
     /// (`None`: no decoder for that format in this build).
     Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
@@ -255,7 +255,7 @@ impl Loader {
         self.rt.spawn(async move {
             let r = match op.read(&path).await {
                 Ok(bytes) => tokio::task::spawn_blocking(move || {
-                    let original = crate::convert::Original::open(&bytes, &path)?;
+                    let original = crate::encode::Original::open(&bytes, &path)?;
                     let preview = decode::preview(&original.image);
                     Ok((Arc::new(original), preview, bytes.len() as u64))
                 })
@@ -376,10 +376,10 @@ async fn turned(op: &Store, path: &str, turn: crate::transform::Turn) -> Result<
     let bytes = op.read(path).await?;
     let name = source::name(path).to_string();
     tokio::task::spawn_blocking(move || {
-        if !crate::convert::can_turn_in_place(&bytes, &name) {
+        if !crate::encode::can_turn_in_place(&bytes, &name) {
             return Err((SKIPPED, name));
         }
-        crate::convert::turned_file(&bytes, &name, turn).map_err(|e| ("error-detail", e))
+        crate::encode::turned_file(&bytes, &name, turn).map_err(|e| ("error-detail", e))
     })
     .await
     .map_err(|e| ("error-detail", e.to_string()))?
@@ -705,9 +705,9 @@ mod tests {
             ("even.jpg", jpeg.clone()),
             ("odd.jpg", encode(&picture(1001, 751), image::ImageFormat::Jpeg)),
             ("plain.png", encode(&picture(300, 200), image::ImageFormat::Png)),
-            ("animated.webp", crate::convert::tests::animated_webp(&small)),
-            ("animated.png", crate::convert::tests::apng(&png)),
-            ("pages.tif", crate::convert::tests::tiff_pages(&small)),
+            ("animated.webp", crate::encode::tests::animated_webp(&small)),
+            ("animated.png", crate::encode::tests::apng(&png)),
+            ("pages.tif", crate::encode::tests::tiff_pages(&small)),
             ("exif6.jpg", jpeg_with_exif(&picture(1024, 768))),
             ("motion.jpg", [jpeg.as_slice(), b"\0\0\0\x18ftypmp42\0\0\0\0isommp42", &[7; 4096]].concat()),
         ];

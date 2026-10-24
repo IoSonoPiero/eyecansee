@@ -29,6 +29,7 @@ mod confirm;
 mod convert;
 mod decode;
 mod devices;
+mod encode;
 mod file_dialogs;
 mod human;
 mod i18n;

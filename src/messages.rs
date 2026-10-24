@@ -9,7 +9,7 @@ use eframe::egui::{self, ColorImage, TextureOptions};
 
 use crate::address::without_password;
 use crate::save_dialogs::md;
-use crate::{App, RETRY_SECS, convert, devices, loader, meta, source, transform, update, version};
+use crate::{App, RETRY_SECS, devices, encode, loader, meta, source, transform, update, version};
 use crate::loader::Msg;
 use crate::source::Listing;
 
@@ -271,9 +271,9 @@ impl App {
             Ok(_) => {}
             Err((loader::SKIPPED, name)) => {
                 // Say exactly what would be lost.
-                let id = match convert::Format::of_file(&name) {
-                    Some(convert::Format::Tiff) => "save-pages",
-                    Some(convert::Format::Jpeg) => "save-extra",
+                let id = match encode::Format::of_file(&name) {
+                    Some(encode::Format::Tiff) => "save-pages",
+                    Some(encode::Format::Jpeg) => "save-extra",
                     Some(_) => "save-animated",
                     None => loader::SKIPPED,
                 };
