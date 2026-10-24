@@ -14,6 +14,9 @@ use tokio::sync::{Notify, Semaphore};
 use crate::source::{self, File, Listing, Store};
 use crate::{decode, thumbcache, transfer};
 
+/// Error id of an image left out of "Save": animated, several pages, a Motion Photo (`convert::can_turn_in_place`).
+pub const SKIPPED: &str = "save-skipped";
+
 /// Side of the decoded thumbnails; the grid shows them at this size or smaller.
 pub const THUMB_SIDE: u32 = 256;
 
@@ -49,8 +52,13 @@ pub enum Msg {
     Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
     /// The converted image written: its path, or an error.
     Saved(Result<String, source::Error>),
-    /// An image saved over itself after a turn ("Save"): its path, or an error.
-    Replaced(Result<String, source::Error>),
+    /// "Save" from the viewer, before the confirmation: the image, the turn, and the file to write
+    /// with whether it lost quality (encoded again), or an error (`SKIPPED`: not saveable over itself).
+    Prepared(String, crate::transform::Turn, Result<(Arc<Vec<u8>>, bool), source::Error>),
+    /// An image saved over itself after a turn ("Save"): its path and the outcome.
+    Replaced(String, Result<(), source::Error>),
+    /// Thumbnails gone from the disk cache (`thumbcache::forget`): their paths.
+    Forgotten(Vec<String>),
     /// Metadata of an image: `None` = no EXIF.
     Meta { generation: u64, index: usize, meta: Result<Option<crate::meta::Meta>, String> },
 }
@@ -270,15 +278,42 @@ impl Loader {
         });
     }
 
-    /// "Save": images turned, each in its own format, one after the other. Each is written under a
-    /// hidden name first; only when that worked does the original go (deleted as `how` says, so to
-    /// the trash usually) and the new file take its name. A failure leaves the original as it was.
+    /// Can "Save" overwrite images here? It needs renaming (not on FTP).
+    pub fn can_rename(&self) -> bool {
+        self.op.can_rename()
+    }
+
+    /// "Save" from the viewer, first half: the image turned in memory. The confirmation shows
+    /// whether it lost quality, then `replace_with` writes exactly that.
+    pub fn prepare(&self, path: String, turn: crate::transform::Turn) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let r = turned(&op, &path, turn).await.map(|(data, lossy)| (Arc::new(data), lossy));
+            let _ = tx.send(Msg::Prepared(path, turn, r));
+            ctx.request_repaint();
+        });
+    }
+
+    pub fn replace_with(&self, path: String, data: Arc<Vec<u8>>, how: source::Deletion) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let r = replace(&op, &path, data.to_vec(), how).await;
+            let _ = tx.send(Msg::Replaced(path, r));
+            ctx.request_repaint();
+        });
+    }
+
+    /// "Save" on images of the grid: each turned in its own format and written over itself, one
+    /// after the other; those that cannot be (`SKIPPED`) are left as they are.
     pub fn replace(&self, paths: Vec<String>, turn: crate::transform::Turn, how: source::Deletion) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
             for path in paths {
-                let r = replace(&op, &path, turn, how).await.map(|()| path);
-                let _ = tx.send(Msg::Replaced(r));
+                let r = match turned(&op, &path, turn).await {
+                    Ok((data, _)) => replace(&op, &path, data, how).await,
+                    Err(e) => Err(e),
+                };
+                let _ = tx.send(Msg::Replaced(path, r));
                 ctx.request_repaint();
             }
         });
@@ -336,18 +371,87 @@ async fn write_whole(op: &Store, path: &str, data: Vec<u8>) -> Result<(), source
     op.write_chunks(path, size, rx).await
 }
 
-async fn replace(op: &Store, path: &str, turn: crate::transform::Turn, how: source::Deletion) -> Result<(), source::Error> {
+/// The image read and turned in its own format, and whether it lost quality.
+async fn turned(op: &Store, path: &str, turn: crate::transform::Turn) -> Result<(Vec<u8>, bool), source::Error> {
     let bytes = op.read(path).await?;
     let name = source::name(path).to_string();
-    let n = name.clone();
-    let data = tokio::task::spawn_blocking(move || crate::convert::turned_file(&bytes, &n, turn))
-        .await
-        .map_err(|e| ("error-detail", e.to_string()))?
-        .map_err(|e| ("error-detail", e))?;
-    let tmp = format!("{}.{name}.eyecansee-new", source::parent(path));
-    write_whole(op, &tmp, data).await?;
-    op.delete(path, how).await?;
-    op.rename(&tmp, &name).await.map(|_| ())
+    tokio::task::spawn_blocking(move || {
+        if !crate::convert::can_turn_in_place(&bytes, &name) {
+            return Err((SKIPPED, name));
+        }
+        crate::convert::turned_file(&bytes, &name, turn).map_err(|e| ("error-detail", e))
+    })
+    .await
+    .map_err(|e| ("error-detail", e.to_string()))?
+}
+
+/// Writes `data` over the image `path`; the original goes as `how` says, under its own name.
+/// Nothing is written where renaming is not possible. At every failure, and if the app closes
+/// half way (`Store::recover`), the image keeps a visible file under its name: the original, put
+/// back from its hidden copy if it had already left.
+async fn replace(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion) -> Result<(), source::Error> {
+    if !op.can_rename() {
+        return Err(("error-rename-unsupported", path.to_string()));
+    }
+    source::SAVING.lock().unwrap().insert(path.to_string());
+    let r = swap(op, path, data, how).await;
+    source::SAVING.lock().unwrap().remove(path);
+    r
+}
+
+async fn swap(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion) -> Result<(), source::Error> {
+    let own = source::name(path);
+    let (new, old) = source::save_names(path);
+    // An original left by an earlier save cut short after its new version took the name: it goes
+    // where that save would have sent it.
+    if op.names(&source::parent(path)).await?.contains(source::name(&old)) {
+        put_away(op, &old, own, how).await?;
+    }
+    write_whole(op, &new, data).await?;
+    // The original leaves its name and waits as `old`. To the system trash it goes now with its
+    // own name (restoring it from there gives it back), `old` being a second name of it.
+    let left = match how {
+        source::Deletion::SystemTrash => match op.link_or_copy(path, &old).await {
+            Ok(()) => op.delete(path, how).await,
+            Err(e) => Err(e),
+        },
+        _ => op.rename(path, source::name(&old)).await.map(|_| ()),
+    };
+    let named = match left {
+        Ok(()) => op.rename(&new, own).await.map(|_| ()),
+        Err(e) => Err(e),
+    };
+    if let Err(e) = named {
+        undo(op, path, &new, &old).await;
+        return Err(e);
+    }
+    // The new image is in place: if the original cannot go, it stays hidden until the next save.
+    if let Err(e) = put_away(op, &old, own, how).await {
+        log!("save {path:?}: original kept as {old:?}: {e:?}");
+    }
+    Ok(())
+}
+
+/// After a failed step of `swap`: the original back under its name if that is free (never over
+/// another file), the new file gone.
+async fn undo(op: &Store, path: &str, new: &str, old: &str) {
+    let names = op.names(&source::parent(path)).await.unwrap_or_default();
+    if names.contains(source::name(old)) && !names.contains(source::name(path)) {
+        let r = op.rename(old, source::name(path)).await;
+        log!("save {path:?}: original back: {r:?}");
+    }
+    if names.contains(source::name(new)) {
+        let _ = op.delete(new, source::Deletion::Permanent).await;
+    }
+}
+
+/// The original, waiting as `old`, goes as `how` says, under its own name `own`. With the system
+/// trash it is already there and `old` is only a second name.
+async fn put_away(op: &Store, old: &str, own: &str, how: source::Deletion) -> Result<(), source::Error> {
+    match how {
+        source::Deletion::TrashFolder => op.to_trash_folder(old, own).await,
+        _ => op.delete(old, source::Deletion::Permanent).await,
+    }
 }
 
 async fn thumb_worker(
@@ -448,5 +552,71 @@ async fn drop_empty_trash(op: &Store, trash: String, tx: &Sender<Msg>) {
         let how = source::Deletion::Permanent;
         let r = op.delete(&trash, how).await;
         let _ = tx.send(Msg::Deleted(trash, how, r));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source::{Deletion, TRASH_DIR};
+
+    /// Saving over an image: the new file takes the name, the original goes as asked under its own
+    /// name ("a (2).png" when the trash already has one), nothing hidden stays. A failed step puts
+    /// the original back; a source that cannot rename gets nothing written.
+    #[test]
+    fn replace_steps() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-replace-{}", std::process::id()));
+        let (p, trash) = (dir.join("p"), dir.join("p").join(TRASH_DIR));
+        std::fs::create_dir_all(&trash).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let hidden = || {
+            std::fs::read_dir(&p).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.contains(".eyecansee-")).collect::<Vec<_>>()
+        };
+        std::fs::write(p.join("a.png"), b"old").unwrap();
+        std::fs::write(trash.join("a.png"), b"older").unwrap();
+        // An original left next to its new version by a save cut short goes first.
+        std::fs::write(p.join(".a.png.eyecansee-old"), b"stale").unwrap();
+        rt.block_on(replace(&op, "p/a.png", b"new".to_vec(), Deletion::TrashFolder)).unwrap();
+        assert_eq!(std::fs::read(p.join("a.png")).unwrap(), b"new");
+        assert_eq!(std::fs::read(trash.join("a (2).png")).unwrap(), b"stale");
+        assert_eq!(std::fs::read(trash.join("a (3).png")).unwrap(), b"old");
+        assert!(hidden().is_empty());
+        rt.block_on(replace(&op, "p/a.png", b"newer".to_vec(), Deletion::Permanent)).unwrap();
+        assert_eq!(std::fs::read(p.join("a.png")).unwrap(), b"newer");
+        assert_eq!(std::fs::read_dir(&trash).unwrap().count(), 3);
+        assert!(hidden().is_empty());
+
+        // A step failed half way: the original back under its name, the new file gone.
+        let (new, old) = source::save_names("p/a.png");
+        std::fs::rename(p.join("a.png"), p.join(".a.png.eyecansee-old")).unwrap();
+        std::fs::write(p.join(".a.png.eyecansee-new"), b"half").unwrap();
+        rt.block_on(undo(&op, "p/a.png", &new, &old));
+        assert_eq!(std::fs::read(p.join("a.png")).unwrap(), b"newer");
+        assert!(hidden().is_empty());
+
+        // The second name of the system trash flow: a link (or copy), never over a file.
+        rt.block_on(op.link_or_copy("p/a.png", "p/b.png")).unwrap();
+        assert_eq!(std::fs::read(p.join("b.png")).unwrap(), b"newer");
+        assert!(rt.block_on(op.link_or_copy("p/a.png", "p/b.png")).is_err());
+
+        // Nothing can be written in the folder: the original stays as it was.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o555)).unwrap();
+            // Not as root, who writes anyway.
+            if std::fs::write(p.join("probe"), b"").is_err() {
+                assert!(rt.block_on(replace(&op, "p/a.png", b"x".to_vec(), Deletion::Permanent)).is_err());
+                assert_eq!(std::fs::read(p.join("a.png")).unwrap(), b"newer");
+                assert!(hidden().is_empty());
+            }
+            std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
+
+        // FTP cannot rename: refused before anything is read or written (nothing listens there).
+        let ftp = Store::Dal(opendal::Operator::new(opendal::services::Ftp::default().endpoint("ftp://127.0.0.1:9")).unwrap());
+        assert_eq!(rt.block_on(replace(&ftp, "a.png", b"x".to_vec(), Deletion::Permanent)).unwrap_err().0, "error-rename-unsupported");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

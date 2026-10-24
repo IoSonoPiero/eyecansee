@@ -79,6 +79,8 @@ enum Write {
     Touch { source: String, path: String },
     Delete { source: String, path: String },
     Trim { limit: u64 },
+    /// Deleted like `Delete`, then `done` is called once they are committed.
+    Forget { source: String, paths: Vec<String>, done: Box<dyn FnOnce() + Send> },
 }
 
 /// Channel to the writer thread, started on first use.
@@ -99,6 +101,7 @@ fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
     while let Ok(first) = rx.recv() {
         let Ok(tx) = conn.transaction() else { continue };
         let mut trimmed = 0;
+        let mut done = Vec::new();
         for w in std::iter::once(first).chain(rx.try_iter()) {
             let _ = match w {
                 Write::Save { source, file, data } => tx.execute(
@@ -115,10 +118,18 @@ fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
                     tx.execute("DELETE FROM thumbs WHERE source = ?1 AND path = ?2", params![source, path])
                 }
                 Write::Trim { limit } => trim_rows(&tx, limit).inspect(|n| trimmed += n),
+                Write::Forget { source, paths, done: d } => {
+                    done.push(d);
+                    paths.iter().try_fold(0, |n, path| {
+                        tx.execute("DELETE FROM thumbs WHERE source = ?1 AND path = ?2", params![source, path]).map(|m| n + m)
+                    })
+                }
             };
         }
+        let committed = tx.commit().is_ok();
+        done.into_iter().for_each(|d| d());
         // Without VACUUM the file does not shrink: the freed space would only be reusable.
-        if tx.commit().is_ok() && trimmed > 0 {
+        if committed && trimmed > 0 {
             let _ = conn.execute_batch("VACUUM");
         }
     }
@@ -147,15 +158,20 @@ pub fn delete(source: &str, path: &str) {
     send(Write::Delete { source: source.to_string(), path: path.to_string() });
 }
 
-/// Removes the thumbnails at once, not through the writer: the grid asks for them again right
-/// after, and they must not come back from the cache.
-pub fn forget(source: &str, paths: &[String]) {
-    let Ok(mut conn) = open() else { return };
-    let Ok(tx) = conn.transaction() else { return };
-    for path in paths {
-        let _ = tx.execute("DELETE FROM thumbs WHERE source = ?1 AND path = ?2", params![source, path]);
+/// Removes the thumbnails through the writer, so the interface does not wait for it (a VACUUM can
+/// take seconds); `done` is called once they are gone. Only then may the grid ask for them again,
+/// or the old ones would come back from the cache. Without the cache `done` is called at once.
+pub fn forget(source: &str, paths: Vec<String>, done: impl FnOnce() + Send + 'static) {
+    match writer() {
+        Some(tx) => {
+            if let Err(e) = tx.send(Write::Forget { source: source.to_string(), paths, done: Box::new(done) })
+                && let Write::Forget { done, .. } = e.0
+            {
+                done();
+            }
+        }
+        None => done(),
     }
-    let _ = tx.commit();
 }
 
 pub fn trim(limit: u64) {
@@ -236,11 +252,23 @@ mod tests {
         delete(&source, "a.jpg");
         for _ in 0..100 {
             if entries(&source).is_empty() {
-                return;
+                break;
             }
             std::thread::sleep(Duration::from_millis(20));
         }
-        panic!("thumbnail not deleted");
+        assert!(entries(&source).is_empty(), "thumbnail not deleted");
+        // Forgotten: gone as soon as `done` is called.
+        save(&source, &file, &DynamicImage::new_rgb8(4, 3));
+        for _ in 0..100 {
+            if load(&source, &file).is_some() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        forget(&source, vec!["a.jpg".into()], move || tx.send(()).unwrap());
+        rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(load(&source, &file).is_none());
     }
 
     #[test]

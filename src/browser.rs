@@ -811,7 +811,7 @@ impl App {
             }
             if !self.turn.is_none() {
                 ui.separator();
-                ui.label(self.i18n.t(if self.saving > 0 { "status-saving" } else { "status-modified" }));
+                ui.label(self.i18n.t(if self.saving.contains(&f.path) { "status-saving" } else { "status-modified" }));
             }
             ui.separator();
             ui.label(self.human_size(f.size));

@@ -64,8 +64,9 @@ impl Format {
         matches!(self, Format::Jpeg | Format::Png | Format::Webp | Format::Avif | Format::Tiff)
     }
 
-    /// The format a file can be saved back in after a turn ("Save"). Not GIF: its animation would
-    /// be lost, since only the first frame is decoded.
+    /// The format a file can be saved back in after a turn ("Save"), from its name. Not GIF: its
+    /// animation would be lost, since only the first frame is decoded (the other formats are
+    /// looked at inside by `can_turn_in_place`).
     pub fn of_file(name: &str) -> Option<Format> {
         let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
         Format::ALL.into_iter().filter(|f| *f != Format::Gif).find(|f| f.ext() == ext || (ext == "jpeg" && *f == Format::Jpeg) || (ext == "tiff" && *f == Format::Tiff))
@@ -245,17 +246,81 @@ impl Original {
 }
 
 /// The file turned, in its own format: a JPEG without re-encoding when its size allows it,
-/// otherwise at quality 95; the others encoded again, a lossless WebP still lossless.
-pub fn turned_file(bytes: &[u8], name: &str, turn: Turn) -> Result<Vec<u8>, String> {
-    let format = Format::of_file(name).ok_or_else(|| name.to_string())?;
+/// otherwise at quality 95; the others encoded again, a lossless WebP still lossless. Also says
+/// whether it was encoded again with loss (the confirmation warns about it).
+pub fn turned_file(bytes: &[u8], name: &str, turn: Turn) -> Result<(Vec<u8>, bool), String> {
+    let format = Format::of_file(name).filter(|_| can_turn_in_place(bytes, name)).ok_or_else(|| name.to_string())?;
     if format == Format::Jpeg
         && let Some(out) = crate::transform::jpeg_lossless(bytes, turn)
     {
-        return Ok(out);
+        return Ok((out, false));
     }
     let webp_lossless = format == Format::Webp && bytes.windows(4).any(|w| w == b"VP8L");
     let o = Options { format, turn, jpeg_quality: 95, webp_lossless, ..Default::default() };
-    Original::open(bytes, name)?.encode(&o)
+    let lossy = matches!(format, Format::Jpeg | Format::Avif) || (format == Format::Webp && !webp_lossless);
+    Ok((Original::open(bytes, name)?.encode(&o)?, lossy))
+}
+
+/// Can the file be turned and written back over itself, losing at most a little quality? Its
+/// format must be one EyeCanSee writes, and the file a single picture: not animated (APNG, WebP,
+/// AVIF sequence), not several pages (TIFF), not a JPEG carrying more than the picture (the video
+/// of a Motion Photo after its end, MPF secondary images or depth maps), which would be lost.
+pub fn can_turn_in_place(bytes: &[u8], name: &str) -> bool {
+    let cursor = || Cursor::new(bytes);
+    match Format::of_file(name) {
+        Some(Format::Jpeg) => plain_jpeg(bytes),
+        Some(Format::Png) => png::PngDecoder::new(cursor()).is_ok_and(|d| d.is_apng().is_ok_and(|a| !a)),
+        Some(Format::Webp) => image::codecs::webp::WebPDecoder::new(cursor()).is_ok_and(|d| !d.has_animation()),
+        Some(Format::Tiff) => tiff::decoder::Decoder::new(cursor()).is_ok_and(|d| !d.more_images()),
+        Some(Format::Avif) => !avif_sequence(bytes),
+        Some(_) => true,
+        None => false,
+    }
+}
+
+/// A JPEG that ends at its EOI marker (zeros after it are padding) and has no MPF segment.
+/// libjpeg-turbo drops what follows EOI (tried: 27 bytes after it, gone after a turn).
+fn plain_jpeg(b: &[u8]) -> bool {
+    if !b.starts_with(&[0xFF, 0xD8]) {
+        return false;
+    }
+    let mut i = 2;
+    while i + 1 < b.len() {
+        if b[i] != 0xFF {
+            return false;
+        }
+        let marker = b[i + 1];
+        match marker {
+            0xFF => {
+                i += 1; // fill byte
+                continue;
+            }
+            0xD9 => return b[i + 2..].iter().all(|&x| x == 0),
+            0x01 | 0xD0..=0xD7 => {
+                i += 2;
+                continue;
+            }
+            _ => {}
+        }
+        let Some(len) = b.get(i + 2..i + 4).map(|l| u16::from_be_bytes([l[0], l[1]]) as usize).filter(|l| *l >= 2) else { return false };
+        if marker == 0xE2 && b.get(i + 4..i + 2 + len).is_some_and(|body| body.starts_with(b"MPF\0")) {
+            return false;
+        }
+        i += 2 + len;
+        if marker == 0xDA {
+            // Coded data, up to the next marker: not a stuffed 0xFF00, not a restart.
+            while i + 1 < b.len() && !(b[i] == 0xFF && b[i + 1] != 0 && !(0xD0..=0xD7).contains(&b[i + 1])) {
+                i += 1;
+            }
+        }
+    }
+    false
+}
+
+/// AVIF image sequence: brand "avis" in the ftyp box.
+fn avif_sequence(b: &[u8]) -> bool {
+    let size = b.get(..4).map_or(0, |s| u32::from_be_bytes([s[0], s[1], s[2], s[3]]) as usize);
+    b.get(4..8) == Some(b"ftyp") && b.get(8..size.min(b.len())).is_some_and(|brands| brands.as_chunks::<4>().0.contains(b"avis"))
 }
 
 /// Pixels the format can store: JPEG has no transparency (laid on white, not on black), and
@@ -999,5 +1064,78 @@ mod tests {
                 assert_eq!(read_meta(&bare), (None, None), "{o:?}");
             }
         }
+    }
+
+    /// What cannot be saved over itself, found inside the file: animations, pages, what a JPEG
+    /// carries besides its picture. The plain files of the same formats can.
+    #[test]
+    fn turn_in_place() {
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_fn(8, 8, |x, y| image::Rgb([x as u8 * 30, y as u8 * 30, 0])));
+        let file = |f| {
+            let mut v = Vec::new();
+            img.write_to(&mut Cursor::new(&mut v), f).unwrap();
+            v
+        };
+        // JPEG: plain, with zero padding, with a video after EOI, with an MPF segment.
+        let jpeg = file(image::ImageFormat::Jpeg);
+        assert!(can_turn_in_place(&jpeg, "a.jpg"));
+        assert!(can_turn_in_place(&[jpeg.as_slice(), &[0; 16]].concat(), "a.jpeg"));
+        assert!(!can_turn_in_place(&[jpeg.as_slice(), b"\0\0\0\x18ftypmp42"].concat(), "a.jpg"));
+        let mut mpf = jpeg.clone();
+        mpf.splice(2..2, [&[0xFF, 0xE2, 0, 10][..], b"MPF\0II*\0"].concat());
+        assert!(!can_turn_in_place(&mpf, "a.jpg"));
+
+        // APNG: an acTL chunk after IHDR.
+        let png = file(image::ImageFormat::Png);
+        assert!(can_turn_in_place(&png, "a.png"));
+        let crc = |data: &[u8]| {
+            let mut c = !0u32;
+            for &b in data {
+                c ^= b as u32;
+                for _ in 0..8 {
+                    c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
+                }
+            }
+            !c
+        };
+        let body = [&b"acTL"[..], &1u32.to_be_bytes(), &0u32.to_be_bytes()].concat();
+        let chunk = [&8u32.to_be_bytes()[..], &body, &crc(&body).to_be_bytes()].concat();
+        let mut apng = png.clone();
+        apng.splice(33..33, chunk);
+        assert!(png::PngDecoder::new(Cursor::new(&apng)).is_ok_and(|d| d.is_apng().unwrap()));
+        assert!(!can_turn_in_place(&apng, "a.png"));
+
+        // Animated WebP: the lossless frame of a still one inside VP8X, ANIM and ANMF chunks.
+        let mut still = Vec::new();
+        image::codecs::webp::WebPEncoder::new_lossless(&mut still).write_image(img.as_bytes(), 8, 8, image::ExtendedColorType::Rgb8).unwrap();
+        assert!(can_turn_in_place(&still, "a.webp"));
+        let frame = &still[12..];
+        let chunk = |id: &[u8], data: &[u8]| {
+            let pad: &[u8] = if data.len() % 2 == 1 { &[0] } else { &[] };
+            [id, &(data.len() as u32).to_le_bytes(), data, pad].concat()
+        };
+        let side = [7, 0, 0, 7, 0, 0];
+        let anmf = [&[0, 0, 0, 0, 0, 0][..], &side, &[100, 0, 0, 0], frame].concat();
+        let chunks = [chunk(b"VP8X", &[&[0x02, 0, 0, 0][..], &side].concat()), chunk(b"ANIM", &[0; 6]), chunk(b"ANMF", &anmf)].concat();
+        let animated = [&b"RIFF"[..], &(4 + chunks.len() as u32).to_le_bytes(), b"WEBP", &chunks].concat();
+        assert!(image::codecs::webp::WebPDecoder::new(Cursor::new(&animated)).is_ok_and(|d| d.has_animation()));
+        assert!(!can_turn_in_place(&animated, "a.webp"));
+
+        // TIFF of two pages.
+        assert!(can_turn_in_place(&file(image::ImageFormat::Tiff), "a.tif"));
+        let mut pages = Vec::new();
+        let mut enc = tiff::encoder::TiffEncoder::new(Cursor::new(&mut pages)).unwrap();
+        for _ in 0..2 {
+            enc.write_image::<tiff::encoder::colortype::RGB8>(8, 8, img.as_bytes()).unwrap();
+        }
+        assert!(!can_turn_in_place(&pages, "a.tiff"));
+
+        // AVIF sequence: brand "avis".
+        let ftyp = |major: &[u8]| [&24u32.to_be_bytes()[..], b"ftyp", major, &[0; 4], major, b"mif1"].concat();
+        assert!(can_turn_in_place(&ftyp(b"avif"), "a.avif"));
+        assert!(!can_turn_in_place(&ftyp(b"avis"), "a.avif"));
+
+        assert!(!can_turn_in_place(&file(image::ImageFormat::Gif), "a.gif"));
+        assert!(!can_turn_in_place(&jpeg, "a.heic"));
     }
 }

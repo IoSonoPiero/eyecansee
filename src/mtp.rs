@@ -194,17 +194,19 @@ impl Phone {
         let objects = self.queued(storage.list_objects(handle)).await.map_err(error)?;
         let mut handles = self.handles.lock().unwrap();
         for o in objects {
+            let path = format!("{dir}{}{}", o.filename, if o.is_folder() { "/" } else { "" });
+            // Hidden items too: `locate` finds them here (the files of an interrupted "Save").
+            handles.insert(path.clone(), o.handle);
+            if !o.is_folder() && source::leftover(&o.filename) {
+                listing.leftovers.push(path.clone());
+            }
             // Hidden items are not shown, apart from EyeCanSee's trash folders.
             if o.filename.starts_with('.') && !(o.is_folder() && o.filename == source::TRASH_DIR) {
                 continue;
             }
             if o.is_folder() {
-                let path = format!("{dir}{}/", o.filename);
-                handles.insert(path.clone(), o.handle);
                 listing.dirs.push(path);
             } else if is_image(&o.filename) {
-                let path = format!("{dir}{}", o.filename);
-                handles.insert(path.clone(), o.handle);
                 let modified = o.modified.and_then(unix_seconds).map(|s| s.to_string()).unwrap_or_default();
                 listing.files.push(File { path, size: o.size, modified });
             }
@@ -292,7 +294,12 @@ impl Phone {
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
         self.queued(storage.rename(handle, new_name)).await.map_err(error)?;
         // The folder's paths below it are stale too: the cache fills again at the next listing.
-        self.handles.lock().unwrap().retain(|p, _| !p.starts_with(path));
+        let mut handles = self.handles.lock().unwrap();
+        handles.retain(|p, _| !p.starts_with(path));
+        if !path.ends_with('/') {
+            handles.insert(format!("{}{new_name}", source::parent(path)), handle);
+        }
+        drop(handles);
         self.complete.lock().unwrap().remove(&source::parent(path));
         Ok(())
     }

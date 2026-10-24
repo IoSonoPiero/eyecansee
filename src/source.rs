@@ -3,9 +3,9 @@
 //! Every source has its root at the top, so the folder tree can climb all the way up.
 //! Folders are paths relative to the root ending in `/` ("" is the root).
 
-use std::collections::HashSet;
+use std::collections::{BTreeSet, HashSet};
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
 use bytes::Bytes;
@@ -30,6 +30,26 @@ const CHUNK: u64 = 1 << 20;
 
 /// Hidden folder, next to the image, where images deleted on phones and servers go.
 pub const TRASH_DIR: &str = ".EyeCanSee-trash";
+
+/// Endings of the hidden names an image has while it is saved over itself (`loader::replace`):
+/// the new file is written as ".name.eyecansee-new", the original waits as ".name.eyecansee-old"
+/// until the new one has taken its name.
+const NEW: &str = ".eyecansee-new";
+const OLD: &str = ".eyecansee-old";
+
+/// Images being saved over themselves: `Store::recover` leaves their hidden files alone.
+pub static SAVING: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
+
+/// The two hidden paths of `path` while it is saved over itself: new file, original.
+pub fn save_names(path: &str) -> (String, String) {
+    let (dir, own) = (parent(path), name(path));
+    (format!("{dir}.{own}{NEW}"), format!("{dir}.{own}{OLD}"))
+}
+
+/// Is this name one of `save_names`?
+pub fn leftover(name: &str) -> bool {
+    name.starts_with('.') && (name.ends_with(NEW) || name.ends_with(OLD))
+}
 
 /// What to do when an item put back from the trash finds its name taken (`Store::restore`).
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -104,11 +124,67 @@ fn dal_error(e: opendal::Error) -> Error {
 }
 
 impl Store {
+    /// Images and folders of `dir`, after tidying up what an interrupted "Save" left there.
     pub async fn list(&self, dir: &str) -> Result<Listing, Error> {
+        let listing = self.list_once(dir).await?;
+        if listing.leftovers.is_empty() {
+            return Ok(listing);
+        }
+        self.recover(dir, &listing.leftovers).await;
+        self.list_once(dir).await
+    }
+
+    async fn list_once(&self, dir: &str) -> Result<Listing, Error> {
         match self {
             Store::Dal(op) => list(op, dir).await.map_err(dal_error),
             Store::Mtp(phone) => phone.list(dir).await,
         }
+    }
+
+    /// Files left by a "Save" cut short (the app closed): a new file goes, it may be incomplete; an
+    /// original whose name is free takes it back. An original next to its new version stays: the
+    /// save had worked, and the next save of that image sends it where a deletion would.
+    async fn recover(&self, dir: &str, leftovers: &[String]) {
+        let Ok(names) = self.names(dir).await else { return };
+        for path in leftovers {
+            let own = name(path);
+            let Some(original) = own.strip_prefix('.').and_then(|n| n.strip_suffix(NEW).or_else(|| n.strip_suffix(OLD))) else { continue };
+            if SAVING.lock().unwrap().contains(&format!("{dir}{original}")) {
+                continue;
+            }
+            let r = if own.ends_with(NEW) {
+                self.delete(path, Deletion::Permanent).await
+            } else if !names.contains(original) {
+                self.rename(path, original).await.map(|_| ())
+            } else {
+                continue;
+            };
+            log!("recover {path:?}: {r:?}");
+        }
+    }
+
+    /// Can it rename files? OpenDAL's FTP cannot, and "Save" needs it.
+    pub fn can_rename(&self) -> bool {
+        match self {
+            Store::Dal(op) => op.info().capability().rename,
+            Store::Mtp(_) => true,
+        }
+    }
+
+    /// A second name `to` (free) for a local file: a hard link, or a copy where the disk has none
+    /// (FAT, exFAT).
+    pub async fn link_or_copy(&self, from: &str, to: &str) -> Result<(), Error> {
+        let Store::Dal(op) = self else { return Err(("error-detail", from.to_string())) };
+        let (from, to) = (local_path(op, from), local_path(op, to));
+        tokio::task::spawn_blocking(move || {
+            std::fs::hard_link(&from, &to).or_else(|e| match e.kind() {
+                std::io::ErrorKind::AlreadyExists => Err(e),
+                _ => std::fs::copy(&from, &to).map(|_| ()),
+            })
+        })
+        .await
+        .map_err(|e| ("error-detail", e.to_string()))?
+        .map_err(|e| ("error-detail", e.to_string()))
     }
 
     pub async fn read(&self, path: &str) -> Result<Vec<u8>, Error> {
@@ -146,17 +222,28 @@ impl Store {
                 op.delete_with(path).recursive(true).await.map_err(dal_error)
             }
             (Store::Dal(op), Deletion::Permanent) => op.delete(path).await.map_err(dal_error),
-            (_, Deletion::TrashFolder) => {
-                let (dir, own) = (parent(path), name(path));
-                let trash = format!("{dir}{TRASH_DIR}/");
-                // Free in the trash and, apart from the item itself, in its folder: on a phone the
-                // item is renamed before being moved.
-                let mut taken = self.names(&trash).await.unwrap_or_default();
-                taken.extend(self.names(&dir).await?.into_iter().filter(|n| n != own));
-                self.move_into(path, &trash, &free_name(&taken, own)).await.map(|_| ())
-            }
+            (_, Deletion::TrashFolder) => self.to_trash_folder(path, name(path)).await,
             (Store::Mtp(phone), _) => phone.delete(path).await,
         }
+    }
+
+    /// Moves an item into the trash folder of its folder, named `own`, or "own (2)"… if taken.
+    pub async fn to_trash_folder(&self, path: &str, own: &str) -> Result<(), Error> {
+        let dir = parent(path);
+        let trash = format!("{dir}{TRASH_DIR}/");
+        let mut taken = self.names(&trash).await.unwrap_or_default();
+        // On a phone the item is renamed before being moved: free in its folder too, apart from itself.
+        if let Store::Mtp(_) = self {
+            taken.extend(self.names(&dir).await?.into_iter().filter(|n| n != name(path)));
+            // A new name (the original of a "Save", whose name its new version holds) is given
+            // once inside the trash, where only the trash counts: not "name (2)" for nothing.
+            if own != name(path) {
+                let inside = self.move_into(path, &trash, &free_name(&taken, name(path))).await?;
+                let there = self.names(&trash).await?;
+                return self.rename(&inside, &free_name(&there, own)).await.map(|_| ());
+            }
+        }
+        self.move_into(path, &trash, &free_name(&taken, own)).await.map(|_| ())
     }
 
     /// Names of everything in a folder, of any type, hidden ones too (folders without the "/").
@@ -463,6 +550,8 @@ pub struct Listing {
     /// The trash folder in this folder, if any: kept out of `dirs`, it opens from its own button
     /// in the toolbar (among the folders it was in the way).
     pub trash: Option<String>,
+    /// Hidden files of an interrupted "Save" (`save_names`), for `Store::recover`.
+    pub leftovers: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -602,6 +691,9 @@ async fn list(op: &Operator, dir: &str) -> opendal::Result<Listing> {
         let path = e.path().trim_start_matches('/');
         // Hidden items are not shown, apart from EyeCanSee's trash folders.
         let trash = e.metadata().is_dir() && e.name().trim_end_matches('/') == TRASH_DIR;
+        if !e.metadata().is_dir() && leftover(e.name()) {
+            listing.leftovers.push(path.to_string());
+        }
         if path == dir || (e.name().starts_with('.') && !trash) || hidden(op, path) {
             continue;
         }
@@ -766,5 +858,30 @@ mod tests {
         let l = rt.block_on(list(op, &s.dir)).unwrap();
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(l.dirs, [format!("{}visible/", s.dir)]);
+    }
+
+    /// What an interrupted "Save" left is tidied up when the folder is read: an original alone
+    /// takes its name back, a new file goes; an original next to its new version, and the files
+    /// of a save still running, stay.
+    #[test]
+    fn recover_leftovers() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-recover-{}", std::process::id()));
+        let p = dir.join("p");
+        std::fs::create_dir_all(&p).unwrap();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        std::fs::write(p.join(".a.jpg.eyecansee-old"), b"a").unwrap();
+        std::fs::write(p.join("b.jpg"), b"b").unwrap();
+        std::fs::write(p.join(".b.jpg.eyecansee-new"), b"half").unwrap();
+        std::fs::write(p.join("c.jpg"), b"c").unwrap();
+        std::fs::write(p.join(".c.jpg.eyecansee-old"), b"c old").unwrap();
+        std::fs::write(p.join(".d.jpg.eyecansee-new"), b"writing").unwrap();
+        SAVING.lock().unwrap().insert("p/d.jpg".into());
+        let l = tokio::runtime::Runtime::new().unwrap().block_on(op.list("p/")).unwrap();
+        SAVING.lock().unwrap().remove("p/d.jpg");
+        assert_eq!(l.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["p/a.jpg", "p/b.jpg", "p/c.jpg"]);
+        assert_eq!(std::fs::read(p.join("a.jpg")).unwrap(), b"a");
+        assert!(!p.join(".b.jpg.eyecansee-new").exists() && !p.join(".a.jpg.eyecansee-old").exists());
+        assert!(p.join(".c.jpg.eyecansee-old").exists() && p.join(".d.jpg.eyecansee-new").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

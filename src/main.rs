@@ -240,10 +240,13 @@ struct App {
     /// Flips and quarter turns of the open image, not saved yet (Image > Transform); they go
     /// with the zoom when another image opens.
     turn: transform::Turn,
-    /// "Save" asked: confirmation of the overwrite.
-    save_confirm: bool,
-    /// Images being saved after a turn (status bar).
-    saving: usize,
+    /// "Save" asked and prepared: the image, its turn, the file to write and whether it lost
+    /// quality, for the confirmation of the overwrite.
+    save_ready: Option<(String, transform::Turn, Arc<Vec<u8>>, bool)>,
+    /// Images being prepared or saved after a turn: not saved again until done (status bar).
+    saving: HashSet<String>,
+    /// Names left out of a "Save" on the grid (animated…), shown once every save is done.
+    skipped: Vec<String>,
     /// A transform on images of the grid: the images and the operation, to confirm.
     batch_turn: Option<(Vec<String>, transform::Op)>,
     pan: egui::Vec2,
@@ -360,8 +363,9 @@ impl App {
             zoom: None,
             zoom_of: None,
             turn: Default::default(),
-            save_confirm: false,
-            saving: 0,
+            save_ready: None,
+            saving: HashSet::new(),
+            skipped: Vec::new(),
             batch_turn: None,
             pan: egui::Vec2::ZERO,
             zoom_shown: 1.0,
@@ -943,26 +947,55 @@ impl App {
                 Msg::Original(r) => self.convert_original(ctx, r),
                 Msg::Encoded(generation, r) => self.convert_encoded(ctx, generation, r),
                 Msg::Saved(r) => self.convert_saved(r),
-                Msg::Replaced(r) => {
-                    self.saving = self.saving.saturating_sub(1);
+                Msg::Prepared(path, turn, r) => {
+                    self.saving.remove(&path);
                     match r {
-                        Ok(path) => {
-                            log!("saved {path:?}");
-                            // Same name, maybe the same size: what is in memory is the old image.
-                            thumbcache::forget(&self.base, std::slice::from_ref(&path));
-                            if let Some(i) = self.files().iter().position(|f| f.path == path) {
-                                self.full.remove(&i);
-                                self.thumbs.remove(&i);
-                                self.generated.remove(&i);
-                            }
-                            self.turn = Default::default();
-                            self.relist(source::parent(&path));
+                        // Only for the image still open with the same turn: the confirmation is about it.
+                        Ok((data, lossy)) if self.viewed(&path) && turn == self.turn => {
+                            self.save_ready = Some((path, turn, data, lossy));
                         }
+                        Ok(_) => {}
                         Err((id, detail)) => {
                             log!("save: ERROR {id} {detail}");
                             self.error = Some(self.i18n.t_args("save-failed", &[("detail", &self.i18n.t_args(id, &[("detail", &detail)]))]));
                         }
                     }
+                }
+                Msg::Replaced(path, r) => {
+                    self.saving.remove(&path);
+                    match r {
+                        Ok(()) => {
+                            log!("saved {path:?}");
+                            // Same name, maybe the same size: what is in memory is the old image.
+                            if let Some(i) = self.files().iter().position(|f| f.path == path) {
+                                self.full.remove(&i);
+                            }
+                            if self.viewed(&path) {
+                                self.turn = Default::default();
+                            }
+                            self.relist(source::parent(&path));
+                            self.redo_thumbs(ctx, vec![path]);
+                        }
+                        Err((loader::SKIPPED, name)) => self.skipped.push(name),
+                        Err((id, detail)) => {
+                            log!("save: ERROR {id} {detail}");
+                            self.error = Some(self.i18n.t_args("save-failed", &[("detail", &self.i18n.t_args(id, &[("detail", &detail)]))]));
+                        }
+                    }
+                    if self.saving.is_empty() && !self.skipped.is_empty() {
+                        let names = std::mem::take(&mut self.skipped).join("\n");
+                        self.error = Some(self.i18n.t_args("batch-skipped-names", &[("names", &names)]));
+                    }
+                }
+                Msg::Forgotten(paths) => {
+                    let paths: HashSet<String> = paths.into_iter().collect();
+                    let Some(Ok(l)) = self.listings.get(&self.dir) else { continue };
+                    let gone: Vec<usize> = l.files.iter().enumerate().filter(|(_, f)| paths.contains(&f.path)).map(|(i, _)| i).collect();
+                    for i in gone {
+                        self.thumbs.remove(&i);
+                        self.generated.remove(&i);
+                    }
+                    self.thumb_queue_key = None;
                 }
                 Msg::Update(r) => {
                     log!("update: {r:?}");
@@ -1052,7 +1085,7 @@ impl App {
             self.help = !self.help;
         }
         if refresh && shift {
-            self.redo_all_thumbs();
+            self.redo_all_thumbs(ctx);
         } else if refresh {
             self.refresh();
         }
@@ -1112,7 +1145,10 @@ impl App {
     fn batch_turn_window(&mut self, ctx: &egui::Context) {
         let Some((paths, op)) = self.batch_turn.clone() else { return };
         let Some(loader) = &self.loader else { return };
-        let (ok, skipped): (Vec<String>, Vec<String>) = paths.into_iter().partition(|p| convert::Format::of_file(p).is_some());
+        // Images still being saved stay out: they would be turned twice.
+        let paths = paths.into_iter().filter(|p| !self.saving.contains(p));
+        let rename = loader.can_rename();
+        let (ok, skipped): (Vec<String>, Vec<String>) = paths.partition(|p| rename && convert::Format::of_file(p).is_some());
         let how = ok.first().map_or(source::Deletion::Permanent, |p| loader.deletion(p, self.settings.local_permanent, self.settings.remote_delete));
         let label = transform_items().into_iter().find(|(o, ..)| *o == op).map_or("", |(_, l, _)| l);
         let n = ok.len().to_string();
@@ -1125,7 +1161,12 @@ impl App {
         if ok.iter().any(|p| matches!(convert::Format::of_file(p), Some(convert::Format::Jpeg | convert::Format::Webp | convert::Format::Avif))) {
             text = format!("{text}\n\n{}", self.i18n.t("batch-lossy"));
         }
-        if !skipped.is_empty() {
+        if !ok.is_empty() {
+            text = format!("{text}\n\n{}", self.i18n.t("batch-animated"));
+        }
+        if !rename {
+            text = format!("{text}\n\n{}", self.i18n.t("save-no-rename"));
+        } else if !skipped.is_empty() {
             text = format!("{text}\n\n{}", self.i18n.t_args("batch-skipped", &[("n", &skipped.len().to_string())]));
         }
         let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
@@ -1146,7 +1187,7 @@ impl App {
         match answer {
             Some(true) => {
                 log!("transform {op:?} on {} images, {how:?}", ok.len());
-                self.saving += ok.len();
+                self.saving.extend(ok.iter().cloned());
                 loader.replace(ok, transform::Turn::default().then(op), how);
                 self.batch_turn = None;
             }
@@ -1155,22 +1196,43 @@ impl App {
         }
     }
 
-    /// "Save" overwrites only what changed and what can be written back in its own format.
+    /// "Save" overwrites only what changed and what can be written back in its own format, where
+    /// renaming is possible, and not while that image is being saved already. What is inside the
+    /// file (animated, several pages…) is looked at by `Loader::prepare`.
     fn can_save(&self) -> bool {
         let Some(current) = self.viewing else { return false };
         !self.turn.is_none()
-            && self.files().get(current).is_some_and(|f| self.can_change(&f.path) && convert::Format::of_file(&f.path).is_some())
+            && self.save_ready.is_none()
+            && self.loader.as_ref().is_some_and(|l| l.can_rename())
+            && self.files().get(current).is_some_and(|f| {
+                self.can_change(&f.path) && !self.saving.contains(&f.path) && convert::Format::of_file(&f.path).is_some()
+            })
     }
 
-    /// Overwrite? The original goes where a deletion would send it (the trash, usually).
-    fn save_window(&mut self, ctx: &egui::Context) {
-        if !self.save_confirm {
+    /// Is `path` the image open in the viewer?
+    fn viewed(&self, path: &str) -> bool {
+        self.viewing.and_then(|i| self.files().get(i)).is_some_and(|f| f.path == path)
+    }
+
+    /// Ctrl+S: the image is turned in the background, then the confirmation opens (`Msg::Prepared`).
+    fn ask_save(&mut self) {
+        if !self.can_save() {
             return;
         }
-        let Some(path) = self.viewing.and_then(|i| self.files().get(i)).map(|f| f.path.clone()) else {
-            self.save_confirm = false;
+        let (Some(loader), Some(path)) = (&self.loader, self.viewing.and_then(|i| self.files().get(i)).map(|f| f.path.clone())) else { return };
+        log!("prepare {path:?} {:?}", self.turn);
+        loader.prepare(path.clone(), self.turn);
+        self.saving.insert(path);
+    }
+
+    /// Overwrite? The original goes where a deletion would send it (the trash, usually). What is
+    /// written is the file prepared for this image and turn; if either changed, it is dropped.
+    fn save_window(&mut self, ctx: &egui::Context) {
+        let Some((path, turn, data, lossy)) = self.save_ready.clone() else { return };
+        if !self.viewed(&path) || turn != self.turn {
+            self.save_ready = None;
             return;
-        };
+        }
         let Some(loader) = &self.loader else { return };
         let how = loader.deletion(&path, self.settings.local_permanent, self.settings.remote_delete);
         let id = match how {
@@ -1178,7 +1240,10 @@ impl App {
             source::Deletion::TrashFolder => "save-confirm-folder",
             source::Deletion::Permanent => "save-confirm-permanent",
         };
-        let text = self.i18n.t_args(id, &[("name", source::name(&path))]);
+        let mut text = self.i18n.t_args(id, &[("name", source::name(&path))]);
+        if lossy {
+            text = format!("{text}\n\n{}", self.i18n.t("save-lossy"));
+        }
         let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
         let mut answer = ctx.input(|i| if i.key_pressed(Key::Enter) { Some(true) } else if i.key_pressed(Key::Escape) { Some(false) } else { None });
         egui::Modal::new(egui::Id::unique("save")).show(ctx, |ui| {
@@ -1196,12 +1261,12 @@ impl App {
         });
         match answer {
             Some(true) => {
-                log!("save {path:?} {:?} {how:?}", self.turn);
-                loader.replace(vec![path], self.turn, how);
-                self.saving += 1;
-                self.save_confirm = false;
+                log!("save {path:?} {turn:?} {how:?}");
+                loader.replace_with(path.clone(), data, how);
+                self.saving.insert(path);
+                self.save_ready = None;
             }
-            Some(false) => self.save_confirm = false,
+            Some(false) => self.save_ready = None,
             None => {}
         }
     }
@@ -1298,21 +1363,20 @@ impl App {
         paths.into_iter().filter(|p| self.can_change(p)).collect()
     }
 
-    /// Thumbnails gone from memory and from the disk cache: the grid asks for them again and they
-    /// are made from the file (a wrong one stays otherwise, since size and date do not change).
-    fn redo_thumbs(&mut self, paths: Vec<String>) {
-        let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
-        thumbcache::forget(&self.base, &paths);
-        for (i, _) in l.files.iter().enumerate().filter(|(_, f)| paths.contains(&f.path)) {
-            self.thumbs.remove(&i);
-            self.generated.remove(&i);
-        }
-        self.thumb_queue_key = None;
+    /// Thumbnails gone from the disk cache, then from memory (`Msg::Forgotten`): the grid asks for
+    /// them again and they are made from the file (a wrong one stays otherwise, since size and
+    /// date do not change).
+    fn redo_thumbs(&mut self, ctx: &egui::Context, paths: Vec<String>) {
+        let (tx, ctx, back) = (self.tx.clone(), ctx.clone(), paths.clone());
+        thumbcache::forget(&self.base, paths, move || {
+            let _ = tx.send(Msg::Forgotten(back));
+            ctx.request_repaint();
+        });
     }
 
-    fn redo_all_thumbs(&mut self) {
+    fn redo_all_thumbs(&mut self, ctx: &egui::Context) {
         let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
-        self.redo_thumbs(l.files.iter().map(|f| f.path.clone()).collect());
+        self.redo_thumbs(ctx, l.files.iter().map(|f| f.path.clone()).collect());
         self.refresh();
     }
 
@@ -1644,6 +1708,7 @@ impl App {
             dirs: l.dirs.iter().filter(|d| *d != path).cloned().collect(),
             files: l.files.iter().filter(|f| f.path != path).cloned().collect(),
             trash: if to_trash { Some(trash) } else { l.trash.clone().filter(|t| t != path) },
+            leftovers: Vec::new(),
         };
         self.swap_listing(&dir, new);
     }
@@ -1942,8 +2007,8 @@ impl App {
             Act::Delete(path, permanent) => self.ask_delete(path, permanent),
             Act::Rename(path) => self.ask_rename(path),
             Act::Convert(path) => self.open_convert(path),
-            Act::RedoThumbs(path) => self.redo_thumbs(self.chosen(path)),
-            Act::RedoAllThumbs => self.redo_all_thumbs(),
+            Act::RedoThumbs(path) => self.redo_thumbs(ctx, self.chosen(path)),
+            Act::RedoAllThumbs => self.redo_all_thumbs(ctx),
             Act::Transform(op, path) => {
                 if self.viewing.is_some() {
                     self.turn = self.turn.then(op);
@@ -1954,7 +2019,7 @@ impl App {
                     }
                 }
             }
-            Act::Save => self.save_confirm = self.can_save(),
+            Act::Save => self.ask_save(),
             Act::Restore(path) => self.ask_restore(path),
             Act::Copy(path) => self.clip(ctx, path, false),
             Act::Cut(path) => self.clip(ctx, path, true),
@@ -2180,9 +2245,9 @@ impl App {
                 ui.label(self.i18n.t_args("status-deleting", &[("n", &self.deleting.to_string())]));
                 ui.separator();
             }
-            if self.saving > 0 {
+            if !self.saving.is_empty() {
                 ui.spinner();
-                ui.label(self.i18n.t_args("status-saving-n", &[("n", &self.saving.to_string())]));
+                ui.label(self.i18n.t_args("status-saving-n", &[("n", &self.saving.len().to_string())]));
                 ui.separator();
             }
             if let Some(clip) = &self.clip {
@@ -2367,7 +2432,7 @@ impl App {
     /// A confirmation is open: deletion, or a name already taken when restoring or pasting.
     pub(crate) fn asking(&self) -> bool {
         let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
-        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_confirm || self.batch_turn.is_some()
+        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.batch_turn.is_some()
     }
 }
 
