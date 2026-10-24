@@ -619,4 +619,283 @@ mod tests {
         assert_eq!(rt.block_on(replace(&ftp, "a.png", b"x".to_vec(), Deletion::Permanent)).unwrap_err().0, "error-rename-unsupported");
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
+    // Tests by hand of "Save" with the real `replace`, as the app does it (`tools/test-save.sh`
+    // runs the local ones). Each works in a new folder, left there to look at the files: under
+    // `EYECANSEE_SAVE_OUT` if set, otherwise the system's temporary folder.
+    //   cargo test --release save_live_ -- --ignored --nocapture
+    //   EYECANSEE_SAVE_DIR=/run/media/<user>/<stick> cargo test --release save_live_dir -- --ignored --nocapture
+    //   EYECANSEE_MTP=<serial> cargo test --release mtp_save_live -- --ignored --nocapture
+
+    use crate::transform::{Op, Turn};
+    use std::path::{Path, PathBuf};
+
+    /// A new folder for one test, and a store with its root there.
+    fn live_dir(parent: Option<PathBuf>, name: &str) -> (PathBuf, Store) {
+        let parent = parent.or_else(|| std::env::var_os("EYECANSEE_SAVE_OUT").map(PathBuf::from)).unwrap_or_else(std::env::temp_dir);
+        let dir = parent.join(format!("{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        println!("{name}: {}", dir.display());
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        (dir, op)
+    }
+
+    /// Saving as the grid does: read, turned (`SKIPPED` if not possible), written over itself.
+    fn save(rt: &tokio::runtime::Runtime, op: &Store, path: &str, turn: Turn, how: Deletion) -> Result<(), source::Error> {
+        rt.block_on(async {
+            let (data, _) = turned(op, path, turn).await?;
+            replace(op, path, data, how).await
+        })
+    }
+
+    fn hidden_in(dir: &Path) -> Vec<String> {
+        std::fs::read_dir(dir).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.contains(".eyecansee-")).collect()
+    }
+
+    /// A photo-like picture (gradients and noise), so that a lossy step would show.
+    fn picture(w: u32, h: u32) -> DynamicImage {
+        let mut seed = 12345u32;
+        DynamicImage::ImageRgb8(image::RgbImage::from_fn(w, h, |x, y| {
+            seed = seed.wrapping_mul(1_103_515_245).wrapping_add(12345);
+            let n = (seed >> 24) as u8 / 8;
+            image::Rgb([(x * 255 / w) as u8 ^ n, (y * 255 / h) as u8, ((x + y) % 256) as u8])
+        }))
+    }
+
+    use image::DynamicImage;
+
+    fn encode(img: &DynamicImage, format: image::ImageFormat) -> Vec<u8> {
+        let mut v = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut v), format).unwrap();
+        v
+    }
+
+    /// A JPEG with EXIF: orientation 6 (to be turned clockwise), camera model, date taken, GPS.
+    fn jpeg_with_exif(img: &DynamicImage) -> Vec<u8> {
+        use exif::{Field, In, Rational, Tag, Value};
+        let field = |tag, value| Field { tag, ifd_num: In::PRIMARY, value };
+        let fields = [
+            field(Tag::Orientation, Value::Short(vec![6])),
+            field(Tag::Model, Value::Ascii(vec![b"Test Camera".to_vec()])),
+            field(Tag::DateTimeOriginal, Value::Ascii(vec![b"2026:10:24 10:00:00".to_vec()])),
+            field(Tag::GPSLatitudeRef, Value::Ascii(vec![b"N".to_vec()])),
+            field(Tag::GPSLatitude, Value::Rational(vec![(45, 1).into(), (30, 1).into(), Rational::from((0, 1))])),
+        ];
+        let mut writer = exif::experimental::Writer::new();
+        for f in &fields {
+            writer.push_field(f);
+        }
+        let mut tiff = std::io::Cursor::new(Vec::new());
+        writer.write(&mut tiff, false).unwrap();
+        let mut jpeg = encode(img, image::ImageFormat::Jpeg);
+        let app1 = [&[0xFF, 0xE1][..], &((2 + 6 + tiff.get_ref().len()) as u16).to_be_bytes(), b"Exif\0\0", tiff.get_ref()].concat();
+        jpeg.splice(2..2, app1);
+        jpeg
+    }
+
+    /// The test files: JPEG 1024×768 (turned without loss) and 1001×751 (encoded again), PNG,
+    /// animated WebP, APNG, two-page TIFF, JPEG with EXIF 6 and GPS, and a JPEG followed by a
+    /// video as a Motion Photo is.
+    fn fixtures(dir: &Path) {
+        let small = picture(8, 8);
+        let png = encode(&small, image::ImageFormat::Png);
+        let jpeg = encode(&picture(1024, 768), image::ImageFormat::Jpeg);
+        let files: [(&str, Vec<u8>); 8] = [
+            ("even.jpg", jpeg.clone()),
+            ("odd.jpg", encode(&picture(1001, 751), image::ImageFormat::Jpeg)),
+            ("plain.png", encode(&picture(300, 200), image::ImageFormat::Png)),
+            ("animated.webp", crate::convert::tests::animated_webp(&small)),
+            ("animated.png", crate::convert::tests::apng(&png)),
+            ("pages.tif", crate::convert::tests::tiff_pages(&small)),
+            ("exif6.jpg", jpeg_with_exif(&picture(1024, 768))),
+            ("motion.jpg", [jpeg.as_slice(), b"\0\0\0\x18ftypmp42\0\0\0\0isommp42", &[7; 4096]].concat()),
+        ];
+        for (name, data) in files {
+            std::fs::write(dir.join(name), data).unwrap();
+        }
+    }
+
+    fn check_trash(dir: Option<PathBuf>) {
+        let (dir, op) = live_dir(dir, "save-trash");
+        fixtures(&dir);
+        let original = std::fs::read(dir.join("even.jpg")).unwrap();
+        let ours = |dir: &Path| {
+            let canonical = dir.canonicalize().unwrap();
+            trash::os_limited::list().unwrap().into_iter().filter(|i| i.original_parent == canonical).collect::<Vec<_>>()
+        };
+        save(&tokio::runtime::Runtime::new().unwrap(), &op, "even.jpg", Turn::default().then(Op::Cw), Deletion::SystemTrash).unwrap();
+        assert!(hidden_in(&dir).is_empty(), "hidden files left");
+        let items = ours(&dir);
+        assert_eq!(items.iter().map(|i| i.name.to_string_lossy().into_owned()).collect::<Vec<_>>(), ["even.jpg"], "in the trash under its own name");
+        // Back from the trash, where the saved image makes room for it.
+        std::fs::rename(dir.join("even.jpg"), dir.join("even-saved.jpg")).unwrap();
+        trash::os_limited::restore_all(items).unwrap();
+        assert_eq!(std::fs::read(dir.join("even.jpg")).unwrap(), original, "restored byte for byte");
+        let left = ours(&dir);
+        if !left.is_empty() {
+            trash::os_limited::purge_all(left).unwrap();
+        }
+    }
+
+    fn check_lossless(dir: Option<PathBuf>) {
+        let (dir, op) = live_dir(dir, "save-lossless");
+        fixtures(&dir);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let decoded = |name: &str| crate::decode::decode_full(&std::fs::read(dir.join(name)).unwrap(), name).unwrap().to_rgb8();
+        let before = decoded("even.jpg");
+        for _ in 0..4 {
+            save(&rt, &op, "even.jpg", Turn::default().then(Op::Cw), Deletion::Permanent).unwrap();
+        }
+        assert!(before == decoded("even.jpg"), "four quarter turns: same pixels");
+        // EXIF 6: shown upright and turned once more; then upright with no orientation left,
+        // model, date and GPS still there.
+        let mut expected = crate::decode::decode_full(&std::fs::read(dir.join("exif6.jpg")).unwrap(), "x.jpg").unwrap();
+        let turn = Turn::default().then(Op::Cw);
+        turn.apply(&mut expected);
+        save(&rt, &op, "exif6.jpg", turn, Deletion::Permanent).unwrap();
+        let saved = std::fs::read(dir.join("exif6.jpg")).unwrap();
+        let got = crate::decode::decode_full(&saved, "x.jpg").unwrap().to_rgb8();
+        assert_eq!(got.dimensions(), expected.to_rgb8().dimensions());
+        let diff = got.pixels().zip(expected.to_rgb8().pixels()).map(|(a, b)| (0..3).map(|c| (a[c] as i32 - b[c] as i32).abs()).max().unwrap()).max().unwrap();
+        assert!(diff <= 3, "pixels differ by {diff}");
+        let exif = exif::Reader::new().read_from_container(&mut std::io::Cursor::new(&saved)).unwrap();
+        let get = |tag| exif.get_field(tag, exif::In::PRIMARY).map(|f| f.display_value().to_string());
+        assert!(get(exif::Tag::Orientation).is_none_or(|o| o == "row 0 at top and column 0 at left"), "orientation {:?}", get(exif::Tag::Orientation));
+        assert!(get(exif::Tag::Model).is_some() && get(exif::Tag::DateTimeOriginal).is_some() && get(exif::Tag::GPSLatitude).is_some());
+        // Not a multiple of the blocks: encoded again, still turned.
+        save(&rt, &op, "odd.jpg", Turn::default().then(Op::Cw), Deletion::Permanent).unwrap();
+        assert_eq!(decoded("odd.jpg").dimensions(), (751, 1001));
+        assert!(hidden_in(&dir).is_empty());
+    }
+
+    fn check_excluded(dir: Option<PathBuf>) {
+        let (dir, op) = live_dir(dir, "save-excluded");
+        fixtures(&dir);
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        for name in ["animated.webp", "animated.png", "pages.tif", "motion.jpg"] {
+            let before = std::fs::read(dir.join(name)).unwrap();
+            let r = save(&rt, &op, name, Turn::default().then(Op::Cw), Deletion::Permanent);
+            assert_eq!(r.map_err(|e| e.0), Err(SKIPPED), "{name}");
+            assert_eq!(std::fs::read(dir.join(name)).unwrap(), before, "{name} unchanged");
+        }
+        assert!(hidden_in(&dir).is_empty());
+    }
+
+    fn check_recover(dir: Option<PathBuf>) {
+        let (dir, op) = live_dir(dir, "save-recover");
+        std::fs::write(dir.join(".x.jpg.eyecansee-old"), b"the original").unwrap();
+        std::fs::write(dir.join("y.jpg"), b"y").unwrap();
+        std::fs::write(dir.join(".y.jpg.eyecansee-new"), b"half written").unwrap();
+        let l = tokio::runtime::Runtime::new().unwrap().block_on(op.list("")).unwrap();
+        assert_eq!(l.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["x.jpg", "y.jpg"]);
+        assert_eq!(std::fs::read(dir.join("x.jpg")).unwrap(), b"the original");
+        assert!(hidden_in(&dir).is_empty());
+    }
+
+    /// Local disk with the real system trash: the original goes there under its own name and
+    /// comes back identical; only the items of this test are taken out of the trash.
+    #[test]
+    #[ignore]
+    fn save_live_trash() {
+        check_trash(None);
+    }
+
+    /// Four quarter turns of a JPEG give back the same pixels; EXIF 6 ends upright, metadata kept.
+    #[test]
+    #[ignore]
+    fn save_live_lossless() {
+        check_lossless(None);
+    }
+
+    /// Animated, multi-page and Motion Photo files are not touched.
+    #[test]
+    #[ignore]
+    fn save_live_excluded() {
+        check_excluded(None);
+    }
+
+    /// Read-only folder: the original stays, no hidden file.
+    #[test]
+    #[ignore]
+    #[cfg(unix)]
+    fn save_live_readonly() {
+        use std::os::unix::fs::PermissionsExt;
+        let (dir, op) = live_dir(None, "save-readonly");
+        fixtures(&dir);
+        let before = std::fs::read(dir.join("even.jpg")).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+        let writable = std::fs::write(dir.join("probe"), b"").is_ok();
+        let r = save(&tokio::runtime::Runtime::new().unwrap(), &op, "even.jpg", Turn::default().then(Op::Cw), Deletion::Permanent);
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(!writable, "the folder can be written anyway (root?)");
+        assert!(r.is_err());
+        assert_eq!(std::fs::read(dir.join("even.jpg")).unwrap(), before);
+        assert!(hidden_in(&dir).is_empty());
+    }
+
+    /// Hidden files of a save cut short, tidied up when the folder is read.
+    #[test]
+    #[ignore]
+    fn save_live_recover() {
+        check_recover(None);
+    }
+
+    /// The same on a folder given by `EYECANSEE_SAVE_DIR`, for a stick (exFAT: no hard links, so
+    /// the system trash flow copies; its trash is the stick's own).
+    #[test]
+    #[ignore]
+    fn save_live_dir() {
+        let dir = PathBuf::from(std::env::var_os("EYECANSEE_SAVE_DIR").expect("EYECANSEE_SAVE_DIR not set"));
+        check_trash(Some(dir.clone()));
+        check_lossless(Some(dir.clone()));
+        check_excluded(Some(dir.clone()));
+        check_recover(Some(dir));
+    }
+
+    /// On a real phone, not mounted by the desktop and with EyeCanSee closed: a test photo in a
+    /// folder of its own, turned twice (the originals in its trash folder as "a.jpg" and
+    /// "a (2).jpg"), the first one restored; then everything it made is deleted.
+    #[test]
+    #[ignore]
+    fn mtp_save_live() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let op = Store::Mtp(Arc::new(crate::mtp::Phone::new(&serial)));
+        let root = rt.block_on(op.list("")).unwrap();
+        let dir = format!("{}EyeCanSee-save-test/", root.dirs[0]);
+        let trash = format!("{dir}{TRASH_DIR}/");
+        println!("mtp_save_live: {dir}");
+        let original = encode(&picture(1024, 768), image::ImageFormat::Jpeg);
+        let r = rt.block_on(async {
+            op.create_dir(&dir).await?;
+            write_whole(&op, &format!("{dir}a.jpg"), original.clone()).await?;
+            Ok::<_, source::Error>(())
+        });
+        let run = || -> Result<(), String> {
+            r.clone().map_err(|e| format!("{e:?}"))?;
+            let path = format!("{dir}a.jpg");
+            let names = |d: &str| rt.block_on(op.names(d)).unwrap();
+            for expected in [vec!["a.jpg"], vec!["a (2).jpg", "a.jpg"]] {
+                save(&rt, &op, &path, Turn::default().then(Op::Cw), Deletion::TrashFolder).map_err(|e| format!("save: {e:?}"))?;
+                let mut in_trash: Vec<String> = names(&trash).into_iter().collect();
+                in_trash.sort();
+                if in_trash != expected {
+                    return Err(format!("trash {in_trash:?}, expected {expected:?}"));
+                }
+                if names(&dir).iter().any(|n| n.contains(".eyecansee-")) {
+                    return Err(format!("hidden files left in {:?}", names(&dir)));
+                }
+            }
+            let back = rt.block_on(op.restore(&format!("{trash}a.jpg"), source::Conflict::KeepBoth)).map_err(|e| format!("restore: {e:?}"))?;
+            if rt.block_on(op.read(&back)).map_err(|e| format!("{e:?}"))? != original {
+                return Err(format!("{back} differs from the original"));
+            }
+            Ok(())
+        };
+        let outcome = run();
+        let cleaned = rt.block_on(op.delete(&dir, Deletion::Permanent));
+        outcome.unwrap();
+        cleaned.unwrap();
+    }
 }

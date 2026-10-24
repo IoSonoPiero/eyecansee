@@ -991,8 +991,52 @@ fn drag(response: &egui::Response, actual: bool, pan: &mut egui::Vec2) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
+
+    /// A PNG made animated (APNG): an acTL chunk after IHDR.
+    pub(crate) fn apng(png: &[u8]) -> Vec<u8> {
+        let crc = |data: &[u8]| {
+            let mut c = !0u32;
+            for &b in data {
+                c ^= b as u32;
+                for _ in 0..8 {
+                    c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
+                }
+            }
+            !c
+        };
+        let body = [&b"acTL"[..], &1u32.to_be_bytes(), &0u32.to_be_bytes()].concat();
+        let chunk = [&8u32.to_be_bytes()[..], &body, &crc(&body).to_be_bytes()].concat();
+        let mut apng = png.to_vec();
+        apng.splice(33..33, chunk);
+        apng
+    }
+
+    /// An animated WebP of one frame: the lossless frame of `img` (8×8) inside VP8X, ANIM and ANMF chunks.
+    pub(crate) fn animated_webp(img: &DynamicImage) -> Vec<u8> {
+        let mut still = Vec::new();
+        image::codecs::webp::WebPEncoder::new_lossless(&mut still).write_image(img.as_bytes(), 8, 8, image::ExtendedColorType::Rgb8).unwrap();
+        let frame = &still[12..];
+        let chunk = |id: &[u8], data: &[u8]| {
+            let pad: &[u8] = if data.len() % 2 == 1 { &[0] } else { &[] };
+            [id, &(data.len() as u32).to_le_bytes(), data, pad].concat()
+        };
+        let side = [7, 0, 0, 7, 0, 0];
+        let anmf = [&[0, 0, 0, 0, 0, 0][..], &side, &[100, 0, 0, 0], frame].concat();
+        let chunks = [chunk(b"VP8X", &[&[0x02, 0, 0, 0][..], &side].concat()), chunk(b"ANIM", &[0; 6]), chunk(b"ANMF", &anmf)].concat();
+        [&b"RIFF"[..], &(4 + chunks.len() as u32).to_le_bytes(), b"WEBP", &chunks].concat()
+    }
+
+    /// A TIFF with two pages of `img`.
+    pub(crate) fn tiff_pages(img: &DynamicImage) -> Vec<u8> {
+        let mut pages = Vec::new();
+        let mut enc = tiff::encoder::TiffEncoder::new(Cursor::new(&mut pages)).unwrap();
+        for _ in 0..2 {
+            enc.write_image::<tiff::encoder::colortype::RGB8>(img.width(), img.height(), img.to_rgb8().as_raw()).unwrap();
+        }
+        pages
+    }
 
     fn read_meta(bytes: &[u8]) -> (Option<Vec<u8>>, Option<Vec<u8>>) {
         let mut d = ImageReader::new(Cursor::new(bytes)).with_guessed_format().unwrap().into_decoder().unwrap();
@@ -1085,50 +1129,20 @@ mod tests {
         mpf.splice(2..2, [&[0xFF, 0xE2, 0, 10][..], b"MPF\0II*\0"].concat());
         assert!(!can_turn_in_place(&mpf, "a.jpg"));
 
-        // APNG: an acTL chunk after IHDR.
         let png = file(image::ImageFormat::Png);
         assert!(can_turn_in_place(&png, "a.png"));
-        let crc = |data: &[u8]| {
-            let mut c = !0u32;
-            for &b in data {
-                c ^= b as u32;
-                for _ in 0..8 {
-                    c = if c & 1 != 0 { 0xEDB8_8320 ^ (c >> 1) } else { c >> 1 };
-                }
-            }
-            !c
-        };
-        let body = [&b"acTL"[..], &1u32.to_be_bytes(), &0u32.to_be_bytes()].concat();
-        let chunk = [&8u32.to_be_bytes()[..], &body, &crc(&body).to_be_bytes()].concat();
-        let mut apng = png.clone();
-        apng.splice(33..33, chunk);
+        let apng = apng(&png);
         assert!(png::PngDecoder::new(Cursor::new(&apng)).is_ok_and(|d| d.is_apng().unwrap()));
         assert!(!can_turn_in_place(&apng, "a.png"));
 
-        // Animated WebP: the lossless frame of a still one inside VP8X, ANIM and ANMF chunks.
-        let mut still = Vec::new();
-        image::codecs::webp::WebPEncoder::new_lossless(&mut still).write_image(img.as_bytes(), 8, 8, image::ExtendedColorType::Rgb8).unwrap();
-        assert!(can_turn_in_place(&still, "a.webp"));
-        let frame = &still[12..];
-        let chunk = |id: &[u8], data: &[u8]| {
-            let pad: &[u8] = if data.len() % 2 == 1 { &[0] } else { &[] };
-            [id, &(data.len() as u32).to_le_bytes(), data, pad].concat()
-        };
-        let side = [7, 0, 0, 7, 0, 0];
-        let anmf = [&[0, 0, 0, 0, 0, 0][..], &side, &[100, 0, 0, 0], frame].concat();
-        let chunks = [chunk(b"VP8X", &[&[0x02, 0, 0, 0][..], &side].concat()), chunk(b"ANIM", &[0; 6]), chunk(b"ANMF", &anmf)].concat();
-        let animated = [&b"RIFF"[..], &(4 + chunks.len() as u32).to_le_bytes(), b"WEBP", &chunks].concat();
+        assert!(can_turn_in_place(&file(image::ImageFormat::WebP), "a.webp"));
+        let animated = animated_webp(&img);
         assert!(image::codecs::webp::WebPDecoder::new(Cursor::new(&animated)).is_ok_and(|d| d.has_animation()));
         assert!(!can_turn_in_place(&animated, "a.webp"));
 
         // TIFF of two pages.
         assert!(can_turn_in_place(&file(image::ImageFormat::Tiff), "a.tif"));
-        let mut pages = Vec::new();
-        let mut enc = tiff::encoder::TiffEncoder::new(Cursor::new(&mut pages)).unwrap();
-        for _ in 0..2 {
-            enc.write_image::<tiff::encoder::colortype::RGB8>(8, 8, img.as_bytes()).unwrap();
-        }
-        assert!(!can_turn_in_place(&pages, "a.tiff"));
+        assert!(!can_turn_in_place(&tiff_pages(&img), "a.tiff"));
 
         // AVIF sequence: brand "avis".
         let ftyp = |major: &[u8]| [&24u32.to_be_bytes()[..], b"ftyp", major, &[0; 4], major, b"mif1"].concat();
