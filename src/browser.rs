@@ -76,6 +76,7 @@ impl App {
     /// the one in the viewer; `open`: the action that opens it (`None` in the viewer).
     pub(crate) fn item_menu(&self, path: Option<String>, open: Option<Act>) -> Vec<MenuItem> {
         let t = |id| self.i18n.t(id);
+        let in_viewer = open.is_none();
         let mut items = vec![match open {
             Some(a @ Act::Open) => Some((t("menu-open-selected"), t("key-enter"), a)),
             Some(a) => Some((t("menu-open-selected"), String::new(), a)),
@@ -104,6 +105,16 @@ impl App {
             }
             items.push(None);
             items.push(Some((t("menu-rename"), "F2".into(), Act::Rename(path.clone()))));
+            // Flips and turns: in the viewer shown until saved, in the grid saved straight away.
+            if !target.ends_with('/') {
+                items.push(None);
+                for (op, label, keys) in crate::transform_items() {
+                    items.push(Some((t(label), if in_viewer { keys.map(t).unwrap_or_default() } else { String::new() }, Act::Transform(op, path.clone()))));
+                }
+                if in_viewer && self.can_save() {
+                    items.push(Some((t("menu-save"), t("key-save"), Act::Save)));
+                }
+            }
             if !target.ends_with('/') {
                 items.push(Some((t("menu-save-as"), String::new(), Act::Convert(path.clone()))));
                 items.push(Some((t("menu-redo-thumbs"), String::new(), Act::RedoThumbs(path.clone()))));
@@ -792,10 +803,15 @@ impl App {
             // shortcut: images beyond 8192 px show the size of their scaled-down texture; the decoder would have to report the real one.
             if let Some(Ok(tex)) = self.full.get(&current) {
                 let [w, h] = tex.size();
+                let (w, h) = if self.turn.sideways() { (h, w) } else { (w, h) };
                 ui.separator();
                 ui.label(self.i18n.t_args("convert-pixels", &[("w", &w.to_string()), ("h", &h.to_string())]));
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
+            }
+            if !self.turn.is_none() {
+                ui.separator();
+                ui.label(self.i18n.t(if self.saving > 0 { "status-saving" } else { "status-modified" }));
             }
             ui.separator();
             ui.label(self.human_size(f.size));

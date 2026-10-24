@@ -13,6 +13,8 @@ use image::codecs::{bmp, gif, png, qoi};
 use image::metadata::Orientation;
 use image::{DynamicImage, ImageDecoder, ImageEncoder, ImageReader};
 
+use crate::transform::Turn;
+
 /// Output formats, all with encoders in the program. No HEIC (patents) and no JPEG XL (no
 /// encoder yet).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -60,6 +62,13 @@ impl Format {
     /// the profile in JPEG, PNG, WebP, TIFF.
     pub fn holds_meta(self) -> bool {
         matches!(self, Format::Jpeg | Format::Png | Format::Webp | Format::Avif | Format::Tiff)
+    }
+
+    /// The format a file can be saved back in after a turn ("Save"). Not GIF: its animation would
+    /// be lost, since only the first frame is decoded.
+    pub fn of_file(name: &str) -> Option<Format> {
+        let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
+        Format::ALL.into_iter().filter(|f| *f != Format::Gif).find(|f| f.ext() == ext || (ext == "jpeg" && *f == Format::Jpeg) || (ext == "tiff" && *f == Format::Tiff))
     }
 }
 
@@ -123,6 +132,8 @@ pub struct Options {
     pub tiff_predictor: bool,
     /// GIF colour reduction: 1 fast … 30 best.
     pub gif_quality: u8,
+    /// Flips and quarter turns made in the viewer.
+    pub turn: Turn,
 }
 
 impl Default for Options {
@@ -151,6 +162,7 @@ impl Default for Options {
             tiff: TiffCompression::Lzw,
             tiff_predictor: true,
             gif_quality: 21,
+            turn: Turn::default(),
         }
     }
 }
@@ -189,7 +201,16 @@ impl Original {
     /// The file as it would be saved.
     pub fn encode(&self, o: &Options) -> Result<Vec<u8>, String> {
         let (exif, icc) = if o.keep_meta { (self.exif.as_deref(), self.icc.as_deref()) } else { (None, None) };
-        let img = pixels(&self.image, o.format);
+        let turned;
+        let image = if o.turn.is_none() {
+            &self.image
+        } else {
+            let mut img = self.image.clone();
+            o.turn.apply(&mut img);
+            turned = img;
+            &turned
+        };
+        let img = pixels(image, o.format);
         let mut out = Cursor::new(Vec::new());
         match o.format {
             Format::Jpeg => return jpeg(&img, o, exif, icc),
@@ -221,6 +242,20 @@ impl Original {
         }
         Ok(out.into_inner())
     }
+}
+
+/// The file turned, in its own format: a JPEG without re-encoding when its size allows it,
+/// otherwise at quality 95; the others encoded again, a lossless WebP still lossless.
+pub fn turned_file(bytes: &[u8], name: &str, turn: Turn) -> Result<Vec<u8>, String> {
+    let format = Format::of_file(name).ok_or_else(|| name.to_string())?;
+    if format == Format::Jpeg
+        && let Some(out) = crate::transform::jpeg_lossless(bytes, turn)
+    {
+        return Ok(out);
+    }
+    let webp_lossless = format == Format::Webp && bytes.windows(4).any(|w| w == b"VP8L");
+    let o = Options { format, turn, jpeg_quality: 95, webp_lossless, ..Default::default() };
+    Original::open(bytes, name)?.encode(&o)
 }
 
 /// Pixels the format can store: JPEG has no transparency (laid on white, not on black), and
@@ -485,7 +520,12 @@ impl crate::App {
         let Some(path) = path.or_else(|| self.target()).filter(|p| !p.ends_with('/')) else { return };
         let Some(loader) = &self.loader else { return };
         loader.load_original(path.clone());
-        self.convert = Some(Window::new(path));
+        let mut w = Window::new(path);
+        // From the viewer: saved as it is shown there.
+        if self.viewing.is_some() {
+            w.options.turn = self.turn;
+        }
+        self.convert = Some(w);
     }
 
     pub(crate) fn convert_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, ColorImage, u64), String>) {
@@ -836,20 +876,21 @@ fn preview(ui: &mut egui::Ui, size: egui::Vec2, tex: Option<&TextureHandle>, not
     let ppp = ui.ctx().pixels_per_point();
     let t = tex.size_vec2();
     if actual {
-        paint_zoomed(&painter, rect, tex, 1.0, pan);
+        paint_zoomed(&painter, rect, tex, 1.0, pan, Turn::default());
     } else {
         let scale = (rect.width() / t.x).min(rect.height() / t.y).min(1.0 / ppp);
         let dest = egui::Rect::from_center_size(rect.center(), t * scale);
-        painter.image(tex.id(), dest, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+        paint_turned(&painter, tex, dest, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), Turn::default());
     }
     response
 }
 
 /// `tex` drawn in `rect` at `scale` screen pixels per image pixel, around `pan` (the centre of the
 /// view, in image pixels). `pan` is kept inside the image; a side smaller than the view stays centred.
-pub fn paint_zoomed(painter: &egui::Painter, rect: egui::Rect, tex: &TextureHandle, scale: f32, pan: &mut egui::Vec2) {
+/// `turn`: flipped and turned as in the viewer (sizes and `pan` are those of the turned image).
+pub fn paint_zoomed(painter: &egui::Painter, rect: egui::Rect, tex: &TextureHandle, scale: f32, pan: &mut egui::Vec2, turn: Turn) {
     let ppp = painter.ctx().pixels_per_point();
-    let t = tex.size_vec2();
+    let t = turned_size(tex, turn);
     let half = rect.size() * ppp / scale / 2.0;
     let clamp = |c: f32, h: f32, full: f32| if full <= 2.0 * h { full / 2.0 } else { c.clamp(h, full - h) };
     *pan = egui::vec2(clamp(pan.x, half.x, t.x), clamp(pan.y, half.y, t.y));
@@ -857,7 +898,24 @@ pub fn paint_zoomed(painter: &egui::Painter, rect: egui::Rect, tex: &TextureHand
     let max = (*pan + half).min(t);
     let dest = egui::Rect::from_center_size(rect.center() + ((min + max) / 2.0 - *pan) * scale / ppp, (max - min) * scale / ppp);
     let uv = egui::Rect::from_min_max((min / t).to_pos2(), (max / t).to_pos2());
-    painter.image(tex.id(), dest, uv, egui::Color32::WHITE);
+    paint_turned(painter, tex, dest, uv, turn);
+}
+
+pub fn turned_size(tex: &TextureHandle, turn: Turn) -> egui::Vec2 {
+    let t = tex.size_vec2();
+    if turn.sideways() { egui::vec2(t.y, t.x) } else { t }
+}
+
+/// The part `uv` of the turned image (0 to 1 on each side) in `dest`: each corner takes the
+/// texture point it comes from, so the GPU turns it.
+pub fn paint_turned(painter: &egui::Painter, tex: &TextureHandle, dest: egui::Rect, uv: egui::Rect, turn: Turn) {
+    let mut mesh = egui::Mesh::with_texture(tex.id());
+    for (pos, shown) in [(dest.left_top(), uv.left_top()), (dest.right_top(), uv.right_top()), (dest.right_bottom(), uv.right_bottom()), (dest.left_bottom(), uv.left_bottom())] {
+        mesh.vertices.push(egui::epaint::Vertex { pos, uv: turn.source_uv(shown), color: egui::Color32::WHITE });
+    }
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(0, 2, 3);
+    painter.add(mesh);
 }
 
 /// Dragging either preview moves both, at 100%.

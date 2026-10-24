@@ -79,6 +79,15 @@ Clic destro su un'immagine (nella griglia o nel visore), poi **Salva in un altro
 - **Nome del file** e **Salva**: il file nuovo va nella stessa cartella dell'originale. Se il nome c'è già viene aggiunto " (2)", e la pagina lo dice prima del salvataggio.
 - Esc o ✕ chiudono la pagina senza salvare.
 
+## Ruotare e riflettere
+
+Nel visore, **Immagine > Trasforma** riflette l'immagine in orizzontale o in verticale e la ruota di 90° in senso orario (Ctrl+R) o antiorario (Ctrl+Maiusc+R) o di 180°; le due rotazioni sono anche pulsanti nella barra degli strumenti, e tutto è nel menù del clic destro. La modifica è solo mostrata finché non la salvi (la barra di stato dice "Modificata, non salvata"); aprendo un'altra immagine si perde.
+
+- **File > Salva** (Ctrl+S) salva sopra l'originale, dopo una domanda; l'originale va dove lo manderebbe un'eliminazione (di solito il cestino). Un JPEG viene ruotato senza perdere qualità, come fa `jpegtran`, quando larghezza e altezza sono multipli di 16 pixel (di 8 per alcuni); altrimenti viene ricodificato con qualità 95. PNG, WebP, AVIF, TIFF, BMP e QOI vengono ricodificati nel loro formato. GIF e i formati che EyeCanSee non sa scrivere (HEIC, RAW, PSD…) possono usare solo Salva come.
+- **File > Salva come…** (Ctrl+Maiusc+S) apre *Salva in un altro formato* con l'immagine già ruotata: l'originale non viene toccato.
+
+Nella griglia le stesse operazioni (Immagine > Trasforma, o clic destro) valgono per l'immagine selezionata, o per tutte quelle selezionate, e le salvano subito: EyeCanSee prima chiede conferma, dice dove vanno gli originali e avvisa che i formati con perdita possono perdere un po' di qualità; le immagini in un formato che non si può risalvare vengono escluse. Poi le miniature vengono rifatte.
+
 ## Copiare e spostare
 
 **Ctrl+C** copia gli elementi selezionati (o l'immagine aperta nel visore), **Ctrl+X** li taglia; poi apri la cartella dove devono andare e premi **Ctrl+V**. Ogni copia o taglio si incolla una volta sola: per incollare di nuovo, copia di nuovo. Le stesse voci sono nel menù **File** e nel clic destro; il clic destro su una cartella ha anche **Incolla in questa cartella**. File e cartelle, con tutto quello che contengono, vanno ovunque: un'altra cartella dello stesso disco, un altro disco, un telefono, un server, anche da un dispositivo a un altro.
@@ -169,6 +178,8 @@ Nel visore:
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |
 | 0 | Adatta l'immagine alla finestra |
 | 1 | 100%: un pixel dell'immagine per pixel dello schermo |
+| Ctrl+R, Ctrl+Maiusc+R | Ruota di 90° in senso orario, antiorario |
+| Ctrl+S, Ctrl+Maiusc+S | Salva, Salva come |
 
 La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della finestra; Ctrl con la rotellina ingrandisce sempre, anche quando la rotellina è impostata per cambiare immagine (vedi *Opzioni*). Un'immagine ingrandita si sposta trascinandola. Non diventa mai più piccola di quando è adattata alla finestra, né più grande dell'ingrandimento massimo impostato nelle opzioni (2000% all'inizio); la barra di stato mostra l'ingrandimento. L'immagine successiva riparte adattata.
 

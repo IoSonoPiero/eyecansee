@@ -49,6 +49,8 @@ pub enum Msg {
     Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
     /// The converted image written: its path, or an error.
     Saved(Result<String, source::Error>),
+    /// An image saved over itself after a turn ("Save"): its path, or an error.
+    Replaced(Result<String, source::Error>),
     /// Metadata of an image: `None` = no EXIF.
     Meta { generation: u64, index: usize, meta: Result<Option<crate::meta::Meta>, String> },
 }
@@ -262,13 +264,23 @@ impl Loader {
     pub fn save(&self, path: String, data: Arc<Vec<u8>>) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let (chunks, rx) = tokio::sync::mpsc::channel(1);
-            let size = data.len() as u64;
-            let _ = chunks.send(Ok(bytes::Bytes::from(data.to_vec()))).await;
-            drop(chunks);
-            let r = op.write_chunks(&path, size, rx).await.map(|()| path);
+            let r = write_whole(&op, &path, data.to_vec()).await.map(|()| path);
             let _ = tx.send(Msg::Saved(r));
             ctx.request_repaint();
+        });
+    }
+
+    /// "Save": images turned, each in its own format, one after the other. Each is written under a
+    /// hidden name first; only when that worked does the original go (deleted as `how` says, so to
+    /// the trash usually) and the new file take its name. A failure leaves the original as it was.
+    pub fn replace(&self, paths: Vec<String>, turn: crate::transform::Turn, how: source::Deletion) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            for path in paths {
+                let r = replace(&op, &path, turn, how).await.map(|()| path);
+                let _ = tx.send(Msg::Replaced(r));
+                ctx.request_repaint();
+            }
         });
     }
 
@@ -314,6 +326,28 @@ impl Loader {
             ctx.request_repaint();
         });
     }
+}
+
+async fn write_whole(op: &Store, path: &str, data: Vec<u8>) -> Result<(), source::Error> {
+    let (chunks, rx) = tokio::sync::mpsc::channel(1);
+    let size = data.len() as u64;
+    let _ = chunks.send(Ok(bytes::Bytes::from(data))).await;
+    drop(chunks);
+    op.write_chunks(path, size, rx).await
+}
+
+async fn replace(op: &Store, path: &str, turn: crate::transform::Turn, how: source::Deletion) -> Result<(), source::Error> {
+    let bytes = op.read(path).await?;
+    let name = source::name(path).to_string();
+    let n = name.clone();
+    let data = tokio::task::spawn_blocking(move || crate::convert::turned_file(&bytes, &n, turn))
+        .await
+        .map_err(|e| ("error-detail", e.to_string()))?
+        .map_err(|e| ("error-detail", e))?;
+    let tmp = format!("{}.{name}.eyecansee-new", source::parent(path));
+    write_whole(op, &tmp, data).await?;
+    op.delete(path, how).await?;
+    op.rename(&tmp, &name).await.map(|_| ())
 }
 
 async fn thumb_worker(

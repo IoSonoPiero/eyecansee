@@ -35,6 +35,7 @@ mod single;
 mod source;
 mod theme;
 mod thumbcache;
+mod transform;
 mod transfer;
 mod update;
 
@@ -95,6 +96,11 @@ pub(crate) enum Act {
     RedoThumbs(Option<String>),
     /// Shift+F5: every thumbnail of the open folder made again, and the folder read again.
     RedoAllThumbs,
+    /// A flip or quarter turn: in the viewer shown until saved; in the grid the item (`None` = the
+    /// selected or marked images) saved straight away, after a confirmation.
+    Transform(transform::Op, Option<String>),
+    /// The turned image saved over the original (after a confirmation).
+    Save,
     /// Puts back from the trash an item, or everything if it is a trash folder (`None` = selected).
     Restore(Option<String>),
     Copy(Option<String>),
@@ -118,6 +124,18 @@ pub(crate) enum Act {
     Meta(meta::Group),
     Sort(settings::SortBy),
     SortDesc,
+}
+
+/// Image > Transform, as GIMP orders it: flips, then turns. Label and keys (Fluent ids).
+pub(crate) fn transform_items() -> [(transform::Op, &'static str, Option<&'static str>); 5] {
+    use transform::Op::*;
+    [
+        (FlipH, "tf-flip-h", None),
+        (FlipV, "tf-flip-v", None),
+        (Cw, "tf-rotate-cw", Some("key-rotate-cw")),
+        (Ccw, "tf-rotate-ccw", Some("key-rotate-ccw")),
+        (Half, "tf-rotate-180", None),
+    ]
 }
 
 /// A paste waiting for answers about names already in the destination.
@@ -219,6 +237,15 @@ struct App {
     /// image `zoom_of`; `pan` = centre of the view in image pixels. A new image starts fitted.
     zoom: Option<f32>,
     zoom_of: Option<usize>,
+    /// Flips and quarter turns of the open image, not saved yet (Image > Transform); they go
+    /// with the zoom when another image opens.
+    turn: transform::Turn,
+    /// "Save" asked: confirmation of the overwrite.
+    save_confirm: bool,
+    /// Images being saved after a turn (status bar).
+    saving: usize,
+    /// A transform on images of the grid: the images and the operation, to confirm.
+    batch_turn: Option<(Vec<String>, transform::Op)>,
     pan: egui::Vec2,
     /// Zoom shown, for the status bar.
     zoom_shown: f32,
@@ -332,6 +359,10 @@ impl App {
             full: HashMap::new(),
             zoom: None,
             zoom_of: None,
+            turn: Default::default(),
+            save_confirm: false,
+            saving: 0,
+            batch_turn: None,
             pan: egui::Vec2::ZERO,
             zoom_shown: 1.0,
             wheel_notches: 0.0,
@@ -912,6 +943,27 @@ impl App {
                 Msg::Original(r) => self.convert_original(ctx, r),
                 Msg::Encoded(generation, r) => self.convert_encoded(ctx, generation, r),
                 Msg::Saved(r) => self.convert_saved(r),
+                Msg::Replaced(r) => {
+                    self.saving = self.saving.saturating_sub(1);
+                    match r {
+                        Ok(path) => {
+                            log!("saved {path:?}");
+                            // Same name, maybe the same size: what is in memory is the old image.
+                            thumbcache::forget(&self.base, std::slice::from_ref(&path));
+                            if let Some(i) = self.files().iter().position(|f| f.path == path) {
+                                self.full.remove(&i);
+                                self.thumbs.remove(&i);
+                                self.generated.remove(&i);
+                            }
+                            self.turn = Default::default();
+                            self.relist(source::parent(&path));
+                        }
+                        Err((id, detail)) => {
+                            log!("save: ERROR {id} {detail}");
+                            self.error = Some(self.i18n.t_args("save-failed", &[("detail", &self.i18n.t_args(id, &[("detail", &detail)]))]));
+                        }
+                    }
+                }
                 Msg::Update(r) => {
                     log!("update: {r:?}");
                     let note = match &r {
@@ -1027,6 +1079,130 @@ impl App {
         }
         if close {
             self.close_viewer();
+        }
+        let (cw, ccw, save, save_copy) = ctx.input_mut(|i| {
+            let shift = egui::Modifiers::COMMAND | egui::Modifiers::SHIFT;
+            // With Shift first: Ctrl+R would match Ctrl+Shift+R too.
+            let ccw = i.consume_key(shift, Key::R);
+            let save_copy = i.consume_key(shift, Key::S);
+            (i.consume_key(egui::Modifiers::COMMAND, Key::R), ccw, i.consume_key(egui::Modifiers::COMMAND, Key::S), save_copy)
+        });
+        if cw {
+            self.act = Some(Act::Transform(transform::Op::Cw, None));
+        } else if ccw {
+            self.act = Some(Act::Transform(transform::Op::Ccw, None));
+        } else if save {
+            self.act = Some(Act::Save);
+        } else if save_copy {
+            self.act = Some(Act::Convert(None));
+        }
+    }
+
+    /// The images (not folders) an action on `path` in the grid works on, as `chosen`.
+    fn grid_images(&self, path: Option<String>) -> Vec<String> {
+        if self.viewing.is_some() {
+            return Vec::new();
+        }
+        self.chosen(path).into_iter().filter(|p| !p.ends_with('/') && !source::in_trash(p)).collect()
+    }
+
+    /// Confirmation of a transform on images of the grid: they are overwritten (originals where a
+    /// deletion sends them), lossy formats may lose a little quality, the others are left out.
+    /// Once saved, their thumbnails are made again.
+    fn batch_turn_window(&mut self, ctx: &egui::Context) {
+        let Some((paths, op)) = self.batch_turn.clone() else { return };
+        let Some(loader) = &self.loader else { return };
+        let (ok, skipped): (Vec<String>, Vec<String>) = paths.into_iter().partition(|p| convert::Format::of_file(p).is_some());
+        let how = ok.first().map_or(source::Deletion::Permanent, |p| loader.deletion(p, self.settings.local_permanent, self.settings.remote_delete));
+        let label = transform_items().into_iter().find(|(o, ..)| *o == op).map_or("", |(_, l, _)| l);
+        let n = ok.len().to_string();
+        let where_id = match how {
+            source::Deletion::SystemTrash => "batch-originals-trash",
+            source::Deletion::TrashFolder => "batch-originals-folder",
+            source::Deletion::Permanent => "batch-originals-permanent",
+        };
+        let mut text = format!("{}\n\n{}", self.i18n.t_args("batch-turn-confirm", &[("op", &self.i18n.t(label)), ("n", &n)]), self.i18n.t(where_id));
+        if ok.iter().any(|p| matches!(convert::Format::of_file(p), Some(convert::Format::Jpeg | convert::Format::Webp | convert::Format::Avif))) {
+            text = format!("{text}\n\n{}", self.i18n.t("batch-lossy"));
+        }
+        if !skipped.is_empty() {
+            text = format!("{text}\n\n{}", self.i18n.t_args("batch-skipped", &[("n", &skipped.len().to_string())]));
+        }
+        let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
+        let mut answer = ctx.input(|i| if i.key_pressed(Key::Escape) { Some(false) } else { None });
+        egui::Modal::new(egui::Id::unique("batch-turn")).show(ctx, |ui| {
+            ui.set_max_width(460.0);
+            ui.label(text);
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.add_enabled(!ok.is_empty(), egui::Button::new(yes)).clicked() {
+                    answer = Some(true);
+                }
+                if ui.button(no).clicked() {
+                    answer = Some(false);
+                }
+            });
+        });
+        match answer {
+            Some(true) => {
+                log!("transform {op:?} on {} images, {how:?}", ok.len());
+                self.saving += ok.len();
+                loader.replace(ok, transform::Turn::default().then(op), how);
+                self.batch_turn = None;
+            }
+            Some(false) => self.batch_turn = None,
+            None => {}
+        }
+    }
+
+    /// "Save" overwrites only what changed and what can be written back in its own format.
+    fn can_save(&self) -> bool {
+        let Some(current) = self.viewing else { return false };
+        !self.turn.is_none()
+            && self.files().get(current).is_some_and(|f| self.can_change(&f.path) && convert::Format::of_file(&f.path).is_some())
+    }
+
+    /// Overwrite? The original goes where a deletion would send it (the trash, usually).
+    fn save_window(&mut self, ctx: &egui::Context) {
+        if !self.save_confirm {
+            return;
+        }
+        let Some(path) = self.viewing.and_then(|i| self.files().get(i)).map(|f| f.path.clone()) else {
+            self.save_confirm = false;
+            return;
+        };
+        let Some(loader) = &self.loader else { return };
+        let how = loader.deletion(&path, self.settings.local_permanent, self.settings.remote_delete);
+        let id = match how {
+            source::Deletion::SystemTrash => "save-confirm-trash",
+            source::Deletion::TrashFolder => "save-confirm-folder",
+            source::Deletion::Permanent => "save-confirm-permanent",
+        };
+        let text = self.i18n.t_args(id, &[("name", source::name(&path))]);
+        let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
+        let mut answer = ctx.input(|i| if i.key_pressed(Key::Enter) { Some(true) } else if i.key_pressed(Key::Escape) { Some(false) } else { None });
+        egui::Modal::new(egui::Id::unique("save")).show(ctx, |ui| {
+            ui.set_max_width(420.0);
+            ui.label(text);
+            ui.add_space(8.0);
+            ui.horizontal(|ui| {
+                if ui.button(yes).clicked() {
+                    answer = Some(true);
+                }
+                if ui.button(no).clicked() {
+                    answer = Some(false);
+                }
+            });
+        });
+        match answer {
+            Some(true) => {
+                log!("save {path:?} {:?} {how:?}", self.turn);
+                loader.replace(vec![path], self.turn, how);
+                self.saving += 1;
+                self.save_confirm = false;
+            }
+            Some(false) => self.save_confirm = false,
+            None => {}
         }
     }
 
@@ -1683,12 +1859,27 @@ impl App {
                 entry(ui, can_clip, item(t("menu-copy"), t("key-copy")), Act::Copy(None));
                 entry(ui, !viewing && self.can_paste(&self.dir), item(t("menu-paste"), t("key-paste")), Act::Paste(None));
                 ui.separator();
+                entry(ui, self.can_save(), item(t("menu-save"), t("key-save")), Act::Save);
+                entry(ui, viewing, item(t("menu-save-copy"), t("key-save-copy")), Act::Convert(None));
+                ui.separator();
                 let can_change = self.target().is_some();
                 entry(ui, can_change, item(t("menu-rename"), "F2".into()), Act::Rename(None));
                 entry(ui, can_change, item(t("menu-delete"), t("key-delete")), Act::Delete(None, false));
                 entry(ui, can_change, item(t("menu-delete-permanent"), t("key-shift-delete")), Act::Delete(None, true));
                 ui.separator();
                 entry(ui, true, egui::Button::new(t("menu-quit")), Act::Quit);
+            });
+            ui.menu_button(t("menu-image"), |ui| {
+                ui.add_enabled_ui(viewing || !self.grid_images(None).is_empty(), |ui| {
+                    ui.menu_button(t("menu-transform"), |ui| {
+                        for (op, label, keys) in transform_items() {
+                            entry(ui, true, item(t(label), keys.map(t).unwrap_or_default()), Act::Transform(op, None));
+                            if op == transform::Op::FlipV {
+                                ui.separator();
+                            }
+                        }
+                    });
+                });
             });
             ui.menu_button(t("menu-view"), |ui| {
                 entry(ui, !viewing && has_items && self.cursor, item(t("menu-open-selected"), t("key-enter")), Act::Open);
@@ -1753,6 +1944,17 @@ impl App {
             Act::Convert(path) => self.open_convert(path),
             Act::RedoThumbs(path) => self.redo_thumbs(self.chosen(path)),
             Act::RedoAllThumbs => self.redo_all_thumbs(),
+            Act::Transform(op, path) => {
+                if self.viewing.is_some() {
+                    self.turn = self.turn.then(op);
+                } else {
+                    let paths = self.grid_images(path);
+                    if !paths.is_empty() {
+                        self.batch_turn = Some((paths, op));
+                    }
+                }
+            }
+            Act::Save => self.save_confirm = self.can_save(),
             Act::Restore(path) => self.ask_restore(path),
             Act::Copy(path) => self.clip(ctx, path, false),
             Act::Cut(path) => self.clip(ctx, path, true),
@@ -1871,6 +2073,13 @@ impl App {
             if ui.add(icon(icons::Icon::Refresh)).on_hover_text(self.i18n.t("menu-refresh")).clicked() {
                 self.refresh();
             }
+            if self.viewing.is_some() {
+                for (i, op, id) in [(icons::Icon::RotateCcw, transform::Op::Ccw, "tf-rotate-ccw"), (icons::Icon::RotateCw, transform::Op::Cw, "tf-rotate-cw")] {
+                    if ui.add(icon(i)).on_hover_text(self.i18n.t(id)).clicked() {
+                        self.act = Some(Act::Transform(op, None));
+                    }
+                }
+            }
             // Metadata: closes all the boxes if one is open, otherwise reopens them all.
             if self.viewing.is_none() {
                 let any = meta::Group::ALL.into_iter().any(|g| self.meta_shown(g));
@@ -1971,6 +2180,11 @@ impl App {
                 ui.label(self.i18n.t_args("status-deleting", &[("n", &self.deleting.to_string())]));
                 ui.separator();
             }
+            if self.saving > 0 {
+                ui.spinner();
+                ui.label(self.i18n.t_args("status-saving-n", &[("n", &self.saving.to_string())]));
+                ui.separator();
+            }
             if let Some(clip) = &self.clip {
                 let (icon, id) = if clip.cut { (icons::Icon::Cut, "status-cut") } else { (icons::Icon::Copied, "status-copied") };
                 ui.add(icons::image(ui.ctx(), icon, 16.0));
@@ -2059,12 +2273,13 @@ impl App {
     fn zoom_view(&mut self, ui: &egui::Ui, response: &egui::Response, tex: &TextureHandle, current: usize) {
         let rect = response.rect;
         let ppp = ui.ctx().pixels_per_point();
-        let t = tex.size_vec2();
+        if self.zoom_of != Some(current) {
+            // ponytail: changes not saved are dropped without asking, they are only turns
+            (self.zoom, self.zoom_of, self.turn) = (None, Some(current), Default::default());
+        }
+        let t = convert::turned_size(tex, self.turn);
         let fit = (rect.width() * ppp / t.x).min(rect.height() * ppp / t.y).min(1.0);
         let max = (self.settings.max_zoom as f32 / 100.0).max(fit);
-        if self.zoom_of != Some(current) {
-            (self.zoom, self.zoom_of) = (None, Some(current));
-        }
         let scale = self.zoom.unwrap_or(fit).clamp(fit, max);
 
         let (mut wheel, mut next) = (0.0, 0.0);
@@ -2137,11 +2352,11 @@ impl App {
                 if response.hovered() {
                     ui.ctx().set_cursor_icon(if response.dragged() { egui::CursorIcon::Grabbing } else { egui::CursorIcon::Grab });
                 }
-                convert::paint_zoomed(&painter, rect, tex, scale, &mut self.pan);
+                convert::paint_zoomed(&painter, rect, tex, scale, &mut self.pan, self.turn);
             }
             None => {
                 let dest = egui::Rect::from_center_size(rect.center(), t * fit / ppp);
-                painter.image(tex.id(), dest, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), Color32::WHITE);
+                convert::paint_turned(&painter, tex, dest, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), self.turn);
             }
         }
         self.zoom_shown = self.zoom.unwrap_or(fit);
@@ -2152,7 +2367,7 @@ impl App {
     /// A confirmation is open: deletion, or a name already taken when restoring or pasting.
     pub(crate) fn asking(&self) -> bool {
         let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
-        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting
+        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_confirm || self.batch_turn.is_some()
     }
 }
 
@@ -2309,6 +2524,8 @@ impl eframe::App for App {
             self.run(&ctx, a);
         }
         self.delete_window(&ctx);
+        self.save_window(&ctx);
+        self.batch_turn_window(&ctx);
         self.paste_window(&ctx);
         self.transfer_window(&ctx);
         self.rename_window(&ctx);

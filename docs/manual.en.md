@@ -79,6 +79,15 @@ Right-click an image (in the grid or in the viewer) and choose **Save in another
 - **File name** and **Save**: the new file goes into the same folder as the original. If the name is already taken, " (2)" is added, and the page says so before you save.
 - Esc or ✕ closes the page without saving.
 
+## Rotating and flipping
+
+In the viewer, **Image > Transform** flips the image horizontally or vertically and rotates it by 90° clockwise (Ctrl+R) or anticlockwise (Ctrl+Shift+R) or by 180°; the two rotations are also buttons on the toolbar, and everything is in the right-click menu. The change is only shown until you save it (the status bar says "Changed, not saved"); opening another image drops it.
+
+- **File > Save** (Ctrl+S) saves over the original, after asking; the original goes where a deletion would send it (the trash, usually). A JPEG is rotated without losing quality, as `jpegtran` does, when its width and height are multiples of 16 pixels (8 for some); otherwise it is encoded again at quality 95. PNG, WebP, AVIF, TIFF, BMP and QOI are encoded again in their own format. GIF and the formats EyeCanSee cannot write (HEIC, RAW, PSD…) can only use Save as.
+- **File > Save as…** (Ctrl+Shift+S) opens *Save in another format* with the image already rotated: the original is not touched.
+
+In the grid the same operations (Image > Transform, or right-click) work on the selected image, or on all the marked ones, and save them straight away: EyeCanSee asks first, says where the originals go and warns that lossy formats may lose a little quality; images whose format cannot be saved back are left out. Their thumbnails are then made again.
+
 ## Copying and moving
 
 **Ctrl+C** copies the selected items (or the image open in the viewer), **Ctrl+X** cuts them; then open the folder where they should go and press **Ctrl+V**. Each copy or cut is pasted once: to paste again, copy again. The same items are in the **File** menu and in the right click; the right click on a folder also has **Paste into this folder**. Files and folders, with everything inside them, go anywhere: another folder of the same disk, another disk, a phone, a server, also from one device to another.
@@ -169,6 +178,8 @@ In the viewer:
 | + and − (or the mouse wheel) | Zoom in and out |
 | 0 | Fit the image to the window |
 | 1 | 100%: one image pixel per screen pixel |
+| Ctrl+R, Ctrl+Shift+R | Rotate 90° clockwise, anticlockwise |
+| Ctrl+S, Ctrl+Shift+S | Save, Save as |
 
 The mouse wheel zooms around the pointer, + and − around the middle of the window; Ctrl and the wheel always zoom, also when the wheel is set to change image (see *Options*). A zoomed image is moved by dragging it. It never gets smaller than fitted to the window, nor larger than the largest zoom set in the options (2000% at first); the status bar shows the zoom. The next image starts fitted again.
 

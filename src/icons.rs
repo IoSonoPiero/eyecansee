@@ -30,6 +30,9 @@ pub enum Icon {
     Copied,
     /// Badge of the items cut with Ctrl+X.
     Cut,
+    /// Viewer: turn a quarter clockwise and anticlockwise.
+    RotateCw,
+    RotateCcw,
 }
 
 const FOLDER: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2.5 6A1.5 1.5 0 0 1 4 4.5h5.2l2 2H20A1.5 1.5 0 0 1 21.5 8v10A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18z" fill="#d99a1e"/><path d="M2.5 9A1.5 1.5 0 0 1 4 7.5h16A1.5 1.5 0 0 1 21.5 9v9a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 18z" fill="#f4b63f"/></svg>"##;
@@ -47,6 +50,9 @@ const HOME: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 2
 const COPIED: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11.5" fill="#1a62c9"/><rect x="6" y="5" width="8.5" height="10.5" rx="1.5" fill="none" stroke="#ffffff" stroke-width="1.8"/><rect x="9.5" y="8.5" width="8.5" height="10.5" rx="1.5" fill="#1a62c9" stroke="#ffffff" stroke-width="1.8"/></svg>"##;
 const CUT: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11.5" fill="#d9541e"/><circle cx="8" cy="16.5" r="2.4" fill="none" stroke="#ffffff" stroke-width="1.8"/><circle cx="16" cy="16.5" r="2.4" fill="none" stroke="#ffffff" stroke-width="1.8"/><path d="M9.6 14.6 16.5 5M14.4 14.6 7.5 5" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/></svg>"##;
 
+const ROTATE_CW: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="10" width="11" height="11" rx="2" fill="#f4b63f"/><path d="M8 6.5h5a5 5 0 0 1 5 5V14" fill="none" stroke="#1a62c9" stroke-width="2.4" stroke-linecap="round"/><path d="M15 12.5l3 3 3-3" fill="none" stroke="#1a62c9" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>"##;
+const ROTATE_CCW: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="10" y="10" width="11" height="11" rx="2" fill="#f4b63f"/><path d="M16 6.5h-5a5 5 0 0 0-5 5V14" fill="none" stroke="#1a62c9" stroke-width="2.4" stroke-linecap="round"/><path d="M9 12.5l-3 3-3-3" fill="none" stroke="#1a62c9" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>"##;
+
 fn svg(icon: Icon) -> &'static str {
     match icon {
         Icon::Folder => FOLDER,
@@ -62,6 +68,8 @@ fn svg(icon: Icon) -> &'static str {
         Icon::Home => HOME,
         Icon::Copied => COPIED,
         Icon::Cut => CUT,
+        Icon::RotateCw => ROTATE_CW,
+        Icon::RotateCcw => ROTATE_CCW,
     }
 }
 
