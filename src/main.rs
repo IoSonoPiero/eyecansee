@@ -31,6 +31,7 @@ mod decode;
 mod devices;
 mod encode;
 mod file_dialogs;
+mod grid;
 mod human;
 mod i18n;
 mod icons;
