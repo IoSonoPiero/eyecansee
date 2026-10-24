@@ -12,7 +12,7 @@ use crate::icons::{self, Icon};
 use crate::meta::Group;
 use crate::navigation::Go;
 use crate::actions::Act;
-use crate::{App, Focus};
+use crate::{App, Focus, meta};
 use crate::source;
 
 /// Thumbnail rows loaded right after the visible ones, above and below.
@@ -697,6 +697,20 @@ impl App {
             return None;
         }
         Some(((p.y - d.grab - rect.top()) / travel * max).clamp(0.0, max))
+    }
+
+    pub(crate) fn meta_shown(&self, g: meta::Group) -> bool {
+        !self.settings.meta_hidden.iter().any(|k| k == g.key())
+    }
+
+    /// Opens or closes a metadata box (X, menu, button) and remembers it.
+    pub(crate) fn show_meta(&mut self, g: meta::Group, show: bool) {
+        self.settings.meta_hidden.retain(|k| k != g.key());
+        if !show {
+            self.settings.meta_hidden.push(g.key().to_string());
+        }
+        self.meta_height = 0.0;
+        self.settings.save();
     }
 
     /// Metadata boxes of the selected image, side by side below the grid; each one closes with

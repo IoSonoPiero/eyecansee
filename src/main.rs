@@ -407,28 +407,6 @@ impl App {
         app
     }
 
-    fn meta_shown(&self, g: meta::Group) -> bool {
-        !self.settings.meta_hidden.iter().any(|k| k == g.key())
-    }
-
-    /// Opens or closes a metadata box (X, menu, button) and remembers it.
-    fn show_meta(&mut self, g: meta::Group, show: bool) {
-        self.settings.meta_hidden.retain(|k| k != g.key());
-        if !show {
-            self.settings.meta_hidden.push(g.key().to_string());
-        }
-        self.meta_height = 0.0;
-        self.settings.save();
-    }
-
-}
-
-impl App {
-    /// A confirmation is open: deletion, or a name already taken when restoring or pasting.
-    pub(crate) fn asking(&self) -> bool {
-        let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
-        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.batch_turn.is_some() || self.notice.is_some() || self.open_address.is_some()
-    }
 }
 
 impl eframe::App for App {

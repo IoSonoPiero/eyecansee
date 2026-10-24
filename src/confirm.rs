@@ -3,6 +3,8 @@
 
 use eframe::egui;
 
+use crate::App;
+
 /// A modal with `text`, one button per choice (greyed out when its flag is false) and `cancel`.
 /// `Some(Some(choice))` for a choice, `Some(None)` for cancel; otherwise `answer` (from the keys),
 /// `None` while the window stays open.
@@ -46,4 +48,12 @@ pub(crate) fn yes_no(
     answer: Option<bool>,
 ) -> Option<bool> {
     choose(ctx, id, width, text, vec![(yes, yes_enabled, ())], no, answer.map(|yes| yes.then_some(()))).map(|a| a.is_some())
+}
+
+impl App {
+    /// A confirmation is open: deletion, or a name already taken when restoring or pasting.
+    pub(crate) fn asking(&self) -> bool {
+        let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
+        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.batch_turn.is_some() || self.notice.is_some() || self.open_address.is_some()
+    }
 }
