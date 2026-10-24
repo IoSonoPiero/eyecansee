@@ -674,7 +674,7 @@ impl Listing {
         use std::cmp::Ordering;
         let name = |f: &File| f.path.to_lowercase();
         let ext = |f: &File| f.path.rsplit_once('.').map(|(_, e)| e.to_lowercase()).unwrap_or_default();
-        let date = |f: &File| crate::parse_modified(&f.modified);
+        let date = |f: &File| crate::human::parse_modified(&f.modified);
         self.files.sort_by(|a, b| {
             let flip = |o: Ordering| if desc { o.reverse() } else { o };
             let primary = match by {
