@@ -11,7 +11,8 @@ use crate::devices::Device;
 use crate::icons::{self, Icon};
 use crate::meta::Group;
 use crate::navigation::Go;
-use crate::{Act, App, Focus};
+use crate::actions::Act;
+use crate::{App, Focus};
 use crate::source;
 
 /// Thumbnail rows loaded right after the visible ones, above and below.
@@ -117,7 +118,7 @@ impl App {
             if !target.ends_with('/') {
                 items.push(None);
                 let mut turns = Vec::new();
-                for (op, label, keys) in crate::transform_items() {
+                for (op, label, keys) in crate::actions::transform_items() {
                     turns.push(Some((t(label), if in_viewer { keys.map(t).unwrap_or_default() } else { String::new() }, Act::Transform(op, path.clone()))));
                     if op == crate::transform::Op::FlipV {
                         turns.push(None);

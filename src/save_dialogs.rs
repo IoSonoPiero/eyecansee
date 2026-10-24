@@ -2,7 +2,8 @@
 
 use eframe::egui;
 
-use crate::{Act, App, BOLD, confirm, convert, source, transform, transform_items};
+use crate::actions::{Act, transform_items};
+use crate::{App, BOLD, confirm, convert, source, transform};
 
 impl App {
     /// Confirmation of a transform on images of the grid: they are overwritten (originals where a
