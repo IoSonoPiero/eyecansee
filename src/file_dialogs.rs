@@ -6,7 +6,7 @@ use std::sync::atomic::Ordering;
 
 use eframe::egui::{self, Key};
 
-use crate::{App, PasteAsk, browser, devices, human_time, shown, source, theme, transfer};
+use crate::{App, PasteAsk, browser, confirm, devices, human_time, shown, source, theme, transfer};
 
 impl App {
     /// Ctrl+C / Ctrl+X: remembers the items and their source. The paths also go on the system
@@ -220,21 +220,7 @@ impl App {
             text = format!("{text}\n\n{}", self.i18n.t("delete-ntfs"));
         }
         let (yes, no) = (self.i18n.t("delete-yes"), self.i18n.t("delete-no"));
-        let mut answer = self.delete_answer.take();
-        egui::Modal::new(egui::Id::unique("delete")).show(ctx, |ui| {
-            ui.set_max_width(420.0);
-            ui.label(text);
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                if ui.button(yes).clicked() {
-                    answer = Some(true);
-                }
-                if ui.button(no).clicked() {
-                    answer = Some(false);
-                }
-            });
-        });
-        match answer {
+        match confirm::yes_no(ctx, "delete", 420.0, text, yes, true, no, self.delete_answer.take()) {
             Some(true) => {
                 if let Some(loader) = &self.loader {
                     log!("delete confirmed: {} items", paths.len());
@@ -354,25 +340,10 @@ impl App {
         } else {
             (t("restore-replace"), source::Conflict::Replace)
         };
-        let buttons = [first, (t("restore-keep-both"), source::Conflict::KeepBoth)];
+        let buttons = vec![(first.0, true, first.1), (t("restore-keep-both"), true, source::Conflict::KeepBoth)];
         let cancel = t("delete-no");
-        let mut answer = self.delete_answer.take().and_then(|yes| (!yes).then_some(None));
-        egui::Modal::new(egui::Id::unique("restore")).show(ctx, |ui| {
-            ui.set_max_width(420.0);
-            ui.label(text);
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                for (label, conflict) in buttons {
-                    if ui.button(label).clicked() {
-                        answer = Some(Some(conflict));
-                    }
-                }
-                if ui.button(cancel).clicked() {
-                    answer = Some(None);
-                }
-            });
-        });
-        match answer {
+        let keys = self.delete_answer.take().and_then(|yes| (!yes).then_some(None));
+        match confirm::choose(ctx, "restore", 420.0, text, buttons, cancel, keys) {
             Some(Some(conflict)) => {
                 if let Some(loader) = &self.loader {
                     self.restore_busy = true;

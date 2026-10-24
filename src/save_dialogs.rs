@@ -2,7 +2,7 @@
 
 use eframe::egui;
 
-use crate::{Act, App, BOLD, convert, source, transform, transform_items};
+use crate::{Act, App, BOLD, confirm, convert, source, transform, transform_items};
 
 impl App {
     /// Confirmation of a transform on images of the grid: they are overwritten (originals where a
@@ -37,21 +37,8 @@ impl App {
         }
         let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
         // Only Esc (as `delete_answer`): Enter does not overwrite many images.
-        let mut answer = self.delete_answer.take().and_then(|yes| (!yes).then_some(false));
-        egui::Modal::new(egui::Id::unique("batch-turn")).show(ctx, |ui| {
-            ui.set_max_width(460.0);
-            ui.label(text);
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                if ui.add_enabled(!ok.is_empty(), egui::Button::new(yes)).clicked() {
-                    answer = Some(true);
-                }
-                if ui.button(no).clicked() {
-                    answer = Some(false);
-                }
-            });
-        });
-        match answer {
+        let keys = self.delete_answer.take().and_then(|yes| (!yes).then_some(false));
+        match confirm::yes_no(ctx, "batch-turn", 460.0, text, yes, !ok.is_empty(), no, keys) {
             Some(true) => {
                 log!("transform {op:?} on {} images, {how:?}", ok.len());
                 self.saving.extend(ok.iter().cloned());
@@ -128,21 +115,7 @@ impl App {
         }
         let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
         // Enter and Esc arrive as `delete_answer` (`raw_input_hook`).
-        let mut answer = self.delete_answer.take();
-        egui::Modal::new(egui::Id::unique("save")).show(ctx, |ui| {
-            ui.set_max_width(420.0);
-            ui.label(text);
-            ui.add_space(8.0);
-            ui.horizontal(|ui| {
-                if ui.button(yes).clicked() {
-                    answer = Some(true);
-                }
-                if ui.button(no).clicked() {
-                    answer = Some(false);
-                }
-            });
-        });
-        match answer {
+        match confirm::yes_no(ctx, "save", 420.0, text, yes, true, no, self.delete_answer.take()) {
             Some(true) => {
                 log!("save {path:?} {turn:?} {how:?}");
                 loader.replace_with(path.clone(), data, how);

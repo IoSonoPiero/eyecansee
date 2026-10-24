@@ -24,6 +24,7 @@ fn log_time() -> f64 {
 mod address;
 mod app_dialogs;
 mod browser;
+mod confirm;
 mod convert;
 mod decode;
 mod devices;
