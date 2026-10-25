@@ -358,7 +358,7 @@ impl App {
         response.on_hover_text(self.i18n.t("dup-view")).on_hover_cursor(egui::CursorIcon::PointingHand).clicked()
     }
 
-    /// One copy: the box that marks it, whether it stays, date and path. The copy to delete is
+    /// One copy: the box that marks it (the text too), whether it stays, date and path. The copy to delete is
     /// faded and struck through, the one that stays at full strength with "Stays".
     fn dup_copy(&self, ui: &mut egui::Ui, w: &mut Window, g: &mut Group, at: (usize, usize)) {
         let i = at.1;
@@ -383,15 +383,16 @@ impl App {
                     ui.label(egui::RichText::new(self.i18n.t("dup-stays")).color(theme::accent(ui.visuals())).family(egui::FontFamily::Name(BOLD.into())));
                     egui::RichText::new(text)
                 };
-                ui.label(text).on_hover_text(self.display(&file.path));
+                // The text too marks and unmarks, like the box: a small target is easy to miss.
+                let label = ui.add(egui::Label::new(text).sense(egui::Sense::click())).on_hover_text(self.display(&file.path));
+                if label.clicked() {
+                    g.toggle(i);
+                    w.row = at;
+                }
             });
         });
-        let r = row.response.interact(egui::Sense::click());
-        if r.clicked() {
-            w.row = at;
-        }
         if focused && w.scroll {
-            r.scroll_to_me(None);
+            row.response.scroll_to_me(None);
         }
     }
 }
