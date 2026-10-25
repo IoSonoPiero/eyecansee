@@ -94,7 +94,7 @@ impl App {
         }
         if dir == self.dir {
             let no_storage = match &r {
-                Err((id, _)) => *id == "error-no-storage" || *id == "error-no-device",
+                Err((id, _)) => matches!(*id, "error-no-storage" | "error-no-device" | "error-not-ready"),
                 Ok(l) => l.dirs.is_empty() && l.files.is_empty() && self.phone_root(&dir).is_some(),
             };
             self.retry_at = no_storage.then(|| ctx.input(|i| i.time) + RETRY_SECS);

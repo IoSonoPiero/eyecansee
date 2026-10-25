@@ -16,6 +16,7 @@ error-not-found = Non trovato: { $detail }
 error-device-busy = Il dispositivo è in uso da un'altra applicazione (per esempio il gestore dei file). Chiudila, oppure scollega e ricollega il dispositivo. ({ $detail })
 error-device-kde = Il telefono è in uso da KDE (il suo servizio kiod). Premi F5 per aprirlo comunque in EyeCanSee. ({ $detail })
 error-no-device = Il dispositivo non è stato trovato: se è collegato, sbloccalo e scegli "Trasferimento file". EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })
+error-not-ready = Il telefono non risponde: sbloccalo e scegli "Trasferimento file" nella sua notifica USB. EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })
 error-no-storage = Il dispositivo non mostra nessuna memoria: sbloccalo e scegli "Trasferimento file". EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })
 
 menu-file = File

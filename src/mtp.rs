@@ -146,6 +146,13 @@ fn release_from_desktop(serial: &str) -> Release {
     }
 }
 
+/// While opening, an error with no message of its own means the phone is not ready yet: in
+/// "charging only" a POCO X7 Pro gave "I/O error: hardware fault or protocol violation"
+/// (Kubuntu 24.04 in a VM, 2026-10-25). The UI then says to choose "File transfer" and retries.
+fn not_ready((id, detail): Error) -> Error {
+    (if id == "error-detail" { "error-not-ready" } else { id }, detail)
+}
+
 /// Phones in use, by serial: the clipboard can keep the source of a copy, and a second opening
 /// of the same phone would find it busy.
 static PHONES: Mutex<Vec<(String, Weak<Phone>)>> = Mutex::new(Vec::new());
@@ -171,9 +178,9 @@ impl Phone {
         let (_, storages) = self
             .open
             .get_or_try_init(|| async {
-                let device = open(&self.serial).await?;
+                let device = open(&self.serial).await.map_err(not_ready)?;
                 let mut storages = Vec::new();
-                for s in device.storages().await.map_err(error)? {
+                for s in device.storages().await.map_err(|e| not_ready(error(e)))? {
                     let name = match s.info().description.trim() {
                         "" => format!("{}", s.id().0),
                         d => d.to_string(),
