@@ -227,7 +227,13 @@ impl App {
             for path in &gone {
                 self.remove_item(path, false);
             }
-            self.listings.retain(|k, _| !(k.starts_with(&dir) && *k != dir));
+            // The open folder, if inside the destination, is read again instead of dropped: dropped,
+            // nothing asked for it and its spinner never ended (Downloads during a paste into home).
+            let open = self.dir.clone();
+            self.listings.retain(|k, _| !(k.starts_with(&dir) && *k != dir && *k != open));
+            if open != dir && open.starts_with(&dir) {
+                self.relist(open);
+            }
             self.relist(dir);
         }
         if let Err((id, detail)) = r
