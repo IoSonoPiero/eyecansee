@@ -8,15 +8,25 @@ use eframe::egui;
 use crate::loader::Msg;
 use crate::{App, source};
 
-/// Watcher of the open local folder: every change (not a mere read) sends `Msg::Changed`.
+/// Watcher of the open local folder: every change (not a mere read) that can alter the grid
+/// sends `Msg::Changed`.
 pub(crate) fn folder_watcher(tx: Sender<Msg>, ctx: egui::Context) -> Option<notify::RecommendedWatcher> {
     notify::recommended_watcher(move |e: notify::Result<notify::Event>| {
-        if e.is_ok_and(|e| !e.kind.is_access()) && tx.send(Msg::Changed).is_ok() {
+        let relevant = e.is_ok_and(|e| !e.kind.is_access() && (e.paths.is_empty() || e.paths.iter().any(|p| shown(p))));
+        if relevant && tx.send(Msg::Changed).is_ok() {
             ctx.request_repaint();
         }
     })
     .inspect_err(|e| log!("folder watcher: ERROR {e}"))
     .ok()
+}
+
+/// Whether a changed path can be in the grid: anything but an existing file that is not an
+/// image (folders, images, and paths already gone, which may have been either). A file written
+/// all the time in the open folder, such as the log of `EYECANSEE_LOG=1 … 2> registro.log`,
+/// made it read the folder again every 0.3 s, and each reading wrote to the log.
+fn shown(path: &std::path::Path) -> bool {
+    !path.is_file() || path.file_name().is_some_and(|n| crate::decode::is_image(&n.to_string_lossy()))
 }
 
 impl App {
@@ -79,5 +89,21 @@ impl App {
             log!("retry {:?}", self.dir);
             loader.list(self.dir.clone());
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn shown() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-watch-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("registro.log"), "x").unwrap();
+        std::fs::write(dir.join("a.jpg"), "x").unwrap();
+        assert!(!super::shown(&dir.join("registro.log")), "a file not shown");
+        assert!(super::shown(&dir.join("a.jpg")), "an image");
+        assert!(super::shown(&dir), "a folder");
+        assert!(super::shown(&dir.join("gone")), "something removed");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
