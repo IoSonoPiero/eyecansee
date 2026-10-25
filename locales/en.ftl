@@ -113,7 +113,9 @@ this-computer = This computer
 device-mount-hint = Not mounted ({ $device }): click to mount and open it
 error-mount = Cannot mount the partition: { $detail }
 opt-purge = Empty the thumbnail cache…
-opt-purge-confirm = Delete { $n } thumbnails ({ $mb } MB)? Your images are not touched: thumbnails are created again when needed.
+opt-purge-confirm = Delete { $n } thumbnails ({ $mb } MB)?
+
+    Your images are not touched: thumbnails are created again when needed.
 opt-purge-yes = Empty
 opt-purge-no = Cancel
 
@@ -173,18 +175,28 @@ delete-confirm-dir-trash = Move the folder **"{ $name }"**, with everything insi
 delete-confirm-dir-folder = Move the folder **"{ $name }"**, with everything inside it, to **this folder's Trash** (the hidden folder .EyeCanSee-trash)?
 
     You can **restore** it in EyeCanSee with **Open the trash**, at the top of the grid.
-delete-confirm-dir-permanent = Delete the folder **"{ $name }"** and everything inside it **for good**? **It cannot be undone.**
+delete-confirm-dir-permanent = Delete the folder **"{ $name }"** and everything inside it **for good**?
+
+    { "**" }It cannot be undone.**
 key-shift-delete = Shift+Del
 delete-confirm-trash = Move **"{ $name }"** ({ $size }) **to the trash**?
 delete-confirm-folder = Move **"{ $name }"** ({ $size }) to **this folder's Trash** (the hidden folder .EyeCanSee-trash)?
 
     You can **restore** it in EyeCanSee with **Open the trash**, at the top of the grid.
-delete-confirm-permanent = Delete **"{ $name }"** ({ $size }) **for good**? **It cannot be undone.**
-delete-confirm-many-trash = Move **{ $n } items to the trash**? Images: { $size }.{ $folders }
-delete-confirm-many-folder = Move **{ $n } items** to **the Trash of their folder** (the hidden folder .EyeCanSee-trash)? Images: { $size }.{ $folders }
+delete-confirm-permanent = Delete **"{ $name }"** ({ $size }) **for good**?
+
+    { "**" }It cannot be undone.**
+delete-confirm-many-trash = Move **{ $n } items to the trash**?
+
+    Images: { $size }.{ $folders }
+delete-confirm-many-folder = Move **{ $n } items** to **the Trash of their folder** (the hidden folder .EyeCanSee-trash)?
+
+    Images: { $size }.{ $folders }
 
     You can **restore** them in EyeCanSee with **Open the trash**, at the top of the grid.
-delete-confirm-many-permanent = Delete **{ $n } items for good**? Images: { $size }.{ $folders } **It cannot be undone.**
+delete-confirm-many-permanent = Delete **{ $n } items for good**?
+
+    Images: { $size }.{ $folders } **It cannot be undone.**
 delete-many-folders = Folders go with everything inside them.
 delete-yes = Delete
 delete-no = Cancel
@@ -206,7 +218,9 @@ menu-empty-trash = Empty the trash…
 trash-bar-has = This folder has a trash
 trash-open = Open the trash
 trash-bar-inside = Trash of the folder { $folder }
-delete-confirm-empty-trash = **Empty this trash?** Everything inside it is deleted **for good**. **It cannot be undone.**
+delete-confirm-empty-trash = **Empty this trash?**
+
+    Everything inside it is deleted **for good**. **It cannot be undone.**
 restore-taken = In **"{ $folder }"** there is already an item named **"{ $name }"**.
 restore-replace = Replace
 restore-keep-both = Keep both
@@ -287,9 +301,15 @@ menu-save = Save
 key-save = Ctrl+S
 menu-save-copy = Save as…
 key-save-copy = Ctrl+Shift+S
-save-confirm-trash = Save the changes over **{ $name }**? The original goes **to the trash**.
-save-confirm-folder = Save the changes over **{ $name }**? The original goes to **this folder's Trash**, where **Open the trash** restores it.
-save-confirm-permanent = Save the changes over **{ $name }**? The original is deleted **for good**.
+save-confirm-trash = Save the changes over **{ $name }**?
+
+    The original goes **to the trash**.
+save-confirm-folder = Save the changes over **{ $name }**?
+
+    The original goes to **this folder's Trash**, where **Open the trash** restores it.
+save-confirm-permanent = Save the changes over **{ $name }**?
+
+    The original is deleted **for good**.
 save-yes = Save
 save-failed = Cannot save: { $detail }
 status-modified = Changed, not saved

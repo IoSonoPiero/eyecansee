@@ -112,7 +112,9 @@ this-computer = Questo computer
 device-mount-hint = Non montata ({ $device }): clic per montarla e aprirla
 error-mount = Impossibile montare la partizione: { $detail }
 opt-purge = Svuota la cache miniature…
-opt-purge-confirm = Eliminare { $n } miniature ({ $mb } MB)? Le tue immagini non vengono toccate: le miniature si rifanno quando servono.
+opt-purge-confirm = Eliminare { $n } miniature ({ $mb } MB)?
+
+    Le tue immagini non vengono toccate: le miniature si rifanno quando servono.
 opt-purge-yes = Svuota
 opt-purge-no = Annulla
 
@@ -172,18 +174,28 @@ delete-confirm-dir-trash = Spostare la cartella **"{ $name }"**, con tutto quell
 delete-confirm-dir-folder = Spostare la cartella **"{ $name }"**, con tutto quello che contiene, nel **Cestino di questa cartella** (la cartella nascosta .EyeCanSee-trash)?
 
     Potrai **ripristinarla** da EyeCanSee con **Apri il cestino**, in cima alla griglia.
-delete-confirm-dir-permanent = Eliminare **definitivamente** la cartella **"{ $name }"** e tutto quello che contiene? **Non si può annullare.**
+delete-confirm-dir-permanent = Eliminare **definitivamente** la cartella **"{ $name }"** e tutto quello che contiene?
+
+    { "**" }Non si può annullare.**
 key-shift-delete = Maiusc+Canc
 delete-confirm-trash = Spostare **"{ $name }"** ({ $size }) **nel cestino**?
 delete-confirm-folder = Spostare **"{ $name }"** ({ $size }) nel **Cestino di questa cartella** (la cartella nascosta .EyeCanSee-trash)?
 
     Potrai **ripristinarlo** da EyeCanSee con **Apri il cestino**, in cima alla griglia.
-delete-confirm-permanent = Eliminare **definitivamente** **"{ $name }"** ({ $size })? **Non si può annullare.**
-delete-confirm-many-trash = Spostare **{ $n } elementi nel cestino**? Immagini: { $size }.{ $folders }
-delete-confirm-many-folder = Spostare **{ $n } elementi** nel **Cestino della loro cartella** (la cartella nascosta .EyeCanSee-trash)? Immagini: { $size }.{ $folders }
+delete-confirm-permanent = Eliminare **definitivamente** **"{ $name }"** ({ $size })?
+
+    { "**" }Non si può annullare.**
+delete-confirm-many-trash = Spostare **{ $n } elementi nel cestino**?
+
+    Immagini: { $size }.{ $folders }
+delete-confirm-many-folder = Spostare **{ $n } elementi** nel **Cestino della loro cartella** (la cartella nascosta .EyeCanSee-trash)?
+
+    Immagini: { $size }.{ $folders }
 
     Potrai **ripristinarli** da EyeCanSee con **Apri il cestino**, in cima alla griglia.
-delete-confirm-many-permanent = Eliminare **definitivamente { $n } elementi**? Immagini: { $size }.{ $folders } **Non si può annullare.**
+delete-confirm-many-permanent = Eliminare **definitivamente { $n } elementi**?
+
+    Immagini: { $size }.{ $folders } **Non si può annullare.**
 delete-many-folders = Le cartelle vanno con tutto il loro contenuto.
 delete-yes = Elimina
 delete-no = Annulla
@@ -205,7 +217,9 @@ menu-empty-trash = Svuota il cestino…
 trash-bar-has = Questa cartella ha un cestino
 trash-open = Apri il cestino
 trash-bar-inside = Cestino della cartella { $folder }
-delete-confirm-empty-trash = **Svuotare questo cestino?** Tutto quello che contiene viene eliminato **definitivamente**. **Non si può annullare.**
+delete-confirm-empty-trash = **Svuotare questo cestino?**
+
+    Tutto quello che contiene viene eliminato **definitivamente**. **Non si può annullare.**
 restore-taken = In **"{ $folder }"** c'è già un elemento chiamato **"{ $name }"**.
 restore-replace = Sostituisci
 restore-keep-both = Tieni entrambi
@@ -286,9 +300,15 @@ menu-save = Salva
 key-save = Ctrl+S
 menu-save-copy = Salva come…
 key-save-copy = Ctrl+Maiusc+S
-save-confirm-trash = Salvare le modifiche sopra **{ $name }**? L'originale va **nel cestino**.
-save-confirm-folder = Salvare le modifiche sopra **{ $name }**? L'originale va nel **Cestino di questa cartella**, da cui si ripristina con **Apri il cestino**.
-save-confirm-permanent = Salvare le modifiche sopra **{ $name }**? L'originale viene eliminato **definitivamente**.
+save-confirm-trash = Salvare le modifiche sopra **{ $name }**?
+
+    L'originale va **nel cestino**.
+save-confirm-folder = Salvare le modifiche sopra **{ $name }**?
+
+    L'originale va nel **Cestino di questa cartella**, da cui si ripristina con **Apri il cestino**.
+save-confirm-permanent = Salvare le modifiche sopra **{ $name }**?
+
+    L'originale viene eliminato **definitivamente**.
 save-yes = Salva
 save-failed = Impossibile salvare: { $detail }
 status-modified = Modificata, non salvata
