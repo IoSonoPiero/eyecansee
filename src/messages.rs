@@ -56,6 +56,9 @@ impl App {
         if let Ok(l) = &mut r {
             l.sort_files(self.settings.sort_by, self.settings.sort_desc);
         }
+        if let Err(("error-device-kde", _)) = &r {
+            self.kiod_ask = true;
+        }
         // Direct connection impossible because the desktop holds the phone: switch to
         // its mount, in the same folder (the storages have the same name).
         if let Err(("error-device-busy", _)) = &r

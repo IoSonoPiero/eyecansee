@@ -7,7 +7,7 @@
 //! every listing remembers path → handle, and a path never seen is resolved by listing its parent.
 
 use std::collections::{HashMap, HashSet};
-use std::sync::atomic::Ordering;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 
 use bytes::Bytes;
@@ -60,24 +60,44 @@ fn error(e: mtp_rs::Error) -> Error {
 /// USB one (POCO X7 Pro: `open_by_serial` gives `NoDevice` from WPD, then `Unsupported` from USB).
 /// It is opened by USB location: mtp-rs matches it to the WPD device by VID/PID.
 #[cfg(windows)]
-async fn open(serial: &str) -> Result<MtpDevice, mtp_rs::Error> {
-    let found = MtpDevice::list_devices()?.into_iter().find(|d| d.serial_number.as_deref() == Some(serial));
+async fn open(serial: &str) -> Result<MtpDevice, Error> {
+    let found = MtpDevice::list_devices().map_err(error)?.into_iter().find(|d| d.serial_number.as_deref() == Some(serial));
     match found {
-        Some(d) => MtpDevice::open_by_location(d.location_id).await,
-        None => Err(mtp_rs::Error::NoDevice),
+        Some(d) => MtpDevice::open_by_location(d.location_id).await.map_err(error),
+        None => Err(error(mtp_rs::Error::NoDevice)),
+    }
+}
+
+/// KDE's kiod may be terminated only after the user said yes (`allow_kiod`, "error-device-kde"):
+/// it also forgets the passwords of network folders.
+static KIOD_ALLOWED: AtomicBool = AtomicBool::new(false);
+
+pub fn allow_kiod() {
+    KIOD_ALLOWED.store(true, Ordering::Relaxed);
+}
+
+#[cfg(not(windows))]
+async fn open(serial: &str) -> Result<MtpDevice, Error> {
+    match MtpDevice::open_by_serial(serial).await {
+        Err(e) if e.is_exclusive_access() => match release_from_desktop(serial) {
+            Release::Done => {
+                log!("phone {serial} released from the desktop");
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                MtpDevice::open_by_serial(serial).await.map_err(error)
+            }
+            Release::AskKiod => Err(("error-device-kde", e.to_string())),
+            Release::No => Err(error(e)),
+        },
+        r => r.map_err(error),
     }
 }
 
 #[cfg(not(windows))]
-async fn open(serial: &str) -> Result<MtpDevice, mtp_rs::Error> {
-    match MtpDevice::open_by_serial(serial).await {
-        Err(e) if e.is_exclusive_access() && release_from_desktop(serial) => {
-            log!("phone {serial} released from the desktop");
-            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            MtpDevice::open_by_serial(serial).await
-        }
-        r => r,
-    }
+enum Release {
+    Done,
+    /// Only kiod holds it, and the user has not allowed terminating it yet.
+    AskKiod,
+    No,
 }
 
 /// GNOME: gvfs keeps the phone open and the direct connection finds it busy. Terminating the gvfs
@@ -89,7 +109,7 @@ async fn open(serial: &str) -> Result<MtpDevice, mtp_rs::Error> {
 /// back on demand without kmtpd (verified on Kubuntu 26.04, 2026-10-25). It also forgets the
 /// passwords it kept for network folders. kiod5 (Plasma 5) is the same daemon [not tried].
 #[cfg(not(windows))]
-fn release_from_desktop(serial: &str) -> bool {
+fn release_from_desktop(serial: &str) -> Release {
     use std::fs::{read_dir, read_link, read_to_string};
     // The phone's USB file (/dev/bus/usb/001/006), from the serial.
     let Some(node) = read_dir("/sys/bus/usb/devices").into_iter().flatten().flatten().find_map(|d| {
@@ -97,9 +117,9 @@ fn release_from_desktop(serial: &str) -> bool {
         let uevent = read_to_string(d.path().join("uevent")).ok()?;
         uevent.lines().find_map(|l| l.strip_prefix("DEVNAME=")).map(|n| format!("/dev/{n}"))
     }) else {
-        return false;
+        return Release::No;
     };
-    let mut released = false;
+    let (mut released, mut ask) = (false, false);
     for p in read_dir("/proc").into_iter().flatten().flatten() {
         let comm = read_to_string(p.path().join("comm")).unwrap_or_default();
         if !matches!(comm.trim(), "gvfsd-mtp" | "gvfsd-gphoto2" | "kiod6" | "kiod5") {
@@ -110,11 +130,20 @@ fn release_from_desktop(serial: &str) -> bool {
             .flatten()
             .flatten()
             .any(|f| read_link(f.path()).is_ok_and(|l| l.to_string_lossy() == node));
-        if holds {
-            released |= std::process::Command::new("kill").arg(p.file_name()).status().is_ok_and(|s| s.success());
+        if !holds {
+            continue;
         }
+        if comm.starts_with("kiod") && !KIOD_ALLOWED.load(Ordering::Relaxed) {
+            ask = true;
+            continue;
+        }
+        released |= std::process::Command::new("kill").arg(p.file_name()).status().is_ok_and(|s| s.success());
     }
-    released
+    match (released, ask) {
+        (true, _) => Release::Done,
+        (false, true) => Release::AskKiod,
+        _ => Release::No,
+    }
 }
 
 /// Phones in use, by serial: the clipboard can keep the source of a copy, and a second opening
@@ -142,7 +171,7 @@ impl Phone {
         let (_, storages) = self
             .open
             .get_or_try_init(|| async {
-                let device = open(&self.serial).await.map_err(error)?;
+                let device = open(&self.serial).await?;
                 let mut storages = Vec::new();
                 for s in device.storages().await.map_err(error)? {
                     let name = match s.info().description.trim() {

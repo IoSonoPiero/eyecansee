@@ -15,6 +15,7 @@ error-detail = { $detail }
 error-login = The server refused the login: wrong user name or password.
 error-not-found = Not found: { $detail }
 error-device-busy = The device is in use by another application (for example the file manager). Close it, or disconnect and reconnect the device. ({ $detail })
+error-device-kde = KDE is using the phone (its kiod service). Press F5 to open it in EyeCanSee anyway. ({ $detail })
 error-no-device = The device was not found: if it is connected, unlock it and choose "File transfer" on it. EyeCanSee retries by itself every 2 seconds. ({ $detail })
 error-no-storage = The device shows no storage: unlock it and choose "File transfer" on it. EyeCanSee retries by itself every 2 seconds. ({ $detail })
 
@@ -317,3 +318,7 @@ addr-password = Password
 addr-folder = Folder
 addr-bad-port = The port must be a number from 1 to 65535.
 addr-open = Open
+kiod-ask = KDE is holding the phone through its kiod service, the one Dolphin uses for phones. To open it, EyeCanSee has to close that service. KDE restarts it by itself, but it forgets the passwords of network folders (Samba, SFTP…) opened in Dolphin, and will ask for them again next time.
+
+    This is not something EyeCanSee chooses: KDE keeps phones and those passwords in the same service, and lets nobody release only the phone.
+kiod-ok = OK

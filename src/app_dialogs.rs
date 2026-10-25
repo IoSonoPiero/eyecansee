@@ -3,7 +3,7 @@
 use eframe::egui::{self, TextureOptions};
 use egui_commonmark::CommonMarkCache;
 
-use crate::{App, OptTab, decode, theme, thumbcache, update, version};
+use crate::{App, OptTab, confirm, decode, mtp, theme, thumbcache, update, version};
 use crate::i18n::I18n;
 use crate::loader::Msg;
 use crate::settings::{RemoteDelete, ThemeChoice, WindowStart};
@@ -199,6 +199,25 @@ impl App {
             });
         if !open {
             self.update_note = None;
+        }
+    }
+
+    /// KDE holds the phone: terminating kiod frees it, but KDE also forgets the passwords of network
+    /// folders, so the user decides. OK reads the folder again, which opens the phone.
+    pub(crate) fn kiod_window(&mut self, ctx: &egui::Context) {
+        if !self.kiod_ask {
+            return;
+        }
+        let (text, ok, cancel) = (self.i18n.t("kiod-ask"), self.i18n.t("kiod-ok"), self.i18n.t("delete-no"));
+        match confirm::yes_no(ctx, "kiod", 460.0, text, ok, true, cancel, self.delete_answer.take()) {
+            Some(true) => {
+                log!("kiod: allowed");
+                mtp::allow_kiod();
+                self.kiod_ask = false;
+                self.refresh();
+            }
+            Some(false) => self.kiod_ask = false,
+            None => {}
         }
     }
 

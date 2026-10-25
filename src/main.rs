@@ -207,6 +207,8 @@ struct App {
     batch_saved: Option<usize>,
     /// A message in a window (a "Save" refused, how a grid save went); `true` offers "Save as…".
     notice: Option<(String, bool)>,
+    /// KDE holds the phone: asking whether to terminate kiod (`kiod_window`).
+    kiod_ask: bool,
     /// File > Open location: the window, with what is typed in it.
     open_address: Option<AddressForm>,
     /// A transform on images of the grid: the images and the operation, to confirm.
@@ -332,6 +334,7 @@ impl App {
             skipped: Vec::new(),
             batch_saved: None,
             notice: None,
+            kiod_ask: false,
             open_address: None,
             batch_turn: None,
             pan: egui::Vec2::ZERO,
@@ -517,6 +520,7 @@ impl App {
         self.save_window(ctx);
         self.batch_turn_window(ctx);
         self.notice_window(ctx);
+        self.kiod_window(ctx);
         self.address_window(ctx);
         self.paste_window(ctx);
         self.transfer_window(ctx);
