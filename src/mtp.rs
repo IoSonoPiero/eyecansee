@@ -111,6 +111,44 @@ enum Release {
 /// there the phone went back to "charging only" and opened once the user chose "File transfer").
 #[cfg(not(windows))]
 fn release_from_desktop(serial: &str) -> Release {
+    let (mut released, mut ask) = (false, false);
+    for (pid, comm) in holders(serial) {
+        if comm.starts_with("kiod") && !KIOD_ALLOWED.load(Ordering::Relaxed) {
+            ask = true;
+            continue;
+        }
+        released |= kill(&pid);
+    }
+    match (released, ask) {
+        (true, _) => Release::Done,
+        (false, true) => Release::AskKiod,
+        _ => Release::No,
+    }
+}
+
+/// KDE: when Dolphin asks for the phone while EyeCanSee has it, kiod starts again, cannot open it
+/// ("device is busy… Could not open MTP device") and never tries again: Dolphin then says the
+/// device "does not exist", also after EyeCanSee lets it go (Plasma 5, 2026-10-25). Called as
+/// EyeCanSee lets the phone go: terminated, kiod starts again when Dolphin asks, and opens it.
+/// Only once the user has allowed terminating kiod (it forgets network passwords).
+#[cfg(not(windows))]
+fn drop_stale_kiod(serial: &str) {
+    if !KIOD_ALLOWED.load(Ordering::Relaxed) {
+        return;
+    }
+    for (pid, comm) in holders(serial) {
+        if comm.starts_with("kiod") && kill(&pid) {
+            log!("stale {comm} ({pid:?}) terminated for phone {serial}");
+        }
+    }
+}
+
+#[cfg(windows)]
+fn drop_stale_kiod(_: &str) {}
+
+/// Desktop processes (gvfs, kiod) with the phone's USB file open: (pid, name).
+#[cfg(not(windows))]
+fn holders(serial: &str) -> Vec<(std::ffi::OsString, String)> {
     use std::fs::{read_dir, read_link, read_to_string};
     // The phone's USB file (/dev/bus/usb/001/006), from the serial.
     let Some(node) = read_dir("/sys/bus/usb/devices").into_iter().flatten().flatten().find_map(|d| {
@@ -118,12 +156,12 @@ fn release_from_desktop(serial: &str) -> Release {
         let uevent = read_to_string(d.path().join("uevent")).ok()?;
         uevent.lines().find_map(|l| l.strip_prefix("DEVNAME=")).map(|n| format!("/dev/{n}"))
     }) else {
-        return Release::No;
+        return Vec::new();
     };
-    let (mut released, mut ask) = (false, false);
+    let mut found = Vec::new();
     for p in read_dir("/proc").into_iter().flatten().flatten() {
-        let comm = read_to_string(p.path().join("comm")).unwrap_or_default();
-        if !matches!(comm.trim(), "gvfsd-mtp" | "gvfsd-gphoto2" | "kiod6" | "kiod5") {
+        let comm = read_to_string(p.path().join("comm")).unwrap_or_default().trim().to_string();
+        if !matches!(comm.as_str(), "gvfsd-mtp" | "gvfsd-gphoto2" | "kiod6" | "kiod5") {
             continue;
         }
         let holds = read_dir(p.path().join("fd"))
@@ -131,20 +169,16 @@ fn release_from_desktop(serial: &str) -> Release {
             .flatten()
             .flatten()
             .any(|f| read_link(f.path()).is_ok_and(|l| l.to_string_lossy() == node));
-        if !holds {
-            continue;
+        if holds {
+            found.push((p.file_name(), comm));
         }
-        if comm.starts_with("kiod") && !KIOD_ALLOWED.load(Ordering::Relaxed) {
-            ask = true;
-            continue;
-        }
-        released |= std::process::Command::new("kill").arg(p.file_name()).status().is_ok_and(|s| s.success());
     }
-    match (released, ask) {
-        (true, _) => Release::Done,
-        (false, true) => Release::AskKiod,
-        _ => Release::No,
-    }
+    found
+}
+
+#[cfg(not(windows))]
+fn kill(pid: &std::ffi::OsStr) -> bool {
+    std::process::Command::new("kill").arg(pid).status().is_ok_and(|s| s.success())
 }
 
 /// While opening, an error with no message of its own means the phone is not ready yet: in
@@ -154,6 +188,14 @@ fn not_ready((id, detail): Error) -> Error {
     (if id == "error-detail" { "error-not-ready" } else { id }, detail)
 }
 
+impl Drop for Phone {
+    fn drop(&mut self) {
+        if self.open.initialized() {
+            drop_stale_kiod(&self.serial);
+        }
+    }
+}
+
 /// Phones in use, by serial: the clipboard can keep the source of a copy, and a second opening
 /// of the same phone would find it busy.
 static PHONES: Mutex<Vec<(String, Weak<Phone>)>> = Mutex::new(Vec::new());
@@ -161,6 +203,15 @@ static PHONES: Mutex<Vec<(String, Weak<Phone>)>> = Mutex::new(Vec::new());
 impl Phone {
     pub fn new(serial: &str) -> Self {
         Self { serial: serial.to_string(), open: OnceCell::new(), handles: Mutex::default(), complete: Mutex::default(), turn: tokio::sync::Mutex::const_new(()) }
+    }
+
+    /// The phones EyeCanSee has open, at exit: their Phone may never be dropped.
+    pub fn let_go_all() {
+        for (serial, p) in PHONES.lock().unwrap().iter() {
+            if p.upgrade().is_some_and(|p| p.open.initialized()) {
+                drop_stale_kiod(serial);
+            }
+        }
     }
 
     /// The phone already in use with this serial, or a new one.

@@ -590,6 +590,7 @@ impl eframe::App for App {
             self.settings.last_location = Some(self.display(&self.dir));
         }
         self.settings.save();
+        mtp::Phone::let_go_all();
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
