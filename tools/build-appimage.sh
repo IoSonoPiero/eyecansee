@@ -8,6 +8,8 @@
 # Usage: tools/build-appimage.sh   (output in target/appimage/)
 #        tools/build-appimage.sh --check   (clippy and the tests with the same libraries, no AppImage;
 #                                           used by .github/workflows/check.yml)
+#        tools/build-appimage.sh --fast    (profile `release`: AppImage for tests, the end of the build
+#                                           uses every core; releases always use `dist`)
 # The cache (rustup, cargo, decoders, ImageMagick) is the podman volume eyecansee-appimage-cache, or the
 # folder in APPIMAGE_CACHE (used by GitHub Actions, which saves it between runs).
 set -euo pipefail
@@ -66,10 +68,12 @@ if [[ "${2:-}" == "--check" ]]; then
     cargo test --locked "${FEATURES[@]}"
     exit
 fi
+# Profile `dist` (Cargo.toml): smaller executable, slower build (fat LTO on one core).
+PROFILE=dist
+[[ "${2:-}" == "--fast" ]] && PROFILE=release
 # libheif caches the decoders it found in its CMake build folder: start clean every time.
-rm -rf "$CARGO_TARGET_DIR"/dist/build/libheif-sys-*
-# Profile `dist` (Cargo.toml): smaller executable, slower build.
-cargo build --profile dist --locked "${FEATURES[@]}"
+rm -rf "$CARGO_TARGET_DIR"/$PROFILE/build/libheif-sys-*
+cargo build --profile $PROFILE --locked "${FEATURES[@]}"
 
 VER=$(cat VERSION)
 APPDIR=$CARGO_TARGET_DIR/AppDir
@@ -91,6 +95,6 @@ LD=/cache/linuxdeploy-x86_64.AppImage
     chmod +x $LD; }
 cd "$CARGO_TARGET_DIR"
 APPIMAGE_EXTRACT_AND_RUN=1 LINUXDEPLOY_OUTPUT_VERSION=$VER $LD --appdir "$APPDIR" \
-    -e dist/eyecansee -d /src/assets/eyecansee.desktop -i /src/assets/eyecansee.svg --output appimage
+    -e $PROFILE/eyecansee -d /src/assets/eyecansee.desktop -i /src/assets/eyecansee.svg --output appimage
 chown "$(stat -c %u:%g /src)" EyeCanSee-*.AppImage
 ls -l EyeCanSee-*.AppImage
