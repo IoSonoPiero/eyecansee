@@ -3,11 +3,14 @@
 # warning for files over 800 lines. rustfmt is not used: the code does not follow its style.
 name: check
 
+# A commit that changes only the README is not checked: nothing built comes from it.
 on:
   push:
     branches: [main]
+    paths-ignore: [README.md]
   pull_request:
     branches: [main]
+    paths-ignore: [README.md]
 
 permissions:
   contents: read
