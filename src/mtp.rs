@@ -1,6 +1,6 @@
 //! Phones and cameras connected directly over MTP/PTP with `mtp-rs` (pure Rust), without going
-//! through the desktop's mount: also on GNOME, where the phone is taken away from gvfs
-//! (`release_from_gvfs`), because gvfs is extremely slow in large folders.
+//! through the desktop's mount: also on GNOME and KDE, where the phone is taken away from gvfs or
+//! kiod (`release_from_desktop`), because gvfs is extremely slow in large folders.
 //!
 //! Paths as for the other sources: the root lists the device's storages
 //! ("Internal shared storage/"), folders are below them. MTP works with numeric handles:
@@ -71,8 +71,8 @@ async fn open(serial: &str) -> Result<MtpDevice, mtp_rs::Error> {
 #[cfg(not(windows))]
 async fn open(serial: &str) -> Result<MtpDevice, mtp_rs::Error> {
     match MtpDevice::open_by_serial(serial).await {
-        Err(e) if e.is_exclusive_access() && release_from_gvfs(serial) => {
-            log!("phone {serial} released from gvfs");
+        Err(e) if e.is_exclusive_access() && release_from_desktop(serial) => {
+            log!("phone {serial} released from the desktop");
             tokio::time::sleep(std::time::Duration::from_millis(500)).await;
             MtpDevice::open_by_serial(serial).await
         }
@@ -85,8 +85,11 @@ async fn open(serial: &str) -> Result<MtpDevice, mtp_rs::Error> {
 /// `gio mount -u` instead put it back to "charging only"). gvfs does not take it back by itself:
 /// a click in Nautilus or the next connection remounts it. The direct connection is much faster
 /// in large folders (Pictures/9GAG: thumbnails in ~20 s instead of over 5 minutes).
+/// KDE: kiod6 holds it through its kmtpd module, which D-Bus cannot unload; terminated, kiod6 comes
+/// back on demand without kmtpd (verified on Kubuntu 26.04, 2026-10-25). It also forgets the
+/// passwords it kept for network folders. kiod5 (Plasma 5) is the same daemon [not tried].
 #[cfg(not(windows))]
-fn release_from_gvfs(serial: &str) -> bool {
+fn release_from_desktop(serial: &str) -> bool {
     use std::fs::{read_dir, read_link, read_to_string};
     // The phone's USB file (/dev/bus/usb/001/006), from the serial.
     let Some(node) = read_dir("/sys/bus/usb/devices").into_iter().flatten().flatten().find_map(|d| {
@@ -99,7 +102,7 @@ fn release_from_gvfs(serial: &str) -> bool {
     let mut released = false;
     for p in read_dir("/proc").into_iter().flatten().flatten() {
         let comm = read_to_string(p.path().join("comm")).unwrap_or_default();
-        if !matches!(comm.trim(), "gvfsd-mtp" | "gvfsd-gphoto2") {
+        if !matches!(comm.trim(), "gvfsd-mtp" | "gvfsd-gphoto2" | "kiod6" | "kiod5") {
             continue;
         }
         let holds = read_dir(p.path().join("fd"))

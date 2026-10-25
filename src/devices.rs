@@ -325,7 +325,7 @@ pub fn scan() -> Vec<Device> {
         for (entry, path) in entries(&Path::new(&run).join("gvfs")) {
             if let Some((name, serial)) = gvfs_name(&entry) {
                 // A phone the direct connection sees opens directly even if gvfs mounted it
-                // (`mtp::release_from_gvfs`): the mount remains only for the others (iPhone).
+                // (`mtp::release_from_desktop`): the mount remains only for the others (iPhone).
                 let direct = serial.as_ref().is_some_and(|s| usb.iter().any(|d| d.serial_number.as_ref() == Some(s)));
                 if direct && !entry.starts_with("afc:") {
                     continue;

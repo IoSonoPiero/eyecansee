@@ -106,7 +106,7 @@ When you connect a phone, a camera, an external disk, a USB stick or an SD card,
 
 - **Android phone**: on the phone choose **Transfer photos** (PTP) or **Transfer files** (MTP). With Transfer photos you only see the photo folders (`DCIM`, `Pictures`); with Transfer files the whole storage.
 - EyeCanSee connects to the phone directly, even if the desktop has already connected it (for example GNOME): this is much faster, especially in folders with hundreds of files. The device appears within a couple of seconds.
-- On GNOME, opening the phone in EyeCanSee takes it away from the file manager. To get it back, close EyeCanSee and click the phone in the file manager, or disconnect and reconnect it.
+- On GNOME and KDE, opening the phone in EyeCanSee takes it away from the file manager (on KDE it also forgets the passwords of network folders open in Dolphin, and asks for them again next time). To get it back, close EyeCanSee and click the phone in the file manager, or disconnect and reconnect it.
 - **"The device is in use by another application"**: another program holds the phone. If the desktop connected it, EyeCanSee switches to that connection by itself (slower: in folders with hundreds of files about one thumbnail per second); otherwise close the other program or disconnect and reconnect the phone.
 - **"The device shows no storage"**: the phone was locked or set to "charging only" when it was connected: unlock it and choose File transfer. EyeCanSee retries by itself every 2 seconds and shows the storage as soon as it appears, no need for F5.
 - **"The device was not found"**: the phone is reconnecting (it does so when you choose File transfer) or has been unplugged. EyeCanSee retries by itself every 2 seconds, no need for F5.
