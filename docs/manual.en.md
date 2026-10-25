@@ -79,7 +79,7 @@ The results fill the window. Every group of identical images has its thumbnail (
 
 At the start every group keeps its first copy. **Order** decides which one is first, for all the groups: **Date, oldest first** (with the same date, the shorter path), **Shortest name** (copies usually have something added to the name, such as "photo copy.jpg" or "photo (2).jpg": so the original stays even when the dates are the same; when the names are as long, as Date) or **Path** (alphabetical order of folder and name). **Keep the first**, **Keep the last** and **Keep all** mark every group at once; then you can change single boxes. The line at the bottom says how many groups there are, how many copies will be deleted and how much space is freed. **Delete the marked copies…** asks for confirmation and deletes them as **Del** does (trash, the folder's Trash or for good, as in the Options). **Close** or **Esc** closes the results.
 
-With the keyboard: **↑** and **↓** move between the copies of all the groups, **Space** ticks or unticks, **Enter** deletes the marked copies, **Esc** closes.
+With the keyboard: **↑** and **↓** move between the copies of all the groups, **Space** ticks or unticks, **Esc** closes. Deleting is done with the **Delete the marked copies…** button: Enter does not delete.
 
 ## Saving in another format
 

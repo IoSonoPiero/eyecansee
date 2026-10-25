@@ -79,7 +79,7 @@ I risultati occupano tutta la finestra. Ogni gruppo di immagini identiche ha la 
 
 All'inizio ogni gruppo tiene la sua prima copia. **Ordine** decide qual è la prima, per tutti i gruppi: **Data, dalla più vecchia** (a parità di data, il percorso più corto), **Nome più corto** (le copie di solito hanno qualcosa in più nel nome, come "foto copia.jpg" o "foto (2).jpg": così resta l'originale anche quando le date sono uguali; a parità, come Data) oppure **Percorso** (ordine alfabetico di cartella e nome). **Tieni la prima**, **Tieni l'ultima** e **Tienile tutte** segnano tutti i gruppi insieme; poi puoi cambiare le singole caselle. La riga in basso dice quanti gruppi ci sono, quante copie verranno eliminate e quanto spazio si libera. **Elimina le copie segnate…** chiede conferma e le elimina come fa **Canc** (cestino, Cestino della cartella o definitivamente, come nelle Opzioni). **Chiudi** o **Esc** chiude i risultati.
 
-Con la tastiera: **↑** e **↓** passano da una copia all'altra di tutti i gruppi, **Spazio** spunta o toglie la spunta, **Invio** elimina le copie segnate, **Esc** chiude.
+Con la tastiera: **↑** e **↓** passano da una copia all'altra di tutti i gruppi, **Spazio** spunta o toglie la spunta, **Esc** chiude. Per eliminare si usa il pulsante **Elimina le copie segnate…**: Invio non elimina.
 
 ## Salvare in un altro formato
 

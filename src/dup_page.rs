@@ -195,7 +195,7 @@ impl App {
             let tex = image.map(|i| ctx.load_texture(format!("dup-{path}"), i, egui::TextureOptions::LINEAR));
             w.thumbs.insert(path, Some(tex));
         }
-        let (mut close, mut delete) = dup_keys(&ctx, &mut w);
+        let (mut close, mut delete) = (dup_keys(&ctx, &mut w), false);
         egui::Panel::top("dup-head").show(ui, |ui| close |= !self.dup_header(ui, &mut w));
         egui::Panel::bottom("dup-foot").show(ui, |ui| {
             let (c, d) = self.dup_footer(ui, &w);
@@ -274,7 +274,7 @@ impl App {
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let label = egui::RichText::new(self.i18n.t("dup-delete")).family(egui::FontFamily::Name(BOLD.into()));
-                delete = ui.add_enabled(n > 0 && self.deleting == 0, egui::Button::new(label)).on_hover_text(self.i18n.t("key-enter")).clicked();
+                delete = ui.add_enabled(n > 0 && self.deleting == 0, egui::Button::new(label)).clicked();
                 close = ui.button(self.i18n.t("notice-close")).on_hover_text("Esc").clicked();
             });
         });
@@ -414,16 +414,16 @@ fn clamp(groups: &[Group], (g, i): (usize, usize)) -> (usize, usize) {
     }
 }
 
-/// Arrows move between the copies of every group, Space marks, Enter deletes, Esc closes:
-/// (close, delete).
-fn dup_keys(ctx: &egui::Context, w: &mut Window) -> (bool, bool) {
+/// Arrows move between the copies of every group, Space marks, Esc closes (`true`). Enter does
+/// not delete: in a list it reads as "choose", only the button deletes.
+fn dup_keys(ctx: &egui::Context, w: &mut Window) -> bool {
     if ctx.egui_wants_keyboard_input() {
-        return (false, false);
+        return false;
     }
-    let (up, down, space, enter, esc) = ctx.input(|i| {
-        (i.key_pressed(Key::ArrowUp), i.key_pressed(Key::ArrowDown), i.key_pressed(Key::Space), i.key_pressed(Key::Enter), i.key_pressed(Key::Escape))
+    let (up, down, space, esc) = ctx.input(|i| {
+        (i.key_pressed(Key::ArrowUp), i.key_pressed(Key::ArrowDown), i.key_pressed(Key::Space), i.key_pressed(Key::Escape))
     });
-    let Some(groups) = w.groups.as_mut().filter(|g| !g.is_empty()) else { return (esc, false) };
+    let Some(groups) = w.groups.as_mut().filter(|g| !g.is_empty()) else { return esc };
     let (g, i) = clamp(groups, w.row);
     w.row = match () {
         _ if down && i + 1 < groups[g].files.len() => (g, i + 1),
@@ -436,5 +436,5 @@ fn dup_keys(ctx: &egui::Context, w: &mut Window) -> (bool, bool) {
     if space {
         groups[w.row.0].toggle(w.row.1);
     }
-    (esc, enter)
+    esc
 }
