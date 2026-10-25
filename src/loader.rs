@@ -488,7 +488,7 @@ async fn thumb_worker(
 }
 
 /// From the disk cache if present, otherwise generated and saved.
-async fn thumbnail(op: &Store, base: &str, file: File) -> Result<ColorImage, String> {
+pub(crate) async fn thumbnail(op: &Store, base: &str, file: File) -> Result<ColorImage, String> {
     let cached = {
         let (base, file) = (base.to_string(), file.clone());
         tokio::task::spawn_blocking(move || thumbcache::load(&base, &file)).await.ok().flatten()

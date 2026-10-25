@@ -181,6 +181,12 @@ impl App {
             return;
         }
         let paths = self.chosen(path);
+        self.ask_delete_paths(paths, permanent, None);
+    }
+
+    /// The confirmation for `paths`; `size` of their images, when the open folder cannot tell it
+    /// (the duplicates, from any folder).
+    pub(crate) fn ask_delete_paths(&mut self, paths: Vec<String>, permanent: bool, size: Option<u64>) {
         let Some(path) = paths.first().cloned() else { return };
         let Some(loader) = &self.loader else { return };
         // In the trash everything goes for good: there is no trash of the trash.
@@ -189,12 +195,12 @@ impl App {
             false => loader.deletion(&path, self.settings.local_permanent, self.settings.remote_delete),
         };
         log!("delete? {paths:?} {how:?}");
-        let size = match paths.len() {
+        let size = size.or_else(|| match paths.len() {
             1 => self.listings.get(&source::parent(&path)).and_then(|l| l.as_ref().ok()).and_then(|l| {
                 l.files.iter().find(|f| f.path == path).map(|f| f.size)
             }),
             _ => Some(self.images_size(&paths)),
-        };
+        });
         let ntfs = how == source::Deletion::SystemTrash && !self.base.contains("://") && devices::on_ntfs(&format!("/{}", path.trim_end_matches('/')));
         self.delete_confirm = Some((paths, size, how, ntfs));
     }
@@ -217,7 +223,12 @@ impl App {
         };
         let size = size.map(|s| self.human_size(s)).unwrap_or_default();
         let n = paths.len().to_string();
-        let mut text = self.i18n.t_args(&id, &[("name", &crate::save_dialogs::md(source::name(path))), ("size", &size), ("n", &n)]);
+        let folders = match paths.iter().any(|p| p.ends_with('/')) {
+            true => format!(" {}", self.i18n.t("delete-many-folders")),
+            false => String::new(),
+        };
+        let args = [("name", &crate::save_dialogs::md(source::name(path))), ("size", &size), ("n", &n), ("folders", &folders)];
+        let mut text = self.i18n.t_args(&id, &args.map(|(k, v)| (k, v.as_str())));
         if ntfs {
             text = format!("{text}\n\n{}", self.i18n.t("delete-ntfs"));
         }

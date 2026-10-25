@@ -144,6 +144,7 @@ impl App {
                 // An emptied trash going away comes as one more: never below zero.
                 self.deleting = self.deleting.saturating_sub(1);
                 self.remove_item(&path, how == source::Deletion::TrashFolder);
+                self.dup_deleted(&path);
             }
             (path, _, Err((id, detail))) => {
                 log!("delete {path:?}: ERROR {id} {detail}");

@@ -180,11 +180,12 @@ delete-confirm-folder = Move **"{ $name }"** ({ $size }) to **this folder's Tras
 
     You can **restore** it in EyeCanSee with **Open the trash**, at the top of the grid.
 delete-confirm-permanent = Delete **"{ $name }"** ({ $size }) **for good**? **It cannot be undone.**
-delete-confirm-many-trash = Move **{ $n } items to the trash**? Images: { $size }. Folders go with everything inside them.
-delete-confirm-many-folder = Move **{ $n } items** to **this folder's Trash** (the hidden folder .EyeCanSee-trash)? Images: { $size }. Folders go with everything inside them.
+delete-confirm-many-trash = Move **{ $n } items to the trash**? Images: { $size }.{ $folders }
+delete-confirm-many-folder = Move **{ $n } items** to **the Trash of their folder** (the hidden folder .EyeCanSee-trash)? Images: { $size }.{ $folders }
 
     You can **restore** them in EyeCanSee with **Open the trash**, at the top of the grid.
-delete-confirm-many-permanent = Delete **{ $n } items for good**? Images: { $size }. Folders go with everything inside them. **It cannot be undone.**
+delete-confirm-many-permanent = Delete **{ $n } items for good**? Images: { $size }.{ $folders } **It cannot be undone.**
+delete-many-folders = Folders go with everything inside them.
 delete-yes = Delete
 delete-no = Cancel
 error-no-trash-folder = This source cannot move files into the trash folder: choose "Delete for good" in the Options. ({ $detail })
@@ -329,3 +330,27 @@ kiod-ask = KDE is holding the phone through its kiod service, the one Dolphin us
 
     This **does not depend on EyeCanSee**: KDE keeps phones and those passwords in the same service, and lets nobody release only the phone.
 kiod-ok = OK
+
+# Find duplicates
+menu-duplicates = Find duplicates…
+dup-ask = Look for identical images in **{ $folder }**? Identical means the same file, byte for byte.
+dup-sub = Also in subfolders
+dup-phone = On a phone this takes time: every image that could be a copy is read in full.
+dup-search = Search
+dup-searching = Looking for identical images…
+dup-progress = Examined { $n } files out of { $m }, { $size } read
+dup-title = Duplicates in { $folder }
+dup-order = Order
+dup-by-date = Date, oldest first
+dup-by-path = Path
+dup-keep-first = Keep the first
+dup-keep-last = Keep the last
+dup-keep-all = Keep all
+dup-group = { $n } identical copies, { $size } each
+dup-stays = Stays
+dup-mark = Delete this copy
+dup-last-one = At least one copy stays
+dup-view = Open in the viewer
+dup-summary = Groups: { $groups }. Copies to delete: { $n }, freeing { $size }.
+dup-delete = Delete the marked copies…
+dup-none = No duplicates in this folder.

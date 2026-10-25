@@ -153,6 +153,10 @@ impl App {
             if !self.dir.is_empty() {
                 items.push(Some((t("menu-parent"), t("key-backspace"), Act::Up)));
             }
+            if !source::is_trash(&self.dir) {
+                items.push(None);
+                items.push(Some((t("menu-duplicates"), String::new(), Act::Duplicates(None))));
+            }
             // Inside the trash: what its own right-click menu offered when it was a cell.
             if source::is_trash(&self.dir) {
                 let dir = Some(self.dir.clone());

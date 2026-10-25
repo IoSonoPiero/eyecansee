@@ -179,11 +179,12 @@ delete-confirm-folder = Spostare **"{ $name }"** ({ $size }) nel **Cestino di qu
 
     Potrai **ripristinarlo** da EyeCanSee con **Apri il cestino**, in cima alla griglia.
 delete-confirm-permanent = Eliminare **definitivamente** **"{ $name }"** ({ $size })? **Non si può annullare.**
-delete-confirm-many-trash = Spostare **{ $n } elementi nel cestino**? Immagini: { $size }. Le cartelle vanno con tutto il loro contenuto.
-delete-confirm-many-folder = Spostare **{ $n } elementi** nel **Cestino di questa cartella** (la cartella nascosta .EyeCanSee-trash)? Immagini: { $size }. Le cartelle vanno con tutto il loro contenuto.
+delete-confirm-many-trash = Spostare **{ $n } elementi nel cestino**? Immagini: { $size }.{ $folders }
+delete-confirm-many-folder = Spostare **{ $n } elementi** nel **Cestino della loro cartella** (la cartella nascosta .EyeCanSee-trash)? Immagini: { $size }.{ $folders }
 
     Potrai **ripristinarli** da EyeCanSee con **Apri il cestino**, in cima alla griglia.
-delete-confirm-many-permanent = Eliminare **definitivamente { $n } elementi**? Immagini: { $size }. Le cartelle vanno con tutto il loro contenuto. **Non si può annullare.**
+delete-confirm-many-permanent = Eliminare **definitivamente { $n } elementi**? Immagini: { $size }.{ $folders } **Non si può annullare.**
+delete-many-folders = Le cartelle vanno con tutto il loro contenuto.
 delete-yes = Elimina
 delete-no = Annulla
 error-no-trash-folder = Questa sorgente non può spostare i file nella cartella cestino: scegli "Elimina definitivamente" nelle Opzioni. ({ $detail })
@@ -328,3 +329,27 @@ kiod-ask = KDE tiene il telefono con il suo servizio kiod, quello che Dolphin us
 
     Questo **non dipende da EyeCanSee**: KDE tiene i telefoni e quelle password nello stesso servizio, e non permette di liberare solo il telefono.
 kiod-ok = OK
+
+# Trova duplicati
+menu-duplicates = Trova duplicati…
+dup-ask = Cercare le immagini identiche in **{ $folder }**? Identiche vuol dire lo stesso file, byte per byte.
+dup-sub = Anche nelle sottocartelle
+dup-phone = Sul telefono ci vuole tempo: ogni immagine che potrebbe essere una copia viene letta per intero.
+dup-search = Cerca
+dup-searching = Ricerca delle immagini identiche…
+dup-progress = Esaminati { $n } file su { $m }, { $size } letti
+dup-title = Duplicati in { $folder }
+dup-order = Ordine
+dup-by-date = Data, dalla più vecchia
+dup-by-path = Percorso
+dup-keep-first = Tieni la prima
+dup-keep-last = Tieni l'ultima
+dup-keep-all = Tienile tutte
+dup-group = { $n } copie identiche, { $size } ciascuna
+dup-stays = Resta
+dup-mark = Elimina questa copia
+dup-last-one = Almeno una copia resta
+dup-view = Apri nel visore
+dup-summary = Gruppi: { $groups }. Copie da eliminare: { $n }, spazio liberato { $size }.
+dup-delete = Elimina le copie segnate…
+dup-none = Nessun duplicato in questa cartella.

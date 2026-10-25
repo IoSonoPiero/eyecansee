@@ -29,6 +29,8 @@ mod confirm;
 mod convert;
 mod decode;
 mod devices;
+mod dup_page;
+mod duplicates;
 mod encode;
 mod file_dialogs;
 mod grid;
@@ -229,6 +231,8 @@ struct App {
     update_note: Option<String>,
     /// "Save in another format" window.
     convert: Option<convert::Window>,
+    /// Find duplicates: the search and its results page.
+    duplicates: Option<dup_page::Window>,
     title: String,
     help: bool,
     about: bool,
@@ -365,6 +369,7 @@ impl App {
             update: None,
             update_note: None,
             convert: None,
+            duplicates: None,
             maintained: HashSet::new(),
             delete_confirm: None,
             delete_answer: None,
@@ -434,8 +439,8 @@ impl App {
         self.receive(ctx);
         self.retry(ctx);
         self.reread_changed(ctx);
-        // "Save in another format" covers the window: the keys must not reach the grid under it.
-        if self.convert.is_none() {
+        // "Save in another format" and the duplicates cover the window: the keys must not reach the grid under them.
+        if self.convert.is_none() && !self.dup_page_shown() {
             self.global_keys(ctx);
             if self.viewing.is_some() {
                 self.viewer_keys(ctx);
@@ -458,6 +463,8 @@ impl App {
     fn panels(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         if self.convert.is_some() {
             egui::CentralPanel::default().show(ui, |ui| self.convert_page(ui));
+        } else if self.dup_page_shown() {
+            self.dup_page(ui);
         } else {
             egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
             egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui, ctx));
@@ -516,6 +523,7 @@ impl App {
         if let Some(a) = self.act.take() {
             self.run(ctx, a);
         }
+        self.duplicates_window(ctx);
         self.delete_window(ctx);
         self.save_window(ctx);
         self.batch_turn_window(ctx);

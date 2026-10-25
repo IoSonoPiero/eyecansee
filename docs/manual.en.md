@@ -4,7 +4,7 @@ Press **F1** at any time to open or close this manual.
 
 ## The window
 
-- **Menu bar**: File, View, Go, Help. The version number is on the right; **Help → About EyeCanSee** shows the version, the author, the license and the link to the source code. Every action you can do with the keyboard or a double click also has a menu item, with its key shown next to it.
+- **Menu bar**: File, Image, View, Go, Help. The version number is on the right; **Help → About EyeCanSee** shows the version, the author, the license and the link to the source code. Every action you can do with the keyboard or a double click also has a menu item, with its key shown next to it.
 - **Toolbar**: parent folder, refresh, metadata (ℹ), the address bar, the image order and the thumbnail size slider.
 - **Folder tree** on the left, under **This computer** (and under **Devices** if you have any connected): click a folder to show its content. Folders open only when you expand them, so remote sources stay fast. When you change folder, also from the grid, the tree opens down to that folder and highlights it.
 - **Grid** on the right: the **..** cell to go up one level (not at the top of a disk or device), the subfolders, then the images as thumbnails, spread over the whole width. When you enter a folder nothing is selected; when you go up, the folder you came from is selected.
@@ -68,6 +68,18 @@ The top folder of a source and the storages of a phone cannot be deleted or rena
 **The trash of phones and servers** (and of USB sticks on Windows): every folder where you deleted something has a **Trash**: a strip at the top of the grid says so, with the **Open the trash** button. Inside it the strip says whose trash it is and has **Restore all** and **Empty the trash…**. Inside it you can look at the images, **restore** them (they go back to the folder containing the trash) or delete them for good: there **Del** always deletes forever, and there is no Rename. Right click on an empty space inside the Trash: **Restore all** and **Empty the trash…** (everything deleted forever, after a confirmation). A trash left empty, after restoring or deleting what was inside it, goes away together with its strip.
 
 If the name of an item being restored is already taken, EyeCanSee asks what to do: for a file **Replace** (the one already there is deleted) or **Keep both** (the restored one becomes for example `photo (2).jpg`); for a folder **Merge** (the contents add up; files with the same name are both kept) or **Keep both**. **Cancel** also stops the rest of a Restore all. In the trash too a name already there becomes `photo (2).jpg`.
+
+## Finding duplicates
+
+**Image > Find duplicates…**, or **Find duplicates…** from the right click on a folder (or on an empty space of the grid, for the open folder), looks for identical images: the same file byte for byte, even under another name or in another folder. Images that were resized or saved again are not identical and are not found. It works on every source: computer, external disks, phones and servers.
+
+First choose whether to look **Also in subfolders** (on by default), then **Search** (**Enter**; **Esc** cancels). A window shows how many images have been examined out of those found and how much has been read; **Cancel** stops the search. Only images with the same size are read and compared, so on a computer it is quick; on a phone every image that could be a copy is read in full, and it takes time.
+
+The results fill the window. Every group of identical images has its thumbnail (click it to open the image in the viewer; **Esc** brings you back to the results) and one line per copy, with its date and its path below the folder searched (the full path when you point at it). The box on each line means **delete this copy**: the copies to delete are faded and struck through, the one that stays says **Stays**. At least one copy of every group always stays: the last box left unticked cannot be ticked.
+
+At the start every group keeps its first copy. **Order** decides which one is first, for all the groups: **Date, oldest first** (with the same date, the shorter path) or **Path**. **Keep the first**, **Keep the last** and **Keep all** mark every group at once; then you can change single boxes. The line at the bottom says how many groups there are, how many copies will be deleted and how much space is freed. **Delete the marked copies…** asks for confirmation and deletes them as **Del** does (trash, the folder's Trash or for good, as in the Options). **Close** or **Esc** closes the results.
+
+With the keyboard: **↑** and **↓** move between the copies of all the groups, **Space** ticks or unticks, **Enter** deletes the marked copies, **Esc** closes.
 
 ## Saving in another format
 

@@ -82,6 +82,10 @@ impl App {
             if target.ends_with('/') && !copied && self.can_paste(&target) {
                 items.push(Some((t("menu-paste-into"), String::new(), Act::Paste(Some(target.clone())))));
             }
+            if target.ends_with('/') {
+                items.push(None);
+                items.push(Some((t("menu-duplicates"), String::new(), Act::Duplicates(Some(target.clone())))));
+            }
             items.push(None);
             items.push(Some((t("menu-rename"), "F2".into(), Act::Rename(path.clone()))));
             // Flips and turns: in the viewer shown until saved, in the grid saved straight away.

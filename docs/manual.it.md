@@ -4,7 +4,7 @@ Premi **F1** in qualsiasi momento per aprire o chiudere questo manuale.
 
 ## La finestra
 
-- **Barra dei menù**: File, Visualizza, Vai, Aiuto. A destra il numero di versione; **Aiuto → Informazioni su EyeCanSee** mostra versione, autore, licenza e il link al codice sorgente. Ogni azione che si fa con la tastiera o col doppio clic ha anche una voce di menù, con il tasto scritto accanto.
+- **Barra dei menù**: File, Immagine, Visualizza, Vai, Aiuto. A destra il numero di versione; **Aiuto → Informazioni su EyeCanSee** mostra versione, autore, licenza e il link al codice sorgente. Ogni azione che si fa con la tastiera o col doppio clic ha anche una voce di menù, con il tasto scritto accanto.
 - **Barra strumenti**: cartella superiore, aggiorna, metadati (ℹ), barra degli indirizzi, ordine delle immagini e cursore per la dimensione delle miniature.
 - **Albero delle cartelle** a sinistra, sotto **Questo computer** (e sotto **Dispositivi** se ne hai collegati): clic su una cartella per mostrarne il contenuto. Le cartelle vengono lette solo quando le espandi, così le sorgenti remote restano veloci. Quando cambi cartella, anche dalla griglia, l'albero si apre fino a quella cartella e la evidenzia.
 - **Griglia** a destra: la cella **..** per salire di un livello (non in cima a un disco o a un dispositivo), le sottocartelle, poi le immagini come miniature, distribuite su tutta la larghezza. Entrando in una cartella nessun elemento è selezionato; risalendo è selezionata la cartella da cui vieni.
@@ -68,6 +68,18 @@ Non si possono eliminare né rinominare la cartella principale di una sorgente e
 **Il cestino di telefoni e server** (e delle chiavette su Windows): ogni cartella in cui hai eliminato qualcosa ha un **Cestino**: lo dice una striscia in cima alla griglia, col pulsante **Apri il cestino**. Dentro il cestino la striscia dice di quale cartella è e ha **Ripristina tutto** e **Svuota il cestino…**. Dentro puoi guardare le immagini, **ripristinarle** (tornano nella cartella che contiene il cestino) o eliminarle definitivamente: lì **Canc** elimina sempre per sempre, e Rinomina non c'è. Col clic destro su uno spazio vuoto dentro il Cestino: **Ripristina tutto** e **Svuota il cestino…** (tutto eliminato per sempre, dopo una conferma). Un cestino rimasto vuoto, dopo aver ripristinato o eliminato quello che conteneva, sparisce insieme alla sua striscia.
 
 Se ripristinando un elemento il suo nome è già usato, EyeCanSee chiede cosa fare: per un file **Sostituisci** (quello presente viene eliminato) o **Tieni entrambi** (il ripristinato diventa per esempio `foto (2).jpg`); per una cartella **Unisci** (i contenuti si sommano; i file con lo stesso nome restano tutti e due) o **Tieni entrambi**. **Annulla** ferma anche il resto di un Ripristina tutto. Anche nel cestino un nome già presente diventa `foto (2).jpg`.
+
+## Trovare i duplicati
+
+**Immagine > Trova duplicati…**, oppure **Trova duplicati…** dal clic destro su una cartella (o su uno spazio vuoto della griglia, per la cartella aperta), cerca le immagini identiche: lo stesso file byte per byte, anche con un altro nome o in un'altra cartella. Le immagini ridimensionate o salvate di nuovo non sono identiche e non vengono trovate. Funziona su tutte le sorgenti: computer, dischi esterni, telefoni e server.
+
+Prima scegli se cercare **Anche nelle sottocartelle** (attiva all'inizio), poi **Cerca** (**Invio**; **Esc** annulla). Una finestra mostra quante immagini sono state esaminate su quelle trovate e quanto è stato letto; **Annulla** ferma la ricerca. Vengono lette e confrontate solo le immagini con la stessa dimensione, quindi sul computer è veloce; sul telefono ogni immagine che potrebbe essere una copia viene letta per intero, e ci vuole tempo.
+
+I risultati occupano tutta la finestra. Ogni gruppo di immagini identiche ha la sua miniatura (un clic la apre nel visore; **Esc** riporta ai risultati) e una riga per ogni copia, con la data e il percorso sotto la cartella cercata (il percorso intero passandoci sopra col mouse). La casella di ogni riga vuol dire **elimina questa copia**: le copie da eliminare sono attenuate e barrate, quella che resta dice **Resta**. Almeno una copia di ogni gruppo resta sempre: l'ultima casella rimasta vuota non si può spuntare.
+
+All'inizio ogni gruppo tiene la sua prima copia. **Ordine** decide qual è la prima, per tutti i gruppi: **Data, dalla più vecchia** (a parità di data, il percorso più corto) oppure **Percorso**. **Tieni la prima**, **Tieni l'ultima** e **Tienile tutte** segnano tutti i gruppi insieme; poi puoi cambiare le singole caselle. La riga in basso dice quanti gruppi ci sono, quante copie verranno eliminate e quanto spazio si libera. **Elimina le copie segnate…** chiede conferma e le elimina come fa **Canc** (cestino, Cestino della cartella o definitivamente, come nelle Opzioni). **Chiudi** o **Esc** chiude i risultati.
+
+Con la tastiera: **↑** e **↓** passano da una copia all'altra di tutti i gruppi, **Spazio** spunta o toglie la spunta, **Invio** elimina le copie segnate, **Esc** chiude.
 
 ## Salvare in un altro formato
 

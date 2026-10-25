@@ -56,6 +56,8 @@ impl App {
                         }
                     });
                 });
+                ui.separator();
+                entry(ui, !viewing && self.loader.is_some() && !source::is_trash(&self.dir), egui::Button::new(t("menu-duplicates")), Act::Duplicates(None));
             });
             ui.menu_button(t("menu-view"), |ui| {
                 entry(ui, !viewing && has_items && self.cursor, item(t("menu-open-selected"), t("key-enter")), Act::Open);
