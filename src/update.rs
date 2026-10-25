@@ -18,7 +18,8 @@ const PUBLIC_KEYS: &[&str] = &["RWRgiMFmEPRN5JASovMqT3NdY1Ui/mhebEzDTdsmKDiXno3K
 /// How this copy was installed.
 #[derive(Debug, Clone)]
 pub enum Kind {
-    /// Windows, Inno Setup: the new installer runs silently in the same mode (per user or for all).
+    /// Windows, Inno Setup: the new installer runs in the same mode (per user or for all), with only
+    /// its progress window (`/SILENT`): no questions, but on a slow PC it shows that something happens.
     Installer { all_users: bool },
     /// Windows zip: the files of the new zip replace the ones next to the exe.
     Zip,
@@ -249,7 +250,7 @@ pub fn apply(ready: &Ready) -> Result<(), String> {
             let mode = if *all_users { "/ALLUSERS" } else { "/CURRENTUSER" };
             powershell(&format!(
                 "Wait-Process -Id {pid} -ErrorAction SilentlyContinue; \
-                 Start-Process -Wait -FilePath {setup} -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','{mode}'; \
+                 Start-Process -Wait -FilePath {setup} -ArgumentList '/SILENT','/SUPPRESSMSGBOXES','/NORESTART','{mode}'; \
                  Remove-Item -LiteralPath {setup}; Start-Process -FilePath {exe}",
                 setup = quote(&ready.file),
                 exe = quote(&exe),
