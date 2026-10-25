@@ -206,9 +206,12 @@ impl Store {
     /// phones and servers (also when mounted by gvfs, which has no trash) follow `remote`.
     pub fn deletion(&self, path: &str, local_permanent: bool, remote: RemoteDelete) -> Deletion {
         match self {
-            Store::Dal(op) if op.info().scheme() == "fs" && !in_gvfs(&op.info().root(), path) => {
-                if local_permanent { Deletion::Permanent } else { Deletion::SystemTrash }
-            }
+            Store::Dal(op) if op.info().scheme() == "fs" && !in_gvfs(&op.info().root(), path) => match () {
+                _ if local_permanent => Deletion::Permanent,
+                _ if crate::devices::has_recycle_bin(&local_path(op, path)) => Deletion::SystemTrash,
+                // Windows USB stick, card or network drive: no Recycle Bin, our own trash folder.
+                _ => Deletion::TrashFolder,
+            },
             _ if remote == RemoteDelete::Permanent => Deletion::Permanent,
             _ => Deletion::TrashFolder,
         }

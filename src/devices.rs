@@ -144,6 +144,26 @@ pub fn gone_under(old: &[Device], new: &[Device], current: &str) -> bool {
         .any(|d| current.starts_with(&d.path) || current == d.path.trim_end_matches(['/', '\\']))
 }
 
+/// Does the drive of this path have a Recycle Bin? On Windows only fixed disks do: on USB sticks,
+/// cards and network drives "to the Recycle Bin" deletes for good, without a word (the `trash`
+/// crate asks with `FOF_NO_UI`, which also hides Windows' warning; NTFS stick, 2026-10-25).
+#[cfg(windows)]
+pub fn has_recycle_bin(path: &Path) -> bool {
+    use std::os::windows::ffi::OsStrExt;
+    use windows_sys::Win32::Storage::FileSystem::GetDriveTypeW;
+    const DRIVE_FIXED: u32 = 3;
+    // "D:\" for D:\Photos\a.jpg, "\\server\share\" for a network path.
+    let Some(root) = path.ancestors().last() else { return false };
+    let wide: Vec<u16> = root.as_os_str().encode_wide().chain([0]).collect();
+    // SAFETY: a NUL-terminated wide string that outlives the call.
+    unsafe { GetDriveTypeW(wide.as_ptr()) == DRIVE_FIXED }
+}
+
+#[cfg(not(windows))]
+pub fn has_recycle_bin(_: &Path) -> bool {
+    true
+}
+
 /// Is this absolute path on an NTFS disk? (Linux: `ntfs3`, or `fuseblk`, which is ntfs-3g on the
 /// usual desktops [Inference: exFAT through FUSE would also match].) There Nautilus does not
 /// restore from the trash, not even what GNOME itself put there (2026-10-22): the confirmation says so.
