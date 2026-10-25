@@ -364,6 +364,7 @@ dup-progress = Examined { $n } files out of { $m }, { $size } read
 dup-title = Duplicates in { $folder }
 dup-order = Order
 dup-by-date = Date, oldest first
+dup-by-name = Shortest name
 dup-by-path = Path
 dup-keep-first = Keep the first
 dup-keep-last = Keep the last

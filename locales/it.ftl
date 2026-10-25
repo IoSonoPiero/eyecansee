@@ -363,6 +363,7 @@ dup-progress = Esaminati { $n } file su { $m }, { $size } letti
 dup-title = Duplicati in { $folder }
 dup-order = Ordine
 dup-by-date = Data, dalla più vecchia
+dup-by-name = Nome più corto
 dup-by-path = Percorso
 dup-keep-first = Tieni la prima
 dup-keep-last = Tieni l'ultima

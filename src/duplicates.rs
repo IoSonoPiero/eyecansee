@@ -26,6 +26,9 @@ pub enum Order {
     /// Oldest first; with the same date (or none) the shorter path first.
     #[default]
     Date,
+    /// Shorter file name first ("photo.jpg" before "photo copy.jpg", "photo (2).jpg"): copies
+    /// usually get something added to the name. Then as `Date`.
+    Name,
     Path,
 }
 
@@ -57,9 +60,8 @@ impl Group {
     pub fn sort(&mut self, by: Order) {
         let mut both: Vec<(File, bool)> = self.files.drain(..).zip(self.delete.drain(..)).collect();
         match by {
-            Order::Date => both.sort_by_key(|(f, _)| {
-                (crate::human::parse_modified(&f.modified).map_or(i64::MAX, |t| t.as_second()), f.path.len(), f.path.clone())
-            }),
+            Order::Date => both.sort_by_key(|(f, _)| date_key(f)),
+            Order::Name => both.sort_by_key(|(f, _)| (crate::source::name(&f.path).chars().count(), date_key(f))),
             Order::Path => both.sort_by(|a, b| a.0.path.cmp(&b.0.path)),
         }
         (self.files, self.delete) = both.into_iter().unzip();
@@ -99,6 +101,11 @@ impl Group {
         }
         self.files.len() > 1
     }
+}
+
+/// Oldest first (no date last), then the shorter path, then the path.
+fn date_key(f: &File) -> (i64, usize, String) {
+    (crate::human::parse_modified(&f.modified).map_or(i64::MAX, |t| t.as_second()), f.path.chars().count(), f.path.clone())
 }
 
 /// The images of `dir` (and of its subfolders with `sub`) grouped by identical content, the
@@ -183,6 +190,9 @@ mod tests {
         assert_eq!(g.delete, [false, true, true]);
         g.toggle(1);
         assert!(g.can_toggle(0));
+        g.sort(Order::Name);
+        assert_eq!(g.files[0].path, "old.jpg");
+        assert_eq!(g.files[1].path, "a/longer/old.jpg");
         g.sort(Order::Path);
         assert_eq!(g.files[0].path, "a/longer/old.jpg");
         assert_eq!(g.delete, [false, true, false]);

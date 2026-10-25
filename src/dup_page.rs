@@ -242,7 +242,7 @@ impl App {
             egui::ComboBox::from_id_salt("dup-order")
                 .selected_text(t(order_label(w.order)))
                 .show_ui(ui, |ui| {
-                    for o in [Order::Date, Order::Path] {
+                    for o in [Order::Date, Order::Name, Order::Path] {
                         ui.selectable_value(&mut w.order, o, t(order_label(o)));
                     }
                 });
@@ -400,6 +400,7 @@ impl App {
 fn order_label(o: Order) -> &'static str {
     match o {
         Order::Date => "dup-by-date",
+        Order::Name => "dup-by-name",
         Order::Path => "dup-by-path",
     }
 }
