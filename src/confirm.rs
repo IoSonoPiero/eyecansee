@@ -5,7 +5,7 @@ use eframe::egui;
 
 use crate::App;
 
-/// A modal with `text`, one button per choice (greyed out when its flag is false) and `cancel`.
+/// A modal with `text` (`**bold**` and paragraphs, as in message windows), one button per choice (greyed out when its flag is false) and `cancel`.
 /// `Some(Some(choice))` for a choice, `Some(None)` for cancel; otherwise `answer` (from the keys),
 /// `None` while the window stays open.
 pub(crate) fn choose<T>(
@@ -19,7 +19,7 @@ pub(crate) fn choose<T>(
 ) -> Option<Option<T>> {
     egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
         ui.set_max_width(width);
-        ui.label(text);
+        crate::save_dialogs::notice_text(ui, &text);
         ui.add_space(8.0);
         ui.horizontal(|ui| {
             for (label, enabled, choice) in choices {

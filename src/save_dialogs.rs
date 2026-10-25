@@ -110,7 +110,7 @@ impl App {
             source::Deletion::TrashFolder => "save-confirm-folder",
             source::Deletion::Permanent => "save-confirm-permanent",
         };
-        let mut text = self.i18n.t_args(id, &[("name", source::name(&path))]);
+        let mut text = self.i18n.t_args(id, &[("name", &md(source::name(&path)))]);
         if lossy {
             text = format!("{text}\n\n{}", self.i18n.t("save-lossy"));
         }
@@ -160,7 +160,7 @@ impl App {
 
 /// Text of a message window: paragraphs apart, `**bold**`, lines starting with "- " as a list,
 /// `\` before a punctuation mark to keep it as it is (`md`).
-fn notice_text(ui: &mut egui::Ui, text: &str) {
+pub(crate) fn notice_text(ui: &mut egui::Ui, text: &str) {
     let font = egui::TextStyle::Body.resolve(ui.style());
     let bold = egui::FontId::new(font.size, egui::FontFamily::Name(BOLD.into()));
     let color = ui.visuals().text_color();

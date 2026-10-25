@@ -65,7 +65,7 @@ impl App {
         };
         let many = conflicts.len() > 1;
         let t = |id| self.i18n.t(id);
-        let text = self.i18n.t_args("paste-taken", &[("name", source::name(&path))]);
+        let text = self.i18n.t_args("paste-taken", &[("name", &crate::save_dialogs::md(source::name(&path)))]);
         let first = if path.ends_with('/') { t("restore-merge") } else { t("restore-replace") };
         let buttons = [
             (first, transfer::Choice::Replace),
@@ -76,7 +76,7 @@ impl App {
         let mut answer = self.delete_answer.take().and_then(|yes| (!yes).then_some(None));
         egui::Modal::new(egui::Id::unique("paste")).show(ctx, |ui| {
             ui.set_max_width(440.0);
-            ui.label(text);
+            crate::save_dialogs::notice_text(ui, &text);
             if many {
                 ui.checkbox(&mut ask.all, all_label);
             }
@@ -217,7 +217,7 @@ impl App {
         };
         let size = size.map(|s| self.human_size(s)).unwrap_or_default();
         let n = paths.len().to_string();
-        let mut text = self.i18n.t_args(&id, &[("name", source::name(path)), ("size", &size), ("n", &n)]);
+        let mut text = self.i18n.t_args(&id, &[("name", &crate::save_dialogs::md(source::name(path))), ("size", &size), ("n", &n)]);
         if ntfs {
             text = format!("{text}\n\n{}", self.i18n.t("delete-ntfs"));
         }
@@ -335,7 +335,7 @@ impl App {
         let Some(path) = self.restore_conflict.clone() else { return };
         let folder = path.ends_with('/');
         let place = source::name(&source::parent(&source::parent(&path))).to_string();
-        let text = self.i18n.t_args("restore-taken", &[("name", source::name(&path)), ("folder", &place)]);
+        let text = self.i18n.t_args("restore-taken", &[("name", &crate::save_dialogs::md(source::name(&path))), ("folder", &crate::save_dialogs::md(&place))]);
         let t = |id| self.i18n.t(id);
         let first = if folder {
             (t("restore-merge"), source::Conflict::Merge)

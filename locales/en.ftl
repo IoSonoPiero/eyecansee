@@ -36,7 +36,7 @@ menu-paste-into = Paste into this folder
 key-copy = Ctrl+C
 key-cut = Ctrl+X
 key-paste = Ctrl+V
-paste-taken = "{ $name }" is already in this folder.
+paste-taken = **"{ $name }"** is already in this folder.
 paste-skip = Skip
 paste-all = Do the same for all the other items with a name already there
 transfer-copying = Copying
@@ -169,16 +169,22 @@ rename-bad = Not a valid name
 rename-taken = There is already an item with this name in the folder
 error-exists = There is already an item with this name: { $detail }
 error-rename-unsupported = This source cannot rename this item. ({ $detail })
-delete-confirm-dir-trash = Move the folder "{ $name }", with everything inside it, to the trash?
-delete-confirm-dir-folder = Move the folder "{ $name }", with everything inside it, to the hidden folder .EyeCanSee-trash next to it? You can get it back from there with a file manager.
-delete-confirm-dir-permanent = Delete the folder "{ $name }" and everything inside it for good? It cannot be undone.
+delete-confirm-dir-trash = Move the folder **"{ $name }"**, with everything inside it, **to the trash**?
+delete-confirm-dir-folder = Move the folder **"{ $name }"**, with everything inside it, to **this folder's Trash** (the hidden folder .EyeCanSee-trash)?
+
+    You can **restore** it in EyeCanSee with **Open the trash**, at the top of the grid.
+delete-confirm-dir-permanent = Delete the folder **"{ $name }"** and everything inside it **for good**? **It cannot be undone.**
 key-shift-delete = Shift+Del
-delete-confirm-trash = Move "{ $name }" ({ $size }) to the trash?
-delete-confirm-folder = Move "{ $name }" ({ $size }) to the hidden folder .EyeCanSee-trash, in the same folder? You can get it back from there with a file manager.
-delete-confirm-permanent = Delete "{ $name }" ({ $size }) for good? It cannot be undone.
-delete-confirm-many-trash = Move { $n } items to the trash? Images: { $size }. Folders go with everything inside them.
-delete-confirm-many-folder = Move { $n } items to the hidden folder .EyeCanSee-trash, in the same folder? Images: { $size }. Folders go with everything inside them. You can get them back from there with a file manager.
-delete-confirm-many-permanent = Delete { $n } items for good? Images: { $size }. Folders go with everything inside them. It cannot be undone.
+delete-confirm-trash = Move **"{ $name }"** ({ $size }) **to the trash**?
+delete-confirm-folder = Move **"{ $name }"** ({ $size }) to **this folder's Trash** (the hidden folder .EyeCanSee-trash)?
+
+    You can **restore** it in EyeCanSee with **Open the trash**, at the top of the grid.
+delete-confirm-permanent = Delete **"{ $name }"** ({ $size }) **for good**? **It cannot be undone.**
+delete-confirm-many-trash = Move **{ $n } items to the trash**? Images: { $size }. Folders go with everything inside them.
+delete-confirm-many-folder = Move **{ $n } items** to **this folder's Trash** (the hidden folder .EyeCanSee-trash)? Images: { $size }. Folders go with everything inside them.
+
+    You can **restore** them in EyeCanSee with **Open the trash**, at the top of the grid.
+delete-confirm-many-permanent = Delete **{ $n } items for good**? Images: { $size }. Folders go with everything inside them. **It cannot be undone.**
 delete-yes = Delete
 delete-no = Cancel
 error-no-trash-folder = This source cannot move files into the trash folder: choose "Delete for good" in the Options. ({ $detail })
@@ -199,12 +205,12 @@ menu-empty-trash = Empty the trash…
 trash-bar-has = This folder has a trash
 trash-open = Open the trash
 trash-bar-inside = Trash of the folder { $folder }
-delete-confirm-empty-trash = Empty this trash? Everything inside it is deleted for good. It cannot be undone.
-restore-taken = In "{ $folder }" there is already an item named "{ $name }".
+delete-confirm-empty-trash = **Empty this trash?** Everything inside it is deleted **for good**. **It cannot be undone.**
+restore-taken = In **"{ $folder }"** there is already an item named **"{ $name }"**.
 restore-replace = Replace
 restore-keep-both = Keep both
 restore-merge = Merge
-delete-ntfs = This is an NTFS disk: the Files app (Nautilus) cannot restore from its trash. The file can still be restored from a terminal with "gio trash --restore" (see the manual, Known limits).
+delete-ntfs = This is an **NTFS disk**: the Files app (Nautilus) cannot restore from its trash. The file can still be restored from a terminal with "gio trash --restore" (see the manual, Known limits).
 
 opt-check-updates = Check for updates at startup
 opt-check-updates-hint = When EyeCanSee starts, it asks GitHub for the latest release. A newer version is downloaded in the background and checked; it is installed only when you click "Install … and restart". Windows (installer and zip) and the AppImage; on Fedora updates come with dnf.
@@ -280,27 +286,27 @@ menu-save = Save
 key-save = Ctrl+S
 menu-save-copy = Save as…
 key-save-copy = Ctrl+Shift+S
-save-confirm-trash = Save the changes over { $name }? The original goes to the trash.
-save-confirm-folder = Save the changes over { $name }? The original goes to the trash folder of this folder.
-save-confirm-permanent = Save the changes over { $name }? The original is deleted for good.
+save-confirm-trash = Save the changes over **{ $name }**? The original goes **to the trash**.
+save-confirm-folder = Save the changes over **{ $name }**? The original goes to **this folder's Trash**, where **Open the trash** restores it.
+save-confirm-permanent = Save the changes over **{ $name }**? The original is deleted **for good**.
 save-yes = Save
 save-failed = Cannot save: { $detail }
 status-modified = Changed, not saved
 status-saving = Saving…
-batch-turn-confirm = { $op }: up to { $n } images will be overwritten.
-batch-originals-trash = The originals go to the trash.
-batch-originals-folder = The originals go to the trash folder of this folder.
-batch-originals-permanent = The originals are deleted for good.
+batch-turn-confirm = **{ $op }**: up to **{ $n } images** will be overwritten.
+batch-originals-trash = The originals go **to the trash**.
+batch-originals-folder = The originals go to **this folder's Trash**, where **Open the trash** restores them.
+batch-originals-permanent = The originals are deleted **for good**.
 batch-lossy = JPEG files are rotated without losing quality when their sides are multiples of 16 pixels; the others, and WebP, AVIF and GIF, are encoded again and may lose a little quality.
-batch-skipped = { $n } images are left out: their format cannot be saved back (HEIC, RAW, PSD…).
+batch-skipped = **{ $n } images** are left out: their format cannot be saved back (HEIC, RAW, PSD…).
 status-saving-n = Saving: { $n }…
-save-lossy = This image is encoded again and may lose a little quality: a JPEG is rotated without loss only when its sides are multiples of 16 pixels, lossy WebP, AVIF and GIF are always encoded again.
+save-lossy = This image is **encoded again** and may lose a little quality: a JPEG is rotated without loss only when its sides are multiples of 16 pixels, lossy WebP, AVIF and GIF are always encoded again.
 save-skipped = The changes cannot be saved over **{ $detail }**: it is animated, has several pages or carries more than one picture (the video of a motion photo, a depth map), and those parts would be lost.
 save-animated = The changes cannot be saved over **{ $detail }**: it is animated, and saving over it would keep only the first frame.
 save-pages = The changes cannot be saved over **{ $detail }**: it has several pages, and saving over it would keep only the first one.
 save-extra = The changes cannot be saved over **{ $detail }**: it also carries the video of a motion photo or a depth map, which would be lost.
-save-no-rename = Images cannot be saved over themselves here: this source cannot rename files.
-batch-animated = Animated and multi-page images and motion photos are skipped.
+save-no-rename = Images **cannot be saved over themselves** here: this source cannot rename files.
+batch-animated = **Animated** and **multi-page** images and **motion photos** are skipped.
 batch-skipped-names = Left out, because they are animated, have several pages or are motion photos:
 batch-done = Images saved: **{ $n }**.
 save-format = The changes cannot be saved over **{ $name }**: EyeCanSee cannot write this format (HEIC, RAW, PSD…).
@@ -319,7 +325,7 @@ addr-password = Password
 addr-folder = Folder
 addr-bad-port = The port must be a number from 1 to 65535.
 addr-open = Open
-kiod-ask = KDE is holding the phone through its kiod service, the one Dolphin uses for phones. To open it, EyeCanSee has to close that service. KDE restarts it by itself, but it forgets the passwords of network folders (Samba, SFTP…) opened in Dolphin, and will ask for them again next time.
+kiod-ask = KDE is holding the phone through its kiod service, the one Dolphin uses for phones. To open it, EyeCanSee has to close that service. KDE restarts it by itself, but it **forgets the passwords of network folders** (Samba, SFTP…) opened in Dolphin, and will ask for them again next time.
 
-    This is not something EyeCanSee chooses: KDE keeps phones and those passwords in the same service, and lets nobody release only the phone.
+    This **does not depend on EyeCanSee**: KDE keeps phones and those passwords in the same service, and lets nobody release only the phone.
 kiod-ok = OK

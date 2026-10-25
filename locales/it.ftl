@@ -35,7 +35,7 @@ menu-paste-into = Incolla in questa cartella
 key-copy = Ctrl+C
 key-cut = Ctrl+X
 key-paste = Ctrl+V
-paste-taken = "{ $name }" è già in questa cartella.
+paste-taken = **"{ $name }"** è già in questa cartella.
 paste-skip = Salta
 paste-all = Fai lo stesso per tutti gli altri elementi con un nome già presente
 transfer-copying = Copia in corso
@@ -168,16 +168,22 @@ rename-bad = Nome non valido
 rename-taken = Nella cartella c'è già un elemento con questo nome
 error-exists = Esiste già un elemento con questo nome: { $detail }
 error-rename-unsupported = Questa sorgente non può rinominare questo elemento. ({ $detail })
-delete-confirm-dir-trash = Spostare la cartella "{ $name }", con tutto quello che contiene, nel cestino?
-delete-confirm-dir-folder = Spostare la cartella "{ $name }", con tutto quello che contiene, nella cartella nascosta .EyeCanSee-trash accanto a lei? Da lì si recupera con un gestore di file.
-delete-confirm-dir-permanent = Eliminare definitivamente la cartella "{ $name }" e tutto quello che contiene? Non si può annullare.
+delete-confirm-dir-trash = Spostare la cartella **"{ $name }"**, con tutto quello che contiene, **nel cestino**?
+delete-confirm-dir-folder = Spostare la cartella **"{ $name }"**, con tutto quello che contiene, nel **Cestino di questa cartella** (la cartella nascosta .EyeCanSee-trash)?
+
+    Potrai **ripristinarla** da EyeCanSee con **Apri il cestino**, in cima alla griglia.
+delete-confirm-dir-permanent = Eliminare **definitivamente** la cartella **"{ $name }"** e tutto quello che contiene? **Non si può annullare.**
 key-shift-delete = Maiusc+Canc
-delete-confirm-trash = Spostare "{ $name }" ({ $size }) nel cestino?
-delete-confirm-folder = Spostare "{ $name }" ({ $size }) nella cartella nascosta .EyeCanSee-trash, nella stessa cartella? Da lì si recupera con un gestore di file.
-delete-confirm-permanent = Eliminare definitivamente "{ $name }" ({ $size })? Non si può annullare.
-delete-confirm-many-trash = Spostare { $n } elementi nel cestino? Immagini: { $size }. Le cartelle vanno con tutto il loro contenuto.
-delete-confirm-many-folder = Spostare { $n } elementi nella cartella nascosta .EyeCanSee-trash, nella stessa cartella? Immagini: { $size }. Le cartelle vanno con tutto il loro contenuto. Da lì si recuperano con un gestore di file.
-delete-confirm-many-permanent = Eliminare definitivamente { $n } elementi? Immagini: { $size }. Le cartelle vanno con tutto il loro contenuto. Non si può annullare.
+delete-confirm-trash = Spostare **"{ $name }"** ({ $size }) **nel cestino**?
+delete-confirm-folder = Spostare **"{ $name }"** ({ $size }) nel **Cestino di questa cartella** (la cartella nascosta .EyeCanSee-trash)?
+
+    Potrai **ripristinarlo** da EyeCanSee con **Apri il cestino**, in cima alla griglia.
+delete-confirm-permanent = Eliminare **definitivamente** **"{ $name }"** ({ $size })? **Non si può annullare.**
+delete-confirm-many-trash = Spostare **{ $n } elementi nel cestino**? Immagini: { $size }. Le cartelle vanno con tutto il loro contenuto.
+delete-confirm-many-folder = Spostare **{ $n } elementi** nel **Cestino di questa cartella** (la cartella nascosta .EyeCanSee-trash)? Immagini: { $size }. Le cartelle vanno con tutto il loro contenuto.
+
+    Potrai **ripristinarli** da EyeCanSee con **Apri il cestino**, in cima alla griglia.
+delete-confirm-many-permanent = Eliminare **definitivamente { $n } elementi**? Immagini: { $size }. Le cartelle vanno con tutto il loro contenuto. **Non si può annullare.**
 delete-yes = Elimina
 delete-no = Annulla
 error-no-trash-folder = Questa sorgente non può spostare i file nella cartella cestino: scegli "Elimina definitivamente" nelle Opzioni. ({ $detail })
@@ -198,12 +204,12 @@ menu-empty-trash = Svuota il cestino…
 trash-bar-has = Questa cartella ha un cestino
 trash-open = Apri il cestino
 trash-bar-inside = Cestino della cartella { $folder }
-delete-confirm-empty-trash = Svuotare questo cestino? Tutto quello che contiene viene eliminato definitivamente. Non si può annullare.
-restore-taken = In "{ $folder }" c'è già un elemento chiamato "{ $name }".
+delete-confirm-empty-trash = **Svuotare questo cestino?** Tutto quello che contiene viene eliminato **definitivamente**. **Non si può annullare.**
+restore-taken = In **"{ $folder }"** c'è già un elemento chiamato **"{ $name }"**.
 restore-replace = Sostituisci
 restore-keep-both = Tieni entrambi
 restore-merge = Unisci
-delete-ntfs = Questo è un disco NTFS: l'app File (Nautilus) non riesce a ripristinare dal suo cestino. Il file si può comunque ripristinare dal terminale con "gio trash --restore" (vedi il manuale, Limiti noti).
+delete-ntfs = Questo è un **disco NTFS**: l'app File (Nautilus) non riesce a ripristinare dal suo cestino. Il file si può comunque ripristinare dal terminale con "gio trash --restore" (vedi il manuale, Limiti noti).
 
 opt-check-updates = Controlla gli aggiornamenti all'avvio
 opt-check-updates-hint = All'avvio EyeCanSee chiede a GitHub l'ultima versione pubblicata. Se è più nuova la scarica in background e la controlla; la installa solo quando fai clic su "Installa … e riavvia". Windows (installer e zip) e AppImage; su Fedora gli aggiornamenti arrivano con dnf.
@@ -279,27 +285,27 @@ menu-save = Salva
 key-save = Ctrl+S
 menu-save-copy = Salva come…
 key-save-copy = Ctrl+Maiusc+S
-save-confirm-trash = Salvare le modifiche sopra { $name }? L'originale va nel cestino.
-save-confirm-folder = Salvare le modifiche sopra { $name }? L'originale va nella cartella cestino di questa cartella.
-save-confirm-permanent = Salvare le modifiche sopra { $name }? L'originale viene eliminato definitivamente.
+save-confirm-trash = Salvare le modifiche sopra **{ $name }**? L'originale va **nel cestino**.
+save-confirm-folder = Salvare le modifiche sopra **{ $name }**? L'originale va nel **Cestino di questa cartella**, da cui si ripristina con **Apri il cestino**.
+save-confirm-permanent = Salvare le modifiche sopra **{ $name }**? L'originale viene eliminato **definitivamente**.
 save-yes = Salva
 save-failed = Impossibile salvare: { $detail }
 status-modified = Modificata, non salvata
 status-saving = Salvataggio in corso…
-batch-turn-confirm = { $op }: fino a { $n } immagini verranno sovrascritte.
-batch-originals-trash = Gli originali vanno nel cestino.
-batch-originals-folder = Gli originali vanno nella cartella cestino di questa cartella.
-batch-originals-permanent = Gli originali vengono eliminati definitivamente.
+batch-turn-confirm = **{ $op }**: fino a **{ $n } immagini** verranno sovrascritte.
+batch-originals-trash = Gli originali vanno **nel cestino**.
+batch-originals-folder = Gli originali vanno nel **Cestino di questa cartella**, da cui si ripristinano con **Apri il cestino**.
+batch-originals-permanent = Gli originali vengono eliminati **definitivamente**.
 batch-lossy = I JPEG vengono ruotati senza perdere qualità quando i lati sono multipli di 16 pixel; gli altri, e i WebP, gli AVIF e i GIF, vengono ricodificati e possono perdere un po' di qualità.
-batch-skipped = { $n } immagini vengono escluse: il loro formato non si può risalvare (HEIC, RAW, PSD…).
+batch-skipped = **{ $n } immagini** vengono escluse: il loro formato non si può risalvare (HEIC, RAW, PSD…).
 status-saving-n = Salvataggio in corso: { $n }…
-save-lossy = Questa immagine viene ricodificata e può perdere un po' di qualità: un JPEG viene ruotato senza perdita solo quando i lati sono multipli di 16 pixel, i WebP con perdita, gli AVIF e i GIF vengono sempre ricodificati.
+save-lossy = Questa immagine viene **ricodificata** e può perdere un po' di qualità: un JPEG viene ruotato senza perdita solo quando i lati sono multipli di 16 pixel, i WebP con perdita, gli AVIF e i GIF vengono sempre ricodificati.
 save-skipped = Le modifiche non si possono salvare sopra **{ $detail }**: è animata, ha più pagine o contiene più di un'immagine (il video di una foto in movimento, una mappa di profondità), e queste parti andrebbero perse.
 save-animated = Le modifiche non si possono salvare sopra **{ $detail }**: è un'immagine animata, e salvandoci sopra resterebbe solo il primo fotogramma.
 save-pages = Le modifiche non si possono salvare sopra **{ $detail }**: ha più pagine, e salvandoci sopra resterebbe solo la prima.
 save-extra = Le modifiche non si possono salvare sopra **{ $detail }**: contiene anche il video di una foto in movimento o una mappa di profondità, che andrebbero persi.
-save-no-rename = Qui le immagini non si possono salvare sopra se stesse: questa sorgente non sa rinominare i file.
-batch-animated = I file animati, multipagina e le foto in movimento vengono saltati.
+save-no-rename = Qui le immagini **non si possono salvare sopra se stesse**: questa sorgente non sa rinominare i file.
+batch-animated = I file **animati**, **multipagina** e le **foto in movimento** vengono saltati.
 batch-skipped-names = Saltate perché animate, multipagina o foto in movimento:
 batch-done = Immagini salvate: **{ $n }**.
 save-format = Le modifiche non si possono salvare sopra **{ $name }**: EyeCanSee non sa scrivere questo formato (HEIC, RAW, PSD…).
@@ -318,7 +324,7 @@ addr-password = Password
 addr-folder = Cartella
 addr-bad-port = La porta deve essere un numero da 1 a 65535.
 addr-open = Apri
-kiod-ask = KDE tiene il telefono con il suo servizio kiod, quello che Dolphin usa per i telefoni. Per aprirlo, EyeCanSee deve chiudere quel servizio. KDE lo riavvia da solo, ma dimentica le password delle cartelle di rete (Samba, SFTP…) aperte in Dolphin e le chiederà di nuovo al prossimo accesso.
+kiod-ask = KDE tiene il telefono con il suo servizio kiod, quello che Dolphin usa per i telefoni. Per aprirlo, EyeCanSee deve chiudere quel servizio. KDE lo riavvia da solo, ma **dimentica le password delle cartelle di rete** (Samba, SFTP…) aperte in Dolphin e le chiederà di nuovo al prossimo accesso.
 
-    Non è una scelta di EyeCanSee: KDE tiene i telefoni e quelle password nello stesso servizio, e non permette di liberare solo il telefono.
+    Questo **non dipende da EyeCanSee**: KDE tiene i telefoni e quelle password nello stesso servizio, e non permette di liberare solo il telefono.
 kiod-ok = OK
