@@ -107,7 +107,8 @@ enum Release {
 /// in large folders (Pictures/9GAG: thumbnails in ~20 s instead of over 5 minutes).
 /// KDE: kiod6 holds it through its kmtpd module, which D-Bus cannot unload; terminated, kiod6 comes
 /// back on demand without kmtpd (verified on Kubuntu 26.04, 2026-10-25). It also forgets the
-/// passwords it kept for network folders. kiod5 (Plasma 5) is the same daemon [not tried].
+/// passwords it kept for network folders. Plasma 5: kiod5, the same (Kubuntu 24.04, 2026-10-25;
+/// there the phone went back to "charging only" and opened once the user chose "File transfer").
 #[cfg(not(windows))]
 fn release_from_desktop(serial: &str) -> Release {
     use std::fs::{read_dir, read_link, read_to_string};
