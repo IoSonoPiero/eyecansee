@@ -332,7 +332,9 @@ kiod-ok = OK
 
 # Trova duplicati
 menu-duplicates = Trova duplicati…
-dup-ask = Cercare le immagini identiche in **{ $folder }**? Identiche vuol dire lo stesso file, byte per byte.
+dup-ask = Cercare le immagini identiche in **{ $folder }**?
+
+    Identiche vuol dire lo stesso file, byte per byte.
 dup-sub = Anche nelle sottocartelle
 dup-phone = Sul telefono ci vuole tempo: ogni immagine che potrebbe essere una copia viene letta per intero.
 dup-search = Cerca
