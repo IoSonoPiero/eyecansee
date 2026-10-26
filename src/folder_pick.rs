@@ -78,10 +78,10 @@ impl App {
         let mut places = Vec::new();
         if let Some(home) = std::env::home_dir() {
             let home = home.to_string_lossy().into_owned();
-            places.push(Place { icon: Icon::Home, label: home.clone(), address: home });
+            places.push(Place { icon: Icon::Home, label: self.i18n.t("pick-home"), address: home });
         }
-        #[cfg(unix)]
-        places.push(Place { icon: Icon::InternalDisk, label: self.i18n.t("this-computer"), address: "/".into() });
+        // No "This computer" (/) on Linux: next to the home folder it looked like the same place,
+        // and it is two clicks up from there.
         // Unmounted partitions have no folder to choose yet.
         for d in self.devices.iter().filter(|d| d.block.is_none()) {
             let icon = if d.phone { Icon::Phone } else if d.internal { Icon::InternalDisk } else { Icon::Disk };
@@ -96,25 +96,27 @@ impl App {
 pub fn pick_ui(ui: &mut egui::Ui, p: &mut Picker, places: &[Place], i18n: &I18n, rt: &Handle, keys: Option<bool>) -> Option<Option<String>> {
     let ctx = ui.ctx().clone();
     ui.heading(i18n.t("pick-title"));
-    ui.add_space(6.0);
-    // Fixed sizes: in a modal window the columns would otherwise grow without end.
-    let column = |w: f32| (egui::vec2(w, HEIGHT), egui::Layout::top_down(egui::Align::Min));
+    ui.add_space(8.0);
+    // The place the folder looked at is in: the longest address in front of it.
+    let current = p.address();
+    let at = places.iter().enumerate().filter(|(_, pl)| current.starts_with(&pl.address)).max_by_key(|(_, pl)| pl.address.len()).map(|(i, _)| i);
     ui.horizontal_top(|ui| {
-        let (size, layout) = column(170.0);
-        ui.allocate_ui_with_layout(size, layout, |ui| {
+        boxed(ui, 160.0, |ui| {
             egui::ScrollArea::vertical().id_salt("pick-places").auto_shrink([false, false]).show(ui, |ui| {
-                for place in places {
+                for (i, place) in places.iter().enumerate() {
                     let label = (icons::image(&ctx, place.icon, 16.0), place.label.as_str());
-                    if ui.selectable_label(false, label).on_hover_text(&place.address).clicked() {
+                    if ui.selectable_label(at == Some(i), label).on_hover_text(&place.address).clicked() {
                         p.place(&place.address, rt, &ctx);
                     }
                 }
             });
         });
-        let (size, layout) = column(ui.available_width());
-        ui.allocate_ui_with_layout(size, layout, |ui| folders_ui(ui, p, i18n, rt));
+        // What is left of the row, less the margins of the box.
+        boxed(ui, ui.available_width() - 18.0, |ui| folders_ui(ui, p, i18n, rt));
     });
-    ui.add_space(10.0);
+    ui.add_space(8.0);
+    ui.separator();
+    ui.add_space(4.0);
     let mut answer = keys.map(|yes| yes.then(|| p.address()));
     ui.horizontal(|ui| {
         let ok = egui::Button::new(i18n.t("pick-use")).fill(crate::theme::solid(ui.visuals()));
@@ -128,6 +130,18 @@ pub fn pick_ui(ui: &mut egui::Ui, p: &mut Picker, places: &[Place], i18n: &I18n,
     answer
 }
 
+/// A framed column. Fixed sizes: in a modal window the columns would otherwise grow without end.
+fn boxed(ui: &mut egui::Ui, width: f32, add: impl FnOnce(&mut egui::Ui)) {
+    // Top to bottom: the row around would lay the items side by side.
+    egui::Frame::group(ui.style()).inner_margin(8.0).show(ui, |ui| {
+        ui.with_layout(egui::Layout::top_down_justified(egui::Align::Min), |ui| {
+            ui.set_width(width);
+            ui.set_height(HEIGHT);
+            add(ui);
+        });
+    });
+}
+
 /// The folder looked at, the way up, and its subfolders: a click goes in.
 fn folders_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
     let ctx = ui.ctx().clone();
@@ -138,7 +152,8 @@ fn folders_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
         }
         ui.add(egui::Label::new(egui::RichText::new(p.address()).strong()).truncate());
     });
-    ui.add_space(4.0);
+    ui.add_space(2.0);
+    ui.separator();
     let dirs = p.dirs.lock().unwrap().clone();
     egui::ScrollArea::vertical().id_salt("pick-dirs").auto_shrink([false, false]).show(ui, |ui| match dirs {
         None => {

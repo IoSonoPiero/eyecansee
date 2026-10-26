@@ -474,6 +474,7 @@ batch-browse = Sfoglia…
 batch-other-hint = Una cartella di questo computer, oppure un indirizzo come nella barra degli indirizzi (mtp://…, sftp://…). Deve esistere.
 pick-title = Scegli la cartella
 pick-use = Usa questa cartella
+pick-home = Cartella home
 pick-up = Cartella superiore
 pick-empty = Nessuna sottocartella
 batch-no-dest = Scegli l'altra cartella.

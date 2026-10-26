@@ -475,6 +475,7 @@ batch-browse = Browse…
 batch-other-hint = A folder of this computer, or an address as in the address bar (mtp://…, sftp://…). It must exist.
 pick-title = Choose the folder
 pick-use = Use this folder
+pick-home = Home folder
 pick-up = Parent folder
 pick-empty = No subfolders
 batch-no-dest = Choose the other folder.
