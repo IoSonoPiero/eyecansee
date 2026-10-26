@@ -269,6 +269,9 @@ impl App {
     /// The controls on the right; what the buttons at the bottom ask for.
     fn rotate_controls(&self, ui: &mut egui::Ui, w: &mut Window) -> Option<Ask> {
         let i18n = &self.i18n;
+        // Before the fields are drawn: Enter in the degrees field leaves it in this same frame,
+        // and Apply took it as its own (the user only wanted to see 45°).
+        let typing = ui.ctx().egui_wants_keyboard_input();
         if angle_controls(ui, w, i18n) | crop_controls(ui, w, i18n) {
             w.refit();
         }
@@ -277,7 +280,7 @@ impl App {
         let (pw, ph) = w.crop.pixels();
         ui.strong(i18n.t_args("rc-size", &[("w", &pw.to_string()), ("h", &ph.to_string())]));
         ui.add_space(4.0);
-        let mut ask = apply_row(ui, w, i18n);
+        let mut ask = apply_row(ui, w, i18n, typing);
         ui.separator();
         ui.add_space(4.0);
         let why_not = self.why_not_save(w);
@@ -316,13 +319,13 @@ impl App {
 }
 
 /// Apply (also Enter), with what is applied and what is not saved yet.
-fn apply_row(ui: &mut egui::Ui, w: &Window, i18n: &I18n) -> Option<Ask> {
+fn apply_row(ui: &mut egui::Ui, w: &Window, i18n: &I18n, typing: bool) -> Option<Ask> {
     let mut ask = None;
     ui.horizontal(|ui| {
         let ready = w.pending() && w.applying.is_none() && !w.preparing;
         let r = ui.add_enabled(ready, crate::theme::main_button(ui, i18n.t("rc-apply"))).on_hover_text(i18n.t("rc-apply-hint"));
-        // Enter applies too, unless a field is being typed in.
-        if r.clicked() || (ready && !ui.ctx().egui_wants_keyboard_input() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
+        // Enter applies too, unless a field is being typed in (or was, until this Enter).
+        if r.clicked() || (ready && !typing && !ui.ctx().egui_wants_keyboard_input() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
             ask = Some(Ask::Apply);
         }
         if w.applying.is_some() {
