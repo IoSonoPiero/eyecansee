@@ -230,9 +230,13 @@ impl Phone {
         let (_, storages) = self
             .open
             .get_or_try_init(|| async {
+                let t = std::time::Instant::now();
                 let device = open(&self.serial).await.map_err(not_ready)?;
+                log!("phone {} opened in {:.2} s", self.serial, t.elapsed().as_secs_f32());
                 let mut storages = Vec::new();
-                for s in device.storages().await.map_err(|e| not_ready(error(e)))? {
+                let found = device.storages().await.map_err(|e| not_ready(error(e)))?;
+                log!("phone {} storages in {:.2} s", self.serial, t.elapsed().as_secs_f32());
+                for s in found {
                     let name = match s.info().description.trim() {
                         "" => format!("{}", s.id().0),
                         d => d.to_string(),
