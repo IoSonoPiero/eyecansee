@@ -53,6 +53,7 @@ modules:
       - install -Dm755 target/release/eyecansee /app/bin/eyecansee
       - install -Dm644 assets/eyecansee.desktop /app/share/applications/eyecansee.desktop
       - install -Dm644 assets/eyecansee.svg /app/share/icons/hicolor/scalable/apps/eyecansee.svg
+      - install -Dm644 flatpak/io.github.IoSonoPiero.EyeCanSee.metainfo.xml -t /app/share/metainfo
       - install -Dm644 LICENSE /app/share/licenses/io.github.IoSonoPiero.EyeCanSee/LICENSE
     sources:
       - type: dir

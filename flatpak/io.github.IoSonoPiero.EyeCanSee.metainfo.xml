@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>io.github.IoSonoPiero.EyeCanSee</id>
+  <name>EyeCanSee</name>
+  <summary>Image viewer and manager</summary>
+  <summary xml:lang="it">Visualizzatore e gestore di immagini</summary>
+  <developer id="io.github.iosonopiero">
+    <name>Pierluigi Montinaro</name>
+  </developer>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>GPL-3.0-or-later</project_license>
+  <launchable type="desktop-id">io.github.IoSonoPiero.EyeCanSee.desktop</launchable>
+
+  <description>
+    <p>Browse photos on computers, disks and phones, copy and move them from one device to another, find duplicate copies and save them in other formats.</p>
+    <p xml:lang="it">Sfoglia le foto di computer, dischi e telefoni, copiale e spostale da un dispositivo all'altro, trova le copie doppie e salvale in altri formati.</p>
+    <ul>
+      <li>Folders on the computer, external disks, USB sticks and SD cards, with cached thumbnails</li>
+      <li xml:lang="it">Cartelle del computer, dischi esterni, chiavette USB e schede SD, con le miniature in cache</li>
+      <li>Android phones and cameras opened directly over USB, much faster than through the file manager</li>
+      <li xml:lang="it">Telefoni Android e fotocamere aperti direttamente via USB, molto più veloce che dal file manager</li>
+      <li>Viewer with zoom, photo details (camera, exposure, date, location) and a slideshow</li>
+      <li xml:lang="it">Visore con zoom, dettagli della foto (fotocamera, esposizione, data, posizione) e presentazione</li>
+      <li>Copy, move, rename and delete, also between devices, with a trash on every device</li>
+      <li xml:lang="it">Copia, sposta, rinomina ed elimina, anche tra dispositivi, con un cestino su ogni dispositivo</li>
+      <li>Duplicate finder, rotation and cropping, saving and converting many images at once</li>
+      <li xml:lang="it">Ricerca dei duplicati, rotazione e ritaglio, salvataggio e conversione di molte immagini insieme</li>
+      <li>JPEG, PNG, WebP, HEIC, AVIF, JPEG XL, TIFF, SVG, PSD, Camera RAW and many rare formats</li>
+      <li xml:lang="it">JPEG, PNG, WebP, HEIC, AVIF, JPEG XL, TIFF, SVG, PSD, Camera RAW e molti formati rari</li>
+    </ul>
+  </description>
+
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/IoSonoPiero/eyecansee/main/docs/screenshots/grid.png</image>
+      <caption>Browsing a folder of photos</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/IoSonoPiero/eyecansee/main/docs/screenshots/viewer.png</image>
+      <caption>The viewer</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/IoSonoPiero/eyecansee/main/docs/screenshots/convert.png</image>
+      <caption>Saving in another format, the original and the result side by side</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/IoSonoPiero/eyecansee/main/docs/screenshots/rotate.png</image>
+      <caption>Rotating and cropping</caption>
+    </screenshot>
+  </screenshots>
+
+  <url type="homepage">https://github.com/IoSonoPiero/eyecansee</url>
+  <url type="bugtracker">https://github.com/IoSonoPiero/eyecansee/issues</url>
+  <url type="vcs-browser">https://github.com/IoSonoPiero/eyecansee</url>
+
+  <content_rating type="oars-1.1"/>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <provides>
+    <binary>eyecansee</binary>
+  </provides>
+
+  <releases>
+    <release version="0.47.1" date="2026-10-26">
+      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.47.1</url>
+    </release>
+  </releases>
+</component>
