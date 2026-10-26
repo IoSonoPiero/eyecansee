@@ -134,6 +134,7 @@ In the grid the same operations (the Image menu, or right-click > Transform) wor
 - The wheel zooms around the pointer, dragging outside the frame moves the view, a double click shows everything again. The size of the result is under the controls.
 - **Apply** (or Enter) puts the rotation and the crop into the image shown, and the controls start again from it: you can rotate, crop and apply again as many times as you like. The file is not touched: under Apply the page says "Rotation and crop not applied yet" or "Changes applied, not saved yet".
 - At the end, **Save…** writes the result over the original after asking, like Save in the viewer ("Preparing to save…" next to the buttons until the new file is ready; same formats, same exclusions, the original goes where a deletion would send it); the image is encoded again, so JPEG loses a little quality. **Save as…** opens *Save in another format* with the result. **Close**, ✕ or Esc close the page; with changes not saved they first ask whether to **Save**, **Save as…** or **Don't save** (**Cancel** goes back to the page).
+- **Ultra HDR** photos of phones (with HDR brightness) are not saved over the original from here: by any angle or with a crop they would lose the HDR. The message offers **Save as…**, which makes a new file without HDR. To flip them or turn them by 90° or 180° keeping the HDR use the **Image** menu.
 
 ## Copying and moving
 
