@@ -1,6 +1,8 @@
 # Clippy (with a limit of 80 lines per function, clippy.toml) and the tests at every push and pull
 # request on main, with the same C libraries as the AppImage (tools/build-appimage.sh --check), plus a
-# warning for files over 800 lines. rustfmt is not used: the code does not follow its style.
+# warning for files over 800 lines; the same on Windows, with the libraries of the Windows release
+# (the code under #[cfg(windows)] is compiled only there). rustfmt is not used: the code does not
+# follow its style.
 name: check
 
 # A commit that changes only the README is not checked: nothing built comes from it.
@@ -39,3 +41,19 @@ jobs:
         run: |
           mkdir -p "$APPIMAGE_CACHE"
           tools/build-appimage.sh --check
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v6
+      # The same as the release (and its vcpkg cache, readable from main and its pull requests).
+      - uses: ./.github/actions/windows-deps
+      - name: Clippy
+        run: cargo clippy --locked --all-targets --no-default-features --features heif,magick -- -D warnings
+      # The tests find the ImageMagick DLLs on the PATH, its coders through the registry the
+      # installer wrote; the configuration goes to a temporary folder.
+      - name: Tests
+        run: |
+          $env:Path = "$env:IMAGE_MAGICK_DIR;$env:Path"
+          $env:APPDATA = "$env:RUNNER_TEMP\roaming"; $env:LOCALAPPDATA = "$env:RUNNER_TEMP\local"
+          cargo test --locked --no-default-features --features heif,magick

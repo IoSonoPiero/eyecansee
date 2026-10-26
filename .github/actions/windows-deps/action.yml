@@ -1,0 +1,53 @@
+# The C libraries of the Windows build, the same for release.yml and check.yml: libheif with its
+# decoders from vcpkg (static, like the C runtime in .cargo/config.toml) and the official
+# ImageMagick for the rare formats. vcpkg is pinned to a commit; its compiled packages are cached
+# (key without commas: GitHub refuses them). Afterwards the jobs find VCPKG_ROOT, IM_VERSION,
+# IMAGE_MAGICK_DIR and LIBCLANG_PATH in their environment.
+name: Windows libraries
+description: Rust, NASM, libheif from vcpkg and ImageMagick for the Windows build
+runs:
+  using: composite
+  steps:
+    - name: Versions
+      shell: pwsh
+      run: |
+        @(
+          "VCPKG_ROOT=C:\eyecansee-vcpkg"
+          "VCPKG_COMMIT=67972e92edd181d433927b42d8ab4bfa52ac164a"
+          "VCPKG_DEFAULT_BINARY_CACHE=C:\eyecansee-vcpkg-cache"
+          "HEIF_PORT=libheif[core,libde265,dav1d]:x64-windows-static"
+          "IM_VERSION=7.1.2-34"
+          "IM_SHA256=eb32ded8b605795dfcb08b8cadbeef6732fe2252af933b54b38df586332e1007"
+          "IMAGE_MAGICK_DIR=C:\eyecansee-imagemagick"
+          # magick_rust generates its bindings with libclang (LLVM, already on windows-latest).
+          "LIBCLANG_PATH=C:\Program Files\LLVM\bin"
+        ) | Out-File -Append -Encoding utf8 $env:GITHUB_ENV
+    - name: Tools
+      shell: pwsh
+      run: |
+        rustup update stable --no-self-update
+        rustup default stable
+        choco install nasm -y --no-progress
+        "C:\Program Files\NASM" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
+    - uses: actions/cache@v5
+      with:
+        path: C:\eyecansee-vcpkg-cache
+        key: vcpkg-${{ env.VCPKG_COMMIT }}-libheif-libde265-dav1d-x64-windows-static
+    - name: libheif
+      shell: pwsh
+      run: |
+        New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
+        git clone -q https://github.com/microsoft/vcpkg.git $env:VCPKG_ROOT
+        git -C $env:VCPKG_ROOT checkout -q $env:VCPKG_COMMIT
+        & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
+        & "$env:VCPKG_ROOT\vcpkg.exe" install $env:HEIF_PORT
+        if ($LASTEXITCODE) { exit $LASTEXITCODE }
+    - name: ImageMagick
+      shell: pwsh
+      run: |
+        $setup = "$env:RUNNER_TEMP\imagemagick-setup.exe"
+        Invoke-WebRequest "https://github.com/ImageMagick/ImageMagick/releases/download/$env:IM_VERSION/ImageMagick-$env:IM_VERSION-Q16-HDRI-x64-dll.exe" -OutFile $setup
+        if ((Get-FileHash $setup -Algorithm SHA256).Hash -ne $env:IM_SHA256) { "::error::ImageMagick installer: wrong SHA-256"; exit 1 }
+        Start-Process -Wait -FilePath $setup -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART /NOICONS /TASKS=install_devel /DIR=$env:IMAGE_MAGICK_DIR"
+        if (-not (Test-Path "$env:IMAGE_MAGICK_DIR\lib\CORE_RL_MagickWand_.lib")) { "::error::ImageMagick development files missing"; exit 1 }
+        if (-not (Test-Path "$env:LIBCLANG_PATH\libclang.dll")) { "::error::libclang.dll missing"; exit 1 }
