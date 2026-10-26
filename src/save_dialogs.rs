@@ -204,7 +204,8 @@ impl App {
         let (Some(loader), Some(path)) = (&self.loader, self.viewing.and_then(|i| self.files().get(i)).map(|f| f.path.clone())) else { return };
         log!("prepare {path:?} {:?}", self.turn);
         loader.prepare(path.clone(), self.turn);
-        self.saving.insert(path);
+        self.saving.insert(path.clone());
+        self.preparing = Some(path);
     }
 
     /// Overwrite? The original goes where a deletion would send it (the trash, usually). What is

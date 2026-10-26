@@ -157,7 +157,13 @@ impl App {
             }
             if !self.turn.is_none() {
                 ui.separator();
-                ui.label(crate::theme::alert(self.i18n.t(if self.saving.contains(&f.path) { "status-saving" } else { "status-modified" })));
+                ui.label(crate::theme::alert(self.i18n.t(if self.preparing.as_ref() == Some(&f.path) {
+                    "status-preparing"
+                } else if self.saving.contains(&f.path) {
+                    "status-saving"
+                } else {
+                    "status-modified"
+                })));
             }
             ui.separator();
             ui.label(self.human_size(f.size));

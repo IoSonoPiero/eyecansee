@@ -348,6 +348,7 @@ save-yes = Salva
 save-failed = Impossibile salvare: { $detail }
 status-modified = Modificata, non salvata
 status-saving = Salvataggio in corso…
+status-preparing = Preparo il salvataggio…
 batch-turn-confirm = { $n ->
     [one] **{ $op }**: **1 immagine** verrà sovrascritta.
    *[other] **{ $op }**: fino a **{ $n } immagini** verranno sovrascritte.

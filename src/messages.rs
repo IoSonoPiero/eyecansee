@@ -275,6 +275,7 @@ impl App {
 
     fn on_prepared(&mut self, path: String, turn: transform::Turn, r: Result<(Arc<Vec<u8>>, bool), source::Error>) {
         self.saving.remove(&path);
+        self.preparing = None;
         match r {
             // Only for the image still open with the same turn: the confirmation is about it.
             Ok((data, lossy)) if self.viewed(&path) && turn == self.turn => {

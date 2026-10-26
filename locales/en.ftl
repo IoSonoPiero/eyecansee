@@ -349,6 +349,7 @@ save-yes = Save
 save-failed = Cannot save: { $detail }
 status-modified = Changed, not saved
 status-saving = Saving…
+status-preparing = Preparing to save…
 batch-turn-confirm = { $n ->
     [one] **{ $op }**: **1 image** will be overwritten.
    *[other] **{ $op }**: up to **{ $n } images** will be overwritten.

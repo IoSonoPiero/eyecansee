@@ -206,6 +206,8 @@ struct App {
     save_ready: Option<(String, transform::Turn, Arc<Vec<u8>>, bool)>,
     /// Images being prepared or saved after a turn: not saved again until done (status bar).
     saving: HashSet<String>,
+    /// The image whose "Save" is being prepared, before the confirmation (status bar).
+    preparing: Option<String>,
     /// Names left out of a "Save" on the grid (animated…), shown once every save is done.
     skipped: Vec<String>,
     /// Images saved by transforms on the grid, for the summary once every save is done.
@@ -347,6 +349,7 @@ impl App {
             turn: Default::default(),
             save_ready: None,
             saving: HashSet::new(),
+            preparing: None,
             skipped: Vec::new(),
             batch_saved: None,
             fresh: None,

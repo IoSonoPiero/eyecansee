@@ -292,6 +292,7 @@ impl App {
             }
             if w.preparing {
                 ui.spinner();
+                ui.label(i18n.t("status-preparing"));
             }
         });
         ui.add_space(12.0);
