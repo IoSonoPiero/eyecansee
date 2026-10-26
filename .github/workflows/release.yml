@@ -14,6 +14,8 @@ on:
 
 # Each job gets only what it needs: just the release job can write to the repository (the draft), and
 # nothing here signs the files (tools/sign-release.sh does it on the developer's PC).
+# Actions are pinned to a commit (the tag in a comment), here and in check.yml and .github/actions: a moved
+# tag cannot change what builds the releases. New SHA: gh api repos/<owner>/<action>/commits/<tag> --jq .sha
 jobs:
   version:
     permissions:
@@ -23,7 +25,7 @@ jobs:
       version: ${{ steps.v.outputs.version }}
       trial: ${{ steps.v.outputs.trial }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - id: v
         run: |
           VER=$(cat VERSION)
@@ -44,7 +46,7 @@ jobs:
     env:
       VER: ${{ needs.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       # Rust, NASM, libheif and ImageMagick: the same as check.yml.
       - uses: ./.github/actions/windows-deps
       - name: Build
@@ -105,7 +107,7 @@ jobs:
           foreach ($i in 1..30) { if (-not (Test-Path "$dir\eyecansee.exe")) { break }; Start-Sleep 1 }
           if (Test-Path "$dir\eyecansee.exe") { "::error::eyecansee.exe still there after uninstalling"; exit 1 }
           if (Test-Path $key) { "::error::$key still there after uninstalling"; exit 1 }
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: windows
           path: |
@@ -118,12 +120,12 @@ jobs:
     needs: version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       # Only the C libraries compiled from source (decoders, ImageMagick): the key is their versions in
       # the script, so other changes to it keep the cache.
       - id: deps
         run: echo "key=$(grep -E '^(DE265|IM)=' tools/build-appimage.sh | tr -s '= \n' '-')" >> "$GITHUB_OUTPUT"
-      - uses: actions/cache@v5
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: |
             ${{ runner.temp }}/appimage-cache/deps-*
@@ -142,7 +144,7 @@ jobs:
           for lib in libdav1d.so libde265.so libMagickCore libMagickWand; do
             ls squashfs-root/usr/lib | grep -q "^$lib" || { echo "::error::$lib missing"; exit 1; }
           done
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: appimage
           path: target/appimage/EyeCanSee-*-x86_64.AppImage
@@ -156,7 +158,7 @@ jobs:
     container: registry.fedoraproject.org/fedora:44
     steps:
       - run: dnf install -y -q git rpm-build copr-cli
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - name: Source RPM, sent to COPR for real releases
         env:
           COPR_CONFIG: ${{ secrets.COPR_CONFIG }}
@@ -176,7 +178,7 @@ jobs:
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
           merge-multiple: true
       - name: Draft release

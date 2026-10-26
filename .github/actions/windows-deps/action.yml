@@ -29,7 +29,7 @@ runs:
         rustup default stable
         choco install nasm -y --no-progress
         "C:\Program Files\NASM" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
-    - uses: actions/cache@v5
+    - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
       with:
         path: C:\eyecansee-vcpkg-cache
         key: vcpkg-${{ env.VCPKG_COMMIT }}-libheif-libde265-dav1d-x64-windows-static
