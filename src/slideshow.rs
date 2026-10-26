@@ -123,9 +123,11 @@ impl App {
         let secs = f64::from(self.settings.slideshow_secs.max(1.0));
         let index = |p: &String| self.files().iter().position(|f| f.path == *p);
         let (cur, from) = (index(&s.paths[s.at]), s.from.as_ref().and_then(index));
-        let next = step(s.at, s.paths.len(), true, self.settings.slideshow_loop).and_then(|n| index(&s.paths[n]));
+        let near = |forward| step(s.at, s.paths.len(), forward, self.settings.slideshow_loop).and_then(|n| index(&s.paths[n]));
+        // The previous one too: going back with the arrows found it not loaded, a black flash.
+        let (next, prev) = (near(true), near(false));
         let since = s.since;
-        self.show_load([cur, next, from].into_iter().flatten().collect());
+        self.show_load([cur, next, prev, from].into_iter().flatten().collect());
         let tex = |i: Option<usize>| i.and_then(|i| self.full.get(&i)).and_then(|r| r.as_ref().ok()).cloned();
         let (cur_tex, from_tex) = (tex(cur), tex(from));
         let rect = ui.max_rect();
@@ -134,6 +136,9 @@ impl App {
         if let Some(cur_tex) = &cur_tex {
             let back = self.show.as_ref().is_some_and(|s| s.back);
             paint_passage(ui.painter(), rect, from_tex.as_ref(), cur_tex, (self.settings.slideshow_fade, back), t);
+        } else if let Some(from_tex) = &from_tex {
+            // Arrows pressed faster than the images load: the old one stays meanwhile.
+            paint_passage(ui.painter(), rect, None, from_tex, (Fade::None, false), 1.0);
         } else if cur.is_some_and(|i| matches!(self.full.get(&i), Some(Err(_)))) {
             // Cannot be read: the next one comes at its time.
         } else {
