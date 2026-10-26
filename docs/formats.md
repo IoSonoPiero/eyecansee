@@ -61,8 +61,15 @@ The same formats on Linux and Windows: all the encoders are part of the program.
 | BMP | bmp | – | ✓ | – | – | `image` |
 | GIF | gif | colour reduction quality 1–30 (at most 256 colours) | – | – | – | `image` |
 | QOI | qoi | – | ✓ | – | – | `image` |
+| ICO | ico | – (at most 256 × 256 pixels: larger images are reduced) | ✓ up to 256 × 256 | – | – | `image` |
+| TGA | tga | RLE compression | ✓ | – | – | `image` |
+| PNM | pnm | – (PPM, PGM or, with transparency, PAM; 8 or 16 bits) | ✓ | – | – | `image` |
+| OpenEXR | exr | – (32-bit float) | ✓ | – | – | `image` |
+| Radiance HDR | hdr | – | – | – | – | `image` |
+| Farbfeld | ff | – (16 bits per channel) | ✓ | – | – | `image` |
 
-- JPEG has no transparency: transparent parts are laid on white. Arithmetic coding and lossless JPEG make smaller or exact files that many programs cannot open.
+- JPEG and Radiance HDR have no transparency: transparent parts are laid on white. Arithmetic coding and lossless JPEG make smaller or exact files that many programs cannot open.
 - EXIF is carried over from every original whose EXIF the metadata panel reads: JPEG, PNG, WebP, TIFF, HEIC, AVIF and the RAW files built on TIFF (tested: CR2, NEF, ARW, DNG). From RAW and HEIC only the camera, shot and GPS fields go in, not the maker note. CR3, RAF, ORF and RW2 are not read yet. The colour profile comes only from JPEG, PNG, WebP, TIFF and GIF.
 - The EXIF orientation is reset to "upright", since the saved pixels are already turned.
+- Save (over the original) writes back only JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF and QOI: an ICO holds several sizes, OpenEXR and HDR more than what is shown.
 - Not saved: HEIC (patent licensing of HEVC) and JPEG XL (no encoder in the program yet).

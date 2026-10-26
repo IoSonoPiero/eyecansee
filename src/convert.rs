@@ -204,7 +204,7 @@ impl crate::App {
                 self.result_info(ui, w, &pixels, size);
                 ui.add_space(6.0);
                 format_choice(ui, w, i18n);
-                format_options(ui, &mut w.options, original.0.image.color().has_alpha(), i18n);
+                format_options(ui, &mut w.options, &original.0.image, i18n);
                 meta_options(ui, &mut w.options, &original.0, i18n);
                 // The name belongs to the new image, so it sits on its side.
                 ui.add_space(6.0);
@@ -333,8 +333,12 @@ fn quality(ui: &mut egui::Ui, v: &mut u8, label: String) {
 }
 
 /// The options of the chosen format's encoder.
-fn format_options(ui: &mut egui::Ui, o: &mut Options, alpha: bool, i18n: &I18n) {
+fn format_options(ui: &mut egui::Ui, o: &mut Options, image: &image::DynamicImage, i18n: &I18n) {
     let t = |id| i18n.t(id);
+    let alpha = image.color().has_alpha();
+    if alpha && matches!(o.format, Format::Jpeg | Format::Hdr) {
+        ui.weak(t("convert-on-white"));
+    }
     match o.format {
         Format::Jpeg => jpeg_options(ui, o, i18n),
         Format::Png => png_options(ui, o, i18n),
@@ -352,7 +356,13 @@ fn format_options(ui: &mut egui::Ui, o: &mut Options, alpha: bool, i18n: &I18n) 
         Format::Gif => {
             ui.add(egui::Slider::new(&mut o.gif_quality, 1..=30).text(t("convert-gif-quality")));
         }
-        Format::Bmp | Format::Qoi => {}
+        Format::Tga => {
+            ui.checkbox(&mut o.tga_rle, t("convert-tga-rle"));
+        }
+        Format::Ico if image.width().max(image.height()) > crate::encode::ICO_SIDE => {
+            ui.weak(t("convert-ico-reduced"));
+        }
+        Format::Bmp | Format::Qoi | Format::Ico | Format::Pnm | Format::Exr | Format::Hdr | Format::Farbfeld => {}
     }
 }
 
@@ -438,7 +448,8 @@ fn tiff_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
 fn meta_options(ui: &mut egui::Ui, o: &mut Options, original: &Original, i18n: &I18n) {
     let t = |id| i18n.t(id);
     let lossless = match o.format {
-        Format::Png | Format::Tiff | Format::Bmp | Format::Qoi => true,
+        Format::Png | Format::Tiff | Format::Bmp | Format::Qoi | Format::Tga | Format::Pnm | Format::Exr | Format::Farbfeld => true,
+        Format::Ico => original.image.width().max(original.image.height()) <= crate::encode::ICO_SIDE,
         Format::Webp => o.webp_lossless && o.near_lossless == 100,
         Format::Jpeg => o.jpeg_lossless,
         _ => false,

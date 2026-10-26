@@ -1,10 +1,10 @@
 //! Encoding an image again in another format, without the interface: every option each encoder
 //! offers is there: libjpeg-turbo for JPEG, `image` for PNG, GIF, BMP and QOI, libwebp for WebP,
-//! ravif for AVIF, `tiff` for TIFF. Also the lossless turns that "Save" writes over the original.
+//! ravif for AVIF, `tiff` for TIFF, `image` for ICO, TGA, PNM, OpenEXR, Radiance HDR and Farbfeld. Also the lossless turns that "Save" writes over the original.
 
 use std::io::Cursor;
 
-use image::codecs::{bmp, gif, png, qoi};
+use image::codecs::{bmp, farbfeld, gif, hdr, ico, openexr, png, pnm, qoi, tga};
 use image::metadata::Orientation;
 use image::{DynamicImage, ImageDecoder, ImageEncoder, ImageReader};
 
@@ -22,10 +22,34 @@ pub enum Format {
     Bmp,
     Gif,
     Qoi,
+    Ico,
+    Tga,
+    Pnm,
+    Exr,
+    Hdr,
+    Farbfeld,
 }
 
 impl Format {
-    pub const ALL: [Format; 8] = [Format::Jpeg, Format::Png, Format::Webp, Format::Avif, Format::Tiff, Format::Bmp, Format::Gif, Format::Qoi];
+    pub const ALL: [Format; 14] = [
+        Format::Jpeg,
+        Format::Png,
+        Format::Webp,
+        Format::Avif,
+        Format::Tiff,
+        Format::Bmp,
+        Format::Gif,
+        Format::Qoi,
+        Format::Ico,
+        Format::Tga,
+        Format::Pnm,
+        Format::Exr,
+        Format::Hdr,
+        Format::Farbfeld,
+    ];
+    /// The formats "Save" writes back over an original. The others only as "Save as…": an ICO
+    /// holds several sizes, OpenEXR and HDR more than what is shown.
+    const BACK: [Format; 8] = [Format::Jpeg, Format::Png, Format::Webp, Format::Avif, Format::Tiff, Format::Bmp, Format::Gif, Format::Qoi];
 
     pub fn ext(self) -> &'static str {
         match self {
@@ -37,6 +61,12 @@ impl Format {
             Format::Bmp => "bmp",
             Format::Gif => "gif",
             Format::Qoi => "qoi",
+            Format::Ico => "ico",
+            Format::Tga => "tga",
+            Format::Pnm => "pnm",
+            Format::Exr => "exr",
+            Format::Hdr => "hdr",
+            Format::Farbfeld => "ff",
         }
     }
 
@@ -50,6 +80,12 @@ impl Format {
             Format::Bmp => "BMP",
             Format::Gif => "GIF",
             Format::Qoi => "QOI",
+            Format::Ico => "ICO",
+            Format::Tga => "TGA",
+            Format::Pnm => "PNM",
+            Format::Exr => "OpenEXR",
+            Format::Hdr => "Radiance HDR",
+            Format::Farbfeld => "Farbfeld",
         }
     }
 
@@ -63,7 +99,7 @@ impl Format {
     /// inside, animated or not, is looked at by `can_turn_in_place`).
     pub fn of_file(name: &str) -> Option<Format> {
         let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
-        Format::ALL.into_iter().find(|f| f.ext() == ext || (ext == "jpeg" && *f == Format::Jpeg) || (ext == "tiff" && *f == Format::Tiff))
+        Format::BACK.into_iter().find(|f| f.ext() == ext || (ext == "jpeg" && *f == Format::Jpeg) || (ext == "tiff" && *f == Format::Tiff))
     }
 }
 
@@ -133,6 +169,8 @@ pub struct Options {
     pub tiff_predictor: bool,
     /// GIF colour reduction: 1 fast … 30 best.
     pub gif_quality: u8,
+    /// TGA with run-length compression (smaller; a few old programs read only uncompressed).
+    pub tga_rle: bool,
     /// Flips and quarter turns made in the viewer.
     pub turn: Turn,
 }
@@ -163,6 +201,7 @@ impl Default for Options {
             tiff: TiffCompression::Lzw,
             tiff_predictor: true,
             gif_quality: 21,
+            tga_rle: true,
             turn: Turn::default(),
         }
     }
@@ -245,6 +284,14 @@ impl Original {
             Format::Bmp => img.write_with_encoder(bmp::BmpEncoder::new(&mut out)).map_err(|e| e.to_string())?,
             Format::Gif => img.write_with_encoder(gif::GifEncoder::new_with_speed(&mut out, 31 - o.gif_quality.clamp(1, 30) as i32)).map_err(|e| e.to_string())?,
             Format::Qoi => img.write_with_encoder(qoi::QoiEncoder::new(&mut out)).map_err(|e| e.to_string())?,
+            Format::Ico => img.write_with_encoder(ico::IcoEncoder::new(&mut out)).map_err(|e| e.to_string())?,
+            Format::Tga if o.tga_rle => img.write_with_encoder(tga::TgaEncoder::new(&mut out)).map_err(|e| e.to_string())?,
+            Format::Tga => img.write_with_encoder(tga::TgaEncoder::new(&mut out).disable_rle()).map_err(|e| e.to_string())?,
+            // PPM, PGM or, with transparency, PAM: chosen from the pixels.
+            Format::Pnm => img.write_with_encoder(pnm::PnmEncoder::new(&mut out).with_dynamic_header()).map_err(|e| e.to_string())?,
+            Format::Exr => img.write_with_encoder(openexr::OpenExrEncoder::new(&mut out)).map_err(|e| e.to_string())?,
+            Format::Hdr => img.write_with_encoder(hdr::HdrEncoder::new(&mut out)).map_err(|e| e.to_string())?,
+            Format::Farbfeld => img.write_with_encoder(farbfeld::FarbfeldEncoder::new(&mut out)).map_err(|e| e.to_string())?,
         }
         Ok(out.into_inner())
     }
@@ -355,10 +402,24 @@ fn avif_sequence(b: &[u8]) -> bool {
 
 /// Pixels the format can store: JPEG has no transparency (laid on white, not on black), and
 /// only PNG and TIFF take 16 bits; floating point (EXR, HDR) becomes 8 bits.
+/// The largest side an ICO holds.
+pub const ICO_SIDE: u32 = 256;
+
 fn pixels(img: &DynamicImage, format: Format) -> DynamicImage {
     let alpha = img.color().has_alpha();
     let deep = matches!(img, DynamicImage::ImageRgb16(_) | DynamicImage::ImageRgba16(_) | DynamicImage::ImageLuma16(_));
     match format {
+        // ICO holds at most 256 × 256 pixels: larger images are reduced (the page says so).
+        Format::Ico if img.width().max(img.height()) > ICO_SIDE => pixels(&img.resize(ICO_SIDE, ICO_SIDE, image::imageops::FilterType::Lanczos3), format),
+        // Always RGBA: readers of icons (`image` too) expect the PNG inside in RGBA.
+        Format::Ico => DynamicImage::ImageRgba8(img.to_rgba8()),
+        Format::Exr if alpha => DynamicImage::ImageRgba32F(img.to_rgba32f()),
+        Format::Exr => DynamicImage::ImageRgb32F(img.to_rgb32f()),
+        // No transparency in HDR: on white, as JPEG.
+        Format::Hdr => DynamicImage::ImageRgb32F(pixels(img, Format::Jpeg).to_rgb32f()),
+        Format::Farbfeld => DynamicImage::ImageRgba16(img.to_rgba16()),
+        Format::Pnm if deep && alpha => DynamicImage::ImageRgba16(img.to_rgba16()),
+        Format::Pnm if deep => DynamicImage::ImageRgb16(img.to_rgb16()),
         Format::Jpeg if alpha => {
             let mut rgba = img.to_rgba8();
             for p in rgba.pixels_mut() {
@@ -643,6 +704,13 @@ pub(crate) mod tests {
             Options { format: Format::Bmp, ..d },
             Options { format: Format::Gif, ..d },
             Options { format: Format::Qoi, ..d },
+            Options { format: Format::Ico, ..d },
+            Options { format: Format::Tga, ..d },
+            Options { format: Format::Tga, tga_rle: false, ..d },
+            Options { format: Format::Pnm, ..d },
+            Options { format: Format::Exr, ..d },
+            Options { format: Format::Hdr, ..d },
+            Options { format: Format::Farbfeld, ..d },
         ];
         for o in variants {
             let format = o.format;
@@ -656,14 +724,19 @@ pub(crate) mod tests {
                 }
                 continue;
             }
-            let back = image::load_from_memory(&bytes).unwrap_or_else(|e| panic!("{o:?}: {e}"));
+            // Read as the program reads it (TGA has no signature to be recognised by).
+            let back = crate::decode::decode_full(&bytes, &format!("x.{}", format.ext())).unwrap_or_else(|e| panic!("{o:?}: {e}"));
             assert_eq!((back.width(), back.height()), (40, 30), "{o:?}");
             if format == Format::Gif {
                 let colours: HashSet<[u8; 4]> = back.to_rgba8().pixels().map(|p| p.0).collect();
                 assert!(colours.len() <= 256, "GIF with {} colours", colours.len());
             }
-            if matches!(format, Format::Png | Format::Tiff | Format::Qoi) || (format == Format::Webp && o.webp_lossless) {
+            let lossless = matches!(format, Format::Png | Format::Tiff | Format::Qoi | Format::Ico | Format::Tga | Format::Pnm | Format::Exr | Format::Farbfeld);
+            if lossless || (format == Format::Webp && o.webp_lossless) {
                 assert_eq!(back.to_rgba8(), original.image.to_rgba8(), "{o:?}");
+            }
+            if !format.holds_meta() && format != Format::Gif {
+                continue;
             }
             let (e, i) = read_meta(&bytes);
             if matches!(format, Format::Jpeg | Format::Png | Format::Webp) {
@@ -676,6 +749,20 @@ pub(crate) mod tests {
             if format != Format::Gif {
                 assert_eq!(read_meta(&bare), (None, None), "{o:?}");
             }
+        }
+    }
+
+    /// ICO holds at most 256 × 256 pixels: a larger image is reduced, keeping its shape. The
+    /// formats only "Save as…" writes are not saved back over an original.
+    #[test]
+    fn ico_and_save_back() {
+        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None };
+        let bytes = original.encode(&Options { format: Format::Ico, ..Default::default() }).unwrap();
+        let back = crate::decode::decode_full(&bytes, "x.ico").unwrap();
+        assert_eq!((back.width(), back.height()), (256, 128));
+        assert_eq!(Format::of_file("a.TIFF"), Some(Format::Tiff));
+        for name in ["a.ico", "a.tga", "a.pnm", "a.exr", "a.hdr", "a.ff"] {
+            assert_eq!(Format::of_file(name), None, "{name}");
         }
     }
 
