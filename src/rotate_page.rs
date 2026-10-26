@@ -315,8 +315,7 @@ fn apply_row(ui: &mut egui::Ui, w: &Window, i18n: &I18n) -> Option<Ask> {
     let mut ask = None;
     ui.horizontal(|ui| {
         let ready = w.pending() && w.applying.is_none() && !w.preparing;
-        let text = egui::RichText::new(i18n.t("rc-apply")).color(Color32::WHITE).strong();
-        let r = ui.add_enabled(ready, egui::Button::new(text).fill(crate::theme::solid(ui.visuals()))).on_hover_text(i18n.t("rc-apply-hint"));
+        let r = ui.add_enabled(ready, crate::theme::main_button(ui, i18n.t("rc-apply"))).on_hover_text(i18n.t("rc-apply-hint"));
         // Enter applies too, unless a field is being typed in.
         if r.clicked() || (ready && !ui.ctx().egui_wants_keyboard_input() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
             ask = Some(Ask::Apply);

@@ -311,7 +311,7 @@ fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bool> {
     }
     let mut answer = None;
     ui.horizontal(|ui| {
-        let start = egui::Button::new(t("batch-start")).fill(crate::theme::solid(ui.visuals()));
+        let start = crate::theme::main_button(ui, t("batch-start"));
         if ui.add_enabled(why_not.is_none(), start).clicked() {
             answer = Some(true);
         }

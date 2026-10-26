@@ -119,7 +119,7 @@ pub fn pick_ui(ui: &mut egui::Ui, p: &mut Picker, places: &[Place], i18n: &I18n,
     ui.add_space(4.0);
     let mut answer = keys.map(|yes| yes.then(|| p.address()));
     ui.horizontal(|ui| {
-        let ok = egui::Button::new(i18n.t("pick-use")).fill(crate::theme::solid(ui.visuals()));
+        let ok = crate::theme::main_button(ui, i18n.t("pick-use"));
         if ui.add(ok).clicked() {
             answer = Some(Some(p.address()));
         }

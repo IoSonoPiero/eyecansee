@@ -60,6 +60,12 @@ pub fn solid(v: &Visuals) -> Color32 {
     palette(v).solid
 }
 
+/// The main button of a window: solid accent with white bold text (the default dark text was
+/// hard to read on it in the light theme).
+pub fn main_button(ui: &egui::Ui, text: String) -> egui::Button<'static> {
+    egui::Button::new(egui::RichText::new(text).color(Color32::WHITE).strong()).fill(solid(ui.visuals()))
+}
+
 /// Something under way or not saved, in the status bars: a yellow label with dark bold text
 /// (contrast about 13:1). White on the blue bar went unnoticed (user, 2026-10-26).
 pub fn alert(text: String) -> egui::RichText {
