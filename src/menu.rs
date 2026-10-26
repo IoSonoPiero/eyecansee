@@ -1,5 +1,7 @@
 //! Menu bar, toolbar and status bar.
 
+use std::cell::Cell;
+
 use eframe::egui::{self, Color32, Key};
 
 use crate::navigation::Go;
@@ -10,112 +12,120 @@ use crate::loader::THUMB_SIDE;
 impl App {
     /// Every keyboard or double-click action also has a menu item, with the shortcut next to it.
     /// The menus only record the chosen item; the action runs afterwards, with access to the whole app.
-    #[allow(clippy::too_many_lines)] // to be split
     pub(crate) fn menu_bar(&mut self, ui: &mut egui::Ui) {
-        let t = |id| self.i18n.t(id);
-        let item = |label: String, keys: String| egui::Button::new(label).shortcut_text(keys);
-        let viewing = self.viewing.is_some();
-        let has_items = self.items() > 0;
-        let can_go_up = !viewing && !self.dir.is_empty();
         // A Cell: the plain items, the radio buttons and the check boxes all record into it.
-        let act = std::cell::Cell::new(None);
-        let pick = |r: egui::Response, a: Act| {
-            if r.clicked() {
-                act.set(Some(a));
-            }
-        };
+        let act = Cell::new(None);
         egui::MenuBar::new().ui(ui, |ui| {
-            let entry = |ui: &mut egui::Ui, enabled: bool, button: egui::Button, a: Act| pick(ui.add_enabled(enabled, button), a);
-            ui.menu_button(t("menu-file"), |ui| {
-                entry(ui, true, egui::Button::new(t("menu-open-location")), Act::Address);
-                entry(ui, self.can_make_folder(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder);
-                entry(ui, true, egui::Button::new(t("menu-options")), Act::Options);
-                ui.separator();
-                let can_clip = !self.chosen(None).is_empty();
-                entry(ui, can_clip, item(t("menu-cut"), t("key-cut")), Act::Cut(None));
-                entry(ui, can_clip, item(t("menu-copy"), t("key-copy")), Act::Copy(None));
-                entry(ui, !viewing && self.can_paste(&self.dir), item(t("menu-paste"), t("key-paste")), Act::Paste(None));
-                ui.separator();
-                entry(ui, self.can_save(), item(t("menu-save"), t("key-save")), Act::Save);
-                entry(ui, viewing, item(t("menu-save-copy"), t("key-save-copy")), Act::Convert(None));
-                ui.separator();
-                let can_change = self.target().is_some();
-                entry(ui, can_change, item(t("menu-rename"), "F2".into()), Act::Rename(None));
-                entry(ui, can_change, item(t("menu-delete"), t("key-delete")), Act::Delete(None, false));
-                entry(ui, can_change, item(t("menu-delete-permanent"), t("key-shift-delete")), Act::Delete(None, true));
-                ui.separator();
-                entry(ui, true, egui::Button::new(t("menu-quit")), Act::Quit);
-            });
-            ui.menu_button(t("menu-image"), |ui| {
-                ui.add_enabled_ui(viewing || !self.grid_images(None).is_empty(), |ui| {
-                    ui.menu_button(t("menu-transform"), |ui| {
-                        for (op, label, keys) in transform_items() {
-                            entry(ui, true, item(t(label), keys.map(t).unwrap_or_default()), Act::Transform(op, None));
-                            if op == transform::Op::FlipV {
-                                ui.separator();
-                            }
-                        }
-                        ui.separator();
-                        let one = self.chosen(None).len() <= 1;
-                        let r = ui.add_enabled(one && self.target().is_some_and(|p| !p.ends_with('/')), egui::Button::new(t("menu-rotate-crop")));
-                        pick(if one { r } else { r.on_disabled_hover_text(t("rc-one-only")) }, Act::RotateCrop(None));
-                    });
-                });
-                ui.separator();
-                entry(ui, !viewing && !self.grid_images(None).is_empty(), egui::Button::new(t("menu-batch")), Act::Batch(None));
-                entry(ui, !viewing && self.loader.is_some() && !source::is_trash(&self.dir), egui::Button::new(t("menu-duplicates")), Act::Duplicates(None));
-            });
-            ui.menu_button(t("menu-view"), |ui| {
-                entry(ui, !viewing && has_items && self.cursor, item(t("menu-open-selected"), t("key-enter")), Act::Open);
-                entry(ui, viewing, item(t("menu-back-to-grid"), "Esc".into()), Act::Back);
-                entry(ui, !self.files().is_empty(), egui::Button::new(t("menu-slideshow")), Act::Slideshow(None));
-                ui.separator();
-                entry(ui, true, item(t("menu-refresh"), "F5".into()), Act::Refresh);
-                entry(ui, self.chosen(None).iter().any(|p| !p.ends_with('/')), egui::Button::new(t("menu-redo-thumbs")), Act::RedoThumbs(None));
-                entry(ui, !viewing && has_items, item(t("menu-redo-all-thumbs"), t("key-shift-f5")), Act::RedoAllThumbs);
-                ui.separator();
-                ui.menu_button(t("sort-by"), |ui| {
-                    for by in settings::SortBy::ALL {
-                        pick(ui.radio(self.settings.sort_by == by, t(by.label())), Act::Sort(by));
-                    }
-                    ui.separator();
-                    pick(ui.checkbox(&mut self.settings.sort_desc.clone(), t("sort-desc")), Act::SortDesc);
-                });
-                ui.add_enabled_ui(!viewing, |ui| {
-                    ui.menu_button(t("menu-meta"), |ui| {
-                        for g in meta::Group::ALL {
-                            let label = self.i18n.t(&format!("meta-{}", g.key()));
-                            pick(ui.checkbox(&mut self.meta_shown(g), label), Act::Meta(g));
-                        }
-                    });
-                });
-            });
-            ui.menu_button(t("menu-go"), |ui| {
-                entry(ui, has_items, item(t("menu-next"), "→".into()), Act::Go(Go::Next));
-                entry(ui, has_items, item(t("menu-prev"), "←".into()), Act::Go(Go::Prev));
-                entry(ui, has_items, item(t("menu-first"), t("key-home")), Act::Go(Go::First));
-                entry(ui, has_items, item(t("menu-last"), t("key-end")), Act::Go(Go::Last));
-                ui.separator();
-                entry(ui, can_go_up, item(t("menu-parent"), t("key-backspace")), Act::Up);
-            });
-            ui.menu_button(t("menu-help"), |ui| {
-                entry(ui, true, item(t("menu-manual"), "F1".into()), Act::Manual);
-                ui.separator();
-                entry(ui, true, egui::Button::new(t("menu-check-updates")), Act::CheckUpdates);
-                entry(ui, true, egui::Button::new(t("menu-about")), Act::About);
-            });
+            ui.menu_button(self.i18n.t("menu-file"), |ui| self.file_menu(ui, &act));
+            ui.menu_button(self.i18n.t("menu-image"), |ui| self.image_menu(ui, &act));
+            ui.menu_button(self.i18n.t("menu-view"), |ui| self.view_menu(ui, &act));
+            ui.menu_button(self.i18n.t("menu-go"), |ui| self.go_menu(ui, &act));
+            ui.menu_button(self.i18n.t("menu-help"), |ui| self.help_menu(ui, &act));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.weak(format!("EyeCanSee {}", version()));
                 if let Some(r) = &self.update {
                     // Red with white text (contrast 5.6:1): as a plain button it went unnoticed.
                     let text = egui::RichText::new(self.i18n.t_args("update-install", &[("version", &r.version)])).color(Color32::WHITE).strong();
-                    pick(ui.add(egui::Button::new(text).fill(Color32::from_rgb(0xC6, 0x28, 0x28))), Act::Update);
+                    pick(&act, ui.add(egui::Button::new(text).fill(Color32::from_rgb(0xC6, 0x28, 0x28))), Act::Update);
                 }
             });
         });
         if let Some(a) = act.take() {
             self.run(ui.ctx(), a);
         }
+    }
+
+    fn file_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
+        let t = |id| self.i18n.t(id);
+        let viewing = self.viewing.is_some();
+        entry(ui, act, true, egui::Button::new(t("menu-open-location")), Act::Address);
+        entry(ui, act, self.can_make_folder(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder);
+        entry(ui, act, true, egui::Button::new(t("menu-options")), Act::Options);
+        ui.separator();
+        let can_clip = !self.chosen(None).is_empty();
+        entry(ui, act, can_clip, item(t("menu-cut"), t("key-cut")), Act::Cut(None));
+        entry(ui, act, can_clip, item(t("menu-copy"), t("key-copy")), Act::Copy(None));
+        entry(ui, act, !viewing && self.can_paste(&self.dir), item(t("menu-paste"), t("key-paste")), Act::Paste(None));
+        ui.separator();
+        entry(ui, act, self.can_save(), item(t("menu-save"), t("key-save")), Act::Save);
+        entry(ui, act, viewing, item(t("menu-save-copy"), t("key-save-copy")), Act::Convert(None));
+        ui.separator();
+        let can_change = self.target().is_some();
+        entry(ui, act, can_change, item(t("menu-rename"), "F2".into()), Act::Rename(None));
+        entry(ui, act, can_change, item(t("menu-delete"), t("key-delete")), Act::Delete(None, false));
+        entry(ui, act, can_change, item(t("menu-delete-permanent"), t("key-shift-delete")), Act::Delete(None, true));
+        ui.separator();
+        entry(ui, act, true, egui::Button::new(t("menu-quit")), Act::Quit);
+    }
+
+    fn image_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
+        let t = |id| self.i18n.t(id);
+        let viewing = self.viewing.is_some();
+        ui.add_enabled_ui(viewing || !self.grid_images(None).is_empty(), |ui| {
+            ui.menu_button(t("menu-transform"), |ui| {
+                for (op, label, keys) in transform_items() {
+                    entry(ui, act, true, item(t(label), keys.map(t).unwrap_or_default()), Act::Transform(op, None));
+                    if op == transform::Op::FlipV {
+                        ui.separator();
+                    }
+                }
+                ui.separator();
+                let one = self.chosen(None).len() <= 1;
+                let r = ui.add_enabled(one && self.target().is_some_and(|p| !p.ends_with('/')), egui::Button::new(t("menu-rotate-crop")));
+                pick(act, if one { r } else { r.on_disabled_hover_text(t("rc-one-only")) }, Act::RotateCrop(None));
+            });
+        });
+        ui.separator();
+        entry(ui, act, !viewing && !self.grid_images(None).is_empty(), egui::Button::new(t("menu-batch")), Act::Batch(None));
+        entry(ui, act, !viewing && self.loader.is_some() && !source::is_trash(&self.dir), egui::Button::new(t("menu-duplicates")), Act::Duplicates(None));
+    }
+
+    fn view_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
+        let t = |id| self.i18n.t(id);
+        let viewing = self.viewing.is_some();
+        let has_items = self.items() > 0;
+        entry(ui, act, !viewing && has_items && self.cursor, item(t("menu-open-selected"), t("key-enter")), Act::Open);
+        entry(ui, act, viewing, item(t("menu-back-to-grid"), "Esc".into()), Act::Back);
+        entry(ui, act, !self.files().is_empty(), egui::Button::new(t("menu-slideshow")), Act::Slideshow(None));
+        ui.separator();
+        entry(ui, act, true, item(t("menu-refresh"), "F5".into()), Act::Refresh);
+        entry(ui, act, self.chosen(None).iter().any(|p| !p.ends_with('/')), egui::Button::new(t("menu-redo-thumbs")), Act::RedoThumbs(None));
+        entry(ui, act, !viewing && has_items, item(t("menu-redo-all-thumbs"), t("key-shift-f5")), Act::RedoAllThumbs);
+        ui.separator();
+        ui.menu_button(t("sort-by"), |ui| {
+            for by in settings::SortBy::ALL {
+                pick(act, ui.radio(self.settings.sort_by == by, t(by.label())), Act::Sort(by));
+            }
+            ui.separator();
+            pick(act, ui.checkbox(&mut self.settings.sort_desc.clone(), t("sort-desc")), Act::SortDesc);
+        });
+        ui.add_enabled_ui(!viewing, |ui| {
+            ui.menu_button(t("menu-meta"), |ui| {
+                for g in meta::Group::ALL {
+                    let label = self.i18n.t(&format!("meta-{}", g.key()));
+                    pick(act, ui.checkbox(&mut self.meta_shown(g), label), Act::Meta(g));
+                }
+            });
+        });
+    }
+
+    fn go_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
+        let t = |id| self.i18n.t(id);
+        let has_items = self.items() > 0;
+        entry(ui, act, has_items, item(t("menu-next"), "→".into()), Act::Go(Go::Next));
+        entry(ui, act, has_items, item(t("menu-prev"), "←".into()), Act::Go(Go::Prev));
+        entry(ui, act, has_items, item(t("menu-first"), t("key-home")), Act::Go(Go::First));
+        entry(ui, act, has_items, item(t("menu-last"), t("key-end")), Act::Go(Go::Last));
+        ui.separator();
+        entry(ui, act, self.viewing.is_none() && !self.dir.is_empty(), item(t("menu-parent"), t("key-backspace")), Act::Up);
+    }
+
+    fn help_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
+        let t = |id| self.i18n.t(id);
+        entry(ui, act, true, item(t("menu-manual"), "F1".into()), Act::Manual);
+        ui.separator();
+        entry(ui, act, true, egui::Button::new(t("menu-check-updates")), Act::CheckUpdates);
+        entry(ui, act, true, egui::Button::new(t("menu-about")), Act::About);
     }
 
     pub(crate) fn toolbar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
@@ -238,4 +248,20 @@ impl App {
             }
         });
     }
+}
+
+/// A menu item with its shortcut on the right.
+fn item(label: String, keys: String) -> egui::Button<'static> {
+    egui::Button::new(label).shortcut_text(keys)
+}
+
+/// Records the item chosen; it runs after the menus are drawn.
+fn pick(act: &Cell<Option<Act>>, r: egui::Response, a: Act) {
+    if r.clicked() {
+        act.set(Some(a));
+    }
+}
+
+fn entry(ui: &mut egui::Ui, act: &Cell<Option<Act>>, enabled: bool, button: egui::Button, a: Act) {
+    pick(act, ui.add_enabled(enabled, button), a);
 }
