@@ -3,9 +3,84 @@
 use eframe::egui;
 
 use crate::actions::{Act, transform_items};
+use crate::navigation::Go;
 use crate::{App, BOLD, confirm, encode, source, transform};
 
+/// What was asked while the image in the viewer had flips or turns not saved: done once the
+/// question is answered (`turn_leave_window`).
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum After {
+    Go(Go),
+    Close,
+    Up,
+    Quit,
+}
+
+/// Answers to "save the changes?" before leaving the image.
+#[derive(Clone, Copy)]
+enum Leave {
+    Save,
+    SaveAs,
+    Discard,
+}
+
 impl App {
+    /// The image in the viewer has flips or turns not saved, and not being saved.
+    pub(crate) fn turn_unsaved(&self) -> bool {
+        !self.turn.is_none() && self.viewing.and_then(|i| self.files().get(i)).is_some_and(|f| !self.saving.contains(&f.path))
+    }
+
+    /// Leaving the image would lose its changes: `after` waits and the question opens (`true`).
+    /// Changes are never dropped without asking, as in Rotate and crop (asked by the user).
+    pub(crate) fn hold_for_turn(&mut self, after: After) -> bool {
+        let hold = self.turn_unsaved() && self.save_ready.is_none();
+        if hold {
+            log!("changes not saved: asking before {after:?}");
+            self.after_turn = Some(after);
+        }
+        hold
+    }
+
+    /// What was asked, now that the changes are saved or dropped.
+    fn run_after(&mut self, ctx: &egui::Context, after: After) {
+        self.turn = Default::default();
+        match after {
+            After::Go(to) => self.go(to),
+            After::Close => self.close_viewer(),
+            After::Up => self.go_up(),
+            After::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+        }
+    }
+
+    /// Save, Save as…, Don't save, or Cancel (stays on the image). Save goes through the usual
+    /// confirmation (`save_window`), which then does what was asked.
+    pub(crate) fn turn_leave_window(&mut self, ctx: &egui::Context) {
+        let Some(after) = self.after_turn else { return };
+        let Some(path) = self.viewing.and_then(|i| self.files().get(i)).map(|f| f.path.clone()) else {
+            self.after_turn = None;
+            return;
+        };
+        let text = self.i18n.t_args("rc-leave", &[("name", &md(source::name(&path)))]);
+        let choices = vec![
+            (self.i18n.t("rc-save"), self.can_save(), Leave::Save),
+            (self.i18n.t("menu-save-copy"), true, Leave::SaveAs),
+            (self.i18n.t("rc-discard"), true, Leave::Discard),
+        ];
+        // Esc: back to the image; Enter does nothing here (no choice is safe to guess).
+        let keys = self.delete_answer.take().filter(|yes| !yes).map(|_| None);
+        let Some(answer) = confirm::choose(ctx, "turn-leave", 440.0, text, choices, self.i18n.t("delete-no"), keys) else { return };
+        self.after_turn = None;
+        match answer {
+            Some(Leave::Save) => {
+                self.after_save = Some(after);
+                self.ask_save();
+            }
+            Some(Leave::SaveAs) => self.act = Some(Act::Convert(None)),
+            Some(Leave::Discard) => self.run_after(ctx, after),
+            None => {}
+        }
+    }
+
     /// Confirmation of a transform on images of the grid: they are overwritten (originals where a
     /// deletion sends them), lossy formats may lose a little quality, the others are left out.
     /// Once saved, their thumbnails are made again.
@@ -151,8 +226,15 @@ impl App {
                 loader.replace_with(path.clone(), data, how);
                 self.saving.insert(path);
                 self.save_ready = None;
+                // Saved on the way out of the image: now what was asked.
+                if let Some(after) = self.after_save.take() {
+                    self.run_after(ctx, after);
+                }
             }
-            Some(false) => self.save_ready = None,
+            Some(false) => {
+                self.save_ready = None;
+                self.after_save = None;
+            }
             None => {}
         }
     }

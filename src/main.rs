@@ -213,6 +213,10 @@ struct App {
     /// An image just saved from Rotate and crop, as the viewer shows it: kept in the viewer when
     /// the file and the folder listing change, instead of the old one until it is read again.
     fresh: Option<(String, TextureHandle)>,
+    /// Leaving an image with changes not saved: what was asked, while the question is open.
+    after_turn: Option<save_dialogs::After>,
+    /// The same, after Save was chosen: done once the save is confirmed.
+    after_save: Option<save_dialogs::After>,
     /// A message in a window (a "Save" refused, how a grid save went); `true` offers "Save as…".
     notice: Option<(String, bool)>,
     /// KDE holds the phone: asking whether to terminate kiod (`kiod_window`).
@@ -346,6 +350,8 @@ impl App {
             skipped: Vec::new(),
             batch_saved: None,
             fresh: None,
+            after_turn: None,
+            after_save: None,
             notice: None,
             kiod_ask: false,
             open_address: None,
@@ -446,6 +452,13 @@ impl App {
             self.quit_after_transfer = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
+        // Closing with an image turned and not saved: asked first, as when leaving the image.
+        if self.transfer.is_none()
+            && ctx.input(|i| i.viewport().close_requested())
+            && self.hold_for_turn(save_dialogs::After::Quit)
+        {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        }
         self.receive(ctx);
         self.retry(ctx);
         self.reread_changed(ctx);
@@ -537,6 +550,7 @@ impl App {
         }
         self.duplicates_window(ctx);
         self.delete_window(ctx);
+        self.turn_leave_window(ctx);
         self.save_window(ctx);
         self.batch_turn_window(ctx);
         self.notice_window(ctx);

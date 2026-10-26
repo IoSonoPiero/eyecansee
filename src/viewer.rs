@@ -48,6 +48,9 @@ impl App {
     }
 
     pub(crate) fn close_viewer(&mut self) {
+        if self.hold_for_turn(crate::save_dialogs::After::Close) {
+            return;
+        }
         if let (Some(i), Some(Ok(l))) = (self.viewing.take(), self.listings.get(&self.dir)) {
             self.selected = l.dirs.len() + i;
             self.cursor = true;
@@ -116,7 +119,7 @@ impl App {
         let rect = response.rect;
         let ppp = ui.ctx().pixels_per_point();
         if self.zoom_of != Some(current) {
-            // ponytail: changes not saved are dropped without asking, they are only turns
+            // Reached only once the turns were saved or dropped: leaving the image asks first (`hold_for_turn`).
             (self.zoom, self.zoom_of, self.turn) = (None, Some(current), Default::default());
         }
         let t = paint::turned_size(tex, self.turn);

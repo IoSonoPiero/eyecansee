@@ -287,6 +287,8 @@ impl App {
 
     /// Why an image could not be prepared for saving over itself: what would be lost, or the error.
     pub(crate) fn save_failed(&mut self, path: &str, e: source::Error) {
+        // Save chosen on the way out of the image and not possible: the image stays.
+        self.after_save = None;
         match e {
             (loader::SKIPPED, name) => {
                 // Say exactly what would be lost.

@@ -54,6 +54,6 @@ impl App {
     /// A confirmation is open: deletion, or a name already taken when restoring or pasting.
     pub(crate) fn asking(&self) -> bool {
         let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
-        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.batch_turn.is_some() || self.notice.is_some() || self.kiod_ask || self.open_address.is_some() || self.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking) || self.rotate.as_ref().is_some_and(|w| w.ready.is_some() || w.leaving)
+        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.batch_turn.is_some() || self.notice.is_some() || self.kiod_ask || self.open_address.is_some() || self.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking) || self.rotate.as_ref().is_some_and(|w| w.ready.is_some() || w.leaving) || self.after_turn.is_some()
     }
 }

@@ -84,6 +84,9 @@ impl App {
     }
 
     pub(crate) fn go_up(&mut self) {
+        if self.viewing.is_some() && self.hold_for_turn(crate::save_dialogs::After::Up) {
+            return;
+        }
         if !self.dir.is_empty() {
             let child = self.dir.clone();
             self.set_dir(source::parent(&child));
@@ -135,6 +138,9 @@ impl App {
     /// In the viewer it changes image (after the last one back to the first only with `wrap_around`,
     /// otherwise it stops there), in the grid it moves the selection.
     pub(crate) fn go(&mut self, to: Go) {
+        if self.viewing.is_some() && self.hold_for_turn(crate::save_dialogs::After::Go(to)) {
+            return;
+        }
         if let Some(current) = self.viewing {
             let n = self.files().len();
             if n > 0 {
