@@ -19,6 +19,7 @@ finish-args:
   - --device=all                    # GPU and phones over USB (mtp-rs)
   - --filesystem=host               # folders, external disks, trash in ~/.local/share/Trash
   - --filesystem=xdg-run/gvfs       # phones mounted by gvfs
+  - --talk-name=org.gtk.vfs.*       # gvfs lets the phone go (mtp::gvfs_unmount)
   - --filesystem=/run/udev:ro       # partitions not mounted yet (devices::external_disks)
   - --system-talk-name=org.freedesktop.UDisks2  # mount partitions with a click
 modules:

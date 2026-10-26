@@ -119,6 +119,10 @@ fn release_from_desktop(serial: &str) -> Release {
         }
         released |= kill(&pid);
     }
+    // Flatpak: the host's processes are out of sight, gvfs is asked over D-Bus instead.
+    if !released && !ask && std::env::var_os("FLATPAK_ID").is_some() {
+        released = gvfs_unmount(serial);
+    }
     match (released, ask) {
         (true, _) => Release::Done,
         (false, true) => Release::AskKiod,
@@ -174,6 +178,37 @@ fn holders(serial: &str) -> Vec<(std::ffi::OsString, String)> {
         }
     }
     found
+}
+
+/// Unmounts the phone from gvfs over D-Bus (`--talk-name=org.gtk.vfs.*`), like Nautilus's Eject: a
+/// Samsung stays in "File transfer" (2026-10-26), a POCO X7 Pro went back to "charging only"
+/// (2026-10-21), so only once per phone: after that EyeCanSee uses the gvfs mount.
+#[cfg(not(windows))]
+fn gvfs_unmount(serial: &str) -> bool {
+    static DONE: std::sync::Mutex<Vec<String>> = std::sync::Mutex::new(Vec::new());
+    let mut done = DONE.lock().unwrap_or_else(std::sync::PoisonError::into_inner);
+    if done.iter().any(|s| s == serial) {
+        return false;
+    }
+    let gdbus = |args: &[&str]| std::process::Command::new("gdbus").arg("call").arg("--session").args(args).output().ok().filter(|o| o.status.success());
+    let tracker = ["--dest", "org.gtk.vfs.Daemon", "--object-path", "/org/gtk/vfs/mounttracker"];
+    let Some(list) = gdbus(&[&tracker[..], &["--method", "org.gtk.vfs.MountTracker.ListMounts2", "false"]].concat()) else { return false };
+    let Some((dest, path)) = gvfs_mount(&String::from_utf8_lossy(&list.stdout), serial) else { return false };
+    done.push(serial.to_string());
+    let unmount = ["--dest", &dest, "--object-path", &path, "--method", "org.gtk.vfs.Mount.Unmount", "", "/", "0"];
+    gdbus(&unmount).is_some()
+}
+
+/// In the reply of gvfs's ListMounts2, the D-Bus name and object of the phone's mount
+/// (`mtp:host=<maker>_<model>_<serial>`). ponytail: a display name with a `'` (double quotes in
+/// the reply) shifts the fields and the mount is not found: EyeCanSee uses gvfs then.
+#[cfg(not(windows))]
+fn gvfs_mount(list: &str, serial: &str) -> Option<(String, String)> {
+    list.split("('").skip(1).find_map(|m| {
+        let f: Vec<&str> = m.split('\'').collect();
+        let ours = f.get(6)?.starts_with("mtp:host=") && f[6].ends_with(&format!("_{serial}"));
+        (ours && f[2].starts_with("/org/gtk/vfs/mount/")).then(|| (f[0].to_string(), f[2].to_string()))
+    })
 }
 
 #[cfg(not(windows))]
@@ -526,6 +561,15 @@ impl Phone {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[cfg(not(windows))]
+    #[test]
+    fn gvfs_mount_of_phone() {
+        let list = "([(':1.919', objectpath '/org/gtk/vfs/mount/1', '', 'http:uri=https%3A%2F%2F127.0.0.1%3A8384', '', '', '', '', false, b'', (b'/', {'type': <b'http'>}), b''), (':1.1546', '/org/gtk/vfs/mount/1', 'mtp', 'mtp:host=SAMSUNG_SAMSUNG_Android_R52W80FSD5D', '', '. GThemedIcon phone', '', '', true, b'/run/user/1000/gvfs/mtp:host=SAMSUNG_SAMSUNG_Android_R52W80FSD5D', (b'/', {'host': <b'SAMSUNG_SAMSUNG_Android_R52W80FSD5D'>, 'type': <b'mtp'>}), b'')],)";
+        assert_eq!(gvfs_mount(list, "R52W80FSD5D"), Some((":1.1546".into(), "/org/gtk/vfs/mount/1".into())));
+        assert_eq!(gvfs_mount(list, "80FSD5D"), None);
+        assert_eq!(gvfs_mount("([],)", "R52W80FSD5D"), None);
+    }
 
     /// Test on a real phone, not mounted by the desktop:
     /// `EYECANSEE_MTP=<serial> cargo test mtp_live -- --ignored --nocapture`
