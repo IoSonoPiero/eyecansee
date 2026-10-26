@@ -1,7 +1,9 @@
 # The C libraries of the Windows build, the same for release.yml and check.yml: libheif with its
 # decoders from vcpkg (static, like the C runtime in .cargo/config.toml) and the official
-# ImageMagick for the rare formats. vcpkg is pinned to a commit; its compiled packages are cached
-# (key without commas: GitHub refuses them). Afterwards the jobs find VCPKG_ROOT, IM_VERSION,
+# ImageMagick for the rare formats. vcpkg is pinned to a commit; the libraries it installed are
+# cached as they are (key without commas: GitHub refuses them). Its binary cache was restored but
+# never used ("Restored 0 package(s)": the hash changes with the runner's compilers), so libheif was
+# built again every time, 9 minutes. Afterwards the jobs find VCPKG_ROOT, IM_VERSION,
 # IMAGE_MAGICK_DIR and LIBCLANG_PATH in their environment.
 name: Windows libraries
 description: Rust, NASM, libheif from vcpkg and ImageMagick for the Windows build
@@ -14,7 +16,6 @@ runs:
         @(
           "VCPKG_ROOT=C:\eyecansee-vcpkg"
           "VCPKG_COMMIT=67972e92edd181d433927b42d8ab4bfa52ac164a"
-          "VCPKG_DEFAULT_BINARY_CACHE=C:\eyecansee-vcpkg-cache"
           "HEIF_PORT=libheif[core,libde265,dav1d]:x64-windows-static"
           "IM_VERSION=7.1.2-34"
           "IM_SHA256=eb32ded8b605795dfcb08b8cadbeef6732fe2252af933b54b38df586332e1007"
@@ -29,17 +30,20 @@ runs:
         rustup default stable
         choco install nasm -y --no-progress
         "C:\Program Files\NASM" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
-    - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
-      with:
-        path: C:\eyecansee-vcpkg-cache
-        key: vcpkg-${{ env.VCPKG_COMMIT }}-libheif-libde265-dav1d-x64-windows-static
-    - name: libheif
+    - name: vcpkg
       shell: pwsh
       run: |
-        New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
         git clone -q https://github.com/microsoft/vcpkg.git $env:VCPKG_ROOT
         git -C $env:VCPKG_ROOT checkout -q $env:VCPKG_COMMIT
         & "$env:VCPKG_ROOT\bootstrap-vcpkg.bat" -disableMetrics
+    - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      with:
+        path: C:\eyecansee-vcpkg\installed
+        key: vcpkg-installed-${{ env.VCPKG_COMMIT }}-libheif-libde265-dav1d-x64-windows-static
+    - name: libheif
+      shell: pwsh
+      run: |
+        if (Test-Path "$env:VCPKG_ROOT\installed\x64-windows-static\lib\heif.lib") { "libheif from the cache"; exit 0 }
         & "$env:VCPKG_ROOT\vcpkg.exe" install $env:HEIF_PORT
         if ($LASTEXITCODE) { exit $LASTEXITCODE }
     - name: ImageMagick

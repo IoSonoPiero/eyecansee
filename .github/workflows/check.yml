@@ -35,6 +35,17 @@ jobs:
             ${{ runner.temp }}/appimage-cache/deps-*
             ${{ runner.temp }}/appimage-cache/imagemagick-*
           key: appimage-deps-${{ steps.deps.outputs.key }}
+      # Rust, the crates and what was compiled, inside the container (CARGO_HOME and RUSTUP_HOME in
+      # the cache folder, the target in target/appimage-check): from the previous run on main.
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: |
+            ${{ runner.temp }}/appimage-cache/cargo
+            ${{ runner.temp }}/appimage-cache/rustup
+            target/appimage-check
+          # Saved again only when the crates change (Cargo.lock): EyeCanSee itself is quick to build.
+          key: appimage-check-${{ hashFiles('Cargo.lock') }}
+          restore-keys: appimage-check-
       - name: Clippy and tests
         env:
           APPIMAGE_CACHE: ${{ runner.temp }}/appimage-cache
@@ -48,6 +59,8 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       # The same as the release (and its vcpkg cache, readable from main and its pull requests).
       - uses: ./.github/actions/windows-deps
+      # The crates compiled by the previous run: from the second run on only EyeCanSee is built again.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
       - name: Clippy
         run: cargo clippy --locked --all-targets --no-default-features --features heif,magick -- -D warnings
       # The tests find the ImageMagick DLLs on the PATH, its coders through the registry the
