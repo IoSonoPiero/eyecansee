@@ -17,6 +17,8 @@ on:
 # Actions are pinned to a commit (the tag in a comment), here and in check.yml and .github/actions: a moved
 # tag cannot change what builds the releases. New SHA: gh api repos/<owner>/<action>/commits/<tag> --jq .sha
 # Runners by version (ubuntu-24.04), not ubuntu-latest: GitHub moves that label to a new Ubuntu by itself.
+# EyeCanSee and its crates are always compiled from scratch here (no rust-cache: that is only in check.yml);
+# the only caches are the C libraries at pinned versions (libheif from vcpkg, decoders and ImageMagick of the AppImage).
 jobs:
   version:
     permissions:
