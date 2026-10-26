@@ -41,7 +41,7 @@ foreach ($p in $pkgs) {
 [void]$sb.AppendLine("Standard licence texts (from the SPDX License List)")
 [void]$sb.AppendLine("=" * 78)
 foreach ($id in "MIT", "Apache-2.0", "BSD-3-Clause", "BSL-1.0", "OFL-1.1", "Ubuntu-font-1.0") {
-    $text = (Invoke-WebRequest -UseBasicParsing "https://raw.githubusercontent.com/spdx/license-list-data/main/text/$id.txt").Content
+    $text = Get-Content -Raw "$PSScriptRoot\licenses\$id.txt"
     [void]$sb.AppendLine("")
     [void]$sb.AppendLine("--- $id")
     [void]$sb.AppendLine($text)

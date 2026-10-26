@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # Linux version of third-party-licenses.ps1: same THIRD-PARTY-LICENSES.txt, from cargo metadata and jq.
+# Standard licence texts from tools/licenses/ (SPDX License List): no network, as Flathub builds.
 # Usage: tools/third-party-licenses.sh <output file> [cargo feature flags...]
 #   e.g. tools/third-party-licenses.sh THIRD-PARTY-LICENSES.txt --no-default-features --features heif
 set -euo pipefail
@@ -47,7 +48,7 @@ missing=()
     printf '=%.0s' {1..78}; echo
     for id in MIT Apache-2.0 BSD-3-Clause BSL-1.0 OFL-1.1 Ubuntu-font-1.0; do
         echo; echo "--- $id"
-        curl -sSf "https://raw.githubusercontent.com/spdx/license-list-data/main/text/$id.txt"; echo
+        cat "tools/licenses/$id.txt"; echo
     done
 } > "$OUT"
 echo "crates: $(wc -l <<<"$pkgs")"
