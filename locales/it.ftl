@@ -341,12 +341,20 @@ save-yes = Salva
 save-failed = Impossibile salvare: { $detail }
 status-modified = Modificata, non salvata
 status-saving = Salvataggio in corso…
-batch-turn-confirm = **{ $op }**: fino a **{ $n } immagini** verranno sovrascritte.
+batch-turn-confirm = { $n ->
+    [one] **{ $op }**: **1 immagine** verrà sovrascritta.
+   *[other] **{ $op }**: fino a **{ $n } immagini** verranno sovrascritte.
+}
 batch-originals-trash = Gli originali vanno **nel cestino**.
 batch-originals-folder = Gli originali vanno nel **Cestino di questa cartella**, da cui si ripristinano con **Apri il cestino**.
 batch-originals-permanent = Gli originali vengono eliminati **definitivamente**.
 batch-lossy = I JPEG vengono ruotati senza perdere qualità quando i lati sono multipli di 16 pixel; gli altri, e i WebP, gli AVIF e i GIF, vengono ricodificati e possono perdere un po' di qualità.
-batch-skipped = **{ $n } immagini** vengono escluse: il loro formato non si può risalvare (HEIC, RAW, PSD…).
+batch-skipped = { $n ->
+    [one] **1 immagine** viene esclusa: il suo formato non si può risalvare (HEIC, RAW, PSD…).
+   *[other] **{ $n } immagini** vengono escluse: il loro formato non si può risalvare (HEIC, RAW, PSD…).
+}
+batch-none = Nessuna di queste **{ $n } immagini** si può risalvare: il loro formato non si può scrivere (HEIC, RAW, PSD…). Aprile una alla volta e usa **Salva come…**.
+batch-save-as-hint = Con **Salva come…** la salvi già ruotata in un file nuovo, nel formato che scegli. L'originale resta com'è.
 status-saving-n = Salvataggio in corso: { $n }…
 save-lossy = Questa immagine viene **ricodificata** e può perdere un po' di qualità: un JPEG viene ruotato senza perdita solo quando i lati sono multipli di 16 pixel, i WebP con perdita, gli AVIF e i GIF vengono sempre ricodificati.
 save-skipped = Le modifiche non si possono salvare sopra **{ $detail }**: è animata, ha più pagine o contiene più di un'immagine (il video di una foto in movimento, una mappa di profondità), e queste parti andrebbero perse.

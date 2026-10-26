@@ -22,7 +22,7 @@ pub struct Window {
     /// The original, relative to the source.
     pub path: String,
     original: Option<Loaded>,
-    options: Options,
+    pub(crate) options: Options,
     /// Options of the encoding under way or shown; a change starts a new one when it ends.
     encoded_with: Option<Options>,
     pub generation: u64,

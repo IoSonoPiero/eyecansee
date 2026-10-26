@@ -16,6 +16,10 @@ impl App {
         let paths = paths.into_iter().filter(|p| !self.saving.contains(p));
         let rename = loader.can_rename();
         let (ok, skipped): (Vec<String>, Vec<String>) = paths.partition(|p| rename && encode::Format::of_file(p).is_some());
+        if ok.is_empty() {
+            self.batch_turn_none(ctx, &skipped, rename, op);
+            return;
+        }
         let how = ok.first().map_or(source::Deletion::Permanent, |p| loader.deletion(p, self.settings.local_permanent, self.settings.remote_delete));
         let label = transform_items().into_iter().find(|(o, ..)| *o == op).map_or("", |(_, l, _)| l);
         let n = ok.len().to_string();
@@ -48,6 +52,36 @@ impl App {
                 self.batch_turn = None;
             }
             Some(false) => self.batch_turn = None,
+            None => {}
+        }
+    }
+
+    /// Not one of the images can be saved over itself: say why instead of "up to 0 images will be
+    /// overwritten", and for a single image offer "Save as…", already turned.
+    fn batch_turn_none(&mut self, ctx: &egui::Context, skipped: &[String], rename: bool, op: transform::Op) {
+        let single = (skipped.len() == 1).then(|| skipped[0].clone());
+        let mut text = if !rename {
+            self.i18n.t("save-no-rename")
+        } else if let Some(p) = &single {
+            self.i18n.t_args("save-format", &[("name", &md(source::name(p)))])
+        } else {
+            self.i18n.t_args("batch-none", &[("n", &skipped.len().to_string())])
+        };
+        if single.is_some() {
+            text = format!("{text}\n\n{}", self.i18n.t("batch-save-as-hint"));
+        }
+        let choices = single.iter().map(|p| (self.i18n.t("menu-save-copy"), true, p.clone())).collect();
+        // Enter: Save as… (when there is one); Esc: cancel.
+        let keys = self.delete_answer.take().map(|yes| if yes { single.clone() } else { None });
+        match confirm::choose(ctx, "batch-turn", 460.0, text, choices, self.i18n.t("delete-no"), keys) {
+            Some(Some(path)) => {
+                self.batch_turn = None;
+                self.open_convert(Some(path));
+                if let Some(w) = &mut self.convert {
+                    w.options.turn = transform::Turn::default().then(op);
+                }
+            }
+            Some(None) => self.batch_turn = None,
             None => {}
         }
     }

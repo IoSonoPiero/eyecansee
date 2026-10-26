@@ -342,12 +342,20 @@ save-yes = Save
 save-failed = Cannot save: { $detail }
 status-modified = Changed, not saved
 status-saving = Saving…
-batch-turn-confirm = **{ $op }**: up to **{ $n } images** will be overwritten.
+batch-turn-confirm = { $n ->
+    [one] **{ $op }**: **1 image** will be overwritten.
+   *[other] **{ $op }**: up to **{ $n } images** will be overwritten.
+}
 batch-originals-trash = The originals go **to the trash**.
 batch-originals-folder = The originals go to **this folder's Trash**, where **Open the trash** restores them.
 batch-originals-permanent = The originals are deleted **for good**.
 batch-lossy = JPEG files are rotated without losing quality when their sides are multiples of 16 pixels; the others, and WebP, AVIF and GIF, are encoded again and may lose a little quality.
-batch-skipped = **{ $n } images** are left out: their format cannot be saved back (HEIC, RAW, PSD…).
+batch-skipped = { $n ->
+    [one] **1 image** is left out: its format cannot be saved back (HEIC, RAW, PSD…).
+   *[other] **{ $n } images** are left out: their format cannot be saved back (HEIC, RAW, PSD…).
+}
+batch-none = None of these **{ $n } images** can be saved back: their format cannot be written (HEIC, RAW, PSD…). Open them one at a time and use **Save as…**.
+batch-save-as-hint = **Save as…** saves it already turned to a new file, in the format you choose. The original stays as it is.
 status-saving-n = Saving: { $n }…
 save-lossy = This image is **encoded again** and may lose a little quality: a JPEG is rotated without loss only when its sides are multiples of 16 pixels, lossy WebP, AVIF and GIF are always encoded again.
 save-skipped = The changes cannot be saved over **{ $detail }**: it is animated, has several pages or carries more than one picture (the video of a motion photo, a depth map), and those parts would be lost.

@@ -65,7 +65,10 @@ impl I18n {
     pub fn t_args(&self, id: &str, args: &[(&str, &str)]) -> String {
         let mut fargs = FluentArgs::new();
         for &(k, v) in args {
-            fargs.set(k, FluentValue::from(v));
+            // Whole numbers as numbers, so the messages can choose singular or plural
+            // (`{ $n -> [one] … *[other] … }`); "007" or "1e5" (names) stay text.
+            let number = !v.is_empty() && v.len() < 16 && v.bytes().all(|b| b.is_ascii_digit()) && (v == "0" || !v.starts_with('0'));
+            fargs.set(k, if number { FluentValue::from(v.parse::<u64>().unwrap_or(0)) } else { FluentValue::from(v) });
         }
         for b in [&self.bundle, &self.fallback] {
             if let Some(pattern) = b.get_message(id).and_then(|m| m.value()) {
@@ -88,6 +91,17 @@ mod tests {
             .collect();
         ids.sort();
         ids
+    }
+
+    /// Whole numbers choose singular or plural; a name made of digits with a leading zero stays as it is.
+    #[test]
+    fn plural() {
+        let it = I18n::new("it");
+        assert!(it.t_args("batch-skipped", &[("n", "1")]).starts_with("**1 immagine** viene esclusa"));
+        assert!(it.t_args("batch-skipped", &[("n", "3")]).starts_with("**3 immagini** vengono escluse"));
+        let en = I18n::new("en");
+        assert!(en.t_args("batch-turn-confirm", &[("op", "X"), ("n", "1")]).contains("**1 image** will be"));
+        assert!(en.t_args("save-format", &[("name", "007")]).contains("**007**"));
     }
 
     fn headings(md: &str) -> usize {
