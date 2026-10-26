@@ -75,52 +75,73 @@ impl App {
             items.push(Some((t("menu-restore"), String::new(), Act::Restore(path.clone()))));
             items.push(None);
             items.push(Some((t("menu-delete-permanent"), t("key-delete"), Act::Delete(path, true))));
+        } else if target.ends_with('/') {
+            items.extend(self.folder_items(path, &target));
         } else {
-            // As in file managers: cut, copy, paste, then rename.
-            items.push(None);
-            items.push(Some((t("menu-cut"), t("key-cut"), Act::Cut(path.clone()))));
-            items.push(Some((t("menu-copy"), t("key-copy"), Act::Copy(path.clone()))));
-            // Not into one of the folders being copied: it would go inside itself.
-            let copied = self.clip.as_ref().is_some_and(|c| c.base == self.base && c.paths.contains(&target));
-            if target.ends_with('/') && !copied && self.can_paste(&target) {
-                items.push(Some((t("menu-paste-into"), String::new(), Act::Paste(Some(target.clone())))));
-            }
-            if target.ends_with('/') {
-                items.push(None);
-                items.push(Some((t("menu-duplicates"), String::new(), Act::Duplicates(Some(target.clone())))));
-            }
-            items.push(None);
-            items.push(Some((t("menu-rename"), "F2".into(), Act::Rename(path.clone()))));
-            // Flips and turns: in the viewer shown until saved, in the grid saved straight away.
-            if !target.ends_with('/') {
-                items.push(None);
-                let mut turns = Vec::new();
-                for (op, label, keys) in crate::actions::transform_items() {
-                    turns.push(Some((t(label), if in_viewer { keys.map(t).unwrap_or_default() } else { String::new() }, Act::Transform(op, path.clone()))));
-                    if op == crate::transform::Op::FlipV {
-                        turns.push(None);
-                    }
-                }
-                turns.push(None);
-                // One image at a time: with several marked it would open on one and leave the others.
-                let rotate = if self.chosen(path.clone()).len() > 1 { Act::Off(t("rc-one-only")) } else { Act::RotateCrop(path.clone()) };
-                turns.push(Some((t("menu-rotate-crop"), String::new(), rotate)));
-                items.push(Some((t("menu-transform"), String::new(), Act::Submenu(turns))));
-                if in_viewer && self.can_save() {
-                    items.push(Some((t("menu-save"), t("key-save"), Act::Save)));
-                }
-                items.push(Some((t("menu-save-copy"), String::new(), Act::Convert(path.clone()))));
-                if !in_viewer {
-                    items.push(Some((t("menu-batch"), String::new(), Act::Batch(path.clone()))));
-                }
-                items.push(Some((t("menu-redo-thumbs"), String::new(), Act::RedoThumbs(path.clone()))));
-                items.push(Some((t("menu-slideshow"), String::new(), Act::Slideshow(path.clone()))));
-            }
-            items.push(None);
-            items.push(Some((t("menu-delete"), t("key-delete"), Act::Delete(path.clone(), false))));
-            items.push(Some((t("menu-delete-permanent"), t("key-shift-delete"), Act::Delete(path, true))));
+            items.extend(self.image_items(path, in_viewer));
         }
         items
+    }
+
+    /// After Open, in the order of the menu bar: Edit (cut, copy, paste), Tools, then rename
+    /// and the deletions apart at the end, as in file managers.
+    fn folder_items(&self, path: Option<String>, target: &str) -> Vec<MenuItem> {
+        let t = |id| self.i18n.t(id);
+        let mut items = vec![None, Some((t("menu-cut"), t("key-cut"), Act::Cut(path.clone()))), Some((t("menu-copy"), t("key-copy"), Act::Copy(path.clone())))];
+        // Not into one of the folders being copied: it would go inside itself.
+        let copied = self.clip.as_ref().is_some_and(|c| c.base == self.base && c.paths.iter().any(|p| p == target));
+        if !copied && self.can_paste(target) {
+            items.push(Some((t("menu-paste-into"), String::new(), Act::Paste(Some(target.to_string())))));
+        }
+        items.push(None);
+        items.push(Some((t("menu-duplicates"), String::new(), Act::Duplicates(Some(target.to_string())))));
+        items.extend(self.rename_delete(path));
+        items
+    }
+
+    /// After Open (or Back to the grid), in the order of the menu bar: View (slideshow,
+    /// thumbnails), Image and saving, Tools, Edit, then rename and the deletions apart.
+    fn image_items(&self, path: Option<String>, in_viewer: bool) -> Vec<MenuItem> {
+        let t = |id| self.i18n.t(id);
+        let mut items = vec![Some((t("menu-slideshow"), String::new(), Act::Slideshow(path.clone())))];
+        items.push(Some((t("menu-redo-thumbs"), String::new(), Act::RedoThumbs(path.clone()))));
+        items.push(None);
+        // Flips and turns: in the viewer shown until saved, in the grid saved straight away.
+        let mut turns = Vec::new();
+        for (op, label, keys) in crate::actions::transform_items() {
+            turns.push(Some((t(label), if in_viewer { keys.map(t).unwrap_or_default() } else { String::new() }, Act::Transform(op, path.clone()))));
+            if op == crate::transform::Op::FlipV {
+                turns.push(None);
+            }
+        }
+        turns.push(None);
+        // One image at a time: with several marked it would open on one and leave the others.
+        let rotate = if self.chosen(path.clone()).len() > 1 { Act::Off(t("rc-one-only")) } else { Act::RotateCrop(path.clone()) };
+        turns.push(Some((t("menu-rotate-crop"), String::new(), rotate)));
+        items.push(Some((t("menu-transform"), String::new(), Act::Submenu(turns))));
+        if in_viewer && self.can_save() {
+            items.push(Some((t("menu-save"), t("key-save"), Act::Save)));
+        }
+        items.push(Some((t("menu-save-copy"), String::new(), Act::Convert(path.clone()))));
+        if !in_viewer {
+            items.push(Some((t("menu-batch"), String::new(), Act::Batch(path.clone()))));
+        }
+        items.push(None);
+        items.push(Some((t("menu-cut"), t("key-cut"), Act::Cut(path.clone()))));
+        items.push(Some((t("menu-copy"), t("key-copy"), Act::Copy(path.clone()))));
+        items.extend(self.rename_delete(path));
+        items
+    }
+
+    fn rename_delete(&self, path: Option<String>) -> Vec<MenuItem> {
+        let t = |id| self.i18n.t(id);
+        vec![
+            None,
+            Some((t("menu-rename"), "F2".into(), Act::Rename(path.clone()))),
+            None,
+            Some((t("menu-delete"), t("key-delete"), Act::Delete(path.clone(), false))),
+            Some((t("menu-delete-permanent"), t("key-shift-delete"), Act::Delete(path, true))),
+        ]
     }
 
     /// Name shown for a folder or image: trash folders have their own, in the user's language.

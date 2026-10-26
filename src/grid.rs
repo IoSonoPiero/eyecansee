@@ -147,15 +147,22 @@ impl App {
             // The main action here, when there is something to paste.
             if self.can_paste(&self.dir) {
                 items.push(Some((t("menu-paste"), t("key-paste"), Act::Paste(None))));
+            }
+            if self.items() > 0 {
+                items.push(Some((t("menu-select-all"), t("key-select-all"), Act::SelectAll)));
+            }
+            if !items.is_empty() {
                 items.push(None);
             }
             if self.can_make_folder() {
                 items.push(Some((t("menu-new-folder"), t("key-new-folder"), Act::NewFolder)));
             }
-            items.push(Some((t("menu-refresh"), "F5".into(), Act::Refresh)));
+            // As in View: the parent folder, then Refresh.
+            items.push(None);
             if !self.dir.is_empty() {
                 items.push(Some((t("menu-parent"), t("key-backspace"), Act::Up)));
             }
+            items.push(Some((t("menu-refresh"), "F5".into(), Act::Refresh)));
             if !source::is_trash(&self.dir) {
                 items.push(None);
                 items.push(Some((t("menu-duplicates"), String::new(), Act::Duplicates(None))));
