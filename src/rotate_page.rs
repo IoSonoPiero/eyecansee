@@ -80,8 +80,9 @@ pub struct Window {
     preparing: bool,
     /// The file to write and whether it lost quality: the confirmation is open.
     pub ready: Option<(Arc<Vec<u8>>, bool, ColorImage)>,
-    /// How many edits were applied: the image shown has them, Save encodes it as it is.
-    applied: usize,
+    /// The edits applied: the image shown has them, Save encodes it as it is (an Ultra HDR
+    /// photo's gain map gets them too).
+    applied: Vec<Edit>,
     /// Apply under way (in the background, `Msg::Original`): the edit being applied.
     applying: Option<Edit>,
     /// Closing with changes not saved: the question is open.
@@ -112,7 +113,7 @@ impl Window {
             line_end: None,
             preparing: false,
             ready: None,
-            applied: 0,
+            applied: Vec::new(),
             applying: None,
             leaving: false,
             save_as: false,
@@ -163,7 +164,7 @@ impl Window {
 
     /// Anything not saved yet: applied, or still to apply.
     fn changed(&self) -> bool {
-        self.applied > 0 || self.pending()
+        !self.applied.is_empty() || self.pending()
     }
 
     /// Rotation or crop set and not applied yet?
@@ -196,7 +197,7 @@ impl App {
         // Apply done: the image now has the edit, the controls start again from it.
         if let Some(e) = w.applying.take() {
             log!("applied {e:?}");
-            w.applied += 1;
+            w.applied.push(e);
             w.angle = 0.0;
             w.turn = Turn::default();
             w.follow = Follow::Inside;
@@ -331,7 +332,7 @@ fn apply_row(ui: &mut egui::Ui, w: &Window, i18n: &I18n) -> Option<Ask> {
     // Nothing is written until Save: said in so many words (the user took Apply for Save).
     let note = if w.pending() {
         Some("rc-pending")
-    } else if w.applied > 0 {
+    } else if !w.applied.is_empty() {
         Some("rc-unsaved")
     } else {
         None

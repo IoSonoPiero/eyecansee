@@ -16,8 +16,6 @@ use crate::{decode, thumbcache, transfer};
 
 /// Error id of an image left out of "Save": animated, several pages, a Motion Photo (`encode::can_turn_in_place`).
 pub const SKIPPED: &str = "save-skipped";
-/// An Ultra HDR photo for an edit its gain map does not follow (any angle, crop).
-pub const SKIPPED_HDR: &str = "save-ultra-hdr";
 
 /// Side of the decoded thumbnails; the grid shows them at this size or smaller.
 pub const THUMB_SIDE: u32 = 256;
@@ -314,15 +312,20 @@ impl Loader {
     /// decoded and with the applied edits, gets the one not applied yet and is encoded in the file's
     /// format. The file is read only for its format and metadata, not decoded again (it was slow
     /// with an 83 MB PSD).
-    pub fn prepare_edit(&self, path: String, image: Arc<crate::encode::Original>, pending: Option<crate::rotate::Edit>) {
+    /// `applied`: the edits the image already has, for an Ultra HDR photo's gain map.
+    pub fn prepare_edit(&self, path: String, image: Arc<crate::encode::Original>, applied: Vec<crate::rotate::Edit>, pending: Option<crate::rotate::Edit>) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = rewritten(&op, &path, false, move |bytes, name| {
+            let r = rewritten(&op, &path, move |bytes, name| {
                 let mut img = image.image.clone();
                 if let Some(e) = pending {
                     e.apply(&mut img);
                 }
                 let shown = decode::preview(&img);
+                if crate::ultrahdr::is(bytes) {
+                    let edits: Vec<_> = applied.into_iter().chain(pending).collect();
+                    return crate::ultrahdr::edited(bytes, img, &edits).map(|data| (data, true, shown));
+                }
                 crate::encode::encoded_back(bytes, name, img).map(|(data, lossy)| (data, lossy, shown))
             })
             .await;
@@ -410,18 +413,18 @@ pub(crate) async fn write_whole(op: &Store, path: &str, data: Vec<u8>) -> Result
 
 /// The image read and turned in its own format, and whether it lost quality.
 async fn turned(op: &Store, path: &str, turn: crate::transform::Turn) -> Result<(Vec<u8>, bool), source::Error> {
-    rewritten(op, path, true, move |bytes, name| crate::encode::turned_file(bytes, name, turn)).await
+    rewritten(op, path, move |bytes, name| crate::encode::turned_file(bytes, name, turn)).await
 }
 
 /// The file read and passed to `make` (in the background), which gives the file to write and
 /// whether it lost quality; `SKIPPED` if it cannot be written back over itself. An Ultra HDR
 /// photo passes when `ultra_hdr`: only flips and quarter turns know how to keep its gain map.
-async fn rewritten<T: Send + 'static>(op: &Store, path: &str, ultra_hdr: bool, make: impl FnOnce(&[u8], &str) -> Result<T, String> + Send + 'static) -> Result<T, source::Error> {
+async fn rewritten<T: Send + 'static>(op: &Store, path: &str, make: impl FnOnce(&[u8], &str) -> Result<T, String> + Send + 'static) -> Result<T, source::Error> {
     let bytes = op.read(path).await?;
     let name = source::name(path).to_string();
     tokio::task::spawn_blocking(move || {
-        if !crate::encode::can_turn_in_place(&bytes, &name) && !(ultra_hdr && crate::ultrahdr::is(&bytes)) {
-            return Err((if crate::ultrahdr::is(&bytes) { SKIPPED_HDR } else { SKIPPED }, name));
+        if !crate::encode::can_turn_in_place(&bytes, &name) && !crate::ultrahdr::is(&bytes) {
+            return Err((SKIPPED, name));
         }
         make(&bytes, &name).map_err(|e| ("error-detail", e))
     })

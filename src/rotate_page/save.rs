@@ -43,8 +43,8 @@ impl App {
     pub(super) fn rotate_save(&mut self, w: &mut Window) {
         let (Some(loader), Some(Ok((original, ..)))) = (&self.loader, &w.original) else { return };
         let pending = w.pending().then(|| w.edit());
-        log!("prepare {:?} applied {} {pending:?}", w.path, w.applied);
-        loader.prepare_edit(w.path.clone(), original.clone(), pending);
+        log!("prepare {:?} applied {} {pending:?}", w.path, w.applied.len());
+        loader.prepare_edit(w.path.clone(), original.clone(), w.applied.clone(), pending);
         self.saving.insert(w.path.clone());
         w.preparing = true;
     }

@@ -1,9 +1,13 @@
 //! Ultra HDR JPEGs (Android 14 and later, most phone photos): the photo, then a second JPEG, the
 //! gain map, after its end. The MPF segment of the photo says where the gain map starts and how
 //! long it is, the XMP container directory says its length again. Turned as a whole: both
-//! pictures the same way, then lengths and offsets written again, so the photo stays HDR.
+//! pictures the same way, then lengths and offsets written again, so the photo stays HDR. The
+//! same for Rotate and crop (`edited`), the gain map edited at its own scale.
+
+use image::DynamicImage;
 
 use crate::encode::{Format, Options, Original};
+use crate::rotate::{Crop, Edit};
 use crate::transform::{self, Turn};
 
 /// Where the parts of an Ultra HDR file are: the gain map from `gain` to the end (zeros after
@@ -35,26 +39,64 @@ pub fn is(b: &[u8]) -> bool {
 /// whether it lost quality (a picture whose size is not a multiple of the JPEG blocks is encoded
 /// again at quality 95).
 pub fn turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
-    let p = parts(b)?;
-    let (photo, gain) = (&b[..p.gain], &b[p.gain..]);
-    let end = gain.len() - gain.iter().rev().take_while(|&&x| x == 0).count();
-    let gain = &gain[..end];
+    let (photo, gain) = split(b)?;
     Some((|| {
         // The gain map has the photo's pixels in the photo's orientation: it turns as they do.
         let total = turn.after(transform::exif_turn(photo));
-        let (mut photo, lossy_photo) = one(photo, turn, |j| transform::jpeg_lossless(j, turn))?;
+        let (photo, lossy_photo) = one(photo, turn, |j| transform::jpeg_lossless(j, turn))?;
         let (gain, lossy_gain) = one(gain, total, |j| transform::jpeg_lossless_total(j, total))?;
-        set_xmp_length(&mut photo, gain.len());
-        let m = mpf(&photo).ok_or("Ultra HDR: MPF lost")?;
-        let photo_len = photo.len();
-        // First the photo (offset 0), then the gain map right after it.
-        write_u32(&mut photo, m.table + 4, photo_len as u32, m.little);
-        write_u32(&mut photo, m.table + 8, 0, m.little);
-        write_u32(&mut photo, m.table + 16 + 4, gain.len() as u32, m.little);
-        write_u32(&mut photo, m.table + 16 + 8, (photo_len - m.tiff) as u32, m.little);
-        photo.extend_from_slice(&gain);
-        Ok((photo, lossy_photo || lossy_gain))
+        Ok((assemble(photo, &gain)?, lossy_photo || lossy_gain))
     })())
+}
+
+/// The photo after "Rotate and crop" (`image`: decoded upright and already edited) written back
+/// as Ultra HDR: the gain map gets the same edits, scaled to its size, so the photo stays HDR.
+pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit]) -> Result<Vec<u8>, String> {
+    let (photo, gain) = split(b).ok_or("not Ultra HDR")?;
+    let o = Options { format: Format::Jpeg, jpeg_quality: 95, ..Options::default() };
+    // The gain map upright as the photo shown, then the edits at its scale.
+    let turn = transform::exif_turn(photo);
+    let (w, h) = image::ImageReader::new(std::io::Cursor::new(photo)).with_guessed_format().map_err(|e| e.to_string())?.into_dimensions().map_err(|e| e.to_string())?;
+    let mut g = crate::decode::decode_full(gain, "x.jpg")?;
+    let gray = !g.color().has_color();
+    turn.apply(&mut g);
+    // Long side to long side: the same whatever the orientation.
+    let k = g.width().max(g.height()) as f32 / w.max(h) as f32;
+    for e in edits {
+        let crop = Crop { cx: e.crop.cx * k, cy: e.crop.cy * k, w: e.crop.w * k, h: e.crop.h * k };
+        // ponytail: corners outside the photo take the lowest gain (0), no boost when GainMapMin
+        // is 0 as on the phones seen; read hdrgm:GainMapMin if a photo has another one.
+        Edit { crop, fill: Some([0; 3]), ..*e }.apply(&mut g);
+    }
+    if gray {
+        g = DynamicImage::ImageLuma8(g.to_luma8());
+    }
+    let new_photo = keep_segments(photo, Original::with_meta(image, photo).encode(&o)?);
+    let new_gain = keep_segments(gain, Original::with_meta(g, gain).encode(&o)?);
+    assemble(new_photo, &new_gain)
+}
+
+/// The photo and the gain map (without the padding after it), if it is an Ultra HDR file.
+fn split(b: &[u8]) -> Option<(&[u8], &[u8])> {
+    let p = parts(b)?;
+    let gain = &b[p.gain..];
+    let end = gain.len() - gain.iter().rev().take_while(|&&x| x == 0).count();
+    Some((&b[..p.gain], &gain[..end]))
+}
+
+/// The new photo (with the old one's XMP and MPF) and the new gain map in one file: lengths
+/// and offsets written again.
+fn assemble(mut photo: Vec<u8>, gain: &[u8]) -> Result<Vec<u8>, String> {
+    set_xmp_length(&mut photo, gain.len());
+    let m = mpf(&photo).ok_or("Ultra HDR: MPF lost")?;
+    let photo_len = photo.len();
+    // First the photo (offset 0), then the gain map right after it.
+    write_u32(&mut photo, m.table + 4, photo_len as u32, m.little);
+    write_u32(&mut photo, m.table + 8, 0, m.little);
+    write_u32(&mut photo, m.table + 16 + 4, gain.len() as u32, m.little);
+    write_u32(&mut photo, m.table + 16 + 8, (photo_len - m.tiff) as u32, m.little);
+    photo.extend_from_slice(gain);
+    Ok(photo)
 }
 
 /// One of the two pictures turned: without encoding again when its size allows it, otherwise
@@ -242,6 +284,45 @@ pub(crate) mod tests {
         // A size that is not a multiple of the blocks: encoded again, still Ultra HDR.
         let (out, lossy) = turned(&sample(72, 40), Turn::default().then(transform::Op::FlipH)).unwrap().unwrap();
         assert!(lossy && is(&out));
+    }
+
+    /// Rotate and crop: the gain map gets the edit at its scale, the file stays Ultra HDR.
+    #[test]
+    fn edit_ultra_hdr() {
+        let file = sample(64, 32);
+        let mut img = crate::decode::decode_full(&file, "a.jpg").unwrap();
+        let e = Edit { turn: Turn::default().then(transform::Op::Cw), angle: 10.0, crop: Crop::centred(20.0, 40.0), fill: Some([255; 3]) };
+        e.apply(&mut img);
+        let out = edited(&file, img, &[e]).unwrap();
+        let p = parts(&out).expect("still Ultra HDR");
+        let photo = image::load_from_memory(&out[..p.gain]).unwrap();
+        let gain = image::load_from_memory(&out[p.gain..]).unwrap();
+        assert_eq!((photo.dimensions(), gain.dimensions()), ((20, 40), (10, 20)));
+        let xmp = String::from_utf8_lossy(&out[..p.gain]).into_owned();
+        assert!(xmp.contains(&format!("Item:Length=\"{}\"", out.len() - p.gain)));
+    }
+
+    /// Rotate and crop on real phone photos, as `ultra_hdr_live`: 7.5° and a crop, the files in
+    /// `EYECANSEE_SAMPLES_OUT` to check with libultrahdr.
+    #[test]
+    #[ignore]
+    fn ultra_hdr_edit_live() {
+        let dir = std::env::var("EYECANSEE_SAMPLES").expect("EYECANSEE_SAMPLES");
+        let out_dir = std::env::var("EYECANSEE_SAMPLES_OUT").expect("EYECANSEE_SAMPLES_OUT");
+        for entry in std::fs::read_dir(dir).unwrap() {
+            let path = entry.unwrap().path();
+            let b = std::fs::read(&path).unwrap();
+            if !is(&b) {
+                continue;
+            }
+            let mut img = crate::decode::decode_full(&b, "x.jpg").unwrap();
+            let (w, h) = (img.width() as f32, img.height() as f32);
+            let e = Edit { turn: Turn::default(), angle: 7.5, crop: crate::rotate::inside(w, h, 7.5, w / h), fill: Some([255; 3]) };
+            e.apply(&mut img);
+            let out = edited(&b, img, &[e]).unwrap();
+            assert!(is(&out), "{}", path.display());
+            std::fs::write(std::path::Path::new(&out_dir).join(path.file_name().unwrap()), &out).unwrap();
+        }
     }
 
     /// Real phone photos: `EYECANSEE_SAMPLES=<folder>` (never changed), the turned files in

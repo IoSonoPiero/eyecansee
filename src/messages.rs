@@ -314,7 +314,6 @@ impl App {
                 };
                 self.notice = Some((self.i18n.t_args(id, &[("detail", &md(&name))]), save_as));
             }
-            (loader::SKIPPED_HDR, name) => self.notice = Some((self.i18n.t_args(loader::SKIPPED_HDR, &[("detail", &md(&name))]), save_as)),
             (id, detail) => {
                 log!("save: ERROR {id} {detail}");
                 self.error = Some(self.i18n.t_args("save-failed", &[("detail", &self.i18n.t_args(id, &[("detail", &detail)]))]));
