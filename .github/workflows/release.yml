@@ -174,10 +174,12 @@ jobs:
             tools/copr-build.sh
           fi
 
+  # The draft as soon as the zip, the installer and the AppImage are ready: notes and signatures go on
+  # while COPR builds (20-28 minutes). It is published by hand only once COPR has succeeded.
   release:
     permissions:
       contents: write
-    needs: [version, windows, appimage, copr]
+    needs: [version, windows, appimage]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     steps:
