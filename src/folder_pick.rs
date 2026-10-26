@@ -200,7 +200,8 @@ mod tests {
         assert_eq!(dirs.iter().map(|d| source::name(d)).collect::<Vec<_>>(), ["a", "b"], "folders only, in order");
         p.go(dirs[0].clone(), rt.handle(), &ctx);
         assert!(wait(&p).is_empty());
-        assert_eq!(std::path::Path::new(&p.address()), root.canonicalize().unwrap().join("a"));
+        // Both canonical: on Windows one is "C:\…", the other "\\?\C:\…".
+        assert_eq!(std::path::Path::new(&p.address()).canonicalize().unwrap(), root.canonicalize().unwrap().join("a"));
         p.go(source::parent(&p.dir), rt.handle(), &ctx);
         assert_eq!(wait(&p).len(), 2);
         // A place that does not exist: the error in place of the folders, no panic.
