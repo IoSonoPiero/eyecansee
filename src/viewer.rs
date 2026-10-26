@@ -60,21 +60,29 @@ impl App {
         self.zoom_of = None;
     }
 
-    /// Requests the open image and its neighbours, frees the distant ones.
+    /// The images the viewer moves among, as positions in `files()`: the marked ones when it
+    /// shows one of them and they are more than one (as the slideshow), otherwise the folder.
+    pub(crate) fn viewer_set(&self) -> Vec<usize> {
+        let files = self.files();
+        let marked: Vec<usize> = files.iter().enumerate().filter(|(_, f)| self.marked.contains(&f.path)).map(|(i, _)| i).collect();
+        if marked.len() > 1 && self.viewing.is_some_and(|v| marked.contains(&v)) { marked } else { (0..files.len()).collect() }
+    }
+
+    /// Requests the open image and its neighbours (among those it moves through), frees the
+    /// distant ones.
     pub(crate) fn prefetch_full(&mut self, current: usize) {
-        let n = self.files().len();
+        let set = self.viewer_set();
+        let Some(at) = set.iter().position(|&i| i == current) else { return };
         let (Some(loader), Some(Ok(listing))) = (&self.loader, self.listings.get(&self.dir)) else { return };
-        if n == 0 {
-            return;
-        }
-        let order = (0..=AROUND).flat_map(|d| [current + d, current + n * AROUND - d]);
-        for i in order.map(|i| i % n) {
+        let n = set.len();
+        let near = |r: usize| (0..=r).flat_map(move |d| [at + d, at + n * r - d]).map(|p| set[p % n]).collect::<Vec<_>>();
+        for i in near(AROUND) {
             if !self.full.contains_key(&i) && self.pending.insert(i) {
                 loader.load_full(self.generation, i, listing.files[i].path.clone());
             }
         }
-        let distance = |i: usize| i.abs_diff(current).min(n - i.abs_diff(current));
-        self.full.retain(|&i, _| distance(i) <= AROUND + 1);
+        let keep = near(AROUND + 1);
+        self.full.retain(|i, _| keep.contains(i));
     }
 
     pub(crate) fn viewer(&mut self, ui: &mut egui::Ui, current: usize) {

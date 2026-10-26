@@ -50,11 +50,14 @@ impl App {
 
     /// Reads a folder again in the background; the new listing replaces the old one in place.
     pub(crate) fn relist(&mut self, dir: String) {
-        if let Some(loader) = &self.loader
-            && self.listing_pending.insert(dir.clone())
-        {
+        let Some(loader) = &self.loader else { return };
+        if self.listing_pending.insert(dir.clone()) {
             self.relisting.insert(dir.clone());
             loader.list(dir);
+        } else {
+            // The one on its way may be from before: a trash emptied while a restore read the
+            // folder came back in the grid, empty (seen on USB sticks on Windows).
+            self.relist_again.insert(dir);
         }
     }
 

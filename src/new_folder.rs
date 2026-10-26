@@ -12,7 +12,8 @@ impl App {
     }
 
     pub(crate) fn can_make_folder_in(&self, dir: &str) -> bool {
-        self.loader.is_some() && !source::is_trash(dir) && !source::in_trash(dir) && !(self.base.starts_with("mtp://") && dir.is_empty())
+        // Phones: not among their storages, opened directly or mounted by the desktop.
+        self.loader.is_some() && !source::is_trash(dir) && !source::in_trash(dir) && !(self.base.starts_with("mtp://") && dir.is_empty()) && self.phone_root(dir).is_none()
     }
 
     /// In `dir` (a folder right-clicked), or in the folder open.

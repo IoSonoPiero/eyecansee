@@ -312,6 +312,9 @@ struct App {
     changed_at: Option<f64>,
     /// Folders being read again after a change: their new listing replaces the old one in place.
     relisting: HashSet<String>,
+    /// Asked to be read again while a listing was on its way: that one may be from before the
+    /// change, so it is read once more when it arrives.
+    relist_again: HashSet<String>,
     /// Item chosen from a right-click menu, run when the frame is drawn (never during the grid).
     act: Option<Act>,
 }
@@ -422,6 +425,7 @@ impl App {
             watched: None,
             changed_at: None,
             relisting: HashSet::new(),
+            relist_again: HashSet::new(),
             act: None,
         };
         app.watcher = watch::folder_watcher(app.tx.clone(), ctx.clone());

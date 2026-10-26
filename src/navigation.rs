@@ -23,6 +23,7 @@ impl App {
                 self.base = s.base;
                 self.listings.clear();
                 self.listing_pending.clear();
+                self.relist_again.clear();
                 self.error = None;
                 self.set_dir(s.dir);
                 self.start = s.start;
@@ -142,16 +143,9 @@ impl App {
             return;
         }
         if let Some(current) = self.viewing {
-            let n = self.files().len();
-            if n > 0 {
-                self.viewing = Some(match to {
-                    Go::Next if self.settings.wrap_around => (current + 1) % n,
-                    Go::Prev if self.settings.wrap_around => (current + n - 1) % n,
-                    Go::Next => (current + 1).min(n - 1),
-                    Go::Prev => current.saturating_sub(1),
-                    Go::First => 0,
-                    Go::Last => n - 1,
-                });
+            let set = self.viewer_set();
+            if let Some(at) = set.iter().position(|&i| i == current) {
+                self.viewing = Some(set[step(at, set.len(), to, self.settings.wrap_around)]);
             }
         } else {
             let n = self.items();
@@ -180,8 +174,10 @@ impl App {
     pub(crate) fn update_title(&mut self, ctx: &egui::Context) {
         let title = match self.viewing {
             Some(i) => {
-                let n = self.files().len();
-                let counter = self.i18n.t_args("counter", &[("n", &(i + 1).to_string()), ("total", &n.to_string())]);
+                // Among the images it moves through: "2 of 3" with three marked.
+                let set = self.viewer_set();
+                let at = set.iter().position(|&k| k == i).unwrap_or(0);
+                let counter = self.i18n.t_args("counter", &[("n", &(at + 1).to_string()), ("total", &set.len().to_string())]);
                 let name = self.files().get(i).map_or("", |f| source::name(&f.path));
                 format!("{name} ({counter}) - EyeCanSee")
             }
@@ -232,8 +228,37 @@ pub(crate) enum Go {
     Last,
 }
 
+/// The position after `at` among `n` (`n` > 0) going `to`; `wrap`: past the end back to the start.
+pub(crate) fn step(at: usize, n: usize, to: Go, wrap: bool) -> usize {
+    match to {
+        Go::Next if wrap => (at + 1) % n,
+        Go::Prev if wrap => (at + n - 1) % n,
+        Go::Next => (at + 1).min(n - 1),
+        Go::Prev => at.saturating_sub(1),
+        Go::First => 0,
+        Go::Last => n - 1,
+    }
+}
+
 /// A folder of a source as the address bar shows it: `base` plus the folder, with `\` on Windows.
 pub(crate) fn shown(base: &str, dir: &str) -> String {
     let sep = if base.contains("://") || !base.contains('\\') { "/" } else { "\\" };
     format!("{base}{}", dir.replace('/', sep))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn steps() {
+        // Three marked images in the viewer: positions among them.
+        assert_eq!(step(2, 3, Go::Next, true), 0);
+        assert_eq!(step(2, 3, Go::Next, false), 2);
+        assert_eq!(step(0, 3, Go::Prev, true), 2);
+        assert_eq!(step(0, 3, Go::Prev, false), 0);
+        assert_eq!(step(1, 3, Go::First, false), 0);
+        assert_eq!(step(1, 3, Go::Last, false), 2);
+        assert_eq!(step(0, 1, Go::Next, true), 0);
+    }
 }

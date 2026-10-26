@@ -55,6 +55,9 @@ impl App {
             Err(e) => log!("listing {dir:?}: ERROR {e:?}"),
         }
         self.listing_pending.remove(&dir);
+        if self.relist_again.remove(&dir) {
+            self.relist(dir.clone());
+        }
         let mut r = r;
         if let Ok(l) = &mut r {
             l.sort_files(self.settings.sort_by, self.settings.sort_desc);
@@ -148,6 +151,10 @@ impl App {
                 self.deleting = self.deleting.saturating_sub(1);
                 self.remove_item(&path, how == source::Deletion::TrashFolder);
                 self.dup_deleted(&path);
+                // An emptied trash: a listing of its folder already on its way would show it again.
+                if source::is_trash(&path) {
+                    self.relist(source::parent(&path));
+                }
             }
             (path, _, Err((id, detail))) => {
                 log!("delete {path:?}: ERROR {id} {detail}");

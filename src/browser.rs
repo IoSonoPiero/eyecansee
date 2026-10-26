@@ -64,7 +64,14 @@ impl App {
             Some(a) => Some((t("menu-open-selected"), String::new(), a)),
             None => Some((t("menu-back-to-grid"), "Esc".into(), Act::Back)),
         }];
-        let Some(target) = path.clone().or_else(|| self.target()).filter(|p| self.can_change(p)) else { return items };
+        let Some(target) = path.clone().or_else(|| self.target()).filter(|p| self.can_change(p)) else {
+            // The root of a drive, in the tree: it cannot be cut or renamed, but a folder can be
+            // made in it (not in the storages of a phone).
+            if path.as_deref() == Some("") && self.can_make_folder_in("") {
+                items.push(Some((self.i18n.t("menu-new-folder-in"), String::new(), Act::NewFolder(path))));
+            }
+            return items;
+        };
         // The trash folder: only put everything back or empty it. What is inside it: look at it,
         // put it back or delete it for good (Del does that too there).
         if source::is_trash(&target) {
