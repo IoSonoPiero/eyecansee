@@ -18,6 +18,8 @@ pub(crate) enum Act {
     Off(String),
     Address,
     Options,
+    /// Ctrl+A in the grid.
+    SelectAll,
     /// Item (`None` = the selected one or the one in the viewer); `true`: for good (Shift+Del).
     Delete(Option<String>, bool),
     Rename(Option<String>),
@@ -131,6 +133,7 @@ impl App {
         match act {
             Act::Address => self.open_address = Some(AddressForm { first: true, ..Default::default() }),
             Act::Options => self.options = true,
+            Act::SelectAll => self.select_all(),
             Act::Delete(path, permanent) => self.ask_delete(path, permanent),
             Act::Rename(path) => self.ask_rename(path),
             Act::NewFolder => self.ask_new_folder(),

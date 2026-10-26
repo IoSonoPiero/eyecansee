@@ -4,7 +4,7 @@ Press **F1** at any time to open or close this manual.
 
 ## The window
 
-- **Menu bar**: File, Image, View, Go, Help. The version number is on the right; **Help → About EyeCanSee** shows the version, the author, the license and the link to the source code. Every action you can do with the keyboard or a double click also has a menu item, with its key shown next to it.
+- **Menu bar**: File, Edit, Image, View, Tools, Help. The version number is on the right; **Help → About EyeCanSee** shows the version, the author, the license and the link to the source code. Every action you can do with the keyboard or a double click also has a menu item, with its key shown next to it.
 - **Toolbar**: parent folder, refresh, metadata (ℹ), the address bar, the image order and the thumbnail size slider.
 - **Folder tree** on the left, under **This computer** (and under **Devices** if you have any connected): click a folder to show its content. Folders open only when you expand them, so remote sources stay fast. When you change folder, also from the grid, the tree opens down to that folder and highlights it.
 - **Grid** on the right: the **..** cell to go up one level (not at the top of a disk or device), the subfolders, then the images as thumbnails, spread over the whole width. When you enter a folder nothing is selected; when you go up, the folder you came from is selected.
@@ -22,11 +22,11 @@ EyeCanSee creates the thumbnails in this order: the selected image first, then t
 
 Thumbnails are saved on disk, so opening the same folder again is immediate: in the file `~/.cache/eyecansee/thumbs.db` on Linux and `%LOCALAPPDATA%\eyecansee\thumbs.db` on Windows. If an image changes (size or modification date), its thumbnail is created again. You can delete that file (with EyeCanSee closed) at any time: thumbnails are created again when needed.
 
-**Clean up the thumbnail cache** in **File > Options…** (off by default): once per session, for each opened location, removes thumbnails of deleted images and recreates those of changed images; then removes the least recently used thumbnails until the cache is within **Cache limit** (default 1024 MB). Folders that cannot be found or reached are skipped, so a disconnected disk or a switched-off NAS does not lose its thumbnails. Remote locations are checked only when you open them.
+**Clean up the thumbnail cache** in **Tools > Options…** (off by default): once per session, for each opened location, removes thumbnails of deleted images and recreates those of changed images; then removes the least recently used thumbnails until the cache is within **Cache limit** (default 1024 MB). Folders that cannot be found or reached are skipped, so a disconnected disk or a switched-off NAS does not lose its thumbnails. Remote locations are checked only when you open them.
 
 ## Options
 
-**File > Options…** opens the options window, divided into tabs: **General** (last folder, window at startup, language, updates), **Look** (colors), **Browsing** (scrolling, viewer), **Deleting**, **Thumbnails** and **Slideshow**. Every change is saved immediately in `~/.config/eyecansee/settings.json` on Linux and `%APPDATA%\eyecansee\settings.json` on Windows, a text file you can also edit by hand.
+**Tools > Options…** opens the options window, divided into tabs: **General** (last folder, window at startup, language, updates), **Look** (colors), **Browsing** (scrolling, viewer), **Deleting**, **Thumbnails** and **Slideshow**. Every change is saved immediately in `~/.config/eyecansee/settings.json` on Linux and `%APPDATA%\eyecansee\settings.json` on Windows, a text file you can also edit by hand.
 
 - **Reopen the last folder at startup** (on by default): when EyeCanSee starts without a folder, for example from the applications menu, it opens the folder you were viewing when you closed it. If that folder no longer exists, it opens your home folder. Remote locations reopen without the password, which is never saved: for an FTP server with a user, **File > Open location…** opens with everything filled in except the password, ready to be typed (Cancel stays in your home folder).
 - **Remember the scroll position of each folder** (off by default): when you go back to a folder you already viewed, the grid starts where you left it. When off, every folder you open starts from the first thumbnail. It lasts until EyeCanSee is closed.
@@ -48,7 +48,7 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 The Windows installer, the Windows zip and the AppImage update themselves. At startup EyeCanSee asks GitHub, in the background, for the latest published version; if it is newer, it downloads it and checks it twice: against the SHA-256 fingerprint GitHub publishes for it (a broken download), and against the developer's signature, made with a key that never leaves the developer's PC (a file that does not come from the developer). A file without a valid signature is never installed, and Check for updates says why. When it is ready, a red **Install … and restart** button appears at the top right of the menu bar: EyeCanSee closes, installs the new version and opens again. Nothing is installed until you click it.
 
 - **Help > Check for updates** does the same check at any time and tells you the outcome.
-- The check can be turned off in **File > Options… > General**. When off, EyeCanSee contacts GitHub only when you choose Check for updates. Nothing about you or your images is sent: only the request for the latest version.
+- The check can be turned off in **Tools > Options… > General**. When off, EyeCanSee contacts GitHub only when you choose Check for updates. Nothing about you or your images is sent: only the request for the latest version.
 - On Fedora, EyeCanSee is updated by `dnf` with the rest of the system.
 
 ## Deleting and renaming
@@ -74,7 +74,7 @@ If the name of an item being restored is already taken, EyeCanSee asks what to d
 
 ## Finding duplicates
 
-**Image > Find duplicates…**, or **Find duplicates…** from the right click on a folder (or on an empty space of the grid, for the open folder), looks for identical images: the same file byte for byte, even under another name or in another folder. Images that were resized or saved again are not identical and are not found. It works on every source: computer, external disks, phones and servers.
+**Tools > Find duplicates…**, or **Find duplicates…** from the right click on a folder (or on an empty space of the grid, for the open folder), looks for identical images: the same file byte for byte, even under another name or in another folder. Images that were resized or saved again are not identical and are not found. It works on every source: computer, external disks, phones and servers.
 
 First choose whether to look **Also in subfolders** (on by default), then **Search** (**Enter**; **Esc** cancels). A window shows how many images have been examined out of those found and how much has been read; **Cancel** stops the search. Only images with the same size are read and compared, so on a computer it is quick; on a phone every image that could be a copy is read in full, and it takes time.
 
@@ -96,7 +96,7 @@ Right-click an image (in the grid or in the viewer) and choose **Save as…**. A
 
 ## Converting and resizing many images
 
-Select images in the grid (or right-click one of the selected ones) and choose **Image > Convert and resize…** or **Convert and resize…** from the right-click menu. A window asks:
+Select images in the grid (or right-click one of the selected ones) and choose **Tools > Convert and resize…** or **Convert and resize…** from the right-click menu. A window asks:
 
 - **Format**: one of those of *Save in another format*, with its options under **Options**, or **Same as the original**: each image in its own format, written as Save writes it (JPEG at quality 95); images in a format EyeCanSee cannot write (HEIC, RAW…) are then left out.
 - **Turn and flip**: a quarter turn, half a turn, and horizontal or vertical flips; the flips come first, then the turn. Only turned and in their own format, JPEGs are turned without losing quality when their size allows it, as with Save.
@@ -110,22 +110,22 @@ Select images in the grid (or right-click one of the selected ones) and choose *
 **View > Slideshow**, or **Slideshow** in the right-click menu of an image (in the grid and in the viewer), shows the images one after the other at full screen, on black. With several images selected it shows those; otherwise every image of the folder, from the chosen one (or the one open in the viewer).
 
 - **Esc** or a double click ends it: you are back where you were, on the last image shown. **Space** pauses and goes on. **←** and **→** (or Page Up and Page Down) show the previous and next image at once; with **Slide**, going back the images slide the other way.
-- In **File > Options… > Slideshow**: how many seconds each image stays (5 at first), the passage between images (**None**, **Crossfade**, the default, **Fade through black**, **Slide**, **Zoom and fade**), and **Start again after the last image** (on at first; off, the slideshow ends after the last one).
+- In **Tools > Options… > Slideshow**: how many seconds each image stays (5 at first), the passage between images (**None**, **Crossfade**, the default, **Fade through black**, **Slide**, **Zoom and fade**), and **Start again after the last image** (on at first; off, the slideshow ends after the last one).
 - The next image is read in advance: if it is not ready yet (a phone, a large file) the current one stays until it is.
 
 ## Rotating and flipping
 
-In the viewer, **Image > Transform** flips the image horizontally or vertically and rotates it by 90° clockwise (Ctrl+R) or anticlockwise (Ctrl+Shift+R) or by 180°; the two rotations are also buttons on the toolbar, and everything is in the right-click menu. The change is only shown until you save it (the status bar says "Changed, not saved", in yellow). Leaving the image with the change not saved (another image, back to the grid, the parent folder, closing EyeCanSee) first asks whether to **Save**, **Save as…** or **Don't save**; **Cancel** stays on the image. Rotate and crop asks the same way.
+In the viewer, the **Image** menu flips the image horizontally or vertically and rotates it by 90° clockwise (Ctrl+R) or anticlockwise (Ctrl+Shift+R) or by 180°; the two rotations are also buttons on the toolbar, and everything is in the right-click menu. The change is only shown until you save it (the status bar says "Changed, not saved", in yellow). Leaving the image with the change not saved (another image, back to the grid, the parent folder, closing EyeCanSee) first asks whether to **Save**, **Save as…** or **Don't save**; **Cancel** stays on the image. Rotate and crop asks the same way.
 
 - **File > Save** (Ctrl+S) saves over the original, after asking: first it prepares the new file (the status bar says "Preparing to save…"), so the question can say whether anything is lost; the original goes where a deletion would send it (the trash, usually). A JPEG is rotated without losing quality, as `jpegtran` does, when its width and height are multiples of 16 pixels (8 for some); otherwise it is encoded again at quality 95. PNG, WebP, AVIF, TIFF, BMP, GIF and QOI are encoded again in their own format. The confirmation says when the image will be encoded again with some loss of quality (a JPEG of other sizes, lossy WebP, AVIF, GIF). A PSD is saved as a PSD, with its colour profile, EXIF and XMP: one with a single plain layer loses nothing, one with several layers, text, effects or masks is **flattened** (only the image as it looks remains), and the confirmation says so in bold. The formats EyeCanSee cannot write (HEIC, RAW…) can only use Save as, and so can images that would lose something: animated PNG, WebP, AVIF and GIF, TIFF files with several pages, and JPEG photos carrying more than one picture (the video of a motion photo, depth maps). **Ultra HDR** phone photos (Android 14 and later) are flipped and turned like the others instead: EyeCanSee turns their HDR map too, so they stay HDR. On FTP servers images cannot be saved over themselves: renaming is not possible there. When an image cannot be saved over itself, Ctrl+S says why in a window with a **Save as…** button.
 - The new file is written under a hidden name first, and only takes the image's name once it is complete; if something goes wrong, or the program closes half way, the original stays (or comes back, the next time the folder is opened) under its name. If the program closes just after the new file has taken the name, a hidden file `.<name>.eyecansee-old` may stay next to the saved image: it is the original. The next Save of that image sends it where a deletion would; until then you can delete it or rename it yourself.
 - **File > Save as…** (Ctrl+Shift+S) opens *Save in another format* with the image already rotated: the original is not touched.
 
-In the grid the same operations (Image > Transform, or right-click > Transform) work on the selected image, or on all the marked ones, and save them straight away: EyeCanSee asks first, says where the originals go and warns that lossy formats may lose a little quality; images whose format cannot be saved back are left out, and so are animated and multi-page images and motion photos, listed by name in the window that says, at the end, how many images were saved. Their thumbnails are then made again. When the only image chosen cannot be saved back (a PSD, a RAW…), the window says why and offers **Save as…**, which opens *Save in another format* with the image already turned.
+In the grid the same operations (the Image menu, or right-click > Transform) work on the selected image, or on all the marked ones, and save them straight away: EyeCanSee asks first, says where the originals go and warns that lossy formats may lose a little quality; images whose format cannot be saved back are left out, and so are animated and multi-page images and motion photos, listed by name in the window that says, at the end, how many images were saved. Their thumbnails are then made again. When the only image chosen cannot be saved back (a PSD, a RAW…), the window says why and offers **Save as…**, which opens *Save in another format* with the image already turned.
 
 ### Rotate and crop
 
-**Image > Transform > Rotate and crop…** (also in the right-click menu) opens a page of its own for one image, to rotate it by any angle and crop it, as photo editors do. With several images selected it is greyed out: to turn several images together use the flips and turns above it or **Convert and resize**.
+**Image > Rotate and crop…** (also in the right-click menu) opens a page of its own for one image, to rotate it by any angle and crop it, as photo editors do. With several images selected it is greyed out: to turn several images together use the flips and turns above it or **Convert and resize**.
 
 - **Rotation**: the slider or the number next to it, from -180° to 180° by tenths of a degree; −90° and +90° add a quarter turn, **Back to 0°** undoes it. With Shift held, the mouse wheel on the image turns it by 0.1° a notch: handy for straightening a horizon against the thirds lines. The degrees can be typed with a dot or a comma.
 - **Straighten**: click it, then draw a line along the horizon (or along something upright, such as a wall): when you let go the image turns to make that line level (or upright), and the button turns itself off.
@@ -237,7 +237,7 @@ Everywhere: **F1** opens this manual, **F5** reloads the folders. In the viewer 
 
 Folders on this computer update by themselves: images added, deleted, renamed or restored from the trash by another program appear and disappear without F5, also in the viewer, which stays on the open image. On phones and servers you need F5.
 
-The same actions are in the menus: **View** (Open, Back to the grid, Refresh) and **Go** (Next, Previous, First, Last, Parent folder). In the grid Next and Previous move the selection, in the viewer they change image.
+The same actions are in the menus: **View** (Open, Back to the grid, Next, Previous, First, Last, Parent folder, Refresh) and **Edit** (Cut, Copy, Paste, Select all). In the grid Next and Previous move the selection, in the viewer they change image.
 
 A **right click** opens a menu with the actions for what is under the mouse, and selects it. On an image or a folder (in the grid or the tree): Open, Cut, Copy (on a folder also Paste into this folder, when something has been copied), Rename, then, apart at the bottom, Delete and Delete for good. On the image open in the viewer the same, with Back to the grid instead of Open. On **..**: Parent folder. On an empty space of the grid: Paste (when something has been copied), Refresh and Parent folder (inside the Trash also Restore all and Empty the trash).
 

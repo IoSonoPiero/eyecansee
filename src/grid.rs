@@ -545,7 +545,7 @@ impl App {
             }
         }
         if all {
-            self.marked = (0..n).filter_map(|k| self.item_path(k)).collect();
+            self.select_all();
         }
         if enter && pos == Some(0) && up == 1 {
             self.go_up();

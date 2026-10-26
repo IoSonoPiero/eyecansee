@@ -37,6 +37,11 @@ impl App {
         l.dirs.get(i).or_else(|| l.files.get(i.checked_sub(l.dirs.len())?).map(|f| &f.path)).cloned()
     }
 
+    /// Ctrl+A: every item of the grid marked.
+    pub(crate) fn select_all(&mut self) {
+        self.marked = (0..self.items()).filter_map(|k| self.item_path(k)).collect();
+    }
+
     /// The marked items still in the folder, in the grid's order.
     pub(crate) fn marked_paths(&self) -> Vec<String> {
         let Some(Ok(l)) = self.listings.get(&self.dir) else { return Vec::new() };
