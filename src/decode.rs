@@ -134,7 +134,8 @@ pub fn decode(bytes: &[u8], name: &str) -> std::result::Result<ColorImage, Strin
 /// was 80% of the time.
 // ponytail: other formats are decoded in full; embedded previews of RAW and HEIC when needed
 pub fn thumbnail(bytes: &[u8], name: &str, side: u32) -> std::result::Result<DynamicImage, String> {
-    let small = bytes.starts_with(&[0xFF, 0xD8, 0xFF]).then(|| jpeg_scaled(bytes, side).ok()).flatten();
+    // Lossless JPEGs cannot be scaled while decoded: at full size instead.
+    let small = bytes.starts_with(&[0xFF, 0xD8, 0xFF]).then(|| jpeg_scaled(bytes, side).or_else(|_| jpeg_scaled(bytes, u32::MAX)).ok()).flatten();
     let mut img = match small {
         Some(img) => img,
         None => decode_any(bytes, name)?,
@@ -427,6 +428,17 @@ fn magick(_: &[u8], _: Option<&str>) -> Result<DynamicImage> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// libjpeg-turbo cannot scale a lossless JPEG down: the thumbnail failed (an exclamation
+    /// mark in the grid) while the viewer, at full size, opened it.
+    #[test]
+    fn lossless_jpeg_thumbnail() {
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_fn(640, 480, |x, y| image::Rgb([x as u8, y as u8, 7])));
+        let o = crate::encode::Options { format: crate::encode::Format::Jpeg, jpeg_lossless: true, ..Default::default() };
+        let bytes = crate::encode::Original::with_meta(img, &[]).encode(&o).unwrap();
+        let thumb = thumbnail(&bytes, "x.jpg", 64).unwrap();
+        assert_eq!((thumb.width(), thumb.height()), (64, 48));
+    }
 
     #[test]
     fn decoders() {

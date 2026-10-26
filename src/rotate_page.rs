@@ -218,6 +218,7 @@ impl App {
             }
             Some(Ok((_, tex, _))) => Some(tex.clone()),
         };
+        let mut handed = false;
         if let Some(tex) = tex {
             let size = ui.available_size();
             ui.horizontal_top(|ui| {
@@ -228,15 +229,19 @@ impl App {
                     match self.rotate_controls(ui, &mut w) {
                         Some(Ask::Apply) => self.rotate_apply(ui.ctx(), &mut w),
                         Some(Ask::Save) => self.rotate_save(&mut w),
-                        Some(Ask::SaveAs) => open = !self.rotate_save_as(ui.ctx(), &w),
+                        Some(Ask::SaveAs) => {
+                            handed = self.rotate_save_as(ui.ctx(), &w);
+                            open = !handed;
+                        }
                         Some(Ask::Close) => open = false,
                         None => {}
                     }
                 });
             });
         }
-        // Closing (Esc, ✕, Close) with changes not saved: asked first.
-        if !open && w.changed() && w.ready.is_none() {
+        // Closing (Esc, ✕, Close) with changes not saved: asked first. Not after Save as…: the
+        // page stayed open under it and took the image meant for it (spinner for ever).
+        if !open && !handed && w.changed() && w.ready.is_none() {
             w.leaving = true;
             open = true;
         }
