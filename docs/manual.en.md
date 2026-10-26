@@ -107,7 +107,7 @@ Select images in the grid (or right-click one of the selected ones) and choose *
 
 ## Slideshow
 
-**View > Slideshow**, or **Slideshow** in the right-click menu of an image (in the grid and in the viewer), shows the images one after the other at full screen, on black. With several images selected it shows those; otherwise every image of the folder, from the chosen one (or the one open in the viewer).
+**View > Slideshow**, or **Slideshow** in the right-click menu of an image (in the grid and in the viewer), shows the images one after the other at full screen, on black. With several images selected it shows those, always from the first in the grid; otherwise every image of the folder, from the chosen one (or the one open in the viewer).
 
 - **Esc** or a double click ends it: you are back where you were, on the last image shown. **Space** pauses and goes on. **←** and **→** (or Page Up and Page Down) show the previous and next image at once; with **Slide**, going back the images slide the other way.
 - In **Tools > Options… > Slideshow**: how many seconds each image stays (5 at first), the passage between images (**None**, **Crossfade**, the default, **Fade through black**, **Slide**, **Zoom and fade**), and **Start again after the last image** (on at first; off, the slideshow ends after the last one).
@@ -237,7 +237,7 @@ Everywhere: **F1** opens this manual, **F5** reloads the folders. In the viewer 
 
 Folders on this computer update by themselves: images added, deleted, renamed or restored from the trash by another program appear and disappear without F5, also in the viewer, which stays on the open image. On phones and servers you need F5.
 
-The same actions are in the menus: **View** (Open, Back to the grid, Next, Previous, First, Last, Parent folder, Refresh) and **Edit** (Cut, Copy, Paste, Select all). In the grid Next and Previous move the selection, in the viewer they change image. If you open one of the selected images (with Enter, Open or the right click) while several are selected, the viewer moves only among them, as the slideshow does, and the title counts only them.
+The same actions are in the menus: **View** (Open, Back to the grid, Next, Previous, First, Last, Parent folder, Refresh) and **Edit** (Cut, Copy, Paste, Select all). In the grid Next and Previous move the selection, in the viewer they change image. With several images selected, Enter or Open (also from the right click) open the first of them in the grid, and the viewer moves only among them, as the slideshow does, and the title counts only them.
 
 A **right click** opens a menu with the actions for what is under the mouse, and selects it. The items follow the order of the menu bar. On an image: Open, Slideshow, Redo thumbnails; Transform, Save as…, Convert and resize…; Cut, Copy; Rename; then, apart at the bottom, Delete and Delete for good. On the image open in the viewer the same, with Back to the grid instead of Open and Save when you changed it. On a folder (in the grid or the tree): Open, New folder inside…; Cut, Copy (and Paste into this folder, when something has been copied); Find duplicates…; Rename; Delete and Delete for good. On **..**: Parent folder. On an empty space of the grid: Paste (when something has been copied), Select all; New folder…; Parent folder, Refresh; Find duplicates… (inside the Trash also Restore all and Empty the trash).
 

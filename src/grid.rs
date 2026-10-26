@@ -557,7 +557,7 @@ impl App {
         if enter && pos == Some(0) && up == 1 {
             self.go_up();
         } else if enter {
-            self.activate(self.selected);
+            self.open_selected();
         } else if back {
             self.go_up();
         }

@@ -60,6 +60,20 @@ impl App {
         self.zoom_of = None;
     }
 
+    /// Enter and Open: with several images selected the first of them in the grid (the viewer
+    /// then moves only among them), otherwise the item with the cursor.
+    pub(crate) fn open_selected(&mut self) {
+        match self.viewer_first_marked() {
+            Some(i) => self.viewing = Some(i),
+            None => self.activate(self.selected),
+        }
+    }
+
+    fn viewer_first_marked(&self) -> Option<usize> {
+        let marked: Vec<usize> = self.files().iter().enumerate().filter(|(_, f)| self.marked.contains(&f.path)).map(|(i, _)| i).collect();
+        (marked.len() > 1).then(|| marked[0])
+    }
+
     /// The images the viewer moves among, as positions in `files()`: the marked ones when it
     /// shows one of them and they are more than one (as the slideshow), otherwise the folder.
     pub(crate) fn viewer_set(&self) -> Vec<usize> {

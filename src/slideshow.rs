@@ -79,7 +79,8 @@ pub fn passage(now: f64, since: f64, secs: f64) -> f32 {
 }
 
 impl App {
-    /// From the menus: the marked images, or every image of the folder from the chosen one.
+    /// From the menus: the marked images from the first, or every image of the folder from the
+    /// chosen one.
     pub(crate) fn start_show(&mut self, ctx: &egui::Context, path: Option<String>) {
         let files: Vec<String> = self.files().iter().map(|f| f.path.clone()).collect();
         let chosen = self.grid_images(path.clone());
@@ -88,7 +89,9 @@ impl App {
         if paths.is_empty() {
             return;
         }
-        let at = current.and_then(|c| paths.iter().position(|p| *p == c)).unwrap_or(0);
+        // With several selected always from the first of them, as Open (also from the right
+        // click on another one); otherwise from the image chosen or open.
+        let at = if chosen.len() > 1 { 0 } else { current.and_then(|c| paths.iter().position(|p| *p == c)).unwrap_or(0) };
         log!("slideshow: {} images from {at}", paths.len());
         let was_full = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));

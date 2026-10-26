@@ -172,7 +172,7 @@ impl App {
                     }
                 }
             }
-            Act::Open => self.activate(self.selected),
+            Act::Open => self.open_selected(),
             Act::OpenDir(dir) => self.set_dir(dir),
             Act::Back => self.close_viewer(),
             Act::Refresh => self.refresh(),
