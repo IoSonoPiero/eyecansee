@@ -134,6 +134,7 @@ Nella griglia le stesse operazioni (menù Immagine, o clic destro > Trasforma) v
 - La rotellina ingrandisce attorno al puntatore, trascinando fuori dalla cornice si sposta la vista, il doppio clic mostra di nuovo tutto. La misura del risultato è sotto i comandi.
 - **Applica** (o Invio) mette la rotazione e il ritaglio nell'immagine mostrata, e i comandi ripartono da lì: puoi ruotare, ritagliare e applicare di nuovo quante volte vuoi. Il file non viene toccato: sotto Applica la pagina dice "Rotazione e ritaglio non ancora applicati" o "Modifiche applicate, non ancora salvate".
 - Alla fine **Salva…** scrive il risultato sopra l'originale dopo aver chiesto, come Salva nel visore (accanto ai pulsanti "Preparo il salvataggio…" finché il file nuovo non è pronto; stessi formati, stesse esclusioni, l'originale va dove lo manderebbe un'eliminazione); l'immagine viene codificata di nuovo, quindi il JPEG perde un po' di qualità. **Salva come…** apre *Salva in un altro formato* con il risultato. **Chiudi**, ✕ o Esc chiudono la pagina; con modifiche non salvate prima chiedono se **Salvare**, **Salvare come…** o **Non salvare** (**Annulla** torna alla pagina).
+- Le foto **Ultra HDR** dei telefoni (con la luminosità HDR) non si salvano sopra l'originale da qui: con un angolo qualsiasi o un ritaglio perderebbero l'HDR. Il messaggio offre **Salva come…**, che crea un file nuovo senza HDR. Per ribaltarle o ruotarle di 90° o 180° tenendo l'HDR usa il menù **Immagine**.
 
 ## Copiare e spostare
 

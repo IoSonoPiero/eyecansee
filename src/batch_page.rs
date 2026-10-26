@@ -283,7 +283,7 @@ impl App {
             let lines: String = failed.iter().map(|(id, detail)| format!("\n- {}", self.i18n.t_args(id, &[("detail", &md(detail))]))).collect();
             text = format!("{text}\n\n{}{lines}", self.i18n.t("batch-left-out"));
         }
-        self.notice = Some((text, false));
+        self.notice = Some((text, None));
         self.relist(w.dir.clone());
         if let Some(dest) = w.dest.1.clone().filter(|d| *d != w.dir) {
             self.relist(dest);

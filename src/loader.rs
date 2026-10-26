@@ -16,6 +16,8 @@ use crate::{decode, thumbcache, transfer};
 
 /// Error id of an image left out of "Save": animated, several pages, a Motion Photo (`encode::can_turn_in_place`).
 pub const SKIPPED: &str = "save-skipped";
+/// An Ultra HDR photo for an edit its gain map does not follow (any angle, crop).
+pub const SKIPPED_HDR: &str = "save-ultra-hdr";
 
 /// Side of the decoded thumbnails; the grid shows them at this size or smaller.
 pub const THUMB_SIDE: u32 = 256;
@@ -419,7 +421,7 @@ async fn rewritten<T: Send + 'static>(op: &Store, path: &str, ultra_hdr: bool, m
     let name = source::name(path).to_string();
     tokio::task::spawn_blocking(move || {
         if !crate::encode::can_turn_in_place(&bytes, &name) && !(ultra_hdr && crate::ultrahdr::is(&bytes)) {
-            return Err((SKIPPED, name));
+            return Err((if crate::ultrahdr::is(&bytes) { SKIPPED_HDR } else { SKIPPED }, name));
         }
         make(&bytes, &name).map_err(|e| ("error-detail", e))
     })

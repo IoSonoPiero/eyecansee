@@ -197,7 +197,7 @@ impl App {
                     .map(|f| self.i18n.t_args("save-format", &[("name", &md(source::name(&f.path)))]))
             };
             if let Some(text) = text {
-                self.notice = Some((text, true));
+                self.notice = Some((text, Some(Act::Convert(None))));
             }
             return;
         }
@@ -258,7 +258,7 @@ impl App {
     pub(crate) fn notice_window(&mut self, ctx: &egui::Context) {
         let Some((mut text, save_as)) = self.notice.clone() else { return };
         let (copy, close_label) = (self.i18n.t("menu-save-copy"), self.i18n.t("notice-close"));
-        if save_as {
+        if save_as.is_some() {
             text = format!("{text}\n\n{}", self.i18n.t("save-as-hint"));
         }
         // Enter and Esc arrive as `delete_answer` (`raw_input_hook`).
@@ -268,8 +268,10 @@ impl App {
             notice_text(ui, &text);
             ui.add_space(8.0);
             ui.horizontal(|ui| {
-                if save_as && ui.button(copy).clicked() {
-                    self.act = Some(Act::Convert(None));
+                if let Some(a) = &save_as
+                    && ui.button(copy).clicked()
+                {
+                    self.act = Some(a.clone());
                     close = true;
                 }
                 if ui.button(close_label).clicked() {

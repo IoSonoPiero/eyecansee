@@ -9,6 +9,7 @@ use eframe::egui::{self, ColorImage, TextureOptions};
 
 use crate::address::without_password;
 use crate::save_dialogs::md;
+use crate::actions::Act;
 use crate::{App, RETRY_SECS, devices, encode, loader, meta, source, transform, update, version};
 use crate::loader::Msg;
 use crate::source::Listing;
@@ -290,12 +291,16 @@ impl App {
                 self.save_ready = Some((path, turn, data, lossy));
             }
             Ok(_) => {}
-            Err(e) => self.save_failed(&path, e),
+            Err(e) => {
+                let save_as = self.viewed(&path).then_some(Act::Convert(None));
+                self.save_failed(e, save_as);
+            }
         }
     }
 
-    /// Why an image could not be prepared for saving over itself: what would be lost, or the error.
-    pub(crate) fn save_failed(&mut self, path: &str, e: source::Error) {
+    /// Why an image could not be prepared for saving over itself: what would be lost, or the
+    /// error. `save_as`: what the message's Save as… does, if it can be offered.
+    pub(crate) fn save_failed(&mut self, e: source::Error, save_as: Option<Act>) {
         // Save chosen on the way out of the image and not possible: the image stays.
         self.after_save = None;
         match e {
@@ -307,8 +312,9 @@ impl App {
                     Some(_) => "save-animated",
                     None => loader::SKIPPED,
                 };
-                self.notice = Some((self.i18n.t_args(id, &[("detail", &md(&name))]), self.viewed(path)));
+                self.notice = Some((self.i18n.t_args(id, &[("detail", &md(&name))]), save_as));
             }
+            (loader::SKIPPED_HDR, name) => self.notice = Some((self.i18n.t_args(loader::SKIPPED_HDR, &[("detail", &md(&name))]), save_as)),
             (id, detail) => {
                 log!("save: ERROR {id} {detail}");
                 self.error = Some(self.i18n.t_args("save-failed", &[("detail", &self.i18n.t_args(id, &[("detail", &detail)]))]));
@@ -351,7 +357,7 @@ impl App {
                 let names: String = std::mem::take(&mut self.skipped).iter().map(|n| format!("\n- {}", md(n))).collect();
                 text = format!("{text}\n\n{}\n{names}", self.i18n.t("batch-skipped-names"));
             }
-            self.notice = Some((text, false));
+            self.notice = Some((text, None));
         }
     }
 

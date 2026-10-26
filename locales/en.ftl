@@ -377,6 +377,7 @@ save-skipped = The changes cannot be saved over **{ $detail }**: it is animated,
 save-animated = The changes cannot be saved over **{ $detail }**: it is animated, and saving over it would keep only the first frame.
 save-pages = The changes cannot be saved over **{ $detail }**: it has several pages, and saving over it would keep only the first one.
 save-extra = The changes cannot be saved over **{ $detail }**: it also carries the video of a motion photo or a depth map, which would be lost.
+save-ultra-hdr = **{ $detail }** is an **Ultra HDR** photo: turned by any angle or cropped it would lose its HDR brightness, so the changes are not saved over the original.
 save-no-rename = Images **cannot be saved over themselves** here: this source cannot rename files.
 batch-animated = **Animated** and **multi-page** images and **motion photos** are skipped. Ultra HDR photos are turned with their HDR map.
 batch-skipped-names = Left out, because they are animated, have several pages or are motion photos:

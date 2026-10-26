@@ -86,6 +86,8 @@ pub struct Window {
     applying: Option<Edit>,
     /// Closing with changes not saved: the question is open.
     pub leaving: bool,
+    /// Save as… chosen in the message saying Save cannot write over the original.
+    pub save_as: bool,
 }
 
 impl Window {
@@ -113,6 +115,7 @@ impl Window {
             applied: 0,
             applying: None,
             leaving: false,
+            save_as: false,
         }
     }
 
@@ -226,7 +229,8 @@ impl App {
                 canvas(ui, &mut w, &tex, egui::vec2(size.x - SIDE - GAP, size.y));
                 ui.vertical(|ui| {
                     ui.set_width(SIDE);
-                    match self.rotate_controls(ui, &mut w) {
+                    let ask = self.rotate_controls(ui, &mut w);
+                    match if std::mem::take(&mut w.save_as) { Some(Ask::SaveAs) } else { ask } {
                         Some(Ask::Apply) => self.rotate_apply(ui.ctx(), &mut w),
                         Some(Ask::Save) => self.rotate_save(&mut w),
                         Some(Ask::SaveAs) => {

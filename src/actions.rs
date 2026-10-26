@@ -10,7 +10,7 @@ use crate::{App, browser, meta, settings, thumbcache, transform, update};
 
 /// Items of the menu bar and of the right-click menus: the menus only record the choice, which
 /// runs afterwards (`App::run`) with access to the whole app.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub(crate) enum Act {
     /// A submenu of a right-click menu (Transform): never run itself.
     Submenu(Vec<browser::MenuItem>),
@@ -20,6 +20,8 @@ pub(crate) enum Act {
     Options,
     /// Ctrl+A in the grid.
     SelectAll,
+    /// Save as… of Rotate and crop, from the message saying it cannot save over the original.
+    RotateSaveAs,
     /// Item (`None` = the selected one or the one in the viewer); `true`: for good (Shift+Del).
     Delete(Option<String>, bool),
     Rename(Option<String>),
@@ -135,6 +137,11 @@ impl App {
             Act::Address => self.open_address = Some(AddressForm { first: true, ..Default::default() }),
             Act::Options => self.options = true,
             Act::SelectAll => self.select_all(),
+            Act::RotateSaveAs => {
+                if let Some(w) = &mut self.rotate {
+                    w.save_as = true;
+                }
+            }
             Act::Delete(path, permanent) => self.ask_delete(path, permanent),
             Act::Rename(path) => self.ask_rename(path),
             Act::NewFolder(dir) => self.ask_new_folder(dir),

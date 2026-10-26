@@ -6,6 +6,7 @@ use eframe::egui::{self, ColorImage};
 
 use super::Window;
 use crate::encode::Original;
+use crate::actions::Act;
 use crate::{App, confirm, source};
 
 /// Answers to "save the changes?" when closing.
@@ -24,7 +25,7 @@ impl App {
         w.preparing = false;
         match r {
             Ok(ready) => w.ready = Some(ready),
-            Err(e) => self.save_failed(&path, e),
+            Err(e) => self.save_failed(e, Some(Act::RotateSaveAs)),
         }
     }
 

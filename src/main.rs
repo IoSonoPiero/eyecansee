@@ -227,7 +227,7 @@ struct App {
     /// The same, after Save was chosen: done once the save is confirmed.
     after_save: Option<save_dialogs::After>,
     /// A message in a window (a "Save" refused, how a grid save went); `true` offers "Save as…".
-    notice: Option<(String, bool)>,
+    notice: Option<(String, Option<Act>)>,
     /// KDE holds the phone: asking whether to terminate kiod (`kiod_window`).
     kiod_ask: bool,
     /// File > Open location: the window, with what is typed in it.

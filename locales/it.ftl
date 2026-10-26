@@ -376,6 +376,7 @@ save-skipped = Le modifiche non si possono salvare sopra **{ $detail }**: è ani
 save-animated = Le modifiche non si possono salvare sopra **{ $detail }**: è un'immagine animata, e salvandoci sopra resterebbe solo il primo fotogramma.
 save-pages = Le modifiche non si possono salvare sopra **{ $detail }**: ha più pagine, e salvandoci sopra resterebbe solo la prima.
 save-extra = Le modifiche non si possono salvare sopra **{ $detail }**: contiene anche il video di una foto in movimento o una mappa di profondità, che andrebbero persi.
+save-ultra-hdr = **{ $detail }** è una foto **Ultra HDR**: ruotata di un angolo qualsiasi o ritagliata perderebbe la luminosità HDR, quindi le modifiche non si salvano sopra l'originale.
 save-no-rename = Qui le immagini **non si possono salvare sopra se stesse**: questa sorgente non sa rinominare i file.
 batch-animated = I file **animati**, **multipagina** e le **foto in movimento** vengono saltati. Le foto Ultra HDR vengono ruotate insieme alla loro mappa HDR.
 batch-skipped-names = Saltate perché animate, multipagina o foto in movimento:
