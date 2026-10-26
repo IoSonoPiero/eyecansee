@@ -1,0 +1,61 @@
+# Flatpak of EyeCanSee. Local test build:
+#   flatpak-builder --user --install --force-clean target/flatpak flatpak/io.github.IoSonoPiero.EyeCanSee.yml
+# Library versions as in tools/build-appimage.sh.
+app-id: io.github.IoSonoPiero.EyeCanSee
+runtime: org.freedesktop.Platform
+runtime-version: '26.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.llvm22  # libclang for the bindings of magick_rust
+command: eyecansee
+rename-desktop-file: eyecansee.desktop
+rename-icon: eyecansee
+finish-args:
+  - --share=ipc
+  - --share=network                 # FTP, SFTP
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=all                    # GPU and phones over USB (mtp-rs)
+  - --filesystem=host               # folders, external disks, trash in ~/.local/share/Trash
+  - --filesystem=xdg-run/gvfs       # phones mounted by gvfs
+  - --filesystem=/run/udev:ro       # partitions not mounted yet (devices::external_disks)
+  - --system-talk-name=org.freedesktop.UDisks2  # mount partitions with a click
+modules:
+  - name: libde265  # HEIC: not in the runtime (patents)
+    buildsystem: cmake-ninja
+    config-opts: [-DCMAKE_BUILD_TYPE=Release, -DENABLE_DECODER=OFF, -DENABLE_ENCODER=OFF, -DENABLE_SDL=OFF]
+    sources:
+      - type: archive
+        url: https://github.com/strukturag/libde265/archive/refs/tags/v1.1.3.tar.gz
+        sha256: 189baa08fd6d2dd34db099de411bd6b2e6bd5eb88e81236a3d0fa3826b9715c4
+
+  - name: imagemagick
+    config-opts: [--enable-shared, --disable-static, --without-modules, --enable-hdri,
+                  --without-magick-plus-plus, --without-perl, --without-x, --without-xml, --disable-docs]
+    cleanup: [/bin, /include, /lib/pkgconfig, /share/doc, /share/man]
+    sources:
+      - type: archive
+        url: https://github.com/ImageMagick/ImageMagick/archive/refs/tags/7.1.2-34.tar.gz
+        sha256: f5163a573a1c1bff16358d0a592b2fb168ad0fd3b9dc5ff57dc7820eebc5cf79
+
+  - name: eyecansee
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm22/bin
+      prepend-ld-library-path: /usr/lib/sdk/llvm22/lib
+      env:
+        LIBCLANG_PATH: /usr/lib/sdk/llvm22/lib
+        CARGO_HOME: /run/build/eyecansee/cargo
+      # ponytail: cargo downloads the crates; Flathub wants them offline (flatpak-cargo-generator)
+      build-args: [--share=network]
+    build-commands:
+      - cargo build --release --locked --no-default-features --features heif,magick,libheif-rs/embedded-libheif
+      - install -Dm755 target/release/eyecansee /app/bin/eyecansee
+      - install -Dm644 assets/eyecansee.desktop /app/share/applications/eyecansee.desktop
+      - install -Dm644 assets/eyecansee.svg /app/share/icons/hicolor/scalable/apps/eyecansee.svg
+      - install -Dm644 LICENSE /app/share/licenses/io.github.IoSonoPiero.EyeCanSee/LICENSE
+    sources:
+      - type: dir
+        path: ..
+        skip: [target, notes, .git]

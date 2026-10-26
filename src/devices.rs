@@ -115,6 +115,8 @@ fn external_disks() -> Vec<Device> {
 pub fn mount(block: String, tx: Sender<Msg>, ctx: Context) {
     let _ = std::thread::Builder::new().name("mount".into()).spawn(move || {
         let r = match std::process::Command::new("udisksctl").args(["mount", "-b", &block]).output() {
+            // Flatpak: no udisksctl in the runtime, same call over D-Bus.
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => mount_dbus(&block),
             // "Mounted /dev/sda1 at /mnt/Linux" (sometimes with a trailing full stop)
             Ok(o) if o.status.success() => {
                 let out = String::from_utf8_lossy(&o.stdout);
@@ -129,6 +131,29 @@ pub fn mount(block: String, tx: Sender<Msg>, ctx: Context) {
         let _ = tx.send(Msg::Mounted(r));
         ctx.request_repaint();
     });
+}
+
+/// `udisksctl mount` done with `gdbus` (in the Flatpak runtime). Only sdX and mmcblkN names reach
+/// here, which need no escaping in the object path.
+fn mount_dbus(block: &str) -> Result<String, String> {
+    let name = block.trim_start_matches("/dev/");
+    let o = std::process::Command::new("gdbus")
+        .args(["call", "--system", "--dest", "org.freedesktop.UDisks2", "--method", "org.freedesktop.UDisks2.Filesystem.Mount"])
+        .arg(format!("--object-path=/org/freedesktop/UDisks2/block_devices/{name}"))
+        .arg("{}")
+        .output()
+        .map_err(|e| format!("gdbus: {e}"))?;
+    match o.status.success() {
+        true => gvariant_path(&String::from_utf8_lossy(&o.stdout)).ok_or_else(|| String::from_utf8_lossy(&o.stdout).trim().to_string()),
+        false => Err(String::from_utf8_lossy(&o.stderr).trim().to_string()),
+    }
+}
+
+/// `('/run/media/me/Disk',)` → `/run/media/me/Disk` (double quotes when the name has a `'`).
+fn gvariant_path(out: &str) -> Option<String> {
+    let s = out.trim().strip_prefix('(')?.strip_suffix(",)")?;
+    let q = s.chars().next().filter(|c| *c == '\'' || *c == '"')?;
+    Some(s.strip_prefix(q)?.strip_suffix(q)?.to_string())
 }
 
 fn is_external(dev: &str) -> bool {
@@ -395,6 +420,13 @@ pub fn watch(tx: Sender<Msg>, ctx: Context) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mount_reply() {
+        assert_eq!(gvariant_path("('/run/media/me/Backup Linux',)\n").as_deref(), Some("/run/media/me/Backup Linux"));
+        assert_eq!(gvariant_path("(\"/run/media/me/Pier's\",)").as_deref(), Some("/run/media/me/Pier's"));
+        assert_eq!(gvariant_path("()"), None);
+    }
 
     #[test]
     fn names() {
