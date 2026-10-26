@@ -21,6 +21,8 @@ pub(crate) enum Act {
     Rename(Option<String>),
     /// "Save in another format" for an image (`None` = the selected one or the one in the viewer).
     Convert(Option<String>),
+    /// Convert and resize images of the grid (`None` = the marked ones or the selected one).
+    Batch(Option<String>),
     /// Find duplicates in a folder (`None` = the one open).
     Duplicates(Option<String>),
     /// Makes the thumbnails again (`None` = the selected images or the one in the viewer).
@@ -121,6 +123,7 @@ impl App {
             Act::Rename(path) => self.ask_rename(path),
             Act::Convert(path) => self.open_convert(path),
             Act::Duplicates(dir) => self.open_duplicates(dir),
+            Act::Batch(path) => self.open_batch(path),
             Act::RedoThumbs(path) => self.redo_thumbs(ctx, self.chosen(path)),
             Act::RedoAllThumbs => self.redo_all_thumbs(ctx),
             Act::Transform(op, path) => {

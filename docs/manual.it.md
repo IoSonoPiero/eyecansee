@@ -91,6 +91,17 @@ Clic destro su un'immagine (nella griglia o nel visore), poi **Salva come…**. 
 - **Nome del file** e **Salva**: il file nuovo va nella stessa cartella dell'originale. Se il nome c'è già viene aggiunto " (2)", e la pagina lo dice prima del salvataggio.
 - Esc o ✕ chiudono la pagina senza salvare.
 
+## Convertire e ridimensionare molte immagini
+
+Seleziona le immagini nella griglia (o fai clic destro su una delle selezionate) e scegli **Immagine > Converti e ridimensiona…** oppure **Converti e ridimensiona…** dal menù del clic destro. Una finestra chiede:
+
+- **Formato**: uno di quelli di *Salva in un altro formato*, con le sue opzioni sotto **Opzioni**, oppure **Uguale all'originale**: ogni immagine nel suo formato, scritta come la scrive Salva (JPEG con qualità 95); le immagini in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) vengono allora escluse.
+- **Rotazione e ribaltamenti**: un quarto di giro, mezzo giro, e riflessioni orizzontali o verticali; prima i ribaltamenti, poi la rotazione. Se ruoti soltanto e lasci il formato, i JPEG vengono ruotati senza perdere qualità quando le dimensioni lo permettono, come con Salva.
+- **Dimensioni**: invariate, una percentuale dell'originale, oppure entro un riquadro di pixel mantenendo le proporzioni (dopo la rotazione). Le immagini più piccole non vengono ingrandite, a meno che tu non lo chieda. Il **filtro** decide come si calcolano i pixel: Lanczos è il più nitido, Pixel più vicino tiene i bordi netti della pixel art.
+- **Dove**: accanto agli originali, in una sottocartella (creata se manca), oppure in un'altra cartella, anche su un altro dispositivo: **Sfoglia…** apre la finestra di sistema per scegliere una cartella di questo computer, oppure scrivi un indirizzo come nella barra degli indirizzi (`mtp://…` per un telefono, `sftp://…`); quella cartella deve esistere. Così le foto del telefono si convertono direttamente in una cartella del computer. Gli originali non vengono mai toccati; un nome già presente prende " (2)".
+
+**Converti** avvia il lavoro; un riquadro nell'angolo mostra a che punto è, e intanto il programma si può usare. **Annulla** si ferma dopo l'immagine in corso. Alla fine un messaggio dice quante immagini sono state salvate e dove, e quali sono state escluse e perché: le immagini animate e quelle con più pagine (resterebbe solo la prima). Le foto del telefono con la mappa HDR o il video della foto in movimento vengono convertite: il file nuovo è la foto, l'originale tiene il resto. Funziona su ogni dispositivo: computer, dischi, telefono.
+
 ## Ruotare e riflettere
 
 Nel visore, **Immagine > Trasforma** riflette l'immagine in orizzontale o in verticale e la ruota di 90° in senso orario (Ctrl+R) o antiorario (Ctrl+Maiusc+R) o di 180°; le due rotazioni sono anche pulsanti nella barra degli strumenti, e tutto è nel menù del clic destro. La modifica è solo mostrata finché non la salvi (la barra di stato dice "Modificata, non salvata", in giallo). Lasciando l'immagine con la modifica non salvata (un'altra immagine, ritorno alla griglia, cartella superiore, chiusura di EyeCanSee) prima chiede se **Salvare**, **Salvare come…** o **Non salvare**; **Annulla** resta sull'immagine. Ruota e ritaglia chiede allo stesso modo.

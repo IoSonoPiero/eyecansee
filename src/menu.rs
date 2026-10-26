@@ -59,6 +59,7 @@ impl App {
                     });
                 });
                 ui.separator();
+                entry(ui, !viewing && !self.grid_images(None).is_empty(), egui::Button::new(t("menu-batch")), Act::Batch(None));
                 entry(ui, !viewing && self.loader.is_some() && !source::is_trash(&self.dir), egui::Button::new(t("menu-duplicates")), Act::Duplicates(None));
             });
             ui.menu_button(t("menu-view"), |ui| {

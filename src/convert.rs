@@ -8,6 +8,7 @@ use std::sync::Arc;
 use eframe::egui::{self, ColorImage, TextureHandle};
 
 use crate::i18n::I18n;
+use crate::batch::with_ext;
 use crate::encode::{Chroma, Format, Options, Original, PngFilter, TiffCompression};
 use crate::paint::{paint_turned, paint_zoomed};
 use crate::transform::Turn;
@@ -58,11 +59,6 @@ impl Window {
             error: None,
         }
     }
-}
-
-fn with_ext(name: &str, format: Format) -> String {
-    let stem = name.rsplit_once('.').map_or(name, |(s, _)| s);
-    format!("{stem}.{}", format.ext())
 }
 
 impl crate::App {
@@ -204,7 +200,8 @@ impl crate::App {
                 self.result_info(ui, w, &pixels, size);
                 ui.add_space(6.0);
                 format_choice(ui, w, i18n);
-                format_options(ui, &mut w.options, &original.0.image, i18n);
+                let image = &original.0.image;
+                format_options(ui, &mut w.options, image.color().has_alpha(), image.width().max(image.height()) > crate::encode::ICO_SIDE, i18n);
                 meta_options(ui, &mut w.options, &original.0, i18n);
                 // The name belongs to the new image, so it sits on its side.
                 ui.add_space(6.0);
@@ -332,10 +329,10 @@ fn quality(ui: &mut egui::Ui, v: &mut u8, label: String) {
     ui.add(egui::Slider::new(v, 1..=100).text(label));
 }
 
-/// The options of the chosen format's encoder.
-fn format_options(ui: &mut egui::Ui, o: &mut Options, image: &image::DynamicImage, i18n: &I18n) {
+/// The options of the chosen format's encoder, for an image with transparency (`alpha`) or larger
+/// than an icon (`big`); with several images, as if they all were.
+pub(crate) fn format_options(ui: &mut egui::Ui, o: &mut Options, alpha: bool, big: bool, i18n: &I18n) {
     let t = |id| i18n.t(id);
-    let alpha = image.color().has_alpha();
     if alpha && matches!(o.format, Format::Jpeg | Format::Hdr) {
         ui.weak(t("convert-on-white"));
     }
@@ -359,7 +356,7 @@ fn format_options(ui: &mut egui::Ui, o: &mut Options, image: &image::DynamicImag
         Format::Tga => {
             ui.checkbox(&mut o.tga_rle, t("convert-tga-rle"));
         }
-        Format::Ico if image.width().max(image.height()) > crate::encode::ICO_SIDE => {
+        Format::Ico if big => {
             ui.weak(t("convert-ico-reduced"));
         }
         Format::Bmp | Format::Qoi | Format::Ico | Format::Pnm | Format::Exr | Format::Hdr | Format::Farbfeld => {}

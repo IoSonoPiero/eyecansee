@@ -23,6 +23,7 @@ Mature programs like XnView, IrfanView or digiKam do much more than EyeCanSee, a
 - **Duplicates**: finds identical images in a folder and its subfolders, on any device, and deletes the copies you choose, always keeping at least one.
 - **Rotating and cropping**: flips and quarter turns on one or many images at once, and rotation by any angle with a crop on a single image, saved over the original or as a new file.
 - **Saving in another format** (JPEG, PNG, WebP, AVIF, TIFF and others) with every option of each format, the original and the result side by side, and the file size before you save.
+- **Converting and resizing many images at once**: format, turn, size and filter for a whole selection, into new files next to the originals, in a subfolder or in another folder, also on another device.
 - English and Italian, light and dark theme, built-in manual.
 
 ### Formats

@@ -24,6 +24,8 @@ fn log_time() -> f64 {
 mod actions;
 mod address;
 mod app_dialogs;
+mod batch;
+mod batch_page;
 mod browser;
 mod confirm;
 mod convert;
@@ -247,6 +249,10 @@ struct App {
     rotate: Option<rotate_page::Window>,
     /// Find duplicates: the search and its results page.
     duplicates: Option<dup_page::Window>,
+    /// Convert and resize several images: the choices, then the work.
+    batch: Option<batch_page::Window>,
+    /// The choices of the last one, kept while the program is open.
+    batch_form: Option<batch_page::Form>,
     title: String,
     help: bool,
     about: bool,
@@ -389,6 +395,8 @@ impl App {
             convert: None,
             rotate: None,
             duplicates: None,
+            batch: None,
+            batch_form: None,
             maintained: HashSet::new(),
             delete_confirm: None,
             delete_answer: None,
@@ -552,6 +560,7 @@ impl App {
             self.run(ctx, a);
         }
         self.duplicates_window(ctx);
+        self.batch_window(ctx);
         self.delete_window(ctx);
         self.turn_leave_window(ctx);
         self.save_window(ctx);
@@ -570,8 +579,8 @@ impl App {
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer).
-        // Open location has fields to type in: there the keys go to the field.
-        if self.asking() && !(self.open_address.is_some() && ctx.egui_wants_keyboard_input()) {
+        // Open location and Convert and resize have fields to type in: there the keys go to the field.
+        if self.asking() && !((self.open_address.is_some() || self.batch.is_some()) && ctx.egui_wants_keyboard_input()) {
             let answer = &mut self.delete_answer;
             raw_input.events.retain(|e| match e {
                 egui::Event::Key { key, pressed: true, .. } => {

@@ -387,7 +387,7 @@ impl Loader {
     }
 }
 
-async fn write_whole(op: &Store, path: &str, data: Vec<u8>) -> Result<(), source::Error> {
+pub(crate) async fn write_whole(op: &Store, path: &str, data: Vec<u8>) -> Result<(), source::Error> {
     let (chunks, rx) = tokio::sync::mpsc::channel(1);
     let size = data.len() as u64;
     let _ = chunks.send(Ok(bytes::Bytes::from(data))).await;

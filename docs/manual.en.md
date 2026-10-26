@@ -91,6 +91,17 @@ Right-click an image (in the grid or in the viewer) and choose **Save as…**. A
 - **File name** and **Save**: the new file goes into the same folder as the original. If the name is already taken, " (2)" is added, and the page says so before you save.
 - Esc or ✕ closes the page without saving.
 
+## Converting and resizing many images
+
+Select images in the grid (or right-click one of the selected ones) and choose **Image > Convert and resize…** or **Convert and resize…** from the right-click menu. A window asks:
+
+- **Format**: one of those of *Save in another format*, with its options under **Options**, or **Same as the original**: each image in its own format, written as Save writes it (JPEG at quality 95); images in a format EyeCanSee cannot write (HEIC, RAW…) are then left out.
+- **Turn and flip**: a quarter turn, half a turn, and horizontal or vertical flips; the flips come first, then the turn. Only turned and in their own format, JPEGs are turned without losing quality when their size allows it, as with Save.
+- **Size**: unchanged, a percentage of the original, or inside a box of pixels keeping the proportions (after the turn). Smaller images are not enlarged unless you ask. The **filter** decides how the pixels are worked out: Lanczos is the sharpest, Nearest pixel keeps the hard edges of pixel art.
+- **Where**: next to the originals, in a subfolder (created if missing), or in another folder, also on another device: **Browse…** opens the system window to choose a folder of this computer, or you write an address as in the address bar (`mtp://…` for a phone, `sftp://…`); that folder must exist. So photos of the phone can be converted straight into a folder of the computer. The originals are never touched; a name already taken gets " (2)".
+
+**Convert** starts the work; a box in the corner shows how far it got, and the program can be used meanwhile. **Cancel** stops after the image under way. At the end a message says how many images were saved and where, and which were left out and why: animated images and images with several pages (they would keep only the first one). Phone photos with an HDR map or a motion photo video are converted: the new file is the picture, the original keeps the rest. It works on every device: computer, disks, phone.
+
 ## Rotating and flipping
 
 In the viewer, **Image > Transform** flips the image horizontally or vertically and rotates it by 90° clockwise (Ctrl+R) or anticlockwise (Ctrl+Shift+R) or by 180°; the two rotations are also buttons on the toolbar, and everything is in the right-click menu. The change is only shown until you save it (the status bar says "Changed, not saved", in yellow). Leaving the image with the change not saved (another image, back to the grid, the parent folder, closing EyeCanSee) first asks whether to **Save**, **Save as…** or **Don't save**; **Cancel** stays on the image. Rotate and crop asks the same way.

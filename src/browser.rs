@@ -105,6 +105,9 @@ impl App {
                     items.push(Some((t("menu-save"), t("key-save"), Act::Save)));
                 }
                 items.push(Some((t("menu-save-copy"), String::new(), Act::Convert(path.clone()))));
+                if !in_viewer {
+                    items.push(Some((t("menu-batch"), String::new(), Act::Batch(path.clone()))));
+                }
                 items.push(Some((t("menu-redo-thumbs"), String::new(), Act::RedoThumbs(path.clone()))));
             }
             items.push(None);
