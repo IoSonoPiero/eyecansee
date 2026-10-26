@@ -101,6 +101,16 @@ In the viewer, **Image > Transform** flips the image horizontally or vertically 
 
 In the grid the same operations (Image > Transform, or right-click > Transform) work on the selected image, or on all the marked ones, and save them straight away: EyeCanSee asks first, says where the originals go and warns that lossy formats may lose a little quality; images whose format cannot be saved back are left out, and so are animated and multi-page images and motion photos, listed by name in the window that says, at the end, how many images were saved. Their thumbnails are then made again.
 
+### Rotate and crop
+
+**Image > Transform > Rotate and crop…** (also in the right-click menu) opens a page of its own for one image, to rotate it by any angle and crop it, as photo editors do.
+
+- **Rotation**: the slider or the number next to it, from -180° to 180° by tenths of a degree; −90° and +90° add a quarter turn, **Back to 0°** undoes it. With Shift held, the mouse wheel on the image turns it by 0.1° a notch: handy for straightening a horizon against the thirds lines.
+- **Crop**: drag a corner or a side of the frame to resize it, its inside to move it. The proportions can be free, as the original, 1:1, 5:4, 4:3, 3:2, 16:9 or your own; ⇄ swaps width and height. **Image only** makes the largest crop with no empty corners (it follows the rotation, and it is what you get at first); **Whole image** keeps all of the rotated image.
+- **Empty corners**: where the crop goes past the image they are transparent (grey squares) or filled with the colour you choose. JPEG has no transparency: there they become white.
+- The wheel zooms around the pointer, dragging outside the frame moves the view, a double click shows everything again. The size of the result is under the controls.
+- **Save** writes over the original after asking, like Save in the viewer (same formats, same exclusions, the original goes where a deletion would send it); the image is encoded again, so JPEG loses a little quality. **Save as…** opens *Save in another format* with the image already rotated and cropped. ✕ or Esc closes the page without saving.
+
 ## Copying and moving
 
 **Ctrl+C** copies the selected items (or the image open in the viewer), **Ctrl+X** cuts them; then open the folder where they should go and press **Ctrl+V**. Each copy or cut is pasted once: to paste again, copy again. The same items are in the **File** menu and in the right click; the right click on a folder also has **Paste into this folder**. Files and folders, with everything inside them, go anywhere: another folder of the same disk, another disk, a phone, a server, also from one device to another.

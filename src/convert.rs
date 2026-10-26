@@ -123,7 +123,7 @@ impl crate::App {
             _ => HashSet::new(),
         };
         let final_name = crate::source::free_name(&taken, w.name.trim());
-        let open = convert_header(ui, &self.i18n);
+        let open = page_header(ui, &self.i18n.t("convert-title"));
         let save = self.convert_body(ui, &mut w, &final_name);
         if save
             && let (Some(Ok((bytes, _))), Some(loader)) = (&w.result, &self.loader)
@@ -248,11 +248,11 @@ impl crate::App {
 /// Space between the two halves of the page.
 const GAP: f32 = 16.0;
 
-/// Title and ✕ of the page; `false` once closed (✕ or Esc).
-fn convert_header(ui: &mut egui::Ui, i18n: &I18n) -> bool {
+/// Title and ✕ of a page covering the window; `false` once closed (✕ or Esc).
+pub(crate) fn page_header(ui: &mut egui::Ui, title: &str) -> bool {
     let mut open = true;
     ui.horizontal(|ui| {
-        ui.heading(i18n.t("convert-title"));
+        ui.heading(title);
         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
             if ui.button("✕").on_hover_text("Esc").clicked() {
                 open = false;

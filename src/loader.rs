@@ -55,6 +55,8 @@ pub enum Msg {
     /// "Save" from the viewer, before the confirmation: the image, the turn, and the file to write
     /// with whether it lost quality (encoded again), or an error (`SKIPPED`: not saveable over itself).
     Prepared(String, crate::transform::Turn, Result<(Arc<Vec<u8>>, bool), source::Error>),
+    /// "Rotate and crop", before the confirmation: the image and the file to write, as `Prepared`.
+    Edited(String, Result<(Arc<Vec<u8>>, bool), source::Error>),
     /// An image saved over itself after a turn ("Save"): its path and the outcome.
     Replaced(String, Result<(), source::Error>),
     /// Thumbnails gone from the disk cache (`thumbcache::forget`): their paths.
@@ -294,6 +296,16 @@ impl Loader {
         });
     }
 
+    /// "Rotate and crop", before the confirmation: the image changed in memory (`Msg::Edited`).
+    pub fn prepare_edit(&self, path: String, edit: crate::rotate::Edit) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let r = rewritten(&op, &path, move |bytes, name| crate::encode::edited_file(bytes, name, |img| edit.apply(img))).await;
+            let _ = tx.send(Msg::Edited(path, r.map(|(data, lossy)| (Arc::new(data), lossy))));
+            ctx.request_repaint();
+        });
+    }
+
     pub fn replace_with(&self, path: String, data: Arc<Vec<u8>>, how: source::Deletion) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
@@ -373,13 +385,19 @@ async fn write_whole(op: &Store, path: &str, data: Vec<u8>) -> Result<(), source
 
 /// The image read and turned in its own format, and whether it lost quality.
 async fn turned(op: &Store, path: &str, turn: crate::transform::Turn) -> Result<(Vec<u8>, bool), source::Error> {
+    rewritten(op, path, move |bytes, name| crate::encode::turned_file(bytes, name, turn)).await
+}
+
+/// The file read and passed to `make` (in the background), which gives the file to write and
+/// whether it lost quality; `SKIPPED` if it cannot be written back over itself.
+async fn rewritten(op: &Store, path: &str, make: impl FnOnce(&[u8], &str) -> Result<(Vec<u8>, bool), String> + Send + 'static) -> Result<(Vec<u8>, bool), source::Error> {
     let bytes = op.read(path).await?;
     let name = source::name(path).to_string();
     tokio::task::spawn_blocking(move || {
         if !crate::encode::can_turn_in_place(&bytes, &name) {
             return Err((SKIPPED, name));
         }
-        crate::encode::turned_file(&bytes, &name, turn).map_err(|e| ("error-detail", e))
+        make(&bytes, &name).map_err(|e| ("error-detail", e))
     })
     .await
     .map_err(|e| ("error-detail", e.to_string()))?

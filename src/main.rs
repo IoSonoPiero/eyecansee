@@ -46,6 +46,8 @@ mod meta_panel;
 mod mtp;
 mod navigation;
 mod paint;
+mod rotate;
+mod rotate_page;
 mod save_dialogs;
 mod selection;
 mod settings;
@@ -231,6 +233,8 @@ struct App {
     update_note: Option<String>,
     /// "Save in another format" window.
     convert: Option<convert::Window>,
+    /// Rotate and crop, a page of its own.
+    rotate: Option<rotate_page::Window>,
     /// Find duplicates: the search and its results page.
     duplicates: Option<dup_page::Window>,
     title: String,
@@ -369,6 +373,7 @@ impl App {
             update: None,
             update_note: None,
             convert: None,
+            rotate: None,
             duplicates: None,
             maintained: HashSet::new(),
             delete_confirm: None,
@@ -440,7 +445,7 @@ impl App {
         self.retry(ctx);
         self.reread_changed(ctx);
         // "Save in another format" and the duplicates cover the window: the keys must not reach the grid under them.
-        if self.convert.is_none() && !self.dup_page_shown() {
+        if self.convert.is_none() && self.rotate.is_none() && !self.dup_page_shown() {
             self.global_keys(ctx);
             if self.viewing.is_some() {
                 self.viewer_keys(ctx);
@@ -463,6 +468,8 @@ impl App {
     fn panels(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         if self.convert.is_some() {
             egui::CentralPanel::default().show(ui, |ui| self.convert_page(ui));
+        } else if self.rotate.is_some() {
+            egui::CentralPanel::default().show(ui, |ui| self.rotate_page(ui));
         } else if self.dup_page_shown() {
             self.dup_page(ui);
         } else {

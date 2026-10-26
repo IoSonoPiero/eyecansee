@@ -98,6 +98,8 @@ impl App {
                         turns.push(None);
                     }
                 }
+                turns.push(None);
+                turns.push(Some((t("menu-rotate-crop"), String::new(), Act::RotateCrop(path.clone()))));
                 items.push(Some((t("menu-transform"), String::new(), Act::Submenu(turns))));
                 if in_viewer && self.can_save() {
                     items.push(Some((t("menu-save"), t("key-save"), Act::Save)));

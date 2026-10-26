@@ -21,6 +21,7 @@ Mature programs like XnView, IrfanView or digiKam do much more than EyeCanSee, a
 - **Viewer** with zoom (mouse wheel and keys) and preloading, so moving between images never waits, and photo details such as camera, exposure, date and location.
 - **File management**: copy and move (also from one device to another), rename and delete, also several items at once, with a trash on every device to restore or empty.
 - **Duplicates**: finds identical images in a folder and its subfolders, on any device, and deletes the copies you choose, always keeping at least one.
+- **Rotating and cropping**: flips and quarter turns on one or many images at once, and rotation by any angle with a crop on a single image, saved over the original or as a new file.
 - **Saving in another format** (JPEG, PNG, WebP, AVIF, TIFF and others) with every option of each format, the original and the result side by side, and the file size before you save.
 - English and Italian, light and dark theme, built-in manual.
 

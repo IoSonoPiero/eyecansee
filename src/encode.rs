@@ -163,6 +163,7 @@ impl Default for Options {
 }
 
 /// The original, decoded once, with its metadata.
+#[derive(Clone)]
 pub struct Original {
     /// Already turned upright (EXIF orientation applied).
     pub image: DynamicImage,
@@ -243,17 +244,26 @@ impl Original {
 /// otherwise at quality 95; the others encoded again, a lossless WebP still lossless. Also says
 /// whether it was encoded again with loss (the confirmation warns about it).
 pub fn turned_file(bytes: &[u8], name: &str, turn: Turn) -> Result<(Vec<u8>, bool), String> {
-    let format = Format::of_file(name).filter(|_| can_turn_in_place(bytes, name)).ok_or_else(|| name.to_string())?;
-    if format == Format::Jpeg
+    if Format::of_file(name) == Some(Format::Jpeg)
+        && can_turn_in_place(bytes, name)
         && let Some(out) = crate::transform::jpeg_lossless(bytes, turn)
     {
         return Ok((out, false));
     }
+    edited_file(bytes, name, |img| turn.apply(img))
+}
+
+/// The file decoded, changed by `edit` and encoded again in its own format: a JPEG at quality 95,
+/// a lossless WebP still lossless. Also says whether it lost quality (the confirmation warns about it).
+pub fn edited_file(bytes: &[u8], name: &str, edit: impl FnOnce(&mut DynamicImage)) -> Result<(Vec<u8>, bool), String> {
+    let format = Format::of_file(name).filter(|_| can_turn_in_place(bytes, name)).ok_or_else(|| name.to_string())?;
     let webp_lossless = format == Format::Webp && bytes.windows(4).any(|w| w == b"VP8L");
-    let o = Options { format, turn, jpeg_quality: 95, webp_lossless, ..Default::default() };
+    let o = Options { format, jpeg_quality: 95, webp_lossless, ..Default::default() };
     // GIF too: its colours are chosen again (at most 256).
     let lossy = matches!(format, Format::Jpeg | Format::Avif | Format::Gif) || (format == Format::Webp && !webp_lossless);
-    Ok((Original::open(bytes, name)?.encode(&o)?, lossy))
+    let mut original = Original::open(bytes, name)?;
+    edit(&mut original.image);
+    Ok((original.encode(&o)?, lossy))
 }
 
 /// Can the file be turned and written back over itself, losing at most a little quality? Its

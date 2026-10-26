@@ -105,15 +105,7 @@ impl App {
         }
         let Some(loader) = &self.loader else { return };
         let how = loader.deletion(&path, self.settings.local_permanent, self.settings.remote_delete);
-        let id = match how {
-            source::Deletion::SystemTrash => "save-confirm-trash",
-            source::Deletion::TrashFolder => "save-confirm-folder",
-            source::Deletion::Permanent => "save-confirm-permanent",
-        };
-        let mut text = self.i18n.t_args(id, &[("name", &md(source::name(&path)))]);
-        if lossy {
-            text = format!("{text}\n\n{}", self.i18n.t("save-lossy"));
-        }
+        let text = self.save_confirm_text(&path, how, lossy);
         let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
         // Enter and Esc arrive as `delete_answer` (`raw_input_hook`).
         match confirm::yes_no(ctx, "save", 420.0, text, yes, true, no, self.delete_answer.take()) {
@@ -126,6 +118,17 @@ impl App {
             Some(false) => self.save_ready = None,
             None => {}
         }
+    }
+
+    /// Overwrite `path`? Where the original goes, and whether the new file lost quality.
+    pub(crate) fn save_confirm_text(&self, path: &str, how: source::Deletion, lossy: bool) -> String {
+        let id = match how {
+            source::Deletion::SystemTrash => "save-confirm-trash",
+            source::Deletion::TrashFolder => "save-confirm-folder",
+            source::Deletion::Permanent => "save-confirm-permanent",
+        };
+        let text = self.i18n.t_args(id, &[("name", &md(source::name(path)))]);
+        if lossy { format!("{text}\n\n{}", self.i18n.t("save-lossy")) } else { text }
     }
 
     /// A message that needs reading (Markdown: names in bold, lists), with "Save as…" for the

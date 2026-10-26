@@ -101,6 +101,16 @@ Nel visore, **Immagine > Trasforma** riflette l'immagine in orizzontale o in ver
 
 Nella griglia le stesse operazioni (Immagine > Trasforma, o clic destro > Trasforma) valgono per l'immagine selezionata, o per tutte quelle selezionate, e le salvano subito: EyeCanSee prima chiede conferma, dice dove vanno gli originali e avvisa che i formati con perdita possono perdere un po' di qualità; le immagini in un formato che non si può risalvare vengono escluse, e così le immagini animate, multipagina e le foto in movimento, elencate per nome nella finestra che alla fine dice quante immagini sono state salvate. Poi le miniature vengono rifatte.
 
+### Ruota e ritaglia
+
+**Immagine > Trasforma > Ruota e ritaglia…** (anche nel menù del clic destro) apre una pagina a sé per una sola immagine, per ruotarla di un angolo qualsiasi e ritagliarla, come fanno i programmi di fotoritocco.
+
+- **Rotazione**: il cursore o il numero accanto, da -180° a 180° a decimi di grado; −90° e +90° aggiungono un quarto di giro, **Torna a 0°** la annulla. Tenendo premuto Maiusc, la rotellina sull'immagine la ruota di 0,1° a scatto: comodo per raddrizzare un orizzonte con le linee dei terzi.
+- **Ritaglio**: trascina un angolo o un lato della cornice per cambiarne la misura, l'interno per spostarla. Le proporzioni possono essere libere, come l'originale, 1:1, 5:4, 4:3, 3:2, 16:9 o personalizzate; ⇄ scambia larghezza e altezza. **Solo immagine** fa il ritaglio più grande senza angoli vuoti (segue la rotazione, ed è quello iniziale); **Tutta l'immagine** tiene tutta l'immagine ruotata.
+- **Angoli vuoti**: dove il ritaglio esce dall'immagine sono trasparenti (quadretti grigi) o del colore che scegli. Il JPEG non ha trasparenza: lì diventano bianchi.
+- La rotellina ingrandisce attorno al puntatore, trascinando fuori dalla cornice si sposta la vista, il doppio clic mostra di nuovo tutto. La misura del risultato è sotto i comandi.
+- **Salva** sovrascrive l'originale dopo aver chiesto, come Salva nel visore (stessi formati, stesse esclusioni, l'originale va dove lo manderebbe un'eliminazione); l'immagine viene codificata di nuovo, quindi il JPEG perde un po' di qualità. **Salva come…** apre *Salva in un altro formato* con l'immagine già ruotata e ritagliata. ✕ o Esc chiudono la pagina senza salvare.
+
 ## Copiare e spostare
 
 **Ctrl+C** copia gli elementi selezionati (o l'immagine aperta nel visore), **Ctrl+X** li taglia; poi apri la cartella dove devono andare e premi **Ctrl+V**. Ogni copia o taglio si incolla una volta sola: per incollare di nuovo, copia di nuovo. Le stesse voci sono nel menù **File** e nel clic destro; il clic destro su una cartella ha anche **Incolla in questa cartella**. File e cartelle, con tutto quello che contengono, vanno ovunque: un'altra cartella dello stesso disco, un altro disco, un telefono, un server, anche da un dispositivo a un altro.

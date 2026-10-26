@@ -30,6 +30,8 @@ pub(crate) enum Act {
     /// A flip or quarter turn: in the viewer shown until saved; in the grid the item (`None` = the
     /// selected or marked images) saved straight away, after a confirmation.
     Transform(transform::Op, Option<String>),
+    /// Rotate by any angle and crop, one image (`None` = the selected one or the one in the viewer).
+    RotateCrop(Option<String>),
     /// The turned image saved over the original (after a confirmation).
     Save,
     /// Puts back from the trash an item, or everything if it is a trash folder (`None` = selected).
@@ -131,6 +133,7 @@ impl App {
                     }
                 }
             }
+            Act::RotateCrop(path) => self.open_rotate(path),
             Act::Save => self.ask_save(),
             Act::Submenu(_) => {}
             Act::Restore(path) => self.ask_restore(path),

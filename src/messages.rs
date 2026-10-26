@@ -34,7 +34,9 @@ impl App {
                 Msg::Mounted(r) => self.on_mounted(ctx, r),
                 Msg::Open(address) => self.on_open(ctx, address),
                 // Shown in a window only when asked from the Help menu (the window is open).
+                Msg::Original(r) if self.rotate.is_some() => self.rotate_original(ctx, r),
                 Msg::Original(r) => self.convert_original(ctx, r),
+                Msg::Edited(path, r) => self.on_edited(path, r),
                 Msg::Encoded(generation, r) => self.convert_encoded(ctx, generation, r),
                 Msg::Saved(r) => self.convert_saved(r),
                 Msg::Prepared(path, turn, r) => self.on_prepared(path, turn, r),
@@ -279,7 +281,14 @@ impl App {
                 self.save_ready = Some((path, turn, data, lossy));
             }
             Ok(_) => {}
-            Err((loader::SKIPPED, name)) => {
+            Err(e) => self.save_failed(&path, e),
+        }
+    }
+
+    /// Why an image could not be prepared for saving over itself: what would be lost, or the error.
+    pub(crate) fn save_failed(&mut self, path: &str, e: source::Error) {
+        match e {
+            (loader::SKIPPED, name) => {
                 // Say exactly what would be lost.
                 let id = match encode::Format::of_file(&name) {
                     Some(encode::Format::Tiff) => "save-pages",
@@ -287,9 +296,9 @@ impl App {
                     Some(_) => "save-animated",
                     None => loader::SKIPPED,
                 };
-                self.notice = Some((self.i18n.t_args(id, &[("detail", &md(&name))]), self.viewed(&path)));
+                self.notice = Some((self.i18n.t_args(id, &[("detail", &md(&name))]), self.viewed(path)));
             }
-            Err((id, detail)) => {
+            (id, detail) => {
                 log!("save: ERROR {id} {detail}");
                 self.error = Some(self.i18n.t_args("save-failed", &[("detail", &self.i18n.t_args(id, &[("detail", &detail)]))]));
             }

@@ -54,6 +54,8 @@ impl App {
                                 ui.separator();
                             }
                         }
+                        ui.separator();
+                        entry(ui, self.target().is_some_and(|p| !p.ends_with('/')), egui::Button::new(t("menu-rotate-crop")), Act::RotateCrop(None));
                     });
                 });
                 ui.separator();
