@@ -43,6 +43,7 @@ impl Picker {
     }
 
     fn place(&mut self, address: &str, rt: &Handle, ctx: &egui::Context) {
+        log!("pick place {:?}", crate::address::without_password(address));
         match source::open(address) {
             Ok(s) => {
                 (self.base, self.store) = (s.base, Some(s.op));
@@ -62,6 +63,7 @@ impl Picker {
         let ctx = ctx.clone();
         rt.spawn(async move {
             let r = store.list(&dir).await.map(|l| l.dirs);
+            log!("pick {dir:?}: {:?}", r.as_ref().map(Vec::len));
             *dirs.lock().unwrap() = Some(r);
             ctx.request_repaint();
         });
