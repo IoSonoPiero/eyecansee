@@ -251,7 +251,11 @@ impl App {
                 ask = Some(Ask::Save);
             }
             if let Some(why) = why_not {
-                r.on_disabled_hover_text(why);
+                // Written for the message windows (`**bold**`, escaped names): drawn the same way.
+                r.on_disabled_hover_ui(|ui| {
+                    ui.set_max_width(320.0);
+                    crate::save_dialogs::notice_text(ui, &why);
+                });
             }
             if ui.add_enabled(!w.preparing, egui::Button::new(i18n.t("menu-save-copy"))).on_hover_text(i18n.t("rc-save-as-hint")).clicked() {
                 ask = Some(Ask::SaveAs);
