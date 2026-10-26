@@ -18,7 +18,7 @@ type Loaded = Result<(Arc<Original>, TextureHandle, u64), String>;
 const SIDE: f32 = 300.0;
 const GAP: f32 = 16.0;
 /// Distance in points at which a side or corner of the crop can be grabbed.
-const GRAB: f32 = 10.0;
+const GRAB: f32 = 12.0;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Aspect {
@@ -567,8 +567,10 @@ fn mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, 
     if response.double_clicked() {
         w.view = None;
     }
+    // Where the button went down: egui starts a drag only once the pointer has moved a few
+    // pixels, and taken there a corner pulled inwards was already "inside" and moved the crop.
     if response.drag_started()
-        && let Some(p) = response.interact_pointer_pos()
+        && let Some(p) = ui.input(|i| i.pointer.press_origin()).or(response.interact_pointer_pos())
     {
         w.drag = Some((grab_at(w, view, p), w.crop, (view.at, view.k), p));
     }
