@@ -55,6 +55,7 @@ mod save_dialogs;
 mod selection;
 mod settings;
 mod single;
+mod slideshow;
 mod source;
 mod theme;
 mod thumbcache;
@@ -121,6 +122,7 @@ enum OptTab {
     Browsing,
     Deleting,
     Thumbnails,
+    Slideshow,
 }
 
 /// Images kept in memory around the one open in the viewer, on each side.
@@ -254,6 +256,8 @@ struct App {
     batch: Option<batch_page::Window>,
     /// The choices of the last one, kept while the program is open.
     batch_form: Option<batch_page::Form>,
+    /// The slideshow under way, at full screen.
+    show: Option<slideshow::Show>,
     title: String,
     help: bool,
     about: bool,
@@ -398,6 +402,7 @@ impl App {
             duplicates: None,
             batch: None,
             batch_form: None,
+            show: None,
             maintained: HashSet::new(),
             delete_confirm: None,
             delete_answer: None,
@@ -475,7 +480,7 @@ impl App {
         self.retry(ctx);
         self.reread_changed(ctx);
         // "Save in another format" and the duplicates cover the window: the keys must not reach the grid under them.
-        if self.convert.is_none() && self.rotate.is_none() && !self.dup_page_shown() {
+        if self.convert.is_none() && self.rotate.is_none() && self.show.is_none() && !self.dup_page_shown() {
             self.global_keys(ctx);
             if self.viewing.is_some() {
                 self.viewer_keys(ctx);
@@ -496,7 +501,9 @@ impl App {
     /// The panels of the window: the "Save in another format" page, or the bars with the viewer
     /// or with the tree, the metadata and the grid.
     fn panels(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        if self.convert.is_some() {
+        if self.show.is_some() {
+            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(egui::Color32::BLACK)).show(ui, |ui| self.show_page(ui));
+        } else if self.convert.is_some() {
             egui::CentralPanel::default().show(ui, |ui| self.convert_page(ui));
         } else if self.rotate.is_some() {
             egui::CentralPanel::default().show(ui, |ui| self.rotate_page(ui));

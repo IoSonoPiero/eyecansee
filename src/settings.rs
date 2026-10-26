@@ -45,6 +45,10 @@ pub struct Settings {
     pub remote_delete: RemoteDelete,
     /// At startup, ask GitHub for a newer release and download it (`update`).
     pub check_updates: bool,
+    /// Slideshow: seconds each image stays, the passage between images, start again after the last.
+    pub slideshow_secs: f32,
+    pub slideshow_fade: crate::slideshow::Fade,
+    pub slideshow_loop: bool,
 }
 
 /// For phones, FTP, SFTP; local files go by `local_permanent`.
@@ -126,6 +130,9 @@ impl Default for Settings {
             local_permanent: false,
             remote_delete: RemoteDelete::TrashFolder,
             check_updates: true,
+            slideshow_secs: 5.0,
+            slideshow_fade: crate::slideshow::Fade::Cross,
+            slideshow_loop: true,
         }
     }
 }

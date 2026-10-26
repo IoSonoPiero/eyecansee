@@ -49,6 +49,7 @@ impl App {
             (OptTab::Browsing, t("opt-tab-browsing")),
             (OptTab::Deleting, t("opt-tab-deleting")),
             (OptTab::Thumbnails, t("opt-tab-thumbnails")),
+            (OptTab::Slideshow, t("opt-tab-slideshow")),
         ];
         let tab = &mut self.options_tab;
         let confirm = &mut self.purge_confirm;
@@ -73,6 +74,7 @@ impl App {
                 });
                 ui.separator();
                 match tab {
+                    OptTab::Slideshow => crate::slideshow::options_ui(ui, s, &self.i18n),
                     OptTab::General => {
                         ui.checkbox(&mut s.remember_location, remember).on_hover_text(remember_hint);
                         ui.add_space(6.0);

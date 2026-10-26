@@ -26,7 +26,7 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 
 ## Options
 
-**File > Options…** opens the options window, divided into tabs: **General** (last folder, window at startup, language, updates), **Look** (colors), **Browsing** (scrolling, viewer), **Deleting** and **Thumbnails**. Every change is saved immediately in `~/.config/eyecansee/settings.json` on Linux and `%APPDATA%\eyecansee\settings.json` on Windows, a text file you can also edit by hand.
+**File > Options…** opens the options window, divided into tabs: **General** (last folder, window at startup, language, updates), **Look** (colors), **Browsing** (scrolling, viewer), **Deleting**, **Thumbnails** and **Slideshow**. Every change is saved immediately in `~/.config/eyecansee/settings.json` on Linux and `%APPDATA%\eyecansee\settings.json` on Windows, a text file you can also edit by hand.
 
 - **Reopen the last folder at startup** (on by default): when EyeCanSee starts without a folder, for example from the applications menu, it opens the folder you were viewing when you closed it. If that folder no longer exists, it opens your home folder. Remote locations reopen without the password, which is never saved: for an FTP server with a user, **File > Open location…** opens with everything filled in except the password, ready to be typed (Cancel stays in your home folder).
 - **Remember the scroll position of each folder** (off by default): when you go back to a folder you already viewed, the grid starts where you left it. When off, every folder you open starts from the first thumbnail. It lasts until EyeCanSee is closed.
@@ -41,6 +41,7 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 - **Empty the thumbnail cache…**: deletes all saved thumbnails, after a confirmation showing how many and how much space is freed. Your images are not touched; thumbnails of the open folder are created again right away, the others when you open them again.
 - **Delete files on this computer for good, without the trash (dangerous)** (off at first): see *Deleting and renaming*.
 - **Deleting on phones and servers**: see *Deleting and renaming*.
+- **Slideshow**: how long each image stays, the passage between images and whether it starts again after the last one: see *Slideshow*.
 
 ## Updates
 
@@ -101,6 +102,14 @@ Select images in the grid (or right-click one of the selected ones) and choose *
 - **Where**: next to the originals, in a subfolder (created if missing), or in another folder, also on another device: **Browse…** opens the system window to choose a folder of this computer, or you write an address as in the address bar (`mtp://…` for a phone, `sftp://…`); that folder must exist. So photos of the phone can be converted straight into a folder of the computer. The originals are never touched; a name already taken gets " (2)".
 
 **Convert** starts the work; a box in the corner shows how far it got, and the program can be used meanwhile. **Cancel** stops after the image under way. At the end a message says how many images were saved and where, and which were left out and why: animated images and images with several pages (they would keep only the first one). Phone photos with an HDR map or a motion photo video are converted: the new file is the picture, the original keeps the rest. It works on every device: computer, disks, phone.
+
+## Slideshow
+
+**View > Slideshow**, or **Slideshow** in the right-click menu of an image (in the grid and in the viewer), shows the images one after the other at full screen, on black. With several images selected it shows those; otherwise every image of the folder, from the chosen one (or the one open in the viewer).
+
+- **Esc** or a double click ends it: you are back where you were, on the last image shown. **Space** pauses and goes on. **←** and **→** (or Page Up and Page Down) show the previous and next image at once.
+- In **File > Options… > Slideshow**: how many seconds each image stays (5 at first), the passage between images (**None**, **Crossfade**, the default, **Fade through black**, **Slide**, **Zoom and fade**), and **Start again after the last image** (on at first; off, the slideshow ends after the last one).
+- The next image is read in advance: if it is not ready yet (a phone, a large file) the current one stays until it is.
 
 ## Rotating and flipping
 

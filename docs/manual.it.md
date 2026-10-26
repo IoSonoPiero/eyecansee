@@ -26,7 +26,7 @@ Le miniature vengono salvate su disco, così riaprire la stessa cartella è imme
 
 ## Opzioni
 
-**File > Opzioni…** apre la finestra delle opzioni, divisa in schede: **Generale** (ultima cartella, finestra all'avvio, lingua, aggiornamenti), **Aspetto** (colori), **Navigazione** (scorrimento, visore), **Eliminazione** e **Miniature**. Ogni modifica viene salvata subito in `~/.config/eyecansee/settings.json` su Linux e `%APPDATA%\eyecansee\settings.json` su Windows, un file di testo che puoi anche modificare a mano.
+**File > Opzioni…** apre la finestra delle opzioni, divisa in schede: **Generale** (ultima cartella, finestra all'avvio, lingua, aggiornamenti), **Aspetto** (colori), **Navigazione** (scorrimento, visore), **Eliminazione**, **Miniature** e **Carosello**. Ogni modifica viene salvata subito in `~/.config/eyecansee/settings.json` su Linux e `%APPDATA%\eyecansee\settings.json` su Windows, un file di testo che puoi anche modificare a mano.
 
 - **Riapri l'ultima cartella all'avvio** (attiva all'inizio): quando EyeCanSee parte senza una cartella, per esempio dal menù delle applicazioni, apre quella che stavi guardando alla chiusura. Se quella cartella non esiste più, apre la tua cartella home. Gli indirizzi remoti si riaprono senza password, che non viene mai salvata: per un server FTP con utente si apre **File > Apri indirizzo…** con tutto già compilato tranne la password, pronta da scrivere (Annulla resta nella cartella home).
 - **Ricorda la posizione di scorrimento di ogni cartella** (spenta all'inizio): tornando in una cartella già vista, la griglia riparte dal punto in cui l'avevi lasciata. Spenta, ogni cartella aperta parte dalla prima anteprima. Vale finché EyeCanSee resta aperto.
@@ -41,6 +41,7 @@ Le miniature vengono salvate su disco, così riaprire la stessa cartella è imme
 - **Svuota la cache miniature…**: elimina tutte le miniature salvate, dopo una conferma con il numero di miniature e lo spazio liberato. Le immagini non vengono toccate; le miniature della cartella aperta si rifanno subito, le altre quando le riapri.
 - **Elimina i file del computer definitivamente, senza cestino (pericoloso)** (spenta all'inizio): vedi *Eliminare e rinominare*.
 - **Eliminare su telefoni e server**: vedi *Eliminare e rinominare*.
+- **Carosello**: quanto resta ogni immagine, il passaggio tra le immagini e se ricomincia dopo l'ultima: vedi *Carosello*.
 
 ## Aggiornamenti
 
@@ -101,6 +102,14 @@ Seleziona le immagini nella griglia (o fai clic destro su una delle selezionate)
 - **Dove**: accanto agli originali, in una sottocartella (creata se manca), oppure in un'altra cartella, anche su un altro dispositivo: **Sfoglia…** apre la finestra di sistema per scegliere una cartella di questo computer, oppure scrivi un indirizzo come nella barra degli indirizzi (`mtp://…` per un telefono, `sftp://…`); quella cartella deve esistere. Così le foto del telefono si convertono direttamente in una cartella del computer. Gli originali non vengono mai toccati; un nome già presente prende " (2)".
 
 **Converti** avvia il lavoro; un riquadro nell'angolo mostra a che punto è, e intanto il programma si può usare. **Annulla** si ferma dopo l'immagine in corso. Alla fine un messaggio dice quante immagini sono state salvate e dove, e quali sono state escluse e perché: le immagini animate e quelle con più pagine (resterebbe solo la prima). Le foto del telefono con la mappa HDR o il video della foto in movimento vengono convertite: il file nuovo è la foto, l'originale tiene il resto. Funziona su ogni dispositivo: computer, dischi, telefono.
+
+## Carosello
+
+**Visualizza > Carosello**, oppure **Carosello** nel menù del clic destro di un'immagine (nella griglia e nel visore), mostra le immagini una dopo l'altra a tutto schermo, su fondo nero. Con più immagini selezionate mostra quelle; altrimenti tutte le immagini della cartella, a partire da quella scelta (o da quella aperta nel visore).
+
+- **Esc** o un doppio clic lo chiudono: torni dov'eri, sull'ultima immagine mostrata. **Spazio** mette in pausa e riprende. **←** e **→** (o Pagina su e Pagina giù) mostrano subito l'immagine precedente e quella successiva.
+- In **File > Opzioni… > Carosello**: quanti secondi resta ogni immagine (5 all'inizio), il passaggio tra le immagini (**Nessuno**, **Dissolvenza incrociata**, quello predefinito, **Dissolvenza al nero**, **Scorrimento**, **Zoom e dissolvenza**) e **Ricomincia dopo l'ultima immagine** (attivo all'inizio; se spento, il carosello finisce dopo l'ultima).
+- L'immagine successiva viene letta in anticipo: se non è ancora pronta (un telefono, un file grande) quella in corso resta finché non lo è.
 
 ## Ruotare e riflettere
 

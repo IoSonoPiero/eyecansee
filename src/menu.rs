@@ -65,6 +65,7 @@ impl App {
             ui.menu_button(t("menu-view"), |ui| {
                 entry(ui, !viewing && has_items && self.cursor, item(t("menu-open-selected"), t("key-enter")), Act::Open);
                 entry(ui, viewing, item(t("menu-back-to-grid"), "Esc".into()), Act::Back);
+                entry(ui, !self.files().is_empty(), egui::Button::new(t("menu-slideshow")), Act::Slideshow(None));
                 ui.separator();
                 entry(ui, true, item(t("menu-refresh"), "F5".into()), Act::Refresh);
                 entry(ui, self.chosen(None).iter().any(|p| !p.ends_with('/')), egui::Button::new(t("menu-redo-thumbs")), Act::RedoThumbs(None));
