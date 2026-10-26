@@ -46,6 +46,7 @@ mod meta_panel;
 mod mtp;
 mod navigation;
 mod paint;
+mod psd;
 mod rotate;
 mod rotate_page;
 mod save_dialogs;

@@ -351,10 +351,10 @@ batch-originals-folder = The originals go to **this folder's Trash**, where **Op
 batch-originals-permanent = The originals are deleted **for good**.
 batch-lossy = JPEG files are rotated without losing quality when their sides are multiples of 16 pixels; the others, and WebP, AVIF and GIF, are encoded again and may lose a little quality.
 batch-skipped = { $n ->
-    [one] **1 image** is left out: its format cannot be saved back (HEIC, RAW, PSD…).
-   *[other] **{ $n } images** are left out: their format cannot be saved back (HEIC, RAW, PSD…).
+    [one] **1 image** is left out: its format cannot be saved back (HEIC, RAW…).
+   *[other] **{ $n } images** are left out: their format cannot be saved back (HEIC, RAW…).
 }
-batch-none = None of these **{ $n } images** can be saved back: their format cannot be written (HEIC, RAW, PSD…). Open them one at a time and use **Save as…**.
+batch-none = None of these **{ $n } images** can be saved back: their format cannot be written (HEIC, RAW…). Open them one at a time and use **Save as…**.
 batch-save-as-hint = **Save as…** saves it already turned to a new file, in the format you choose. The original stays as it is.
 status-saving-n = Saving: { $n }…
 save-lossy = This image is **encoded again** and may lose a little quality: a JPEG is rotated without loss only when its sides are multiples of 16 pixels, lossy WebP, AVIF and GIF are always encoded again.
@@ -366,7 +366,9 @@ save-no-rename = Images **cannot be saved over themselves** here: this source ca
 batch-animated = **Animated** and **multi-page** images and **motion photos** are skipped.
 batch-skipped-names = Left out, because they are animated, have several pages or are motion photos:
 batch-done = Images saved: **{ $n }**.
-save-format = The changes cannot be saved over **{ $name }**: EyeCanSee cannot write this format (HEIC, RAW, PSD…).
+save-psd-flatten = **This PSD will be flattened**: layers, text, effects and masks are lost, only the image as it looks remains. To keep them use **Save as…** or edit it in Photoshop.
+batch-psd-flatten = PSD files with several layers, text or effects are **flattened**: only the image as it looks remains.
+save-format = The changes cannot be saved over **{ $name }**: EyeCanSee cannot write this format (HEIC, RAW…).
 save-as-hint = **Save as…** saves it to a new file, in the format you choose. The original stays as it is.
 notice-close = Close
 

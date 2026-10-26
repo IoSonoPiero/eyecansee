@@ -364,8 +364,7 @@ fn extra(bytes: &[u8], name: &str) -> Result<DynamicImage> {
 /// Universal fallback. Recognises the format from the content: formats without a signature
 /// (e.g. TGA) only get here if their dedicated decoder already exists.
 #[cfg(feature = "magick")]
-fn magick(bytes: &[u8], format: Option<&str>) -> Result<DynamicImage> {
-    use magick_rust::{MagickWand, magick_wand_genesis};
+pub(crate) fn magick_init() {
     static INIT: std::sync::Once = std::sync::Once::new();
     INIT.call_once(|| {
         // On Windows ImageMagick ships beside the exe (zip and installer): without these it looks
@@ -383,8 +382,14 @@ fn magick(bytes: &[u8], format: Option<&str>) -> Result<DynamicImage> {
                 }
             }
         }
-        magick_wand_genesis();
+        magick_rust::magick_wand_genesis();
     });
+}
+
+#[cfg(feature = "magick")]
+fn magick(bytes: &[u8], format: Option<&str>) -> Result<DynamicImage> {
+    use magick_rust::MagickWand;
+    magick_init();
     let mut wand = MagickWand::new();
     // The extension as a hint: some formats cannot be told from the content (PICT starts with
     // 512 empty bytes). A wrong one fails here and the caller tries again without it.

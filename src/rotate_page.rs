@@ -276,7 +276,7 @@ impl App {
     fn why_not_save(&self, w: &Window) -> Option<String> {
         if self.loader.as_ref().is_some_and(|l| !l.can_rename()) {
             Some(self.i18n.t("save-no-rename"))
-        } else if Format::of_file(&w.path).is_none() || !self.can_change(&w.path) || self.saving.contains(&w.path) {
+        } else if !crate::encode::saves_back(&w.path) || !self.can_change(&w.path) || self.saving.contains(&w.path) {
             Some(self.i18n.t_args("save-format", &[("name", &crate::save_dialogs::md(source::name(&w.path)))]))
         } else {
             None

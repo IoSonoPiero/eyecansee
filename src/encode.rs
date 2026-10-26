@@ -67,6 +67,12 @@ impl Format {
     }
 }
 
+/// Can an image with this name be saved over itself (its format written back)? What is inside
+/// is looked at later, by `can_turn_in_place`.
+pub fn saves_back(name: &str) -> bool {
+    Format::of_file(name).is_some() || (crate::psd::writable() && crate::psd::is_psd(name))
+}
+
 /// JPEG colour resolution: full (4:4:4), half across (4:2:2), half both ways (4:2:0), or none (greys).
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Chroma {
@@ -256,6 +262,12 @@ pub fn turned_file(bytes: &[u8], name: &str, turn: Turn) -> Result<(Vec<u8>, boo
 /// The file decoded, changed by `edit` and encoded again in its own format: a JPEG at quality 95,
 /// a lossless WebP still lossless. Also says whether it lost quality (the confirmation warns about it).
 pub fn edited_file(bytes: &[u8], name: &str, edit: impl FnOnce(&mut DynamicImage)) -> Result<(Vec<u8>, bool), String> {
+    // A PSD comes back flattened: "lossy" when there was more than one plain layer.
+    if crate::psd::is_psd(name) {
+        let mut img = crate::decode::decode_full(bytes, name)?;
+        edit(&mut img);
+        return Ok((crate::psd::encode(&img, bytes)?, !crate::psd::simple(bytes)));
+    }
     let format = Format::of_file(name).filter(|_| can_turn_in_place(bytes, name)).ok_or_else(|| name.to_string())?;
     let webp_lossless = format == Format::Webp && bytes.windows(4).any(|w| w == b"VP8L");
     let o = Options { format, jpeg_quality: 95, webp_lossless, ..Default::default() };
@@ -271,6 +283,9 @@ pub fn edited_file(bytes: &[u8], name: &str, edit: impl FnOnce(&mut DynamicImage
 /// AVIF sequence), not several pages (TIFF), not a JPEG carrying more than the picture (the video
 /// of a Motion Photo after its end, MPF secondary images or depth maps), which would be lost.
 pub fn can_turn_in_place(bytes: &[u8], name: &str) -> bool {
+    if crate::psd::is_psd(name) {
+        return crate::psd::writable();
+    }
     let cursor = || Cursor::new(bytes);
     match Format::of_file(name) {
         Some(Format::Jpeg) => plain_jpeg(bytes),

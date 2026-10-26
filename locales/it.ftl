@@ -350,10 +350,10 @@ batch-originals-folder = Gli originali vanno nel **Cestino di questa cartella**,
 batch-originals-permanent = Gli originali vengono eliminati **definitivamente**.
 batch-lossy = I JPEG vengono ruotati senza perdere qualità quando i lati sono multipli di 16 pixel; gli altri, e i WebP, gli AVIF e i GIF, vengono ricodificati e possono perdere un po' di qualità.
 batch-skipped = { $n ->
-    [one] **1 immagine** viene esclusa: il suo formato non si può risalvare (HEIC, RAW, PSD…).
-   *[other] **{ $n } immagini** vengono escluse: il loro formato non si può risalvare (HEIC, RAW, PSD…).
+    [one] **1 immagine** viene esclusa: il suo formato non si può risalvare (HEIC, RAW…).
+   *[other] **{ $n } immagini** vengono escluse: il loro formato non si può risalvare (HEIC, RAW…).
 }
-batch-none = Nessuna di queste **{ $n } immagini** si può risalvare: il loro formato non si può scrivere (HEIC, RAW, PSD…). Aprile una alla volta e usa **Salva come…**.
+batch-none = Nessuna di queste **{ $n } immagini** si può risalvare: il loro formato non si può scrivere (HEIC, RAW…). Aprile una alla volta e usa **Salva come…**.
 batch-save-as-hint = Con **Salva come…** la salvi già ruotata in un file nuovo, nel formato che scegli. L'originale resta com'è.
 status-saving-n = Salvataggio in corso: { $n }…
 save-lossy = Questa immagine viene **ricodificata** e può perdere un po' di qualità: un JPEG viene ruotato senza perdita solo quando i lati sono multipli di 16 pixel, i WebP con perdita, gli AVIF e i GIF vengono sempre ricodificati.
@@ -365,7 +365,9 @@ save-no-rename = Qui le immagini **non si possono salvare sopra se stesse**: que
 batch-animated = I file **animati**, **multipagina** e le **foto in movimento** vengono saltati.
 batch-skipped-names = Saltate perché animate, multipagina o foto in movimento:
 batch-done = Immagini salvate: **{ $n }**.
-save-format = Le modifiche non si possono salvare sopra **{ $name }**: EyeCanSee non sa scrivere questo formato (HEIC, RAW, PSD…).
+save-psd-flatten = **Questo PSD verrà appiattito**: livelli, testi, effetti e maschere si perdono, resta solo l'immagine come si vede. Per tenerli usa **Salva come…** o modificalo con Photoshop.
+batch-psd-flatten = I PSD con più livelli, testi o effetti vengono **appiattiti**: resta solo l'immagine come si vede.
+save-format = Le modifiche non si possono salvare sopra **{ $name }**: EyeCanSee non sa scrivere questo formato (HEIC, RAW…).
 save-as-hint = Con **Salva come…** la salvi in un file nuovo, nel formato che scegli. L'originale resta com'è.
 notice-close = Chiudi
 

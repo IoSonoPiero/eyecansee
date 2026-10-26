@@ -15,7 +15,7 @@ impl App {
         // Images still being saved stay out: they would be turned twice.
         let paths = paths.into_iter().filter(|p| !self.saving.contains(p));
         let rename = loader.can_rename();
-        let (ok, skipped): (Vec<String>, Vec<String>) = paths.partition(|p| rename && encode::Format::of_file(p).is_some());
+        let (ok, skipped): (Vec<String>, Vec<String>) = paths.partition(|p| rename && encode::saves_back(p));
         if ok.is_empty() {
             self.batch_turn_none(ctx, &skipped, rename, op);
             return;
@@ -31,6 +31,9 @@ impl App {
         let mut text = format!("{}\n\n{}", self.i18n.t_args("batch-turn-confirm", &[("op", &self.i18n.t(label)), ("n", &n)]), self.i18n.t(where_id));
         if ok.iter().any(|p| matches!(encode::Format::of_file(p), Some(encode::Format::Jpeg | encode::Format::Webp | encode::Format::Avif | encode::Format::Gif))) {
             text = format!("{text}\n\n{}", self.i18n.t("batch-lossy"));
+        }
+        if ok.iter().any(|p| crate::psd::is_psd(p)) {
+            text = format!("{text}\n\n{}", self.i18n.t("batch-psd-flatten"));
         }
         if !ok.is_empty() {
             text = format!("{text}\n\n{}", self.i18n.t("batch-animated"));
@@ -95,7 +98,7 @@ impl App {
             && self.save_ready.is_none()
             && self.loader.as_ref().is_some_and(|l| l.can_rename())
             && self.files().get(current).is_some_and(|f| {
-                self.can_change(&f.path) && !self.saving.contains(&f.path) && encode::Format::of_file(&f.path).is_some()
+                self.can_change(&f.path) && !self.saving.contains(&f.path) && encode::saves_back(&f.path)
             })
     }
 
@@ -115,7 +118,7 @@ impl App {
             } else {
                 self.viewing
                     .and_then(|i| self.files().get(i))
-                    .filter(|f| encode::Format::of_file(&f.path).is_none())
+                    .filter(|f| !encode::saves_back(&f.path))
                     .map(|f| self.i18n.t_args("save-format", &[("name", &md(source::name(&f.path)))]))
             };
             if let Some(text) = text {
@@ -162,7 +165,9 @@ impl App {
             source::Deletion::Permanent => "save-confirm-permanent",
         };
         let text = self.i18n.t_args(id, &[("name", &md(source::name(path)))]);
-        if lossy { format!("{text}\n\n{}", self.i18n.t("save-lossy")) } else { text }
+        // A PSD is "lossy" when it had layers, text or effects: it is flattened.
+        let warning = if crate::psd::is_psd(path) { "save-psd-flatten" } else { "save-lossy" };
+        if lossy { format!("{text}\n\n{}", self.i18n.t(warning)) } else { text }
     }
 
     /// A message that needs reading (Markdown: names in bold, lists), with "Save as…" for the
