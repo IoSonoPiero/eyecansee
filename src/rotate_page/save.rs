@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use eframe::egui;
+use eframe::egui::{self, ColorImage};
 
 use super::Window;
 use crate::encode::Original;
@@ -18,7 +18,7 @@ pub(super) enum Leave {
 
 impl App {
     /// The image changed in memory for Save: the confirmation opens.
-    pub(crate) fn on_edited(&mut self, path: String, r: Result<(Arc<Vec<u8>>, bool), source::Error>) {
+    pub(crate) fn on_edited(&mut self, path: String, r: Result<(Arc<Vec<u8>>, bool, ColorImage), source::Error>) {
         self.saving.remove(&path);
         let Some(w) = self.rotate.as_mut().filter(|w| w.path == path) else { return };
         w.preparing = false;
@@ -100,7 +100,7 @@ impl App {
 
     /// Overwrite? As Save in the viewer. `true` once written (the page closes).
     pub(super) fn rotate_confirm(&mut self, ctx: &egui::Context, w: &mut Window) -> bool {
-        let (Some((data, lossy)), Some(loader)) = (w.ready.clone(), &self.loader) else { return false };
+        let (Some((data, lossy)), Some(loader)) = (w.ready.as_ref().map(|r| (r.0.clone(), r.1)), &self.loader) else { return false };
         let how = loader.deletion(&w.path, self.settings.local_permanent, self.settings.remote_delete);
         let text = self.save_confirm_text(&w.path, how, lossy);
         let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
@@ -109,6 +109,15 @@ impl App {
                 log!("save {:?} {how:?}", w.path);
                 loader.replace_with(w.path.clone(), data, how);
                 self.saving.insert(w.path.clone());
+                // The viewer shows the result at once, instead of the old image until the file is
+                // read again (seen for a second and a half with an 83 MB PSD).
+                if let Some((.., shown)) = w.ready.take() {
+                    let tex = ctx.load_texture(w.path.clone(), shown, egui::TextureOptions::LINEAR);
+                    if let Some(i) = self.files().iter().position(|f| f.path == w.path) {
+                        self.full.insert(i, Ok(tex.clone()));
+                    }
+                    self.fresh = Some((w.path.clone(), tex));
+                }
                 w.ready = None;
                 true
             }

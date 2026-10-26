@@ -79,7 +79,7 @@ pub struct Window {
     line_end: Option<Pos2>,
     preparing: bool,
     /// The file to write and whether it lost quality: the confirmation is open.
-    pub ready: Option<(Arc<Vec<u8>>, bool)>,
+    pub ready: Option<(Arc<Vec<u8>>, bool, ColorImage)>,
     /// How many edits were applied: the image shown has them, Save encodes it as it is.
     applied: usize,
     /// Apply under way (in the background, `Msg::Original`): the edit being applied.

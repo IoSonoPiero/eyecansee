@@ -84,6 +84,12 @@ impl App {
         }
         remap(&mut self.thumbs, &moved);
         remap(&mut self.full, &moved);
+        // An image just saved from Rotate and crop: its new file is what it shows already.
+        if let Some((path, tex)) = self.fresh.take()
+            && let Some(&j) = at.get(path.as_str())
+        {
+            self.full.insert(j, Ok(tex));
+        }
         self.generated = self.generated.iter().filter_map(|k| moved.get(k).copied()).collect();
         let (ndirs, n) = (new.dirs.len(), new.files.len());
         let file_at = |i: usize| old.files.get(i).and_then(|f| at.get(f.path.as_str()).copied());

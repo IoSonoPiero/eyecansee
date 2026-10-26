@@ -56,7 +56,8 @@ pub enum Msg {
     /// with whether it lost quality (encoded again), or an error (`SKIPPED`: not saveable over itself).
     Prepared(String, crate::transform::Turn, Result<(Arc<Vec<u8>>, bool), source::Error>),
     /// "Rotate and crop", before the confirmation: the image and the file to write, as `Prepared`.
-    Edited(String, Result<(Arc<Vec<u8>>, bool), source::Error>),
+    /// Also the result as the viewer shows it, so it is there at once once saved.
+    Edited(String, Result<(Arc<Vec<u8>>, bool, ColorImage), source::Error>),
     /// An image saved over itself after a turn ("Save"): its path and the outcome.
     Replaced(String, Result<(), source::Error>),
     /// Thumbnails gone from the disk cache (`thumbcache::forget`): their paths.
@@ -308,10 +309,11 @@ impl Loader {
                 if let Some(e) = pending {
                     e.apply(&mut img);
                 }
-                crate::encode::encoded_back(bytes, name, img)
+                let shown = decode::preview(&img);
+                crate::encode::encoded_back(bytes, name, img).map(|(data, lossy)| (data, lossy, shown))
             })
             .await;
-            let _ = tx.send(Msg::Edited(path, r.map(|(data, lossy)| (Arc::new(data), lossy))));
+            let _ = tx.send(Msg::Edited(path, r.map(|(data, lossy, shown)| (Arc::new(data), lossy, shown))));
             ctx.request_repaint();
         });
     }
@@ -400,7 +402,7 @@ async fn turned(op: &Store, path: &str, turn: crate::transform::Turn) -> Result<
 
 /// The file read and passed to `make` (in the background), which gives the file to write and
 /// whether it lost quality; `SKIPPED` if it cannot be written back over itself.
-async fn rewritten(op: &Store, path: &str, make: impl FnOnce(&[u8], &str) -> Result<(Vec<u8>, bool), String> + Send + 'static) -> Result<(Vec<u8>, bool), source::Error> {
+async fn rewritten<T: Send + 'static>(op: &Store, path: &str, make: impl FnOnce(&[u8], &str) -> Result<T, String> + Send + 'static) -> Result<T, source::Error> {
     let bytes = op.read(path).await?;
     let name = source::name(path).to_string();
     tokio::task::spawn_blocking(move || {

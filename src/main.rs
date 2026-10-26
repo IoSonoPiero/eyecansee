@@ -210,6 +210,9 @@ struct App {
     skipped: Vec<String>,
     /// Images saved by transforms on the grid, for the summary once every save is done.
     batch_saved: Option<usize>,
+    /// An image just saved from Rotate and crop, as the viewer shows it: kept in the viewer when
+    /// the file and the folder listing change, instead of the old one until it is read again.
+    fresh: Option<(String, TextureHandle)>,
     /// A message in a window (a "Save" refused, how a grid save went); `true` offers "Save as…".
     notice: Option<(String, bool)>,
     /// KDE holds the phone: asking whether to terminate kiod (`kiod_window`).
@@ -342,6 +345,7 @@ impl App {
             saving: HashSet::new(),
             skipped: Vec::new(),
             batch_saved: None,
+            fresh: None,
             notice: None,
             kiod_ask: false,
             open_address: None,

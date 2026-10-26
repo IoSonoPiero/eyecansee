@@ -315,7 +315,10 @@ impl App {
                 }
                 // Same name, maybe the same size: what is in memory is the old image.
                 if let Some(i) = self.files().iter().position(|f| f.path == path) {
-                    self.full.remove(&i);
+                    match self.fresh.as_ref().filter(|(p, _)| *p == path) {
+                        Some((_, tex)) => self.full.insert(i, Ok(tex.clone())),
+                        None => self.full.remove(&i),
+                    };
                 }
                 if self.viewed(&path) {
                     self.turn = Default::default();
