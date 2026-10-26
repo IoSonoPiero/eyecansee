@@ -1,0 +1,46 @@
+# cargo deny (check.yml): known vulnerabilities and licences of the crates, on the two systems
+# EyeCanSee is built for. `cargo deny check advisories licenses` locally.
+
+[graph]
+targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+all-features = true
+
+[advisories]
+# Vulnerabilities fail; unmaintained crates are reported only for direct dependencies.
+unmaintained = "workspace"
+# zip 5 (from image-extras, for OpenRaster): the three flaws are in ZipArchive::extract, which
+# image-extras never calls (it reads stack.xml and the merged image by name). Fixed in zip 9:
+# drop these when image-extras moves to it.
+ignore = [
+    { id = "RUSTSEC-2026-0367", reason = "zip extract() only, not used by image-extras" },
+    { id = "RUSTSEC-2026-0368", reason = "zip extract() only, not used by image-extras" },
+    { id = "RUSTSEC-2026-0369", reason = "zip extract() only, not used by image-extras" },
+]
+
+# The licences in use on 2026-10-26, all compatible with GPL-3.0-or-later (EyeCanSee's). A new
+# crate with another licence fails the check: look at it before adding it here.
+[licenses]
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "BSL-1.0",
+    "GPL-3.0-or-later",
+    "ISC",
+    "LGPL-2.1",
+    "MIT",
+    "OFL-1.1",
+    "Unicode-3.0",
+    "Zlib",
+]
+# Not approved by OSI: allowed only for the crate that has them.
+exceptions = [
+    # A public domain dedication (FSF free).
+    { crate = "notify", allow = ["CC0-1.0"] },
+    # The Mozilla root certificates as data, for the update check (permissive, data licence).
+    { crate = "webpki-roots", allow = ["CDLA-Permissive-2.0"] },
+    # The Ubuntu font bundled by egui.
+    { crate = "epaint_default_fonts", allow = ["Ubuntu-font-1.0"] },
+]

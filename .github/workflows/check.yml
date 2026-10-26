@@ -57,3 +57,12 @@ jobs:
           $env:Path = "$env:IMAGE_MAGICK_DIR;$env:Path"
           $env:APPDATA = "$env:RUNNER_TEMP\roaming"; $env:LOCALAPPDATA = "$env:RUNNER_TEMP\local"
           cargo test --locked --no-default-features --features heif,magick
+
+  # Known vulnerabilities and licences of the crates (deny.toml).
+  deny:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: EmbarkStudios/cargo-deny-action@v2
+        with:
+          command: check advisories licenses
