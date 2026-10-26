@@ -316,11 +316,18 @@ rc-transparent = Trasparenti
 rc-color = Colore
 rc-jpeg-white = Il JPEG non ha trasparenza: Salva li rende bianchi.
 rc-size = Risultato: { $w } × { $h } pixel
-rc-not-saved = Non ancora salvata: Applica la scrive sopra l'originale, Salva come… crea un file nuovo.
-rc-apply = Applica…
-rc-apply-hint = Salva l'immagine ruotata e ritagliata sopra l'originale, dopo aver chiesto (Invio).
+rc-apply = Applica
+rc-apply-hint = Mette rotazione e ritaglio nell'immagine (Invio): poi puoi continuare a modificarla. Il file si salva alla fine, con Salva.
+rc-pending = Rotazione e ritaglio non ancora applicati.
+rc-unsaved = Modifiche applicate, non ancora salvate.
+rc-save = Salva…
+rc-save-hint = Scrive l'immagine modificata sopra l'originale, dopo aver chiesto.
 rc-save-as-hint = Salva il risultato in un file nuovo, nel formato che scegli; l'originale resta com'è.
-rc-cancel = Annulla
+rc-close = Chiudi
+rc-discard = Non salvare
+rc-leave = Le modifiche a **{ $name }** non sono salvate.
+
+    { "**" }Salva** le scrive sopra l'originale, **Salva come…** crea un file nuovo, **Non salvare** le perde.
 rc-help = Trascina un lato o un angolo per ritagliare, l'interno per spostare il ritaglio, fuori per spostare la vista. Rotellina: zoom. Doppio clic: vista intera.
 key-rotate-cw = Ctrl+R
 key-rotate-ccw = Ctrl+Maiusc+R

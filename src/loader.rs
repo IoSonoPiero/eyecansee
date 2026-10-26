@@ -297,10 +297,10 @@ impl Loader {
     }
 
     /// "Rotate and crop", before the confirmation: the image changed in memory (`Msg::Edited`).
-    pub fn prepare_edit(&self, path: String, edit: crate::rotate::Edit) {
+    pub fn prepare_edit(&self, path: String, edits: Vec<crate::rotate::Edit>) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = rewritten(&op, &path, move |bytes, name| crate::encode::edited_file(bytes, name, |img| edit.apply(img))).await;
+            let r = rewritten(&op, &path, move |bytes, name| crate::encode::edited_file(bytes, name, |img| edits.iter().for_each(|e| e.apply(img)))).await;
             let _ = tx.send(Msg::Edited(path, r.map(|(data, lossy)| (Arc::new(data), lossy))));
             ctx.request_repaint();
         });

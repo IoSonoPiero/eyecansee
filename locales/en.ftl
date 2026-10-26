@@ -317,11 +317,18 @@ rc-transparent = Transparent
 rc-color = Colour
 rc-jpeg-white = JPEG has no transparency: Save makes them white.
 rc-size = Result: { $w } × { $h } pixels
-rc-not-saved = Not saved yet: Apply writes it over the original, Save as… makes a new file.
-rc-apply = Apply…
-rc-apply-hint = Saves the image rotated and cropped over the original, after asking (Enter).
+rc-apply = Apply
+rc-apply-hint = Puts the rotation and the crop into the image (Enter): then you can keep editing it. The file is saved at the end, with Save.
+rc-pending = Rotation and crop not applied yet.
+rc-unsaved = Changes applied, not saved yet.
+rc-save = Save…
+rc-save-hint = Writes the edited image over the original, after asking.
 rc-save-as-hint = Saves the result as a new file, in the format you choose; the original stays as it is.
-rc-cancel = Cancel
+rc-close = Close
+rc-discard = Don't save
+rc-leave = The changes to **{ $name }** are not saved.
+
+    { "**" }Save** writes them over the original, **Save as…** makes a new file, **Don't save** loses them.
 rc-help = Drag a side or a corner to crop, the inside to move the crop, outside it to move the view. Wheel: zoom. Double click: everything in view.
 key-rotate-cw = Ctrl+R
 key-rotate-ccw = Ctrl+Shift+R

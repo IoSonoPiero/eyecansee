@@ -77,6 +77,12 @@ pub struct Window {
     preparing: bool,
     /// The file to write and whether it lost quality: the confirmation is open.
     pub ready: Option<(Arc<Vec<u8>>, bool)>,
+    /// Edits done with Apply, in order: the image shown already has them, Save does them all on the file.
+    applied: Vec<Edit>,
+    /// Apply under way (in the background, `Msg::Original`): the edit being applied.
+    applying: Option<Edit>,
+    /// Closing with changes not saved: the question is open.
+    pub leaving: bool,
 }
 
 impl Window {
@@ -101,6 +107,9 @@ impl Window {
             line_end: None,
             preparing: false,
             ready: None,
+            applied: Vec::new(),
+            applying: None,
+            leaving: false,
         }
     }
 
@@ -128,8 +137,11 @@ impl Window {
     /// The crop again after a change of angle or proportions.
     fn refit(&mut self) {
         let (iw, ih) = self.size();
+        // Free proportions: those of the image as it stands after the nearest quarter turn (at 90°
+        // the image's own ones cut a strip off it).
+        let upright = if (self.angle / 90.0).round() as i32 % 2 != 0 { ih / iw } else { iw / ih };
         self.crop = match self.follow {
-            Follow::Inside => rotate::inside(iw, ih, self.angle, self.ratio().unwrap_or(iw / ih)),
+            Follow::Inside => rotate::inside(iw, ih, self.angle, self.ratio().unwrap_or(upright)),
             Follow::Whole => {
                 let (bw, bh) = rotate::bounds(iw, ih, self.angle);
                 let all = Crop::centred(bw, bh);
@@ -143,8 +155,22 @@ impl Window {
         Edit { turn: self.turn, angle: self.angle, crop: self.crop, fill: (!self.transparent).then(|| [self.color.r(), self.color.g(), self.color.b()]) }
     }
 
-    /// Does the result differ from the original?
+    /// Anything not saved yet: applied, or still to apply.
     fn changed(&self) -> bool {
+        !self.applied.is_empty() || self.pending()
+    }
+
+    /// Everything Save does to the file: the applied edits, then the one not applied yet.
+    fn edits(&self) -> Vec<Edit> {
+        let mut all = self.applied.clone();
+        if self.pending() {
+            all.push(self.edit());
+        }
+        all
+    }
+
+    /// Rotation or crop set and not applied yet?
+    fn pending(&self) -> bool {
         let (iw, ih) = self.size();
         !self.turn.is_none() || self.angle.rem_euclid(360.0) != 0.0 || self.crop.pixels() != (iw as u32, ih as u32) || self.crop.cx.abs() >= 0.5 || self.crop.cy.abs() >= 0.5
     }
@@ -152,9 +178,18 @@ impl Window {
 
 /// What the buttons at the bottom of the controls asked for.
 enum Ask {
+    Apply,
     Save,
     SaveAs,
-    Cancel,
+    Close,
+}
+
+/// Answers to "save the changes?" when closing.
+#[derive(Clone, Copy)]
+enum Leave {
+    Save,
+    SaveAs,
+    Discard,
 }
 
 impl App {
@@ -169,6 +204,14 @@ impl App {
 
     pub(crate) fn rotate_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, ColorImage, u64), String>) {
         let Some(w) = &mut self.rotate else { return };
+        // Apply done: the image now has the edit, the controls start again from it.
+        if let Some(e) = w.applying.take() {
+            w.applied.push(e);
+            w.angle = 0.0;
+            w.turn = Turn::default();
+            w.follow = Follow::Inside;
+            w.view = None;
+        }
         w.original = Some(r.map(|(original, preview, size)| (original, ctx.load_texture("rotate-original", preview, egui::TextureOptions::LINEAR), size)));
         w.refit();
     }
@@ -207,13 +250,27 @@ impl App {
                 ui.vertical(|ui| {
                     ui.set_width(SIDE);
                     match self.rotate_controls(ui, &mut w) {
+                        Some(Ask::Apply) => self.rotate_apply(ui.ctx(), &mut w),
                         Some(Ask::Save) => self.rotate_save(&mut w),
                         Some(Ask::SaveAs) => open = !self.rotate_save_as(ui.ctx(), &w),
-                        Some(Ask::Cancel) => open = false,
+                        Some(Ask::Close) => open = false,
                         None => {}
                     }
                 });
             });
+        }
+        // Closing (Esc, ✕, Close) with changes not saved: asked first.
+        if !open && w.changed() && w.ready.is_none() {
+            w.leaving = true;
+            open = true;
+        }
+        if w.leaving {
+            match self.rotate_leave(ui.ctx(), &mut w) {
+                Some(Leave::Save) => self.rotate_save(&mut w),
+                Some(Leave::SaveAs) => open = !self.rotate_save_as(ui.ctx(), &w),
+                Some(Leave::Discard) => open = false,
+                None => {}
+            }
         }
         if w.ready.is_some() && self.rotate_confirm(ui.ctx(), &mut w) {
             open = false;
@@ -234,20 +291,14 @@ impl App {
         let (pw, ph) = w.crop.pixels();
         ui.strong(i18n.t_args("rc-size", &[("w", &pw.to_string()), ("h", &ph.to_string())]));
         ui.add_space(4.0);
-        // Nothing is written until one of these is clicked: said in so many words, since rotating
-        // looked finished and the user did not know what to do next.
-        if w.changed() {
-            ui.label(i18n.t("rc-not-saved"));
-            ui.add_space(4.0);
-        }
+        let mut ask = apply_row(ui, w, i18n);
+        ui.separator();
+        ui.add_space(4.0);
         let why_not = self.why_not_save(w);
-        let mut ask = None;
         ui.horizontal(|ui| {
-            let ready = w.changed() && why_not.is_none() && !w.preparing;
-            let text = egui::RichText::new(i18n.t("rc-apply")).color(Color32::WHITE).strong();
-            let r = ui.add_enabled(ready, egui::Button::new(text).fill(crate::theme::solid(ui.visuals()))).on_hover_text(i18n.t("rc-apply-hint"));
-            // Enter applies too, unless a field is being typed in.
-            if r.clicked() || (ready && !ui.ctx().egui_wants_keyboard_input() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
+            let ready = w.changed() && why_not.is_none() && !w.preparing && w.applying.is_none();
+            let r = ui.add_enabled(ready, egui::Button::new(i18n.t("rc-save"))).on_hover_text(i18n.t("rc-save-hint"));
+            if r.clicked() {
                 ask = Some(Ask::Save);
             }
             if let Some(why) = why_not {
@@ -257,11 +308,11 @@ impl App {
                     crate::save_dialogs::notice_text(ui, &why);
                 });
             }
-            if ui.add_enabled(!w.preparing, egui::Button::new(i18n.t("menu-save-copy"))).on_hover_text(i18n.t("rc-save-as-hint")).clicked() {
+            if ui.add_enabled(!w.preparing && w.applying.is_none(), egui::Button::new(i18n.t("menu-save-copy"))).on_hover_text(i18n.t("rc-save-as-hint")).clicked() {
                 ask = Some(Ask::SaveAs);
             }
-            if ui.button(i18n.t("rc-cancel")).on_hover_text("Esc").clicked() {
-                ask = Some(Ask::Cancel);
+            if ui.button(i18n.t("rc-close")).on_hover_text("Esc").clicked() {
+                ask = Some(Ask::Close);
             }
             if w.preparing {
                 ui.spinner();
@@ -285,8 +336,8 @@ impl App {
 
     fn rotate_save(&mut self, w: &mut Window) {
         let Some(loader) = &self.loader else { return };
-        log!("prepare {:?} {:?}", w.path, w.edit());
-        loader.prepare_edit(w.path.clone(), w.edit());
+        log!("prepare {:?} {:?}", w.path, w.edits());
+        loader.prepare_edit(w.path.clone(), w.edits());
         self.saving.insert(w.path.clone());
         w.preparing = true;
     }
@@ -306,6 +357,39 @@ impl App {
         });
         self.convert = Some(crate::convert::Window::new(w.path.clone()));
         true
+    }
+
+    /// Apply: the edit done on the full image in the background; it comes back as `Msg::Original`
+    /// and becomes the image of the page (`rotate_original`).
+    fn rotate_apply(&mut self, ctx: &egui::Context, w: &mut Window) {
+        let Some(Ok((original, _, size))) = &w.original else { return };
+        let (original, edit, size, tx, ctx) = (original.clone(), w.edit(), *size, self.tx.clone(), ctx.clone());
+        log!("apply {edit:?}");
+        w.applying = Some(edit);
+        std::thread::spawn(move || {
+            let mut o = Original::clone(&original);
+            edit.apply(&mut o.image);
+            let preview = crate::decode::preview(&o.image);
+            if tx.send(crate::loader::Msg::Original(Ok((Arc::new(o), preview, size)))).is_ok() {
+                ctx.request_repaint();
+            }
+        });
+    }
+
+    /// Closing with changes not saved: Save, Save as…, Don't save, or Cancel (stays open).
+    fn rotate_leave(&mut self, ctx: &egui::Context, w: &mut Window) -> Option<Leave> {
+        let i18n = &self.i18n;
+        let text = i18n.t_args("rc-leave", &[("name", &crate::save_dialogs::md(source::name(&w.path)))]);
+        let choices = vec![
+            (i18n.t("rc-save"), self.why_not_save(w).is_none(), Leave::Save),
+            (i18n.t("menu-save-copy"), true, Leave::SaveAs),
+            (i18n.t("rc-discard"), true, Leave::Discard),
+        ];
+        // Esc: back to the page; Enter does nothing here (no choice is safe to guess).
+        let keys = self.delete_answer.take().filter(|yes| !yes).map(|_| None);
+        let answer = confirm::choose(ctx, "rotate-leave", 440.0, text, choices, i18n.t("delete-no"), keys)?;
+        w.leaving = false;
+        answer
     }
 
     /// Overwrite? As Save in the viewer. `true` once written (the page closes).
@@ -329,6 +413,36 @@ impl App {
             None => false,
         }
     }
+}
+
+/// Apply (also Enter), with what is applied and what is not saved yet.
+fn apply_row(ui: &mut egui::Ui, w: &Window, i18n: &I18n) -> Option<Ask> {
+    let mut ask = None;
+    ui.horizontal(|ui| {
+        let ready = w.pending() && w.applying.is_none() && !w.preparing;
+        let text = egui::RichText::new(i18n.t("rc-apply")).color(Color32::WHITE).strong();
+        let r = ui.add_enabled(ready, egui::Button::new(text).fill(crate::theme::solid(ui.visuals()))).on_hover_text(i18n.t("rc-apply-hint"));
+        // Enter applies too, unless a field is being typed in.
+        if r.clicked() || (ready && !ui.ctx().egui_wants_keyboard_input() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
+            ask = Some(Ask::Apply);
+        }
+        if w.applying.is_some() {
+            ui.spinner();
+        }
+    });
+    // Nothing is written until Save: said in so many words (the user took Apply for Save).
+    let note = if w.pending() {
+        Some("rc-pending")
+    } else if !w.applied.is_empty() {
+        Some("rc-unsaved")
+    } else {
+        None
+    };
+    if let Some(id) = note {
+        ui.label(i18n.t(id));
+    }
+    ui.add_space(8.0);
+    ask
 }
 
 /// The angle, with buttons for the quarter turns and back to zero. `true` if it changed.

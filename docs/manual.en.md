@@ -110,8 +110,8 @@ In the grid the same operations (Image > Transform, or right-click > Transform) 
 - **Crop**: drag a corner or a side of the frame to resize it, its inside to move it. The proportions can be free, as the original, 1:1, 5:4, 4:3, 3:2, 16:9 or your own; ⇄ swaps width and height. **Image only** makes the largest crop with no empty corners (it follows the rotation, and it is what you get at first); **Whole image** keeps all of the rotated image.
 - **Empty corners**: where the crop goes past the image they are transparent (grey squares) or filled with the colour you choose. JPEG has no transparency: there they become white.
 - The wheel zooms around the pointer, dragging outside the frame moves the view, a double click shows everything again. The size of the result is under the controls.
-- Nothing is written until you choose: the page says "Not saved yet" as long as the image differs from the original.
-- **Apply…** (or Enter) writes over the original after asking, like Save in the viewer (same formats, same exclusions, the original goes where a deletion would send it); the image is encoded again, so JPEG loses a little quality. **Save as…** opens *Save in another format* with the image already rotated and cropped. **Cancel**, ✕ or Esc close the page without saving.
+- **Apply** (or Enter) puts the rotation and the crop into the image shown, and the controls start again from it: you can rotate, crop and apply again as many times as you like. The file is not touched: under Apply the page says "Rotation and crop not applied yet" or "Changes applied, not saved yet".
+- At the end, **Save…** writes the result over the original after asking, like Save in the viewer (same formats, same exclusions, the original goes where a deletion would send it); the image is encoded again, so JPEG loses a little quality. **Save as…** opens *Save in another format* with the result. **Close**, ✕ or Esc close the page; with changes not saved they first ask whether to **Save**, **Save as…** or **Don't save** (**Cancel** goes back to the page).
 
 ## Copying and moving
 
