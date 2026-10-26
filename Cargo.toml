@@ -1,6 +1,6 @@
 [package]
 name = "eyecansee"
-version = "0.43.1"
+version = "0.44.0"
 edition = "2024"
 description = "Image viewer and manager for Linux and Windows"
 license = "GPL-3.0-or-later"
@@ -50,7 +50,6 @@ trash = "5.2.9"
 notify = "8.2.0"
 image-extras = "0.1.1"
 psd = "0.3.5"
-rfd = "0.17.2"
 hayro-jpeg2000 = "0.4.1"
 # Updates from the GitHub releases: download over HTTPS (on rustls, already built for FTPS) and SHA-256 check.
 ureq = { version = "3", default-features = false, features = ["rustls"] }

@@ -35,6 +35,7 @@ mod dup_page;
 mod duplicates;
 mod encode;
 mod file_dialogs;
+mod folder_pick;
 mod grid;
 mod human;
 mod i18n;

@@ -2,12 +2,13 @@
 //! then what was done. The work itself is in `batch`.
 
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 
 use eframe::egui;
 
 use crate::batch::{Dest, Filter, Job, Progress, Size};
 use crate::encode::{Format, Options};
+use crate::folder_pick::{Picker, pick_ui};
 use crate::i18n::I18n;
 use crate::transform::{Op, Turn};
 use crate::save_dialogs::{md, notice_text};
@@ -30,7 +31,6 @@ enum SizeKind {
 }
 
 /// The choices, kept for the next time while the program is open.
-#[derive(Clone)]
 pub struct Form {
     format: Option<Format>,
     options: Options,
@@ -47,8 +47,10 @@ pub struct Form {
     sub_name: String,
     /// Address of the other folder, as the address bar takes it.
     other: String,
-    /// The folder chosen with Browse…, from its thread.
-    picked: Arc<Mutex<Option<String>>>,
+    /// Browse… was pressed: the chooser opens after drawing.
+    browse: bool,
+    /// The folder chooser, open in place of the choices.
+    picker: Option<Picker>,
 }
 
 impl Form {
@@ -67,7 +69,8 @@ impl Form {
             place: Place::Sub,
             sub_name,
             other: String::new(),
-            picked: Arc::default(),
+            browse: false,
+            picker: None,
         }
     }
 
@@ -156,19 +159,32 @@ impl App {
         let n = w.paths.len().to_string();
         let intro = self.i18n.t_args("batch-images", &[("n", &n), ("folder", &md(&self.display(&w.dir)))]);
         let keys = self.delete_answer.take();
-        if let Some(dir) = form.picked.lock().unwrap().take() {
-            form.other = dir;
-        }
-        // Browse… starts in the open folder when it is on this computer.
-        let start_in = (!self.base.contains("://")).then(|| self.display(&w.dir));
-        let mut answer = None;
+        let (places, rt) = (self.pick_places(), self.rt.handle().clone());
+        let (mut answer, mut picked) = (None, None);
         egui::Modal::new(egui::Id::unique("batch-ask")).show(ctx, |ui| {
             ui.set_width(540.0);
+            if let Some(p) = &mut form.picker {
+                picked = pick_ui(ui, p, &places, &self.i18n, &rt, keys);
+                return;
+            }
             ui.heading(self.i18n.t("batch-title"));
             ui.add_space(6.0);
             notice_text(ui, &intro);
-            answer = form_ui(ui, &mut form, &self.i18n, start_in.as_deref());
+            answer = form_ui(ui, &mut form, &self.i18n);
         });
+        if form.picker.is_some() {
+            if let Some(choice) = picked {
+                form.other = choice.unwrap_or(form.other);
+                form.picker = None;
+            }
+            self.batch_form = Some(form);
+            return true;
+        }
+        if std::mem::take(&mut form.browse) {
+            // From the folder written, or the open one.
+            let start = if form.other.trim().is_empty() { self.display(&w.dir) } else { form.other.trim().to_string() };
+            form.picker = Some(Picker::open(&start, &rt, ctx));
+        }
         let ready = form.why_not().is_none();
         let answer = answer.or(keys).filter(|&yes| !yes || ready);
         let keep = match answer {
@@ -275,22 +291,8 @@ impl App {
     }
 }
 
-/// The system window to choose a folder, in its own thread: the program keeps drawing meanwhile.
-fn browse(picked: Arc<Mutex<Option<String>>>, start_in: Option<String>, ctx: egui::Context) {
-    std::thread::spawn(move || {
-        let mut dialog = rfd::FileDialog::new();
-        if let Some(dir) = start_in {
-            dialog = dialog.set_directory(dir);
-        }
-        if let Some(dir) = dialog.pick_folder() {
-            *picked.lock().unwrap() = Some(dir.to_string_lossy().into_owned());
-            ctx.request_repaint();
-        }
-    });
-}
-
 /// The choices of the window; `Some(true)` Convert, `Some(false)` Cancel.
-fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n, start_in: Option<&str>) -> Option<bool> {
+fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bool> {
     let t = |id| i18n.t(id);
     ui.spacing_mut().item_spacing.y = 6.0;
     // On a low screen the choices scroll, the buttons stay in view.
@@ -299,7 +301,7 @@ fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n, start_in: Option<&str>)
         section(ui, t("convert-format"), |ui| format_rows(ui, f, i18n));
         section(ui, t("batch-turn"), |ui| turn_rows(ui, f, i18n));
         section(ui, t("batch-size"), |ui| size_rows(ui, f, i18n));
-        section(ui, t("batch-where"), |ui| where_rows(ui, f, i18n, start_in));
+        section(ui, t("batch-where"), |ui| where_rows(ui, f, i18n));
     });
     ui.add_space(14.0);
     let why_not = f.why_not();
@@ -398,7 +400,7 @@ fn size_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     });
 }
 
-fn where_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n, start_in: Option<&str>) {
+fn where_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     let t = |id| i18n.t(id);
     ui.radio_value(&mut f.place, Place::Next, t("batch-same-folder"));
     ui.horizontal(|ui| {
@@ -410,7 +412,7 @@ fn where_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n, start_in: Option<&st
         ui.horizontal(|ui| {
             ui.add(egui::TextEdit::singleline(&mut f.other).desired_width(360.0));
             if ui.button(t("batch-browse")).clicked() {
-                browse(f.picked.clone(), start_in.map(String::from), ui.ctx().clone());
+                f.browse = true;
             }
         });
         ui.weak(t("batch-other-hint"));
