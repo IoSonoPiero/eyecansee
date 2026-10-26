@@ -296,11 +296,21 @@ impl Loader {
         });
     }
 
-    /// "Rotate and crop", before the confirmation: the image changed in memory (`Msg::Edited`).
-    pub fn prepare_edit(&self, path: String, edits: Vec<crate::rotate::Edit>) {
+    /// "Rotate and crop", before the confirmation (`Msg::Edited`): the image of the page, already
+    /// decoded and with the applied edits, gets the one not applied yet and is encoded in the file's
+    /// format. The file is read only for its format and metadata, not decoded again (it was slow
+    /// with an 83 MB PSD).
+    pub fn prepare_edit(&self, path: String, image: Arc<crate::encode::Original>, pending: Option<crate::rotate::Edit>) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = rewritten(&op, &path, move |bytes, name| crate::encode::edited_file(bytes, name, |img| edits.iter().for_each(|e| e.apply(img)))).await;
+            let r = rewritten(&op, &path, move |bytes, name| {
+                let mut img = image.image.clone();
+                if let Some(e) = pending {
+                    e.apply(&mut img);
+                }
+                crate::encode::encoded_back(bytes, name, img)
+            })
+            .await;
             let _ = tx.send(Msg::Edited(path, r.map(|(data, lossy)| (Arc::new(data), lossy))));
             ctx.request_repaint();
         });

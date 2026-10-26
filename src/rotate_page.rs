@@ -80,8 +80,8 @@ pub struct Window {
     preparing: bool,
     /// The file to write and whether it lost quality: the confirmation is open.
     pub ready: Option<(Arc<Vec<u8>>, bool)>,
-    /// Edits done with Apply, in order: the image shown already has them, Save does them all on the file.
-    applied: Vec<Edit>,
+    /// How many edits were applied: the image shown has them, Save encodes it as it is.
+    applied: usize,
     /// Apply under way (in the background, `Msg::Original`): the edit being applied.
     applying: Option<Edit>,
     /// Closing with changes not saved: the question is open.
@@ -110,7 +110,7 @@ impl Window {
             line_end: None,
             preparing: false,
             ready: None,
-            applied: Vec::new(),
+            applied: 0,
             applying: None,
             leaving: false,
         }
@@ -160,16 +160,7 @@ impl Window {
 
     /// Anything not saved yet: applied, or still to apply.
     fn changed(&self) -> bool {
-        !self.applied.is_empty() || self.pending()
-    }
-
-    /// Everything Save does to the file: the applied edits, then the one not applied yet.
-    fn edits(&self) -> Vec<Edit> {
-        let mut all = self.applied.clone();
-        if self.pending() {
-            all.push(self.edit());
-        }
-        all
+        self.applied > 0 || self.pending()
     }
 
     /// Rotation or crop set and not applied yet?
@@ -201,7 +192,8 @@ impl App {
         let Some(w) = &mut self.rotate else { return };
         // Apply done: the image now has the edit, the controls start again from it.
         if let Some(e) = w.applying.take() {
-            w.applied.push(e);
+            log!("applied {e:?}");
+            w.applied += 1;
             w.angle = 0.0;
             w.turn = Turn::default();
             w.follow = Follow::Inside;
@@ -327,7 +319,7 @@ fn apply_row(ui: &mut egui::Ui, w: &Window, i18n: &I18n) -> Option<Ask> {
     // Nothing is written until Save: said in so many words (the user took Apply for Save).
     let note = if w.pending() {
         Some("rc-pending")
-    } else if !w.applied.is_empty() {
+    } else if w.applied > 0 {
         Some("rc-unsaved")
     } else {
         None

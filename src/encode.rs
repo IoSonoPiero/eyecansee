@@ -180,7 +180,11 @@ pub struct Original {
 
 impl Original {
     pub fn open(bytes: &[u8], name: &str) -> Result<Original, String> {
-        let image = crate::decode::decode_full(bytes, name)?;
+        Ok(Original::with_meta(crate::decode::decode_full(bytes, name)?, bytes))
+    }
+
+    /// `image` with the metadata of the file `bytes` (not decoded again).
+    pub fn with_meta(image: DynamicImage, bytes: &[u8]) -> Original {
         // As found in the formats `image` reads (JPEG, PNG, WebP, TIFF). The others (RAW, HEIC…)
         // get the EXIF the metadata panel shows; their colour profile is still lost.
         let (exif, icc) = ImageReader::new(Cursor::new(bytes))
@@ -193,7 +197,7 @@ impl Original {
         if let Some(chunk) = &mut exif {
             let _ = Orientation::remove_from_exif_chunk(chunk);
         }
-        Ok(Original { image, exif, icc })
+        Original { image, exif, icc }
     }
 
     pub fn has_meta(&self) -> bool {
@@ -262,20 +266,24 @@ pub fn turned_file(bytes: &[u8], name: &str, turn: Turn) -> Result<(Vec<u8>, boo
 /// The file decoded, changed by `edit` and encoded again in its own format: a JPEG at quality 95,
 /// a lossless WebP still lossless. Also says whether it lost quality (the confirmation warns about it).
 pub fn edited_file(bytes: &[u8], name: &str, edit: impl FnOnce(&mut DynamicImage)) -> Result<(Vec<u8>, bool), String> {
+    let mut img = crate::decode::decode_full(bytes, name)?;
+    edit(&mut img);
+    encoded_back(bytes, name, img)
+}
+
+/// `image` (the file `bytes`, already decoded and changed) encoded again in the file's format,
+/// with its metadata, as `edited_file`; the file itself is not decoded again.
+pub fn encoded_back(bytes: &[u8], name: &str, image: DynamicImage) -> Result<(Vec<u8>, bool), String> {
     // A PSD comes back flattened: "lossy" when there was more than one plain layer.
     if crate::psd::is_psd(name) {
-        let mut img = crate::decode::decode_full(bytes, name)?;
-        edit(&mut img);
-        return Ok((crate::psd::encode(&img, bytes)?, !crate::psd::simple(bytes)));
+        return Ok((crate::psd::encode(&image, bytes)?, !crate::psd::simple(bytes)));
     }
     let format = Format::of_file(name).filter(|_| can_turn_in_place(bytes, name)).ok_or_else(|| name.to_string())?;
     let webp_lossless = format == Format::Webp && bytes.windows(4).any(|w| w == b"VP8L");
     let o = Options { format, jpeg_quality: 95, webp_lossless, ..Default::default() };
     // GIF too: its colours are chosen again (at most 256).
     let lossy = matches!(format, Format::Jpeg | Format::Avif | Format::Gif) || (format == Format::Webp && !webp_lossless);
-    let mut original = Original::open(bytes, name)?;
-    edit(&mut original.image);
-    Ok((original.encode(&o)?, lossy))
+    Ok((Original::with_meta(image, bytes).encode(&o)?, lossy))
 }
 
 /// Can the file be turned and written back over itself, losing at most a little quality? Its
