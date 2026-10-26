@@ -157,7 +157,9 @@ impl App {
             }
             if !self.turn.is_none() {
                 ui.separator();
-                ui.label(self.i18n.t(if self.saving.contains(&f.path) { "status-saving" } else { "status-modified" }));
+                // A yellow label with dark text (13:1): white on the blue bar went unnoticed (user).
+                let text = format!(" {} ", self.i18n.t(if self.saving.contains(&f.path) { "status-saving" } else { "status-modified" }));
+                ui.label(egui::RichText::new(text).strong().color(Color32::from_gray(26)).background_color(Color32::from_rgb(0xFF, 0xD5, 0x4F)));
             }
             ui.separator();
             ui.label(self.human_size(f.size));
