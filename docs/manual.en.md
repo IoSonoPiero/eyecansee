@@ -53,6 +53,8 @@ The Windows installer, the Windows zip and the AppImage update themselves. At st
 
 ## Deleting and renaming
 
+**File > New folder…**, **New folder…** from the right click on an empty spot of the grid, or **Ctrl+Shift+N** makes a folder in the folder open: the name comes already written ("New folder", with " (2)" when taken) and selected, so you can type the one you want; **Create** makes it and selects it in the grid. It works on the computer, on disks, phones and servers; not in a trash nor among the storages of a phone.
+
 **Del** (or **File > Delete…**) deletes the image or folder selected in the grid, or the image open in the viewer, after a confirmation showing its name and size. A folder is deleted with everything inside it. Folders in the tree on the left are deleted with a right click. In the confirmation **Enter** deletes and **Esc** cancels. In the viewer the next image appears at once.
 
 With several items selected, **Del** (or **Delete…** from the right click on one of them) deletes all of them, after a confirmation with how many they are and the size of the images. If one fails, the following ones are not deleted. While a deletion runs the status bar says so, with a spinner, and no other deletion can be started (on a phone a folder with hundreds of files takes several seconds).
@@ -189,6 +191,7 @@ In the grid:
 | Enter | Open the folder or the image; on **..** go up |
 | Backspace | Parent folder |
 | F2 | Rename (see *Deleting and renaming*) |
+| Ctrl+Shift+N | New folder (see *Deleting and renaming*) |
 | Del | Delete |
 | Ctrl+C, Ctrl+X, Ctrl+V | Copy, cut, paste (see *Copying and moving*) |
 | Ctrl+A | Select everything in the folder |

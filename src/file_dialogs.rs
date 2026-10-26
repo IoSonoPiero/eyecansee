@@ -261,48 +261,12 @@ impl App {
     pub(crate) fn rename_window(&mut self, ctx: &egui::Context) {
         let Some((mut name, path, first)) = self.rename.clone() else { return };
         let old = source::name(&path).to_string();
-        let parent = source::parent(&path);
         let trimmed = name.trim().to_string();
-        let taken = self.listings.get(&parent).and_then(|l| l.as_ref().ok()).is_some_and(|l| {
-            l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).any(|p| source::name(p) == trimmed)
-        });
-        let problem = if trimmed.is_empty() || trimmed == "." || trimmed == ".." || trimmed.contains(['/', '\\']) {
-            Some(self.i18n.t("rename-bad"))
-        } else if trimmed != old && taken {
-            Some(self.i18n.t("rename-taken"))
-        } else {
-            None
-        };
-        let (title, ok, cancel) = (self.i18n.t("rename-title"), self.i18n.t("rename-ok"), self.i18n.t("delete-no"));
-        let mut answer = None;
-        egui::Modal::new(egui::Id::unique("rename")).show(ctx, |ui| {
-            ui.set_width(420.0);
-            ui.strong(title);
-            ui.add_space(4.0);
-            let edit = egui::TextEdit::singleline(&mut name).desired_width(f32::INFINITY);
-            let mut out = edit.show(ui);
-            if first {
-                // Focus, and the name selected without the extension, as file managers do.
-                out.response.request_focus();
-                let end = if path.ends_with('/') { old.chars().count() } else { old.rfind('.').map_or(old.chars().count(), |i| old[..i].chars().count()) };
-                let range = egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(end));
-                out.state.cursor.set_char_range(Some(range));
-                out.state.store(ui.ctx(), out.response.id);
-            }
-            if let Some(p) = &problem {
-                ui.label(browser::error_text(ui, p.as_str()));
-            }
-            ui.add_space(8.0);
-            let enter = out.response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
-            ui.horizontal(|ui| {
-                if ui.add_enabled(problem.is_none(), egui::Button::new(ok)).clicked() || (enter && problem.is_none()) {
-                    answer = Some(true);
-                }
-                if ui.button(cancel).clicked() || ui.input(|i| i.key_pressed(Key::Escape)) {
-                    answer = Some(false);
-                }
-            });
-        });
+        let problem = self.name_problem(&source::parent(&path), &trimmed, Some(&old));
+        // The name selected without the extension, as file managers do.
+        let end = if path.ends_with('/') { old.chars().count() } else { old.rfind('.').map_or(old.chars().count(), |i| old[..i].chars().count()) };
+        let texts = (self.i18n.t("rename-title"), self.i18n.t("rename-ok"));
+        let answer = name_window(ctx, "rename", texts, &mut name, first.then_some(end), problem, &self.i18n);
         match answer {
             Some(true) => {
                 if trimmed != old
@@ -314,6 +278,20 @@ impl App {
             }
             Some(false) => self.rename = None,
             None => self.rename = Some((name, path, false)),
+        }
+    }
+
+    /// What is wrong with `name` for an item of `dir` (`old`: its present name, when renaming).
+    pub(crate) fn name_problem(&self, dir: &str, name: &str, old: Option<&str>) -> Option<String> {
+        let taken = self.listings.get(dir).and_then(|l| l.as_ref().ok()).is_some_and(|l| {
+            l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).any(|p| source::name(p) == name)
+        });
+        if name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\']) {
+            Some(self.i18n.t("rename-bad"))
+        } else if Some(name) != old && taken {
+            Some(self.i18n.t("rename-taken"))
+        } else {
+            None
         }
     }
 
@@ -371,4 +349,37 @@ impl App {
             None => {}
         }
     }
+}
+
+/// A name in a text field, as Rename and New folder ask it: `select` = on the first frame, the
+/// field takes the focus with the first characters selected. Enter confirms (when there is no
+/// `problem`), Esc cancels. `Some(true)` OK, `Some(false)` cancelled.
+pub(crate) fn name_window(ctx: &egui::Context, id: &str, (title, ok): (String, String), name: &mut String, select: Option<usize>, problem: Option<String>, i18n: &crate::i18n::I18n) -> Option<bool> {
+    let mut answer = None;
+    egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
+        ui.set_width(420.0);
+        ui.strong(title);
+        ui.add_space(4.0);
+        let mut out = egui::TextEdit::singleline(name).desired_width(f32::INFINITY).show(ui);
+        if let Some(end) = select {
+            out.response.request_focus();
+            let range = egui::text::CCursorRange::two(egui::text::CCursor::new(0), egui::text::CCursor::new(end));
+            out.state.cursor.set_char_range(Some(range));
+            out.state.store(ui.ctx(), out.response.id);
+        }
+        if let Some(p) = &problem {
+            ui.label(browser::error_text(ui, p.as_str()));
+        }
+        ui.add_space(8.0);
+        let enter = out.response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));
+        ui.horizontal(|ui| {
+            if ui.add_enabled(problem.is_none(), egui::Button::new(ok)).clicked() || (enter && problem.is_none()) {
+                answer = Some(true);
+            }
+            if ui.button(i18n.t("delete-no")).clicked() || ui.input(|i| i.key_pressed(Key::Escape)) {
+                answer = Some(false);
+            }
+        });
+    });
+    answer
 }

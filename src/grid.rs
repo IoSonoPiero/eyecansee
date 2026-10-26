@@ -149,6 +149,9 @@ impl App {
                 items.push(Some((t("menu-paste"), t("key-paste"), Act::Paste(None))));
                 items.push(None);
             }
+            if self.can_make_folder() {
+                items.push(Some((t("menu-new-folder"), t("key-new-folder"), Act::NewFolder)));
+            }
             items.push(Some((t("menu-refresh"), "F5".into(), Act::Refresh)));
             if !self.dir.is_empty() {
                 items.push(Some((t("menu-parent"), t("key-backspace"), Act::Up)));

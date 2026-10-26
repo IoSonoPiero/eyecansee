@@ -47,6 +47,7 @@ mod meta;
 mod meta_panel;
 mod mtp;
 mod navigation;
+mod new_folder;
 mod paint;
 mod psd;
 mod rotate;
@@ -296,6 +297,10 @@ struct App {
     quit_after_transfer: bool,
     /// Rename in progress: name being written, path, first frame (focus and selection to set).
     rename: Option<(String, String, bool)>,
+    /// New folder: name, the folder it goes in, first frame (the name gets selected).
+    new_folder: Option<(String, String, bool)>,
+    /// A folder just made: selected once its folder is read again.
+    select_after: Option<String>,
     /// Enter (true) or Esc (false) pressed while a confirmation is open (deletion, name taken).
     delete_answer: Option<bool>,
     /// The open local folder, watched for changes made outside EyeCanSee.
@@ -407,6 +412,8 @@ impl App {
             delete_confirm: None,
             delete_answer: None,
             rename: None,
+            new_folder: None,
+            select_after: None,
             restore_queue: Default::default(),
             restore_busy: false,
             restore_conflict: None,
@@ -579,6 +586,7 @@ impl App {
         self.paste_window(ctx);
         self.transfer_window(ctx);
         self.rename_window(ctx);
+        self.new_folder_window(ctx);
         self.restore_window(ctx);
         self.next_restore();
     }
@@ -604,7 +612,7 @@ impl eframe::App for App {
             });
             return;
         }
-        if ctx.egui_wants_keyboard_input() || self.rename.is_some() {
+        if ctx.egui_wants_keyboard_input() || self.rename.is_some() || self.new_folder.is_some() {
             return;
         }
         // Copy, cut and paste reach the app as events, not keys. On Windows Shift+Del is a cut

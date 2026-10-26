@@ -28,6 +28,7 @@ impl App {
             let entry = |ui: &mut egui::Ui, enabled: bool, button: egui::Button, a: Act| pick(ui.add_enabled(enabled, button), a);
             ui.menu_button(t("menu-file"), |ui| {
                 entry(ui, true, egui::Button::new(t("menu-open-location")), Act::Address);
+                entry(ui, self.can_make_folder(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder);
                 entry(ui, true, egui::Button::new(t("menu-options")), Act::Options);
                 ui.separator();
                 let can_clip = !self.chosen(None).is_empty();

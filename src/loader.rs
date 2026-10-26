@@ -39,6 +39,8 @@ pub enum Msg {
     TrashItems(Vec<String>),
     /// Outcome of renaming an item: old path, new path.
     Renamed(String, Result<String, source::Error>),
+    /// New folder made (its path).
+    MadeFolder(String, Result<(), source::Error>),
     /// Names already in the paste destination (to ask about), or an error.
     PasteCheck(Result<Vec<String>, source::Error>),
     /// End of a copy or move: source items that went away, outcome.
@@ -248,6 +250,15 @@ impl Loader {
         self.rt.spawn(async move {
             let r = op.rename(&path, &new_name).await;
             let _ = tx.send(Msg::Renamed(path, r));
+            ctx.request_repaint();
+        });
+    }
+
+    pub fn make_folder(&self, path: String) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let r = op.create_dir(&path).await;
+            let _ = tx.send(Msg::MadeFolder(path, r));
             ctx.request_repaint();
         });
     }

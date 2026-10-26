@@ -53,6 +53,8 @@ L'installer per Windows, lo zip per Windows e l'AppImage si aggiornano da soli. 
 
 ## Eliminare e rinominare
 
+**File > Nuova cartella…**, **Nuova cartella…** dal clic destro su uno spazio vuoto della griglia, oppure **Ctrl+Maiusc+N** crea una cartella nella cartella aperta: il nome è già scritto ("Nuova cartella", con " (2)" se c'è già) e selezionato, così puoi scrivere quello che vuoi; **Crea** la crea e la seleziona nella griglia. Funziona sul computer, sui dischi, sui telefoni e sui server; non in un cestino né tra le memorie di un telefono.
+
 **Canc** (o **File > Elimina…**) elimina l'immagine o la cartella selezionata nella griglia, o l'immagine aperta nel visore, dopo una conferma con il nome e la dimensione. Una cartella viene eliminata con tutto quello che contiene. Dall'albero a sinistra si eliminano le cartelle col clic destro. Nella conferma **Invio** elimina ed **Esc** annulla. Nel visore compare subito l'immagine successiva.
 
 Con più elementi selezionati, **Canc** (o **Elimina…** dal clic destro su uno di loro) li elimina tutti, dopo una conferma con quanti sono e il peso delle immagini. Se uno non riesce, i successivi non vengono eliminati. Mentre un'eliminazione è in corso la barra di stato lo dice, con una rotellina, e non se ne può avviare un'altra (su un telefono una cartella con centinaia di file richiede diversi secondi).
@@ -189,6 +191,7 @@ Nella griglia:
 | Invio | Apre la cartella o l'immagine; su **..** sale di un livello |
 | Backspace | Cartella superiore |
 | F2 | Rinomina (vedi *Eliminare e rinominare*) |
+| Ctrl+Maiusc+N | Nuova cartella (vedi *Eliminare e rinominare*) |
 | Canc | Elimina |
 | Ctrl+C, Ctrl+X, Ctrl+V | Copia, taglia, incolla (vedi *Copiare e spostare*) |
 | Ctrl+A | Seleziona tutto nella cartella |

@@ -97,8 +97,11 @@ impl App {
             Some(d) => new.dirs.iter().position(|x| x == d),
             None => file_at(self.selected - old.dirs.len()).map(|j| ndirs + j),
         };
-        self.selected = followed.unwrap_or(self.selected).min((ndirs + n).saturating_sub(1));
-        self.cursor &= ndirs + n > 0;
+        // A folder just made is selected instead.
+        let made = self.select_after.take().and_then(|p| new.dirs.iter().position(|d| *d == p));
+        self.selected = made.or(followed).unwrap_or(self.selected).min((ndirs + n).saturating_sub(1));
+        self.cursor = (self.cursor || made.is_some()) && ndirs + n > 0;
+        self.scroll_to_selected |= made.is_some();
         self.viewing = self.viewing.filter(|_| n > 0).map(|v| file_at(v).unwrap_or(v.min(n - 1)));
         if let Some(loader) = &self.loader {
             self.generation = loader.next_generation();

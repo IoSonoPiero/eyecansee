@@ -29,6 +29,7 @@ impl App {
                 Msg::TrashItems(paths) => self.on_trash_items(paths),
                 Msg::Restored(path, r) => self.on_restored(path, r),
                 Msg::Renamed(old, r) => self.on_renamed(old, r),
+                Msg::MadeFolder(path, r) => self.on_made_folder(path, r),
                 Msg::PasteCheck(r) => self.on_paste_check(r),
                 Msg::Pasted(gone, r) => self.on_pasted(ctx, gone, r),
                 Msg::Mounted(r) => self.on_mounted(ctx, r),

@@ -19,6 +19,8 @@ pub(crate) enum Act {
     /// Item (`None` = the selected one or the one in the viewer); `true`: for good (Shift+Del).
     Delete(Option<String>, bool),
     Rename(Option<String>),
+    /// A new folder in the folder open.
+    NewFolder,
     /// "Save in another format" for an image (`None` = the selected one or the one in the viewer).
     Convert(Option<String>),
     /// Convert and resize images of the grid (`None` = the marked ones or the selected one).
@@ -81,7 +83,12 @@ impl App {
         let (help, refresh, delete, shift, rename) = ctx.input(|i| {
             (i.key_pressed(Key::F1), i.key_pressed(Key::F5), i.key_pressed(Key::Delete), i.modifiers.shift, i.key_pressed(Key::F2))
         });
-        if !ctx.egui_wants_keyboard_input() && self.rename.is_none() {
+        // Ctrl+Shift+N, as in the file managers.
+        let new_folder = ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::N));
+        if new_folder && !ctx.egui_wants_keyboard_input() {
+            self.ask_new_folder();
+        }
+        if !ctx.egui_wants_keyboard_input() && self.rename.is_none() && self.new_folder.is_none() {
             if delete {
                 self.ask_delete(None, shift);
             }
@@ -124,6 +131,7 @@ impl App {
             Act::Options => self.options = true,
             Act::Delete(path, permanent) => self.ask_delete(path, permanent),
             Act::Rename(path) => self.ask_rename(path),
+            Act::NewFolder => self.ask_new_folder(),
             Act::Convert(path) => self.open_convert(path),
             Act::Duplicates(dir) => self.open_duplicates(dir),
             Act::Batch(path) => self.open_batch(path),
