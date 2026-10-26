@@ -50,6 +50,8 @@ pub struct Show {
     since: f64,
     /// The image it comes from, during the passage.
     from: Option<String>,
+    /// Gone back with the arrows: the slide runs the other way.
+    back: bool,
     paused: bool,
     /// The window was at full screen before.
     was_full: bool,
@@ -91,7 +93,7 @@ impl App {
         let was_full = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
         let now = ctx.input(|i| i.time);
-        self.show = Some(Show { paths, at, since: now, from: None, paused: false, was_full, from_viewer: self.viewing.is_some(), started: now });
+        self.show = Some(Show { paths, at, since: now, from: None, back: false, paused: false, was_full, from_viewer: self.viewing.is_some(), started: now });
         self.viewing = None;
     }
 
@@ -130,7 +132,8 @@ impl App {
         ui.painter().rect_filled(rect, 0.0, Color32::BLACK);
         let t = passage(now, since, secs);
         if let Some(cur_tex) = &cur_tex {
-            paint_passage(ui.painter(), rect, from_tex.as_ref(), cur_tex, self.settings.slideshow_fade, t);
+            let back = self.show.as_ref().is_some_and(|s| s.back);
+            paint_passage(ui.painter(), rect, from_tex.as_ref(), cur_tex, (self.settings.slideshow_fade, back), t);
         } else if cur.is_some_and(|i| matches!(self.full.get(&i), Some(Err(_)))) {
             // Cannot be read: the next one comes at its time.
         } else {
@@ -192,6 +195,7 @@ impl App {
         match step(s.at, s.paths.len(), forward, again) {
             Some(at) => {
                 s.from = Some(s.paths[s.at].clone());
+                s.back = !forward;
                 s.at = at;
                 s.since = now;
             }
@@ -226,8 +230,8 @@ fn fitted(rect: Rect, tex: &TextureHandle, ppp: f32, scale: f32, dx: f32) -> Rec
     Rect::from_center_size(rect.center() + Vec2::new(dx, 0.0), size * fit)
 }
 
-/// The passage at `t` (0 to 1) from `from` to `to`.
-fn paint_passage(p: &egui::Painter, rect: Rect, from: Option<&TextureHandle>, to: &TextureHandle, fade: Fade, t: f32) {
+/// The passage at `t` (0 to 1) from `from` to `to`; `back`: going to the previous image.
+fn paint_passage(p: &egui::Painter, rect: Rect, from: Option<&TextureHandle>, to: &TextureHandle, (fade, back): (Fade, bool), t: f32) {
     let ppp = p.ctx().pixels_per_point();
     let uv = Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
     let draw = |tex: &TextureHandle, scale: f32, dx: f32, alpha: f32| {
@@ -250,9 +254,11 @@ fn paint_passage(p: &egui::Painter, rect: Rect, from: Option<&TextureHandle>, to
         Fade::Black => draw(to, 1.0, 0.0, 2.0 * t - 1.0),
         Fade::Slide => {
             // Eased: fast at first, gentle at the end.
+            // Forward the new one comes from the right, back from the left.
             let e = 1.0 - (1.0 - t) * (1.0 - t);
-            draw(from, 1.0, -e * rect.width(), 1.0);
-            draw(to, 1.0, (1.0 - e) * rect.width(), 1.0);
+            let w = if back { -rect.width() } else { rect.width() };
+            draw(from, 1.0, -e * w, 1.0);
+            draw(to, 1.0, (1.0 - e) * w, 1.0);
         }
         Fade::Zoom => {
             draw(from, 1.0, 0.0, under);

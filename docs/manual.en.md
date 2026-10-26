@@ -107,7 +107,7 @@ Select images in the grid (or right-click one of the selected ones) and choose *
 
 **View > Slideshow**, or **Slideshow** in the right-click menu of an image (in the grid and in the viewer), shows the images one after the other at full screen, on black. With several images selected it shows those; otherwise every image of the folder, from the chosen one (or the one open in the viewer).
 
-- **Esc** or a double click ends it: you are back where you were, on the last image shown. **Space** pauses and goes on. **←** and **→** (or Page Up and Page Down) show the previous and next image at once.
+- **Esc** or a double click ends it: you are back where you were, on the last image shown. **Space** pauses and goes on. **←** and **→** (or Page Up and Page Down) show the previous and next image at once; with **Slide**, going back the images slide the other way.
 - In **File > Options… > Slideshow**: how many seconds each image stays (5 at first), the passage between images (**None**, **Crossfade**, the default, **Fade through black**, **Slide**, **Zoom and fade**), and **Start again after the last image** (on at first; off, the slideshow ends after the last one).
 - The next image is read in advance: if it is not ready yet (a phone, a large file) the current one stays until it is.
 

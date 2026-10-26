@@ -62,7 +62,8 @@ impl App {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            .fixed_size([460.0, 330.0])
+            // Wide enough for the six tabs in every language (Italian is the longest).
+            .fixed_size([540.0, 330.0])
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 // As tall as the longest tab (General), so changing tab does not resize the window.

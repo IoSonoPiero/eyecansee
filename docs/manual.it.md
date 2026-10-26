@@ -107,7 +107,7 @@ Seleziona le immagini nella griglia (o fai clic destro su una delle selezionate)
 
 **Visualizza > Carosello**, oppure **Carosello** nel menù del clic destro di un'immagine (nella griglia e nel visore), mostra le immagini una dopo l'altra a tutto schermo, su fondo nero. Con più immagini selezionate mostra quelle; altrimenti tutte le immagini della cartella, a partire da quella scelta (o da quella aperta nel visore).
 
-- **Esc** o un doppio clic lo chiudono: torni dov'eri, sull'ultima immagine mostrata. **Spazio** mette in pausa e riprende. **←** e **→** (o Pagina su e Pagina giù) mostrano subito l'immagine precedente e quella successiva.
+- **Esc** o un doppio clic lo chiudono: torni dov'eri, sull'ultima immagine mostrata. **Spazio** mette in pausa e riprende. **←** e **→** (o Pagina su e Pagina giù) mostrano subito l'immagine precedente e quella successiva; con **Scorrimento**, tornando indietro le immagini scorrono nel verso opposto.
 - In **File > Opzioni… > Carosello**: quanti secondi resta ogni immagine (5 all'inizio), il passaggio tra le immagini (**Nessuno**, **Dissolvenza incrociata**, quello predefinito, **Dissolvenza al nero**, **Scorrimento**, **Zoom e dissolvenza**) e **Ricomincia dopo l'ultima immagine** (attivo all'inizio; se spento, il carosello finisce dopo l'ultima).
 - L'immagine successiva viene letta in anticipo: se non è ancora pronta (un telefono, un file grande) quella in corso resta finché non lo è.
 
