@@ -154,6 +154,7 @@ impl Window {
 enum Ask {
     Save,
     SaveAs,
+    Cancel,
 }
 
 impl App {
@@ -208,6 +209,7 @@ impl App {
                     match self.rotate_controls(ui, &mut w) {
                         Some(Ask::Save) => self.rotate_save(&mut w),
                         Some(Ask::SaveAs) => open = !self.rotate_save_as(ui.ctx(), &w),
+                        Some(Ask::Cancel) => open = false,
                         None => {}
                     }
                 });
@@ -232,19 +234,30 @@ impl App {
         let (pw, ph) = w.crop.pixels();
         ui.strong(i18n.t_args("rc-size", &[("w", &pw.to_string()), ("h", &ph.to_string())]));
         ui.add_space(4.0);
+        // Nothing is written until one of these is clicked: said in so many words, since rotating
+        // looked finished and the user did not know what to do next.
+        if w.changed() {
+            ui.label(i18n.t("rc-not-saved"));
+            ui.add_space(4.0);
+        }
         let why_not = self.why_not_save(w);
         let mut ask = None;
         ui.horizontal(|ui| {
             let ready = w.changed() && why_not.is_none() && !w.preparing;
-            let r = ui.add_enabled(ready, egui::Button::new(i18n.t("menu-save")));
-            if r.clicked() {
+            let text = egui::RichText::new(i18n.t("rc-apply")).color(Color32::WHITE).strong();
+            let r = ui.add_enabled(ready, egui::Button::new(text).fill(crate::theme::solid(ui.visuals()))).on_hover_text(i18n.t("rc-apply-hint"));
+            // Enter applies too, unless a field is being typed in.
+            if r.clicked() || (ready && !ui.ctx().egui_wants_keyboard_input() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
                 ask = Some(Ask::Save);
             }
             if let Some(why) = why_not {
                 r.on_disabled_hover_text(why);
             }
-            if ui.add_enabled(!w.preparing, egui::Button::new(i18n.t("menu-save-copy"))).clicked() {
+            if ui.add_enabled(!w.preparing, egui::Button::new(i18n.t("menu-save-copy"))).on_hover_text(i18n.t("rc-save-as-hint")).clicked() {
                 ask = Some(Ask::SaveAs);
+            }
+            if ui.button(i18n.t("rc-cancel")).on_hover_text("Esc").clicked() {
+                ask = Some(Ask::Cancel);
             }
             if w.preparing {
                 ui.spinner();
@@ -339,7 +352,10 @@ fn angle_controls(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
             w.angle = 0.0;
         }
     });
-    ui.toggle_value(&mut w.straighten, i18n.t("rc-straighten")).on_hover_text(i18n.t("rc-straighten-hint"));
+    // A framed button even when off (`toggle_value` looked like plain text then).
+    if ui.add(egui::Button::new(i18n.t("rc-straighten")).selected(w.straighten)).on_hover_text(i18n.t("rc-straighten-hint")).clicked() {
+        w.straighten = !w.straighten;
+    }
     ui.weak(i18n.t("rc-rotation-hint"));
     // Kept between -180 and 180, the range of the slider.
     w.angle = (w.angle + 180.0).rem_euclid(360.0) - 180.0;
