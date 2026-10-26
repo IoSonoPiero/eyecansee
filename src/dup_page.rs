@@ -374,8 +374,10 @@ impl App {
                 }
                 let file = &g.files[i];
                 let date = self.file_date(&file.modified).unwrap_or_default();
-                // Below the folder searched, which the title shows: the full path on hover.
-                let text = format!("{date}    {}", file.path.strip_prefix(&w.dir).unwrap_or(&file.path));
+                // Below the folder searched, which the title shows: the full path on hover. With
+                // the separator of the system, as in the title ("\\" on Windows).
+                let full = self.display(&file.path);
+                let text = format!("{date}    {}", full.strip_prefix(&self.display(&w.dir)).unwrap_or(&full));
                 let text = if g.delete[i] {
                     ui.add(icons::image(ui.ctx(), icons::Icon::Trash, 16.0));
                     egui::RichText::new(text).weak().strikethrough()

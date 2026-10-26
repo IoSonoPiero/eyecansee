@@ -23,7 +23,9 @@ pub struct Progress {
 /// Order of the copies inside every group, and so which one is "the first".
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub enum Order {
-    /// Oldest first; with the same date (or none) the shorter path first.
+    /// Oldest first, to the minute as shown; with the same date (or none) the shorter path first.
+    /// Copies made together differ by a few seconds: by the second the copy "(2)" made a moment
+    /// earlier stayed instead of the original (seen on Windows).
     #[default]
     Date,
     /// Shorter file name first ("photo.jpg" before "photo copy.jpg", "photo (2).jpg"): copies
@@ -105,7 +107,8 @@ impl Group {
 
 /// Oldest first (no date last), then the shorter path, then the path.
 fn date_key(f: &File) -> (i64, usize, String) {
-    (crate::human::parse_modified(&f.modified).map_or(i64::MAX, |t| t.as_second()), f.path.chars().count(), f.path.clone())
+    let minute = crate::human::parse_modified(&f.modified).map_or(i64::MAX, |t| t.as_second().div_euclid(60));
+    (minute, f.path.chars().count(), f.path.clone())
 }
 
 /// The images of `dir` (and of its subfolders with `sub`) grouped by identical content, the
@@ -198,6 +201,9 @@ mod tests {
         assert_eq!(g.delete, [false, true, false]);
         g.keep(Keep::Last);
         assert_eq!(g.delete, [true, true, false]);
+        // Copied together: "(2)" a few seconds older, the original still stays.
+        let together = Group::new(vec![file("p (2).jpg", "2026-01-01T10:00:01Z"), file("p.jpg", "2026-01-01T10:00:03Z")]);
+        assert_eq!(together.files[0].path, "p.jpg");
         g.keep(Keep::All);
         assert_eq!(g.delete, [false, false, false]);
         // Deleting the copy kept leaves an unmarked one; one copy alone is no group.
