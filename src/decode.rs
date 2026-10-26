@@ -157,7 +157,8 @@ pub fn preview(img: &DynamicImage) -> ColorImage {
 
 /// Whole image, at full size and upright: for saving in another format.
 pub fn decode_full(bytes: &[u8], name: &str) -> std::result::Result<DynamicImage, String> {
-    decode_any(bytes, name)
+    // A lossless JPEG: only libjpeg-turbo reads it (the viewer uses it first).
+    decode_any(bytes, name).or_else(|e| if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) { jpeg_scaled(bytes, u32::MAX).map_err(|_| e) } else { Err(e) })
 }
 
 fn decode_any(bytes: &[u8], name: &str) -> std::result::Result<DynamicImage, String> {
@@ -430,7 +431,8 @@ mod tests {
     use super::*;
 
     /// libjpeg-turbo cannot scale a lossless JPEG down: the thumbnail failed (an exclamation
-    /// mark in the grid) while the viewer, at full size, opened it.
+    /// mark in the grid) while the viewer, at full size, opened it. `image` does not read it at
+    /// all: converting it failed too.
     #[test]
     fn lossless_jpeg_thumbnail() {
         let img = DynamicImage::ImageRgb8(image::RgbImage::from_fn(640, 480, |x, y| image::Rgb([x as u8, y as u8, 7])));
@@ -438,6 +440,9 @@ mod tests {
         let bytes = crate::encode::Original::with_meta(img, &[]).encode(&o).unwrap();
         let thumb = thumbnail(&bytes, "x.jpg", 64).unwrap();
         assert_eq!((thumb.width(), thumb.height()), (64, 48));
+        // And whole, for converting it (it failed in "Convert and resize").
+        let whole = decode_full(&bytes, "x.jpg").unwrap();
+        assert_eq!((whole.width(), whole.height()), (640, 480));
     }
 
     #[test]
