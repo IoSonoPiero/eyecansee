@@ -87,7 +87,12 @@ impl App {
     /// and the deletions apart at the end, as in file managers.
     fn folder_items(&self, path: Option<String>, target: &str) -> Vec<MenuItem> {
         let t = |id| self.i18n.t(id);
-        let mut items = vec![None, Some((t("menu-cut"), t("key-cut"), Act::Cut(path.clone()))), Some((t("menu-copy"), t("key-copy"), Act::Copy(path.clone())))];
+        let mut items = Vec::new();
+        // As in File: a new folder, made inside this one.
+        if self.can_make_folder_in(target) {
+            items.push(Some((t("menu-new-folder-in"), String::new(), Act::NewFolder(Some(target.to_string())))));
+        }
+        items.extend([None, Some((t("menu-cut"), t("key-cut"), Act::Cut(path.clone()))), Some((t("menu-copy"), t("key-copy"), Act::Copy(path.clone())))]);
         // Not into one of the folders being copied: it would go inside itself.
         let copied = self.clip.as_ref().is_some_and(|c| c.base == self.base && c.paths.iter().any(|p| p == target));
         if !copied && self.can_paste(target) {

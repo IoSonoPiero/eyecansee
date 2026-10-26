@@ -24,7 +24,8 @@ pub(crate) enum Act {
     Delete(Option<String>, bool),
     Rename(Option<String>),
     /// A new folder in the folder open.
-    NewFolder,
+    /// In that folder, or in the folder open.
+    NewFolder(Option<String>),
     /// "Save in another format" for an image (`None` = the selected one or the one in the viewer).
     Convert(Option<String>),
     /// Convert and resize images of the grid (`None` = the marked ones or the selected one).
@@ -90,7 +91,7 @@ impl App {
         // Ctrl+Shift+N, as in the file managers.
         let new_folder = ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::N));
         if new_folder && !ctx.egui_wants_keyboard_input() {
-            self.ask_new_folder();
+            self.ask_new_folder(None);
         }
         if !ctx.egui_wants_keyboard_input() && self.rename.is_none() && self.new_folder.is_none() {
             if delete {
@@ -136,7 +137,7 @@ impl App {
             Act::SelectAll => self.select_all(),
             Act::Delete(path, permanent) => self.ask_delete(path, permanent),
             Act::Rename(path) => self.ask_rename(path),
-            Act::NewFolder => self.ask_new_folder(),
+            Act::NewFolder(dir) => self.ask_new_folder(dir),
             Act::Convert(path) => self.open_convert(path),
             Act::Duplicates(dir) => self.open_duplicates(dir),
             Act::Batch(path) => self.open_batch(path),

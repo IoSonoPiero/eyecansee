@@ -155,7 +155,7 @@ impl App {
                 items.push(None);
             }
             if self.can_make_folder() {
-                items.push(Some((t("menu-new-folder"), t("key-new-folder"), Act::NewFolder)));
+                items.push(Some((t("menu-new-folder"), t("key-new-folder"), Act::NewFolder(None))));
             }
             // As in View: the parent folder, then Refresh.
             items.push(None);

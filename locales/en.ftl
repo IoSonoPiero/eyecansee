@@ -497,6 +497,7 @@ fade-zoom = Zoom and fade
 show-hint = Esc: end · Space: pause · ← →: previous and next image
 show-paused = Paused (Space to go on)
 menu-new-folder = New folder…
+menu-new-folder-in = New folder inside…
 key-new-folder = Ctrl+Shift+N
 new-folder-title = New folder
 new-folder-ok = Create

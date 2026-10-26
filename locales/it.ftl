@@ -496,6 +496,7 @@ fade-zoom = Zoom e dissolvenza
 show-hint = Esc: esci · Spazio: pausa · ← →: immagine precedente e successiva
 show-paused = In pausa (Spazio per continuare)
 menu-new-folder = Nuova cartella…
+menu-new-folder-in = Nuova cartella qui dentro…
 key-new-folder = Ctrl+Maiusc+N
 new-folder-title = Nuova cartella
 new-folder-ok = Crea
