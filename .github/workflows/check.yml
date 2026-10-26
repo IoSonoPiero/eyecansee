@@ -52,7 +52,9 @@ jobs:
         run: cargo clippy --locked --all-targets --no-default-features --features heif,magick -- -D warnings
       # The tests find the ImageMagick DLLs on the PATH, its coders through the registry the
       # installer wrote; the configuration goes to a temporary folder.
+      # Also when Clippy fails: a lint should not hide a failing test.
       - name: Tests
+        if: ${{ !cancelled() }}
         run: |
           $env:Path = "$env:IMAGE_MAGICK_DIR;$env:Path"
           $env:APPDATA = "$env:RUNNER_TEMP\roaming"; $env:LOCALAPPDATA = "$env:RUNNER_TEMP\local"
