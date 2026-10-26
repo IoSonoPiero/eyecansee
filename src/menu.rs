@@ -191,13 +191,13 @@ impl App {
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
         ui.horizontal(|ui| {
             if self.deleting > 0 {
-                ui.spinner();
-                ui.label(self.i18n.t_args("status-deleting", &[("n", &self.deleting.to_string())]));
+                ui.add(egui::Spinner::new().color(Color32::WHITE));
+                ui.label(crate::theme::alert(self.i18n.t_args("status-deleting", &[("n", &self.deleting.to_string())])));
                 ui.separator();
             }
             if !self.saving.is_empty() {
-                ui.spinner();
-                ui.label(self.i18n.t_args("status-saving-n", &[("n", &self.saving.len().to_string())]));
+                ui.add(egui::Spinner::new().color(Color32::WHITE));
+                ui.label(crate::theme::alert(self.i18n.t_args("status-saving-n", &[("n", &self.saving.len().to_string())])));
                 ui.separator();
             }
             if let Some(clip) = &self.clip {

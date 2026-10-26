@@ -60,6 +60,12 @@ pub fn solid(v: &Visuals) -> Color32 {
     palette(v).solid
 }
 
+/// Something under way or not saved, in the status bars: a yellow label with dark bold text
+/// (contrast about 13:1). White on the blue bar went unnoticed (user, 2026-10-26).
+pub fn alert(text: String) -> egui::RichText {
+    egui::RichText::new(format!(" {text} ")).strong().color(Color32::from_gray(26)).background_color(Color32::from_rgb(0xFF, 0xD5, 0x4F))
+}
+
 pub fn canvas(v: &Visuals) -> Color32 {
     palette(v).canvas
 }
