@@ -245,6 +245,7 @@ convert-original = Original
 convert-result = Converted
 convert-working = Converting…
 convert-no-preview = No preview for this format here: the file is saved anyway.
+convert-calculating = Working out the size…
 convert-error = Cannot convert: { $detail }
 convert-actual = 100% (drag the images to move around)
 convert-pixels = { $w } × { $h } pixels

@@ -225,6 +225,15 @@ impl crate::App {
     fn result_info(&self, ui: &mut egui::Ui, w: &Window, pixels: &str, size: u64) {
         let i18n = &self.i18n;
         match &w.result {
+            // Options changed, new file not made yet: the old size would pass for the new one
+            // (the user saw 100 KB, saved, and got 150).
+            Some(Ok(_)) if w.busy || w.encoded_with != Some(w.options) => {
+                ui.label(format!("{} · {pixels}", w.options.format.label()));
+                ui.horizontal(|ui| {
+                    ui.spinner();
+                    ui.label(i18n.t("convert-calculating"));
+                });
+            }
             Some(Ok((bytes, _))) => {
                 let percent = (bytes.len() as u64 * 100 / size.max(1)).to_string();
                 ui.label(format!("{} · {pixels}", w.options.format.label()));

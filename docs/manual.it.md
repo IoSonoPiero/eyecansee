@@ -83,7 +83,7 @@ Con la tastiera: **↑** e **↓** passano da una copia all'altra di tutti i gru
 
 ## Salvare in un altro formato
 
-Clic destro su un'immagine (nella griglia o nel visore), poi **Salva come…**. Si apre una pagina grande quanto la finestra: a sinistra l'originale, a destra l'immagine convertita, ognuna con le dimensioni in pixel e su disco (per la convertita anche in percentuale dell'originale). Quello che vedi a destra è il file come verrà salvato: viene codificato e riletto a ogni cambio di opzione.
+Clic destro su un'immagine (nella griglia o nel visore), poi **Salva come…**. Si apre una pagina grande quanto la finestra: a sinistra l'originale, a destra l'immagine convertita, ognuna con le dimensioni in pixel e su disco (per la convertita anche in percentuale dell'originale). Quello che vedi a destra è il file come verrà salvato: viene codificato e riletto a ogni cambio di opzione. Nel frattempo al posto della dimensione c'è "Calcolo della dimensione in corso…" e Salva aspetta: la dimensione mostrata è sempre quella del file che verrà salvato.
 
 - **Formato**: JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF o QOI, con tutte le opzioni di ciascuno: qualità, dettaglio del colore, JPEG progressivo e senza perdita; livello di compressione e filtro per il PNG; WebP con o senza perdita; qualità, velocità e bit per canale per l'AVIF; compressione per il TIFF; riduzione dei colori per il GIF. La tabella completa è in [docs/formats.md](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/formats.md).
 - **100%** mostra i pixel veri; trascinando una delle due immagini si spostano entrambe, così confronti lo stesso punto.

@@ -83,7 +83,7 @@ With the keyboard: **↑** and **↓** move between the copies of all the groups
 
 ## Saving in another format
 
-Right-click an image (in the grid or in the viewer) and choose **Save as…**. A page takes the whole window: the original on the left, the converted image on the right, each with its size in pixels and on disk (for the converted one also as a percentage of the original). What you see on the right is the file as it will be saved: it is encoded and decoded back every time you change an option.
+Right-click an image (in the grid or in the viewer) and choose **Save as…**. A page takes the whole window: the original on the left, the converted image on the right, each with its size in pixels and on disk (for the converted one also as a percentage of the original). What you see on the right is the file as it will be saved: it is encoded and decoded back every time you change an option. While that happens the size says "Working out the size…" and Save waits: the size shown is always that of the file that will be saved.
 
 - **Format**: JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF or QOI, with all the options of each one: quality, colour detail, progressive and lossless JPEG; compression level and filter for PNG; lossy or lossless WebP; quality, speed and bit depth for AVIF; compression for TIFF; colour reduction for GIF. The full table is in [docs/formats.md](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/formats.md).
 - **100%** shows the real pixels; drag either image to move both, so you compare the same spot.

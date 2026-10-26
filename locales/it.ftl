@@ -244,6 +244,7 @@ convert-original = Originale
 convert-result = Convertita
 convert-working = Conversione in corso…
 convert-no-preview = Anteprima non disponibile per questo formato: il file si salva comunque.
+convert-calculating = Calcolo della dimensione in corso…
 convert-error = Impossibile convertire: { $detail }
 convert-actual = 100% (trascina le immagini per spostarti)
 convert-pixels = { $w } × { $h } pixel
