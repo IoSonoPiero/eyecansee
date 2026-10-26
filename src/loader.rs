@@ -304,7 +304,7 @@ impl Loader {
     pub fn prepare_edit(&self, path: String, image: Arc<crate::encode::Original>, pending: Option<crate::rotate::Edit>) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = rewritten(&op, &path, move |bytes, name| {
+            let r = rewritten(&op, &path, false, move |bytes, name| {
                 let mut img = image.image.clone();
                 if let Some(e) = pending {
                     e.apply(&mut img);
@@ -397,16 +397,17 @@ pub(crate) async fn write_whole(op: &Store, path: &str, data: Vec<u8>) -> Result
 
 /// The image read and turned in its own format, and whether it lost quality.
 async fn turned(op: &Store, path: &str, turn: crate::transform::Turn) -> Result<(Vec<u8>, bool), source::Error> {
-    rewritten(op, path, move |bytes, name| crate::encode::turned_file(bytes, name, turn)).await
+    rewritten(op, path, true, move |bytes, name| crate::encode::turned_file(bytes, name, turn)).await
 }
 
 /// The file read and passed to `make` (in the background), which gives the file to write and
-/// whether it lost quality; `SKIPPED` if it cannot be written back over itself.
-async fn rewritten<T: Send + 'static>(op: &Store, path: &str, make: impl FnOnce(&[u8], &str) -> Result<T, String> + Send + 'static) -> Result<T, source::Error> {
+/// whether it lost quality; `SKIPPED` if it cannot be written back over itself. An Ultra HDR
+/// photo passes when `ultra_hdr`: only flips and quarter turns know how to keep its gain map.
+async fn rewritten<T: Send + 'static>(op: &Store, path: &str, ultra_hdr: bool, make: impl FnOnce(&[u8], &str) -> Result<T, String> + Send + 'static) -> Result<T, source::Error> {
     let bytes = op.read(path).await?;
     let name = source::name(path).to_string();
     tokio::task::spawn_blocking(move || {
-        if !crate::encode::can_turn_in_place(&bytes, &name) {
+        if !crate::encode::can_turn_in_place(&bytes, &name) && !(ultra_hdr && crate::ultrahdr::is(&bytes)) {
             return Err((SKIPPED, name));
         }
         make(&bytes, &name).map_err(|e| ("error-detail", e))

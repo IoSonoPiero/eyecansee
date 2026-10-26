@@ -61,6 +61,7 @@ mod thumbcache;
 mod transfer;
 mod transform;
 mod tree;
+mod ultrahdr;
 mod update;
 mod viewer;
 mod watch;

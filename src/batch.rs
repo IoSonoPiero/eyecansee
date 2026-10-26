@@ -112,7 +112,7 @@ pub fn convert(bytes: &[u8], name: &str, job: &Job) -> Result<(String, Vec<u8>),
     // its size allows it.
     if job.format.is_none()
         && job.size == Size::Same
-        && encode::can_turn_in_place(bytes, name)
+        && (encode::can_turn_in_place(bytes, name) || crate::ultrahdr::is(bytes))
         && let Ok((data, _)) = encode::turned_file(bytes, name, job.turn)
     {
         return Ok((name.to_string(), data));

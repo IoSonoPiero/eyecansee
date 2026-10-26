@@ -47,7 +47,7 @@ impl Turn {
     }
 
     /// This done after `first`.
-    fn after(self, first: Turn) -> Turn {
+    pub fn after(self, first: Turn) -> Turn {
         let mut t = first;
         if self.flip {
             t = t.then(Op::FlipH);
@@ -113,12 +113,22 @@ impl Turn {
 /// The JPEG turned without decoding it, upright (its EXIF orientation is done too and set back to
 /// "upright"). `None` when the size is not a multiple of the blocks: the edge could not be kept.
 pub fn jpeg_lossless(bytes: &[u8], turn: Turn) -> Option<Vec<u8>> {
+    jpeg_lossless_total(bytes, turn.after(exif_turn(bytes)))
+}
+
+/// The turn the EXIF orientation of a JPEG asks for (none without EXIF).
+pub fn exif_turn(bytes: &[u8]) -> Turn {
     use image::ImageDecoder;
     let exif = image::codecs::jpeg::JpegDecoder::new(std::io::Cursor::new(bytes))
         .ok()
         .and_then(|mut d| d.orientation().ok())
         .unwrap_or(Orientation::NoTransforms);
-    let total = turn.after(Turn::from_orientation(exif));
+    Turn::from_orientation(exif)
+}
+
+/// As `jpeg_lossless`, with the whole turn given: its own EXIF orientation is not looked at
+/// (the gain map of an Ultra HDR photo turns as the photo does).
+pub fn jpeg_lossless_total(bytes: &[u8], total: Turn) -> Option<Vec<u8>> {
     let mut t = turbojpeg::Transform::op(total.jpeg_op());
     t.perfect = true;
     let mut out = turbojpeg::transform(&t, bytes).ok()?.to_vec();
