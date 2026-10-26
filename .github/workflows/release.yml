@@ -16,11 +16,12 @@ on:
 # nothing here signs the files (tools/sign-release.sh does it on the developer's PC).
 # Actions are pinned to a commit (the tag in a comment), here and in check.yml and .github/actions: a moved
 # tag cannot change what builds the releases. New SHA: gh api repos/<owner>/<action>/commits/<tag> --jq .sha
+# Runners by version (ubuntu-24.04), not ubuntu-latest: GitHub moves that label to a new Ubuntu by itself.
 jobs:
   version:
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.v.outputs.version }}
       trial: ${{ steps.v.outputs.trial }}
@@ -118,7 +119,7 @@ jobs:
     permissions:
       contents: read
     needs: version
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       # Only the C libraries compiled from source (decoders, ImageMagick): the key is their versions in
@@ -154,7 +155,7 @@ jobs:
       contents: read
     needs: version
     if: github.ref_type == 'tag'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     container: registry.fedoraproject.org/fedora:44
     steps:
       - run: dnf install -y -q git rpm-build copr-cli
@@ -176,7 +177,7 @@ jobs:
       contents: write
     needs: [version, windows, appimage, copr]
     if: github.ref_type == 'tag'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
