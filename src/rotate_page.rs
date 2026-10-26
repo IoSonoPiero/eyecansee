@@ -290,11 +290,14 @@ impl App {
             if ui.button(i18n.t("rc-close")).on_hover_text("Esc").clicked() {
                 ask = Some(Ask::Close);
             }
-            if w.preparing {
+        });
+        // A row of its own: next to the buttons it was cut off by the edge of the panel.
+        if w.preparing {
+            ui.horizontal(|ui| {
                 ui.spinner();
                 ui.label(i18n.t("status-preparing"));
-            }
-        });
+            });
+        }
         ui.add_space(12.0);
         ui.weak(i18n.t("rc-help"));
         ask

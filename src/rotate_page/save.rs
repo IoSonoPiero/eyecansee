@@ -118,6 +118,11 @@ impl App {
                     }
                     self.fresh = Some((w.path.clone(), tex));
                 }
+                // The result has the viewer's flips and turns in it already: drawn again with
+                // them it showed another image until the save was done.
+                if self.viewed(&w.path) {
+                    self.turn = Default::default();
+                }
                 w.ready = None;
                 true
             }
