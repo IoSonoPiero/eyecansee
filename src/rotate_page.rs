@@ -47,6 +47,8 @@ enum Grab {
     Side(i8, i8),
     Move,
     Pan,
+    /// A line along the horizon (or something upright), for Straighten.
+    Line,
 }
 
 pub struct Window {
@@ -68,6 +70,10 @@ pub struct Window {
     view: Option<(Vec2, f32)>,
     /// The drag under way: what, the crop and the view when it started, where the pointer was.
     drag: Option<(Grab, Crop, (Vec2, f32), Pos2)>,
+    /// Straighten is on: a drag draws a line, which becomes level when let go.
+    straighten: bool,
+    /// Where the line being drawn ends.
+    line_end: Option<Pos2>,
     preparing: bool,
     /// The file to write and whether it lost quality: the confirmation is open.
     pub ready: Option<(Arc<Vec<u8>>, bool)>,
@@ -91,6 +97,8 @@ impl Window {
             color: Color32::WHITE,
             view: None,
             drag: None,
+            straighten: false,
+            line_end: None,
             preparing: false,
             ready: None,
         }
@@ -311,7 +319,15 @@ fn angle_controls(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     let before = w.angle;
     ui.strong(i18n.t("rc-rotation"));
     ui.spacing_mut().slider_width = SIDE - 80.0;
-    ui.add(egui::Slider::new(&mut w.angle, -180.0..=180.0).step_by(0.1).fixed_decimals(1).suffix("°"));
+    // The language's decimal separator, both shown and typed (a dot works too).
+    let sep = i18n.t("decimal-separator");
+    ui.add(
+        egui::Slider::new(&mut w.angle, -180.0..=180.0)
+            .step_by(0.1)
+            .suffix("°")
+            .custom_formatter(move |v, _| format!("{v:.1}").replace('.', &sep))
+            .custom_parser(|s| s.trim().replace(',', ".").parse().ok()),
+    );
     ui.horizontal(|ui| {
         if ui.button("−90°").clicked() {
             w.angle -= 90.0;
@@ -323,6 +339,7 @@ fn angle_controls(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
             w.angle = 0.0;
         }
     });
+    ui.toggle_value(&mut w.straighten, i18n.t("rc-straighten")).on_hover_text(i18n.t("rc-straighten-hint"));
     ui.weak(i18n.t("rc-rotation-hint"));
     // Kept between -180 and 180, the range of the slider.
     w.angle = (w.angle + 180.0).rem_euclid(360.0) - 180.0;
@@ -461,6 +478,10 @@ fn paint(ui: &egui::Ui, w: &Window, tex: &TextureHandle, view: &View, rect: Rect
         painter.line_segment([egui::pos2(cr.min.x, cr.min.y + cr.height() * f), egui::pos2(cr.max.x, cr.min.y + cr.height() * f)], line);
     }
     painter.rect_stroke(cr, 0.0, egui::Stroke::new(1.5, Color32::WHITE), egui::StrokeKind::Middle);
+    if let (Some((Grab::Line, .., from)), Some(to)) = (w.drag, w.line_end) {
+        painter.line_segment([from, to], egui::Stroke::new(3.0, Color32::from_black_alpha(160)));
+        painter.line_segment([from, to], egui::Stroke::new(1.5, Color32::from_rgb(0xFF, 0xD5, 0x4F)));
+    }
     for (sx, sy) in sides(w.ratio().is_some()) {
         let p = cr.center() + egui::vec2(sx as f32 * cr.width(), sy as f32 * cr.height()) / 2.0;
         let handle = Rect::from_center_size(p, egui::vec2(9.0, 9.0));
@@ -495,6 +516,9 @@ fn sides(fixed: bool) -> Vec<(i8, i8)> {
 
 /// What is under the pointer at `p`.
 fn grab_at(w: &Window, view: &View, p: Pos2) -> Grab {
+    if w.straighten {
+        return Grab::Line;
+    }
     let cr = view.crop(w.crop);
     for (sx, sy) in sides(w.ratio().is_some()) {
         let h = cr.center() + egui::vec2(sx as f32 * cr.width(), sy as f32 * cr.height()) / 2.0;
@@ -514,6 +538,7 @@ fn mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, 
             Grab::Side(0, _) => CursorIcon::ResizeVertical,
             Grab::Side(..) => CursorIcon::ResizeHorizontal,
             Grab::Move => CursorIcon::Move,
+            Grab::Line => CursorIcon::Crosshair,
             Grab::Pan if w.drag.is_some() => CursorIcon::Grabbing,
             Grab::Pan => CursorIcon::Grab,
         };
@@ -528,12 +553,19 @@ fn mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, 
         w.drag = Some((grab_at(w, view, p), w.crop, (view.at, view.k), p));
     }
     if response.drag_stopped() {
+        // The line drawn becomes level (or upright), and Straighten turns itself off.
+        if let (Some((Grab::Line, .., from)), Some(to)) = (w.drag, w.line_end.take()) {
+            w.angle = rotate::straightened(w.angle, to.x - from.x, to.y - from.y);
+            w.straighten = false;
+            w.refit();
+        }
         w.drag = None;
     }
     if let (Some((grab, start, (at, k), from)), Some(p)) = (w.drag, response.interact_pointer_pos()) {
         let moved = (p - from) / k;
         match grab {
             Grab::Pan => w.view = Some((at - moved, k)),
+            Grab::Line => w.line_end = Some(p),
             Grab::Move => {
                 w.crop = Crop { cx: start.cx + moved.x, cy: start.cy + moved.y, ..start };
                 w.follow = Follow::Manual;

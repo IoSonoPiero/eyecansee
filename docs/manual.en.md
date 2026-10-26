@@ -105,7 +105,8 @@ In the grid the same operations (Image > Transform, or right-click > Transform) 
 
 **Image > Transform > Rotate and crop…** (also in the right-click menu) opens a page of its own for one image, to rotate it by any angle and crop it, as photo editors do.
 
-- **Rotation**: the slider or the number next to it, from -180° to 180° by tenths of a degree; −90° and +90° add a quarter turn, **Back to 0°** undoes it. With Shift held, the mouse wheel on the image turns it by 0.1° a notch: handy for straightening a horizon against the thirds lines.
+- **Rotation**: the slider or the number next to it, from -180° to 180° by tenths of a degree; −90° and +90° add a quarter turn, **Back to 0°** undoes it. With Shift held, the mouse wheel on the image turns it by 0.1° a notch: handy for straightening a horizon against the thirds lines. The degrees can be typed with a dot or a comma.
+- **Straighten**: click it, then draw a line along the horizon (or along something upright, such as a wall): when you let go the image turns to make that line level (or upright), and the button turns itself off.
 - **Crop**: drag a corner or a side of the frame to resize it, its inside to move it. The proportions can be free, as the original, 1:1, 5:4, 4:3, 3:2, 16:9 or your own; ⇄ swaps width and height. **Image only** makes the largest crop with no empty corners (it follows the rotation, and it is what you get at first); **Whole image** keeps all of the rotated image.
 - **Empty corners**: where the crop goes past the image they are transparent (grey squares) or filled with the colour you choose. JPEG has no transparency: there they become white.
 - The wheel zooms around the pointer, dragging outside the frame moves the view, a double click shows everything again. The size of the result is under the controls.

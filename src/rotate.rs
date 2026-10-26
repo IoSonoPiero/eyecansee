@@ -49,6 +49,26 @@ impl Edit {
     }
 }
 
+/// The angle that makes a line drawn on the screen (`dx`, `dy`, y down) level, or upright if it is
+/// nearer to upright: the image is shown rotated by `angle`.
+pub fn straightened(angle: f32, dx: f32, dy: f32) -> f32 {
+    if dx == 0.0 && dy == 0.0 {
+        return angle;
+    }
+    // Slope of the line, clockwise, between -90° and 90°.
+    let mut slope = dy.atan2(dx).to_degrees();
+    if slope > 90.0 {
+        slope -= 180.0;
+    } else if slope <= -90.0 {
+        slope += 180.0;
+    }
+    if slope.abs() > 45.0 {
+        slope -= 90.0 * slope.signum();
+    }
+    let a = (((angle - slope) * 10.0).round() / 10.0 + 180.0).rem_euclid(360.0) - 180.0;
+    if a == -180.0 { 180.0 } else { a }
+}
+
 /// Size of the box around `w`×`h` rotated by `angle`.
 pub fn bounds(w: f32, h: f32, angle: f32) -> (f32, f32) {
     let (s, c) = sin_cos(angle);
@@ -243,6 +263,20 @@ mod tests {
         assert!(!lossy);
         let back = crate::decode::decode_full(&out, "x.png").unwrap();
         assert_eq!(back.dimensions(), edit.crop.pixels());
+    }
+
+    #[test]
+    fn straighten() {
+        // A horizon going down to the right by 5° on screen: turned back by 5°.
+        let (dx, dy) = (100.0, 100.0 * 5f32.to_radians().tan());
+        assert_eq!(straightened(0.0, dx, dy), -5.0);
+        // Drawn from right to left: the same line.
+        assert_eq!(straightened(0.0, -dx, -dy), -5.0);
+        // On an image already turned by 2°.
+        assert_eq!(straightened(2.0, dx, dy), -3.0);
+        // Nearly upright (a wall): made upright, not level.
+        assert_eq!(straightened(0.0, dy, dx), 5.0);
+        assert_eq!(straightened(7.0, 0.0, 0.0), 7.0);
     }
 
     #[test]
