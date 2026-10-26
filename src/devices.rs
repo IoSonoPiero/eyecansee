@@ -234,55 +234,10 @@ fn unescape_udev(s: &str) -> String {
 // ponytail: no network drives (a server that is off would block the scan) and no CD/DVD
 #[cfg(windows)]
 fn drives() -> Vec<Device> {
-    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
-    use windows_sys::Win32::Storage::FileSystem::{
-        BusTypeMmc, BusTypeSd, BusTypeUsb, CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, GetDriveTypeW,
-        GetLogicalDrives, GetVolumeInformationW, OPEN_EXISTING,
-    };
-    use windows_sys::Win32::System::IO::DeviceIoControl;
-    use windows_sys::Win32::System::Ioctl::{
-        IOCTL_STORAGE_QUERY_PROPERTY, PropertyStandardQuery, STORAGE_DEVICE_DESCRIPTOR, STORAGE_PROPERTY_QUERY,
-        StorageDeviceProperty,
-    };
+    use windows_sys::Win32::Storage::FileSystem::{BusTypeMmc, BusTypeSd, BusTypeUsb, GetDriveTypeW, GetLogicalDrives, GetVolumeInformationW};
     const DRIVE_REMOVABLE: u32 = 2;
     const DRIVE_FIXED: u32 = 3;
     const DRIVE_RAMDISK: u32 = 6;
-    let wide = |s: &str| s.encode_utf16().chain([0]).collect::<Vec<u16>>();
-
-    // Bus of the disk holding the drive; opened without access rights, enough for the query.
-    let bus = |letter: char| unsafe {
-        let handle = CreateFileW(
-            wide(&format!(r"\\.\{letter}:")).as_ptr(),
-            0,
-            FILE_SHARE_READ | FILE_SHARE_WRITE,
-            std::ptr::null(),
-            OPEN_EXISTING,
-            0,
-            std::ptr::null_mut(),
-        );
-        if handle == INVALID_HANDLE_VALUE {
-            return None;
-        }
-        let query = STORAGE_PROPERTY_QUERY {
-            PropertyId: StorageDeviceProperty,
-            QueryType: PropertyStandardQuery,
-            AdditionalParameters: [0],
-        };
-        let mut desc: STORAGE_DEVICE_DESCRIPTOR = std::mem::zeroed();
-        let mut returned = 0;
-        let ok = DeviceIoControl(
-            handle,
-            IOCTL_STORAGE_QUERY_PROPERTY,
-            (&raw const query).cast(),
-            size_of::<STORAGE_PROPERTY_QUERY>() as u32,
-            (&raw mut desc).cast(),
-            size_of::<STORAGE_DEVICE_DESCRIPTOR>() as u32,
-            &mut returned,
-            std::ptr::null_mut(),
-        );
-        CloseHandle(handle);
-        (ok != 0).then_some(desc.BusType)
-    };
 
     let mask = unsafe { GetLogicalDrives() };
     let mut drives = Vec::new();
@@ -316,10 +271,61 @@ fn drives() -> Vec<Device> {
         // Like File Explorer: "Backup (D:)", just "D:" without a label.
         let name = if label.is_empty() { format!("{letter}:") } else { format!("{label} ({letter}:)") };
         let external = kind == DRIVE_REMOVABLE
-            || (kind == DRIVE_FIXED && bus(letter).is_some_and(|b| [BusTypeUsb, BusTypeSd, BusTypeMmc].contains(&b)));
+            || (kind == DRIVE_FIXED && drive_bus(letter).is_some_and(|b| [BusTypeUsb, BusTypeSd, BusTypeMmc].contains(&b)));
         drives.push(Device { name, path: root, phone: false, serial: None, block: None, internal: !external });
     }
     drives
+}
+
+/// "C:" as Windows APIs take it: UTF-16 ending in a zero.
+#[cfg(windows)]
+fn wide(s: &str) -> Vec<u16> {
+    s.encode_utf16().chain([0]).collect()
+}
+
+/// Bus of the disk holding the drive; opened without access rights, enough for the query.
+#[cfg(windows)]
+fn drive_bus(letter: char) -> Option<windows_sys::Win32::Storage::FileSystem::STORAGE_BUS_TYPE> {
+    use windows_sys::Win32::Foundation::{CloseHandle, INVALID_HANDLE_VALUE};
+    use windows_sys::Win32::Storage::FileSystem::{CreateFileW, FILE_SHARE_READ, FILE_SHARE_WRITE, OPEN_EXISTING};
+    use windows_sys::Win32::System::IO::DeviceIoControl;
+    use windows_sys::Win32::System::Ioctl::{
+        IOCTL_STORAGE_QUERY_PROPERTY, PropertyStandardQuery, STORAGE_DEVICE_DESCRIPTOR, STORAGE_PROPERTY_QUERY,
+        StorageDeviceProperty,
+    };
+    unsafe {
+        let handle = CreateFileW(
+            wide(&format!(r"\\.\{letter}:")).as_ptr(),
+            0,
+            FILE_SHARE_READ | FILE_SHARE_WRITE,
+            std::ptr::null(),
+            OPEN_EXISTING,
+            0,
+            std::ptr::null_mut(),
+        );
+        if handle == INVALID_HANDLE_VALUE {
+            return None;
+        }
+        let query = STORAGE_PROPERTY_QUERY {
+            PropertyId: StorageDeviceProperty,
+            QueryType: PropertyStandardQuery,
+            AdditionalParameters: [0],
+        };
+        let mut desc: STORAGE_DEVICE_DESCRIPTOR = std::mem::zeroed();
+        let mut returned = 0;
+        let ok = DeviceIoControl(
+            handle,
+            IOCTL_STORAGE_QUERY_PROPERTY,
+            (&raw const query).cast(),
+            size_of::<STORAGE_PROPERTY_QUERY>() as u32,
+            (&raw mut desc).cast(),
+            size_of::<STORAGE_DEVICE_DESCRIPTOR>() as u32,
+            &mut returned,
+            std::ptr::null_mut(),
+        );
+        CloseHandle(handle);
+        (ok != 0).then_some(desc.BusType)
+    }
 }
 
 /// gvfs mount of the phone with this serial (which `scan` does not show: it opens directly).
