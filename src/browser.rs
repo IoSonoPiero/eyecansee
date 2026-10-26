@@ -36,6 +36,9 @@ pub(crate) fn context_menu(ui: &mut Ui, items: Vec<MenuItem>) -> Option<Act> {
                     }
                 });
             }
+            Some((label, keys, Act::Off(why))) => {
+                ui.add_enabled(false, egui::Button::new(label).shortcut_text(keys)).on_disabled_hover_text(why);
+            }
             Some((label, keys, act)) => {
                 if ui.add(egui::Button::new(label).shortcut_text(keys)).clicked() {
                     chosen = Some(act);
@@ -99,7 +102,9 @@ impl App {
                     }
                 }
                 turns.push(None);
-                turns.push(Some((t("menu-rotate-crop"), String::new(), Act::RotateCrop(path.clone()))));
+                // One image at a time: with several marked it would open on one and leave the others.
+                let rotate = if self.chosen(path.clone()).len() > 1 { Act::Off(t("rc-one-only")) } else { Act::RotateCrop(path.clone()) };
+                turns.push(Some((t("menu-rotate-crop"), String::new(), rotate)));
                 items.push(Some((t("menu-transform"), String::new(), Act::Submenu(turns))));
                 if in_viewer && self.can_save() {
                     items.push(Some((t("menu-save"), t("key-save"), Act::Save)));

@@ -56,7 +56,9 @@ impl App {
                             }
                         }
                         ui.separator();
-                        entry(ui, self.target().is_some_and(|p| !p.ends_with('/')), egui::Button::new(t("menu-rotate-crop")), Act::RotateCrop(None));
+                        let one = self.chosen(None).len() <= 1;
+                        let r = ui.add_enabled(one && self.target().is_some_and(|p| !p.ends_with('/')), egui::Button::new(t("menu-rotate-crop")));
+                        pick(if one { r } else { r.on_disabled_hover_text(t("rc-one-only")) }, Act::RotateCrop(None));
                     });
                 });
                 ui.separator();

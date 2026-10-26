@@ -125,7 +125,7 @@ Nella griglia le stesse operazioni (Immagine > Trasforma, o clic destro > Trasfo
 
 ### Ruota e ritaglia
 
-**Immagine > Trasforma > Ruota e ritaglia…** (anche nel menù del clic destro) apre una pagina a sé per una sola immagine, per ruotarla di un angolo qualsiasi e ritagliarla, come fanno i programmi di fotoritocco.
+**Immagine > Trasforma > Ruota e ritaglia…** (anche nel menù del clic destro) apre una pagina a sé per una sola immagine, per ruotarla di un angolo qualsiasi e ritagliarla, come fanno i programmi di fotoritocco. Con più immagini selezionate è disattivata: per ruotare più immagini insieme usa le rotazioni e i ribaltamenti sopra di lei o **Converti e ridimensiona**.
 
 - **Rotazione**: il cursore o il numero accanto, da -180° a 180° a decimi di grado; −90° e +90° aggiungono un quarto di giro, **Torna a 0°** la annulla. Tenendo premuto Maiusc, la rotellina sull'immagine la ruota di 0,1° a scatto: comodo per raddrizzare un orizzonte con le linee dei terzi. I gradi si possono scrivere con la virgola o con il punto.
 - **Raddrizza**: cliccalo, poi traccia una linea lungo l'orizzonte (o lungo qualcosa di verticale, come un muro): quando lasci il pulsante del mouse l'immagine ruota per mettere quella linea in orizzontale (o in verticale), e il pulsante si spegne da solo.

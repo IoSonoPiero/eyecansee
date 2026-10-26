@@ -14,6 +14,8 @@ use crate::{App, browser, meta, settings, thumbcache, transform, update};
 pub(crate) enum Act {
     /// A submenu of a right-click menu (Transform): never run itself.
     Submenu(Vec<browser::MenuItem>),
+    /// A right-click item shown greyed out, with why on hover: never run.
+    Off(String),
     Address,
     Options,
     /// Item (`None` = the selected one or the one in the viewer); `true`: for good (Shift+Del).
@@ -150,7 +152,7 @@ impl App {
             }
             Act::RotateCrop(path) => self.open_rotate(path),
             Act::Save => self.ask_save(),
-            Act::Submenu(_) => {}
+            Act::Submenu(_) | Act::Off(_) => {}
             Act::Restore(path) => self.ask_restore(path),
             Act::Copy(path) => self.clip(ctx, path, false),
             Act::Cut(path) => self.clip(ctx, path, true),

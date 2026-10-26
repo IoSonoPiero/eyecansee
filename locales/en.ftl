@@ -305,6 +305,7 @@ rc-rotation = Rotation
 rc-reset = Back to 0°
 rc-straighten = Straighten
 rc-straighten-hint = Draw a line along the horizon, or along something upright: the image turns to make it level.
+rc-one-only = Rotate and crop works on one image at a time. To turn several images together use the items above or Convert and resize.
 rc-rotation-hint = Shift + mouse wheel on the image: 0.1° at a time.
 rc-crop = Crop
 rc-free = Free proportions

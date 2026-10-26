@@ -304,6 +304,7 @@ rc-rotation = Rotazione
 rc-reset = Torna a 0°
 rc-straighten = Raddrizza
 rc-straighten-hint = Traccia una linea lungo l'orizzonte, o lungo qualcosa di verticale: l'immagine ruota per metterla dritta.
+rc-one-only = Ruota e ritaglia lavora su una foto alla volta. Per ruotare più foto insieme usa le voci qui sopra o Converti e ridimensiona.
 rc-rotation-hint = Maiusc + rotellina sull'immagine: 0,1° alla volta.
 rc-crop = Ritaglio
 rc-free = Proporzioni libere
