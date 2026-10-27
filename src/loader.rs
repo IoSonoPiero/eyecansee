@@ -555,7 +555,12 @@ async fn thumb_worker(
             continue;
         };
         // From the cache at once: a thumbnail already made never waits for a SLOW place.
-        let sent = match cached(&base, &file).await {
+        // Then a preview inside the video: it never needs a SLOW place either.
+        let found = match cached(&base, &file).await {
+            None if decode::is_video(&file.path) => preview(&op, &base, &file).await,
+            found => found,
+        };
+        let sent = match found {
             Some(img) => send(generation, index, Ok(img)),
             None if slow_video(&op, &file.path) => {
                 {
@@ -611,9 +616,27 @@ async fn cached(base: &str, file: &File) -> Option<ColorImage> {
     tokio::task::spawn_blocking(move || thumbcache::load(&base, &file)).await.ok().flatten().map(decode::to_color_image)
 }
 
+/// The preview a camera stored inside the video (`mp4::thumbnail`), saved in the cache: 64 KB
+/// read instead of opening the video.
+async fn preview(op: &Store, base: &str, file: &File) -> Option<ColorImage> {
+    let head = op.read_range(&file.path, 0, file.size.min(crate::mp4::HEAD)).await.ok()?;
+    let (base, file) = (base.to_string(), file.clone());
+    tokio::task::spawn_blocking(move || {
+        let img = decode::thumbnail(crate::mp4::thumbnail(&head)?, "preview.jpg", THUMB_SIDE).ok()?;
+        thumbcache::save(&base, &file, &img);
+        Some(decode::to_color_image(img))
+    })
+    .await
+    .ok()
+    .flatten()
+}
+
 /// Made from the file and saved in the cache.
 async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, String> {
     if decode::is_video(&file.path) {
+        if let Some(img) = preview(op, base, &file).await {
+            return Ok(img);
+        }
         let img = video_still(op, &file.path, file.size, THUMB_SIDE).await?;
         let base = base.to_string();
         return tokio::task::spawn_blocking(move || {

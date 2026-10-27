@@ -47,6 +47,7 @@ mod menu;
 mod messages;
 mod meta;
 mod meta_panel;
+mod mp4;
 mod mpv;
 mod mtp;
 mod navigation;
