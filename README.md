@@ -20,7 +20,7 @@ Mature programs like XnView, IrfanView or digiKam do much more than EyeCanSee, a
 - **Direct phone access**: Android phones and cameras open over USB, much faster than through the file manager.
 - **Viewer** with zoom (mouse wheel and keys) and preloading, so moving between images never waits, photo details such as camera, exposure, date and location, and a full-screen slideshow with fades.
 - **File management**: copy and move (also from one device to another), create folders, rename and delete, also several items at once, with a trash on every device to restore or empty.
-- **Videos** (Linux, with mpv installed): thumbnails in the grid, playback with sound in the viewer and their details (date, length, format, location from phones), on the computer, external disks and phones.
+- **Videos** (Linux with libmpv installed; on Windows the video engine is downloaded the first time a video is opened): thumbnails in the grid, playback with sound in the viewer and their details (date, length, format, location from phones), on the computer, external disks and phones.
 - **Duplicates**: finds identical images in a folder and its subfolders, on any device, and deletes the copies you choose, always keeping at least one.
 - **Rotating and cropping**: flips and quarter turns on one or many images at once, and rotation by any angle with a crop on a single image, saved over the original or as a new file.
 - **Saving in another format** (JPEG, PNG, WebP, AVIF, TIFF and others) with every option of each format, the original and the result side by side, and the file size before you save.

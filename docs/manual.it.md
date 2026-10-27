@@ -115,7 +115,7 @@ Seleziona le immagini nella griglia (o fai clic destro su una delle selezionate)
 
 ## Video
 
-I video (MP4, MOV, MKV, WebM, AVI e altri) compaiono nella griglia insieme alle immagini, con un fotogramma del video come miniatura e il simbolo ▶. Quando la videocamera ha salvato un'anteprima dentro il video (lo fanno dashcam come Umino, e i droni DJI come copertina) la miniatura è quell'anteprima, pronta quasi subito. Li riproduce mpv, che su Linux deve essere installato (il pacchetto con libmpv: `mpv-libs` su Fedora, che il pacchetto Fedora chiede da solo, `libmpv2` su Debian, Ubuntu e openSUSE, `libmpv1` su Ubuntu 22.04, `mpv` su Arch); se manca, il visore lo dice.
+I video (MP4, MOV, MKV, WebM, AVI e altri) compaiono nella griglia insieme alle immagini, con un fotogramma del video come miniatura e il simbolo ▶. Quando la videocamera ha salvato un'anteprima dentro il video (lo fanno dashcam come Umino, e i droni DJI come copertina) la miniatura è quell'anteprima, pronta quasi subito. Li riproduce mpv, che su Linux deve essere installato (il pacchetto con libmpv: `mpv-libs` su Fedora, che il pacchetto Fedora chiede da solo, `libmpv2` su Debian, Ubuntu e openSUSE, `libmpv1` su Ubuntu 22.04, `mpv` su Arch); se manca, il visore lo dice. Su Windows il visore propone di scaricarlo la prima volta che si apre un video (circa 47 MB, una volta sola; va nella cartella dei dati dell'app e la sua impronta SHA-256 viene controllata prima di usarlo).
 
 - **Invio** o un doppio clic aprono il video nel visore, dove parte con l'audio, adattato alla finestra.
 - **Spazio**, un clic sul video o il pulsante sotto mettono in pausa e riprendono. La barra sotto il video mostra il tempo e serve a spostarsi: trascinala o fai clic su un punto. Alla fine resta l'ultimo fotogramma; riprendendo, il video riparte dall'inizio.
@@ -273,7 +273,6 @@ EyeCanSee usa la lingua del sistema se è disponibile, altrimenti l'inglese. Per
 
 - Sui dischi **NTFS** (per esempio un disco esterno usato anche con Windows) l'app File (Nautilus) non riesce a ripristinare dal cestino, nemmeno i file cancellati da lei stessa; EyeCanSee lo ricorda nella conferma. I file però sono nel cestino e si ripristinano dal terminale: `gio trash --list` mostra cosa c'è, `gio trash --restore "<indirizzo trash:/// della riga>"` lo rimette al suo posto.
 - SFTP non è ancora disponibile su Windows.
-- I video non si guardano ancora su Windows.
 - Le immagini più grandi di 8192 pixel per lato vengono mostrate ridotte.
 - I file sono ordinati alfabeticamente: `img10` viene prima di `img2`.
 - File e cartelle nascosti (che iniziano con un punto, o su Windows con l'attributo "nascosto")

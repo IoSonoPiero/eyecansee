@@ -115,7 +115,7 @@ Select images in the grid (or right-click one of the selected ones) and choose *
 
 ## Videos
 
-Videos (MP4, MOV, MKV, WebM, AVI and others) appear in the grid next to the images, with a frame of the video as thumbnail and a ▶ badge. When the camera stored a preview inside the video (dashcams such as Umino do, and DJI drones as a cover) the thumbnail is that preview, ready almost at once. They are played by mpv, which must be installed on Linux (the package with libmpv: `mpv-libs` on Fedora, which the Fedora package asks for by itself, `libmpv2` on Debian, Ubuntu and openSUSE, `libmpv1` on Ubuntu 22.04, `mpv` on Arch); without it the viewer says so.
+Videos (MP4, MOV, MKV, WebM, AVI and others) appear in the grid next to the images, with a frame of the video as thumbnail and a ▶ badge. When the camera stored a preview inside the video (dashcams such as Umino do, and DJI drones as a cover) the thumbnail is that preview, ready almost at once. They are played by mpv, which must be installed on Linux (the package with libmpv: `mpv-libs` on Fedora, which the Fedora package asks for by itself, `libmpv2` on Debian, Ubuntu and openSUSE, `libmpv1` on Ubuntu 22.04, `mpv` on Arch); without it the viewer says so. On Windows the viewer offers to download it the first time a video is opened (about 47 MB, once; it goes in the app's data folder and its SHA-256 is checked before use).
 
 - **Enter** or a double click opens the video in the viewer, where it starts playing with sound, fitted to the window.
 - **Space**, a click on the video or the button under it play and pause. The bar under the video shows the time and moves along it: drag it or click a point. At the end the last frame stays; play starts again from the beginning.
@@ -273,7 +273,6 @@ EyeCanSee uses the system language when it is available, otherwise English. To f
 
 - On **NTFS** disks (for example an external disk also used with Windows) the Files app (Nautilus) cannot restore from the trash, not even files it deleted itself; EyeCanSee reminds you in the confirmation. The files are in the trash all the same and can be restored from a terminal: `gio trash --list` shows what is there, `gio trash --restore "<trash:/// address from that line>"` puts it back.
 - SFTP is not available on Windows yet.
-- Videos do not play on Windows yet.
 - Images larger than 8192 pixels per side are shown downscaled.
 - Files are sorted alphabetically: `img10` comes before `img2`.
 - Hidden files and folders (starting with a dot, or on Windows with the "hidden" attribute) are
