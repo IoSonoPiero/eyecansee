@@ -71,6 +71,7 @@ mod tree;
 mod ultrahdr;
 mod update;
 mod video;
+mod video_read;
 mod viewer;
 mod watch;
 
