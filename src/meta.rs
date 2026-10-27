@@ -286,7 +286,7 @@ pub fn from_video(info: &crate::mpv::Info, size: u64) -> Meta {
 /// When a video starts, in Unix seconds, from its `creation_time` tag.
 pub fn video_start(info: &crate::mpv::Info) -> Option<i64> {
     let t = &info.tags.iter().find(|(k, _)| *k == "creation_time")?.1;
-    Some(t.parse::<jiff::Timestamp>().ok()?.as_second())
+    Some(first(t).parse::<jiff::Timestamp>().ok()?.as_second())
 }
 
 /// A dashcam's track during the video (`gps_track`): where it started, altitude, speeds. Only
@@ -326,9 +326,15 @@ fn codec_name(codec: &str) -> String {
 /// `creation_time` (UTC, "2026-01-01T12:00:00.000000Z") in local time, as the panel wants it;
 /// none for the zero dates some cameras write.
 fn local_time(t: &str) -> Option<String> {
-    let ts: jiff::Timestamp = t.parse().ok()?;
+    let ts: jiff::Timestamp = first(t).parse().ok()?;
     let local = ts.to_zoned(jiff::tz::TimeZone::system());
     (local.year() >= 1990).then(|| local.strftime("%Y-%m-%d %H:%M:%S").to_string())
+}
+
+/// A tag written twice in an MP4 (the standard atom and the `keys` one, as FFmpeg 9 writes
+/// `creation_time` with `use_metadata_tags`) is read back as "a;b": the first value.
+fn first(t: &str) -> &str {
+    t.split(';').next().unwrap_or(t).trim()
 }
 
 /// ISO 6709 as phones write it: "+45.4641+009.1919/", with the altitude "+45.4641+009.1919+123.5/".
@@ -428,6 +434,8 @@ mod tests {
         assert_eq!(iso6709("-33.8688+151.2093+012.500/"), Some((-33.8688, 151.2093, Some(12.5))));
         assert_eq!(iso6709("nonsense"), None);
         assert_eq!(local_time("1904-01-01T00:00:00.000000Z"), None);
+        // Written twice by FFmpeg 9 in a converted MP4.
+        assert!(local_time("2026-10-21T09:04:07.000000Z;2026-10-21T09:04:07Z").is_some());
         assert_eq!(trimmed(29.976), "29.98");
         assert_eq!(trimmed(48.0), "48");
         let info = crate::mpv::Info {
