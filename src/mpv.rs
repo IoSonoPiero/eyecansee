@@ -13,11 +13,13 @@ use eframe::egui::{Color32, ColorImage};
 use image::RgbaImage;
 
 // From mpv's client.h and render.h (API 2.x).
+const FORMAT_STRING: c_int = 1;
 const FORMAT_FLAG: c_int = 3;
 const FORMAT_INT64: c_int = 4;
 const FORMAT_DOUBLE: c_int = 5;
 const EVENT_SHUTDOWN: c_int = 1;
 const EVENT_END_FILE: c_int = 7;
+const EVENT_FILE_LOADED: c_int = 8;
 const EVENT_PLAYBACK_RESTART: c_int = 21;
 const PARAM_API_TYPE: c_int = 1;
 const PARAM_BLOCK_FOR_TARGET_TIME: c_int = 12;
@@ -65,6 +67,7 @@ struct Api {
     render: unsafe extern "C" fn(Render, *mut Param) -> c_int,
     render_free: unsafe extern "C" fn(Render),
     stream_cb_add_ro: unsafe extern "C" fn(Handle, *const c_char, *mut c_void, OpenFn) -> c_int,
+    free: unsafe extern "C" fn(*mut c_void),
     _lib: libloading::Library,
 }
 
@@ -96,6 +99,7 @@ fn load() -> Result<Api, String> {
             render: sym!("mpv_render_context_render"),
             render_free: sym!("mpv_render_context_free"),
             stream_cb_add_ro: sym!("mpv_stream_cb_add_ro"),
+            free: sym!("mpv_free"),
             _lib: lib,
         })
     }
@@ -304,6 +308,20 @@ impl Mpv {
         (r >= 0).then_some(value)
     }
 
+    fn string(&self, name: &str) -> Option<String> {
+        let mut value: *mut c_char = std::ptr::null_mut();
+        let name = cstr(name).ok()?;
+        // SAFETY: STRING gives a C string owned by mpv, copied and then freed with mpv_free.
+        unsafe {
+            if (self.api.get_property)(self.handle, name.as_ptr(), FORMAT_STRING, &mut value as *mut *mut c_char as *mut c_void) < 0 || value.is_null() {
+                return None;
+            }
+            let s = std::ffi::CStr::from_ptr(value).to_string_lossy().into_owned();
+            (self.api.free)(value as *mut c_void);
+            Some(s)
+        }
+    }
+
     fn wait(&self, timeout: f64) -> c_int {
         // SAFETY: the event stays valid until the next call; only its id is read.
         unsafe { (*(self.api.wait_event)(self.handle, timeout)).id }
@@ -436,6 +454,75 @@ pub fn still(input: Input, side: u32) -> Result<RgbaImage, String> {
     }
     let size = mpv.size().ok_or("no video")?;
     Ok(mpv.draw(fit(size, side), false))
+}
+
+/// What the file says about itself, read without decoding (container and tracks).
+#[derive(Debug, Default)]
+pub struct Info {
+    /// Container tags found among `TAGS` (key as written there, value).
+    pub tags: Vec<(&'static str, String)>,
+    pub duration: Option<f64>,
+    /// First video track: codec name ("hevc"), stored size, rotation in degrees, frames a second.
+    pub video: Option<(String, [i64; 2], i64, Option<f64>)>,
+    /// First audio track: codec name, sample rate, channels.
+    pub audio: Option<(String, Option<i64>, Option<i64>)>,
+}
+
+/// Container tags shown in the metadata panel: phones (Android, iPhone), cameras, drones.
+pub const TAGS: &[&str] = &[
+    "creation_time",
+    "location",
+    "com.apple.quicktime.location.ISO6709",
+    "com.apple.quicktime.make",
+    "com.apple.quicktime.model",
+    "com.apple.quicktime.software",
+    "com.android.manufacturer",
+    "com.android.model",
+    "com.android.version",
+    "make",
+    "model",
+    "encoder",
+];
+
+/// The tags and tracks of a video; no frame is decoded.
+pub fn info(input: Input) -> Result<Info, String> {
+    let options = [("pause", "yes"), ("aid", "no"), ("sid", "no"), ("stream-buffer-size", "4k")];
+    let mut mpv = Mpv::new(&options, || {})?;
+    mpv.load(input)?;
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() {
+            return Err("timeout".into());
+        }
+        match mpv.wait(left.as_secs_f64()) {
+            EVENT_FILE_LOADED => break,
+            EVENT_END_FILE | EVENT_SHUTDOWN => return Err("mpv cannot open the file".into()),
+            _ => {}
+        }
+    }
+    let mut info = Info { duration: mpv.property("duration", FORMAT_DOUBLE), ..Info::default() };
+    for &key in TAGS {
+        if let Some(v) = mpv.string(&format!("metadata/by-key/{key}")).filter(|v| !v.trim().is_empty()) {
+            info.tags.push((key, v.trim().to_string()));
+        }
+    }
+    for i in 0..mpv.property::<i64>("track-list/count", FORMAT_INT64).unwrap_or(0) {
+        let t = |k: &str| format!("track-list/{i}/{k}");
+        let codec = mpv.string(&t("codec")).unwrap_or_default();
+        match mpv.string(&t("type")).as_deref() {
+            Some("video") if info.video.is_none() && mpv.property::<c_int>(&t("image"), FORMAT_FLAG) != Some(1) => {
+                let size = [mpv.property(&t("demux-w"), FORMAT_INT64).unwrap_or(0), mpv.property(&t("demux-h"), FORMAT_INT64).unwrap_or(0)];
+                let rotation = mpv.property(&t("demux-rotation"), FORMAT_INT64).unwrap_or(0);
+                info.video = Some((codec, size, rotation, mpv.property(&t("demux-fps"), FORMAT_DOUBLE)));
+            }
+            Some("audio") if info.audio.is_none() => {
+                info.audio = Some((codec, mpv.property(&t("demux-samplerate"), FORMAT_INT64), mpv.property(&t("demux-channel-count"), FORMAT_INT64)));
+            }
+            _ => {}
+        }
+    }
+    Ok(info)
 }
 
 #[derive(Default)]
@@ -650,6 +737,7 @@ mod tests {
         let t = Instant::now();
         let img = still(Input::File(path.clone()), 256).unwrap();
         println!("still {}x{} in {:?}", img.width(), img.height(), t.elapsed());
+        println!("{:?}", info(Input::File(path.clone())).unwrap()); // the metadata panel reads this
         if let Ok(out) = std::env::var("EYECANSEE_VIDEO_STILL") {
             img.save(out).unwrap();
         }

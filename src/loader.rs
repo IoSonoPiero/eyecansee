@@ -382,7 +382,7 @@ impl Loader {
             }
             // No EXIF in videos, and they are not read whole.
             let meta = if decode::is_video(&path) {
-                Ok(None)
+                video_meta(&op, &path).await
             } else {
                 match op.read(&path).await {
                     Ok(bytes) => tokio::task::spawn_blocking(move || crate::meta::read(&bytes)).await.map_err(|e| e.to_string()),
@@ -632,6 +632,15 @@ async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, Stri
     })
     .await
     .unwrap_or_else(|e| Err(e.to_string()))
+}
+
+/// The metadata panel for a video: container tags and tracks (`mpv::info`), the file not read whole.
+async fn video_meta(op: &Store, path: &str) -> Result<Option<crate::meta::Meta>, String> {
+    let size = op.size(path).await.map_err(|(_, detail)| detail)?;
+    let input = video_input(Handle::current(), op, path, size);
+    tokio::task::spawn_blocking(move || crate::mpv::info(input).map(|i| Some(crate::meta::from_video(&i, size))))
+        .await
+        .unwrap_or_else(|e| Err(e.to_string()))
 }
 
 /// What mpv plays: the file itself when it is on this computer (also through gvfs), otherwise

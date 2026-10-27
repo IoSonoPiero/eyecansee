@@ -160,10 +160,100 @@ fn coord(exif: &Exif, tag: Tag, reference: Tag, negative: char) -> Option<f64> {
     Some(if south_west { -degrees } else { degrees })
 }
 
+/// The panel's boxes for a video (`mpv::info`); `size` of the file gives the bit rate.
+pub fn from_video(info: &crate::mpv::Info, size: u64) -> Meta {
+    let tag = |keys: &[&str]| keys.iter().find_map(|k| info.tags.iter().find(|(t, _)| t == k).map(|(_, v)| v.clone()));
+    let mut meta = Meta::default();
+    let mut add = |g, label, value: Option<String>| {
+        if let Some(v) = value {
+            meta.fields.push((g, label, v));
+        }
+    };
+    add(Group::Camera, "meta-make", tag(&["com.android.manufacturer", "com.apple.quicktime.make", "make"]));
+    add(Group::Camera, "meta-model", tag(&["com.android.model", "com.apple.quicktime.model", "model"]));
+    let android = tag(&["com.android.version"]).map(|v| format!("Android {v}"));
+    add(Group::Camera, "meta-software", android.or_else(|| tag(&["com.apple.quicktime.software", "encoder"])));
+    add(Group::Shot, "meta-taken", tag(&["creation_time"]).and_then(|t| local_time(&t)));
+    add(Group::Shot, "meta-duration", info.duration.map(crate::mpv::clock));
+    if let Some((codec, [w, h], rotation, fps)) = &info.video {
+        let (w, h) = if rotation % 180 == 90 { (h, w) } else { (w, h) };
+        add(Group::Shot, "meta-fps", fps.map(|f| format!("{} fps", trimmed(f))));
+        add(Group::Image, "meta-width", Some(format!("{w} px")));
+        add(Group::Image, "meta-height", Some(format!("{h} px")));
+        add(Group::Image, "meta-video-codec", Some(codec_name(codec)));
+    }
+    if let Some((codec, rate, channels)) = &info.audio {
+        let rate = rate.map(|r| format!(" {} kHz", trimmed(r as f64 / 1000.0))).unwrap_or_default();
+        let channels = match channels {
+            Some(1) => " mono".into(),
+            Some(2) => " stereo".into(),
+            Some(n) => format!(" {n} ch"),
+            None => String::new(),
+        };
+        add(Group::Image, "meta-audio", Some(format!("{}{rate}{channels}", codec_name(codec))));
+    }
+    add(Group::Image, "meta-bitrate", info.duration.filter(|d| *d > 0.0).map(|d| format!("{} Mbit/s", trimmed(size as f64 * 8.0 / d / 1e6))));
+    if let Some((lat, lon, alt)) = tag(&["location", "com.apple.quicktime.location.ISO6709"]).as_deref().and_then(iso6709) {
+        meta.gps = Some((lat, lon));
+        if let Some(alt) = alt {
+            meta.fields.push((Group::Gps, "meta-altitude", format!("{alt:.0} m")));
+        }
+    }
+    meta
+}
+
+/// Two decimals at most, none if round: 29.97, 48, 21.1.
+fn trimmed(v: f64) -> String {
+    let s = format!("{v:.2}");
+    s.trim_end_matches('0').trim_end_matches('.').to_string()
+}
+
+fn codec_name(codec: &str) -> String {
+    match codec {
+        "h264" => "H.264 (AVC)".into(),
+        "hevc" => "H.265 (HEVC)".into(),
+        "av1" => "AV1".into(),
+        "vp8" | "vp9" | "aac" | "opus" | "flac" | "mp3" => codec.to_uppercase(),
+        "mpeg4" => "MPEG-4".into(),
+        "mjpeg" => "Motion JPEG".into(),
+        "pcm_s16le" | "pcm_s24le" | "pcm_s16be" => "PCM".into(),
+        other => other.to_string(),
+    }
+}
+
+/// `creation_time` (UTC, "2026-10-19T15:05:28.000000Z") in local time, as the panel wants it;
+/// none for the zero dates some cameras write.
+fn local_time(t: &str) -> Option<String> {
+    let ts: jiff::Timestamp = t.parse().ok()?;
+    let local = ts.to_zoned(jiff::tz::TimeZone::system());
+    (local.year() >= 1990).then(|| local.strftime("%Y-%m-%d %H:%M:%S").to_string())
+}
+
+/// ISO 6709 as phones write it: "+42.4613+014.2155/", with the altitude "+42.4613+014.2155+123.5/".
+fn iso6709(s: &str) -> Option<(f64, f64, Option<f64>)> {
+    let s = s.trim().trim_end_matches('/');
+    let mut parts = Vec::new();
+    let mut start = 0;
+    for (i, c) in s.char_indices().skip(1) {
+        if c == '+' || c == '-' {
+            parts.push(&s[start..i]);
+            start = i;
+        }
+    }
+    parts.push(&s[start..]);
+    let n: Vec<f64> = parts.iter().map(|p| p.parse()).collect::<Result<_, _>>().ok()?;
+    match n[..] {
+        [lat, lon] => Some((lat, lon, None)),
+        [lat, lon, alt] => Some((lat, lon, Some(alt))),
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use exif::experimental::Writer;
     use exif::{Field, In, Rational, Tag, Value};
+    use super::{from_video, iso6709, local_time, trimmed};
 
     fn field(tag: Tag, value: Value) -> Field {
         Field { tag, ifd_num: In::PRIMARY, value }
@@ -228,5 +318,31 @@ mod tests {
         assert!(has(Tag::Make) && has(Tag::DateTimeOriginal) && has(Tag::GPSAltitude));
         assert!(!has(Tag::Compression) && !has(Tag::MakerNote));
         assert_eq!(super::exif_chunk(b"not an image"), None);
+    }
+
+    #[test]
+    fn video_fields() {
+        assert_eq!(iso6709("+42.4613+014.2155/"), Some((42.4613, 14.2155, None)));
+        assert_eq!(iso6709("-33.8688+151.2093+012.500/"), Some((-33.8688, 151.2093, Some(12.5))));
+        assert_eq!(iso6709("nonsense"), None);
+        assert_eq!(local_time("1904-01-01T00:00:00.000000Z"), None);
+        assert_eq!(trimmed(29.976), "29.98");
+        assert_eq!(trimmed(48.0), "48");
+        let info = crate::mpv::Info {
+            tags: vec![("creation_time", "2026-10-19T15:05:28.000000Z".into()), ("com.android.version", "15".into()), ("location", "+42.4613+014.2155/".into())],
+            duration: Some(180.0),
+            video: Some(("hevc".into(), [1920, 1080], 90, Some(30.0))),
+            audio: Some(("aac".into(), Some(48000), Some(2))),
+        };
+        let m = from_video(&info, 45_000_000);
+        let get = |l: &str| m.fields.iter().find(|(_, label, _)| *label == l).map(|(_, _, v)| v.as_str());
+        assert_eq!(get("meta-software"), Some("Android 15"));
+        assert_eq!((get("meta-width"), get("meta-height")), (Some("1080 px"), Some("1920 px"))); // turned
+        assert_eq!(get("meta-video-codec"), Some("H.265 (HEVC)"));
+        assert_eq!(get("meta-audio"), Some("AAC 48 kHz stereo"));
+        assert_eq!(get("meta-bitrate"), Some("2 Mbit/s"));
+        assert_eq!(get("meta-duration"), Some("3:00"));
+        assert!(get("meta-taken").is_some());
+        assert_eq!(m.gps, Some((42.4613, 14.2155)));
     }
 }

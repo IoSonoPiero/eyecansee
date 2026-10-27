@@ -120,6 +120,7 @@ Videos (MP4, MOV, MKV, WebM, AVI and others) appear in the grid next to the imag
 - **Enter** or a double click opens the video in the viewer, where it starts playing with sound, fitted to the window.
 - **Space**, a click on the video or the button under it play and pause. The bar under the video shows the time and moves along it: drag it or click a point. At the end the last frame stays; play starts again from the beginning.
 - **←** and **→** go to the previous and next item, as for images; a double click or **Esc** goes back to the grid.
+- The metadata panel shows a selected video's details when the file has them: make, model and Android version of the phone, date and time of recording, length, frame rate, size, video and audio format, bit rate, and the location (phones and iPhones write it; dashcams usually only print it on the picture).
 - **View > Show**, or **Show** in the right-click menu of the empty part of the grid: **Images and videos** (the default), **Images only** or **Videos only**. The choice stays for every folder until you change it; the status bar counts images and videos apart.
 - Videos on a phone or a server are read a piece at a time while they play, never copied whole. Copying, moving, renaming and deleting work as for images. Turning, saving and converting are for images only. In the slideshow a video plays whole, with sound, then the next item comes; **Space** pauses it too.
 
