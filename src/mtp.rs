@@ -14,7 +14,7 @@ use bytes::Bytes;
 use mtp_rs::mtp::{MtpDevice, NewObjectInfo, ObjectHandle, Storage, WindowedDownload};
 use tokio::sync::OnceCell;
 
-use crate::decode::is_image;
+use crate::decode::is_media;
 use crate::source::{self, Error, File, Listing, NOT_FOUND};
 
 /// Device storages with the name shown as a folder.
@@ -336,7 +336,7 @@ impl Phone {
             }
             if o.is_folder() {
                 listing.dirs.push(path);
-            } else if is_image(&o.filename) {
+            } else if is_media(&o.filename) {
                 let modified = o.modified.and_then(unix_seconds).map(|s| s.to_string()).unwrap_or_default();
                 listing.files.push(File { path, size: o.size, modified });
             }

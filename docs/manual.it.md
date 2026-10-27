@@ -113,6 +113,15 @@ Seleziona le immagini nella griglia (o fai clic destro su una delle selezionate)
 - In **Strumenti > Opzioni… > Carosello**: quanti secondi resta ogni immagine (5 all'inizio), il passaggio tra le immagini (**Nessuno**, **Dissolvenza incrociata**, quello predefinito, **Dissolvenza al nero**, **Scorrimento**, **Zoom e dissolvenza**) e **Ricomincia dopo l'ultima immagine** (attivo all'inizio; se spento, il carosello finisce dopo l'ultima).
 - L'immagine successiva viene letta in anticipo: se non è ancora pronta (un telefono, un file grande) quella in corso resta finché non lo è.
 
+## Video
+
+I video (MP4, MOV, MKV, WebM, AVI e altri) compaiono nella griglia insieme alle immagini, con un fotogramma del video come miniatura e il simbolo ▶. Li riproduce mpv, che deve essere installato (Linux: il pacchetto con libmpv, `mpv-libs` su Fedora, `libmpv2` su Debian e Ubuntu); se manca, il visore lo dice.
+
+- **Invio** o un doppio clic aprono il video nel visore, dove parte con l'audio, adattato alla finestra.
+- **Spazio**, un clic sul video o il pulsante sotto mettono in pausa e riprendono. La barra sotto il video mostra il tempo e serve a spostarsi: trascinala o fai clic su un punto. Alla fine resta l'ultimo fotogramma; riprendendo, il video riparte dall'inizio.
+- **←** e **→** passano all'elemento precedente e successivo, come per le immagini; un doppio clic o **Esc** tornano alla griglia.
+- Copiare, spostare, rinominare ed eliminare funzionano come per le immagini. Ruotare, salvare e convertire valgono solo per le immagini, e il carosello mostra un fotogramma di ogni video.
+
 ## Ruotare e riflettere
 
 Nel visore, il menù **Immagine** riflette l'immagine in orizzontale o in verticale e la ruota di 90° in senso orario (Ctrl+R) o antiorario (Ctrl+Maiusc+R) o di 180°; le due rotazioni sono anche pulsanti nella barra degli strumenti, e tutto è nel menù del clic destro. La modifica è solo mostrata finché non la salvi (la barra di stato dice "Modificata, non salvata", in giallo). Lasciando l'immagine con la modifica non salvata (un'altra immagine, ritorno alla griglia, cartella superiore, chiusura di EyeCanSee) prima chiede se **Salvare**, **Salvare come…** o **Non salvare**; **Annulla** resta sull'immagine. Ruota e ritaglia chiede allo stesso modo.
@@ -219,7 +228,7 @@ Nel visore:
 
 | Tasto | Azione |
 |---|---|
-| Freccia destra, Spazio, Pagina giù | Immagine successiva |
+| Freccia destra, Spazio, Pagina giù | Immagine successiva (su un video Spazio mette in pausa e riprende) |
 | Freccia sinistra, Backspace, Pagina su | Immagine precedente |
 | Inizio, Fine | Prima, ultima immagine |
 | Esc | Torna alla griglia |
@@ -262,6 +271,7 @@ EyeCanSee usa la lingua del sistema se è disponibile, altrimenti l'inglese. Per
 
 - Sui dischi **NTFS** (per esempio un disco esterno usato anche con Windows) l'app File (Nautilus) non riesce a ripristinare dal cestino, nemmeno i file cancellati da lei stessa; EyeCanSee lo ricorda nella conferma. I file però sono nel cestino e si ripristinano dal terminale: `gio trash --list` mostra cosa c'è, `gio trash --restore "<indirizzo trash:/// della riga>"` lo rimette al suo posto.
 - SFTP non è ancora disponibile su Windows.
+- I video si guardano solo dai dischi del computer (non da telefoni o server) e non ancora su Windows.
 - Le immagini più grandi di 8192 pixel per lato vengono mostrate ridotte.
 - I file sono ordinati alfabeticamente: `img10` viene prima di `img2`.
 - File e cartelle nascosti (che iniziano con un punto, o su Windows con l'attributo "nascosto")

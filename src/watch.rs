@@ -26,7 +26,7 @@ pub(crate) fn folder_watcher(tx: Sender<Msg>, ctx: egui::Context) -> Option<noti
 /// all the time in the open folder, such as the log of `EYECANSEE_LOG=1 … 2> registro.log`,
 /// made it read the folder again every 0.3 s, and each reading wrote to the log.
 fn shown(path: &std::path::Path) -> bool {
-    !path.is_file() || path.file_name().is_some_and(|n| crate::decode::is_image(&n.to_string_lossy()))
+    !path.is_file() || path.file_name().is_some_and(|n| crate::decode::is_media(&n.to_string_lossy()))
 }
 
 impl App {

@@ -44,7 +44,7 @@ impl App {
         entry(ui, act, self.can_make_folder(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder(None));
         ui.separator();
         entry(ui, act, self.can_save(), item(t("menu-save"), t("key-save")), Act::Save);
-        entry(ui, act, self.viewing.is_some(), item(t("menu-save-copy"), t("key-save-copy")), Act::Convert(None));
+        entry(ui, act, self.viewing_image(), item(t("menu-save-copy"), t("key-save-copy")), Act::Convert(None));
         ui.separator();
         let can_change = self.target().is_some();
         entry(ui, act, can_change, item(t("menu-rename"), "F2".into()), Act::Rename(None));
@@ -69,7 +69,7 @@ impl App {
     /// Transform), then Rotate and crop.
     fn image_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
-        let some = self.viewing.is_some() || !self.grid_images(None).is_empty();
+        let some = self.viewing_image() || !self.grid_images(None).is_empty();
         for (op, label, keys) in transform_items() {
             entry(ui, act, some, item(t(label), keys.map(t).unwrap_or_default()), Act::Transform(op, None));
             if op == transform::Op::FlipV {
@@ -154,7 +154,7 @@ impl App {
             if ui.add(icon(icons::Icon::Refresh)).on_hover_text(self.i18n.t("menu-refresh")).clicked() {
                 self.refresh();
             }
-            if self.viewing.is_some() {
+            if self.viewing_image() {
                 for (i, op, id) in [(icons::Icon::RotateCcw, transform::Op::Ccw, "tf-rotate-ccw"), (icons::Icon::RotateCw, transform::Op::Cw, "tf-rotate-cw")] {
                     if ui.add(icon(i)).on_hover_text(self.i18n.t(id)).clicked() {
                         self.act = Some(Act::Transform(op, None));

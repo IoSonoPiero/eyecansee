@@ -90,6 +90,18 @@ pub fn is_image(name: &str) -> bool {
     kind(name).is_some()
 }
 
+/// Played with libmpv (`mpv.rs`). Not "ts": in a folder of code it is TypeScript.
+const VIDEO: &[&str] = &["mp4", "m4v", "mov", "mkv", "webm", "avi", "wmv", "mpg", "mpeg", "mts", "m2ts", "3gp", "flv", "ogv", "insv", "lrv"];
+
+pub fn is_video(name: &str) -> bool {
+    ext(name).is_some_and(|e| VIDEO.contains(&e.as_str()))
+}
+
+/// What the grid shows: images and videos.
+pub fn is_media(name: &str) -> bool {
+    is_image(name) || is_video(name)
+}
+
 /// Recognises from the content the formats that `image` cannot identify by itself.
 fn sniff(bytes: &[u8]) -> Option<Kind> {
     const HEIF_BRANDS: &[&[u8]] = &[b"heic", b"heix", b"hevc", b"heim", b"heis", b"mif1", b"msf1", b"avif", b"avis"];
@@ -452,6 +464,7 @@ mod tests {
         assert!(is_image("d.psd") && is_image("g.pcx") && is_image("h.jp2") && is_image("i.cur"));
         assert_eq!(is_image("d.xcf"), cfg!(feature = "magick"));
         assert!(!is_image("e.txt") && !is_image("f.pdf") && !is_image("no_extension"));
+        assert!(is_video("a.MP4") && is_media("b.mov") && !is_image("c.mkv") && !is_video("d.ts") && !is_video("e.jpg"));
 
         let svg_src = br#"<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="red"/></svg>"#;
         let img = decode(svg_src, "x.svg").unwrap();

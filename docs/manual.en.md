@@ -113,6 +113,15 @@ Select images in the grid (or right-click one of the selected ones) and choose *
 - In **Tools > Options… > Slideshow**: how many seconds each image stays (5 at first), the passage between images (**None**, **Crossfade**, the default, **Fade through black**, **Slide**, **Zoom and fade**), and **Start again after the last image** (on at first; off, the slideshow ends after the last one).
 - The next image is read in advance: if it is not ready yet (a phone, a large file) the current one stays until it is.
 
+## Videos
+
+Videos (MP4, MOV, MKV, WebM, AVI and others) appear in the grid next to the images, with a frame of the video as thumbnail and a ▶ badge. They are played by mpv, which must be installed (Linux: the package with libmpv, `mpv-libs` on Fedora, `libmpv2` on Debian and Ubuntu); without it the viewer says so.
+
+- **Enter** or a double click opens the video in the viewer, where it starts playing with sound, fitted to the window.
+- **Space**, a click on the video or the button under it play and pause. The bar under the video shows the time and moves along it: drag it or click a point. At the end the last frame stays; play starts again from the beginning.
+- **←** and **→** go to the previous and next item, as for images; a double click or **Esc** goes back to the grid.
+- Copying, moving, renaming and deleting work as for images. Turning, saving and converting are for images only, and the slideshow shows a frame of each video.
+
 ## Rotating and flipping
 
 In the viewer, the **Image** menu flips the image horizontally or vertically and rotates it by 90° clockwise (Ctrl+R) or anticlockwise (Ctrl+Shift+R) or by 180°; the two rotations are also buttons on the toolbar, and everything is in the right-click menu. The change is only shown until you save it (the status bar says "Changed, not saved", in yellow). Leaving the image with the change not saved (another image, back to the grid, the parent folder, closing EyeCanSee) first asks whether to **Save**, **Save as…** or **Don't save**; **Cancel** stays on the image. Rotate and crop asks the same way.
@@ -219,7 +228,7 @@ In the viewer:
 
 | Key | Action |
 |---|---|
-| Right arrow, Space, Page Down | Next image |
+| Right arrow, Space, Page Down | Next image (on a video Space plays and pauses) |
 | Left arrow, Backspace, Page Up | Previous image |
 | Home, End | First, last image |
 | Esc | Back to the grid |
@@ -262,6 +271,7 @@ EyeCanSee uses the system language when it is available, otherwise English. To f
 
 - On **NTFS** disks (for example an external disk also used with Windows) the Files app (Nautilus) cannot restore from the trash, not even files it deleted itself; EyeCanSee reminds you in the confirmation. The files are in the trash all the same and can be restored from a terminal: `gio trash --list` shows what is there, `gio trash --restore "<trash:/// address from that line>"` puts it back.
 - SFTP is not available on Windows yet.
+- Videos play only from the computer's disks (not from phones or servers) and not yet on Windows.
 - Images larger than 8192 pixels per side are shown downscaled.
 - Files are sorted alphabetically: `img10` comes before `img2`.
 - Hidden files and folders (starting with a dot, or on Windows with the "hidden" attribute) are

@@ -46,6 +46,7 @@ mod menu;
 mod messages;
 mod meta;
 mod meta_panel;
+mod mpv;
 mod mtp;
 mod navigation;
 mod new_folder;
@@ -66,6 +67,7 @@ mod transform;
 mod tree;
 mod ultrahdr;
 mod update;
+mod video;
 mod viewer;
 mod watch;
 
@@ -191,6 +193,8 @@ struct App {
     scroll_to_selected: bool,
     /// Index (among the images) of the one open in the viewer.
     viewing: Option<usize>,
+    /// The video playing in the viewer.
+    video: Option<video::Playing>,
     /// Image to open as soon as the folder's listing arrives.
     start: Option<String>,
     /// Thumbnails in memory: only those in the window around the visible rows (`thumb_keep`).
@@ -358,6 +362,7 @@ impl App {
             tab: None,
             scroll_to_selected: false,
             viewing: None,
+            video: None,
             start: None,
             thumbs: HashMap::new(),
             thumb_keep: 0..0,
@@ -543,6 +548,7 @@ impl App {
                         .show(ui, |ui| self.viewer(ui, current));
                 }
                 None => {
+                    self.video = None;
                     let bar = egui::Frame::side_top_panel(ui.style()).fill(theme::solid(ui.visuals()));
                     egui::Panel::bottom("status").frame(bar).show(ui, |ui| self.status_bar(ui));
                     if meta::Group::ALL.into_iter().any(|g| self.meta_shown(g)) {

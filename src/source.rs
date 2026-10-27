@@ -13,7 +13,7 @@ use opendal::{Operator, services};
 use percent_encoding::percent_decode_str;
 use url::Url;
 
-use crate::decode::is_image;
+use crate::decode::is_media;
 use crate::settings::{RemoteDelete, SortBy};
 
 /// Translatable error: Fluent message id and technical detail.
@@ -129,6 +129,15 @@ fn dal_error(e: opendal::Error) -> Error {
 }
 
 impl Store {
+    /// The file on this computer (gvfs mounts too), for libraries that open it themselves (libmpv).
+    // ponytail: phones and servers have none, so their videos do not play; mpv can read them through a stream callback
+    pub fn local_file(&self, path: &str) -> Option<PathBuf> {
+        match self {
+            Store::Dal(op) if op.info().scheme() == "fs" => Some(local_path(op, path)),
+            _ => None,
+        }
+    }
+
     /// Images and folders of `dir`, after tidying up what an interrupted "Save" left there.
     pub async fn list(&self, dir: &str) -> Result<Listing, Error> {
         let listing = self.list_once(dir).await?;
@@ -571,12 +580,12 @@ pub struct File {
     pub modified: String,
 }
 
-/// Splits a relative path into (folder, file) if the last element is an image.
+/// Splits a relative path into (folder, file) if the last element is an image or a video.
 fn split(path: &str) -> (String, Option<String>) {
     let path = path.trim_matches('/');
     let dir = |d: &str| if d.is_empty() { String::new() } else { format!("{d}/") };
     match path.rsplit_once('/').unwrap_or(("", path)) {
-        (d, name) if is_image(name) => (dir(d), Some(path.to_string())),
+        (d, name) if is_media(name) => (dir(d), Some(path.to_string())),
         _ => (dir(path), None),
     }
 }
@@ -711,7 +720,7 @@ async fn list(op: &Operator, dir: &str) -> opendal::Result<Listing> {
             // Symlinks to folders arrive without a trailing "/" (see Cargo.toml).
             let path = if path.ends_with('/') { path.to_string() } else { format!("{path}/") };
             listing.dirs.push(path);
-        } else if is_image(e.name()) {
+        } else if is_media(e.name()) {
             let m = e.metadata();
             let modified = m.last_modified().map(|t| t.to_string()).unwrap_or_default();
             listing.files.push(File { path: path.to_string(), size: m.content_length(), modified });

@@ -33,8 +33,11 @@ pub enum Icon {
     /// Viewer: turn a quarter clockwise and anticlockwise.
     RotateCw,
     RotateCcw,
+    /// Badge of the videos in the grid.
+    Video,
 }
 
+const VIDEO: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#000000" fill-opacity="0.6"/><path d="M9.5 7.2v9.6l7.6-4.8z" fill="#ffffff"/></svg>"##;
 const FOLDER: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2.5 6A1.5 1.5 0 0 1 4 4.5h5.2l2 2H20A1.5 1.5 0 0 1 21.5 8v10A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18z" fill="#d99a1e"/><path d="M2.5 9A1.5 1.5 0 0 1 4 7.5h16A1.5 1.5 0 0 1 21.5 9v9a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 18z" fill="#f4b63f"/></svg>"##;
 const UP: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e3edfb"/><path d="M12 17V7.5M7.5 11.5l4.5-4.5 4.5 4.5" fill="none" stroke="#1a62c9" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"##;
 const UP_BUTTON: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#1a62c9"/><path d="M12 17V8M8 11.5l4-4 4 4" fill="none" stroke="#ffffff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>"##;
@@ -70,6 +73,7 @@ fn svg(icon: Icon) -> &'static str {
         Icon::Cut => CUT,
         Icon::RotateCw => ROTATE_CW,
         Icon::RotateCcw => ROTATE_CCW,
+        Icon::Video => VIDEO,
     }
 }
 

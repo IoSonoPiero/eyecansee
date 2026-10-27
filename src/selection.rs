@@ -4,12 +4,12 @@
 use crate::{App, Focus, source};
 
 impl App {
-    /// The images (not folders) an action on `path` in the grid works on, as `chosen`.
+    /// The images (not folders nor videos) an action on `path` in the grid works on, as `chosen`.
     pub(crate) fn grid_images(&self, path: Option<String>) -> Vec<String> {
         if self.viewing.is_some() {
             return Vec::new();
         }
-        self.chosen(path).into_iter().filter(|p| !p.ends_with('/') && !source::in_trash(p)).collect()
+        self.chosen(path).into_iter().filter(|p| !p.ends_with('/') && !source::in_trash(p) && !crate::decode::is_video(p)).collect()
     }
 
     /// The item Delete and Rename act on: the image in the viewer, or the item selected in the grid.

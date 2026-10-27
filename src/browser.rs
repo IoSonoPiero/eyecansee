@@ -84,6 +84,10 @@ impl App {
             items.push(Some((t("menu-delete-permanent"), t("key-delete"), Act::Delete(path, true))));
         } else if target.ends_with('/') {
             items.extend(self.folder_items(path, &target));
+        } else if crate::decode::is_video(&target) {
+            // Turning, saving and converting are for images.
+            items.extend([Some((self.i18n.t("menu-cut"), self.i18n.t("key-cut"), Act::Cut(path.clone()))), Some((self.i18n.t("menu-copy"), self.i18n.t("key-copy"), Act::Copy(path.clone())))]);
+            items.extend(self.rename_delete(path));
         } else {
             items.extend(self.image_items(path, in_viewer));
         }

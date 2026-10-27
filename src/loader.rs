@@ -370,9 +370,14 @@ impl Loader {
             if current.load(Ordering::Relaxed) != generation {
                 return;
             }
-            let meta = match op.read(&path).await {
-                Ok(bytes) => tokio::task::spawn_blocking(move || crate::meta::read(&bytes)).await.map_err(|e| e.to_string()),
-                Err((_, detail)) => Err(detail),
+            // No EXIF in videos, and they are not read whole.
+            let meta = if decode::is_video(&path) {
+                Ok(None)
+            } else {
+                match op.read(&path).await {
+                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::meta::read(&bytes)).await.map_err(|e| e.to_string()),
+                    Err((_, detail)) => Err(detail),
+                }
             };
             let _ = tx.send(Msg::Meta { generation, index, meta });
             ctx.request_repaint();
@@ -389,13 +394,16 @@ impl Loader {
             if current.load(Ordering::Relaxed) != generation {
                 return;
             }
-            let image = match op.read(&path).await {
-                Ok(bytes) => {
-                    tokio::task::spawn_blocking(move || decode::decode(&bytes, &path))
+            // A video is not read whole: libmpv opens it.
+            let image = if decode::is_video(&path) {
+                video_still(&op, &path, 0).await.map(decode::to_color_image)
+            } else {
+                match op.read(&path).await {
+                    Ok(bytes) => tokio::task::spawn_blocking(move || decode::decode(&bytes, &path))
                         .await
-                        .unwrap_or_else(|e| Err(e.to_string()))
+                        .unwrap_or_else(|e| Err(e.to_string())),
+                    Err((_, detail)) => Err(detail),
                 }
-                Err((_, detail)) => Err(detail),
             };
             let _ = tx.send(Msg::Loaded { generation, index, thumb: false, image });
             ctx.request_repaint();
@@ -543,6 +551,16 @@ pub(crate) async fn thumbnail(op: &Store, base: &str, file: File) -> Result<Colo
     if let Some(img) = cached {
         return Ok(decode::to_color_image(img));
     }
+    if decode::is_video(&file.path) {
+        let img = video_still(op, &file.path, THUMB_SIDE).await?;
+        let base = base.to_string();
+        return tokio::task::spawn_blocking(move || {
+            thumbcache::save(&base, &file, &img);
+            decode::to_color_image(img)
+        })
+        .await
+        .map_err(|e| e.to_string());
+    }
     let bytes = op.read(&file.path).await.map_err(|(_, detail)| detail)?;
     let base = base.to_string();
     tokio::task::spawn_blocking(move || {
@@ -552,6 +570,17 @@ pub(crate) async fn thumbnail(op: &Store, base: &str, file: File) -> Result<Colo
     })
     .await
     .unwrap_or_else(|e| Err(e.to_string()))
+}
+
+/// A frame of a video (see `mpv::still`), opaque so the cache keeps it as JPEG; only files on this computer. Four at a time: each
+/// decodes with several threads.
+async fn video_still(op: &Store, path: &str, side: u32) -> Result<image::DynamicImage, String> {
+    static VIDEOS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
+    let file = op.local_file(path).ok_or("video not on this computer")?;
+    let _permit = VIDEOS.acquire().await.map_err(|e| e.to_string())?;
+    tokio::task::spawn_blocking(move || crate::mpv::still(&file, side).map(|i| image::DynamicImage::ImageRgba8(i).to_rgb8().into()))
+        .await
+        .unwrap_or_else(|e| Err(e.to_string()))
 }
 
 /// Compares the saved thumbnails with the current folders, read again with the same listing that

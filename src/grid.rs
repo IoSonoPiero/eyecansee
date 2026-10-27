@@ -426,6 +426,10 @@ impl App {
                 // In the centre of the tile: the tile keeps the photo together with its name.
                 let image = Rect::from_center_size(thumb_rect.center(), size * scale);
                 painter.image(tex.id(), image, uv, Color32::WHITE);
+                if self.files().get(file).is_some_and(|f| crate::decode::is_video(&f.path)) {
+                    let badge = Rect::from_min_size(image.left_bottom() + vec2(4.0, -28.0), vec2(24.0, 24.0));
+                    icons::paint(painter, Icon::Video, badge);
+                }
             }
             Some(Err(_)) => {
                 painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "⚠", FontId::proportional(side * 0.3), dim);

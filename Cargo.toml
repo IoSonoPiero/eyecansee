@@ -1,6 +1,6 @@
 [package]
 name = "eyecansee"
-version = "0.47.3"
+version = "0.48.0"
 edition = "2024"
 description = "Image viewer and manager for Linux and Windows"
 license = "GPL-3.0-or-later"
@@ -26,6 +26,8 @@ futures-util = "0.3.34"
 # File date in the status bar; already compiled for OpenDAL.
 jiff = "0.2.38"
 image = "0.25.10"
+# libmpv for videos, opened at run time (mpv.rs): not needed to build or to start.
+libloading = "0.8.9"
 jxl-oxide = { version = "0.12.6", features = ["image"] }
 libheif-rs = { version = "3.0.0", optional = true }
 magick_rust = { version = "2.1.1", optional = true }

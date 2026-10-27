@@ -11,16 +11,22 @@ impl App {
         if ctx.egui_wants_keyboard_input() {
             return;
         }
-        let (next, prev, first, last, close) = ctx.input(|i| {
+        // On a video Space plays and pauses, as in a player.
+        let video = self.viewing_video();
+        let (next, prev, first, last, close, space) = ctx.input(|i| {
             let any = |keys: &[Key]| keys.iter().any(|k| i.key_pressed(*k));
             (
-                any(&[Key::ArrowRight, Key::Space, Key::PageDown]),
+                any(&[Key::ArrowRight, Key::PageDown]) || (i.key_pressed(Key::Space) && !video),
                 any(&[Key::ArrowLeft, Key::Backspace, Key::PageUp]),
                 i.key_pressed(Key::Home),
                 i.key_pressed(Key::End),
                 i.key_pressed(Key::Escape),
+                i.key_pressed(Key::Space) && video,
             )
         });
+        if space {
+            self.toggle_video();
+        }
         for (pressed, to) in [(next, Go::Next), (prev, Go::Prev), (first, Go::First), (last, Go::Last)] {
             if pressed {
                 self.go(to);
@@ -28,6 +34,9 @@ impl App {
         }
         if close {
             self.close_viewer();
+        }
+        if video {
+            return; // turning and saving are for images
         }
         let (cw, ccw, save, save_copy) = ctx.input_mut(|i| {
             let shift = egui::Modifiers::COMMAND | egui::Modifiers::SHIFT;
@@ -100,6 +109,10 @@ impl App {
     }
 
     pub(crate) fn viewer(&mut self, ui: &mut egui::Ui, current: usize) {
+        if self.viewing_video() {
+            return self.video_view(ui, current);
+        }
+        self.video = None;
         let mut chosen = None;
         if let Some(Ok(tex)) = self.full.get(&current) {
             let tex = tex.clone();
