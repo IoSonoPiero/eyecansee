@@ -410,7 +410,9 @@ impl Signal {
 pub fn still(input: Input, side: u32) -> Result<RgbaImage, String> {
     let signal = Arc::new(Signal::default());
     let s = signal.clone();
-    let mut mpv = Mpv::new(&[("pause", "yes"), ("start", "10%"), ("aid", "no"), ("sid", "no"), ("hwdec", "no")], move || s.raise())?;
+    // One decoding thread: stills are made many at a time, one per core.
+    let options = [("pause", "yes"), ("start", "10%"), ("aid", "no"), ("sid", "no"), ("hwdec", "no"), ("vd-lavc-threads", "1")];
+    let mut mpv = Mpv::new(&options, move || s.raise())?;
     mpv.load(input)?;
     let deadline = Instant::now() + Duration::from_secs(20);
     let left = || deadline.saturating_duration_since(Instant::now());
@@ -646,6 +648,9 @@ mod tests {
         let t = Instant::now();
         let img = still(Input::File(path.clone()), 256).unwrap();
         println!("still {}x{} in {:?}", img.width(), img.height(), t.elapsed());
+        if let Ok(out) = std::env::var("EYECANSEE_VIDEO_STILL") {
+            img.save(out).unwrap();
+        }
         assert!(img.pixels().any(|p| p.0[..3] != [0, 0, 0]), "black frame");
         let t = Instant::now();
         // As a phone: ~30 MB/s and some milliseconds for every request (EYECANSEE_VIDEO_SLOW=1).
