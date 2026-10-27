@@ -9,6 +9,7 @@ use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
+use eframe::egui::{Color32, ColorImage};
 use image::RgbaImage;
 
 // From mpv's client.h and render.h (API 2.x).
@@ -321,10 +322,27 @@ impl Mpv {
     }
 
     /// The current frame scaled to `size`, opaque RGBA. `wait`: until the frame's time comes.
-    // ponytail: stride w×4, not aligned to 64 as mpv prefers; align it if rendering turns out slow
     fn draw(&self, size: [u32; 2], wait: bool) -> RgbaImage {
         let [w, h] = size;
         let mut pixels = vec![0u8; w as usize * h as usize * 4];
+        self.draw_into(size, wait, &mut pixels);
+        RgbaImage::from_raw(w, h, pixels).expect("w × h × 4 bytes")
+    }
+
+    /// As `draw`, straight into the pixels of a texture: no conversion left for the window
+    /// (opaque, so premultiplied or not is the same).
+    fn draw_frame(&self, size: [u32; 2], wait: bool) -> ColorImage {
+        let [w, h] = size;
+        let mut pixels = vec![Color32::BLACK; w as usize * h as usize];
+        // SAFETY: Color32 is four u8 in the order r, g, b, a (repr(C)).
+        let bytes = unsafe { std::slice::from_raw_parts_mut(pixels.as_mut_ptr() as *mut u8, pixels.len() * 4) };
+        self.draw_into(size, wait, bytes);
+        ColorImage::new([w as usize, h as usize], pixels)
+    }
+
+    // ponytail: stride w×4, not aligned to 64 as mpv prefers; align it if rendering turns out slow
+    fn draw_into(&self, size: [u32; 2], wait: bool, pixels: &mut [u8]) {
+        let [w, h] = size;
         let mut dims = [w as c_int, h as c_int];
         let mut stride = w as usize * 4;
         let mut block = c_int::from(wait);
@@ -340,7 +358,6 @@ impl Mpv {
         unsafe { (self.api.render)(self.render, params.as_mut_ptr()) };
         // "rgb0": the fourth byte is undefined.
         pixels.as_chunks_mut::<4>().0.iter_mut().for_each(|p| p[3] = 255);
-        RgbaImage::from_raw(w, h, pixels).expect("w × h × 4 bytes")
     }
 }
 
@@ -422,7 +439,7 @@ struct State {
     /// mpv has a new frame, or the size changed.
     dirty: bool,
     size: [u32; 2],
-    frame: Option<RgbaImage>,
+    frame: Option<ColorImage>,
     quit: bool,
 }
 
@@ -464,7 +481,7 @@ impl Player {
     }
 
     /// The frame drawn since the last call, if any.
-    pub fn frame(&self) -> Option<RgbaImage> {
+    pub fn frame(&self) -> Option<ColorImage> {
         self.shared.state.lock().unwrap().frame.take()
     }
 
@@ -540,7 +557,7 @@ fn draw_loop(mpv: &Mpv, shared: &Shared, repaint: impl Fn()) {
         if size[0] == 0 || size[1] == 0 {
             continue;
         }
-        let frame = mpv.draw(size, true);
+        let frame = mpv.draw_frame(size, true);
         shared.state.lock().unwrap().frame = Some(frame);
         repaint();
     }
@@ -566,6 +583,20 @@ mod tests {
         }
         fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String> {
             Ok(self.0[offset as usize..(offset + len) as usize].to_vec())
+        }
+    }
+
+    struct Slow(Bytes, bool);
+
+    impl Reader for Slow {
+        fn size(&self) -> u64 {
+            self.0.size()
+        }
+        fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String> {
+            if self.1 {
+                std::thread::sleep(Duration::from_millis(15) + Duration::from_secs_f64(len as f64 / 30e6));
+            }
+            self.0.read(offset, len)
         }
     }
 
@@ -596,7 +627,18 @@ mod tests {
         assert_eq!(clock(3725.0), "1:02:05");
     }
 
-    /// `EYECANSEE_VIDEO=<file> cargo test --release video_live -- --ignored --nocapture`
+    fn player_size(player: &Player) -> [u32; 2] {
+        let t = Instant::now();
+        while t.elapsed() < Duration::from_secs(5) {
+            if let Some(s) = player.video_size() {
+                return s;
+            }
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        panic!("no video size");
+    }
+
+    /// `EYECANSEE_VIDEO=<file> [EYECANSEE_VIDEO_SIZE=<longer side drawn>] cargo test --release video_live -- --ignored --nocapture`
     #[test]
     #[ignore]
     fn video_live() {
@@ -606,11 +648,14 @@ mod tests {
         println!("still {}x{} in {:?}", img.width(), img.height(), t.elapsed());
         assert!(img.pixels().any(|p| p.0[..3] != [0, 0, 0]), "black frame");
         let t = Instant::now();
-        let stream = || Input::Stream(Arc::new(Bytes(std::fs::read(&path).unwrap())));
+        // As a phone: ~30 MB/s and some milliseconds for every request (EYECANSEE_VIDEO_SLOW=1).
+        let slow = std::env::var_os("EYECANSEE_VIDEO_SLOW").is_some();
+        let stream = || Input::Stream(Arc::new(Slow(Bytes(std::fs::read(&path).unwrap()), slow)));
         let img = still(stream(), 256).unwrap();
         println!("still through a Reader {}x{} in {:?}", img.width(), img.height(), t.elapsed());
         let player = Player::open(stream(), || {}).unwrap();
-        player.set_size([1280, 720]);
+        let side = std::env::var("EYECANSEE_VIDEO_SIZE").ok().and_then(|s| s.parse().ok()).unwrap_or(1280);
+        player.set_size(fit(player_size(&player), side));
         let t = Instant::now();
         let mut frames = 0;
         while t.elapsed() < Duration::from_secs(3) {
@@ -619,7 +664,7 @@ mod tests {
             }
             std::thread::sleep(Duration::from_millis(5));
         }
-        println!("{frames} frames in 3 s, position {:.2} of {:.1} s", player.position(), player.duration());
+        println!("{frames} frames in 3 s, position {:.2} of {:.1} s, fps {:?}", player.position(), player.duration(), player.mpv.property::<f64>("container-fps", FORMAT_DOUBLE));
         assert!(frames > 30, "too few frames");
     }
 }

@@ -1,6 +1,6 @@
 //! Videos in the viewer: the frames of `mpv::Player`, a bar to play, pause and move along.
 
-use eframe::egui::{self, Color32, ColorImage, Rect, TextureHandle, TextureOptions, pos2, vec2};
+use eframe::egui::{self, Color32, Rect, TextureHandle, TextureOptions, pos2, vec2};
 
 use crate::i18n::I18n;
 use crate::{App, browser, decode, mpv};
@@ -103,8 +103,7 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, i18n: &I18n) -> Option<egui::Respons
 /// The latest frame into `texture`, painted fitted to `area`; the frames are asked at that size.
 /// False until there is a frame.
 fn paint_fitted(painter: &egui::Painter, area: Rect, player: &mpv::Player, texture: &mut Option<TextureHandle>) -> bool {
-    if let Some(frame) = player.frame() {
-        let image = ColorImage::from_rgba_unmultiplied([frame.width() as usize, frame.height() as usize], frame.as_raw());
+    if let Some(image) = player.frame() {
         match texture {
             Some(t) => t.set(image, TextureOptions::LINEAR),
             None => *texture = Some(painter.ctx().load_texture("video", image, TextureOptions::LINEAR)),
