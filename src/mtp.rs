@@ -358,6 +358,12 @@ impl Phone {
         self.read_with(path, |s, h| async move { s.read_range(h, offset, len).await }).await
     }
 
+    /// The thumbnail the phone made for the file (MTP GetThumb): a video's still without reading
+    /// the video.
+    pub async fn thumbnail(&self, path: &str) -> Result<Vec<u8>, Error> {
+        self.read_with(path, |s, h| async move { s.thumbnail(h).await }).await
+    }
+
     async fn read_with<F, Fut>(&self, path: &str, read: F) -> Result<Vec<u8>, Error>
     where
         F: Fn(Arc<Storage>, ObjectHandle) -> Fut,
