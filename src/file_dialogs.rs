@@ -358,7 +358,7 @@ pub(crate) fn name_window(ctx: &egui::Context, id: &str, (title, ok): (String, S
     let mut answer = None;
     egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
         ui.set_width(420.0);
-        ui.strong(title);
+        crate::theme::title(ui, title);
         ui.add_space(4.0);
         let mut out = egui::TextEdit::singleline(name).desired_width(f32::INFINITY).show(ui);
         if let Some(end) = select {

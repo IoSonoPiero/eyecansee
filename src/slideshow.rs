@@ -83,9 +83,7 @@ impl App {
     /// chosen one.
     pub(crate) fn start_show(&mut self, ctx: &egui::Context, path: Option<String>) {
         let files: Vec<String> = self.files().iter().map(|f| f.path.clone()).collect();
-        // Videos too: `grid_images` leaves them out for the image edits (0.59.3).
-        let chosen: Vec<String> = if self.viewing.is_some() { Vec::new() } else { self.chosen(path.clone()) };
-        let chosen: Vec<String> = chosen.into_iter().filter(|p| !p.ends_with('/') && !crate::source::in_trash(p)).collect();
+        let chosen = self.grid_items(path.clone());
         let current = path.or_else(|| self.viewing.and_then(|i| files.get(i).cloned())).or_else(|| chosen.first().cloned());
         let paths: Vec<String> = if chosen.len() > 1 { files.iter().filter(|p| chosen.contains(p)).cloned().collect() } else { files };
         if paths.is_empty() {

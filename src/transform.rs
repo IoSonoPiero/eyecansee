@@ -28,6 +28,18 @@ impl Turn {
         self == Turn::default()
     }
 
+    /// The same as FFmpeg filters, in order (the flip first, as `apply`).
+    pub fn video_filters(self) -> Vec<&'static str> {
+        let mut f = if self.flip { vec!["hflip"] } else { Vec::new() };
+        match self.quarter {
+            1 => f.push("transpose=clock"),
+            2 => f.extend(["hflip", "vflip"]),
+            3 => f.push("transpose=cclock"),
+            _ => {}
+        }
+        f
+    }
+
     /// Width and height swap.
     pub fn sideways(self) -> bool {
         self.quarter % 2 == 1

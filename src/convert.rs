@@ -256,15 +256,7 @@ const GAP: f32 = 16.0;
 
 /// Title and ✕ of a page covering the window; `false` once closed (✕ or Esc).
 pub(crate) fn page_header(ui: &mut egui::Ui, title: &str) -> bool {
-    let mut open = true;
-    ui.horizontal(|ui| {
-        ui.heading(title);
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            if ui.button("✕").on_hover_text("Esc").clicked() {
-                open = false;
-            }
-        });
-    });
+    let mut open = !crate::theme::page_title(ui, title);
     if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
         open = false;
     }

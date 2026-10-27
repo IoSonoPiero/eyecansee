@@ -35,6 +35,7 @@ mod devices;
 mod dup_page;
 mod duplicates;
 mod encode;
+mod ffmpeg;
 mod file_dialogs;
 mod folder_pick;
 mod gps_track;

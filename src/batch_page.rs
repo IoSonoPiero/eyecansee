@@ -8,6 +8,7 @@ use eframe::egui;
 
 use crate::batch::{Dest, Filter, Job, Progress, Size};
 use crate::encode::{Format, Options};
+use crate::ffmpeg::{CONTAINERS, Codec, Quality, Video};
 use crate::folder_pick::{Picker, pick_ui};
 use crate::i18n::I18n;
 use crate::transform::{Op, Turn};
@@ -51,6 +52,24 @@ pub struct Form {
     browse: bool,
     /// The folder chooser, open in place of the choices.
     picker: Option<Picker>,
+    /// What the selection holds, set when the window opens.
+    images: bool,
+    videos: bool,
+    video: VideoForm,
+}
+
+/// The choices for the videos.
+struct VideoForm {
+    /// Index in `CONTAINERS`.
+    container: usize,
+    codec: Codec,
+    /// One of `codec`'s encoders that works here, once checked.
+    encoder: Option<&'static str>,
+    quality: Quality,
+    audio: bool,
+    meta: bool,
+    /// FFmpeg being downloaded (`component::FFMPEG`).
+    download: Option<Arc<crate::component::Download>>,
 }
 
 impl Form {
@@ -71,6 +90,9 @@ impl Form {
             other: String::new(),
             browse: false,
             picker: None,
+            images: true,
+            videos: false,
+            video: VideoForm { container: 0, codec: Codec::H264, encoder: None, quality: Quality::Medium, audio: true, meta: true, download: None },
         }
     }
 
@@ -80,7 +102,9 @@ impl Form {
             SizeKind::Percent => Size::Percent(self.percent),
             SizeKind::Fit => Size::Fit(self.fit.0, self.fit.1),
         };
-        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge }
+        let v = &self.video;
+        let video = v.encoder.filter(|_| self.videos).map(|encoder| Video { container: v.container, encoder, quality: v.quality, audio: v.audio, meta: v.meta });
+        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video }
     }
 
     /// The flips first, then the turn.
@@ -97,8 +121,10 @@ impl Form {
     /// Why Convert cannot start yet (Fluent id), if it cannot.
     fn why_not(&self) -> Option<&'static str> {
         let name = self.sub_name.trim();
-        if self.job().does_nothing() {
+        if self.images && self.job().does_nothing() {
             Some("batch-nothing")
+        } else if self.videos && self.job().video.is_none() {
+            Some("batch-video-not-ready")
         } else if self.place == Place::Sub && (name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\'])) {
             Some("batch-bad-folder")
         } else if self.place == Place::Other && self.other.trim().is_empty() {
@@ -131,11 +157,13 @@ impl App {
         if self.batch.is_some() {
             return;
         }
-        let paths = self.grid_images(path);
+        let paths = self.grid_items(path);
         if paths.is_empty() {
             return;
         }
         let form = self.batch_form.get_or_insert_with(|| Form::new(self.i18n.t("batch-subfolder-name")));
+        form.videos = paths.iter().any(|p| crate::decode::is_video(p));
+        form.images = paths.iter().any(|p| !crate::decode::is_video(p));
         if form.other.is_empty() {
             form.other = crate::navigation::shown(&self.base, &self.dir);
         }
@@ -162,12 +190,12 @@ impl App {
         let (places, rt) = (self.pick_places(), self.rt.handle().clone());
         let (mut answer, mut picked) = (None, None);
         egui::Modal::new(egui::Id::unique("batch-ask")).show(ctx, |ui| {
-            ui.set_width(540.0);
+            ui.set_width(680.0);
             if let Some(p) = &mut form.picker {
                 picked = pick_ui(ui, p, &places, &self.i18n, &rt, keys);
                 return;
             }
-            ui.heading(self.i18n.t("batch-title"));
+            crate::theme::title(ui, self.i18n.t("batch-title"));
             ui.add_space(6.0);
             notice_text(ui, &intro);
             answer = form_ui(ui, &mut form, &self.i18n);
@@ -234,7 +262,7 @@ impl App {
         log!("batch: {} images to {:?}, {job:?}", w.paths.len(), w.dest.0);
         let (op, paths, ctx) = (loader.store(), w.paths.clone(), ctx.clone());
         self.rt.spawn(async move {
-            crate::batch::run(&op, paths, to, job, &p).await;
+            crate::batch::run(&op, paths, to, job, p).await;
             ctx.request_repaint();
         });
     }
@@ -248,6 +276,8 @@ impl App {
         }
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
         let (done, total) = (p.done.load(Ordering::Relaxed), p.total.load(Ordering::Relaxed).max(1));
+        // A video takes long: its own progress moves the bar between two files.
+        let part = p.part.load(Ordering::Relaxed) as f32 / 1000.0;
         let counts = self.i18n.t_args("batch-counts", &[("n", &done.to_string()), ("total", &total.to_string())]);
         let current = p.current.lock().unwrap().clone();
         let stopping = p.cancel.load(Ordering::Relaxed);
@@ -258,7 +288,7 @@ impl App {
             .show(ctx, |ui| {
                 ui.set_width(360.0);
                 ui.label(counts);
-                ui.add(egui::ProgressBar::new(done as f32 / total as f32));
+                ui.add(egui::ProgressBar::new(((done as f32 + part) / total as f32).min(1.0)));
                 ui.label(egui::RichText::new(current).weak());
                 if stopping {
                     ui.label(self.i18n.t("batch-stopping"));
@@ -296,9 +326,14 @@ fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bool> {
     let t = |id| i18n.t(id);
     ui.spacing_mut().item_spacing.y = 6.0;
     // On a low screen the choices scroll, the buttons stay in view.
-    let max = (ui.ctx().content_rect().height() - 240.0).max(200.0);
+    let max = (ui.ctx().content_rect().height() - 170.0).max(200.0);
     egui::ScrollArea::vertical().max_height(max).show(ui, |ui| {
-        section(ui, t("convert-format"), |ui| format_rows(ui, f, i18n));
+        if f.images {
+            section(ui, t("convert-format"), |ui| format_rows(ui, f, i18n));
+        }
+        if f.videos {
+            section(ui, t("batch-video"), |ui| video_rows(ui, &mut f.video, i18n));
+        }
         section(ui, t("batch-turn"), |ui| turn_rows(ui, f, i18n));
         section(ui, t("batch-size"), |ui| size_rows(ui, f, i18n));
         section(ui, t("batch-where"), |ui| where_rows(ui, f, i18n));
@@ -358,6 +393,92 @@ fn format_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     }
 }
 
+/// Container, codec, encoder (only those that work here), quality, sound and metadata; FFmpeg
+/// downloaded first where there is none.
+fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
+    let t = |id| i18n.t(id);
+    if crate::ffmpeg::program().is_none() {
+        return ffmpeg_download(ui, v, i18n);
+    }
+    let ctx = ui.ctx().clone();
+    crate::ffmpeg::start_probe(move || ctx.request_repaint());
+    let Some(probe) = crate::ffmpeg::probed() else {
+        ui.horizontal(|ui| {
+            ui.spinner();
+            ui.label(t("batch-video-checking"));
+        });
+        return;
+    };
+    egui::ComboBox::from_label(t("batch-video-container")).selected_text(CONTAINERS[v.container].name).show_ui(ui, |ui| {
+        for (i, c) in CONTAINERS.iter().enumerate() {
+            ui.selectable_value(&mut v.container, i, c.name);
+        }
+    });
+    let c = &CONTAINERS[v.container];
+    if !c.codecs.contains(&v.codec) || probe.of(v.codec).is_empty() {
+        v.codec = c.codecs.iter().copied().find(|k| !probe.of(*k).is_empty()).unwrap_or(c.codecs[0]);
+    }
+    egui::ComboBox::from_label(t("batch-video-codec")).selected_text(v.codec.label()).show_ui(ui, |ui| {
+        for &k in c.codecs {
+            let usable = !probe.of(k).is_empty();
+            let label = if usable { k.label().to_string() } else { i18n.t_args("batch-video-unavailable", &[("codec", k.label())]) };
+            ui.add_enabled_ui(usable, |ui| ui.selectable_value(&mut v.codec, k, label));
+        }
+    });
+    ui.weak(t(v.codec.hint()));
+    let encoders = probe.of(v.codec);
+    if encoders.is_empty() {
+        v.encoder = None;
+        ui.label(crate::browser::error_text(ui, t("batch-video-none")));
+        return;
+    }
+    if !v.encoder.is_some_and(|e| encoders.contains(&e)) {
+        v.encoder = Some(encoders[0]);
+    }
+    let name = |e: &str| format!("{} ({e})", crate::ffmpeg::maker(e));
+    egui::ComboBox::from_label(t("batch-video-encoder")).selected_text(name(v.encoder.unwrap_or_default())).show_ui(ui, |ui| {
+        for e in encoders {
+            ui.selectable_value(&mut v.encoder, Some(e), name(e));
+        }
+    });
+    ui.weak(t(crate::ffmpeg::hint(v.encoder.unwrap_or_default())));
+    ui.horizontal(|ui| {
+        ui.label(t("batch-video-quality"));
+        for (q, id) in [(Quality::High, "batch-video-high"), (Quality::Medium, "batch-video-medium"), (Quality::Small, "batch-video-small")] {
+            ui.radio_value(&mut v.quality, q, t(id));
+        }
+    });
+    if !c.audio.is_empty() {
+        ui.checkbox(&mut v.audio, t("batch-video-audio"));
+    }
+    ui.checkbox(&mut v.meta, t("batch-video-meta"));
+}
+
+/// No FFmpeg on this computer: what it is, its size and the button; then the progress.
+fn ffmpeg_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
+    let Some(c) = crate::component::FFMPEG else { return };
+    let size = format!("{} MB", c.size / 1_000_000);
+    ui.label(i18n.t_args("batch-video-need-ffmpeg", &[("size", &size)]));
+    let state = v.download.as_ref().map(|d| (d.done.load(Ordering::Relaxed), d.result.lock().unwrap().clone()));
+    match state {
+        Some((done, None)) => {
+            ui.add(egui::ProgressBar::new(done as f32 / c.size as f32).show_percentage());
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(300));
+        }
+        // Done: `ffmpeg::program` finds it at the next frame.
+        Some((_, Some(Ok(())))) => ui.ctx().request_repaint(),
+        failed => {
+            if let Some((_, Some(Err(e)))) = failed {
+                ui.label(crate::browser::error_text(ui, i18n.t_args("batch-video-download-failed", &[("detail", &e)])));
+            }
+            if ui.button(i18n.t("batch-video-download")).clicked() {
+                let ctx = ui.ctx().clone();
+                v.download = Some(crate::component::start(c, move || ctx.request_repaint()));
+            }
+        }
+    }
+}
+
 fn turn_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     let t = |id| i18n.t(id);
     ui.horizontal_wrapped(|ui| {
@@ -392,6 +513,9 @@ fn size_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     ui.add_space(4.0);
     ui.add_enabled_ui(f.size != SizeKind::Same, |ui| {
         ui.checkbox(&mut f.enlarge, t("batch-enlarge"));
+        if !f.images {
+            return;
+        }
         egui::ComboBox::from_label(t("batch-filter")).selected_text(t(f.filter.label())).show_ui(ui, |ui| {
             for filter in Filter::ALL {
                 ui.selectable_value(&mut f.filter, filter, t(filter.label()));

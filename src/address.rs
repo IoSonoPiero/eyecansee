@@ -85,7 +85,7 @@ impl App {
         let mut answer = ctx.input(|i| if i.key_pressed(Key::Escape) || keys == Some(false) { Some(false) } else { None });
         egui::Modal::new(egui::Id::unique("open-address")).show(ctx, |ui| {
             ui.set_width(460.0);
-            ui.strong(t("addr-title"));
+            crate::theme::title(ui, t("addr-title"));
             ui.add_space(4.0);
             let url = ui.add(egui::TextEdit::singleline(&mut f.url).hint_text(t("tb-address-hint")).desired_width(f32::INFINITY));
             if f.first {

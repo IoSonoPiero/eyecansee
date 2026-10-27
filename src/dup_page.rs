@@ -223,15 +223,7 @@ impl App {
     /// Title, order and the buttons that mark every group at once; `false` once closed.
     fn dup_header(&self, ui: &mut egui::Ui, w: &mut Window) -> bool {
         let t = |id| self.i18n.t(id);
-        let mut open = true;
-        ui.horizontal(|ui| {
-            ui.heading(self.i18n.t_args("dup-title", &[("folder", &self.display(&w.dir))]));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.button("✕").on_hover_text("Esc").clicked() {
-                    open = false;
-                }
-            });
-        });
+        let open = !crate::theme::page_title(ui, &self.i18n.t_args("dup-title", &[("folder", &self.display(&w.dir))]));
         let Some(groups) = &mut w.groups else { return open };
         if groups.is_empty() {
             return open;

@@ -60,6 +60,30 @@ pub fn solid(v: &Visuals) -> Color32 {
     palette(v).solid
 }
 
+/// The title of a window drawn in its content, centered (user, 2026-10-27: every window's title
+/// in the middle, as egui's title bars have it).
+pub fn title(ui: &mut egui::Ui, text: impl Into<egui::RichText>) {
+    ui.vertical_centered(|ui| ui.heading(text));
+}
+
+/// The title of a page covering the window, centered on its whole width, and a ✕ on the right;
+/// `true` when the ✕ is clicked. A title too long for the middle is cut with "…".
+pub fn page_title(ui: &mut egui::Ui, text: &str) -> bool {
+    let mut close = false;
+    ui.horizontal(|ui| {
+        let row = ui.available_rect_before_wrap();
+        // As much room on the left as the ✕ takes on the right: the title stays in the middle.
+        let side = 40.0;
+        let height = ui.text_style_height(&egui::TextStyle::Heading);
+        let middle = egui::Rect::from_x_y_ranges(row.left() + side..=row.right() - side, row.top()..=row.top() + height);
+        ui.put(middle, egui::Label::new(egui::RichText::new(text).heading()).truncate());
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            close = ui.button("✕").on_hover_text("Esc").clicked();
+        });
+    });
+    close
+}
+
 /// The main button of a window: solid accent with white bold text (the default dark text was
 /// hard to read on it in the light theme).
 pub fn main_button(ui: &egui::Ui, text: String) -> egui::Button<'static> {

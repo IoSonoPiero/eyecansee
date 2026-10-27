@@ -1,5 +1,6 @@
 //! Add-ons downloaded the first time they are needed, not shipped in the package (decided by the
-//! user on 2026-10-24): today the video engine, libmpv, which carries patented decoders (HEVC).
+//! user on 2026-10-24): the video engine, libmpv, which carries patented decoders (HEVC), and
+//! FFmpeg, which converts videos.
 //! The file comes from a release of ours ("components"); its SHA-256 is written here, in the
 //! signed executable, so a different file is refused.
 
@@ -51,6 +52,30 @@ pub const VIDEO: Option<Component> = Some(Component {
     size: 10_266_355,
 });
 
+/// FFmpeg 9.0 of BtbN/FFmpeg-Builds (`ffmpeg-n9.0-latest-*-gpl-9.0`, built 2026-10-26), only the
+/// `ffmpeg` program and its licence: converts videos (`ffmpeg.rs`). Used when the system has none.
+#[cfg(windows)]
+pub const FFMPEG: Option<Component> = Some(Component {
+    kind: "ffmpeg",
+    version: "9.0-20261026",
+    file: "ffmpeg.exe",
+    url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/ffmpeg-windows-x64-9.0-20261026.tar.gz",
+    archive: true,
+    sha256: "45e0fcc058ada98efa54abd1fa08e13ab3398b81003bbd39803c55b05998fcb2",
+    size: 63_690_885,
+});
+
+#[cfg(not(windows))]
+pub const FFMPEG: Option<Component> = Some(Component {
+    kind: "ffmpeg",
+    version: "9.0-20261026",
+    file: "ffmpeg",
+    url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/ffmpeg-linux-x64-9.0-20261026.tar.gz",
+    archive: true,
+    sha256: "869db08c1b8220c382759b0dd966667d2885462a7fbbf4913cd45e3f20e695b9",
+    size: 67_805_579,
+});
+
 /// Where components go: the app's data folder (`%LOCALAPPDATA%\eyecansee\components` on Windows,
 /// `~/.local/share/eyecansee/components` on Linux).
 pub fn dir() -> Option<PathBuf> {
@@ -96,6 +121,12 @@ pub fn install(c: &Component, done: &AtomicU64) -> Result<(), String> {
         }
         if !staging.join(c.file).is_file() {
             return Err(format!("{} missing from the download", c.file));
+        }
+        // A program (FFmpeg) must be executable; tar's modes are not kept by `untar`.
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(staging.join(c.file), std::fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
         }
         let target = dir.join(folder(c));
         let _ = std::fs::remove_dir_all(&target);

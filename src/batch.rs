@@ -5,7 +5,8 @@
 
 use std::collections::HashSet;
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 
 use image::imageops::FilterType;
 
@@ -71,11 +72,13 @@ pub struct Job {
     pub turn: Turn,
     /// Images smaller than the size asked for are made larger too.
     pub enlarge: bool,
+    /// What the videos become, with the same size and turn; `None`: videos are left out.
+    pub video: Option<crate::ffmpeg::Video>,
 }
 
 impl Default for Job {
     fn default() -> Self {
-        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false }
+        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None }
     }
 }
 
@@ -101,6 +104,7 @@ pub fn target(w: u32, h: u32, size: Size, enlarge: bool) -> (u32, u32) {
 /// Why an image was left out (Fluent ids), with its name.
 pub const SKIP_FORMAT: &str = "batch-skip-format";
 pub const SKIP_INSIDE: &str = "batch-skip-inside";
+pub const SKIP_VIDEO: &str = "batch-skip-video";
 
 /// The file `bytes` (named `name`) after the job: the new name, without the folder, and its
 /// content. `Err((id, detail))`: a Fluent id with the name or the error.
@@ -147,8 +151,94 @@ pub fn convert(bytes: &[u8], name: &str, job: &Job) -> Result<(String, Vec<u8>),
 
 /// `name` with the extension of `format` in place of its own.
 pub fn with_ext(name: &str, format: Format) -> String {
+    ext(name, format.ext())
+}
+
+fn ext(name: &str, ext: &str) -> String {
     let stem = name.rsplit_once('.').map_or(name, |(s, _)| s);
-    format!("{stem}.{}", format.ext())
+    format!("{stem}.{ext}")
+}
+
+/// A video converted by ffmpeg into `to` of `out`. ffmpeg reads and writes files of this
+/// computer: a video on a phone or a server is copied into a temporary file first, a destination
+/// there gets the temporary result at the end.
+async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc<Progress>) -> Result<(), source::Error> {
+    let name = source::name(path).to_string();
+    let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
+    let (Some(v), Some(probe)) = (job.video.clone(), crate::ffmpeg::probed()) else { return Err((SKIP_VIDEO, name)) };
+    let temp = |what: &str| std::env::temp_dir().join(format!("eyecansee-{what}-{}-{}", std::process::id(), source::name(to)));
+    let input = match op.local_file(path) {
+        Some(file) => (file, false),
+        None => {
+            let file = temp("in");
+            download(op, path, &file).await.map_err(|e| failed(e.to_string()))?;
+            (file, true)
+        }
+    };
+    let output = out.local_file(to).map_or_else(|| (temp("out"), true), |f| (f, false));
+    let args = crate::ffmpeg::args(&v, job.size, job.enlarge, job.turn, &input.0.to_string_lossy(), &output.0.to_string_lossy(), &probe.audio);
+    log!("ffmpeg {args:?}");
+    let (program, p2) = (probe.program.clone(), p.clone());
+    let r = tokio::task::spawn_blocking(move || crate::ffmpeg::run(&program, &args, |f| p2.part.store((f * 1000.0) as u32, Ordering::Relaxed), &p2.cancel))
+        .await
+        .unwrap_or_else(|e| Err(e.to_string()));
+    if input.1 {
+        let _ = std::fs::remove_file(&input.0);
+    }
+    let r = match r {
+        Ok(()) if output.1 => upload(out, to, &output.0).await.map_err(|e| failed(e.to_string())),
+        Ok(()) => Ok(()),
+        Err(e) => Err(failed(e)),
+    };
+    if output.1 || r.is_err() {
+        let _ = std::fs::remove_file(&output.0);
+    }
+    r
+}
+
+/// `path` of `op` into the local `file`, 4 MB at a time.
+async fn download(op: &Store, path: &str, file: &std::path::Path) -> std::io::Result<()> {
+    use std::io::Write;
+    let size = op.size(path).await.map_err(|(_, d)| std::io::Error::other(d))?;
+    let mut f = std::fs::File::create(file)?;
+    let mut at = 0;
+    while at < size {
+        let piece = op.read_range(path, at, (size - at).min(4 << 20)).await.map_err(|(_, d)| std::io::Error::other(d))?;
+        if piece.is_empty() {
+            return Err(std::io::Error::other("short read"));
+        }
+        f.write_all(&piece)?;
+        at += piece.len() as u64;
+    }
+    Ok(())
+}
+
+/// The local `file` written to `to` of `out`, 1 MB at a time.
+async fn upload(out: &Store, to: &str, file: &std::path::Path) -> std::io::Result<()> {
+    use std::io::Read;
+    let size = std::fs::metadata(file)?.len();
+    let mut f = std::fs::File::open(file)?;
+    let (tx, rx) = tokio::sync::mpsc::channel(4);
+    let reader = tokio::task::spawn_blocking(move || {
+        loop {
+            let mut buf = vec![0; 1 << 20];
+            let n = match f.read(&mut buf) {
+                Ok(0) => return,
+                Ok(n) => n,
+                Err(e) => {
+                    let _ = tx.blocking_send(Err(e));
+                    return;
+                }
+            };
+            buf.truncate(n);
+            if tx.blocking_send(Ok(bytes::Bytes::from(buf))).is_err() {
+                return;
+            }
+        }
+    });
+    let r = out.write_chunks(to, size, rx).await.map_err(|(_, d)| std::io::Error::other(d));
+    let _ = reader.await;
+    r
 }
 
 /// How the job is going, read by the window; `cancel` stops it after the image under way.
@@ -157,6 +247,8 @@ pub struct Progress {
     pub done: AtomicUsize,
     pub total: AtomicUsize,
     pub current: Mutex<String>,
+    /// How far the video under way is, in thousandths.
+    pub part: AtomicU32,
     pub cancel: AtomicBool,
     /// Paths of the new files.
     pub saved: Mutex<Vec<String>>,
@@ -174,7 +266,7 @@ pub struct Dest {
 
 /// Every image of `paths` (read from `op`) after `job`, written into `to` with a free name;
 /// never over a file.
-pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: &Progress) {
+pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Progress>) {
     p.total.store(paths.len(), Ordering::Relaxed);
     let Dest { op: out, dir: dest, create } = to;
     if create
@@ -192,6 +284,27 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: &Progres
         }
         let name = source::name(&path).to_string();
         *p.current.lock().unwrap() = name.clone();
+        p.part.store(0, Ordering::Relaxed);
+        if crate::decode::is_video(&path) {
+            let new_name = match &job.video {
+                Some(v) => source::free_name(&taken, &ext(&name, crate::ffmpeg::CONTAINERS[v.container].ext)),
+                None => {
+                    p.failed.lock().unwrap().push((SKIP_VIDEO, name));
+                    p.done.fetch_add(1, Ordering::Relaxed);
+                    continue;
+                }
+            };
+            let to = format!("{dest}{new_name}");
+            match video(op, &path, &out, &to, &job, &p).await {
+                Ok(()) => {
+                    taken.insert(new_name);
+                    p.saved.lock().unwrap().push(to);
+                }
+                Err(e) => p.failed.lock().unwrap().push(e),
+            }
+            p.done.fetch_add(1, Ordering::Relaxed);
+            continue;
+        }
         let r = match op.read(&path).await {
             Ok(bytes) => {
                 let job = job.clone();

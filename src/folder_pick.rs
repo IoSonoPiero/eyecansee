@@ -97,7 +97,7 @@ impl App {
 /// `keys`: Enter and Esc from the window.
 pub fn pick_ui(ui: &mut egui::Ui, p: &mut Picker, places: &[Place], i18n: &I18n, rt: &Handle, keys: Option<bool>) -> Option<Option<String>> {
     let ctx = ui.ctx().clone();
-    ui.heading(i18n.t("pick-title"));
+    crate::theme::title(ui, i18n.t("pick-title"));
     ui.add_space(8.0);
     // The place the folder looked at is in: the longest address in front of it.
     let current = p.address();

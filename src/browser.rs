@@ -85,7 +85,10 @@ impl App {
         } else if target.ends_with('/') {
             items.extend(self.folder_items(path, &target));
         } else if crate::decode::is_video(&target) {
-            // Turning, saving and converting are for images.
+            // Turning and saving are for images; converting goes through FFmpeg.
+            if !in_viewer {
+                items.extend([Some((self.i18n.t("menu-batch"), String::new(), Act::Batch(path.clone()))), None]);
+            }
             items.extend([Some((self.i18n.t("menu-cut"), self.i18n.t("key-cut"), Act::Cut(path.clone()))), Some((self.i18n.t("menu-copy"), self.i18n.t("key-copy"), Act::Copy(path.clone())))]);
             items.extend(self.rename_delete(path));
         } else {
