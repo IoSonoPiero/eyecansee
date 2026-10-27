@@ -330,6 +330,11 @@ impl Phone {
             if !o.is_folder() && source::leftover(&o.filename) {
                 listing.leftovers.push(path.clone());
             }
+            let modified = || o.modified.and_then(unix_seconds).map(|s| s.to_string()).unwrap_or_default();
+            if !o.is_folder() && source::android_trashed(&o.filename).is_some() {
+                listing.trashed.push(File { path, size: o.size, modified: modified() });
+                continue;
+            }
             // Hidden items are not shown, apart from EyeCanSee's trash folders.
             if o.filename.starts_with('.') && !(o.is_folder() && o.filename == source::TRASH_DIR) {
                 continue;
@@ -337,8 +342,7 @@ impl Phone {
             if o.is_folder() {
                 listing.dirs.push(path);
             } else if is_media(&o.filename) {
-                let modified = o.modified.and_then(unix_seconds).map(|s| s.to_string()).unwrap_or_default();
-                listing.files.push(File { path, size: o.size, modified });
+                listing.files.push(File { path, size: o.size, modified: modified() });
             }
         }
         listing.sort();

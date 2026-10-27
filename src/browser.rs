@@ -165,7 +165,7 @@ impl App {
 
     /// Name shown for a folder or image: trash folders have their own, in the user's language.
     pub(crate) fn item_name(&self, path: &str) -> String {
-        if source::is_trash(path) { self.i18n.t("trash") } else { source::name(path).to_string() }
+        if source::is_trash(path) { self.i18n.t("trash") } else { source::shown(path).to_string() }
     }
 }
 

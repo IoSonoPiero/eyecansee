@@ -154,7 +154,8 @@ impl App {
                 self.remove_item(&path, how == source::Deletion::TrashFolder);
                 self.dup_deleted(&path);
                 // An emptied trash: a listing of its folder already on its way would show it again.
-                if source::is_trash(&path) {
+                // An Android trashed file gone: its folder may have no trash left.
+                if source::is_trash(&path) || source::android_trashed(source::name(&path)).is_some() {
                     self.relist(source::parent(&path));
                 }
             }

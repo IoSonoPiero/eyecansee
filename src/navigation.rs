@@ -178,7 +178,7 @@ impl App {
                 let set = self.viewer_set();
                 let at = set.iter().position(|&k| k == i).unwrap_or(0);
                 let counter = self.i18n.t_args("counter", &[("n", &(at + 1).to_string()), ("total", &set.len().to_string())]);
-                let name = self.files().get(i).map_or("", |f| source::name(&f.path));
+                let name = self.files().get(i).map_or("", |f| source::shown(&f.path));
                 format!("{name} ({counter}) - EyeCanSee")
             }
             None => format!("{} - EyeCanSee", self.display(&self.dir)),

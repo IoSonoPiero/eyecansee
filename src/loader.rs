@@ -208,20 +208,30 @@ impl Loader {
     pub fn delete(&self, paths: Vec<String>, how: source::Deletion) {
         let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            for path in paths {
-                let r = op.delete(&path, how).await;
-                let failed = r.is_err();
-                if !failed {
-                    thumbcache::delete(&base, &path);
-                }
-                let trash = source::parent(&path);
-                let _ = tx.send(Msg::Deleted(path, how, r));
-                if !failed && source::is_trash(&trash) {
-                    drop_empty_trash(&op, trash, &tx).await;
-                }
-                ctx.request_repaint();
-                if failed {
-                    break;
+            'all: for path in paths {
+                // Emptying a trash: the folder (if it is there at all), then Android's trashed
+                // files of its folder. The view leaves the trash at the folder's message.
+                let (missing, items) = if source::is_trash(&path) {
+                    let (exists, android) = trash_contents(&op, &path).await;
+                    (!exists, std::iter::once(path.clone()).chain(android).collect())
+                } else {
+                    (false, vec![path])
+                };
+                for (i, path) in items.into_iter().enumerate() {
+                    let r = if i == 0 && missing { Ok(()) } else { op.delete(&path, how).await };
+                    let failed = r.is_err();
+                    if !failed {
+                        thumbcache::delete(&base, &path);
+                    }
+                    let trash = source::trash_of(&path);
+                    let _ = tx.send(Msg::Deleted(path, how, r));
+                    if !failed && source::is_trash(&trash) {
+                        drop_empty_trash(&op, trash, &tx).await;
+                    }
+                    ctx.request_repaint();
+                    if failed {
+                        break 'all;
+                    }
                 }
             }
         });
@@ -232,7 +242,7 @@ impl Loader {
         self.rt.spawn(async move {
             let r = op.restore(&path, conflict).await;
             let ok = r.is_ok();
-            let trash = source::parent(&path);
+            let trash = source::trash_of(&path);
             let _ = tx.send(Msg::Restored(path, r));
             if ok {
                 drop_empty_trash(&op, trash, &tx).await;
@@ -698,12 +708,22 @@ async fn maintain(op: &Store, base: &str) {
 }
 
 /// A trash folder left empty goes, so its strip does not say there is something to restore.
+/// A trash folder left with nothing in it (Android's trashed files of its folder count) goes.
 async fn drop_empty_trash(op: &Store, trash: String, tx: &Sender<Msg>) {
-    if op.names(&trash).await.is_ok_and(|n| n.is_empty()) {
+    if op.names(&trash).await.is_ok_and(|n| n.is_empty()) && android_trashed_files(op, &trash).await.is_empty() {
         let how = source::Deletion::Permanent;
         let r = op.delete(&trash, how).await;
         let _ = tx.send(Msg::Deleted(trash, how, r));
     }
+}
+
+/// Whether the trash folder exists, and Android's trashed files of its folder.
+async fn trash_contents(op: &Store, trash: &str) -> (bool, Vec<String>) {
+    (op.is_dir(trash).await, android_trashed_files(op, trash).await)
+}
+
+async fn android_trashed_files(op: &Store, trash: &str) -> Vec<String> {
+    op.list(&source::parent(trash)).await.map(|l| l.trashed.into_iter().map(|f| f.path).collect()).unwrap_or_default()
 }
 
 #[cfg(test)]
@@ -768,6 +788,29 @@ mod tests {
         // FTP cannot rename: refused before anything is read or written (nothing listens there).
         let ftp = Store::Dal(opendal::Operator::new(opendal::services::Ftp::default().endpoint("ftp://127.0.0.1:9")).unwrap());
         assert_eq!(rt.block_on(replace(&ftp, "a.png", b"x".to_vec(), Deletion::Permanent)).unwrap_err().0, "error-rename-unsupported");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Emptying and dropping a trash with Android's trashed files in the folder: the folder may not
+    /// exist, and it stays while such files are there.
+    #[test]
+    fn android_trash_folder() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-android-trash-{}", std::process::id()));
+        let p = dir.join("p");
+        std::fs::create_dir_all(&p).unwrap();
+        std::fs::write(p.join(".trashed-1-a.jpg"), b"x").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let trash = format!("p/{TRASH_DIR}/");
+        assert_eq!(rt.block_on(trash_contents(&op, &trash)), (false, vec!["p/.trashed-1-a.jpg".to_string()]));
+        std::fs::create_dir_all(p.join(TRASH_DIR)).unwrap();
+        assert!(rt.block_on(trash_contents(&op, &trash)).0);
+        let (tx, rx) = std::sync::mpsc::channel();
+        rt.block_on(drop_empty_trash(&op, trash.clone(), &tx));
+        assert!(p.join(TRASH_DIR).is_dir() && rx.try_recv().is_err(), "kept while Android's file is there");
+        std::fs::remove_file(p.join(".trashed-1-a.jpg")).unwrap();
+        rt.block_on(drop_empty_trash(&op, trash.clone(), &tx));
+        assert!(!p.join(TRASH_DIR).exists() && matches!(rx.try_recv(), Ok(Msg::Deleted(t, _, Ok(()))) if t == trash));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

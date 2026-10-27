@@ -138,7 +138,7 @@ impl App {
         ui.centered_and_justified(|ui| match self.full.get(&current) {
             Some(Ok(_)) => {}
             Some(Err(e)) => {
-                let name = self.files().get(current).map_or("", |f| source::name(&f.path));
+                let name = self.files().get(current).map_or("", |f| source::shown(&f.path));
                 ui.label(browser::error_text(ui, self.i18n.t_args("cannot-load", &[("file", name), ("error", e)])));
             }
             None => {

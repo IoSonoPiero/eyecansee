@@ -143,7 +143,7 @@ impl App {
         let Some(f) = files.get(current) else { return };
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
         ui.horizontal(|ui| {
-            ui.label(source::name(&f.path));
+            ui.label(source::shown(&f.path));
             ui.separator();
             ui.label(format!("{} / {}", current + 1, files.len()));
             // shortcut: images beyond 8192 px show the size of their scaled-down texture; the decoder would have to report the real one.

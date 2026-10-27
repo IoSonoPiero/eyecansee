@@ -65,9 +65,29 @@ pub fn is_trash(path: &str) -> bool {
     path.ends_with('/') && name(path) == TRASH_DIR
 }
 
-/// Is this item inside a trash folder?
+/// Is this item inside a trash folder? Android's trashed files count too.
 pub fn in_trash(path: &str) -> bool {
-    is_trash(&parent(path))
+    is_trash(&parent(path)) || android_trashed(name(path)).is_some()
+}
+
+/// The original name of a file Android's gallery put in its trash (30 days, then deleted):
+/// ".trashed-<expiry seconds>-<name>", hidden, still in its folder. Only images and videos.
+pub fn android_trashed(name: &str) -> Option<&str> {
+    let rest = name.strip_prefix(".trashed-")?;
+    let (expiry, own) = rest.split_once('-')?;
+    (!expiry.is_empty() && expiry.bytes().all(|b| b.is_ascii_digit()) && is_media(own)).then_some(own)
+}
+
+/// The trash an item belongs to: the folder of an item of a trash folder, the folder's trash
+/// for an Android trashed file (which lies in the folder itself).
+pub fn trash_of(path: &str) -> String {
+    let dir = parent(path);
+    if android_trashed(name(path)).is_some() { format!("{dir}{TRASH_DIR}/") } else { dir }
+}
+
+/// The name to show for an item: a trashed Android file by its original name.
+pub fn shown(path: &str) -> &str {
+    android_trashed(name(path)).unwrap_or(name(path))
 }
 
 /// `name` if free, otherwise "name (2).ext", "name (3).ext"… as file managers do.
@@ -139,12 +159,32 @@ impl Store {
 
     /// Images and folders of `dir`, after tidying up what an interrupted "Save" left there.
     pub async fn list(&self, dir: &str) -> Result<Listing, Error> {
-        let listing = self.list_once(dir).await?;
-        if listing.leftovers.is_empty() {
+        if is_trash(dir) {
+            // Android's trashed files of the folder show up in its trash, with the trash folder's
+            // own contents (if that folder exists at all).
+            let trashed = self.list_once(&parent(dir)).await?.trashed;
+            let mut listing = match self.list_once(dir).await {
+                Ok(listing) => listing,
+                Err(e) if trashed.is_empty() => return Err(e),
+                Err(_) => Listing::default(),
+            };
+            listing.files.extend(trashed);
+            listing.sort();
             return Ok(listing);
         }
-        self.recover(dir, &listing.leftovers).await;
-        self.list_once(dir).await
+        let mut listing = self.list_once(dir).await?;
+        if !listing.leftovers.is_empty() {
+            self.recover(dir, &listing.leftovers).await;
+            listing = self.list_once(dir).await?;
+        }
+        if !listing.trashed.is_empty() {
+            listing.trash.get_or_insert_with(|| format!("{dir}{TRASH_DIR}/"));
+        } else if let Some(trash) = &listing.trash
+            && self.names(trash).await.is_ok_and(|n| n.is_empty())
+        {
+            listing.trash = None; // a trash folder left empty: no strip for it
+        }
+        Ok(listing)
     }
 
     async fn list_once(&self, dir: &str) -> Result<Listing, Error> {
@@ -324,8 +364,11 @@ impl Store {
     /// replace (files), keep both ("name (2)") or merge (folders: their contents, keeping both
     /// files with the same name). Returns the path where it went.
     pub async fn restore(&self, path: &str, conflict: Conflict) -> Result<String, Error> {
-        let (own, trash) = (name(path), parent(path));
-        let dest = parent(&trash);
+        let trash = parent(path);
+        let (own, dest) = match android_trashed(name(path)) {
+            Some(own) => (own, trash.clone()),
+            None => (name(path), parent(&trash)),
+        };
         let taken = self.names(&dest).await?;
         if !taken.contains(own) {
             return self.move_into(path, &dest, own).await;
@@ -372,14 +415,22 @@ impl Store {
     /// Paths of everything in a folder, of any type (folders ending in "/").
     pub async fn children(&self, dir: &str) -> Result<Vec<String>, Error> {
         let mut paths = Vec::new();
-        for n in self.names(dir).await? {
+        if is_trash(dir) {
+            paths.extend(self.list_once(&parent(dir)).await?.trashed.into_iter().map(|f| f.path));
+        }
+        let names = match self.names(dir).await {
+            Ok(names) => names,
+            Err(e) if paths.is_empty() => return Err(e),
+            Err(_) => HashSet::new(), // only Android's trash, no folder of ours
+        };
+        for n in names {
             let slash = if self.is_dir(&format!("{dir}{n}/")).await { "/" } else { "" };
             paths.push(format!("{dir}{n}{slash}"));
         }
         Ok(paths)
     }
 
-    async fn is_dir(&self, dir: &str) -> bool {
+    pub(crate) async fn is_dir(&self, dir: &str) -> bool {
         match self {
             Store::Dal(op) => op.stat(dir).await.is_ok_and(|m| m.is_dir()),
             Store::Mtp(phone) => phone.check_dir(dir).await.is_ok(),
@@ -579,6 +630,8 @@ pub struct Listing {
     pub trash: Option<String>,
     /// Hidden files of an interrupted "Save" (`save_names`), for `Store::recover`.
     pub leftovers: Vec<String>,
+    /// Files in Android's trash (`android_trashed`): shown in the folder's trash, not here.
+    pub trashed: Vec<File>,
 }
 
 #[derive(Clone)]
@@ -723,6 +776,12 @@ async fn list(op: &Operator, dir: &str) -> opendal::Result<Listing> {
         if !e.metadata().is_dir() && leftover(e.name()) {
             listing.leftovers.push(path.to_string());
         }
+        if !e.metadata().is_dir() && android_trashed(e.name()).is_some() {
+            let m = e.metadata();
+            let modified = m.last_modified().map(|t| t.to_string()).unwrap_or_default();
+            listing.trashed.push(File { path: path.to_string(), size: m.content_length(), modified });
+            continue;
+        }
         if path == dir || (e.name().starts_with('.') && !trash) || hidden(op, path) {
             continue;
         }
@@ -806,6 +865,46 @@ mod tests {
         assert_eq!(rt.block_on(op.restore(&format!("{t}f/"), Conflict::Merge)).unwrap(), "photos/f/");
         assert!(dir.join("photos/f/inner").is_dir() && dir.join("photos/f/x (2).jpg").exists());
         assert!(!trash.join("f").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Android's trash: hidden ".trashed-<seconds>-<name>" files, shown in the folder's trash
+    /// and put back by renaming.
+    #[test]
+    fn android_trash() {
+        assert_eq!(android_trashed(".trashed-1794410026-IMG_1.jpg"), Some("IMG_1.jpg"));
+        assert_eq!(android_trashed(".trashed-1794410026-clip.mp4"), Some("clip.mp4"));
+        assert_eq!(android_trashed(".trashed-1794410026-notes.txt"), None);
+        assert_eq!(android_trashed(".trashed-x-IMG_1.jpg"), None);
+        assert_eq!(android_trashed("IMG_1.jpg"), None);
+        assert!(in_trash("photos/.trashed-1-a.jpg"));
+        assert_eq!(shown("photos/.trashed-1-a.jpg"), "a.jpg");
+        assert_eq!(shown("photos/a.jpg"), "a.jpg");
+
+        let dir = std::env::temp_dir().join(format!("eyecansee-android-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("photos")).unwrap();
+        std::fs::write(dir.join("photos/.trashed-1-a.jpg"), b"x").unwrap();
+        std::fs::write(dir.join("photos/b.jpg"), b"x").unwrap();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let t = format!("photos/{TRASH_DIR}/");
+        // The folder: one image, a trash although no trash folder exists.
+        let l = rt.block_on(op.list("photos/")).unwrap();
+        assert_eq!(l.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["photos/b.jpg"]);
+        assert_eq!(l.trash.as_deref(), Some(t.as_str()));
+        // The trash: the Android file; Restore all sees it; back by renaming.
+        let l = rt.block_on(op.list(&t)).unwrap();
+        assert_eq!(l.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["photos/.trashed-1-a.jpg"]);
+        assert_eq!(rt.block_on(op.children(&t)).unwrap(), ["photos/.trashed-1-a.jpg"]);
+        assert_eq!(rt.block_on(op.restore("photos/.trashed-1-a.jpg", Conflict::Ask)).unwrap(), "photos/a.jpg");
+        assert!(dir.join("photos/a.jpg").exists() && !dir.join("photos/.trashed-1-a.jpg").exists());
+        // Taken name: kept both.
+        std::fs::write(dir.join("photos/.trashed-2-a.jpg"), b"y").unwrap();
+        assert_eq!(rt.block_on(op.restore("photos/.trashed-2-a.jpg", Conflict::Ask)).unwrap_err().0, "error-exists");
+        assert_eq!(rt.block_on(op.restore("photos/.trashed-2-a.jpg", Conflict::KeepBoth)).unwrap(), "photos/a (2).jpg");
+        // No Android files left and an empty trash folder: no trash shown.
+        std::fs::create_dir_all(dir.join(&t)).unwrap();
+        assert_eq!(rt.block_on(op.list("photos/")).unwrap().trash, None);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
