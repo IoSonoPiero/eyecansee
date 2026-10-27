@@ -26,6 +26,11 @@ impl App {
         self.viewing.is_some() && !self.viewing_video()
     }
 
+    /// Size of the video playing, for the status bar.
+    pub(crate) fn video_size(&self) -> Option<[u32; 2]> {
+        self.video.as_ref()?.player.as_ref().ok()?.video_size()
+    }
+
     /// Space in the viewer of a video.
     pub(crate) fn toggle_video(&self) {
         if let Some(Playing { player: Ok(p), .. }) = &self.video {

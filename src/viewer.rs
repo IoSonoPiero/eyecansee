@@ -100,6 +100,11 @@ impl App {
         let n = set.len();
         let near = |r: usize| (0..=r).flat_map(move |d| [at + d, at + n * r - d]).map(|p| set[p % n]).collect::<Vec<_>>();
         for i in near(AROUND) {
+            // A video's still is not needed here (the player shows it) and reading it would slow
+            // down the player's start on a slow disk (dashcam on USB 2: 8 s, 2026-10-27).
+            if crate::decode::is_video(&listing.files[i].path) {
+                continue;
+            }
             if !self.full.contains_key(&i) && self.pending.insert(i) {
                 loader.load_full(self.generation, i, listing.files[i].path.clone());
             }

@@ -155,6 +155,10 @@ impl App {
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
             }
+            if let Some([w, h]) = self.video_size() {
+                ui.separator();
+                ui.label(self.i18n.t_args("convert-pixels", &[("w", &w.to_string()), ("h", &h.to_string())]));
+            }
             if !self.turn.is_none() {
                 ui.separator();
                 ui.label(crate::theme::alert(self.i18n.t(if self.preparing.as_ref() == Some(&f.path) {
