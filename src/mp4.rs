@@ -6,9 +6,8 @@
 /// fragmented dashcam video fits (12 KB for 3 minutes).
 pub const HEAD: u64 = 64 << 10;
 
-/// Largest `moov` read when it comes after the media data (the dashcam's other folders: ~18 KB;
-/// a phone's 4K clip ~100 KB [Inference]).
-pub const MOOV_MAX: u64 = 1 << 20;
+/// Largest `udta` read (the dashcam's: ~11 KB with its preview).
+pub const UDTA_MAX: u64 = 1 << 20;
 
 /// Type and whole size of the box whose header starts `header` (at least 16 bytes, or what is
 /// left of the file); size 0 means "to the end of the file" and is returned as 0.
@@ -21,8 +20,12 @@ pub fn box_header(header: &[u8]) -> Option<([u8; 4], u64)> {
 
 /// The JPEG in `moov/udta/thmb`, if `head` holds it whole.
 pub fn thumbnail(head: &[u8]) -> Option<&[u8]> {
-    let moov = child(head, b"moov")?;
-    let jpeg = child(child(moov, b"udta")?, b"thmb")?;
+    in_udta(child(head, b"moov")?)
+}
+
+/// The JPEG in `udta/thmb` among the boxes of `data` (the content of a `moov`, or a `udta` box).
+pub fn in_udta(data: &[u8]) -> Option<&[u8]> {
+    let jpeg = child(child(data, b"udta")?, b"thmb")?;
     jpeg.starts_with(&[0xFF, 0xD8]).then_some(jpeg)
 }
 

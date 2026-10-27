@@ -631,32 +631,50 @@ async fn preview(op: &Store, base: &str, file: &File) -> Option<ColorImage> {
     .flatten()
 }
 
-/// The JPEG of `mp4::thumbnail`: in the first bytes, or in a `moov` after the media data, found
-/// following the top-level boxes (16 bytes read for each).
+/// The JPEG of `mp4::thumbnail`: in the first bytes, or in a `moov` after the media data. Only
+/// box headers are read on the way (16 bytes each) and then the `udta`: a phone's `moov` is
+/// ~1 MB of sample tables, without a preview (2026-10-27).
 async fn preview_jpeg(op: &Store, path: &str, size: u64) -> Option<Vec<u8>> {
     use crate::mp4;
     let head = op.read_range(path, 0, size.min(mp4::HEAD)).await.ok()?;
     if let Some(jpeg) = mp4::thumbnail(&head) {
         return Some(jpeg.to_vec());
     }
-    let mut at = 0;
-    // ftyp, free, mdat, moov…: a few boxes at most before the moov.
-    for _ in 0..8 {
-        let end = size.min(at + 16);
-        let header = match head.get(at as usize..end as usize) {
-            Some(h) if end <= head.len() as u64 => h.to_vec(),
-            _ => op.read_range(path, at, end.checked_sub(at)?).await.ok()?,
-        };
-        let (kind, len) = mp4::box_header(&header)?;
-        let len = if len == 0 { size - at } else { len };
-        if &kind == b"moov" {
-            if len > mp4::MOOV_MAX || at + len > size {
-                return None;
-            }
-            return mp4::thumbnail(&op.read_range(path, at, len).await.ok()?).map(<[u8]>::to_vec);
+    let head = &head;
+    let read = |at: u64, len: u64| async move {
+        match head.get(at as usize..(at + len) as usize) {
+            Some(bytes) => Some(bytes.to_vec()),
+            None => op.read_range(path, at, len).await.ok(),
+        }
+    };
+    let (moov, moov_len) = find_box(&read, 0, size, b"moov").await?;
+    let (udta, udta_len) = find_box(&read, moov + 8, moov + moov_len, b"udta").await?;
+    if udta_len > mp4::UDTA_MAX {
+        return None;
+    }
+    mp4::in_udta(&read(udta, udta_len).await?).map(<[u8]>::to_vec)
+}
+
+/// Offset and size of the first box of type `kind` between `start` and `end`, reading only the
+/// headers (at most 16 boxes: ftyp, free, mdat, moov; mvhd, trak…, udta).
+async fn find_box<F, Fut>(read: &F, start: u64, end: u64, kind: &[u8; 4]) -> Option<(u64, u64)>
+where
+    F: Fn(u64, u64) -> Fut,
+    Fut: std::future::Future<Output = Option<Vec<u8>>>,
+{
+    let mut at = start;
+    for _ in 0..16 {
+        let header = read(at, end.checked_sub(at)?.min(16)).await?;
+        let (k, len) = crate::mp4::box_header(&header)?;
+        let len = if len == 0 { end - at } else { len };
+        if at + len > end {
+            return None;
+        }
+        if &k == kind {
+            return Some((at, len));
         }
         at += len;
-        if at >= size {
+        if at + 8 > end {
             return None;
         }
     }
