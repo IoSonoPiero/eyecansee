@@ -562,7 +562,9 @@ impl Player {
         let s = shared.clone();
         // keep-open: at the end the last frame stays, as in a player.
         // audio-client-name: the name in the system's volume control.
-        let options = [("hwdec", "auto-copy-safe"), ("keep-open", "yes"), ("audio-client-name", "EyeCanSee")];
+        // sub-auto: no subtitle files from beside the video; a DJI drone's .SRT (telemetry of
+        // every frame) covered half of the picture (2026-10-27).
+        let options = [("hwdec", "auto-copy-safe"), ("keep-open", "yes"), ("audio-client-name", "EyeCanSee"), ("sub-auto", "no")];
         let mut mpv = Mpv::new(&options, move || s.change(|st| st.dirty = true))?;
         mpv.load(input)?;
         let mpv = Arc::new(mpv);
