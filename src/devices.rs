@@ -128,6 +128,9 @@ pub fn mount(block: String, tx: Sender<Msg>, ctx: Context) {
             Ok(o) => Err(String::from_utf8_lossy(&o.stderr).trim().to_string()),
             Err(e) => Err(format!("udisksctl: {e}")),
         };
+        // Mounted meanwhile by the desktop (a disk just plugged in, clicked while still dimmed):
+        // it is open all the same (2026-10-27).
+        let r = r.or_else(|e| already_mounted(&e).ok_or(e));
         let _ = tx.send(Msg::Mounted(r));
         ctx.request_repaint();
     });
@@ -135,6 +138,13 @@ pub fn mount(block: String, tx: Sender<Msg>, ctx: Context) {
 
 /// `udisksctl mount` done with `gdbus` (in the Flatpak runtime). Only sdX and mmcblkN names reach
 /// here, which need no escaping in the object path.
+/// The mount point in UDisks2's "already mounted" error.
+fn already_mounted(error: &str) -> Option<String> {
+    let rest = &error[error.find("AlreadyMounted")?..];
+    let start = rest.find(" at `")? + 5;
+    Some(rest[start..].split('\'').next()?.to_string())
+}
+
 fn mount_dbus(block: &str) -> Result<String, String> {
     let name = block.trim_start_matches("/dev/");
     let o = std::process::Command::new("gdbus")
@@ -426,6 +436,9 @@ mod tests {
         assert_eq!(gvariant_path("('/run/media/me/Backup Linux',)\n").as_deref(), Some("/run/media/me/Backup Linux"));
         assert_eq!(gvariant_path("(\"/run/media/me/Pier's\",)").as_deref(), Some("/run/media/me/Pier's"));
         assert_eq!(gvariant_path("()"), None);
+        let e = "Error mounting /dev/sdb1: GDBus.Error:org.freedesktop.UDisks2.Error.AlreadyMounted: Device /dev/sdb1 is already mounted at `/run/media/me/UM-D1M'.";
+        assert_eq!(already_mounted(e).as_deref(), Some("/run/media/me/UM-D1M"));
+        assert_eq!(already_mounted("Error mounting /dev/sdb1: not authorized"), None);
     }
 
     #[test]
