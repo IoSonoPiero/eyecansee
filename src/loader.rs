@@ -526,18 +526,12 @@ async fn thumb_worker(
     tx: Sender<Msg>,
     ctx: Context,
 ) {
+    let mut place = None;
     loop {
         // Register before looking at the queue: a new queue arriving in the meantime must not be lost.
         let notified = wake.notified();
         tokio::pin!(notified);
         notified.as_mut().enable();
-        // A video on a slow disk only once a SLOW place is free, and then the first in the queue
-        // (the one most in view): waiting after taking it, the workers would hold old ones.
-        let front = queue.lock().unwrap().items.front().map(|(_, f)| f.path.clone());
-        let _place = match front {
-            Some(path) if slow_video(&op, &path) => SLOW.acquire().await.ok(),
-            _ => None,
-        };
         let next = {
             let mut q = queue.lock().unwrap();
             if q.closed {
@@ -547,10 +541,36 @@ async fn thumb_worker(
             q.items.pop_front().map(|item| (generation, item))
         };
         let Some((generation, (index, file))) = next else {
+            place = None;
             notified.await;
             continue;
         };
-        let image = thumbnail(&op, &base, file).await;
+        // From the cache at once: a thumbnail already made never waits for a SLOW place (after a
+        // change of sort they all queued behind the ones being made, 2026-10-27).
+        let image = match cached(&base, &file).await {
+            Some(img) => Ok(img),
+            None => {
+                if place.is_none() && slow_video(&op, &file.path) {
+                    match SLOW.try_acquire() {
+                        Ok(p) => place = Some(p),
+                        Err(_) => {
+                            // Back to the front, then wait for a place: what is taken once one is
+                            // free is the first in the queue then (the one most in view).
+                            {
+                                let mut q = queue.lock().unwrap();
+                                if q.generation == generation {
+                                    q.items.push_front((index, file));
+                                }
+                            }
+                            place = SLOW.acquire().await.ok();
+                            continue;
+                        }
+                    }
+                }
+                let _held = place.take(); // given back once this one is made
+                generate(&op, &base, file).await
+            }
+        };
         if tx.send(Msg::Loaded { generation, index, thumb: true, image }).is_err() {
             return; // window closed
         }
@@ -560,13 +580,19 @@ async fn thumb_worker(
 
 /// From the disk cache if present, otherwise generated and saved.
 pub(crate) async fn thumbnail(op: &Store, base: &str, file: File) -> Result<ColorImage, String> {
-    let cached = {
-        let (base, file) = (base.to_string(), file.clone());
-        tokio::task::spawn_blocking(move || thumbcache::load(&base, &file)).await.ok().flatten()
-    };
-    if let Some(img) = cached {
-        return Ok(decode::to_color_image(img));
+    match cached(base, &file).await {
+        Some(img) => Ok(img),
+        None => generate(op, base, file).await,
     }
+}
+
+async fn cached(base: &str, file: &File) -> Option<ColorImage> {
+    let (base, file) = (base.to_string(), file.clone());
+    tokio::task::spawn_blocking(move || thumbcache::load(&base, &file)).await.ok().flatten().map(decode::to_color_image)
+}
+
+/// Made from the file and saved in the cache.
+async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, String> {
     if decode::is_video(&file.path) {
         let img = video_still(op, &file.path, file.size, THUMB_SIDE).await?;
         let base = base.to_string();
