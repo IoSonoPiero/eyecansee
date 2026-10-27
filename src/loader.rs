@@ -401,6 +401,7 @@ impl Loader {
             }
             // A video is not read whole: libmpv opens it.
             let image = if decode::is_video(&path) {
+                let _place = VIDEOS.acquire().await;
                 match op.size(&path).await {
                     Ok(size) => video_still(&op, &path, size, 0).await.map(decode::to_color_image),
                     Err((_, detail)) => Err(detail),
@@ -530,6 +531,11 @@ async fn thumb_worker(
         let notified = wake.notified();
         tokio::pin!(notified);
         notified.as_mut().enable();
+        // A video only once one of the VIDEOS places is free, and then the first in the queue
+        // (the one most in view). Taken before waiting, 32 workers held 32 videos while those
+        // in view waited behind them: the thumbnails came in at random (2026-10-27).
+        let video_first = queue.lock().unwrap().items.front().is_some_and(|(_, f)| decode::is_video(&f.path));
+        let _permit = if video_first { VIDEOS.acquire().await.ok() } else { None };
         let next = {
             let mut q = queue.lock().unwrap();
             if q.closed {
@@ -607,12 +613,13 @@ impl crate::mpv::Reader for StoreReader {
     }
 }
 
-/// A frame of a video (see `mpv::still`), opaque so the cache keeps it as JPEG. Four at a time:
-/// each decodes with several threads.
+/// Video stills made at the same time: each decodes with several threads and reads the file.
+static VIDEOS: Semaphore = Semaphore::const_new(4);
+
+/// A frame of a video (see `mpv::still`), opaque so the cache keeps it as JPEG. The caller holds
+/// a place of `VIDEOS`.
 async fn video_still(op: &Store, path: &str, size: u64, side: u32) -> Result<image::DynamicImage, String> {
-    static VIDEOS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
     let input = video_input(Handle::current(), op, path, size);
-    let _permit = VIDEOS.acquire().await.map_err(|e| e.to_string())?;
     tokio::task::spawn_blocking(move || crate::mpv::still(input, side).map(|i| image::DynamicImage::ImageRgba8(i).to_rgb8().into()))
         .await
         .unwrap_or_else(|e| Err(e.to_string()))
