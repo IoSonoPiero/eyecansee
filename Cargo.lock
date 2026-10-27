@@ -1630,7 +1630,7 @@ dependencies = [
 
 [[package]]
 name = "eyecansee"
-version = "0.51.5"
+version = "0.51.6"
 dependencies = [
  "bytes",
  "eframe",
