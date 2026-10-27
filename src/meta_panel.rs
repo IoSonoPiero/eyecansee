@@ -33,11 +33,11 @@ impl App {
             _ => 0,
         };
         let file = self.selected.checked_sub(ndirs).filter(|_| self.cursor);
-        let file = file.and_then(|i| self.files().get(i).map(|f| (i, f.path.clone())));
-        if let (Some((i, path)), Some(loader)) = (&file, &self.loader)
+        let file = file.and_then(|i| self.files().get(i).map(|f| (i, f.clone())));
+        if let (Some((i, f)), Some(loader)) = (&file, &self.loader)
             && self.meta_asked != Some((self.generation, *i))
         {
-            loader.load_meta(self.generation, *i, path.clone());
+            loader.load_meta(self.generation, *i, f.clone());
             self.meta_asked = Some((self.generation, *i));
         }
         // While the new data arrives the previous image's stay: the values that do not change

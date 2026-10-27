@@ -369,17 +369,29 @@ impl Loader {
         });
     }
 
-    /// EXIF metadata for the panel. Reads the file again (the thumbnail may come from the cache,
-    /// without having read it); on the phone it goes through the same queue as the viewer images.
-    pub fn load_meta(&self, generation: u64, index: usize, path: String) {
-        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+    /// Metadata for the panel: saved in the cache with the thumbnails, otherwise read from the file
+    /// (the thumbnail may come from the cache, without having read it); on the phone it goes
+    /// through the same queue as the viewer images.
+    pub fn load_meta(&self, generation: u64, index: usize, file: File) {
+        let (op, tx, ctx, base) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), self.base.clone());
         let current = self.generation.clone();
         let permits = self.full.clone();
         self.rt.spawn(async move {
+            // From the cache first, without waiting for a place: what was read once comes at once.
+            let saved = {
+                let (base, file) = (base.clone(), file.clone());
+                tokio::task::spawn_blocking(move || thumbcache::load_meta(&base, &file)).await.ok().flatten()
+            };
+            if let Some(meta) = saved.as_deref().and_then(crate::meta::Meta::from_json) {
+                let _ = tx.send(Msg::Meta { generation, index, meta: Ok(Some(meta)) });
+                ctx.request_repaint();
+                return;
+            }
             let _permit = permits.acquire_owned().await;
             if current.load(Ordering::Relaxed) != generation {
                 return;
             }
+            let path = file.path.clone();
             // No EXIF in videos, and they are not read whole.
             let meta = if decode::is_video(&path) {
                 video_meta(&op, &path).await
@@ -389,6 +401,9 @@ impl Loader {
                     Err((_, detail)) => Err(detail),
                 }
             };
+            if let Ok(Some(m)) = &meta {
+                thumbcache::save_meta(&base, &file, m.to_json());
+            }
             let _ = tx.send(Msg::Meta { generation, index, meta });
             ctx.request_repaint();
         });

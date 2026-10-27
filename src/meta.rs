@@ -29,6 +29,45 @@ impl Group {
     }
 }
 
+/// `Meta` as saved in the cache: the box by its key, the labels as text.
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Stored {
+    fields: Vec<(String, String, String)>,
+    gps: Option<(f64, f64)>,
+}
+
+impl Meta {
+    pub fn to_json(&self) -> String {
+        let fields = self.fields.iter().map(|(g, l, v)| (g.key().to_string(), l.to_string(), v.clone())).collect();
+        serde_json::to_string(&Stored { fields, gps: self.gps }).unwrap_or_default()
+    }
+
+    /// `None` if it does not read back (saved by another version): it is read from the file again.
+    pub fn from_json(json: &str) -> Option<Meta> {
+        let stored: Stored = serde_json::from_str(json).ok()?;
+        let mut fields = Vec::new();
+        for (g, l, v) in stored.fields {
+            let group = Group::ALL.into_iter().find(|x| x.key() == g)?;
+            fields.push((group, intern(&l), v));
+        }
+        Some(Meta { fields, gps: stored.gps })
+    }
+}
+
+/// The labels are Fluent ids, a few dozen in all: each kept once for the whole session.
+fn intern(s: &str) -> &'static str {
+    static SEEN: std::sync::Mutex<std::collections::BTreeSet<&'static str>> = std::sync::Mutex::new(std::collections::BTreeSet::new());
+    let mut seen = SEEN.lock().unwrap();
+    match seen.get(s) {
+        Some(&kept) => kept,
+        None => {
+            let kept: &'static str = Box::leak(s.into());
+            seen.insert(kept);
+            kept
+        }
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Meta {
     /// (box, Fluent id of the label, value with its unit). A value starting with `meta-` is itself
@@ -414,5 +453,12 @@ mod tests {
         assert_eq!((get("meta-width"), get("meta-height")), (Some("30 px"), Some("20 px")));
         assert_eq!((get("meta-color"), get("meta-depth")), (Some("meta-color-rgba"), Some("8 bit")));
         assert!(read_file(b"not an image", "a.txt").is_none());
+    }
+
+    #[test]
+    fn meta_roundtrip() {
+        let m = super::Meta { fields: vec![(super::Group::Shot, "meta-taken", "2026-01-01 12:00:00".into()), (super::Group::Gps, "meta-altitude", "12 m".into())], gps: Some((45.4641, 9.1919)) };
+        assert_eq!(super::Meta::from_json(&m.to_json()), Some(m));
+        assert_eq!(super::Meta::from_json("{}"), None);
     }
 }

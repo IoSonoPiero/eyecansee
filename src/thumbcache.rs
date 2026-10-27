@@ -53,7 +53,15 @@ fn create(conn: &Connection) -> rusqlite::Result<()> {
             accessed INTEGER NOT NULL,
             data BLOB NOT NULL,
             PRIMARY KEY (source, path)
-        )",
+        );
+        CREATE TABLE IF NOT EXISTS meta (
+            source TEXT NOT NULL,
+            path TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            modified TEXT NOT NULL,
+            data TEXT NOT NULL,
+            PRIMARY KEY (source, path)
+        );",
     )
 }
 
@@ -76,6 +84,8 @@ fn now() -> i64 {
 
 enum Write {
     Save { source: String, file: File, data: Vec<u8> },
+    /// The metadata panel of a file (`meta::Meta::to_json`), with the same key as its thumbnail.
+    SaveMeta { source: String, file: File, json: String },
     Touch { source: String, path: String },
     Delete { source: String, path: String },
     Trim { limit: u64 },
@@ -109,20 +119,23 @@ fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
                      VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
                     params![source, file.path, file.size as i64, file.modified, now(), data],
                 ),
+                Write::SaveMeta { source, file, json } => tx.execute(
+                    "INSERT OR REPLACE INTO meta (source, path, size, modified, data) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![source, file.path, file.size as i64, file.modified, json],
+                ),
                 // At most one write a day per thumbnail: enough to evict the oldest ones.
                 Write::Touch { source, path } => tx.execute(
                     "UPDATE thumbs SET accessed = ?3 WHERE source = ?1 AND path = ?2 AND accessed < ?3 - 86400",
                     params![source, path, now()],
                 ),
-                Write::Delete { source, path } => {
-                    tx.execute("DELETE FROM thumbs WHERE source = ?1 AND path = ?2", params![source, path])
-                }
-                Write::Trim { limit } => trim_rows(&tx, limit).inspect(|n| trimmed += n),
+                Write::Delete { source, path } => forget_row(&tx, &source, &path),
+                // Emptying the cache empties the metadata too.
+                Write::Trim { limit } => trim_rows(&tx, limit)
+                    .and_then(|n| if limit == 0 { tx.execute("DELETE FROM meta", []).map(|m| n + m) } else { Ok(n) })
+                    .inspect(|n| trimmed += n),
                 Write::Forget { source, paths, done: d } => {
                     done.push(d);
-                    paths.iter().try_fold(0, |n, path| {
-                        tx.execute("DELETE FROM thumbs WHERE source = ?1 AND path = ?2", params![source, path]).map(|m| n + m)
-                    })
+                    paths.iter().try_fold(0, |n, path| forget_row(&tx, &source, path).map(|m| n + m))
                 }
             };
         }
@@ -133,6 +146,12 @@ fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
             let _ = conn.execute_batch("VACUUM");
         }
     }
+}
+
+/// A file's thumbnail and metadata go together.
+fn forget_row(conn: &Connection, source: &str, path: &str) -> rusqlite::Result<usize> {
+    let n = conn.execute("DELETE FROM thumbs WHERE source = ?1 AND path = ?2", params![source, path])?;
+    Ok(n + conn.execute("DELETE FROM meta WHERE source = ?1 AND path = ?2", params![source, path])?)
 }
 
 fn send(w: Write) {
@@ -194,10 +213,29 @@ pub fn stats() -> (u64, u64) {
         .unwrap_or((0, 0))
 }
 
+thread_local! {
+    /// Readers, one per thread (WAL: they do not wait for the writer).
+    static READ: Option<Connection> = open().ok();
+}
+
+/// The metadata saved for this version of the file (`meta::Meta::to_json`).
+pub fn load_meta(source: &str, file: &File) -> Option<String> {
+    READ.with(|conn| {
+        conn.as_ref()?
+            .query_row(
+                "SELECT data FROM meta WHERE source = ?1 AND path = ?2 AND size = ?3 AND modified = ?4",
+                params![source, file.path, file.size as i64, file.modified],
+                |r| r.get(0),
+            )
+            .ok()
+    })
+}
+
+pub fn save_meta(source: &str, file: &File, json: String) {
+    send(Write::SaveMeta { source: source.to_string(), file: file.clone(), json });
+}
+
 pub fn load(source: &str, file: &File) -> Option<DynamicImage> {
-    thread_local! {
-        static READ: Option<Connection> = open().ok();
-    }
     let data: Vec<u8> = READ.with(|conn| {
         conn.as_ref()?
             .query_row(
