@@ -638,7 +638,17 @@ async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, Stri
 async fn video_meta(op: &Store, path: &str) -> Result<Option<crate::meta::Meta>, String> {
     let size = op.size(path).await.map_err(|(_, detail)| detail)?;
     let input = video_input(Handle::current(), op, path, size);
-    tokio::task::spawn_blocking(move || crate::mpv::info(input).map(|i| Some(crate::meta::from_video(&i, size))))
+    let file = op.local_file(path);
+    tokio::task::spawn_blocking(move || {
+        let info = crate::mpv::info(input)?;
+        let mut meta = crate::meta::from_video(&info, size);
+        // A dashcam's track beside the videos, for the files on this computer.
+        if let (Some(file), Some(start)) = (file, crate::meta::video_start(&info)) {
+            let end = start + info.duration.unwrap_or(0.0).ceil() as i64;
+            crate::meta::add_track(&mut meta, &crate::gps_track::points(&file, start, end));
+        }
+        Ok(Some(meta))
+    })
         .await
         .unwrap_or_else(|e| Err(e.to_string()))
 }

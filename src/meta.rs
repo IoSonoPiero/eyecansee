@@ -202,6 +202,27 @@ pub fn from_video(info: &crate::mpv::Info, size: u64) -> Meta {
     meta
 }
 
+/// When a video starts, in Unix seconds, from its `creation_time` tag.
+pub fn video_start(info: &crate::mpv::Info) -> Option<i64> {
+    let t = &info.tags.iter().find(|(k, _)| *k == "creation_time")?.1;
+    Some(t.parse::<jiff::Timestamp>().ok()?.as_second())
+}
+
+/// A dashcam's track during the video (`gps_track`): where it started, altitude, speeds. Only
+/// where the file itself has no location.
+pub fn add_track(meta: &mut Meta, points: &[crate::gps_track::Point]) {
+    let Some(&(_, lat, lon, alt)) = points.first() else { return };
+    if meta.gps.is_some() {
+        return;
+    }
+    meta.gps = Some((lat, lon));
+    meta.fields.push((Group::Gps, "meta-altitude", format!("{alt:.0} m")));
+    if let Some((avg, top)) = crate::gps_track::speeds(points) {
+        meta.fields.push((Group::Gps, "meta-speed-avg", format!("{avg:.0} km/h")));
+        meta.fields.push((Group::Gps, "meta-speed-max", format!("{top:.0} km/h")));
+    }
+}
+
 /// Two decimals at most, none if round: 29.97, 48, 21.1.
 fn trimmed(v: f64) -> String {
     let s = format!("{v:.2}");
@@ -221,7 +242,7 @@ fn codec_name(codec: &str) -> String {
     }
 }
 
-/// `creation_time` (UTC, "2026-10-19T15:05:28.000000Z") in local time, as the panel wants it;
+/// `creation_time` (UTC, "2026-01-01T12:00:00.000000Z") in local time, as the panel wants it;
 /// none for the zero dates some cameras write.
 fn local_time(t: &str) -> Option<String> {
     let ts: jiff::Timestamp = t.parse().ok()?;
@@ -229,7 +250,7 @@ fn local_time(t: &str) -> Option<String> {
     (local.year() >= 1990).then(|| local.strftime("%Y-%m-%d %H:%M:%S").to_string())
 }
 
-/// ISO 6709 as phones write it: "+42.4613+014.2155/", with the altitude "+42.4613+014.2155+123.5/".
+/// ISO 6709 as phones write it: "+45.4641+009.1919/", with the altitude "+45.4641+009.1919+123.5/".
 fn iso6709(s: &str) -> Option<(f64, f64, Option<f64>)> {
     let s = s.trim().trim_end_matches('/');
     let mut parts = Vec::new();
@@ -322,14 +343,14 @@ mod tests {
 
     #[test]
     fn video_fields() {
-        assert_eq!(iso6709("+42.4613+014.2155/"), Some((42.4613, 14.2155, None)));
+        assert_eq!(iso6709("+45.4641+009.1919/"), Some((45.4641, 9.1919, None)));
         assert_eq!(iso6709("-33.8688+151.2093+012.500/"), Some((-33.8688, 151.2093, Some(12.5))));
         assert_eq!(iso6709("nonsense"), None);
         assert_eq!(local_time("1904-01-01T00:00:00.000000Z"), None);
         assert_eq!(trimmed(29.976), "29.98");
         assert_eq!(trimmed(48.0), "48");
         let info = crate::mpv::Info {
-            tags: vec![("creation_time", "2026-10-19T15:05:28.000000Z".into()), ("com.android.version", "15".into()), ("location", "+42.4613+014.2155/".into())],
+            tags: vec![("creation_time", "2026-01-01T12:00:00.000000Z".into()), ("com.android.version", "15".into()), ("location", "+45.4641+009.1919/".into())],
             duration: Some(180.0),
             video: Some(("hevc".into(), [1920, 1080], 90, Some(30.0))),
             audio: Some(("aac".into(), Some(48000), Some(2))),
@@ -343,6 +364,6 @@ mod tests {
         assert_eq!(get("meta-bitrate"), Some("2 Mbit/s"));
         assert_eq!(get("meta-duration"), Some("3:00"));
         assert!(get("meta-taken").is_some());
-        assert_eq!(m.gps, Some((42.4613, 14.2155)));
+        assert_eq!(m.gps, Some((45.4641, 9.1919)));
     }
 }

@@ -36,6 +36,7 @@ mod duplicates;
 mod encode;
 mod file_dialogs;
 mod folder_pick;
+mod gps_track;
 mod grid;
 mod human;
 mod i18n;
