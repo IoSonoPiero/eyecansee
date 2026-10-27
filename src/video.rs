@@ -47,7 +47,12 @@ impl App {
         let Some(v) = &mut self.video else { return };
         if let Err(e) = &v.player {
             let e = e.clone();
-            ui.centered_and_justified(|ui| ui.label(browser::error_text(ui, e)));
+            match crate::component::VIDEO {
+                Some(c) if !mpv::available() => self.component_ui(ui, c),
+                _ => {
+                    ui.centered_and_justified(|ui| ui.label(browser::error_text(ui, e)));
+                }
+            }
             return;
         }
         let Some(response) = draw(ui, v, &self.i18n) else { return };
@@ -71,6 +76,58 @@ impl App {
         let Some(v) = &mut self.video else { return (false, true) };
         let Ok(player) = &v.player else { return (false, true) };
         (paint_fitted(painter, rect, player, &mut v.texture), player.ended())
+    }
+
+    /// Without libmpv where it can be downloaded (Windows): what it is, its size and the button;
+    /// then the progress. Once there the video is opened again and the thumbnails are redone.
+    fn component_ui(&mut self, ui: &mut egui::Ui, c: crate::component::Component) {
+        let result = self.download.as_ref().map(|d| (d.done.load(std::sync::atomic::Ordering::Relaxed), d.result.lock().unwrap().clone()));
+        let t = |id: &str, args: &[(&str, &str)]| self.i18n.t_args(id, args);
+        let mut start = false;
+        ui.vertical_centered(|ui| {
+            ui.add_space(ui.available_height() / 3.0);
+            let light = Color32::from_gray(225);
+            match &result {
+                None => {
+                    ui.label(egui::RichText::new(t("video-component-ask", &[("size", &self.human_size(c.size))])).color(light));
+                    ui.add_space(8.0);
+                    start = ui.button(t("video-component-download", &[])).clicked();
+                }
+                Some((done, None)) => {
+                    let args = [("done", self.human_size(*done)), ("total", self.human_size(c.size))];
+                    ui.label(egui::RichText::new(t("video-component-progress", &[("done", &args[0].1), ("total", &args[1].1)])).color(light));
+                    ui.add(egui::ProgressBar::new(*done as f32 / c.size as f32).desired_width(320.0));
+                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
+                }
+                Some((_, Some(Err(e)))) => {
+                    ui.label(browser::error_text(ui, t("video-component-error", &[("error", e)])));
+                    ui.add_space(8.0);
+                    start = ui.button(t("video-component-download", &[])).clicked();
+                }
+                Some((_, Some(Ok(())))) => {}
+            }
+        });
+        if start {
+            let ctx = ui.ctx().clone();
+            self.download = Some(crate::component::start(c, move || ctx.request_repaint()));
+        } else if let Some((_, Some(Ok(())))) = result {
+            log!("video engine downloaded");
+            self.download = None;
+            self.video = None; // opened again at the next frame
+            self.redo_video_thumbs();
+        }
+    }
+
+    /// The video thumbnails that failed without the engine are asked again.
+    fn redo_video_thumbs(&mut self) {
+        let videos: Vec<usize> = self.files().iter().enumerate().filter(|(_, f)| decode::is_video(&f.path)).map(|(i, _)| i).collect();
+        for i in videos {
+            if matches!(self.thumbs.get(&i), Some(Err(_))) {
+                self.thumbs.remove(&i);
+                self.generated.remove(&i);
+            }
+        }
+        self.thumb_queue_key = None;
     }
 
     fn open_video(&self, ctx: &egui::Context, path: String, size: u64) -> Playing {

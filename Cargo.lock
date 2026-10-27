@@ -1630,12 +1630,13 @@ dependencies = [
 
 [[package]]
 name = "eyecansee"
-version = "0.57.1"
+version = "0.58.0"
 dependencies = [
  "bytes",
  "eframe",
  "egui",
  "egui_commonmark",
+ "flate2",
  "fluent-bundle",
  "futures-util",
  "hayro-jpeg2000",

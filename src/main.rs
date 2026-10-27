@@ -27,6 +27,7 @@ mod app_dialogs;
 mod batch;
 mod batch_page;
 mod browser;
+mod component;
 mod confirm;
 mod convert;
 mod decode;
@@ -197,6 +198,8 @@ struct App {
     viewing: Option<usize>,
     /// The video playing in the viewer.
     video: Option<video::Playing>,
+    /// The video engine being downloaded (`component::VIDEO`).
+    download: Option<std::sync::Arc<component::Download>>,
     /// Image to open as soon as the folder's listing arrives.
     start: Option<String>,
     /// Thumbnails in memory: only those in the window around the visible rows (`thumb_keep`).
@@ -365,6 +368,7 @@ impl App {
             scroll_to_selected: false,
             viewing: None,
             video: None,
+            download: None,
             start: None,
             thumbs: HashMap::new(),
             thumb_keep: 0..0,

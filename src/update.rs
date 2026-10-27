@@ -73,7 +73,7 @@ fn parse(version: &str) -> Option<(u32, u32, u32)> {
     parts.next().is_none().then_some(v)
 }
 
-fn agent() -> ureq::Agent {
+pub(crate) fn agent() -> ureq::Agent {
     ureq::Agent::config_builder()
         .timeout_connect(Some(Duration::from_secs(15)))
         .timeout_recv_response(Some(Duration::from_secs(30)))

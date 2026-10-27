@@ -73,15 +73,26 @@ struct Api {
     _lib: libloading::Library,
 }
 
+/// Loaded once found; until then looked for again at every call (the component may arrive).
 fn api() -> Result<&'static Api, String> {
-    static API: OnceLock<Result<Api, String>> = OnceLock::new();
-    API.get_or_init(load).as_ref().map_err(Clone::clone)
+    static API: OnceLock<Api> = OnceLock::new();
+    if let Some(api) = API.get() {
+        return Ok(api);
+    }
+    let api = load()?;
+    Ok(API.get_or_init(|| api))
 }
 
 fn load() -> Result<Api, String> {
     // SAFETY: libmpv runs no code of its own when loaded; the signatures are those of client.h and render.h.
     unsafe {
-        let lib = NAMES.iter().find_map(|n| libloading::Library::new(n).ok()).ok_or_else(|| format!("{} not found", NAMES[0]))?;
+        // The system's (or next to the exe), then the downloaded component.
+        let component = crate::component::VIDEO.as_ref().and_then(crate::component::path).filter(|p| p.is_file());
+        let lib = NAMES
+            .iter()
+            .find_map(|n| libloading::Library::new(n).ok())
+            .or_else(|| component.and_then(|p| libloading::Library::new(p).ok()))
+            .ok_or_else(|| format!("{} not found", NAMES[0]))?;
         macro_rules! sym {
             ($name:literal) => {
                 *lib.get(concat!($name, "\0").as_bytes()).map_err(|e| e.to_string())?
