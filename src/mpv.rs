@@ -270,7 +270,10 @@ impl Mpv {
             }
             let mut mpv = Mpv { api, handle, render: std::ptr::null_mut(), _update: Box::new(Box::new(update)), reader: None };
             // libmpv reads no configuration files and takes no keys unless asked.
-            for (k, v) in [("vo", "libmpv"), ("terminal", "no")].iter().chain(options) {
+            // video-rotate=no: the software renderer crops with the rotated rectangle but scales the
+            // unrotated frame (libmpv_sw.c, mpv 0.41): a phone's portrait video (rotation 90 in
+            // the file) aborted on an assertion. The rotation is applied by us: see `rotation`.
+            for (k, v) in [("vo", "libmpv"), ("terminal", "no"), ("video-rotate", "no")].iter().chain(options) {
                 (api.set_option_string)(handle, cstr(k)?.as_ptr(), cstr(v)?.as_ptr());
             }
             if (api.initialize)(handle) < 0 {
@@ -345,7 +348,13 @@ impl Mpv {
         unsafe { (self.api.render_update)(self.render) }
     }
 
-    /// Size of the video as shown (aspect ratio and rotation applied).
+    /// Degrees clockwise the file asks to turn its frames by (0, 90, 180, 270), ignored by
+    /// mpv because of video-rotate=no.
+    fn rotation(&self) -> i64 {
+        self.property::<i64>("current-tracks/video/demux-rotation", FORMAT_INT64).unwrap_or(0).rem_euclid(360)
+    }
+
+    /// Size of the video as shown (aspect ratio applied, rotation not: see `rotation`).
     fn size(&self) -> Option<[u32; 2]> {
         let w = self.property::<i64>("dwidth", FORMAT_INT64)?;
         let h = self.property::<i64>("dheight", FORMAT_INT64)?;
@@ -466,7 +475,13 @@ pub fn still(input: Input, side: u32) -> Result<RgbaImage, String> {
         }
     }
     let size = mpv.size().ok_or("no video")?;
-    Ok(mpv.draw(fit(size, side), false))
+    let img = mpv.draw(fit(size, side), false);
+    Ok(match mpv.rotation() {
+        90 => image::imageops::rotate90(&img),
+        180 => image::imageops::rotate180(&img),
+        270 => image::imageops::rotate270(&img),
+        _ => img,
+    })
 }
 
 /// What the file says about itself, read without decoding (container and tracks).
@@ -646,6 +661,29 @@ impl Drop for Player {
 }
 
 fn draw_loop(mpv: &Mpv, shared: &Shared, repaint: impl Fn()) {
+    // The rotation is known once the file is loaded; a filter turns every frame from then on
+    // (a frame decoded before is filtered again by mpv). `dwidth`/`dheight` follow the filter.
+    let deadline = Instant::now() + Duration::from_secs(20);
+    loop {
+        let left = deadline.saturating_duration_since(Instant::now());
+        if left.is_zero() || shared.state.lock().unwrap().quit {
+            return;
+        }
+        match mpv.wait(left.as_secs_f64().min(0.5)) {
+            EVENT_FILE_LOADED => break,
+            EVENT_END_FILE | EVENT_SHUTDOWN => return,
+            _ => {}
+        }
+    }
+    let filter = match mpv.rotation() {
+        90 => Some("transpose=clock"),
+        180 => Some("hflip,vflip"),
+        270 => Some("transpose=cclock"),
+        _ => None,
+    };
+    if let Some(filter) = filter {
+        let _ = mpv.command(&["vf", "set", filter]);
+    }
     loop {
         let size = {
             let mut st = shared.state.lock().unwrap();
