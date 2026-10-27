@@ -7,7 +7,6 @@ counter = { $n } di { $total }
 folder-empty = Questa cartella non contiene immagini né sottocartelle
 cannot-load = Impossibile aprire { $file }: { $error }
 video-no-mpv = Per i video serve libmpv, che non è stata trovata. Su Linux installare mpv (il pacchetto con libmpv, per esempio mpv-libs su Fedora, libmpv2 su Debian e Ubuntu).
-video-not-local = Per ora i video si guardano solo dai dischi di questo computer, non da telefoni o server. Copiare il video sul computer per guardarlo.
 video-play = Riproduci (Spazio)
 video-pause = Pausa (Spazio)
 error-unsupported = Protocollo non supportato: { $detail }

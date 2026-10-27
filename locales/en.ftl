@@ -8,7 +8,6 @@ counter = { $n } of { $total }
 folder-empty = This folder contains no images or subfolders
 cannot-load = Cannot open { $file }: { $error }
 video-no-mpv = Videos need libmpv, which was not found. On Linux install mpv (the package with libmpv, e.g. mpv-libs on Fedora, libmpv2 on Debian and Ubuntu).
-video-not-local = For now videos play only from this computer's disks, not from phones or servers. Copy the video to the computer to watch it.
 video-play = Play (Space)
 video-pause = Pause (Space)
 error-unsupported = Unsupported protocol: { $detail }

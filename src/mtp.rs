@@ -346,16 +346,29 @@ impl Phone {
     }
 
     pub async fn read(&self, path: &str) -> Result<Vec<u8>, Error> {
+        self.read_with(path, |s, h| async move { s.download_to_vec(h).await }).await
+    }
+
+    /// `len` bytes from `offset` (MTP GetPartialObject64).
+    pub async fn read_range(&self, path: &str, offset: u64, len: u32) -> Result<Vec<u8>, Error> {
+        self.read_with(path, |s, h| async move { s.read_range(h, offset, len).await }).await
+    }
+
+    async fn read_with<F, Fut>(&self, path: &str, read: F) -> Result<Vec<u8>, Error>
+    where
+        F: Fn(Arc<Storage>, ObjectHandle) -> Fut,
+        Fut: std::future::Future<Output = Result<Vec<u8>, mtp_rs::Error>>,
+    {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-        match self.queued(storage.download_to_vec(handle)).await {
+        match self.queued(read(storage, handle)).await {
             // Android can renumber handles during the session: list again and retry once.
             Err(e) if e.is_stale_handle() => {
                 self.handles.lock().unwrap().clear();
                 self.complete.lock().unwrap().clear();
                 let (storage, handle) = self.locate(path).await?;
                 let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-                self.queued(storage.download_to_vec(handle)).await.map_err(error)
+                self.queued(read(storage, handle)).await.map_err(error)
             }
             r => r.map_err(error),
         }

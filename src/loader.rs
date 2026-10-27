@@ -164,6 +164,11 @@ impl Loader {
         });
     }
 
+    /// What the viewer plays (see `video_input`).
+    pub fn video_input(&self, path: &str, size: u64) -> crate::mpv::Input {
+        video_input(self.rt.clone(), &self.op, path, size)
+    }
+
     pub fn store(&self) -> Store {
         self.op.clone()
     }
@@ -396,7 +401,10 @@ impl Loader {
             }
             // A video is not read whole: libmpv opens it.
             let image = if decode::is_video(&path) {
-                video_still(&op, &path, 0).await.map(decode::to_color_image)
+                match op.size(&path).await {
+                    Ok(size) => video_still(&op, &path, size, 0).await.map(decode::to_color_image),
+                    Err((_, detail)) => Err(detail),
+                }
             } else {
                 match op.read(&path).await {
                     Ok(bytes) => tokio::task::spawn_blocking(move || decode::decode(&bytes, &path))
@@ -552,7 +560,7 @@ pub(crate) async fn thumbnail(op: &Store, base: &str, file: File) -> Result<Colo
         return Ok(decode::to_color_image(img));
     }
     if decode::is_video(&file.path) {
-        let img = video_still(op, &file.path, THUMB_SIDE).await?;
+        let img = video_still(op, &file.path, file.size, THUMB_SIDE).await?;
         let base = base.to_string();
         return tokio::task::spawn_blocking(move || {
             thumbcache::save(&base, &file, &img);
@@ -572,13 +580,40 @@ pub(crate) async fn thumbnail(op: &Store, base: &str, file: File) -> Result<Colo
     .unwrap_or_else(|e| Err(e.to_string()))
 }
 
-/// A frame of a video (see `mpv::still`), opaque so the cache keeps it as JPEG; only files on this computer. Four at a time: each
-/// decodes with several threads.
-async fn video_still(op: &Store, path: &str, side: u32) -> Result<image::DynamicImage, String> {
+/// What mpv plays: the file itself when it is on this computer (also through gvfs), otherwise
+/// read a piece at a time from the phone or the server.
+fn video_input(rt: Handle, op: &Store, path: &str, size: u64) -> crate::mpv::Input {
+    match op.local_file(path) {
+        Some(file) => crate::mpv::Input::File(file),
+        None => crate::mpv::Input::Stream(Arc::new(StoreReader { rt, op: op.clone(), path: path.to_string(), size })),
+    }
+}
+
+struct StoreReader {
+    rt: Handle,
+    op: Store,
+    path: String,
+    size: u64,
+}
+
+impl crate::mpv::Reader for StoreReader {
+    fn size(&self) -> u64 {
+        self.size
+    }
+
+    /// From mpv's threads, outside the runtime: waiting here is allowed.
+    fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String> {
+        self.rt.block_on(self.op.read_range(&self.path, offset, len)).map_err(|(_, detail)| detail)
+    }
+}
+
+/// A frame of a video (see `mpv::still`), opaque so the cache keeps it as JPEG. Four at a time:
+/// each decodes with several threads.
+async fn video_still(op: &Store, path: &str, size: u64, side: u32) -> Result<image::DynamicImage, String> {
     static VIDEOS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(4);
-    let file = op.local_file(path).ok_or("video not on this computer")?;
+    let input = video_input(Handle::current(), op, path, size);
     let _permit = VIDEOS.acquire().await.map_err(|e| e.to_string())?;
-    tokio::task::spawn_blocking(move || crate::mpv::still(&file, side).map(|i| image::DynamicImage::ImageRgba8(i).to_rgb8().into()))
+    tokio::task::spawn_blocking(move || crate::mpv::still(input, side).map(|i| image::DynamicImage::ImageRgba8(i).to_rgb8().into()))
         .await
         .unwrap_or_else(|e| Err(e.to_string()))
 }

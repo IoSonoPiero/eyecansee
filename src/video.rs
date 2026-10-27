@@ -34,10 +34,10 @@ impl App {
     }
 
     pub(crate) fn video_view(&mut self, ui: &mut egui::Ui, current: usize) {
-        let Some(path) = self.files().get(current).map(|f| f.path.clone()) else { return };
+        let Some((path, size)) = self.files().get(current).map(|f| (f.path.clone(), f.size)) else { return };
         if self.video.as_ref().is_none_or(|v| v.path != path) {
             self.video = None; // the old one stops before the new one starts
-            self.video = Some(self.open_video(ui.ctx(), path));
+            self.video = Some(self.open_video(ui.ctx(), path, size));
         }
         let Some(v) = &mut self.video else { return };
         if let Err(e) = &v.player {
@@ -56,13 +56,12 @@ impl App {
         }
     }
 
-    fn open_video(&self, ctx: &egui::Context, path: String) -> Playing {
-        let file = self.loader.as_ref().and_then(|l| l.store().local_file(&path));
+    fn open_video(&self, ctx: &egui::Context, path: String, size: u64) -> Playing {
         let ctx = ctx.clone();
-        let player = match file {
+        let player = match &self.loader {
             _ if !mpv::available() => Err(self.i18n.t("video-no-mpv")),
-            None => Err(self.i18n.t("video-not-local")),
-            Some(file) => mpv::Player::open(&file, move || ctx.request_repaint())
+            None => Err(String::new()),
+            Some(loader) => mpv::Player::open(loader.video_input(&path, size), move || ctx.request_repaint())
                 .map_err(|e| self.i18n.t_args("cannot-load", &[("file", crate::source::name(&path)), ("error", &e)])),
         };
         if let Err(e) = &player {

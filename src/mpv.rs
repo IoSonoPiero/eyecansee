@@ -4,7 +4,7 @@
 //! the same with any egui backend; mpv decodes (with the GPU when it can) and plays the sound.
 
 use std::ffi::{CString, c_char, c_int, c_void};
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex, OnceLock};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
@@ -25,6 +25,7 @@ const PARAM_SW_FORMAT: c_int = 18;
 const PARAM_SW_STRIDE: c_int = 19;
 const PARAM_SW_POINTER: c_int = 20;
 const UPDATE_FRAME: u64 = 1;
+const ERROR_GENERIC: i64 = -20;
 
 #[cfg(windows)]
 const NAMES: &[&str] = &["libmpv-2.dll", "mpv-2.dll"];
@@ -62,6 +63,7 @@ struct Api {
     render_update: unsafe extern "C" fn(Render) -> u64,
     render: unsafe extern "C" fn(Render, *mut Param) -> c_int,
     render_free: unsafe extern "C" fn(Render),
+    stream_cb_add_ro: unsafe extern "C" fn(Handle, *const c_char, *mut c_void, OpenFn) -> c_int,
     _lib: libloading::Library,
 }
 
@@ -92,6 +94,7 @@ fn load() -> Result<Api, String> {
             render_update: sym!("mpv_render_context_update"),
             render: sym!("mpv_render_context_render"),
             render_free: sym!("mpv_render_context_free"),
+            stream_cb_add_ro: sym!("mpv_stream_cb_add_ro"),
             _lib: lib,
         })
     }
@@ -111,6 +114,117 @@ unsafe extern "C" fn on_update(data: *mut c_void) {
     unsafe { (*(data as *const Update))() }
 }
 
+/// A video that is not a file on this computer (phone, server), read a piece at a time.
+pub trait Reader: Send + Sync {
+    fn size(&self) -> u64;
+    /// `len` bytes from `offset`, inside the file. Called from mpv's threads: it may block.
+    fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String>;
+}
+
+/// What to play: a file mpv opens itself, or a `Reader`.
+pub enum Input {
+    File(PathBuf),
+    Stream(Arc<dyn Reader>),
+}
+
+/// mpv_stream_cb_info (stream_cb.h).
+#[repr(C)]
+struct StreamInfo {
+    cookie: *mut c_void,
+    read: Option<unsafe extern "C" fn(*mut c_void, *mut c_char, u64) -> i64>,
+    seek: Option<unsafe extern "C" fn(*mut c_void, i64) -> i64>,
+    size: Option<unsafe extern "C" fn(*mut c_void) -> i64>,
+    close: Option<unsafe extern "C" fn(*mut c_void)>,
+    cancel: Option<unsafe extern "C" fn(*mut c_void)>,
+}
+
+type OpenFn = unsafe extern "C" fn(*mut c_void, *mut c_char, *mut StreamInfo) -> c_int;
+
+/// Bytes asked of the `Reader` at a time: mpv reads in small pieces, a phone answers each request slowly.
+// ponytail: one block kept, no read-ahead; mpv's own cache covers playback
+const BLOCK: u64 = 1 << 20;
+
+/// An open stream: position and the last block read.
+struct Cursor {
+    reader: Arc<dyn Reader>,
+    pos: u64,
+    block: (u64, Vec<u8>),
+}
+
+impl Cursor {
+    fn read(&mut self, out: &mut [u8]) -> Result<usize, String> {
+        let size = self.reader.size();
+        if self.pos >= size {
+            return Ok(0);
+        }
+        let (start, data) = &self.block;
+        if self.pos < *start || self.pos >= start + data.len() as u64 {
+            let data = self.reader.read(self.pos, BLOCK.min(size - self.pos))?;
+            if data.is_empty() {
+                return Err("empty read".into());
+            }
+            self.block = (self.pos, data);
+        }
+        let (start, data) = &self.block;
+        let from = &data[(self.pos - start) as usize..];
+        let n = from.len().min(out.len());
+        out[..n].copy_from_slice(&from[..n]);
+        self.pos += n as u64;
+        Ok(n)
+    }
+}
+
+unsafe extern "C" fn stream_open(user: *mut c_void, _uri: *mut c_char, info: *mut StreamInfo) -> c_int {
+    // SAFETY: `user` is the `Arc<dyn Reader>` boxed in `Mpv`, alive as long as the core.
+    let reader = unsafe { (*(user as *const Arc<dyn Reader>)).clone() };
+    let cursor = Box::new(Cursor { reader, pos: 0, block: (0, Vec::new()) });
+    // SAFETY: `info` is mpv's, to be filled here.
+    unsafe {
+        *info = StreamInfo {
+            cookie: Box::into_raw(cursor) as *mut c_void,
+            read: Some(stream_read),
+            seek: Some(stream_seek),
+            size: Some(stream_size),
+            close: Some(stream_close),
+            cancel: None,
+        };
+    }
+    0
+}
+
+unsafe extern "C" fn stream_read(cookie: *mut c_void, buf: *mut c_char, n: u64) -> i64 {
+    // SAFETY: the cookie is the `Cursor` of `stream_open`, used by one mpv thread at a time;
+    // `buf` holds `n` bytes.
+    let (cursor, out) = unsafe { (&mut *(cookie as *mut Cursor), std::slice::from_raw_parts_mut(buf as *mut u8, n as usize)) };
+    match cursor.read(out) {
+        Ok(n) => n as i64,
+        Err(e) => {
+            log!("video stream: ERROR {e}");
+            -1
+        }
+    }
+}
+
+unsafe extern "C" fn stream_seek(cookie: *mut c_void, offset: i64) -> i64 {
+    // SAFETY: as `stream_read`.
+    let cursor = unsafe { &mut *(cookie as *mut Cursor) };
+    if offset < 0 {
+        return ERROR_GENERIC;
+    }
+    cursor.pos = offset as u64;
+    offset
+}
+
+unsafe extern "C" fn stream_size(cookie: *mut c_void) -> i64 {
+    // SAFETY: as `stream_read`.
+    unsafe { (*(cookie as *const Cursor)).reader.size() as i64 }
+}
+
+unsafe extern "C" fn stream_close(cookie: *mut c_void) {
+    // SAFETY: the box of `stream_open`, closed once.
+    drop(unsafe { Box::from_raw(cookie as *mut Cursor) });
+}
+
 /// An mpv core with its software renderer. `update` is called (from an mpv thread) when there is
 /// a frame to draw: it must only wake someone up, never call mpv.
 struct Mpv {
@@ -118,6 +232,8 @@ struct Mpv {
     handle: Handle,
     render: Render,
     _update: Box<Update>,
+    /// The `Reader` of a stream, freed after the core (`Drop` first, then the fields).
+    reader: Option<Box<Arc<dyn Reader>>>,
 }
 
 // SAFETY: the client API is thread-safe; the render calls are made from one thread at a time
@@ -134,7 +250,7 @@ impl Mpv {
             if handle.is_null() {
                 return Err("mpv_create failed".into());
             }
-            let mut mpv = Mpv { api, handle, render: std::ptr::null_mut(), _update: Box::new(Box::new(update)) };
+            let mut mpv = Mpv { api, handle, render: std::ptr::null_mut(), _update: Box::new(Box::new(update)), reader: None };
             // libmpv reads no configuration files and takes no keys unless asked.
             for (k, v) in [("vo", "libmpv"), ("terminal", "no")].iter().chain(options) {
                 (api.set_option_string)(handle, cstr(k)?.as_ptr(), cstr(v)?.as_ptr());
@@ -150,6 +266,24 @@ impl Mpv {
             (api.render_set_update_callback)(mpv.render, Some(on_update), data);
             Ok(mpv)
         }
+    }
+
+    /// Starts loading `input`; a stream through the protocol "eyecansee://".
+    fn load(&mut self, input: Input) -> Result<(), String> {
+        let url = match input {
+            Input::File(path) => path.to_string_lossy().into_owned(),
+            Input::Stream(reader) => {
+                let reader = self.reader.insert(Box::new(reader));
+                let user = &**reader as *const Arc<dyn Reader> as *mut c_void;
+                // SAFETY: `user` lives as long as the core, `stream_open` matches `OpenFn`.
+                let r = unsafe { (self.api.stream_cb_add_ro)(self.handle, c"eyecansee".as_ptr(), user, stream_open) };
+                if r < 0 {
+                    return Err(format!("mpv_stream_cb_add_ro: error {r}"));
+                }
+                "eyecansee://video".into()
+            }
+        };
+        self.command(&["loadfile", &url])
     }
 
     fn command(&self, args: &[&str]) -> Result<(), String> {
@@ -256,11 +390,11 @@ impl Signal {
 
 /// One frame at a tenth of the video (the first ones are often black), at most `side` on the
 /// longer side (0: full size). For thumbnails and the slideshow.
-pub fn still(path: &Path, side: u32) -> Result<RgbaImage, String> {
+pub fn still(input: Input, side: u32) -> Result<RgbaImage, String> {
     let signal = Arc::new(Signal::default());
     let s = signal.clone();
-    let mpv = Mpv::new(&[("pause", "yes"), ("start", "10%"), ("aid", "no"), ("sid", "no"), ("hwdec", "no")], move || s.raise())?;
-    mpv.command(&["loadfile", &path.to_string_lossy()])?;
+    let mut mpv = Mpv::new(&[("pause", "yes"), ("start", "10%"), ("aid", "no"), ("sid", "no"), ("hwdec", "no")], move || s.raise())?;
+    mpv.load(input)?;
     let deadline = Instant::now() + Duration::from_secs(20);
     let left = || deadline.saturating_duration_since(Instant::now());
     loop {
@@ -315,14 +449,15 @@ pub struct Player {
 
 impl Player {
     /// `repaint` is called at every new frame, from the player's thread.
-    pub fn open(path: &Path, repaint: impl Fn() + Send + 'static) -> Result<Player, String> {
+    pub fn open(input: Input, repaint: impl Fn() + Send + 'static) -> Result<Player, String> {
         let shared = Arc::new(Shared::default());
         let s = shared.clone();
         // keep-open: at the end the last frame stays, as in a player.
         // audio-client-name: the name in the system's volume control.
         let options = [("hwdec", "auto-copy-safe"), ("keep-open", "yes"), ("audio-client-name", "EyeCanSee")];
-        let mpv = Arc::new(Mpv::new(&options, move || s.change(|st| st.dirty = true))?);
-        mpv.command(&["loadfile", &path.to_string_lossy()])?;
+        let mut mpv = Mpv::new(&options, move || s.change(|st| st.dirty = true))?;
+        mpv.load(input)?;
+        let mpv = Arc::new(mpv);
         let (m, s) = (mpv.clone(), shared.clone());
         let thread = std::thread::spawn(move || draw_loop(&m, &s, repaint));
         Ok(Player { mpv, shared, thread: Some(thread) })
@@ -417,6 +552,35 @@ pub fn clock(seconds: f64) -> String {
 mod tests {
     use super::*;
 
+    /// A file read through `Reader`, as a phone would be.
+    struct Bytes(Vec<u8>);
+
+    impl Reader for Bytes {
+        fn size(&self) -> u64 {
+            self.0.len() as u64
+        }
+        fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String> {
+            Ok(self.0[offset as usize..(offset + len) as usize].to_vec())
+        }
+    }
+
+    #[test]
+    fn cursor_reads_across_blocks() {
+        let data: Vec<u8> = (0..BLOCK as usize * 2 + 100).map(|i| (i % 251) as u8).collect();
+        let mut c = Cursor { reader: Arc::new(Bytes(data.clone())), pos: BLOCK - 10, block: (0, Vec::new()) };
+        let mut out = vec![0; 30];
+        assert_eq!(c.read(&mut out), Ok(30)); // block read from BLOCK - 10
+        assert_eq!(out, data[BLOCK as usize - 10..BLOCK as usize + 20]);
+        c.pos = BLOCK * 2 - 15;
+        assert_eq!(c.read(&mut out), Ok(5)); // to the end of that block
+        assert_eq!(c.read(&mut out), Ok(30)); // the next one
+        assert_eq!(out, data[BLOCK as usize * 2 - 10..BLOCK as usize * 2 + 20]);
+        c.pos = BLOCK * 2 + 90;
+        assert_eq!(c.read(&mut out), Ok(10));
+        assert_eq!(out[..10], data[data.len() - 10..]);
+        assert_eq!(c.read(&mut out), Ok(0)); // end of file
+    }
+
     #[test]
     fn sizes_and_clock() {
         assert_eq!(fit([2560, 1440], 256), [256, 144]);
@@ -433,10 +597,14 @@ mod tests {
     fn video_live() {
         let path = std::path::PathBuf::from(std::env::var("EYECANSEE_VIDEO").expect("EYECANSEE_VIDEO"));
         let t = Instant::now();
-        let img = still(&path, 256).unwrap();
+        let img = still(Input::File(path.clone()), 256).unwrap();
         println!("still {}x{} in {:?}", img.width(), img.height(), t.elapsed());
         assert!(img.pixels().any(|p| p.0[..3] != [0, 0, 0]), "black frame");
-        let player = Player::open(&path, || {}).unwrap();
+        let t = Instant::now();
+        let stream = || Input::Stream(Arc::new(Bytes(std::fs::read(&path).unwrap())));
+        let img = still(stream(), 256).unwrap();
+        println!("still through a Reader {}x{} in {:?}", img.width(), img.height(), t.elapsed());
+        let player = Player::open(stream(), || {}).unwrap();
         player.set_size([1280, 720]);
         let t = Instant::now();
         let mut frames = 0;

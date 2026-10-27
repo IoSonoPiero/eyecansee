@@ -120,7 +120,7 @@ I video (MP4, MOV, MKV, WebM, AVI e altri) compaiono nella griglia insieme alle 
 - **Invio** o un doppio clic aprono il video nel visore, dove parte con l'audio, adattato alla finestra.
 - **Spazio**, un clic sul video o il pulsante sotto mettono in pausa e riprendono. La barra sotto il video mostra il tempo e serve a spostarsi: trascinala o fai clic su un punto. Alla fine resta l'ultimo fotogramma; riprendendo, il video riparte dall'inizio.
 - **←** e **→** passano all'elemento precedente e successivo, come per le immagini; un doppio clic o **Esc** tornano alla griglia.
-- Copiare, spostare, rinominare ed eliminare funzionano come per le immagini. Ruotare, salvare e convertire valgono solo per le immagini, e il carosello mostra un fotogramma di ogni video.
+- I video su un telefono o un server si leggono un pezzo alla volta mentre scorrono, senza copiarli interi. Copiare, spostare, rinominare ed eliminare funzionano come per le immagini. Ruotare, salvare e convertire valgono solo per le immagini, e il carosello mostra un fotogramma di ogni video.
 
 ## Ruotare e riflettere
 
@@ -271,7 +271,7 @@ EyeCanSee usa la lingua del sistema se è disponibile, altrimenti l'inglese. Per
 
 - Sui dischi **NTFS** (per esempio un disco esterno usato anche con Windows) l'app File (Nautilus) non riesce a ripristinare dal cestino, nemmeno i file cancellati da lei stessa; EyeCanSee lo ricorda nella conferma. I file però sono nel cestino e si ripristinano dal terminale: `gio trash --list` mostra cosa c'è, `gio trash --restore "<indirizzo trash:/// della riga>"` lo rimette al suo posto.
 - SFTP non è ancora disponibile su Windows.
-- I video si guardano solo dai dischi del computer (non da telefoni o server) e non ancora su Windows.
+- I video non si guardano ancora su Windows.
 - Le immagini più grandi di 8192 pixel per lato vengono mostrate ridotte.
 - I file sono ordinati alfabeticamente: `img10` viene prima di `img2`.
 - File e cartelle nascosti (che iniziano con un punto, o su Windows con l'attributo "nascosto")

@@ -130,7 +130,6 @@ fn dal_error(e: opendal::Error) -> Error {
 
 impl Store {
     /// The file on this computer (gvfs mounts too), for libraries that open it themselves (libmpv).
-    // ponytail: phones and servers have none, so their videos do not play; mpv can read them through a stream callback
     pub fn local_file(&self, path: &str) -> Option<PathBuf> {
         match self {
             Store::Dal(op) if op.info().scheme() == "fs" => Some(local_path(op, path)),
@@ -208,6 +207,17 @@ impl Store {
                 op.read(path).await.map(|b| b.to_vec()).map_err(dal_error)
             }
             Store::Mtp(phone) => phone.read(path).await,
+        }
+    }
+
+    /// `len` bytes from `offset`: videos are read a piece at a time (`mpv::Reader`).
+    pub async fn read_range(&self, path: &str, offset: u64, len: u64) -> Result<Vec<u8>, Error> {
+        match self {
+            Store::Dal(op) => {
+                let _permit = gvfs_permit(op, path).await;
+                op.read_with(path).range(offset..offset + len).await.map(|b| b.to_vec()).map_err(dal_error)
+            }
+            Store::Mtp(phone) => phone.read_range(path, offset, len as u32).await,
         }
     }
 

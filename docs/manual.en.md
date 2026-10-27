@@ -120,7 +120,7 @@ Videos (MP4, MOV, MKV, WebM, AVI and others) appear in the grid next to the imag
 - **Enter** or a double click opens the video in the viewer, where it starts playing with sound, fitted to the window.
 - **Space**, a click on the video or the button under it play and pause. The bar under the video shows the time and moves along it: drag it or click a point. At the end the last frame stays; play starts again from the beginning.
 - **←** and **→** go to the previous and next item, as for images; a double click or **Esc** goes back to the grid.
-- Copying, moving, renaming and deleting work as for images. Turning, saving and converting are for images only, and the slideshow shows a frame of each video.
+- Videos on a phone or a server are read a piece at a time while they play, never copied whole. Copying, moving, renaming and deleting work as for images. Turning, saving and converting are for images only, and the slideshow shows a frame of each video.
 
 ## Rotating and flipping
 
@@ -271,7 +271,7 @@ EyeCanSee uses the system language when it is available, otherwise English. To f
 
 - On **NTFS** disks (for example an external disk also used with Windows) the Files app (Nautilus) cannot restore from the trash, not even files it deleted itself; EyeCanSee reminds you in the confirmation. The files are in the trash all the same and can be restored from a terminal: `gio trash --list` shows what is there, `gio trash --restore "<trash:/// address from that line>"` puts it back.
 - SFTP is not available on Windows yet.
-- Videos play only from the computer's disks (not from phones or servers) and not yet on Windows.
+- Videos do not play on Windows yet.
 - Images larger than 8192 pixels per side are shown downscaled.
 - Files are sorted alphabetically: `img10` comes before `img2`.
 - Hidden files and folders (starting with a dot, or on Windows with the "hidden" attribute) are
