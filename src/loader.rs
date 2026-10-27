@@ -401,6 +401,7 @@ impl Loader {
             }
             // A video is not read whole: libmpv opens it.
             let image = if decode::is_video(&path) {
+                let _place = if slow_video(&op, &path) { SLOW.acquire().await.ok() } else { None };
                 match op.size(&path).await {
                     Ok(size) => video_still(&op, &path, size, 0).await.map(decode::to_color_image),
                     Err((_, detail)) => Err(detail),
@@ -530,6 +531,13 @@ async fn thumb_worker(
         let notified = wake.notified();
         tokio::pin!(notified);
         notified.as_mut().enable();
+        // A video on a slow disk only once a SLOW place is free, and then the first in the queue
+        // (the one most in view): waiting after taking it, the workers would hold old ones.
+        let front = queue.lock().unwrap().items.front().map(|(_, f)| f.path.clone());
+        let _place = match front {
+            Some(path) if slow_video(&op, &path) => SLOW.acquire().await.ok(),
+            _ => None,
+        };
         let next = {
             let mut q = queue.lock().unwrap();
             if q.closed {
@@ -607,9 +615,31 @@ impl crate::mpv::Reader for StoreReader {
     }
 }
 
-/// A frame of a video (see `mpv::still`), opaque so the cache keeps it as JPEG. One per thumbnail
-/// worker, as images: measured with one decoding thread each, 32 at a time make 73 a second, 4
-/// made 11 (2026-10-27).
+/// Video stills at a time from a slow disk (external, phone, server). Many at once make an SD card
+/// on USB 2 seek among them and none ends: 32 on a dashcam all failed after 20 s (2026-10-27).
+static SLOW: Semaphore = Semaphore::const_new(2);
+
+/// A video whose stills go through `SLOW`: not on the disk of the home folder.
+fn slow_video(op: &Store, path: &str) -> bool {
+    decode::is_video(path) && op.local_file(path).is_none_or(|f| !on_home_disk(&f))
+}
+
+#[cfg(unix)]
+fn on_home_disk(file: &std::path::Path) -> bool {
+    use std::os::unix::fs::MetadataExt;
+    let dev = |p: &std::path::Path| std::fs::metadata(p).map(|m| m.dev()).ok();
+    std::env::home_dir().is_some_and(|home| dev(file).is_some() && dev(file) == dev(&home))
+}
+
+/// Same drive letter as the home folder.
+#[cfg(windows)]
+fn on_home_disk(file: &std::path::Path) -> bool {
+    std::env::home_dir().is_some_and(|home| file.components().next() == home.components().next())
+}
+
+/// A frame of a video (see `mpv::still`), opaque so the cache keeps it as JPEG. On the home disk
+/// one per thumbnail worker, as images: with one decoding thread each, 32 at a time make 73 a
+/// second, 4 made 11 (2026-10-27).
 async fn video_still(op: &Store, path: &str, size: u64, side: u32) -> Result<image::DynamicImage, String> {
     let input = video_input(Handle::current(), op, path, size);
     tokio::task::spawn_blocking(move || crate::mpv::still(input, side).map(|i| image::DynamicImage::ImageRgba8(i).to_rgb8().into()))

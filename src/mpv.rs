@@ -410,8 +410,10 @@ impl Signal {
 pub fn still(input: Input, side: u32) -> Result<RgbaImage, String> {
     let signal = Arc::new(Signal::default());
     let s = signal.clone();
-    // One decoding thread: stills are made many at a time, one per core.
-    let options = [("pause", "yes"), ("start", "10%"), ("aid", "no"), ("sid", "no"), ("hwdec", "no"), ("vd-lavc-threads", "1")];
+    // One decoding thread: stills are made many at a time, one per core. A small read buffer:
+    // opening a fragmented MP4 (dashcam) reads every fragment header, each with a whole buffer
+    // (26 MB read with the default 128k, 8.7 MB with 4k, same frame).
+    let options = [("pause", "yes"), ("start", "10%"), ("aid", "no"), ("sid", "no"), ("hwdec", "no"), ("vd-lavc-threads", "1"), ("stream-buffer-size", "4k")];
     let mut mpv = Mpv::new(&options, move || s.raise())?;
     mpv.load(input)?;
     let deadline = Instant::now() + Duration::from_secs(20);
