@@ -60,8 +60,9 @@ impl App {
             self.video = None; // the old one stops before the new one starts
             self.video = Some(self.open_video(ui.ctx(), path, size));
         }
+        let engine = self.engine();
         let Some(v) = &mut self.video else { return };
-        if v.no_engine && mpv::available() {
+        if v.no_engine && engine {
             self.video = None; // the engine is there now: opened at the next frame
             ui.ctx().request_repaint();
             return;
@@ -69,7 +70,7 @@ impl App {
         if let Err(e) = &v.player {
             let e = e.clone();
             match crate::component::VIDEO {
-                Some(c) if !mpv::available() => self.component_ui(ui, c),
+                Some(c) if !engine => self.component_ui(ui, c),
                 _ => {
                     ui.centered_and_justified(|ui| ui.label(browser::error_text(ui, e)));
                 }
@@ -99,15 +100,19 @@ impl App {
         (paint_fitted(painter, rect, player, &mut v.texture), player.ended())
     }
 
+    /// libmpv can play videos. Never the engine downloaded in this session: only a restart
+    /// activates it (on Windows the first load right after the download failed, 2026-10-27; the
+    /// user wants the restart always).
+    fn engine(&self) -> bool {
+        self.download.is_none() && mpv::available()
+    }
+
     /// Without libmpv where it can be downloaded: what it is, its size and the button; then the
-    /// progress; then the restart that activates it. The video opens by itself if the engine
-    /// loads meanwhile (`video_view`).
+    /// progress; then the restart that activates it.
     fn component_ui(&mut self, ui: &mut egui::Ui, c: crate::component::Component) {
         let result = self.download.as_ref().map(|d| (d.done.load(std::sync::atomic::Ordering::Relaxed), d.result.lock().unwrap().clone()));
         let on_disk = crate::component::path(&c).is_some_and(|p| p.is_file());
-        // Downloaded: a restart activates it (on Windows the first load right after the download
-        // failed until EyeCanSee was started again, 2026-10-27). The same once on disk but not
-        // loadable. If it loads meanwhile, the video opens by itself (`video_view`).
+        // Downloaded, or on disk but not loadable: a restart activates it (`engine`).
         let state = match &result {
             Some((done, None)) => Engine::Downloading(*done),
             Some((_, Some(Err(e)))) => Engine::Failed(e.clone()),
@@ -188,7 +193,7 @@ impl App {
     fn open_video(&self, ctx: &egui::Context, path: String, size: u64) -> Playing {
         let ctx = ctx.clone();
         let player = match &self.loader {
-            _ if !mpv::available() => Err(self.i18n.t("video-no-mpv")),
+            _ if !self.engine() => Err(self.i18n.t("video-no-mpv")),
             None => Err(String::new()),
             Some(loader) => mpv::Player::open(loader.video_input(&path, size), move || ctx.request_repaint())
                 .map_err(|e| self.i18n.t_args("cannot-load", &[("file", crate::source::name(&path)), ("error", &e)])),
@@ -196,7 +201,7 @@ impl App {
         if let Err(e) = &player {
             log!("video {path:?}: ERROR {e}");
         }
-        Playing { path, no_engine: !mpv::available(), player, texture: None }
+        Playing { path, no_engine: !self.engine(), player, texture: None }
     }
 }
 
