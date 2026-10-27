@@ -319,7 +319,8 @@ impl Player {
         let shared = Arc::new(Shared::default());
         let s = shared.clone();
         // keep-open: at the end the last frame stays, as in a player.
-        let options = [("hwdec", "auto-copy-safe"), ("keep-open", "yes")];
+        // audio-client-name: the name in the system's volume control.
+        let options = [("hwdec", "auto-copy-safe"), ("keep-open", "yes"), ("audio-client-name", "EyeCanSee")];
         let mpv = Arc::new(Mpv::new(&options, move || s.change(|st| st.dirty = true))?);
         mpv.command(&["loadfile", &path.to_string_lossy()])?;
         let (m, s) = (mpv.clone(), shared.clone());
