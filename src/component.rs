@@ -256,4 +256,21 @@ mod tests {
         assert_eq!(done.load(Ordering::Relaxed), c.size);
         assert!(crate::mpv::available());
     }
+
+    /// As `component_live`, for FFmpeg: downloaded, checked and made executable (not run).
+    #[test]
+    #[ignore]
+    fn ffmpeg_component_live() {
+        let Some(c) = FFMPEG else { return };
+        let done = AtomicU64::new(0);
+        install(&c, &done).unwrap();
+        let p = path(&c).unwrap();
+        println!("{} bytes to {p:?}", done.load(Ordering::Relaxed));
+        assert_eq!(done.load(Ordering::Relaxed), c.size);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&p).unwrap().permissions().mode() & 0o111, 0o111);
+        }
+    }
 }
