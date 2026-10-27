@@ -1,10 +1,10 @@
 [Desktop Entry]
 Type=Application
 Name=EyeCanSee
-GenericName=Image Viewer and Manager
-GenericName[it]=Visualizzatore e gestore di immagini
-Comment=Browse photos on computers, disks and phones, copy and move them between devices, save them in other formats
-Comment[it]=Sfoglia le foto di computer, dischi e telefoni, copiale e spostale tra dispositivi, salvale in altri formati
+GenericName=Image and Video Viewer and Manager
+GenericName[it]=Visualizzatore e gestore di immagini e video
+Comment=Browse photos and videos on computers, disks and phones, copy and move them between devices, convert them to other formats
+Comment[it]=Sfoglia foto e video di computer, dischi e telefoni, copiali e spostali tra dispositivi, convertili in altri formati
 Exec=eyecansee %f
 Icon=eyecansee
 Terminal=false

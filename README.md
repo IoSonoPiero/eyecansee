@@ -1,6 +1,6 @@
 # EyeCanSee
 
-An image viewer and manager for Linux and Windows, written in Rust: it browses photos on computers, disks and phones, copies and moves them from one device to another, finds duplicate copies, and saves them in other formats. Free and open source.
+An image and video viewer and manager for Linux and Windows, written in Rust: it browses photos and videos on computers, disks and phones, copies and moves them from one device to another, finds duplicate copies, and converts them to other formats. Free and open source.
 
 It is early in development. This page lists only what works now: new features arrive step by step, each one only when it is ready and tested.
 
@@ -10,22 +10,22 @@ I am not a programmer any more, and have not been for years. I needed a program 
 
 Bug reports and suggestions are welcome in the [issues](https://github.com/IoSonoPiero/eyecansee/issues).
 
-## Why another image manager?
+## Why another image and video manager?
 
-Mature programs like XnView, IrfanView or digiKam do much more than EyeCanSee, and if you need editing, catalogues or batch tools they are the better choice today. EyeCanSee started from one need: browsing the photos on an Android phone quickly. It talks to the phone directly over USB instead of going through the file manager: on Linux, a folder with hundreds of photos that took minutes now takes seconds. From there it grew into the rest of the daily work with photos: copying and moving them between the phone, the disks and the computer, cleaning up, and saving them in another format. It works the same way on Linux and Windows, and it is open source.
+Mature programs like XnView, IrfanView or digiKam do much more than EyeCanSee, and if you need editing, catalogues or batch tools they are the better choice today. EyeCanSee started from one need: browsing the photos on an Android phone quickly. It talks to the phone directly over USB instead of going through the file manager: on Linux, a folder with hundreds of photos that took minutes now takes seconds. From there it grew into the rest of the daily work with photos and videos: copying and moving them between the phone, the disks and the computer, cleaning up, and converting them to another format. It works the same way on Linux and Windows, and it is open source.
 
 ## What it does today
 
-- **Browsing** of folders on the computer, external disks (also USB sticks, SD cards and dashcams that connect as a USB disk) and phones, with cached thumbnails; folders on the computer update by themselves when files change.
+- **Browsing** of folders on the computer, external disks (also USB sticks, SD cards and dashcams that connect as a USB disk) and phones, with cached thumbnails; folders on the computer update by themselves when files change. Sorting by name, date, size or type; images and videos shown together or apart; "Open with" from the file manager shows the file in the window already open.
 - **Direct phone access**: Android phones and cameras open over USB, much faster than through the file manager.
 - **Viewer** with zoom (mouse wheel and keys) and preloading, so moving between images never waits, photo details such as camera, exposure, date and location, and a full-screen slideshow with fades.
 - **File management**: copy and move (also from one device to another), create folders, rename and delete, also several items at once, with a trash on every device to restore or empty.
-- **Videos** (with the system's libmpv on Linux, otherwise a video engine downloaded the first time a video is opened, as always on Windows): thumbnails in the grid, playback with sound in the viewer and their details (date, length, format, location from phones), on the computer, external disks and phones.
-- **Video conversion** with FFmpeg (the system's, or downloaded once): MP4, MKV, WebM, MOV, AVI and GIF with H.264, HEVC, AV1, VP9 and other codecs, turned and resized, on the graphics card when it can (NVIDIA, Intel, AMD, VA-API). Details in [docs/video-formats.md](docs/video-formats.md).
+- **Videos**: thumbnails in the grid, playback with sound in the viewer and their details (date, length, format, location from phones), on the computer, external disks and phones (with the system's libmpv on Linux, otherwise a video engine downloaded the first time a video is opened, as always on Windows).
 - **Duplicates**: finds identical images in a folder and its subfolders, on any device, and deletes the copies you choose, always keeping at least one.
 - **Rotating and cropping**: flips and quarter turns on one or many images at once, and rotation by any angle with a crop on a single image, saved over the original or as a new file.
 - **Saving in another format** (JPEG, PNG, WebP, AVIF, TIFF and others) with every option of each format, the original and the result side by side, and the file size before you save.
-- **Converting and resizing many images at once**: format, turn, size and filter for a whole selection, into new files next to the originals, in a subfolder or in another folder, also on another device.
+- **Converting and resizing many files at once**: format, turn, size and filter for a whole selection of images and videos, into new files next to the originals, in a subfolder or in another folder, also on another device.
+- **Video conversion** with FFmpeg (the system's, or downloaded once: 63 MB on Windows, 67 MB on Linux): MP4, MKV, WebM, MOV, AVI and GIF with H.264, HEVC, AV1, VP9 and other codecs, turned and resized, on the graphics card when it can (NVIDIA, Intel, AMD, VA-API). Details in [docs/video-formats.md](docs/video-formats.md).
 - English and Italian, light and dark theme, built-in manual.
 
 ### Formats

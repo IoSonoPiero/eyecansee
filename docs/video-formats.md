@@ -1,6 +1,6 @@
 # Video formats
 
-What **Convert and resize** can turn a video into. The work is done by [FFmpeg](https://ffmpeg.org): the system's one when there is one, otherwise FFmpeg 9.0 (from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds), GPL) downloaded once by EyeCanSee into its data folder. The first time the window shows videos, EyeCanSee tries every encoder below on a few black frames and lists only those that work on that computer: an encoder for a graphics card that is not there, or whose driver is missing, does not appear.
+What **Convert and resize** can turn a video into. The work is done by [FFmpeg](https://ffmpeg.org): the system's one when there is one, otherwise FFmpeg 9.0 (from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds), GPL) downloaded once by EyeCanSee into its data folder (63 MB on Windows, 67 MB on Linux). The first time the window shows videos, EyeCanSee tries every encoder below on a few black frames and lists only those that work on that computer: an encoder for a graphics card that is not there, or whose driver is missing, does not appear.
 
 ## Containers
 

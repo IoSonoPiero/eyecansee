@@ -2,8 +2,8 @@
 <component type="desktop-application">
   <id>io.github.IoSonoPiero.EyeCanSee</id>
   <name>EyeCanSee</name>
-  <summary>Image viewer and manager</summary>
-  <summary xml:lang="it">Visualizzatore e gestore di immagini</summary>
+  <summary>Image and video viewer and manager</summary>
+  <summary xml:lang="it">Visualizzatore e gestore di immagini e video</summary>
   <developer id="io.github.iosonopiero">
     <name>Pierluigi Montinaro</name>
   </developer>
@@ -12,8 +12,8 @@
   <launchable type="desktop-id">io.github.IoSonoPiero.EyeCanSee.desktop</launchable>
 
   <description>
-    <p>Browse photos on computers, disks and phones, copy and move them from one device to another, find duplicate copies and save them in other formats.</p>
-    <p xml:lang="it">Sfoglia le foto di computer, dischi e telefoni, copiale e spostale da un dispositivo all'altro, trova le copie doppie e salvale in altri formati.</p>
+    <p>Browse photos and videos on computers, disks and phones, copy and move them from one device to another, find duplicate copies and convert them to other formats.</p>
+    <p xml:lang="it">Sfoglia foto e video di computer, dischi e telefoni, copiali e spostali da un dispositivo all'altro, trova le copie doppie e convertili in altri formati.</p>
     <ul>
       <li>Folders on the computer, external disks, USB sticks and SD cards, with cached thumbnails</li>
       <li xml:lang="it">Cartelle del computer, dischi esterni, chiavette USB e schede SD, con le miniature in cache</li>
@@ -23,6 +23,8 @@
       <li xml:lang="it">Visore con zoom, dettagli della foto (fotocamera, esposizione, data, posizione) e presentazione</li>
       <li>Copy, move, rename and delete, also between devices, with a trash on every device</li>
       <li xml:lang="it">Copia, sposta, rinomina ed elimina, anche tra dispositivi, con un cestino su ogni dispositivo</li>
+      <li>Videos with thumbnails, playback with sound, their details, and conversion with FFmpeg (MP4, MKV, WebM, H.264, HEVC, AV1, VP9…), on the graphics card when it can</li>
+      <li xml:lang="it">Video con miniature, riproduzione con l'audio, dettagli e conversione con FFmpeg (MP4, MKV, WebM, H.264, HEVC, AV1, VP9…), sulla scheda video quando può</li>
       <li>Duplicate finder, rotation and cropping, saving and converting many images at once</li>
       <li xml:lang="it">Ricerca dei duplicati, rotazione e ritaglio, salvataggio e conversione di molte immagini insieme</li>
       <li>JPEG, PNG, WebP, HEIC, AVIF, JPEG XL, TIFF, SVG, PSD, Camera RAW and many rare formats</li>

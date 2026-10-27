@@ -4,7 +4,7 @@
 Name:           eyecansee
 Version:        0
 Release:        1%{?dist}
-Summary:        Image viewer and manager for folders, disks and phones
+Summary:        Image and video viewer and manager for folders, disks and phones
 License:        GPL-3.0-or-later
 URL:            https://github.com/IoSonoPiero/eyecansee
 Source0:        %{name}-%{version}.tar.gz
@@ -31,10 +31,10 @@ Recommends:     mpv-libs
 %global _lto_cflags %{nil}
 
 %description
-EyeCanSee is an image viewer and manager written in Rust. It browses photos in local
-folders, on external disks and on Android phones connected directly over USB (MTP), with
-thumbnails and a full-screen viewer; it copies and moves them from one device to another
-and saves them in other formats. Formats: JPEG, PNG, WebP, GIF, TIFF, HEIC, AVIF, JPEG XL, SVG,
+EyeCanSee is an image and video viewer and manager written in Rust. It browses photos and
+videos in local folders, on external disks and on Android phones connected directly over USB
+(MTP), with thumbnails and a full-screen viewer; it copies and moves them from one device to
+another and converts them to other formats. Formats: JPEG, PNG, WebP, GIF, TIFF, HEIC, AVIF, JPEG XL, SVG,
 camera RAW and many less common ones through ImageMagick.
 
 %prep
