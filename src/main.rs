@@ -200,6 +200,8 @@ struct App {
     video: Option<video::Playing>,
     /// The video engine being downloaded (`component::VIDEO`).
     download: Option<std::sync::Arc<component::Download>>,
+    /// Why EyeCanSee could not be started again after the engine download.
+    restart_error: Option<String>,
     /// Image to open as soon as the folder's listing arrives.
     start: Option<String>,
     /// Thumbnails in memory: only those in the window around the visible rows (`thumb_keep`).
@@ -369,6 +371,7 @@ impl App {
             viewing: None,
             video: None,
             download: None,
+            restart_error: None,
             start: None,
             thumbs: HashMap::new(),
             thumb_keep: 0..0,

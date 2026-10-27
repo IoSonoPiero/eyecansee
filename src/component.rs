@@ -9,7 +9,11 @@ use std::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Clone, Copy)]
 pub struct Component {
-    /// Name of the file once in `dir()` (the library to load).
+    /// What it is and which version: it goes in `dir()/<kind>-<version>/`, so a new EyeCanSee that
+    /// wants another version asks for it, and the old ones are deleted once it is there.
+    pub kind: &'static str,
+    pub version: &'static str,
+    /// Name of the file in its folder (the library to load).
     pub file: &'static str,
     /// gzip-compressed: the file itself, or with `archive` a tar of it and the libraries it needs.
     pub url: &'static str,
@@ -24,6 +28,8 @@ pub struct Component {
 /// e471496c56, self-contained (121 MB, 47 MB compressed).
 #[cfg(windows)]
 pub const VIDEO: Option<Component> = Some(Component {
+    kind: "libmpv",
+    version: "20261021",
     file: "libmpv-2.dll",
     url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/libmpv-2-windows-x64-20261021.dll.gz",
     archive: false,
@@ -36,6 +42,8 @@ pub const VIDEO: Option<Component> = Some(Component {
 /// 22.04 (glibc 2.35), with libass and three libraries it needs (24 MB, 10 MB compressed).
 #[cfg(not(windows))]
 pub const VIDEO: Option<Component> = Some(Component {
+    kind: "libmpv",
+    version: "0.35.1",
     file: "libmpv.so.2",
     url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/libmpv-linux-x64-0.35.1.tar.gz",
     archive: true,
@@ -53,8 +61,12 @@ pub fn dir() -> Option<PathBuf> {
     Some(base?.join("eyecansee").join("components"))
 }
 
+fn folder(c: &Component) -> String {
+    format!("{}-{}", c.kind, c.version)
+}
+
 pub fn path(c: &Component) -> Option<PathBuf> {
-    Some(dir()?.join(c.file))
+    Some(dir()?.join(folder(c)).join(c.file))
 }
 
 /// Downloads, checks and unpacks `c`; `done` counts the bytes downloaded. Nothing is left in place
@@ -85,14 +97,26 @@ pub fn install(c: &Component, done: &AtomicU64) -> Result<(), String> {
         if !staging.join(c.file).is_file() {
             return Err(format!("{} missing from the download", c.file));
         }
-        for entry in std::fs::read_dir(&staging).map_err(|e| e.to_string())? {
-            let entry = entry.map_err(|e| e.to_string())?;
-            std::fs::rename(entry.path(), dir.join(entry.file_name())).map_err(|e| e.to_string())?;
-        }
+        let target = dir.join(folder(c));
+        let _ = std::fs::remove_dir_all(&target);
+        std::fs::rename(&staging, &target).map_err(|e| e.to_string())?;
+        remove_old(&dir, c);
         Ok(())
     })();
     let _ = std::fs::remove_dir_all(&staging);
     r
+}
+
+/// The other versions of `c` in `dir`, and what 0.59.0 left loose there (`libmpv-2.dll`).
+fn remove_old(dir: &std::path::Path, c: &Component) {
+    let keep = folder(c);
+    for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        if name.starts_with(c.kind) && name != keep {
+            let p = entry.path();
+            let _ = if p.is_dir() { std::fs::remove_dir_all(&p) } else { std::fs::remove_file(&p) };
+        }
+    }
 }
 
 /// The plain files of a tar into `into`, by their bare name: no folders, no links, nothing
@@ -158,6 +182,21 @@ impl<R: Read> Read for Hashed<'_, R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn old_versions_removed() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-components-{}", std::process::id()));
+        for d in ["libmpv-1", "libmpv-2", "other-1"] {
+            std::fs::create_dir_all(dir.join(d)).unwrap();
+        }
+        std::fs::write(dir.join("libmpv-2.dll"), b"0.59.0").unwrap();
+        let c = Component { kind: "libmpv", version: "2", file: "x", url: "", archive: false, sha256: "", size: 0 };
+        remove_old(&dir, &c);
+        let mut left: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
+        left.sort();
+        assert_eq!(left, ["libmpv-2", "other-1"]);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 
     #[test]
     fn plain_files_from_tar() {

@@ -282,6 +282,35 @@ pub fn apply(ready: &Ready) -> Result<(), String> {
 }
 
 /// A PowerShell literal string: in single quotes, a quote is written twice.
+/// EyeCanSee started again once this process has exited (the caller closes the window): after the
+/// video engine is downloaded, which loaded only after a restart on Windows (2026-10-27). It opens
+/// on the last folder, saved at closing.
+pub fn restart() -> Result<(), String> {
+    let pid = std::process::id();
+    #[cfg(windows)]
+    {
+        let exe = std::env::current_exe().map_err(|e| e.to_string())?;
+        powershell(&format!("Wait-Process -Id {pid} -ErrorAction SilentlyContinue; Start-Process -FilePath {}", quote(&exe)))
+    }
+    #[cfg(not(windows))]
+    {
+        // The AppImage itself, not the binary inside its mount (gone once this process exits).
+        let exe = std::env::var_os("APPIMAGE").map(PathBuf::from).map_or_else(std::env::current_exe, Ok).map_err(|e| e.to_string())?;
+        #[cfg(target_os = "linux")]
+        // SAFETY: only sets a flag on this process's own descriptors, closes none (see `apply`).
+        unsafe {
+            libc::close_range(3, u32::MAX, libc::CLOSE_RANGE_CLOEXEC as i32);
+        }
+        std::process::Command::new("sh")
+            .args(["-c", r#"while kill -0 "$1" 2>/dev/null; do sleep 0.2; done; exec "$2""#, "sh"])
+            .arg(pid.to_string())
+            .arg(&exe)
+            .spawn()
+            .map(drop)
+            .map_err(|e| e.to_string())
+    }
+}
+
 fn quote(path: &Path) -> String {
     format!("'{}'", path.to_string_lossy().replace('\'', "''"))
 }

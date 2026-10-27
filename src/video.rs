@@ -13,6 +13,22 @@ pub(crate) struct Playing {
     path: String,
     player: Result<mpv::Player, String>,
     texture: Option<TextureHandle>,
+    /// Not opened because libmpv could not be loaded: opened again once it can.
+    no_engine: bool,
+}
+
+/// Where the video engine is, for the card shown in its place.
+enum Engine {
+    Missing,
+    Downloading(u64),
+    Failed(String),
+    /// Downloaded, active after a restart; why the restart could not start, if it could not.
+    Ready(Option<String>),
+}
+
+enum Click {
+    Download,
+    Restart,
 }
 
 impl App {
@@ -45,6 +61,11 @@ impl App {
             self.video = Some(self.open_video(ui.ctx(), path, size));
         }
         let Some(v) = &mut self.video else { return };
+        if v.no_engine && mpv::available() {
+            self.video = None; // the engine is there now: opened at the next frame
+            ui.ctx().request_repaint();
+            return;
+        }
         if let Err(e) = &v.player {
             let e = e.clone();
             match crate::component::VIDEO {
@@ -78,56 +99,90 @@ impl App {
         (paint_fitted(painter, rect, player, &mut v.texture), player.ended())
     }
 
-    /// Without libmpv where it can be downloaded (Windows): what it is, its size and the button;
-    /// then the progress. Once there the video is opened again and the thumbnails are redone.
+    /// Without libmpv where it can be downloaded: what it is, its size and the button; then the
+    /// progress; then the restart that activates it. The video opens by itself if the engine
+    /// loads meanwhile (`video_view`).
     fn component_ui(&mut self, ui: &mut egui::Ui, c: crate::component::Component) {
         let result = self.download.as_ref().map(|d| (d.done.load(std::sync::atomic::Ordering::Relaxed), d.result.lock().unwrap().clone()));
-        let t = |id: &str, args: &[(&str, &str)]| self.i18n.t_args(id, args);
-        let mut start = false;
-        ui.vertical_centered(|ui| {
-            ui.add_space(ui.available_height() / 3.0);
-            let light = Color32::from_gray(225);
-            match &result {
-                None => {
-                    ui.label(egui::RichText::new(t("video-component-ask", &[("size", &self.human_size(c.size))])).color(light));
-                    ui.add_space(8.0);
-                    start = ui.button(t("video-component-download", &[])).clicked();
-                }
-                Some((done, None)) => {
-                    let args = [("done", self.human_size(*done)), ("total", self.human_size(c.size))];
-                    ui.label(egui::RichText::new(t("video-component-progress", &[("done", &args[0].1), ("total", &args[1].1)])).color(light));
-                    ui.add(egui::ProgressBar::new(*done as f32 / c.size as f32).desired_width(320.0));
-                    ui.ctx().request_repaint_after(std::time::Duration::from_millis(200));
-                }
-                Some((_, Some(Err(e)))) => {
-                    ui.label(browser::error_text(ui, t("video-component-error", &[("error", e)])));
-                    ui.add_space(8.0);
-                    start = ui.button(t("video-component-download", &[])).clicked();
-                }
-                Some((_, Some(Ok(())))) => {}
+        let on_disk = crate::component::path(&c).is_some_and(|p| p.is_file());
+        // Downloaded: a restart activates it (on Windows the first load right after the download
+        // failed until EyeCanSee was started again, 2026-10-27). The same once on disk but not
+        // loadable. If it loads meanwhile, the video opens by itself (`video_view`).
+        let state = match &result {
+            Some((done, None)) => Engine::Downloading(*done),
+            Some((_, Some(Err(e)))) => Engine::Failed(e.clone()),
+            _ if on_disk => Engine::Ready(self.restart_error.clone()),
+            _ => Engine::Missing,
+        };
+        if matches!(state, Engine::Downloading(_)) {
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(300));
+        }
+        match self.engine_card(ui, c, &state) {
+            Some(Click::Download) => {
+                let ctx = ui.ctx().clone();
+                self.download = Some(crate::component::start(c, move || ctx.request_repaint()));
             }
-        });
-        if start {
-            let ctx = ui.ctx().clone();
-            self.download = Some(crate::component::start(c, move || ctx.request_repaint()));
-        } else if let Some((_, Some(Ok(())))) = result {
-            log!("video engine downloaded");
-            self.download = None;
-            self.video = None; // opened again at the next frame
-            self.redo_video_thumbs();
+            Some(Click::Restart) => match crate::update::restart() {
+                Ok(()) => ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close),
+                Err(e) => {
+                    log!("restart: ERROR {e}");
+                    self.restart_error = Some(e);
+                }
+            },
+            None => {}
         }
     }
 
-    /// The video thumbnails that failed without the engine are asked again.
-    fn redo_video_thumbs(&mut self) {
-        let videos: Vec<usize> = self.files().iter().enumerate().filter(|(_, f)| decode::is_video(&f.path)).map(|(i, _)| i).collect();
-        for i in videos {
-            if matches!(self.thumbs.get(&i), Some(Err(_))) {
-                self.thumbs.remove(&i);
-                self.generated.remove(&i);
-            }
-        }
-        self.thumb_queue_key = None;
+    /// The card of `component_ui`, in the middle of the viewer, and what was clicked.
+    fn engine_card(&self, ui: &mut egui::Ui, c: crate::component::Component, state: &Engine) -> Option<Click> {
+        let t = |id: &str, args: &[(&str, &str)]| self.i18n.t_args(id, args);
+        let light = Color32::from_gray(230);
+        let mut click = None;
+        let big = |text: String| egui::Button::new(egui::RichText::new(text).size(15.0)).min_size(egui::vec2(220.0, 34.0));
+        ui.vertical_centered(|ui| {
+            ui.add_space((ui.available_height() / 2.0 - 110.0).max(0.0));
+            let card = egui::Frame::new().fill(Color32::from_gray(34)).stroke(egui::Stroke::new(1.0, Color32::from_gray(60))).corner_radius(10.0).inner_margin(24.0);
+            card.show(ui, |ui| {
+                ui.set_max_width(460.0);
+                ui.vertical_centered(|ui| {
+                    let title = egui::FontId::new(20.0, egui::FontFamily::Name(crate::BOLD.into()));
+                    ui.label(egui::RichText::new(t("video-component-title", &[])).font(title).color(light));
+                    ui.add_space(10.0);
+                    let wrap = |ui: &mut egui::Ui, text: egui::RichText| ui.add(egui::Label::new(text).wrap());
+                    match state {
+                        Engine::Missing | Engine::Failed(_) => {
+                            wrap(ui, egui::RichText::new(t("video-component-ask", &[("size", &self.human_size(c.size))])).color(light));
+                            if let Engine::Failed(e) = state {
+                                ui.add_space(6.0);
+                                wrap(ui, browser::error_text(ui, t("video-component-error", &[("error", e)])));
+                            }
+                            ui.add_space(14.0);
+                            if ui.add(big(t("video-component-download", &[]))).clicked() {
+                                click = Some(Click::Download);
+                            }
+                        }
+                        Engine::Downloading(done) => {
+                            let (d, total) = (self.human_size(*done), self.human_size(c.size));
+                            wrap(ui, egui::RichText::new(t("video-component-progress", &[("done", &d), ("total", &total)])).color(light));
+                            ui.add_space(10.0);
+                            ui.add(egui::ProgressBar::new(*done as f32 / c.size as f32).desired_width(360.0));
+                        }
+                        Engine::Ready(error) => {
+                            wrap(ui, egui::RichText::new(t("video-component-restart-needed", &[])).color(light));
+                            if let Some(e) = error {
+                                ui.add_space(6.0);
+                                wrap(ui, browser::error_text(ui, e.clone()));
+                            }
+                            ui.add_space(14.0);
+                            if ui.add(big(t("video-component-restart", &[]))).clicked() {
+                                click = Some(Click::Restart);
+                            }
+                        }
+                    }
+                });
+            });
+        });
+        click
     }
 
     fn open_video(&self, ctx: &egui::Context, path: String, size: u64) -> Playing {
@@ -141,7 +196,7 @@ impl App {
         if let Err(e) = &player {
             log!("video {path:?}: ERROR {e}");
         }
-        Playing { path, player, texture: None }
+        Playing { path, no_engine: !mpv::available(), player, texture: None }
     }
 }
 
