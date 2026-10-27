@@ -631,9 +631,9 @@ async fn preview(op: &Store, base: &str, file: &File) -> Option<ColorImage> {
     .flatten()
 }
 
-/// The JPEG of `mp4::thumbnail`: in the first bytes, or in a `moov` after the media data. Only
-/// box headers are read on the way (16 bytes each) and then the `udta`: a phone's `moov` is
-/// ~1 MB of sample tables, without a preview (2026-10-27).
+/// The preview of `mp4::thumbnail`: in the first bytes, or in a `moov` after the media data. Only
+/// box headers are read on the way (16 bytes each), then the picture: a phone's `moov` is ~1 MB
+/// of sample tables without a preview, a DJI drone's 1.5 MB with a 625 KB cover (2026-10-27).
 async fn preview_jpeg(op: &Store, path: &str, size: u64) -> Option<Vec<u8>> {
     use crate::mp4;
     let head = op.read_range(path, 0, size.min(mp4::HEAD)).await.ok()?;
@@ -649,10 +649,19 @@ async fn preview_jpeg(op: &Store, path: &str, size: u64) -> Option<Vec<u8>> {
     };
     let (moov, moov_len) = find_box(&read, 0, size, b"moov").await?;
     let (udta, udta_len) = find_box(&read, moov + 8, moov + moov_len, b"udta").await?;
-    if udta_len > mp4::UDTA_MAX {
+    let (at, len) = match find_box(&read, udta + 8, udta + udta_len, b"thmb").await {
+        Some(thmb) => thmb,
+        None => {
+            // `meta` is a full box: 4 bytes of version and flags before its children.
+            let (meta, meta_len) = find_box(&read, udta + 8, udta + udta_len, b"meta").await?;
+            let (ilst, ilst_len) = find_box(&read, meta + 12, meta + meta_len, b"ilst").await?;
+            find_box(&read, ilst + 8, ilst + ilst_len, b"covr").await?
+        }
+    };
+    if len > mp4::IMAGE_MAX {
         return None;
     }
-    mp4::in_udta(&read(udta, udta_len).await?).map(<[u8]>::to_vec)
+    mp4::image(&read(at + 8, len - 8).await?).map(<[u8]>::to_vec)
 }
 
 /// Offset and size of the first box of type `kind` between `start` and `end`, reading only the

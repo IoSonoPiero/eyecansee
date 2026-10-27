@@ -1,13 +1,13 @@
-//! The JPEG preview some cameras store inside their MP4 files (`moov/udta/thmb`; the Umino
-//! UM-D1M dashcam: 320×180, ~11 KB at the start of every video, 2026-10-27). Read from the first
-//! bytes of the file, it gives a thumbnail without opening the video.
+//! The preview some cameras store inside their MP4 files, which gives a thumbnail without opening
+//! the video: `moov/udta/thmb` (the Umino UM-D1M dashcam: 320×180, ~11 KB) or the standard cover
+//! `moov/udta/meta/ilst/covr` (DJI Mini 4 Pro: 1280×720, ~625 KB; music and films too). 2026-10-27.
 
 /// Bytes read from the start of a video to look for the preview: the whole `moov` of a
 /// fragmented dashcam video fits (12 KB for 3 minutes).
 pub const HEAD: u64 = 64 << 10;
 
-/// Largest `udta` read (the dashcam's: ~11 KB with its preview).
-pub const UDTA_MAX: u64 = 1 << 20;
+/// Largest preview read.
+pub const IMAGE_MAX: u64 = 4 << 20;
 
 /// Type and whole size of the box whose header starts `header` (at least 16 bytes, or what is
 /// left of the file); size 0 means "to the end of the file" and is returned as 0.
@@ -18,15 +18,24 @@ pub fn box_header(header: &[u8]) -> Option<([u8; 4], u64)> {
     (size == 0 || size >= 8).then_some((kind, size))
 }
 
-/// The JPEG in `moov/udta/thmb`, if `head` holds it whole.
+/// The preview, if `head` holds the whole `moov`.
 pub fn thumbnail(head: &[u8]) -> Option<&[u8]> {
-    in_udta(child(head, b"moov")?)
+    let udta = child(child(head, b"moov")?, b"udta")?;
+    match child(udta, b"thmb") {
+        Some(thmb) => image(thmb),
+        None => image(child(child(child(udta, b"meta")?.get(4..)?, b"ilst")?, b"covr")?),
+    }
 }
 
-/// The JPEG in `udta/thmb` among the boxes of `data` (the content of a `moov`, or a `udta` box).
-pub fn in_udta(data: &[u8]) -> Option<&[u8]> {
-    let jpeg = child(child(data, b"udta")?, b"thmb")?;
-    jpeg.starts_with(&[0xFF, 0xD8]).then_some(jpeg)
+/// A JPEG or PNG: the content itself (`thmb`), or inside a `data` box after its type and
+/// locale (`covr`).
+pub fn image(content: &[u8]) -> Option<&[u8]> {
+    let picture = |b: &[u8]| b.starts_with(&[0xFF, 0xD8]) || b.starts_with(b"\x89PNG");
+    if picture(content) {
+        return Some(content);
+    }
+    let data = child(content, b"data")?.get(8..)?;
+    picture(data).then_some(data)
 }
 
 /// The content of the first box of type `kind` among the boxes in `data`.
@@ -77,6 +86,11 @@ mod tests {
         assert_eq!(thumbnail(&file), Some(&jpeg[..]));
         // Cut inside the moov: not there.
         assert_eq!(thumbnail(&file[..30 + moov.len() / 2]), None);
+        // A cover in udta/meta/ilst/covr, as DJI drones and music files have it.
+        let covr = mp4_box(b"covr", &mp4_box(b"data", &[&[0, 0, 0, 13, 0, 0, 0, 0][..], &jpeg].concat()));
+        let meta = mp4_box(b"meta", &[&[0u8; 4][..], &mp4_box(b"hdlr", &[0; 24]), &mp4_box(b"ilst", &covr)].concat());
+        let moov = mp4_box(b"moov", &mp4_box(b"udta", &meta));
+        assert_eq!(thumbnail(&[mp4_box(b"ftyp", b"isom"), moov].concat()), Some(&jpeg[..]));
         // No preview.
         assert_eq!(thumbnail(&[mp4_box(b"ftyp", b"isom"), mp4_box(b"moov", &mp4_box(b"mvhd", &[0; 20]))].concat()), None);
     }

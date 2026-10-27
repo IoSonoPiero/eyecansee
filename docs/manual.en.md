@@ -115,7 +115,7 @@ Select images in the grid (or right-click one of the selected ones) and choose *
 
 ## Videos
 
-Videos (MP4, MOV, MKV, WebM, AVI and others) appear in the grid next to the images, with a frame of the video as thumbnail and a ▶ badge. When the camera stored a preview inside the video (dashcams such as Umino do) the thumbnail is that preview, ready almost at once. They are played by mpv, which must be installed (Linux: the package with libmpv, `mpv-libs` on Fedora, `libmpv2` on Debian and Ubuntu); without it the viewer says so.
+Videos (MP4, MOV, MKV, WebM, AVI and others) appear in the grid next to the images, with a frame of the video as thumbnail and a ▶ badge. When the camera stored a preview inside the video (dashcams such as Umino do, and DJI drones as a cover) the thumbnail is that preview, ready almost at once. They are played by mpv, which must be installed (Linux: the package with libmpv, `mpv-libs` on Fedora, `libmpv2` on Debian and Ubuntu); without it the viewer says so.
 
 - **Enter** or a double click opens the video in the viewer, where it starts playing with sound, fitted to the window.
 - **Space**, a click on the video or the button under it play and pause. The bar under the video shows the time and moves along it: drag it or click a point. At the end the last frame stays; play starts again from the beginning.

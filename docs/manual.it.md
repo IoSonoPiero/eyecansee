@@ -115,7 +115,7 @@ Seleziona le immagini nella griglia (o fai clic destro su una delle selezionate)
 
 ## Video
 
-I video (MP4, MOV, MKV, WebM, AVI e altri) compaiono nella griglia insieme alle immagini, con un fotogramma del video come miniatura e il simbolo ▶. Quando la videocamera ha salvato un'anteprima dentro il video (lo fanno dashcam come Umino) la miniatura è quell'anteprima, pronta quasi subito. Li riproduce mpv, che deve essere installato (Linux: il pacchetto con libmpv, `mpv-libs` su Fedora, `libmpv2` su Debian e Ubuntu); se manca, il visore lo dice.
+I video (MP4, MOV, MKV, WebM, AVI e altri) compaiono nella griglia insieme alle immagini, con un fotogramma del video come miniatura e il simbolo ▶. Quando la videocamera ha salvato un'anteprima dentro il video (lo fanno dashcam come Umino, e i droni DJI come copertina) la miniatura è quell'anteprima, pronta quasi subito. Li riproduce mpv, che deve essere installato (Linux: il pacchetto con libmpv, `mpv-libs` su Fedora, `libmpv2` su Debian e Ubuntu); se manca, il visore lo dice.
 
 - **Invio** o un doppio clic aprono il video nel visore, dove parte con l'audio, adattato alla finestra.
 - **Spazio**, un clic sul video o il pulsante sotto mettono in pausa e riprendono. La barra sotto il video mostra il tempo e serve a spostarsi: trascinala o fai clic su un punto. Alla fine resta l'ultimo fotogramma; riprendendo, il video riparte dall'inizio.
