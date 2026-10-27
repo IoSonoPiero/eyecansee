@@ -110,6 +110,13 @@ impl App {
     /// Without libmpv where it can be downloaded: what it is, its size and the button; then the
     /// progress; then the restart that activates it.
     fn component_ui(&mut self, ui: &mut egui::Ui, c: crate::component::Component) {
+        let state = self.engine_state(ui.ctx(), c);
+        if let Some(click) = self.engine_card(ui, c, &state) {
+            self.engine_click(ui.ctx(), c, click);
+        }
+    }
+
+    fn engine_state(&self, ctx: &egui::Context, c: crate::component::Component) -> Engine {
         let result = self.download.as_ref().map(|d| (d.done.load(std::sync::atomic::Ordering::Relaxed), d.result.lock().unwrap().clone()));
         let on_disk = crate::component::path(&c).is_some_and(|p| p.is_file());
         // Downloaded, or on disk but not loadable: a restart activates it (`engine`).
@@ -120,21 +127,57 @@ impl App {
             _ => Engine::Missing,
         };
         if matches!(state, Engine::Downloading(_)) {
-            ui.ctx().request_repaint_after(std::time::Duration::from_millis(300));
+            ctx.request_repaint_after(std::time::Duration::from_millis(300));
         }
-        match self.engine_card(ui, c, &state) {
-            Some(Click::Download) => {
-                let ctx = ui.ctx().clone();
+        state
+    }
+
+    fn engine_click(&mut self, ctx: &egui::Context, c: crate::component::Component, click: Click) {
+        match click {
+            Click::Download => {
+                let ctx = ctx.clone();
                 self.download = Some(crate::component::start(c, move || ctx.request_repaint()));
             }
-            Some(Click::Restart) => match crate::update::restart() {
-                Ok(()) => ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close),
+            Click::Restart => match crate::update::restart() {
+                Ok(()) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
                 Err(e) => {
                     log!("restart: ERROR {e}");
                     self.restart_error = Some(e);
                 }
             },
-            None => {}
+        }
+    }
+
+    /// In the menu bar, as the update button: the engine to download when the open folder has
+    /// videos and libmpv is missing, then the restart that activates it. Nothing on a computer
+    /// with libmpv or where there is no component to download.
+    pub(crate) fn engine_bar(&mut self, ui: &mut egui::Ui) {
+        let Some(c) = crate::component::VIDEO else { return };
+        if self.engine() {
+            return;
+        }
+        let state = self.engine_state(ui.ctx(), c);
+        let videos = self.listings.get(&self.dir).and_then(|l| l.as_ref().ok()).is_some_and(|l| l.files.iter().any(|f| decode::is_video(&f.path)));
+        if !videos && matches!(state, Engine::Missing) {
+            return;
+        }
+        let t = |id: &str, args: &[(&str, &str)]| self.i18n.t_args(id, args);
+        // Red with white text, as the update button (see `menu_bar`).
+        let red = |text: String| egui::Button::new(egui::RichText::new(text).color(Color32::WHITE).strong()).fill(Color32::from_rgb(0xC6, 0x28, 0x28));
+        let click = match &state {
+            Engine::Missing | Engine::Failed(_) => {
+                let button = ui.add(red(t("video-component-button", &[("size", &self.human_size(c.size))]))).on_hover_text(t("video-component-ask", &[("size", &self.human_size(c.size))]));
+                button.clicked().then_some(Click::Download)
+            }
+            Engine::Downloading(done) => {
+                let text = t("video-component-progress", &[("done", &self.human_size(*done)), ("total", &self.human_size(c.size))]);
+                ui.add_enabled(false, egui::Button::new(text));
+                None
+            }
+            Engine::Ready(_) => ui.add(red(t("video-component-restart", &[]))).clicked().then_some(Click::Restart),
+        };
+        if let Some(click) = click {
+            self.engine_click(ui.ctx(), c, click);
         }
     }
 

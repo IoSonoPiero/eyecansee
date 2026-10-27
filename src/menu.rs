@@ -31,6 +31,7 @@ impl App {
                     let text = egui::RichText::new(self.i18n.t_args("update-install", &[("version", &r.version)])).color(Color32::WHITE).strong();
                     pick(&act, ui.add(egui::Button::new(text).fill(Color32::from_rgb(0xC6, 0x28, 0x28))), Act::Update);
                 }
+                self.engine_bar(ui);
             });
         });
         if let Some(a) = act.take() {

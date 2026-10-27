@@ -13,6 +13,7 @@ video-component-restart-needed = The video engine is downloaded. EyeCanSee must 
 video-component-restart = Restart EyeCanSee
 video-component-ask = To play videos EyeCanSee needs the video engine (mpv), downloaded once: { $size }.
 video-component-download = Download the video engine
+video-component-button = Download the video engine ({ $size })
 video-component-progress = Downloading: { $done } of { $total }
 video-component-error = The download failed: { $error }
 video-play = Play (Space)

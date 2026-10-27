@@ -12,6 +12,7 @@ video-component-restart-needed = Il motore video è scaricato. Per attivarlo Eye
 video-component-restart = Riavvia EyeCanSee
 video-component-ask = Per guardare i video EyeCanSee ha bisogno del motore video (mpv), da scaricare una volta sola: { $size }.
 video-component-download = Scarica il motore video
+video-component-button = Scarica il motore video ({ $size })
 video-component-progress = Scaricamento: { $done } di { $total }
 video-component-error = Scaricamento non riuscito: { $error }
 video-play = Riproduci (Spazio)

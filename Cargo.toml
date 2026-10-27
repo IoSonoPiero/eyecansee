@@ -1,6 +1,6 @@
 [package]
 name = "eyecansee"
-version = "0.61.0"
+version = "0.62.0"
 edition = "2024"
 description = "Image and video viewer and manager for Linux and Windows"
 license = "GPL-3.0-or-later"

@@ -84,6 +84,10 @@ fn api() -> Result<&'static Api, String> {
 }
 
 fn load() -> Result<Api, String> {
+    // Debug only: a computer without libmpv, to see the download (EYECANSEE_NO_MPV=1).
+    if cfg!(debug_assertions) && std::env::var_os("EYECANSEE_NO_MPV").is_some() {
+        return Err("EYECANSEE_NO_MPV".into());
+    }
     // SAFETY: libmpv runs no code of its own when loaded; the signatures are those of client.h and render.h.
     unsafe {
         // The system's (or next to the exe), then the downloaded component.
