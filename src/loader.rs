@@ -619,16 +619,48 @@ async fn cached(base: &str, file: &File) -> Option<ColorImage> {
 /// The preview a camera stored inside the video (`mp4::thumbnail`), saved in the cache: 64 KB
 /// read instead of opening the video.
 async fn preview(op: &Store, base: &str, file: &File) -> Option<ColorImage> {
-    let head = op.read_range(&file.path, 0, file.size.min(crate::mp4::HEAD)).await.ok()?;
+    let jpeg = preview_jpeg(op, &file.path, file.size).await?;
     let (base, file) = (base.to_string(), file.clone());
     tokio::task::spawn_blocking(move || {
-        let img = decode::thumbnail(crate::mp4::thumbnail(&head)?, "preview.jpg", THUMB_SIDE).ok()?;
+        let img = decode::thumbnail(&jpeg, "preview.jpg", THUMB_SIDE).ok()?;
         thumbcache::save(&base, &file, &img);
         Some(decode::to_color_image(img))
     })
     .await
     .ok()
     .flatten()
+}
+
+/// The JPEG of `mp4::thumbnail`: in the first bytes, or in a `moov` after the media data, found
+/// following the top-level boxes (16 bytes read for each).
+async fn preview_jpeg(op: &Store, path: &str, size: u64) -> Option<Vec<u8>> {
+    use crate::mp4;
+    let head = op.read_range(path, 0, size.min(mp4::HEAD)).await.ok()?;
+    if let Some(jpeg) = mp4::thumbnail(&head) {
+        return Some(jpeg.to_vec());
+    }
+    let mut at = 0;
+    // ftyp, free, mdat, moov…: a few boxes at most before the moov.
+    for _ in 0..8 {
+        let end = size.min(at + 16);
+        let header = match head.get(at as usize..end as usize) {
+            Some(h) if end <= head.len() as u64 => h.to_vec(),
+            _ => op.read_range(path, at, end.checked_sub(at)?).await.ok()?,
+        };
+        let (kind, len) = mp4::box_header(&header)?;
+        let len = if len == 0 { size - at } else { len };
+        if &kind == b"moov" {
+            if len > mp4::MOOV_MAX || at + len > size {
+                return None;
+            }
+            return mp4::thumbnail(&op.read_range(path, at, len).await.ok()?).map(<[u8]>::to_vec);
+        }
+        at += len;
+        if at >= size {
+            return None;
+        }
+    }
+    None
 }
 
 /// Made from the file and saved in the cache.

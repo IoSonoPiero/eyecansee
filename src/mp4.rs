@@ -2,9 +2,22 @@
 //! UM-D1M dashcam: 320×180, ~11 KB at the start of every video, 2026-10-27). Read from the first
 //! bytes of the file, it gives a thumbnail without opening the video.
 
-/// Bytes read from the start of a video to look for the preview: the whole `moov` of a dashcam
-/// video fits (12 KB for 3 minutes); a `moov` at the end (phones) is not looked for.
+/// Bytes read from the start of a video to look for the preview: the whole `moov` of a
+/// fragmented dashcam video fits (12 KB for 3 minutes).
 pub const HEAD: u64 = 64 << 10;
+
+/// Largest `moov` read when it comes after the media data (the dashcam's other folders: ~18 KB;
+/// a phone's 4K clip ~100 KB [Inference]).
+pub const MOOV_MAX: u64 = 1 << 20;
+
+/// Type and whole size of the box whose header starts `header` (at least 16 bytes, or what is
+/// left of the file); size 0 means "to the end of the file" and is returned as 0.
+pub fn box_header(header: &[u8]) -> Option<([u8; 4], u64)> {
+    let size = u32::from_be_bytes(header.get(..4)?.try_into().ok()?) as u64;
+    let kind = header.get(4..8)?.try_into().ok()?;
+    let size = if size == 1 { u64::from_be_bytes(header.get(8..16)?.try_into().ok()?) } else { size };
+    (size == 0 || size >= 8).then_some((kind, size))
+}
 
 /// The JPEG in `moov/udta/thmb`, if `head` holds it whole.
 pub fn thumbnail(head: &[u8]) -> Option<&[u8]> {
@@ -42,6 +55,14 @@ mod tests {
         b.extend_from_slice(kind);
         b.extend_from_slice(content);
         b
+    }
+
+    #[test]
+    fn box_headers() {
+        assert_eq!(super::box_header(&mp4_box(b"ftyp", b"isomisom")), Some((*b"ftyp", 16)));
+        let big = [&1u32.to_be_bytes()[..], b"mdat", &(5u64 << 32).to_be_bytes()].concat();
+        assert_eq!(super::box_header(&big), Some((*b"mdat", 5 << 32)));
+        assert_eq!(super::box_header(&[0, 0, 0, 3, b'x', b'x', b'x', b'x']), None);
     }
 
     #[test]
