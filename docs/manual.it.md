@@ -120,6 +120,7 @@ I video (MP4, MOV, MKV, WebM, AVI e altri) compaiono nella griglia insieme alle 
 - **Invio** o un doppio clic aprono il video nel visore, dove parte con l'audio, adattato alla finestra.
 - **Spazio**, un clic sul video o il pulsante sotto mettono in pausa e riprendono. La barra sotto il video mostra il tempo e serve a spostarsi: trascinala o fai clic su un punto. Alla fine resta l'ultimo fotogramma; riprendendo, il video riparte dall'inizio.
 - **←** e **→** passano all'elemento precedente e successivo, come per le immagini; un doppio clic o **Esc** tornano alla griglia.
+- **Visualizza > Mostra**, o **Mostra** nel menù del clic destro sulla parte vuota della griglia: **Immagini e video** (all'inizio), **Solo immagini** o **Solo video**. La scelta vale per tutte le cartelle finché non la cambi; la barra di stato conta immagini e video a parte.
 - I video su un telefono o un server si leggono un pezzo alla volta mentre scorrono, senza copiarli interi. Copiare, spostare, rinominare ed eliminare funzionano come per le immagini. Ruotare, salvare e convertire valgono solo per le immagini, e il carosello mostra un fotogramma di ogni video.
 
 ## Ruotare e riflettere

@@ -120,6 +120,7 @@ Videos (MP4, MOV, MKV, WebM, AVI and others) appear in the grid next to the imag
 - **Enter** or a double click opens the video in the viewer, where it starts playing with sound, fitted to the window.
 - **Space**, a click on the video or the button under it play and pause. The bar under the video shows the time and moves along it: drag it or click a point. At the end the last frame stays; play starts again from the beginning.
 - **←** and **→** go to the previous and next item, as for images; a double click or **Esc** goes back to the grid.
+- **View > Show**, or **Show** in the right-click menu of the empty part of the grid: **Images and videos** (the default), **Images only** or **Videos only**. The choice stays for every folder until you change it; the status bar counts images and videos apart.
 - Videos on a phone or a server are read a piece at a time while they play, never copied whole. Copying, moving, renaming and deleting work as for images. Turning, saving and converting are for images only, and the slideshow shows a frame of each video.
 
 ## Rotating and flipping

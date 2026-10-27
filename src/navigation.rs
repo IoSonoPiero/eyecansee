@@ -211,6 +211,13 @@ impl App {
         }
     }
 
+    /// Images, videos or both: the folders are read again with the new filter.
+    pub(crate) fn set_show(&mut self, show: settings::Show) {
+        self.settings.show = show;
+        self.settings.save();
+        self.refresh();
+    }
+
     /// Number of subfolders of the current folder (they come before the images).
     pub(crate) fn listing_dirs(&self) -> usize {
         match self.listings.get(&self.dir) {

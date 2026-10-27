@@ -79,6 +79,7 @@ tb-thumb-size = Thumbnail size
 
 status-folders = Folders: { $n }
 status-images = Images: { $n }
+status-videos = Videos: { $n }
 status-deleting = Deleting { $n }…
 status-copied = { $n } copied: Ctrl+V to paste
 status-cut = { $n } cut: Ctrl+V to move
@@ -165,6 +166,10 @@ sort-date = Modification date
 sort-size = Size
 sort-type = Type
 sort-desc = Descending order
+show-menu = Show
+show-all = Images and videos
+show-images = Images only
+show-videos = Videos only
 sort-asc = Ascending order
 
 menu-delete = Delete…

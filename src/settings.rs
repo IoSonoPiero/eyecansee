@@ -30,6 +30,8 @@ pub struct Settings {
     pub meta_collapsed: bool,
     pub sort_by: SortBy,
     pub sort_desc: bool,
+    /// Which files the grid shows.
+    pub show: Show,
     pub thumb_maintenance: bool,
     pub thumb_cache_mb: u32,
     pub window_start: WindowStart,
@@ -96,6 +98,37 @@ impl SortBy {
     }
 }
 
+/// Images and videos, or one kind only.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Show {
+    #[default]
+    All,
+    Images,
+    Videos,
+}
+
+impl Show {
+    pub const ALL: [Show; 3] = [Show::All, Show::Images, Show::Videos];
+
+    /// Fluent id of the menu item.
+    pub fn label(self) -> &'static str {
+        match self {
+            Show::All => "show-all",
+            Show::Images => "show-images",
+            Show::Videos => "show-videos",
+        }
+    }
+
+    pub fn allows(self, path: &str) -> bool {
+        match self {
+            Show::All => true,
+            Show::Images => !crate::decode::is_video(path),
+            Show::Videos => crate::decode::is_video(path),
+        }
+    }
+}
+
 /// How the window opens: one choice at a time.
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug, Default)]
 #[serde(rename_all = "snake_case")]
@@ -120,6 +153,7 @@ impl Default for Settings {
             meta_collapsed: false,
             sort_by: SortBy::Name,
             sort_desc: false,
+            show: Show::All,
             thumb_maintenance: false,
             thumb_cache_mb: 1024,
             window_start: WindowStart::Normal,

@@ -61,6 +61,7 @@ impl App {
         }
         let mut r = r;
         if let Ok(l) = &mut r {
+            l.files.retain(|f| self.settings.show.allows(&f.path));
             l.sort_files(self.settings.sort_by, self.settings.sort_desc);
         }
         if let Err(("error-device-kde", _)) = &r {

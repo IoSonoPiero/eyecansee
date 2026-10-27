@@ -71,6 +71,7 @@ pub(crate) enum Act {
     Meta(meta::Group),
     Sort(settings::SortBy),
     SortDesc,
+    Show(settings::Show),
 }
 
 /// Image > Transform, as GIMP orders it: flips, then turns. Label and keys (Fluent ids).
@@ -201,6 +202,7 @@ impl App {
             Act::Meta(g) => self.show_meta(g, !self.meta_shown(g)),
             Act::Sort(by) => self.set_sort(by, self.settings.sort_desc),
             Act::SortDesc => self.set_sort(self.settings.sort_by, !self.settings.sort_desc),
+            Act::Show(show) => self.set_show(show),
         }
     }
 }

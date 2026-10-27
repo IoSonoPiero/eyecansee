@@ -163,6 +163,7 @@ impl App {
                 items.push(Some((t("menu-parent"), t("key-backspace"), Act::Up)));
             }
             items.push(Some((t("menu-refresh"), "F5".into(), Act::Refresh)));
+            items.push(Some((t("show-menu"), String::new(), Act::Submenu(self.show_items()))));
             if !source::is_trash(&self.dir) {
                 items.push(None);
                 items.push(Some((t("menu-duplicates"), String::new(), Act::Duplicates(None))));
@@ -400,6 +401,12 @@ impl App {
 
         self.cell_clicks(ui, &response, i, &path);
         response.double_clicked()
+    }
+
+    /// View > Show in the right-click menu: the current choice ticked.
+    fn show_items(&self) -> Vec<crate::browser::MenuItem> {
+        let tick = |s| if self.settings.show == s { "✔ " } else { "    " };
+        crate::settings::Show::ALL.into_iter().map(|s| Some((format!("{}{}", tick(s), self.i18n.t(s.label())), String::new(), Act::Show(s)))).collect()
     }
 
     /// The tile of an image (`file`: index among the images) with its thumbnail, a sign while it

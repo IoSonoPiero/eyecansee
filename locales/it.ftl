@@ -78,6 +78,7 @@ tb-thumb-size = Dimensione miniature
 
 status-folders = Cartelle: { $n }
 status-images = Immagini: { $n }
+status-videos = Video: { $n }
 status-deleting = Eliminazione in corso: { $n }…
 status-copied = { $n } copiati: Ctrl+V per incollare
 status-cut = { $n } tagliati: Ctrl+V per spostare
@@ -164,6 +165,10 @@ sort-date = Data di modifica
 sort-size = Dimensione
 sort-type = Tipo
 sort-desc = Ordine decrescente
+show-menu = Mostra
+show-all = Immagini e video
+show-images = Solo immagini
+show-videos = Solo video
 sort-asc = Ordine crescente
 
 menu-delete = Elimina…

@@ -108,6 +108,11 @@ impl App {
             ui.separator();
             pick(act, ui.checkbox(&mut self.settings.sort_desc.clone(), t("sort-desc")), Act::SortDesc);
         });
+        ui.menu_button(t("show-menu"), |ui| {
+            for show in settings::Show::ALL {
+                pick(act, ui.radio(self.settings.show == show, t(show.label())), Act::Show(show));
+            }
+        });
         ui.add_enabled_ui(!viewing, |ui| {
             ui.menu_button(t("menu-meta"), |ui| {
                 for g in meta::Group::ALL {
@@ -230,7 +235,13 @@ impl App {
                 ui.separator();
             }
             ui.label(self.i18n.t_args("status-folders", &[("n", &l.dirs.len().to_string())]));
-            ui.label(self.i18n.t_args("status-images", &[("n", &l.files.len().to_string())]));
+            let videos = l.files.iter().filter(|f| crate::decode::is_video(&f.path)).count();
+            if videos < l.files.len() {
+                ui.label(self.i18n.t_args("status-images", &[("n", &(l.files.len() - videos).to_string())]));
+            }
+            if videos > 0 {
+                ui.label(self.i18n.t_args("status-videos", &[("n", &videos.to_string())]));
+            }
             let marked = self.marked_paths();
             if !marked.is_empty() {
                 ui.separator();
