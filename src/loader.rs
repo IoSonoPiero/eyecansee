@@ -72,6 +72,11 @@ pub enum Msg {
 struct ThumbQueue {
     generation: u64,
     items: VecDeque<(usize, File)>,
+    /// Items taken from `items` so far: the position of each one in the queue.
+    taken: usize,
+    /// Videos of a slow disk not in the cache, by position: made two at a time (`SLOW`), always
+    /// the first one, so they come in the order of the queue whatever order the cache checks end in.
+    slow: BTreeMap<usize, (usize, File)>,
     /// Source closed: the workers exit and release the source. They used to stay alive forever,
     /// and a phone stayed open: reopening it after switching elsewhere gave "device in use".
     closed: bool,
@@ -151,7 +156,7 @@ impl Loader {
 
     /// Replaces the thumbnail queue: the order is the priority.
     pub fn set_thumb_queue(&self, generation: u64, items: Vec<(usize, File)>) {
-        *self.queue.lock().unwrap() = ThumbQueue { generation, items: items.into(), closed: false };
+        *self.queue.lock().unwrap() = ThumbQueue { generation, items: items.into(), taken: 0, slow: BTreeMap::new(), closed: false };
         self.wake.notify_waiters();
     }
 
@@ -526,7 +531,10 @@ async fn thumb_worker(
     tx: Sender<Msg>,
     ctx: Context,
 ) {
-    let mut place = None;
+    let send = |generation, index, image| {
+        ctx.request_repaint();
+        tx.send(Msg::Loaded { generation, index, thumb: true, image }).is_ok()
+    };
     loop {
         // Register before looking at the queue: a new queue arriving in the meantime must not be lost.
         let notified = wake.notified();
@@ -537,44 +545,56 @@ async fn thumb_worker(
             if q.closed {
                 return;
             }
-            let generation = q.generation;
-            q.items.pop_front().map(|item| (generation, item))
+            let (generation, at) = (q.generation, q.taken);
+            let item = q.items.pop_front();
+            q.taken += usize::from(item.is_some());
+            item.map(|item| (generation, at, item))
         };
-        let Some((generation, (index, file))) = next else {
-            place = None;
+        let Some((generation, at, (index, file))) = next else {
             notified.await;
             continue;
         };
-        // From the cache at once: a thumbnail already made never waits for a SLOW place (after a
-        // change of sort they all queued behind the ones being made, 2026-10-27).
-        let image = match cached(&base, &file).await {
-            Some(img) => Ok(img),
-            None => {
-                if place.is_none() && slow_video(&op, &file.path) {
-                    match SLOW.try_acquire() {
-                        Ok(p) => place = Some(p),
-                        Err(_) => {
-                            // Back to the front, then wait for a place: what is taken once one is
-                            // free is the first in the queue then (the one most in view).
-                            {
-                                let mut q = queue.lock().unwrap();
-                                if q.generation == generation {
-                                    q.items.push_front((index, file));
-                                }
-                            }
-                            place = SLOW.acquire().await.ok();
-                            continue;
-                        }
+        // From the cache at once: a thumbnail already made never waits for a SLOW place.
+        let sent = match cached(&base, &file).await {
+            Some(img) => send(generation, index, Ok(img)),
+            None if slow_video(&op, &file.path) => {
+                {
+                    let mut q = queue.lock().unwrap();
+                    if q.generation == generation {
+                        q.slow.insert(at, (index, file));
                     }
                 }
-                let _held = place.take(); // given back once this one is made
-                generate(&op, &base, file).await
+                make_slow(&op, &base, &queue, &send).await
             }
+            None => send(generation, index, generate(&op, &base, file).await),
         };
-        if tx.send(Msg::Loaded { generation, index, thumb: true, image }).is_err() {
+        if !sent {
             return; // window closed
         }
-        ctx.request_repaint();
+    }
+}
+
+/// While a SLOW place is free, the slow videos waiting, first position first. Whoever adds one
+/// tries afterwards; whoever finds none gives the place back and looks again, so none is left
+/// waiting. False if the window is closed.
+async fn make_slow(op: &Store, base: &str, queue: &Mutex<ThumbQueue>, send: &impl Fn(u64, usize, Result<ColorImage, String>) -> bool) -> bool {
+    loop {
+        let Ok(place) = SLOW.try_acquire() else { return true };
+        let next = {
+            let mut q = queue.lock().unwrap();
+            let generation = q.generation;
+            q.slow.pop_first().map(|(_, item)| (generation, item))
+        };
+        let Some((generation, (index, file))) = next else {
+            drop(place);
+            if queue.lock().unwrap().slow.is_empty() {
+                return true;
+            }
+            continue;
+        };
+        if !send(generation, index, generate(op, base, file).await) {
+            return false;
+        }
     }
 }
 
