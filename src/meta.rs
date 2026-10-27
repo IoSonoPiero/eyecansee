@@ -95,6 +95,42 @@ pub fn exif_chunk(bytes: &[u8]) -> Option<Vec<u8>> {
     (any && writer.write(&mut out, exif.little_endian()).is_ok()).then(|| out.into_inner())
 }
 
+/// The panel for an image: its EXIF if any, and always what the header says (format, size,
+/// colour). `None` only when neither can be read.
+pub fn read_file(bytes: &[u8], name: &str) -> Option<Meta> {
+    let header = crate::decode::header(bytes, name);
+    let mut meta = read(bytes);
+    if meta.is_none() && header.is_none() {
+        return None;
+    }
+    let meta_ref = meta.get_or_insert_default();
+    if let Some((format, [w, h], color)) = header {
+        let has = |label| meta_ref.fields.iter().any(|(_, l, _)| *l == label);
+        let mut add = vec![(Group::Image, "meta-format", format)];
+        if !has("meta-width") {
+            add.push((Group::Image, "meta-width", format!("{w} px")));
+            add.push((Group::Image, "meta-height", format!("{h} px")));
+        }
+        let (kind, bits) = color_kind(color);
+        add.push((Group::Image, "meta-color", kind.to_string()));
+        add.push((Group::Image, "meta-depth", format!("{bits} bit")));
+        // Format first in its box, the EXIF fields after.
+        meta_ref.fields.splice(0..0, add);
+    }
+    meta
+}
+
+/// Fluent id of the colour model and bits per channel.
+fn color_kind(c: image::ColorType) -> (&'static str, u16) {
+    let kind = match (c.has_color(), c.has_alpha()) {
+        (true, false) => "meta-color-rgb",
+        (true, true) => "meta-color-rgba",
+        (false, false) => "meta-color-gray",
+        (false, true) => "meta-color-graya",
+    };
+    (kind, c.bits_per_pixel() / u16::from(c.channel_count()))
+}
+
 /// `None` if the file has no EXIF (or it cannot be read).
 pub fn read(bytes: &[u8]) -> Option<Meta> {
     let exif = Reader::new().read_from_container(&mut Cursor::new(bytes)).ok()?;
@@ -274,7 +310,7 @@ fn iso6709(s: &str) -> Option<(f64, f64, Option<f64>)> {
 mod tests {
     use exif::experimental::Writer;
     use exif::{Field, In, Rational, Tag, Value};
-    use super::{from_video, iso6709, local_time, trimmed};
+    use super::{from_video, iso6709, local_time, read_file, trimmed};
 
     fn field(tag: Tag, value: Value) -> Field {
         Field { tag, ifd_num: In::PRIMARY, value }
@@ -365,5 +401,18 @@ mod tests {
         assert_eq!(get("meta-duration"), Some("3:00"));
         assert!(get("meta-taken").is_some());
         assert_eq!(m.gps, Some((45.4641, 9.1919)));
+    }
+
+    #[test]
+    fn image_without_exif() {
+        let img = image::DynamicImage::ImageRgba8(image::RgbaImage::new(30, 20));
+        let mut png = Vec::new();
+        img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let m = read_file(&png, "a.png").unwrap();
+        let get = |l: &str| m.fields.iter().find(|(_, label, _)| *label == l).map(|(_, _, v)| v.as_str());
+        assert_eq!(get("meta-format"), Some("PNG"));
+        assert_eq!((get("meta-width"), get("meta-height")), (Some("30 px"), Some("20 px")));
+        assert_eq!((get("meta-color"), get("meta-depth")), (Some("meta-color-rgba"), Some("8 bit")));
+        assert!(read_file(b"not an image", "a.txt").is_none());
     }
 }

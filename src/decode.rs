@@ -253,6 +253,39 @@ fn jxl(bytes: &[u8]) -> Result<DynamicImage> {
     oriented(jxl_oxide::integration::JxlDecoder::new(Cursor::new(bytes))?)
 }
 
+/// Format, stored size and colour of an image, from its header (nothing decoded): for the
+/// metadata panel, also when the file has no EXIF. `None` for formats read only by the other
+/// decoders (RAW, SVG, PSD, ImageMagick).
+pub fn header(bytes: &[u8], name: &str) -> Option<(String, [u32; 2], image::ColorType)> {
+    let ext = ext(name).unwrap_or_default();
+    if ext == "jxl" {
+        let d = jxl_oxide::integration::JxlDecoder::new(Cursor::new(bytes)).ok()?;
+        return Some(("JPEG XL".into(), d.dimensions().into(), d.color_type()));
+    }
+    #[cfg(feature = "heif")]
+    if HEIF.contains(&ext.as_str()) {
+        let ctx = libheif_rs::HeifContext::read_from_bytes(bytes).ok()?;
+        let h = ctx.primary_image_handle().ok()?;
+        let deep = h.luma_bits_per_pixel() > 8;
+        let color = match (h.has_alpha_channel(), deep) {
+            (false, false) => image::ColorType::Rgb8,
+            (true, false) => image::ColorType::Rgba8,
+            (false, true) => image::ColorType::Rgb16,
+            (true, true) => image::ColorType::Rgba16,
+        };
+        return Some((ext.to_uppercase(), [h.width(), h.height()], color));
+    }
+    let reader = image::ImageReader::new(Cursor::new(bytes)).with_guessed_format().ok()?;
+    let format = reader.format()?;
+    let d = reader.into_decoder().ok()?;
+    let name = match format {
+        image::ImageFormat::Jpeg => "JPEG".to_string(),
+        image::ImageFormat::OpenExr => "OpenEXR".to_string(),
+        f => format!("{f:?}").to_uppercase(),
+    };
+    Some((name, d.dimensions().into(), d.color_type()))
+}
+
 /// HEIC and AVIF. libheif applies the container's rotations and mirroring by itself.
 #[cfg(feature = "heif")]
 fn heif(bytes: &[u8]) -> Result<DynamicImage> {

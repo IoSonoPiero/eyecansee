@@ -385,7 +385,7 @@ impl Loader {
                 video_meta(&op, &path).await
             } else {
                 match op.read(&path).await {
-                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::meta::read(&bytes)).await.map_err(|e| e.to_string()),
+                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::meta::read_file(&bytes, &path)).await.map_err(|e| e.to_string()),
                     Err((_, detail)) => Err(detail),
                 }
             };
