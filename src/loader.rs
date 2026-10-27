@@ -736,6 +736,7 @@ async fn video_meta(op: &Store, path: &str) -> Result<Option<crate::meta::Meta>,
     let size = op.size(path).await.map_err(|(_, detail)| detail)?;
     let input = video_input(Handle::current(), op, path, size);
     let file = op.local_file(path);
+    let srt = drone_start(op, path).await;
     tokio::task::spawn_blocking(move || {
         let info = crate::mpv::info(input)?;
         let mut meta = crate::meta::from_video(&info, size);
@@ -744,10 +745,27 @@ async fn video_meta(op: &Store, path: &str) -> Result<Option<crate::meta::Meta>,
             let end = start + info.duration.unwrap_or(0.0).ceil() as i64;
             crate::meta::add_track(&mut meta, &crate::gps_track::points(&file, start, end));
         }
+        if meta.gps.is_none() {
+            meta.gps = srt;
+        }
         Ok(Some(meta))
     })
         .await
         .unwrap_or_else(|e| Err(e.to_string()))
+}
+
+/// A drone's position when the video started, from the first frame of the `.SRT` with the same
+/// name (`gps_track::srt_start`); any source, only its first 2 KB read.
+async fn drone_start(op: &Store, path: &str) -> Option<(f64, f64)> {
+    let stem = path.rsplit_once('.')?.0;
+    for ext in ["SRT", "srt"] {
+        let srt = format!("{stem}.{ext}");
+        if let Ok(size) = op.size(&srt).await {
+            let head = op.read_range(&srt, 0, size.min(crate::gps_track::SRT_HEAD)).await.ok()?;
+            return crate::gps_track::srt_start(&String::from_utf8_lossy(&head));
+        }
+    }
+    None
 }
 
 /// What mpv plays: the file itself when it is on this computer (also through gvfs), otherwise

@@ -32,19 +32,25 @@ impl Group {
 /// `Meta` as saved in the cache: the box by its key, the labels as text.
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Stored {
+    /// `STORED`: what an older version saved is read from the file again.
+    #[serde(default)]
+    version: u32,
     fields: Vec<(String, String, String)>,
     gps: Option<(f64, f64)>,
 }
 
+/// Raised when the panel learns to read something new: 1 = drone positions from the `.SRT`.
+const STORED: u32 = 1;
+
 impl Meta {
     pub fn to_json(&self) -> String {
         let fields = self.fields.iter().map(|(g, l, v)| (g.key().to_string(), l.to_string(), v.clone())).collect();
-        serde_json::to_string(&Stored { fields, gps: self.gps }).unwrap_or_default()
+        serde_json::to_string(&Stored { version: STORED, fields, gps: self.gps }).unwrap_or_default()
     }
 
     /// `None` if it does not read back (saved by another version): it is read from the file again.
     pub fn from_json(json: &str) -> Option<Meta> {
-        let stored: Stored = serde_json::from_str(json).ok()?;
+        let stored: Stored = serde_json::from_str(json).ok().filter(|s: &Stored| s.version == STORED)?;
         let mut fields = Vec::new();
         for (g, l, v) in stored.fields {
             let group = Group::ALL.into_iter().find(|x| x.key() == g)?;
@@ -460,5 +466,6 @@ mod tests {
         let m = super::Meta { fields: vec![(super::Group::Shot, "meta-taken", "2026-01-01 12:00:00".into()), (super::Group::Gps, "meta-altitude", "12 m".into())], gps: Some((45.4641, 9.1919)) };
         assert_eq!(super::Meta::from_json(&m.to_json()), Some(m));
         assert_eq!(super::Meta::from_json("{}"), None);
+        assert_eq!(super::Meta::from_json(r#"{"fields":[],"gps":null}"#), None); // saved before versions
     }
 }

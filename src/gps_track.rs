@@ -1,6 +1,9 @@
-//! Dashcam GPS tracks kept beside the videos rather than inside them: the Umino UM-D1M writes
-//! `gps.sqlite` at the root of its card (table `gps_track`: Unix seconds, latitude and longitude
-//! in millionths of a degree, altitude in decimetres, a point every 3 s; 2026-10-27).
+//! GPS positions kept beside the videos rather than inside them (2026-10-27):
+//! - the Umino UM-D1M dashcam writes `gps.sqlite` at the root of its card (table `gps_track`: Unix
+//!   seconds, latitude and longitude in millionths of a degree, altitude in decimetres, a point
+//!   every 3 s);
+//! - DJI drones write a `.SRT` with the same name as the video, a subtitle for every frame with
+//!   `[latitude: 40.30] [longitude: 18.40]` among the camera settings.
 
 use std::path::Path;
 
@@ -51,6 +54,21 @@ pub fn speeds(points: &[Point]) -> Option<(f64, f64)> {
     (secs > 0.0).then(|| (distance / secs * 3.6, top))
 }
 
+/// Bytes read from the start of a drone's `.SRT`: its first frame (~350 bytes).
+pub const SRT_HEAD: u64 = 2048;
+
+/// Where the first frame of a drone's `.SRT` was taken; none without a GPS fix then (0, 0 or out
+/// of range): the video then has no location, rather than a wrong one.
+pub fn srt_start(text: &str) -> Option<(f64, f64)> {
+    let number = |key: &str| -> Option<f64> {
+        let rest = &text[text.find(key)? + key.len()..];
+        rest[..rest.find(']')?].trim().parse().ok()
+    };
+    let (lat, lon) = (number("[latitude:")?, number("[longitude:")?);
+    let valid = (-90.0..=90.0).contains(&lat) && (-180.0..=180.0).contains(&lon) && (lat, lon) != (0.0, 0.0);
+    valid.then_some((lat, lon))
+}
+
 /// Great-circle distance (haversine).
 fn metres(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
     let (p1, p2) = (lat1.to_radians(), lat2.to_radians());
@@ -62,6 +80,17 @@ fn metres(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn drone_srt() {
+        // Made-up position (Milan), as a DJI Mini 4 Pro writes it.
+        let srt = "1\n00:00:00,000 --> 00:00:00,033\n<font size=\"28\">FrameCnt: 1, DiffTime: 33ms\n2026-01-01 12:00:00.000\n\
+                   [iso: 100] [shutter: 1/1000.0] [fnum: 1.7] [ev: 0] [focal_len: 24.00] [latitude: 45.464100] [longitude: 9.191900] [rel_alt: 14.300 abs_alt: 22.276] [ct: 5671] </font>";
+        assert_eq!(srt_start(srt), Some((45.4641, 9.1919)));
+        assert_eq!(srt_start(&srt.replace("45.464100", "0.000000").replace("9.191900", "0.000000")), None);
+        assert_eq!(srt_start(&srt.replace("45.464100", "123.0")), None);
+        assert_eq!(srt_start("1\n00:00:00,000 --> 00:00:00,033\nno position"), None);
+    }
 
     #[test]
     fn track_beside_the_video() {
