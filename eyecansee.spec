@@ -21,6 +21,8 @@ BuildRequires:  pkgconfig(MagickWand) >= 7
 BuildRequires:  desktop-file-utils
 # HEIC needs the HEVC decoder plugin, which Fedora does not ship (patents): RPM Fusion has it.
 Recommends:     libheif-freeworld
+# Videos: libmpv, opened at run time (src/mpv.rs). HEVC videos need RPM Fusion's ffmpeg too.
+Recommends:     mpv-libs
 
 # The release profile strips the executable: there is no debug information to package.
 %global debug_package %{nil}

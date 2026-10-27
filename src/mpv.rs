@@ -1,6 +1,7 @@
 //! Videos with libmpv, opened at the first video rather than linked: where it is missing
-//! EyeCanSee still starts and videos show an error. Linux: the system's `libmpv.so.2`; Windows:
-//! `libmpv-2.dll` next to the exe. Frames come from mpv's software renderer (render API "sw"),
+//! EyeCanSee still starts and videos show an error. Linux: the system's libmpv, in every package
+//! (decoders under patents, HEVC above all, stay out of ours); Windows: `libmpv-2.dll` next to
+//! the exe. Frames come from mpv's software renderer (render API "sw"),
 //! the same with any egui backend; mpv decodes (with the GPU when it can) and plays the sound.
 
 use std::ffi::{CString, c_char, c_int, c_void};
@@ -33,7 +34,8 @@ const ERROR_GENERIC: i64 = -20;
 #[cfg(windows)]
 const NAMES: &[&str] = &["libmpv-2.dll", "mpv-2.dll"];
 #[cfg(not(windows))]
-const NAMES: &[&str] = &["libmpv.so.2", "libmpv.so"];
+// libmpv.so.1: Ubuntu 22.04 (mpv 0.34, checked in a container on 2026-10-27: same calls work).
+const NAMES: &[&str] = &["libmpv.so.2", "libmpv.so.1", "libmpv.so"];
 
 type Handle = *mut c_void;
 type Render = *mut c_void;
