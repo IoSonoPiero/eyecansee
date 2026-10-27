@@ -491,9 +491,14 @@ impl Player {
         self.mpv.property::<c_int>("pause", FORMAT_FLAG).unwrap_or(0) != 0
     }
 
+    /// Played to the end (the last frame stays, see keep-open).
+    pub fn ended(&self) -> bool {
+        self.mpv.property::<c_int>("eof-reached", FORMAT_FLAG).unwrap_or(0) != 0
+    }
+
     /// Play or pause; at the end, play from the start.
     pub fn toggle(&self) {
-        if self.mpv.property::<c_int>("eof-reached", FORMAT_FLAG).unwrap_or(0) != 0 {
+        if self.ended() {
             let _ = self.mpv.command(&["seek", "0", "absolute"]);
             let _ = self.mpv.command(&["set", "pause", "no"]);
         } else {

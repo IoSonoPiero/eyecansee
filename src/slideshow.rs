@@ -113,6 +113,7 @@ impl App {
                 self.scroll_to_selected = true;
             }
         }
+        self.video = None;
         self.full.clear();
         self.pending.clear();
     }
@@ -136,7 +137,17 @@ impl App {
         let rect = ui.max_rect();
         ui.painter().rect_filled(rect, 0.0, Color32::BLACK);
         let t = passage(now, since, secs);
-        if let Some(cur_tex) = &cur_tex {
+        // A video plays whole, after the passage that brought its still in.
+        let video = cur.and_then(|i| self.files().get(i)).filter(|f| crate::decode::is_video(&f.path)).map(|f| (f.path.clone(), f.size));
+        let (mut played, mut ended) = (false, false);
+        match &video {
+            Some((path, size)) if t >= 1.0 => (played, ended) = self.show_video(ui.painter(), rect, path, *size),
+            Some(_) => {}
+            None => self.video = None,
+        }
+        if played {
+            // the video's frame is on screen
+        } else if let Some(cur_tex) = &cur_tex {
             let back = self.show.as_ref().is_some_and(|s| s.back);
             paint_passage(ui.painter(), rect, from_tex.as_ref(), cur_tex, (self.settings.slideshow_fade, back), t);
         } else if let Some(from_tex) = &from_tex {
@@ -153,7 +164,8 @@ impl App {
         if t >= 1.0 {
             s.from = None;
         }
-        if !s.paused && now - s.since >= secs && (next_ready || next.is_none()) {
+        let over = if video.is_some() { ended } else { now - s.since >= secs };
+        if !s.paused && over && (next_ready || next.is_none()) {
             self.show_go(&ctx, true, now);
         }
         ctx.request_repaint_after(std::time::Duration::from_millis(if t < 1.0 { 16 } else { 100 }));
@@ -189,6 +201,7 @@ impl App {
             && space
         {
             s.paused = !s.paused;
+            self.toggle_video();
         }
         if next || prev {
             self.show_go(ctx, next, now);

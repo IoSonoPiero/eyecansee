@@ -56,6 +56,18 @@ impl App {
         }
     }
 
+    /// The slideshow on a video: played whole at full screen (over its still, which the passage
+    /// uses). Returns (a frame was painted, the video is over or cannot play).
+    pub(crate) fn show_video(&mut self, painter: &egui::Painter, rect: Rect, path: &str, size: u64) -> (bool, bool) {
+        if self.video.as_ref().is_none_or(|v| v.path != path) {
+            self.video = None;
+            self.video = Some(self.open_video(painter.ctx(), path.to_string(), size));
+        }
+        let Some(v) = &mut self.video else { return (false, true) };
+        let Ok(player) = &v.player else { return (false, true) };
+        (paint_fitted(painter, rect, player, &mut v.texture), player.ended())
+    }
+
     fn open_video(&self, ctx: &egui::Context, path: String, size: u64) -> Playing {
         let ctx = ctx.clone();
         let player = match &self.loader {
@@ -77,34 +89,36 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, i18n: &I18n) -> Option<egui::Respons
     let Ok(player) = &v.player else { return None };
     let rect = ui.available_rect_before_wrap();
     let area = Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y - BAR));
-    if let Some(frame) = player.frame() {
-        let image = ColorImage::from_rgba_unmultiplied([frame.width() as usize, frame.height() as usize], frame.as_raw());
-        match &mut v.texture {
-            Some(t) => t.set(image, TextureOptions::LINEAR),
-            None => v.texture = Some(ui.ctx().load_texture("video", image, TextureOptions::LINEAR)),
-        }
-    }
     let response = ui.allocate_rect(area, egui::Sense::click());
-    match (player.video_size(), &v.texture) {
-        (Some([w, h]), texture) => {
-            let ppp = ui.ctx().pixels_per_point();
-            let scale = (area.width() * ppp / w as f32).min(area.height() * ppp / h as f32);
-            let pixels = [(w as f32 * scale).round().max(1.0) as u32, (h as f32 * scale).round().max(1.0) as u32];
-            player.set_size(pixels);
-            if let Some(t) = texture {
-                let shown = Rect::from_center_size(area.center(), vec2(pixels[0] as f32, pixels[1] as f32) / ppp);
-                ui.painter().image(t.id(), shown, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
-            }
-        }
-        (None, _) => {
-            ui.put(Rect::from_center_size(area.center(), vec2(32.0, 32.0)), egui::Spinner::new());
-        }
+    if !paint_fitted(ui.painter(), area, player, &mut v.texture) && player.video_size().is_none() {
+        ui.put(Rect::from_center_size(area.center(), vec2(32.0, 32.0)), egui::Spinner::new());
     }
     if response.clicked() {
         player.toggle();
     }
     controls(ui, Rect::from_min_max(pos2(rect.min.x, area.max.y), rect.max), player, i18n);
     Some(response)
+}
+
+/// The latest frame into `texture`, painted fitted to `area`; the frames are asked at that size.
+/// False until there is a frame.
+fn paint_fitted(painter: &egui::Painter, area: Rect, player: &mpv::Player, texture: &mut Option<TextureHandle>) -> bool {
+    if let Some(frame) = player.frame() {
+        let image = ColorImage::from_rgba_unmultiplied([frame.width() as usize, frame.height() as usize], frame.as_raw());
+        match texture {
+            Some(t) => t.set(image, TextureOptions::LINEAR),
+            None => *texture = Some(painter.ctx().load_texture("video", image, TextureOptions::LINEAR)),
+        }
+    }
+    let Some([w, h]) = player.video_size() else { return false };
+    let ppp = painter.ctx().pixels_per_point();
+    let scale = (area.width() * ppp / w as f32).min(area.height() * ppp / h as f32);
+    let pixels = [(w as f32 * scale).round().max(1.0) as u32, (h as f32 * scale).round().max(1.0) as u32];
+    player.set_size(pixels);
+    let Some(t) = texture else { return false };
+    let shown = Rect::from_center_size(area.center(), vec2(pixels[0] as f32, pixels[1] as f32) / ppp);
+    painter.image(t.id(), shown, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+    true
 }
 
 /// Play/pause, time, position. On the viewer's dark background in both themes.
