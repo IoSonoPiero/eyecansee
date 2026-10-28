@@ -68,6 +68,7 @@ mod theme;
 mod thumbcache;
 mod transfer;
 mod transform;
+mod trash;
 mod tree;
 mod ultrahdr;
 mod update;
