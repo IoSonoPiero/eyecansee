@@ -24,6 +24,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Embedded HEIC thumbnails.
 - Xiaomi depth data preserved in rotations.
 - Immich upload.
+- Windows: a delete on the phone, or the call right after it, can stall for 5-6 minutes inside WPD and then recover (mtp-rs #52, under investigation upstream).
 
 ## Formats
 
