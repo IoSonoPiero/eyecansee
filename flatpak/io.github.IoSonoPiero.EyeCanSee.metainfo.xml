@@ -68,6 +68,9 @@
   </provides>
 
   <releases>
+    <release version="0.63.0" date="2026-10-28">
+      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.63.0</url>
+    </release>
     <release version="0.62.0" date="2026-10-27">
       <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.62.0</url>
     </release>
