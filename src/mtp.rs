@@ -34,6 +34,18 @@ pub struct Phone {
     /// waited until the copy ended (4 s for 77 files). Taken around single mtp-rs calls only,
     /// never across our own methods, which call one another.
     turn: tokio::sync::Mutex<()>,
+    /// One windowed download at a time. On Windows WPD keeps one open stream per phone and
+    /// cannot seek: two downloads taking turns reopened the file at every window and re-read it
+    /// from the start, each window slower than the last (POCO X7 Pro, 2026-10-28: 1.2 s to 3.7 s
+    /// per 4 MB). Listings still pass between two windows of the same download.
+    downloads: tokio::sync::Mutex<()>,
+}
+
+/// A file read in windows, holding the phone's `downloads` turn until it is dropped.
+pub struct Download<'a> {
+    windows: WindowedDownload,
+    path: String,
+    _turn: tokio::sync::MutexGuard<'a, ()>,
 }
 
 /// Unix seconds of a phone date. Usually the phone does not write the time zone, and then mtp-rs
@@ -237,7 +249,7 @@ static PHONES: Mutex<Vec<(String, Weak<Phone>)>> = Mutex::new(Vec::new());
 
 impl Phone {
     pub fn new(serial: &str) -> Self {
-        Self { serial: serial.to_string(), open: OnceCell::new(), handles: Mutex::default(), complete: Mutex::default(), turn: tokio::sync::Mutex::const_new(()) }
+        Self { serial: serial.to_string(), open: OnceCell::new(), handles: Mutex::default(), complete: Mutex::default(), turn: tokio::sync::Mutex::const_new(()), downloads: tokio::sync::Mutex::const_new(()) }
     }
 
     /// The phones EyeCanSee has open, at exit: their Phone may never be dropped.
@@ -513,15 +525,17 @@ impl Phone {
     }
 
     /// A file read in windows of 4 MB: the phone stays free for listings between one and the next.
-    pub async fn download(&self, path: &str) -> Result<WindowedDownload, Error> {
+    pub async fn download(&self, path: &str) -> Result<Download<'_>, Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-        self.queued("download", path, storage.download_windowed(handle, mtp_rs::mtp::ByteRange::Full, 4 << 20)).await.map_err(error)
+        let _turn = self.downloads.lock().await;
+        let windows = self.queued("download", path, storage.download_windowed(handle, mtp_rs::mtp::ByteRange::Full, 4 << 20)).await.map_err(error)?;
+        Ok(Download { windows, path: path.to_string(), _turn })
     }
 
     /// The next window of a `download`.
-    pub async fn next_window(&self, download: &mut WindowedDownload) -> Option<Result<Vec<u8>, Error>> {
-        self.queued("next_window", "", download.next_window()).await.map(|r| r.map_err(error))
+    pub async fn next_window(&self, download: &mut Download<'_>) -> Option<Result<Vec<u8>, Error>> {
+        self.queued("next_window", &download.path, download.windows.next_window()).await.map(|r| r.map_err(error))
     }
 
     /// Copies a file inside the phone, without passing through the computer (MTP `CopyObject`),
