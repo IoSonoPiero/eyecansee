@@ -170,6 +170,18 @@ impl App {
         self.batch = Some(Window { paths, dir: self.dir.clone(), progress: None, dest: Default::default() });
     }
 
+    /// "Copy with the metadata": the window on "Same as the original" (streams copied, metadata
+    /// written), the destination left to choose.
+    pub(crate) fn open_copy_meta(&mut self, path: Option<String>) {
+        self.open_batch(path);
+        if let Some(form) = self.batch_form.as_mut().filter(|_| self.batch.is_some()) {
+            if !CONTAINERS[form.video.container].codecs.contains(&Codec::Copy) {
+                form.video.container = 0;
+            }
+            form.video.codec = Codec::Copy;
+        }
+    }
+
     pub(crate) fn batch_window(&mut self, ctx: &egui::Context) {
         let Some(mut w) = self.batch.take() else { return };
         let keep = match w.progress.clone() {

@@ -32,6 +32,8 @@ pub(crate) enum Act {
     Convert(Option<String>),
     /// Convert and resize images of the grid (`None` = the marked ones or the selected one).
     Batch(Option<String>),
+    /// Converti e ridimensiona preset on copied streams: the video rewritten with its metadata.
+    CopyMeta(Option<String>),
     /// Slideshow of the marked images, or of the folder from this one (`None` = the selected one
     /// or the one in the viewer).
     Slideshow(Option<String>),
@@ -149,6 +151,7 @@ impl App {
             Act::Convert(path) => self.open_convert(path),
             Act::Duplicates(dir) => self.open_duplicates(dir),
             Act::Batch(path) => self.open_batch(path),
+            Act::CopyMeta(path) => self.open_copy_meta(path),
             Act::Slideshow(path) => self.start_show(ctx, path),
             Act::RedoThumbs(path) => self.redo_thumbs(ctx, self.chosen(path)),
             Act::RedoAllThumbs => self.redo_all_thumbs(ctx),

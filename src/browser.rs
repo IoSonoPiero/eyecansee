@@ -144,6 +144,9 @@ impl App {
         items.push(Some((t("menu-save-copy"), String::new(), Act::Convert(path.clone()))));
         if !in_viewer {
             items.push(Some((t("menu-batch"), String::new(), Act::Batch(path.clone()))));
+            if self.grid_items(path.clone()).iter().any(|p| crate::decode::is_video(p)) {
+                items.push(Some((t("menu-copy-meta"), String::new(), Act::CopyMeta(path.clone()))));
+            }
         }
         items.push(None);
         items.push(Some((t("menu-cut"), t("key-cut"), Act::Cut(path.clone()))));
