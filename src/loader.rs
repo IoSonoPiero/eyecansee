@@ -1088,6 +1088,28 @@ mod tests {
         timed("list other after file", &|| list(&other));
         timed("delete sub/", &|| rt.block_on(op.delete(&format!("{dir}sub/"), Deletion::Permanent)));
         timed("list dir after folder", &|| list(&dir));
+        rt.block_on(async {
+            for i in 0..2 {
+                write_whole(&op, &format!("{dir}f{i}.jpg"), jpeg.clone()).await?;
+            }
+            Ok::<_, source::Error>(())
+        })
+        .unwrap();
+        // As in the app on 2026-10-28: files in the folder's trash, the trash listed and its files
+        // read (thumbnails), then the trash emptied and the folder listed again.
+        for i in 0..3 {
+            timed(&format!("trash f{i}.jpg"), &|| rt.block_on(op.delete(&format!("{dir}f{i}.jpg"), Deletion::TrashFolder)));
+        }
+        let trash = format!("{dir}{TRASH_DIR}/");
+        timed("list trash", &|| list(&trash));
+        timed("read trash files", &|| {
+            for i in 0..3 {
+                rt.block_on(op.read(&format!("{trash}f{i}.jpg")))?;
+            }
+            Ok(())
+        });
+        timed("delete trash/", &|| rt.block_on(op.delete(&trash, Deletion::Permanent)));
+        timed("list dir after trash", &|| list(&dir));
         timed("delete dir", &|| rt.block_on(op.delete(&dir, Deletion::Permanent)));
         timed("list root after folder", &|| list(&root.dirs[0]));
     }
