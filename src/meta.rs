@@ -254,7 +254,7 @@ pub fn from_video(info: &crate::mpv::Info, size: u64) -> Meta {
     add(Group::Camera, "meta-model", tag(&["com.android.model", "com.apple.quicktime.model", "model"]));
     let android = tag(&["com.android.version"]).map(|v| format!("Android {v}"));
     add(Group::Camera, "meta-software", android.or_else(|| tag(&["com.apple.quicktime.software", "encoder"])));
-    add(Group::Shot, "meta-taken", tag(&["creation_time"]).and_then(|t| local_time(&t)));
+    add(Group::Shot, "meta-taken", tag(&["creation_time", "date_recorded"]).and_then(|t| local_time(&t)));
     add(Group::Shot, "meta-duration", info.duration.map(crate::mpv::clock));
     if let Some((codec, [w, h], rotation, fps)) = &info.video {
         let (w, h) = if rotation % 180 == 90 { (h, w) } else { (w, h) };
@@ -288,7 +288,7 @@ pub fn from_video(info: &crate::mpv::Info, size: u64) -> Meta {
 
 /// When a video starts, in Unix seconds, from its `creation_time` tag.
 pub fn video_start(info: &crate::mpv::Info) -> Option<i64> {
-    let t = &info.tags.iter().find(|(k, _)| *k == "creation_time")?.1;
+    let t = &info.tags.iter().find(|(k, _)| *k == "creation_time" || *k == "date_recorded")?.1;
     Some(first(t).parse::<jiff::Timestamp>().ok()?.as_second())
 }
 
@@ -336,7 +336,7 @@ fn local_time(t: &str) -> Option<String> {
 
 /// A tag written twice in an MP4 (the standard atom and the `keys` one, as FFmpeg 9 writes
 /// `creation_time` with `use_metadata_tags`) is read back as "a;b": the first value.
-fn first(t: &str) -> &str {
+pub fn first(t: &str) -> &str {
     t.split(';').next().unwrap_or(t).trim()
 }
 
@@ -458,6 +458,11 @@ mod tests {
         assert!(get("meta-taken").is_some());
         assert_eq!(m.gps, Some((45.4641, 9.1919)));
         assert_eq!((get("meta-speed-avg"), get("meta-speed-max")), (Some("32 km/h"), Some("51 km/h")));
+        // An MKV written by Converti e ridimensiona: the date only as `date_recorded`.
+        let mkv = crate::mpv::Info { tags: vec![("date_recorded", "2026-10-19T15:11:29.000000Z".into())], duration: None, video: None, audio: None };
+        let m = from_video(&mkv, 1);
+        assert!(m.fields.iter().any(|(_, l, _)| *l == "meta-taken"));
+        assert_eq!(super::video_start(&mkv), Some(1_792_422_689));
     }
 
     #[test]

@@ -507,6 +507,7 @@ pub const TAGS: &[&str] = &[
     "com.apple.quicktime.location.ISO6709",
     "speed_average_kmh",
     "speed_top_kmh",
+    "date_recorded",
     "com.apple.quicktime.make",
     "com.apple.quicktime.model",
     "com.apple.quicktime.software",
@@ -820,5 +821,17 @@ mod tests {
         }
         println!("{frames} frames in 3 s, position {:.2} of {:.1} s, fps {:?}", player.position(), player.duration(), player.mpv.property::<f64>("container-fps", FORMAT_DOUBLE));
         assert!(frames > 30, "too few frames");
+    }
+}
+
+#[cfg(test)]
+mod info_tests {
+    /// `EYECANSEE_VIDEO=<file> cargo test info_tags_live -- --ignored --nocapture`: the tags libmpv reports.
+    #[test]
+    #[ignore]
+    fn info_tags_live() {
+        let file = std::path::PathBuf::from(std::env::var("EYECANSEE_VIDEO").expect("EYECANSEE_VIDEO"));
+        let info = super::info(super::Input::File(file)).unwrap();
+        println!("tags: {:?}\nduration {:?} video {:?}", info.tags, info.duration, info.video);
     }
 }

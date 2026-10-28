@@ -118,36 +118,43 @@ pub(crate) async fn video_meta(op: &Store, path: &str) -> Result<Option<crate::m
         .unwrap_or_else(|e| Err(e.to_string()))
 }
 
-/// What a conversion writes in the new file for the position kept beside the video: the dashcam's
-/// start point, altitude and speeds (`gps_track`), or the drone's start point (`.SRT`). Nothing
-/// when the file carries its own `location` (copied with the other tags), or without libmpv.
+/// What a conversion writes in the new file beyond the tags FFmpeg copies: the date as
+/// `date_recorded` too (Matroska has no `creation_time`: FFmpeg turns it into DateUTC, which
+/// libmpv does not report), and the position kept beside the video: the dashcam's start point,
+/// altitude and speeds (`gps_track`), or the drone's start point (`.SRT`); not when the file
+/// carries its own `location` (copied with the other tags). Only the drone's without libmpv.
 pub(crate) async fn track_tags(op: &Store, path: &str) -> Vec<(String, String)> {
     let mut tags = Vec::new();
+    let mut located = false;
     if let Some(file) = op.local_file(path) {
         let found = tokio::task::spawn_blocking(move || {
             let info = crate::mpv::info(crate::mpv::Input::File(file.clone())).ok()?;
-            if info.tags.iter().any(|(k, _)| *k == "location" || *k == "com.apple.quicktime.location.ISO6709") {
-                return Some(Vec::new());
+            let mut tags = Vec::new();
+            if let Some((_, t)) = info.tags.iter().find(|(k, _)| *k == "creation_time") {
+                tags.push(("date_recorded".to_string(), crate::meta::first(t).to_string()));
             }
-            let start = crate::meta::video_start(&info)?;
-            let end = start + info.duration.unwrap_or(0.0).ceil() as i64;
-            let points = crate::gps_track::points(&file, start, end);
-            let &(_, lat, lon, alt) = points.first()?;
-            let mut tags = vec![("location".to_string(), crate::gps_track::location(lat, lon, Some(alt)))];
+            if info.tags.iter().any(|(k, _)| *k == "location" || *k == "com.apple.quicktime.location.ISO6709") {
+                return Some((tags, true));
+            }
+            let points = crate::meta::video_start(&info)
+                .map(|start| crate::gps_track::points(&file, start, start + info.duration.unwrap_or(0.0).ceil() as i64))
+                .unwrap_or_default();
+            let Some(&(_, lat, lon, alt)) = points.first() else { return Some((tags, false)) };
+            tags.push(("location".to_string(), crate::gps_track::location(lat, lon, Some(alt))));
             if let Some((avg, top)) = crate::gps_track::speeds(&points) {
                 tags.push(("speed_average_kmh".into(), format!("{avg:.0}")));
                 tags.push(("speed_top_kmh".into(), format!("{top:.0}")));
             }
-            Some(tags)
+            Some((tags, true))
         })
         .await
         .ok()
         .flatten();
-        if let Some(t) = found {
-            return t;
+        if let Some((t, l)) = found {
+            (tags, located) = (t, l);
         }
     }
-    if let Some((lat, lon)) = drone_start(op, path).await {
+    if !located && let Some((lat, lon)) = drone_start(op, path).await {
         tags.push(("location".into(), crate::gps_track::location(lat, lon, None)));
     }
     tags
