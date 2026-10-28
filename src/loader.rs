@@ -1168,6 +1168,41 @@ mod tests {
         cleaned.unwrap();
     }
 
+    /// As in the app on WarMachineW on 2026-10-28: ten WebP files written to a folder of the phone
+    /// (Convert and resize), then deleted one by one. The sixth delete hung for about five minutes
+    /// (WPD), with every later call waiting behind it. Times of every call, to find the trigger.
+    ///   EYECANSEE_MTP=<serial> cargo test --release mtp_ten_deletes_live -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn mtp_ten_deletes_live() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let op = Store::Mtp(Arc::new(crate::mtp::Phone::new(&serial)));
+        let root = rt.block_on(op.list("")).unwrap();
+        let dir = format!("{}EyeCanSee-deletes-test/", root.dirs[0]);
+        println!("mtp_ten_deletes_live: {dir}");
+        let webp = encode(&picture(800, 600), image::ImageFormat::WebP);
+        let timed = |what: &str, f: &dyn Fn() -> Result<(), source::Error>| {
+            let t = std::time::Instant::now();
+            let r = f();
+            println!("{what}: {:?} in {:.2} s", r, t.elapsed().as_secs_f32());
+        };
+        rt.block_on(async {
+            op.create_dir(&dir).await?;
+            for i in 0..10 {
+                write_whole(&op, &format!("{dir}w{i}.webp"), webp.clone()).await?;
+            }
+            Ok::<_, source::Error>(())
+        })
+        .unwrap();
+        timed("list dir", &|| rt.block_on(op.list(&dir)).map(|_| ()));
+        for i in 0..10 {
+            timed(&format!("delete w{i}.webp"), &|| rt.block_on(op.delete(&format!("{dir}w{i}.webp"), Deletion::Permanent)));
+        }
+        timed("list dir after", &|| rt.block_on(op.list(&dir)).map(|_| ()));
+        timed("delete dir", &|| rt.block_on(op.delete(&dir, Deletion::Permanent)));
+    }
+
     #[test]
     #[ignore]
     fn mtp_save_live() {
