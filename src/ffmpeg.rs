@@ -190,7 +190,8 @@ fn scale(size: Size, enlarge: bool) -> Option<String> {
 
 /// The arguments of ffmpeg for one video. `audio_encoders`: those this FFmpeg has. FFmpeg turns
 /// the picture as the phone recorded it by itself; `turn` comes after.
-pub fn args(v: &Video, size: Size, enlarge: bool, turn: Turn, input: &str, output: &str, audio_encoders: &[String]) -> Vec<String> {
+/// `(input, output)`: the files. `tags`: container tags added to the file (`-metadata`) when `v.meta`, such as a dashcam's position.
+pub fn args(v: &Video, size: Size, enlarge: bool, turn: Turn, (input, output): (&str, &str), audio_encoders: &[String], tags: &[(String, String)]) -> Vec<String> {
     let c = &CONTAINERS[v.container];
     let vaapi = v.encoder.ends_with("_vaapi");
     let mut a: Vec<String> = ["-hide_banner", "-nostdin", "-y", "-progress", "pipe:1", "-nostats"].map(String::from).to_vec();
@@ -221,6 +222,11 @@ pub fn args(v: &Video, size: Size, enlarge: bool, turn: Turn, input: &str, outpu
         None => a.push("-an".into()),
     }
     a.extend(["-sn".into(), "-dn".into(), "-map_metadata".into(), if v.meta { "0" } else { "-1" }.into()]);
+    if v.meta {
+        for (k, value) in tags {
+            a.extend(["-metadata".into(), format!("{k}={value}")]);
+        }
+    }
     if matches!(c.muxer, "mp4" | "mov") {
         // MP4 writes only a few tags unless asked: the phone's place and model are among the others.
         a.extend(["-movflags".into(), if v.meta { "+faststart+use_metadata_tags" } else { "+faststart" }.into()]);
@@ -385,19 +391,22 @@ mod tests {
     fn arguments() {
         let v = Video { container: 0, encoder: "libx264", quality: Quality::Medium, audio: true, meta: true };
         let turn = Turn::default().then(Op::FlipH).then(Op::Cw);
-        let a = args(&v, Size::Fit(1920, 1080), false, turn, "in.mov", "out.mp4", &["aac".into()]).join(" ");
+        let a = args(&v, Size::Fit(1920, 1080), false, turn, ("in.mov", "out.mp4"), &["aac".into()], &[]).join(" ");
         assert!(a.contains("-i in.mov -map 0:V:0 -map 0:a:0?"), "{a}");
         assert!(a.contains("-vf hflip,transpose=clock,scale=w='min(1920,iw)':h='min(1080,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2"), "{a}");
         assert!(a.contains("-c:v libx264 -crf 23 -preset medium -pix_fmt yuv420p -c:a aac -b:a 128k"), "{a}");
         assert!(a.ends_with("-map_metadata 0 -movflags +faststart+use_metadata_tags -f mp4 out.mp4"), "{a}");
         // No audio encoder for WebM here: no sound. No metadata, no filters.
         let v = Video { container: 2, encoder: "libsvtav1", quality: Quality::High, audio: true, meta: false };
-        let a = args(&v, Size::Same, false, Turn::default(), "a", "b", &["aac".into()]).join(" ");
+        let a = args(&v, Size::Same, false, Turn::default(), ("a", "b"), &["aac".into()], &[("location".to_string(), "+42.5+014.1/".to_string())]).join(" ");
         assert!(a.contains("-c:v libsvtav1 -crf 24 -preset 8 -an -sn -dn -map_metadata -1 -f webm b"), "{a}");
-        assert!(!a.contains("-vf"), "{a}");
+        assert!(!a.contains("-vf") && !a.contains("-metadata"), "{a}"); // no tags without meta
+        let v = Video { meta: true, ..v };
+        let a = args(&v, Size::Same, false, Turn::default(), ("a", "b"), &[], &[("location".to_string(), "+42.5+014.1/".to_string())]).join(" ");
+        assert!(a.contains("-map_metadata 0 -metadata location=+42.5+014.1/ -f webm b"), "{a}");
         // VA-API: the device, and frames uploaded to the card.
         let v = Video { container: 1, encoder: "hevc_vaapi", quality: Quality::Small, audio: false, meta: true };
-        let a = args(&v, Size::Percent(50), false, Turn::default(), "a", "b", &[]).join(" ");
+        let a = args(&v, Size::Percent(50), false, Turn::default(), ("a", "b"), &[], &[]).join(" ");
         assert!(a.contains("-vaapi_device /dev/dri/renderD128 -i a"), "{a}");
         assert!(a.contains("-vf scale=w='trunc(iw*50/200)*2':h=-2,format=nv12,hwupload -c:v hevc_vaapi -rc_mode CQP -global_quality 30 -an"), "{a}");
     }
@@ -433,7 +442,7 @@ mod tests {
         let encoder = p.of(Codec::H264)[0];
         let out = std::env::temp_dir().join(format!("eyecansee-ffmpeg-live-{}.mp4", std::process::id()));
         let v = Video { container: 0, encoder, quality: Quality::Medium, audio: true, meta: true };
-        let a = args(&v, Size::Fit(1280, 720), false, Turn::default().then(Op::Cw), &input, &out.to_string_lossy(), &p.audio);
+        let a = args(&v, Size::Fit(1280, 720), false, Turn::default().then(Op::Cw), (&input, &out.to_string_lossy()), &p.audio, &[]);
         let t = std::time::Instant::now();
         let last = Mutex::new(0.0);
         run(&p.program, &a, |f| *last.lock().unwrap() = f, &AtomicBool::new(false)).unwrap();

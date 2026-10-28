@@ -176,7 +176,8 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
         }
     };
     let output = out.local_file(to).map_or_else(|| (temp("out"), true), |f| (f, false));
-    let args = crate::ffmpeg::args(&v, job.size, job.enlarge, job.turn, &input.0.to_string_lossy(), &output.0.to_string_lossy(), &probe.audio);
+    let tags = if v.meta { crate::video_read::track_tags(op, path).await } else { Vec::new() };
+    let args = crate::ffmpeg::args(&v, job.size, job.enlarge, job.turn, (&input.0.to_string_lossy(), &output.0.to_string_lossy()), &probe.audio, &tags);
     log!("ffmpeg {args:?}");
     let (program, p2) = (probe.program.clone(), p.clone());
     let r = tokio::task::spawn_blocking(move || crate::ffmpeg::run(&program, &args, |f| p2.part.store((f * 1000.0) as u32, Ordering::Relaxed), &p2.cancel))

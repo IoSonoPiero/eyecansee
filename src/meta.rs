@@ -274,6 +274,9 @@ pub fn from_video(info: &crate::mpv::Info, size: u64) -> Meta {
         add(Group::Image, "meta-audio", Some(format!("{}{rate}{channels}", codec_name(codec))));
     }
     add(Group::Image, "meta-bitrate", info.duration.filter(|d| *d > 0.0).map(|d| format!("{} Mbit/s", trimmed(size as f64 * 8.0 / d / 1e6))));
+    // Written by Converti e ridimensiona from a dashcam's track (`video_read::track_tags`).
+    add(Group::Gps, "meta-speed-avg", tag(&["speed_average_kmh"]).map(|v| format!("{v} km/h")));
+    add(Group::Gps, "meta-speed-max", tag(&["speed_top_kmh"]).map(|v| format!("{v} km/h")));
     if let Some((lat, lon, alt)) = tag(&["location", "com.apple.quicktime.location.ISO6709"]).as_deref().and_then(iso6709) {
         meta.gps = Some((lat, lon));
         if let Some(alt) = alt {
@@ -439,7 +442,7 @@ mod tests {
         assert_eq!(trimmed(29.976), "29.98");
         assert_eq!(trimmed(48.0), "48");
         let info = crate::mpv::Info {
-            tags: vec![("creation_time", "2026-01-01T12:00:00.000000Z".into()), ("com.android.version", "15".into()), ("location", "+45.4641+009.1919/".into())],
+            tags: vec![("creation_time", "2026-01-01T12:00:00.000000Z".into()), ("com.android.version", "15".into()), ("location", "+45.4641+009.1919/".into()), ("speed_average_kmh", "32".into()), ("speed_top_kmh", "51".into())],
             duration: Some(180.0),
             video: Some(("hevc".into(), [1920, 1080], 90, Some(30.0))),
             audio: Some(("aac".into(), Some(48000), Some(2))),
@@ -454,6 +457,7 @@ mod tests {
         assert_eq!(get("meta-duration"), Some("3:00"));
         assert!(get("meta-taken").is_some());
         assert_eq!(m.gps, Some((45.4641, 9.1919)));
+        assert_eq!((get("meta-speed-avg"), get("meta-speed-max")), (Some("32 km/h"), Some("51 km/h")));
     }
 
     #[test]

@@ -505,6 +505,8 @@ pub const TAGS: &[&str] = &[
     "creation_time",
     "location",
     "com.apple.quicktime.location.ISO6709",
+    "speed_average_kmh",
+    "speed_top_kmh",
     "com.apple.quicktime.make",
     "com.apple.quicktime.model",
     "com.apple.quicktime.software",

@@ -54,6 +54,13 @@ pub fn speeds(points: &[Point]) -> Option<(f64, f64)> {
     (secs > 0.0).then(|| (distance / secs * 3.6, top))
 }
 
+/// A position as the `location` tag of MP4 and MOV files (ISO 6709, as phones write it):
+/// `+42.516823+014.130600+066.0/`.
+pub fn location(lat: f64, lon: f64, alt: Option<f64>) -> String {
+    let alt = alt.map(|a| format!("{a:+.1}")).unwrap_or_default();
+    format!("{lat:+.6}{lon:+011.6}{alt}/")
+}
+
 /// Bytes read from the start of a drone's `.SRT`: its first frame (~350 bytes).
 pub const SRT_HEAD: u64 = 2048;
 
@@ -80,6 +87,12 @@ fn metres(lat1: f64, lon1: f64, lat2: f64, lon2: f64) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn location_tag() {
+        assert_eq!(location(42.516823, 14.1306, Some(66.0)), "+42.516823+014.130600+66.0/");
+        assert_eq!(location(-33.9, -151.2, None), "-33.900000-151.200000/");
+    }
 
     #[test]
     fn drone_srt() {

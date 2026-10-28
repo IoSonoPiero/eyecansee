@@ -118,6 +118,41 @@ pub(crate) async fn video_meta(op: &Store, path: &str) -> Result<Option<crate::m
         .unwrap_or_else(|e| Err(e.to_string()))
 }
 
+/// What a conversion writes in the new file for the position kept beside the video: the dashcam's
+/// start point, altitude and speeds (`gps_track`), or the drone's start point (`.SRT`). Nothing
+/// when the file carries its own `location` (copied with the other tags), or without libmpv.
+pub(crate) async fn track_tags(op: &Store, path: &str) -> Vec<(String, String)> {
+    let mut tags = Vec::new();
+    if let Some(file) = op.local_file(path) {
+        let found = tokio::task::spawn_blocking(move || {
+            let info = crate::mpv::info(crate::mpv::Input::File(file.clone())).ok()?;
+            if info.tags.iter().any(|(k, _)| *k == "location" || *k == "com.apple.quicktime.location.ISO6709") {
+                return Some(Vec::new());
+            }
+            let start = crate::meta::video_start(&info)?;
+            let end = start + info.duration.unwrap_or(0.0).ceil() as i64;
+            let points = crate::gps_track::points(&file, start, end);
+            let &(_, lat, lon, alt) = points.first()?;
+            let mut tags = vec![("location".to_string(), crate::gps_track::location(lat, lon, Some(alt)))];
+            if let Some((avg, top)) = crate::gps_track::speeds(&points) {
+                tags.push(("speed_average_kmh".into(), format!("{avg:.0}")));
+                tags.push(("speed_top_kmh".into(), format!("{top:.0}")));
+            }
+            Some(tags)
+        })
+        .await
+        .ok()
+        .flatten();
+        if let Some(t) = found {
+            return t;
+        }
+    }
+    if let Some((lat, lon)) = drone_start(op, path).await {
+        tags.push(("location".into(), crate::gps_track::location(lat, lon, None)));
+    }
+    tags
+}
+
 /// A drone's position when the video started, from the first frame of the `.SRT` with the same
 /// name (`gps_track::srt_start`); any source, only its first 2 KB read.
 async fn drone_start(op: &Store, path: &str) -> Option<(f64, f64)> {
