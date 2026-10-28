@@ -1203,7 +1203,11 @@ mod tests {
         timed("delete dir", &|| rt.block_on(op.delete(&dir, Deletion::Permanent)));
         // Under DCIM (indexed by Android), and each file read just before it is deleted, as the
         // thumbnails and the metadata panel do in the app.
-        let dcim = format!("{}DCIM/EyeCanSee-deletes-test/", root.dirs[0]);
+        // EYECANSEE_MTP_DIR=<folder under the storage, with the final "/">: where the second part
+        // runs (default DCIM/), e.g. an album a backup app watches.
+        let under = std::env::var("EYECANSEE_MTP_DIR").unwrap_or_else(|_| "DCIM/".to_string());
+        let dcim = format!("{}{under}EyeCanSee-deletes-test/", root.dirs[0]);
+        println!("second part in {dcim}");
         rt.block_on(async {
             op.create_dir(&dcim).await?;
             for i in 0..6 {
