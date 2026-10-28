@@ -105,11 +105,18 @@ jobs:
           if (-not (Test-Path "$dir\eyecansee.exe")) { "::error::eyecansee.exe not installed in $dir"; exit 1 }
           if (-not (Test-Path $key)) { "::error::$key not created"; exit 1 }
           if (-not (Test-Path "$dir\modules\coders\IM_MOD_RL_dpx_.dll")) { "::error::ImageMagick coders not installed"; exit 1 }
+          # Downloaded components go with the program; settings and thumbnails stay.
+          $components = "$env:LOCALAPPDATA\EyeCanSee\components"
+          $settings = "$env:APPDATA\EyeCanSee\settings.json"
+          New-Item -ItemType Directory -Force "$components\ffmpeg-test" | Out-Null; "x" > "$components\ffmpeg-test\ffmpeg.exe"
+          New-Item -ItemType Directory -Force (Split-Path $settings) | Out-Null; "{}" > $settings
           Start-Process -Wait -FilePath "$dir\unins000.exe" -ArgumentList "/VERYSILENT /SUPPRESSMSGBOXES /NORESTART"
           # The uninstaller restarts itself from a temporary copy, so -Wait can return before it is done.
           foreach ($i in 1..30) { if (-not (Test-Path "$dir\eyecansee.exe")) { break }; Start-Sleep 1 }
           if (Test-Path "$dir\eyecansee.exe") { "::error::eyecansee.exe still there after uninstalling"; exit 1 }
           if (Test-Path $key) { "::error::$key still there after uninstalling"; exit 1 }
+          if (Test-Path $components) { "::error::$components still there after uninstalling"; exit 1 }
+          if (-not (Test-Path $settings)) { "::error::$settings removed by uninstalling"; exit 1 }
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: windows

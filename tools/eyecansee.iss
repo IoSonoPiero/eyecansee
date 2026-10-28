@@ -91,5 +91,10 @@ Root: HKA; Subkey: "Software\Classes\.raf\OpenWithProgids"; ValueType: string; V
 Root: HKA; Subkey: "Software\Classes\.orf\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.rw2\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
 
+[UninstallDelete]
+; Components the app downloaded on request (the video engine): gone with the program. Settings
+; (%APPDATA%\EyeCanSee) and the thumbnail cache (%LOCALAPPDATA%\EyeCanSee\thumbs.db) stay.
+Type: filesandordirs; Name: "{localappdata}\EyeCanSee\components"
+
 [Run]
 Filename: "{app}\eyecansee.exe"; Description: "{cm:LaunchProgram,EyeCanSee}"; Flags: nowait postinstall skipifsilent
