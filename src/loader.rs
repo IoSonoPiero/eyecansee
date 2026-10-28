@@ -1201,6 +1201,28 @@ mod tests {
         }
         timed("list dir after", &|| rt.block_on(op.list(&dir)).map(|_| ()));
         timed("delete dir", &|| rt.block_on(op.delete(&dir, Deletion::Permanent)));
+        // Under DCIM (indexed by Android), and each file read just before it is deleted, as the
+        // thumbnails and the metadata panel do in the app.
+        let dcim = format!("{}DCIM/EyeCanSee-deletes-test/", root.dirs[0]);
+        rt.block_on(async {
+            op.create_dir(&dcim).await?;
+            for i in 0..6 {
+                write_whole(&op, &format!("{dcim}w{i}.webp"), webp.clone()).await?;
+            }
+            Ok::<_, source::Error>(())
+        })
+        .unwrap();
+        timed("list dcim dir", &|| rt.block_on(op.list(&dcim)).map(|_| ()));
+        for i in 0..6 {
+            if i % 2 == 0 {
+                timed(&format!("read w{i}.webp"), &|| rt.block_on(op.read(&format!("{dcim}w{i}.webp"))).map(|_| ()));
+            } else {
+                timed(&format!("read_range w{i}.webp"), &|| rt.block_on(op.read_range(&format!("{dcim}w{i}.webp"), 0, 4096)).map(|_| ()));
+            }
+            timed(&format!("delete w{i}.webp"), &|| rt.block_on(op.delete(&format!("{dcim}w{i}.webp"), Deletion::Permanent)));
+        }
+        timed("list dcim dir after", &|| rt.block_on(op.list(&dcim)).map(|_| ()));
+        timed("delete dcim dir", &|| rt.block_on(op.delete(&dcim, Deletion::Permanent)));
     }
 
     #[test]
