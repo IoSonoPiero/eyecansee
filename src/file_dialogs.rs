@@ -166,7 +166,7 @@ impl App {
                     ui.visuals_mut().extreme_bg_color = ui.visuals().widgets.inactive.bg_fill;
                     let fill = theme::accent(ui.visuals());
                     let fraction = if total > 0 { done as f32 / total as f32 } else { 0.0 };
-                    ui.add(egui::ProgressBar::new(fraction).fill(fill).desired_height(16.0));
+                    ui.add(egui::ProgressBar::new(fraction).fill(fill).desired_height(16.0).show_percentage());
                 });
                 if ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no"))).clicked() {
                     p.cancel.store(true, Ordering::Relaxed);

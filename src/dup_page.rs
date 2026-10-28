@@ -152,7 +152,7 @@ impl App {
             ui.set_width(440.0);
             ui.label(self.i18n.t("dup-searching"));
             ui.add_space(6.0);
-            ui.add(egui::ProgressBar::new(examined as f32 / found.max(1) as f32));
+            ui.add(egui::ProgressBar::new(examined as f32 / found.max(1) as f32).show_percentage());
             let (n, m, size) = (examined.to_string(), found.to_string(), self.human_size(read));
             ui.label(self.i18n.t_args("dup-progress", &[("n", &n), ("m", &m), ("size", &size)]));
             ui.add_space(8.0);

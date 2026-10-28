@@ -288,7 +288,7 @@ impl App {
             .show(ctx, |ui| {
                 ui.set_width(360.0);
                 ui.label(counts);
-                ui.add(egui::ProgressBar::new(((done as f32 + part) / total as f32).min(1.0)));
+                ui.add(egui::ProgressBar::new(((done as f32 + part) / total as f32).min(1.0)).show_percentage());
                 ui.label(egui::RichText::new(current).weak());
                 if stopping {
                     ui.label(self.i18n.t("batch-stopping"));
