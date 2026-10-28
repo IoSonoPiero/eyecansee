@@ -128,8 +128,10 @@ impl App {
     fn tools_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
         let viewing = self.viewing.is_some();
-        entry(ui, act, !viewing && !self.grid_items(None).is_empty(), egui::Button::new(t("menu-batch")), Act::Batch(None));
-        entry(ui, act, !viewing && self.grid_items(None).iter().any(|p| crate::decode::is_video(p)), egui::Button::new(t("menu-copy-meta")), Act::CopyMeta(None));
+        // One conversion at a time: the entries wait for the one running.
+        let free = !viewing && self.batch.is_none();
+        entry(ui, act, free && !self.grid_items(None).is_empty(), egui::Button::new(t("menu-batch")), Act::Batch(None));
+        entry(ui, act, free && self.grid_items(None).iter().any(|p| crate::decode::is_video(p)), egui::Button::new(t("menu-copy-meta")), Act::CopyMeta(None));
         entry(ui, act, !viewing && self.loader.is_some() && !source::is_trash(&self.dir), egui::Button::new(t("menu-duplicates")), Act::Duplicates(None));
         ui.separator();
         entry(ui, act, true, egui::Button::new(t("menu-options")), Act::Options);

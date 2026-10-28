@@ -86,7 +86,7 @@ impl App {
             items.extend(self.folder_items(path, &target));
         } else if crate::decode::is_video(&target) {
             // Turning and saving are for images; converting goes through FFmpeg.
-            if !in_viewer {
+            if !in_viewer && self.batch.is_none() {
                 items.extend([
                     Some((self.i18n.t("menu-batch"), String::new(), Act::Batch(path.clone()))),
                     Some((self.i18n.t("menu-copy-meta"), String::new(), Act::CopyMeta(path.clone()))),
@@ -146,7 +146,7 @@ impl App {
             items.push(Some((t("menu-save"), t("key-save"), Act::Save)));
         }
         items.push(Some((t("menu-save-copy"), String::new(), Act::Convert(path.clone()))));
-        if !in_viewer {
+        if !in_viewer && self.batch.is_none() {
             items.push(Some((t("menu-batch"), String::new(), Act::Batch(path.clone()))));
             if self.grid_items(path.clone()).iter().any(|p| crate::decode::is_video(p)) {
                 items.push(Some((t("menu-copy-meta"), String::new(), Act::CopyMeta(path.clone()))));
