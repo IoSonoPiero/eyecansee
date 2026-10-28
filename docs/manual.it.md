@@ -276,7 +276,7 @@ EyeCanSee usa la lingua del sistema se è disponibile, altrimenti l'inglese. Per
 ## Limiti noti
 
 - Sui dischi **NTFS** (per esempio un disco esterno usato anche con Windows) l'app File (Nautilus) non riesce a ripristinare dal cestino, nemmeno i file cancellati da lei stessa; EyeCanSee lo ricorda nella conferma. I file però sono nel cestino e si ripristinano dal terminale: `gio trash --list` mostra cosa c'è, `gio trash --restore "<indirizzo trash:/// della riga>"` lo rimette al suo posto.
-- Se il telefono non risponde a una richiesta (visto su Windows: una cancellazione durata più di cinque minuti, con tutto il resto in attesa dietro di lei), la barra di stato lo dice con i secondi trascorsi e il file: EyeCanSee riprende da solo appena il telefono risponde. Succede con le app che fanno il backup delle foto (Immich, Google Foto): tengono occupato un file appena creato mentre lo caricano, e il telefono risponde alla cancellazione solo dopo.
+- Se il telefono non risponde a una richiesta (visto su Windows: una cancellazione durata più di cinque minuti, con tutto il resto in attesa dietro di lei), la barra di stato lo dice con i secondi trascorsi e il file: EyeCanSee riprende da solo appena il telefono risponde. La causa non è nota: è capitato due volte su un POCO X7 Pro, cancellando file appena creati, e non si ripete a comando.
 - SFTP non è ancora disponibile su Windows.
 - Un telefono aperto tramite il collegamento del gestore dei file (vedi Dispositivi esterni) è più lento di quello diretto: nelle cartelle con centinaia di file circa una miniatura al secondo.
 - Le immagini più grandi di 8192 pixel per lato vengono mostrate ridotte.
