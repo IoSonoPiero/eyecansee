@@ -62,6 +62,10 @@ fn unix_seconds(m: mtp_rs::DateTime) -> Option<i64> {
 /// A POCO X7 Pro under Windows took 377 s to delete one file (2026-10-28), with everything else queued.
 static WAITING: Mutex<Option<(String, std::time::Instant)>> = Mutex::new(None);
 
+/// The last call answered (what, path, end): named in the log line of a slow call, to see what
+/// came before it without logging every call.
+static LAST: Mutex<Option<(String, String, std::time::Instant)>> = Mutex::new(None);
+
 /// The file of a call the phone has not answered for at least `secs` seconds, with the seconds.
 pub fn waiting(secs: u64) -> Option<(String, u64)> {
     let w = WAITING.lock().unwrap();
@@ -597,9 +601,16 @@ impl Phone {
         let r = call.await;
         *WAITING.lock().unwrap() = None;
         let took = t.elapsed() - waited;
+        let mut last = LAST.lock().unwrap();
         if waited + took > std::time::Duration::from_secs(2) {
-            log!("phone {}: {what} {path} waited {:.1} s, took {:.1} s", self.serial, waited.as_secs_f32(), took.as_secs_f32());
+            // The call before this one: a stall came after a delete every time so far (2026-10-28).
+            let before = match &*last {
+                Some((w, p, end)) => format!(", after {w} {p} ended {:.1} s before", (t + waited).saturating_duration_since(*end).as_secs_f32()),
+                None => String::new(),
+            };
+            log!("phone {}: {what} {path} waited {:.1} s, took {:.1} s{before}", self.serial, waited.as_secs_f32(), took.as_secs_f32());
         }
+        *last = Some((what.to_string(), path.to_string(), std::time::Instant::now()));
         r
     }
 
