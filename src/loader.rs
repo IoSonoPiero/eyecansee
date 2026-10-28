@@ -1051,6 +1051,47 @@ mod tests {
     /// On a real phone, not mounted by the desktop and with EyeCanSee closed: a test photo in a
     /// folder of its own, turned twice (the originals in its trash folder as "a.jpg" and
     /// "a (2).jpg"), the first one restored; then everything it made is deleted.
+    /// The listing after a delete on the phone: on Windows (WPD) the listing of `DCIM` asked right
+    /// after the deletion of its trash folder took 301 s (POCO X7 Pro, 2026-10-28). What hangs:
+    /// a file, a folder, the parent's listing or any listing?
+    #[test]
+    #[ignore]
+    fn mtp_delete_then_list() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let op = Store::Mtp(Arc::new(crate::mtp::Phone::new(&serial)));
+        let root = rt.block_on(op.list("")).unwrap();
+        let dir = format!("{}EyeCanSee-delete-test/", root.dirs[0]);
+        let other = format!("{}DCIM/", root.dirs[0]);
+        println!("mtp_delete_then_list: {dir}");
+        let jpeg = encode(&picture(640, 480), image::ImageFormat::Jpeg);
+        let timed = |what: &str, f: &dyn Fn() -> Result<(), source::Error>| {
+            let t = std::time::Instant::now();
+            let r = f();
+            println!("{what}: {:?} in {:.2} s", r, t.elapsed().as_secs_f32());
+        };
+        let list = |d: &str| rt.block_on(op.list(d)).map(|_| ());
+        rt.block_on(async {
+            op.create_dir(&dir).await?;
+            op.create_dir(&format!("{dir}sub/")).await?;
+            for i in 0..3 {
+                write_whole(&op, &format!("{dir}f{i}.jpg"), jpeg.clone()).await?;
+                write_whole(&op, &format!("{dir}sub/s{i}.jpg"), jpeg.clone()).await?;
+            }
+            Ok::<_, source::Error>(())
+        })
+        .unwrap();
+        timed("list dir", &|| list(&dir));
+        timed("delete f0.jpg", &|| rt.block_on(op.delete(&format!("{dir}f0.jpg"), Deletion::Permanent)));
+        timed("list dir after file", &|| list(&dir));
+        timed("delete f1.jpg", &|| rt.block_on(op.delete(&format!("{dir}f1.jpg"), Deletion::Permanent)));
+        timed("list other after file", &|| list(&other));
+        timed("delete sub/", &|| rt.block_on(op.delete(&format!("{dir}sub/"), Deletion::Permanent)));
+        timed("list dir after folder", &|| list(&dir));
+        timed("delete dir", &|| rt.block_on(op.delete(&dir, Deletion::Permanent)));
+        timed("list root after folder", &|| list(&root.dirs[0]));
+    }
+
     #[test]
     #[ignore]
     fn mtp_save_live() {
