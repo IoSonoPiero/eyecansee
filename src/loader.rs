@@ -1116,6 +1116,60 @@ mod tests {
 
     #[test]
     #[ignore]
+    /// Android's trash on a phone: a hidden ".trashed-<seconds>-<name>" file is shown in the folder's
+    /// trash and goes back by renaming, in its own folder (no move: the POCO X7 Pro answered
+    /// `GeneralError` to a move into the folder the file was already in, 2026-10-28).
+    ///   EYECANSEE_MTP=<serial> cargo test --release mtp_android_trash_live -- --ignored --nocapture
+    fn mtp_android_trash_live() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let op = Store::Mtp(Arc::new(crate::mtp::Phone::new(&serial)));
+        let root = rt.block_on(op.list("")).unwrap();
+        let dir = format!("{}EyeCanSee-android-trash-test/", root.dirs[0]);
+        println!("mtp_android_trash_live: {dir}");
+        let original = encode(&picture(640, 480), image::ImageFormat::Jpeg);
+        let r = rt.block_on(async {
+            op.create_dir(&dir).await?;
+            write_whole(&op, &format!("{dir}.trashed-1-a.jpg"), original.clone()).await?;
+            Ok::<_, source::Error>(())
+        });
+        let run = || -> Result<(), String> {
+            r.clone().map_err(|e| format!("{e:?}"))?;
+            let names = |d: &str| {
+                let mut v: Vec<String> = rt.block_on(op.names(d)).unwrap().into_iter().collect();
+                v.sort();
+                v
+            };
+            let l = rt.block_on(op.list(&dir)).map_err(|e| format!("{e:?}"))?;
+            if !l.files.is_empty() || l.trash.as_deref() != Some(format!("{dir}{TRASH_DIR}/").as_str()) {
+                return Err(format!("listing: files {:?}, trash {:?}", l.files.len(), l.trash));
+            }
+            let back = rt.block_on(op.restore(&format!("{dir}.trashed-1-a.jpg"), source::Conflict::Ask)).map_err(|e| format!("restore: {e:?}"))?;
+            if back != format!("{dir}a.jpg") || names(&dir) != ["a.jpg"] {
+                return Err(format!("restored to {back}, folder {:?}", names(&dir)));
+            }
+            if rt.block_on(op.read(&back)).map_err(|e| format!("{e:?}"))? != original {
+                return Err(format!("{back} differs from the original"));
+            }
+            rt.block_on(write_whole(&op, &format!("{dir}.trashed-2-a.jpg"), original.clone())).map_err(|e| format!("{e:?}"))?;
+            let taken = rt.block_on(op.restore(&format!("{dir}.trashed-2-a.jpg"), source::Conflict::Ask));
+            if taken.as_ref().err().map(|e| e.0) != Some("error-exists") {
+                return Err(format!("taken name: {taken:?}"));
+            }
+            let both = rt.block_on(op.restore(&format!("{dir}.trashed-2-a.jpg"), source::Conflict::KeepBoth)).map_err(|e| format!("keep both: {e:?}"))?;
+            if both != format!("{dir}a (2).jpg") || names(&dir) != ["a (2).jpg", "a.jpg"] {
+                return Err(format!("kept both as {both}, folder {:?}", names(&dir)));
+            }
+            Ok(())
+        };
+        let outcome = run();
+        let cleaned = rt.block_on(op.delete(&dir, Deletion::Permanent));
+        outcome.unwrap();
+        cleaned.unwrap();
+    }
+
+    #[test]
+    #[ignore]
     fn mtp_save_live() {
         let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
         let rt = tokio::runtime::Runtime::new().unwrap();

@@ -177,19 +177,19 @@ impl Store {
         };
         let taken = self.names(&dest).await?;
         if !taken.contains(own) {
-            return self.move_into(path, &dest, own).await;
+            return self.put_back(path, &dest, own).await;
         }
         match conflict {
             Conflict::Ask => Err(("error-exists", own.to_string())),
             Conflict::KeepBoth => {
                 let mut all = taken;
                 all.extend(self.names(&trash).await?.into_iter().filter(|n| n != own));
-                self.move_into(path, &dest, &free_name(&all, own)).await
+                self.put_back(path, &dest, &free_name(&all, own)).await
             }
             Conflict::Replace => {
                 let target = format!("{dest}{own}");
                 self.delete(&target, Deletion::Permanent).await?;
-                self.move_into(path, &dest, own).await
+                self.put_back(path, &dest, own).await
             }
             Conflict::Merge => {
                 let target = format!("{dest}{own}/");
@@ -197,6 +197,13 @@ impl Store {
                 Ok(target)
             }
         }
+    }
+
+    /// An item back from the trash as `dest/name`: a plain rename when it already lies in `dest`
+    /// (Android's trashed files stay in their folder). Moving an object into the folder it is in
+    /// made the POCO X7 Pro answer `GeneralError` after the rename had already happened (2026-10-28).
+    async fn put_back(&self, path: &str, dest: &str, name: &str) -> Result<String, Error> {
+        if parent(path) == dest { self.rename(path, name).await } else { self.move_into(path, dest, name).await }
     }
 
     /// Moves the contents of folder `from` into folder `to`: folders on both sides merge, files
