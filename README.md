@@ -4,6 +4,10 @@ An image and video viewer and manager for Linux and Windows, written in Rust: it
 
 It is early in development. This page lists only what works now: new features arrive step by step, each one only when it is ready and tested.
 
+![The grid: thumbnails of a folder, with the devices and the folder tree on the left](docs/screenshots/grid.png)
+
+![The viewer, with the metadata panel](docs/screenshots/viewer.png)
+
 ## About
 
 I am not a programmer any more, and have not been for years. I needed a program that could open the photos on my phone and on my disks quickly, on both Linux and Windows, so I started writing EyeCanSee with the help of [Claude Code](https://claude.com/claude-code), an AI assistant. I test every feature on my own computers and devices before it goes in, and the manual says what is known not to work.
@@ -129,9 +133,13 @@ cargo build --release --no-default-features --features heif,magick
 .\target\release\eyecansee.exe $env:USERPROFILE\Pictures
 ```
 
+## Built on
+
+The phones are read with [mtp-rs](https://github.com/vdavid/mtp-rs), a pure Rust MTP library by vdavid. Working on EyeCanSee I contributed to it: dates on Windows ([#41](https://github.com/vdavid/mtp-rs/pull/41)), folder listings with `GetObjectPropList` ([#45](https://github.com/vdavid/mtp-rs/pull/45)) and sequential reads on Windows for fast copies ([#46](https://github.com/vdavid/mtp-rs/pull/46)); I tested the maintainer's mapping of Windows HRESULTs to MTP error codes ([#42](https://github.com/vdavid/mtp-rs/pull/42)), and device testing on a POCO X6 Pro found a cancel bug ([issue #43](https://github.com/vdavid/mtp-rs/issues/43)), fixed in mtp-rs 0.34.2. On the maintainer's phones, listing a folder with #45 went from 5.5 s to 0.40 s (Galaxy S23 Ultra, 3248 photos) and from 2.8 s to 0.24 s (Pixel 9 Pro XL, 274 photos).
+
 ## Translations
 
-The interface is available in English and Italian. To add a language, translate `locales/en.ftl` and `docs/manual.en.md`, then add one line to `LANGS` in `src/i18n.rs`. `cargo test` checks that every language has the same messages and manual sections as English.
+The interface is available in English and Italian. To add a language, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
