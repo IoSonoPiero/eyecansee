@@ -1,0 +1,76 @@
+name: Problem with a phone
+description: A phone or camera that does not open, opens slowly or misbehaves in EyeCanSee.
+title: "[Phone] "
+labels: ["phone"]
+body:
+  - type: input
+    id: phone
+    attributes:
+      label: Phone model and Android version
+      placeholder: "e.g. Samsung Galaxy A56 5G, Android 16 (One UI 8.5)"
+    validations:
+      required: true
+  - type: dropdown
+    id: usb-mode
+    attributes:
+      label: USB mode chosen on the phone
+      options:
+        - File transfer (MTP)
+        - Transfer photos (PTP)
+        - Charging only
+        - Not sure
+    validations:
+      required: true
+  - type: input
+    id: system
+    attributes:
+      label: Computer system
+      description: Linux distribution and desktop (for example "Fedora 44, GNOME"; "Kubuntu 24.04, KDE Plasma"), or Windows version.
+      placeholder: "e.g. Fedora 44, GNOME"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: EyeCanSee version
+      description: Shown at the right end of the menu bar, and in Help > About. Say whether it is the AppImage, the RPM, the Windows installer or the zip.
+      placeholder: "e.g. 0.64.0, AppImage"
+    validations:
+      required: true
+  - type: dropdown
+    id: file-manager
+    attributes:
+      label: Does the phone open in the file manager?
+      description: Files (Nautilus), Dolphin or Windows File Explorer, with EyeCanSee closed.
+      options:
+        - "Yes"
+        - "No"
+        - Not tried
+    validations:
+      required: true
+  - type: textarea
+    id: what-happens
+    attributes:
+      label: What happens in EyeCanSee
+      description: What you did, what you expected and what you got (the exact message, if any). Say whether the phone appears under Devices and how long things take.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Log
+      description: |
+        EyeCanSee writes its log only when asked, to the standard error stream. Close EyeCanSee, start it like this, repeat the problem, close it and paste the file here (it holds file names and folder names from the phone: remove what you prefer to keep private).
+
+        Linux, AppImage (use `eyecansee` instead of the AppImage for the RPM):
+        ```
+        EYECANSEE_LOG=1 ./EyeCanSee-0.64.0-x86_64.AppImage 2> ~/eyecansee.log
+        ```
+        Windows, in PowerShell (the installer puts the program in `%LOCALAPPDATA%\Programs\EyeCanSee`; for the zip, use the path of `eyecansee.exe`):
+        ```
+        $env:EYECANSEE_LOG = "1"
+        Start-Process "$env:LOCALAPPDATA\Programs\EyeCanSee\eyecansee.exe" -RedirectStandardError "$env:USERPROFILE\eyecansee.log"
+        ```
+      render: text
+    validations:
+      required: false
