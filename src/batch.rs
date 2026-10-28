@@ -300,6 +300,8 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
                     taken.insert(new_name);
                     p.saved.lock().unwrap().push(to);
                 }
+                // Cancelled: neither saved nor "left out", the summary says where it stopped.
+                Err(_) if p.cancel.load(Ordering::Relaxed) => break,
                 Err(e) => p.failed.lock().unwrap().push(e),
             }
             p.done.fetch_add(1, Ordering::Relaxed);
