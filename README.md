@@ -26,18 +26,6 @@ Mature programs like XnView, IrfanView or digiKam do much more than EyeCanSee, a
 
 - **Browsing** of folders on the computer, external disks (also USB sticks, SD cards and dashcams that connect as a USB disk) and phones, with cached thumbnails; folders on the computer update by themselves when files change. Sorting by name, date, size or type; images and videos shown together or apart; "Open with" from the file manager shows the file in the window already open.
 - **Direct phone access**: Android phones and cameras open over USB, much faster than through the file manager.
-
-  ### Tested phones
-
-  | Model | System | Notes |
-  |---|---|---|
-  | POCO X7 Pro (Android 16, HyperOS 3) | Fedora 44, Windows | All features; the phone used for most of the testing |
-  | POCO X6 Pro (Android 16, HyperOS 3) | Fedora 44, Windows | All features |
-  | Samsung Galaxy A57 5G (Android 16, One UI 8.5) | Windows 10, Fedora 44 | Browsing, copying and video conversion on Windows; on Windows, after a driver error (`0x8007001f`) the phone has to be unplugged and plugged in again |
-  | Samsung Galaxy A56 5G (Android 16, One UI 8.5) | Fedora 44, Windows | Connection, listing and transfer tests of the MTP library |
-  | Samsung Galaxy Tab S11 5G (Android 16, One UI 8.5) | Fedora 44, Windows | Connection, listing and transfer tests of the MTP library |
-
-  Other Android phones open directly when mtp-rs supports them, otherwise through the file manager's mount, slower (see the manual). iPhones open through the file manager's mount only.
 - **Viewer** with zoom (mouse wheel and keys) and preloading, so moving between images never waits, photo details such as camera, exposure, date and location, and a full-screen slideshow with fades.
 - **File management**: copy and move (also from one device to another), create folders, rename and delete, also several items at once, with a trash on every device to restore or empty.
 - **Videos**: thumbnails in the grid, playback with sound in the viewer and their details (date, length, format, location from phones), on the computer, external disks and phones (with the system's libmpv on Linux, otherwise a video engine downloaded the first time a video is opened, as always on Windows).
@@ -57,6 +45,18 @@ Mature programs like XnView, IrfanView or digiKam do much more than EyeCanSee, a
 All the formats it opens and saves, on Linux and Windows: [docs/formats.md](docs/formats.md). Sample files to try them, including real HEIC and Camera RAW photos: [download the test files](https://github.com/IoSonoPiero/eyecansee/releases/download/test-files/EyeCanSee-test-files.zip) (zip, 139 MB; sources and licences in the [release page](https://github.com/IoSonoPiero/eyecansee/releases/tag/test-files)).
 
 The full list of features, keys and limits is in the manual: [English](docs/manual.en.md), [Italiano](docs/manual.it.md).
+
+### Tested phones
+
+| Model | System | Notes |
+|---|---|---|
+| POCO X7 Pro (Android 16, HyperOS 3) | Fedora 44, Windows | All features; the phone used for most of the testing |
+| POCO X6 Pro (Android 16, HyperOS 3) | Fedora 44, Windows | All features |
+| Samsung Galaxy A57 5G (Android 16, One UI 8.5) | Windows 10, Fedora 44 | Browsing, copying and video conversion on Windows; on Windows, after a driver error (`0x8007001f`) the phone has to be unplugged and plugged in again |
+| Samsung Galaxy A56 5G (Android 16, One UI 8.5) | Fedora 44, Windows | Connection, listing and transfer tests of the MTP library |
+| Samsung Galaxy Tab S11 5G (Android 16, One UI 8.5) | Fedora 44, Windows | Connection, listing and transfer tests of the MTP library |
+
+Other Android phones open directly when mtp-rs supports them, otherwise through the file manager's mount, slower (see the [manual](docs/manual.en.md)). iPhones open through the file manager's mount only.
 
 ## Download
 
