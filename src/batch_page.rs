@@ -334,8 +334,12 @@ fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bool> {
         if f.videos {
             section(ui, t("batch-video"), |ui| video_rows(ui, &mut f.video, i18n));
         }
-        section(ui, t("batch-turn"), |ui| turn_rows(ui, f, i18n));
-        section(ui, t("batch-size"), |ui| size_rows(ui, f, i18n));
+        // Copied streams keep their turn and size: with videos only there is nothing to choose.
+        let fixed = f.videos && !f.images && f.video.codec == Codec::Copy;
+        ui.add_enabled_ui(!fixed, |ui| {
+            section(ui, t("batch-turn"), |ui| turn_rows(ui, f, i18n));
+            section(ui, t("batch-size"), |ui| size_rows(ui, f, i18n));
+        });
         section(ui, t("batch-where"), |ui| where_rows(ui, f, i18n));
     });
     ui.add_space(14.0);
@@ -452,10 +456,17 @@ fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
             }
         });
     }
-    if !c.audio.is_empty() {
-        ui.checkbox(&mut v.audio, t("batch-video-audio"));
+    // Copied as it is: sound and metadata stay, no choice.
+    let copy = v.codec == Codec::Copy;
+    if copy {
+        (v.audio, v.meta) = (true, true);
     }
-    ui.checkbox(&mut v.meta, t("batch-video-meta"));
+    ui.add_enabled_ui(!copy, |ui| {
+        if !c.audio.is_empty() {
+            ui.checkbox(&mut v.audio, t("batch-video-audio"));
+        }
+        ui.checkbox(&mut v.meta, t("batch-video-meta"));
+    });
 }
 
 /// No FFmpeg on this computer: what it is, its size and the button; then the progress.
