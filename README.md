@@ -14,7 +14,7 @@ It is early in development. This page lists only what works now: new features ar
 
 ## About
 
-I am not a programmer any more, and have not been for years. I needed a program that could open the photos on my phone and on my disks quickly, on both Linux and Windows, so I started writing EyeCanSee with the help of [Claude Code](https://claude.com/claude-code), an AI assistant. I test every feature on my own computers and devices before it goes in, and the manual says what is known not to work.
+I am not a programmer any more, and have not been for years. I needed a program that could open the photos on my phone and on my disks quickly, on both Linux and Windows, so I started writing EyeCanSee with the help of [Claude Code](https://claude.com/claude-code). I test every feature on my own computers and devices before it goes in, and the manual says what is known not to work.
 
 Bug reports and suggestions are welcome in the [issues](https://github.com/IoSonoPiero/eyecansee/issues).
 
