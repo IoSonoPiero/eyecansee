@@ -1,4 +1,8 @@
-Photos in these screenshots: public domain or CC0, from Wikimedia Commons (renamed).
+What the screenshots and the GIF show (grid.png, viewer.png, mtp-open.gif: a POCO X7 Pro's folder
+DCIM/EyeCanSee-demo, made of the files below; convert.png, rotate.png: the same photos on disk).
+
+Photos: public domain or CC0, from Wikimedia Commons (renamed; in the phone folder copied several
+times as IMG_0001.jpg ... IMG_0334.jpg, in the order of the list).
 
 Wilderness.jpg  (original name: Alone_in_the_unspoilt_wilderness_Unsplash_.jpg)
   CC0 - David Marcu davidmarcu
@@ -52,3 +56,24 @@ Sunset.jpg  (original name: Sunset_over_Trommekilen_from_Norrkila_6.jpg)
   CC0 - W.carter
   https://commons.wikimedia.org/wiki/File:Sunset_over_Trommekilen_from_Norrkila_6.jpg
 
+
+Other files in the phone folder, from the "test-files" release of EyeCanSee
+(https://github.com/IoSonoPiero/eyecansee/releases/tag/test-files):
+
+x.<extension> (55 files, one per format) and x-con-alfa.jng
+  Generated for EyeCanSee with ImageMagick: free to use for any purpose.
+
+3B_HEIC_SDR.heic
+  CC0 - Nokia HEIF samples, content/cc0
+  https://github.com/nokiatech/heif/tree/gh-pages/content/cc0
+
+geometria.xcf  (original name: Bandeau_portail_geometrie.xcf)
+  CC BY-SA 3.0 (https://creativecommons.org/licenses/by-sa/3.0/) - Ripounet, original uploader at French Wikipedia
+  https://commons.wikimedia.org/wiki/File:Bandeau_portail_geometrie.xcf
+
+poster-douglass.xcf
+  CC0 - https://commons.wikimedia.org/wiki/File:E-book_download_poster_NARRATIVE_OF_THE_LIFE_OF_FREDERICK_DOUGLASS,_GIMP_source.xcf
+
+RAW/ (8 camera files: Canon EOS 6D CR2, Canon EOS R6 CR3, Nikon Z 6 NEF, Sony A7 III ARW,
+Fujifilm X-T30 II RAF, Olympus E-M10 Mark III ORF, Panasonic GH5S RW2, Google Pixel 6 Pro DNG)
+  CC0 - https://raw.pixls.us

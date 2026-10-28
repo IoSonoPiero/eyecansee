@@ -6,7 +6,11 @@ It is early in development. This page lists only what works now: new features ar
 
 ![The grid: thumbnails of a folder, with the devices and the folder tree on the left](docs/screenshots/grid.png)
 
-![The viewer, with the metadata panel](docs/screenshots/viewer.png)
+![The viewer](docs/screenshots/viewer.png)
+
+![Opening a phone folder in EyeCanSee](docs/screenshots/mtp-open.gif)
+
+*Opening a folder of 400 files on a POCO X7 Pro over USB (Fedora 44, EyeCanSee 0.63.0, cold caches): the file manager (gvfs) takes 9.3 s to list the names; EyeCanSee lists them in 0.07 s after a 0.5 s open and shows the first thumbnails within 0.8 s. Test images: public-domain photos, copied several times.*
 
 ## About
 
