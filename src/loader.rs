@@ -1213,6 +1213,12 @@ mod tests {
         })
         .unwrap();
         timed("list dcim dir", &|| rt.block_on(op.list(&dcim)).map(|_| ()));
+        // EYECANSEE_DELETE_WAIT=<seconds>: time for the phone's gallery to notice the new files
+        // (in the app they were deleted 2-3 minutes after being written).
+        if let Some(secs) = std::env::var("EYECANSEE_DELETE_WAIT").ok().and_then(|v| v.parse::<u64>().ok()) {
+            println!("waiting {secs} s before deleting");
+            std::thread::sleep(std::time::Duration::from_secs(secs));
+        }
         for i in 0..6 {
             if i % 2 == 0 {
                 timed(&format!("read w{i}.webp"), &|| rt.block_on(op.read(&format!("{dcim}w{i}.webp"))).map(|_| ()));
