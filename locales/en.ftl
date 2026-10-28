@@ -29,6 +29,7 @@ error-device-busy = The device is in use by another application (for example the
 error-device-kde = KDE is using the phone (its kiod service). Press F5 to open it in EyeCanSee anyway. ({ $detail })
 error-no-device = The device was not found: if it is connected, unlock it and choose "File transfer" on it. EyeCanSee retries by itself every 2 seconds. ({ $detail })
 error-not-ready = The phone does not answer: unlock it and choose "File transfer" in its USB notification. EyeCanSee retries by itself every 2 seconds. ({ $detail })
+error-use-mount = Direct access to the device failed. ({ $detail })
 error-no-storage = The device shows no storage: unlock it and choose "File transfer" on it. EyeCanSee retries by itself every 2 seconds. ({ $detail })
 
 menu-file = File
@@ -91,6 +92,7 @@ status-videos = Videos: { $n }
 status-deleting = Deleting { $n }…
 status-copied = { $n } copied: Ctrl+V to paste
 status-cut = { $n } cut: Ctrl+V to move
+status-through-mount = Opened through the file manager: slower. Direct access failed: { $detail }
 status-marked = Selected: { $n } ({ $size })
 decimal-separator = .
 date-format = %Y-%m-%d %H:%M

@@ -232,6 +232,10 @@ impl App {
                 ui.label(crate::theme::alert(self.i18n.t_args("status-saving-n", &[("n", &self.saving.len().to_string())])));
                 ui.separator();
             }
+            if let Some(note) = &self.status_note {
+                ui.label(crate::theme::alert(note.clone()));
+                ui.separator();
+            }
             if let Some(clip) = &self.clip {
                 let (icon, id) = if clip.cut { (icons::Icon::Cut, "status-cut") } else { (icons::Icon::Copied, "status-copied") };
                 ui.add(icons::image(ui.ctx(), icon, 16.0));

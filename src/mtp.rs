@@ -235,6 +235,16 @@ fn not_ready((id, detail): Error) -> Error {
     (if id == "error-detail" { "error-not-ready" } else { id }, detail)
 }
 
+/// A direct connection that failed for a reason of its own (not busy, not missing) while the
+/// desktop has the same phone mounted: "error-use-mount" makes the UI switch to that mount
+/// (`App::use_mount`), as the busy case does. Without the mount the phone may just be not ready.
+fn after_open_failed((id, detail): Error, mounted: bool) -> Error {
+    match id {
+        "error-detail" if mounted => ("error-use-mount", detail),
+        _ => not_ready((id, detail)),
+    }
+}
+
 impl Drop for Phone {
     fn drop(&mut self) {
         if self.open.initialized() {
@@ -273,12 +283,17 @@ impl Phone {
         p
     }
 
+    fn open_failed(&self, e: Error) -> Error {
+        log!("phone {}: direct open failed: {} ({})", self.serial, e.0, e.1);
+        after_open_failed(e, crate::devices::gvfs_mount(&self.serial).is_some())
+    }
+
     async fn storages(&self) -> Result<&[(String, Arc<Storage>)], Error> {
         let (_, storages) = self
             .open
             .get_or_try_init(|| async {
                 let t = std::time::Instant::now();
-                let device = open(&self.serial).await.map_err(not_ready)?;
+                let device = open(&self.serial).await.map_err(|e| self.open_failed(e))?;
                 log!("phone {} opened in {:.2} s", self.serial, t.elapsed().as_secs_f32());
                 let mut storages = Vec::new();
                 let found = device.storages().await.map_err(|e| not_ready(error(e)))?;
@@ -615,6 +630,16 @@ mod tests {
         assert_eq!(gvfs_mount(list, "R52W80FSD5D"), Some((":1.1546".into(), "/org/gtk/vfs/mount/1".into())));
         assert_eq!(gvfs_mount(list, "80FSD5D"), None);
         assert_eq!(gvfs_mount("([],)", "R52W80FSD5D"), None);
+    }
+
+    #[test]
+    fn open_failure_ids() {
+        let e = |id: &'static str| (id, "detail".to_string());
+        assert_eq!(after_open_failed(e("error-detail"), true), ("error-use-mount", "detail".into()));
+        assert_eq!(after_open_failed(e("error-detail"), false).0, "error-not-ready");
+        assert_eq!(after_open_failed(e("error-device-busy"), true).0, "error-device-busy");
+        assert_eq!(after_open_failed(e("error-no-device"), true).0, "error-no-device");
+        assert_eq!(after_open_failed(e("error-device-kde"), true).0, "error-device-kde");
     }
 
     /// Test on a real phone, not mounted by the desktop:

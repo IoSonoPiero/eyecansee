@@ -25,6 +25,7 @@ impl App {
                 self.listing_pending.clear();
                 self.relist_again.clear();
                 self.error = None;
+                self.status_note = None;
                 self.set_dir(s.dir);
                 self.start = s.start;
                 self.maintain();
@@ -49,6 +50,19 @@ impl App {
     /// For the `mtp://<serial>/` source, the desktop's mount of the same phone.
     pub(crate) fn mounted_twin(&self) -> Option<String> {
         devices::gvfs_mount(self.base.strip_prefix("mtp://")?.trim_end_matches('/'))
+    }
+
+    /// A listing that failed because the phone could not be opened directly, while the desktop
+    /// has it mounted: the same folder through that mount (slower; the storages have the same
+    /// name). Held by another program ("error-device-busy") it switches quietly, as before; failed
+    /// for a reason of its own ("error-use-mount") the status bar says so, with that reason.
+    pub(crate) fn use_mount(&mut self, ctx: &egui::Context, dir: &str, r: &Result<source::Listing, source::Error>) -> bool {
+        let Err((id @ ("error-device-busy" | "error-use-mount"), detail)) = r else { return false };
+        let Some(mounted) = self.mounted_twin() else { return false };
+        let note = (*id == "error-use-mount").then(|| self.i18n.t_args("status-through-mount", &[("detail", detail)]));
+        self.open_source(ctx, &format!("{mounted}{dir}"));
+        self.status_note = note;
+        true
     }
 
     pub(crate) fn display(&self, dir: &str) -> String {

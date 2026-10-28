@@ -169,6 +169,7 @@ When you connect a phone, a camera, an external disk, a USB stick or an SD card,
 - EyeCanSee connects to the phone directly, even if the desktop has already connected it (for example GNOME): this is much faster, especially in folders with hundreds of files. The device appears within a couple of seconds.
 - On GNOME and KDE, opening the phone in EyeCanSee takes it away from the file manager On KDE EyeCanSee asks first: to take the phone it has to close KDE's kiod service, which also forgets the passwords of network folders open in Dolphin (it asks for them again next time). With Cancel the phone stays with KDE; F5 asks again. If you also open the phone in Dolphin while EyeCanSee has it, KDE gives up on it and does not see it again: when you close EyeCanSee or go to another folder, EyeCanSee puts KDE right by itself (if you said OK). Otherwise disconnect and reconnect the phone. To get it back, close EyeCanSee and click the phone in the file manager, or disconnect and reconnect it.
 - **"The device is in use by another application"**: another program holds the phone. If the desktop connected it, EyeCanSee switches to that connection by itself (slower: in folders with hundreds of files about one thumbnail per second); otherwise close the other program or disconnect and reconnect the phone.
+- If the direct connection fails for a reason of its own and the desktop had already connected the phone, EyeCanSee opens it through that connection and says so in the status bar ("Opened through the file manager: slower"), with the error of the direct one. Without that connection the error is shown and EyeCanSee retries every 2 seconds.
 - **"The device shows no storage"**: the phone was locked or set to "charging only" when it was connected: unlock it and choose File transfer. EyeCanSee retries by itself every 2 seconds and shows the storage as soon as it appears, no need for F5.
 - **"The device was not found"**: the phone is reconnecting (it does so when you choose File transfer) or has been unplugged. EyeCanSee retries by itself every 2 seconds, no need for F5.
 - When you open a directly connected phone, the block shows its folders and below there is an item to go back to your home folder.
@@ -276,6 +277,7 @@ EyeCanSee uses the system language when it is available, otherwise English. To f
 
 - On **NTFS** disks (for example an external disk also used with Windows) the Files app (Nautilus) cannot restore from the trash, not even files it deleted itself; EyeCanSee reminds you in the confirmation. The files are in the trash all the same and can be restored from a terminal: `gio trash --list` shows what is there, `gio trash --restore "<trash:/// address from that line>"` puts it back.
 - SFTP is not available on Windows yet.
+- A phone opened through the file manager's connection (see External devices) is slower than the direct one: in folders with hundreds of files about one thumbnail per second.
 - Images larger than 8192 pixels per side are shown downscaled.
 - Files are sorted alphabetically: `img10` comes before `img2`.
 - Hidden files and folders (starting with a dot, or on Windows with the "hidden" attribute) are

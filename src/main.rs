@@ -243,6 +243,8 @@ struct App {
     notice: Option<(String, Option<Act>)>,
     /// KDE holds the phone: asking whether to terminate kiod (`kiod_window`).
     kiod_ask: bool,
+    /// In the status bar until the next source: the phone is open through the desktop's mount.
+    status_note: Option<String>,
     /// File > Open location: the window, with what is typed in it.
     open_address: Option<AddressForm>,
     /// A transform on images of the grid: the images and the operation, to confirm.
@@ -393,6 +395,7 @@ impl App {
             after_save: None,
             notice: None,
             kiod_ask: false,
+            status_note: None,
             open_address: None,
             batch_turn: None,
             pan: egui::Vec2::ZERO,
