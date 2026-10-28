@@ -222,6 +222,12 @@ impl App {
         let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
         ui.horizontal(|ui| {
+            if let Some((name, secs)) = crate::mtp::waiting(3) {
+                ui.add(egui::Spinner::new().color(Color32::WHITE));
+                ui.label(crate::theme::alert(self.i18n.t_args("status-phone-waiting", &[("s", &secs.to_string()), ("name", &name)])));
+                ui.separator();
+                ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
+            }
             if self.deleting > 0 {
                 ui.add(egui::Spinner::new().color(Color32::WHITE));
                 ui.label(crate::theme::alert(self.i18n.t_args("status-deleting", &[("n", &self.deleting.to_string())])));

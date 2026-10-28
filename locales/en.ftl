@@ -90,6 +90,7 @@ status-folders = Folders: { $n }
 status-images = Images: { $n }
 status-videos = Videos: { $n }
 status-deleting = Deleting { $n }…
+status-phone-waiting = The phone has not answered for { $s } s ({ $name }): waiting…
 status-copied = { $n } copied: Ctrl+V to paste
 status-cut = { $n } cut: Ctrl+V to move
 status-through-mount = Opened through the file manager: slower. Direct access failed: { $detail }

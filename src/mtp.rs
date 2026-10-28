@@ -58,6 +58,18 @@ fn unix_seconds(m: mtp_rs::DateTime) -> Option<i64> {
     })
 }
 
+/// The call a phone is answering right now (path, start): the status bar says when it takes long.
+/// A POCO X7 Pro under Windows took 377 s to delete one file (2026-10-28), with everything else queued.
+static WAITING: Mutex<Option<(String, std::time::Instant)>> = Mutex::new(None);
+
+/// The file of a call the phone has not answered for at least `secs` seconds, with the seconds.
+pub fn waiting(secs: u64) -> Option<(String, u64)> {
+    let w = WAITING.lock().unwrap();
+    let (path, since) = w.as_ref()?;
+    let s = since.elapsed().as_secs();
+    (s >= secs).then(|| (source::shown(path).to_string(), s))
+}
+
 fn error(e: mtp_rs::Error) -> Error {
     let id = match e {
         _ if e.is_exclusive_access() => "error-device-busy",
@@ -581,7 +593,9 @@ impl Phone {
         let t = std::time::Instant::now();
         let _turn = self.turn.lock().await;
         let waited = t.elapsed();
+        *WAITING.lock().unwrap() = Some((path.to_string(), std::time::Instant::now()));
         let r = call.await;
+        *WAITING.lock().unwrap() = None;
         let took = t.elapsed() - waited;
         if waited + took > std::time::Duration::from_secs(2) {
             log!("phone {}: {what} {path} waited {:.1} s, took {:.1} s", self.serial, waited.as_secs_f32(), took.as_secs_f32());
@@ -621,6 +635,17 @@ impl Phone {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn waiting_call() {
+        let old = WAITING.lock().unwrap().take();
+        assert_eq!(waiting(3), None);
+        let since = std::time::Instant::now() - std::time::Duration::from_secs(5);
+        *WAITING.lock().unwrap() = Some(("DCIM/.trashed-1-a.jpg".to_string(), since));
+        assert_eq!(waiting(3).map(|(n, s)| (n, s >= 5)), Some(("a.jpg".to_string(), true)));
+        assert_eq!(waiting(30), None);
+        *WAITING.lock().unwrap() = old;
+    }
     use super::*;
 
     #[cfg(not(windows))]

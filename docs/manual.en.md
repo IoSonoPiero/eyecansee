@@ -276,6 +276,7 @@ EyeCanSee uses the system language when it is available, otherwise English. To f
 ## Known limits
 
 - On **NTFS** disks (for example an external disk also used with Windows) the Files app (Nautilus) cannot restore from the trash, not even files it deleted itself; EyeCanSee reminds you in the confirmation. The files are in the trash all the same and can be restored from a terminal: `gio trash --list` shows what is there, `gio trash --restore "<trash:/// address from that line>"` puts it back.
+- If the phone does not answer a request (seen on Windows: one deletion that took over five minutes, with everything else waiting behind it), the status bar says so with the seconds elapsed and the file: EyeCanSee carries on by itself as soon as the phone answers.
 - SFTP is not available on Windows yet.
 - A phone opened through the file manager's connection (see External devices) is slower than the direct one: in folders with hundreds of files about one thumbnail per second.
 - Images larger than 8192 pixels per side are shown downscaled.
