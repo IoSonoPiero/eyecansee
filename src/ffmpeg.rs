@@ -22,6 +22,9 @@ pub enum Codec {
     Mpeg4,
     ProRes,
     Gif,
+    /// The streams copied as they are (`-c copy`): no re-encoding, seconds, no loss; the turn and
+    /// the size do not apply. The window names it from Fluent (`batch-video-copy`).
+    Copy,
 }
 
 impl Codec {
@@ -35,6 +38,7 @@ impl Codec {
             Codec::Mpeg4 => "MPEG-4",
             Codec::ProRes => "ProRes",
             Codec::Gif => "GIF",
+            Codec::Copy => "copy",
         }
     }
 
@@ -50,6 +54,7 @@ impl Codec {
             Codec::Mpeg4 => &["mpeg4"],
             Codec::ProRes => &["prores_ks"],
             Codec::Gif => &["gif"],
+            Codec::Copy => &["copy"],
         }
     }
 }
@@ -65,16 +70,16 @@ pub struct Container {
 }
 
 pub const CONTAINERS: &[Container] = &[
-    Container { name: "MP4", muxer: "mp4", ext: "mp4", codecs: &[Codec::H264, Codec::Hevc, Codec::Av1, Codec::Vp9, Codec::Mpeg4], audio: &["aac"] },
+    Container { name: "MP4", muxer: "mp4", ext: "mp4", codecs: &[Codec::H264, Codec::Hevc, Codec::Av1, Codec::Vp9, Codec::Mpeg4, Codec::Copy], audio: &["aac"] },
     Container {
         name: "MKV",
         muxer: "matroska",
         ext: "mkv",
-        codecs: &[Codec::H264, Codec::Hevc, Codec::Av1, Codec::Vp9, Codec::Vp8, Codec::Mpeg4, Codec::ProRes],
+        codecs: &[Codec::H264, Codec::Hevc, Codec::Av1, Codec::Vp9, Codec::Vp8, Codec::Mpeg4, Codec::ProRes, Codec::Copy],
         audio: &["libopus", "aac"],
     },
     Container { name: "WebM", muxer: "webm", ext: "webm", codecs: &[Codec::Av1, Codec::Vp9, Codec::Vp8], audio: &["libopus", "libvorbis"] },
-    Container { name: "MOV", muxer: "mov", ext: "mov", codecs: &[Codec::H264, Codec::Hevc, Codec::ProRes], audio: &["aac"] },
+    Container { name: "MOV", muxer: "mov", ext: "mov", codecs: &[Codec::H264, Codec::Hevc, Codec::ProRes, Codec::Copy], audio: &["aac"] },
     Container { name: "AVI", muxer: "avi", ext: "avi", codecs: &[Codec::Mpeg4, Codec::H264], audio: &["libmp3lame", "ac3"] },
     Container { name: "GIF", muxer: "gif", ext: "gif", codecs: &[Codec::Gif], audio: &[] },
 ];
@@ -91,6 +96,7 @@ impl Codec {
             Codec::Mpeg4 => "video-codec-mpeg4",
             Codec::ProRes => "video-codec-prores",
             Codec::Gif => "video-codec-gif",
+            Codec::Copy => "video-codec-copy",
         }
     }
 }
@@ -106,6 +112,7 @@ pub fn hint(encoder: &str) -> &'static str {
         "libvpx-vp9" | "libvpx" => "video-enc-vpx",
         "libopenh264" => "video-enc-openh264",
         "mpeg4" | "prores_ks" | "gif" => "video-enc-plain",
+        "copy" => "video-codec-copy",
         e => match maker(e) {
             "NVIDIA" => "video-enc-nvenc",
             "Intel Quick Sync" => "video-enc-qsv",
@@ -203,8 +210,11 @@ pub fn args(v: &Video, size: Size, enlarge: bool, turn: Turn, (input, output): (
     if audio.is_some() {
         a.extend(["-map".into(), "0:a:0?".into()]);
     }
-    let mut filters: Vec<String> = turn.video_filters().into_iter().map(String::from).collect();
-    filters.extend(scale(size, enlarge));
+    let copy = v.encoder == "copy";
+    let mut filters: Vec<String> = if copy { Vec::new() } else { turn.video_filters().into_iter().map(String::from).collect() };
+    if !copy {
+        filters.extend(scale(size, enlarge));
+    }
     if vaapi {
         filters.push("format=nv12,hwupload".into());
     }
@@ -218,6 +228,7 @@ pub fn args(v: &Video, size: Size, enlarge: bool, turn: Turn, (input, output): (
         a.extend(["-pix_fmt".into(), "yuv420p".into()]);
     }
     match audio {
+        Some(_) if copy => a.extend(["-c:a".into(), "copy".into()]),
         Some(e) => a.extend(["-c:a".into(), e.to_string(), "-b:a".into(), ["192k", "128k", "96k"][v.quality as usize].into()]),
         None => a.push("-an".into()),
     }
@@ -264,9 +275,9 @@ pub struct Probe {
 }
 
 impl Probe {
-    /// Encoders of `codec` that work here.
+    /// Encoders of `codec` that work here (`copy` always: nothing is encoded).
     pub fn of(&self, codec: Codec) -> Vec<&'static str> {
-        codec.encoders().iter().copied().filter(|e| self.video.contains(e)).collect()
+        codec.encoders().iter().copied().filter(|e| *e == "copy" || self.video.contains(e)).collect()
     }
 }
 
@@ -404,6 +415,11 @@ mod tests {
         let v = Video { meta: true, ..v };
         let a = args(&v, Size::Same, false, Turn::default(), ("a", "b"), &[], &[("location".to_string(), "+42.5+014.1/".to_string())]).join(" ");
         assert!(a.contains("-map_metadata 0 -metadata location=+42.5+014.1/ -f webm b"), "{a}");
+        // Copy: no filters, no quality, the sound copied too.
+        let v = Video { container: 0, encoder: "copy", quality: Quality::Small, audio: true, meta: true };
+        let a = args(&v, Size::Percent(50), false, Turn::default().then(Op::Cw), ("a", "b"), &["aac".into()], &[]).join(" ");
+        assert!(a.contains("-i a -map 0:V:0 -map 0:a:0? -c:v copy -c:a copy -sn -dn -map_metadata 0"), "{a}");
+        assert!(!a.contains("-vf"), "{a}");
         // VA-API: the device, and frames uploaded to the card.
         let v = Video { container: 1, encoder: "hevc_vaapi", quality: Quality::Small, audio: false, meta: true };
         let a = args(&v, Size::Percent(50), false, Turn::default(), ("a", "b"), &[], &[]).join(" ");

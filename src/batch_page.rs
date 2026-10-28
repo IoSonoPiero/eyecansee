@@ -418,10 +418,11 @@ fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     if !c.codecs.contains(&v.codec) || probe.of(v.codec).is_empty() {
         v.codec = c.codecs.iter().copied().find(|k| !probe.of(*k).is_empty()).unwrap_or(c.codecs[0]);
     }
-    egui::ComboBox::from_label(t("batch-video-codec")).selected_text(v.codec.label()).show_ui(ui, |ui| {
+    let label = |k: Codec| if k == Codec::Copy { t("batch-video-copy") } else { k.label().to_string() };
+    egui::ComboBox::from_label(t("batch-video-codec")).selected_text(label(v.codec)).show_ui(ui, |ui| {
         for &k in c.codecs {
             let usable = !probe.of(k).is_empty();
-            let label = if usable { k.label().to_string() } else { i18n.t_args("batch-video-unavailable", &[("codec", k.label())]) };
+            let label = if usable { label(k) } else { i18n.t_args("batch-video-unavailable", &[("codec", k.label())]) };
             ui.add_enabled_ui(usable, |ui| ui.selectable_value(&mut v.codec, k, label));
         }
     });
@@ -435,19 +436,22 @@ fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     if !v.encoder.is_some_and(|e| encoders.contains(&e)) {
         v.encoder = Some(encoders[0]);
     }
-    let name = |e: &str| format!("{} ({e})", crate::ffmpeg::maker(e));
-    egui::ComboBox::from_label(t("batch-video-encoder")).selected_text(name(v.encoder.unwrap_or_default())).show_ui(ui, |ui| {
-        for e in encoders {
-            ui.selectable_value(&mut v.encoder, Some(e), name(e));
-        }
-    });
-    ui.weak(t(crate::ffmpeg::hint(v.encoder.unwrap_or_default())));
-    ui.horizontal(|ui| {
-        ui.label(t("batch-video-quality"));
-        for (q, id) in [(Quality::High, "batch-video-high"), (Quality::Medium, "batch-video-medium"), (Quality::Small, "batch-video-small")] {
-            ui.radio_value(&mut v.quality, q, t(id));
-        }
-    });
+    // Copied streams: nothing to choose about the encoder or the quality.
+    if v.codec != Codec::Copy {
+        let name = |e: &str| format!("{} ({e})", crate::ffmpeg::maker(e));
+        egui::ComboBox::from_label(t("batch-video-encoder")).selected_text(name(v.encoder.unwrap_or_default())).show_ui(ui, |ui| {
+            for e in encoders {
+                ui.selectable_value(&mut v.encoder, Some(e), name(e));
+            }
+        });
+        ui.weak(t(crate::ffmpeg::hint(v.encoder.unwrap_or_default())));
+        ui.horizontal(|ui| {
+            ui.label(t("batch-video-quality"));
+            for (q, id) in [(Quality::High, "batch-video-high"), (Quality::Medium, "batch-video-medium"), (Quality::Small, "batch-video-small")] {
+                ui.radio_value(&mut v.quality, q, t(id));
+            }
+        });
+    }
     if !c.audio.is_empty() {
         ui.checkbox(&mut v.audio, t("batch-video-audio"));
     }
