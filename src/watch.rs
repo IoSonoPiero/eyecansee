@@ -101,8 +101,11 @@ impl App {
         }
         log!("gone from the device: {path:?}");
         self.relist(self.dir.clone());
-        self.status_note = Some(self.i18n.t_args("status-file-removed", &[("name", source::name(path))]));
+        let text = self.i18n.t_args("status-file-removed", &[("name", source::name(path))]);
+        // In the status bar for a while, and in a message to close (user, 2026-10-29).
+        self.status_note = Some(text.clone());
         self.note_until = Some(ctx.input(|i| i.time) + NOTE_SECS);
+        self.notice = Some((text, None));
     }
 
     pub(crate) fn retry(&mut self, ctx: &egui::Context) {
