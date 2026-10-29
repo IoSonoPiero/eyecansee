@@ -80,8 +80,9 @@ impl App {
     }
 
     /// A read found a file of the open folder gone (deleted on the phone itself, say): the folder
-    /// is read again, which drops it from the grid and moves the viewer to the next file, and the
-    /// status bar says so. Phones send no events: this is how the app finds out.
+    /// is read again, which drops it from the grid; if it was the file in the viewer, the viewer
+    /// closes (user, 2026-10-29: no playing on with the next one); the status bar and a message
+    /// say so. Phones send no events: this is how the app finds out.
     pub(crate) fn notice_gone(&mut self, ctx: &egui::Context) {
         // The note goes away by itself after a while.
         if let Some(until) = self.note_until {
@@ -100,6 +101,9 @@ impl App {
             return;
         }
         log!("gone from the device: {path:?}");
+        if self.viewed(path) {
+            self.close_viewer();
+        }
         self.relist(self.dir.clone());
         let text = self.i18n.t_args("status-file-removed", &[("name", source::name(path))]);
         // In the status bar for a while, and in a message to close (user, 2026-10-29).
