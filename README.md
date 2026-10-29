@@ -24,7 +24,7 @@ EyeCanSee does not do heavy editing, catalogues or batch tools: for that, mature
 
 What comes next is in [ROADMAP.md](ROADMAP.md).
 
-- **Browsing** of folders on the computer, external disks (also USB sticks, SD cards and dashcams that connect as a USB disk) and Android phones and cameras (opened directly over USB, much faster than through the file manager), with cached thumbnails; folders on the computer and on phones update by themselves when files change. Sorting by name, date, size or type; images and videos shown together or apart; "Open with" from the file manager, for images and videos, shows the file in the window already open.
+- **Browsing** of folders on the computer, external disks (also USB sticks, SD cards and dashcams that connect as a USB disk) and Android phones and cameras (opened directly over USB), with cached thumbnails; folders on the computer and on phones update by themselves when files change. Sorting by name, date, size or type; images and videos shown together or apart; "Open with" from the file manager, for images and videos, shows the file in the window already open.
 - **Viewer** with zoom (mouse wheel and keys) and preloading, so moving between images never waits, photo details such as camera, exposure, date and location, and a full-screen slideshow with fades.
 - **File management**: copy and move (also from one device to another), create folders, rename and delete, also several items at once, with a trash on every device to restore or empty.
 - **Videos**: thumbnails in the grid, playback with sound and volume control in the viewer and their details (date, length, format, location from phones), on the computer, external disks and phones (with the system's libmpv on Linux, otherwise a video engine downloaded the first time a video is opened, as always on Windows).
@@ -33,8 +33,8 @@ What comes next is in [ROADMAP.md](ROADMAP.md).
 - **Saving in another format** (JPEG, PNG, WebP, AVIF, TIFF and others) with every option of each format, the original and the result side by side, and the file size before you save.
 - **Converting and resizing many files at once**: format, turn, size and filter for a whole selection of images and videos, into new files next to the originals, in a subfolder or in another folder, also on another device.
 - **Video conversion** with FFmpeg (the system's, or downloaded once: 63 MB on Windows, 67 MB on Linux): MP4, MKV, WebM, MOV, AVI and GIF with H.264, HEVC, AV1, VP9 and other codecs, turned and resized, on the graphics card when it can (NVIDIA, Intel, AMD, VA-API), or copied as they are without re-encoding; the metadata go into the new file, including a dashcam's GPS position and speeds (`gps.sqlite` on the card) and a DJI drone's position (`.SRT`), so the copy keeps them away from the card. Details in [docs/video-formats.md](docs/video-formats.md).
-- English and Italian, light and dark theme, built-in manual.
 - **Devices**: folders on the computer, disks and Android phones are treated the same way. On Linux the phone opens directly over USB, in seconds. On Windows, Windows' own MTP driver can stall for minutes after a photo is taken or a file deleted on the phone: after 15 s EyeCanSee says so and explains what to do ([docs/phone-stall.en.md](docs/phone-stall.en.md)).
+- English and Italian, light and dark theme, built-in manual.
 
 ### Formats
 
