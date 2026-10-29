@@ -558,6 +558,28 @@ fn local(path: &Path) -> Result<Source, Error> {
 }
 
 impl Listing {
+    /// One item of a folder being read, put where it belongs: the hidden files of an interrupted
+    /// "Save" in `leftovers`, Android's trashed files in `trashed`, then folders and images. Hidden
+    /// items are not shown, apart from EyeCanSee's trash folders; `shown` false hides it too
+    /// (Windows' hidden attribute, a file being written). Folder paths end in "/".
+    pub(crate) fn add(&mut self, path: String, name: &str, is_dir: bool, size: u64, modified: String, shown: bool) {
+        if !is_dir && leftover(name) {
+            self.leftovers.push(path.clone());
+        }
+        if !is_dir && android_trashed(name).is_some() {
+            self.trashed.push(File { path, size, modified });
+            return;
+        }
+        if !shown || (name.starts_with('.') && !(is_dir && name == TRASH_DIR)) {
+            return;
+        }
+        if is_dir {
+            self.dirs.push(path);
+        } else if is_media(name) {
+            self.files.push(File { path, size, modified });
+        }
+    }
+
     // ponytail: plain alphabetical order, "img10" before "img2"; natural sort if it bothers anyone
     /// Also takes the trash folder out of `dirs`, into `trash`.
     pub fn sort(&mut self) {
@@ -596,29 +618,15 @@ async fn list(op: &Operator, dir: &str) -> opendal::Result<Listing> {
     let mut listing = Listing::default();
     for e in op.list(if dir.is_empty() { "/" } else { dir }).await? {
         let path = e.path().trim_start_matches('/');
-        // Hidden items are not shown, apart from EyeCanSee's trash folders.
-        let trash = e.metadata().is_dir() && e.name().trim_end_matches('/') == TRASH_DIR;
-        if !e.metadata().is_dir() && leftover(e.name()) {
-            listing.leftovers.push(path.to_string());
-        }
-        if !e.metadata().is_dir() && android_trashed(e.name()).is_some() {
-            let m = e.metadata();
-            let modified = m.last_modified().map(|t| t.to_string()).unwrap_or_default();
-            listing.trashed.push(File { path: path.to_string(), size: m.content_length(), modified });
+        if path == dir {
             continue;
         }
-        if path == dir || (e.name().starts_with('.') && !trash) || hidden(op, path) || crate::batch::writing(&local_path(op, path)) {
-            continue;
-        }
-        if e.metadata().is_dir() {
-            // Symlinks to folders arrive without a trailing "/" (see Cargo.toml).
-            let path = if path.ends_with('/') { path.to_string() } else { format!("{path}/") };
-            listing.dirs.push(path);
-        } else if is_media(e.name()) {
-            let m = e.metadata();
-            let modified = m.last_modified().map(|t| t.to_string()).unwrap_or_default();
-            listing.files.push(File { path: path.to_string(), size: m.content_length(), modified });
-        }
+        let m = e.metadata();
+        // Symlinks to folders arrive without a trailing "/" (see Cargo.toml).
+        let path = if m.is_dir() && !path.ends_with('/') { format!("{path}/") } else { path.to_string() };
+        let modified = m.last_modified().map(|t| t.to_string()).unwrap_or_default();
+        let shown = !hidden(op, &path) && !crate::batch::writing(&local_path(op, &path));
+        listing.add(path, e.name().trim_end_matches('/'), m.is_dir(), m.content_length(), modified, shown);
     }
     listing.sort();
     Ok(listing)

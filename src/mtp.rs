@@ -14,8 +14,7 @@ use bytes::Bytes;
 use mtp_rs::mtp::{MtpDevice, NewObjectInfo, ObjectHandle, Storage, WindowedDownload};
 use tokio::sync::OnceCell;
 
-use crate::decode::is_media;
-use crate::source::{self, Error, File, Listing, NOT_FOUND};
+use crate::source::{self, Error, Listing, NOT_FOUND};
 
 mod events;
 pub use events::{Change, on_change, take_changes};
@@ -415,23 +414,8 @@ impl Phone {
             let path = format!("{dir}{}{}", o.filename, if o.is_folder() { "/" } else { "" });
             // Hidden items too: `locate` finds them here (the files of an interrupted "Save").
             handles.insert(path.clone(), o.handle);
-            if !o.is_folder() && source::leftover(&o.filename) {
-                listing.leftovers.push(path.clone());
-            }
-            let modified = || o.modified.and_then(unix_seconds).map(|s| s.to_string()).unwrap_or_default();
-            if !o.is_folder() && source::android_trashed(&o.filename).is_some() {
-                listing.trashed.push(File { path, size: o.size, modified: modified() });
-                continue;
-            }
-            // Hidden items are not shown, apart from EyeCanSee's trash folders.
-            if o.filename.starts_with('.') && !(o.is_folder() && o.filename == source::TRASH_DIR) {
-                continue;
-            }
-            if o.is_folder() {
-                listing.dirs.push(path);
-            } else if is_media(&o.filename) {
-                listing.files.push(File { path, size: o.size, modified: modified() });
-            }
+            let modified = o.modified.and_then(unix_seconds).map(|s| s.to_string()).unwrap_or_default();
+            listing.add(path, &o.filename, o.is_folder(), o.size, modified, true);
         }
         listing.sort();
         Ok(listing)
