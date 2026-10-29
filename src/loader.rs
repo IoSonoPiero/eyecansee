@@ -23,6 +23,8 @@ pub const THUMB_SIDE: u32 = 256;
 
 pub enum Msg {
     Listed(String, Result<Listing, source::Error>),
+    /// The folder a server starts in, once connected (`Loader::home`): source base and folder.
+    Home(String, Result<String, source::Error>),
     /// Address handed over by EyeCanSee started again ("" = none): `single::listen`.
     Open(String),
     /// Connected external devices, sent by `devices::watch` when the list changes.
@@ -120,7 +122,12 @@ impl Loader {
         // A phone answers one request at a time: more parallel reads are not faster, and the
         // listing of the next folder would wait for all those already started (12 photos from
         // Pictures/To sort: listing of Funny in 2.3 s instead of 0.5).
-        let workers = if matches!(loader.op, Store::Mtp(_)) { 2 } else { cores };
+        // An SFTP server: one connection, and every read already asks for 16 pieces at once.
+        let workers = match loader.op {
+            Store::Mtp(_) => 2,
+            Store::Sftp(_) => 4,
+            Store::Dal(_) => cores,
+        };
         for _ in 0..workers {
             loader.rt.spawn(thumb_worker(
                 loader.op.clone(),
@@ -145,6 +152,17 @@ impl Loader {
             // Separate task: a panic inside OpenDAL becomes an error shown, not an endless spinner.
             let r = rt.spawn(task).await.unwrap_or_else(|e| Err(("error-detail", e.to_string())));
             let _ = tx.send(Msg::Listed(dir, r));
+            ctx.request_repaint();
+        });
+    }
+
+    /// Asks a server the folder it starts in: `Msg::Home` opens it.
+    pub fn home(&self) {
+        let Store::Sftp(server) = self.op.clone() else { return };
+        let (base, tx, ctx) = (self.base.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let r = server.home().await;
+            let _ = tx.send(Msg::Home(base, r));
             ctx.request_repaint();
         });
     }

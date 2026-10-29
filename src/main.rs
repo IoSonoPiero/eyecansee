@@ -63,6 +63,7 @@ mod rotate_page;
 mod save_dialogs;
 mod selection;
 mod settings;
+mod sftp;
 mod single;
 mod slideshow;
 mod source;
@@ -247,6 +248,8 @@ struct App {
     notice: Option<(String, Option<Act>)>,
     /// KDE holds the phone: asking whether to terminate kiod (`kiod_window`).
     kiod_ask: bool,
+    /// An SFTP server never used from this computer: asking whether to trust its key (`host_window`).
+    host_ask: bool,
     /// In the status bar until the next source: the phone is open through the desktop's mount.
     status_note: Option<String>,
     /// When a passing `status_note` goes away by itself (`egui` time), such as a file removed.
@@ -403,6 +406,7 @@ impl App {
             after_save: None,
             notice: None,
             kiod_ask: false,
+            host_ask: false,
             status_note: None,
             note_until: None,
             stall_notice: None,
@@ -622,6 +626,7 @@ impl App {
         self.batch_turn_window(ctx);
         self.notice_window(ctx);
         self.kiod_window(ctx);
+        self.host_window(ctx);
         self.address_window(ctx);
         self.paste_window(ctx);
         self.transfer_window(ctx);

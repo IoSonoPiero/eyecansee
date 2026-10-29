@@ -1,5 +1,5 @@
-//! Where the images come from: local disk, FTP, SFTP (Unix only) through OpenDAL, and
-//! phones connected directly over MTP (`mtp://<serial>/`), which OpenDAL does not cover.
+//! Where the images come from: local disk and FTP through OpenDAL, SFTP servers (`sftp.rs`) and
+//! phones connected directly over MTP (`mtp://<serial>/`).
 //! Every source has its root at the top, so the folder tree can climb all the way up.
 //! Folders are paths relative to the root ending in `/` ("" is the root).
 
@@ -35,6 +35,7 @@ pub use crate::trash::{android_trashed, free_name, in_trash, is_trash, leftover,
 pub enum Store {
     Dal(Operator),
     Mtp(Arc<crate::mtp::Phone>),
+    Sftp(Arc<crate::sftp::Server>),
 }
 
 /// Reads under gvfs (phones, cameras, shares mounted by the desktop), two at a time like the
@@ -139,6 +140,7 @@ impl Store {
         match self {
             Store::Dal(op) => list(op, dir).await.map_err(dal_error),
             Store::Mtp(phone) => phone.list(dir).await,
+            Store::Sftp(server) => server.list(dir).await,
         }
     }
 
@@ -146,7 +148,7 @@ impl Store {
     pub fn can_rename(&self) -> bool {
         match self {
             Store::Dal(op) => op.info().capability().rename,
-            Store::Mtp(_) => true,
+            Store::Mtp(_) | Store::Sftp(_) => true,
         }
     }
 
@@ -173,6 +175,7 @@ impl Store {
                 op.read(path).await.map(|b| b.to_vec()).map_err(dal_error)
             }
             Store::Mtp(phone) => phone.read(path).await,
+            Store::Sftp(server) => server.read(path).await,
         };
         noticed(r, path)
     }
@@ -185,6 +188,7 @@ impl Store {
                 op.read_with(path).range(offset..offset + len).await.map(|b| b.to_vec()).map_err(dal_error)
             }
             Store::Mtp(phone) => phone.read_range(path, offset, len as u32).await,
+            Store::Sftp(server) => server.read_range(path, offset, len).await,
         };
         noticed(r, path)
     }
@@ -201,6 +205,7 @@ impl Store {
                     .collect())
             }
             Store::Mtp(phone) => phone.names(dir).await,
+            Store::Sftp(server) => server.names(dir).await,
         }
     }
 
@@ -231,6 +236,11 @@ impl Store {
                 op.rename(path, &to).await.map_err(unsupported)?;
             }
             Store::Mtp(phone) => phone.move_into(path, to_dir, new_name).await?,
+            // On the server itself, folders too.
+            Store::Sftp(server) => {
+                server.create_dir_all(to_dir).await?;
+                server.rename(path, &to).await?;
+            }
         }
         Ok(to)
     }
@@ -257,6 +267,7 @@ impl Store {
         match self {
             Store::Dal(op) => op.stat(dir).await.is_ok_and(|m| m.is_dir()),
             Store::Mtp(phone) => phone.check_dir(dir).await.is_ok(),
+            Store::Sftp(server) => server.is_dir(dir).await,
         }
     }
 
@@ -289,6 +300,12 @@ impl Store {
                 })?;
             }
             Store::Mtp(phone) => phone.rename(path, new_name).await?,
+            Store::Sftp(server) => {
+                if server.exists(&to).await {
+                    return Err(("error-exists", to));
+                }
+                server.rename(path, &to).await?;
+            }
         }
         Ok(to)
     }
@@ -297,6 +314,7 @@ impl Store {
         let r = match self {
             Store::Dal(op) => op.stat(path).await.map(|m| m.content_length()).map_err(dal_error),
             Store::Mtp(phone) => phone.size(path).await,
+            Store::Sftp(server) => server.size(path).await,
         };
         noticed(r, path)
     }
@@ -328,6 +346,7 @@ impl Store {
                 Ok(found)
             }
             Store::Mtp(phone) => phone.walk(dir, p).await,
+            Store::Sftp(server) => server.walk(dir, p).await,
         }
     }
 
@@ -339,6 +358,7 @@ impl Store {
                 op.create_dir(dir).await.map_err(dal_error)
             }
             Store::Mtp(phone) => phone.create_dir(dir).await,
+            Store::Sftp(server) => server.create_dir(dir).await,
         }
     }
 
@@ -376,6 +396,7 @@ impl Store {
                     push(chunk).await?;
                 }
             }
+            Store::Sftp(server) => server.send(path, size, CHUNK, cancel, push).await?,
             Store::Mtp(phone) => {
                 let mut download = phone.download(path).await?;
                 while let Some(window) = phone.next_window(&mut download).await {
@@ -419,6 +440,7 @@ impl Store {
                     }
                 }
             }
+            Store::Sftp(server) => server.write_chunks(path, chunks).await,
             Store::Mtp(phone) => {
                 let stream = futures_util::stream::unfold(chunks, |mut c| async { c.recv().await.map(|x| (x, c)) });
                 phone.upload(path, size, Box::pin(stream)).await
@@ -432,6 +454,7 @@ impl Store {
             Store::Dal(_) if dir.is_empty() => Ok(()),
             Store::Dal(op) => op.stat(dir).await.map(|_| ()).map_err(dal_error),
             Store::Mtp(phone) => phone.check_dir(dir).await,
+            Store::Sftp(server) => server.check_dir(dir).await,
         }
     }
 }
@@ -444,6 +467,9 @@ pub struct Source {
     pub dir: String,
     /// Image to open straight away, if the address pointed to a file.
     pub start: Option<String>,
+    /// A server address without a folder: it opens in the folder the server starts in
+    /// (`Loader::home`), which is known only once connected.
+    pub home: bool,
 }
 
 #[derive(Default, Clone)]
@@ -495,7 +521,7 @@ pub fn parent(dir: &str) -> String {
     }
 }
 
-/// Accepts a local path or `file://`, `ftp://`, `ftps://`, `sftp://` (Unix only).
+/// Accepts a local path or `file://`, `ftp://`, `ftps://`, `sftp://`, `mtp://`.
 pub fn open(arg: &str) -> Result<Source, Error> {
     // "C:\photos" would be read as a URL with scheme "c": one-letter schemes are paths.
     let url = Url::parse(arg).ok().filter(|u| u.scheme().len() > 1);
@@ -511,7 +537,7 @@ pub fn open(arg: &str) -> Result<Source, Error> {
         let serial = decode(host);
         let base = format!("mtp://{serial}/");
         let op = Store::Mtp(crate::mtp::Phone::shared(&serial));
-        return Ok(Source { op, base, dir, start });
+        return Ok(Source { op, base, dir, start, home: false });
     }
     let user = match url.username() {
         "" => String::new(),
@@ -520,6 +546,12 @@ pub fn open(arg: &str) -> Result<Source, Error> {
     let port = url.port().map(|p| format!(":{p}")).unwrap_or_default();
     // The password never appears in the address bar.
     let base = format!("{}://{user}{host}{port}/", url.scheme());
+    if url.scheme() == "sftp" {
+        let password = url.password().map(decode);
+        let target = crate::sftp::Target { user: decode(url.username()), host: host.to_string(), port: url.port(), password };
+        let home = dir.is_empty() && start.is_none();
+        return Ok(Source { op: Store::Sftp(crate::sftp::Server::shared(target)), base, dir, start, home });
+    }
     let op = match url.scheme() {
         scheme @ ("ftp" | "ftps") => {
             let port = url.port_or_known_default().unwrap_or(21);
@@ -534,13 +566,9 @@ pub fn open(arg: &str) -> Result<Source, Error> {
             }
             Operator::new(b)
         }
-        // ponytail: OpenDAL uses the openssh crate, which does not compile on Windows (apache/opendal#2963).
-        // SFTP on Windows will have to be done with russh-sftp.
-        #[cfg(unix)]
-        "sftp" => Operator::new(services::Sftp::default().endpoint(&format!("ssh://{user}{host}{port}")).root("/")),
         s => return Err(("error-unsupported", s.to_string())),
     };
-    Ok(Source { op: Store::Dal(op.map_err(|e| ("error-source", e.to_string()))?), base, dir, start })
+    Ok(Source { op: Store::Dal(op.map_err(|e| ("error-source", e.to_string()))?), base, dir, start, home: false })
 }
 
 fn local(path: &Path) -> Result<Source, Error> {
@@ -554,7 +582,7 @@ fn local(path: &Path) -> Result<Source, Error> {
         .map_err(|e| ("error-source", e.to_string()))?;
     // ponytail: Windows' "\\?\" prefix is hidden only in the bar; it is really needed only for paths over 260 characters
     let base = root.to_string_lossy().trim_start_matches(r"\\?\").to_string();
-    Ok(Source { op: Store::Dal(op), base, dir, start })
+    Ok(Source { op: Store::Dal(op), base, dir, start, home: false })
 }
 
 impl Listing {

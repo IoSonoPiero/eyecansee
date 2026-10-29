@@ -226,6 +226,31 @@ impl App {
         }
     }
 
+    /// First connection to an SFTP server: its key's fingerprint, as ssh shows it. Trusted, the
+    /// key goes to known_hosts and the address opens again (in the server's starting folder if
+    /// it had none).
+    pub(crate) fn host_window(&mut self, ctx: &egui::Context) {
+        if !self.host_ask {
+            return;
+        }
+        let Some((host, fingerprint)) = crate::sftp::unknown() else {
+            self.host_ask = false;
+            return;
+        };
+        let text = self.i18n.t_args("host-ask", &[("host", &host), ("fingerprint", &fingerprint)]);
+        let (ok, cancel) = (self.i18n.t("host-ok"), self.i18n.t("delete-no"));
+        match confirm::yes_no(ctx, "host", 460.0, text, ok, true, cancel, self.delete_answer.take()) {
+            Some(true) => {
+                crate::sftp::trust();
+                self.host_ask = false;
+                let address = format!("{}{}", self.base, self.dir);
+                self.open_source(ctx, &address);
+            }
+            Some(false) => self.host_ask = false,
+            None => {}
+        }
+    }
+
     pub(crate) fn about_window(&mut self, ctx: &egui::Context) {
         let mut open = self.about;
         let icon = self.about_icon.get_or_insert_with(|| {

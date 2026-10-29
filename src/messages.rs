@@ -7,7 +7,7 @@ use std::sync::atomic::Ordering;
 
 use eframe::egui::{self, ColorImage, TextureOptions};
 
-use crate::address::without_password;
+use crate::address::{AddressForm, without_password};
 use crate::save_dialogs::md;
 use crate::actions::Act;
 use crate::{App, RETRY_SECS, devices, encode, loader, meta, source, transform, update, version};
@@ -35,6 +35,7 @@ impl App {
                 Msg::Pasted(gone, r) => self.on_pasted(ctx, gone, r),
                 Msg::Mounted(r) => self.on_mounted(ctx, r),
                 Msg::Open(address) => self.on_open(ctx, address),
+                Msg::Home(base, r) => self.on_home(base, r),
                 // Shown in a window only when asked from the Help menu (the window is open).
                 Msg::Original(r) if self.rotate.is_some() => self.rotate_original(ctx, r),
                 Msg::Original(r) => self.convert_original(ctx, r),
@@ -64,8 +65,14 @@ impl App {
             l.files.retain(|f| self.settings.show.allows(&f.path));
             l.sort_files(self.settings.sort_by, self.settings.sort_desc);
         }
-        if let Err(("error-device-kde", _)) = &r {
-            self.kiod_ask = true;
+        match &r {
+            Err(("error-device-kde", _)) => self.kiod_ask = true,
+            Err(("error-host-unknown", _)) => self.host_ask = true,
+            // A server that refused the login: File > Open location asks for the password.
+            Err(("error-login" | "error-login-ssh", _)) if dir == self.dir && self.open_address.is_none() => {
+                self.open_address = AddressForm::for_password(&format!("{}{}", self.base, self.dir));
+            }
+            _ => {}
         }
         if self.use_mount(ctx, &dir, &r) {
             return;
@@ -267,6 +274,17 @@ impl App {
                 log!("mount failed: {e}");
                 self.error = Some(self.i18n.t_args("error-mount", &[("detail", &e)]));
             }
+        }
+    }
+
+    /// A server opened without a folder: its starting folder, if the user is still at the top.
+    fn on_home(&mut self, base: String, r: Result<String, source::Error>) {
+        log!("home of {base:?}: {r:?}");
+        if let Ok(dir) = r
+            && base == self.base
+            && self.dir.is_empty()
+        {
+            self.set_dir(dir);
         }
     }
 

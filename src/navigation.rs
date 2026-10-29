@@ -28,6 +28,9 @@ impl App {
                 self.status_note = None;
                 self.set_dir(s.dir);
                 self.start = s.start;
+                if s.home && let Some(loader) = &self.loader {
+                    loader.home();
+                }
                 self.maintain();
             }
             Err((id, detail)) => {

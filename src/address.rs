@@ -5,8 +5,8 @@ use percent_encoding::percent_decode_str;
 
 use crate::{App, browser};
 
-/// Protocols of File > Open location (SFTP only where OpenDAL has it).
-const SCHEMES: &[&str] = if cfg!(unix) { &["ftp", "ftps", "sftp"] } else { &["ftp", "ftps"] };
+/// Protocols of File > Open location.
+const SCHEMES: &[&str] = &["ftp", "ftps", "sftp"];
 
 /// File > Open location: a whole address, or its parts.
 #[derive(Clone, Default)]
@@ -29,10 +29,17 @@ impl AddressForm {
     /// form filled in with its parts, waiting for the password. `None` for any other address.
     pub(crate) fn asking_password(address: &str) -> Option<Self> {
         let u = url::Url::parse(address).ok()?;
-        let scheme = SCHEMES.iter().position(|s| *s == u.scheme() && *s != "sftp")?;
-        if u.username().is_empty() || u.password().is_some() {
+        if u.scheme() == "sftp" || u.username().is_empty() || u.password().is_some() {
             return None;
         }
+        Self::for_password(address)
+    }
+
+    /// A server that refused the login: the form filled in with the address's parts, waiting for
+    /// the password. `None` for an address that is not a server's.
+    pub(crate) fn for_password(address: &str) -> Option<Self> {
+        let u = url::Url::parse(address).ok()?;
+        let scheme = SCHEMES.iter().position(|s| *s == u.scheme())?;
         let decode = |s: &str| percent_decode_str(s).decode_utf8_lossy().into_owned();
         Some(Self {
             scheme,

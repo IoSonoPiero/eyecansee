@@ -29,6 +29,16 @@ error-path = Impossibile aprire { $detail }
 error-source = Impossibile collegarsi alla sorgente: { $detail }
 error-detail = { $detail }
 error-login = Il server ha rifiutato l'accesso: nome utente o password sbagliati.
+error-login-ssh = Il server { $detail } ha rifiutato l'accesso: non ha accettato nessuna delle tue chiavi SSH e non c'è una password, oppure la password è sbagliata.
+error-permission = Permesso negato: { $detail }
+error-no-sftp = Il server risponde in SSH ma non ha il servizio SFTP ({ $detail }). Su un NAS, attiva SFTP nelle sue impostazioni.
+error-host-unknown = { $detail } non è mai stato usato da questo computer: conferma la sua chiave per collegarti.
+error-host-changed = La chiave di { $detail } non è quella registrata in ~/.ssh/known_hosts, quindi EyeCanSee non si collega: qualcuno potrebbe fingersi quel server. Se il server è stato reinstallato, togli la sua riga vecchia da known_hosts.
+host-ask =
+    { "**" }Primo collegamento a { $host }.**
+
+    L'impronta della sua chiave è `{ $fingerprint }`. Se è il server che ti aspetti, EyeCanSee la ricorda in ~/.ssh/known_hosts, come fa ssh, e si collega.
+host-ok = Collegati
 error-not-found = Non trovato: { $detail }
 error-device-busy = Il dispositivo è in uso da un'altra applicazione (per esempio il gestore dei file). Chiudila, oppure scollega e ricollega il dispositivo. ({ $detail })
 error-device-kde = Il telefono è in uso da KDE (il suo servizio kiod). Premi F5 per aprirlo comunque in EyeCanSee. ({ $detail })

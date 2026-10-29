@@ -65,7 +65,7 @@ Con più elementi selezionati, **Canc** (o **Elimina…** dal clic destro su uno
 
 **Maiusc+Canc** (o **File > Elimina definitivamente…**) elimina per sempre solo quella volta, qualunque sia l'opzione.
 
-**F2** (o **File > Rinomina…**) rinomina l'elemento selezionato o l'immagine aperta: scrivi il nuovo nome e premi **Invio** (**Esc** annulla). EyeCanSee non accetta un nome già presente nella cartella. Sui server SFTP le cartelle non si possono rinominare, e via FTP nulla.
+**F2** (o **File > Rinomina…**) rinomina l'elemento selezionato o l'immagine aperta: scrivi il nuovo nome e premi **Invio** (**Esc** annulla). EyeCanSee non accetta un nome già presente nella cartella. Via FTP non si può rinominare nulla.
 
 Non si possono eliminare né rinominare la cartella principale di una sorgente e le memorie di un telefono.
 
@@ -191,7 +191,8 @@ eyecansee ~/Immagini/Vacanze               una cartella
 eyecansee ~/Immagini/Vacanze/spiaggia.jpg  apre quell'immagine nel visore
 eyecansee ftp://utente:password@nas.lan/Foto
 eyecansee ftps://utente@nas.lan/Foto
-eyecansee sftp://utente@server:2222/home/utente/Foto   (solo Linux)
+eyecansee sftp://utente@server:2222/home/utente/Foto
+eyecansee sftp://mio-nas/                  un alias di ~/.ssh/config
 ```
 
 EyeCanSee è aperto in una sola copia alla volta (un telefono può usarlo un solo programma): se è già aperto, avviarlo di nuovo, per esempio con "Apri con" su una foto, mostra quella cartella o immagine nella finestra già aperta.
@@ -200,7 +201,7 @@ EyeCanSee è aperto in una sola copia alla volta (un telefono può usarlo un sol
 
 Le cartelle remote si comportano come quelle locali: albero, griglia e visore funzionano allo stesso modo. Le password non compaiono mai nella barra degli indirizzi.
 
-Con SFTP, EyeCanSee usa il client `ssh` del sistema, quindi alias, chiavi e agent di `~/.ssh/config` funzionano come sempre.
+Con SFTP, su Linux e Windows, EyeCanSee legge `~/.ssh/config` come ssh (alias, HostName, User, Port, IdentityFile; non ProxyJump) e accede con le chiavi dell'agent SSH, con i file di chiave senza passphrase o con la password: se il server rifiuta, si apre **File > Apri indirizzo…** e la chiede. Una password scritta nell'indirizzo si prova per prima. Un indirizzo senza cartella si apre nella cartella iniziale del server (di solito la tua home). La prima volta che ti colleghi a un server, EyeCanSee mostra l'impronta della sua chiave e chiede se fidarsi; dopo la conferma va in `~/.ssh/known_hosts`, come fa ssh. Un server con la chiave cambiata viene rifiutato. EyeCanSee tiene una connessione per server, e rinomine e spostamenti (anche di cartelle) li fa il server stesso.
 
 ## Tastiera
 
@@ -286,7 +287,6 @@ EyeCanSee usa la lingua del sistema se è disponibile, altrimenti l'inglese. Per
 - Sui dischi **NTFS** (per esempio un disco esterno usato anche con Windows) l'app File (Nautilus) non riesce a ripristinare dal cestino, nemmeno i file cancellati da lei stessa; EyeCanSee lo ricorda nella conferma. I file però sono nel cestino e si ripristinano dal terminale: `gio trash --list` mostra cosa c'è, `gio trash --restore "<indirizzo trash:/// della riga>"` lo rimette al suo posto.
 - Se il telefono non risponde a una richiesta (visto su Windows: una cancellazione durata più di cinque minuti, con tutto il resto in attesa dietro di lei), la barra di stato lo dice con i secondi trascorsi e il file: EyeCanSee riprende da solo appena il telefono risponde. La causa non è nota: è capitato due volte su un POCO X7 Pro, cancellando file appena creati, e non si ripete a comando.
 - **Windows**: subito dopo una foto scattata, o un file cancellato, sul telefono, il driver di Windows può smettere di comunicare con il telefono per circa sei minuti; staccare il cavo e riattaccarlo lo sblocca subito. Di più in [Windows smette di comunicare con il telefono](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.it.md).
-- SFTP non è ancora disponibile su Windows.
 - Un telefono aperto tramite il collegamento del gestore dei file (vedi Dispositivi esterni) è più lento di quello diretto: nelle cartelle con centinaia di file circa una miniatura al secondo.
 - Le immagini più grandi di 8192 pixel per lato vengono mostrate ridotte.
 - I file sono ordinati alfabeticamente: `img10` viene prima di `img2`.
