@@ -62,7 +62,7 @@ Other Android phones open directly when mtp-rs supports them, otherwise through 
 
 ## Download
 
-- **Windows**: from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), either run the installer (`-setup.exe`: Start menu entry, optional desktop shortcut, "Open with" for images, removal from Settings, no administrator rights needed) or download the zip, extract the whole folder anywhere and run `eyecansee.exe` (it needs the files next to it). The program is not signed, so Windows may warn you the first time: click **More info**, then **Run anyway**.
+- **Windows**: from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), either run the installer (`-setup.exe`: Start menu entry, optional desktop shortcut, "Open with" for images and videos, removal from Settings, no administrator rights needed) or download the zip, extract the whole folder anywhere and run `eyecansee.exe` (it needs the files next to it). The program is not signed, so Windows may warn you the first time: click **More info**, then **Run anyway**.
 - **Fedora** (43 and later): install it from the [COPR repository](https://copr.fedorainfracloud.org/coprs/iosonopiero/eyecansee/), and updates arrive with the system ones:
   ```bash
   sudo dnf copr enable iosonopiero/eyecansee
@@ -70,7 +70,7 @@ Other Android phones open directly when mtp-rs supports them, otherwise through 
   ```
   HEIC photos also need `libheif-freeworld` from [RPM Fusion](https://rpmfusion.org/), which `dnf` installs by itself if RPM Fusion is enabled.
 - **Other Linux distributions**: download the `.AppImage` file from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), make it executable (`chmod +x EyeCanSee-*.AppImage`, or Properties → "Allow executing file as program" in the file manager) and run it. Nothing else to install: videos use the system's libmpv if there is one, otherwise EyeCanSee offers to download its video engine (10 MB) the first time a video is opened. It needs a distribution from 2022 or later (glibc 2.35).
-  To have it in the applications menu (and in "Open with" for images), open the AppImage with [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever), available from the software centre of most distributions, and let it move the file into its folder and add it to the menu. EyeCanSee keeps updating itself there.
+  To have it in the applications menu (and in "Open with" for images and videos), open the AppImage with [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever), available from the software centre of most distributions, and let it move the file into its folder and add it to the menu. EyeCanSee keeps updating itself there.
 
 On Linux it is tested on GNOME, Cinnamon (Linux Mint) and KDE Plasma 5 and 6. Other desktops that use gvfs for phones (Xfce, MATE) should work the same way, but they have not been tried. On KDE, opening a phone asks first: KDE holds it in its kiod service, and closing that service also makes KDE forget the passwords of network folders open in Dolphin.
 
