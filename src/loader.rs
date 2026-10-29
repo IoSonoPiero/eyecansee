@@ -637,9 +637,20 @@ pub(crate) async fn thumbnail(op: &Store, base: &str, file: File) -> Result<Colo
     }
 }
 
+/// From the disk cache, or the one a conversion just made for this file (saved to the cache now).
 async fn cached(base: &str, file: &File) -> Option<ColorImage> {
     let (base, file) = (base.to_string(), file.clone());
-    tokio::task::spawn_blocking(move || thumbcache::load(&base, &file)).await.ok().flatten().map(decode::to_color_image)
+    tokio::task::spawn_blocking(move || {
+        thumbcache::load(&base, &file).or_else(|| {
+            let img = crate::batch::ready(&file.path, file.size)?;
+            thumbcache::save(&base, &file, &img);
+            Some(img)
+        })
+    })
+    .await
+    .ok()
+    .flatten()
+    .map(decode::to_color_image)
 }
 
 /// Made from the file and saved in the cache.

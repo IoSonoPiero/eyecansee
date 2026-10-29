@@ -287,7 +287,7 @@ impl App {
             return false;
         }
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
-        // A file just finished: its folder read again, so the thumbnail is made once, now.
+        // A file just finished: its folder read again, so its thumbnail (`batch::ready`) shows now.
         let saved = p.saved.lock().unwrap().len();
         if p.listed.swap(saved, Ordering::Relaxed) < saved
             && let Some(dest) = w.dest.1.clone()

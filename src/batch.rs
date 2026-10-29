@@ -3,7 +3,7 @@
 //! touched: the new files get free names, next to them, in a subfolder or in another folder,
 //! also on another device.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::{LazyLock, Mutex};
@@ -170,6 +170,33 @@ pub fn writing(path: &std::path::Path) -> bool {
     WRITING.lock().unwrap().contains(path)
 }
 
+/// Thumbnails of the videos just converted, made from the local file ffmpeg wrote (before it goes
+/// to a phone or a server): path in the destination, size, image. The loader takes them when the
+/// folder is read again, so nothing is read back from the device for a file we have just written
+/// (on the POCO the thumbnail competed with the next file's download and timed out).
+static READY: LazyLock<Mutex<HashMap<String, (u64, image::DynamicImage)>>> = LazyLock::new(Default::default);
+
+/// The thumbnail kept for `path`, if any and if the file still has `size`; taken once.
+pub fn ready(path: &str, size: u64) -> Option<image::DynamicImage> {
+    let mut ready = READY.lock().unwrap();
+    match ready.get(path) {
+        Some((s, _)) if *s == size => ready.remove(path).map(|(_, img)| img),
+        _ => None,
+    }
+}
+
+/// The thumbnail of the video written into `file`, kept for `to` until the loader asks for it.
+async fn keep_thumbnail(to: &str, file: &std::path::Path) {
+    let input = crate::mpv::Input::File(file.to_path_buf());
+    let (Ok(size), Ok(Ok(img))) = (
+        std::fs::metadata(file).map(|m| m.len()),
+        tokio::task::spawn_blocking(move || crate::mpv::still(input, crate::loader::THUMB_SIDE)).await,
+    ) else {
+        return;
+    };
+    READY.lock().unwrap().insert(to.to_string(), (size, image::DynamicImage::ImageRgba8(img).to_rgb8().into()));
+}
+
 /// `path` marked as being written until the guard is dropped.
 pub(crate) struct Writing(PathBuf);
 
@@ -213,6 +240,9 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
         .unwrap_or_else(|e| Err(e.to_string()));
     if input.1 {
         let _ = std::fs::remove_file(&input.0);
+    }
+    if r.is_ok() {
+        keep_thumbnail(to, &output.0).await;
     }
     let r = match r {
         Ok(()) if output.1 => upload(out, to, &output.0).await.map_err(|e| failed(e.to_string())),
@@ -308,6 +338,7 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
         return;
     }
     let mut taken: HashSet<String> = out.names(&dest).await.unwrap_or_default();
+    READY.lock().unwrap().clear();
     let job = std::sync::Arc::new(job);
     for path in paths {
         if p.cancel.load(Ordering::Relaxed) {
@@ -369,6 +400,15 @@ mod tests {
     use image::DynamicImage;
 
     use super::*;
+
+    /// A thumbnail kept for a converted file is taken once, only with the file's size.
+    #[test]
+    fn ready_once() {
+        READY.lock().unwrap().insert("ready/v.mp4".into(), (10, DynamicImage::new_rgb8(2, 2)));
+        assert!(ready("ready/v.mp4", 11).is_none(), "another size: another file");
+        assert!(ready("ready/v.mp4", 10).is_some());
+        assert!(ready("ready/v.mp4", 10).is_none(), "taken");
+    }
 
     #[test]
     fn sizes() {
