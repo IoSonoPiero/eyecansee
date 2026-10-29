@@ -64,6 +64,7 @@ transfer-counts = { $n } of { $total } files, { $done } of { $size }
 transfer-to = To { $dir }
 transfer-left = { $percent }%, { $speed }/s, about { $time } left
 error-paste-inside = A folder cannot go inside itself: { $detail }
+error-name-too-long = The name is too long for the phone: { $detail } characters, while a phone takes at most 254 (an emoji counts as two). Shorten it and try again; nothing was copied.
 error-cancelled = Cancelled.
 menu-about = About EyeCanSee
 menu-meta = Metadata boxes

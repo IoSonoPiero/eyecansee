@@ -1172,6 +1172,32 @@ mod tests {
     /// (Convert and resize), then deleted one by one. The sixth delete hung for about five minutes
     /// (WPD), with every later call waiting behind it. Times of every call, to find the trigger.
     ///   EYECANSEE_MTP=<serial> cargo test --release mtp_ten_deletes_live -- --ignored --nocapture
+    /// A name longer than MTP allows (254 UTF-16 units): mtp-rs 0.36 refuses it before sending
+    /// anything, and the user reads a plain message. Prints what the app shows, in both languages.
+    ///   EYECANSEE_MTP=<serial> cargo test --release mtp_long_name_live -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn mtp_long_name_live() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let op = Store::Mtp(Arc::new(crate::mtp::Phone::new(&serial)));
+        let root = rt.block_on(op.list("")).unwrap();
+        let dir = format!("{}EyeCanSee-long-name-test/", root.dirs[0]);
+        rt.block_on(op.create_dir(&dir)).unwrap();
+        let name = format!("{}.jpg", "n".repeat(251)); // 255 characters, the most NTFS and ext4 allow
+        let t = std::time::Instant::now();
+        let r = rt.block_on(write_whole(&op, &format!("{dir}{name}"), encode(&picture(640, 480), image::ImageFormat::Jpeg)));
+        println!("upload of a {}-character name: {r:?} in {:.2} s", name.chars().count(), t.elapsed().as_secs_f32());
+        let left = rt.block_on(op.names(&dir)).unwrap();
+        rt.block_on(op.delete(&dir, Deletion::Permanent)).unwrap();
+        let (id, detail) = r.expect_err("a 255-character name must be refused");
+        for lang in ["en", "it"] {
+            println!("{lang}: {}", crate::i18n::I18n::detect(Some(lang)).t_args(id, &[("detail", &detail)]));
+        }
+        assert_eq!(id, "error-name-too-long");
+        assert!(left.is_empty(), "nothing must be created: {left:?}");
+    }
+
     #[test]
     #[ignore]
     fn mtp_ten_deletes_live() {

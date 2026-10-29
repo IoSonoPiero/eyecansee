@@ -79,6 +79,9 @@ fn error(e: mtp_rs::Error) -> Error {
         _ if e.is_exclusive_access() => "error-device-busy",
         // Also while the phone reconnects after switching to "File transfer": the UI retries.
         mtp_rs::Error::NoDevice => "error-no-device",
+        // mtp-rs 0.36: refused before anything is sent (upload, new folder, rename); MTP names
+        // hold 254 UTF-16 units, an emoji counts as two.
+        mtp_rs::Error::NameTooLong { units } => return ("error-name-too-long", units.to_string()),
         _ => "error-detail",
     };
     (id, e.to_string())
@@ -676,6 +679,7 @@ mod tests {
         assert_eq!(after_open_failed(e("error-device-busy"), true).0, "error-device-busy");
         assert_eq!(after_open_failed(e("error-no-device"), true).0, "error-no-device");
         assert_eq!(after_open_failed(e("error-device-kde"), true).0, "error-device-kde");
+        assert_eq!(error(mtp_rs::Error::NameTooLong { units: 255 }), ("error-name-too-long", "255".into()));
     }
 
     /// Test on a real phone, not mounted by the desktop:
