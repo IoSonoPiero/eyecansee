@@ -376,18 +376,22 @@ fn extra(bytes: &[u8], name: &str) -> Result<DynamicImage> {
             // marked hidden: Regeneration.psd, 2016): then the layers are merged, all of them if
             // none is visible. The result matched ImageMagick's pixel for pixel.
             // `psd` 0.3.5 panics on what it does not support (e.g. ZIP-compressed layers, some
-            // channel layouts): an error instead, and on Linux ImageMagick takes over.
-            let (w, h, rgba) = std::panic::catch_unwind(|| {
-                psd::Psd::from_bytes(bytes).map(|p| {
-                    let mut rgba = p.rgba();
-                    if !p.layers().is_empty() && rgba.chunks(4).all(|c| c == &rgba[..4]) {
-                        let any_visible = p.layers().iter().any(|l| l.visible());
-                        if let Ok(merged) = p.flatten_layers_rgba(&|(_, l)| l.visible() || !any_visible) {
-                            rgba = merged;
-                        }
+            // channel layouts): an error instead, and on Linux ImageMagick takes over. 16-bit
+            // files are refused up front: `psd` halves only the red channel and overflows its
+            // buffer with the others (issue #1; psd #57, fixed only in the open PR #67).
+            let (w, h, rgba) = std::panic::catch_unwind(|| -> Result<_> {
+                let p = psd::Psd::from_bytes(bytes)?;
+                if p.depth() != psd::PsdDepth::Eight {
+                    return Err(format!("PSD: {}-bit, only 8-bit is supported", p.depth() as u8).into());
+                }
+                let mut rgba = p.rgba();
+                if !p.layers().is_empty() && rgba.chunks(4).all(|c| c == &rgba[..4]) {
+                    let any_visible = p.layers().iter().any(|l| l.visible());
+                    if let Ok(merged) = p.flatten_layers_rgba(&|(_, l)| l.visible() || !any_visible) {
+                        rgba = merged;
                     }
-                    (p.width(), p.height(), rgba)
-                })
+                }
+                Ok((p.width(), p.height(), rgba))
             })
             .map_err(|_| "PSD: unsupported variant")??;
             DynamicImage::ImageRgba8(RgbaImage::from_raw(w, h, rgba).ok_or("PSD: buffer")?)
@@ -488,6 +492,31 @@ mod tests {
         // And whole, for converting it (it failed in "Convert and resize").
         let whole = decode_full(&bytes, "x.jpg").unwrap();
         assert_eq!((whole.width(), whole.height()), (640, 480));
+    }
+
+    /// A 16-bit PSD: `psd` 0.3.5 overflows its buffer on it (issue #1), so it is refused before
+    /// that and the fallback takes over. The same file at 8 bit decodes.
+    #[test]
+    fn psd_depth() {
+        // 2x2 RGB, no layers, raw channels: red 10, green 20, blue 30.
+        fn psd(depth: u16) -> Vec<u8> {
+            let mut out = b"8BPS\0\x01\0\0\0\0\0\0\0\x03\0\0\0\x02\0\0\0\x02".to_vec();
+            out.extend(depth.to_be_bytes());
+            out.extend([0, 3, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+            for v in [10u8, 20, 30] {
+                for _ in 0..4 {
+                    out.extend(if depth == 16 { vec![v, 0] } else { vec![v] });
+                }
+            }
+            out
+        }
+        let e = extra(&psd(16), "x.psd").unwrap_err().to_string();
+        assert!(e.contains("16-bit"), "{e}");
+        let img = extra(&psd(8), "x.psd").unwrap();
+        assert_eq!((img.width(), img.height()), (2, 2));
+        assert_eq!(img.to_rgba8().get_pixel(1, 1), &image::Rgba([10, 20, 30, 255]));
+        #[cfg(feature = "magick")]
+        assert_eq!(decode_any(&psd(16), "x.psd").unwrap().to_rgba8().get_pixel(1, 1), &image::Rgba([10, 20, 30, 255]));
     }
 
     #[test]

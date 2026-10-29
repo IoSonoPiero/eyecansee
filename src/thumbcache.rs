@@ -249,18 +249,20 @@ pub fn load(source: &str, file: &File) -> Option<DynamicImage> {
     image::load_from_memory(&data).ok()
 }
 
-/// JPEG for opaque images (small), PNG if there is transparency. Errors are ignored:
-/// without the cache it is simply regenerated.
+/// JPEG for opaque images (small), PNG if there is transparency, always 8-bit: the PNG encoder
+/// refuses float images (OpenEXR decodes as Rgba32F) and they were never cached (issue #2).
+/// An error is only logged: without the cache the thumbnail is simply regenerated.
 pub fn save(source: &str, file: &File, img: &DynamicImage) {
     let mut data = Vec::new();
     let mut out = std::io::Cursor::new(&mut data);
-    let ok = if img.color().has_alpha() {
-        img.write_to(&mut out, ImageFormat::Png).is_ok()
+    let r = if img.color().has_alpha() {
+        DynamicImage::ImageRgba8(img.to_rgba8()).write_to(&mut out, ImageFormat::Png)
     } else {
-        DynamicImage::ImageRgb8(img.to_rgb8()).write_to(&mut out, ImageFormat::Jpeg).is_ok()
+        DynamicImage::ImageRgb8(img.to_rgb8()).write_to(&mut out, ImageFormat::Jpeg)
     };
-    if ok {
-        send(Write::Save { source: source.to_string(), file: file.clone(), data });
+    match r {
+        Ok(()) => send(Write::Save { source: source.to_string(), file: file.clone(), data }),
+        Err(e) => log!("thumbnail of {}: not cached: {e}", file.path),
     }
 }
 
@@ -307,6 +309,25 @@ mod tests {
         forget(&source, vec!["a.jpg".into()], move || tx.send(()).unwrap());
         rx.recv_timeout(Duration::from_secs(5)).unwrap();
         assert!(load(&source, &file).is_none());
+    }
+
+    /// A float image with alpha (what OpenEXR decodes to) must be cached too (issue #2).
+    #[test]
+    fn float_image() {
+        let source = format!("test-exr-{}://", std::process::id());
+        let file = File { path: "x.exr".into(), size: 10, modified: "yesterday".into() };
+        save(&source, &file, &DynamicImage::new_rgba32f(4, 3));
+        let mut back = None;
+        for _ in 0..100 {
+            back = load(&source, &file);
+            if back.is_some() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        let back = back.expect("float thumbnail saved");
+        assert_eq!((back.width(), back.height()), (4, 3));
+        delete(&source, "x.exr");
     }
 
     #[test]
