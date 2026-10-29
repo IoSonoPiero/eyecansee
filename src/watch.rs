@@ -84,10 +84,12 @@ impl App {
     /// closes (user, 2026-10-29: no playing on with the next one); the status bar and a message
     /// say so. Phones send no events: this is how the app finds out.
     pub(crate) fn notice_gone(&mut self, ctx: &egui::Context) {
-        // The note goes away by itself after a while.
+        // The note goes away by itself a while after the message is closed.
         if let Some(until) = self.note_until {
             let now = ctx.input(|i| i.time);
-            if now >= until {
+            if self.notice.is_some() {
+                self.note_until = Some(now + NOTE_SECS);
+            } else if now >= until {
                 (self.status_note, self.note_until) = (None, None);
             } else {
                 ctx.request_repaint_after(std::time::Duration::from_secs_f64(until - now));
