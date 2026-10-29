@@ -576,7 +576,7 @@ async fn list(op: &Operator, dir: &str) -> opendal::Result<Listing> {
             listing.trashed.push(File { path: path.to_string(), size: m.content_length(), modified });
             continue;
         }
-        if path == dir || (e.name().starts_with('.') && !trash) || hidden(op, path) {
+        if path == dir || (e.name().starts_with('.') && !trash) || hidden(op, path) || crate::batch::writing(&local_path(op, path)) {
             continue;
         }
         if e.metadata().is_dir() {
@@ -612,6 +612,23 @@ fn hidden(_: &Operator, _: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A file a conversion is writing is left out of the listing until it is closed.
+    #[test]
+    fn writing_left_out() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-writing-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.jpg"), b"x").unwrap();
+        std::fs::write(dir.join("b.mp4"), b"x").unwrap();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let names = |l: Listing| l.files.into_iter().map(|f| f.path).collect::<Vec<_>>();
+        let writing = crate::batch::Writing::start(dir.join("b.mp4"));
+        assert_eq!(names(rt.block_on(op.list("")).unwrap()), ["a.jpg"]);
+        drop(writing);
+        assert_eq!(names(rt.block_on(op.list("")).unwrap()), ["a.jpg", "b.mp4"]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     /// Trash folder, permanent deletion and renaming, on a temporary folder.
     #[test]

@@ -24,9 +24,10 @@ pub(crate) fn folder_watcher(tx: Sender<Msg>, ctx: egui::Context) -> Option<noti
 /// Whether a changed path can be in the grid: anything but an existing file that is not an
 /// image (folders, images, and paths already gone, which may have been either). A file written
 /// all the time in the open folder, such as the log of `EYECANSEE_LOG=1 … 2> registro.log`,
-/// made it read the folder again every 0.3 s, and each reading wrote to the log.
+/// made it read the folder again every 0.3 s, and each reading wrote to the log. Neither a file
+/// a conversion is writing: it is read again once closed (`batch_progress`).
 fn shown(path: &std::path::Path) -> bool {
-    !path.is_file() || path.file_name().is_some_and(|n| crate::decode::is_media(&n.to_string_lossy()))
+    !crate::batch::writing(path) && (!path.is_file() || path.file_name().is_some_and(|n| crate::decode::is_media(&n.to_string_lossy())))
 }
 
 impl App {
@@ -104,6 +105,10 @@ mod tests {
         assert!(super::shown(&dir.join("a.jpg")), "an image");
         assert!(super::shown(&dir), "a folder");
         assert!(super::shown(&dir.join("gone")), "something removed");
+        let writing = crate::batch::Writing::start(dir.join("a.jpg"));
+        assert!(!super::shown(&dir.join("a.jpg")), "an image a conversion is writing");
+        drop(writing);
+        assert!(super::shown(&dir.join("a.jpg")), "closed again");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

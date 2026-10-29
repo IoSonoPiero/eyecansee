@@ -4,8 +4,9 @@
 //! also on another device.
 
 use std::collections::HashSet;
-use std::sync::Mutex;
+use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::{LazyLock, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 
 use image::imageops::FilterType;
@@ -159,6 +160,32 @@ fn ext(name: &str, ext: &str) -> String {
     format!("{stem}.{ext}")
 }
 
+/// Local files ffmpeg is writing right now: the folder watcher ignores their changes and the
+/// listing leaves them out, so no thumbnail is tried on a file half written (it was tried every
+/// 0.3 s, "mpv cannot play the file"). The folder is read again once the file is closed.
+static WRITING: LazyLock<Mutex<HashSet<PathBuf>>> = LazyLock::new(Default::default);
+
+/// Whether a conversion is writing `path` at this moment.
+pub fn writing(path: &std::path::Path) -> bool {
+    WRITING.lock().unwrap().contains(path)
+}
+
+/// `path` marked as being written until the guard is dropped.
+pub(crate) struct Writing(PathBuf);
+
+impl Writing {
+    pub(crate) fn start(path: PathBuf) -> Self {
+        WRITING.lock().unwrap().insert(path.clone());
+        Writing(path)
+    }
+}
+
+impl Drop for Writing {
+    fn drop(&mut self) {
+        WRITING.lock().unwrap().remove(&self.0);
+    }
+}
+
 /// A video converted by ffmpeg into `to` of `out`. ffmpeg reads and writes files of this
 /// computer: a video on a phone or a server is copied into a temporary file first, a destination
 /// there gets the temporary result at the end.
@@ -176,6 +203,7 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
         }
     };
     let output = out.local_file(to).map_or_else(|| (temp("out"), true), |f| (f, false));
+    let _writing = Writing::start(output.0.clone());
     let tags = if v.meta { crate::video_read::track_tags(op, path).await } else { Vec::new() };
     let args = crate::ffmpeg::args(&v, job.size, job.enlarge, job.turn, (&input.0.to_string_lossy(), &output.0.to_string_lossy()), &probe.audio, &tags);
     log!("ffmpeg {args:?}");
@@ -253,6 +281,8 @@ pub struct Progress {
     pub cancel: AtomicBool,
     /// Paths of the new files.
     pub saved: Mutex<Vec<String>>,
+    /// How many of `saved` the window has shown already (folder read again).
+    pub listed: AtomicUsize,
     /// Images left out or failed: Fluent id and detail.
     pub failed: Mutex<Vec<(&'static str, String)>>,
     pub finished: AtomicBool,

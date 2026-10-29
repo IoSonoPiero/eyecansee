@@ -287,6 +287,13 @@ impl App {
             return false;
         }
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
+        // A file just finished: its folder read again, so the thumbnail is made once, now.
+        let saved = p.saved.lock().unwrap().len();
+        if p.listed.swap(saved, Ordering::Relaxed) < saved
+            && let Some(dest) = w.dest.1.clone()
+        {
+            self.relist(dest);
+        }
         let (done, total) = (p.done.load(Ordering::Relaxed), p.total.load(Ordering::Relaxed).max(1));
         // A video takes long: its own progress moves the bar between two files.
         let part = p.part.load(Ordering::Relaxed) as f32 / 1000.0;

@@ -4,7 +4,6 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 ## Next (before wider announcement)
 
-- Thumbnails no longer retried while FFmpeg writes in the open folder.
 - "Open with" for videos (Windows installer, `.desktop`, metainfo).
 - Volume control in the video viewer.
 
