@@ -123,6 +123,12 @@ pub fn hint(encoder: &str) -> &'static str {
     }
 }
 
+/// Whether the graphics card does the encoding (shown in green in the window). Windows Media
+/// Foundation may or may not: not counted.
+pub fn hardware(encoder: &str) -> bool {
+    matches!(maker(encoder), "NVIDIA" | "Intel Quick Sync" | "AMD" | "VA-API")
+}
+
 /// Who makes an encoder, for the list in the window.
 pub fn maker(encoder: &str) -> &'static str {
     match encoder.rsplit('_').next() {
@@ -179,7 +185,8 @@ fn quality_args(encoder: &str, q: Quality) -> Vec<String> {
         "vp9_qsv" => vec!["-q:v".into(), pick([20, 25, 30])],
         e if e.ends_with("_qsv") => vec!["-global_quality:v".into(), pick([20, 25, 30])],
         e if e.ends_with("_amf") => ["-rc", "cqp", "-qp_i", "", "-qp_p", "", "-qp_b", ""].iter().map(|s| if s.is_empty() { pick([20, 25, 30]) } else { s.to_string() }).collect(),
-        e if e.ends_with("_mf") => vec!["-rate_control".into(), "quality".into(), "-quality".into(), pick([80, 65, 50]), "-hw_encoding".into(), "1".into()],
+        // No `-hw_encoding 1`: "format negotiation failed" on a laptop with two cards (2026-10-29).
+        e if e.ends_with("_mf") => vec!["-rate_control".into(), "quality".into(), "-quality".into(), pick([80, 65, 50])],
         e if e.ends_with("_vaapi") => vec!["-rc_mode".into(), "CQP".into(), "-global_quality:v".into(), pick([20, 25, 30])],
         _ => Vec::new(),
     };

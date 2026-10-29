@@ -461,13 +461,21 @@ fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     }
     // Copied streams: nothing to choose about the encoder or the quality.
     if v.codec != Codec::Copy {
-        let name = |e: &str| format!("{} ({e})", crate::ffmpeg::maker(e));
+        // The graphics card's encoders in green (user, 2026-10-29), with a line that says so.
+        let good = crate::theme::good(ui.visuals());
+        let name = |e: &str| {
+            let text = egui::RichText::new(format!("{} ({e})", crate::ffmpeg::maker(e)));
+            if crate::ffmpeg::hardware(e) { text.color(good) } else { text }
+        };
         egui::ComboBox::from_label(t("batch-video-encoder")).selected_text(name(v.encoder.unwrap_or_default())).show_ui(ui, |ui| {
-            for e in encoders {
+            for &e in &encoders {
                 ui.selectable_value(&mut v.encoder, Some(e), name(e));
             }
         });
         ui.weak(t(crate::ffmpeg::hint(v.encoder.unwrap_or_default())));
+        if encoders.iter().any(|e| crate::ffmpeg::hardware(e)) {
+            ui.weak(t("batch-video-hw-note"));
+        }
         ui.horizontal(|ui| {
             ui.label(t("batch-video-quality"));
             for (q, id) in [(Quality::High, "batch-video-high"), (Quality::Medium, "batch-video-medium"), (Quality::Small, "batch-video-small")] {

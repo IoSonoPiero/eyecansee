@@ -26,6 +26,8 @@ struct Palette {
     tile_selected: Color32,
     /// Trash strip: fill, border, text, border of its buttons.
     strip: [Color32; 4],
+    /// Text that marks the better choice: encoders on the graphics card.
+    good: Color32,
 }
 
 const LIGHT: Palette = Palette {
@@ -36,6 +38,7 @@ const LIGHT: Palette = Palette {
     tile_stroke: rgb(128, 135, 145),
     tile_selected: rgb(227, 237, 251),
     strip: [rgb(255, 246, 223), rgb(232, 194, 106), rgb(92, 65, 0), rgb(184, 134, 11)],
+    good: rgb(22, 120, 52),
 };
 const DARK: Palette = Palette {
     accent: rgb(91, 155, 255),
@@ -45,6 +48,7 @@ const DARK: Palette = Palette {
     tile_stroke: rgb(118, 124, 133),
     tile_selected: rgb(35, 55, 90),
     strip: [rgb(56, 45, 18), rgb(150, 115, 40), rgb(240, 214, 150), rgb(190, 150, 60)],
+    good: rgb(96, 200, 120),
 };
 
 fn palette(v: &Visuals) -> &'static Palette {
@@ -53,6 +57,11 @@ fn palette(v: &Visuals) -> &'static Palette {
 
 pub fn accent(v: &Visuals) -> Color32 {
     palette(v).accent
+}
+
+/// Green of the better choice (an encoder on the graphics card).
+pub fn good(v: &Visuals) -> Color32 {
+    palette(v).good
 }
 
 /// Solid accent fill; the text on it is white.

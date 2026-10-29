@@ -559,6 +559,7 @@ batch-video-container = Container
 batch-video-codec = Codec
 batch-video-copy = Same as the original (no re-encoding)
 batch-video-encoder = Encoder
+batch-video-hw-note = In green: the graphics card does the work, much faster and lighter on the computer.
 batch-video-unavailable = { $codec } (no encoder on this computer)
 batch-video-none = No encoder for this codec works on this computer.
 batch-video-quality = Quality:

@@ -558,6 +558,7 @@ batch-video-container = Contenitore
 batch-video-codec = Codifica
 batch-video-copy = Uguale all'originale (senza ricodifica)
 batch-video-encoder = Codificatore
+batch-video-hw-note = In verde: lavora la scheda video, molto più veloce e senza appesantire il computer.
 batch-video-unavailable = { $codec } (nessun codificatore su questo computer)
 batch-video-none = Su questo computer nessun codificatore funziona per questa codifica.
 batch-video-quality = Qualità:
