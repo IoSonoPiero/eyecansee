@@ -5,10 +5,8 @@ The order is indicative: features arrive when they are ready and tested on real 
 ## Next (before wider announcement)
 
 - Thumbnails no longer retried while FFmpeg writes in the open folder.
-- Minimum FFmpeg and libmpv versions checked, with a choice in Options.
 - "Open with" for videos (Windows installer, `.desktop`, metainfo).
 - Volume control in the video viewer.
-- Fixes for issues #1 (PSD panic) and #2 (EXR thumbnail cache).
 
 ## Video
 
@@ -24,12 +22,15 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Embedded HEIC thumbnails.
 - Xiaomi depth data preserved in rotations.
 - Immich upload.
-- Windows: a delete on the phone, or the call right after it, can stall for 5-6 minutes inside WPD and then recover (mtp-rs #52, under investigation upstream).
+- Windows: a delete on the phone, or the call right after it, can stall for 5-6 minutes inside WPD and then recover (mtp-rs #52, under investigation upstream). The status bar now says how long the phone has not answered.
+- Status bar in a phone's Android trash: show the file's own name, not the hidden `.trashed-…` one.
+- A folder listing on the phone that took 40 s once without a trace in the log: find out where the time goes if it happens again.
 
 ## Formats
 
 - JPEG XL writing and more save formats (ICO, TGA, PNM, EXR, HDR, Farbfeld).
 - More real Camera RAW samples from other brands, and real HEIC on Linux.
+- JNG on Windows: the ImageMagick security policy shipped next to the program blocks it; relax it for the coders EyeCanSee needs.
 - Lens correction for RAW with lensfun-rs.
 - PDF import and export.
 
