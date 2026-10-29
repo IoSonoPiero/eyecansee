@@ -249,6 +249,8 @@ struct App {
     kiod_ask: bool,
     /// In the status bar until the next source: the phone is open through the desktop's mount.
     status_note: Option<String>,
+    /// When a passing `status_note` goes away by itself (`egui` time), such as a file removed.
+    note_until: Option<f64>,
     /// File > Open location: the window, with what is typed in it.
     open_address: Option<AddressForm>,
     /// A transform on images of the grid: the images and the operation, to confirm.
@@ -400,6 +402,7 @@ impl App {
             notice: None,
             kiod_ask: false,
             status_note: None,
+            note_until: None,
             open_address: None,
             batch_turn: None,
             pan: egui::Vec2::ZERO,
@@ -512,7 +515,7 @@ impl App {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
         self.receive(ctx);
-        self.notice_gone();
+        self.notice_gone(ctx);
         self.retry(ctx);
         self.reread_changed(ctx);
         // "Save in another format" and the duplicates cover the window: the keys must not reach the grid under them.

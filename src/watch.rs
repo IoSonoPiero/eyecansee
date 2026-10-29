@@ -8,6 +8,9 @@ use eframe::egui;
 use crate::loader::Msg;
 use crate::{App, source};
 
+/// How long the "file removed" note stays in the status bar.
+const NOTE_SECS: f64 = 10.0;
+
 /// Watcher of the open local folder: every change (not a mere read) that can alter the grid
 /// sends `Msg::Changed`.
 pub(crate) fn folder_watcher(tx: Sender<Msg>, ctx: egui::Context) -> Option<notify::RecommendedWatcher> {
@@ -79,7 +82,16 @@ impl App {
     /// A read found a file of the open folder gone (deleted on the phone itself, say): the folder
     /// is read again, which drops it from the grid and moves the viewer to the next file, and the
     /// status bar says so. Phones send no events: this is how the app finds out.
-    pub(crate) fn notice_gone(&mut self) {
+    pub(crate) fn notice_gone(&mut self, ctx: &egui::Context) {
+        // The note goes away by itself after a while.
+        if let Some(until) = self.note_until {
+            let now = ctx.input(|i| i.time);
+            if now >= until {
+                (self.status_note, self.note_until) = (None, None);
+            } else {
+                ctx.request_repaint_after(std::time::Duration::from_secs_f64(until - now));
+            }
+        }
         let gone = source::take_gone();
         let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
         // A read found it gone, and the folder is not being read again already.
@@ -90,6 +102,7 @@ impl App {
         log!("gone from the device: {path:?}");
         self.relist(self.dir.clone());
         self.status_note = Some(self.i18n.t_args("status-file-removed", &[("name", source::name(path))]));
+        self.note_until = Some(ctx.input(|i| i.time) + NOTE_SECS);
     }
 
     pub(crate) fn retry(&mut self, ctx: &egui::Context) {
