@@ -101,6 +101,10 @@ Root: HKA; Subkey: "Software\Classes\.mkv\OpenWithProgids"; ValueType: string; V
 Root: HKA; Subkey: "Software\Classes\.mov\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Video"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.webm\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Video"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.avi\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Video"; ValueData: ""; Flags: uninsdeletevalue
+; Explorer keeps the name of every program it has seen (MuiCache) and never reads it again: copies
+; installed before the exe was named "EyeCanSee" showed "eyecansee" in "Open with" even after
+; updating. Removed at every install and update; Windows takes the name from the exe again.
+Root: HKCU; Subkey: "Software\Classes\Local Settings\Software\Microsoft\Windows\Shell\MuiCache"; ValueType: none; ValueName: "{app}\eyecansee.exe.FriendlyAppName"; Flags: deletevalue
 
 [UninstallDelete]
 ; Components the app downloaded on request (the video engine): gone with the program. Settings
