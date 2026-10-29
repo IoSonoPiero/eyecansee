@@ -65,9 +65,18 @@
   </supports>
   <provides>
     <binary>eyecansee</binary>
+    <!-- "Open with" for videos (the image types come from the desktop file). -->
+    <mediatype>video/mp4</mediatype>
+    <mediatype>video/x-matroska</mediatype>
+    <mediatype>video/quicktime</mediatype>
+    <mediatype>video/webm</mediatype>
+    <mediatype>video/x-msvideo</mediatype>
   </provides>
 
   <releases>
+    <release version="0.67.0" date="2026-10-29">
+      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.67.0</url>
+    </release>
     <release version="0.66.0" date="2026-10-29">
       <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.66.0</url>
     </release>

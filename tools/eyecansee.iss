@@ -51,6 +51,7 @@ Name: "{autodesktop}\EyeCanSee"; Filename: "{app}\eyecansee.exe"; Tasks: desktop
 [Registry]
 ; "Open with" for images: EyeCanSee is offered, the default program stays the user's choice.
 Root: HKA; Subkey: "Software\Classes\EyeCanSee.Image"; ValueType: string; ValueData: "EyeCanSee"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\EyeCanSee.Image"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "EyeCanSee"
 Root: HKA; Subkey: "Software\Classes\EyeCanSee.Image\DefaultIcon"; ValueType: string; ValueData: "{app}\eyecansee.exe,0"
 Root: HKA; Subkey: "Software\Classes\EyeCanSee.Image\shell\open\command"; ValueType: string; ValueData: """{app}\eyecansee.exe"" ""%1"""
 Root: HKA; Subkey: "Software\Classes\.jpg\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
@@ -90,6 +91,16 @@ Root: HKA; Subkey: "Software\Classes\.arw\OpenWithProgids"; ValueType: string; V
 Root: HKA; Subkey: "Software\Classes\.raf\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.orf\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.rw2\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+; "Open with" for videos, the same way: offered, never the default.
+Root: HKA; Subkey: "Software\Classes\EyeCanSee.Video"; ValueType: string; ValueData: "EyeCanSee"; Flags: uninsdeletekey
+Root: HKA; Subkey: "Software\Classes\EyeCanSee.Video"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "EyeCanSee"
+Root: HKA; Subkey: "Software\Classes\EyeCanSee.Video\DefaultIcon"; ValueType: string; ValueData: "{app}\eyecansee.exe,0"
+Root: HKA; Subkey: "Software\Classes\EyeCanSee.Video\shell\open\command"; ValueType: string; ValueData: """{app}\eyecansee.exe"" ""%1"""
+Root: HKA; Subkey: "Software\Classes\.mp4\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Video"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.mkv\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Video"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.mov\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Video"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.webm\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Video"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.avi\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Video"; ValueData: ""; Flags: uninsdeletevalue
 
 [UninstallDelete]
 ; Components the app downloaded on request (the video engine): gone with the program. Settings

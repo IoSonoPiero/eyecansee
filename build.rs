@@ -8,6 +8,9 @@ fn main() {
     {
         let mut res = winresource::WindowsResource::new();
         res.set_icon("assets/eyecansee.ico");
+        // Shown by "Open with" and in the file's properties: the package name is lowercase.
+        res.set("FileDescription", "EyeCanSee");
+        res.set("ProductName", "EyeCanSee");
         res.compile().expect("Windows resources (icon)");
     }
 }

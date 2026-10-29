@@ -4,7 +4,6 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 ## Next (before wider announcement)
 
-- "Open with" for videos (Windows installer, `.desktop`, metainfo).
 - Volume control in the video viewer.
 
 ## Video
