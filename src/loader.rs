@@ -1168,7 +1168,7 @@ mod tests {
         cleaned.unwrap();
     }
 
-    /// As in the app on WarMachineW on 2026-10-28: ten WebP files written to a folder of the phone
+    /// As in the app on Windows on 2026-10-28: ten WebP files written to a folder of the phone
     /// (Convert and resize), then deleted one by one. The sixth delete hung for about five minutes
     /// (WPD), with every later call waiting behind it. Times of every call, to find the trigger.
     ///   EYECANSEE_MTP=<serial> cargo test --release mtp_ten_deletes_live -- --ignored --nocapture
