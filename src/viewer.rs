@@ -175,12 +175,7 @@ impl App {
                 for e in &i.events {
                     match e {
                         egui::Event::MouseWheel { unit, delta, modifiers, .. } => {
-                            // Notches: a mouse gives lines, a touchpad points.
-                            let notches = match unit {
-                                egui::MouseWheelUnit::Line => delta.y,
-                                egui::MouseWheelUnit::Point => delta.y / 50.0,
-                                egui::MouseWheelUnit::Page => delta.y * 3.0,
-                            };
+                            let notches = notches(*unit, *delta);
                             if wheel_zoom || modifiers.command {
                                 wheel += notches;
                             } else {
@@ -245,5 +240,14 @@ impl App {
             }
         }
         self.zoom_shown = self.zoom.unwrap_or(fit);
+    }
+}
+
+/// Notches of a wheel event, up positive: a mouse gives lines, a touchpad points.
+pub(crate) fn notches(unit: egui::MouseWheelUnit, delta: egui::Vec2) -> f32 {
+    match unit {
+        egui::MouseWheelUnit::Line => delta.y,
+        egui::MouseWheelUnit::Point => delta.y / 50.0,
+        egui::MouseWheelUnit::Page => delta.y * 3.0,
     }
 }
