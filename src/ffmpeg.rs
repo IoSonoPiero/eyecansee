@@ -172,10 +172,15 @@ fn quality_args(encoder: &str, q: Quality) -> Vec<String> {
         "mpeg4" => vec!["-q:v".into(), pick([3, 5, 8])],
         "prores_ks" => vec!["-profile:v".into(), pick([3, 2, 0])],
         e if e.ends_with("_nvenc") => vec!["-rc".into(), "vbr".into(), "-cq".into(), pick([19, 25, 31]), "-b:v".into(), "0".into(), "-preset".into(), "p5".into()],
-        e if e.ends_with("_qsv") => vec!["-global_quality".into(), pick([20, 25, 30])],
+        // `:v`: a bare `-global_quality` reaches the audio encoder too, and libopus refuses it
+        // ("Quality-based encoding not supported"; seen on the POCO test from Windows).
+        // ICQ (`-global_quality`) is not there for VP9 on QSV ("device failed", Intel iGPU on
+        // Fedora, FFmpeg 8.1): a fixed quantizer instead.
+        "vp9_qsv" => vec!["-q:v".into(), pick([20, 25, 30])],
+        e if e.ends_with("_qsv") => vec!["-global_quality:v".into(), pick([20, 25, 30])],
         e if e.ends_with("_amf") => ["-rc", "cqp", "-qp_i", "", "-qp_p", "", "-qp_b", ""].iter().map(|s| if s.is_empty() { pick([20, 25, 30]) } else { s.to_string() }).collect(),
         e if e.ends_with("_mf") => vec!["-rate_control".into(), "quality".into(), "-quality".into(), pick([80, 65, 50]), "-hw_encoding".into(), "1".into()],
-        e if e.ends_with("_vaapi") => vec!["-rc_mode".into(), "CQP".into(), "-global_quality".into(), pick([20, 25, 30])],
+        e if e.ends_with("_vaapi") => vec!["-rc_mode".into(), "CQP".into(), "-global_quality:v".into(), pick([20, 25, 30])],
         _ => Vec::new(),
     };
     a
@@ -394,7 +399,8 @@ fn try_encoder(program: &Path, encoder: &str) -> bool {
     if vaapi {
         c.args(["-vf", "format=nv12,hwupload"]);
     }
-    c.args(["-c:v", encoder, "-f", "null", "-"]);
+    // With the options of a real conversion: vp9_qsv encoded the probe and refused them.
+    c.args(["-c:v", encoder]).args(quality_args(encoder, Quality::Medium)).args(["-f", "null", "-"]);
     c.stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
 }
 
@@ -498,7 +504,7 @@ mod tests {
         let v = Video { container: 1, encoder: "hevc_vaapi", quality: Quality::Small, audio: false, meta: true };
         let a = args(&v, Size::Percent(50), false, Turn::default(), ("a", "b"), &[], &[]).join(" ");
         assert!(a.contains("-vaapi_device /dev/dri/renderD128 -i a"), "{a}");
-        assert!(a.contains("-vf scale=w='trunc(iw*50/200)*2':h=-2,format=nv12,hwupload -c:v hevc_vaapi -rc_mode CQP -global_quality 30 -an"), "{a}");
+        assert!(a.contains("-vf scale=w='trunc(iw*50/200)*2':h=-2,format=nv12,hwupload -c:v hevc_vaapi -rc_mode CQP -global_quality:v 30 -an"), "{a}");
     }
 
     #[test]
@@ -515,6 +521,52 @@ mod tests {
         assert_eq!(quality_args("h264_amf", Quality::High).join(" "), "-rc cqp -qp_i 20 -qp_p 20 -qp_b 20");
         // Every codec of a container has an encoder.
         assert!(CONTAINERS.iter().all(|c| c.codecs.iter().all(|k| !k.encoders().is_empty())));
+    }
+
+    /// `cargo test ffmpeg_matrix_live -- --ignored --nocapture`: every container, every encoder
+    /// that works here, every quality, with and without sound, on a one-second clip made by FFmpeg
+    /// itself: each run must make a file. Run on every system (Linux and Windows, system and
+    /// downloaded FFmpeg) after a change to `args` or `quality_args`: a bare `-global_quality`
+    /// passed the probe and broke libopus in MKV on Windows (QSV, 2026-10-29).
+    #[test]
+    #[ignore]
+    fn ffmpeg_matrix_live() {
+        start_probe(|| {});
+        while probed().is_none() {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        let p = probed().unwrap();
+        println!("{:?}\nvideo: {:?}\naudio: {:?}", p.program, p.video, p.audio);
+        let dir = std::env::temp_dir().join(format!("eyecansee-ffmpeg-matrix-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let input = dir.join("in.mp4");
+        let clip = ["-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x480:rate=30:duration=1", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:v", "mpeg4", "-q:v", "5", "-c:a", "aac", "-shortest"].map(String::from);
+        run(&p.program, &[clip.to_vec(), vec![input.to_string_lossy().into()]].concat(), |_| {}, &AtomicBool::new(false)).unwrap();
+        let (mut runs, mut failed) = (0, Vec::new());
+        for (container, c) in CONTAINERS.iter().enumerate() {
+            for encoder in c.codecs.iter().flat_map(|&codec| p.of(codec)) {
+                for quality in [Quality::High, Quality::Medium, Quality::Small] {
+                    for audio in [true, false] {
+                        let out = dir.join(format!("out.{}", c.ext));
+                        let v = Video { container, encoder, quality, audio, meta: true };
+                        // Not smaller: NVENC refuses frames under 160 px wide (RTX 4070).
+                        let a = args(&v, Size::Fit(480, 360), false, Turn::default().then(Op::Cw), (&input.to_string_lossy(), &out.to_string_lossy()), &p.audio, &[("location".into(), "+45.0+009.0/".into())]);
+                        runs += 1;
+                        let r = run(&p.program, &a, |_| {}, &AtomicBool::new(false));
+                        let size = std::fs::metadata(&out).map(|m| m.len()).unwrap_or(0);
+                        let _ = std::fs::remove_file(&out);
+                        match r {
+                            Ok(()) if size > 0 => {}
+                            Ok(()) => failed.push(format!("{} {encoder} {quality:?} audio={audio}: empty file", c.name)),
+                            Err(e) => failed.push(format!("{} {encoder} {quality:?} audio={audio}: {}", c.name, e.lines().rev().find(|l| !l.starts_with("frame=") && !l.starts_with("Conversion failed")).unwrap_or_default())),
+                        }
+                    }
+                }
+            }
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+        println!("{runs} runs, {} failed", failed.len());
+        assert!(failed.is_empty(), "{}", failed.join("\n"));
     }
 
     /// `cargo test ffmpeg_live -- --ignored --nocapture`: every encoder of the system's FFmpeg,
