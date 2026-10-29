@@ -7,9 +7,10 @@
 //!
 //! Reads: one connection per thread (WAL, in parallel). Writes: a single thread, in batches.
 
+use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::OnceLock;
 use std::sync::mpsc::{Receiver, Sender, channel};
+use std::sync::{LazyLock, Mutex, OnceLock};
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use image::{DynamicImage, ImageFormat};
@@ -235,6 +236,42 @@ pub fn save_meta(source: &str, file: &File, json: String) {
     send(Write::SaveMeta { source: source.to_string(), file: file.clone(), json });
 }
 
+/// Thumbnails waiting for the listing of a file just written (a converted video, a copied or
+/// moved file): path in the destination, size, encoded image. `loader::cached` takes them when
+/// the folder is read again and saves them under the listing's key, so nothing is read back from
+/// the device (on the POCO that read competed with the next file's transfer and timed out).
+// ponytail: keyed by path and size, not by source; two devices with the same path and size are unlikely
+static PENDING: LazyLock<Mutex<Pending>> = LazyLock::new(Default::default);
+type Pending = HashMap<String, (u64, Vec<u8>)>;
+
+pub fn keep(path: &str, size: u64, data: Vec<u8>) {
+    let mut pending = PENDING.lock().unwrap();
+    // ponytail: never taken (the folder was never shown again): dropped in bulk
+    if pending.len() >= 4096 {
+        pending.clear();
+    }
+    pending.insert(path.to_string(), (size, data));
+}
+
+/// The thumbnail kept for `path`, if the file still has `size`; taken once.
+pub fn take(path: &str, size: u64) -> Option<Vec<u8>> {
+    let mut pending = PENDING.lock().unwrap();
+    match pending.get(path) {
+        Some((s, _)) if *s == size => pending.remove(path).map(|(_, data)| data),
+        _ => None,
+    }
+}
+
+/// The thumbnail saved for `path` of `source`, whichever version: the file's size and the
+/// encoded image. For a copy or a move: the new file has the same content.
+pub fn stored(source: &str, path: &str) -> Option<(u64, Vec<u8>)> {
+    READ.with(|conn| {
+        conn.as_ref()?
+            .query_row("SELECT size, data FROM thumbs WHERE source = ?1 AND path = ?2", params![source, path], |r| Ok((r.get::<_, i64>(0)? as u64, r.get(1)?)))
+            .ok()
+    })
+}
+
 pub fn load(source: &str, file: &File) -> Option<DynamicImage> {
     let data: Vec<u8> = READ.with(|conn| {
         conn.as_ref()?
@@ -253,17 +290,26 @@ pub fn load(source: &str, file: &File) -> Option<DynamicImage> {
 /// refuses float images (OpenEXR decodes as Rgba32F) and they were never cached (issue #2).
 /// An error is only logged: without the cache the thumbnail is simply regenerated.
 pub fn save(source: &str, file: &File, img: &DynamicImage) {
-    let mut data = Vec::new();
-    let mut out = std::io::Cursor::new(&mut data);
-    let r = if img.color().has_alpha() {
-        DynamicImage::ImageRgba8(img.to_rgba8()).write_to(&mut out, ImageFormat::Png)
-    } else {
-        DynamicImage::ImageRgb8(img.to_rgb8()).write_to(&mut out, ImageFormat::Jpeg)
-    };
-    match r {
-        Ok(()) => send(Write::Save { source: source.to_string(), file: file.clone(), data }),
+    match encode(img) {
+        Ok(data) => save_data(source, file, data),
         Err(e) => log!("thumbnail of {}: not cached: {e}", file.path),
     }
+}
+
+/// A thumbnail as the cache stores it (`encode`, `stored`, `take`).
+pub fn save_data(source: &str, file: &File, data: Vec<u8>) {
+    send(Write::Save { source: source.to_string(), file: file.clone(), data });
+}
+
+pub fn encode(img: &DynamicImage) -> Result<Vec<u8>, image::ImageError> {
+    let mut data = Vec::new();
+    let mut out = std::io::Cursor::new(&mut data);
+    if img.color().has_alpha() {
+        DynamicImage::ImageRgba8(img.to_rgba8()).write_to(&mut out, ImageFormat::Png)?;
+    } else {
+        DynamicImage::ImageRgb8(img.to_rgb8()).write_to(&mut out, ImageFormat::Jpeg)?;
+    }
+    Ok(data)
 }
 
 #[cfg(test)]
@@ -288,6 +334,14 @@ mod tests {
         assert_eq!((back.width(), back.height()), (4, 3));
         // File changed: the old thumbnail is no longer valid.
         assert!(load(&source, &File { modified: "today".into(), ..file.clone() }).is_none());
+        // Copied elsewhere: the same thumbnail waits for the new file, whatever its date; once.
+        let (size, data) = stored(&source, "a.jpg").expect("stored");
+        assert_eq!(size, 10);
+        keep("new/a.jpg", size, data.clone());
+        assert!(take("new/a.jpg", 11).is_none(), "another size: another file");
+        assert_eq!(take("new/a.jpg", 10), Some(data));
+        assert!(take("new/a.jpg", 10).is_none(), "taken");
+        assert!(stored(&source, "none.jpg").is_none());
         assert_eq!(entries(&source).iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["a.jpg"]);
         delete(&source, "a.jpg");
         for _ in 0..100 {

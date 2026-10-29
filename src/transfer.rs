@@ -8,6 +8,7 @@ use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
 use crate::source::{Deletion, Error, Store, free_name, name, parent};
+use crate::thumbcache;
 
 /// What Ctrl+C or Ctrl+X took: the source it came from, which can be different from the one
 /// open when pasting.
@@ -68,6 +69,17 @@ pub async fn conflicts(clip: &Clip, to: &Store, to_base: &str, to_dir: &str) -> 
     Ok(found)
 }
 
+/// The original's thumbnail (`thumb`: size and image, if it had one) waits for the listing of
+/// its copy or its new name `dest`: the same content, nothing is read back from a phone or a
+/// slow disk. `size`: the copy's, which must match.
+fn keep_thumbnail(thumb: Option<(u64, Vec<u8>)>, dest: &str, size: Option<u64>) {
+    if let Some((s, data)) = thumb
+        && size.is_none_or(|size| size == s)
+    {
+        thumbcache::keep(dest, s, data);
+    }
+}
+
 /// Copies (or moves) the clip into `to_dir`. Returns the source items that went away (moved),
 /// also when it stops at an error halfway.
 pub async fn run(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress) -> (Vec<String>, Result<(), Error>) {
@@ -95,8 +107,7 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
             Choice::Replace => own.to_string(),
         };
         taken.insert(dest_name.clone());
-        let slash = if src.ends_with('/') { "/" } else { "" };
-        plan.push((src.clone(), format!("{to_dir}{dest_name}{slash}"), present.contains(&dest_name)));
+        plan.push((src.clone(), format!("{to_dir}{dest_name}{}", if src.ends_with('/') { "/" } else { "" }), present.contains(&dest_name)));
     }
 
     // On the same device a move is a rename, unless a folder has to merge into an existing one;
@@ -107,7 +118,9 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
             if exists {
                 to.delete(&dest, Deletion::Permanent).await?;
             }
+            let thumb = (!src.ends_with('/')).then(|| thumbcache::stored(&clip.base, &src)).flatten();
             if clip.op.move_into(&src, to_dir, name(&dest)).await.is_ok() {
+                keep_thumbnail(thumb, &dest, None);
                 gone.push(src);
                 continue;
             }
@@ -151,6 +164,7 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
                 }
                 *p.current.lock().unwrap() = name(&from).to_string();
                 copy_file(&clip.op, &from, to, &dest, size, p).await?;
+                keep_thumbnail(thumbcache::stored(&clip.base, &from), &dest, Some(size));
                 p.files.fetch_add(1, Ordering::Relaxed);
             }
             p.touched.lock().unwrap().push(parent(&dest));
@@ -210,15 +224,26 @@ mod tests {
         std::fs::write(dir.join("a/sub/y.mp4"), b"video").unwrap();
         std::fs::write(dir.join("b/x.jpg"), b"old").unwrap();
         let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
-        let clip = |paths: &[&str], cut| Clip { op: op.clone(), base: "/".into(), paths: paths.iter().map(|s| s.to_string()).collect(), cut };
+        let base = format!("test-transfer-{}://", std::process::id());
+        let clip = |paths: &[&str], cut| Clip { op: op.clone(), base: base.clone(), paths: paths.iter().map(|s| s.to_string()).collect(), cut };
+        // The thumbnail of x.jpg, saved (asynchronously) before the copies.
+        let x = crate::source::File { path: "a/x.jpg".into(), size: 3 << 20, modified: "then".into() };
+        thumbcache::save(&base, &x, &image::DynamicImage::new_rgb8(4, 3));
+        for _ in 0..100 {
+            if thumbcache::stored(&base, "a/x.jpg").is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let thumb = thumbcache::stored(&base, "a/x.jpg").expect("thumbnail saved").1;
         rt.block_on(async {
             // Copy into another folder: x.jpg is a conflict, kept both.
             let c = clip(&["a/x.jpg", "a/sub/"], false);
-            assert_eq!(conflicts(&c, &op, "/", "b/").await.unwrap(), vec!["a/x.jpg"]);
-            assert_eq!(conflicts(&c, &op, "/", "a/sub/").await.unwrap_err().0, "error-paste-inside");
+            assert_eq!(conflicts(&c, &op, &base, "b/").await.unwrap(), vec!["a/x.jpg"]);
+            assert_eq!(conflicts(&c, &op, &base, "a/sub/").await.unwrap_err().0, "error-paste-inside");
             let choices = HashMap::from([("a/x.jpg".to_string(), Choice::KeepBoth)]);
             let p = Progress::default();
-            let (gone, r) = run(&c, &op, "/", "b/", &choices, &p).await;
+            let (gone, r) = run(&c, &op, &base, "b/", &choices, &p).await;
             r.unwrap();
             assert!(gone.is_empty());
             assert_eq!(std::fs::read(dir.join("b/x (2).jpg")).unwrap().len(), 3 << 20);
@@ -226,23 +251,26 @@ mod tests {
             assert_eq!(std::fs::read(dir.join("b/sub/y.mp4")).unwrap(), b"video");
             assert_eq!(p.files.load(Ordering::Relaxed), 2);
             assert_eq!(p.done.load(Ordering::Relaxed), (3 << 20) + 5);
+            assert_eq!(thumbcache::take("b/x (2).jpg", 3 << 20).as_ref(), Some(&thumb), "the copy has the original's thumbnail waiting");
+            assert!(thumbcache::take("b/sub/y.mp4", 5).is_none(), "never had one");
 
             // Copy into its own folder: "name (2)".
-            let (_, r) = run(&clip(&["a/sub/"], false), &op, "/", "a/", &HashMap::new(), &Progress::default()).await;
+            let (_, r) = run(&clip(&["a/sub/"], false), &op, &base, "a/", &HashMap::new(), &Progress::default()).await;
             r.unwrap();
             assert!(dir.join("a/sub (2)/y.mp4").exists());
 
             // Move replacing: the old x.jpg is gone, the source too.
-            let (gone, r) = run(&clip(&["a/x.jpg"], true), &op, "/", "b/", &HashMap::new(), &Progress::default()).await;
+            let (gone, r) = run(&clip(&["a/x.jpg"], true), &op, &base, "b/", &HashMap::new(), &Progress::default()).await;
             r.unwrap();
             assert_eq!(gone, vec!["a/x.jpg"]);
             assert_eq!(std::fs::read(dir.join("b/x.jpg")).unwrap().len(), 3 << 20);
             assert!(!dir.join("a/x.jpg").exists());
+            assert_eq!(thumbcache::take("b/x.jpg", 3 << 20).as_ref(), Some(&thumb), "moved by a rename: the thumbnail waits too");
 
             // Cancelled: no half file left.
             let p = Progress::default();
             p.cancel.store(true, Ordering::Relaxed);
-            let (_, r) = run(&clip(&["b/x.jpg"], false), &op, "/", "a/", &HashMap::new(), &p).await;
+            let (_, r) = run(&clip(&["b/x.jpg"], false), &op, &base, "a/", &HashMap::new(), &p).await;
             assert_eq!(r.unwrap_err().0, "error-cancelled");
             assert!(!dir.join("a/x.jpg").exists());
         });

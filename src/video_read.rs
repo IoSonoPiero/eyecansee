@@ -225,7 +225,7 @@ impl StoreReader {
             Ok(())
         };
         let (sent, written) = futures_util::future::join(self.op.send_chunks(&self.path, self.size, tx, &done, &never), write).await;
-        match sent.map_err(|(_, d)| d).and(written) {
+        match sent.map_err(|(id, d)| format!("{id} {d}")).and(written) {
             Ok(()) => Ok(tmp),
             Err(e) => {
                 let _ = std::fs::remove_file(&tmp);
@@ -264,7 +264,8 @@ impl crate::mpv::Reader for StoreReader {
                 Ok(tmp) => self.read_copy(tmp, offset, len),
                 Err(e) => Err(e.clone()),
             },
-            None => self.rt.block_on(self.op.read_range(&self.path, offset, len)).map_err(|(_, detail)| detail),
+            // With the error's id: the log said only the path when the file was gone (2026-10-29).
+            None => self.rt.block_on(self.op.read_range(&self.path, offset, len)).map_err(|(id, detail)| format!("{id} {detail}")),
         }
     }
 }

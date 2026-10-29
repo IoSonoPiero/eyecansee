@@ -642,9 +642,9 @@ async fn cached(base: &str, file: &File) -> Option<ColorImage> {
     let (base, file) = (base.to_string(), file.clone());
     tokio::task::spawn_blocking(move || {
         thumbcache::load(&base, &file).or_else(|| {
-            let img = crate::batch::ready(&file.path, file.size)?;
-            thumbcache::save(&base, &file, &img);
-            Some(img)
+            let data = thumbcache::take(&file.path, file.size)?;
+            thumbcache::save_data(&base, &file, data.clone());
+            image::load_from_memory(&data).ok()
         })
     })
     .await
