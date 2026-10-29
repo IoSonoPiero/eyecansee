@@ -49,6 +49,9 @@ pub struct Settings {
     pub check_updates: bool,
     /// Which libmpv and FFmpeg to use (`engine.rs`).
     pub video_engine: EngineChoice,
+    /// Volume of the videos, 0-100, and sound off: as left in the viewer.
+    pub video_volume: u32,
+    pub video_mute: bool,
     /// Slideshow: seconds each image stays, the passage between images, start again after the last.
     pub slideshow_secs: f32,
     pub slideshow_fade: crate::slideshow::Fade,
@@ -180,6 +183,8 @@ impl Default for Settings {
             remote_delete: RemoteDelete::TrashFolder,
             check_updates: true,
             video_engine: EngineChoice::SystemIfRecent,
+            video_volume: 100,
+            video_mute: false,
             slideshow_secs: 5.0,
             slideshow_fade: crate::slideshow::Fade::Cross,
             slideshow_loop: true,

@@ -516,15 +516,18 @@ pub struct Player {
 }
 
 impl Player {
-    /// `repaint` is called at every new frame, from the player's thread.
-    pub fn open(input: Input, repaint: impl Fn() + Send + 'static) -> Result<Player, String> {
+    /// `repaint` is called at every new frame, from the player's thread. `volume` (0-100) and
+    /// `mute` are set before the first frame plays.
+    pub fn open(input: Input, volume: u32, mute: bool, repaint: impl Fn() + Send + 'static) -> Result<Player, String> {
         let shared = Arc::new(Shared::default());
         let s = shared.clone();
         // keep-open: at the end the last frame stays, as in a player.
         // audio-client-name: the name in the system's volume control.
         // sub-auto: no subtitle files from beside the video; a DJI drone's .SRT (telemetry of
         // every frame) covered half of the picture (2026-10-27).
-        let options = [("hwdec", "auto-copy-safe"), ("keep-open", "yes"), ("audio-client-name", "EyeCanSee"), ("sub-auto", "no")];
+        let volume = volume.min(100).to_string();
+        let mute = if mute { "yes" } else { "no" };
+        let options = [("hwdec", "auto-copy-safe"), ("keep-open", "yes"), ("audio-client-name", "EyeCanSee"), ("sub-auto", "no"), ("volume", &volume), ("mute", mute)];
         let mut mpv = Mpv::new(&options, move || s.change(|st| st.dirty = true))?;
         mpv.load(input)?;
         let mpv = Arc::new(mpv);
@@ -580,6 +583,20 @@ impl Player {
     pub fn seek(&self, seconds: f64, exact: bool) {
         let how = if exact { "absolute+exact" } else { "absolute+keyframes" };
         let _ = self.mpv.command(&["seek", &format!("{seconds:.3}"), how]);
+    }
+
+    /// The file is loaded and plays a sound track; false while loading and for a video without sound.
+    pub fn has_audio(&self) -> bool {
+        self.mpv.property::<i64>("current-tracks/audio/id", FORMAT_INT64).is_some()
+    }
+
+    /// 0-100, as the volume slider.
+    pub fn set_volume(&self, volume: u32) {
+        let _ = self.mpv.command(&["set", "volume", &volume.min(100).to_string()]);
+    }
+
+    pub fn set_mute(&self, mute: bool) {
+        let _ = self.mpv.command(&["set", "mute", if mute { "yes" } else { "no" }]);
     }
 }
 
@@ -733,7 +750,7 @@ mod tests {
         let stream = || Input::Stream(Arc::new(Slow(Bytes(std::fs::read(&path).unwrap()), slow)));
         let img = still(stream(), 256).unwrap();
         println!("still through a Reader {}x{} in {:?}", img.width(), img.height(), t.elapsed());
-        let player = Player::open(stream(), || {}).unwrap();
+        let player = Player::open(stream(), 100, false, || {}).unwrap();
         let side = std::env::var("EYECANSEE_VIDEO_SIZE").ok().and_then(|s| s.parse().ok()).unwrap_or(1280);
         player.set_size(fit(player_size(&player), side));
         let t = Instant::now();
@@ -746,6 +763,25 @@ mod tests {
         }
         println!("{frames} frames in 3 s, position {:.2} of {:.1} s, fps {:?}", player.position(), player.duration(), player.mpv.property::<f64>("container-fps", FORMAT_DOUBLE));
         assert!(frames > 30, "too few frames");
+    }
+
+    /// `EYECANSEE_VIDEO=<file> cargo test --release volume_live -- --ignored --nocapture`: volume and
+    /// mute given at the opening are those of the first frame, and change while it plays.
+    #[test]
+    #[ignore]
+    fn volume_live() {
+        let path = std::path::PathBuf::from(std::env::var("EYECANSEE_VIDEO").expect("EYECANSEE_VIDEO"));
+        let player = Player::open(Input::File(path), 35, true, || {}).unwrap();
+        player_size(&player);
+        let volume = || player.mpv.property::<f64>("volume", FORMAT_DOUBLE);
+        let mute = || player.mpv.property::<c_int>("mute", FORMAT_FLAG);
+        println!("audio {}, volume {:?}, mute {:?}", player.has_audio(), volume(), mute());
+        assert_eq!((volume(), mute()), (Some(35.0), Some(1)));
+        player.set_volume(70);
+        player.set_mute(false);
+        assert_eq!((volume(), mute()), (Some(70.0), Some(0)));
+        player.set_volume(250);
+        assert_eq!(volume(), Some(100.0));
     }
 }
 

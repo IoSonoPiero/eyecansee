@@ -123,6 +123,7 @@ I video (MP4, MOV, MKV, WebM, AVI e altri) compaiono nella griglia insieme alle 
 
 - **Invio** o un doppio clic aprono il video nel visore, dove parte con l'audio, adattato alla finestra.
 - **Spazio**, un clic sul video o il pulsante sotto mettono in pausa e riprendono. La barra sotto il video mostra il tempo e serve a spostarsi: trascinala o fai clic su un punto. Alla fine resta l'ultimo fotogramma; riprendendo, il video riparte dall'inizio.
+- Il volume è a destra della barra: il cursore (da 0 a 100) e il pulsante che toglie e rimette l'audio. **↑** e **↓** lo alzano e lo abbassano di 5, come la rotellina del mouse sul video; **M** toglie e rimette l'audio. Volume e audio tolto restano per i video successivi e alla prossima apertura di EyeCanSee. Su un video senza audio i due comandi sono grigi.
 - **←** e **→** passano all'elemento precedente e successivo, come per le immagini; un doppio clic o **Esc** tornano alla griglia.
 - Il pannello dei metadati mostra i dati del video selezionato, quando il file li contiene: marca, modello e versione di Android del telefono, data e ora della ripresa, durata, fotogrammi al secondo, dimensioni, formato video e audio, bit rate, e la posizione (la scrivono telefoni e iPhone). Per le dashcam che tengono la traccia GPS in un file `gps.sqlite` sulla scheda (come Umino) si vedono il punto di partenza del video, l'altitudine e la velocità media e massima durante il video; una copia del video fatta a mano senza quel file non ha la posizione (Converti e ridimensiona la scrive nel file nuovo). I droni DJI scrivono la posizione in un file `.SRT` con lo stesso nome del video: il pannello mostra il punto di partenza, preso dal primo fotogramma; se all'inizio della ripresa il drone non aveva ancora il GPS, il video resta senza posizione invece di averne una sbagliata.
 - **Visualizza > Mostra**, o **Mostra** nel menù del clic destro sulla parte vuota della griglia: **Immagini e video** (all'inizio), **Solo immagini** o **Solo video**. La scelta vale per tutte le cartelle finché non la cambi; la barra di stato conta immagini e video a parte.
@@ -243,6 +244,8 @@ Nel visore:
 | Inizio, Fine | Prima, ultima immagine |
 | Esc | Torna alla griglia |
 | F2, Canc, Maiusc+Canc | Rinomina ed elimina, come nella griglia |
+| Freccia su, Freccia giù (o la rotellina del mouse) | Su un video: alza e abbassa il volume |
+| M | Su un video: toglie e rimette l'audio |
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |
 | 0 | Adatta l'immagine alla finestra |
 | 1 | 100%: un pixel dell'immagine per pixel dello schermo |

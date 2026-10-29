@@ -7,6 +7,9 @@ use crate::{App, browser, decode, mpv};
 
 /// Height of the bar under the video.
 const BAR: f32 = 40.0;
+/// Width of the volume slider, and the volume a key or a wheel notch adds or takes away.
+const VOLUME_WIDTH: f32 = 90.0;
+const VOLUME_STEP: i32 = 5;
 
 /// The video open in the viewer; dropped (and so stopped) when the viewer shows something else.
 pub(crate) struct Playing {
@@ -15,6 +18,8 @@ pub(crate) struct Playing {
     texture: Option<TextureHandle>,
     /// Not opened because libmpv could not be loaded: opened again once it can.
     no_engine: bool,
+    /// Wheel notches not yet turned into volume steps (a touchpad gives fractions).
+    wheel: f32,
 }
 
 /// Where the video engine is, for the card shown in its place.
@@ -58,6 +63,28 @@ impl App {
         }
     }
 
+    /// Up and down in the viewer of a video, and the wheel on it: `steps` of `VOLUME_STEP`.
+    /// Nothing on a video without sound, whose controls are off.
+    pub(crate) fn video_volume(&mut self, steps: i32) {
+        let Some(Playing { player: Ok(p), .. }) = &self.video else { return };
+        if !p.has_audio() {
+            return;
+        }
+        let volume = (self.settings.video_volume as i32 + steps * VOLUME_STEP).clamp(0, 100) as u32;
+        self.settings.video_volume = volume;
+        p.set_volume(volume);
+    }
+
+    /// M in the viewer of a video.
+    pub(crate) fn toggle_mute(&mut self) {
+        let Some(Playing { player: Ok(p), .. }) = &self.video else { return };
+        if !p.has_audio() {
+            return;
+        }
+        self.settings.video_mute = !self.settings.video_mute;
+        p.set_mute(self.settings.video_mute);
+    }
+
     pub(crate) fn video_view(&mut self, ui: &mut egui::Ui, current: usize) {
         let Some((path, size)) = self.files().get(current).map(|f| (f.path.clone(), f.size)) else { return };
         if self.video.as_ref().is_none_or(|v| v.path != path) {
@@ -81,7 +108,16 @@ impl App {
             }
             return;
         }
-        let Some(response) = draw(ui, v, &self.i18n) else { return };
+        let sound = (&mut self.settings.video_volume, &mut self.settings.video_mute);
+        let Some(response) = draw(ui, v, sound, &self.i18n) else { return };
+        if response.hovered() {
+            v.wheel += ui.input(|i| i.events.iter().map(|e| if let egui::Event::MouseWheel { unit, delta, .. } = e { crate::viewer::notches(*unit, *delta) } else { 0.0 }).sum::<f32>());
+        }
+        let steps = v.wheel.trunc();
+        if steps != 0.0 {
+            v.wheel -= steps;
+            self.video_volume(steps as i32);
+        }
         if response.double_clicked() {
             self.close_viewer();
         }
@@ -258,19 +294,19 @@ impl App {
         let player = match &self.loader {
             _ if !self.engine() => Err(self.i18n.t("video-no-mpv")),
             None => Err(String::new()),
-            Some(loader) => mpv::Player::open(loader.video_input(&path, size), move || ctx.request_repaint())
+            Some(loader) => mpv::Player::open(loader.video_input(&path, size), self.settings.video_volume, self.settings.video_mute, move || ctx.request_repaint())
                 .map_err(|e| self.i18n.t_args("cannot-load", &[("file", crate::source::name(&path)), ("error", &e)])),
         };
         if let Err(e) = &player {
             log!("video {path:?}: ERROR {e}");
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0 }
     }
 }
 
 /// The video fitted to the area (frames drawn at that size by mpv) and its bar. Click: play or
-/// pause. The response of the area, for the double click and the menu, as for images.
-fn draw(ui: &mut egui::Ui, v: &mut Playing, i18n: &I18n) -> Option<egui::Response> {
+/// pause. The response of the area, for the double click, the menu and the wheel, as for images.
+fn draw(ui: &mut egui::Ui, v: &mut Playing, sound: (&mut u32, &mut bool), i18n: &I18n) -> Option<egui::Response> {
     let Ok(player) = &v.player else { return None };
     let rect = ui.available_rect_before_wrap();
     let area = Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y - BAR));
@@ -281,7 +317,7 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, i18n: &I18n) -> Option<egui::Respons
     if response.clicked() {
         player.toggle();
     }
-    controls(ui, Rect::from_min_max(pos2(rect.min.x, area.max.y), rect.max), player, i18n);
+    controls(ui, Rect::from_min_max(pos2(rect.min.x, area.max.y), rect.max), player, sound, i18n);
     Some(response)
 }
 
@@ -305,8 +341,8 @@ fn paint_fitted(painter: &egui::Painter, area: Rect, player: &mpv::Player, textu
     true
 }
 
-/// Play/pause, time, position. On the viewer's dark background in both themes.
-fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, i18n: &I18n) {
+/// Play/pause, time, position, then sound off and volume. On the viewer's dark background in both themes.
+fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u32, &mut bool), i18n: &I18n) {
     let builder = egui::UiBuilder::new().max_rect(rect.shrink2(vec2(8.0, 0.0))).layout(egui::Layout::left_to_right(egui::Align::Center));
     ui.scope_builder(builder, |ui| {
         let light = Color32::from_gray(225);
@@ -317,7 +353,9 @@ fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, i18n: &I18n) {
         }
         let (pos, length) = (player.position(), player.duration());
         ui.label(egui::RichText::new(format!("{} / {}", mpv::clock(pos), mpv::clock(length))).color(light).monospace());
-        ui.spacing_mut().slider_width = ui.available_width().max(40.0);
+        // Room on the right for the sound: the button (as wide as the play one) and the slider.
+        let sound_width = VOLUME_WIDTH + 3.0 * ui.spacing().item_spacing.x + 34.0;
+        ui.spacing_mut().slider_width = (ui.available_width() - sound_width).max(40.0);
         let mut at = pos;
         let r = ui.add(egui::Slider::new(&mut at, 0.0..=length.max(0.001)).show_value(false));
         // While dragging, to the nearest keyframe (fast); exact when released or clicked.
@@ -327,5 +365,28 @@ fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, i18n: &I18n) {
         if r.drag_stopped() {
             player.seek(at, true);
         }
+        sound_controls(ui, player, sound, i18n);
     });
+}
+
+/// Sound off and volume; off, not hidden, for a video without sound (and while it loads).
+fn sound_controls(ui: &mut egui::Ui, player: &mpv::Player, (volume, mute): (&mut u32, &mut bool), i18n: &I18n) {
+    let audio = player.has_audio();
+    let (icon, tip) = if *mute { ("🔇", "video-unmute") } else { ("🔊", "video-mute") };
+    let tip = if audio { i18n.t(tip) } else { i18n.t("video-no-audio") };
+    let button = ui.add_enabled(audio, egui::Button::new(egui::RichText::new(icon).size(18.0)));
+    if button.on_hover_text(&tip).on_disabled_hover_text(&tip).clicked() {
+        *mute = !*mute;
+        player.set_mute(*mute);
+    }
+    ui.spacing_mut().slider_width = VOLUME_WIDTH;
+    let r = ui.add_enabled(audio, egui::Slider::new(volume, 0..=100).show_value(false));
+    let r = r.on_hover_text(i18n.t_args("video-volume", &[("volume", &volume.to_string())])).on_disabled_hover_text(&tip);
+    if r.changed() {
+        player.set_volume(*volume);
+    }
+    // The arrows change the volume through `viewer_keys`: a focused slider would move as well.
+    if r.has_focus() {
+        r.surrender_focus();
+    }
 }

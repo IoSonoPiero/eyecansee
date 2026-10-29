@@ -36,7 +36,15 @@ impl App {
             self.close_viewer();
         }
         if video {
-            return; // turning and saving are for images
+            // Up and down the volume, M sound off and on, as in the players; turning and saving are for images.
+            let (up, down, mute) = ctx.input(|i| (i.key_pressed(Key::ArrowUp), i.key_pressed(Key::ArrowDown), i.key_pressed(Key::M) && !i.modifiers.command));
+            if up || down {
+                self.video_volume(if up { 1 } else { -1 });
+            }
+            if mute {
+                self.toggle_mute();
+            }
+            return;
         }
         let (cw, ccw, save, save_copy) = ctx.input_mut(|i| {
             let shift = egui::Modifiers::COMMAND | egui::Modifiers::SHIFT;

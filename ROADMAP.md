@@ -2,10 +2,6 @@
 
 The order is indicative: features arrive when they are ready and tested on real devices. Open an issue to ask for one, or vote for an existing one with a reaction.
 
-## Next (before wider announcement)
-
-- Volume control in the video viewer.
-
 ## Video
 
 - Save the current frame of a paused video.
