@@ -661,11 +661,23 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
-    /// A file a conversion is writing is left out of the listing until it is closed.
+    /// A file a conversion is writing is left out of the listing until it is closed, however its
+    /// path is written (OpenDAL canonicalizes the root: on Windows `\\?\` and long names, while the
+    /// temp folder has short ones; on Linux a symlink in the path does the same).
     #[test]
     fn writing_left_out() {
-        let dir = std::env::temp_dir().join(format!("eyecansee-writing-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).unwrap();
+        let top = std::env::temp_dir().join(format!("eyecansee-writing-{}", std::process::id()));
+        let real = top.join("real");
+        std::fs::create_dir_all(&real).unwrap();
+        // On Linux the folder is reached through a symlink, which OpenDAL resolves as Windows
+        // resolves the short names of the temp folder.
+        #[cfg(unix)]
+        let dir = {
+            std::os::unix::fs::symlink(&real, top.join("link")).unwrap();
+            top.join("link")
+        };
+        #[cfg(not(unix))]
+        let dir = real.clone();
         std::fs::write(dir.join("a.jpg"), b"x").unwrap();
         std::fs::write(dir.join("b.mp4"), b"x").unwrap();
         let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
@@ -675,7 +687,7 @@ mod tests {
         assert_eq!(names(rt.block_on(op.list("")).unwrap()), ["a.jpg"]);
         drop(writing);
         assert_eq!(names(rt.block_on(op.list("")).unwrap()), ["a.jpg", "b.mp4"]);
-        std::fs::remove_dir_all(&dir).unwrap();
+        std::fs::remove_dir_all(&top).unwrap();
     }
 
     /// Trash folder, permanent deletion and renaming, on a temporary folder.

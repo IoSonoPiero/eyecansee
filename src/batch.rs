@@ -167,7 +167,18 @@ static WRITING: LazyLock<Mutex<HashSet<PathBuf>>> = LazyLock::new(Default::defau
 
 /// Whether a conversion is writing `path` at this moment.
 pub fn writing(path: &std::path::Path) -> bool {
-    WRITING.lock().unwrap().contains(path)
+    let writing = WRITING.lock().unwrap();
+    !writing.is_empty() && writing.contains(&same_form(path))
+}
+
+/// The same path whoever wrote it: OpenDAL canonicalizes its root (on Windows `\\?\C:\…` with
+/// long names), the folder watcher and the temp folder do not (`C:\Users\RUNNER~1\…`). The
+/// folder canonicalized, the name kept: the file may not exist yet.
+fn same_form(path: &std::path::Path) -> PathBuf {
+    match (path.parent().and_then(|p| p.canonicalize().ok()), path.file_name()) {
+        (Some(dir), Some(name)) => dir.join(name),
+        _ => path.to_path_buf(),
+    }
 }
 
 /// The thumbnail of the video written into `file`, kept for `to` until the loader asks for it
@@ -190,6 +201,7 @@ pub(crate) struct Writing(PathBuf);
 
 impl Writing {
     pub(crate) fn start(path: PathBuf) -> Self {
+        let path = same_form(&path);
         WRITING.lock().unwrap().insert(path.clone());
         Writing(path)
     }
