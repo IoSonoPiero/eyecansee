@@ -216,18 +216,33 @@ impl App {
         });
     }
 
+    /// A call the phone has not answered for 3 s, in the status bars of the grid and the viewer.
+    /// On Windows after `mtp::STALL_SECS` it is taken for WPD's stall, which only time (~6 minutes)
+    /// or unplugging the cable ends: the bar says so, and that a file being written stays half done.
+    pub(crate) fn phone_waiting(&self, ui: &mut egui::Ui) {
+        let Some((name, secs, upload)) = crate::mtp::waiting(3) else { return };
+        let id = match () {
+            _ if !cfg!(windows) || secs < crate::mtp::STALL_SECS => "status-phone-waiting",
+            _ if upload => "status-phone-stalled-upload",
+            _ => "status-phone-stalled",
+        };
+        ui.add(egui::Spinner::new().color(Color32::WHITE));
+        ui.label(crate::theme::alert(self.i18n.t_args(id, &[("s", &secs.to_string()), ("name", &name)])));
+        ui.separator();
+        ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
+    }
+
     /// How many folders and images there are, and name and size of the selected item.
     /// On the solid accent colour (style "B"), all in white.
     pub(crate) fn status_bar(&self, ui: &mut egui::Ui) {
-        let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
+        // A stalled phone never sends the listing: the warning is all the bar has then.
+        let Some(Ok(l)) = self.listings.get(&self.dir) else {
+            ui.horizontal(|ui| self.phone_waiting(ui));
+            return;
+        };
         ui.horizontal(|ui| {
-            if let Some((name, secs)) = crate::mtp::waiting(3) {
-                ui.add(egui::Spinner::new().color(Color32::WHITE));
-                ui.label(crate::theme::alert(self.i18n.t_args("status-phone-waiting", &[("s", &secs.to_string()), ("name", &name)])));
-                ui.separator();
-                ui.ctx().request_repaint_after(std::time::Duration::from_secs(1));
-            }
+            self.phone_waiting(ui);
             if self.deleting > 0 {
                 ui.add(egui::Spinner::new().color(Color32::WHITE));
                 ui.label(crate::theme::alert(self.i18n.t_args("status-deleting", &[("n", &self.deleting.to_string())])));

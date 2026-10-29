@@ -66,20 +66,41 @@ fn unix_seconds(m: mtp_rs::DateTime) -> Option<i64> {
     })
 }
 
-/// The call a phone is answering right now (path, start): the status bar says when it takes long.
+/// The call a phone is answering right now (what, path, start): the status bar says when it takes long.
 /// A POCO X7 Pro under Windows took 377 s to delete one file (2026-10-28), with everything else queued.
-static WAITING: Mutex<Option<(String, std::time::Instant)>> = Mutex::new(None);
+static WAITING: Mutex<Option<(String, String, std::time::Instant)>> = Mutex::new(None);
+
+/// The call in `WAITING` while it lasts, cleared however it ends (also dropped half way).
+struct Waiting;
+
+impl Waiting {
+    fn start(what: &str, path: &str) -> Self {
+        *WAITING.lock().unwrap() = Some((what.to_string(), path.to_string(), std::time::Instant::now()));
+        Waiting
+    }
+}
+
+impl Drop for Waiting {
+    fn drop(&mut self) {
+        *WAITING.lock().unwrap() = None;
+    }
+}
+
+/// Seconds after which a call still waiting on Windows is taken for WPD's stall (FATTI): ~340 s
+/// unless the cable is unplugged. Calls that are only slow end well before.
+pub const STALL_SECS: u64 = 15;
 
 /// The last call answered (what, path, end): named in the log line of a slow call, to see what
 /// came before it without logging every call.
 static LAST: Mutex<Option<(String, String, std::time::Instant)>> = Mutex::new(None);
 
-/// The file of a call the phone has not answered for at least `secs` seconds, with the seconds.
-pub fn waiting(secs: u64) -> Option<(String, u64)> {
+/// The file of a call the phone has not answered for at least `secs` seconds, the seconds, and
+/// whether it is a file being written to the phone (unplugged, it would stay there half written).
+pub fn waiting(secs: u64) -> Option<(String, u64, bool)> {
     let w = WAITING.lock().unwrap();
-    let (path, since) = w.as_ref()?;
+    let (what, path, since) = w.as_ref()?;
     let s = since.elapsed().as_secs();
-    (s >= secs).then(|| (source::shown(path).to_string(), s))
+    (s >= secs).then(|| (source::shown(path).to_string(), s, what == "upload"))
 }
 
 fn error(e: mtp_rs::Error) -> Error {
@@ -329,6 +350,8 @@ impl Phone {
             .open
             .get_or_try_init(|| async {
                 let t = std::time::Instant::now();
+                // Opening stalls too while WPD does (FATTI): the status bar names the phone's serial.
+                let _waiting = Waiting::start("open", &self.serial);
                 let device = open(&self.serial).await.map_err(|e| self.open_failed(e))?;
                 log!("phone {} opened in {:.2} s", self.serial, t.elapsed().as_secs_f32());
                 let mut storages = Vec::new();
@@ -622,9 +645,10 @@ impl Phone {
         let t = std::time::Instant::now();
         let _turn = self.turn.lock().await;
         let waited = t.elapsed();
-        *WAITING.lock().unwrap() = Some((path.to_string(), std::time::Instant::now()));
-        let r = call.await;
-        *WAITING.lock().unwrap() = None;
+        let r = {
+            let _waiting = Waiting::start(what, path);
+            call.await
+        };
         let took = t.elapsed() - waited;
         let mut last = LAST.lock().unwrap();
         if waited + took > std::time::Duration::from_secs(2) {
@@ -695,9 +719,11 @@ mod tests {
         let old = WAITING.lock().unwrap().take();
         assert_eq!(waiting(3), None);
         let since = std::time::Instant::now() - std::time::Duration::from_secs(5);
-        *WAITING.lock().unwrap() = Some(("DCIM/.trashed-1-a.jpg".to_string(), since));
-        assert_eq!(waiting(3).map(|(n, s)| (n, s >= 5)), Some(("a.jpg".to_string(), true)));
+        *WAITING.lock().unwrap() = Some(("delete".to_string(), "DCIM/.trashed-1-a.jpg".to_string(), since));
+        assert_eq!(waiting(3).map(|(n, s, up)| (n, s >= 5, up)), Some(("a.jpg".to_string(), true, false)));
         assert_eq!(waiting(30), None);
+        *WAITING.lock().unwrap() = Some(("upload".to_string(), "DCIM/b.jpg".to_string(), since));
+        assert_eq!(waiting(3).map(|(_, _, up)| up), Some(true));
         *WAITING.lock().unwrap() = old;
     }
     use super::*;

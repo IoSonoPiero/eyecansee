@@ -143,6 +143,7 @@ impl App {
         let Some(f) = files.get(current) else { return };
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
         ui.horizontal(|ui| {
+            self.phone_waiting(ui);
             // The same note as the grid's bar: a file gone from the device, say.
             if let Some(note) = &self.status_note {
                 ui.label(crate::theme::alert(note.clone()));
