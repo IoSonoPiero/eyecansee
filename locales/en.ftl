@@ -100,8 +100,19 @@ status-deleting = Deleting { $n }…
 status-file-removed = { $name } was removed from the device.
 status-phone-waiting = The phone has not answered for { $s } s ({ $name }): waiting…
 status-phone-waiting-open = The phone has not answered for { $s } s: waiting…
-status-phone-stalled = Windows has not talked to the phone for { $s } s: it recovers by itself in a few minutes, or at once if you unplug the cable and plug it in again.
-status-phone-stalled-upload = Windows has not talked to the phone for { $s } s: it recovers by itself in a few minutes, or at once if you unplug the cable and plug it in again. { $name } will stay half written on the phone: copy it again.
+status-phone-stalled = Windows has not talked to the phone for { $s } s
+phone-stalled =
+    { "**" }Windows has lost the connection with the phone.**
+
+    Unplug the cable and plug it in again (then File transfer), or wait a few minutes: it recovers by itself. The phone and its files are fine.
+phone-stalled-upload =
+    { "**" }Windows has lost the connection with the phone.**
+
+    Unplug the cable and plug it in again (then File transfer), or wait a few minutes: it recovers by itself. The phone and its files are fine.
+
+    { $name } will need copying again.
+phone-stalled-why = Why does this happen?
+phone-stalled-url = https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.en.md
 status-copied = { $n } copied: Ctrl+V to paste
 status-cut = { $n } cut: Ctrl+V to move
 status-through-mount = Opened through the file manager: slower. Direct access failed: { $detail }

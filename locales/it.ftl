@@ -99,8 +99,19 @@ status-deleting = Eliminazione in corso: { $n }…
 status-file-removed = { $name } è stato rimosso dal dispositivo.
 status-phone-waiting = Il telefono non risponde da { $s } s ({ $name }): aspetto…
 status-phone-waiting-open = Il telefono non risponde da { $s } s: aspetto…
-status-phone-stalled = Windows non comunica più con il telefono da { $s } s: si sblocca da solo in qualche minuto, o subito staccando e ricollegando il cavo.
-status-phone-stalled-upload = Windows non comunica più con il telefono da { $s } s: si sblocca da solo in qualche minuto, o subito staccando e ricollegando il cavo. { $name } resterà a metà sul telefono: va ricopiato.
+status-phone-stalled = Windows non comunica col telefono da { $s } s
+phone-stalled =
+    { "**" }Windows ha perso il collegamento con il telefono.**
+
+    Stacca e ricollega il cavo (poi Trasferimento file), oppure aspetta qualche minuto: si sblocca da solo. Telefono e file sono a posto.
+phone-stalled-upload =
+    { "**" }Windows ha perso il collegamento con il telefono.**
+
+    Stacca e ricollega il cavo (poi Trasferimento file), oppure aspetta qualche minuto: si sblocca da solo. Telefono e file sono a posto.
+
+    { $name } andrà ricopiato.
+phone-stalled-why = Perché succede?
+phone-stalled-url = https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.it.md
 status-copied = { $n } copiati: Ctrl+V per incollare
 status-cut = { $n } tagliati: Ctrl+V per spostare
 status-through-mount = Aperto tramite il gestore dei file: più lento. Accesso diretto non riuscito: { $detail }

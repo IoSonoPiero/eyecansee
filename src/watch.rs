@@ -144,6 +144,34 @@ impl App {
         }
     }
 
+    /// Windows only: a phone call stalled for `mtp::STALL_SECS` (WPD, FATTI) opens a message
+    /// window once, saying what to do; it closes by itself when the phone answers again.
+    pub(crate) fn phone_stall(&mut self) {
+        if !cfg!(windows) {
+            return;
+        }
+        match crate::mtp::waiting(crate::mtp::STALL_SECS) {
+            Some((name, _, upload)) if self.stall_notice.is_none() && self.notice.is_none() => {
+                let text = if upload {
+                    self.i18n.t_args("phone-stalled-upload", &[("name", &crate::save_dialogs::md(&name))])
+                } else {
+                    self.i18n.t("phone-stalled")
+                };
+                log!("phone stalled: message shown");
+                (self.notice, self.stall_notice) = (Some((text.clone(), None)), Some(text));
+            }
+            Some(_) => {}
+            None => {
+                // Answering again: our message goes, another one stays.
+                if let Some(text) = self.stall_notice.take()
+                    && self.notice.as_ref().is_some_and(|(t, _)| *t == text)
+                {
+                    self.notice = None;
+                }
+            }
+        }
+    }
+
     pub(crate) fn retry(&mut self, ctx: &egui::Context) {
         let Some(at) = self.retry_at else { return };
         let now = ctx.input(|i| i.time);

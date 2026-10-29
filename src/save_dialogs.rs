@@ -266,6 +266,11 @@ impl App {
         egui::Modal::new(egui::Id::unique("notice")).show(ctx, |ui| {
             ui.set_max_width(460.0);
             notice_text(ui, &text);
+            // A stalled phone (`phone_stall`): our page on why, in the app's language.
+            if self.stall_notice.as_ref() == Some(&text) {
+                ui.add_space(4.0);
+                ui.hyperlink_to(self.i18n.t("phone-stalled-why"), self.i18n.t("phone-stalled-url"));
+            }
             ui.add_space(8.0);
             ui.horizontal(|ui| {
                 if let Some(a) = &save_as

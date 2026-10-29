@@ -217,15 +217,14 @@ impl App {
     }
 
     /// A call the phone has not answered for 3 s, in the status bars of the grid and the viewer.
-    /// On Windows after `mtp::STALL_SECS` it is taken for WPD's stall, which only time (~6 minutes)
-    /// or unplugging the cable ends: the bar says so, and that a file being written stays half done.
+    /// On Windows after `mtp::STALL_SECS` it is taken for WPD's stall: a short line here, what
+    /// to do in the window of `phone_stall`.
     pub(crate) fn phone_waiting(&self, ui: &mut egui::Ui) {
-        let Some((name, secs, upload)) = crate::mtp::waiting(3) else { return };
+        let Some((name, secs, _)) = crate::mtp::waiting(3) else { return };
         let id = match () {
-            _ if (!cfg!(windows) || secs < crate::mtp::STALL_SECS) && name.is_empty() => "status-phone-waiting-open",
-            _ if !cfg!(windows) || secs < crate::mtp::STALL_SECS => "status-phone-waiting",
-            _ if upload => "status-phone-stalled-upload",
-            _ => "status-phone-stalled",
+            _ if cfg!(windows) && secs >= crate::mtp::STALL_SECS => "status-phone-stalled",
+            _ if name.is_empty() => "status-phone-waiting-open",
+            _ => "status-phone-waiting",
         };
         ui.add(egui::Spinner::new().color(Color32::WHITE));
         ui.label(crate::theme::alert(self.i18n.t_args(id, &[("s", &secs.to_string()), ("name", &name)])));

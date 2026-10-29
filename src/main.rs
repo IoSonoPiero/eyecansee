@@ -251,6 +251,8 @@ struct App {
     status_note: Option<String>,
     /// When a passing `status_note` goes away by itself (`egui` time), such as a file removed.
     note_until: Option<f64>,
+    /// The message of a stalled phone, while it lasts (`App::phone_stall`).
+    stall_notice: Option<String>,
     /// File > Open location: the window, with what is typed in it.
     open_address: Option<AddressForm>,
     /// A transform on images of the grid: the images and the operation, to confirm.
@@ -403,6 +405,7 @@ impl App {
             kiod_ask: false,
             status_note: None,
             note_until: None,
+            stall_notice: None,
             open_address: None,
             batch_turn: None,
             pan: egui::Vec2::ZERO,
@@ -518,6 +521,7 @@ impl App {
         }
         self.receive(ctx);
         self.phone_events(ctx);
+        self.phone_stall();
         self.notice_gone(ctx);
         self.retry(ctx);
         self.reread_changed(ctx);
