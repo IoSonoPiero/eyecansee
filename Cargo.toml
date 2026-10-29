@@ -1,6 +1,6 @@
 [package]
 name = "eyecansee"
-version = "0.65.1"
+version = "0.65.2"
 edition = "2024"
 description = "Image and video viewer and manager for Linux and Windows"
 license = "GPL-3.0-or-later"
@@ -33,7 +33,7 @@ libloading = "0.8.9"
 jxl-oxide = { version = "0.12.6", features = ["image"] }
 libheif-rs = { version = "3.0.0", optional = true }
 magick_rust = { version = "2.1.1", optional = true }
-mtp-rs = "0.34.3"
+mtp-rs = "0.36.0"
 opendal = { version = "0.59.5", default-features = false, features = ["services-fs", "services-ftp"] }
 percent-encoding = "2.3.2"
 rawler = "0.8.0"
