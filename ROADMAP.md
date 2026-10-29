@@ -11,12 +11,13 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 ## Phones and servers
 
+- FTP and SFTP tested on a real server, then documented in the README.
 - Saved servers in Options, with passwords in the system keyring.
 - Save to FTP (RNFR/RNTO rename).
 - Embedded HEIC thumbnails.
 - Xiaomi depth data preserved in rotations.
 - Immich upload.
-- Windows: a delete on the phone, or a photo taken on it, can stall every call to the phone for 5-6 minutes inside WPD and then recover (mtp-rs #52, under investigation upstream); unplugging frees it at once. After 15 s a message says so, with what to do and a page on why ([docs/phone-stall.en.md](docs/phone-stall.en.md)).
+- Windows: a delete on the phone, or a photo taken on it, can stall every call to the phone for 5-6 minutes inside WPD and then recover (mtp-rs #52, under investigation upstream); unplugging frees it at once. After 15 s a message says what to do and links to [docs/phone-stall.en.md](docs/phone-stall.en.md); the status bar says how long the phone has not answered.
 - Status bar in a phone's Android trash: show the file's own name, not the hidden `.trashed-…` one.
 - A folder listing on the phone that took 40 s once without a trace in the log: find out where the time goes if it happens again.
 
