@@ -92,6 +92,7 @@ status-folders = Cartelle: { $n }
 status-images = Immagini: { $n }
 status-videos = Video: { $n }
 status-deleting = Eliminazione in corso: { $n }…
+status-file-removed = { $name } è stato rimosso dal dispositivo.
 status-phone-waiting = Il telefono non risponde da { $s } s ({ $name }): aspetto…
 status-copied = { $n } copiati: Ctrl+V per incollare
 status-cut = { $n } tagliati: Ctrl+V per spostare

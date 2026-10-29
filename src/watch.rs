@@ -76,6 +76,22 @@ impl App {
         loader.list(self.dir.clone());
     }
 
+    /// A read found a file of the open folder gone (deleted on the phone itself, say): the folder
+    /// is read again, which drops it from the grid and moves the viewer to the next file, and the
+    /// status bar says so. Phones send no events: this is how the app finds out.
+    pub(crate) fn notice_gone(&mut self) {
+        let gone = source::take_gone();
+        let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
+        // A read found it gone, and the folder is not being read again already.
+        let Some(path) = gone.iter().find(|p| l.files.iter().any(|f| f.path == **p)) else { return };
+        if self.relisting.contains(&self.dir) {
+            return;
+        }
+        log!("gone from the device: {path:?}");
+        self.relist(self.dir.clone());
+        self.status_note = Some(self.i18n.t_args("status-file-removed", &[("name", source::name(path))]));
+    }
+
     pub(crate) fn retry(&mut self, ctx: &egui::Context) {
         let Some(at) = self.retry_at else { return };
         let now = ctx.input(|i| i.time);

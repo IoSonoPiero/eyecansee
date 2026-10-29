@@ -512,6 +512,7 @@ impl App {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
         self.receive(ctx);
+        self.notice_gone();
         self.retry(ctx);
         self.reread_changed(ctx);
         // "Save in another format" and the duplicates cover the window: the keys must not reach the grid under them.

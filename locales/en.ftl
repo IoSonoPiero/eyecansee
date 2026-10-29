@@ -93,6 +93,7 @@ status-folders = Folders: { $n }
 status-images = Images: { $n }
 status-videos = Videos: { $n }
 status-deleting = Deleting { $n }…
+status-file-removed = { $name } was removed from the device.
 status-phone-waiting = The phone has not answered for { $s } s ({ $name }): waiting…
 status-copied = { $n } copied: Ctrl+V to paste
 status-cut = { $n } cut: Ctrl+V to move

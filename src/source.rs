@@ -5,8 +5,8 @@
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
 use opendal::{Operator, services};
@@ -57,6 +57,29 @@ pub fn in_gvfs(root: &str, path: &str) -> bool {
 /// Absolute path of a local file, pushed one element at a time: Windows' "\\?\" root does not accept "/".
 pub(crate) fn local_path(op: &Operator, path: &str) -> PathBuf {
     std::iter::once(op.info().root()).chain(path.split('/').filter(|s| !s.is_empty()).map(String::from)).collect()
+}
+
+/// Files a read found gone: not there any more, or a stale MTP handle (the phone re-keyed the
+/// object after a change made on the phone itself). Nothing tells us about such changes: the
+/// app reads the folder again when it finds out this way (`App::notice_gone`).
+static GONE: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+pub fn is_gone((id, detail): &Error) -> bool {
+    *id == NOT_FOUND || detail.contains("stale object handle")
+}
+
+fn noticed<T>(r: Result<T, Error>, path: &str) -> Result<T, Error> {
+    if let Err(e) = &r
+        && is_gone(e)
+    {
+        GONE.lock().unwrap().push(path.to_string());
+    }
+    r
+}
+
+/// The paths found gone since the last call.
+pub fn take_gone() -> Vec<String> {
+    std::mem::take(&mut *GONE.lock().unwrap())
 }
 
 pub(crate) fn dal_error(e: opendal::Error) -> Error {
@@ -140,24 +163,26 @@ impl Store {
     }
 
     pub async fn read(&self, path: &str) -> Result<Vec<u8>, Error> {
-        match self {
+        let r = match self {
             Store::Dal(op) => {
                 let _permit = gvfs_permit(op, path).await;
                 op.read(path).await.map(|b| b.to_vec()).map_err(dal_error)
             }
             Store::Mtp(phone) => phone.read(path).await,
-        }
+        };
+        noticed(r, path)
     }
 
     /// `len` bytes from `offset`: videos are read a piece at a time (`mpv::Reader`).
     pub async fn read_range(&self, path: &str, offset: u64, len: u64) -> Result<Vec<u8>, Error> {
-        match self {
+        let r = match self {
             Store::Dal(op) => {
                 let _permit = gvfs_permit(op, path).await;
                 op.read_with(path).range(offset..offset + len).await.map(|b| b.to_vec()).map_err(dal_error)
             }
             Store::Mtp(phone) => phone.read_range(path, offset, len as u32).await,
-        }
+        };
+        noticed(r, path)
     }
 
     /// Names of everything in a folder, of any type, hidden ones too (folders without the "/").
@@ -612,6 +637,26 @@ fn hidden(_: &Operator, _: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A read of a file that is not there any more is noticed, so the folder gets read again.
+    #[test]
+    fn gone_noticed() {
+        assert!(is_gone(&(NOT_FOUND, "a.jpg".into())));
+        assert!(is_gone(&("error-detail", "stale object handle (device re-keyed it; re-list and retry)".into())));
+        assert!(!is_gone(&("error-detail", "timeout".into())));
+        let dir = std::env::temp_dir().join(format!("eyecansee-gone-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.jpg"), b"x").unwrap();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let _ = take_gone();
+        assert!(rt.block_on(op.read("a.jpg")).is_ok());
+        assert_eq!(rt.block_on(op.read("b.jpg")).unwrap_err().0, NOT_FOUND);
+        assert!(rt.block_on(op.read_range("b.jpg", 0, 1)).is_err());
+        assert_eq!(take_gone(), ["b.jpg", "b.jpg"]);
+        assert!(take_gone().is_empty(), "taken once");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     /// A file a conversion is writing is left out of the listing until it is closed.
     #[test]
