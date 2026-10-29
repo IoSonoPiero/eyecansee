@@ -17,14 +17,14 @@
     <ul>
       <li>Folders on the computer, external disks, USB sticks and SD cards, with cached thumbnails</li>
       <li xml:lang="it">Cartelle del computer, dischi esterni, chiavette USB e schede SD, con le miniature in cache</li>
-      <li>Android phones and cameras opened directly over USB, much faster than through the file manager</li>
-      <li xml:lang="it">Telefoni Android e fotocamere aperti direttamente via USB, molto più veloce che dal file manager</li>
       <li>Viewer with zoom, photo details (camera, exposure, date, location) and a slideshow</li>
       <li xml:lang="it">Visore con zoom, dettagli della foto (fotocamera, esposizione, data, posizione) e presentazione</li>
       <li>Copy, move, rename and delete, also between devices, with a trash on every device</li>
       <li xml:lang="it">Copia, sposta, rinomina ed elimina, anche tra dispositivi, con un cestino su ogni dispositivo</li>
       <li>Videos with thumbnails, playback with sound, their details, and conversion with FFmpeg (MP4, MKV, WebM, H.264, HEVC, AV1, VP9…), on the graphics card when it can</li>
       <li xml:lang="it">Video con miniature, riproduzione con l'audio, dettagli e conversione con FFmpeg (MP4, MKV, WebM, H.264, HEVC, AV1, VP9…), sulla scheda video quando può</li>
+      <li>Android phones and cameras opened directly over USB, much faster than through the file manager</li>
+      <li xml:lang="it">Telefoni Android e fotocamere aperti direttamente via USB, molto più veloce che dal file manager</li>
       <li>Duplicate finder, rotation and cropping, saving and converting many images at once</li>
       <li xml:lang="it">Ricerca dei duplicati, rotazione e ritaglio, salvataggio e conversione di molte immagini insieme</li>
       <li>JPEG, PNG, WebP, HEIC, AVIF, JPEG XL, TIFF, SVG, PSD, Camera RAW and many rare formats</li>

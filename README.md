@@ -8,26 +8,23 @@ It is early in development. This page lists only what works now: new features ar
 
 ![The viewer](docs/screenshots/viewer.png)
 
-![Opening a phone folder in EyeCanSee](docs/screenshots/mtp-open.gif)
-
-*Opening a folder of 400 files on a POCO X7 Pro over USB (Fedora 44, EyeCanSee 0.63.0, cold caches): the file manager (gvfs) takes 9.3 s to list the names; EyeCanSee lists them in 0.07 s after a 0.5 s open and shows the first thumbnails within 0.8 s. Test images: public-domain photos, copied several times.*
+![Saving in another format, the original and the result side by side](docs/screenshots/convert.png)
 
 ## About
 
-I am not a programmer any more, and have not been for years. I needed a program that could open the photos on my phone and on my disks quickly, on both Linux and Windows, so I started writing EyeCanSee with the help of [Claude Code](https://claude.com/claude-code). I test every feature on my own computers and devices before it goes in, and the manual says what is known not to work.
+I am not a programmer any more, and have not been for years. I needed a photo and video viewer that just opens, without importing or cataloguing anything, and that treats folders, disks and the phone the same way, on both Linux and Windows, so I started writing EyeCanSee with the help of [Claude Code](https://claude.com/claude-code). I test every feature on my own computers and devices before it goes in, and the manual says what is known not to work.
 
 Bug reports and suggestions are welcome in the [issues](https://github.com/IoSonoPiero/eyecansee/issues).
 
 ## Why another image and video manager?
 
-Mature programs like XnView, IrfanView or digiKam do much more than EyeCanSee, and if you need editing, catalogues or batch tools they are the better choice today. EyeCanSee started from one need: browsing the photos on an Android phone quickly. It talks to the phone directly over USB instead of going through the file manager: on Linux, a folder with hundreds of photos that took minutes now takes seconds. From there it grew into the rest of the daily work with photos and videos: copying and moving them between the phone, the disks and the computer, cleaning up, and converting them to another format. It works the same way on Linux and Windows, and it is open source.
+EyeCanSee does not do heavy editing, catalogues or batch tools: for that, mature programs like XnView, IrfanView or digiKam remain the better choice. What it does is browse, view, convert and clean up photos and videos on whatever device they are on, the computer, an external disk or a phone, without a database to build first: you open a folder and the photos are there. It works the same way on Linux and Windows, and it is open source. On Linux it talks to the phone directly over USB, so a folder with hundreds of photos that took minutes through the file manager opens in seconds.
 
 ## What it does today
 
 What comes next is in [ROADMAP.md](ROADMAP.md).
 
-- **Browsing** of folders on the computer, external disks (also USB sticks, SD cards and dashcams that connect as a USB disk) and phones, with cached thumbnails; folders on the computer and on phones update by themselves when files change. Sorting by name, date, size or type; images and videos shown together or apart; "Open with" from the file manager, for images and videos, shows the file in the window already open.
-- **Direct phone access**: Android phones and cameras open over USB, much faster than through the file manager.
+- **Browsing** of folders on the computer, external disks (also USB sticks, SD cards and dashcams that connect as a USB disk) and Android phones and cameras (opened directly over USB, much faster than through the file manager), with cached thumbnails; folders on the computer and on phones update by themselves when files change. Sorting by name, date, size or type; images and videos shown together or apart; "Open with" from the file manager, for images and videos, shows the file in the window already open.
 - **Viewer** with zoom (mouse wheel and keys) and preloading, so moving between images never waits, photo details such as camera, exposure, date and location, and a full-screen slideshow with fades.
 - **File management**: copy and move (also from one device to another), create folders, rename and delete, also several items at once, with a trash on every device to restore or empty.
 - **Videos**: thumbnails in the grid, playback with sound and volume control in the viewer and their details (date, length, format, location from phones), on the computer, external disks and phones (with the system's libmpv on Linux, otherwise a video engine downloaded the first time a video is opened, as always on Windows).
@@ -37,6 +34,7 @@ What comes next is in [ROADMAP.md](ROADMAP.md).
 - **Converting and resizing many files at once**: format, turn, size and filter for a whole selection of images and videos, into new files next to the originals, in a subfolder or in another folder, also on another device.
 - **Video conversion** with FFmpeg (the system's, or downloaded once: 63 MB on Windows, 67 MB on Linux): MP4, MKV, WebM, MOV, AVI and GIF with H.264, HEVC, AV1, VP9 and other codecs, turned and resized, on the graphics card when it can (NVIDIA, Intel, AMD, VA-API), or copied as they are without re-encoding; the metadata go into the new file, including a dashcam's GPS position and speeds (`gps.sqlite` on the card) and a DJI drone's position (`.SRT`), so the copy keeps them away from the card. Details in [docs/video-formats.md](docs/video-formats.md).
 - English and Italian, light and dark theme, built-in manual.
+- **Devices**: folders on the computer, disks and Android phones are treated the same way. On Linux the phone opens directly over USB, in seconds. On Windows, Windows' own MTP driver can stall for minutes after a photo is taken or a file deleted on the phone: after 15 s EyeCanSee says so and explains what to do ([docs/phone-stall.en.md](docs/phone-stall.en.md)).
 
 ### Formats
 
@@ -48,7 +46,11 @@ All the formats it opens and saves, on Linux and Windows: [docs/formats.md](docs
 
 The full list of features, keys and limits is in the manual: [English](docs/manual.en.md), [Italiano](docs/manual.it.md).
 
-### Tested phones
+## Phones
+
+![Opening a phone folder in EyeCanSee](docs/screenshots/mtp-open.gif)
+
+*Opening a folder of 400 files on a POCO X7 Pro over USB (Fedora 44, EyeCanSee 0.63.0, cold caches): the file manager (gvfs) takes 9.3 s to list the names; EyeCanSee lists them in 0.07 s after a 0.5 s open and shows the first thumbnails within 0.8 s. Test images: public-domain photos, copied several times.*
 
 | Model | System | Notes |
 |---|---|---|
