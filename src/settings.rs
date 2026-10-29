@@ -47,6 +47,8 @@ pub struct Settings {
     pub remote_delete: RemoteDelete,
     /// At startup, ask GitHub for a newer release and download it (`update`).
     pub check_updates: bool,
+    /// Which libmpv and FFmpeg to use (`engine.rs`).
+    pub video_engine: EngineChoice,
     /// Slideshow: seconds each image stays, the passage between images, start again after the last.
     pub slideshow_secs: f32,
     pub slideshow_fade: crate::slideshow::Fade,
@@ -61,6 +63,19 @@ pub enum RemoteDelete {
     #[default]
     TrashFolder,
     Permanent,
+}
+
+/// The system's libmpv and FFmpeg, or the components EyeCanSee downloads (`engine.rs`).
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum EngineChoice {
+    /// The system's when at least `mpv::MIN_API` / `ffmpeg::MIN_VERSION`, else the downloaded one.
+    #[default]
+    SystemIfRecent,
+    /// The system's whatever its version; nothing is downloaded.
+    System,
+    /// Always the downloaded one, even with a recent one on the system.
+    Downloaded,
 }
 
 /// Light colours, dark ones or like the system (changes by itself when the system's changes).
@@ -164,6 +179,7 @@ impl Default for Settings {
             local_permanent: false,
             remote_delete: RemoteDelete::TrashFolder,
             check_updates: true,
+            video_engine: EngineChoice::SystemIfRecent,
             slideshow_secs: 5.0,
             slideshow_fade: crate::slideshow::Fade::Cross,
             slideshow_loop: true,

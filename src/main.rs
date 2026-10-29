@@ -35,6 +35,7 @@ mod devices;
 mod dup_page;
 mod duplicates;
 mod encode;
+mod engine;
 mod ffmpeg;
 mod file_dialogs;
 mod folder_pick;
@@ -134,6 +135,7 @@ enum OptTab {
     Deleting,
     Thumbnails,
     Slideshow,
+    Video,
 }
 
 /// Images kept in memory around the one open in the viewer, on each side.
@@ -731,6 +733,7 @@ fn main() -> eframe::Result {
         unsafe { std::env::set_var("XDG_DATA_HOME", std::path::Path::new(&home).join(".local/share")) };
     }
     let settings = Settings::load();
+    engine::set_choice(settings.video_engine);
     // The window is matched to its .desktop file by this id (in Flatpak, the id of the app).
     let app_id = flatpak_id.unwrap_or_else(|| "eyecansee".into());
     let mut viewport = egui::ViewportBuilder::default().with_inner_size([1200.0, 800.0]).with_app_id(app_id);

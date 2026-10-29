@@ -24,6 +24,10 @@ enum Engine {
     Failed(String),
     /// Downloaded, active after a restart; why the restart could not start, if it could not.
     Ready(Option<String>),
+    /// The system's is too old and nothing is downloaded yet (`mpv::MIN_API`).
+    TooOld { found: String, required: &'static str },
+    /// The Options say "the system's only" and there is none: nothing to download.
+    SystemOnly,
 }
 
 enum Click {
@@ -124,7 +128,11 @@ impl App {
             Some((done, None)) => Engine::Downloading(*done),
             Some((_, Some(Err(e)))) => Engine::Failed(e.clone()),
             _ if on_disk => Engine::Ready(self.restart_error.clone()),
-            _ => Engine::Missing,
+            _ => match mpv::status() {
+                crate::engine::Status::TooOld { found, required } => Engine::TooOld { found, required },
+                crate::engine::Status::SystemOnly => Engine::SystemOnly,
+                _ => Engine::Missing,
+            },
         };
         if matches!(state, Engine::Downloading(_)) {
             ctx.request_repaint_after(std::time::Duration::from_millis(300));
@@ -158,17 +166,22 @@ impl App {
         }
         let state = self.engine_state(ui.ctx(), c);
         let videos = self.listings.get(&self.dir).and_then(|l| l.as_ref().ok()).is_some_and(|l| l.files.iter().any(|f| decode::is_video(&f.path)));
-        if !videos && matches!(state, Engine::Missing) {
+        if matches!(state, Engine::SystemOnly) || (!videos && matches!(state, Engine::Missing | Engine::TooOld { .. })) {
             return;
         }
         let t = |id: &str, args: &[(&str, &str)]| self.i18n.t_args(id, args);
         // Red with white text, as the update button (see `menu_bar`).
         let red = |text: String| egui::Button::new(egui::RichText::new(text).color(Color32::WHITE).strong()).fill(Color32::from_rgb(0xC6, 0x28, 0x28));
         let click = match &state {
-            Engine::Missing | Engine::Failed(_) => {
-                let button = ui.add(red(t("video-component-button", &[("size", &self.human_size(c.size))]))).on_hover_text(t("video-component-ask", &[("size", &self.human_size(c.size))]));
+            Engine::Missing | Engine::Failed(_) | Engine::TooOld { .. } => {
+                let hover = match &state {
+                    Engine::TooOld { found, required } => t("video-engine-old", &[("found", found), ("required", required), ("size", &self.human_size(c.size))]),
+                    _ => t("video-component-ask", &[("size", &self.human_size(c.size))]),
+                };
+                let button = ui.add(red(t("video-component-button", &[("size", &self.human_size(c.size))]))).on_hover_text(hover);
                 button.clicked().then_some(Click::Download)
             }
+            Engine::SystemOnly => None,
             Engine::Downloading(done) => {
                 let text = t("video-component-progress", &[("done", &self.human_size(*done)), ("total", &self.human_size(c.size))]);
                 ui.add_enabled(false, egui::Button::new(text));
@@ -198,8 +211,15 @@ impl App {
                     ui.add_space(10.0);
                     let wrap = |ui: &mut egui::Ui, text: egui::RichText| ui.add(egui::Label::new(text).wrap());
                     match state {
-                        Engine::Missing | Engine::Failed(_) => {
-                            wrap(ui, egui::RichText::new(t("video-component-ask", &[("size", &self.human_size(c.size))])).color(light));
+                        Engine::SystemOnly => {
+                            wrap(ui, egui::RichText::new(t("video-engine-system-only", &[])).color(light));
+                        }
+                        Engine::Missing | Engine::Failed(_) | Engine::TooOld { .. } => {
+                            let ask = match state {
+                                Engine::TooOld { found, required } => t("video-engine-old", &[("found", found), ("required", required), ("size", &self.human_size(c.size))]),
+                                _ => t("video-component-ask", &[("size", &self.human_size(c.size))]),
+                            };
+                            wrap(ui, egui::RichText::new(ask).color(light));
                             if let Engine::Failed(e) = state {
                                 ui.add_space(6.0);
                                 wrap(ui, browser::error_text(ui, t("video-component-error", &[("error", e)])));

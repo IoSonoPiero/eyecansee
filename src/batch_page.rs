@@ -481,11 +481,23 @@ fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     });
 }
 
-/// No FFmpeg on this computer: what it is, its size and the button; then the progress.
+/// No usable FFmpeg on this computer (none, or too old): what it is, its size and the button;
+/// then the progress. With "the system's only" in the Options, just the reason.
 fn ffmpeg_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     let Some(c) = crate::component::FFMPEG else { return };
     let size = format!("{} MB", c.size / 1_000_000);
-    ui.label(i18n.t_args("batch-video-need-ffmpeg", &[("size", &size)]));
+    match crate::ffmpeg::status() {
+        crate::engine::Status::SystemOnly => {
+            ui.label(crate::browser::error_text(ui, i18n.t("batch-video-system-only")));
+            return;
+        }
+        crate::engine::Status::TooOld { found, required } => {
+            ui.label(i18n.t_args("batch-video-old-ffmpeg", &[("found", &found), ("required", required), ("size", &size)]));
+        }
+        _ => {
+            ui.label(i18n.t_args("batch-video-need-ffmpeg", &[("size", &size)]));
+        }
+    }
     let state = v.download.as_ref().map(|d| (d.done.load(Ordering::Relaxed), d.result.lock().unwrap().clone()));
     match state {
         Some((done, None)) => {

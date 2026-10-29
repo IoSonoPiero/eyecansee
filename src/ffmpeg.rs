@@ -258,11 +258,73 @@ fn command(program: &Path) -> Command {
     c
 }
 
-/// The `ffmpeg` to use: the system's, otherwise the downloaded component.
+/// The oldest FFmpeg EyeCanSee works with. `force_divisible_by` of the `scale` filter (`scale`
+/// above) arrived in FFmpeg 4.3 (June 2020); `-progress`, `-map_metadata`, `-movflags
+/// use_metadata_tags` and the encoders' options are older. Encoders a build lacks are found out
+/// by the probe (SVT-AV1 came with 4.4, the graphics card ones depend on the build), not by the
+/// version. Oldest one tried: 4.4 of Ubuntu 22.04, in a container (2026-10-27).
+pub const MIN_VERSION: (u32, u32) = (4, 3);
+pub const MIN_TEXT: &str = "4.3";
+
+/// The system's `ffmpeg`: where, its version (`None` for a git build without a number, taken as
+/// recent) and the version as its first line prints it.
+struct System {
+    path: PathBuf,
+    version: Option<(u32, u32)>,
+    text: String,
+}
+
+/// Looked for once: in `PATH`, then `ffmpeg -version`.
+fn system() -> Option<&'static System> {
+    static SYSTEM: OnceLock<Option<System>> = OnceLock::new();
+    SYSTEM
+        .get_or_init(|| {
+            let name = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };
+            let path = std::env::var_os("PATH").and_then(|p| std::env::split_paths(&p).map(|d| d.join(name)).find(|p| p.is_file()))?;
+            let out = command(&path).arg("-version").output().ok()?;
+            let text = version_text(&String::from_utf8_lossy(&out.stdout));
+            log!("ffmpeg {path:?}: version {text:?}");
+            Some(System { path, version: parse_version(&text), text })
+        })
+        .as_ref()
+}
+
+/// "ffmpeg version 8.1.3 Copyright …" → "8.1.3" (BtbN's builds: "n9.0-20261026", git: "N-121000-g…").
+fn version_text(output: &str) -> String {
+    output.lines().next().unwrap_or_default().split_whitespace().nth(2).unwrap_or_default().to_string()
+}
+
+/// Major and minor of "8.1.3", "n9.0-20261026", "7.1"; `None` for a git build ("N-121000-g…").
+pub fn parse_version(text: &str) -> Option<(u32, u32)> {
+    let mut parts = text.trim_start_matches('n').split(|c: char| !c.is_ascii_digit());
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next().and_then(|m| m.parse().ok()).unwrap_or(0);
+    Some((major, minor))
+}
+
+fn downloaded() -> Option<PathBuf> {
+    crate::component::FFMPEG.as_ref().and_then(crate::component::path).filter(|p| p.is_file())
+}
+
+fn system_recent() -> Option<bool> {
+    system().map(|s| s.version.is_none_or(|v| v >= MIN_VERSION))
+}
+
+/// The `ffmpeg` to use: the system's or the downloaded component, by the option (`engine.rs`).
 pub fn program() -> Option<PathBuf> {
-    let name = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };
-    let system = std::env::var_os("PATH").and_then(|p| std::env::split_paths(&p).map(|d| d.join(name)).find(|p| p.is_file()));
-    system.or_else(|| crate::component::FFMPEG.as_ref().and_then(crate::component::path).filter(|p| p.is_file()))
+    match crate::engine::pick(crate::engine::choice(), system_recent(), downloaded().is_some())? {
+        crate::engine::Source::System => system().map(|s| s.path.clone()),
+        crate::engine::Source::Downloaded => downloaded(),
+    }
+}
+
+/// For the conversion page and the Options.
+pub fn status() -> crate::engine::Status {
+    let found = system().map(|s| (s.version.is_none_or(|v| v >= MIN_VERSION), s.text.clone()));
+    crate::engine::status(crate::engine::choice(), found, downloaded().is_some(), MIN_TEXT, |src| match src {
+        crate::engine::Source::System => system().map(|s| s.text.clone()).unwrap_or_default(),
+        crate::engine::Source::Downloaded => crate::component::FFMPEG.map(|c| c.version.to_string()).unwrap_or_default(),
+    })
 }
 
 /// What FFmpeg can do on this computer.
@@ -397,6 +459,18 @@ fn clock(s: &str) -> Option<f64> {
 mod tests {
     use super::*;
     use crate::transform::Op;
+
+    #[test]
+    fn versions() {
+        assert_eq!(version_text("ffmpeg version 8.1.3 Copyright (c) 2000-2026 the FFmpeg developers\nbuilt with gcc"), "8.1.3");
+        assert_eq!(parse_version("8.1.3"), Some((8, 1)));
+        assert_eq!(parse_version("n9.0-20261026"), Some((9, 0)));
+        assert_eq!(parse_version("7.1"), Some((7, 1)));
+        assert_eq!(parse_version("4"), Some((4, 0)));
+        assert_eq!(parse_version("N-121000-g1234567"), None, "a git build: taken as recent");
+        assert_eq!(parse_version(""), None);
+        assert!(Some((4, 4)) >= Some(MIN_VERSION) && (4, 2) < MIN_VERSION);
+    }
 
     #[test]
     fn arguments() {

@@ -14,7 +14,7 @@ use eframe::egui::{Color32, ColorImage};
 use image::RgbaImage;
 
 use crate::mpv_load::{Api, api};
-pub use crate::mpv_load::available;
+pub use crate::mpv_load::{available, status};
 
 // From mpv's client.h and render.h (API 2.x).
 pub(crate) const FORMAT_STRING: c_int = 1;

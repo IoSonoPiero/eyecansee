@@ -50,6 +50,7 @@ impl App {
             (OptTab::Deleting, t("opt-tab-deleting")),
             (OptTab::Thumbnails, t("opt-tab-thumbnails")),
             (OptTab::Slideshow, t("opt-tab-slideshow")),
+            (OptTab::Video, t("opt-tab-video")),
         ];
         let tab = &mut self.options_tab;
         let confirm = &mut self.purge_confirm;
@@ -62,8 +63,8 @@ impl App {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            // Wide enough for the six tabs in every language (Italian is the longest).
-            .fixed_size([540.0, 330.0])
+            // Wide enough for the seven tabs in every language (Italian is the longest).
+            .fixed_size([600.0, 330.0])
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 // As tall as the longest tab (General), so changing tab does not resize the window.
@@ -76,6 +77,7 @@ impl App {
                 ui.separator();
                 match tab {
                     OptTab::Slideshow => crate::slideshow::options_ui(ui, s, &self.i18n),
+                    OptTab::Video => crate::engine::options_ui(ui, s, &self.i18n),
                     OptTab::General => {
                         ui.checkbox(&mut s.remember_location, remember).on_hover_text(remember_hint);
                         ui.add_space(6.0);
