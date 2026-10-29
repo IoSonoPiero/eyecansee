@@ -222,6 +222,7 @@ impl App {
     pub(crate) fn phone_waiting(&self, ui: &mut egui::Ui) {
         let Some((name, secs, upload)) = crate::mtp::waiting(3) else { return };
         let id = match () {
+            _ if (!cfg!(windows) || secs < crate::mtp::STALL_SECS) && name.is_empty() => "status-phone-waiting-open",
             _ if !cfg!(windows) || secs < crate::mtp::STALL_SECS => "status-phone-waiting",
             _ if upload => "status-phone-stalled-upload",
             _ => "status-phone-stalled",
