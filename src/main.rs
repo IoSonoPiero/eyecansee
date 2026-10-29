@@ -51,6 +51,7 @@ mod meta;
 mod meta_panel;
 mod mp4;
 mod mpv;
+mod mpv_load;
 mod mtp;
 mod navigation;
 mod new_folder;

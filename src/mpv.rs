@@ -6,15 +6,18 @@
 
 use std::ffi::{CString, c_char, c_int, c_void};
 use std::path::PathBuf;
-use std::sync::{Arc, Condvar, Mutex, OnceLock};
+use std::sync::{Arc, Condvar, Mutex};
 use std::thread::JoinHandle;
 use std::time::{Duration, Instant};
 
 use eframe::egui::{Color32, ColorImage};
 use image::RgbaImage;
 
+use crate::mpv_load::{Api, api};
+pub use crate::mpv_load::available;
+
 // From mpv's client.h and render.h (API 2.x).
-const FORMAT_STRING: c_int = 1;
+pub(crate) const FORMAT_STRING: c_int = 1;
 const FORMAT_FLAG: c_int = 3;
 const FORMAT_INT64: c_int = 4;
 const FORMAT_DOUBLE: c_int = 5;
@@ -31,100 +34,22 @@ const PARAM_SW_POINTER: c_int = 20;
 const UPDATE_FRAME: u64 = 1;
 const ERROR_GENERIC: i64 = -20;
 
-#[cfg(windows)]
-const NAMES: &[&str] = &["libmpv-2.dll", "mpv-2.dll"];
-#[cfg(not(windows))]
-// libmpv.so.1: Ubuntu 22.04 (mpv 0.34, checked in a container on 2026-10-27: same calls work).
-const NAMES: &[&str] = &["libmpv.so.2", "libmpv.so.1", "libmpv.so"];
-
-type Handle = *mut c_void;
-type Render = *mut c_void;
+pub(crate) type Handle = *mut c_void;
+pub(crate) type Render = *mut c_void;
 type Update = Box<dyn Fn() + Send + Sync>;
 
 #[repr(C)]
-struct Param {
+pub(crate) struct Param {
     kind: c_int,
     data: *mut c_void,
 }
 
 #[repr(C)]
-struct Event {
+pub(crate) struct Event {
     id: c_int,
     error: c_int,
     reply: u64,
     data: *mut c_void,
-}
-
-struct Api {
-    create: unsafe extern "C" fn() -> Handle,
-    initialize: unsafe extern "C" fn(Handle) -> c_int,
-    set_option_string: unsafe extern "C" fn(Handle, *const c_char, *const c_char) -> c_int,
-    command: unsafe extern "C" fn(Handle, *const *const c_char) -> c_int,
-    get_property: unsafe extern "C" fn(Handle, *const c_char, c_int, *mut c_void) -> c_int,
-    wait_event: unsafe extern "C" fn(Handle, f64) -> *const Event,
-    terminate_destroy: unsafe extern "C" fn(Handle),
-    render_create: unsafe extern "C" fn(*mut Render, Handle, *mut Param) -> c_int,
-    render_set_update_callback: unsafe extern "C" fn(Render, Option<unsafe extern "C" fn(*mut c_void)>, *mut c_void),
-    render_update: unsafe extern "C" fn(Render) -> u64,
-    render: unsafe extern "C" fn(Render, *mut Param) -> c_int,
-    render_free: unsafe extern "C" fn(Render),
-    stream_cb_add_ro: unsafe extern "C" fn(Handle, *const c_char, *mut c_void, OpenFn) -> c_int,
-    free: unsafe extern "C" fn(*mut c_void),
-    _lib: libloading::Library,
-}
-
-/// Loaded once found; until then looked for again at every call (the component may arrive).
-fn api() -> Result<&'static Api, String> {
-    static API: OnceLock<Api> = OnceLock::new();
-    if let Some(api) = API.get() {
-        return Ok(api);
-    }
-    let api = load()?;
-    Ok(API.get_or_init(|| api))
-}
-
-fn load() -> Result<Api, String> {
-    // Debug only: a computer without libmpv, to see the download (EYECANSEE_NO_MPV=1).
-    if cfg!(debug_assertions) && std::env::var_os("EYECANSEE_NO_MPV").is_some() {
-        return Err("EYECANSEE_NO_MPV".into());
-    }
-    // SAFETY: libmpv runs no code of its own when loaded; the signatures are those of client.h and render.h.
-    unsafe {
-        // The system's (or next to the exe), then the downloaded component.
-        let component = crate::component::VIDEO.as_ref().and_then(crate::component::path).filter(|p| p.is_file());
-        let lib = NAMES
-            .iter()
-            .find_map(|n| libloading::Library::new(n).ok())
-            .or_else(|| component.and_then(|p| libloading::Library::new(p).ok()))
-            .ok_or_else(|| format!("{} not found", NAMES[0]))?;
-        macro_rules! sym {
-            ($name:literal) => {
-                *lib.get(concat!($name, "\0").as_bytes()).map_err(|e| e.to_string())?
-            };
-        }
-        Ok(Api {
-            create: sym!("mpv_create"),
-            initialize: sym!("mpv_initialize"),
-            set_option_string: sym!("mpv_set_option_string"),
-            command: sym!("mpv_command"),
-            get_property: sym!("mpv_get_property"),
-            wait_event: sym!("mpv_wait_event"),
-            terminate_destroy: sym!("mpv_terminate_destroy"),
-            render_create: sym!("mpv_render_context_create"),
-            render_set_update_callback: sym!("mpv_render_context_set_update_callback"),
-            render_update: sym!("mpv_render_context_update"),
-            render: sym!("mpv_render_context_render"),
-            render_free: sym!("mpv_render_context_free"),
-            stream_cb_add_ro: sym!("mpv_stream_cb_add_ro"),
-            free: sym!("mpv_free"),
-            _lib: lib,
-        })
-    }
-}
-
-/// libmpv could be loaded.
-pub fn available() -> bool {
-    api().is_ok()
 }
 
 fn cstr(s: &str) -> Result<CString, String> {
@@ -151,7 +76,7 @@ pub enum Input {
 
 /// mpv_stream_cb_info (stream_cb.h).
 #[repr(C)]
-struct StreamInfo {
+pub(crate) struct StreamInfo {
     cookie: *mut c_void,
     read: Option<unsafe extern "C" fn(*mut c_void, *mut c_char, u64) -> i64>,
     seek: Option<unsafe extern "C" fn(*mut c_void, i64) -> i64>,
@@ -160,7 +85,7 @@ struct StreamInfo {
     cancel: Option<unsafe extern "C" fn(*mut c_void)>,
 }
 
-type OpenFn = unsafe extern "C" fn(*mut c_void, *mut c_char, *mut StreamInfo) -> c_int;
+pub(crate) type OpenFn = unsafe extern "C" fn(*mut c_void, *mut c_char, *mut StreamInfo) -> c_int;
 
 /// Bytes asked of the `Reader` at a time: mpv reads in small pieces, a phone answers each request slowly.
 // ponytail: one block kept, no read-ahead; mpv's own cache covers playback
