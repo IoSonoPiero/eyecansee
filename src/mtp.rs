@@ -17,6 +17,9 @@ use tokio::sync::OnceCell;
 use crate::decode::is_media;
 use crate::source::{self, Error, File, Listing, NOT_FOUND};
 
+mod events;
+pub use events::{Change, on_change, take_changes};
+
 /// Device storages with the name shown as a folder.
 type Storages = Vec<(String, Arc<Storage>)>;
 
@@ -24,7 +27,12 @@ pub struct Phone {
     serial: String,
     /// Opened on first use: opening is asynchronous and can fail (device busy).
     open: OnceCell<(MtpDevice, Storages)>,
-    handles: Mutex<HashMap<String, ObjectHandle>>,
+    /// Shared with the events task (`events.rs`), which turns handles back into paths.
+    handles: Arc<Mutex<HashMap<String, ObjectHandle>>>,
+    /// Objects this app added or removed: their events are not news (`events::Own`).
+    own: Arc<events::Own>,
+    /// Dropped with the phone: the events task stops.
+    _events: Mutex<Option<tokio::sync::oneshot::Sender<()>>>,
     /// Folders whose every child is in `handles` (read with `names` or `walk`, or created here):
     /// a copy checks there whether a name is taken, without listing the folder again for each file
     /// (70 files were 70 ever longer listings).
@@ -278,7 +286,16 @@ static PHONES: Mutex<Vec<(String, Weak<Phone>)>> = Mutex::new(Vec::new());
 
 impl Phone {
     pub fn new(serial: &str) -> Self {
-        Self { serial: serial.to_string(), open: OnceCell::new(), handles: Mutex::default(), complete: Mutex::default(), turn: tokio::sync::Mutex::const_new(()), downloads: tokio::sync::Mutex::const_new(()) }
+        Self {
+            serial: serial.to_string(),
+            open: OnceCell::new(),
+            handles: Arc::default(),
+            own: Arc::default(),
+            _events: Mutex::new(None),
+            complete: Mutex::default(),
+            turn: tokio::sync::Mutex::const_new(()),
+            downloads: tokio::sync::Mutex::const_new(()),
+        }
     }
 
     /// The phones EyeCanSee has open, at exit: their Phone may never be dropped.
@@ -328,6 +345,8 @@ impl Phone {
                 if storages.is_empty() {
                     return Err(("error-no-storage", self.serial.clone()));
                 }
+                let watch = events::Watch { serial: self.serial.clone(), device: device.clone(), handles: self.handles.clone(), own: self.own.clone() };
+                *self._events.lock().unwrap() = Some(events::start(watch));
                 Ok::<_, Error>((device, storages))
             })
             .await?;
@@ -434,6 +453,7 @@ impl Phone {
     pub async fn delete(&self, path: &str) -> Result<(), Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
+        self.own.mark(handle);
         self.queued("delete", path, storage.delete(handle)).await.map_err(error)?;
         // A folder takes the paths below it too.
         self.handles.lock().unwrap().retain(|p, _| !p.starts_with(path));
@@ -471,11 +491,12 @@ impl Phone {
             Ok((_, None)) => ObjectHandle::ROOT,
             Err(_) => {
                 let (_, parent) = self.locate(&source::parent(to_dir)).await?;
-                let h = self.queued("create_folder", to_dir, storage.create_folder(parent, source::name(to_dir))).await.map_err(error)?;
+                let h = self.queued("create_folder", to_dir, self.marked(storage.create_folder(parent, source::name(to_dir)))).await.map_err(error)?;
                 self.handles.lock().unwrap().insert(to_dir.to_string(), h);
                 h
             }
         };
+        self.own.mark(handle);
         if new_name != source::name(path) {
             self.queued("rename", path, storage.rename(handle, new_name)).await.map_err(error)?;
         }
@@ -491,6 +512,7 @@ impl Phone {
     pub async fn rename(&self, path: &str, new_name: &str) -> Result<(), Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
+        self.own.mark(handle);
         self.queued("rename", path, storage.rename(handle, new_name)).await.map_err(error)?;
         // The folder's paths below it are stale too: the cache fills again at the next listing.
         let mut handles = self.handles.lock().unwrap();
@@ -552,7 +574,7 @@ impl Phone {
             return Ok(());
         }
         let (storage, parent) = self.locate(&source::parent(dir)).await?;
-        let h = self.queued("create_folder", dir, storage.create_folder(parent, source::name(dir))).await.map_err(error)?;
+        let h = self.queued("create_folder", dir, self.marked(storage.create_folder(parent, source::name(dir)))).await.map_err(error)?;
         self.handles.lock().unwrap().insert(dir.to_string(), h);
         self.complete.lock().unwrap().insert(dir.to_string());
         Ok(())
@@ -585,7 +607,7 @@ impl Phone {
             (_, Some(h)) => h,
             (_, None) => ObjectHandle::ROOT,
         };
-        let h = self.queued("copy", path, storage.copy_object(handle, folder, None)).await.map_err(error)?;
+        let h = self.queued("copy", path, self.marked(storage.copy_object(handle, folder, None))).await.map_err(error)?;
         if source::name(dest) != source::name(path) {
             self.queued("rename", dest, storage.rename(h, source::name(dest))).await.map_err(error)?;
         }
@@ -617,6 +639,16 @@ impl Phone {
         r
     }
 
+    /// `call`, which creates an object, with the object marked as ours as soon as it is there:
+    /// its ObjectAdded event changes nothing (`events::Own`).
+    async fn marked(&self, call: impl std::future::Future<Output = Result<ObjectHandle, mtp_rs::Error>>) -> Result<ObjectHandle, mtp_rs::Error> {
+        let r = call.await;
+        if let Ok(h) = &r {
+            self.own.mark(*h);
+        }
+        r
+    }
+
     /// Writes a file of `size` bytes from a stream, replacing one with the same name (MTP would
     /// keep both). A partial file left by an error is deleted.
     pub async fn upload<S>(&self, path: &str, size: u64, data: S) -> Result<(), Error>
@@ -627,7 +659,15 @@ impl Phone {
             self.delete(path).await?;
         }
         let (storage, parent) = self.locate(&source::parent(path)).await?;
-        match self.queued("upload", path, storage.upload(parent, NewObjectInfo::file(source::name(path), size), data)).await {
+        // Marked as soon as it exists: its ObjectAdded event may come at once.
+        let upload = async {
+            let r = storage.upload(parent, NewObjectInfo::file(source::name(path), size), data).await;
+            if let Some(h) = r.as_ref().ok().copied().or(r.as_ref().err().and_then(|e| e.partial)) {
+                self.own.mark(h);
+            }
+            r
+        };
+        match self.queued("upload", path, upload).await {
             Ok(h) => {
                 self.handles.lock().unwrap().insert(path.to_string(), h);
                 Ok(())
@@ -680,6 +720,30 @@ mod tests {
         assert_eq!(after_open_failed(e("error-no-device"), true).0, "error-no-device");
         assert_eq!(after_open_failed(e("error-device-kde"), true).0, "error-device-kde");
         assert_eq!(error(mtp_rs::Error::NameTooLong { units: 255 }), ("error-name-too-long", "255".into()));
+    }
+
+    /// The events of a real phone while something changes on it, with the seconds since the start:
+    /// `EYECANSEE_MTP=<serial> [EYECANSEE_MTP_DIR=<folder>] [EYECANSEE_EVENTS_SECS=60] cargo test --release mtp_events_live -- --ignored --nocapture`
+    /// (the folder is listed first, so its files have a path; default the first storage's DCIM/Camera/).
+    #[test]
+    #[ignore]
+    fn mtp_events_live() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        let secs = std::env::var("EYECANSEE_EVENTS_SECS").ok().and_then(|s| s.parse().ok()).unwrap_or(60);
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let phone = Phone::new(&serial);
+            let root = phone.list("").await.unwrap();
+            let dir = std::env::var("EYECANSEE_MTP_DIR").unwrap_or_else(|_| format!("{}DCIM/Camera/", root.dirs[0]));
+            let l = phone.list(&dir).await.unwrap();
+            println!("{dir}: {} files, waiting {secs} s for events", l.files.len());
+            let t = std::time::Instant::now();
+            while t.elapsed().as_secs() < secs {
+                for (s, c) in take_changes() {
+                    println!("{:7.2} s  {s} {c:?}", t.elapsed().as_secs_f32());
+                }
+                std::thread::sleep(std::time::Duration::from_millis(50));
+            }
+        });
     }
 
     /// Test on a real phone, not mounted by the desktop:

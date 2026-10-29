@@ -455,6 +455,8 @@ impl App {
             act: None,
         };
         app.watcher = watch::folder_watcher(app.tx.clone(), ctx.clone());
+        let wake = ctx.clone();
+        mtp::on_change(move || wake.request_repaint());
         theme::apply(ctx, app.settings.theme);
         devices::watch(app.tx.clone(), ctx.clone());
         single::listen(app.tx.clone(), ctx.clone());
@@ -515,6 +517,7 @@ impl App {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
         self.receive(ctx);
+        self.phone_events(ctx);
         self.notice_gone(ctx);
         self.retry(ctx);
         self.reread_changed(ctx);

@@ -60,9 +60,13 @@ pub(crate) fn local_path(op: &Operator, path: &str) -> PathBuf {
 }
 
 /// Files a read found gone: not there any more, or a stale MTP handle (the phone re-keyed the
-/// object after a change made on the phone itself). Nothing tells us about such changes: the
-/// app reads the folder again when it finds out this way (`App::notice_gone`).
+/// object after a change made on the phone itself), or removed by a phone's event while the
+/// viewer showed them (`mark_gone`). The app reads the folder again (`App::notice_gone`).
 static GONE: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+pub fn mark_gone(path: String) {
+    GONE.lock().unwrap().push(path);
+}
 
 pub fn is_gone((id, detail): &Error) -> bool {
     *id == NOT_FOUND || detail.contains("stale object handle")
@@ -72,7 +76,7 @@ fn noticed<T>(r: Result<T, Error>, path: &str) -> Result<T, Error> {
     if let Err(e) = &r
         && is_gone(e)
     {
-        GONE.lock().unwrap().push(path.to_string());
+        mark_gone(path.to_string());
     }
     r
 }

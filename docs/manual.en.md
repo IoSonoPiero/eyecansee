@@ -175,7 +175,8 @@ When you connect a phone, a camera, an external disk, a USB stick or an SD card,
 - **"The device shows no storage"**: the phone was locked or set to "charging only" when it was connected: unlock it and choose File transfer. EyeCanSee retries by itself every 2 seconds and shows the storage as soon as it appears, no need for F5.
 - **"The device was not found"**: the phone is reconnecting (it does so when you choose File transfer) or has been unplugged. EyeCanSee retries by itself every 2 seconds, no need for F5.
 - When you open a directly connected phone, the block shows its folders and below there is an item to go back to your home folder.
-- A file deleted on the phone itself while its folder is open: the phone does not tell EyeCanSee, which finds out at the first read (opening the file, say). The folder is then read again, the viewer closes if it was showing that file, and a message says which file was removed.
+- Photos taken, deleted or moved on the phone itself while its folder is open appear and disappear by themselves, a few seconds after the phone has finished (most phones say so to EyeCanSee). If the file was open in the viewer, the viewer closes and a message says which file was removed. A phone that does not say so: EyeCanSee finds out at the first read (opening the file, say), and the same happens.
+- **Windows**: right after a photo is taken, or a file deleted, on the phone, Windows can stop talking to the phone for about six minutes (the status bar says the phone has not answered for so many seconds). It is Windows' own driver, also with no other program open. Unplugging the cable and plugging it in again (then File transfer) frees it at once.
 - Thumbnails of devices stay in the cache after you disconnect them.
 - External disks appear wherever the system mounts them. A partition the system did not mount by itself (for example because it has its own line in `/etc/fstab`) appears with a dimmed name: one click mounts and opens it. If needed, the system asks for your password.
 - On Windows USB sticks, SD cards and disks connected via USB appear, with the name they have in File Explorer (for example "Backup (D:)"). Internal drives (C:, and any others) are under **This computer**: one click on another drive opens it. Phones connect through the Windows driver. Network drives and CDs/DVDs do not appear yet: open them with **File > Open location…** (for example `E:\`).
@@ -258,7 +259,7 @@ A thumbnail is made once and kept: it is made again only when the file changes s
 
 Everywhere: **F1** opens this manual, **F5** reloads the folders. In the viewer F5 stays on the open image; if it has been deleted in the meantime, it goes back to the grid.
 
-Folders on this computer update by themselves: images added, deleted, renamed or restored from the trash by another program appear and disappear without F5, also in the viewer, which stays on the open image. On phones and servers you need F5.
+Folders on this computer update by themselves: images added, deleted, renamed or restored from the trash by another program appear and disappear without F5, also in the viewer, which stays on the open image. On phones too, when the phone says what changed (see External devices); on servers you need F5.
 
 The same actions are in the menus: **View** (Open, Back to the grid, Next, Previous, First, Last, Parent folder, Refresh) and **Edit** (Cut, Copy, Paste, Select all). In the grid Next and Previous move the selection, in the viewer they change image. With several images selected, Enter or Open (also from the right click) open the first of them in the grid, and the viewer moves only among them, as the slideshow does, and the title counts only them.
 

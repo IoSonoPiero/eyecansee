@@ -26,7 +26,7 @@ Mature programs like XnView, IrfanView or digiKam do much more than EyeCanSee, a
 
 What comes next is in [ROADMAP.md](ROADMAP.md).
 
-- **Browsing** of folders on the computer, external disks (also USB sticks, SD cards and dashcams that connect as a USB disk) and phones, with cached thumbnails; folders on the computer update by themselves when files change. Sorting by name, date, size or type; images and videos shown together or apart; "Open with" from the file manager, for images and videos, shows the file in the window already open.
+- **Browsing** of folders on the computer, external disks (also USB sticks, SD cards and dashcams that connect as a USB disk) and phones, with cached thumbnails; folders on the computer and on phones update by themselves when files change. Sorting by name, date, size or type; images and videos shown together or apart; "Open with" from the file manager, for images and videos, shows the file in the window already open.
 - **Direct phone access**: Android phones and cameras open over USB, much faster than through the file manager.
 - **Viewer** with zoom (mouse wheel and keys) and preloading, so moving between images never waits, photo details such as camera, exposure, date and location, and a full-screen slideshow with fades.
 - **File management**: copy and move (also from one device to another), create folders, rename and delete, also several items at once, with a trash on every device to restore or empty.

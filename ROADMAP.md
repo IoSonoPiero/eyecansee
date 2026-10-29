@@ -16,9 +16,8 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Embedded HEIC thumbnails.
 - Xiaomi depth data preserved in rotations.
 - Immich upload.
-- Windows: a delete on the phone, or the call right after it, can stall for 5-6 minutes inside WPD and then recover (mtp-rs #52, under investigation upstream). The status bar now says how long the phone has not answered.
+- Windows: a delete on the phone, or a photo taken on it, can stall every call to the phone for 5-6 minutes inside WPD and then recover (mtp-rs #52, under investigation upstream); unplugging frees it at once. The status bar says how long the phone has not answered.
 - Status bar in a phone's Android trash: show the file's own name, not the hidden `.trashed-…` one.
-- Changes made on the phone itself while its folder is open: today the app finds out only when a read fails (the folder is then read again and the status bar names the file removed). mtp-rs 0.36.0 exposes the MTP events `ObjectAdded`/`ObjectRemoved` (`MtpDevice::next_event`, USB interrupt endpoint and WPD callbacks): listening to them would show the change at once.
 - A folder listing on the phone that took 40 s once without a trace in the log: find out where the time goes if it happens again.
 
 ## Formats

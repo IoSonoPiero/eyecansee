@@ -10,6 +10,8 @@ use crate::{App, source};
 
 /// How long the "file removed" note stays in the status bar.
 const NOTE_SECS: f64 = 10.0;
+/// Seconds without events from a phone before its open folder is read again (`phone_events`).
+const PHONE_QUIET_SECS: f64 = 3.0;
 
 /// Watcher of the open local folder: every change (not a mere read) that can alter the grid
 /// sends `Msg::Changed`.
@@ -112,6 +114,34 @@ impl App {
         self.status_note = Some(text.clone());
         self.note_until = Some(ctx.input(|i| i.time) + NOTE_SECS);
         self.notice = Some((text, None));
+    }
+
+    /// Changes made on the open phone itself (`mtp::take_changes`): the open folder is read again,
+    /// as for a local folder (`reread_changed`); a file removed while the viewer shows it closes
+    /// the viewer with the message of `notice_gone`. Changes this app made, or already in the
+    /// grid, read nothing. Called before `notice_gone`.
+    pub(crate) fn phone_events(&mut self, ctx: &egui::Context) {
+        let changes = crate::mtp::take_changes();
+        let Some(serial) = self.base.strip_prefix("mtp://").map(|s| s.trim_end_matches('/')) else { return };
+        let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
+        let shown = |p: &str| l.files.iter().any(|f| f.path == p) || l.dirs.iter().any(|d| d == p) || l.trashed.iter().any(|f| f.path == p);
+        let mut reread = false;
+        for (from, change) in changes {
+            match change {
+                _ if from != serial => {}
+                // Where is not known (`mtp::events`): the open folder is read again.
+                crate::mtp::Change::Added => reread = true,
+                crate::mtp::Change::Removed(p) if self.viewed(&p) => source::mark_gone(p),
+                crate::mtp::Change::Removed(p) | crate::mtp::Change::Updated(p) => reread |= shown(&p),
+            }
+        }
+        // Read once the phone has been quiet for a while, every event starting the wait again: a
+        // Xiaomi camera adds the photo, removes it for a few seconds while it finishes it, then
+        // writes it again (2026-10-29, POCO X7 Pro); read at once, the grid showed it half done.
+        if reread {
+            self.changed_at = Some(ctx.input(|i| i.time) + PHONE_QUIET_SECS);
+            ctx.request_repaint();
+        }
     }
 
     pub(crate) fn retry(&mut self, ctx: &egui::Context) {
