@@ -290,10 +290,11 @@ impl Store {
     }
 
     pub async fn size(&self, path: &str) -> Result<u64, Error> {
-        match self {
+        let r = match self {
             Store::Dal(op) => op.stat(path).await.map(|m| m.content_length()).map_err(dal_error),
             Store::Mtp(phone) => phone.size(path).await,
-        }
+        };
+        noticed(r, path)
     }
 
     /// Everything below a folder, hidden items too, folders before what they contain: path and
@@ -341,7 +342,8 @@ impl Store {
     /// `error-cancelled` when `cancel` is set. An error also goes into `out`, so the writer
     /// knows the file is incomplete.
     pub async fn send_chunks(&self, path: &str, size: u64, out: Chunks, done: &AtomicU64, cancel: &AtomicBool) -> Result<(), Error> {
-        let r = self.send(path, size, &out, done, cancel).await;
+        // Also what a phone on Windows answers after a stale handle (the whole copy of a video).
+        let r = noticed(self.send(path, size, &out, done, cancel).await, path);
         if let Err((_, detail)) = &r {
             let _ = out.send(Err(std::io::Error::other(detail.clone()))).await;
         }
@@ -653,7 +655,8 @@ mod tests {
         assert!(rt.block_on(op.read("a.jpg")).is_ok());
         assert_eq!(rt.block_on(op.read("b.jpg")).unwrap_err().0, NOT_FOUND);
         assert!(rt.block_on(op.read_range("b.jpg", 0, 1)).is_err());
-        assert_eq!(take_gone(), ["b.jpg", "b.jpg"]);
+        assert!(rt.block_on(op.size("b.jpg")).is_err());
+        assert_eq!(take_gone(), ["b.jpg", "b.jpg", "b.jpg"]);
         assert!(take_gone().is_empty(), "taken once");
         std::fs::remove_dir_all(&dir).unwrap();
     }
