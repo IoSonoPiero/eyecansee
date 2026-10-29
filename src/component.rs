@@ -99,7 +99,7 @@ pub fn path(c: &Component) -> Option<PathBuf> {
 pub fn install(c: &Component, done: &AtomicU64) -> Result<(), String> {
     let dir = dir().ok_or("no data folder")?;
     // Unpacked aside, moved in only once complete and matching its SHA-256.
-    let staging = dir.join(".part");
+    let staging = staging(&dir, c);
     let _ = std::fs::remove_dir_all(&staging);
     std::fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
     let r = (|| {
@@ -136,6 +136,12 @@ pub fn install(c: &Component, done: &AtomicU64) -> Result<(), String> {
     })();
     let _ = std::fs::remove_dir_all(&staging);
     r
+}
+
+/// Where `c` is unpacked before being moved in, one folder per component: with a single `.part`
+/// the video engine and FFmpeg downloaded together emptied each other's folder (2026-10-29).
+fn staging(dir: &std::path::Path, c: &Component) -> PathBuf {
+    dir.join(format!(".part-{}", c.kind))
 }
 
 /// The other versions of `c` in `dir`, and what 0.59.0 left loose there (`libmpv-2.dll`).
@@ -226,6 +232,20 @@ mod tests {
         let mut left: Vec<_> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
         left.sort();
         assert_eq!(left, ["libmpv-2", "other-1"]);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// Two components downloaded together never share where they are unpacked, and finishing one
+    /// leaves the other's download alone.
+    #[test]
+    fn staging_per_component() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-staging-{}", std::process::id()));
+        let video = Component { kind: "libmpv", version: "2", file: "x", url: "", archive: false, sha256: "", size: 0 };
+        let ffmpeg = Component { kind: "ffmpeg", ..video };
+        assert_ne!(staging(&dir, &video), staging(&dir, &ffmpeg));
+        std::fs::create_dir_all(staging(&dir, &ffmpeg)).unwrap();
+        remove_old(&dir, &video);
+        assert!(staging(&dir, &ffmpeg).is_dir());
         std::fs::remove_dir_all(dir).unwrap();
     }
 
