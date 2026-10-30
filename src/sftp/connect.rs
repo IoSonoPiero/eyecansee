@@ -1,7 +1,7 @@
 //! Opening an SFTP connection as `ssh` would: the host as `~/.ssh/config` describes it (alias,
 //! HostName, User, Port, IdentityFile), the server's key checked against `~/.ssh/known_hosts`,
 //! then the login: a saved server only with its own password and key; any other address with the
-//! agent's keys, key files without a passphrase, or the password.
+//! key files without a passphrase or the password. Never the system's SSH agent (user's rule).
 //! Not supported: ProxyJump and ProxyCommand.
 
 use std::path::PathBuf;
@@ -9,8 +9,6 @@ use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
 use russh::client::{self, AuthResult, Handle, KeyboardInteractiveAuthResponse};
-use russh::keys::agent::AgentIdentity;
-use russh::keys::agent::client::{AgentClient, AgentStream};
 use russh::keys::{self, HashAlg, PrivateKeyWithHashAlg, PublicKey, PublicKeyOrCertificate};
 
 use crate::source::Error;
@@ -25,7 +23,7 @@ pub struct Target {
     pub password: Option<String>,
     /// A saved server's key file and its passphrase ("" = none).
     pub key: Option<(PathBuf, String)>,
-    /// A saved server: only its own password and key, never the agent or the keys in ~/.ssh.
+    /// A saved server: only its own password and key, never the keys in ~/.ssh.
     pub saved: bool,
 }
 
@@ -181,13 +179,9 @@ async fn login(h: &mut Handle<Client>, r: &Resolved, password: Option<&str>, key
     if r.saved {
         return Err(());
     }
-    // The keys named in ~/.ssh/config, as public keys next to their files.
-    let named: Vec<PublicKey> = r.files.iter().filter_map(|f| PublicKey::read_openssh_file(pub_file(f)).ok()).collect();
-    if let Some(rsa) = agent_login(h, &r.user, &named, rsa_hash).await {
-        return Ok(rsa);
-    }
     for file in r.files.iter().filter(|f| f.exists()) {
-        // A key with a passphrase is skipped: the agent is the way to use it.
+        // A key with a passphrase is skipped: never the system's agent (the user's rule), so a
+        // saved server with its passphrase is the way to use it.
         let Ok(key) = keys::load_secret_key(file, None) else { continue };
         if let Some(rsa) = key_login(h, &r.user, key, rsa_hash).await {
             return Ok(rsa);
@@ -201,52 +195,6 @@ async fn key_login(h: &mut Handle<Client>, user: &str, key: keys::PrivateKey, rs
     let rsa = key.algorithm().is_rsa();
     let key = PrivateKeyWithHashAlg::new(Arc::new(key), rsa_hash);
     matches!(h.authenticate_publickey(user, key).await, Ok(AuthResult::Success)).then_some(rsa)
-}
-
-/// "key" → "key.pub" (not `with_extension`: key names can have dots).
-fn pub_file(key: &std::path::Path) -> PathBuf {
-    let mut name = key.as_os_str().to_owned();
-    name.push(".pub");
-    name.into()
-}
-
-/// The agent's keys, those named in ~/.ssh/config first. Linux: `SSH_AUTH_SOCK`; Windows: the
-/// OpenSSH agent's pipe, then Pageant. `Some(it is RSA)` when the server accepts a key.
-async fn agent_login(h: &mut Handle<Client>, user: &str, named: &[PublicKey], rsa_hash: Option<HashAlg>) -> Option<bool> {
-    #[cfg(unix)]
-    if let Ok(agent) = AgentClient::connect_env().await {
-        return with_agent(agent, h, user, named, rsa_hash).await;
-    }
-    #[cfg(windows)]
-    {
-        if let Ok(agent) = AgentClient::connect_named_pipe(r"\\.\pipe\openssh-ssh-agent").await {
-            return with_agent(agent, h, user, named, rsa_hash).await;
-        }
-        if let Ok(agent) = AgentClient::connect_pageant().await {
-            return with_agent(agent, h, user, named, rsa_hash).await;
-        }
-    }
-    None
-}
-
-async fn with_agent<S: AgentStream + Unpin + Send + 'static>(
-    mut agent: AgentClient<S>,
-    h: &mut Handle<Client>,
-    user: &str,
-    named: &[PublicKey],
-    rsa_hash: Option<HashAlg>,
-) -> Option<bool> {
-    let mut ids: Vec<AgentIdentity> = agent.request_identities().await.unwrap_or_default();
-    ids.sort_by_key(|id| !named.contains(&id.public_key()));
-    for id in ids {
-        let key = id.public_key().into_owned();
-        let rsa = key.algorithm().is_rsa();
-        let hash = if rsa { rsa_hash } else { None };
-        if matches!(h.authenticate_publickey_with(user, key, hash, &mut agent).await, Ok(AuthResult::Success)) {
-            return Some(rsa);
-        }
-    }
-    None
 }
 
 /// "password", or "keyboard-interactive" answering each question with the password (servers

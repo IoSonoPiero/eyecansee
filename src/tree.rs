@@ -260,6 +260,22 @@ impl App {
         }
     }
 
+    /// "This computer" with a phone or a server open: home and, with a server, the drives.
+    fn way_home(&mut self, ui: &mut Ui, internal: &[Device], remote: bool) {
+        block_title(ui, &self.i18n.t("this-computer"));
+        let home = std::env::home_dir().map_or("/".into(), |h| h.to_string_lossy().into_owned());
+        let mut go = ui.selectable_label(false, (icons::image(ui.ctx(), Icon::Home, TREE_ICON), home.as_str())).clicked().then_some(home);
+        for d in internal.iter().filter(|_| remote) {
+            if leaf(ui, Icon::InternalDisk, d.name.as_str()).clicked() {
+                go = Some(d.path.clone());
+            }
+        }
+        if let Some(path) = go {
+            let ctx = ui.ctx().clone();
+            self.open_source(&ctx, &path);
+        }
+    }
+
     pub(crate) fn tree_blocks(&mut self, ui: &mut Ui) {
         let local = self.base == "/";
         // On Windows the internal drives go under "This computer", in drive letter order.
@@ -315,16 +331,15 @@ impl App {
         self.tree_split = self.tree_rows.len();
         // With a device open the tree would be a duplicate: in its place, the way back home.
         // The way back is also needed if the open phone was unplugged (its error stays below).
+        // With a phone or a server open, the computer stays one click away: home and the drives.
         let device_open = external.iter().any(|d| d.path == self.base);
-        if device_open || self.base.starts_with("mtp://") {
-            let home = std::env::home_dir().map_or("/".into(), |h| h.to_string_lossy().into_owned());
-            if ui.selectable_label(false, (icons::image(ui.ctx(), Icon::Home, TREE_ICON), home.as_str())).clicked() {
-                let ctx = ui.ctx().clone();
-                self.open_source(&ctx, &home);
-            }
+        let remote = self.base.contains("://");
+        if device_open || remote {
+            self.way_home(ui, &internal, remote);
             if device_open {
                 return;
             }
+            ui.separator();
         }
         // The current folder is shown open in one block only: if it is inside a device,
         // the main tree does not open all the way to /run/user/…
@@ -340,7 +355,7 @@ impl App {
                 let icon = if base.starts_with("mtp://") { Icon::Phone } else { Icon::Folder };
                 self.tree_node(ui, "tree", String::new(), icon, &base, !in_device);
             }
-            for d in &internal {
+            for d in internal.iter().filter(|_| !remote) {
                 if d.path == base {
                     self.tree_node(ui, "tree", String::new(), Icon::InternalDisk, &d.name, !in_device);
                 } else if leaf(ui, Icon::InternalDisk, d.name.as_str()).clicked() {
