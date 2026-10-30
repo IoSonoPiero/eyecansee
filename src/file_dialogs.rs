@@ -139,13 +139,15 @@ impl App {
             ("size", &self.human_size(total)),
         ])
         };
-        // Average speed since the copy started; the first second gives no meaningful estimate.
+        // The speed of the last seconds, the time left from the average since the copy started;
+        // the first second gives no meaningful estimate.
         let left = p.started.get().map(|t| t.elapsed().as_secs_f64()).filter(|&secs| secs >= 1.0 && done > 0).map(|secs| {
-            let speed = done as f64 / secs;
+            let average = done as f64 / secs;
+            let speed = p.recent.lock().unwrap().speed(secs, done).unwrap_or(average);
             self.i18n.t_args("transfer-left", &[
                 ("percent", &(done * 100 / total.max(1)).to_string()),
                 ("speed", &self.human_size(speed as u64)),
-                ("time", &human_time((total.saturating_sub(done) as f64 / speed) as u64)),
+                ("time", &human_time((total.saturating_sub(done) as f64 / average) as u64)),
             ])
         });
         let to = self.i18n.t_args("transfer-to", &[("dir", &shown(base, dest))]);

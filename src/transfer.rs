@@ -50,6 +50,27 @@ pub struct Progress {
     /// Name of the file being copied.
     pub current: Mutex<String>,
     pub cancel: AtomicBool,
+    /// The speed of the last seconds, as the UI shows it.
+    pub recent: Mutex<Recent>,
+}
+
+/// Bytes copied over the last `SPAN` seconds: the speed of the moment, as a system network meter
+/// shows it, which moves with the line; the average since the start gives the time left.
+#[derive(Default)]
+pub struct Recent(std::collections::VecDeque<(f64, u64)>);
+
+impl Recent {
+    const SPAN: f64 = 4.0;
+
+    /// `done` bytes at `now` seconds; bytes per second once a second has been seen.
+    pub fn speed(&mut self, now: f64, done: u64) -> Option<f64> {
+        self.0.push_back((now, done));
+        while self.0.front().is_some_and(|(t, _)| now - t > Self::SPAN) {
+            self.0.pop_front();
+        }
+        let (t0, d0) = *self.0.front()?;
+        (now - t0 >= 1.0).then(|| done.saturating_sub(d0) as f64 / (now - t0))
+    }
 }
 
 /// Items whose name is already in `to_dir`, to ask about. A folder pasted inside itself is an error.
@@ -211,6 +232,18 @@ async fn copy_file(from: &Store, src: &str, to: &Store, dest: &str, size: u64, p
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The speed of the last 4 seconds, not of the whole copy.
+    #[test]
+    fn recent_speed() {
+        let mut r = Recent::default();
+        assert_eq!(r.speed(0.0, 0), None);
+        assert_eq!(r.speed(0.5, 10), None);
+        assert_eq!(r.speed(2.0, 40), Some(20.0));
+        // Fast at first, then slow: only the slow part counts after 4 seconds.
+        assert_eq!(r.speed(10.0, 50), None);
+        assert_eq!(r.speed(12.0, 70), Some(10.0));
+    }
 
     /// Copy, copy in place, move with a conflict, cancel, between two local folders.
     #[test]
