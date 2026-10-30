@@ -264,6 +264,8 @@ struct App {
     server_manager: Option<AddressForm>,
     /// The saved servers, listed in the left panel.
     saved_servers: Vec<servers::Saved>,
+    /// The folder last open in each source (by base), to go back to it from the left panel.
+    last_dirs: HashMap<String, String>,
     /// File > Open location: the window, with what is typed in it.
     open_address: Option<AddressForm>,
     /// A transform on images of the grid: the images and the operation, to confirm.
@@ -417,6 +419,7 @@ impl App {
             host_ask: false,
             server_manager: None,
             saved_servers: servers::load(),
+            last_dirs: HashMap::new(),
             status_note: None,
             note_until: None,
             stall_notice: None,

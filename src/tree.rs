@@ -228,7 +228,7 @@ impl App {
             let icon = icons::image(ui.ctx(), Icon::Server, TREE_ICON);
             let r = ui.selectable_label(here, (icon, s.name.as_str())).on_hover_text(crate::address::without_password(&address));
             if r.clicked() {
-                open = Some(address);
+                open = Some(self.back_to(&address));
             }
             r.context_menu(|ui| {
                 // Not during a copy: it could be using this connection.
@@ -264,7 +264,15 @@ impl App {
     fn way_home(&mut self, ui: &mut Ui, internal: &[Device], remote: bool) {
         block_title(ui, &self.i18n.t("this-computer"));
         let home = std::env::home_dir().map_or("/".into(), |h| h.to_string_lossy().into_owned());
-        let mut go = ui.selectable_label(false, (icons::image(ui.ctx(), Icon::Home, TREE_ICON), home.as_str())).clicked().then_some(home);
+        let mut go = ui.selectable_label(false, (icons::image(ui.ctx(), Icon::Home, TREE_ICON), home.as_str())).clicked().then_some(home.clone());
+        // The folders of this computer last open, to go back there.
+        let mut last: Vec<&String> = self.last_dirs.iter().filter(|(base, _)| !base.contains("://")).map(|(_, d)| d).collect();
+        last.sort();
+        for d in last.into_iter().filter(|d| d.trim_end_matches(['/', '\\']) != home) {
+            if leaf(ui, Icon::Folder, d.as_str()).clicked() {
+                go = Some(d.clone());
+            }
+        }
         for d in internal.iter().filter(|_| remote) {
             if leaf(ui, Icon::InternalDisk, d.name.as_str()).clicked() {
                 go = Some(d.path.clone());

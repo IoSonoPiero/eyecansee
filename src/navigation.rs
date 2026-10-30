@@ -10,6 +10,12 @@ use crate::{App, devices, settings};
 
 impl App {
     /// Opens an address (path or URL). If it fails, stays on the current source.
+    /// A place of the left panel: the folder where it was left, if it was open before.
+    pub(crate) fn back_to(&self, address: &str) -> String {
+        let base = source::open(address).map(|s| s.base).unwrap_or_default();
+        self.last_dirs.get(&base).cloned().unwrap_or_else(|| address.to_string())
+    }
+
     pub(crate) fn open_source(&mut self, ctx: &egui::Context, address: &str) {
         log!("open source {:?}", without_password(address));
         let opened = {
@@ -18,6 +24,9 @@ impl App {
         };
         match opened {
             Ok(s) => {
+                if !self.base.is_empty() {
+                    self.last_dirs.insert(self.base.clone(), format!("{}{}", self.base, self.dir));
+                }
                 let handle = self.rt.handle().clone();
                 self.loader = Some(Loader::new(handle, s.op, s.base.clone(), self.tx.clone(), ctx.clone()));
                 self.base = s.base;

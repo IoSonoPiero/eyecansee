@@ -79,7 +79,7 @@ impl App {
         let content = rows as f32 * cell.y;
         // One position per folder, so with `remember_scroll` each one is found where it was;
         // without it, every folder opened starts from the top.
-        let mut area = ScrollArea::vertical().id_salt(("grid", &self.dir)).auto_shrink(false);
+        let mut area = ScrollArea::vertical().id_salt(("grid", &self.base, &self.dir)).auto_shrink(false);
         if std::mem::take(&mut self.scroll_top) && !self.settings.remember_scroll {
             area = area.vertical_scroll_offset(0.0);
         }
