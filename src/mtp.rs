@@ -16,6 +16,11 @@ use tokio::sync::OnceCell;
 
 use crate::source::{self, Error, Listing, NOT_FOUND};
 
+/// Hidden folder where a copy into the file's own folder is made (see `Phone::copy_inside`).
+const COPY_DIR: &str = ".EyeCanSee-copy";
+/// The phone answered a copy without making it.
+const NOT_MADE: &str = "error-copy-not-made";
+
 mod events;
 pub use events::{Change, on_change, take_changes};
 
@@ -602,24 +607,62 @@ impl Phone {
     }
 
     /// Copies a file inside the phone, without passing through the computer (MTP `CopyObject`),
-    /// replacing an item with the same name.
+    /// replacing an item with the same name. Android cannot copy a file into its own folder: it
+    /// answers "done" without making the copy ("Failed to end copy object" in its log, POCO X7 Pro,
+    /// 2026-10-30), and through WPD mtp-rs then returns the original, which the rename after it
+    /// renamed. So there the copy is made in a hidden folder next to it and moved in with its name.
     pub async fn copy_inside(&self, path: &str, dest: &str) -> Result<(), Error> {
         if self.taken(dest).await? {
             self.delete(dest).await?;
         }
+        let dir = source::parent(dest);
+        if dir != source::parent(path) {
+            let h = self.copy_object(path, &dir).await?;
+            if source::name(dest) != source::name(path) {
+                self.queued("rename", dest, self.storage_of(path).await?.rename(h, source::name(dest))).await.map_err(error)?;
+            }
+            self.handles.lock().unwrap().insert(dest.to_string(), h);
+            return Ok(());
+        }
+        // Left over from a copy broken off: what is in it is ours, and a copy is found there by name.
+        let tmp = format!("{dir}{COPY_DIR}/");
+        if self.taken(&tmp).await? {
+            self.delete(&tmp).await?;
+        }
+        self.create_dir(&tmp).await?;
+        let copied = async {
+            let h = self.copy_object(path, &tmp).await?;
+            // The copy must be there under that handle before it is moved.
+            let name = source::name(path);
+            if !self.names(&tmp).await?.contains(name) || self.handles.lock().unwrap().get(&format!("{tmp}{name}")) != Some(&h) {
+                return Err((NOT_MADE, path.to_string()));
+            }
+            self.move_into(&format!("{tmp}{name}"), &dir, source::name(dest)).await
+        }
+        .await;
+        let gone = self.delete(&tmp).await;
+        copied.and(gone)
+    }
+
+    /// `CopyObject` of `path` into the folder `dir`. A handle equal to the original's means a copy
+    /// not made (see `copy_inside`): it is never renamed or moved.
+    async fn copy_object(&self, path: &str, dir: &str) -> Result<ObjectHandle, Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
-        let dir = source::parent(dest);
-        let folder = match self.locate(&dir).await? {
+        let folder = match self.locate(dir).await? {
             (_, Some(h)) => h,
             (_, None) => ObjectHandle::ROOT,
         };
         let h = self.queued("copy", path, self.marked(storage.copy_object(handle, folder, None))).await.map_err(error)?;
-        if source::name(dest) != source::name(path) {
-            self.queued("rename", dest, storage.rename(h, source::name(dest))).await.map_err(error)?;
+        log!("phone {}: copy {path} into {dir}: handle {} -> {}", self.serial, handle.0, h.0);
+        if h == handle {
+            return Err((NOT_MADE, path.to_string()));
         }
-        self.handles.lock().unwrap().insert(dest.to_string(), h);
-        Ok(())
+        Ok(h)
+    }
+
+    async fn storage_of(&self, path: &str) -> Result<Arc<Storage>, Error> {
+        Ok(self.locate(path).await?.0)
     }
 
     /// Runs one mtp-rs call in its turn (see `turn`). A call that waits or runs for more than
@@ -796,13 +839,14 @@ mod tests {
         storage.list_objects(h).await.unwrap().into_iter().map(|o| (o.handle, o.filename, o.size)).collect()
     }
 
-    /// `CopyObject` of a file into its own folder on a real phone, as Ctrl+C and Ctrl+V do there,
-    /// without renaming anything: prints the handles and names before and after. Works in a new
-    /// folder `EyeCanSee-copia/` of the first storage, deleted at the end:
-    /// `EYECANSEE_MTP=<serial> cargo test --release mtp_copy_object_same_folder_live -- --ignored --nocapture`
+    /// Ctrl+C and Ctrl+V of a file on a real phone, into its own folder and into a subfolder: the
+    /// original keeps its name, handle and content, each copy has the same content, the hidden
+    /// folder of `copy_inside` is gone. Works in a new folder `EyeCanSee-copia/` of the first storage,
+    /// deleted at the end:
+    /// `EYECANSEE_MTP=<serial> cargo test --release mtp_copy_inside_live -- --ignored --nocapture`
     #[test]
     #[ignore]
-    fn mtp_copy_object_same_folder_live() {
+    fn mtp_copy_inside_live() {
         let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             let phone = Phone::new(&serial);
@@ -810,24 +854,38 @@ mod tests {
             let dir = format!("{}EyeCanSee-copia/", root.dirs[0]);
             assert!(!phone.taken(&dir).await.unwrap(), "{dir} already exists");
             phone.create_dir(&dir).await.unwrap();
+            phone.create_dir(&format!("{dir}sub/")).await.unwrap();
             let src = format!("{dir}a.jpg");
             let data: Vec<u8> = (0..100_000u32).map(|i| (i * 7 % 251) as u8).collect();
             phone.upload(&src, data.len() as u64, futures_util::stream::iter([Ok(Bytes::from(data.clone()))])).await.unwrap();
-            println!("before: {:?}", objects(&phone, &dir).await);
-            let (storage, h) = phone.locate(&src).await.unwrap();
-            let (_, folder) = phone.locate(&dir).await.unwrap();
-            let copy = storage.copy_object(h.unwrap(), folder.unwrap(), None).await;
-            println!("copy_object({:?}) -> {copy:?}", h.unwrap());
+            let before = objects(&phone, &dir).await;
+            println!("before: {before:?}");
+            let t = std::time::Instant::now();
+            let same = phone.copy_inside(&src, &format!("{dir}a (2).jpg")).await;
+            println!("same folder: {same:?} in {:?}", t.elapsed());
+            let other = phone.copy_inside(&src, &format!("{dir}sub/a.jpg")).await;
+            println!("subfolder: {other:?}");
             let after = objects(&phone, &dir).await;
-            println!("after: {after:?}");
-            for (h, name, _) in &after {
-                let same = storage.download_to_vec(*h).await.map(|d| d == data);
-                println!("  {h:?} {name}: same content as the original: {same:?}");
-            }
-            for (h, _, _) in after {
-                storage.delete(h).await.unwrap();
-            }
+            let below = objects(&phone, &format!("{dir}sub/")).await;
+            println!("after: {after:?}\nsub: {below:?}");
+            let (storage, _) = phone.locate(&dir).await.unwrap();
+            let content = |h| storage.download_to_vec(h);
+            let original = before.iter().find(|o| o.1 == "a.jpg").unwrap();
+            let check = async {
+                assert!(same.is_ok() && other.is_ok());
+                assert!(after.contains(original), "the original keeps name, handle and size");
+                assert_eq!(content(original.0).await.unwrap(), data);
+                let copy = after.iter().find(|o| o.1 == "a (2).jpg").expect("copy in the same folder");
+                assert_eq!(content(copy.0).await.unwrap(), data);
+                assert!(!after.iter().any(|o| o.1 == COPY_DIR), "hidden folder left behind");
+                let sub = below.iter().find(|o| o.1 == "a.jpg").expect("copy in the subfolder");
+                assert_eq!(content(sub.0).await.unwrap(), data);
+            };
+            let r = futures_util::FutureExt::catch_unwind(std::panic::AssertUnwindSafe(check)).await;
             phone.delete(&dir).await.unwrap();
+            if let Err(e) = r {
+                std::panic::resume_unwind(e);
+            }
         });
     }
 }

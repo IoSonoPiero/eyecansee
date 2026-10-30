@@ -89,6 +89,7 @@ transfer-counts = { $n } di { $total } file, { $done } di { $size }
 transfer-to = In { $dir }
 transfer-left = { $percent } %, { $speed }/s, circa { $time } alla fine
 error-name-too-long = Il nome è troppo lungo per il telefono: { $detail } caratteri, mentre un telefono ne accetta al massimo 254 (un'emoji conta per due). Accorcialo e riprova; non è stato copiato niente.
+error-copy-not-made = Il telefono non ha fatto la copia di { $detail }: l'originale non è stato toccato.
 error-paste-inside = Una cartella non può andare dentro sé stessa: { $detail }
 error-cancelled = Annullato.
 menu-about = Informazioni su EyeCanSee
