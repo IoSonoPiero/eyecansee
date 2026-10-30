@@ -41,6 +41,7 @@ mod engine;
 mod ffmpeg;
 mod file_dialogs;
 mod folder_pick;
+mod ftp;
 mod gps_track;
 mod grid;
 mod human;

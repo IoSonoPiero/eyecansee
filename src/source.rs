@@ -36,6 +36,7 @@ pub enum Store {
     Dal(Operator),
     Mtp(Arc<crate::mtp::Phone>),
     Sftp(Arc<crate::sftp::Server>),
+    Ftp(Arc<crate::ftp::Server>),
 }
 
 /// Reads under gvfs (phones, cameras, shares mounted by the desktop), two at a time like the
@@ -141,6 +142,7 @@ impl Store {
             Store::Dal(op) => list(op, dir).await.map_err(dal_error),
             Store::Mtp(phone) => phone.list(dir).await,
             Store::Sftp(server) => server.list(dir).await,
+            Store::Ftp(server) => server.list(dir).await,
         }
     }
 
@@ -148,7 +150,7 @@ impl Store {
     pub fn can_rename(&self) -> bool {
         match self {
             Store::Dal(op) => op.info().capability().rename,
-            Store::Mtp(_) | Store::Sftp(_) => true,
+            Store::Mtp(_) | Store::Sftp(_) | Store::Ftp(_) => true,
         }
     }
 
@@ -176,6 +178,7 @@ impl Store {
             }
             Store::Mtp(phone) => phone.read(path).await,
             Store::Sftp(server) => server.read(path).await,
+            Store::Ftp(server) => server.read(path).await,
         };
         noticed(r, path)
     }
@@ -189,6 +192,7 @@ impl Store {
             }
             Store::Mtp(phone) => phone.read_range(path, offset, len as u32).await,
             Store::Sftp(server) => server.read_range(path, offset, len).await,
+            Store::Ftp(server) => server.read_range(path, offset, len).await,
         };
         noticed(r, path)
     }
@@ -206,6 +210,7 @@ impl Store {
             }
             Store::Mtp(phone) => phone.names(dir).await,
             Store::Sftp(server) => server.names(dir).await,
+            Store::Ftp(server) => server.names(dir).await,
         }
     }
 
@@ -241,6 +246,10 @@ impl Store {
                 server.create_dir_all(to_dir).await?;
                 server.rename(path, &to).await?;
             }
+            Store::Ftp(server) => {
+                server.create_dir_all(to_dir).await?;
+                server.rename(path, &to).await?;
+            }
         }
         Ok(to)
     }
@@ -268,6 +277,7 @@ impl Store {
             Store::Dal(op) => op.stat(dir).await.is_ok_and(|m| m.is_dir()),
             Store::Mtp(phone) => phone.check_dir(dir).await.is_ok(),
             Store::Sftp(server) => server.is_dir(dir).await,
+            Store::Ftp(server) => server.is_dir(dir).await,
         }
     }
 
@@ -306,6 +316,12 @@ impl Store {
                 }
                 server.rename(path, &to).await?;
             }
+            Store::Ftp(server) => {
+                if server.exists(&to).await {
+                    return Err(("error-exists", to));
+                }
+                server.rename(path, &to).await?;
+            }
         }
         Ok(to)
     }
@@ -315,6 +331,7 @@ impl Store {
             Store::Dal(op) => op.stat(path).await.map(|m| m.content_length()).map_err(dal_error),
             Store::Mtp(phone) => phone.size(path).await,
             Store::Sftp(server) => server.size(path).await,
+            Store::Ftp(server) => server.size(path).await,
         };
         noticed(r, path)
     }
@@ -347,6 +364,7 @@ impl Store {
             }
             Store::Mtp(phone) => phone.walk(dir, p).await,
             Store::Sftp(server) => server.walk(dir, p).await,
+            Store::Ftp(server) => server.walk(dir, p).await,
         }
     }
 
@@ -359,6 +377,7 @@ impl Store {
             }
             Store::Mtp(phone) => phone.create_dir(dir).await,
             Store::Sftp(server) => server.create_dir(dir).await,
+            Store::Ftp(server) => server.create_dir(dir).await,
         }
     }
 
@@ -397,6 +416,7 @@ impl Store {
                 }
             }
             Store::Sftp(server) => server.send(path, size, CHUNK, cancel, push).await?,
+            Store::Ftp(server) => server.send(path, size, CHUNK, cancel, push).await?,
             Store::Mtp(phone) => {
                 let mut download = phone.download(path).await?;
                 while let Some(window) = phone.next_window(&mut download).await {
@@ -441,6 +461,7 @@ impl Store {
                 }
             }
             Store::Sftp(server) => server.write_chunks(path, chunks).await,
+            Store::Ftp(server) => server.write_chunks(path, chunks).await,
             Store::Mtp(phone) => {
                 let stream = futures_util::stream::unfold(chunks, |mut c| async { c.recv().await.map(|x| (x, c)) });
                 phone.upload(path, size, Box::pin(stream)).await
@@ -455,6 +476,7 @@ impl Store {
             Store::Dal(op) => op.stat(dir).await.map(|_| ()).map_err(dal_error),
             Store::Mtp(phone) => phone.check_dir(dir).await,
             Store::Sftp(server) => server.check_dir(dir).await,
+            Store::Ftp(server) => server.check_dir(dir).await,
         }
     }
 }
@@ -556,8 +578,15 @@ pub fn open(arg: &str) -> Result<Source, Error> {
         let home = dir.is_empty() && start.is_none();
         return Ok(Source { op: Store::Sftp(crate::sftp::Server::shared(target)), base, dir, start, home });
     }
+    if url.scheme() == "ftp" {
+        let user = decode(url.username());
+        let target = crate::ftp::Target { host: host.to_string(), port: url.port_or_known_default().unwrap_or(21), user, password: password.unwrap_or_default() };
+        let home = dir.is_empty() && start.is_none();
+        return Ok(Source { op: Store::Ftp(crate::ftp::Server::shared(target)), base, dir, start, home });
+    }
+    // ponytail: FTPS still on OpenDAL until it moves to `ftp.rs` with its certificate check
     let op = match url.scheme() {
-        scheme @ ("ftp" | "ftps") => {
+        scheme @ "ftps" => {
             let port = url.port_or_known_default().unwrap_or(21);
             let mut b = services::Ftp::default().endpoint(&format!("{scheme}://{host}:{port}")).root("/");
             // Without a user OpenDAL does not log in at all; FTP clients log in as "anonymous".

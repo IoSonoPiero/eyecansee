@@ -1994,6 +1994,7 @@ dependencies = [
  "russh-sftp",
  "serde",
  "serde_json",
+ "suppaftp",
  "sys-locale",
  "tiff",
  "tokio",

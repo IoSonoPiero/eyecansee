@@ -126,6 +126,7 @@ impl Loader {
         let workers = match loader.op {
             Store::Mtp(_) => 2,
             Store::Sftp(_) => 4,
+            Store::Ftp(_) => crate::ftp::POOL,
             Store::Dal(_) => cores,
         };
         for _ in 0..workers {
@@ -158,10 +159,14 @@ impl Loader {
 
     /// Asks a server the folder it starts in: `Msg::Home` opens it.
     pub fn home(&self) {
-        let Store::Sftp(server) = self.op.clone() else { return };
+        let op = self.op.clone();
         let (base, tx, ctx) = (self.base.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = server.home().await;
+            let r = match op {
+                Store::Sftp(server) => server.home().await,
+                Store::Ftp(server) => server.home().await,
+                _ => return,
+            };
             let _ = tx.send(Msg::Home(base, r));
             ctx.request_repaint();
         });

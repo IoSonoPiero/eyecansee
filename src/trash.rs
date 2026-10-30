@@ -144,6 +144,7 @@ impl Store {
             (_, Deletion::TrashFolder) => self.to_trash_folder(path, name(path)).await,
             (Store::Mtp(phone), _) => phone.delete(path).await,
             (Store::Sftp(server), _) => server.delete(path).await,
+            (Store::Ftp(server), _) => server.delete(path).await,
         }
     }
 

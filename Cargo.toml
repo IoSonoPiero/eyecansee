@@ -46,6 +46,9 @@ russh-sftp = "3.0.1"
 # Saved servers: the key file chosen in the system window (XDG portal on Linux, on zbus already built
 # for accessibility; the common dialog on Windows).
 rfd = "0.17.2"
+# FTP servers (ftp.rs): passive mode to the server's own address, several connections, rename;
+# already built for OpenDAL.
+suppaftp = { version = "10.0.2", features = ["tokio-rustls-ring"] }
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"

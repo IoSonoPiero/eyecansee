@@ -481,12 +481,26 @@ mod tests {
     #[test]
     #[ignore]
     fn sftp_live() {
-        let url = std::env::var("EYECANSEE_SFTP").expect("EYECANSEE_SFTP not set");
+        server_live("EYECANSEE_SFTP");
+    }
+
+    /// The same on an FTP server (`ftp.rs`), with `EYECANSEE_FTP`.
+    #[test]
+    #[ignore]
+    fn ftp_live() {
+        server_live("EYECANSEE_FTP");
+    }
+
+    fn server_live(var: &str) {
+        let url = std::env::var(var).unwrap_or_else(|_| panic!("{var} not set"));
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             let s = source::open(&url).unwrap();
-            let Store::Sftp(server) = &s.op else { panic!("not sftp") };
             let t = std::time::Instant::now();
-            let home = server.home().await.unwrap();
+            let home = match &s.op {
+                Store::Sftp(server) => server.home().await.unwrap(),
+                Store::Ftp(server) => server.home().await.unwrap(),
+                _ => panic!("not a server"),
+            };
             println!("home: {home:?} ({:?}, connection included)", t.elapsed());
             let t = std::time::Instant::now();
             let names = s.op.names(&s.dir).await.map(|n| n.len());

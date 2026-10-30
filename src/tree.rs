@@ -224,7 +224,10 @@ impl App {
         for (i, s) in self.saved_servers.iter().enumerate() {
             let Some(address) = s.address() else { continue };
             let here = self.base.contains("://") && address.starts_with(&self.base);
-            let live = here || s.scheme == "sftp" && crate::sftp::connected(&s.host, s.port, &s.user);
+            let ftp_port = s.port.unwrap_or(21);
+            let live = here
+                || s.scheme == "sftp" && crate::sftp::connected(&s.host, s.port, &s.user)
+                || s.scheme == "ftp" && crate::ftp::connected(&s.host, ftp_port, &s.user);
             let icon = icons::image(ui.ctx(), Icon::Server, TREE_ICON);
             let r = ui.selectable_label(here, (icon, s.name.as_str())).on_hover_text(crate::address::without_password(&address));
             if r.clicked() {
@@ -251,7 +254,11 @@ impl App {
                 let home = std::env::home_dir().map_or("/".into(), |h| h.to_string_lossy().into_owned());
                 self.open_source(&ctx, &home);
             }
-            self.rt.spawn(crate::sftp::disconnect(s.host, s.port, s.user));
+            if s.scheme == "ftp" {
+                self.rt.spawn(crate::ftp::disconnect(s.host, s.port.unwrap_or(21), s.user));
+            } else {
+                self.rt.spawn(crate::sftp::disconnect(s.host, s.port, s.user));
+            }
         }
         if let Some(i) = edit {
             let mut f = crate::address::AddressForm::manager();
