@@ -97,7 +97,17 @@ fn find_in(servers: Vec<Saved>, address: &str) -> Option<Saved> {
     let u = url::Url::parse(address).ok()?;
     let host = u.host_str()?;
     let user = percent_decode_str(u.username()).decode_utf8_lossy();
-    servers.into_iter().find(|s| s.scheme == u.scheme() && s.host.eq_ignore_ascii_case(host) && s.port == u.port() && s.user == user)
+    let wanted = port(u.scheme(), u.port());
+    servers.into_iter().find(|s| s.scheme == u.scheme() && s.host.eq_ignore_ascii_case(host) && port(&s.scheme, s.port) == wanted && s.user == user)
+}
+
+/// The port, the protocol's own when none is written: an address drops ":21" from ftp://.
+fn port(scheme: &str, port: Option<u16>) -> Option<u16> {
+    port.or(match scheme {
+        "ftp" | "ftps" => Some(21),
+        "sftp" => Some(22),
+        _ => None,
+    })
 }
 
 #[cfg(test)]
@@ -111,6 +121,12 @@ mod tests {
         let find = |a: &str| super::find_in(vec![nas.clone(), ftp.clone()], a).map(|s| s.scheme);
         assert_eq!(find("sftp://me%40home@NAS.lan:2222/Foto/"), Some("sftp".into()));
         assert_eq!(find("ftp://nas.lan/"), Some("ftp".into()));
+        // The protocol's own port, written or not, is the same server.
+        let ftp21 = Saved { scheme: "ftp".into(), host: "box".into(), port: Some(21), ..Default::default() };
+        assert!(super::find_in(vec![ftp21.clone()], &ftp21.address().unwrap()).is_some());
+        assert!(super::find_in(vec![ftp21], "ftp://box:21/").is_some());
+        let sftp = Saved { scheme: "sftp".into(), host: "box".into(), ..Default::default() };
+        assert!(super::find_in(vec![sftp], "sftp://box:22/").is_some());
         // Another port, user or protocol is another server.
         for a in ["sftp://me%40home@nas.lan/", "sftp://other@nas.lan:2222/", "ftps://nas.lan/", "/home/me/"] {
             assert_eq!(find(a), None, "{a}");
