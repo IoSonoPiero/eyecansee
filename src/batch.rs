@@ -221,11 +221,15 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
     let (Some(v), Some(probe)) = (job.video.clone(), crate::ffmpeg::probed()) else { return Err((SKIP_VIDEO, name)) };
     let temp = |what: &str| std::env::temp_dir().join(format!("eyecansee-{what}-{}-{}", std::process::id(), source::name(to)));
+    // Download, ffmpeg and upload share the video's bar in equal parts.
+    // ponytail: equal parts, not by time: a "copy" conversion jumps through its third.
+    let (remote_in, remote_out) = (op.local_file(path).is_none(), out.local_file(to).is_none());
+    let phases = Phases { p: p.clone(), count: 1 + remote_in as u32 + remote_out as u32 };
     let input = match op.local_file(path) {
         Some(file) => (file, false),
         None => {
             let file = temp("in");
-            download(op, path, &file).await.map_err(|e| failed(e.to_string()))?;
+            download(op, path, &file, |f| phases.set(0, f)).await.map_err(|e| failed(e.to_string()))?;
             (file, true)
         }
     };
@@ -234,8 +238,8 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
     let tags = if v.meta { crate::video_read::track_tags(op, path).await } else { Vec::new() };
     let args = crate::ffmpeg::args(&v, job.size, job.enlarge, job.turn, (&input.0.to_string_lossy(), &output.0.to_string_lossy()), &probe.audio, &tags);
     log!("ffmpeg {args:?}");
-    let (program, p2) = (probe.program.clone(), p.clone());
-    let r = tokio::task::spawn_blocking(move || crate::ffmpeg::run(&program, &args, |f| p2.part.store((f * 1000.0) as u32, Ordering::Relaxed), &p2.cancel))
+    let (program, ph, first) = (probe.program.clone(), phases.clone(), remote_in as u32);
+    let r = tokio::task::spawn_blocking(move || crate::ffmpeg::run(&program, &args, |f| ph.set(first, f), &ph.p.cancel))
         .await
         .unwrap_or_else(|e| Err(e.to_string()));
     if input.1 {
@@ -245,7 +249,10 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
         keep_thumbnail(to, &output.0).await;
     }
     let r = match r {
-        Ok(()) if output.1 => upload(out, to, &output.0).await.map_err(|e| failed(e.to_string())),
+        Ok(()) if output.1 => {
+            let (ph, last) = (phases.clone(), phases.count - 1);
+            upload(out, to, &output.0, move |f| ph.set(last, f)).await.map_err(|e| failed(e.to_string()))
+        }
         Ok(()) => Ok(()),
         Err(e) => Err(failed(e)),
     };
@@ -255,8 +262,22 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
     r
 }
 
-/// `path` of `op` into the local `file`, 4 MB at a time.
-async fn download(op: &Store, path: &str, file: &std::path::Path) -> std::io::Result<()> {
+/// The parts of a video's conversion on the bar: `set(phase, 0 to 1)`.
+#[derive(Clone)]
+struct Phases {
+    p: Arc<Progress>,
+    count: u32,
+}
+
+impl Phases {
+    fn set(&self, phase: u32, f: f32) {
+        let whole = (phase as f32 + f.clamp(0.0, 1.0)) / self.count as f32;
+        self.p.part.store((whole * 1000.0) as u32, Ordering::Relaxed);
+    }
+}
+
+/// `path` of `op` into the local `file`, 4 MB at a time; `progress` gets 0 to 1.
+async fn download(op: &Store, path: &str, file: &std::path::Path, progress: impl Fn(f32)) -> std::io::Result<()> {
     use std::io::Write;
     let size = op.size(path).await.map_err(|(_, d)| std::io::Error::other(d))?;
     let mut f = std::fs::File::create(file)?;
@@ -268,17 +289,20 @@ async fn download(op: &Store, path: &str, file: &std::path::Path) -> std::io::Re
         }
         f.write_all(&piece)?;
         at += piece.len() as u64;
+        progress(at as f32 / size as f32);
     }
     Ok(())
 }
 
-/// The local `file` written to `to` of `out`, 1 MB at a time.
-async fn upload(out: &Store, to: &str, file: &std::path::Path) -> std::io::Result<()> {
+/// The local `file` written to `to` of `out`, 1 MB at a time; `progress` gets 0 to 1 as it is
+/// read (a few MB ahead of what the server has).
+async fn upload(out: &Store, to: &str, file: &std::path::Path, progress: impl Fn(f32) + Send + 'static) -> std::io::Result<()> {
     use std::io::Read;
     let size = std::fs::metadata(file)?.len();
     let mut f = std::fs::File::open(file)?;
     let (tx, rx) = tokio::sync::mpsc::channel(4);
     let reader = tokio::task::spawn_blocking(move || {
+        let mut sent = 0;
         loop {
             let mut buf = vec![0; 1 << 20];
             let n = match f.read(&mut buf) {
@@ -293,6 +317,8 @@ async fn upload(out: &Store, to: &str, file: &std::path::Path) -> std::io::Resul
             if tx.blocking_send(Ok(bytes::Bytes::from(buf))).is_err() {
                 return;
             }
+            sent += n as u64;
+            progress(sent as f32 / size.max(1) as f32);
         }
     });
     let r = out.write_chunks(to, size, rx).await.map_err(|(_, d)| std::io::Error::other(d));
@@ -397,6 +423,18 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
 #[cfg(test)]
 mod tests {
     use image::DynamicImage;
+
+    /// Download, ffmpeg and upload each take a third of the video's bar.
+    #[test]
+    fn video_phases_share_the_bar() {
+        let ph = super::Phases { p: std::sync::Arc::default(), count: 3 };
+        let part = |phase, f| {
+            ph.set(phase, f);
+            ph.p.part.load(std::sync::atomic::Ordering::Relaxed)
+        };
+        assert_eq!((part(0, 0.0), part(0, 1.0), part(1, 0.5), part(2, 1.0)), (0, 333, 500, 1000));
+        assert_eq!(part(1, 7.0), 666);
+    }
 
     use super::*;
 
