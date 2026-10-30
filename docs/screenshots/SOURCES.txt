@@ -1,6 +1,12 @@
 What the screenshots and the GIF show (grid.png, viewer.png, mtp-open.gif: a POCO X7 Pro's folder
 DCIM/EyeCanSee-demo, made of the files below; convert.png, rotate.png: the same photos on disk).
 
+devices.png: the 13 photos below in the folder Photos of a test FTP server on the same computer,
+saved as "NAS" (nas.example, user "demo"); in the left panel two disks, a POCO X7 Pro and a second
+saved server "Storage Box" (storage.example), not opened. servers.png: the server manager with
+these two example servers and a master password. rotate.png: Wilderness.jpg. Server names, hosts
+and users are made up for the screenshots.
+
 Photos: public domain or CC0, from Wikimedia Commons (renamed; in the phone folder copied several
 times as IMG_0001.jpg ... IMG_0334.jpg, in the order of the list).
 

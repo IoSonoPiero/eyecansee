@@ -14,7 +14,13 @@ It is early in development. This page lists only what works now: new features ar
 
 ![The viewer](docs/screenshots/viewer.png)
 
+![Folders, disks, a server and a phone side by side in the left panel](docs/screenshots/devices.png)
+
 ![Saving in another format, the original and the result side by side](docs/screenshots/convert.png)
+
+![Rotating and cropping](docs/screenshots/rotate.png)
+
+![The server manager, with a master password for the saved servers](docs/screenshots/servers.png)
 
 ## About
 
