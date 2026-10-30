@@ -6,7 +6,7 @@ It is early in development. This page lists only what works now: new features ar
 
 - No import and no database: you open a folder and the photos are there.
 - Folders, disks, SFTP and FTP servers and Android phones are browsed the same way.
-- Modern and camera formats: HEIC, AVIF, JPEG XL, Camera RAW, PSD and videos.
+- Opens modern and camera formats: HEIC, AVIF, JPEG XL, Camera RAW, PSD and videos.
 - Photo and video conversion, on the graphics card when it can.
 - Signed releases that update themselves.
 
