@@ -35,6 +35,8 @@ pub enum Icon {
     RotateCcw,
     /// Badge of the videos in the grid.
     Video,
+    /// A saved server in the left panel.
+    Server,
 }
 
 const VIDEO: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#000000" fill-opacity="0.6"/><path d="M9.5 7.2v9.6l7.6-4.8z" fill="#ffffff"/></svg>"##;
@@ -48,6 +50,7 @@ const PHONE: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 
 const DISK: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="3" fill="#5b6b86"/><circle cx="6.5" cy="12" r="1.5" fill="#7ee2a8"/></svg>"##;
 const INTERNAL_DISK: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="12" rx="3" fill="#1a62c9"/><circle cx="6.5" cy="12" r="1.5" fill="#cfe0fa"/></svg>"##;
 const TRASH: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="3" rx="1" fill="#c0392b"/><path d="M9 5V3.5h6V5" fill="none" stroke="#c0392b" stroke-width="1.8"/><path d="M6 9h12l-1 12H7z" fill="#e05a4b"/><path d="M10 12v6M14 12v6" stroke="#ffffff" stroke-width="1.6" stroke-linecap="round"/></svg>"##;
+const SERVER: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="3.5" width="18" height="7.5" rx="2" fill="#7b5cc4"/><rect x="3" y="13" width="18" height="7.5" rx="2" fill="#7b5cc4"/><circle cx="7" cy="7.25" r="1.3" fill="#7ee2a8"/><circle cx="7" cy="16.75" r="1.3" fill="#7ee2a8"/><path d="M11 7.25h6M11 16.75h6" stroke="#e4dcf7" stroke-width="1.6" stroke-linecap="round"/></svg>"##;
 const HOME: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 11 12 3.5 21 11v9.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" fill="#1a62c9"/><rect x="9.5" y="14" width="5" height="7.5" rx="1" fill="#f4b63f"/></svg>"##;
 
 const COPIED: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11.5" fill="#1a62c9"/><rect x="6" y="5" width="8.5" height="10.5" rx="1.5" fill="none" stroke="#ffffff" stroke-width="1.8"/><rect x="9.5" y="8.5" width="8.5" height="10.5" rx="1.5" fill="#1a62c9" stroke="#ffffff" stroke-width="1.8"/></svg>"##;
@@ -74,6 +77,7 @@ fn svg(icon: Icon) -> &'static str {
         Icon::RotateCw => ROTATE_CW,
         Icon::RotateCcw => ROTATE_CCW,
         Icon::Video => VIDEO,
+        Icon::Server => SERVER,
     }
 }
 

@@ -54,6 +54,7 @@ error-no-storage = Il dispositivo non mostra nessuna memoria: sbloccalo e scegli
 
 menu-file = File
 menu-open-location = Apri indirizzo…
+menu-servers = Gestione server…
 menu-options = Opzioni…
 menu-quit = Esci
 menu-edit = Modifica
@@ -163,6 +164,7 @@ opt-theme-light = Chiari
 opt-theme-dark = Scuri
 
 devices = Dispositivi
+servers = Server
 this-computer = Questo computer
 device-mount-hint = Non montata ({ $device }): clic per montarla e aprirla
 error-mount = Impossibile montare la partizione: { $detail }
@@ -469,15 +471,19 @@ addr-folder = Cartella
 addr-bad-port = La porta deve essere un numero da 1 a 65535.
 addr-open = Apri
 addr-name = Nome
-addr-saved = Server salvati
-addr-saved-new = Nuovo server
 addr-key = File della chiave
 addr-key-hint = ~/.ssh/id_ed25519
 addr-passphrase = Passphrase della chiave
-addr-save = Salva server
-addr-delete = Elimina server
-addr-delete-ask = Eliminare "{ $name }" dai server salvati?
-addr-save-failed = Impossibile salvare i server: { $detail }
+srv-title = Gestione server
+srv-new = Nuovo server
+srv-connect = Connetti
+srv-save = Salva
+srv-delete = Elimina
+srv-close = Chiudi
+srv-empty = Nessun server salvato: compila i campi e premi Salva.
+srv-file = Salvati in { $path }, password in chiaro.
+srv-delete-ask = Eliminare "{ $name }" dai server salvati?
+srv-save-failed = Impossibile salvare i server: { $detail }
 kiod-ask = KDE tiene il telefono con il suo servizio kiod, quello che Dolphin usa per i telefoni. Per aprirlo, EyeCanSee deve chiudere quel servizio. KDE lo riavvia da solo, ma **dimentica le password delle cartelle di rete** (Samba, SFTP…) aperte in Dolphin e le chiederà di nuovo al prossimo accesso.
 
     Questo **non dipende da EyeCanSee**: KDE tiene i telefoni e quelle password nello stesso servizio, e non permette di liberare solo il telefono.

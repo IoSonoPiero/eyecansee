@@ -42,6 +42,7 @@ impl App {
     fn file_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
         entry(ui, act, true, egui::Button::new(t("menu-open-location")), Act::Address);
+        entry(ui, act, true, egui::Button::new(t("menu-servers")), Act::Servers);
         entry(ui, act, self.can_make_folder(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder(None));
         ui.separator();
         entry(ui, act, self.can_save(), item(t("menu-save"), t("key-save")), Act::Save);

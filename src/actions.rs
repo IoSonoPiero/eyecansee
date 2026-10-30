@@ -17,6 +17,7 @@ pub(crate) enum Act {
     /// A right-click item shown greyed out, with why on hover: never run.
     Off(String),
     Address,
+    Servers,
     Options,
     /// Ctrl+A in the grid.
     SelectAll,
@@ -138,6 +139,7 @@ impl App {
         log!("menu {act:?}");
         match act {
             Act::Address => self.open_address = Some(AddressForm::new()),
+            Act::Servers => self.server_manager = Some(AddressForm::manager()),
             Act::Options => self.options = true,
             Act::SelectAll => self.select_all(),
             Act::RotateSaveAs => {

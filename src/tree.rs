@@ -213,6 +213,28 @@ impl App {
         }
     }
 
+    /// The saved servers (File > Server manager): a click opens one, the open one is highlighted.
+    fn server_block(&mut self, ui: &mut Ui) {
+        if self.saved_servers.is_empty() {
+            return;
+        }
+        block_title(ui, &self.i18n.t("servers"));
+        let mut open = None;
+        for s in &self.saved_servers {
+            let Some(address) = s.address() else { continue };
+            let here = self.base.contains("://") && address.starts_with(&self.base);
+            let icon = icons::image(ui.ctx(), Icon::Server, TREE_ICON);
+            if ui.selectable_label(here, (icon, s.name.as_str())).on_hover_text(crate::address::without_password(&address)).clicked() {
+                open = Some(address);
+            }
+        }
+        ui.separator();
+        if let Some(address) = open {
+            let ctx = ui.ctx().clone();
+            self.open_source(&ctx, &address);
+        }
+    }
+
     pub(crate) fn tree_blocks(&mut self, ui: &mut Ui) {
         let local = self.base == "/";
         // On Windows the internal drives go under "This computer", in drive letter order.
@@ -264,6 +286,7 @@ impl App {
             });
             ui.separator();
         }
+        self.server_block(ui);
         self.tree_split = self.tree_rows.len();
         // With a device open the tree would be a duplicate: in its place, the way back home.
         // The way back is also needed if the open phone was unplugged (its error stays below).

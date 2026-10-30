@@ -64,6 +64,7 @@ mod rotate;
 mod rotate_page;
 mod save_dialogs;
 mod selection;
+mod server_manager;
 mod servers;
 mod settings;
 mod sftp;
@@ -259,6 +260,10 @@ struct App {
     note_until: Option<f64>,
     /// The message of a stalled phone, while it lasts (`App::phone_stall`).
     stall_notice: Option<String>,
+    /// File > Server manager: the window, with the server being changed.
+    server_manager: Option<AddressForm>,
+    /// The saved servers, listed in the left panel.
+    saved_servers: Vec<servers::Saved>,
     /// File > Open location: the window, with what is typed in it.
     open_address: Option<AddressForm>,
     /// A transform on images of the grid: the images and the operation, to confirm.
@@ -410,6 +415,8 @@ impl App {
             notice: None,
             kiod_ask: false,
             host_ask: false,
+            server_manager: None,
+            saved_servers: servers::load(),
             status_note: None,
             note_until: None,
             stall_notice: None,
@@ -631,6 +638,7 @@ impl App {
         self.kiod_window(ctx);
         self.host_window(ctx);
         self.address_window(ctx);
+        self.server_manager_window(ctx);
         self.paste_window(ctx);
         self.transfer_window(ctx);
         self.rename_window(ctx);
@@ -644,7 +652,7 @@ impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer).
         // Open location and Convert and resize have fields to type in: there the keys go to the field.
-        if self.asking() && !((self.open_address.is_some() || self.batch.is_some()) && ctx.egui_wants_keyboard_input()) {
+        if self.asking() && !((self.open_address.is_some() || self.server_manager.is_some() || self.batch.is_some()) && ctx.egui_wants_keyboard_input()) {
             let answer = &mut self.delete_answer;
             raw_input.events.retain(|e| match e {
                 egui::Event::Key { key, pressed: true, .. } => {

@@ -40,6 +40,26 @@ impl Saved {
     }
 }
 
+impl Saved {
+    /// Its address without the password (found again by `find` when opened): what the left
+    /// panel opens. `None` for a server name that is not valid in an address.
+    pub(crate) fn address(&self) -> Option<String> {
+        let mut u = url::Url::parse(&format!("{}://{}/", self.scheme, self.host.trim())).ok()?;
+        u.set_port(self.port).ok()?;
+        if !self.user.is_empty() {
+            u.set_username(&self.user).ok()?;
+        }
+        let folder = self.folder.trim().trim_matches('/');
+        u.set_path(&if folder.is_empty() { "/".to_string() } else { format!("/{folder}/") });
+        Some(u.to_string())
+    }
+}
+
+/// Where the saved servers are, as shown in the server manager.
+pub(crate) fn file() -> String {
+    path().map(|p| p.display().to_string()).unwrap_or_default()
+}
+
 fn path() -> Option<PathBuf> {
     crate::settings::config_path("servers.json")
 }
@@ -95,6 +115,15 @@ mod tests {
         for a in ["sftp://me%40home@nas.lan/", "sftp://other@nas.lan:2222/", "ftps://nas.lan/", "/home/me/"] {
             assert_eq!(find(a), None, "{a}");
         }
+    }
+
+    #[test]
+    fn address_without_password() {
+        let s = Saved { scheme: "sftp".into(), host: "nas.lan".into(), port: Some(2222), user: "me@home".into(), password: "pw".into(), folder: "/Foto/2026".into(), ..Default::default() };
+        assert_eq!(s.address(), Some("sftp://me%40home@nas.lan:2222/Foto/2026/".into()));
+        assert_eq!(super::find_in(vec![s.clone()], &s.address().unwrap()).map(|s| s.password), Some("pw".into()));
+        let ftp = Saved { scheme: "ftp".into(), host: "nas.lan".into(), ..Default::default() };
+        assert_eq!(ftp.address(), Some("ftp://nas.lan/".into()));
     }
 
     #[test]

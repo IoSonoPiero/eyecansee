@@ -1,5 +1,5 @@
-//! File > Open location: the window with a whole address or its parts, the saved servers, and
-//! the address for the log.
+//! File > Open location: the window with a whole address or its parts, the fields shared with
+//! the server manager, and the address for the log.
 
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
@@ -13,7 +13,7 @@ use crate::{App, browser};
 /// Protocols of File > Open location.
 const SCHEMES: &[&str] = &["ftp", "ftps", "sftp"];
 
-/// File > Open location: a whole address, or its parts, and the saved servers.
+/// File > Open location: a whole address, or its parts; File > Server manager: the saved servers.
 #[derive(Clone, Default)]
 pub(crate) struct AddressForm {
     pub(crate) url: String,
@@ -43,9 +43,16 @@ pub(crate) struct AddressForm {
 }
 
 impl AddressForm {
-    /// File > Open location, with the saved servers.
+    /// File > Open location.
     pub(crate) fn new() -> Self {
-        Self { first: true, servers: servers::load(), ..Default::default() }
+        Self { first: true, ..Default::default() }
+    }
+
+    /// File > Server manager: the saved servers, the first one chosen.
+    pub(crate) fn manager() -> Self {
+        let mut f = Self { servers: servers::load(), ..Default::default() };
+        f.choose((!f.servers.is_empty()).then_some(0));
+        f
     }
 
     /// An FTP or FTPS address with a user but no password, as the last location is saved: the
@@ -71,7 +78,6 @@ impl AddressForm {
             port: u.port().map(|p| p.to_string()).unwrap_or_default(),
             user: decode(u.username()),
             folder: decode(u.path()),
-            servers: servers::load(),
             password_focus: true,
             ..Default::default()
         })
@@ -168,9 +174,10 @@ fn field(ui: &mut egui::Ui, label: String, text: &mut String, hint: String, pass
 
 impl App {
     /// File > Open location: an address typed whole, or protocol, server, port, user, password
-    /// and folder in their own fields; saved servers to fill them, change or delete.
+    /// and folder in their own fields.
     pub(crate) fn address_window(&mut self, ctx: &egui::Context) {
         let Some(mut f) = self.open_address.clone() else { return };
+        let t = |id| self.i18n.t(id);
         let address = f.address();
         let bad_port = f.url.trim().is_empty() && !f.port.trim().is_empty() && f.port.trim().parse::<u16>().is_err();
         // In a field Enter and Esc reach the window; elsewhere they arrive as `delete_answer`.
@@ -178,31 +185,27 @@ impl App {
         let mut answer = ctx.input(|i| if i.key_pressed(Key::Escape) || keys == Some(false) { Some(false) } else { None });
         egui::Modal::new(egui::Id::unique("open-address")).show(ctx, |ui| {
             ui.set_width(460.0);
-            crate::theme::title(ui, self.i18n.t("addr-title"));
+            crate::theme::title(ui, t("addr-title"));
             ui.add_space(4.0);
-            self.address_fields(ui, &mut f);
-            if bad_port {
-                ui.label(browser::error_text(ui, self.i18n.t("addr-bad-port")));
-            }
-            if let Some(e) = &f.error {
-                ui.label(browser::error_text(ui, self.i18n.t_args("addr-save-failed", &[("detail", e.as_str())])));
+            let url = ui.add(egui::TextEdit::singleline(&mut f.url).hint_text(t("tb-address-hint")).desired_width(f32::INFINITY));
+            if f.first {
+                url.request_focus();
+                f.first = false;
             }
             ui.add_space(8.0);
-            let enter = !f.deleting && (keys == Some(true) || ui.input(|i| i.key_pressed(Key::Enter)));
-            if f.deleting {
-                self.address_delete_row(ui, &mut f);
-                return;
+            ui.label(t("addr-or"));
+            ui.add_space(4.0);
+            ui.add_enabled_ui(f.url.trim().is_empty(), |ui| {
+                egui::Grid::new("addr-parts").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| self.address_grid(ui, &mut f, false));
+            });
+            if bad_port {
+                ui.label(browser::error_text(ui, t("addr-bad-port")));
             }
-            let t = |id| self.i18n.t(id);
+            ui.add_space(8.0);
+            let enter = keys == Some(true) || ui.input(|i| i.key_pressed(Key::Enter));
             ui.horizontal(|ui| {
                 if ui.add_enabled(address.is_some(), egui::Button::new(t("addr-open"))).clicked() || (enter && address.is_some()) {
                     answer = Some(true);
-                }
-                if ui.add_enabled(f.saved().is_some(), egui::Button::new(t("addr-save"))).clicked() {
-                    f.store();
-                }
-                if ui.add_enabled(f.chosen.is_some(), egui::Button::new(t("addr-delete"))).clicked() {
-                    f.deleting = true;
                 }
                 if ui.button(t("delete-no")).clicked() {
                     answer = Some(false);
@@ -221,43 +224,13 @@ impl App {
         }
     }
 
-    /// Saved servers, the whole address, then its parts.
-    fn address_fields(&self, ui: &mut egui::Ui, f: &mut AddressForm) {
+    /// The fields of an address; for the server manager (`saved`) also name, key file and passphrase.
+    pub(crate) fn address_grid(&self, ui: &mut egui::Ui, f: &mut AddressForm, saved: bool) {
         let t = |id| self.i18n.t(id);
-        if !f.servers.is_empty() {
-            ui.horizontal(|ui| {
-                ui.label(t("addr-saved"));
-                let shown = f.chosen.and_then(|i| f.servers.get(i)).map_or(t("addr-saved-new"), |s| s.name.clone());
-                let mut chosen = f.chosen;
-                egui::ComboBox::from_id_salt("addr-saved").selected_text(shown).width(300.0).show_ui(ui, |ui| {
-                    ui.selectable_value(&mut chosen, None, t("addr-saved-new"));
-                    for (i, s) in f.servers.iter().enumerate() {
-                        ui.selectable_value(&mut chosen, Some(i), &s.name);
-                    }
-                });
-                if chosen != f.chosen {
-                    f.choose(chosen);
-                }
-            });
-            ui.add_space(8.0);
+        if saved {
+            let host_hint = f.host.clone();
+            field(ui, t("addr-name"), &mut f.name, host_hint, false);
         }
-        let url = ui.add(egui::TextEdit::singleline(&mut f.url).hint_text(t("tb-address-hint")).desired_width(f32::INFINITY));
-        if f.first {
-            url.request_focus();
-            f.first = false;
-        }
-        ui.add_space(8.0);
-        ui.label(t("addr-or"));
-        ui.add_space(4.0);
-        ui.add_enabled_ui(f.url.trim().is_empty(), |ui| {
-            egui::Grid::new("addr-parts").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| self.address_grid(ui, f));
-        });
-    }
-
-    fn address_grid(&self, ui: &mut egui::Ui, f: &mut AddressForm) {
-        let t = |id| self.i18n.t(id);
-        let host_hint = f.host.clone();
-        field(ui, t("addr-name"), &mut f.name, host_hint, false);
         ui.label(t("addr-protocol"));
         egui::ComboBox::from_id_salt("addr-scheme").selected_text(SCHEMES[f.scheme].to_uppercase()).show_ui(ui, |ui| {
             for (i, s) in SCHEMES.iter().enumerate() {
@@ -275,7 +248,7 @@ impl App {
             f.password_focus = false;
         }
         field(ui, t("addr-folder"), &mut f.folder, "/".to_string(), false);
-        if sftp {
+        if saved && sftp {
             ui.label(t("addr-key"));
             ui.horizontal(|ui| {
                 ui.add(egui::TextEdit::singleline(&mut f.key_file).hint_text(t("addr-key-hint")).desired_width(210.0));
@@ -303,20 +276,6 @@ impl App {
             if let Some(file) = dialog.pick_file().await {
                 *slot.lock().unwrap() = Some(file.path().to_path_buf());
                 ctx.request_repaint();
-            }
-        });
-    }
-
-    /// "Delete this server?" in place of the buttons.
-    fn address_delete_row(&self, ui: &mut egui::Ui, f: &mut AddressForm) {
-        let name = f.chosen.and_then(|i| f.servers.get(i)).map(|s| s.name.clone()).unwrap_or_default();
-        ui.label(self.i18n.t_args("addr-delete-ask", &[("name", name.as_str())]));
-        ui.horizontal(|ui| {
-            if ui.button(self.i18n.t("delete-yes")).clicked() {
-                f.remove();
-            }
-            if ui.button(self.i18n.t("delete-no")).clicked() {
-                f.deleting = false;
             }
         });
     }
