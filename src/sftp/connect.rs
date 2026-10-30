@@ -90,10 +90,17 @@ fn resolve(t: &Target) -> Resolved {
     Resolved { host: cfg.host().to_string(), port: t.port.unwrap_or_else(|| cfg.port()), user, files }
 }
 
+/// The server as the user wrote it, with the address it stands for when it is an alias of
+/// `~/.ssh/config`: "ironmanl (100.64.10.6:40222)".
+fn label(t: &Target, r: &Resolved) -> String {
+    let addr = if r.port == 22 { r.host.clone() } else { format!("{}:{}", r.host, r.port) };
+    if t.host == r.host { addr } else { format!("{} ({addr})", t.host) }
+}
+
 /// Connected and logged in.
 pub(super) async fn connect(t: &Target) -> Result<Handle<Client>, Error> {
     let r = resolve(t);
-    let label = if r.port == 22 { r.host.clone() } else { format!("{}:{}", r.host, r.port) };
+    let label = label(t, &r);
     let refused = Arc::new(Mutex::new(None));
     let handler = Client { label: label.clone(), host: r.host.clone(), port: r.port, refused: refused.clone() };
     let config = Arc::new(client::Config {
@@ -224,5 +231,14 @@ mod tests {
         assert_eq!((r.host.as_str(), r.port, r.user.as_str()), ("server.invalid", 22, "me"));
         let t = super::Target { port: Some(2222), ..t };
         assert_eq!(super::resolve(&t).port, 2222);
+    }
+
+    /// An alias shows the address it stands for; an address is shown once.
+    #[test]
+    fn label_of_alias() {
+        let t = super::Target { user: String::new(), host: "box".into(), port: None, password: None };
+        let r = |host: &str, port| super::Resolved { host: host.into(), port, user: String::new(), files: vec![] };
+        assert_eq!(super::label(&t, &r("10.0.0.1", 2222)), "box (10.0.0.1:2222)");
+        assert_eq!(super::label(&t, &r("box", 22)), "box");
     }
 }
