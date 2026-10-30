@@ -137,7 +137,7 @@ impl App {
     pub(crate) fn run(&mut self, ctx: &egui::Context, act: Act) {
         log!("menu {act:?}");
         match act {
-            Act::Address => self.open_address = Some(AddressForm { first: true, ..Default::default() }),
+            Act::Address => self.open_address = Some(AddressForm::new()),
             Act::Options => self.options = true,
             Act::SelectAll => self.select_all(),
             Act::RotateSaveAs => {

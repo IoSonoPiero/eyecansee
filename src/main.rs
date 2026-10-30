@@ -62,6 +62,7 @@ mod rotate;
 mod rotate_page;
 mod save_dialogs;
 mod selection;
+mod servers;
 mod settings;
 mod sftp;
 mod single;

@@ -28,7 +28,7 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 
 **Tools > Options…** opens the options window, divided into tabs: **General** (last folder, window at startup, language, updates), **Look** (colors), **Browsing** (scrolling, viewer), **Deleting**, **Thumbnails**, **Slideshow** and **Video** (video engine and FFmpeg). Every change is saved immediately in `~/.config/eyecansee/settings.json` on Linux and `%APPDATA%\eyecansee\settings.json` on Windows, a text file you can also edit by hand.
 
-- **Reopen the last folder at startup** (on by default): when EyeCanSee starts without a folder, for example from the applications menu, it opens the folder you were viewing when you closed it. If that folder no longer exists, it opens your home folder. Remote locations reopen without the password, which is never saved: for an FTP server with a user, **File > Open location…** opens with everything filled in except the password, ready to be typed (Cancel stays in your home folder).
+- **Reopen the last folder at startup** (on by default): when EyeCanSee starts without a folder, for example from the applications menu, it opens the folder you were viewing when you closed it. If that folder no longer exists, it opens your home folder. Remote locations reopen with the password only when the server is among the **saved servers** (see *Opening images*): otherwise, for an FTP server with a user, **File > Open location…** opens with everything filled in except the password, ready to be typed (Cancel stays in your home folder).
 - **Remember the scroll position of each folder** (off by default): when you go back to a folder you already viewed, the grid starts where you left it. When off, every folder you open starts from the first thumbnail. It lasts until EyeCanSee is closed.
 - **In the viewer, after the last image start again from the first** (off by default): and from the first image, going back shows the last one. When off, the viewer stops at the first and the last image.
 - **Mouse wheel in the viewer**: **Zooms in and out** (default) or **Shows the next or previous image**. Holding Ctrl, the wheel always zooms.
@@ -194,6 +194,8 @@ eyecansee ftps://user@nas.lan/Photos
 eyecansee sftp://user@server:2222/home/user/Photos
 eyecansee sftp://my-nas/                   an alias of ~/.ssh/config
 ```
+
+**Saved servers**: in the same window fill in the fields, give a **Name** (empty = the server's name) and press **Save server**. From then on the server is in the **Saved servers** list at the top of the window: choosing it fills in the fields, which you can change and save again with **Save server**; **Delete server** removes it, after a confirmation. For SFTP there are also **Key file** (**Browse…** opens the system window in the `~/.ssh` folder, or in your home folder without it) and **Key passphrase**: that key is tried first. An address that matches a saved server (same protocol, server, port and user), also typed in the address bar or reopened at startup, uses its password and key. ⚠️ For now passwords and passphrases are written **in plain text** in the `servers.json` file of the settings folder (on Linux readable only by you): do not save there passwords you do not want to leave on the computer.
 
 Only one EyeCanSee runs at a time (a phone can be used by one program only): if it is already open, starting it again, for example with "Open with" on a photo, shows that folder or image in the window already open.
 

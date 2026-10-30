@@ -463,6 +463,16 @@ addr-password = Password
 addr-folder = Cartella
 addr-bad-port = La porta deve essere un numero da 1 a 65535.
 addr-open = Apri
+addr-name = Nome
+addr-saved = Server salvati
+addr-saved-new = Nuovo server
+addr-key = File della chiave
+addr-key-hint = ~/.ssh/id_ed25519
+addr-passphrase = Passphrase della chiave
+addr-save = Salva server
+addr-delete = Elimina server
+addr-delete-ask = Eliminare "{ $name }" dai server salvati?
+addr-save-failed = Impossibile salvare i server: { $detail }
 kiod-ask = KDE tiene il telefono con il suo servizio kiod, quello che Dolphin usa per i telefoni. Per aprirlo, EyeCanSee deve chiudere quel servizio. KDE lo riavvia da solo, ma **dimentica le password delle cartelle di rete** (Samba, SFTP…) aperte in Dolphin e le chiederà di nuovo al prossimo accesso.
 
     Questo **non dipende da EyeCanSee**: KDE tiene i telefoni e quelle password nello stesso servizio, e non permette di liberare solo il telefono.

@@ -193,6 +193,11 @@ impl Default for Settings {
 }
 
 fn path() -> Option<PathBuf> {
+    config_path("settings.json")
+}
+
+/// A file in EyeCanSee's configuration folder.
+pub(crate) fn config_path(name: &str) -> Option<PathBuf> {
     let base = if cfg!(windows) {
         std::env::var_os("APPDATA").map(PathBuf::from)
     } else {
@@ -200,7 +205,7 @@ fn path() -> Option<PathBuf> {
             .map(PathBuf::from)
             .or_else(|| std::env::home_dir().map(|h| h.join(".config")))
     };
-    Some(base?.join("eyecansee").join("settings.json"))
+    Some(base?.join("eyecansee").join(name))
 }
 
 impl Settings {

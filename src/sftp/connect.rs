@@ -1,6 +1,7 @@
 //! Opening an SFTP connection as `ssh` would: the host as `~/.ssh/config` describes it (alias,
 //! HostName, User, Port, IdentityFile), the server's key checked against `~/.ssh/known_hosts`,
-//! then the login with the agent's keys, key files without a passphrase, or the password.
+//! then the login with the saved server's key, the agent's keys, key files without a passphrase,
+//! or the password.
 //! Not supported: ProxyJump and ProxyCommand.
 
 use std::path::PathBuf;
@@ -22,6 +23,8 @@ pub struct Target {
     pub host: String,
     pub port: Option<u16>,
     pub password: Option<String>,
+    /// A saved server's key file and its passphrase ("" = none).
+    pub key: Option<(PathBuf, String)>,
 }
 
 /// A server key not in known_hosts, waiting for the user's answer (`trust`): host label, host,
@@ -78,6 +81,7 @@ struct Resolved {
     port: u16,
     user: String,
     files: Vec<PathBuf>,
+    key: Option<(PathBuf, String)>,
 }
 
 fn resolve(t: &Target) -> Resolved {
@@ -87,7 +91,7 @@ fn resolve(t: &Target) -> Resolved {
     if let Some(ssh) = std::env::home_dir().map(|h| h.join(".ssh")) {
         files.extend(["id_ed25519", "id_ecdsa", "id_rsa"].map(|f| ssh.join(f)));
     }
-    Resolved { host: cfg.host().to_string(), port: t.port.unwrap_or_else(|| cfg.port()), user, files }
+    Resolved { host: cfg.host().to_string(), port: t.port.unwrap_or_else(|| cfg.port()), user, files, key: t.key.clone() }
 }
 
 /// The server as the user wrote it, with the address it stands for when it is an alias of
@@ -140,6 +144,17 @@ async fn login(h: &mut Handle<Client>, r: &Resolved, password: Option<&str>) -> 
         return Ok(());
     }
     let rsa_hash = h.best_supported_rsa_hash().await.ok().flatten().flatten();
+    if let Some((file, passphrase)) = &r.key {
+        match keys::load_secret_key(file, (!passphrase.is_empty()).then_some(passphrase.as_str())) {
+            Ok(key) => {
+                let key = PrivateKeyWithHashAlg::new(Arc::new(key), rsa_hash);
+                if matches!(h.authenticate_publickey(&r.user, key).await, Ok(AuthResult::Success)) {
+                    return Ok(());
+                }
+            }
+            Err(e) => log!("sftp: saved key {}: {e}", file.display()),
+        }
+    }
     // The keys named in ~/.ssh/config, as public keys next to their files.
     let named: Vec<PublicKey> = r.files.iter().filter_map(|f| PublicKey::read_openssh_file(pub_file(f)).ok()).collect();
     if agent_login(h, &r.user, &named, rsa_hash).await {
@@ -226,7 +241,7 @@ mod tests {
     /// Without a line in ~/.ssh/config the address is used as it is, on port 22.
     #[test]
     fn resolve_without_config() {
-        let t = super::Target { user: "me".into(), host: "server.invalid".into(), port: None, password: None };
+        let t = super::Target { user: "me".into(), host: "server.invalid".into(), port: None, password: None, key: None };
         let r = super::resolve(&t);
         assert_eq!((r.host.as_str(), r.port, r.user.as_str()), ("server.invalid", 22, "me"));
         let t = super::Target { port: Some(2222), ..t };
@@ -236,8 +251,8 @@ mod tests {
     /// An alias shows the address it stands for; an address is shown once.
     #[test]
     fn label_of_alias() {
-        let t = super::Target { user: String::new(), host: "box".into(), port: None, password: None };
-        let r = |host: &str, port| super::Resolved { host: host.into(), port, user: String::new(), files: vec![] };
+        let t = super::Target { user: String::new(), host: "box".into(), port: None, password: None, key: None };
+        let r = |host: &str, port| super::Resolved { host: host.into(), port, user: String::new(), files: vec![], key: None };
         assert_eq!(super::label(&t, &r("10.0.0.1", 2222)), "box (10.0.0.1:2222)");
         assert_eq!(super::label(&t, &r("box", 22)), "box");
     }

@@ -546,9 +546,11 @@ pub fn open(arg: &str) -> Result<Source, Error> {
     let port = url.port().map(|p| format!(":{p}")).unwrap_or_default();
     // The password never appears in the address bar.
     let base = format!("{}://{user}{host}{port}/", url.scheme());
+    // A saved server gives what the address leaves out: password and key.
+    let saved = crate::servers::find(arg).unwrap_or_default();
+    let password = url.password().map(decode).or_else(|| Some(saved.password.clone()).filter(|p| !p.is_empty()));
     if url.scheme() == "sftp" {
-        let password = url.password().map(decode);
-        let target = crate::sftp::Target { user: decode(url.username()), host: host.to_string(), port: url.port(), password };
+        let target = crate::sftp::Target { user: decode(url.username()), host: host.to_string(), port: url.port(), password, key: saved.key() };
         let home = dir.is_empty() && start.is_none();
         return Ok(Source { op: Store::Sftp(crate::sftp::Server::shared(target)), base, dir, start, home });
     }
@@ -561,8 +563,8 @@ pub fn open(arg: &str) -> Result<Source, Error> {
                 "" => b.user("anonymous").password("anonymous@"),
                 u => b.user(&decode(u)),
             };
-            if let Some(p) = url.password() {
-                b = b.password(&decode(p));
+            if let Some(p) = &password {
+                b = b.password(p);
             }
             Operator::new(b)
         }
