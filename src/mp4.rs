@@ -58,6 +58,97 @@ fn child<'a>(mut data: &'a [u8], kind: &[u8; 4]) -> Option<&'a [u8]> {
     None
 }
 
+/// A box of 32-bit size: header and content.
+fn boxed(kind: &[u8; 4], content: &[u8]) -> Option<Vec<u8>> {
+    let size = u32::try_from(content.len() + 8).ok()?;
+    Some([&size.to_be_bytes()[..], kind, content].concat())
+}
+
+/// The camera's own preview, `moov/udta/thmb`, as a whole box; `moov` is the box's content.
+fn thmb_box(moov: &[u8]) -> Option<Vec<u8>> {
+    boxed(b"thmb", child(child(moov, b"udta")?, b"thmb")?)
+}
+
+/// `moov` (the whole box) with the boxes `extra` at the end of its `udta`, made if missing.
+/// `None` for 64-bit sizes, a box cut off, or a `thmb` already there.
+fn with_in_udta(moov: &[u8], extra: &[u8]) -> Option<Vec<u8>> {
+    if u32::from_be_bytes(moov.get(..4)?.try_into().ok()?) as usize != moov.len() || moov.len() < 8 {
+        return None;
+    }
+    let (mut content, mut rest, mut found) = (Vec::new(), &moov[8..], false);
+    while !rest.is_empty() {
+        let size = u32::from_be_bytes(rest.get(..4)?.try_into().ok()?) as usize;
+        if size < 8 || size > rest.len() {
+            return None;
+        }
+        let b = &rest[..size];
+        if &b[4..8] == b"udta" {
+            if child(&b[8..], b"thmb").is_some() {
+                return None;
+            }
+            content.extend(boxed(b"udta", &[&b[8..], extra].concat())?);
+            found = true;
+        } else {
+            content.extend_from_slice(b);
+        }
+        rest = &rest[size..];
+    }
+    if !found {
+        content.extend(boxed(b"udta", extra)?);
+    }
+    boxed(b"moov", &content)
+}
+
+/// Offset and size of the top-level box `kind` of a file, reading only the headers.
+fn find_in_file(f: &mut std::fs::File, len: u64, kind: &[u8; 4]) -> std::io::Result<Option<(u64, u64)>> {
+    use std::io::{Read, Seek, SeekFrom};
+    let mut at = 0;
+    while at + 8 <= len {
+        let mut header = [0u8; 16];
+        f.seek(SeekFrom::Start(at))?;
+        let n = f.read(&mut header)?;
+        let Some((k, size)) = box_header(&header[..n]) else { return Ok(None) };
+        let size = if size == 0 { len - at } else { size };
+        if &k == kind {
+            return Ok((at + size <= len).then_some((at, size)));
+        }
+        at += size;
+    }
+    Ok(None)
+}
+
+/// The whole box at `at`, of `size` bytes (at most 64 MB: a `moov` of sample tables).
+fn read_at(f: &mut std::fs::File, at: u64, size: u64) -> std::io::Result<Option<Vec<u8>>> {
+    use std::io::{Read, Seek, SeekFrom};
+    if size > 64 << 20 {
+        return Ok(None);
+    }
+    let mut b = vec![0; size as usize];
+    f.seek(SeekFrom::Start(at))?;
+    f.read_exact(&mut b)?;
+    Ok(Some(b))
+}
+
+/// The camera's preview (`moov/udta/thmb`, the Umino dashcam) of `original` written into `copy`,
+/// which FFmpeg made without it (it does not know the box). Only when the copy's `moov` is the
+/// last box of the file, as FFmpeg writes it without `+faststart`: the sample tables point to the
+/// media data before it, so `moov` can grow. `false` when there was nothing to do.
+pub fn copy_preview(original: &std::path::Path, copy: &std::path::Path) -> std::io::Result<bool> {
+    use std::io::{Seek, SeekFrom, Write};
+    let mut o = std::fs::File::open(original)?;
+    let len = o.metadata()?.len();
+    let Some((at, size)) = find_in_file(&mut o, len, b"moov")? else { return Ok(false) };
+    let Some(thmb) = read_at(&mut o, at, size)?.and_then(|m| thmb_box(m.get(8..)?)) else { return Ok(false) };
+    let mut c = std::fs::OpenOptions::new().read(true).write(true).open(copy)?;
+    let len = c.metadata()?.len();
+    let Some((at, size)) = find_in_file(&mut c, len, b"moov")?.filter(|(at, size)| at + size == len) else { return Ok(false) };
+    let Some(moov) = read_at(&mut c, at, size)?.and_then(|m| with_in_udta(&m, &thmb)) else { return Ok(false) };
+    c.seek(SeekFrom::Start(at))?;
+    c.write_all(&moov)?;
+    c.set_len(at + moov.len() as u64)?;
+    Ok(true)
+}
+
 #[cfg(test)]
 mod tests {
     use super::thumbnail;
@@ -93,5 +184,38 @@ mod tests {
         assert_eq!(thumbnail(&[mp4_box(b"ftyp", b"isom"), moov].concat()), Some(&jpeg[..]));
         // No preview.
         assert_eq!(thumbnail(&[mp4_box(b"ftyp", b"isom"), mp4_box(b"moov", &mp4_box(b"mvhd", &[0; 20]))].concat()), None);
+    }
+
+    #[test]
+    fn preview_copied() {
+        let jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4];
+        let ftyp = mp4_box(b"ftyp", b"isomisom");
+        let mdat = mp4_box(b"mdat", &[7; 100]);
+        let trak = mp4_box(b"trak", &[1; 20]);
+        let camera = mp4_box(b"moov", &[mp4_box(b"mvhd", &[0; 12]), trak.clone(), mp4_box(b"udta", &mp4_box(b"thmb", &jpeg))].concat());
+        let dir = std::env::temp_dir().join(format!("eyecansee-mp4-preview-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let (original, copy) = (dir.join("o.mp4"), dir.join("c.mp4"));
+        // The camera's file with its moov first, the copy with moov last and a udta of FFmpeg's.
+        std::fs::write(&original, [ftyp.clone(), camera.clone(), mdat.clone()].concat()).unwrap();
+        let tags = mp4_box(b"udta", &mp4_box(b"meta", &[0; 10]));
+        let ffmpeg = mp4_box(b"moov", &[mp4_box(b"mvhd", &[0; 12]), trak.clone(), tags.clone()].concat());
+        std::fs::write(&copy, [ftyp.clone(), mdat.clone(), ffmpeg.clone()].concat()).unwrap();
+        assert!(super::copy_preview(&original, &copy).unwrap());
+        let written = std::fs::read(&copy).unwrap();
+        let moov = &written[ftyp.len() + mdat.len()..];
+        let udta = super::child(super::child(moov, b"moov").unwrap(), b"udta").unwrap();
+        assert!(udta.starts_with(&mp4_box(b"meta", &[0; 10])), "FFmpeg's tags kept first");
+        assert_eq!(super::child(udta, b"thmb"), Some(&jpeg[..]));
+        assert_eq!(&written[..ftyp.len() + mdat.len()], &[ftyp.clone(), mdat.clone()].concat()[..], "media data untouched");
+        assert!(!super::copy_preview(&original, &copy).unwrap(), "only once");
+        // Without a udta in the copy one is made; with moov not last nothing is done.
+        std::fs::write(&copy, [ftyp.clone(), mdat.clone(), mp4_box(b"moov", &trak)].concat()).unwrap();
+        assert!(super::copy_preview(&original, &copy).unwrap());
+        let written = std::fs::read(&copy).unwrap();
+        assert_eq!(thumbnail(&written[ftyp.len() + mdat.len()..]), Some(&jpeg[..]), "the preview is found as EyeCanSee reads it");
+        std::fs::write(&copy, [ftyp.clone(), ffmpeg.clone(), mdat.clone()].concat()).unwrap();
+        assert!(!super::copy_preview(&original, &copy).unwrap());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

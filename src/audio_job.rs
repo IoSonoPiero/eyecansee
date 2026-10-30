@@ -169,6 +169,7 @@ async fn write(
     let files: Vec<(PathBuf, bool)> = tos.iter().zip(&names).map(|(to, n)| out.local_file(to).map_or_else(|| (temp("out", n), true), |f| (f, false))).collect();
     let _writing: Vec<Writing> = files.iter().map(|f| Writing::start(f.0.clone())).collect();
     let paths: Vec<String> = files.iter().map(|f| f.0.to_string_lossy().into_owned()).collect();
+    let original = input.to_path_buf();
     let input = input.to_string_lossy().into_owned();
     let attempt = |args: Vec<String>| {
         log!("ffmpeg {args:?}");
@@ -185,7 +186,18 @@ async fn write(
     }
     let mut r = r.map_err(Err);
     if r.is_ok() && job == AudioJob::Strip {
-        keep_thumbnail(&tos[0], &files[0].0).await;
+        // The camera's preview, which FFmpeg leaves out: with it the thumbnail is the same picture
+        // as the original's, read from the file; without it, a frame of the video.
+        let to = files[0].0.clone();
+        match tokio::task::spawn_blocking(move || crate::mp4::copy_preview(&original, &to)).await {
+            Ok(Ok(true)) => log!("ffmpeg: the camera's preview copied into {}", tos[0]),
+            other => {
+                if let Ok(Err(e)) = other {
+                    log!("ffmpeg: the camera's preview not copied: {e}");
+                }
+                keep_thumbnail(&tos[0], &files[0].0).await;
+            }
+        }
     }
     for (to, (file, remote)) in tos.iter().zip(&files) {
         if r.is_ok() && *remote {
@@ -304,6 +316,24 @@ mod tests {
             assert!(!text.contains("Video:"), "{name}: {text}");
             if name != "d.wav" {
                 assert!(text.contains("Prova"), "{name}: the title is lost\n{text}");
+            }
+        }
+        // A camera's video with its own preview (`EYECANSEE_PREVIEW_VIDEO`, an Umino dashcam's):
+        // the copy without audio has the same preview.
+        if let Ok(video) = std::env::var("EYECANSEE_PREVIEW_VIDEO") {
+            let original = std::fs::read(&video).unwrap();
+            std::fs::write(dir.join("cam.mp4"), &original).unwrap();
+            let p = Arc::new(Progress::default());
+            let dest = crate::batch::Dest { op: op.clone(), dir: "cam/".into(), create: true };
+            rt.block_on(crate::batch::run(&op, vec!["cam.mp4".into()], dest, crate::batch::Job { audio: Some(AudioJob::Strip), ..Default::default() }, p.clone()));
+            let copy = std::fs::read(dir.join("cam").join("cam.mp4")).unwrap();
+            let preview = crate::mp4::thumbnail(&original[..original.len().min(crate::mp4::HEAD as usize)]).expect("the original has a preview");
+            assert!(copy.windows(preview.len()).any(|w| w == preview), "the preview is not in the copy");
+            println!("preview of {} bytes copied", preview.len());
+            // Still a whole video: its start and its end decode without errors.
+            for at in [["-ss", "0"], ["-sseof", "-1"]] {
+                let r = crate::ffmpeg::command(&program).args(["-v", "error"]).args(at).arg("-i").arg(dir.join("cam").join("cam.mp4")).args(["-t", "1", "-f", "null", "-"]).output().unwrap();
+                assert!(r.status.success() && r.stderr.is_empty(), "{at:?}: {}", String::from_utf8_lossy(&r.stderr));
             }
         }
         std::fs::remove_dir_all(&dir).unwrap();
