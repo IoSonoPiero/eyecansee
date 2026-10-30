@@ -789,4 +789,45 @@ mod tests {
             }
         });
     }
+
+    /// The objects of a folder on the phone, with handle, name and size.
+    async fn objects(phone: &Phone, dir: &str) -> Vec<(ObjectHandle, String, u64)> {
+        let (storage, h) = phone.locate(dir).await.unwrap();
+        storage.list_objects(h).await.unwrap().into_iter().map(|o| (o.handle, o.filename, o.size)).collect()
+    }
+
+    /// `CopyObject` of a file into its own folder on a real phone, as Ctrl+C and Ctrl+V do there,
+    /// without renaming anything: prints the handles and names before and after. Works in a new
+    /// folder `EyeCanSee-copia/` of the first storage, deleted at the end:
+    /// `EYECANSEE_MTP=<serial> cargo test --release mtp_copy_object_same_folder_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn mtp_copy_object_same_folder_live() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let phone = Phone::new(&serial);
+            let root = phone.list("").await.unwrap();
+            let dir = format!("{}EyeCanSee-copia/", root.dirs[0]);
+            assert!(!phone.taken(&dir).await.unwrap(), "{dir} already exists");
+            phone.create_dir(&dir).await.unwrap();
+            let src = format!("{dir}a.jpg");
+            let data: Vec<u8> = (0..100_000u32).map(|i| (i * 7 % 251) as u8).collect();
+            phone.upload(&src, data.len() as u64, futures_util::stream::iter([Ok(Bytes::from(data.clone()))])).await.unwrap();
+            println!("before: {:?}", objects(&phone, &dir).await);
+            let (storage, h) = phone.locate(&src).await.unwrap();
+            let (_, folder) = phone.locate(&dir).await.unwrap();
+            let copy = storage.copy_object(h.unwrap(), folder.unwrap(), None).await;
+            println!("copy_object({:?}) -> {copy:?}", h.unwrap());
+            let after = objects(&phone, &dir).await;
+            println!("after: {after:?}");
+            for (h, name, _) in &after {
+                let same = storage.download_to_vec(*h).await.map(|d| d == data);
+                println!("  {h:?} {name}: same content as the original: {same:?}");
+            }
+            for (h, _, _) in after {
+                storage.delete(h).await.unwrap();
+            }
+            phone.delete(&dir).await.unwrap();
+        });
+    }
 }
