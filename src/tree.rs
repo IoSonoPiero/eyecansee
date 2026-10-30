@@ -378,6 +378,12 @@ impl App {
                     self.tree_node(ui, salt, child, Icon::Folder, &label, may_reveal);
                 }
             }
+            // Not readable on the way to the open folder (a server's "/"): the way down still shows.
+            Some(Err(_)) if on_path && !selected => {
+                let child = next_on_path(&dir, &self.dir);
+                let label = self.item_name(&child);
+                self.tree_node(ui, salt, child, Icon::Folder, &label, may_reveal);
+            }
             Some(Err(e)) => {
                 ui.label(error_text(ui, e.as_str()));
             }
@@ -392,5 +398,21 @@ impl App {
             state.store(ui.ctx());
         }
         (rect, clicked)
+    }
+}
+
+/// The subfolder of `dir` on the way to `open` (both ending in "/", `dir` an ancestor of `open`).
+fn next_on_path(dir: &str, open: &str) -> String {
+    let rest = &open[dir.len()..];
+    format!("{dir}{}", rest.find('/').map_or(rest, |i| &rest[..=i]))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn way_down_to_the_open_folder() {
+        assert_eq!(super::next_on_path("", "home/me/Foto/"), "home/");
+        assert_eq!(super::next_on_path("home/", "home/me/Foto/"), "home/me/");
+        assert_eq!(super::next_on_path("home/me/", "home/me/Foto/"), "home/me/Foto/");
     }
 }

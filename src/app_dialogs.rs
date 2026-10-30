@@ -229,12 +229,17 @@ impl App {
     /// First connection to an SFTP server: its key's fingerprint, as ssh shows it. Trusted, the
     /// key goes to known_hosts and the address opens again (in the server's starting folder if
     /// it had none).
-    /// Also the warning, once per server, after a login with an RSA key (RUSTSEC-2023-0071).
+    /// Also the warning, once per server, after a login with an RSA key (RUSTSEC-2023-0071), and
+    /// the saved key that could not be opened.
     pub(crate) fn host_window(&mut self, ctx: &egui::Context) {
         if self.notice.is_none()
             && let Some(host) = crate::sftp::rsa_login()
         {
             self.notice = Some((self.i18n.t_args("sftp-rsa-key", &[("host", &host)]), None));
+        } else if self.notice.is_none()
+            && let Some(host) = crate::sftp::key_failed()
+        {
+            self.notice = Some((self.i18n.t_args("sftp-key-failed", &[("host", &host)]), None));
         }
         if !self.host_ask {
             return;

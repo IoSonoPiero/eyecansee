@@ -40,6 +40,7 @@ host-ask =
 
     Its key fingerprint is `{ $fingerprint }`. If it is the server you expect, EyeCanSee remembers it in ~/.ssh/known_hosts, as ssh does, and connects.
 host-ok = Connect
+sftp-key-failed = The saved key of **{ $host }** could not be opened: wrong passphrase, or the file is missing or is not a key. EyeCanSee tried the other ways to log in. Fix it in File > Server manager.
 sftp-rsa-key = **{ $host }** opened with an RSA key.
 
     It works, but the RSA library EyeCanSee uses has a known flaw with no fix yet (RUSTSEC-2023-0071): in theory whoever controls the server, by timing a great many logins, could work out the key. Better switch to an ed25519 key (ssh-keygen -t ed25519).
@@ -477,7 +478,7 @@ addr-key-hint = ~/.ssh/id_ed25519
 addr-passphrase = Key passphrase
 srv-title = Server manager
 srv-new = New server
-srv-connect = Connect
+srv-connect = Save and connect
 srv-save = Save
 srv-delete = Delete
 srv-close = Close

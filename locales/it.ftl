@@ -39,6 +39,7 @@ host-ask =
 
     L'impronta della sua chiave è `{ $fingerprint }`. Se è il server che ti aspetti, EyeCanSee la ricorda in ~/.ssh/known_hosts, come fa ssh, e si collega.
 host-ok = Collegati
+sftp-key-failed = La chiave salvata per **{ $host }** non si apre: la passphrase è sbagliata, oppure il file manca o non è una chiave. EyeCanSee ha provato gli altri modi di accesso. Correggila in File > Gestione server.
 sftp-rsa-key = **{ $host }** aperto con una chiave RSA.
 
     Funziona, ma la libreria RSA usata da EyeCanSee ha un difetto noto non ancora corretto (RUSTSEC-2023-0071): in teoria chi controlla il server, misurando i tempi di moltissimi accessi, potrebbe ricavare la chiave. Meglio passare a una chiave ed25519 (ssh-keygen -t ed25519).
@@ -476,7 +477,7 @@ addr-key-hint = ~/.ssh/id_ed25519
 addr-passphrase = Passphrase della chiave
 srv-title = Gestione server
 srv-new = Nuovo server
-srv-connect = Connetti
+srv-connect = Salva e connetti
 srv-save = Salva
 srv-delete = Elimina
 srv-close = Chiudi

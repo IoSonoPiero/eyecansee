@@ -31,6 +31,13 @@ pub struct Target {
 /// warning is still to be shown (`rsa_login`): RUSTSEC-2023-0071 has no fix in the `rsa` crate.
 static RSA: Mutex<(Vec<String>, Option<String>)> = Mutex::new((Vec::new(), None));
 
+/// A server whose saved key could not be opened (wrong passphrase, missing file), to say so.
+static KEY_FAILED: Mutex<Option<String>> = Mutex::new(None);
+
+pub fn key_failed() -> Option<String> {
+    KEY_FAILED.lock().unwrap().take()
+}
+
 /// The server just logged in to with an RSA key, to warn about it once.
 pub fn rsa_login() -> Option<String> {
     RSA.lock().unwrap().1.take()
@@ -127,7 +134,15 @@ pub(super) async fn connect(t: &Target) -> Result<Handle<Client>, Error> {
         Ok(Err(e)) => return Err(refused.lock().unwrap().take().unwrap_or(("error-detail", format!("{label}: {e}")))),
         Ok(Ok(h)) => h,
     };
-    let rsa = login(&mut handle, &r, t.password.as_deref()).await.map_err(|()| ("error-login-ssh", format!("{}@{label}", r.user)))?;
+    let key = r.key.as_ref().and_then(|(file, passphrase)| {
+        keys::load_secret_key(file, (!passphrase.is_empty()).then_some(passphrase.as_str()))
+            .inspect_err(|e| {
+                log!("sftp: saved key {}: {e}", file.display());
+                *KEY_FAILED.lock().unwrap() = Some(label.clone());
+            })
+            .ok()
+    });
+    let rsa = login(&mut handle, &r, t.password.as_deref(), key).await.map_err(|()| ("error-login-ssh", format!("{}@{label}", r.user)))?;
     log!("sftp: logged in to {label} as {}{}", r.user, if rsa { " with an RSA key" } else { "" });
     let mut warned = RSA.lock().unwrap();
     if rsa && !warned.0.contains(&label) {
@@ -152,22 +167,17 @@ fn known_first(host: &str, port: u16) -> Vec<keys::Algorithm> {
 
 /// As ssh: every key until the server accepts one or stops answering (MaxAuthTries). A password
 /// in the address goes first: whoever typed it wants to log in with it. `Ok(true)`: with an RSA key.
-async fn login(h: &mut Handle<Client>, r: &Resolved, password: Option<&str>) -> Result<bool, ()> {
+async fn login(h: &mut Handle<Client>, r: &Resolved, password: Option<&str>, key: Option<keys::PrivateKey>) -> Result<bool, ()> {
     if let Some(p) = password
         && password_login(h, &r.user, p).await
     {
         return Ok(false);
     }
     let rsa_hash = h.best_supported_rsa_hash().await.ok().flatten().flatten();
-    if let Some((file, passphrase)) = &r.key {
-        match keys::load_secret_key(file, (!passphrase.is_empty()).then_some(passphrase.as_str())) {
-            Ok(key) => {
-                if let Some(rsa) = key_login(h, &r.user, key, rsa_hash).await {
-                    return Ok(rsa);
-                }
-            }
-            Err(e) => log!("sftp: saved key {}: {e}", file.display()),
-        }
+    if let Some(key) = key
+        && let Some(rsa) = key_login(h, &r.user, key, rsa_hash).await
+    {
+        return Ok(rsa);
     }
     // The keys named in ~/.ssh/config, as public keys next to their files.
     let named: Vec<PublicKey> = r.files.iter().filter_map(|f| PublicKey::read_openssh_file(pub_file(f)).ok()).collect();

@@ -18,7 +18,7 @@ use russh_sftp::protocol::{FileAttributes, OpenFlags, StatusCode};
 use crate::source::{Error, Listing, NOT_FOUND, TRASH_DIR};
 
 mod connect;
-pub use connect::{Target, rsa_login, trust, unknown};
+pub use connect::{Target, key_failed, rsa_login, trust, unknown};
 
 /// Requests in flight for one read or write.
 const IN_FLIGHT: usize = 16;
