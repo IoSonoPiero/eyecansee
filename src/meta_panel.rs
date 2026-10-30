@@ -66,7 +66,7 @@ impl App {
             ui.horizontal_top(|ui| {
                 for g in Group::ALL.into_iter().filter(|&g| self.meta_shown(g)) {
                     egui::Frame::group(ui.style()).show(ui, |ui| ui.vertical(|ui| {
-                        self.meta_box(ui, g, meta.as_ref(), &note, &mut close);
+                        self.meta_box(ui, g, file.as_ref().map(|(_, f)| f), meta.as_ref(), &note, &mut close);
                     }));
                 }
             });
@@ -97,7 +97,7 @@ impl App {
     }
 
     /// One metadata box (`g`) with its X (`close`), its fields, or `note` without metadata.
-    pub(crate) fn meta_box(&self, ui: &mut Ui, g: Group, meta: Option<&meta::Meta>, note: &str, close: &mut Option<Group>) {
+    pub(crate) fn meta_box(&self, ui: &mut Ui, g: Group, file: Option<&source::File>, meta: Option<&meta::Meta>, note: &str, close: &mut Option<Group>) {
         let t = |id: &str| self.i18n.t(id);
         ui.set_width(250.0);
         ui.horizontal(|ui| {
@@ -109,6 +109,10 @@ impl App {
             });
         });
         ui.separator();
+        if g == Group::File {
+            self.file_box(ui, file, meta);
+            return;
+        }
         let Some(m) = meta else {
             ui.weak(note);
             return;
@@ -134,6 +138,34 @@ impl App {
             let url = format!("https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=16/{lat}/{lon}");
             ui.hyperlink_to(t("meta-map"), url);
         }
+    }
+
+    /// The File box: name, size on disk (exact too), file date and, once the metadata are read,
+    /// the pixels; shown also for files without metadata.
+    fn file_box(&self, ui: &mut Ui, file: Option<&source::File>, meta: Option<&meta::Meta>) {
+        let t = |id: &str| self.i18n.t(id);
+        let Some(f) = file else {
+            ui.weak(t("meta-none-selected"));
+            return;
+        };
+        let field = |label: &str| meta.and_then(|m| m.fields.iter().find(|(_, l, _)| *l == label).map(|(_, _, v)| v.clone()));
+        let pixels = field("meta-width").zip(field("meta-height")).map(|(w, h)| format!("{} × {h}", w.trim_end_matches(" px")));
+        let size = format!("{} ({} {})", self.human_size(f.size), grouped(f.size, &t("thousands-separator")), t("meta-bytes"));
+        let rows = [
+            ("meta-file-name", Some(source::name(&f.path).trim_end_matches('/').to_string())),
+            ("meta-file-size", Some(size)),
+            ("meta-file-date", self.file_date(&f.modified)),
+            ("meta-pixels", pixels),
+        ];
+        egui::Grid::new(("meta", "file")).num_columns(2).show(ui, |ui| {
+            for (label, value) in rows {
+                if let Some(v) = value {
+                    ui.weak(t(label));
+                    ui.add(egui::Label::new(v).truncate());
+                    ui.end_row();
+                }
+            }
+        });
     }
 
     /// Status bar of the viewer, like the grid's: name, position, pixels, size on disk, date
@@ -199,5 +231,28 @@ impl App {
             _ => None,
         };
         formatted.unwrap_or_else(|| value.to_string())
+    }
+}
+
+/// 245464190 → "245.464.190" with `sep` between the groups of three digits.
+fn grouped(n: u64, sep: &str) -> String {
+    let digits = n.to_string();
+    let mut out = String::new();
+    for (i, c) in digits.chars().enumerate() {
+        if i > 0 && (digits.len() - i).is_multiple_of(3) {
+            out.push_str(sep);
+        }
+        out.push(c);
+    }
+    out
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn digits_in_groups() {
+        assert_eq!(super::grouped(245464190, "."), "245.464.190");
+        assert_eq!(super::grouped(999, "."), "999");
+        assert_eq!(super::grouped(1000, " "), "1 000");
     }
 }

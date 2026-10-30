@@ -9,6 +9,8 @@ use exif::{Exif, In, Reader, Tag, Value};
 /// Boxes of the panel: each one closes and reopens on its own.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Group {
+    /// Name, size, date and pixels of the file: from the listing, not from its metadata.
+    File,
     Camera,
     Shot,
     Image,
@@ -16,11 +18,12 @@ pub enum Group {
 }
 
 impl Group {
-    pub const ALL: [Group; 4] = [Group::Camera, Group::Shot, Group::Image, Group::Gps];
+    pub const ALL: [Group; 5] = [Group::File, Group::Camera, Group::Shot, Group::Image, Group::Gps];
 
     /// Name in the settings and, with `meta-` in front, Fluent id of the title.
     pub fn key(self) -> &'static str {
         match self {
+            Group::File => "file",
             Group::Camera => "camera",
             Group::Shot => "shot",
             Group::Image => "image",
