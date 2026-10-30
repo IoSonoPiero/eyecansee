@@ -1,7 +1,7 @@
 //! Opening an SFTP connection as `ssh` would: the host as `~/.ssh/config` describes it (alias,
 //! HostName, User, Port, IdentityFile), the server's key checked against `~/.ssh/known_hosts`,
-//! then the login with the saved server's key, the agent's keys, key files without a passphrase,
-//! or the password.
+//! then the login: a saved server only with its own password and key; any other address with the
+//! agent's keys, key files without a passphrase, or the password.
 //! Not supported: ProxyJump and ProxyCommand.
 
 use std::path::PathBuf;
@@ -25,18 +25,13 @@ pub struct Target {
     pub password: Option<String>,
     /// A saved server's key file and its passphrase ("" = none).
     pub key: Option<(PathBuf, String)>,
+    /// A saved server: only its own password and key, never the agent or the keys in ~/.ssh.
+    pub saved: bool,
 }
 
 /// Servers logged in to with an RSA key in this session, each warned once, and the one whose
 /// warning is still to be shown (`rsa_login`): RUSTSEC-2023-0071 has no fix in the `rsa` crate.
 static RSA: Mutex<(Vec<String>, Option<String>)> = Mutex::new((Vec::new(), None));
-
-/// A server whose saved key could not be opened (wrong passphrase, missing file), to say so.
-static KEY_FAILED: Mutex<Option<String>> = Mutex::new(None);
-
-pub fn key_failed() -> Option<String> {
-    KEY_FAILED.lock().unwrap().take()
-}
 
 /// The server just logged in to with an RSA key, to warn about it once.
 pub fn rsa_login() -> Option<String> {
@@ -98,6 +93,7 @@ struct Resolved {
     user: String,
     files: Vec<PathBuf>,
     key: Option<(PathBuf, String)>,
+    saved: bool,
 }
 
 fn resolve(t: &Target) -> Resolved {
@@ -107,7 +103,7 @@ fn resolve(t: &Target) -> Resolved {
     if let Some(ssh) = std::env::home_dir().map(|h| h.join(".ssh")) {
         files.extend(["id_ed25519", "id_ecdsa", "id_rsa"].map(|f| ssh.join(f)));
     }
-    Resolved { host: cfg.host().to_string(), port: t.port.unwrap_or_else(|| cfg.port()), user, files, key: t.key.clone() }
+    Resolved { host: cfg.host().to_string(), port: t.port.unwrap_or_else(|| cfg.port()), user, files, key: t.key.clone(), saved: t.saved }
 }
 
 /// The server as the user wrote it, with the address it stands for when it is an alias of
@@ -121,6 +117,17 @@ fn label(t: &Target, r: &Resolved) -> String {
 pub(super) async fn connect(t: &Target) -> Result<Handle<Client>, Error> {
     let r = resolve(t);
     let label = label(t, &r);
+    // A saved key that does not open (wrong passphrase, missing file): no login another way.
+    let key = match &r.key {
+        Some((file, passphrase)) => match keys::load_secret_key(file, (!passphrase.is_empty()).then_some(passphrase.as_str())) {
+            Ok(key) => Some(key),
+            Err(e) => {
+                log!("sftp: saved key {}: {e}", file.display());
+                return Err(("error-key-failed", label));
+            }
+        },
+        None => None,
+    };
     let refused = Arc::new(Mutex::new(None));
     let handler = Client { label: label.clone(), host: r.host.clone(), port: r.port, refused: refused.clone() };
     let config = Arc::new(client::Config {
@@ -134,14 +141,6 @@ pub(super) async fn connect(t: &Target) -> Result<Handle<Client>, Error> {
         Ok(Err(e)) => return Err(refused.lock().unwrap().take().unwrap_or(("error-detail", format!("{label}: {e}")))),
         Ok(Ok(h)) => h,
     };
-    let key = r.key.as_ref().and_then(|(file, passphrase)| {
-        keys::load_secret_key(file, (!passphrase.is_empty()).then_some(passphrase.as_str()))
-            .inspect_err(|e| {
-                log!("sftp: saved key {}: {e}", file.display());
-                *KEY_FAILED.lock().unwrap() = Some(label.clone());
-            })
-            .ok()
-    });
     let rsa = login(&mut handle, &r, t.password.as_deref(), key).await.map_err(|()| ("error-login-ssh", format!("{}@{label}", r.user)))?;
     log!("sftp: logged in to {label} as {}{}", r.user, if rsa { " with an RSA key" } else { "" });
     let mut warned = RSA.lock().unwrap();
@@ -178,6 +177,9 @@ async fn login(h: &mut Handle<Client>, r: &Resolved, password: Option<&str>, key
         && let Some(rsa) = key_login(h, &r.user, key, rsa_hash).await
     {
         return Ok(rsa);
+    }
+    if r.saved {
+        return Err(());
     }
     // The keys named in ~/.ssh/config, as public keys next to their files.
     let named: Vec<PublicKey> = r.files.iter().filter_map(|f| PublicKey::read_openssh_file(pub_file(f)).ok()).collect();
@@ -272,7 +274,7 @@ mod tests {
     /// Without a line in ~/.ssh/config the address is used as it is, on port 22.
     #[test]
     fn resolve_without_config() {
-        let t = super::Target { user: "me".into(), host: "server.invalid".into(), port: None, password: None, key: None };
+        let t = super::Target { user: "me".into(), host: "server.invalid".into(), port: None, password: None, key: None, saved: false };
         let r = super::resolve(&t);
         assert_eq!((r.host.as_str(), r.port, r.user.as_str()), ("server.invalid", 22, "me"));
         let t = super::Target { port: Some(2222), ..t };
@@ -282,8 +284,8 @@ mod tests {
     /// An alias shows the address it stands for; an address is shown once.
     #[test]
     fn label_of_alias() {
-        let t = super::Target { user: String::new(), host: "box".into(), port: None, password: None, key: None };
-        let r = |host: &str, port| super::Resolved { host: host.into(), port, user: String::new(), files: vec![], key: None };
+        let t = super::Target { user: String::new(), host: "box".into(), port: None, password: None, key: None, saved: false };
+        let r = |host: &str, port| super::Resolved { host: host.into(), port, user: String::new(), files: vec![], key: None, saved: false };
         assert_eq!(super::label(&t, &r("10.0.0.1", 2222)), "box (10.0.0.1:2222)");
         assert_eq!(super::label(&t, &r("box", 22)), "box");
     }

@@ -18,7 +18,7 @@ use russh_sftp::protocol::{FileAttributes, OpenFlags, StatusCode};
 use crate::source::{Error, Listing, NOT_FOUND, TRASH_DIR};
 
 mod connect;
-pub use connect::{Target, key_failed, rsa_login, trust, unknown};
+pub use connect::{Target, rsa_login, trust, unknown};
 
 /// Requests in flight for one read or write.
 const IN_FLIGHT: usize = 16;
@@ -39,6 +39,21 @@ struct Conn {
 
 /// Servers in use: the clipboard can keep the source of a copy, which then shares the connection.
 static SERVERS: Mutex<Vec<Weak<Server>>> = Mutex::new(Vec::new());
+
+/// Whether a connection to this server is open (a busy one counts as open).
+pub fn connected(host: &str, port: Option<u16>, user: &str) -> bool {
+    Server::at(host, port, user).iter().any(|s| s.conn.try_lock().map_or(true, |c| c.as_ref().is_some_and(|c| !c.handle.is_closed())))
+}
+
+/// Closes the connections to this server ("Close connection"); a later request opens a new one.
+pub async fn disconnect(host: String, port: Option<u16>, user: String) {
+    for s in Server::at(&host, port, &user) {
+        if let Some(c) = s.conn.lock().await.take() {
+            let r = c.handle.disconnect(russh::Disconnect::ByApplication, "", "en").await;
+            log!("sftp: disconnected from {host}: {r:?}");
+        }
+    }
+}
 
 /// Absolute path on the server.
 fn abs(path: &str) -> String {
@@ -107,6 +122,13 @@ impl Server {
         let s = Arc::new(Server { target, conn: tokio::sync::Mutex::const_new(None) });
         servers.push(Arc::downgrade(&s));
         s
+    }
+
+    /// The servers in use at this host, port and user, whatever their key or password.
+    fn at(host: &str, port: Option<u16>, user: &str) -> Vec<Arc<Server>> {
+        let servers = SERVERS.lock().unwrap();
+        let same = |s: &Arc<Server>| s.target.host.eq_ignore_ascii_case(host) && s.target.port == port && s.target.user == user;
+        servers.iter().filter_map(Weak::upgrade).filter(same).collect()
     }
 
     async fn session(&self) -> Result<Arc<Conn>, Error> {

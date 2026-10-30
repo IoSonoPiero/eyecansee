@@ -72,6 +72,13 @@ impl App {
             Err(("error-login" | "error-login-ssh", _)) if dir == self.dir && self.open_address.is_none() => {
                 self.open_address = AddressForm::for_password(&format!("{}{}", self.base, self.dir));
             }
+            // A saved key that does not open: the server manager on that server, to fix it.
+            Err(("error-key-failed", _)) if dir == self.dir && self.server_manager.is_none() => {
+                let address = format!("{}{}", self.base, self.dir);
+                let mut f = AddressForm::manager();
+                f.choose(f.servers.iter().position(|s| crate::servers::find(&address).is_some_and(|found| found == *s)));
+                self.server_manager = Some(f);
+            }
             _ => {}
         }
         if self.use_mount(ctx, &dir, &r) {

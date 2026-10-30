@@ -546,11 +546,13 @@ pub fn open(arg: &str) -> Result<Source, Error> {
     let port = url.port().map(|p| format!(":{p}")).unwrap_or_default();
     // The password never appears in the address bar.
     let base = format!("{}://{user}{host}{port}/", url.scheme());
-    // A saved server gives what the address leaves out: password and key.
-    let saved = crate::servers::find(arg).unwrap_or_default();
+    // A saved server gives what the address leaves out: password and key, and only those.
+    let found = crate::servers::find(arg);
+    let saved = found.clone().unwrap_or_default();
     let password = url.password().map(decode).or_else(|| Some(saved.password.clone()).filter(|p| !p.is_empty()));
     if url.scheme() == "sftp" {
-        let target = crate::sftp::Target { user: decode(url.username()), host: host.to_string(), port: url.port(), password, key: saved.key() };
+        let (user, port, key) = (decode(url.username()), url.port(), saved.key());
+        let target = crate::sftp::Target { user, host: host.to_string(), port, password, key, saved: found.is_some() };
         let home = dir.is_empty() && start.is_none();
         return Ok(Source { op: Store::Sftp(crate::sftp::Server::shared(target)), base, dir, start, home });
     }

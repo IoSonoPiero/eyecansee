@@ -30,6 +30,7 @@ error-source = Impossibile collegarsi alla sorgente: { $detail }
 error-detail = { $detail }
 error-login = Il server ha rifiutato l'accesso: nome utente o password sbagliati.
 error-login-ssh = Il server { $detail } ha rifiutato l'accesso: non ha accettato nessuna delle tue chiavi SSH e non c'è una password, oppure la password è sbagliata.
+error-key-failed = La chiave salvata per { $detail } non si apre: la passphrase è sbagliata, oppure il file manca o non è una chiave. Correggila in File > Gestione server.
 error-permission = Permesso negato: { $detail }
 error-no-sftp = Il server risponde in SSH ma non ha il servizio SFTP ({ $detail }). Su un NAS, attiva SFTP nelle sue impostazioni.
 error-host-unknown = { $detail } non è mai stato usato da questo computer: conferma la sua chiave per collegarti.
@@ -39,7 +40,6 @@ host-ask =
 
     L'impronta della sua chiave è `{ $fingerprint }`. Se è il server che ti aspetti, EyeCanSee la ricorda in ~/.ssh/known_hosts, come fa ssh, e si collega.
 host-ok = Collegati
-sftp-key-failed = La chiave salvata per **{ $host }** non si apre: la passphrase è sbagliata, oppure il file manca o non è una chiave. EyeCanSee ha provato gli altri modi di accesso. Correggila in File > Gestione server.
 sftp-rsa-key = **{ $host }** aperto con una chiave RSA.
 
     Funziona, ma la libreria RSA usata da EyeCanSee ha un difetto noto non ancora corretto (RUSTSEC-2023-0071): in teoria chi controlla il server, misurando i tempi di moltissimi accessi, potrebbe ricavare la chiave. Meglio passare a una chiave ed25519 (ssh-keygen -t ed25519).
@@ -475,6 +475,8 @@ addr-name = Nome
 addr-key = File della chiave
 addr-key-hint = ~/.ssh/id_ed25519
 addr-passphrase = Passphrase della chiave
+srv-disconnect = Chiudi connessione
+srv-edit = Modifica…
 srv-title = Gestione server
 srv-new = Nuovo server
 srv-connect = Salva e connetti

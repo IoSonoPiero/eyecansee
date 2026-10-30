@@ -213,25 +213,50 @@ impl App {
         }
     }
 
-    /// The saved servers (File > Server manager): a click opens one, the open one is highlighted.
+    /// The saved servers (File > Server manager): a click opens one, the open one is highlighted;
+    /// right click: close its connection, edit it.
     fn server_block(&mut self, ui: &mut Ui) {
         if self.saved_servers.is_empty() {
             return;
         }
         block_title(ui, &self.i18n.t("servers"));
-        let mut open = None;
-        for s in &self.saved_servers {
+        let (mut open, mut close, mut edit) = (None, None, None);
+        for (i, s) in self.saved_servers.iter().enumerate() {
             let Some(address) = s.address() else { continue };
             let here = self.base.contains("://") && address.starts_with(&self.base);
+            let live = here || s.scheme == "sftp" && crate::sftp::connected(&s.host, s.port, &s.user);
             let icon = icons::image(ui.ctx(), Icon::Server, TREE_ICON);
-            if ui.selectable_label(here, (icon, s.name.as_str())).on_hover_text(crate::address::without_password(&address)).clicked() {
+            let r = ui.selectable_label(here, (icon, s.name.as_str())).on_hover_text(crate::address::without_password(&address));
+            if r.clicked() {
                 open = Some(address);
             }
+            r.context_menu(|ui| {
+                // Not during a copy: it could be using this connection.
+                if ui.add_enabled(live && self.transfer.is_none(), egui::Button::new(self.i18n.t("srv-disconnect"))).clicked() {
+                    close = Some((here, s.clone()));
+                }
+                if ui.button(self.i18n.t("srv-edit")).clicked() {
+                    edit = Some(i);
+                }
+            });
         }
         ui.separator();
+        let ctx = ui.ctx().clone();
         if let Some(address) = open {
-            let ctx = ui.ctx().clone();
             self.open_source(&ctx, &address);
+        }
+        if let Some((here, s)) = close {
+            // Away from the server first, or the next listing would connect again.
+            if here {
+                let home = std::env::home_dir().map_or("/".into(), |h| h.to_string_lossy().into_owned());
+                self.open_source(&ctx, &home);
+            }
+            self.rt.spawn(crate::sftp::disconnect(s.host, s.port, s.user));
+        }
+        if let Some(i) = edit {
+            let mut f = crate::address::AddressForm::manager();
+            f.choose(Some(i));
+            self.server_manager = Some(f);
         }
     }
 
