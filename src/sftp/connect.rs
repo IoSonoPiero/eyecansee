@@ -111,6 +111,26 @@ fn label(t: &Target, r: &Resolved) -> String {
     if t.host == r.host { addr } else { format!("{} ({addr})", t.host) }
 }
 
+/// russh's key exchanges with ECDH before Diffie-Hellman, and the Diffie-Hellman group exchange
+/// last: with it the SFTP of a Hetzner Storage Box on port 22 (ProFTPD mod_sftp) failed with "Key
+/// exchange init failed", while group14, group16 and ECDH worked (2026-10-30).
+const KEX: &[russh::kex::Name] = &[
+    russh::kex::MLKEM768X25519_SHA256,
+    russh::kex::CURVE25519,
+    russh::kex::CURVE25519_PRE_RFC_8731,
+    russh::kex::ECDH_SHA2_NISTP256,
+    russh::kex::ECDH_SHA2_NISTP384,
+    russh::kex::ECDH_SHA2_NISTP521,
+    russh::kex::DH_G18_SHA512,
+    russh::kex::DH_G17_SHA512,
+    russh::kex::DH_G16_SHA512,
+    russh::kex::DH_G15_SHA512,
+    russh::kex::DH_G14_SHA256,
+    russh::kex::DH_GEX_SHA256,
+    russh::kex::EXTENSION_SUPPORT_AS_CLIENT,
+    russh::kex::EXTENSION_OPENSSH_STRICT_KEX_AS_CLIENT,
+];
+
 /// Connected and logged in.
 pub(super) async fn connect(t: &Target) -> Result<Handle<Client>, Error> {
     let r = resolve(t);
@@ -130,7 +150,7 @@ pub(super) async fn connect(t: &Target) -> Result<Handle<Client>, Error> {
     let handler = Client { label: label.clone(), host: r.host.clone(), port: r.port, refused: refused.clone() };
     let config = Arc::new(client::Config {
         keepalive_interval: Some(Duration::from_secs(30)),
-        preferred: russh::Preferred { key: known_first(&r.host, r.port).into(), ..Default::default() },
+        preferred: russh::Preferred { key: known_first(&r.host, r.port).into(), kex: KEX.into(), ..Default::default() },
         ..Default::default()
     });
     let connecting = client::connect(config, (r.host.as_str(), r.port), handler);

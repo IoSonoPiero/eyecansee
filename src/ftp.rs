@@ -109,17 +109,34 @@ fn once(began: &AtomicBool) -> Result<(), FtpError> {
     }
 }
 
-/// RETR of `path` from `offset`, on a data connection to `host`. suppaftp sends REST before
-/// PASV, and a Synology forgets the REST at the PASV and sends the file from the start: here
-/// PASV, data connection, REST, RETR, in this order.
-async fn retr_from(s: &mut Stream, host: &str, path: &str, offset: u64) -> Result<tokio::net::TcpStream, FtpError> {
-    let r = s.custom_command("PASV", &[Status::PassiveMode]).await?;
-    let port = pasv_port(&String::from_utf8_lossy(&r.body)).ok_or(FtpError::BadResponse)?;
-    // The server's own address, not the one in the answer (see the top of the file).
-    let data = tokio::net::TcpStream::connect((host, port)).await.map_err(FtpError::ConnectionError)?;
+/// RETR of `path` from `offset`. suppaftp sends REST before PASV, and a Synology forgets the
+/// REST at the PASV and sends the file from the start: here PASV (or EPSV), data connection,
+/// REST, RETR, in this order.
+async fn retr_from(s: &mut Stream, path: &str, offset: u64) -> Result<tokio::net::TcpStream, FtpError> {
+    let at = data_address(s).await?;
+    let data = tokio::net::TcpStream::connect(at).await.map_err(FtpError::ConnectionError)?;
     s.custom_command(format!("REST {offset}"), &[Status::RequestFilePending]).await?;
     s.custom_command(format!("RETR {}", abs(path)), &[Status::AboutToSend, Status::AlreadyOpen]).await?;
     Ok(data)
+}
+
+/// Where to open a data connection: the port from EPSV (IPv6) or PASV (IPv4), at the address of
+/// the control connection, not the one in the answer (see the top of the file).
+async fn data_address(s: &mut Stream) -> Result<std::net::SocketAddr, FtpError> {
+    let peer = s.get_ref().peer_addr().map_err(FtpError::ConnectionError)?;
+    let port = if peer.is_ipv6() {
+        let r = s.custom_command("EPSV", &[Status::ExtendedPassiveMode]).await?;
+        epsv_port(&String::from_utf8_lossy(&r.body))
+    } else {
+        let r = s.custom_command("PASV", &[Status::PassiveMode]).await?;
+        pasv_port(&String::from_utf8_lossy(&r.body))
+    };
+    Ok(std::net::SocketAddr::new(peer.ip(), port.ok_or(FtpError::BadResponse)?))
+}
+
+/// The port of an EPSV answer: "229 Entering Extended Passive Mode (|||55677|)" → 55677.
+fn epsv_port(answer: &str) -> Option<u16> {
+    answer.split_once("|||")?.1.split_once('|')?.0.trim().parse().ok()
 }
 
 /// The port of a PASV answer: "227 Entering Passive Mode (127,0,0,1,217,125)" → 55677.
@@ -197,8 +214,14 @@ impl Server {
             Ok(Err(e)) => return Err(("error-detail", format!("{label}: {e}"))),
             Ok(Ok(s)) => s,
         };
-        s.set_mode(Mode::Passive);
-        s.set_passive_nat_workaround(true);
+        // EPSV in IPv6, where PASV cannot work (a Storage Box answers it with 421); PASV in IPv4,
+        // where old servers may lack EPSV.
+        if s.get_ref().peer_addr().is_ok_and(|a| a.is_ipv6()) {
+            s.set_mode(Mode::ExtendedPassive);
+        } else {
+            s.set_mode(Mode::Passive);
+            s.set_passive_nat_workaround(true);
+        }
         let (user, password) = if t.user.is_empty() { ("anonymous", "anonymous@") } else { (t.user.as_str(), t.password.as_str()) };
         s.login(user, password).await.map_err(|e| match e {
             FtpError::UnexpectedResponse(r) if r.status == Status::NotLoggedIn => ("error-login", format!("{user}@{label}")),
@@ -276,9 +299,8 @@ impl Server {
     /// `len` bytes from `offset`, fewer at the end of the file. A transfer stopped before the end
     /// is aborted; a connection whose abort fails is not used again.
     pub async fn read_range(&self, path: &str, offset: u64, len: u64) -> Result<Vec<u8>, Error> {
-        let host = self.target.host.clone();
         with!(self, path, |c| async {
-            let mut r = retr_from(&mut c.s, &host, path, offset).await?;
+            let mut r = retr_from(&mut c.s, path, offset).await?;
             let mut data = Vec::with_capacity(len as usize);
             (&mut r).take(len).read_to_end(&mut data).await.map_err(FtpError::ConnectionError)?;
             if (data.len() as u64) < len {
@@ -450,5 +472,7 @@ mod tests {
         assert_eq!(super::abs(""), "/");
         assert_eq!(super::pasv_port("Entering Passive Mode (127,0,0,1,217,125)."), Some(55677));
         assert_eq!(super::pasv_port("Entering Passive Mode"), None);
+        assert_eq!(super::epsv_port("Entering Extended Passive Mode (|||55677|)"), Some(55677));
+        assert_eq!(super::epsv_port("Entering Extended Passive Mode"), None);
     }
 }
