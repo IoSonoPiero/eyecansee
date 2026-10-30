@@ -819,9 +819,6 @@ mod tests {
             std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
         }
 
-        // FTP cannot rename: refused before anything is read or written (nothing listens there).
-        let ftp = Store::Dal(opendal::Operator::new(opendal::services::Ftp::default().endpoint("ftp://127.0.0.1:9")).unwrap());
-        assert_eq!(rt.block_on(replace(&ftp, "a.png", b"x".to_vec(), Deletion::Permanent)).unwrap_err().0, "error-rename-unsupported");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

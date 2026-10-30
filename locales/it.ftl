@@ -34,11 +34,16 @@ error-key-failed = La chiave salvata per { $detail } non si apre: la passphrase 
 error-permission = Permesso negato: { $detail }
 error-no-sftp = Il server risponde in SSH ma non ha il servizio SFTP ({ $detail }). Su un NAS, attiva SFTP nelle sue impostazioni.
 error-host-unknown = { $detail } non è mai stato usato da questo computer: conferma la sua chiave per collegarti.
+error-cert-unknown = Il certificato di { $detail } non è firmato da un'autorità riconosciuta: confermalo per collegarti.
 error-host-changed = La chiave di { $detail } non è quella registrata in ~/.ssh/known_hosts, quindi EyeCanSee non si collega: qualcuno potrebbe fingersi quel server. Se il server è stato reinstallato, togli la sua riga vecchia da known_hosts.
 host-ask =
     { "**" }Primo collegamento a { $host }.**
 
     L'impronta della sua chiave è `{ $fingerprint }`. Se è il server che ti aspetti, EyeCanSee la ricorda in ~/.ssh/known_hosts, come fa ssh, e si collega.
+cert-ask =
+    { "**" }Primo collegamento a { $host } (FTPS).**
+
+    Il suo certificato non è garantito da un'autorità riconosciuta (succede con i NAS, che se lo creano da soli). L'impronta SHA-256 è `{ $fingerprint }`. Se è il server che ti aspetti, EyeCanSee lo ricorda e si collega.
 host-ok = Collegati
 sftp-rsa-key = **{ $host }** aperto con una chiave RSA.
 

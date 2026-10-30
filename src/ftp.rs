@@ -1,4 +1,4 @@
-//! FTP servers with `suppaftp` (tokio): up to `POOL` connections per server, each with one
+//! FTP and FTPS servers with `suppaftp` (tokio, TLS in `ftp/tls.rs`): up to `POOL` connections per server, each with one
 //! transfer at a time, kept open between requests. Passive mode, with the data connection to the
 //! address of the control connection (`set_passive_nat_workaround`), as curl and FileZilla do: a
 //! server behind NAT or a VPN often announces an address that cannot be reached (a Synology
@@ -13,15 +13,47 @@ use std::time::Duration;
 
 use bytes::Bytes;
 use suppaftp::list::{File, ListParser};
-use suppaftp::tokio::AsyncRustlsFtpStream;
+use suppaftp::tokio::{AsyncRustlsConnector, AsyncRustlsFtpStream};
 use suppaftp::types::FileType;
 use suppaftp::{FtpError, Mode, Status};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::source::{Error, Listing, NOT_FOUND, TRASH_DIR};
 
+mod tls;
+pub use tls::{trust, unknown};
+
 /// Connections per server: the thumbnails are read four at a time, as on SFTP.
 pub const POOL: usize = 4;
+
+/// A server that does not answer for this long is given up: a command or a listing as a whole, a
+/// transfer when no byte moves (a server that never sent the data of an FTPS listing kept the app
+/// waiting for good).
+const WAIT: Duration = Duration::from_secs(30);
+
+fn timed_out() -> FtpError {
+    FtpError::ConnectionError(std::io::Error::new(std::io::ErrorKind::TimedOut, "the server does not answer"))
+}
+
+/// `f` within `WAIT`.
+async fn waited<T>(f: impl std::future::Future<Output = Result<T, FtpError>>) -> Result<T, FtpError> {
+    tokio::time::timeout(WAIT, f).await.unwrap_or_else(|_| Err(timed_out()))
+}
+
+/// Up to `limit` bytes, until the end; a pause longer than `WAIT` is an error.
+async fn read_up_to(r: &mut (impl AsyncRead + Unpin), limit: u64) -> Result<Vec<u8>, FtpError> {
+    let mut data = Vec::new();
+    let mut buf = vec![0; 256 << 10];
+    while (data.len() as u64) < limit {
+        let want = buf.len().min((limit - data.len() as u64) as usize);
+        let n = waited(async { r.read(&mut buf[..want]).await.map_err(FtpError::ConnectionError) }).await?;
+        if n == 0 {
+            break;
+        }
+        data.extend_from_slice(&buf[..n]);
+    }
+    Ok(data)
+}
 
 type Stream = AsyncRustlsFtpStream;
 
@@ -33,12 +65,16 @@ pub struct Target {
     /// "" = anonymous.
     pub user: String,
     pub password: String,
+    /// FTPS: TLS on the control and data connections (explicit, AUTH TLS).
+    pub secure: bool,
 }
 
 pub struct Server {
     target: Target,
     idle: Mutex<Vec<Stream>>,
     permits: tokio::sync::Semaphore,
+    /// FTPS: the TLS shared by the control and data connections.
+    tls: Option<tokio_rustls::TlsConnector>,
 }
 
 /// A connection taken from the pool; `ok` false: not given back (broken, or a transfer left in
@@ -109,15 +145,61 @@ fn once(began: &AtomicBool) -> Result<(), FtpError> {
     }
 }
 
-/// RETR of `path` from `offset`. suppaftp sends REST before PASV, and a Synology forgets the
-/// REST at the PASV and sends the file from the start: here PASV (or EPSV), data connection,
-/// REST, RETR, in this order.
-async fn retr_from(s: &mut Stream, path: &str, offset: u64) -> Result<tokio::net::TcpStream, FtpError> {
+/// A data connection, plain or TLS.
+trait DataIo: AsyncRead + AsyncWrite + Unpin + Send {}
+impl<T: AsyncRead + AsyncWrite + Unpin + Send> DataIo for T {}
+type Data = Box<dyn DataIo>;
+
+/// Opens a data connection and sends `cmd` (RETR, STOR, MLSD, LIST), after "REST `offset`" if not 0.
+/// suppaftp does it in an order some servers do not follow: REST before PASV (a Synology forgets
+/// the REST and sends the file from the start) and the TLS of the data connection before the
+/// answer (a Storage Box answers "no such file" and never starts TLS: 30 s waiting). Here PASV or
+/// EPSV, data connection, REST, then the command and its TLS together, stopping at the first error.
+async fn open_data(s: &mut Stream, tls: Option<&tokio_rustls::TlsConnector>, host: &str, cmd: String, offset: u64) -> Result<Data, FtpError> {
     let at = data_address(s).await?;
-    let data = tokio::net::TcpStream::connect(at).await.map_err(FtpError::ConnectionError)?;
-    s.custom_command(format!("REST {offset}"), &[Status::RequestFilePending]).await?;
-    s.custom_command(format!("RETR {}", abs(path)), &[Status::AboutToSend, Status::AlreadyOpen]).await?;
-    Ok(data)
+    let tcp = tokio::net::TcpStream::connect(at).await.map_err(FtpError::ConnectionError)?;
+    if offset > 0 {
+        s.custom_command(format!("REST {offset}"), &[Status::RequestFilePending]).await?;
+    }
+    let answer = s.custom_command(cmd, &[Status::AboutToSend, Status::AlreadyOpen]);
+    let Some(tls) = tls else {
+        answer.await?;
+        return Ok(Box::new(tcp));
+    };
+    let name = rustls::pki_types::ServerName::try_from(host.to_string()).map_err(|e| FtpError::SecureError(e.to_string()))?;
+    let handshake = async { tls.connect(name, tcp).await.map_err(FtpError::ConnectionError) };
+    let (_, data) = tokio::try_join!(answer, handshake)?;
+    Ok(Box::new(data))
+}
+
+/// After ABOR some servers send one more line (a Synology: "225 ABOR command successful"), which
+/// would be taken for the answer to the next command: NOOP, and every answer up to its "200" read
+/// and dropped.
+async fn resync(s: &mut Stream) -> Result<(), FtpError> {
+    let mut r = s.custom_command("NOOP", &[Status::CommandOk]).await;
+    for _ in 0..3 {
+        match r {
+            Ok(_) => return Ok(()),
+            Err(FtpError::UnexpectedResponse(_)) => r = s.read_response_in(&[Status::CommandOk]).await,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(FtpError::BadResponse)
+}
+
+/// The end of a transfer: the data connection closed (`writing`: flushed and shut first), then
+/// the server's "transfer complete".
+async fn close_data(s: &mut Stream, mut data: Data, writing: bool) -> Result<(), FtpError> {
+    if writing {
+        data.flush().await.map_err(FtpError::ConnectionError)?;
+        data.shutdown().await.map_err(FtpError::ConnectionError)?;
+        // Until the server closes its side too: a socket closed while the server's own TLS
+        // close is still arriving is reset, and a Synology then dropped the end of the file
+        // (10 MB arrived as 9.3-9.5 MB over FTPS).
+        let _ = tokio::time::timeout(WAIT, async { data.read_to_end(&mut Vec::new()).await }).await;
+    }
+    drop(data);
+    s.read_response_in(&[Status::ClosingDataConnection, Status::RequestedFileActionOk]).await.map(|_| ())
 }
 
 /// Where to open a data connection: the port from EPSV (IPv6) or PASV (IPv4), at the address of
@@ -156,7 +238,12 @@ fn parse(line: &str, mlsd: bool) -> Option<File> {
 /// meantime is replaced once by a new one. A macro, not an async closure: those futures are not
 /// `Send` for the tasks that run them.
 macro_rules! with {
-    ($server:expr, $path:expr, |$c:ident| $op:expr) => {{
+    // Commands and listings: the whole operation within `WAIT`.
+    ($server:expr, $path:expr, |$c:ident| $op:expr) => {
+        with!($server, $path, transfer |$c| waited(async { $op }).await)
+    };
+    // Transfers: as long as they take; their reads and writes have `WAIT` each.
+    ($server:expr, $path:expr, transfer |$c:ident| $op:expr) => {{
         let server: &Server = $server;
         let _permit = server.permits.acquire().await.map_err(|e| ("error-detail", e.to_string()))?;
         loop {
@@ -193,7 +280,9 @@ impl Server {
         if let Some(s) = servers.iter().filter_map(Weak::upgrade).find(|s| s.target == target) {
             return s;
         }
-        let s = Arc::new(Server { target, idle: Mutex::new(Vec::new()), permits: tokio::sync::Semaphore::new(POOL) });
+        let key = format!("{}:{}", target.host, target.port);
+        let tls = target.secure.then(|| tls::connector(&target.host, &key));
+        let s = Arc::new(Server { target, idle: Mutex::new(Vec::new()), permits: tokio::sync::Semaphore::new(POOL), tls });
         servers.push(Arc::downgrade(&s));
         s
     }
@@ -222,14 +311,26 @@ impl Server {
             s.set_mode(Mode::Passive);
             s.set_passive_nat_workaround(true);
         }
+        if let Some(tls) = &self.tls {
+            let key = format!("{}:{}", t.host, t.port);
+            s = waited(s.into_secure(AsyncRustlsConnector::from(tls.clone()), &t.host)).await.map_err(|e| match tls::waiting(&key) {
+                true => ("error-cert-unknown", label.clone()),
+                false => ("error-detail", format!("{label}: {e}")),
+            })?;
+        }
         let (user, password) = if t.user.is_empty() { ("anonymous", "anonymous@") } else { (t.user.as_str(), t.password.as_str()) };
-        s.login(user, password).await.map_err(|e| match e {
+        waited(s.login(user, password)).await.map_err(|e| match e {
             FtpError::UnexpectedResponse(r) if r.status == Status::NotLoggedIn => ("error-login", format!("{user}@{label}")),
             e => ("error-detail", format!("{label}: {e}")),
         })?;
-        s.transfer_type(FileType::Binary).await.map_err(|e| error(e, &label))?;
+        waited(s.transfer_type(FileType::Binary)).await.map_err(|e| error(e, &label))?;
         log!("ftp {label}: connected as {user} in {:.2} s", started.elapsed().as_secs_f64());
         Ok(s)
+    }
+
+    /// `open_data` with this server's TLS.
+    async fn data(&self, s: &mut Stream, cmd: String, offset: u64) -> Result<Data, FtpError> {
+        open_data(s, self.tls.as_ref(), &self.target.host, cmd, offset).await
     }
 
     /// The folder the server starts in (usually the user's home), as a source path.
@@ -242,13 +343,21 @@ impl Server {
     /// Everything in a folder but "." and "..": MLSD where the server has it (exact times),
     /// otherwise LIST.
     async fn entries(&self, dir: &str) -> Result<Vec<File>, Error> {
-        let (lines, mlsd) = with!(self, dir, |c| match c.s.mlsd(Some(&abs(dir))).await {
-            Ok(lines) => Ok((lines, true)),
-            Err(FtpError::UnexpectedResponse(r)) if matches!(r.status, Status::NotImplemented | Status::BadCommand | Status::BadArguments) => {
-                c.s.list(Some(&abs(dir))).await.map(|l| (l, false))
-            }
-            Err(e) => Err(e),
-        })?;
+        let (text, mlsd) = with!(self, dir, |c| async {
+            let (d, mlsd) = match self.data(&mut c.s, format!("MLSD {}", abs(dir)), 0).await {
+                Ok(d) => (d, true),
+                Err(FtpError::UnexpectedResponse(r)) if matches!(r.status, Status::NotImplemented | Status::BadCommand | Status::BadArguments) => {
+                    (self.data(&mut c.s, format!("LIST {}", abs(dir)), 0).await?, false)
+                }
+                Err(e) => return Err(e),
+            };
+            let mut d = d;
+            let bytes = read_up_to(&mut d, u64::MAX).await?;
+            close_data(&mut c.s, d, false).await?;
+            Ok::<_, FtpError>((String::from_utf8_lossy(&bytes).into_owned(), mlsd))
+        }
+        .await)?;
+        let lines: Vec<&str> = text.lines().map(|l| l.trim_end_matches('\r')).filter(|l| !l.is_empty()).collect();
         Ok(lines.iter().filter_map(|l| parse(l, mlsd)).filter(|f| f.name() != "." && f.name() != "..").collect())
     }
 
@@ -286,11 +395,10 @@ impl Server {
     }
 
     pub async fn read(&self, path: &str) -> Result<Vec<u8>, Error> {
-        with!(self, path, |c| async {
-            let mut data = Vec::new();
-            let mut r = c.s.retr_as_stream(abs(path)).await?;
-            r.read_to_end(&mut data).await.map_err(FtpError::ConnectionError)?;
-            c.s.finalize_retr_stream(r).await?;
+        with!(self, path, transfer |c| async {
+            let mut d = waited(self.data(&mut c.s, format!("RETR {}", abs(path)), 0)).await?;
+            let data = read_up_to(&mut d, u64::MAX).await?;
+            waited(close_data(&mut c.s, d, false)).await?;
             Ok::<_, FtpError>(data)
         }
         .await)
@@ -299,14 +407,12 @@ impl Server {
     /// `len` bytes from `offset`, fewer at the end of the file. A transfer stopped before the end
     /// is aborted; a connection whose abort fails is not used again.
     pub async fn read_range(&self, path: &str, offset: u64, len: u64) -> Result<Vec<u8>, Error> {
-        with!(self, path, |c| async {
-            let mut r = retr_from(&mut c.s, path, offset).await?;
-            let mut data = Vec::with_capacity(len as usize);
-            (&mut r).take(len).read_to_end(&mut data).await.map_err(FtpError::ConnectionError)?;
+        with!(self, path, transfer |c| async {
+            let mut d = waited(self.data(&mut c.s, format!("RETR {}", abs(path)), offset)).await?;
+            let data = read_up_to(&mut d, len).await?;
             if (data.len() as u64) < len {
-                drop(r);
-                c.s.read_response_in(&[Status::ClosingDataConnection, Status::RequestedFileActionOk]).await?;
-            } else if let Err(e) = c.s.abort(r).await {
+                waited(close_data(&mut c.s, d, false)).await?;
+            } else if let Err(e) = waited(async { c.s.abort(d).await?; resync(&mut c.s).await }).await {
                 log!("ftp: abort after a partial read of {path}: {e}");
                 c.ok = false;
             }
@@ -320,14 +426,14 @@ impl Server {
     pub async fn write_chunks(&self, path: &str, mut chunks: tokio::sync::mpsc::Receiver<std::io::Result<Bytes>>) -> Result<(), Error> {
         let began = AtomicBool::new(false);
         let r: Result<(), Error> = (async {
-            with!(self, path, |c| async {
-                let mut w = c.s.put_with_stream(abs(path)).await?;
+            with!(self, path, transfer |c| async {
+                let mut d = waited(self.data(&mut c.s, format!("STOR {}", abs(path)), 0)).await?;
                 once(&began)?;
                 while let Some(chunk) = chunks.recv().await {
                     let chunk = chunk.map_err(FtpError::ConnectionError)?;
-                    w.write_all(&chunk).await.map_err(FtpError::ConnectionError)?;
+                    waited(async { d.write_all(&chunk).await.map_err(FtpError::ConnectionError) }).await?;
                 }
-                c.s.finalize_put_stream(w).await
+                waited(close_data(&mut c.s, d, true)).await
             }
             .await)
         })
@@ -422,14 +528,17 @@ impl Server {
         let pushed: Mutex<Option<Error>> = Mutex::new(None);
         let began = AtomicBool::new(false);
         let r: Result<(), Error> = (async {
-            with!(self, path, |c| async {
-                let mut r = c.s.retr_as_stream(abs(path)).await?;
+            with!(self, path, transfer |c| async {
+                let mut r = waited(self.data(&mut c.s, format!("RETR {}", abs(path)), 0)).await?;
                 once(&began)?;
                 let mut at = 0;
                 while at < size {
                     let stop = if cancel.load(Ordering::Relaxed) { Some(("error-cancelled", String::new())) } else { None };
                     let mut data = vec![0; chunk.min(size - at) as usize];
-                    let read = if stop.is_none() { r.read_exact(&mut data).await.map(|_| ()) } else { Ok(()) };
+                    let read = match stop {
+                        None => waited(async { r.read_exact(&mut data).await.map_err(FtpError::ConnectionError) }).await.map(|_| ()),
+                        Some(_) => Ok(()),
+                    };
                     let failed = match (stop, read) {
                         (Some(e), _) => Some(e),
                         (None, Err(e)) => Some(("error-detail", format!("{path}: {e}"))),
@@ -440,13 +549,13 @@ impl Server {
                     };
                     if let Some(e) = failed {
                         *pushed.lock().unwrap() = Some(e);
-                        if c.s.abort(r).await.is_err() {
+                        if waited(async { c.s.abort(r).await?; resync(&mut c.s).await }).await.is_err() {
                             c.ok = false;
                         }
                         return Ok(());
                     }
                 }
-                c.s.finalize_retr_stream(r).await
+                waited(close_data(&mut c.s, r, false)).await
             }
             .await)
         })

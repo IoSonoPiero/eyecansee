@@ -67,7 +67,7 @@ impl App {
         }
         match &r {
             Err(("error-device-kde", _)) => self.kiod_ask = true,
-            Err(("error-host-unknown", _)) => self.host_ask = true,
+            Err(("error-host-unknown" | "error-cert-unknown", _)) => self.host_ask = true,
             // A server that refused the login: File > Open location asks for the password.
             Err(("error-login" | "error-login-ssh", _)) if dir == self.dir && self.open_address.is_none() => {
                 self.open_address = AddressForm::for_password(&format!("{}{}", self.base, self.dir));

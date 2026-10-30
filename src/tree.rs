@@ -227,7 +227,7 @@ impl App {
             let ftp_port = s.port.unwrap_or(21);
             let live = here
                 || s.scheme == "sftp" && crate::sftp::connected(&s.host, s.port, &s.user)
-                || s.scheme == "ftp" && crate::ftp::connected(&s.host, ftp_port, &s.user);
+                || (s.scheme == "ftp" || s.scheme == "ftps") && crate::ftp::connected(&s.host, ftp_port, &s.user);
             let icon = icons::image(ui.ctx(), Icon::Server, TREE_ICON);
             let r = ui.selectable_label(here, (icon, s.name.as_str())).on_hover_text(crate::address::without_password(&address));
             if r.clicked() {
@@ -254,7 +254,7 @@ impl App {
                 let home = std::env::home_dir().map_or("/".into(), |h| h.to_string_lossy().into_owned());
                 self.open_source(&ctx, &home);
             }
-            if s.scheme == "ftp" {
+            if s.scheme == "ftp" || s.scheme == "ftps" {
                 self.rt.spawn(crate::ftp::disconnect(s.host, s.port.unwrap_or(21), s.user));
             } else {
                 self.rt.spawn(crate::sftp::disconnect(s.host, s.port, s.user));

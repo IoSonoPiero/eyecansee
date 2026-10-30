@@ -35,11 +35,16 @@ error-key-failed = The saved key of { $detail } could not be opened: wrong passp
 error-permission = Permission denied: { $detail }
 error-no-sftp = The server answers over SSH but has no SFTP service ({ $detail }). On a NAS, turn SFTP on in its settings.
 error-host-unknown = { $detail } has never been used from this computer: confirm its key to connect.
+error-cert-unknown = The certificate of { $detail } is not signed by a known authority: confirm it to connect.
 error-host-changed = The key of { $detail } is not the one recorded in ~/.ssh/known_hosts, so EyeCanSee does not connect: someone may be pretending to be that server. If the server was reinstalled, remove its old line from known_hosts.
 host-ask =
     { "**" }First connection to { $host }.**
 
     Its key fingerprint is `{ $fingerprint }`. If it is the server you expect, EyeCanSee remembers it in ~/.ssh/known_hosts, as ssh does, and connects.
+cert-ask =
+    { "**" }First connection to { $host } (FTPS).**
+
+    Its certificate is not vouched for by a known authority (common with NAS boxes, which make their own). Its SHA-256 fingerprint is `{ $fingerprint }`. If it is the server you expect, EyeCanSee remembers it and connects.
 host-ok = Connect
 sftp-rsa-key = **{ $host }** opened with an RSA key.
 

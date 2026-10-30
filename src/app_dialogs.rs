@@ -226,7 +226,8 @@ impl App {
         }
     }
 
-    /// First connection to an SFTP server: its key's fingerprint, as ssh shows it. Trusted, the
+    /// First connection to an SFTP server (its key's fingerprint, as ssh shows it) or to an FTPS
+    /// server whose certificate no known authority vouches for (its fingerprint, as browsers show it). Trusted, the
     /// key goes to known_hosts and the address opens again (in the server's starting folder if
     /// it had none).
     /// Also the warning, once per server, after a login with an RSA key (RUSTSEC-2023-0071).
@@ -239,15 +240,24 @@ impl App {
         if !self.host_ask {
             return;
         }
-        let Some((host, fingerprint)) = crate::sftp::unknown() else {
+        // An FTPS certificate or an SSH key, the same question.
+        let (cert, asked) = match crate::ftp::unknown() {
+            Some(c) => (true, Some(c)),
+            None => (false, crate::sftp::unknown()),
+        };
+        let Some((host, fingerprint)) = asked else {
             self.host_ask = false;
             return;
         };
-        let text = self.i18n.t_args("host-ask", &[("host", &host), ("fingerprint", &fingerprint)]);
+        let text = self.i18n.t_args(if cert { "cert-ask" } else { "host-ask" }, &[("host", &host), ("fingerprint", &fingerprint)]);
         let (ok, cancel) = (self.i18n.t("host-ok"), self.i18n.t("delete-no"));
         match confirm::yes_no(ctx, "host", 460.0, text, ok, true, cancel, self.delete_answer.take()) {
             Some(true) => {
-                crate::sftp::trust();
+                if cert {
+                    crate::ftp::trust();
+                } else {
+                    crate::sftp::trust();
+                }
                 self.host_ask = false;
                 let address = format!("{}{}", self.base, self.dir);
                 self.open_source(ctx, &address);

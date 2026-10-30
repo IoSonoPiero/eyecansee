@@ -578,30 +578,13 @@ pub fn open(arg: &str) -> Result<Source, Error> {
         let home = dir.is_empty() && start.is_none();
         return Ok(Source { op: Store::Sftp(crate::sftp::Server::shared(target)), base, dir, start, home });
     }
-    if url.scheme() == "ftp" {
-        let user = decode(url.username());
-        let target = crate::ftp::Target { host: host.to_string(), port: url.port_or_known_default().unwrap_or(21), user, password: password.unwrap_or_default() };
+    if let scheme @ ("ftp" | "ftps") = url.scheme() {
+        let (user, port, secure) = (decode(url.username()), url.port_or_known_default().unwrap_or(21), scheme == "ftps");
+        let target = crate::ftp::Target { host: host.to_string(), port, user, password: password.unwrap_or_default(), secure };
         let home = dir.is_empty() && start.is_none();
         return Ok(Source { op: Store::Ftp(crate::ftp::Server::shared(target)), base, dir, start, home });
     }
-    // ponytail: FTPS still on OpenDAL until it moves to `ftp.rs` with its certificate check
-    let op = match url.scheme() {
-        scheme @ "ftps" => {
-            let port = url.port_or_known_default().unwrap_or(21);
-            let mut b = services::Ftp::default().endpoint(&format!("{scheme}://{host}:{port}")).root("/");
-            // Without a user OpenDAL does not log in at all; FTP clients log in as "anonymous".
-            b = match url.username() {
-                "" => b.user("anonymous").password("anonymous@"),
-                u => b.user(&decode(u)),
-            };
-            if let Some(p) = &password {
-                b = b.password(p);
-            }
-            Operator::new(b)
-        }
-        s => return Err(("error-unsupported", s.to_string())),
-    };
-    Ok(Source { op: Store::Dal(op.map_err(|e| ("error-source", e.to_string()))?), base, dir, start, home: false })
+    Err(("error-unsupported", url.scheme().to_string()))
 }
 
 fn local(path: &Path) -> Result<Source, Error> {
