@@ -5,7 +5,8 @@ devices.png: the 13 photos below in the folder Photos of a test FTP server on th
 saved as "NAS" (nas.example, user "demo"); in the left panel two disks, a POCO X7 Pro and a second
 saved server "Storage Box" (storage.example), not opened. servers.png: the server manager with
 these two example servers and a master password. rotate.png: Wilderness.jpg. Server names, hosts
-and users are made up for the screenshots.
+and users are made up for the screenshots. video-convert.png: the 4 videos below in a folder on
+disk, all selected.
 
 Photos: public domain or CC0, from Wikimedia Commons (renamed; in the phone folder copied several
 times as IMG_0001.jpg ... IMG_0334.jpg, in the order of the list).
@@ -61,6 +62,24 @@ Grand Canyon.jpg  (original name: Grand_Canyon_South_Rim_at_Sunset.jpg)
 Sunset.jpg  (original name: Sunset_over_Trommekilen_from_Norrkila_6.jpg)
   CC0 - W.carter
   https://commons.wikimedia.org/wiki/File:Sunset_over_Trommekilen_from_Norrkila_6.jpg
+
+Videos (video-convert.png):
+
+Earth from space.webm  (original name: Time-lapse_Earth_Flyover_from_NASA_Astronaut_in_Space.webm)
+  Public domain - NASA
+  https://commons.wikimedia.org/wiki/File:Time-lapse_Earth_Flyover_from_NASA_Astronaut_in_Space.webm
+
+Ocean waves.webm  (original name: Irminger_waves_without_sound_(OOI).webm)
+  Public domain - Ocean Observatories Initiative
+  https://commons.wikimedia.org/wiki/File:Irminger_waves_without_sound_(OOI).webm
+
+Bees on flowers.webm  (original name: Bees_on_flowers.webm)
+  CC0 - J. M. Pearson
+  https://commons.wikimedia.org/wiki/File:Bees_on_flowers.webm
+
+Flowers.webm  (original name: Flowers_(20210711-FPAC-KLS-0002).webm)
+  Public domain - USDA
+  https://commons.wikimedia.org/wiki/File:Flowers_(20210711-FPAC-KLS-0002).webm
 
 
 Other files in the phone folder, from the "test-files" release of EyeCanSee

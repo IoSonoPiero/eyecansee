@@ -18,6 +18,8 @@ It is early in development. This page lists only what works now: new features ar
 
 ![Saving in another format, the original and the result side by side](docs/screenshots/convert.png)
 
+![Converting videos, on the graphics card when it can](docs/screenshots/video-convert.png)
+
 ![Rotating and cropping](docs/screenshots/rotate.png)
 
 ![The server manager, with a master password for the saved servers](docs/screenshots/servers.png)
