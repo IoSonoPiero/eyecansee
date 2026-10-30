@@ -22,8 +22,6 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Full screen.
 - Rotated videos from phones shown the right way up.
 - 4K/60 videos.
-- Remove the audio track from a video without re-encoding it.
-- Extract the audio track from a video without re-encoding it.
 
 ### Devices and servers
 

@@ -564,7 +564,14 @@ dup-delete = Elimina le copie segnate…
 dup-none = Nessun duplicato in questa cartella.
 menu-batch = Converti e ridimensiona…
 menu-copy-meta = Copia con i metadati…
+menu-strip-audio = Togli l'audio…
+menu-extract-audio = Estrai l'audio…
 batch-title = Converti e ridimensiona
+batch-title-strip = Togli l'audio
+batch-title-extract = Estrai l'audio
+batch-strip-hint = Il video e le sue altre tracce (sottotitoli, capitoli) vengono copiati così come sono, senza l'audio: nessuna ricodifica, nessuna perdita, metadati conservati. Il file nuovo ha il formato dell'originale.
+batch-extract-hint = Ogni traccia audio viene copiata così com'è in un file suo, nel formato del suo codec (AAC come .m4a, Opus come .opus, MP3 come .mp3, FLAC come .flac): nessuna ricodifica, nessuna perdita, metadati conservati. Per un altro formato usa Converti e ridimensiona.
+batch-audio-not-ready = FFmpeg non è ancora pronto.
 batch-images = { $n ->
     [one] **1 file** in { $folder }.
    *[other] **{ $n } file** in { $folder }.
@@ -672,6 +679,7 @@ batch-video-old-ffmpeg = L'FFmpeg di questo computer è troppo vecchio: { $found
 batch-video-system-only = FFmpeg su questo computer non c'è, e nelle Opzioni è scelto di usare solo quello di sistema. Installalo, oppure cambia la scelta in Strumenti > Opzioni > Video.
 batch-video-not-ready = Scegli come convertire i video.
 batch-skip-video = { $detail }: è un video e manca FFmpeg.
+batch-no-audio = { $detail }: il video non ha audio.
 
 video-codec-h264 = Si apre ovunque: telefoni, TV, browser, computer vecchi. File più grandi di HEVC e AV1.
 video-codec-hevc = Circa metà del peso di H.264 a parità di qualità; si apre su telefoni, TV e computer recenti.

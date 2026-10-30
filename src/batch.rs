@@ -75,11 +75,13 @@ pub struct Job {
     pub enlarge: bool,
     /// What the videos become, with the same size and turn; `None`: videos are left out.
     pub video: Option<crate::ffmpeg::Video>,
+    /// Only the audio of the videos taken out or extracted, nothing else done (`audio_job`).
+    pub audio: Option<crate::audio_job::AudioJob>,
 }
 
 impl Default for Job {
     fn default() -> Self {
-        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None }
+        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None, audio: None }
     }
 }
 
@@ -372,6 +374,15 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
         let name = source::name(&path).to_string();
         *p.current.lock().unwrap() = name.clone();
         p.part.store(0, Ordering::Relaxed);
+        if let Some(audio) = job.audio {
+            match crate::audio_job::run(op, &path, &out, &dest, audio, &mut taken, &p).await {
+                Ok(saved) => p.saved.lock().unwrap().extend(saved),
+                Err(_) if p.cancel.load(Ordering::Relaxed) => break,
+                Err(e) => p.failed.lock().unwrap().push(e),
+            }
+            p.done.fetch_add(1, Ordering::Relaxed);
+            continue;
+        }
         if crate::decode::is_video(&path) {
             let new_name = match &job.video {
                 Some(v) => source::free_name(&taken, &ext(&name, crate::ffmpeg::CONTAINERS[v.container].ext)),

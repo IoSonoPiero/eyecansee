@@ -1,6 +1,7 @@
 //! Browse mode, the parts shared by the tree (`tree`), the grid (`grid`) and the metadata panel
 //! (`meta_panel`): right-click menus, error text, selection colour and focus frame.
 
+use crate::audio_job::AudioJob;
 use eframe::egui::{self, Color32, Ui};
 
 use crate::actions::Act;
@@ -90,6 +91,8 @@ impl App {
                 items.extend([
                     Some((self.i18n.t("menu-batch"), String::new(), Act::Batch(path.clone()))),
                     Some((self.i18n.t("menu-copy-meta"), String::new(), Act::CopyMeta(path.clone()))),
+                    Some((self.i18n.t("menu-strip-audio"), String::new(), Act::Audio(AudioJob::Strip, path.clone()))),
+                    Some((self.i18n.t("menu-extract-audio"), String::new(), Act::Audio(AudioJob::Extract, path.clone()))),
                     None,
                 ]);
             }
@@ -150,6 +153,8 @@ impl App {
             items.push(Some((t("menu-batch"), String::new(), Act::Batch(path.clone()))));
             if self.grid_items(path.clone()).iter().any(|p| crate::decode::is_video(p)) {
                 items.push(Some((t("menu-copy-meta"), String::new(), Act::CopyMeta(path.clone()))));
+                items.push(Some((t("menu-strip-audio"), String::new(), Act::Audio(AudioJob::Strip, path.clone()))));
+                items.push(Some((t("menu-extract-audio"), String::new(), Act::Audio(AudioJob::Extract, path.clone()))));
             }
         }
         items.push(None);

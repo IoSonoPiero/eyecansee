@@ -6,6 +6,7 @@ use std::sync::Arc;
 
 use eframe::egui;
 
+use crate::audio_job::AudioJob;
 use crate::batch::{Dest, Filter, Job, Progress, Size};
 use crate::encode::{Format, Options};
 use crate::ffmpeg::{CONTAINERS, Codec, Quality, Video};
@@ -56,6 +57,8 @@ pub struct Form {
     images: bool,
     videos: bool,
     video: VideoForm,
+    /// Only the audio of the videos: the window shows just FFmpeg and the destination.
+    audio: Option<AudioJob>,
 }
 
 /// The choices for the videos.
@@ -93,6 +96,7 @@ impl Form {
             images: true,
             videos: false,
             video: VideoForm { container: 0, codec: Codec::H264, encoder: None, quality: Quality::Medium, audio: true, meta: true, download: None },
+            audio: None,
         }
     }
 
@@ -104,7 +108,7 @@ impl Form {
         };
         let v = &self.video;
         let video = v.encoder.filter(|_| self.videos).map(|encoder| Video { container: v.container, encoder, quality: v.quality, audio: v.audio, meta: v.meta });
-        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video }
+        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio }
     }
 
     /// The flips first, then the turn.
@@ -121,10 +125,14 @@ impl Form {
     /// Why Convert cannot start yet (Fluent id), if it cannot.
     fn why_not(&self) -> Option<&'static str> {
         let name = self.sub_name.trim();
-        if self.images && self.job().does_nothing() {
-            Some("batch-nothing")
-        } else if self.videos && self.job().video.is_none() {
-            Some("batch-video-not-ready")
+        let media = match self.audio {
+            Some(_) => crate::ffmpeg::probed().is_none().then_some("batch-audio-not-ready"),
+            None if self.images && self.job().does_nothing() => Some("batch-nothing"),
+            None if self.videos && self.job().video.is_none() => Some("batch-video-not-ready"),
+            None => None,
+        };
+        if media.is_some() {
+            media
         } else if self.place == Place::Sub && (name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\'])) {
             Some("batch-bad-folder")
         } else if self.place == Place::Other && self.other.trim().is_empty() {
@@ -162,6 +170,7 @@ impl App {
             return;
         }
         let form = self.batch_form.get_or_insert_with(|| Form::new(self.i18n.t("batch-subfolder-name")));
+        form.audio = None;
         form.videos = paths.iter().any(|p| crate::decode::is_video(p));
         form.images = paths.iter().any(|p| !crate::decode::is_video(p));
         if form.other.is_empty() {
@@ -182,6 +191,26 @@ impl App {
         }
     }
 
+    /// "Remove the audio" and "Extract the audio": the window on the videos chosen, with only the
+    /// destination to choose, next to the originals at first (user, 2026-10-30).
+    pub(crate) fn open_audio(&mut self, job: AudioJob, path: Option<String>) {
+        if self.batch.is_some() {
+            return;
+        }
+        self.open_batch(path);
+        let Some(w) = self.batch.as_mut() else { return };
+        w.paths.retain(|p| crate::decode::is_video(p));
+        if w.paths.is_empty() {
+            self.batch = None;
+            return;
+        }
+        if let Some(form) = self.batch_form.as_mut() {
+            form.audio = Some(job);
+            form.images = false;
+            form.place = Place::Next;
+        }
+    }
+
     pub(crate) fn batch_window(&mut self, ctx: &egui::Context) {
         let Some(mut w) = self.batch.take() else { return };
         let keep = match w.progress.clone() {
@@ -197,6 +226,11 @@ impl App {
     fn batch_ask(&mut self, ctx: &egui::Context, w: &mut Window) -> bool {
         let Some(mut form) = self.batch_form.take() else { return false };
         let n = w.paths.len().to_string();
+        let title = self.i18n.t(match form.audio {
+            Some(AudioJob::Strip) => "batch-title-strip",
+            Some(AudioJob::Extract) => "batch-title-extract",
+            None => "batch-title",
+        });
         let intro = self.i18n.t_args("batch-images", &[("n", &n), ("folder", &md(&self.display(&w.dir)))]);
         let keys = self.delete_answer.take();
         let (places, rt) = (self.pick_places(), self.rt.handle().clone());
@@ -207,7 +241,7 @@ impl App {
                 picked = pick_ui(ui, p, &places, &self.i18n, &rt, keys);
                 return;
             }
-            crate::theme::title(ui, self.i18n.t("batch-title"));
+            crate::theme::title(ui, title);
             ui.add_space(6.0);
             notice_text(ui, &intro);
             answer = form_ui(ui, &mut form, &self.i18n);
@@ -347,6 +381,11 @@ fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bool> {
     // On a low screen the choices scroll, the buttons stay in view.
     let max = (ui.ctx().content_rect().height() - 170.0).max(200.0);
     egui::ScrollArea::vertical().max_height(max).show(ui, |ui| {
+        if let Some(job) = f.audio {
+            section(ui, t("batch-video"), |ui| audio_rows(ui, &mut f.video, job, i18n));
+            section(ui, t("batch-where"), |ui| where_rows(ui, f, i18n));
+            return;
+        }
         if f.images {
             section(ui, t("convert-format"), |ui| format_rows(ui, f, i18n));
         }
@@ -413,6 +452,16 @@ fn format_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
                 }
             });
         }
+    }
+}
+
+/// The audio jobs: FFmpeg ready, and what the job does; nothing else to choose.
+fn audio_rows(ui: &mut egui::Ui, v: &mut VideoForm, job: AudioJob, i18n: &I18n) {
+    if ffmpeg_ready(ui, v, i18n).is_some() {
+        ui.label(i18n.t(match job {
+            AudioJob::Strip => "batch-strip-hint",
+            AudioJob::Extract => "batch-extract-hint",
+        }));
     }
 }
 

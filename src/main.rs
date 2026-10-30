@@ -23,6 +23,7 @@ fn log_time() -> f64 {
 
 mod actions;
 mod address;
+mod audio_job;
 mod app_dialogs;
 mod batch;
 mod batch_page;

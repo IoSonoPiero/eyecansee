@@ -132,7 +132,10 @@ impl App {
         // One conversion at a time: the entries wait for the one running.
         let free = !viewing && self.batch.is_none();
         entry(ui, act, free && !self.grid_items(None).is_empty(), egui::Button::new(t("menu-batch")), Act::Batch(None));
-        entry(ui, act, free && self.grid_items(None).iter().any(|p| crate::decode::is_video(p)), egui::Button::new(t("menu-copy-meta")), Act::CopyMeta(None));
+        let videos = free && self.grid_items(None).iter().any(|p| crate::decode::is_video(p));
+        entry(ui, act, videos, egui::Button::new(t("menu-copy-meta")), Act::CopyMeta(None));
+        entry(ui, act, videos, egui::Button::new(t("menu-strip-audio")), Act::Audio(crate::audio_job::AudioJob::Strip, None));
+        entry(ui, act, videos, egui::Button::new(t("menu-extract-audio")), Act::Audio(crate::audio_job::AudioJob::Extract, None));
         entry(ui, act, !viewing && self.loader.is_some() && !source::is_trash(&self.dir), egui::Button::new(t("menu-duplicates")), Act::Duplicates(None));
         ui.separator();
         entry(ui, act, true, egui::Button::new(t("menu-options")), Act::Options);
