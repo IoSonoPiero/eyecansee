@@ -258,7 +258,7 @@ pub fn args(v: &Video, size: Size, enlarge: bool, turn: Turn, (input, output): (
     a
 }
 
-fn command(program: &Path) -> Command {
+pub(crate) fn command(program: &Path) -> Command {
     let mut c = Command::new(program);
     c.stdin(Stdio::null());
     // No console window flashing up for every video.

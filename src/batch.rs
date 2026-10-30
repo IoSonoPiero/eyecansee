@@ -183,7 +183,7 @@ fn same_form(path: &std::path::Path) -> PathBuf {
 
 /// The thumbnail of the video written into `file`, kept for `to` until the loader asks for it
 /// (`thumbcache::keep`): made here, from the local file, before it goes to a phone or a server.
-async fn keep_thumbnail(to: &str, file: &std::path::Path) {
+pub(crate) async fn keep_thumbnail(to: &str, file: &std::path::Path) {
     let input = crate::mpv::Input::File(file.to_path_buf());
     let (Ok(size), Ok(Ok(img))) = (
         std::fs::metadata(file).map(|m| m.len()),
@@ -264,20 +264,20 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
 
 /// The parts of a video's conversion on the bar: `set(phase, 0 to 1)`.
 #[derive(Clone)]
-struct Phases {
-    p: Arc<Progress>,
-    count: u32,
+pub(crate) struct Phases {
+    pub(crate) p: Arc<Progress>,
+    pub(crate) count: u32,
 }
 
 impl Phases {
-    fn set(&self, phase: u32, f: f32) {
+    pub(crate) fn set(&self, phase: u32, f: f32) {
         let whole = (phase as f32 + f.clamp(0.0, 1.0)) / self.count as f32;
         self.p.part.store((whole * 1000.0) as u32, Ordering::Relaxed);
     }
 }
 
 /// `path` of `op` into the local `file`, 4 MB at a time; `progress` gets 0 to 1.
-async fn download(op: &Store, path: &str, file: &std::path::Path, progress: impl Fn(f32)) -> std::io::Result<()> {
+pub(crate) async fn download(op: &Store, path: &str, file: &std::path::Path, progress: impl Fn(f32)) -> std::io::Result<()> {
     use std::io::Write;
     let size = op.size(path).await.map_err(|(_, d)| std::io::Error::other(d))?;
     let mut f = std::fs::File::create(file)?;
@@ -296,7 +296,7 @@ async fn download(op: &Store, path: &str, file: &std::path::Path, progress: impl
 
 /// The local `file` written to `to` of `out`, 1 MB at a time; `progress` gets 0 to 1 as it is
 /// read (a few MB ahead of what the server has).
-async fn upload(out: &Store, to: &str, file: &std::path::Path, progress: impl Fn(f32) + Send + 'static) -> std::io::Result<()> {
+pub(crate) async fn upload(out: &Store, to: &str, file: &std::path::Path, progress: impl Fn(f32) + Send + 'static) -> std::io::Result<()> {
     use std::io::Read;
     let size = std::fs::metadata(file)?.len();
     let mut f = std::fs::File::open(file)?;

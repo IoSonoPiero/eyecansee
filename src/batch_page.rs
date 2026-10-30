@@ -416,22 +416,30 @@ fn format_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     }
 }
 
+/// FFmpeg found and its encoders tried: downloaded first where there is none, a spinner while
+/// it is tried.
+fn ffmpeg_ready(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) -> Option<&'static crate::ffmpeg::Probe> {
+    if crate::ffmpeg::program().is_none() {
+        ffmpeg_download(ui, v, i18n);
+        return None;
+    }
+    let ctx = ui.ctx().clone();
+    crate::ffmpeg::start_probe(move || ctx.request_repaint());
+    let probe = crate::ffmpeg::probed();
+    if probe.is_none() {
+        ui.horizontal(|ui| {
+            ui.spinner();
+            ui.label(i18n.t("batch-video-checking"));
+        });
+    }
+    probe
+}
+
 /// Container, codec, encoder (only those that work here), quality, sound and metadata; FFmpeg
 /// downloaded first where there is none.
 fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     let t = |id| i18n.t(id);
-    if crate::ffmpeg::program().is_none() {
-        return ffmpeg_download(ui, v, i18n);
-    }
-    let ctx = ui.ctx().clone();
-    crate::ffmpeg::start_probe(move || ctx.request_repaint());
-    let Some(probe) = crate::ffmpeg::probed() else {
-        ui.horizontal(|ui| {
-            ui.spinner();
-            ui.label(t("batch-video-checking"));
-        });
-        return;
-    };
+    let Some(probe) = ffmpeg_ready(ui, v, i18n) else { return };
     egui::ComboBox::from_label(t("batch-video-container")).selected_text(CONTAINERS[v.container].name).show_ui(ui, |ui| {
         for (i, c) in CONTAINERS.iter().enumerate() {
             ui.selectable_value(&mut v.container, i, c.name);
