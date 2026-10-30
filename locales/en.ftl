@@ -40,6 +40,11 @@ host-ask =
 
     Its key fingerprint is `{ $fingerprint }`. If it is the server you expect, EyeCanSee remembers it in ~/.ssh/known_hosts, as ssh does, and connects.
 host-ok = Connect
+sftp-rsa-key = **{ $host }** opened with an RSA key.
+
+    It works, but the RSA library EyeCanSee uses has a known flaw with no fix yet (RUSTSEC-2023-0071): in theory whoever controls the server, by timing a great many logins, could work out the key. Better switch to an ed25519 key (ssh-keygen -t ed25519).
+
+    This warning appears once per server each time EyeCanSee starts.
 error-not-found = Not found: { $detail }
 error-device-busy = The device is in use by another application (for example the file manager). Close it, or disconnect and reconnect the device. ({ $detail })
 error-device-kde = KDE is using the phone (its kiod service). Press F5 to open it in EyeCanSee anyway. ({ $detail })

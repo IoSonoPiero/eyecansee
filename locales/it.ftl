@@ -39,6 +39,11 @@ host-ask =
 
     L'impronta della sua chiave è `{ $fingerprint }`. Se è il server che ti aspetti, EyeCanSee la ricorda in ~/.ssh/known_hosts, come fa ssh, e si collega.
 host-ok = Collegati
+sftp-rsa-key = **{ $host }** aperto con una chiave RSA.
+
+    Funziona, ma la libreria RSA usata da EyeCanSee ha un difetto noto non ancora corretto (RUSTSEC-2023-0071): in teoria chi controlla il server, misurando i tempi di moltissimi accessi, potrebbe ricavare la chiave. Meglio passare a una chiave ed25519 (ssh-keygen -t ed25519).
+
+    Questo avviso compare una volta per server a ogni avvio di EyeCanSee.
 error-not-found = Non trovato: { $detail }
 error-device-busy = Il dispositivo è in uso da un'altra applicazione (per esempio il gestore dei file). Chiudila, oppure scollega e ricollega il dispositivo. ({ $detail })
 error-device-kde = Il telefono è in uso da KDE (il suo servizio kiod). Premi F5 per aprirlo comunque in EyeCanSee. ({ $detail })

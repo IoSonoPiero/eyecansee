@@ -27,6 +27,15 @@ pub struct Target {
     pub key: Option<(PathBuf, String)>,
 }
 
+/// Servers logged in to with an RSA key in this session, each warned once, and the one whose
+/// warning is still to be shown (`rsa_login`): RUSTSEC-2023-0071 has no fix in the `rsa` crate.
+static RSA: Mutex<(Vec<String>, Option<String>)> = Mutex::new((Vec::new(), None));
+
+/// The server just logged in to with an RSA key, to warn about it once.
+pub fn rsa_login() -> Option<String> {
+    RSA.lock().unwrap().1.take()
+}
+
 /// A server key not in known_hosts, waiting for the user's answer (`trust`): host label, host,
 /// port and key.
 static UNKNOWN: Mutex<Option<(String, String, u16, PublicKey)>> = Mutex::new(None);
@@ -118,8 +127,14 @@ pub(super) async fn connect(t: &Target) -> Result<Handle<Client>, Error> {
         Ok(Err(e)) => return Err(refused.lock().unwrap().take().unwrap_or(("error-detail", format!("{label}: {e}")))),
         Ok(Ok(h)) => h,
     };
-    login(&mut handle, &r, t.password.as_deref()).await.map_err(|()| ("error-login-ssh", format!("{}@{label}", r.user)))?;
-    log!("sftp: logged in to {label} as {}", r.user);
+    let rsa = login(&mut handle, &r, t.password.as_deref()).await.map_err(|()| ("error-login-ssh", format!("{}@{label}", r.user)))?;
+    log!("sftp: logged in to {label} as {}{}", r.user, if rsa { " with an RSA key" } else { "" });
+    let mut warned = RSA.lock().unwrap();
+    if rsa && !warned.0.contains(&label) {
+        warned.0.push(label.clone());
+        warned.1 = Some(label);
+    }
+    drop(warned);
     Ok(handle)
 }
 
@@ -136,20 +151,19 @@ fn known_first(host: &str, port: u16) -> Vec<keys::Algorithm> {
 }
 
 /// As ssh: every key until the server accepts one or stops answering (MaxAuthTries). A password
-/// in the address goes first: whoever typed it wants to log in with it.
-async fn login(h: &mut Handle<Client>, r: &Resolved, password: Option<&str>) -> Result<(), ()> {
+/// in the address goes first: whoever typed it wants to log in with it. `Ok(true)`: with an RSA key.
+async fn login(h: &mut Handle<Client>, r: &Resolved, password: Option<&str>) -> Result<bool, ()> {
     if let Some(p) = password
         && password_login(h, &r.user, p).await
     {
-        return Ok(());
+        return Ok(false);
     }
     let rsa_hash = h.best_supported_rsa_hash().await.ok().flatten().flatten();
     if let Some((file, passphrase)) = &r.key {
         match keys::load_secret_key(file, (!passphrase.is_empty()).then_some(passphrase.as_str())) {
             Ok(key) => {
-                let key = PrivateKeyWithHashAlg::new(Arc::new(key), rsa_hash);
-                if matches!(h.authenticate_publickey(&r.user, key).await, Ok(AuthResult::Success)) {
-                    return Ok(());
+                if let Some(rsa) = key_login(h, &r.user, key, rsa_hash).await {
+                    return Ok(rsa);
                 }
             }
             Err(e) => log!("sftp: saved key {}: {e}", file.display()),
@@ -157,18 +171,24 @@ async fn login(h: &mut Handle<Client>, r: &Resolved, password: Option<&str>) -> 
     }
     // The keys named in ~/.ssh/config, as public keys next to their files.
     let named: Vec<PublicKey> = r.files.iter().filter_map(|f| PublicKey::read_openssh_file(pub_file(f)).ok()).collect();
-    if agent_login(h, &r.user, &named, rsa_hash).await {
-        return Ok(());
+    if let Some(rsa) = agent_login(h, &r.user, &named, rsa_hash).await {
+        return Ok(rsa);
     }
     for file in r.files.iter().filter(|f| f.exists()) {
         // A key with a passphrase is skipped: the agent is the way to use it.
         let Ok(key) = keys::load_secret_key(file, None) else { continue };
-        let key = PrivateKeyWithHashAlg::new(Arc::new(key), rsa_hash);
-        if matches!(h.authenticate_publickey(&r.user, key).await, Ok(AuthResult::Success)) {
-            return Ok(());
+        if let Some(rsa) = key_login(h, &r.user, key, rsa_hash).await {
+            return Ok(rsa);
         }
     }
     Err(())
+}
+
+/// A private key: `Some(it is RSA)` when the server accepts it.
+async fn key_login(h: &mut Handle<Client>, user: &str, key: keys::PrivateKey, rsa_hash: Option<HashAlg>) -> Option<bool> {
+    let rsa = key.algorithm().is_rsa();
+    let key = PrivateKeyWithHashAlg::new(Arc::new(key), rsa_hash);
+    matches!(h.authenticate_publickey(user, key).await, Ok(AuthResult::Success)).then_some(rsa)
 }
 
 /// "key" → "key.pub" (not `with_extension`: key names can have dots).
@@ -179,8 +199,8 @@ fn pub_file(key: &std::path::Path) -> PathBuf {
 }
 
 /// The agent's keys, those named in ~/.ssh/config first. Linux: `SSH_AUTH_SOCK`; Windows: the
-/// OpenSSH agent's pipe, then Pageant.
-async fn agent_login(h: &mut Handle<Client>, user: &str, named: &[PublicKey], rsa_hash: Option<HashAlg>) -> bool {
+/// OpenSSH agent's pipe, then Pageant. `Some(it is RSA)` when the server accepts a key.
+async fn agent_login(h: &mut Handle<Client>, user: &str, named: &[PublicKey], rsa_hash: Option<HashAlg>) -> Option<bool> {
     #[cfg(unix)]
     if let Ok(agent) = AgentClient::connect_env().await {
         return with_agent(agent, h, user, named, rsa_hash).await;
@@ -194,7 +214,7 @@ async fn agent_login(h: &mut Handle<Client>, user: &str, named: &[PublicKey], rs
             return with_agent(agent, h, user, named, rsa_hash).await;
         }
     }
-    false
+    None
 }
 
 async fn with_agent<S: AgentStream + Unpin + Send + 'static>(
@@ -203,17 +223,18 @@ async fn with_agent<S: AgentStream + Unpin + Send + 'static>(
     user: &str,
     named: &[PublicKey],
     rsa_hash: Option<HashAlg>,
-) -> bool {
+) -> Option<bool> {
     let mut ids: Vec<AgentIdentity> = agent.request_identities().await.unwrap_or_default();
     ids.sort_by_key(|id| !named.contains(&id.public_key()));
     for id in ids {
         let key = id.public_key().into_owned();
-        let hash = if key.algorithm().is_rsa() { rsa_hash } else { None };
+        let rsa = key.algorithm().is_rsa();
+        let hash = if rsa { rsa_hash } else { None };
         if matches!(h.authenticate_publickey_with(user, key, hash, &mut agent).await, Ok(AuthResult::Success)) {
-            return true;
+            return Some(rsa);
         }
     }
-    false
+    None
 }
 
 /// "password", or "keyboard-interactive" answering each question with the password (servers

@@ -15,6 +15,9 @@ ignore = [
     { id = "RUSTSEC-2026-0367", reason = "zip extract() only, not used by image-extras" },
     { id = "RUSTSEC-2026-0368", reason = "zip extract() only, not used by image-extras" },
     { id = "RUSTSEC-2026-0369", reason = "zip extract() only, not used by image-extras" },
+    # rsa (from russh, for RSA keys, still common on servers): no fixed version exists. Kept on the
+    # user's decision (2026-10-30); the app warns once per server after a login with an RSA key.
+    { id = "RUSTSEC-2023-0071", reason = "no fix in rsa; RSA keys kept, the app warns when one is used" },
 ]
 
 # The licences in use on 2026-10-26, all compatible with GPL-3.0-or-later (EyeCanSee's). A new
