@@ -2,50 +2,67 @@
 
 The order is indicative: features arrive when they are ready and tested on real devices. Open an issue to ask for one, or vote for an existing one with a reaction.
 
-## Video
+## Planned
 
-- Save the current frame of a paused video.
+### First
+
+- Jump forward and back in a video with Ctrl and the arrow keys.
+- Notification windows with the parts to compare highlighted (SFTP and FTPS fingerprints) and one common style.
+- Enter and Esc close the result windows.
+
+### Next
+
+- Upload to Immich.
+- Lens correction for Camera RAW photos (lensfun).
+- Drag and drop to copy and move.
+
+### Video
+
+- Save the frame of a paused video as an image.
 - Full screen.
-- 4K/60 drone videos.
-- Media component tested on a KDE live system.
+- Rotated videos from phones shown the right way up.
+- 4K/60 videos.
 
-## Phones and servers
+### Devices and servers
 
 - Options per saved server in the server manager (FTP active mode, text encoding, ciphers) when a server needs them.
-- FTPS on a server that wants the data connection to resume the TLS session of the control one (one public test server never sent the data).
 - Encrypting files and folders with a password.
-- Embedded HEIC thumbnails.
-- Xiaomi depth data preserved in rotations.
-- Immich upload.
-- Windows: the MTP driver's stall after a photo or a delete on the phone is documented in docs/phone-stall.en.md; to be looked at again if mtp-rs #52 brings news.
-- Status bar in a phone's Android trash: show the file's own name, not the hidden `.trashed-…` one.
-- A folder listing on the phone that took 40 s once without a trace in the log: find out where the time goes if it happens again.
+- Faster HEIC thumbnails from the preview stored in the file.
 
-## Formats
+### Formats
 
-- JPEG XL writing and more save formats (ICO, TGA, PNM, EXR, HDR, Farbfeld).
-- More real Camera RAW samples from other brands, and real HEIC on Linux.
-- JNG on Windows: the ImageMagick security policy shipped next to the program blocks it; relax it for the coders EyeCanSee needs.
-- Lens correction for RAW with lensfun-rs.
-- PDF import and export.
+- Saving in JPEG XL, ICO, TGA, PNM, EXR, HDR and Farbfeld.
+- Camera RAW photos from more brands.
+- PDF: images to a PDF, and a PDF to images.
 
-## Browsing and editing
+### Browsing and editing
 
-- Favourites.
-- Drag and drop to copy and move.
-- Compressed archives.
+- Favourites: a list of folders and images to open with one click.
+- Archives: zip and 7z opened as read-only folders first, then creating zip archives.
 - Multiple rename.
-- Metadata editor.
-- Similar images.
+- Metadata editor for EXIF and GPS.
+- Similar images (the same photo resized or recompressed).
 - Hide folders without images or videos.
 - Set as wallpaper.
-- Edits in a sidecar file.
-- CPU/GPU/NPU acceleration with a "Check" button.
+- Edits kept in a sidecar file, with the original untouched.
+- CPU/GPU/NPU acceleration with a "Check" button that enables what works on the PC.
 
-## Project
+## Documentation
 
 - Illustrated manual.
-- Website.
-- Windows code signing, when the project has enough history for SignPath or similar.
-- Contributions upstream to magick-rust.
-- Flathub: not possible under the current Flathub rules on AI-assisted code; to be reviewed if the rules change.
+
+## Later, if requested
+
+- Immich as a source to browse, like a server or a phone.
+
+## Known limitations
+
+- Windows: after a photo is taken or a file is deleted on the phone, the Windows MTP driver can stop answering for a few minutes. See [docs/phone-stall.en.md](docs/phone-stall.en.md).
+- FTPS: a server that wants the data connection to resume the TLS session of the control connection may never send the data.
+- Windows: JNG files do not open, because the ImageMagick security policy shipped with the program blocks them.
+- Xiaomi phones: photos deleted from the Xiaomi Gallery go to the Gallery's own private trash, which EyeCanSee cannot see.
+
+## Not planned
+
+- AI upscaling (Real-ESRGAN and similar): the models are large and their licenses vary. It could come back as an optional download if there is demand.
+- Flathub: EyeCanSee is not distributed there, because of the catalogue's current rules.
