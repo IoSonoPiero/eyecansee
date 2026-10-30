@@ -446,7 +446,8 @@ pub const TAGS: &[&str] = &[
 
 /// The tags and tracks of a video; no frame is decoded.
 pub fn info(input: Input) -> Result<Info, String> {
-    let options = [("pause", "yes"), ("aid", "no"), ("sid", "no"), ("stream-buffer-size", "4k")];
+    // Silent, not without audio: an audio file with "aid=no" has nothing to open (2026-10-30).
+    let options = [("pause", "yes"), ("ao", "null"), ("sid", "no"), ("stream-buffer-size", "4k")];
     let mut mpv = Mpv::new(&options, || {})?;
     mpv.load(input)?;
     let deadline = Instant::now() + Duration::from_secs(20);

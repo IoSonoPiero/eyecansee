@@ -97,9 +97,22 @@ pub fn is_video(name: &str) -> bool {
     ext(name).is_some_and(|e| VIDEO.contains(&e.as_str()))
 }
 
-/// What the grid shows: images and videos.
+/// Played with libmpv too, without a picture or with the cover inside the file (as made by
+/// "Extract the audio", `audio_job`).
+const AUDIO: &[&str] = &["m4a", "mp3", "opus", "ogg", "oga", "flac", "wav", "mka", "amr", "ac3", "eac3", "aac", "wma"];
+
+pub fn is_audio(name: &str) -> bool {
+    ext(name).is_some_and(|e| AUDIO.contains(&e.as_str()))
+}
+
+/// Played by libmpv in the viewer: videos and audio files.
+pub fn is_played(name: &str) -> bool {
+    is_video(name) || is_audio(name)
+}
+
+/// What the grid shows: images, videos and audio files.
 pub fn is_media(name: &str) -> bool {
-    is_image(name) || is_video(name)
+    is_image(name) || is_played(name)
 }
 
 /// Recognises from the content the formats that `image` cannot identify by itself.
@@ -527,6 +540,7 @@ mod tests {
         assert_eq!(is_image("d.xcf"), cfg!(feature = "magick"));
         assert!(!is_image("e.txt") && !is_image("f.pdf") && !is_image("no_extension"));
         assert!(is_video("a.MP4") && is_media("b.mov") && !is_image("c.mkv") && !is_video("d.ts") && !is_video("e.jpg"));
+        assert!(is_audio("a.M4A") && is_media("b.opus") && is_played("c.flac") && !is_video("d.mp3") && !is_audio("e.mka.txt"));
 
         let svg_src = br#"<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="red"/></svg>"#;
         let img = decode(svg_src, "x.svg").unwrap();

@@ -276,7 +276,7 @@ pub(crate) static SLOW: Semaphore = Semaphore::const_new(2);
 
 /// A video whose stills go through `SLOW`: not on the disk of the home folder.
 pub(crate) fn slow_video(op: &Store, path: &str) -> bool {
-    decode::is_video(path) && op.local_file(path).is_none_or(|f| !on_home_disk(&f))
+    decode::is_played(path) && op.local_file(path).is_none_or(|f| !on_home_disk(&f))
 }
 
 #[cfg(unix)]

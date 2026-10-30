@@ -110,7 +110,7 @@ impl App {
         for i in near(AROUND) {
             // A video's still is not needed here (the player shows it) and reading it would slow
             // down the player's start on a slow disk (dashcam on USB 2: 8 s, 2026-10-27).
-            if crate::decode::is_video(&listing.files[i].path) {
+            if crate::decode::is_played(&listing.files[i].path) {
                 continue;
             }
             if !self.full.contains_key(&i) && self.pending.insert(i) {

@@ -138,7 +138,7 @@ impl App {
         ui.painter().rect_filled(rect, 0.0, Color32::BLACK);
         let t = passage(now, since, secs);
         // A video plays whole, after the passage that brought its still in.
-        let video = cur.and_then(|i| self.files().get(i)).filter(|f| crate::decode::is_video(&f.path)).map(|f| (f.path.clone(), f.size));
+        let video = cur.and_then(|i| self.files().get(i)).filter(|f| crate::decode::is_played(&f.path)).map(|f| (f.path.clone(), f.size));
         let (mut played, mut ended) = (false, false);
         match &video {
             Some((path, size)) if t >= 1.0 => (played, ended) = self.show_video(ui.painter(), rect, path, *size),

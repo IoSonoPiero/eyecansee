@@ -165,7 +165,8 @@ impl App {
         if self.batch.is_some() {
             return;
         }
-        let paths = self.grid_items(path);
+        // Audio files are not converted: "Extract the audio" makes them as they are.
+        let paths: Vec<String> = self.grid_items(path).into_iter().filter(|p| !crate::decode::is_audio(p)).collect();
         if paths.is_empty() {
             return;
         }

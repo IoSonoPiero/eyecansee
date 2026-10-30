@@ -43,7 +43,7 @@ enum Click {
 impl App {
     /// The viewer shows a video.
     pub(crate) fn viewing_video(&self) -> bool {
-        self.viewing.and_then(|i| self.files().get(i)).is_some_and(|f| decode::is_video(&f.path))
+        self.viewing.and_then(|i| self.files().get(i)).is_some_and(|f| decode::is_played(&f.path))
     }
 
     /// The viewer shows an image.
@@ -201,7 +201,7 @@ impl App {
             return;
         }
         let state = self.engine_state(ui.ctx(), c);
-        let videos = self.listings.get(&self.dir).and_then(|l| l.as_ref().ok()).is_some_and(|l| l.files.iter().any(|f| decode::is_video(&f.path)));
+        let videos = self.listings.get(&self.dir).and_then(|l| l.as_ref().ok()).is_some_and(|l| l.files.iter().any(|f| decode::is_played(&f.path)));
         if matches!(state, Engine::SystemOnly) || (!videos && matches!(state, Engine::Missing | Engine::TooOld { .. })) {
             return;
         }
@@ -312,7 +312,16 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, sound: (&mut u32, &mut bool), i18n: 
     let area = Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y - BAR));
     let response = ui.allocate_rect(area, egui::Sense::click());
     if !paint_fitted(ui.painter(), area, player, &mut v.texture) && player.video_size().is_none() {
-        ui.put(Rect::from_center_size(area.center(), vec2(32.0, 32.0)), egui::Spinner::new());
+        if decode::is_audio(&v.path) {
+            // An audio file without a cover never gets a picture: a note, not a spinner forever.
+            crate::icons::paint(ui.painter(), crate::icons::Icon::Audio, Rect::from_center_size(area.center(), vec2(160.0, 160.0)));
+        } else {
+            ui.put(Rect::from_center_size(area.center(), vec2(32.0, 32.0)), egui::Spinner::new());
+        }
+    }
+    // An audio file sends no frames (a cover is one): the time on the bar moves only if asked.
+    if decode::is_audio(&v.path) && !player.paused() {
+        ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
     }
     if response.clicked() {
         player.toggle();

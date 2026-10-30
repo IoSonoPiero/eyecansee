@@ -433,10 +433,17 @@ impl App {
                 // In the centre of the tile: the tile keeps the photo together with its name.
                 let image = Rect::from_center_size(thumb_rect.center(), size * scale);
                 painter.image(tex.id(), image, uv, Color32::WHITE);
-                if self.files().get(file).is_some_and(|f| crate::decode::is_video(&f.path)) {
-                    let badge = Rect::from_min_size(image.left_bottom() + vec2(4.0, -28.0), vec2(24.0, 24.0));
-                    icons::paint(painter, Icon::Video, badge);
+                let badge = Rect::from_min_size(image.left_bottom() + vec2(4.0, -28.0), vec2(24.0, 24.0));
+                match self.files().get(file).map(|f| f.path.as_str()) {
+                    Some(p) if crate::decode::is_video(p) => icons::paint(painter, Icon::Video, badge),
+                    // An audio file with its cover.
+                    Some(p) if crate::decode::is_audio(p) => icons::paint(painter, Icon::Audio, badge),
+                    _ => {}
                 }
+            }
+            // An audio file without a cover has no picture: a note in place of the warning.
+            Some(Err(_)) if self.files().get(file).is_some_and(|f| crate::decode::is_audio(&f.path)) => {
+                icons::paint(painter, Icon::Audio, Rect::from_center_size(thumb_rect.center(), vec2(side * 0.45, side * 0.45)));
             }
             Some(Err(_)) => {
                 painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "⚠", FontId::proportional(side * 0.3), dim);

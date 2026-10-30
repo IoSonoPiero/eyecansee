@@ -427,7 +427,7 @@ impl Loader {
             }
             let path = file.path.clone();
             // No EXIF in videos, and they are not read whole.
-            let meta = if decode::is_video(&path) {
+            let meta = if decode::is_played(&path) {
                 video_meta(&op, &path).await
             } else {
                 match op.read(&path).await {
@@ -454,7 +454,7 @@ impl Loader {
                 return;
             }
             // A video is not read whole: libmpv opens it.
-            let image = if decode::is_video(&path) {
+            let image = if decode::is_played(&path) {
                 let _place = if slow_video(&op, &path) { SLOW.acquire().await.ok() } else { None };
                 match op.size(&path).await {
                     Ok(size) => video_still(&op, &path, size, 0).await.map(decode::to_color_image),
@@ -606,7 +606,7 @@ async fn thumb_worker(
         // From the cache at once: a thumbnail already made never waits for a SLOW place.
         // Then a preview inside the video: it never needs a SLOW place either.
         let found = match cached(&base, &file).await {
-            None if decode::is_video(&file.path) => preview(&op, &base, &file).await,
+            None if decode::is_played(&file.path) => preview(&op, &base, &file).await,
             found => found,
         };
         let sent = match found {
@@ -678,7 +678,7 @@ async fn cached(base: &str, file: &File) -> Option<ColorImage> {
 
 /// Made from the file and saved in the cache.
 async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, String> {
-    if decode::is_video(&file.path) {
+    if decode::is_played(&file.path) {
         if let Some(img) = preview(op, base, &file).await {
             return Ok(img);
         }

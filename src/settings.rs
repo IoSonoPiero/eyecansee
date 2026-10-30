@@ -118,7 +118,7 @@ impl SortBy {
     }
 }
 
-/// Images and videos, or one kind only.
+/// Images, videos and audio files, or one kind only.
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum Show {
@@ -126,10 +126,11 @@ pub enum Show {
     All,
     Images,
     Videos,
+    Audio,
 }
 
 impl Show {
-    pub const ALL: [Show; 3] = [Show::All, Show::Images, Show::Videos];
+    pub const ALL: [Show; 4] = [Show::All, Show::Images, Show::Videos, Show::Audio];
 
     /// Fluent id of the menu item.
     pub fn label(self) -> &'static str {
@@ -137,14 +138,16 @@ impl Show {
             Show::All => "show-all",
             Show::Images => "show-images",
             Show::Videos => "show-videos",
+            Show::Audio => "show-audio",
         }
     }
 
     pub fn allows(self, path: &str) -> bool {
         match self {
             Show::All => true,
-            Show::Images => !crate::decode::is_video(path),
+            Show::Images => !crate::decode::is_played(path),
             Show::Videos => crate::decode::is_video(path),
+            Show::Audio => crate::decode::is_audio(path),
         }
     }
 }

@@ -98,6 +98,10 @@ impl App {
             }
             items.extend([Some((self.i18n.t("menu-cut"), self.i18n.t("key-cut"), Act::Cut(path.clone()))), Some((self.i18n.t("menu-copy"), self.i18n.t("key-copy"), Act::Copy(path.clone())))]);
             items.extend(self.rename_delete(path));
+        } else if crate::decode::is_audio(&target) {
+            // Nothing to convert or turn: the file operations only.
+            items.extend([Some((self.i18n.t("menu-cut"), self.i18n.t("key-cut"), Act::Cut(path.clone()))), Some((self.i18n.t("menu-copy"), self.i18n.t("key-copy"), Act::Copy(path.clone())))]);
+            items.extend(self.rename_delete(path));
         } else {
             items.extend(self.image_items(path, in_viewer));
         }

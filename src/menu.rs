@@ -269,8 +269,12 @@ impl App {
             }
             ui.label(self.i18n.t_args("status-folders", &[("n", &l.dirs.len().to_string())]));
             let videos = l.files.iter().filter(|f| crate::decode::is_video(&f.path)).count();
-            if videos < l.files.len() {
-                ui.label(self.i18n.t_args("status-images", &[("n", &(l.files.len() - videos).to_string())]));
+            let audio = l.files.iter().filter(|f| crate::decode::is_audio(&f.path)).count();
+            if videos + audio < l.files.len() {
+                ui.label(self.i18n.t_args("status-images", &[("n", &(l.files.len() - videos - audio).to_string())]));
+            }
+            if audio > 0 {
+                ui.label(self.i18n.t_args("status-audio", &[("n", &audio.to_string())]));
             }
             if videos > 0 {
                 ui.label(self.i18n.t_args("status-videos", &[("n", &videos.to_string())]));
