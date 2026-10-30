@@ -5,8 +5,8 @@ devices.png: the 13 photos below in the folder Photos of a test FTP server on th
 saved as "NAS" (nas.example, user "demo"); in the left panel two disks, a POCO X7 Pro and a second
 saved server "Storage Box" (storage.example), not opened. servers.png: the server manager with
 these two example servers and a master password. rotate.png: Wilderness.jpg. Server names, hosts
-and users are made up for the screenshots. video-convert.png: the 4 videos below in a folder on
-disk, all selected.
+and users are made up for the screenshots. video-convert.png (1600 x 800): 9 of the photos and the 4
+videos below in a folder on disk, sorted by date, the videos selected.
 
 Photos: public domain or CC0, from Wikimedia Commons (renamed; in the phone folder copied several
 times as IMG_0001.jpg ... IMG_0334.jpg, in the order of the list).
