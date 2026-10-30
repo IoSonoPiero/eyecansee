@@ -282,10 +282,12 @@ impl App {
         let home = std::env::home_dir().map_or("/".into(), |h| h.to_string_lossy().into_owned());
         let mut go = ui.selectable_label(false, (icons::image(ui.ctx(), Icon::Home, TREE_ICON), home.as_str())).clicked().then_some(home.clone());
         // The folders of this computer last open, to go back there.
+        // With this system's separators ("C:\\Users/me/" was shown as stored), not the home again.
+        let shown = |d: &str| d.replace('/', std::path::MAIN_SEPARATOR_STR).trim_end_matches(std::path::MAIN_SEPARATOR).to_string();
         let mut last: Vec<&String> = self.last_dirs.iter().filter(|(base, _)| !base.contains("://")).map(|(_, d)| d).collect();
         last.sort();
-        for d in last.into_iter().filter(|d| d.trim_end_matches(['/', '\\']) != home) {
-            if leaf(ui, Icon::Folder, d.as_str()).clicked() {
+        for d in last.into_iter().filter(|d| !shown(d).eq_ignore_ascii_case(&shown(&home))) {
+            if leaf(ui, Icon::Folder, shown(d)).clicked() {
                 go = Some(d.clone());
             }
         }

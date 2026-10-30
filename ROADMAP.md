@@ -11,9 +11,9 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 ## Phones and servers
 
-- FTP and SFTP tested on a real server, then documented in the README.
-- Saved servers in Options, with passwords in the system keyring.
-- Save to FTP (RNFR/RNTO rename).
+- Options per saved server in the server manager (FTP active mode, text encoding, ciphers) when a server needs them.
+- FTPS on a server that wants the data connection to resume the TLS session of the control one (one public test server never sent the data).
+- Encrypting files and folders with a password.
 - Embedded HEIC thumbnails.
 - Xiaomi depth data preserved in rotations.
 - Immich upload.

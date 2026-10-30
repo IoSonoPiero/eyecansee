@@ -51,6 +51,45 @@ impl App {
         }
     }
 
+    /// What an error of the listing of `dir` asks for: a confirmation, a password, another
+    /// folder. `true`: the listing is dropped (another folder opens instead).
+    fn listing_error(&mut self, dir: &str, r: &Result<Listing, source::Error>) -> bool {
+        match r {
+            Err(("error-device-kde", _)) => self.kiod_ask = true,
+            Err(("error-host-unknown" | "error-cert-unknown", _)) => self.host_ask = true,
+            // A server that refused the login: File > Open location asks for the password.
+            Err(("error-login" | "error-login-ssh", _)) if dir == self.dir && self.open_address.is_none() => {
+                self.open_address = AddressForm::for_password(&format!("{}{}", self.base, self.dir));
+            }
+            // A server's folder that is gone (moved, deleted, reopened at startup): the saved
+            // server's folder instead, or the server's starting folder.
+            Err((crate::source::NOT_FOUND, _)) if dir == self.dir && !dir.is_empty() && self.base.contains("://") => {
+                let saved = crate::servers::find(&format!("{}{}", self.base, self.dir)).map(|s| s.folder.trim().trim_matches('/').to_string());
+                let back = saved.filter(|f| !f.is_empty()).map(|f| format!("{f}/")).filter(|f| *f != dir);
+                log!("folder {dir:?} gone: {back:?}");
+                match back {
+                    Some(f) => self.set_dir(f),
+                    None => {
+                        self.set_dir(String::new());
+                        if let Some(loader) = &self.loader {
+                            loader.home();
+                        }
+                    }
+                }
+                return true;
+            }
+            // A saved key that does not open: the server manager on that server, to fix it.
+            Err(("error-key-failed", _)) if dir == self.dir && self.server_manager.is_none() => {
+                let address = format!("{}{}", self.base, self.dir);
+                let mut f = AddressForm::manager();
+                f.choose(f.servers.iter().position(|s| crate::servers::find(&address).is_some_and(|found| found == *s)));
+                self.server_manager = Some(f);
+            }
+            _ => {}
+        }
+        false
+    }
+
     fn on_listed(&mut self, ctx: &egui::Context, dir: String, r: Result<Listing, source::Error>) {
         match &r {
             Ok(l) => log!("listing {dir:?}: {} folders, {} images", l.dirs.len(), l.files.len()),
@@ -65,21 +104,8 @@ impl App {
             l.files.retain(|f| self.settings.show.allows(&f.path));
             l.sort_files(self.settings.sort_by, self.settings.sort_desc);
         }
-        match &r {
-            Err(("error-device-kde", _)) => self.kiod_ask = true,
-            Err(("error-host-unknown" | "error-cert-unknown", _)) => self.host_ask = true,
-            // A server that refused the login: File > Open location asks for the password.
-            Err(("error-login" | "error-login-ssh", _)) if dir == self.dir && self.open_address.is_none() => {
-                self.open_address = AddressForm::for_password(&format!("{}{}", self.base, self.dir));
-            }
-            // A saved key that does not open: the server manager on that server, to fix it.
-            Err(("error-key-failed", _)) if dir == self.dir && self.server_manager.is_none() => {
-                let address = format!("{}{}", self.base, self.dir);
-                let mut f = AddressForm::manager();
-                f.choose(f.servers.iter().position(|s| crate::servers::find(&address).is_some_and(|found| found == *s)));
-                self.server_manager = Some(f);
-            }
-            _ => {}
+        if self.listing_error(&dir, &r) {
+            return;
         }
         if self.use_mount(ctx, &dir, &r) {
             return;
