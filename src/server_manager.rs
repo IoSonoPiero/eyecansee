@@ -14,10 +14,13 @@ impl App {
         let mut close = esc && !f.deleting;
         f.deleting &= !esc;
         let mut connect = None;
+        let before = f.servers.clone();
         egui::Modal::new(egui::Id::unique("server-manager")).show(ctx, |ui| {
             ui.set_width(700.0);
             crate::theme::title(ui, self.i18n.t("srv-title"));
             ui.add_space(4.0);
+            self.master_section(ui, &mut f);
+            ui.add_space(8.0);
             ui.horizontal_top(|ui| {
                 ui.vertical(|ui| self.server_list(ui, &mut f));
                 ui.add_space(12.0);
@@ -26,7 +29,7 @@ impl App {
                 });
             });
             ui.add_space(6.0);
-            ui.label(egui::RichText::new(self.i18n.t_args("srv-file", &[("path", &crate::servers::file())])).weak().small());
+            ui.label(egui::RichText::new(self.i18n.t_args(if crate::servers::encrypted() { "srv-file-vault" } else { "srv-file" }, &[("path", &crate::servers::file())])).weak().small());
             if f.url.is_empty() && !f.port.trim().is_empty() && f.port.trim().parse::<u16>().is_err() {
                 ui.label(browser::error_text(ui, self.i18n.t("addr-bad-port")));
             }
@@ -40,6 +43,12 @@ impl App {
                 (close, connect) = self.server_buttons(ui, &mut f, close);
             }
         });
+        // The first server saved without a master password: said once.
+        if f.servers != before && !crate::servers::encrypted() && !self.settings.servers_plain_warned {
+            self.settings.servers_plain_warned = true;
+            self.settings.save();
+            self.notice = Some((self.i18n.t("vault-plain-warning"), None));
+        }
         self.saved_servers = f.servers.clone();
         self.server_manager = (!close).then_some(f);
         if let Some(address) = connect {

@@ -18,6 +18,8 @@ pub struct Settings {
     pub last_location: Option<String>,
     /// Every folder reopens at the scroll position it was left at; otherwise from the top.
     pub remember_scroll: bool,
+    /// The warning about saved servers in plain text (no master password) was shown once.
+    pub servers_plain_warned: bool,
     /// In the viewer, after the last image the first one follows (and the other way round).
     pub wrap_around: bool,
     /// The mouse wheel zooms the viewer; otherwise it changes image (Ctrl and the wheel always zoom).
@@ -163,6 +165,7 @@ impl Default for Settings {
             remember_location: true,
             last_location: None,
             remember_scroll: false,
+            servers_plain_warned: false,
             wrap_around: false,
             wheel_zoom: true,
             // As GNOME's image viewer (Loupe).

@@ -36,6 +36,8 @@ pub(crate) struct AddressForm {
     pub(crate) error: Option<String>,
     /// The key file chosen in the system window, filled in when it closes.
     pub(crate) key_pick: Arc<Mutex<Option<PathBuf>>>,
+    /// Server manager: setting, changing or removing the master password.
+    pub(crate) master: crate::vault_page::Change,
     /// Just opened: the address field takes the focus.
     pub(crate) first: bool,
     /// Opened to ask for the password (`asking_password`): the password field takes the focus.

@@ -139,6 +139,7 @@ impl App {
         log!("menu {act:?}");
         match act {
             Act::Address => self.open_address = Some(AddressForm::new()),
+            Act::Servers if crate::servers::locked() => self.ask_master(crate::vault_page::Then::Manager),
             Act::Servers => self.server_manager = Some(AddressForm::manager()),
             Act::Options => self.options = true,
             Act::SelectAll => self.select_all(),

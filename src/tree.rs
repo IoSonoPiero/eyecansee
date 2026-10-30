@@ -216,6 +216,15 @@ impl App {
     /// The saved servers (File > Server manager): a click opens one, the open one is highlighted;
     /// right click: close its connection, edit it.
     fn server_block(&mut self, ui: &mut Ui) {
+        // Encrypted and not unlocked yet: one row asking for the master password.
+        if self.saved_servers.is_empty() && crate::servers::locked() {
+            block_title(ui, &self.i18n.t("servers"));
+            if leaf(ui, Icon::Server, self.i18n.t("vault-unlock-row")).clicked() {
+                self.ask_master(crate::vault_page::Then::Panel);
+            }
+            ui.separator();
+            return;
+        }
         if self.saved_servers.is_empty() {
             return;
         }

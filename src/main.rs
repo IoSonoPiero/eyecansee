@@ -80,6 +80,7 @@ mod trash;
 mod tree;
 mod ultrahdr;
 mod update;
+mod vault_page;
 mod video;
 mod video_read;
 mod viewer;
@@ -263,6 +264,8 @@ struct App {
     stall_notice: Option<String>,
     /// File > Server manager: the window, with the server being changed.
     server_manager: Option<AddressForm>,
+    /// The master password asked before a saved server is used.
+    unlock: Option<vault_page::Unlock>,
     /// The saved servers, listed in the left panel.
     saved_servers: Vec<servers::Saved>,
     /// The folder last open in each source (by base), to go back to it from the left panel.
@@ -419,6 +422,7 @@ impl App {
             kiod_ask: false,
             host_ask: false,
             server_manager: None,
+            unlock: None,
             saved_servers: servers::load(),
             last_dirs: HashMap::new(),
             status_note: None,
@@ -643,6 +647,7 @@ impl App {
         self.host_window(ctx);
         self.address_window(ctx);
         self.server_manager_window(ctx);
+        self.unlock_window(ctx);
         self.paste_window(ctx);
         self.transfer_window(ctx);
         self.rename_window(ctx);
@@ -656,7 +661,7 @@ impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
         // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer).
         // Open location and Convert and resize have fields to type in: there the keys go to the field.
-        if self.asking() && !((self.open_address.is_some() || self.server_manager.is_some() || self.batch.is_some()) && ctx.egui_wants_keyboard_input()) {
+        if self.asking() && !((self.open_address.is_some() || self.server_manager.is_some() || self.unlock.is_some() || self.batch.is_some()) && ctx.egui_wants_keyboard_input()) {
             let answer = &mut self.delete_answer;
             raw_input.events.retain(|e| match e {
                 egui::Event::Key { key, pressed: true, .. } => {

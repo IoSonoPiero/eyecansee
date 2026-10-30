@@ -17,6 +17,12 @@ impl App {
     }
 
     pub(crate) fn open_source(&mut self, ctx: &egui::Context, address: &str) {
+        // A server while the saved ones are locked: the master password first (they may hold its
+        // password and key).
+        if crate::servers::locked() && crate::vault_page::remote(address) {
+            self.ask_master(crate::vault_page::Then::Open(address.to_string()));
+            return;
+        }
         log!("open source {:?}", without_password(address));
         let opened = {
             let _guard = self.rt.enter();
