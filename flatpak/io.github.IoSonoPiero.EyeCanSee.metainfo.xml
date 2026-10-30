@@ -12,8 +12,8 @@
   <launchable type="desktop-id">io.github.IoSonoPiero.EyeCanSee.desktop</launchable>
 
   <description>
-    <p>Browse photos and videos on computers, disks and phones, copy and move them from one device to another, find duplicate copies and convert them to other formats.</p>
-    <p xml:lang="it">Sfoglia foto e video di computer, dischi e telefoni, copiali e spostali da un dispositivo all'altro, trova le copie doppie e convertili in altri formati.</p>
+    <p>Browse photos and videos on computers, disks, servers and phones, copy and move them from one device to another, find duplicate copies and convert them to other formats.</p>
+    <p xml:lang="it">Sfoglia foto e video di computer, dischi, server e telefoni, copiali e spostali da un dispositivo all'altro, trova le copie doppie e convertili in altri formati.</p>
     <ul>
       <li>Folders on the computer, external disks, USB sticks and SD cards, with cached thumbnails</li>
       <li xml:lang="it">Cartelle del computer, dischi esterni, chiavette USB e schede SD, con le miniature in cache</li>
@@ -25,6 +25,8 @@
       <li xml:lang="it">Video con miniature, riproduzione con l'audio, dettagli e conversione con FFmpeg (MP4, MKV, WebM, H.264, HEVC, AV1, VP9…), sulla scheda video quando può</li>
       <li>Android phones and cameras opened directly over USB, much faster than through the file manager</li>
       <li xml:lang="it">Telefoni Android e fotocamere aperti direttamente via USB, molto più veloce che dal file manager</li>
+      <li>SFTP, FTP and FTPS servers browsed like any folder, saved with password or SSH key</li>
+      <li xml:lang="it">Server SFTP, FTP e FTPS sfogliati come qualunque cartella, salvati con password o chiave SSH</li>
       <li>Duplicate finder, rotation and cropping, saving and converting many images at once</li>
       <li xml:lang="it">Ricerca dei duplicati, rotazione e ritaglio, salvataggio e conversione di molte immagini insieme</li>
       <li>JPEG, PNG, WebP, HEIC, AVIF, JPEG XL, TIFF, SVG, PSD, Camera RAW and many rare formats</li>

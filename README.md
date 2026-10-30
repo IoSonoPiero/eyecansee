@@ -1,8 +1,14 @@
 # EyeCanSee
 
-An image and video viewer and manager for Linux and Windows, written in Rust: it browses photos and videos on computers, disks and phones, copies and moves them from one device to another, finds duplicate copies, and converts them to other formats. Free and open source.
+An image and video viewer and manager for Linux and Windows, written in Rust: it browses photos and videos on computers, disks, servers and phones, copies and moves them from one device to another, finds duplicate copies, and converts them to other formats. Free and open source.
 
 It is early in development. This page lists only what works now: new features arrive step by step, each one only when it is ready and tested.
+
+- No import and no database: you open a folder and the photos are there.
+- Folders, disks, SFTP and FTP servers and Android phones are browsed the same way.
+- Modern and camera formats: HEIC, AVIF, JPEG XL, Camera RAW, PSD and videos.
+- Photo and video conversion, on the graphics card when it can.
+- Signed releases that update themselves.
 
 ![The grid: thumbnails of a folder, with the devices and the folder tree on the left](docs/screenshots/grid.png)
 
@@ -12,19 +18,19 @@ It is early in development. This page lists only what works now: new features ar
 
 ## About
 
-I am not a programmer any more, and have not been for years. I needed a photo and video viewer that just opens, without importing or cataloguing anything, and that treats folders, disks and the phone the same way, on both Linux and Windows, so I started writing EyeCanSee with the help of [Claude Code](https://claude.com/claude-code). I test every feature on my own computers and devices before it goes in, and the manual says what is known not to work.
+I am not a programmer any more, and have not been for years. I needed a photo and video viewer that just opens, without importing or cataloguing anything, and that treats folders, disks, servers and the phone the same way, on both Linux and Windows, so I started writing EyeCanSee with the help of [Claude Code](https://claude.com/claude-code). I test every feature on my own computers and devices before it goes in, and the manual says what is known not to work.
 
 Bug reports and suggestions are welcome in the [issues](https://github.com/IoSonoPiero/eyecansee/issues).
 
 ## Why another image and video manager?
 
-EyeCanSee does not do heavy editing, catalogues or batch tools: for that, mature programs like XnView, IrfanView or digiKam remain the better choice. What it does is browse, view, convert and clean up photos and videos on whatever device they are on, the computer, an external disk or a phone, without a database to build first: you open a folder and the photos are there. It works the same way on Linux and Windows, and it is open source. On Linux it talks to the phone directly over USB, so a folder with hundreds of photos that took minutes through the file manager opens in seconds.
+EyeCanSee does not do heavy editing, catalogues or batch tools: for that, mature programs like XnView, IrfanView or digiKam remain the better choice. What it does is browse, view, convert and clean up photos and videos on whatever device they are on, the computer, an external disk, a server or a phone, without a database to build first: you open a folder and the photos are there. It works the same way on Linux and Windows, and it is open source. On Linux it talks to the phone directly over USB, so a folder with hundreds of photos that took minutes through the file manager opens in seconds.
 
 ## What it does today
 
 What comes next is in [ROADMAP.md](ROADMAP.md).
 
-- **Browsing** of folders on the computer, external disks (also USB sticks, SD cards and dashcams that connect as a USB disk) and Android phones and cameras (opened directly over USB), with cached thumbnails; folders on the computer and on phones update by themselves when files change. Sorting by name, date, size or type; images and videos shown together or apart; "Open with" from the file manager, for images and videos, shows the file in the window already open.
+- **Browsing** of folders on the computer, external disks (also USB sticks, SD cards and dashcams that connect as a USB disk) and Android phones and cameras (opened directly over USB), with cached thumbnails; folders on the computer and on phones update by themselves when files change. Sorting by name, date, size or type; images and videos shown together or apart; "Open with" from the file manager, for images and videos, shows the file in the window already open. On Linux the phone opens directly over USB, in seconds.
 - **Viewer** with zoom (mouse wheel and keys) and preloading, so moving between images never waits, photo details such as camera, exposure, date and location, and a full-screen slideshow with fades.
 - **File management**: copy and move (also from one device to another), create folders, rename and delete, also several items at once, with a trash on every device to restore or empty.
 - **Videos**: thumbnails in the grid, playback with sound and volume control in the viewer and their details (date, length, format, location from phones), on the computer, external disks and phones (with the system's libmpv on Linux, otherwise a video engine downloaded the first time a video is opened, as always on Windows).
@@ -34,7 +40,6 @@ What comes next is in [ROADMAP.md](ROADMAP.md).
 - **Converting and resizing many files at once**: format, turn, size and filter for a whole selection of images and videos, into new files next to the originals, in a subfolder or in another folder, also on another device.
 - **Video conversion** with FFmpeg (the system's, or downloaded once: 63 MB on Windows, 67 MB on Linux): MP4, MKV, WebM, MOV, AVI and GIF with H.264, HEVC, AV1, VP9 and other codecs, turned and resized, on the graphics card when it can (NVIDIA, Intel, AMD, VA-API), or copied as they are without re-encoding; the metadata go into the new file, including a dashcam's GPS position and speeds (`gps.sqlite` on the card) and a DJI drone's position (`.SRT`), so the copy keeps them away from the card. Details in [docs/video-formats.md](docs/video-formats.md).
 - **Servers**: SFTP, FTP and FTPS, on Linux and Windows, browsed like any folder (thumbnails, viewer, videos, copy and move to and from any other device, rename, trash). A server manager keeps the servers you use, with password or SSH key, in the left panel next to the disks, in a file that a master password can encrypt. Tested on a Synology NAS, a Hetzner Storage Box and Linux servers.
-- **Devices**: folders on the computer, disks and Android phones are treated the same way. On Linux the phone opens directly over USB, in seconds. On Windows, Windows' own MTP driver can stall for minutes after a photo is taken or a file deleted on the phone: after 15 s EyeCanSee says so and explains what to do ([docs/phone-stall.en.md](docs/phone-stall.en.md)).
 - English and Italian, light and dark theme, built-in manual.
 
 ### Formats
@@ -62,6 +67,19 @@ The full list of features, keys and limits is in the manual: [English](docs/manu
 | Samsung Galaxy Tab S11 5G (Android 16, One UI 8.5) | Fedora 44, Windows | Connection, listing and transfer tests of the MTP library |
 
 Other Android phones open directly when mtp-rs supports them, otherwise through the file manager's mount, slower (see the [manual](docs/manual.en.md)). iPhones open through the file manager's mount only.
+
+On Windows, Windows' own MTP driver can stall for minutes after a photo is taken or a file deleted on the phone: after 15 s EyeCanSee says so and explains what to do ([docs/phone-stall.en.md](docs/phone-stall.en.md)).
+
+## Servers
+
+| Server | Protocols | Systems | Notes |
+|---|---|---|---|
+| Synology DS725+ | FTP, FTPS, SFTP | Linux, Windows | FTPS with the NAS's own certificate, SFTP with password |
+| Hetzner Storage Box | FTP, FTPS, SFTP | Linux, Windows | FTP and FTPS over IPv6, SFTP on ports 22 and 23 |
+| Linux servers (Ubuntu, Fedora) | SFTP | Linux, Windows | SFTP with key |
+| Rebex and Wing FTP public test servers | FTP, FTPS, SFTP | Linux | Read only |
+
+No SMB, WebDAV or cloud services for now. FTPS on servers that want the data connection to resume the TLS session is a known limit, in the [roadmap](ROADMAP.md).
 
 ## Download
 
