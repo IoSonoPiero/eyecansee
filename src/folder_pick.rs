@@ -27,7 +27,7 @@ pub struct Picker {
     dirs: Dirs,
 }
 
-/// Where the chooser can jump to: home, the computer, each device.
+/// Where the chooser can jump to: home, the computer, each device, each saved server.
 pub struct Place {
     icon: Icon,
     label: String,
@@ -88,6 +88,12 @@ impl App {
         for d in self.devices.iter().filter(|d| d.block.is_none()) {
             let icon = if d.phone { Icon::Phone } else if d.internal { Icon::InternalDisk } else { Icon::Disk };
             places.push(Place { icon, label: d.name.clone(), address: d.path.clone() });
+        }
+        // The saved servers (File > Server manager), as in the left panel.
+        for s in &self.saved_servers {
+            if let Some(address) = s.address() {
+                places.push(Place { icon: Icon::Server, label: s.name.clone(), address });
+            }
         }
         places
     }
