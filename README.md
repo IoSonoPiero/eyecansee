@@ -188,6 +188,10 @@ The phones are read with [mtp-rs](https://github.com/vdavid/mtp-rs), a pure Rust
 
 The interface is available in English and Italian. To add a language, see [CONTRIBUTING.md](CONTRIBUTING.md).
 
+## Privacy
+
+EyeCanSee collects no data. It connects only to GitHub (optional components and, outside the Microsoft Store, the update check), to the servers you add and, when you ask, to OpenStreetMap: see [PRIVACY.md](PRIVACY.md).
+
 ## License
 
 EyeCanSee is released under the GNU General Public License, version 3 or later: see [LICENSE](LICENSE).

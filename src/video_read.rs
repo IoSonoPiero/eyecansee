@@ -296,6 +296,20 @@ fn keep_copy(key: String, tmp: PathBuf) {
     }
 }
 
+/// At start (after `single::hand_over`, so no other copy of the app is using them): the copies a
+/// copy of the app closed by force or crashed left in the temporary folder.
+pub(crate) fn remove_old_copies() {
+    let Ok(dir) = std::fs::read_dir(std::env::temp_dir()) else { return };
+    for entry in dir.flatten() {
+        let name = entry.file_name();
+        let name = name.to_string_lossy();
+        if name.starts_with("eyecansee-video-") && name.ends_with(".tmp") {
+            log!("old video copy removed: {name}");
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
 /// At exit: the copies go.
 pub(crate) fn forget_copies() {
     for (_, tmp) in COPIES.lock().unwrap().drain(..) {
