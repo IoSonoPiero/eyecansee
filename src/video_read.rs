@@ -248,8 +248,22 @@ impl StoreReader {
     }
 }
 
+/// A whole copy being made: whoever asks for the same file meanwhile (the viewer, a thumbnail
+/// asked again after the folder was read again) waits for it and follows its bytes. Three copies
+/// of the same video at once made each three times slower (2026-10-31).
+struct InFlight {
+    done: tokio::sync::OnceCell<Result<PathBuf, String>>,
+    copied: AtomicU64,
+}
+
+static IN_FLIGHT: std::sync::Mutex<Vec<(String, Arc<InFlight>)>> = std::sync::Mutex::new(Vec::new());
+
+/// One whole copy at a time: the phone answers one request at a time, two copies shared its speed
+/// and both ended late (6.4 s alone, 15 s each in pairs).
+static ONE_COPY: Semaphore = Semaphore::const_new(1);
+
 /// The whole file in a temporary file, read in order in one go (`copied` counts the bytes); one
-/// copied before and still kept (`COPIES`) is used again.
+/// copied before and still kept (`COPIES`), or being copied now, is used.
 async fn copy_whole(op: &Store, path: &str, size: u64, copied: &AtomicU64) -> Result<PathBuf, String> {
     // ponytail: path and size only; two phones with the same path and size would share a copy.
     let key = format!("{path}\0{size}");
@@ -257,6 +271,40 @@ async fn copy_whole(op: &Store, path: &str, size: u64, copied: &AtomicU64) -> Re
         copied.store(size, Ordering::Relaxed);
         return Ok(tmp);
     }
+    let flight = {
+        let mut all = IN_FLIGHT.lock().unwrap();
+        match all.iter().find(|(k, _)| *k == key) {
+            Some((_, f)) => f.clone(),
+            None => {
+                let f = Arc::new(InFlight { done: tokio::sync::OnceCell::new(), copied: AtomicU64::new(0) });
+                all.push((key.clone(), f.clone()));
+                f
+            }
+        }
+    };
+    let make = flight.done.get_or_init(|| async {
+        let _one = ONE_COPY.acquire().await;
+        match kept_copy(&key, size) {
+            Some(tmp) => Ok(tmp),
+            None => copy_now(op, path, size, &flight.copied, key.clone()).await,
+        }
+    });
+    // Its bytes passed on to this caller's counter (the viewer's bar) while it lasts.
+    tokio::pin!(make);
+    let r = loop {
+        tokio::select! {
+            r = &mut make => break r.clone(),
+            () = tokio::time::sleep(std::time::Duration::from_millis(200)) => copied.store(flight.copied.load(Ordering::Relaxed), Ordering::Relaxed),
+        }
+    };
+    IN_FLIGHT.lock().unwrap().retain(|(_, f)| !Arc::ptr_eq(f, &flight));
+    if r.is_ok() {
+        copied.store(size, Ordering::Relaxed);
+    }
+    r
+}
+
+async fn copy_now(op: &Store, path: &str, size: u64, copied: &AtomicU64, key: String) -> Result<PathBuf, String> {
     static N: AtomicU64 = AtomicU64::new(0);
     let tmp = std::env::temp_dir().join(format!("eyecansee-video-{}-{}.tmp", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
     let (tx, mut rx) = tokio::sync::mpsc::channel::<std::io::Result<bytes::Bytes>>(4);
@@ -412,6 +460,23 @@ async fn still_from_copy(op: &Store, path: &str, size: u64, side: u32) -> Result
 mod tests {
     use super::*;
     use crate::mpv::Reader;
+
+    /// The same file asked twice at once (the viewer during its thumbnail): copied once.
+    #[test]
+    fn one_copy_at_once() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-once-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let data = vec![7u8; 2_000_000];
+        std::fs::write(dir.join("w.mp4"), &data).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (a, b) = (AtomicU64::new(0), AtomicU64::new(0));
+        let (x, y) = rt.block_on(futures_util::future::join(copy_whole(&op, "w.mp4", 2_000_000, &a), copy_whole(&op, "w.mp4", 2_000_000, &b)));
+        assert_eq!(x.unwrap(), y.unwrap(), "one copy for both");
+        assert_eq!(b.load(Ordering::Relaxed), 2_000_000, "the one waiting sees it done");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     /// A reader that copies the file whole first (a phone on Windows): the reads match the file,
     /// the copy goes away with the reader.
