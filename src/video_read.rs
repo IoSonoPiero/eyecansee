@@ -18,10 +18,12 @@ use crate::loader::THUMB_SIDE;
 /// The preview a camera stored inside the video (`mp4::thumbnail`), saved in the cache: 64 KB
 /// read instead of opening the video.
 pub(crate) async fn preview(op: &Store, base: &str, file: &File) -> Option<ColorImage> {
-    let jpeg = match phone_thumbnail(op, &file.path).await {
-        Some(jpeg) => jpeg,
-        None => preview_jpeg(op, &file.path, file.size).await?,
+    let start = std::time::Instant::now();
+    let (jpeg, from) = match phone_thumbnail(op, &file.path).await {
+        Some(jpeg) => (jpeg, "the phone's thumbnail"),
+        None => (preview_jpeg(op, &file.path, file.size).await?, "the video's preview"),
     };
+    log!("preview {:?}: {from} in {:.2} s", file.path, start.elapsed().as_secs_f64());
     let (base, file) = (base.to_string(), file.clone());
     tokio::task::spawn_blocking(move || {
         let img = decode::thumbnail(&jpeg, "preview.jpg", THUMB_SIDE).ok()?;
