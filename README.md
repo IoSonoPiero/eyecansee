@@ -42,7 +42,7 @@ What comes next is in [ROADMAP.md](ROADMAP.md).
 - **Viewer** with zoom (mouse wheel and keys) and preloading, so moving between images never waits, photo details such as camera, exposure, date and location, and a full-screen slideshow with fades.
 - **File management**: copy and move (also from one device to another), create folders, rename and delete, also several items at once, with a trash on every device to restore or empty.
 - **Videos**: thumbnails in the grid, playback with sound and volume control in the viewer and their details (date, length, format, location from phones), on the computer, external disks and phones (with the system's libmpv on Linux, otherwise a video engine downloaded the first time a video is opened, as always on Windows). Audio files are shown and played too, with their cover when they have one.
-- **Duplicates**: finds identical images in a folder and its subfolders, on any device, and deletes the copies you choose, always keeping at least one.
+- **Duplicates**: finds identical photos, videos and audio files in a folder and its subfolders, on any device, and deletes the copies you choose, always keeping at least one.
 - **Rotating and cropping**: flips and quarter turns on one or many images at once, and rotation by any angle with a crop on a single image, saved over the original or as a new file.
 - **Saving in another format** (JPEG, PNG, WebP, AVIF, TIFF and others) with every option of each format, the original and the result side by side, and the file size before you save.
 - **Converting and resizing many files at once**: format, turn, size and filter for a whole selection of images and videos, into new files next to the originals, in a subfolder or in another folder, also on another device.
