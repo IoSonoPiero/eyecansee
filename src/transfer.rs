@@ -199,6 +199,14 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
     Ok(())
 }
 
+/// A file of this computer being written: kept out of the listing and of the folder watcher
+/// until it is whole, as for conversions (`batch::Writing`); half written, its thumbnail was tried
+/// every 0.3 s and showed the error mark (Windows, phone to computer, 2026-10-31). The folder is
+/// read again once a second during the copy (`Progress::touched`), so it shows up then.
+fn writing_guard(to: &Store, dest: &str) -> Option<crate::batch::Writing> {
+    to.local_file(dest).map(crate::batch::Writing::start)
+}
+
 async fn copy_file(from: &Store, src: &str, to: &Store, dest: &str, size: u64, p: &Progress) -> Result<(), Error> {
     // Inside the same phone: copied by the phone itself. Through the computer the upload would
     // hold the phone while waiting for the download of the same file from it.
@@ -216,7 +224,9 @@ async fn copy_file(from: &Store, src: &str, to: &Store, dest: &str, size: u64, p
     let never = AtomicBool::new(false);
     let cancel = if to_phone { &never } else { &p.cancel };
     let (tx, rx) = tokio::sync::mpsc::channel(4);
+    let writing = writing_guard(to, dest);
     let (read, write) = futures_util::future::join(from.send_chunks(src, size, tx, &p.done, cancel), to.write_chunks(dest, size, rx)).await;
+    drop(writing);
     if to_phone && read.is_ok() && write.is_ok() && p.cancel.load(Ordering::Relaxed) {
         p.files.fetch_add(1, Ordering::Relaxed);
         return Err(("error-cancelled", String::new()));
@@ -286,6 +296,11 @@ mod tests {
             assert_eq!(p.done.load(Ordering::Relaxed), (3 << 20) + 5);
             assert_eq!(thumbcache::take("b/x (2).jpg", 3 << 20).as_ref(), Some(&thumb), "the copy has the original's thumbnail waiting");
             assert!(thumbcache::take("b/sub/y.mp4", 5).is_none(), "never had one");
+            assert!(!crate::batch::writing(&dir.join("b/x (2).jpg")), "no longer being written once copied");
+            let guard = writing_guard(&op, "b/z.mp4");
+            assert!(crate::batch::writing(&dir.join("b/z.mp4")), "a local copy is marked while written");
+            drop(guard);
+            assert!(!crate::batch::writing(&dir.join("b/z.mp4")));
 
             // Copy into its own folder: "name (2)".
             let (_, r) = run(&clip(&["a/sub/"], false), &op, &base, "a/", &HashMap::new(), &Progress::default()).await;
