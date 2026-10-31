@@ -26,7 +26,7 @@ It is early in development. This page lists only what works now: new features ar
 
 ## About
 
-I am not a programmer any more, and have not been for years. I needed a photo and video viewer that just opens, without importing or cataloguing anything, and that treats folders, disks, servers and the phone the same way, on both Linux and Windows, so I started writing EyeCanSee with the help of [Claude Code](https://claude.com/claude-code). I test every feature on my own computers and devices before it goes in, and the manual says what is known not to work.
+I have been using computers since MS-DOS 3.22 and have worked in IT for over twenty years, mostly with Linux servers, Docker and networks. I am not a programmer any more, though, and have not been for years. I needed a photo and video viewer that just opens, without importing or cataloguing anything, and that treats folders, disks, servers and the phone the same way, on both Linux and Windows, so I started writing EyeCanSee with the help of [Claude Code](https://claude.com/claude-code). I test every feature on my own computers and devices before it goes in, and the manual says what is known not to work.
 
 Bug reports and suggestions are welcome in the [issues](https://github.com/IoSonoPiero/eyecansee/issues).
 
