@@ -48,8 +48,9 @@ impl Picker {
         p
     }
 
-    /// Once the first listing answers: if it failed and the window is still there, the home folder.
-    fn settle(&mut self, rt: &Handle, ctx: &egui::Context) {
+    /// Once the first listing answers: if it failed and the window is still there, `home` (the
+    /// home folder; a folder of its own in the test, whose runner never finished listing its home).
+    fn settle(&mut self, home: Option<std::path::PathBuf>, rt: &Handle, ctx: &egui::Context) {
         let failed = match &*self.dirs.lock().unwrap() {
             None => return,
             Some(r) => r.is_err(),
@@ -57,7 +58,7 @@ impl Picker {
         let first = self.first.take();
         if failed
             && first == Some(self.address())
-            && let Some(home) = std::env::home_dir()
+            && let Some(home) = home
         {
             log!("pick: {first:?} cannot be read, the home folder instead");
             self.place(&home.to_string_lossy(), rt, ctx);
@@ -125,7 +126,7 @@ impl App {
 /// `keys`: Enter and Esc from the window.
 pub fn pick_ui(ui: &mut egui::Ui, p: &mut Picker, places: &[Place], i18n: &I18n, rt: &Handle, keys: Option<bool>) -> Option<Option<String>> {
     let ctx = ui.ctx().clone();
-    p.settle(rt, &ctx);
+    p.settle(std::env::home_dir(), rt, &ctx);
     crate::theme::title(ui, i18n.t("pick-title"));
     ui.add_space(8.0);
     // The place the folder looked at is in: the longest address in front of it.
@@ -238,10 +239,9 @@ mod tests {
         assert!(p.dirs.lock().unwrap().as_ref().unwrap().is_err());
         // Opened there (a phone unplugged since): the home folder instead.
         let mut p = Picker::open("/does/not/exist", rt.handle(), &ctx);
-        p.settle(rt.handle(), &ctx);
-        assert!(wait(&p).iter().all(|d| !d.is_empty()));
-        let home = std::env::home_dir().unwrap();
-        assert_eq!(std::path::Path::new(&p.address()).canonicalize().unwrap(), home.canonicalize().unwrap());
+        p.settle(Some(root.clone()), rt.handle(), &ctx);
+        assert_eq!(wait(&p).len(), 2);
+        assert_eq!(std::path::Path::new(&p.address()).canonicalize().unwrap(), root.canonicalize().unwrap());
         std::fs::remove_dir_all(root).unwrap();
     }
 }
