@@ -1,7 +1,7 @@
 //! Videos read from any source (disk, phone, server) without reading them whole: the preview a
 //! camera stored inside, the metadata, the stream mpv plays, and a still for the thumbnails.
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
 
@@ -19,11 +19,15 @@ use crate::loader::THUMB_SIDE;
 /// read instead of opening the video.
 pub(crate) async fn preview(op: &Store, base: &str, file: &File) -> Option<ColorImage> {
     let start = std::time::Instant::now();
-    let (jpeg, from) = match phone_thumbnail(op, &file.path).await {
-        Some(jpeg) => (jpeg, "the phone's thumbnail"),
-        None => (preview_jpeg(op, &file.path, file.size).await?, "the video's preview"),
+    let found = match phone_thumbnail(op, &file.path).await {
+        Some(jpeg) => Some((jpeg, "the phone's thumbnail")),
+        // A phone on Windows reads a file only from the start: the preview, at the end with the
+        // `moov`, is looked for in the whole copy the frame needs anyway (`video_still`).
+        None if whole_only(op) => None,
+        None => preview_jpeg(op, &file.path, file.size).await.map(|j| (j, "the video's preview")),
     };
-    log!("preview {:?}: {from} in {:.2} s", file.path, start.elapsed().as_secs_f64());
+    log!("preview {:?}: {} in {:.2} s", file.path, found.as_ref().map_or("none", |f| f.1), start.elapsed().as_secs_f64());
+    let jpeg = found?.0;
     let (base, file) = (base.to_string(), file.clone());
     tokio::task::spawn_blocking(move || {
         let img = decode::thumbnail(&jpeg, "preview.jpg", THUMB_SIDE).ok()?;
@@ -209,13 +213,17 @@ pub(crate) fn video_input_copied(rt: Handle, op: &Store, path: &str, size: u64) 
     }
 }
 
+/// A whole copy and the file kept open on it.
+type OpenCopy = (PathBuf, std::sync::Mutex<std::fs::File>);
+
 struct StoreReader {
     rt: Handle,
     op: Store,
     path: String,
     size: u64,
-    /// Copied to a temporary file at the first read (`whole_only`), removed with the reader.
-    copy: Option<std::sync::OnceLock<Result<PathBuf, String>>>,
+    /// Copied to a temporary file at the first read (`whole_only`), kept open: `COPIES` may remove
+    /// it while it plays (thumbnails copy other videos), and an open file is still read.
+    copy: Option<std::sync::OnceLock<Result<OpenCopy, String>>>,
     /// Bytes of that copy done.
     copied: Arc<AtomicU64>,
 }
@@ -225,46 +233,51 @@ impl StoreReader {
         StoreReader { rt, op: op.clone(), path: path.to_string(), size, copy: whole.then(std::sync::OnceLock::new), copied: Arc::default() }
     }
 
-    /// The whole file in a temporary file, read in order in one go; one copied before and still
-    /// kept (`COPIES`) is used again.
-    async fn copy_whole(&self) -> Result<PathBuf, String> {
-        // ponytail: path and size only; two phones with the same path and size would share a copy.
-        let key = format!("{}\0{}", self.path, self.size);
-        if let Some(tmp) = kept_copy(&key, self.size) {
-            self.copied.store(self.size, Ordering::Relaxed);
-            return Ok(tmp);
-        }
-        static N: AtomicU64 = AtomicU64::new(0);
-        let tmp = std::env::temp_dir().join(format!("eyecansee-video-{}-{}.tmp", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
-        let (tx, mut rx) = tokio::sync::mpsc::channel::<std::io::Result<bytes::Bytes>>(4);
-        let never = std::sync::atomic::AtomicBool::new(false);
-        let write = async {
-            let mut file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
-            while let Some(chunk) = rx.recv().await {
-                std::io::Write::write_all(&mut file, &chunk.map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-            }
-            Ok(())
-        };
-        let (sent, written) = futures_util::future::join(self.op.send_chunks(&self.path, self.size, tx, &self.copied, &never), write).await;
-        match sent.map_err(|(id, d)| format!("{id} {d}")).and(written) {
-            Ok(()) => {
-                keep_copy(key, tmp.clone());
-                Ok(tmp)
-            }
-            Err(e) => {
-                let _ = std::fs::remove_file(&tmp);
-                Err(e)
-            }
-        }
+    async fn copy_whole(&self) -> Result<OpenCopy, String> {
+        let tmp = copy_whole(&self.op, &self.path, self.size, &self.copied).await?;
+        let file = std::fs::File::open(&tmp).map_err(|e| e.to_string())?;
+        Ok((tmp, std::sync::Mutex::new(file)))
     }
-
-    fn read_copy(&self, copy: &Path, offset: u64, len: u64) -> Result<Vec<u8>, String> {
+    fn read_copy(file: &std::sync::Mutex<std::fs::File>, offset: u64, len: u64) -> Result<Vec<u8>, String> {
         use std::io::{Read, Seek, SeekFrom};
-        let mut file = std::fs::File::open(copy).map_err(|e| e.to_string())?;
+        let mut file = file.lock().unwrap();
         file.seek(SeekFrom::Start(offset)).map_err(|e| e.to_string())?;
         let mut out = Vec::new();
-        file.take(len).read_to_end(&mut out).map_err(|e| e.to_string())?;
+        (&mut *file).take(len).read_to_end(&mut out).map_err(|e| e.to_string())?;
         Ok(out)
+    }
+}
+
+/// The whole file in a temporary file, read in order in one go (`copied` counts the bytes); one
+/// copied before and still kept (`COPIES`) is used again.
+async fn copy_whole(op: &Store, path: &str, size: u64, copied: &AtomicU64) -> Result<PathBuf, String> {
+    // ponytail: path and size only; two phones with the same path and size would share a copy.
+    let key = format!("{path}\0{size}");
+    if let Some(tmp) = kept_copy(&key, size) {
+        copied.store(size, Ordering::Relaxed);
+        return Ok(tmp);
+    }
+    static N: AtomicU64 = AtomicU64::new(0);
+    let tmp = std::env::temp_dir().join(format!("eyecansee-video-{}-{}.tmp", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
+    let (tx, mut rx) = tokio::sync::mpsc::channel::<std::io::Result<bytes::Bytes>>(4);
+    let never = std::sync::atomic::AtomicBool::new(false);
+    let write = async {
+        let mut file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
+        while let Some(chunk) = rx.recv().await {
+            std::io::Write::write_all(&mut file, &chunk.map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    };
+    let (sent, written) = futures_util::future::join(op.send_chunks(path, size, tx, copied, &never), write).await;
+    match sent.map_err(|(id, d)| format!("{id} {d}")).and(written) {
+        Ok(()) => {
+            keep_copy(key, tmp.clone());
+            Ok(tmp)
+        }
+        Err(e) => {
+            let _ = std::fs::remove_file(&tmp);
+            Err(e)
+        }
     }
 }
 
@@ -326,7 +339,7 @@ impl crate::mpv::Reader for StoreReader {
     fn read(&self, offset: u64, len: u64) -> Result<Vec<u8>, String> {
         match &self.copy {
             Some(copy) => match copy.get_or_init(|| self.rt.block_on(self.copy_whole())) {
-                Ok(tmp) => self.read_copy(tmp, offset, len),
+                Ok((_, file)) => Self::read_copy(file, offset, len),
                 Err(e) => Err(e.clone()),
             },
             // With the error's id: the log said only the path when the file was gone (2026-10-29).
@@ -361,10 +374,38 @@ fn on_home_disk(file: &std::path::Path) -> bool {
 /// one per thumbnail worker, as images: with one decoding thread each, 32 at a time make 73 a
 /// second, 4 made 11 (2026-10-27).
 pub(crate) async fn video_still(op: &Store, path: &str, size: u64, side: u32) -> Result<image::DynamicImage, String> {
+    if whole_only(op) {
+        return still_from_copy(op, path, size, side).await;
+    }
     let input = video_input(Handle::current(), op, path, size);
     tokio::task::spawn_blocking(move || crate::mpv::still(input, side).map(|i| image::DynamicImage::ImageRgba8(i).to_rgb8().into()))
         .await
         .unwrap_or_else(|e| Err(e.to_string()))
+}
+
+/// `video_still` for a phone on Windows: the file copied whole once (kept, so the viewer opens it
+/// at once), then the camera's preview looked for in the copy, then a frame of it.
+async fn still_from_copy(op: &Store, path: &str, size: u64, side: u32) -> Result<image::DynamicImage, String> {
+    let start = std::time::Instant::now();
+    let tmp = copy_whole(op, path, size, &AtomicU64::new(0)).await?;
+    let copied = start.elapsed().as_secs_f64();
+    // A thumbnail only: the preview is small, the viewer's still (side 0) is the full frame.
+    if side > 0 {
+        let local = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&std::env::temp_dir().to_string_lossy())).map_err(|e| e.to_string())?);
+        let name = tmp.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+        if let Some(jpeg) = preview_jpeg(&local, &name, size).await
+            && let Ok(img) = decode::thumbnail(&jpeg, "preview.jpg", side)
+        {
+            log!("still {path:?}: the video's preview, copied in {copied:.2} s");
+            return Ok(img);
+        }
+    }
+    let input = crate::mpv::Input::File(tmp);
+    let img = tokio::task::spawn_blocking(move || crate::mpv::still(input, side).map(|i| image::DynamicImage::ImageRgba8(i).to_rgb8().into()))
+        .await
+        .unwrap_or_else(|e| Err(e.to_string()))?;
+    log!("still {path:?}: a frame, copied in {copied:.2} s, {:.2} s in all", start.elapsed().as_secs_f64());
+    Ok(img)
 }
 
 #[cfg(test)]
@@ -388,16 +429,18 @@ mod tests {
         assert_eq!(reader.read(10, 100).unwrap(), data[10..110]);
         // What the viewer's bar shows: all of it once copied.
         assert_eq!(reader.copied.load(Ordering::Relaxed), data.len() as u64);
-        let tmp = reader.copy.as_ref().unwrap().get().unwrap().clone().unwrap();
+        let tmp = reader.copy.as_ref().unwrap().get().unwrap().as_ref().unwrap().0.clone();
         assert!(tmp.exists());
         // Kept after the viewer closes: opened again, the same copy, nothing read.
         drop(reader);
         std::fs::remove_file(dir.join("v.mp4")).unwrap();
         let again = StoreReader::new(rt.handle().clone(), &op, "v.mp4", data.len() as u64, true);
         assert_eq!(again.read(10, 100).unwrap(), data[10..110]);
-        assert_eq!(again.copy.as_ref().unwrap().get().unwrap().as_ref().unwrap(), &tmp);
+        assert_eq!(again.copy.as_ref().unwrap().get().unwrap().as_ref().unwrap().0, tmp);
+        // Removed from the cache while open (thumbnails of other videos): still read.
         forget_copies();
-        assert!(!tmp.exists());
+        assert!(!tmp.exists() || cfg!(windows));
+        assert_eq!(again.read(2_999_000, 5_000).unwrap(), data[2_999_000..]);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

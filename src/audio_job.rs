@@ -121,7 +121,7 @@ fn tracks(program: &Path, input: &Path) -> Result<Vec<String>, String> {
 /// One video of `batch::run`: the new files written into the folder `dest` of `out` with free
 /// names (added to `taken`), their paths returned. As `batch::video`, a video on a phone or a
 /// server is copied into a temporary file first, and the new files go there at the end.
-pub async fn run(op: &Store, path: &str, out: &Store, dest: &str, job: AudioJob, taken: &mut HashSet<String>, p: &Arc<Progress>) -> Result<Vec<String>, source::Error> {
+pub async fn run(op: &Store, (base, path): (&str, &str), out: &Store, dest: &str, job: AudioJob, taken: &mut HashSet<String>, p: &Arc<Progress>) -> Result<Vec<String>, source::Error> {
     let name = source::name(path).to_string();
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
     if crate::ffmpeg::probed().is_none() {
@@ -139,7 +139,9 @@ pub async fn run(op: &Store, path: &str, out: &Store, dest: &str, job: AudioJob,
             (file, true)
         }
     };
-    let r = write(&input.0, out, dest, job, taken, &phases, (remote_in as u32, temp)).await.map_err(|e| e.unwrap_or_else(failed));
+    // The same pictures without the audio: the original's thumbnail, not a frame made again.
+    let thumb = (job == AudioJob::Strip).then(|| crate::thumbcache::stored(base, path)).flatten();
+    let r = write(&input.0, out, dest, job, taken, &phases, (remote_in as u32, temp, thumb)).await.map_err(|e| e.unwrap_or_else(failed));
     if input.1 {
         let _ = std::fs::remove_file(&input.0);
     }
@@ -155,7 +157,7 @@ async fn write(
     job: AudioJob,
     taken: &mut HashSet<String>,
     phases: &Phases,
-    (first, temp): (u32, impl Fn(&str, &str) -> PathBuf),
+    (first, temp, thumb): (u32, impl Fn(&str, &str) -> PathBuf, Option<(u64, Vec<u8>)>),
 ) -> Result<Vec<String>, Result<source::Error, String>> {
     let name = input.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let probe = crate::ffmpeg::probed().ok_or(Err(String::new()))?;
@@ -189,14 +191,17 @@ async fn write(
         // The camera's preview, which FFmpeg leaves out: with it the thumbnail is the same picture
         // as the original's, read from the file; without it, a frame of the video.
         let to = files[0].0.clone();
-        match tokio::task::spawn_blocking(move || crate::mp4::copy_preview(&original, &to)).await {
+        let copied = tokio::task::spawn_blocking(move || crate::mp4::copy_preview(&original, &to)).await;
+        match &copied {
             Ok(Ok(true)) => log!("ffmpeg: the camera's preview copied into {}", tos[0]),
-            other => {
-                if let Ok(Err(e)) = other {
-                    log!("ffmpeg: the camera's preview not copied: {e}");
-                }
-                keep_thumbnail(&tos[0], &files[0].0).await;
-            }
+            Ok(Err(e)) => log!("ffmpeg: the camera's preview not copied: {e}"),
+            _ => {}
+        }
+        let size = std::fs::metadata(&files[0].0).map(|m| m.len());
+        match (thumb, size) {
+            (Some((_, data)), Ok(size)) => crate::thumbcache::keep(&tos[0], size, data),
+            _ if !matches!(copied, Ok(Ok(true))) => keep_thumbnail(&tos[0], &files[0].0).await,
+            _ => {}
         }
     }
     for (to, (file, remote)) in tos.iter().zip(&files) {

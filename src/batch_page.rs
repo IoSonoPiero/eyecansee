@@ -108,7 +108,7 @@ impl Form {
         };
         let v = &self.video;
         let video = v.encoder.filter(|_| self.videos).map(|encoder| Video { container: v.container, encoder, quality: v.quality, audio: v.audio, meta: v.meta });
-        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio }
+        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio, base: String::new() }
     }
 
     /// The flips first, then the turn.
@@ -302,8 +302,9 @@ impl App {
         }
     }
 
-    fn start_batch(&self, w: &mut Window, job: Job, to: Dest, ctx: &egui::Context) {
+    fn start_batch(&self, w: &mut Window, mut job: Job, to: Dest, ctx: &egui::Context) {
         let Some(loader) = &self.loader else { return };
+        job.base = self.base.clone();
         let p = Arc::new(Progress::default());
         w.progress = Some(p.clone());
         log!("batch: {} images to {:?}, {job:?}", w.paths.len(), w.dest.0);

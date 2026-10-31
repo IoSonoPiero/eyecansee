@@ -656,6 +656,10 @@ async fn make_slow(op: &Store, base: &str, queue: &Mutex<ThumbQueue>, send: &imp
 pub(crate) async fn thumbnail(op: &Store, base: &str, file: File) -> Result<ColorImage, String> {
     match cached(base, &file).await {
         Some(img) => Ok(img),
+        None if decode::is_played(&file.path) => match preview(op, base, &file).await {
+            Some(img) => Ok(img),
+            None => generate(op, base, file).await,
+        },
         None => generate(op, base, file).await,
     }
 }
@@ -676,12 +680,10 @@ async fn cached(base: &str, file: &File) -> Option<ColorImage> {
     .map(decode::to_color_image)
 }
 
-/// Made from the file and saved in the cache.
+/// Made from the file and saved in the cache. For a video `preview` was tried before (the
+/// queue, `thumbnail`): tried again here it read the end of the file twice.
 async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, String> {
     if decode::is_played(&file.path) {
-        if let Some(img) = preview(op, base, &file).await {
-            return Ok(img);
-        }
         let img = video_still(op, &file.path, file.size, THUMB_SIDE).await?;
         let base = base.to_string();
         return tokio::task::spawn_blocking(move || {
