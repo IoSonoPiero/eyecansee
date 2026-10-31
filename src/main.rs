@@ -744,17 +744,10 @@ fn main() -> eframe::Result {
         return Ok(());
     }
     video_read::remove_old_copies();
-    // Flatpak points XDG_DATA_HOME into the sandbox: files would go to a trash no file manager sees.
-    let flatpak_id = std::env::var("FLATPAK_ID").ok();
-    if let (Some(_), Some(home)) = (&flatpak_id, std::env::var_os("HOME")) {
-        // SAFETY: no other thread is running yet.
-        unsafe { std::env::set_var("XDG_DATA_HOME", std::path::Path::new(&home).join(".local/share")) };
-    }
     let settings = Settings::load();
     engine::set_choice(settings.video_engine);
-    // The window is matched to its .desktop file by this id (in Flatpak, the id of the app).
-    let app_id = flatpak_id.unwrap_or_else(|| "eyecansee".into());
-    let mut viewport = egui::ViewportBuilder::default().with_inner_size([1200.0, 800.0]).with_app_id(app_id);
+    // The window is matched to its .desktop file by this id.
+    let mut viewport = egui::ViewportBuilder::default().with_inner_size([1200.0, 800.0]).with_app_id("eyecansee");
     // Title bar and task bar (without it, eframe puts its own). On Windows the icon of the
     // .exe file is something else: `build.rs` embeds it.
     if let Some(icon) = decode::app_icon(256) {
