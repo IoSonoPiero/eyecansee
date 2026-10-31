@@ -25,6 +25,9 @@ pub struct Picker {
     store: Option<Store>,
     dir: String,
     dirs: Dirs,
+    /// The address it opened at, until its first listing answers: if that fails, the home
+    /// folder instead (a phone unplugged since it was chosen opens, then fails to list).
+    first: Option<String>,
 }
 
 /// Where the chooser can jump to: home, the computer, each device, each saved server.
@@ -35,11 +38,30 @@ pub struct Place {
 }
 
 impl Picker {
-    /// At `address`; if it cannot be opened, the error is shown in place of the folders.
+    /// At `address`; if it cannot be read (a phone unplugged since it was chosen, a folder gone),
+    /// at the home folder (`settle`). An error is shown in place of the folders only for a place
+    /// chosen in the window, or if the home folder fails too.
     pub fn open(address: &str, rt: &Handle, ctx: &egui::Context) -> Picker {
-        let mut p = Picker { base: String::new(), store: None, dir: String::new(), dirs: Arc::default() };
+        let mut p = Picker { base: String::new(), store: None, dir: String::new(), dirs: Arc::default(), first: None };
         p.place(address, rt, ctx);
+        p.first = Some(p.address());
         p
+    }
+
+    /// Once the first listing answers: if it failed and the window is still there, the home folder.
+    fn settle(&mut self, rt: &Handle, ctx: &egui::Context) {
+        let failed = match &*self.dirs.lock().unwrap() {
+            None => return,
+            Some(r) => r.is_err(),
+        };
+        let first = self.first.take();
+        if failed
+            && first == Some(self.address())
+            && let Some(home) = std::env::home_dir()
+        {
+            log!("pick: {first:?} cannot be read, the home folder instead");
+            self.place(&home.to_string_lossy(), rt, ctx);
+        }
     }
 
     fn place(&mut self, address: &str, rt: &Handle, ctx: &egui::Context) {
@@ -103,6 +125,7 @@ impl App {
 /// `keys`: Enter and Esc from the window.
 pub fn pick_ui(ui: &mut egui::Ui, p: &mut Picker, places: &[Place], i18n: &I18n, rt: &Handle, keys: Option<bool>) -> Option<Option<String>> {
     let ctx = ui.ctx().clone();
+    p.settle(rt, &ctx);
     crate::theme::title(ui, i18n.t("pick-title"));
     ui.add_space(8.0);
     // The place the folder looked at is in: the longest address in front of it.
@@ -213,6 +236,12 @@ mod tests {
         // A place that does not exist: the error in place of the folders, no panic.
         p.place("/does/not/exist", rt.handle(), &ctx);
         assert!(p.dirs.lock().unwrap().as_ref().unwrap().is_err());
+        // Opened there (a phone unplugged since): the home folder instead.
+        let mut p = Picker::open("/does/not/exist", rt.handle(), &ctx);
+        p.settle(rt.handle(), &ctx);
+        assert!(wait(&p).iter().all(|d| !d.is_empty()));
+        let home = std::env::home_dir().unwrap();
+        assert_eq!(std::path::Path::new(&p.address()).canonicalize().unwrap(), home.canonicalize().unwrap());
         std::fs::remove_dir_all(root).unwrap();
     }
 }
