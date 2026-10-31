@@ -91,8 +91,11 @@ impl App {
                         for (code, name) in languages {
                             ui.radio_value(&mut s.language, Some(code.to_string()), name);
                         }
-                        ui.add_space(6.0);
-                        ui.checkbox(&mut s.check_updates, updates).on_hover_text(updates_hint);
+                        // The Store updates its copies itself.
+                        if !crate::update::packaged() {
+                            ui.add_space(6.0);
+                            ui.checkbox(&mut s.check_updates, updates).on_hover_text(updates_hint);
+                        }
                     }
                     OptTab::Look => {
                         ui.label(theme_label);

@@ -27,8 +27,28 @@ pub enum Kind {
     AppImage(PathBuf),
 }
 
+/// Running from an MSIX package (the Microsoft Store): its folder is read-only and the Store
+/// updates it.
+#[cfg(windows)]
+pub fn packaged() -> bool {
+    use windows_sys::Win32::Storage::Packaging::Appx::GetCurrentPackageFullName;
+    const APPMODEL_ERROR_NO_PACKAGE: u32 = 15700;
+    let mut len = 0;
+    // SAFETY: a null buffer with length 0 only asks for the length (ERROR_INSUFFICIENT_BUFFER in a package).
+    unsafe { GetCurrentPackageFullName(&mut len, std::ptr::null_mut()) != APPMODEL_ERROR_NO_PACKAGE }
+}
+
+#[cfg(not(windows))]
+pub fn packaged() -> bool {
+    false
+}
+
 impl Kind {
     pub fn detect() -> Option<Kind> {
+        // The Microsoft Store updates its own copies.
+        if packaged() {
+            return None;
+        }
         if let Some(path) = std::env::var_os("APPIMAGE") {
             return Some(Kind::AppImage(path.into()));
         }

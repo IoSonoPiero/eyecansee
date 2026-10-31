@@ -1,6 +1,6 @@
 [package]
 name = "eyecansee"
-version = "0.71.1"
+version = "0.72.0"
 edition = "2024"
 description = "Image and video viewer and manager for Linux and Windows"
 license = "GPL-3.0-or-later"
@@ -89,7 +89,7 @@ webp = { version = "0.3", default-features = false }
 
 [target."cfg(windows)".dependencies]
 # Drives (C:, D:, …): type, label and bus (USB/SD = external) for "This computer" and Devices.
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_System_IO", "Win32_System_Ioctl"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_Storage_Packaging_Appx", "Win32_System_IO", "Win32_System_Ioctl"] }
 
 [target."cfg(windows)".build-dependencies]
 # Icon and version data inside eyecansee.exe (`build.rs`), with rc.exe from the Build Tools.

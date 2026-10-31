@@ -203,6 +203,8 @@ impl App {
                     return;
                 } else if self.check_updates(ctx) {
                     "update-checking"
+                } else if crate::update::packaged() {
+                    "update-store"
                 } else {
                     "update-unavailable"
                 };

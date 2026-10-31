@@ -326,6 +326,7 @@ menu-check-updates = Check for updates
 update-checking = Checking for updates…
 update-latest = EyeCanSee { $version } is the latest version.
 update-found = EyeCanSee { $version } is ready: click the red button at the top right to install it.
+update-store = This copy comes from the Microsoft Store, which updates it.
 update-unavailable = This copy is not updated by EyeCanSee: on Fedora updates come with dnf, and development builds are never updated.
 update-check-failed = Cannot check for updates: { $detail }
 menu-redo-thumbs = Redo thumbnails

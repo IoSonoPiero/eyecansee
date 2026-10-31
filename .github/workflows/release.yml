@@ -117,6 +117,33 @@ jobs:
           if (Test-Path $key) { "::error::$key still there after uninstalling"; exit 1 }
           if (Test-Path $components) { "::error::$components still there after uninstalling"; exit 1 }
           if (-not (Test-Path $settings)) { "::error::$settings removed by uninstalling"; exit 1 }
+      - name: MSIX
+        run: .\tools\msix.ps1 -Pkg pkg -Version $env:VER -Out "EyeCanSee-$env:VER-windows-x64.msix"
+      - name: MSIX test
+        run: |
+          # Signed with a throwaway certificate (the Store signs the real one), installed, started, removed.
+          $msix = "EyeCanSee-$env:VER-windows-x64.msix"
+          $signed = "test\signed.msix"; Copy-Item $msix $signed
+          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=F2E8FA38-D8A9-4E9C-9A63-42325AA480E6" -CertStoreLocation Cert:\CurrentUser\My
+          Export-Certificate -Cert $cert -FilePath test\msix.cer | Out-Null
+          Import-Certificate -FilePath test\msix.cer -CertStoreLocation Cert:\LocalMachine\TrustedPeople | Out-Null
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" | Sort-Object FullName | Select-Object -Last 1
+          & $signtool.FullName sign /fd SHA256 /sha1 $cert.Thumbprint $signed
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          Add-AppxPackage $signed
+          $pkg = Get-AppxPackage PierluigiMontinaro.EyeCanSee
+          if (-not $pkg) { "::error::MSIX not installed"; exit 1 }
+          Start-Process "shell:AppsFolder\$($pkg.PackageFamilyName)!EyeCanSee"
+          Start-Sleep 8
+          $p = Get-Process eyecansee -ErrorAction SilentlyContinue
+          if ($p) { $p | Stop-Process }
+          Remove-AppxPackage $pkg.PackageFullName
+          if (-not $p) { "::error::the packaged eyecansee.exe exited within 8 s"; exit 1 }
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          # Not in the GitHub release: it goes to the Microsoft Store, by hand.
+          name: msix
+          path: EyeCanSee-*-windows-x64.msix
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: windows
@@ -190,9 +217,13 @@ jobs:
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     steps:
+      # By name: "msix" goes to the Microsoft Store, not into the release.
       - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
         with:
-          merge-multiple: true
+          name: windows
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: appimage
       - name: Draft release
         env:
           GH_TOKEN: ${{ github.token }}

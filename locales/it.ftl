@@ -325,6 +325,7 @@ menu-check-updates = Verifica aggiornamenti
 update-checking = Controllo degli aggiornamenti…
 update-latest = EyeCanSee { $version } è l'ultima versione.
 update-found = EyeCanSee { $version } è pronto: per installarlo fai clic sul pulsante rosso in alto a destra.
+update-store = Questa copia viene dal Microsoft Store, che la aggiorna.
 update-unavailable = Questa copia non viene aggiornata da EyeCanSee: su Fedora gli aggiornamenti arrivano con dnf, e le versioni di sviluppo non si aggiornano mai.
 update-check-failed = Impossibile controllare gli aggiornamenti: { $detail }
 menu-redo-thumbs = Aggiorna miniature
