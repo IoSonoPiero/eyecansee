@@ -719,6 +719,7 @@ impl eframe::App for App {
         }
         self.settings.save();
         mtp::Phone::let_go_all();
+        video_read::forget_copies();
     }
 
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {

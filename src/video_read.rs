@@ -223,8 +223,15 @@ impl StoreReader {
         StoreReader { rt, op: op.clone(), path: path.to_string(), size, copy: whole.then(std::sync::OnceLock::new), copied: Arc::default() }
     }
 
-    /// The whole file in a temporary file, read in order in one go.
+    /// The whole file in a temporary file, read in order in one go; one copied before and still
+    /// kept (`COPIES`) is used again.
     async fn copy_whole(&self) -> Result<PathBuf, String> {
+        // ponytail: path and size only; two phones with the same path and size would share a copy.
+        let key = format!("{}\0{}", self.path, self.size);
+        if let Some(tmp) = kept_copy(&key, self.size) {
+            self.copied.store(self.size, Ordering::Relaxed);
+            return Ok(tmp);
+        }
         static N: AtomicU64 = AtomicU64::new(0);
         let tmp = std::env::temp_dir().join(format!("eyecansee-video-{}-{}.tmp", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
         let (tx, mut rx) = tokio::sync::mpsc::channel::<std::io::Result<bytes::Bytes>>(4);
@@ -238,7 +245,10 @@ impl StoreReader {
         };
         let (sent, written) = futures_util::future::join(self.op.send_chunks(&self.path, self.size, tx, &self.copied, &never), write).await;
         match sent.map_err(|(id, d)| format!("{id} {d}")).and(written) {
-            Ok(()) => Ok(tmp),
+            Ok(()) => {
+                keep_copy(key, tmp.clone());
+                Ok(tmp)
+            }
             Err(e) => {
                 let _ = std::fs::remove_file(&tmp);
                 Err(e)
@@ -256,11 +266,38 @@ impl StoreReader {
     }
 }
 
-impl Drop for StoreReader {
-    fn drop(&mut self) {
-        if let Some(Ok(tmp)) = self.copy.as_ref().and_then(|c| c.get()) {
-            let _ = std::fs::remove_file(tmp);
-        }
+/// Videos copied whole (`StoreReader::copy_whole`), newest last: opened again, they play at once.
+/// ponytail: a count, not a size; a cap in bytes if videos of several GB fill the disk.
+static COPIES: std::sync::Mutex<Vec<(String, PathBuf)>> = std::sync::Mutex::new(Vec::new());
+const KEPT_COPIES: usize = 3;
+
+/// The copy kept for `key`, if it is still there whole (moved to the newest place).
+fn kept_copy(key: &str, size: u64) -> Option<PathBuf> {
+    let mut copies = COPIES.lock().unwrap();
+    let i = copies.iter().position(|(k, _)| k == key)?;
+    let entry = copies.remove(i);
+    if std::fs::metadata(&entry.1).is_ok_and(|m| m.len() == size) {
+        let tmp = entry.1.clone();
+        copies.push(entry);
+        Some(tmp)
+    } else {
+        let _ = std::fs::remove_file(&entry.1);
+        None
+    }
+}
+
+fn keep_copy(key: String, tmp: PathBuf) {
+    let mut copies = COPIES.lock().unwrap();
+    copies.push((key, tmp));
+    while copies.len() > KEPT_COPIES {
+        let _ = std::fs::remove_file(copies.remove(0).1);
+    }
+}
+
+/// At exit: the copies go.
+pub(crate) fn forget_copies() {
+    for (_, tmp) in COPIES.lock().unwrap().drain(..) {
+        let _ = std::fs::remove_file(tmp);
     }
 }
 
@@ -337,7 +374,13 @@ mod tests {
         assert_eq!(reader.copied.load(Ordering::Relaxed), data.len() as u64);
         let tmp = reader.copy.as_ref().unwrap().get().unwrap().clone().unwrap();
         assert!(tmp.exists());
+        // Kept after the viewer closes: opened again, the same copy, nothing read.
         drop(reader);
+        std::fs::remove_file(dir.join("v.mp4")).unwrap();
+        let again = StoreReader::new(rt.handle().clone(), &op, "v.mp4", data.len() as u64, true);
+        assert_eq!(again.read(10, 100).unwrap(), data[10..110]);
+        assert_eq!(again.copy.as_ref().unwrap().get().unwrap().as_ref().unwrap(), &tmp);
+        forget_copies();
         assert!(!tmp.exists());
         std::fs::remove_dir_all(&dir).unwrap();
     }
