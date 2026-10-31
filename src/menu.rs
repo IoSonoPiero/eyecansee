@@ -27,9 +27,9 @@ impl App {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 ui.weak(format!("EyeCanSee {}", version()));
                 if let Some(r) = &self.update {
-                    // Red with white text (contrast 5.6:1): as a plain button it went unnoticed.
-                    let text = egui::RichText::new(self.i18n.t_args("update-install", &[("version", &r.version)])).color(Color32::WHITE).strong();
-                    pick(&act, ui.add(egui::Button::new(text).fill(Color32::from_rgb(0xC6, 0x28, 0x28))), Act::Update);
+                    // Red: as a plain button it went unnoticed.
+                    let text = self.i18n.t_args("update-install", &[("version", &r.version)]);
+                    pick(&act, ui.add(crate::theme::alert_button(text)), Act::Update);
                 }
                 self.engine_bar(ui);
             });

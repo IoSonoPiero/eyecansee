@@ -99,6 +99,15 @@ pub fn main_button(ui: &egui::Ui, text: String) -> egui::Button<'static> {
     egui::Button::new(egui::RichText::new(text).color(Color32::WHITE).strong()).fill(solid(ui.visuals()))
 }
 
+/// Dark red behind `alert_button`'s white text: 7.5:1. The red before (#C62828) was 5.6:1 on
+/// paper, but its thin letters, blended into the red at their edges, read pink (user, 2026-10-31).
+const ALERT_RED: Color32 = Color32::from_rgb(0xA5, 0x1C, 0x1C);
+
+/// Something to do now, in the menu bar (an update, the video engine): white bold on dark red.
+pub fn alert_button(text: String) -> egui::Button<'static> {
+    egui::Button::new(egui::RichText::new(text).color(Color32::WHITE).strong()).fill(ALERT_RED)
+}
+
 /// Something under way or not saved, in the status bars: a yellow label with dark bold text
 /// (contrast about 13:1). White on the blue bar went unnoticed (user, 2026-10-26).
 pub fn alert(text: String) -> egui::RichText {
@@ -230,4 +239,28 @@ fn dark() -> Visuals {
     v.selection.stroke = Stroke::new(1.0, rgb(255, 255, 255));
     rounded(&mut v);
     v
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// WCAG contrast ratio of two colours.
+    fn contrast(a: Color32, b: Color32) -> f32 {
+        let l = |c: Color32| {
+            let ch = |v: u8| {
+                let v = v as f32 / 255.0;
+                if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+            };
+            0.2126 * ch(c.r()) + 0.7152 * ch(c.g()) + 0.0722 * ch(c.b())
+        };
+        let (x, y) = (l(a), l(b));
+        (x.max(y) + 0.05) / (x.min(y) + 0.05)
+    }
+
+    /// Well above 4.5:1, so the thin letters' blended edges stay readable.
+    #[test]
+    fn alert_button_contrast() {
+        assert!(contrast(Color32::WHITE, ALERT_RED) >= 7.0, "{}", contrast(Color32::WHITE, ALERT_RED));
+    }
 }

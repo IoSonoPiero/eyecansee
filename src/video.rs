@@ -215,8 +215,8 @@ impl App {
             return;
         }
         let t = |id: &str, args: &[(&str, &str)]| self.i18n.t_args(id, args);
-        // Red with white text, as the update button (see `menu_bar`).
-        let red = |text: String| egui::Button::new(egui::RichText::new(text).color(Color32::WHITE).strong()).fill(Color32::from_rgb(0xC6, 0x28, 0x28));
+        // Red, as the update button (see `menu_bar`).
+        let red = crate::theme::alert_button;
         let click = match &state {
             Engine::Missing | Engine::Failed(_) | Engine::TooOld { .. } => {
                 let hover = match &state {
