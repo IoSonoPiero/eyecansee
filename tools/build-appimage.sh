@@ -79,6 +79,7 @@ VER=$(cat VERSION)
 APPDIR=$CARGO_TARGET_DIR/AppDir
 rm -rf "$APPDIR"
 install -Dm644 LICENSE "$APPDIR/usr/share/doc/eyecansee/LICENSE"
+install -Dm644 assets/io.github.IoSonoPiero.EyeCanSee.metainfo.xml "$APPDIR/usr/share/metainfo/io.github.IoSonoPiero.EyeCanSee.metainfo.xml"
 LICENSES=$APPDIR/usr/share/doc/eyecansee/THIRD-PARTY-LICENSES.txt
 tools/third-party-licenses.sh "$LICENSES" "${FEATURES[@]}"
 for lib in "libde265 $DE265 https://github.com/strukturag/libde265/archive/refs/tags/v$DE265.tar.gz" \

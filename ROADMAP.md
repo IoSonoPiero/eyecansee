@@ -65,4 +65,4 @@ The order is indicative: features arrive when they are ready and tested on real 
 ## Not planned
 
 - AI upscaling (Real-ESRGAN and similar): the models are large and their licenses vary. It could come back as an optional download if there is demand.
-- Flathub: EyeCanSee is not distributed there, because of the catalogue's current rules.
+- Flatpak and Flathub: there is no Flatpak package, and EyeCanSee is not distributed on Flathub, because of the catalogue's current rules. On Linux it comes as an AppImage and as an RPM for Fedora.

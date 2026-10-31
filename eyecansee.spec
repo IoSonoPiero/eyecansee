@@ -19,6 +19,7 @@ BuildRequires:  clang-devel
 BuildRequires:  pkgconfig(libheif) >= 1.23
 BuildRequires:  pkgconfig(MagickWand) >= 7
 BuildRequires:  desktop-file-utils
+BuildRequires:  appstream
 # HEIC needs the HEVC decoder plugin, which Fedora does not ship (patents): RPM Fusion has it.
 Recommends:     libheif-freeworld
 # Videos: libmpv, opened at run time (src/mpv.rs). HEVC videos need RPM Fusion's ffmpeg too.
@@ -48,9 +49,11 @@ cargo build --release --locked
 install -Dm755 target/release/eyecansee %{buildroot}%{_bindir}/eyecansee
 install -Dm644 assets/eyecansee.desktop %{buildroot}%{_datadir}/applications/eyecansee.desktop
 install -Dm644 assets/eyecansee.svg %{buildroot}%{_datadir}/icons/hicolor/scalable/apps/eyecansee.svg
+install -Dm644 assets/io.github.IoSonoPiero.EyeCanSee.metainfo.xml %{buildroot}%{_metainfodir}/io.github.IoSonoPiero.EyeCanSee.metainfo.xml
 
 %check
 desktop-file-validate %{buildroot}%{_datadir}/applications/eyecansee.desktop
+appstreamcli validate --no-net %{buildroot}%{_metainfodir}/io.github.IoSonoPiero.EyeCanSee.metainfo.xml
 
 %files
 %license LICENSE
@@ -58,3 +61,4 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/eyecansee.desktop
 %{_bindir}/eyecansee
 %{_datadir}/applications/eyecansee.desktop
 %{_datadir}/icons/hicolor/scalable/apps/eyecansee.svg
+%{_metainfodir}/io.github.IoSonoPiero.EyeCanSee.metainfo.xml
