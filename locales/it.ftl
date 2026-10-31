@@ -13,6 +13,7 @@ video-component-restart = Riavvia EyeCanSee
 video-component-ask = Per guardare i video EyeCanSee ha bisogno del motore video (mpv), da scaricare una volta sola: { $size }.
 video-component-download = Scarica il motore video
 video-component-button = Scarica il motore video ({ $size })
+video-copying = Lettura dal telefono: { $done } di { $total }
 video-component-progress = Scaricamento: { $done } di { $total }
 video-component-error = Scaricamento non riuscito: { $error }
 video-engine-old = Il motore video di questo computer è troppo vecchio: { $found }, mentre a EyeCanSee serve almeno libmpv { $required }. EyeCanSee può scaricare il suo, una volta sola ({ $size }).

@@ -191,9 +191,19 @@ fn whole_only(op: &Store) -> bool {
 /// What mpv plays: the file itself when it is on this computer (also through gvfs), otherwise
 /// read a piece at a time from the phone or the server.
 pub(crate) fn video_input(rt: Handle, op: &Store, path: &str, size: u64) -> crate::mpv::Input {
+    video_input_copied(rt, op, path, size).0
+}
+
+/// As `video_input`, with the bytes copied so far when the file is copied whole first (a phone
+/// on Windows): the viewer shows how far that is, since nothing plays until it is done.
+pub(crate) fn video_input_copied(rt: Handle, op: &Store, path: &str, size: u64) -> (crate::mpv::Input, Option<Arc<AtomicU64>>) {
     match op.local_file(path) {
-        Some(file) => crate::mpv::Input::File(file),
-        None => crate::mpv::Input::Stream(Arc::new(StoreReader::new(rt, op, path, size, whole_only(op)))),
+        Some(file) => (crate::mpv::Input::File(file), None),
+        None => {
+            let reader = StoreReader::new(rt, op, path, size, whole_only(op));
+            let copied = reader.copy.is_some().then(|| reader.copied.clone());
+            (crate::mpv::Input::Stream(Arc::new(reader)), copied)
+        }
     }
 }
 
@@ -204,11 +214,13 @@ struct StoreReader {
     size: u64,
     /// Copied to a temporary file at the first read (`whole_only`), removed with the reader.
     copy: Option<std::sync::OnceLock<Result<PathBuf, String>>>,
+    /// Bytes of that copy done.
+    copied: Arc<AtomicU64>,
 }
 
 impl StoreReader {
     fn new(rt: Handle, op: &Store, path: &str, size: u64, whole: bool) -> Self {
-        StoreReader { rt, op: op.clone(), path: path.to_string(), size, copy: whole.then(std::sync::OnceLock::new) }
+        StoreReader { rt, op: op.clone(), path: path.to_string(), size, copy: whole.then(std::sync::OnceLock::new), copied: Arc::default() }
     }
 
     /// The whole file in a temporary file, read in order in one go.
@@ -216,7 +228,7 @@ impl StoreReader {
         static N: AtomicU64 = AtomicU64::new(0);
         let tmp = std::env::temp_dir().join(format!("eyecansee-video-{}-{}.tmp", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
         let (tx, mut rx) = tokio::sync::mpsc::channel::<std::io::Result<bytes::Bytes>>(4);
-        let (done, never) = (AtomicU64::new(0), std::sync::atomic::AtomicBool::new(false));
+        let never = std::sync::atomic::AtomicBool::new(false);
         let write = async {
             let mut file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
             while let Some(chunk) = rx.recv().await {
@@ -224,7 +236,7 @@ impl StoreReader {
             }
             Ok(())
         };
-        let (sent, written) = futures_util::future::join(self.op.send_chunks(&self.path, self.size, tx, &done, &never), write).await;
+        let (sent, written) = futures_util::future::join(self.op.send_chunks(&self.path, self.size, tx, &self.copied, &never), write).await;
         match sent.map_err(|(id, d)| format!("{id} {d}")).and(written) {
             Ok(()) => Ok(tmp),
             Err(e) => {
@@ -321,6 +333,8 @@ mod tests {
         let reader = StoreReader::new(rt.handle().clone(), &op, "v.mp4", data.len() as u64, true);
         assert_eq!(reader.read(2_999_000, 5_000).unwrap(), data[2_999_000..]);
         assert_eq!(reader.read(10, 100).unwrap(), data[10..110]);
+        // What the viewer's bar shows: all of it once copied.
+        assert_eq!(reader.copied.load(Ordering::Relaxed), data.len() as u64);
         let tmp = reader.copy.as_ref().unwrap().get().unwrap().clone().unwrap();
         assert!(tmp.exists());
         drop(reader);

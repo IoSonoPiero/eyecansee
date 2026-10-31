@@ -1,5 +1,7 @@
 //! Videos in the viewer: the frames of `mpv::Player`, a bar to play, pause and move along.
 
+use std::sync::Arc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use eframe::egui::{self, Color32, Rect, TextureHandle, TextureOptions, pos2, vec2};
 
 use crate::i18n::I18n;
@@ -20,6 +22,8 @@ pub(crate) struct Playing {
     no_engine: bool,
     /// Wheel notches not yet turned into volume steps (a touchpad gives fractions).
     wheel: f32,
+    /// Bytes copied and the size, while the file is copied whole before playing (a phone on Windows).
+    copying: Option<(Arc<AtomicU64>, u64)>,
 }
 
 /// Where the video engine is, for the card shown in its place.
@@ -108,8 +112,13 @@ impl App {
             }
             return;
         }
+        let wait = self.video.as_ref().and_then(|v| v.copying.as_ref()).map(|(c, size)| (c.load(Ordering::Relaxed), *size)).filter(|(done, size)| done < size).map(|(done, size)| {
+            let text = self.i18n.t_args("video-copying", &[("done", &self.human_size(done)), ("total", &self.human_size(size))]);
+            (done as f32 / size.max(1) as f32, text)
+        });
+        let Some(v) = &mut self.video else { return };
         let sound = (&mut self.settings.video_volume, &mut self.settings.video_mute);
-        let Some(response) = draw(ui, v, sound, &self.i18n) else { return };
+        let Some(response) = draw(ui, v, sound, &self.i18n, wait) else { return };
         if response.hovered() {
             v.wheel += ui.input(|i| i.events.iter().map(|e| if let egui::Event::MouseWheel { unit, delta, .. } = e { crate::viewer::notches(*unit, *delta) } else { 0.0 }).sum::<f32>());
         }
@@ -291,22 +300,28 @@ impl App {
 
     fn open_video(&self, ctx: &egui::Context, path: String, size: u64) -> Playing {
         let ctx = ctx.clone();
+        let mut copying = None;
         let player = match &self.loader {
             _ if !self.engine() => Err(self.i18n.t("video-no-mpv")),
             None => Err(String::new()),
-            Some(loader) => mpv::Player::open(loader.video_input(&path, size), self.settings.video_volume, self.settings.video_mute, move || ctx.request_repaint())
-                .map_err(|e| self.i18n.t_args("cannot-load", &[("file", crate::source::name(&path)), ("error", &e)])),
+            Some(loader) => {
+                let (input, copied) = loader.video_input(&path, size);
+                copying = copied.map(|c| (c, size));
+                mpv::Player::open(input, self.settings.video_volume, self.settings.video_mute, move || ctx.request_repaint())
+                    .map_err(|e| self.i18n.t_args("cannot-load", &[("file", crate::source::name(&path)), ("error", &e)]))
+            }
         };
         if let Err(e) = &player {
             log!("video {path:?}: ERROR {e}");
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0 }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying }
     }
 }
 
 /// The video fitted to the area (frames drawn at that size by mpv) and its bar. Click: play or
 /// pause. The response of the area, for the double click, the menu and the wheel, as for images.
-fn draw(ui: &mut egui::Ui, v: &mut Playing, sound: (&mut u32, &mut bool), i18n: &I18n) -> Option<egui::Response> {
+/// `wait`: the share and the text of the copy that comes before playing, while it lasts.
+fn draw(ui: &mut egui::Ui, v: &mut Playing, sound: (&mut u32, &mut bool), i18n: &I18n, wait: Option<(f32, String)>) -> Option<egui::Response> {
     let Ok(player) = &v.player else { return None };
     let rect = ui.available_rect_before_wrap();
     let area = Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y - BAR));
@@ -315,6 +330,11 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, sound: (&mut u32, &mut bool), i18n: 
         if decode::is_audio(&v.path) {
             // An audio file without a cover never gets a picture: a note, not a spinner forever.
             crate::icons::paint(ui.painter(), crate::icons::Icon::Audio, Rect::from_center_size(area.center(), vec2(160.0, 160.0)));
+        } else if let Some((share, text)) = wait {
+            // No frames come while copying: the bar moves only if asked.
+            ui.ctx().request_repaint_after(std::time::Duration::from_millis(250));
+            let bar = egui::ProgressBar::new(share).text(text).desired_width(360.0);
+            ui.put(Rect::from_center_size(area.center(), vec2(360.0, 24.0)), bar);
         } else {
             ui.put(Rect::from_center_size(area.center(), vec2(32.0, 32.0)), egui::Spinner::new());
         }

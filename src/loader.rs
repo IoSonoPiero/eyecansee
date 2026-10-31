@@ -13,7 +13,7 @@ use tokio::sync::{Notify, Semaphore};
 
 use crate::source::{self, File, Listing, Store};
 use crate::{decode, thumbcache, transfer};
-use crate::video_read::{preview, slow_video, video_input, video_meta, video_still, SLOW};
+use crate::video_read::{preview, slow_video, video_input_copied, video_meta, video_still, SLOW};
 
 /// Error id of an image left out of "Save": animated, several pages, a Motion Photo (`encode::can_turn_in_place`).
 pub const SKIPPED: &str = "save-skipped";
@@ -193,9 +193,9 @@ impl Loader {
         });
     }
 
-    /// What the viewer plays (see `video_input`).
-    pub fn video_input(&self, path: &str, size: u64) -> crate::mpv::Input {
-        video_input(self.rt.clone(), &self.op, path, size)
+    /// What the viewer plays, and how much of it is copied (see `video_input_copied`).
+    pub fn video_input(&self, path: &str, size: u64) -> (crate::mpv::Input, Option<Arc<AtomicU64>>) {
+        video_input_copied(self.rt.clone(), &self.op, path, size)
     }
 
     pub fn store(&self) -> Store {

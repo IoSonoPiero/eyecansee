@@ -14,6 +14,7 @@ video-component-restart = Restart EyeCanSee
 video-component-ask = To play videos EyeCanSee needs the video engine (mpv), downloaded once: { $size }.
 video-component-download = Download the video engine
 video-component-button = Download the video engine ({ $size })
+video-copying = Reading from the phone: { $done } of { $total }
 video-component-progress = Downloading: { $done } of { $total }
 video-component-error = The download failed: { $error }
 video-engine-old = The video engine on this computer is too old: { $found }, while EyeCanSee needs at least libmpv { $required }. EyeCanSee can download its own, once ({ $size }).
