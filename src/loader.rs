@@ -2,7 +2,7 @@
 //! Images for the viewer start straight away; thumbnails go through a priority queue that the
 //! UI rewrites when the selection or the visible rows change.
 
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::mpsc::Sender;
 use std::sync::{Arc, Mutex};
@@ -11,9 +11,11 @@ use eframe::egui::{ColorImage, Context};
 use tokio::runtime::Handle;
 use tokio::sync::{Notify, Semaphore};
 
+use crate::replace::{replace, rewritten, turned, write_whole};
 use crate::source::{self, File, Listing, Store};
+use crate::thumb_queue::{ThumbQueue, maintain, thumb_worker};
 use crate::{decode, thumbcache, transfer};
-use crate::video_read::{preview, slow_video, video_input_copied, video_meta, video_still, SLOW};
+use crate::video_read::{slow_video, video_input_copied, video_meta, video_still, SLOW};
 
 /// Error id of an image left out of "Save": animated, several pages, a Motion Photo (`encode::can_turn_in_place`).
 pub const SKIPPED: &str = "save-skipped";
@@ -73,20 +75,6 @@ pub enum Msg {
     Forgotten(Vec<String>),
     /// Metadata of an image: `None` = no EXIF.
     Meta { generation: u64, index: usize, meta: Result<Option<crate::meta::Meta>, String> },
-}
-
-#[derive(Default)]
-struct ThumbQueue {
-    generation: u64,
-    items: VecDeque<(usize, File)>,
-    /// Items taken from `items` so far: the position of each one in the queue.
-    taken: usize,
-    /// Videos of a slow disk not in the cache, by position: made two at a time (`SLOW`), always
-    /// the first one, so they come in the order of the queue whatever order the cache checks end in.
-    slow: BTreeMap<usize, (usize, File)>,
-    /// Source closed: the workers exit and release the source. They used to stay alive forever,
-    /// and a phone stayed open: reopening it after switching elsewhere gave "device in use".
-    closed: bool,
 }
 
 pub struct Loader {
@@ -508,287 +496,13 @@ impl Loader {
     }
 }
 
-pub(crate) async fn write_whole(op: &Store, path: &str, data: Vec<u8>) -> Result<(), source::Error> {
-    let (chunks, rx) = tokio::sync::mpsc::channel(1);
-    let size = data.len() as u64;
-    let _ = chunks.send(Ok(bytes::Bytes::from(data))).await;
-    drop(chunks);
-    op.write_chunks(path, size, rx).await
-}
-
-/// The image read and turned in its own format, and whether it lost quality.
-async fn turned(op: &Store, path: &str, turn: crate::transform::Turn) -> Result<(Vec<u8>, bool), source::Error> {
-    rewritten(op, path, move |bytes, name| crate::encode::turned_file(bytes, name, turn)).await
-}
-
-/// The file read and passed to `make` (in the background), which gives the file to write and
-/// whether it lost quality; `SKIPPED` if it cannot be written back over itself. An Ultra HDR
-/// photo passes when `ultra_hdr`: only flips and quarter turns know how to keep its gain map.
-async fn rewritten<T: Send + 'static>(op: &Store, path: &str, make: impl FnOnce(&[u8], &str) -> Result<T, String> + Send + 'static) -> Result<T, source::Error> {
-    let bytes = op.read(path).await?;
-    let name = source::name(path).to_string();
-    tokio::task::spawn_blocking(move || {
-        if !crate::encode::can_turn_in_place(&bytes, &name) && !crate::ultrahdr::is(&bytes) {
-            return Err((SKIPPED, name));
-        }
-        make(&bytes, &name).map_err(|e| ("error-detail", e))
-    })
-    .await
-    .map_err(|e| ("error-detail", e.to_string()))?
-}
-
-/// Writes `data` over the image `path`; the original goes as `how` says, under its own name.
-/// Nothing is written where renaming is not possible. At every failure, and if the app closes
-/// half way (`Store::recover`), the image keeps a visible file under its name: the original, put
-/// back from its hidden copy if it had already left.
-async fn replace(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion) -> Result<(), source::Error> {
-    if !op.can_rename() {
-        return Err(("error-rename-unsupported", path.to_string()));
-    }
-    source::SAVING.lock().unwrap().insert(path.to_string());
-    let r = swap(op, path, data, how).await;
-    source::SAVING.lock().unwrap().remove(path);
-    r
-}
-
-async fn swap(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion) -> Result<(), source::Error> {
-    let own = source::name(path);
-    let (new, old) = source::save_names(path);
-    // An original left by an earlier save cut short after its new version took the name: it goes
-    // where that save would have sent it.
-    if op.names(&source::parent(path)).await?.contains(source::name(&old)) {
-        put_away(op, &old, own, how).await?;
-    }
-    write_whole(op, &new, data).await?;
-    // The original leaves its name and waits as `old`. To the system trash it goes now with its
-    // own name (restoring it from there gives it back), `old` being a second name of it.
-    let left = match how {
-        source::Deletion::SystemTrash => match op.link_or_copy(path, &old).await {
-            Ok(()) => op.delete(path, how).await,
-            Err(e) => Err(e),
-        },
-        _ => op.rename(path, source::name(&old)).await.map(|_| ()),
-    };
-    let named = match left {
-        Ok(()) => op.rename(&new, own).await.map(|_| ()),
-        Err(e) => Err(e),
-    };
-    if let Err(e) = named {
-        undo(op, path, &new, &old).await;
-        return Err(e);
-    }
-    // The new image is in place: if the original cannot go, it stays hidden until the next save.
-    if let Err(e) = put_away(op, &old, own, how).await {
-        log!("save {path:?}: original kept as {old:?}: {e:?}");
-    }
-    Ok(())
-}
-
-/// After a failed step of `swap`: the original back under its name if that is free (never over
-/// another file), the new file gone.
-async fn undo(op: &Store, path: &str, new: &str, old: &str) {
-    let names = op.names(&source::parent(path)).await.unwrap_or_default();
-    if names.contains(source::name(old)) && !names.contains(source::name(path)) {
-        let r = op.rename(old, source::name(path)).await;
-        log!("save {path:?}: original back: {r:?}");
-    }
-    if names.contains(source::name(new)) {
-        let _ = op.delete(new, source::Deletion::Permanent).await;
-    }
-}
-
-/// The original, waiting as `old`, goes as `how` says, under its own name `own`. With the system
-/// trash it is already there and `old` is only a second name.
-async fn put_away(op: &Store, old: &str, own: &str, how: source::Deletion) -> Result<(), source::Error> {
-    match how {
-        source::Deletion::TrashFolder => op.to_trash_folder(old, own).await,
-        _ => op.delete(old, source::Deletion::Permanent).await,
-    }
-}
-
-async fn thumb_worker(
-    op: Store,
-    base: String,
-    queue: Arc<Mutex<ThumbQueue>>,
-    wake: Arc<Notify>,
-    tx: Sender<Msg>,
-    ctx: Context,
-) {
-    let send = |generation, index, image| {
-        ctx.request_repaint();
-        tx.send(Msg::Loaded { generation, index, thumb: true, image }).is_ok()
-    };
-    loop {
-        // Register before looking at the queue: a new queue arriving in the meantime must not be lost.
-        let notified = wake.notified();
-        tokio::pin!(notified);
-        notified.as_mut().enable();
-        let next = {
-            let mut q = queue.lock().unwrap();
-            if q.closed {
-                return;
-            }
-            let (generation, at) = (q.generation, q.taken);
-            let item = q.items.pop_front();
-            q.taken += usize::from(item.is_some());
-            item.map(|item| (generation, at, item))
-        };
-        let Some((generation, at, (index, file))) = next else {
-            notified.await;
-            continue;
-        };
-        // From the cache at once: a thumbnail already made never waits for a SLOW place.
-        // Then a preview inside the video: it never needs a SLOW place either.
-        let found = match cached(&base, &file).await {
-            None if decode::is_played(&file.path) => preview(&op, &base, &file).await,
-            found => found,
-        };
-        let sent = match found {
-            Some(img) => send(generation, index, Ok(img)),
-            None if slow_video(&op, &file.path) => {
-                {
-                    let mut q = queue.lock().unwrap();
-                    if q.generation == generation {
-                        q.slow.insert(at, (index, file));
-                    }
-                }
-                make_slow(&op, &base, &queue, &send).await
-            }
-            None => send(generation, index, generate(&op, &base, file).await),
-        };
-        if !sent {
-            return; // window closed
-        }
-    }
-}
-
-/// While a SLOW place is free, the slow videos waiting, first position first. Whoever adds one
-/// tries afterwards; whoever finds none gives the place back and looks again, so none is left
-/// waiting. False if the window is closed.
-async fn make_slow(op: &Store, base: &str, queue: &Mutex<ThumbQueue>, send: &impl Fn(u64, usize, Result<ColorImage, String>) -> bool) -> bool {
-    loop {
-        let Ok(place) = SLOW.try_acquire() else { return true };
-        let next = {
-            let mut q = queue.lock().unwrap();
-            let generation = q.generation;
-            q.slow.pop_first().map(|(_, item)| (generation, item))
-        };
-        let Some((generation, (index, file))) = next else {
-            drop(place);
-            if queue.lock().unwrap().slow.is_empty() {
-                return true;
-            }
-            continue;
-        };
-        if !send(generation, index, generate(op, base, file).await) {
-            return false;
-        }
-    }
-}
-
-/// From the disk cache if present, otherwise generated and saved.
-pub(crate) async fn thumbnail(op: &Store, base: &str, file: File) -> Result<ColorImage, String> {
-    match cached(base, &file).await {
-        Some(img) => Ok(img),
-        None if decode::is_played(&file.path) => match preview(op, base, &file).await {
-            Some(img) => Ok(img),
-            None => generate(op, base, file).await,
-        },
-        None => generate(op, base, file).await,
-    }
-}
-
-/// From the disk cache, or the one a conversion just made for this file (saved to the cache now).
-async fn cached(base: &str, file: &File) -> Option<ColorImage> {
-    let (base, file) = (base.to_string(), file.clone());
-    tokio::task::spawn_blocking(move || {
-        thumbcache::load(&base, &file).or_else(|| {
-            let data = thumbcache::take(&file.path, file.size)?;
-            thumbcache::save_data(&base, &file, data.clone());
-            image::load_from_memory(&data).ok()
-        })
-    })
-    .await
-    .ok()
-    .flatten()
-    .map(decode::to_color_image)
-}
-
-/// Made from the file and saved in the cache. For a video `preview` was tried before (the
-/// queue, `thumbnail`): tried again here it read the end of the file twice.
-async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, String> {
-    if decode::is_played(&file.path) {
-        let img = video_still(op, &file.path, file.size, THUMB_SIDE).await?;
-        let base = base.to_string();
-        return tokio::task::spawn_blocking(move || {
-            thumbcache::save(&base, &file, &img);
-            decode::to_color_image(img)
-        })
-        .await
-        .map_err(|e| e.to_string());
-    }
-    let bytes = op.read(&file.path).await.map_err(|(_, detail)| detail)?;
-    let base = base.to_string();
-    let sibling = siblings(op.clone(), file.path.clone());
-    tokio::task::spawn_blocking(move || {
-        let img = if crate::model::is_model(&file.path) {
-            decode::model_picture_with(&bytes, &file.path, THUMB_SIDE, THUMB_SIDE * 3 / 4, &sibling)?
-        } else {
-            decode::thumbnail(&bytes, &file.path, THUMB_SIDE)?
-        };
-        thumbcache::save(&base, &file, &img);
-        Ok(decode::to_color_image(img))
-    })
-    .await
-    .unwrap_or_else(|e| Err(e.to_string()))
-}
-
 /// The files next to a 3D model (`model::Sibling`), read from its source. Called from a blocking
 /// thread (`spawn_blocking`), which may wait for the runtime.
-fn siblings(op: Store, model: String) -> impl Fn(&str) -> Option<Vec<u8>> + Send + 'static {
+pub(crate) fn siblings(op: Store, model: String) -> impl Fn(&str) -> Option<Vec<u8>> + Send + 'static {
     let rt = Handle::current();
     move |rel| {
         let path = crate::model::sibling_path(&model, rel)?;
         rt.block_on(op.read(&path)).ok()
-    }
-}
-
-/// Compares the saved thumbnails with the current folders, read again with the same listing that
-/// created them (so size and date have the same format). File gone: thumbnail deleted. File
-/// changed: thumbnail redone. When in doubt nothing is deleted: a folder that no longer exists
-/// could be an unmounted disk, a network error means the source is unreachable.
-/// Known limit: an empty mount point (disk unplugged) exists, so thumbnails saved directly
-/// inside it would be deleted; those in subfolders would not.
-// ponytail: one folder at a time; in parallel if it turns out too long on slow FTP
-async fn maintain(op: &Store, base: &str) {
-    let saved = {
-        let base = base.to_string();
-        tokio::task::spawn_blocking(move || thumbcache::entries(&base)).await.unwrap_or_default()
-    };
-    let mut by_dir: BTreeMap<String, Vec<File>> = BTreeMap::new();
-    for f in saved {
-        by_dir.entry(source::parent(&f.path)).or_default().push(f);
-    }
-    for (dir, saved) in by_dir {
-        let listing = match op.check_dir(&dir).await {
-            Ok(()) => op.list(&dir).await,
-            Err(e) => Err(e),
-        };
-        let listing = match listing {
-            Ok(l) => l,
-            Err((source::NOT_FOUND, _)) => continue,
-            Err(_) => return,
-        };
-        let current: HashMap<&str, &File> = listing.files.iter().map(|f| (f.path.as_str(), f)).collect();
-        for old in saved {
-            match current.get(old.path.as_str()) {
-                None => thumbcache::delete(base, &old.path),
-                Some(f) if f.size != old.size || f.modified != old.modified => {
-                    let _ = thumbnail(op, base, (*f).clone()).await;
-                }
-                Some(_) => {}
-            }
-        }
     }
 }
 
@@ -814,6 +528,7 @@ async fn android_trashed_files(op: &Store, trash: &str) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::replace::undo;
     use crate::source::{Deletion, TRASH_DIR};
 
     /// Saving over an image: the new file takes the name, the original goes as asked under its own

@@ -418,7 +418,7 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
             Ok((new_name, data)) => {
                 let new_name = source::free_name(&taken, &new_name);
                 let to = format!("{dest}{new_name}");
-                match crate::loader::write_whole(&out, &to, data).await {
+                match crate::replace::write_whole(&out, &to, data).await {
                     Ok(()) => {
                         taken.insert(new_name);
                         p.saved.lock().unwrap().push(to);

@@ -329,7 +329,7 @@ impl App {
             w.thumbs.insert(file.path.clone(), None);
             let (op, base, file, incoming, ctx) = (loader.store(), self.base.clone(), file.clone(), w.incoming.clone(), ui.ctx().clone());
             self.rt.spawn(async move {
-                let image = crate::loader::thumbnail(&op, &base, file.clone()).await;
+                let image = crate::thumb_queue::thumbnail(&op, &base, file.clone()).await;
                 incoming.lock().unwrap().push((file.path, image));
                 ctx.request_repaint();
             });
