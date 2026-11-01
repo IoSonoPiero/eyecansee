@@ -112,6 +112,12 @@ impl App {
         if help {
             self.help = !self.help;
         }
+        // Full screen in and out. Also smoother on a monitor of the other graphics card of a hybrid
+        // laptop: the desktop sends the window to it without composing (measured 2026-11-01).
+        if ctx.input(|i| i.key_pressed(Key::F11)) && self.show.is_none() {
+            let full = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!full));
+        }
         if refresh && shift {
             self.redo_all_thumbs(ctx);
         } else if refresh {
