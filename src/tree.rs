@@ -311,6 +311,9 @@ impl App {
             block_title(ui, &self.i18n.t("devices"));
             // At most half of the panel, the rest goes to the computer's tree.
             let max = ui.available_height() * 0.5;
+            // The scroll bar gets its own room: egui's default floating bar is drawn over the
+            // rows and hid the last device (a phone's storage wider than the panel).
+            let floating = std::mem::replace(&mut ui.spacing_mut().scroll, egui::style::ScrollStyle::solid());
             ScrollArea::both().id_salt("devices").max_height(max).auto_shrink([false, true]).show(ui, |ui| {
                 // Mounted devices are local folders: with the local source they are browsed in
                 // the tree; otherwise a click opens the device as a source (also the directly
@@ -351,6 +354,7 @@ impl App {
                     }
                 }
             });
+            ui.spacing_mut().scroll = floating;
             ui.separator();
         }
         self.server_block(ui);
