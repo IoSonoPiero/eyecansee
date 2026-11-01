@@ -36,6 +36,10 @@ pub(crate) struct State {
 impl App {
     /// With eframe's graphics card, for the 3D viewer.
     pub(crate) fn with_gpu(mut self, cc: &eframe::CreationContext) -> Self {
+        if let Some(rs) = &cc.wgpu_render_state {
+            let i = rs.adapter.get_info();
+            log!("graphics card: {} ({:?}, {:?}, driver {} {})", i.name, i.device_type, i.backend, i.driver, i.driver_info);
+        }
         self.model.gpu = cc.wgpu_render_state.clone().map(Gpu::new);
         self
     }

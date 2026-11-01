@@ -480,7 +480,9 @@ impl Loader {
                             return decode::decode(&bytes, &path);
                         }
                         let mesh = Arc::new(crate::model::parse_with(&bytes, &path, &sibling)?);
-                        let image = crate::render3d::render(&mesh, &Default::default(), 1600, 1200, 2);
+                        // Shown only until the viewer's graphics card takes over (and in the slideshow):
+                        // small, so that preparing the neighbours does not take every core while turning.
+                        let image = crate::render3d::render(&mesh, &Default::default(), 960, 720, 2);
                         let _ = tx.send(Msg::Mesh { generation, index, mesh });
                         ctx.request_repaint();
                         Ok(decode::to_color_image(image::DynamicImage::ImageRgba8(image)))
