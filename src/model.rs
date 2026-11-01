@@ -11,8 +11,9 @@ const MODEL: &[&str] = &["stl", "obj", "ply", "glb", "gltf", "3mf"];
 /// Beyond this the file is refused instead of filling the memory (a 3D scan of a statue is ~10 M).
 const MAX_TRIANGLES: usize = 50_000_000;
 
+/// Also STEP, IGES and BREP (`occt`), read by the CAD engine.
 pub fn is_model(name: &str) -> bool {
-    ext(name).is_some_and(|e| MODEL.contains(&e.as_str()))
+    ext(name).is_some_and(|e| MODEL.contains(&e.as_str())) || crate::occt::is_occt(name)
 }
 
 fn ext(name: &str) -> Option<String> {
@@ -93,6 +94,7 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<Mesh, String> {
         Some("ply") => ply(bytes),
         Some("glb" | "gltf") => gltf(bytes),
         Some("3mf") => crate::model_3mf::read(bytes),
+        _ if crate::occt::is_occt(name) => crate::occt::read(bytes, name),
         _ => Err("not a 3D model".into()),
     }
 }

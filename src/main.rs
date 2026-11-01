@@ -66,6 +66,7 @@ mod mpv;
 mod mpv_load;
 mod mtp;
 mod navigation;
+mod occt;
 mod new_folder;
 mod paint;
 mod psd;

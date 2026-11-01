@@ -76,6 +76,12 @@ pub const FFMPEG: Option<Component> = Some(Component {
     size: 67_805_579,
 });
 
+/// The CAD engine (`occt.rs`): Open CASCADE Technology 8.0.1 with our C interface
+/// (`tools/occt/ecs_occt.cpp`), for STEP, IGES and BREP. Not published yet: until then it is
+/// found only through `EYECANSEE_OCCT`.
+// ponytail: None until the component is built by tools/build-occt-linux.sh and uploaded
+pub const OCCT: Option<Component> = None;
+
 /// Where components go: the app's data folder (`%LOCALAPPDATA%\eyecansee\components` on Windows,
 /// `~/.local/share/eyecansee/components` on Linux).
 pub fn dir() -> Option<PathBuf> {
