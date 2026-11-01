@@ -42,6 +42,31 @@ struct Out { @builtin(position) pos: vec4<f32>, @location(0) eye: vec3<f32>, @lo
 }
 ";
 
+/// The graphics card chosen offers "mailbox" presentation for the window (`adapter_selector`).
+static MAILBOX: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// Picks the graphics card as eframe would (the fast one, or the saving one with
+/// `WGPU_POWER_PREF=low`), and notes whether it can present in "mailbox" mode for this window:
+/// the app then never waits for the desktop to show a frame. Measured on a hybrid laptop with the
+/// monitor on the NVIDIA card and the desktop composed on the Intel one: windows stalled up to
+/// 0.9 s with the default (FIFO), mailbox was clearly smoother (2026-11-01, `present_mode`).
+pub fn adapter_selector() -> eframe::egui_wgpu::NativeAdapterSelectorMethod {
+    Arc::new(|adapters: &[wgpu::Adapter], surface: Option<&wgpu::Surface<'_>>| {
+        let saving = std::env::var("WGPU_POWER_PREF").is_ok_and(|v| v.eq_ignore_ascii_case("low"));
+        let wanted = if saving { wgpu::DeviceType::IntegratedGpu } else { wgpu::DeviceType::DiscreteGpu };
+        let usable: Vec<&wgpu::Adapter> = adapters.iter().filter(|a| surface.is_none_or(|s| a.is_surface_supported(s))).collect();
+        let chosen = usable.iter().find(|a| a.get_info().device_type == wanted).or_else(|| usable.first()).ok_or("no graphics card can draw this window")?;
+        let mailbox = surface.is_some_and(|s| s.get_capabilities(chosen).present_modes.contains(&wgpu::PresentMode::Mailbox));
+        MAILBOX.store(mailbox, std::sync::atomic::Ordering::Relaxed);
+        Ok((*chosen).clone())
+    })
+}
+
+/// The presentation to ask for once the window exists: mailbox where the card offers it.
+pub fn present_mode() -> Option<eframe::egui_wgpu::SurfaceConfig> {
+    MAILBOX.load(std::sync::atomic::Ordering::Relaxed).then_some(eframe::egui_wgpu::SurfaceConfig { present_mode: wgpu::PresentMode::Mailbox, desired_maximum_frame_latency: Some(1) })
+}
+
 /// The picture's textures, made again when the viewer changes size.
 struct Target {
     size: [u32; 2],

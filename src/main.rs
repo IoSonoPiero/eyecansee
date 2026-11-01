@@ -599,7 +599,8 @@ impl eframe::App for App {
         video_read::forget_copies();
     }
 
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
+        self.pace(frame);
         let ctx = ui.ctx().clone();
         self.before_frame(&ctx);
         self.panels(ui, &ctx);
@@ -640,10 +641,13 @@ fn main() -> eframe::Result {
             viewport = viewport.with_maximized(settings.window_maximized);
         }
     }
-    let options = eframe::NativeOptions {
+    let mut options = eframe::NativeOptions {
         viewport,
         ..Default::default()
     };
+    if let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_options.wgpu_setup {
+        setup.native_adapter_selector = Some(render_gpu::adapter_selector());
+    }
     eframe::run_native("EyeCanSee", options, Box::new(move |cc| Ok(Box::new(App::new(&cc.egui_ctx, settings, arg).with_gpu(cc)))))
 }
 

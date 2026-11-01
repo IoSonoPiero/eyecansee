@@ -33,6 +33,10 @@ pub(crate) struct State {
     pub(crate) cad: crate::cad_view::State,
     /// When the last frames were drawn (seconds), for the frame rate in the status bar.
     frames: std::collections::VecDeque<f64>,
+    /// The presentation was chosen (`pace`), and is mailbox; when the last frame began.
+    presented: bool,
+    mailbox: bool,
+    last_frame: Option<std::time::Instant>,
 }
 
 impl App {
@@ -44,6 +48,31 @@ impl App {
         }
         self.model.gpu = cc.wgpu_render_state.clone().map(Gpu::new);
         self
+    }
+
+    /// At the first frame, mailbox presentation where the card offers it (`render_gpu::present_mode`);
+    /// then, with mailbox, at most 120 frames a second: it never waits for the screen, and a
+    /// continuous animation would keep the card busy for nothing.
+    pub(crate) fn pace(&mut self, frame: &mut eframe::Frame) {
+        let s = &mut self.model;
+        if !s.presented {
+            s.presented = true;
+            if let Some(config) = crate::render_gpu::present_mode() {
+                frame.set_wgpu_surface_config(config);
+                s.mailbox = true;
+                log!("presentation: mailbox");
+            }
+        }
+        if s.mailbox {
+            let min = std::time::Duration::from_secs_f64(1.0 / 120.0);
+            if let Some(last) = s.last_frame {
+                let spent = last.elapsed();
+                if spent < min {
+                    std::thread::sleep(min - spent);
+                }
+            }
+            s.last_frame = Some(std::time::Instant::now());
+        }
     }
 
     /// The model open in the viewer, once read.
