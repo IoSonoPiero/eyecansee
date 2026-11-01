@@ -8,6 +8,8 @@ An image and video viewer and manager for Linux and Windows, written in Rust: it
   <a href="#fedora"><img src="https://img.shields.io/badge/Fedora-COPR-51A2DA?style=for-the-badge&logo=fedora&logoColor=white" alt="Fedora | COPR"/></a>
   &nbsp;&nbsp;
   <a href="#other-distributions-appimage"><img src="https://img.shields.io/badge/Linux-AppImage-555555?style=for-the-badge&logo=linux&logoColor=white" alt="Linux | AppImage"/></a>
+  &nbsp;&nbsp;
+  <a href="https://eyecansee.montinaro.info/"><img src="https://img.shields.io/badge/Website-eyecansee.montinaro.info-1D3557?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Website | eyecansee.montinaro.info"/></a>
 </p>
 
 It is early in development. This page lists only what works now: new features arrive step by step, each one only when it is ready and tested.
