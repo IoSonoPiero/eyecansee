@@ -52,9 +52,9 @@ Shown in the grid as a picture and in the viewer in 3D (drawn by the graphics ca
 | Format | Extensions | Linux | Windows | Reader |
 |---|---|:-:|:-:|---|
 | STL (binary and text) | stl | ✓ | ✓ | `stl_io` |
-| OBJ (without materials) | obj | ✓ | ✓ | `tobj` |
+| OBJ (with the colours of its materials, `.mtl`) | obj | ✓ | ✓ | `tobj` |
 | PLY (text and binary, triangle strips, vertex colours) | ply | ✓ | ✓ | `ply-rs-bw` |
-| glTF (with the data inside) | glb, gltf | ✓ | ✓ | `gltf` |
+| glTF (GLB, and .gltf with its data inside or in the `.bin` next to it) | glb, gltf | ✓ | ✓ | `gltf` |
 | 3MF (with components, Production extension, colours) | 3mf | ✓ | ✓ | `zip`, `roxmltree` |
 
 ### CAD drawings

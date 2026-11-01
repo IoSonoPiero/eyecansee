@@ -87,12 +87,22 @@ impl Builder {
 /// Light grey with a touch of blue, as in CAD viewers.
 pub const DEFAULT: [u8; 3] = [200, 205, 214];
 
+/// Reads a file next to the model by the name the model gives it (a glTF's `.bin`, an OBJ's
+/// `.mtl`), from the same source; `None` when missing or refused (`sibling_path`).
+pub type Sibling<'a> = &'a dyn Fn(&str) -> Option<Vec<u8>>;
+
+#[cfg(test)]
 pub fn parse(bytes: &[u8], name: &str) -> Result<Mesh, String> {
+    parse_with(bytes, name, &|_| None)
+}
+
+/// Like `parse`, reading the files next to the model through `sibling`.
+pub fn parse_with(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, String> {
     match ext(name).as_deref() {
         Some("stl") => stl(bytes),
-        Some("obj") => obj(bytes),
+        Some("obj") => obj(bytes, sibling),
         Some("ply") => ply(bytes),
-        Some("glb" | "gltf") => gltf(bytes),
+        Some("glb" | "gltf") => gltf(bytes, sibling),
         Some("3mf") => crate::model_3mf::read(bytes),
         _ if crate::occt::is_occt(name) => crate::occt::read(bytes, name),
         _ => Err("not a 3D model".into()),
@@ -107,17 +117,47 @@ fn stl(bytes: &[u8]) -> Result<Mesh, String> {
     b.finish(true)
 }
 
-// ponytail: the materials (.mtl) are another file, and sources read one file: no colours from them
-fn obj(bytes: &[u8]) -> Result<Mesh, String> {
+/// The file a model names next to itself, as a path of the same source: `rel` is relative to
+/// the model's folder, may be percent-encoded (glTF URIs), and may not leave that folder.
+pub fn sibling_path(model: &str, rel: &str) -> Option<String> {
+    let rel = percent_decoded(rel)?.replace('\\', "/");
+    let parts: Vec<&str> = rel.split('/').filter(|p| !p.is_empty() && *p != ".").collect();
+    let refused = rel.starts_with('/') || rel.contains(':') || parts.is_empty() || parts.contains(&"..");
+    (!refused).then(|| format!("{}{}", crate::source::parent(model), parts.join("/")))
+}
+
+fn percent_decoded(s: &str) -> Option<String> {
+    let mut out = Vec::with_capacity(s.len());
+    let mut bytes = s.bytes();
+    while let Some(b) = bytes.next() {
+        if b == b'%' {
+            let hex = [bytes.next()?, bytes.next()?];
+            out.push(u8::from_str_radix(std::str::from_utf8(&hex).ok()?, 16).ok()?);
+        } else {
+            out.push(b);
+        }
+    }
+    String::from_utf8(out).ok()
+}
+
+/// With the colours of its materials (`Kd` of the `.mtl` files it names) or of its vertices.
+fn obj(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     let options = tobj::LoadOptions { triangulate: true, ignore_points: true, ignore_lines: true, ..Default::default() };
-    let (models, _) = tobj::load_obj_buf(&mut Cursor::new(bytes), &options, |_| Err(tobj::LoadError::OpenFileFailed)).map_err(|e| e.to_string())?;
+    let mtl = |p: &std::path::Path| match p.to_str().and_then(sibling) {
+        Some(data) => tobj::load_mtl_buf(&mut Cursor::new(data)),
+        None => Err(tobj::LoadError::OpenFileFailed),
+    };
+    let (models, materials) = tobj::load_obj_buf(&mut Cursor::new(bytes), &options, mtl).map_err(|e| e.to_string())?;
+    let materials = materials.unwrap_or_default();
     let mut b = Builder::default();
     for m in models {
         let m = m.mesh;
         let pos = m.positions.as_chunks::<3>().0.to_vec();
         let tris: Vec<[u32; 3]> = m.indices.as_chunks::<3>().0.to_vec();
         let vc: Vec<[f32; 3]> = m.vertex_color.as_chunks::<3>().0.to_vec();
-        let colors = |i: usize| average(&vc, tris[i]).map(|c| c.map(|v| (v.clamp(0.0, 1.0) * 255.0) as u8));
+        let kd = m.material_id.and_then(|i| materials.get(i)).and_then(|mat| mat.diffuse);
+        let to_u8 = |c: [f32; 3]| c.map(|v| (v.clamp(0.0, 1.0) * 255.0) as u8);
+        let colors = |i: usize| average(&vc, tris[i]).or(kd).map(to_u8);
         b.add(pos, tris.clone(), colors)?;
     }
     b.finish(false)
@@ -203,15 +243,16 @@ fn apply(m: &Mat4, p: [f32; 3]) -> [f32; 3] {
     std::array::from_fn(|r| m[0][r] * p[0] + m[1][r] * p[1] + m[2][r] * p[2] + m[3][r])
 }
 
-// ponytail: GLB and .gltf with the data inside; a .gltf with a separate .bin needs reading a second file
-fn gltf(bytes: &[u8]) -> Result<Mesh, String> {
+/// GLB, and .gltf with its data inside or in the files next to it (`sibling`).
+fn gltf(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     use base64::Engine;
     let g = gltf::Gltf::from_slice(bytes).map_err(|e| e.to_string())?;
     let inside: Vec<Option<Vec<u8>>> = g
         .document
         .buffers()
         .map(|b| match b.source() {
-            gltf::buffer::Source::Uri(uri) => uri.split_once(";base64,").and_then(|(_, data)| base64::engine::general_purpose::STANDARD.decode(data).ok()),
+            gltf::buffer::Source::Uri(uri) if uri.starts_with("data:") => uri.split_once(";base64,").and_then(|(_, data)| base64::engine::general_purpose::STANDARD.decode(data).ok()),
+            gltf::buffer::Source::Uri(uri) => sibling(uri),
             gltf::buffer::Source::Bin => None,
         })
         .collect();
@@ -220,7 +261,7 @@ fn gltf(bytes: &[u8]) -> Result<Mesh, String> {
         gltf::buffer::Source::Uri(_) => inside[b.index()].as_deref(),
     };
     if g.document.buffers().any(|b| data(b).is_none()) {
-        return Err("the model's data is in another file (.bin): open the .glb version".into());
+        return Err("the model's data file (.bin) is missing".into());
     }
     let mut b = Builder::default();
     match g.document.default_scene().or_else(|| g.document.scenes().next()) {
@@ -305,6 +346,28 @@ mod tests {
     }
 
     #[test]
+    fn files_next_to_the_model() {
+        assert_eq!(sibling_path("phone/DCIM/a.gltf", "a%20b.bin").as_deref(), Some("phone/DCIM/a b.bin"));
+        assert_eq!(sibling_path("d/a.obj", "./tex\\m.mtl").as_deref(), Some("d/tex/m.mtl"));
+        for bad in ["../x.bin", "a/../../x", "/etc/passwd", "C:/x.bin", "https://h/x.bin", "%2", ""] {
+            assert_eq!(sibling_path("d/a.gltf", bad), None, "{bad}");
+        }
+        // An OBJ with its materials: each group in the colour of its material.
+        let obj = "mtllib m.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nusemtl red\nf 1 2 3\no b\nusemtl blue\nf 1 3 2\n";
+        let mtl = |name: &str| (name == "m.mtl").then(|| b"newmtl red\nKd 1 0 0\nnewmtl blue\nKd 0 0 1\n".to_vec());
+        let m = parse_with(obj.as_bytes(), "x.obj", &mtl).unwrap();
+        assert_eq!(m.colors, vec![[255, 0, 0], [0, 0, 255]]);
+        // Without the .mtl it still opens, uncoloured.
+        assert!(parse(obj.as_bytes(), "x.obj").unwrap().colors.is_empty());
+        // A .gltf whose triangle is in the .bin next to it.
+        let gltf = r#"{"asset":{"version":"2.0"},"buffers":[{"uri":"tri%20data.bin","byteLength":36}],"bufferViews":[{"buffer":0,"byteLength":36}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","min":[0,0,0],"max":[1,1,0]}],"meshes":[{"primitives":[{"attributes":{"POSITION":0}}]}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0}"#;
+        let bin: Vec<u8> = [0f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0].iter().flat_map(|f| f.to_le_bytes()).collect();
+        let next = |name: &str| (name == "tri%20data.bin").then(|| bin.clone());
+        assert_eq!(parse_with(gltf.as_bytes(), "t.gltf", &next).unwrap().tris.len(), 1);
+        assert!(parse(gltf.as_bytes(), "t.gltf").is_err());
+    }
+
+    #[test]
     fn bad_indices_and_empty_files_refused() {
         assert!(parse(b"v 0 0 0\nf 1 2 3\n", "x.obj").is_err());
         assert!(parse(b"", "x.stl").is_err());
@@ -318,15 +381,17 @@ mod tests {
     fn models_live() {
         let (Ok(dir), Ok(out)) = (std::env::var("EYECANSEE_MODELS"), std::env::var("EYECANSEE_MODELS_OUT")) else { return };
         let mut failed = Vec::new();
-        for sub in std::fs::read_dir(&dir).unwrap().flatten() {
+        for sub in std::fs::read_dir(&dir).unwrap().flatten().filter(|s| s.path().is_dir()) {
             for f in std::fs::read_dir(sub.path()).unwrap().flatten() {
                 let name = f.file_name().to_string_lossy().to_string();
                 if !is_model(&name) {
                     continue;
                 }
                 let bytes = std::fs::read(f.path()).unwrap();
+                let path = f.path().to_string_lossy().to_string();
+                let next = |rel: &str| sibling_path(&path, rel).and_then(|p| std::fs::read(p).ok());
                 let t = std::time::Instant::now();
-                match parse(&bytes, &name) {
+                match parse_with(&bytes, &name, &next) {
                     Ok(m) => {
                         let read = t.elapsed();
                         let t = std::time::Instant::now();

@@ -121,7 +121,12 @@ pub const CAD_SIDE: u32 = 4096;
 
 /// A 3D model drawn from the default view, `w`×`h`.
 pub fn model_picture(bytes: &[u8], name: &str, w: u32, h: u32) -> std::result::Result<DynamicImage, String> {
-    let mesh = crate::model::parse(bytes, name)?;
+    model_picture_with(bytes, name, w, h, &|_| None)
+}
+
+/// The same, reading the files next to the model (`model::Sibling`).
+pub fn model_picture_with(bytes: &[u8], name: &str, w: u32, h: u32, sibling: crate::model::Sibling) -> std::result::Result<DynamicImage, String> {
+    let mesh = crate::model::parse_with(bytes, name, sibling)?;
     Ok(DynamicImage::ImageRgb8(DynamicImage::ImageRgba8(crate::render3d::render(&mesh, &Default::default(), w, h, 2)).into_rgb8()))
 }
 

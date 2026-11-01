@@ -478,6 +478,7 @@ impl Loader {
                 }
             } else {
                 let (tx, ctx) = (tx.clone(), ctx.clone());
+                let sibling = siblings(op.clone(), path.clone());
                 match op.read(&path).await {
                     Ok(bytes) => tokio::task::spawn_blocking(move || {
                         if crate::cad::is_cad(&path) {
@@ -490,7 +491,7 @@ impl Loader {
                         if !crate::model::is_model(&path) {
                             return decode::decode(&bytes, &path);
                         }
-                        let mesh = Arc::new(crate::model::parse(&bytes, &path)?);
+                        let mesh = Arc::new(crate::model::parse_with(&bytes, &path, &sibling)?);
                         let image = crate::render3d::render(&mesh, &Default::default(), 1600, 1200, 2);
                         let _ = tx.send(Msg::Mesh { generation, index, mesh });
                         ctx.request_repaint();
@@ -728,13 +729,28 @@ async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, Stri
     }
     let bytes = op.read(&file.path).await.map_err(|(_, detail)| detail)?;
     let base = base.to_string();
+    let sibling = siblings(op.clone(), file.path.clone());
     tokio::task::spawn_blocking(move || {
-        let img = decode::thumbnail(&bytes, &file.path, THUMB_SIDE)?;
+        let img = if crate::model::is_model(&file.path) {
+            decode::model_picture_with(&bytes, &file.path, THUMB_SIDE, THUMB_SIDE * 3 / 4, &sibling)?
+        } else {
+            decode::thumbnail(&bytes, &file.path, THUMB_SIDE)?
+        };
         thumbcache::save(&base, &file, &img);
         Ok(decode::to_color_image(img))
     })
     .await
     .unwrap_or_else(|e| Err(e.to_string()))
+}
+
+/// The files next to a 3D model (`model::Sibling`), read from its source. Called from a blocking
+/// thread (`spawn_blocking`), which may wait for the runtime.
+fn siblings(op: Store, model: String) -> impl Fn(&str) -> Option<Vec<u8>> + Send + 'static {
+    let rt = Handle::current();
+    move |rel| {
+        let path = crate::model::sibling_path(&model, rel)?;
+        rt.block_on(op.read(&path)).ok()
+    }
 }
 
 /// Compares the saved thumbnails with the current folders, read again with the same listing that

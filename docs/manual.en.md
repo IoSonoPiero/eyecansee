@@ -140,7 +140,7 @@ Audio files (M4A, MP3, Opus, Ogg, FLAC, WAV, MKA and others, for example those m
 
 ## 3D models
 
-3D models made of triangles appear in the grid next to the images, with a picture of the model as thumbnail: **STL** and **3MF** (3D printing), **OBJ**, **PLY** (also 3D scans) and **glTF** (`.glb`, and `.gltf` with the data inside). Enter or a double click opens the model in the viewer, drawn by the graphics card, where it can be turned and looked at from every side:
+3D models made of triangles appear in the grid next to the images, with a picture of the model as thumbnail: **STL** and **3MF** (3D printing), **OBJ** (with the colours of its materials, the `.mtl` file next to it), **PLY** (also 3D scans) and **glTF** (`.glb`, and `.gltf` with its `.bin` file). Enter or a double click opens the model in the viewer, drawn by the graphics card, where it can be turned and looked at from every side:
 
 - **Arrows**: turn the model (hold them down to keep turning). Dragging with the mouse turns it too.
 - **Shift** and drag, or drag with the middle button: move the model in the window.
@@ -314,7 +314,7 @@ EyeCanSee uses the system language when it is available, otherwise English. To f
 ## Known limits
 
 - **CAD drawings**: only the model space, seen from above; layouts (paper space), 3D solids, the patterns of hatches (they show as a light fill), line types (dashes) and line weights are not drawn, texts use a system font instead of the CAD fonts, and pictures attached to the drawing show as a frame with a cross.
-- **3D models**: a `.gltf` whose data is in a separate `.bin` file does not open (the `.glb` version does), and the materials of an OBJ (the `.mtl` file next to it) and textures are not shown yet.
+- **3D models**: textures are not shown yet; *Convert and resize* does not open a `.gltf` whose data is in a separate `.bin` file (the viewer does).
 - On **NTFS** disks (for example an external disk also used with Windows) the Files app (Nautilus) cannot restore from the trash, not even files it deleted itself; EyeCanSee reminds you in the confirmation. The files are in the trash all the same and can be restored from a terminal: `gio trash --list` shows what is there, `gio trash --restore "<trash:/// address from that line>"` puts it back.
 - If the phone does not answer a request (seen on Windows: one deletion that took over five minutes, with everything else waiting behind it), the status bar says so with the seconds elapsed and the file: EyeCanSee carries on by itself as soon as the phone answers. The cause is not known: it happened twice on a POCO X7 Pro, deleting files just created, and does not repeat on demand.
 - **Windows**: right after a photo is taken, or a file deleted, on the phone, Windows' own driver can stop talking to the phone for about six minutes; unplugging the cable and plugging it in again frees it at once. More in [Windows stops talking to the phone](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.en.md).

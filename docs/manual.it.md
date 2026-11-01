@@ -140,7 +140,7 @@ Anche i file audio (M4A, MP3, Opus, Ogg, FLAC, WAV, MKA e altri, per esempio que
 
 ## Modelli 3D
 
-I modelli 3D fatti di triangoli compaiono nella griglia accanto alle immagini, con un'immagine del modello come miniatura: **STL** e **3MF** (stampa 3D), **OBJ**, **PLY** (anche scansioni 3D) e **glTF** (`.glb`, e `.gltf` con i dati all'interno). Invio o un doppio clic aprono il modello nel visore, disegnato dalla scheda video, dove si può girare e guardare da ogni lato:
+I modelli 3D fatti di triangoli compaiono nella griglia accanto alle immagini, con un'immagine del modello come miniatura: **STL** e **3MF** (stampa 3D), **OBJ** (con i colori dei suoi materiali, il file `.mtl` accanto), **PLY** (anche scansioni 3D) e **glTF** (`.glb`, e `.gltf` con il suo file `.bin`). Invio o un doppio clic aprono il modello nel visore, disegnato dalla scheda video, dove si può girare e guardare da ogni lato:
 
 - **Frecce**: girano il modello (tenendole premute continua a girare). Anche trascinando col mouse il modello gira.
 - **Maiusc** e trascinamento, oppure trascinamento col tasto centrale: spostano il modello nella finestra.
@@ -314,7 +314,7 @@ EyeCanSee usa la lingua del sistema se è disponibile, altrimenti l'inglese. Per
 ## Limiti noti
 
 - **Disegni CAD**: solo lo spazio modello, visto dall'alto; layout (spazio carta), solidi 3D, motivi dei retini (si vedono come un riempimento leggero), tipi di linea (tratteggi) e spessori non vengono disegnati, i testi usano un font del sistema al posto dei font CAD, e le immagini collegate al disegno si vedono come una cornice con una croce.
-- **Modelli 3D**: un `.gltf` con i dati in un file `.bin` separato non si apre (la versione `.glb` sì), e i materiali di un OBJ (il file `.mtl` accanto) e le texture non si vedono ancora.
+- **Modelli 3D**: le texture non si vedono ancora; *Converti e ridimensiona* non apre un `.gltf` con i dati in un file `.bin` separato (il visore sì).
 - Sui dischi **NTFS** (per esempio un disco esterno usato anche con Windows) l'app File (Nautilus) non riesce a ripristinare dal cestino, nemmeno i file cancellati da lei stessa; EyeCanSee lo ricorda nella conferma. I file però sono nel cestino e si ripristinano dal terminale: `gio trash --list` mostra cosa c'è, `gio trash --restore "<indirizzo trash:/// della riga>"` lo rimette al suo posto.
 - Se il telefono non risponde a una richiesta (visto su Windows: una cancellazione durata più di cinque minuti, con tutto il resto in attesa dietro di lei), la barra di stato lo dice con i secondi trascorsi e il file: EyeCanSee riprende da solo appena il telefono risponde. La causa non è nota: è capitato due volte su un POCO X7 Pro, cancellando file appena creati, e non si ripete a comando.
 - **Windows**: subito dopo una foto scattata, o un file cancellato, sul telefono, il driver di Windows può smettere di comunicare con il telefono per circa sei minuti; staccare il cavo e riattaccarlo lo sblocca subito. Di più in [Windows smette di comunicare con il telefono](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.it.md).
