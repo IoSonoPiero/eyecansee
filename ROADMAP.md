@@ -6,6 +6,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 ### First
 
+- EyeCanSee in the Microsoft Store.
 - Jump forward and back in a video with Ctrl and the arrow keys.
 - Notification windows with the parts to compare highlighted (SFTP and FTPS fingerprints) and one common style.
 - Enter and Esc close the result windows.
