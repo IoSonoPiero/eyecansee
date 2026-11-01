@@ -98,7 +98,7 @@ pub fn is_video(name: &str) -> bool {
 }
 
 /// Played with libmpv too, without a picture or with the cover inside the file (as made by
-/// "Extract the audio", `audio_job`).
+/// "Save the sound as a file", `audio_job`).
 const AUDIO: &[&str] = &["m4a", "mp3", "opus", "ogg", "oga", "flac", "wav", "mka", "amr", "ac3", "eac3", "aac", "wma"];
 
 pub fn is_audio(name: &str) -> bool {

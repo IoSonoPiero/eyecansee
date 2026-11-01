@@ -165,7 +165,7 @@ impl App {
         if self.batch.is_some() {
             return;
         }
-        // Audio files are not converted: "Extract the audio" makes them as they are.
+        // Audio files are not converted: "Save the sound as a file" makes them as they are.
         let paths: Vec<String> = self.grid_items(path).into_iter().filter(|p| !crate::decode::is_audio(p)).collect();
         if paths.is_empty() {
             return;
@@ -192,7 +192,7 @@ impl App {
         }
     }
 
-    /// "Remove the audio" and "Extract the audio": the window on the videos chosen, with only the
+    /// "Copy without sound" and "Save the sound as a file": the window on the videos chosen, with only the
     /// destination to choose, next to the originals at first (user, 2026-10-30).
     pub(crate) fn open_audio(&mut self, job: AudioJob, path: Option<String>) {
         if self.batch.is_some() {
