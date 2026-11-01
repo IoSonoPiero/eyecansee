@@ -140,7 +140,7 @@ Anche i file audio (M4A, MP3, Opus, Ogg, FLAC, WAV, MKA e altri, per esempio que
 
 ## Modelli 3D
 
-I modelli 3D fatti di triangoli compaiono nella griglia accanto alle immagini, con un'immagine del modello come miniatura: **STL** e **3MF** (stampa 3D), **OBJ** (con i colori dei suoi materiali, il file `.mtl` accanto), **PLY** (anche scansioni 3D) e **glTF** (`.glb`, e `.gltf` con il suo file `.bin`). Invio o un doppio clic aprono il modello nel visore, disegnato dalla scheda video, dove si può girare e guardare da ogni lato:
+I modelli 3D fatti di triangoli compaiono nella griglia accanto alle immagini, con un'immagine del modello come miniatura: **STL** e **3MF** (stampa 3D), **OBJ** (con i colori dei suoi materiali, il file `.mtl` accanto), **PLY** (anche scansioni 3D), **glTF** (`.glb`, e `.gltf` con il suo file `.bin`) e **IFC** (modelli di edifici, BIM: muri, solai, finestre, strutture, tubazioni, strade e ponti nei loro colori). Invio o un doppio clic aprono il modello nel visore, disegnato dalla scheda video, dove si può girare e guardare da ogni lato:
 
 - **Frecce**: girano il modello (tenendole premute continua a girare). Anche trascinando col mouse il modello gira.
 - **Maiusc** e trascinamento, oppure trascinamento col tasto centrale: spostano il modello nella finestra.
@@ -302,7 +302,7 @@ Nel visore, dopo l'ultima immagine EyeCanSee si ferma; con l'opzione **Nel visor
 - **Vettoriali**: SVG, SVGZ.
 - **Grafica e HDR**: PSD (immagine unita), ORA, OpenEXR, HDR, DDS, ICNS, QOI, TGA, ICO, CUR, PCX, JPEG 2000, PNM, XPM, XBM, SGI, WBMP, OTB, MPO, JPS.
 - **Tramite ImageMagick**: PSB, XCF, PFM, Sun Raster, PICT, MIFF, MNG, JNG, DPX, Cineon, FITS e altri formati meno comuni (XWD solo su Linux). ImageMagick apre anche i PSD che il lettore interno non gestisce (per esempio quelli a 32 bit).
-- **Modelli 3D**: STL, 3MF, OBJ, PLY, glTF (GLB). Vedi *Modelli 3D*.
+- **Modelli 3D**: STL, 3MF, OBJ, PLY, glTF (GLB), IFC. Vedi *Modelli 3D*.
 - **Disegni CAD**: DWG, DXF. Vedi *Disegni CAD*.
 
 Le foto vengono ruotate in automatico secondo l'orientamento EXIF. L'estensione del file è solo un indizio: una foto HEIC di un iPhone rinominata in `.jpg` si apre lo stesso.

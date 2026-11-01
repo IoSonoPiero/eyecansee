@@ -1,6 +1,6 @@
 [package]
 name = "eyecansee"
-version = "0.75.0"
+version = "0.76.0"
 edition = "2024"
 description = "Image and video viewer and manager for Linux and Windows"
 license = "GPL-3.0-or-later"
@@ -95,6 +95,7 @@ gltf = { version = "1.4.1", default-features = false, features = ["utils"] }
 zip = { version = "5.1.1", default-features = false, features = ["deflate"] }
 rayon = "1.12.0"
 acadrust = { version = "0.6.8", default-features = false }
+ifc-lite-processing = "27.1.0"
 
 [target."cfg(windows)".dependencies]
 # Drives (C:, D:, …): type, label and bus (USB/SD = external) for "This computer" and Devices.

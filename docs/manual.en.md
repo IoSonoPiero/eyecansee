@@ -140,7 +140,7 @@ Audio files (M4A, MP3, Opus, Ogg, FLAC, WAV, MKA and others, for example those m
 
 ## 3D models
 
-3D models made of triangles appear in the grid next to the images, with a picture of the model as thumbnail: **STL** and **3MF** (3D printing), **OBJ** (with the colours of its materials, the `.mtl` file next to it), **PLY** (also 3D scans) and **glTF** (`.glb`, and `.gltf` with its `.bin` file). Enter or a double click opens the model in the viewer, drawn by the graphics card, where it can be turned and looked at from every side:
+3D models made of triangles appear in the grid next to the images, with a picture of the model as thumbnail: **STL** and **3MF** (3D printing), **OBJ** (with the colours of its materials, the `.mtl` file next to it), **PLY** (also 3D scans), **glTF** (`.glb`, and `.gltf` with its `.bin` file) and **IFC** (building models, BIM: walls, slabs, windows, structures, pipes, roads and bridges in their colours). Enter or a double click opens the model in the viewer, drawn by the graphics card, where it can be turned and looked at from every side:
 
 - **Arrows**: turn the model (hold them down to keep turning). Dragging with the mouse turns it too.
 - **Shift** and drag, or drag with the middle button: move the model in the window.
@@ -302,7 +302,7 @@ In the viewer, after the last image EyeCanSee stops; with the option **In the vi
 - **Vector**: SVG, SVGZ.
 - **Graphics and HDR**: PSD (merged image), ORA, OpenEXR, HDR, DDS, ICNS, QOI, TGA, ICO, CUR, PCX, JPEG 2000, PNM, XPM, XBM, SGI, WBMP, OTB, MPO, JPS.
 - **Through ImageMagick**: PSB, XCF, PFM, Sun Raster, PICT, MIFF, MNG, JNG, DPX, Cineon, FITS and other less common formats (XWD on Linux only). ImageMagick also opens the PSD files the built-in reader does not handle (for example 32-bit ones).
-- **3D models**: STL, 3MF, OBJ, PLY, glTF (GLB). See *3D models*.
+- **3D models**: STL, 3MF, OBJ, PLY, glTF (GLB), IFC. See *3D models*.
 - **CAD drawings**: DWG, DXF. See *CAD drawings*.
 
 Photos are rotated automatically using their EXIF orientation. The file extension is only a hint: an iPhone HEIC photo renamed to `.jpg` opens anyway.

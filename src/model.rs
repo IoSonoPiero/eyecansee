@@ -6,7 +6,7 @@ use std::io::Cursor;
 use ply_rs_bw::{parser::Parser, ply::DefaultElement, ply::Property};
 
 /// Extensions read as 3D models.
-const MODEL: &[&str] = &["stl", "obj", "ply", "glb", "gltf", "3mf"];
+const MODEL: &[&str] = &["stl", "obj", "ply", "glb", "gltf", "3mf", "ifc"];
 
 /// Beyond this the file is refused instead of filling the memory (a 3D scan of a statue is ~10 M).
 const MAX_TRIANGLES: usize = 50_000_000;
@@ -104,6 +104,7 @@ pub fn parse_with(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, St
         Some("ply") => ply(bytes),
         Some("glb" | "gltf") => gltf(bytes, sibling),
         Some("3mf") => crate::model_3mf::read(bytes),
+        Some("ifc") => crate::model_ifc::read(bytes),
         _ if crate::occt::is_occt(name) => crate::occt::read(bytes, name),
         _ => Err("not a 3D model".into()),
     }

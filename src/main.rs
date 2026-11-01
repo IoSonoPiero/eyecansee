@@ -60,6 +60,7 @@ mod meta;
 mod meta_panel;
 mod model;
 mod model_3mf;
+mod model_ifc;
 mod model_view;
 mod mp4;
 mod mpv;
