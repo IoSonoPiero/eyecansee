@@ -21,7 +21,12 @@ impl App {
                 Msg::Listed(dir, r) => self.on_listed(ctx, dir, r),
                 Msg::Loaded { generation, index, thumb, image } if generation == self.generation => self.on_loaded(ctx, index, thumb, image),
                 Msg::Meta { generation, index, meta } if generation == self.generation => self.on_meta(index, meta),
-                Msg::Loaded { .. } | Msg::Meta { .. } => {} // folder has changed in the meantime
+                Msg::Mesh { generation, index, mesh } if generation == self.generation => {
+                    if let Some(f) = self.files().get(index) {
+                        self.model.meshes.insert(f.path.clone(), mesh);
+                    }
+                }
+                Msg::Loaded { .. } | Msg::Meta { .. } | Msg::Mesh { .. } => {} // folder has changed in the meantime
                 // Counted from the first event, not the last: a copy into a subfolder sends one for
                 // every file, and the folder was read again only when the copy ended.
                 Msg::Changed if self.changed_at.is_none() => self.changed_at = Some(ctx.input(|i| i.time) + 0.3),

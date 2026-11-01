@@ -342,6 +342,7 @@ convert-calculating = Working out the size…
 convert-error = Cannot convert: { $detail }
 convert-actual = 100% (drag the images to move around)
 convert-pixels = { $w } × { $h } pixels
+model-triangles = { $n } triangles
 convert-file-size = { $size } on disk
 convert-ratio = { $percent }% of the original
 convert-format = Format

@@ -54,6 +54,9 @@ mod menu;
 mod messages;
 mod meta;
 mod meta_panel;
+mod model;
+mod model_3mf;
+mod model_view;
 mod mp4;
 mod mpv;
 mod mpv_load;
@@ -62,6 +65,8 @@ mod navigation;
 mod new_folder;
 mod paint;
 mod psd;
+mod render3d;
+mod render_gpu;
 mod rotate;
 mod rotate_page;
 mod save_dialogs;
@@ -226,6 +231,7 @@ struct App {
     /// Last queue sent to the loader: (visible images, selected, generation).
     thumb_queue_key: Option<(std::ops::Range<usize>, Option<usize>, u64)>,
     full: HashMap<usize, Result<TextureHandle, String>>,
+    model: model_view::State,
     /// Zoom of the viewer in screen pixels per image pixel (`None` = fitted to the window), for the
     /// image `zoom_of`; `pan` = centre of the view in image pixels. A new image starts fitted.
     zoom: Option<f32>,
@@ -408,6 +414,7 @@ impl App {
             generated: HashSet::new(),
             thumb_queue_key: None,
             full: HashMap::new(),
+            model: Default::default(),
             zoom: None,
             zoom_of: None,
             turn: Default::default(),
@@ -767,7 +774,7 @@ fn main() -> eframe::Result {
         viewport,
         ..Default::default()
     };
-    eframe::run_native("EyeCanSee", options, Box::new(move |cc| Ok(Box::new(App::new(&cc.egui_ctx, settings, arg)))))
+    eframe::run_native("EyeCanSee", options, Box::new(move |cc| Ok(Box::new(App::new(&cc.egui_ctx, settings, arg).with_gpu(cc)))))
 }
 
 /// Font family of the bold text in message windows (`notice_text`).

@@ -185,7 +185,12 @@ impl App {
             ui.separator();
             ui.label(format!("{} / {}", current + 1, files.len()));
             // shortcut: images beyond 8192 px show the size of their scaled-down texture; the decoder would have to report the real one.
-            if let Some(Ok(tex)) = self.full.get(&current) {
+            if let Some((_, mesh)) = self.viewed_mesh() {
+                ui.separator();
+                ui.label(self.i18n.t_args("model-triangles", &[("n", &mesh.tris.len().to_string())]));
+                ui.separator();
+                ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
+            } else if let Some(Ok(tex)) = self.full.get(&current) {
                 let [w, h] = tex.size();
                 let (w, h) = if self.turn.sideways() { (h, w) } else { (w, h) };
                 ui.separator();

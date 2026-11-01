@@ -91,6 +91,13 @@ Root: HKA; Subkey: "Software\Classes\.arw\OpenWithProgids"; ValueType: string; V
 Root: HKA; Subkey: "Software\Classes\.raf\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.orf\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.rw2\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+; 3D models (`model.rs`).
+Root: HKA; Subkey: "Software\Classes\.stl\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.obj\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.ply\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.glb\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.gltf\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.3mf\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
 ; "Open with" for videos, the same way: offered, never the default.
 Root: HKA; Subkey: "Software\Classes\EyeCanSee.Video"; ValueType: string; ValueData: "EyeCanSee"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\EyeCanSee.Video"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "EyeCanSee"

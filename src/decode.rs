@@ -110,9 +110,15 @@ pub fn is_played(name: &str) -> bool {
     is_video(name) || is_audio(name)
 }
 
-/// What the grid shows: images, videos and audio files.
+/// What the grid shows: images, videos, audio files and 3D models.
 pub fn is_media(name: &str) -> bool {
-    is_image(name) || is_played(name)
+    is_image(name) || is_played(name) || crate::model::is_model(name)
+}
+
+/// A 3D model drawn from the default view, `w`×`h`.
+pub fn model_picture(bytes: &[u8], name: &str, w: u32, h: u32) -> std::result::Result<DynamicImage, String> {
+    let mesh = crate::model::parse(bytes, name)?;
+    Ok(DynamicImage::ImageRgb8(DynamicImage::ImageRgba8(crate::render3d::render(&mesh, &Default::default(), w, h, 2)).into_rgb8()))
 }
 
 /// Recognises from the content the formats that `image` cannot identify by itself.
@@ -159,6 +165,9 @@ pub fn decode(bytes: &[u8], name: &str) -> std::result::Result<ColorImage, Strin
 /// was 80% of the time.
 // ponytail: other formats are decoded in full; embedded previews of RAW and HEIC when needed
 pub fn thumbnail(bytes: &[u8], name: &str, side: u32) -> std::result::Result<DynamicImage, String> {
+    if crate::model::is_model(name) {
+        return model_picture(bytes, name, side, side * 3 / 4);
+    }
     // Lossless JPEGs cannot be scaled while decoded: at full size instead.
     let small = bytes.starts_with(&[0xFF, 0xD8, 0xFF]).then(|| jpeg_scaled(bytes, side).or_else(|_| jpeg_scaled(bytes, u32::MAX)).ok()).flatten();
     let mut img = match small {
@@ -187,6 +196,9 @@ pub fn decode_full(bytes: &[u8], name: &str) -> std::result::Result<DynamicImage
 }
 
 fn decode_any(bytes: &[u8], name: &str) -> std::result::Result<DynamicImage, String> {
+    if crate::model::is_model(name) {
+        return model_picture(bytes, name, 1920, 1440);
+    }
     let kind = kind(name).unwrap_or(Kind::Image);
     // Wrong extension (e.g. an iPhone HEIC saved as .jpg): look at the content, then try
     // ImageMagick. The error shown is still the one from the decoder chosen by the extension.

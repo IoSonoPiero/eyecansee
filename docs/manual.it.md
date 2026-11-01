@@ -138,6 +138,18 @@ Anche i file audio (M4A, MP3, Opus, Ogg, FLAC, WAV, MKA e altri, per esempio que
 - **Visualizza > Mostra**, o **Mostra** nel menù del clic destro sulla parte vuota della griglia: **Immagini, video e audio** (all'inizio), **Solo immagini**, **Solo video** o **Solo audio**. La scelta vale per tutte le cartelle finché non la cambi; la barra di stato conta immagini, video e file audio a parte.
 - I video su un telefono o un server si leggono un pezzo alla volta mentre scorrono, senza copiarli interi. Fa eccezione il telefono su Windows, che non permette di saltare in mezzo al file: il video viene prima copiato tutto in un file temporaneo e parte dopo, e intanto una barra mostra quanto ne è stato letto. Copiare, spostare, rinominare ed eliminare funzionano come per le immagini. Salva e le rotazioni nel visore valgono solo per le immagini: i video si ruotano e si convertono da *Converti e ridimensiona*. Nel carosello un video scorre tutto, con l'audio, poi arriva l'elemento successivo; **Spazio** mette in pausa anche lui.
 
+## Modelli 3D
+
+I modelli 3D fatti di triangoli compaiono nella griglia accanto alle immagini, con un'immagine del modello come miniatura: **STL** e **3MF** (stampa 3D), **OBJ**, **PLY** (anche scansioni 3D) e **glTF** (`.glb`, e `.gltf` con i dati all'interno). Invio o un doppio clic aprono il modello nel visore, disegnato dalla scheda video, dove si può girare e guardare da ogni lato:
+
+- **Frecce**: girano il modello (tenendole premute continua a girare). Anche trascinando col mouse il modello gira.
+- **Maiusc** e trascinamento, oppure trascinamento col tasto centrale: spostano il modello nella finestra.
+- Rotellina del mouse, **+** e **−**: ingrandiscono e rimpiccioliscono; **0** torna alla vista di partenza.
+- **Pagina giù**, **Spazio** e **Pagina su**, **Backspace**: elemento successivo e precedente (le frecce invece girano il modello); **Esc** o un doppio clic: torna alla griglia.
+- **Ctrl+S** (o *Salva in un altro formato*): il modello come si vede, come immagine, larga almeno 1920 pixel, con gli stessi formati e le stesse opzioni delle foto.
+
+Si vedono i colori scritti nel file (materiali del 3MF, colori dei vertici in PLY e glTF, colore di base del glTF); le texture no, e un modello senza colori è grigio chiaro. La barra di stato mostra il numero di triangoli e l'ingrandimento. *Converti e ridimensiona* trasforma più modelli in immagini in una volta, visti dalla vista di partenza.
+
 ## Ruotare e riflettere
 
 Nel visore, il menù **Immagine** riflette l'immagine in orizzontale o in verticale e la ruota di 90° in senso orario (Ctrl+R) o antiorario (Ctrl+Maiusc+R) o di 180°; le due rotazioni sono anche pulsanti nella barra degli strumenti, e tutto è nel menù del clic destro. La modifica è solo mostrata finché non la salvi (la barra di stato dice "Modificata, non salvata", in giallo). Lasciando l'immagine con la modifica non salvata (un'altra immagine, ritorno alla griglia, cartella superiore, chiusura di EyeCanSee) prima chiede se **Salvare**, **Salvare come…** o **Non salvare**; **Annulla** resta sull'immagine. Ruota e ritaglia chiede allo stesso modo.
@@ -286,6 +298,7 @@ Nel visore, dopo l'ultima immagine EyeCanSee si ferma; con l'opzione **Nel visor
 - **Vettoriali**: SVG, SVGZ.
 - **Grafica e HDR**: PSD (immagine unita), ORA, OpenEXR, HDR, DDS, ICNS, QOI, TGA, ICO, CUR, PCX, JPEG 2000, PNM, XPM, XBM, SGI, WBMP, OTB, MPO, JPS.
 - **Tramite ImageMagick**: PSB, XCF, PFM, Sun Raster, PICT, MIFF, MNG, JNG, DPX, Cineon, FITS e altri formati meno comuni (XWD solo su Linux). ImageMagick apre anche i PSD che il lettore interno non gestisce (per esempio quelli a 32 bit).
+- **Modelli 3D**: STL, 3MF, OBJ, PLY, glTF (GLB). Vedi *Modelli 3D*.
 
 Le foto vengono ruotate in automatico secondo l'orientamento EXIF. L'estensione del file è solo un indizio: una foto HEIC di un iPhone rinominata in `.jpg` si apre lo stesso.
 
@@ -295,6 +308,7 @@ EyeCanSee usa la lingua del sistema se è disponibile, altrimenti l'inglese. Per
 
 ## Limiti noti
 
+- **Modelli 3D**: un `.gltf` con i dati in un file `.bin` separato non si apre (la versione `.glb` sì), e i materiali di un OBJ (il file `.mtl` accanto) e le texture non si vedono ancora.
 - Sui dischi **NTFS** (per esempio un disco esterno usato anche con Windows) l'app File (Nautilus) non riesce a ripristinare dal cestino, nemmeno i file cancellati da lei stessa; EyeCanSee lo ricorda nella conferma. I file però sono nel cestino e si ripristinano dal terminale: `gio trash --list` mostra cosa c'è, `gio trash --restore "<indirizzo trash:/// della riga>"` lo rimette al suo posto.
 - Se il telefono non risponde a una richiesta (visto su Windows: una cancellazione durata più di cinque minuti, con tutto il resto in attesa dietro di lei), la barra di stato lo dice con i secondi trascorsi e il file: EyeCanSee riprende da solo appena il telefono risponde. La causa non è nota: è capitato due volte su un POCO X7 Pro, cancellando file appena creati, e non si ripete a comando.
 - **Windows**: subito dopo una foto scattata, o un file cancellato, sul telefono, il driver di Windows può smettere di comunicare con il telefono per circa sei minuti; staccare il cavo e riattaccarlo lo sblocca subito. Di più in [Windows smette di comunicare con il telefono](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.it.md).

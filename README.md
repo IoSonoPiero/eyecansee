@@ -56,6 +56,7 @@ What comes next is in [ROADMAP.md](ROADMAP.md).
 - **Videos**: thumbnails in the grid, playback with sound and volume control in the viewer and their details (date, length, format, location from phones), on the computer, external disks and phones (with the system's libmpv on Linux, otherwise a video engine downloaded the first time a video is opened, as always on Windows). Audio files are shown and played too, with their cover when they have one.
 - **Duplicates**: finds identical photos, videos and audio files in a folder and its subfolders, on any device, and deletes the copies you choose, always keeping at least one.
 - **Rotating and cropping**: flips and quarter turns on one or many images at once, and rotation by any angle with a crop on a single image, saved over the original or as a new file.
+- **3D models**: STL, 3MF, OBJ, PLY and glTF in the grid and in the viewer, turned, moved and zoomed with the mouse or the keys, drawn by the graphics card, and saved as an image just as they are shown.
 - **Saving in another format** (JPEG, PNG, WebP, AVIF, TIFF and others) with every option of each format, the original and the result side by side, and the file size before you save.
 - **Converting and resizing many files at once**: format, turn, size and filter for a whole selection of images and videos, into new files next to the originals, in a subfolder or in another folder, also on another device.
 - **Video conversion** with FFmpeg (the system's, or downloaded once: 63 MB on Windows, 67 MB on Linux): MP4, MKV, WebM, MOV, AVI and GIF with H.264, HEVC, AV1, VP9 and other codecs, turned and resized, on the graphics card when it can (NVIDIA, Intel, AMD, VA-API), or copied as they are without re-encoding; the audio can also be taken out of a video, or extracted into files of its own, without re-encoding; the metadata go into the new file, including a dashcam's GPS position and speeds (`gps.sqlite` on the card) and a DJI drone's position (`.SRT`), so the copy keeps them away from the card. Details in [docs/video-formats.md](docs/video-formats.md).
@@ -66,6 +67,7 @@ What comes next is in [ROADMAP.md](ROADMAP.md).
 
 - JPEG, PNG, WebP, GIF, BMP, TIFF, HEIC, AVIF, JPEG XL, SVG, and less common ones such as PSD, JPEG 2000, PCX, DDS and OpenRaster.
 - Further rare formats through ImageMagick (XCF, PSB, DPX, FITS and others).
+- 3D models: STL, 3MF, OBJ, PLY and glTF.
 - Camera RAW files: CR2, CR3, NEF, ARW, RAF, ORF, RW2, DNG and others (tested with real files from Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic and Google cameras, and a Samsung Galaxy phone).
 
 All the formats it opens and saves, on Linux and Windows: [docs/formats.md](docs/formats.md). Sample files to try them, including real HEIC and Camera RAW photos: [download the test files](https://github.com/IoSonoPiero/eyecansee/releases/download/test-files/EyeCanSee-test-files.zip) (zip, 139 MB; sources and licences in the [release page](https://github.com/IoSonoPiero/eyecansee/releases/tag/test-files)).

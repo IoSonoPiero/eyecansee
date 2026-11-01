@@ -64,8 +64,11 @@ impl Window {
 impl crate::App {
     pub(crate) fn open_convert(&mut self, path: Option<String>) {
         let Some(path) = path.or_else(|| self.target()).filter(|p| !p.ends_with('/')) else { return };
-        let Some(loader) = &self.loader else { return };
-        loader.load_original(path.clone());
+        // A 3D model in the viewer: its picture as shown.
+        if !self.convert_model(&path) {
+            let Some(loader) = &self.loader else { return };
+            loader.load_original(path.clone());
+        }
         let mut w = Window::new(path);
         // From the viewer: saved as it is shown there.
         if self.viewing.is_some() {

@@ -45,6 +45,18 @@ What EyeCanSee opens and what it can save, on Linux (Fedora package and AppImage
 | PFM | pfm | ✓ | ✓ | ImageMagick |
 | PGX, WPG, VIFF, VICAR | pgx, wpg, viff, vicar | ✓ | ✓ | ImageMagick |
 
+### 3D models
+
+Shown in the grid as a picture and in the viewer in 3D (drawn by the graphics card); saved as images from *Save in another format*.
+
+| Format | Extensions | Linux | Windows | Reader |
+|---|---|:-:|:-:|---|
+| STL (binary and text) | stl | ✓ | ✓ | `stl_io` |
+| OBJ (without materials) | obj | ✓ | ✓ | `tobj` |
+| PLY (text and binary, triangle strips, vertex colours) | ply | ✓ | ✓ | `ply-rs-bw` |
+| glTF (with the data inside) | glb, gltf | ✓ | ✓ | `gltf` |
+| 3MF (with components, Production extension, colours) | 3mf | ✓ | ✓ | `zip`, `roxmltree` |
+
 A file with the wrong extension (for example an iPhone HEIC saved as `.jpg`) is recognised from its content. A file the dedicated decoder cannot read is tried once more with ImageMagick.
 
 ## Saving (right click > Save in another format…)

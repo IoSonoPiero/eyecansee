@@ -32,6 +32,8 @@ pub enum Msg {
     /// Outcome of mounting a partition: absolute path or error.
     Mounted(Result<String, String>),
     Loaded { generation: u64, index: usize, thumb: bool, image: Result<ColorImage, String> },
+    /// A 3D model read for the viewer (with its picture in `Loaded`), to turn around in it.
+    Mesh { generation: u64, index: usize, mesh: Arc<crate::model::Mesh> },
     /// Something changed in the watched local folder (`App::watch`).
     Changed,
     /// Outcome of deleting an item (path relative to the source), and how.
@@ -326,6 +328,18 @@ impl Loader {
         });
     }
 
+    /// The 3D model in the viewer as the camera shows it, for "Save in another format" (as `load_original`).
+    pub fn model_original(&self, mesh: Arc<crate::model::Mesh>, view: crate::render3d::View, size: [u32; 2], file_size: u64) {
+        let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
+        self.rt.spawn_blocking(move || {
+            // Opaque: no note about transparency in the window.
+            let image = image::DynamicImage::ImageRgb8(image::DynamicImage::ImageRgba8(crate::render3d::render(&mesh, &view, size[0], size[1], 2)).into_rgb8());
+            let preview = decode::preview(&image);
+            let _ = tx.send(Msg::Original(Ok((Arc::new(crate::encode::Original::with_meta(image, &[])), preview, file_size))));
+            ctx.request_repaint();
+        });
+    }
+
     /// A file written whole (an image saved in another format).
     pub fn save(&self, path: String, data: Arc<Vec<u8>>) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
@@ -461,10 +475,20 @@ impl Loader {
                     Err((_, detail)) => Err(detail),
                 }
             } else {
+                let (tx, ctx) = (tx.clone(), ctx.clone());
                 match op.read(&path).await {
-                    Ok(bytes) => tokio::task::spawn_blocking(move || decode::decode(&bytes, &path))
-                        .await
-                        .unwrap_or_else(|e| Err(e.to_string())),
+                    Ok(bytes) => tokio::task::spawn_blocking(move || {
+                        if !crate::model::is_model(&path) {
+                            return decode::decode(&bytes, &path);
+                        }
+                        let mesh = Arc::new(crate::model::parse(&bytes, &path)?);
+                        let image = crate::render3d::render(&mesh, &Default::default(), 1600, 1200, 2);
+                        let _ = tx.send(Msg::Mesh { generation, index, mesh });
+                        ctx.request_repaint();
+                        Ok(decode::to_color_image(image::DynamicImage::ImageRgba8(image)))
+                    })
+                    .await
+                    .unwrap_or_else(|e| Err(e.to_string())),
                     Err((_, detail)) => Err(detail),
                 }
             };

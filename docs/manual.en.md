@@ -138,6 +138,18 @@ Audio files (M4A, MP3, Opus, Ogg, FLAC, WAV, MKA and others, for example those m
 - **View > Show**, or **Show** in the right-click menu of the empty part of the grid: **Images, videos and audio** (the default), **Images only**, **Videos only** or **Audio only**. The choice stays for every folder until you change it; the status bar counts images, videos and audio files apart.
 - Videos on a phone or a server are read a piece at a time while they play, never copied whole. The exception is a phone on Windows, which cannot jump into the middle of a file: the video is first copied whole to a temporary file and plays after that, with a bar showing how much has been read. Copying, moving, renaming and deleting work as for images. Save and the turns in the viewer are for images only: videos are turned and converted from *Convert and resize*. In the slideshow a video plays whole, with sound, then the next item comes; **Space** pauses it too.
 
+## 3D models
+
+3D models made of triangles appear in the grid next to the images, with a picture of the model as thumbnail: **STL** and **3MF** (3D printing), **OBJ**, **PLY** (also 3D scans) and **glTF** (`.glb`, and `.gltf` with the data inside). Enter or a double click opens the model in the viewer, drawn by the graphics card, where it can be turned and looked at from every side:
+
+- **Arrows**: turn the model (hold them down to keep turning). Dragging with the mouse turns it too.
+- **Shift** and drag, or drag with the middle button: move the model in the window.
+- Mouse wheel, **+** and **−**: zoom in and out; **0** goes back to the starting view.
+- **Page Down**, **Space** and **Page Up**, **Backspace**: next and previous item (the arrows turn the model instead); **Esc** or a double click: back to the grid.
+- **Ctrl+S** (or *Save in another format*): the model as it is shown, as an image, at least 1920 pixels wide, with the same formats and options as for photos.
+
+The colours stored in the file are shown (3MF materials, colours of the vertices in PLY and glTF, glTF base colour); textures are not, and a model without colours is light grey. The status bar shows the number of triangles and the zoom. *Convert and resize* turns several models into images at once, seen from the starting view.
+
 ## Rotating and flipping
 
 In the viewer, the **Image** menu flips the image horizontally or vertically and rotates it by 90° clockwise (Ctrl+R) or anticlockwise (Ctrl+Shift+R) or by 180°; the two rotations are also buttons on the toolbar, and everything is in the right-click menu. The change is only shown until you save it (the status bar says "Changed, not saved", in yellow). Leaving the image with the change not saved (another image, back to the grid, the parent folder, closing EyeCanSee) first asks whether to **Save**, **Save as…** or **Don't save**; **Cancel** stays on the image. Rotate and crop asks the same way.
@@ -286,6 +298,7 @@ In the viewer, after the last image EyeCanSee stops; with the option **In the vi
 - **Vector**: SVG, SVGZ.
 - **Graphics and HDR**: PSD (merged image), ORA, OpenEXR, HDR, DDS, ICNS, QOI, TGA, ICO, CUR, PCX, JPEG 2000, PNM, XPM, XBM, SGI, WBMP, OTB, MPO, JPS.
 - **Through ImageMagick**: PSB, XCF, PFM, Sun Raster, PICT, MIFF, MNG, JNG, DPX, Cineon, FITS and other less common formats (XWD on Linux only). ImageMagick also opens the PSD files the built-in reader does not handle (for example 32-bit ones).
+- **3D models**: STL, 3MF, OBJ, PLY, glTF (GLB). See *3D models*.
 
 Photos are rotated automatically using their EXIF orientation. The file extension is only a hint: an iPhone HEIC photo renamed to `.jpg` opens anyway.
 
@@ -295,6 +308,7 @@ EyeCanSee uses the system language when it is available, otherwise English. To f
 
 ## Known limits
 
+- **3D models**: a `.gltf` whose data is in a separate `.bin` file does not open (the `.glb` version does), and the materials of an OBJ (the `.mtl` file next to it) and textures are not shown yet.
 - On **NTFS** disks (for example an external disk also used with Windows) the Files app (Nautilus) cannot restore from the trash, not even files it deleted itself; EyeCanSee reminds you in the confirmation. The files are in the trash all the same and can be restored from a terminal: `gio trash --list` shows what is there, `gio trash --restore "<trash:/// address from that line>"` puts it back.
 - If the phone does not answer a request (seen on Windows: one deletion that took over five minutes, with everything else waiting behind it), the status bar says so with the seconds elapsed and the file: EyeCanSee carries on by itself as soon as the phone answers. The cause is not known: it happened twice on a POCO X7 Pro, deleting files just created, and does not repeat on demand.
 - **Windows**: right after a photo is taken, or a file deleted, on the phone, Windows' own driver can stop talking to the phone for about six minutes; unplugging the cable and plugging it in again frees it at once. More in [Windows stops talking to the phone](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.en.md).

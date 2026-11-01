@@ -341,6 +341,7 @@ convert-calculating = Calcolo della dimensione in corso…
 convert-error = Impossibile convertire: { $detail }
 convert-actual = 100% (trascina le immagini per spostarti)
 convert-pixels = { $w } × { $h } pixel
+model-triangles = { $n } triangoli
 convert-file-size = { $size } su disco
 convert-ratio = { $percent }% dell'originale
 convert-format = Formato

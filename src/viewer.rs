@@ -13,11 +13,13 @@ impl App {
         }
         // On a video Space plays and pauses, as in a player.
         let video = self.viewing_video();
+        // On a 3D model the arrows turn it.
+        let model = self.viewed_mesh().is_some();
         let (next, prev, first, last, close, space) = ctx.input(|i| {
             let any = |keys: &[Key]| keys.iter().any(|k| i.key_pressed(*k));
             (
-                any(&[Key::ArrowRight, Key::PageDown]) || (i.key_pressed(Key::Space) && !video),
-                any(&[Key::ArrowLeft, Key::Backspace, Key::PageUp]),
+                (i.key_pressed(Key::ArrowRight) && !model) || i.key_pressed(Key::PageDown) || (i.key_pressed(Key::Space) && !video),
+                (i.key_pressed(Key::ArrowLeft) && !model) || any(&[Key::Backspace, Key::PageUp]),
                 i.key_pressed(Key::Home),
                 i.key_pressed(Key::End),
                 i.key_pressed(Key::Escape),
@@ -45,6 +47,9 @@ impl App {
                 self.toggle_mute();
             }
             return;
+        }
+        if model {
+            return self.model_keys(ctx);
         }
         let (cw, ccw, save, save_copy) = ctx.input_mut(|i| {
             let shift = egui::Modifiers::COMMAND | egui::Modifiers::SHIFT;
@@ -74,6 +79,7 @@ impl App {
             self.scroll_to_selected = true;
         }
         self.full.clear();
+        self.model.meshes.clear();
         self.zoom_of = None;
     }
 
@@ -119,6 +125,8 @@ impl App {
         }
         let keep = near(AROUND + 1);
         self.full.retain(|i, _| keep.contains(i));
+        let paths: Vec<&String> = keep.iter().filter_map(|&i| listing.files.get(i)).map(|f| &f.path).collect();
+        self.model.meshes.retain(|p, _| paths.contains(&p));
     }
 
     pub(crate) fn viewer(&mut self, ui: &mut egui::Ui, current: usize) {
@@ -127,6 +135,18 @@ impl App {
         }
         self.video = None;
         let mut chosen = None;
+        if let Some(response) = self.model_view(ui) {
+            if response.double_clicked() {
+                self.close_viewer();
+            }
+            response.context_menu(|ui| {
+                chosen = browser::context_menu(ui, self.item_menu(None, None));
+            });
+            if chosen.is_some() {
+                self.act = chosen;
+            }
+            return;
+        }
         if let Some(Ok(tex)) = self.full.get(&current) {
             let tex = tex.clone();
             let rect = ui.available_rect_before_wrap();
