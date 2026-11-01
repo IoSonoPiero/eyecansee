@@ -90,10 +90,17 @@ for lib in "libde265 $DE265 https://github.com/strukturag/libde265/archive/refs/
         "$(printf '=%.0s' {1..78})" >> "$LICENSES"
     cat "$DEPS/COPYING.$1" "$IMDIR/COPYING.$1" 2>/dev/null >> "$LICENSES" || true
 done
-LD=/cache/linuxdeploy-x86_64.AppImage
-[[ -x $LD ]] || { curl -sSfL -o $LD \
-    https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
-    chmod +x $LD; }
+# linuxdeploy fixed to a named release (with its appimagetool), never "continuous": that one is rebuilt
+# almost daily and changed appimagetool under us once. To update: new release name, URL and SHA-256 here.
+LD_VERSION=1-alpha-20251107-1
+LD_SHA256=c20cd71e3a4e3b80c3483cef793cda3f4e990aca14014d23c544ca3ce1270b4d
+LD=/cache/linuxdeploy-$LD_VERSION-x86_64.AppImage
+if ! echo "$LD_SHA256  $LD" | sha256sum -c --quiet 2>/dev/null; then
+    curl -sSfL -o "$LD.part" \
+        "https://github.com/linuxdeploy/linuxdeploy/releases/download/$LD_VERSION/linuxdeploy-x86_64.AppImage"
+    echo "$LD_SHA256  $LD.part" | sha256sum -c --quiet || { echo "linuxdeploy: SHA-256 mismatch"; exit 1; }
+    chmod +x "$LD.part" && mv "$LD.part" "$LD"
+fi
 cd "$CARGO_TARGET_DIR"
 # appimagetool (since 31 October 2026) wants a PNG named after Icon= at the top of the AppDir, to make
 # .DirIcon from it; linuxdeploy puts the SVG there, so the PNG goes in first.
