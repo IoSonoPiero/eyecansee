@@ -31,6 +31,8 @@ pub(crate) struct State {
     size: [u32; 2],
     /// CAD drawings, which the viewer also draws itself (`cad_view`).
     pub(crate) cad: crate::cad_view::State,
+    /// When the last frames were drawn (seconds), for the frame rate in the status bar.
+    frames: std::collections::VecDeque<f64>,
 }
 
 impl App {
@@ -56,7 +58,8 @@ impl App {
     pub(crate) fn model_keys(&mut self, ctx: &egui::Context) {
         let (dx, dy, zoom, reset) = ctx.input(|i| {
             let held = |k| if i.key_down(k) && !i.modifiers.command { 1.0 } else { 0.0 };
-            let dt = i.stable_dt.min(0.1) * TURN_SPEED;
+            // The real time since the last frame: a frame the system skips makes a longer step, not a slower turn.
+            let dt = i.unstable_dt.min(0.1) * TURN_SPEED;
             let key = |k| i.key_pressed(k) && !i.modifiers.command;
             let zoom = if key(Key::Plus) || key(Key::Equals) { 1.25 } else if key(Key::Minus) { 0.8 } else { 1.0 };
             ((held(Key::ArrowRight) - held(Key::ArrowLeft)) * dt, (held(Key::ArrowUp) - held(Key::ArrowDown)) * dt, zoom, key(Key::Num0))
@@ -115,7 +118,29 @@ impl App {
         painter.add(sky);
         painter.image(id, rect, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
         self.zoom_shown = view.zoom;
+        self.count_frame(ui.input(|i| i.time));
         Some(response)
+    }
+
+    /// Frames drawn in the last second; with `EYECANSEE_LOG=1` the slow ones (> 50 ms) are logged.
+    fn count_frame(&mut self, now: f64) {
+        let f = &mut self.model.frames;
+        if let Some(&last) = f.back()
+            && now - last > 0.05
+            && now - last < 1.0
+        {
+            log!("3D view: slow frame, {:.0} ms", (now - last) * 1000.0);
+        }
+        f.push_back(now);
+        while f.front().is_some_and(|&t| now - t > 1.0) {
+            f.pop_front();
+        }
+    }
+
+    /// Frames per second while the model moves; `None` when still (no frames are drawn then).
+    pub(crate) fn model_fps(&self) -> Option<usize> {
+        let f = &self.model.frames;
+        (f.len() > 2).then_some(f.len())
     }
 
     /// Dragging turns the model (with Shift or the middle button it moves it), the wheel zooms.

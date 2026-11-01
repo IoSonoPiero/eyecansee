@@ -148,7 +148,7 @@ Audio files (M4A, MP3, Opus, Ogg, FLAC, WAV, MKA and others, for example those m
 - **Page Down**, **Space** and **Page Up**, **Backspace**: next and previous item (the arrows turn the model instead); **Esc** or a double click: back to the grid.
 - **Ctrl+S** (or *Save in another format*): the model as it is shown, as an image, at least 1920 pixels wide, with the same formats and options as for photos.
 
-The colours stored in the file are shown (3MF materials, colours of the vertices in PLY and glTF, glTF base colour); textures are not, and a model without colours is light grey. The status bar shows the number of triangles and the zoom. *Convert and resize* turns several models into images at once, seen from the starting view.
+The colours stored in the file are shown (3MF materials, colours of the vertices in PLY and glTF, glTF base colour); textures are not, and a model without colours is light grey. The status bar shows the number of triangles, the zoom and, while the model moves, the frames per second. *Convert and resize* turns several models into images at once, seen from the starting view.
 
 ## CAD drawings
 

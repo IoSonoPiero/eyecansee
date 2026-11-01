@@ -148,7 +148,7 @@ I modelli 3D fatti di triangoli compaiono nella griglia accanto alle immagini, c
 - **Pagina giù**, **Spazio** e **Pagina su**, **Backspace**: elemento successivo e precedente (le frecce invece girano il modello); **Esc** o un doppio clic: torna alla griglia.
 - **Ctrl+S** (o *Salva in un altro formato*): il modello come si vede, come immagine, larga almeno 1920 pixel, con gli stessi formati e le stesse opzioni delle foto.
 
-Si vedono i colori scritti nel file (materiali del 3MF, colori dei vertici in PLY e glTF, colore di base del glTF); le texture no, e un modello senza colori è grigio chiaro. La barra di stato mostra il numero di triangoli e l'ingrandimento. *Converti e ridimensiona* trasforma più modelli in immagini in una volta, visti dalla vista di partenza.
+Si vedono i colori scritti nel file (materiali del 3MF, colori dei vertici in PLY e glTF, colore di base del glTF); le texture no, e un modello senza colori è grigio chiaro. La barra di stato mostra il numero di triangoli, l'ingrandimento e, mentre il modello si muove, i fotogrammi al secondo. *Converti e ridimensiona* trasforma più modelli in immagini in una volta, visti dalla vista di partenza.
 
 ## Disegni CAD
 

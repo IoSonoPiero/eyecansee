@@ -188,6 +188,10 @@ impl App {
             if let Some((_, mesh)) = self.viewed_mesh() {
                 ui.separator();
                 ui.label(self.i18n.t_args("model-triangles", &[("n", &mesh.tris.len().to_string())]));
+                if let Some(fps) = self.model_fps() {
+                    ui.separator();
+                    ui.label(format!("{fps} fps"));
+                }
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
             } else if let Some(Ok(tex)) = self.full.get(&current) {
