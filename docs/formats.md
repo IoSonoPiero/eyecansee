@@ -57,6 +57,15 @@ Shown in the grid as a picture and in the viewer in 3D (drawn by the graphics ca
 | glTF (with the data inside) | glb, gltf | ✓ | ✓ | `gltf` |
 | 3MF (with components, Production extension, colours) | 3mf | ✓ | ✓ | `zip`, `roxmltree` |
 
+### CAD drawings
+
+Seen from above (model space) and shown as an image, drawn again sharp at every zoom; saved as images from *Save in another format*.
+
+| Format | Extensions | Linux | Windows | Reader |
+|---|---|:-:|:-:|---|
+| DWG (R13 to 2018 and later) | dwg | ✓ | ✓ | `acadrust` |
+| DXF (text and binary, R12 to 2018 and later) | dxf | ✓ | ✓ | `acadrust` |
+
 A file with the wrong extension (for example an iPhone HEIC saved as `.jpg`) is recognised from its content. A file the dedicated decoder cannot read is tried once more with ImageMagick.
 
 ## Saving (right click > Save in another format…)

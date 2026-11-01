@@ -26,7 +26,12 @@ impl App {
                         self.model.meshes.insert(f.path.clone(), mesh);
                     }
                 }
-                Msg::Loaded { .. } | Msg::Meta { .. } | Msg::Mesh { .. } => {} // folder has changed in the meantime
+                Msg::Drawing { generation, index, drawing } if generation == self.generation => {
+                    if let Some(f) = self.files().get(index) {
+                        self.model.cad.drawings.insert(f.path.clone(), drawing);
+                    }
+                }
+                Msg::Loaded { .. } | Msg::Meta { .. } | Msg::Mesh { .. } | Msg::Drawing { .. } => {} // folder has changed in the meantime
                 // Counted from the first event, not the last: a copy into a subfolder sends one for
                 // every file, and the folder was read again only when the copy ended.
                 Msg::Changed if self.changed_at.is_none() => self.changed_at = Some(ctx.input(|i| i.time) + 0.3),

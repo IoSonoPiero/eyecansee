@@ -7,7 +7,8 @@ use crate::transform::Turn;
 /// `tex` drawn in `rect` at `scale` screen pixels per image pixel, around `pan` (the centre of the
 /// view, in image pixels). `pan` is kept inside the image; a side smaller than the view stays centred.
 /// `turn`: flipped and turned as in the viewer (sizes and `pan` are those of the turned image).
-pub fn paint_zoomed(painter: &egui::Painter, rect: egui::Rect, tex: &TextureHandle, scale: f32, pan: &mut egui::Vec2, turn: Turn) {
+/// Returns where the image went and which part of it (0 to 1).
+pub fn paint_zoomed(painter: &egui::Painter, rect: egui::Rect, tex: &TextureHandle, scale: f32, pan: &mut egui::Vec2, turn: Turn) -> (egui::Rect, egui::Rect) {
     let ppp = painter.ctx().pixels_per_point();
     let t = turned_size(tex, turn);
     let half = rect.size() * ppp / scale / 2.0;
@@ -18,6 +19,7 @@ pub fn paint_zoomed(painter: &egui::Painter, rect: egui::Rect, tex: &TextureHand
     let dest = egui::Rect::from_center_size(rect.center() + ((min + max) / 2.0 - *pan) * scale / ppp, (max - min) * scale / ppp);
     let uv = egui::Rect::from_min_max((min / t).to_pos2(), (max / t).to_pos2());
     paint_turned(painter, tex, dest, uv, turn);
+    (dest, uv)
 }
 
 pub fn turned_size(tex: &TextureHandle, turn: Turn) -> egui::Vec2 {

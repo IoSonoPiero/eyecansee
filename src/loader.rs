@@ -34,6 +34,8 @@ pub enum Msg {
     Loaded { generation: u64, index: usize, thumb: bool, image: Result<ColorImage, String> },
     /// A 3D model read for the viewer (with its picture in `Loaded`), to turn around in it.
     Mesh { generation: u64, index: usize, mesh: Arc<crate::model::Mesh> },
+    /// A CAD drawing read for the viewer (with its picture in `Loaded`), drawn again sharp when zoomed.
+    Drawing { generation: u64, index: usize, drawing: Arc<crate::cad::Drawing> },
     /// Something changed in the watched local folder (`App::watch`).
     Changed,
     /// Outcome of deleting an item (path relative to the source), and how.
@@ -478,6 +480,13 @@ impl Loader {
                 let (tx, ctx) = (tx.clone(), ctx.clone());
                 match op.read(&path).await {
                     Ok(bytes) => tokio::task::spawn_blocking(move || {
+                        if crate::cad::is_cad(&path) {
+                            let drawing = Arc::new(crate::cad::read(&bytes, &path)?);
+                            let image = decode::cad_render(&drawing, decode::CAD_SIDE, None)?;
+                            let _ = tx.send(Msg::Drawing { generation, index, drawing });
+                            ctx.request_repaint();
+                            return Ok(decode::to_color_image(image::DynamicImage::ImageRgba8(image)));
+                        }
                         if !crate::model::is_model(&path) {
                             return decode::decode(&bytes, &path);
                         }

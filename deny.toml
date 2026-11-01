@@ -34,6 +34,8 @@ allow = [
     "ISC",
     "LGPL-2.1",
     "MIT",
+    # acadrust (DXF and DWG, 0.74.0): compatible with the GPL (MPL 2.0, section 3.3).
+    "MPL-2.0",
     "OFL-1.1",
     "Unicode-3.0",
     "Zlib",

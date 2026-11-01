@@ -80,6 +80,7 @@ impl App {
         }
         self.full.clear();
         self.model.meshes.clear();
+        self.model.cad.drawings.clear();
         self.zoom_of = None;
     }
 
@@ -127,6 +128,7 @@ impl App {
         self.full.retain(|i, _| keep.contains(i));
         let paths: Vec<&String> = keep.iter().filter_map(|&i| listing.files.get(i)).map(|f| &f.path).collect();
         self.model.meshes.retain(|p, _| paths.contains(&p));
+        self.model.cad.drawings.retain(|p, _| paths.contains(&p));
     }
 
     pub(crate) fn viewer(&mut self, ui: &mut egui::Ui, current: usize) {
@@ -255,18 +257,22 @@ impl App {
         }
 
         let painter = ui.painter_at(rect);
-        match self.zoom {
+        let (dest, uv) = match self.zoom {
             Some(scale) => {
                 if response.hovered() {
                     ui.ctx().set_cursor_icon(if response.dragged() { egui::CursorIcon::Grabbing } else { egui::CursorIcon::Grab });
                 }
-                paint::paint_zoomed(&painter, rect, tex, scale, &mut self.pan, self.turn);
+                paint::paint_zoomed(&painter, rect, tex, scale, &mut self.pan, self.turn)
             }
             None => {
                 let dest = egui::Rect::from_center_size(rect.center(), t * fit / ppp);
-                paint::paint_turned(&painter, tex, dest, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), self.turn);
+                let uv = egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0));
+                paint::paint_turned(&painter, tex, dest, uv, self.turn);
+                (dest, uv)
             }
-        }
+        };
+        // A CAD drawing: drawn again sharp once the view stops.
+        self.cad_sharpen(ui, current, tex.size_vec2(), dest, uv);
         self.zoom_shown = self.zoom.unwrap_or(fit);
     }
 }

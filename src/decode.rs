@@ -112,8 +112,12 @@ pub fn is_played(name: &str) -> bool {
 
 /// What the grid shows: images, videos, audio files and 3D models.
 pub fn is_media(name: &str) -> bool {
-    is_image(name) || is_played(name) || crate::model::is_model(name)
+    is_image(name) || is_played(name) || crate::model::is_model(name) || crate::cad::is_cad(name)
 }
+
+/// Long side of a CAD drawing's picture in the viewer (~64 MB of texture); once the view stops,
+/// the visible part is drawn again at the screen's size (`cad_view`).
+pub const CAD_SIDE: u32 = 4096;
 
 /// A 3D model drawn from the default view, `w`×`h`.
 pub fn model_picture(bytes: &[u8], name: &str, w: u32, h: u32) -> std::result::Result<DynamicImage, String> {
@@ -168,6 +172,9 @@ pub fn thumbnail(bytes: &[u8], name: &str, side: u32) -> std::result::Result<Dyn
     if crate::model::is_model(name) {
         return model_picture(bytes, name, side, side * 3 / 4);
     }
+    if crate::cad::is_cad(name) {
+        return cad_picture(bytes, name, side);
+    }
     // Lossless JPEGs cannot be scaled while decoded: at full size instead.
     let small = bytes.starts_with(&[0xFF, 0xD8, 0xFF]).then(|| jpeg_scaled(bytes, side).or_else(|_| jpeg_scaled(bytes, u32::MAX)).ok()).flatten();
     let mut img = match small {
@@ -198,6 +205,9 @@ pub fn decode_full(bytes: &[u8], name: &str) -> std::result::Result<DynamicImage
 fn decode_any(bytes: &[u8], name: &str) -> std::result::Result<DynamicImage, String> {
     if crate::model::is_model(name) {
         return model_picture(bytes, name, 1920, 1440);
+    }
+    if crate::cad::is_cad(name) {
+        return cad_picture(bytes, name, CAD_SIDE);
     }
     let kind = kind(name).unwrap_or(Kind::Image);
     // Wrong extension (e.g. an iPhone HEIC saved as .jpg): look at the content, then try
@@ -326,25 +336,62 @@ fn heif(bytes: &[u8]) -> Result<DynamicImage> {
 }
 
 fn svg(bytes: &[u8]) -> Result<DynamicImage> {
+    svg_sized(bytes, SVG_SIDE)
+}
+
+/// A CAD drawing (`cad`) as a picture whose long side is `side`.
+pub fn cad_picture(bytes: &[u8], name: &str, side: u32) -> std::result::Result<DynamicImage, String> {
+    Ok(DynamicImage::ImageRgba8(cad_render(&crate::cad::read(bytes, name)?, side, None)?))
+}
+
+/// The drawing as a picture whose long side is `side` pixels, or only its part `region`
+/// (x, y, width, height in those pixels) drawn at `out` pixels: lines stay 1 pixel wide and
+/// texts as sharp as the screen, at any zoom.
+pub fn cad_render(d: &crate::cad::Drawing, side: u32, region: Option<([f32; 4], [u32; 2])>) -> std::result::Result<RgbaImage, String> {
+    let Some(([x, y, w, h], [ow, oh])) = region else {
+        let img = svg_sized(d.svg(side, 1.0)?.as_bytes(), side as f32).map_err(|e| e.to_string())?;
+        return Ok(img.into_rgba8());
+    };
+    let (sx, sy) = (ow as f32 / w.max(f32::MIN_POSITIVE), oh as f32 / h.max(f32::MIN_POSITIVE));
+    let tree = usvg::Tree::from_data(d.svg(side, 1.0 / sx)?.as_bytes(), &usvg_options()).map_err(|e| e.to_string())?;
+    let mut pixmap = tiny_skia::Pixmap::new(ow.max(1), oh.max(1)).ok_or("CAD: invalid dimensions")?;
+    resvg::render(&tree, tiny_skia::Transform::from_row(sx, 0.0, 0.0, sy, -x * sx, -y * sy), &mut pixmap.as_mut());
+    Ok(pixmap_rgba(&pixmap))
+}
+
+fn pixmap_rgba(pixmap: &tiny_skia::Pixmap) -> RgbaImage {
+    let data = pixmap.pixels().iter().flat_map(|p| {
+        let c = p.demultiply();
+        [c.red(), c.green(), c.blue(), c.alpha()]
+    });
+    RgbaImage::from_raw(pixmap.width(), pixmap.height(), data.collect()).unwrap_or_default()
+}
+
+fn svg_sized(bytes: &[u8], side: f32) -> Result<DynamicImage> {
+    let tree = usvg::Tree::from_data(bytes, &usvg_options())?;
+    let size = tree.size();
+    let scale = side / size.width().max(size.height());
+    let (w, h) = ((size.width() * scale).ceil() as u32, (size.height() * scale).ceil() as u32);
+    let mut pixmap = tiny_skia::Pixmap::new(w, h).ok_or("SVG: invalid dimensions")?;
+    resvg::render(&tree, tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
+    Ok(DynamicImage::ImageRgba8(pixmap_rgba(&pixmap)))
+}
+
+fn usvg_options() -> usvg::Options<'static> {
     // Loading the system fonts is expensive: only once for the whole session.
     static FONTS: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
     let fontdb = FONTS.get_or_init(|| {
         let mut db = usvg::fontdb::Database::new();
         db.load_system_fonts();
+        // "sans-serif" means Arial to fontdb, missing on many Linux systems: then text
+        // in that family (CAD drawings, many SVGs) was not drawn at all.
+        let have = |name: &str| db.faces().any(|f| f.families.iter().any(|(n, _)| n == name));
+        if let Some(family) = ["Arial", "Liberation Sans", "DejaVu Sans", "Noto Sans", "Adwaita Sans", "Cantarell", "Segoe UI"].into_iter().find(|f| have(f)) {
+            db.set_sans_serif_family(family);
+        }
         Arc::new(db)
     });
-    let opt = usvg::Options { fontdb: fontdb.clone(), ..Default::default() };
-    let tree = usvg::Tree::from_data(bytes, &opt)?;
-    let size = tree.size();
-    let scale = SVG_SIDE / size.width().max(size.height());
-    let (w, h) = ((size.width() * scale).ceil() as u32, (size.height() * scale).ceil() as u32);
-    let mut pixmap = tiny_skia::Pixmap::new(w, h).ok_or("SVG: invalid dimensions")?;
-    resvg::render(&tree, tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
-    let data = pixmap.pixels().iter().flat_map(|p| {
-        let c = p.demultiply();
-        [c.red(), c.green(), c.blue(), c.alpha()]
-    });
-    Ok(DynamicImage::ImageRgba8(RgbaImage::from_raw(w, h, data.collect()).ok_or("SVG: buffer")?))
+    usvg::Options { fontdb: fontdb.clone(), ..Default::default() }
 }
 
 /// App icon (`assets/eyecansee.svg`, the same as on Linux) in RGBA, `side`×`side`. Without the

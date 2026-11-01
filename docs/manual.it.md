@@ -150,6 +150,10 @@ I modelli 3D fatti di triangoli compaiono nella griglia accanto alle immagini, c
 
 Si vedono i colori scritti nel file (materiali del 3MF, colori dei vertici in PLY e glTF, colore di base del glTF); le texture no, e un modello senza colori è grigio chiaro. La barra di stato mostra il numero di triangoli e l'ingrandimento. *Converti e ridimensiona* trasforma più modelli in immagini in una volta, visti dalla vista di partenza.
 
+## Disegni CAD
+
+I disegni di AutoCAD, **DWG** (dalla R13 alla 2018 e successive) e **DXF** (testo e binario), compaiono nella griglia con un'immagine del disegno come miniatura e si aprono nel visore come un'immagine: zoom con la rotellina, + e −, spostamento trascinando, *Salva in un altro formato* per farne un'immagine. Il disegno si vede dall'alto, come nello spazio modello di un programma CAD, sul suo sfondo scuro: linee, archi, cerchi, polilinee, spline, ellissi, testi, quote, blocchi (anche dentro altri blocchi), tabelle e retini pieni, nei loro colori; i layer spenti e congelati non si vedono. Quando la vista si ferma, la parte sullo schermo viene ridisegnata dal disegno: linee sottili e testi piccoli restano nitidi a ogni ingrandimento.
+
 ## Ruotare e riflettere
 
 Nel visore, il menù **Immagine** riflette l'immagine in orizzontale o in verticale e la ruota di 90° in senso orario (Ctrl+R) o antiorario (Ctrl+Maiusc+R) o di 180°; le due rotazioni sono anche pulsanti nella barra degli strumenti, e tutto è nel menù del clic destro. La modifica è solo mostrata finché non la salvi (la barra di stato dice "Modificata, non salvata", in giallo). Lasciando l'immagine con la modifica non salvata (un'altra immagine, ritorno alla griglia, cartella superiore, chiusura di EyeCanSee) prima chiede se **Salvare**, **Salvare come…** o **Non salvare**; **Annulla** resta sull'immagine. Ruota e ritaglia chiede allo stesso modo.
@@ -299,6 +303,7 @@ Nel visore, dopo l'ultima immagine EyeCanSee si ferma; con l'opzione **Nel visor
 - **Grafica e HDR**: PSD (immagine unita), ORA, OpenEXR, HDR, DDS, ICNS, QOI, TGA, ICO, CUR, PCX, JPEG 2000, PNM, XPM, XBM, SGI, WBMP, OTB, MPO, JPS.
 - **Tramite ImageMagick**: PSB, XCF, PFM, Sun Raster, PICT, MIFF, MNG, JNG, DPX, Cineon, FITS e altri formati meno comuni (XWD solo su Linux). ImageMagick apre anche i PSD che il lettore interno non gestisce (per esempio quelli a 32 bit).
 - **Modelli 3D**: STL, 3MF, OBJ, PLY, glTF (GLB). Vedi *Modelli 3D*.
+- **Disegni CAD**: DWG, DXF. Vedi *Disegni CAD*.
 
 Le foto vengono ruotate in automatico secondo l'orientamento EXIF. L'estensione del file è solo un indizio: una foto HEIC di un iPhone rinominata in `.jpg` si apre lo stesso.
 
@@ -308,6 +313,7 @@ EyeCanSee usa la lingua del sistema se è disponibile, altrimenti l'inglese. Per
 
 ## Limiti noti
 
+- **Disegni CAD**: solo lo spazio modello, visto dall'alto; layout (spazio carta), solidi 3D, motivi dei retini (si vedono come un riempimento leggero), tipi di linea (tratteggi) e spessori non vengono disegnati, i testi usano un font del sistema al posto dei font CAD, e le immagini collegate al disegno si vedono come una cornice con una croce.
 - **Modelli 3D**: un `.gltf` con i dati in un file `.bin` separato non si apre (la versione `.glb` sì), e i materiali di un OBJ (il file `.mtl` accanto) e le texture non si vedono ancora.
 - Sui dischi **NTFS** (per esempio un disco esterno usato anche con Windows) l'app File (Nautilus) non riesce a ripristinare dal cestino, nemmeno i file cancellati da lei stessa; EyeCanSee lo ricorda nella conferma. I file però sono nel cestino e si ripristinano dal terminale: `gio trash --list` mostra cosa c'è, `gio trash --restore "<indirizzo trash:/// della riga>"` lo rimette al suo posto.
 - Se il telefono non risponde a una richiesta (visto su Windows: una cancellazione durata più di cinque minuti, con tutto il resto in attesa dietro di lei), la barra di stato lo dice con i secondi trascorsi e il file: EyeCanSee riprende da solo appena il telefono risponde. La causa non è nota: è capitato due volte su un POCO X7 Pro, cancellando file appena creati, e non si ripete a comando.

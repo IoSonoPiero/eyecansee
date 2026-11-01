@@ -29,6 +29,8 @@ pub(crate) struct State {
     pub(crate) gpu: Option<Gpu>,
     /// Size of the picture on screen, in pixels, for the screenshot's proportions.
     size: [u32; 2],
+    /// CAD drawings, which the viewer also draws itself (`cad_view`).
+    pub(crate) cad: crate::cad_view::State,
 }
 
 impl App {
