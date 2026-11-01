@@ -95,7 +95,10 @@ LD=/cache/linuxdeploy-x86_64.AppImage
     https://github.com/linuxdeploy/linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage
     chmod +x $LD; }
 cd "$CARGO_TARGET_DIR"
+# appimagetool (since 31 October 2026) wants a PNG named after Icon= at the top of the AppDir, to make
+# .DirIcon from it; linuxdeploy puts the SVG there, so the PNG goes in first.
+install -m 644 /src/assets/eyecansee.png "$APPDIR/eyecansee.png"
 APPIMAGE_EXTRACT_AND_RUN=1 LINUXDEPLOY_OUTPUT_VERSION=$VER $LD --appdir "$APPDIR" \
-    -e $PROFILE/eyecansee -d /src/assets/eyecansee.desktop -i /src/assets/eyecansee.svg --output appimage
+    -e $PROFILE/eyecansee -d /src/assets/eyecansee.desktop -i /src/assets/eyecansee.svg -i /src/assets/eyecansee.png --output appimage
 chown "$(stat -c %u:%g /src)" EyeCanSee-*.AppImage
 ls -l EyeCanSee-*.AppImage
