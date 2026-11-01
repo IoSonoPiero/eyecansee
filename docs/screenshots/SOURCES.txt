@@ -8,6 +8,11 @@ these two example servers and a master password. rotate.png: Wilderness.jpg. Ser
 and users are made up for the screenshots. video-convert.png (1600 x 800): 9 of the photos and the 4
 videos below in a folder on disk, sorted by date, the videos selected.
 
+browse.gif (800 x 533, 10 fps, 14 s): a folder Sample photos on disk with 26 files: 9 of the
+photos below as JPEG and 4 converted to PNG (Grand Canyon, Lake Sherburne, Quebec City, Sunset),
+the 4 videos below, 3B_HEIC_SDR.heic renamed Sample.heic, and the 8 RAW files below renamed by
+camera (for example Nikon Z 6.NEF). The home folder shown (/home/demo) is a test one.
+
 Photos: public domain or CC0, from Wikimedia Commons (renamed; in the phone folder copied several
 times as IMG_0001.jpg ... IMG_0334.jpg, in the order of the list).
 

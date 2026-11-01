@@ -18,6 +18,8 @@ It is early in development. This page lists only what works now: new features ar
 - Photo and video conversion, on the graphics card when it can.
 - Signed releases that update themselves.
 
+![Browsing a folder in EyeCanSee: thumbnails, the viewer and a video](docs/screenshots/browse.gif)
+
 ![The grid: thumbnails of a folder, with the devices and the folder tree on the left](docs/screenshots/grid.png)
 
 ![The viewer](docs/screenshots/viewer.png)
