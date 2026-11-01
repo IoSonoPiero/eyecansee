@@ -2,6 +2,14 @@
 
 An image and video viewer and manager for Linux and Windows, written in Rust: it browses photos and videos on computers, disks, servers and phones, copies and moves them from one device to another, finds duplicate copies, and converts them to other formats. Free and open source.
 
+<p>
+  <a href="https://apps.microsoft.com/detail/9PK1598MXLBK"><img src="https://get.microsoft.com/images/en-us%20dark.svg" width="200" alt="Download from the Microsoft Store"/></a>
+  &nbsp;&nbsp;&nbsp;&nbsp;
+  <a href="#fedora"><img src="https://img.shields.io/badge/Fedora-COPR-51A2DA?style=for-the-badge&logo=fedora&logoColor=white" alt="Fedora | COPR"/></a>
+  &nbsp;&nbsp;
+  <a href="#other-distributions-appimage"><img src="https://img.shields.io/badge/Linux-AppImage-555555?style=for-the-badge&logo=linux&logoColor=white" alt="Linux | AppImage"/></a>
+</p>
+
 It is early in development. This page lists only what works now: new features arrive step by step, each one only when it is ready and tested.
 
 - No import and no database: you open a folder and the photos are there.
@@ -91,27 +99,46 @@ No SMB, WebDAV or cloud services for now. FTPS on servers that want the data con
 
 ## Download
 
-- **Windows**: install it from the [Microsoft Store](https://apps.microsoft.com/detail/9PK1598MXLBK): no SmartScreen warning, and updates come from the Store. As alternatives, from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), either run the installer (`-setup.exe`: Start menu entry, optional desktop shortcut, "Open with" for images and videos, removal from Settings, no administrator rights needed) or download the zip, extract the whole folder anywhere and run `eyecansee.exe` (it needs the files next to it). The program is not signed, so Windows may warn you the first time: click **More info**, then **Run anyway**.
-- **Fedora** (43 and later): install it from the [COPR repository](https://copr.fedorainfracloud.org/coprs/iosonopiero/eyecansee/), and updates arrive with the system ones:
-  ```bash
-  sudo dnf copr enable iosonopiero/eyecansee
-  sudo dnf install eyecansee
-  ```
-  HEIC photos also need `libheif-freeworld` from [RPM Fusion](https://rpmfusion.org/), which `dnf` installs by itself if RPM Fusion is enabled.
-- **Other Linux distributions**: download the `.AppImage` file from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), make it executable (`chmod +x EyeCanSee-*.AppImage`, or Properties → "Allow executing file as program" in the file manager) and run it. Nothing else to install: videos use the system's libmpv if there is one, otherwise EyeCanSee offers to download its video engine (10 MB) the first time a video is opened. It needs a distribution from 2022 or later (glibc 2.35).
-  To have it in the applications menu (and in "Open with" for images and videos), open the AppImage with [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever), available from the software centre of most distributions, and let it move the file into its folder and add it to the menu. EyeCanSee keeps updating itself there.
+### Windows
 
-On Linux it is tested on GNOME, Cinnamon (Linux Mint) and KDE Plasma 5 and 6. Other desktops that use gvfs for phones (Xfce, MATE) should work the same way, but they have not been tried. On KDE, opening a phone asks first: KDE holds it in its kiod service, and closing that service also makes KDE forget the passwords of network folders open in Dolphin.
+<a href="https://apps.microsoft.com/detail/9PK1598MXLBK"><img src="https://get.microsoft.com/images/en-us%20dark.svg" width="200" alt="Download from the Microsoft Store"/></a>
 
-The Microsoft Store version is updated by the Store. The Windows installer, the zip and the AppImage update themselves: at startup EyeCanSee checks the latest release on GitHub in the background, downloads the new version, checks its SHA-256 and its signature, and offers to install it with one click. Only files signed with the developer's [minisign](https://jedisct1.github.io/minisign/) key are installed; the key is not on GitHub, so whoever could upload files to a release could not ship an update. The check can be turned off in Options. On Fedora updates come from `dnf`.
+The recommended way: the [Microsoft Store](https://apps.microsoft.com/detail/9PK1598MXLBK). The package is signed by Microsoft, so Windows shows no SmartScreen warning, and the Store keeps it up to date; for this reason EyeCanSee's own update check is turned off in the Store version.
 
-From version 0.28.0, every file of a release has its signature next to it (`.minisig`). To check a file you downloaded by hand:
+As an alternative, from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), either run the installer (`-setup.exe`: Start menu entry, optional desktop shortcut, "Open with" for images and videos, removal from Settings, no administrator rights needed) or download the zip, extract the whole folder anywhere and run `eyecansee.exe` (it needs the files next to it). These files are not signed with a Windows certificate, so Windows may warn you the first time: click **More info**, then **Run anyway**. They update themselves (see [Updates](#updates)).
+
+### Linux
+
+#### Fedora
+
+Fedora 43 and later: install it from the [COPR repository](https://copr.fedorainfracloud.org/coprs/iosonopiero/eyecansee/), and updates arrive with the system ones through `dnf`:
+```bash
+sudo dnf copr enable iosonopiero/eyecansee
+sudo dnf install eyecansee
+```
+HEIC photos also need `libheif-freeworld` from [RPM Fusion](https://rpmfusion.org/), which `dnf` installs by itself if RPM Fusion is enabled.
+
+#### Other distributions (AppImage)
+
+Download the `.AppImage` file from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), make it executable (`chmod +x EyeCanSee-*.AppImage`, or Properties → "Allow executing file as program" in the file manager) and run it. Nothing else to install: videos use the system's libmpv if there is one, otherwise EyeCanSee offers to download its video engine (10 MB) the first time a video is opened. It needs a distribution from 2022 or later (glibc 2.35).
+
+To have it in the applications menu (and in "Open with" for images and videos), open the AppImage with [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever), available from the software centre of most distributions, and let it move the file into its folder and add it to the menu. EyeCanSee keeps updating itself there.
+
+From version 0.28.0, every file of a release has its signature next to it (`.minisig`). To check a file you downloaded by hand (the same works for the Windows installer and zip):
 
 ```bash
 minisign -Vm EyeCanSee-<version>-x86_64.AppImage -P RWRgiMFmEPRN5JASovMqT3NdY1Ui/mhebEzDTdsmKDiXno3K/9B4/biD
 ```
 
 The trusted comment it prints names the file and the version it was signed for.
+
+#### Desktops
+
+On Linux it is tested on GNOME, Cinnamon (Linux Mint) and KDE Plasma 5 and 6. Other desktops that use gvfs for phones (Xfce, MATE) should work the same way, but they have not been tried. On KDE, opening a phone asks first: KDE holds it in its kiod service, and closing that service also makes KDE forget the passwords of network folders open in Dolphin.
+
+### Updates
+
+The Microsoft Store version is updated by the Store, and on Fedora updates come from `dnf`. The Windows installer, the zip and the AppImage update themselves: at startup EyeCanSee checks the latest release on GitHub in the background, downloads the new version, checks its SHA-256 and its signature, and offers to install it with one click. Only files signed with the developer's [minisign](https://jedisct1.github.io/minisign/) key are installed; the key is not on GitHub, so whoever could upload files to a release could not ship an update. The check can be turned off in Options.
 
 ## Build
 
