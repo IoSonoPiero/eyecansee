@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>EyeCanSee: visualizzatore e gestore di foto e video per Linux e Windows</title>
+<meta name="description" content="Un visualizzatore e gestore di foto e video per Linux e Windows: sfoglia, converte, trova i doppioni e apre allo stesso modo cartelle, dischi, server e telefoni Android.">
+<link rel="canonical" href="https://eyecansee.montinaro.info/it/">
+<link rel="alternate" hreflang="en" href="https://eyecansee.montinaro.info/">
+<link rel="alternate" hreflang="it" href="https://eyecansee.montinaro.info/it/">
+<link rel="alternate" hreflang="x-default" href="https://eyecansee.montinaro.info/">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="EyeCanSee">
+<meta property="og:title" content="EyeCanSee: visualizzatore e gestore di foto e video per Linux e Windows">
+<meta property="og:description" content="Un visualizzatore e gestore di foto e video per Linux e Windows: sfoglia, converte, trova i doppioni e apre allo stesso modo cartelle, dischi, server e telefoni Android.">
+<meta property="og:url" content="https://eyecansee.montinaro.info/it/">
+<meta property="og:image" content="https://eyecansee.montinaro.info/img/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="EyeCanSee: icona, nome e la griglia delle miniature">
+<meta property="og:locale" content="it_IT">
+<meta property="og:locale:alternate" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="icon" href="../img/eyecansee.svg" type="image/svg+xml">
+<link rel="icon" href="../img/favicon-32.png" type="image/png" sizes="32x32">
+<link rel="apple-touch-icon" href="../img/apple-touch-icon.png">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<header>
+  <nav class="lang" aria-label="Lingua"><a href="../" hreflang="en" lang="en">English</a> | <a href="./" aria-current="page">Italiano</a></nav>
+  <div class="hero">
+    <img class="icon" src="../img/eyecansee.svg" width="96" height="96" alt="">
+    <h1>EyeCanSee</h1>
+    <p>Un visualizzatore e gestore di foto e video per Linux e Windows: sfoglia, converte, trova i doppioni e apre allo stesso modo cartelle, dischi, server e telefoni Android.</p>
+    <video class="shot" src="../img/browse.mp4" poster="../img/browse-poster.jpg" width="800" height="534" autoplay muted loop playsinline preload="metadata" aria-label="Una cartella in EyeCanSee: miniature, visore e un video"></video>
+  </div>
+</header>
+
+<main>
+<section id="download">
+  <h2>Scarica</h2>
+  <div class="cards download">
+    <div class="card">
+      <h3>Windows</h3>
+      <a class="store" href="https://apps.microsoft.com/detail/9PK1598MXLBK"><picture><source srcset="../img/store-badge-it-light.svg" media="(prefers-color-scheme: dark)"><img src="../img/store-badge-it.svg" width="200" alt="Scarica da Microsoft Store"></picture></a>
+      <p>La strada consigliata: il pacchetto è firmato da Microsoft, quindi Windows non mostra l'avviso di SmartScreen, e lo Store lo tiene aggiornato.</p>
+      <p>In alternativa, dall'<a href="https://github.com/IoSonoPiero/eyecansee/releases/latest">ultima release</a>, l'installer (<code>-setup.exe</code>, senza diritti di amministratore) o lo zip da estrarre dove vuoi. La prima volta Windows può avvisarti: fai clic su <b>Ulteriori informazioni</b>, poi su <b>Esegui comunque</b>.</p>
+    </div>
+    <div class="card">
+      <h3 id="fedora">Fedora</h3>
+      <p>Fedora 43 e successive, dal <a href="https://copr.fedorainfracloud.org/coprs/iosonopiero/eyecansee/">repository COPR</a>: gli aggiornamenti arrivano insieme a quelli del sistema.</p>
+<pre><code>sudo dnf copr enable iosonopiero/eyecansee
+sudo dnf install eyecansee</code></pre>
+      <p>Per le foto HEIC serve anche <code>libheif-freeworld</code> di <a href="https://rpmfusion.org/">RPM Fusion</a>.</p>
+    </div>
+    <div class="card wide">
+      <h3 id="appimage">Altre distribuzioni Linux</h3>
+      <p>L'<code>.AppImage</code> dell'<a href="https://github.com/IoSonoPiero/eyecansee/releases/latest">ultima release</a>: rendila eseguibile e avviala, non c'è altro da installare. Serve una distribuzione del 2022 o più recente.</p>
+      <p>Per averla nel menu delle applicazioni, aprila con <a href="https://flathub.org/apps/it.mijorus.gearlever">Gear Lever</a>. Si aggiorna da sola.</p>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <h2>Cosa fa</h2>
+  <div class="cards">
+    <div class="card"><h3>Tutto si sfoglia allo stesso modo</h3><p>Cartelle, dischi esterni e chiavette, server SFTP, FTP e FTPS, telefoni Android e fotocamere via USB. Niente importazione e nessun database: apri una cartella e le foto sono lì.</p></div>
+    <div class="card"><h3>Visore</h3><p>Zoom, immagini precaricate così passare dall'una all'altra non fa mai aspettare, dati dello scatto (fotocamera, esposizione, data, posizione sulla mappa), video con l'audio e carosello a tutto schermo.</p></div>
+    <div class="card"><h3>Copia tra dispositivi</h3><p>Copia e sposta dal telefono a un disco o a un server e ritorno, rinomina, elimina con un cestino su ogni dispositivo.</p></div>
+    <div class="card"><h3>Converti</h3><p>Immagini in JPEG, PNG, WebP, AVIF, TIFF e altri formati, anche tante alla volta; video con FFmpeg, sulla scheda video quando può, conservando i metadati e la traccia GPS di dashcam e droni.</p></div>
+    <div class="card"><h3>Doppioni</h3><p>Trova foto, video e file audio identici in una cartella e nelle sue sottocartelle, su qualsiasi dispositivo, e ne tiene sempre almeno una copia.</p></div>
+    <div class="card"><h3>Formati</h3><p>HEIC, AVIF, JPEG XL, PSD, RAW delle fotocamere di molte marche e i formati più rari con ImageMagick. In italiano e in inglese, tema chiaro e scuro.</p></div>
+  </div>
+</section>
+
+<section id="numbers">
+  <h2>I numeri</h2>
+  <video class="shot" src="../img/mtp-open.mp4" poster="../img/mtp-open-poster.jpg" width="800" height="534" autoplay muted loop playsinline preload="metadata" aria-label="Una cartella del telefono aperta in EyeCanSee"></video>
+  <p class="caption">Una cartella di 400 file su un POCO X7 Pro via USB, Fedora 44, cache vuote.</p>
+  <div class="numbers">
+    <div class="number"><b>0,07 s</b><span>EyeCanSee elenca la cartella, dopo un'apertura di 0,5 s; prime miniature entro 0,8 s</span></div>
+    <div class="number"><b>9,3 s</b><span>il gestore dei file (gvfs) solo per elencare i nomi</span></div>
+    <div class="number"><b>5,5 → 0,40 s</b><span>elenco di una cartella in mtp-rs con la mia PR #45, misurato dal maintainer su un Galaxy S23 Ultra (3248 foto)</span></div>
+    <div class="number"><b>2,8 → 0,24 s</b><span>lo stesso su un Pixel 9 Pro XL</span></div>
+  </div>
+  <p>Su Linux EyeCanSee parla direttamente col telefono via USB con <a href="https://github.com/vdavid/mtp-rs">mtp-rs</a>, una libreria MTP scritta in Rust, invece di passare dal gestore dei file.</p>
+</section>
+
+<section id="screenshots">
+  <h2>Schermate</h2>
+  <div class="gallery">
+    <figure><img class="shot" src="../img/grid.png" width="1200" height="800" loading="lazy" alt="La griglia: le miniature di una cartella, con dispositivi e albero delle cartelle a sinistra"><figcaption>La griglia, con dispositivi e cartelle a sinistra</figcaption></figure>
+    <figure><img class="shot" src="../img/viewer.png" width="1200" height="800" loading="lazy" alt="Il visore"><figcaption>Il visore</figcaption></figure>
+    <figure><img class="shot" src="../img/devices.png" width="1200" height="800" loading="lazy" alt="Cartelle, dischi, un server e un telefono uno accanto all'altro nel pannello di sinistra"><figcaption>Dischi, un server e un telefono uno accanto all'altro</figcaption></figure>
+    <figure><img class="shot" src="../img/convert.png" width="1200" height="800" loading="lazy" alt="Salvare in un altro formato, l'originale e il risultato affiancati"><figcaption>Salvare in un altro formato</figcaption></figure>
+    <figure><img class="shot" src="../img/video-convert.png" width="1600" height="800" loading="lazy" alt="Convertire i video, sulla scheda video quando può"><figcaption>Convertire i video</figcaption></figure>
+    <figure><img class="shot" src="../img/rotate.png" width="1200" height="800" loading="lazy" alt="Ruotare e ritagliare"><figcaption>Ruotare e ritagliare</figcaption></figure>
+    <figure><img class="shot" src="../img/servers.png" width="1200" height="800" loading="lazy" alt="La gestione dei server, con una password principale per i server salvati"><figcaption>La gestione dei server</figcaption></figure>
+  </div>
+  <p class="caption">Le schermate mostrano l'interfaccia in inglese; il programma è anche in italiano.</p>
+</section>
+
+<section id="trust">
+  <h2>Fiducia</h2>
+  <ul class="trust">
+    <li>Ogni file delle release è firmato con <a href="https://jedisct1.github.io/minisign/">minisign</a>, e il programma installa solo aggiornamenti con una firma valida.</li>
+    <li>Gratuito e open source, licenza <a href="https://github.com/IoSonoPiero/eyecansee/blob/main/LICENSE">GPL-3.0-or-later</a>.</li>
+    <li>Niente pubblicità, nessun account, nessun dato raccolto: vedi l'<a href="https://github.com/IoSonoPiero/eyecansee/blob/main/PRIVACY.md">informativa sulla privacy</a> (in inglese).</li>
+    <li>Non faccio più il programmatore: ho scritto EyeCanSee con l'aiuto di <a href="https://claude.com/claude-code">Claude Code</a>, e provo ogni funzione sui miei computer e dispositivi prima di inserirla.</li>
+  </ul>
+</section>
+</main>
+
+<footer>
+  <nav aria-label="Collegamenti">
+    <a href="https://github.com/IoSonoPiero/eyecansee">GitHub</a>
+    <a href="https://github.com/IoSonoPiero/eyecansee/issues">Segnalazioni</a>
+    <a href="https://github.com/IoSonoPiero/eyecansee/blob/main/ROADMAP.md">Roadmap</a>
+    <a href="https://notes.montinaro.info/eyecansee/">La storia (in inglese)</a>
+    <a href="https://github.com/IoSonoPiero/eyecansee/blob/main/PRIVACY.md">Privacy</a>
+  </nav>
+</footer>
+</body>
+</html>
