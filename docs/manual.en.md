@@ -46,7 +46,7 @@ Thumbnails are saved on disk, so opening the same folder again is immediate: in 
 
 ## Updates
 
-The Windows installer, the Windows zip and the AppImage update themselves. At startup EyeCanSee asks GitHub, in the background, for the latest published version; if it is newer, it downloads it and checks it twice: against the SHA-256 fingerprint GitHub publishes for it (a broken download), and against the developer's signature, made with a key that never leaves the developer's PC (a file that does not come from the developer). A file without a valid signature is never installed, and Check for updates says why. When it is ready, a red **Install … and restart** button appears at the top right of the menu bar: EyeCanSee closes, installs the new version and opens again. Nothing is installed until you click it.
+Installed from the Microsoft Store, EyeCanSee is updated by the Store and does not look for updates by itself. The Windows installer, the Windows zip and the AppImage update themselves. At startup EyeCanSee asks GitHub, in the background, for the latest published version; if it is newer, it downloads it and checks it twice: against the SHA-256 fingerprint GitHub publishes for it (a broken download), and against the developer's signature, made with a key that never leaves the developer's PC (a file that does not come from the developer). A file without a valid signature is never installed, and Check for updates says why. When it is ready, a red **Install … and restart** button appears at the top right of the menu bar: EyeCanSee closes, installs the new version and opens again. Nothing is installed until you click it.
 
 - **Help > Check for updates** does the same check at any time and tells you the outcome.
 - The check can be turned off in **Tools > Options… > General**. When off, EyeCanSee contacts GitHub only when you choose Check for updates. Nothing about you or your images is sent: only the request for the latest version.
@@ -208,7 +208,7 @@ eyecansee sftp://my-nas/                   an alias of ~/.ssh/config
 
 Only one EyeCanSee runs at a time (a phone can be used by one program only): if it is already open, starting it again, for example with "Open with" on a photo, shows that folder or image in the window already open.
 
-"Open with" offers EyeCanSee for images and for the common video files (MP4, MKV, MOV, WebM, AVI): on Windows the installer registers them, on Linux the `.desktop` file does. It never makes itself the default program: that choice stays yours.
+"Open with" offers EyeCanSee for images and for the common video files (MP4, MKV, MOV, WebM, AVI): on Windows the installer and the Microsoft Store package register them, on Linux the `.desktop` file does. It never makes itself the default program: that choice stays yours.
 
 Remote folders behave exactly like local ones: the tree, the grid and the viewer work the same way. Passwords are never shown in the address bar.
 

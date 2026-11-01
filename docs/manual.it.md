@@ -46,7 +46,7 @@ Le miniature vengono salvate su disco, così riaprire la stessa cartella è imme
 
 ## Aggiornamenti
 
-L'installer per Windows, lo zip per Windows e l'AppImage si aggiornano da soli. All'avvio EyeCanSee chiede a GitHub, in background, l'ultima versione pubblicata; se è più nuova la scarica e la controlla due volte: con l'impronta SHA-256 che GitHub pubblica per lei (un download rovinato) e con la firma dello sviluppatore, fatta con una chiave che non lascia mai il suo PC (un file che non viene dallo sviluppatore). Un file senza firma valida non viene mai installato, e Verifica aggiornamenti dice perché. Quando è pronta, in alto a destra nella barra dei menù compare un pulsante rosso **Installa la … e riavvia**: EyeCanSee si chiude, installa la versione nuova e si riapre. Finché non lo premi non viene installato niente.
+Installato dal Microsoft Store, EyeCanSee lo aggiorna lo Store e non cerca aggiornamenti da sé. L'installer per Windows, lo zip per Windows e l'AppImage si aggiornano da soli. All'avvio EyeCanSee chiede a GitHub, in background, l'ultima versione pubblicata; se è più nuova la scarica e la controlla due volte: con l'impronta SHA-256 che GitHub pubblica per lei (un download rovinato) e con la firma dello sviluppatore, fatta con una chiave che non lascia mai il suo PC (un file che non viene dallo sviluppatore). Un file senza firma valida non viene mai installato, e Verifica aggiornamenti dice perché. Quando è pronta, in alto a destra nella barra dei menù compare un pulsante rosso **Installa la … e riavvia**: EyeCanSee si chiude, installa la versione nuova e si riapre. Finché non lo premi non viene installato niente.
 
 - **Aiuto > Verifica aggiornamenti** fa lo stesso controllo quando vuoi e ti dice com'è andata.
 - Il controllo si può spegnere in **Strumenti > Opzioni… > Generale**. Spento, EyeCanSee contatta GitHub solo quando scegli Verifica aggiornamenti. Non viene inviato niente su di te o sulle tue immagini: solo la richiesta dell'ultima versione.
@@ -208,7 +208,7 @@ eyecansee sftp://mio-nas/                  un alias di ~/.ssh/config
 
 EyeCanSee è aperto in una sola copia alla volta (un telefono può usarlo un solo programma): se è già aperto, avviarlo di nuovo, per esempio con "Apri con" su una foto, mostra quella cartella o immagine nella finestra già aperta.
 
-"Apri con" propone EyeCanSee per le immagini e per i video più comuni (MP4, MKV, MOV, WebM, AVI): su Windows li registra l'installer, su Linux il file `.desktop`. Non si mette mai come programma predefinito: la scelta resta tua.
+"Apri con" propone EyeCanSee per le immagini e per i video più comuni (MP4, MKV, MOV, WebM, AVI): su Windows li registrano l'installer e il pacchetto del Microsoft Store, su Linux il file `.desktop`. Non si mette mai come programma predefinito: la scelta resta tua.
 
 Le cartelle remote si comportano come quelle locali: albero, griglia e visore funzionano allo stesso modo. Le password non compaiono mai nella barra degli indirizzi.
 
