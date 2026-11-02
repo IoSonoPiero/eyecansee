@@ -113,6 +113,7 @@ pub const SKIP_VIDEO: &str = "batch-skip-video";
 
 /// The file `bytes` (named `name`) after the job: the new name, without the folder, and its
 /// content. `Err((id, detail))`: a Fluent id with the name or the error.
+#[cfg(test)]
 pub fn convert(bytes: &[u8], name: &str, job: &Job) -> Result<(String, Vec<u8>), (&'static str, String)> {
     convert_with(bytes, name, job, &|_| None)
 }

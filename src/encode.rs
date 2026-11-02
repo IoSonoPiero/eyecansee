@@ -218,9 +218,6 @@ pub struct Original {
 }
 
 impl Original {
-    pub fn open(bytes: &[u8], name: &str) -> Result<Original, String> {
-        Ok(Original::with_meta(crate::decode::decode_full(bytes, name)?, bytes))
-    }
 
     /// `image` with the metadata of the file `bytes` (not decoded again).
     pub fn with_meta(image: DynamicImage, bytes: &[u8]) -> Original {
