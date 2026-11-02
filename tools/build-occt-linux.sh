@@ -7,7 +7,7 @@
 # inside, so that it runs on older distributions too.
 # Output: target/occt-linux/occt-linux-x64-<version>-<build>.tar.gz (libecs_occt.so, licences, source).
 set -euo pipefail
-OCCT=8.0.1 TAG=V8.0.1 BUILD=1
+OCCT=8.0.1 TAG=V8.0.1 BUILD=2
 
 if [[ ! -f /.dockerenv && ! -f /run/.containerenv ]]; then
     mkdir -p target/occt-linux

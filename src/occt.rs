@@ -100,13 +100,26 @@ fn temp_copy(bytes: &[u8], ext: &str) -> Result<Temp, String> {
     Ok(Temp(path))
 }
 
+/// A text BREP with a number of more than 40 digits: an edge running to infinity (OCCT's test
+/// `infinite_line.brep`, ±2·10^103), which Open CASCADE's reader never finishes reading.
+// ponytail: a look at the text, not at the geometry; the engine has no way to give up
+fn endless(bytes: &[u8]) -> bool {
+    let text = bytes.trim_ascii_start().starts_with(b"CASCADE Topology");
+    text && bytes.split(|c| !c.is_ascii_digit()).any(|digits| digits.len() > 40)
+}
+
 pub fn read(bytes: &[u8], name: &str) -> Result<Mesh, String> {
     let ext = name.rsplit_once('.').map(|(_, e)| e.to_lowercase()).unwrap_or_default();
+    // A STEP file says so in its first line, whatever its name (one named .iges was seen).
     let kind = match ext.as_str() {
+        _ if bytes.trim_ascii_start().starts_with(b"ISO-10303-21") => 0,
         "step" | "stp" => 0,
         "iges" | "igs" => 1,
         _ => 2,
     };
+    if kind == 2 && endless(bytes) {
+        return Err("the BREP has geometry running to infinity".into());
+    }
     let engine = engine()?;
     let file = temp_copy(bytes, &ext)?;
     let path = CString::new(file.0.to_string_lossy().as_bytes()).map_err(|e| e.to_string())?;
@@ -153,6 +166,8 @@ mod tests {
 
     #[test]
     fn names() {
+        let huge = format!("\nCASCADE Topology V1\n1 0 -{}.0 {}.0\n", "2".repeat(104), "2".repeat(104));
+        assert!(endless(huge.as_bytes()) && !endless(b"\nCASCADE Topology V1\n1 0 -1000.0 1000.0\n"));
         assert!(occt_name("a.STEP") && occt_name("b.stp") && occt_name("c.igs") && occt_name("d.brep") && !occt_name("e.stl"));
     }
 

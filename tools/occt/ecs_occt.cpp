@@ -3,6 +3,7 @@
 // (src/component.rs). It reads a STEP, IGES or BREP file and gives its surfaces as triangles,
 // placed as in the assembly, with the colour of each triangle. Read by src/occt.rs.
 
+#include <BinTools.hxx>
 #include <BRepBndLib.hxx>
 #include <BRepMesh_IncrementalMesh.hxx>
 #include <BRepTools.hxx>
@@ -16,6 +17,7 @@
 #include <Standard_Failure.hxx>
 #include <Standard_Version.hxx>
 #include <TDocStd_Document.hxx>
+#include <TopExp_Explorer.hxx>
 #include <TopoDS_Compound.hxx>
 #include <XCAFApp_Application.hxx>
 #include <XCAFDoc_DocumentTool.hxx>
@@ -91,8 +93,18 @@ static Handle(TDocStd_Document) load(const char* path, int kind, EcsMesh* out) {
     } else {
         TopoDS_Shape shape;
         BRep_Builder builder;
+        // The text format, else the binary one ("Open CASCADE Topology V4" in binary).
         if (!BRepTools::Read(shape, path, builder) || shape.IsNull()) {
-            fail(out, "not a BREP file, or damaged");
+            shape.Nullify();
+            if (!BinTools::Read(shape, path) || shape.IsNull()) {
+                fail(out, "not a BREP file, or damaged");
+                return nullptr;
+            }
+        }
+        // Without faces nothing would be drawn; a lone edge running to infinity (OCCT's tests)
+        // made the document's handling of the shape endless.
+        if (!TopExp_Explorer(shape, TopAbs_FACE).More()) {
+            fail(out, "no surfaces in the file");
             return nullptr;
         }
         XCAFDoc_DocumentTool::ShapeTool(doc->Main())->AddShape(shape);
@@ -107,13 +119,16 @@ static bool mesh(const Handle(TDocStd_Document)& doc, EcsMesh* out) {
     TopoDS_Compound all;
     BRep_Builder builder;
     builder.MakeCompound(all);
+    // Only the faces: loose edges and points are not drawn, and one running to infinity
+    // (seen in a BREP of OCCT's tests) made the box, and the meshing, endless.
     for (const TDF_Label& label : roots) {
         TopoDS_Shape shape = XCAFDoc_ShapeTool::GetShape(label);
-        if (!shape.IsNull()) builder.Add(all, shape);
+        if (shape.IsNull()) continue;
+        for (TopExp_Explorer f(shape, TopAbs_FACE); f.More(); f.Next()) builder.Add(all, f.Current());
     }
     Bnd_Box box;
     BRepBndLib::Add(all, box);
-    if (box.IsVoid()) {
+    if (box.IsVoid() || box.IsOpen() || box.SquareExtent() > 1e30) {
         fail(out, "no surfaces in the file");
         return false;
     }
