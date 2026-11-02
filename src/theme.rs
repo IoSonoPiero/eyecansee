@@ -75,21 +75,15 @@ pub fn title(ui: &mut egui::Ui, text: impl Into<egui::RichText>) {
     ui.vertical_centered(|ui| ui.heading(text));
 }
 
-/// The title of a page covering the window, centered on its whole width, and a ✕ on the right;
-/// `true` when the ✕ is clicked. A title too long for the middle is cut with "…".
+/// The title of a page covering the window, centered, cut with "…" when too long. `true` when
+/// the window's ✕ is clicked: it closes the page, not the app. The page had a ✕ of its own,
+/// unseen and then a double ✕ under the window's (user, 2026-11-02).
 pub fn page_title(ui: &mut egui::Ui, text: &str) -> bool {
-    let mut close = false;
-    ui.horizontal(|ui| {
-        let row = ui.available_rect_before_wrap();
-        // As much room on the left as the ✕ takes on the right: the title stays in the middle.
-        let side = 40.0;
-        let height = ui.text_style_height(&egui::TextStyle::Heading);
-        let middle = egui::Rect::from_x_y_ranges(row.left() + side..=row.right() - side, row.top()..=row.top() + height);
-        ui.put(middle, egui::Label::new(egui::RichText::new(text).heading()).truncate());
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-            close = ui.button("✕").on_hover_text("Esc").clicked();
-        });
-    });
+    let close = ui.input(|i| i.viewport().close_requested());
+    if close {
+        ui.ctx().send_viewport_cmd(egui::ViewportCommand::CancelClose);
+    }
+    ui.vertical_centered(|ui| ui.add(egui::Label::new(egui::RichText::new(text).heading()).truncate()));
     close
 }
 

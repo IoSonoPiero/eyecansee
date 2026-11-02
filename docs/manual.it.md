@@ -93,7 +93,7 @@ Clic destro su un'immagine (nella griglia o nel visore), poi **Salva come…** (
 - **100%** mostra i pixel veri; trascinando una delle due immagini si spostano entrambe, così confronti lo stesso punto.
 - **Mantieni i metadati (EXIF, profilo colore)** è attiva all'inizio. È grigia se l'originale non ne ha o se il formato non può contenerli. L'EXIF salvato è quello che mostra il pannello dei metadati, anche dalle foto RAW e HEIC (fotocamera, scatto, GPS; non le note private del produttore). L'orientamento viene messo dritto, perché i pixel salvati sono già girati.
 - **Nome del file** e **Salva**: il file nuovo va nella stessa cartella dell'originale. Se il nome c'è già viene aggiunto " (2)", e la pagina lo dice prima del salvataggio.
-- Esc o ✕ chiudono la pagina senza salvare.
+- Esc o la ✕ della finestra chiudono la pagina senza salvare.
 
 ## Convertire e ridimensionare immagini e video
 
@@ -178,7 +178,7 @@ Nella griglia le stesse operazioni (menù Immagine, o clic destro > Trasforma) v
 - **Angoli vuoti**: dove il ritaglio esce dall'immagine sono trasparenti (quadretti grigi) o del colore che scegli. Il JPEG non ha trasparenza: lì diventano bianchi.
 - La rotellina ingrandisce attorno al puntatore, trascinando fuori dalla cornice si sposta la vista, il doppio clic mostra di nuovo tutto. La misura del risultato è sotto i comandi.
 - **Applica** (o Invio) mette la rotazione e il ritaglio nell'immagine mostrata, e i comandi ripartono da lì: puoi ruotare, ritagliare e applicare di nuovo quante volte vuoi. Il file non viene toccato: sotto Applica la pagina dice "Rotazione e ritaglio non ancora applicati" o "Modifiche applicate, non ancora salvate".
-- Alla fine **Salva…** scrive il risultato sopra l'originale dopo aver chiesto, come Salva nel visore (accanto ai pulsanti "Preparo il salvataggio…" finché il file nuovo non è pronto; stessi formati, stesse esclusioni, l'originale va dove lo manderebbe un'eliminazione); l'immagine viene codificata di nuovo, quindi il JPEG perde un po' di qualità. **Salva come…** apre *Salva in un altro formato* con il risultato. **Chiudi**, ✕ o Esc chiudono la pagina; con modifiche non salvate prima chiedono se **Salvare**, **Salvare come…** o **Non salvare** (**Annulla** torna alla pagina).
+- Alla fine **Salva…** scrive il risultato sopra l'originale dopo aver chiesto, come Salva nel visore (accanto ai pulsanti "Preparo il salvataggio…" finché il file nuovo non è pronto; stessi formati, stesse esclusioni, l'originale va dove lo manderebbe un'eliminazione); l'immagine viene codificata di nuovo, quindi il JPEG perde un po' di qualità. **Salva come…** apre *Salva in un altro formato* con il risultato. **Chiudi**, la ✕ della finestra o Esc chiudono la pagina; con modifiche non salvate prima chiedono se **Salvare**, **Salvare come…** o **Non salvare** (**Annulla** torna alla pagina).
 - Le foto **Ultra HDR** dei telefoni (con la luminosità HDR) restano HDR: la loro parte HDR viene ruotata e ritagliata insieme alla foto.
 
 ## Copiare e spostare

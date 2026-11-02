@@ -257,7 +257,7 @@ impl crate::App {
 /// Space between the two halves of the page.
 const GAP: f32 = 16.0;
 
-/// Title and ✕ of a page covering the window; `false` once closed (✕ or Esc).
+/// Title of a page covering the window; `false` once closed (the window's ✕ or Esc).
 pub(crate) fn page_header(ui: &mut egui::Ui, title: &str) -> bool {
     let mut open = !crate::theme::page_title(ui, title);
     if ui.input(|i| i.key_pressed(egui::Key::Escape)) {
