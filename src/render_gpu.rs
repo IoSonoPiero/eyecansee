@@ -127,9 +127,11 @@ pub fn adapter_selector() -> eframe::egui_wgpu::NativeAdapterSelectorMethod {
     })
 }
 
-/// The presentation to ask for once the window exists: mailbox where the card offers it.
+/// The presentation to ask for once the window exists: mailbox where the card offers it, with
+/// two frames in flight: with one, full screen on a 240 Hz laptop panel (GNOME showing the window
+/// directly) went at 120, every other refresh (2026-11-02).
 pub fn present_mode() -> Option<eframe::egui_wgpu::SurfaceConfig> {
-    MAILBOX.load(std::sync::atomic::Ordering::Relaxed).then_some(eframe::egui_wgpu::SurfaceConfig { present_mode: wgpu::PresentMode::Mailbox, desired_maximum_frame_latency: Some(1) })
+    MAILBOX.load(std::sync::atomic::Ordering::Relaxed).then_some(eframe::egui_wgpu::SurfaceConfig { present_mode: wgpu::PresentMode::Mailbox, desired_maximum_frame_latency: Some(2) })
 }
 
 /// The picture's textures, made again when the viewer changes size.
