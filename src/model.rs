@@ -251,10 +251,8 @@ pub fn parse_with(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, St
     }
 }
 
-/// The marks with which `model_export` writes an up axis other than the format's usual one
-/// (Z for STL, Y for OBJ and PLY): the file keeps the original's axes (user, 2026-11-02).
-pub(crate) const STL_Y_UP: &[u8] = b"EyeCanSee, Y up";
-pub(crate) const OBJ_Z_UP: &str = "# EyeCanSee, Z up";
+/// The mark of the PLY files `model_export` writes with Z up, as Blender expects them (tried with
+/// Blender 4.5, 2026-11-02); without it a PLY is read with Y up, as the scans have it.
 pub(crate) const PLY_Z_UP: &str = "comment EyeCanSee, Z up";
 
 fn stl(bytes: &[u8]) -> Result<Mesh, String> {
@@ -300,7 +298,7 @@ fn stl_binary(bytes: &[u8], n: usize) -> Result<Mesh, String> {
     }
     let mut b = Builder::default();
     b.add(pos, (0..n as u32).map(|i| [i * 3, i * 3 + 1, i * 3 + 2]), |i| colors[i])?;
-    b.finish(!bytes.starts_with(STL_Y_UP))
+    b.finish(true)
 }
 
 /// The file a model names next to itself, as a path of the same source: `rel` is relative to
@@ -357,7 +355,7 @@ fn obj(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
         };
         b.add_textured(pos, tris.clone(), colors, corners)?;
     }
-    b.finish(bytes.starts_with(OBJ_Z_UP.as_bytes()))
+    b.finish(false)
 }
 
 /// The average colour of a triangle's vertices, if they have colours.

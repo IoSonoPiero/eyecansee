@@ -79,7 +79,7 @@ A file with the wrong extension (for example an iPhone HEIC saved as `.jpg`) is 
 
 ## Saving 3D models (right click > Export as a 3D model)
 
-Every 3D model EyeCanSee opens can be saved as glTF (GLB), OBJ, PLY or STL, next to the original, keeping as much of it as the format holds. **GLB** keeps the pictures (textures) inside the file, their coordinates, the normals and the surfaces (metal, roughness, bumps, occlusion, glow). **OBJ** keeps the normals and colours on the vertices, **PLY** (binary) a colour per face, **STL** (binary) a colour per face as VisCAM writes it; where a format cannot hold a picture, its colours are taken from it. STL, OBJ and PLY keep the original's axes (Z up for CAD models and 3D printing, Y up for glTF and scans), with a mark EyeCanSee reads back; GLB is turned to Y up, as glTF requires. Animations, cameras and lights are not kept, and pictures larger than 2048 pixels are saved at 2048.
+Every 3D model EyeCanSee opens can be saved as glTF (GLB), OBJ, PLY or STL, next to the original, keeping as much of it as the format holds. **GLB** keeps the pictures (textures) inside the file, their coordinates, the normals and the surfaces (metal, roughness, bumps, occlusion, glow). **OBJ** keeps the normals and colours on the vertices, **PLY** (binary) a colour per face, **STL** (binary) a colour per face as VisCAM writes it; where a format cannot hold a picture, its colours are taken from it. Each is written with the up axis other programs expect, so that it opens standing (tried with Blender): Z up for STL and PLY, Y up for OBJ and glTF. Animations, cameras and lights are not kept, and pictures larger than 2048 pixels are saved at 2048.
 
 ## Saving (right click > Save in another format…)
 
