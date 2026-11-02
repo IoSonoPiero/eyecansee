@@ -11,6 +11,12 @@ use crate::cad_geom::{self, P};
 const PENS: [[u8; 3]; 8] = [[255, 255, 255], [255, 0, 0], [0, 255, 0], [255, 255, 0], [0, 0, 255], [255, 0, 255], [0, 255, 255], [255, 128, 0]];
 /// Default label size: 0.375 cm (in plotter units).
 const LABEL: f64 = 150.0;
+/// Commands of HP-GL and HP-GL/2: a text where most two-letter words are something else (a
+/// gnuplot script, also named `.plt`) is not a plot file.
+const KNOWN: &[&[u8; 2]] = &[
+    b"IN", b"DF", b"SP", b"PC", b"PU", b"PD", b"PA", b"PR", b"CI", b"AA", b"AR", b"EA", b"ER", b"RA", b"RR", b"SI", b"SR", b"DI", b"DR", b"LB", b"IP", b"IR", b"SC", b"LT", b"PW", b"PE", b"CT", b"VS", b"OP", b"BP", b"PS", b"RO", b"NP", b"WU", b"PG", b"EC", b"FT", b"PT", b"LO", b"ES", b"DT", b"CS", b"CA", b"SS", b"SA", b"BL", b"TL", b"XT", b"YT", b"AC", b"SM", b"SL", b"LA", b"MC", b"PP", b"TR", b"UL", b"WG", b"EW", b"EP", b"FP", b"PM", b"RF", b"RT", b"SV", b"TD", b"CO", b"BR", b"BZ", b"MG", b"QL", b"IW", b"OI", b"OS", b"OE", b"OH", b"OW", b"OA", b"OC", b"OD", b"OF", b"OL", b"OO", b"OT",
+];
+
 /// End of a label (ETX).
 const ETX: u8 = 3;
 /// P1 and P2 until IP sets them: an A4 sheet of a typical plotter, in plotter units.
@@ -64,7 +70,7 @@ pub fn read(bytes: &[u8]) -> Result<Drawing, String> {
         widths: Vec::new(),
     };
     let mut i = 0;
-    let mut commands = 0;
+    let (mut commands, mut unknown) = (0, 0);
     while i < bytes.len() {
         let c = bytes[i];
         if c == 0x1b {
@@ -78,6 +84,9 @@ pub fn read(bytes: &[u8]) -> Result<Drawing, String> {
         }
         let name = [c.to_ascii_uppercase(), bytes[i + 1].to_ascii_uppercase()];
         i += 2;
+        if !KNOWN.contains(&&name) {
+            unknown += 1;
+        }
         if &name == b"LB" {
             let end = bytes[i..].iter().position(|&b| b == ETX).map_or(bytes.len(), |k| i + k);
             p.label(&String::from_utf8_lossy(&bytes[i..end]));
@@ -95,7 +104,7 @@ pub fn read(bytes: &[u8]) -> Result<Drawing, String> {
         i = end;
     }
     p.flush()?;
-    if commands == 0 || p.out.items.is_empty() {
+    if commands == 0 || unknown * 2 > commands || p.out.items.is_empty() {
         return Err("not an HP-GL plot file, or nothing drawn".into());
     }
     Ok(p.out)

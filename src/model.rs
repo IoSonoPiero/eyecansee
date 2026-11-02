@@ -129,10 +129,48 @@ pub fn parse_with(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, St
 }
 
 fn stl(bytes: &[u8]) -> Result<Mesh, String> {
+    let n = bytes.get(80..84).map_or(0, |c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]) as usize);
+    // Binary when the size matches its count, even if the header starts with "solid".
+    if bytes.len() >= 84 && n.checked_mul(50).and_then(|b| b.checked_add(84)) == Some(bytes.len()) {
+        return stl_binary(bytes, n);
+    }
+    // "solid" then a line break or a tab, without a name: stl_io takes it for binary.
+    let named;
+    let bytes = match bytes.strip_prefix(b"solid") {
+        Some(rest) if rest.first().is_some_and(|c| *c != b' ') => {
+            named = [&b"solid model"[..], rest].concat();
+            &named[..]
+        }
+        _ => bytes,
+    };
     let m = stl_io::read_stl(&mut Cursor::new(bytes)).map_err(|e| e.to_string())?;
     let mut b = Builder::default();
     let tris = m.faces.iter().map(|f| f.vertices.map(|v| v as u32));
     b.add(m.vertices.iter().map(|v| v.0).collect(), tris, |_| None)?;
+    b.finish(true)
+}
+
+/// Binary STL, with the colours of its triangles: Materialise's ("COLOR=" in the header, red in
+/// the low bits, bit 15 off when the triangle has one) or VisCAM's (bit 15 on, blue in the low bits).
+fn stl_binary(bytes: &[u8], n: usize) -> Result<Mesh, String> {
+    let materialise = bytes[..80].windows(6).any(|w| w == b"COLOR=");
+    let f = |c: &[u8], i: usize| f32::from_le_bytes([c[i], c[i + 1], c[i + 2], c[i + 3]]);
+    let five = |v: u16| ((v & 31) as u32 * 255 / 31) as u8;
+    let mut pos = Vec::with_capacity(n * 3);
+    let mut colors = Vec::with_capacity(n);
+    for c in bytes[84..].chunks_exact(50).take(n) {
+        for k in 0..3 {
+            pos.push([f(c, 12 + k * 12), f(c, 16 + k * 12), f(c, 20 + k * 12)]);
+        }
+        let a = u16::from_le_bytes([c[48], c[49]]);
+        colors.push(match (materialise, a & 0x8000 != 0) {
+            (true, false) => Some([five(a), five(a >> 5), five(a >> 10)]),
+            (false, true) => Some([five(a >> 10), five(a >> 5), five(a)]),
+            _ => None,
+        });
+    }
+    let mut b = Builder::default();
+    b.add(pos, (0..n as u32).map(|i| [i * 3, i * 3 + 1, i * 3 + 2]), |i| colors[i])?;
     b.finish(true)
 }
 
@@ -163,10 +201,10 @@ fn percent_decoded(s: &str) -> Option<String> {
 fn obj(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     let options = tobj::LoadOptions { triangulate: true, ignore_points: true, ignore_lines: true, ..Default::default() };
     let mtl = |p: &std::path::Path| match p.to_str().and_then(sibling) {
-        Some(data) => tobj::load_mtl_buf(&mut Cursor::new(data)),
+        Some(data) => tobj::load_mtl_buf(&mut Cursor::new(utf8(&data).as_bytes())),
         None => Err(tobj::LoadError::OpenFileFailed),
     };
-    let (models, materials) = tobj::load_obj_buf(&mut Cursor::new(bytes), &options, mtl).map_err(|e| e.to_string())?;
+    let (models, materials) = tobj::load_obj_buf(&mut Cursor::new(utf8(bytes).as_bytes()), &options, mtl).map_err(|e| e.to_string())?;
     let materials = materials.unwrap_or_default();
     let mut b = Builder::default();
     for m in models {
@@ -189,7 +227,32 @@ fn average(colors: &[[f32; 3]], t: [u32; 3]) -> Option<[f32; 3]> {
     Some([0, 1, 2].map(|k| (a[k] + b[k] + c[k]) / 3.0))
 }
 
+/// Text files of old programs: UTF-8, UTF-16 with its mark, or else Latin-1 (3ds Max's OBJ).
+fn utf8(bytes: &[u8]) -> std::borrow::Cow<'_, str> {
+    if bytes.starts_with(&[0xFF, 0xFE]) || bytes.starts_with(&[0xFE, 0xFF]) {
+        return crate::model_3mf::text(bytes).into();
+    }
+    match std::str::from_utf8(bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes)) {
+        Ok(s) => s.into(),
+        Err(_) => bytes.iter().map(|&b| b as char).collect::<String>().into(),
+    }
+}
+
+/// The header with only the lines the parser knows: old Blender wrote one without "comment",
+/// others put comments among the properties.
+fn ply_header_cleaned(bytes: &[u8]) -> Option<Vec<u8>> {
+    let end = bytes.windows(10).position(|w| w == b"end_header")?;
+    let head = String::from_utf8_lossy(&bytes[..end]);
+    let keep = |l: &&str| ["ply", "format ", "element ", "property "].iter().any(|k| l.trim_start().starts_with(k));
+    let lines: Vec<&str> = head.lines().filter(keep).collect();
+    let mut out = (lines.join("\n") + "\n").into_bytes();
+    out.extend_from_slice(&bytes[end..]);
+    Some(out)
+}
+
 fn ply(bytes: &[u8]) -> Result<Mesh, String> {
+    let cleaned = ply_header_cleaned(bytes);
+    let bytes = cleaned.as_deref().unwrap_or(bytes);
     let ply = Parser::<DefaultElement>::new().read_ply(&mut Cursor::new(bytes)).map_err(|e| e.to_string())?;
     let vertices = ply.payload.get("vertex").ok_or("no vertices in the file")?;
     let coord = |v: &DefaultElement, k: &str| v.get(k).and_then(scalar).unwrap_or(f64::NAN) as f32;
@@ -424,6 +487,20 @@ mod tests {
         let ply = "ply\nformat ascii 1.0\nelement vertex 2\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nend_header\n0 0 0 255 0 0\n1 0 0 0 0 255\n";
         let m = parse(ply.as_bytes(), "scan.ply").unwrap();
         assert_eq!((m.tris.len(), m.colors[0], m.colors[7]), (8, [255, 0, 0], [0, 0, 255]));
+    }
+
+    #[test]
+    fn stl_without_a_name_and_with_colours() {
+        let ascii = b"solid\nfacet normal 0 0 1\nouter loop\nvertex 0 0 0\nvertex 1 0 0\nvertex 0 1 0\nendloop\nendfacet\nendsolid\n";
+        assert_eq!(parse(ascii, "a.stl").unwrap().tris.len(), 1);
+        // A binary file whose header starts with "solid", one red triangle (VisCAM: bit 15, red high).
+        let mut bin = b"solid but binary".to_vec();
+        bin.resize(80, 0);
+        bin.extend(1u32.to_le_bytes());
+        bin.extend([0.0f32, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0].iter().flat_map(|v| v.to_le_bytes()));
+        bin.extend((0x8000u16 | (31 << 10)).to_le_bytes());
+        let m = parse(&bin, "b.stl").unwrap();
+        assert_eq!((m.tris.len(), m.colors[0]), (1, [255, 0, 0]));
     }
 
     #[test]

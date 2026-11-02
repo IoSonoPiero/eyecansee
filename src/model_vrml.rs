@@ -230,6 +230,19 @@ impl<'t> Classic<'t> {
                         continue;
                     }
                     let name = self.next().unwrap_or_default();
+                    // Fields declared by a Script: kind, type and name, then a value for some.
+                    match name {
+                        "eventIn" | "eventOut" | "inputOnly" | "outputOnly" => {
+                            self.at += 2;
+                            continue;
+                        }
+                        "field" | "exposedField" | "initializeOnly" | "inputOutput" => {
+                            self.at += 2;
+                            self.value(depth)?;
+                            continue;
+                        }
+                        _ => {}
+                    }
                     let value = self.value(depth)?;
                     node.fields.push((name.to_string(), value));
                 }
@@ -360,6 +373,8 @@ mod tests {
         assert_eq!(top.len(), 2);
         assert_eq!(top[0].children().next().unwrap().children().next().unwrap().nums("size"), &[1.0, 1.0, 1.0]);
         assert!(parse(b"#VRML V1.0 ascii\nSeparator {}").is_err());
+        let script = b"#X3D V3.0 utf8\nPROFILE Immersive\nDEF S Script { inputOnly SFTime touchTime initializeOnly SFFloat speed 2 url \"ecmascript:\" }\nShape { geometry Box {} }\n";
+        assert_eq!(parse(script).unwrap().children().count(), 2);
         assert!(parse(b"#VRML V2.0 utf8\nShape {").is_err());
     }
 }
