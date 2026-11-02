@@ -31,7 +31,20 @@ pub struct Mesh {
     pub z_up: bool,
     pub center: [f32; 3],
     pub radius: f32,
+    /// Per triangle, or empty without textures: where its corners are on its picture (u to the
+    /// right, v down from the top, repeating outside 0-1), and which picture (0 = none, else
+    /// the index in `textures` plus one).
+    pub uv: Vec<[[f32; 2]; 3]>,
+    pub tex: Vec<u16>,
+    pub textures: Vec<std::sync::Arc<image::RgbaImage>>,
 }
+
+/// Pictures in one model, and their long side: enough for the screen, not too much memory.
+pub(crate) const MAX_TEXTURES: usize = 64;
+pub(crate) const TEXTURE_SIDE: u32 = 2048;
+
+/// A triangle's texture: its corners on the picture and which picture (`Builder::texture`).
+pub(crate) type Textured = ([[f32; 2]; 3], u16);
 
 /// Collects the parts of a model (glTF primitives, OBJ groups, 3MF objects) into one mesh.
 #[derive(Default)]
@@ -39,18 +52,26 @@ pub(crate) struct Builder {
     pos: Vec<[f32; 3]>,
     tris: Vec<[u32; 3]>,
     colors: Vec<Option<[u8; 3]>>,
+    uv: Vec<Option<Textured>>,
+    textures: Vec<std::sync::Arc<image::RgbaImage>>,
 }
 
 impl Builder {
     /// Adds a part; its triangles index its own `pos`. Triangles outside `pos` are dropped
     /// (files are not trusted). `colors`: one per triangle, or `None` for the default.
-    pub(crate) fn add(&mut self, pos: Vec<[f32; 3]>, tris: impl IntoIterator<Item = [u32; 3]>, mut color: impl FnMut(usize) -> Option<[u8; 3]>) -> Result<(), String> {
+    pub(crate) fn add(&mut self, pos: Vec<[f32; 3]>, tris: impl IntoIterator<Item = [u32; 3]>, color: impl FnMut(usize) -> Option<[u8; 3]>) -> Result<(), String> {
+        self.add_textured(pos, tris, color, |_| None)
+    }
+
+    /// As `add`, with the texture of each triangle (`None` for none).
+    pub(crate) fn add_textured(&mut self, pos: Vec<[f32; 3]>, tris: impl IntoIterator<Item = [u32; 3]>, mut color: impl FnMut(usize) -> Option<[u8; 3]>, mut uv: impl FnMut(usize) -> Option<Textured>) -> Result<(), String> {
         let base = self.pos.len() as u32;
         let n = pos.len() as u32;
         for (i, t) in tris.into_iter().enumerate() {
             if t.iter().all(|&v| v < n) {
                 self.tris.push(t.map(|v| v + base));
                 self.colors.push(color(i));
+                self.uv.push(uv(i).filter(|(c, k)| *k > 0 && c.iter().flatten().all(|v| v.is_finite())));
             }
             if self.tris.len() > MAX_TRIANGLES {
                 return Err(format!("more than {MAX_TRIANGLES} triangles"));
@@ -58,6 +79,21 @@ impl Builder {
         }
         self.pos.extend(pos);
         Ok(())
+    }
+
+    /// A picture for the triangles that follow, made smaller beyond `TEXTURE_SIDE`: its number
+    /// for `add_textured`, or 0 when the model has too many already.
+    pub(crate) fn texture(&mut self, img: image::RgbaImage) -> u16 {
+        if self.textures.len() >= MAX_TEXTURES || img.width() == 0 || img.height() == 0 {
+            return 0;
+        }
+        let img = if img.width().max(img.height()) > TEXTURE_SIDE {
+            image::imageops::thumbnail(&img, TEXTURE_SIDE.min(img.width() * TEXTURE_SIDE / img.width().max(img.height())).max(1), (img.height() * TEXTURE_SIDE / img.width().max(img.height())).max(1))
+        } else {
+            img
+        };
+        self.textures.push(std::sync::Arc::new(img));
+        self.textures.len() as u16
     }
 
     /// The box around the points added so far (all of them, used or not).
@@ -73,7 +109,7 @@ impl Builder {
     }
 
     pub(crate) fn finish(self, z_up: bool) -> Result<Mesh, String> {
-        let Builder { pos, tris, colors } = self;
+        let Builder { pos, tris, colors, uv, textures } = self;
         let finite = |p: &[f32; 3]| p.iter().all(|c| c.is_finite());
         let tris: Vec<(usize, [u32; 3])> = tris.into_iter().enumerate().filter(|(_, t)| t.iter().all(|&v| finite(&pos[v as usize]))).collect();
         if tris.is_empty() {
@@ -92,7 +128,10 @@ impl Builder {
         let center = [0, 1, 2].map(|k| (lo[k] + hi[k]) / 2.0);
         let radius = ((0..3).map(|k| (hi[k] - lo[k]).powi(2)).sum::<f32>().sqrt() / 2.0).max(f32::MIN_POSITIVE);
         let colors = if colors.iter().any(Option::is_some) { tris.iter().map(|&(i, _)| colors[i].unwrap_or(DEFAULT)).collect() } else { Vec::new() };
-        Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius })
+        let textured = uv.iter().any(Option::is_some);
+        let (uv, tex) = if textured { tris.iter().map(|&(i, _)| uv[i].unwrap_or(([[0.0; 2]; 3], 0))).unzip() } else { (Vec::new(), Vec::new()) };
+        let textures = if textured { textures } else { Vec::new() };
+        Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, uv, tex, textures })
     }
 }
 

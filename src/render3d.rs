@@ -173,8 +173,10 @@ fn draw(mesh: &Mesh, view: &View, w: u32, h: u32) -> RgbaImage {
         background(pixels, row, y0, h as usize);
         let mut depth = vec![0.0f32; rows * w as usize];
         for &i in tris {
-            let t = mesh.tris[i as usize].map(|v| screen[v as usize]);
-            fill(pixels, &mut depth, w as usize, y0, rows, t, shade[i as usize]);
+            let i = i as usize;
+            let t = mesh.tris[i].map(|v| screen[v as usize]);
+            let texture = mesh.tex.get(i).filter(|&&k| k > 0).and_then(|&k| mesh.textures.get(k as usize - 1)).map(|img| (img.as_ref(), mesh.uv[i]));
+            fill(pixels, &mut depth, w as usize, y0, rows, t, shade[i], texture);
         }
     });
     img
@@ -193,6 +195,15 @@ fn lit(eye: &[[f32; 3]], t: [u32; 3], color: [u8; 3]) -> [u8; 3] {
     color.map(|c| (c as f32 * i).min(255.0) as u8)
 }
 
+/// The texel at `uv` (repeating), nearest.
+fn texel(img: &image::RgbaImage, uv: [f32; 2]) -> [u8; 3] {
+    let (w, h) = (img.width(), img.height());
+    let x = ((uv[0] - uv[0].floor()) * w as f32) as u32;
+    let y = ((uv[1] - uv[1].floor()) * h as f32) as u32;
+    let p = img.get_pixel(x.min(w - 1), y.min(h - 1));
+    [p[0], p[1], p[2]]
+}
+
 /// Dark blue-grey, lighter at the top, as in CAD programs: top and bottom.
 pub const BACKGROUND: [[u8; 3]; 2] = [[74, 82, 96], [30, 33, 40]];
 
@@ -209,7 +220,8 @@ fn background(pixels: &mut [u8], row: usize, y0: usize, h: usize) {
 
 /// One triangle into a band starting at row `y0`, with `rows` rows: pixel centres inside the
 /// three edges, kept where closer than what is already there.
-fn fill(pixels: &mut [u8], depth: &mut [f32], w: usize, y0: usize, rows: usize, t: [Screen; 3], color: [u8; 3]) {
+#[allow(clippy::too_many_arguments)]
+fn fill(pixels: &mut [u8], depth: &mut [f32], w: usize, y0: usize, rows: usize, t: [Screen; 3], color: [u8; 3], texture: Option<(&image::RgbaImage, [[f32; 2]; 3])>) {
     let [a, b, c] = t;
     let area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
     if area == 0.0 || !area.is_finite() {
@@ -233,7 +245,18 @@ fn fill(pixels: &mut [u8], depth: &mut [f32], w: usize, y0: usize, rows: usize, 
             let at = line + x;
             if z > depth[at] {
                 depth[at] = z;
-                pixels[at * 4..at * 4 + 3].copy_from_slice(&color);
+                let c = match texture {
+                    // Interpolated over 1/depth, so the picture follows the perspective.
+                    Some((img, uv)) => {
+                        let k = [wa * a[2], wb * b[2], wc * c[2]];
+                        let uv = [0, 1].map(|j| (k[0] * uv[0][j] + k[1] * uv[1][j] + k[2] * uv[2][j]) / z);
+                        let tx = texel(img, uv);
+                        // The base colour lit, tinted by the picture (both sRGB, as everywhere here).
+                        std::array::from_fn(|j| (color[j] as f32 * tx[j] as f32 / 255.0).min(255.0) as u8)
+                    }
+                    None => color,
+                };
+                pixels[at * 4..at * 4 + 3].copy_from_slice(&c);
             }
         }
     }
