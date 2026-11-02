@@ -148,7 +148,7 @@ I modelli 3D fatti di triangoli compaiono nella griglia accanto alle immagini, c
 - **Pagina giù**, **Spazio** e **Pagina su**, **Backspace**: elemento successivo e precedente (le frecce invece girano il modello); **Esc** o un doppio clic: torna alla griglia.
 - **Ctrl+S** (o *Salva in un altro formato*): il modello come si vede, come immagine, larga almeno 1920 pixel, con gli stessi formati e le stesse opzioni delle foto.
 
-Tasto destro (o **File**) > **Esporta come modello 3D** salva i modelli scelti (uno o più) come STL, OBJ, PLY o glTF (GLB), ognuno accanto al suo originale, coi suoi colori; la barra di stato dice il nome che ha preso.
+Tasto destro (o **File**) > **Esporta come modello 3D** salva i modelli scelti (uno o più) come STL, OBJ, PLY o glTF (GLB), ognuno accanto al suo originale, con tutto ciò che il formato sa contenere: glTF (GLB) tiene texture, normali e superfici, gli altri formati i colori (presi dalle texture dove ci sono); la barra di stato dice il nome che ha preso.
 
 Una fascia sopra la barra di stato ricorda questi tasti, per i modelli 3D e i disegni CAD. In alto a destra gli assi del file (X rosso, Y verde, Z blu) girano col modello, come nei programmi CAD; un disegno CAD mostra la sua X e la sua Y in basso a sinistra.
 

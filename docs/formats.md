@@ -79,7 +79,7 @@ A file with the wrong extension (for example an iPhone HEIC saved as `.jpg`) is 
 
 ## Saving 3D models (right click > Export as a 3D model)
 
-Every 3D model EyeCanSee opens can be saved as STL (binary, colours as VisCAM writes them), OBJ (colours on the vertices), PLY (binary, colours on the faces) or glTF (GLB), next to the original. The shape and one colour per triangle are kept; textures, normals and animations are not.
+Every 3D model EyeCanSee opens can be saved as glTF (GLB), OBJ, PLY or STL, next to the original, keeping as much of it as the format holds. **GLB** keeps the pictures (textures) inside the file, their coordinates, the normals and the surfaces (metal, roughness, bumps, occlusion, glow). **OBJ** keeps the normals and colours on the vertices, **PLY** (binary) a colour per face, **STL** (binary) a colour per face as VisCAM writes it; where a format cannot hold a picture, its colours are taken from it. Animations, cameras and lights are not kept, and pictures larger than 2048 pixels are saved at 2048.
 
 ## Saving (right click > Save in another format…)
 
