@@ -31,6 +31,8 @@ pub(crate) struct State {
     size: [u32; 2],
     /// CAD drawings, which the viewer also draws itself (`cad_view`).
     pub(crate) cad: crate::cad_view::State,
+    /// The CAD engine being downloaded (`cad_engine`).
+    pub(crate) engine: Option<Arc<crate::component::Download>>,
     /// When the last frames were drawn (seconds), for the frame rate in the status bar.
     frames: std::collections::VecDeque<f64>,
     /// The presentation was chosen (`pace`), and is mailbox; when the last frame began.

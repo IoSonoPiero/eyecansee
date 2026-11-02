@@ -167,6 +167,7 @@ impl App {
         }
         ui.centered_and_justified(|ui| match self.full.get(&current) {
             Some(Ok(_)) => {}
+            Some(Err(_)) if self.files().get(current).is_some_and(|f| crate::occt::needs_engine(&f.path)) => self.cad_engine_card(ui),
             Some(Err(e)) => {
                 let name = self.files().get(current).map_or("", |f| source::shown(&f.path));
                 ui.label(browser::error_text(ui, self.i18n.t_args("cannot-load", &[("file", name), ("error", e)])));

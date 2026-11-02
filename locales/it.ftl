@@ -345,6 +345,10 @@ model-triangles = { $n } triangoli
 # The keys of the viewer, under the status bar.
 hint-cad = Rotellina, + e −: zoom · Trascinare: spostare · 0: tutto il disegno · ← →: precedente, successivo · Ctrl+Maiusc+S: salva come immagine · F11: schermo intero · Esc: indietro
 hint-model = Frecce o trascinare: ruotare · Maiusc+trascinare: spostare · Rotellina, + e −: zoom · 0: vista di partenza · Pag↑, Pag↓: precedente, successivo · Ctrl+S: salva come immagine · F11: schermo intero · Esc: indietro
+cad-engine-title = Motore CAD
+cad-engine-ask = Per aprire i modelli STEP, IGES e BREP dei programmi CAD EyeCanSee ha bisogno del motore CAD (Open CASCADE), da scaricare una volta sola: { $size }.
+cad-engine-download = Scarica il motore CAD
+cad-engine-button = Scarica il motore CAD ({ $size })
 convert-file-size = { $size } su disco
 convert-ratio = { $percent }% dell'originale
 convert-format = Formato

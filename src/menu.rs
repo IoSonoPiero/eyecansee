@@ -32,6 +32,7 @@ impl App {
                     pick(&act, ui.add(crate::theme::alert_button(text)), Act::Update);
                 }
                 self.engine_bar(ui);
+                self.cad_engine_bar(ui);
             });
         });
         if let Some(a) = act.take() {

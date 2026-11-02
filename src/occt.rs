@@ -13,9 +13,15 @@ const OCCT: &[&str] = &["step", "stp", "iges", "igs", "brep", "brp"];
 /// The interface's version this EyeCanSee speaks (`ECS_OCCT_API`).
 const API: c_int = 1;
 
-/// A STEP, IGES or BREP file, when the engine is there: without it they stay out of the grid.
+/// A STEP, IGES or BREP file, when the engine is there or can be downloaded: without it the
+/// viewer offers the download (`cad_engine`).
 pub fn is_occt(name: &str) -> bool {
-    occt_name(name) && available()
+    occt_name(name) && (crate::component::OCCT.is_some() || available())
+}
+
+/// A STEP, IGES or BREP file that needs the engine, still to be downloaded.
+pub fn needs_engine(name: &str) -> bool {
+    occt_name(name) && crate::component::OCCT.is_some() && !available()
 }
 
 fn occt_name(name: &str) -> bool {
@@ -46,12 +52,16 @@ fn library() -> Option<PathBuf> {
     crate::component::OCCT.and_then(|c| crate::component::path(&c)).filter(|p| p.exists())
 }
 
-/// The engine is there (downloaded, or given by `EYECANSEE_OCCT`), looked for once: `is_occt`
-/// is asked for every file of every folder.
-// ponytail: once per session; to be looked for again when the download of the engine arrives
+/// The engine is there (downloaded, or given by `EYECANSEE_OCCT`): looked for on disk until found
+/// (only for STEP, IGES and BREP files), then remembered.
 pub fn available() -> bool {
-    static FOUND: OnceLock<bool> = OnceLock::new();
-    *FOUND.get_or_init(|| library().is_some())
+    use std::sync::atomic::{AtomicBool, Ordering};
+    static FOUND: AtomicBool = AtomicBool::new(false);
+    FOUND.load(Ordering::Relaxed) || {
+        let found = library().is_some();
+        FOUND.store(found, Ordering::Relaxed);
+        found
+    }
 }
 
 /// Loaded once found; until then looked for again (the download may arrive meanwhile).

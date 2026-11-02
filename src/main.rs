@@ -29,6 +29,7 @@ mod batch;
 mod batch_page;
 mod browser;
 mod cad;
+mod cad_engine;
 mod cad_geom;
 mod cad_hpgl;
 mod cad_view;

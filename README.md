@@ -56,7 +56,7 @@ What comes next is in [ROADMAP.md](ROADMAP.md).
 - **Videos**: thumbnails in the grid, playback with sound and volume control in the viewer and their details (date, length, format, location from phones), on the computer, external disks and phones (with the system's libmpv on Linux, otherwise a video engine downloaded the first time a video is opened, as always on Windows). Audio files are shown and played too, with their cover when they have one.
 - **Duplicates**: finds identical photos, videos and audio files in a folder and its subfolders, on any device, and deletes the copies you choose, always keeping at least one.
 - **Rotating and cropping**: flips and quarter turns on one or many images at once, and rotation by any angle with a crop on a single image, saved over the original or as a new file.
-- **3D models**: STL, 3MF, OBJ, PLY (also point clouds), glTF, FBX, Collada, 3DS, OFF, AMF, VRML, X3D and IFC (building models) in the grid and in the viewer, turned, moved and zoomed with the mouse or the keys, drawn by the graphics card, and saved as an image just as they are shown.
+- **3D models**: STL, 3MF, OBJ, PLY (also point clouds), glTF, FBX, Collada, 3DS, OFF, AMF, VRML, X3D and IFC (building models), and on Linux STEP, IGES and BREP from mechanical CAD programs (with a CAD engine downloaded on first use), in the grid and in the viewer, turned, moved and zoomed with the mouse or the keys, drawn by the graphics card, and saved as an image just as they are shown.
 - **CAD drawings**: DWG and DXF from AutoCAD and other CAD programs, with their layers, blocks, dimensions and texts, and HP-GL plot files, sharp at any zoom, and saved as images.
 - **Saving in another format** (JPEG, PNG, WebP, AVIF, TIFF and others) with every option of each format, the original and the result side by side, and the file size before you save.
 - **Converting and resizing many files at once**: format, turn, size and filter for a whole selection of images and videos, into new files next to the originals, in a subfolder or in another folder, also on another device.
@@ -68,7 +68,7 @@ What comes next is in [ROADMAP.md](ROADMAP.md).
 
 - JPEG, PNG, WebP, GIF, BMP, TIFF, HEIC, AVIF, JPEG XL, SVG, and less common ones such as PSD, JPEG 2000, PCX, DDS and OpenRaster.
 - Further rare formats through ImageMagick (XCF, PSB, DPX, FITS and others).
-- 3D models: STL, 3MF, OBJ, PLY, glTF, FBX, Collada, 3DS, OFF, AMF, VRML, X3D and IFC; CAD drawings: DWG, DXF and HP-GL.
+- 3D models: STL, 3MF, OBJ, PLY, glTF, FBX, Collada, 3DS, OFF, AMF, VRML, X3D and IFC (STEP, IGES and BREP on Linux); CAD drawings: DWG, DXF and HP-GL.
 - Camera RAW files: CR2, CR3, NEF, ARW, RAF, ORF, RW2, DNG and others (tested with real files from Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic and Google cameras, and a Samsung Galaxy phone).
 
 All the formats it opens and saves, on Linux and Windows: [docs/formats.md](docs/formats.md). Sample files to try them, including real HEIC and Camera RAW photos: [download the test files](https://github.com/IoSonoPiero/eyecansee/releases/download/test-files/EyeCanSee-test-files.zip) (zip, 139 MB; sources and licences in the [release page](https://github.com/IoSonoPiero/eyecansee/releases/tag/test-files)).

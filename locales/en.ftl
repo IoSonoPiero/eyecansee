@@ -346,6 +346,10 @@ model-triangles = { $n } triangles
 # The keys of the viewer, under the status bar.
 hint-cad = Wheel, + and −: zoom · Drag: move · 0: whole drawing · ← →: previous, next · Ctrl+Shift+S: save as an image · F11: full screen · Esc: back
 hint-model = Arrows or drag: turn · Shift+drag: move · Wheel, + and −: zoom · 0: starting view · Page Up, Page Down: previous, next · Ctrl+S: save as an image · F11: full screen · Esc: back
+cad-engine-title = CAD engine
+cad-engine-ask = To open STEP, IGES and BREP models of CAD programs EyeCanSee needs the CAD engine (Open CASCADE), downloaded once: { $size }.
+cad-engine-download = Download the CAD engine
+cad-engine-button = Download the CAD engine ({ $size })
 convert-file-size = { $size } on disk
 convert-ratio = { $percent }% of the original
 convert-format = Format
