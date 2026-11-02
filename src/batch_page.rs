@@ -9,6 +9,7 @@ use eframe::egui;
 use crate::audio_job::AudioJob;
 use crate::batch::{Dest, Drawn, Filter, Job, Progress, Size};
 use crate::encode::{Format, Options};
+use crate::batch_video::{VideoForm, audio_rows, video_rows};
 use crate::ffmpeg::{CONTAINERS, Codec, Quality, Video};
 use crate::folder_pick::{Picker, pick_ui};
 use crate::i18n::I18n;
@@ -65,20 +66,6 @@ pub struct Form {
     side: u32,
     /// Only the audio of the videos: the window shows just FFmpeg and the destination.
     audio: Option<AudioJob>,
-}
-
-/// The choices for the videos.
-struct VideoForm {
-    /// Index in `CONTAINERS`.
-    container: usize,
-    codec: Codec,
-    /// One of `codec`'s encoders that works here, once checked.
-    encoder: Option<&'static str>,
-    quality: Quality,
-    audio: bool,
-    meta: bool,
-    /// FFmpeg being downloaded (`component::FFMPEG`).
-    download: Option<Arc<crate::component::Download>>,
 }
 
 impl Form {
@@ -527,141 +514,6 @@ fn drawing_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
 /// The long side of an exported drawing: 16384² pixels in RGBA are 1 GB.
 const MIN_SIDE: u32 = 256;
 const MAX_SIDE: u32 = 16384;
-
-/// The audio jobs: FFmpeg ready, and what the job does; nothing else to choose.
-fn audio_rows(ui: &mut egui::Ui, v: &mut VideoForm, job: AudioJob, i18n: &I18n) {
-    if ffmpeg_ready(ui, v, i18n).is_some() {
-        ui.label(i18n.t(match job {
-            AudioJob::Strip => "batch-strip-hint",
-            AudioJob::Extract => "batch-extract-hint",
-        }));
-    }
-}
-
-/// FFmpeg found and its encoders tried: downloaded first where there is none, a spinner while
-/// it is tried.
-fn ffmpeg_ready(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) -> Option<&'static crate::ffmpeg::Probe> {
-    if crate::ffmpeg::program().is_none() {
-        ffmpeg_download(ui, v, i18n);
-        return None;
-    }
-    let ctx = ui.ctx().clone();
-    crate::ffmpeg::start_probe(move || ctx.request_repaint());
-    let probe = crate::ffmpeg::probed();
-    if probe.is_none() {
-        ui.horizontal(|ui| {
-            ui.spinner();
-            ui.label(i18n.t("batch-video-checking"));
-        });
-    }
-    probe
-}
-
-/// Container, codec, encoder (only those that work here), quality, sound and metadata; FFmpeg
-/// downloaded first where there is none.
-fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
-    let t = |id| i18n.t(id);
-    let Some(probe) = ffmpeg_ready(ui, v, i18n) else { return };
-    egui::ComboBox::from_label(t("batch-video-container")).selected_text(CONTAINERS[v.container].name).show_ui(ui, |ui| {
-        for (i, c) in CONTAINERS.iter().enumerate() {
-            ui.selectable_value(&mut v.container, i, c.name);
-        }
-    });
-    let c = &CONTAINERS[v.container];
-    if !c.codecs.contains(&v.codec) || probe.of(v.codec).is_empty() {
-        v.codec = c.codecs.iter().copied().find(|k| !probe.of(*k).is_empty()).unwrap_or(c.codecs[0]);
-    }
-    let label = |k: Codec| if k == Codec::Copy { t("batch-video-copy") } else { k.label().to_string() };
-    egui::ComboBox::from_label(t("batch-video-codec")).selected_text(label(v.codec)).show_ui(ui, |ui| {
-        for &k in c.codecs {
-            let usable = !probe.of(k).is_empty();
-            let label = if usable { label(k) } else { i18n.t_args("batch-video-unavailable", &[("codec", k.label())]) };
-            ui.add_enabled_ui(usable, |ui| ui.selectable_value(&mut v.codec, k, label));
-        }
-    });
-    ui.weak(t(v.codec.hint()));
-    let encoders = probe.of(v.codec);
-    if encoders.is_empty() {
-        v.encoder = None;
-        ui.label(crate::browser::error_text(ui, t("batch-video-none")));
-        return;
-    }
-    if !v.encoder.is_some_and(|e| encoders.contains(&e)) {
-        v.encoder = Some(encoders[0]);
-    }
-    // Copied streams: nothing to choose about the encoder or the quality.
-    if v.codec != Codec::Copy {
-        // The graphics card's encoders in green (user, 2026-10-29), with a line that says so.
-        let good = crate::theme::good(ui.visuals());
-        let name = |e: &str| {
-            let text = egui::RichText::new(format!("{} ({e})", crate::ffmpeg::maker(e)));
-            if crate::ffmpeg::hardware(e) { text.color(good) } else { text }
-        };
-        egui::ComboBox::from_label(t("batch-video-encoder")).selected_text(name(v.encoder.unwrap_or_default())).show_ui(ui, |ui| {
-            for &e in &encoders {
-                ui.selectable_value(&mut v.encoder, Some(e), name(e));
-            }
-        });
-        ui.weak(t(crate::ffmpeg::hint(v.encoder.unwrap_or_default())));
-        if encoders.iter().any(|e| crate::ffmpeg::hardware(e)) {
-            ui.weak(t("batch-video-hw-note"));
-        }
-        ui.horizontal(|ui| {
-            ui.label(t("batch-video-quality"));
-            for (q, id) in [(Quality::High, "batch-video-high"), (Quality::Medium, "batch-video-medium"), (Quality::Small, "batch-video-small")] {
-                ui.radio_value(&mut v.quality, q, t(id));
-            }
-        });
-    }
-    // Copied as it is: sound and metadata stay, no choice.
-    let copy = v.codec == Codec::Copy;
-    if copy {
-        (v.audio, v.meta) = (true, true);
-    }
-    ui.add_enabled_ui(!copy, |ui| {
-        if !c.audio.is_empty() {
-            ui.checkbox(&mut v.audio, t("batch-video-audio"));
-        }
-        ui.checkbox(&mut v.meta, t("batch-video-meta"));
-    });
-}
-
-/// No usable FFmpeg on this computer (none, or too old): what it is, its size and the button;
-/// then the progress. With "the system's only" in the Options, just the reason.
-fn ffmpeg_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
-    let Some(c) = crate::component::FFMPEG else { return };
-    let size = format!("{} MB", c.size / 1_000_000);
-    match crate::ffmpeg::status() {
-        crate::engine::Status::SystemOnly => {
-            ui.label(crate::browser::error_text(ui, i18n.t("batch-video-system-only")));
-            return;
-        }
-        crate::engine::Status::TooOld { found, required } => {
-            ui.label(i18n.t_args("batch-video-old-ffmpeg", &[("found", &found), ("required", required), ("size", &size)]));
-        }
-        _ => {
-            ui.label(i18n.t_args("batch-video-need-ffmpeg", &[("size", &size)]));
-        }
-    }
-    let state = v.download.as_ref().map(|d| (d.done.load(Ordering::Relaxed), d.result.lock().unwrap().clone()));
-    match state {
-        Some((done, None)) => {
-            ui.add(egui::ProgressBar::new(done as f32 / c.size as f32).show_percentage());
-            ui.ctx().request_repaint_after(std::time::Duration::from_millis(300));
-        }
-        // Done: `ffmpeg::program` finds it at the next frame.
-        Some((_, Some(Ok(())))) => ui.ctx().request_repaint(),
-        failed => {
-            if let Some((_, Some(Err(e)))) = failed {
-                ui.label(crate::browser::error_text(ui, i18n.t_args("batch-video-download-failed", &[("detail", &e)])));
-            }
-            if ui.button(i18n.t("batch-video-download")).clicked() {
-                let ctx = ui.ctx().clone();
-                v.download = Some(crate::component::start(c, move || ctx.request_repaint()));
-            }
-        }
-    }
-}
 
 fn turn_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     let t = |id| i18n.t(id);

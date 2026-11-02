@@ -45,6 +45,7 @@ mod audio_job;
 mod app_dialogs;
 mod batch;
 mod batch_page;
+mod batch_video;
 mod browser;
 mod cad;
 mod cad_engine;
