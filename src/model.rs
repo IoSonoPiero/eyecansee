@@ -170,7 +170,7 @@ pub fn parse_with(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, St
         Some("glb" | "gltf") => crate::model_gltf::read(bytes, sibling),
         Some("3mf") => crate::model_3mf::read(bytes),
         Some("ifc") => crate::model_ifc::read(bytes),
-        Some("fbx") => crate::model_fbx::read(bytes),
+        Some("fbx") => crate::model_fbx::read(bytes, sibling),
         Some("3ds") => crate::model_3ds::read(bytes),
         Some("off") => crate::model_off::read(bytes),
         Some("amf") => crate::model_amf::read(bytes),
@@ -539,7 +539,7 @@ mod tests {
                         let read = t.elapsed();
                         let t = std::time::Instant::now();
                         let img = crate::render3d::render(&m, &Default::default(), 800, 600, 2);
-                        println!("{name}: {} triangles, read {read:.0?}, drawn {:.0?}", m.tris.len(), t.elapsed());
+                        println!("{name}: {} triangles, {} pictures, read {read:.0?}, drawn {:.0?}", m.tris.len(), m.textures.len(), t.elapsed());
                         img.save(format!("{out}/{name}.png")).unwrap();
                     }
                     Err(e) => {
