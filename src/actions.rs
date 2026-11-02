@@ -144,6 +144,21 @@ impl App {
         self.refresh();
     }
 
+    /// A flip or a turn: shown in the viewer until saved, saved straight away in the grid.
+    fn transform(&mut self, op: crate::transform::Op, path: Option<String>) {
+        if self.viewing.is_some() {
+            // Also from the keys: only pictures turn (`viewing_photo`).
+            if self.viewing_photo() {
+                self.turn = self.turn.then(op);
+            }
+        } else {
+            let paths = self.grid_images(path);
+            if !paths.is_empty() {
+                self.batch_turn = Some((paths, op));
+            }
+        }
+    }
+
     /// Runs an item chosen from the menu bar or from a right-click menu.
     pub(crate) fn run(&mut self, ctx: &egui::Context, act: Act) {
         log!("menu {act:?}");
@@ -170,19 +185,7 @@ impl App {
             Act::Slideshow(path) => self.start_show(ctx, path),
             Act::RedoThumbs(path) => self.redo_thumbs(ctx, self.chosen(path)),
             Act::RedoAllThumbs => self.redo_all_thumbs(ctx),
-            Act::Transform(op, path) => {
-                if self.viewing.is_some() {
-                    // Also from the keys: only pictures turn (`viewing_photo`).
-                    if self.viewing_photo() {
-                        self.turn = self.turn.then(op);
-                    }
-                } else {
-                    let paths = self.grid_images(path);
-                    if !paths.is_empty() {
-                        self.batch_turn = Some((paths, op));
-                    }
-                }
-            }
+            Act::Transform(op, path) => self.transform(op, path),
             Act::RotateCrop(path) => self.open_rotate(path),
             Act::Save => self.ask_save(),
             Act::Submenu(_) | Act::Off(_) => {}
