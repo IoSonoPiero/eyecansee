@@ -251,6 +251,10 @@ impl App {
     }
 
     pub(crate) fn ask_rename(&mut self, path: Option<String>) {
+        // One at a time, also from F2: with several marked it renamed only the one under the cursor.
+        if self.chosen(path.clone()).len() > 1 {
+            return;
+        }
         let path = path.or_else(|| self.target()).filter(|p| self.can_change(p) && !source::is_trash(p) && !source::in_trash(p));
         if let Some(path) = path {
             log!("rename? {path:?}");

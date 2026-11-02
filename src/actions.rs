@@ -172,7 +172,10 @@ impl App {
             Act::RedoAllThumbs => self.redo_all_thumbs(ctx),
             Act::Transform(op, path) => {
                 if self.viewing.is_some() {
-                    self.turn = self.turn.then(op);
+                    // Also from the keys: only pictures turn (`viewing_photo`).
+                    if self.viewing_photo() {
+                        self.turn = self.turn.then(op);
+                    }
                 } else {
                     let paths = self.grid_images(path);
                     if !paths.is_empty() {

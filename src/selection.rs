@@ -12,9 +12,9 @@ impl App {
         self.chosen(path).into_iter().filter(|p| !p.ends_with('/') && !source::in_trash(p)).collect()
     }
 
-    /// As `grid_items`, without the videos: for the image edits.
+    /// As `grid_items`, pictures only (no videos, audio, 3D models or CAD drawings): for the image edits.
     pub(crate) fn grid_images(&self, path: Option<String>) -> Vec<String> {
-        self.grid_items(path).into_iter().filter(|p| !crate::decode::is_played(p)).collect()
+        self.grid_items(path).into_iter().filter(|p| crate::decode::is_image(p)).collect()
     }
 
     /// The item Delete and Rename act on: the image in the viewer, or the item selected in the grid.

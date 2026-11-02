@@ -55,6 +55,12 @@ impl App {
         self.viewing.is_some() && !self.viewing_video()
     }
 
+    /// A picture open in the viewer, which turns and flips: not a video, a 3D model (its own
+    /// view, a turn would only show in what is saved) or a CAD drawing (turned, it lost its sharpness).
+    pub(crate) fn viewing_photo(&self) -> bool {
+        self.viewing.and_then(|i| self.files().get(i)).is_some_and(|f| crate::decode::is_image(&f.path))
+    }
+
     /// Size of the video playing, for the status bar.
     pub(crate) fn video_size(&self) -> Option<[u32; 2]> {
         self.video.as_ref()?.player.as_ref().ok()?.video_size()

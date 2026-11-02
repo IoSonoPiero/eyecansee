@@ -129,14 +129,10 @@ impl App {
         items
     }
 
-    /// After Open (or Back to the grid), in the order of the menu bar: View (slideshow,
-    /// thumbnails), Image and saving, Tools, Edit, then rename and the deletions apart.
-    fn image_items(&self, path: Option<String>, in_viewer: bool) -> Vec<MenuItem> {
+    /// Transform: flips and turns (in the viewer shown until saved, in the grid saved straight
+    /// away), then Rotate and crop.
+    fn turn_menu(&self, path: Option<String>, in_viewer: bool) -> MenuItem {
         let t = |id| self.i18n.t(id);
-        let mut items = vec![Some((t("menu-slideshow"), String::new(), Act::Slideshow(path.clone())))];
-        items.push(Some((t("menu-redo-thumbs"), String::new(), Act::RedoThumbs(path.clone()))));
-        items.push(None);
-        // Flips and turns: in the viewer shown until saved, in the grid saved straight away.
         let mut turns = Vec::new();
         for (op, label, keys) in crate::actions::transform_items() {
             turns.push(Some((t(label), if in_viewer { keys.map(t).unwrap_or_default() } else { String::new() }, Act::Transform(op, path.clone()))));
@@ -148,12 +144,34 @@ impl App {
         // One image at a time: with several marked it would open on one and leave the others.
         let rotate = if self.chosen(path.clone()).len() > 1 { Act::Off(t("rc-one-only")) } else { Act::RotateCrop(path.clone()) };
         turns.push(Some((t("menu-rotate-crop"), String::new(), rotate)));
-        items.push(Some((t("menu-transform"), String::new(), Act::Submenu(turns))));
+        Some((t("menu-transform"), String::new(), Act::Submenu(turns)))
+    }
+
+    /// After Open (or Back to the grid), in the order of the menu bar: View (slideshow,
+    /// thumbnails), Image and saving, Tools, Edit, then rename and the deletions apart.
+    fn image_items(&self, path: Option<String>, in_viewer: bool) -> Vec<MenuItem> {
+        let t = |id| self.i18n.t(id);
+        // A 3D model or a CAD drawing: no slideshow (looked at closely, not in passing) and no turns
+        // (`viewing_photo`); the slideshow stays in View for the whole folder.
+        let picture = path.clone().or_else(|| self.target()).is_some_and(|p| crate::decode::is_image(&p));
+        let mut items = Vec::new();
+        if picture {
+            items.push(Some((t("menu-slideshow"), String::new(), Act::Slideshow(path.clone()))));
+        }
+        items.push(Some((t("menu-redo-thumbs"), String::new(), Act::RedoThumbs(path.clone()))));
+        items.push(None);
+        if picture {
+            items.push(self.turn_menu(path.clone(), in_viewer));
+        }
         if in_viewer && self.can_save() {
             items.push(Some((t("menu-save"), t("key-save"), Act::Save)));
         }
-        items.push(Some((t("menu-save-copy"), String::new(), Act::Convert(path.clone()))));
-        if path.clone().or_else(|| self.target()).is_some_and(|p| crate::model::is_model(&p)) && self.chosen(path.clone()).len() <= 1 {
+        // One file at a time: with several marked it would open on one and leave the others.
+        let one = self.chosen(path.clone()).len() <= 1;
+        if one {
+            items.push(Some((t("menu-save-copy"), String::new(), Act::Convert(path.clone()))));
+        }
+        if one && path.clone().or_else(|| self.target()).is_some_and(|p| crate::model::is_model(&p)) {
             let kinds = crate::model_export::Kind::ALL.iter().map(|&k| Some((k.label().to_string(), String::new(), Act::ExportModel(path.clone(), k)))).collect();
             items.push(Some((t("menu-export-3d"), String::new(), Act::Submenu(kinds))));
         }
@@ -174,9 +192,10 @@ impl App {
 
     fn rename_delete(&self, path: Option<String>) -> Vec<MenuItem> {
         let t = |id| self.i18n.t(id);
+        let rename = if self.chosen(path.clone()).len() > 1 { Act::Off(t("rename-one-only")) } else { Act::Rename(path.clone()) };
         vec![
             None,
-            Some((t("menu-rename"), "F2".into(), Act::Rename(path.clone()))),
+            Some((t("menu-rename"), "F2".into(), rename)),
             None,
             Some((t("menu-delete"), t("key-delete"), Act::Delete(path.clone(), false))),
             Some((t("menu-delete-permanent"), t("key-shift-delete"), Act::Delete(path, true))),

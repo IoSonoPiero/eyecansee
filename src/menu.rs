@@ -50,7 +50,9 @@ impl App {
         entry(ui, act, self.viewing_image(), item(t("menu-save-copy"), t("key-save-copy")), Act::Convert(None));
         ui.separator();
         let can_change = self.target().is_some();
-        entry(ui, act, can_change, item(t("menu-rename"), "F2".into()), Act::Rename(None));
+        let one = self.chosen(None).len() <= 1;
+        let r = ui.add_enabled(can_change && one, item(t("menu-rename"), "F2".into()));
+        pick(act, if one { r } else { r.on_disabled_hover_text(t("rename-one-only")) }, Act::Rename(None));
         entry(ui, act, can_change, item(t("menu-delete"), t("key-delete")), Act::Delete(None, false));
         entry(ui, act, can_change, item(t("menu-delete-permanent"), t("key-shift-delete")), Act::Delete(None, true));
         ui.separator();
@@ -72,7 +74,7 @@ impl App {
     /// Transform), then Rotate and crop.
     fn image_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
-        let some = self.viewing_image() || !self.grid_images(None).is_empty();
+        let some = self.viewing_photo() || !self.grid_images(None).is_empty();
         for (op, label, keys) in transform_items() {
             entry(ui, act, some, item(t(label), keys.map(t).unwrap_or_default()), Act::Transform(op, None));
             if op == transform::Op::FlipV {
@@ -132,7 +134,8 @@ impl App {
         let viewing = self.viewing.is_some();
         // One conversion at a time: the entries wait for the one running.
         let free = !viewing && self.batch.is_none();
-        entry(ui, act, free && !self.grid_items(None).is_empty(), egui::Button::new(t("menu-batch")), Act::Batch(None));
+        // Audio files are not converted (`open_batch`): off when only they are chosen.
+        entry(ui, act, free && self.grid_items(None).iter().any(|p| !crate::decode::is_audio(p)), egui::Button::new(t("menu-batch")), Act::Batch(None));
         let videos = free && self.grid_items(None).iter().any(|p| crate::decode::is_video(p));
         entry(ui, act, videos, egui::Button::new(t("menu-copy-meta")), Act::CopyMeta(None));
         entry(ui, act, videos, egui::Button::new(t("menu-strip-audio")), Act::Audio(crate::audio_job::AudioJob::Strip, None));
@@ -168,9 +171,11 @@ impl App {
             if ui.add(icon(icons::Icon::Refresh)).on_hover_text(self.i18n.t("menu-refresh")).clicked() {
                 self.refresh();
             }
+            // In the viewer, on only for pictures (not 3D models or CAD drawings).
             if self.viewing_image() {
+                let photo = self.viewing_photo();
                 for (i, op, id) in [(icons::Icon::RotateCcw, transform::Op::Ccw, "tf-rotate-ccw"), (icons::Icon::RotateCw, transform::Op::Cw, "tf-rotate-cw")] {
-                    if ui.add(icon(i)).on_hover_text(self.i18n.t(id)).clicked() {
+                    if ui.add_enabled(photo, icon(i)).on_hover_text(self.i18n.t(id)).clicked() {
                         self.act = Some(Act::Transform(op, None));
                     }
                 }

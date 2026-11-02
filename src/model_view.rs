@@ -101,7 +101,10 @@ impl App {
         let (dx, dy, zoom, reset) = ctx.input(|i| {
             let held = |k| if i.key_down(k) && !i.modifiers.command { 1.0 } else { 0.0 };
             // The real time since the last frame: a frame the system skips makes a longer step, not a slower turn.
-            let dt = i.unstable_dt.min(0.1) * TURN_SPEED;
+            // Not at the press: the frame before may be long ago (nothing to draw), and the model jumped.
+            let arrows = [Key::ArrowLeft, Key::ArrowRight, Key::ArrowUp, Key::ArrowDown];
+            let pressed = i.events.iter().any(|e| matches!(e, egui::Event::Key { key, pressed: true, repeat: false, .. } if arrows.contains(key)));
+            let dt = if pressed { i.predicted_dt } else { i.unstable_dt.min(0.1) } * TURN_SPEED;
             let key = |k| i.key_pressed(k) && !i.modifiers.command;
             let zoom = if key(Key::Plus) || key(Key::Equals) { 1.25 } else if key(Key::Minus) { 0.8 } else { 1.0 };
             ((held(Key::ArrowRight) - held(Key::ArrowLeft)) * dt, (held(Key::ArrowUp) - held(Key::ArrowDown)) * dt, zoom, key(Key::Num0))
