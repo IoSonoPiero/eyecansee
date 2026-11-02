@@ -431,6 +431,38 @@ struct Label {
     anchor: (Anchor, Baseline),
 }
 
+/// AutoCAD's codes in texts: %%c diameter, %%d degree, %%p plus-minus, %%nnn a character by its
+/// number, %%% a percent sign; %%o and %%u (over- and underline on and off) dropped.
+fn percent_codes(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut rest = s;
+    while let Some(i) = rest.find("%%") {
+        out.push_str(&rest[..i]);
+        rest = &rest[i + 2..];
+        let digits = rest.bytes().take(3).take_while(u8::is_ascii_digit).count();
+        if digits == 3 {
+            out.extend(rest[..3].parse::<u32>().ok().and_then(char::from_u32));
+            rest = &rest[3..];
+            continue;
+        }
+        let Some(c) = rest.chars().next() else { break };
+        match c.to_ascii_lowercase() {
+            'c' => out.push('\u{2300}'),
+            'd' => out.push('°'),
+            'p' => out.push('±'),
+            '%' => out.push('%'),
+            'o' | 'u' => {}
+            _ => {
+                out.push_str("%%");
+                out.push(c);
+            }
+        }
+        rest = &rest[c.len_utf8()..];
+    }
+    out.push_str(rest);
+    out
+}
+
 /// Texts (TEXT, MTEXT) with their coordinate system.
 fn label(e: &EntityType) -> Option<(Affine, Label)> {
     match e {
@@ -449,7 +481,7 @@ fn label(e: &EntityType) -> Option<(Affine, Label)> {
             };
             // Aligned text sits on its alignment point, left text on its insertion point.
             let at = if h == Anchor::Start && v == Baseline::Alphabetic { &x.insertion_point } else { x.alignment_point.as_ref().unwrap_or(&x.insertion_point) };
-            let l = Label { at: xy(at), height: x.height, angle: x.rotation, text: x.value.clone(), anchor: (h, v) };
+            let l = Label { at: xy(at), height: x.height, angle: x.rotation, text: percent_codes(&x.value), anchor: (h, v) };
             Some((Affine::ocs(n3(&x.normal)), l))
         }
         EntityType::MText(m) => {
@@ -528,6 +560,26 @@ fn mirror_about(pts: Vec<P>, c: P, major: P) -> Vec<P> {
         .collect()
 }
 
+/// The corners of a text's box, estimated (0.7 of the height a letter, lines 1.75 heights apart
+/// as `svg` writes them), aligned as the text and turned with it.
+fn text_box(at: P, h: f64, angle: f64, text: &str, anchor: (Anchor, Baseline)) -> [P; 4] {
+    let w = 0.7 * h * text.lines().map(|l| l.chars().count()).max().unwrap_or(0) as f64;
+    let below = 1.75 * h * text.lines().count().saturating_sub(1) as f64;
+    let x0 = match anchor.0 {
+        Anchor::Start => 0.0,
+        Anchor::Middle => -w / 2.0,
+        Anchor::End => -w,
+    };
+    // Rows from the top of the letters to the bottom of the descenders of the last line.
+    let (top, bottom) = match anchor.1 {
+        Baseline::Alphabetic => (1.4 * h, -0.4 * h - below),
+        Baseline::Middle => (0.8 * h, -0.8 * h - below),
+        Baseline::Hanging => (0.0, -1.6 * h - below),
+    };
+    let (s, c) = angle.sin_cos();
+    [[x0, bottom], [x0 + w, bottom], [x0 + w, top], [x0, top]].map(|[x, y]| [at[0] + x * c - y * s, at[1] + x * s + y * c])
+}
+
 impl Drawing {
     /// Box around what is drawn: lines, and the text positions with an estimate of their size.
     fn bounds(&self) -> Option<[f64; 4]> {
@@ -538,11 +590,7 @@ impl Drawing {
         for item in &self.items {
             match item {
                 Item::Line { pts, .. } => pts.iter().for_each(|&p| add(p)),
-                Item::Text { at, height, text, .. } => {
-                    add(*at);
-                    let w = 0.6 * height * text.lines().map(|l| l.chars().count()).max().unwrap_or(0) as f64;
-                    add([at[0] + w, at[1] + height]);
-                }
+                Item::Text { at, height, angle, text, anchor, .. } => text_box(*at, *height, *angle, text, *anchor).into_iter().for_each(&mut add),
                 Item::Image { corners, .. } => corners.iter().for_each(|&p| add(p)),
             }
         }
@@ -669,6 +717,14 @@ mod tests {
     use super::*;
 
     const DXF: &str = "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n62\n1\n10\n0\n20\n0\n30\n0\n11\n100\n21\n50\n31\n0\n0\nCIRCLE\n8\n0\n10\n50\n20\n25\n30\n0\n40\n10\n0\nTEXT\n8\n0\n10\n5\n20\n5\n30\n0\n40\n3\n1\nA & B\n0\nENDSEC\n0\nEOF\n";
+
+    #[test]
+    fn percent_codes_and_text_boxes() {
+        assert_eq!(percent_codes("%%c20 90%%d %%p0.1 %%1292 50%%% %%uA%%u"), "\u{2300}20 90° ±0.1 \u{81}2 50% A");
+        // Centred, turned by 90°: the box goes up and down from the point, to the left of it.
+        let b = text_box([0.0, 0.0], 1.0, std::f64::consts::FRAC_PI_2, "ABCD", (Anchor::Middle, Baseline::Alphabetic));
+        assert!(b.iter().any(|p| p[1] < -1.0) && b.iter().any(|p| p[1] > 1.0) && b.iter().any(|p| p[0] < -1.0));
+    }
 
     #[test]
     fn a_minimal_dxf_becomes_an_svg() {
