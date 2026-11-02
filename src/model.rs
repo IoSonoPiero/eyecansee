@@ -54,6 +54,8 @@ pub(crate) struct Builder {
     colors: Vec<Option<[u8; 3]>>,
     uv: Vec<Option<Textured>>,
     textures: Vec<std::sync::Arc<image::RgbaImage>>,
+    /// Pictures already read by `texture_file`, by the name the model gives them.
+    named: std::collections::HashMap<String, u16>,
 }
 
 impl Builder {
@@ -96,6 +98,18 @@ impl Builder {
         self.textures.len() as u16
     }
 
+    /// The picture in the file `name` next to the model, read once: as the model writes it, or
+    /// just its file name (paths of the author's computer). As `texture`, 0 when unreadable.
+    pub(crate) fn texture_file(&mut self, name: &str, sibling: Sibling) -> u16 {
+        if let Some(&k) = self.named.get(name) {
+            return k;
+        }
+        let base = name.rsplit(['/', '\\']).next().unwrap_or(name);
+        let k = [name, base].into_iter().find_map(sibling).and_then(|d| image::load_from_memory(&d).ok()).map_or(0, |i| self.texture(i.to_rgba8()));
+        self.named.insert(name.to_owned(), k);
+        k
+    }
+
     /// The box around the points added so far (all of them, used or not).
     pub(crate) fn bounds(&self) -> Option<([f32; 3], [f32; 3])> {
         let finite = self.pos.iter().filter(|p| p.iter().all(|c| c.is_finite()));
@@ -109,7 +123,7 @@ impl Builder {
     }
 
     pub(crate) fn finish(self, z_up: bool) -> Result<Mesh, String> {
-        let Builder { pos, tris, colors, uv, textures } = self;
+        let Builder { pos, tris, colors, uv, textures, .. } = self;
         let finite = |p: &[f32; 3]| p.iter().all(|c| c.is_finite());
         let tris: Vec<(usize, [u32; 3])> = tris.into_iter().enumerate().filter(|(_, t)| t.iter().all(|&v| finite(&pos[v as usize]))).collect();
         if tris.is_empty() {
@@ -236,9 +250,10 @@ fn percent_decoded(s: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
-/// With the colours of its materials (`Kd` of the `.mtl` files it names) or of its vertices.
+/// With the colours of its materials (`Kd` of the `.mtl` files it names) or of its vertices, and
+/// their pictures (`map_Kd`).
 fn obj(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
-    let options = tobj::LoadOptions { triangulate: true, ignore_points: true, ignore_lines: true, ..Default::default() };
+    let options = tobj::LoadOptions { triangulate: true, single_index: true, ignore_points: true, ignore_lines: true };
     let mtl = |p: &std::path::Path| match p.to_str().and_then(sibling) {
         Some(data) => tobj::load_mtl_buf(&mut Cursor::new(utf8(&data).as_bytes())),
         None => Err(tobj::LoadError::OpenFileFailed),
@@ -251,10 +266,20 @@ fn obj(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
         let pos = m.positions.as_chunks::<3>().0.to_vec();
         let tris: Vec<[u32; 3]> = m.indices.as_chunks::<3>().0.to_vec();
         let vc: Vec<[f32; 3]> = m.vertex_color.as_chunks::<3>().0.to_vec();
-        let kd = m.material_id.and_then(|i| materials.get(i)).and_then(|mat| mat.diffuse);
+        let mat = m.material_id.and_then(|i| materials.get(i));
+        // "map_Kd -s 1 1 1 wood.png": the options before the name.
+        let map = mat.and_then(|mat| mat.diffuse_texture.as_deref()).map(|t| if t.starts_with('-') { t.rsplit(' ').next().unwrap_or(t) } else { t });
+        let tex = map.map_or(0, |t| b.texture_file(t, sibling));
+        let uv: Vec<[f32; 2]> = m.texcoords.as_chunks::<2>().0.iter().map(|&[u, v]| [u, 1.0 - v]).collect();
+        // The picture alone, as 3D programs show it (Kd is often a leftover grey).
+        let kd = if tex > 0 && !uv.is_empty() { Some([1.0; 3]) } else { mat.and_then(|mat| mat.diffuse) };
         let to_u8 = |c: [f32; 3]| c.map(|v| (v.clamp(0.0, 1.0) * 255.0) as u8);
         let colors = |i: usize| average(&vc, tris[i]).or(kd).map(to_u8);
-        b.add(pos, tris.clone(), colors)?;
+        let corners = |i: usize| {
+            let c = tris[i].map(|v| uv.get(v as usize).copied());
+            c.iter().all(Option::is_some).then(|| (c.map(Option::unwrap_or_default), tex))
+        };
+        b.add_textured(pos, tris.clone(), colors, corners)?;
     }
     b.finish(false)
 }
@@ -444,6 +469,18 @@ mod tests {
         assert_eq!(m.colors, vec![[255, 0, 0], [0, 0, 255]]);
         // Without the .mtl it still opens, uncoloured.
         assert!(parse(obj.as_bytes(), "x.obj").unwrap().colors.is_empty());
+        // Its picture (map_Kd, with options and a Windows path), upside down as OBJ counts V.
+        let obj = "mtllib m.mtl\nv 0 0 0\nv 1 0 0\nv 0 1 0\nvt 0 0\nvt 1 0\nvt 0 1\nusemtl t\nf 1/1 2/2 3/3\n";
+        let mut png = Vec::new();
+        image::RgbaImage::from_pixel(2, 2, image::Rgba([0, 255, 0, 255])).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let next = |name: &str| match name {
+            "m.mtl" => Some(b"newmtl t\nKd 0.5 0.5 0.5\nmap_Kd -s 1 1 1 .\\tex\\grass.png\n".to_vec()),
+            "grass.png" => Some(png.clone()),
+            _ => None,
+        };
+        let m = parse_with(obj.as_bytes(), "x.obj", &next).unwrap();
+        assert_eq!((m.tex.clone(), m.textures.len(), m.colors.clone()), (vec![1], 1, vec![[255, 255, 255]]));
+        assert_eq!(m.uv[0], [[0.0, 1.0], [1.0, 1.0], [0.0, 0.0]]);
         // A .gltf whose triangle is in the .bin next to it.
         let gltf = r#"{"asset":{"version":"2.0"},"buffers":[{"uri":"tri%20data.bin","byteLength":36}],"bufferViews":[{"buffer":0,"byteLength":36}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","min":[0,0,0],"max":[1,1,0]}],"meshes":[{"primitives":[{"attributes":{"POSITION":0}}]}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0}"#;
         let bin: Vec<u8> = [0f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0].iter().flat_map(|f| f.to_le_bytes()).collect();
