@@ -286,9 +286,10 @@ fn primitive(n: &SceneNode) -> Part {
             let s = n.nums("size");
             let s = if s.len() >= 3 { [s[0] / 2.0, s[1] / 2.0, s[2] / 2.0] } else { [1.0; 3] };
             let pos = (0..8).map(|i| [0, 1, 2].map(|k| if i >> k & 1 == 1 { s[k] } else { -s[k] })).collect();
-            let quads = [[0, 2, 3, 1], [4, 5, 7, 6], [0, 1, 5, 4], [2, 6, 7, 3], [0, 4, 6, 2], [1, 3, 7, 5]];
-            // The whole picture on each face.
-            // ponytail: each face's picture may be turned or mirrored from what X3D says
+            // Corners bottom left, bottom right, top right, top left as X3D looks at each face:
+            // from outside with +Y up (front, back, right, left), from above with −Z up, from
+            // below with +Z up. The whole picture on each, upright.
+            let quads = [[4, 5, 7, 6], [1, 0, 2, 3], [5, 1, 3, 7], [0, 4, 6, 2], [6, 7, 3, 2], [0, 1, 5, 4]];
             let c = [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
             let uv = quads.iter().flat_map(|_| [Some([c[0], c[1], c[2]]), Some([c[0], c[2], c[3]])]).collect();
             Part { pos, tris: quads.iter().flat_map(|q| [[q[0], q[1], q[2]], [q[0], q[2], q[3]]]).collect(), colors: Vec::new(), uv }
@@ -309,8 +310,8 @@ fn primitive(n: &SceneNode) -> Part {
 }
 
 /// A profile of (radius, height, height on the picture) turned about the Y axis. The picture goes
-/// around from the back (−Z), anticlockwise seen from above, as X3D wraps it.
-// ponytail: the caps of cylinders and cones repeat the edge of the picture instead of a disc
+/// around from the back (−Z), anticlockwise seen from above, as X3D wraps it; flat rings (caps)
+/// get a disc cut from it, seen from above with −Z up or from below with +Z up.
 fn lathe(profile: &[(f32, f32, f32)]) -> Part {
     let mut pos = Vec::new();
     for &(r, y, _) in profile {
@@ -322,10 +323,17 @@ fn lathe(profile: &[(f32, f32, f32)]) -> Part {
     let at = |ring: usize, s: usize| (ring * SEGMENTS + s % SEGMENTS) as u32;
     let (mut tris, mut uv) = (Vec::new(), Vec::new());
     for ring in 0..profile.len() - 1 {
+        let cap = profile[ring].1 == profile[ring + 1].1;
+        let rim = (2.0 * profile[ring].0.max(profile[ring + 1].0)).max(f32::MIN_POSITIVE);
+        let up = if profile[ring].1 > 0.0 { 1.0 } else { -1.0 };
+        let corner = |(r, s): (usize, usize)| {
+            let p: [f32; 3] = pos[at(r, s) as usize];
+            if cap { [0.5 + p[0] / rim, 0.5 + up * p[2] / rim] } else { [s as f32 / SEGMENTS as f32 - 0.25, 1.0 - profile[r].2] }
+        };
         for s in 0..SEGMENTS {
             for t in [[(ring, s), (ring, s + 1), (ring + 1, s + 1)], [(ring, s), (ring + 1, s + 1), (ring + 1, s)]] {
                 tris.push(t.map(|(r, s)| at(r, s)));
-                uv.push(Some(t.map(|(r, s)| [s as f32 / SEGMENTS as f32 - 0.25, 1.0 - profile[r].2])));
+                uv.push(Some(t.map(corner)));
             }
         }
     }
