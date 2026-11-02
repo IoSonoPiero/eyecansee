@@ -31,10 +31,13 @@ impl Default for View {
 }
 
 impl View {
-    /// Turned by `dx`, `dy` radians; never upside down.
+    /// Turned by `dx`, `dy` radians, all the way round in both directions (also over the top).
     pub fn turn(&mut self, dx: f32, dy: f32) {
-        self.yaw = (self.yaw + dx) % std::f32::consts::TAU;
-        self.pitch = (self.pitch + dy).clamp(-1.55, 1.55);
+        use std::f32::consts::{PI, TAU};
+        // Upside down the model's up points down: sideways turns go the other way to follow the hand.
+        let side = if self.pitch.cos() < 0.0 { -1.0 } else { 1.0 };
+        self.yaw = (self.yaw + dx * side) % TAU;
+        self.pitch = (self.pitch + dy + PI).rem_euclid(TAU) - PI;
     }
     pub fn zoom_by(&mut self, f: f32) {
         self.zoom = (self.zoom * f).clamp(0.05, 200.0);
@@ -252,8 +255,11 @@ mod tests {
         v.pan = [0.4, 0.0];
         let img = render(&m, &v, 100, 100, 1);
         assert!(img.get_pixel(15, 50)[0] < 120 && img.get_pixel(90, 50)[0] > 120);
-        v.turn(0.0, 10.0);
-        assert!(v.pitch < 1.6);
+        // Over the top and round again: no stop, kept between -π and π.
+        v.turn(0.0, 3.0);
+        assert!((v.pitch - 3.0).abs() < 1e-6);
+        v.turn(0.0, 0.5);
+        assert!((v.pitch - (3.5 - std::f32::consts::TAU)).abs() < 1e-5);
     }
 
     #[test]
