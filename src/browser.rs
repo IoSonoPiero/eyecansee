@@ -86,7 +86,12 @@ impl App {
         } else if target.ends_with('/') {
             items.extend(self.folder_items(path, &target));
         } else if crate::decode::is_video(&target) {
-            // Turning and saving are for images; converting goes through FFmpeg.
+            // Turning and saving are for images; converting goes through FFmpeg. The slideshow plays videos too.
+            items.extend([
+                Some((self.i18n.t("menu-slideshow"), String::new(), Act::Slideshow(path.clone()))),
+                Some((self.i18n.t("menu-redo-thumbs"), String::new(), Act::RedoThumbs(path.clone()))),
+                None,
+            ]);
             if !in_viewer && self.batch.is_none() {
                 items.extend([
                     Some((self.i18n.t("menu-batch"), String::new(), Act::Batch(path.clone()))),

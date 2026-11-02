@@ -47,7 +47,20 @@ impl App {
         entry(ui, act, self.can_make_folder(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder(None));
         ui.separator();
         entry(ui, act, self.can_save(), item(t("menu-save"), t("key-save")), Act::Save);
-        entry(ui, act, self.viewing_image(), item(t("menu-save-copy"), t("key-save-copy")), Act::Convert(None));
+        // As in the right-click menu: also in the grid, for one picture, 3D model or CAD drawing.
+        let one_file = self.viewing.is_none() && self.chosen(None).len() == 1 && self.target().is_some_and(|p| !p.ends_with('/') && !crate::decode::is_played(&p));
+        // Ctrl+Shift+S works in the viewer only.
+        let keys = if self.viewing.is_some() { t("key-save-copy") } else { String::new() };
+        entry(ui, act, self.viewing_image() || one_file, item(t("menu-save-copy"), keys), Act::Convert(None));
+        // As in the right-click menu: one 3D model, open or selected.
+        let model = self.chosen(None).len() <= 1 && self.target().is_some_and(|p| crate::model::is_model(&p));
+        ui.add_enabled_ui(model, |ui| {
+            ui.menu_button(t("menu-export-3d"), |ui| {
+                for k in crate::model_export::Kind::ALL {
+                    entry(ui, act, true, egui::Button::new(k.label()), Act::ExportModel(None, k));
+                }
+            });
+        });
         ui.separator();
         let can_change = self.target().is_some();
         let one = self.chosen(None).len() <= 1;
