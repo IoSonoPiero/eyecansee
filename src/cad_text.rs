@@ -119,7 +119,8 @@ fn line_strokes(font: &Font, line: &str) -> (Vec<Vec<P>>, f64) {
     let mut out = Vec::new();
     let mut x = 0.0;
     for c in line.chars() {
-        let byte = native(c, font.encoding);
+        // A DOS font numbers its letters by code page 437 (`Shx::code`), not by the drawing's.
+        let byte = native(c, font.encoding).filter(|_| !font.shx.dos);
         let (shx, code) = match (font.shx.code(c), byte.filter(|&b| font.shx.has(b)), &font.big) {
             (Some(code), _, _) | (None, Some(code), _) => (&font.shx, code),
             (None, None, Some(big)) if byte.is_some_and(|b| big.has(b)) => (big, byte.unwrap_or(0)),
@@ -285,7 +286,7 @@ mod shx_live {
     fn shx_live() {
         let (Ok(dir), Ok(out)) = (std::env::var("EYECANSEE_SHX"), std::env::var("EYECANSEE_SHX_OUT")) else { return };
         let load = |n: &str| crate::cad_shx::parse(&std::fs::read(format!("{dir}/{n}")).ok()?).map(Arc::new);
-        let rows = [("txt.shx", None, "ABC abc 0123 °±⌀ àèé €", encoding_rs::WINDOWS_1252), ("TXT8.SHX", None, "ABC abc 0123 àèé", encoding_rs::WINDOWS_1252), ("tssdeng.shx", Some("hztxt.shx"), "长度 66.04 中文测试 ABC", encoding_rs::GBK), ("simplex.shx", Some("hztxt.shx"), "长度 中文测试 ABC", encoding_rs::GBK), ("simplex.shx", Some("gbcbig.shx"), "长度 中文测试 ABC", encoding_rs::GBK), ("tssdeng.shx", None, "长度 中文测试 ABC", encoding_rs::GBK), ("simplex.shx", Some("chineset.shx"), "長度 中文測試 ABC", encoding_rs::BIG5), ("simplex.shx", Some("extfont.shx"), "日本語テスト ABC", encoding_rs::SHIFT_JIS), ("romans.shx", Some("GHS.SHX"), "한국어 시험 ABC", encoding_rs::EUC_KR)];
+        let rows = [("txt.shx", None, "ABC abc 0123 °±⌀ àèé €", encoding_rs::WINDOWS_1252), ("TXT8.SHX", None, "ABC abc 0123 àèéüß ° ± ⌀ ½", encoding_rs::WINDOWS_1252), ("ROMANS8.SHX", None, "Perché così? Größe 20°±0,1 ⌀5", encoding_rs::WINDOWS_1252), ("tssdeng.shx", Some("hztxt.shx"), "长度 66.04 中文测试 ABC", encoding_rs::GBK), ("simplex.shx", Some("hztxt.shx"), "长度 中文测试 ABC", encoding_rs::GBK), ("simplex.shx", Some("gbcbig.shx"), "长度 中文测试 ABC", encoding_rs::GBK), ("tssdeng.shx", None, "长度 中文测试 ABC", encoding_rs::GBK), ("simplex.shx", Some("chineset.shx"), "長度 中文測試 ABC", encoding_rs::BIG5), ("simplex.shx", Some("extfont.shx"), "日本語テスト ABC", encoding_rs::SHIFT_JIS), ("romans.shx", Some("GHS.SHX"), "한국어 시험 ABC", encoding_rs::EUC_KR)];
         let mut d = crate::cad::Drawing::default();
         for (i, (main, big, text, encoding)) in rows.iter().enumerate() {
             let Some(shx) = load(main) else { continue };

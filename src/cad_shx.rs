@@ -20,6 +20,15 @@ pub struct Shx {
     shapes: HashMap<u16, Vec<u8>>,
     /// Big font: the lead bytes of its two-byte codes.
     pub ranges: Vec<(u8, u8)>,
+    /// An old DOS font (`TXT8`, `ROMANS8`): accented letters at their code page 437 numbers.
+    pub dos: bool,
+}
+
+/// Code page 437 (DOS) from 0x80 to 0xFF.
+const CP437: &str = "ÇüéâäàåçêëèïîìÄÅÉæÆôöòûùÿÖÜ¢£¥₧ƒáíóúñÑªº¿⌐¬½¼¡«»░▒▓│┤╡╢╖╕╣║╗╝╜╛┐└┴┬├─┼╞╟╚╔╩╦╠═╬╧╨╤╥╙╘╒╓╫╪┘┌█▄▌▐▀αßΓπΣσµτΦΘΩδ∞φε∩≡±≥≤⌠⌡÷≈°∙·√ⁿ²■\u{a0}";
+
+fn cp437(c: char) -> Option<u16> {
+    CP437.chars().position(|x| x == c).map(|i| 0x80 + i as u16)
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -115,7 +124,9 @@ pub fn parse(bytes: &[u8]) -> Option<Shx> {
     let info = shapes.get(&0)?;
     let above = info.iter().take(2).copied().find(|&a| a > 0)? as f64;
     let extended = info.first() == Some(&0);
-    let mut font = Shx { above, kind, shapes, ranges };
+    // Accented letters where DOS has them (0x80-0x9F holds no letters in Windows code pages).
+    let dos = kind == Kind::Shapes && (0x80..0xA0).filter(|c| shapes.contains_key(c)).count() >= 16;
+    let mut font = Shx { above, kind, shapes, ranges, dos };
     // An extended big font (height 0 first) draws its characters at their own scale: their
     // height measured on some of them instead.
     if kind == Kind::Bigfont && extended {
@@ -173,7 +184,13 @@ impl Pen {
 impl Shx {
     /// The shape of a character by its Unicode number (big fonts: by its two-byte code), or for
     /// the degree, plus-minus and diameter signs where AutoCAD's own fonts keep them (127-129).
+    /// (DOS fonts: by code page 437, the diameter as its φ.)
     pub fn code(&self, c: char) -> Option<u16> {
+        if self.dos {
+            let c = if c == '\u{2300}' { 'φ' } else { c };
+            let code = if c.is_ascii() { Some(c as u16) } else { cp437(c) };
+            return code.filter(|&k| k != 0 && self.shapes.contains_key(&k));
+        }
         let alt: &[u16] = match c {
             '°' => &[127],
             '±' => &[128],
@@ -409,13 +426,14 @@ mod tests {
         assert_eq!(strokes, vec![vec![[0.0, 5.0], [8.0, 5.0]]]);
         // Unknown characters become nothing visible but take room.
         assert!(f.strokes("é").1 > 0.0);
+        assert_eq!((cp437('é'), cp437('°'), cp437('\u{a0}'), cp437('A')), (Some(0x82), Some(0xF8), Some(0xFF), None));
         bytes.truncate(10);
         assert!(parse(&bytes).is_none());
     }
 
     #[test]
     fn octant_arcs_and_bulges() {
-        let f = Shx { above: 1.0, kind: Kind::Shapes, shapes: HashMap::from([(65, vec![10, 4, 0x04, 0]), (66, vec![12, 10, 0, 127, 0])]), ranges: Vec::new() };
+        let f = Shx { above: 1.0, kind: Kind::Shapes, shapes: HashMap::from([(65, vec![10, 4, 0x04, 0]), (66, vec![12, 10, 0, 127, 0])]), ranges: Vec::new(), dos: false };
         // Half a circle of radius 4 from octant 0 counterclockwise: ends at (-8, 0).
         let end = f.strokes("A").0[0].last().copied().unwrap();
         assert!((end[0] + 8.0).abs() < 1e-9 && end[1].abs() < 1e-9);
