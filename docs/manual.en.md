@@ -152,7 +152,7 @@ Right click > **Export as a 3D model** saves the model as STL, OBJ, PLY or glTF 
 
 A band above the status bar recalls these keys, for 3D models and CAD drawings. In the top right corner the axes of the file (X red, Y green, Z blue) turn with the model, as in CAD programs; a CAD drawing shows its X and Y in the bottom left corner.
 
-The colours stored in the file are shown (colours of materials, faces and vertices) and, in glTF, 3MF, OBJ, FBX, Collada, 3DS, VRML and X3D files, the pictures on the surfaces (textures); glTF and FBX materials also show how smooth or metallic they are (with a highlight), their bumps (normal maps), shadows in their creases (occlusion) and their own light, with smooth surfaces where the file gives their normals; a model without colours is light grey. The status bar shows the number of triangles, the zoom and, while the model moves, the frames per second. *Convert and resize* turns several models into images at once, seen from the starting view.
+The colours stored in the file are shown (colours of materials, faces and vertices) and, in glTF, 3MF, OBJ, FBX, Collada, 3DS, VRML and X3D files, the pictures on the surfaces (textures); glTF and FBX materials also show how smooth or metallic they are (with a highlight), their bumps (normal maps), shadows in their creases (occlusion) and their own light. Curved surfaces look smooth and edges stay sharp, also in models that do not store their normals (scans, STL); a model without colours is light grey. The status bar shows the number of triangles, the zoom and, while the model moves, the frames per second. *Convert and resize* turns several models into images at once, seen from the starting view.
 
 ## CAD drawings
 

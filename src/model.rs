@@ -10,6 +10,8 @@ const MODEL: &[&str] = &["stl", "obj", "ply", "glb", "gltf", "3mf", "ifc", "fbx"
 
 /// Beyond this the file is refused instead of filling the memory (a 3D scan of a statue is ~10 M).
 const MAX_TRIANGLES: usize = 50_000_000;
+/// Normals are worked out (`model_smooth`) up to this many triangles: 36 bytes each.
+const SMOOTH_MAX: usize = 20_000_000;
 
 /// Also STEP, IGES and BREP (`occt`), read by the CAD engine.
 pub fn is_model(name: &str) -> bool {
@@ -200,8 +202,18 @@ impl Builder {
         let textured = uv.iter().any(Option::is_some);
         let (uv, tex) = if textured { tris.iter().map(|&(i, _)| uv[i].unwrap_or(([[0.0; 2]; 3], 0))).unzip() } else { (Vec::new(), Vec::new()) };
         let textures = if textured { textures } else { Vec::new() };
-        let shiny = shine.iter().any(|s| s.0 > 0);
-        let (surface, normals) = if shiny { tris.iter().map(|&(i, _)| (shine[i].0, shine[i].1.unwrap_or_default())).unzip() } else { (Vec::new(), Vec::new()) };
+        // Normals worked out where the file gives none, and those triangles matte (as before, smooth).
+        // ponytail: not beyond SMOOTH_MAX triangles, where the normals would take gigabytes
+        let mut surfaces = surfaces;
+        let missing = tris.iter().any(|&(i, _)| shine[i].1.is_none());
+        let smooth = if missing && tris.len() <= SMOOTH_MAX { crate::model_smooth::normals(&pos, &tris.iter().map(|&(_, t)| t).collect::<Vec<_>>()) } else { Vec::new() };
+        let matte = if smooth.is_empty() { 0 } else { surfaces.iter().position(|s| *s == Surface::default()).unwrap_or_else(|| { surfaces.push(Surface::default()); surfaces.len() - 1 }) as u16 + 1 };
+        let pick = |k: usize, i: usize| match shine[i] {
+            (s, Some(n)) => (s, n),
+            (s, None) => (if s > 0 { s } else { matte }, smooth.get(k).copied().unwrap_or_default()),
+        };
+        let shiny = matte > 0 || shine.iter().any(|s| s.0 > 0);
+        let (surface, normals) = if shiny { tris.iter().enumerate().map(|(k, &(i, _))| pick(k, i)).unzip() } else { (Vec::new(), Vec::new()) };
         let surfaces = if shiny { surfaces } else { Vec::new() };
         Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, uv, tex, textures, surface, surfaces, normals })
     }

@@ -74,6 +74,7 @@ mod model_gltf;
 mod model_ifc;
 mod model_lines;
 mod model_off;
+mod model_smooth;
 mod model_text;
 mod model_vrml;
 mod model_x3d;

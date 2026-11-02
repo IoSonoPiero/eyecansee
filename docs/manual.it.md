@@ -152,7 +152,7 @@ Tasto destro > **Esporta come modello 3D** salva il modello come STL, OBJ, PLY o
 
 Una fascia sopra la barra di stato ricorda questi tasti, per i modelli 3D e i disegni CAD. In alto a destra gli assi del file (X rosso, Y verde, Z blu) girano col modello, come nei programmi CAD; un disegno CAD mostra la sua X e la sua Y in basso a sinistra.
 
-Si vedono i colori scritti nel file (colori di materiali, facce e vertici) e, nei glTF, 3MF, OBJ, FBX, Collada, 3DS, VRML e X3D, le immagini sulle superfici (texture); i materiali di glTF e FBX mostrano anche quanto sono lisci o metallici (con un riflesso di luce), il rilievo (normal map), le ombre nelle pieghe (occlusione) e la luce propria, con superfici morbide dove il file dà le normali; un modello senza colori è grigio chiaro. La barra di stato mostra il numero di triangoli, l'ingrandimento e, mentre il modello si muove, i fotogrammi al secondo. *Converti e ridimensiona* trasforma più modelli in immagini in una volta, visti dalla vista di partenza.
+Si vedono i colori scritti nel file (colori di materiali, facce e vertici) e, nei glTF, 3MF, OBJ, FBX, Collada, 3DS, VRML e X3D, le immagini sulle superfici (texture); i materiali di glTF e FBX mostrano anche quanto sono lisci o metallici (con un riflesso di luce), il rilievo (normal map), le ombre nelle pieghe (occlusione) e la luce propria. Le superfici curve sono morbide e gli spigoli restano netti, anche nei modelli che non salvano le normali (scansioni, STL); un modello senza colori è grigio chiaro. La barra di stato mostra il numero di triangoli, l'ingrandimento e, mentre il modello si muove, i fotogrammi al secondo. *Converti e ridimensiona* trasforma più modelli in immagini in una volta, visti dalla vista di partenza.
 
 ## Disegni CAD
 
