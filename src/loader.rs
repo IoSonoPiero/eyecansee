@@ -470,7 +470,7 @@ impl Loader {
                 match op.read(&path).await {
                     Ok(bytes) => tokio::task::spawn_blocking(move || {
                         if crate::cad::is_cad(&path) {
-                            let drawing = Arc::new(crate::cad::read(&bytes, &path)?);
+                            let drawing = Arc::new(crate::cad::read_with(&bytes, &path, &sibling)?);
                             let image = decode::cad_render(&drawing, decode::CAD_SIDE, None)?;
                             let _ = tx.send(Msg::Drawing { generation, index, drawing });
                             ctx.request_repaint();

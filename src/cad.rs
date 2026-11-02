@@ -33,6 +33,9 @@ pub fn is_cad(name: &str) -> bool {
 pub enum Item {
     Line { pts: Vec<P>, color: [u8; 3], fill: Option<f32>, stroke: Stroke },
     Text { at: P, height: f64, angle: f64, text: String, color: [u8; 3], anchor: (Anchor, Baseline) },
+    /// A picture attached to the drawing: its corners (bottom-left, bottom-right, top-right,
+    /// top-left) and the PNG in base64.
+    Image { corners: [P; 4], png: String },
 }
 
 /// How a line is drawn: its dashes in drawing units (positive dash, negative gap, zero dot;
@@ -69,6 +72,11 @@ pub struct Drawing {
 }
 
 pub fn read(bytes: &[u8], name: &str) -> Result<Drawing, String> {
+    read_with(bytes, name, &crate::cad_image::none)
+}
+
+/// Like `read`, with the pictures attached to the drawing read through `sibling`.
+pub fn read_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Result<Drawing, String> {
     let lower = name.to_lowercase();
     if [".plt", ".hpgl", ".hpg", ".hgl"].iter().any(|e| lower.ends_with(e)) {
         return crate::cad_hpgl::read(bytes);
@@ -80,6 +88,7 @@ pub fn read(bytes: &[u8], name: &str) -> Result<Drawing, String> {
     };
     let mut d = Drawing::default();
     let mut walk = Walk::new(&doc, &mut d);
+    walk.sibling = sibling;
     let model: Vec<&EntityType> = doc.model_space_entities().collect();
     let model = if model.is_empty() { unplaced(&doc) } else { model };
     let top = Context { t: Affine::IDENTITY, layer: None, color: WHITE, style: CONTINUOUS, depth: 0 };
@@ -89,7 +98,7 @@ pub fn read(bytes: &[u8], name: &str) -> Result<Drawing, String> {
     if d.items.is_empty() {
         return Err("nothing to draw in the model space".into());
     }
-    d.sheets = crate::cad_layout::sheets(&doc);
+    d.sheets = crate::cad_layout::sheets(&doc, sibling);
     Ok(d)
 }
 
@@ -137,6 +146,8 @@ pub(crate) struct Walk<'a> {
     /// Inside a layout's viewport: its box on the sheet, and the layers frozen in it (lower case).
     pub(crate) clip: Option<[f64; 4]>,
     pub(crate) frozen: Vec<String>,
+    /// The files next to the drawing, for its pictures.
+    pub(crate) sibling: crate::model::Sibling<'a>,
 }
 
 fn xy(v: &Vector3) -> P {
@@ -149,7 +160,7 @@ fn n3(v: &Vector3) -> [f64; 3] {
 
 impl<'a> Walk<'a> {
     pub(crate) fn new(doc: &'a CadDocument, out: &'a mut Drawing) -> Self {
-        Walk { doc, out, clip: None, frozen: Vec::new() }
+        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none }
     }
 
     /// The layer an entity is drawn on, if visible: layer 0 inside a block takes the insert's.
@@ -266,6 +277,13 @@ impl<'a> Walk<'a> {
                 self.block(&tb.block_name, &inner)
             }
             EntityType::Hatch(h) => self.hatch(h, t, color, style.weight),
+            // Out of a layout's viewports, cutting a picture is not done: then its frame.
+            EntityType::RasterImage(r) if self.clip.is_none() && let Some(png) = crate::cad_image::picture(self.doc, r, self.sibling) => {
+                let corners = crate::cad_image::corners(r).map(|p| t.apply(p));
+                self.out.points += 4;
+                self.out.items.push(Item::Image { corners, png });
+                Ok(())
+            }
             e => match shape(e) {
                 Some((ocs, pts, fill)) => {
                     let stroke = self.stroke(style, t);
@@ -525,6 +543,7 @@ impl Drawing {
                     let w = 0.6 * height * text.lines().map(|l| l.chars().count()).max().unwrap_or(0) as f64;
                     add([at[0] + w, at[1] + height]);
                 }
+                Item::Image { corners, .. } => corners.iter().for_each(|&p| add(p)),
             }
         }
         (b[0] <= b[2] && b[1] <= b[3]).then_some(b)
@@ -562,6 +581,10 @@ impl Drawing {
                             let _ = write!(out, r#"" stroke="{c}"/>"#);
                         }
                     }
+                }
+                Item::Image { corners, png } => {
+                    let [a, b, c, d, e, f] = crate::cad_image::matrix(corners.map(px));
+                    let _ = write!(out, r#"<image width="1" height="1" preserveAspectRatio="none" transform="matrix({a:.3} {b:.3} {c:.3} {d:.3} {e:.3} {f:.3})" href="data:image/png;base64,{png}"/>"#);
                 }
                 Item::Text { at, height, angle, text, color, anchor } => {
                     let (x, y) = px(*at);
@@ -673,12 +696,14 @@ mod tests {
                 }
                 let bytes = std::fs::read(f.path()).unwrap();
                 let t = std::time::Instant::now();
-                match std::panic::catch_unwind(|| read(&bytes, &name)) {
+                let path = f.path().to_string_lossy().to_string();
+                let next = |rel: &str| crate::model::sibling_path(&path, rel).and_then(|p| std::fs::read(p).ok());
+                match std::panic::catch_unwind(|| read_with(&bytes, &name, &next)) {
                     Ok(Ok(d)) => {
                         let read = t.elapsed();
                         let t = std::time::Instant::now();
-                        let img = crate::decode::cad_picture(&bytes, &name, 1600);
-                        println!("{name}: {} items, read {read:.0?}, read and drawn {:.0?}", d.items.len(), t.elapsed());
+                        let img = crate::decode::cad_render(&d, 1600, None);
+                        println!("{name}: {} items, read {read:.0?}, drawn {:.0?}", d.items.len(), t.elapsed());
                         img.unwrap().save(format!("{out}/{name}.png")).unwrap();
                     }
                     Ok(Err(e)) => {

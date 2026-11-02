@@ -155,6 +155,8 @@ async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, Stri
     tokio::task::spawn_blocking(move || {
         let img = if crate::model::is_model(&file.path) {
             decode::model_picture_with(&bytes, &file.path, THUMB_SIDE, THUMB_SIDE * 3 / 4, &sibling)?
+        } else if crate::cad::is_cad(&file.path) {
+            image::DynamicImage::ImageRgba8(decode::cad_render(&crate::cad::read_with(&bytes, &file.path, &sibling)?, THUMB_SIDE, None)?)
         } else {
             decode::thumbnail(&bytes, &file.path, THUMB_SIDE)?
         };
