@@ -1,12 +1,13 @@
 //! glTF 2.0 (GLB, and .gltf with its data inside or in the files next to it): the default
 //! scene's nodes with their matrices, every primitive (triangles, strips, fans; lines and points
-//! as thin solids), base colours, vertex colours and the pictures of the base colours.
+//! as thin solids), base colours, vertex colours, the pictures of the base colours and the
+//! rest of the material (metal, roughness, bumps, occlusion, glow) with the vertices' normals.
 
 use std::collections::HashMap;
 
 use base64::Engine;
 
-use crate::model::{Builder, IDENTITY, Mat4, Mesh, Sibling, apply, average, mul};
+use crate::model::{Builder, IDENTITY, Mat4, Mesh, Sibling, Surface, apply, average, mul};
 
 /// What a glTF that cannot be read needs, said plainly: compressed geometry, version 1.0.
 fn gltf_error(e: String) -> String {
@@ -46,20 +47,22 @@ pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     }
     let mut b = Builder::default();
     let mut extra: Extra = (Vec::new(), Vec::new(), HashMap::new());
-    // The pictures of the base colours, read once: in the file, in base64, or next to it.
+    // The materials' pictures, read once: in the file, in base64, or next to it.
     for mat in g.document.materials() {
-        let Some(info) = mat.pbr_metallic_roughness().base_color_texture() else { continue };
-        let img = info.texture().source();
-        if extra.2.contains_key(&img.index()) {
-            continue;
-        }
+        let pbr = mat.pbr_metallic_roughness();
+        let textures = [pbr.base_color_texture().map(|t| t.texture()), pbr.metallic_roughness_texture().map(|t| t.texture()), mat.normal_texture().map(|t| t.texture()), mat.occlusion_texture().map(|t| t.texture()), mat.emissive_texture().map(|t| t.texture())];
+        for img in textures.into_iter().flatten().map(|t| t.source()) {
+            if extra.2.contains_key(&img.index()) {
+                continue;
+            }
         let bytes = match img.source() {
             gltf::image::Source::View { view, .. } => data(view.buffer()).and_then(|d| d.get(view.offset()..view.offset() + view.length())).map(<[u8]>::to_vec),
             gltf::image::Source::Uri { uri, .. } if uri.starts_with("data:") => uri.split_once(";base64,").and_then(|(_, d)| base64::engine::general_purpose::STANDARD.decode(d).ok()),
             gltf::image::Source::Uri { uri, .. } => sibling(uri),
         };
-        let k = bytes.and_then(|d| image::load_from_memory(&d).ok()).map_or(0, |i| b.texture(i.to_rgba8()));
-        extra.2.insert(img.index(), k);
+            let k = bytes.and_then(|d| image::load_from_memory(&d).ok()).map_or(0, |i| b.texture(i.to_rgba8()));
+            extra.2.insert(img.index(), k);
+        }
     }
     match g.document.default_scene().or_else(|| g.document.scenes().next()) {
         Some(scene) => {
@@ -136,22 +139,47 @@ fn gltf_mesh<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>
             (base != [1.0; 3] || !vc.is_empty()).then(|| srgb([c[0] * base[0], c[1] * base[1], c[2] * base[2]]))
         };
         let (tex, uvs) = texture_coords(&prim, &r, &extra.2);
-        let uv = |i: usize| {
+        let surface = if prim.material().unlit() { 0 } else { b.surface(surface(&prim.material(), &extra.2)) };
+        // Normals turned with the node (scaled unevenly they lean a little: kept simple).
+        let origin = apply(m, [0.0; 3]);
+        let normals: Vec<[f32; 3]> = r.read_normals().map(|n| n.map(|v| std::array::from_fn(|k| apply(m, v)[k] - origin[k])).collect()).unwrap_or_default();
+        let shine = |i: usize| {
             let corners = tris[i].map(|v| uvs.get(v as usize).copied());
-            (tex > 0 && corners.iter().all(Option::is_some)).then(|| (corners.map(|c| c.unwrap_or_default()), tex))
+            let uv = corners.iter().all(Option::is_some).then(|| (corners.map(|c| c.unwrap_or_default()), tex));
+            let n = tris[i].map(|v| normals.get(v as usize).copied());
+            (uv, surface, n.iter().all(Option::is_some).then(|| n.map(Option::unwrap_or_default)))
         };
-        b.add_textured(pos, tris.clone(), colors, uv)?;
+        b.add_shiny(pos, tris.clone(), colors, shine)?;
     }
     Ok(())
 }
 
-/// The picture of a primitive's base colour and its texture coordinates, moved, turned and
-/// scaled as KHR_texture_transform says; (0, nothing) without one.
+/// The material's surface: factors, and pictures (`Builder::texture`) read on the same texture
+/// coordinates as the base colour's.
+// ponytail: each picture's own texture coordinate set and transform are not followed
+fn surface(mat: &gltf::Material, tex: &HashMap<usize, u16>) -> Surface {
+    let pic = |t: Option<gltf::Texture>| t.and_then(|t| tex.get(&t.source().index()).copied()).unwrap_or(0);
+    let pbr = mat.pbr_metallic_roughness();
+    let glow = mat.emissive_factor().map(|v| (v * mat.emissive_strength().unwrap_or(1.0)).clamp(0.0, 1.0).powf(1.0 / 2.2));
+    Surface {
+        metallic: pbr.metallic_factor(),
+        roughness: pbr.roughness_factor(),
+        occlusion: mat.occlusion_texture().map_or(0.0, |o| o.strength()),
+        glow,
+        bumps: pic(mat.normal_texture().map(|t| t.texture())),
+        rough_metal: pic(pbr.metallic_roughness_texture().map(|t| t.texture())),
+        occlusion_map: pic(mat.occlusion_texture().map(|t| t.texture())),
+        glow_map: pic(mat.emissive_texture().map(|t| t.texture())),
+    }
+}
+
+/// The picture of a primitive's base colour (0 without one) and the texture coordinates, of its
+/// set (else the first), moved, turned and scaled as KHR_texture_transform says.
 fn texture_coords<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>>(prim: &gltf::Primitive<'a>, r: &gltf::mesh::Reader<'a, 's, F>, tex: &HashMap<usize, u16>) -> (u16, Vec<[f32; 2]>) {
-    let Some(info) = prim.material().pbr_metallic_roughness().base_color_texture() else { return (0, Vec::new()) };
-    let k = tex.get(&info.texture().source().index()).copied().unwrap_or(0);
-    let transform = info.texture_transform();
-    let set = transform.as_ref().and_then(|t| t.tex_coord()).unwrap_or(info.tex_coord());
+    let info = prim.material().pbr_metallic_roughness().base_color_texture();
+    let k = info.as_ref().and_then(|i| tex.get(&i.texture().source().index()).copied()).unwrap_or(0);
+    let transform = info.as_ref().and_then(|i| i.texture_transform());
+    let set = transform.as_ref().and_then(|t| t.tex_coord()).or(info.as_ref().map(|i| i.tex_coord())).unwrap_or(0);
     let Some(coords) = r.read_tex_coords(set) else { return (0, Vec::new()) };
     let fix = |uv: [f32; 2]| match &transform {
         Some(t) => {

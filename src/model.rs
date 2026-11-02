@@ -37,6 +37,35 @@ pub struct Mesh {
     pub uv: Vec<[[f32; 2]; 3]>,
     pub tex: Vec<u16>,
     pub textures: Vec<std::sync::Arc<image::RgbaImage>>,
+    /// Per triangle, or empty when no triangle has one: its surface (0 = matte, as without; else
+    /// the index in `surfaces` plus one) and its corners' normals (zero: the face's own).
+    pub surface: Vec<u16>,
+    pub surfaces: Vec<Surface>,
+    pub normals: Vec<[[f32; 3]; 3]>,
+}
+
+/// How a surface takes the light beyond its colour, as glTF describes it (metallic-roughness).
+/// The renderers light it the same way (`render3d::shade`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Surface {
+    pub metallic: f32,
+    pub roughness: f32,
+    /// How much of the occlusion picture darkens the ambient light (0 = none).
+    pub occlusion: f32,
+    /// Light of its own, added to the lit colour (sRGB values, 0-1).
+    pub glow: [f32; 3],
+    /// Pictures (`Builder::texture`, 0 = none) on the triangle's texture coordinates: bumps as a
+    /// normal map, roughness (green) and metal (blue), occlusion (red), glow.
+    pub bumps: u16,
+    pub rough_metal: u16,
+    pub occlusion_map: u16,
+    pub glow_map: u16,
+}
+
+impl Default for Surface {
+    fn default() -> Self {
+        Surface { metallic: 0.0, roughness: 1.0, occlusion: 0.0, glow: [0.0; 3], bumps: 0, rough_metal: 0, occlusion_map: 0, glow_map: 0 }
+    }
 }
 
 /// Pictures in one model, and their long side: enough for the screen, not too much memory.
@@ -45,6 +74,10 @@ pub(crate) const TEXTURE_SIDE: u32 = 2048;
 
 /// A triangle's texture: its corners on the picture and which picture (`Builder::texture`).
 pub(crate) type Textured = ([[f32; 2]; 3], u16);
+
+/// What a triangle has beyond its colour: its texture (the picture may be 0 when only the surface
+/// has pictures), its surface (`Builder::surface`, 0 = matte) and its corners' normals.
+pub(crate) type Shine = (Option<Textured>, u16, Option<[[f32; 3]; 3]>);
 
 /// Collects the parts of a model (glTF primitives, OBJ groups, 3MF objects) into one mesh.
 #[derive(Default)]
@@ -56,6 +89,9 @@ pub(crate) struct Builder {
     textures: Vec<std::sync::Arc<image::RgbaImage>>,
     /// Pictures already read by `texture_file`, by the name the model gives them.
     named: std::collections::HashMap<String, u16>,
+    surfaces: Vec<Surface>,
+    /// Per triangle: surface and normals (`Shine`).
+    shine: Vec<(u16, Option<[[f32; 3]; 3]>)>,
 }
 
 impl Builder {
@@ -66,14 +102,21 @@ impl Builder {
     }
 
     /// As `add`, with the texture of each triangle (`None` for none).
-    pub(crate) fn add_textured(&mut self, pos: Vec<[f32; 3]>, tris: impl IntoIterator<Item = [u32; 3]>, mut color: impl FnMut(usize) -> Option<[u8; 3]>, mut uv: impl FnMut(usize) -> Option<Textured>) -> Result<(), String> {
+    pub(crate) fn add_textured(&mut self, pos: Vec<[f32; 3]>, tris: impl IntoIterator<Item = [u32; 3]>, color: impl FnMut(usize) -> Option<[u8; 3]>, mut uv: impl FnMut(usize) -> Option<Textured>) -> Result<(), String> {
+        self.add_shiny(pos, tris, color, |i| (uv(i), 0, None))
+    }
+
+    /// As `add`, with texture, surface and normals of each triangle.
+    pub(crate) fn add_shiny(&mut self, pos: Vec<[f32; 3]>, tris: impl IntoIterator<Item = [u32; 3]>, mut color: impl FnMut(usize) -> Option<[u8; 3]>, mut shine: impl FnMut(usize) -> Shine) -> Result<(), String> {
         let base = self.pos.len() as u32;
         let n = pos.len() as u32;
         for (i, t) in tris.into_iter().enumerate() {
             if t.iter().all(|&v| v < n) {
                 self.tris.push(t.map(|v| v + base));
                 self.colors.push(color(i));
-                self.uv.push(uv(i).filter(|(c, k)| *k > 0 && c.iter().flatten().all(|v| v.is_finite())));
+                let (uv, surface, normals) = shine(i);
+                self.uv.push(uv.filter(|(c, k)| (*k > 0 || surface > 0) && c.iter().flatten().all(|v| v.is_finite())));
+                self.shine.push((surface, normals.filter(|n| n.iter().flatten().all(|v| v.is_finite()))));
             }
             if self.tris.len() > MAX_TRIANGLES {
                 return Err(format!("more than {MAX_TRIANGLES} triangles"));
@@ -96,6 +139,18 @@ impl Builder {
         };
         self.textures.push(std::sync::Arc::new(img));
         self.textures.len() as u16
+    }
+
+    /// A surface for the triangles that follow: its number for `add_shiny`, the same for the same.
+    pub(crate) fn surface(&mut self, s: Surface) -> u16 {
+        match self.surfaces.iter().position(|o| *o == s) {
+            Some(i) => i as u16 + 1,
+            None if self.surfaces.len() < u16::MAX as usize - 1 => {
+                self.surfaces.push(s);
+                self.surfaces.len() as u16
+            }
+            None => 0,
+        }
     }
 
     /// The picture in the file `name` next to the model, read once: as the model writes it, or
@@ -123,7 +178,7 @@ impl Builder {
     }
 
     pub(crate) fn finish(self, z_up: bool) -> Result<Mesh, String> {
-        let Builder { pos, tris, colors, uv, textures, .. } = self;
+        let Builder { pos, tris, colors, uv, textures, surfaces, shine, .. } = self;
         let finite = |p: &[f32; 3]| p.iter().all(|c| c.is_finite());
         let tris: Vec<(usize, [u32; 3])> = tris.into_iter().enumerate().filter(|(_, t)| t.iter().all(|&v| finite(&pos[v as usize]))).collect();
         if tris.is_empty() {
@@ -145,7 +200,10 @@ impl Builder {
         let textured = uv.iter().any(Option::is_some);
         let (uv, tex) = if textured { tris.iter().map(|&(i, _)| uv[i].unwrap_or(([[0.0; 2]; 3], 0))).unzip() } else { (Vec::new(), Vec::new()) };
         let textures = if textured { textures } else { Vec::new() };
-        Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, uv, tex, textures })
+        let shiny = shine.iter().any(|s| s.0 > 0);
+        let (surface, normals) = if shiny { tris.iter().map(|&(i, _)| (shine[i].0, shine[i].1.unwrap_or_default())).unzip() } else { (Vec::new(), Vec::new()) };
+        let surfaces = if shiny { surfaces } else { Vec::new() };
+        Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, uv, tex, textures, surface, surfaces, normals })
     }
 }
 

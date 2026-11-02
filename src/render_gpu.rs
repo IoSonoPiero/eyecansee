@@ -1,7 +1,8 @@
 //! The 3D model of the viewer drawn by the graphics card (`wgpu`, the one eframe already uses):
 //! into a texture of our own with 4× antialiasing and a depth buffer, then shown by egui as an
-//! image. Same camera and same light as `render3d` (`render3d::camera`), which stays for the grid
-//! and the screenshots, made in the background without the card.
+//! image. Same camera and same light as `render3d` (`render3d::camera`, and `render_shine` for
+//! surfaces with a material), which stays for the grid and the screenshots, made in the
+//! background without the card.
 
 use std::sync::Arc;
 
@@ -9,15 +10,19 @@ use eframe::egui;
 use eframe::egui_wgpu::RenderState;
 use eframe::wgpu::{self, util::DeviceExt};
 
-use crate::model::{DEFAULT, Mesh};
+use std::collections::HashMap;
+
+use crate::model::{DEFAULT, Mesh, Surface};
 use crate::render3d::{self, View};
 
 const SAMPLES: u32 = 4;
 /// Not sRGB: egui reads textures as gamma-encoded values, which is what `render3d` computes too.
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
-/// Bytes of one vertex: position (3 × f32), colour (4 × u8) and place on the picture (2 × f32).
-const STRIDE: u64 = 24;
+/// Bytes of one vertex: position (3 × f32), colour (4 × u8), place on the pictures (2 × f32),
+/// normal (3 × f32, zero for the face's own), metal, roughness, occlusion and what applies (4 ×
+/// u8: 1 = the surface, 2 = bumps), glow (4 × u8).
+const STRIDE: u64 = 44;
 
 const SHADER: &str = r"
 struct Camera { clip: mat4x4<f32>, eye: mat4x4<f32> };
@@ -25,25 +30,80 @@ struct Camera { clip: mat4x4<f32>, eye: mat4x4<f32> };
 
 @group(1) @binding(0) var picture: texture_2d<f32>;
 @group(1) @binding(1) var linear: sampler;
+@group(1) @binding(2) var bumps: texture_2d<f32>;
+@group(1) @binding(3) var rough_metal: texture_2d<f32>;
+@group(1) @binding(4) var occlusion: texture_2d<f32>;
+@group(1) @binding(5) var glow_map: texture_2d<f32>;
 
-struct Out { @builtin(position) pos: vec4<f32>, @location(0) eye: vec3<f32>, @location(1) color: vec3<f32>, @location(2) uv: vec2<f32> };
+struct Out {
+    @builtin(position) pos: vec4<f32>,
+    @location(0) eye: vec3<f32>,
+    @location(1) color: vec3<f32>,
+    @location(2) uv: vec2<f32>,
+    @location(3) normal: vec3<f32>,
+    @location(4) pbr: vec4<f32>,
+    @location(5) glow: vec3<f32>,
+};
 
-@vertex fn vs(@location(0) p: vec3<f32>, @location(1) c: vec4<f32>, @location(2) uv: vec2<f32>) -> Out {
+@vertex fn vs(@location(0) p: vec3<f32>, @location(1) c: vec4<f32>, @location(2) uv: vec2<f32>, @location(3) n: vec3<f32>, @location(4) pbr: vec4<f32>, @location(5) glow: vec4<f32>) -> Out {
     var o: Out;
     o.pos = cam.clip * vec4(p, 1.0);
     o.eye = (cam.eye * vec4(p, 1.0)).xyz;
     o.color = c.rgb;
     o.uv = uv;
+    o.normal = (cam.eye * vec4(n, 0.0)).xyz;
+    o.pbr = pbr;
+    o.glow = glow.rgb;
     return o;
 }
 
-// Flat shading: the triangle's normal from the derivatives; both faces lit, as render3d.
+fn unit(v: vec3<f32>) -> vec3<f32> {
+    let l = dot(v, v);
+    return select(vec3(0.0), v * inverseSqrt(l), l > 0.0);
+}
+
+// Flat shading (the triangle's normal from the derivatives, both faces lit) as render3d; with a
+// surface the same light as render_shine: change both together.
 @fragment fn fs(i: Out) -> @location(0) vec4<f32> {
-    let n = normalize(cross(dpdx(i.eye), dpdy(i.eye)));
-    let d = abs(dot(n, normalize(vec3(-0.3, 0.45, 0.84))));
+    let dp1 = dpdx(i.eye);
+    let dp2 = dpdy(i.eye);
+    let duv1 = dpdx(i.uv);
+    let duv2 = dpdy(i.uv);
     // The colour tinted by the picture (white without one), lit on the sRGB values like render3d.
-    let t = textureSample(picture, linear, i.uv).rgb;
-    return vec4(i.color * t * (0.28 + 0.72 * d), 1.0);
+    let color = i.color * textureSample(picture, linear, i.uv).rgb;
+    let bump = textureSample(bumps, linear, i.uv).xyz * 2.0 - 1.0;
+    let rm = textureSample(rough_metal, linear, i.uv).rgb;
+    let occ = textureSample(occlusion, linear, i.uv).r;
+    let glow = i.glow * textureSample(glow_map, linear, i.uv).rgb;
+    let l = unit(vec3(-0.3, 0.45, 0.84));
+    var face = unit(cross(dp1, dp2));
+    let what = u32(round(i.pbr.w * 255.0));
+    if ((what & 1u) == 0u) {
+        return vec4(color * (0.28 + 0.72 * abs(dot(face, l))), 1.0);
+    }
+    // Towards the camera, at the origin.
+    face = select(face, -face, dot(face, i.eye) > 0.0);
+    var n = select(face, unit(i.normal), dot(i.normal, i.normal) > 0.0);
+    n = select(n, -n, dot(n, face) < 0.0);
+    if ((what & 2u) != 0u) {
+        // The picture's u and v on the face (cotangent frame); green is up, where v gets smaller.
+        let t = unit(cross(dp2, n) * duv1.x + cross(n, dp1) * duv2.x);
+        let b = unit(cross(dp2, n) * duv1.y + cross(n, dp1) * duv2.y);
+        let t2 = unit(t - n * dot(n, t));
+        let b2 = unit(b - n * dot(n, b));
+        n = unit(t2 * bump.x - b2 * bump.y + n * bump.z);
+        n = select(face, n, dot(n, n) > 0.0);
+    }
+    let d = abs(dot(n, l));
+    let rough = clamp(i.pbr.y * rm.g, 0.05, 1.0);
+    let metal = clamp(i.pbr.x * rm.b, 0.0, 1.0);
+    let ambient = 0.28 * (1.0 + i.pbr.z * (occ - 1.0));
+    let nh = max(dot(n, unit(l + vec3(0.0, 0.0, 1.0))), 0.0);
+    let a2 = pow(rough, 4.0);
+    let den = nh * nh * (a2 - 1.0) + 1.0;
+    let spread = min(a2 / (3.14159265 * den * den), 32.0);
+    let f0 = vec3(0.04) + (color - vec3(0.04)) * metal;
+    return vec4(color * (ambient + 0.72 * d) + f0 * spread * 0.25 * d + glow, 1.0);
 }
 ";
 
@@ -81,11 +141,11 @@ struct Target {
     id: egui::TextureId,
 }
 
-/// A vertex buffer, how many vertices it holds and its picture (index in `Model::pictures`).
+/// A vertex buffer, how many vertices it holds and its pictures (index in `Model::pictures`).
 type Piece = (wgpu::Buffer, u32, usize);
 
-/// The model on the card: its triangles in buffers small enough for any card, grouped by picture,
-/// and the pictures (the first is plain white, for the triangles without one).
+/// The model on the card: its triangles in buffers small enough for any card, grouped by their
+/// pictures (colour, bumps, roughness and metal, occlusion, glow), and those groups' pictures.
 struct Model {
     mesh: Arc<Mesh>,
     pieces: Vec<Piece>,
@@ -118,18 +178,14 @@ impl Gpu {
             }],
         });
         let bind = device.create_bind_group(&wgpu::BindGroupDescriptor { label: None, layout: &layout, entries: &[wgpu::BindGroupEntry { binding: 0, resource: camera.as_entire_binding() }] });
-        let picture_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: None,
-            entries: &[
-                wgpu::BindGroupLayoutEntry {
-                    binding: 0,
-                    visibility: wgpu::ShaderStages::FRAGMENT,
-                    ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false },
-                    count: None,
-                },
-                wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None },
-            ],
-        });
+        let texture = |binding| wgpu::BindGroupLayoutEntry {
+            binding,
+            visibility: wgpu::ShaderStages::FRAGMENT,
+            ty: wgpu::BindingType::Texture { sample_type: wgpu::TextureSampleType::Float { filterable: true }, view_dimension: wgpu::TextureViewDimension::D2, multisampled: false },
+            count: None,
+        };
+        let sampler_entry = wgpu::BindGroupLayoutEntry { binding: 1, visibility: wgpu::ShaderStages::FRAGMENT, ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering), count: None };
+        let picture_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor { label: None, entries: &[texture(0), sampler_entry, texture(2), texture(3), texture(4), texture(5)] });
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             address_mode_u: wgpu::AddressMode::Repeat,
             address_mode_v: wgpu::AddressMode::Repeat,
@@ -139,7 +195,7 @@ impl Gpu {
             ..Default::default()
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&layout), Some(&picture_layout)], immediate_size: 0 });
-        let attributes = wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x2];
+        let attributes = wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x2, 3 => Float32x3, 4 => Unorm8x4, 5 => Unorm8x4];
         let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("model"),
             layout: Some(&pipeline_layout),
@@ -212,40 +268,50 @@ impl Gpu {
         t.id
     }
 
-    /// Three vertices per triangle (each with the triangle's colour), grouped by picture, in
-    /// pieces of at most 128 MB or the card's limit; and the pictures.
+    /// Three vertices per triangle, grouped by pictures, in pieces of at most 128 MB or the
+    /// card's limit; and the pictures.
     fn upload(&self, mesh: &Arc<Mesh>) -> Model {
-        let mut pictures = vec![self.picture(&image::RgbaImage::from_pixel(1, 1, image::Rgba([255; 4])))];
-        pictures.extend(mesh.textures.iter().map(|img| self.picture(img)));
-        let picture = |i: usize| mesh.tex.get(i).map_or(0, |&k| k as usize).min(pictures.len() - 1);
+        let mut views = vec![self.picture(&image::RgbaImage::from_pixel(1, 1, image::Rgba([255; 4])))];
+        views.extend(mesh.textures.iter().map(|img| self.picture(img)));
+        let keys: Vec<[u16; 5]> = (0..mesh.tris.len()).map(|i| key(mesh, i).map(|k| if (k as usize) < views.len() { k } else { 0 })).collect();
         let mut order: Vec<usize> = (0..mesh.tris.len()).collect();
-        order.sort_by_key(|&i| picture(i));
+        order.sort_by_key(|&i| keys[i]);
         let limit = self.rs.device.limits().max_buffer_size.min(128 << 20);
         let per = (limit / (STRIDE * 3)).max(1) as usize;
-        let mut pieces = Vec::new();
-        for group in order.chunk_by(|&a, &b| picture(a) == picture(b)) {
+        let (mut pieces, mut pictures, mut groups) = (Vec::new(), Vec::new(), HashMap::new());
+        for group in order.chunk_by(|&a, &b| keys[a] == keys[b]) {
+            let k = keys[group[0]];
+            let at = *groups.entry(k).or_insert_with(|| {
+                pictures.push(self.bind(&views, k));
+                pictures.len() - 1
+            });
             for tris in group.chunks(per) {
                 let mut bytes = Vec::with_capacity(tris.len() * 3 * STRIDE as usize);
                 for &i in tris {
-                    let [r, g, b] = mesh.colors.get(i).copied().unwrap_or(DEFAULT);
-                    let uv = mesh.uv.get(i).copied().unwrap_or_default();
-                    for (k, v) in mesh.tris[i].iter().enumerate() {
-                        bytes.extend(mesh.pos[*v as usize].iter().flat_map(|f| f.to_le_bytes()));
-                        bytes.extend([r, g, b, 255]);
-                        bytes.extend(uv[k].iter().flat_map(|f| f.to_le_bytes()));
-                    }
+                    vertices(mesh, i, &mut bytes);
                 }
                 let buffer = self.rs.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("model"), contents: &bytes, usage: wgpu::BufferUsages::VERTEX });
-                pieces.push((buffer, tris.len() as u32 * 3, picture(tris[0])));
+                pieces.push((buffer, tris.len() as u32 * 3, at));
             }
         }
         Model { mesh: mesh.clone(), pieces, pictures }
     }
 
+    /// The pictures of one group (`key`), white where there is none.
+    fn bind(&self, views: &[wgpu::TextureView], key: [u16; 5]) -> wgpu::BindGroup {
+        let view = |slot: usize| wgpu::BindingResource::TextureView(&views[key[slot] as usize]);
+        let entry = |binding, resource| wgpu::BindGroupEntry { binding, resource };
+        self.rs.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &self.picture_layout,
+            entries: &[entry(0, view(0)), entry(1, wgpu::BindingResource::Sampler(&self.sampler)), entry(2, view(1)), entry(3, view(2)), entry(4, view(3)), entry(5, view(4))],
+        })
+    }
+
     /// A picture on the card with its smaller copies (mipmaps), so that far away it does not
     /// shimmer.
     // ponytail: the copies are made by the processor when the model is shown, up to 64 × 2048²
-    fn picture(&self, img: &image::RgbaImage) -> wgpu::BindGroup {
+    fn picture(&self, img: &image::RgbaImage) -> wgpu::TextureView {
         let levels = 32 - img.width().max(img.height()).leading_zeros();
         let mut data = img.as_raw().clone();
         let mut level = img.clone();
@@ -263,13 +329,7 @@ impl Gpu {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
             view_formats: &[],
         };
-        let texture = self.rs.device.create_texture_with_data(&self.rs.queue, &desc, wgpu::util::TextureDataOrder::LayerMajor, &data);
-        let view = texture.create_view(&Default::default());
-        self.rs.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: None,
-            layout: &self.picture_layout,
-            entries: &[wgpu::BindGroupEntry { binding: 0, resource: wgpu::BindingResource::TextureView(&view) }, wgpu::BindGroupEntry { binding: 1, resource: wgpu::BindingResource::Sampler(&self.sampler) }],
-        })
+        self.rs.device.create_texture_with_data(&self.rs.queue, &desc, wgpu::util::TextureDataOrder::LayerMajor, &data).create_view(&Default::default())
     }
 
     fn target(&self, size: [u32; 2]) -> Target {
@@ -290,5 +350,35 @@ impl Gpu {
             None => renderer.register_native_texture(&self.rs.device, &out, wgpu::FilterMode::Linear),
         };
         Target { size, msaa, depth, out, id }
+    }
+}
+
+/// The surface of triangle `i`, if it has one.
+fn surface(mesh: &Mesh, i: usize) -> Option<&Surface> {
+    mesh.surfaces.get((*mesh.surface.get(i)? as usize).checked_sub(1)?)
+}
+
+/// Triangle `i`'s pictures: colour, bumps, roughness and metal, occlusion, glow (0 = none).
+fn key(mesh: &Mesh, i: usize) -> [u16; 5] {
+    let tex = mesh.tex.get(i).copied().unwrap_or(0);
+    surface(mesh, i).map_or([tex, 0, 0, 0, 0], |s| [tex, s.bumps, s.rough_metal, s.occlusion_map, s.glow_map])
+}
+
+/// The three vertices of triangle `i` (`STRIDE` bytes each).
+fn vertices(mesh: &Mesh, i: usize, out: &mut Vec<u8>) {
+    let [r, g, b] = mesh.colors.get(i).copied().unwrap_or(DEFAULT);
+    let uv = mesh.uv.get(i).copied().unwrap_or_default();
+    let normals = mesh.normals.get(i).copied().unwrap_or_default();
+    let unorm = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+    let (pbr, glow) = match surface(mesh, i) {
+        Some(s) => ([unorm(s.metallic), unorm(s.roughness), unorm(s.occlusion), 1 + if s.bumps > 0 { 2 } else { 0 }], s.glow.map(unorm)),
+        None => ([0, 255, 0, 0], [0; 3]),
+    };
+    for (k, v) in mesh.tris[i].iter().enumerate() {
+        out.extend(mesh.pos[*v as usize].iter().flat_map(|f| f.to_le_bytes()));
+        out.extend([r, g, b, 255]);
+        out.extend(uv[k].iter().chain(&normals[k]).flat_map(|f| f.to_le_bytes()));
+        out.extend(pbr);
+        out.extend([glow[0], glow[1], glow[2], 255]);
     }
 }

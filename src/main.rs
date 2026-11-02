@@ -89,6 +89,7 @@ mod paint;
 mod psd;
 mod render3d;
 mod render_gpu;
+mod render_shine;
 mod replace;
 mod rotate;
 mod rotate_page;
