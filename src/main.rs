@@ -70,6 +70,7 @@ mod model_amf;
 mod model_dae;
 mod model_export;
 mod model_fbx;
+mod model_gltf;
 mod model_ifc;
 mod model_lines;
 mod model_off;
