@@ -198,6 +198,20 @@ impl App {
     }
 }
 
+impl App {
+    /// "Save in another format" from the viewer on a layout: the layout, not the model. `false`
+    /// if the model is shown.
+    pub(crate) fn convert_sheet(&mut self, path: &str) -> bool {
+        if self.viewing.is_none() || self.cad_sheet(path) == 0 {
+            return false;
+        }
+        let (Some(drawing), Some(loader)) = (self.cad_shown(path), &self.loader) else { return false };
+        let size = self.files().iter().find(|f| f.path == path).map_or(0, |f| f.size);
+        loader.drawing_original(drawing, size);
+        true
+    }
+}
+
 /// The axes of a drawing in the bottom left corner, as AutoCAD's UCS icon: X to the right in red,
 /// Y up in green (drawings are seen from above).
 pub(crate) fn ucs_corner(painter: &egui::Painter, rect: egui::Rect) {

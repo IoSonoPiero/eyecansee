@@ -303,9 +303,10 @@ impl Loader {
     pub fn load_original(&self, path: String) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
+            let sibling = siblings(op.clone(), path.clone());
             let r = match op.read(&path).await {
                 Ok(bytes) => tokio::task::spawn_blocking(move || {
-                    let original = crate::encode::Original::open(&bytes, &path)?;
+                    let original = crate::encode::Original::with_meta(decode::decode_full_with(&bytes, &path, &sibling)?, &bytes);
                     let preview = decode::preview(&original.image);
                     Ok((Arc::new(original), preview, bytes.len() as u64))
                 })
@@ -313,6 +314,20 @@ impl Loader {
                 .unwrap_or_else(|e| Err(e.to_string())),
                 Err((_, detail)) => Err(detail),
             };
+            let _ = tx.send(Msg::Original(r));
+            ctx.request_repaint();
+        });
+    }
+
+    /// A layout of a CAD drawing, as the viewer shows it, for "Save in another format".
+    pub fn drawing_original(&self, drawing: Arc<crate::cad::Drawing>, file_size: u64) {
+        let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
+        self.rt.spawn_blocking(move || {
+            let r = decode::cad_render(&drawing, decode::CAD_SIDE, None).map(|img| {
+                let image = image::DynamicImage::ImageRgb8(image::DynamicImage::ImageRgba8(img).into_rgb8());
+                let preview = decode::preview(&image);
+                (Arc::new(crate::encode::Original::with_meta(image, &[])), preview, file_size)
+            });
             let _ = tx.send(Msg::Original(r));
             ctx.request_repaint();
         });

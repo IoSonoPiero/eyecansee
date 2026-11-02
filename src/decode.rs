@@ -130,6 +130,18 @@ pub fn model_picture_with(bytes: &[u8], name: &str, w: u32, h: u32, sibling: cra
     Ok(DynamicImage::ImageRgb8(DynamicImage::ImageRgba8(crate::render3d::render(&mesh, &Default::default(), w, h, 2)).into_rgb8()))
 }
 
+/// As `decode_full`, reading through `sibling` the files next to a 3D model (a glTF's `.bin`,
+/// an OBJ's `.mtl`, VRML inlines) or a CAD drawing (its pictures).
+pub fn decode_full_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> std::result::Result<DynamicImage, String> {
+    if crate::model::is_model(name) {
+        return model_picture_with(bytes, name, 1920, 1440, sibling);
+    }
+    if crate::cad::is_cad(name) {
+        return Ok(DynamicImage::ImageRgba8(cad_render(&crate::cad::read_with(bytes, name, sibling)?, CAD_SIDE, None)?));
+    }
+    decode_full(bytes, name)
+}
+
 /// Recognises from the content the formats that `image` cannot identify by itself.
 fn sniff(bytes: &[u8]) -> Option<Kind> {
     const HEIF_BRANDS: &[&[u8]] = &[b"heic", b"heix", b"hevc", b"heim", b"heis", b"mif1", b"msf1", b"avif", b"avis"];

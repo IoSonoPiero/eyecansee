@@ -114,6 +114,11 @@ pub const SKIP_VIDEO: &str = "batch-skip-video";
 /// The file `bytes` (named `name`) after the job: the new name, without the folder, and its
 /// content. `Err((id, detail))`: a Fluent id with the name or the error.
 pub fn convert(bytes: &[u8], name: &str, job: &Job) -> Result<(String, Vec<u8>), (&'static str, String)> {
+    convert_with(bytes, name, job, &|_| None)
+}
+
+/// Like `convert`, reading the files next to a 3D model or a CAD drawing through `sibling`.
+pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::Sibling) -> Result<(String, Vec<u8>), (&'static str, String)> {
     if job.format.is_none() && !encode::saves_back(name) {
         return Err((SKIP_FORMAT, name.to_string()));
     }
@@ -126,7 +131,7 @@ pub fn convert(bytes: &[u8], name: &str, job: &Job) -> Result<(String, Vec<u8>),
     {
         return Ok((name.to_string(), data));
     }
-    let mut image = crate::decode::decode_full(bytes, name).map_err(|e| ("batch-failed", format!("{name}: {e}")))?;
+    let mut image = crate::decode::decode_full_with(bytes, name, sibling).map_err(|e| ("batch-failed", format!("{name}: {e}")))?;
     // The other frames of an animation, the other pages would be lost. After decoding, so that
     // a file that is not an image says so. A phone JPEG (HDR gain map, motion photo video) is
     // not left out: the new file is the picture, the original keeps the rest.
@@ -410,7 +415,8 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
         let r = match op.read(&path).await {
             Ok(bytes) => {
                 let job = job.clone();
-                tokio::task::spawn_blocking(move || convert(&bytes, &name, &job)).await.unwrap_or_else(|e| Err(("batch-failed", e.to_string())))
+                let sibling = crate::loader::siblings(op.clone(), path.clone());
+                tokio::task::spawn_blocking(move || convert_with(&bytes, &name, &job, &sibling)).await.unwrap_or_else(|e| Err(("batch-failed", e.to_string())))
             }
             Err((id, detail)) => Err((id, detail)),
         };
@@ -518,5 +524,19 @@ mod tests {
         assert_eq!(Some(data), crate::transform::jpeg_lossless(&jpeg, job.turn));
         // Not an image.
         assert_eq!(convert(b"nothing", "c.jpg", &Job::default()).unwrap_err().0, "batch-failed");
+    }
+
+    #[test]
+    fn a_model_with_the_files_next_to_it() {
+        // An OBJ square whose material, in the .mtl next to it, is red.
+        let obj = b"mtllib m.mtl\nusemtl red\nv -1 -1 0\nv 1 -1 0\nv 1 1 0\nv -1 1 0\nf 1 2 3 4\n";
+        let next = |rel: &str| (rel == "m.mtl").then(|| b"newmtl red\nKd 1 0 0\n".to_vec());
+        let job = Job { format: Some(Format::Png), ..Default::default() };
+        let red = |data: &[u8]| {
+            let img = crate::decode::decode_full(data, "x.png").unwrap().to_rgb8();
+            img.pixels().filter(|p| p[0] > 120 && p[1] < 60 && p[2] < 60).count()
+        };
+        assert!(red(&convert_with(obj, "q.obj", &job, &next).unwrap().1) > 1000);
+        assert_eq!(red(&convert(obj, "q.obj", &job).unwrap().1), 0);
     }
 }
