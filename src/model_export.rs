@@ -393,8 +393,7 @@ mod tests {
         // A point high above the others: up is +Z in the STL, +Y in the OBJ.
         let tall = |z_up: bool| {
             let up = |h: f32| if z_up { [0.0, 0.0, h] } else { [0.0, h, 0.0] };
-            let side = if z_up { [1.0, 0.0, 0.0] } else { [1.0, 0.0, 0.0] };
-            format!("v 0 0 0\nv {} {} {}\nv {} {} {}\nf 1 2 3\n", side[0], side[1], side[2], up(5.0)[0], up(5.0)[1], up(5.0)[2])
+            format!("v 0 0 0\nv 1 0 0\nv {} {} {}\nf 1 2 3\n", up(5.0)[0], up(5.0)[1], up(5.0)[2])
         };
         for z_up in [true, false] {
             let mut m = crate::model::parse(tall(z_up).as_bytes(), "q.obj").unwrap();
