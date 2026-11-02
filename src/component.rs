@@ -82,12 +82,12 @@ pub const FFMPEG: Option<Component> = Some(Component {
 #[cfg(not(windows))]
 pub const OCCT: Option<Component> = Some(Component {
     kind: "occt",
-    version: "8.0.1-1",
+    version: "8.0.1-2",
     file: "libecs_occt.so",
-    url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/occt-linux-x64-8.0.1-1.tar.gz",
+    url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/occt-linux-x64-8.0.1-2.tar.gz",
     archive: true,
-    sha256: "c48299a917b33edae650d8066d612d3cb4c15ca2b4c0fa5db24756ebab143e66",
-    size: 11_133_555,
+    sha256: "55559a64aa3e9297ac2f9131d890ab76a0696e065ce2fde4b671f7f4c0e9d0d9",
+    size: 11_197_731,
 });
 
 /// On Windows until `tools/build-occt-windows.ps1` has been built and tried.
