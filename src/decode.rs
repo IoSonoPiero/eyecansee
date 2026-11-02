@@ -394,7 +394,7 @@ fn svg_sized(bytes: &[u8], side: f32) -> Result<DynamicImage> {
     Ok(DynamicImage::ImageRgba8(pixmap_rgba(&pixmap)))
 }
 
-fn usvg_options() -> usvg::Options<'static> {
+pub(crate) fn usvg_options() -> usvg::Options<'static> {
     // Loading the system fonts is expensive: only once for the whole session.
     static FONTS: OnceLock<Arc<usvg::fontdb::Database>> = OnceLock::new();
     let fontdb = FONTS.get_or_init(|| {

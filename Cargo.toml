@@ -98,6 +98,8 @@ acadrust = { version = "0.6.8", default-features = false }
 ifc-lite-processing = "27.1.0"
 # FBX models (model_fbx.rs): the ufbx C library (MIT or public domain), built with cc.
 ufbx = "0.11.5"
+# Texts of VRML and X3D models turned into triangles (model_text.rs); already built for ifc-lite.
+earcutr = "0.5.0"
 
 [target."cfg(windows)".dependencies]
 # Drives (C:, D:, …): type, label and bus (USB/SD = external) for "This computer" and Devices.

@@ -63,7 +63,7 @@ Shown in the grid as a picture and in the viewer in 3D (drawn by the graphics ca
 | 3DS (3D Studio, material colours) | 3ds | ✓ | ✓ | EyeCanSee |
 | OFF and COFF | off | ✓ | ✓ | EyeCanSee |
 | AMF (also zipped, constellations, colours) | amf | ✓ | ✓ | `roxmltree` |
-| VRML 97 and X3D (XML and classic, also gzipped; inlined files next to it; line and point sets; no text) | wrl, wrz, x3d, x3dv, x3dz | ✓ | ✓ | EyeCanSee, `roxmltree` |
+| VRML 97 and X3D (XML and classic, also gzipped; inlined files next to it; line and point sets, texts) | wrl, wrz, x3d, x3dv, x3dz | ✓ | ✓ | EyeCanSee, `roxmltree` |
 
 ### CAD drawings
 

@@ -71,6 +71,7 @@ mod model_fbx;
 mod model_ifc;
 mod model_lines;
 mod model_off;
+mod model_text;
 mod model_vrml;
 mod model_x3d;
 mod model_view;

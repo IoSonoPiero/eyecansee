@@ -2,7 +2,6 @@
 //! walked through transforms, groups, switches, levels of detail and inlined files next to it;
 //! the shapes' face sets, triangle sets, elevation grids and primitives (box, sphere, cylinder,
 //! cone) in the colour of their material or of their vertices and faces.
-// ponytail: no Text: its shapes are left out
 
 use std::rc::Rc;
 
@@ -168,6 +167,7 @@ fn geometry(g: &Rc<SceneNode>) -> Option<Part> {
         "ElevationGrid" => return Some(elevation(n)),
         "Box" | "Sphere" | "Cylinder" | "Cone" => return Some(primitive(n)),
         "Extrusion" => return Some(extrusion(n)),
+        "Text" => return Some(text(n)),
         _ => return None,
     };
     let pos = points(n);
@@ -219,6 +219,16 @@ fn strip(r: &[(i64, usize)]) -> Vec<Tri> {
 
 fn triples(idx: &[i64]) -> Vec<Tri> {
     idx.as_chunks::<3>().0.iter().enumerate().map(|(f, c)| tri([(c[0], f * 3), (c[1], f * 3 + 1), (c[2], f * 3 + 2)], f)).collect()
+}
+
+/// A text, with its FontStyle's size, line spacing and alignment along the lines.
+fn text(n: &SceneNode) -> Part {
+    let style = n.children().find(|c| c.kind == "FontStyle" || c.kind == "ScreenFontStyle");
+    let size = style.map_or(1.0, |s| s.num("size", 1.0));
+    let spacing = style.map_or(1.0, |s| s.num("spacing", 1.0));
+    let justify = style.and_then(|s| s.strs("justify").first().cloned()).unwrap_or_default();
+    let (pos, tris) = crate::model_text::mesh(n.strs("string"), size, spacing, justify.trim_matches('"'));
+    Part { pos, tris, colors: Vec::new() }
 }
 
 /// Heights over a grid in the XZ plane.
