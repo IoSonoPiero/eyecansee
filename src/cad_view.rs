@@ -90,7 +90,10 @@ impl App {
                 now
             }
         };
-        if now - since < SETTLE || s.job.is_some() || out[0] == 0 || out[1] == 0 {
+        // The first view of a drawing or layout at once: its picture, 4096 pixels shown much smaller,
+        // has thin lines faded or dotted, and the wait made them noticed (user, 2026-11-02).
+        let first = s.sharp.as_ref().is_none_or(|(k, _)| k.path != key.path || k.sheet != key.sheet);
+        if (now - since < SETTLE && !first) || s.job.is_some() || out[0] == 0 || out[1] == 0 {
             ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(SETTLE));
             return;
         }
