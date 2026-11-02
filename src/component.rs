@@ -90,10 +90,18 @@ pub const OCCT: Option<Component> = Some(Component {
     size: 11_197_731,
 });
 
-/// On Windows until `tools/build-occt-windows.ps1` has been built and tried.
-// ponytail: None until the Windows engine is built and uploaded
+/// The same on Windows, built by `tools/build-occt-windows.ps1` (static C runtime, only system DLLs:
+/// 8 MB compressed).
 #[cfg(windows)]
-pub const OCCT: Option<Component> = None;
+pub const OCCT: Option<Component> = Some(Component {
+    kind: "occt",
+    version: "8.0.1-1",
+    file: "ecs_occt.dll",
+    url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/occt-windows-x64-8.0.1-1.tar.gz",
+    archive: true,
+    sha256: "e61cbecbba1804efe897b171710efe58e9dd48ecd5effa7ca4dc3e74c57db66b",
+    size: 7_822_247,
+});
 
 /// Where components go: the app's data folder (`%LOCALAPPDATA%\eyecansee\components` on Windows,
 /// `~/.local/share/eyecansee/components` on Linux).

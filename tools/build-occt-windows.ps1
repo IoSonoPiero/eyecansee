@@ -25,13 +25,15 @@ if (-not (Test-Path $tgz)) {
     Invoke-WebRequest "https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/$Tag.tar.gz" -OutFile "$tgz.part"
     Move-Item "$tgz.part" $tgz
 }
-Get-ChildItem $B -Directory -Filter "OCCT-*" | Remove-Item -Recurse -Force
+# A build folder from an earlier run keeps its cached compiler flags: start clean.
+Get-ChildItem $B -Directory | Where-Object { $_.Name -like "OCCT-*" -or $_.Name -in "build", "prefix", "out" } | Remove-Item -Recurse -Force
 tar -xzf $tgz -C $B
 if ($LASTEXITCODE) { Remove-Item $tgz; "the OCCT sources were damaged: run again"; exit 1 }
 $Src = (Get-ChildItem $B -Directory -Filter "OCCT-*").FullName
 
+# OCCT asks for CMake 3.10, which leaves CMP0091 off and CMAKE_MSVC_RUNTIME_LIBRARY ignored (/MD).
 cmake -S $Src -B "$B\build" -G "Visual Studio 17 2022" -A x64 -DBUILD_LIBRARY_TYPE=Static `
-    -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DINSTALL_DIR="$P" `
+    -DCMAKE_POLICY_DEFAULT_CMP0091=NEW -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded -DINSTALL_DIR="$P" `
     -DBUILD_MODULE_FoundationClasses=ON -DBUILD_MODULE_ModelingData=ON -DBUILD_MODULE_ModelingAlgorithms=ON `
     -DBUILD_MODULE_DataExchange=OFF -DBUILD_MODULE_Visualization=OFF -DBUILD_MODULE_ApplicationFramework=OFF `
     -DBUILD_MODULE_Draw=OFF `
