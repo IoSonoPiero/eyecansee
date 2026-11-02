@@ -47,22 +47,31 @@ pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     }
     let mut b = Builder::default();
     let mut extra: Extra = (Vec::new(), Vec::new(), HashMap::new());
-    // The materials' pictures, read once: in the file, in base64, or next to it.
+    // The materials' pictures, read once: in the file, in base64, or next to it; decoded in
+    // parallel (a 2048² picture takes ~30 ms).
+    let mut wanted: Vec<gltf::Image> = Vec::new();
     for mat in g.document.materials() {
         let pbr = mat.pbr_metallic_roughness();
         let textures = [pbr.base_color_texture().map(|t| t.texture()), pbr.metallic_roughness_texture().map(|t| t.texture()), mat.normal_texture().map(|t| t.texture()), mat.occlusion_texture().map(|t| t.texture()), mat.emissive_texture().map(|t| t.texture())];
         for img in textures.into_iter().flatten().map(|t| t.source()) {
-            if extra.2.contains_key(&img.index()) {
-                continue;
+            if !wanted.iter().any(|w| w.index() == img.index()) {
+                wanted.push(img);
             }
-        let bytes = match img.source() {
+        }
+    }
+    let bytes: Vec<Option<Vec<u8>>> = wanted
+        .iter()
+        .map(|img| match img.source() {
             gltf::image::Source::View { view, .. } => data(view.buffer()).and_then(|d| d.get(view.offset()..view.offset() + view.length())).map(<[u8]>::to_vec),
             gltf::image::Source::Uri { uri, .. } if uri.starts_with("data:") => uri.split_once(";base64,").and_then(|(_, d)| base64::engine::general_purpose::STANDARD.decode(d).ok()),
             gltf::image::Source::Uri { uri, .. } => sibling(uri),
-        };
-            let k = bytes.and_then(|d| image::load_from_memory(&d).ok()).map_or(0, |i| b.texture(i.to_rgba8()));
-            extra.2.insert(img.index(), k);
-        }
+        })
+        .collect();
+    use rayon::prelude::*;
+    let decoded: Vec<Option<image::RgbaImage>> = bytes.into_par_iter().map(|d| d.and_then(|d| image::load_from_memory(&d).ok()).map(|i| i.to_rgba8())).collect();
+    for (img, pic) in wanted.iter().zip(decoded) {
+        let k = pic.map_or(0, |p| b.texture(p));
+        extra.2.insert(img.index(), k);
     }
     match g.document.default_scene().or_else(|| g.document.scenes().next()) {
         Some(scene) => {
