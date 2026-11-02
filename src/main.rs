@@ -269,6 +269,8 @@ struct App {
     download: Option<std::sync::Arc<component::Download>>,
     /// Why EyeCanSee could not be started again after the engine download.
     restart_error: Option<String>,
+    /// The list of the viewer's keys open (the Keys button of the status bar, 3D and CAD viewers).
+    keys_open: bool,
     /// Image to open as soon as the folder's listing arrives.
     start: Option<String>,
     /// Thumbnails in memory: only those in the window around the visible rows (`thumb_keep`).
@@ -456,6 +458,7 @@ impl App {
             video: None,
             download: None,
             restart_error: None,
+            keys_open: false,
             start: None,
             thumbs: HashMap::new(),
             thumb_keep: 0..0,

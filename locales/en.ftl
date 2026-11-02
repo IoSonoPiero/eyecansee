@@ -348,6 +348,7 @@ hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | ← →: pre
 hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift+L: next, previous layout | ← →: previous, next file | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
 cad-model = Model
 cad-units = units
+keys-button = Keys
 menu-export-3d = Export as a 3D model
 status-exported = Saved as { $name }
 export-failed = Export failed: { $error }

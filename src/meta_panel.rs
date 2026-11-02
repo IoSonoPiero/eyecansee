@@ -170,9 +170,10 @@ impl App {
 
     /// Status bar of the viewer, like the grid's: name, position, pixels, size on disk, date
     /// taken (or modified, without EXIF or with the metadata boxes closed).
-    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) {
+    /// `Some`: the Keys button, shown for 3D models and CAD drawings (`keys_window`).
+    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) -> Option<egui::Response> {
         let files = self.files();
-        let Some(f) = files.get(current) else { return };
+        let f = files.get(current)?;
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
         ui.horizontal(|ui| {
             self.phone_waiting(ui);
@@ -234,11 +235,36 @@ impl App {
                 ui.separator();
                 ui.label(date);
             }
+            // On the right, out of the way: the keys, listed when asked (user, 2026-11-02). Blue on
+            // white: the bar makes every text white, and the button was white on white.
+            let keys = egui::Button::new(egui::RichText::new(self.i18n.t("keys-button")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
+            self.keys_hint(current).map(|_| ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.add(keys)).inner)
+        })
+        .inner
+    }
+
+    /// The keys of the viewer, one a row, over its bottom right corner above the status bar
+    /// (`bar`: its height): in place of a band whose letters got smaller to fit (user, 2026-11-02).
+    pub(crate) fn keys_window(&self, ctx: &egui::Context, id: &str, bar: f32) {
+        let text = self.i18n.t(id);
+        egui::Area::new(egui::Id::unique("viewer-keys")).order(egui::Order::Foreground).anchor(Align2::RIGHT_BOTTOM, vec2(-8.0, -bar - 8.0)).show(ctx, |ui| {
+            egui::Frame::popup(ui.style()).show(ui, |ui| {
+                ui.label(egui::RichText::new(self.i18n.t("keys-button")).strong().size(16.0));
+                ui.separator();
+                // A row for each key, in alternating stripes, so a key stays with what it does.
+                egui::Grid::new("viewer-keys-grid").num_columns(2).spacing([18.0, 6.0]).striped(true).show(ui, |ui| {
+                    for (keys, what) in key_rows(&text) {
+                        ui.label(egui::RichText::new(keys).strong());
+                        ui.label(what);
+                        ui.end_row();
+                    }
+                });
+            });
         });
     }
 
     /// The keys of 3D models and CAD drawings, which differ from those of images: the Fluent id
-    /// of the line shown above the status bar, if the file is one of them.
+    /// of their list (`keys_window`), if the file is one of them.
     pub(crate) fn keys_hint(&self, current: usize) -> Option<&'static str> {
         if self.viewed_mesh().is_some() {
             return Some("hint-model");
@@ -261,6 +287,12 @@ impl App {
     }
 }
 
+/// "Wheel: zoom | Drag: move" → ("Wheel", "zoom"), ("Drag", "move"): the keys and what they do,
+/// as the `hint-*` texts write them.
+fn key_rows(text: &str) -> Vec<(&str, &str)> {
+    text.split('|').filter_map(|part| part.split_once(':')).map(|(k, w)| (k.trim(), w.trim())).collect()
+}
+
 /// 245464190 → "245.464.190" with `sep` between the groups of three digits.
 fn grouped(n: u64, sep: &str) -> String {
     let digits = n.to_string();
@@ -276,6 +308,18 @@ fn grouped(n: u64, sep: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// Every key list of the viewers splits into rows, in both languages.
+    #[test]
+    fn key_rows_of_the_hints() {
+        assert_eq!(super::key_rows("Wheel, + and −: zoom | Drag: move"), [("Wheel, + and −", "zoom"), ("Drag", "move")]);
+        for ftl in [include_str!("../locales/en.ftl"), include_str!("../locales/it.ftl")] {
+            for line in ftl.lines().filter(|l| l.starts_with("hint-")) {
+                let text = line.split_once(" = ").unwrap().1;
+                assert_eq!(super::key_rows(text).len(), text.split('|').count(), "{line}");
+            }
+        }
+    }
+
     #[test]
     fn digits_in_groups() {
         assert_eq!(super::grouped(245464190, "."), "245.464.190");

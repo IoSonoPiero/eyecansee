@@ -347,6 +347,7 @@ hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno
 hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | L, Maiusc+L: layout successivo, precedente | ← →: file precedente, successivo | Ctrl+Maiusc+S: salva come immagine | F11: schermo intero | Esc: indietro
 cad-model = Modello
 cad-units = unità
+keys-button = Tasti
 menu-export-3d = Esporta come modello 3D
 status-exported = Salvato come { $name }
 export-failed = Esportazione non riuscita: { $error }
