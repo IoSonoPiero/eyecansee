@@ -8,6 +8,7 @@ use eframe::egui;
 
 use crate::audio_job::AudioJob;
 use crate::batch::{Dest, Drawn, Filter, Job, Progress, Size};
+use crate::cad_convert::Target;
 use crate::encode::{Format, Options};
 use crate::batch_video::{VideoForm, audio_rows, video_rows};
 use crate::ffmpeg::{CONTAINERS, Codec, Quality, Video};
@@ -61,7 +62,8 @@ pub struct Form {
     video: VideoForm,
     /// CAD drawings exported (`Drawn`): the window shows just their format, size and destination.
     drawing: bool,
-    svg: bool,
+    /// Not a picture: SVG or the other AutoCAD format (`None`: a picture of `side` pixels).
+    kept: Option<Drawn>,
     /// Long side of the pictures, in pixels.
     side: u32,
     /// Only the audio of the videos: the window shows just FFmpeg and the destination.
@@ -90,7 +92,7 @@ impl Form {
             videos: false,
             video: VideoForm { container: 0, codec: Codec::H264, encoder: None, quality: Quality::Medium, audio: true, meta: true, download: None },
             drawing: false,
-            svg: false,
+            kept: None,
             side: 4096,
             audio: None,
         }
@@ -104,7 +106,7 @@ impl Form {
         };
         let v = &self.video;
         let video = v.encoder.filter(|_| self.videos).map(|encoder| Video { container: v.container, encoder, quality: v.quality, audio: v.audio, meta: v.meta });
-        let drawing = self.drawing.then_some(if self.svg { Drawn::Svg } else { Drawn::Side(self.side) });
+        let drawing = self.drawing.then_some(self.kept.unwrap_or(Drawn::Side(self.side)));
         Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio, base: String::new(), drawing }
     }
 
@@ -483,23 +485,25 @@ fn format_options(ui: &mut egui::Ui, f: &mut Form, format: Format, i18n: &I18n) 
     });
 }
 
-/// "Export drawing": a picture format and its width, or SVG. No "same format": EyeCanSee does
-/// not write CAD files.
+/// "Export drawing": a picture format and its width, SVG, or the other AutoCAD format.
 fn drawing_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     let t = |id| i18n.t(id);
     // "Same as the original" stays chosen for Convert and resize: PNG here (`batch::drawing`).
     let format = f.format.unwrap_or(Format::Png);
-    let label = if f.svg { "SVG" } else { format.label() };
+    let others = [(Drawn::Svg, "SVG"), (Drawn::Cad(Target::Dwg), "DWG"), (Drawn::Cad(Target::Dxf), "DXF")];
+    let label = others.iter().find(|(d, _)| f.kept == Some(*d)).map_or(format.label(), |(_, l)| l);
     egui::ComboBox::from_id_salt("drawing-format").selected_text(label).show_ui(ui, |ui| {
         for k in Format::ALL {
-            if ui.selectable_label(!f.svg && k == format, k.label()).clicked() {
-                (f.svg, f.format) = (false, Some(k));
+            if ui.selectable_label(f.kept.is_none() && k == format, k.label()).clicked() {
+                (f.kept, f.format) = (None, Some(k));
             }
         }
-        ui.selectable_value(&mut f.svg, true, "SVG");
+        for (d, label) in others {
+            ui.selectable_value(&mut f.kept, Some(d), label);
+        }
     });
-    if f.svg {
-        ui.weak(t("drawing-svg-hint"));
+    if let Some(kept) = f.kept {
+        ui.weak(t(if kept == Drawn::Svg { "drawing-svg-hint" } else { "drawing-cad-hint" }));
         return;
     }
     ui.horizontal(|ui| {

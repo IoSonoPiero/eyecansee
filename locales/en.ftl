@@ -637,6 +637,7 @@ drawing-pixels = pixels
 drawing-side-hint = The drawing is drawn again at this size, so it stays sharp even when large.
 drawing-svg-hint = A drawing that stays sharp at any zoom, which browsers and graphics programs open. Layers and blocks are not kept.
 batch-skip-format = { $detail }: EyeCanSee cannot write its format; choose another format.
+drawing-cad-hint = The whole drawing in the other AutoCAD format, in the version it was saved with: layers, blocks, layouts and styles. Each file is read back and compared with the original: if anything would be lost, it is not saved and the summary says so.
 batch-skip-inside = { $detail }: animated or with several pages; the new file would have only the first one.
 batch-failed = { $detail }
 batch-turn = Turn and flip
@@ -712,6 +713,8 @@ batch-video-system-only = FFmpeg is not on this computer, and the Options say to
 batch-video-not-ready = Choose how to convert the videos.
 batch-skip-video = { $detail }: a video, and FFmpeg is missing.
 batch-no-audio = { $detail }: the video has no audio.
+drawing-skip-not-autocad = { $detail }: not an AutoCAD drawing (DWG or DXF), so it cannot be saved as one.
+drawing-skip-would-lose = { $detail }: in the other format part of the drawing would be lost, so it was not saved.
 
 video-codec-h264 = Plays everywhere: phones, TVs, browsers, old computers. Larger files than HEVC and AV1.
 video-codec-hevc = About half the size of H.264 at the same quality; plays on recent phones, TVs and computers.

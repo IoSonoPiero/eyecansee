@@ -89,6 +89,8 @@ pub struct Job {
 pub enum Drawn {
     Svg,
     Side(u32),
+    /// The other AutoCAD format (`cad_convert`), only DWG and DXF files.
+    Cad(crate::cad_convert::Target),
 }
 
 impl Default for Job {
@@ -120,6 +122,8 @@ pub fn target(w: u32, h: u32, size: Size, enlarge: bool) -> (u32, u32) {
 pub const SKIP_FORMAT: &str = "batch-skip-format";
 pub const SKIP_INSIDE: &str = "batch-skip-inside";
 pub const SKIP_VIDEO: &str = "batch-skip-video";
+pub const SKIP_NOT_AUTOCAD: &str = "drawing-skip-not-autocad";
+pub const SKIP_WOULD_LOSE: &str = "drawing-skip-would-lose";
 
 /// The file `bytes` (named `name`) after the job: the new name, without the folder, and its
 /// content. `Err((id, detail))`: a Fluent id with the name or the error.
@@ -176,11 +180,22 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
 /// A CAD drawing as `drawn` says; its pictures read through `sibling`.
 fn drawing(bytes: &[u8], name: &str, job: &Job, drawn: Drawn, sibling: crate::model::Sibling) -> Result<(String, Vec<u8>), (&'static str, String)> {
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
-    let d = crate::cad::read_with(bytes, name, sibling).map_err(failed)?;
     let side = match drawn {
-        Drawn::Svg => return Ok((ext(name, "svg"), d.svg(crate::decode::CAD_SIDE, 1.0).map_err(failed)?.into_bytes())),
+        Drawn::Cad(_) if !crate::cad_convert::can_convert(name) => return Err((SKIP_NOT_AUTOCAD, name.to_string())),
+        Drawn::Cad(to) => {
+            return match crate::cad_convert::convert_checked(bytes, name, to) {
+                Ok(data) => Ok((ext(name, to.ext()), data)),
+                Err((Some(e), _)) => Err(failed(e)),
+                Err((None, lost)) => Err((SKIP_WOULD_LOSE, format!("{name} ({lost})"))),
+            };
+        }
+        Drawn::Svg => {
+            let d = crate::cad::read_with(bytes, name, sibling).map_err(failed)?;
+            return Ok((ext(name, "svg"), d.svg(crate::decode::CAD_SIDE, 1.0).map_err(failed)?.into_bytes()));
+        }
         Drawn::Side(side) => side,
     };
+    let d = crate::cad::read_with(bytes, name, sibling).map_err(failed)?;
     let image = image::DynamicImage::ImageRgba8(crate::decode::cad_render(&d, side, None).map_err(failed)?);
     let format = job.format.unwrap_or(Format::Png);
     let options = Options { format, turn: Turn::default(), ..job.options };
@@ -578,5 +593,10 @@ mod tests {
         let job = Job { drawing: Some(Drawn::Svg), ..job };
         let (name, data) = convert(dxf, "plan.dxf", &job).unwrap();
         assert!(name == "plan.svg" && data.starts_with(b"<svg"));
+        // As the other AutoCAD format; a plotter file has no document to save so.
+        let job = Job { drawing: Some(Drawn::Cad(crate::cad_convert::Target::Dwg)), ..job };
+        let (name, data) = convert(dxf, "plan.dxf", &job).unwrap();
+        assert_eq!((name.as_str(), crate::cad::read(&data, "x.dwg").unwrap().items.len()), ("plan.dwg", 1));
+        assert_eq!(convert(b"IN;PU0,0;PD100,100;", "p.plt", &job).unwrap_err().0, SKIP_NOT_AUTOCAD);
     }
 }

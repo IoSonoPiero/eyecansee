@@ -636,6 +636,7 @@ drawing-pixels = pixel
 drawing-side-hint = Il disegno viene ridisegnato a questa misura, quindi resta nitido anche grande.
 drawing-svg-hint = Un disegno che resta nitido a ogni ingrandimento, che si apre nei browser e nei programmi di grafica. Livelli e blocchi non vengono conservati.
 batch-skip-format = { $detail }: EyeCanSee non sa scrivere il suo formato; scegli un altro formato.
+drawing-cad-hint = Tutto il disegno nell'altro formato AutoCAD, nella versione in cui era salvato: livelli, blocchi, layout e stili. Ogni file viene riletto e confrontato con l'originale: se qualcosa andrebbe perso non viene salvato, e il riepilogo lo dice.
 batch-skip-inside = { $detail }: animata o con più pagine; il file nuovo avrebbe solo la prima.
 batch-failed = { $detail }
 batch-turn = Rotazione e ribaltamenti
@@ -711,6 +712,8 @@ batch-video-system-only = FFmpeg su questo computer non c'è, e nelle Opzioni è
 batch-video-not-ready = Scegli come convertire i video.
 batch-skip-video = { $detail }: è un video e manca FFmpeg.
 batch-no-audio = { $detail }: il video non ha audio.
+drawing-skip-not-autocad = { $detail }: non è un disegno AutoCAD (DWG o DXF), quindi non si può salvare come tale.
+drawing-skip-would-lose = { $detail }: nell'altro formato una parte del disegno andrebbe persa, quindi non è stato salvato.
 
 video-codec-h264 = Si apre ovunque: telefoni, TV, browser, computer vecchi. File più grandi di HEVC e AV1.
 video-codec-hevc = Circa metà del peso di H.264 a parità di qualità; si apre su telefoni, TV e computer recenti.

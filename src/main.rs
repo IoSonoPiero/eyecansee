@@ -50,6 +50,7 @@ mod browser;
 mod cad;
 mod cad_engine;
 mod cad_geom;
+mod cad_convert;
 mod cad_hpgl;
 mod cad_image;
 mod cad_layout;
