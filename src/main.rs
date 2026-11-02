@@ -35,6 +35,7 @@ mod cad_hpgl;
 mod cad_image;
 mod cad_layout;
 mod cad_svg;
+mod cad_text;
 mod cad_view;
 mod component;
 mod confirm;
