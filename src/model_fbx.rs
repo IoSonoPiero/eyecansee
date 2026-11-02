@@ -10,6 +10,8 @@ pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     let scene = ufbx::load_memory(bytes, opts).map_err(|e| e.description.to_string())?;
     let mut b = Builder::default();
     let mut idx = Vec::new();
+    // Picture and surface of each material, made once.
+    let mut looks: std::collections::HashMap<u32, (u16, u16)> = std::collections::HashMap::new();
     for node in scene.nodes.iter().filter(|n| n.visible) {
         let Some(mesh) = node.mesh.as_ref() else { continue };
         let m = &node.geometry_to_world;
@@ -22,10 +24,12 @@ pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
         for (f, face) in mesh.faces.iter().enumerate() {
             let n = ufbx::triangulate_face_vec(&mut idx, mesh, *face) as usize;
             let mat = mesh.face_material.get(f).and_then(|&i| materials.get(i as usize));
-            let tex = mat.map_or(0, |m| picture(&mut b, [&m.pbr.base_color, &m.fbx.diffuse_color], sibling));
-            let surface = mat.map_or(0, |m| {
-                let s = surface(&mut b, m, sibling);
-                b.surface(s)
+            let (tex, surface) = mat.map_or((0, 0), |m| {
+                *looks.entry(m.element.element_id).or_insert_with(|| {
+                    let tex = picture(&mut b, [&m.pbr.base_color, &m.fbx.diffuse_color], sibling);
+                    let s = surface(&mut b, m, sibling);
+                    (tex, b.surface(s))
+                })
             });
             for t in idx.as_chunks::<3>().0.iter().take(n) {
                 tris.push(*t);
@@ -45,11 +49,9 @@ pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     b.finish(false)
 }
 
-/// How the material takes the light. Roughness and metal from their values only (FBX keeps them
-/// in two pictures, glTF in one).
-// ponytail: roughness and metalness pictures not read
+/// How the material takes the light. A picture of roughness or metal takes the place of its value.
 fn surface(b: &mut Builder, m: &ufbx::Material, sibling: Sibling) -> Surface {
-    let value = |c: &ufbx::MaterialMap, default: f32| if c.has_value { c.value_vec4.x as f32 } else { default };
+    let value = |c: &ufbx::MaterialMap, default: f32| if c.texture.is_some() { 1.0 } else if c.has_value { c.value_vec4.x as f32 } else { default };
     let glow = if m.pbr.emission_color.has_value { rgb(m.pbr.emission_color.value_vec4).map(|v| v as f32 / 255.0 * value(&m.pbr.emission_factor, 1.0)) } else { [0.0; 3] };
     Surface {
         metallic: value(&m.pbr.metalness, 0.0).clamp(0.0, 1.0),
@@ -57,7 +59,7 @@ fn surface(b: &mut Builder, m: &ufbx::Material, sibling: Sibling) -> Surface {
         occlusion: if m.pbr.ambient_occlusion.texture.is_some() { 1.0 } else { 0.0 },
         glow: glow.map(|v| v.clamp(0.0, 1.0)),
         bumps: picture(b, [&m.pbr.normal_map, &m.fbx.normal_map], sibling),
-        rough_metal: 0,
+        rough_metal: rough_metal(b, m, sibling),
         occlusion_map: picture(b, [&m.pbr.ambient_occlusion, &m.pbr.ambient_occlusion], sibling),
         glow_map: picture(b, [&m.pbr.emission_color, &m.fbx.emission_color], sibling),
     }
@@ -75,11 +77,37 @@ fn normals(mesh: &ufbx::Mesh, m: &ufbx::Matrix, t: &[u32; 3]) -> Option<[[f32; 3
 
 /// The picture of the first of `maps` that has one: in the FBX file, or the file it names.
 fn picture(b: &mut Builder, maps: [&ufbx::MaterialMap; 2], sibling: Sibling) -> u16 {
-    let Some(t) = maps.into_iter().find_map(|c| c.texture.as_ref()) else { return 0 };
-    // Layered and procedural textures: their first picture.
-    let Some(file) = (if t.type_ == ufbx::TextureType::File { Some(&**t) } else { t.file_textures.first().map(|f| &**f) }) else { return 0 };
-    let name = if file.relative_filename.is_empty() { &file.filename } else { &file.relative_filename };
-    b.texture_file(name, &|n| if file.content.is_empty() { sibling(n) } else { Some(file.content.to_vec()) })
+    let Some(file) = maps.into_iter().find_map(file) else { return 0 };
+    b.texture_file(name(file), &|n| if file.content.is_empty() { sibling(n) } else { Some(file.content.to_vec()) })
+}
+
+/// The picture file of a map; of layered and procedural textures, their first.
+fn file(map: &ufbx::MaterialMap) -> Option<&ufbx::Texture> {
+    let t = map.texture.as_ref()?;
+    if t.type_ == ufbx::TextureType::File { Some(t) } else { t.file_textures.first().map(|f| &**f) }
+}
+
+fn name(file: &ufbx::Texture) -> &str {
+    if file.relative_filename.is_empty() { &file.filename } else { &file.relative_filename }
+}
+
+/// Roughness and metal, two grey pictures in FBX, as one picture the way glTF has them (green
+/// and blue): what the renderers read.
+fn rough_metal(b: &mut Builder, m: &ufbx::Material, sibling: Sibling) -> u16 {
+    let grey = |map: &ufbx::MaterialMap| {
+        let f = file(map)?;
+        let n = name(f);
+        let bytes = if f.content.is_empty() { sibling(n).or_else(|| sibling(n.rsplit(['/', '\\']).next()?)) } else { Some(f.content.to_vec()) };
+        Some(image::load_from_memory(&bytes?).ok()?.to_luma8())
+    };
+    combined(grey(&m.pbr.roughness).as_ref(), grey(&m.pbr.metalness).as_ref()).map_or(0, |img| b.texture(img))
+}
+
+/// Roughness in green, metal in blue, at the size of the larger; white where one is missing.
+fn combined(rough: Option<&image::GrayImage>, metal: Option<&image::GrayImage>) -> Option<image::RgbaImage> {
+    let (w, h) = [rough, metal].into_iter().flatten().map(|i| i.dimensions()).max_by_key(|&(w, h)| w as u64 * h as u64)?;
+    let at = |i: Option<&image::GrayImage>, x: u32, y: u32| i.map_or(255, |i| i.get_pixel(x * i.width() / w, y * i.height() / h)[0]);
+    Some(image::RgbaImage::from_fn(w, h, |x, y| image::Rgba([0, at(rough, x, y), at(metal, x, y), 255])))
 }
 
 /// Where the triangle's corners lie on the picture (V downwards, as the picture's rows).
@@ -113,6 +141,16 @@ fn vertex_color(mesh: &ufbx::Mesh, t: &[u32; 3]) -> Option<[u8; 3]> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn roughness_and_metal_in_one_picture() {
+        let rough = image::GrayImage::from_pixel(4, 4, image::Luma([10]));
+        let metal = image::GrayImage::from_pixel(2, 2, image::Luma([200]));
+        let c = super::combined(Some(&rough), Some(&metal)).unwrap();
+        assert_eq!((c.dimensions(), c.get_pixel(3, 3).0), ((4, 4), [0, 10, 200, 255]));
+        assert_eq!(super::combined(None, Some(&metal)).unwrap().get_pixel(0, 0).0, [0, 255, 200, 255]);
+        assert!(super::combined(None, None).is_none());
+    }
+
     #[test]
     fn not_fbx_refused() {
         assert!(super::read(b"not an fbx file at all", &|_| None).is_err());
