@@ -8,13 +8,14 @@ all-features = true
 [advisories]
 # Vulnerabilities fail; unmaintained crates are reported only for direct dependencies.
 unmaintained = "workspace"
-# zip 5 (from image-extras, for OpenRaster): the three flaws are in ZipArchive::extract, which
-# image-extras never calls (it reads stack.xml and the merged image by name). Fixed in zip 9:
+# zip 5 (from image-extras, for OpenRaster; also ours for 3MF, AMF, ZAE): the four flaws are in ZipArchive::extract, which
+# neither image-extras nor we call (files are read by name). Fixed in zip 9:
 # drop these when image-extras moves to it.
 ignore = [
     { id = "RUSTSEC-2026-0367", reason = "zip extract() only, not used by image-extras" },
     { id = "RUSTSEC-2026-0368", reason = "zip extract() only, not used by image-extras" },
     { id = "RUSTSEC-2026-0369", reason = "zip extract() only, not used by image-extras" },
+    { id = "RUSTSEC-2026-0429", reason = "zip extract() only, not used by image-extras nor by our 3MF, AMF and ZAE readers" },
     # rsa (from russh, for RSA keys, still common on servers): no fixed version exists. Kept on the
     # user's decision (2026-10-30); the app warns once per server after a login with an RSA key.
     { id = "RUSTSEC-2023-0071", reason = "no fix in rsa; RSA keys kept, the app warns when one is used" },

@@ -96,6 +96,8 @@ zip = { version = "5.1.1", default-features = false, features = ["deflate"] }
 rayon = "1.12.0"
 acadrust = { version = "0.6.8", default-features = false }
 ifc-lite-processing = "27.1.0"
+# FBX models (model_fbx.rs): the ufbx C library (MIT or public domain), built with cc.
+ufbx = "0.11.5"
 
 [target."cfg(windows)".dependencies]
 # Drives (C:, D:, …): type, label and bus (USB/SD = external) for "This computer" and Devices.

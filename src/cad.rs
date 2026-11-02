@@ -12,7 +12,7 @@ use acadrust::{CadDocument, DwgReader, DxfReader};
 
 use crate::cad_geom::{self, Affine, P};
 
-const CAD: &[&str] = &["dxf", "dwg"];
+const CAD: &[&str] = &["dxf", "dwg", "plt", "hpgl", "hpg", "hgl"];
 
 /// AutoCAD's model space background, and its colour 7 (white on a dark background).
 pub const BACKGROUND: [u8; 3] = [33, 40, 48];
@@ -20,7 +20,7 @@ const WHITE: [u8; 3] = [255, 255, 255];
 /// Blocks inside blocks; deeper is a loop or a damaged file.
 const MAX_DEPTH: u32 = 16;
 /// Points of the whole drawing, so that a damaged file cannot fill the memory.
-const MAX_POINTS: usize = 20_000_000;
+pub(crate) const MAX_POINTS: usize = 20_000_000;
 
 pub fn is_cad(name: &str) -> bool {
     name.rsplit_once('.').is_some_and(|(_, e)| CAD.contains(&e.to_lowercase().as_str()))
@@ -50,11 +50,15 @@ pub enum Baseline {
 #[derive(Debug, Default)]
 pub struct Drawing {
     pub items: Vec<Item>,
-    points: usize,
+    pub(crate) points: usize,
 }
 
 pub fn read(bytes: &[u8], name: &str) -> Result<Drawing, String> {
-    let doc = if name.to_lowercase().ends_with(".dwg") {
+    let lower = name.to_lowercase();
+    if [".plt", ".hpgl", ".hpg", ".hgl"].iter().any(|e| lower.ends_with(e)) {
+        return crate::cad_hpgl::read(bytes);
+    }
+    let doc = if lower.ends_with(".dwg") {
         DwgReader::from_stream(Cursor::new(bytes)).read().map_err(|e| e.to_string())?
     } else {
         DxfReader::from_reader(Cursor::new(bytes.to_vec())).and_then(|r| r.read()).map_err(|e| e.to_string())?

@@ -6,7 +6,7 @@ use std::io::Cursor;
 use ply_rs_bw::{parser::Parser, ply::DefaultElement, ply::Property};
 
 /// Extensions read as 3D models.
-const MODEL: &[&str] = &["stl", "obj", "ply", "glb", "gltf", "3mf", "ifc"];
+const MODEL: &[&str] = &["stl", "obj", "ply", "glb", "gltf", "3mf", "ifc", "fbx", "3ds", "off", "amf", "dae", "zae", "wrl", "wrz", "x3d", "x3dv", "x3dz", "x3dvz"];
 
 /// Beyond this the file is refused instead of filling the memory (a 3D scan of a statue is ~10 M).
 const MAX_TRIANGLES: usize = 50_000_000;
@@ -105,6 +105,12 @@ pub fn parse_with(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, St
         Some("glb" | "gltf") => gltf(bytes, sibling),
         Some("3mf") => crate::model_3mf::read(bytes),
         Some("ifc") => crate::model_ifc::read(bytes),
+        Some("fbx") => crate::model_fbx::read(bytes),
+        Some("3ds") => crate::model_3ds::read(bytes),
+        Some("off") => crate::model_off::read(bytes),
+        Some("amf") => crate::model_amf::read(bytes),
+        Some(e @ ("dae" | "zae")) => crate::model_dae::read(bytes, e == "zae"),
+        Some("wrl" | "wrz" | "x3d" | "x3dv" | "x3dz" | "x3dvz") => crate::model_x3d::read(bytes, sibling),
         _ if crate::occt::is_occt(name) => crate::occt::read(bytes, name),
         _ => Err("not a 3D model".into()),
     }
@@ -190,10 +196,34 @@ fn ply(bytes: &[u8]) -> Result<Mesh, String> {
             tris.extend(strip.windows(3).enumerate().map(|(i, w)| if i % 2 == 0 { [w[0], w[1], w[2]] } else { [w[1], w[0], w[2]] }));
         }
     }
+    if tris.is_empty() {
+        return point_cloud(pos, &rgb);
+    }
     let mut b = Builder::default();
     let colors = |i: usize| average(&rgb, tris[i]).map(|c| c.map(|v| v as u8));
     b.add(pos, tris.clone(), colors)?;
     b.finish(false)
+}
+
+/// Points without faces (3D scans): each one a small tetrahedron, as large as the space between
+/// points on a surface, so that the cloud looks like a surface of dots.
+fn point_cloud(pos: Vec<[f32; 3]>, rgb: &[[f32; 3]]) -> Result<Mesh, String> {
+    let pos: Vec<([f32; 3], Option<[u8; 3]>)> = pos.into_iter().enumerate().filter(|(_, p)| p.iter().all(|c| c.is_finite())).map(|(i, p)| (p, rgb.get(i).map(|c| c.map(|v| v as u8)))).collect();
+    let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
+    for (p, _) in &pos {
+        for k in 0..3 {
+            (lo[k], hi[k]) = (lo[k].min(p[k]), hi[k].max(p[k]));
+        }
+    }
+    let diag = (0..3).map(|k| (hi[k] - lo[k]).powi(2)).sum::<f32>().sqrt();
+    let s = (diag / (pos.len() as f32).sqrt() * 0.6).clamp(diag / 2000.0, diag / 100.0) / 3f32.sqrt();
+    let corners = [[1.0, 1.0, 1.0], [1.0, -1.0, -1.0], [-1.0, 1.0, -1.0], [-1.0, -1.0, 1.0f32]];
+    let mut b = Builder::default();
+    let tris: Vec<[u32; 3]> = (0..pos.len() as u32).flat_map(|i| [[0, 1, 2], [0, 3, 1], [0, 2, 3], [1, 3, 2]].map(|t| t.map(|v| i * 4 + v))).collect();
+    let colors: Vec<Option<[u8; 3]>> = pos.iter().map(|(_, c)| *c).collect();
+    let points = pos.iter().flat_map(|(p, _)| corners.map(|c| std::array::from_fn(|k| p[k] + c[k] * s))).collect();
+    b.add(points, tris, |i| colors[i / 4])?;
+    b.finish(false).map_err(|_| "no points in the file".to_string())
 }
 
 /// A vertex colour on 0-255, from bytes or from 0-1 floats.
@@ -233,15 +263,24 @@ fn list(p: &Property) -> Option<Vec<u32>> {
 }
 
 /// Column-major, as glTF writes it.
-type Mat4 = [[f32; 4]; 4];
-const IDENTITY: Mat4 = [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
+pub(crate) type Mat4 = [[f32; 4]; 4];
+pub(crate) const IDENTITY: Mat4 = [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
 
-fn mul(a: &Mat4, b: &Mat4) -> Mat4 {
+pub(crate) fn mul(a: &Mat4, b: &Mat4) -> Mat4 {
     std::array::from_fn(|c| std::array::from_fn(|r| (0..4).map(|k| a[k][r] * b[c][k]).sum()))
 }
 
-fn apply(m: &Mat4, p: [f32; 3]) -> [f32; 3] {
+pub(crate) fn apply(m: &Mat4, p: [f32; 3]) -> [f32; 3] {
     std::array::from_fn(|r| m[0][r] * p[0] + m[1][r] * p[1] + m[2][r] * p[2] + m[3][r])
+}
+
+/// A turn of `angle` radians about `axis` (right-handed).
+pub(crate) fn rotation(axis: [f32; 3], angle: f32) -> Mat4 {
+    let len = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]).sqrt().max(f32::MIN_POSITIVE);
+    let [x, y, z] = axis.map(|v| v / len);
+    let (s, c) = angle.sin_cos();
+    let t = 1.0 - c;
+    [[t * x * x + c, t * x * y + s * z, t * x * z - s * y, 0.0], [t * x * y - s * z, t * y * y + c, t * y * z + s * x, 0.0], [t * x * z + s * y, t * y * z - s * x, t * z * z + c, 0.0], [0.0, 0.0, 0.0, 1.0]]
 }
 
 /// GLB, and .gltf with its data inside or in the files next to it (`sibling`).
@@ -366,6 +405,13 @@ mod tests {
         let next = |name: &str| (name == "tri%20data.bin").then(|| bin.clone());
         assert_eq!(parse_with(gltf.as_bytes(), "t.gltf", &next).unwrap().tris.len(), 1);
         assert!(parse(gltf.as_bytes(), "t.gltf").is_err());
+    }
+
+    #[test]
+    fn a_point_cloud_becomes_dots() {
+        let ply = "ply\nformat ascii 1.0\nelement vertex 2\nproperty float x\nproperty float y\nproperty float z\nproperty uchar red\nproperty uchar green\nproperty uchar blue\nend_header\n0 0 0 255 0 0\n1 0 0 0 0 255\n";
+        let m = parse(ply.as_bytes(), "scan.ply").unwrap();
+        assert_eq!((m.tris.len(), m.colors[0], m.colors[7]), (8, [255, 0, 0], [0, 0, 255]));
     }
 
     #[test]

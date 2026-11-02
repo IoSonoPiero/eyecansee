@@ -140,7 +140,7 @@ Anche i file audio (M4A, MP3, Opus, Ogg, FLAC, WAV, MKA e altri, per esempio que
 
 ## Modelli 3D
 
-I modelli 3D fatti di triangoli compaiono nella griglia accanto alle immagini, con un'immagine del modello come miniatura: **STL** e **3MF** (stampa 3D), **OBJ** (con i colori dei suoi materiali, il file `.mtl` accanto), **PLY** (anche scansioni 3D), **glTF** (`.glb`, e `.gltf` con il suo file `.bin`) e **IFC** (modelli di edifici, BIM: muri, solai, finestre, strutture, tubazioni, strade e ponti nei loro colori). Invio o un doppio clic aprono il modello nel visore, disegnato dalla scheda video, dove si può girare e guardare da ogni lato:
+I modelli 3D fatti di triangoli compaiono nella griglia accanto alle immagini, con un'immagine del modello come miniatura: **STL** e **3MF** (stampa 3D), **OBJ** (con i colori dei suoi materiali, il file `.mtl` accanto), **PLY** (anche scansioni 3D; le nuvole di punti senza facce si vedono a puntini), **glTF** (`.glb`, e `.gltf` con il suo file `.bin`), **FBX**, **Collada** (`.dae`, e `.zae` compresso), **3DS** (3D Studio), **OFF**, **AMF** (stampa 3D), **VRML** e **X3D** (`.wrl`, `.x3d`, `.x3dv`, anche compressi con gzip, con i file che includono da accanto a loro) e **IFC** (modelli di edifici, BIM: muri, solai, finestre, strutture, tubazioni, strade e ponti nei loro colori). Invio o un doppio clic aprono il modello nel visore, disegnato dalla scheda video, dove si può girare e guardare da ogni lato:
 
 - **Frecce**: girano il modello (tenendole premute continua a girare). Anche trascinando col mouse il modello gira.
 - **Maiusc** e trascinamento, oppure trascinamento col tasto centrale: spostano il modello nella finestra.
@@ -148,11 +148,11 @@ I modelli 3D fatti di triangoli compaiono nella griglia accanto alle immagini, c
 - **Pagina giù**, **Spazio** e **Pagina su**, **Backspace**: elemento successivo e precedente (le frecce invece girano il modello); **Esc** o un doppio clic: torna alla griglia.
 - **Ctrl+S** (o *Salva in un altro formato*): il modello come si vede, come immagine, larga almeno 1920 pixel, con gli stessi formati e le stesse opzioni delle foto.
 
-Si vedono i colori scritti nel file (materiali del 3MF, colori dei vertici in PLY e glTF, colore di base del glTF); le texture no, e un modello senza colori è grigio chiaro. La barra di stato mostra il numero di triangoli, l'ingrandimento e, mentre il modello si muove, i fotogrammi al secondo. *Converti e ridimensiona* trasforma più modelli in immagini in una volta, visti dalla vista di partenza.
+Si vedono i colori scritti nel file (colori di materiali, facce e vertici); le texture no, e un modello senza colori è grigio chiaro. La barra di stato mostra il numero di triangoli, l'ingrandimento e, mentre il modello si muove, i fotogrammi al secondo. *Converti e ridimensiona* trasforma più modelli in immagini in una volta, visti dalla vista di partenza.
 
 ## Disegni CAD
 
-I disegni di AutoCAD, **DWG** (dalla R13 alla 2018 e successive) e **DXF** (testo e binario), compaiono nella griglia con un'immagine del disegno come miniatura e si aprono nel visore come un'immagine: zoom con la rotellina, + e −, spostamento trascinando, *Salva in un altro formato* per farne un'immagine. Il disegno si vede dall'alto, come nello spazio modello di un programma CAD, sul suo sfondo scuro: linee, archi, cerchi, polilinee, spline, ellissi, testi, quote, blocchi (anche dentro altri blocchi), tabelle e retini pieni, nei loro colori; i layer spenti e congelati non si vedono. Quando la vista si ferma, la parte sullo schermo viene ridisegnata dal disegno: linee sottili e testi piccoli restano nitidi a ogni ingrandimento.
+I disegni di AutoCAD, **DWG** (dalla R13 alla 2018 e successive) e **DXF** (testo e binario), e i file per plotter, **HP-GL** e **HP-GL/2** (`.plt`, `.hpgl`, anche dentro un lavoro di stampa PCL, coi colori delle penne), compaiono nella griglia con un'immagine del disegno come miniatura e si aprono nel visore come un'immagine: zoom con la rotellina, + e −, spostamento trascinando, *Salva in un altro formato* per farne un'immagine. Il disegno si vede dall'alto, come nello spazio modello di un programma CAD, sul suo sfondo scuro: linee, archi, cerchi, polilinee, spline, ellissi, testi, quote, blocchi (anche dentro altri blocchi), tabelle e retini pieni, nei loro colori; i layer spenti e congelati non si vedono. Quando la vista si ferma, la parte sullo schermo viene ridisegnata dal disegno: linee sottili e testi piccoli restano nitidi a ogni ingrandimento.
 
 ## Ruotare e riflettere
 
@@ -302,8 +302,8 @@ Nel visore, dopo l'ultima immagine EyeCanSee si ferma; con l'opzione **Nel visor
 - **Vettoriali**: SVG, SVGZ.
 - **Grafica e HDR**: PSD (immagine unita), ORA, OpenEXR, HDR, DDS, ICNS, QOI, TGA, ICO, CUR, PCX, JPEG 2000, PNM, XPM, XBM, SGI, WBMP, OTB, MPO, JPS.
 - **Tramite ImageMagick**: PSB, XCF, PFM, Sun Raster, PICT, MIFF, MNG, JNG, DPX, Cineon, FITS e altri formati meno comuni (XWD solo su Linux). ImageMagick apre anche i PSD che il lettore interno non gestisce (per esempio quelli a 32 bit).
-- **Modelli 3D**: STL, 3MF, OBJ, PLY, glTF (GLB), IFC. Vedi *Modelli 3D*.
-- **Disegni CAD**: DWG, DXF. Vedi *Disegni CAD*.
+- **Modelli 3D**: STL, 3MF, OBJ, PLY, glTF (GLB), FBX, Collada (DAE, ZAE), 3DS, OFF, AMF, VRML, X3D, IFC. Vedi *Modelli 3D*.
+- **Disegni CAD**: DWG, DXF, HP-GL (PLT). Vedi *Disegni CAD*.
 
 Le foto vengono ruotate in automatico secondo l'orientamento EXIF. L'estensione del file è solo un indizio: una foto HEIC di un iPhone rinominata in `.jpg` si apre lo stesso.
 
@@ -313,8 +313,8 @@ EyeCanSee usa la lingua del sistema se è disponibile, altrimenti l'inglese. Per
 
 ## Limiti noti
 
-- **Disegni CAD**: solo lo spazio modello, visto dall'alto; layout (spazio carta), solidi 3D, motivi dei retini (si vedono come un riempimento leggero), tipi di linea (tratteggi) e spessori non vengono disegnati, i testi usano un font del sistema al posto dei font CAD, e le immagini collegate al disegno si vedono come una cornice con una croce.
-- **Modelli 3D**: le texture non si vedono ancora; *Converti e ridimensiona* non apre un `.gltf` con i dati in un file `.bin` separato (il visore sì).
+- **Disegni CAD**: solo lo spazio modello, visto dall'alto; layout (spazio carta), solidi 3D, motivi dei retini (si vedono come un riempimento leggero), tipi di linea (tratteggi) e spessori non vengono disegnati, i testi usano un font del sistema al posto dei font CAD, e le immagini collegate al disegno si vedono come una cornice con una croce. Nei file HP-GL la scala (SC), i tipi di linea e gli spessori delle penne non vengono applicati.
+- **Modelli 3D**: le texture non si vedono ancora; *Converti e ridimensiona* non apre un `.gltf` con i dati in un file `.bin` separato (il visore sì), né i file inclusi da un VRML o X3D. Le animazioni non partono (i modelli si vedono nella posa di riposo); i testi di VRML e X3D non si vedono, e i file VRML 1.0 non si aprono.
 - Sui dischi **NTFS** (per esempio un disco esterno usato anche con Windows) l'app File (Nautilus) non riesce a ripristinare dal cestino, nemmeno i file cancellati da lei stessa; EyeCanSee lo ricorda nella conferma. I file però sono nel cestino e si ripristinano dal terminale: `gio trash --list` mostra cosa c'è, `gio trash --restore "<indirizzo trash:/// della riga>"` lo rimette al suo posto.
 - Se il telefono non risponde a una richiesta (visto su Windows: una cancellazione durata più di cinque minuti, con tutto il resto in attesa dietro di lei), la barra di stato lo dice con i secondi trascorsi e il file: EyeCanSee riprende da solo appena il telefono risponde. La causa non è nota: è capitato due volte su un POCO X7 Pro, cancellando file appena creati, e non si ripete a comando.
 - **Windows**: subito dopo una foto scattata, o un file cancellato, sul telefono, il driver di Windows può smettere di comunicare con il telefono per circa sei minuti; staccare il cavo e riattaccarlo lo sblocca subito. Di più in [Windows smette di comunicare con il telefono](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.it.md).

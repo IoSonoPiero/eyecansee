@@ -10,7 +10,7 @@ use roxmltree::{Document, Node};
 use crate::model::{Builder, Mesh};
 
 /// Model files larger than this are refused (zip bombs): ~10 M triangles take ~1 GB of XML.
-const MAX_XML: u64 = 2 << 30;
+pub(crate) const MAX_XML: u64 = 2 << 30;
 
 /// Row-major 4×3, as 3MF writes it: a point is `[x y z 1] × M`.
 type Transform = [f32; 12];
@@ -73,7 +73,7 @@ impl Files<'_> {
     }
 }
 
-fn entry<R: Read + std::io::Seek>(zip: &mut zip::ZipArchive<R>, name: &str) -> Option<String> {
+pub(crate) fn entry<R: Read + std::io::Seek>(zip: &mut zip::ZipArchive<R>, name: &str) -> Option<String> {
     let mut s = String::new();
     zip.by_name(name).ok()?.take(MAX_XML).read_to_string(&mut s).ok()?;
     Some(s)
@@ -117,7 +117,7 @@ fn hex(s: &str) -> Option<[u8; 3]> {
     Some([byte(0)?, byte(2)?, byte(4)?])
 }
 
-trait Local {
+pub(crate) trait Local {
     fn has_tag_name_local(&self, name: &str) -> bool;
     fn attribute_local(&self, name: &str) -> Option<&str>;
 }
@@ -168,6 +168,28 @@ fn mesh_part(b: &mut Builder, model: &Model, object: Node, mesh: Node, m: &Trans
         model.color(t.attribute("pid").or(opid), t.attribute("p1").or(oindex))
     };
     b.add(pos, tris, colors)
+}
+
+/// XML of 3D formats: a DTD is allowed (X3D has one), its entities stay limited by roxmltree.
+pub(crate) fn xml_options<'a>() -> roxmltree::ParsingOptions<'a> {
+    roxmltree::ParsingOptions { allow_dtd: true, ..Default::default() }
+}
+
+/// The first file of the zip whose name ends with `ext` (AMF, Collada's ZAE).
+pub(crate) fn unzipped(bytes: &[u8], ext: &str) -> Result<String, String> {
+    let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
+    let name = zip.file_names().find(|n| n.to_lowercase().ends_with(ext)).map(str::to_string).ok_or_else(|| format!("no {ext} file in the zip"))?;
+    crate::model_3mf::entry(&mut zip, &name).ok_or_else(|| format!("{name} unreadable"))
+}
+
+/// The text of an XML file: UTF-8 (with or without its mark) or UTF-16 with its mark.
+pub(crate) fn text(bytes: &[u8]) -> String {
+    let utf16 = |be: bool| char::decode_utf16(bytes[2..].as_chunks::<2>().0.iter().map(|c| if be { u16::from_be_bytes([c[0], c[1]]) } else { u16::from_le_bytes([c[0], c[1]]) })).map(|c| c.unwrap_or('\u{FFFD}')).collect();
+    match bytes {
+        [0xFF, 0xFE, ..] => utf16(false),
+        [0xFE, 0xFF, ..] => utf16(true),
+        _ => String::from_utf8_lossy(bytes.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(bytes)).into_owned(),
+    }
 }
 
 #[cfg(test)]

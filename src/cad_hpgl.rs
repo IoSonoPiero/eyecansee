@@ -1,0 +1,255 @@
+//! HP-GL and HP-GL/2 plot files (`.plt`, `.hpgl`): pen moves, arcs, circles, rectangles, labels
+//! and encoded polylines, also inside a PCL job, as a `cad::Drawing` in plotter units (40 a
+//! millimetre), with the pens in the colours of plotters on a dark background.
+// ponytail: scaling (SC), line types and pen widths ignored: the shape stays, not the units
+
+use crate::cad::{Anchor, Baseline, Drawing, Item, MAX_POINTS};
+use crate::cad_geom::{self, P};
+
+/// Pens 1-8 of a plotter; pen 1 (black on paper) white, as in CAD programs.
+const PENS: [[u8; 3]; 8] = [[255, 255, 255], [255, 0, 0], [0, 255, 0], [255, 255, 0], [0, 0, 255], [255, 0, 255], [0, 255, 255], [255, 128, 0]];
+/// Default label size: 0.375 cm (in plotter units).
+const LABEL: f64 = 150.0;
+/// End of a label (ETX).
+const ETX: u8 = 3;
+
+struct Plotter {
+    out: Drawing,
+    at: P,
+    down: bool,
+    relative: bool,
+    pen: usize,
+    colors: Vec<[u8; 3]>,
+    path: Vec<P>,
+    label_height: f64,
+    label_angle: f64,
+}
+
+pub fn read(bytes: &[u8]) -> Result<Drawing, String> {
+    let mut p = Plotter { out: Drawing::default(), at: [0.0; 2], down: false, relative: false, pen: 1, colors: PENS.to_vec(), path: Vec::new(), label_height: LABEL, label_angle: 0.0 };
+    let mut i = 0;
+    let mut commands = 0;
+    while i < bytes.len() {
+        let c = bytes[i];
+        if c == 0x1b {
+            // A PCL or device command: up to its final capital letter.
+            i += bytes[i + 1..].iter().position(|b| b.is_ascii_uppercase()).map_or(bytes.len(), |k| k + 2);
+            continue;
+        }
+        if !c.is_ascii_alphabetic() || !bytes.get(i + 1).is_some_and(u8::is_ascii_alphabetic) {
+            i += 1;
+            continue;
+        }
+        let name = [c.to_ascii_uppercase(), bytes[i + 1].to_ascii_uppercase()];
+        i += 2;
+        if &name == b"LB" {
+            let end = bytes[i..].iter().position(|&b| b == ETX).map_or(bytes.len(), |k| i + k);
+            p.label(&String::from_utf8_lossy(&bytes[i..end]));
+            i = end + 1;
+            continue;
+        }
+        let end = bytes[i..].iter().position(|&b| b == b';' || b.is_ascii_alphabetic() && &name != b"PE").map_or(bytes.len(), |k| i + k);
+        if &name == b"PE" {
+            p.encoded(&bytes[i..end])?;
+        } else {
+            let args: Vec<f64> = String::from_utf8_lossy(&bytes[i..end]).split(|c: char| c == ',' || c.is_whitespace()).filter_map(|s| s.parse().ok()).collect();
+            p.command(name, &args)?;
+        }
+        commands += 1;
+        i = end;
+    }
+    p.flush()?;
+    if commands == 0 || p.out.items.is_empty() {
+        return Err("not an HP-GL plot file, or nothing drawn".into());
+    }
+    Ok(p.out)
+}
+
+impl Plotter {
+    fn color(&self) -> [u8; 3] {
+        self.colors.get(self.pen.wrapping_sub(1)).copied().unwrap_or(PENS[0])
+    }
+
+    fn flush(&mut self) -> Result<(), String> {
+        let pts = std::mem::take(&mut self.path);
+        self.add(pts, None)
+    }
+
+    fn add(&mut self, pts: Vec<P>, fill: Option<f32>) -> Result<(), String> {
+        self.out.points += pts.len();
+        if self.out.points > MAX_POINTS {
+            return Err(format!("more than {MAX_POINTS} points"));
+        }
+        if pts.len() >= 2 && self.pen > 0 {
+            self.out.items.push(Item::Line { pts, color: self.color(), fill });
+        }
+        Ok(())
+    }
+
+    /// A move to `to`, drawing if the pen is down.
+    fn go(&mut self, to: P) -> Result<(), String> {
+        if self.down {
+            if self.path.is_empty() {
+                self.path.push(self.at);
+            }
+            self.path.push(to);
+        } else {
+            self.flush()?;
+        }
+        self.at = to;
+        Ok(())
+    }
+
+    fn command(&mut self, name: [u8; 2], a: &[f64]) -> Result<(), String> {
+        let arg = |k: usize, d: f64| a.get(k).copied().unwrap_or(d);
+        match &name {
+            b"IN" | b"DF" => {
+                self.flush()?;
+                (self.down, self.relative, self.label_height, self.label_angle) = (false, false, LABEL, 0.0);
+            }
+            b"SP" => {
+                self.flush()?;
+                self.pen = arg(0, 0.0) as usize;
+            }
+            b"PC" if a.len() >= 4 => {
+                let pen = a[0] as usize;
+                if (1..=256).contains(&pen) {
+                    self.colors.resize(self.colors.len().max(pen), PENS[0]);
+                    self.colors[pen - 1] = [a[1], a[2], a[3]].map(|v| v.clamp(0.0, 255.0) as u8);
+                }
+            }
+            b"PU" | b"PD" | b"PA" | b"PR" => {
+                match &name {
+                    b"PU" => self.down = false,
+                    b"PD" => self.down = true,
+                    b"PA" => self.relative = false,
+                    _ => self.relative = true,
+                }
+                if &name == b"PU" {
+                    self.flush()?;
+                }
+                for xy in a.as_chunks::<2>().0 {
+                    let to = if self.relative { [self.at[0] + xy[0], self.at[1] + xy[1]] } else { [xy[0], xy[1]] };
+                    self.go(to)?;
+                }
+            }
+            b"CI" => {
+                let pts = cad_geom::circle(self.at, arg(0, 0.0));
+                self.flush()?;
+                self.add(pts, None)?;
+            }
+            b"AA" | b"AR" if a.len() >= 3 => {
+                let c = if &name == b"AA" { [a[0], a[1]] } else { [self.at[0] + a[0], self.at[1] + a[1]] };
+                let (r, start) = ((self.at[0] - c[0]).hypot(self.at[1] - c[1]), (self.at[1] - c[1]).atan2(self.at[0] - c[0]));
+                let sweep = a[2].to_radians();
+                let pts = cad_geom::arc(c, r, start.min(start + sweep), start.max(start + sweep));
+                let end = [c[0] + r * (start + sweep).cos(), c[1] + r * (start + sweep).sin()];
+                if self.down {
+                    self.flush()?;
+                    let pts = if sweep < 0.0 { pts.into_iter().rev().collect() } else { pts };
+                    self.add(pts, None)?;
+                }
+                self.at = end;
+            }
+            b"EA" | b"ER" | b"RA" | b"RR" if a.len() >= 2 => {
+                let o = if name[1] == b'A' { [a[0], a[1]] } else { [self.at[0] + a[0], self.at[1] + a[1]] };
+                let (s, fill) = (self.at, (name[0] == b'R').then_some(1.0));
+                self.flush()?;
+                self.add(vec![s, [o[0], s[1]], o, [s[0], o[1]], s], fill)?;
+            }
+            // Character size in centimetres (absolute) and direction as run and rise.
+            b"SI" if a.len() >= 2 => self.label_height = a[1] * 400.0,
+            b"DI" if a.len() >= 2 => self.label_angle = a[1].atan2(a[0]),
+            b"DI" => self.label_angle = 0.0,
+            _ => {}
+        }
+        Ok(())
+    }
+
+    fn label(&mut self, text: &str) {
+        let text = text.replace("\r\n", "\n").replace('\r', "\n");
+        if !text.trim().is_empty() && self.pen > 0 {
+            self.out.items.push(Item::Text { at: self.at, height: self.label_height, angle: self.label_angle, text, color: self.color(), anchor: (Anchor::Start, Baseline::Alphabetic) });
+        }
+    }
+
+    /// PE: coordinates written as base-64 (or, after `7`, base-32) numbers, relative unless
+    /// after `=`, with pen up for the next after `<`, a pen after `:` and fraction bits after `>`.
+    fn encoded(&mut self, data: &[u8]) -> Result<(), String> {
+        let (mut base32, mut frac, mut absolute, mut up) = (false, 0u32, false, false);
+        let mut nums = Numbers { data, at: 0 };
+        while let Some(&c) = data.get(nums.at) {
+            match c {
+                b'7' => base32 = true,
+                b':' => {
+                    nums.at += 1;
+                    self.flush()?;
+                    self.pen = nums.next(base32).unwrap_or(0).max(0) as usize;
+                    continue;
+                }
+                b'>' => {
+                    nums.at += 1;
+                    frac = nums.next(base32).unwrap_or(0).clamp(0, 26) as u32;
+                    continue;
+                }
+                b'=' => absolute = true,
+                b'<' => up = true,
+                63..=126 | 191..=254 => {
+                    let (Some(x), Some(y)) = (nums.next(base32), nums.next(base32)) else { break };
+                    let scale = f64::from(1u32 << frac);
+                    let (x, y) = (x as f64 / scale, y as f64 / scale);
+                    let to = if absolute { [x, y] } else { [self.at[0] + x, self.at[1] + y] };
+                    self.down = !up;
+                    self.go(to)?;
+                    (absolute, up) = (false, false);
+                    continue;
+                }
+                _ => {}
+            }
+            nums.at += 1;
+        }
+        Ok(())
+    }
+}
+
+struct Numbers<'a> {
+    data: &'a [u8],
+    at: usize,
+}
+
+impl Numbers<'_> {
+    /// One signed number: digits from the lowest, the last one marked; the lowest bit is the sign.
+    fn next(&mut self, base32: bool) -> Option<i64> {
+        let (bits, term) = if base32 { (5, 95..=126) } else { (6, 191..=254) };
+        let mut v: i64 = 0;
+        for shift in (0..60).step_by(bits) {
+            let c = *self.data.get(self.at)?;
+            self.at += 1;
+            let digit = if term.contains(&c) { c - term.start() } else if (63..*term.start()).contains(&c) { c - 63 } else { return None };
+            v |= i64::from(digit) << shift;
+            if term.contains(&c) {
+                return Some(if v & 1 == 1 { -(v >> 1) } else { v >> 1 });
+            }
+        }
+        None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn moves_pens_shapes_labels_and_encoded_lines() {
+        let plt = b"\x1b%-12345X\x1bE\x1b%0BIN;SP2;PU0,0;PD1000,0,1000,1000;PU;SP1;PA2000,0;CI500;LBHello\x03PR100,0;EA3000,1000;PE<=\x40\x40\xbf\xbf;\x1b%0A";
+        let d = read(plt).unwrap();
+        let lines: Vec<_> = d.items.iter().filter_map(|i| match i { Item::Line { pts, color, .. } => Some((pts.len(), *color)), _ => None }).collect();
+        assert_eq!(lines[0], (3, [255, 0, 0]));
+        assert!(lines[1].0 > 30);
+        assert!(d.items.iter().any(|i| matches!(i, Item::Text { text, at: [2000.0, 0.0], .. } if text == "Hello")));
+        assert!(read(b"set terminal png\nplot sin(x)\n").is_err());
+        // PE: 1 is written as 2 (sign in the lowest bit): 'A' (63 + 2) then the end mark 191 + 0.
+        let mut n = Numbers { data: &[65, 191], at: 0 };
+        assert_eq!(n.next(false), Some(1));
+    }
+}

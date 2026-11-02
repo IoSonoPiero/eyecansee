@@ -53,10 +53,16 @@ Shown in the grid as a picture and in the viewer in 3D (drawn by the graphics ca
 |---|---|:-:|:-:|---|
 | STL (binary and text) | stl | ✓ | ✓ | `stl_io` |
 | OBJ (with the colours of its materials, `.mtl`) | obj | ✓ | ✓ | `tobj` |
-| PLY (text and binary, triangle strips, vertex colours) | ply | ✓ | ✓ | `ply-rs-bw` |
+| PLY (text and binary, triangle strips, vertex colours; point clouds as dots) | ply | ✓ | ✓ | `ply-rs-bw` |
 | glTF (GLB, and .gltf with its data inside or in the `.bin` next to it) | glb, gltf | ✓ | ✓ | `gltf` |
 | 3MF (with components, Production extension, colours) | 3mf | ✓ | ✓ | `zip`, `roxmltree` |
 | IFC 2x3, 4, 4.3 (building models; spaces and see-through zones left out) | ifc | ✓ | ✓ | `ifc-lite` |
+| FBX (binary and text, material and vertex colours) | fbx | ✓ | ✓ | `ufbx` |
+| Collada (also zipped; skinned meshes in their rest pose) | dae, zae | ✓ | ✓ | `roxmltree` |
+| 3DS (3D Studio, material colours) | 3ds | ✓ | ✓ | EyeCanSee |
+| OFF and COFF | off | ✓ | ✓ | EyeCanSee |
+| AMF (also zipped, constellations, colours) | amf | ✓ | ✓ | `roxmltree` |
+| VRML 97 and X3D (XML and classic, also gzipped; inlined files next to it; no text) | wrl, wrz, x3d, x3dv, x3dz | ✓ | ✓ | EyeCanSee, `roxmltree` |
 
 ### CAD drawings
 
@@ -66,6 +72,7 @@ Seen from above (model space) and shown as an image, drawn again sharp at every 
 |---|---|:-:|:-:|---|
 | DWG (R13 to 2018 and later) | dwg | ✓ | ✓ | `acadrust` |
 | DXF (text and binary, R12 to 2018 and later) | dxf | ✓ | ✓ | `acadrust` |
+| HP-GL and HP-GL/2 plot files (also inside PCL; pens, arcs, labels; no scaling or line types) | plt, hpgl, hpg, hgl | ✓ | ✓ | EyeCanSee |
 
 A file with the wrong extension (for example an iPhone HEIC saved as `.jpg`) is recognised from its content. A file the dedicated decoder cannot read is tried once more with ImageMagick.
 
