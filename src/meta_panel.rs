@@ -229,6 +229,15 @@ impl App {
         });
     }
 
+    /// The keys of 3D models and CAD drawings, which differ from those of images: the Fluent id
+    /// of the line shown above the status bar, if the file is one of them.
+    pub(crate) fn keys_hint(&self, current: usize) -> Option<&'static str> {
+        if self.viewed_mesh().is_some() {
+            return Some("hint-model");
+        }
+        self.files().get(current).filter(|f| crate::cad::is_cad(&f.path)).map(|_| "hint-cad")
+    }
+
     /// Value of a metadata field as shown: Fluent ids translated, dates in the language's format.
     pub(crate) fn meta_value(&self, label: &str, value: &str) -> String {
         if value.starts_with("meta-") {

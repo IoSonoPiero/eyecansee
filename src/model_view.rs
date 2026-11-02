@@ -51,9 +51,11 @@ impl App {
     }
 
     /// At the first frame, mailbox presentation where the card offers it (`render_gpu::present_mode`);
-    /// then, with mailbox, at most 120 frames a second: it never waits for the screen, and a
-    /// continuous animation would keep the card busy for nothing.
+    /// then, with mailbox, at most 120 frames a second outside the 3D viewer: it never waits for
+    /// the screen, and a continuous animation would keep the card busy for nothing. A 3D model
+    /// turns with no limit (the user's choice): it is drawn only while it moves.
     pub(crate) fn pace(&mut self, frame: &mut eframe::Frame) {
+        let model = self.viewed_mesh().is_some();
         let s = &mut self.model;
         if !s.presented {
             s.presented = true;
@@ -63,7 +65,7 @@ impl App {
                 log!("presentation: mailbox");
             }
         }
-        if s.mailbox {
+        if s.mailbox && !model {
             let min = std::time::Duration::from_secs_f64(1.0 / 120.0);
             if let Some(last) = s.last_frame {
                 let spent = last.elapsed();

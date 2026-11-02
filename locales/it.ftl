@@ -342,6 +342,9 @@ convert-error = Impossibile convertire: { $detail }
 convert-actual = 100% (trascina le immagini per spostarti)
 convert-pixels = { $w } × { $h } pixel
 model-triangles = { $n } triangoli
+# The keys of the viewer, under the status bar.
+hint-cad = Rotellina, + e −: zoom · Trascinare: spostare · 0: tutto il disegno · ← →: precedente, successivo · Ctrl+Maiusc+S: salva come immagine · F11: schermo intero · Esc: indietro
+hint-model = Frecce o trascinare: ruotare · Maiusc+trascinare: spostare · Rotellina, + e −: zoom · 0: vista di partenza · Pag↑, Pag↓: precedente, successivo · Ctrl+S: salva come immagine · F11: schermo intero · Esc: indietro
 convert-file-size = { $size } su disco
 convert-ratio = { $percent }% dell'originale
 convert-format = Formato

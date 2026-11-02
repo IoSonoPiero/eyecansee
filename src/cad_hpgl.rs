@@ -1,9 +1,10 @@
 //! HP-GL and HP-GL/2 plot files (`.plt`, `.hpgl`): pen moves, arcs, circles, rectangles, labels
 //! and encoded polylines, also inside a PCL job, as a `cad::Drawing` in plotter units (40 a
-//! millimetre), with the pens in the colours of plotters on a dark background.
-// ponytail: scaling (SC), line types and pen widths ignored: the shape stays, not the units
+//! millimetre), with user units (IP, SC), line types (LT), pen widths (PW) and the pens in the
+//! colours of plotters on a dark background.
+// ponytail: P1 and P2 of an unknown plotter taken as an A4 sheet; adaptive line types as fixed ones
 
-use crate::cad::{Anchor, Baseline, Drawing, Item, MAX_POINTS};
+use crate::cad::{Anchor, Baseline, Drawing, Item, MAX_POINTS, Stroke};
 use crate::cad_geom::{self, P};
 
 /// Pens 1-8 of a plotter; pen 1 (black on paper) white, as in CAD programs.
@@ -12,6 +13,19 @@ const PENS: [[u8; 3]; 8] = [[255, 255, 255], [255, 0, 0], [0, 255, 0], [255, 255
 const LABEL: f64 = 150.0;
 /// End of a label (ETX).
 const ETX: u8 = 3;
+/// P1 and P2 until IP sets them: an A4 sheet of a typical plotter, in plotter units.
+const SHEET: [P; 2] = [[0.0, 0.0], [10_900.0, 7_650.0]];
+/// The line types 1-8 of HP-GL/2, in percent of the pattern (dash positive, gap negative, dot 0).
+const LINE_TYPES: [&[f64]; 8] = [
+    &[0.0, -100.0],
+    &[50.0, -50.0],
+    &[70.0, -30.0],
+    &[80.0, -10.0, 0.0, -10.0],
+    &[70.0, -10.0, 10.0, -10.0],
+    &[50.0, -10.0, 10.0, -10.0, 10.0, -10.0],
+    &[70.0, -10.0, 0.0, -10.0, 0.0, -10.0],
+    &[50.0, -10.0, 0.0, -10.0, 10.0, -10.0, 0.0, -10.0],
+];
 
 struct Plotter {
     out: Drawing,
@@ -23,10 +37,32 @@ struct Plotter {
     path: Vec<P>,
     label_height: f64,
     label_angle: f64,
+    /// P1 and P2, and user units to plotter units (`x' = k·x + o`) after SC.
+    corners: [P; 2],
+    k: P,
+    o: P,
+    dash: Vec<f64>,
+    /// Width of each pen in millimetres; 0 = the thinnest.
+    widths: Vec<f32>,
 }
 
 pub fn read(bytes: &[u8]) -> Result<Drawing, String> {
-    let mut p = Plotter { out: Drawing::default(), at: [0.0; 2], down: false, relative: false, pen: 1, colors: PENS.to_vec(), path: Vec::new(), label_height: LABEL, label_angle: 0.0 };
+    let mut p = Plotter {
+        out: Drawing::default(),
+        at: [0.0; 2],
+        down: false,
+        relative: false,
+        pen: 1,
+        colors: PENS.to_vec(),
+        path: Vec::new(),
+        label_height: LABEL,
+        label_angle: 0.0,
+        corners: SHEET,
+        k: [1.0; 2],
+        o: [0.0; 2],
+        dash: Vec::new(),
+        widths: Vec::new(),
+    };
     let mut i = 0;
     let mut commands = 0;
     while i < bytes.len() {
@@ -81,7 +117,8 @@ impl Plotter {
             return Err(format!("more than {MAX_POINTS} points"));
         }
         if pts.len() >= 2 && self.pen > 0 {
-            self.out.items.push(Item::Line { pts, color: self.color(), fill });
+            let weight = self.widths.get(self.pen.wrapping_sub(1)).copied().unwrap_or(0.0);
+            self.out.items.push(Item::Line { pts, color: self.color(), fill, stroke: Stroke { dash: self.dash.clone(), weight } });
         }
         Ok(())
     }
@@ -100,12 +137,84 @@ impl Plotter {
         Ok(())
     }
 
+    /// A point in user units to plotter units, and a distance (relative moves, radii).
+    fn user(&self, p: &[f64]) -> P {
+        [self.k[0] * p[0] + self.o[0], self.k[1] * p[1] + self.o[1]]
+    }
+
+    fn by(&self, d: &[f64]) -> P {
+        [self.at[0] + self.k[0] * d[0], self.at[1] + self.k[1] * d[1]]
+    }
+
+    /// SC: user units between xmin, xmax and ymin, ymax fill P1 to P2 (type 0), keeping their
+    /// proportions (type 1), or have a size of their own (type 2: xmin, factor, ymin, factor).
+    fn scaling(&mut self, a: &[f64]) {
+        let [p1, p2] = self.corners;
+        let (k, min) = match a {
+            [x0, fx, y0, fy, t, ..] if *t == 2.0 => ([*fx, *fy], [*x0, *y0]),
+            [x0, x1, y0, y1, rest @ ..] if x1 != x0 && y1 != y0 => {
+                let k = [(p2[0] - p1[0]) / (x1 - x0), (p2[1] - p1[1]) / (y1 - y0)];
+                let k = if rest.first() == Some(&1.0) {
+                    let m = k[0].abs().min(k[1].abs());
+                    [m.copysign(k[0]), m.copysign(k[1])]
+                } else {
+                    k
+                };
+                (k, [*x0, *y0])
+            }
+            _ => ([1.0; 2], [0.0; 2]),
+        };
+        let o = if a.len() >= 4 { [p1[0] - min[0] * k[0], p1[1] - min[1] * k[1]] } else { [0.0; 2] };
+        (self.k, self.o) = (k, o);
+    }
+
+    /// LT type, length in percent of the P1-P2 diagonal (4% if not given); without a type continuous.
+    fn line_type(&mut self, a: &[f64]) {
+        let Some(&t) = a.first() else {
+            self.dash.clear();
+            return;
+        };
+        let [p1, p2] = self.corners;
+        let length = a.get(1).copied().unwrap_or(4.0) / 100.0 * (p2[0] - p1[0]).hypot(p2[1] - p1[1]);
+        self.dash = match LINE_TYPES.get((t.abs() as usize).wrapping_sub(1)) {
+            Some(pattern) => pattern.iter().map(|v| v / 100.0 * length).collect(),
+            None => Vec::new(),
+        };
+    }
+
+    /// PW width in millimetres, for one pen or for all.
+    fn pen_width(&mut self, a: &[f64]) {
+        let w = a[0].clamp(0.0, 10.0) as f32;
+        match a.get(1) {
+            Some(&pen) if (1.0..=256.0).contains(&pen) => {
+                self.widths.resize(self.widths.len().max(pen as usize), 0.0);
+                self.widths[pen as usize - 1] = w;
+            }
+            _ => self.widths = vec![w; self.colors.len().max(8)],
+        }
+    }
+
     fn command(&mut self, name: [u8; 2], a: &[f64]) -> Result<(), String> {
         let arg = |k: usize, d: f64| a.get(k).copied().unwrap_or(d);
         match &name {
             b"IN" | b"DF" => {
                 self.flush()?;
                 (self.down, self.relative, self.label_height, self.label_angle) = (false, false, LABEL, 0.0);
+                (self.k, self.o, self.corners) = ([1.0; 2], [0.0; 2], SHEET);
+                self.dash.clear();
+                if &name == b"IN" {
+                    self.widths.clear();
+                }
+            }
+            b"IP" => self.corners = if a.len() >= 4 { [[a[0], a[1]], [a[2], a[3]]] } else { SHEET },
+            b"SC" => self.scaling(a),
+            b"LT" => {
+                self.flush()?;
+                self.line_type(a);
+            }
+            b"PW" if !a.is_empty() => {
+                self.flush()?;
+                self.pen_width(a);
             }
             b"SP" => {
                 self.flush()?;
@@ -129,17 +238,17 @@ impl Plotter {
                     self.flush()?;
                 }
                 for xy in a.as_chunks::<2>().0 {
-                    let to = if self.relative { [self.at[0] + xy[0], self.at[1] + xy[1]] } else { [xy[0], xy[1]] };
+                    let to = if self.relative { self.by(xy) } else { self.user(xy) };
                     self.go(to)?;
                 }
             }
             b"CI" => {
-                let pts = cad_geom::circle(self.at, arg(0, 0.0));
+                let pts = cad_geom::circle(self.at, arg(0, 0.0) * self.k[0].abs());
                 self.flush()?;
                 self.add(pts, None)?;
             }
             b"AA" | b"AR" if a.len() >= 3 => {
-                let c = if &name == b"AA" { [a[0], a[1]] } else { [self.at[0] + a[0], self.at[1] + a[1]] };
+                let c = if &name == b"AA" { self.user(a) } else { self.by(a) };
                 let (r, start) = ((self.at[0] - c[0]).hypot(self.at[1] - c[1]), (self.at[1] - c[1]).atan2(self.at[0] - c[0]));
                 let sweep = a[2].to_radians();
                 let pts = cad_geom::arc(c, r, start.min(start + sweep), start.max(start + sweep));
@@ -152,7 +261,7 @@ impl Plotter {
                 self.at = end;
             }
             b"EA" | b"ER" | b"RA" | b"RR" if a.len() >= 2 => {
-                let o = if name[1] == b'A' { [a[0], a[1]] } else { [self.at[0] + a[0], self.at[1] + a[1]] };
+                let o = if name[1] == b'A' { self.user(a) } else { self.by(a) };
                 let (s, fill) = (self.at, (name[0] == b'R').then_some(1.0));
                 self.flush()?;
                 self.add(vec![s, [o[0], s[1]], o, [s[0], o[1]], s], fill)?;
@@ -248,6 +357,12 @@ mod tests {
         assert!(lines[1].0 > 30);
         assert!(d.items.iter().any(|i| matches!(i, Item::Text { text, at: [2000.0, 0.0], .. } if text == "Hello")));
         assert!(read(b"set terminal png\nplot sin(x)\n").is_err());
+        // User units 0-100 on P1-P2 = 0-4000, a dashed line type and a pen 0.5 mm wide.
+        let d = read(b"IN;IP0,0,4000,4000;SC0,100,0,100;SP1;PW0.5;LT2,10;PU0,0;PD100,50;").unwrap();
+        let Item::Line { pts, stroke, .. } = &d.items[0] else { panic!() };
+        assert_eq!(pts[1], [4000.0, 2000.0]);
+        assert_eq!(stroke.weight, 0.5);
+        assert!((stroke.dash[0] - 0.5 * 0.1 * 4000.0 * 2f64.sqrt()).abs() < 1e-6 && stroke.dash[1] < 0.0);
         // PE: 1 is written as 2 (sign in the lowest bit): 'A' (63 + 2) then the end mark 191 + 0.
         let mut n = Numbers { data: &[65, 191], at: 0 };
         assert_eq!(n.next(false), Some(1));

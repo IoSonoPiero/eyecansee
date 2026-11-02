@@ -70,9 +70,9 @@ Seen from above (model space) and shown as an image, drawn again sharp at every 
 
 | Format | Extensions | Linux | Windows | Reader |
 |---|---|:-:|:-:|---|
-| DWG (R13 to 2018 and later) | dwg | ✓ | ✓ | `acadrust` |
-| DXF (text and binary, R12 to 2018 and later) | dxf | ✓ | ✓ | `acadrust` |
-| HP-GL and HP-GL/2 plot files (also inside PCL; pens, arcs, labels; no scaling or line types) | plt, hpgl, hpg, hgl | ✓ | ✓ | EyeCanSee |
+| DWG (R13 to 2018 and later; line types, weights, hatch patterns) | dwg | ✓ | ✓ | `acadrust` |
+| DXF (text and binary, R12 to 2018 and later; line types, weights, hatch patterns) | dxf | ✓ | ✓ | `acadrust` |
+| HP-GL and HP-GL/2 plot files (also inside PCL; pens, widths, line types, user units, arcs, labels) | plt, hpgl, hpg, hgl | ✓ | ✓ | EyeCanSee |
 
 A file with the wrong extension (for example an iPhone HEIC saved as `.jpg`) is recognised from its content. A file the dedicated decoder cannot read is tried once more with ImageMagick.
 

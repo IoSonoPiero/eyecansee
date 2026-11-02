@@ -13,12 +13,12 @@ const FOV: f32 = 0.5;
 /// Rows of a band drawn by one thread.
 const BAND: usize = 32;
 
-/// Where the camera looks from. Angles in radians; `zoom` 1 = the whole model fits;
-/// `pan` in fractions of the shorter side of the image, so the view is the same at any size.
+/// Where the camera looks from: how the model is turned (rows of a rotation); `zoom` 1 = the
+/// whole model fits; `pan` in fractions of the shorter side of the image, so the view is the same
+/// at any size.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct View {
-    pub yaw: f32,
-    pub pitch: f32,
+    pub turned: [[f32; 3]; 3],
     pub zoom: f32,
     pub pan: [f32; 2],
 }
@@ -26,18 +26,43 @@ pub struct View {
 impl Default for View {
     /// From the front, a little from the right and from above.
     fn default() -> Self {
-        View { yaw: -0.6, pitch: 0.45, zoom: 1.0, pan: [0.0; 2] }
+        View::angles(-0.6, 0.45)
     }
 }
 
+type M3 = [[f32; 3]; 3];
+
+fn mul3(a: &M3, b: &M3) -> M3 {
+    std::array::from_fn(|r| std::array::from_fn(|c| (0..3).map(|k| a[r][k] * b[k][c]).sum()))
+}
+
+/// About the screen's vertical axis (`dx`) and horizontal axis (`dy`).
+fn screen_turn(dx: f32, dy: f32) -> M3 {
+    let (sy, cy) = dx.sin_cos();
+    let (sp, cp) = dy.sin_cos();
+    mul3(&[[1.0, 0.0, 0.0], [0.0, cp, -sp], [0.0, sp, cp]], &[[cy, 0.0, sy], [0.0, 1.0, 0.0], [-sy, 0.0, cy]])
+}
+
 impl View {
-    /// Turned by `dx`, `dy` radians, all the way round in both directions (also over the top).
+    /// Turned sideways by `yaw`, then up or down by `pitch` (radians), not zoomed or moved.
+    pub fn angles(yaw: f32, pitch: f32) -> View {
+        View { turned: screen_turn(yaw, pitch), zoom: 1.0, pan: [0.0; 2] }
+    }
+
+    /// Turned by `dx`, `dy` radians about the axes of the screen, like a trackball: the same way
+    /// whatever the model shows, all the way round, and both at once along the diagonal.
     pub fn turn(&mut self, dx: f32, dy: f32) {
-        use std::f32::consts::{PI, TAU};
-        // Upside down the model's up points down: sideways turns go the other way to follow the hand.
-        let side = if self.pitch.cos() < 0.0 { -1.0 } else { 1.0 };
-        self.yaw = (self.yaw + dx * side) % TAU;
-        self.pitch = (self.pitch + dy + PI).rem_euclid(TAU) - PI;
+        let m = mul3(&screen_turn(dx, dy), &self.turned);
+        // Kept a true rotation, rounding errors of many small turns taken out (Gram-Schmidt).
+        let norm = |v: [f32; 3]| {
+            let l = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt().max(f32::MIN_POSITIVE);
+            v.map(|x| x / l)
+        };
+        let x = norm(m[0]);
+        let d = x[0] * m[1][0] + x[1] * m[1][1] + x[2] * m[1][2];
+        let y = norm([m[1][0] - d * x[0], m[1][1] - d * x[1], m[1][2] - d * x[2]]);
+        let z = [x[1] * y[2] - x[2] * y[1], x[2] * y[0] - x[0] * y[2], x[0] * y[1] - x[1] * y[0]];
+        self.turned = [x, y, z];
     }
     pub fn zoom_by(&mut self, f: f32) {
         self.zoom = (self.zoom * f).clamp(0.05, 200.0);
@@ -80,17 +105,15 @@ fn focal(view: &View, short: f32) -> f32 {
 }
 
 /// From the model to the camera (looking down −Z, Y up): centred, Z up turned to Y up, turned
-/// by yaw and pitch, moved back by `distance`.
+/// as the view says, moved back by `distance`.
 fn eye_matrix(mesh: &Mesh, view: &View) -> M4 {
     let [cx, cy, cz] = mesh.center;
     let centre = [[1.0, 0.0, 0.0, -cx], [0.0, 1.0, 0.0, -cy], [0.0, 0.0, 1.0, -cz], [0.0, 0.0, 0.0, 1.0]];
     let up = if mesh.z_up { [[1.0, 0.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, -1.0, 0.0, 0.0], [0.0, 0.0, 0.0, 1.0]] } else { IDENTITY };
-    let (sy, cyaw) = view.yaw.sin_cos();
-    let yaw = [[cyaw, 0.0, sy, 0.0], [0.0, 1.0, 0.0, 0.0], [-sy, 0.0, cyaw, 0.0], [0.0, 0.0, 0.0, 1.0]];
-    let (sp, cp) = view.pitch.sin_cos();
-    let pitch = [[1.0, 0.0, 0.0, 0.0], [0.0, cp, -sp, 0.0], [0.0, sp, cp, 0.0], [0.0, 0.0, 0.0, 1.0]];
+    let t = view.turned;
+    let turned = [[t[0][0], t[0][1], t[0][2], 0.0], [t[1][0], t[1][1], t[1][2], 0.0], [t[2][0], t[2][1], t[2][2], 0.0], [0.0, 0.0, 0.0, 1.0]];
     let back = [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, -distance(mesh)], [0.0, 0.0, 0.0, 1.0]];
-    [up, yaw, pitch, back].iter().fold(centre, |m, next| mul(next, &m))
+    [up, turned, back].iter().fold(centre, |m, next| mul(next, &m))
 }
 
 const IDENTITY: M4 = [[1.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
@@ -248,25 +271,35 @@ mod tests {
     #[test]
     fn pan_moves_it_and_the_closest_face_wins() {
         let m = cube();
-        let mut v = View { yaw: 0.0, pitch: 0.0, zoom: 1.0, pan: [0.0; 2] };
+        let mut v = View::angles(0.0, 0.0);
         // From straight in front only the front face (+Z) is seen, evenly lit.
         let img = render(&m, &v, 100, 100, 1);
         assert_eq!(img.get_pixel(50, 50), img.get_pixel(45, 55));
         v.pan = [0.4, 0.0];
         let img = render(&m, &v, 100, 100, 1);
         assert!(img.get_pixel(15, 50)[0] < 120 && img.get_pixel(90, 50)[0] > 120);
-        // Over the top and round again: no stop, kept between -π and π.
-        v.turn(0.0, 3.0);
-        assert!((v.pitch - 3.0).abs() < 1e-6);
-        v.turn(0.0, 0.5);
-        assert!((v.pitch - (3.5 - std::f32::consts::TAU)).abs() < 1e-5);
+        // Over the top and round again: no stop. Sideways after half a turn up still goes the
+        // same way on the screen, and many small turns stay a rotation.
+        let mut a = View::angles(0.0, 0.0);
+        for _ in 0..1000 {
+            a.turn(0.0, std::f32::consts::TAU / 1000.0);
+        }
+        let near = |a: &View, b: &View| (0..3).all(|r| (0..3).all(|c| (a.turned[r][c] - b.turned[r][c]).abs() < 1e-3));
+        assert!(near(&a, &View::angles(0.0, 0.0)));
+        for start in [View::angles(0.0, std::f32::consts::PI), View::angles(0.4, 2.0)] {
+            let mut after = start;
+            after.turn(0.3, 0.0);
+            let back: M3 = std::array::from_fn(|r| std::array::from_fn(|c| start.turned[c][r]));
+            let step = View { turned: mul3(&after.turned, &back), ..start };
+            assert!(near(&step, &View::angles(0.3, 0.0)));
+        }
     }
 
     #[test]
     fn the_card_sees_what_the_cpu_draws() {
         let mut m = cube();
         m.z_up = true;
-        let v = View { yaw: 0.7, pitch: -0.3, zoom: 1.7, pan: [0.1, -0.2] };
+        let v = View { zoom: 1.7, pan: [0.1, -0.2], ..View::angles(0.7, -0.3) };
         let (w, h) = (300.0, 200.0);
         let (clip, eye) = camera(&m, &v, w as u32, h as u32);
         let at = |m: &M4, p: [f32; 3]| -> [f32; 4] { std::array::from_fn(|r| m[0][r] * p[0] + m[1][r] * p[1] + m[2][r] * p[2] + m[3][r]) };

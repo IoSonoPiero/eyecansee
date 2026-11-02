@@ -83,6 +83,18 @@ impl App {
                 Some(current) => {
                     let bar = egui::Frame::side_top_panel(ui.style()).fill(theme::solid(ui.visuals()));
                     egui::Panel::bottom("viewer-status").frame(bar).show(ui, |ui| self.viewer_status(ui, current));
+                    // Above the status bar, on a band of its own: the keys of the 3D and CAD viewers.
+                    if let Some(id) = self.keys_hint(current) {
+                        let band = egui::Frame::side_top_panel(ui.style()).fill(Color32::from_gray(48)).inner_margin(egui::Margin::symmetric(10, 6));
+                        let text = self.i18n.t(id);
+                        egui::Panel::bottom("viewer-keys").frame(band).show(ui, |ui| {
+                            // The status bar's font, on one line: in a narrow window the letters get smaller instead of wrapping.
+                            let body = egui::TextStyle::Body.resolve(ui.style()).size;
+                            let wide = ui.fonts_mut(|f| f.layout_no_wrap(text.clone(), egui::FontId::proportional(body), Color32::WHITE).size().x);
+                            let size = (body * ui.available_width() / wide.max(1.0)).clamp(9.0, body);
+                            ui.add(egui::Label::new(egui::RichText::new(text).size(size).color(Color32::WHITE)).truncate());
+                        });
+                    }
                     egui::CentralPanel::default()
                         .frame(egui::Frame::central_panel(ui.style()).fill(Color32::from_gray(18)))
                         .show(ui, |ui| self.viewer(ui, current));

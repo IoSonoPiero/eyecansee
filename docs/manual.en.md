@@ -142,17 +142,19 @@ Audio files (M4A, MP3, Opus, Ogg, FLAC, WAV, MKA and others, for example those m
 
 3D models made of triangles appear in the grid next to the images, with a picture of the model as thumbnail: **STL** and **3MF** (3D printing), **OBJ** (with the colours of its materials, the `.mtl` file next to it), **PLY** (also 3D scans; point clouds without faces show as dots), **glTF** (`.glb`, and `.gltf` with its `.bin` file), **FBX**, **Collada** (`.dae`, and `.zae` zipped), **3DS** (3D Studio), **OFF**, **AMF** (3D printing), **VRML** and **X3D** (`.wrl`, `.x3d`, `.x3dv`, also gzipped, with the files they include from next to them) and **IFC** (building models, BIM: walls, slabs, windows, structures, pipes, roads and bridges in their colours). Enter or a double click opens the model in the viewer, drawn by the graphics card, where it can be turned and looked at from every side:
 
-- **Arrows**: turn the model (hold them down to keep turning). Dragging with the mouse turns it too.
+- **Arrows**: turn the model about the axes of the screen, all the way round (hold them down to keep turning; two arrows together turn it along the diagonal). Dragging with the mouse turns it too.
 - **Shift** and drag, or drag with the middle button: move the model in the window.
 - Mouse wheel, **+** and **−**: zoom in and out; **0** goes back to the starting view.
 - **Page Down**, **Space** and **Page Up**, **Backspace**: next and previous item (the arrows turn the model instead); **Esc** or a double click: back to the grid.
 - **Ctrl+S** (or *Save in another format*): the model as it is shown, as an image, at least 1920 pixels wide, with the same formats and options as for photos.
 
+A band above the status bar recalls these keys, for 3D models and CAD drawings.
+
 The colours stored in the file are shown (colours of materials, faces and vertices); textures are not, and a model without colours is light grey. The status bar shows the number of triangles, the zoom and, while the model moves, the frames per second. *Convert and resize* turns several models into images at once, seen from the starting view.
 
 ## CAD drawings
 
-AutoCAD drawings, **DWG** (from R13 to 2018 and later) and **DXF** (text and binary), and plotter files, **HP-GL** and **HP-GL/2** (`.plt`, `.hpgl`, also inside a PCL print job, with the colours of the pens), appear in the grid with a picture of the drawing as thumbnail and open in the viewer like an image: zoom with the mouse wheel, + and −, move by dragging, *Save in another format* to make an image of them. The drawing is seen from above, as in the model space of a CAD program, on its dark background: lines, arcs, circles, polylines, splines, ellipses, texts, dimensions, blocks (also inside other blocks), tables and solid hatches, in their colours; hidden and frozen layers are left out. Once the view stops, the part on screen is drawn again from the drawing, so thin lines and small texts stay sharp at any zoom.
+AutoCAD drawings, **DWG** (from R13 to 2018 and later) and **DXF** (text and binary), and plotter files, **HP-GL** and **HP-GL/2** (`.plt`, `.hpgl`, also inside a PCL print job, with the colours, widths and line types of the pens and their user units), appear in the grid with a picture of the drawing as thumbnail and open in the viewer like an image: zoom with the mouse wheel, + and −, move by dragging, *Save in another format* to make an image of them. The drawing is seen from above, as in the model space of a CAD program, on its dark background: lines, arcs, circles, polylines, splines, ellipses, texts, dimensions, blocks (also inside other blocks), tables and hatches (solid, or with their pattern lines), in their colours, line types (dashes) and line weights; hidden and frozen layers are left out. Once the view stops, the part on screen is drawn again from the drawing, so thin lines and small texts stay sharp at any zoom.
 
 ## Rotating and flipping
 
@@ -313,7 +315,7 @@ EyeCanSee uses the system language when it is available, otherwise English. To f
 
 ## Known limits
 
-- **CAD drawings**: only the model space, seen from above; layouts (paper space), 3D solids, the patterns of hatches (they show as a light fill), line types (dashes) and line weights are not drawn, texts use a system font instead of the CAD fonts, and pictures attached to the drawing show as a frame with a cross. In HP-GL files the scaling (SC), line types and pen widths are not applied.
+- **CAD drawings**: only the model space, seen from above; layouts (paper space) and 3D solids are not drawn, hatches too dense to see show as a light fill, a line type too fine at the current zoom is drawn continuous, texts use a system font instead of the CAD fonts, and pictures attached to the drawing show as a frame with a cross.
 - **3D models**: textures are not shown yet; *Convert and resize* does not open a `.gltf` whose data is in a separate `.bin` file (the viewer does), nor the files a VRML or X3D includes. Animations are not played (models show in their rest pose); texts in VRML and X3D are left out, as well as VRML 1.0 files.
 - On **NTFS** disks (for example an external disk also used with Windows) the Files app (Nautilus) cannot restore from the trash, not even files it deleted itself; EyeCanSee reminds you in the confirmation. The files are in the trash all the same and can be restored from a terminal: `gio trash --list` shows what is there, `gio trash --restore "<trash:/// address from that line>"` puts it back.
 - If the phone does not answer a request (seen on Windows: one deletion that took over five minutes, with everything else waiting behind it), the status bar says so with the seconds elapsed and the file: EyeCanSee carries on by itself as soon as the phone answers. The cause is not known: it happened twice on a POCO X7 Pro, deleting files just created, and does not repeat on demand.

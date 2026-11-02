@@ -343,6 +343,9 @@ convert-error = Cannot convert: { $detail }
 convert-actual = 100% (drag the images to move around)
 convert-pixels = { $w } × { $h } pixels
 model-triangles = { $n } triangles
+# The keys of the viewer, under the status bar.
+hint-cad = Wheel, + and −: zoom · Drag: move · 0: whole drawing · ← →: previous, next · Ctrl+Shift+S: save as an image · F11: full screen · Esc: back
+hint-model = Arrows or drag: turn · Shift+drag: move · Wheel, + and −: zoom · 0: starting view · Page Up, Page Down: previous, next · Ctrl+S: save as an image · F11: full screen · Esc: back
 convert-file-size = { $size } on disk
 convert-ratio = { $percent }% of the original
 convert-format = Format

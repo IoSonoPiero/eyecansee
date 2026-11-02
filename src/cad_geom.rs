@@ -1,5 +1,6 @@
 //! Geometry of CAD drawings seen from above: 2D affine transforms (blocks, entity coordinate
-//! systems), and curves turned into points (arcs, polyline bulges, ellipses, splines).
+//! systems), curves turned into points (arcs, polyline bulges, ellipses, splines) and the lines
+//! of hatch patterns cut by their boundaries.
 
 use std::f64::consts::TAU;
 
@@ -171,6 +172,77 @@ pub fn spline(degree: usize, knots: &[f64], control: &[P], weights: &[f64]) -> O
     Some(out)
 }
 
+/// One family of a hatch pattern: lines at `angle` through `base`, repeated by `offset`, with
+/// dashes (positive), gaps (negative) and dots (zero) along them; empty = continuous.
+pub struct PatternLine<'a> {
+    pub angle: f64,
+    pub base: P,
+    pub offset: P,
+    pub dashes: &'a [f64],
+}
+
+/// The pieces of a pattern family inside the boundaries (even-odd, as hatches fill islands), at
+/// most `budget` of them: `None` when there would be more (the hatch is too dense to draw).
+pub fn hatch_lines(boundaries: &[Vec<P>], l: &PatternLine, budget: usize) -> Option<Vec<[P; 2]>> {
+    let (d, n) = ([l.angle.cos(), l.angle.sin()], [-l.angle.sin(), l.angle.cos()]);
+    let dot = |a: P, b: P| a[0] * b[0] + a[1] * b[1];
+    let spacing = dot(l.offset, n);
+    let points = boundaries.iter().flatten();
+    let (lo, hi) = points.fold((f64::MAX, f64::MIN), |(lo, hi), &p| {
+        let s = dot([p[0] - l.base[0], p[1] - l.base[1]], n);
+        (lo.min(s), hi.max(s))
+    });
+    if spacing.abs() < 1e-12 || lo > hi || !spacing.is_finite() {
+        return None;
+    }
+    let (k0, k1) = ((lo / spacing).min(hi / spacing).ceil(), (lo / spacing).max(hi / spacing).floor());
+    if k1 - k0 > budget as f64 {
+        return None;
+    }
+    let period: f64 = l.dashes.iter().map(|v| v.abs()).sum();
+    let mut out = Vec::new();
+    for k in k0 as i64..=k1 as i64 {
+        let o = [l.base[0] + k as f64 * l.offset[0], l.base[1] + k as f64 * l.offset[1]];
+        let at = |t: f64| [o[0] + t * d[0], o[1] + t * d[1]];
+        let mut ts: Vec<f64> = Vec::new();
+        for b in boundaries {
+            for w in b.windows(2) {
+                let (sp, sq) = (dot([w[0][0] - o[0], w[0][1] - o[1]], n), dot([w[1][0] - o[0], w[1][1] - o[1]], n));
+                if (sp <= 0.0) != (sq <= 0.0) {
+                    let f = sp / (sp - sq);
+                    ts.push(dot([w[0][0] + (w[1][0] - w[0][0]) * f - o[0], w[0][1] + (w[1][1] - w[0][1]) * f - o[1]], d));
+                }
+            }
+        }
+        ts.sort_by(f64::total_cmp);
+        for pair in ts.as_chunks::<2>().0 {
+            let (t0, t1) = (pair[0], pair[1]);
+            if period < 1e-12 {
+                out.push([at(t0), at(t1)]);
+            } else {
+                // Dashes start from the base point of the line: the same pattern on every line.
+                let mut s = (t0 / period).floor() * period;
+                while s < t1 {
+                    for &len in l.dashes {
+                        let (a, b) = (s.max(t0), (s + len.max(0.0)).min(t1));
+                        if len >= 0.0 && a <= b {
+                            out.push([at(a), at(b)]);
+                        }
+                        s += len.abs();
+                    }
+                    if out.len() > budget {
+                        return None;
+                    }
+                }
+            }
+        }
+        if out.len() > budget {
+            return None;
+        }
+    }
+    Some(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -216,5 +288,24 @@ mod tests {
         assert!(s.iter().any(|p| close(*p, [1.0, 1.0])));
         assert!(spline(2, &[0.0, 1.0], &c, &[]).is_none());
         assert!(spline(2, &[0.0, 0.0, 0.0, f64::NAN, 1.0, 1.0], &c, &[]).is_none());
+    }
+
+    #[test]
+    fn hatch_lines_cut_by_the_boundary_and_its_island() {
+        let square = |s: f64| vec![[-s, -s], [s, -s], [s, s], [-s, s], [-s, -s]];
+        let horizontal = PatternLine { angle: 0.0, base: [0.0, 0.0], offset: [0.0, 1.0], dashes: &[] };
+        let lines = hatch_lines(&[square(10.5)], &horizontal, 1000).unwrap();
+        assert_eq!(lines.len(), 21);
+        assert!(lines.iter().all(|l| (l[0][0] + 10.5).abs() < 1e-9 && (l[1][0] - 10.5).abs() < 1e-9));
+        // An island: the line through the middle is cut in two.
+        let lines = hatch_lines(&[square(10.5), square(5.5)], &horizontal, 1000).unwrap();
+        assert_eq!(lines.iter().filter(|l| l[0][1].abs() < 1e-9).count(), 2);
+        // Dashes of 2 and gaps of 1 from the base point, on [-10, 10].
+        let dashed = PatternLine { dashes: &[2.0, -1.0], ..horizontal };
+        let lines = hatch_lines(&[square(10.5)], &dashed, 1000).unwrap();
+        // The first dash of each line is the end of the one from -12 to -10, cut at -10.5.
+        assert!(close(lines[0][0], [-10.5, -10.0]) && close(lines[0][1], [-10.0, -10.0]));
+        assert!(close(lines[1][0], [-9.0, -10.0]) && close(lines[1][1], [-7.0, -10.0]));
+        assert!(hatch_lines(&[square(10.5)], &horizontal, 5).is_none());
     }
 }

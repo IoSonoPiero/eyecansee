@@ -1,6 +1,6 @@
 //! CAD drawings (DXF, DWG) read with `acadrust` and seen from above as an SVG picture, which
 //! `decode` draws with resvg: the model space with its blocks, layers (hidden ones left out) and
-//! colours, on the dark background of CAD programs.
+//! colours, line types and weights, hatch patterns, on the dark background of CAD programs.
 // ponytail: one picture of the whole drawing; zooming in shows its pixels, not new detail
 
 use std::fmt::Write;
@@ -21,6 +21,8 @@ const WHITE: [u8; 3] = [255, 255, 255];
 const MAX_DEPTH: u32 = 16;
 /// Points of the whole drawing, so that a damaged file cannot fill the memory.
 pub(crate) const MAX_POINTS: usize = 20_000_000;
+/// Pieces of pattern lines in one hatch: beyond, it is too dense to see and is filled lightly.
+const MAX_PATTERN: usize = 200_000;
 
 pub fn is_cad(name: &str) -> bool {
     name.rsplit_once('.').is_some_and(|(_, e)| CAD.contains(&e.to_lowercase().as_str()))
@@ -29,9 +31,20 @@ pub fn is_cad(name: &str) -> bool {
 /// What is drawn, in drawing units, Y up.
 #[derive(Debug)]
 pub enum Item {
-    Line { pts: Vec<P>, color: [u8; 3], fill: Option<f32> },
+    Line { pts: Vec<P>, color: [u8; 3], fill: Option<f32>, stroke: Stroke },
     Text { at: P, height: f64, angle: f64, text: String, color: [u8; 3], anchor: (Anchor, Baseline) },
 }
+
+/// How a line is drawn: its dashes in drawing units (positive dash, negative gap, zero dot;
+/// empty = continuous) and its weight in millimetres.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Stroke {
+    pub dash: Vec<f64>,
+    pub weight: f32,
+}
+
+/// AutoCAD's default line weight (LWDEFAULT), drawn one pixel wide.
+const THIN: f32 = 0.25;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Anchor {
@@ -67,7 +80,7 @@ pub fn read(bytes: &[u8], name: &str) -> Result<Drawing, String> {
     let mut walk = Walk { doc: &doc, out: &mut d };
     let model: Vec<&EntityType> = doc.model_space_entities().collect();
     let model = if model.is_empty() { unplaced(&doc) } else { model };
-    let top = Context { t: Affine::IDENTITY, layer: None, color: WHITE, depth: 0 };
+    let top = Context { t: Affine::IDENTITY, layer: None, color: WHITE, style: CONTINUOUS, depth: 0 };
     for e in model {
         walk.entity(e, &top)?;
     }
@@ -95,14 +108,25 @@ fn unplaced(doc: &CadDocument) -> Vec<&EntityType> {
     doc.entities().filter(|e| drawn(e.common().owner_handle)).collect()
 }
 
-/// Where the entities of a block go: transform, the insert's layer (for entities on layer 0)
-/// and colour (for those "by block").
+/// Where the entities of a block go: transform, the insert's layer (for entities on layer 0),
+/// colour, line type and weight (for those "by block").
 struct Context<'a> {
     t: Affine,
     layer: Option<&'a str>,
     color: [u8; 3],
+    style: Style<'a>,
     depth: u32,
 }
+
+/// A line type by name, its scale, and a weight in millimetres.
+#[derive(Clone, Copy)]
+struct Style<'a> {
+    linetype: &'a str,
+    scale: f64,
+    weight: f32,
+}
+
+const CONTINUOUS: Style = Style { linetype: "Continuous", scale: 1.0, weight: THIN };
 
 struct Walk<'a> {
     doc: &'a CadDocument,
@@ -141,14 +165,50 @@ impl<'a> Walk<'a> {
         rgb.map_or(WHITE, |(r, g, b)| [r, g, b])
     }
 
-    fn line(&mut self, pts: Vec<P>, t: &Affine, color: [u8; 3], fill: Option<f32>) -> Result<(), String> {
+    /// An entity's line type and weight, "by layer" and "by block" resolved.
+    fn style<'b>(&self, c: &'b acadrust::entities::EntityCommon, layer: &str, ctx: &Context<'b>) -> Style<'b>
+    where
+        'a: 'b,
+    {
+        use acadrust::types::LineWeight as W;
+        let l = self.doc.layers.get(layer);
+        let linetype = match c.linetype.as_str() {
+            "" => l.map_or("Continuous", |l| l.line_type.as_str()),
+            n if n.eq_ignore_ascii_case("ByLayer") => l.map_or("Continuous", |l| l.line_type.as_str()),
+            n if n.eq_ignore_ascii_case("ByBlock") => ctx.style.linetype,
+            n => n,
+        };
+        let mm = |w: &W| match w {
+            W::Value(v) if *v >= 0 => Some(f32::from(*v) / 100.0),
+            W::ByBlock => Some(ctx.style.weight),
+            _ => None,
+        };
+        let weight = match c.line_weight {
+            W::ByLayer => l.and_then(|l| mm(&l.line_weight)),
+            ref w => mm(w),
+        };
+        let scale = if c.linetype_scale.is_finite() && c.linetype_scale > 0.0 { c.linetype_scale } else { 1.0 };
+        Style { linetype, scale: if linetype.eq_ignore_ascii_case("ByBlock") { ctx.style.scale } else { scale }, weight: weight.unwrap_or(THIN) }
+    }
+
+    /// The dashes of a line type at the drawing's scale (LTSCALE) and the block's.
+    fn stroke(&self, style: Style, t: &Affine) -> Stroke {
+        let global = self.doc.header.linetype_scale;
+        let global = if global.is_finite() && global > 0.0 { global } else { 1.0 };
+        let dash: Vec<f64> = self.doc.line_types.get(style.linetype).map(|lt| lt.elements.iter().map(|e| e.length * global * style.scale * t.length_scale()).collect()).unwrap_or_default();
+        // Without a gap it is a continuous line.
+        let dash = if dash.iter().any(|&v| v < 0.0) && dash.iter().all(|v| v.is_finite()) { dash } else { Vec::new() };
+        Stroke { dash, weight: style.weight }
+    }
+
+    fn line(&mut self, pts: Vec<P>, t: &Affine, color: [u8; 3], fill: Option<f32>, stroke: Stroke) -> Result<(), String> {
         self.out.points += pts.len();
         if self.out.points > MAX_POINTS {
             return Err(format!("more than {MAX_POINTS} points"));
         }
         let pts: Vec<P> = pts.into_iter().map(|p| t.apply(p)).filter(|p| p[0].is_finite() && p[1].is_finite()).collect();
         if pts.len() >= 2 {
-            self.out.items.push(Item::Line { pts, color, fill });
+            self.out.items.push(Item::Line { pts, color, fill, stroke });
         }
         Ok(())
     }
@@ -172,30 +232,34 @@ impl<'a> Walk<'a> {
         }
         let Some(layer) = self.layer(e, ctx) else { return Ok(()) };
         let color = self.color(&common.color, layer, ctx);
+        let style = self.style(common, layer, ctx);
         let t = &ctx.t;
         if let Some((ocs, label)) = label(e) {
             self.text(&t.then_inner(&ocs), label, color);
             return Ok(());
         }
         match e {
-            EntityType::Insert(i) => self.insert(i, layer, color, ctx),
+            EntityType::Insert(i) => self.insert(i, layer, color, style, ctx),
             EntityType::Dimension(d) => self.dimension(d, layer, color, ctx),
             EntityType::Table(tb) if ctx.depth < MAX_DEPTH => {
                 // A table is drawn by its block, placed like an insert.
                 let dir = tb.horizontal_direction.y.atan2(tb.horizontal_direction.x);
                 let local = Affine::translate(tb.insertion_point.x, tb.insertion_point.y).then_inner(&Affine::rotate(dir));
-                let inner = Context { t: t.then_inner(&local), layer: Some(layer), color, depth: ctx.depth + 1 };
+                let inner = Context { t: t.then_inner(&local), layer: Some(layer), color, style, depth: ctx.depth + 1 };
                 self.block(&tb.block_name, &inner)
             }
-            EntityType::Hatch(h) => self.hatch(h, t, color),
+            EntityType::Hatch(h) => self.hatch(h, t, color, style.weight),
             e => match shape(e) {
-                Some((ocs, pts, fill)) => self.line(pts, &t.then_inner(&ocs), color, fill),
+                Some((ocs, pts, fill)) => {
+                    let stroke = self.stroke(style, t);
+                    self.line(pts, &t.then_inner(&ocs), color, fill, stroke)
+                }
                 None => Ok(()),
             },
         }
     }
 
-    fn insert(&mut self, i: &acadrust::entities::Insert, layer: &str, color: [u8; 3], ctx: &Context) -> Result<(), String> {
+    fn insert(&mut self, i: &acadrust::entities::Insert, layer: &str, color: [u8; 3], style: Style, ctx: &Context) -> Result<(), String> {
         if ctx.depth >= MAX_DEPTH {
             return Ok(());
         }
@@ -210,13 +274,13 @@ impl<'a> Walk<'a> {
                     .then_inner(&Affine::rotate(i.rotation))
                     .then_inner(&Affine::scale(i.x_scale(), i.y_scale()))
                     .then_inner(&Affine::translate(-base[0], -base[1]));
-                let inner = Context { t: ctx.t.then_inner(&ocs).then_inner(&local), layer: Some(layer), color, depth: ctx.depth + 1 };
+                let inner = Context { t: ctx.t.then_inner(&ocs).then_inner(&local), layer: Some(layer), color, style, depth: ctx.depth + 1 };
                 self.block(&i.block_name, &inner)?;
             }
         }
         // Attributes are already placed in the drawing (only the block's own transform applies).
         for a in i.attributes.iter().filter(|a| !a.flags.invisible && !a.common.invisible) {
-            let color = self.color(&a.common.color, layer, &Context { t: ctx.t, layer: Some(layer), color, depth: ctx.depth });
+            let color = self.color(&a.common.color, layer, &Context { t: ctx.t, layer: Some(layer), color, style, depth: ctx.depth });
             let o = ctx.t.then_inner(&Affine::ocs(n3(&a.normal)));
             let l = Label { at: xy(&a.insertion_point), height: a.height, angle: a.rotation, text: a.value.clone(), anchor: (Anchor::Start, Baseline::Alphabetic) };
             self.text(&o, l, color);
@@ -244,7 +308,7 @@ impl<'a> Walk<'a> {
     fn dimension(&mut self, d: &Dimension, layer: &str, color: [u8; 3], ctx: &Context) -> Result<(), String> {
         let base = d.base();
         if !base.block_name.is_empty() && self.doc.block_records.get(&base.block_name).is_some() && ctx.depth < MAX_DEPTH {
-            let inner = Context { t: ctx.t, layer: Some(layer), color, depth: ctx.depth + 1 };
+            let inner = Context { t: ctx.t, layer: Some(layer), color, style: ctx.style, depth: ctx.depth + 1 };
             return self.block(&base.block_name, &inner);
         }
         let text = base.user_text.clone().filter(|t| !t.is_empty() && t != "<>").unwrap_or_else(|| format!("{:.2}", base.actual_measurement));
@@ -253,53 +317,74 @@ impl<'a> Walk<'a> {
         Ok(())
     }
 
-    /// Solid hatches filled; the others filled lightly (their pattern lines are not drawn).
-    // ponytail: no hatch patterns; a translucent fill shows where they are
-    fn hatch(&mut self, h: &acadrust::entities::Hatch, t: &Affine, color: [u8; 3]) -> Result<(), String> {
-        use acadrust::entities::BoundaryEdge as E;
+    /// Solid hatches filled; the others drawn with their pattern lines inside the boundaries,
+    /// or filled lightly when the pattern is missing or too dense to draw.
+    fn hatch(&mut self, h: &acadrust::entities::Hatch, t: &Affine, color: [u8; 3], weight: f32) -> Result<(), String> {
         let o = t.then_inner(&Affine::ocs(n3(&h.normal)));
+        let bounds: Vec<Vec<P>> = h.paths.iter().map(boundary).filter(|b| b.len() >= 3).collect();
+        let thin = Stroke { dash: Vec::new(), weight };
+        if !h.is_solid && !h.pattern.lines.is_empty() {
+            let budget = MAX_PATTERN.min(MAX_POINTS.saturating_sub(self.out.points) / 2);
+            let lines: Option<Vec<[P; 2]>> = h.pattern.lines.iter().try_fold(Vec::new(), |mut all, l| {
+                let family = cad_geom::PatternLine { angle: l.angle, base: [l.base_point.x, l.base_point.y], offset: [l.offset.x, l.offset.y], dashes: &l.dash_lengths };
+                all.extend(cad_geom::hatch_lines(&bounds, &family, budget.saturating_sub(all.len()))?);
+                Some(all)
+            });
+            if let Some(lines) = lines {
+                for [a, b] in lines {
+                    self.line(vec![a, b], &o, color, None, thin.clone())?;
+                }
+                return Ok(());
+            }
+        }
         let fill = Some(if h.is_solid { 1.0 } else { 0.25 });
-        for path in &h.paths {
-            let mut pts: Vec<P> = Vec::new();
-            for edge in &path.edges {
-                let part = match edge {
-                    E::Line(l) => vec![[l.start.x, l.start.y], [l.end.x, l.end.y]],
-                    E::CircularArc(a) => {
-                        let c = [a.center.x, a.center.y];
-                        if a.counter_clockwise {
-                            cad_geom::arc(c, a.radius, a.start_angle, a.end_angle)
-                        } else {
-                            // Clockwise arcs store their angles measured clockwise.
-                            let mut p = cad_geom::arc(c, a.radius, -a.end_angle, -a.start_angle);
-                            p.reverse();
-                            p
-                        }
-                    }
-                    E::EllipticArc(e) => {
-                        let mut p = cad_geom::ellipse([e.center.x, e.center.y], [e.major_axis_endpoint.x, e.major_axis_endpoint.y], e.minor_axis_ratio, e.start_angle, e.end_angle);
-                        if !e.counter_clockwise {
-                            p.reverse();
-                        }
-                        p
-                    }
-                    E::Spline(s) => {
-                        let control: Vec<P> = s.control_points.iter().map(xy).collect();
-                        cad_geom::spline(s.degree.max(0) as usize, &s.knots, &control, &[]).unwrap_or(control)
-                    }
-                    E::Polyline(p) => {
-                        let v: Vec<(P, f64)> = p.vertices.iter().map(|v| ([v.x, v.y], v.z)).collect();
-                        cad_geom::bulged(&v, p.is_closed)
-                    }
-                };
-                pts.extend(part);
-            }
-            if let Some(&first) = pts.first() {
-                pts.push(first);
-            }
-            self.line(pts, &o, color, fill)?;
+        for pts in bounds {
+            self.line(pts, &o, color, fill, thin.clone())?;
         }
         Ok(())
     }
+}
+
+/// A hatch boundary as a closed list of points.
+fn boundary(path: &acadrust::entities::BoundaryPath) -> Vec<P> {
+    use acadrust::entities::BoundaryEdge as E;
+    let mut pts: Vec<P> = Vec::new();
+    for edge in &path.edges {
+        let part = match edge {
+            E::Line(l) => vec![[l.start.x, l.start.y], [l.end.x, l.end.y]],
+            E::CircularArc(a) => {
+                let c = [a.center.x, a.center.y];
+                if a.counter_clockwise {
+                    cad_geom::arc(c, a.radius, a.start_angle, a.end_angle)
+                } else {
+                    // Clockwise arcs store their angles measured clockwise.
+                    let mut p = cad_geom::arc(c, a.radius, -a.end_angle, -a.start_angle);
+                    p.reverse();
+                    p
+                }
+            }
+            E::EllipticArc(e) => {
+                let mut p = cad_geom::ellipse([e.center.x, e.center.y], [e.major_axis_endpoint.x, e.major_axis_endpoint.y], e.minor_axis_ratio, e.start_angle, e.end_angle);
+                if !e.counter_clockwise {
+                    p.reverse();
+                }
+                p
+            }
+            E::Spline(s) => {
+                let control: Vec<P> = s.control_points.iter().map(xy).collect();
+                cad_geom::spline(s.degree.max(0) as usize, &s.knots, &control, &[]).unwrap_or(control)
+            }
+            E::Polyline(p) => {
+                let v: Vec<(P, f64)> = p.vertices.iter().map(|v| ([v.x, v.y], v.z)).collect();
+                cad_geom::bulged(&v, p.is_closed)
+            }
+        };
+        pts.extend(part);
+    }
+    if let Some(&first) = pts.first() {
+        pts.push(first);
+    }
+    pts
 }
 
 /// A text to place: position, height and angle in its own coordinates.
@@ -445,9 +530,9 @@ impl Drawing {
         let mut out = format!(r##"<svg xmlns="http://www.w3.org/2000/svg" width="{pw}" height="{ph}" viewBox="0 0 {pw} {ph}"><rect width="100%" height="100%" fill="#{br:02x}{bg:02x}{bb:02x}"/><g fill="none" stroke-width="{stroke}" stroke-linejoin="round" stroke-linecap="round" font-family="sans-serif">"##);
         for item in &self.items {
             match item {
-                Item::Line { pts, color, fill } => {
+                Item::Line { pts, color, fill, stroke: line } => {
                     let c = rgb(*color);
-                    let _ = write!(out, r#"<path d="M"#);
+                    let _ = write!(out, r#"<path{} d="M"#, stroke_attributes(line, s, stroke));
                     for (i, p) in pts.iter().enumerate() {
                         let (x, y) = px(*p);
                         let _ = write!(out, "{}{x:.2} {y:.2}", if i == 0 { "" } else { "L" });
@@ -490,6 +575,40 @@ impl Drawing {
         out.push_str("</g></svg>");
         Ok(out)
     }
+}
+
+/// Width and dashes of a line in the picture: weights above the thinnest wider in proportion
+/// (as AutoCAD shows them, in pixels at any zoom), dashes at the picture's scale `s`, a line
+/// type too fine to see drawn continuous.
+fn stroke_attributes(line: &Stroke, s: f64, thin: f32) -> String {
+    let mut out = String::new();
+    let width = thin * (line.weight / THIN).max(1.0);
+    if width != thin {
+        let _ = write!(out, r#" stroke-width="{width:.2}""#);
+    }
+    let px: Vec<f64> = line.dash.iter().map(|v| v * s).collect();
+    if px.iter().map(|v| v.abs()).sum::<f64>() < 4.0 * f64::from(width) {
+        return out;
+    }
+    // SVG alternates dash and gap from a dash: equal neighbours joined, a zero dash (a dot)
+    // before a leading gap, a zero gap after a trailing dash.
+    let mut parts: Vec<(bool, f64)> = Vec::new();
+    for v in px {
+        let dash = v >= 0.0;
+        match parts.last_mut() {
+            Some((d, len)) if *d == dash => *len += v.abs(),
+            _ => parts.push((dash, v.abs())),
+        }
+    }
+    if parts.first().is_some_and(|p| !p.0) {
+        parts.insert(0, (true, 0.0));
+    }
+    if parts.len() % 2 == 1 {
+        parts.push((false, 0.0));
+    }
+    let list: Vec<String> = parts.iter().map(|(_, v)| format!("{:.2}", v.max(0.01))).collect();
+    let _ = write!(out, r#" stroke-dasharray="{}""#, list.join(" "));
+    out
 }
 
 fn escape(s: &str) -> String {
