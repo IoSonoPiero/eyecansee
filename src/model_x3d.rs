@@ -20,7 +20,10 @@ const RINGS: usize = 16;
 pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     let scene = crate::model_vrml::parse(bytes)?;
     let mut b = Builder::default();
-    Walk { b: &mut b, sibling, visits: 0 }.node(&scene, &IDENTITY, 0)?;
+    let mut w = Walk { b: &mut b, sibling, visits: 0, lines: Vec::new(), points: Vec::new() };
+    w.node(&scene, &IDENTITY, 0)?;
+    let (lines, points) = (std::mem::take(&mut w.lines), std::mem::take(&mut w.points));
+    crate::model_lines::add(&mut b, &lines, &points)?;
     b.finish(false)
 }
 
@@ -28,6 +31,9 @@ struct Walk<'a, 's> {
     b: &'a mut Builder,
     sibling: Sibling<'s>,
     visits: usize,
+    /// Line and point sets, made solid at the end (`model_lines`), when the model's size is known.
+    lines: Vec<crate::model_lines::Segment>,
+    points: Vec<crate::model_lines::Point>,
 }
 
 impl Walk<'_, '_> {
@@ -73,9 +79,46 @@ impl Walk<'_, '_> {
             let c = [mat.nums("diffuseColor"), mat.nums("baseColor"), mat.nums("emissiveColor")].into_iter().find(|c| c.len() >= 3).unwrap_or(&[0.8, 0.8, 0.8]);
             rgb(c)
         });
+        if let Some(g) = n.children().find(|g| matches!(g.kind.as_str(), "IndexedLineSet" | "LineSet" | "PointSet")) {
+            self.line_set(g, m, color);
+            return Ok(());
+        }
         let Some(part) = n.children().find_map(geometry) else { return Ok(()) };
         let pos = part.pos.into_iter().map(|p| apply(m, p)).collect();
         self.b.add(pos, part.tris, |i| part.colors.get(i).copied().flatten().or(color))
+    }
+}
+
+impl Walk<'_, '_> {
+    /// IndexedLineSet (polylines between the −1s), LineSet (`vertexCount` points each) and
+    /// PointSet, with their colours per vertex or per polyline.
+    fn line_set(&mut self, g: &SceneNode, m: &Mat4, color: Option<[u8; 3]>) {
+        let pos = points(g);
+        let polylines: Vec<Vec<(i64, usize)>> = match g.kind.as_str() {
+            "IndexedLineSet" => runs(&g.nums("coordIndex").iter().map(|&v| v as i64).collect::<Vec<_>>()),
+            "LineSet" => {
+                let mut at = 0;
+                g.nums("vertexCount").iter().map(|&n| {
+                    let run = (at..at + n.max(0.0) as usize).map(|i| (i as i64, i)).collect();
+                    at += n.max(0.0) as usize;
+                    run
+                }).collect()
+            }
+            _ => {
+                let tris: Vec<Tri> = (0..pos.len()).map(|i| Tri { v: [i as u32; 3], at: [i; 3], face: i }).collect();
+                let colors = colors(g, &tris);
+                self.points.extend(pos.iter().enumerate().map(|(i, &p)| (apply(m, p), colors.get(i).copied().flatten().or(color))));
+                return;
+            }
+        };
+        for (f, run) in polylines.iter().enumerate() {
+            let tris: Vec<Tri> = run.windows(2).map(|w| Tri { v: [w[0].0 as u32, w[1].0 as u32, w[1].0 as u32], at: [w[0].1, w[1].1, w[1].1], face: f }).collect();
+            let colors = colors(g, &tris);
+            for (t, c) in tris.iter().zip(colors.into_iter().chain(std::iter::repeat(None))) {
+                let (Some(&a), Some(&b)) = (pos.get(t.v[0] as usize), pos.get(t.v[1] as usize)) else { continue };
+                self.lines.push((apply(m, a), apply(m, b), c.or(color)));
+            }
+        }
     }
 }
 

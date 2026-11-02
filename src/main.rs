@@ -69,6 +69,7 @@ mod model_amf;
 mod model_dae;
 mod model_fbx;
 mod model_ifc;
+mod model_lines;
 mod model_off;
 mod model_vrml;
 mod model_x3d;

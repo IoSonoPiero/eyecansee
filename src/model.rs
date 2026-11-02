@@ -60,6 +60,18 @@ impl Builder {
         Ok(())
     }
 
+    /// The box around the points added so far (all of them, used or not).
+    pub(crate) fn bounds(&self) -> Option<([f32; 3], [f32; 3])> {
+        let finite = self.pos.iter().filter(|p| p.iter().all(|c| c.is_finite()));
+        finite.fold(None, |acc, p| {
+            let (mut lo, mut hi) = acc.unwrap_or((*p, *p));
+            for k in 0..3 {
+                (lo[k], hi[k]) = (lo[k].min(p[k]), hi[k].max(p[k]));
+            }
+            Some((lo, hi))
+        })
+    }
+
     pub(crate) fn finish(self, z_up: bool) -> Result<Mesh, String> {
         let Builder { pos, tris, colors } = self;
         let finite = |p: &[f32; 3]| p.iter().all(|c| c.is_finite());
