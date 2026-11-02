@@ -174,7 +174,7 @@ pub fn parse_with(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, St
         Some("3ds") => crate::model_3ds::read(bytes),
         Some("off") => crate::model_off::read(bytes),
         Some("amf") => crate::model_amf::read(bytes),
-        Some(e @ ("dae" | "zae")) => crate::model_dae::read(bytes, e == "zae"),
+        Some(e @ ("dae" | "zae")) => crate::model_dae::read(bytes, e == "zae", sibling),
         Some("wrl" | "wrz" | "x3d" | "x3dv" | "x3dz" | "x3dvz") => crate::model_x3d::read(bytes, sibling),
         _ if crate::occt::is_occt(name) => crate::occt::read(bytes, name),
         _ => Err("not a 3D model".into()),
@@ -236,7 +236,7 @@ pub fn sibling_path(model: &str, rel: &str) -> Option<String> {
     (!refused).then(|| format!("{}{}", crate::source::parent(model), parts.join("/")))
 }
 
-fn percent_decoded(s: &str) -> Option<String> {
+pub(crate) fn percent_decoded(s: &str) -> Option<String> {
     let mut out = Vec::with_capacity(s.len());
     let mut bytes = s.bytes();
     while let Some(b) = bytes.next() {
