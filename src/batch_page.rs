@@ -7,13 +7,14 @@ use std::sync::Arc;
 use eframe::egui;
 
 use crate::audio_job::AudioJob;
-use crate::batch::{Dest, Filter, Job, Progress, Size};
+use crate::batch::{Dest, Drawn, Filter, Job, Progress, Size};
 use crate::encode::{Format, Options};
 use crate::ffmpeg::{CONTAINERS, Codec, Quality, Video};
 use crate::folder_pick::{Picker, pick_ui};
 use crate::i18n::I18n;
 use crate::transform::{Op, Turn};
 use crate::save_dialogs::{md, notice_text};
+use crate::selection::{Kind, PLAYED};
 use crate::{App, source};
 
 /// Where the new files go.
@@ -57,6 +58,11 @@ pub struct Form {
     images: bool,
     videos: bool,
     video: VideoForm,
+    /// CAD drawings exported (`Drawn`): the window shows just their format, size and destination.
+    drawing: bool,
+    svg: bool,
+    /// Long side of the pictures, in pixels.
+    side: u32,
     /// Only the audio of the videos: the window shows just FFmpeg and the destination.
     audio: Option<AudioJob>,
 }
@@ -96,6 +102,9 @@ impl Form {
             images: true,
             videos: false,
             video: VideoForm { container: 0, codec: Codec::H264, encoder: None, quality: Quality::Medium, audio: true, meta: true, download: None },
+            drawing: false,
+            svg: false,
+            side: 4096,
             audio: None,
         }
     }
@@ -108,7 +117,8 @@ impl Form {
         };
         let v = &self.video;
         let video = v.encoder.filter(|_| self.videos).map(|encoder| Video { container: v.container, encoder, quality: v.quality, audio: v.audio, meta: v.meta });
-        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio, base: String::new() }
+        let drawing = self.drawing.then_some(if self.svg { Drawn::Svg } else { Drawn::Side(self.side) });
+        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio, base: String::new(), drawing }
     }
 
     /// The flips first, then the turn.
@@ -150,6 +160,8 @@ pub struct Window {
     progress: Option<Arc<Progress>>,
     /// Where the files go, as shown; the folder to read again at the end, if it is on this source.
     dest: (String, Option<String>),
+    /// Files chosen that this window does not work on (another kind), said under the count.
+    left_out: usize,
 }
 
 impl Window {
@@ -161,23 +173,36 @@ impl Window {
 
 impl App {
     /// From the menus: the marked images of the grid, or `path`, or the selected one.
+    /// Pictures and videos only: audio files are not converted ("Save the sound as a file" makes
+    /// them as they are), CAD drawings are exported (`open_drawings`), 3D models too.
     pub(crate) fn open_batch(&mut self, path: Option<String>) {
+        self.open_batch_of(path, false);
+    }
+
+    /// "Export drawing": the CAD drawings among the marked files, drawn again.
+    pub(crate) fn open_drawings(&mut self, path: Option<String>) {
+        self.open_batch_of(path, true);
+    }
+
+    fn open_batch_of(&mut self, path: Option<String>, drawings: bool) {
         if self.batch.is_some() {
             return;
         }
-        // Audio files are not converted: "Save the sound as a file" makes them as they are.
-        let paths: Vec<String> = self.grid_items(path).into_iter().filter(|p| !crate::decode::is_audio(p)).collect();
+        let all = self.grid_items(path.clone()).len();
+        let paths = self.grid_of(path, if drawings { &[Kind::Drawing] } else { PLAYED });
         if paths.is_empty() {
             return;
         }
         let form = self.batch_form.get_or_insert_with(|| Form::new(self.i18n.t("batch-subfolder-name")));
         form.audio = None;
+        form.drawing = drawings;
         form.videos = paths.iter().any(|p| crate::decode::is_video(p));
-        form.images = paths.iter().any(|p| !crate::decode::is_video(p));
+        form.images = !drawings && paths.iter().any(|p| !crate::decode::is_video(p));
         if form.other.is_empty() {
             form.other = crate::navigation::shown(&self.base, &self.dir);
         }
-        self.batch = Some(Window { paths, dir: self.dir.clone(), progress: None, dest: Default::default() });
+        let left_out = all - paths.len();
+        self.batch = Some(Window { paths, dir: self.dir.clone(), progress: None, dest: Default::default(), left_out });
     }
 
     /// "Copy with the metadata": the window on "Same as the original" (streams copied, metadata
@@ -200,7 +225,9 @@ impl App {
         }
         self.open_batch(path);
         let Some(w) = self.batch.as_mut() else { return };
+        let before = w.paths.len();
         w.paths.retain(|p| crate::decode::is_video(p));
+        w.left_out += before - w.paths.len();
         if w.paths.is_empty() {
             self.batch = None;
             return;
@@ -230,9 +257,13 @@ impl App {
         let title = self.i18n.t(match form.audio {
             Some(AudioJob::Strip) => "batch-title-strip",
             Some(AudioJob::Extract) => "batch-title-extract",
+            None if form.drawing => "drawing-title",
             None => "batch-title",
         });
-        let intro = self.i18n.t_args("batch-images", &[("n", &n), ("folder", &md(&self.display(&w.dir)))]);
+        let mut intro = self.i18n.t_args("batch-images", &[("n", &n), ("folder", &md(&self.display(&w.dir)))]);
+        if w.left_out > 0 {
+            intro = format!("{intro} {}", self.i18n.t_args("batch-left-out-kind", &[("n", &w.left_out.to_string())]));
+        }
         let keys = self.delete_answer.take();
         let (places, rt) = (self.pick_places(), self.rt.handle().clone());
         let (mut answer, mut picked) = (None, None);
@@ -388,6 +419,11 @@ fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bool> {
             section(ui, t("batch-where"), |ui| where_rows(ui, f, i18n));
             return;
         }
+        if f.drawing {
+            section(ui, t("convert-format"), |ui| drawing_rows(ui, f, i18n));
+            section(ui, t("batch-where"), |ui| where_rows(ui, f, i18n));
+            return;
+        }
         if f.images {
             section(ui, t("convert-format"), |ui| format_rows(ui, f, i18n));
         }
@@ -410,7 +446,7 @@ fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bool> {
     }
     let mut answer = None;
     ui.horizontal(|ui| {
-        let start = crate::theme::main_button(ui, t("batch-start"));
+        let start = crate::theme::main_button(ui, t(if f.drawing { "drawing-start" } else { "batch-start" }));
         if ui.add_enabled(why_not.is_none(), start).clicked() {
             answer = Some(true);
         }
@@ -442,20 +478,55 @@ fn format_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
         None => {
             ui.weak(t("batch-same-format-hint"));
         }
-        Some(format) => {
-            f.options.format = format;
-            // Closed at first: the window stays short enough to show every part.
-            let title = i18n.t_args("batch-format-options", &[("format", format.label())]);
-            egui::CollapsingHeader::new(title).id_salt("batch-format-options").show(ui, |ui| {
-                // Several images: the options shown as for one with transparency and larger than an icon.
-                crate::convert::format_options(ui, &mut f.options, true, true, i18n);
-                if format.holds_meta() {
-                    ui.checkbox(&mut f.options.keep_meta, t("convert-keep-meta"));
-                }
-            });
-        }
+        Some(format) => format_options(ui, f, format, i18n),
     }
 }
+
+/// The quality and the other options of `format`, closed at first: the window stays short
+/// enough to show every part.
+fn format_options(ui: &mut egui::Ui, f: &mut Form, format: Format, i18n: &I18n) {
+    f.options.format = format;
+    let title = i18n.t_args("batch-format-options", &[("format", format.label())]);
+    egui::CollapsingHeader::new(title).id_salt("batch-format-options").show(ui, |ui| {
+        // Several images: the options shown as for one with transparency and larger than an icon.
+        crate::convert::format_options(ui, &mut f.options, true, true, i18n);
+        if format.holds_meta() {
+            ui.checkbox(&mut f.options.keep_meta, i18n.t("convert-keep-meta"));
+        }
+    });
+}
+
+/// "Export drawing": a picture format and its width, or SVG. No "same format": EyeCanSee does
+/// not write CAD files.
+fn drawing_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
+    let t = |id| i18n.t(id);
+    // "Same as the original" stays chosen for Convert and resize: PNG here (`batch::drawing`).
+    let format = f.format.unwrap_or(Format::Png);
+    let label = if f.svg { "SVG" } else { format.label() };
+    egui::ComboBox::from_id_salt("drawing-format").selected_text(label).show_ui(ui, |ui| {
+        for k in Format::ALL {
+            if ui.selectable_label(!f.svg && k == format, k.label()).clicked() {
+                (f.svg, f.format) = (false, Some(k));
+            }
+        }
+        ui.selectable_value(&mut f.svg, true, "SVG");
+    });
+    if f.svg {
+        ui.weak(t("drawing-svg-hint"));
+        return;
+    }
+    ui.horizontal(|ui| {
+        ui.label(t("drawing-side"));
+        ui.add(egui::DragValue::new(&mut f.side).range(MIN_SIDE..=MAX_SIDE));
+        ui.label(t("drawing-pixels"));
+    });
+    ui.weak(t("drawing-side-hint"));
+    format_options(ui, f, format, i18n);
+}
+
+/// The long side of an exported drawing: 16384² pixels in RGBA are 1 GB.
+const MIN_SIDE: u32 = 256;
+const MAX_SIDE: u32 = 16384;
 
 /// The audio jobs: FFmpeg ready, and what the job does; nothing else to choose.
 fn audio_rows(ui: &mut egui::Ui, v: &mut VideoForm, job: AudioJob, i18n: &I18n) {

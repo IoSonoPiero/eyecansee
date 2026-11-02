@@ -582,6 +582,9 @@ dup-summary = Groups: { $groups }. Copies to delete: { $n }, freeing { $size }.
 dup-delete = Delete the marked copies…
 dup-none = No duplicates in this folder.
 menu-batch = Convert and resize…
+menu-export-drawings = Export drawing…
+menu-partial = * Only on some of the files chosen
+menu-partial-hint = The entries marked with * work only on the files of the kinds they are for (for example Convert and resize on pictures and videos); the other files chosen are left out.
 menu-copy-meta = Copy with the metadata…
 menu-strip-audio = Copy without sound…
 menu-extract-audio = Save the sound as a file…
@@ -623,6 +626,16 @@ batch-stopping = Stopping…
 batch-result = Files converted: **{ $n }**, in { $folder }.
 batch-cancelled = Stopped after { $n } of { $total } files.
 batch-left-out = Left out:
+batch-left-out-kind = { $n ->
+    [one] 1 file chosen is left out: this entry does not work on its kind.
+   *[other] { $n } files chosen are left out: this entry does not work on their kind.
+}
+drawing-title = Export drawing
+drawing-start = Export
+drawing-side = Long side
+drawing-pixels = pixels
+drawing-side-hint = The drawing is drawn again at this size, so it stays sharp even when large.
+drawing-svg-hint = A drawing that stays sharp at any zoom, which browsers and graphics programs open. Layers and blocks are not kept.
 batch-skip-format = { $detail }: EyeCanSee cannot write its format; choose another format.
 batch-skip-inside = { $detail }: animated or with several pages; the new file would have only the first one.
 batch-failed = { $detail }

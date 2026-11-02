@@ -6,6 +6,7 @@ use eframe::egui::{self, Color32, Ui};
 
 use crate::actions::Act;
 use crate::App;
+use crate::selection::{Kind, PLAYED, THUMBED, fits, starred};
 use crate::source;
 
 /// Selection colour: full in the part receiving the keyboard, faint in the other, so the two
@@ -85,30 +86,8 @@ impl App {
             items.push(Some((t("menu-delete-permanent"), t("key-delete"), Act::Delete(path, true))));
         } else if target.ends_with('/') {
             items.extend(self.folder_items(path, &target));
-        } else if crate::decode::is_video(&target) {
-            // Turning and saving are for images; converting goes through FFmpeg. The slideshow plays videos too.
-            items.extend([
-                Some((self.i18n.t("menu-slideshow"), String::new(), Act::Slideshow(path.clone()))),
-                Some((self.i18n.t("menu-redo-thumbs"), String::new(), Act::RedoThumbs(path.clone()))),
-                None,
-            ]);
-            if !in_viewer && self.batch.is_none() {
-                items.extend([
-                    Some((self.i18n.t("menu-batch"), String::new(), Act::Batch(path.clone()))),
-                    Some((self.i18n.t("menu-copy-meta"), String::new(), Act::CopyMeta(path.clone()))),
-                    Some((self.i18n.t("menu-strip-audio"), String::new(), Act::Audio(AudioJob::Strip, path.clone()))),
-                    Some((self.i18n.t("menu-extract-audio"), String::new(), Act::Audio(AudioJob::Extract, path.clone()))),
-                    None,
-                ]);
-            }
-            items.extend([Some((self.i18n.t("menu-cut"), self.i18n.t("key-cut"), Act::Cut(path.clone()))), Some((self.i18n.t("menu-copy"), self.i18n.t("key-copy"), Act::Copy(path.clone())))]);
-            items.extend(self.rename_delete(path));
-        } else if crate::decode::is_audio(&target) {
-            // Nothing to convert or turn: the file operations only.
-            items.extend([Some((self.i18n.t("menu-cut"), self.i18n.t("key-cut"), Act::Cut(path.clone()))), Some((self.i18n.t("menu-copy"), self.i18n.t("key-copy"), Act::Copy(path.clone())))]);
-            items.extend(self.rename_delete(path));
         } else {
-            items.extend(self.image_items(path, in_viewer));
+            items.extend(self.file_items(path, in_viewer));
         }
         items
     }
@@ -135,8 +114,8 @@ impl App {
     }
 
     /// Transform: flips and turns (in the viewer shown until saved, in the grid saved straight
-    /// away), then Rotate and crop.
-    fn turn_menu(&self, path: Option<String>, in_viewer: bool) -> MenuItem {
+    /// away), then Rotate and crop; "*" when `all` the files chosen are not pictures.
+    fn turn_menu(&self, path: Option<String>, in_viewer: bool, all: bool) -> MenuItem {
         let t = |id| self.i18n.t(id);
         let mut turns = Vec::new();
         for (op, label, keys) in crate::actions::transform_items() {
@@ -147,51 +126,66 @@ impl App {
         }
         turns.push(None);
         // One image at a time: with several marked it would open on one and leave the others.
-        let rotate = if self.chosen(path.clone()).len() > 1 { Act::Off(t("rc-one-only")) } else { Act::RotateCrop(path.clone()) };
+        let rotate = if self.grid_images(path.clone()).len() > 1 { Act::Off(t("rc-one-only")) } else { Act::RotateCrop(path.clone()) };
         turns.push(Some((t("menu-rotate-crop"), String::new(), rotate)));
-        Some((t("menu-transform"), String::new(), Act::Submenu(turns)))
+        Some((crate::selection::starred(t("menu-transform"), all), String::new(), Act::Submenu(turns)))
     }
 
     /// After Open (or Back to the grid), in the order of the menu bar: View (slideshow,
-    /// thumbnails), Image and saving, Tools, Edit, then rename and the deletions apart.
-    fn image_items(&self, path: Option<String>, in_viewer: bool) -> Vec<MenuItem> {
+    /// thumbnails), Image and saving, Tools, Edit, then rename and the deletions apart. Each entry
+    /// shown when some of the files chosen are of a kind it works on (`selection::Kind`), with
+    /// "*" when not all of them are, and a line at the bottom that says what "*" means.
+    fn file_items(&self, path: Option<String>, in_viewer: bool) -> Vec<MenuItem> {
         let t = |id| self.i18n.t(id);
-        // A 3D model or a CAD drawing: no slideshow (looked at closely, not in passing) and no turns
-        // (`viewing_photo`); the slideshow stays in View for the whole folder.
-        let picture = path.clone().or_else(|| self.target()).is_some_and(|p| crate::decode::is_image(&p));
+        let files = self.files_chosen(path.clone());
+        let one = files.len() <= 1;
+        let partial = std::cell::Cell::new(false);
         let mut items = Vec::new();
-        if picture {
-            items.push(Some((t("menu-slideshow"), String::new(), Act::Slideshow(path.clone()))));
-        }
-        items.push(Some((t("menu-redo-thumbs"), String::new(), Act::RedoThumbs(path.clone()))));
+        let add = |items: &mut Vec<MenuItem>, kinds: &[Kind], label: &str, keys: String, act: Act| {
+            if let Some(all) = fits(&files, kinds) {
+                partial.set(partial.get() | !all);
+                items.push(Some((starred(self.i18n.t(label), all), keys, act)));
+            }
+        };
+        // A 3D model or a CAD drawing: no slideshow (looked at closely, not in passing); the
+        // slideshow stays in View for the whole folder.
+        add(&mut items, PLAYED, "menu-slideshow", String::new(), Act::Slideshow(path.clone()));
+        add(&mut items, THUMBED, "menu-redo-thumbs", String::new(), Act::RedoThumbs(path.clone()));
         items.push(None);
-        if picture {
-            items.push(self.turn_menu(path.clone(), in_viewer));
+        if let Some(all) = fits(&files, &[Kind::Picture]) {
+            partial.set(partial.get() | !all);
+            items.push(self.turn_menu(path.clone(), in_viewer, all));
         }
         if in_viewer && self.can_save() {
             items.push(Some((t("menu-save"), t("key-save"), Act::Save)));
         }
-        // One file at a time: with several marked it would open on one and leave the others.
-        let one = self.chosen(path.clone()).len() <= 1;
+        // One file: a picture, or in the viewer what is shown (a 3D model from its side, the
+        // layout of a drawing open). In the grid a drawing is exported, a model saved as a model.
+        let save_as: &[Kind] = if in_viewer { &[Kind::Picture, Kind::Model, Kind::Drawing] } else { &[Kind::Picture] };
         if one {
-            items.push(Some((t("menu-save-copy"), String::new(), Act::Convert(path.clone()))));
+            add(&mut items, save_as, "menu-save-copy", String::new(), Act::Convert(path.clone()));
         }
-        if one && path.clone().or_else(|| self.target()).is_some_and(|p| crate::model::is_model(&p)) {
+        if let Some(all) = fits(&files, &[Kind::Model]) {
+            partial.set(partial.get() | !all);
             let kinds = crate::model_export::Kind::ALL.iter().map(|&k| Some((k.label().to_string(), String::new(), Act::ExportModel(path.clone(), k)))).collect();
-            items.push(Some((t("menu-export-3d"), String::new(), Act::Submenu(kinds))));
+            items.push(Some((starred(t("menu-export-3d"), all), String::new(), Act::Submenu(kinds))));
         }
         if !in_viewer && self.batch.is_none() {
-            items.push(Some((t("menu-batch"), String::new(), Act::Batch(path.clone()))));
-            if self.grid_items(path.clone()).iter().any(|p| crate::decode::is_video(p)) {
-                items.push(Some((t("menu-copy-meta"), String::new(), Act::CopyMeta(path.clone()))));
-                items.push(Some((t("menu-strip-audio"), String::new(), Act::Audio(AudioJob::Strip, path.clone()))));
-                items.push(Some((t("menu-extract-audio"), String::new(), Act::Audio(AudioJob::Extract, path.clone()))));
-            }
+            add(&mut items, PLAYED, "menu-batch", String::new(), Act::Batch(path.clone()));
+            add(&mut items, &[Kind::Drawing], "menu-export-drawings", String::new(), Act::ExportDrawings(path.clone()));
+            add(&mut items, &[Kind::Video], "menu-copy-meta", String::new(), Act::CopyMeta(path.clone()));
+            add(&mut items, &[Kind::Video], "menu-strip-audio", String::new(), Act::Audio(AudioJob::Strip, path.clone()));
+            add(&mut items, &[Kind::Video], "menu-extract-audio", String::new(), Act::Audio(AudioJob::Extract, path.clone()));
         }
         items.push(None);
         items.push(Some((t("menu-cut"), t("key-cut"), Act::Cut(path.clone()))));
         items.push(Some((t("menu-copy"), t("key-copy"), Act::Copy(path.clone()))));
         items.extend(self.rename_delete(path));
+        if partial.get() {
+            items.extend([None, Some((t("menu-partial"), String::new(), Act::Off(t("menu-partial-hint"))))]);
+        }
+        // A separator after nothing (an audio file: no slideshow, no thumbnail) shown once.
+        items.dedup_by(|a, b| a.is_none() && b.is_none());
         items
     }
 

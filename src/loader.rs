@@ -347,23 +347,26 @@ impl Loader {
         });
     }
 
-    /// The model `path` read (with the files next to it) and written to `to` as `kind`.
-    pub fn export_model(&self, path: String, to: String, kind: crate::model_export::Kind) {
+    /// Each model `path` read (with the files next to it) and written to `to` as `kind`, one after
+    /// the other (a phone reads one file at a time, and a model can take much memory).
+    pub fn export_models(&self, jobs: Vec<(String, String)>, kind: crate::model_export::Kind) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let sibling = siblings(op.clone(), path.clone());
-            let r = match op.read(&path).await {
-                Ok(bytes) => tokio::task::spawn_blocking(move || crate::model::parse_with(&bytes, &path, &sibling).map(|m| crate::model_export::export(&m, kind)))
-                    .await
-                    .unwrap_or_else(|e| Err(e.to_string())),
-                Err((_, detail)) => Err(detail),
-            };
-            let r = match r {
-                Ok(data) => write_whole(&op, &to, data).await.map(|()| to).map_err(|(_, detail)| detail),
-                Err(e) => Err(e),
-            };
-            let _ = tx.send(Msg::Exported(r));
-            ctx.request_repaint();
+            for (path, to) in jobs {
+                let sibling = siblings(op.clone(), path.clone());
+                let r = match op.read(&path).await {
+                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::model::parse_with(&bytes, &path, &sibling).map(|m| crate::model_export::export(&m, kind)))
+                        .await
+                        .unwrap_or_else(|e| Err(e.to_string())),
+                    Err((_, detail)) => Err(detail),
+                };
+                let r = match r {
+                    Ok(data) => write_whole(&op, &to, data).await.map(|()| to).map_err(|(_, detail)| detail),
+                    Err(e) => Err(e),
+                };
+                let _ = tx.send(Msg::Exported(r));
+                ctx.request_repaint();
+            }
         });
     }
 

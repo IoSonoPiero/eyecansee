@@ -3,7 +3,61 @@
 
 use crate::{App, Focus, source};
 
+/// What a file is, for the menus: each entry works on some kinds, and only on those files of a
+/// mixed selection (user, 2026-11-02).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub(crate) enum Kind {
+    Picture,
+    Video,
+    Audio,
+    Model,
+    Drawing,
+}
+
+pub(crate) fn kind(path: &str) -> Kind {
+    if crate::decode::is_video(path) {
+        Kind::Video
+    } else if crate::decode::is_audio(path) {
+        Kind::Audio
+    } else if crate::model::is_model(path) {
+        Kind::Model
+    } else if crate::cad::is_cad(path) {
+        Kind::Drawing
+    } else {
+        Kind::Picture
+    }
+}
+
+/// The kinds each entry works on.
+pub(crate) const PLAYED: &[Kind] = &[Kind::Picture, Kind::Video];
+pub(crate) const THUMBED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Model, Kind::Drawing];
+
+/// How an entry fits the files chosen: on none of them (`None`: not shown), on all, or on some
+/// (`Some(false)`: marked with "*").
+pub(crate) fn fits(files: &[String], kinds: &[Kind]) -> Option<bool> {
+    let n = files.iter().filter(|p| kinds.contains(&kind(p))).count();
+    (n > 0).then_some(n == files.len())
+}
+
+/// The label of an entry, with "*" when it works on only some of the files chosen.
+pub(crate) fn starred(label: String, all: bool) -> String {
+    if all { label } else { format!("{label} *") }
+}
+
 impl App {
+    /// The files an action works on: the one in the viewer, or `grid_items`.
+    pub(crate) fn files_chosen(&self, path: Option<String>) -> Vec<String> {
+        if self.viewing.is_some() {
+            return path.or_else(|| self.target()).into_iter().collect();
+        }
+        self.grid_items(path)
+    }
+
+    /// The files of `grid_items` of these kinds.
+    pub(crate) fn grid_of(&self, path: Option<String>, kinds: &[Kind]) -> Vec<String> {
+        self.grid_items(path).into_iter().filter(|p| kinds.contains(&kind(p))).collect()
+    }
+
     /// The images and videos (not folders) an action on `path` in the grid works on, as `chosen`.
     pub(crate) fn grid_items(&self, path: Option<String>) -> Vec<String> {
         if self.viewing.is_some() {
@@ -72,5 +126,23 @@ impl App {
             p => p.or_else(|| self.target()).into_iter().collect(),
         };
         paths.into_iter().filter(|p| self.can_change(p)).collect()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn entries_fit_the_kinds_chosen() {
+        let files: Vec<String> = ["a.jpg", "b.mp4", "c.stl", "d.dwg", "e.mp3"].map(String::from).to_vec();
+        assert_eq!(files.iter().map(|p| kind(p)).collect::<Vec<_>>(), [Kind::Picture, Kind::Video, Kind::Model, Kind::Drawing, Kind::Audio]);
+        // A video and a 3D model: Convert and resize on some of them, Export drawing on none.
+        let mixed = vec![files[1].clone(), files[2].clone()];
+        assert_eq!(fits(&mixed, PLAYED), Some(false));
+        assert_eq!(fits(&mixed, &[Kind::Drawing]), None);
+        assert_eq!(fits(&files[..2], PLAYED), Some(true));
+        assert_eq!(fits(&files[4..], THUMBED), None);
+        assert_eq!(starred("Copy".into(), false), "Copy *");
     }
 }

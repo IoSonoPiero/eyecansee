@@ -67,7 +67,7 @@ Shown in the grid as a picture and in the viewer in 3D (drawn by the graphics ca
 
 ### CAD drawings
 
-Seen from above (model space, and the layouts with L) and shown as an image, drawn again sharp at every zoom; saved as images from *Save in another format*.
+Seen from above (model space, and the layouts with L) and shown as an image, drawn again sharp at every zoom; saved as images from *Save in another format*, and many at once as images or SVG from *Tools > Export drawing* (model space, drawn again at the size chosen).
 
 | Format | Extensions | Linux | Windows | Reader |
 |---|---|:-:|:-:|---|

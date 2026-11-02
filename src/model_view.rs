@@ -217,21 +217,28 @@ impl App {
 }
 
 impl App {
-    /// "Export as a 3D model": next to the model, with its name and a free one if taken.
+    /// "Export as a 3D model": the models among the files chosen, each next to itself, with its
+    /// name and a free one if taken (also by another of them: `a.stl` and `a.obj` to GLB).
     pub(crate) fn export_model(&mut self, path: Option<String>, kind: crate::model_export::Kind) {
-        let Some(path) = path.or_else(|| self.target()) else { return };
-        let dir = crate::source::parent(&path);
-        let taken: std::collections::HashSet<String> = match self.listings.get(&dir) {
-            Some(Ok(l)) => l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).collect(),
-            _ => Default::default(),
-        };
-        let name = crate::source::name(&path);
-        let stem = name.rsplit_once('.').map_or(name, |(s, _)| s);
-        let to = format!("{dir}{}", crate::source::free_name(&taken, &format!("{stem}.{}", kind.ext())));
-        if let Some(loader) = &self.loader {
+        let paths = self.files_chosen(path).into_iter().filter(|p| crate::model::is_model(p));
+        let Some(loader) = &self.loader else { return };
+        let mut taken: std::collections::HashMap<String, std::collections::HashSet<String>> = Default::default();
+        let mut jobs = Vec::new();
+        for path in paths {
+            let dir = crate::source::parent(&path);
+            let names = taken.entry(dir.clone()).or_insert_with(|| match self.listings.get(&dir) {
+                Some(Ok(l)) => l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).collect(),
+                _ => Default::default(),
+            });
+            let name = crate::source::name(&path);
+            let stem = name.rsplit_once('.').map_or(name, |(s, _)| s);
+            let free = crate::source::free_name(names, &format!("{stem}.{}", kind.ext()));
+            names.insert(free.clone());
+            let to = format!("{dir}{free}");
             log!("export {path:?} as {to:?}");
-            loader.export_model(path, to, kind);
+            jobs.push((path, to));
         }
+        loader.export_models(jobs, kind);
     }
 
     /// The exported model: said in the status bar for a while, the folder read again.

@@ -79,11 +79,21 @@ pub struct Job {
     pub audio: Option<crate::audio_job::AudioJob>,
     /// The originals' source in the thumbnail cache: a video without its audio takes its thumbnail.
     pub base: String,
+    /// "Export drawing": CAD drawings drawn again (`drawing`), nothing else done.
+    pub drawing: Option<Drawn>,
+}
+
+/// What a CAD drawing becomes: an SVG, or a picture in `Job::format` drawn at this many pixels
+/// on its long side (sharp at any size: a drawing has no pixels of its own to enlarge).
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum Drawn {
+    Svg,
+    Side(u32),
 }
 
 impl Default for Job {
     fn default() -> Self {
-        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None, audio: None, base: String::new() }
+        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None, audio: None, base: String::new(), drawing: None }
     }
 }
 
@@ -120,6 +130,9 @@ pub fn convert(bytes: &[u8], name: &str, job: &Job) -> Result<(String, Vec<u8>),
 
 /// Like `convert`, reading the files next to a 3D model or a CAD drawing through `sibling`.
 pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::Sibling) -> Result<(String, Vec<u8>), (&'static str, String)> {
+    if let Some(drawn) = job.drawing {
+        return drawing(bytes, name, job, drawn, sibling);
+    }
     if job.format.is_none() && !encode::saves_back(name) {
         return Err((SKIP_FORMAT, name.to_string()));
     }
@@ -158,6 +171,20 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
             Ok((with_ext(name, format), data))
         }
     }
+}
+
+/// A CAD drawing as `drawn` says; its pictures read through `sibling`.
+fn drawing(bytes: &[u8], name: &str, job: &Job, drawn: Drawn, sibling: crate::model::Sibling) -> Result<(String, Vec<u8>), (&'static str, String)> {
+    let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
+    let d = crate::cad::read_with(bytes, name, sibling).map_err(failed)?;
+    let side = match drawn {
+        Drawn::Svg => return Ok((ext(name, "svg"), d.svg(crate::decode::CAD_SIDE, 1.0).map_err(failed)?.into_bytes())),
+        Drawn::Side(side) => side,
+    };
+    let image = image::DynamicImage::ImageRgba8(crate::decode::cad_render(&d, side, None).map_err(failed)?);
+    let format = job.format.unwrap_or(Format::Png);
+    let options = Options { format, turn: Turn::default(), ..job.options };
+    Ok((with_ext(name, format), encode::Original::with_meta(image, &[]).encode(&options).map_err(failed)?))
 }
 
 /// `name` with the extension of `format` in place of its own.
@@ -539,5 +566,17 @@ mod tests {
         };
         assert!(red(&convert_with(obj, "q.obj", &job, &next).unwrap().1) > 1000);
         assert_eq!(red(&convert(obj, "q.obj", &job).unwrap().1), 0);
+    }
+
+    #[test]
+    fn a_drawing_drawn_again_at_the_size_asked() {
+        let dxf = b"0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n30\n0\n11\n100\n21\n50\n31\n0\n0\nENDSEC\n0\nEOF\n";
+        let job = Job { format: Some(Format::Png), drawing: Some(Drawn::Side(6000)), ..Default::default() };
+        let (name, data) = convert(dxf, "plan.dxf", &job).unwrap();
+        let back = crate::decode::decode_full(&data, &name).unwrap();
+        assert_eq!((name.as_str(), back.width()), ("plan.png", 6000));
+        let job = Job { drawing: Some(Drawn::Svg), ..job };
+        let (name, data) = convert(dxf, "plan.dxf", &job).unwrap();
+        assert!(name == "plan.svg" && data.starts_with(b"<svg"));
     }
 }

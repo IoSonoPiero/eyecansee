@@ -184,7 +184,9 @@ enum Ask {
 
 impl App {
     pub(crate) fn open_rotate(&mut self, path: Option<String>) {
-        let Some(path) = path.or_else(|| self.target()).filter(|p| !p.ends_with('/')) else { return };
+        // In the grid the one picture among the files chosen (a video next to it is left out).
+        let picture = if self.viewing.is_some() { None } else { self.grid_images(path.clone()).into_iter().next() };
+        let Some(path) = picture.or(path).or_else(|| self.target()).filter(|p| crate::decode::is_image(p)) else { return };
         let Some(loader) = &self.loader else { return };
         loader.load_original(path.clone());
         // From the viewer: as it is shown there.

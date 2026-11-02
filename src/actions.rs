@@ -35,6 +35,8 @@ pub(crate) enum Act {
     ExportModel(Option<String>, crate::model_export::Kind),
     /// Convert and resize images of the grid (`None` = the marked ones or the selected one).
     Batch(Option<String>),
+    /// CAD drawings of the grid as pictures or SVG, drawn again (same `None`).
+    ExportDrawings(Option<String>),
     /// Converti e ridimensiona preset on copied streams: the video rewritten with its metadata.
     CopyMeta(Option<String>),
     /// Converti e ridimensiona on the audio only: taken out of the videos, or extracted.
@@ -180,6 +182,7 @@ impl App {
             Act::ExportModel(path, kind) => self.export_model(path, kind),
             Act::Duplicates(dir) => self.open_duplicates(dir),
             Act::Batch(path) => self.open_batch(path),
+            Act::ExportDrawings(path) => self.open_drawings(path),
             Act::CopyMeta(path) => self.open_copy_meta(path),
             Act::Audio(job, path) => self.open_audio(job, path),
             Act::Slideshow(path) => self.start_show(ctx, path),

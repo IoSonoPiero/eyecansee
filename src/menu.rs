@@ -8,6 +8,7 @@ use crate::navigation::Go;
 use crate::actions::{Act, transform_items};
 use crate::{App, icons, meta, settings, source, transform, version};
 use crate::loader::THUMB_SIDE;
+use crate::selection::{Kind, PLAYED, fits, starred};
 
 impl App {
     /// Every keyboard or double-click action also has a menu item, with the shortcut next to it.
@@ -47,20 +48,23 @@ impl App {
         entry(ui, act, self.can_make_folder(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder(None));
         ui.separator();
         entry(ui, act, self.can_save(), item(t("menu-save"), t("key-save")), Act::Save);
-        // As in the right-click menu: also in the grid, for one picture, 3D model or CAD drawing.
-        let one_file = self.viewing.is_none() && self.chosen(None).len() == 1 && self.target().is_some_and(|p| !p.ends_with('/') && !crate::decode::is_played(&p));
+        // As in the right-click menu: in the grid one picture, in the viewer also what a 3D model
+        // or a CAD drawing shows.
+        let files = self.files_chosen(None);
+        let one_picture = self.viewing.is_none() && files.len() == 1 && fits(&files, &[Kind::Picture]).is_some();
         // Ctrl+Shift+S works in the viewer only.
         let keys = if self.viewing.is_some() { t("key-save-copy") } else { String::new() };
-        entry(ui, act, self.viewing_image() || one_file, item(t("menu-save-copy"), keys), Act::Convert(None));
-        // As in the right-click menu: one 3D model, open or selected.
-        let model = self.chosen(None).len() <= 1 && self.target().is_some_and(|p| crate::model::is_model(&p));
-        ui.add_enabled_ui(model, |ui| {
-            ui.menu_button(t("menu-export-3d"), |ui| {
+        entry(ui, act, self.viewing_image() || one_picture, item(t("menu-save-copy"), keys), Act::Convert(None));
+        // As in the right-click menu: the 3D models among the files chosen.
+        let model = fits(&files, &[Kind::Model]);
+        ui.add_enabled_ui(model.is_some(), |ui| {
+            ui.menu_button(starred(t("menu-export-3d"), model != Some(false)), |ui| {
                 for k in crate::model_export::Kind::ALL {
                     entry(ui, act, true, egui::Button::new(k.label()), Act::ExportModel(None, k));
                 }
             });
         });
+        partial_note(ui, model == Some(false), &self.i18n);
         ui.separator();
         let can_change = self.target().is_some();
         let one = self.chosen(None).len() <= 1;
@@ -87,17 +91,20 @@ impl App {
     /// Transform), then Rotate and crop.
     fn image_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
-        let some = self.viewing_photo() || !self.grid_images(None).is_empty();
+        // In the grid the pictures among the files chosen ("*" with other kinds).
+        let fit = if self.viewing.is_some() { self.viewing_photo().then_some(true) } else { fits(&self.grid_items(None), &[Kind::Picture]) };
+        let star = |label| starred(label, fit != Some(false));
         for (op, label, keys) in transform_items() {
-            entry(ui, act, some, item(t(label), keys.map(t).unwrap_or_default()), Act::Transform(op, None));
+            entry(ui, act, fit.is_some(), item(star(t(label)), keys.map(t).unwrap_or_default()), Act::Transform(op, None));
             if op == transform::Op::FlipV {
                 ui.separator();
             }
         }
         ui.separator();
-        let one = self.chosen(None).len() <= 1;
-        let r = ui.add_enabled(some && one && self.target().is_some_and(|p| !p.ends_with('/')), egui::Button::new(t("menu-rotate-crop")));
+        let one = self.grid_images(None).len() <= 1;
+        let r = ui.add_enabled(fit.is_some() && one, egui::Button::new(star(t("menu-rotate-crop"))));
         pick(act, if one { r } else { r.on_disabled_hover_text(t("rc-one-only")) }, Act::RotateCrop(None));
+        partial_note(ui, fit == Some(false), &self.i18n);
     }
 
     fn view_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
@@ -147,13 +154,22 @@ impl App {
         let viewing = self.viewing.is_some();
         // One conversion at a time: the entries wait for the one running.
         let free = !viewing && self.batch.is_none();
-        // Audio files are not converted (`open_batch`): off when only they are chosen.
-        entry(ui, act, free && self.grid_items(None).iter().any(|p| !crate::decode::is_audio(p)), egui::Button::new(t("menu-batch")), Act::Batch(None));
-        let videos = free && self.grid_items(None).iter().any(|p| crate::decode::is_video(p));
-        entry(ui, act, videos, egui::Button::new(t("menu-copy-meta")), Act::CopyMeta(None));
-        entry(ui, act, videos, egui::Button::new(t("menu-strip-audio")), Act::Audio(crate::audio_job::AudioJob::Strip, None));
-        entry(ui, act, videos, egui::Button::new(t("menu-extract-audio")), Act::Audio(crate::audio_job::AudioJob::Extract, None));
+        // As in the right-click menu: each entry off when none of the files chosen is of a kind
+        // it works on, with "*" when only some are.
+        let chosen = self.grid_items(None);
+        let mut partial = false;
+        let mut kinds_entry = |ui: &mut egui::Ui, kinds: &[Kind], label: &str, a: Act| {
+            let fit = fits(&chosen, kinds);
+            partial |= free && fit == Some(false);
+            entry(ui, act, free && fit.is_some(), egui::Button::new(starred(self.i18n.t(label), fit != Some(false))), a);
+        };
+        kinds_entry(ui, PLAYED, "menu-batch", Act::Batch(None));
+        kinds_entry(ui, &[Kind::Drawing], "menu-export-drawings", Act::ExportDrawings(None));
+        kinds_entry(ui, &[Kind::Video], "menu-copy-meta", Act::CopyMeta(None));
+        kinds_entry(ui, &[Kind::Video], "menu-strip-audio", Act::Audio(crate::audio_job::AudioJob::Strip, None));
+        kinds_entry(ui, &[Kind::Video], "menu-extract-audio", Act::Audio(crate::audio_job::AudioJob::Extract, None));
         entry(ui, act, !viewing && self.loader.is_some() && !source::is_trash(&self.dir), egui::Button::new(t("menu-duplicates")), Act::Duplicates(None));
+        partial_note(ui, partial, &self.i18n);
         ui.separator();
         entry(ui, act, true, egui::Button::new(t("menu-options")), Act::Options);
     }
@@ -339,4 +355,12 @@ fn pick(act: &Cell<Option<Act>>, r: egui::Response, a: Act) {
 
 fn entry(ui: &mut egui::Ui, act: &Cell<Option<Act>>, enabled: bool, button: egui::Button, a: Act) {
     pick(act, ui.add_enabled(enabled, button), a);
+}
+
+/// At the bottom of a menu with an entry marked "*": what the mark means.
+fn partial_note(ui: &mut egui::Ui, partial: bool, i18n: &crate::i18n::I18n) {
+    if partial {
+        ui.separator();
+        ui.weak(i18n.t("menu-partial")).on_hover_text(i18n.t("menu-partial-hint"));
+    }
 }

@@ -83,7 +83,8 @@ impl App {
     /// chosen one.
     pub(crate) fn start_show(&mut self, ctx: &egui::Context, path: Option<String>) {
         let files: Vec<String> = self.files().iter().map(|f| f.path.clone()).collect();
-        let chosen = self.grid_items(path.clone());
+        // Pictures and videos: the 3D models, drawings and audio files chosen with them left out.
+        let chosen = self.grid_of(path.clone(), crate::selection::PLAYED);
         let current = path.or_else(|| self.viewing.and_then(|i| files.get(i).cloned())).or_else(|| chosen.first().cloned());
         let paths: Vec<String> = if chosen.len() > 1 { files.iter().filter(|p| chosen.contains(p)).cloned().collect() } else { files };
         if paths.is_empty() {
