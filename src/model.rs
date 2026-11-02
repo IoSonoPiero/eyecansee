@@ -251,6 +251,12 @@ pub fn parse_with(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, St
     }
 }
 
+/// The marks with which `model_export` writes an up axis other than the format's usual one
+/// (Z for STL, Y for OBJ and PLY): the file keeps the original's axes (user, 2026-11-02).
+pub(crate) const STL_Y_UP: &[u8] = b"EyeCanSee, Y up";
+pub(crate) const OBJ_Z_UP: &str = "# EyeCanSee, Z up";
+pub(crate) const PLY_Z_UP: &str = "comment EyeCanSee, Z up";
+
 fn stl(bytes: &[u8]) -> Result<Mesh, String> {
     let n = bytes.get(80..84).map_or(0, |c| u32::from_le_bytes([c[0], c[1], c[2], c[3]]) as usize);
     // Binary when the size matches its count, even if the header starts with "solid".
@@ -294,7 +300,7 @@ fn stl_binary(bytes: &[u8], n: usize) -> Result<Mesh, String> {
     }
     let mut b = Builder::default();
     b.add(pos, (0..n as u32).map(|i| [i * 3, i * 3 + 1, i * 3 + 2]), |i| colors[i])?;
-    b.finish(true)
+    b.finish(!bytes.starts_with(STL_Y_UP))
 }
 
 /// The file a model names next to itself, as a path of the same source: `rel` is relative to
@@ -351,7 +357,7 @@ fn obj(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
         };
         b.add_textured(pos, tris.clone(), colors, corners)?;
     }
-    b.finish(false)
+    b.finish(bytes.starts_with(OBJ_Z_UP.as_bytes()))
 }
 
 /// The average colour of a triangle's vertices, if they have colours.
@@ -385,6 +391,7 @@ fn ply_header_cleaned(bytes: &[u8]) -> Option<Vec<u8>> {
 }
 
 fn ply(bytes: &[u8]) -> Result<Mesh, String> {
+    let z_up = bytes.windows(10).position(|w| w == b"end_header").is_some_and(|end| String::from_utf8_lossy(&bytes[..end]).lines().any(|l| l.trim_end() == PLY_Z_UP));
     let cleaned = ply_header_cleaned(bytes);
     let bytes = cleaned.as_deref().unwrap_or(bytes);
     let ply = Parser::<DefaultElement>::new().read_ply(&mut Cursor::new(bytes)).map_err(|e| e.to_string())?;
@@ -415,7 +422,7 @@ fn ply(bytes: &[u8]) -> Result<Mesh, String> {
     let mut b = Builder::default();
     let colors = |i: usize| face_rgb.get(i).copied().flatten().or_else(|| average(&rgb, tris[i])).map(|c| c.map(|v| v as u8));
     b.add(pos, tris.clone(), colors)?;
-    b.finish(false)
+    b.finish(z_up)
 }
 
 /// Points without faces (3D scans): each one a small tetrahedron, as large as the space between

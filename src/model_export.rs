@@ -2,8 +2,9 @@
 //! (user, 2026-11-02): GLB (glTF) keeps the pictures, their coordinates, the normals and the
 //! surfaces (metal, roughness, bumps, occlusion, glow); OBJ the normals and colours on the
 //! vertices; PLY (binary) and STL (binary, VisCAM colours) a colour per triangle. Where the
-//! format cannot hold a picture, its colours are taken from it. Each gets the axes its format
-//! expects: Z up for STL, Y up for the others.
+//! format cannot hold a picture, its colours are taken from it. STL, OBJ and PLY keep the
+//! original's axes, with a mark when up is not the format's usual axis (`model::STL_Y_UP`…);
+//! GLB is turned to Y up, as glTF requires.
 
 use std::collections::BTreeMap;
 use std::fmt::Write;
@@ -44,17 +45,13 @@ impl Kind {
 /// triangles with their pictures in them.
 struct View<'a> {
     mesh: &'a Mesh,
-    /// Z up for STL, Y up for the others.
-    stl: bool,
+    /// glTF: turned to Y up. The other formats keep the original's axes.
+    glb: bool,
 }
 
 impl View<'_> {
     fn turn(&self, p: [f32; 3]) -> [f32; 3] {
-        match (self.stl, self.mesh.z_up) {
-            (true, false) => [p[0], -p[2], p[1]],
-            (false, true) => [p[0], p[2], -p[1]],
-            _ => p,
-        }
+        if self.glb && self.mesh.z_up { [p[0], p[2], -p[1]] } else { p }
     }
 
     fn corner(&self, t: usize, k: usize) -> [f32; 3] {
@@ -124,7 +121,7 @@ fn unit(n: [f32; 3]) -> [f32; 3] {
 
 /// The file's bytes.
 pub fn export(mesh: &Mesh, kind: Kind) -> Vec<u8> {
-    let v = View { mesh, stl: kind == Kind::Stl };
+    let v = View { mesh, glb: kind == Kind::Glb };
     match kind {
         Kind::Stl => stl(&v),
         Kind::Obj => obj(&v),
@@ -138,7 +135,7 @@ fn floats(out: &mut Vec<u8>, v: &[f32]) {
 }
 
 fn stl(v: &View) -> Vec<u8> {
-    let mut out = b"EyeCanSee".to_vec();
+    let mut out = if v.mesh.z_up { b"EyeCanSee".to_vec() } else { crate::model::STL_Y_UP.to_vec() };
     out.resize(80, 0);
     out.extend((v.mesh.tris.len() as u32).to_le_bytes());
     let colored = v.colored();
@@ -161,7 +158,7 @@ fn stl(v: &View) -> Vec<u8> {
 }
 
 fn obj(v: &View) -> Vec<u8> {
-    let mut s = String::from("# EyeCanSee\n");
+    let mut s = if v.mesh.z_up { format!("{}\n", crate::model::OBJ_Z_UP) } else { String::from("# EyeCanSee\n") };
     let (colored, smooth) = (v.colored(), !v.mesh.normals.is_empty());
     // Each triangle its own corners: colours and normals are per corner.
     for t in 0..v.mesh.tris.len() {
@@ -187,7 +184,8 @@ fn obj(v: &View) -> Vec<u8> {
 fn ply(v: &View) -> Vec<u8> {
     let colored = v.colored();
     let mut out = format!(
-        "ply\nformat binary_little_endian 1.0\ncomment EyeCanSee\nelement vertex {}\nproperty float x\nproperty float y\nproperty float z\nelement face {}\nproperty list uchar uint vertex_indices\n{}end_header\n",
+        "ply\nformat binary_little_endian 1.0\n{}\nelement vertex {}\nproperty float x\nproperty float y\nproperty float z\nelement face {}\nproperty list uchar uint vertex_indices\n{}end_header\n",
+        if v.mesh.z_up { crate::model::PLY_Z_UP } else { "comment EyeCanSee" },
         v.mesh.pos.len(),
         v.mesh.tris.len(),
         if colored { "property uchar red\nproperty uchar green\nproperty uchar blue\n" } else { "" }
@@ -405,6 +403,11 @@ mod tests {
                 let top = |v: &[[f32; 3]]| v.iter().map(|p| p[1]).fold(f32::MIN, f32::max);
                 assert_eq!(top(&a), top(&b), "{kind:?} z_up {z_up}: {a:?} -> {b:?}");
                 assert!(b.iter().any(|p| (p[0] - 1.0).abs() < 1e-6), "{kind:?} z_up {z_up}: {b:?}");
+                // The original's axes kept, except in glTF (always Y up).
+                assert_eq!(back.z_up, z_up && kind != Kind::Glb, "{kind:?}");
+                if kind != Kind::Glb {
+                    assert_eq!(back.pos, m.pos, "{kind:?}");
+                }
             }
         }
     }
@@ -438,6 +441,32 @@ mod tests {
                     }
                 }
                 println!();
+            }
+        }
+    }
+
+    /// Every model in `EYECANSEE_AXES` (one folder): its up axis as read, and its size along X, Y
+    /// and Z as stored and as shown (Y up), to compare a model with its exports.
+    #[test]
+    #[ignore]
+    fn axes_live() {
+        let Ok(dir) = std::env::var("EYECANSEE_AXES") else { return };
+        for f in std::fs::read_dir(dir).unwrap().flatten() {
+            let name = f.path().to_string_lossy().to_string();
+            if !crate::model::is_model(&name) {
+                continue;
+            }
+            match crate::model::parse(&std::fs::read(f.path()).unwrap(), &name) {
+                Ok(m) => {
+                    let size = |v: &[[f32; 3]]| [0, 1, 2].map(|k| (v.iter().map(|p| p[k]).fold(f32::MIN, f32::max) - v.iter().map(|p| p[k]).fold(f32::MAX, f32::min)).round());
+                    let shown: Vec<[f32; 3]> = m.pos.iter().map(|p| if m.z_up { [p[0], p[2], -p[1]] } else { *p }).collect();
+                    println!("{}: z_up {}, stored {:?}, shown {:?}", f.file_name().to_string_lossy(), m.z_up, size(&m.pos), size(&shown));
+                    for kind in Kind::ALL {
+                        let b = crate::model::parse(&export(&m, kind), &format!("x.{}", kind.ext())).unwrap();
+                        println!("    exported as {}: z_up {}, stored {:?}", kind.ext(), b.z_up, size(&b.pos));
+                    }
+                }
+                Err(e) => println!("{}: ERROR {e}", f.file_name().to_string_lossy()),
             }
         }
     }

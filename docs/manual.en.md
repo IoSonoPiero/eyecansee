@@ -148,7 +148,7 @@ Audio files (M4A, MP3, Opus, Ogg, FLAC, WAV, MKA and others, for example those m
 - **Page Down**, **Space** and **Page Up**, **Backspace**: next and previous item (the arrows turn the model instead); **Esc** or a double click: back to the grid.
 - **Ctrl+S** (or *Save in another format*): the model as it is shown, as an image, at least 1920 pixels wide, with the same formats and options as for photos.
 
-Right click (or **File**) > **Export as a 3D model** saves the models chosen (one or more) as STL, OBJ, PLY or glTF (GLB), each next to itself, with as much of the original as the format holds: glTF (GLB) keeps the textures, normals and surfaces, the other formats get the colours (taken from the textures where there are any); the status bar says the name it got.
+Right click (or **File**) > **Export as a 3D model** saves the models chosen (one or more) as STL, OBJ, PLY or glTF (GLB), each next to itself, with as much of the original as the format holds: glTF (GLB) keeps the textures, normals and surfaces, the other formats get the colours (taken from the textures where there are any); STL, OBJ and PLY keep the original's axes, while GLB always has Y up, as glTF requires, so the axes in its corner differ from a CAD model's; the status bar says the name it got.
 
 A band above the status bar recalls these keys, for 3D models and CAD drawings. In the top right corner the axes of the file (X red, Y green, Z blue) turn with the model, as in CAD programs; a CAD drawing shows its X and Y in the bottom left corner.
 
