@@ -251,7 +251,9 @@ impl App {
             egui::Frame::popup(ui.style()).show(ui, |ui| {
                 ui.label(egui::RichText::new(self.i18n.t("keys-button")).strong().size(16.0));
                 ui.separator();
-                // A row for each key, in alternating stripes, so a key stays with what it does.
+                // A row for each key, in alternating stripes, so a key stays with what it does. The
+                // dark theme's stripe was the popup's own grey, the light one too faint (user, 2026-11-02).
+                ui.visuals_mut().faint_bg_color = if ui.visuals().dark_mode { Color32::from_gray(60) } else { Color32::from_gray(228) };
                 egui::Grid::new("viewer-keys-grid").num_columns(2).spacing([18.0, 6.0]).striped(true).show(ui, |ui| {
                     for (keys, what) in key_rows(&text) {
                         ui.label(egui::RichText::new(keys).strong());
