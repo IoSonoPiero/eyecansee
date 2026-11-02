@@ -194,6 +194,11 @@ impl App {
                 }
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
+            } else if let Some(name) = self.cad_sheet_name(current) {
+                ui.separator();
+                ui.label(name);
+                ui.separator();
+                ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
             } else if let Some(Ok(tex)) = self.full.get(&current) {
                 let [w, h] = tex.size();
                 let (w, h) = if self.turn.sideways() { (h, w) } else { (w, h) };
@@ -235,7 +240,8 @@ impl App {
         if self.viewed_mesh().is_some() {
             return Some("hint-model");
         }
-        self.files().get(current).filter(|f| crate::cad::is_cad(&f.path)).map(|_| "hint-cad")
+        let cad = self.files().get(current).is_some_and(|f| crate::cad::is_cad(&f.path));
+        cad.then(|| if self.cad_has_sheets(current) { "hint-cad-layouts" } else { "hint-cad" })
     }
 
     /// Value of a metadata field as shown: Fluent ids translated, dates in the language's format.

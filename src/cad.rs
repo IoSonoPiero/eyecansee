@@ -16,7 +16,7 @@ const CAD: &[&str] = &["dxf", "dwg", "plt", "hpgl", "hpg", "hgl"];
 
 /// AutoCAD's model space background, and its colour 7 (white on a dark background).
 pub const BACKGROUND: [u8; 3] = [33, 40, 48];
-const WHITE: [u8; 3] = [255, 255, 255];
+pub(crate) const WHITE: [u8; 3] = [255, 255, 255];
 /// Blocks inside blocks; deeper is a loop or a damaged file.
 const MAX_DEPTH: u32 = 16;
 /// Points of the whole drawing, so that a damaged file cannot fill the memory.
@@ -63,6 +63,8 @@ pub enum Baseline {
 #[derive(Debug, Default)]
 pub struct Drawing {
     pub items: Vec<Item>,
+    /// The layouts (paper space) with something on them, by name, in their tab order.
+    pub sheets: Vec<(String, std::sync::Arc<Drawing>)>,
     pub(crate) points: usize,
 }
 
@@ -77,7 +79,7 @@ pub fn read(bytes: &[u8], name: &str) -> Result<Drawing, String> {
         DxfReader::from_reader(Cursor::new(bytes.to_vec())).and_then(|r| r.read()).map_err(|e| e.to_string())?
     };
     let mut d = Drawing::default();
-    let mut walk = Walk { doc: &doc, out: &mut d };
+    let mut walk = Walk::new(&doc, &mut d);
     let model: Vec<&EntityType> = doc.model_space_entities().collect();
     let model = if model.is_empty() { unplaced(&doc) } else { model };
     let top = Context { t: Affine::IDENTITY, layer: None, color: WHITE, style: CONTINUOUS, depth: 0 };
@@ -87,6 +89,7 @@ pub fn read(bytes: &[u8], name: &str) -> Result<Drawing, String> {
     if d.items.is_empty() {
         return Err("nothing to draw in the model space".into());
     }
+    d.sheets = crate::cad_layout::sheets(&doc);
     Ok(d)
 }
 
@@ -110,27 +113,30 @@ fn unplaced(doc: &CadDocument) -> Vec<&EntityType> {
 
 /// Where the entities of a block go: transform, the insert's layer (for entities on layer 0),
 /// colour, line type and weight (for those "by block").
-struct Context<'a> {
-    t: Affine,
-    layer: Option<&'a str>,
-    color: [u8; 3],
-    style: Style<'a>,
-    depth: u32,
+pub(crate) struct Context<'a> {
+    pub(crate) t: Affine,
+    pub(crate) layer: Option<&'a str>,
+    pub(crate) color: [u8; 3],
+    pub(crate) style: Style<'a>,
+    pub(crate) depth: u32,
 }
 
 /// A line type by name, its scale, and a weight in millimetres.
 #[derive(Clone, Copy)]
-struct Style<'a> {
+pub(crate) struct Style<'a> {
     linetype: &'a str,
     scale: f64,
     weight: f32,
 }
 
-const CONTINUOUS: Style = Style { linetype: "Continuous", scale: 1.0, weight: THIN };
+pub(crate) const CONTINUOUS: Style = Style { linetype: "Continuous", scale: 1.0, weight: THIN };
 
-struct Walk<'a> {
+pub(crate) struct Walk<'a> {
     doc: &'a CadDocument,
     out: &'a mut Drawing,
+    /// Inside a layout's viewport: its box on the sheet, and the layers frozen in it (lower case).
+    pub(crate) clip: Option<[f64; 4]>,
+    pub(crate) frozen: Vec<String>,
 }
 
 fn xy(v: &Vector3) -> P {
@@ -142,6 +148,10 @@ fn n3(v: &Vector3) -> [f64; 3] {
 }
 
 impl<'a> Walk<'a> {
+    pub(crate) fn new(doc: &'a CadDocument, out: &'a mut Drawing) -> Self {
+        Walk { doc, out, clip: None, frozen: Vec::new() }
+    }
+
     /// The layer an entity is drawn on, if visible: layer 0 inside a block takes the insert's.
     fn layer<'b>(&self, e: &'b EntityType, ctx: &Context<'b>) -> Option<&'b str>
     where
@@ -151,6 +161,7 @@ impl<'a> Walk<'a> {
         let name = if own == "0" { ctx.layer.unwrap_or(own) } else { own };
         match self.doc.layers.get(name) {
             Some(l) if l.is_frozen() || l.is_off() => None,
+            _ if self.frozen.iter().any(|f| f.eq_ignore_ascii_case(name)) => None,
             _ => Some(name),
         }
     }
@@ -201,14 +212,19 @@ impl<'a> Walk<'a> {
         Stroke { dash, weight: style.weight }
     }
 
-    fn line(&mut self, pts: Vec<P>, t: &Affine, color: [u8; 3], fill: Option<f32>, stroke: Stroke) -> Result<(), String> {
+    pub(crate) fn line(&mut self, pts: Vec<P>, t: &Affine, color: [u8; 3], fill: Option<f32>, stroke: Stroke) -> Result<(), String> {
         self.out.points += pts.len();
         if self.out.points > MAX_POINTS {
             return Err(format!("more than {MAX_POINTS} points"));
         }
         let pts: Vec<P> = pts.into_iter().map(|p| t.apply(p)).filter(|p| p[0].is_finite() && p[1].is_finite()).collect();
-        if pts.len() >= 2 {
-            self.out.items.push(Item::Line { pts, color, fill, stroke });
+        let pieces = match (self.clip, fill) {
+            (None, _) => vec![pts],
+            (Some(b), Some(_)) => vec![cad_geom::clip_polygon(&pts, b)],
+            (Some(b), None) => cad_geom::clip_polyline(&pts, b),
+        };
+        for pts in pieces.into_iter().filter(|p| p.len() >= 2) {
+            self.out.items.push(Item::Line { pts, color, fill, stroke: stroke.clone() });
         }
         Ok(())
     }
@@ -217,7 +233,8 @@ impl<'a> Walk<'a> {
         let text = l.text.trim().to_string();
         let at = t.apply(l.at);
         let height = l.height * t.length_scale();
-        if text.is_empty() || height.is_nan() || height <= 0.0 || !at[0].is_finite() || !at[1].is_finite() {
+        let outside = self.clip.is_some_and(|b| at[0] < b[0] || at[0] > b[2] || at[1] < b[1] || at[1] > b[3]);
+        if text.is_empty() || height.is_nan() || height <= 0.0 || !at[0].is_finite() || !at[1].is_finite() || outside {
             return;
         }
         // The text's direction after the transform; a mirrored text stays readable.
@@ -225,7 +242,7 @@ impl<'a> Walk<'a> {
         self.out.items.push(Item::Text { at, height, angle, text, color, anchor: l.anchor });
     }
 
-    fn entity(&mut self, e: &EntityType, ctx: &Context) -> Result<(), String> {
+    pub(crate) fn entity(&mut self, e: &EntityType, ctx: &Context) -> Result<(), String> {
         let common = e.common();
         if common.invisible {
             return Ok(());

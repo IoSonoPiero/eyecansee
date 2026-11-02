@@ -243,6 +243,61 @@ pub fn hatch_lines(boundaries: &[Vec<P>], l: &PatternLine, budget: usize) -> Opt
     Some(out)
 }
 
+/// The pieces of a polyline inside the box `[x0, y0, x1, y1]` (Liang-Barsky on each segment).
+pub fn clip_polyline(pts: &[P], b: [f64; 4]) -> Vec<Vec<P>> {
+    let mut out: Vec<Vec<P>> = Vec::new();
+    let mut open = false;
+    for w in pts.windows(2) {
+        let (p, q) = (w[0], w[1]);
+        let d = [q[0] - p[0], q[1] - p[1]];
+        let (mut t0, mut t1) = (0.0f64, 1.0f64);
+        let inside = [(-d[0], p[0] - b[0]), (d[0], b[2] - p[0]), (-d[1], p[1] - b[1]), (d[1], b[3] - p[1])].iter().all(|&(pk, qk)| {
+            if pk == 0.0 {
+                return qk >= 0.0;
+            }
+            let r = qk / pk;
+            if pk < 0.0 { t0 = t0.max(r) } else { t1 = t1.min(r) }
+            t0 <= t1
+        });
+        if !inside {
+            open = false;
+            continue;
+        }
+        let (a, c) = ([p[0] + t0 * d[0], p[1] + t0 * d[1]], [p[0] + t1 * d[0], p[1] + t1 * d[1]]);
+        match out.last_mut() {
+            Some(last) if open && t0 == 0.0 => last.push(c),
+            _ => out.push(vec![a, c]),
+        }
+        open = t1 == 1.0;
+    }
+    out
+}
+
+/// A filled outline cut to the box (Sutherland-Hodgman, one side at a time).
+pub fn clip_polygon(pts: &[P], b: [f64; 4]) -> Vec<P> {
+    let mut poly = pts.to_vec();
+    let sides: [(usize, f64, bool); 4] = [(0, b[0], true), (0, b[2], false), (1, b[1], true), (1, b[3], false)];
+    for (k, edge, low) in sides {
+        let inside = |p: &P| if low { p[k] >= edge } else { p[k] <= edge };
+        let mut next = Vec::new();
+        for i in 0..poly.len() {
+            let (p, q) = (poly[i], poly[(i + 1) % poly.len()]);
+            if inside(&p) {
+                next.push(p);
+            }
+            if inside(&p) != inside(&q) {
+                let t = (edge - p[k]) / (q[k] - p[k]);
+                next.push([p[0] + t * (q[0] - p[0]), p[1] + t * (q[1] - p[1])]);
+            }
+        }
+        poly = next;
+        if poly.is_empty() {
+            break;
+        }
+    }
+    poly
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -307,5 +362,17 @@ mod tests {
         assert!(close(lines[0][0], [-10.5, -10.0]) && close(lines[0][1], [-10.0, -10.0]));
         assert!(close(lines[1][0], [-9.0, -10.0]) && close(lines[1][1], [-7.0, -10.0]));
         assert!(hatch_lines(&[square(10.5)], &horizontal, 5).is_none());
+    }
+
+    #[test]
+    fn lines_and_outlines_cut_to_a_box() {
+        let b = [0.0, 0.0, 10.0, 10.0];
+        // In, out and in again: two pieces, cut at the edges.
+        let pieces = clip_polyline(&[[5.0, 5.0], [15.0, 5.0], [15.0, 8.0], [5.0, 8.0]], b);
+        assert_eq!(pieces, vec![vec![[5.0, 5.0], [10.0, 5.0]], vec![[10.0, 8.0], [5.0, 8.0]]]);
+        assert!(clip_polyline(&[[20.0, 20.0], [30.0, 30.0]], b).is_empty());
+        let square = clip_polygon(&[[-5.0, -5.0], [5.0, -5.0], [5.0, 5.0], [-5.0, 5.0]], b);
+        let area: f64 = (0..square.len()).map(|i| { let (p, q) = (square[i], square[(i + 1) % square.len()]); p[0] * q[1] - q[0] * p[1] }).sum::<f64>() / 2.0;
+        assert!((area.abs() - 25.0).abs() < 1e-9);
     }
 }

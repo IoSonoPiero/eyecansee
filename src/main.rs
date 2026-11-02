@@ -32,6 +32,7 @@ mod cad;
 mod cad_engine;
 mod cad_geom;
 mod cad_hpgl;
+mod cad_layout;
 mod cad_view;
 mod component;
 mod confirm;

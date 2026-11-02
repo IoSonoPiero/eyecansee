@@ -51,6 +51,9 @@ impl App {
         if model {
             return self.model_keys(ctx);
         }
+        if let Some(current) = self.viewing {
+            self.cad_keys(ctx, current);
+        }
         let (cw, ccw, save, save_copy) = ctx.input_mut(|i| {
             let shift = egui::Modifiers::COMMAND | egui::Modifiers::SHIFT;
             // With Shift first: Ctrl+R would match Ctrl+Shift+R too.
@@ -188,6 +191,17 @@ impl App {
     #[allow(clippy::too_many_lines)] // to be split
     fn zoom_view(&mut self, ui: &egui::Ui, response: &egui::Response, tex: &TextureHandle, current: usize) {
         let rect = response.rect;
+        // A layout of a CAD drawing in place of its model, once drawn.
+        let sheet = self.cad_sheet_texture(ui.ctx(), current);
+        let tex = match &sheet {
+            Some(t) => t,
+            None if self.cad_sheet_waiting(current) => {
+                egui::Spinner::new().paint_at(ui, egui::Rect::from_center_size(rect.center(), egui::vec2(32.0, 32.0)));
+                ui.ctx().request_repaint();
+                return;
+            }
+            None => tex,
+        };
         let ppp = ui.ctx().pixels_per_point();
         if self.zoom_of != Some(current) {
             // Reached only once the turns were saved or dropped: leaving the image asks first (`hold_for_turn`).

@@ -67,12 +67,12 @@ Shown in the grid as a picture and in the viewer in 3D (drawn by the graphics ca
 
 ### CAD drawings
 
-Seen from above (model space) and shown as an image, drawn again sharp at every zoom; saved as images from *Save in another format*.
+Seen from above (model space, and the layouts with L) and shown as an image, drawn again sharp at every zoom; saved as images from *Save in another format*.
 
 | Format | Extensions | Linux | Windows | Reader |
 |---|---|:-:|:-:|---|
-| DWG (R13 to 2018 and later; line types, weights, hatch patterns) | dwg | ✓ | ✓ | `acadrust` |
-| DXF (text and binary, R12 to 2018 and later; line types, weights, hatch patterns) | dxf | ✓ | ✓ | `acadrust` |
+| DWG (R13 to 2018 and later; line types, weights, hatch patterns, layouts) | dwg | ✓ | ✓ | `acadrust` |
+| DXF (text and binary, R12 to 2018 and later; line types, weights, hatch patterns, layouts) | dxf | ✓ | ✓ | `acadrust` |
 | HP-GL and HP-GL/2 plot files (also inside PCL; pens, widths, line types, user units, arcs, labels) | plt, hpgl, hpg, hgl | ✓ | ✓ | EyeCanSee |
 
 A file with the wrong extension (for example an iPhone HEIC saved as `.jpg`) is recognised from its content. A file the dedicated decoder cannot read is tried once more with ImageMagick.
