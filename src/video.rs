@@ -155,11 +155,25 @@ impl App {
         (paint_fitted(painter, rect, player, &mut v.texture), player.ended())
     }
 
-    /// libmpv can play videos. Never the engine downloaded in this session: only a restart
-    /// activates it (on Windows the first load right after the download failed, 2026-10-27; the
-    /// user wants the restart always).
+    /// libmpv can play videos: also the engine just downloaded, at once, as FFmpeg and the CAD
+    /// engine (user, 2026-11-02; the restart asked for on 2026-10-27 seemed slow). A restart is
+    /// offered only when it cannot be loaded (`Engine::Ready`: the first load right after the
+    /// download failed once on Windows, 2026-10-27).
     fn engine(&self) -> bool {
-        self.download.is_none() && mpv::available()
+        mpv::available()
+    }
+
+    /// The engine just downloaded and loaded: the videos' thumbnails that failed without it are
+    /// made again, and the download is done with.
+    fn engine_arrived(&mut self) {
+        let done = self.download.as_ref().is_some_and(|d| matches!(*d.result.lock().unwrap(), Some(Ok(()))));
+        if !done || !self.engine() {
+            return;
+        }
+        log!("video engine downloaded: used at once");
+        self.download = None;
+        let videos = self.files().iter().filter(|f| decode::is_played(&f.path)).map(|f| f.path.clone()).collect();
+        self.on_forgotten(videos);
     }
 
     /// Without libmpv where it can be downloaded: what it is, its size and the button; then the
@@ -212,6 +226,7 @@ impl App {
     /// with libmpv or where there is no component to download.
     pub(crate) fn engine_bar(&mut self, ui: &mut egui::Ui) {
         let Some(c) = crate::component::VIDEO else { return };
+        self.engine_arrived();
         if self.engine() {
             return;
         }

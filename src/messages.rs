@@ -419,7 +419,7 @@ impl App {
         }
     }
 
-    fn on_forgotten(&mut self, paths: Vec<String>) {
+    pub(crate) fn on_forgotten(&mut self, paths: Vec<String>) {
         let paths: HashSet<String> = paths.into_iter().collect();
         let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
         let gone: Vec<usize> = l.files.iter().enumerate().filter(|(_, f)| paths.contains(&f.path)).map(|(i, _)| i).collect();
