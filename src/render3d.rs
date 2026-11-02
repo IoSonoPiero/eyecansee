@@ -239,6 +239,20 @@ fn fill(pixels: &mut [u8], depth: &mut [f32], w: usize, y0: usize, rows: usize, 
     }
 }
 
+/// Where the file's X, Y and Z axes point on the screen in `view`: right, down (as egui) and
+/// towards the viewer, for the axes in the corner of the viewer.
+pub fn axes(view: &View, z_up: bool) -> [[f32; 3]; 3] {
+    let t = view.turned;
+    std::array::from_fn(|axis| {
+        let mut v = [0.0f32; 3];
+        v[axis] = 1.0;
+        // Z up turned to Y up, as `eye_matrix` does.
+        let v = if z_up { [v[0], v[2], -v[1]] } else { v };
+        let e: [f32; 3] = std::array::from_fn(|r| t[r][0] * v[0] + t[r][1] * v[1] + t[r][2] * v[2]);
+        [e[0], -e[1], e[2]]
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -314,5 +328,16 @@ mod tests {
             assert!(((x + 1.0) * w / 2.0 - sx).abs() < 1e-2 && ((1.0 - y) * h / 2.0 - sy).abs() < 1e-2);
             assert!((0.0..=1.0).contains(&z));
         }
+    }
+
+    #[test]
+    fn the_axes_follow_the_view() {
+        // From the front: X right, Y up (down is +y on screen), Z towards the viewer.
+        let a = axes(&View::angles(0.0, 0.0), false);
+        assert_eq!(a, [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0], [0.0, 0.0, 1.0]]);
+        // A CAD model with Z up: Z points up on the screen, Y away from the viewer.
+        let a = axes(&View::angles(0.0, 0.0), true);
+        assert_eq!(a[2], [0.0, -1.0, 0.0]);
+        assert_eq!(a[1], [0.0, 0.0, -1.0]);
     }
 }

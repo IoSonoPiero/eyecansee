@@ -197,3 +197,16 @@ impl App {
         None
     }
 }
+
+/// The axes of a drawing in the bottom left corner, as AutoCAD's UCS icon: X to the right in red,
+/// Y up in green (drawings are seen from above).
+pub(crate) fn ucs_corner(painter: &egui::Painter, rect: egui::Rect) {
+    const LEN: f32 = 40.0;
+    let o = rect.left_bottom() + egui::vec2(28.0, -28.0);
+    for (dir, color, label) in [(egui::vec2(1.0, 0.0), egui::Color32::from_rgb(235, 80, 80), "X"), (egui::vec2(0.0, -1.0), egui::Color32::from_rgb(100, 210, 100), "Y")] {
+        let tip = o + dir * LEN;
+        painter.arrow(o, dir * LEN, egui::Stroke::new(2.5, color));
+        painter.text(tip + dir * 10.0, egui::Align2::CENTER_CENTER, label, egui::FontId::proportional(14.0), color);
+    }
+    painter.rect_filled(egui::Rect::from_center_size(o, egui::vec2(7.0, 7.0)), 0.0, egui::Color32::from_gray(220));
+}

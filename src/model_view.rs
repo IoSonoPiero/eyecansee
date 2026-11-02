@@ -150,6 +150,7 @@ impl App {
         sky.add_triangle(0, 2, 3);
         painter.add(sky);
         painter.image(id, rect, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+        axes_corner(&painter, rect, render3d::axes(&view, mesh.z_up));
         self.zoom_shown = view.zoom;
         self.count_frame(ui.input(|i| i.time));
         Some(response)
@@ -200,5 +201,25 @@ impl App {
             });
             self.model.view.zoom_by(f);
         }
+    }
+}
+
+/// The axes of the file in the top right corner, as CAD programs show them: X red, Y green, Z
+/// blue, turning with the model; those pointing away are fainter and drawn first.
+fn axes_corner(painter: &egui::Painter, rect: egui::Rect, axes: [[f32; 3]; 3]) {
+    const LEN: f32 = 38.0;
+    let centre = rect.right_top() + egui::vec2(-62.0, 62.0);
+    painter.circle_filled(centre, LEN + 16.0, egui::Color32::from_black_alpha(70));
+    let colors = [egui::Color32::from_rgb(235, 80, 80), egui::Color32::from_rgb(100, 210, 100), egui::Color32::from_rgb(90, 150, 255)];
+    let mut order = [0, 1, 2];
+    order.sort_by(|&a, &b| axes[a][2].total_cmp(&axes[b][2]));
+    for i in order {
+        let [x, y, z] = axes[i];
+        let tip = centre + egui::vec2(x, y) * LEN;
+        let color = if z < -0.05 { colors[i].gamma_multiply(0.55) } else { colors[i] };
+        painter.line_segment([centre, tip], egui::Stroke::new(3.0, color));
+        painter.circle_filled(tip, 3.0, color);
+        let label = centre + egui::vec2(x, y) * (LEN + 10.0);
+        painter.text(label, egui::Align2::CENTER_CENTER, ["X", "Y", "Z"][i], egui::FontId::proportional(14.0), color);
     }
 }

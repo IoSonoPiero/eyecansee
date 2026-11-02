@@ -148,7 +148,7 @@ Audio files (M4A, MP3, Opus, Ogg, FLAC, WAV, MKA and others, for example those m
 - **Page Down**, **Space** and **Page Up**, **Backspace**: next and previous item (the arrows turn the model instead); **Esc** or a double click: back to the grid.
 - **Ctrl+S** (or *Save in another format*): the model as it is shown, as an image, at least 1920 pixels wide, with the same formats and options as for photos.
 
-A band above the status bar recalls these keys, for 3D models and CAD drawings.
+A band above the status bar recalls these keys, for 3D models and CAD drawings. In the top right corner the axes of the file (X red, Y green, Z blue) turn with the model, as in CAD programs; a CAD drawing shows its X and Y in the bottom left corner.
 
 The colours stored in the file are shown (colours of materials, faces and vertices); textures are not, and a model without colours is light grey. The status bar shows the number of triangles, the zoom and, while the model moves, the frames per second. *Convert and resize* turns several models into images at once, seen from the starting view.
 

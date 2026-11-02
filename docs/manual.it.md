@@ -148,7 +148,7 @@ I modelli 3D fatti di triangoli compaiono nella griglia accanto alle immagini, c
 - **Pagina giù**, **Spazio** e **Pagina su**, **Backspace**: elemento successivo e precedente (le frecce invece girano il modello); **Esc** o un doppio clic: torna alla griglia.
 - **Ctrl+S** (o *Salva in un altro formato*): il modello come si vede, come immagine, larga almeno 1920 pixel, con gli stessi formati e le stesse opzioni delle foto.
 
-Una fascia sopra la barra di stato ricorda questi tasti, per i modelli 3D e i disegni CAD.
+Una fascia sopra la barra di stato ricorda questi tasti, per i modelli 3D e i disegni CAD. In alto a destra gli assi del file (X rosso, Y verde, Z blu) girano col modello, come nei programmi CAD; un disegno CAD mostra la sua X e la sua Y in basso a sinistra.
 
 Si vedono i colori scritti nel file (colori di materiali, facce e vertici); le texture no, e un modello senza colori è grigio chiaro. La barra di stato mostra il numero di triangoli, l'ingrandimento e, mentre il modello si muove, i fotogrammi al secondo. *Converti e ridimensiona* trasforma più modelli in immagini in una volta, visti dalla vista di partenza.
 

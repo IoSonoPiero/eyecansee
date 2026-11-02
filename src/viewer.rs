@@ -288,6 +288,9 @@ impl App {
         };
         // A CAD drawing: drawn again sharp once the view stops.
         self.cad_sharpen(ui, current, tex.size_vec2(), dest, uv);
+        if self.files().get(current).is_some_and(|f| crate::cad::is_cad(&f.path)) && self.turn.is_none() {
+            crate::cad_view::ucs_corner(&painter, rect);
+        }
         self.zoom_shown = self.zoom.unwrap_or(fit);
     }
 }
