@@ -2,13 +2,31 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 /// Diagnostic log: with `EYECANSEE_LOG=1` writes to stderr what happens, with the seconds since
-/// startup. Defined before the modules so they can use it too.
+/// startup; with `EYECANSEE_LOG=<file>` appends it to that file, so the instance started again
+/// after an engine is downloaded (which inherits the variable) writes on in the same log.
+/// Defined before the modules so they can use it too.
 macro_rules! log {
     ($($arg:tt)*) => {
         if $crate::log_enabled() {
-            eprintln!("[{:8.3}] {}", $crate::log_time(), format!($($arg)*));
+            $crate::log_line(&format!($($arg)*));
         }
     };
+}
+
+fn log_line(text: &str) {
+    use std::io::Write;
+    static FILE: std::sync::OnceLock<Option<std::sync::Mutex<std::fs::File>>> = std::sync::OnceLock::new();
+    let file = FILE.get_or_init(|| {
+        let to = std::env::var_os("EYECANSEE_LOG").filter(|v| v != "1")?;
+        std::fs::OpenOptions::new().create(true).append(true).open(to).ok().map(std::sync::Mutex::new)
+    });
+    let line = format!("[{:8.3}] {text}\n", log_time());
+    match file.as_ref().and_then(|f| f.lock().ok()) {
+        Some(mut f) => {
+            let _ = f.write_all(line.as_bytes());
+        }
+        None => eprint!("{line}"),
+    }
 }
 
 fn log_enabled() -> bool {
@@ -633,6 +651,8 @@ impl eframe::App for App {
 }
 
 fn main() -> eframe::Result {
+    // Each start marked, also in a log file shared with an earlier instance.
+    log!("EyeCanSee {} started, process {}", version(), std::process::id());
     // A local path is made absolute: the instance it is handed to has another working folder.
     let arg = std::env::args().nth(1).map(|a| match a.contains("://") {
         true => a,
