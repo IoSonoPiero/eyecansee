@@ -1,7 +1,8 @@
 //! VRML 97 and X3D (`.wrl`, `.x3d`, `.x3dv`, also gzipped): the scene read by `model_vrml`,
 //! walked through transforms, groups, switches, levels of detail and inlined files next to it;
 //! the shapes' face sets, triangle sets, elevation grids and primitives (box, sphere, cylinder,
-//! cone) in the colour of their material or of their vertices and faces.
+//! cone) in the colour of their material or of their vertices and faces, or with their picture
+//! (ImageTexture, on face and triangle sets with texture coordinates).
 
 use std::rc::Rc;
 
@@ -73,7 +74,8 @@ impl Walk<'_, '_> {
     }
 
     fn shape(&mut self, n: &SceneNode, m: &Mat4) -> Result<(), String> {
-        let material = n.children().find(|c| c.kind == "Appearance").and_then(|a| a.children().find(|c| c.kind.ends_with("Material")).cloned());
+        let appearance = n.children().find(|c| c.kind == "Appearance");
+        let material = appearance.and_then(|a| a.children().find(|c| c.kind.ends_with("Material")).cloned());
         let color = material.map(|mat| {
             let c = [mat.nums("diffuseColor"), mat.nums("baseColor"), mat.nums("emissiveColor")].into_iter().find(|c| c.len() >= 3).unwrap_or(&[0.8, 0.8, 0.8]);
             rgb(c)
@@ -83,8 +85,14 @@ impl Walk<'_, '_> {
             return Ok(());
         }
         let Some(part) = n.children().find_map(geometry) else { return Ok(()) };
-        let pos = part.pos.into_iter().map(|p| apply(m, p)).collect();
-        self.b.add(pos, part.tris, |i| part.colors.get(i).copied().flatten().or(color))
+        let image = appearance.and_then(|a| a.children().find(|c| c.kind == "ImageTexture"));
+        let urls = image.map_or(&[][..], |i| i.strs("url"));
+        let tex = if part.uv.is_empty() { 0 } else { urls.iter().filter(|u| !u.contains("://")).map(|u| self.b.texture_file(u, self.sibling)).find(|&k| k > 0).unwrap_or(0) };
+        let place = |i: usize| part.uv.get(i).copied().flatten().filter(|_| tex > 0).map(|c| (c, tex));
+        // An RGB picture takes the place of the material's colour (VRML 97, 4.14).
+        let colors = |i: usize| part.colors.get(i).copied().flatten().or(if place(i).is_some() { Some([255; 3]) } else { color });
+        let pos = part.pos.iter().map(|&p| apply(m, p)).collect();
+        self.b.add_textured(pos, part.tris.clone(), colors, place)
     }
 }
 
@@ -146,6 +154,8 @@ struct Part {
     pos: Vec<[f32; 3]>,
     tris: Vec<[u32; 3]>,
     colors: Vec<Option<[u8; 3]>>,
+    /// Each triangle's corners on the picture, when the geometry gives them.
+    uv: Vec<Option<[[f32; 2]; 3]>>,
 }
 
 /// A triangle: its vertices, where its corners are in the index list, and its face.
@@ -172,7 +182,8 @@ fn geometry(g: &Rc<SceneNode>) -> Option<Part> {
     };
     let pos = points(n);
     let colors = colors(n, &tris);
-    Some(Part { pos, tris: tris.iter().map(|t| t.v).collect(), colors })
+    let uv = texture_coords(n, &tris);
+    Some(Part { pos, tris: tris.iter().map(|t| t.v).collect(), colors, uv })
 }
 
 fn points(n: &SceneNode) -> Vec<[f32; 3]> {
@@ -196,6 +207,22 @@ fn colors(n: &SceneNode, tris: &[Tri]) -> Vec<Option<[u8; 3]>> {
             let corner = |k: usize| if index.is_empty() { Some(t.v[k] as i64) } else { index.get(t.at[k]).copied() };
             let cs: Vec<&[f32]> = (0..3).filter_map(|k| corner(k).and_then(get)).collect();
             (cs.len() == 3).then(|| rgb(&[0, 1, 2].map(|k| (cs[0][k] + cs[1][k] + cs[2][k]) / 3.0)))
+        })
+        .collect()
+}
+
+/// Where each triangle's corners lie on the picture: TextureCoordinate's points by texCoordIndex,
+/// or indexed as the coordinates are.
+fn texture_coords(n: &SceneNode, tris: &[Tri]) -> Vec<Option<[[f32; 2]; 3]>> {
+    let Some(tc) = n.children().find(|c| c.kind == "TextureCoordinate") else { return Vec::new() };
+    let pts = tc.nums("point");
+    // T upwards, as rows go down: turned.
+    let get = |i: i64| pts.get(i as usize * 2..i as usize * 2 + 2).filter(|_| i >= 0).map(|p| [p[0], 1.0 - p[1]]);
+    let index: Vec<i64> = n.nums("texCoordIndex").iter().map(|&v| v as i64).collect();
+    tris.iter()
+        .map(|t| {
+            let c = [0, 1, 2].map(|k| if index.is_empty() { Some(t.v[k] as i64) } else { index.get(t.at[k]).copied() }.and_then(get));
+            c.iter().all(Option::is_some).then(|| c.map(Option::unwrap_or_default))
         })
         .collect()
 }
@@ -228,7 +255,7 @@ fn text(n: &SceneNode) -> Part {
     let spacing = style.map_or(1.0, |s| s.num("spacing", 1.0));
     let justify = style.and_then(|s| s.strs("justify").first().cloned()).unwrap_or_default();
     let (pos, tris) = crate::model_text::mesh(n.strs("string"), size, spacing, justify.trim_matches('"'));
-    Part { pos, tris, colors: Vec::new() }
+    Part { pos, tris, colors: Vec::new(), uv: Vec::new() }
 }
 
 /// Heights over a grid in the XZ plane.
@@ -249,7 +276,7 @@ fn elevation(n: &SceneNode) -> Part {
         }
     }
     let colors = colors(n, &tris);
-    Part { pos, tris: tris.iter().map(|t| t.v).collect(), colors }
+    Part { pos, tris: tris.iter().map(|t| t.v).collect(), colors, uv: Vec::new() }
 }
 
 fn primitive(n: &SceneNode) -> Part {
@@ -260,35 +287,49 @@ fn primitive(n: &SceneNode) -> Part {
             let s = if s.len() >= 3 { [s[0] / 2.0, s[1] / 2.0, s[2] / 2.0] } else { [1.0; 3] };
             let pos = (0..8).map(|i| [0, 1, 2].map(|k| if i >> k & 1 == 1 { s[k] } else { -s[k] })).collect();
             let quads = [[0, 2, 3, 1], [4, 5, 7, 6], [0, 1, 5, 4], [2, 6, 7, 3], [0, 4, 6, 2], [1, 3, 7, 5]];
-            Part { pos, tris: quads.iter().flat_map(|q| [[q[0], q[1], q[2]], [q[0], q[2], q[3]]]).collect(), colors: Vec::new() }
+            // The whole picture on each face.
+            // ponytail: each face's picture may be turned or mirrored from what X3D says
+            let c = [[0.0, 1.0], [1.0, 1.0], [1.0, 0.0], [0.0, 0.0]];
+            let uv = quads.iter().flat_map(|_| [Some([c[0], c[1], c[2]]), Some([c[0], c[2], c[3]])]).collect();
+            Part { pos, tris: quads.iter().flat_map(|q| [[q[0], q[1], q[2]], [q[0], q[2], q[3]]]).collect(), colors: Vec::new(), uv }
         }
         "Sphere" => {
             let r = n.num("radius", 1.0);
-            lathe(&(0..=RINGS).map(|k| (k as f32 / RINGS as f32 * std::f32::consts::PI - std::f32::consts::FRAC_PI_2).sin_cos()).map(|(s, c)| (c * r, s * r)).collect::<Vec<_>>())
+            lathe(&(0..=RINGS).map(|k| (k as f32 / RINGS as f32, (k as f32 / RINGS as f32 * std::f32::consts::PI - std::f32::consts::FRAC_PI_2).sin_cos())).map(|(v, (s, c))| (c * r, s * r, v)).collect::<Vec<_>>())
         }
         "Cylinder" => {
             let (r, h) = (n.num("radius", 1.0), half("height", 2.0));
-            lathe(&[(0.0, -h), (r, -h), (r, h), (0.0, h)])
+            lathe(&[(0.0, -h, 0.0), (r, -h, 0.0), (r, h, 1.0), (0.0, h, 1.0)])
         }
         _ => {
             let (r, h) = (n.num("bottomRadius", 1.0), half("height", 2.0));
-            lathe(&[(0.0, -h), (r, -h), (0.0, h)])
+            lathe(&[(0.0, -h, 0.0), (r, -h, 0.0), (0.0, h, 1.0)])
         }
     }
 }
 
-/// A profile of (radius, height) turned about the Y axis.
-fn lathe(profile: &[(f32, f32)]) -> Part {
+/// A profile of (radius, height, height on the picture) turned about the Y axis. The picture goes
+/// around from the back (−Z), anticlockwise seen from above, as X3D wraps it.
+// ponytail: the caps of cylinders and cones repeat the edge of the picture instead of a disc
+fn lathe(profile: &[(f32, f32, f32)]) -> Part {
     let mut pos = Vec::new();
-    for &(r, y) in profile {
+    for &(r, y, _) in profile {
         for s in 0..SEGMENTS {
             let (sin, cos) = (s as f32 / SEGMENTS as f32 * std::f32::consts::TAU).sin_cos();
             pos.push([r * cos, y, -r * sin]);
         }
     }
     let at = |ring: usize, s: usize| (ring * SEGMENTS + s % SEGMENTS) as u32;
-    let tris = (0..profile.len() - 1).flat_map(|ring| (0..SEGMENTS).flat_map(move |s| [[at(ring, s), at(ring, s + 1), at(ring + 1, s + 1)], [at(ring, s), at(ring + 1, s + 1), at(ring + 1, s)]])).collect();
-    Part { pos, tris, colors: Vec::new() }
+    let (mut tris, mut uv) = (Vec::new(), Vec::new());
+    for ring in 0..profile.len() - 1 {
+        for s in 0..SEGMENTS {
+            for t in [[(ring, s), (ring, s + 1), (ring + 1, s + 1)], [(ring, s), (ring + 1, s + 1), (ring + 1, s)]] {
+                tris.push(t.map(|(r, s)| at(r, s)));
+                uv.push(Some(t.map(|(r, s)| [s as f32 / SEGMENTS as f32 - 0.25, 1.0 - profile[r].2])));
+            }
+        }
+    }
+    Part { pos, tris, colors: Vec::new(), uv }
 }
 
 type V3 = [f32; 3];
@@ -351,7 +392,7 @@ fn extrusion(n: &SceneNode) -> Part {
             tris.extend((1..m.saturating_sub(1)).map(|k| [ring * m, ring * m + k, ring * m + k + 1]));
         }
     }
-    Part { pos, tris, colors: Vec::new() }
+    Part { pos, tris, colors: Vec::new(), uv: Vec::new() }
 }
 
 #[cfg(test)]
@@ -368,6 +409,13 @@ mod tests {
         let x3d = "<X3D><Scene><Shape><IndexedFaceSet coordIndex='0 1 2 -1' colorPerVertex='false'><Coordinate point='0 0 0 1 0 0 0 1 0'/><Color color='0 0 1'/></IndexedFaceSet></Shape><Shape><Sphere/></Shape></Scene></X3D>";
         let m = read(x3d.as_bytes(), &|_| None).unwrap();
         assert_eq!(m.colors[0], [0, 0, 255]);
+        // A picture on a triangle by its own index, and on a sphere.
+        let x3d = "<X3D><Scene><Shape><Appearance><ImageTexture url='\"http://x/a.png\" \"a.png\"'/></Appearance><IndexedFaceSet coordIndex='0 1 2 -1' texCoordIndex='2 1 0 -1'><Coordinate point='0 0 0 1 0 0 0 1 0'/><TextureCoordinate point='0 0 1 0 0 1'/></IndexedFaceSet></Shape><Shape><Appearance><ImageTexture url='a.png'/></Appearance><Sphere/></Shape></Scene></X3D>";
+        let mut png = Vec::new();
+        image::RgbaImage::new(2, 2).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let m = read(x3d.as_bytes(), &|n| (n == "a.png").then(|| png.clone())).unwrap();
+        assert_eq!((m.textures.len(), m.colors[0], m.uv[0]), (1, [255; 3], [[0.0, 0.0], [1.0, 1.0], [0.0, 1.0]]));
+        assert!(m.tex.iter().all(|&k| k == 1));
         assert_eq!(m.tris.len(), 1 + RINGS * SEGMENTS * 2);
         // The default square along the default spine: a cube of side 2 and height 1.
         let m = read(b"#VRML V2.0 utf8\nShape { geometry Extrusion { } }", &|_| None).unwrap();

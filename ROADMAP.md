@@ -34,7 +34,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Saving in JPEG XL, ICO, TGA, PNM, EXR, HDR and Farbfeld.
 - Camera RAW photos from more brands.
 - PDF: images to a PDF, and a PDF to images.
-- 3D models and CAD files: STEP and IGES on Windows; textures and materials.
+- 3D models and CAD files: STEP and IGES on Windows; materials beyond the base colour and its picture.
 
 ### Browsing and editing
 
