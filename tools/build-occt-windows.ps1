@@ -20,10 +20,14 @@ cmd /c "`"$vs\VC\Auxiliary\Build\vcvars64.bat`" >nul && set" | ForEach-Object {
 }
 
 $tgz = Join-Path $B "occt.tar.gz"
+# Downloaded under another name first: an interrupted download is not taken for a whole one.
 if (-not (Test-Path $tgz)) {
-    Invoke-WebRequest "https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/$Tag.tar.gz" -OutFile $tgz
+    Invoke-WebRequest "https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/$Tag.tar.gz" -OutFile "$tgz.part"
+    Move-Item "$tgz.part" $tgz
 }
+Get-ChildItem $B -Directory -Filter "OCCT-*" | Remove-Item -Recurse -Force
 tar -xzf $tgz -C $B
+if ($LASTEXITCODE) { Remove-Item $tgz; "the OCCT sources were damaged: run again"; exit 1 }
 $Src = (Get-ChildItem $B -Directory -Filter "OCCT-*").FullName
 
 cmake -S $Src -B "$B\build" -G "Visual Studio 17 2022" -A x64 -DBUILD_LIBRARY_TYPE=Static `
