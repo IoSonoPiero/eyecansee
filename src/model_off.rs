@@ -7,7 +7,12 @@ pub fn read(bytes: &[u8]) -> Result<Mesh, String> {
     let text = std::str::from_utf8(bytes).map_err(|_| "not a text OFF file")?;
     let mut lines = text.lines().map(|l| l.split('#').next().unwrap_or("").split_whitespace().collect::<Vec<_>>()).filter(|l| !l.is_empty());
     let mut head = lines.next().ok_or("empty file")?;
-    let kind = head.remove(0);
+    let first = head.remove(0);
+    // "OFF8 6 12": the first count stuck to the keyword.
+    let (kind, stuck) = first.find("OFF").map(|i| first.split_at(i + 3)).ok_or("not an OFF file")?;
+    if !stuck.is_empty() {
+        head.insert(0, stuck);
+    }
     let Some(prefix) = kind.strip_suffix("OFF") else { return Err("not an OFF file".into()) };
     if prefix.contains('4') || prefix.contains('n') || head.first() == Some(&"BINARY") {
         return Err("4D and binary OFF files are not supported".into());
@@ -62,5 +67,6 @@ mod tests {
         assert_eq!(m.colors, vec![[255, 0, 0], [255, 0, 0], [0, 255, 0]]);
         assert!(read(b"COFF 3 1 0\n0 0 0 1 1 1 1\n1 0 0 1 1 1 1\n0 1 0 1 1 1 1\n3 0 1 2\n").unwrap().colors == vec![[255, 255, 255]]);
         assert!(read(b"ply\n").is_err());
+        assert_eq!(read(b"OFF3 1 0\n0 0 0\n1 0 0\n0 1 0\n3 0 1 2\n").unwrap().tris.len(), 1);
     }
 }

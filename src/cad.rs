@@ -301,6 +301,10 @@ impl<'a> Walk<'a> {
                 self.block(&tb.block_name, &inner)
             }
             EntityType::Hatch(h) => self.hatch(h, t, color, style.weight),
+            EntityType::Tolerance(x) => {
+                self.tolerance(x, t, color);
+                Ok(())
+            }
             EntityType::MLine(m) => {
                 let stroke = self.stroke(style, t);
                 self.mline(m, t, color, stroke)
@@ -445,6 +449,21 @@ impl<'a> Walk<'a> {
             }
         }
         Ok(())
+    }
+
+    /// A feature control frame: its rows (^J) with their cells (%%v) in boxes, the GD&T symbols
+    /// of the gdt font as their Unicode signs.
+    fn tolerance(&mut self, x: &acadrust::entities::Tolerance, t: &Affine, color: [u8; 3]) {
+        let h = if x.text_height > 0.0 { x.text_height } else { 2.5 };
+        let angle = x.direction.y.atan2(x.direction.x);
+        let o = t.then_inner(&Affine::ocs(n3(&x.normal)));
+        for (row, line) in x.text.split("^J").enumerate() {
+            let text = gdt(line);
+            let at = [x.insertion_point.x, x.insertion_point.y - row as f64 * 2.0 * h];
+            let frame = crate::cad_svg::text_box(at, h, angle, &text, (Anchor::Start, Baseline::Middle));
+            let _ = self.line(vec![frame[0], frame[1], frame[2], frame[3], frame[0]], &o, color, None, Stroke::default());
+            self.text(&o, Label { at, height: h, angle, text, anchor: (Anchor::Start, Baseline::Middle) }, color);
+        }
     }
 
     /// A multiline: each of its lines through the vertices, at its distance along the miters.
@@ -621,6 +640,26 @@ fn percent_codes(s: &str) -> String {
     out
 }
 
+/// A row of a feature control frame as text: cells apart, the letters of the gdt font as the
+/// symbols they draw.
+fn gdt(s: &str) -> String {
+    let symbol = |c: char| match c {
+        'a' => '∠', 'b' => '⊥', 'c' => '⏥', 'd' => '⌓', 'e' => '○', 'f' => '∥', 'g' => '⌭', 'h' => '↗', 'i' => '⌯', 'j' => '⌖',
+        'k' => '⌒', 'l' => 'Ⓛ', 'm' => 'Ⓜ', 'n' => '⌀', 'p' => 'Ⓟ', 'r' => '◎', 's' => 'Ⓢ', 't' => '⌰', 'u' => '⏤', c => c,
+    };
+    let mut out = String::new();
+    let mut rest = s;
+    while let Some(i) = rest.find("{\\Fgdt;") {
+        out.push_str(&rest[..i]);
+        rest = &rest[i + 7..];
+        let end = rest.find('}').unwrap_or(rest.len());
+        out.extend(rest[..end].chars().map(symbol));
+        rest = rest.get(end + 1..).unwrap_or("");
+    }
+    out.push_str(rest);
+    percent_codes(&out.replace("%%v", " | ").replace("%%V", " | ")).trim_matches([' ', '|']).to_string()
+}
+
 /// Texts (TEXT, MTEXT) with their coordinate system.
 fn label(e: &EntityType) -> Option<(Affine, Label)> {
     match e {
@@ -724,6 +763,11 @@ mod tests {
     use crate::cad_svg::text_box;
 
     const DXF: &str = "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n62\n1\n10\n0\n20\n0\n30\n0\n11\n100\n21\n50\n31\n0\n0\nCIRCLE\n8\n0\n10\n50\n20\n25\n30\n0\n40\n10\n0\nTEXT\n8\n0\n10\n5\n20\n5\n30\n0\n40\n3\n1\nA & B\n0\nENDSEC\n0\nEOF\n";
+
+    #[test]
+    fn feature_control_frames() {
+        assert_eq!(gdt("{\\Fgdt;j}%%v{\\Fgdt;n}0.1{\\Fgdt;m}%%vA%%vB"), "⌖ | ⌀0.1Ⓜ | A | B");
+    }
 
     #[test]
     fn percent_codes_and_text_boxes() {
