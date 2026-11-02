@@ -85,6 +85,11 @@ impl App {
     /// files and the engine is missing.
     pub(crate) fn cad_engine_bar(&mut self, ui: &mut egui::Ui) {
         let Some(c) = crate::component::OCCT else { return };
+        // Every frame (the menu bar is always there): the end of the download makes the folder
+        // read again, also when nothing on screen asks for the engine any more.
+        if self.model.engine.is_some() {
+            self.cad_engine_state(ui.ctx());
+        }
         let wanted = self.listings.get(&self.dir).and_then(|l| l.as_ref().ok()).is_some_and(|l| l.files.iter().any(|f| crate::occt::needs_engine(&f.path)));
         if !wanted {
             return;

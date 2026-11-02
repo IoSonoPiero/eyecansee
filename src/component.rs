@@ -312,4 +312,22 @@ mod tests {
             assert_eq!(std::fs::metadata(&p).unwrap().permissions().mode() & 0o111, 0o111);
         }
     }
+
+    /// As `component_live`, for the CAD engine: downloaded, checked, and a STEP file read with it
+    /// (`EYECANSEE_STEP_FILE`, if given).
+    #[test]
+    #[ignore]
+    fn occt_component_live() {
+        let Some(c) = OCCT else { return };
+        let done = AtomicU64::new(0);
+        let t = std::time::Instant::now();
+        install(&c, &done).unwrap();
+        println!("{} bytes in {:?} to {:?}", done.load(Ordering::Relaxed), t.elapsed(), path(&c));
+        assert_eq!(done.load(Ordering::Relaxed), c.size);
+        assert!(crate::occt::available());
+        if let Ok(f) = std::env::var("EYECANSEE_STEP_FILE") {
+            let m = crate::occt::read(&std::fs::read(&f).unwrap(), &f).unwrap();
+            println!("{f}: {} triangles", m.tris.len());
+        }
+    }
 }
