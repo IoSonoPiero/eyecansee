@@ -54,7 +54,7 @@ Shown in the grid as a picture and in the viewer in 3D (drawn by the graphics ca
 | STL (binary and text) | stl | ✓ | ✓ | `stl_io` |
 | OBJ (with the colours of its materials, `.mtl`) | obj | ✓ | ✓ | `tobj` |
 | PLY (text and binary, triangle strips, vertex colours; point clouds as dots) | ply | ✓ | ✓ | `ply-rs-bw` |
-| glTF 2.0 (GLB, and .gltf with its data inside or in the `.bin` next to it; triangles, strips, fans, lines and points; not compressed with Draco or meshopt) | glb, gltf | ✓ | ✓ | `gltf` |
+| glTF 2.0 (GLB, and .gltf with its data inside or in the `.bin` next to it; triangles, strips, fans, lines and points; also compressed with Draco or meshopt, or quantized) | glb, gltf | ✓ | ✓ | `gltf`, `draco-oxide`, `meshopt` |
 | 3MF (with components, Production extension, colours) | 3mf | ✓ | ✓ | `zip`, `roxmltree` |
 | IFC 2x3, 4, 4.3 (building models; spaces and see-through zones left out) | ifc | ✓ | ✓ | `ifc-lite` |
 | FBX (binary and text, material and vertex colours) | fbx | ✓ | ✓ | `ufbx` |

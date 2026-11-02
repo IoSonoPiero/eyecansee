@@ -9,16 +9,9 @@ use base64::Engine;
 
 use crate::model::{Builder, IDENTITY, Mat4, Mesh, Sibling, Surface, apply, average, mul};
 
-/// What a glTF that cannot be read needs, said plainly: compressed geometry, version 1.0.
+/// What a glTF that cannot be read needs, said plainly: version 1.0.
 fn gltf_error(e: String) -> String {
-    let has = |s: &str| e.contains(s);
-    if has("KHR_draco_mesh_compression") {
-        "glTF compressed with Draco is not supported".into()
-    } else if has("EXT_meshopt_compression") || has("KHR_meshopt_compression") {
-        "glTF compressed with meshopt is not supported".into()
-    } else if has("KHR_mesh_quantization") {
-        "glTF with quantized geometry (KHR_mesh_quantization) is not supported".into()
-    } else if has("expected a sequence") {
+    if e.contains("expected a sequence") {
         // glTF 1.0 keeps its parts in maps by name, 2.0 in lists.
         "glTF 1.0 is not supported (only glTF 2.0)".into()
     } else {
@@ -26,8 +19,16 @@ fn gltf_error(e: String) -> String {
     }
 }
 
-/// GLB, and .gltf with its data inside or in the files next to it (`sibling`).
+/// GLB, and .gltf with its data inside or in the files next to it (`sibling`); compressed ones
+/// (Draco, meshopt, quantized) first made plain (`model_gltf_unpack`).
 pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
+    match crate::model_gltf_unpack::plain(bytes, sibling)? {
+        Some(glb) => read_plain(&glb, sibling),
+        None => read_plain(bytes, sibling),
+    }
+}
+
+fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     let g = gltf::Gltf::from_slice(bytes).map_err(|e| gltf_error(e.to_string()))?;
     let inside: Vec<Option<Vec<u8>>> = g
         .document
@@ -147,8 +148,8 @@ fn gltf_mesh<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>
             let c = average(&vc, tris[i]).unwrap_or([1.0; 3]);
             (base != [1.0; 3] || !vc.is_empty()).then(|| srgb([c[0] * base[0], c[1] * base[1], c[2] * base[2]]))
         };
-        let (tex, uvs) = texture_coords(&prim, &r, &extra.2);
-        let surface = if prim.material().unlit() { 0 } else { b.surface(surface(&prim.material(), &extra.2)) };
+        let (tex, uvs, set) = texture_coords(&prim, &r, &extra.2);
+        let surface = if prim.material().unlit() { 0 } else { b.surface(surface(&prim.material(), &extra.2, set)) };
         // Normals turned with the node (scaled unevenly they lean a little: kept simple).
         let origin = apply(m, [0.0; 3]);
         let normals: Vec<[f32; 3]> = r.read_normals().map(|n| n.map(|v| std::array::from_fn(|k| apply(m, v)[k] - origin[k])).collect()).unwrap_or_default();
@@ -163,33 +164,38 @@ fn gltf_mesh<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>
     Ok(())
 }
 
-/// The material's surface: factors, and pictures (`Builder::texture`) read on the same texture
-/// coordinates as the base colour's.
-// ponytail: each picture's own texture coordinate set and transform are not followed
-fn surface(mat: &gltf::Material, tex: &HashMap<usize, u16>) -> Surface {
-    let pic = |t: Option<gltf::Texture>| t.and_then(|t| tex.get(&t.source().index()).copied()).unwrap_or(0);
+/// The material's surface: factors, and the pictures (`Builder::texture`) read on the base
+/// colour's texture coordinates `set`; one on another set is left out (an occlusion baked on a
+/// second set would darken the wrong places), and so is a glow whose picture is missing.
+// ponytail: each picture's own texture transform is not followed
+fn surface(mat: &gltf::Material, tex: &HashMap<usize, u16>, set: u32) -> Surface {
+    let pic = |t: Option<(gltf::Texture, u32)>| t.filter(|(_, s)| *s == set).and_then(|(t, _)| tex.get(&t.source().index()).copied()).unwrap_or(0);
     let pbr = mat.pbr_metallic_roughness();
-    let glow = mat.emissive_factor().map(|v| (v * mat.emissive_strength().unwrap_or(1.0)).clamp(0.0, 1.0).powf(1.0 / 2.2));
+    let occlusion = mat.occlusion_texture().map(|t| (t.texture(), t.tex_coord()));
+    let glow_map = pic(mat.emissive_texture().map(|t| (t.texture(), t.tex_coord())));
+    let lost = mat.emissive_texture().is_some() && glow_map == 0;
+    let glow = mat.emissive_factor().map(|v| if lost { 0.0 } else { (v * mat.emissive_strength().unwrap_or(1.0)).clamp(0.0, 1.0).powf(1.0 / 2.2) });
+    let occlusion_map = pic(occlusion.clone());
     Surface {
         metallic: pbr.metallic_factor(),
         roughness: pbr.roughness_factor(),
-        occlusion: mat.occlusion_texture().map_or(0.0, |o| o.strength()),
+        occlusion: if occlusion_map > 0 { mat.occlusion_texture().map_or(0.0, |o| o.strength()) } else { 0.0 },
         glow,
-        bumps: pic(mat.normal_texture().map(|t| t.texture())),
-        rough_metal: pic(pbr.metallic_roughness_texture().map(|t| t.texture())),
-        occlusion_map: pic(mat.occlusion_texture().map(|t| t.texture())),
-        glow_map: pic(mat.emissive_texture().map(|t| t.texture())),
+        bumps: pic(mat.normal_texture().map(|t| (t.texture(), t.tex_coord()))),
+        rough_metal: pic(pbr.metallic_roughness_texture().map(|t| (t.texture(), t.tex_coord()))),
+        occlusion_map,
+        glow_map,
     }
 }
 
 /// The picture of a primitive's base colour (0 without one) and the texture coordinates, of its
-/// set (else the first), moved, turned and scaled as KHR_texture_transform says.
-fn texture_coords<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>>(prim: &gltf::Primitive<'a>, r: &gltf::mesh::Reader<'a, 's, F>, tex: &HashMap<usize, u16>) -> (u16, Vec<[f32; 2]>) {
+/// set (else the first), moved, turned and scaled as KHR_texture_transform says; and that set.
+fn texture_coords<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>>(prim: &gltf::Primitive<'a>, r: &gltf::mesh::Reader<'a, 's, F>, tex: &HashMap<usize, u16>) -> (u16, Vec<[f32; 2]>, u32) {
     let info = prim.material().pbr_metallic_roughness().base_color_texture();
     let k = info.as_ref().and_then(|i| tex.get(&i.texture().source().index()).copied()).unwrap_or(0);
     let transform = info.as_ref().and_then(|i| i.texture_transform());
     let set = transform.as_ref().and_then(|t| t.tex_coord()).or(info.as_ref().map(|i| i.tex_coord())).unwrap_or(0);
-    let Some(coords) = r.read_tex_coords(set) else { return (0, Vec::new()) };
+    let Some(coords) = r.read_tex_coords(set) else { return (0, Vec::new(), set) };
     let fix = |uv: [f32; 2]| match &transform {
         Some(t) => {
             let ([sx, sy], [ox, oy], (sin, cos)) = (t.scale(), t.offset(), t.rotation().sin_cos());
@@ -198,5 +204,5 @@ fn texture_coords<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s 
         }
         None => uv,
     };
-    (k, coords.into_f32().map(fix).collect())
+    (k, coords.into_f32().map(fix).collect(), set)
 }
