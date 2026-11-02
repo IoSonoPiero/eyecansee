@@ -71,7 +71,7 @@ What comes next is in [ROADMAP.md](ROADMAP.md).
 - 3D models: STL, 3MF, OBJ, PLY, glTF, FBX, Collada, 3DS, OFF, AMF, VRML, X3D and IFC (STEP, IGES and BREP on Linux); CAD drawings: DWG, DXF and HP-GL.
 - Camera RAW files: CR2, CR3, NEF, ARW, RAF, ORF, RW2, DNG and others (tested with real files from Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic and Google cameras, and a Samsung Galaxy phone).
 
-All the formats it opens and saves, on Linux and Windows: [docs/formats.md](docs/formats.md). Sample files to try them, including real HEIC and Camera RAW photos: [download the test files](https://github.com/IoSonoPiero/eyecansee/releases/download/test-files/EyeCanSee-test-files.zip) (zip, 139 MB; sources and licences in the [release page](https://github.com/IoSonoPiero/eyecansee/releases/tag/test-files)).
+All the formats it opens and saves, on Linux and Windows: [docs/formats.md](docs/formats.md). Sample files to try them, including real HEIC and Camera RAW photos: [download the test files](https://github.com/IoSonoPiero/eyecansee/releases/download/test-files/EyeCanSee-test-files.zip) (zip, 139 MB), and for 3D models and CAD drawings [the 3D and CAD test files](https://github.com/IoSonoPiero/eyecansee/releases/download/test-files/EyeCanSee-test-files-3d-cad.zip) (zip, 46 MB); sources and licences in the [release page](https://github.com/IoSonoPiero/eyecansee/releases/tag/test-files) and in each zip.
 
 The full list of features, keys and limits is in the manual: [English](docs/manual.en.md), [Italiano](docs/manual.it.md).
 
