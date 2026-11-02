@@ -63,6 +63,8 @@ pub enum Msg {
     Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
     /// The converted image written: its path, or an error.
     Saved(Result<String, source::Error>),
+    /// A 3D model saved in another 3D format: its path, or why not.
+    Exported(Result<String, String>),
     /// "Save" from the viewer, before the confirmation: the image, the turn, and the file to write
     /// with whether it lost quality (encoded again), or an error (`SKIPPED`: not saveable over itself).
     Prepared(String, crate::transform::Turn, Result<(Arc<Vec<u8>>, bool), source::Error>),
@@ -341,6 +343,26 @@ impl Loader {
             let image = image::DynamicImage::ImageRgb8(image::DynamicImage::ImageRgba8(crate::render3d::render(&mesh, &view, size[0], size[1], 2)).into_rgb8());
             let preview = decode::preview(&image);
             let _ = tx.send(Msg::Original(Ok((Arc::new(crate::encode::Original::with_meta(image, &[])), preview, file_size))));
+            ctx.request_repaint();
+        });
+    }
+
+    /// The model `path` read (with the files next to it) and written to `to` as `kind`.
+    pub fn export_model(&self, path: String, to: String, kind: crate::model_export::Kind) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let sibling = siblings(op.clone(), path.clone());
+            let r = match op.read(&path).await {
+                Ok(bytes) => tokio::task::spawn_blocking(move || crate::model::parse_with(&bytes, &path, &sibling).map(|m| crate::model_export::export(&m, kind)))
+                    .await
+                    .unwrap_or_else(|e| Err(e.to_string())),
+                Err((_, detail)) => Err(detail),
+            };
+            let r = match r {
+                Ok(data) => write_whole(&op, &to, data).await.map(|()| to).map_err(|(_, detail)| detail),
+                Err(e) => Err(e),
+            };
+            let _ = tx.send(Msg::Exported(r));
             ctx.request_repaint();
         });
     }

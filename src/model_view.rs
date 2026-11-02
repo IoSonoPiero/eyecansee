@@ -204,6 +204,38 @@ impl App {
     }
 }
 
+impl App {
+    /// "Export as a 3D model": next to the model, with its name and a free one if taken.
+    pub(crate) fn export_model(&mut self, path: Option<String>, kind: crate::model_export::Kind) {
+        let Some(path) = path.or_else(|| self.target()) else { return };
+        let dir = crate::source::parent(&path);
+        let taken: std::collections::HashSet<String> = match self.listings.get(&dir) {
+            Some(Ok(l)) => l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).collect(),
+            _ => Default::default(),
+        };
+        let name = crate::source::name(&path);
+        let stem = name.rsplit_once('.').map_or(name, |(s, _)| s);
+        let to = format!("{dir}{}", crate::source::free_name(&taken, &format!("{stem}.{}", kind.ext())));
+        if let Some(loader) = &self.loader {
+            log!("export {path:?} as {to:?}");
+            loader.export_model(path, to, kind);
+        }
+    }
+
+    /// The exported model: said in the status bar for a while, the folder read again.
+    pub(crate) fn on_exported(&mut self, ctx: &egui::Context, r: Result<String, String>) {
+        let text = match &r {
+            Ok(to) => {
+                self.relist(crate::source::parent(to));
+                self.i18n.t_args("status-exported", &[("name", crate::source::name(to))])
+            }
+            Err(e) => self.i18n.t_args("export-failed", &[("error", e)]),
+        };
+        self.status_note = Some(text);
+        self.note_until = Some(ctx.input(|i| i.time) + 6.0);
+    }
+}
+
 /// The axes of the file in the top right corner, as CAD programs show them: X red, Y green, Z
 /// blue, turning with the model; those pointing away are fainter and drawn first.
 fn axes_corner(painter: &egui::Painter, rect: egui::Rect, axes: [[f32; 3]; 3]) {

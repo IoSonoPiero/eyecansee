@@ -260,9 +260,13 @@ fn ply(bytes: &[u8]) -> Result<Mesh, String> {
     let rgb: Vec<[f32; 3]> = vertices.iter().filter_map(ply_color).collect();
     let rgb = if rgb.len() == vertices.len() { rgb } else { Vec::new() };
     let mut tris = Vec::new();
+    // Colours of the faces (MeshLab writes them), one per triangle of the face.
+    let mut face_rgb: Vec<Option<[f32; 3]>> = Vec::new();
     for f in ply.payload.get("face").into_iter().flatten() {
         let Some(list) = f.get("vertex_indices").or_else(|| f.get("vertex_index")).and_then(list) else { continue };
+        let n = list.len().saturating_sub(2);
         tris.extend((1..list.len().saturating_sub(1)).map(|i| [list[0], list[i], list[i + 1]]));
+        face_rgb.extend(std::iter::repeat_n(ply_color(f), n));
     }
     // Triangle strips (Stanford's scans): -1 starts a new strip, every other triangle turns the other way.
     for s in ply.payload.get("tristrips").into_iter().flatten() {
@@ -275,7 +279,7 @@ fn ply(bytes: &[u8]) -> Result<Mesh, String> {
         return point_cloud(pos, &rgb);
     }
     let mut b = Builder::default();
-    let colors = |i: usize| average(&rgb, tris[i]).map(|c| c.map(|v| v as u8));
+    let colors = |i: usize| face_rgb.get(i).copied().flatten().or_else(|| average(&rgb, tris[i])).map(|c| c.map(|v| v as u8));
     b.add(pos, tris.clone(), colors)?;
     b.finish(false)
 }

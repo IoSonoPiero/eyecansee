@@ -31,6 +31,8 @@ pub(crate) enum Act {
     NewFolder(Option<String>),
     /// "Save in another format" for an image (`None` = the selected one or the one in the viewer).
     Convert(Option<String>),
+    /// A 3D model saved in another 3D format, next to it (`None` = the selected one or the one in the viewer).
+    ExportModel(Option<String>, crate::model_export::Kind),
     /// Convert and resize images of the grid (`None` = the marked ones or the selected one).
     Batch(Option<String>),
     /// Converti e ridimensiona preset on copied streams: the video rewritten with its metadata.
@@ -160,6 +162,7 @@ impl App {
             Act::Rename(path) => self.ask_rename(path),
             Act::NewFolder(dir) => self.ask_new_folder(dir),
             Act::Convert(path) => self.open_convert(path),
+            Act::ExportModel(path, kind) => self.export_model(path, kind),
             Act::Duplicates(dir) => self.open_duplicates(dir),
             Act::Batch(path) => self.open_batch(path),
             Act::CopyMeta(path) => self.open_copy_meta(path),

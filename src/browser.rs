@@ -153,6 +153,10 @@ impl App {
             items.push(Some((t("menu-save"), t("key-save"), Act::Save)));
         }
         items.push(Some((t("menu-save-copy"), String::new(), Act::Convert(path.clone()))));
+        if path.clone().or_else(|| self.target()).is_some_and(|p| crate::model::is_model(&p)) && self.chosen(path.clone()).len() <= 1 {
+            let kinds = crate::model_export::Kind::ALL.iter().map(|&k| Some((k.label().to_string(), String::new(), Act::ExportModel(path.clone(), k)))).collect();
+            items.push(Some((t("menu-export-3d"), String::new(), Act::Submenu(kinds))));
+        }
         if !in_viewer && self.batch.is_none() {
             items.push(Some((t("menu-batch"), String::new(), Act::Batch(path.clone()))));
             if self.grid_items(path.clone()).iter().any(|p| crate::decode::is_video(p)) {

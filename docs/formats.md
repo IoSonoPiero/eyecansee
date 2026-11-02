@@ -77,6 +77,10 @@ Seen from above (model space, and the layouts with L) and shown as an image, dra
 
 A file with the wrong extension (for example an iPhone HEIC saved as `.jpg`) is recognised from its content. A file the dedicated decoder cannot read is tried once more with ImageMagick.
 
+## Saving 3D models (right click > Export as a 3D model)
+
+Every 3D model EyeCanSee opens can be saved as STL (binary, colours as VisCAM writes them), OBJ (colours on the vertices), PLY (binary, colours on the faces) or glTF (GLB), next to the original. The shape and one colour per triangle are kept; textures, normals and animations are not.
+
 ## Saving (right click > Save in another format…)
 
 The same formats on Linux and Windows: all the encoders are part of the program.

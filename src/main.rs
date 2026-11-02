@@ -68,6 +68,7 @@ mod model_3mf;
 mod model_3ds;
 mod model_amf;
 mod model_dae;
+mod model_export;
 mod model_fbx;
 mod model_ifc;
 mod model_lines;
