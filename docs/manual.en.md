@@ -230,7 +230,7 @@ eyecansee sftp://my-nas/                   an alias of ~/.ssh/config
 
 Only one EyeCanSee runs at a time (a phone can be used by one program only): if it is already open, starting it again, for example with "Open with" on a photo, shows that folder or image in the window already open.
 
-"Open with" offers EyeCanSee for images and for the common video files (MP4, MKV, MOV, WebM, AVI): on Windows the installer and the Microsoft Store package register them, on Linux the `.desktop` file does. It never makes itself the default program: that choice stays yours.
+"Open with" offers EyeCanSee for images, the common video files (MP4, MKV, MOV, WebM, AVI), 3D models and CAD files (STEP, IGES, BREP, DWG, DXF and plot files included): on Windows the installer and the Microsoft Store package register them, on Linux the `.desktop` file does. It never makes itself the default program: that choice stays yours.
 
 Remote folders behave exactly like local ones: the tree, the grid and the viewer work the same way. Passwords are never shown in the address bar.
 

@@ -9,7 +9,7 @@ use std::sync::{Mutex, OnceLock};
 
 use crate::model::{Builder, Mesh};
 
-const OCCT: &[&str] = &["step", "stp", "iges", "igs", "brep", "brp"];
+pub(crate) const OCCT: &[&str] = &["step", "stp", "iges", "igs", "brep", "brp"];
 /// The interface's version this EyeCanSee speaks (`ECS_OCCT_API`).
 const API: c_int = 1;
 

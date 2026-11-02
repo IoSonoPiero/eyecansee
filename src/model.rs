@@ -506,6 +506,16 @@ pub(crate) fn rotation(axis: [f32; 3], angle: f32) -> Mat4 {
 mod tests {
     use super::*;
 
+    /// Every 3D model and CAD extension EyeCanSee reads is in Windows' "Open with" (the installer,
+    /// and through it the MSIX): STEP, IGES and BREP were missing until 2026-11-02.
+    #[test]
+    fn open_with_on_windows() {
+        let iss = include_str!("../tools/eyecansee.iss");
+        for e in MODEL.iter().chain(crate::cad::CAD).chain(crate::occt::OCCT) {
+            assert!(iss.contains(&format!("Software\\Classes\\.{e}\\OpenWithProgids")), "{e} missing from eyecansee.iss");
+        }
+    }
+
     const CUBE_OBJ: &str = "v 0 0 0\nv 1 0 0\nv 1 1 0\nv 0 1 0\nv 0 0 1\nv 1 0 1\nv 1 1 1\nv 0 1 1\nf 1 2 3 4\nf 5 6 7 8\nf 1 2 6 5\nf 2 3 7 6\nf 3 4 8 7\nf 4 1 5 8\n";
 
     #[test]

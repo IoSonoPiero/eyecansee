@@ -110,11 +110,21 @@ Root: HKA; Subkey: "Software\Classes\.wrz\OpenWithProgids"; ValueType: string; V
 Root: HKA; Subkey: "Software\Classes\.x3d\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.x3dv\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.x3dz\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.x3dvz\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+; Solids of mechanical CAD programs, read by the CAD engine (`occt.rs`).
+Root: HKA; Subkey: "Software\Classes\.step\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.stp\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.iges\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.igs\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.brep\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.brp\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
 ; CAD drawings (`cad.rs`).
 Root: HKA; Subkey: "Software\Classes\.dxf\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.dwg\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.plt\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
 Root: HKA; Subkey: "Software\Classes\.hpgl\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.hpg\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
+Root: HKA; Subkey: "Software\Classes\.hgl\OpenWithProgids"; ValueType: string; ValueName: "EyeCanSee.Image"; ValueData: ""; Flags: uninsdeletevalue
 ; "Open with" for videos, the same way: offered, never the default.
 Root: HKA; Subkey: "Software\Classes\EyeCanSee.Video"; ValueType: string; ValueData: "EyeCanSee"; Flags: uninsdeletekey
 Root: HKA; Subkey: "Software\Classes\EyeCanSee.Video"; ValueType: string; ValueName: "FriendlyAppName"; ValueData: "EyeCanSee"

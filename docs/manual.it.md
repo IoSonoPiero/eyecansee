@@ -230,7 +230,7 @@ eyecansee sftp://mio-nas/                  un alias di ~/.ssh/config
 
 EyeCanSee è aperto in una sola copia alla volta (un telefono può usarlo un solo programma): se è già aperto, avviarlo di nuovo, per esempio con "Apri con" su una foto, mostra quella cartella o immagine nella finestra già aperta.
 
-"Apri con" propone EyeCanSee per le immagini e per i video più comuni (MP4, MKV, MOV, WebM, AVI): su Windows li registrano l'installer e il pacchetto del Microsoft Store, su Linux il file `.desktop`. Non si mette mai come programma predefinito: la scelta resta tua.
+"Apri con" propone EyeCanSee per le immagini, i video più comuni (MP4, MKV, MOV, WebM, AVI), i modelli 3D e i file CAD (anche STEP, IGES, BREP, DWG, DXF e i file per plotter): su Windows li registrano l'installer e il pacchetto del Microsoft Store, su Linux il file `.desktop`. Non si mette mai come programma predefinito: la scelta resta tua.
 
 Le cartelle remote si comportano come quelle locali: albero, griglia e visore funzionano allo stesso modo. Le password non compaiono mai nella barra degli indirizzi.
 

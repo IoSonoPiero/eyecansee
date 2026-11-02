@@ -12,7 +12,7 @@ use acadrust::{CadDocument, DwgReader, DxfReader};
 use crate::cad_geom::{self, Affine, P};
 use crate::cad_text::{Label, gdt, label};
 
-const CAD: &[&str] = &["dxf", "dwg", "plt", "hpgl", "hpg", "hgl"];
+pub(crate) const CAD: &[&str] = &["dxf", "dwg", "plt", "hpgl", "hpg", "hgl"];
 
 /// AutoCAD's model space background, and its colour 7 (white on a dark background).
 pub const BACKGROUND: [u8; 3] = [33, 40, 48];
