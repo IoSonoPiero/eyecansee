@@ -24,7 +24,11 @@ pub fn read(bytes: &[u8]) -> Result<Mesh, String> {
             let mat = mesh.face_material.get(f).and_then(|&i| materials.get(i as usize));
             for t in idx.as_chunks::<3>().0.iter().take(n) {
                 tris.push(*t);
-                colors.push(mat.and_then(|m| color(m)).or_else(|| vertex_color(mesh, t)));
+                // Vertex colours tint the material's, as 3D programs show them.
+                colors.push(match (mat.and_then(|m| color(m)), vertex_color(mesh, t)) {
+                    (Some(m), Some(v)) => Some(std::array::from_fn(|k| (m[k] as u16 * v[k] as u16 / 255) as u8)),
+                    (m, v) => v.or(m),
+                });
             }
         }
         b.add(pos, tris, |i| colors[i])?;
