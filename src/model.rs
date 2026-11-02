@@ -158,7 +158,7 @@ fn stl_binary(bytes: &[u8], n: usize) -> Result<Mesh, String> {
     let five = |v: u16| ((v & 31) as u32 * 255 / 31) as u8;
     let mut pos = Vec::with_capacity(n * 3);
     let mut colors = Vec::with_capacity(n);
-    for c in bytes[84..].chunks_exact(50).take(n) {
+    for c in bytes[84..].as_chunks::<50>().0.iter().take(n) {
         for k in 0..3 {
             pos.push([f(c, 12 + k * 12), f(c, 16 + k * 12), f(c, 20 + k * 12)]);
         }

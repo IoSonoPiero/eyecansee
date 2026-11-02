@@ -16,11 +16,17 @@ const MAX_DEPTH: u32 = 64;
 pub fn read(bytes: &[u8], zipped: bool) -> Result<Mesh, String> {
     let text = if zipped { crate::model_3mf::unzipped(bytes, ".dae")? } else { crate::model_3mf::text(bytes) };
     let doc = Document::parse_with_options(&text, crate::model_3mf::xml_options()).map_err(|e| e.to_string())?;
-    let ids: HashMap<&str, Node> = doc.descendants().filter_map(|n| Some((n.attribute("id")?, n))).collect();
+    // Several elements may share an id (an effect named as its geometry): all kept, by kind.
+    let mut ids: HashMap<&str, Vec<Node>> = HashMap::new();
+    for n in doc.descendants() {
+        if let Some(id) = n.attribute("id") {
+            ids.entry(id).or_default().push(n);
+        }
+    }
     let z_up = doc.descendants().find(|n| n.has_tag_name_local("up_axis")).and_then(|n| n.text()).is_some_and(|t| t.trim() == "Z_UP");
     let mut b = Builder::default();
     let mut dae = Dae { b: &mut b, ids: &ids };
-    let scene = doc.descendants().find(|n| n.has_tag_name_local("instance_visual_scene")).and_then(|i| dae.target(i, "url"));
+    let scene = doc.descendants().find(|n| n.has_tag_name_local("instance_visual_scene")).and_then(|i| dae.target(i, "url", "visual_scene"));
     let scene = scene.or_else(|| doc.descendants().find(|n| n.has_tag_name_local("visual_scene")));
     match scene {
         Some(s) => {
@@ -52,9 +58,14 @@ fn ints(n: Node) -> Vec<u32> {
 
 /// A transform element as a column-major matrix.
 fn transform(n: Node) -> Option<Mat4> {
+    transform_named(n, n.tag_name().name())
+}
+
+/// The numbers of `n` read as the transform `kind` (matrix, translate, scale, rotate).
+fn transform_named(n: Node, kind: &str) -> Option<Mat4> {
     let v = floats(n);
     let mut m = IDENTITY;
-    match n.tag_name().name() {
+    match kind {
         // Row-major in the file.
         "matrix" if v.len() == 16 => m = std::array::from_fn(|c| std::array::from_fn(|r| v[r * 4 + c])),
         "translate" if v.len() == 3 => m[3] = [v[0], v[1], v[2], 1.0],
@@ -67,13 +78,14 @@ fn transform(n: Node) -> Option<Mat4> {
 
 struct Dae<'a, 'd> {
     b: &'a mut Builder,
-    ids: &'a HashMap<&'d str, Node<'d, 'd>>,
+    ids: &'a HashMap<&'d str, Vec<Node<'d, 'd>>>,
 }
 
 impl<'d> Dae<'_, 'd> {
-    /// The element an attribute points to (`#id`).
-    fn target(&self, n: Node, attr: &str) -> Option<Node<'d, 'd>> {
-        self.ids.get(n.attribute(attr)?.trim_start_matches('#')).copied()
+    /// The element an attribute points to (`#id`), of the kind `tag` when several share the id.
+    fn target(&self, n: Node, attr: &str, tag: &str) -> Option<Node<'d, 'd>> {
+        let all = self.ids.get(n.attribute(attr)?.trim_start_matches('#'))?;
+        all.iter().find(|e| e.tag_name().name() == tag).or(all.first()).copied()
     }
 
     fn node(&mut self, n: Node<'d, 'd>, parent: &Mat4, depth: u32) -> Result<(), String> {
@@ -85,19 +97,24 @@ impl<'d> Dae<'_, 'd> {
             match c.tag_name().name() {
                 "node" => self.node(c, &m, depth + 1)?,
                 "instance_node" => {
-                    if let Some(t) = self.target(c, "url") {
+                    if let Some(t) = self.target(c, "url", "node") {
                         self.node(t, &m, depth + 1)?;
                     }
                 }
                 "instance_geometry" | "instance_controller" => {
-                    let mut g = self.target(c, "url");
-                    // A skin names the mesh it deforms.
+                    let mut g = self.target(c, "url", if c.tag_name().name() == "instance_geometry" { "geometry" } else { "controller" });
+                    let mut place = m;
+                    // A skin names the mesh it deforms, placed first by its bind shape matrix
+                    // (the rest pose, with the skeleton as it was bound).
                     if let Some(skin) = g.and_then(|g| g.descendants().find(|s| s.has_tag_name_local("skin"))) {
-                        g = self.target(skin, "source");
+                        g = self.target(skin, "source", "geometry");
+                        if let Some(bind) = tagged(skin, "bind_shape_matrix").next().and_then(|b| transform_named(b, "matrix")) {
+                            place = mul(&m, &bind);
+                        }
                     }
                     if let Some(g) = g {
                         let bound = self.bound_colors(c);
-                        self.geometry(g, &m, &bound)?;
+                        self.geometry(g, &place, &bound)?;
                     }
                 }
                 _ => {}
@@ -110,12 +127,12 @@ impl<'d> Dae<'_, 'd> {
     fn bound_colors(&self, inst: Node) -> HashMap<String, [u8; 3]> {
         inst.descendants()
             .filter(|n| n.has_tag_name_local("instance_material"))
-            .filter_map(|i| Some((i.attribute("symbol")?.to_string(), self.material_color(self.target(i, "target")?)?)))
+            .filter_map(|i| Some((i.attribute("symbol")?.to_string(), self.material_color(self.target(i, "target", "material")?)?)))
             .collect()
     }
 
     fn material_color(&self, material: Node) -> Option<[u8; 3]> {
-        let effect = self.target(material.descendants().find(|n| n.has_tag_name_local("instance_effect"))?, "url")?;
+        let effect = self.target(material.descendants().find(|n| n.has_tag_name_local("instance_effect"))?, "url", "effect")?;
         let diffuse = effect.descendants().find(|n| n.has_tag_name_local("diffuse"))?;
         let c = floats(tagged(diffuse, "color").next()?);
         (c.len() >= 3).then(|| [c[0], c[1], c[2]].map(|v| (v.clamp(0.0, 1.0) * 255.0) as u8))
@@ -123,7 +140,7 @@ impl<'d> Dae<'_, 'd> {
 
     /// The numbers of a `<source>`, by groups of its accessor's stride.
     fn source(&self, input: Node) -> Option<(Vec<f32>, usize)> {
-        let s = self.target(input, "source")?;
+        let s = self.target(input, "source", "source")?;
         let data = floats(s.descendants().find(|n| n.has_tag_name_local("float_array"))?);
         let stride = s.descendants().find(|n| n.has_tag_name_local("accessor")).and_then(|a| a.attribute("stride")?.parse().ok()).unwrap_or(3usize).max(1);
         Some((data, stride))
