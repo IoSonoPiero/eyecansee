@@ -1,6 +1,7 @@
 //! 3MF (3D printing): a zip with the model in XML. Objects with a mesh or made of components
 //! (also in other model files of the zip, Production extension), placed by the build items with
-//! their transforms; colours from base materials and colour groups.
+//! their transforms; colours from base materials and colour groups, pictures from texture groups
+//! (Materials extension).
 
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
@@ -71,6 +72,13 @@ impl Files<'_> {
         self.texts.insert(path.to_string(), t.clone());
         Ok(t)
     }
+
+    /// A picture of the zip, into the model once (`Builder::texture_file`).
+    fn picture(&mut self, b: &mut Builder, path: &str) -> u16 {
+        let mut data = Vec::new();
+        let read = self.zip.by_name(path.trim_start_matches('/')).ok().and_then(|f| f.take(MAX_XML).read_to_end(&mut data).ok());
+        b.texture_file(path, &|_| read.map(|_| data.clone()))
+    }
 }
 
 pub(crate) fn entry<R: Read + std::io::Seek>(zip: &mut zip::ZipArchive<R>, name: &str) -> Option<String> {
@@ -83,12 +91,16 @@ pub(crate) fn entry<R: Read + std::io::Seek>(zip: &mut zip::ZipArchive<R>, name:
 struct Model<'a, 'i> {
     objects: HashMap<&'a str, Node<'a, 'i>>,
     colors: HashMap<&'a str, Vec<[u8; 3]>>,
+    /// Texture groups: their picture's path and their points on it (V downwards, as rows).
+    textures: HashMap<&'a str, (&'a str, Vec<[f32; 2]>)>,
 }
 
 impl<'a, 'i> Model<'a, 'i> {
     fn new(doc: &'a Document<'i>) -> Self {
         let mut objects = HashMap::new();
         let mut colors = HashMap::new();
+        let mut textures = HashMap::new();
+        let paths: HashMap<&str, &str> = doc.descendants().filter(|n| n.has_tag_name_local("texture2d")).filter_map(|n| Some((n.attribute("id")?, n.attribute("path")?))).collect();
         for n in doc.descendants() {
             let Some(id) = n.attribute("id") else { continue };
             match n.tag_name().name() {
@@ -99,10 +111,17 @@ impl<'a, 'i> Model<'a, 'i> {
                     let list = n.children().filter_map(|c| c.attribute("displaycolor").or_else(|| c.attribute("color")).and_then(hex)).collect();
                     colors.insert(id, list);
                 }
+                "texture2dgroup" => {
+                    let Some(path) = n.attribute("texid").and_then(|t| paths.get(t)) else { continue };
+                    let num = |c: Node, k: &str| c.attribute(k).and_then(|v| v.parse::<f32>().ok()).unwrap_or(0.0);
+                    // (0, 0) is the picture's lower left corner.
+                    let points = n.children().filter(|c| c.has_tag_name_local("tex2coord")).map(|c| [num(c, "u"), 1.0 - num(c, "v")]).collect();
+                    textures.insert(id, (*path, points));
+                }
                 _ => {}
             }
         }
-        Model { objects, colors }
+        Model { objects, colors, textures }
     }
 
     fn color(&self, pid: Option<&str>, index: Option<&str>) -> Option<[u8; 3]> {
@@ -146,7 +165,7 @@ fn place(b: &mut Builder, files: &mut Files, main: &str, model: &Model, path: &s
     }
     let Some(object) = model.objects.get(id) else { return Ok(()) };
     if let Some(mesh) = object.children().find(|n| n.has_tag_name_local("mesh")) {
-        mesh_part(b, model, *object, mesh, m)?;
+        mesh_part(b, files, model, *object, mesh, m)?;
     }
     for c in object.descendants().filter(|n| n.has_tag_name_local("component")) {
         let Some(child) = c.attribute("objectid") else { continue };
@@ -156,18 +175,36 @@ fn place(b: &mut Builder, files: &mut Files, main: &str, model: &Model, path: &s
     Ok(())
 }
 
-fn mesh_part(b: &mut Builder, model: &Model, object: Node, mesh: Node, m: &Transform) -> Result<(), String> {
+fn mesh_part(b: &mut Builder, files: &mut Files, model: &Model, object: Node, mesh: Node, m: &Transform) -> Result<(), String> {
     let num = |n: Node, k: &str| n.attribute(k).and_then(|v| v.parse::<f32>().ok()).unwrap_or(f32::NAN);
     let pos = mesh.descendants().filter(|n| n.has_tag_name_local("vertex")).map(|v| apply(m, [num(v, "x"), num(v, "y"), num(v, "z")])).collect();
     let triangles: Vec<Node> = mesh.descendants().filter(|n| n.has_tag_name_local("triangle")).collect();
     let index = |n: Node, k: &str| n.attribute(k).and_then(|v| v.parse::<u32>().ok()).unwrap_or(u32::MAX);
     let tris: Vec<[u32; 3]> = triangles.iter().map(|&t| [index(t, "v1"), index(t, "v2"), index(t, "v3")]).collect();
     let (opid, oindex) = (object.attribute("pid"), object.attribute("pindex"));
+    let pids: Vec<Option<&str>> = triangles.iter().map(|t| t.attribute("pid").or(opid)).collect();
+    // The pictures of the texture groups this mesh uses.
+    let mut pictures: HashMap<&str, u16> = HashMap::new();
+    for &g in pids.iter().flatten() {
+        if let (false, Some((path, _))) = (pictures.contains_key(g), model.textures.get(g)) {
+            pictures.insert(g, files.picture(b, path));
+        }
+    }
+    let place = |i: usize| {
+        let (t, g) = (triangles[i], pids[i]?);
+        let (_, points) = model.textures.get(g)?;
+        let first = t.attribute("p1").or(oindex);
+        let corner = |k: &str| t.attribute(k).or(first).and_then(|p| points.get(p.parse::<usize>().ok()?)).copied();
+        Some(([corner("p1")?, corner("p2")?, corner("p3")?], *pictures.get(g)?))
+    };
     let colors = |i: usize| {
         let t = triangles[i];
-        model.color(t.attribute("pid").or(opid), t.attribute("p1").or(oindex))
+        if place(i).is_some_and(|(_, k)| k > 0) {
+            return Some([255; 3]);
+        }
+        model.color(pids[i], t.attribute("p1").or(oindex))
     };
-    b.add(pos, tris, colors)
+    b.add_textured(pos, tris, colors, place)
 }
 
 /// XML of 3D formats: a DTD is allowed (X3D has one), its entities stay limited by roxmltree.
@@ -218,6 +255,24 @@ mod tests {
         assert_eq!(m.pos[1], [22.0, 0.0, 5.0]);
         assert_eq!(m.colors, vec![[0, 255, 0], [255, 0, 0]]);
         assert!(m.z_up);
+    }
+
+    #[test]
+    fn a_texture_group() {
+        let model = r##"<model><resources><m:texture2d id="7" path="/3D/Textures/t.png"/>
+            <m:texture2dgroup id="8" texid="7"><m:tex2coord u="0" v="0"/><m:tex2coord u="1" v="0"/><m:tex2coord u="0" v="1"/></m:texture2dgroup>
+            <object id="1"><mesh><vertices><vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/></vertices>
+            <triangles><triangle v1="0" v2="1" v3="2" pid="8" p1="0" p2="1" p3="2"/></triangles></mesh></object>
+            </resources><build><item objectid="1"/></build></model>"##.replace("<model>", r#"<model xmlns:m="m">"#);
+        let mut w = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        w.start_file("3D/3dmodel.model", zip::write::SimpleFileOptions::default()).unwrap();
+        w.write_all(model.as_bytes()).unwrap();
+        w.start_file("3D/Textures/t.png", zip::write::SimpleFileOptions::default()).unwrap();
+        let mut png = Vec::new();
+        image::RgbaImage::new(2, 2).write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        w.write_all(&png).unwrap();
+        let m = read(&w.finish().unwrap().into_inner()).unwrap();
+        assert_eq!((m.tex.clone(), m.colors.clone(), m.uv[0]), (vec![1], vec![[255; 3]], [[0.0, 1.0], [1.0, 1.0], [0.0, 0.0]]));
     }
 
     #[test]

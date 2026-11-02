@@ -152,7 +152,7 @@ Right click > **Export as a 3D model** saves the model as STL, OBJ, PLY or glTF 
 
 A band above the status bar recalls these keys, for 3D models and CAD drawings. In the top right corner the axes of the file (X red, Y green, Z blue) turn with the model, as in CAD programs; a CAD drawing shows its X and Y in the bottom left corner.
 
-The colours stored in the file are shown (colours of materials, faces and vertices) and, in glTF, OBJ, FBX, Collada, 3DS, VRML and X3D files, the pictures on the surfaces (textures); a model without colours is light grey. The status bar shows the number of triangles, the zoom and, while the model moves, the frames per second. *Convert and resize* turns several models into images at once, seen from the starting view.
+The colours stored in the file are shown (colours of materials, faces and vertices) and, in glTF, 3MF, OBJ, FBX, Collada, 3DS, VRML and X3D files, the pictures on the surfaces (textures); a model without colours is light grey. The status bar shows the number of triangles, the zoom and, while the model moves, the frames per second. *Convert and resize* turns several models into images at once, seen from the starting view.
 
 ## CAD drawings
 
@@ -318,7 +318,7 @@ EyeCanSee uses the system language when it is available, otherwise English. To f
 ## Known limits
 
 - **CAD drawings**: seen from above; 3D solids are not drawn, viewports show the model from above and cut to their rectangle, hatches too dense to see show as a light fill, a line type too fine at the current zoom is drawn continuous, texts use a system font instead of the CAD fonts, and a picture attached to the drawing whose file is not next to it (by its path or by its name) shows as a frame with a cross.
-- **3D models**: only the picture of the base colour is shown (no normal, roughness or light maps), and not in 3MF files; glTF files compressed with Draco or meshopt, or with quantized geometry, and glTF 1.0 files are not opened. Animations are not played (models show in their rest pose); VRML 1.0 files are not opened, and texts in VRML and X3D use a system font.
+- **3D models**: only the picture of the base colour is shown (no normal, roughness or light maps); glTF files compressed with Draco or meshopt, or with quantized geometry, and glTF 1.0 files are not opened. Animations are not played (models show in their rest pose); VRML 1.0 files are not opened, and texts in VRML and X3D use a system font.
 - On **NTFS** disks (for example an external disk also used with Windows) the Files app (Nautilus) cannot restore from the trash, not even files it deleted itself; EyeCanSee reminds you in the confirmation. The files are in the trash all the same and can be restored from a terminal: `gio trash --list` shows what is there, `gio trash --restore "<trash:/// address from that line>"` puts it back.
 - If the phone does not answer a request (seen on Windows: one deletion that took over five minutes, with everything else waiting behind it), the status bar says so with the seconds elapsed and the file: EyeCanSee carries on by itself as soon as the phone answers. The cause is not known: it happened twice on a POCO X7 Pro, deleting files just created, and does not repeat on demand.
 - **Windows**: right after a photo is taken, or a file deleted, on the phone, Windows' own driver can stop talking to the phone for about six minutes; unplugging the cable and plugging it in again frees it at once. More in [Windows stops talking to the phone](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.en.md).
