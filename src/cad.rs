@@ -46,6 +46,16 @@ pub struct Stroke {
     pub weight: f32,
 }
 
+/// Between two outlines of one filled area (`Walk::area`): the SVG starts a new outline there.
+const GAP: P = [f64::NAN, f64::NAN];
+
+/// A colour too dark to see on the drawing's background (black given as RGB, black pens) is
+/// drawn white, as colour 7.
+pub(crate) fn visible(c: [u8; 3]) -> [u8; 3] {
+    let luma = 0.3 * c[0] as f32 + 0.59 * c[1] as f32 + 0.11 * c[2] as f32;
+    if luma < 40.0 { WHITE } else { c }
+}
+
 /// AutoCAD's default line weight (LWDEFAULT), drawn one pixel wide.
 const THIN: f32 = 0.25;
 
@@ -95,6 +105,7 @@ pub fn read_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Re
     for e in model {
         walk.entity(e, &top)?;
     }
+    walk.finish()?;
     if d.items.is_empty() {
         return Err("nothing to draw in the model space".into());
     }
@@ -148,6 +159,17 @@ pub(crate) struct Walk<'a> {
     pub(crate) frozen: Vec<String>,
     /// The files next to the drawing, for its pictures.
     pub(crate) sibling: crate::model::Sibling<'a>,
+    /// Lines without end (XLINE) or with one (RAY), drawn across the drawing once its size is known.
+    infinite: Vec<Infinite>,
+}
+
+/// Where an XLINE or RAY passes, in drawing units, and how it is drawn.
+struct Infinite {
+    base: P,
+    dir: P,
+    ray: bool,
+    color: [u8; 3],
+    stroke: Stroke,
 }
 
 fn xy(v: &Vector3) -> P {
@@ -160,7 +182,7 @@ fn n3(v: &Vector3) -> [f64; 3] {
 
 impl<'a> Walk<'a> {
     pub(crate) fn new(doc: &'a CadDocument, out: &'a mut Drawing) -> Self {
-        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none }
+        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new() }
     }
 
     /// The layer an entity is drawn on, if visible: layer 0 inside a block takes the insert's.
@@ -184,7 +206,7 @@ impl<'a> Walk<'a> {
             c => c.rgb(),
         };
         // 7 is black on paper and white on screen: the table gives white.
-        rgb.map_or(WHITE, |(r, g, b)| [r, g, b])
+        visible(rgb.map_or(WHITE, |(r, g, b)| [r, g, b]))
     }
 
     /// An entity's line type and weight, "by layer" and "by block" resolved.
@@ -273,10 +295,35 @@ impl<'a> Walk<'a> {
                 // A table is drawn by its block, placed like an insert.
                 let dir = tb.horizontal_direction.y.atan2(tb.horizontal_direction.x);
                 let local = Affine::translate(tb.insertion_point.x, tb.insertion_point.y).then_inner(&Affine::rotate(dir));
+                if self.doc.block_records.get(&tb.block_name).is_none() {
+                    return self.table_grid(tb, &t.then_inner(&local), color);
+                }
                 let inner = Context { t: t.then_inner(&local), layer: Some(layer), color, style, depth: ctx.depth + 1 };
                 self.block(&tb.block_name, &inner)
             }
             EntityType::Hatch(h) => self.hatch(h, t, color, style.weight),
+            EntityType::MLine(m) => {
+                let stroke = self.stroke(style, t);
+                self.mline(m, t, color, stroke)
+            }
+            EntityType::XLine(_) | EntityType::Ray(_) => {
+                let (base, dir, ray) = match e {
+                    EntityType::XLine(x) => (xy(&x.base_point), xy(&x.direction), false),
+                    EntityType::Ray(r) => (xy(&r.base_point), xy(&r.direction), true),
+                    _ => unreachable!(),
+                };
+                let stroke = self.stroke(style, t);
+                let (b, d) = (t.apply(base), t.apply([base[0] + dir[0], base[1] + dir[1]]));
+                let inf = Infinite { base: b, dir: [d[0] - b[0], d[1] - b[1]], ray, color, stroke };
+                // In a viewport its frame is the limit; elsewhere the drawing's size, at the end.
+                match self.clip {
+                    Some(c) => self.draw_infinite(&inf, c),
+                    None => {
+                        self.infinite.push(inf);
+                        Ok(())
+                    }
+                }
+            }
             // Out of a layout's viewports, cutting a picture is not done: then its frame.
             EntityType::RasterImage(r) if self.clip.is_none() && let Some(png) = crate::cad_image::picture(self.doc, r, self.sibling) => {
                 let corners = crate::cad_image::corners(r).map(|p| t.apply(p));
@@ -372,9 +419,115 @@ impl<'a> Walk<'a> {
                 return Ok(());
             }
         }
+        // One area with every boundary, filled even-odd: the islands stay empty.
         let fill = Some(if h.is_solid { 1.0 } else { 0.25 });
-        for pts in bounds {
-            self.line(pts, &o, color, fill, thin.clone())?;
+        self.area(bounds, &o, color, fill, thin)
+    }
+
+    /// A table without its block: the grid of its rows (going down) and columns, and the text of
+    /// each cell in its middle.
+    // ponytail: merged cells keep their inner lines
+    fn table_grid(&mut self, tb: &acadrust::entities::Table, t: &Affine, color: [u8; 3]) -> Result<(), String> {
+        let xs: Vec<f64> = std::iter::once(0.0).chain(tb.columns.iter().scan(0.0, |x, c| { *x += c.width; Some(*x) })).collect();
+        let ys: Vec<f64> = std::iter::once(0.0).chain(tb.rows.iter().scan(0.0, |y, r| { *y -= r.height; Some(*y) })).collect();
+        let (w, h) = (*xs.last().unwrap_or(&0.0), *ys.last().unwrap_or(&0.0));
+        for &y in &ys {
+            self.line(vec![[0.0, y], [w, y]], t, color, None, Stroke::default())?;
+        }
+        for &x in &xs {
+            self.line(vec![[x, 0.0], [x, h]], t, color, None, Stroke::default())?;
+        }
+        for (r, row) in tb.rows.iter().enumerate() {
+            for (c, cell) in row.cells.iter().enumerate().take(tb.columns.len()) {
+                let text = acadrust::entities::mtext_format::parse_mtext(cell.text_value(), true).to_plain_text();
+                let size = cell.contents.first().map(|c| c.text_height).filter(|h| *h > 0.0).unwrap_or(row.height * 0.4);
+                let at = [(xs[c] + xs[c + 1]) / 2.0, (ys[r] + ys[r + 1]) / 2.0];
+                self.text(t, Label { at, height: size, angle: 0.0, text, anchor: (Anchor::Middle, Baseline::Middle) }, color);
+            }
+        }
+        Ok(())
+    }
+
+    /// A multiline: each of its lines through the vertices, at its distance along the miters.
+    fn mline(&mut self, m: &acadrust::entities::MLine, t: &Affine, color: [u8; 3], stroke: Stroke) -> Result<(), String> {
+        let lines = m.vertices.iter().map(|v| v.segments.len()).max().unwrap_or(0);
+        for k in 0..lines {
+            let mut pts: Vec<P> = m
+                .vertices
+                .iter()
+                .filter_map(|v| {
+                    let d = *v.segments.get(k)?.parameters.first()?;
+                    Some([v.position.x + v.miter.x * d, v.position.y + v.miter.y * d])
+                })
+                .collect();
+            if m.flags.contains(acadrust::entities::MLineFlags::CLOSED)
+                && let Some(&first) = pts.first()
+            {
+                pts.push(first);
+            }
+            self.line(pts, t, color, None, stroke.clone())?;
+        }
+        Ok(())
+    }
+
+    /// An XLINE or RAY across the box `b` (x0, y0, x1, y1), as far as it reaches.
+    fn draw_infinite(&mut self, l: &Infinite, b: [f64; 4]) -> Result<(), String> {
+        let len = l.dir[0].hypot(l.dir[1]);
+        if len == 0.0 || !len.is_finite() {
+            return Ok(());
+        }
+        let d = [l.dir[0] / len, l.dir[1] / len];
+        // Far enough to leave the box from wherever the line starts.
+        let reach = (b[2] - b[0]).hypot(b[3] - b[1]) + (l.base[0] - (b[0] + b[2]) / 2.0).hypot(l.base[1] - (b[1] + b[3]) / 2.0);
+        let from = if l.ray { 0.0 } else { -reach };
+        let pts = vec![[l.base[0] + d[0] * from, l.base[1] + d[1] * from], [l.base[0] + d[0] * reach, l.base[1] + d[1] * reach]];
+        for piece in cad_geom::clip_polyline(&pts, b).into_iter().filter(|p| p.len() >= 2) {
+            self.out.items.push(Item::Line { pts: piece, color: l.color, fill: None, stroke: l.stroke.clone() });
+        }
+        Ok(())
+    }
+
+    /// The XLINEs and RAYs met outside viewports, across the drawing's box (a little larger);
+    /// a drawing made only of them gets a box around their points.
+    pub(crate) fn finish(mut self) -> Result<(), String> {
+        let lines = std::mem::take(&mut self.infinite);
+        if lines.is_empty() {
+            return Ok(());
+        }
+        let b = self.out.bounds().unwrap_or_else(|| {
+            let (xs, ys): (Vec<f64>, Vec<f64>) = lines.iter().map(|l| (l.base[0], l.base[1])).unzip();
+            let lo = [xs.iter().copied().fold(f64::MAX, f64::min), ys.iter().copied().fold(f64::MAX, f64::min)];
+            let hi = [xs.iter().copied().fold(f64::MIN, f64::max), ys.iter().copied().fold(f64::MIN, f64::max)];
+            [lo[0], lo[1], hi[0], hi[1]]
+        });
+        let m = ((b[2] - b[0]).max(b[3] - b[1]) * 0.05).max(1.0);
+        let b = [b[0] - m, b[1] - m, b[2] + m, b[3] + m];
+        lines.iter().try_for_each(|l| self.draw_infinite(l, b))
+    }
+
+    /// Several closed outlines filled as one (a hatch with islands), kept apart in the points by
+    /// a `GAP` point, each cut to the viewport inside a layout.
+    fn area(&mut self, rings: Vec<Vec<P>>, t: &Affine, color: [u8; 3], fill: Option<f32>, stroke: Stroke) -> Result<(), String> {
+        let mut pts: Vec<P> = Vec::new();
+        for ring in rings {
+            self.out.points += ring.len() + 1;
+            let ring: Vec<P> = ring.into_iter().map(|p| t.apply(p)).filter(|p| p[0].is_finite() && p[1].is_finite()).collect();
+            let ring = match self.clip {
+                Some(b) => cad_geom::clip_polygon(&ring, b),
+                None => ring,
+            };
+            if ring.len() >= 3 {
+                if !pts.is_empty() {
+                    pts.push(GAP);
+                }
+                pts.extend(ring);
+            }
+        }
+        if self.out.points > MAX_POINTS {
+            return Err(format!("more than {MAX_POINTS} points"));
+        }
+        if !pts.is_empty() {
+            self.out.items.push(Item::Line { pts, color, fill, stroke });
         }
         Ok(())
     }
@@ -432,7 +585,7 @@ struct Label {
 }
 
 /// AutoCAD's codes in texts: %%c diameter, %%d degree, %%p plus-minus, %%nnn a character by its
-/// number, %%% a percent sign; %%o and %%u (over- and underline on and off) dropped.
+/// number (127-129 as the signs of AutoCAD's fonts), %%% a percent sign; %%o and %%u (over- and underline on and off) dropped.
 fn percent_codes(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     let mut rest = s;
@@ -441,7 +594,13 @@ fn percent_codes(s: &str) -> String {
         rest = &rest[i + 2..];
         let digits = rest.bytes().take(3).take_while(u8::is_ascii_digit).count();
         if digits == 3 {
-            out.extend(rest[..3].parse::<u32>().ok().and_then(char::from_u32));
+            // In AutoCAD's SHX fonts 127, 128 and 129 are the degree, plus-minus and diameter signs.
+            out.extend(rest[..3].parse::<u32>().ok().and_then(|n| match n {
+                127 => Some('°'),
+                128 => Some('±'),
+                129 => Some('\u{2300}'),
+                n => char::from_u32(n),
+            }));
             rest = &rest[3..];
             continue;
         }
@@ -589,7 +748,7 @@ impl Drawing {
         };
         for item in &self.items {
             match item {
-                Item::Line { pts, .. } => pts.iter().for_each(|&p| add(p)),
+                Item::Line { pts, .. } => pts.iter().filter(|p| !p[0].is_nan()).for_each(|&p| add(p)),
                 Item::Text { at, height, angle, text, anchor, .. } => text_box(*at, *height, *angle, text, *anchor).into_iter().for_each(&mut add),
                 Item::Image { corners, .. } => corners.iter().for_each(|&p| add(p)),
             }
@@ -617,9 +776,16 @@ impl Drawing {
                 Item::Line { pts, color, fill, stroke: line } => {
                     let c = rgb(*color);
                     let _ = write!(out, r#"<path{} d="M"#, stroke_attributes(line, s, stroke));
+                    let mut start = false;
                     for (i, p) in pts.iter().enumerate() {
+                        if p[0].is_nan() {
+                            out.push_str("Z M");
+                            start = true;
+                            continue;
+                        }
                         let (x, y) = px(*p);
-                        let _ = write!(out, "{}{x:.2} {y:.2}", if i == 0 { "" } else { "L" });
+                        let _ = write!(out, "{}{x:.2} {y:.2}", if i == 0 || start { "" } else { "L" });
+                        start = false;
                     }
                     match fill {
                         Some(o) => {
@@ -720,7 +886,7 @@ mod tests {
 
     #[test]
     fn percent_codes_and_text_boxes() {
-        assert_eq!(percent_codes("%%c20 90%%d %%p0.1 %%1292 50%%% %%uA%%u"), "\u{2300}20 90° ±0.1 \u{81}2 50% A");
+        assert_eq!(percent_codes("%%c20 90%%d %%p0.1 %%1292 90%%127 %%065 50%%% %%uA%%u"), "\u{2300}20 90° ±0.1 \u{2300}2 90° A 50% A");
         // Centred, turned by 90°: the box goes up and down from the point, to the left of it.
         let b = text_box([0.0, 0.0], 1.0, std::f64::consts::FRAC_PI_2, "ABCD", (Anchor::Middle, Baseline::Alphabetic));
         assert!(b.iter().any(|p| p[1] < -1.0) && b.iter().any(|p| p[1] > 1.0) && b.iter().any(|p| p[0] < -1.0));

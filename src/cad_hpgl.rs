@@ -112,7 +112,7 @@ pub fn read(bytes: &[u8]) -> Result<Drawing, String> {
 
 impl Plotter {
     fn color(&self) -> [u8; 3] {
-        self.colors.get(self.pen.wrapping_sub(1)).copied().unwrap_or(PENS[0])
+        crate::cad::visible(self.colors.get(self.pen.wrapping_sub(1)).copied().unwrap_or(PENS[0]))
     }
 
     fn flush(&mut self) -> Result<(), String> {

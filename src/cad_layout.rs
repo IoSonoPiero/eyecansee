@@ -59,7 +59,7 @@ fn sheet(doc: &CadDocument, l: &Layout, sibling: crate::model::Sibling) -> Optio
             None => walk.entity(e, &top).ok()?,
         }
     }
-    drop(walk);
+    walk.finish().ok()?;
     (!d.items.is_empty()).then_some(d)
 }
 
