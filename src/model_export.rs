@@ -386,6 +386,30 @@ mod tests {
         }
     }
 
+    /// Up stays up in every format: a model read from an STL (Z up) and from a glTF (Y up),
+    /// exported and read back, has each point where it was, seen with Y up.
+    #[test]
+    fn axes_kept() {
+        // A point high above the others: up is +Z in the STL, +Y in the OBJ.
+        let tall = |z_up: bool| {
+            let up = |h: f32| if z_up { [0.0, 0.0, h] } else { [0.0, h, 0.0] };
+            let side = if z_up { [1.0, 0.0, 0.0] } else { [1.0, 0.0, 0.0] };
+            format!("v 0 0 0\nv {} {} {}\nv {} {} {}\nf 1 2 3\n", side[0], side[1], side[2], up(5.0)[0], up(5.0)[1], up(5.0)[2])
+        };
+        for z_up in [true, false] {
+            let mut m = crate::model::parse(tall(z_up).as_bytes(), "q.obj").unwrap();
+            m.z_up = z_up;
+            let seen = |m: &Mesh| m.pos.iter().map(|p| if m.z_up { [p[0], p[2], -p[1]] } else { *p }).collect::<Vec<_>>();
+            for kind in Kind::ALL {
+                let back = crate::model::parse(&export(&m, kind), &format!("x.{}", kind.ext())).unwrap();
+                let (a, b) = (seen(&m), seen(&back));
+                let top = |v: &[[f32; 3]]| v.iter().map(|p| p[1]).fold(f32::MIN, f32::max);
+                assert_eq!(top(&a), top(&b), "{kind:?} z_up {z_up}: {a:?} -> {b:?}");
+                assert!(b.iter().any(|p| (p[0] - 1.0).abs() < 1e-6), "{kind:?} z_up {z_up}: {b:?}");
+            }
+        }
+    }
+
     /// Every model under `EYECANSEE_MODELS` (subfolders too) exported in each format and read
     /// back: triangles, pictures and coloured triangles before and after.
     #[test]
