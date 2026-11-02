@@ -171,7 +171,7 @@ pub fn parse_with(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, St
         Some("3mf") => crate::model_3mf::read(bytes),
         Some("ifc") => crate::model_ifc::read(bytes),
         Some("fbx") => crate::model_fbx::read(bytes, sibling),
-        Some("3ds") => crate::model_3ds::read(bytes),
+        Some("3ds") => crate::model_3ds::read(bytes, sibling),
         Some("off") => crate::model_off::read(bytes),
         Some("amf") => crate::model_amf::read(bytes),
         Some(e @ ("dae" | "zae")) => crate::model_dae::read(bytes, e == "zae", sibling),
