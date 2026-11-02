@@ -121,6 +121,15 @@ impl App {
         }
     }
 
+    /// For the status bar: the size of the drawing or sheet shown, in its unit.
+    pub(crate) fn cad_size_text(&self, current: usize) -> Option<String> {
+        let d = self.cad_shown(&self.files().get(current)?.path)?;
+        let (w, h) = d.size()?;
+        let unit = d.unit.map_or_else(|| self.i18n.t("cad-units"), |u| u.symbol.to_string());
+        let (w, h, unit) = crate::cad::readable(w, h, &unit);
+        Some(crate::cad::size_text(w, h, unit, &self.i18n.t("decimal-separator")))
+    }
+
     /// For the status bar: the name of the sheet shown, when the drawing has layouts.
     pub(crate) fn cad_sheet_name(&self, current: usize) -> Option<String> {
         let path = &self.files().get(current)?.path;

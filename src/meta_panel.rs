@@ -194,9 +194,12 @@ impl App {
                 }
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
-            } else if let Some(name) = self.cad_sheet_name(current) {
-                ui.separator();
-                ui.label(name);
+            } else if crate::cad::is_cad(&f.path) {
+                // A drawing has no pixels: its own size, in its unit (user, 2026-11-02).
+                for text in [self.cad_size_text(current), self.cad_sheet_name(current)].into_iter().flatten() {
+                    ui.separator();
+                    ui.label(text);
+                }
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
             } else if let Some(Ok(tex)) = self.full.get(&current) {

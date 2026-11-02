@@ -54,7 +54,7 @@ struct Plotter {
 
 pub fn read(bytes: &[u8]) -> Result<Drawing, String> {
     let mut p = Plotter {
-        out: Drawing::default(),
+        out: Drawing { unit: Some(crate::cad::Unit { symbol: "mm", factor: 1.0 / 40.0 }), ..Default::default() },
         at: [0.0; 2],
         down: false,
         relative: false,
