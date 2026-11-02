@@ -39,6 +39,8 @@ pub(crate) struct State {
     presented: bool,
     mailbox: bool,
     last_frame: Option<std::time::Instant>,
+    /// The refresh rate of the screen under the window, last seen (for the log).
+    screen_hz: f64,
 }
 
 impl App {
@@ -53,9 +55,10 @@ impl App {
     }
 
     /// At the first frame, mailbox presentation where the card offers it (`render_gpu::present_mode`);
-    /// then, with mailbox, at most 120 frames a second outside the 3D viewer: it never waits for
-    /// the screen, and a continuous animation would keep the card busy for nothing. A 3D model
-    /// turns with no limit (the user's choice): it is drawn only while it moves.
+    /// then, with mailbox, no more frames a second than the screen under the window shows (it
+    /// never waits for the screen, and frames it cannot show keep the card busy for nothing), and
+    /// at most 120 outside the 3D viewer. A 3D model turns as smoothly as the screen allows (the
+    /// user's choice, 2026-11-02): 60, 144, 240...
     pub(crate) fn pace(&mut self, frame: &mut eframe::Frame) {
         let model = self.viewed_mesh().is_some();
         let s = &mut self.model;
@@ -67,8 +70,14 @@ impl App {
                 log!("presentation: mailbox");
             }
         }
-        if s.mailbox && !model {
-            let min = std::time::Duration::from_secs_f64(1.0 / 120.0);
+        if s.mailbox {
+            let screen = frame.winit_window().and_then(|w| w.current_monitor()).and_then(|m| m.refresh_rate_millihertz()).map_or(120.0, |mhz| f64::from(mhz) / 1000.0).clamp(30.0, 1000.0);
+            if screen != s.screen_hz {
+                s.screen_hz = screen;
+                log!("screen: {screen:.0} Hz");
+            }
+            let rate = if model { screen } else { screen.min(120.0) };
+            let min = std::time::Duration::from_secs_f64(1.0 / rate);
             if let Some(last) = s.last_frame {
                 let spent = last.elapsed();
                 if spent < min {
