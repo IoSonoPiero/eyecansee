@@ -358,10 +358,27 @@ pub(crate) fn rotation(axis: [f32; 3], angle: f32) -> Mat4 {
     [[t * x * x + c, t * x * y + s * z, t * x * z - s * y, 0.0], [t * x * y - s * z, t * y * y + c, t * y * z + s * x, 0.0], [t * x * z + s * y, t * y * z - s * x, t * z * z + c, 0.0], [0.0, 0.0, 0.0, 1.0]]
 }
 
+/// What a glTF that cannot be read needs, said plainly: compressed geometry, version 1.0.
+fn gltf_error(e: String) -> String {
+    let has = |s: &str| e.contains(s);
+    if has("KHR_draco_mesh_compression") {
+        "glTF compressed with Draco is not supported".into()
+    } else if has("EXT_meshopt_compression") || has("KHR_meshopt_compression") {
+        "glTF compressed with meshopt is not supported".into()
+    } else if has("KHR_mesh_quantization") {
+        "glTF with quantized geometry (KHR_mesh_quantization) is not supported".into()
+    } else if has("expected a sequence") {
+        // glTF 1.0 keeps its parts in maps by name, 2.0 in lists.
+        "glTF 1.0 is not supported (only glTF 2.0)".into()
+    } else {
+        e
+    }
+}
+
 /// GLB, and .gltf with its data inside or in the files next to it (`sibling`).
 fn gltf(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     use base64::Engine;
-    let g = gltf::Gltf::from_slice(bytes).map_err(|e| e.to_string())?;
+    let g = gltf::Gltf::from_slice(bytes).map_err(|e| gltf_error(e.to_string()))?;
     let inside: Vec<Option<Vec<u8>>> = g
         .document
         .buffers()
@@ -379,45 +396,71 @@ fn gltf(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
         return Err("the model's data file (.bin) is missing".into());
     }
     let mut b = Builder::default();
+    let mut extra = (Vec::new(), Vec::new());
     match g.document.default_scene().or_else(|| g.document.scenes().next()) {
         Some(scene) => {
             for node in scene.nodes() {
-                gltf_node(&mut b, &node, &IDENTITY, &data, 0)?;
+                gltf_node(&mut b, &mut extra, &node, &IDENTITY, &data, 0)?;
             }
         }
         None => {
             for mesh in g.document.meshes() {
-                gltf_mesh(&mut b, &mesh, &IDENTITY, &data)?;
+                gltf_mesh(&mut b, &mut extra, &mesh, &IDENTITY, &data)?;
             }
         }
     }
+    crate::model_lines::add(&mut b, &extra.0, &extra.1)?;
     b.finish(false)
 }
 
-fn gltf_node<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>>(b: &mut Builder, node: &gltf::Node<'a>, parent: &Mat4, data: &F, depth: u32) -> Result<(), String> {
+/// Line segments and points of a glTF, made solid at the end (`model_lines`).
+type Extra = (Vec<crate::model_lines::Segment>, Vec<crate::model_lines::Point>);
+
+fn gltf_node<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>>(b: &mut Builder, extra: &mut Extra, node: &gltf::Node<'a>, parent: &Mat4, data: &F, depth: u32) -> Result<(), String> {
     if depth > 64 {
         return Err("nodes nested too deep".into());
     }
     let m = mul(parent, &node.transform().matrix());
     if let Some(mesh) = node.mesh() {
-        gltf_mesh(b, &mesh, &m, data)?;
+        gltf_mesh(b, extra, &mesh, &m, data)?;
     }
     for child in node.children() {
-        gltf_node(b, &child, &m, data, depth + 1)?;
+        gltf_node(b, extra, &child, &m, data, depth + 1)?;
     }
     Ok(())
 }
 
-fn gltf_mesh<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>>(b: &mut Builder, mesh: &gltf::Mesh<'a>, m: &Mat4, data: &F) -> Result<(), String> {
-    for prim in mesh.primitives().filter(|p| p.mode() == gltf::mesh::Mode::Triangles) {
+fn gltf_mesh<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>>(b: &mut Builder, extra: &mut Extra, mesh: &gltf::Mesh<'a>, m: &Mat4, data: &F) -> Result<(), String> {
+    use gltf::mesh::Mode;
+    for prim in mesh.primitives() {
         let r = prim.reader(data.clone());
         let Some(pos) = r.read_positions() else { continue };
         let pos: Vec<[f32; 3]> = pos.map(|p| apply(m, p)).collect();
+        if !matches!(prim.mode(), Mode::Triangles | Mode::TriangleStrip | Mode::TriangleFan) {
+            let idx: Vec<u32> = r.read_indices().map_or_else(|| (0..pos.len() as u32).collect(), |i| i.into_u32().collect());
+            let at = |i: u32| pos.get(i as usize).copied();
+            let pairs: Vec<[u32; 2]> = match prim.mode() {
+                Mode::Lines => idx.as_chunks::<2>().0.to_vec(),
+                Mode::LineStrip => idx.windows(2).map(|w| [w[0], w[1]]).collect(),
+                Mode::LineLoop => idx.windows(2).map(|w| [w[0], w[1]]).chain(idx.first().zip(idx.last()).map(|(&a, &z)| [z, a])).collect(),
+                Mode::Points => {
+                    extra.1.extend(idx.iter().filter_map(|&i| Some((at(i)?, None))));
+                    continue;
+                }
+                _ => continue,
+            };
+            extra.0.extend(pairs.iter().filter_map(|&[a, z]| Some((at(a)?, at(z)?, None))));
+            continue;
+        }
         let idx: Vec<u32> = match r.read_indices() {
             Some(i) => i.into_u32().collect(),
             None => (0..pos.len() as u32).collect(),
         };
-        let tris: Vec<[u32; 3]> = idx.as_chunks::<3>().0.to_vec();
+        let tris: Vec<[u32; 3]> = match prim.mode() {
+            Mode::TriangleStrip => idx.windows(3).enumerate().map(|(k, w)| if k % 2 == 0 { [w[0], w[1], w[2]] } else { [w[1], w[0], w[2]] }).collect(),
+            Mode::TriangleFan => (1..idx.len().saturating_sub(1)).map(|k| [idx[0], idx[k], idx[k + 1]]).collect(),
+            _ => idx.as_chunks::<3>().0.to_vec(),
+        };
         let vc: Vec<[f32; 3]> = r.read_colors(0).map(|c| c.into_rgb_f32().collect()).unwrap_or_default();
         let base = prim.material().pbr_metallic_roughness().base_color_factor();
         let base = [base[0], base[1], base[2]];

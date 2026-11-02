@@ -91,7 +91,7 @@ tobj = "4.0.5"
 ply-rs-bw = "4.0.1"
 base64 = "0.23.1"
 roxmltree = "0.21.1"
-gltf = { version = "1.4.1", default-features = false, features = ["utils"] }
+gltf = { version = "1.4.1", default-features = false, features = ["utils", "KHR_texture_transform", "KHR_materials_unlit", "KHR_materials_pbrSpecularGlossiness", "KHR_materials_emissive_strength", "KHR_materials_ior", "KHR_materials_specular", "KHR_materials_transmission", "KHR_materials_volume", "KHR_materials_variants", "KHR_lights_punctual"] }
 zip = { version = "5.1.1", default-features = false, features = ["deflate"] }
 rayon = "1.12.0"
 acadrust = { version = "0.6.8", default-features = false }
