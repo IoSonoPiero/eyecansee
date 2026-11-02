@@ -48,7 +48,7 @@ fn outlines(g: &usvg::Group, rings: &mut Vec<Vec<[f32; 2]>>) {
 fn path_rings(path: &resvg::tiny_skia::Path, t: Transform, rings: &mut Vec<Vec<[f32; 2]>>) {
     let mut ring: Vec<[f32; 2]> = Vec::new();
     let mut at = Point::zero();
-    let mut push = |ring: &mut Vec<[f32; 2]>, mut p: Point| {
+    let push = |ring: &mut Vec<[f32; 2]>, mut p: Point| {
         t.map_point(&mut p);
         ring.push([p.x, p.y]);
     };
@@ -116,9 +116,9 @@ fn fill(rings: &[Vec<[f32; 2]>]) -> (Vec<[f32; 3]>, Vec<[u32; 3]>) {
     let around = |i: usize| (0..rings.len()).filter(|&j| j != i && inside(rings[i][0], &rings[j])).collect::<Vec<_>>();
     let depth: Vec<Vec<usize>> = (0..rings.len()).map(around).collect();
     let (mut pos, mut tris) = (Vec::new(), Vec::new());
-    for outer in (0..rings.len()).filter(|&i| depth[i].len() % 2 == 0) {
+    for outer in (0..rings.len()).filter(|&i| depth[i].len().is_multiple_of(2)) {
         let holes: Vec<usize> = (0..rings.len())
-            .filter(|&h| depth[h].len() % 2 == 1 && depth[h].iter().filter(|&&o| depth[o].len() % 2 == 0).min_by(|&&a, &&b| area(&rings[a]).abs().total_cmp(&area(&rings[b]).abs())) == Some(&outer))
+            .filter(|&h| depth[h].len() % 2 == 1 && depth[h].iter().filter(|&&o| depth[o].len().is_multiple_of(2)).min_by(|&&a, &&b| area(&rings[a]).abs().total_cmp(&area(&rings[b]).abs())) == Some(&outer))
             .collect();
         let mut flat: Vec<f32> = rings[outer].iter().flatten().copied().collect();
         let mut starts = Vec::new();
