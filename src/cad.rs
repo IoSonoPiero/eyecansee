@@ -97,8 +97,10 @@ pub fn read_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Re
         DxfReader::from_reader(Cursor::new(bytes.to_vec())).and_then(|r| r.read()).map_err(|e| e.to_string())?
     };
     let mut d = Drawing::default();
+    let fonts = std::rc::Rc::new(crate::cad_text::fonts(&doc, sibling));
     let mut walk = Walk::new(&doc, &mut d);
     walk.sibling = sibling;
+    walk.fonts = fonts.clone();
     let model: Vec<&EntityType> = doc.model_space_entities().collect();
     let model = if model.is_empty() { unplaced(&doc) } else { model };
     let top = Context { t: Affine::IDENTITY, layer: None, color: WHITE, style: CONTINUOUS, depth: 0 };
@@ -109,7 +111,7 @@ pub fn read_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Re
     if d.items.is_empty() {
         return Err("nothing to draw in the model space".into());
     }
-    d.sheets = crate::cad_layout::sheets(&doc, sibling);
+    d.sheets = crate::cad_layout::sheets(&doc, sibling, &fonts);
     Ok(d)
 }
 
@@ -161,6 +163,8 @@ pub(crate) struct Walk<'a> {
     pub(crate) sibling: crate::model::Sibling<'a>,
     /// Lines without end (XLINE) or with one (RAY), drawn across the drawing once its size is known.
     infinite: Vec<Infinite>,
+    /// The SHX fonts of the text styles (`cad_text::fonts`).
+    pub(crate) fonts: std::rc::Rc<std::collections::HashMap<String, crate::cad_text::Font>>,
 }
 
 /// Where an XLINE or RAY passes, in drawing units, and how it is drawn.
@@ -182,7 +186,7 @@ pub(crate) fn n3(v: &Vector3) -> [f64; 3] {
 
 impl<'a> Walk<'a> {
     pub(crate) fn new(doc: &'a CadDocument, out: &'a mut Drawing) -> Self {
-        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new() }
+        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default() }
     }
 
     /// The layer an entity is drawn on, if visible: layer 0 inside a block takes the insert's.
@@ -272,6 +276,14 @@ impl<'a> Walk<'a> {
         }
         // The text's direction after the transform; a mirrored text stays readable.
         let angle = t.then_inner(&Affine::rotate(l.angle)).angle();
+        let style = if l.style.is_empty() { "standard".to_string() } else { l.style.to_ascii_lowercase() };
+        if let Some(font) = self.fonts.get(&style) {
+            let stroke = Stroke { dash: Vec::new(), weight: THIN };
+            for pts in crate::cad_text::strokes(font, at, height, angle, &text, l.anchor) {
+                let _ = self.line(pts, &Affine::IDENTITY, color, None, stroke.clone());
+            }
+            return;
+        }
         self.out.items.push(Item::Text { at, height, angle, text, color, anchor: l.anchor });
     }
 
@@ -368,7 +380,7 @@ impl<'a> Walk<'a> {
         for a in i.attributes.iter().filter(|a| !a.flags.invisible && !a.common.invisible) {
             let color = self.color(&a.common.color, layer, &Context { t: ctx.t, layer: Some(layer), color, style, depth: ctx.depth });
             let o = ctx.t.then_inner(&Affine::ocs(n3(&a.normal)));
-            let l = Label { at: xy(&a.insertion_point), height: a.height, angle: a.rotation, text: a.value.clone(), anchor: (Anchor::Start, Baseline::Alphabetic) };
+            let l = Label { at: xy(&a.insertion_point), height: a.height, angle: a.rotation, text: a.value.clone(), anchor: (Anchor::Start, Baseline::Alphabetic), style: a.text_style.clone() };
             self.text(&o, l, color);
         }
         Ok(())
@@ -398,7 +410,7 @@ impl<'a> Walk<'a> {
             return self.block(&base.block_name, &inner);
         }
         let text = base.user_text.clone().filter(|t| !t.is_empty() && t != "<>").unwrap_or_else(|| format!("{:.2}", base.actual_measurement));
-        let l = Label { at: xy(&base.text_middle_point), height: 2.5, angle: base.text_rotation, text, anchor: (Anchor::Middle, Baseline::Middle) };
+        let l = Label { at: xy(&base.text_middle_point), height: 2.5, angle: base.text_rotation, text, anchor: (Anchor::Middle, Baseline::Middle), style: String::new() };
         self.text(&ctx.t, l, color);
         Ok(())
     }
@@ -446,7 +458,7 @@ impl<'a> Walk<'a> {
                 let text = acadrust::entities::mtext_format::parse_mtext(cell.text_value(), true).to_plain_text();
                 let size = cell.contents.first().map(|c| c.text_height).filter(|h| *h > 0.0).unwrap_or(row.height * 0.4);
                 let at = [(xs[c] + xs[c + 1]) / 2.0, (ys[r] + ys[r + 1]) / 2.0];
-                self.text(t, Label { at, height: size, angle: 0.0, text, anchor: (Anchor::Middle, Baseline::Middle) }, color);
+                self.text(t, Label { at, height: size, angle: 0.0, text, anchor: (Anchor::Middle, Baseline::Middle), style: String::new() }, color);
             }
         }
         Ok(())
@@ -463,7 +475,7 @@ impl<'a> Walk<'a> {
             let at = [x.insertion_point.x, x.insertion_point.y - row as f64 * 2.0 * h];
             let frame = crate::cad_svg::text_box(at, h, angle, &text, (Anchor::Start, Baseline::Middle));
             let _ = self.line(vec![frame[0], frame[1], frame[2], frame[3], frame[0]], &o, color, None, Stroke::default());
-            self.text(&o, Label { at, height: h, angle, text, anchor: (Anchor::Start, Baseline::Middle) }, color);
+            self.text(&o, Label { at, height: h, angle, text, anchor: (Anchor::Start, Baseline::Middle), style: String::new() }, color);
         }
     }
 

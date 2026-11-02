@@ -71,8 +71,8 @@ Seen from above (model space, and the layouts with L) and shown as an image, dra
 
 | Format | Extensions | Linux | Windows | Reader |
 |---|---|:-:|:-:|---|
-| DWG (R13 to 2018 and later; line types, weights, hatch patterns, layouts) | dwg | ✓ | ✓ | `acadrust` |
-| DXF (text and binary, R12 to 2018 and later; line types, weights, hatch patterns, layouts) | dxf | ✓ | ✓ | `acadrust` |
+| DWG (R13 to 2018 and later; line types, weights, hatch patterns, layouts, SHX fonts) | dwg | ✓ | ✓ | `acadrust`, `encoding_rs` |
+| DXF (text and binary, R12 to 2018 and later; line types, weights, hatch patterns, layouts, SHX fonts) | dxf | ✓ | ✓ | `acadrust`, `encoding_rs` |
 | HP-GL and HP-GL/2 plot files (also inside PCL; pens, widths, line types, user units, arcs, labels) | plt, hpgl, hpg, hgl | ✓ | ✓ | EyeCanSee |
 
 A file with the wrong extension (for example an iPhone HEIC saved as `.jpg`) is recognised from its content. A file the dedicated decoder cannot read is tried once more with ImageMagick.

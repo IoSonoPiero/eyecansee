@@ -34,6 +34,7 @@ mod cad_geom;
 mod cad_hpgl;
 mod cad_image;
 mod cad_layout;
+mod cad_shx;
 mod cad_svg;
 mod cad_text;
 mod cad_view;

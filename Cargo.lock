@@ -2229,6 +2229,7 @@ dependencies = [
  "eframe",
  "egui",
  "egui_commonmark",
+ "encoding_rs",
  "flate2",
  "fluent-bundle",
  "futures-util",

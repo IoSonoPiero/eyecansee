@@ -97,6 +97,8 @@ gltf = { version = "1.4.1", default-features = false, features = ["utils", "KHR_
 draco-oxide-decoder = "=0.1.0-alpha.12"
 draco-oxide-core = "=0.1.0-alpha.12"
 meshopt = "0.7.0"
+# Code pages of CAD drawings, for the East Asian characters of SHX big fonts (cad_text.rs).
+encoding_rs = "0.8.44"
 zip = { version = "5.1.1", default-features = false, features = ["deflate"] }
 rayon = "1.12.0"
 acadrust = { version = "0.6.8", default-features = false }
