@@ -15,7 +15,22 @@ pub(crate) fn choose<T>(
     text: String,
     choices: Vec<(String, bool, T)>,
     cancel: String,
+    answer: Option<Option<T>>,
+) -> Option<Option<T>> {
+    choose_with(ctx, id, width, text, choices, cancel, answer, false)
+}
+
+/// `choose`, with `cancel` focused at first when `cancel_first` (it shows as the default).
+#[allow(clippy::too_many_arguments)]
+fn choose_with<T>(
+    ctx: &egui::Context,
+    id: &str,
+    width: f32,
+    text: String,
+    choices: Vec<(String, bool, T)>,
+    cancel: String,
     mut answer: Option<Option<T>>,
+    cancel_first: bool,
 ) -> Option<Option<T>> {
     egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
         ui.set_max_width(width);
@@ -27,7 +42,11 @@ pub(crate) fn choose<T>(
                     answer = Some(Some(choice));
                 }
             }
-            if ui.button(cancel).clicked() {
+            let cancel = ui.button(cancel);
+            if cancel_first && ui.memory(|m| m.focused().is_none()) {
+                cancel.request_focus();
+            }
+            if cancel.clicked() {
                 answer = Some(None);
             }
         });
@@ -48,6 +67,21 @@ pub(crate) fn yes_no(
     answer: Option<bool>,
 ) -> Option<bool> {
     choose(ctx, id, width, text, vec![(yes, yes_enabled, ())], no, answer.map(|yes| yes.then_some(()))).map(|a| a.is_some())
+}
+
+/// `yes_no` with `no` as the default: focused at first, so it shows (deleting folders).
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn yes_no_cancel_first(
+    ctx: &egui::Context,
+    id: &str,
+    width: f32,
+    text: String,
+    yes: String,
+    yes_enabled: bool,
+    no: String,
+    answer: Option<bool>,
+) -> Option<bool> {
+    choose_with(ctx, id, width, text, vec![(yes, yes_enabled, ())], no, answer.map(|yes| yes.then_some(())), true).map(|a| a.is_some())
 }
 
 impl App {

@@ -234,9 +234,12 @@ impl App {
         if reading {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
         }
-        let (yes, no) = (self.i18n.t("delete-yes"), self.i18n.t("delete-no"));
+        // The button says what happens: to the trash, or deleted for good.
+        let yes = self.i18n.t(if how == source::Deletion::Permanent { "delete-yes" } else { "delete-move-to-trash" });
+        let no = self.i18n.t("delete-no");
         let keys = self.delete_answer.take().map(|enter| enter && !folders);
-        match confirm::yes_no(ctx, "delete", 420.0, text, yes, !reading, no, keys) {
+        let ask = if folders { confirm::yes_no_cancel_first } else { confirm::yes_no };
+        match ask(ctx, "delete", 420.0, text, yes, !reading, no, keys) {
             Some(true) => {
                 self.stop_delete_check();
                 if let Some(loader) = &self.loader {
@@ -281,7 +284,7 @@ impl App {
         if ntfs {
             text = format!("{text}\n\n{}", self.i18n.t("delete-ntfs"));
         }
-        if let Some(warning) = self.unseen_text(paths.iter().filter(|p| p.ends_with('/')).count()) {
+        if let Some(warning) = self.unseen_text(paths.iter().filter(|p| p.ends_with('/')).count(), how) {
             text = format!("{text}\n\n{warning}");
         }
         text
@@ -289,11 +292,12 @@ impl App {
 
     /// The warning when the folders about to be deleted (`folders` of them) hold something the grid
     /// does not show, or could not be read; nothing while reading or when there is nothing.
-    fn unseen_text(&self, folders: usize) -> Option<String> {
+    fn unseen_text(&self, folders: usize, how: source::Deletion) -> Option<String> {
         match &self.delete_check {
             Some(DeleteCheck::Done(Ok(Some((name, dir))))) => {
                 let (name, dir, n) = (crate::save_dialogs::md(name), crate::save_dialogs::md(source::name(dir)), folders.to_string());
-                Some(self.i18n.t_args("delete-unseen-found", &[("name", &name), ("folder", &dir), ("n", &n)]))
+                let how = if how == source::Deletion::Permanent { "permanent" } else { "trash" };
+                Some(self.i18n.t_args("delete-unseen-found", &[("name", &name), ("folder", &dir), ("n", &n), ("how", how)]))
             }
             Some(DeleteCheck::Done(Err(e))) => {
                 log!("delete: first level not read: {e:?}");

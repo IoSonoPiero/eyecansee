@@ -293,8 +293,12 @@ delete-many-folders = Folders go with everything inside them.
 delete-unseen-found = { $n ->
     [one] This folder contains
    *[other] The folder **{ $folder }** contains
-} files or folders that EyeCanSee does not show, for example **{ $name }**. They will be deleted too: check it with your file manager if you are not sure.
-delete-unseen-failed = The contents of the folder could not be checked.
+} files or folders that EyeCanSee does not show, for example **{ $name }**. { $how ->
+    [permanent] They will be deleted too
+   *[trash] They will be moved to the trash too
+}: check it with your file manager if you are not sure.
+delete-unseen-failed = The folder could not be checked: it may contain files or folders that EyeCanSee does not show.
+delete-move-to-trash = Move to trash
 delete-yes = Delete
 delete-no = Cancel
 error-no-trash-folder = This source cannot move files into the trash folder: choose "Delete for good" in the Options. ({ $detail })
