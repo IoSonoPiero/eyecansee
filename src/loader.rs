@@ -1194,6 +1194,17 @@ mod tests {
         assert_eq!(check(&["Photos/", "Docs/"], &go).unwrap(), Some(("contract.pdf".into(), "Docs/".into())));
         assert_eq!(check(&["Hidden/"], &go).unwrap(), Some((".git".into(), "Hidden/".into())));
         assert_eq!(check(&["Docs/"], &AtomicBool::new(true)).unwrap_err().0, "error-cancelled");
+        #[cfg(unix)]
+        {
+            // A folder that cannot be read: an error, for the careful warning.
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(dir.join("Docs"), std::fs::Permissions::from_mode(0o000)).unwrap();
+            // As root (the CI container) every folder can be read: nothing to check there.
+            let unreadable = std::fs::read_dir(dir.join("Docs")).is_err();
+            let r = check(&["Docs/"], &go);
+            std::fs::set_permissions(dir.join("Docs"), std::fs::Permissions::from_mode(0o755)).unwrap();
+            assert!(!unreadable || r.is_err(), "{r:?}");
+        }
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
