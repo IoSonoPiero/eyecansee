@@ -13,6 +13,16 @@ photos below as JPEG and 4 converted to PNG (Grand Canyon, Lake Sherburne, Quebe
 the 4 videos below, 3B_HEIC_SDR.heic renamed Sample.heic, and the 8 RAW files below renamed by
 camera (for example Nikon Z 6.NEF). The home folder shown (/home/demo) is a test one.
 
+model-3d.png: Avocado.glb in the 3D viewer, from the Khronos glTF Sample Assets
+(https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Avocado): the model and its
+textures CC0 1.0 (Microsoft), as its LICENSE.md says.
+
+cad-drawing.png: Flat.dwg, a small flat plan drawn for EyeCanSee with ezdxf 1.4.5 (layers for
+walls, doors, windows, furniture, dimensions and texts; linear dimensions) and saved as DWG by
+EyeCanSee's Export drawing: free to use for any purpose.
+
+Both taken in a home folder made for the screenshots (/home/demo), 1200 x 800, dark theme.
+
 Photos: public domain or CC0, from Wikimedia Commons (renamed; in the phone folder copied several
 times as IMG_0001.jpg ... IMG_0334.jpg, in the order of the list).
 

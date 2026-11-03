@@ -26,6 +26,10 @@ It is early in development. This page lists only what works now: new features ar
 
 ![The viewer](docs/screenshots/viewer.png)
 
+![A 3D model with its textures](docs/screenshots/model-3d.png)
+
+![A DWG drawing with layers and dimensions](docs/screenshots/cad-drawing.png)
+
 ![Folders, disks, a server and a phone side by side in the left panel](docs/screenshots/devices.png)
 
 ![Saving in another format, the original and the result side by side](docs/screenshots/convert.png)
