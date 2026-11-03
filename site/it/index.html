@@ -3,24 +3,54 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EyeCanSee: visualizzatore e gestore di foto, video, 3D e CAD per Linux e Windows</title>
-<meta name="description" content="Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD per Linux e Windows: sfoglia, converte, trova i doppioni e apre allo stesso modo cartelle, dischi, server e telefoni Android.">
+<title>EyeCanSee: visualizzatore di foto, video, 3D e CAD per Linux e Windows</title>
+<meta name="description" content="Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD per Linux e Windows. Apre STEP, DWG e DXF e sfoglia server e telefoni Android.">
 <link rel="canonical" href="https://eyecansee.montinaro.info/it/">
 <link rel="alternate" hreflang="en" href="https://eyecansee.montinaro.info/">
 <link rel="alternate" hreflang="it" href="https://eyecansee.montinaro.info/it/">
 <link rel="alternate" hreflang="x-default" href="https://eyecansee.montinaro.info/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="EyeCanSee">
-<meta property="og:title" content="EyeCanSee: visualizzatore e gestore di foto, video, 3D e CAD per Linux e Windows">
-<meta property="og:description" content="Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD per Linux e Windows: sfoglia, converte, trova i doppioni e apre allo stesso modo cartelle, dischi, server e telefoni Android.">
+<meta property="og:title" content="EyeCanSee: visualizzatore di foto, video, 3D e CAD per Linux e Windows">
+<meta property="og:description" content="Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD per Linux e Windows. Apre STEP, DWG e DXF e sfoglia server e telefoni Android.">
 <meta property="og:url" content="https://eyecansee.montinaro.info/it/">
-<meta property="og:image" content="https://eyecansee.montinaro.info/img/og.png">
+<meta property="og:image" content="https://eyecansee.montinaro.info/img/og-it.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="EyeCanSee: icona, nome e la griglia delle miniature">
+<meta property="og:image:alt" content="Icona e nome di EyeCanSee, la frase su cosa fa e la griglia delle miniature di una cartella di foto di esempio">
 <meta property="og:locale" content="it_IT">
 <meta property="og:locale:alternate" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="EyeCanSee: visualizzatore di foto, video, 3D e CAD per Linux e Windows">
+<meta name="twitter:description" content="Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD per Linux e Windows. Apre STEP, DWG e DXF e sfoglia server e telefoni Android.">
+<meta name="twitter:image" content="https://eyecansee.montinaro.info/img/og-it.png">
+<meta name="twitter:image:alt" content="Icona e nome di EyeCanSee, la frase su cosa fa e la griglia delle miniature di una cartella di foto di esempio">
+<!-- Structured data for search engines: JSON read by them, not a script the browser runs. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "EyeCanSee",
+  "description": "Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD per Linux e Windows.",
+  "url": "https://eyecansee.montinaro.info/it/",
+  "inLanguage": "it",
+  "applicationCategory": "MultimediaApplication",
+  "operatingSystem": "Linux, Windows",
+  "license": "https://spdx.org/licenses/GPL-3.0-or-later.html",
+  "isAccessibleForFree": true,
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "EUR"
+  },
+  "downloadUrl": "https://github.com/IoSonoPiero/eyecansee/releases/latest",
+  "sameAs": [
+    "https://github.com/IoSonoPiero/eyecansee",
+    "https://apps.microsoft.com/detail/9PK1598MXLBK"
+  ],
+  "image": "https://eyecansee.montinaro.info/img/og-it.png"
+}
+</script>
 <link rel="icon" href="../img/eyecansee.svg" type="image/svg+xml">
 <link rel="icon" href="../img/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="../img/apple-touch-icon.png">
@@ -33,7 +63,7 @@
     <img class="icon" src="../img/eyecansee.svg" width="96" height="96" alt="">
     <h1>EyeCanSee</h1>
     <p>Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD per Linux e Windows: sfoglia, converte, trova i doppioni e apre allo stesso modo cartelle, dischi, server e telefoni Android.</p>
-    <video class="shot" src="../img/browse.mp4" poster="../img/browse-poster.jpg" width="800" height="534" autoplay muted loop playsinline preload="metadata" aria-label="Una cartella in EyeCanSee: miniature, visore e un video"></video>
+    <video class="shot" src="../img/browse.mp4" poster="../img/browse-poster.jpg" width="800" height="534" autoplay muted loop playsinline preload="metadata" aria-label="Una cartella di foto di esempio in EyeCanSee: la griglia delle miniature, le foto nel visore e un video che si riproduce"></video>
   </div>
 </header>
 
@@ -71,14 +101,14 @@ sudo dnf install eyecansee</code></pre>
     <div class="card"><h3>Converti</h3><p>Immagini in JPEG, PNG, WebP, AVIF, TIFF e altri formati, anche tante alla volta; video con FFmpeg, sulla scheda video quando può, conservando i metadati e la traccia GPS di dashcam e droni.</p></div>
     <div class="card"><h3>Doppioni</h3><p>Trova foto, video e file audio identici in una cartella e nelle sue sottocartelle, su qualsiasi dispositivo, e ne tiene sempre almeno una copia.</p></div>
     <div class="card"><h3>Formati</h3><p>HEIC, AVIF, JPEG XL, PSD, RAW delle fotocamere di molte marche e i formati più rari con ImageMagick. In italiano e in inglese, tema chiaro e scuro.</p></div>
-    <div class="card half"><h3>Modelli 3D</h3><p>STL, OBJ, PLY, glTF, FBX, 3MF e altri, gli edifici IFC, e STEP, IGES e BREP dei CAD meccanici, con un motore scaricato una volta sola. Si vedono con colori e texture, disegnati dalla scheda video, e si esportano in glTF, OBJ, PLY o STL.</p></div>
-    <div class="card half"><h3>Disegni CAD</h3><p>DWG e DXF di AutoCAD e degli altri CAD e file HP-GL per plotter, nitidi a ogni ingrandimento, con livelli, quote, testi e la misura reale del disegno; si esportano come immagine, SVG, o da DWG a DXF e viceversa.</p></div>
+    <div class="card half"><h3>Modelli 3D, STEP e IGES</h3><p>STL, OBJ, PLY, glTF, FBX, 3MF e altri, gli edifici IFC, e STEP, IGES e BREP dei CAD meccanici, con un motore scaricato una volta sola. Si vedono con colori e texture, disegnati dalla scheda video, e si esportano in glTF, OBJ, PLY o STL.</p></div>
+    <div class="card half"><h3>Disegni CAD: DWG, DXF e HP-GL</h3><p>DWG e DXF di AutoCAD e degli altri CAD e file HP-GL per plotter, nitidi a ogni ingrandimento, con livelli, quote, testi e la misura reale del disegno; si esportano come immagine, SVG, o da DWG a DXF e viceversa.</p></div>
   </div>
 </section>
 
 <section id="numbers">
-  <h2>I numeri</h2>
-  <video class="shot" src="../img/mtp-open.mp4" poster="../img/mtp-open-poster.jpg" width="800" height="534" autoplay muted loop playsinline preload="metadata" aria-label="Una cartella del telefono aperta in EyeCanSee"></video>
+  <h2>Telefoni via USB: i numeri</h2>
+  <video class="shot" src="../img/mtp-open.mp4" poster="../img/mtp-open-poster.jpg" width="800" height="534" autoplay muted loop playsinline preload="metadata" aria-label="Una cartella di un telefono Android aperta via USB, con le miniature che compaiono subito"></video>
   <p class="caption">Una cartella di 400 file su un POCO X7 Pro via USB, Fedora 44, cache vuote.</p>
   <div class="numbers">
     <div class="number"><b>0,07 s</b><span>EyeCanSee elenca la cartella, dopo un'apertura di 0,5 s; prime miniature entro 0,8 s</span></div>
@@ -92,15 +122,15 @@ sudo dnf install eyecansee</code></pre>
 <section id="screenshots">
   <h2>Schermate</h2>
   <div class="gallery">
-    <figure><img class="shot" src="../img/grid.png" width="1200" height="800" loading="lazy" alt="La griglia: le miniature di una cartella, con dispositivi e albero delle cartelle a sinistra"><figcaption>La griglia, con dispositivi e cartelle</figcaption></figure>
-    <figure><img class="shot" src="../img/viewer.png" width="1200" height="800" loading="lazy" alt="Il visore"><figcaption>Il visore</figcaption></figure>
-    <figure><img class="shot" src="../img/model-3d.png" width="1200" height="800" loading="lazy" alt="Un modello 3D con le sue texture"><figcaption>Un modello 3D con le sue texture</figcaption></figure>
-    <figure><img class="shot" src="../img/cad-drawing.png" width="1200" height="800" loading="lazy" alt="Un disegno DWG con livelli e quote"><figcaption>Un disegno DWG con livelli e quote</figcaption></figure>
-    <figure><img class="shot" src="../img/devices.png" width="1200" height="800" loading="lazy" alt="Cartelle, dischi, un server e un telefono uno accanto all'altro nel pannello di sinistra"><figcaption>Dischi, un server e un telefono affiancati</figcaption></figure>
-    <figure><img class="shot" src="../img/convert.png" width="1200" height="800" loading="lazy" alt="Salvare in un altro formato, l'originale e il risultato affiancati"><figcaption>Salvare in un altro formato</figcaption></figure>
-    <figure><img class="shot" src="../img/video-convert.png" width="1600" height="800" loading="lazy" alt="Convertire i video, sulla scheda video quando può"><figcaption>Convertire i video</figcaption></figure>
-    <figure><img class="shot" src="../img/rotate.png" width="1200" height="800" loading="lazy" alt="Ruotare e ritagliare"><figcaption>Ruotare e ritagliare</figcaption></figure>
-    <figure><img class="shot" src="../img/servers.png" width="1200" height="800" loading="lazy" alt="La gestione dei server, con una password principale per i server salvati"><figcaption>La gestione dei server</figcaption></figure>
+    <figure><img class="shot" src="../img/grid.png" width="1200" height="800" loading="lazy" alt="La griglia delle miniature di una cartella del telefono Android, con le cartelle del telefono a sinistra"><figcaption>La griglia, con dispositivi e cartelle</figcaption></figure>
+    <figure><img class="shot" src="../img/viewer.png" width="1200" height="800" loading="lazy" alt="La foto di un'orchidea nel visore, con nome, dimensioni, zoom e data nella barra in basso"><figcaption>Il visore</figcaption></figure>
+    <figure><img class="shot" src="../img/model-3d.png" width="1200" height="800" loading="lazy" alt="Il modello 3D di un avocado con le sue texture, nel visore 3D"><figcaption>Un modello 3D con le sue texture</figcaption></figure>
+    <figure><img class="shot" src="../img/cad-drawing.png" width="1200" height="800" loading="lazy" alt="La pianta di un appartamento in DWG, con i nomi delle stanze, gli arredi e le quote"><figcaption>Un disegno DWG con livelli e quote</figcaption></figure>
+    <figure><img class="shot" src="../img/devices.png" width="1200" height="800" loading="lazy" alt="Il pannello di sinistra con due dischi, due server e un telefono, e una cartella di un server FTP aperta nella griglia"><figcaption>Dischi, un server e un telefono affiancati</figcaption></figure>
+    <figure><img class="shot" src="../img/convert.png" width="1200" height="800" loading="lazy" alt="Salva in un altro formato: il JPEG originale e quello convertito affiancati, con le opzioni di formato, qualità e metadati"><figcaption>Salvare in un altro formato</figcaption></figure>
+    <figure><img class="shot" src="../img/video-convert.png" width="1600" height="800" loading="lazy" alt="La finestra Converti e ridimensiona per quattro video: contenitore, codifica, codificatore della scheda video, qualità, rotazione e dimensioni"><figcaption>Convertire i video</figcaption></figure>
+    <figure><img class="shot" src="../img/rotate.png" width="1200" height="800" loading="lazy" alt="Ruota e ritaglia: una foto di montagna con il riquadro del ritaglio e i comandi di rotazione e ritaglio"><figcaption>Ruotare e ritagliare</figcaption></figure>
+    <figure><img class="shot" src="../img/servers.png" width="1200" height="800" loading="lazy" alt="La gestione dei server: un server FTP salvato e la password principale che cifra i server salvati"><figcaption>La gestione dei server</figcaption></figure>
   </div>
   <p class="caption">Le schermate mostrano l'interfaccia in inglese; il programma è anche in italiano.</p>
 </section>

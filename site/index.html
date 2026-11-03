@@ -3,24 +3,54 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>EyeCanSee: photo, video, 3D and CAD viewer and manager for Linux and Windows</title>
-<meta name="description" content="A viewer and manager for photos, videos, 3D models and CAD drawings, on Linux and Windows: browse, convert, find duplicates, and open folders, disks, servers and Android phones the same way.">
+<title>EyeCanSee: photo, video, 3D and CAD viewer for Linux and Windows</title>
+<meta name="description" content="A viewer and manager for photos, videos, 3D models and CAD drawings, for Linux and Windows. Opens STEP, DWG and DXF, and browses servers and Android phones.">
 <link rel="canonical" href="https://eyecansee.montinaro.info/">
 <link rel="alternate" hreflang="en" href="https://eyecansee.montinaro.info/">
 <link rel="alternate" hreflang="it" href="https://eyecansee.montinaro.info/it/">
 <link rel="alternate" hreflang="x-default" href="https://eyecansee.montinaro.info/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="EyeCanSee">
-<meta property="og:title" content="EyeCanSee: photo, video, 3D and CAD viewer and manager for Linux and Windows">
-<meta property="og:description" content="A viewer and manager for photos, videos, 3D models and CAD drawings, on Linux and Windows: browse, convert, find duplicates, and open folders, disks, servers and Android phones the same way.">
+<meta property="og:title" content="EyeCanSee: photo, video, 3D and CAD viewer for Linux and Windows">
+<meta property="og:description" content="A viewer and manager for photos, videos, 3D models and CAD drawings, for Linux and Windows. Opens STEP, DWG and DXF, and browses servers and Android phones.">
 <meta property="og:url" content="https://eyecansee.montinaro.info/">
 <meta property="og:image" content="https://eyecansee.montinaro.info/img/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
-<meta property="og:image:alt" content="EyeCanSee: the icon, the name and the thumbnail grid">
+<meta property="og:image:alt" content="The EyeCanSee icon and name, the sentence about what it does, and the thumbnail grid of a folder of sample photos">
 <meta property="og:locale" content="en_US">
 <meta property="og:locale:alternate" content="it_IT">
 <meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="EyeCanSee: photo, video, 3D and CAD viewer for Linux and Windows">
+<meta name="twitter:description" content="A viewer and manager for photos, videos, 3D models and CAD drawings, for Linux and Windows. Opens STEP, DWG and DXF, and browses servers and Android phones.">
+<meta name="twitter:image" content="https://eyecansee.montinaro.info/img/og.png">
+<meta name="twitter:image:alt" content="The EyeCanSee icon and name, the sentence about what it does, and the thumbnail grid of a folder of sample photos">
+<!-- Structured data for search engines: JSON read by them, not a script the browser runs. -->
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "EyeCanSee",
+  "description": "A viewer and manager for photos, videos, 3D models and CAD drawings, for Linux and Windows.",
+  "url": "https://eyecansee.montinaro.info/",
+  "inLanguage": "en",
+  "applicationCategory": "MultimediaApplication",
+  "operatingSystem": "Linux, Windows",
+  "license": "https://spdx.org/licenses/GPL-3.0-or-later.html",
+  "isAccessibleForFree": true,
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "EUR"
+  },
+  "downloadUrl": "https://github.com/IoSonoPiero/eyecansee/releases/latest",
+  "sameAs": [
+    "https://github.com/IoSonoPiero/eyecansee",
+    "https://apps.microsoft.com/detail/9PK1598MXLBK"
+  ],
+  "image": "https://eyecansee.montinaro.info/img/og.png"
+}
+</script>
 <link rel="icon" href="img/eyecansee.svg" type="image/svg+xml">
 <link rel="icon" href="img/favicon-32.png" type="image/png" sizes="32x32">
 <link rel="apple-touch-icon" href="img/apple-touch-icon.png">
@@ -32,8 +62,8 @@
   <div class="hero">
     <img class="icon" src="img/eyecansee.svg" width="96" height="96" alt="">
     <h1>EyeCanSee</h1>
-    <p>A viewer and manager for photos, videos, 3D models and CAD drawings, on Linux and Windows: browse, convert, find duplicates, and open folders, disks, servers and Android phones the same way.</p>
-    <video class="shot" src="img/browse.mp4" poster="img/browse-poster.jpg" width="800" height="534" autoplay muted loop playsinline preload="metadata" aria-label="Browsing a folder in EyeCanSee: thumbnails, the viewer and a video"></video>
+    <p>A viewer and manager for photos, videos, 3D models and CAD drawings, for Linux and Windows: browse, convert, find duplicates, and open folders, disks, servers and Android phones the same way.</p>
+    <video class="shot" src="img/browse.mp4" poster="img/browse-poster.jpg" width="800" height="534" autoplay muted loop playsinline preload="metadata" aria-label="Browsing a folder of sample photos in EyeCanSee: the thumbnail grid, photos in the viewer and a video playing"></video>
   </div>
 </header>
 
@@ -71,14 +101,14 @@ sudo dnf install eyecansee</code></pre>
     <div class="card"><h3>Convert</h3><p>Images to JPEG, PNG, WebP, AVIF, TIFF and more, many files at once; videos with FFmpeg, on the graphics card when it can, keeping the metadata and the GPS track of dashcams and drones.</p></div>
     <div class="card"><h3>Duplicates</h3><p>Finds identical photos, videos and audio files in a folder and its subfolders, on any device, and always keeps at least one copy.</p></div>
     <div class="card"><h3>Formats</h3><p>HEIC, AVIF, JPEG XL, PSD, Camera RAW from many brands, and rarer formats through ImageMagick. English and Italian, light and dark theme.</p></div>
-    <div class="card half"><h3>3D models</h3><p>STL, OBJ, PLY, glTF, FBX, 3MF and more, IFC buildings, and STEP, IGES and BREP from mechanical CAD, with an engine downloaded once. Shown with their colours and textures, drawn by the graphics card, and exported to glTF, OBJ, PLY or STL.</p></div>
-    <div class="card half"><h3>CAD drawings</h3><p>DWG and DXF from AutoCAD and other CAD programs, and HP-GL plot files, sharp at any zoom, with layers, dimensions and texts and the drawing's real size; exported as images, SVG, or from DWG to DXF and back.</p></div>
+    <div class="card half"><h3>3D models, STEP and IGES</h3><p>STL, OBJ, PLY, glTF, FBX, 3MF and more, IFC buildings, and STEP, IGES and BREP from mechanical CAD, with an engine downloaded once. Shown with their colours and textures, drawn by the graphics card, and exported to glTF, OBJ, PLY or STL.</p></div>
+    <div class="card half"><h3>CAD drawings: DWG, DXF and HP-GL</h3><p>DWG and DXF from AutoCAD and other CAD programs, and HP-GL plot files, sharp at any zoom, with layers, dimensions and texts and the drawing's real size; exported as images, SVG, or from DWG to DXF and back.</p></div>
   </div>
 </section>
 
 <section id="numbers">
-  <h2>The numbers</h2>
-  <video class="shot" src="img/mtp-open.mp4" poster="img/mtp-open-poster.jpg" width="800" height="534" autoplay muted loop playsinline preload="metadata" aria-label="Opening a phone folder in EyeCanSee"></video>
+  <h2>Phones over USB: the numbers</h2>
+  <video class="shot" src="img/mtp-open.mp4" poster="img/mtp-open-poster.jpg" width="800" height="534" autoplay muted loop playsinline preload="metadata" aria-label="A folder on an Android phone opened over USB, its thumbnails appearing at once"></video>
   <p class="caption">A folder of 400 files on a POCO X7 Pro over USB, Fedora 44, cold caches.</p>
   <div class="numbers">
     <div class="number"><b>0.07 s</b><span>EyeCanSee lists the folder, after a 0.5 s open; first thumbnails within 0.8 s</span></div>
@@ -92,15 +122,15 @@ sudo dnf install eyecansee</code></pre>
 <section id="screenshots">
   <h2>Screenshots</h2>
   <div class="gallery">
-    <figure><img class="shot" src="img/grid.png" width="1200" height="800" loading="lazy" alt="The grid: thumbnails of a folder, with the devices and the folder tree on the left"><figcaption>The grid, with devices and folders</figcaption></figure>
-    <figure><img class="shot" src="img/viewer.png" width="1200" height="800" loading="lazy" alt="The viewer"><figcaption>The viewer</figcaption></figure>
-    <figure><img class="shot" src="img/model-3d.png" width="1200" height="800" loading="lazy" alt="A 3D model with its textures"><figcaption>A 3D model with its textures</figcaption></figure>
-    <figure><img class="shot" src="img/cad-drawing.png" width="1200" height="800" loading="lazy" alt="A DWG drawing with layers and dimensions"><figcaption>A DWG drawing with layers and dimensions</figcaption></figure>
-    <figure><img class="shot" src="img/devices.png" width="1200" height="800" loading="lazy" alt="Folders, disks, a server and a phone side by side in the left panel"><figcaption>Disks, a server and a phone side by side</figcaption></figure>
-    <figure><img class="shot" src="img/convert.png" width="1200" height="800" loading="lazy" alt="Saving in another format, the original and the result side by side"><figcaption>Saving in another format</figcaption></figure>
-    <figure><img class="shot" src="img/video-convert.png" width="1600" height="800" loading="lazy" alt="Converting videos, on the graphics card when it can"><figcaption>Converting videos</figcaption></figure>
-    <figure><img class="shot" src="img/rotate.png" width="1200" height="800" loading="lazy" alt="Rotating and cropping"><figcaption>Rotating and cropping</figcaption></figure>
-    <figure><img class="shot" src="img/servers.png" width="1200" height="800" loading="lazy" alt="The server manager, with a master password for the saved servers"><figcaption>The server manager</figcaption></figure>
+    <figure><img class="shot" src="img/grid.png" width="1200" height="800" loading="lazy" alt="The thumbnail grid of a folder on an Android phone, with the phone's folders on the left"><figcaption>The grid, with devices and folders</figcaption></figure>
+    <figure><img class="shot" src="img/viewer.png" width="1200" height="800" loading="lazy" alt="A photo of an orchid in the viewer, with name, size, zoom and date in the bar below"><figcaption>The viewer</figcaption></figure>
+    <figure><img class="shot" src="img/model-3d.png" width="1200" height="800" loading="lazy" alt="A 3D model of an avocado with its textures, in the 3D viewer"><figcaption>A 3D model with its textures</figcaption></figure>
+    <figure><img class="shot" src="img/cad-drawing.png" width="1200" height="800" loading="lazy" alt="A DWG floor plan of a flat, with room names, furniture and dimensions"><figcaption>A DWG drawing with layers and dimensions</figcaption></figure>
+    <figure><img class="shot" src="img/devices.png" width="1200" height="800" loading="lazy" alt="The left panel with two disks, two servers and a phone, and a folder of an FTP server open in the grid"><figcaption>Disks, a server and a phone side by side</figcaption></figure>
+    <figure><img class="shot" src="img/convert.png" width="1200" height="800" loading="lazy" alt="Save in another format: the original JPEG and the converted one side by side, with format, quality and metadata options"><figcaption>Saving in another format</figcaption></figure>
+    <figure><img class="shot" src="img/video-convert.png" width="1600" height="800" loading="lazy" alt="The Convert and resize window for four videos: container, codec, graphics card encoder, quality, turn and size"><figcaption>Converting videos</figcaption></figure>
+    <figure><img class="shot" src="img/rotate.png" width="1200" height="800" loading="lazy" alt="Rotate and crop: a mountain photo with the crop frame and the rotation and crop controls"><figcaption>Rotating and cropping</figcaption></figure>
+    <figure><img class="shot" src="img/servers.png" width="1200" height="800" loading="lazy" alt="The server manager: a saved FTP server and the master password that encrypts the saved servers"><figcaption>The server manager</figcaption></figure>
   </div>
 </section>
 
