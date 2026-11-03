@@ -24,7 +24,7 @@
   </Resources>
   <Applications>
     <Application Id="EyeCanSee" Executable="eyecansee.exe" EntryPoint="Windows.FullTrustApplication">
-      <uap:VisualElements DisplayName="EyeCanSee" Description="Image viewer and manager"
+      <uap:VisualElements DisplayName="EyeCanSee" Description="Viewer and manager for photos, videos, 3D models and CAD drawings"
                           BackgroundColor="transparent"
                           Square150x150Logo="Assets\Square150x150Logo.png"
                           Square44x44Logo="Assets\Square44x44Logo.png" />

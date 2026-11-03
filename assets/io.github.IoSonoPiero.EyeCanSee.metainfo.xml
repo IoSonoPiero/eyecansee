@@ -2,8 +2,8 @@
 <component type="desktop-application">
   <id>io.github.IoSonoPiero.EyeCanSee</id>
   <name>EyeCanSee</name>
-  <summary>Image and video viewer and manager</summary>
-  <summary xml:lang="it">Visualizzatore e gestore di immagini e video</summary>
+  <summary>Viewer and manager for photos, videos, 3D models and CAD drawings</summary>
+  <summary xml:lang="it">Visualizzatore e gestore di foto, video, modelli 3D e disegni CAD</summary>
   <developer id="io.github.iosonopiero">
     <name>Pierluigi Montinaro</name>
   </developer>
@@ -12,8 +12,8 @@
   <launchable type="desktop-id">eyecansee.desktop</launchable>
 
   <description>
-    <p>Browse photos and videos on computers, disks, servers and phones, copy and move them from one device to another, find duplicate copies and convert them to other formats.</p>
-    <p xml:lang="it">Sfoglia foto e video di computer, dischi, server e telefoni, copiali e spostali da un dispositivo all'altro, trova le copie doppie e convertili in altri formati.</p>
+    <p>A viewer and manager for photos, videos, 3D models and CAD drawings: browse them on computers, disks, servers and phones, copy and move them from one device to another, find duplicate copies and convert them to other formats.</p>
+    <p xml:lang="it">Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD: sfogliali su computer, dischi, server e telefoni, copiali e spostali da un dispositivo all'altro, trova le copie doppie e convertili in altri formati.</p>
     <ul>
       <li>Folders on the computer, external disks, USB sticks and SD cards, with cached thumbnails</li>
       <li xml:lang="it">Cartelle del computer, dischi esterni, chiavette USB e schede SD, con le miniature in cache</li>
@@ -23,6 +23,8 @@
       <li xml:lang="it">Copia, sposta, rinomina ed elimina, anche tra dispositivi, con un cestino su ogni dispositivo</li>
       <li>Videos with thumbnails, playback with sound, their details, and conversion with FFmpeg (MP4, MKV, WebM, H.264, HEVC, AV1, VP9…), on the graphics card when it can</li>
       <li xml:lang="it">Video con miniature, riproduzione con l'audio, dettagli e conversione con FFmpeg (MP4, MKV, WebM, H.264, HEVC, AV1, VP9…), sulla scheda video quando può</li>
+      <li>3D models and CAD drawings in the grid and in the viewer, exported to other formats</li>
+      <li xml:lang="it">Modelli 3D e disegni CAD nella griglia e nel visore, esportati in altri formati</li>
       <li>Android phones and cameras opened directly over USB, much faster than through the file manager</li>
       <li xml:lang="it">Telefoni Android e fotocamere aperti direttamente via USB, molto più veloce che dal file manager</li>
       <li>SFTP, FTP and FTPS servers browsed like any folder, saved with password or SSH key</li>

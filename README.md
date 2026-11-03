@@ -1,6 +1,6 @@
 # EyeCanSee
 
-An image and video viewer and manager for Linux and Windows, written in Rust: it browses photos and videos on computers, disks, servers and phones, copies and moves them from one device to another, finds duplicate copies, and converts them to other formats. Free and open source.
+A viewer and manager for photos, videos, 3D models and CAD drawings, for Linux and Windows, written in Rust: it browses them on computers, disks, servers and phones, copies and moves them from one device to another, finds duplicate copies, and converts them to other formats. Free and open source.
 
 <p>
   <a href="https://apps.microsoft.com/detail/9PK1598MXLBK"><img src="https://get.microsoft.com/images/en-us%20dark.svg" width="200" alt="Download from the Microsoft Store"/></a>
