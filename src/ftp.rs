@@ -18,7 +18,7 @@ use suppaftp::types::FileType;
 use suppaftp::{FtpError, Mode, Status};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
-use crate::source::{Error, Listing, NOT_FOUND, TRASH_DIR};
+use crate::source::{Error, Listing, NOT_FOUND};
 
 mod tls;
 pub use tls::{trust, unknown};
@@ -491,8 +491,9 @@ impl Server {
         with!(self, path, |c| c.s.rmdir(abs(path)).await)
     }
 
-    /// Everything below a folder, hidden items too, folders before what they contain: path and
-    /// size (folders end in "/", size 0). EyeCanSee's trash folders stay out.
+    /// Everything below a folder, hidden items and EyeCanSee's trash folders too
+    /// (`transfer::place`), folders before what they contain: path and size (folders end in "/",
+    /// size 0).
     pub async fn walk(&self, dir: &str, p: &crate::transfer::Progress) -> Result<Vec<(String, u64)>, Error> {
         let mut found = Vec::new();
         let mut todo = vec![dir.to_string()];
@@ -504,10 +505,8 @@ impl Server {
             for f in self.entries(&d).await? {
                 let path = format!("{d}{}", f.name());
                 if self.entry_is_dir(&path, &f).await {
-                    if f.name() != TRASH_DIR {
-                        found.push((format!("{path}/"), 0));
-                        todo.push(format!("{path}/"));
-                    }
+                    found.push((format!("{path}/"), 0));
+                    todo.push(format!("{path}/"));
                 } else {
                     found.push((path, f.size() as u64));
                 }

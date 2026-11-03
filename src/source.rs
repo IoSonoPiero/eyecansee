@@ -336,8 +336,9 @@ impl Store {
         noticed(r, path)
     }
 
-    /// Everything below a folder, hidden items too, folders before what they contain: path and
-    /// size (folders end in "/", size 0). EyeCanSee's trash folders stay out.
+    /// Everything below a folder, hidden items and EyeCanSee's trash folders too (a copy leaves
+    /// them out, a move takes them along: `transfer::place`), folders before what they contain:
+    /// path and size (folders end in "/", size 0).
     /// `counted` grows as items are found, for the progress window.
     pub async fn walk(&self, dir: &str, p: &crate::transfer::Progress) -> Result<Vec<(String, u64)>, Error> {
         match self {
@@ -350,7 +351,7 @@ impl Store {
                         return Err(("error-cancelled", String::new()));
                     }
                     let path = e.path().trim_start_matches('/').to_string();
-                    if path == dir || path.split('/').any(|p| p == TRASH_DIR) {
+                    if path == dir {
                         continue;
                     }
                     // The size is not always in the listing (local files): asked one by one.

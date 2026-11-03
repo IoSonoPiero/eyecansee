@@ -508,8 +508,8 @@ impl Phone {
         Ok(self.queued("size", path, storage.get_object_info(handle)).await.map_err(error)?.size)
     }
 
-    /// Everything below a folder, hidden items too, folders before what they contain: path and size
-    /// (folders end in "/"). EyeCanSee's trash folders stay out.
+    /// Everything below a folder, hidden items and EyeCanSee's trash folders too (`transfer::place`),
+    /// folders before what they contain: path and size (folders end in "/").
     pub async fn walk(&self, dir: &str, p: &crate::transfer::Progress) -> Result<Vec<(String, u64)>, Error> {
         if p.cancel.load(Ordering::Relaxed) {
             return Err(("error-cancelled", String::new()));
@@ -525,10 +525,8 @@ impl Phone {
             let path = format!("{dir}{}{}", o.filename, if o.is_folder() { "/" } else { "" });
             self.handles.lock().unwrap().insert(path.clone(), o.handle);
             if o.is_folder() {
-                if o.filename != source::TRASH_DIR {
-                    found.push((path.clone(), 0));
-                    found.extend(Box::pin(self.walk(&path, p)).await?);
-                }
+                found.push((path.clone(), 0));
+                found.extend(Box::pin(self.walk(&path, p)).await?);
             } else {
                 found.push((path, o.size));
             }

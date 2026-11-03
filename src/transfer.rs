@@ -2,12 +2,12 @@
 //! folders of a disk, a phone and the computer, two phones. Files travel in chunks from the
 //! reader to the writer, so a large video never sits whole in memory.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
-use crate::source::{Deletion, Error, Store, free_name, name, parent};
+use crate::source::{Deletion, Error, Store, TRASH_DIR, free_name, name, parent};
 use crate::thumbcache;
 
 /// What Ctrl+C or Ctrl+X took: the source it came from, which can be different from the one
@@ -154,16 +154,7 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
     let mut lists = Vec::new();
     for (src, dest) in &copies {
         let list = if src.ends_with('/') {
-            // Made before looking inside, which can take seconds on a phone: the folder shows up at once.
-            to.create_dir(dest).await?;
-            p.touched.lock().unwrap().push(parent(dest));
-            let below = clip.op.walk(src, p).await?;
-            std::iter::once((src.clone(), dest.clone(), 0))
-                .chain(below.into_iter().map(|(path, size)| {
-                    let to_path = format!("{dest}{}", &path[src.len()..]);
-                    (path, to_path, size)
-                }))
-                .collect()
+            folder_items(clip, to, src, dest, p).await?
         } else {
             vec![(src.clone(), dest.clone(), clip.op.size(src).await?)]
         };
@@ -197,6 +188,62 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
         }
     }
     Ok(())
+}
+
+/// A folder and everything to copy from below it: (source, destination, size).
+async fn folder_items(clip: &Clip, to: &Store, src: &str, dest: &str, p: &Progress) -> Result<Vec<(String, String, u64)>, Error> {
+    // Made before looking inside, which can take seconds on a phone: the folder shows up at once.
+    to.create_dir(dest).await?;
+    p.touched.lock().unwrap().push(parent(dest));
+    let below = clip.op.walk(src, p).await?;
+    let mut list = vec![(src.to_string(), dest.to_string(), 0)];
+    let mut trashes = HashMap::new();
+    for (path, size) in below {
+        if let Some(rel) = place(to, dest, &path[src.len()..], clip.cut, &mut trashes).await {
+            list.push((path, format!("{dest}{rel}"), size));
+        }
+    }
+    Ok(list)
+}
+
+/// Names taken in a trash folder of the destination, and what each item of the source's trash became.
+type Trashes = HashMap<String, (HashSet<String>, HashMap<String, String>)>;
+
+/// Where an item found below a pasted folder goes, relative to the folder's destination `dest`.
+/// Items in EyeCanSee's trash folders are left out of a copy (`None`) but come along in a move:
+/// the original folder is deleted afterwards, and its trash with it (lost before 0.73.1). In a
+/// trash that is already at the destination (merging folders) nothing is replaced: an item whose
+/// name is taken becomes "name (2)", as when keeping both, and what it contains follows it.
+async fn place(to: &Store, dest: &str, rel: &str, cut: bool, trashes: &mut Trashes) -> Option<String> {
+    let marker = format!("{TRASH_DIR}/");
+    let Some((at, _)) = rel.match_indices(&marker).find(|(i, _)| *i == 0 || rel.as_bytes()[i - 1] == b'/') else {
+        return Some(rel.to_string());
+    };
+    if !cut {
+        return None;
+    }
+    let (trash, rest) = rel.split_at(at + marker.len());
+    if rest.is_empty() {
+        return Some(rel.to_string());
+    }
+    if !trashes.contains_key(trash) {
+        let taken = to.names(&format!("{dest}{trash}")).await.unwrap_or_default();
+        trashes.insert(trash.to_string(), (taken, HashMap::new()));
+    }
+    let (taken, renamed) = trashes.get_mut(trash)?;
+    let (top, below) = rest.split_once('/').map_or((rest, None), |(t, b)| (t, Some(b)));
+    let new = renamed
+        .entry(top.to_string())
+        .or_insert_with(|| {
+            let n = free_name(taken, top);
+            taken.insert(n.clone());
+            n
+        })
+        .clone();
+    Some(match below {
+        Some(b) => format!("{trash}{new}/{b}"),
+        None => format!("{trash}{new}"),
+    })
 }
 
 /// A file of this computer being written: kept out of the listing and of the folder watcher
@@ -321,6 +368,69 @@ mod tests {
             let (_, r) = run(&clip(&["b/x.jpg"], false), &op, &base, "a/", &HashMap::new(), &p).await;
             assert_eq!(r.unwrap_err().0, "error-cancelled");
             assert!(!dir.join("a/x.jpg").exists());
+        });
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A folder's own trash comes along when it moves (to another device, or merged into a folder
+    /// of the same name) and stays out of a copy; in a trash already at the destination nothing is
+    /// replaced. The files in it were lost before 0.73.1.
+    #[test]
+    fn move_takes_the_trash_along() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let dir = std::env::temp_dir().join(format!("eyecansee-trash-move-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let put = |path: &str, data: &[u8]| {
+            let f = dir.join(path);
+            std::fs::create_dir_all(f.parent().unwrap()).unwrap();
+            std::fs::write(f, data).unwrap();
+        };
+        let trash = TRASH_DIR;
+        for v in ["one/Holiday", "one/Copied", "two/A/Holiday", "two/C/Holiday"] {
+            put(&format!("{v}/Denali.jpg"), b"denali");
+            put(&format!("{v}/Iceberg.jpg"), b"iceberg");
+            put(&format!("{v}/{trash}/Moth.jpg"), b"moth");
+        }
+        put(&format!("two/C/Holiday/{trash}/Album/p.jpg"), b"p");
+        put("two/B/Holiday/Sunset.jpg", b"sunset");
+        put(&format!("two/D/Holiday/{trash}/Moth.jpg"), b"old moth");
+        put(&format!("two/D/Holiday/{trash}/Album/q.jpg"), b"q");
+        let store = |sub: &str| Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.join(sub).to_str().unwrap())).unwrap());
+        let (one, two) = (store("one"), store("two"));
+        let (base1, base2) = (format!("test-trash1-{}://", std::process::id()), format!("test-trash2-{}://", std::process::id()));
+        let clip = |op: &Store, base: &str, path: &str, cut| Clip { op: op.clone(), base: base.to_string(), paths: vec![path.to_string()], cut };
+        let read = |path: &str| std::fs::read(dir.join(path)).ok();
+        rt.block_on(async {
+            // A copy to another device: the trash stays behind.
+            let (_, r) = run(&clip(&one, &base1, "Copied/", false), &two, &base2, "", &HashMap::new(), &Progress::default()).await;
+            r.unwrap();
+            assert_eq!(read("two/Copied/Denali.jpg").as_deref(), Some(&b"denali"[..]));
+            assert!(!dir.join(format!("two/Copied/{trash}")).exists(), "a copy leaves the trash out");
+
+            // A move to another device: copied, then the original deleted, its trash came along.
+            let p = Progress::default();
+            let (gone, r) = run(&clip(&one, &base1, "Holiday/", true), &two, &base2, "E/", &HashMap::new(), &p).await;
+            r.unwrap();
+            assert_eq!(gone, vec!["Holiday/"]);
+            assert_eq!(p.files_total.load(Ordering::Relaxed), 3);
+            assert_eq!(read(&format!("two/E/Holiday/{trash}/Moth.jpg")).as_deref(), Some(&b"moth"[..]));
+            assert!(!dir.join("one/Holiday").exists());
+
+            // Merged into a folder of the same name on the same device: copied, not renamed.
+            let (_, r) = run(&clip(&two, &base2, "A/Holiday/", true), &two, &base2, "B/", &HashMap::new(), &Progress::default()).await;
+            r.unwrap();
+            assert_eq!(read("two/B/Holiday/Sunset.jpg").as_deref(), Some(&b"sunset"[..]));
+            assert_eq!(read(&format!("two/B/Holiday/{trash}/Moth.jpg")).as_deref(), Some(&b"moth"[..]));
+            assert!(!dir.join("two/A/Holiday").exists());
+
+            // Merged where a trash is already there: nothing in it replaced, "name (2)" instead.
+            let (_, r) = run(&clip(&two, &base2, "C/Holiday/", true), &two, &base2, "D/", &HashMap::new(), &Progress::default()).await;
+            r.unwrap();
+            assert_eq!(read(&format!("two/D/Holiday/{trash}/Moth.jpg")).as_deref(), Some(&b"old moth"[..]));
+            assert_eq!(read(&format!("two/D/Holiday/{trash}/Moth (2).jpg")).as_deref(), Some(&b"moth"[..]));
+            assert_eq!(read(&format!("two/D/Holiday/{trash}/Album/q.jpg")).as_deref(), Some(&b"q"[..]));
+            assert_eq!(read(&format!("two/D/Holiday/{trash}/Album (2)/p.jpg")).as_deref(), Some(&b"p"[..]));
+            assert!(!dir.join("two/C/Holiday").exists());
         });
         std::fs::remove_dir_all(&dir).unwrap();
     }

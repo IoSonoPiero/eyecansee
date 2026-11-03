@@ -15,7 +15,7 @@ use russh_sftp::client::RawSftpSession;
 use russh_sftp::client::error::Error as SftpError;
 use russh_sftp::protocol::{FileAttributes, OpenFlags, StatusCode};
 
-use crate::source::{Error, Listing, NOT_FOUND, TRASH_DIR};
+use crate::source::{Error, Listing, NOT_FOUND};
 
 mod connect;
 pub use connect::{Target, rsa_login, trust, unknown};
@@ -329,8 +329,9 @@ impl Server {
         retry!(self, path, |c| c.raw.rmdir(abs(path)).await).map(|_| ())
     }
 
-    /// Everything below a folder, hidden items too, folders before what they contain: path and
-    /// size (folders end in "/", size 0). EyeCanSee's trash folders stay out.
+    /// Everything below a folder, hidden items and EyeCanSee's trash folders too
+    /// (`transfer::place`), folders before what they contain: path and size (folders end in "/",
+    /// size 0).
     pub async fn walk(&self, dir: &str, p: &crate::transfer::Progress) -> Result<Vec<(String, u64)>, Error> {
         let mut found = Vec::new();
         let mut todo = vec![dir.to_string()];
@@ -342,10 +343,8 @@ impl Server {
             for (name, a) in self.entries(&d).await? {
                 let path = format!("{d}{name}");
                 if self.entry_is_dir(&path, &a).await {
-                    if name != TRASH_DIR {
-                        found.push((format!("{path}/"), 0));
-                        todo.push(format!("{path}/"));
-                    }
+                    found.push((format!("{path}/"), 0));
+                    todo.push(format!("{path}/"));
                 } else {
                     found.push((path, a.size.unwrap_or(0)));
                 }
@@ -541,7 +540,7 @@ mod tests {
             assert!(op.is_dir(&format!("{dir}{}/sub2/inner/", source::TRASH_DIR)).await);
             let walked = op.walk(&dir, &crate::transfer::Progress::default()).await.unwrap();
             println!("walk: {walked:?}");
-            assert_eq!(walked.len(), 1, "the trash stays out of a walk");
+            assert!(walked.iter().any(|(p, _)| p.ends_with(&format!("{}/sub2/inner/{}/z.jpg", source::TRASH_DIR, source::TRASH_DIR))), "the trash is walked too");
             assert_eq!(op.read(&format!("{dir}nothing.jpg")).await.unwrap_err().0, source::NOT_FOUND);
             op.delete(&dir, Deletion::Permanent).await.unwrap();
             assert_eq!(op.check_dir(&dir).await.unwrap_err().0, source::NOT_FOUND);
