@@ -1,6 +1,7 @@
 //! EXIF metadata of the selected photo, for the panel below the grid, with `kamadak-exif` (pure
 //! Rust: files also come from phones and servers). Reads JPEG, HEIC/AVIF, PNG, WebP, TIFF and the
-//! RAW files built on TIFF. `exif_chunk` hands the same EXIF to Save in another format.
+//! RAW files built on TIFF. `exif_chunk` hands the same EXIF to Save in another format,
+//! `fit_exif` makes it fit the pixels written (sizes, no old thumbnail).
 
 use std::io::Cursor;
 
@@ -141,6 +142,77 @@ pub fn exif_chunk(bytes: &[u8]) -> Option<Vec<u8>> {
     }
     let mut out = Cursor::new(Vec::new());
     (any && writer.write(&mut out, exif.little_endian()).is_ok()).then(|| out.into_inner())
+}
+
+/// The EXIF (TIFF data, as `exif_chunk`) of a file being written, made to fit its pixels: the
+/// sizes (ImageWidth/Length, PixelX/YDimension) set to `w` × `h` and the thumbnail taken out,
+/// with its bytes zeroed: it showed the original, the part cropped away included. In place, so
+/// the offsets of everything else (the MakerNote too) stay right. A broken EXIF is left as it is.
+pub fn fit_exif(t: &mut [u8], w: u32, h: u32) {
+    let little = match t.get(..4) {
+        Some(b"II*\0") => true,
+        Some(b"MM\0*") => false,
+        _ => return,
+    };
+    let u16_at = |t: &[u8], i: usize| t.get(i..i + 2).map(|b| if little { u16::from_le_bytes([b[0], b[1]]) } else { u16::from_be_bytes([b[0], b[1]]) });
+    let u32_at = |t: &[u8], i: usize| t.get(i..i + 4).map(|b| if little { u32::from_le_bytes(b.try_into().unwrap()) } else { u32::from_be_bytes(b.try_into().unwrap()) } as usize);
+    let put = |t: &mut [u8], i: usize, b: [u8; 4]| {
+        if let Some(d) = t.get_mut(i..i + 4) {
+            d.copy_from_slice(&b);
+        }
+    };
+    let long = |v: u32| if little { v.to_le_bytes() } else { v.to_be_bytes() };
+    // Entries of the directory at `at` (tag, start of the entry), and where its "next" offset is.
+    let entries = |t: &[u8], at: usize| {
+        let n = u16_at(t, at)? as usize;
+        let next = at + 2 + 12 * n;
+        t.get(next..next + 4)?;
+        Some(((0..n).filter_map(|k| Some((u16_at(t, at + 2 + 12 * k)?, at + 2 + 12 * k))).collect::<Vec<_>>(), next))
+    };
+    // A size of one value, written as a LONG (SHORT or LONG are both allowed).
+    let set = |t: &mut [u8], e: usize, v: u32| {
+        if u32_at(t, e + 4) == Some(1) {
+            t[e + 2..e + 4].copy_from_slice(if little { &[4, 0] } else { &[0, 4] });
+            put(t, e + 8, long(v));
+        }
+    };
+    let Some(ifd0) = u32_at(t, 4) else { return };
+    let Some((tags, next)) = entries(t, ifd0) else { return };
+    for (tag, e) in tags {
+        match tag {
+            0x0100 => set(t, e, w),
+            0x0101 => set(t, e, h),
+            0x8769 => {
+                let Some((exif, _)) = u32_at(t, e + 8).and_then(|at| entries(t, at)) else { continue };
+                for (tag, e) in exif {
+                    match tag {
+                        0xA002 => set(t, e, w),
+                        0xA003 => set(t, e, h),
+                        _ => {}
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+    // IFD1, the thumbnail: its picture (JPEG, or one strip) and the directory zeroed, unlinked.
+    let Some(ifd1) = u32_at(t, next).filter(|&at| at != 0) else { return };
+    if let Some((tags, end)) = entries(t, ifd1) {
+        // One value, SHORT or LONG (strips can be either).
+        let value = |t: &[u8], tag| {
+            let &(_, e) = tags.iter().find(|&&(x, _)| x == tag)?;
+            if u16_at(t, e + 2)? == 3 { u16_at(t, e + 8).map(usize::from) } else { u32_at(t, e + 8) }
+        };
+        for (start, len) in [(0x0201, 0x0202), (0x0111, 0x0117)] {
+            if let (Some(s), Some(l)) = (value(t, start), value(t, len))
+                && let Some(d) = t.get_mut(s..s.saturating_add(l))
+            {
+                d.fill(0);
+            }
+        }
+        t[ifd1..end + 4].fill(0);
+    }
+    put(t, next, [0; 4]);
 }
 
 /// The panel for an image: its EXIF if any, and always what the header says (format, size,
@@ -487,5 +559,60 @@ mod tests {
         assert_eq!(super::Meta::from_json(&m.to_json()), Some(m));
         assert_eq!(super::Meta::from_json("{}"), None);
         assert_eq!(super::Meta::from_json(r#"{"fields":[],"gps":null}"#), None); // saved before versions
+    }
+
+    /// Every way of writing a photo again (Rotate and crop, quarter turns with and without
+    /// re-encoding, batch resize, other formats) leaves no thumbnail of the original, the EXIF
+    /// sizes those of the pixels written, the orientation upright.
+    #[test]
+    fn exif_fits_written_file() {
+        use crate::batch::{Job, Size};
+        use crate::encode::{Format, Options, Original};
+        use crate::transform::{Op, Turn};
+        use image::{DynamicImage, RgbImage};
+        // A thumbnail that is found again if any of it is left: a JPEG of the whole image.
+        let img = |w, h| DynamicImage::ImageRgb8(RgbImage::from_fn(w, h, |x, y| image::Rgb([(x * 7) as u8, (y * 5) as u8, 90])));
+        let thumb = Original::with_meta(img(40, 30), &[]).encode(&Options::default()).unwrap();
+        let photo = |w, h| {
+            let mut writer = Writer::new();
+            let fields = [
+                field(Tag::Make, Value::Ascii(vec![b"TestCam".to_vec()])),
+                field(Tag::Orientation, Value::Short(vec![6])),
+                field(Tag::PixelXDimension, Value::Short(vec![w as u16])),
+                field(Tag::PixelYDimension, Value::Long(vec![h])),
+            ];
+            fields.iter().for_each(|f| writer.push_field(f));
+            writer.set_jpeg(&thumb, In::THUMBNAIL);
+            let mut tiff = std::io::Cursor::new(Vec::new());
+            writer.write(&mut tiff, false).unwrap();
+            let plain = Original::with_meta(img(w, h), &[]).encode(&Options::default()).unwrap();
+            let len = (tiff.get_ref().len() + 8) as u16;
+            [&[0xFF, 0xD8, 0xFF, 0xE1][..], &len.to_be_bytes(), b"Exif\0\0", tiff.get_ref(), &plain[2..]].concat()
+        };
+        let cw = Turn::default().then(Op::Cw);
+        let resized = |format| Job { format, size: Size::Percent(50), ..Job::default() };
+        for (w, h) in [(64, 32), (65, 33)] {
+            let b = photo(w, h);
+            let edit = crate::rotate::Edit { turn: Turn::default(), angle: 10.0, crop: crate::rotate::Crop { cx: -8.0, cy: 0.0, w: 20.0, h: 30.0 }, fill: None };
+            let mut cropped = crate::decode::decode_full(&b, "x.jpg").unwrap();
+            edit.apply(&mut cropped);
+            let (turned, lossy) = crate::encode::turned_file(&b, "x.jpg", cw).unwrap();
+            assert_eq!(lossy, w % 16 != 0, "{w}: the size allows a turn without re-encoding");
+            let mut out = vec![("cropped.jpg", crate::encode::encoded_back(&b, "x.jpg", cropped).unwrap().0), ("turned.jpg", turned)];
+            for (name, f) in [("x.jpg", None), ("x.png", Some(Format::Png)), ("x.webp", Some(Format::Webp)), ("x.avif", Some(Format::Avif))] {
+                out.push((name, crate::batch::convert(&b, "x.jpg", &resized(f)).unwrap().1));
+            }
+            for (name, data) in out {
+                let at = format!("{w}x{h} {name}");
+                let exif = exif::Reader::new().read_from_container(&mut std::io::Cursor::new(&data)).expect(&at);
+                let pixels = crate::decode::decode_full(&data, name).unwrap();
+                let get = |tag| exif.get_field(tag, In::PRIMARY).and_then(|f| f.value.get_uint(0));
+                assert_eq!((get(Tag::PixelXDimension), get(Tag::PixelYDimension)), (Some(pixels.width()), Some(pixels.height())), "{at}");
+                assert_eq!(get(Tag::Orientation), Some(1), "{at}");
+                assert!(exif.fields().all(|f| f.ifd_num != In::THUMBNAIL), "{at}");
+                assert!(!data.windows(thumb.len()).any(|x| x == thumb), "{at}: the old thumbnail is still in the file");
+                assert_eq!(exif.get_field(Tag::Make, In::PRIMARY).map(|f| f.display_value().to_string()), Some("\"TestCam\"".into()), "{at}");
+            }
+        }
     }
 }

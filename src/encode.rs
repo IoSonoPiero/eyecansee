@@ -253,6 +253,13 @@ impl Original {
             &turned
         };
         let img = pixels(image, o.format);
+        // Sizes of the pixels written, the old thumbnail out (it showed the original).
+        let exif = exif.map(|e| {
+            let mut e = e.to_vec();
+            crate::meta::fit_exif(&mut e, img.width(), img.height());
+            e
+        });
+        let exif = exif.as_deref();
         let mut out = Cursor::new(Vec::new());
         match o.format {
             Format::Jpeg => return jpeg(&img, o, exif, icc),

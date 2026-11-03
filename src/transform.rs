@@ -144,12 +144,14 @@ pub fn jpeg_lossless_total(bytes: &[u8], total: Turn) -> Option<Vec<u8>> {
     let mut t = turbojpeg::Transform::op(total.jpeg_op());
     t.perfect = true;
     let mut out = turbojpeg::transform(&t, bytes).ok()?.to_vec();
-    upright_exif(&mut out);
+    let h = turbojpeg::read_header(&out).ok()?;
+    upright_exif(&mut out, h.width as u32, h.height as u32);
     Some(out)
 }
 
-/// Sets the orientation in the EXIF segment of a JPEG to "upright", in place.
-fn upright_exif(jpeg: &mut [u8]) {
+/// Sets the orientation in the EXIF segment of a JPEG to "upright", in place, and makes the rest
+/// fit the `w` × `h` pixels (`meta::fit_exif`): the segments are copied as they were.
+fn upright_exif(jpeg: &mut [u8], w: u32, h: u32) {
     let mut i = 2;
     while i + 4 <= jpeg.len() && jpeg[i] == 0xFF {
         let marker = jpeg[i + 1];
@@ -160,6 +162,7 @@ fn upright_exif(jpeg: &mut [u8]) {
         let body = &mut jpeg[i + 4..i + 2 + len];
         if marker == 0xE1 && body.starts_with(b"Exif\0\0") {
             let _ = Orientation::remove_from_exif_chunk(&mut body[6..]);
+            crate::meta::fit_exif(&mut body[6..], w, h);
             return;
         }
         i += 2 + len;
