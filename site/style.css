@@ -78,6 +78,10 @@ footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
   .cards.download { grid-template-columns: 1fr 1fr; }
   .cards.download .wide { grid-column: 1 / -1; }
 }
+/* What it does: the 8 cards in two full rows of 4 on a wide screen. */
+@media (min-width: 1000px) {
+  #features .cards { grid-template-columns: repeat(4, 1fr); }
+}
 @media (max-width: 480px) {
   pre { white-space: pre-wrap; overflow-wrap: anywhere; } /* the command wraps instead of hiding its end */
   .hero h1 { font-size: 2rem; }
