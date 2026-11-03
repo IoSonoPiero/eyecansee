@@ -76,6 +76,17 @@
   </provides>
 
   <releases>
+    <release version="0.73.0" date="2026-11-03">
+      <description>
+        <ul>
+          <li>3D models in the grid and in a 3D viewer: STL, 3MF, OBJ, PLY, glTF, FBX, Collada, 3DS, OFF, AMF, VRML, X3D, IFC buildings, and STEP, IGES and BREP with a CAD engine downloaded on first use</li>
+          <li>CAD drawings: DWG, DXF and HP-GL, sharp at any zoom, exported as images, SVG or between DWG and DXF</li>
+          <li>The video engine is used as soon as it is downloaded, without restarting</li>
+          <li>Menus show only the items that work for the chosen files</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.73.0</url>
+    </release>
     <release version="0.72.1" date="2026-11-01">
       <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.72.1</url>
     </release>
