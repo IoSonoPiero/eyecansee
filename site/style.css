@@ -78,9 +78,11 @@ footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
   .cards.download { grid-template-columns: 1fr 1fr; }
   .cards.download .wide { grid-column: 1 / -1; }
 }
-/* What it does: the 8 cards in two full rows of 4 on a wide screen. */
-@media (min-width: 1000px) {
-  #features .cards { grid-template-columns: repeat(4, 1fr); }
+/* What it does: the six cards in two full rows of three, then 3D models and CAD drawings half each. */
+@media (min-width: 700px) {
+  #features .cards { grid-template-columns: repeat(6, 1fr); }
+  #features .card { grid-column: span 2; }
+  #features .card.half { grid-column: span 3; }
 }
 @media (max-width: 480px) {
   pre { white-space: pre-wrap; overflow-wrap: anywhere; } /* the command wraps instead of hiding its end */
