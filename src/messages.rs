@@ -37,6 +37,7 @@ impl App {
                 Msg::Changed if self.changed_at.is_none() => self.changed_at = Some(ctx.input(|i| i.time) + 0.3),
                 Msg::Changed => {}
                 Msg::Deleted(path, how, r) => self.on_deleted(path, how, r),
+                Msg::Unseen(p, r) => self.on_unseen(&p, r),
                 Msg::TrashItems(paths) => self.on_trash_items(paths),
                 Msg::Restored(path, r) => self.on_restored(path, r),
                 Msg::Renamed(old, r) => self.on_renamed(old, r),
@@ -428,6 +429,16 @@ impl App {
             self.generated.remove(&i);
         }
         self.thumb_queue_key = None;
+    }
+
+    /// The answer of the check before deleting folders, if it is still the one waited for.
+    fn on_unseen(&mut self, p: &Arc<std::sync::atomic::AtomicBool>, r: Result<Option<(String, String)>, source::Error>) {
+        log!("unseen: {r:?}");
+        if let Some(crate::file_dialogs::DeleteCheck::Checking(now)) = &self.delete_check
+            && Arc::ptr_eq(now, p)
+        {
+            self.delete_check = Some(crate::file_dialogs::DeleteCheck::Done(r));
+        }
     }
 
     fn on_update(&mut self, r: Result<Option<update::Ready>, String>) {

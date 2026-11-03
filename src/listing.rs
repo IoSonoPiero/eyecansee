@@ -30,6 +30,7 @@ impl App {
             trash: if to_trash { Some(trash) } else { l.trash.clone().filter(|t| t != path) },
             leftovers: Vec::new(),
             trashed: l.trashed.iter().filter(|f| f.path != path).cloned().collect(),
+            unseen: l.unseen.clone(),
         };
         self.swap_listing(&dir, new);
     }

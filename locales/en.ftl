@@ -290,6 +290,11 @@ delete-confirm-many-permanent = Delete **{ $n } items for good**?
 
     Images: { $size }.{ $folders } **It cannot be undone.**
 delete-many-folders = Folders go with everything inside them.
+delete-unseen-found = { $n ->
+    [one] This folder contains
+   *[other] The folder **{ $folder }** contains
+} files or folders that EyeCanSee does not show, for example **{ $name }**. They will be deleted too: check it with your file manager if you are not sure.
+delete-unseen-failed = The contents of the folder could not be checked.
 delete-yes = Delete
 delete-no = Cancel
 error-no-trash-folder = This source cannot move files into the trash folder: choose "Delete for good" in the Options. ({ $detail })

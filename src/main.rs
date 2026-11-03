@@ -377,6 +377,8 @@ struct App {
     /// Item waiting for the user to confirm its deletion: path, size (images only), what deleting
     /// it does, on an NTFS disk (warning: Nautilus does not restore from there).
     delete_confirm: Option<(Vec<String>, Option<u64>, source::Deletion, bool)>,
+    /// Check of the folders about to be deleted for what the grid does not show (its button).
+    delete_check: Option<file_dialogs::DeleteCheck>,
     /// Items to put back from the trash, one at a time; one is on its way (`restore_busy`), or its
     /// name is taken and the user is asked what to do (`restore_conflict`, its path in the trash).
     restore_queue: std::collections::VecDeque<String>,
@@ -524,6 +526,7 @@ impl App {
             show: None,
             maintained: HashSet::new(),
             delete_confirm: None,
+            delete_check: None,
             delete_answer: None,
             rename: None,
             new_folder: None,

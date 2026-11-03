@@ -506,6 +506,10 @@ pub struct Listing {
     pub leftovers: Vec<String>,
     /// Files in Android's trash (`android_trashed`): shown in the folder's trash, not here.
     pub trashed: Vec<File>,
+    /// Names of what the grid leaves out: files that are not media, hidden items (a name starting
+    /// with ".", EyeCanSee's trash too, Android's trashed files, Windows' hidden attribute). For
+    /// the check before deleting a folder.
+    pub unseen: Vec<String>,
 }
 
 #[derive(Clone)]
@@ -612,8 +616,12 @@ impl Listing {
             self.leftovers.push(path.clone());
         }
         if !is_dir && android_trashed(name).is_some() {
+            self.unseen.push(name.to_string());
             self.trashed.push(File { path, size, modified });
             return;
+        }
+        if !shown || name.starts_with('.') {
+            self.unseen.push(name.to_string());
         }
         if !shown || (name.starts_with('.') && !(is_dir && name == TRASH_DIR)) {
             return;
@@ -622,6 +630,8 @@ impl Listing {
             self.dirs.push(path);
         } else if is_media(name) {
             self.files.push(File { path, size, modified });
+        } else {
+            self.unseen.push(name.to_string());
         }
     }
 
@@ -868,4 +878,18 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(l.dirs, [format!("{}visible/", s.dir)]);
     }
+
+    /// What the grid leaves out of a folder is noted, for the check before deleting it.
+    #[test]
+    fn unseen_names() {
+        let mut l = Listing::default();
+        for (name, is_dir) in [("a.jpg", false), ("contract.pdf", false), ("sub", true), (".git", true), (TRASH_DIR, true), (".trashed-1795803477-b.jpg", false), ("c.stl", false)] {
+            l.add(if is_dir { format!("{name}/") } else { name.to_string() }, name, is_dir, 1, String::new(), true);
+        }
+        l.add("hidden.jpg".into(), "hidden.jpg", false, 1, String::new(), false);
+        let mut unseen = l.unseen.clone();
+        unseen.sort();
+        assert_eq!(unseen, [TRASH_DIR, ".git", ".trashed-1795803477-b.jpg", "contract.pdf", "hidden.jpg"]);
+    }
 }
+

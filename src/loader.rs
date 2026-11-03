@@ -42,6 +42,9 @@ pub enum Msg {
     Changed,
     /// Outcome of deleting an item (path relative to the source), and how.
     Deleted(String, source::Deletion, Result<(), source::Error>),
+    /// Something the grid does not show in the folders about to be deleted (`Loader::check_unseen`):
+    /// its name and folder, or `None`; the flag tells which check it answers.
+    Unseen(Arc<std::sync::atomic::AtomicBool>, Result<Option<(String, String)>, source::Error>),
     /// Outcome of putting an item back from the trash: its path in the trash, where it went.
     Restored(String, Result<String, source::Error>),
     /// Everything in a trash folder, to put back one at a time (Restore all).
@@ -218,6 +221,18 @@ impl Loader {
 
     pub fn deletion(&self, path: &str, local_permanent: bool, remote: crate::settings::RemoteDelete) -> source::Deletion {
         self.op.deletion(path, local_permanent, remote)
+    }
+
+    /// Reads the first level of each folder of `dirs`, about to be deleted, for something the grid
+    /// does not show (`Listing::unseen`), in the background; `stop` ends it. The answer comes as
+    /// `Msg::Unseen`: the first such name and its folder, or `None`.
+    pub fn check_unseen(&self, dirs: Vec<String>, stop: Arc<std::sync::atomic::AtomicBool>) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let r = first_unseen(&op, &dirs, &stop).await;
+            let _ = tx.send(Msg::Unseen(stop, r));
+            ctx.request_repaint();
+        });
     }
 
     /// Deletes in the background, one item after the other (on a phone they share the trash folder
@@ -567,6 +582,22 @@ async fn android_trashed_files(op: &Store, trash: &str) -> Vec<String> {
     op.list(&source::parent(trash)).await.map(|l| l.trashed.into_iter().map(|f| f.path).collect()).unwrap_or_default()
 }
 
+
+/// The first item of the first level of `dirs` that the grid does not show, preferring a visible
+/// name to a hidden one: (its name, its folder). One reading per folder.
+async fn first_unseen(op: &Store, dirs: &[String], stop: &std::sync::atomic::AtomicBool) -> Result<Option<(String, String)>, source::Error> {
+    for d in dirs {
+        if stop.load(Ordering::Relaxed) {
+            return Err(("error-cancelled", String::new()));
+        }
+        let mut unseen = op.list(d).await?.unseen;
+        unseen.sort_by_key(|n| (n.starts_with('.'), n.to_lowercase()));
+        if let Some(n) = unseen.into_iter().next() {
+            return Ok(Some((n, d.clone())));
+        }
+    }
+    Ok(None)
+}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1141,5 +1172,28 @@ mod tests {
         let cleaned = rt.block_on(op.delete(&dir, Deletion::Permanent));
         outcome.unwrap();
         cleaned.unwrap();
+    }
+
+    /// The check before deleting folders: only their first level, a visible name before a hidden
+    /// one, nothing found when the only odd file is in a subfolder; stopped on request.
+    #[test]
+    fn first_unseen_in_folders() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-unseen-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        for path in ["Photos/a.jpg", "Photos/sub/notes.txt", "Docs/b.jpg", "Docs/.hidden", "Docs/contract.pdf", "Docs/sub/c.jpg", "Hidden/.git/config"] {
+            let f = dir.join(path);
+            std::fs::create_dir_all(f.parent().unwrap()).unwrap();
+            std::fs::write(f, b"x").unwrap();
+        }
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        use std::sync::atomic::AtomicBool;
+        let go = AtomicBool::new(false);
+        let check = |dirs: &[&str], stop: &AtomicBool| rt.block_on(first_unseen(&op, &dirs.iter().map(|d| d.to_string()).collect::<Vec<_>>(), stop));
+        assert_eq!(check(&["Photos/"], &go).unwrap(), None, "notes.txt is in a subfolder, not looked at");
+        assert_eq!(check(&["Photos/", "Docs/"], &go).unwrap(), Some(("contract.pdf".into(), "Docs/".into())));
+        assert_eq!(check(&["Hidden/"], &go).unwrap(), Some((".git".into(), "Hidden/".into())));
+        assert_eq!(check(&["Docs/"], &AtomicBool::new(true)).unwrap_err().0, "error-cancelled");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

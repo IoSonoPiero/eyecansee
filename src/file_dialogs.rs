@@ -10,6 +10,13 @@ use crate::{App, PasteAsk, browser, confirm, devices, source, theme, transfer};
 use crate::human::human_time;
 use crate::navigation::shown;
 
+/// The check of the folders about to be deleted: running (its stop flag), or what it found (the
+/// first name not shown and its folder).
+pub(crate) enum DeleteCheck {
+    Checking(Arc<std::sync::atomic::AtomicBool>),
+    Done(Result<Option<(String, String)>, source::Error>),
+}
+
 impl App {
     /// Ctrl+C / Ctrl+X: remembers the items and their source. The paths also go on the system
     /// clipboard as text: egui turns Ctrl+V into a paste only when the clipboard has something.
@@ -204,12 +211,52 @@ impl App {
             _ => Some(self.images_size(&paths)),
         });
         let ntfs = how == source::Deletion::SystemTrash && !self.base.contains("://") && devices::on_ntfs(&format!("/{}", path.trim_end_matches('/')));
+        // Folders: their first level read at once for what the grid does not show (the warning).
+        let dirs: Vec<String> = paths.iter().filter(|p| p.ends_with('/') && !source::is_trash(p)).cloned().collect();
+        let check = (!dirs.is_empty()).then(|| {
+            let stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
+            loader.check_unseen(dirs, stop.clone());
+            DeleteCheck::Checking(stop)
+        });
+        self.stop_delete_check();
+        self.delete_check = check;
         self.delete_confirm = Some((paths, size, how, ntfs));
     }
 
-    /// Confirmation of the deletion: what will happen, name and size. Enter confirms, Esc cancels.
+    /// Confirmation of the deletion: what will happen, name and size. Enter confirms, Esc cancels;
+    /// with a folder chosen Enter cancels too, Delete waits for the reading of the folders' first
+    /// level, and a warning appears if they hold something the grid does not show.
     pub(crate) fn delete_window(&mut self, ctx: &egui::Context) {
         let Some((paths, size, how, ntfs)) = self.delete_confirm.clone() else { return };
+        let folders = paths.iter().any(|p| p.ends_with('/')) && !source::is_trash(&paths[0]);
+        let text = self.delete_text(&paths, size, how, ntfs);
+        let reading = matches!(self.delete_check, Some(DeleteCheck::Checking(_)));
+        if reading {
+            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+        }
+        let (yes, no) = (self.i18n.t("delete-yes"), self.i18n.t("delete-no"));
+        let keys = self.delete_answer.take().map(|enter| enter && !folders);
+        match confirm::yes_no(ctx, "delete", 420.0, text, yes, !reading, no, keys) {
+            Some(true) => {
+                self.stop_delete_check();
+                if let Some(loader) = &self.loader {
+                    log!("delete confirmed: {} items", paths.len());
+                    self.deleting += paths.len();
+                    loader.delete(paths, how);
+                }
+                self.marked.clear();
+                self.delete_confirm = None;
+            }
+            Some(false) => {
+                self.stop_delete_check();
+                self.delete_confirm = None;
+            }
+            None => {}
+        }
+    }
+
+    /// The text of the deletion window: what happens, and the warning about the folders if needed.
+    fn delete_text(&self, paths: &[String], size: Option<u64>, how: source::Deletion, ntfs: bool) -> String {
         let path = &paths[0];
         let dir = if path.ends_with('/') { "-dir" } else { "" };
         let id = match how {
@@ -225,29 +272,43 @@ impl App {
         };
         let size = size.map(|s| self.human_size(s)).unwrap_or_default();
         let n = paths.len().to_string();
-        let folders = match paths.iter().any(|p| p.ends_with('/')) {
+        let many_folders = match paths.iter().any(|p| p.ends_with('/')) {
             true => format!(" {}", self.i18n.t("delete-many-folders")),
             false => String::new(),
         };
-        let args = [("name", &crate::save_dialogs::md(source::name(path))), ("size", &size), ("n", &n), ("folders", &folders)];
+        let args = [("name", &crate::save_dialogs::md(source::name(path))), ("size", &size), ("n", &n), ("folders", &many_folders)];
         let mut text = self.i18n.t_args(&id, &args.map(|(k, v)| (k, v.as_str())));
         if ntfs {
             text = format!("{text}\n\n{}", self.i18n.t("delete-ntfs"));
         }
-        let (yes, no) = (self.i18n.t("delete-yes"), self.i18n.t("delete-no"));
-        match confirm::yes_no(ctx, "delete", 420.0, text, yes, true, no, self.delete_answer.take()) {
-            Some(true) => {
-                if let Some(loader) = &self.loader {
-                    log!("delete confirmed: {} items", paths.len());
-                    self.deleting += paths.len();
-                    loader.delete(paths, how);
-                }
-                self.marked.clear();
-                self.delete_confirm = None;
-            }
-            Some(false) => self.delete_confirm = None,
-            None => {}
+        if let Some(warning) = self.unseen_text(paths.iter().filter(|p| p.ends_with('/')).count()) {
+            text = format!("{text}\n\n{warning}");
         }
+        text
+    }
+
+    /// The warning when the folders about to be deleted (`folders` of them) hold something the grid
+    /// does not show, or could not be read; nothing while reading or when there is nothing.
+    fn unseen_text(&self, folders: usize) -> Option<String> {
+        match &self.delete_check {
+            Some(DeleteCheck::Done(Ok(Some((name, dir))))) => {
+                let (name, dir, n) = (crate::save_dialogs::md(name), crate::save_dialogs::md(source::name(dir)), folders.to_string());
+                Some(self.i18n.t_args("delete-unseen-found", &[("name", &name), ("folder", &dir), ("n", &n)]))
+            }
+            Some(DeleteCheck::Done(Err(e))) => {
+                log!("delete: first level not read: {e:?}");
+                Some(self.i18n.t("delete-unseen-failed"))
+            }
+            _ => None,
+        }
+    }
+
+    /// Stops a check of the folders still running, and forgets its answer.
+    pub(crate) fn stop_delete_check(&mut self) {
+        if let Some(DeleteCheck::Checking(stop)) = &self.delete_check {
+            stop.store(true, Ordering::Relaxed);
+        }
+        self.delete_check = None;
     }
 
     pub(crate) fn ask_rename(&mut self, path: Option<String>) {

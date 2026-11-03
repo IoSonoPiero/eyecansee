@@ -289,6 +289,11 @@ delete-confirm-many-permanent = Eliminare **definitivamente { $n } elementi**?
 
     Immagini: { $size }.{ $folders } **Non si può annullare.**
 delete-many-folders = Le cartelle vanno con tutto il loro contenuto.
+delete-unseen-found = { $n ->
+    [one] Questa cartella contiene
+   *[other] La cartella **{ $folder }** contiene
+} file o cartelle che EyeCanSee non mostra, per esempio **{ $name }**. Verranno eliminati anche quelli: controllala con il file manager se non sei sicuro.
+delete-unseen-failed = Non è stato possibile controllare il contenuto della cartella.
 delete-yes = Elimina
 delete-no = Annulla
 error-no-trash-folder = Questa sorgente non può spostare i file nella cartella cestino: scegli "Elimina definitivamente" nelle Opzioni. ({ $detail })
