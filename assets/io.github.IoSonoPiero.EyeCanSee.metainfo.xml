@@ -76,15 +76,6 @@
   </provides>
 
   <releases>
-    <release version="0.73.1" date="2026-11-03">
-      <description>
-        <ul>
-          <li>Moving a folder no longer loses the files in its own trash.</li>
-          <li>Deleting a folder warns when it contains files or folders that EyeCanSee does not show.</li>
-        </ul>
-      </description>
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.73.1</url>
-    </release>
     <release version="0.73.0" date="2026-11-03">
       <description>
         <ul>
@@ -92,6 +83,8 @@
           <li>CAD drawings: DWG, DXF and HP-GL, sharp at any zoom, exported as images, SVG or between DWG and DXF</li>
           <li>The video engine is used as soon as it is downloaded, without restarting</li>
           <li>Menus show only the items that work for the chosen files</li>
+          <li>Moving a folder no longer loses the files in its own trash</li>
+          <li>Deleting a folder warns when it contains files or folders that EyeCanSee does not show</li>
         </ul>
       </description>
       <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.73.0</url>
