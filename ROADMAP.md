@@ -44,6 +44,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Metadata editor for EXIF and GPS.
 - Similar images (the same photo resized or recompressed).
 - Hide folders without images or videos.
+- Deleting a folder: look into its subfolders too for files EyeCanSee does not show (today the warning checks the first level only).
 - Set as wallpaper.
 - Edits kept in a sidecar file, with the original untouched.
 - CPU/GPU/NPU acceleration with a "Check" button that enables what works on the PC.
