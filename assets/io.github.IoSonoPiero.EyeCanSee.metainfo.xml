@@ -78,6 +78,17 @@
   </provides>
 
   <releases>
+    <release version="0.73.1" date="2026-11-04">
+      <description>
+        <ul>
+          <li>Saved and converted images keep their XMP, IPTC and colour profile, TIFF its EXIF, and no longer carry a preview of the original</li>
+          <li>RAW photos of every maker keep their EXIF and XMP when converted, with an sRGB profile; files read through ImageMagick keep their metadata</li>
+          <li>Saving on a phone or a server keeps the changed image on the computer when sending fails, with Try again</li>
+          <li>Copying inside a phone with "Keep both" no longer damages the file already there</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.73.1</url>
+    </release>
     <release version="0.73.0" date="2026-11-03">
       <description>
         <ul>
