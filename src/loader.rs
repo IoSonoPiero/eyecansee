@@ -465,7 +465,14 @@ impl Loader {
         self.rt.spawn(async move {
             let store = match &k.store {
                 Some(store) => Ok(store.clone()),
-                None => source::open(&k.base).map(|s| s.op),
+                None => {
+                    if k.error.0 == "error-phone-disconnected"
+                        && let Some(serial) = k.base.strip_prefix("mtp://").and_then(|s| s.strip_suffix('/'))
+                    {
+                        crate::mtp::Phone::forget(serial);
+                    }
+                    source::open(&k.base).map(|s| s.op)
+                }
             };
             let r = match (store, tokio::fs::read(&k.file).await) {
                 (Ok(store), Ok(data)) => crate::kept::replace(&store, &k.base, &k.path, data, k.how).await,

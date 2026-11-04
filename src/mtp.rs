@@ -118,6 +118,10 @@ fn error(e: mtp_rs::Error) -> Error {
         // The cable pulled, the phone locked or switched off "File transfer".
         mtp_rs::Error::Disconnected => "error-phone-disconnected",
         mtp_rs::Error::Timeout => "error-phone-timeout",
+        // Windows (WPD) when the phone goes away during a transfer: ERROR_OPERATION_ABORTED, then
+        // 0x802a0002 (shut down already) on that session; mtp-rs 0.37.3 leaves both as `Other`
+        // (POCO X7 Pro, upload cut off, 2026-11-04).
+        mtp_rs::Error::Other { ref detail } if detail.starts_with("HRESULT 0x800703e3") || detail.starts_with("HRESULT 0x802a0002") => "error-phone-disconnected",
         // A copy onto a name the folder has (mtp-rs 0.37.3): `copy_inside` avoids it.
         mtp_rs::Error::AlreadyExists => "error-phone-name-taken",
         _ => "error-detail",
@@ -312,6 +316,13 @@ impl Phone {
         let p = Arc::new(Phone::new(serial));
         phones.push((serial.to_string(), Arc::downgrade(&p)));
         p
+    }
+
+    /// After the phone `serial` was disconnected: the next `shared` opens it anew instead of handing
+    /// out the session that broke, which whoever still holds it keeps (on Windows the open viewer
+    /// keeps it while the phone list does not lose the phone).
+    pub fn forget(serial: &str) {
+        PHONES.lock().unwrap().retain(|(s, _)| s != serial);
     }
 
     fn open_failed(&self, e: Error) -> Error {
@@ -714,6 +725,22 @@ impl Phone {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn windows_abort_is_disconnected() {
+        let other = |d: &str| super::error(mtp_rs::Error::Other { detail: d.into() }).0;
+        assert_eq!(other("HRESULT 0x800703e3: Operazione di I/O terminata"), "error-phone-disconnected");
+        assert_eq!(other("HRESULT 0x802a0002: shut down"), "error-phone-disconnected");
+        assert_eq!(other("HRESULT 0x80070057: parameter"), "error-detail");
+    }
+
+    #[test]
+    fn forget_opens_anew() {
+        let a = super::Phone::shared("FORGET-TEST");
+        assert!(std::sync::Arc::ptr_eq(&a, &super::Phone::shared("FORGET-TEST")));
+        super::Phone::forget("FORGET-TEST");
+        assert!(!std::sync::Arc::ptr_eq(&a, &super::Phone::shared("FORGET-TEST")));
+    }
 
     #[test]
     fn waiting_call() {
