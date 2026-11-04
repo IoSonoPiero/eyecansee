@@ -2215,7 +2215,7 @@ dependencies = [
 
 [[package]]
 name = "eyecansee"
-version = "0.73.1"
+version = "0.73.2"
 dependencies = [
  "acadrust",
  "argon2 0.5.3",
