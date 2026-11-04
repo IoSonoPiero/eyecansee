@@ -19,7 +19,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 ### Video
 
 - Save the frame of a paused video as an image ([#16](https://github.com/IoSonoPiero/eyecansee/issues/16)).
-- Full screen.
+- Full screen ([#43](https://github.com/IoSonoPiero/eyecansee/issues/43)).
 - Smoother playback of 4K/60 videos ([#17](https://github.com/IoSonoPiero/eyecansee/issues/17)).
 
 ### Devices and servers
