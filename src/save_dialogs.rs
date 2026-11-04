@@ -89,10 +89,12 @@ impl App {
         let Some(loader) = &self.loader else { return };
         // Images still being saved stay out: they would be turned twice.
         let paths = paths.into_iter().filter(|p| !self.saving.contains(p));
-        let rename = loader.can_rename();
-        let (ok, skipped): (Vec<String>, Vec<String>) = paths.partition(|p| rename && encode::saves_back(p));
+        let paths: Vec<String> = paths.collect();
+        // One folder: the reason, if any, is the same for all.
+        let refused = paths.first().and_then(|p| loader.no_overwrite(p));
+        let (ok, skipped): (Vec<String>, Vec<String>) = paths.into_iter().partition(|p| refused.is_none() && encode::saves_back(p));
         if ok.is_empty() {
-            self.batch_turn_none(ctx, &skipped, rename, op);
+            self.batch_turn_none(ctx, &skipped, refused, op);
             return;
         }
         let how = ok.first().map_or(source::Deletion::Permanent, |p| loader.deletion(p, self.settings.local_permanent, self.settings.remote_delete));
@@ -113,8 +115,8 @@ impl App {
         if !ok.is_empty() {
             text = format!("{text}\n\n{}", self.i18n.t("batch-animated"));
         }
-        if !rename {
-            text = format!("{text}\n\n{}", self.i18n.t("save-no-rename"));
+        if let Some(id) = refused {
+            text = format!("{text}\n\n{}", self.i18n.t(id));
         } else if !skipped.is_empty() {
             text = format!("{text}\n\n{}", self.i18n.t_args("batch-skipped", &[("n", &skipped.len().to_string())]));
         }
@@ -136,10 +138,10 @@ impl App {
 
     /// Not one of the images can be saved over itself: say why instead of "up to 0 images will be
     /// overwritten", and for a single image offer "Save as…", already turned.
-    fn batch_turn_none(&mut self, ctx: &egui::Context, skipped: &[String], rename: bool, op: transform::Op) {
+    fn batch_turn_none(&mut self, ctx: &egui::Context, skipped: &[String], refused: Option<&str>, op: transform::Op) {
         let single = (skipped.len() == 1).then(|| skipped[0].clone());
-        let mut text = if !rename {
-            self.i18n.t("save-no-rename")
+        let mut text = if let Some(id) = refused {
+            self.i18n.t(id)
         } else if let Some(p) = &single {
             self.i18n.t_args("save-format", &[("name", &md(source::name(p)))])
         } else {
@@ -171,9 +173,11 @@ impl App {
         let Some(current) = self.viewing else { return false };
         !self.turn.is_none()
             && self.save_ready.is_none()
-            && self.loader.as_ref().is_some_and(|l| l.can_rename())
             && self.files().get(current).is_some_and(|f| {
-                self.can_change(&f.path) && !self.saving.contains(&f.path) && encode::saves_back(&f.path)
+                self.loader.as_ref().is_some_and(|l| l.can_overwrite(&f.path))
+                    && self.can_change(&f.path)
+                    && !self.saving.contains(&f.path)
+                    && encode::saves_back(&f.path)
             })
     }
 
@@ -188,8 +192,8 @@ impl App {
             // Changed but not saveable over itself: say why and offer "Save as…".
             let text = if self.turn.is_none() || self.save_ready.is_some() {
                 None
-            } else if self.loader.as_ref().is_some_and(|l| !l.can_rename()) {
-                Some(self.i18n.t("save-no-rename"))
+            } else if let Some(id) = self.viewing.and_then(|i| self.files().get(i)).and_then(|f| self.loader.as_ref()?.no_overwrite(&f.path)) {
+                Some(self.i18n.t(id))
             } else {
                 self.viewing
                     .and_then(|i| self.files().get(i))

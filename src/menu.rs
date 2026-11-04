@@ -47,7 +47,9 @@ impl App {
         entry(ui, act, true, egui::Button::new(t("menu-servers")), Act::Servers);
         entry(ui, act, self.can_make_folder(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder(None));
         ui.separator();
-        entry(ui, act, self.can_save(), item(t("menu-save"), t("key-save")), Act::Save);
+        // Also when it cannot overwrite (FTP, gvfs, format): `ask_save` then says why and offers Save as….
+        let changed = self.viewing.is_some() && !self.turn.is_none() && self.save_ready.is_none();
+        entry(ui, act, self.can_save() || changed, item(t("menu-save"), t("key-save")), Act::Save);
         // As in the right-click menu: in the grid one picture, in the viewer also what a 3D model
         // or a CAD drawing shows.
         let files = self.files_chosen(None);

@@ -65,6 +65,18 @@ impl App {
         }
     }
 
+    /// An address from outside (command line, the file manager): a phone file mounted by gvfs
+    /// opens through the direct connection (`devices::direct_address`).
+    pub(crate) fn outside_address(&self, address: &str) -> String {
+        match devices::direct_address(address, &self.devices) {
+            Some(direct) => {
+                log!("{address:?} opened directly as {direct:?}");
+                direct
+            }
+            None => address.to_string(),
+        }
+    }
+
     /// For the `mtp://<serial>/` source, the desktop's mount of the same phone.
     pub(crate) fn mounted_twin(&self) -> Option<String> {
         devices::gvfs_mount(self.base.strip_prefix("mtp://")?.trim_end_matches('/'))

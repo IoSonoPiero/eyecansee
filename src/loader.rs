@@ -408,9 +408,21 @@ impl Loader {
         });
     }
 
-    /// Can "Save" overwrite images here? It needs renaming (not on FTP).
-    pub fn can_rename(&self) -> bool {
-        self.op.can_rename()
+    /// Can "Save" overwrite `path`? It needs renaming (not on FTP), and not under gvfs, where
+    /// renaming can lose the original (`replace::replace`).
+    pub fn can_overwrite(&self, path: &str) -> bool {
+        self.op.can_rename() && !self.op.gvfs(path)
+    }
+
+    /// Why "Save" cannot overwrite `path`: the text id, or `None` when it can.
+    pub fn no_overwrite(&self, path: &str) -> Option<&'static str> {
+        if !self.op.can_rename() {
+            Some("save-no-rename")
+        } else if self.op.gvfs(path) {
+            Some("save-gvfs")
+        } else {
+            None
+        }
     }
 
     /// "Save" from the viewer, first half: the image turned in memory. The confirmation shows
@@ -642,6 +654,28 @@ mod tests {
     use crate::replace::{replace, undo};
     use crate::source::{Deletion, TRASH_DIR};
 
+    /// Issue #45: under gvfs Save never renames: refused before anything is written, the original
+    /// as it was, nothing hidden beside it; Save as… is offered instead (`no_overwrite`).
+    #[test]
+    fn replace_refused_under_gvfs() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-gvfs-{}", std::process::id()));
+        let p = dir.join("gvfs").join("mtp:host=Phone_ABCD1234EFGH").join("DCIM");
+        std::fs::create_dir_all(&p).unwrap();
+        std::fs::write(p.join("a.jpg"), b"original").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let path = "gvfs/mtp:host=Phone_ABCD1234EFGH/DCIM/a.jpg";
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        for how in [Deletion::TrashFolder, Deletion::Permanent, Deletion::SystemTrash] {
+            assert_eq!(rt.block_on(replace(&op, path, b"new".to_vec(), how)).unwrap_err().0, "error-save-gvfs");
+        }
+        assert_eq!(std::fs::read(p.join("a.jpg")).unwrap(), b"original");
+        assert_eq!(std::fs::read_dir(&p).unwrap().count(), 1);
+        let loader = Loader::new(rt.handle().clone(), op, String::new(), std::sync::mpsc::channel().0, egui::Context::default());
+        assert_eq!(loader.no_overwrite(path), Some("save-gvfs"));
+        assert!(!loader.can_overwrite(path));
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
     /// Saving over an image: the new file takes the name, the original goes as asked under its own
     /// name ("a (2).png" when the trash already has one), nothing hidden stays. A failed step puts
     /// the original back; a source that cannot rename gets nothing written.
@@ -728,6 +762,7 @@ mod tests {
     //   cargo test --release save_live_ -- --ignored --nocapture
     //   EYECANSEE_SAVE_DIR=/run/media/<user>/<stick> cargo test --release save_live_dir -- --ignored --nocapture
     //   EYECANSEE_MTP=<serial> cargo test --release mtp_save_live -- --ignored --nocapture
+    //   EYECANSEE_GVFS_FILE=<a test JPEG under /run/user/<uid>/gvfs/…> cargo test --release save_live_gvfs -- --ignored --nocapture
 
     use crate::transform::{Op, Turn};
     use std::path::{Path, PathBuf};
@@ -894,6 +929,26 @@ mod tests {
         assert_eq!(l.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["x.jpg", "y.jpg"]);
         assert_eq!(std::fs::read(dir.join("x.jpg")).unwrap(), b"the original");
         assert!(hidden_in(&dir).is_empty());
+    }
+
+    /// Issue #45 on a real gvfs mount (a phone opened by the file manager): Save is refused with
+    /// every deletion, the file keeps its bytes and nothing hidden appears beside it. Use a test file
+    /// copied there on purpose; its SHA-256 can be compared before and after with `sha256sum`.
+    #[test]
+    #[ignore]
+    fn save_live_gvfs() {
+        let file = PathBuf::from(std::env::var("EYECANSEE_GVFS_FILE").expect("EYECANSEE_GVFS_FILE"));
+        let before = std::fs::read(&file).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root("/")).unwrap());
+        let path = file.to_string_lossy().trim_start_matches('/').to_string();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        for how in [Deletion::TrashFolder, Deletion::Permanent, Deletion::SystemTrash] {
+            let r = save(&rt, &op, &path, Turn::default().then(Op::Cw), how);
+            println!("{how:?}: {r:?}");
+            assert_eq!(r.unwrap_err().0, "error-save-gvfs");
+        }
+        assert_eq!(std::fs::read(&file).unwrap(), before);
+        assert!(hidden_in(file.parent().unwrap()).is_empty());
     }
 
     /// Local disk with the real system trash: the original goes there under its own name and

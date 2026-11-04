@@ -141,6 +141,14 @@ async fn open(serial: &str) -> Result<MtpDevice, Error> {
     }
 }
 
+/// Set when a phone was taken from gvfs (`release_from_desktop`): the UI says so once
+/// (`taken_from_gvfs`), as the file manager no longer shows it.
+static FROM_GVFS: AtomicBool = AtomicBool::new(false);
+
+pub fn taken_from_gvfs() -> bool {
+    FROM_GVFS.swap(false, Ordering::Relaxed)
+}
+
 /// KDE's kiod may be terminated only after the user said yes (`allow_kiod`, "error-device-kde"):
 /// it also forgets the passwords of network folders.
 static KIOD_ALLOWED: AtomicBool = AtomicBool::new(false);
@@ -190,7 +198,11 @@ fn release_from_desktop(serial: &str) -> Release {
             ask = true;
             continue;
         }
-        released |= kill(&pid);
+        let killed = kill(&pid);
+        if killed && comm.starts_with("gvfsd") {
+            FROM_GVFS.store(true, Ordering::Relaxed);
+        }
+        released |= killed;
     }
     match (released, ask) {
         (true, _) => Release::Done,

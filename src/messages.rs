@@ -124,6 +124,9 @@ impl App {
         if self.use_mount(ctx, &dir, &r) {
             return;
         }
+        if r.is_ok() && crate::mtp::taken_from_gvfs() {
+            self.status_note = Some(self.i18n.t("status-taken-from-gvfs"));
+        }
         if dir == self.dir
             && let Some(start) = self.start.take()
         {
@@ -338,6 +341,7 @@ impl App {
     fn on_open(&mut self, ctx: &egui::Context, address: String) {
         log!("handed over: {:?}", without_password(&address));
         if !address.is_empty() {
+            let address = self.outside_address(&address);
             self.open_source(ctx, &address);
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));

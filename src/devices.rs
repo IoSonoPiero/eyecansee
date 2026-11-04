@@ -338,6 +338,23 @@ fn drive_bus(letter: char) -> Option<windows_sys::Win32::Storage::FileSystem::ST
     }
 }
 
+/// A file or folder of a phone mounted by gvfs (`…/gvfs/mtp:host=<name>_<serial>/<storage>/…`), as
+/// handed over by the file manager, as the address of the direct connection to the same phone
+/// (`mtp://<serial>/<storage>/…`) when `devices` has it (issue #46): faster, and Save cannot
+/// overwrite through gvfs (#45). The storages have the same names both ways. Cameras (gphoto2)
+/// and iPhones (afc) name their folders otherwise and stay on gvfs.
+pub fn direct_address(address: &str, devices: &[Device]) -> Option<String> {
+    // Characters that would end the path of a URL ('%' first: `source::open` decodes the path).
+    const CUT: &percent_encoding::AsciiSet = &percent_encoding::CONTROLS.add(b'%').add(b'#').add(b'?');
+    let (_, rest) = address.split_once("/gvfs/")?;
+    let (entry, inner) = rest.split_once('/').unwrap_or((rest, ""));
+    if !entry.starts_with("mtp:") {
+        return None;
+    }
+    let base = format!("mtp://{}/", gvfs_name(entry)?.1?);
+    devices.iter().any(|d| d.path == base).then(|| format!("{base}{}", percent_encoding::utf8_percent_encode(inner, CUT)))
+}
+
 /// gvfs mount of the phone with this serial (which `scan` does not show: it opens directly).
 pub fn gvfs_mount(serial: &str) -> Option<String> {
     let run = std::env::var_os("XDG_RUNTIME_DIR")?;
@@ -405,6 +422,23 @@ pub fn watch(tx: Sender<Msg>, ctx: Context) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Issue #46: a phone file handed over by the file manager opens through the direct
+    /// connection, only for a phone that connection sees and only for MTP mounts.
+    #[test]
+    fn gvfs_phone_to_direct() {
+        let phone = |path: &str| Device { name: "Phone".into(), path: path.into(), phone: true, serial: None, block: None, internal: false };
+        let devices = [phone("mtp://ABCD1234EFGH/")];
+        let gvfs = "/run/user/1000/gvfs/mtp:host=Maker_Phone_ABCD1234EFGH/Internal storage/DCIM/a #1.jpg";
+        assert_eq!(direct_address(gvfs, &devices).as_deref(), Some("mtp://ABCD1234EFGH/Internal storage/DCIM/a %231.jpg"));
+        let opened = crate::source::open(&direct_address(gvfs, &devices).unwrap()).unwrap();
+        assert_eq!((opened.dir.as_str(), opened.start.as_deref()), ("Internal storage/DCIM/", Some("Internal storage/DCIM/a #1.jpg")));
+        assert_eq!(direct_address("/run/user/1000/gvfs/mtp:host=Maker_Phone_ABCD1234EFGH/", &devices).as_deref(), Some("mtp://ABCD1234EFGH/"));
+        // Another phone, a camera, a disk: as they were.
+        assert_eq!(direct_address(gvfs, &[phone("mtp://OTHER1234567/")]), None);
+        assert_eq!(direct_address("/run/user/1000/gvfs/gphoto2:host=Maker_Phone_ABCD1234EFGH/DCIM/a.jpg", &devices), None);
+        assert_eq!(direct_address("/home/me/a.jpg", &devices), None);
+    }
 
     #[test]
     fn mount_reply() {

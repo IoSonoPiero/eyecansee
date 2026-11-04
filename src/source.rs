@@ -49,7 +49,12 @@ pub enum Store {
 static GVFS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
 
 async fn gvfs_permit(op: &Operator, path: &str) -> Option<tokio::sync::SemaphorePermit<'static>> {
-    if op.info().scheme() == "fs" && in_gvfs(&op.info().root(), path) { GVFS.acquire().await.ok() } else { None }
+    if fs_gvfs(op, path) { GVFS.acquire().await.ok() } else { None }
+}
+
+/// A path of the local file system under a gvfs mount.
+fn fs_gvfs(op: &Operator, path: &str) -> bool {
+    op.info().scheme() == "fs" && in_gvfs(&op.info().root(), path)
 }
 
 pub fn in_gvfs(root: &str, path: &str) -> bool {
@@ -144,6 +149,11 @@ impl Store {
             Store::Sftp(server) => server.list(dir).await,
             Store::Ftp(server) => server.list(dir).await,
         }
+    }
+
+    /// A path under a gvfs mount: a phone, camera or network share mounted by the desktop.
+    pub fn gvfs(&self, path: &str) -> bool {
+        matches!(self, Store::Dal(op) if fs_gvfs(op, path))
     }
 
     /// Can it rename files? OpenDAL's FTP cannot, and "Save" needs it.

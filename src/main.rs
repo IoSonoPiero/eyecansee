@@ -561,7 +561,10 @@ impl App {
         let home = std::env::home_dir().map_or(".".into(), |h| h.to_string_lossy().into_owned());
         let last = app.settings.last_location.clone().filter(|_| app.settings.remember_location);
         match (arg, last) {
-            (Some(arg), _) => app.open_source(ctx, &arg),
+            (Some(arg), _) => {
+                let arg = app.outside_address(&arg);
+                app.open_source(ctx, &arg);
+            }
             // An FTP server with a user: the password is never saved, so instead of a login sure to
             // be refused File > Open location asks for it, with the rest filled in; home behind it.
             (None, Some(last)) if let Some(form) = AddressForm::asking_password(&last) => {

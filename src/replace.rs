@@ -38,9 +38,15 @@ pub(crate) async fn rewritten<T: Send + 'static>(op: &Store, path: &str, make: i
 /// Nothing is written where renaming is not possible. At every failure, and if the app closes
 /// half way (`Store::recover`), the image keeps a visible file under its name: the original, put
 /// back from its hidden copy if it had already left.
+/// Never under gvfs (issue #45): for seconds after a rename gvfs-mtp still answers that the old
+/// name exists, and a rename onto that name can delete the file that left it (seen with test files
+/// on a phone, 2026-11-04). The app offers "Save as…" there instead (`Loader::no_overwrite`).
 pub(crate) async fn replace(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion) -> Result<(), source::Error> {
     if !op.can_rename() {
         return Err(("error-rename-unsupported", path.to_string()));
+    }
+    if op.gvfs(path) {
+        return Err(("error-save-gvfs", path.to_string()));
     }
     source::SAVING.lock().unwrap().insert(path.to_string());
     let r = swap(op, path, data, how).await;
