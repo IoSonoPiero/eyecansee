@@ -118,6 +118,8 @@ fn error(e: mtp_rs::Error) -> Error {
         // The cable pulled, the phone locked or switched off "File transfer".
         mtp_rs::Error::Disconnected => "error-phone-disconnected",
         mtp_rs::Error::Timeout => "error-phone-timeout",
+        // A copy onto a name the folder has (mtp-rs 0.37.3): `copy_inside` avoids it.
+        mtp_rs::Error::AlreadyExists => "error-phone-name-taken",
         _ => "error-detail",
     };
     (id, e.to_string())
@@ -573,16 +575,22 @@ impl Phone {
     }
 
     /// Copies a file inside the phone, without passing through the computer (MTP `CopyObject`),
-    /// replacing an item with the same name. Android cannot copy a file into its own folder: it
-    /// answers "done" without making the copy ("Failed to end copy object" in its log, POCO X7 Pro,
-    /// 2026-10-30), and through WPD mtp-rs then returns the original, which the rename after it
-    /// renamed. So there the copy is made in a hidden folder next to it and moved in with its name.
+    /// replacing an item with the same name. A copy keeps the source's name, and Android cannot
+    /// copy onto a name the folder already has: in its own folder it answers "done" without making
+    /// the copy ("Failed to end copy object", POCO X7 Pro, 2026-10-30), in another folder it writes
+    /// the source over the file there without shortening it (its tail stays) and, through WPD,
+    /// mtp-rs 0.36 handed back that file, which the rename after it renamed: "Keep both" ruined the
+    /// file already there (seen on the POCO X7 Pro on Windows, 2026-11-04; Android's bug, mtp-rs #59,
+    /// refused with `AlreadyExists` since 0.37.3). So whenever the name is taken there the copy is
+    /// made in a hidden folder next to it and moved in with its new name.
     pub async fn copy_inside(&self, path: &str, dest: &str) -> Result<(), Error> {
         if self.taken(dest).await? {
             self.delete(dest).await?;
         }
         let dir = source::parent(dest);
-        if dir != source::parent(path) {
+        let name = source::name(path).to_lowercase();
+        let clash = dir == source::parent(path) || self.names(&dir).await?.iter().any(|n| n.to_lowercase() == name);
+        if !clash {
             let h = self.copy_object(path, &dir).await?;
             if source::name(dest) != source::name(path) {
                 self.queued("rename", dest, self.storage_of(path).await?.rename(h, source::name(dest))).await.map_err(error)?;
@@ -798,7 +806,8 @@ mod tests {
 
     /// Ctrl+C and Ctrl+V of a file on a real phone, into its own folder and into a subfolder: the
     /// original keeps its name, handle and content, each copy has the same content, the hidden
-    /// folder of `copy_inside` is gone. Works in a new folder `EyeCanSee-copia/` of the first storage,
+    /// folder of `copy_inside` is gone; "Keep both" into a folder that has another file with the
+    /// name leaves that file untouched. Works in a new folder `EyeCanSee-copia/` of the first storage,
     /// deleted at the end:
     /// `EYECANSEE_MTP=<serial> cargo test --release mtp_copy_inside_live -- --ignored --nocapture`
     #[test]
@@ -822,6 +831,14 @@ mod tests {
             println!("same folder: {same:?} in {:?}", t.elapsed());
             let other = phone.copy_inside(&src, &format!("{dir}sub/a.jpg")).await;
             println!("subfolder: {other:?}");
+            // "Keep both" into a folder that has another, longer a.jpg: it must stay as it was.
+            phone.create_dir(&format!("{dir}keep/")).await.unwrap();
+            let longer: Vec<u8> = (0..300_000u32).map(|i| (i * 13 % 241) as u8).collect();
+            phone.upload(&format!("{dir}keep/a.jpg"), longer.len() as u64, futures_util::stream::iter([Ok(Bytes::from(longer.clone()))])).await.unwrap();
+            let both = phone.copy_inside(&src, &format!("{dir}keep/a (2).jpg")).await;
+            println!("keep both: {both:?}");
+            let kept = objects(&phone, &format!("{dir}keep/")).await;
+            println!("keep: {kept:?}");
             let after = objects(&phone, &dir).await;
             let below = objects(&phone, &format!("{dir}sub/")).await;
             println!("after: {after:?}\nsub: {below:?}");
@@ -837,6 +854,12 @@ mod tests {
                 assert!(!after.iter().any(|o| o.1 == COPY_DIR), "hidden folder left behind");
                 let sub = below.iter().find(|o| o.1 == "a.jpg").expect("copy in the subfolder");
                 assert_eq!(content(sub.0).await.unwrap(), data);
+                assert!(both.is_ok());
+                let there = kept.iter().find(|o| o.1 == "a.jpg").expect("the file already there");
+                assert_eq!(content(there.0).await.unwrap(), longer, "the file already there untouched");
+                let copy = kept.iter().find(|o| o.1 == "a (2).jpg").expect("the copy next to it");
+                assert_eq!(content(copy.0).await.unwrap(), data);
+                assert!(!kept.iter().any(|o| o.1 == COPY_DIR), "hidden folder left behind");
             };
             let r = futures_util::FutureExt::catch_unwind(std::panic::AssertUnwindSafe(check)).await;
             phone.delete(&dir).await.unwrap();

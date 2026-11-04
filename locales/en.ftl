@@ -58,6 +58,7 @@ error-device-kde = KDE is using the phone (its kiod service). Press F5 to open i
 error-no-device = The device was not found: if it is connected, unlock it and choose "File transfer" on it. EyeCanSee retries by itself every 2 seconds. ({ $detail })
 error-phone-disconnected = The phone was disconnected. ({ $detail })
 error-phone-timeout = The phone stopped answering: it may have been disconnected or locked. ({ $detail })
+error-phone-name-taken = The phone refused the copy: the folder already has a file with that name. Nothing was changed. ({ $detail })
 error-not-ready = The phone does not answer: unlock it and choose "File transfer" in its USB notification. EyeCanSee retries by itself every 2 seconds. ({ $detail })
 error-use-mount = Direct access to the device failed. ({ $detail })
 error-no-storage = The device shows no storage: unlock it and choose "File transfer" on it. EyeCanSee retries by itself every 2 seconds. ({ $detail })

@@ -57,6 +57,7 @@ error-device-kde = Il telefono è in uso da KDE (il suo servizio kiod). Premi F5
 error-no-device = Il dispositivo non è stato trovato: se è collegato, sbloccalo e scegli "Trasferimento file". EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })
 error-phone-disconnected = Il telefono è stato scollegato. ({ $detail })
 error-phone-timeout = Il telefono ha smesso di rispondere: forse è stato scollegato o bloccato. ({ $detail })
+error-phone-name-taken = Il telefono ha rifiutato la copia: nella cartella c'è già un file con quel nome. Non è cambiato niente. ({ $detail })
 error-not-ready = Il telefono non risponde: sbloccalo e scegli "Trasferimento file" nella sua notifica USB. EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })
 error-use-mount = L'accesso diretto al dispositivo non è riuscito. ({ $detail })
 error-no-storage = Il dispositivo non mostra nessuna memoria: sbloccalo e scegli "Trasferimento file". EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })
