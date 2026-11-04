@@ -231,6 +231,13 @@ mod tests {
         let store = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
         let rt = tokio::runtime::Runtime::new().unwrap();
         std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o555)).unwrap();
+        // As root (the CI container) a read-only folder can still be written: nothing to try.
+        if std::fs::write(p.join("probe"), b"").is_ok() {
+            eprintln!("failed_save_kept_then_retried: skipped, the folder stays writable (root)");
+            std::fs::set_permissions(&p, std::fs::Permissions::from_mode(0o755)).unwrap();
+            std::fs::remove_dir_all(&dir).unwrap();
+            return;
+        }
         let save = || rt.block_on(replace_in(Some(root.clone()), &store, "file:///x/", "p/a.jpg", b"new".to_vec(), source::Deletion::Permanent));
         let Err((_, Some(k))) = save() else { panic!("not kept") };
         assert_eq!(std::fs::read(p.join("a.jpg")).unwrap(), b"old");
