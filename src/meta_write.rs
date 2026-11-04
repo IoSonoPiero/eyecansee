@@ -178,11 +178,56 @@ pub fn read(bytes: &[u8], d: Option<&mut dyn image::ImageDecoder>) -> Extra {
     if let Some(p) = crate::psd::metadata(bytes) {
         (x.xmp, x.irb, x.icc, x.exif) = (p.xmp, p.irb, p.icc, p.exif);
     }
+    if x.icc.is_none() {
+        x.icc = xcf_icc(bytes);
+    }
     #[cfg(feature = "heif")]
     if x.xmp.is_none() && bytes.get(4..8) == Some(b"ftyp") {
         (x.xmp, x.icc) = heif(bytes);
     }
     x
+}
+
+/// The colour profile of a GIMP file (XCF), kept by GIMP as the "icc-profile" parasite among the
+/// image's properties; only for an RGB image (ImageMagick hands its pixels over unconverted). Its
+/// EXIF, XMP and IPTC are left out: GIMP keeps them as text of its own, tag by tag.
+fn xcf_icc(bytes: &[u8]) -> Option<Vec<u8>> {
+    let u32_at = |i: usize| Some(u32::from_be_bytes(bytes.get(i..i + 4)?.try_into().ok()?) as usize);
+    // "gimp xcf " and the version ("file" or "v011"), NUL; width, height, base type (0 = RGB);
+    // from version 4 the precision.
+    let version = bytes.strip_prefix(b"gimp xcf ")?.get(..4)?;
+    let mut i = 14 + 8;
+    if u32_at(i)? != 0 {
+        return None;
+    }
+    i += 4;
+    if version != b"file" && std::str::from_utf8(&version[1..]).ok()?.parse::<u32>().ok()? >= 4 {
+        i += 4;
+    }
+    // Properties (type, length, data) up to PROP_END (0); PROP_PARASITES is 21: each parasite a
+    // name (length with its NUL, text), flags, size and data.
+    loop {
+        let (kind, len) = (u32_at(i)?, u32_at(i + 4)?);
+        let data = bytes.get(i + 8..i + 8 + len)?;
+        match kind {
+            0 => return None,
+            21 => {
+                let mut j = 0;
+                while j + 4 <= data.len() {
+                    let n = u32::from_be_bytes(data.get(j..j + 4)?.try_into().ok()?) as usize;
+                    let name = data.get(j + 4..j + 4 + n)?;
+                    let size = u32::from_be_bytes(data.get(j + 8 + n..j + 12 + n)?.try_into().ok()?) as usize;
+                    let value = data.get(j + 12 + n..j + 12 + n + size)?;
+                    if name == b"icc-profile\0" {
+                        return value.get(16..20).filter(|&c| c == b"RGB ").map(|_| value.to_vec());
+                    }
+                    j += 12 + n + size;
+                }
+            }
+            _ => {}
+        }
+        i += 8 + len;
+    }
 }
 
 /// Photoshop block of a TIFF (34377) with its IPTC (33723), which is often only in the tag.
@@ -278,6 +323,37 @@ pub fn tiff_fields(exif: &[u8]) -> Vec<(Dir, u16, tiff::tags::Type, Vec<u8>)> {
 
 #[cfg(test)]
 mod tests {
+
+    /// An XCF by hand: header, the parasites property with an "icc-profile", PROP_END.
+    #[test]
+    fn xcf_profile() {
+        let xcf = |base: u32, icc: &[u8]| {
+            let mut p = Vec::new();
+            for (name, data) in [(&b"gimp-comment\0"[..], &b"hi"[..]), (b"icc-profile\0", icc)] {
+                p.extend((name.len() as u32).to_be_bytes());
+                p.extend(name);
+                p.extend(1u32.to_be_bytes());
+                p.extend((data.len() as u32).to_be_bytes());
+                p.extend(data);
+            }
+            let mut f = b"gimp xcf v011\0".to_vec();
+            for v in [64u32, 48, base, 150] {
+                f.extend(v.to_be_bytes());
+            }
+            f.extend(21u32.to_be_bytes());
+            f.extend((p.len() as u32).to_be_bytes());
+            f.extend(p);
+            f.extend([0; 8]);
+            f
+        };
+        let rgb = [&[0u8; 16][..], b"RGB ", &[0; 20]].concat();
+        assert_eq!(super::xcf_icc(&xcf(0, &rgb)), Some(rgb.clone()));
+        // A grey image, or a profile not for RGB: the pixels go out as RGB, so none.
+        assert_eq!(super::xcf_icc(&xcf(1, &rgb)), None);
+        assert_eq!(super::xcf_icc(&xcf(0, &[&[0u8; 16][..], b"GRAY", &[0; 20]].concat())), None);
+        assert_eq!(super::xcf_icc(b"not a GIMP file"), None);
+    }
+
     use super::*;
 
     /// Thumbnails and slices out, the rest of the Photoshop block (IPTC and its digest) as it was;

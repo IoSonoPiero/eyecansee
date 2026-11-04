@@ -552,6 +552,37 @@ fn magick(bytes: &[u8], format: Option<&str>) -> Result<DynamicImage> {
     Ok(DynamicImage::ImageRgba8(RgbaImage::from_raw(w as u32, h as u32, data).ok_or("ImageMagick: buffer")?))
 }
 
+/// Is `name` one of the formats handed to ImageMagick (`MAGICK`)?
+pub fn is_magick(name: &str) -> bool {
+    kind(name) == Some(Kind::Magick)
+}
+
+/// The metadata of a file ImageMagick reads, as it hands out its profiles: EXIF, XMP, the
+/// Photoshop block (or the bare IPTC) and the colour profile. The profile only when it is RGB:
+/// the pixels are exported as RGB (`magick`), so a CMYK or grey profile would not describe them.
+#[cfg(feature = "magick")]
+pub fn magick_meta(bytes: &[u8]) -> crate::meta_write::Extra {
+    use magick_rust::MagickWand;
+    magick_init();
+    let wand = MagickWand::new();
+    let mut x = crate::meta_write::Extra::default();
+    if wand.ping_image_blob(bytes).is_err() {
+        return x;
+    }
+    let profile = |p: &str| wand.write_image_blob(p).ok().filter(|b| !b.is_empty());
+    // ImageMagick keeps the EXIF with the "Exif\0\0" of a JPEG segment in front.
+    x.exif = profile("exif").map(|e| e.strip_prefix(b"Exif\0\0").map(<[u8]>::to_vec).unwrap_or(e));
+    x.xmp = profile("xmp");
+    x.irb = profile("8bim").or_else(|| profile("iptc").map(|i| crate::meta_write::irb_of_iim(&i)));
+    x.icc = profile("icc").filter(|p| p.get(16..20) == Some(b"RGB "));
+    x
+}
+
+#[cfg(not(feature = "magick"))]
+pub fn magick_meta(_: &[u8]) -> crate::meta_write::Extra {
+    crate::meta_write::Extra::default()
+}
+
 // Builds without libheif or ImageMagick (features `heif`, `magick`), for example the first one on
 // Windows: those formats stay out of the list and a file recognised from its content gives this error.
 #[cfg(not(feature = "heif"))]
@@ -566,6 +597,30 @@ fn magick(_: &[u8], _: Option<&str>) -> Result<DynamicImage> {
 
 #[cfg(test)]
 mod tests {
+
+    /// A MIFF written by ImageMagick from a JPEG with EXIF and an sRGB profile: both come back.
+    #[cfg(feature = "magick")]
+    #[test]
+    fn magick_profiles() {
+        use image::ImageEncoder;
+        let field = exif::Field { tag: exif::Tag::Make, ifd_num: exif::In::PRIMARY, value: exif::Value::Ascii(vec![b"Maker".to_vec()]) };
+        let exif = crate::meta::write_exif(&[field], true).unwrap();
+        let icc = include_bytes!("../assets/icc/sRGB-v2-micro.icc").to_vec();
+        let mut jpeg = Vec::new();
+        let mut e = image::codecs::jpeg::JpegEncoder::new(&mut jpeg);
+        e.set_exif_metadata(exif).unwrap();
+        e.set_icc_profile(icc.clone()).unwrap();
+        e.write_image(&[200; 8 * 6 * 3], 8, 6, image::ExtendedColorType::Rgb8).unwrap();
+        magick_init();
+        let wand = magick_rust::MagickWand::new();
+        wand.read_image_blob(&jpeg).unwrap();
+        let miff = wand.write_image_blob("miff").unwrap();
+        let m = magick_meta(&miff);
+        assert_eq!(m.icc, Some(icc));
+        let read = exif::Reader::new().read_raw(m.exif.unwrap()).unwrap();
+        assert!(read.get_field(exif::Tag::Make, exif::In::PRIMARY).is_some());
+        assert!(is_magick("a.miff") && !is_magick("a.jpg"));
+    }
     use super::*;
 
     /// libjpeg-turbo cannot scale a lossless JPEG down: the thumbnail failed (an exclamation

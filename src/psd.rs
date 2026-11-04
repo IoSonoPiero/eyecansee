@@ -99,7 +99,8 @@ fn read(bytes: &[u8]) -> Option<Info> {
             _ => {}
         }
     }
-    let layers_ok = layers_simple(&mut c)?;
+    // A PSB (version 2) has 8-byte lengths in the layers: not read, its resources are enough.
+    let layers_ok = version == 1 && layers_simple(&mut c)?;
     info.simple = &head[..4] == b"8BPS" && version == 1 && depth == 8 && mode == 3 && layers_ok;
     Some(info)
 }
@@ -217,6 +218,29 @@ pub fn encode(_: &DynamicImage, _: &[u8]) -> Result<Vec<u8>, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A PSB (version 2): its resources as a PSD's, its layers with 8-byte lengths not read.
+    #[test]
+    fn psb_metadata() {
+        let mut f = b"8BPS".to_vec();
+        f.extend(2u16.to_be_bytes());
+        f.extend([0; 6]);
+        f.extend(3u16.to_be_bytes());
+        f.extend([0, 0, 0, 48, 0, 0, 0, 64, 0, 8, 0, 3]);
+        f.extend(0u32.to_be_bytes());
+        let xmp = b"<x:xmpmeta/>";
+        let mut res = b"8BIM".to_vec();
+        res.extend(1060u16.to_be_bytes());
+        res.extend([0, 0]);
+        res.extend((xmp.len() as u32).to_be_bytes());
+        res.extend(xmp);
+        f.extend((res.len() as u32).to_be_bytes());
+        f.extend(res);
+        f.extend(0u64.to_be_bytes());
+        let m = metadata(&f).unwrap();
+        assert_eq!(m.xmp.as_deref(), Some(&xmp[..]));
+        assert!(!simple(&f));
+    }
 
     /// A PSD by hand: one layer with the extra blocks `keys`, or `layers` empty layers.
     fn psd(layers: i16, keys: &[&[u8; 4]], mask: bool) -> Vec<u8> {

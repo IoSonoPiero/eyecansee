@@ -107,10 +107,22 @@ const FIELDS: &[(Group, Tag, &str)] = &[
 ];
 
 /// The EXIF of any file the panel reads, rewritten as a standalone TIFF block for a converted copy:
-/// the camera, shot and GPS fields. Left out: the tags that describe the original's own image data
-/// (strips, sensor layout, DNG tags of a RAW) and the maker note, whose offsets point into the
-/// original file. `None` without EXIF.
+/// the camera, shot and GPS fields (`exif_fields`). `None` without EXIF.
 pub fn exif_chunk(bytes: &[u8]) -> Option<Vec<u8>> {
+    let (fields, little) = exif_fields(bytes)?;
+    write_exif(&fields, little)
+}
+
+/// The EXIF fields of a file worth keeping in a converted copy, and the byte order. Left out: the
+/// tags that describe the original's own image data (strips, sensor layout, DNG tags of a RAW) and
+/// the maker note, whose offsets point into the original file.
+pub fn exif_fields(bytes: &[u8]) -> Option<(Vec<exif::Field>, bool)> {
+    let exif = Reader::new().read_from_container(&mut Cursor::new(bytes)).ok()?;
+    Some((exif.fields().filter(|f| keep_field(f)).cloned().collect(), exif.little_endian()))
+}
+
+/// A field `exif_fields` keeps.
+pub fn keep_field(f: &exif::Field) -> bool {
     use exif::Context;
     const TIFF: &[Tag] = &[
         Tag::Make,
@@ -124,24 +136,27 @@ pub fn exif_chunk(bytes: &[u8]) -> Option<Vec<u8>> {
         Tag::XResolution,
         Tag::YResolution,
         Tag::ResolutionUnit,
+        // Rating and RatingPercent (Microsoft): the stars given to the photo.
+        Tag(exif::Context::Tiff, 0x4746),
+        Tag(exif::Context::Tiff, 0x4749),
     ];
-    let exif = Reader::new().read_from_container(&mut Cursor::new(bytes)).ok()?;
-    let mut writer = exif::experimental::Writer::new();
-    let mut any = false;
-    for f in exif.fields().filter(|f| f.ifd_num == In::PRIMARY) {
-        let keep = match f.tag.context() {
+    f.ifd_num == In::PRIMARY
+        && match f.tag.context() {
             Context::Tiff => TIFF.contains(&f.tag),
             Context::Exif => f.tag != Tag::MakerNote,
             Context::Gps => true,
             _ => false,
-        };
-        if keep {
-            writer.push_field(f);
-            any = true;
         }
+}
+
+/// `fields` as a TIFF block; `None` without fields or if they cannot be written.
+pub fn write_exif(fields: &[exif::Field], little: bool) -> Option<Vec<u8>> {
+    let mut writer = exif::experimental::Writer::new();
+    for f in fields {
+        writer.push_field(f);
     }
     let mut out = Cursor::new(Vec::new());
-    (any && writer.write(&mut out, exif.little_endian()).is_ok()).then(|| out.into_inner())
+    (!fields.is_empty() && writer.write(&mut out, little).is_ok()).then(|| out.into_inner())
 }
 
 /// The EXIF (TIFF data, as `exif_chunk`) of a file being written, made to fit its pixels: the

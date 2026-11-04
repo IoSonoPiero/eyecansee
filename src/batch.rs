@@ -166,12 +166,12 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
         // As "Save" writes them (which would refuse a phone JPEG: it writes over the original).
         None if Format::of_file(name) == Some(Format::Jpeg) => {
             let options = Options { jpeg_quality: 95, ..Options::default() };
-            Ok((name.to_string(), encode::Original::with_meta(image, bytes).encode(&options).map_err(failed)?))
+            Ok((name.to_string(), encode::Original::with_meta_of(image, bytes, name).encode(&options).map_err(failed)?))
         }
         None => encode::encoded_back(bytes, name, image).map(|(data, _)| (name.to_string(), data)).map_err(|_| (SKIP_INSIDE, name.to_string())),
         Some(format) => {
             let options = Options { format, turn: Turn::default(), ..job.options };
-            let data = encode::Original::with_meta(image, bytes).encode(&options).map_err(failed)?;
+            let data = encode::Original::with_meta_of(image, bytes, name).encode(&options).map_err(failed)?;
             Ok((with_ext(name, format), data))
         }
     }
@@ -485,6 +485,26 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
 #[cfg(test)]
 mod tests {
     use image::DynamicImage;
+
+    /// Every file of `EYECANSEE_META_IN` converted to JPEG, PNG, WebP, TIFF and AVIF into
+    /// `EYECANSEE_META_OUT`, as Convert and resize writes them, to compare the metadata with exiftool:
+    /// `EYECANSEE_META_IN=<dir> EYECANSEE_META_OUT=<dir> cargo test --release meta_files_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn meta_files_live() {
+        let (src, out) = (std::env::var("EYECANSEE_META_IN").unwrap(), std::env::var("EYECANSEE_META_OUT").unwrap());
+        for entry in std::fs::read_dir(src).unwrap().flatten() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let bytes = std::fs::read(entry.path()).unwrap();
+            for format in [super::Format::Jpeg, super::Format::Png, super::Format::Webp, super::Format::Tiff, super::Format::Avif] {
+                match super::convert(&bytes, &name, &super::Job { format: Some(format), ..Default::default() }) {
+                    // The original's extension kept in the name: a.miff and a.psb do not overwrite each other.
+                    Ok((new, data)) => std::fs::write(format!("{out}/{name}.{}", new.rsplit_once('.').unwrap().1), data).unwrap(),
+                    Err(e) => println!("{name} -> {format:?}: {e:?}"),
+                }
+            }
+        }
+    }
 
     /// Download, ffmpeg and upload each take a third of the video's bar.
     #[test]

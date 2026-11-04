@@ -336,7 +336,7 @@ impl Loader {
             let sibling = siblings(op.clone(), path.clone());
             let r = match op.read(&path).await {
                 Ok(bytes) => tokio::task::spawn_blocking(move || {
-                    let original = crate::encode::Original::with_meta(decode::decode_full_with(&bytes, &path, &sibling)?, &bytes);
+                    let original = crate::encode::Original::with_meta_of(decode::decode_full_with(&bytes, &path, &sibling)?, &bytes, &path);
                     let preview = decode::preview(&original.image);
                     Ok((Arc::new(original), preview, bytes.len() as u64))
                 })

@@ -234,16 +234,37 @@ impl Original {
 
     /// `image` with the metadata of the file `bytes` (not decoded again).
     pub fn with_meta(image: DynamicImage, bytes: &[u8]) -> Original {
+        Original::with_meta_of(image, bytes, "")
+    }
+
+    /// As `with_meta`; the file's `name` tells the formats ImageMagick reads, whose metadata only
+    /// ImageMagick gives.
+    pub fn with_meta_of(image: DynamicImage, bytes: &[u8], name: &str) -> Original {
+        // RAW: the EXIF of every maker (`raw_meta`), the profile of the decoded pixels, the XMP,
+        // the IPTC where it is in a TIFF tag.
+        if let Some(raw) = crate::raw_meta::read(bytes) {
+            let x = crate::meta_write::read(bytes, None);
+            return Original::upright(image, raw.exif, raw.icc, raw.xmp.or(x.xmp), x.irb);
+        }
         // As found in the formats `image` reads (JPEG, PNG, WebP, TIFF), then in the file itself
-        // (`meta_write::read`). RAW files get the EXIF the metadata panel shows, without profile.
+        // (`meta_write::read`), then from ImageMagick for the formats it reads.
         let mut d = ImageReader::new(Cursor::new(bytes)).with_guessed_format().ok().and_then(|r| r.into_decoder().ok());
         let (exif, icc) = d.as_mut().map(|d| (d.exif_metadata().ok().flatten(), d.icc_profile().ok().flatten())).unwrap_or_default();
-        let x = crate::meta_write::read(bytes, d.as_mut().map(|d| d as &mut dyn ImageDecoder));
-        let mut exif = exif.or(x.exif).or_else(|| crate::meta::exif_chunk(bytes));
+        let mut x = crate::meta_write::read(bytes, d.as_mut().map(|d| d as &mut dyn ImageDecoder));
+        if crate::decode::is_magick(name) {
+            let m = crate::decode::magick_meta(bytes);
+            x = crate::meta_write::Extra { xmp: x.xmp.or(m.xmp), irb: x.irb.or(m.irb), icc: x.icc.or(m.icc), exif: x.exif.or(m.exif) };
+        }
+        let exif = exif.or(x.exif).or_else(|| crate::meta::exif_chunk(bytes));
+        Original::upright(image, exif, icc.or(x.icc), x.xmp, x.irb)
+    }
+
+    /// The pixels are already turned upright: the EXIF orientation is set back to "upright".
+    fn upright(image: DynamicImage, mut exif: Option<Vec<u8>>, icc: Option<Vec<u8>>, xmp: Option<Vec<u8>>, irb: Option<Vec<u8>>) -> Original {
         if let Some(chunk) = &mut exif {
             let _ = Orientation::remove_from_exif_chunk(chunk);
         }
-        Original { image, exif, icc: icc.or(x.icc), xmp: x.xmp, irb: x.irb }
+        Original { image, exif, icc, xmp, irb }
     }
 
     pub fn has_meta(&self) -> bool {
