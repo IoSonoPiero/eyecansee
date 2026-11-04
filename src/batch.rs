@@ -489,6 +489,7 @@ mod tests {
     /// Every file of `EYECANSEE_META_IN` converted to JPEG, PNG, WebP, TIFF and AVIF into
     /// `EYECANSEE_META_OUT`, as Convert and resize writes them, to compare the metadata with exiftool:
     /// `EYECANSEE_META_IN=<dir> EYECANSEE_META_OUT=<dir> cargo test --release meta_files_live -- --ignored --nocapture`
+    /// (`EYECANSEE_META_FORMATS=jpg,tif` for only some of them).
     #[test]
     #[ignore]
     fn meta_files_live() {
@@ -496,7 +497,11 @@ mod tests {
         for entry in std::fs::read_dir(src).unwrap().flatten() {
             let name = entry.file_name().to_string_lossy().to_string();
             let bytes = std::fs::read(entry.path()).unwrap();
+            let only = std::env::var("EYECANSEE_META_FORMATS").unwrap_or_default();
             for format in [super::Format::Jpeg, super::Format::Png, super::Format::Webp, super::Format::Tiff, super::Format::Avif] {
+                if !only.is_empty() && !only.split(',').any(|e| e == format.ext()) {
+                    continue;
+                }
                 match super::convert(&bytes, &name, &super::Job { format: Some(format), ..Default::default() }) {
                     // The original's extension kept in the name: a.miff and a.psb do not overwrite each other.
                     Ok((new, data)) => std::fs::write(format!("{out}/{name}.{}", new.rsplit_once('.').unwrap().1), data).unwrap(),

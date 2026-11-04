@@ -140,23 +140,31 @@ pub fn keep_field(f: &exif::Field) -> bool {
         Tag(exif::Context::Tiff, 0x4746),
         Tag(exif::Context::Tiff, 0x4749),
     ];
-    f.ifd_num == In::PRIMARY
+    // A broken entry (type 0 in a Samsung NX3000 file) would stop the whole block from being written.
+    !matches!(f.value, exif::Value::Unknown(..))
+        && f.ifd_num == In::PRIMARY
         && match f.tag.context() {
             Context::Tiff => TIFF.contains(&f.tag),
-            Context::Exif => f.tag != Tag::MakerNote,
+            // Only EXIF tags: a Mamiya ZD has SubfileType (0x00FE) in its EXIF directory.
+            Context::Exif => f.tag != Tag::MakerNote && f.tag.number() >= 0x8000,
             Context::Gps => true,
             _ => false,
         }
 }
 
-/// `fields` as a TIFF block; `None` without fields or if they cannot be written.
+/// `fields` as a TIFF block; `None` without fields. A field that cannot be written on its own is
+/// left out rather than losing them all.
 pub fn write_exif(fields: &[exif::Field], little: bool) -> Option<Vec<u8>> {
-    let mut writer = exif::experimental::Writer::new();
-    for f in fields {
-        writer.push_field(f);
-    }
-    let mut out = Cursor::new(Vec::new());
-    (!fields.is_empty() && writer.write(&mut out, little).is_ok()).then(|| out.into_inner())
+    let write = |fields: &[&exif::Field]| {
+        let mut writer = exif::experimental::Writer::new();
+        for f in fields {
+            writer.push_field(f);
+        }
+        let mut out = Cursor::new(Vec::new());
+        (!fields.is_empty() && writer.write(&mut out, little).is_ok()).then(|| out.into_inner())
+    };
+    let all: Vec<_> = fields.iter().collect();
+    write(&all).or_else(|| write(&all.into_iter().filter(|f| write(&[f]).is_some()).collect::<Vec<_>>()))
 }
 
 /// The EXIF (TIFF data, as `exif_chunk`) of a file being written, made to fit its pixels: the
@@ -519,6 +527,12 @@ mod tests {
         assert!(has(Tag::Make) && has(Tag::DateTimeOriginal) && has(Tag::GPSAltitude));
         assert!(!has(Tag::Compression) && !has(Tag::MakerNote));
         assert_eq!(super::exif_chunk(b"not an image"), None);
+        // A broken entry and a TIFF tag in the EXIF directory stay out; the rest is written.
+        let broken = field(Tag(exif::Context::Exif, 0), Value::Unknown(0, 0, 0));
+        assert!(!super::keep_field(&broken) && !super::keep_field(&field(Tag(exif::Context::Exif, 0xFE), Value::Long(vec![0]))));
+        let make = field(Tag::Make, Value::Ascii(vec![b"SAMSUNG".to_vec()]));
+        let written = super::write_exif(&[make, broken], true).unwrap();
+        assert!(exif::Reader::new().read_raw(written).unwrap().get_field(Tag::Make, In::PRIMARY).is_some());
     }
 
     #[test]

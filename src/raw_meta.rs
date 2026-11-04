@@ -34,6 +34,23 @@ pub fn read(bytes: &[u8]) -> Option<RawMeta> {
             fields.push(field(tag, Value::Long(vec![0])));
         }
     }
+    // Fields of every EXIF version are written: the version is the latest (2.32), which has them all.
+    fields.retain(|f| f.tag != Tag::ExifVersion);
+    fields.push(field(Tag::ExifVersion, Value::Undefined(b"0232".to_vec(), 0)));
+    if !fields.iter().any(|f| f.tag == Tag::FlashpixVersion) {
+        fields.push(field(Tag::FlashpixVersion, Value::Undefined(b"0100".to_vec(), 0)));
+    }
+    // Text the standard wants with its character code in front (a Pixel DNG has it as plain ASCII).
+    for f in &mut fields {
+        if [Tag::GPSProcessingMethod, Tag::GPSAreaInformation, Tag::UserComment].contains(&f.tag)
+            && let Value::Ascii(text) = &f.value
+        {
+            f.value = Value::Undefined([&b"ASCII\0\0\0"[..], &text.concat()].concat(), 0);
+        }
+    }
+    if fields.iter().any(|f| f.tag.context() == exif::Context::Gps) && !fields.iter().any(|f| f.tag == Tag::GPSVersionID) {
+        fields.push(field(Tag::GPSVersionID, Value::Byte(vec![2, 3, 0, 0])));
+    }
     // The colour space of the pixels written, whatever the file said.
     fields.retain(|f| f.tag != Tag::ColorSpace);
     fields.push(field(Tag::ColorSpace, Value::Short(vec![if adobe { UNCALIBRATED } else { 1 }])));
@@ -44,8 +61,15 @@ pub fn read(bytes: &[u8]) -> Option<RawMeta> {
 /// RAF): found by its text, as the XMP specification allows ("packet scanning").
 fn xmp(bytes: &[u8]) -> Option<Vec<u8>> {
     let find = |from: usize, what: &[u8]| bytes.get(from..)?.windows(what.len()).position(|w| w == what).map(|i| from + i);
-    let start = find(0, b"<x:xmpmeta")?;
-    let end = find(start, b"</x:xmpmeta>")? + b"</x:xmpmeta>".len();
+    // The largest packet: a Hasselblad FFF has an empty one before the real one.
+    let mut packets = Vec::new();
+    let mut from = 0;
+    while let Some(start) = find(from, b"<x:xmpmeta") {
+        let Some(end) = find(start, b"</x:xmpmeta>").map(|e| e + b"</x:xmpmeta>".len()) else { break };
+        packets.push((start, end));
+        from = end;
+    }
+    let (start, end) = packets.into_iter().max_by_key(|(s, e)| e - s)?;
     // In the standard "<?xpacket" wrapper: the maker's own can end far away, after the padding.
     Some([&b"<?xpacket begin=\"\xEF\xBB\xBF\" id=\"W5M0MpCehiHzreSzNTczkc9d\"?>"[..], &bytes[start..end], b"<?xpacket end=\"w\"?>"].concat())
 }
@@ -69,6 +93,17 @@ fn exif_fields(bytes: &[u8]) -> Option<(Vec<Field>, bool)> {
         b"MMOR" => return crate::meta::exif_fields(&[b"MM\0*", &bytes[4..]].concat()),
         _ => {}
     }
+    // MRW: blocks (name, length, data) after an 8-byte header; "TTW" holds a TIFF with the EXIF.
+    if bytes.starts_with(b"\0MRM") {
+        let mut at = 8;
+        while let (Some(name), Some(len)) = (bytes.get(at..at + 4), u32_be(at + 4)) {
+            if name == b"\0TTW" {
+                return crate::meta::exif_fields(bytes.get(at + 8..(at + 8).checked_add(len)?)?);
+            }
+            at = at.checked_add(8 + len)?;
+        }
+        return None;
+    }
     if bytes.starts_with(b"FUJIFILMCCD-RAW") {
         let (at, len) = (u32_be(84)?, u32_be(88)?);
         return crate::meta::exif_fields(bytes.get(at..at.checked_add(len)?)?);
@@ -88,6 +123,13 @@ fn exif_fields(bytes: &[u8]) -> Option<(Vec<Field>, bool)> {
         return (!out.0.is_empty()).then_some(out);
     }
     crate::meta::exif_fields(bytes)
+}
+
+/// The EXIF orientation of a RAW file as the file holds it, for `decode::raw` when rawler gives
+/// none.
+pub fn orientation(bytes: &[u8]) -> Option<u16> {
+    let (fields, _) = exif_fields(bytes)?;
+    fields.iter().find(|f| f.tag == Tag::Orientation)?.value.get_uint(0).and_then(|o| u16::try_from(o).ok())
 }
 
 /// The fields of `a`, then those of `b` that `a` does not have.
@@ -246,6 +288,17 @@ mod tests {
     }
 
     #[test]
+    fn exif_of_mrw() {
+        let ttw = tiff(&[field(Tag::Make, ascii("Minolta")), field(Tag::Orientation, Value::Short(vec![6]))]);
+        let block = |name: &[u8; 4], data: &[u8]| [&name[..], &(data.len() as u32).to_be_bytes(), data].concat();
+        let blocks = [block(b"\0PRD", &[0; 24]), block(b"\0TTW", &ttw)].concat();
+        let mrw = [&b"\0MRM"[..], &(blocks.len() as u32).to_be_bytes(), &blocks].concat();
+        let (fields, _) = exif_fields(&mrw).unwrap();
+        assert!(fields.iter().any(|f| f.tag == Tag::Make));
+        assert_eq!(orientation(&mrw), Some(6));
+    }
+
+    #[test]
     fn merge_keeps_the_first() {
         let a = Some((vec![field(Tag::Model, ascii("A"))], true));
         let b = Some((vec![field(Tag::Model, ascii("B")), field(Tag::Make, ascii("M"))], false));
@@ -263,5 +316,8 @@ mod tests {
         assert!(xmp.starts_with(b"<?xpacket begin=") && xmp.ends_with(b"<?xpacket end=\"w\"?>"));
         assert!(xmp.windows(10).any(|w| w == b"<x:xmpmeta") && !xmp.windows(4).any(|w| w == b"junk"));
         assert_eq!(super::xmp(b"no packet here"), None);
+        // The largest of two packets.
+        let two = b"<x:xmpmeta/></x:xmpmeta> <x:xmpmeta><rdf>real</rdf></x:xmpmeta>";
+        assert!(super::xmp(two).unwrap().windows(4).any(|w| w == b"real"));
     }
 }

@@ -447,7 +447,7 @@ fn raw(bytes: &[u8]) -> Result<DynamicImage> {
             }
         }
     };
-    let exif = decoder.raw_metadata(&src, &params).ok().and_then(|m| m.exif.orientation);
+    let exif = decoder.raw_metadata(&src, &params).ok().and_then(|m| m.exif.orientation).or_else(|| crate::raw_meta::orientation(bytes));
     if let Some(o) = exif.and_then(|o| Orientation::from_exif(o as u8)) {
         img.apply_orientation(o);
     }
