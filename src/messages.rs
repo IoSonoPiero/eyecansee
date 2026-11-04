@@ -56,6 +56,8 @@ impl App {
                 Msg::Exported(r) => self.on_exported(ctx, r),
                 Msg::Prepared(path, turn, r) => self.on_prepared(path, turn, r),
                 Msg::Replaced(path, r) => self.on_replaced(ctx, path, r),
+                Msg::NotReplaced(kept) => self.on_not_replaced(ctx, kept),
+                Msg::KeptSaved(r) => self.on_kept_saved(r),
                 Msg::Forgotten(paths) => self.on_forgotten(paths),
                 Msg::Update(r) => self.on_update(r),
                 Msg::Devices(d) => self.on_devices(ctx, d),
@@ -381,7 +383,7 @@ impl App {
         }
     }
 
-    fn on_replaced(&mut self, ctx: &egui::Context, path: String, r: Result<(), source::Error>) {
+    pub(crate) fn on_replaced(&mut self, ctx: &egui::Context, path: String, r: Result<(), source::Error>) {
         self.saving.remove(&path);
         match r {
             Ok(()) => {
@@ -405,7 +407,10 @@ impl App {
             Err((loader::SKIPPED, name)) => self.skipped.push(name),
             Err((id, detail)) => {
                 log!("save: ERROR {id} {detail}");
-                self.error = Some(self.i18n.t_args("save-failed", &[("detail", &self.i18n.t_args(id, &[("detail", &detail)]))]));
+                // With the image kept, its own window says what happened.
+                if !self.kept.iter().any(|k| k.path == path) {
+                    self.error = Some(self.i18n.t_args("save-failed", &[("detail", &self.i18n.t_args(id, &[("detail", &detail)]))]));
+                }
             }
         }
         if self.saving.is_empty()

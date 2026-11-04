@@ -11,7 +11,7 @@ use eframe::egui::{ColorImage, Context};
 use tokio::runtime::Handle;
 use tokio::sync::{Notify, Semaphore};
 
-use crate::replace::{replace, rewritten, turned, write_whole};
+use crate::replace::{rewritten, turned, write_whole};
 use crate::source::{self, File, Listing, Store};
 use crate::thumb_queue::{ThumbQueue, maintain, thumb_worker};
 use crate::{decode, thumbcache, transfer};
@@ -76,10 +76,23 @@ pub enum Msg {
     Edited(String, Result<(Arc<Vec<u8>>, bool, ColorImage), source::Error>),
     /// An image saved over itself after a turn ("Save"): its path and the outcome.
     Replaced(String, Result<(), source::Error>),
+    /// An image that could not be saved on a phone or server, kept on the computer (`kept.rs`).
+    NotReplaced(Box<crate::kept::Kept>),
+    /// A kept image saved elsewhere ("Save as…" of its window): where, or an error.
+    KeptSaved(Result<String, source::Error>),
     /// Thumbnails gone from the disk cache (`thumbcache::forget`): their paths.
     Forgotten(Vec<String>),
     /// Metadata of an image: `None` = no EXIF.
     Meta { generation: u64, index: usize, meta: Result<Option<crate::meta::Meta>, String> },
+}
+
+/// The message at the end of a save over the original: `NotReplaced` when it failed with the new
+/// image kept on the computer.
+fn replaced(path: String, r: Result<(), (source::Error, Option<Box<crate::kept::Kept>>)>) -> Msg {
+    match r {
+        Err((_, Some(kept))) => Msg::NotReplaced(kept),
+        r => Msg::Replaced(path, r.map_err(|(e, _)| e)),
+    }
 }
 
 pub struct Loader {
@@ -438,10 +451,23 @@ impl Loader {
     }
 
     pub fn replace_with(&self, path: String, data: Arc<Vec<u8>>, how: source::Deletion) {
-        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        let (op, tx, ctx, base) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), self.base.clone());
         self.rt.spawn(async move {
-            let r = replace(&op, &path, data.to_vec(), how).await;
-            let _ = tx.send(Msg::Replaced(path, r));
+            let r = crate::kept::replace(&op, &base, &path, data.to_vec(), how).await;
+            let _ = tx.send(replaced(path, r));
+            ctx.request_repaint();
+        });
+    }
+
+    /// A kept image sent again ("Try again" of its window), to the place it was going.
+    pub fn replace_kept(&self, k: crate::kept::Kept) {
+        let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let r = match tokio::fs::read(&k.file).await {
+                Ok(data) => crate::kept::replace(&k.store, &k.base, &k.path, data, k.how).await,
+                Err(e) => Err((("error-detail", e.to_string()), Some(Box::new(k.clone())))),
+            };
+            let _ = tx.send(replaced(k.path, r));
             ctx.request_repaint();
         });
     }
@@ -449,14 +475,14 @@ impl Loader {
     /// "Save" on images of the grid: each turned in its own format and written over itself, one
     /// after the other; those that cannot be (`SKIPPED`) are left as they are.
     pub fn replace(&self, paths: Vec<String>, turn: crate::transform::Turn, how: source::Deletion) {
-        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        let (op, tx, ctx, base) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), self.base.clone());
         self.rt.spawn(async move {
             for path in paths {
                 let r = match turned(&op, &path, turn).await {
-                    Ok((data, _)) => replace(&op, &path, data, how).await,
-                    Err(e) => Err(e),
+                    Ok((data, _)) => crate::kept::replace(&op, &base, &path, data, how).await,
+                    Err(e) => Err((e, None)),
                 };
-                let _ = tx.send(Msg::Replaced(path, r));
+                let _ = tx.send(replaced(path, r));
                 ctx.request_repaint();
             }
         });
@@ -601,7 +627,7 @@ async fn first_unseen(op: &Store, dirs: &[String], stop: &std::sync::atomic::Ato
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::replace::undo;
+    use crate::replace::{replace, undo};
     use crate::source::{Deletion, TRASH_DIR};
 
     /// Saving over an image: the new file takes the name, the original goes as asked under its own

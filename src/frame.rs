@@ -142,6 +142,7 @@ impl App {
         self.save_window(ctx);
         self.batch_turn_window(ctx);
         self.notice_window(ctx);
+        self.kept_window(ctx);
         self.kiod_window(ctx);
         self.host_window(ctx);
         self.address_window(ctx);

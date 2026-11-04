@@ -469,6 +469,15 @@ save-confirm-permanent = Save the changes over **{ $name }**?
     The original is deleted **for good**.
 save-yes = Save
 save-failed = Cannot save: { $detail }
+kept-failed-phone = **{ $name }** was not saved on the phone: { $error }
+
+    The original on the phone is unchanged. The changed image is kept on this computer, in **{ $folder }**, until it is saved there.
+kept-failed-server = **{ $name }** was not saved on the server: { $error }
+
+    The original on the server is unchanged. The changed image is kept on this computer, in **{ $folder }**, until it is saved there.
+kept-retry = Try again
+kept-open-folder = Open the folder
+kept-saved = Saved as **{ $path }**. The copy kept on this computer stays where it was.
 status-modified = Changed, not saved
 status-saving = Saving…
 status-preparing = Preparing to save…

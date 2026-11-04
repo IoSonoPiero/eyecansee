@@ -79,6 +79,7 @@ mod gps_track;
 mod grid;
 mod human;
 mod i18n;
+mod kept;
 mod icons;
 mod listing;
 mod loader;
@@ -344,6 +345,8 @@ struct App {
     thumb_size: f32,
     address: String,
     error: Option<String>,
+    /// Images changed on a phone or server whose saving failed, kept on the computer (`kept.rs`).
+    kept: Vec<kept::Kept>,
     /// New version downloaded at startup, waiting for "Install and restart".
     update: Option<update::Ready>,
     /// Help > Check for updates: what to show (`None` = window closed).
@@ -501,6 +504,7 @@ impl App {
             thumb_size: 160.0,
             address: String::new(),
             error: None,
+            kept: Vec::new(),
             title: String::new(),
             help: false,
             help_cache: CommonMarkCache::default(),
