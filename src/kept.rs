@@ -15,7 +15,10 @@ use crate::source::{self, Store};
 /// A changed image that could not be sent: where it was going, where it is kept, and why.
 #[derive(Clone)]
 pub struct Kept {
-    pub store: Store,
+    /// The server, which connects again by itself. `None` for a phone: holding it would keep the
+    /// session that broke (`Phone::shared` would hand it out again after the phone is plugged back
+    /// in), so "Try again" opens it anew from `base`.
+    pub store: Option<Store>,
     /// The address of the place (`Loader`'s base), which names the kept folder.
     pub base: String,
     pub path: String,
@@ -96,7 +99,7 @@ async fn replace_in(root: Option<PathBuf>, store: &Store, base: &str, path: &str
         (Ok(()), None) => Ok(()),
         (Err(e), file) => {
             log!("save {path:?} failed, kept as {file:?}");
-            let kept = file.map(|file| Box::new(Kept { store: store.clone(), base: base.to_string(), path: path.to_string(), file, how, error: e.clone() }));
+            let kept = file.map(|file| Box::new(Kept { store: (!matches!(store, Store::Mtp(_))).then(|| store.clone()), base: base.to_string(), path: path.to_string(), file, how, error: e.clone() }));
             Err((e, kept))
         }
     }
@@ -121,11 +124,11 @@ impl App {
     /// The first kept image: what happened, where it is, and what can be done.
     pub(crate) fn kept_window(&mut self, ctx: &egui::Context) {
         let Some(k) = self.kept.first().cloned() else { return };
-        let place = if matches!(k.store, Store::Mtp(_)) { "kept-failed-phone" } else { "kept-failed-server" };
+        let place = if k.store.is_none() { "kept-failed-phone" } else { "kept-failed-server" };
         let (id, detail) = &k.error;
         let error = self.i18n.t_args(id, &[("detail", detail)]);
         let folder = k.file.parent().unwrap_or(&k.file).display().to_string();
-        let text = self.i18n.t_args(place, &[("name", &crate::save_dialogs::md(source::name(&k.path))), ("error", &error), ("folder", &crate::save_dialogs::md(&folder))]);
+        let text = self.i18n.t_args(place, &[("name", &crate::save_dialogs::md(source::name(&k.path))), ("error", &error), ("folder", &format!("**{}**", crate::save_dialogs::md(&folder)))]);
         let t = |id| self.i18n.t(id);
         // Esc closes; Enter does nothing here (it must not choose one of the actions).
         let choices = vec![(t("kept-retry"), self.loader.is_some(), Choice::Retry), (t("menu-save-copy"), true, Choice::SaveAs), (t("kept-open-folder"), true, Choice::Folder)];
@@ -138,10 +141,8 @@ impl App {
                     loader.replace_kept(k);
                 }
             }
-            Some(Some(Choice::SaveAs)) => {
-                self.kept.remove(0);
-                self.save_kept_as(ctx, k.file);
-            }
+            // The window stays: the image still has to reach the phone or server ("Try again").
+            Some(Some(Choice::SaveAs)) => self.save_kept_as(ctx, k.file),
             Some(Some(Choice::Folder)) => open_folder(Path::new(&folder)),
             Some(None) => {
                 self.kept.remove(0);
@@ -150,7 +151,8 @@ impl App {
         }
     }
 
-    /// The system window to choose where a kept image goes; the copy stays where it was.
+    /// The system window to choose where a kept image goes; the copy stays where it was, and so does
+/// its window.
     fn save_kept_as(&self, ctx: &egui::Context, file: PathBuf) {
         let name = file.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
         let dialog = rfd::AsyncFileDialog::new().set_title(self.i18n.t("menu-save-copy")).set_file_name(name);

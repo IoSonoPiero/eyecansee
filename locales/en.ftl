@@ -56,6 +56,8 @@ error-not-found = Not found: { $detail }
 error-device-busy = The device is in use by another application (for example the file manager). Close it, or disconnect and reconnect the device. ({ $detail })
 error-device-kde = KDE is using the phone (its kiod service). Press F5 to open it in EyeCanSee anyway. ({ $detail })
 error-no-device = The device was not found: if it is connected, unlock it and choose "File transfer" on it. EyeCanSee retries by itself every 2 seconds. ({ $detail })
+error-phone-disconnected = The phone was disconnected. ({ $detail })
+error-phone-timeout = The phone stopped answering: it may have been disconnected or locked. ({ $detail })
 error-not-ready = The phone does not answer: unlock it and choose "File transfer" in its USB notification. EyeCanSee retries by itself every 2 seconds. ({ $detail })
 error-use-mount = Direct access to the device failed. ({ $detail })
 error-no-storage = The device shows no storage: unlock it and choose "File transfer" on it. EyeCanSee retries by itself every 2 seconds. ({ $detail })
@@ -471,13 +473,23 @@ save-yes = Save
 save-failed = Cannot save: { $detail }
 kept-failed-phone = **{ $name }** was not saved on the phone: { $error }
 
-    The original on the phone is unchanged. The changed image is kept on this computer, in **{ $folder }**, until it is saved there.
+    The original on the phone is unchanged.
+
+    The changed image is kept on this computer until it is saved there, in:
+
+    { $folder }
 kept-failed-server = **{ $name }** was not saved on the server: { $error }
 
-    The original on the server is unchanged. The changed image is kept on this computer, in **{ $folder }**, until it is saved there.
+    The original on the server is unchanged.
+
+    The changed image is kept on this computer until it is saved there, in:
+
+    { $folder }
 kept-retry = Try again
 kept-open-folder = Open the folder
-kept-saved = Saved as **{ $path }**. The copy kept on this computer stays where it was.
+kept-saved = Saved as **{ $path }**.
+
+    The copy kept on this computer stays where it was, until the image is saved where it belongs.
 status-modified = Changed, not saved
 status-saving = Saving…
 status-preparing = Preparing to save…

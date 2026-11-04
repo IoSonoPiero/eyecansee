@@ -463,9 +463,14 @@ impl Loader {
     pub fn replace_kept(&self, k: crate::kept::Kept) {
         let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = match tokio::fs::read(&k.file).await {
-                Ok(data) => crate::kept::replace(&k.store, &k.base, &k.path, data, k.how).await,
-                Err(e) => Err((("error-detail", e.to_string()), Some(Box::new(k.clone())))),
+            let store = match &k.store {
+                Some(store) => Ok(store.clone()),
+                None => source::open(&k.base).map(|s| s.op),
+            };
+            let r = match (store, tokio::fs::read(&k.file).await) {
+                (Ok(store), Ok(data)) => crate::kept::replace(&store, &k.base, &k.path, data, k.how).await,
+                (Err(e), _) => Err((e, Some(Box::new(k.clone())))),
+                (_, Err(e)) => Err((("error-detail", e.to_string()), Some(Box::new(k.clone())))),
             };
             let _ = tx.send(replaced(k.path, r));
             ctx.request_repaint();

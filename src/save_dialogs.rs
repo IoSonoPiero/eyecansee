@@ -265,6 +265,8 @@ impl App {
         let mut close = self.delete_answer.take().is_some();
         egui::Modal::new(egui::Id::unique("notice")).show(ctx, |ui| {
             ui.set_max_width(460.0);
+            // A short message ("Images saved: 1.") made a box so small it went unnoticed.
+            ui.set_min_width(320.0);
             notice_text(ui, &text);
             // A stalled phone (`phone_stall`): our page on why, in the app's language.
             if self.stall_notice.as_ref() == Some(&text) {

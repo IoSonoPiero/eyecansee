@@ -415,6 +415,8 @@ impl App {
         }
         if self.saving.is_empty()
             && let Some(n) = self.batch_saved.take()
+            // Nothing saved and every failure in its own window (`kept.rs`): "saved: 0" said nothing more.
+            && !(n == 0 && self.skipped.is_empty() && !self.kept.is_empty())
         {
             let mut text = self.i18n.t_args("batch-done", &[("n", &n.to_string())]);
             if !self.skipped.is_empty() {

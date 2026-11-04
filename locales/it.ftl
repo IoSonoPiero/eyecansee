@@ -55,6 +55,8 @@ error-not-found = Non trovato: { $detail }
 error-device-busy = Il dispositivo è in uso da un'altra applicazione (per esempio il gestore dei file). Chiudila, oppure scollega e ricollega il dispositivo. ({ $detail })
 error-device-kde = Il telefono è in uso da KDE (il suo servizio kiod). Premi F5 per aprirlo comunque in EyeCanSee. ({ $detail })
 error-no-device = Il dispositivo non è stato trovato: se è collegato, sbloccalo e scegli "Trasferimento file". EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })
+error-phone-disconnected = Il telefono è stato scollegato. ({ $detail })
+error-phone-timeout = Il telefono ha smesso di rispondere: forse è stato scollegato o bloccato. ({ $detail })
 error-not-ready = Il telefono non risponde: sbloccalo e scegli "Trasferimento file" nella sua notifica USB. EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })
 error-use-mount = L'accesso diretto al dispositivo non è riuscito. ({ $detail })
 error-no-storage = Il dispositivo non mostra nessuna memoria: sbloccalo e scegli "Trasferimento file". EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })
@@ -470,13 +472,23 @@ save-yes = Salva
 save-failed = Impossibile salvare: { $detail }
 kept-failed-phone = **{ $name }** non è stato salvato sul telefono: { $error }
 
-    L'originale sul telefono è intatto. L'immagine modificata resta su questo computer, in **{ $folder }**, finché non viene salvata lì.
+    L'originale sul telefono è intatto.
+
+    L'immagine modificata resta su questo computer finché non viene salvata lì, in:
+
+    { $folder }
 kept-failed-server = **{ $name }** non è stato salvato sul server: { $error }
 
-    L'originale sul server è intatto. L'immagine modificata resta su questo computer, in **{ $folder }**, finché non viene salvata lì.
+    L'originale sul server è intatto.
+
+    L'immagine modificata resta su questo computer finché non viene salvata lì, in:
+
+    { $folder }
 kept-retry = Riprova
 kept-open-folder = Apri la cartella
-kept-saved = Salvata come **{ $path }**. La copia su questo computer resta dov'era.
+kept-saved = Salvata come **{ $path }**.
+
+    La copia su questo computer resta dov'era, finché l'immagine non viene salvata al suo posto.
 status-modified = Modificata, non salvata
 status-saving = Salvataggio in corso…
 status-preparing = Preparo il salvataggio…

@@ -115,6 +115,9 @@ fn error(e: mtp_rs::Error) -> Error {
         // mtp-rs 0.36: refused before anything is sent (upload, new folder, rename); MTP names
         // hold 254 UTF-16 units, an emoji counts as two.
         mtp_rs::Error::NameTooLong { units } => return ("error-name-too-long", units.to_string()),
+        // The cable pulled, the phone locked or switched off "File transfer".
+        mtp_rs::Error::Disconnected => "error-phone-disconnected",
+        mtp_rs::Error::Timeout => "error-phone-timeout",
         _ => "error-detail",
     };
     (id, e.to_string())
