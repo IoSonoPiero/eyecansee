@@ -68,6 +68,7 @@ mod devices;
 mod dup_page;
 mod duplicates;
 mod encode;
+mod encoders;
 mod engine;
 mod ffmpeg;
 mod file_dialogs;
