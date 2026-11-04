@@ -41,9 +41,13 @@ fn folder(root: &Path, base: &str, path: &str) -> PathBuf {
     use std::hash::{Hash, Hasher};
     let mut h = std::hash::DefaultHasher::new();
     (base, path).hash(&mut h);
-    // Characters Windows does not allow in a name become "_".
-    let name: String = source::name(path).chars().map(|c| if r#"<>:"/\|?*"#.contains(c) || c.is_control() { '_' } else { c }).collect();
-    root.join(format!("{name}-{:016x}", h.finish()))
+    root.join(format!("{}-{:016x}", local_name(path), h.finish()))
+}
+
+/// The name of `path` as a file on this computer: the characters Windows does not allow in a name
+/// (a phone or a server allows them) become "_".
+fn local_name(path: &str) -> String {
+    source::name(path).chars().map(|c| if r#"<>:"/\|?*"#.contains(c) || c.is_control() { '_' } else { c }).collect()
 }
 
 /// Writes `data` as the image `path` of `base` in its folder in `root`, with a text saying where
@@ -51,7 +55,7 @@ fn folder(root: &Path, base: &str, path: &str) -> PathBuf {
 fn keep_in(root: &Path, base: &str, path: &str, data: &[u8]) -> std::io::Result<PathBuf> {
     let folder = folder(root, base, path);
     std::fs::create_dir_all(&folder)?;
-    let file = folder.join(source::name(path));
+    let file = folder.join(local_name(path));
     std::fs::write(&file, data)?;
     std::fs::write(folder.join("from.txt"), format!("{}\n{path}\n", crate::address::without_password(base)))?;
     Ok(file)
@@ -194,7 +198,7 @@ mod tests {
         let root = data.join("edits");
         let file = keep_in(&root, "mtp://phone/", "DCIM/a:b.jpg", b"new").unwrap();
         assert_eq!(std::fs::read(&file).unwrap(), b"new");
-        assert_eq!(file.file_name().unwrap(), "a:b.jpg");
+        assert_eq!(file.file_name().unwrap(), "a_b.jpg");
         let folder = file.parent().unwrap();
         assert_eq!(folder.parent(), Some(root.as_path()));
         assert!(folder.file_name().unwrap().to_string_lossy().starts_with("a_b.jpg-"));
