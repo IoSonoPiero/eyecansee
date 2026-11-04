@@ -138,5 +138,9 @@ lto = "fat"
 codegen-units = 1
 
 # magick_rust 2.1.1 imports ResourceType only on Linux and macOS, so it does not build on Windows.
+# avif-serialize 0.8.9 and ravif 0.13.0 write no colour profile and no XMP: the copies in vendor/ add
+# them (`colr` of type `prof`, a `mime` item), proposed to their author (notes/avif-serialize-pr.md).
 [patch.crates-io]
 magick_rust = { path = "vendor/magick_rust" }
+avif-serialize = { path = "vendor/avif-serialize" }
+ravif = { path = "vendor/ravif" }

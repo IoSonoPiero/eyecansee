@@ -573,6 +573,11 @@ pub(crate) mod tests {
                 if cfg!(feature = "heif") {
                     let back = crate::decode::decode_full(&bytes, "x.avif").unwrap_or_else(|e| panic!("{o:?}: {e}"));
                     assert_eq!((back.width(), back.height()), (40, 30), "{o:?}");
+                    // Colour profile and XMP (with the IPTC fields) read back, EXIF too.
+                    let meta = Original::with_meta(back, &bytes);
+                    assert_eq!(meta.icc.as_ref(), Some(&icc), "{o:?}");
+                    assert!(meta.exif.is_some(), "{o:?}");
+                    kept_xmp_and_iptc(&bytes, format, &iim);
                 }
                 continue;
             }

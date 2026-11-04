@@ -146,7 +146,8 @@ fn webp_meta(file: &[u8], w: u32, h: u32, alpha: bool, b: &Blocks) -> Vec<u8> {
     out
 }
 
-/// ravif (rav1e); it keeps EXIF but has no place for a colour profile.
+/// ravif (rav1e), with EXIF, colour profile and XMP (the last two through the copies of ravif and
+/// avif-serialize in vendor/).
 pub(crate) fn avif(img: &DynamicImage, o: &Options, b: &Blocks) -> Result<Vec<u8>, String> {
     let mut e = ravif::Encoder::new()
         .with_quality(o.avif_quality as f32)
@@ -156,6 +157,12 @@ pub(crate) fn avif(img: &DynamicImage, o: &Options, b: &Blocks) -> Result<Vec<u8
         .with_internal_color_model(if o.avif_rgb { ravif::ColorModel::RGB } else { ravif::ColorModel::YCbCr });
     if let Some(exif) = &b.exif {
         e = e.with_exif(exif.clone());
+    }
+    if let Some(icc) = &b.icc {
+        e = e.with_icc_profile(icc.clone());
+    }
+    if let Some(xmp) = &b.xmp {
+        e = e.with_xmp(xmp.clone());
     }
     let (w, h) = (img.width() as usize, img.height() as usize);
     let r = if img.color().has_alpha() {

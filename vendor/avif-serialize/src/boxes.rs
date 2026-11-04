@@ -154,7 +154,7 @@ impl MpegBox for MetaBox<'_> {
 /// Item Info box
 #[derive(Debug, Clone)]
 pub struct IinfBox {
-    pub items: ArrayVec<InfeBox, 3>,
+    pub items: ArrayVec<InfeBox, 4>,
 }
 
 impl MpegBox for IinfBox {
@@ -181,6 +181,8 @@ pub struct InfeBox {
     pub id: u16,
     pub typ: FourCC,
     pub name: &'static str,
+    /// For items of type `mime` (XMP): the MIME type of their content.
+    pub content_type: &'static str,
 }
 
 impl MpegBox for InfeBox {
@@ -191,6 +193,7 @@ impl MpegBox for InfeBox {
         + 2 // item_protection_index
         + 4 // type
         + self.name.len() + 1 // nul-terminated
+        + if self.typ.0 == *b"mime" { self.content_type.len() + 1 } else { 0 }
     }
 
     fn write<B: WriterBackend>(&self, w: &mut Writer<B>) -> Result<(), B::Error> {
@@ -199,7 +202,12 @@ impl MpegBox for InfeBox {
         b.u16(0)?;
         b.push(&self.typ.0)?;
         b.push(self.name.as_bytes())?;
-        b.u8(0)
+        b.u8(0)?;
+        if self.typ.0 == *b"mime" {
+            b.push(self.content_type.as_bytes())?;
+            b.u8(0)?;
+        }
+        Ok(())
     }
 }
 
@@ -257,6 +265,8 @@ pub enum IpcoProp {
     Ispe(IspeBox),
     AuxC(AuxCBox),
     Colr(ColrBox),
+    /// `colr` with an ICC profile (`prof`), besides the `nclx` one.
+    ColrIcc(ColrIccBox),
     Clli(ClliBox),
     Mdcv(MdcvBox),
 }
@@ -269,6 +279,7 @@ impl IpcoProp {
             Self::Ispe(p) => p.len(),
             Self::AuxC(p) => p.len(),
             Self::Colr(p) => p.len(),
+            Self::ColrIcc(p) => p.len(),
             Self::Clli(p) => p.len(),
             Self::Mdcv(p) => p.len(),
         }
@@ -281,6 +292,7 @@ impl IpcoProp {
             Self::Ispe(p) => p.write(w),
             Self::AuxC(p) => p.write(w),
             Self::Colr(p) => p.write(w),
+            Self::ColrIcc(p) => p.write(w),
             Self::Clli(p) => p.write(w),
             Self::Mdcv(p) => p.write(w),
         }
@@ -290,7 +302,7 @@ impl IpcoProp {
 /// Item Property Container box
 #[derive(Debug, Clone)]
 pub struct IpcoBox {
-    props: ArrayVec<IpcoProp, 9>,
+    props: ArrayVec<IpcoProp, 10>,
 }
 
 impl IpcoBox {
@@ -392,7 +404,7 @@ impl MpegBox for IspeBox {
 #[derive(Debug, Clone)]
 pub struct IpmaEntry {
     pub item_id: u16,
-    pub prop_ids: ArrayVec<u8, 7>,
+    pub prop_ids: ArrayVec<u8, 8>,
 }
 
 #[derive(Debug, Clone)]
@@ -448,7 +460,7 @@ impl MpegBox for IrefEntryBox {
 
 #[derive(Debug, Clone)]
 pub struct IrefBox {
-    pub entries: ArrayVec<IrefEntryBox, 3>,
+    pub entries: ArrayVec<IrefEntryBox, 4>,
 }
 
 impl IrefBox {
@@ -522,6 +534,25 @@ impl MpegBox for ColrBox {
         b.u16(self.transfer_characteristics as u16)?;
         b.u16(self.matrix_coefficients as u16)?;
         b.u8(if self.full_range_flag { 1 << 7 } else { 0 })
+    }
+}
+
+/// Colour profile as an ICC profile (`colr` of type `prof`), ISO/IEC 14496-12 § 12.1.5.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ColrIccBox {
+    pub icc: Vec<u8>,
+}
+
+impl MpegBox for ColrIccBox {
+    #[inline(always)]
+    fn len(&self) -> usize {
+        BASIC_BOX_SIZE + 4 + self.icc.len()
+    }
+
+    fn write<B: WriterBackend>(&self, w: &mut Writer<B>) -> Result<(), B::Error> {
+        let mut b = w.basic_box(self.len(), *b"colr")?;
+        b.u32(u32::from_be_bytes(*b"prof"))?;
+        b.push(&self.icc)
     }
 }
 
@@ -647,7 +678,7 @@ impl MpegBox for PitmBox {
 pub struct IlocBox<'data> {
     /// update before writing
     pub absolute_offset_start: Option<NonZeroU32>,
-    pub items: ArrayVec<IlocItem<'data>, 3>,
+    pub items: ArrayVec<IlocItem<'data>, 4>,
 }
 
 #[derive(Debug, Clone)]

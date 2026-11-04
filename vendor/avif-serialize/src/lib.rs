@@ -33,6 +33,8 @@ pub struct Aviffy {
     height: u32,
     bit_depth: u8,
     exif: Option<Vec<u8>>,
+    icc: Option<Vec<u8>>,
+    xmp: Option<Vec<u8>>,
 }
 
 /// Makes an AVIF file given encoded AV1 data (create the data with [`rav1e`](https://lib.rs/rav1e))
@@ -79,6 +81,8 @@ impl Aviffy {
             clli: None,
             mdcv: None,
             exif: None,
+            icc: None,
+            xmp: None,
         }
     }
 
@@ -210,6 +214,7 @@ impl Aviffy {
         let color_image_id = 1;
         let alpha_image_id = 2;
         let exif_id = 3;
+        let xmp_id = 4;
         const ESSENTIAL_BIT: u8 = 0x80;
         let color_depth_bits = depth_bits;
         let alpha_depth_bits = depth_bits; // Sadly, the spec requires these to match.
@@ -218,6 +223,7 @@ impl Aviffy {
             id: color_image_id,
             typ: FourCC(*b"av01"),
             name: "",
+            content_type: "",
         });
 
         let ispe_prop = ipco.push(IpcoProp::Ispe(IspeBox { width, height })).ok_or(io::ErrorKind::InvalidInput)?;
@@ -252,6 +258,11 @@ impl Aviffy {
             ipma.prop_ids.push(colr_color_prop);
         }
 
+        if let Some(icc) = &self.icc {
+            let prop = ipco.push(IpcoProp::ColrIcc(ColrIccBox { icc: icc.clone() })).ok_or(io::ErrorKind::InvalidInput)?;
+            ipma.prop_ids.push(prop);
+        }
+
         if let Some(clli) = self.clli {
             let clli_prop = ipco.push(IpcoProp::Clli(clli)).ok_or(io::ErrorKind::InvalidInput)?;
             ipma.prop_ids.push(clli_prop);
@@ -269,6 +280,7 @@ impl Aviffy {
                 id: exif_id,
                 typ: FourCC(*b"Exif"),
                 name: "",
+                content_type: "",
             });
 
             iloc_items.push(IlocItem {
@@ -283,11 +295,32 @@ impl Aviffy {
             });
         }
 
+        if let Some(xmp_data) = self.xmp.as_deref() {
+            image_items.push(InfeBox {
+                id: xmp_id,
+                typ: FourCC(*b"mime"),
+                name: "",
+                content_type: "application/rdf+xml",
+            });
+
+            iloc_items.push(IlocItem {
+                id: xmp_id,
+                extents: from_array([IlocExtent { data: xmp_data }]),
+            });
+
+            irefs.push(IrefEntryBox {
+                from_id: xmp_id,
+                to_id: color_image_id,
+                typ: FourCC(*b"cdsc"),
+            });
+        }
+
         if let Some(alpha_data) = alpha_av1_data {
             image_items.push(InfeBox {
                 id: alpha_image_id,
                 typ: FourCC(*b"av01"),
                 name: "",
+                content_type: "",
             });
 
             irefs.push(IrefEntryBox {
@@ -407,6 +440,21 @@ impl Aviffy {
     #[inline]
     pub fn set_exif(&mut self, exif: Vec<u8>) -> &mut Self {
         self.exif = Some(exif);
+        self
+    }
+
+    /// Set an ICC colour profile, written as a `colr` box of type `prof` next to the `nclx` one.
+    #[inline]
+    pub fn set_icc_profile(&mut self, icc: Vec<u8>) -> &mut Self {
+        self.icc = Some(icc);
+        self
+    }
+
+    /// Set XMP metadata (an XMP packet), written as an item of type `mime` with the content type
+    /// `application/rdf+xml`, describing the colour image.
+    #[inline]
+    pub fn set_xmp(&mut self, xmp: Vec<u8>) -> &mut Self {
+        self.xmp = Some(xmp);
         self
     }
 
@@ -755,4 +803,28 @@ fn test_tiff_exif() -> Vec<u8> {
     exif.extend_from_slice(make);
 
     exif
+}
+
+#[test]
+fn test_roundtrip_parse_icc_and_xmp() {
+    let test_img = b"av12356abc";
+    let icc = b"an ICC profile".to_vec();
+    let xmp = b"<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"/>".to_vec();
+    let avif = Aviffy::new()
+        .set_exif(test_tiff_exif())
+        .set_matrix_coefficients(constants::MatrixCoefficients::Bt709)
+        .set_icc_profile(icc.clone())
+        .set_xmp(xmp.clone())
+        .to_vec(test_img, Some(b"alpha"), 10, 20, 8);
+
+    let ctx = mp4parse::read_avif(&mut avif.as_slice(), mp4parse::ParseStrictness::Strict).unwrap();
+
+    assert_eq!(&test_img[..], ctx.primary_item_coded_data().unwrap());
+    assert_eq!(&icc[..], ctx.icc_colour_information().unwrap().unwrap());
+    // Both colour descriptions, as libavif writes them.
+    assert!(ctx.nclx_colour_information_ptr().is_some());
+    // The XMP is an item of type "mime" with its content type, whose data is the packet.
+    let infe = b"mime\0application/rdf+xml\0";
+    assert!(avif.windows(infe.len()).any(|w| w == infe));
+    assert!(avif.windows(xmp.len()).any(|w| w == &xmp[..]));
 }

@@ -83,6 +83,10 @@ pub struct Encoder<'exif_slice> {
     output_depth: BitDepth,
     /// Dropped into MPEG infe BOX
     exif: Option<Cow<'exif_slice, [u8]>>,
+    /// ICC colour profile, in a `colr` box of type `prof`
+    icc: Option<Vec<u8>>,
+    /// XMP packet, in an item of type `mime`
+    xmp: Option<Vec<u8>>,
 }
 
 /// Builder methods
@@ -99,6 +103,8 @@ impl<'exif_slice> Encoder<'exif_slice> {
             color_model: ColorModel::YCbCr,
             threads: None,
             exif: None,
+            icc: None,
+            xmp: None,
             alpha_color_mode: AlphaColorMode::UnassociatedClean,
         }
     }
@@ -201,6 +207,20 @@ impl<'exif_slice> Encoder<'exif_slice> {
     /// The data can be `Vec<u8>`, or `&[u8]` if the encoder instance doesn't leave its scope.
     pub fn with_exif(mut self, exif_data: impl Into<Cow<'exif_slice, [u8]>>) -> Self {
         self.exif = Some(exif_data.into());
+        self
+    }
+
+    /// ICC colour profile of the pixels, embedded as-is
+    #[must_use]
+    pub fn with_icc_profile(mut self, icc: Vec<u8>) -> Self {
+        self.icc = Some(icc);
+        self
+    }
+
+    /// XMP packet, embedded as-is
+    #[must_use]
+    pub fn with_xmp(mut self, xmp: Vec<u8>) -> Self {
+        self.xmp = Some(xmp);
         self
     }
 }
@@ -456,6 +476,12 @@ impl Encoder<'_> {
             .premultiplied_alpha(self.premultiplied_alpha);
         if let Some(exif) = &self.exif {
             serializer_config.set_exif(exif.to_vec());
+        }
+        if let Some(icc) = &self.icc {
+            serializer_config.set_icc_profile(icc.clone());
+        }
+        if let Some(xmp) = &self.xmp {
+            serializer_config.set_xmp(xmp.clone());
         }
         let avif_file = serializer_config.to_vec(&color, alpha.as_deref(), width as u32, height as u32, input_pixels_bit_depth);
         let color_byte_size = color.len();

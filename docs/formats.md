@@ -90,7 +90,7 @@ The same formats on Linux and Windows: all the encoders are part of the program.
 | JPEG | jpg | quality 1–100; colour detail 4:4:4, 4:2:2, 4:2:0 or greys only; progressive; optimised Huffman tables; arithmetic coding; lossless JPEG | lossless mode | ✓ | ✓ | libjpeg-turbo |
 | PNG | png | compression level 0–9; filter (adaptive, none, Sub, Up, Average, Paeth) | ✓ | ✓ | ✓ | `image` |
 | WebP | webp | lossy (quality 1–100, sharper colour edges) or lossless (near-lossless 0–100); effort 0–6 | lossless mode | ✓ | ✓ | libwebp |
-| AVIF | avif | quality 1–100; transparency quality 1–100; speed 1–10; 8 or 10 bits per channel; RGB or YCbCr inside the file | – | ✓ | – | ravif (rav1e) |
+| AVIF | avif | quality 1–100; transparency quality 1–100; speed 1–10; 8 or 10 bits per channel; RGB or YCbCr inside the file | – | ✓ | ✓ | ravif (rav1e) |
 | TIFF | tif | compression: none, LZW, Deflate (fast, normal, maximum), PackBits; horizontal predictor | ✓ | ✓ | ✓ | `tiff` |
 | BMP | bmp | – | ✓ | – | – | `image` |
 | GIF | gif | colour reduction quality 1–30 (at most 256 colours) | – | – | – | `image` |
