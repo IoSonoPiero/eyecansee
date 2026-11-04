@@ -6,63 +6,62 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 ### First
 
-- Jump forward and back in a video with Ctrl and the arrow keys.
-- Notification windows with the parts to compare highlighted (SFTP and FTPS fingerprints) and one common style.
-- Enter and Esc close the result windows.
+- Jump forward and back in a video with Ctrl and the arrow keys ([#10](https://github.com/IoSonoPiero/eyecansee/issues/10)).
+- Notification windows with the parts to compare highlighted (SFTP and FTPS fingerprints) and one common style ([#11](https://github.com/IoSonoPiero/eyecansee/issues/11)).
+- Enter and Esc close the result windows ([#12](https://github.com/IoSonoPiero/eyecansee/issues/12)).
 
 ### Next
 
-- Upload to Immich.
-- Lens correction for Camera RAW photos (lensfun).
-- Drag and drop to copy and move.
+- Upload to Immich ([#13](https://github.com/IoSonoPiero/eyecansee/issues/13)).
+- Lens correction for Camera RAW photos (lensfun) ([#14](https://github.com/IoSonoPiero/eyecansee/issues/14)).
+- Drag and drop to copy and move ([#15](https://github.com/IoSonoPiero/eyecansee/issues/15)).
 
 ### Video
 
-- Save the frame of a paused video as an image.
+- Save the frame of a paused video as an image ([#16](https://github.com/IoSonoPiero/eyecansee/issues/16)).
 - Full screen.
-- Rotated videos from phones shown the right way up.
-- 4K/60 videos.
+- Smoother playback of 4K/60 videos ([#17](https://github.com/IoSonoPiero/eyecansee/issues/17)).
 
 ### Devices and servers
 
-- Options per saved server in the server manager (FTP active mode, text encoding, ciphers) when a server needs them.
-- Encrypting files and folders with a password.
-- Faster HEIC thumbnails from the preview stored in the file.
+- Options per saved server in the server manager (FTP active mode, text encoding, ciphers) when a server needs them ([#18](https://github.com/IoSonoPiero/eyecansee/issues/18)).
+- Encrypting files and folders with a password ([#19](https://github.com/IoSonoPiero/eyecansee/issues/19)).
+- Faster HEIC thumbnails from the preview stored in the file ([#20](https://github.com/IoSonoPiero/eyecansee/issues/20)).
 
 ### Formats
 
-- Saving in JPEG XL, ICO, TGA, PNM, EXR, HDR and Farbfeld.
-- Camera RAW photos from more brands.
-- PDF: images to a PDF, and a PDF to images.
-- 3D models and CAD files: materials beyond the base colour and its picture.
+- Save in JPEG XL ([#21](https://github.com/IoSonoPiero/eyecansee/issues/21)).
+- Camera RAW photos from more brands ([#7](https://github.com/IoSonoPiero/eyecansee/issues/7)).
+- PDF: images to a PDF, and a PDF to images ([#22](https://github.com/IoSonoPiero/eyecansee/issues/22)).
+- 3D models and CAD files: materials beyond the base colour and its picture ([#23](https://github.com/IoSonoPiero/eyecansee/issues/23)).
+- Read the .xmp sidecar files next to RAW photos ([#24](https://github.com/IoSonoPiero/eyecansee/issues/24)).
 
 ### Browsing and editing
 
-- Favourites: a list of folders and images to open with one click.
-- Archives: zip and 7z opened as read-only folders first, then creating zip archives.
-- Multiple rename.
-- Metadata editor for EXIF and GPS.
-- Similar images (the same photo resized or recompressed).
-- Hide folders without images or videos.
-- Deleting a folder: look into its subfolders too for files EyeCanSee does not show (today the warning checks the first level only).
-- Set as wallpaper.
-- Edits kept in a sidecar file, with the original untouched.
-- CPU/GPU/NPU acceleration with a "Check" button that enables what works on the PC.
+- Favourites: a list of folders and images to open with one click ([#25](https://github.com/IoSonoPiero/eyecansee/issues/25)).
+- Archives: zip and 7z opened as read-only folders first, then creating zip archives ([#26](https://github.com/IoSonoPiero/eyecansee/issues/26)).
+- Multiple rename ([#27](https://github.com/IoSonoPiero/eyecansee/issues/27)).
+- Metadata editor for EXIF and GPS ([#28](https://github.com/IoSonoPiero/eyecansee/issues/28)).
+- Similar images (the same photo resized or recompressed) ([#29](https://github.com/IoSonoPiero/eyecansee/issues/29)).
+- Hide folders without images or videos ([#30](https://github.com/IoSonoPiero/eyecansee/issues/30)).
+- Deleting a folder: look into its subfolders too for files EyeCanSee does not show (today the warning checks the first level only) ([#31](https://github.com/IoSonoPiero/eyecansee/issues/31)).
+- Set as wallpaper ([#32](https://github.com/IoSonoPiero/eyecansee/issues/32)).
+- CPU/GPU/NPU acceleration with a "Check" button that enables what works on the PC ([#33](https://github.com/IoSonoPiero/eyecansee/issues/33)).
 
 ## Documentation
 
-- Illustrated manual.
+- Illustrated manual ([#34](https://github.com/IoSonoPiero/eyecansee/issues/34)).
 
 ## Later, if requested
 
-- Immich as a source to browse, like a server or a phone.
+- Immich as a source to browse, like a server or a phone ([#35](https://github.com/IoSonoPiero/eyecansee/issues/35)).
 
 ## Known limitations
 
-- Windows: after a photo is taken or a file is deleted on the phone, the Windows MTP driver can stop answering for a few minutes. See [docs/phone-stall.en.md](docs/phone-stall.en.md).
-- FTPS: a server that wants the data connection to resume the TLS session of the control connection may never send the data.
-- Windows: JNG files do not open, because the ImageMagick security policy shipped with the program blocks them.
-- Xiaomi phones: photos deleted from the Xiaomi Gallery go to the Gallery's own private trash, which EyeCanSee cannot see.
+- Windows: after a photo is taken or a file is deleted on the phone, the Windows MTP driver can stop answering for a few minutes. See [docs/phone-stall.en.md](docs/phone-stall.en.md) ([#36](https://github.com/IoSonoPiero/eyecansee/issues/36)).
+- FTPS: a server that wants the data connection to resume the TLS session of the control connection may never send the data ([#37](https://github.com/IoSonoPiero/eyecansee/issues/37)).
+- Windows: JNG files do not open, because the ImageMagick security policy shipped with the program blocks them ([#38](https://github.com/IoSonoPiero/eyecansee/issues/38)).
+- Xiaomi phones: photos deleted from the Xiaomi Gallery go to the Gallery's own private trash, which EyeCanSee cannot see ([#39](https://github.com/IoSonoPiero/eyecansee/issues/39)).
 
 ## Not planned
 
