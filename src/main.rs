@@ -86,6 +86,7 @@ mod menu;
 mod messages;
 mod meta;
 mod meta_panel;
+mod meta_write;
 mod model;
 mod model_3mf;
 mod model_3ds;
@@ -141,6 +142,7 @@ mod video;
 mod video_read;
 mod viewer;
 mod watch;
+mod xmp;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;

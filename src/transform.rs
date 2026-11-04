@@ -139,14 +139,15 @@ pub fn exif_turn(bytes: &[u8]) -> Turn {
 }
 
 /// As `jpeg_lossless`, with the whole turn given: its own EXIF orientation is not looked at
-/// (the gain map of an Ultra HDR photo turns as the photo does).
+/// (the gain map of an Ultra HDR photo turns as the photo does). The segments libjpeg-turbo
+/// copies are made to fit: EXIF, XMP, Photoshop block (`meta_write::fit_jpeg_segments`).
 pub fn jpeg_lossless_total(bytes: &[u8], total: Turn) -> Option<Vec<u8>> {
     let mut t = turbojpeg::Transform::op(total.jpeg_op());
     t.perfect = true;
     let mut out = turbojpeg::transform(&t, bytes).ok()?.to_vec();
     let h = turbojpeg::read_header(&out).ok()?;
     upright_exif(&mut out, h.width as u32, h.height as u32);
-    Some(out)
+    Some(crate::meta_write::fit_jpeg_segments(&out, h.width as u32, h.height as u32))
 }
 
 /// Sets the orientation in the EXIF segment of a JPEG to "upright", in place, and makes the rest

@@ -90,8 +90,8 @@ impl Format {
         }
     }
 
-    /// Can keep EXIF or the colour profile (the others drop them): EXIF in JPEG, PNG, WebP, AVIF,
-    /// the profile in JPEG, PNG, WebP, TIFF.
+    /// Can keep the metadata (the others drop it): EXIF, colour profile and XMP in all five, IPTC
+    /// in JPEG, PNG and TIFF (in WebP and AVIF its fields go into the XMP).
     pub fn holds_meta(self) -> bool {
         matches!(self, Format::Jpeg | Format::Png | Format::Webp | Format::Avif | Format::Tiff)
     }
@@ -216,34 +216,56 @@ pub struct Original {
     /// EXIF with the orientation set back to "upright", since the pixels are already turned.
     exif: Option<Vec<u8>>,
     icc: Option<Vec<u8>>,
+    xmp: Option<Vec<u8>>,
+    /// Photoshop block, with the IPTC.
+    irb: Option<Vec<u8>>,
+}
+
+/// The metadata of a file being written, made to fit its pixels (`Original::blocks`).
+#[derive(Default)]
+pub(crate) struct Blocks {
+    pub exif: Option<Vec<u8>>,
+    pub icc: Option<Vec<u8>>,
+    pub xmp: Option<Vec<u8>>,
+    pub irb: Option<Vec<u8>>,
 }
 
 impl Original {
 
     /// `image` with the metadata of the file `bytes` (not decoded again).
     pub fn with_meta(image: DynamicImage, bytes: &[u8]) -> Original {
-        // As found in the formats `image` reads (JPEG, PNG, WebP, TIFF). The others (RAW, HEIC…)
-        // get the EXIF the metadata panel shows; their colour profile is still lost.
-        let (exif, icc) = ImageReader::new(Cursor::new(bytes))
-            .with_guessed_format()
-            .ok()
-            .and_then(|r| r.into_decoder().ok())
-            .map(|mut d| (d.exif_metadata().ok().flatten(), d.icc_profile().ok().flatten()))
-            .unwrap_or_default();
-        let mut exif = exif.or_else(|| crate::meta::exif_chunk(bytes));
+        // As found in the formats `image` reads (JPEG, PNG, WebP, TIFF), then in the file itself
+        // (`meta_write::read`). RAW files get the EXIF the metadata panel shows, without profile.
+        let mut d = ImageReader::new(Cursor::new(bytes)).with_guessed_format().ok().and_then(|r| r.into_decoder().ok());
+        let (exif, icc) = d.as_mut().map(|d| (d.exif_metadata().ok().flatten(), d.icc_profile().ok().flatten())).unwrap_or_default();
+        let x = crate::meta_write::read(bytes, d.as_mut().map(|d| d as &mut dyn ImageDecoder));
+        let mut exif = exif.or(x.exif).or_else(|| crate::meta::exif_chunk(bytes));
         if let Some(chunk) = &mut exif {
             let _ = Orientation::remove_from_exif_chunk(chunk);
         }
-        Original { image, exif, icc }
+        Original { image, exif, icc: icc.or(x.icc), xmp: x.xmp, irb: x.irb }
     }
 
     pub fn has_meta(&self) -> bool {
-        self.exif.is_some() || self.icc.is_some()
+        self.exif.is_some() || self.icc.is_some() || self.xmp.is_some() || self.irb.is_some()
+    }
+
+    /// The metadata for a `format` file of `w` × `h` pixels: sizes set, the old thumbnails out
+    /// (they showed the original), the Camera Raw settings out of the XMP (already in the pixels).
+    fn blocks(&self, format: Format, w: u32, h: u32) -> Blocks {
+        let mut exif = self.exif.clone();
+        if let Some(e) = &mut exif {
+            crate::meta::fit_exif(e, w, h);
+        }
+        let irb = self.irb.as_deref().and_then(crate::meta_write::fit_irb);
+        // WebP and AVIF have no place for IPTC: its fields go into the XMP.
+        let iim = if matches!(format, Format::Webp | Format::Avif) { irb.as_deref().and_then(crate::meta_write::iim) } else { None };
+        let xmp = crate::xmp::fit(self.xmp.as_deref(), w, h, iim);
+        Blocks { exif, icc: self.icc.clone(), xmp, irb }
     }
 
     /// The file as it would be saved.
     pub fn encode(&self, o: &Options) -> Result<Vec<u8>, String> {
-        let (exif, icc) = if o.keep_meta { (self.exif.as_deref(), self.icc.as_deref()) } else { (None, None) };
         let turned;
         let image = if o.turn.is_none() {
             &self.image
@@ -254,19 +276,13 @@ impl Original {
             &turned
         };
         let img = pixels(image, o.format);
-        // Sizes of the pixels written, the old thumbnail out (it showed the original).
-        let exif = exif.map(|e| {
-            let mut e = e.to_vec();
-            crate::meta::fit_exif(&mut e, img.width(), img.height());
-            e
-        });
-        let exif = exif.as_deref();
+        let b = if o.keep_meta { self.blocks(o.format, img.width(), img.height()) } else { Blocks::default() };
         let mut out = Cursor::new(Vec::new());
         match o.format {
-            Format::Jpeg => return encoders::jpeg(&img, o, exif, icc),
-            Format::Webp => return encoders::webp(&img, o, exif, icc),
-            Format::Avif => return encoders::avif(&img, o, exif),
-            Format::Tiff => encoders::tiff(&img, o, icc, &mut out).map_err(|e| e.to_string())?,
+            Format::Jpeg => return encoders::jpeg(&img, o, &b),
+            Format::Webp => return encoders::webp(&img, o, &b),
+            Format::Avif => return encoders::avif(&img, o, &b),
+            Format::Tiff => encoders::tiff(&img, o, &b, &mut out).map_err(|e| e.to_string())?,
             Format::Png => {
                 let level = if o.png_level == 0 { png::CompressionType::Uncompressed } else { png::CompressionType::Level(o.png_level) };
                 let filter = match o.png_filter {
@@ -278,13 +294,14 @@ impl Original {
                     PngFilter::Paeth => png::FilterType::Paeth,
                 };
                 let mut e = png::PngEncoder::new_with_quality(&mut out, level, filter);
-                if let Some(icc) = icc {
-                    let _ = e.set_icc_profile(icc.to_vec());
+                if let Some(icc) = &b.icc {
+                    let _ = e.set_icc_profile(icc.clone());
                 }
-                if let Some(exif) = exif {
-                    let _ = e.set_exif_metadata(exif.to_vec());
+                if let Some(exif) = &b.exif {
+                    let _ = e.set_exif_metadata(exif.clone());
                 }
                 img.write_with_encoder(e).map_err(|e| e.to_string())?;
+                return Ok(crate::meta_write::png_chunks(out.into_inner(), b.xmp.as_deref(), b.irb.as_deref()));
             }
             Format::Bmp => img.write_with_encoder(bmp::BmpEncoder::new(&mut out)).map_err(|e| e.to_string())?,
             Format::Gif => img.write_with_encoder(gif::GifEncoder::new_with_speed(&mut out, 31 - o.gif_quality.clamp(1, 30) as i32)).map_err(|e| e.to_string())?,
@@ -516,7 +533,12 @@ pub(crate) mod tests {
         let mut exif = b"II*\x00\x08\x00\x00\x00\x01\x00\x12\x01\x03\x00\x01\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00".to_vec();
         assert_eq!(Orientation::remove_from_exif_chunk(&mut exif), Some(Orientation::Rotate90));
         let icc = b"not a real profile, only bytes to carry".to_vec();
-        let original = Original { image: DynamicImage::ImageRgba8(img), exif: Some(exif.clone()), icc: Some(icc.clone()) };
+        // XMP with sizes, orientation and Camera Raw settings; a Photoshop block with a thumbnail
+        // and IPTC.
+        let xmp = crate::xmp::tests::SAMPLE.as_bytes().to_vec();
+        let iim = crate::xmp::tests::iim(&[(80, "Ann"), (90, "Québec")]);
+        let irb = [crate::meta_write::resource(1036, &[1; 9]), crate::meta_write::irb_of_iim(&iim)].concat();
+        let original = Original { image: DynamicImage::ImageRgba8(img), exif: Some(exif.clone()), icc: Some(icc.clone()), xmp: Some(xmp), irb: Some(irb) };
         let d = Options::default();
         let variants = [
             Options { format: Format::Jpeg, ..d },
@@ -574,11 +596,68 @@ pub(crate) mod tests {
             }
             if matches!(format, Format::Jpeg | Format::Png | Format::Webp | Format::Tiff) {
                 assert_eq!(i.as_ref(), Some(&icc), "{o:?}");
+                kept_xmp_and_iptc(&bytes, format, &iim);
             }
             let bare = original.encode(&Options { keep_meta: false, ..o }).unwrap();
             if format != Format::Gif {
                 assert_eq!(read_meta(&bare), (None, None), "{o:?}");
+                let back = Original::with_meta(original.image.clone(), &bare);
+                assert!(back.xmp.is_none() && back.irb.is_none(), "{o:?}");
             }
+        }
+    }
+
+    /// XMP and IPTC of a file written from `every_format`'s original, read back as the program
+    /// reads them: sizes of the pixels, no Camera Raw, the author kept; the IPTC without the
+    /// thumbnail, or in the XMP where the format has no IPTC (WebP, AVIF).
+    pub(crate) fn kept_xmp_and_iptc(bytes: &[u8], format: Format, iim: &[u8]) {
+        let back = Original::with_meta(DynamicImage::new_rgb8(1, 1), bytes);
+        let xmp = kept_xmp_like(bytes, 40, 30);
+        if matches!(format, Format::Webp | Format::Avif) {
+            assert!(xmp.contains("<photoshop:City>Québec</photoshop:City>"), "{format:?}: {xmp}");
+            assert!(back.irb.is_none(), "{format:?}");
+        } else {
+            assert_eq!(back.irb.as_deref(), Some(crate::meta_write::irb_of_iim(iim).as_slice()), "{format:?}");
+        }
+    }
+
+    /// The XMP of `xmp::tests::SAMPLE` in a written file: sizes `w` × `h`, upright, no Camera Raw
+    /// nor thumbnail, the author kept.
+    pub(crate) fn kept_xmp_like(bytes: &[u8], w: u32, h: u32) -> String {
+        let back = Original::with_meta(DynamicImage::new_rgb8(1, 1), bytes);
+        let xmp = String::from_utf8(back.xmp.clone().expect("no XMP")).unwrap();
+        for kept in [format!("exif:PixelXDimension=\"{w}\""), format!("<exif:PixelYDimension>{h}</exif:PixelYDimension>"), "tiff:Orientation=\"1\"".into(), "Ann &lt;Author&gt;".into()] {
+            assert!(xmp.contains(&kept), "{kept} not in {xmp}");
+        }
+        assert!(!xmp.contains("crs:") && !xmp.contains("Thumbnails"), "{xmp}");
+        xmp
+    }
+
+    /// A TIFF keeps the EXIF in its own directories: camera, shot and GPS fields read back.
+    #[test]
+    fn tiff_exif() {
+        use exif::{Field, In, Tag, Value};
+        let mut w = exif::experimental::Writer::new();
+        let fields = [
+            Field { tag: Tag::Make, ifd_num: In::PRIMARY, value: Value::Ascii(vec![b"Maker".to_vec()]) },
+            Field { tag: Tag::DateTimeOriginal, ifd_num: In::PRIMARY, value: Value::Ascii(vec![b"2024:01:02 03:04:05".to_vec()]) },
+            Field { tag: Tag::FNumber, ifd_num: In::PRIMARY, value: Value::Rational(vec![(28, 10).into()]) },
+            Field { tag: Tag::GPSLatitudeRef, ifd_num: In::PRIMARY, value: Value::Ascii(vec![b"N".to_vec()]) },
+            Field { tag: Tag::Orientation, ifd_num: In::PRIMARY, value: Value::Short(vec![1]) },
+        ];
+        for f in &fields {
+            w.push_field(f);
+        }
+        for little in [false, true] {
+            let mut exif = Cursor::new(Vec::new());
+            w.write(&mut exif, little).unwrap();
+            let original = Original { image: DynamicImage::new_rgb8(8, 6), exif: Some(exif.into_inner()), icc: None, xmp: None, irb: None };
+            let bytes = original.encode(&Options { format: Format::Tiff, ..Default::default() }).unwrap();
+            let back = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes)).unwrap();
+            for f in &fields {
+                assert_eq!(back.get_field(f.tag, In::PRIMARY).map(|b| format!("{:?}", b.value)), Some(format!("{:?}", f.value)), "{:?}", f.tag);
+            }
+            assert_eq!(crate::decode::decode_full(&bytes, "x.tif").unwrap().width(), 8);
         }
     }
 
@@ -586,7 +665,7 @@ pub(crate) mod tests {
     /// formats only "Save as…" writes are not saved back over an original.
     #[test]
     fn ico_and_save_back() {
-        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None };
+        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None, xmp: None, irb: None };
         let bytes = original.encode(&Options { format: Format::Ico, ..Default::default() }).unwrap();
         let back = crate::decode::decode_full(&bytes, "x.ico").unwrap();
         assert_eq!((back.width(), back.height()), (256, 128));

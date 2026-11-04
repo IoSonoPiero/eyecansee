@@ -91,7 +91,7 @@ The same formats on Linux and Windows: all the encoders are part of the program.
 | PNG | png | compression level 0–9; filter (adaptive, none, Sub, Up, Average, Paeth) | ✓ | ✓ | ✓ | `image` |
 | WebP | webp | lossy (quality 1–100, sharper colour edges) or lossless (near-lossless 0–100); effort 0–6 | lossless mode | ✓ | ✓ | libwebp |
 | AVIF | avif | quality 1–100; transparency quality 1–100; speed 1–10; 8 or 10 bits per channel; RGB or YCbCr inside the file | – | ✓ | – | ravif (rav1e) |
-| TIFF | tif | compression: none, LZW, Deflate (fast, normal, maximum), PackBits; horizontal predictor | ✓ | – | ✓ | `tiff` |
+| TIFF | tif | compression: none, LZW, Deflate (fast, normal, maximum), PackBits; horizontal predictor | ✓ | ✓ | ✓ | `tiff` |
 | BMP | bmp | – | ✓ | – | – | `image` |
 | GIF | gif | colour reduction quality 1–30 (at most 256 colours) | – | – | – | `image` |
 | QOI | qoi | – | ✓ | – | – | `image` |
@@ -103,7 +103,8 @@ The same formats on Linux and Windows: all the encoders are part of the program.
 | Farbfeld | ff | – (16 bits per channel) | ✓ | – | – | `image` |
 
 - JPEG and Radiance HDR have no transparency: transparent parts are laid on white. Arithmetic coding and lossless JPEG make smaller or exact files that many programs cannot open.
-- EXIF is carried over from every original whose EXIF the metadata panel reads: JPEG, PNG, WebP, TIFF, HEIC, AVIF and the RAW files built on TIFF (tested: CR2, NEF, ARW, DNG). From RAW and HEIC only the camera, shot and GPS fields go in, not the maker note. CR3, RAF, ORF and RW2 are not read yet. The colour profile comes only from JPEG, PNG, WebP, TIFF and GIF.
+- EXIF is carried over from every original whose EXIF the metadata panel reads: JPEG, PNG, WebP, TIFF, HEIC, AVIF and the RAW files built on TIFF (tested: CR2, NEF, ARW, DNG). From RAW and HEIC only the camera, shot and GPS fields go in, not the maker note. CR3, RAF, ORF and RW2 are not read yet. The colour profile comes from JPEG, PNG, WebP, TIFF, GIF, HEIC, AVIF and PSD, not from RAW files.
+- XMP and IPTC (author, copyright, licence, descriptions, keywords) are kept in JPEG, PNG and TIFF; WebP and AVIF have no place for IPTC, so its fields go into the XMP. They are read from JPEG, PNG, WebP, TIFF, HEIC, AVIF and PSD. The sizes and orientation in the XMP are updated; the thumbnails stored by cameras and Photoshop and the Lightroom and Camera Raw settings (a crop and adjustments already in the pixels) are left out.
 - The EXIF orientation is reset to "upright", since the saved pixels are already turned.
 - Save (over the original) writes back only JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF and QOI: an ICO holds several sizes, OpenEXR and HDR more than what is shown.
 - Not saved: HEIC (patent licensing of HEVC) and JPEG XL (no encoder in the program yet).

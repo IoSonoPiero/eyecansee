@@ -133,7 +133,7 @@ fn keep_segments(from: &[u8], mut out: Vec<u8>) -> Vec<u8> {
 }
 
 /// The segments before the coded data: marker, start (at 0xFF) and end.
-fn segments(b: &[u8]) -> Vec<(u8, usize, usize)> {
+pub(crate) fn segments(b: &[u8]) -> Vec<(u8, usize, usize)> {
     let mut v = Vec::new();
     let mut i = 2;
     while i + 4 <= b.len() && b[i] == 0xFF {
@@ -235,7 +235,7 @@ pub(crate) mod tests {
     pub(crate) fn sample(w: u32, h: u32) -> Vec<u8> {
         let gain = jpeg(w / 2, h / 2);
         let xmp = format!(
-            "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta><rdf:Seq><rdf:li><Container:Item Item:Semantic=\"Primary\" Item:Mime=\"image/jpeg\"/></rdf:li><rdf:li><Container:Item Item:Semantic=\"GainMap\" Item:Mime=\"image/jpeg\" Item:Length=\"{}\"/></rdf:li></rdf:Seq><hdrgm:Version>1.0</hdrgm:Version></x:xmpmeta>",
+            "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta><rdf:Description xmlns:exif=\"http://ns.adobe.com/exif/1.0/\" xmlns:crs=\"http://ns.adobe.com/camera-raw-settings/1.0/\" exif:PixelXDimension=\"{w}\" crs:HasCrop=\"True\"/><rdf:Seq><rdf:li><Container:Item Item:Semantic=\"Primary\" Item:Mime=\"image/jpeg\"/></rdf:li><rdf:li><Container:Item Item:Semantic=\"GainMap\" Item:Mime=\"image/jpeg\" Item:Length=\"{}\"/></rdf:li></rdf:Seq><hdrgm:Version>1.0</hdrgm:Version></x:xmpmeta>",
             gain.len()
         );
         // MPF: TIFF header, one IFD entry (MPEntry, 32 bytes at offset 26), then the table.
@@ -248,7 +248,9 @@ pub(crate) mod tests {
         mpf.extend_from_slice(&0u32.to_le_bytes());
         mpf.extend_from_slice(&[0; 32]);
         let photo = jpeg(w, h);
-        let mut photo = [&photo[..2], &segment(0xE1, xmp.as_bytes()), &segment(0xE2, &mpf), &photo[2..]].concat();
+        // IPTC and a Photoshop thumbnail of the photo, as Photoshop or Lightroom would leave.
+        let irb = [crate::meta_write::JPEG_PHOTOSHOP, &crate::meta_write::resource(1036, &[7; 9]), &crate::meta_write::irb_of_iim(&iim())].concat();
+        let mut photo = [&photo[..2], &segment(0xE1, xmp.as_bytes()), &segment(0xE2, &mpf), &segment(0xED, &irb), &photo[2..]].concat();
         let m = mpf_at(&photo);
         let len = photo.len();
         write_u32(&mut photo, m.table + 4, len as u32, true);
@@ -256,6 +258,18 @@ pub(crate) mod tests {
         write_u32(&mut photo, m.table + 16 + 8, (len - m.tiff) as u32, true);
         photo.extend_from_slice(&gain);
         photo
+    }
+
+    fn iim() -> Vec<u8> {
+        crate::xmp::tests::iim(&[(80, "Ann")])
+    }
+
+    /// The photo's XMP and IPTC fit it: its width, no Camera Raw, the IPTC without thumbnail.
+    fn fitted(photo: &[u8], w: u32) {
+        let xmp = String::from_utf8_lossy(photo).into_owned();
+        assert!(xmp.contains(&format!("exif:PixelXDimension=\"{w}\"")) && !xmp.contains("crs:"), "{xmp}");
+        let (_, s, e) = segments(photo).into_iter().find(|&(m, ..)| m == 0xED).expect("IPTC kept");
+        assert_eq!(&photo[s + 4..e], [crate::meta_write::JPEG_PHOTOSHOP, &crate::meta_write::irb_of_iim(&iim())].concat());
     }
 
     fn mpf_at(b: &[u8]) -> Mpf {
@@ -278,12 +292,14 @@ pub(crate) mod tests {
         assert_eq!((photo.dimensions(), gain.dimensions()), ((32, 64), (16, 32)));
         let xmp = String::from_utf8_lossy(&out[..p.gain]).into_owned();
         assert!(xmp.contains(&format!("Item:Semantic=\"GainMap\" Item:Mime=\"image/jpeg\" Item:Length=\"{}\"", out.len() - p.gain)));
+        fitted(&out[..p.gain], 32);
         // Saving goes through it, and the whole file is still read as the photo.
         let (saved, _) = crate::encode::turned_file(&file, "a.jpg", Turn::default().then(transform::Op::Cw)).unwrap();
         assert_eq!(saved, out);
         // A size that is not a multiple of the blocks: encoded again, still Ultra HDR.
         let (out, lossy) = turned(&sample(72, 40), Turn::default().then(transform::Op::FlipH)).unwrap().unwrap();
         assert!(lossy && is(&out));
+        fitted(&out[..parts(&out).unwrap().gain], 72);
     }
 
     /// Rotate and crop: the gain map gets the edit at its scale, the file stays Ultra HDR.
@@ -300,6 +316,7 @@ pub(crate) mod tests {
         assert_eq!((photo.dimensions(), gain.dimensions()), ((20, 40), (10, 20)));
         let xmp = String::from_utf8_lossy(&out[..p.gain]).into_owned();
         assert!(xmp.contains(&format!("Item:Length=\"{}\"", out.len() - p.gain)));
+        fitted(&out[..p.gain], 20);
     }
 
     /// Rotate and crop on real phone photos, as `ultra_hdr_live`: 7.5° and a crop, the files in

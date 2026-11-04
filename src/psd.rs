@@ -30,6 +30,22 @@ struct Info {
     icc: Option<Vec<u8>>,
     exif: Option<Vec<u8>>,
     xmp: Option<Vec<u8>>,
+    /// The resources a Photoshop block of another file holds too: IPTC (1028), copyright flag
+    /// (1034), URL (1035), IPTC digest (1061).
+    irb: Vec<u8>,
+}
+
+/// Resources kept in the Photoshop block of a saved PSD, or of a file converted from it.
+const KEEP: [u16; 4] = [1028, 1034, 1035, 1061];
+
+/// Colour profile, EXIF, XMP and Photoshop block (with the IPTC) of a PSD, for a file converted
+/// from it; `None` if it is not a PSD.
+pub fn metadata(bytes: &[u8]) -> Option<crate::meta_write::Extra> {
+    if !bytes.starts_with(b"8BPS") {
+        return None;
+    }
+    let i = read(bytes)?;
+    Some(crate::meta_write::Extra { xmp: i.xmp, irb: (!i.irb.is_empty()).then_some(i.irb), icc: i.icc, exif: i.exif })
 }
 
 /// Can this PSD be saved over itself without losing anything but pixels it does not have?
@@ -79,6 +95,7 @@ fn read(bytes: &[u8]) -> Option<Info> {
             1039 => info.icc = Some(data),
             1058 => info.exif = Some(data),
             1060 => info.xmp = Some(data),
+            id if KEEP.contains(&id) => info.irb.extend(crate::meta_write::resource(id, &data)),
             _ => {}
         }
     }
@@ -152,8 +169,9 @@ fn layer_simple(c: &mut Cur) -> Option<bool> {
     Some(true)
 }
 
-/// `img` as a PSD, with the colour profile, EXIF (now upright) and XMP of `original`. The result is
-/// checked to be a PSD (ImageMagick may write another format without saying so).
+/// `img` as a PSD, with the colour profile, EXIF (now upright, sizes of `img`, no thumbnail), XMP
+/// (made to fit, `xmp::fit`) and IPTC of `original`. The result is checked to be a PSD
+/// (ImageMagick may write another format without saying so).
 #[cfg(feature = "magick")]
 pub fn encode(img: &DynamicImage, original: &[u8]) -> Result<Vec<u8>, String> {
     let info = read(original).unwrap_or_default();
@@ -162,42 +180,33 @@ pub fn encode(img: &DynamicImage, original: &[u8]) -> Result<Vec<u8>, String> {
     let mut png = Vec::new();
     img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).map_err(|e| e.to_string())?;
     crate::decode::magick_init();
-    let wand = magick_rust::MagickWand::new();
+    let mut wand = magick_rust::MagickWand::new();
     wand.read_image_blob(&png).map_err(|e| e.to_string())?;
     if let Some(icc) = &info.icc {
         wand.profile_image("icc", icc.as_slice()).map_err(|e| e.to_string())?;
     }
     // In a PSD ImageMagick writes only the image resources it gets as one "8bim" block (tried:
     // "exif" and "xmp" profiles were dropped), so EXIF and XMP go back as resources 1058 and 1060.
-    let mut resources = Vec::new();
+    // The IPTC and the resources that go with it come first, as Photoshop writes them.
+    let mut resources = info.irb;
     if let Some(mut exif) = info.exif {
         let _ = Orientation::remove_from_exif_chunk(&mut exif);
-        push_resource(&mut resources, 1058, &exif);
+        crate::meta::fit_exif(&mut exif, img.width(), img.height());
+        resources.extend(crate::meta_write::resource(1058, &exif));
     }
-    if let Some(xmp) = &info.xmp {
-        push_resource(&mut resources, 1060, xmp);
+    if let Some(xmp) = crate::xmp::fit(info.xmp.as_deref(), img.width(), img.height(), None) {
+        resources.extend(crate::meta_write::resource(1060, &xmp));
     }
     if !resources.is_empty() {
         wand.profile_image("8bim", resources.as_slice()).map_err(|e| e.to_string())?;
     }
+    // Otherwise ImageMagick writes its own, undefined (0), into the EXIF orientation of the file.
+    wand.set_image_orientation(magick_rust::OrientationType::TopLeft).map_err(|e| e.to_string())?;
     let out = wand.write_image_blob("PSD").map_err(|e| e.to_string())?;
     if !out.starts_with(b"8BPS") {
         return Err("ImageMagick did not write a PSD".into());
     }
     Ok(out)
-}
-
-/// One image resource: signature, id, empty name, size, data padded to an even length.
-#[cfg(feature = "magick")]
-fn push_resource(out: &mut Vec<u8>, id: u16, data: &[u8]) {
-    out.extend(b"8BIM");
-    out.extend(id.to_be_bytes());
-    out.extend([0, 0]);
-    out.extend((data.len() as u32).to_be_bytes());
-    out.extend(data);
-    if data.len() % 2 == 1 {
-        out.push(0);
-    }
 }
 
 #[cfg(not(feature = "magick"))]
@@ -276,6 +285,31 @@ mod tests {
         let back = crate::decode::decode_full(&out, "x.psd").unwrap().to_rgb8();
         assert_eq!(back.dimensions(), (30, 20));
         assert_eq!(back.get_pixel(10, 5), img.to_rgb8().get_pixel(10, 5));
+    }
+
+    /// Saved with ImageMagick: IPTC kept, EXIF upright (1, not 0) with the new sizes.
+    #[cfg(feature = "magick")]
+    #[test]
+    fn written_back_with_metadata() {
+        let iim = crate::xmp::tests::iim(&[(80, "Ann")]);
+        let mut exif = Vec::new();
+        let mut w = exif::experimental::Writer::new();
+        let fields = [
+            exif::Field { tag: exif::Tag::Orientation, ifd_num: exif::In::PRIMARY, value: exif::Value::Short(vec![1]) },
+            exif::Field { tag: exif::Tag::PixelXDimension, ifd_num: exif::In::PRIMARY, value: exif::Value::Long(vec![4]) },
+        ];
+        fields.iter().for_each(|f| w.push_field(f));
+        w.write(&mut std::io::Cursor::new(&mut exif), false).unwrap();
+        let resources = [crate::meta_write::resource(1028, &iim), crate::meta_write::resource(1058, &exif), crate::meta_write::resource(1036, &[1; 8])].concat();
+        let mut file = psd(1, &[], false);
+        file.splice(30..34, [&(resources.len() as u32).to_be_bytes()[..], &resources].concat());
+        let img = DynamicImage::ImageRgb8(image::RgbImage::new(30, 20));
+        let out = encode(&img, &file).unwrap();
+        let back = metadata(&out).unwrap();
+        assert_eq!(back.irb.as_deref().and_then(crate::meta_write::iim), Some(iim.as_slice()));
+        let e = exif::Reader::new().read_raw(back.exif.unwrap()).unwrap();
+        assert_eq!(e.get_field(exif::Tag::Orientation, exif::In::PRIMARY).unwrap().value.get_uint(0), Some(1));
+        assert_eq!(e.get_field(exif::Tag::PixelXDimension, exif::In::PRIMARY).unwrap().value.get_uint(0), Some(30));
     }
 
     /// Manual: every PSD in `EYECANSEE_PSD` turned clockwise as "Save" does, written to
