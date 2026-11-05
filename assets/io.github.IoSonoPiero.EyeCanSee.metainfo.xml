@@ -78,6 +78,17 @@
   </provides>
 
   <releases>
+    <release version="0.73.2" date="2026-11-05">
+      <description>
+        <ul>
+          <li>Phone photos opened from the file manager use EyeCanSee's direct connection; saving over a file in folders of the file manager's connection (gvfs) is refused, with Save as…, so a photo can no longer be left only under a hidden name</li>
+          <li>The metadata panel shows the EXIF of CR3, RAF, ORF, RW2 and MRW photos</li>
+          <li>Extended XMP of JPEG photos is kept when they are encoded again, and the IPTC digest of a written TIFF matches its IPTC</li>
+          <li>Photos in the Android trash are shown by their own name in the status bar, the metadata panel and the Delete and Restore windows</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.73.2</url>
+    </release>
     <release version="0.73.1" date="2026-11-04">
       <description>
         <ul>
