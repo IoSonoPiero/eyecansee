@@ -161,6 +161,7 @@ fn handle(painter: &egui::Painter, p: Pos2) {
 fn selection(painter: &egui::Painter, o: &Obj, view: &View, angle: f32) {
     let outline: Vec<Pos2> = match &o.shape {
         Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => geom::curve(*a, *b, *c).into_iter().map(|p| view.of(p, angle)).collect(),
+        Shape::Text { path: Some((a, b, c)), .. } => geom::curve(*a, *b, *c).into_iter().map(|p| view.of(p, angle)).collect(),
         Shape::Text { at, text, size, rot, .. } => {
             let area = geom::text_area(*at, text, *size, *rot);
             let box_ = crate::edit::doc::Obj { shape: Shape::Rect(area), style: o.style };

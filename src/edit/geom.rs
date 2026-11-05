@@ -104,6 +104,7 @@ pub fn hit(o: &Obj, p: Pt, tol: f32) -> bool {
         // The head is as wide as `render::arrow` makes it.
         Shape::Arrow(a, b, c) => curve_distance(p, *a, *b, *c) <= (2.0 * o.style.width + 2.0).max(o.style.width / 2.0) + tol,
         Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) | Shape::Patch { area: r, .. } | Shape::Filter { area: r, .. } => inside(r, p, tol),
+        Shape::Text { path: Some((a, b, c)), size, .. } => curve_distance(p, *a, *b, *c) <= 0.6 * size + tol,
         Shape::Text { at, text, size, rot, .. } => inside(&text_area(*at, text, *size, *rot), p, tol),
     }
 }
@@ -127,7 +128,7 @@ pub fn moved(o: &Obj, d: Pt) -> Obj {
         Shape::Cover(r) => Shape::Cover(area(r)),
         Shape::Patch { area: r, pixels } => Shape::Patch { area: area(r), pixels: pixels.clone() },
         Shape::Filter { area: r, filter, amount, preview } => Shape::Filter { area: area(r), filter: *filter, amount: *amount, preview: preview.clone() },
-        Shape::Text { at, text, size, rot, font } => Shape::Text { at: m(*at), text: text.clone(), size: *size, rot: *rot, font: font.clone() },
+        Shape::Text { at, text, size, rot, font, path } => Shape::Text { at: m(*at), text: text.clone(), size: *size, rot: *rot, font: font.clone(), path: path.map(|(a, b, c)| (m(a), m(b), c.map(m))) },
     };
     Obj { shape, style: o.style }
 }
@@ -146,6 +147,8 @@ pub fn handles(o: &Obj) -> Vec<Pt> {
     match &o.shape {
         Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => vec![*a, *b, bend_handle(*a, *b, *c)],
         Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) | Shape::Patch { area: r, .. } | Shape::Filter { area: r, .. } => corners(r).to_vec(),
+        // On a curve: its two ends and the middle that bends it, as a line.
+        Shape::Text { path: Some((a, b, c)), .. } => vec![*a, *b, bend_handle(*a, *b, *c)],
         Shape::Text { .. } => Vec::new(),
     }
 }
@@ -167,6 +170,10 @@ pub fn with_handle(o: &Obj, i: usize, p: Pt) -> Obj {
         Shape::Highlight(r) => Shape::Highlight(resized(r)),
         Shape::Cover(r) => Shape::Cover(resized(r)),
         Shape::Patch { area, pixels } => Shape::Patch { area: resized(area), pixels: pixels.clone() },
+        Shape::Text { at, text, size, rot, font, path: Some((a, b, c)) } => {
+            let Shape::Line(a, b, c) = line_handle(*a, *b, *c, i, p, Shape::Line) else { unreachable!() };
+            Shape::Text { at: *at, text: text.clone(), size: *size, rot: *rot, font: font.clone(), path: Some((a, b, c)) }
+        }
         Shape::Filter { area, filter, amount, preview } => Shape::Filter { area: resized(area), filter: *filter, amount: *amount, preview: preview.clone() },
         text => text.clone(),
     };
@@ -202,7 +209,7 @@ pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style) -> Option<Obj> 
         Kind::Highlight => Shape::Highlight(area()?),
         Kind::Cover => Shape::Cover(area()?),
         Kind::Patch | Kind::Filter => return None,
-        Kind::Text => Shape::Text { at: a, text: String::new(), size: style.width, rot: -angle, font: None },
+        Kind::Text => Shape::Text { at: a, text: String::new(), size: style.width, rot: -angle, font: None, path: None },
     };
     Some(Obj { shape, style })
 }
@@ -228,7 +235,7 @@ mod tests {
         assert!(hit(&rect(0.0), Pt::new(19.0, 9.0), 0.0) && !hit(&rect(0.0), Pt::new(10.0, 11.0), 0.0));
         // Turned upright: 10 wide, 20 high around 10, 5.
         assert!(hit(&rect(90.0), Pt::new(10.0, 14.0), 0.0) && !hit(&rect(90.0), Pt::new(19.0, 5.0), 0.0));
-        let text = Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: "abcd".into(), size: 10.0, rot: 0.0, font: None }, style: Style::default() };
+        let text = Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: "abcd".into(), size: 10.0, rot: 0.0, font: None, path: None }, style: Style::default() };
         assert!(hit(&text, Pt::new(11.0, 5.0), 0.0) && !hit(&text, Pt::new(13.0, 0.0), 0.0));
         assert_eq!(under(&[rect(0.0), rect(0.0), line], Pt::new(10.0, 5.0), 0.0), Some(1));
         assert_eq!(under(&[rect(0.0)], Pt::new(-50.0, 5.0), 0.0), None);
@@ -265,7 +272,7 @@ mod tests {
         assert!(close(h[0], a) && close(h[2], b), "{h:?}");
         assert!(drawn(Kind::Rect, a, a, 30.0, Style::default()).is_none() && drawn(Kind::Arrow, a, a, 0.0, Style::default()).is_none());
         let t = drawn(Kind::Text, a, a, 30.0, Style { width: 24.0, ..Style::default() }).unwrap();
-        assert_eq!(t.shape, Shape::Text { at: a, text: String::new(), size: 24.0, rot: -30.0, font: None });
+        assert_eq!(t.shape, Shape::Text { at: a, text: String::new(), size: 24.0, rot: -30.0, font: None, path: None });
     }
 }
 

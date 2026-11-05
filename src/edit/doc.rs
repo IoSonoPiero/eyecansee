@@ -66,7 +66,9 @@ pub enum Shape {
     /// `at` is the centre of the text, `size` the height of its letters in pixels, `font` the
     /// family of an installed font (`None`: the sans-serif one of the system). A flip moves and
     /// tilts the text but never mirrors the letters.
-    Text { at: Pt, text: String, size: f32, rot: f32, font: Option<String> },
+    /// `path`, if any: the line the letters follow instead (two ends and a control point that
+    /// bends it, as `Line`), the text in the middle of it on one line.
+    Text { at: Pt, text: String, size: f32, rot: f32, font: Option<String>, path: Option<(Pt, Pt, Option<Pt>)> },
     /// Solid box over private data: nothing under it is left in the saved file.
     Cover(Area),
     /// A piece of image (copied or cut with Selection, or pasted from another program) stretched
@@ -210,7 +212,14 @@ impl Obj {
             Shape::Patch { area, pixels } => Shape::Patch { area: area.turned(op), pixels: pixels.turned(op) },
             // Made again for the photo under it.
             Shape::Filter { area, filter, amount, .. } => Shape::Filter { area: area.turned(op), filter: *filter, amount: *amount, preview: Preview::default() },
-            Shape::Text { at, text, size, rot, font } => Shape::Text { at: at.turned(op), text: text.clone(), size: *size, rot: text_turned(*rot, op), font: font.clone() },
+            Shape::Text { at, text, size, rot, font, path } => Shape::Text {
+                at: at.turned(op),
+                text: text.clone(),
+                size: *size,
+                rot: text_turned(*rot, op),
+                font: font.clone(),
+                path: path.map(|(a, b, c)| (a.turned(op), b.turned(op), c.map(|c| c.turned(op)))),
+            },
         };
         Obj { shape, style: self.style }
     }
@@ -322,7 +331,7 @@ pub(crate) mod tests {
             Obj { shape: Shape::Arrow(Pt::new(0.1, 0.2), Pt::new(-12.3, 7.7), None), style: Style { dash: Dash::Dashed, ..style } },
             Obj { shape: Shape::Rect(area), style },
             Obj { shape: Shape::Highlight(area), style: Style { opacity: 0.4, ..style } },
-            Obj { shape: Shape::Text { at: Pt::new(5.0, -6.0), text: "à €".into(), size: 12.0, rot: -3.5, font: None }, style },
+            Obj { shape: Shape::Text { at: Pt::new(5.0, -6.0), text: "à €".into(), size: 12.0, rot: -3.5, font: None, path: None }, style },
             Obj { shape: Shape::Cover(Area { rot: 0.0, ..area }), style },
         ];
         d

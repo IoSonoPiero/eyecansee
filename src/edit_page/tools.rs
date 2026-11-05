@@ -9,7 +9,7 @@ use eframe::egui::{self, Color32, Key};
 use super::{Ask, Tool, Window};
 use crate::App;
 use crate::actions::Act;
-use crate::edit::doc::{Dash, Head, Shape, Style};
+use crate::edit::doc::{Dash, Head, Pt, Shape, Style};
 use crate::edit::geom::Kind;
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
@@ -323,6 +323,7 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
         ui.separator();
         if let Some(i) = selected {
             font_choice(ui, w, i, i18n);
+            text_curve(ui, w, i, i18n);
             text_angle(ui, w, i, i18n);
         }
         text_field(ui, w, selected, i18n);
@@ -468,6 +469,26 @@ fn font_choice(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
             }
         }
     }
+}
+
+/// On a curve or not: on, the text gets a line as long as it is, along its angle, to bend by its
+/// middle handle; off, it is upright again where the middle of the line was.
+fn text_curve(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
+    let Some(Shape::Text { at, text, size, rot, path, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
+    if !ui.add(egui::Button::new(i18n.t("edit-text-curve")).selected(path.is_some())).on_hover_text(i18n.t("edit-text-curve-hint")).clicked() {
+        return;
+    }
+    *path = match path.take() {
+        Some((a, b, c)) => {
+            *at = crate::edit::geom::bend_handle(a, b, c);
+            None
+        }
+        None => {
+            let half = crate::edit::geom::text_area(*at, text, *size, *rot).w / 2.0 + *size;
+            let (s, c) = rot.to_radians().sin_cos();
+            Some((Pt::new(at.x - c * half, at.y - s * half), Pt::new(at.x + c * half, at.y + s * half), None))
+        }
+    };
 }
 
 /// The angle of the selected text on the screen, -180° to 180° (its own angle in the document is
