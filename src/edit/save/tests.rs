@@ -329,3 +329,53 @@ fn save_live() {
         println!("{name} → {} ({} bytes, Ultra HDR {hdr})", out.name, d.len());
     }
 }
+
+/// The phone photos of the test files (`notes/test-files/online/telefono`, from the private
+/// release with `test-files/scarica.sh online-telefono`, or `EYECANSEE_PHONE_SAMPLES`), each with
+/// a cover box: the Motion Photo's copy is the picture alone, without the video and what
+/// described it; the Apple photo keeps its gain map (MPF of two pictures), gain 0 under the box.
+#[test]
+#[ignore]
+fn phone_samples() {
+    let dir = std::env::var_os("EYECANSEE_PHONE_SAMPLES").map_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("notes/test-files/online/telefono"), std::path::PathBuf::from);
+    let read = |name: &str| std::fs::read(dir.join(name)).unwrap_or_else(|e| panic!("{name} in {}: {e} (test-files/scarica.sh online-telefono)", dir.display()));
+    let blue = |img: &DynamicImage, x, y| {
+        let p = img.get_pixel(x, y);
+        assert!(p[0] < 30 && p[1] < 30 && p[2] > 220, "not covered at {x},{y}: {p:?}");
+    };
+
+    let bytes = read("motion_photo.jpeg");
+    assert!(bytes.windows(8).any(|w| w == b"ftypisom") && String::from_utf8_lossy(&bytes).contains("MotionPhoto"), "a Motion Photo with its video");
+    let mut doc = Doc::new(1024, 768, None);
+    doc.objects.push(cover_at(0.0, 0.0, 200.0, 100.0));
+    let out = saved(&bytes, "motion_photo.jpeg", &doc);
+    assert_eq!(out.name, "motion_photo (edited).jpeg");
+    let d = &out.data;
+    assert!(d.ends_with(&[0xFF, 0xD9]) && !d.windows(4).any(|w| w == b"ftyp"), "nothing after the picture");
+    let text = String::from_utf8_lossy(d);
+    for gone in ["MotionPhoto", "Container:Directory", "Container:Item"] {
+        assert!(!text.contains(gone), "{gone} still there");
+    }
+    let back = crate::decode::decode_full(d, "x.jpg").unwrap();
+    assert_eq!(back.dimensions(), (1024, 768));
+    blue(&back, 512, 384);
+
+    let bytes = read("apple_gainmap_new.jpg");
+    assert!(crate::ultrahdr::is(&bytes), "two pictures in MPF, the gain map up to the end");
+    let mut doc = Doc::new(384, 512, None);
+    // In the photo 142..242 × 206..306.
+    doc.objects.push(cover_at(0.0, 0.0, 100.0, 100.0));
+    let out = saved(&bytes, "apple_gainmap_new.jpg", &doc);
+    assert!(crate::ultrahdr::is(&out.data), "still with its gain map");
+    let (photo, gain) = crate::ultrahdr::split(&out.data).unwrap();
+    blue(&image::load_from_memory(photo).unwrap(), 192, 256);
+    let gain = image::load_from_memory(gain).unwrap();
+    let k = gain.width() as f32 / 384.0;
+    // Inside the box by a pixel of the gain map: there the JPEG of the gain map does not reach
+    // the pixels beside it.
+    let (x0, x1, y0, y1) = ((142.0 * k).ceil() as u32 + 1, (242.0 * k) as u32 - 1, (206.0 * k).ceil() as u32 + 1, (306.0 * k) as u32 - 1);
+    for (x, y) in (y0..y1).flat_map(|y| (x0..x1).map(move |x| (x, y))) {
+        assert!(luma(gain.get_pixel(x, y)) <= 12.0, "gain at {x},{y}: {:?}", gain.get_pixel(x, y));
+    }
+    println!("gain map {}×{}, checked {}..{} × {}..{}", gain.width(), gain.height(), x0, x1, y0, y1);
+}
