@@ -1,7 +1,7 @@
 //! The XMP of an image being written again (Rotate and crop, Save, Convert and resize, Save in
 //! another format), with `quick-xml`: sizes and orientation made true for the pixels written, the
-//! XMP thumbnail and the Camera Raw / Lightroom settings (`crs:`, crop and adjustments already in
-//! the pixels) taken out, everything else (author, copyright, licence, descriptions, keywords…)
+//! XMP thumbnail, the Camera Raw / Lightroom settings (`crs:`, crop and adjustments already in
+//! the pixels) and the description of a Motion Photo's video (never written again) taken out, everything else (author, copyright, licence, descriptions, keywords…)
 //! kept as it was. For WebP and AVIF, which have no place for IPTC, the IPTC fields go into the
 //! XMP as Adobe and the IPTC Core map them, when the XMP does not have them already.
 
@@ -28,13 +28,14 @@ enum Fix {
     Set(String),
 }
 
-/// `merged`: the extended XMP is in the packet, the GUID that pointed to it goes. `alone`: the
-/// picture is written without what followed it in the file (the video of a Motion Photo, the gain
-/// map of an Ultra HDR photo), so what describes those goes.
+/// `merged`: the extended XMP is in the packet, the GUID that pointed to it goes. The video of a
+/// Motion Photo is never written again, so what describes it always goes (also when the original
+/// says so without having one, as a Pixel 8 photo seen). `alone`: the picture is written without
+/// the gain map of an Ultra HDR photo either, so its description and the container directory go.
 fn fix(ns: &str, local: &str, w: u32, h: u32, merged: bool, alone: bool) -> Option<Fix> {
     match (ns, local) {
         (XMP_NOTE, "HasExtendedXMP") if merged => Some(Fix::Drop),
-        (GCAMERA, l) if alone && (l.starts_with("MotionPhoto") || l.starts_with("MicroVideo")) => Some(Fix::Drop),
+        (GCAMERA, l) if l.starts_with("MotionPhoto") || l.starts_with("MicroVideo") => Some(Fix::Drop),
         (CONTAINER, "Directory") | (HDRGM, _) if alone => Some(Fix::Drop),
         (CRS, _) | (XAP, "Thumbnails") => Some(Fix::Drop),
         (TIFF, "ImageWidth") | (EXIF, "PixelXDimension") => Some(Fix::Set(w.to_string())),
@@ -88,7 +89,6 @@ pub fn fit_with(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Opt
 /// `xmp` without what describes the parts after the picture in the file (Motion Photo video,
 /// Ultra HDR gain map and its container directory), for a picture written alone; sizes set to
 /// `w` × `h` as `fit` does. A packet that is not well-formed XML is returned as it was.
-#[cfg_attr(not(test), allow(dead_code))] // ponytail: used by the editor page from step 5 (#53)
 pub fn alone(xmp: &[u8], w: u32, h: u32) -> Vec<u8> {
     rewrite(xmp, w, h, &[], false, true).unwrap_or_else(|| xmp.to_vec())
 }
@@ -338,5 +338,24 @@ pub(crate) mod tests {
         let creators: Vec<_> = doc.descendants().filter(|n| n.tag_name().name() == "li" && n.parent().unwrap().tag_name().name() == "Seq").map(|n| n.text().unwrap()).collect();
         assert_eq!(creators, ["Ann <Author>", "Bob"]);
         assert!(new.contains("<rdf:li xml:lang=\"x-default\">© Ann</rdf:li>"));
+    }
+
+    /// The description of a Motion Photo's video goes from every packet written again (no save
+    /// writes the video), attributes and elements; with `alone` the container directory and the
+    /// gain map's description go too; the rest stays.
+    #[test]
+    fn motion_photo_described_no_more() {
+        let xmp = concat!(
+            "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">",
+            "<rdf:Description xmlns:GCamera=\"http://ns.google.com/photos/1.0/camera/\" xmlns:Container=\"http://ns.google.com/photos/1.0/container/\" xmlns:Item=\"http://ns.google.com/photos/1.0/container/item/\" xmlns:hdrgm=\"http://ns.adobe.com/hdr-gain-map/1.0/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" GCamera:MotionPhoto=\"1\" GCamera:MotionPhotoVersion=\"1\" hdrgm:Version=\"1.0\">",
+            "<GCamera:MicroVideoOffset>40</GCamera:MicroVideoOffset><dc:creator><rdf:Seq><rdf:li>Ann</rdf:li></rdf:Seq></dc:creator>",
+            "<Container:Directory><rdf:Seq><rdf:li rdf:parseType=\"Resource\"><Container:Item Item:Semantic=\"GainMap\" Item:Mime=\"image/jpeg\"/></rdf:li></rdf:Seq></Container:Directory>",
+            "</rdf:Description></rdf:RDF></x:xmpmeta>"
+        );
+        let kept = String::from_utf8(fit(Some(xmp.as_bytes()), 8, 6, None).unwrap()).unwrap();
+        assert!(!kept.contains("MotionPhoto") && !kept.contains("MicroVideo"), "{kept}");
+        assert!(kept.contains("Container:Directory") && kept.contains("hdrgm:Version") && kept.contains("Ann"), "{kept}");
+        let alone = String::from_utf8(alone(xmp.as_bytes(), 8, 6)).unwrap();
+        assert!(!alone.contains("Container:") && !alone.contains("hdrgm:Version") && alone.contains("Ann"), "{alone}");
     }
 }
