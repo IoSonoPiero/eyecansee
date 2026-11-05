@@ -313,14 +313,16 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
     let tol = GRAB / view.k;
     if let Some(s) = response.hover_pos() {
         let p = view.doc(s, angle);
-        let on_handle = w.selected.and_then(|i| w.doc.objects.get(i)).is_some_and(|o| geom::handles(o).iter().any(|h| view.of(*h, angle).distance(s) <= GRAB));
+        let on_handle = handle_at(w, view, s);
         let icon = match (&w.hold, w.tool) {
             (Some(Hold::Pan { .. }), _) => CursorIcon::Grabbing,
             (Some(Hold::Move { .. }), _) => CursorIcon::Move,
+            (Some(Hold::Handle { index, handle, .. }), _) => resize_cursor(w, view, *index, *handle),
             (Some(_), _) => CursorIcon::Crosshair,
+            // A corner or an end of the selected object, with any tool: it resizes.
+            (None, _) if let Some((i, h)) = on_handle => resize_cursor(w, view, i, h),
             (None, Tool::Draw(Kind::Text)) => CursorIcon::Text,
             (None, Tool::Draw(_)) => CursorIcon::Crosshair,
-            (None, _) if on_handle => CursorIcon::Crosshair,
             (None, _) if geom::under(&w.doc.objects, p, tol).is_some() => CursorIcon::Move,
             (None, _) => CursorIcon::Default,
         };
@@ -334,8 +336,11 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
         && let Some(s) = ui.input(|i| i.pointer.press_origin()).or(response.interact_pointer_pos())
     {
         let p = view.doc(s, angle);
+        let on_handle = handle_at(w, view, s);
         w.hold = Some(match w.tool {
             _ if pan => Hold::Pan { at: view.at, k: view.k, from: s },
+            // Resizing the selected object needs no change of tool.
+            Tool::Draw(_) if let Some((index, handle)) = on_handle => Hold::Handle { index, handle, start: w.doc.objects[index].clone() },
             Tool::Draw(Kind::Text) => Hold::Pan { at: view.at, k: view.k, from: s },
             Tool::Draw(kind) => Hold::Draw { kind, from: p, index: None },
             _ => picked(w, view, s, p, tol),
@@ -381,10 +386,7 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
 /// A drag started with Select (or a drawing tool on nothing to draw): a handle of the selected
 /// object, an object, or the view.
 fn picked(w: &mut Window, view: &View, s: Pos2, p: Pt, tol: f32) -> Hold {
-    let angle = w.doc.angle;
-    if let Some(i) = w.selected
-        && let Some(h) = w.doc.objects.get(i).and_then(|o| geom::handles(o).iter().position(|h| view.of(*h, angle).distance(s) <= GRAB))
-    {
+    if let Some((i, h)) = handle_at(w, view, s) {
         return Hold::Handle { index: i, handle: h, start: w.doc.objects[i].clone() };
     }
     match geom::under(&w.doc.objects, p, tol) {
@@ -396,6 +398,28 @@ fn picked(w: &mut Window, view: &View, s: Pos2, p: Pt, tol: f32) -> Hold {
             w.selected = None;
             Hold::Pan { at: view.at, k: view.k, from: s }
         }
+    }
+}
+
+/// The selected object and its corner or end within reach of `s`, if any.
+fn handle_at(w: &Window, view: &View, s: Pos2) -> Option<(usize, usize)> {
+    let i = w.selected?;
+    let h = geom::handles(w.doc.objects.get(i)?).iter().position(|h| view.of(*h, w.doc.angle).distance(s) <= GRAB)?;
+    Some((i, h))
+}
+
+/// The resize pointer for a corner or end, slanted as it lies from the middle of the object.
+fn resize_cursor(w: &Window, view: &View, index: usize, handle: usize) -> CursorIcon {
+    let Some(o) = w.doc.objects.get(index) else { return CursorIcon::Crosshair };
+    let points: Vec<Pos2> = geom::handles(o).into_iter().map(|p| view.of(p, w.doc.angle)).collect();
+    let Some(&at) = points.get(handle) else { return CursorIcon::Crosshair };
+    let centre = points.iter().fold(Vec2::ZERO, |a, p| a + p.to_vec2()) / points.len() as f32;
+    let d = at.to_vec2() - centre;
+    match () {
+        _ if d.x.abs() < d.y.abs() * 0.4 => CursorIcon::ResizeVertical,
+        _ if d.y.abs() < d.x.abs() * 0.4 => CursorIcon::ResizeHorizontal,
+        _ if d.x * d.y > 0.0 => CursorIcon::ResizeNwSe,
+        _ => CursorIcon::ResizeNeSw,
     }
 }
 
