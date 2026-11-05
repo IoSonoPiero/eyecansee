@@ -237,13 +237,13 @@ impl App {
                     })
                     .response
                     .on_hover_text(self.i18n.t("sort-by"));
-                let arrow = if desc { "▼" } else { "▲" };
-                let flip = ui.button(arrow).on_hover_text(self.i18n.t(if desc { "sort-desc" } else { "sort-asc" })).clicked();
+                let arrow = icons::button(ui, if desc { icons::Line::SortDesc } else { icons::Line::SortAsc });
+                let flip = ui.add(arrow).on_hover_text(self.i18n.t(if desc { "sort-desc" } else { "sort-asc" })).clicked();
                 if by != self.settings.sort_by || flip {
                     self.set_sort(by, desc != flip);
                 }
                 let hint = self.i18n.t("tb-thumb-size");
-                ui.label("🖼").on_hover_text(&hint);
+                ui.add(icons::line(ui, icons::Line::Image, 18.0)).on_hover_text(&hint);
                 ui.add(egui::Slider::new(&mut self.thumb_size, 64.0..=THUMB_SIDE as f32).show_value(false))
                     .on_hover_text(hint);
             }

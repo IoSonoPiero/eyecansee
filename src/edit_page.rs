@@ -3,8 +3,8 @@
 //! objects over it from a texture of their own (`edit::render`), redrawn only when the document or
 //! the view change. Every change goes into the document (`edit::doc`); once an operation is over
 //! (no button held, no field being typed in) it becomes a step of the history (`edit::history`).
-//! The tools are in `tools`, Rotate and crop's controls in `crop`, the canvas in `canvas`, the
-//! questions before saving or closing in `save`.
+//! The bars (tools, properties, status) are in `tools`, Rotate and crop's controls in `crop`, the
+//! canvas in `canvas`, the questions before saving or closing in `save`.
 
 use std::sync::Arc;
 
@@ -27,9 +27,6 @@ use save::Leave;
 
 type Loaded = Result<(Arc<Original>, TextureHandle, u64), String>;
 
-/// Width of the controls on the right.
-const SIDE: f32 = 300.0;
-const GAP: f32 = 16.0;
 /// Distance in points at which a side or corner (of the crop or of an object) can be grabbed.
 const GRAB: f32 = 12.0;
 /// The error of `Loader::load_original` for an image the editor does not take.
@@ -124,6 +121,8 @@ pub struct Window {
     /// Centre of the view (image pixels, from the centre of the image) and points per pixel;
     /// `None`: everything in view.
     view: Option<(Vec2, f32)>,
+    /// The view drawn last (that of `view`, or everything in view): for the zoom buttons.
+    shown: (Vec2, f32),
     /// Rotate and crop: the drag under way: what, the crop and the view when it started, where the pointer was.
     drag: Option<(Grab, Crop, (Vec2, f32), Pos2)>,
     /// Straighten is on: a drag draws a line, which becomes level when let go.
@@ -167,6 +166,7 @@ impl Window {
             transparent,
             color: Color32::WHITE,
             view: None,
+            shown: (Vec2::ZERO, 1.0),
             drag: None,
             straighten: false,
             line_end: None,
@@ -255,6 +255,35 @@ impl Window {
         }
     }
 
+    /// A tool of the toolbar (or its key): changing tool lets go of the selection (but for Select).
+    fn choose(&mut self, tool: Tool) {
+        if tool == self.tool {
+            return;
+        }
+        // Rotate and crop shows all of the image, the others the result.
+        if (tool == Tool::Crop) != (self.tool == Tool::Crop) {
+            self.view = None;
+        }
+        self.tool = tool;
+        if tool != Tool::Select {
+            self.selected = None;
+        }
+        self.hold = None;
+    }
+
+    /// A quarter turn: the document turns, objects and crop with it (`Doc::turned`).
+    fn turn(&mut self, op: crate::transform::Op) {
+        self.doc.turned(op);
+        self.view = None;
+        self.refit();
+    }
+
+    /// Zoom in or out around the middle of the view.
+    fn zoom(&mut self, factor: f32) {
+        let (at, k) = self.shown;
+        self.view = Some((at, (k * factor).clamp(0.01, 64.0)));
+    }
+
     fn undo(&mut self) {
         let Some(h) = &mut self.history else { return };
         h.push(self.doc.clone());
@@ -284,7 +313,7 @@ fn default_style(kind: Kind, long: f32) -> Style {
     }
 }
 
-/// What the buttons of the panel asked for.
+/// What the buttons of the bars (or their keys) asked for.
 enum Ask {
     Save,
     SaveAs,
@@ -363,12 +392,13 @@ impl App {
         }
     }
 
-    /// Drawn in place of the whole interface, as "Save in another format".
+    /// Drawn in place of the whole interface, as "Save in another format": the tools at the top,
+    /// the properties under them, the status at the bottom, the image in the middle.
     pub(crate) fn edit_page(&mut self, ui: &mut egui::Ui) {
         let Some(mut w) = self.editor.take() else { return };
         // Before the fields are drawn: Esc in a field or during a drag stops only that.
         let busy = ui.ctx().egui_wants_keyboard_input() || w.hold.is_some();
-        let mut open = crate::convert::page_header(ui, &self.i18n.t("edit-title"));
+        let mut open = !crate::theme::close_asked(ui) && !ui.input(|i| i.key_pressed(egui::Key::Escape));
         if !open && busy {
             open = true;
             if w.hold.take().is_some()
@@ -378,43 +408,31 @@ impl App {
             }
         }
         let tex = match &w.original {
-            None => {
-                ui.centered_and_justified(|ui| ui.spinner());
-                None
-            }
-            Some(Err(e)) if e == ANIMATED => {
-                ui.label(crate::browser::error_text(ui, self.i18n.t_args("edit-animated", &[("name", source::name(&w.path))])));
-                None
-            }
-            Some(Err(e)) => {
-                ui.label(crate::browser::error_text(ui, self.i18n.t_args("cannot-load", &[("file", source::name(&w.path)), ("error", e)])));
-                None
-            }
             Some(Ok((_, tex, _))) => Some(tex.clone()),
+            _ => None,
         };
         let mut handed = false;
         if let Some(tex) = tex {
-            self.edit_keys(ui.ctx(), &mut w);
-            let size = ui.available_size();
-            ui.horizontal_top(|ui| {
-                ui.spacing_mut().item_spacing.x = GAP;
-                canvas(ui, &mut w, &tex, egui::vec2(size.x - SIDE - GAP, size.y));
-                ui.vertical(|ui| {
-                    ui.set_width(SIDE);
-                    let ask = self.side_panel(ui, &mut w);
-                    match if std::mem::take(&mut w.save_as) { Some(Ask::SaveAs) } else { ask } {
-                        Some(Ask::Save) => self.edit_prepare(ui.ctx(), &mut w, false),
-                        Some(Ask::Overwrite) => self.edit_prepare(ui.ctx(), &mut w, true),
-                        Some(Ask::SaveAs) => {
-                            handed = self.rotate_save_as(ui.ctx(), &w);
-                            open = !handed;
-                        }
-                        Some(Ask::Close) => open = false,
-                        None => {}
-                    }
-                });
-            });
+            let mut ask = self.edit_keys(ui.ctx(), &mut w);
+            egui::Panel::top("edit-tools").show(ui, |ui| ask = self.edit_toolbar(ui, &mut w).or(ask.take()));
+            egui::Panel::top("edit-props").show(ui, |ui| self.props_bar(ui, &mut w));
+            let bar = egui::Frame::side_top_panel(ui.style()).fill(crate::theme::solid(ui.visuals()));
+            egui::Panel::bottom("edit-status").frame(bar).show(ui, |ui| self.edit_status(ui, &mut w));
+            let stage = egui::Frame::NONE.fill(crate::theme::stage(ui.visuals()));
+            egui::CentralPanel::default().frame(stage).show(ui, |ui| canvas(ui, &mut w, &tex, ui.available_size()));
+            match if std::mem::take(&mut w.save_as) { Some(Ask::SaveAs) } else { ask } {
+                Some(Ask::Save) => self.edit_prepare(ui.ctx(), &mut w, false),
+                Some(Ask::Overwrite) => self.edit_prepare(ui.ctx(), &mut w, true),
+                Some(Ask::SaveAs) => {
+                    handed = self.rotate_save_as(ui.ctx(), &w);
+                    open = !handed;
+                }
+                Some(Ask::Close) => open = false,
+                None => {}
+            }
             self.settle(ui.ctx(), &mut w);
+        } else {
+            open &= self.edit_not_ready(ui, &w);
         }
         // Closing (Esc, ✕, Close) with changes not saved: asked first. Not after Save as…: the
         // page stayed open under it and took the image meant for it (spinner for ever).
@@ -438,15 +456,43 @@ impl App {
         }
     }
 
-    /// Undo, redo and Del, unless a field takes the keys (text has its own undo there).
-    fn edit_keys(&self, ctx: &egui::Context, w: &mut Window) {
-        if ctx.egui_wants_keyboard_input() || w.hold.is_some() || w.drag.is_some() {
-            return;
+    /// The image being read, or why it cannot be edited, with Close; `false` once Close is clicked.
+    fn edit_not_ready(&self, ui: &mut egui::Ui, w: &Window) -> bool {
+        egui::Frame::central_panel(ui.style()).show(ui, |ui| self.not_ready_inside(ui, w)).inner
+    }
+
+    fn not_ready_inside(&self, ui: &mut egui::Ui, w: &Window) -> bool {
+        let mut open = true;
+        ui.horizontal(|ui| {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                open = !ui.add(crate::icons::button(ui, crate::icons::Line::Close)).on_hover_text(format!("{} (Esc)", self.i18n.t("rc-close"))).clicked();
+            });
+        });
+        match &w.original {
+            Some(Err(e)) if e == ANIMATED => {
+                ui.label(crate::browser::error_text(ui, self.i18n.t_args("edit-animated", &[("name", source::name(&w.path))])));
+            }
+            Some(Err(e)) => {
+                ui.label(crate::browser::error_text(ui, self.i18n.t_args("cannot-load", &[("file", source::name(&w.path)), ("error", e)])));
+            }
+            _ => {
+                ui.centered_and_justified(|ui| ui.spinner());
+            }
         }
-        use egui::{Key, Modifiers};
+        open
+    }
+
+    /// Without a field taking the keys (text has its own undo there): undo and redo, Del, the
+    /// tools' letters, the quarter turns, zoom, Ctrl+S (Save copy) and Ctrl+Shift+S (Save as…).
+    fn edit_keys(&self, ctx: &egui::Context, w: &mut Window) -> Option<Ask> {
+        if ctx.egui_wants_keyboard_input() || w.hold.is_some() || w.drag.is_some() {
+            return None;
+        }
+        use egui::{Key, Modifiers as M};
+        let cmd_shift = M::COMMAND | M::SHIFT;
         let (redo, undo, delete) = ctx.input_mut(|i| {
-            let redo = i.consume_key(Modifiers::COMMAND | Modifiers::SHIFT, Key::Z) || i.consume_key(Modifiers::COMMAND, Key::Y);
-            (redo, i.consume_key(Modifiers::COMMAND, Key::Z), i.consume_key(Modifiers::NONE, Key::Delete))
+            let redo = i.consume_key(cmd_shift, Key::Z) || i.consume_key(M::COMMAND, Key::Y);
+            (redo, i.consume_key(M::COMMAND, Key::Z), i.consume_key(M::NONE, Key::Delete))
         });
         if redo {
             w.redo();
@@ -455,6 +501,30 @@ impl App {
         }
         if delete && let Some(i) = w.selected.take() {
             w.doc.objects.remove(i);
+        }
+        let tool = ctx.input_mut(|i| tools::TOOLS.iter().find(|t| i.consume_key(M::NONE, t.3)).map(|t| t.0));
+        if let Some(tool) = tool {
+            w.choose(tool);
+        }
+        let (ccw, cw) = ctx.input_mut(|i| (i.consume_key(cmd_shift, Key::R), i.consume_key(M::COMMAND, Key::R)));
+        if ccw {
+            w.turn(crate::transform::Op::Ccw);
+        } else if cw {
+            w.turn(crate::transform::Op::Cw);
+        }
+        let (zoom_in, zoom_out, fit) = ctx.input(|i| (i.key_pressed(Key::Plus) || i.key_pressed(Key::Equals), i.key_pressed(Key::Minus), i.key_pressed(Key::Num0)));
+        if zoom_in {
+            w.zoom(1.25);
+        } else if zoom_out {
+            w.zoom(0.8);
+        } else if fit {
+            w.view = None;
+        }
+        let (save_as, save) = ctx.input_mut(|i| (i.consume_key(cmd_shift, Key::S), i.consume_key(M::COMMAND, Key::S)));
+        match () {
+            _ if save_as && !w.preparing => Some(Ask::SaveAs),
+            _ if save && !w.preparing && w.changed() => Some(Ask::Save),
+            _ => None,
         }
     }
 

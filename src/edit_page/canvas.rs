@@ -67,12 +67,14 @@ pub(super) fn canvas(ui: &mut egui::Ui, w: &mut Window, tex: &TextureHandle, siz
     }
     // Drawn with the view after the mouse moved it.
     let (at, k) = w.view.unwrap_or((at, k));
+    w.shown = (at, k);
     paint(ui, w, tex, &View { centre: rect.center(), at, k }, rect);
 }
 
 fn paint(ui: &egui::Ui, w: &mut Window, tex: &TextureHandle, view: &View, rect: Rect) {
     let painter = ui.painter_at(rect);
-    painter.rect_filled(rect, 2.0, Color32::from_gray(18));
+    let stage = crate::theme::stage(ui.visuals());
+    painter.rect_filled(rect, 0.0, stage);
     let cr = view.crop(w.doc.crop);
     if w.transparent {
         checker(&painter, cr.intersect(rect));
@@ -108,7 +110,7 @@ fn paint(ui: &egui::Ui, w: &mut Window, tex: &TextureHandle, view: &View, rect: 
     } else {
         // Only the result is seen: outside the crop the background.
         for r in outside(rect, cr) {
-            painter.rect_filled(r, 0.0, Color32::from_gray(18));
+            painter.rect_filled(r, 0.0, stage);
         }
         if let Some(o) = w.selected.and_then(|i| w.doc.objects.get(i)) {
             selection(&painter, o, view, w.doc.angle);

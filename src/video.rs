@@ -397,8 +397,8 @@ fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u3
     ui.scope_builder(builder, |ui| {
         let light = Color32::from_gray(225);
         let paused = player.paused();
-        let (icon, tip) = if paused { ("▶", "video-play") } else { ("⏸", "video-pause") };
-        if ui.button(egui::RichText::new(icon).size(18.0)).on_hover_text(i18n.t(tip)).clicked() {
+        let (icon, tip) = if paused { (crate::icons::Line::Play, "video-play") } else { (crate::icons::Line::Pause, "video-pause") };
+        if ui.add(egui::Button::image(crate::icons::line_in(ui.ctx(), icon, 18.0, light))).on_hover_text(i18n.t(tip)).clicked() {
             player.toggle();
         }
         let (pos, length) = (player.position(), player.duration());
@@ -422,9 +422,9 @@ fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u3
 /// Sound off and volume; off, not hidden, for a video without sound (and while it loads).
 fn sound_controls(ui: &mut egui::Ui, player: &mpv::Player, (volume, mute): (&mut u32, &mut bool), i18n: &I18n) {
     let audio = player.has_audio();
-    let (icon, tip) = if *mute { ("🔇", "video-unmute") } else { ("🔊", "video-mute") };
+    let (icon, tip) = if *mute { (crate::icons::Line::Mute, "video-unmute") } else { (crate::icons::Line::Volume, "video-mute") };
     let tip = if audio { i18n.t(tip) } else { i18n.t("video-no-audio") };
-    let button = ui.add_enabled(audio, egui::Button::new(egui::RichText::new(icon).size(18.0)));
+    let button = ui.add_enabled(audio, egui::Button::image(crate::icons::line_in(ui.ctx(), icon, 18.0, Color32::from_gray(225))));
     if button.on_hover_text(&tip).on_disabled_hover_text(&tip).clicked() {
         *mute = !*mute;
         player.set_mute(*mute);

@@ -87,7 +87,7 @@ impl App {
         ui.painter().text(rect.left_center(), Align2::LEFT_CENTER, self.i18n.t("meta-title"), font, ui.visuals().strong_text_color());
         let button_rect = Rect::from_min_max(pos2(rect.right() - 26.0, rect.top()), rect.max);
         let hint = self.i18n.t(if collapsed { "meta-expand" } else { "meta-collapse" });
-        let button = ui.put(button_rect, egui::Button::new(if collapsed { "▲" } else { "▼" }).small()).on_hover_text(&hint);
+        let button = ui.put(button_rect, crate::icons::small(ui, if collapsed { crate::icons::Line::ChevronUp } else { crate::icons::Line::Down })).on_hover_text(&hint);
         let bar = bar.on_hover_text(hint).on_hover_cursor(egui::CursorIcon::PointingHand);
         if bar.clicked() || button.clicked() {
             self.settings.meta_collapsed = !collapsed;
@@ -103,7 +103,7 @@ impl App {
         ui.horizontal(|ui| {
             ui.strong(t(&format!("meta-{}", g.key())));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("✖").on_hover_text(t("meta-close")).clicked() {
+                if ui.add(crate::icons::small(ui, crate::icons::Line::Close)).on_hover_text(t("meta-close")).clicked() {
                     *close = Some(g);
                 }
             });

@@ -63,7 +63,8 @@ impl App {
         } else if self.convert.is_some() {
             egui::CentralPanel::default().show(ui, |ui| self.convert_page(ui));
         } else if self.editor.is_some() {
-            egui::CentralPanel::default().show(ui, |ui| self.edit_page(ui));
+            // The editor's bars are panels of their own: no margin around them.
+            egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui, |ui| self.edit_page(ui));
         } else if self.dup_page_shown() {
             self.dup_page(ui);
         } else {
@@ -73,7 +74,7 @@ impl App {
                 egui::Panel::bottom("error").show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(browser::error_text(ui, e));
-                        if ui.small_button("✖").clicked() {
+                        if ui.add(crate::icons::small(ui, crate::icons::Line::Close)).on_hover_text(self.i18n.t("notice-close")).clicked() {
                             self.error = None;
                         }
                     });

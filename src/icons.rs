@@ -110,7 +110,7 @@ pub fn paint(painter: &egui::Painter, icon: Icon, rect: Rect) {
 
 /// The line icons of the buttons: Lucide's (ISC, some from Feather, MIT; the notices in
 /// `assets/icons/lucide/LICENSE-lucide.txt` and in THIRD-PARTY-LICENSES.txt), only those used, as
-/// Lucide gives them (commit ee8e10d of 2026-11-05).
+/// Lucide gives them (commit ee8e10d of 2026-11-05); the three kinds of line are ours, same style.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Line {
     Up,
@@ -131,6 +131,32 @@ pub enum Line {
     Duplicates,
     More,
     Edit,
+    Select,
+    Arrow,
+    Stroke,
+    Rect,
+    Highlight,
+    Text,
+    Cover,
+    Crop,
+    Undo,
+    Redo,
+    Close,
+    Down,
+    ZoomIn,
+    ZoomOut,
+    Swap,
+    ChevronUp,
+    SortAsc,
+    SortDesc,
+    Image,
+    Play,
+    Pause,
+    Volume,
+    Mute,
+    Solid,
+    Dashed,
+    Dotted,
 }
 
 macro_rules! lucide {
@@ -139,8 +165,10 @@ macro_rules! lucide {
     };
 }
 
+const LINE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">"#;
 
 fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
+    let own = |path: &str| format!("{LINE}<path d=\"{path}\"/></svg>").into();
     match icon {
         Line::Up => lucide!("arrow-up").into(),
         Line::Refresh => lucide!("refresh-cw").into(),
@@ -160,6 +188,33 @@ fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Duplicates => lucide!("scan-search").into(),
         Line::More => lucide!("ellipsis").into(),
         Line::Edit => lucide!("square-pen").into(),
+        Line::Select => lucide!("mouse-pointer-2").into(),
+        Line::Arrow => lucide!("move-up-right").into(),
+        Line::Stroke => lucide!("slash").into(),
+        Line::Rect => lucide!("square").into(),
+        Line::Highlight => lucide!("highlighter").into(),
+        Line::Text => lucide!("type").into(),
+        Line::Cover => lucide!("eye-off").into(),
+        Line::Crop => lucide!("crop").into(),
+        Line::Undo => lucide!("undo-2").into(),
+        Line::Redo => lucide!("redo-2").into(),
+        Line::Close => lucide!("x").into(),
+        Line::Down => lucide!("chevron-down").into(),
+        Line::ZoomIn => lucide!("zoom-in").into(),
+        Line::ZoomOut => lucide!("zoom-out").into(),
+        Line::Swap => lucide!("arrow-left-right").into(),
+        Line::ChevronUp => lucide!("chevron-up").into(),
+        Line::SortAsc => lucide!("arrow-up-narrow-wide").into(),
+        Line::SortDesc => lucide!("arrow-down-wide-narrow").into(),
+        Line::Image => lucide!("image").into(),
+        Line::Play => lucide!("play").into(),
+        Line::Pause => lucide!("pause").into(),
+        Line::Volume => lucide!("volume-2").into(),
+        Line::Mute => lucide!("volume-x").into(),
+        Line::Solid => own("M3 12h18"),
+        Line::Dashed => own("M3 12h4M10 12h4M17 12h4"),
+        // Dots wider than the line, or they look like specks.
+        Line::Dotted => format!("{}<path d=\"M4.5 12h.01M9.5 12h.01M14.5 12h.01M19.5 12h.01\"/></svg>", LINE.replace("stroke-width=\"2\"", "stroke-width=\"3.5\"")).into(),
     }
 }
 
@@ -190,9 +245,14 @@ pub fn button(ui: &egui::Ui, icon: Line) -> egui::Button<'static> {
     egui::Button::image(line(ui, icon, 18.0)).min_size(BUTTON)
 }
 
-/// The same, shown on or off (the tool chosen, a box shown).
+/// The same, shown on or off (the tool chosen, a box shown); framed also when off, as the others.
 pub fn toggle(ui: &egui::Ui, on: bool, icon: Line) -> egui::Button<'static> {
-    egui::Button::selectable(on, line(ui, icon, 18.0)).min_size(BUTTON)
+    egui::Button::image(line(ui, icon, 18.0)).selected(on).min_size(BUTTON)
+}
+
+/// A small button with a line icon, inside a row of text (close a box, fold a panel).
+pub fn small(ui: &egui::Ui, icon: Line) -> egui::Button<'static> {
+    egui::Button::image(line(ui, icon, 13.0)).small()
 }
 
 #[cfg(test)]
@@ -203,7 +263,7 @@ mod tests {
     #[test]
     fn line_icons_draw() {
         use Line::*;
-        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit] {
+        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Rect, Highlight, Text, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Solid, Dashed, Dotted] {
             let img = render(&line_svg(icon).replace("currentColor", "#ff0000"), 24);
             let red = img.pixels.iter().filter(|p| p.a() > 128 && p.r() > 200 && p.g() < 60).count();
             assert!(red > 10, "{icon:?}: {red} pixels");
