@@ -307,4 +307,59 @@ mod tests {
         assert_eq!((std::fs::read(p.join("a.jpg")).unwrap(), std::fs::read(&k.file).unwrap(), k.send), (b"old".to_vec(), b"new".to_vec(), Send::Keeping));
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
+    /// The editor's copy and overwrite on a real server, in a new folder deleted at the end; the
+    /// kept copies in a temporary folder. `EYECANSEE_SFTP=sftp://host/folder/` (or `EYECANSEE_FTP`)
+    /// `cargo test --release … kept::tests::edit_server_live -- --exact --ignored --nocapture`.
+    /// A copy written, never over a name already there; an overwrite with the original in the
+    /// folder's trash; with a trash that cannot be made (a file has its name) nothing changes.
+    #[test]
+    #[ignore]
+    fn edit_server_live() {
+        let url = std::env::var("EYECANSEE_SFTP").or_else(|_| std::env::var("EYECANSEE_FTP")).expect("EYECANSEE_SFTP or EYECANSEE_FTP");
+        let root = std::env::temp_dir().join(format!("eyecansee-kept-live-{}", std::process::id()));
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let s = source::open(&url).unwrap();
+            let home = match &s.op {
+                Store::Sftp(server) => server.home().await.unwrap(),
+                Store::Ftp(server) => server.home().await.unwrap(),
+                _ => panic!("not a server"),
+            };
+            let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+            let dir = format!("{}eyecansee-edit-test-{secs}/", if s.home { &home } else { &s.dir });
+            let op = &s.op;
+            println!("{url}: {dir}");
+            op.create_dir(&dir).await.unwrap();
+            let put = |path: String, data: &'static [u8]| async move { crate::replace::write_whole(op, &path, data.to_vec()).await.unwrap() };
+            put(format!("{dir}a.jpg"), b"original").await;
+            let send = |path: String, data: &'static [u8], how| {
+                let (root, url) = (root.clone(), url.clone());
+                async move { send_in(Some(root), op, &url, &path, data.to_vec(), source::Deletion::TrashFolder, how).await }
+            };
+            // The copy, then the same name again: refused, kept.
+            send(format!("{dir}a (edited).jpg"), b"copy", Send::Create).await.unwrap_or_else(|_| panic!("copy not written"));
+            assert_eq!(op.read(&format!("{dir}a (edited).jpg")).await.unwrap(), b"copy");
+            let Err((e, Some(k))) = send(format!("{dir}a (edited).jpg"), b"again", Send::Create).await else { panic!("written over the copy") };
+            assert_eq!((e.0, k.send), ("error-exists", Send::Create));
+            assert_eq!(op.read(&format!("{dir}a (edited).jpg")).await.unwrap(), b"copy");
+            // Overwrite: the original into the trash of the folder.
+            send(format!("{dir}a.jpg"), b"new", Send::Keeping).await.unwrap_or_else(|_| panic!("not overwritten"));
+            assert_eq!(op.read(&format!("{dir}a.jpg")).await.unwrap(), b"new");
+            assert_eq!(op.read(&format!("{dir}{}/a.jpg", crate::trash::TRASH_DIR)).await.unwrap(), b"original");
+            // A trash that cannot be made: the original stays, nothing hidden is left.
+            op.create_dir(&format!("{dir}b/")).await.unwrap();
+            put(format!("{dir}b/a.jpg"), b"original").await;
+            put(format!("{dir}b/{}", crate::trash::TRASH_DIR), b"a file").await;
+            let Err((e, Some(k))) = send(format!("{dir}b/a.jpg"), b"new", Send::Keeping).await else { panic!("overwritten without a trash") };
+            println!("blocked trash: {e:?}");
+            assert_eq!((op.read(&format!("{dir}b/a.jpg")).await.unwrap(), k.send), (b"original".to_vec(), Send::Keeping));
+            let mut names: Vec<String> = op.names(&format!("{dir}b/")).await.unwrap().into_iter().collect();
+            names.sort();
+            assert_eq!(names, [crate::trash::TRASH_DIR, "a.jpg"]);
+            op.delete(&dir, source::Deletion::Permanent).await.unwrap();
+            assert_eq!(op.check_dir(&dir).await.unwrap_err().0, source::NOT_FOUND);
+            println!("{url}: all done, {dir} deleted");
+        });
+        let _ = std::fs::remove_dir_all(&root);
+    }
 }
