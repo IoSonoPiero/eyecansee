@@ -147,6 +147,11 @@ impl App {
                     w.refit();
                 }
                 w.doc.fill = (!w.transparent).then(|| [w.color.r(), w.color.g(), w.color.b()]);
+                ui.separator();
+                let apply = crate::theme::main_button(ui, i18n.t("rc-apply"));
+                if bar_button(ui, apply, format!("{} ({})\n{}", i18n.t("rc-apply"), i18n.t("key-enter"), i18n.t("rc-apply-hint")), None) {
+                    w.apply_crop();
+                }
             } else {
                 style_bar(ui, w, i18n);
             }

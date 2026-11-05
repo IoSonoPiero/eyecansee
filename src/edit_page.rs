@@ -100,6 +100,8 @@ pub struct Window {
     /// Flips and quarter turns of the viewer, the document's at the start.
     start_turn: Turn,
     tool: Tool,
+    /// The tool before Rotate and crop: Apply goes back to it.
+    before_crop: Tool,
     selected: Option<usize>,
     hold: Option<Hold>,
     objects: Option<(Drawn, TextureHandle)>,
@@ -151,6 +153,7 @@ impl Window {
             history: None,
             start_turn: turn,
             tool,
+            before_crop: Tool::Select,
             selected: None,
             hold: None,
             objects: None,
@@ -264,11 +267,20 @@ impl Window {
         if (tool == Tool::Crop) != (self.tool == Tool::Crop) {
             self.view = None;
         }
+        if tool == Tool::Crop {
+            self.before_crop = self.tool;
+        }
         self.tool = tool;
         if tool != Tool::Select {
             self.selected = None;
         }
         self.hold = None;
+    }
+
+    /// Rotate and crop's Apply (or Enter): back to the tool before, which shows the result.
+    fn apply_crop(&mut self) {
+        let back = self.before_crop;
+        self.choose(back);
     }
 
     /// A quarter turn: the document turns, objects and crop with it (`Doc::turned`).
@@ -501,6 +513,9 @@ impl App {
         }
         if delete && let Some(i) = w.selected.take() {
             w.doc.objects.remove(i);
+        }
+        if w.tool == Tool::Crop && ctx.input_mut(|i| i.consume_key(M::NONE, Key::Enter)) {
+            w.apply_crop();
         }
         let tool = ctx.input_mut(|i| tools::TOOLS.iter().find(|t| i.consume_key(M::NONE, t.3)).map(|t| t.0));
         if let Some(tool) = tool {
