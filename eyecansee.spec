@@ -56,7 +56,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/eyecansee.desktop
 appstreamcli validate --no-net %{buildroot}%{_metainfodir}/io.github.IoSonoPiero.EyeCanSee.metainfo.xml
 
 %files
-%license LICENSE assets/icons/lucide/LICENSE-lucide.txt
+%license LICENSE assets/icons/lucide/LICENSE-lucide.txt assets/fonts/UFL.txt
 %doc README.md
 %{_bindir}/eyecansee
 %{_datadir}/applications/eyecansee.desktop
