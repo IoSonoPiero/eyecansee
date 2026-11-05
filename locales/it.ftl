@@ -51,6 +51,7 @@ sftp-rsa-key = **{ $host }** aperto con una chiave RSA.
     Funziona, ma la libreria RSA usata da EyeCanSee ha un difetto noto non ancora corretto (RUSTSEC-2023-0071): in teoria chi controlla il server, misurando i tempi di moltissimi accessi, potrebbe ricavare la chiave. Meglio passare a una chiave ed25519 (ssh-keygen -t ed25519).
 
     Questo avviso compare una volta per server a ogni avvio di EyeCanSee.
+error-trash-failed = Non è stato possibile spostare l'originale nel cestino: l'originale è intatto. ({ $detail })
 error-not-found = Non trovato: { $detail }
 error-device-busy = Il dispositivo è in uso da un'altra applicazione (per esempio il gestore dei file). Chiudila, oppure scollega e ricollega il dispositivo. ({ $detail })
 error-device-kde = Il telefono è in uso da KDE (il suo servizio kiod). Premi F5 per aprirlo comunque in EyeCanSee. ({ $detail })
@@ -494,6 +495,15 @@ edit-save-confirm = Una copia di **{ $name }** viene salvata accanto all'origina
 edit-loss-lossy = La copia viene **ricodificata** e può perdere un po' di qualità.
 edit-loss-8bit = La copia ha **8 bit per colore**, l'originale di più: l'originale resta com'è, per ciò che li richiede.
 edit-loss-hdr = La copia è un PNG a 16 bit: ciò che nell'originale è **più luminoso del bianco** viene tagliato.
+edit-overwrite-trash = **{ $name }** viene sostituito dall'immagine modificata.
+
+    L'originale va **nel cestino**.
+edit-overwrite-folder = **{ $name }** viene sostituito dall'immagine modificata.
+
+    L'originale va nel **Cestino di questa cartella**, da cui si ripristina con **Apri il cestino**.
+edit-over-loss-lossy = Il file nuovo viene **ricodificato** e può perdere un po' di qualità.
+edit-over-loss-8bit = Il file nuovo ha **8 bit per colore**, l'originale di più.
+edit-over-loss-hdr = Il file nuovo ha 16 bit per colore: ciò che nell'originale è **più luminoso del bianco** viene tagliato.
 edit-leave = Le modifiche a **{ $name }** non sono salvate.
 
     { "**" }Salva** crea una copia accanto all'originale, **Salva come…** un file nuovo dove scegli, **Non salvare** le perde.

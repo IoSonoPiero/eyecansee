@@ -87,18 +87,19 @@ impl App {
         }
     }
 
-    /// What the copy loses, a line each: encoded again, fewer bits, highlights cut.
-    fn losses(&self, s: &Saved) -> String {
-        let mut lines = Vec::new();
+    /// What the copy (or the file written over the original, `over`) loses, a line each: encoded
+    /// again, fewer bits, highlights cut.
+    fn losses(&self, s: &Saved, over: bool) -> String {
+        let mut ids = Vec::new();
         if s.lossy {
-            lines.push(self.i18n.t("edit-loss-lossy"));
+            ids.push(if over { "edit-over-loss-lossy" } else { "edit-loss-lossy" });
         }
         match s.depth {
-            Depth::To8Bits => lines.push(self.i18n.t("edit-loss-8bit")),
-            Depth::HdrCut => lines.push(self.i18n.t("edit-loss-hdr")),
+            Depth::To8Bits => ids.push(if over { "edit-over-loss-8bit" } else { "edit-loss-8bit" }),
+            Depth::HdrCut => ids.push(if over { "edit-over-loss-hdr" } else { "edit-loss-hdr" }),
             Depth::Kept => {}
         }
-        lines.iter().map(|l| format!("\n\n{l}")).collect()
+        ids.iter().map(|id| format!("\n\n{}", self.i18n.t(id))).collect()
     }
 
     /// The confirmation: the copy's name, or over the original with where the original goes
@@ -114,7 +115,7 @@ impl App {
         } else {
             (self.i18n.t_args("edit-save-confirm", &[("name", &md(source::name(&w.path))), ("copy", &md(&saved.name))]), self.i18n.t("save-yes"))
         };
-        let text = format!("{text}{}", self.losses(&saved));
+        let text = format!("{text}{}", self.losses(&saved, over));
         let no = self.i18n.t("delete-no");
         match confirm::yes_no(ctx, "edit-save", 460.0, text, yes, true, no, self.delete_answer.take()) {
             Some(true) => {
@@ -170,11 +171,11 @@ impl App {
     }
 }
 
-/// The question of an overwrite by where the original goes.
+/// The question of an overwrite by where the original goes: always a trash (`edit_confirm` asks
+/// for one), never deleted for good.
 fn trash_id(how: Deletion) -> &'static str {
     match how {
-        Deletion::SystemTrash => "save-confirm-trash",
-        Deletion::TrashFolder => "save-confirm-folder",
-        Deletion::Permanent => "save-confirm-permanent",
+        Deletion::SystemTrash => "edit-overwrite-trash",
+        Deletion::TrashFolder | Deletion::Permanent => "edit-overwrite-folder",
     }
 }

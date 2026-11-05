@@ -52,6 +52,7 @@ sftp-rsa-key = **{ $host }** opened with an RSA key.
     It works, but the RSA library EyeCanSee uses has a known flaw with no fix yet (RUSTSEC-2023-0071): in theory whoever controls the server, by timing a great many logins, could work out the key. Better switch to an ed25519 key (ssh-keygen -t ed25519).
 
     This warning appears once per server each time EyeCanSee starts.
+error-trash-failed = The original could not be moved to the trash: the original is unchanged. ({ $detail })
 error-not-found = Not found: { $detail }
 error-device-busy = The device is in use by another application (for example the file manager). Close it, or disconnect and reconnect the device. ({ $detail })
 error-device-kde = KDE is using the phone (its kiod service). Press F5 to open it in EyeCanSee anyway. ({ $detail })
@@ -495,6 +496,15 @@ edit-save-confirm = A copy of **{ $name }** is saved next to it as **{ $copy }**
 edit-loss-lossy = The copy is **encoded again** and may lose a little quality.
 edit-loss-8bit = The copy has **8 bits per colour**, the original more: the original stays as it is, for what needs them.
 edit-loss-hdr = The copy is a 16-bit PNG: what is **brighter than white** in the original is cut.
+edit-overwrite-trash = **{ $name }** is replaced by the edited image.
+
+    The original goes **to the trash**.
+edit-overwrite-folder = **{ $name }** is replaced by the edited image.
+
+    The original goes to **this folder's Trash**, where **Open the trash** restores it.
+edit-over-loss-lossy = The new file is **encoded again** and may lose a little quality.
+edit-over-loss-8bit = The new file has **8 bits per colour**, the original more.
+edit-over-loss-hdr = The new file has 16 bits per colour: what is **brighter than white** in the original is cut.
 edit-leave = The changes to **{ $name }** are not saved.
 
     { "**" }Save** makes a copy next to the original, **Save as…** a new file where you choose, **Don't save** loses them.

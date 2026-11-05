@@ -83,7 +83,7 @@ async fn swap(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion, stri
     // own name (restoring it from there gives it back), `old` being a second name of it.
     let left = match how {
         source::Deletion::SystemTrash => match op.link_or_copy(path, &old).await {
-            Ok(()) => op.delete(path, how).await,
+            Ok(()) => op.delete(path, how).await.map_err(|e| if strict { trash_failed(e) } else { e }),
             Err(e) => Err(e),
         },
         _ => op.rename(path, source::name(&old)).await.map(|_| ()),
@@ -102,10 +102,15 @@ async fn swap(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion, stri
         log!("save {path:?}: original kept as {old:?}: {e:?}");
         if strict && how == source::Deletion::TrashFolder {
             back(op, path, &new, &old).await;
-            return Err(e);
+            return Err(trash_failed(e));
         }
     }
     Ok(())
+}
+
+/// The original could not go to the trash: said plainly, what went wrong (id and detail) at the end.
+fn trash_failed(e: source::Error) -> source::Error {
+    ("error-trash-failed", format!("{}: {}", e.0, e.1))
 }
 
 /// The new image, already under the original's name, leaves it again; the original, waiting as
@@ -166,7 +171,8 @@ mod tests {
             v.sort();
             v
         };
-        assert!(rt.block_on(replace_keeping(&op, "blocked/a.jpg", b"new".to_vec(), Deletion::TrashFolder)).is_err());
+        let e = rt.block_on(replace_keeping(&op, "blocked/a.jpg", b"new".to_vec(), Deletion::TrashFolder)).unwrap_err();
+        assert_eq!(e.0, "error-trash-failed", "{e:?}");
         assert_eq!(std::fs::read(blocked.join("a.jpg")).unwrap(), b"original");
         assert_eq!(names("blocked"), [crate::trash::TRASH_DIR, "a.jpg"]);
         // `replace` goes on: the new image in place, the original left hidden.
