@@ -47,7 +47,7 @@ fn svg(doc: &Doc, (w, h): (u32, u32), view: &View) -> String {
     let (iw, ih) = if doc.turn.sideways() { (h, w) } else { (w, h) };
     let (left, top) = crate::rotate::corner(iw as f32, ih as f32, doc.crop);
     let (tx, ty) = (-(left + view.x), -(top + view.y));
-    let mut out = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" width="{}" height="{}"><g transform="scale({}) translate({tx} {ty}) rotate({})">"#, view.w, view.h, view.scale, doc.angle);
+    let mut out = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{}" height="{}"><g transform="scale({}) translate({tx} {ty}) rotate({})">"#, view.w, view.h, view.scale, doc.angle);
     for o in &doc.objects {
         object(&mut out, o);
     }
@@ -77,6 +77,8 @@ fn object(out: &mut String, o: &Obj) {
         Shape::Text { at, text, size, rot, font } => self::text(out, (*at, *size, *rot), text, font.as_deref(), &fill),
         // Solid, no soft edge; when saving written into the pixels instead.
         Shape::Cover(area) => write!(out, r#"<rect {} {fill} shape-rendering="crispEdges"/>"#, rect(area)),
+        // The picture stretched over its box, turned with it.
+        Shape::Patch { area, pixels } => write!(out, r#"<image {} preserveAspectRatio="none" xlink:href="data:image/png;base64,{}"/>"#, rect(area), pixels.png_base64()),
     };
     out.push_str("</g>");
 }
@@ -437,5 +439,16 @@ pub(crate) mod tests {
         let p = draw(&d, &whole(&d));
         let c = |x, y| { let c = p.pixel(x, y).unwrap().demultiply(); (c.red(), c.green(), c.blue(), c.alpha()) };
         assert_eq!((c(50, 40), c(30, 40)), ((0, 0, 255, 255), (255, 0, 0, 255)));
+    }
+
+    /// A patch: its pixels where its box is, stretched to it.
+    #[test]
+    fn patch_drawn_in_its_box() {
+        let pixels = crate::edit::doc::Pixels::new(image::RgbaImage::from_fn(4, 2, |x, _| if x < 2 { image::Rgba([0, 0, 255, 255]) } else { image::Rgba([0, 255, 0, 255]) }));
+        let d = doc(vec![Obj { shape: Shape::Patch { area: area(0.0, 0.0, 40.0, 20.0), pixels }, style: style() }]);
+        let p = draw(&d, &whole(&d));
+        let c = |x, y| { let c = p.pixel(x, y).unwrap().demultiply(); (c.red(), c.green(), c.blue(), c.alpha()) };
+        // The box from 30 to 70: its left half blue, its right half green, nothing outside.
+        assert_eq!((c(35, 40), c(65, 40), c(20, 40).3), ((0, 0, 255, 255), (0, 255, 0, 255), 0));
     }
 }

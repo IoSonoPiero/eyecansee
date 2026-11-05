@@ -62,6 +62,8 @@ pub(super) fn canvas(ui: &mut egui::Ui, w: &mut Window, tex: &TextureHandle, siz
     let view = View { centre: rect.center(), at, k };
     if crop_tool {
         mouse(ui, w, &response, &view, rect);
+    } else if w.tool == Tool::Marquee {
+        marquee_mouse(ui, w, &response, &view, rect);
     } else {
         objects_mouse(ui, w, &response, &view, rect);
     }
@@ -107,6 +109,9 @@ fn paint(ui: &egui::Ui, w: &mut Window, tex: &TextureHandle, view: &View, rect: 
         }
         if let Some(o) = w.selected.and_then(|i| w.doc.objects.get(i)) {
             selection(&painter, o, view, w.doc.angle);
+        }
+        if let Some(a) = w.marquee {
+            ants(&painter, a, view, w.doc.angle);
         }
     }
 }
@@ -348,6 +353,7 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
             Hold::Move { index, start, from } => w.doc.objects[*index] = geom::moved(start, Pt::new(p.x - from.x, p.y - from.y)),
             Hold::Handle { index, handle, start } => w.doc.objects[*index] = geom::with_handle(start, *handle, p),
             Hold::Pan { at, k, from } => w.view = Some((*at - (s - *from) / *k, *k)),
+            Hold::Marquee { .. } => {}
             Hold::Draw { kind, from, index } => match (geom::drawn(*kind, *from, p, angle, w.style(*kind)), *index) {
                 (Some(o), Some(i)) => w.doc.objects[i] = o,
                 (Some(o), None) => {
@@ -394,6 +400,48 @@ fn picked(w: &mut Window, view: &View, s: Pos2, p: Pt, tol: f32) -> Hold {
             w.selected = None;
             Hold::Pan { at: view.at, k: view.k, from: s }
         }
+    }
+}
+
+/// The selection's outline: black dashes on white, seen on any photo.
+fn ants(painter: &egui::Painter, a: crate::edit::doc::Area, view: &View, angle: f32) {
+    let o = Obj { shape: Shape::Rect(a), style: crate::edit::doc::Style::default() };
+    let mut points: Vec<Pos2> = geom::handles(&o).into_iter().map(|p| view.of(p, angle)).collect();
+    points.push(points[0]);
+    painter.add(egui::Shape::line(points.clone(), egui::Stroke::new(1.5, Color32::WHITE)));
+    painter.extend(egui::Shape::dashed_line(&points, egui::Stroke::new(1.5, Color32::BLACK), 6.0, 4.0));
+}
+
+/// Selection: a drag chooses a part of the image (upright on the screen), a click lets it go;
+/// the right or middle button moves the view.
+fn marquee_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, rect: Rect) {
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(if matches!(w.hold, Some(Hold::Pan { .. })) { CursorIcon::Grabbing } else { CursorIcon::Crosshair });
+    }
+    let pan = response.dragged_by(egui::PointerButton::Secondary) || response.dragged_by(egui::PointerButton::Middle);
+    if response.drag_started()
+        && let Some(s) = ui.input(|i| i.pointer.press_origin()).or(response.interact_pointer_pos())
+    {
+        w.hold = Some(if pan { Hold::Pan { at: view.at, k: view.k, from: s } } else { Hold::Marquee { from: view.doc(s, w.doc.angle) } });
+    }
+    if let Some(s) = response.interact_pointer_pos() {
+        match &w.hold {
+            Some(Hold::Marquee { from }) => {
+                let drawn = geom::drawn(Kind::Rect, *from, view.doc(s, w.doc.angle), w.doc.angle, crate::edit::doc::Style::default());
+                w.marquee = drawn.and_then(|o| if let Shape::Rect(a) = o.shape { Some(a) } else { None });
+            }
+            Some(Hold::Pan { at, k, from }) => w.view = Some((*at - (s - *from) / *k, *k)),
+            _ => {}
+        }
+    }
+    if response.drag_stopped() {
+        w.hold = None;
+    }
+    if response.clicked() {
+        w.marquee = None;
+    }
+    if response.hovered() {
+        wheel(ui, w, view, rect, false);
     }
 }
 

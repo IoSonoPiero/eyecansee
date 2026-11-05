@@ -16,8 +16,9 @@ use crate::icons::{self, Line};
 use crate::transform::Op;
 
 /// The tools: icon, name, key (alone, no Ctrl).
-pub(super) const TOOLS: [(Tool, Line, &str, Key); 8] = [
+pub(super) const TOOLS: [(Tool, Line, &str, Key); 9] = [
     (Tool::Select, Line::Select, "edit-tool-select", Key::V),
+    (Tool::Marquee, Line::Marquee, "edit-tool-marquee", Key::M),
     (Tool::Draw(Kind::Arrow), Line::Arrow, "edit-tool-arrow", Key::A),
     (Tool::Draw(Kind::Line), Line::Stroke, "edit-tool-line", Key::L),
     (Tool::Draw(Kind::Rect), Line::Rect, "edit-tool-rect", Key::R),
@@ -138,7 +139,7 @@ impl App {
     }
 
     /// The bar under the tools: Rotate and crop's controls, or the style of the object.
-    pub(super) fn props_bar(&self, ui: &mut egui::Ui, w: &mut Window) {
+    pub(super) fn props_bar(&mut self, ui: &mut egui::Ui, w: &mut Window) {
         let i18n = &self.i18n;
         // Wrapped: with the border and the fill of a rectangle it may not fit in one row.
         ui.horizontal_wrapped(|ui| {
@@ -152,6 +153,10 @@ impl App {
                 let apply = crate::theme::main_button(ui, i18n.t("rc-apply"));
                 if bar_button(ui, apply, format!("{} ({})\n{}", i18n.t("rc-apply"), i18n.t("key-enter"), i18n.t("rc-apply-hint")), None) {
                     w.apply_crop();
+                }
+            } else if w.tool == Tool::Marquee {
+                if let Some(act) = marquee_bar(ui, w, i18n) {
+                    self.act = Some(act);
                 }
             } else if style_bar(ui, w, i18n) && !w.screen_picking {
                 // The desktop's picker, in the background: its answer comes as `Msg::EditPicked`.
@@ -210,10 +215,27 @@ impl App {
     }
 }
 
+/// Selection's bar: copy, cut, paste, with their keys and why they are off.
+fn marquee_bar(ui: &mut egui::Ui, w: &Window, i18n: &I18n) -> Option<Act> {
+    let none = w.marquee.is_none().then(|| i18n.t("edit-off-no-marquee"));
+    let mut act = None;
+    if bar_button(ui, icons::button(ui, Line::Copy), tip(i18n, "edit-copy-part", "Ctrl+C"), none.clone()) {
+        act = Some(Act::EditCopy);
+    }
+    if bar_button(ui, icons::button(ui, Line::Cut), tip(i18n, "edit-cut-part", "Ctrl+X"), none) {
+        act = Some(Act::EditCut);
+    }
+    if bar_button(ui, icons::button(ui, Line::Paste), tip(i18n, "edit-paste-part", "Ctrl+V"), w.clip.is_none().then(|| i18n.t("edit-off-no-clip"))) {
+        act = Some(Act::EditPaste(None));
+    }
+    act
+}
+
 /// The short hint of the status bar for the tool.
 fn hint_id(tool: Tool) -> &'static str {
     match tool {
         Tool::Select => "edit-tip-select",
+        Tool::Marquee => "edit-tip-marquee",
         Tool::Crop => "edit-tip-crop",
         Tool::Draw(Kind::Text) => "edit-tip-text",
         Tool::Draw(Kind::Cover) => "edit-tip-cover",
@@ -251,8 +273,11 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     if kind == Kind::Rect {
         ui.label(i18n.t("edit-border"));
     }
-    colours(ui, &mut style.color, i18n);
-    let screen = eyedroppers(ui, w, i18n);
+    // A piece of image has its own colours.
+    let screen = kind != Kind::Patch && {
+        colours(ui, &mut style.color, i18n);
+        eyedroppers(ui, w, i18n)
+    };
     if kind == Kind::Rect {
         ui.separator();
         ui.label(i18n.t("edit-fill"));
@@ -313,7 +338,7 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
     match kind {
         Kind::Line | Kind::Arrow | Kind::Rect => slider(ui, t("edit-width"), &mut style.width, 1.0..=max, " px"),
         Kind::Text => slider(ui, t("edit-size"), &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
-        Kind::Highlight | Kind::Cover => {}
+        Kind::Highlight | Kind::Cover | Kind::Patch => {}
     }
     if kind != Kind::Cover {
         let mut pct = style.opacity * 100.0;

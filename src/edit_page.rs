@@ -67,6 +67,8 @@ enum Grab {
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Tool {
     Select,
+    /// A part of the image chosen, to copy, cut or (later) filter.
+    Marquee,
     Draw(Kind),
     Crop,
 }
@@ -78,6 +80,8 @@ enum Hold {
     /// The object drawn is at `index` once the drag is long enough.
     Draw { kind: Kind, from: Pt, index: Option<usize> },
     Pan { at: Vec2, k: f32, from: Pos2 },
+    /// The selection being drawn, from where the drag started.
+    Marquee { from: Pt },
 }
 
 /// What the texture of the objects was drawn for.
@@ -123,6 +127,10 @@ pub struct Window {
     picked: Option<[u8; 3]>,
     /// I pressed: the eyedropper as if its button were clicked.
     ask_pick: bool,
+    /// The part of the image chosen with Selection (upright on the screen when drawn).
+    marquee: Option<crate::edit::doc::Area>,
+    /// A part copied or cut: Paste puts it back as a patch where it was (a little aside).
+    clip: Option<(crate::edit::doc::Area, crate::edit::doc::Pixels)>,
     /// A line under the buttons ("Copied…") and until when (seconds of `egui::InputState::time`).
     note: Option<(String, f64)>,
     copying: bool,
@@ -179,6 +187,8 @@ impl Window {
             screen_picking: false,
             picked: None,
             ask_pick: false,
+            marquee: None,
+            clip: None,
             note: None,
             copying: false,
             follow: Follow::Inside,
@@ -290,6 +300,9 @@ impl Window {
             }
             return true;
         }
+        if self.marquee.take().is_some() {
+            return true;
+        }
         let Some(i) = self.selected.take() else { return false };
         self.focus_text = false;
         if let Some(Shape::Text { text, .. }) = self.doc.objects.get(i).map(|o| &o.shape)
@@ -311,6 +324,9 @@ impl Window {
         }
         if tool == Tool::Crop {
             self.before_crop = self.tool;
+        }
+        if tool != Tool::Marquee {
+            self.marquee = None;
         }
         self.tool = tool;
         if tool != Tool::Select {
@@ -611,8 +627,12 @@ impl App {
         }
     }
 
-    /// Ctrl+C or Copy: the result at full size, made in the background (`Msg::EditCopy`).
+    /// Ctrl+C or Copy: the result at full size, made in the background (`Msg::EditCopy`); with
+    /// Selection, the part chosen (kept for Paste, and in the clipboard for other programs).
     pub(crate) fn edit_copy(&mut self, ctx: &egui::Context) {
+        if self.copy_part(ctx) {
+            return;
+        }
         let Some(w) = &mut self.editor else { return };
         let Some(Ok((original, ..))) = &w.original else { return };
         if w.copying {
@@ -637,6 +657,59 @@ impl App {
             Err(e) if e == "cancelled" => {}
             Err(e) => w.note = Some((self.i18n.t_args("edit-pick-failed", &[("detail", &e)]), ctx.input(|i| i.time) + 6.0)),
         }
+    }
+
+    /// The part chosen with Selection copied: `false` when there is none.
+    fn copy_part(&mut self, ctx: &egui::Context) -> bool {
+        let Some(w) = &mut self.editor else { return false };
+        let (Some(area), Some(Ok((original, ..)))) = (w.marquee, &w.original) else { return false };
+        let pixels = crate::edit::doc::Pixels::new(w.doc.pixels_under(&original.image, &area));
+        let img = pixels.image();
+        ctx.copy_image(ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()));
+        w.clip = Some((area, pixels));
+        w.note = Some((self.i18n.t("edit-part-copied"), ctx.input(|i| i.time) + 4.0));
+        true
+    }
+
+    /// Ctrl+X or Cut: the part copied, then covered with the colour of the empty corners (white
+    /// without one); a cover box, so nothing of it is left in the saved file.
+    pub(crate) fn edit_cut(&mut self, ctx: &egui::Context) {
+        if !self.copy_part(ctx) {
+            return;
+        }
+        let Some(w) = &mut self.editor else { return };
+        let Some(area) = w.marquee.take() else { return };
+        let color = w.doc.fill.unwrap_or([255, 255, 255]);
+        w.doc.objects.push(Obj { shape: Shape::Cover(area), style: Style { color, ..Style::default() } });
+    }
+
+    /// Ctrl+V or Paste: the part copied, as a patch a little aside of where it was; without one,
+    /// an image from the clipboard of another program, in the middle of the result, at most 80% of
+    /// it. Selected, with Select chosen to move it.
+    pub(crate) fn edit_paste(&mut self, img: Option<std::sync::Arc<ColorImage>>) {
+        let Some(w) = &mut self.editor else { return };
+        // An image of another size in the clipboard was copied elsewhere after the part: it wins.
+        let clip = w.clip.as_ref().filter(|(_, p)| img.as_ref().is_none_or(|i| i.size == [p.image().width() as usize, p.image().height() as usize]));
+        let (area, pixels) = match (clip, img) {
+            (Some((a, p)), _) => {
+                let step = w.long() / 40.0;
+                (crate::edit::doc::Area { centre: Pt::new(a.centre.x + step, a.centre.y + step), ..*a }, p.clone())
+            }
+            (None, Some(img)) => {
+                let rgba: Vec<u8> = img.pixels.iter().flat_map(|c| c.to_srgba_unmultiplied()).collect();
+                let Some(image) = image::RgbaImage::from_raw(img.size[0] as u32, img.size[1] as u32, rgba) else { return };
+                let c = w.doc.crop;
+                let k = (0.8 * c.w / image.width() as f32).min(0.8 * c.h / image.height() as f32).min(1.0);
+                // Upright on the screen, in the middle of what is shown.
+                let centre = crate::edit::geom::turned(Pt::new(c.cx, c.cy), -w.doc.angle);
+                (crate::edit::doc::Area { centre, w: image.width() as f32 * k, h: image.height() as f32 * k, rot: -w.doc.angle }, crate::edit::doc::Pixels::new(image))
+            }
+            (None, None) => return,
+        };
+        w.doc.objects.push(Obj { shape: Shape::Patch { area, pixels }, style: Style::default() });
+        w.selected = Some(w.doc.objects.len() - 1);
+        w.choose(Tool::Select);
+        w.marquee = None;
     }
 
     pub(crate) fn on_edit_copy(&mut self, ctx: &egui::Context, img: ColorImage) {

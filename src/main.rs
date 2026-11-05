@@ -628,15 +628,18 @@ impl eframe::App for App {
         let mods = ctx.input(|i| i.modifiers);
         let shift_del = cfg!(windows) && mods.shift && !mods.command;
         let act = &mut self.act;
-        // In the editor Ctrl+C copies the result; cutting and pasting files does not start there.
+        // In the editor Ctrl+C copies the result (with Selection, that part), Ctrl+X cuts the part,
+        // Ctrl+V pastes it, or an image copied in another program; no files are cut or pasted there.
         if self.editor.is_some() {
-            raw_input.events.retain(|e| match e {
-                egui::Event::Copy => {
-                    *act = Some(Act::EditCopy);
-                    false
-                }
-                egui::Event::Cut | egui::Event::Paste(_) | egui::Event::PasteImage(_) => false,
-                _ => true,
+            raw_input.events.retain(|e| {
+                *act = match e {
+                    egui::Event::Copy => Some(Act::EditCopy),
+                    egui::Event::Cut => Some(Act::EditCut),
+                    egui::Event::Paste(_) => Some(Act::EditPaste(None)),
+                    egui::Event::PasteImage(img) => Some(Act::EditPaste(Some(img.clone()))),
+                    _ => return true,
+                };
+                false
             });
             return;
         }

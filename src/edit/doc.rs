@@ -4,6 +4,8 @@
 //! centre of the image (x to the right, y down, as `rotate::Crop`): a change of crop leaves them
 //! over the same part of the image, and a flip or quarter turn only changes signs, so it is exact.
 
+use std::sync::{Arc, OnceLock};
+
 use serde::{Deserialize, Serialize};
 
 use crate::rotate::{Crop, Edit};
@@ -67,6 +69,61 @@ pub enum Shape {
     Text { at: Pt, text: String, size: f32, rot: f32, font: Option<String> },
     /// Solid box over private data: nothing under it is left in the saved file.
     Cover(Area),
+    /// A piece of image (copied or cut with Selection, or pasted from another program) stretched
+    /// over `area`.
+    Patch { area: Area, pixels: Pixels },
+}
+
+/// The pixels of a patch, RGBA 8 bits. Shared by the states of the history and compared by
+/// identity, never pixel by pixel; the PNG the drawing needs is made once.
+#[derive(Clone)]
+pub struct Pixels(Arc<(image::RgbaImage, OnceLock<String>)>);
+
+impl Pixels {
+    pub fn new(image: image::RgbaImage) -> Pixels {
+        Pixels(Arc::new((image, OnceLock::new())))
+    }
+
+    pub fn image(&self) -> &image::RgbaImage {
+        &self.0.0
+    }
+
+    /// The pixels as a PNG in base64, for an SVG `<image>`; made the first time.
+    pub fn png_base64(&self) -> &str {
+        self.0.1.get_or_init(|| {
+            use base64::Engine;
+            let mut png = Vec::new();
+            let encoder = image::codecs::png::PngEncoder::new_with_quality(&mut png, image::codecs::png::CompressionType::Fast, image::codecs::png::FilterType::Sub);
+            let img = self.image();
+            let _ = image::ImageEncoder::write_image(encoder, img.as_raw(), img.width(), img.height(), image::ExtendedColorType::Rgba8);
+            base64::engine::general_purpose::STANDARD.encode(png)
+        })
+    }
+
+    /// The same pixels turned or flipped as `op` does to the image.
+    fn turned(&self, op: Op) -> Pixels {
+        use image::imageops;
+        let img = self.image();
+        Pixels::new(match op {
+            Op::Cw => imageops::rotate90(img),
+            Op::Ccw => imageops::rotate270(img),
+            Op::Half => imageops::rotate180(img),
+            Op::FlipH => imageops::flip_horizontal(img),
+            Op::FlipV => imageops::flip_vertical(img),
+        })
+    }
+}
+
+impl PartialEq for Pixels {
+    fn eq(&self, other: &Pixels) -> bool {
+        Arc::ptr_eq(&self.0, &other.0)
+    }
+}
+
+impl std::fmt::Debug for Pixels {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "Pixels({}×{})", self.image().width(), self.image().height())
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
@@ -134,6 +191,8 @@ impl Obj {
             Shape::Rect(r) => Shape::Rect(r.turned(op)),
             Shape::Highlight(r) => Shape::Highlight(r.turned(op)),
             Shape::Cover(r) => Shape::Cover(r.turned(op)),
+            // The box turns as the others; the picture in it turns (or flips) as the image did.
+            Shape::Patch { area, pixels } => Shape::Patch { area: area.turned(op), pixels: pixels.turned(op) },
             Shape::Text { at, text, size, rot, font } => Shape::Text { at: at.turned(op), text: text.clone(), size: *size, rot: if is_flip(op) { -rot } else { *rot }, font: font.clone() },
         };
         Obj { shape, style: self.style }
@@ -173,6 +232,22 @@ impl Doc {
             self.angle = -self.angle;
         }
         self.objects = self.objects.iter().map(|o| o.turned(op)).collect();
+    }
+
+    /// The pixels of the photo `img` (upright, as read) under the box `a`, one per pixel of the
+    /// box, along its own sides; transparent where the box goes past the photo. The objects
+    /// drawn are not in them. At most 8000 pixels a side.
+    pub fn pixels_under(&self, img: &image::DynamicImage, a: &Area) -> image::RgbaImage {
+        use image::GenericImageView;
+        let (w, h) = (a.w.round().clamp(1.0, 8000.0) as u32, a.h.round().clamp(1.0, 8000.0) as u32);
+        let (s, c) = a.rot.to_radians().sin_cos();
+        let (iw, ih) = (img.width() as f32, img.height() as f32);
+        image::RgbaImage::from_fn(w, h, |u, v| {
+            let (x, y) = ((u as f32 + 0.5) * a.w / w as f32 - a.w / 2.0, (v as f32 + 0.5) * a.h / h as f32 - a.h / 2.0);
+            let q = self.source(Pt::new(a.centre.x + x * c - y * s, a.centre.y + x * s + y * c));
+            let (px, py) = (q.x + iw / 2.0, q.y + ih / 2.0);
+            if px >= 0.0 && py >= 0.0 && px < iw && py < ih { img.get_pixel(px as u32, py as u32) } else { image::Rgba([0; 4]) }
+        })
     }
 
     /// The point of the upright image, from its centre, that `p` (from the centre of the image
@@ -222,7 +297,7 @@ pub(crate) mod tests {
             .iter()
             .flat_map(|o| match &o.shape {
                 Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => [*a, *b].into_iter().chain(*c).collect(),
-                Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) => vec![r.centre],
+                Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) | Shape::Patch { area: r, .. } => vec![r.centre],
                 Shape::Text { at, .. } => vec![*at],
             })
             .collect()
@@ -351,5 +426,22 @@ pub(crate) mod tests {
                 assert!(diff <= if angle == 0.0 { 0 } else { 2 }, "{op:?} {angle}: {diff}");
             }
         }
+    }
+
+    /// The pixels under a box are those of the photo there, also with the image turned: a box
+    /// over the top left quarter gives the top left quarter, wherever the turn put it.
+    #[test]
+    fn pixels_under_a_box() {
+        let img = DynamicImage::ImageRgb8(RgbImage::from_fn(8, 6, |x, y| image::Rgb([x as u8 * 30, y as u8 * 40, 7])));
+        let quarter = img.crop_imm(0, 0, 4, 3).to_rgba8();
+        let mut d = Doc::new(8, 6, None);
+        let a = Area { centre: Pt::new(-2.0, -1.5), w: 4.0, h: 3.0, rot: 0.0 };
+        assert_eq!(d.pixels_under(&img, &a), quarter);
+        d.turned(Op::Cw);
+        let turned = Area { centre: Pt::new(-2.0, -1.5), w: 4.0, h: 3.0, rot: 0.0 }.turned(Op::Cw);
+        assert_eq!(d.pixels_under(&img, &turned), image::imageops::rotate90(&quarter));
+        // Past the photo: transparent.
+        let out = d.pixels_under(&img, &Area { centre: Pt::new(20.0, 0.0), w: 2.0, h: 2.0, rot: 0.0 });
+        assert!(out.pixels().all(|p| p[3] == 0));
     }
 }

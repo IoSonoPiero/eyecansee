@@ -57,8 +57,12 @@ pub(crate) enum Act {
     RotateCrop(Option<String>),
     /// Edit image…: the editor on one image (`None` = the selected one or the one in the viewer).
     Edit(Option<String>),
-    /// The editor's result to the clipboard (Ctrl+C or Copy there).
+    /// The editor's result to the clipboard (Ctrl+C or Copy there); with Selection, that part.
     EditCopy,
+    /// Selection: the part copied, then covered with the background colour.
+    EditCut,
+    /// The part copied, as a patch; or an image from the clipboard of another program.
+    EditPaste(Option<std::sync::Arc<eframe::egui::ColorImage>>),
     /// The turned image saved over the original (after a confirmation).
     Save,
     /// Puts back from the trash an item, or everything if it is a trash folder (`None` = selected).
@@ -123,6 +127,8 @@ impl Act {
             Act::RotateCrop(_) => Line::Crop,
             Act::Edit(_) => Line::Edit,
             Act::EditCopy | Act::Copy(_) => Line::Copy,
+            Act::EditCut => Line::Cut,
+            Act::EditPaste(_) => Line::Paste,
             Act::Save => Line::Save,
             Act::Restore(_) => Line::Undo,
             Act::Cut(_) => Line::Cut,
@@ -249,6 +255,8 @@ impl App {
             Act::RotateCrop(path) => self.open_editor(path, crate::edit_page::Tool::Crop),
             Act::Edit(path) => self.open_editor(path, crate::edit_page::Tool::Select),
             Act::EditCopy => self.edit_copy(ctx),
+            Act::EditCut => self.edit_cut(ctx),
+            Act::EditPaste(img) => self.edit_paste(img),
             Act::Save => self.ask_save(),
             Act::Submenu(_) | Act::Off(_) => {}
             Act::Restore(path) => self.ask_restore(path),
