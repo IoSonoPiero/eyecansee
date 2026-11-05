@@ -140,7 +140,8 @@ impl App {
     /// The bar under the tools: Rotate and crop's controls, or the style of the object.
     pub(super) fn props_bar(&self, ui: &mut egui::Ui, w: &mut Window) {
         let i18n = &self.i18n;
-        ui.horizontal(|ui| {
+        // Wrapped: with the border and the fill of a rectangle it may not fit in one row.
+        ui.horizontal_wrapped(|ui| {
             ui.set_min_height(icons::BUTTON.y);
             if w.tool == Tool::Crop {
                 if super::crop::controls(ui, w, i18n) {
@@ -247,8 +248,16 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     // "what is the opacity for, if nothing is selected?").
     let whose = if selected.is_some() { ("edit-props-selected", "edit-props-selected-hint") } else { ("edit-props-next", "edit-props-next-hint") };
     ui.weak(i18n.t(whose.0)).on_hover_text(i18n.t(whose.1));
+    if kind == Kind::Rect {
+        ui.label(i18n.t("edit-border"));
+    }
     colours(ui, &mut style.color, i18n);
     let screen = eyedroppers(ui, w, i18n);
+    if kind == Kind::Rect {
+        ui.separator();
+        ui.label(i18n.t("edit-fill"));
+        fill_colours(ui, &mut style.fill, i18n);
+    }
     style_controls(ui, &mut style, kind, w.long(), i18n);
     if kind == Kind::Text {
         ui.separator();
@@ -329,8 +338,10 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
     }
 }
 
-/// The ready-made colours as swatches, the one in use ringed, then any other colour.
-fn colours(ui: &mut egui::Ui, color: &mut [u8; 3], i18n: &I18n) {
+/// The ready-made colours as swatches, the one in use ringed, then any other colour; `true` when
+/// one is chosen.
+fn colours(ui: &mut egui::Ui, color: &mut [u8; 3], i18n: &I18n) -> bool {
+    let mut chosen = false;
     ui.spacing_mut().item_spacing.x = 4.0;
     let ring = ui.visuals().selection.stroke.color;
     for (c, id) in COLOURS {
@@ -344,10 +355,12 @@ fn colours(ui: &mut egui::Ui, color: &mut [u8; 3], i18n: &I18n) {
         }
         if r.on_hover_text(i18n.t(id)).clicked() {
             *color = c;
+            chosen = true;
         }
     }
-    egui::color_picker::color_edit_button_srgb(ui, color).on_hover_text(i18n.t("edit-col-other"));
+    chosen |= egui::color_picker::color_edit_button_srgb(ui, color).on_hover_text(i18n.t("edit-col-other")).changed();
     ui.spacing_mut().item_spacing.x = 8.0;
+    chosen
 }
 
 /// The font of the selected text: pointing at one in the list shows the text in it, choosing one
@@ -407,6 +420,41 @@ fn text_angle(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     ui.spacing_mut().slider_width = 110.0;
     if ui.add(egui::Slider::new(&mut shown, -180.0..=180.0).integer().suffix("°")).changed() {
         *rot = shown - angle;
+    }
+}
+
+/// `colours` with none ringed (a colour no swatch has).
+fn colours_unringed(ui: &mut egui::Ui, colour: &mut [u8; 3], i18n: &I18n) -> bool {
+    // ponytail: almost white, no swatch has it, and the button of any other colour looks empty.
+    let mut probe = [254, 254, 254];
+    let chosen = colours(ui, &mut probe, i18n);
+    if chosen {
+        *colour = probe;
+    }
+    chosen
+}
+
+/// The inside of a rectangle: none (a white square crossed in red), the ready-made colours, any
+/// other colour.
+fn fill_colours(ui: &mut egui::Ui, fill: &mut Option<[u8; 3]>, i18n: &I18n) {
+    let (rect, r) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::click());
+    let p = ui.painter();
+    let inner = rect.shrink(2.0);
+    p.rect_filled(inner, 3.0, Color32::WHITE);
+    p.rect_stroke(inner, 3.0, egui::Stroke::new(1.0, Color32::from_gray(120)), egui::StrokeKind::Inside);
+    p.line_segment([inner.left_bottom(), inner.right_top()], egui::Stroke::new(2.0, Color32::from_rgb(220, 30, 30)));
+    if fill.is_none() {
+        p.rect_stroke(rect, 4.0, egui::Stroke::new(2.0, ui.visuals().selection.stroke.color), egui::StrokeKind::Inside);
+    }
+    if r.on_hover_text(i18n.t("edit-fill-none")).clicked() {
+        *fill = None;
+    }
+    // With no fill no swatch is ringed: the colours only show what a click would give.
+    let mut colour = fill.unwrap_or([255, 255, 255]);
+    let none = fill.is_none();
+    let chosen = if none { colours_unringed(ui, &mut colour, i18n) } else { colours(ui, &mut colour, i18n) };
+    if chosen || !none {
+        *fill = Some(colour);
     }
 }
 

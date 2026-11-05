@@ -56,7 +56,7 @@ fn svg(doc: &Doc, (w, h): (u32, u32), view: &View) -> String {
 }
 
 fn object(out: &mut String, o: &Obj) {
-    let Style { color: [r, g, b], width, opacity, dash, head } = o.style;
+    let Style { color: [r, g, b], width, opacity, dash, head, fill: inside } = o.style;
     let stroke = format!(r#"stroke="rgb({r},{g},{b})" stroke-width="{width}" fill="none"{}"#, dashes(dash, width));
     let fill = format!(r#"fill="rgb({r},{g},{b})""#);
     // The opacity on a group: where the line of an arrow meets its head it is not doubled.
@@ -64,7 +64,13 @@ fn object(out: &mut String, o: &Obj) {
     let _ = match &o.shape {
         Shape::Line(a, b, c) => line(out, *a, *b, *c, &stroke),
         Shape::Arrow(a, b, c) => arrow(out, (*a, *b, *c), head, width, &stroke, &fill),
-        Shape::Rect(area) => write!(out, r#"<rect {} {stroke}/>"#, rect(area)),
+        // The inside first, the border over it.
+        Shape::Rect(area) => {
+            if let Some([fr, fg, fb]) = inside {
+                let _ = write!(out, r#"<rect {} fill="rgb({fr},{fg},{fb})"/>"#, rect(area));
+            }
+            write!(out, r#"<rect {} {stroke}/>"#, rect(area))
+        }
         // A plain fill at the opacity of the style (`Style::highlighter`): over a layer of its own
         // a multiply would have no photo to blend with (tried: plain yellow).
         Shape::Highlight(area) => write!(out, r#"<rect {} {fill}/>"#, rect(area)),
@@ -236,7 +242,7 @@ pub(crate) mod tests {
     }
 
     fn style() -> Style {
-        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled }
+        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None }
     }
 
     fn area(x: f32, y: f32, w: f32, h: f32) -> Area {
@@ -422,5 +428,14 @@ pub(crate) mod tests {
             let t = draw(&doc(vec![Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: "Ab".into(), size: 30.0, rot: 0.0, font: font.map(String::from) }, style: style() }]), &whole(&doc(vec![])));
             assert!(t.pixels().iter().filter(|p| p.alpha() > 128).count() > 100, "{font:?}");
         }
+    }
+
+    /// A rectangle filled: the inside in its colour, the border in the other.
+    #[test]
+    fn filled_rectangle() {
+        let d = doc(vec![Obj { shape: Shape::Rect(area(0.0, 0.0, 40.0, 20.0)), style: Style { fill: Some([0, 0, 255]), ..style() } }]);
+        let p = draw(&d, &whole(&d));
+        let c = |x, y| { let c = p.pixel(x, y).unwrap().demultiply(); (c.red(), c.green(), c.blue(), c.alpha()) };
+        assert_eq!((c(50, 40), c(30, 40)), ((0, 0, 255, 255), (255, 0, 0, 255)));
     }
 }

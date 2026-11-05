@@ -99,11 +99,14 @@ pub struct Style {
     /// Arrows only. Styles remembered before it had none: the filled head.
     #[serde(default)]
     pub head: Head,
+    /// Rectangles only: the inside, at the same opacity as the border; `None`: empty.
+    #[serde(default)]
+    pub fill: Option<[u8; 3]>,
 }
 
 impl Default for Style {
     fn default() -> Style {
-        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled }
+        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None }
     }
 }
 
