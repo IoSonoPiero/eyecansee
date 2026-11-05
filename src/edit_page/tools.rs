@@ -243,6 +243,10 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     if let Some(c) = w.picked.take() {
         style.color = c;
     }
+    // What the controls change: the object selected, or the next one drawn (user, 2026-11-05:
+    // "what is the opacity for, if nothing is selected?").
+    let whose = if selected.is_some() { ("edit-props-selected", "edit-props-selected-hint") } else { ("edit-props-next", "edit-props-next-hint") };
+    ui.weak(i18n.t(whose.0)).on_hover_text(i18n.t(whose.1));
     colours(ui, &mut style.color, i18n);
     let screen = eyedroppers(ui, w, i18n);
     style_controls(ui, &mut style, kind, w.long(), i18n);
@@ -269,14 +273,21 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     screen
 }
 
-/// The eyedropper on the image (I), and on the whole screen where the system allows it; `true`
-/// when the latter is clicked.
+/// One eyedropper (user, 2026-11-05: "only the one that takes any colour"), its button or I:
+/// anywhere on the screen where the system allows it, `true` then; elsewhere a click on the image.
 fn eyedroppers(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
-    if bar_button(ui, icons::toggle(ui, w.picking, Line::Pipette), tip(i18n, "edit-pick", "I"), None) {
-        w.picking = !w.picking;
+    let screen = crate::eyedropper::on_screen();
+    let id = if screen { "edit-pick" } else { "edit-pick-image" };
+    let off = w.screen_picking.then(|| i18n.t("edit-pick-screen-busy"));
+    let asked = bar_button(ui, icons::toggle(ui, w.picking || w.screen_picking, Line::Pipette), tip(i18n, id, "I"), off) || std::mem::take(&mut w.ask_pick);
+    match () {
+        _ if !asked => false,
+        _ if screen => true,
+        _ => {
+            w.picking = !w.picking;
+            false
+        }
     }
-    let off = (!crate::eyedropper::on_screen()).then(|| i18n.t("edit-pick-screen-off")).or_else(|| w.screen_picking.then(|| i18n.t("edit-pick-screen-busy")));
-    bar_button(ui, icons::button(ui, Line::Monitor), i18n.t("edit-pick-screen"), off)
 }
 
 /// Colours, width (size of a text), opacity, dashes, as each kind has them.

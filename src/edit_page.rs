@@ -121,6 +121,8 @@ pub struct Window {
     screen_picking: bool,
     /// A colour taken, for the style shown in the properties bar.
     picked: Option<[u8; 3]>,
+    /// I pressed: the eyedropper as if its button were clicked.
+    ask_pick: bool,
     /// A line under the buttons ("Copied…") and until when (seconds of `egui::InputState::time`).
     note: Option<(String, f64)>,
     copying: bool,
@@ -176,6 +178,7 @@ impl Window {
             picking: false,
             screen_picking: false,
             picked: None,
+            ask_pick: false,
             note: None,
             copying: false,
             follow: Follow::Inside,
@@ -558,7 +561,7 @@ impl App {
             w.apply_crop();
         }
         if w.tool != Tool::Crop && ctx.input_mut(|i| i.consume_key(M::NONE, Key::I)) {
-            w.picking = !w.picking;
+            w.ask_pick = true;
         }
         let tool = ctx.input_mut(|i| tools::TOOLS.iter().find(|t| i.consume_key(M::NONE, t.3)).map(|t| t.0));
         if let Some(tool) = tool {
