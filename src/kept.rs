@@ -319,7 +319,14 @@ mod tests {
         let url = std::env::var("EYECANSEE_SFTP").or_else(|_| std::env::var("EYECANSEE_FTP")).expect("EYECANSEE_SFTP or EYECANSEE_FTP");
         let root = std::env::temp_dir().join(format!("eyecansee-kept-live-{}", std::process::id()));
         tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let s = source::open(&url).unwrap();
+            let mut s = source::open(&url).unwrap();
+            // A key with a passphrase, as a saved server has it (never the system's agent):
+            // EYECANSEE_SSH_KEY and EYECANSEE_SSH_PASSPHRASE, never written to a file.
+            if let (Ok(key), Ok(passphrase)) = (std::env::var("EYECANSEE_SSH_KEY"), std::env::var("EYECANSEE_SSH_PASSPHRASE")) {
+                let u = url::Url::parse(&url).unwrap();
+                let target = crate::sftp::Target { user: u.username().into(), host: u.host_str().unwrap().into(), port: u.port(), password: None, key: Some((key.into(), passphrase)), saved: true };
+                s.op = Store::Sftp(crate::sftp::Server::shared(target));
+            }
             let home = match &s.op {
                 Store::Sftp(server) => server.home().await.unwrap(),
                 Store::Ftp(server) => server.home().await.unwrap(),
@@ -328,6 +335,8 @@ mod tests {
             let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
             let dir = format!("{}eyecansee-edit-test-{secs}/", if s.home { &home } else { &s.dir });
             let op = &s.op;
+            // The address without its password, as the app keeps it (`Source::base`).
+            let url = s.base.clone();
             println!("{url}: {dir}");
             op.create_dir(&dir).await.unwrap();
             let put = |path: String, data: &'static [u8]| async move { crate::replace::write_whole(op, &path, data.to_vec()).await.unwrap() };
