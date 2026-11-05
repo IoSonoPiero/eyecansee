@@ -411,6 +411,20 @@ pub(crate) fn usvg_options() -> usvg::Options<'static> {
     usvg::Options { fontdb: fontdb.clone(), ..Default::default() }
 }
 
+/// The families of the installed fonts, by name, each once: the editor's choice of font.
+pub(crate) fn font_families() -> Arc<Vec<String>> {
+    static FAMILIES: OnceLock<Arc<Vec<String>>> = OnceLock::new();
+    FAMILIES
+        .get_or_init(|| {
+            let options = usvg_options();
+            let mut names: Vec<String> = options.fontdb.faces().filter_map(|f| f.families.first().map(|(n, _)| n.clone())).collect();
+            names.sort_by_key(|n| n.to_lowercase());
+            names.dedup();
+            Arc::new(names)
+        })
+        .clone()
+}
+
 /// App icon (`assets/eyecansee.svg`, the same as on Linux) in RGBA, `side`×`side`. Without the
 /// system fonts, which the icon does not use: at startup they would cost time.
 pub fn app_icon(side: u32) -> Option<RgbaImage> {

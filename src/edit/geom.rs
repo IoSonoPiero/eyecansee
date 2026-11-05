@@ -98,7 +98,7 @@ pub fn hit(o: &Obj, p: Pt, tol: f32) -> bool {
         // The head is as wide as `render::arrow` makes it.
         Shape::Arrow(a, b, c) => curve_distance(p, *a, *b, *c) <= (2.0 * o.style.width + 2.0).max(o.style.width / 2.0) + tol,
         Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) => inside(r, p, tol),
-        Shape::Text { at, text, size, rot } => inside(&text_area(*at, text, *size, *rot), p, tol),
+        Shape::Text { at, text, size, rot, .. } => inside(&text_area(*at, text, *size, *rot), p, tol),
     }
 }
 
@@ -117,7 +117,7 @@ pub fn moved(o: &Obj, d: Pt) -> Obj {
         Shape::Rect(r) => Shape::Rect(area(r)),
         Shape::Highlight(r) => Shape::Highlight(area(r)),
         Shape::Cover(r) => Shape::Cover(area(r)),
-        Shape::Text { at, text, size, rot } => Shape::Text { at: m(*at), text: text.clone(), size: *size, rot: *rot },
+        Shape::Text { at, text, size, rot, font } => Shape::Text { at: m(*at), text: text.clone(), size: *size, rot: *rot, font: font.clone() },
     };
     Obj { shape, style: o.style }
 }
@@ -189,7 +189,7 @@ pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style) -> Option<Obj> 
         Kind::Rect => Shape::Rect(area()?),
         Kind::Highlight => Shape::Highlight(area()?),
         Kind::Cover => Shape::Cover(area()?),
-        Kind::Text => Shape::Text { at: a, text: String::new(), size: style.width, rot: -angle },
+        Kind::Text => Shape::Text { at: a, text: String::new(), size: style.width, rot: -angle, font: None },
     };
     Some(Obj { shape, style })
 }
@@ -215,7 +215,7 @@ mod tests {
         assert!(hit(&rect(0.0), Pt::new(19.0, 9.0), 0.0) && !hit(&rect(0.0), Pt::new(10.0, 11.0), 0.0));
         // Turned upright: 10 wide, 20 high around 10, 5.
         assert!(hit(&rect(90.0), Pt::new(10.0, 14.0), 0.0) && !hit(&rect(90.0), Pt::new(19.0, 5.0), 0.0));
-        let text = Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: "abcd".into(), size: 10.0, rot: 0.0 }, style: Style::default() };
+        let text = Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: "abcd".into(), size: 10.0, rot: 0.0, font: None }, style: Style::default() };
         assert!(hit(&text, Pt::new(11.0, 5.0), 0.0) && !hit(&text, Pt::new(13.0, 0.0), 0.0));
         assert_eq!(under(&[rect(0.0), rect(0.0), line], Pt::new(10.0, 5.0), 0.0), Some(1));
         assert_eq!(under(&[rect(0.0)], Pt::new(-50.0, 5.0), 0.0), None);
@@ -252,7 +252,7 @@ mod tests {
         assert!(close(h[0], a) && close(h[2], b), "{h:?}");
         assert!(drawn(Kind::Rect, a, a, 30.0, Style::default()).is_none() && drawn(Kind::Arrow, a, a, 0.0, Style::default()).is_none());
         let t = drawn(Kind::Text, a, a, 30.0, Style { width: 24.0, ..Style::default() }).unwrap();
-        assert_eq!(t.shape, Shape::Text { at: a, text: String::new(), size: 24.0, rot: -30.0 });
+        assert_eq!(t.shape, Shape::Text { at: a, text: String::new(), size: 24.0, rot: -30.0, font: None });
     }
 }
 

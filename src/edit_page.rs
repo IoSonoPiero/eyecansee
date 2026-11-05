@@ -110,6 +110,11 @@ pub struct Window {
     styles_changed: bool,
     /// The text field takes the keys in the next frame (a text just placed).
     focus_text: bool,
+    /// The font of the next text: the last one chosen.
+    text_font: Option<String>,
+    /// The list of fonts is open: the text shows the font pointed at; its own font, to put back
+    /// if none is chosen.
+    font_preview: Option<(usize, Option<String>)>,
     /// A line under the buttons ("Copied…") and until when (seconds of `egui::InputState::time`).
     note: Option<(String, f64)>,
     copying: bool,
@@ -160,6 +165,8 @@ impl Window {
             styles: Vec::new(),
             styles_changed: false,
             focus_text: false,
+            text_font: None,
+            font_preview: None,
             note: None,
             copying: false,
             follow: Follow::Inside,
@@ -546,7 +553,8 @@ impl App {
     /// End of the frame: an operation over (no button held, no field typed in, no drag) becomes a
     /// step of the history; a text left empty goes; the styles changed are kept in the settings.
     fn settle(&mut self, ctx: &egui::Context, w: &mut Window) {
-        let busy = ctx.input(|i| i.pointer.any_down()) || ctx.egui_wants_keyboard_input() || w.focus_text || w.hold.is_some() || w.drag.is_some();
+        // The fonts tried while the list is open are not steps of the history.
+        let busy = ctx.input(|i| i.pointer.any_down()) || ctx.egui_wants_keyboard_input() || w.focus_text || w.hold.is_some() || w.drag.is_some() || w.font_preview.is_some();
         if busy {
             return;
         }

@@ -234,6 +234,9 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     style_controls(ui, &mut style, kind, w.long(), i18n);
     if kind == Kind::Text {
         ui.separator();
+        if let Some(i) = selected {
+            font_choice(ui, w, i, i18n);
+        }
         text_field(ui, w, selected, i18n);
     }
     if let Some(i) = selected {
@@ -309,6 +312,53 @@ fn colours(ui: &mut egui::Ui, color: &mut [u8; 3], i18n: &I18n) {
     }
     egui::color_picker::color_edit_button_srgb(ui, color).on_hover_text(i18n.t("edit-col-other"));
     ui.spacing_mut().item_spacing.x = 8.0;
+}
+
+/// The font of the selected text: pointing at one in the list shows the text in it, choosing one
+/// keeps it, closing the list without choosing puts the text's own back.
+fn font_choice(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
+    let Shape::Text { font, .. } = &w.doc.objects[i].shape else { return };
+    let own = w.font_preview.as_ref().filter(|(j, _)| *j == i).map_or_else(|| font.clone(), |(_, f)| f.clone());
+    let default = i18n.t("edit-font-default");
+    let (mut pointed, mut chosen) = (None, None);
+    let families = crate::decode::font_families();
+    let r = egui::ComboBox::from_id_salt("edit-font").width(180.0).height(420.0).selected_text(own.clone().unwrap_or_else(|| default.clone())).show_ui(ui, |ui| {
+        for f in std::iter::once(None).chain(families.iter().cloned().map(Some)) {
+            let r = ui.selectable_label(own == f, f.clone().unwrap_or_else(|| default.clone()));
+            if r.hovered() {
+                pointed = Some(f.clone());
+            }
+            if r.clicked() {
+                chosen = Some(f);
+            }
+        }
+    });
+    r.response.on_hover_text(i18n.t("edit-font-hint"));
+    let set = |w: &mut Window, f: Option<String>| {
+        if let Some(Shape::Text { font, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) {
+            *font = f;
+        }
+    };
+    match (chosen, r.inner.is_some()) {
+        (Some(f), _) => {
+            w.font_preview = None;
+            w.text_font.clone_from(&f);
+            set(w, f);
+        }
+        (None, true) => {
+            w.font_preview.get_or_insert((i, own));
+            if let Some(f) = pointed {
+                set(w, f);
+            }
+        }
+        (None, false) => {
+            if let Some((j, f)) = w.font_preview.take()
+                && j == i
+            {
+                set(w, f);
+            }
+        }
+    }
 }
 
 /// The letters of the selected text, typed here; a text just placed takes the keys at once.

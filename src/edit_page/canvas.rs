@@ -156,7 +156,7 @@ fn handle(painter: &egui::Painter, p: Pos2) {
 fn selection(painter: &egui::Painter, o: &Obj, view: &View, angle: f32) {
     let outline: Vec<Pos2> = match &o.shape {
         Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => geom::curve(*a, *b, *c).into_iter().map(|p| view.of(p, angle)).collect(),
-        Shape::Text { at, text, size, rot } => {
+        Shape::Text { at, text, size, rot, .. } => {
             let area = geom::text_area(*at, text, *size, *rot);
             let box_ = crate::edit::doc::Obj { shape: Shape::Rect(area), style: o.style };
             geom::handles(&box_).into_iter().map(|p| view.of(p, angle)).collect()
@@ -422,7 +422,11 @@ fn clicked(w: &mut Window, p: Pt, tol: f32) {
     if w.tool == Tool::Draw(Kind::Text) {
         if let Some(i) = under.filter(|&i| Kind::of(&w.doc.objects[i]) == Kind::Text) {
             w.selected = Some(i);
-        } else if let Some(o) = geom::drawn(Kind::Text, p, p, w.doc.angle, w.style(Kind::Text)) {
+        } else if let Some(mut o) = geom::drawn(Kind::Text, p, p, w.doc.angle, w.style(Kind::Text)) {
+            // In the font chosen last.
+            if let Shape::Text { font, .. } = &mut o.shape {
+                font.clone_from(&w.text_font);
+            }
             w.doc.objects.push(o);
             w.selected = Some(w.doc.objects.len() - 1);
         }

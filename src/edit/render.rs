@@ -68,7 +68,7 @@ fn object(out: &mut String, o: &Obj) {
         // A plain fill at the opacity of the style (`Style::highlighter`): over a layer of its own
         // a multiply would have no photo to blend with (tried: plain yellow).
         Shape::Highlight(area) => write!(out, r#"<rect {} {fill}/>"#, rect(area)),
-        Shape::Text { at, text, size, rot } => self::text(out, *at, text, *size, *rot, &fill),
+        Shape::Text { at, text, size, rot, font } => self::text(out, (*at, *size, *rot), text, font.as_deref(), &fill),
         // Solid, no soft edge; when saving written into the pixels instead.
         Shape::Cover(area) => write!(out, r#"<rect {} {fill} shape-rendering="crispEdges"/>"#, rect(area)),
     };
@@ -149,11 +149,14 @@ fn arrow(out: &mut String, (a, b, c): (Pt, Pt, Option<Pt>), head: Head, width: f
     }
 }
 
-/// Centred on `at`, one line under the other, in the system's sans-serif font.
-fn text(out: &mut String, at: Pt, text: &str, size: f32, rot: f32, fill: &str) -> std::fmt::Result {
+/// Centred on `at`, one line under the other, in `font` (falling back on the system's
+/// sans-serif one, also for a font no longer installed).
+fn text(out: &mut String, (at, size, rot): (Pt, f32, f32), text: &str, font: Option<&str>, fill: &str) -> std::fmt::Result {
     let lines: Vec<&str> = text.lines().collect();
     let first = at.y - (lines.len().max(1) - 1) as f32 * 0.6 * size;
-    write!(out, r#"<text font-family="sans-serif" font-size="{size}" text-anchor="middle" dominant-baseline="central" transform="rotate({rot} {} {})" {fill}>"#, at.x, at.y)?;
+    // Quotes and markup out of the name: it goes inside an attribute.
+    let family = font.map(|f| format!("'{}', ", f.replace(['\'', '"', '<', '>', '&'], ""))).unwrap_or_default();
+    write!(out, r#"<text font-family="{family}sans-serif" font-size="{size}" text-anchor="middle" dominant-baseline="central" transform="rotate({rot} {} {})" {fill}>"#, at.x, at.y)?;
     for (i, line) in lines.iter().enumerate() {
         write!(out, r#"<tspan x="{}" y="{}">{}</tspan>"#, at.x, first + i as f32 * 1.2 * size, escaped(line))?;
     }
@@ -257,7 +260,7 @@ pub(crate) mod tests {
         assert_eq!((alpha(&rect, 30, 40), alpha(&rect, 69, 40), alpha(&rect, 50, 30), alpha(&rect, 50, 49)), (255, 255, 255, 255));
         assert_eq!((alpha(&rect, 50, 40), alpha(&rect, 20, 40)), (0, 0));
 
-        let text = draw(&doc(vec![Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: "Ab".into(), size: 30.0, rot: 0.0 }, style: style() }]), &whole(&doc(vec![])));
+        let text = draw(&doc(vec![Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: "Ab".into(), size: 30.0, rot: 0.0, font: None }, style: style() }]), &whole(&doc(vec![])));
         let (cx, cy) = centroid(&text);
         assert!((cx - 50.0).abs() < 4.0 && (cy - 40.0).abs() < 6.0, "text centred: {cx}, {cy}");
         assert_eq!((alpha(&text, 5, 5), alpha(&text, 95, 75)), (0, 0));
@@ -304,7 +307,7 @@ pub(crate) mod tests {
             Obj { shape: Shape::Line(Pt::new(-40.0, -30.0), Pt::new(35.0, 25.0), None), style: style() },
             Obj { shape: Shape::Arrow(Pt::new(-40.0, 30.0), Pt::new(30.0, -10.0), None), style: Style { dash: Dash::Dashed, width: 3.0, ..style() } },
             Obj { shape: Shape::Rect(Area { rot: 20.0, ..area(10.0, 5.0, 50.0, 30.0) }), style: Style { opacity: 0.5, ..style() } },
-            Obj { shape: Shape::Text { at: Pt::new(-10.0, 0.0), text: "àèìòù".into(), size: 24.0, rot: -10.0 }, style: style() },
+            Obj { shape: Shape::Text { at: Pt::new(-10.0, 0.0), text: "àèìòù".into(), size: 24.0, rot: -10.0, font: None }, style: style() },
         ]);
         let full = draw(&d, &View { x: 0.0, y: 0.0, w: W * 4, h: H * 4, scale: 4.0 });
         let small = draw(&d, &View { x: 0.0, y: 0.0, w: W, h: H, scale: 1.0 });
@@ -347,7 +350,7 @@ pub(crate) mod tests {
     /// the plain one and more where it has none (the accent), and the words are as wide.
     #[test]
     fn accents_kept() {
-        let text = |s: &str| draw(&doc(vec![Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: s.into(), size: 30.0, rot: 0.0 }, style: style() }]), &whole(&doc(vec![])));
+        let text = |s: &str| draw(&doc(vec![Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: s.into(), size: 30.0, rot: 0.0, font: None }, style: style() }]), &whole(&doc(vec![])));
         let inked = |p: &tiny_skia::Pixmap| p.pixels().iter().map(|px| px.alpha() > 128).collect::<Vec<_>>();
         for (accented, plain) in "àèìòù".chars().zip("aeiou".chars()) {
             let (a, p) = (inked(&text(&accented.to_string())), inked(&text(&plain.to_string())));
@@ -409,5 +412,15 @@ pub(crate) mod tests {
         let bent = draw(&doc(vec![Obj { shape: Shape::Line(Pt::new(-30.0, 0.0), Pt::new(30.0, 0.0), Some(Pt::new(0.0, 40.0))), style: style() }]), &whole(&doc(vec![])));
         // The middle of the curve 20 below the straight one: at 50, 60.
         assert!(on(&bent, 50, 60) && !on(&bent, 50, 40), "bent");
+    }
+
+    /// A text in a font that is not installed, or whose name has quotes and markup in it, is
+    /// still drawn, in the sans-serif one.
+    #[test]
+    fn missing_font_falls_back() {
+        for font in [None, Some("No Such Font"), Some("Bad\" <font>&'name")] {
+            let t = draw(&doc(vec![Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: "Ab".into(), size: 30.0, rot: 0.0, font: font.map(String::from) }, style: style() }]), &whole(&doc(vec![])));
+            assert!(t.pixels().iter().filter(|p| p.alpha() > 128).count() > 100, "{font:?}");
+        }
     }
 }

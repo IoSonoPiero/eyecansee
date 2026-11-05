@@ -59,9 +59,10 @@ pub enum Shape {
     Arrow(Pt, Pt, Option<Pt>),
     Rect(Area),
     Highlight(Area),
-    /// `at` is the centre of the text, `size` the height of its letters in pixels. A flip moves
-    /// and tilts the text but never mirrors the letters.
-    Text { at: Pt, text: String, size: f32, rot: f32 },
+    /// `at` is the centre of the text, `size` the height of its letters in pixels, `font` the
+    /// family of an installed font (`None`: the sans-serif one of the system). A flip moves and
+    /// tilts the text but never mirrors the letters.
+    Text { at: Pt, text: String, size: f32, rot: f32, font: Option<String> },
     /// Solid box over private data: nothing under it is left in the saved file.
     Cover(Area),
 }
@@ -128,7 +129,7 @@ impl Obj {
             Shape::Rect(r) => Shape::Rect(r.turned(op)),
             Shape::Highlight(r) => Shape::Highlight(r.turned(op)),
             Shape::Cover(r) => Shape::Cover(r.turned(op)),
-            Shape::Text { at, text, size, rot } => Shape::Text { at: at.turned(op), text: text.clone(), size: *size, rot: if is_flip(op) { -rot } else { *rot } },
+            Shape::Text { at, text, size, rot, font } => Shape::Text { at: at.turned(op), text: text.clone(), size: *size, rot: if is_flip(op) { -rot } else { *rot }, font: font.clone() },
         };
         Obj { shape, style: self.style }
     }
@@ -205,7 +206,7 @@ pub(crate) mod tests {
             Obj { shape: Shape::Arrow(Pt::new(0.1, 0.2), Pt::new(-12.3, 7.7), None), style: Style { dash: Dash::Dashed, ..style } },
             Obj { shape: Shape::Rect(area), style },
             Obj { shape: Shape::Highlight(area), style: Style { opacity: 0.4, ..style } },
-            Obj { shape: Shape::Text { at: Pt::new(5.0, -6.0), text: "à €".into(), size: 12.0, rot: -3.5 }, style },
+            Obj { shape: Shape::Text { at: Pt::new(5.0, -6.0), text: "à €".into(), size: 12.0, rot: -3.5, font: None }, style },
             Obj { shape: Shape::Cover(Area { rot: 0.0, ..area }), style },
         ];
         d
