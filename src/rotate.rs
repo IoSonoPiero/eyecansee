@@ -259,7 +259,7 @@ mod tests {
         let mut png = Vec::new();
         sample(60, 40).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
         let edit = Edit { turn: Turn::default(), angle: 10.0, crop: inside(60.0, 40.0, 10.0, 1.0), fill: None };
-        let (out, lossy) = crate::encode::edited_file(&png, "x.png", |img| edit.apply(img)).unwrap();
+        let (out, lossy) = crate::save_back::edited_file(&png, "x.png", |img| edit.apply(img)).unwrap();
         assert!(!lossy);
         let back = crate::decode::decode_full(&out, "x.png").unwrap();
         assert_eq!(back.dimensions(), edit.crop.pixels());

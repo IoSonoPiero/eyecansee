@@ -294,7 +294,7 @@ pub(crate) mod tests {
         assert!(xmp.contains(&format!("Item:Semantic=\"GainMap\" Item:Mime=\"image/jpeg\" Item:Length=\"{}\"", out.len() - p.gain)));
         fitted(&out[..p.gain], 32);
         // Saving goes through it, and the whole file is still read as the photo.
-        let (saved, _) = crate::encode::turned_file(&file, "a.jpg", Turn::default().then(transform::Op::Cw)).unwrap();
+        let (saved, _) = crate::save_back::turned_file(&file, "a.jpg", Turn::default().then(transform::Op::Cw)).unwrap();
         assert_eq!(saved, out);
         // A size that is not a multiple of the blocks: encoded again, still Ultra HDR.
         let (out, lossy) = turned(&sample(72, 40), Turn::default().then(transform::Op::FlipH)).unwrap().unwrap();

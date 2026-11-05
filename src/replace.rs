@@ -15,7 +15,7 @@ pub(crate) async fn write_whole(op: &Store, path: &str, data: Vec<u8>) -> Result
 
 /// The image read and turned in its own format, and whether it lost quality.
 pub(crate) async fn turned(op: &Store, path: &str, turn: crate::transform::Turn) -> Result<(Vec<u8>, bool), source::Error> {
-    rewritten(op, path, move |bytes, name| crate::encode::turned_file(bytes, name, turn)).await
+    rewritten(op, path, move |bytes, name| crate::save_back::turned_file(bytes, name, turn)).await
 }
 
 /// The file read and passed to `make` (in the background), which gives the file to write and
@@ -25,7 +25,7 @@ pub(crate) async fn rewritten<T: Send + 'static>(op: &Store, path: &str, make: i
     let bytes = op.read(path).await?;
     let name = source::name(path).to_string();
     tokio::task::spawn_blocking(move || {
-        if !crate::encode::can_turn_in_place(&bytes, &name) && !crate::ultrahdr::is(&bytes) {
+        if !crate::save_back::can_turn_in_place(&bytes, &name) && !crate::ultrahdr::is(&bytes) {
             return Err((SKIPPED, name));
         }
         make(&bytes, &name).map_err(|e| ("error-detail", e))

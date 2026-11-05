@@ -121,6 +121,7 @@ mod render_shine;
 mod replace;
 mod rotate;
 mod rotate_page;
+mod save_back;
 mod save_dialogs;
 mod selection;
 mod server_manager;

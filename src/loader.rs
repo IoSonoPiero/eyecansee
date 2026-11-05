@@ -17,7 +17,7 @@ use crate::thumb_queue::{ThumbQueue, maintain, thumb_worker};
 use crate::{decode, thumbcache, transfer};
 use crate::video_read::{slow_video, video_input_copied, video_meta, video_still, SLOW};
 
-/// Error id of an image left out of "Save": animated, several pages, a Motion Photo (`encode::can_turn_in_place`).
+/// Error id of an image left out of "Save": animated, several pages, a Motion Photo (`save_back::can_turn_in_place`).
 pub const SKIPPED: &str = "save-skipped";
 
 /// Side of the decoded thumbnails; the grid shows them at this size or smaller.
@@ -456,7 +456,7 @@ impl Loader {
                     let edits: Vec<_> = applied.into_iter().chain(pending).collect();
                     return crate::ultrahdr::edited(bytes, img, &edits).map(|data| (data, true, shown));
                 }
-                crate::encode::encoded_back(bytes, name, img).map(|(data, lossy)| (data, lossy, shown))
+                crate::save_back::encoded_back(bytes, name, img).map(|(data, lossy)| (data, lossy, shown))
             })
             .await;
             let _ = tx.send(Msg::Edited(path, r.map(|(data, lossy, shown)| (Arc::new(data), lossy, shown))));

@@ -462,7 +462,7 @@ mod tests {
         let irb = [resource(1036, &[1; 9]), irb_of_iim(&iim)].concat();
         let seg = |m: u8, parts: &[&[u8]]| [&[0xFF, m][..], &((parts.iter().map(|p| p.len()).sum::<usize>() + 2) as u16).to_be_bytes(), &parts.concat()].concat();
         let file = [&jpeg[..2], &seg(0xE1, &[JPEG_XMP, crate::xmp::tests::SAMPLE.as_bytes()]), &seg(0xED, &[JPEG_PHOTOSHOP, &irb]), &jpeg[2..]].concat();
-        let (out, lossy) = crate::encode::turned_file(&file, "a.jpg", crate::transform::Turn::default().then(crate::transform::Op::Cw)).unwrap();
+        let (out, lossy) = crate::save_back::turned_file(&file, "a.jpg", crate::transform::Turn::default().then(crate::transform::Op::Cw)).unwrap();
         assert!(!lossy);
         crate::encode::tests::kept_xmp_like(&out, 16, 32);
         let x = read(&out, Some(&mut image::codecs::jpeg::JpegDecoder::new(Cursor::new(&out)).unwrap()));
@@ -506,8 +506,8 @@ mod tests {
             };
             let img = crate::decode::decode_full(&bytes, &name).unwrap();
             let (w, h) = (img.width(), img.height());
-            out("crop", &ext, crate::encode::encoded_back(&bytes, &name, img.crop_imm(w / 10, h / 10, w * 7 / 10, h * 7 / 10)).map(|r| r.0));
-            out("turn", &ext, crate::encode::turned_file(&bytes, &name, crate::transform::Turn::default().then(crate::transform::Op::Cw)).map(|r| r.0));
+            out("crop", &ext, crate::save_back::encoded_back(&bytes, &name, img.crop_imm(w / 10, h / 10, w * 7 / 10, h * 7 / 10)).map(|r| r.0));
+            out("turn", &ext, crate::save_back::turned_file(&bytes, &name, crate::transform::Turn::default().then(crate::transform::Op::Cw)).map(|r| r.0));
             let half = Original::with_meta(img.resize(w / 2, h / 2, image::imageops::FilterType::Triangle), &bytes);
             for f in [Format::Jpeg, Format::Png, Format::Webp, Format::Tiff, Format::Avif] {
                 out("to", f.ext(), half.encode(&Options { format: f, ..Default::default() }));

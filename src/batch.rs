@@ -144,8 +144,8 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     // its size allows it.
     if job.format.is_none()
         && job.size == Size::Same
-        && (encode::can_turn_in_place(bytes, name) || crate::ultrahdr::is(bytes))
-        && let Ok((data, _)) = encode::turned_file(bytes, name, job.turn)
+        && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::is(bytes))
+        && let Ok((data, _)) = crate::save_back::turned_file(bytes, name, job.turn)
     {
         return Ok((name.to_string(), data));
     }
@@ -153,7 +153,7 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     // The other frames of an animation, the other pages would be lost. After decoding, so that
     // a file that is not an image says so. A phone JPEG (HDR gain map, motion photo video) is
     // not left out: the new file is the picture, the original keeps the rest.
-    if Format::of_file(name).is_some_and(|f| f != Format::Jpeg) && !encode::can_turn_in_place(bytes, name) {
+    if Format::of_file(name).is_some_and(|f| f != Format::Jpeg) && !crate::save_back::can_turn_in_place(bytes, name) {
         return Err((SKIP_INSIDE, name.to_string()));
     }
     job.turn.apply(&mut image);
@@ -168,7 +168,7 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
             let options = Options { jpeg_quality: 95, ..Options::default() };
             Ok((name.to_string(), encode::Original::with_meta_of(image, bytes, name).encode(&options).map_err(failed)?))
         }
-        None => encode::encoded_back(bytes, name, image).map(|(data, _)| (name.to_string(), data)).map_err(|_| (SKIP_INSIDE, name.to_string())),
+        None => crate::save_back::encoded_back(bytes, name, image).map(|(data, _)| (name.to_string(), data)).map_err(|_| (SKIP_INSIDE, name.to_string())),
         Some(format) => {
             let options = Options { format, turn: Turn::default(), ..job.options };
             let data = encode::Original::with_meta_of(image, bytes, name).encode(&options).map_err(failed)?;
@@ -575,7 +575,7 @@ mod tests {
         let job = Job { format: None, size: Size::Percent(50), ..Default::default() };
         let (name, data) = convert(&jpeg, "p.jpg", &job).unwrap();
         assert_eq!(name, "p.jpg");
-        assert!(crate::encode::can_turn_in_place(&data, &name));
+        assert!(crate::save_back::can_turn_in_place(&data, &name));
         // Turned a quarter and fitted: the box applies to the turned image.
         let job = Job { format: Some(Format::Png), size: Size::Fit(150, 1000), filter: Filter::Nearest, turn: Turn::default().then(crate::transform::Op::Cw), ..Default::default() };
         let (_, data) = convert(&png, "a.png", &job).unwrap();
