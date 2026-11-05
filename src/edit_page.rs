@@ -166,6 +166,8 @@ pub struct Window {
     pub leaving: bool,
     /// Save as… chosen in the message saying Save cannot write over the original.
     pub save_as: bool,
+    /// A new image (File > New image…): no file yet, its Save is Save as….
+    new: bool,
 }
 
 impl Window {
@@ -213,6 +215,7 @@ impl Window {
             remote: None,
             leaving: false,
             save_as: false,
+            new: false,
         }
     }
 
@@ -482,6 +485,21 @@ impl App {
         self.editor = Some(w);
     }
 
+    /// File > New image…: the empty image in the editor, named in the folder open; Save as…
+    /// writes it.
+    pub(crate) fn open_new_image(&mut self, ctx: &egui::Context, image: image::DynamicImage, name: &str) {
+        if self.loader.is_none() {
+            return;
+        }
+        let mut w = Window::new(format!("{}{name}.png", self.dir), Turn::default(), Tool::Select);
+        w.new = true;
+        w.styles = self.settings.edit_styles.clone();
+        self.editor = Some(w);
+        let original = Arc::new(Original::with_meta(image, &[]));
+        let preview = crate::decode::preview(&original.image);
+        self.editor_original(ctx, Ok((original, preview, 0)));
+    }
+
     pub(crate) fn editor_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, ColorImage, u64), String>) {
         let Some(w) = &mut self.editor else { return };
         w.original = Some(r.map(|(original, preview, size)| (original, ctx.load_texture("edit-original", preview, egui::TextureOptions::LINEAR), size)));
@@ -557,8 +575,8 @@ impl App {
         }
         if w.leaving {
             match self.rotate_leave(ui.ctx(), &mut w) {
-                Some(Leave::Save) => self.edit_prepare(ui.ctx(), &mut w, false),
-                Some(Leave::SaveAs) => open = !self.rotate_save_as(ui.ctx(), &w),
+                Some(Leave::Save) if !w.new => self.edit_prepare(ui.ctx(), &mut w, false),
+                Some(Leave::Save | Leave::SaveAs) => open = !self.rotate_save_as(ui.ctx(), &w),
                 Some(Leave::Discard) => open = false,
                 None => {}
             }
@@ -643,7 +661,7 @@ impl App {
         }
         let (save_as, save) = ctx.input_mut(|i| (i.consume_key(cmd_shift, Key::S), i.consume_key(M::COMMAND, Key::S)));
         match () {
-            _ if save_as && !w.preparing => Some(Ask::SaveAs),
+            _ if (save_as || save && w.new) && !w.preparing => Some(Ask::SaveAs),
             _ if save && !w.preparing && w.changed() => Some(Ask::Save),
             _ => None,
         }

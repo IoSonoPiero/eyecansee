@@ -153,6 +153,7 @@ impl App {
         self.transfer_window(ctx);
         self.rename_window(ctx);
         self.new_folder_window(ctx);
+        self.new_image_window(ctx);
         self.restore_window(ctx);
         self.next_restore();
     }

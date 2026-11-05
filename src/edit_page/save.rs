@@ -42,6 +42,9 @@ impl App {
     /// over (gvfs, temporary copies, no renaming), a format EyeCanSee does not write back (the copy
     /// of a HEIC or a RAW is a JPEG or a PNG).
     pub(super) fn why_not_overwrite(&self, w: &Window) -> Option<String> {
+        if w.new {
+            return Some(self.i18n.t("edit-new-off"));
+        }
         if let Some(id) = self.loader.as_ref().and_then(|l| l.no_overwrite(&w.path)) {
             Some(self.i18n.t(id))
         } else if crate::encode::Format::of_file(&w.path).is_none() || !self.can_change(&w.path) || self.saving.contains(&w.path) {

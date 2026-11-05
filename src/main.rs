@@ -115,6 +115,7 @@ mod mtp;
 mod navigation;
 mod occt;
 mod new_folder;
+mod new_image;
 mod paint;
 mod psd;
 mod render3d;
@@ -412,6 +413,8 @@ struct App {
     rename: Option<(String, String, bool)>,
     /// New folder: name, the folder it goes in, first frame (the name gets selected).
     new_folder: Option<(String, String, bool)>,
+    /// File > New image…: its window is open.
+    new_image: Option<new_image::Form>,
     /// A folder just made, or the editor's copy just saved: selected (and shown in the viewer)
     /// once its folder is read again.
     select_after: Option<String>,
@@ -546,6 +549,7 @@ impl App {
             delete_answer: None,
             rename: None,
             new_folder: None,
+            new_image: None,
             select_after: None,
             restore_queue: Default::default(),
             restore_busy: false,

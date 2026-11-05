@@ -172,6 +172,8 @@ Nella griglia le stesse operazioni (menù Immagine, o clic destro > Trasforma) v
 
 ### Modificare un'immagine
 
+**File > Nuova immagine…** (Ctrl+N) crea un'immagine vuota: una misura pronta (A3, A4, A5, Lettera, Legale, Full HD, 4K, HD, quadrata, verticale per le storie) o la tua, in pixel, millimetri, centimetri o pollici con la risoluzione (sotto si vede quanti pixel fa), e lo sfondo bianco, trasparente o di un colore. Si apre nell'editor; il file non esiste ancora, quindi il suo pulsante principale è **Salva come…**, che chiede nome, formato e cartella.
+
 **Immagine > Modifica immagine…** (Ctrl+E, anche nel menù del clic destro) apre una pagina a sé per una sola immagine, per disegnarci sopra e per ruotarla e ritagliarla. **Immagine > Ruota e ritaglia…** apre la stessa pagina con lo strumento del ritaglio già scelto. Con più immagini selezionate sono disattivate (per ruotare più immagini insieme usa le rotazioni e i ribaltamenti sopra di loro o **Converti e ridimensiona**), e lo sono anche per un'immagine che il visore ha trovato animata o con più pagine, di cui si salverebbe solo la prima immagine.
 
 In alto la barra degli strumenti, con un tasto ciascuno: **Seleziona** (V), **Freccia** (A), **Linea** (L), **Rettangolo** (R), **Evidenziatore** (H), **Testo** (T), **Copertura** (B); poi **Ritaglia e ruota** (C), **Ruota a sinistra** e **a destra** (Ctrl+Maiusc+R, Ctrl+R), **Annulla** e **Ripeti**; a destra **Copia**, **Chiudi** e **Salva copia**, con la freccia accanto per **Salva come…** e **Sovrascrivi l'originale…**. Lo strumento attivo è evidenziato; passando sopra un pulsante compaiono il nome e il tasto, e su uno spento anche il perché. Sotto, la barra delle proprietà cambia con lo strumento: i comandi del ritaglio, o lo stile dell'oggetto selezionato o di quello che stai per disegnare. In basso la barra di stato: nome del file e misura del risultato, un suggerimento sullo strumento, l'ingrandimento con − e + (clic sulla percentuale, 0 o doppio clic: tutto in vista).
@@ -264,6 +266,7 @@ Nella griglia:
 | Backspace | Cartella superiore |
 | F2 | Rinomina (vedi *Eliminare e rinominare*) |
 | Ctrl+Maiusc+N | Nuova cartella (vedi *Eliminare e rinominare*) |
+| Ctrl+N | Nuova immagine (vedi *Modificare un'immagine*) |
 | Canc | Elimina |
 | Ctrl+C, Ctrl+X, Ctrl+V | Copia, taglia, incolla (vedi *Copiare e spostare*) |
 | Ctrl+A | Seleziona tutto nella cartella |

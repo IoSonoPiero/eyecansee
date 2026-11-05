@@ -130,10 +130,11 @@ impl App {
             }
         });
         r.on_hover_text(i18n.t("edit-save-more"));
-        let main = crate::theme::main_button(ui, i18n.t("edit-save-copy")).min_size(egui::vec2(0.0, icons::BUTTON.y));
-        let hint = format!("{} (Ctrl+S)\n{}", i18n.t("edit-save-copy"), i18n.t("rc-save-hint"));
-        if bar_button(ui, main, hint, off) {
-            ask = Some(Ask::Save);
+        // A new image has no file yet: its main button is Save as….
+        let (label, hint, main_ask, off) = if w.new { ("menu-save-copy", "rc-save-as-hint", Ask::SaveAs, w.preparing.then(|| i18n.t("edit-off-preparing"))) } else { ("edit-save-copy", "rc-save-hint", Ask::Save, off) };
+        let main = crate::theme::main_button(ui, i18n.t(label)).min_size(egui::vec2(0.0, icons::BUTTON.y));
+        if bar_button(ui, main, format!("{} (Ctrl+S)\n{}", i18n.t(label), i18n.t(hint)), off) {
+            ask = Some(main_ask);
         }
         ui.spacing_mut().item_spacing.x = 8.0;
         ask

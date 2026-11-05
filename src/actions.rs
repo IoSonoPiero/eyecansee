@@ -26,6 +26,8 @@ pub(crate) enum Act {
     /// Item (`None` = the selected one or the one in the viewer); `true`: for good (Shift+Del).
     Delete(Option<String>, bool),
     Rename(Option<String>),
+    /// File > New image…: the window of its size and background.
+    NewImage,
     /// A new folder in the folder open.
     /// In that folder, or in the folder open.
     NewFolder(Option<String>),
@@ -115,6 +117,7 @@ impl Act {
             Act::Delete(..) => Line::Delete,
             Act::Rename(_) => Line::Rename,
             Act::NewFolder(_) => Line::NewFolder,
+            Act::NewImage => Line::NewImage,
             Act::Convert(_) | Act::ExportModel(..) | Act::ExportDrawings(_) => Line::SaveAs,
             Act::Batch(_) => Line::Batch,
             Act::Duplicates(_) => Line::Duplicates,
@@ -153,6 +156,10 @@ impl App {
         let new_folder = ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::N));
         if new_folder && !ctx.egui_wants_keyboard_input() {
             self.ask_new_folder(None);
+        }
+        // Ctrl+N: a new image (after Ctrl+Shift+N, which took the key for a folder).
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::N)) && !ctx.egui_wants_keyboard_input() && self.loader.is_some() {
+            self.new_image = Some(crate::new_image::Form::new());
         }
         // Ctrl+E, as Photos on Windows: Edit image.
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::E)) && !ctx.egui_wants_keyboard_input() && self.can_edit(None) {
@@ -241,6 +248,7 @@ impl App {
             Act::Delete(path, permanent) => self.ask_delete(path, permanent),
             Act::Rename(path) => self.ask_rename(path),
             Act::NewFolder(dir) => self.ask_new_folder(dir),
+            Act::NewImage => self.new_image = Some(crate::new_image::Form::new()),
             Act::Convert(path) => self.open_convert(path),
             Act::ExportModel(path, kind) => self.export_model(path, kind),
             Act::Duplicates(dir) => self.open_duplicates(dir),

@@ -172,6 +172,8 @@ In the grid the same operations (the Image menu, or right-click > Transform) wor
 
 ### Editing an image
 
+**File > New image…** (Ctrl+N) makes an empty image: a ready-made size (A3, A4, A5, Letter, Legal, Full HD, 4K, HD, square, upright for stories) or your own, in pixels, millimetres, centimetres or inches with the resolution (how many pixels it makes is shown under it), and a white, transparent or coloured background. It opens in the editor; the file does not exist yet, so its main button is **Save as…**, which asks for name, format and folder.
+
 **Image > Edit image…** (Ctrl+E, also in the right-click menu) opens a page of its own for one image, to draw on it and to rotate and crop it. **Image > Rotate and crop…** opens the same page with the crop tool chosen. With several images selected they are greyed out (to turn several images together use the flips and turns above them or **Convert and resize**), and so are they for an image the viewer found animated or with several pages, of which only the first picture would be saved.
 
 At the top the toolbar, a key for each tool: **Select** (V), **Arrow** (A), **Line** (L), **Rectangle** (R), **Highlighter** (H), **Text** (T), **Cover** (B); then **Crop and rotate** (C), **Turn left** and **right** (Ctrl+Shift+R, Ctrl+R), **Undo** and **Redo**; on the right **Copy**, **Close** and **Save copy**, with the arrow next to it for **Save as…** and **Overwrite the original…**. The tool in use is highlighted; pointing at a button shows its name and key, and on one that is off also why. Below, the properties bar changes with the tool: the crop controls, or the style of the object selected or of the one about to be drawn. At the bottom the status bar: file name and size of the result, a hint on the tool, the zoom with − and + (click on the percentage, 0 or a double click: everything in view).
@@ -264,6 +266,7 @@ In the grid:
 | Backspace | Parent folder |
 | F2 | Rename (see *Deleting and renaming*) |
 | Ctrl+Shift+N | New folder (see *Deleting and renaming*) |
+| Ctrl+N | New image (see *Editing an image*) |
 | Del | Delete |
 | Ctrl+C, Ctrl+X, Ctrl+V | Copy, cut, paste (see *Copying and moving*) |
 | Ctrl+A | Select everything in the folder |
