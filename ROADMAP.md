@@ -38,6 +38,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 ### Browsing and editing
 
+- Image editing: arrows, lines, boxes, text and highlighter on any image, solid boxes to cover private data, crop and rotate; every change stays movable and can be undone until you save, and saving makes a copy next to the original. Light and colour corrections come after ([#53](https://github.com/IoSonoPiero/eyecansee/issues/53)).
 - Favourites: a list of folders and images to open with one click ([#25](https://github.com/IoSonoPiero/eyecansee/issues/25)).
 - Archives: zip and 7z opened as read-only folders first, then creating zip archives ([#26](https://github.com/IoSonoPiero/eyecansee/issues/26)).
 - Multiple rename ([#27](https://github.com/IoSonoPiero/eyecansee/issues/27)).
