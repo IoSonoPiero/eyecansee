@@ -87,6 +87,16 @@ impl Default for Style {
     }
 }
 
+/// Opacity the highlighter starts with: a fill over the photo, which shows through it.
+pub const HIGHLIGHT_OPACITY: f32 = 0.4;
+
+impl Style {
+    /// Where the highlighter starts: yellow, at `HIGHLIGHT_OPACITY`.
+    pub fn highlighter() -> Style {
+        Style { color: [255, 230, 0], opacity: HIGHLIGHT_OPACITY, ..Style::default() }
+    }
+}
+
 #[derive(Clone, PartialEq, Debug)]
 pub struct Obj {
     pub shape: Shape,

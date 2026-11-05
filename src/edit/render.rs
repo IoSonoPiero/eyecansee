@@ -55,10 +55,12 @@ fn object(out: &mut String, o: &Obj) {
         Shape::Line(a, b) => write!(out, r#"<line x1="{}" y1="{}" x2="{}" y2="{}" {stroke}/>"#, a.x, a.y, b.x, b.y),
         Shape::Arrow(a, b) => arrow(out, *a, *b, width, &stroke, &fill),
         Shape::Rect(area) => write!(out, r#"<rect {} {stroke}/>"#, rect(area)),
+        // A plain fill at the opacity of the style (`Style::highlighter`): over a layer of its own
+        // a multiply would have no photo to blend with (tried: plain yellow).
+        Shape::Highlight(area) => write!(out, r#"<rect {} {fill}/>"#, rect(area)),
         Shape::Text { at, text, size, rot } => self::text(out, *at, text, *size, *rot, &fill),
-        // ponytail: the highlighter waits for a decision (multiply has nothing to blend with
-        // over transparency); the cover box is written into the pixels when saving.
-        Shape::Highlight(_) | Shape::Cover(_) => Ok(()),
+        // Written into the pixels when saving.
+        Shape::Cover(_) => Ok(()),
     };
     out.push_str("</g>");
 }
@@ -211,10 +213,8 @@ mod tests {
         assert!((cx - 50.0).abs() < 4.0 && (cy - 40.0).abs() < 6.0, "text centred: {cx}, {cy}");
         assert_eq!((alpha(&text, 5, 5), alpha(&text, 95, 75)), (0, 0));
 
-        // Not drawn here: the highlighter (decision pending) and the cover box (written when saving).
-        for shape in [Shape::Highlight(area(0.0, 0.0, 40.0, 20.0)), Shape::Cover(area(0.0, 0.0, 40.0, 20.0))] {
-            assert!(draw(&doc(vec![Obj { shape, style: style() }]), &whole(&doc(vec![]))).pixels().iter().all(|p| p.alpha() == 0));
-        }
+        // Not drawn here: the cover box (written into the pixels when saving).
+        assert!(draw(&doc(vec![Obj { shape: Shape::Cover(area(0.0, 0.0, 40.0, 20.0)), style: style() }]), &whole(&doc(vec![]))).pixels().iter().all(|p| p.alpha() == 0));
     }
 
     /// With an angle and after flips and turns of the document the object stays over the same
@@ -312,5 +312,17 @@ mod tests {
         // Two lines, one under the other.
         let (two, one) = (ink(&text("à\nà")), ink(&text("à")));
         assert!(two.0 + 10 < one.0);
+    }
+
+    /// The highlighter: the whole rectangle filled, yellow at 40%, turned by its own angle; the
+    /// photo shows through it.
+    #[test]
+    fn highlighter() {
+        let d = doc(vec![Obj { shape: Shape::Highlight(Area { rot: 90.0, ..area(0.0, 0.0, 40.0, 10.0) }), style: Style::highlighter() }]);
+        let p = draw(&d, &whole(&d));
+        // Turned upright: 10 wide (x 45 to 55), 40 high (y 20 to 60).
+        let c = p.pixel(50, 40).unwrap().demultiply();
+        assert_eq!((c.red(), c.green(), c.blue(), c.alpha()), (255, 230, 0, 102));
+        assert_eq!((alpha(&p, 46, 21), alpha(&p, 53, 58), alpha(&p, 50, 18), alpha(&p, 60, 40), alpha(&p, 30, 40)), (102, 102, 0, 0, 0));
     }
 }
