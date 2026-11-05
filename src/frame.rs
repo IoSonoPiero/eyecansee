@@ -37,7 +37,7 @@ impl App {
         self.retry(ctx);
         self.reread_changed(ctx);
         // "Save in another format" and the duplicates cover the window: the keys must not reach the grid under them.
-        if self.convert.is_none() && self.rotate.is_none() && self.show.is_none() && !self.dup_page_shown() {
+        if self.convert.is_none() && self.editor.is_none() && self.show.is_none() && !self.dup_page_shown() {
             self.global_keys(ctx);
             if self.viewing.is_some() {
                 self.viewer_keys(ctx);
@@ -62,8 +62,8 @@ impl App {
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(egui::Color32::BLACK)).show(ui, |ui| self.show_page(ui));
         } else if self.convert.is_some() {
             egui::CentralPanel::default().show(ui, |ui| self.convert_page(ui));
-        } else if self.rotate.is_some() {
-            egui::CentralPanel::default().show(ui, |ui| self.rotate_page(ui));
+        } else if self.editor.is_some() {
+            egui::CentralPanel::default().show(ui, |ui| self.edit_page(ui));
         } else if self.dup_page_shown() {
             self.dup_page(ui);
         } else {

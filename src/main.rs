@@ -67,8 +67,6 @@ mod decode;
 mod devices;
 mod dup_page;
 mod duplicates;
-// ponytail: not used by the app until the editor page arrives (issue #53, step 5 of notes/editor-piano.md).
-#[cfg_attr(not(test), allow(dead_code))]
 mod edit;
 mod encode;
 mod encoders;
@@ -359,7 +357,9 @@ struct App {
     /// "Save in another format" window.
     convert: Option<convert::Window>,
     /// Rotate and crop, a page of its own.
-    rotate: Option<edit_page::Window>,
+    editor: Option<edit_page::Window>,
+    /// Images read by the viewer that are animated or have several pages: the editor is off for them.
+    animated: std::collections::HashSet<String>,
     /// Find duplicates: the search and its results page.
     duplicates: Option<dup_page::Window>,
     /// Convert and resize several images: the choices, then the work.
@@ -531,7 +531,8 @@ impl App {
             update: None,
             update_note: None,
             convert: None,
-            rotate: None,
+            editor: None,
+            animated: Default::default(),
             duplicates: None,
             batch: None,
             batch_form: None,
@@ -624,6 +625,18 @@ impl eframe::App for App {
         let mods = ctx.input(|i| i.modifiers);
         let shift_del = cfg!(windows) && mods.shift && !mods.command;
         let act = &mut self.act;
+        // In the editor Ctrl+C copies the result; cutting and pasting files does not start there.
+        if self.editor.is_some() {
+            raw_input.events.retain(|e| match e {
+                egui::Event::Copy => {
+                    *act = Some(Act::EditCopy);
+                    false
+                }
+                egui::Event::Cut | egui::Event::Paste(_) | egui::Event::PasteImage(_) => false,
+                _ => true,
+            });
+            return;
+        }
         raw_input.events.retain(|e| {
             *act = match e {
                 egui::Event::Copy => Some(Act::Copy(None)),

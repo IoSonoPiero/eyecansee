@@ -126,7 +126,10 @@ impl App {
         }
         turns.push(None);
         // One image at a time: with several marked it would open on one and leave the others.
-        let rotate = if self.grid_images(path.clone()).len() > 1 { Act::Off(t("rc-one-only")) } else { Act::RotateCrop(path.clone()) };
+        let rotate = match self.edit_off(path.clone()) {
+            Some(why) => Act::Off(why),
+            None => Act::RotateCrop(path.clone()),
+        };
         turns.push(Some((t("menu-rotate-crop"), String::new(), rotate)));
         Some((crate::selection::starred(t("menu-transform"), all), String::new(), Act::Submenu(turns)))
     }
@@ -154,6 +157,11 @@ impl App {
         items.push(None);
         if let Some(all) = fits(&files, &[Kind::Picture]) {
             partial.set(partial.get() | !all);
+            let edit = match self.edit_off(path.clone()) {
+                Some(why) => Act::Off(why),
+                None => Act::Edit(path.clone()),
+            };
+            items.push(Some((starred(t("menu-edit-image"), all), if in_viewer { t("key-edit") } else { String::new() }, edit)));
             items.push(self.turn_menu(path.clone(), in_viewer, all));
         }
         if in_viewer && self.can_save() {

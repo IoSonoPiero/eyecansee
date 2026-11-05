@@ -61,6 +61,10 @@ pub enum Msg {
     Update(Result<Option<crate::update::Ready>, String>),
     /// "Save in another format": the original decoded, its preview and file size.
     Original(Result<(Arc<crate::encode::Original>, ColorImage, u64), String>),
+    /// The editor's result for the clipboard.
+    EditCopy(ColorImage),
+    /// An image read by the viewer is animated or has several pages: the editor is off for it.
+    Animated(String),
     /// The image encoded with the options of `generation`, and the encoded file decoded back
     /// (`None`: no decoder for that format in this build).
     Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
@@ -330,12 +334,17 @@ impl Loader {
     }
 
     /// Original for "Save in another format": decoded in full, with a preview no larger than a texture.
-    pub fn load_original(&self, path: String) {
+    /// `edit`: for the editor, which does not take animations and files of several pages
+    /// (`edit_page::ANIMATED`).
+    pub fn load_original(&self, path: String, edit: bool) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
             let sibling = siblings(op.clone(), path.clone());
             let r = match op.read(&path).await {
                 Ok(bytes) => tokio::task::spawn_blocking(move || {
+                    if edit && crate::edit::save::animated(&bytes, &path) {
+                        return Err(crate::edit_page::ANIMATED.to_string());
+                    }
                     let original = crate::encode::Original::with_meta_of(decode::decode_full_with(&bytes, &path, &sibling)?, &bytes, &path);
                     let preview = decode::preview(&original.image);
                     Ok((Arc::new(original), preview, bytes.len() as u64))
@@ -584,6 +593,9 @@ impl Loader {
                             return Ok(decode::to_color_image(image::DynamicImage::ImageRgba8(image)));
                         }
                         if !crate::model::is_model(&path) {
+                            if crate::edit::save::animated(&bytes, &path) {
+                                let _ = tx.send(Msg::Animated(path.clone()));
+                            }
                             return decode::decode(&bytes, &path);
                         }
                         let mesh = Arc::new(crate::model::parse_with(&bytes, &path, &sibling)?);

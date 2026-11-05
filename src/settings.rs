@@ -58,6 +58,9 @@ pub struct Settings {
     pub slideshow_secs: f32,
     pub slideshow_fade: crate::slideshow::Fade,
     pub slideshow_loop: bool,
+    /// The editor's last style for each kind of object (`edit::geom::Kind`), the width (the size
+    /// of a text) as a fraction of the long side of the image, so it looks the same on any photo.
+    pub edit_styles: Vec<(crate::edit::geom::Kind, crate::edit::doc::Style)>,
 }
 
 /// For phones, FTP, SFTP; local files go by `local_permanent`.
@@ -194,6 +197,7 @@ impl Default for Settings {
             slideshow_secs: 5.0,
             slideshow_fade: crate::slideshow::Fade::Cross,
             slideshow_loop: true,
+            edit_styles: Vec::new(),
         }
     }
 }

@@ -41,6 +41,7 @@ impl Turn {
     }
 
     /// The horizontal flip done first, and the clockwise quarter turns after it (0 to 3).
+    #[cfg(test)]
     pub fn parts(self) -> (bool, u8) {
         (self.flip, self.quarter)
     }

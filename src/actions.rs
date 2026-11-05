@@ -55,6 +55,10 @@ pub(crate) enum Act {
     Transform(transform::Op, Option<String>),
     /// Rotate by any angle and crop, one image (`None` = the selected one or the one in the viewer).
     RotateCrop(Option<String>),
+    /// Edit image…: the editor on one image (`None` = the selected one or the one in the viewer).
+    Edit(Option<String>),
+    /// The editor's result to the clipboard (Ctrl+C or Copy there).
+    EditCopy,
     /// The turned image saved over the original (after a confirmation).
     Save,
     /// Puts back from the trash an item, or everything if it is a trash folder (`None` = selected).
@@ -104,6 +108,10 @@ impl App {
         let new_folder = ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::N));
         if new_folder && !ctx.egui_wants_keyboard_input() {
             self.ask_new_folder(None);
+        }
+        // Ctrl+E, as Photos on Windows: Edit image.
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::E)) && !ctx.egui_wants_keyboard_input() && self.can_edit(None) {
+            self.open_editor(None, crate::edit_page::Tool::Select);
         }
         if !ctx.egui_wants_keyboard_input() && self.rename.is_none() && self.new_folder.is_none() {
             if delete {
@@ -171,7 +179,7 @@ impl App {
             Act::Options => self.options = true,
             Act::SelectAll => self.select_all(),
             Act::RotateSaveAs => {
-                if let Some(w) = &mut self.rotate {
+                if let Some(w) = &mut self.editor {
                     w.save_as = true;
                 }
             }
@@ -189,7 +197,9 @@ impl App {
             Act::RedoThumbs(path) => self.redo_thumbs(ctx, self.chosen(path)),
             Act::RedoAllThumbs => self.redo_all_thumbs(ctx),
             Act::Transform(op, path) => self.transform(op, path),
-            Act::RotateCrop(path) => self.open_rotate(path),
+            Act::RotateCrop(path) => self.open_editor(path, crate::edit_page::Tool::Crop),
+            Act::Edit(path) => self.open_editor(path, crate::edit_page::Tool::Select),
+            Act::EditCopy => self.edit_copy(ctx),
             Act::Save => self.ask_save(),
             Act::Submenu(_) | Act::Off(_) => {}
             Act::Restore(path) => self.ask_restore(path),

@@ -48,7 +48,11 @@ impl App {
                 Msg::Open(address) => self.on_open(ctx, address),
                 Msg::Home(base, r) => self.on_home(base, r),
                 // Shown in a window only when asked from the Help menu (the window is open).
-                Msg::Original(r) if self.rotate.is_some() => self.rotate_original(ctx, r),
+                Msg::Original(r) if self.editor.is_some() => self.editor_original(ctx, r),
+                Msg::EditCopy(img) => self.on_edit_copy(ctx, img),
+                Msg::Animated(path) => {
+                    self.animated.insert(path);
+                }
                 Msg::Original(r) => self.convert_original(ctx, r),
                 Msg::Edited(path, r) => self.on_edited(path, r),
                 Msg::Encoded(generation, r) => self.convert_encoded(ctx, generation, r),

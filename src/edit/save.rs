@@ -52,8 +52,7 @@ pub fn save(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str
     }
     let mut o = Original::clone(original);
     let (float, deep) = (is_float(&o.image), is_deep(&o.image));
-    doc.edit().apply(&mut o.image);
-    let holes = paint(doc, size, &mut o.image, options);
+    let holes = edited(doc, size, &mut o.image, options);
     if same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes) {
         let data = crate::ultrahdr::edited(bytes, o.image, &[doc.edit()], &holes)?;
         return Ok(Saved { data, name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept });
@@ -76,6 +75,19 @@ fn target(name: &str, float: bool, transparent: bool) -> Format {
     Format::of_file(name).unwrap_or(if float || transparent { Format::Png } else { Format::Jpeg })
 }
 
+/// The result, as it would be saved: for the clipboard.
+pub fn result(doc: &Doc, original: &Original, options: &usvg::Options) -> DynamicImage {
+    let mut img = original.image.clone();
+    edited(doc, (img.width(), img.height()), &mut img, options);
+    img
+}
+
+/// `img` turned, rotated and cropped, with the objects; the boxes of `paint`.
+fn edited(doc: &Doc, size: (u32, u32), img: &mut DynamicImage, options: &usvg::Options) -> Vec<[f32; 4]> {
+    doc.edit().apply(img);
+    paint(doc, size, img, options)
+}
+
 fn depth(float: bool, deep: bool, format: Format) -> Depth {
     match () {
         _ if float => Depth::HdrCut,
@@ -85,7 +97,7 @@ fn depth(float: bool, deep: bool, format: Format) -> Depth {
 }
 
 /// Animated or with several pages: only the first would be saved (the menu item is off for them).
-fn animated(bytes: &[u8], name: &str) -> bool {
+pub(crate) fn animated(bytes: &[u8], name: &str) -> bool {
     matches!(Format::of_file(name), Some(Format::Png | Format::Webp | Format::Tiff | Format::Avif | Format::Gif)) && !crate::save_back::can_turn_in_place(bytes, name)
 }
 

@@ -103,9 +103,12 @@ impl App {
             }
         }
         ui.separator();
-        let one = self.grid_images(None).len() <= 1;
-        let r = ui.add_enabled(fit.is_some() && one, egui::Button::new(star(t("menu-rotate-crop"))));
-        pick(act, if one { r } else { r.on_disabled_hover_text(t("rc-one-only")) }, Act::RotateCrop(None));
+        let off = self.edit_off(None);
+        let ok = fit.is_some() && off.is_none();
+        for (label, keys, a) in [("menu-edit-image", t("key-edit"), Act::Edit(None)), ("menu-rotate-crop", String::new(), Act::RotateCrop(None))] {
+            let r = ui.add_enabled(ok, item(star(t(label)), keys));
+            pick(act, match &off { Some(why) => r.on_disabled_hover_text(why), None => r }, a);
+        }
         partial_note(ui, fit == Some(false), &self.i18n);
     }
 

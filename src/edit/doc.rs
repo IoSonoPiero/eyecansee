@@ -4,6 +4,8 @@
 //! centre of the image (x to the right, y down, as `rotate::Crop`): a change of crop leaves them
 //! over the same part of the image, and a flip or quarter turn only changes signs, so it is exact.
 
+use serde::{Deserialize, Serialize};
+
 use crate::rotate::{Crop, Edit};
 use crate::transform::{Op, Turn};
 
@@ -62,7 +64,7 @@ pub enum Shape {
     Cover(Area),
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
 pub enum Dash {
     #[default]
     Solid,
@@ -70,7 +72,7 @@ pub enum Dash {
     Dotted,
 }
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Style {
     /// RGB: the only transparency is `opacity`.
     pub color: [u8; 3],
@@ -154,6 +156,7 @@ impl Doc {
 
     /// The point of the upright image, from its centre, that `p` (from the centre of the image
     /// after the flips and quarter turns) is over: what the turn did, undone.
+    #[cfg(test)]
     pub fn source(&self, p: Pt) -> Pt {
         let (flip, quarter) = self.turn.parts();
         let mut p = p;

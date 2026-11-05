@@ -32,6 +32,7 @@ impl History {
     }
 
     /// `change` done on a copy of the document shown, kept as one operation.
+    #[cfg(test)]
     pub fn apply(&mut self, change: impl FnOnce(&mut Doc)) {
         let mut doc = self.doc().clone();
         change(&mut doc);

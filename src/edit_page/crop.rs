@@ -1,64 +1,40 @@
-//! Rotate and crop, the controls on the right: angle, proportions, fill, Apply. Moved from
+//! Rotate and crop, the controls on the right: angle, proportions, fill. Moved from
 //! `rotate_page.rs` on 2026-11-05.
 
 use eframe::egui;
 
-use super::{ASPECTS, Ask, Aspect, Follow, SIDE, Window};
+use super::{ASPECTS, Aspect, Follow, SIDE, Window};
 use crate::encode::Format;
 use crate::i18n::I18n;
+use crate::transform::Op;
 
-/// Apply (also Enter), with what is applied and what is not saved yet.
-pub(super) fn apply_row(ui: &mut egui::Ui, w: &Window, i18n: &I18n, typing: bool) -> Option<Ask> {
-    let mut ask = None;
-    ui.horizontal(|ui| {
-        let ready = w.pending() && w.applying.is_none() && !w.preparing;
-        let r = ui.add_enabled(ready, crate::theme::main_button(ui, i18n.t("rc-apply"))).on_hover_text(i18n.t("rc-apply-hint"));
-        // Enter applies too, unless a field is being typed in (or was, until this Enter).
-        if r.clicked() || (ready && !typing && !ui.ctx().egui_wants_keyboard_input() && ui.input(|i| i.key_pressed(egui::Key::Enter))) {
-            ask = Some(Ask::Apply);
-        }
-        if w.applying.is_some() {
-            ui.spinner();
-        }
-    });
-    // Nothing is written until Save: said in so many words (the user took Apply for Save).
-    let note = if w.pending() {
-        Some("rc-pending")
-    } else if !w.applied.is_empty() {
-        Some("rc-unsaved")
-    } else {
-        None
-    };
-    if let Some(id) = note {
-        ui.label(i18n.t(id));
-    }
-    ui.add_space(8.0);
-    ask
-}
-
-/// The angle, with buttons for the quarter turns and back to zero. `true` if it changed.
+/// The angle, with buttons for the quarter turns and back to zero. `true` if it changed. The
+/// quarter turns turn the document (`Doc::turned`): the objects and the crop go with the image,
+/// and a document with only quarter turns is saved as the viewer's Save does it.
 pub(super) fn angle_controls(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
-    let before = w.angle;
+    let before = w.doc.angle;
+    let mut turned = false;
     ui.strong(i18n.t("rc-rotation"));
     ui.spacing_mut().slider_width = SIDE - 80.0;
     // The language's decimal separator, both shown and typed (a dot works too).
     let sep = i18n.t("decimal-separator");
     ui.add(
-        egui::Slider::new(&mut w.angle, -180.0..=180.0)
+        egui::Slider::new(&mut w.doc.angle, -180.0..=180.0)
             .step_by(0.1)
             .suffix("°")
             .custom_formatter(move |v, _| format!("{v:.1}").replace('.', &sep))
             .custom_parser(|s| s.trim().replace(',', ".").parse().ok()),
     );
     ui.horizontal(|ui| {
-        if ui.button("−90°").clicked() {
-            w.angle -= 90.0;
+        for (label, op) in [("−90°", Op::Ccw), ("+90°", Op::Cw)] {
+            if ui.button(label).clicked() {
+                w.doc.turned(op);
+                w.view = None;
+                turned = true;
+            }
         }
-        if ui.button("+90°").clicked() {
-            w.angle += 90.0;
-        }
-        if ui.add_enabled(w.angle != 0.0, egui::Button::new(i18n.t("rc-reset"))).clicked() {
-            w.angle = 0.0;
+        if ui.add_enabled(w.doc.angle != 0.0, egui::Button::new(i18n.t("rc-reset"))).clicked() {
+            w.doc.angle = 0.0;
         }
     });
     // A framed button even when off (`toggle_value` looked like plain text then).
@@ -67,9 +43,9 @@ pub(super) fn angle_controls(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> 
     }
     ui.weak(i18n.t("rc-rotation-hint"));
     // Kept between -180 and 180, the range of the slider.
-    w.angle = (w.angle + 180.0).rem_euclid(360.0) - 180.0;
+    w.doc.angle = (w.doc.angle + 180.0).rem_euclid(360.0) - 180.0;
     ui.add_space(12.0);
-    w.angle != before
+    turned || w.doc.angle != before
 }
 
 /// Proportions and the two ready-made crops. `true` if the crop must be made again.

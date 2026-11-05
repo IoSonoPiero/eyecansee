@@ -1,9 +1,13 @@
-//! Rotate and crop, the canvas: the image rotated, the crop over it, the mouse and the wheel on
-//! them. Moved from `rotate_page.rs` on 2026-11-05.
+//! The editor's canvas: the image turned by the GPU, the cover boxes, the texture of the other
+//! objects, and over them the crop (Rotate and crop) or the selection; the mouse and the wheel on
+//! them. Rotate and crop's part moved from `rotate_page.rs` on 2026-11-05.
 
-use eframe::egui::{self, Color32, CursorIcon, Pos2, Rect, TextureHandle, Vec2};
+use eframe::egui::{self, Color32, CursorIcon, Pos2, Rect, TextureHandle, TextureId, Vec2};
 
-use super::{Follow, GRAB, Grab, Window};
+use super::{Drawn, Follow, GRAB, Grab, Hold, Tool, Window};
+use crate::edit::doc::{Obj, Pt, Shape};
+use crate::edit::geom::{self, Kind};
+use crate::edit::render;
 use crate::rotate::{self, Crop};
 
 /// From image pixels (rotated, from the centre of the image) to the screen and back.
@@ -25,30 +29,51 @@ impl View {
     fn crop(&self, c: Crop) -> Rect {
         Rect::from_center_size(self.screen(egui::vec2(c.cx, c.cy)), egui::vec2(c.w, c.h) * self.k)
     }
+
+    /// A point of the document (before the free angle) on the screen, and back.
+    fn of(&self, p: Pt, angle: f32) -> Pos2 {
+        let q = geom::turned(p, angle);
+        self.screen(egui::vec2(q.x, q.y))
+    }
+
+    fn doc(&self, s: Pos2, angle: f32) -> Pt {
+        let v = self.image(s);
+        geom::turned(Pt::new(v.x, v.y), -angle)
+    }
 }
 
-/// The image rotated, the crop over it, and the mouse on them.
+/// The image, the objects and the crop or the selection, and the mouse on them.
 pub(super) fn canvas(ui: &mut egui::Ui, w: &mut Window, tex: &TextureHandle, size: Vec2) {
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
     let (iw, ih) = w.size();
+    let crop_tool = w.tool == Tool::Crop;
     let (at, k) = w.view.unwrap_or_else(|| {
-        // Everything in view: the rotated image and the crop, if it goes further.
-        let (bw, bh) = rotate::bounds(iw, ih, w.angle);
-        let c = w.crop;
-        let (vw, vh) = (bw.max(2.0 * c.cx.abs() + c.w), bh.max(2.0 * c.cy.abs() + c.h));
-        (Vec2::ZERO, (rect.width() / vw).min(rect.height() / vh) * 0.92)
+        let c = w.doc.crop;
+        if crop_tool {
+            // Everything in view: the rotated image and the crop, if it goes further.
+            let (bw, bh) = rotate::bounds(iw, ih, w.doc.angle);
+            let (vw, vh) = (bw.max(2.0 * c.cx.abs() + c.w), bh.max(2.0 * c.cy.abs() + c.h));
+            (Vec2::ZERO, (rect.width() / vw).min(rect.height() / vh) * 0.92)
+        } else {
+            // The result: what is inside the crop.
+            (egui::vec2(c.cx, c.cy), (rect.width() / c.w).min(rect.height() / c.h) * 0.95)
+        }
     });
     let view = View { centre: rect.center(), at, k };
-    mouse(ui, w, &response, &view, rect);
+    if crop_tool {
+        mouse(ui, w, &response, &view, rect);
+    } else {
+        objects_mouse(ui, w, &response, &view, rect);
+    }
     // Drawn with the view after the mouse moved it.
     let (at, k) = w.view.unwrap_or((at, k));
     paint(ui, w, tex, &View { centre: rect.center(), at, k }, rect);
 }
 
-fn paint(ui: &egui::Ui, w: &Window, tex: &TextureHandle, view: &View, rect: Rect) {
+fn paint(ui: &egui::Ui, w: &mut Window, tex: &TextureHandle, view: &View, rect: Rect) {
     let painter = ui.painter_at(rect);
     painter.rect_filled(rect, 2.0, Color32::from_gray(18));
-    let cr = view.crop(w.crop);
+    let cr = view.crop(w.doc.crop);
     if w.transparent {
         checker(&painter, cr.intersect(rect));
     } else {
@@ -56,25 +81,56 @@ fn paint(ui: &egui::Ui, w: &Window, tex: &TextureHandle, view: &View, rect: Rect
     }
     // The four corners of the image, rotated clockwise around its centre; the GPU does the rest.
     let (iw, ih) = w.size();
-    let (s, c) = (w.angle as f64).to_radians().sin_cos();
+    let (s, c) = (w.doc.angle as f64).to_radians().sin_cos();
     let (s, c) = (s as f32, c as f32);
     let mut mesh = egui::Mesh::with_texture(tex.id());
     for (x, y) in [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)] {
         let (qx, qy) = ((x - 0.5) * iw, (y - 0.5) * ih);
         let pos = view.screen(egui::vec2(qx * c - qy * s, qx * s + qy * c));
-        mesh.vertices.push(egui::epaint::Vertex { pos, uv: w.turn.source_uv(egui::pos2(x, y)), color: Color32::WHITE });
+        mesh.vertices.push(egui::epaint::Vertex { pos, uv: w.doc.turn.source_uv(egui::pos2(x, y)), color: Color32::WHITE });
     }
     mesh.add_triangle(0, 1, 2);
     mesh.add_triangle(0, 2, 3);
     painter.add(mesh);
-    // Outside the crop darkened, as in the photo editors.
-    let shade = Color32::from_black_alpha(150);
-    for r in [
+    // The cover boxes under the other objects, as when saving.
+    for o in &w.doc.objects {
+        if let Shape::Cover(_) = o.shape {
+            let [r, g, b] = o.style.color;
+            let points = geom::handles(o).into_iter().map(|p| view.of(p, w.doc.angle)).collect();
+            painter.add(egui::Shape::convex_polygon(points, Color32::from_rgb(r, g, b), egui::Stroke::NONE));
+        }
+    }
+    if let Some(id) = objects_texture(ui, w, view, rect) {
+        painter.image(id, rect, Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
+    }
+    if w.tool == Tool::Crop {
+        crop_overlay(&painter, w, rect, cr);
+    } else {
+        // Only the result is seen: outside the crop the background.
+        for r in outside(rect, cr) {
+            painter.rect_filled(r, 0.0, Color32::from_gray(18));
+        }
+        if let Some(o) = w.selected.and_then(|i| w.doc.objects.get(i)) {
+            selection(&painter, o, view, w.doc.angle);
+        }
+    }
+}
+
+/// The four bands of `rect` around `cr`.
+fn outside(rect: Rect, cr: Rect) -> [Rect; 4] {
+    [
         Rect::from_min_max(rect.min, egui::pos2(rect.max.x, cr.min.y)),
         Rect::from_min_max(egui::pos2(rect.min.x, cr.max.y), rect.max),
         Rect::from_min_max(egui::pos2(rect.min.x, cr.min.y), egui::pos2(cr.min.x, cr.max.y)),
         Rect::from_min_max(egui::pos2(cr.max.x, cr.min.y), egui::pos2(rect.max.x, cr.max.y)),
-    ] {
+    ]
+}
+
+/// Rotate and crop: outside the crop darkened, the thirds, the Straighten line, the handles.
+fn crop_overlay(painter: &egui::Painter, w: &Window, rect: Rect, cr: Rect) {
+    // Outside the crop darkened, as in the photo editors.
+    let shade = Color32::from_black_alpha(150);
+    for r in outside(rect, cr) {
         painter.rect_filled(r, 0.0, shade);
     }
     // Thirds, to line up the horizon or the subject.
@@ -91,10 +147,67 @@ fn paint(ui: &egui::Ui, w: &Window, tex: &TextureHandle, view: &View, rect: Rect
     }
     for (sx, sy) in sides(w.ratio().is_some()) {
         let p = cr.center() + egui::vec2(sx as f32 * cr.width(), sy as f32 * cr.height()) / 2.0;
-        let handle = Rect::from_center_size(p, egui::vec2(9.0, 9.0));
-        painter.rect_filled(handle, 1.0, Color32::WHITE);
-        painter.rect_stroke(handle, 1.0, egui::Stroke::new(1.0, Color32::from_gray(40)), egui::StrokeKind::Outside);
+        handle(painter, p);
     }
+}
+
+fn handle(painter: &egui::Painter, p: Pos2) {
+    let r = Rect::from_center_size(p, egui::vec2(9.0, 9.0));
+    painter.rect_filled(r, 1.0, Color32::WHITE);
+    painter.rect_stroke(r, 1.0, egui::Stroke::new(1.0, Color32::from_gray(40)), egui::StrokeKind::Outside);
+}
+
+/// The selected object outlined, with its handles.
+fn selection(painter: &egui::Painter, o: &Obj, view: &View, angle: f32) {
+    let outline: Vec<Pos2> = match &o.shape {
+        Shape::Line(a, b) | Shape::Arrow(a, b) => vec![view.of(*a, angle), view.of(*b, angle)],
+        Shape::Text { at, text, size, rot } => {
+            let area = geom::text_area(*at, text, *size, *rot);
+            let box_ = crate::edit::doc::Obj { shape: Shape::Rect(area), style: o.style };
+            geom::handles(&box_).into_iter().map(|p| view.of(p, angle)).collect()
+        }
+        _ => geom::handles(o).into_iter().map(|p| view.of(p, angle)).collect(),
+    };
+    let closed = outline.len() > 2;
+    for stroke in [egui::Stroke::new(3.0, Color32::from_black_alpha(160)), egui::Stroke::new(1.5, Color32::from_rgb(0x4F, 0xC3, 0xF7))] {
+        if closed {
+            painter.add(egui::Shape::closed_line(outline.clone(), stroke));
+        } else {
+            painter.add(egui::Shape::line(outline.clone(), stroke));
+        }
+    }
+    for p in geom::handles(o) {
+        handle(painter, view.of(p, angle));
+    }
+}
+
+/// The objects but the cover boxes, drawn by `edit::render` for this view at the screen's own
+/// pixels; drawn again only when the document or the view changed.
+fn objects_texture(ui: &egui::Ui, w: &mut Window, view: &View, rect: Rect) -> Option<TextureId> {
+    if !w.doc.objects.iter().any(|o| !matches!(o.shape, Shape::Cover(_))) {
+        return None;
+    }
+    let ppp = ui.ctx().pixels_per_point();
+    let key = Drawn { doc: w.doc.clone(), at: view.at, k: view.k, rect, ppp };
+    if let Some((drawn, tex)) = &w.objects
+        && *drawn == key
+    {
+        return Some(tex.id());
+    }
+    let (iw, ih) = w.size();
+    let (left, top) = rotate::corner(iw, ih, w.doc.crop);
+    let p0 = view.image(rect.min);
+    let part = render::View { x: p0.x - left, y: p0.y - top, w: (rect.width() * ppp).round().max(1.0) as u32, h: (rect.height() * ppp).round().max(1.0) as u32, scale: view.k * ppp };
+    let pixmap = render::render(&w.doc, w.upright(), &part, &crate::decode::usvg_options())?;
+    let img = egui::ColorImage::from_rgba_premultiplied([pixmap.width() as usize, pixmap.height() as usize], pixmap.data());
+    match &mut w.objects {
+        Some((drawn, tex)) => {
+            tex.set(img, egui::TextureOptions::LINEAR);
+            *drawn = key;
+        }
+        None => w.objects = Some((key, ui.ctx().load_texture("edit-objects", img, egui::TextureOptions::LINEAR))),
+    }
+    w.objects.as_ref().map(|(_, t)| t.id())
 }
 
 /// Grey squares where the result will be transparent.
@@ -126,7 +239,7 @@ fn grab_at(w: &Window, view: &View, p: Pos2) -> Grab {
     if w.straighten {
         return Grab::Line;
     }
-    let cr = view.crop(w.crop);
+    let cr = view.crop(w.doc.crop);
     for (sx, sy) in sides(w.ratio().is_some()) {
         let h = cr.center() + egui::vec2(sx as f32 * cr.width(), sy as f32 * cr.height()) / 2.0;
         if h.distance(p) <= GRAB {
@@ -136,7 +249,7 @@ fn grab_at(w: &Window, view: &View, p: Pos2) -> Grab {
     if cr.contains(p) { Grab::Move } else { Grab::Pan }
 }
 
-/// Dragging, the wheel and the double click on the canvas.
+/// Rotate and crop: dragging, the wheel and the double click on the canvas.
 fn mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, rect: Rect) {
     if let Some(p) = response.hover_pos() {
         let icon = match w.drag.map_or_else(|| grab_at(w, view, p), |d| d.0) {
@@ -159,12 +272,12 @@ fn mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, 
     if response.drag_started()
         && let Some(p) = ui.input(|i| i.pointer.press_origin()).or(response.interact_pointer_pos())
     {
-        w.drag = Some((grab_at(w, view, p), w.crop, (view.at, view.k), p));
+        w.drag = Some((grab_at(w, view, p), w.doc.crop, (view.at, view.k), p));
     }
     if response.drag_stopped() {
         // The line drawn becomes level (or upright), and Straighten turns itself off.
         if let (Some((Grab::Line, .., from)), Some(to)) = (w.drag, w.line_end.take()) {
-            w.angle = rotate::straightened(w.angle, to.x - from.x, to.y - from.y);
+            w.doc.angle = rotate::straightened(w.doc.angle, to.x - from.x, to.y - from.y);
             w.straighten = false;
             w.refit();
         }
@@ -176,30 +289,141 @@ fn mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, 
             Grab::Pan => w.view = Some((at - moved, k)),
             Grab::Line => w.line_end = Some(p),
             Grab::Move => {
-                w.crop = Crop { cx: start.cx + moved.x, cy: start.cy + moved.y, ..start };
+                w.doc.crop = Crop { cx: start.cx + moved.x, cy: start.cy + moved.y, ..start };
                 w.follow = Follow::Manual;
             }
             Grab::Side(sx, sy) => {
-                w.crop = resized(start, sx, sy, view.image(p), w.ratio());
+                w.doc.crop = resized(start, sx, sy, view.image(p), w.ratio());
                 w.follow = Follow::Manual;
             }
         }
     }
     if response.hovered() {
-        wheel(ui, w, view, rect);
+        wheel(ui, w, view, rect, true);
     }
 }
 
-/// Shift + wheel turns by 0.1° a notch; the wheel (or Ctrl + wheel, or the pinch) zooms around the pointer.
-fn wheel(ui: &egui::Ui, w: &mut Window, view: &View, rect: Rect) {
+/// The other tools: Select picks, moves and resizes objects, the drawing tools draw them, a text
+/// is placed with a click; the right or middle button moves the view.
+fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, rect: Rect) {
+    let angle = w.doc.angle;
+    // Within reach of the pointer, in image pixels.
+    let tol = GRAB / view.k;
+    if let Some(s) = response.hover_pos() {
+        let p = view.doc(s, angle);
+        let on_handle = w.selected.and_then(|i| w.doc.objects.get(i)).is_some_and(|o| geom::handles(o).iter().any(|h| view.of(*h, angle).distance(s) <= GRAB));
+        let icon = match (&w.hold, w.tool) {
+            (Some(Hold::Pan { .. }), _) => CursorIcon::Grabbing,
+            (Some(Hold::Move { .. }), _) => CursorIcon::Move,
+            (Some(_), _) => CursorIcon::Crosshair,
+            (None, Tool::Draw(Kind::Text)) => CursorIcon::Text,
+            (None, Tool::Draw(_)) => CursorIcon::Crosshair,
+            (None, _) if on_handle => CursorIcon::Crosshair,
+            (None, _) if geom::under(&w.doc.objects, p, tol).is_some() => CursorIcon::Move,
+            (None, _) => CursorIcon::Default,
+        };
+        ui.ctx().set_cursor_icon(icon);
+    }
+    if response.double_clicked() && w.tool != Tool::Draw(Kind::Text) {
+        w.view = None;
+    }
+    let pan = response.dragged_by(egui::PointerButton::Secondary) || response.dragged_by(egui::PointerButton::Middle);
+    if response.drag_started()
+        && let Some(s) = ui.input(|i| i.pointer.press_origin()).or(response.interact_pointer_pos())
+    {
+        let p = view.doc(s, angle);
+        w.hold = Some(match w.tool {
+            _ if pan => Hold::Pan { at: view.at, k: view.k, from: s },
+            Tool::Draw(Kind::Text) => Hold::Pan { at: view.at, k: view.k, from: s },
+            Tool::Draw(kind) => Hold::Draw { kind, from: p, index: None },
+            _ => picked(w, view, s, p, tol),
+        });
+    }
+    if let (Some(mut hold), Some(s)) = (w.hold.take(), response.interact_pointer_pos()) {
+        let p = view.doc(s, angle);
+        match &mut hold {
+            Hold::Move { index, start, from } => w.doc.objects[*index] = geom::moved(start, Pt::new(p.x - from.x, p.y - from.y)),
+            Hold::Handle { index, handle, start } => w.doc.objects[*index] = geom::with_handle(start, *handle, p),
+            Hold::Pan { at, k, from } => w.view = Some((*at - (s - *from) / *k, *k)),
+            Hold::Draw { kind, from, index } => match (geom::drawn(*kind, *from, p, angle, w.style(*kind)), *index) {
+                (Some(o), Some(i)) => w.doc.objects[i] = o,
+                (Some(o), None) => {
+                    w.doc.objects.push(o);
+                    *index = Some(w.doc.objects.len() - 1);
+                }
+                (None, Some(i)) => {
+                    w.doc.objects.remove(i);
+                    *index = None;
+                }
+                (None, None) => {}
+            },
+        }
+        w.hold = Some(hold);
+    }
+    if response.drag_stopped() {
+        if let Some(Hold::Draw { index: Some(i), .. }) = w.hold {
+            w.selected = Some(i);
+        }
+        w.hold = None;
+    }
+    if response.clicked()
+        && let Some(s) = response.interact_pointer_pos()
+    {
+        clicked(w, view.doc(s, angle), tol);
+    }
+    if response.hovered() {
+        wheel(ui, w, view, rect, false);
+    }
+}
+
+/// A drag started with Select (or a drawing tool on nothing to draw): a handle of the selected
+/// object, an object, or the view.
+fn picked(w: &mut Window, view: &View, s: Pos2, p: Pt, tol: f32) -> Hold {
+    let angle = w.doc.angle;
+    if let Some(i) = w.selected
+        && let Some(h) = w.doc.objects.get(i).and_then(|o| geom::handles(o).iter().position(|h| view.of(*h, angle).distance(s) <= GRAB))
+    {
+        return Hold::Handle { index: i, handle: h, start: w.doc.objects[i].clone() };
+    }
+    match geom::under(&w.doc.objects, p, tol) {
+        Some(i) => {
+            w.selected = Some(i);
+            Hold::Move { index: i, start: w.doc.objects[i].clone(), from: p }
+        }
+        None => {
+            w.selected = None;
+            Hold::Pan { at: view.at, k: view.k, from: s }
+        }
+    }
+}
+
+/// A click: the Text tool places a text (or picks one to change), the others pick what is under it.
+fn clicked(w: &mut Window, p: Pt, tol: f32) {
+    let under = geom::under(&w.doc.objects, p, tol);
+    if w.tool == Tool::Draw(Kind::Text) {
+        if let Some(i) = under.filter(|&i| Kind::of(&w.doc.objects[i]) == Kind::Text) {
+            w.selected = Some(i);
+        } else if let Some(o) = geom::drawn(Kind::Text, p, p, w.doc.angle, w.style(Kind::Text)) {
+            w.doc.objects.push(o);
+            w.selected = Some(w.doc.objects.len() - 1);
+        }
+        w.focus_text = true;
+    } else {
+        w.selected = under;
+    }
+}
+
+/// Shift + wheel turns by 0.1° a notch (with `turn`, in Rotate and crop); the wheel (or Ctrl +
+/// wheel, or the pinch) zooms around the pointer.
+fn wheel(ui: &egui::Ui, w: &mut Window, view: &View, rect: Rect, turn: bool) {
     let (notches, zoom, mods, pointer) = ui.input(|i| {
         // Notches, not distance: one notch is 0.1°. Shift turns the wheel sideways on some systems.
         let n: f32 = i.events.iter().filter_map(|e| if let egui::Event::MouseWheel { delta, .. } = e { Some((delta.y + delta.x).signum()) } else { None }).sum();
         (n, i.zoom_delta(), i.modifiers, i.pointer.hover_pos())
     });
-    if mods.shift {
+    if mods.shift && turn {
         if notches != 0.0 {
-            w.angle = ((w.angle - notches * 0.1) * 10.0).round() / 10.0;
+            w.doc.angle = ((w.doc.angle - notches * 0.1) * 10.0).round() / 10.0;
             w.refit();
         }
         return;
