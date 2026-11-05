@@ -32,17 +32,17 @@ pub(crate) fn context_menu(ui: &mut Ui, items: Vec<MenuItem>) -> Option<Act> {
     for item in items {
         match item {
             Some((label, _, Act::Submenu(sub))) => {
-                ui.menu_button(label, |ui| {
+                ui.menu_button((crate::icons::menu_icon(ui, None), label), |ui| {
                     if let Some(a) = context_menu(ui, sub) {
                         chosen = Some(a);
                     }
                 });
             }
             Some((label, keys, Act::Off(why))) => {
-                ui.add_enabled(false, egui::Button::new(label).shortcut_text(keys)).on_disabled_hover_text(why);
+                ui.add_enabled(false, crate::icons::menu_item(ui, None, label, keys)).on_disabled_hover_text(why);
             }
             Some((label, keys, act)) => {
-                if ui.add(egui::Button::new(label).shortcut_text(keys)).clicked() {
+                if ui.add(crate::icons::menu_item(ui, act.icon(), label, keys)).clicked() {
                     chosen = Some(act);
                 }
             }

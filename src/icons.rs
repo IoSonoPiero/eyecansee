@@ -154,6 +154,15 @@ pub enum Line {
     Pause,
     Volume,
     Mute,
+    Settings,
+    Manual,
+    Quit,
+    Server,
+    Address,
+    Slideshow,
+    FlipH,
+    FlipV,
+    Updates,
     Solid,
     Dashed,
     Dotted,
@@ -211,6 +220,15 @@ fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Pause => lucide!("pause").into(),
         Line::Volume => lucide!("volume-2").into(),
         Line::Mute => lucide!("volume-x").into(),
+        Line::Settings => lucide!("settings").into(),
+        Line::Manual => lucide!("book-open").into(),
+        Line::Quit => lucide!("log-out").into(),
+        Line::Server => lucide!("server").into(),
+        Line::Address => lucide!("link").into(),
+        Line::Slideshow => lucide!("presentation").into(),
+        Line::FlipH => lucide!("square-split-horizontal").into(),
+        Line::FlipV => lucide!("square-split-vertical").into(),
+        Line::Updates => lucide!("download").into(),
         Line::Solid => own("M3 12h18"),
         Line::Dashed => own("M3 12h4M10 12h4M17 12h4"),
         // Dots wider than the line, or they look like specks.
@@ -250,6 +268,20 @@ pub fn toggle(ui: &egui::Ui, on: bool, icon: Line) -> egui::Button<'static> {
     egui::Button::image(line(ui, icon, 18.0)).selected(on).min_size(BUTTON)
 }
 
+/// The icon of a menu item, or room as wide as one (the labels stay in line).
+pub fn menu_icon(ui: &egui::Ui, icon: Option<Line>) -> egui::Image<'static> {
+    match icon {
+        Some(icon) => line(ui, icon, 16.0),
+        // ponytail: a transparent icon as the blank, one texture.
+        None => line_in(ui.ctx(), Line::Close, 16.0, egui::Color32::TRANSPARENT),
+    }
+}
+
+/// A menu item: icon, name, shortcut on the right.
+pub fn menu_item(ui: &egui::Ui, icon: Option<Line>, label: String, keys: String) -> egui::Button<'static> {
+    egui::Button::image_and_text(menu_icon(ui, icon), label).shortcut_text(keys)
+}
+
 /// A small button with a line icon, inside a row of text (close a box, fold a panel).
 pub fn small(ui: &egui::Ui, icon: Line) -> egui::Button<'static> {
     egui::Button::image(line(ui, icon, 13.0)).small()
@@ -263,7 +295,7 @@ mod tests {
     #[test]
     fn line_icons_draw() {
         use Line::*;
-        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Rect, Highlight, Text, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Solid, Dashed, Dotted] {
+        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Rect, Highlight, Text, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Settings, Manual, Quit, Server, Address, Slideshow, FlipH, FlipV, Updates, Solid, Dashed, Dotted] {
             let img = render(&line_svg(icon).replace("currentColor", "#ff0000"), 24);
             let red = img.pixels.iter().filter(|p| p.a() > 128 && p.r() > 200 && p.g() < 60).count();
             assert!(red > 10, "{icon:?}: {red} pixels");

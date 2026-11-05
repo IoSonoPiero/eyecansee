@@ -99,6 +99,45 @@ pub(crate) fn transform_items() -> [(transform::Op, &'static str, Option<&'stati
     ]
 }
 
+impl Act {
+    /// The icon of its menu items (and of its toolbar button): the same everywhere.
+    pub(crate) fn icon(&self) -> Option<crate::icons::Line> {
+        use crate::icons::Line;
+        use transform::Op;
+        Some(match self {
+            Act::Address => Line::Address,
+            Act::Servers => Line::Server,
+            Act::Options => Line::Settings,
+            Act::Delete(..) => Line::Delete,
+            Act::Rename(_) => Line::Rename,
+            Act::NewFolder(_) => Line::NewFolder,
+            Act::Convert(_) | Act::ExportModel(..) | Act::ExportDrawings(_) => Line::SaveAs,
+            Act::Batch(_) => Line::Batch,
+            Act::Duplicates(_) => Line::Duplicates,
+            Act::Slideshow(_) => Line::Slideshow,
+            Act::RedoThumbs(_) | Act::RedoAllThumbs | Act::Refresh => Line::Refresh,
+            Act::Transform(Op::Cw, _) => Line::RotateCw,
+            Act::Transform(Op::Ccw, _) => Line::RotateCcw,
+            Act::Transform(Op::FlipH, _) => Line::FlipH,
+            Act::Transform(Op::FlipV, _) => Line::FlipV,
+            Act::RotateCrop(_) => Line::Crop,
+            Act::Edit(_) => Line::Edit,
+            Act::EditCopy | Act::Copy(_) => Line::Copy,
+            Act::Save => Line::Save,
+            Act::Restore(_) => Line::Undo,
+            Act::Cut(_) => Line::Cut,
+            Act::Paste(_) => Line::Paste,
+            Act::Quit => Line::Quit,
+            Act::Back => Line::Grid,
+            Act::Up => Line::Up,
+            Act::Manual => Line::Manual,
+            Act::CheckUpdates | Act::Update => Line::Updates,
+            Act::About => Line::Info,
+            _ => return None,
+        })
+    }
+}
+
 impl App {
     pub(crate) fn global_keys(&mut self, ctx: &egui::Context) {
         let (help, refresh, delete, shift, rename) = ctx.input(|i| {

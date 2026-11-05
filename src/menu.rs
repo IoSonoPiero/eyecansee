@@ -43,8 +43,8 @@ impl App {
 
     fn file_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
-        entry(ui, act, true, egui::Button::new(t("menu-open-location")), Act::Address);
-        entry(ui, act, true, egui::Button::new(t("menu-servers")), Act::Servers);
+        entry(ui, act, true, item(t("menu-open-location"), String::new()), Act::Address);
+        entry(ui, act, true, item(t("menu-servers"), String::new()), Act::Servers);
         entry(ui, act, self.can_make_folder(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder(None));
         ui.separator();
         // Also when it cannot overwrite (FTP, gvfs, format): `ask_save` then says why and offers Save as….
@@ -60,9 +60,9 @@ impl App {
         // As in the right-click menu: the 3D models among the files chosen.
         let model = fits(&files, &[Kind::Model]);
         ui.add_enabled_ui(model.is_some(), |ui| {
-            ui.menu_button(starred(t("menu-export-3d"), model != Some(false)), |ui| {
+            ui.menu_button((icons::menu_icon(ui, None), starred(t("menu-export-3d"), model != Some(false))), |ui| {
                 for k in crate::model_export::Kind::ALL {
-                    entry(ui, act, true, egui::Button::new(k.label()), Act::ExportModel(None, k));
+                    entry(ui, act, true, item(k.label().into(), String::new()), Act::ExportModel(None, k));
                 }
             });
         });
@@ -70,12 +70,13 @@ impl App {
         ui.separator();
         let can_change = self.target().is_some();
         let one = self.chosen(None).len() <= 1;
-        let r = ui.add_enabled(can_change && one, item(t("menu-rename"), "F2".into()));
+        let rename = icons::menu_item(ui, Some(icons::Line::Rename), t("menu-rename"), "F2".into());
+        let r = ui.add_enabled(can_change && one, rename);
         pick(act, if one { r } else { r.on_disabled_hover_text(t("rename-one-only")) }, Act::Rename(None));
         entry(ui, act, can_change, item(t("menu-delete"), t("key-delete")), Act::Delete(None, false));
         entry(ui, act, can_change, item(t("menu-delete-permanent"), t("key-shift-delete")), Act::Delete(None, true));
         ui.separator();
-        entry(ui, act, true, egui::Button::new(t("menu-quit")), Act::Quit);
+        entry(ui, act, true, item(t("menu-quit"), String::new()), Act::Quit);
     }
 
     fn edit_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
@@ -106,7 +107,8 @@ impl App {
         let off = self.edit_off(None);
         let ok = fit.is_some() && off.is_none();
         for (label, keys, a) in [("menu-edit-image", t("key-edit"), Act::Edit(None)), ("menu-rotate-crop", String::new(), Act::RotateCrop(None))] {
-            let r = ui.add_enabled(ok, item(star(t(label)), keys));
+            let button = icons::menu_item(ui, a.icon(), star(t(label)), keys);
+            let r = ui.add_enabled(ok, button);
             pick(act, match &off { Some(why) => r.on_disabled_hover_text(why), None => r }, a);
         }
         partial_note(ui, fit == Some(false), &self.i18n);
@@ -118,7 +120,7 @@ impl App {
         let has_items = self.items() > 0;
         entry(ui, act, !viewing && has_items && self.cursor, item(t("menu-open-selected"), t("key-enter")), Act::Open);
         entry(ui, act, viewing, item(t("menu-back-to-grid"), "Esc".into()), Act::Back);
-        entry(ui, act, !self.files().is_empty(), egui::Button::new(t("menu-slideshow")), Act::Slideshow(None));
+        entry(ui, act, !self.files().is_empty(), item(t("menu-slideshow"), String::new()), Act::Slideshow(None));
         ui.separator();
         // Moving around (once a menu of its own, "Go", with only these).
         entry(ui, act, has_items, item(t("menu-next"), "→".into()), Act::Go(Go::Next));
@@ -128,23 +130,23 @@ impl App {
         entry(ui, act, !viewing && !self.dir.is_empty(), item(t("menu-parent"), t("key-backspace")), Act::Up);
         ui.separator();
         entry(ui, act, true, item(t("menu-refresh"), "F5".into()), Act::Refresh);
-        entry(ui, act, self.chosen(None).iter().any(|p| !p.ends_with('/')), egui::Button::new(t("menu-redo-thumbs")), Act::RedoThumbs(None));
+        entry(ui, act, self.chosen(None).iter().any(|p| !p.ends_with('/')), item(t("menu-redo-thumbs"), String::new()), Act::RedoThumbs(None));
         entry(ui, act, !viewing && has_items, item(t("menu-redo-all-thumbs"), t("key-shift-f5")), Act::RedoAllThumbs);
         ui.separator();
-        ui.menu_button(t("sort-by"), |ui| {
+        ui.menu_button((icons::menu_icon(ui, None), t("sort-by")), |ui| {
             for by in settings::SortBy::ALL {
                 pick(act, ui.radio(self.settings.sort_by == by, t(by.label())), Act::Sort(by));
             }
             ui.separator();
             pick(act, ui.checkbox(&mut self.settings.sort_desc.clone(), t("sort-desc")), Act::SortDesc);
         });
-        ui.menu_button(t("show-menu"), |ui| {
+        ui.menu_button((icons::menu_icon(ui, None), t("show-menu")), |ui| {
             for show in settings::Show::ALL {
                 pick(act, ui.radio(self.settings.show == show, t(show.label())), Act::Show(show));
             }
         });
         ui.add_enabled_ui(!viewing, |ui| {
-            ui.menu_button(t("menu-meta"), |ui| {
+            ui.menu_button((icons::menu_icon(ui, None), t("menu-meta")), |ui| {
                 for g in meta::Group::ALL {
                     let label = self.i18n.t(&format!("meta-{}", g.key()));
                     pick(act, ui.checkbox(&mut self.meta_shown(g), label), Act::Meta(g));
@@ -176,15 +178,15 @@ impl App {
         entry(ui, act, self.duplicates_off().is_none(), item(t("menu-duplicates"), t("key-duplicates")), Act::Duplicates(None));
         partial_note(ui, partial, &self.i18n);
         ui.separator();
-        entry(ui, act, true, egui::Button::new(t("menu-options")), Act::Options);
+        entry(ui, act, true, item(t("menu-options"), String::new()), Act::Options);
     }
 
     fn help_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
         entry(ui, act, true, item(t("menu-manual"), "F1".into()), Act::Manual);
         ui.separator();
-        entry(ui, act, true, egui::Button::new(t("menu-check-updates")), Act::CheckUpdates);
-        entry(ui, act, true, egui::Button::new(t("menu-about")), Act::About);
+        entry(ui, act, true, item(t("menu-check-updates"), String::new()), Act::CheckUpdates);
+        entry(ui, act, true, item(t("menu-about"), String::new()), Act::About);
     }
 
     pub(crate) fn toolbar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
@@ -336,9 +338,9 @@ impl App {
     }
 }
 
-/// A menu item with its shortcut on the right.
-fn item(label: String, keys: String) -> egui::Button<'static> {
-    egui::Button::new(label).shortcut_text(keys)
+/// Name and shortcut of a menu item; its icon comes from the action (`Act::icon`).
+fn item(label: String, keys: String) -> (String, String) {
+    (label, keys)
 }
 
 /// Records the item chosen; it runs after the menus are drawn.
@@ -348,7 +350,8 @@ fn pick(act: &Cell<Option<Act>>, r: egui::Response, a: Act) {
     }
 }
 
-fn entry(ui: &mut egui::Ui, act: &Cell<Option<Act>>, enabled: bool, button: egui::Button, a: Act) {
+fn entry(ui: &mut egui::Ui, act: &Cell<Option<Act>>, enabled: bool, (label, keys): (String, String), a: Act) {
+    let button = icons::menu_item(ui, a.icon(), label, keys);
     pick(act, ui.add_enabled(enabled, button), a);
 }
 
