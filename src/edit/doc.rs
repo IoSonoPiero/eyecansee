@@ -43,10 +43,12 @@ pub struct Area {
 }
 
 impl Area {
+    /// The box over the same part of the image once it is flipped or turned: a quarter turn swaps
+    /// its sides (it kept them, and a box moved off what it covered: a cover box left private
+    /// data in view, found on 2026-11-05), a flip mirrors its angle.
     fn turned(self, op: Op) -> Area {
-        // A quarter turn of the image turns the rectangle with it: its own angle, measured on the
-        // image, stays; a flip mirrors it.
-        Area { centre: self.centre.turned(op), rot: if is_flip(op) { -self.rot } else { self.rot }, ..self }
+        let (w, h) = if matches!(op, Op::Cw | Op::Ccw) { (self.h, self.w) } else { (self.w, self.h) };
+        Area { centre: self.centre.turned(op), w, h, rot: if is_flip(op) { -self.rot } else { self.rot } }
     }
 }
 
@@ -254,6 +256,35 @@ pub(crate) mod tests {
                 d.turned(again);
                 let after: Vec<Pt> = points(&d).into_iter().map(|p| d.source(p)).collect();
                 assert_eq!(after, before, "{op:?} {again:?}");
+            }
+        }
+    }
+
+    /// A box stays over the same part of the image after any flip or turn: its four corners are
+    /// over the same points of the upright image (a quarter turn once kept its sides).
+    #[test]
+    fn boxes_follow_turns() {
+        let key = |p: Pt| ((p.x * 100.0).round() as i32, (p.y * 100.0).round() as i32);
+        let corners = |d: &Doc| {
+            let Shape::Rect(a) = d.objects[0].shape else { unreachable!() };
+            let mut v: Vec<(i32, i32)> = [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
+                .iter()
+                .map(|(sx, sy)| {
+                    let (s, c) = a.rot.to_radians().sin_cos();
+                    let (x, y) = (sx * a.w / 2.0, sy * a.h / 2.0);
+                    key(d.source(Pt::new(a.centre.x + x * c - y * s, a.centre.y + x * s + y * c)))
+                })
+                .collect();
+            v.sort();
+            v
+        };
+        for rot in [0.0, 25.0] {
+            let mut start = Doc::new(100, 80, None);
+            start.objects.push(Obj { shape: Shape::Rect(Area { centre: Pt::new(10.0, 3.0), w: 40.0, h: 20.0, rot }), style: Style::default() });
+            for op in OPS {
+                let mut d = start.clone();
+                d.turned(op);
+                assert_eq!(corners(&d), corners(&start), "{op:?} at {rot}°");
             }
         }
     }
