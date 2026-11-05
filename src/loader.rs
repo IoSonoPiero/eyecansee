@@ -655,7 +655,9 @@ mod tests {
     use crate::source::{Deletion, TRASH_DIR};
 
     /// Issue #45: under gvfs Save never renames: refused before anything is written, the original
-    /// as it was, nothing hidden beside it; Save as… is offered instead (`no_overwrite`).
+    /// as it was, nothing hidden beside it; Save as… is offered instead (`no_overwrite`). gvfs is
+    /// only on Linux, and Windows allows no ':' in a folder name.
+    #[cfg(unix)]
     #[test]
     fn replace_refused_under_gvfs() {
         let dir = std::env::temp_dir().join(format!("eyecansee-gvfs-{}", std::process::id()));
