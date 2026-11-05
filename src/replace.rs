@@ -42,6 +42,18 @@ pub(crate) async fn rewritten<T: Send + 'static>(op: &Store, path: &str, make: i
 /// name exists, and a rename onto that name can delete the file that left it (seen with test files
 /// on a phone, 2026-11-04). The app offers "Save as…" there instead (`Loader::no_overwrite`).
 pub(crate) async fn replace(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion) -> Result<(), source::Error> {
+    replace_as(op, path, data, how, false).await
+}
+
+/// As `replace`, for the editor's "Overwrite the original": the original must reach its trash.
+/// When it cannot go into the `.EyeCanSee-trash` folder (it cannot be made, no permission), the
+/// new image leaves its name again and the original gets it back: nothing changed, and the error
+/// says why (`replace` leaves it hidden until the next save instead).
+pub(crate) async fn replace_keeping(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion) -> Result<(), source::Error> {
+    replace_as(op, path, data, how, true).await
+}
+
+async fn replace_as(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion, strict: bool) -> Result<(), source::Error> {
     if !op.can_rename() {
         return Err(("error-rename-unsupported", path.to_string()));
     }
@@ -53,12 +65,12 @@ pub(crate) async fn replace(op: &Store, path: &str, data: Vec<u8>, how: source::
         return Err(("error-save-temp-copy", path.to_string()));
     }
     source::SAVING.lock().unwrap().insert(path.to_string());
-    let r = swap(op, path, data, how).await;
+    let r = swap(op, path, data, how, strict).await;
     source::SAVING.lock().unwrap().remove(path);
     r
 }
 
-async fn swap(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion) -> Result<(), source::Error> {
+async fn swap(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion, strict: bool) -> Result<(), source::Error> {
     let own = source::name(path);
     let (new, old) = source::save_names(path);
     // An original left by an earlier save cut short after its new version took the name: it goes
@@ -84,11 +96,28 @@ async fn swap(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion) -> R
         undo(op, path, &new, &old).await;
         return Err(e);
     }
-    // The new image is in place: if the original cannot go, it stays hidden until the next save.
+    // The new image is in place: if the original cannot go, it stays hidden until the next save,
+    // or (`strict`) everything goes back as it was.
     if let Err(e) = put_away(op, &old, own, how).await {
         log!("save {path:?}: original kept as {old:?}: {e:?}");
+        if strict && how == source::Deletion::TrashFolder {
+            back(op, path, &new, &old).await;
+            return Err(e);
+        }
     }
     Ok(())
+}
+
+/// The new image, already under the original's name, leaves it again; the original, waiting as
+/// `old`, gets it back; the new image goes.
+async fn back(op: &Store, path: &str, new: &str, old: &str) {
+    let r = async {
+        op.rename(path, source::name(new)).await?;
+        op.rename(old, source::name(path)).await?;
+        op.delete(new, source::Deletion::Permanent).await
+    }
+    .await;
+    log!("save {path:?}: put back as it was: {r:?}");
 }
 
 /// After a failed step of `swap`: the original back under its name if that is free (never over
@@ -110,5 +139,47 @@ async fn put_away(op: &Store, old: &str, own: &str, how: source::Deletion) -> Re
     match how {
         source::Deletion::TrashFolder => op.to_trash_folder(old, own).await,
         _ => op.delete(old, source::Deletion::Permanent).await,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source::Deletion;
+
+    /// The editor's overwrite: with a trash folder that cannot be made (a file has its name) the
+    /// original stays as it was, under its name, and no hidden file is left; `replace` instead
+    /// writes over it and leaves the original hidden. With a trash that works, the original goes
+    /// there and the new image takes its name.
+    #[test]
+    fn overwrite_only_with_the_original_in_its_trash() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-keeping-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let blocked = dir.join("blocked");
+        std::fs::create_dir_all(&blocked).unwrap();
+        std::fs::write(blocked.join("a.jpg"), b"original").unwrap();
+        std::fs::write(blocked.join(crate::trash::TRASH_DIR), b"a file, not a folder").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let names = |sub: &str| {
+            let mut v: Vec<String> = std::fs::read_dir(dir.join(sub)).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+            v.sort();
+            v
+        };
+        assert!(rt.block_on(replace_keeping(&op, "blocked/a.jpg", b"new".to_vec(), Deletion::TrashFolder)).is_err());
+        assert_eq!(std::fs::read(blocked.join("a.jpg")).unwrap(), b"original");
+        assert_eq!(names("blocked"), [crate::trash::TRASH_DIR, "a.jpg"]);
+        // `replace` goes on: the new image in place, the original left hidden.
+        rt.block_on(replace(&op, "blocked/a.jpg", b"new".to_vec(), Deletion::TrashFolder)).unwrap();
+        assert_eq!(std::fs::read(blocked.join("a.jpg")).unwrap(), b"new");
+        assert!(names("blocked").iter().any(|n| n.ends_with(".eyecansee-old")), "{:?}", names("blocked"));
+        // A trash that can be made: the original goes there.
+        std::fs::create_dir_all(dir.join("free")).unwrap();
+        std::fs::write(dir.join("free/a.jpg"), b"original").unwrap();
+        rt.block_on(replace_keeping(&op, "free/a.jpg", b"new".to_vec(), Deletion::TrashFolder)).unwrap();
+        assert_eq!(std::fs::read(dir.join("free/a.jpg")).unwrap(), b"new");
+        assert_eq!(std::fs::read(dir.join("free").join(crate::trash::TRASH_DIR).join("a.jpg")).unwrap(), b"original");
+        assert_eq!(names("free"), [crate::trash::TRASH_DIR, "a.jpg"]);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

@@ -6,6 +6,4 @@ pub mod doc;
 pub mod geom;
 pub mod history;
 pub mod render;
-// ponytail: the copy is written from the next step of the editor (issue #53, step 6 of notes/editor-piano.md).
-#[cfg_attr(not(test), allow(dead_code))]
 pub mod save;

@@ -11,7 +11,7 @@ use eframe::egui::{ColorImage, Context};
 use tokio::runtime::Handle;
 use tokio::sync::{Notify, Semaphore};
 
-use crate::replace::{rewritten, turned, write_whole};
+use crate::replace::{turned, write_whole};
 use crate::source::{self, File, Listing, Store};
 use crate::thumb_queue::{ThumbQueue, maintain, thumb_worker};
 use crate::{decode, thumbcache, transfer};
@@ -75,9 +75,9 @@ pub enum Msg {
     /// "Save" from the viewer, before the confirmation: the image, the turn, and the file to write
     /// with whether it lost quality (encoded again), or an error (`SKIPPED`: not saveable over itself).
     Prepared(String, crate::transform::Turn, Result<(Arc<Vec<u8>>, bool), source::Error>),
-    /// "Rotate and crop", before the confirmation: the image and the file to write, as `Prepared`.
-    /// Also the result as the viewer shows it, so it is there at once once saved.
-    Edited(String, Result<(Arc<Vec<u8>>, bool, ColorImage), source::Error>),
+    /// The editor's copy or overwrite made, for its confirmation (`edit_page::save`): the file,
+    /// its name and what it loses; `true` for an overwrite.
+    EditPrepared(String, Result<(Arc<crate::edit::save::Saved>, bool), source::Error>),
     /// An image saved over itself after a turn ("Save"): its path and the outcome.
     Replaced(String, Result<(), source::Error>),
     /// An image that could not be saved on a phone or server, kept on the computer (`kept.rs`).
@@ -92,7 +92,7 @@ pub enum Msg {
 
 /// The message at the end of a save over the original: `NotReplaced` when it failed with the new
 /// image kept on the computer.
-fn replaced(path: String, r: Result<(), (source::Error, Option<Box<crate::kept::Kept>>)>) -> Msg {
+pub(crate) fn replaced(path: String, r: Result<(), (source::Error, Option<Box<crate::kept::Kept>>)>) -> Msg {
     match r {
         Err((_, Some(kept))) => Msg::NotReplaced(kept),
         r => Msg::Replaced(path, r.map_err(|(e, _)| e)),
@@ -447,32 +447,6 @@ impl Loader {
         });
     }
 
-    /// "Rotate and crop", before the confirmation (`Msg::Edited`): the image of the page, already
-    /// decoded and with the applied edits, gets the one not applied yet and is encoded in the file's
-    /// format. The file is read only for its format and metadata, not decoded again (it was slow
-    /// with an 83 MB PSD).
-    /// `applied`: the edits the image already has, for an Ultra HDR photo's gain map.
-    pub fn prepare_edit(&self, path: String, image: Arc<crate::encode::Original>, applied: Vec<crate::rotate::Edit>, pending: Option<crate::rotate::Edit>) {
-        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
-        self.rt.spawn(async move {
-            let r = rewritten(&op, &path, move |bytes, name| {
-                let mut img = image.image.clone();
-                if let Some(e) = pending {
-                    e.apply(&mut img);
-                }
-                let shown = decode::preview(&img);
-                if crate::ultrahdr::is(bytes) {
-                    let edits: Vec<_> = applied.into_iter().chain(pending).collect();
-                    return crate::ultrahdr::edited(bytes, img, &edits, &[]).map(|data| (data, true, shown));
-                }
-                crate::save_back::encoded_back(bytes, name, img).map(|(data, lossy)| (data, lossy, shown))
-            })
-            .await;
-            let _ = tx.send(Msg::Edited(path, r.map(|(data, lossy, shown)| (Arc::new(data), lossy, shown))));
-            ctx.request_repaint();
-        });
-    }
-
     pub fn replace_with(&self, path: String, data: Arc<Vec<u8>>, how: source::Deletion) {
         let (op, tx, ctx, base) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), self.base.clone());
         self.rt.spawn(async move {
@@ -498,7 +472,7 @@ impl Loader {
                 }
             };
             let r = match (store, tokio::fs::read(&k.file).await) {
-                (Ok(store), Ok(data)) => crate::kept::replace(&store, &k.base, &k.path, data, k.how).await,
+                (Ok(store), Ok(data)) => crate::kept::send(&store, &k.base, &k.path, data, k.how, k.send).await,
                 (Err(e), _) => Err((e, Some(Box::new(k.clone())))),
                 (_, Err(e)) => Err((("error-detail", e.to_string()), Some(Box::new(k.clone())))),
             };

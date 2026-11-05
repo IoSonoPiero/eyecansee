@@ -26,6 +26,10 @@ impl App {
     /// The whole panel; what its buttons at the bottom ask for.
     pub(super) fn side_panel(&mut self, ui: &mut egui::Ui, w: &mut Window) -> Option<Ask> {
         let i18n = &self.i18n;
+        if let Some(id) = w.remote {
+            ui.colored_label(ui.visuals().warn_fg_color, i18n.t(id));
+            ui.add_space(6.0);
+        }
         tool_buttons(ui, w, i18n);
         if history_row(ui, w, i18n) {
             self.act = Some(Act::EditCopy);
@@ -61,33 +65,29 @@ impl App {
         ask
     }
 
-    /// Save, Save as…, Close. Until the objects can be saved (next step of the editor) Save and
-    /// Save as take only the rotation and the crop, and are off with objects.
+    /// Save (a copy next to the original), Save as…, Overwrite the original…, Close.
     fn save_buttons(&self, ui: &mut egui::Ui, w: &mut Window) -> Option<Ask> {
         let i18n = &self.i18n;
         let mut ask = None;
-        let why_not = self.why_not_save(w);
-        let objects = w.has_objects();
-        ui.horizontal(|ui| {
-            let ready = w.changed() && why_not.is_none() && !w.preparing && !objects;
-            let r = ui.add_enabled(ready, egui::Button::new(i18n.t("rc-save"))).on_hover_text(i18n.t("rc-save-hint"));
-            if r.clicked() {
+        let changed = w.changed() && !w.preparing;
+        let why_not = self.why_not_overwrite(w);
+        ui.horizontal_wrapped(|ui| {
+            if ui.add_enabled(changed, crate::theme::main_button(ui, i18n.t("rc-save"))).on_hover_text(i18n.t("rc-save-hint")).clicked() {
                 ask = Some(Ask::Save);
             }
-            let r = if objects { r.on_disabled_hover_text(i18n.t("edit-save-later")) } else { r };
+            if ui.add_enabled(!w.preparing, egui::Button::new(i18n.t("menu-save-copy"))).on_hover_text(i18n.t("rc-save-as-hint")).clicked() {
+                ask = Some(Ask::SaveAs);
+            }
+            let r = ui.add_enabled(changed && why_not.is_none(), egui::Button::new(i18n.t("edit-overwrite"))).on_hover_text(i18n.t("edit-overwrite-hint"));
+            if r.clicked() {
+                ask = Some(Ask::Overwrite);
+            }
             if let Some(why) = why_not {
                 // Written for the message windows (`**bold**`, escaped names): drawn the same way.
                 r.on_disabled_hover_ui(|ui| {
                     ui.set_max_width(320.0);
                     crate::save_dialogs::notice_text(ui, &why);
                 });
-            }
-            let r = ui.add_enabled(!w.preparing && !objects, egui::Button::new(i18n.t("menu-save-copy"))).on_hover_text(i18n.t("rc-save-as-hint"));
-            if r.clicked() {
-                ask = Some(Ask::SaveAs);
-            }
-            if objects {
-                r.on_disabled_hover_text(i18n.t("edit-save-later"));
             }
             if ui.button(i18n.t("rc-close")).on_hover_text("Esc").clicked() {
                 ask = Some(Ask::Close);

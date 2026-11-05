@@ -14,7 +14,7 @@ use crate::edit::doc::{Doc, Obj, Pt, Shape, Style};
 use crate::edit::geom::Kind;
 use crate::edit::history::History;
 use crate::encode::{Format, Original};
-use crate::rotate::{self, Crop, Edit};
+use crate::rotate::{self, Crop};
 use crate::transform::Turn;
 use crate::{App, source};
 
@@ -131,8 +131,10 @@ pub struct Window {
     /// Where the line being drawn ends.
     line_end: Option<Pos2>,
     preparing: bool,
-    /// The file to write and whether it lost quality: the confirmation is open.
-    pub ready: Option<(Arc<Vec<u8>>, bool, ColorImage)>,
+    /// The copy (or the image for an overwrite) made: its confirmation is open.
+    pub ready: Option<save::Ready>,
+    /// On a phone or a server: the image is edited in a copy on this computer (a line at the top).
+    remote: Option<&'static str>,
     /// Closing with changes not saved: the question is open.
     pub leaving: bool,
     /// Save as… chosen in the message saying Save cannot write over the original.
@@ -170,6 +172,7 @@ impl Window {
             line_end: None,
             preparing: false,
             ready: None,
+            remote: None,
             leaving: false,
             save_as: false,
         }
@@ -224,19 +227,9 @@ impl Window {
         };
     }
 
-    fn edit(&self) -> Edit {
-        self.doc.edit()
-    }
-
     /// Anything not saved yet.
     fn changed(&self) -> bool {
         self.history.as_ref().is_some_and(|h| h.changed() || self.doc != *h.doc())
-    }
-
-    /// Saving the objects drawn comes with the next step of the editor: until then Save and
-    /// Save as take only the rotation and the crop, and are off with objects.
-    fn has_objects(&self) -> bool {
-        !self.doc.objects.is_empty()
     }
 
     /// The style a new object of `kind` starts with.
@@ -295,6 +288,7 @@ fn default_style(kind: Kind, long: f32) -> Style {
 enum Ask {
     Save,
     SaveAs,
+    Overwrite,
     Close,
 }
 
@@ -339,6 +333,8 @@ impl App {
         // From the viewer: as it is shown there.
         let turn = if self.viewing.is_some() { self.turn } else { Turn::default() };
         let mut w = Window::new(path, turn, tool);
+        let store = loader.store();
+        w.remote = crate::kept::remote(&store).then_some(if matches!(store, crate::source::Store::Mtp(_)) { "edit-remote-phone" } else { "edit-remote-server" });
         // Fractions of the long side until the image is read (`editor_original`).
         w.styles = self.settings.edit_styles.clone();
         self.editor = Some(w);
@@ -407,7 +403,8 @@ impl App {
                     ui.set_width(SIDE);
                     let ask = self.side_panel(ui, &mut w);
                     match if std::mem::take(&mut w.save_as) { Some(Ask::SaveAs) } else { ask } {
-                        Some(Ask::Save) => self.rotate_save(&mut w),
+                        Some(Ask::Save) => self.edit_prepare(ui.ctx(), &mut w, false),
+                        Some(Ask::Overwrite) => self.edit_prepare(ui.ctx(), &mut w, true),
                         Some(Ask::SaveAs) => {
                             handed = self.rotate_save_as(ui.ctx(), &w);
                             open = !handed;
@@ -427,13 +424,13 @@ impl App {
         }
         if w.leaving {
             match self.rotate_leave(ui.ctx(), &mut w) {
-                Some(Leave::Save) => self.rotate_save(&mut w),
+                Some(Leave::Save) => self.edit_prepare(ui.ctx(), &mut w, false),
                 Some(Leave::SaveAs) => open = !self.rotate_save_as(ui.ctx(), &w),
                 Some(Leave::Discard) => open = false,
                 None => {}
             }
         }
-        if w.ready.is_some() && self.rotate_confirm(ui.ctx(), &mut w) {
+        if w.ready.is_some() && self.edit_confirm(ui.ctx(), &mut w) {
             open = false;
         }
         if open {

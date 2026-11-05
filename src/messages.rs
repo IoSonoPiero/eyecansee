@@ -54,7 +54,7 @@ impl App {
                     self.animated.insert(path);
                 }
                 Msg::Original(r) => self.convert_original(ctx, r),
-                Msg::Edited(path, r) => self.on_edited(path, r),
+                Msg::EditPrepared(path, r) => self.on_edit_prepared(path, r),
                 Msg::Encoded(generation, r) => self.convert_encoded(ctx, generation, r),
                 Msg::Saved(r) => self.convert_saved(r),
                 Msg::Exported(r) => self.on_exported(ctx, r),

@@ -1,14 +1,21 @@
-//! The editor: Save, Save as… and the questions before saving or closing. Moved from
-//! `rotate_page/save.rs` on 2026-11-05.
+//! The editor: Save (a copy next to the original), Overwrite the original…, Save as… and the
+//! questions before saving or closing. The file is made in the background (`edit::save`, from the
+//! file read again for its format and metadata), shown in a confirmation with what it loses, then
+//! sent through `kept`: on a phone or a server it is kept on the computer first, and stays there
+//! with Try again, Save as… and Open the folder if sending fails. Moved from `rotate_page/save.rs`
+//! on 2026-11-05.
 
 use std::sync::Arc;
 
-use eframe::egui::{self, ColorImage};
+use eframe::egui;
 
 use super::Window;
-use crate::encode::Original;
 use crate::actions::Act;
-use crate::{App, confirm, source};
+use crate::edit::save::{Depth, Saved};
+use crate::encode::Original;
+use crate::kept::Send;
+use crate::source::{self, Deletion};
+use crate::{App, confirm};
 
 /// Answers to "save the changes?" when closing.
 #[derive(Clone, Copy)]
@@ -18,97 +25,108 @@ pub(super) enum Leave {
     Discard,
 }
 
+/// A copy, or the image to write over the original (`over`), waiting for its confirmation.
+pub struct Ready {
+    saved: Arc<Saved>,
+    over: bool,
+}
+
 impl App {
-    /// The image changed in memory for Save: the confirmation opens.
-    pub(crate) fn on_edited(&mut self, path: String, r: Result<(Arc<Vec<u8>>, bool, ColorImage), source::Error>) {
-        self.saving.remove(&path);
-        let Some(w) = self.editor.as_mut().filter(|w| w.path == path) else { return };
-        w.preparing = false;
-        match r {
-            Ok(ready) => w.ready = Some(ready),
-            Err(e) => self.save_failed(e, Some(Act::RotateSaveAs)),
-        }
+    /// The copy cannot go next to the original: a temporary copy Windows made of a phone's file
+    /// (issue #47), which Windows can delete. Save opens Save as… instead.
+    fn copy_refused(&self, w: &Window) -> bool {
+        self.loader.as_ref().and_then(|l| l.no_overwrite(&w.path)) == Some("save-temp-copy")
     }
 
-    /// Why Save cannot write over the original, if it cannot.
-    pub(super) fn why_not_save(&self, w: &Window) -> Option<String> {
+    /// Why Overwrite cannot write over the original, if it cannot: the places Save never writes
+    /// over (gvfs, temporary copies, no renaming), a format EyeCanSee does not write back (the copy
+    /// of a HEIC or a RAW is a JPEG or a PNG).
+    pub(super) fn why_not_overwrite(&self, w: &Window) -> Option<String> {
         if let Some(id) = self.loader.as_ref().and_then(|l| l.no_overwrite(&w.path)) {
             Some(self.i18n.t(id))
-        } else if !crate::encode::saves_back(&w.path) || !self.can_change(&w.path) || self.saving.contains(&w.path) {
+        } else if crate::encode::Format::of_file(&w.path).is_none() || !self.can_change(&w.path) || self.saving.contains(&w.path) {
             Some(self.i18n.t_args("save-format", &[("name", &crate::save_dialogs::md(source::name(&w.path)))]))
         } else {
             None
         }
     }
 
-    pub(super) fn rotate_save(&mut self, w: &mut Window) {
+    /// Save (`over` false) or Overwrite: the file made in the background (`Msg::EditPrepared`).
+    pub(super) fn edit_prepare(&mut self, ctx: &egui::Context, w: &mut Window, over: bool) {
+        if !over && self.copy_refused(w) {
+            w.note = Some((self.i18n.t("edit-temp-copy"), ctx.input(|i| i.time) + 8.0));
+            w.save_as = true;
+            return;
+        }
         let (Some(loader), Some(Ok((original, ..)))) = (&self.loader, &w.original) else { return };
-        let edit = w.edit();
-        log!("prepare {:?} {edit:?}", w.path);
-        loader.prepare_edit(w.path.clone(), original.clone(), Vec::new(), Some(edit));
-        self.saving.insert(w.path.clone());
+        let (store, path, doc, original, word) = (loader.store(), w.path.clone(), w.doc.clone(), original.clone(), self.i18n.t("edit-copy-word"));
+        let (tx, ctx) = (self.tx.clone(), ctx.clone());
+        log!("edit: prepare {path:?}, over {over}");
+        self.rt.spawn(async move {
+            let made = async {
+                let bytes = store.read(&path).await?;
+                let taken: Vec<String> = store.names(&source::parent(&path)).await?.into_iter().collect();
+                let name = source::name(&path).to_string();
+                tokio::task::spawn_blocking(move || crate::edit::save::save(&doc, &original, &bytes, &name, &word, &taken, &crate::decode::usvg_options()).map_err(|e| ("error-detail", e)))
+                    .await
+                    .map_err(|e| ("error-detail", e.to_string()))?
+            };
+            let r = made.await.map(|s| (Arc::new(s), over));
+            let _ = tx.send(crate::loader::Msg::EditPrepared(path, r));
+            ctx.request_repaint();
+        });
         w.preparing = true;
     }
 
-    /// "Save in another format" with the image rotated and cropped, made in the background
-    /// (`Msg::Original`); `true` once opened.
-    pub(super) fn rotate_save_as(&mut self, ctx: &egui::Context, w: &Window) -> bool {
-        let Some(Ok((original, _, size))) = &w.original else { return false };
-        let (original, edit, size, tx, ctx) = (original.clone(), w.edit(), *size, self.tx.clone(), ctx.clone());
-        std::thread::spawn(move || {
-            let mut o = Original::clone(&original);
-            edit.apply(&mut o.image);
-            let preview = crate::decode::preview(&o.image);
-            if tx.send(crate::loader::Msg::Original(Ok((Arc::new(o), preview, size)))).is_ok() {
-                ctx.request_repaint();
-            }
-        });
-        self.convert = Some(crate::convert::Window::new(w.path.clone()));
-        true
+    pub(crate) fn on_edit_prepared(&mut self, path: String, r: Result<(Arc<Saved>, bool), source::Error>) {
+        let Some(w) = self.editor.as_mut().filter(|w| w.path == path) else { return };
+        w.preparing = false;
+        match r {
+            Ok((saved, over)) => w.ready = Some(Ready { saved, over }),
+            Err(e) => self.save_failed(e, Some(Act::RotateSaveAs)),
+        }
     }
 
-    /// Closing with changes not saved: Save, Save as…, Don't save, or Cancel (stays open).
-    pub(super) fn rotate_leave(&mut self, ctx: &egui::Context, w: &mut Window) -> Option<Leave> {
-        let i18n = &self.i18n;
-        let text = i18n.t_args("rc-leave", &[("name", &crate::save_dialogs::md(source::name(&w.path)))]);
-        let choices = vec![
-            // Without the objects drawn until they can be saved (next step of the editor).
-            (i18n.t("rc-save"), self.why_not_save(w).is_none() && !w.has_objects(), Leave::Save),
-            (i18n.t("menu-save-copy"), !w.has_objects(), Leave::SaveAs),
-            (i18n.t("rc-discard"), true, Leave::Discard),
-        ];
-        // Esc: back to the page; Enter does nothing here (no choice is safe to guess).
-        let keys = self.delete_answer.take().filter(|yes| !yes).map(|_| None);
-        let answer = confirm::choose(ctx, "rotate-leave", 440.0, text, choices, i18n.t("delete-no"), keys)?;
-        w.leaving = false;
-        answer
+    /// What the copy loses, a line each: encoded again, fewer bits, highlights cut.
+    fn losses(&self, s: &Saved) -> String {
+        let mut lines = Vec::new();
+        if s.lossy {
+            lines.push(self.i18n.t("edit-loss-lossy"));
+        }
+        match s.depth {
+            Depth::To8Bits => lines.push(self.i18n.t("edit-loss-8bit")),
+            Depth::HdrCut => lines.push(self.i18n.t("edit-loss-hdr")),
+            Depth::Kept => {}
+        }
+        lines.iter().map(|l| format!("\n\n{l}")).collect()
     }
 
-    /// Overwrite? As Save in the viewer. `true` once written (the page closes).
-    pub(super) fn rotate_confirm(&mut self, ctx: &egui::Context, w: &mut Window) -> bool {
-        let (Some((data, lossy)), Some(loader)) = (w.ready.as_ref().map(|r| (r.0.clone(), r.1)), &self.loader) else { return false };
-        let how = loader.deletion(&w.path, self.settings.local_permanent, self.settings.remote_delete);
-        let text = self.save_confirm_text(&w.path, how, lossy);
-        let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
-        match confirm::yes_no(ctx, "rotate-save", 420.0, text, yes, true, no, self.delete_answer.take()) {
+    /// The confirmation: the copy's name, or over the original with where the original goes
+    /// (always a trash, also with deleting for good chosen in the Options). `true` once sent: the
+    /// page closes.
+    pub(super) fn edit_confirm(&mut self, ctx: &egui::Context, w: &mut Window) -> bool {
+        let (Some(ready), Some(loader)) = (&w.ready, &self.loader) else { return false };
+        let (saved, over) = (ready.saved.clone(), ready.over);
+        let how = loader.deletion(&w.path, false, crate::settings::RemoteDelete::TrashFolder);
+        let md = crate::save_dialogs::md;
+        let (text, yes) = if over {
+            (self.i18n.t_args(trash_id(how), &[("name", &md(source::name(&w.path)))]), self.i18n.t("edit-overwrite-yes"))
+        } else {
+            (self.i18n.t_args("edit-save-confirm", &[("name", &md(source::name(&w.path))), ("copy", &md(&saved.name))]), self.i18n.t("save-yes"))
+        };
+        let text = format!("{text}{}", self.losses(&saved));
+        let no = self.i18n.t("delete-no");
+        match confirm::yes_no(ctx, "edit-save", 460.0, text, yes, true, no, self.delete_answer.take()) {
             Some(true) => {
-                log!("save {:?} {how:?}", w.path);
-                loader.replace_with(w.path.clone(), data, how);
-                self.saving.insert(w.path.clone());
-                // The viewer shows the result at once, instead of the old image until the file is
-                // read again (seen for a second and a half with an 83 MB PSD).
-                if let Some((.., shown)) = w.ready.take() {
-                    let tex = ctx.load_texture(w.path.clone(), shown, egui::TextureOptions::LINEAR);
-                    if let Some(i) = self.files().iter().position(|f| f.path == w.path) {
-                        self.full.insert(i, Ok(tex.clone()));
-                    }
-                    self.fresh = Some((w.path.clone(), tex));
-                }
-                // The result has the viewer's flips and turns in it already: drawn again with
-                // them it showed another image until the save was done.
-                if self.viewed(&w.path) {
-                    self.turn = Default::default();
-                }
+                let (target, send) = if over { (w.path.clone(), Send::Keeping) } else { (format!("{}{}", source::parent(&w.path), saved.name), Send::Create) };
+                log!("edit: {send:?} {target:?} ({} bytes)", saved.data.len());
+                let (store, base, tx, ctx) = (loader.store(), self.base.clone(), self.tx.clone(), ctx.clone());
+                self.saving.insert(target.clone());
+                self.rt.spawn(async move {
+                    let r = crate::kept::send(&store, &base, &target, saved.data.clone(), how, send).await;
+                    let _ = tx.send(crate::loader::replaced(target, r));
+                    ctx.request_repaint();
+                });
                 w.ready = None;
                 true
             }
@@ -118,5 +136,45 @@ impl App {
             }
             None => false,
         }
+    }
+
+    /// "Save in another format" with the result (objects too), made in the background
+    /// (`Msg::Original`); `true` once opened. Without the gain map, so without its description.
+    pub(super) fn rotate_save_as(&mut self, ctx: &egui::Context, w: &Window) -> bool {
+        let Some(Ok((original, _, size))) = &w.original else { return false };
+        let (original, doc, size, tx, ctx) = (original.clone(), w.doc.clone(), *size, self.tx.clone(), ctx.clone());
+        std::thread::spawn(move || {
+            let image = crate::edit::save::result(&doc, &original, &crate::decode::usvg_options());
+            let mut o = Original::clone(&original);
+            o.image = image;
+            let o = o.alone();
+            let preview = crate::decode::preview(&o.image);
+            if tx.send(crate::loader::Msg::Original(Ok((Arc::new(o), preview, size)))).is_ok() {
+                ctx.request_repaint();
+            }
+        });
+        self.convert = Some(crate::convert::Window::new(w.path.clone()));
+        true
+    }
+
+    /// Closing with changes not saved: Save (a copy), Save as…, Don't save, or Cancel (stays open).
+    pub(super) fn rotate_leave(&mut self, ctx: &egui::Context, w: &mut Window) -> Option<Leave> {
+        let i18n = &self.i18n;
+        let text = i18n.t_args("edit-leave", &[("name", &crate::save_dialogs::md(source::name(&w.path)))]);
+        let choices = vec![(i18n.t("rc-save"), !w.preparing, Leave::Save), (i18n.t("menu-save-copy"), true, Leave::SaveAs), (i18n.t("rc-discard"), true, Leave::Discard)];
+        // Esc: back to the page; Enter does nothing here (no choice is safe to guess).
+        let keys = self.delete_answer.take().filter(|yes| !yes).map(|_| None);
+        let answer = confirm::choose(ctx, "rotate-leave", 440.0, text, choices, i18n.t("delete-no"), keys)?;
+        w.leaving = false;
+        answer
+    }
+}
+
+/// The question of an overwrite by where the original goes.
+fn trash_id(how: Deletion) -> &'static str {
+    match how {
+        Deletion::SystemTrash => "save-confirm-trash",
+        Deletion::TrashFolder => "save-confirm-folder",
+        Deletion::Permanent => "save-confirm-permanent",
     }
 }
