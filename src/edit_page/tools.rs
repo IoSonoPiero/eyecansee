@@ -9,7 +9,7 @@ use eframe::egui::{self, Color32, Key};
 use super::{Ask, Tool, Window};
 use crate::App;
 use crate::actions::Act;
-use crate::edit::doc::{Dash, Shape, Style};
+use crate::edit::doc::{Dash, Head, Shape, Style};
 use crate::edit::geom::Kind;
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
@@ -271,6 +271,14 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
         let mut pct = style.opacity * 100.0;
         slider(ui, t("edit-opacity"), &mut pct, 5.0..=100.0, " %");
         style.opacity = (pct / 100.0).clamp(0.05, 1.0);
+    }
+    if kind == Kind::Arrow {
+        ui.separator();
+        for (head, icon, id) in [(Head::Filled, Line::HeadFilled, "edit-head-filled"), (Head::Open, Line::HeadOpen, "edit-head-open"), (Head::Double, Line::HeadDouble, "edit-head-double"), (Head::Dot, Line::HeadDot, "edit-head-dot")] {
+            if ui.add(icons::toggle(ui, style.head == head, icon)).on_hover_text(t(id)).clicked() {
+                style.head = head;
+            }
+        }
     }
     if matches!(kind, Kind::Line | Kind::Arrow | Kind::Rect) {
         ui.separator();

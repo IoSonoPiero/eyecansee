@@ -163,6 +163,10 @@ pub enum Line {
     FlipH,
     FlipV,
     Updates,
+    HeadFilled,
+    HeadOpen,
+    HeadDouble,
+    HeadDot,
     Solid,
     Dashed,
     Dotted,
@@ -229,6 +233,10 @@ fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::FlipH => lucide!("square-split-horizontal").into(),
         Line::FlipV => lucide!("square-split-vertical").into(),
         Line::Updates => lucide!("download").into(),
+        Line::HeadFilled => format!(r#"{LINE}<path d="M3 12h11"/><path d="M13 7l8 5-8 5z" fill="currentColor"/></svg>"#).into(),
+        Line::HeadOpen => own("M3 12h17M15 7l5 5-5 5"),
+        Line::HeadDouble => format!(r#"{LINE}<path d="M9 12h6"/><path d="M10 7l-7 5 7 5zM14 7l7 5-7 5z" fill="currentColor"/></svg>"#).into(),
+        Line::HeadDot => format!(r#"{LINE}<path d="M3 12h13"/><circle cx="18" cy="12" r="3.5" fill="currentColor"/></svg>"#).into(),
         Line::Solid => own("M3 12h18"),
         Line::Dashed => own("M3 12h4M10 12h4M17 12h4"),
         // Dots wider than the line, or they look like specks.
@@ -295,7 +303,7 @@ mod tests {
     #[test]
     fn line_icons_draw() {
         use Line::*;
-        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Rect, Highlight, Text, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Settings, Manual, Quit, Server, Address, Slideshow, FlipH, FlipV, Updates, Solid, Dashed, Dotted] {
+        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Rect, Highlight, Text, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Settings, Manual, Quit, Server, Address, Slideshow, FlipH, FlipV, Updates, HeadFilled, HeadOpen, HeadDouble, HeadDot, Solid, Dashed, Dotted] {
             let img = render(&line_svg(icon).replace("currentColor", "#ff0000"), 24);
             let red = img.pixels.iter().filter(|p| p.a() > 128 && p.r() > 200 && p.g() < 60).count();
             assert!(red > 10, "{icon:?}: {red} pixels");

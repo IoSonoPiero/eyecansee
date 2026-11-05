@@ -162,7 +162,7 @@ fn ultra_hdr_gain_under_objects() {
     // In the photo 18.75..29.25 × 12..20: in the gain map (half the size) 9..15 × 6..10.
     doc.objects.push(cover_at(-8.0, 0.0, 10.5, 8.0));
     // A line 2 wide from 46 to 56 at y 6, round ends: 45..57 × 5..7, in the gain map 22..29 × 2..4.
-    doc.objects.push(obj(Shape::Line(Pt::new(14.0, -10.0), Pt::new(24.0, -10.0)), Style { width: 2.0, ..Style::default() }));
+    doc.objects.push(obj(Shape::Line(Pt::new(14.0, -10.0), Pt::new(24.0, -10.0), None), Style { width: 2.0, ..Style::default() }));
     // The highlighter at 4..12 × 21..27, in the gain map 2..6 × 10..14.
     doc.objects.push(obj(Shape::Highlight(Area { centre: Pt::new(-24.0, 8.0), w: 8.0, h: 6.0, rot: 0.0 }), Style::highlighter()));
     let out = saved(&bytes, "a.jpg", &doc);
@@ -236,7 +236,7 @@ fn sixteen_bits_kept() {
     let img = DynamicImage::ImageRgb16(image::ImageBuffer::from_fn(40, 30, |x, y| Rgb([1000 + x as u16 * 37, 2000 + y as u16 * 101, 30001])));
     let mut doc = Doc::new(40, 30, None);
     doc.objects.push(cover_at(-10.0, -8.0, 6.0, 4.0));
-    doc.objects.push(obj(Shape::Line(Pt::new(5.0, 5.0), Pt::new(15.0, 5.0)), Style::default()));
+    doc.objects.push(obj(Shape::Line(Pt::new(5.0, 5.0), Pt::new(15.0, 5.0), None), Style::default()));
     for (format, name) in [(Format::Png, "a.png"), (Format::Tiff, "a.tif")] {
         let out = saved(&file(&img, format, false), name, &doc);
         assert_eq!((out.depth, out.lossy), (Depth::Kept, false));
@@ -255,7 +255,7 @@ fn sixteen_bits_kept() {
 fn exr_to_png_16() {
     let img = DynamicImage::ImageRgb32F(image::ImageBuffer::from_pixel(20, 10, Rgb([0.5f32, 0.25, 2.0])));
     let mut doc = Doc::new(20, 10, None);
-    doc.objects.push(obj(Shape::Line(Pt::new(-5.0, 0.0), Pt::new(5.0, 0.0)), Style::default()));
+    doc.objects.push(obj(Shape::Line(Pt::new(-5.0, 0.0), Pt::new(5.0, 0.0), None), Style::default()));
     let out = saved(&file(&img, Format::Exr, false), "a.exr", &doc);
     assert_eq!((out.name.as_str(), out.depth), ("a (edited).png", Depth::HdrCut));
     let back = crate::decode::decode_full(&out.data, &out.name).unwrap();
@@ -283,7 +283,7 @@ fn turns_alone_and_animations() {
 fn grey_photo_and_opacity() {
     let img = DynamicImage::ImageLuma8(image::GrayImage::from_pixel(40, 20, image::Luma([100])));
     let mut doc = Doc::new(40, 20, None);
-    doc.objects.push(obj(Shape::Line(Pt::new(-15.0, 0.0), Pt::new(15.0, 0.0)), Style { opacity: 0.5, width: 6.0, ..Style::default() }));
+    doc.objects.push(obj(Shape::Line(Pt::new(-15.0, 0.0), Pt::new(15.0, 0.0), None), Style { opacity: 0.5, width: 6.0, ..Style::default() }));
     let out = saved(&file(&img, Format::Png, false), "a.png", &doc);
     let back = crate::decode::decode_full(&out.data, "a.png").unwrap();
     assert!(back.color().has_color());
@@ -412,7 +412,7 @@ fn motion_photo_turned() {
 /// Layers: a cover box hides the line drawn before it, and a line drawn after it stays on top.
 #[test]
 fn cover_hides_what_is_under_it() {
-    let line = |y| obj(Shape::Line(Pt::new(-20.0, y), Pt::new(20.0, y)), Style { color: [255, 0, 0], width: 2.0, ..Style::default() });
+    let line = |y| obj(Shape::Line(Pt::new(-20.0, y), Pt::new(20.0, y), None), Style { color: [255, 0, 0], width: 2.0, ..Style::default() });
     let mut doc = Doc::new(64, 48, None);
     doc.objects = vec![line(-2.0), cover_at(0.0, 0.0, 30.0, 12.0), line(2.0)];
     let img = result(&doc, &Original::with_meta(motif(), &[]), &options());

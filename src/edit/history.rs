@@ -95,7 +95,7 @@ mod tests {
                     r.w = 30.0;
                 }
             }),
-            Box::new(|d| d.objects[0].style = Style { color: [0, 0, 255], width: 9.0, opacity: 0.5, dash: Dash::Dotted }),
+            Box::new(|d| d.objects[0].style = Style { color: [0, 0, 255], width: 9.0, opacity: 0.5, dash: Dash::Dotted, ..Style::default() }),
             Box::new(|d| d.objects[1].shape = Shape::Text { at: Pt::new(0.0, 0.0), text: "ab".into(), size: 20.0, rot: 0.0 }),
             Box::new(|d| {
                 d.objects.remove(1);

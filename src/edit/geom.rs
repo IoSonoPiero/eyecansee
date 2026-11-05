@@ -53,6 +53,37 @@ fn inside(a: &Area, p: Pt, tol: f32) -> bool {
     d.x.abs() <= a.w / 2.0 + tol && d.y.abs() <= a.h / 2.0 + tol
 }
 
+/// Points along a line from `a` to `b`, bent by the control point `c` (a quadratic Bézier
+/// curve): the two ends alone when straight, 17 points when bent.
+pub fn curve(a: Pt, b: Pt, c: Option<Pt>) -> Vec<Pt> {
+    let Some(c) = c else { return vec![a, b] };
+    (0..=16)
+        .map(|i| {
+            let t = i as f32 / 16.0;
+            let (u, v, w) = ((1.0 - t) * (1.0 - t), 2.0 * t * (1.0 - t), t * t);
+            Pt::new(u * a.x + v * c.x + w * b.x, u * a.y + v * c.y + w * b.y)
+        })
+        .collect()
+}
+
+/// The middle of the line on the curve: the handle that bends it.
+pub fn bend_handle(a: Pt, b: Pt, c: Option<Pt>) -> Pt {
+    let c = c.unwrap_or(Pt::new((a.x + b.x) / 2.0, (a.y + b.y) / 2.0));
+    Pt::new(0.25 * a.x + 0.5 * c.x + 0.25 * b.x, 0.25 * a.y + 0.5 * c.y + 0.25 * b.y)
+}
+
+/// The control point that puts the middle of the curve at `m`; `None` when that is straight
+/// (within half a pixel of the middle of the two ends).
+fn bent_to(a: Pt, b: Pt, m: Pt) -> Option<Pt> {
+    let mid = Pt::new((a.x + b.x) / 2.0, (a.y + b.y) / 2.0);
+    ((m.x - mid.x).hypot(m.y - mid.y) > 0.5).then(|| Pt::new(2.0 * m.x - mid.x, 2.0 * m.y - mid.y))
+}
+
+/// Distance from `p` to the line, straight or bent.
+fn curve_distance(p: Pt, a: Pt, b: Pt, c: Option<Pt>) -> f32 {
+    curve(a, b, c).windows(2).map(|s| segment_distance(p, s[0], s[1])).fold(f32::INFINITY, f32::min)
+}
+
 fn segment_distance(p: Pt, a: Pt, b: Pt) -> f32 {
     let (dx, dy) = (b.x - a.x, b.y - a.y);
     let len2 = dx * dx + dy * dy;
@@ -63,9 +94,9 @@ fn segment_distance(p: Pt, a: Pt, b: Pt) -> f32 {
 /// Is `p` on the object, or within `tol` of it? Boxes count all their inside.
 pub fn hit(o: &Obj, p: Pt, tol: f32) -> bool {
     match &o.shape {
-        Shape::Line(a, b) => segment_distance(p, *a, *b) <= o.style.width / 2.0 + tol,
+        Shape::Line(a, b, c) => curve_distance(p, *a, *b, *c) <= o.style.width / 2.0 + tol,
         // The head is as wide as `render::arrow` makes it.
-        Shape::Arrow(a, b) => segment_distance(p, *a, *b) <= (2.0 * o.style.width + 2.0).max(o.style.width / 2.0) + tol,
+        Shape::Arrow(a, b, c) => curve_distance(p, *a, *b, *c) <= (2.0 * o.style.width + 2.0).max(o.style.width / 2.0) + tol,
         Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) => inside(r, p, tol),
         Shape::Text { at, text, size, rot } => inside(&text_area(*at, text, *size, *rot), p, tol),
     }
@@ -81,8 +112,8 @@ pub fn moved(o: &Obj, d: Pt) -> Obj {
     let m = |p: Pt| Pt::new(p.x + d.x, p.y + d.y);
     let area = |r: &Area| Area { centre: m(r.centre), ..*r };
     let shape = match &o.shape {
-        Shape::Line(a, b) => Shape::Line(m(*a), m(*b)),
-        Shape::Arrow(a, b) => Shape::Arrow(m(*a), m(*b)),
+        Shape::Line(a, b, c) => Shape::Line(m(*a), m(*b), c.map(m)),
+        Shape::Arrow(a, b, c) => Shape::Arrow(m(*a), m(*b), c.map(m)),
         Shape::Rect(r) => Shape::Rect(area(r)),
         Shape::Highlight(r) => Shape::Highlight(area(r)),
         Shape::Cover(r) => Shape::Cover(area(r)),
@@ -99,11 +130,11 @@ fn corners(r: &Area) -> [Pt; 4] {
     })
 }
 
-/// Points that resize the object when dragged: the two ends of a line, the four corners of a
-/// box. A text has none: its size is in the panel.
+/// Points that resize the object when dragged: the two ends of a line and its middle (which
+/// bends it), the four corners of a box. A text has none: its size is in the panel.
 pub fn handles(o: &Obj) -> Vec<Pt> {
     match &o.shape {
-        Shape::Line(a, b) | Shape::Arrow(a, b) => vec![*a, *b],
+        Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => vec![*a, *b, bend_handle(*a, *b, *c)],
         Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) => corners(r).to_vec(),
         Shape::Text { .. } => Vec::new(),
     }
@@ -120,14 +151,26 @@ pub fn with_handle(o: &Obj, i: usize, p: Pt) -> Obj {
         Area { centre: Pt::new(fixed.x + mid.x, fixed.y + mid.y), w: q.x.abs().max(1.0), h: q.y.abs().max(1.0), rot: r.rot }
     };
     let shape = match &o.shape {
-        Shape::Line(a, b) => if i == 0 { Shape::Line(p, *b) } else { Shape::Line(*a, p) },
-        Shape::Arrow(a, b) => if i == 0 { Shape::Arrow(p, *b) } else { Shape::Arrow(*a, p) },
+        Shape::Line(a, b, c) => line_handle(*a, *b, *c, i, p, Shape::Line),
+        Shape::Arrow(a, b, c) => line_handle(*a, *b, *c, i, p, Shape::Arrow),
         Shape::Rect(r) => Shape::Rect(resized(r)),
         Shape::Highlight(r) => Shape::Highlight(resized(r)),
         Shape::Cover(r) => Shape::Cover(resized(r)),
         text => text.clone(),
     };
     Obj { shape, style: o.style }
+}
+
+/// A line with handle `i` moved to `p`: an end (the bend goes with it, so the curve keeps its
+/// shape), or the middle, which bends it.
+fn line_handle(a: Pt, b: Pt, c: Option<Pt>, i: usize, p: Pt, shape: fn(Pt, Pt, Option<Pt>) -> Shape) -> Shape {
+    // The control point moves by half of what the end moved: the middle of the curve follows.
+    let half = |from: Pt| c.map(|c| Pt::new(c.x + (p.x - from.x) / 2.0, c.y + (p.y - from.y) / 2.0));
+    match i {
+        0 => shape(p, b, half(a)),
+        1 => shape(a, p, half(b)),
+        _ => shape(a, b, bent_to(a, b, p)),
+    }
 }
 
 /// The object a drag from `a` to `b` draws, on an image shown turned by `angle`: boxes and text
@@ -141,8 +184,8 @@ pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style) -> Option<Obj> 
     };
     let long = (b.x - a.x).hypot(b.y - a.y) >= 1.0;
     let shape = match kind {
-        Kind::Line => long.then_some(Shape::Line(a, b))?,
-        Kind::Arrow => long.then_some(Shape::Arrow(a, b))?,
+        Kind::Line => long.then_some(Shape::Line(a, b, None))?,
+        Kind::Arrow => long.then_some(Shape::Arrow(a, b, None))?,
         Kind::Rect => Shape::Rect(area()?),
         Kind::Highlight => Shape::Highlight(area()?),
         Kind::Cover => Shape::Cover(area()?),
@@ -167,7 +210,7 @@ mod tests {
     /// the topmost first.
     #[test]
     fn what_is_under() {
-        let line = Obj { shape: Shape::Line(Pt::new(0.0, 0.0), Pt::new(100.0, 0.0)), style: Style { width: 4.0, ..Style::default() } };
+        let line = Obj { shape: Shape::Line(Pt::new(0.0, 0.0), Pt::new(100.0, 0.0), None), style: Style { width: 4.0, ..Style::default() } };
         assert!(hit(&line, Pt::new(50.0, 3.0), 1.0) && !hit(&line, Pt::new(50.0, 4.0), 1.0) && !hit(&line, Pt::new(104.0, 0.0), 1.0));
         assert!(hit(&rect(0.0), Pt::new(19.0, 9.0), 0.0) && !hit(&rect(0.0), Pt::new(10.0, 11.0), 0.0));
         // Turned upright: 10 wide, 20 high around 10, 5.
@@ -192,9 +235,9 @@ mod tests {
         }
         // Straight: the corner goes where it was dragged.
         assert!(close(handles(&with_handle(&rect(0.0), 2, Pt::new(30.0, 30.0)))[2], Pt::new(30.0, 30.0)));
-        let line = Obj { shape: Shape::Arrow(Pt::new(0.0, 0.0), Pt::new(10.0, 0.0)), style: Style::default() };
-        assert_eq!(with_handle(&line, 1, Pt::new(5.0, 5.0)).shape, Shape::Arrow(Pt::new(0.0, 0.0), Pt::new(5.0, 5.0)));
-        assert_eq!(handles(&moved(&line, Pt::new(1.0, 2.0))), vec![Pt::new(1.0, 2.0), Pt::new(11.0, 2.0)]);
+        let line = Obj { shape: Shape::Arrow(Pt::new(0.0, 0.0), Pt::new(10.0, 0.0), None), style: Style::default() };
+        assert_eq!(with_handle(&line, 1, Pt::new(5.0, 5.0)).shape, Shape::Arrow(Pt::new(0.0, 0.0), Pt::new(5.0, 5.0), None));
+        assert_eq!(handles(&moved(&line, Pt::new(1.0, 2.0))), vec![Pt::new(1.0, 2.0), Pt::new(11.0, 2.0), Pt::new(6.0, 2.0)]);
     }
 
     /// Drawn on an image shown at 30°: a box upright on the screen, its corners where the drag
@@ -210,5 +253,26 @@ mod tests {
         assert!(drawn(Kind::Rect, a, a, 30.0, Style::default()).is_none() && drawn(Kind::Arrow, a, a, 0.0, Style::default()).is_none());
         let t = drawn(Kind::Text, a, a, 30.0, Style { width: 24.0, ..Style::default() }).unwrap();
         assert_eq!(t.shape, Shape::Text { at: a, text: String::new(), size: 24.0, rot: -30.0 });
+    }
+}
+
+#[cfg(test)]
+mod curves {
+    use super::*;
+
+    /// The middle handle bends the line: the curve then passes where it was dropped, the hit test
+    /// follows the curve and not the straight line; dropped back on the straight middle, straight
+    /// again; an end dragged keeps the middle of the curve following it.
+    #[test]
+    fn bent_by_the_middle() {
+        let line = Obj { shape: Shape::Line(Pt::new(0.0, 0.0), Pt::new(100.0, 0.0), None), style: Style { width: 2.0, ..Style::default() } };
+        let bent = with_handle(&line, 2, Pt::new(50.0, 30.0));
+        let h = handles(&bent);
+        assert!((h[2].x - 50.0).abs() < 1e-3 && (h[2].y - 30.0).abs() < 1e-3, "{h:?}");
+        assert!(hit(&bent, Pt::new(50.0, 30.0), 0.5) && !hit(&bent, Pt::new(50.0, 0.0), 0.5));
+        assert_eq!(with_handle(&bent, 2, Pt::new(50.0, 0.2)).shape, line.shape);
+        let moved_end = with_handle(&bent, 1, Pt::new(120.0, 0.0));
+        let m = handles(&moved_end)[2];
+        assert!((m.x - 60.0).abs() < 1e-3 && (m.y - 30.0).abs() < 1e-3, "{m:?}");
     }
 }

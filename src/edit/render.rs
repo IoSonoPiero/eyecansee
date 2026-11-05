@@ -9,7 +9,7 @@ use std::fmt::Write;
 
 use resvg::{tiny_skia, usvg};
 
-use super::doc::{Area, Dash, Doc, Obj, Pt, Shape, Style};
+use super::doc::{Area, Dash, Doc, Head, Obj, Pt, Shape, Style};
 
 /// The part of the result drawn: `x`, `y` its top left corner in pixels of the result (after the
 /// angle and the crop: 0, 0 is the top left corner of the crop), `w` × `h` the pixmap, `scale`
@@ -56,14 +56,14 @@ fn svg(doc: &Doc, (w, h): (u32, u32), view: &View) -> String {
 }
 
 fn object(out: &mut String, o: &Obj) {
-    let Style { color: [r, g, b], width, opacity, dash } = o.style;
+    let Style { color: [r, g, b], width, opacity, dash, head } = o.style;
     let stroke = format!(r#"stroke="rgb({r},{g},{b})" stroke-width="{width}" fill="none"{}"#, dashes(dash, width));
     let fill = format!(r#"fill="rgb({r},{g},{b})""#);
     // The opacity on a group: where the line of an arrow meets its head it is not doubled.
     let _ = write!(out, r#"<g opacity="{opacity}">"#);
     let _ = match &o.shape {
-        Shape::Line(a, b) => write!(out, r#"<line x1="{}" y1="{}" x2="{}" y2="{}" {stroke}/>"#, a.x, a.y, b.x, b.y),
-        Shape::Arrow(a, b) => arrow(out, *a, *b, width, &stroke, &fill),
+        Shape::Line(a, b, c) => line(out, *a, *b, *c, &stroke),
+        Shape::Arrow(a, b, c) => arrow(out, (*a, *b, *c), head, width, &stroke, &fill),
         Shape::Rect(area) => write!(out, r#"<rect {} {stroke}/>"#, rect(area)),
         // A plain fill at the opacity of the style (`Style::highlighter`): over a layer of its own
         // a multiply would have no photo to blend with (tried: plain yellow).
@@ -91,23 +91,62 @@ fn rect(a: &Area) -> String {
     format!(r#"x="{}" y="{}" width="{w}" height="{h}" transform="rotate({rot} {} {})""#, c.x - w / 2.0, c.y - h / 2.0, c.x, c.y)
 }
 
-/// A line from `a` to the base of a filled head at `b`; only the head when the line is shorter.
-fn arrow(out: &mut String, a: Pt, b: Pt, width: f32, stroke: &str, fill: &str) -> std::fmt::Result {
-    let (dx, dy) = (b.x - a.x, b.y - a.y);
+/// A line from `a` to `b`, straight or bent by `c`.
+fn line(out: &mut String, a: Pt, b: Pt, c: Option<Pt>, stroke: &str) -> std::fmt::Result {
+    match c {
+        None => write!(out, r#"<line x1="{}" y1="{}" x2="{}" y2="{}" {stroke}/>"#, a.x, a.y, b.x, b.y),
+        Some(c) => write!(out, r#"<path d="M{} {} Q{} {} {} {}" {stroke}/>"#, a.x, a.y, c.x, c.y, b.x, b.y),
+    }
+}
+
+/// The way an arrow leaves `at`, away from `towards` (the control point of a bent one): a unit
+/// vector, `None` when the two are the same point.
+fn direction(at: Pt, towards: Pt) -> Option<(f32, f32)> {
+    let (dx, dy) = (at.x - towards.x, at.y - towards.y);
     let len = dx.hypot(dy);
-    if len == 0.0 {
-        return Ok(());
+    (len > 0.0).then(|| (dx / len, dy / len))
+}
+
+/// An arrow from `a` to `b` (bent by `c`) with its head: filled, open, at both ends, or a dot.
+/// The line stops a little inside a filled head, so no gap shows; only the head when the line is
+/// shorter than it.
+fn arrow(out: &mut String, (a, b, c): (Pt, Pt, Option<Pt>), head: Head, width: f32, stroke: &str, fill: &str) -> std::fmt::Result {
+    let len = (b.x - a.x).hypot(b.y - a.y);
+    let (Some(end), Some(start)) = (direction(b, c.unwrap_or(a)), direction(a, c.unwrap_or(b))) else { return Ok(()) };
+    let size = 4.0 * width + 4.0;
+    // Where the line stops at either end.
+    let short = |p: Pt, (ux, uy): (f32, f32)| Pt::new(p.x - ux * size * 0.8, p.y - uy * size * 0.8);
+    let (from, to) = match head {
+        Head::Filled => (a, short(b, end)),
+        Head::Double => (short(a, start), short(b, end)),
+        Head::Open | Head::Dot => (a, b),
+    };
+    if len > size * if head == Head::Double { 2.0 } else { 1.0 } || head == Head::Open || head == Head::Dot {
+        // The control point moves with the ends, so the curve keeps its bend.
+        let c = c.map(|c| Pt::new(c.x + (from.x - a.x + to.x - b.x) / 2.0, c.y + (from.y - a.y + to.y - b.y) / 2.0));
+        line(out, from, to, c, stroke)?;
     }
-    let (ux, uy) = (dx / len, dy / len);
-    let head = 4.0 * width + 4.0;
-    let (bx, by) = (b.x - ux * head, b.y - uy * head);
-    if len > head {
-        // A little into the head, so no gap shows between them.
-        let (ex, ey) = (b.x - ux * head * 0.8, b.y - uy * head * 0.8);
-        write!(out, r#"<line x1="{}" y1="{}" x2="{ex}" y2="{ey}" {stroke}/>"#, a.x, a.y)?;
+    let filled = |out: &mut String, tip: Pt, (ux, uy): (f32, f32)| {
+        let (bx, by) = (tip.x - ux * size, tip.y - uy * size);
+        let (px, py) = (-uy * size / 2.0, ux * size / 2.0);
+        write!(out, r#"<polygon points="{},{} {},{} {},{}" {fill}/>"#, tip.x, tip.y, bx + px, by + py, bx - px, by - py)
+    };
+    match head {
+        Head::Filled => filled(out, b, end),
+        Head::Double => {
+            filled(out, b, end)?;
+            filled(out, a, start)
+        }
+        Head::Open => {
+            let (ux, uy) = end;
+            let (bx, by) = (b.x - ux * size, b.y - uy * size);
+            let (px, py) = (-uy * size / 2.0, ux * size / 2.0);
+            // Solid even on a dashed arrow: a dashed head would not read as one.
+            let solid = stroke.split(" stroke-dasharray").next().unwrap_or(stroke).replace("stroke-linecap=\"butt\"", "stroke-linecap=\"round\"");
+            write!(out, r#"<polyline points="{},{} {},{} {},{}" {solid} stroke-linejoin="round"/>"#, bx + px, by + py, b.x, b.y, bx - px, by - py)
+        }
+        Head::Dot => write!(out, r#"<circle cx="{}" cy="{}" r="{}" {fill}/>"#, b.x, b.y, size * 0.4),
     }
-    let (px, py) = (-uy * head / 2.0, ux * head / 2.0);
-    write!(out, r#"<polygon points="{},{} {},{} {},{}" {fill}/>"#, b.x, b.y, bx + px, by + py, bx - px, by - py)
 }
 
 /// Centred on `at`, one line under the other, in the system's sans-serif font.
@@ -194,7 +233,7 @@ pub(crate) mod tests {
     }
 
     fn style() -> Style {
-        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid }
+        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled }
     }
 
     fn area(x: f32, y: f32, w: f32, h: f32) -> Area {
@@ -205,10 +244,10 @@ pub(crate) mod tests {
     /// at 50, 40), and nothing far from it.
     #[test]
     fn each_object_in_its_place() {
-        let line = draw(&doc(vec![Obj { shape: Shape::Line(Pt::new(-30.0, 0.0), Pt::new(30.0, 0.0)), style: style() }]), &whole(&doc(vec![])));
+        let line = draw(&doc(vec![Obj { shape: Shape::Line(Pt::new(-30.0, 0.0), Pt::new(30.0, 0.0), None), style: style() }]), &whole(&doc(vec![])));
         assert_eq!((alpha(&line, 50, 40), alpha(&line, 25, 40), alpha(&line, 50, 30), alpha(&line, 10, 40)), (255, 255, 0, 0));
 
-        let arrow = draw(&doc(vec![Obj { shape: Shape::Arrow(Pt::new(-30.0, 0.0), Pt::new(30.0, 0.0)), style: style() }]), &whole(&doc(vec![])));
+        let arrow = draw(&doc(vec![Obj { shape: Shape::Arrow(Pt::new(-30.0, 0.0), Pt::new(30.0, 0.0), None), style: style() }]), &whole(&doc(vec![])));
         // The head (20 px long, 20 wide at its base at x 60, the tip at 80), the line 4 wide.
         assert_eq!((alpha(&arrow, 64, 34), alpha(&arrow, 64, 46), alpha(&arrow, 25, 40)), (255, 255, 255));
         assert_eq!((alpha(&arrow, 25, 34), alpha(&arrow, 82, 40)), (0, 0));
@@ -262,8 +301,8 @@ pub(crate) mod tests {
     #[test]
     fn same_at_any_scale() {
         let d = doc(vec![
-            Obj { shape: Shape::Line(Pt::new(-40.0, -30.0), Pt::new(35.0, 25.0)), style: style() },
-            Obj { shape: Shape::Arrow(Pt::new(-40.0, 30.0), Pt::new(30.0, -10.0)), style: Style { dash: Dash::Dashed, width: 3.0, ..style() } },
+            Obj { shape: Shape::Line(Pt::new(-40.0, -30.0), Pt::new(35.0, 25.0), None), style: style() },
+            Obj { shape: Shape::Arrow(Pt::new(-40.0, 30.0), Pt::new(30.0, -10.0), None), style: Style { dash: Dash::Dashed, width: 3.0, ..style() } },
             Obj { shape: Shape::Rect(Area { rot: 20.0, ..area(10.0, 5.0, 50.0, 30.0) }), style: Style { opacity: 0.5, ..style() } },
             Obj { shape: Shape::Text { at: Pt::new(-10.0, 0.0), text: "àèìòù".into(), size: 24.0, rot: -10.0 }, style: style() },
         ]);
@@ -292,7 +331,7 @@ pub(crate) mod tests {
     /// Opacity in the alpha of the pixels, dashes as gaps along the line.
     #[test]
     fn opacity_and_dashes() {
-        let line = |style| draw(&doc(vec![Obj { shape: Shape::Line(Pt::new(-45.0, 0.0), Pt::new(45.0, 0.0)), style }]), &whole(&doc(vec![])));
+        let line = |style| draw(&doc(vec![Obj { shape: Shape::Line(Pt::new(-45.0, 0.0), Pt::new(45.0, 0.0), None), style }]), &whole(&doc(vec![])));
         assert_eq!(alpha(&line(Style { opacity: 0.5, ..style() }), 50, 40), 128);
         let gaps = |p: &tiny_skia::Pixmap| (10..90).filter(|&x| alpha(p, x, 40) == 0).count();
         let switches = |p: &tiny_skia::Pixmap| (10..90).filter(|&x| (alpha(p, x, 40) > 128) != (alpha(p, x + 1, 40) > 128)).count();
@@ -341,7 +380,7 @@ pub(crate) mod tests {
     /// no box.
     #[test]
     fn bounds_hold_the_object() {
-        let d = doc(vec![Obj { shape: Shape::Arrow(Pt::new(-30.0, 0.0), Pt::new(30.0, 0.0)), style: style() }]);
+        let d = doc(vec![Obj { shape: Shape::Arrow(Pt::new(-30.0, 0.0), Pt::new(30.0, 0.0), None), style: style() }]);
         let [l, t, r, b] = bounds(&d, (W, H), &options()).unwrap();
         // From the round end of the line (x 20, less half its width) to the tip (80), the head
         // 20 wide around y 40.
@@ -352,5 +391,23 @@ pub(crate) mod tests {
             assert!(px.alpha() == 0 || (x > l - 1.0 && x < r + 1.0 && y > t - 1.0 && y < b + 1.0), "{x},{y} outside");
         }
         assert_eq!(bounds(&doc(vec![]), (W, H), &options()), None);
+    }
+
+    /// The heads: open (no fill between its two strokes), at both ends, a dot at the tip; a bent
+    /// line passes through the middle of its curve, not the straight middle.
+    #[test]
+    fn heads_and_curves() {
+        let arrow = |head| draw(&doc(vec![Obj { shape: Shape::Arrow(Pt::new(-30.0, 0.0), Pt::new(30.0, 0.0), None), style: Style { head, ..style() } }]), &whole(&doc(vec![])));
+        // Tip at 80, 40; heads 20 long and 20 wide.
+        let on = |p: &tiny_skia::Pixmap, x, y| alpha(p, x, y) > 128;
+        let open = arrow(Head::Open);
+        assert!(on(&open, 79, 40) && on(&open, 63, 33) && !on(&open, 66, 37), "open head");
+        let double = arrow(Head::Double);
+        assert!(on(&double, 36, 34) && on(&double, 76, 40) && on(&double, 50, 40), "double head");
+        let dot = arrow(Head::Dot);
+        assert!(on(&dot, 80, 46) && !on(&dot, 64, 34), "dot");
+        let bent = draw(&doc(vec![Obj { shape: Shape::Line(Pt::new(-30.0, 0.0), Pt::new(30.0, 0.0), Some(Pt::new(0.0, 40.0))), style: style() }]), &whole(&doc(vec![])));
+        // The middle of the curve 20 below the straight one: at 50, 60.
+        assert!(on(&bent, 50, 60) && !on(&bent, 50, 40), "bent");
     }
 }

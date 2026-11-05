@@ -52,9 +52,11 @@ impl Area {
 
 #[derive(Clone, PartialEq, Debug)]
 pub enum Shape {
-    Line(Pt, Pt),
-    /// From the first point to the second, where the head is.
-    Arrow(Pt, Pt),
+    /// From the first point to the second; the third, if any, bends it (the control point of a
+    /// quadratic Bézier curve).
+    Line(Pt, Pt, Option<Pt>),
+    /// From the first point to the second, where the head is; bent as a line.
+    Arrow(Pt, Pt, Option<Pt>),
     Rect(Area),
     Highlight(Area),
     /// `at` is the centre of the text, `size` the height of its letters in pixels. A flip moves
@@ -72,6 +74,16 @@ pub enum Dash {
     Dotted,
 }
 
+/// The end of an arrow: a filled head, an open one, a head at both ends, a dot.
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub enum Head {
+    #[default]
+    Filled,
+    Open,
+    Double,
+    Dot,
+}
+
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Style {
     /// RGB: the only transparency is `opacity`.
@@ -81,11 +93,14 @@ pub struct Style {
     /// 0 (invisible) to 1 (solid).
     pub opacity: f32,
     pub dash: Dash,
+    /// Arrows only. Styles remembered before it had none: the filled head.
+    #[serde(default)]
+    pub head: Head,
 }
 
 impl Default for Style {
     fn default() -> Style {
-        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid }
+        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled }
     }
 }
 
@@ -108,8 +123,8 @@ pub struct Obj {
 impl Obj {
     fn turned(&self, op: Op) -> Obj {
         let shape = match &self.shape {
-            Shape::Line(a, b) => Shape::Line(a.turned(op), b.turned(op)),
-            Shape::Arrow(a, b) => Shape::Arrow(a.turned(op), b.turned(op)),
+            Shape::Line(a, b, c) => Shape::Line(a.turned(op), b.turned(op), c.map(|c| c.turned(op))),
+            Shape::Arrow(a, b, c) => Shape::Arrow(a.turned(op), b.turned(op), c.map(|c| c.turned(op))),
             Shape::Rect(r) => Shape::Rect(r.turned(op)),
             Shape::Highlight(r) => Shape::Highlight(r.turned(op)),
             Shape::Cover(r) => Shape::Cover(r.turned(op)),
@@ -186,8 +201,8 @@ pub(crate) mod tests {
         let area = Area { centre: Pt::new(-7.25, 4.5), w: 6.0, h: 3.0, rot: -3.5 };
         let style = Style::default();
         d.objects = vec![
-            Obj { shape: Shape::Line(Pt::new(-10.0, -5.0), Pt::new(3.0, 8.0)), style },
-            Obj { shape: Shape::Arrow(Pt::new(0.1, 0.2), Pt::new(-12.3, 7.7)), style: Style { dash: Dash::Dashed, ..style } },
+            Obj { shape: Shape::Line(Pt::new(-10.0, -5.0), Pt::new(3.0, 8.0), Some(Pt::new(4.5, -2.25))), style },
+            Obj { shape: Shape::Arrow(Pt::new(0.1, 0.2), Pt::new(-12.3, 7.7), None), style: Style { dash: Dash::Dashed, ..style } },
             Obj { shape: Shape::Rect(area), style },
             Obj { shape: Shape::Highlight(area), style: Style { opacity: 0.4, ..style } },
             Obj { shape: Shape::Text { at: Pt::new(5.0, -6.0), text: "à €".into(), size: 12.0, rot: -3.5 }, style },
@@ -201,7 +216,7 @@ pub(crate) mod tests {
         d.objects
             .iter()
             .flat_map(|o| match &o.shape {
-                Shape::Line(a, b) | Shape::Arrow(a, b) => vec![*a, *b],
+                Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => [*a, *b].into_iter().chain(*c).collect(),
                 Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) => vec![r.centre],
                 Shape::Text { at, .. } => vec![*at],
             })
