@@ -178,7 +178,7 @@ At the top the toolbar, a key for each tool: **Select** (V), **Arrow** (A), **Li
 
 - **Drawing**: with Arrow, Line, Rectangle, Highlighter or Cover, drag on the image. With Text, click where the text goes and type it in the field of the properties bar (Enter starts a new line); a text left empty goes away.
 - **Style**: eight ready-made colours and one of your choice, width (the size of the letters for a text), opacity and line (solid, dashed or dotted), as each kind of object has them. The highlighter starts yellow at 40%, so the photo shows through it. EyeCanSee remembers the last style of each kind of object, also after closing, with the width in proportion to the image.
-- **Cover** is a solid box for private data (a number plate, an address, a face): nothing of what it covers is left in the saved file.
+- **Cover** is a solid box for private data (a number plate, an address, a face): nothing of what it covers is left in the saved file. It also covers what you drew before it; what you draw after it stays on top.
 - **Select**: click an object to change it (the properties bar shows its style), drag it to move it, drag its corners or ends to resize it; **Del** or the bin in the bar remove it. With a drawing tool a click on an object selects it too.
 - Every object stays one until you save: you can move it, change it or delete it at any time. **Undo** and **Redo** (Ctrl+Z, Ctrl+Y or Ctrl+Shift+Z) go back and forward through everything, the rotation and the crop included.
 - **Copy** (Ctrl+C) puts the result, at full size, on the clipboard, to paste it into another program. On this page Ctrl+C does not copy the file and Ctrl+X and Ctrl+V do nothing (but in the text field).

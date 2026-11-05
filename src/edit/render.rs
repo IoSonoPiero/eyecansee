@@ -2,7 +2,8 @@
 //! part of the result and at a given scale. The same code makes the preview (at the scale of the
 //! screen) and the saved file (at 1), so what is shown is what is saved. The pixmap holds only the
 //! objects, over transparency: the photo is under it on the screen and when saving. The cover box
-//! is not drawn here: it is written into the pixels when saving, solid and on whole pixels.
+//! is drawn here for the screen, in its place among the others; when saving it is written into the
+//! pixels instead (`edit::save::cover`), solid and on whole pixels.
 
 use std::fmt::Write;
 
@@ -68,8 +69,8 @@ fn object(out: &mut String, o: &Obj) {
         // a multiply would have no photo to blend with (tried: plain yellow).
         Shape::Highlight(area) => write!(out, r#"<rect {} {fill}/>"#, rect(area)),
         Shape::Text { at, text, size, rot } => self::text(out, *at, text, *size, *rot, &fill),
-        // Written into the pixels when saving.
-        Shape::Cover(_) => Ok(()),
+        // Solid, no soft edge; when saving written into the pixels instead.
+        Shape::Cover(area) => write!(out, r#"<rect {} {fill} shape-rendering="crispEdges"/>"#, rect(area)),
     };
     out.push_str("</g>");
 }
@@ -222,8 +223,9 @@ pub(crate) mod tests {
         assert!((cx - 50.0).abs() < 4.0 && (cy - 40.0).abs() < 6.0, "text centred: {cx}, {cy}");
         assert_eq!((alpha(&text, 5, 5), alpha(&text, 95, 75)), (0, 0));
 
-        // Not drawn here: the cover box (written into the pixels when saving).
-        assert!(draw(&doc(vec![Obj { shape: Shape::Cover(area(0.0, 0.0, 40.0, 20.0)), style: style() }]), &whole(&doc(vec![]))).pixels().iter().all(|p| p.alpha() == 0));
+        // The cover box solid, for the screen (when saving it goes into the pixels).
+        let cover = draw(&doc(vec![Obj { shape: Shape::Cover(area(0.0, 0.0, 40.0, 20.0)), style: style() }]), &whole(&doc(vec![])));
+        assert_eq!((alpha(&cover, 50, 40), alpha(&cover, 31, 31), alpha(&cover, 20, 40)), (255, 255, 0));
     }
 
     /// With an angle and after flips and turns of the document the object stays over the same

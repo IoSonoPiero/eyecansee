@@ -146,12 +146,13 @@ fn paint(doc: &Doc, size: (u32, u32), img: &mut DynamicImage, options: &usvg::Op
     let (iw, ih) = if doc.turn.sideways() { (size.1, size.0) } else { size };
     let corner = crate::rotate::corner(iw as f32, ih as f32, doc.crop);
     let mut holes = Vec::new();
+    // In the order they were drawn: a cover box hides what was drawn before it, what comes after
+    // it stays on top (as layers; user's choice of 2026-11-05).
     for o in &doc.objects {
         if let Shape::Cover(area) = &o.shape {
             holes.push(cover(img, area, doc.angle, corner, o.style.color));
+            continue;
         }
-    }
-    for o in doc.objects.iter().filter(|o| !matches!(o.shape, Shape::Cover(_))) {
         let one = Doc { turn: doc.turn, angle: doc.angle, crop: doc.crop, fill: doc.fill, objects: vec![o.clone()] };
         let Some(b) = render::bounds(&one, size, options) else { continue };
         let (x0, y0) = (b[0].floor().max(0.0), b[1].floor().max(0.0));

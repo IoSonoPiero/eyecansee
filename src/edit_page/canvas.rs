@@ -94,14 +94,7 @@ fn paint(ui: &egui::Ui, w: &mut Window, tex: &TextureHandle, view: &View, rect: 
     mesh.add_triangle(0, 1, 2);
     mesh.add_triangle(0, 2, 3);
     painter.add(mesh);
-    // The cover boxes under the other objects, as when saving.
-    for o in &w.doc.objects {
-        if let Shape::Cover(_) = o.shape {
-            let [r, g, b] = o.style.color;
-            let points = geom::handles(o).into_iter().map(|p| view.of(p, w.doc.angle)).collect();
-            painter.add(egui::Shape::convex_polygon(points, Color32::from_rgb(r, g, b), egui::Stroke::NONE));
-        }
-    }
+    // Every object in its order, the cover boxes among them (`edit::render`).
     if let Some(id) = objects_texture(ui, w, view, rect) {
         painter.image(id, rect, Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0)), Color32::WHITE);
     }
@@ -183,10 +176,10 @@ fn selection(painter: &egui::Painter, o: &Obj, view: &View, angle: f32) {
     }
 }
 
-/// The objects but the cover boxes, drawn by `edit::render` for this view at the screen's own
+/// The objects, drawn by `edit::render` for this view at the screen's own
 /// pixels; drawn again only when the document or the view changed.
 fn objects_texture(ui: &egui::Ui, w: &mut Window, view: &View, rect: Rect) -> Option<TextureId> {
-    if !w.doc.objects.iter().any(|o| !matches!(o.shape, Shape::Cover(_))) {
+    if w.doc.objects.is_empty() {
         return None;
     }
     let ppp = ui.ctx().pixels_per_point();

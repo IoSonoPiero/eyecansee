@@ -408,3 +408,16 @@ fn motion_photo_turned() {
     assert!(!video(&out.data) && !described(&out.data), "editor's copy: the picture alone");
     assert_eq!(crate::decode::decode_full(&out.data, "x.jpg").unwrap().dimensions(), (768, 1024));
 }
+
+/// Layers: a cover box hides the line drawn before it, and a line drawn after it stays on top.
+#[test]
+fn cover_hides_what_is_under_it() {
+    let line = |y| obj(Shape::Line(Pt::new(-20.0, y), Pt::new(20.0, y)), Style { color: [255, 0, 0], width: 2.0, ..Style::default() });
+    let mut doc = Doc::new(64, 48, None);
+    doc.objects = vec![line(-2.0), cover_at(0.0, 0.0, 30.0, 12.0), line(2.0)];
+    let img = result(&doc, &Original::with_meta(motif(), &[]), &options());
+    let at = |x, y| img.get_pixel(x, y);
+    // Centre at 32, 24: the first line at y 22 is under the box, the second at 26 over it.
+    assert_eq!(at(32, 22).0[..3], BLUE);
+    assert_eq!(at(32, 26).0[..3], [255, 0, 0]);
+}
