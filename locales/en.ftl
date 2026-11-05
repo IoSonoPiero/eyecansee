@@ -425,6 +425,8 @@ tf-rotate-ccw = Rotate 90° anticlockwise
 tf-rotate-180 = Rotate 180°
 menu-rotate-crop = Rotate and crop…
 rc-title = Rotate and crop
+# The copy an edit saves next to the original: "photo (edited).jpg".
+edit-copy-word = edited
 rc-rotation = Rotation
 rc-reset = Back to 0°
 rc-straighten = Straighten

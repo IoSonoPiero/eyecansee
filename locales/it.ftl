@@ -424,6 +424,8 @@ tf-rotate-ccw = Ruota di 90° in senso antiorario
 tf-rotate-180 = Ruota di 180°
 menu-rotate-crop = Ruota e ritaglia…
 rc-title = Ruota e ritaglia
+# The copy an edit saves next to the original: "photo (edited).jpg".
+edit-copy-word = modificata
 rc-rotation = Rotazione
 rc-reset = Torna a 0°
 rc-straighten = Raddrizza
