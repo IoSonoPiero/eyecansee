@@ -448,10 +448,17 @@ fn resize_cursor(w: &Window, view: &View, index: usize, handle: usize) -> Cursor
 /// A click: the Text tool places a text (or picks one to change), the others pick what is under it.
 fn clicked(w: &mut Window, p: Pt, tol: f32) {
     let under = geom::under(&w.doc.objects, p, tol);
+    // With a drawing tool, an object clicked is selected and its tool chosen: the bar shows its
+    // style (user, 2026-11-05). Select stays Select, to go on moving objects.
+    if let (Some(i), Tool::Draw(_)) = (under, w.tool) {
+        let kind = Kind::of(&w.doc.objects[i]);
+        w.tool = Tool::Draw(kind);
+        w.selected = Some(i);
+        w.focus_text = kind == Kind::Text;
+        return;
+    }
     if w.tool == Tool::Draw(Kind::Text) {
-        if let Some(i) = under.filter(|&i| Kind::of(&w.doc.objects[i]) == Kind::Text) {
-            w.selected = Some(i);
-        } else if let Some(mut o) = geom::drawn(Kind::Text, p, p, w.doc.angle, w.style(Kind::Text)) {
+        if let Some(mut o) = geom::drawn(Kind::Text, p, p, w.doc.angle, w.style(Kind::Text)) {
             // In the font chosen last.
             if let Shape::Text { font, .. } = &mut o.shape {
                 font.clone_from(&w.text_font);
