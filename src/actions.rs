@@ -113,6 +113,16 @@ impl App {
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::E)) && !ctx.egui_wants_keyboard_input() && self.can_edit(None) {
             self.open_editor(None, crate::edit_page::Tool::Select);
         }
+        // Ctrl+B and Ctrl+D: Convert and resize, Find duplicates (as their toolbar buttons).
+        let (batch, duplicates) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::COMMAND, Key::B), i.consume_key(egui::Modifiers::COMMAND, Key::D)));
+        if !ctx.egui_wants_keyboard_input() {
+            if batch && self.batch_off().is_none() {
+                self.act = Some(Act::Batch(None));
+            }
+            if duplicates && self.duplicates_off().is_none() {
+                self.act = Some(Act::Duplicates(None));
+            }
+        }
         if !ctx.egui_wants_keyboard_input() && self.rename.is_none() && self.new_folder.is_none() {
             if delete {
                 self.ask_delete(None, shift);

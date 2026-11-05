@@ -5,7 +5,7 @@ Press **F1** at any time to open or close this manual.
 ## The window
 
 - **Menu bar**: File, Edit, Image, View, Tools, Help. The version number is on the right; **Help → About EyeCanSee** shows the version, the author, the license and the link to the source code. Every action you can do with the keyboard or a double click also has a menu item, with its key shown next to it.
-- **Toolbar**: parent folder, refresh, metadata (ℹ), the address bar, the image order and the thumbnail size slider.
+- **Toolbar**: parent folder (in the viewer: back to the grid) and refresh; the operations in groups: **File** (new folder, cut, copy, paste, rename, delete), **Image** (turn left and right, edit image, save, save as) and **Tools** (convert and resize, find duplicates); then metadata, the address bar, the image order and the thumbnail size slider. Pointing at a button shows its name and key; on one that is off, also why it cannot be used. In a window narrower than 1100 points the Image and Tools groups are in the **⋯** menu. The buttons have [Lucide](https://lucide.dev) icons; folders, devices and files have the coloured ones.
 - **Folder tree** on the left, under **This computer** (and under **Devices** if you have any connected): click a folder to show its content. Folders open only when you expand them, so remote sources stay fast. When you change folder, also from the grid, the tree opens down to that folder and highlights it.
 - **Grid** on the right: the **..** cell to go up one level (not at the top of a disk or device), the subfolders, then the images as thumbnails, spread over the whole width. When you enter a folder nothing is selected; when you go up, the folder you came from is selected.
 - **Image order** from the drop-down list in the toolbar (with the ▲/▼ button next to it to reverse it) or from **View → Sort by**: by name, modification date, size or type (extension), plus **Descending order**. Folders stay first, by name; files without a date stay at the end. The choice is remembered.
@@ -265,6 +265,8 @@ In the grid:
 | Del | Delete |
 | Ctrl+C, Ctrl+X, Ctrl+V | Copy, cut, paste (see *Copying and moving*) |
 | Ctrl+A | Select everything in the folder |
+| Ctrl+B | Convert and resize (see *Converting and resizing images and videos*) |
+| Ctrl+D | Find duplicates (see *Finding duplicates*) |
 | Shift+arrows | Extend the selection |
 | Shift+Del | Delete for good |
 | Shift+F5 | Redo all the thumbnails of the folder |

@@ -135,6 +135,7 @@ mod source;
 mod theme;
 mod thumb_queue;
 mod thumbcache;
+mod toolbar;
 mod transfer;
 mod transform;
 mod trash;

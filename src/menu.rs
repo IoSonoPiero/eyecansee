@@ -163,17 +163,17 @@ impl App {
         // it works on, with "*" when only some are.
         let chosen = self.grid_items(None);
         let mut partial = false;
-        let mut kinds_entry = |ui: &mut egui::Ui, kinds: &[Kind], label: &str, a: Act| {
+        let mut kinds_entry = |ui: &mut egui::Ui, kinds: &[Kind], label: &str, keys: String, a: Act| {
             let fit = fits(&chosen, kinds);
             partial |= free && fit == Some(false);
-            entry(ui, act, free && fit.is_some(), egui::Button::new(starred(self.i18n.t(label), fit != Some(false))), a);
+            entry(ui, act, free && fit.is_some(), item(starred(self.i18n.t(label), fit != Some(false)), keys), a);
         };
-        kinds_entry(ui, PLAYED, "menu-batch", Act::Batch(None));
-        kinds_entry(ui, &[Kind::Drawing], "menu-export-drawings", Act::ExportDrawings(None));
-        kinds_entry(ui, &[Kind::Video], "menu-copy-meta", Act::CopyMeta(None));
-        kinds_entry(ui, &[Kind::Video], "menu-strip-audio", Act::Audio(crate::audio_job::AudioJob::Strip, None));
-        kinds_entry(ui, &[Kind::Video], "menu-extract-audio", Act::Audio(crate::audio_job::AudioJob::Extract, None));
-        entry(ui, act, !viewing && self.loader.is_some() && !source::is_trash(&self.dir), egui::Button::new(t("menu-duplicates")), Act::Duplicates(None));
+        kinds_entry(ui, PLAYED, "menu-batch", t("key-batch"), Act::Batch(None));
+        kinds_entry(ui, &[Kind::Drawing], "menu-export-drawings", String::new(), Act::ExportDrawings(None));
+        kinds_entry(ui, &[Kind::Video], "menu-copy-meta", String::new(), Act::CopyMeta(None));
+        kinds_entry(ui, &[Kind::Video], "menu-strip-audio", String::new(), Act::Audio(crate::audio_job::AudioJob::Strip, None));
+        kinds_entry(ui, &[Kind::Video], "menu-extract-audio", String::new(), Act::Audio(crate::audio_job::AudioJob::Extract, None));
+        entry(ui, act, self.duplicates_off().is_none(), item(t("menu-duplicates"), t("key-duplicates")), Act::Duplicates(None));
         partial_note(ui, partial, &self.i18n);
         ui.separator();
         entry(ui, act, true, egui::Button::new(t("menu-options")), Act::Options);
@@ -188,37 +188,27 @@ impl App {
     }
 
     pub(crate) fn toolbar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        // Coloured icons in square buttons with a border (style "B").
-        let icon = |icon| egui::Button::image(icons::image(ctx, icon, 18.0)).min_size(egui::vec2(32.0, 28.0));
+        // Line icons in square buttons with a border (Lucide, user's choice of 2026-11-05).
         ui.horizontal(|ui| {
             if self.viewing.is_some() {
-                if ui.add(icon(icons::Icon::Grid)).on_hover_text(self.i18n.t("menu-back-to-grid")).clicked() {
+                if ui.add(icons::button(ui, icons::Line::Grid)).on_hover_text(self.i18n.t("menu-back-to-grid")).clicked() {
                     self.close_viewer();
                 }
             } else if ui
-                .add_enabled(!self.dir.is_empty(), icon(icons::Icon::UpButton))
+                .add_enabled(!self.dir.is_empty(), icons::button(ui, icons::Line::Up))
                 .on_hover_text(self.i18n.t("tb-up"))
                 .clicked()
             {
                 self.go_up();
             }
-            if ui.add(icon(icons::Icon::Refresh)).on_hover_text(self.i18n.t("menu-refresh")).clicked() {
+            if ui.add(icons::button(ui, icons::Line::Refresh)).on_hover_text(self.i18n.t("menu-refresh")).clicked() {
                 self.refresh();
             }
-            // In the viewer, on only for pictures (not 3D models or CAD drawings).
-            if self.viewing_image() {
-                let photo = self.viewing_photo();
-                for (i, op, id) in [(icons::Icon::RotateCcw, transform::Op::Ccw, "tf-rotate-ccw"), (icons::Icon::RotateCw, transform::Op::Cw, "tf-rotate-cw")] {
-                    if ui.add_enabled(photo, icon(i)).on_hover_text(self.i18n.t(id)).clicked() {
-                        self.act = Some(Act::Transform(op, None));
-                    }
-                }
-            }
+            self.toolbar_ops(ui);
             // Metadata: closes all the boxes if one is open, otherwise reopens them all.
             if self.viewing.is_none() {
                 let any = meta::Group::ALL.into_iter().any(|g| self.meta_shown(g));
-                let button = egui::Button::selectable(any, icons::image(ctx, icons::Icon::Info, 18.0)).min_size(egui::vec2(32.0, 28.0));
-                if ui.add(button).on_hover_text(self.i18n.t("tb-meta")).clicked() {
+                if ui.add(icons::toggle(ui, any, icons::Line::Info)).on_hover_text(self.i18n.t("tb-meta")).clicked() {
                     for g in meta::Group::ALL {
                         self.show_meta(g, !any);
                     }

@@ -36,6 +36,14 @@ foreach ($p in $pkgs) {
         [void]$sb.AppendLine((Get-Content -Raw -Encoding utf8 $f.FullName))
     }
 }
+# Not a crate: the icons of the buttons, inside the executable.
+[void]$sb.AppendLine("")
+[void]$sb.AppendLine("=" * 78)
+[void]$sb.AppendLine("Lucide icons (some derived from Feather), inside eyecansee.exe  -  ISC AND MIT")
+[void]$sb.AppendLine("https://lucide.dev")
+[void]$sb.AppendLine("=" * 78)
+[void]$sb.AppendLine("")
+[void]$sb.AppendLine((Get-Content -Raw -Encoding utf8 "$PSScriptRoot\..\assets\icons\lucide\LICENSE-lucide.txt"))
 [void]$sb.AppendLine("")
 [void]$sb.AppendLine("=" * 78)
 [void]$sb.AppendLine("Standard licence texts (from the SPDX License List)")
