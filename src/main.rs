@@ -67,6 +67,9 @@ mod decode;
 mod devices;
 mod dup_page;
 mod duplicates;
+// ponytail: not used by the app until the editor page arrives (issue #53, step 5 of notes/editor-piano.md).
+#[cfg_attr(not(test), allow(dead_code))]
+mod edit;
 mod encode;
 mod encoders;
 mod engine;

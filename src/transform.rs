@@ -40,6 +40,11 @@ impl Turn {
         f
     }
 
+    /// The horizontal flip done first, and the clockwise quarter turns after it (0 to 3).
+    pub fn parts(self) -> (bool, u8) {
+        (self.flip, self.quarter)
+    }
+
     /// Width and height swap.
     pub fn sideways(self) -> bool {
         self.quarter % 2 == 1
