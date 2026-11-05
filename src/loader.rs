@@ -409,9 +409,9 @@ impl Loader {
     }
 
     /// Can "Save" overwrite `path`? It needs renaming (not on FTP), and not under gvfs, where
-    /// renaming can lose the original (`replace::replace`).
+    /// renaming can lose the original, nor on a temporary copy made by Windows (`replace::replace`).
     pub fn can_overwrite(&self, path: &str) -> bool {
-        self.op.can_rename() && !self.op.gvfs(path)
+        self.no_overwrite(path).is_none()
     }
 
     /// Why "Save" cannot overwrite `path`: the text id, or `None` when it can.
@@ -420,6 +420,8 @@ impl Loader {
             Some("save-no-rename")
         } else if self.op.gvfs(path) {
             Some("save-gvfs")
+        } else if self.op.temp_copy(path) {
+            Some("save-temp-copy")
         } else {
             None
         }
@@ -653,6 +655,27 @@ mod tests {
     use super::*;
     use crate::replace::{replace, undo};
     use crate::source::{Deletion, TRASH_DIR};
+
+    /// Issue #47: a temporary copy made by Windows (a phone photo opened from File Explorer) is
+    /// never saved over: the change would not reach the phone. Save as… is offered instead.
+    #[test]
+    fn replace_refused_on_windows_temp_copy() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-inetcache-{}", std::process::id()));
+        let p = dir.join("Microsoft").join("Windows").join("INetCache").join("IE").join("OC6EAUQ4");
+        std::fs::create_dir_all(&p).unwrap();
+        std::fs::write(p.join("a[1].jpg"), b"copy").unwrap();
+        std::fs::write(dir.join("b.jpg"), b"normal").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let path = "Microsoft/Windows/INetCache/IE/OC6EAUQ4/a[1].jpg";
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        assert_eq!(rt.block_on(replace(&op, path, b"new".to_vec(), Deletion::Permanent)).unwrap_err().0, "error-save-temp-copy");
+        assert_eq!(std::fs::read(p.join("a[1].jpg")).unwrap(), b"copy");
+        assert_eq!(std::fs::read_dir(&p).unwrap().count(), 1);
+        let loader = Loader::new(rt.handle().clone(), op, String::new(), std::sync::mpsc::channel().0, egui::Context::default());
+        assert_eq!(loader.no_overwrite(path), Some("save-temp-copy"));
+        assert_eq!(loader.no_overwrite("b.jpg"), None);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     /// Issue #45: under gvfs Save never renames: refused before anything is written, the original
     /// as it was, nothing hidden beside it; Save as… is offered instead (`no_overwrite`). gvfs is

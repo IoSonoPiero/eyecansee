@@ -48,6 +48,10 @@ pub(crate) async fn replace(op: &Store, path: &str, data: Vec<u8>, how: source::
     if op.gvfs(path) {
         return Err(("error-save-gvfs", path.to_string()));
     }
+    // Issue #47: the change would stay in a copy Windows can delete, not reach the phone.
+    if op.temp_copy(path) {
+        return Err(("error-save-temp-copy", path.to_string()));
+    }
     source::SAVING.lock().unwrap().insert(path.to_string());
     let r = swap(op, path, data, how).await;
     source::SAVING.lock().unwrap().remove(path);

@@ -65,9 +65,19 @@ impl App {
         }
     }
 
+    /// Opens an address from outside (command line, another instance); a temporary copy made by
+    /// Windows is said so in the status bar (issue #47).
+    pub(crate) fn open_outside(&mut self, ctx: &egui::Context, address: &str) {
+        let address = self.outside_address(address);
+        self.open_source(ctx, &address);
+        if source::windows_temp_copy(&address) {
+            self.status_note = Some(self.i18n.t("status-temp-copy"));
+        }
+    }
+
     /// An address from outside (command line, the file manager): a phone file mounted by gvfs
     /// opens through the direct connection (`devices::direct_address`).
-    pub(crate) fn outside_address(&self, address: &str) -> String {
+    fn outside_address(&self, address: &str) -> String {
         match devices::direct_address(address, &self.devices) {
             Some(direct) => {
                 log!("{address:?} opened directly as {direct:?}");

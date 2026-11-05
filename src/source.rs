@@ -61,6 +61,15 @@ pub fn in_gvfs(root: &str, path: &str) -> bool {
     format!("{root}/{path}").contains("/gvfs/")
 }
 
+/// A temporary copy Windows made of a file it cannot hand over as a path, kept in its internet
+/// cache: a phone photo opened with a double click in File Explorer arrives as
+/// `C:\Users\<user>\AppData\Local\Microsoft\Windows\INetCache\IE\<random>\<name>[1].jpg`
+/// (seen on Windows 11 with a phone in "File transfer" mode, issue #47). Saving over it would
+/// change only the copy, not the file on the phone.
+pub fn windows_temp_copy(path: &str) -> bool {
+    path.replace('\\', "/").to_ascii_lowercase().contains("/microsoft/windows/inetcache/")
+}
+
 /// Absolute path of a local file, pushed one element at a time: Windows' "\\?\" root does not accept "/".
 pub(crate) fn local_path(op: &Operator, path: &str) -> PathBuf {
     std::iter::once(op.info().root()).chain(path.split('/').filter(|s| !s.is_empty()).map(String::from)).collect()
@@ -154,6 +163,11 @@ impl Store {
     /// A path under a gvfs mount: a phone, camera or network share mounted by the desktop.
     pub fn gvfs(&self, path: &str) -> bool {
         matches!(self, Store::Dal(op) if fs_gvfs(op, path))
+    }
+
+    /// A local file that is a temporary copy made by Windows (`windows_temp_copy`).
+    pub fn temp_copy(&self, path: &str) -> bool {
+        matches!(self, Store::Dal(op) if op.info().scheme() == "fs" && windows_temp_copy(&format!("{}/{path}", op.info().root())))
     }
 
     /// Can it rename files? OpenDAL's FTP cannot, and "Save" needs it.
@@ -870,6 +884,12 @@ mod tests {
         assert!(l.dir.ends_with(&format!("{here}/")) && l.start.is_none());
         assert!(in_gvfs("/", "run/user/1000/gvfs/mtp:host=X/DCIM/") && in_gvfs("/run/user/1000/gvfs/", "a.jpg"));
         assert!(!in_gvfs("/", "home/me/a.jpg"));
+        // Issue #47: the path Windows 11 handed over for a phone photo opened from File Explorer.
+        assert!(windows_temp_copy(r"C:\Users\Pierluigi\AppData\Local\Microsoft\Windows\INetCache\IE\OC6EAUQ4\prova-47[1].jpg"));
+        assert!(windows_temp_copy("C:\\/Users/Pierluigi/AppData/Local/Microsoft/Windows/INetCache/IE/OC6EAUQ4/prova-47[1].jpg"));
+        for normal in [r"C:\Users\Ann\Pictures\IMG_0001.jpg", r"D:\Photos\Microsoft\Windows\a.jpg", r"C:\Users\Ann\INetCache\a.jpg", "/home/me/Microsoft/a.jpg"] {
+            assert!(!windows_temp_copy(normal), "{normal}");
+        }
     }
 
     #[cfg(windows)]

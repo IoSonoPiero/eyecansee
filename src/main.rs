@@ -562,8 +562,7 @@ impl App {
         let last = app.settings.last_location.clone().filter(|_| app.settings.remember_location);
         match (arg, last) {
             (Some(arg), _) => {
-                let arg = app.outside_address(&arg);
-                app.open_source(ctx, &arg);
+                app.open_outside(ctx, &arg);
             }
             // An FTP server with a user: the password is never saved, so instead of a login sure to
             // be refused File > Open location asks for it, with the rest filled in; home behind it.

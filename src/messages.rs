@@ -341,8 +341,7 @@ impl App {
     fn on_open(&mut self, ctx: &egui::Context, address: String) {
         log!("handed over: {:?}", without_password(&address));
         if !address.is_empty() {
-            let address = self.outside_address(&address);
-            self.open_source(ctx, &address);
+            self.open_outside(ctx, &address);
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
