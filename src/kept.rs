@@ -171,6 +171,10 @@ impl App {
                 if let Some(loader) = &self.loader {
                     log!("save {:?}: again from {:?}", k.path, k.file);
                     self.saving.insert(k.path.clone());
+                    // The editor's copy: shown once it is there, as after a Save that went well.
+                    if k.send == Send::Create {
+                        self.select_after = Some(k.path.clone());
+                    }
                     loader.replace_kept(k);
                 }
             }

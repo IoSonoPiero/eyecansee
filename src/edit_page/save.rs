@@ -123,6 +123,10 @@ impl App {
                 log!("edit: {send:?} {target:?} ({} bytes)", saved.data.len());
                 let (store, base, tx, ctx) = (loader.store(), self.base.clone(), self.tx.clone(), ctx.clone());
                 self.saving.insert(target.clone());
+                // The copy is what the grid selects and the viewer shows once it is there.
+                if !over {
+                    self.select_after = Some(target.clone());
+                }
                 self.rt.spawn(async move {
                     let r = crate::kept::send(&store, &base, &target, saved.data.clone(), how, send).await;
                     let _ = tx.send(crate::loader::replaced(target, r));

@@ -411,7 +411,8 @@ struct App {
     rename: Option<(String, String, bool)>,
     /// New folder: name, the folder it goes in, first frame (the name gets selected).
     new_folder: Option<(String, String, bool)>,
-    /// A folder just made: selected once its folder is read again.
+    /// A folder just made, or the editor's copy just saved: selected (and shown in the viewer)
+    /// once its folder is read again.
     select_after: Option<String>,
     /// Enter (true) or Esc (false) pressed while a confirmation is open (deletion, name taken).
     delete_answer: Option<bool>,
