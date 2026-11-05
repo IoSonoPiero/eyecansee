@@ -1,6 +1,6 @@
 //! The operations of the toolbar: File, Image and Tools, each a group of line icons with the
-//! name and the shortcut on hover and, when off, why. On as their menu items are. Under 1100
-//! points Image and Tools go into the "More" menu.
+//! name and the shortcut on hover and, when off, why. On as their menu items are. When the address
+//! would be left narrower than `ADDRESS` points, Image and Tools go into the "More" menu.
 
 use eframe::egui;
 
@@ -10,8 +10,9 @@ use crate::icons::{self, Line};
 use crate::selection::{Kind, PLAYED, fits};
 use crate::{App, source, transform};
 
-/// Window width (points) under which Image and Tools go into the "More" menu.
-const WIDE: f32 = 1100.0;
+/// The address is never narrower than this because of the icons: Image and Tools go into the
+/// "More" menu first (at 1400 points the address was 290 wide, user 2026-11-05).
+const ADDRESS: f32 = 360.0;
 
 struct Op {
     icon: Line,
@@ -107,10 +108,15 @@ impl App {
 
     /// The three groups, after Up (or Grid) and Refresh; the one chosen runs after the frame.
     pub(crate) fn toolbar_ops(&mut self, ui: &mut egui::Ui) {
-        let wide = ui.input(|i| i.viewport_rect().width()) >= WIDE;
         let mut chosen = None;
         group(ui, &self.file_ops(), &self.i18n, &mut chosen);
         let (image, tools) = (self.image_ops(), self.tool_ops());
+        // What follows the groups: the metadata button, then in the grid sorting and the slider
+        // (the 370 points `toolbar` keeps for them).
+        let step = icons::BUTTON.x + ui.spacing().item_spacing.x;
+        let groups = (image.len() + tools.len()) as f32 * step + 2.0 * (1.0 + 2.0 * ui.spacing().item_spacing.x);
+        let after = step + if self.viewing.is_none() { 370.0 } else { 0.0 };
+        let wide = ui.available_width() - groups - after >= ADDRESS;
         if wide {
             group(ui, &image, &self.i18n, &mut chosen);
             group(ui, &tools, &self.i18n, &mut chosen);
