@@ -31,6 +31,15 @@ pub fn render(doc: &Doc, size: (u32, u32), view: &View, options: &usvg::Options)
     Some(pixmap)
 }
 
+/// Where the objects of `doc` are in the result, lines and letters included: left, top, right,
+/// bottom in its pixels; `None` when nothing is drawn.
+pub fn bounds(doc: &Doc, size: (u32, u32), options: &usvg::Options) -> Option<[f32; 4]> {
+    let (w, h) = doc.crop.pixels();
+    let tree = usvg::Tree::from_str(&svg(doc, size, &View { x: 0.0, y: 0.0, w, h, scale: 1.0 }), options).ok()?;
+    let r = tree.root().abs_stroke_bounding_box();
+    (r.width() > 0.0 && r.height() > 0.0).then(|| [r.left(), r.top(), r.right(), r.bottom()])
+}
+
 /// The SVG of the objects. A point of an object (from the centre of the turned image) is turned
 /// by the angle, then put in the result as `rotate::rotate_crop` puts the pixels, then in the view.
 fn svg(doc: &Doc, (w, h): (u32, u32), view: &View) -> String {
@@ -117,7 +126,7 @@ fn escaped(s: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use std::sync::Arc;
 
     use image::{DynamicImage, RgbImage};
@@ -129,7 +138,7 @@ mod tests {
 
     /// The fonts of the tests: only the one egui carries in the program (Ubuntu Light), the same
     /// on every system and in the CI, as the sans-serif font.
-    fn options() -> usvg::Options<'static> {
+    pub(crate) fn options() -> usvg::Options<'static> {
         let mut db = usvg::fontdb::Database::new();
         let font = &eframe::egui::FontDefinitions::default().font_data["Ubuntu-Light"];
         db.load_font_data((*font.font).as_ref().to_vec());
@@ -324,5 +333,22 @@ mod tests {
         let c = p.pixel(50, 40).unwrap().demultiply();
         assert_eq!((c.red(), c.green(), c.blue(), c.alpha()), (255, 230, 0, 102));
         assert_eq!((alpha(&p, 46, 21), alpha(&p, 53, 58), alpha(&p, 50, 18), alpha(&p, 60, 40), alpha(&p, 30, 40)), (102, 102, 0, 0, 0));
+    }
+
+    /// The box of an object holds all of it, line width and arrow head included; nothing drawn,
+    /// no box.
+    #[test]
+    fn bounds_hold_the_object() {
+        let d = doc(vec![Obj { shape: Shape::Arrow(Pt::new(-30.0, 0.0), Pt::new(30.0, 0.0)), style: style() }]);
+        let [l, t, r, b] = bounds(&d, (W, H), &options()).unwrap();
+        // From the round end of the line (x 20, less half its width) to the tip (80), the head
+        // 20 wide around y 40.
+        assert!((l - 18.0).abs() < 0.01 && (r - 80.0).abs() < 0.01 && (t - 30.0).abs() < 0.01 && (b - 50.0).abs() < 0.01, "{l} {t} {r} {b}");
+        let p = draw(&d, &whole(&d));
+        for (i, px) in p.pixels().iter().enumerate() {
+            let (x, y) = ((i as u32 % W) as f32 + 0.5, (i as u32 / W) as f32 + 0.5);
+            assert!(px.alpha() == 0 || (x > l - 1.0 && x < r + 1.0 && y > t - 1.0 && y < b + 1.0), "{x},{y} outside");
+        }
+        assert_eq!(bounds(&doc(vec![]), (W, H), &options()), None);
     }
 }

@@ -454,7 +454,7 @@ impl Loader {
                 let shown = decode::preview(&img);
                 if crate::ultrahdr::is(bytes) {
                     let edits: Vec<_> = applied.into_iter().chain(pending).collect();
-                    return crate::ultrahdr::edited(bytes, img, &edits).map(|data| (data, true, shown));
+                    return crate::ultrahdr::edited(bytes, img, &edits, &[]).map(|data| (data, true, shown));
                 }
                 crate::save_back::encoded_back(bytes, name, img).map(|(data, lossy)| (data, lossy, shown))
             })

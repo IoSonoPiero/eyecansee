@@ -272,6 +272,15 @@ impl Original {
         Original { image, exif, icc, xmp, irb, xmp_ext: Vec::new() }
     }
 
+    /// For a picture written without what followed it in the file (Motion Photo video, Ultra HDR
+    /// gain map): the XMP that describes those goes (`xmp::alone`).
+    #[cfg_attr(not(test), allow(dead_code))] // ponytail: used by the editor page from step 5 (#53)
+    pub fn alone(mut self) -> Original {
+        let (w, h) = (self.image.width(), self.image.height());
+        self.xmp = self.xmp.map(|x| crate::xmp::alone(&x, w, h));
+        self
+    }
+
     pub fn has_meta(&self) -> bool {
         self.exif.is_some() || self.icc.is_some() || self.xmp.is_some() || self.irb.is_some()
     }
