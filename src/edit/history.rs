@@ -9,11 +9,13 @@ pub struct History {
     states: Vec<Doc>,
     /// The state shown.
     at: usize,
+    /// The document as last saved (as opened, at first): closing asks only when it changed.
+    saved: Doc,
 }
 
 impl History {
     pub fn new(doc: Doc) -> History {
-        History { states: vec![doc], at: 0 }
+        History { saved: doc.clone(), states: vec![doc], at: 0 }
     }
 
     pub fn doc(&self) -> &Doc {
@@ -59,9 +61,14 @@ impl History {
         }
     }
 
-    /// Something to save: the document shown is not the one opened.
+    /// Something to save: the document shown is not the one opened or last saved.
     pub fn changed(&self) -> bool {
-        *self.doc() != self.states[0]
+        *self.doc() != self.saved
+    }
+
+    /// The document shown was just saved (a copy): the page stays open, nothing more to save.
+    pub fn saved(&mut self) {
+        self.saved = self.doc().clone();
     }
 }
 
@@ -158,5 +165,17 @@ mod tests {
         assert_eq!(h.doc().objects, before);
         h.undo();
         assert_eq!(h.doc().objects, before);
+    }
+
+    /// Saved: nothing to save until something changes again; undone past the save, again.
+    #[test]
+    fn saved_is_unchanged() {
+        let mut h = History::new(crate::edit::doc::tests::sample());
+        h.apply(|d| d.angle = 7.0);
+        assert!(h.changed());
+        h.saved();
+        assert!(!h.changed());
+        h.undo();
+        assert!(h.changed());
     }
 }

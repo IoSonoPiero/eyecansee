@@ -254,6 +254,7 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
         ui.separator();
         if let Some(i) = selected {
             font_choice(ui, w, i, i18n);
+            text_angle(ui, w, i, i18n);
         }
         text_field(ui, w, selected, i18n);
     }
@@ -393,6 +394,19 @@ fn font_choice(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
                 set(w, f);
             }
         }
+    }
+}
+
+/// The angle of the selected text on the screen, -180° to 180° (its own angle in the document is
+/// measured on the image, which may be turned by Rotate and crop).
+fn text_angle(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
+    let angle = w.doc.angle;
+    let Some(Shape::Text { rot, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
+    let mut shown = (*rot + angle + 180.0).rem_euclid(360.0) - 180.0;
+    ui.label(i18n.t("rc-rotation"));
+    ui.spacing_mut().slider_width = 110.0;
+    if ui.add(egui::Slider::new(&mut shown, -180.0..=180.0).integer().suffix("°")).changed() {
+        *rot = shown - angle;
     }
 }
 

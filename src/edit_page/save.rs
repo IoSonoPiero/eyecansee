@@ -103,8 +103,9 @@ impl App {
     }
 
     /// The confirmation: the copy's name, or over the original with where the original goes
-    /// (always a trash, also with deleting for good chosen in the Options). `true` once sent: the
-    /// page closes.
+    /// (always a trash, also with deleting for good chosen in the Options). `true` once an
+    /// overwrite is sent: the page closes. After a copy it stays open, the document saved (user,
+    /// 2026-11-05: Save copy must not close the image).
     pub(super) fn edit_confirm(&mut self, ctx: &egui::Context, w: &mut Window) -> bool {
         let (Some(ready), Some(loader)) = (&w.ready, &self.loader) else { return false };
         let (saved, over) = (ready.saved.clone(), ready.over);
@@ -133,7 +134,11 @@ impl App {
                     ctx.request_repaint();
                 });
                 w.ready = None;
-                true
+                if !over && let Some(h) = &mut w.history {
+                    h.push(w.doc.clone());
+                    h.saved();
+                }
+                over
             }
             Some(false) => {
                 w.ready = None;
