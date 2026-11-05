@@ -189,8 +189,9 @@ fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Refresh => lucide!("refresh-cw").into(),
         Line::Info => lucide!("info").into(),
         Line::Grid => lucide!("layout-grid").into(),
-        Line::RotateCcw => lucide!("rotate-ccw").into(),
-        Line::RotateCw => lucide!("rotate-cw").into(),
+        // With a square: the image turns; the bare arrows looked like Undo and Redo (user, 2026-11-05).
+        Line::RotateCcw => lucide!("rotate-ccw-square").into(),
+        Line::RotateCw => lucide!("rotate-cw-square").into(),
         Line::NewFolder => lucide!("folder-plus").into(),
         Line::Copy => lucide!("copy").into(),
         Line::Cut => lucide!("scissors").into(),
