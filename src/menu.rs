@@ -329,7 +329,7 @@ impl App {
             ui.separator();
             match self.selected.checked_sub(l.dirs.len()).and_then(|i| l.files.get(i)) {
                 Some(f) => {
-                    ui.label(source::name(&f.path));
+                    ui.label(source::shown(&f.path));
                     ui.label(self.human_size(f.size));
                     if let Some(date) = self.file_date(&f.modified) {
                         ui.label(date);

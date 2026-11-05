@@ -13,10 +13,8 @@ impl App {
     /// no watcher to tell).
     pub(crate) fn remove_item(&mut self, path: &str, to_trash: bool) {
         self.marked.remove(path);
-        let dir = source::parent(path);
-        let trash = format!("{dir}{}/", source::TRASH_DIR);
-        // An Android trashed file is listed in its folder's trash, not in the folder.
-        let dir = if source::android_trashed(source::name(path)).is_some() { trash.clone() } else { dir };
+        let trash = format!("{}{}/", source::parent(path), source::TRASH_DIR);
+        let dir = source::listed_in(path);
         self.listings.retain(|k, _| !(path.ends_with('/') && k.starts_with(path)) && !(to_trash && *k == trash));
         if self.dir.starts_with(path) {
             self.listings.remove(&dir);

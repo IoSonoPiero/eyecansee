@@ -28,7 +28,7 @@ pub type Chunks = tokio::sync::mpsc::Sender<std::io::Result<Bytes>>;
 /// Size of the chunks read from disks and servers.
 const CHUNK: u64 = 1 << 20;
 
-pub use crate::trash::{android_trashed, free_name, in_trash, is_trash, leftover, save_names, shown, trash_of, Conflict, Deletion, SAVING, TRASH_DIR};
+pub use crate::trash::{android_trashed, free_name, in_trash, is_trash, leftover, listed_in, restore_place, save_names, shown, trash_of, Conflict, Deletion, SAVING, TRASH_DIR};
 
 /// The operations the app needs, the same for all sources.
 #[derive(Clone)]

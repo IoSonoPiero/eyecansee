@@ -152,7 +152,7 @@ impl App {
         let pixels = field("meta-width").zip(field("meta-height")).map(|(w, h)| format!("{} × {h}", w.trim_end_matches(" px")));
         let size = format!("{} ({} {})", self.human_size(f.size), grouped(f.size, &t("thousands-separator")), t("meta-bytes"));
         let rows = [
-            ("meta-file-name", Some(source::name(&f.path).trim_end_matches('/').to_string())),
+            ("meta-file-name", Some(source::shown(&f.path).trim_end_matches('/').to_string())),
             ("meta-file-size", Some(size)),
             ("meta-file-date", self.file_date(&f.modified)),
             ("meta-pixels", pixels),

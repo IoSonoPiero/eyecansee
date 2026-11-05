@@ -66,9 +66,25 @@ pub fn trash_of(path: &str) -> String {
     if android_trashed(name(path)).is_some() { format!("{dir}{TRASH_DIR}/") } else { dir }
 }
 
+/// The folder whose listing shows an item: an Android trashed file is listed in its folder's
+/// trash, not in the folder.
+pub fn listed_in(path: &str) -> String {
+    if android_trashed(name(path)).is_some() { trash_of(path) } else { parent(path) }
+}
+
 /// The name to show for an item: a trashed Android file by its original name.
 pub fn shown(path: &str) -> &str {
     android_trashed(name(path)).unwrap_or(name(path))
+}
+
+/// Where Restore puts an item of a trash back, and the name it gets there: an Android trashed file
+/// in its own folder (where it lies), by its original name; an item of a trash folder in the
+/// folder containing the trash.
+pub fn restore_place(path: &str) -> (String, &str) {
+    match android_trashed(name(path)) {
+        Some(own) => (parent(path), own),
+        None => (parent(&parent(path)), name(path)),
+    }
 }
 
 /// `name` if free, otherwise "name (2).ext", "name (3).ext"… as file managers do.
@@ -173,10 +189,7 @@ impl Store {
     /// files with the same name). Returns the path where it went.
     pub async fn restore(&self, path: &str, conflict: Conflict) -> Result<String, Error> {
         let trash = parent(path);
-        let (own, dest) = match android_trashed(name(path)) {
-            Some(own) => (own, trash.clone()),
-            None => (name(path), parent(&trash)),
-        };
+        let (dest, own) = restore_place(path);
         let taken = self.names(&dest).await?;
         if !taken.contains(own) {
             return self.put_back(path, &dest, own).await;
@@ -245,6 +258,10 @@ mod tests {
         assert!(in_trash("photos/.trashed-1-a.jpg"));
         assert_eq!(shown("photos/.trashed-1-a.jpg"), "a.jpg");
         assert_eq!(shown("photos/a.jpg"), "a.jpg");
+        assert_eq!(listed_in("photos/.trashed-1-a.jpg"), format!("photos/{TRASH_DIR}/"));
+        assert_eq!(listed_in("photos/a.jpg"), "photos/");
+        assert_eq!(restore_place("photos/.trashed-1-a.jpg"), ("photos/".to_string(), "a.jpg"));
+        assert_eq!(restore_place(&format!("photos/{TRASH_DIR}/a.jpg")), ("photos/".to_string(), "a.jpg"));
 
         let dir = std::env::temp_dir().join(format!("eyecansee-android-{}", std::process::id()));
         std::fs::create_dir_all(dir.join("photos")).unwrap();

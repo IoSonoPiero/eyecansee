@@ -205,7 +205,7 @@ impl App {
         };
         log!("delete? {paths:?} {how:?}");
         let size = size.or_else(|| match paths.len() {
-            1 => self.listings.get(&source::parent(&path)).and_then(|l| l.as_ref().ok()).and_then(|l| {
+            1 => self.listings.get(&source::listed_in(&path)).and_then(|l| l.as_ref().ok()).and_then(|l| {
                 l.files.iter().find(|f| f.path == path).map(|f| f.size)
             }),
             _ => Some(self.images_size(&paths)),
@@ -279,7 +279,7 @@ impl App {
             true => format!(" {}", self.i18n.t("delete-many-folders")),
             false => String::new(),
         };
-        let args = [("name", &crate::save_dialogs::md(source::name(path))), ("size", &size), ("n", &n), ("folders", &many_folders)];
+        let args = [("name", &crate::save_dialogs::md(source::shown(path))), ("size", &size), ("n", &n), ("folders", &many_folders)];
         let mut text = self.i18n.t_args(&id, &args.map(|(k, v)| (k, v.as_str())));
         if ntfs {
             text = format!("{text}\n\n{}", self.i18n.t("delete-ntfs"));
@@ -394,8 +394,9 @@ impl App {
     pub(crate) fn restore_window(&mut self, ctx: &egui::Context) {
         let Some(path) = self.restore_conflict.clone() else { return };
         let folder = path.ends_with('/');
-        let place = source::name(&source::parent(&source::parent(&path))).to_string();
-        let text = self.i18n.t_args("restore-taken", &[("name", &crate::save_dialogs::md(source::name(&path))), ("folder", &crate::save_dialogs::md(&place))]);
+        let (dest, own) = source::restore_place(&path);
+        let place = source::name(&dest).to_string();
+        let text = self.i18n.t_args("restore-taken", &[("name", &crate::save_dialogs::md(own)), ("folder", &crate::save_dialogs::md(&place))]);
         let t = |id| self.i18n.t(id);
         let first = if folder {
             (t("restore-merge"), source::Conflict::Merge)
