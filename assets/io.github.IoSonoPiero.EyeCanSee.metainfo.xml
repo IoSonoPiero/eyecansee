@@ -78,6 +78,14 @@
   </provides>
 
   <releases>
+    <release version="0.73.3" date="2026-11-05">
+      <description>
+        <ul>
+          <li>Windows: a phone photo opened from File Explorer arrives as a temporary copy made by Windows; EyeCanSee says so and never saves over it, offering Save as…, so a change can no longer stay in the copy while the photo on the phone is left as it was</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.73.3</url>
+    </release>
     <release version="0.73.2" date="2026-11-05">
       <description>
         <ul>
