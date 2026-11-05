@@ -205,8 +205,12 @@ pub(crate) fn tiff(img: &DynamicImage, o: &Options, b: &Blocks, out: &mut Cursor
     main.extend(b.icc.clone().map(|v| (34675, Type::UNDEFINED, v)));
     main.extend(b.xmp.clone().map(|v| (700, Type::BYTE, v)));
     // IPTC as LONGs, as Photoshop writes it: its bytes in their order, padded to a multiple of 4.
-    main.extend(b.irb.as_deref().and_then(crate::meta_write::iim).map(|v| (33723, Type::LONG, [v, &[0; 3][..(4 - v.len() % 4) % 4]].concat())));
-    main.extend(b.irb.clone().map(|v| (34377, Type::BYTE, v)));
+    let (iim, irb) = match b.irb.as_deref().and_then(crate::meta_write::tiff_iptc) {
+        Some((iim, irb)) => (Some(iim), Some(irb)),
+        None => (None, b.irb.clone()),
+    };
+    main.extend(iim.map(|v| (33723, Type::LONG, v)));
+    main.extend(irb.map(|v| (34377, Type::BYTE, v)));
     macro_rules! write {
         ($c:ty, $data:expr) => {{
             let mut image = enc.new_image::<$c>(w, h)?;

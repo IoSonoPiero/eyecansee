@@ -2244,6 +2244,7 @@ dependencies = [
  "libheif-rs",
  "libloading",
  "magick_rust",
+ "md5",
  "meshopt",
  "minisign-verify",
  "mtp-rs",

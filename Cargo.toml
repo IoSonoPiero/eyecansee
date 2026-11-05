@@ -30,6 +30,8 @@ image = "0.25.10"
 flate2 = "1.1.10"
 # libmpv for videos, opened at run time (mpv.rs): not needed to build or to start.
 libloading = "0.8.9"
+# IPTC digest of a TIFF (meta_write::tiff_iptc); already compiled for rawler and russh.
+md5 = "0.8.1"
 jxl-oxide = { version = "0.12.6", features = ["image"] }
 libheif-rs = { version = "3.0.0", optional = true }
 magick_rust = { version = "2.1.1", optional = true }

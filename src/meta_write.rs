@@ -11,6 +11,8 @@ use std::io::Cursor;
 const PIXEL_RESOURCES: [u16; 4] = [1032, 1033, 1036, 1050];
 /// IPTC-IIM inside a Photoshop block.
 const IPTC: u16 = 1028;
+/// MD5 of the IPTC-IIM, kept by Photoshop to know whether the XMP still matches it.
+const IPTC_DIGEST: u16 = 1061;
 pub const JPEG_XMP: &[u8] = b"http://ns.adobe.com/xap/1.0/\0";
 pub const JPEG_PHOTOSHOP: &[u8] = b"Photoshop 3.0\0";
 /// Name of the segments of a JPEG's extended XMP (XMP specification, part 3): the part of an XMP
@@ -45,10 +47,33 @@ pub fn fit_irb(irb: &[u8]) -> Option<Vec<u8>> {
 
 /// The IPTC-IIM of a Photoshop block.
 pub fn iim(irb: &[u8]) -> Option<&[u8]> {
-    let (_, r) = resources(irb).into_iter().find(|(id, _)| *id == IPTC)?;
+    resources(irb).into_iter().find(|(id, _)| *id == IPTC).and_then(|(_, r)| data(r))
+}
+
+/// The data of one resource (`resources`).
+fn data(r: &[u8]) -> Option<&[u8]> {
     let at = 6 + (1 + r[6] as usize).next_multiple_of(2);
     let size = u32::from_be_bytes(r[at..at + 4].try_into().ok()?) as usize;
     r.get(at + 4..at + 4 + size)
+}
+
+/// The IPTC-IIM for a TIFF and its Photoshop block, as Photoshop writes them: the IIM padded with
+/// zeros to a multiple of 4 bytes (the tag is a list of LONGs), the same in the block, and the
+/// digest made that of the padded IIM, if it was that of the IIM (a digest already out of date
+/// stays, it says the XMP may not match). `None` without IPTC.
+pub fn tiff_iptc(irb: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
+    let old = iim(irb)?;
+    let padded = [old, &[0; 3][..(4 - old.len() % 4) % 4]].concat();
+    let current = md5::compute(old).0;
+    let block = resources(irb)
+        .into_iter()
+        .flat_map(|(id, r)| match id {
+            IPTC => resource(IPTC, &padded),
+            IPTC_DIGEST if data(r) == Some(&current[..]) => resource(IPTC_DIGEST, &md5::compute(&padded).0),
+            _ => r.to_vec(),
+        })
+        .collect();
+    Some((padded, block))
 }
 
 /// A Photoshop block holding only `iim`.
@@ -362,6 +387,22 @@ pub fn tiff_fields(exif: &[u8]) -> Vec<(Dir, u16, tiff::tags::Type, Vec<u8>)> {
 
 #[cfg(test)]
 mod tests {
+
+    /// In a TIFF the IPTC is padded to 4 bytes, in the Photoshop block too, and a current digest
+    /// stays current; one already out of date is left as it was.
+    #[test]
+    fn tiff_iptc_padded() {
+        use super::{IPTC, IPTC_DIGEST, iim, resource, resources, tiff_iptc};
+        let old = [0x1C, 2, 80, 0, 4, b'A', b'n', b'n', b'a'];
+        let digest = |irb: &[u8]| resources(irb).into_iter().find(|(id, _)| *id == IPTC_DIGEST).and_then(|(_, r)| super::data(r).map(<[u8]>::to_vec));
+        let (padded, block) = tiff_iptc(&[resource(IPTC, &old), resource(IPTC_DIGEST, &md5::compute(old).0)].concat()).unwrap();
+        assert_eq!(padded, [&old[..], &[0, 0, 0]].concat());
+        assert_eq!(iim(&block), Some(&padded[..]));
+        assert_eq!(digest(&block), Some(md5::compute(&padded).0.to_vec()));
+        let (_, block) = tiff_iptc(&[resource(IPTC, &old), resource(IPTC_DIGEST, &[9; 16])].concat()).unwrap();
+        assert_eq!(digest(&block), Some(vec![9; 16]));
+        assert!(tiff_iptc(&resource(1036, &[1; 4])).is_none());
+    }
 
     /// An XCF by hand: header, the parasites property with an "icc-profile", PROP_END.
     #[test]
