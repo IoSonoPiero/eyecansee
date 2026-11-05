@@ -193,7 +193,7 @@ At the top the toolbar, a key for each tool: **Select** (V), **Arrow** (A), **Li
 - **Crop**: drag a corner or a side of the frame to resize it, its inside to move it. The proportions can be free, as the original, 1:1, 5:4, 4:3, 3:2, 16:9 or your own; the button with the two arrows swaps width and height. **Image only** makes the largest crop with no empty corners (it follows the rotation, and it is what you get at first); **Whole image** keeps all of the rotated image.
 - **Empty corners**: where the crop goes past the image they are transparent (grey squares) or filled with the colour you choose. JPEG has no transparency: there they become white.
 - **Apply** (or Enter) goes back to the tool before and shows the cropped result; Ctrl+Z undoes the crop. With this tool the whole image is shown, with the crop over it; with the others only the result. Dragging outside the frame moves the view. The size of the result is in the status bar.
-- **Close**, the window's ✕ or Esc close the page; with changes not saved they first ask whether to **Save** (a copy), **Save as…** or **Don't save** (**Cancel** goes back to the page).
+- **Esc** does one thing at a time: it stops the eyedropper or a drag under way, ends the text being typed (a text still empty goes), lets go of the selection; when there is none of these left it closes the page. - **Close**, the window's ✕ or Esc close the page; with changes not saved they first ask whether to **Save** (a copy), **Save as…** or **Don't save** (**Cancel** goes back to the page).
 - **Ultra HDR** photos of phones (with HDR brightness) stay HDR: their HDR part is rotated and cropped together with the photo.
 
 ## Copying and moving

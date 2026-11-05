@@ -274,6 +274,29 @@ impl Window {
         }
     }
 
+    /// Esc, one thing at a time (user, 2026-11-05: Esc after placing a text closed the page): the
+    /// eyedropper or a drag stops, a text being typed or just placed is done (and goes if empty),
+    /// the selection goes. `false` when there was nothing of it: Esc closes the page then.
+    fn escape(&mut self) -> bool {
+        if std::mem::take(&mut self.picking) {
+            return true;
+        }
+        if self.hold.take().is_some() {
+            if let Some(h) = &self.history {
+                self.doc = h.doc().clone();
+            }
+            return true;
+        }
+        let Some(i) = self.selected.take() else { return false };
+        self.focus_text = false;
+        if let Some(Shape::Text { text, .. }) = self.doc.objects.get(i).map(|o| &o.shape)
+            && text.trim().is_empty()
+        {
+            self.doc.objects.remove(i);
+        }
+        true
+    }
+
     /// A tool of the toolbar (or its key): changing tool lets go of the selection (but for Select).
     fn choose(&mut self, tool: Tool) {
         if tool == self.tool {
@@ -424,17 +447,17 @@ impl App {
     /// the properties under them, the status at the bottom, the image in the middle.
     pub(crate) fn edit_page(&mut self, ui: &mut egui::Ui) {
         let Some(mut w) = self.editor.take() else { return };
-        // Before the fields are drawn: Esc in a field or during a drag stops only that.
         let busy = ui.ctx().egui_wants_keyboard_input() || w.hold.is_some() || w.picking;
-        let mut open = !crate::theme::close_asked(ui) && !ui.input(|i| i.key_pressed(egui::Key::Escape));
+        let mut open = !crate::theme::close_asked(ui);
+        // The window's ✕ during a drag or while typing: it stops only that.
         if !open && busy {
             open = true;
-            w.picking = false;
-            if w.hold.take().is_some()
-                && let Some(h) = &w.history
-            {
-                w.doc = h.doc().clone();
-            }
+            w.escape();
+        }
+        // With a question open (save, leave) Esc is its Cancel, not the page's.
+        let asking = w.ready.is_some() || w.leaving;
+        if !asking && ui.input(|i| i.key_pressed(egui::Key::Escape)) && !w.escape() {
+            open = false;
         }
         let tex = match &w.original {
             Some(Ok((_, tex, _))) => Some(tex.clone()),
