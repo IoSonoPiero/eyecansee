@@ -421,3 +421,21 @@ fn cover_hides_what_is_under_it() {
     assert_eq!(at(32, 22).0[..3], BLUE);
     assert_eq!(at(32, 26).0[..3], [255, 0, 0]);
 }
+
+/// A filter is applied to the photo at full size in the saved image, under the objects drawn
+/// (also those drawn before it): black and white on the whole image, the red line still red.
+#[test]
+fn filter_under_the_objects() {
+    use crate::edit::filter::Filter;
+    let mut doc = Doc::new(64, 48, None);
+    doc.objects.push(obj(Shape::Line(Pt::new(-20.0, 0.0), Pt::new(20.0, 0.0), None), Style { color: [255, 0, 0], width: 2.0, ..Style::default() }));
+    doc.objects.push(obj(Shape::Filter { area: Area { centre: Pt::new(0.0, 0.0), w: 64.0, h: 48.0, rot: 0.0 }, filter: Filter::Gray, amount: 0.0, preview: Default::default() }, Style::default()));
+    let img = result(&doc, &Original::with_meta(motif(), &[]), &options());
+    let p = img.get_pixel(32, 24).0;
+    assert_eq!(p[..3], [255, 0, 0], "the line over the filter");
+    for (x, y) in [(5, 5), (40, 30), (20, 15)] {
+        let [r, g, b, _] = img.get_pixel(x, y).0;
+        assert!(r.abs_diff(g) <= 1 && g.abs_diff(b) <= 1, "grey at {x},{y}: {r} {g} {b}");
+    }
+}
+

@@ -73,6 +73,7 @@ impl App {
                     w.turn(op);
                 }
             }
+            filters_menu(ui, w, i18n);
             ui.separator();
             let (can_undo, can_redo) = w.history.as_ref().map_or((false, false), |h| (h.can_undo() || w.doc != *h.doc(), h.can_redo()));
             if bar_button(ui, icons::button(ui, Line::Undo), tip(i18n, "edit-undo", "Ctrl+Z"), (!can_undo).then(|| i18n.t("edit-off-undo"))) {
@@ -215,6 +216,36 @@ impl App {
     }
 }
 
+/// The Filters menu: on the part chosen with Selection, or on the whole image.
+fn filters_menu(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
+    let (r, _) = egui::containers::menu::MenuButton::from_button(icons::button(ui, Line::Filters)).ui(ui, |ui| {
+        ui.weak(i18n.t(if w.marquee.is_some() { "edit-filters-part" } else { "edit-filters-whole" }));
+        for f in crate::edit::filter::Filter::ALL {
+            if ui.add(icons::menu_item(ui, None, i18n.t(f.label()), String::new())).clicked() {
+                w.add_filter(f);
+            }
+        }
+    });
+    r.on_hover_text(i18n.t("edit-filters"));
+}
+
+/// A filter selected: its name, its amount, delete.
+fn filter_bar(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
+    let long = w.long();
+    let Some(Shape::Filter { filter, amount, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
+    ui.strong(i18n.t(filter.label()));
+    if let Some((lo, hi, _)) = filter.amount(long) {
+        ui.label(i18n.t("edit-filter-amount"));
+        ui.spacing_mut().slider_width = 160.0;
+        ui.add(egui::Slider::new(amount, lo..=hi).integer());
+    }
+    ui.separator();
+    if bar_button(ui, icons::button(ui, Line::Delete), format!("{} ({})", i18n.t("edit-delete"), i18n.t("key-delete")), None) {
+        w.doc.objects.remove(i);
+        w.selected = None;
+    }
+}
+
 /// Selection's bar: copy, cut, paste, with their keys and why they are off.
 fn marquee_bar(ui: &mut egui::Ui, w: &Window, i18n: &I18n) -> Option<Act> {
     let none = w.marquee.is_none().then(|| i18n.t("edit-off-no-marquee"));
@@ -255,6 +286,10 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
             return false;
         }
     };
+    if let (Kind::Filter, Some(i)) = (kind, selected) {
+        filter_bar(ui, w, i, i18n);
+        return false;
+    }
     let mut style = match selected {
         Some(i) => w.doc.objects[i].style,
         None => w.style(kind),
@@ -338,7 +373,7 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
     match kind {
         Kind::Line | Kind::Arrow | Kind::Rect => slider(ui, t("edit-width"), &mut style.width, 1.0..=max, " px"),
         Kind::Text => slider(ui, t("edit-size"), &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
-        Kind::Highlight | Kind::Cover | Kind::Patch => {}
+        Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter => {}
     }
     if kind != Kind::Cover {
         let mut pct = style.opacity * 100.0;

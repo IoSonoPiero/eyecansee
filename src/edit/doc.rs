@@ -72,6 +72,21 @@ pub enum Shape {
     /// A piece of image (copied or cut with Selection, or pasted from another program) stretched
     /// over `area`.
     Patch { area: Area, pixels: Pixels },
+    /// A filter on the part of the photo under `area` (all of it for the whole image), under the
+    /// objects drawn; `amount` as `Filter::amount` says.
+    Filter { area: Area, filter: crate::edit::filter::Filter, amount: f32, preview: Preview },
+}
+
+/// The preview of a filter: its pixels, at a smaller size, and the box and amount they were made
+/// for. Not part of what the document is: two documents that differ only here are the same, for
+/// the history and for saving (which filters the photo at full size).
+#[derive(Clone, Debug, Default)]
+pub struct Preview(pub Option<(Area, f32, Pixels)>);
+
+impl PartialEq for Preview {
+    fn eq(&self, _: &Preview) -> bool {
+        true
+    }
 }
 
 /// The pixels of a patch, RGBA 8 bits. Shared by the states of the history and compared by
@@ -193,7 +208,9 @@ impl Obj {
             Shape::Cover(r) => Shape::Cover(r.turned(op)),
             // The box turns as the others; the picture in it turns (or flips) as the image did.
             Shape::Patch { area, pixels } => Shape::Patch { area: area.turned(op), pixels: pixels.turned(op) },
-            Shape::Text { at, text, size, rot, font } => Shape::Text { at: at.turned(op), text: text.clone(), size: *size, rot: if is_flip(op) { -rot } else { *rot }, font: font.clone() },
+            // Made again for the photo under it.
+            Shape::Filter { area, filter, amount, .. } => Shape::Filter { area: area.turned(op), filter: *filter, amount: *amount, preview: Preview::default() },
+            Shape::Text { at, text, size, rot, font } => Shape::Text { at: at.turned(op), text: text.clone(), size: *size, rot: text_turned(*rot, op), font: font.clone() },
         };
         Obj { shape, style: self.style }
     }
@@ -238,8 +255,13 @@ impl Doc {
     /// box, along its own sides; transparent where the box goes past the photo. The objects
     /// drawn are not in them. At most 8000 pixels a side.
     pub fn pixels_under(&self, img: &image::DynamicImage, a: &Area) -> image::RgbaImage {
+        self.pixels_under_at(img, a, 1.0)
+    }
+
+    /// `pixels_under` at `scale` pixels per pixel of the box (a filter's preview).
+    pub fn pixels_under_at(&self, img: &image::DynamicImage, a: &Area, scale: f32) -> image::RgbaImage {
         use image::GenericImageView;
-        let (w, h) = (a.w.round().clamp(1.0, 8000.0) as u32, a.h.round().clamp(1.0, 8000.0) as u32);
+        let (w, h) = ((a.w * scale).round().clamp(1.0, 8000.0) as u32, (a.h * scale).round().clamp(1.0, 8000.0) as u32);
         let (s, c) = a.rot.to_radians().sin_cos();
         let (iw, ih) = (img.width() as f32, img.height() as f32);
         image::RgbaImage::from_fn(w, h, |u, v| {
@@ -260,6 +282,21 @@ impl Doc {
         }
         if flip { p.turned(Op::FlipH) } else { p }
     }
+}
+
+/// The angle of a text once the image is turned or flipped: it turns with the image (it stayed
+/// upright, user 2026-11-05); a flip tilts it without mirroring the letters, a vertical one as a
+/// horizontal one and half a turn, so any two operations that give the same image give the same
+/// text.
+fn text_turned(rot: f32, op: Op) -> f32 {
+    let r = match op {
+        Op::Cw => rot + 90.0,
+        Op::Ccw => rot - 90.0,
+        Op::Half => rot + 180.0,
+        Op::FlipH => -rot,
+        Op::FlipV => 180.0 - rot,
+    };
+    (r + 180.0).rem_euclid(360.0) - 180.0
 }
 
 fn is_flip(op: Op) -> bool {
@@ -297,7 +334,7 @@ pub(crate) mod tests {
             .iter()
             .flat_map(|o| match &o.shape {
                 Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => [*a, *b].into_iter().chain(*c).collect(),
-                Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) | Shape::Patch { area: r, .. } => vec![r.centre],
+                Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) | Shape::Patch { area: r, .. } | Shape::Filter { area: r, .. } => vec![r.centre],
                 Shape::Text { at, .. } => vec![*at],
             })
             .collect()

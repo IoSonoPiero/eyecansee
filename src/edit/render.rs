@@ -48,7 +48,9 @@ fn svg(doc: &Doc, (w, h): (u32, u32), view: &View) -> String {
     let (left, top) = crate::rotate::corner(iw as f32, ih as f32, doc.crop);
     let (tx, ty) = (-(left + view.x), -(top + view.y));
     let mut out = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{}" height="{}"><g transform="scale({}) translate({tx} {ty}) rotate({})">"#, view.w, view.h, view.scale, doc.angle);
-    for o in &doc.objects {
+    // The filters first: they change the photo, the objects drawn stay over them.
+    let filter = |o: &&Obj| matches!(o.shape, Shape::Filter { .. });
+    for o in doc.objects.iter().filter(filter).chain(doc.objects.iter().filter(|o| !filter(o))) {
         object(&mut out, o);
     }
     out.push_str("</g></svg>");
@@ -79,6 +81,11 @@ fn object(out: &mut String, o: &Obj) {
         Shape::Cover(area) => write!(out, r#"<rect {} {fill} shape-rendering="crispEdges"/>"#, rect(area)),
         // The picture stretched over its box, turned with it.
         Shape::Patch { area, pixels } => write!(out, r#"<image {} preserveAspectRatio="none" xlink:href="data:image/png;base64,{}"/>"#, rect(area), pixels.png_base64()),
+        // Its preview (made by the page from the photo), over the box as it is now.
+        Shape::Filter { area, preview, .. } => match &preview.0 {
+            Some((_, _, pixels)) => write!(out, r#"<image {} preserveAspectRatio="none" xlink:href="data:image/png;base64,{}"/>"#, rect(area), pixels.png_base64()),
+            None => Ok(()),
+        },
     };
     out.push_str("</g>");
 }

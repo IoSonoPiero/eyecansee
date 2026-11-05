@@ -88,6 +88,8 @@ enum Hold {
 #[derive(PartialEq)]
 struct Drawn {
     doc: Doc,
+    /// Previews of filters made since (`Window::filters_made`): not in the document's equality.
+    made: u64,
     at: Vec2,
     k: f32,
     rect: egui::Rect,
@@ -131,6 +133,8 @@ pub struct Window {
     marquee: Option<crate::edit::doc::Area>,
     /// A part copied or cut: Paste puts it back as a patch where it was (a little aside).
     clip: Option<(crate::edit::doc::Area, crate::edit::doc::Pixels)>,
+    /// How many times the previews of the filters were made: the objects are drawn again then.
+    filters_made: u64,
     /// A line under the buttons ("Copied…") and until when (seconds of `egui::InputState::time`).
     note: Option<(String, f64)>,
     copying: bool,
@@ -189,6 +193,7 @@ impl Window {
             ask_pick: false,
             marquee: None,
             clip: None,
+            filters_made: 0,
             note: None,
             copying: false,
             follow: Follow::Inside,
@@ -348,6 +353,43 @@ impl Window {
         self.refit();
     }
 
+    /// The filters whose preview is missing or was made for another box or amount: made again from
+    /// the photo, at most 1200 pixels a side. Not while a drag is under way (the old one is
+    /// stretched meanwhile).
+    fn refresh_filters(&mut self) {
+        use crate::edit::doc::{Pixels, Preview};
+        let Some(Ok((original, ..))) = &self.original else { return };
+        if self.hold.is_some() {
+            return;
+        }
+        let stale: Vec<usize> = (0..self.doc.objects.len())
+            .filter(|&i| matches!(&self.doc.objects[i].shape, Shape::Filter { area, amount, preview, .. } if preview.0.as_ref().is_none_or(|(a, m, _)| a != area || m != amount)))
+            .collect();
+        for i in stale {
+            let Shape::Filter { area, filter, amount, .. } = self.doc.objects[i].shape.clone() else { continue };
+            let scale = (1200.0 / area.w.max(area.h)).min(1.0);
+            let photo = image::DynamicImage::ImageRgba8(self.doc.pixels_under_at(&original.image, &area, scale));
+            let pixels = Pixels::new(crate::edit::filter::apply(&photo, filter, amount, scale).to_rgba8());
+            if let Shape::Filter { preview, .. } = &mut self.doc.objects[i].shape {
+                *preview = Preview(Some((area, amount, pixels)));
+            }
+            self.filters_made += 1;
+        }
+    }
+
+    /// A filter from the menu: on the part chosen with Selection, or on the whole image; selected,
+    /// with Select chosen to move it or change its amount.
+    fn add_filter(&mut self, filter: crate::edit::filter::Filter) {
+        let (iw, ih) = self.size();
+        let area = self.marquee.unwrap_or(crate::edit::doc::Area { centre: Pt::new(0.0, 0.0), w: iw, h: ih, rot: 0.0 });
+        let amount = filter.amount(self.long()).map_or(0.0, |(_, _, start)| start);
+        self.doc.objects.push(Obj { shape: Shape::Filter { area, filter, amount, preview: Default::default() }, style: Style::default() });
+        self.selected = Some(self.doc.objects.len() - 1);
+        self.choose(Tool::Select);
+        // `choose` keeps it when Select was already the tool.
+        self.marquee = None;
+    }
+
     /// Zoom in or out around the middle of the view.
     fn zoom(&mut self, factor: f32) {
         let (at, k) = self.shown;
@@ -484,6 +526,7 @@ impl App {
         };
         let mut handed = false;
         if let Some(tex) = tex {
+            w.refresh_filters();
             let mut ask = self.edit_keys(ui.ctx(), &mut w);
             egui::Panel::top("edit-tools").show(ui, |ui| ask = self.edit_toolbar(ui, &mut w).or(ask.take()));
             egui::Panel::top("edit-props").show(ui, |ui| self.props_bar(ui, &mut w));

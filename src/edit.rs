@@ -3,6 +3,7 @@
 //! the copy saved (`save`). The image itself is changed only when saving.
 
 pub mod doc;
+pub mod filter;
 pub mod geom;
 pub mod history;
 pub mod render;

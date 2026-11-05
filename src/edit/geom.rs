@@ -18,6 +18,8 @@ pub enum Kind {
     Cover,
     /// A piece of image: pasted, never drawn.
     Patch,
+    /// A filter: from the menu, never drawn.
+    Filter,
 }
 
 impl Kind {
@@ -30,6 +32,7 @@ impl Kind {
             Shape::Text { .. } => Kind::Text,
             Shape::Cover(_) => Kind::Cover,
             Shape::Patch { .. } => Kind::Patch,
+            Shape::Filter { .. } => Kind::Filter,
         }
     }
 }
@@ -100,14 +103,16 @@ pub fn hit(o: &Obj, p: Pt, tol: f32) -> bool {
         Shape::Line(a, b, c) => curve_distance(p, *a, *b, *c) <= o.style.width / 2.0 + tol,
         // The head is as wide as `render::arrow` makes it.
         Shape::Arrow(a, b, c) => curve_distance(p, *a, *b, *c) <= (2.0 * o.style.width + 2.0).max(o.style.width / 2.0) + tol,
-        Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) | Shape::Patch { area: r, .. } => inside(r, p, tol),
+        Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) | Shape::Patch { area: r, .. } | Shape::Filter { area: r, .. } => inside(r, p, tol),
         Shape::Text { at, text, size, rot, .. } => inside(&text_area(*at, text, *size, *rot), p, tol),
     }
 }
 
-/// The topmost object under `p`.
+/// The topmost object under `p`; a filter only where no object is, as it is drawn under them all
+/// (a filter on the whole image took every click).
 pub fn under(objects: &[Obj], p: Pt, tol: f32) -> Option<usize> {
-    objects.iter().rposition(|o| hit(o, p, tol))
+    let filter = |o: &Obj| matches!(o.shape, Shape::Filter { .. });
+    objects.iter().rposition(|o| !filter(o) && hit(o, p, tol)).or_else(|| objects.iter().rposition(|o| filter(o) && hit(o, p, tol)))
 }
 
 /// The object moved by `d`.
@@ -121,6 +126,7 @@ pub fn moved(o: &Obj, d: Pt) -> Obj {
         Shape::Highlight(r) => Shape::Highlight(area(r)),
         Shape::Cover(r) => Shape::Cover(area(r)),
         Shape::Patch { area: r, pixels } => Shape::Patch { area: area(r), pixels: pixels.clone() },
+        Shape::Filter { area: r, filter, amount, preview } => Shape::Filter { area: area(r), filter: *filter, amount: *amount, preview: preview.clone() },
         Shape::Text { at, text, size, rot, font } => Shape::Text { at: m(*at), text: text.clone(), size: *size, rot: *rot, font: font.clone() },
     };
     Obj { shape, style: o.style }
@@ -139,7 +145,7 @@ fn corners(r: &Area) -> [Pt; 4] {
 pub fn handles(o: &Obj) -> Vec<Pt> {
     match &o.shape {
         Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => vec![*a, *b, bend_handle(*a, *b, *c)],
-        Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) | Shape::Patch { area: r, .. } => corners(r).to_vec(),
+        Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) | Shape::Patch { area: r, .. } | Shape::Filter { area: r, .. } => corners(r).to_vec(),
         Shape::Text { .. } => Vec::new(),
     }
 }
@@ -161,6 +167,7 @@ pub fn with_handle(o: &Obj, i: usize, p: Pt) -> Obj {
         Shape::Highlight(r) => Shape::Highlight(resized(r)),
         Shape::Cover(r) => Shape::Cover(resized(r)),
         Shape::Patch { area, pixels } => Shape::Patch { area: resized(area), pixels: pixels.clone() },
+        Shape::Filter { area, filter, amount, preview } => Shape::Filter { area: resized(area), filter: *filter, amount: *amount, preview: preview.clone() },
         text => text.clone(),
     };
     Obj { shape, style: o.style }
@@ -194,7 +201,7 @@ pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style) -> Option<Obj> 
         Kind::Rect => Shape::Rect(area()?),
         Kind::Highlight => Shape::Highlight(area()?),
         Kind::Cover => Shape::Cover(area()?),
-        Kind::Patch => return None,
+        Kind::Patch | Kind::Filter => return None,
         Kind::Text => Shape::Text { at: a, text: String::new(), size: style.width, rot: -angle, font: None },
     };
     Some(Obj { shape, style })

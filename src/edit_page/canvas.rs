@@ -188,7 +188,7 @@ fn objects_texture(ui: &egui::Ui, w: &mut Window, view: &View, rect: Rect) -> Op
         return None;
     }
     let ppp = ui.ctx().pixels_per_point();
-    let key = Drawn { doc: w.doc.clone(), at: view.at, k: view.k, rect, ppp };
+    let key = Drawn { doc: w.doc.clone(), made: w.filters_made, at: view.at, k: view.k, rect, ppp };
     if let Some((drawn, tex)) = &w.objects
         && *drawn == key
     {

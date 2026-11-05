@@ -8,7 +8,7 @@
 
 use std::collections::HashSet;
 
-use image::{DynamicImage, GenericImage};
+use image::{DynamicImage, GenericImage, GenericImageView};
 use resvg::{tiny_skia, usvg};
 
 use super::doc::{Area, Doc, Shape};
@@ -146,9 +146,18 @@ fn paint(doc: &Doc, size: (u32, u32), img: &mut DynamicImage, options: &usvg::Op
     let (iw, ih) = if doc.turn.sideways() { (size.1, size.0) } else { size };
     let corner = crate::rotate::corner(iw as f32, ih as f32, doc.crop);
     let mut holes = Vec::new();
+    // The filters first, at full size on the photo: the objects drawn stay over them.
+    for o in &doc.objects {
+        if let Shape::Filter { area, filter, amount, .. } = &o.shape {
+            let b = filter_in_place(img, area, doc.angle, corner, *filter, *amount);
+            if filter.hides() {
+                holes.push(b);
+            }
+        }
+    }
     // In the order they were drawn: a cover box hides what was drawn before it, what comes after
     // it stays on top (as layers; user's choice of 2026-11-05).
-    for o in &doc.objects {
+    for o in doc.objects.iter().filter(|o| !matches!(o.shape, Shape::Filter { .. })) {
         if let Shape::Cover(area) = &o.shape {
             holes.push(cover(img, area, doc.angle, corner, o.style.color));
             continue;
@@ -179,6 +188,37 @@ fn in_colour(img: &mut DynamicImage) {
         DynamicImage::ImageLumaA16(_) => DynamicImage::ImageRgba16(img.to_rgba16()),
         _ => return,
     };
+}
+
+/// The filter on the pixels of the result under the box, at full size; returns its box. A box
+/// upright in the result is filtered in one piece, keeping the depth of the image; a turned one
+/// pixel by pixel inside it (through 8 bits there).
+fn filter_in_place(img: &mut DynamicImage, area: &Area, angle: f32, (left, top): (f32, f32), f: crate::edit::filter::Filter, amount: f32) -> [f32; 4] {
+    let (s, c) = angle.to_radians().sin_cos();
+    let (cx, cy) = (area.centre.x * c - area.centre.y * s - left, area.centre.x * s + area.centre.y * c - top);
+    let rot = area.rot + angle;
+    let (rs, rc) = rot.to_radians().sin_cos();
+    let (hw, hh) = (area.w / 2.0, area.h / 2.0);
+    let (ex, ey) = (rc.abs() * hw + rs.abs() * hh, rs.abs() * hw + rc.abs() * hh);
+    let bounds = [cx - ex, cy - ey, cx + ex, cy + ey];
+    let (x0, y0) = (bounds[0].floor().max(0.0) as u32, bounds[1].floor().max(0.0) as u32);
+    let (x1, y1) = ((bounds[2].ceil().max(0.0) as u32).min(img.width()), (bounds[3].ceil().max(0.0) as u32).min(img.height()));
+    if x1 <= x0 || y1 <= y0 {
+        return bounds;
+    }
+    let part = crate::edit::filter::apply(&img.crop_imm(x0, y0, x1 - x0, y1 - y0), f, amount, 1.0);
+    if (rot / 90.0 - (rot / 90.0).round()).abs() * 90.0 < 1e-3 {
+        image::imageops::replace(img, &part, x0 as i64, y0 as i64);
+    } else {
+        for (y, x) in (y0..y1).flat_map(|y| (x0..x1).map(move |x| (y, x))) {
+            let (dx, dy) = (x as f32 + 0.5 - cx, y as f32 + 0.5 - cy);
+            let (u, v) = (dx * rc + dy * rs, -dx * rs + dy * rc);
+            if u.abs() < hw && v.abs() < hh {
+                img.put_pixel(x, y, part.get_pixel(x - x0, y - y0));
+            }
+        }
+    }
+    bounds
 }
 
 /// The cover box solid in the pixels of the result: every pixel it touches even in part, opaque,
