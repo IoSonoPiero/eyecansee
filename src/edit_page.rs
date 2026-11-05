@@ -115,6 +115,12 @@ pub struct Window {
     /// The list of fonts is open: the text shows the font pointed at; its own font, to put back
     /// if none is chosen.
     font_preview: Option<(usize, Option<String>)>,
+    /// The eyedropper is on: a click on the image takes its colour.
+    picking: bool,
+    /// The screen's eyedropper is open (the desktop's picker).
+    screen_picking: bool,
+    /// A colour taken, for the style shown in the properties bar.
+    picked: Option<[u8; 3]>,
     /// A line under the buttons ("Copied…") and until when (seconds of `egui::InputState::time`).
     note: Option<(String, f64)>,
     copying: bool,
@@ -167,6 +173,9 @@ impl Window {
             focus_text: false,
             text_font: None,
             font_preview: None,
+            picking: false,
+            screen_picking: false,
+            picked: None,
             note: None,
             copying: false,
             follow: Follow::Inside,
@@ -416,10 +425,11 @@ impl App {
     pub(crate) fn edit_page(&mut self, ui: &mut egui::Ui) {
         let Some(mut w) = self.editor.take() else { return };
         // Before the fields are drawn: Esc in a field or during a drag stops only that.
-        let busy = ui.ctx().egui_wants_keyboard_input() || w.hold.is_some();
+        let busy = ui.ctx().egui_wants_keyboard_input() || w.hold.is_some() || w.picking;
         let mut open = !crate::theme::close_asked(ui) && !ui.input(|i| i.key_pressed(egui::Key::Escape));
         if !open && busy {
             open = true;
+            w.picking = false;
             if w.hold.take().is_some()
                 && let Some(h) = &w.history
             {
@@ -524,6 +534,9 @@ impl App {
         if w.tool == Tool::Crop && ctx.input_mut(|i| i.consume_key(M::NONE, Key::Enter)) {
             w.apply_crop();
         }
+        if w.tool != Tool::Crop && ctx.input_mut(|i| i.consume_key(M::NONE, Key::I)) {
+            w.picking = !w.picking;
+        }
         let tool = ctx.input_mut(|i| tools::TOOLS.iter().find(|t| i.consume_key(M::NONE, t.3)).map(|t| t.0));
         if let Some(tool) = tool {
             w.choose(tool);
@@ -587,6 +600,17 @@ impl App {
                 ctx.request_repaint();
             }
         });
+    }
+
+    /// The screen's eyedropper answered: the colour goes to the style shown, or why not.
+    pub(crate) fn on_edit_picked(&mut self, ctx: &egui::Context, r: Result<[u8; 3], String>) {
+        let Some(w) = &mut self.editor else { return };
+        w.screen_picking = false;
+        match r {
+            Ok(c) => w.picked = Some(c),
+            Err(e) if e == "cancelled" => {}
+            Err(e) => w.note = Some((self.i18n.t_args("edit-pick-failed", &[("detail", &e)]), ctx.input(|i| i.time) + 6.0)),
+        }
     }
 
     pub(crate) fn on_edit_copy(&mut self, ctx: &egui::Context, img: ColorImage) {

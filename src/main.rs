@@ -69,6 +69,7 @@ mod dup_page;
 mod duplicates;
 mod edit;
 mod encode;
+mod eyedropper;
 mod encoders;
 mod engine;
 mod ffmpeg;

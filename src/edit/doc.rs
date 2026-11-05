@@ -172,7 +172,6 @@ impl Doc {
 
     /// The point of the upright image, from its centre, that `p` (from the centre of the image
     /// after the flips and quarter turns) is over: what the turn did, undone.
-    #[cfg(test)]
     pub fn source(&self, p: Pt) -> Pt {
         let (flip, quarter) = self.turn.parts();
         let mut p = p;

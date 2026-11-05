@@ -301,6 +301,9 @@ fn mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, 
 /// The other tools: Select picks, moves and resizes objects, the drawing tools draw them, a text
 /// is placed with a click; the right or middle button moves the view.
 fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, rect: Rect) {
+    if w.picking {
+        return pick_mouse(ui, w, response, view);
+    }
     let angle = w.doc.angle;
     // Within reach of the pointer, in image pixels.
     let tol = GRAB / view.k;
@@ -392,6 +395,32 @@ fn picked(w: &mut Window, view: &View, s: Pos2, p: Pt, tol: f32) -> Hold {
             Hold::Pan { at: view.at, k: view.k, from: s }
         }
     }
+}
+
+/// The eyedropper: a click takes the colour of the image there, nothing else happens.
+fn pick_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View) {
+    if response.hovered() {
+        ui.ctx().set_cursor_icon(CursorIcon::Crosshair);
+    }
+    if response.clicked()
+        && let Some(s) = response.interact_pointer_pos()
+    {
+        w.picked = colour_at(w, view, s).or(w.picked);
+        w.picking = false;
+    }
+}
+
+/// The colour of the image under `s` (the photo, without the objects); `None` outside it.
+fn colour_at(w: &Window, view: &View, s: Pos2) -> Option<[u8; 3]> {
+    use image::GenericImageView;
+    let Some(Ok((original, ..))) = &w.original else { return None };
+    let q = w.doc.source(view.doc(s, w.doc.angle));
+    let img = &original.image;
+    let (x, y) = (q.x + img.width() as f32 / 2.0, q.y + img.height() as f32 / 2.0);
+    (x >= 0.0 && y >= 0.0 && x < img.width() as f32 && y < img.height() as f32).then(|| {
+        let c = img.get_pixel(x as u32, y as u32);
+        [c[0], c[1], c[2]]
+    })
 }
 
 /// The selected object and its corner or end within reach of `s`, if any.

@@ -63,6 +63,8 @@ pub enum Msg {
     Original(Result<(Arc<crate::encode::Original>, ColorImage, u64), String>),
     /// The editor's result for the clipboard.
     EditCopy(ColorImage),
+    /// The colour the editor's eyedropper took from the screen (`eyedropper::pick`).
+    EditPicked(Result<[u8; 3], String>),
     /// An image read by the viewer is animated or has several pages: the editor is off for it.
     Animated(String),
     /// The image encoded with the options of `generation`, and the encoded file decoded back

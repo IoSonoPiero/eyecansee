@@ -152,8 +152,16 @@ impl App {
                 if bar_button(ui, apply, format!("{} ({})\n{}", i18n.t("rc-apply"), i18n.t("key-enter"), i18n.t("rc-apply-hint")), None) {
                     w.apply_crop();
                 }
-            } else {
-                style_bar(ui, w, i18n);
+            } else if style_bar(ui, w, i18n) && !w.screen_picking {
+                // The desktop's picker, in the background: its answer comes as `Msg::EditPicked`.
+                w.screen_picking = true;
+                let (tx, ctx) = (self.tx.clone(), ui.ctx().clone());
+                self.rt.spawn(async move {
+                    let r = crate::eyedropper::pick().await;
+                    log!("eyedropper: {r:?}");
+                    let _ = tx.send(crate::loader::Msg::EditPicked(r));
+                    ctx.request_repaint();
+                });
             }
         });
     }
@@ -194,7 +202,8 @@ impl App {
                     w.zoom(0.8);
                 }
                 ui.separator();
-                ui.add(egui::Label::new(i18n.t(hint_id(w.tool))).truncate());
+                let hint = if w.picking { "edit-tip-pick" } else { hint_id(w.tool) };
+                ui.add(egui::Label::new(i18n.t(hint)).truncate());
             });
         });
     }
@@ -212,15 +221,15 @@ fn hint_id(tool: Tool) -> &'static str {
 }
 
 /// The style of the selected object, or of the next one the tool draws; the last one used for
-/// each kind is kept.
-fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
+/// each kind is kept. `true` when the screen's eyedropper is asked for.
+fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     let selected = w.selected.filter(|&i| i < w.doc.objects.len());
     let kind = match (selected, w.tool) {
         (Some(i), _) => Kind::of(&w.doc.objects[i]),
         (None, Tool::Draw(kind)) => kind,
         _ => {
             ui.weak(i18n.t("edit-select-hint"));
-            return;
+            return false;
         }
     };
     let mut style = match selected {
@@ -231,6 +240,11 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     if let Some(Shape::Text { size, .. }) = selected.map(|i| &w.doc.objects[i].shape) {
         style.width = *size;
     }
+    if let Some(c) = w.picked.take() {
+        style.color = c;
+    }
+    colours(ui, &mut style.color, i18n);
+    let screen = eyedroppers(ui, w, i18n);
     style_controls(ui, &mut style, kind, w.long(), i18n);
     if kind == Kind::Text {
         ui.separator();
@@ -252,12 +266,22 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
         }
     }
     w.remember(kind, style);
+    screen
+}
+
+/// The eyedropper on the image (I), and on the whole screen where the system allows it; `true`
+/// when the latter is clicked.
+fn eyedroppers(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
+    if bar_button(ui, icons::toggle(ui, w.picking, Line::Pipette), tip(i18n, "edit-pick", "I"), None) {
+        w.picking = !w.picking;
+    }
+    let off = (!crate::eyedropper::on_screen()).then(|| i18n.t("edit-pick-screen-off")).or_else(|| w.screen_picking.then(|| i18n.t("edit-pick-screen-busy")));
+    bar_button(ui, icons::button(ui, Line::Monitor), i18n.t("edit-pick-screen"), off)
 }
 
 /// Colours, width (size of a text), opacity, dashes, as each kind has them.
 fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i18n: &I18n) {
     let t = |id| i18n.t(id);
-    colours(ui, &mut style.color, i18n);
     let max = (long / 10.0).max(50.0);
     let slider = |ui: &mut egui::Ui, label: String, value: &mut f32, range, suffix| {
         ui.separator();
