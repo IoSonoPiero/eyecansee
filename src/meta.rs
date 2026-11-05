@@ -276,7 +276,11 @@ fn color_kind(c: image::ColorType) -> (&'static str, u16) {
 
 /// `None` if the file has no EXIF (or it cannot be read).
 pub fn read(bytes: &[u8]) -> Option<Meta> {
-    let exif = Reader::new().read_from_container(&mut Cursor::new(bytes)).ok()?;
+    let exif = match Reader::new().read_from_container(&mut Cursor::new(bytes)) {
+        Ok(exif) => exif,
+        // RAW files not built on TIFF: their EXIF as Convert reads it.
+        Err(_) => Reader::new().read_raw(crate::raw_meta::exif(bytes)?).ok()?,
+    };
     let mut meta = Meta::default();
     for &(group, tag, label) in FIELDS {
         if let Some(f) = exif.get_field(tag, In::PRIMARY) {
@@ -503,6 +507,19 @@ mod tests {
         assert!((lat - 45.5).abs() < 1e-9);
         assert!((lon + 9.26).abs() < 1e-9);
         assert_eq!(super::read(b"not an image"), None);
+    }
+
+    #[test]
+    fn raw_not_on_tiff() {
+        // An Olympus ORF: a TIFF with "IIRO" in its header, which kamadak-exif does not read.
+        let model = field(Tag::Model, Value::Ascii(vec![b"E-M10".to_vec()]));
+        let mut writer = Writer::new();
+        writer.push_field(&model);
+        let mut tiff = std::io::Cursor::new(Vec::new());
+        writer.write(&mut tiff, true).unwrap();
+        let orf = [&b"IIRO"[..], &tiff.get_ref()[4..]].concat();
+        let meta = super::read(&orf).unwrap();
+        assert!(meta.fields.iter().any(|(_, l, v)| *l == "meta-model" && v == "E-M10"));
     }
 
     #[test]

@@ -57,6 +57,16 @@ pub fn read(bytes: &[u8]) -> Option<RawMeta> {
     Some(RawMeta { exif: crate::meta::write_exif(&fields, little), icc: Some(profile.to_vec()), xmp: xmp(bytes) })
 }
 
+/// The EXIF of a RAW file as a TIFF block, read as `read` does (the file's own, filled by rawler),
+/// without the fields `read` sets for the copy: for the metadata panel, when `kamadak-exif`
+/// cannot read the file (CR3, RAF, ORF, RW2, MRW).
+pub fn exif(bytes: &[u8]) -> Option<Vec<u8>> {
+    let src = RawSource::new_from_slice(bytes);
+    let rawler = rawler::get_decoder(&src).ok().and_then(|d| d.raw_metadata(&src, &RawDecodeParams::default()).ok());
+    let (fields, little) = merge(exif_fields(bytes), rawler.map(|m| (from_rawler(&m), true)))?;
+    crate::meta::write_exif(&fields, little)
+}
+
 /// The XMP packet of a RAW file, wherever the maker put it (a TIFF tag, a CR3 box, the JPEG of a
 /// RAF): found by its text, as the XMP specification allows ("packet scanning").
 fn xmp(bytes: &[u8]) -> Option<Vec<u8>> {
