@@ -123,7 +123,7 @@ mod render_gpu;
 mod render_shine;
 mod replace;
 mod rotate;
-mod rotate_page;
+mod edit_page;
 mod save_back;
 mod save_dialogs;
 mod selection;
@@ -359,7 +359,7 @@ struct App {
     /// "Save in another format" window.
     convert: Option<convert::Window>,
     /// Rotate and crop, a page of its own.
-    rotate: Option<rotate_page::Window>,
+    rotate: Option<edit_page::Window>,
     /// Find duplicates: the search and its results page.
     duplicates: Option<dup_page::Window>,
     /// Convert and resize several images: the choices, then the work.

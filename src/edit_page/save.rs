@@ -1,4 +1,5 @@
-//! Rotate and crop: Apply, Save, Save as… and the questions before saving or closing.
+//! Rotate and crop: Apply, Save, Save as… and the questions before saving or closing. Moved from
+//! `rotate_page/save.rs` on 2026-11-05.
 
 use std::sync::Arc;
 
