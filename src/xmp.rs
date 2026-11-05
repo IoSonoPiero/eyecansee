@@ -35,6 +35,8 @@ enum Fix {
 fn fix(ns: &str, local: &str, w: u32, h: u32, merged: bool, alone: bool) -> Option<Fix> {
     match (ns, local) {
         (XMP_NOTE, "HasExtendedXMP") if merged => Some(Fix::Drop),
+        // ponytail: true while no save keeps the video (`motion_photo_turned`); a save that keeps
+        // it (the lossless turn of plan step 7) needs a flag here, or the file stops being one.
         (GCAMERA, l) if l.starts_with("MotionPhoto") || l.starts_with("MicroVideo") => Some(Fix::Drop),
         (CONTAINER, "Directory") | (HDRGM, _) if alone => Some(Fix::Drop),
         (CRS, _) | (XAP, "Thumbnails") => Some(Fix::Drop),

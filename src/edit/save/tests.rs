@@ -379,3 +379,32 @@ fn phone_samples() {
     }
     println!("gain map {}×{}, checked {}..{} × {}..{}", gain.width(), gain.height(), x0, x1, y0, y1);
 }
+
+/// libmphoto's Motion Photo turned without loss: no save keeps the video after the picture, so
+/// none keeps what describes it. The viewer's Save leaves the file alone (the original keeps
+/// both); the lossless turn itself writes the picture alone (libjpeg-turbo stops at its end);
+/// the editor's copy of a turn is the picture alone too. The lossless turn keeps
+/// `Container:Directory` (an Ultra HDR photo needs it): only the GCamera tags go there. If a
+/// save ever keeps the video, the description must stay (`xmp::fix`).
+#[test]
+#[ignore]
+fn motion_photo_turned() {
+    let dir = std::env::var_os("EYECANSEE_PHONE_SAMPLES").map_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("notes/test-files/online/telefono"), std::path::PathBuf::from);
+    let bytes = std::fs::read(dir.join("motion_photo.jpeg")).unwrap_or_else(|e| panic!("motion_photo.jpeg in {}: {e} (test-files/scarica.sh online-telefono)", dir.display()));
+    let video = |d: &[u8]| d.windows(4).any(|w| w == b"ftyp");
+    // The GCamera namespace, whatever its prefix (here "Camera:").
+    let tagged = |d: &[u8]| [":MotionPhoto", ":MicroVideo"].iter().any(|t| String::from_utf8_lossy(d).contains(t));
+    let described = |d: &[u8]| String::from_utf8_lossy(d).contains("MotionPhoto");
+    assert!(video(&bytes) && tagged(&bytes));
+    let cw = crate::transform::Turn::default().then(Op::Cw);
+    // The viewer's Save (`replace::rewritten`) and Batch's lossless path skip it.
+    assert!(!crate::save_back::can_turn_in_place(&bytes, "motion_photo.jpeg") && !crate::ultrahdr::is(&bytes));
+    assert!(crate::save_back::turned_file(&bytes, "motion_photo.jpeg", cw).is_err());
+    let turned = crate::transform::jpeg_lossless(&bytes, cw).unwrap();
+    assert!(turned.ends_with(&[0xFF, 0xD9]) && !video(&turned) && !tagged(&turned), "lossless turn: the picture alone");
+    let mut doc = Doc::new(1024, 768, None);
+    doc.turned(Op::Cw);
+    let out = saved(&bytes, "motion_photo.jpeg", &doc);
+    assert!(!video(&out.data) && !described(&out.data), "editor's copy: the picture alone");
+    assert_eq!(crate::decode::decode_full(&out.data, "x.jpg").unwrap().dimensions(), (768, 1024));
+}
