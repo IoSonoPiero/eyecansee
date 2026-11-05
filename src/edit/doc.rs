@@ -72,18 +72,18 @@ pub enum Dash {
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Style {
-    /// RGBA.
-    pub color: [u8; 4],
+    /// RGB: the only transparency is `opacity`.
+    pub color: [u8; 3],
     /// Of the lines, in pixels of the image.
     pub width: f32,
-    /// 0 to 1, over the alpha of `color`.
+    /// 0 (invisible) to 1 (solid).
     pub opacity: f32,
     pub dash: Dash,
 }
 
 impl Default for Style {
     fn default() -> Style {
-        Style { color: [255, 0, 0, 255], width: 4.0, opacity: 1.0, dash: Dash::Solid }
+        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid }
     }
 }
 
