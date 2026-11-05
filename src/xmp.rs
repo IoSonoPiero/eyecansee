@@ -17,6 +17,7 @@ const EXIF: &str = "http://ns.adobe.com/exif/1.0/";
 const RDF: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 const DC: &str = "http://purl.org/dc/elements/1.1/";
 const PHOTOSHOP: &str = "http://ns.adobe.com/photoshop/1.0/";
+const XMP_NOTE: &str = "http://ns.adobe.com/xmp/note/";
 
 /// What happens to a property: dropped, or its value replaced.
 enum Fix {
@@ -24,8 +25,10 @@ enum Fix {
     Set(String),
 }
 
-fn fix(ns: &str, local: &str, w: u32, h: u32) -> Option<Fix> {
+/// `merged`: the extended XMP is in the packet, the GUID that pointed to it goes.
+fn fix(ns: &str, local: &str, w: u32, h: u32, merged: bool) -> Option<Fix> {
     match (ns, local) {
+        (XMP_NOTE, "HasExtendedXMP") if merged => Some(Fix::Drop),
         (CRS, _) | (XAP, "Thumbnails") => Some(Fix::Drop),
         (TIFF, "ImageWidth") | (EXIF, "PixelXDimension") => Some(Fix::Set(w.to_string())),
         (TIFF, "ImageLength") | (EXIF, "PixelYDimension") => Some(Fix::Set(h.to_string())),
@@ -48,16 +51,34 @@ const EMPTY: &str = "<?xpacket begin=\"\u{feff}\" id=\"W5M0MpCehiHzreSzNTczkc9d\
 /// with the fields of the IPTC-IIM `iim` it does not have. A packet that is not well-formed XML is
 /// returned as it was.
 pub fn fit(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>) -> Option<Vec<u8>> {
+    fit_with(xmp, w, h, iim, None)
+}
+
+/// As `fit`, with the descriptions of the extended XMP `ext` of a JPEG (`meta_write::xmp_ext_packet`)
+/// put into the main packet, for a format whose XMP has no size limit; if that cannot be read,
+/// the main packet alone.
+pub fn fit_with(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&[u8]>) -> Option<Vec<u8>> {
     let props = iim.map(iim_props).unwrap_or_default();
     let xmp = match xmp {
         Some(x) => x,
         None if props.is_empty() => return None,
         None => EMPTY.as_bytes(),
     };
-    Some(rewrite(xmp, w, h, &props).unwrap_or_else(|| xmp.to_vec()))
+    // ponytail: by text, with the "rdf" prefix every writer uses; a packet using another one keeps only its main part.
+    let inner = |x: &[u8]| {
+        let start = x.windows(8).position(|w| w == b"<rdf:RDF")?;
+        let start = start + x[start..].iter().position(|&b| b == b'>')? + 1;
+        let end = x.windows(10).rposition(|w| w == b"</rdf:RDF>")?;
+        (start <= end).then_some((start, end))
+    };
+    let merged = ext.zip(inner(xmp)).zip(ext.and_then(inner)).map(|((ext, (_, at)), (s, e))| [&xmp[..at], &ext[s..e], &xmp[at..]].concat());
+    if let Some(out) = merged.and_then(|m| rewrite(&m, w, h, &props, true)) {
+        return Some(out);
+    }
+    Some(rewrite(xmp, w, h, &props, false).unwrap_or_else(|| xmp.to_vec()))
 }
 
-fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop]) -> Option<Vec<u8>> {
+fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], merged: bool) -> Option<Vec<u8>> {
     let mut r = NsReader::from_reader(xmp);
     let mut out = Writer::new(Vec::with_capacity(xmp.len()));
     // Depth inside a dropped element; the new value for the text of the element being read, and
@@ -71,17 +92,17 @@ fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop]) -> Option<Vec<u8>> {
             Event::Start(_) | Event::Empty(_) if skip > 0 => skip += matches!(event, Event::Start(_)) as usize,
             Event::End(_) if skip > 0 => skip -= 1,
             _ if skip > 0 => {}
-            Event::Start(ref e) | Event::Empty(ref e) if matches!(fix(&ns, e.local_name().as_ref(), w, h), Some(Fix::Drop)) => {
+            Event::Start(ref e) | Event::Empty(ref e) if matches!(fix(&ns, e.local_name().as_ref(), w, h, merged), Some(Fix::Drop)) => {
                 skip = matches!(event, Event::Start(_)) as usize;
             }
             Event::Start(ref e) | Event::Empty(ref e) => {
                 seen.push((ns.clone(), e.local_name().as_ref().to_string()));
-                if let Some(Fix::Set(v)) = fix(&ns, e.local_name().as_ref(), w, h)
+                if let Some(Fix::Set(v)) = fix(&ns, e.local_name().as_ref(), w, h, merged)
                     && matches!(event, Event::Start(_))
                 {
                     (set, replacing) = (Some(v), true);
                 }
-                let e = attributes(&r, e, w, h, &mut seen)?;
+                let e = attributes(&r, e, w, h, merged, &mut seen)?;
                 out.write_event(if matches!(event, Event::Start(_)) { Event::Start(e) } else { Event::Empty(e) }).ok()?;
             }
             Event::Text(_) | Event::GeneralRef(_) if replacing => {
@@ -109,7 +130,7 @@ fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop]) -> Option<Vec<u8>> {
 
 /// The attributes of an element, without those of Camera Raw (and its namespace) and with the
 /// sizes and orientation set; the element as it was when nothing changes.
-fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, seen: &mut Vec<(String, String)>) -> Option<BytesStart<'a>> {
+fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, merged: bool, seen: &mut Vec<(String, String)>) -> Option<BytesStart<'a>> {
     let mut kept: Vec<(String, String)> = Vec::new();
     let mut changed = false;
     for a in e.attributes() {
@@ -127,7 +148,7 @@ fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, seen:
         let (ns, local) = r.resolver().resolve_attribute(a.key);
         let ns = bound(&ns);
         seen.push((ns.clone(), local.as_ref().to_string()));
-        match fix(&ns, local.as_ref(), w, h) {
+        match fix(&ns, local.as_ref(), w, h, merged) {
             Some(Fix::Drop) => changed = true,
             Some(Fix::Set(v)) => {
                 changed |= v != value;

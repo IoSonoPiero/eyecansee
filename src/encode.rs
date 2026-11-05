@@ -219,6 +219,8 @@ pub struct Original {
     xmp: Option<Vec<u8>>,
     /// Photoshop block, with the IPTC.
     irb: Option<Vec<u8>>,
+    /// The segments of a JPEG's extended XMP (`meta_write::jpeg_xmp_ext`).
+    xmp_ext: Vec<Vec<u8>>,
 }
 
 /// The metadata of a file being written, made to fit its pixels (`Original::blocks`).
@@ -228,6 +230,8 @@ pub(crate) struct Blocks {
     pub icc: Option<Vec<u8>>,
     pub xmp: Option<Vec<u8>>,
     pub irb: Option<Vec<u8>>,
+    /// A JPEG's extended XMP, as `Original::xmp_ext`; only for a JPEG.
+    pub xmp_ext: Vec<Vec<u8>>,
 }
 
 impl Original {
@@ -256,7 +260,8 @@ impl Original {
             x = crate::meta_write::Extra { xmp: x.xmp.or(m.xmp), irb: x.irb.or(m.irb), icc: x.icc.or(m.icc), exif: x.exif.or(m.exif) };
         }
         let exif = exif.or(x.exif).or_else(|| crate::meta::exif_chunk(bytes));
-        Original::upright(image, exif, icc.or(x.icc), x.xmp, x.irb)
+        let xmp_ext = x.xmp.as_deref().map_or_else(Vec::new, |m| crate::meta_write::jpeg_xmp_ext(bytes, m));
+        Original { xmp_ext, ..Original::upright(image, exif, icc.or(x.icc), x.xmp, x.irb) }
     }
 
     /// The pixels are already turned upright: the EXIF orientation is set back to "upright".
@@ -264,7 +269,7 @@ impl Original {
         if let Some(chunk) = &mut exif {
             let _ = Orientation::remove_from_exif_chunk(chunk);
         }
-        Original { image, exif, icc, xmp, irb }
+        Original { image, exif, icc, xmp, irb, xmp_ext: Vec::new() }
     }
 
     pub fn has_meta(&self) -> bool {
@@ -281,8 +286,11 @@ impl Original {
         let irb = self.irb.as_deref().and_then(crate::meta_write::fit_irb);
         // WebP and AVIF have no place for IPTC: its fields go into the XMP.
         let iim = if matches!(format, Format::Webp | Format::Avif) { irb.as_deref().and_then(crate::meta_write::iim) } else { None };
-        let xmp = crate::xmp::fit(self.xmp.as_deref(), w, h, iim);
-        Blocks { exif, icc: self.icc.clone(), xmp, irb }
+        // A JPEG keeps the extended XMP in segments of its own, as they were (the GUID is the
+        // digest of their content); the other formats hold an XMP of any size: it joins the main one.
+        let (ext, xmp_ext) = if format == Format::Jpeg { (None, self.xmp_ext.clone()) } else { (crate::meta_write::xmp_ext_packet(&self.xmp_ext), Vec::new()) };
+        let xmp = crate::xmp::fit_with(self.xmp.as_deref(), w, h, iim, ext.as_deref());
+        Blocks { exif, icc: self.icc.clone(), xmp, irb, xmp_ext }
     }
 
     /// The file as it would be saved.
@@ -559,7 +567,7 @@ pub(crate) mod tests {
         let xmp = crate::xmp::tests::SAMPLE.as_bytes().to_vec();
         let iim = crate::xmp::tests::iim(&[(80, "Ann"), (90, "Québec")]);
         let irb = [crate::meta_write::resource(1036, &[1; 9]), crate::meta_write::irb_of_iim(&iim)].concat();
-        let original = Original { image: DynamicImage::ImageRgba8(img), exif: Some(exif.clone()), icc: Some(icc.clone()), xmp: Some(xmp), irb: Some(irb) };
+        let original = Original { image: DynamicImage::ImageRgba8(img), exif: Some(exif.clone()), icc: Some(icc.clone()), xmp: Some(xmp), irb: Some(irb), xmp_ext: Vec::new() };
         let d = Options::default();
         let variants = [
             Options { format: Format::Jpeg, ..d },
@@ -659,6 +667,28 @@ pub(crate) mod tests {
         xmp
     }
 
+    /// The extended XMP of a JPEG: written again as its segments in a JPEG, put into the main
+    /// packet in the other formats (without the GUID, which would point to nothing).
+    #[test]
+    fn extended_xmp() {
+        let guid = "0123456789ABCDEF0123456789ABCDEF";
+        let rdf = |body: &str| format!("<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">{body}</rdf:RDF></x:xmpmeta>");
+        let main = rdf(&format!("<rdf:Description rdf:about=\"\" xmlns:xmpNote=\"http://ns.adobe.com/xmp/note/\" xmpNote:HasExtendedXMP=\"{guid}\"/>"));
+        let ext = rdf(&format!("<rdf:Description rdf:about=\"\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\"><dc:source>{}</dc:source></rdf:Description>", "a".repeat(100)));
+        let (a, b) = ext.as_bytes().split_at(60);
+        let piece = |offset: u32, data: &[u8]| [guid.as_bytes(), &(ext.len() as u32).to_be_bytes(), &offset.to_be_bytes(), data].concat();
+        let segments = vec![piece(0, a), piece(60, b)];
+        let original = Original { xmp: Some(main.into_bytes()), xmp_ext: segments.clone(), ..Original::upright(DynamicImage::new_rgb8(8, 6), None, None, None, None) };
+        let jpeg = original.encode(&Options { format: Format::Jpeg, ..Default::default() }).unwrap();
+        let back = Original::with_meta(DynamicImage::new_rgb8(8, 6), &jpeg);
+        assert_eq!(back.xmp_ext, segments);
+        let png = back.encode(&Options { format: Format::Png, ..Default::default() }).unwrap();
+        let xmp = String::from_utf8(Original::with_meta(DynamicImage::new_rgb8(1, 1), &png).xmp.unwrap()).unwrap();
+        assert!(xmp.contains(&format!("<dc:source>{}</dc:source>", "a".repeat(100))) && !xmp.contains(guid), "{xmp}");
+        // Pieces that do not make up the length they declare are not put together.
+        assert!(crate::meta_write::xmp_ext_packet(&segments[..1]).is_none());
+    }
+
     /// A TIFF keeps the EXIF in its own directories: camera, shot and GPS fields read back.
     #[test]
     fn tiff_exif() {
@@ -677,7 +707,7 @@ pub(crate) mod tests {
         for little in [false, true] {
             let mut exif = Cursor::new(Vec::new());
             w.write(&mut exif, little).unwrap();
-            let original = Original { image: DynamicImage::new_rgb8(8, 6), exif: Some(exif.into_inner()), icc: None, xmp: None, irb: None };
+            let original = Original { image: DynamicImage::new_rgb8(8, 6), exif: Some(exif.into_inner()), icc: None, xmp: None, irb: None, xmp_ext: Vec::new() };
             let bytes = original.encode(&Options { format: Format::Tiff, ..Default::default() }).unwrap();
             let back = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes)).unwrap();
             for f in &fields {
@@ -691,7 +721,7 @@ pub(crate) mod tests {
     /// formats only "Save as…" writes are not saved back over an original.
     #[test]
     fn ico_and_save_back() {
-        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None, xmp: None, irb: None };
+        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None, xmp: None, irb: None, xmp_ext: Vec::new() };
         let bytes = original.encode(&Options { format: Format::Ico, ..Default::default() }).unwrap();
         let back = crate::decode::decode_full(&bytes, "x.ico").unwrap();
         assert_eq!((back.width(), back.height()), (256, 128));

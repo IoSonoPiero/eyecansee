@@ -13,6 +13,9 @@ const PIXEL_RESOURCES: [u16; 4] = [1032, 1033, 1036, 1050];
 const IPTC: u16 = 1028;
 pub const JPEG_XMP: &[u8] = b"http://ns.adobe.com/xap/1.0/\0";
 pub const JPEG_PHOTOSHOP: &[u8] = b"Photoshop 3.0\0";
+/// Name of the segments of a JPEG's extended XMP (XMP specification, part 3): the part of an XMP
+/// too large for one segment, named in the main packet by its GUID (`xmpNote:HasExtendedXMP`).
+pub const JPEG_XMP_EXT: &[u8] = b"http://ns.adobe.com/xmp/extension/\0";
 
 /// The resources of a Photoshop block: id and the whole resource (header and padding included).
 fn resources(irb: &[u8]) -> Vec<(u16, &[u8])> {
@@ -147,6 +150,42 @@ pub fn fit_jpeg_segments(jpeg: &[u8], w: u32, h: u32) -> Vec<u8> {
     }
     out.extend_from_slice(&jpeg[rest..]);
     out
+}
+
+/// The extended XMP of a JPEG whose main packet is `xmp`: the segments after their name (GUID,
+/// full length, offset, piece), only those of the GUID the main packet names.
+pub fn jpeg_xmp_ext(jpeg: &[u8], xmp: &[u8]) -> Vec<Vec<u8>> {
+    let Some(guid) = ext_guid(xmp).filter(|_| jpeg.starts_with(&[0xFF, 0xD8])) else { return Vec::new() };
+    crate::ultrahdr::segments(jpeg)
+        .into_iter()
+        .filter(|&(marker, ..)| marker == 0xE1)
+        .filter_map(|(_, s, e)| jpeg[s + 4..e].strip_prefix(JPEG_XMP_EXT))
+        .filter(|body| body.len() > 40 && body.starts_with(guid))
+        .map(<[u8]>::to_vec)
+        .collect()
+}
+
+/// The GUID an XMP packet gives for its extended part: 32 hexadecimal digits.
+fn ext_guid(xmp: &[u8]) -> Option<&[u8]> {
+    let at = xmp.windows(14).position(|w| w == b"HasExtendedXMP")? + 14;
+    let start = at + xmp[at..].iter().take(4).position(u8::is_ascii_hexdigit)?;
+    xmp.get(start..start + 32).filter(|g| g.iter().all(u8::is_ascii_hexdigit))
+}
+
+/// The extended XMP put back together from its segments (`jpeg_xmp_ext`), each piece at its
+/// offset; `None` without segments or when they do not make up the full length they declare.
+pub fn xmp_ext_packet(segments: &[Vec<u8>]) -> Option<Vec<u8>> {
+    let full = u32::from_be_bytes(segments.first()?.get(32..36)?.try_into().ok()?) as usize;
+    // At most the pieces there are: a wrong length in a file cannot ask for more memory.
+    if full != segments.iter().map(|s| s.len() - 40).sum::<usize>() {
+        return None;
+    }
+    let mut out = vec![0; full];
+    for s in segments {
+        let offset = u32::from_be_bytes(s[36..40].try_into().ok()?) as usize;
+        out.get_mut(offset..offset.checked_add(s.len() - 40)?)?.copy_from_slice(&s[40..]);
+    }
+    Some(out)
 }
 
 /// XMP, Photoshop block (with the IPTC) and colour profile of a file, from what the decoder of

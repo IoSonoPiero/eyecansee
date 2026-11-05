@@ -7,7 +7,7 @@ use std::io::Cursor;
 use image::DynamicImage;
 
 use crate::encode::{Blocks, Chroma, Options, TiffCompression};
-use crate::meta_write::{Dir, JPEG_PHOTOSHOP, JPEG_XMP};
+use crate::meta_write::{Dir, JPEG_PHOTOSHOP, JPEG_XMP, JPEG_XMP_EXT};
 use tiff::tags::Type;
 
 /// libjpeg-turbo; the metadata go in as APP segments, which it does not write.
@@ -35,7 +35,8 @@ pub(crate) fn jpeg(img: &DynamicImage, o: &Options, b: &Blocks) -> Result<Vec<u8
     Ok(jpeg_meta(file, b))
 }
 
-/// After SOI (and the JFIF APP0, which must come first): APP1 "Exif", APP1 XMP, the profile in
+/// After SOI (and the JFIF APP0, which must come first): APP1 "Exif", APP1 XMP and those of its
+/// extended part, the profile in
 /// APP2 "ICC_PROFILE" pieces of at most 65519 bytes, APP13 Photoshop with the IPTC. EXIF, XMP or
 /// Photoshop block too big for one segment is left out.
 fn jpeg_meta(file: Vec<u8>, b: &Blocks) -> Vec<u8> {
@@ -60,6 +61,9 @@ fn jpeg_meta(file: Vec<u8>, b: &Blocks) -> Vec<u8> {
     }
     if let Some(xmp) = b.xmp.as_deref().filter(|x| x.len() <= 65533 - JPEG_XMP.len()) {
         segment(0xE1, &[JPEG_XMP, xmp]);
+        for piece in &b.xmp_ext {
+            segment(0xE1, &[JPEG_XMP_EXT, piece]);
+        }
     }
     if let Some(icc) = &b.icc {
         let pieces: Vec<&[u8]> = icc.chunks(65519).collect();
