@@ -104,7 +104,7 @@ impl App {
         let i18n = &self.i18n;
         let mut ask = None;
         // While the last save is still being sent (a phone, a server): the next one waits for it.
-        let sending = [&w.copy, &w.overwritten].into_iter().flatten().any(|m| self.saving.contains(&m.path));
+        let sending = self.edit_sending(w);
         let off = match () {
             _ if w.preparing => Some(i18n.t("edit-off-preparing")),
             _ if sending => Some(i18n.t("edit-off-sending")),

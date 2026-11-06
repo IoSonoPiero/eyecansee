@@ -124,9 +124,18 @@ impl App {
         }
     }
 
+    /// The last save is still being made or sent: the next one waits for it (the button is off;
+    /// Ctrl+S too, or it would find the copy not yet written and make another).
+    pub(super) fn edit_sending(&self, w: &Window) -> bool {
+        [&w.copy, &w.overwritten].into_iter().flatten().any(|m| self.saving.contains(&m.path))
+    }
+
     /// Save (`over` false) or Overwrite: the file made in the background (`Msg::EditPrepared`),
     /// always from the original as read at the start, with the whole document.
     pub(super) fn edit_prepare(&mut self, ctx: &egui::Context, w: &mut Window, over: bool) {
+        if self.edit_sending(w) {
+            return;
+        }
         if !over && self.copy_refused(w) {
             w.note = Some((self.i18n.t("edit-temp-copy"), ctx.input(|i| i.time) + 8.0));
             w.save_as = true;
