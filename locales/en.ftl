@@ -903,7 +903,7 @@ batch-images = { $n ->
    *[other] **{ $n } files** in { $folder }.
 }
 batch-same-format = Same as the original
-batch-same-format-hint = Each image in its own format, written as Save writes it (JPEG at quality 95). Formats EyeCanSee cannot write (HEIC, RAW…) are left out.
+batch-same-format-hint = Each image in its own format, written as Save writes it (a JPEG at its own quality). Formats EyeCanSee cannot write (HEIC, RAW…) are left out.
 batch-size = Size
 batch-size-same = Unchanged
 batch-size-percent = Percent of the original

@@ -595,6 +595,18 @@ mod tests {
         assert_eq!(convert(b"nothing", "c.jpg", &Job::default()).unwrap_err().0, "batch-failed");
     }
 
+    /// JPEG chosen in the window: the quality set there wins over the original's; Same as the
+    /// original: the original's quality (there is no field for it).
+    #[test]
+    fn jpeg_quality_chosen_or_kept() {
+        let jpeg = crate::encode::jpeg_quality::tests::jpeg(70, crate::encode::Chroma::Half);
+        let quality = |data: &[u8]| crate::encode::jpeg_quality::of(data).map(|(q, _)| q);
+        let chosen = Job { format: Some(Format::Jpeg), options: Options { format: Format::Jpeg, jpeg_quality: 40, ..Options::default() }, ..Default::default() };
+        assert_eq!(quality(&convert(&jpeg, "a.jpg", &chosen).unwrap().1), Some(40));
+        let kept = Job { format: None, size: Size::Fit(32, 32), ..Default::default() };
+        assert_eq!(quality(&convert(&jpeg, "a.jpg", &kept).unwrap().1), Some(70));
+    }
+
     #[test]
     fn a_model_with_the_files_next_to_it() {
         // An OBJ square whose material, in the .mtl next to it, is red.
