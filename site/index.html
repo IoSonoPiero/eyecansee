@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EyeCanSee: photo, video, 3D and CAD viewer for Linux and Windows</title>
-<meta name="description" content="A viewer and manager for photos, videos, 3D models and CAD drawings, for Linux and Windows. Opens STEP, DWG and DXF, and browses servers and Android phones.">
+<meta name="description" content="A viewer and manager for photos, videos, 3D models and CAD drawings, with an image editor, for Linux and Windows. Opens DWG, DXF and STEP.">
 <link rel="canonical" href="https://eyecansee.montinaro.info/">
 <link rel="alternate" hreflang="en" href="https://eyecansee.montinaro.info/">
 <link rel="alternate" hreflang="it" href="https://eyecansee.montinaro.info/it/">
@@ -12,7 +12,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="EyeCanSee">
 <meta property="og:title" content="EyeCanSee: photo, video, 3D and CAD viewer for Linux and Windows">
-<meta property="og:description" content="A viewer and manager for photos, videos, 3D models and CAD drawings, for Linux and Windows. Opens STEP, DWG and DXF, and browses servers and Android phones.">
+<meta property="og:description" content="A viewer and manager for photos, videos, 3D models and CAD drawings, with an image editor, for Linux and Windows. Opens DWG, DXF and STEP.">
 <meta property="og:url" content="https://eyecansee.montinaro.info/">
 <meta property="og:image" content="https://eyecansee.montinaro.info/img/og.png">
 <meta property="og:image:width" content="1200">
@@ -22,7 +22,7 @@
 <meta property="og:locale:alternate" content="it_IT">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="EyeCanSee: photo, video, 3D and CAD viewer for Linux and Windows">
-<meta name="twitter:description" content="A viewer and manager for photos, videos, 3D models and CAD drawings, for Linux and Windows. Opens STEP, DWG and DXF, and browses servers and Android phones.">
+<meta name="twitter:description" content="A viewer and manager for photos, videos, 3D models and CAD drawings, with an image editor, for Linux and Windows. Opens DWG, DXF and STEP.">
 <meta name="twitter:image" content="https://eyecansee.montinaro.info/img/og.png">
 <meta name="twitter:image:alt" content="The EyeCanSee icon and name, the sentence about what it does, and the thumbnail grid of a folder of sample photos">
 <!-- Structured data for search engines: JSON read by them, not a script the browser runs. -->
@@ -31,7 +31,7 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "EyeCanSee",
-  "description": "A viewer and manager for photos, videos, 3D models and CAD drawings, for Linux and Windows.",
+  "description": "A viewer and manager for photos, videos, 3D models and CAD drawings, with an image editor, for Linux and Windows.",
   "url": "https://eyecansee.montinaro.info/",
   "inLanguage": "en",
   "applicationCategory": "MultimediaApplication",
@@ -63,7 +63,7 @@
   <div class="hero">
     <img class="icon" src="img/eyecansee.svg" width="96" height="96" alt="">
     <h1>EyeCanSee</h1>
-    <p>A viewer and manager for photos, videos, 3D models and CAD drawings, for Linux and Windows: browse, convert, find duplicates, and open folders, disks, servers and Android phones the same way.</p>
+    <p>A viewer and manager for photos, videos, 3D models and CAD drawings, with an image editor, for Linux and Windows: browse, convert, find duplicates, annotate images and cover private data, and open folders, disks, servers and Android phones the same way.</p>
     <video class="shot" src="img/browse.mp4" poster="img/browse-poster.jpg" width="800" height="534" autoplay muted loop playsinline preload="metadata" aria-label="Browsing a folder of sample photos in EyeCanSee: the thumbnail grid, photos in the viewer and a video playing"></video>
   </div>
 </header>
@@ -104,6 +104,17 @@ sudo dnf install eyecansee</code></pre>
     <div class="card"><h3>Formats</h3><p>HEIC, AVIF, JPEG XL, PSD, Camera RAW from many brands, and rarer formats through ImageMagick. English and Italian, light and dark theme.</p></div>
     <div class="card half"><h3>3D models, STEP and IGES</h3><p>STL, OBJ, PLY, glTF, FBX, 3MF and more, IFC buildings, and STEP, IGES and BREP from mechanical CAD, with an engine downloaded once. Shown with their colours and textures, drawn by the graphics card, and exported to glTF, OBJ, PLY or STL.</p></div>
     <div class="card half"><h3>CAD drawings: DWG, DXF and HP-GL</h3><p>DWG and DXF from AutoCAD and other CAD programs, and HP-GL plot files, sharp at any zoom, with layers, dimensions and texts and the drawing's real size; exported as images, SVG, or from DWG to DXF and back.</p></div>
+  </div>
+</section>
+
+<section id="editor">
+  <h2>Image editor</h2>
+  <img class="shot" src="img/editor.png" width="800" height="533" loading="lazy" alt="The image editor on a mountain photo: a speech bubble, a red ellipse round a hiker, two numbered steps joined by a dashed line, a text and a check mark stamp, with the tools at the top">
+  <p>Ctrl+E opens an image in the editor, also one on a phone or a server. Saving makes a copy next to the original with its metadata, or overwrites the original after putting it in a trash; on a phone or a server, if sending fails, the result stays on the computer. Ctrl+C copies it to paste in another app.</p>
+  <div class="cards">
+    <div class="card"><h3>Mark up</h3><p>Lines and arrows (also curved), rectangles, ellipses, freehand, highlighter, spotlight, text (also along a curve), speech bubbles, numbered steps, stamps and a magnifier.</p></div>
+    <div class="card"><h3>Cover private data</h3><p>Solid boxes: nothing of what they cover is left in the saved file. Blur and pixelate too, with a warning that they are not enough to hide text.</p></div>
+    <div class="card"><h3>Change, then save</h3><p>Filters on a part or on the whole image, a selection to copy, cut and paste, crop and rotate by any angle, an eyedropper. Everything can be moved and undone until you save.</p></div>
   </div>
 </section>
 

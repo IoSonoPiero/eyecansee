@@ -1,6 +1,6 @@
 # EyeCanSee
 
-A viewer and manager for photos, videos, 3D models and CAD drawings, for Linux and Windows, written in Rust: it browses them on computers, disks, servers and phones, copies and moves them from one device to another, finds duplicate copies, and converts them to other formats. Free and open source.
+A viewer and manager for photos, videos, 3D models and CAD drawings, with an image editor, for Linux and Windows, written in Rust: it browses them on computers, disks, servers and phones, copies and moves them from one device to another, finds duplicate copies, converts them to other formats, and annotates images and covers private data in them. Free and open source.
 
 <p>
   <a href="https://apps.microsoft.com/detail/9PK1598MXLBK"><img src="https://get.microsoft.com/images/en-us%20dark.svg" width="200" alt="Download from the Microsoft Store"/></a>
@@ -18,6 +18,7 @@ It is early in development. This page lists only what works now: new features ar
 - Folders, disks, SFTP and FTP servers and Android phones are browsed the same way.
 - Opens modern and camera formats: HEIC, AVIF, JPEG XL, Camera RAW, PSD and videos.
 - Photo and video conversion, on the graphics card when it can.
+- An image editor to annotate images and cover private data, also on phones and servers.
 - Signed releases that update themselves.
 
 ![Browsing a folder in EyeCanSee: thumbnails, the viewer and a video](docs/screenshots/browse.gif)
@@ -25,6 +26,8 @@ It is early in development. This page lists only what works now: new features ar
 ![The grid: thumbnails of a folder, with the devices and the folder tree on the left](docs/screenshots/grid.png)
 
 ![The viewer](docs/screenshots/viewer.png)
+
+![The image editor: a speech bubble, an ellipse, numbered steps, a text and a stamp on a photo](docs/screenshots/editor.png)
 
 ![A 3D model with its textures](docs/screenshots/model-3d.png)
 
@@ -48,7 +51,7 @@ Bug reports and suggestions are welcome in the [issues](https://github.com/IoSon
 
 ## Why another image and video manager?
 
-EyeCanSee does not do heavy editing, catalogues or batch tools: for that, mature programs like XnView, IrfanView or digiKam remain the better choice. What it does is browse, view, convert and clean up photos and videos on whatever device they are on, the computer, an external disk, a server or a phone, without a database to build first: you open a folder and the photos are there. It works the same way on Linux and Windows, and it is open source. On Linux it talks to the phone directly over USB, so a folder with hundreds of photos that took minutes through the file manager opens in seconds.
+EyeCanSee does not do heavy photo retouching or catalogues: for that, mature programs like XnView, IrfanView or digiKam remain the better choice. What it does is browse, view, convert, annotate and clean up photos and videos on whatever device they are on, the computer, an external disk, a server or a phone, without a database to build first: you open a folder and the photos are there. It works the same way on Linux and Windows, and it is open source. On Linux it talks to the phone directly over USB, so a folder with hundreds of photos that took minutes through the file manager opens in seconds.
 
 ## What it does today
 

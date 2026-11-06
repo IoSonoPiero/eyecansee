@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>EyeCanSee: visualizzatore di foto, video, 3D e CAD per Linux e Windows</title>
-<meta name="description" content="Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD per Linux e Windows. Apre STEP, DWG e DXF e sfoglia server e telefoni Android.">
+<meta name="description" content="Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD, con un editor delle immagini, per Linux e Windows. Apre DWG, DXF e STEP.">
 <link rel="canonical" href="https://eyecansee.montinaro.info/it/">
 <link rel="alternate" hreflang="en" href="https://eyecansee.montinaro.info/">
 <link rel="alternate" hreflang="it" href="https://eyecansee.montinaro.info/it/">
@@ -12,7 +12,7 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="EyeCanSee">
 <meta property="og:title" content="EyeCanSee: visualizzatore di foto, video, 3D e CAD per Linux e Windows">
-<meta property="og:description" content="Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD per Linux e Windows. Apre STEP, DWG e DXF e sfoglia server e telefoni Android.">
+<meta property="og:description" content="Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD, con un editor delle immagini, per Linux e Windows. Apre DWG, DXF e STEP.">
 <meta property="og:url" content="https://eyecansee.montinaro.info/it/">
 <meta property="og:image" content="https://eyecansee.montinaro.info/img/og-it.png">
 <meta property="og:image:width" content="1200">
@@ -22,7 +22,7 @@
 <meta property="og:locale:alternate" content="en_US">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="twitter:title" content="EyeCanSee: visualizzatore di foto, video, 3D e CAD per Linux e Windows">
-<meta name="twitter:description" content="Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD per Linux e Windows. Apre STEP, DWG e DXF e sfoglia server e telefoni Android.">
+<meta name="twitter:description" content="Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD, con un editor delle immagini, per Linux e Windows. Apre DWG, DXF e STEP.">
 <meta name="twitter:image" content="https://eyecansee.montinaro.info/img/og-it.png">
 <meta name="twitter:image:alt" content="Icona e nome di EyeCanSee, la frase su cosa fa e la griglia delle miniature di una cartella di foto di esempio">
 <!-- Structured data for search engines: JSON read by them, not a script the browser runs. -->
@@ -31,7 +31,7 @@
   "@context": "https://schema.org",
   "@type": "SoftwareApplication",
   "name": "EyeCanSee",
-  "description": "Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD per Linux e Windows.",
+  "description": "Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD, con un editor delle immagini, per Linux e Windows.",
   "url": "https://eyecansee.montinaro.info/it/",
   "inLanguage": "it",
   "applicationCategory": "MultimediaApplication",
@@ -63,7 +63,7 @@
   <div class="hero">
     <img class="icon" src="../img/eyecansee.svg" width="96" height="96" alt="">
     <h1>EyeCanSee</h1>
-    <p>Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD per Linux e Windows: sfoglia, converte, trova i doppioni e apre allo stesso modo cartelle, dischi, server e telefoni Android.</p>
+    <p>Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD, con un editor delle immagini, per Linux e Windows: sfoglia, converte, trova i doppioni, annota le immagini e copre i dati privati, e apre allo stesso modo cartelle, dischi, server e telefoni Android.</p>
     <video class="shot" src="../img/browse.mp4" poster="../img/browse-poster.jpg" width="800" height="534" autoplay muted loop playsinline preload="metadata" aria-label="Una cartella di foto di esempio in EyeCanSee: la griglia delle miniature, le foto nel visore e un video che si riproduce"></video>
   </div>
 </header>
@@ -104,6 +104,17 @@ sudo dnf install eyecansee</code></pre>
     <div class="card"><h3>Formati</h3><p>HEIC, AVIF, JPEG XL, PSD, RAW delle fotocamere di molte marche e i formati più rari con ImageMagick. In italiano e in inglese, tema chiaro e scuro.</p></div>
     <div class="card half"><h3>Modelli 3D, STEP e IGES</h3><p>STL, OBJ, PLY, glTF, FBX, 3MF e altri, gli edifici IFC, e STEP, IGES e BREP dei CAD meccanici, con un motore scaricato una volta sola. Si vedono con colori e texture, disegnati dalla scheda video, e si esportano in glTF, OBJ, PLY o STL.</p></div>
     <div class="card half"><h3>Disegni CAD: DWG, DXF e HP-GL</h3><p>DWG e DXF di AutoCAD e degli altri CAD e file HP-GL per plotter, nitidi a ogni ingrandimento, con livelli, quote, testi e la misura reale del disegno; si esportano come immagine, SVG, o da DWG a DXF e viceversa.</p></div>
+  </div>
+</section>
+
+<section id="editor">
+  <h2>Editor delle immagini</h2>
+  <img class="shot" src="../img/editor.png" width="800" height="533" loading="lazy" alt="L'editor delle immagini su una foto di montagna: un fumetto, un'ellisse rossa attorno a un escursionista, due numeri di passaggio uniti da una linea tratteggiata, un testo e un timbro con il segno di spunta, con gli strumenti in alto">
+  <p>Ctrl+E apre un'immagine nell'editor, anche su un telefono o un server. Il salvataggio scrive una copia accanto all'originale con i suoi metadati, oppure sovrascrive l'originale dopo averlo messo in un cestino; su un telefono o un server, se l'invio non riesce, il risultato resta sul computer. Ctrl+C lo copia per incollarlo in un'altra app.</p>
+  <div class="cards">
+    <div class="card"><h3>Annota</h3><p>Linee e frecce (anche curve), rettangoli, ellissi, mano libera, evidenziatore, riflettore, testo (anche lungo una curva), fumetti, numeri di passaggio, timbri e una lente.</p></div>
+    <div class="card"><h3>Copri i dati privati</h3><p>Riquadri pieni: nel file salvato non resta niente di ciò che coprono. Anche sfocatura e pixel grossi, con l'avviso che non bastano a nascondere un testo.</p></div>
+    <div class="card"><h3>Modifica, poi salva</h3><p>Filtri su una parte o su tutta l'immagine, selezione per copiare, tagliare e incollare, ritaglio e rotazione di qualsiasi angolo, contagocce. Tutto si sposta e si annulla finché non salvi.</p></div>
   </div>
 </section>
 

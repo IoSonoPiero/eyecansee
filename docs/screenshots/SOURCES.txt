@@ -25,6 +25,10 @@ Both taken in a home folder made for the screenshots (/home/demo), 1200 x 800, d
 model-3d.png on a screen at 167 % (2000 x 1333) and reduced to 1200 x 800, to show the viewer at
 the screen's refresh rate.
 
+editor.png: Wilderness.jpg (below) in the image editor, with a speech bubble, an ellipse, two
+numbered steps joined by a dashed line, a text and a stamp; 1200 x 800, dark theme, taken by
+EyeCanSee itself, the objects placed by a temporary debug change instead of the mouse.
+
 Photos: public domain or CC0, from Wikimedia Commons (renamed; in the phone folder copied several
 times as IMG_0001.jpg ... IMG_0334.jpg, in the order of the list).
 
