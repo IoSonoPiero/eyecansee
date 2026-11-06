@@ -139,6 +139,8 @@ pub struct Window {
     filters_made: u64,
     /// What the lenses' previews were made with (`photo::hiders_key`).
     hiders: u64,
+    /// The list of the keys stays open (the Keys button clicked).
+    keys_open: bool,
     /// A line under the buttons ("Copied…") and until when (seconds of `egui::InputState::time`).
     note: Option<(String, f64)>,
     copying: bool,
@@ -201,6 +203,7 @@ impl Window {
             clip: None,
             filters_made: 0,
             hiders: 0,
+            keys_open: false,
             note: None,
             copying: false,
             follow: Follow::Inside,
@@ -591,7 +594,14 @@ impl App {
             egui::Panel::top("edit-tools").show(ui, |ui| ask = self.edit_toolbar(ui, &mut w).or(ask.take()));
             egui::Panel::top("edit-props").show(ui, |ui| self.props_bar(ui, &mut w));
             let bar = egui::Frame::side_top_panel(ui.style()).fill(crate::theme::solid(ui.visuals()));
-            egui::Panel::bottom("edit-status").frame(bar).show(ui, |ui| self.edit_status(ui, &mut w));
+            let status = egui::Panel::bottom("edit-status").frame(bar).show(ui, |ui| self.edit_status(ui, &mut w));
+            // The editor's keys: listed while the button is pointed at, or until it is clicked again.
+            if status.inner.clicked() {
+                w.keys_open = !w.keys_open;
+            }
+            if w.keys_open || status.inner.hovered() {
+                self.keys_window(ui.ctx(), "hint-editor", status.response.rect.height());
+            }
             let stage = egui::Frame::NONE.fill(crate::theme::stage(ui.visuals()));
             egui::CentralPanel::default().frame(stage).show(ui, |ui| canvas(ui, &mut w, &tex, ui.available_size()));
             match if std::mem::take(&mut w.save_as) { Some(Ask::SaveAs) } else { ask } {

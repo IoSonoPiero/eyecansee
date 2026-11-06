@@ -182,7 +182,8 @@ impl App {
     }
 
     /// At the bottom: name and size of the result, the remote line, notes; the tool's hint; zoom.
-    pub(super) fn edit_status(&self, ui: &mut egui::Ui, w: &mut Window) {
+    /// The Keys button, as the viewer's (`keys_window`).
+    pub(super) fn edit_status(&self, ui: &mut egui::Ui, w: &mut Window) -> egui::Response {
         let i18n = &self.i18n;
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
         ui.horizontal(|ui| {
@@ -204,6 +205,9 @@ impl App {
                 }
             }
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // Blue on white, as the viewer's: the bar makes every text white.
+                let keys = ui.add(egui::Button::new(egui::RichText::new(i18n.t("keys-button")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE));
+                ui.separator();
                 let ctx = ui.ctx().clone();
                 let white = |icon| egui::Button::image(icons::line_in(&ctx, icon, 16.0, Color32::WHITE)).frame(false);
                 if ui.add(white(Line::ZoomIn)).on_hover_text(tip(i18n, "edit-zoom-in", "+")).clicked() {
@@ -219,8 +223,11 @@ impl App {
                 ui.separator();
                 let hint = if w.picking { "edit-tip-pick" } else { hint_id(w.tool) };
                 ui.add(egui::Label::new(i18n.t(hint)).truncate());
-            });
-        });
+                keys
+            })
+            .inner
+        })
+        .inner
     }
 }
 
@@ -595,5 +602,19 @@ fn text_field(ui: &mut egui::Ui, w: &mut Window, selected: Option<usize>, i18n: 
     let r = ui.add(egui::TextEdit::multiline(text).desired_rows(1).desired_width(280.0).hint_text(i18n.t("edit-text-hint")));
     if std::mem::take(&mut w.focus_text) {
         r.request_focus();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// The list of the editor's keys (Keys) has every tool's key, in both languages.
+    #[test]
+    fn keys_listed() {
+        for ftl in [include_str!("../../locales/en.ftl"), include_str!("../../locales/it.ftl")] {
+            let line = ftl.lines().find(|l| l.starts_with("hint-editor =")).expect("hint-editor");
+            for (_, _, id, key) in super::TOOLS {
+                assert!(line.contains(&format!(" {}:", key.name())) || line.contains(&format!("= {}:", key.name())), "{id}: {}", key.name());
+            }
+        }
     }
 }

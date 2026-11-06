@@ -370,6 +370,7 @@ menu-export-3d = Export as a 3D model
 status-exported = Saved as { $name }
 export-failed = Export failed: { $error }
 hint-model = Arrows or drag: turn | Shift+drag: move | Wheel, + and −: zoom | 0: starting view | Page Up, Page Down: previous, next | Ctrl+S: save as an image | F11: full screen | Esc: back
+hint-editor = V: select | M: selection | A: arrow | L: line | P: freehand | R: rectangle | E: ellipse | H: highlighter | S: spotlight | T: text | U: speech bubble | N: step numbers | K: stamps | Z: magnifier | B: cover | C: crop and rotate | I: eyedropper | Shift+drag: square or circle | Double click on a text: change it | Del: delete the object | Ctrl+Z, Ctrl+Y: undo, redo | Ctrl+C, Ctrl+X, Ctrl+V: copy, cut, paste | Ctrl+R, Ctrl+Shift+R: turn right, left | Wheel, + and −: zoom | 0: everything in view | Right button drag: move the view | Ctrl+S: save copy | Ctrl+Shift+S: save as | Esc: one thing at a time, then close
 hint-image = →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Wheel, + and −: zoom | Drag: move a zoomed image | 0: fit the window | 1: 100% | Ctrl+R, Ctrl+Shift+R: turn right, left | Ctrl+E: edit image | Ctrl+S, Ctrl+Shift+S: save, save as | F2: rename | Del: delete | F11: full screen | Esc: back
 hint-video = Space: pause and play | ↑ ↓, wheel: volume | M: sound off and on | →, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | F2: rename | Del: delete | F11: full screen | Esc: back
 cad-engine-title = CAD engine
