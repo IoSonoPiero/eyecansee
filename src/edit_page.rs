@@ -136,6 +136,8 @@ pub struct Window {
     just_picked: Option<[u8; 3]>,
     /// The eyedropper takes one pixel, or the average of 3 × 3 or 5 × 5.
     pick_size: u8,
+    /// Where the eyedropper's box was last, inside the window.
+    pick_box: Option<Pos2>,
     /// I pressed: the eyedropper as if its button were clicked.
     /// I or Shift+I pressed: the eyedropper as if its button were clicked; `Some(true)` for the
     /// desktop's picker on the whole screen (Shift+I, Linux).
@@ -218,6 +220,7 @@ impl Window {
             picked: None,
             just_picked: None,
             pick_size: 1,
+            pick_box: None,
             ask_pick: None,
             marquee: None,
             clip: None,

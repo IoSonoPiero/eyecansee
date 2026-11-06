@@ -21,11 +21,17 @@ const GRID: usize = 11;
 pub(super) fn mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View) {
     if response.hovered() || response.dragged() {
         ui.ctx().set_cursor_icon(CursorIcon::Crosshair);
-        // By the pointer, or (dragged out of the window, where nothing can be drawn) in the
-        // bottom left corner of the canvas.
-        let at = ui.input(|i| i.pointer.latest_pos()).filter(|p| response.rect.contains(*p));
+        // By the pointer, kept inside the window; dragged out of it (where nothing can be drawn)
+        // where it was last (it jumped to a corner of the canvas: user, 2026-11-06).
+        let window = ui.ctx().content_rect();
+        let pointer = ui.input(|i| i.pointer.latest_pos()).filter(|p| window.contains(*p));
+        if let Some(p) = pointer {
+            w.pick_box = Some(p);
+        }
+        let at = pointer.filter(|p| response.rect.contains(*p));
         if let Some(grid) = around(w, view, at) {
-            let place = at.map_or(response.rect.left_bottom() + egui::vec2(12.0, -130.0), |p| p + egui::vec2(18.0, 18.0));
+            let p = w.pick_box.unwrap_or(response.rect.left_bottom()) + egui::vec2(18.0, 18.0);
+            let place = Pos2::new(p.x.min(window.right() - 260.0), p.y.min(window.bottom() - 110.0));
             swatch(ui.ctx(), place, &grid, average(&grid, w.pick_size), current(w));
         }
         if response.dragged() {
