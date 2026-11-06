@@ -43,14 +43,23 @@ impl App {
             _ if !can_change => Some(nothing()),
             _ => None,
         };
+        let (rename, delete) = (
+            Op { icon: Line::Rename, label: "menu-rename", keys: "F2".into(), act: Act::Rename(None), off: rename },
+            Op { icon: Line::Delete, label: "menu-delete", keys: t("key-delete"), act: Act::Delete(None, false), off: off(can_change, nothing) },
+        );
+        // In the viewer only what works on the image shown: making folders, cutting, copying and
+        // pasting files are for the grid (user, 2026-11-06); they stay in the menus.
+        if viewing {
+            return vec![rename, delete];
+        }
         vec![
-            Op { icon: Line::NewFolder, label: "menu-new-folder", keys: t("key-new-folder"), act: Act::NewFolder(None), off: off(self.can_make_folder(), || t(if viewing { "tb-off-viewer" } else { "tb-off-folder" })) },
+            Op { icon: Line::NewFolder, label: "menu-new-folder", keys: t("key-new-folder"), act: Act::NewFolder(None), off: off(self.can_make_folder(), || t("tb-off-folder")) },
             // Cut before Copy, as Explorer and the Edit menu.
             Op { icon: Line::Cut, label: "menu-cut", keys: t("key-cut"), act: Act::Cut(None), off: some.clone().err() },
             Op { icon: Line::Copy, label: "menu-copy", keys: t("key-copy"), act: Act::Copy(None), off: some.err() },
             Op { icon: Line::Paste, label: "menu-paste", keys: t("key-paste"), act: Act::Paste(None), off: paste },
-            Op { icon: Line::Rename, label: "menu-rename", keys: "F2".into(), act: Act::Rename(None), off: rename },
-            Op { icon: Line::Delete, label: "menu-delete", keys: t("key-delete"), act: Act::Delete(None, false), off: off(can_change, nothing) },
+            rename,
+            delete,
         ]
     }
 
@@ -76,7 +85,11 @@ impl App {
         ]
     }
 
+    /// None in the viewer: they work on folders and on the grid's choice.
     fn tool_ops(&self) -> Vec<Op> {
+        if self.viewing.is_some() {
+            return Vec::new();
+        }
         let t = |id| self.i18n.t(id);
         vec![
             Op { icon: Line::Batch, label: "menu-batch", keys: t("key-batch"), act: Act::Batch(None), off: self.batch_off() },
@@ -119,7 +132,9 @@ impl App {
         let wide = ui.available_width() - groups - after >= ADDRESS;
         if wide {
             group(ui, &image, &self.i18n, &mut chosen);
-            group(ui, &tools, &self.i18n, &mut chosen);
+            if !tools.is_empty() {
+                group(ui, &tools, &self.i18n, &mut chosen);
+            }
         } else {
             ui.separator();
             more(ui, [&image, &tools], &self.i18n, &mut chosen);

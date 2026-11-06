@@ -14,7 +14,7 @@ Press **F1** at any time to open or close this manual.
 - **Several items**: Ctrl+click adds or removes an item, Shift+click selects everything from the last clicked item to this one, Shift+arrows extend the selection, Ctrl+A selects everything in the folder. **Dragging** with the mouse draws a rectangle that selects the cells it touches (with Ctrl it adds them to those already selected); near the top or bottom edge the grid scrolls. A click without keys, or an arrow, goes back to a single item.
 - Arrows and Tab act on the side you clicked last, left or right: it is the one with the thin frame. There the selection is solid blue, on the other side it is lighter.
 
-Double-click an image, or select it and press Enter, to open it in the **viewer**. Press Esc, double-click the image or use the grid button in the toolbar to go back to the grid. The bar at the bottom of the viewer shows the file name, its position in the folder (for example 12 / 51), its size in pixels and on disk, and the date it was taken (the date it was modified when the photo has no such information or the metadata boxes are closed).
+Double-click an image, or select it and press Enter, to open it in the **viewer**. Press Esc, double-click the image or use the grid button in the toolbar to go back to the grid. In the viewer the toolbar keeps only what works on the image shown (rename, delete, turn, edit, save); new folder, cut, copy, paste and the tools are for the grid, and stay in the menus. The bar at the bottom of the viewer shows the file name, its position in the folder (for example 12 / 51), its size in pixels and on disk, and the date it was taken (the date it was modified when the photo has no such information or the metadata boxes are closed).
 
 ## Thumbnails
 

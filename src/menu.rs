@@ -204,7 +204,8 @@ impl App {
             {
                 self.go_up();
             }
-            if ui.add(icons::button(ui, icons::Line::Refresh)).on_hover_text(self.i18n.t("menu-refresh")).clicked() {
+            // Not in the viewer: the image shown is read again by itself when it changes (F5 too).
+            if self.viewing.is_none() && ui.add(icons::button(ui, icons::Line::Refresh)).on_hover_text(self.i18n.t("menu-refresh")).clicked() {
                 self.refresh();
             }
             self.toolbar_ops(ui);
