@@ -595,12 +595,13 @@ impl App {
             egui::Panel::top("edit-props").show(ui, |ui| self.props_bar(ui, &mut w));
             let bar = egui::Frame::side_top_panel(ui.style()).fill(crate::theme::solid(ui.visuals()));
             let status = egui::Panel::bottom("edit-status").frame(bar).show(ui, |ui| self.edit_status(ui, &mut w));
-            // The editor's keys: listed while the button is pointed at, or until it is clicked again.
+            // The keys of the tool in use: listed while the button is pointed at, or until it is
+            // clicked again.
             if status.inner.clicked() {
                 w.keys_open = !w.keys_open;
             }
             if w.keys_open || status.inner.hovered() {
-                self.keys_window(ui.ctx(), "hint-editor", status.response.rect.height());
+                self.keys_window(ui.ctx(), tools::keys_id(w.tool), status.response.rect.height());
             }
             let stage = egui::Frame::NONE.fill(crate::theme::stage(ui.visuals()));
             egui::CentralPanel::default().frame(stage).show(ui, |ui| canvas(ui, &mut w, &tex, ui.available_size()));

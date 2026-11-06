@@ -608,15 +608,41 @@ fn text_field(ui: &mut egui::Ui, w: &mut Window, selected: Option<usize>, i18n: 
     }
 }
 
+/// The Fluent id of the keys of `tool`, for the Keys button: only those of the tool in use (user,
+/// 2026-11-06: "only the commands of the tool selected, not all").
+pub(super) fn keys_id(tool: Tool) -> &'static str {
+    match tool {
+        Tool::Select => "hint-edit-select",
+        Tool::Marquee => "hint-edit-marquee",
+        Tool::Crop => "hint-edit-crop",
+        Tool::Draw(kind) => match kind {
+            Kind::Arrow => "hint-edit-arrow",
+            Kind::Line => "hint-edit-line",
+            Kind::Pen => "hint-edit-pen",
+            Kind::Rect => "hint-edit-rect",
+            Kind::Ellipse => "hint-edit-ellipse",
+            Kind::Highlight => "hint-edit-highlight",
+            Kind::Spotlight => "hint-edit-spotlight",
+            Kind::Text => "hint-edit-text",
+            Kind::Bubble => "hint-edit-bubble",
+            Kind::Step => "hint-edit-step",
+            Kind::Stamp => "hint-edit-stamp",
+            Kind::Lens => "hint-edit-lens",
+            Kind::Cover => "hint-edit-cover",
+            Kind::Patch | Kind::Filter => "hint-edit-select",
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    /// The list of the editor's keys (Keys) has every tool's key, in both languages.
+    /// Every tool has its list of keys, in both languages.
     #[test]
     fn keys_listed() {
         for ftl in [include_str!("../../locales/en.ftl"), include_str!("../../locales/it.ftl")] {
-            let line = ftl.lines().find(|l| l.starts_with("hint-editor =")).expect("hint-editor");
-            for (_, _, id, key) in super::TOOLS {
-                assert!(line.contains(&format!(" {}:", key.name())) || line.contains(&format!("= {}:", key.name())), "{id}: {}", key.name());
+            for (tool, ..) in super::TOOLS {
+                let id = super::keys_id(tool);
+                assert!(ftl.lines().any(|l| l.starts_with(&format!("{id} = "))), "{id}");
             }
         }
     }
