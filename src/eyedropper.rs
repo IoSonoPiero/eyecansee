@@ -47,33 +47,45 @@ pub fn on_screen() -> bool {
     cfg!(target_os = "linux")
 }
 
-/// The `n` × `n` pixels of the screen around the pointer, row by row (Windows: GDI), for the
-/// eyedropper's magnifier; `None` elsewhere.
+/// The `n` × `n` pixels of the screen around the pointer, row by row (Windows: one copy of
+/// that square of the screen with GDI, then read at once; pixel by pixel took a long time a
+/// pixel), for the eyedropper's magnifier; `None` elsewhere.
 #[cfg(windows)]
 pub fn around_cursor(n: usize) -> Option<Vec<[u8; 3]>> {
     use windows_sys::Win32::Foundation::POINT;
-    use windows_sys::Win32::Graphics::Gdi::{GetDC, GetPixel, ReleaseDC};
+    use windows_sys::Win32::Graphics::Gdi::{
+        BI_RGB, BITMAPINFO, BITMAPINFOHEADER, BitBlt, CreateCompatibleBitmap, CreateCompatibleDC, DIB_RGB_COLORS, DeleteDC, DeleteObject, GetDC, GetDIBits, ReleaseDC, SRCCOPY, SelectObject,
+    };
     use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
     let mut p = POINT { x: 0, y: 0 };
-    let half = (n / 2) as i32;
-    // SAFETY: plain GDI calls on the screen's device context, released at the end.
-    unsafe {
+    let (side, half) = (n as i32, (n / 2) as i32);
+    let mut bgra = vec![0u8; n * n * 4];
+    // SAFETY: GDI calls on the screen's device context and a memory one of our own, each object
+    // freed before returning; `bgra` is as large as the 32-bit top-down bitmap asked for.
+    let read = unsafe {
         if GetCursorPos(&mut p) == 0 {
             return None;
         }
-        let dc = GetDC(std::ptr::null_mut());
-        if dc.is_null() {
+        let screen = GetDC(std::ptr::null_mut());
+        if screen.is_null() {
             return None;
         }
-        let out = (0..n * n)
-            .map(|i| {
-                let c = GetPixel(dc, p.x - half + (i % n) as i32, p.y - half + (i / n) as i32);
-                [(c & 0xFF) as u8, ((c >> 8) & 0xFF) as u8, ((c >> 16) & 0xFF) as u8]
-            })
-            .collect();
-        ReleaseDC(std::ptr::null_mut(), dc);
-        Some(out)
-    }
+        let mem = CreateCompatibleDC(screen);
+        let bitmap = CreateCompatibleBitmap(screen, side, side);
+        let old = SelectObject(mem, bitmap);
+        let copied = BitBlt(mem, 0, 0, side, side, screen, p.x - half, p.y - half, SRCCOPY) != 0;
+        SelectObject(mem, old);
+        let mut info = BITMAPINFO {
+            bmiHeader: BITMAPINFOHEADER { biSize: std::mem::size_of::<BITMAPINFOHEADER>() as u32, biWidth: side, biHeight: -side, biPlanes: 1, biBitCount: 32, biCompression: BI_RGB, ..Default::default() },
+            ..Default::default()
+        };
+        let lines = if copied { GetDIBits(mem, bitmap, 0, side as u32, bgra.as_mut_ptr().cast(), &mut info, DIB_RGB_COLORS) } else { 0 };
+        DeleteObject(bitmap);
+        DeleteDC(mem);
+        ReleaseDC(std::ptr::null_mut(), screen);
+        lines == side
+    };
+    read.then(|| bgra.chunks_exact(4).map(|c| [c[2], c[1], c[0]]).collect())
 }
 
 #[cfg(not(windows))]
