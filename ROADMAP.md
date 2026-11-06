@@ -6,9 +6,9 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 ### First
 
-- Jump forward and back in a video with Ctrl and the arrow keys ([#10](https://github.com/IoSonoPiero/eyecansee/issues/10)).
-- Notification windows with the parts to compare highlighted (SFTP and FTPS fingerprints) and one common style ([#11](https://github.com/IoSonoPiero/eyecansee/issues/11)).
-- Enter and Esc close the result windows ([#12](https://github.com/IoSonoPiero/eyecansee/issues/12)).
+- Image editor: keep the HDR of Motion Photos that are also Ultra HDR ([#54](https://github.com/IoSonoPiero/eyecansee/issues/54)).
+- Saving without the GPS position, or without metadata ([#55](https://github.com/IoSonoPiero/eyecansee/issues/55)).
+- Image editor: an SVG stays an SVG ([#56](https://github.com/IoSonoPiero/eyecansee/issues/56)).
 
 ### Next
 
@@ -19,7 +19,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 ### Video
 
 - Save the frame of a paused video as an image ([#16](https://github.com/IoSonoPiero/eyecansee/issues/16)).
-- Full screen ([#43](https://github.com/IoSonoPiero/eyecansee/issues/43)).
+- Full screen: hide the video controls too until the mouse moves ([#43](https://github.com/IoSonoPiero/eyecansee/issues/43)).
 - Smoother playback of 4K/60 videos ([#17](https://github.com/IoSonoPiero/eyecansee/issues/17)).
 
 ### Devices and servers
@@ -38,7 +38,10 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 ### Browsing and editing
 
-- Image editing: arrows, lines, boxes, text and highlighter on any image, solid boxes to cover private data, crop and rotate; every change stays movable and can be undone until you save, and saving makes a copy next to the original. Light and colour corrections come after ([#53](https://github.com/IoSonoPiero/eyecansee/issues/53)).
+- Image editor: light and colour corrections (exposure, saturation, automatic levels, colour temperature, invert) ([#60](https://github.com/IoSonoPiero/eyecansee/issues/60)).
+- Open an image from the clipboard ([#57](https://github.com/IoSonoPiero/eyecansee/issues/57)).
+- Image editor: the preview where a filter and a highlighter overlap ([#58](https://github.com/IoSonoPiero/eyecansee/issues/58)).
+- Image editor: recent work kept, recovered after a crash, resumed later ([#59](https://github.com/IoSonoPiero/eyecansee/issues/59)).
 - Favourites: a list of folders and images to open with one click ([#25](https://github.com/IoSonoPiero/eyecansee/issues/25)).
 - Archives: zip and 7z opened as read-only folders first, then creating zip archives ([#26](https://github.com/IoSonoPiero/eyecansee/issues/26)).
 - Multiple rename ([#27](https://github.com/IoSonoPiero/eyecansee/issues/27)).
