@@ -21,6 +21,7 @@ use crate::{App, source};
 mod canvas;
 mod clip;
 mod crop;
+mod pick;
 mod props;
 mod save;
 mod tools;
