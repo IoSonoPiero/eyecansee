@@ -56,23 +56,31 @@ pub(super) fn text_look(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
     }
 }
 
-/// The icon of a stamp.
+/// The icon of a stamp: the first ones on the bar, the others in a grid behind "…" (shown
+/// selected when the stamp in use is one of them).
 pub(super) fn stamp(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
     ui.separator();
-    let all = [
-        (Stamp::Check, Line::Check, "edit-stamp-check"),
-        (Stamp::Cross, Line::Close, "edit-stamp-cross"),
-        (Stamp::Warning, Line::Warning, "edit-stamp-warning"),
-        (Stamp::Info, Line::Info, "edit-stamp-info"),
-        (Stamp::Question, Line::Question, "edit-stamp-question"),
-        (Stamp::Star, Line::Star, "edit-stamp-star"),
-        (Stamp::ThumbsUp, Line::ThumbsUp, "edit-stamp-thumbs-up"),
-    ];
-    for (stamp, icon, id) in all {
-        if ui.add(icons::toggle(ui, style.stamp == stamp, icon)).on_hover_text(i18n.t(id)).clicked() {
+    let (shown, more) = Stamp::ALL.split_at(Stamp::SHOWN);
+    for &stamp in shown {
+        if ui.add(icons::toggle(ui, style.stamp == stamp, Line::Mark(stamp))).on_hover_text(i18n.t(stamp.label())).clicked() {
             style.stamp = stamp;
         }
     }
+    let button = icons::toggle(ui, more.contains(&style.stamp), if more.contains(&style.stamp) { Line::Mark(style.stamp) } else { Line::More });
+    let (r, _) = egui::containers::menu::MenuButton::from_button(button).ui(ui, |ui| {
+        egui::Grid::new("edit-stamps").spacing([4.0, 4.0]).show(ui, |ui| {
+            for (n, &stamp) in more.iter().enumerate() {
+                if ui.add(icons::toggle(ui, style.stamp == stamp, Line::Mark(stamp))).on_hover_text(i18n.t(stamp.label())).clicked() {
+                    style.stamp = stamp;
+                    ui.close();
+                }
+                if n % 10 == 9 {
+                    ui.end_row();
+                }
+            }
+        });
+    });
+    r.on_hover_text(i18n.t("edit-stamp-more"));
 }
 
 /// Round or square (a lens, a spotlight).

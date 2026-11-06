@@ -183,34 +183,106 @@ pub enum Head {
     Dot,
 }
 
-/// The icons of the stamps: Lucide's (as the buttons, `icons::Line`).
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
-pub enum Stamp {
-    #[default]
-    Check,
-    Cross,
-    Warning,
-    Info,
-    Question,
-    Star,
-    ThumbsUp,
+/// The stamps, by name, with Lucide's icon (file in `assets/icons/lucide`) and the end of their
+/// Fluent id (`edit-stamp-…`); the first `Stamp::SHOWN` are on the bar, the others in its "…".
+macro_rules! stamps {
+    ($($name:ident $file:literal $id:literal),* $(,)?) => {
+        #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
+        pub enum Stamp {
+            $($name),*
+        }
+
+        impl Stamp {
+            pub const ALL: &[Stamp] = &[$(Stamp::$name),*];
+
+            /// Lucide's SVG of the icon (24 × 24, lines of 2, `currentColor`).
+            pub fn svg(self) -> &'static str {
+                match self {
+                    $(Stamp::$name => include_str!(concat!("../../assets/icons/lucide/", $file, ".svg"))),*
+                }
+            }
+
+            /// Fluent id of its name.
+            pub fn label(self) -> &'static str {
+                match self {
+                    $(Stamp::$name => concat!("edit-stamp-", $id)),*
+                }
+            }
+        }
+    };
+}
+
+stamps! {
+    Check "check" "check",
+    Cross "x" "cross",
+    Warning "triangle-exclamation-point" "warning",
+    Info "info" "info",
+    Question "circle-question-mark" "question",
+    Star "star" "star",
+    ThumbsUp "thumbs-up" "thumbs-up",
+    ThumbsDown "thumbs-down" "thumbs-down",
+    Heart "heart" "heart",
+    Smile "face-slightly-smiling" "smile",
+    Grin "face-grinning" "grin",
+    Frown "face-slightly-frowning" "frown",
+    CircleCheck "circle-check" "circle-check",
+    CircleX "circle-x" "circle-x",
+    Exclamation "circle-exclamation-point" "exclamation",
+    Ban "ban" "ban",
+    Plus "circle-plus" "plus",
+    Minus "circle-minus" "minus",
+    Up "arrow-big-up" "up",
+    Down "arrow-big-down" "down",
+    Left "arrow-big-left" "left",
+    Right "arrow-big-right" "right",
+    Flag "flag" "flag",
+    Pin "map-pin" "pin",
+    Target "target" "target",
+    Idea "lightbulb" "idea",
+    Bell "bell" "bell",
+    Lock "lock" "lock",
+    Unlock "lock-open" "unlock",
+    Eye "eye" "eye",
+    Clock "clock" "clock",
+    Calendar "calendar" "calendar",
+    Mail "mail" "mail",
+    Phone "phone" "phone",
+    Home "house" "home",
+    Camera "camera" "camera",
+    Person "user" "person",
+    People "users" "people",
+    Award "award" "award",
+    Trophy "trophy" "trophy",
+    Crown "crown" "crown",
+    Verified "badge-check" "verified",
+    Shield "shield-check" "shield",
+    Bookmark "bookmark" "bookmark",
+    Gift "gift" "gift",
+    Party "party-popper" "party",
+    Rocket "rocket" "rocket",
+    Fire "flame" "fire",
+    Bolt "zap" "bolt",
+    Sparkles "sparkles" "sparkles",
+    Sun "sun" "sun",
+    Moon "moon" "moon",
+    Cloud "cloud" "cloud",
+    Coffee "coffee" "coffee",
+    Car "car" "car",
+    Plane "plane" "plane",
+    Hand "hand" "hand",
 }
 
 impl Stamp {
-    #[cfg(test)]
-    pub const ALL: [Stamp; 7] = [Stamp::Check, Stamp::Cross, Stamp::Warning, Stamp::Info, Stamp::Question, Stamp::Star, Stamp::ThumbsUp];
+    /// How many are on the bar (user, 2026-11-06: the seven of the start stay in view, the
+    /// others are a click away).
+    pub const SHOWN: usize = 7;
+}
 
-    /// Lucide's SVG of the icon (24 × 24, lines of 2, `currentColor`).
-    pub fn svg(self) -> &'static str {
-        match self {
-            Stamp::Check => include_str!("../../assets/icons/lucide/check.svg"),
-            Stamp::Cross => include_str!("../../assets/icons/lucide/x.svg"),
-            Stamp::Warning => include_str!("../../assets/icons/lucide/triangle-exclamation-point.svg"),
-            Stamp::Info => include_str!("../../assets/icons/lucide/info.svg"),
-            Stamp::Question => include_str!("../../assets/icons/lucide/circle-question-mark.svg"),
-            Stamp::Star => include_str!("../../assets/icons/lucide/star.svg"),
-            Stamp::ThumbsUp => include_str!("../../assets/icons/lucide/thumbs-up.svg"),
-        }
+// The first of a list made by `stamps!`, where `#[default]` cannot go on one alone.
+#[allow(clippy::derivable_impls)]
+impl Default for Stamp {
+    fn default() -> Stamp {
+        Stamp::Check
     }
 }
 

@@ -797,7 +797,7 @@ pub(crate) mod tests {
     /// draws it in 24.
     #[test]
     fn stamps_drawn() {
-        for icon in crate::edit::doc::Stamp::ALL {
+        for &icon in crate::edit::doc::Stamp::ALL {
             let d = doc(vec![Obj { shape: Shape::Stamp(area(0.0, 0.0, 48.0, 48.0)), style: Style { stamp: icon, color: [0, 0, 255], ..style() } }]);
             let p = draw(&d, &whole(&d));
             let blue = p.pixels().iter().filter(|c| c.alpha() > 200 && c.blue() > 200 && c.red() < 50).count();
