@@ -4,7 +4,7 @@
 
 use image::{DynamicImage, GenericImageView, Rgba};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Filter {
     Blur,
     Pixelate,

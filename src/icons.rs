@@ -149,6 +149,8 @@ pub enum Line {
     Mark(crate::edit::doc::Stamp),
     /// The shape of a bubble.
     Balloon(crate::edit::bubble::Balloon),
+    /// A filter of the editor.
+    Filter(crate::edit::filter::Filter),
     Cover,
     Crop,
     Undo,
@@ -234,6 +236,7 @@ fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Stamp => lucide!("stamp").into(),
         Line::Mark(stamp) => stamp.svg().into(),
         Line::Balloon(b) => balloon_svg(b),
+        Line::Filter(f) => filter_svg(f),
         Line::Cover => lucide!("eye-off").into(),
         Line::Crop => lucide!("crop").into(),
         Line::Undo => lucide!("undo-2").into(),
@@ -273,6 +276,21 @@ fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         // Dots wider than the line, or they look like specks.
         Line::Dotted => format!("{}<path d=\"M4.5 12h.01M9.5 12h.01M14.5 12h.01M19.5 12h.01\"/></svg>", LINE.replace("stroke-width=\"2\"", "stroke-width=\"3.5\"")).into(),
     }
+}
+
+/// The filters of the editor, Lucide's icons.
+fn filter_svg(f: crate::edit::filter::Filter) -> std::borrow::Cow<'static, str> {
+    use crate::edit::filter::Filter;
+    match f {
+        Filter::Blur => lucide!("droplets"),
+        Filter::Pixelate => lucide!("grid-3x3"),
+        Filter::Sharpen => lucide!("focus"),
+        Filter::Gray => lucide!("eclipse"),
+        Filter::Sepia => lucide!("coffee"),
+        Filter::Brightness => lucide!("sun"),
+        Filter::Contrast => lucide!("contrast"),
+    }
+    .into()
 }
 
 /// The shapes of a bubble: Lucide's rounded and round ones, ours for the others, same style.
@@ -352,6 +370,10 @@ mod tests {
             let img = render(&line_svg(icon).replace("currentColor", "#ff0000"), 24);
             let red = img.pixels.iter().filter(|p| p.a() > 128 && p.r() > 200 && p.g() < 60).count();
             assert!(red > 10, "{icon:?}: {red} pixels");
+        }
+        for f in crate::edit::filter::Filter::ALL {
+            let img = render(&line_svg(Filter(f)).replace("currentColor", "#ff0000"), 24);
+            assert!(img.pixels.iter().filter(|p| p.a() > 128 && p.r() > 200).count() > 10, "{f:?}");
         }
         for b in crate::edit::bubble::Balloon::ALL {
             let img = render(&line_svg(Balloon(b)).replace("currentColor", "#ff0000"), 24);
