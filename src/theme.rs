@@ -248,13 +248,16 @@ fn dark() -> Visuals {
 }
 
 /// A file being read: a large spinner and `text` under it, in the middle of the space left (user,
-/// 2026-11-06: a slow HEIC showed a small spinner only, or nothing).
-pub fn loading(ui: &mut egui::Ui, text: String) {
+/// 2026-11-06: a slow HEIC showed a small spinner only, or nothing); in `colour` when the
+/// background is not the theme's (the viewer is always dark: in the light theme the text was dark
+/// on dark).
+pub fn loading(ui: &mut egui::Ui, text: String, colour: Option<Color32>) {
+    let colour = colour.unwrap_or_else(|| ui.visuals().text_color());
     ui.vertical_centered(|ui| {
         ui.add_space((ui.available_height() / 2.0 - 40.0).max(0.0));
-        ui.add(egui::Spinner::new().size(36.0));
+        ui.add(egui::Spinner::new().size(36.0).color(colour));
         ui.add_space(10.0);
-        ui.label(egui::RichText::new(text).size(16.0));
+        ui.label(egui::RichText::new(text).size(16.0).color(colour));
     });
 }
 
