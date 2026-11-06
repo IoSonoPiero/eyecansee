@@ -320,7 +320,8 @@ mod tests {
     /// kept copies in a temporary folder. `EYECANSEE_SFTP=sftp://host/folder/` (or `EYECANSEE_FTP`)
     /// `cargo test --release … kept::tests::edit_server_live -- --exact --ignored --nocapture`.
     /// A copy written, never over a name already there; an overwrite with the original in the
-    /// folder's trash; with a trash that cannot be made (a file has its name) nothing changes.
+    /// folder's trash; the copy updated and the original overwritten again (only the true original in
+    /// the trash); with a trash that cannot be made (a file has its name) nothing changes.
     #[test]
     #[ignore]
     fn edit_server_live() {
@@ -359,10 +360,20 @@ mod tests {
             let Err((e, Some(k))) = send(format!("{dir}a (edited).jpg"), b"again", Send::Create).await else { panic!("written over the copy") };
             assert_eq!((e.0, k.send), ("error-exists", Send::Create));
             assert_eq!(op.read(&format!("{dir}a (edited).jpg")).await.unwrap(), b"copy");
+            // Update copy: the same copy written again, the old one not trashed.
+            send(format!("{dir}a (edited).jpg"), b"copy 2", Send::Again).await.unwrap_or_else(|_| panic!("copy not updated"));
+            assert_eq!(op.read(&format!("{dir}a (edited).jpg")).await.unwrap(), b"copy 2");
             // Overwrite: the original into the trash of the folder.
             send(format!("{dir}a.jpg"), b"new", Send::Keeping).await.unwrap_or_else(|_| panic!("not overwritten"));
             assert_eq!(op.read(&format!("{dir}a.jpg")).await.unwrap(), b"new");
             assert_eq!(op.read(&format!("{dir}{}/a.jpg", crate::trash::TRASH_DIR)).await.unwrap(), b"original");
+            // Overwrite again: over what was written, the trash keeps only the true original.
+            send(format!("{dir}a.jpg"), b"newer", Send::Again).await.unwrap_or_else(|_| panic!("not overwritten again"));
+            assert_eq!(op.read(&format!("{dir}a.jpg")).await.unwrap(), b"newer");
+            assert_eq!(op.read(&format!("{dir}{}/a.jpg", crate::trash::TRASH_DIR)).await.unwrap(), b"original");
+            let trashed: Vec<String> = op.names(&format!("{dir}{}/", crate::trash::TRASH_DIR)).await.unwrap().into_iter().collect();
+            println!("trash after two overwrites and an update: {trashed:?}");
+            assert!(!trashed.iter().any(|n| n.contains("edited") || n.contains("new")), "{trashed:?}");
             // A trash that cannot be made: the original stays, nothing hidden is left.
             op.create_dir(&format!("{dir}b/")).await.unwrap();
             put(format!("{dir}b/a.jpg"), b"original").await;
