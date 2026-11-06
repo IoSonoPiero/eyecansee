@@ -517,7 +517,13 @@ impl Doc {
             let (x, y) = ((u as f32 + 0.5) * a.w / w as f32 - a.w / 2.0, (v as f32 + 0.5) * a.h / h as f32 - a.h / 2.0);
             let q = self.source(Pt::new(a.centre.x + x * c - y * s, a.centre.y + x * s + y * c));
             let (px, py) = (q.x + iw / 2.0, q.y + ih / 2.0);
-            if px >= 0.0 && py >= 0.0 && px < iw && py < ih { img.get_pixel(px as u32, py as u32) } else { image::Rgba([0; 4]) }
+            // Blended from the four pixels around (bilinear): taken one by one, the letters of a
+            // text under a highlighter came out jagged (user, 2026-11-06).
+            if px >= 0.0 && py >= 0.0 && px < iw && py < ih {
+                image::imageops::interpolate_bilinear(img, (px - 0.5).clamp(0.0, iw - 1.0), (py - 0.5).clamp(0.0, ih - 1.0)).unwrap_or_else(|| img.get_pixel(px as u32, py as u32))
+            } else {
+                image::Rgba([0; 4])
+            }
         })
     }
 
@@ -734,6 +740,17 @@ pub(crate) mod tests {
                 assert!(diff <= if angle == 0.0 { 0 } else { 2 }, "{op:?} {angle}: {diff}");
             }
         }
+    }
+
+    /// Between two pixels the colour is blended, not one or the other: a box shifted by half a
+    /// pixel over black and white columns gives grey.
+    #[test]
+    fn pixels_blended() {
+        let img = DynamicImage::ImageRgb8(RgbImage::from_fn(8, 2, |x, _| image::Rgb([if x % 2 == 0 { 0 } else { 255 }; 3])));
+        let d = Doc::new(8, 2, None);
+        let out = d.pixels_under(&img, &Area { centre: Pt::new(0.5, 0.0), w: 2.0, h: 2.0, rot: 0.0 });
+        let v = out.get_pixel(0, 0)[0];
+        assert!((100..=155).contains(&v), "{v}");
     }
 
     /// The pixels under a box are those of the photo there, also with the image turned: a box

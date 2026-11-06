@@ -409,7 +409,12 @@ impl Window {
                     Shape::Lens { area, preview } if lenses => (*area, o.style.zoom.max(1) as f32 + if o.style.with_objects { 0.5 } else { 0.0 }, preview),
                     _ => continue,
                 };
-                let side = if still { 1200.0 } else { 400.0 };
+                // A highlighter is quick to make and is over text, read closely: sharper.
+                let side = match (still, &o.shape) {
+                    (false, _) => 400.0,
+                    (true, Shape::Highlight { .. }) => 3000.0,
+                    _ => 1200.0,
+                };
                 let scale = (side / area.w.max(area.h)).min(1.0);
                 // Made for this box and amount, and as sharp as it is to be now.
                 let sharp = |p: &Pixels| p.image().width() + 1 >= (area.w * scale).round() as u32;
