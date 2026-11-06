@@ -331,8 +331,8 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
         };
         ui.ctx().set_cursor_icon(icon);
     }
-    if response.double_clicked() && w.tool != Tool::Draw(Kind::Text) {
-        w.view = None;
+    if response.double_clicked() {
+        double_clicked(w, response.interact_pointer_pos().map(|s| view.doc(s, angle)), tol);
     }
     let pan = response.dragged_by(egui::PointerButton::Secondary) || response.dragged_by(egui::PointerButton::Middle);
     if response.drag_started()
@@ -390,6 +390,20 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
     }
     if response.hovered() {
         wheel(ui, w, view, rect, false);
+    }
+}
+
+/// A double click on a text or a bubble: its letters to change, in the bar's field; elsewhere
+/// everything in view (but with Text, whose clicks place texts).
+fn double_clicked(w: &mut Window, p: Option<Pt>, tol: f32) {
+    let text = p.and_then(|p| geom::under(&w.doc.objects, p, tol)).filter(|&i| matches!(Kind::of(&w.doc.objects[i]), Kind::Text | Kind::Bubble));
+    match text {
+        Some(i) => {
+            w.selected = Some(i);
+            w.focus_text = true;
+        }
+        None if w.tool != Tool::Draw(Kind::Text) => w.view = None,
+        None => {}
     }
 }
 
