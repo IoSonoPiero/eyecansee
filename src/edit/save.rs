@@ -138,7 +138,7 @@ fn earlier_copy<'a>(stem: &'a str, word: &str) -> Option<&'a str> {
 
 /// The filters, highlighters and spotlights on the photo, then cover boxes into the pixels and
 /// the other objects over them, in their order (a lens with its picture made from `photo` at
-/// full size). Returns the boxes whose gain an Ultra HDR photo sets to the lowest: every cover
+/// full size, the filters and the cover boxes on it). Returns the boxes whose gain an Ultra HDR photo sets to the lowest: every cover
 /// box, every object drawn and the filters that hide (left, top, right, bottom in pixels of the
 /// result).
 fn paint(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg::Options) -> Vec<[f32; 4]> {
@@ -196,12 +196,20 @@ fn paint(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg
     holes
 }
 
-/// The object as drawn in the saved file: a lens with its picture at full size.
+/// The object as drawn in the saved file: a lens with its picture at full size, the filters on it
+/// at full size too.
 fn full_size(doc: &Doc, photo: &DynamicImage, o: &Obj) -> Obj {
     match &o.shape {
         Shape::Lens { area, .. } => {
             let zoom = o.style.zoom.max(1) as f32;
-            let pixels = Pixels::new(super::photo::lens(doc, photo, area, zoom, 8000));
+            let filters: Vec<(Area, image::RgbaImage)> = doc
+                .objects
+                .iter()
+                .filter_map(|f| if let Shape::Filter { area, filter, amount, .. } = &f.shape { Some((*area, *filter, *amount)) } else { None })
+                .map(|(a, f, amount)| (a, super::filter::apply(&DynamicImage::ImageRgba8(doc.pixels_under(photo, &a)), f, amount, 1.0).to_rgba8()))
+                .collect();
+            let filtered: Vec<super::photo::Filtered> = filters.iter().map(|(a, p)| (*a, p)).collect();
+            let pixels = Pixels::new(super::photo::lens(doc, photo, area, zoom, 8000, &filtered));
             Obj { shape: Shape::Lens { area: *area, preview: Preview(Some((*area, zoom, pixels))) }, style: o.style }
         }
         _ => o.clone(),

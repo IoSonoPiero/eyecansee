@@ -560,3 +560,30 @@ fn text_box_saved() {
     assert_eq!(img.get_pixel(32, 11).0[..3], BLUE);
     assert_eq!(img.get_pixel(32, 8), photo.get_pixel(32, 8));
 }
+
+/// A lens over a cover box never shows what the box hides: in the saved PNG, wherever the lens
+/// is drawn before or after the box, every pixel inside the lens is the box's colour (the lens
+/// shows a part 15 wide, inside the box) and none of the pattern is left; over Pixelate it shows
+/// the blocks, not the 2-pixel squares of the pattern.
+#[test]
+fn lens_over_a_cover() {
+    use crate::edit::filter::Filter;
+    let bytes = file(&motif(), Format::Png, false);
+    let lens = obj(Shape::Lens { area: Area { centre: Pt::new(0.0, -6.0), w: 30.0, h: 30.0, rot: 0.0 }, preview: Default::default() }, Style { width: 0.0, zoom: 2, ..Style::default() });
+    for before in [true, false] {
+        let mut doc = Doc::new(64, 48, None);
+        let cover = cover_at(0.0, -6.0, 20.0, 18.0);
+        doc.objects = if before { vec![lens.clone(), cover] } else { vec![cover, lens.clone()] };
+        let img = image::load_from_memory(&saved(&bytes, "a.png", &doc).data).unwrap();
+        for (x, y) in (18..46).flat_map(|x| (5..31).map(move |y| (x, y))) {
+            assert_eq!(img.get_pixel(x, y).0[..3], BLUE, "lens {} the box, at {x},{y}", if before { "before" } else { "after" });
+        }
+        assert!(correlation(&img, &motif()) < 0.5);
+    }
+    let mut doc = Doc::new(64, 48, None);
+    doc.objects = vec![obj(Shape::Filter { area: Area { centre: Pt::new(0.0, -6.0), w: 32.0, h: 24.0, rot: 0.0 }, filter: Filter::Pixelate, amount: 8.0, preview: Default::default() }, Style::default()), lens];
+    let img = image::load_from_memory(&saved(&bytes, "a.png", &doc).data).unwrap();
+    // The squares of the pattern would make neighbours differ by 255 every 4 pixels in the lens.
+    let jumps = (18..45).flat_map(|x| (6..30).map(move |y| (x, y))).filter(|&(x, y)| (luma(img.get_pixel(x, y)) - luma(img.get_pixel(x + 1, y))).abs() > 100.0).count();
+    assert!(jumps < 40, "{jumps} jumps");
+}

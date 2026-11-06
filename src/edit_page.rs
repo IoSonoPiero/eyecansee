@@ -137,6 +137,8 @@ pub struct Window {
     clip: Option<(crate::edit::doc::Area, crate::edit::doc::Pixels)>,
     /// How many times the previews of the filters were made: the objects are drawn again then.
     filters_made: u64,
+    /// What the lenses' previews were made with (`photo::hiders_key`).
+    hiders: u64,
     /// A line under the buttons ("Copied…") and until when (seconds of `egui::InputState::time`).
     note: Option<(String, f64)>,
     copying: bool,
@@ -198,6 +200,7 @@ impl Window {
             marquee: None,
             clip: None,
             filters_made: 0,
+            hiders: 0,
             note: None,
             copying: false,
             follow: Follow::Inside,
@@ -360,41 +363,56 @@ impl Window {
         self.refit();
     }
 
-    /// The filters, lenses and highlighters whose preview is missing or was made for another box
-    /// or amount (zoom, colour): made again from the photo, at most 1200 pixels a side. The
-    /// filters not while a drag is under way (the old one is stretched meanwhile): some are slow.
+    /// The filters, highlighters and lenses whose preview is missing or was made for another box
+    /// or amount (colour, zoom): made again from the photo, at most 1200 pixels a side. Filters
+    /// and lenses not while a drag is under way (the old one is stretched meanwhile): some are
+    /// slow. The lenses last, with the filters' previews and the cover boxes on them, and again
+    /// whenever those changed.
     fn refresh_previews(&mut self) {
         use crate::edit::doc::{Pixels, Preview};
         use crate::edit::photo;
         let Some(Ok((original, ..))) = &self.original else { return };
-        for i in 0..self.doc.objects.len() {
-            let o = &self.doc.objects[i];
-            let (area, amount, preview) = match &o.shape {
-                Shape::Filter { area, amount, preview, .. } if self.hold.is_none() => (*area, *amount, preview),
-                Shape::Lens { area, preview } => (*area, o.style.zoom.max(1) as f32, preview),
-                Shape::Highlight { area, preview } => (*area, photo::colour_key(o.style.color), preview),
-                _ => continue,
-            };
-            if preview.0.as_ref().is_some_and(|(a, m, _)| *a == area && *m == amount) {
-                continue;
-            }
-            let scale = (1200.0 / area.w.max(area.h)).min(1.0);
-            let pixels = match &o.shape {
-                Shape::Filter { filter, .. } => {
-                    let under = image::DynamicImage::ImageRgba8(self.doc.pixels_under_at(&original.image, &area, scale));
-                    crate::edit::filter::apply(&under, *filter, amount, scale).to_rgba8()
+        let still = self.hold.is_none();
+        for lenses in [false, true] {
+            if lenses && still && std::mem::replace(&mut self.hiders, photo::hiders_key(&self.doc)) != self.hiders {
+                for o in &mut self.doc.objects {
+                    if let Shape::Lens { preview, .. } = &mut o.shape {
+                        *preview = Preview::default();
+                    }
                 }
-                Shape::Highlight { .. } => {
-                    let mut under = self.doc.pixels_under_at(&original.image, &area, scale);
-                    photo::highlighted(&mut under, o.style.color);
-                    under
-                }
-                _ => photo::lens(&self.doc, &original.image, &area, amount, 1200),
-            };
-            if let Shape::Filter { preview, .. } | Shape::Lens { preview, .. } | Shape::Highlight { preview, .. } = &mut self.doc.objects[i].shape {
-                *preview = Preview(Some((area, amount, Pixels::new(pixels))));
             }
-            self.filters_made += 1;
+            for i in 0..self.doc.objects.len() {
+                let o = &self.doc.objects[i];
+                let (area, amount, preview) = match &o.shape {
+                    Shape::Filter { area, amount, preview, .. } if still && !lenses => (*area, *amount, preview),
+                    Shape::Highlight { area, preview } if !lenses => (*area, photo::colour_key(o.style.color), preview),
+                    Shape::Lens { area, preview } if still && lenses => (*area, o.style.zoom.max(1) as f32, preview),
+                    _ => continue,
+                };
+                if preview.0.as_ref().is_some_and(|(a, m, _)| *a == area && *m == amount) {
+                    continue;
+                }
+                let scale = (1200.0 / area.w.max(area.h)).min(1.0);
+                let pixels = match &o.shape {
+                    Shape::Filter { filter, .. } => {
+                        let under = image::DynamicImage::ImageRgba8(self.doc.pixels_under_at(&original.image, &area, scale));
+                        crate::edit::filter::apply(&under, *filter, amount, scale).to_rgba8()
+                    }
+                    Shape::Highlight { .. } => {
+                        let mut under = self.doc.pixels_under_at(&original.image, &area, scale);
+                        photo::highlighted(&mut under, o.style.color);
+                        under
+                    }
+                    _ => {
+                        let filtered: Vec<photo::Filtered> = self.doc.objects.iter().filter_map(|f| if let Shape::Filter { preview: Preview(Some((a, _, p))), .. } = &f.shape { Some((*a, p.image())) } else { None }).collect();
+                        photo::lens(&self.doc, &original.image, &area, amount, 1200, &filtered)
+                    }
+                };
+                if let Shape::Filter { preview, .. } | Shape::Lens { preview, .. } | Shape::Highlight { preview, .. } = &mut self.doc.objects[i].shape {
+                    *preview = Preview(Some((area, amount, Pixels::new(pixels))));
+                }
+                self.filters_made += 1;
+            }
         }
     }
 
