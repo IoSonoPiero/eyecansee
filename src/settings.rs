@@ -61,6 +61,9 @@ pub struct Settings {
     /// The editor's last style for each kind of object (`edit::geom::Kind`), the width (the size
     /// of a text) as a fraction of the long side of the image, so it looks the same on any photo.
     pub edit_styles: Vec<(crate::edit::geom::Kind, crate::edit::doc::Style)>,
+    /// The highlighters remembered before it multiplied (at 40%, for a plain fill) are at full
+    /// opacity: done once (2026-11-06).
+    pub edit_multiply: bool,
 }
 
 /// For phones, FTP, SFTP; local files go by `local_permanent`.
@@ -198,6 +201,7 @@ impl Default for Settings {
             slideshow_fade: crate::slideshow::Fade::Cross,
             slideshow_loop: true,
             edit_styles: Vec::new(),
+            edit_multiply: false,
         }
     }
 }
@@ -225,10 +229,24 @@ impl Settings {
         let Some(path) = path() else { return Self::default() };
         let Ok(text) = std::fs::read_to_string(&path) else { return Self::default() };
         // A BOM (written by PowerShell and some editors) is not JSON: without this the file was set aside.
-        serde_json::from_str(text.trim_start_matches('\u{feff}')).unwrap_or_else(|_| {
+        serde_json::from_str(text.trim_start_matches('\u{feff}')).map(Self::upgraded).unwrap_or_else(|_| {
             let _ = std::fs::rename(&path, path.with_extension("json.bad"));
             Self::default()
         })
+    }
+
+    /// Settings of an older EyeCanSee brought up to date: the highlighter remembered at 40%
+    /// (a plain fill then) multiplies in full.
+    fn upgraded(mut self) -> Self {
+        if !self.edit_multiply {
+            for (kind, style) in &mut self.edit_styles {
+                if *kind == crate::edit::geom::Kind::Highlight {
+                    style.opacity = 1.0;
+                }
+            }
+            self.edit_multiply = true;
+        }
+        self
     }
 
     /// Written to a temporary file and renamed: never a half-written file. Errors are ignored.
@@ -246,6 +264,18 @@ impl Settings {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A highlighter remembered before the multiply goes to full opacity, once: one chosen after
+    /// it is kept.
+    #[test]
+    fn highlighter_brought_up_to_date() {
+        let old = r#"{"edit_styles": [["Highlight", {"color": [255, 230, 0], "width": 0.004, "opacity": 0.4, "dash": "Solid"}], ["Rect", {"color": [255, 0, 0], "width": 0.004, "opacity": 0.4, "dash": "Solid"}]]}"#;
+        let s = serde_json::from_str::<Settings>(old).unwrap().upgraded();
+        assert_eq!((s.edit_styles[0].1.opacity, s.edit_styles[1].1.opacity, s.edit_multiply), (1.0, 0.4, true));
+        let mut again = s.clone();
+        again.edit_styles[0].1.opacity = 0.4;
+        assert_eq!(again.upgraded().edit_styles[0].1.opacity, 0.4);
+    }
 
     #[test]
     fn missing_keys_get_defaults() {
