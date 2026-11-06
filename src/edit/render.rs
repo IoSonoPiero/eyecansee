@@ -48,13 +48,19 @@ fn svg(doc: &Doc, (w, h): (u32, u32), view: &View, options: &usvg::Options) -> S
     let (iw, ih) = if doc.turn.sideways() { (h, w) } else { (w, h) };
     let (left, top) = crate::rotate::corner(iw as f32, ih as f32, doc.crop);
     let (tx, ty) = (-(left + view.x), -(top + view.y));
-    let mut out = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{}" height="{}"><g transform="scale({}) translate({tx} {ty}) rotate({})">"#, view.w, view.h, view.scale, doc.angle);
+    let group = format!(r#"<g transform="scale({}) translate({tx} {ty}) rotate({})">"#, view.scale, doc.angle);
+    let mut out = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{}" height="{}">"#, view.w, view.h);
     // The filters first, the highlighters, then the spotlights: they change the photo, the
-    // objects drawn stay over them.
+    // objects drawn stay over them. No empty group: its origin counted in `bounds`.
+    let mut layer = String::new();
     for o in doc.objects.iter().filter(|o| matches!(o.shape, Shape::Filter { .. })).chain(doc.objects.iter().filter(|o| matches!(o.shape, Shape::Highlight { .. }))) {
-        object(&mut out, o, options);
+        object(&mut layer, o, options);
     }
-    spotlights(&mut out, &doc.objects);
+    if !layer.is_empty() {
+        let _ = write!(out, "{group}{layer}</g>");
+    }
+    spotlights(&mut out, &doc.objects, view, &group);
+    out.push_str(&group);
     for o in doc.objects.iter().filter(|o| !o.shape.is_layer()) {
         object(&mut out, o, options);
     }
@@ -116,17 +122,18 @@ fn object(out: &mut String, o: &Obj, options: &usvg::Options) {
 }
 
 /// The spotlights: black over everything but their boxes (a mask), as dark as the darkest of them.
-fn spotlights(out: &mut String, objects: &[Obj]) {
+/// Over the whole view, in its own pixels: a mask as large as the whole image cost seconds
+/// (2026-11-06, 2.7 s for one spotlight on a 3336 × 2393 photo); `group` places the boxes.
+fn spotlights(out: &mut String, objects: &[Obj], view: &View, group: &str) {
     let spots: Vec<&Obj> = objects.iter().filter(|o| matches!(o.shape, Shape::Spotlight(_))).collect();
     let Some(dark) = spots.iter().map(|o| o.style.opacity).reduce(f32::max) else { return };
-    let far = 1e5;
-    let all = format!(r#"x="{}" y="{}" width="{}" height="{}""#, -far, -far, 2.0 * far, 2.0 * far);
-    let _ = write!(out, r#"<defs><mask id="spots" maskUnits="userSpaceOnUse" {all}><rect {all} fill="white"/>"#);
+    let all = format!(r#"x="0" y="0" width="{}" height="{}""#, view.w, view.h);
+    let _ = write!(out, r#"<defs><mask id="spots" maskUnits="userSpaceOnUse" {all}><rect {all} fill="white"/>{group}"#);
     for o in spots {
         let Shape::Spotlight(a) = &o.shape else { continue };
         let _ = if o.style.round { write!(out, r#"<ellipse {} fill="black"/>"#, ellipse(a)) } else { write!(out, r#"<rect {} fill="black"/>"#, rect(a)) };
     }
-    let _ = write!(out, r#"</mask></defs><rect {all} fill="black" opacity="{dark}" mask="url(#spots)"/>"#);
+    let _ = write!(out, r#"</g></mask></defs><rect {all} fill="black" opacity="{dark}" mask="url(#spots)"/>"#);
 }
 
 /// Ends of the lines and dashes: round when solid; square ends on dashes, round ones would
@@ -192,8 +199,12 @@ fn bubble(out: &mut String, (a, tail): (&Area, Pt), text: &str, font: Option<&st
     let len = dx.hypot(dy).max(1e-3);
     let (nx, ny) = (-dy / len * 0.15 * short, dx / len * 0.15 * short);
     let shape = format!(r#"{body}<polygon points="{},{} {},{} {},{}"/>"#, a.centre.x + nx, a.centre.y + ny, tail.x, tail.y, a.centre.x - nx, a.centre.y - ny);
-    let far = 1e5;
-    write!(out, r#"<defs><mask id="{id}" maskUnits="userSpaceOnUse" x="{}" y="{}" width="{}" height="{}"><rect x="{}" y="{}" width="{}" height="{}" fill="white"/><g fill="black">{shape}</g></mask></defs>"#, -far, -far, 2.0 * far, 2.0 * far, -far, -far, 2.0 * far, 2.0 * far)?;
+    // The mask only round the bubble and its border: one as large as the image cost seconds.
+    let reach = a.w.hypot(a.h) / 2.0 + 2.0 * style.width + 1.0;
+    let (x0, y0) = ((a.centre.x - reach).min(tail.x - 2.0 * style.width - 1.0), (a.centre.y - reach).min(tail.y - 2.0 * style.width - 1.0));
+    let (x1, y1) = ((a.centre.x + reach).max(tail.x + 2.0 * style.width + 1.0), (a.centre.y + reach).max(tail.y + 2.0 * style.width + 1.0));
+    let all = format!(r#"x="{x0}" y="{y0}" width="{}" height="{}""#, x1 - x0, y1 - y0);
+    write!(out, r#"<defs><mask id="{id}" maskUnits="userSpaceOnUse" {all}><rect {all} fill="white"/><g fill="black">{shape}</g></mask></defs>"#)?;
     write!(out, r#"<g mask="url(#{id})" fill="none" stroke="rgb({r},{g},{b})" stroke-width="{}" stroke-linejoin="round">{shape}</g>"#, 2.0 * style.width)?;
     if let Some([fr, fg, fb]) = style.fill {
         write!(out, r#"<g fill="rgb({fr},{fg},{fb})">{shape}</g>"#)?;
@@ -796,4 +807,5 @@ pub(crate) mod tests {
         assert!(cy > 60.0, "letters at {cy}");
     }
 }
+
 
