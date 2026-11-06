@@ -501,3 +501,18 @@ fn lens_saved() {
     doc.edit().apply(&mut copy);
     assert_eq!(paint(&doc, &photo, &mut copy, &options()).len(), 1);
 }
+
+/// Spotlights in the saved image: inside them the photo as it was, outside it darkened by the
+/// darker one, a line drawn over the darkening; a transparent pixel stays transparent.
+#[test]
+fn spotlight_saved() {
+    let photo = DynamicImage::ImageRgba8(image::RgbaImage::from_fn(64, 48, |x, _| if x < 4 { image::Rgba([0; 4]) } else { image::Rgba([200, 100, 50, 255]) }));
+    let mut doc = Doc::new(64, 48, None);
+    let spot = |x, opacity| obj(Shape::Spotlight(Area { centre: Pt::new(x, 0.0), w: 12.0, h: 12.0, rot: 0.0 }), Style { opacity, ..Style::default() });
+    doc.objects = vec![obj(Shape::Line(Pt::new(-20.0, 16.0), Pt::new(20.0, 16.0), None), Style { color: BLUE, width: 2.0, ..Style::default() }), spot(-14.0, 0.25), spot(14.0, 0.5)];
+    let img = result(&doc, &Original::with_meta(photo, &[]), &options());
+    assert_eq!((img.get_pixel(18, 24).0, img.get_pixel(46, 24).0), ([200, 100, 50, 255], [200, 100, 50, 255]));
+    assert_eq!(img.get_pixel(32, 24).0, [100, 50, 25, 255]);
+    assert_eq!(img.get_pixel(32, 40).0[..3], BLUE);
+    assert_eq!(img.get_pixel(1, 24).0[3], 0);
+}

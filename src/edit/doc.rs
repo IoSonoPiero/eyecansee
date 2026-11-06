@@ -73,6 +73,10 @@ pub enum Shape {
     /// A lens: the photo under the box magnified `Style::zoom` times, round (`Style::round`) or
     /// as the box, with a border; `preview` as a filter's, made from the photo.
     Lens { area: Area, preview: Preview },
+    /// A spotlight: the box (an ellipse in it with `Style::round`) stays as it is and the rest of
+    /// the photo is darkened by `Style::opacity`; with several, all their boxes stay bright and
+    /// the darkest of them darkens the rest. Under the objects drawn, as the filters.
+    Spotlight(Area),
     /// The ellipse inside the box, with a border and a fill as the rectangle.
     Ellipse(Area),
     Highlight(Area),
@@ -196,7 +200,7 @@ pub struct Style {
     /// Bubbles: the height of the letters, in pixels of the image (0 in styles kept before it).
     #[serde(default)]
     pub letters: f32,
-    /// Bubbles oval instead of rounded, lenses round instead of square.
+    /// Bubbles oval instead of rounded, lenses and spotlights round instead of square.
     #[serde(default)]
     pub round: bool,
     /// Lenses: how many times they magnify.
@@ -234,14 +238,14 @@ impl Shape {
     /// The box of the objects drawn in one: rectangles, cover boxes, patches, filters…
     pub fn area(&self) -> Option<&Area> {
         match self {
-            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } | Shape::Lens { area: a, .. } => Some(a),
+            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } | Shape::Lens { area: a, .. } | Shape::Spotlight(a) => Some(a),
             Shape::Line(..) | Shape::Arrow(..) | Shape::Pen(_) | Shape::Text { .. } => None,
         }
     }
 
     pub fn area_mut(&mut self) -> Option<&mut Area> {
         match self {
-            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } | Shape::Lens { area: a, .. } => Some(a),
+            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } | Shape::Lens { area: a, .. } | Shape::Spotlight(a) => Some(a),
             Shape::Line(..) | Shape::Arrow(..) | Shape::Pen(_) | Shape::Text { .. } => None,
         }
     }
@@ -271,6 +275,12 @@ impl Shape {
 }
 
 impl Shape {
+    /// Drawn on the photo, under all the objects (whatever their order), as a layer: the filters
+    /// and the spotlights.
+    pub fn is_layer(&self) -> bool {
+        matches!(self, Shape::Filter { .. } | Shape::Spotlight(_))
+    }
+
     /// The letters of a text or a bubble.
     pub fn text_mut(&mut self) -> Option<&mut String> {
         match self {
@@ -423,6 +433,7 @@ pub(crate) mod tests {
             Obj { shape: Shape::Step { area: Area { w: 5.0, h: 5.0, ..area }, n: 3 }, style },
             Obj { shape: Shape::Bubble { area: Area { rot: 30.0, ..area }, tail: Pt::new(-2.0, 9.5), text: "Ciao".into(), font: None }, style },
             Obj { shape: Shape::Lens { area, preview: Preview::default() }, style },
+            Obj { shape: Shape::Spotlight(Area { rot: 7.0, ..area }), style },
             Obj { shape: Shape::Pen(vec![Pt::new(1.0, 2.0), Pt::new(3.5, -4.0), Pt::new(8.0, 0.5)]), style },
             Obj { shape: Shape::Highlight(area), style: Style { opacity: 0.4, ..style } },
             Obj { shape: Shape::Text { at: Pt::new(5.0, -6.0), text: "à €".into(), size: 12.0, rot: -3.5, font: None, path: None }, style },

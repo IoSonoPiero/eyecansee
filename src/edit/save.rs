@@ -158,9 +158,18 @@ fn paint(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg
             }
         }
     }
+    // The spotlights over the whole result, the transparent pixels left as they are; an Ultra HDR
+    // photo keeps its gain there (darkened, the HDR one is darkened as much).
+    let spots: Vec<Obj> = doc.objects.iter().filter(|o| matches!(o.shape, Shape::Spotlight(_))).cloned().collect();
+    if !spots.is_empty() {
+        let all = Doc { turn: doc.turn, angle: doc.angle, crop: doc.crop, fill: doc.fill, objects: spots };
+        if let Some(p) = render::render(&all, size, &View { x: 0.0, y: 0.0, w: img.width(), h: img.height(), scale: 1.0 }, options) {
+            over(img, &p, 0, 0, true);
+        }
+    }
     // In the order they were drawn: a cover box hides what was drawn before it, what comes after
     // it stays on top (as layers; user's choice of 2026-11-05).
-    for o in doc.objects.iter().filter(|o| !matches!(o.shape, Shape::Filter { .. })) {
+    for o in doc.objects.iter().filter(|o| !o.shape.is_layer()) {
         if let Shape::Cover(area) = &o.shape {
             holes.push(cover(img, area, doc.angle, corner, o.style.color));
             continue;
@@ -172,7 +181,7 @@ fn paint(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg
         if x1 > x0 && y1 > y0 {
             let view = View { x: x0, y: y0, w: (x1 - x0) as u32, h: (y1 - y0) as u32, scale: 1.0 };
             if let Some(p) = render::render(&one, size, &view, options) {
-                over(img, &p, x0 as u32, y0 as u32);
+                over(img, &p, x0 as u32, y0 as u32, false);
             }
         }
         if !matches!(o.shape, Shape::Highlight(_)) {
@@ -270,27 +279,29 @@ fn cover(img: &mut DynamicImage, area: &Area, angle: f32, (left, top): (f32, f32
 }
 
 /// The pixmap `p` (premultiplied) laid over `img` with its top left corner at `x0`, `y0`, in the
-/// image's own depth.
-fn over(img: &mut DynamicImage, p: &tiny_skia::Pixmap, x0: u32, y0: u32) {
+/// image's own depth; with `keep_alpha` the transparency of `img` stays as it was ("atop").
+fn over(img: &mut DynamicImage, p: &tiny_skia::Pixmap, x0: u32, y0: u32, keep_alpha: bool) {
     let w = img.width();
+    // As three channels, the alpha is not touched.
+    let c = |n: usize| if keep_alpha { 3 } else { n };
     match img {
-        DynamicImage::ImageRgb8(b) => blend(b, 3, w, 255.0, |v| v as u8, p, x0, y0),
-        DynamicImage::ImageRgba8(b) => blend(b, 4, w, 255.0, |v| v as u8, p, x0, y0),
-        DynamicImage::ImageRgb16(b) => blend(b, 3, w, 65535.0, |v| v as u16, p, x0, y0),
-        DynamicImage::ImageRgba16(b) => blend(b, 4, w, 65535.0, |v| v as u16, p, x0, y0),
-        DynamicImage::ImageRgb32F(b) => blend(b, 3, w, 1.0, |v| v, p, x0, y0),
-        DynamicImage::ImageRgba32F(b) => blend(b, 4, w, 1.0, |v| v, p, x0, y0),
+        DynamicImage::ImageRgb8(b) => blend(b, (3, 3), w, 255.0, |v| v as u8, p, x0, y0),
+        DynamicImage::ImageRgba8(b) => blend(b, (4, c(4)), w, 255.0, |v| v as u8, p, x0, y0),
+        DynamicImage::ImageRgb16(b) => blend(b, (3, 3), w, 65535.0, |v| v as u16, p, x0, y0),
+        DynamicImage::ImageRgba16(b) => blend(b, (4, c(4)), w, 65535.0, |v| v as u16, p, x0, y0),
+        DynamicImage::ImageRgb32F(b) => blend(b, (3, 3), w, 1.0, |v| v, p, x0, y0),
+        DynamicImage::ImageRgba32F(b) => blend(b, (4, c(4)), w, 1.0, |v| v, p, x0, y0),
         other => {
             *other = DynamicImage::ImageRgba8(other.to_rgba8());
-            over(other, p, x0, y0);
+            over(other, p, x0, y0, keep_alpha);
         }
     }
 }
 
-/// "Over" of `p` on the samples (`channels` 3 or 4, `max` the largest value); `back` from a value
-/// already rounded to a sample.
+/// "Over" of `p` on the samples (`stride` 3 or 4 a pixel, `channels` blended: 3 leaves the
+/// alpha alone, `max` the largest value); `back` from a value already rounded to a sample.
 #[allow(clippy::too_many_arguments)]
-fn blend<S: Copy + Into<f32>>(data: &mut [S], channels: usize, width: u32, max: f32, back: fn(f32) -> S, p: &tiny_skia::Pixmap, x0: u32, y0: u32) {
+fn blend<S: Copy + Into<f32>>(data: &mut [S], (stride, channels): (usize, usize), width: u32, max: f32, back: fn(f32) -> S, p: &tiny_skia::Pixmap, x0: u32, y0: u32) {
     let round = |v: f32| if max > 1.0 { (v * max + 0.5).clamp(0.0, max) } else { v };
     for (i, px) in p.pixels().iter().enumerate() {
         let a = px.alpha() as f32 / 255.0;
@@ -298,7 +309,7 @@ fn blend<S: Copy + Into<f32>>(data: &mut [S], channels: usize, width: u32, max: 
             continue;
         }
         let (x, y) = (x0 + i as u32 % p.width(), y0 + i as u32 / p.width());
-        let at = (y as usize * width as usize + x as usize) * channels;
+        let at = (y as usize * width as usize + x as usize) * stride;
         let Some(dst) = data.get_mut(at..at + channels) else { continue };
         let below = if channels == 4 { dst[3].into() / max } else { 1.0 };
         let out = a + below * (1.0 - a);

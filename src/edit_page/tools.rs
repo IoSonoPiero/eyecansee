@@ -16,7 +16,7 @@ use crate::icons::{self, Line};
 use crate::transform::Op;
 
 /// The tools: icon, name, key (alone, no Ctrl).
-pub(super) const TOOLS: [(Tool, Line, &str, Key); 14] = [
+pub(super) const TOOLS: [(Tool, Line, &str, Key); 15] = [
     (Tool::Select, Line::Select, "edit-tool-select", Key::V),
     (Tool::Marquee, Line::Marquee, "edit-tool-marquee", Key::M),
     (Tool::Draw(Kind::Arrow), Line::Arrow, "edit-tool-arrow", Key::A),
@@ -25,6 +25,7 @@ pub(super) const TOOLS: [(Tool, Line, &str, Key); 14] = [
     (Tool::Draw(Kind::Rect), Line::Rect, "edit-tool-rect", Key::R),
     (Tool::Draw(Kind::Ellipse), Line::Ellipse, "edit-tool-ellipse", Key::E),
     (Tool::Draw(Kind::Highlight), Line::Highlight, "edit-tool-highlight", Key::H),
+    (Tool::Draw(Kind::Spotlight), Line::Spotlight, "edit-tool-spotlight", Key::S),
     (Tool::Draw(Kind::Text), Line::Text, "edit-tool-text", Key::T),
     (Tool::Draw(Kind::Bubble), Line::Bubble, "edit-tool-bubble", Key::U),
     (Tool::Draw(Kind::Step), Line::Step, "edit-tool-step", Key::N),
@@ -279,6 +280,7 @@ fn hint_id(tool: Tool) -> &'static str {
         Tool::Draw(Kind::Step) => "edit-tip-step",
         Tool::Draw(Kind::Bubble) => "edit-tip-bubble",
         Tool::Draw(Kind::Lens) => "edit-tip-lens",
+        Tool::Draw(Kind::Spotlight) => "edit-tip-spotlight",
         Tool::Draw(_) => "edit-tip-draw",
     }
 }
@@ -320,8 +322,8 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     if boxed {
         ui.label(i18n.t("edit-border"));
     }
-    // A piece of image has its own colours.
-    let screen = kind != Kind::Patch && {
+    // A piece of image has its own colours, a spotlight none.
+    let screen = !matches!(kind, Kind::Patch | Kind::Spotlight) && {
         colours(ui, &mut style.color, i18n);
         eyedroppers(ui, w, i18n)
     };
@@ -331,22 +333,7 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
         fill_colours(ui, &mut style.fill, i18n);
     }
     style_controls(ui, &mut style, kind, w.long(), i18n);
-    match kind {
-        Kind::Bubble => super::props::bubble(ui, &mut style, w.long(), i18n),
-        Kind::Lens => super::props::lens(ui, &mut style, i18n),
-        _ => {}
-    }
-    if matches!(kind, Kind::Text | Kind::Bubble) {
-        ui.separator();
-        if let Some(i) = selected {
-            font_choice(ui, w, i, i18n);
-            if kind == Kind::Text {
-                text_curve(ui, w, i, i18n);
-                text_angle(ui, w, i, i18n);
-            }
-        }
-        text_field(ui, w, selected, i18n);
-    }
+    kind_controls(ui, w, &mut style, (kind, selected), i18n);
     if let Some(i) = selected {
         let o = &mut w.doc.objects[i];
         o.style = style;
@@ -368,6 +355,31 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     }
     w.remember(kind, style);
     screen
+}
+
+/// What only some kinds have: the shape and letters of a bubble, a lens's zoom, a spotlight's
+/// shape, the font and the letters of a text or a bubble.
+fn kind_controls(ui: &mut egui::Ui, w: &mut Window, style: &mut Style, (kind, selected): (Kind, Option<usize>), i18n: &I18n) {
+    match kind {
+        Kind::Bubble => super::props::bubble(ui, style, w.long(), i18n),
+        Kind::Lens => super::props::lens(ui, style, i18n),
+        Kind::Spotlight => {
+            ui.separator();
+            super::props::round_or_square(ui, style, i18n);
+        }
+        _ => {}
+    }
+    if matches!(kind, Kind::Text | Kind::Bubble) {
+        ui.separator();
+        if let Some(i) = selected {
+            font_choice(ui, w, i, i18n);
+            if kind == Kind::Text {
+                text_curve(ui, w, i, i18n);
+                text_angle(ui, w, i, i18n);
+            }
+        }
+        text_field(ui, w, selected, i18n);
+    }
 }
 
 /// One eyedropper (user, 2026-11-05: "only the one that takes any colour"), its button or I:
@@ -402,11 +414,12 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
         // A lens may have no border.
         Kind::Lens => slider(ui, t("edit-width"), &mut style.width, 0.0..=max, " px"),
         Kind::Text | Kind::Step => slider(ui, t("edit-size"), &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
-        Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter => {}
+        Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter | Kind::Spotlight => {}
     }
     if kind != Kind::Cover {
         let mut pct = style.opacity * 100.0;
-        slider(ui, t("edit-opacity"), &mut pct, 5.0..=100.0, " %");
+        // A spotlight's opacity is how dark the rest gets.
+        slider(ui, t(if kind == Kind::Spotlight { "edit-intensity" } else { "edit-opacity" }), &mut pct, 5.0..=100.0, " %");
         style.opacity = (pct / 100.0).clamp(0.05, 1.0);
     }
     if kind == Kind::Arrow {

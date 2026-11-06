@@ -18,6 +18,7 @@ pub enum Kind {
     Step,
     Bubble,
     Lens,
+    Spotlight,
     Highlight,
     Text,
     Cover,
@@ -38,6 +39,7 @@ impl Kind {
             Shape::Step { .. } => Kind::Step,
             Shape::Bubble { .. } => Kind::Bubble,
             Shape::Lens { .. } => Kind::Lens,
+            Shape::Spotlight(_) => Kind::Spotlight,
             Shape::Highlight(_) => Kind::Highlight,
             Shape::Text { .. } => Kind::Text,
             Shape::Cover(_) => Kind::Cover,
@@ -130,11 +132,11 @@ pub fn hit(o: &Obj, p: Pt, tol: f32) -> bool {
     }
 }
 
-/// The topmost object under `p`; a filter only where no object is, as it is drawn under them all
-/// (a filter on the whole image took every click).
+/// The topmost object under `p`; a filter or a spotlight only where no object is, as they are
+/// drawn under them all (a filter on the whole image took every click).
 pub fn under(objects: &[Obj], p: Pt, tol: f32) -> Option<usize> {
-    let filter = |o: &Obj| matches!(o.shape, Shape::Filter { .. });
-    objects.iter().rposition(|o| !filter(o) && hit(o, p, tol)).or_else(|| objects.iter().rposition(|o| filter(o) && hit(o, p, tol)))
+    let layer = |o: &Obj| o.shape.is_layer();
+    objects.iter().rposition(|o| !layer(o) && hit(o, p, tol)).or_else(|| objects.iter().rposition(|o| layer(o) && hit(o, p, tol)))
 }
 
 /// The object moved by `d`.
@@ -258,6 +260,7 @@ pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style, square: bool) -
         Kind::Pen => long.then_some(Shape::Pen(vec![a, b]))?,
         Kind::Rect => Shape::Rect(area()?),
         Kind::Ellipse => Shape::Ellipse(area()?),
+        Kind::Spotlight => Shape::Spotlight(area()?),
         Kind::Lens => Shape::Lens { area: area()?, preview: Default::default() },
         // The tail at first down and to the left, out of the box.
         Kind::Bubble => {

@@ -48,9 +48,13 @@ fn svg(doc: &Doc, (w, h): (u32, u32), view: &View) -> String {
     let (left, top) = crate::rotate::corner(iw as f32, ih as f32, doc.crop);
     let (tx, ty) = (-(left + view.x), -(top + view.y));
     let mut out = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{}" height="{}"><g transform="scale({}) translate({tx} {ty}) rotate({})">"#, view.w, view.h, view.scale, doc.angle);
-    // The filters first: they change the photo, the objects drawn stay over them.
-    let filter = |o: &&Obj| matches!(o.shape, Shape::Filter { .. });
-    for o in doc.objects.iter().filter(filter).chain(doc.objects.iter().filter(|o| !filter(o))) {
+    // The filters first, then the spotlights: they change the photo, the objects drawn stay over
+    // them.
+    for o in doc.objects.iter().filter(|o| matches!(o.shape, Shape::Filter { .. })) {
+        object(&mut out, o);
+    }
+    spotlights(&mut out, &doc.objects);
+    for o in doc.objects.iter().filter(|o| !o.shape.is_layer()) {
         object(&mut out, o);
     }
     out.push_str("</g></svg>");
@@ -67,6 +71,8 @@ fn object(out: &mut String, o: &Obj) {
         Shape::Line(a, b, c) => line(out, *a, *b, *c, &stroke),
         Shape::Arrow(a, b, c) => arrow(out, (*a, *b, *c), head, width, &stroke, &fill),
         Shape::Step { area, n } => step(out, area, *n, o.style.color),
+        // All together, in `spotlights`.
+        Shape::Spotlight(_) => Ok(()),
         Shape::Lens { area, preview } => lens(out, area, preview, &o.style, &stroke),
         Shape::Bubble { area, tail, text, font } => bubble(out, (area, *tail), text, font.as_deref(), &o.style),
         Shape::Pen(points) => write!(out, r#"<path d="{}" {stroke} stroke-linejoin="round"/>"#, smooth(points)),
@@ -94,6 +100,20 @@ fn object(out: &mut String, o: &Obj) {
         },
     };
     out.push_str("</g>");
+}
+
+/// The spotlights: black over everything but their boxes (a mask), as dark as the darkest of them.
+fn spotlights(out: &mut String, objects: &[Obj]) {
+    let spots: Vec<&Obj> = objects.iter().filter(|o| matches!(o.shape, Shape::Spotlight(_))).collect();
+    let Some(dark) = spots.iter().map(|o| o.style.opacity).reduce(f32::max) else { return };
+    let far = 1e5;
+    let all = format!(r#"x="{}" y="{}" width="{}" height="{}""#, -far, -far, 2.0 * far, 2.0 * far);
+    let _ = write!(out, r#"<defs><mask id="spots" maskUnits="userSpaceOnUse" {all}><rect {all} fill="white"/>"#);
+    for o in spots {
+        let Shape::Spotlight(a) = &o.shape else { continue };
+        let _ = if o.style.round { write!(out, r#"<ellipse {} fill="black"/>"#, ellipse(a)) } else { write!(out, r#"<rect {} fill="black"/>"#, rect(a)) };
+    }
+    let _ = write!(out, r#"</mask></defs><rect {all} fill="black" opacity="{dark}" mask="url(#spots)"/>"#);
 }
 
 /// Ends of the lines and dashes: round when solid; square ends on dashes, round ones would
@@ -623,6 +643,22 @@ pub(crate) mod tests {
         let p = draw(&d, &whole(&d));
         let c = |x, y| { let c = p.pixel(x, y).unwrap().demultiply(); [c.red(), c.green(), c.blue(), c.alpha()] };
         assert_eq!((c(50, 40), c(50, 20), c(32, 22)[3]), ([0, 0, 255, 255], [255, 0, 0, 255], 0));
+    }
+
+    /// Two spotlights: their boxes untouched (one a circle), the rest black at the darker one's
+    /// opacity, drawn under a line drawn before them.
+    #[test]
+    fn spotlights_together() {
+        let d = doc(vec![
+            Obj { shape: Shape::Line(Pt::new(-45.0, 30.0), Pt::new(45.0, 30.0), None), style: style() },
+            Obj { shape: Shape::Spotlight(area(-25.0, 0.0, 20.0, 20.0)), style: Style { opacity: 0.4, ..style() } },
+            Obj { shape: Shape::Spotlight(area(25.0, 0.0, 20.0, 20.0)), style: Style { opacity: 0.6, round: true, ..style() } },
+        ]);
+        let p = draw(&d, &whole(&d));
+        let c = |x, y| { let c = p.pixel(x, y).unwrap(); [c.red(), c.green(), c.blue(), c.alpha()] };
+        assert_eq!((c(25, 40)[3], c(75, 40)[3], c(66, 31)[3]), (0, 0, 153), "inside both, outside the circle's corner");
+        assert_eq!((c(50, 40), c(50, 10)), ([0, 0, 0, 153], [0, 0, 0, 153]));
+        assert_eq!(c(50, 70), [255, 0, 0, 255], "the line over the darkening");
     }
 
     /// A patch: its pixels where its box is, stretched to it.
