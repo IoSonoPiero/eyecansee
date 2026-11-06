@@ -500,15 +500,17 @@ fn marquee_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
     }
 }
 
-/// The eyedropper: a click takes the colour of the image there, nothing else happens.
+/// The eyedropper: a click takes the colour there, nothing else happens. On Windows the screen's
+/// pixel (the objects drawn too), also where a drag started on the image is let go, anywhere on
+/// the screen; elsewhere the image's.
 fn pick_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View) {
-    if response.hovered() {
+    if response.hovered() || response.dragged() {
         ui.ctx().set_cursor_icon(CursorIcon::Crosshair);
     }
-    if response.clicked()
+    if (response.clicked() || response.drag_stopped())
         && let Some(s) = response.interact_pointer_pos()
     {
-        w.picked = colour_at(w, view, s).or(w.picked);
+        w.picked = crate::eyedropper::at_cursor().or_else(|| colour_at(w, view, s)).or(w.picked);
         w.picking = false;
     }
 }
