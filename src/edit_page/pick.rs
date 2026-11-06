@@ -29,7 +29,10 @@ pub(super) fn mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, vi
             w.pick_box = Some(p);
         }
         let at = pointer.filter(|p| response.rect.contains(*p));
-        if let Some(grid) = around(w, view, at) {
+        // Over the image only, as on Linux; past it only while dragging, to take a colour from
+        // elsewhere on the screen (user, 2026-11-06).
+        let on_image = at.is_some_and(|s| photo_at(w, view.doc(s, w.doc.angle)).is_some());
+        if let Some(grid) = (on_image || response.dragged()).then(|| around(w, view, at)).flatten() {
             let p = w.pick_box.unwrap_or(response.rect.left_bottom()) + egui::vec2(18.0, 18.0);
             let place = Pos2::new(p.x.min(window.right() - 260.0), p.y.min(window.bottom() - 110.0));
             swatch(ui.ctx(), place, &grid, average(&grid, w.pick_size), current(w));
