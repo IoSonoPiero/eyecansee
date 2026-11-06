@@ -347,7 +347,7 @@ mod tests {
             let name = path.file_name().unwrap().to_string_lossy().to_string();
             let bytes = std::fs::read(&path).unwrap();
             let turn = crate::transform::Turn::default().then(crate::transform::Op::Cw);
-            match crate::encode::turned_file(&bytes, &name, turn) {
+            match crate::save_back::turned_file(&bytes, &name, turn) {
                 Ok((out, flattened)) => {
                     println!("{name}: ok, flattened {flattened}, {} bytes", out.len());
                     std::fs::write(std::path::Path::new(&dst).join(&name), out).unwrap();

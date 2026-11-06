@@ -267,17 +267,13 @@ impl App {
         }
         // Enter and Esc arrive as `delete_answer` (`raw_input_hook`).
         let mut close = self.delete_answer.take().is_some();
-        egui::Modal::new(egui::Id::unique("notice")).show(ctx, |ui| {
-            ui.set_max_width(460.0);
-            // A short message ("Images saved: 1.") made a box so small it went unnoticed.
-            ui.set_min_width(320.0);
-            notice_text(ui, &text);
+        let stalled = self.stall_notice.as_ref() == Some(&text);
+        let (why, url) = (self.i18n.t("phone-stalled-why"), self.i18n.t("phone-stalled-url"));
+        message(ctx, "notice", &text, |ui| {
             // A stalled phone (`phone_stall`): our page on why, in the app's language.
-            if self.stall_notice.as_ref() == Some(&text) {
-                ui.add_space(4.0);
-                ui.hyperlink_to(self.i18n.t("phone-stalled-why"), self.i18n.t("phone-stalled-url"));
+            if stalled {
+                ui.hyperlink_to(why, url);
             }
-            ui.add_space(8.0);
             ui.horizontal(|ui| {
                 if let Some(a) = &save_as
                     && ui.button(copy).clicked()
@@ -296,13 +292,33 @@ impl App {
     }
 }
 
+/// A message window, as all of them look (issue #11): modal, 320 to 460 points wide, the text
+/// (`notice_text`), then what `below` adds (its buttons).
+pub(crate) fn message(ctx: &egui::Context, id: &str, text: &str, below: impl FnOnce(&mut egui::Ui)) {
+    egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
+        ui.set_max_width(460.0);
+        // A short message ("Images saved: 1.") made a box so small it went unnoticed.
+        ui.set_min_width(320.0);
+        notice_text(ui, text);
+        ui.add_space(8.0);
+        below(ui);
+    });
+}
+
 /// Text of a message window: paragraphs apart, `**bold**`, lines starting with "- " as a list,
 /// `\` before a punctuation mark to keep it as it is (`md`).
 pub(crate) fn notice_text(ui: &mut egui::Ui, text: &str) {
     let font = egui::TextStyle::Body.resolve(ui.style());
     let bold = egui::FontId::new(font.size, egui::FontFamily::Name(BOLD.into()));
-    let color = ui.visuals().text_color();
-    let format = |strong: bool| egui::TextFormat::simple(if strong { bold.clone() } else { font.clone() }, color);
+    let mono = egui::FontId::monospace(font.size + 1.0);
+    let (color, code_bg) = (ui.visuals().text_color(), ui.visuals().code_bg_color);
+    let strong_color = ui.visuals().strong_text_color();
+    let format = |look: Look| match look {
+        Look::Plain => egui::TextFormat::simple(font.clone(), color),
+        Look::Bold => egui::TextFormat::simple(bold.clone(), color),
+        // What is to be compared (a server's fingerprint): apart, on a field of its own (issue #11).
+        Look::Code => egui::TextFormat { font_id: mono.clone(), color: strong_color, background: code_bg, ..Default::default() },
+    };
     for (i, paragraph) in text.split("\n\n").enumerate() {
         if i > 0 {
             ui.add_space(6.0);
@@ -311,27 +327,54 @@ pub(crate) fn notice_text(ui: &mut egui::Ui, text: &str) {
             let mut job = egui::text::LayoutJob::default();
             let line = match line.strip_prefix("- ") {
                 Some(item) => {
-                    job.append("•  ", 8.0, format(false));
+                    job.append("•  ", 8.0, format(Look::Plain));
                     item
                 }
                 None => line,
             };
-            let (mut strong, mut run, mut chars) = (false, String::new(), line.chars().peekable());
-            while let Some(c) = chars.next() {
-                match c {
-                    '\\' if chars.peek().is_some_and(|n| n.is_ascii_punctuation()) => run.extend(chars.next()),
-                    '*' if chars.peek() == Some(&'*') => {
-                        chars.next();
-                        job.append(&std::mem::take(&mut run), 0.0, format(strong));
-                        strong = !strong;
-                    }
-                    c => run.push(c),
-                }
+            for (run, look) in spans(line) {
+                job.append(&run, 0.0, format(look));
             }
-            job.append(&run, 0.0, format(strong));
             ui.add(egui::Label::new(job).wrap());
         }
     }
+}
+
+/// How a run of a message is shown.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Look {
+    Plain,
+    Bold,
+    /// Between backquotes: to be compared, letter by letter.
+    Code,
+}
+
+/// The runs of a line of a message: `**bold**`, `` `code` ``, `\` before a punctuation mark to
+/// keep it as it is.
+fn spans(line: &str) -> Vec<(String, Look)> {
+    let (mut out, mut run, mut look, mut chars) = (Vec::new(), String::new(), Look::Plain, line.chars().peekable());
+    let flush = |out: &mut Vec<(String, Look)>, run: &mut String, look: Look| {
+        if !run.is_empty() {
+            out.push((std::mem::take(run), look));
+        }
+    };
+    while let Some(c) = chars.next() {
+        match c {
+            '\\' if look != Look::Code && chars.peek().is_some_and(|n| n.is_ascii_punctuation()) => run.extend(chars.next()),
+            '*' if look != Look::Code && chars.peek() == Some(&'*') => {
+                chars.next();
+                flush(&mut out, &mut run, look);
+                look = if look == Look::Bold { Look::Plain } else { Look::Bold };
+            }
+            '`' => {
+                flush(&mut out, &mut run, look);
+                look = if look == Look::Code { Look::Plain } else { Look::Code };
+            }
+            c => run.push(c),
+        }
+    }
+    flush(&mut out, &mut run, look);
+    out
 }
 
 /// `s` shown as it is in Markdown: every ASCII punctuation mark escaped (a name with `*` or `_`).
@@ -341,6 +384,14 @@ pub(crate) fn md(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// Bold, code (a fingerprint, its stars and backslashes as they are) and escaped marks.
+    #[test]
+    fn message_runs() {
+        use super::Look::*;
+        let runs = super::spans(r"**First** key `SHA256:a*b\c` is \*ok\*");
+        assert_eq!(runs, [("First".into(), Bold), (" key ".into(), Plain), (r"SHA256:a*b\c".into(), Code), (" is *ok*".into(), Plain)]);
+    }
+
     #[test]
     fn markdown_escape() {
         assert_eq!(super::md("a_b*c.jpg"), r"a\_b\*c\.jpg");

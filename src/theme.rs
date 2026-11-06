@@ -79,12 +79,24 @@ pub fn title(ui: &mut egui::Ui, text: impl Into<egui::RichText>) {
 /// the window's ✕ is clicked: it closes the page, not the app. The page had a ✕ of its own,
 /// unseen and then a double ✕ under the window's (user, 2026-11-02).
 pub fn page_title(ui: &mut egui::Ui, text: &str) -> bool {
+    let close = close_asked(ui);
+    ui.vertical_centered(|ui| ui.add(egui::Label::new(egui::RichText::new(text).heading()).truncate()));
+    close
+}
+
+/// The window's ✕ was clicked while a page covers it: `true`, and the window stays open (the page
+/// closes instead).
+pub fn close_asked(ui: &egui::Ui) -> bool {
     let close = ui.input(|i| i.viewport().close_requested());
     if close {
         ui.ctx().send_viewport_cmd(egui::ViewportCommand::CancelClose);
     }
-    ui.vertical_centered(|ui| ui.add(egui::Label::new(egui::RichText::new(text).heading()).truncate()));
     close
+}
+
+/// Around the image in the editor: neutral, so as not to change how its colours look.
+pub fn stage(v: &Visuals) -> Color32 {
+    if v.dark_mode { rgb(24, 25, 27) } else { rgb(222, 225, 230) }
 }
 
 /// The main button of a window: solid accent with white bold text (the default dark text was
@@ -233,6 +245,20 @@ fn dark() -> Visuals {
     v.selection.stroke = Stroke::new(1.0, rgb(255, 255, 255));
     rounded(&mut v);
     v
+}
+
+/// A file being read: a large spinner and `text` under it, in the middle of the space left (user,
+/// 2026-11-06: a slow HEIC showed a small spinner only, or nothing); in `colour` when the
+/// background is not the theme's (the viewer is always dark: in the light theme the text was dark
+/// on dark).
+pub fn loading(ui: &mut egui::Ui, text: String, colour: Option<Color32>) {
+    let colour = colour.unwrap_or_else(|| ui.visuals().text_color());
+    ui.vertical_centered(|ui| {
+        ui.add_space((ui.available_height() / 2.0 - 40.0).max(0.0));
+        ui.add(egui::Spinner::new().size(36.0).color(colour));
+        ui.add_space(10.0);
+        ui.label(egui::RichText::new(text).size(16.0).color(colour));
+    });
 }
 
 #[cfg(test)]

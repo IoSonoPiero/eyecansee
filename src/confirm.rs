@@ -32,8 +32,10 @@ fn choose_with<T>(
     mut answer: Option<Option<T>>,
     cancel_first: bool,
 ) -> Option<Option<T>> {
+    // As every message window (`save_dialogs::message`), at its own width.
     egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
         ui.set_max_width(width);
+        ui.set_min_width(320.0_f32.min(width));
         crate::save_dialogs::notice_text(ui, &text);
         ui.add_space(8.0);
         ui.horizontal(|ui| {
@@ -88,6 +90,6 @@ impl App {
     /// A confirmation is open: deletion, or a name already taken when restoring or pasting.
     pub(crate) fn asking(&self) -> bool {
         let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
-        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.batch_turn.is_some() || self.notice.is_some() || self.kiod_ask || self.host_ask || self.open_address.is_some() || self.server_manager.is_some() || self.unlock.is_some() || self.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking) || self.rotate.as_ref().is_some_and(|w| w.ready.is_some() || w.leaving) || self.after_turn.is_some() || self.batch.as_ref().is_some_and(crate::batch_page::Window::asking)
+        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.batch_turn.is_some() || self.notice.is_some() || self.update_note.is_some() || self.about || self.kiod_ask || self.host_ask || self.open_address.is_some() || self.server_manager.is_some() || self.unlock.is_some() || self.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking) || self.editor.as_ref().is_some_and(|w| w.ready.is_some() || w.leaving) || self.after_turn.is_some() || self.batch.as_ref().is_some_and(crate::batch_page::Window::asking)
     }
 }

@@ -15,11 +15,13 @@ impl App {
         let video = self.viewing_video();
         // On a 3D model the arrows turn it.
         let model = self.viewed_mesh().is_some();
+        // On a video Ctrl and the arrows jump back and forward (issue #10), not to another file.
+        let jump = video && ctx.input(|i| i.modifiers.command);
         let (next, prev, first, last, close, space) = ctx.input(|i| {
             let any = |keys: &[Key]| keys.iter().any(|k| i.key_pressed(*k));
             (
-                (i.key_pressed(Key::ArrowRight) && !model) || i.key_pressed(Key::PageDown) || (i.key_pressed(Key::Space) && !video),
-                (i.key_pressed(Key::ArrowLeft) && !model) || any(&[Key::Backspace, Key::PageUp]),
+                (i.key_pressed(Key::ArrowRight) && !model && !jump) || i.key_pressed(Key::PageDown) || (i.key_pressed(Key::Space) && !video),
+                (i.key_pressed(Key::ArrowLeft) && !model && !jump) || any(&[Key::Backspace, Key::PageUp]),
                 i.key_pressed(Key::Home),
                 i.key_pressed(Key::End),
                 i.key_pressed(Key::Escape),
@@ -34,8 +36,17 @@ impl App {
                 self.go(to);
             }
         }
-        if close {
+        // Esc in full screen leaves it first, with the bars back; then the viewer.
+        if close && ctx.input(|i| i.viewport().fullscreen.unwrap_or(false)) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+        } else if close {
             self.close_viewer();
+        }
+        if jump {
+            let (back, on) = ctx.input(|i| (i.key_pressed(Key::ArrowLeft), i.key_pressed(Key::ArrowRight)));
+            if back || on {
+                self.video_jump(if on { crate::video::JUMP } else { -crate::video::JUMP });
+            }
         }
         if video {
             // Up and down the volume, M sound off and on, as in the players; turning and saving are for images.
@@ -73,6 +84,7 @@ impl App {
     }
 
     pub(crate) fn close_viewer(&mut self) {
+        log!("viewer: closed");
         if self.hold_for_turn(crate::save_dialogs::After::Close) {
             return;
         }
@@ -175,9 +187,7 @@ impl App {
                 let name = self.files().get(current).map_or("", |f| source::shown(&f.path));
                 ui.label(browser::error_text(ui, self.i18n.t_args("cannot-load", &[("file", name), ("error", e)])));
             }
-            None => {
-                ui.spinner();
-            }
+            None => crate::theme::loading(ui, self.i18n.t("loading-file"), Some(egui::Color32::from_gray(220))),
         });
         if chosen.is_some() {
             self.act = chosen;

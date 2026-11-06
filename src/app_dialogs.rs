@@ -19,6 +19,7 @@ impl App {
             (t("opt-window"), t("opt-window-normal"), t("opt-window-maximized"), t("opt-window-remember"));
         let (scroll, scroll_hint) = (t("opt-remember-scroll"), t("opt-remember-scroll-hint"));
         let (wrap, wrap_hint) = (t("opt-wrap-around"), t("opt-wrap-around-hint"));
+        let (to_grid, to_grid_hint) = (t("opt-close-to-grid"), t("opt-close-to-grid-hint"));
         let (wheel, wheel_zoom, wheel_next, wheel_hint) = (t("opt-wheel"), t("opt-wheel-zoom"), t("opt-wheel-next"), t("opt-wheel-hint"));
         let (max_zoom, max_zoom_hint) = (t("opt-max-zoom"), t("opt-max-zoom-hint"));
         let (language_label, language_system) = (t("opt-language"), t("opt-language-system"));
@@ -106,6 +107,7 @@ impl App {
                     OptTab::Browsing => {
                         ui.checkbox(&mut s.remember_scroll, scroll).on_hover_text(scroll_hint);
                         ui.checkbox(&mut s.wrap_around, wrap).on_hover_text(wrap_hint);
+                        ui.checkbox(&mut s.close_to_grid, to_grid).on_hover_text(to_grid_hint);
                         ui.add_space(6.0);
                         ui.label(wheel).on_hover_text(&wheel_hint);
                         ui.radio_value(&mut s.wheel_zoom, true, wheel_zoom).on_hover_text(&wheel_hint);
@@ -192,19 +194,18 @@ impl App {
         true
     }
 
-    /// Help > Check for updates: the outcome, until closed.
+    /// Help > Check for updates: the outcome, until closed (also with Enter or Esc, as the other
+    /// windows that tell how something went: issue #12).
+    /// Drawn as every message window (issue #11: one style for all of them).
     pub(crate) fn update_window(&mut self, ctx: &egui::Context) {
         let Some(text) = &self.update_note else { return };
-        let mut open = true;
-        egui::Window::new(self.i18n.t("menu-check-updates"))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-            .show(ctx, |ui| {
-                ui.set_max_width(360.0);
-                ui.label(text);
-            });
+        let text = format!("**{}**\n\n{text}", self.i18n.t("menu-check-updates"));
+        let mut open = self.notice.is_some() || self.delete_answer.take().is_none();
+        crate::save_dialogs::message(ctx, "update", &text, |ui| {
+            if ui.button(self.i18n.t("notice-close")).clicked() {
+                open = false;
+            }
+        });
         if !open {
             self.update_note = None;
         }
@@ -270,8 +271,9 @@ impl App {
         }
     }
 
+    /// Help > About: closes with Enter or Esc too, as the other windows (user, 2026-11-06).
     pub(crate) fn about_window(&mut self, ctx: &egui::Context) {
-        let mut open = self.about;
+        let mut open = self.about && (self.notice.is_some() || self.update_note.is_some() || self.delete_answer.take().is_none());
         let icon = self.about_icon.get_or_insert_with(|| {
             let img = decode::app_icon(96).unwrap_or_default();
             ctx.load_texture("about-icon", decode::to_color_image(img.into()), TextureOptions::LINEAR)

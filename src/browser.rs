@@ -32,17 +32,17 @@ pub(crate) fn context_menu(ui: &mut Ui, items: Vec<MenuItem>) -> Option<Act> {
     for item in items {
         match item {
             Some((label, _, Act::Submenu(sub))) => {
-                ui.menu_button(label, |ui| {
+                ui.menu_button((crate::icons::menu_icon(ui, None), label), |ui| {
                     if let Some(a) = context_menu(ui, sub) {
                         chosen = Some(a);
                     }
                 });
             }
             Some((label, keys, Act::Off(why))) => {
-                ui.add_enabled(false, egui::Button::new(label).shortcut_text(keys)).on_disabled_hover_text(why);
+                ui.add_enabled(false, crate::icons::menu_item(ui, None, label, keys)).on_disabled_hover_text(why);
             }
             Some((label, keys, act)) => {
-                if ui.add(egui::Button::new(label).shortcut_text(keys)).clicked() {
+                if ui.add(crate::icons::menu_item(ui, act.icon(), label, keys)).clicked() {
                     chosen = Some(act);
                 }
             }
@@ -126,7 +126,10 @@ impl App {
         }
         turns.push(None);
         // One image at a time: with several marked it would open on one and leave the others.
-        let rotate = if self.grid_images(path.clone()).len() > 1 { Act::Off(t("rc-one-only")) } else { Act::RotateCrop(path.clone()) };
+        let rotate = match self.edit_off(path.clone()) {
+            Some(why) => Act::Off(why),
+            None => Act::RotateCrop(path.clone()),
+        };
         turns.push(Some((t("menu-rotate-crop"), String::new(), rotate)));
         Some((crate::selection::starred(t("menu-transform"), all), String::new(), Act::Submenu(turns)))
     }
@@ -154,6 +157,11 @@ impl App {
         items.push(None);
         if let Some(all) = fits(&files, &[Kind::Picture]) {
             partial.set(partial.get() | !all);
+            let edit = match self.edit_off(path.clone()) {
+                Some(why) => Act::Off(why),
+                None => Act::Edit(path.clone()),
+            };
+            items.push(Some((starred(t("menu-edit-image"), all), if in_viewer { t("key-edit") } else { String::new() }, edit)));
             items.push(self.turn_menu(path.clone(), in_viewer, all));
         }
         if in_viewer && self.can_save() {

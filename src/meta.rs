@@ -642,9 +642,9 @@ mod tests {
             let edit = crate::rotate::Edit { turn: Turn::default(), angle: 10.0, crop: crate::rotate::Crop { cx: -8.0, cy: 0.0, w: 20.0, h: 30.0 }, fill: None };
             let mut cropped = crate::decode::decode_full(&b, "x.jpg").unwrap();
             edit.apply(&mut cropped);
-            let (turned, lossy) = crate::encode::turned_file(&b, "x.jpg", cw).unwrap();
+            let (turned, lossy) = crate::save_back::turned_file(&b, "x.jpg", cw).unwrap();
             assert_eq!(lossy, w % 16 != 0, "{w}: the size allows a turn without re-encoding");
-            let mut out = vec![("cropped.jpg", crate::encode::encoded_back(&b, "x.jpg", cropped).unwrap().0), ("turned.jpg", turned)];
+            let mut out = vec![("cropped.jpg", crate::save_back::encoded_back(&b, "x.jpg", cropped).unwrap().0), ("turned.jpg", turned)];
             for (name, f) in [("x.jpg", None), ("x.png", Some(Format::Png)), ("x.webp", Some(Format::Webp)), ("x.avif", Some(Format::Avif))] {
                 out.push((name, crate::batch::convert(&b, "x.jpg", &resized(f)).unwrap().1));
             }

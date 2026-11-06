@@ -1,7 +1,9 @@
 //! Encoding an image again in another format, without the interface: every option each encoder
 //! offers is there: libjpeg-turbo for JPEG, `image` for PNG, GIF, BMP and QOI, libwebp for WebP,
-//! ravif for AVIF, `tiff` for TIFF, `image` for ICO, TGA, PNM, OpenEXR, Radiance HDR and Farbfeld. Also the lossless turns that "Save" writes over the original.
+//! ravif for AVIF, `tiff` for TIFF, `image` for ICO, TGA, PNM, OpenEXR, Radiance HDR and Farbfeld. Writing back over the original: `save_back`.
 
+
+pub mod jpeg_quality;
 use std::io::Cursor;
 
 use image::codecs::{bmp, farbfeld, gif, hdr, ico, openexr, png, pnm, qoi, tga};
@@ -97,7 +99,7 @@ impl Format {
     }
 
     /// The format a file can be saved back in after a turn ("Save"), from its name (what is
-    /// inside, animated or not, is looked at by `can_turn_in_place`).
+    /// inside, animated or not, is looked at by `save_back::can_turn_in_place`).
     pub fn of_file(name: &str) -> Option<Format> {
         let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
         Format::BACK.into_iter().find(|f| f.ext() == ext || (ext == "jpeg" && *f == Format::Jpeg) || (ext == "tiff" && *f == Format::Tiff))
@@ -105,7 +107,7 @@ impl Format {
 }
 
 /// Can an image with this name be saved over itself (its format written back)? What is inside
-/// is looked at later, by `can_turn_in_place`.
+/// is looked at later, by `save_back::can_turn_in_place`.
 pub fn saves_back(name: &str) -> bool {
     Format::of_file(name).is_some() || (crate::psd::writable() && crate::psd::is_psd(name))
 }
@@ -272,6 +274,14 @@ impl Original {
         Original { image, exif, icc, xmp, irb, xmp_ext: Vec::new() }
     }
 
+    /// For a picture written without what followed it in the file (Motion Photo video, Ultra HDR
+    /// gain map): the XMP that describes those goes (`xmp::alone`).
+    pub fn alone(mut self) -> Original {
+        let (w, h) = (self.image.width(), self.image.height());
+        self.xmp = self.xmp.map(|x| crate::xmp::alone(&x, w, h));
+        self
+    }
+
     pub fn has_meta(&self) -> bool {
         self.exif.is_some() || self.icc.is_some() || self.xmp.is_some() || self.irb.is_some()
     }
@@ -346,115 +356,6 @@ impl Original {
         }
         Ok(out.into_inner())
     }
-}
-
-/// The file turned, in its own format: a JPEG without re-encoding when its size allows it,
-/// otherwise at quality 95; the others encoded again, a lossless WebP still lossless. Also says
-/// whether it was encoded again with loss (the confirmation warns about it).
-pub fn turned_file(bytes: &[u8], name: &str, turn: Turn) -> Result<(Vec<u8>, bool), String> {
-    // A phone photo with an HDR gain map: both pictures turned, the HDR kept.
-    if Format::of_file(name) == Some(Format::Jpeg)
-        && let Some(r) = crate::ultrahdr::turned(bytes, turn)
-    {
-        return r;
-    }
-    if Format::of_file(name) == Some(Format::Jpeg)
-        && can_turn_in_place(bytes, name)
-        && let Some(out) = crate::transform::jpeg_lossless(bytes, turn)
-    {
-        return Ok((out, false));
-    }
-    edited_file(bytes, name, |img| turn.apply(img))
-}
-
-/// The file decoded, changed by `edit` and encoded again in its own format: a JPEG at quality 95,
-/// a lossless WebP still lossless. Also says whether it lost quality (the confirmation warns about it).
-pub fn edited_file(bytes: &[u8], name: &str, edit: impl FnOnce(&mut DynamicImage)) -> Result<(Vec<u8>, bool), String> {
-    let mut img = crate::decode::decode_full(bytes, name)?;
-    edit(&mut img);
-    encoded_back(bytes, name, img)
-}
-
-/// `image` (the file `bytes`, already decoded and changed) encoded again in the file's format,
-/// with its metadata, as `edited_file`; the file itself is not decoded again.
-pub fn encoded_back(bytes: &[u8], name: &str, image: DynamicImage) -> Result<(Vec<u8>, bool), String> {
-    // A PSD comes back flattened: "lossy" when there was more than one plain layer.
-    if crate::psd::is_psd(name) {
-        return Ok((crate::psd::encode(&image, bytes)?, !crate::psd::simple(bytes)));
-    }
-    let format = Format::of_file(name).filter(|_| can_turn_in_place(bytes, name)).ok_or_else(|| name.to_string())?;
-    let webp_lossless = format == Format::Webp && bytes.windows(4).any(|w| w == b"VP8L");
-    let o = Options { format, jpeg_quality: 95, webp_lossless, ..Default::default() };
-    // GIF too: its colours are chosen again (at most 256).
-    let lossy = matches!(format, Format::Jpeg | Format::Avif | Format::Gif) || (format == Format::Webp && !webp_lossless);
-    Ok((Original::with_meta(image, bytes).encode(&o)?, lossy))
-}
-
-/// Can the file be turned and written back over itself, losing at most a little quality? Its
-/// format must be one EyeCanSee writes, and the file a single picture: not animated (APNG, WebP,
-/// AVIF sequence), not several pages (TIFF), not a JPEG carrying more than the picture (the video
-/// of a Motion Photo after its end, MPF secondary images or depth maps), which would be lost.
-pub fn can_turn_in_place(bytes: &[u8], name: &str) -> bool {
-    if crate::psd::is_psd(name) {
-        return crate::psd::writable();
-    }
-    let cursor = || Cursor::new(bytes);
-    match Format::of_file(name) {
-        Some(Format::Jpeg) => plain_jpeg(bytes),
-        Some(Format::Png) => png::PngDecoder::new(cursor()).is_ok_and(|d| d.is_apng().is_ok_and(|a| !a)),
-        Some(Format::Webp) => image::codecs::webp::WebPDecoder::new(cursor()).is_ok_and(|d| !d.has_animation()),
-        Some(Format::Tiff) => tiff::decoder::Decoder::new(cursor()).is_ok_and(|d| !d.more_images()),
-        Some(Format::Avif) => !avif_sequence(bytes),
-        // Only the first frame is decoded: an animated GIF would lose the others.
-        Some(Format::Gif) => gif::GifDecoder::new(cursor()).is_ok_and(|d| image::AnimationDecoder::into_frames(d).take(2).count() == 1),
-        Some(_) => true,
-        None => false,
-    }
-}
-
-/// A JPEG that ends at its EOI marker (zeros after it are padding) and has no MPF segment.
-/// libjpeg-turbo drops what follows EOI (tried: 27 bytes after it, gone after a turn).
-fn plain_jpeg(b: &[u8]) -> bool {
-    if !b.starts_with(&[0xFF, 0xD8]) {
-        return false;
-    }
-    let mut i = 2;
-    while i + 1 < b.len() {
-        if b[i] != 0xFF {
-            return false;
-        }
-        let marker = b[i + 1];
-        match marker {
-            0xFF => {
-                i += 1; // fill byte
-                continue;
-            }
-            0xD9 => return b[i + 2..].iter().all(|&x| x == 0),
-            0x01 | 0xD0..=0xD7 => {
-                i += 2;
-                continue;
-            }
-            _ => {}
-        }
-        let Some(len) = b.get(i + 2..i + 4).map(|l| u16::from_be_bytes([l[0], l[1]]) as usize).filter(|l| *l >= 2) else { return false };
-        if marker == 0xE2 && b.get(i + 4..i + 2 + len).is_some_and(|body| body.starts_with(b"MPF\0")) {
-            return false;
-        }
-        i += 2 + len;
-        if marker == 0xDA {
-            // Coded data, up to the next marker: not a stuffed 0xFF00, not a restart.
-            while i + 1 < b.len() && !(b[i] == 0xFF && b[i + 1] != 0 && !(0xD0..=0xD7).contains(&b[i + 1])) {
-                i += 1;
-            }
-        }
-    }
-    false
-}
-
-/// AVIF image sequence: brand "avis" in the ftyp box.
-fn avif_sequence(b: &[u8]) -> bool {
-    let size = b.get(..4).map_or(0, |s| u32::from_be_bytes([s[0], s[1], s[2], s[3]]) as usize);
-    b.get(4..8) == Some(b"ftyp") && b.get(8..size.min(b.len())).is_some_and(|brands| brands.as_chunks::<4>().0.contains(b"avis"))
 }
 
 /// Pixels the format can store: JPEG has no transparency (laid on white, not on black), and
@@ -729,52 +630,5 @@ pub(crate) mod tests {
         for name in ["a.ico", "a.tga", "a.pnm", "a.exr", "a.hdr", "a.ff"] {
             assert_eq!(Format::of_file(name), None, "{name}");
         }
-    }
-
-    /// What cannot be saved over itself, found inside the file: animations, pages, what a JPEG
-    /// carries besides its picture. The plain files of the same formats can.
-    #[test]
-    fn turn_in_place() {
-        let img = DynamicImage::ImageRgb8(image::RgbImage::from_fn(8, 8, |x, y| image::Rgb([x as u8 * 30, y as u8 * 30, 0])));
-        let file = |f| {
-            let mut v = Vec::new();
-            img.write_to(&mut Cursor::new(&mut v), f).unwrap();
-            v
-        };
-        // JPEG: plain, with zero padding, with a video after EOI, with an MPF segment.
-        let jpeg = file(image::ImageFormat::Jpeg);
-        assert!(can_turn_in_place(&jpeg, "a.jpg"));
-        assert!(can_turn_in_place(&[jpeg.as_slice(), &[0; 16]].concat(), "a.jpeg"));
-        assert!(!can_turn_in_place(&[jpeg.as_slice(), b"\0\0\0\x18ftypmp42"].concat(), "a.jpg"));
-        let mut mpf = jpeg.clone();
-        mpf.splice(2..2, [&[0xFF, 0xE2, 0, 10][..], b"MPF\0II*\0"].concat());
-        assert!(!can_turn_in_place(&mpf, "a.jpg"));
-
-        let png = file(image::ImageFormat::Png);
-        assert!(can_turn_in_place(&png, "a.png"));
-        let apng = apng(&png);
-        assert!(png::PngDecoder::new(Cursor::new(&apng)).is_ok_and(|d| d.is_apng().unwrap()));
-        assert!(!can_turn_in_place(&apng, "a.png"));
-
-        assert!(can_turn_in_place(&file(image::ImageFormat::WebP), "a.webp"));
-        let animated = animated_webp(&img);
-        assert!(image::codecs::webp::WebPDecoder::new(Cursor::new(&animated)).is_ok_and(|d| d.has_animation()));
-        assert!(!can_turn_in_place(&animated, "a.webp"));
-
-        // TIFF of two pages.
-        assert!(can_turn_in_place(&file(image::ImageFormat::Tiff), "a.tif"));
-        assert!(!can_turn_in_place(&tiff_pages(&img), "a.tiff"));
-
-        // AVIF sequence: brand "avis".
-        let ftyp = |major: &[u8]| [&24u32.to_be_bytes()[..], b"ftyp", major, &[0; 4], major, b"mif1"].concat();
-        assert!(can_turn_in_place(&ftyp(b"avif"), "a.avif"));
-        assert!(!can_turn_in_place(&ftyp(b"avis"), "a.avif"));
-
-        assert!(can_turn_in_place(&file(image::ImageFormat::Gif), "a.gif"));
-        let mut animated_gif = Vec::new();
-        let frame = || image::Frame::new(img.to_rgba8());
-        gif::GifEncoder::new(&mut animated_gif).encode_frames([frame(), frame()]).unwrap();
-        assert!(!can_turn_in_place(&animated_gif, "a.gif"));
-        assert!(!can_turn_in_place(&jpeg, "a.heic"));
     }
 }

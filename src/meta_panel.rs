@@ -87,7 +87,7 @@ impl App {
         ui.painter().text(rect.left_center(), Align2::LEFT_CENTER, self.i18n.t("meta-title"), font, ui.visuals().strong_text_color());
         let button_rect = Rect::from_min_max(pos2(rect.right() - 26.0, rect.top()), rect.max);
         let hint = self.i18n.t(if collapsed { "meta-expand" } else { "meta-collapse" });
-        let button = ui.put(button_rect, egui::Button::new(if collapsed { "▲" } else { "▼" }).small()).on_hover_text(&hint);
+        let button = ui.put(button_rect, crate::icons::small(ui, if collapsed { crate::icons::Line::ChevronUp } else { crate::icons::Line::Down })).on_hover_text(&hint);
         let bar = bar.on_hover_text(hint).on_hover_cursor(egui::CursorIcon::PointingHand);
         if bar.clicked() || button.clicked() {
             self.settings.meta_collapsed = !collapsed;
@@ -103,7 +103,7 @@ impl App {
         ui.horizontal(|ui| {
             ui.strong(t(&format!("meta-{}", g.key())));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.small_button("✖").on_hover_text(t("meta-close")).clicked() {
+                if ui.add(crate::icons::small(ui, crate::icons::Line::Close)).on_hover_text(t("meta-close")).clicked() {
                     *close = Some(g);
                 }
             });
@@ -170,7 +170,7 @@ impl App {
 
     /// Status bar of the viewer, like the grid's: name, position, pixels, size on disk, date
     /// taken (or modified, without EXIF or with the metadata boxes closed).
-    /// `Some`: the Keys button, shown for 3D models and CAD drawings (`keys_window`).
+    /// `Some`: the Keys button (`keys_window`).
     pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) -> Option<egui::Response> {
         let files = self.files();
         let f = files.get(current)?;
@@ -265,14 +265,19 @@ impl App {
         });
     }
 
-    /// The keys of 3D models and CAD drawings, which differ from those of images: the Fluent id
-    /// of their list (`keys_window`), if the file is one of them.
+    /// The keys of the file shown (a 3D model, a CAD drawing, a video or sound, an image): the
+    /// Fluent id of their list (`keys_window`). Images too (user, 2026-11-06: only the 3D and CAD
+    /// viewers had the button).
     pub(crate) fn keys_hint(&self, current: usize) -> Option<&'static str> {
         if self.viewed_mesh().is_some() {
             return Some("hint-model");
         }
-        let cad = self.files().get(current).is_some_and(|f| crate::cad::is_cad(&f.path));
-        cad.then(|| if self.cad_has_sheets(current) { "hint-cad-layouts" } else { "hint-cad" })
+        let path = &self.files().get(current)?.path;
+        Some(match () {
+            _ if crate::cad::is_cad(path) => if self.cad_has_sheets(current) { "hint-cad-layouts" } else { "hint-cad" },
+            _ if crate::decode::is_played(path) => "hint-video",
+            _ => "hint-image",
+        })
     }
 
     /// Value of a metadata field as shown: Fluent ids translated, dates in the language's format.

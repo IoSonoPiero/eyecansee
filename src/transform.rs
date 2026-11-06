@@ -40,6 +40,11 @@ impl Turn {
         f
     }
 
+    /// The horizontal flip done first, and the clockwise quarter turns after it (0 to 3).
+    pub fn parts(self) -> (bool, u8) {
+        (self.flip, self.quarter)
+    }
+
     /// Width and height swap.
     pub fn sideways(self) -> bool {
         self.quarter % 2 == 1
@@ -231,7 +236,7 @@ mod tests {
 
         let turn = Turn::default().then(Op::Cw).then(Op::FlipH);
         let out = jpeg_lossless(&jpeg, turn).unwrap();
-        assert!(!crate::encode::turned_file(&jpeg, "x.jpg", turn).unwrap().1, "turned without loss");
+        assert!(!crate::save_back::turned_file(&jpeg, "x.jpg", turn).unwrap().1, "turned without loss");
         let got = crate::decode::decode_full(&out, "x.jpg").unwrap().to_rgb8();
         let mut expected = shown;
         turn.apply(&mut expected);
@@ -251,7 +256,7 @@ mod tests {
             if name.ends_with("jpg") {
                 assert!(jpeg_lossless(&file, Turn::default().then(Op::Cw)).is_none());
             }
-            let (out, lossy) = crate::encode::turned_file(&file, name, Turn::default().then(Op::Cw)).unwrap();
+            let (out, lossy) = crate::save_back::turned_file(&file, name, Turn::default().then(Op::Cw)).unwrap();
             // Encoded again: with loss for the JPEG, not for the PNG (the confirmation says so).
             assert_eq!(lossy, name.ends_with("jpg"), "{name}");
             let back = crate::decode::decode_full(&out, name).unwrap();
@@ -259,6 +264,6 @@ mod tests {
             // The left edge (dark) is now at the top.
             assert!(back.get_pixel(8, 0)[0] < 40 && back.get_pixel(8, 29)[0] > 180, "{name}");
         }
-        assert!(crate::encode::turned_file(b"", "x.gif", Turn::default()).is_err());
+        assert!(crate::save_back::turned_file(b"", "x.gif", Turn::default()).is_err());
     }
 }

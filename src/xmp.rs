@@ -1,7 +1,7 @@
 //! The XMP of an image being written again (Rotate and crop, Save, Convert and resize, Save in
 //! another format), with `quick-xml`: sizes and orientation made true for the pixels written, the
-//! XMP thumbnail and the Camera Raw / Lightroom settings (`crs:`, crop and adjustments already in
-//! the pixels) taken out, everything else (author, copyright, licence, descriptions, keywords…)
+//! XMP thumbnail, the Camera Raw / Lightroom settings (`crs:`, crop and adjustments already in
+//! the pixels) and the description of a Motion Photo's video (never written again) taken out, everything else (author, copyright, licence, descriptions, keywords…)
 //! kept as it was. For WebP and AVIF, which have no place for IPTC, the IPTC fields go into the
 //! XMP as Adobe and the IPTC Core map them, when the XMP does not have them already.
 
@@ -18,6 +18,9 @@ const RDF: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 const DC: &str = "http://purl.org/dc/elements/1.1/";
 const PHOTOSHOP: &str = "http://ns.adobe.com/photoshop/1.0/";
 const XMP_NOTE: &str = "http://ns.adobe.com/xmp/note/";
+const GCAMERA: &str = "http://ns.google.com/photos/1.0/camera/";
+const CONTAINER: &str = "http://ns.google.com/photos/1.0/container/";
+const HDRGM: &str = "http://ns.adobe.com/hdr-gain-map/1.0/";
 
 /// What happens to a property: dropped, or its value replaced.
 enum Fix {
@@ -25,10 +28,17 @@ enum Fix {
     Set(String),
 }
 
-/// `merged`: the extended XMP is in the packet, the GUID that pointed to it goes.
-fn fix(ns: &str, local: &str, w: u32, h: u32, merged: bool) -> Option<Fix> {
+/// `merged`: the extended XMP is in the packet, the GUID that pointed to it goes. The video of a
+/// Motion Photo is never written again, so what describes it always goes (also when the original
+/// says so without having one, as a Pixel 8 photo seen). `alone`: the picture is written without
+/// the gain map of an Ultra HDR photo either, so its description and the container directory go.
+fn fix(ns: &str, local: &str, w: u32, h: u32, merged: bool, alone: bool) -> Option<Fix> {
     match (ns, local) {
         (XMP_NOTE, "HasExtendedXMP") if merged => Some(Fix::Drop),
+        // ponytail: true while no save keeps the video (`motion_photo_turned`); a save that keeps
+        // it (the lossless turn of plan step 7) needs a flag here, or the file stops being one.
+        (GCAMERA, l) if l.starts_with("MotionPhoto") || l.starts_with("MicroVideo") => Some(Fix::Drop),
+        (CONTAINER, "Directory") | (HDRGM, _) if alone => Some(Fix::Drop),
         (CRS, _) | (XAP, "Thumbnails") => Some(Fix::Drop),
         (TIFF, "ImageWidth") | (EXIF, "PixelXDimension") => Some(Fix::Set(w.to_string())),
         (TIFF, "ImageLength") | (EXIF, "PixelYDimension") => Some(Fix::Set(h.to_string())),
@@ -72,13 +82,20 @@ pub fn fit_with(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Opt
         (start <= end).then_some((start, end))
     };
     let merged = ext.zip(inner(xmp)).zip(ext.and_then(inner)).map(|((ext, (_, at)), (s, e))| [&xmp[..at], &ext[s..e], &xmp[at..]].concat());
-    if let Some(out) = merged.and_then(|m| rewrite(&m, w, h, &props, true)) {
+    if let Some(out) = merged.and_then(|m| rewrite(&m, w, h, &props, true, false)) {
         return Some(out);
     }
-    Some(rewrite(xmp, w, h, &props, false).unwrap_or_else(|| xmp.to_vec()))
+    Some(rewrite(xmp, w, h, &props, false, false).unwrap_or_else(|| xmp.to_vec()))
 }
 
-fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], merged: bool) -> Option<Vec<u8>> {
+/// `xmp` without what describes the parts after the picture in the file (Motion Photo video,
+/// Ultra HDR gain map and its container directory), for a picture written alone; sizes set to
+/// `w` × `h` as `fit` does. A packet that is not well-formed XML is returned as it was.
+pub fn alone(xmp: &[u8], w: u32, h: u32) -> Vec<u8> {
+    rewrite(xmp, w, h, &[], false, true).unwrap_or_else(|| xmp.to_vec())
+}
+
+fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], merged: bool, alone: bool) -> Option<Vec<u8>> {
     let mut r = NsReader::from_reader(xmp);
     let mut out = Writer::new(Vec::with_capacity(xmp.len()));
     // Depth inside a dropped element; the new value for the text of the element being read, and
@@ -92,17 +109,17 @@ fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], merged: bool) -> Option<V
             Event::Start(_) | Event::Empty(_) if skip > 0 => skip += matches!(event, Event::Start(_)) as usize,
             Event::End(_) if skip > 0 => skip -= 1,
             _ if skip > 0 => {}
-            Event::Start(ref e) | Event::Empty(ref e) if matches!(fix(&ns, e.local_name().as_ref(), w, h, merged), Some(Fix::Drop)) => {
+            Event::Start(ref e) | Event::Empty(ref e) if matches!(fix(&ns, e.local_name().as_ref(), w, h, merged, alone), Some(Fix::Drop)) => {
                 skip = matches!(event, Event::Start(_)) as usize;
             }
             Event::Start(ref e) | Event::Empty(ref e) => {
                 seen.push((ns.clone(), e.local_name().as_ref().to_string()));
-                if let Some(Fix::Set(v)) = fix(&ns, e.local_name().as_ref(), w, h, merged)
+                if let Some(Fix::Set(v)) = fix(&ns, e.local_name().as_ref(), w, h, merged, alone)
                     && matches!(event, Event::Start(_))
                 {
                     (set, replacing) = (Some(v), true);
                 }
-                let e = attributes(&r, e, w, h, merged, &mut seen)?;
+                let e = attributes(&r, e, w, h, (merged, alone), &mut seen)?;
                 out.write_event(if matches!(event, Event::Start(_)) { Event::Start(e) } else { Event::Empty(e) }).ok()?;
             }
             Event::Text(_) | Event::GeneralRef(_) if replacing => {
@@ -130,7 +147,7 @@ fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], merged: bool) -> Option<V
 
 /// The attributes of an element, without those of Camera Raw (and its namespace) and with the
 /// sizes and orientation set; the element as it was when nothing changes.
-fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, merged: bool, seen: &mut Vec<(String, String)>) -> Option<BytesStart<'a>> {
+fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, (merged, alone): (bool, bool), seen: &mut Vec<(String, String)>) -> Option<BytesStart<'a>> {
     let mut kept: Vec<(String, String)> = Vec::new();
     let mut changed = false;
     for a in e.attributes() {
@@ -148,7 +165,7 @@ fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, merge
         let (ns, local) = r.resolver().resolve_attribute(a.key);
         let ns = bound(&ns);
         seen.push((ns.clone(), local.as_ref().to_string()));
-        match fix(&ns, local.as_ref(), w, h, merged) {
+        match fix(&ns, local.as_ref(), w, h, merged, alone) {
             Some(Fix::Drop) => changed = true,
             Some(Fix::Set(v)) => {
                 changed |= v != value;
@@ -323,5 +340,24 @@ pub(crate) mod tests {
         let creators: Vec<_> = doc.descendants().filter(|n| n.tag_name().name() == "li" && n.parent().unwrap().tag_name().name() == "Seq").map(|n| n.text().unwrap()).collect();
         assert_eq!(creators, ["Ann <Author>", "Bob"]);
         assert!(new.contains("<rdf:li xml:lang=\"x-default\">© Ann</rdf:li>"));
+    }
+
+    /// The description of a Motion Photo's video goes from every packet written again (no save
+    /// writes the video), attributes and elements; with `alone` the container directory and the
+    /// gain map's description go too; the rest stays.
+    #[test]
+    fn motion_photo_described_no_more() {
+        let xmp = concat!(
+            "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">",
+            "<rdf:Description xmlns:GCamera=\"http://ns.google.com/photos/1.0/camera/\" xmlns:Container=\"http://ns.google.com/photos/1.0/container/\" xmlns:Item=\"http://ns.google.com/photos/1.0/container/item/\" xmlns:hdrgm=\"http://ns.adobe.com/hdr-gain-map/1.0/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" GCamera:MotionPhoto=\"1\" GCamera:MotionPhotoVersion=\"1\" hdrgm:Version=\"1.0\">",
+            "<GCamera:MicroVideoOffset>40</GCamera:MicroVideoOffset><dc:creator><rdf:Seq><rdf:li>Ann</rdf:li></rdf:Seq></dc:creator>",
+            "<Container:Directory><rdf:Seq><rdf:li rdf:parseType=\"Resource\"><Container:Item Item:Semantic=\"GainMap\" Item:Mime=\"image/jpeg\"/></rdf:li></rdf:Seq></Container:Directory>",
+            "</rdf:Description></rdf:RDF></x:xmpmeta>"
+        );
+        let kept = String::from_utf8(fit(Some(xmp.as_bytes()), 8, 6, None).unwrap()).unwrap();
+        assert!(!kept.contains("MotionPhoto") && !kept.contains("MicroVideo"), "{kept}");
+        assert!(kept.contains("Container:Directory") && kept.contains("hdrgm:Version") && kept.contains("Ann"), "{kept}");
+        let alone = String::from_utf8(alone(xmp.as_bytes(), 8, 6)).unwrap();
+        assert!(!alone.contains("Container:") && !alone.contains("hdrgm:Version") && alone.contains("Ann"), "{alone}");
     }
 }

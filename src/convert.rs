@@ -67,7 +67,7 @@ impl crate::App {
         // A 3D model in the viewer: its picture as shown.
         if !self.convert_model(&path) && !self.convert_sheet(&path) {
             let Some(loader) = &self.loader else { return };
-            loader.load_original(path.clone());
+            loader.load_original(path.clone(), false);
         }
         let mut w = Window::new(path);
         // From the viewer: saved as it is shown there.

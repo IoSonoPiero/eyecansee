@@ -115,7 +115,7 @@ earcutr = "0.5.0"
 
 [target."cfg(windows)".dependencies]
 # Drives (C:, D:, …): type, label and bus (USB/SD = external) for "This computer" and Devices.
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Security", "Win32_Storage_FileSystem", "Win32_Storage_Packaging_Appx", "Win32_System_IO", "Win32_System_Ioctl"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_Storage_FileSystem", "Win32_Storage_Packaging_Appx", "Win32_System_IO", "Win32_System_Ioctl", "Win32_UI_WindowsAndMessaging"] }
 
 [target."cfg(windows)".build-dependencies]
 # Icon and version data inside eyecansee.exe (`build.rs`), with rc.exe from the Build Tools.
@@ -123,6 +123,11 @@ winresource = "0.1.34"
 
 [target."cfg(unix)".dependencies]
 libc = "0.2"
+
+[target."cfg(target_os = \"linux\")".dependencies]
+# The editor's eyedropper on the whole screen, through the desktop's portal (eyedropper.rs);
+# already built for the accessibility of egui (accesskit), with the same features.
+zbus = { version = "5.19.0", default-features = false, features = ["async-io"] }
 
 # Functions longer than the limit in clippy.toml fail the check (check.yml runs clippy with -D warnings).
 [lints.clippy]

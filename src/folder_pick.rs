@@ -178,7 +178,7 @@ fn boxed(ui: &mut egui::Ui, width: f32, add: impl FnOnce(&mut egui::Ui)) {
 fn folders_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
     let ctx = ui.ctx().clone();
     ui.horizontal(|ui| {
-        let up = egui::Button::image(icons::image(&ctx, Icon::UpButton, 16.0));
+        let up = egui::Button::image(icons::line(ui, icons::Line::Up, 16.0));
         if ui.add_enabled(!p.dir.is_empty(), up).on_hover_text(i18n.t("pick-up")).clicked() {
             p.go(source::parent(&p.dir), rt, &ctx);
         }

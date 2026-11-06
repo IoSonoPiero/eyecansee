@@ -26,6 +26,8 @@ pub(crate) enum Act {
     /// Item (`None` = the selected one or the one in the viewer); `true`: for good (Shift+Del).
     Delete(Option<String>, bool),
     Rename(Option<String>),
+    /// File > New image…: the window of its size and background.
+    NewImage,
     /// A new folder in the folder open.
     /// In that folder, or in the folder open.
     NewFolder(Option<String>),
@@ -55,6 +57,14 @@ pub(crate) enum Act {
     Transform(transform::Op, Option<String>),
     /// Rotate by any angle and crop, one image (`None` = the selected one or the one in the viewer).
     RotateCrop(Option<String>),
+    /// Edit image…: the editor on one image (`None` = the selected one or the one in the viewer).
+    Edit(Option<String>),
+    /// The editor's result to the clipboard (Ctrl+C or Copy there); with Selection, that part.
+    EditCopy,
+    /// Selection: the part copied, then covered with the background colour.
+    EditCut,
+    /// The part copied, as a patch; or an image from the clipboard of another program.
+    EditPaste(Option<std::sync::Arc<eframe::egui::ColorImage>>),
     /// The turned image saved over the original (after a confirmation).
     Save,
     /// Puts back from the trash an item, or everything if it is a trash folder (`None` = selected).
@@ -95,6 +105,48 @@ pub(crate) fn transform_items() -> [(transform::Op, &'static str, Option<&'stati
     ]
 }
 
+impl Act {
+    /// The icon of its menu items (and of its toolbar button): the same everywhere.
+    pub(crate) fn icon(&self) -> Option<crate::icons::Line> {
+        use crate::icons::Line;
+        use transform::Op;
+        Some(match self {
+            Act::Address => Line::Address,
+            Act::Servers => Line::Server,
+            Act::Options => Line::Settings,
+            Act::Delete(..) => Line::Delete,
+            Act::Rename(_) => Line::Rename,
+            Act::NewFolder(_) => Line::NewFolder,
+            Act::NewImage => Line::NewImage,
+            Act::Convert(_) | Act::ExportModel(..) | Act::ExportDrawings(_) => Line::SaveAs,
+            Act::Batch(_) => Line::Batch,
+            Act::Duplicates(_) => Line::Duplicates,
+            Act::Slideshow(_) => Line::Slideshow,
+            Act::RedoThumbs(_) | Act::RedoAllThumbs | Act::Refresh => Line::Refresh,
+            Act::Transform(Op::Cw, _) => Line::RotateCw,
+            Act::Transform(Op::Ccw, _) => Line::RotateCcw,
+            Act::Transform(Op::FlipH, _) => Line::FlipH,
+            Act::Transform(Op::FlipV, _) => Line::FlipV,
+            Act::RotateCrop(_) => Line::Crop,
+            Act::Edit(_) => Line::Edit,
+            Act::EditCopy | Act::Copy(_) => Line::Copy,
+            Act::EditCut => Line::Cut,
+            Act::EditPaste(_) => Line::Paste,
+            Act::Save => Line::Save,
+            Act::Restore(_) => Line::Undo,
+            Act::Cut(_) => Line::Cut,
+            Act::Paste(_) => Line::Paste,
+            Act::Quit => Line::Quit,
+            Act::Back => Line::Grid,
+            Act::Up => Line::Up,
+            Act::Manual => Line::Manual,
+            Act::CheckUpdates | Act::Update => Line::Updates,
+            Act::About => Line::Info,
+            _ => return None,
+        })
+    }
+}
+
 impl App {
     pub(crate) fn global_keys(&mut self, ctx: &egui::Context) {
         let (help, refresh, delete, shift, rename) = ctx.input(|i| {
@@ -104,6 +156,24 @@ impl App {
         let new_folder = ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::N));
         if new_folder && !ctx.egui_wants_keyboard_input() {
             self.ask_new_folder(None);
+        }
+        // Ctrl+N: a new image (after Ctrl+Shift+N, which took the key for a folder).
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::N)) && !ctx.egui_wants_keyboard_input() && self.loader.is_some() {
+            self.new_image = Some(crate::new_image::Form::new());
+        }
+        // Ctrl+E, as Photos on Windows: Edit image.
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::E)) && !ctx.egui_wants_keyboard_input() && self.can_edit(None) {
+            self.open_editor(None, crate::edit_page::Tool::Select);
+        }
+        // Ctrl+B and Ctrl+D: Convert and resize, Find duplicates (as their toolbar buttons).
+        let (batch, duplicates) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::COMMAND, Key::B), i.consume_key(egui::Modifiers::COMMAND, Key::D)));
+        if !ctx.egui_wants_keyboard_input() {
+            if batch && self.batch_off().is_none() {
+                self.act = Some(Act::Batch(None));
+            }
+            if duplicates && self.duplicates_off().is_none() {
+                self.act = Some(Act::Duplicates(None));
+            }
         }
         if !ctx.egui_wants_keyboard_input() && self.rename.is_none() && self.new_folder.is_none() {
             if delete {
@@ -171,13 +241,14 @@ impl App {
             Act::Options => self.options = true,
             Act::SelectAll => self.select_all(),
             Act::RotateSaveAs => {
-                if let Some(w) = &mut self.rotate {
+                if let Some(w) = &mut self.editor {
                     w.save_as = true;
                 }
             }
             Act::Delete(path, permanent) => self.ask_delete(path, permanent),
             Act::Rename(path) => self.ask_rename(path),
             Act::NewFolder(dir) => self.ask_new_folder(dir),
+            Act::NewImage => self.new_image = Some(crate::new_image::Form::new()),
             Act::Convert(path) => self.open_convert(path),
             Act::ExportModel(path, kind) => self.export_model(path, kind),
             Act::Duplicates(dir) => self.open_duplicates(dir),
@@ -189,14 +260,21 @@ impl App {
             Act::RedoThumbs(path) => self.redo_thumbs(ctx, self.chosen(path)),
             Act::RedoAllThumbs => self.redo_all_thumbs(ctx),
             Act::Transform(op, path) => self.transform(op, path),
-            Act::RotateCrop(path) => self.open_rotate(path),
+            Act::RotateCrop(path) => self.open_editor(path, crate::edit_page::Tool::Crop),
+            Act::Edit(path) => self.open_editor(path, crate::edit_page::Tool::Select),
+            Act::EditCopy => self.edit_copy(ctx),
+            Act::EditCut => self.edit_cut(ctx),
+            Act::EditPaste(img) => self.edit_paste(img),
             Act::Save => self.ask_save(),
             Act::Submenu(_) | Act::Off(_) => {}
             Act::Restore(path) => self.ask_restore(path),
             Act::Copy(path) => self.clip(ctx, path, false),
             Act::Cut(path) => self.clip(ctx, path, true),
             Act::Paste(dir) => self.paste(dir),
-            Act::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            Act::Quit => {
+                log!("quit from the menu");
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
             Act::Update => {
                 let Some(ready) = &self.update else { return };
                 match update::apply(ready) {

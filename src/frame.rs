@@ -12,6 +12,9 @@ use crate::{App, browser, meta, save_dialogs, theme};
 impl App {
     /// Every frame, before drawing: messages, retries, keys, title and window size.
     pub(crate) fn before_frame(&mut self, ctx: &egui::Context) {
+        if ctx.input(|i| i.viewport().close_requested()) {
+            log!("close requested (the window's ✕ or the system), editor open {}", self.editor.is_some());
+        }
         // Closing during a copy: it is cancelled, and the window closes once the file being copied
         // is finished. Closed in the middle, a phone kept half an operation and the next session
         // got its leftovers ("Transaction ID mismatch", until it was plugged in again).
@@ -23,11 +26,16 @@ impl App {
             self.quit_after_transfer = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
-        // Closing with an image turned and not saved: asked first, as when leaving the image.
-        if self.transfer.is_none()
+        // The ✕ in the viewer goes back to the grid, as Esc, when chosen in the Options (on at
+        // first: user, 2026-11-06); a turned image not saved is asked about as when leaving it.
+        if self.transfer.is_none() && self.settings.close_to_grid && self.viewing.is_some() && self.editor.is_none() && ctx.input(|i| i.viewport().close_requested()) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.close_viewer();
+        } else if self.transfer.is_none()
             && ctx.input(|i| i.viewport().close_requested())
             && self.hold_for_turn(save_dialogs::After::Quit)
         {
+            // Closing with an image turned and not saved: asked first, as when leaving the image.
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
         self.receive(ctx);
@@ -37,7 +45,7 @@ impl App {
         self.retry(ctx);
         self.reread_changed(ctx);
         // "Save in another format" and the duplicates cover the window: the keys must not reach the grid under them.
-        if self.convert.is_none() && self.rotate.is_none() && self.show.is_none() && !self.dup_page_shown() {
+        if self.convert.is_none() && self.editor.is_none() && self.show.is_none() && !self.dup_page_shown() {
             self.global_keys(ctx);
             if self.viewing.is_some() {
                 self.viewer_keys(ctx);
@@ -62,29 +70,38 @@ impl App {
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(egui::Color32::BLACK)).show(ui, |ui| self.show_page(ui));
         } else if self.convert.is_some() {
             egui::CentralPanel::default().show(ui, |ui| self.convert_page(ui));
-        } else if self.rotate.is_some() {
-            egui::CentralPanel::default().show(ui, |ui| self.rotate_page(ui));
+        } else if self.editor.is_some() {
+            // The editor's bars are panels of their own: no margin around them.
+            egui::CentralPanel::default().frame(egui::Frame::NONE).show(ui, |ui| self.edit_page(ui));
         } else if self.dup_page_shown() {
             self.dup_page(ui);
         } else {
-            egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
-            egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui, ctx));
+            // Full screen in the viewer: the picture (or video, model, drawing) alone, no bars
+            // (user, 2026-11-06; issue #43 asked it for videos).
+            let bare = self.viewing.is_some() && ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+            if !bare {
+                egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
+                egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui, ctx));
+            }
             if let Some(e) = self.error.clone() {
                 egui::Panel::bottom("error").show(ui, |ui| {
                     ui.horizontal(|ui| {
                         ui.label(browser::error_text(ui, e));
-                        if ui.small_button("✖").clicked() {
+                        if ui.add(crate::icons::small(ui, crate::icons::Line::Close)).on_hover_text(self.i18n.t("notice-close")).clicked() {
                             self.error = None;
                         }
                     });
                 });
             }
             match self.viewing {
+                Some(current) if bare => {
+                    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(Color32::BLACK)).show(ui, |ui| self.viewer(ui, current));
+                }
                 Some(current) => {
                     let bar = egui::Frame::side_top_panel(ui.style()).fill(theme::solid(ui.visuals()));
                     let status = egui::Panel::bottom("viewer-status").frame(bar).show(ui, |ui| self.viewer_status(ui, current));
-                    // The keys of the 3D and CAD viewers: listed while the button is pointed at, or
-                    // until it is clicked again.
+                    // The keys of the viewer: listed while the button is pointed at, or until it is
+                    // clicked again.
                     if let (Some(button), Some(id)) = (status.inner, self.keys_hint(current)) {
                         if button.clicked() {
                             self.keys_open = !self.keys_open;
@@ -152,7 +169,23 @@ impl App {
         self.transfer_window(ctx);
         self.rename_window(ctx);
         self.new_folder_window(ctx);
+        self.new_image_window(ctx);
         self.restore_window(ctx);
         self.next_restore();
+    }
+}
+
+/// Closing EyeCanSee: a save under way is waited for; anything else in the background (the
+/// decoding of a large image, the neighbours read ahead, thumbnails) gets half a second, then is
+/// left: the runtime waited for every one of them, and the window stayed frozen for seconds on
+/// Windows after a 45-megapixel HEIC (user, 2026-11-06).
+impl Drop for crate::App {
+    fn drop(&mut self) {
+        log!("quitting");
+        if self.saving.is_empty()
+            && let Ok(small) = tokio::runtime::Builder::new_current_thread().build()
+        {
+            std::mem::replace(&mut self.rt, small).shutdown_timeout(std::time::Duration::from_millis(500));
+        }
     }
 }

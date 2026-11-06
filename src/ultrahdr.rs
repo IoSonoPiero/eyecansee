@@ -51,9 +51,12 @@ pub fn turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
 
 /// The photo after "Rotate and crop" (`image`: decoded upright and already edited) written back
 /// as Ultra HDR: the gain map gets the same edits, scaled to its size, so the photo stays HDR.
-pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit]) -> Result<Vec<u8>, String> {
+/// `holes` (left, top, right, bottom in pixels of the edited photo: the editor's cover boxes and
+/// opaque objects) get the lowest gain on every pixel of the gain map they touch even in part.
+pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]]) -> Result<Vec<u8>, String> {
     let (photo, gain) = split(b).ok_or("not Ultra HDR")?;
-    let o = Options { format: Format::Jpeg, jpeg_quality: 95, ..Options::default() };
+    // Each at its own quality and subsampling: not compressed harder a second time.
+    let like = |jpeg| crate::encode::jpeg_quality::like(jpeg, Options { format: Format::Jpeg, ..Options::default() });
     // The gain map upright as the photo shown, then the edits at its scale.
     let turn = transform::exif_turn(photo);
     let (w, h) = image::ImageReader::new(std::io::Cursor::new(photo)).with_guessed_format().map_err(|e| e.to_string())?.into_dimensions().map_err(|e| e.to_string())?;
@@ -68,16 +71,33 @@ pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit]) -> Result<Vec<u8>, 
         // is 0 as on the phones seen; read hdrgm:GainMapMin if a photo has another one.
         Edit { crop, fill: Some([0; 3]), ..*e }.apply(&mut g);
     }
+    let (kx, ky) = (g.width() as f32 / image.width() as f32, g.height() as f32 / image.height() as f32);
+    lowest_gain(&mut g, holes, kx, ky);
     if gray {
         g = DynamicImage::ImageLuma8(g.to_luma8());
     }
-    let new_photo = keep_segments(photo, Original::with_meta(image, photo).encode(&o)?);
-    let new_gain = keep_segments(gain, Original::with_meta(g, gain).encode(&o)?);
+    let new_photo = keep_segments(photo, Original::with_meta(image, photo).encode(&like(photo))?);
+    let new_gain = keep_segments(gain, Original::with_meta(g, gain).encode(&like(gain))?);
     assemble(new_photo, &new_gain)
 }
 
+/// Gain 0 on every pixel of `g` that a hole touches even in part, `kx`, `ky` its pixels per pixel
+/// of the photo: the gain map is smaller than the photo, a pixel of it covers several.
+fn lowest_gain(g: &mut DynamicImage, holes: &[[f32; 4]], kx: f32, ky: f32) {
+    use image::GenericImage;
+    for &[l, t, r, b] in holes {
+        let x0 = ((l * kx).floor().max(0.0) as u32).min(g.width());
+        let y0 = ((t * ky).floor().max(0.0) as u32).min(g.height());
+        let x1 = ((r * kx).ceil().max(0.0) as u32).min(g.width());
+        let y1 = ((b * ky).ceil().max(0.0) as u32).min(g.height());
+        for (x, y) in (x0..x1).flat_map(|x| (y0..y1).map(move |y| (x, y))) {
+            g.put_pixel(x, y, image::Rgba([0, 0, 0, 255]));
+        }
+    }
+}
+
 /// The photo and the gain map (without the padding after it), if it is an Ultra HDR file.
-fn split(b: &[u8]) -> Option<(&[u8], &[u8])> {
+pub(crate) fn split(b: &[u8]) -> Option<(&[u8], &[u8])> {
     let p = parts(b)?;
     let gain = &b[p.gain..];
     let end = gain.len() - gain.iter().rev().take_while(|&&x| x == 0).count();
@@ -100,14 +120,14 @@ fn assemble(mut photo: Vec<u8>, gain: &[u8]) -> Result<Vec<u8>, String> {
 }
 
 /// One of the two pictures turned: without encoding again when its size allows it, otherwise
-/// at quality 95; the segments the turn left out (XMP, MPF…) put back.
+/// at its own quality and subsampling; the segments the turn left out (XMP, MPF…) put back.
 fn one(jpeg: &[u8], turn: Turn, lossless: impl FnOnce(&[u8]) -> Option<Vec<u8>>) -> Result<(Vec<u8>, bool), String> {
     let (out, lossy) = match lossless(jpeg) {
         Some(out) => (out, false),
         None => {
             let mut img = crate::decode::decode_full(jpeg, "x.jpg")?;
             turn.apply(&mut img);
-            let o = Options { format: Format::Jpeg, jpeg_quality: 95, ..Options::default() };
+            let o = crate::encode::jpeg_quality::like(jpeg, Options { format: Format::Jpeg, ..Options::default() });
             (Original::with_meta(img, jpeg).encode(&o)?, true)
         }
     };
@@ -294,7 +314,7 @@ pub(crate) mod tests {
         assert!(xmp.contains(&format!("Item:Semantic=\"GainMap\" Item:Mime=\"image/jpeg\" Item:Length=\"{}\"", out.len() - p.gain)));
         fitted(&out[..p.gain], 32);
         // Saving goes through it, and the whole file is still read as the photo.
-        let (saved, _) = crate::encode::turned_file(&file, "a.jpg", Turn::default().then(transform::Op::Cw)).unwrap();
+        let (saved, _) = crate::save_back::turned_file(&file, "a.jpg", Turn::default().then(transform::Op::Cw)).unwrap();
         assert_eq!(saved, out);
         // A size that is not a multiple of the blocks: encoded again, still Ultra HDR.
         let (out, lossy) = turned(&sample(72, 40), Turn::default().then(transform::Op::FlipH)).unwrap().unwrap();
@@ -309,7 +329,7 @@ pub(crate) mod tests {
         let mut img = crate::decode::decode_full(&file, "a.jpg").unwrap();
         let e = Edit { turn: Turn::default().then(transform::Op::Cw), angle: 10.0, crop: Crop::centred(20.0, 40.0), fill: Some([255; 3]) };
         e.apply(&mut img);
-        let out = edited(&file, img, &[e]).unwrap();
+        let out = edited(&file, img, &[e], &[]).unwrap();
         let p = parts(&out).expect("still Ultra HDR");
         let photo = image::load_from_memory(&out[..p.gain]).unwrap();
         let gain = image::load_from_memory(&out[p.gain..]).unwrap();
@@ -317,6 +337,19 @@ pub(crate) mod tests {
         let xmp = String::from_utf8_lossy(&out[..p.gain]).into_owned();
         assert!(xmp.contains(&format!("Item:Length=\"{}\"", out.len() - p.gain)));
         fitted(&out[..p.gain], 20);
+    }
+
+    /// A hole gives gain 0 to every pixel of the gain map it touches even in part, and to no other.
+    #[test]
+    fn lowest_gain_where_touched() {
+        let mut g = DynamicImage::ImageLuma8(image::GrayImage::from_pixel(20, 10, image::Luma([90])));
+        // Half the size of the photo: 10.5..21 × 4..8.2 of the photo is 5.25..10.5 × 2..4.1.
+        lowest_gain(&mut g, &[[10.5, 4.0, 21.0, 8.2]], 0.5, 0.5);
+        let g = g.to_luma8();
+        for (x, y, p) in g.enumerate_pixels() {
+            let inside = (5..11).contains(&x) && (2..5).contains(&y);
+            assert_eq!(p.0[0], if inside { 0 } else { 90 }, "{x},{y}");
+        }
     }
 
     /// Rotate and crop on real phone photos, as `ultra_hdr_live`: 7.5° and a crop, the files in
@@ -336,7 +369,7 @@ pub(crate) mod tests {
             let (w, h) = (img.width() as f32, img.height() as f32);
             let e = Edit { turn: Turn::default(), angle: 7.5, crop: crate::rotate::inside(w, h, 7.5, w / h), fill: Some([255; 3]) };
             e.apply(&mut img);
-            let out = edited(&b, img, &[e]).unwrap();
+            let out = edited(&b, img, &[e], &[]).unwrap();
             assert!(is(&out), "{}", path.display());
             std::fs::write(std::path::Path::new(&out_dir).join(path.file_name().unwrap()), &out).unwrap();
         }

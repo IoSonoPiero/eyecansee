@@ -42,6 +42,13 @@ missing=()
         fi
         for f in "${files[@]}"; do echo; echo "--- ${f#"$dir"/}"; cat "$f"; echo; done
     done <<<"$pkgs"
+    # Not a crate: the icons of the buttons, inside the executable.
+    echo
+    printf '=%.0s' {1..78}; echo
+    echo "Lucide icons (some derived from Feather), inside eyecansee  -  ISC AND MIT"
+    echo "https://lucide.dev"
+    printf '=%.0s' {1..78}; echo
+    echo; cat assets/icons/lucide/LICENSE-lucide.txt; echo
     echo
     printf '=%.0s' {1..78}; echo
     echo "Standard licence texts (from the SPDX License List)"

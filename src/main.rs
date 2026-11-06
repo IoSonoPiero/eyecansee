@@ -67,7 +67,9 @@ mod decode;
 mod devices;
 mod dup_page;
 mod duplicates;
+mod edit;
 mod encode;
+mod eyedropper;
 mod encoders;
 mod engine;
 mod ffmpeg;
@@ -113,6 +115,7 @@ mod mtp;
 mod navigation;
 mod occt;
 mod new_folder;
+mod new_image;
 mod paint;
 mod psd;
 mod render3d;
@@ -120,7 +123,8 @@ mod render_gpu;
 mod render_shine;
 mod replace;
 mod rotate;
-mod rotate_page;
+mod edit_page;
+mod save_back;
 mod save_dialogs;
 mod selection;
 mod server_manager;
@@ -133,6 +137,7 @@ mod source;
 mod theme;
 mod thumb_queue;
 mod thumbcache;
+mod toolbar;
 mod transfer;
 mod transform;
 mod trash;
@@ -355,7 +360,9 @@ struct App {
     /// "Save in another format" window.
     convert: Option<convert::Window>,
     /// Rotate and crop, a page of its own.
-    rotate: Option<rotate_page::Window>,
+    editor: Option<edit_page::Window>,
+    /// Images read by the viewer that are animated or have several pages: the editor is off for them.
+    animated: std::collections::HashSet<String>,
     /// Find duplicates: the search and its results page.
     duplicates: Option<dup_page::Window>,
     /// Convert and resize several images: the choices, then the work.
@@ -406,7 +413,10 @@ struct App {
     rename: Option<(String, String, bool)>,
     /// New folder: name, the folder it goes in, first frame (the name gets selected).
     new_folder: Option<(String, String, bool)>,
-    /// A folder just made: selected once its folder is read again.
+    /// File > New image…: its window is open.
+    new_image: Option<new_image::Form>,
+    /// A folder just made, or the editor's copy just saved: selected (and shown in the viewer)
+    /// once its folder is read again.
     select_after: Option<String>,
     /// Enter (true) or Esc (false) pressed while a confirmation is open (deletion, name taken).
     delete_answer: Option<bool>,
@@ -527,7 +537,8 @@ impl App {
             update: None,
             update_note: None,
             convert: None,
-            rotate: None,
+            editor: None,
+            animated: Default::default(),
             duplicates: None,
             batch: None,
             batch_form: None,
@@ -538,6 +549,7 @@ impl App {
             delete_answer: None,
             rename: None,
             new_folder: None,
+            new_image: None,
             select_after: None,
             restore_queue: Default::default(),
             restore_busy: false,
@@ -620,6 +632,21 @@ impl eframe::App for App {
         let mods = ctx.input(|i| i.modifiers);
         let shift_del = cfg!(windows) && mods.shift && !mods.command;
         let act = &mut self.act;
+        // In the editor Ctrl+C copies the result (with Selection, that part), Ctrl+X cuts the part,
+        // Ctrl+V pastes it, or an image copied in another program; no files are cut or pasted there.
+        if self.editor.is_some() {
+            raw_input.events.retain(|e| {
+                *act = match e {
+                    egui::Event::Copy => Some(Act::EditCopy),
+                    egui::Event::Cut => Some(Act::EditCut),
+                    egui::Event::Paste(_) => Some(Act::EditPaste(None)),
+                    egui::Event::PasteImage(img) => Some(Act::EditPaste(Some(img.clone()))),
+                    _ => return true,
+                };
+                false
+            });
+            return;
+        }
         raw_input.events.retain(|e| {
             *act = match e {
                 egui::Event::Copy => Some(Act::Copy(None)),

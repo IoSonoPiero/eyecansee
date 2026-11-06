@@ -94,12 +94,17 @@ fn sin_cos(angle: f32) -> (f32, f32) {
 /// `img` rotated by `angle` and cut to `crop`, every pixel taken from the four around the point
 /// it comes from (bilinear). 16-bit images stay 16-bit; without transparency in the image nor in
 /// the fill, the result has none either.
+/// Top left corner of the result in the rotated image, from its centre, for an image of `iw` × `ih`:
+/// on whole pixels of the original, so with no rotation the pixels are copied as they are.
+pub fn corner(iw: f32, ih: f32, crop: Crop) -> (f32, f32) {
+    let (ow, oh) = crop.pixels();
+    ((crop.cx - ow as f32 / 2.0 + iw / 2.0).round() - iw / 2.0, (crop.cy - oh as f32 / 2.0 + ih / 2.0).round() - ih / 2.0)
+}
+
 pub fn rotate_crop(img: &DynamicImage, angle: f32, crop: Crop, fill: Option<[u8; 3]>) -> DynamicImage {
     let (iw, ih) = (img.width() as f32, img.height() as f32);
     let (ow, oh) = crop.pixels();
-    // Left and top on whole pixels of the original: with no rotation the pixels are copied as they are.
-    let left = (crop.cx - ow as f32 / 2.0 + iw / 2.0).round() - iw / 2.0;
-    let top = (crop.cy - oh as f32 / 2.0 + ih / 2.0).round() - ih / 2.0;
+    let (left, top) = corner(iw, ih, crop);
     let x0 = left + iw / 2.0;
     let y0 = top + ih / 2.0;
     if angle.rem_euclid(360.0) == 0.0 && x0 >= 0.0 && y0 >= 0.0 && x0 + ow as f32 <= iw && y0 + oh as f32 <= ih {
@@ -259,7 +264,7 @@ mod tests {
         let mut png = Vec::new();
         sample(60, 40).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
         let edit = Edit { turn: Turn::default(), angle: 10.0, crop: inside(60.0, 40.0, 10.0, 1.0), fill: None };
-        let (out, lossy) = crate::encode::edited_file(&png, "x.png", |img| edit.apply(img)).unwrap();
+        let (out, lossy) = crate::save_back::edited_file(&png, "x.png", |img| edit.apply(img)).unwrap();
         assert!(!lossy);
         let back = crate::decode::decode_full(&out, "x.png").unwrap();
         assert_eq!(back.dimensions(), edit.crop.pixels());
