@@ -382,7 +382,8 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
             // From the object as the drag started, with the preview made since (the one it started
             // with showed the part it came from).
             Hold::Move { index, start, from } => w.doc.objects[*index] = geom::redrawn(&mut w.doc.objects[*index], geom::moved(start, Pt::new(p.x - from.x, p.y - from.y))),
-            Hold::Handle { index, handle, start } => w.doc.objects[*index] = geom::redrawn(&mut w.doc.objects[*index], geom::with_handle(start, *handle, p)),
+            // Shift keeps the proportions the box had.
+            Hold::Handle { index, handle, start } => w.doc.objects[*index] = geom::redrawn(&mut w.doc.objects[*index], geom::with_handle_kept(start, *handle, p, square)),
             Hold::Pan { at, k, from } => w.view = Some((*at - (s - *from) / *k, *k)),
             Hold::Marquee { .. } => {}
             // By hand: a point more where the pointer went (one every point and a half of the screen).
@@ -506,6 +507,17 @@ fn marquee_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
 fn pick_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View) {
     if response.hovered() || response.dragged() {
         ui.ctx().set_cursor_icon(CursorIcon::Crosshair);
+        // The colour under the pointer, live: by the pointer, or (dragged out of the window,
+        // where nothing can be drawn) in the bottom left corner of the canvas (user, 2026-11-06).
+        let at = ui.input(|i| i.pointer.latest_pos()).filter(|p| response.rect.contains(*p));
+        let under = crate::eyedropper::at_cursor().or_else(|| at.and_then(|s| colour_at(w, view, s)));
+        if let Some(c) = under {
+            let place = at.map_or(response.rect.left_bottom() + egui::vec2(12.0, -96.0), |p| p + egui::vec2(18.0, 18.0));
+            swatch(ui.ctx(), place, c);
+        }
+        if response.dragged() {
+            ui.ctx().request_repaint();
+        }
     }
     if (response.clicked() || response.drag_stopped())
         && let Some(s) = response.interact_pointer_pos()
@@ -513,6 +525,20 @@ fn pick_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &V
         w.picked = crate::eyedropper::at_cursor().or_else(|| colour_at(w, view, s)).or(w.picked);
         w.picking = false;
     }
+}
+
+/// The box by the eyedropper: the colour and its codes.
+fn swatch(ctx: &egui::Context, at: Pos2, [r, g, b]: [u8; 3]) {
+    egui::Area::new(egui::Id::unique("edit-pick-swatch")).order(egui::Order::Tooltip).fixed_pos(at).interactable(false).show(ctx, |ui| {
+        egui::Frame::popup(ui.style()).show(ui, |ui| {
+            ui.horizontal(|ui| {
+                let (rect, _) = ui.allocate_exact_size(egui::vec2(44.0, 44.0), egui::Sense::hover());
+                ui.painter().rect_filled(rect, 4.0, Color32::from_rgb(r, g, b));
+                ui.painter().rect_stroke(rect, 4.0, egui::Stroke::new(1.0, Color32::from_gray(120)), egui::StrokeKind::Inside);
+                ui.label(egui::RichText::new(crate::eyedropper::codes([r, g, b])).monospace());
+            });
+        });
+    });
 }
 
 /// The colour of the image under `s` (the photo, without the objects); `None` outside it.

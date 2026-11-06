@@ -72,3 +72,31 @@ pub fn at_cursor() -> Option<[u8; 3]> {
 pub fn at_cursor() -> Option<[u8; 3]> {
     None
 }
+
+/// A colour as the eyedropper's box writes it: hex, RGB and HSL (hue in degrees, saturation and
+/// lightness in percent).
+pub fn codes([r, g, b]: [u8; 3]) -> String {
+    let (rf, gf, bf) = (r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0);
+    let (max, min) = (rf.max(gf).max(bf), rf.min(gf).min(bf));
+    let l = (max + min) / 2.0;
+    let d = max - min;
+    let s = if d == 0.0 { 0.0 } else { d / (1.0 - (2.0 * l - 1.0).abs()) };
+    let h = match () {
+        _ if d == 0.0 => 0.0,
+        _ if max == rf => 60.0 * ((gf - bf) / d).rem_euclid(6.0),
+        _ if max == gf => 60.0 * ((bf - rf) / d + 2.0),
+        _ => 60.0 * ((rf - gf) / d + 4.0),
+    };
+    format!("#{r:02X}{g:02X}{b:02X}\nRGB {r}, {g}, {b}\nHSL {:.0}°, {:.0}%, {:.0}%", h, s * 100.0, l * 100.0)
+}
+
+#[cfg(test)]
+mod tests {
+    /// Hex, RGB and HSL of a few colours.
+    #[test]
+    fn colour_codes() {
+        assert_eq!(super::codes([255, 0, 0]), "#FF0000\nRGB 255, 0, 0\nHSL 0°, 100%, 50%");
+        assert_eq!(super::codes([30, 110, 230]), "#1E6EE6\nRGB 30, 110, 230\nHSL 216°, 80%, 51%");
+        assert_eq!(super::codes([128, 128, 128]), "#808080\nRGB 128, 128, 128\nHSL 0°, 0%, 50%");
+    }
+}

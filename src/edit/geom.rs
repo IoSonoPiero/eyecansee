@@ -210,7 +210,13 @@ pub fn handles(o: &Obj) -> Vec<Pt> {
 /// The object with handle `i` moved to `p`: the other end of a line, the opposite corner of a box
 /// stay where they were. A box keeps its own angle and is at least a pixel wide; a step stays
 /// square, and so does a stamp.
+#[cfg(test)]
 pub fn with_handle(o: &Obj, i: usize, p: Pt) -> Obj {
+    with_handle_kept(o, i, p, false)
+}
+
+/// `with_handle`; with `keep` (Shift held) a box keeps the proportions it had (user, 2026-11-06).
+pub fn with_handle_kept(o: &Obj, i: usize, p: Pt, keep: bool) -> Obj {
     let square = matches!(o.shape, Shape::Step { .. } | Shape::Stamp(_));
     let resized = |r: &Area| {
         let fixed = corners(r)[(i + 2) % 4];
@@ -219,6 +225,10 @@ pub fn with_handle(o: &Obj, i: usize, p: Pt) -> Obj {
         if square {
             let side = q.x.abs().max(q.y.abs());
             q = Pt::new(side.copysign(q.x), side.copysign(q.y));
+        } else if keep && r.w > 0.0 && r.h > 0.0 {
+            // As much larger as the farther of the two sides says, both alike.
+            let k = (q.x.abs() / r.w).max(q.y.abs() / r.h);
+            q = Pt::new((k * r.w).copysign(q.x), (k * r.h).copysign(q.y));
         }
         let mid = turned(Pt::new(q.x / 2.0, q.y / 2.0), r.rot);
         Area { centre: Pt::new(fixed.x + mid.x, fixed.y + mid.y), w: q.x.abs().max(1.0), h: q.y.abs().max(1.0), rot: r.rot }
@@ -485,5 +495,15 @@ mod curves {
         let line = Obj { shape: Shape::Line(Pt::new(-20.0, 0.0), Pt::new(20.0, 0.0), None), style: empty };
         let objects = [filled, line];
         assert_eq!((under(&objects, Pt::new(0.0, 0.0), 1.0), under_of(&objects, Pt::new(0.0, 0.0), 1.0, Kind::Rect), under_of(&objects, Pt::new(0.0, 0.0), 1.0, Kind::Step)), (Some(1), Some(0), None));
+    }
+
+    /// A corner dragged with Shift keeps the box's proportions: a box 20 × 10 dragged to 60 wide
+    /// and 12 high becomes 60 × 30; without Shift 60 × 12.
+    #[test]
+    fn proportions_kept() {
+        let o = Obj { shape: Shape::Rect(Area { centre: Pt::new(10.0, 5.0), w: 20.0, h: 10.0, rot: 0.0 }), style: Style::default() };
+        let size = |o: &Obj| { let a = o.shape.area().unwrap(); (a.w, a.h) };
+        assert_eq!(size(&with_handle_kept(&o, 2, Pt::new(60.0, 12.0), true)), (60.0, 30.0));
+        assert_eq!(size(&with_handle_kept(&o, 2, Pt::new(60.0, 12.0), false)), (60.0, 12.0));
     }
 }
