@@ -1,10 +1,11 @@
 //! The controls of the properties bar for the kinds of object with more than colour, width and
-//! opacity: the bubble's shape and letters, the lens's shape and zoom, the stamp's icon.
+//! opacity: the bubble's shape and letters, the lens's shape and zoom, the stamp's icon, the
+//! outline and the box of a text.
 
 use eframe::egui;
 
 use super::tools::colours;
-use crate::edit::doc::{Stamp, Style};
+use crate::edit::doc::{Back, Stamp, Style};
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
 
@@ -18,6 +19,40 @@ pub(super) fn lens(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
         if ui.add(egui::Button::new(format!("{zoom}×")).selected(style.zoom == zoom)).clicked() {
             style.zoom = zoom;
         }
+    }
+}
+
+/// A text: a line round its letters and a box behind them, each turned on by its button, with
+/// its colour and sizes; in pixels of the image, kept as fractions of the letters' height
+/// (`style.width` for a text), so they grow with them.
+pub(super) fn text_look(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
+    let size = style.width.max(1.0);
+    let px = |ui: &mut egui::Ui, label: String, frac: &mut f32, lo: f32, hi: f32| {
+        ui.label(label);
+        let mut v = *frac * size;
+        ui.add(egui::Slider::new(&mut v, lo..=hi.max(lo + 1.0)).integer().suffix(" px"));
+        *frac = v / size;
+    };
+    ui.separator();
+    if ui.add(egui::Button::new(i18n.t("edit-outline")).selected(style.outline.is_some())).on_hover_text(i18n.t("edit-outline-hint")).clicked() {
+        style.outline = if style.outline.is_some() { None } else { Some(([255, 255, 255], 0.08)) };
+    }
+    if let Some((colour, width)) = &mut style.outline {
+        colours(ui, colour, i18n);
+        px(ui, i18n.t("edit-width"), width, 1.0, size / 3.0);
+    }
+    ui.separator();
+    if ui.add(egui::Button::new(i18n.t("edit-text-back")).selected(style.back.is_some())).on_hover_text(i18n.t("edit-text-back-hint")).clicked() {
+        style.back = if style.back.is_some() { None } else { Some(Back::default()) };
+    }
+    if let Some(back) = &mut style.back {
+        colours(ui, &mut back.color, i18n);
+        ui.label(i18n.t("edit-opacity"));
+        let mut pct = back.opacity * 100.0;
+        ui.add(egui::Slider::new(&mut pct, 5.0..=100.0).integer().suffix(" %"));
+        back.opacity = pct / 100.0;
+        px(ui, i18n.t("edit-margin"), &mut back.margin, 0.0, size);
+        px(ui, i18n.t("edit-corners"), &mut back.radius, 0.0, size);
     }
 }
 

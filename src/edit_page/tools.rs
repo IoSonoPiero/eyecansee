@@ -367,6 +367,7 @@ fn kind_controls(ui: &mut egui::Ui, w: &mut Window, style: &mut Style, (kind, se
         Kind::Bubble => super::props::bubble(ui, style, w.long(), i18n),
         Kind::Lens => super::props::lens(ui, style, i18n),
         Kind::Stamp => super::props::stamp(ui, style, i18n),
+        Kind::Text => super::props::text_look(ui, style, i18n),
         Kind::Spotlight => {
             ui.separator();
             super::props::round_or_square(ui, style, i18n);

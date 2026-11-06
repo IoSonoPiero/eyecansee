@@ -26,7 +26,7 @@ pub struct View {
 /// The objects of `doc` on an image of `size` (upright, before the turns), as `view` shows them.
 /// `options` gives the fonts (`decode::usvg_options`: those of the system).
 pub fn render(doc: &Doc, size: (u32, u32), view: &View, options: &usvg::Options) -> Option<tiny_skia::Pixmap> {
-    let tree = usvg::Tree::from_str(&svg(doc, size, view), options).ok()?;
+    let tree = usvg::Tree::from_str(&svg(doc, size, view, options), options).ok()?;
     let mut pixmap = tiny_skia::Pixmap::new(view.w, view.h)?;
     resvg::render(&tree, tiny_skia::Transform::identity(), &mut pixmap.as_mut());
     Some(pixmap)
@@ -36,14 +36,15 @@ pub fn render(doc: &Doc, size: (u32, u32), view: &View, options: &usvg::Options)
 /// bottom in its pixels; `None` when nothing is drawn.
 pub fn bounds(doc: &Doc, size: (u32, u32), options: &usvg::Options) -> Option<[f32; 4]> {
     let (w, h) = doc.crop.pixels();
-    let tree = usvg::Tree::from_str(&svg(doc, size, &View { x: 0.0, y: 0.0, w, h, scale: 1.0 }), options).ok()?;
+    let tree = usvg::Tree::from_str(&svg(doc, size, &View { x: 0.0, y: 0.0, w, h, scale: 1.0 }, options), options).ok()?;
     let r = tree.root().abs_stroke_bounding_box();
     (r.width() > 0.0 && r.height() > 0.0).then(|| [r.left(), r.top(), r.right(), r.bottom()])
 }
 
 /// The SVG of the objects. A point of an object (from the centre of the turned image) is turned
 /// by the angle, then put in the result as `rotate::rotate_crop` puts the pixels, then in the view.
-fn svg(doc: &Doc, (w, h): (u32, u32), view: &View) -> String {
+/// `options`: the fonts, to measure a text with a box behind it.
+fn svg(doc: &Doc, (w, h): (u32, u32), view: &View, options: &usvg::Options) -> String {
     let (iw, ih) = if doc.turn.sideways() { (h, w) } else { (w, h) };
     let (left, top) = crate::rotate::corner(iw as f32, ih as f32, doc.crop);
     let (tx, ty) = (-(left + view.x), -(top + view.y));
@@ -51,17 +52,17 @@ fn svg(doc: &Doc, (w, h): (u32, u32), view: &View) -> String {
     // The filters first, the highlighters, then the spotlights: they change the photo, the
     // objects drawn stay over them.
     for o in doc.objects.iter().filter(|o| matches!(o.shape, Shape::Filter { .. })).chain(doc.objects.iter().filter(|o| matches!(o.shape, Shape::Highlight { .. }))) {
-        object(&mut out, o);
+        object(&mut out, o, options);
     }
     spotlights(&mut out, &doc.objects);
     for o in doc.objects.iter().filter(|o| !o.shape.is_layer()) {
-        object(&mut out, o);
+        object(&mut out, o, options);
     }
     out.push_str("</g></svg>");
     out
 }
 
-fn object(out: &mut String, o: &Obj) {
+fn object(out: &mut String, o: &Obj, options: &usvg::Options) {
     let Style { color: [r, g, b], width, opacity, dash, head, fill: inside, .. } = o.style;
     let stroke = format!(r#"stroke="rgb({r},{g},{b})" stroke-width="{width}" fill="none"{}"#, dashes(dash, width));
     let fill = format!(r#"fill="rgb({r},{g},{b})""#);
@@ -91,8 +92,16 @@ fn object(out: &mut String, o: &Obj) {
             Some((.., pixels)) => write!(out, r#"<image {} preserveAspectRatio="none" xlink:href="data:image/png;base64,{}"/>"#, rect(area), pixels.png_base64()),
             None => Ok(()),
         },
-        Shape::Text { text, size, font, path: Some(path), .. } => text_on(out, *path, (text, *size), font.as_deref(), &fill),
-        Shape::Text { at, text, size, rot, font, .. } => self::text(out, (*at, *size, *rot), text, font.as_deref(), &fill),
+        Shape::Text { text, size, font, path: Some(path), .. } => {
+            let _ = band(out, *path, *size, o.style.back);
+            text_on(out, *path, (text, *size), font.as_deref(), &(fill.clone() + &outline(&o.style, *size)))
+        }
+        Shape::Text { at, text, size, rot, font, .. } => {
+            if let Some(back) = o.style.back {
+                let _ = text_box(out, (*at, *size, *rot), (text, font.as_deref()), back, options);
+            }
+            self::text(out, (*at, *size, *rot), text, font.as_deref(), &(fill.clone() + &outline(&o.style, *size)))
+        }
         // Solid, no soft edge; when saving written into the pixels instead.
         Shape::Cover(area) => write!(out, r#"<rect {} {fill} shape-rendering="crispEdges"/>"#, rect(area)),
         // The picture stretched over its box, turned with it.
@@ -300,6 +309,39 @@ fn text(out: &mut String, (at, size, rot): (Pt, f32, f32), text: &str, font: Opt
     }
     out.push_str("</text>");
     Ok(())
+}
+
+/// The line round the letters of a text, as attributes of its `<text>`: drawn under the letters
+/// (`paint-order`), so they keep all their shape.
+fn outline(style: &Style, size: f32) -> String {
+    style.outline.map_or_else(String::new, |([r, g, b], w)| format!(r#" stroke="rgb({r},{g},{b})" stroke-width="{}" stroke-linejoin="round" paint-order="stroke""#, w * size))
+}
+
+/// The box behind a text: as wide as its letters (measured with its font: `text` alone in an
+/// SVG of its own), as high as its lines, plus the margin, with round corners; turned with it.
+fn text_box(out: &mut String, (at, size, rot): (Pt, f32, f32), (text, font): (&str, Option<&str>), back: super::doc::Back, options: &usvg::Options) -> std::fmt::Result {
+    if text.trim().is_empty() {
+        return Ok(());
+    }
+    let mut alone = String::from(r#"<svg xmlns="http://www.w3.org/2000/svg" width="1" height="1">"#);
+    self::text(&mut alone, (Pt::new(0.0, 0.0), size, 0.0), text, font, "")?;
+    alone.push_str("</svg>");
+    let Some((left, right)) = usvg::Tree::from_str(&alone, options).ok().map(|t| t.root().abs_bounding_box()).map(|r| (r.left(), r.right())) else { return Ok(()) };
+    let lines = text.lines().count().max(1) as f32;
+    let m = back.margin * size;
+    let (x, y) = (at.x + left - m, at.y - 0.6 * size * lines - m);
+    let ([r, g, b], o, rx) = (back.color, back.opacity, back.radius * size);
+    write!(out, r#"<rect x="{x}" y="{y}" width="{}" height="{}" rx="{rx}" fill="rgb({r},{g},{b})" fill-opacity="{o}" transform="rotate({rot} {} {})"/>"#, right - left + 2.0 * m, 1.2 * size * lines + 2.0 * m, at.x, at.y)
+}
+
+/// The box behind a text on a line: a band along all the line, as high as the letters plus the
+/// margin, round at its ends when the corners are.
+fn band(out: &mut String, (a, b, c): (Pt, Pt, Option<Pt>), size: f32, back: Option<super::doc::Back>) -> std::fmt::Result {
+    let Some(back) = back else { return Ok(()) };
+    let ([r, g, bl], o) = (back.color, back.opacity);
+    let cap = if back.radius > 0.0 { "round" } else { "butt" };
+    let stroke = format!(r#"stroke="rgb({r},{g},{bl})" stroke-opacity="{o}" stroke-width="{}" stroke-linecap="{cap}" fill="none""#, 1.2 * size + 2.0 * back.margin * size);
+    line(out, a, b, c, &stroke)
 }
 
 /// The family of a font for `font-family`, before the sans-serif fallback; quotes and markup out
@@ -703,6 +745,33 @@ pub(crate) mod tests {
         // The box from 26 to 74, two pixels for one of Lucide's: the check from 4 to 20 of 24,
         // the lines 2 wide, from 32 to 68.
         assert!(x0.abs_diff(32) <= 1 && x1.abs_diff(67) <= 1, "{x0} {x1}");
+    }
+
+    /// A text with an outline: the line round the letters in its colour, the letters inside it;
+    /// with a box: the box behind them in its colour, as wide as the letters plus the margin, the
+    /// photo outside it.
+    #[test]
+    fn text_outline_and_box() {
+        use crate::edit::doc::Back;
+        let text = |style| draw(&doc(vec![Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: "HH".into(), size: 30.0, rot: 0.0, font: None, path: None }, style }]), &whole(&doc(vec![])));
+        let c = |p: &tiny_skia::Pixmap, x, y| { let c = p.pixel(x, y).unwrap().demultiply(); [c.red(), c.green(), c.blue(), c.alpha()] };
+        let plain = text(style());
+        let lined = text(Style { outline: Some(([0, 0, 255], 0.1)), ..style() });
+        let blue = |p: &tiny_skia::Pixmap| p.pixels().iter().filter(|c| c.alpha() > 200 && c.blue() > 200 && c.red() < 60).count();
+        let red = |p: &tiny_skia::Pixmap| p.pixels().iter().filter(|c| c.alpha() > 200 && c.red() > 200 && c.blue() < 60).count();
+        assert!(blue(&lined) > 100 && red(&lined) * 10 > red(&plain) * 6, "outline {} round letters {} of {}", blue(&lined), red(&lined), red(&plain));
+        let back = Back { color: [0, 255, 0], opacity: 1.0, margin: 0.2, radius: 0.0 };
+        let boxed = text(Style { back: Some(back), ..style() });
+        let (_, x0, x1) = ink(&plain);
+        // Green just past the letters (6 of margin, plus the room the font leaves at their sides),
+        // nothing well past it; the top at 40 - 18 - 6.
+        assert_eq!((c(&boxed, x0 - 4, 40), c(&boxed, x1 + 4, 40), c(&boxed, 50, 17)), ([0, 255, 0, 255], [0, 255, 0, 255], [0, 255, 0, 255]));
+        assert_eq!((c(&boxed, x0 - 14, 40)[3], c(&boxed, x1 + 14, 40)[3], c(&boxed, 50, 14)[3]), (0, 0, 0));
+        assert!(red(&boxed) * 10 > red(&plain) * 9);
+        // On a line: the box a band along all of it, past the letters to its ends.
+        let path = Some((Pt::new(-40.0, 0.0), Pt::new(40.0, 0.0), None));
+        let on = draw(&doc(vec![Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: "H".into(), size: 10.0, rot: 0.0, font: None, path }, style: Style { back: Some(back), outline: Some(([0, 0, 255], 0.1)), ..style() } }]), &whole(&doc(vec![])));
+        assert_eq!((c(&on, 12, 40), c(&on, 12, 31)[3]), ([0, 255, 0, 255], 0));
     }
 
     /// A patch: its pixels where its box is, stretched to it.

@@ -545,3 +545,18 @@ fn highlighter_multiplies() {
     assert_eq!(b.get_pixel(36, 8).0, [65535, 0, 0], "the line over it");
     assert_eq!(b.get_pixel(44, 24).0, [65535; 3], "outside");
 }
+
+/// A text with an outline and a box in the saved image: the box in its colour round the letters,
+/// the photo past it.
+#[test]
+fn text_box_saved() {
+    use crate::edit::doc::Back;
+    let mut doc = Doc::new(64, 48, None);
+    let style = Style { color: [255, 0, 0], outline: Some(([255, 255, 255], 0.1)), back: Some(Back { color: BLUE, opacity: 1.0, margin: 0.3, radius: 0.0 }), ..Style::default() };
+    doc.objects.push(obj(Shape::Text { at: Pt::new(0.0, 0.0), text: "Hi".into(), size: 16.0, rot: 0.0, font: None, path: None }, style));
+    let photo = motif();
+    let img = result(&doc, &Original::with_meta(photo.clone(), &[]), &options());
+    // Letters 16 high round 32, 24, a line 19.2 high, the box 4.8 past it: from y 9.6.
+    assert_eq!(img.get_pixel(32, 11).0[..3], BLUE);
+    assert_eq!(img.get_pixel(32, 8), photo.get_pixel(32, 8));
+}

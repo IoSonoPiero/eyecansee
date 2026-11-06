@@ -214,6 +214,22 @@ impl Stamp {
     }
 }
 
+/// The box behind the letters of a text: its colour and opacity, how far it goes past them and
+/// how round its corners are (both as a fraction of the height of the letters).
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
+pub struct Back {
+    pub color: [u8; 3],
+    pub opacity: f32,
+    pub margin: f32,
+    pub radius: f32,
+}
+
+impl Default for Back {
+    fn default() -> Back {
+        Back { color: [255, 255, 255], opacity: 0.8, margin: 0.3, radius: 0.25 }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Style {
     /// RGB: the only transparency is `opacity`.
@@ -245,11 +261,17 @@ pub struct Style {
     /// Stamps: the icon.
     #[serde(default)]
     pub stamp: Stamp,
+    /// Texts: a line round the letters, its colour and width (a fraction of their height).
+    #[serde(default)]
+    pub outline: Option<([u8; 3], f32)>,
+    /// Texts: a box behind the letters.
+    #[serde(default)]
+    pub back: Option<Back>,
 }
 
 impl Default for Style {
     fn default() -> Style {
-        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None, ink: [0, 0, 0], letters: 0.0, round: false, zoom: 2, stamp: Stamp::Check }
+        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None, ink: [0, 0, 0], letters: 0.0, round: false, zoom: 2, stamp: Stamp::Check, outline: None, back: None }
     }
 }
 
