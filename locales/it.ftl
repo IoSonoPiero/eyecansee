@@ -40,11 +40,19 @@ error-host-changed = La chiave di { $detail } non è quella registrata in ~/.ssh
 host-ask =
     { "**" }Primo collegamento a { $host }.**
 
-    L'impronta della sua chiave è `{ $fingerprint }`. Se è il server che ti aspetti, EyeCanSee la ricorda in ~/.ssh/known_hosts, come fa ssh, e si collega.
+    L'impronta della sua chiave, da confrontare con quella che mostra il server (nelle sue impostazioni, o con ssh-keygen -lf sul server):
+
+    `{ $fingerprint }`
+
+    Se è il server che ti aspetti, EyeCanSee la ricorda in ~/.ssh/known_hosts, come fa ssh, e si collega.
 cert-ask =
     { "**" }Primo collegamento a { $host } (FTPS).**
 
-    Il suo certificato non è garantito da un'autorità riconosciuta (succede con i NAS, che se lo creano da soli). L'impronta SHA-256 è `{ $fingerprint }`. Se è il server che ti aspetti, EyeCanSee lo ricorda e si collega.
+    Il suo certificato non è garantito da un'autorità riconosciuta (succede con i NAS, che se lo creano da soli). L'impronta SHA-256, da confrontare con quella che mostra il server nelle sue impostazioni:
+
+    `{ $fingerprint }`
+
+    Se è il server che ti aspetti, EyeCanSee lo ricorda e si collega.
 host-ok = Collegati
 sftp-rsa-key = **{ $host }** aperto con una chiave RSA.
 

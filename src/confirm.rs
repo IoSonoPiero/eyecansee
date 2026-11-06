@@ -32,8 +32,10 @@ fn choose_with<T>(
     mut answer: Option<Option<T>>,
     cancel_first: bool,
 ) -> Option<Option<T>> {
+    // As every message window (`save_dialogs::message`), at its own width.
     egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
         ui.set_max_width(width);
+        ui.set_min_width(320.0_f32.min(width));
         crate::save_dialogs::notice_text(ui, &text);
         ui.add_space(8.0);
         ui.horizontal(|ui| {

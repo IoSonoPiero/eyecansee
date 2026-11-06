@@ -194,18 +194,16 @@ impl App {
 
     /// Help > Check for updates: the outcome, until closed (also with Enter or Esc, as the other
     /// windows that tell how something went: issue #12).
+    /// Drawn as every message window (issue #11: one style for all of them).
     pub(crate) fn update_window(&mut self, ctx: &egui::Context) {
         let Some(text) = &self.update_note else { return };
+        let text = format!("**{}**\n\n{text}", self.i18n.t("menu-check-updates"));
         let mut open = self.notice.is_some() || self.delete_answer.take().is_none();
-        egui::Window::new(self.i18n.t("menu-check-updates"))
-            .open(&mut open)
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
-            .show(ctx, |ui| {
-                ui.set_max_width(360.0);
-                ui.label(text);
-            });
+        crate::save_dialogs::message(ctx, "update", &text, |ui| {
+            if ui.button(self.i18n.t("notice-close")).clicked() {
+                open = false;
+            }
+        });
         if !open {
             self.update_note = None;
         }

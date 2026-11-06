@@ -41,11 +41,19 @@ error-host-changed = The key of { $detail } is not the one recorded in ~/.ssh/kn
 host-ask =
     { "**" }First connection to { $host }.**
 
-    Its key fingerprint is `{ $fingerprint }`. If it is the server you expect, EyeCanSee remembers it in ~/.ssh/known_hosts, as ssh does, and connects.
+    Its key fingerprint, to compare with the one the server shows (in its settings, or with ssh-keygen -lf on it):
+
+    `{ $fingerprint }`
+
+    If it is the server you expect, EyeCanSee remembers it in ~/.ssh/known_hosts, as ssh does, and connects.
 cert-ask =
     { "**" }First connection to { $host } (FTPS).**
 
-    Its certificate is not vouched for by a known authority (common with NAS boxes, which make their own). Its SHA-256 fingerprint is `{ $fingerprint }`. If it is the server you expect, EyeCanSee remembers it and connects.
+    Its certificate is not vouched for by a known authority (common with NAS boxes, which make their own). Its SHA-256 fingerprint, to compare with the one the server shows in its settings:
+
+    `{ $fingerprint }`
+
+    If it is the server you expect, EyeCanSee remembers it and connects.
 host-ok = Connect
 sftp-rsa-key = **{ $host }** opened with an RSA key.
 
