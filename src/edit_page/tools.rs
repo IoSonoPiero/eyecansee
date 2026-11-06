@@ -234,7 +234,10 @@ impl App {
 /// The Filters menu: on the part chosen with Selection, or on the whole image.
 fn filters_menu(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     let (r, _) = egui::containers::menu::MenuButton::from_button(icons::button(ui, Line::Filters)).ui(ui, |ui| {
-        ui.weak(i18n.t(if w.marquee.is_some() { "edit-filters-part" } else { "edit-filters-whole" }));
+        // Readable at once: where the filter goes (user, 2026-11-06: the faint line was not read).
+        ui.set_max_width(300.0);
+        ui.label(egui::RichText::new(i18n.t(if w.marquee.is_some() { "edit-filters-part" } else { "edit-filters-whole" })).strong());
+        ui.separator();
         for f in crate::edit::filter::Filter::ALL {
             if ui.add(icons::menu_item(ui, None, i18n.t(f.label()), String::new())).clicked() {
                 w.add_filter(f);
