@@ -192,10 +192,11 @@ impl App {
         true
     }
 
-    /// Help > Check for updates: the outcome, until closed.
+    /// Help > Check for updates: the outcome, until closed (also with Enter or Esc, as the other
+    /// windows that tell how something went: issue #12).
     pub(crate) fn update_window(&mut self, ctx: &egui::Context) {
         let Some(text) = &self.update_note else { return };
-        let mut open = true;
+        let mut open = self.notice.is_some() || self.delete_answer.take().is_none();
         egui::Window::new(self.i18n.t("menu-check-updates"))
             .open(&mut open)
             .collapsible(false)
