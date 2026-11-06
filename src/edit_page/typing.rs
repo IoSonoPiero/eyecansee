@@ -33,25 +33,36 @@ pub(super) fn overlay(ui: &mut egui::Ui, w: &mut Window, i: usize, centre: Pos2,
     }
     let o = &mut w.doc.objects[i];
     let style = o.style;
-    let (size, room, [r, g, b], text) = match &mut o.shape {
-        Shape::Text { text, size, at, rot, .. } => {
-            let room = crate::edit::geom::text_area(*at, text, *size, *rot).w + *size;
-            (*size, room, style.color, text)
-        }
-        Shape::Bubble { text, area, .. } => (style.letters.max(1.0), crate::edit::bubble::text_width(area.w, &style), style.ink, text),
+    // A bubble's letters go to a new line at its width; a text's only where typed.
+    let (size, wrap, [r, g, b]) = match &o.shape {
+        Shape::Text { size, .. } => (*size, None, style.color),
+        Shape::Bubble { area, .. } => (style.letters.max(1.0), Some(crate::edit::bubble::text_width(area.w, &style)), style.ink),
         _ => return,
     };
     let pts = (size * k).max(6.0);
-    let rows = text.lines().count().max(1) + usize::from(text.ends_with('\n'));
-    let rect = egui::Rect::from_center_size(centre, egui::vec2((room * k).max(2.0 * pts), rows as f32 * 1.25 * pts + 0.4 * pts));
+    let font = egui::FontId::proportional(pts);
+    let Some(now) = o.shape.text_mut().map(|t| format!("{t} ")) else { return };
+    // The lines as the field will show them (its font is the interface's: they may break
+    // elsewhere than the drawn ones), for its size and the bubble's height.
+    let wrap_at = wrap.map_or(f32::INFINITY, |w| w * k);
+    let shown = ui.painter().layout(now, font.clone(), Color32::WHITE, wrap_at).size();
+    let rect = egui::Rect::from_center_size(centre, egui::vec2(wrap.map_or(shown.x + pts, |w| w * k).max(2.0 * pts), shown.y + 0.2 * pts));
+    // The bubble as tall as the lines shown, with its margins: they stayed out of it.
+    if let Shape::Bubble { area, .. } = &mut o.shape {
+        let needed = crate::edit::bubble::height_for(shown.y / k, &style);
+        if area.h < needed {
+            area.h = needed;
+        }
+    }
+    let Some(text) = o.shape.text_mut() else { return };
     let field = egui::TextEdit::multiline(text)
-        .font(egui::FontId::proportional(pts))
+        .font(font)
         .text_color(Color32::from_rgb(r, g, b))
         .align(egui::Align2::CENTER_CENTER)
         .frame(egui::Frame::NONE)
         .background_color(Color32::TRANSPARENT)
         .desired_width(rect.width())
-        .desired_rows(rows);
+        .desired_rows(1);
     let response = ui.put(rect, field);
     if std::mem::take(&mut w.focus_text) {
         response.request_focus();

@@ -72,13 +72,19 @@ pub fn text_width(w: f32, style: &Style) -> f32 {
     (w * style.balloon.room() - 2.0 * PAD * style.letters).max(style.letters)
 }
 
+/// How tall a bubble must be for lines `lines_h` high (with its margins and the room its shape
+/// leaves).
+pub fn height_for(lines_h: f32, style: &Style) -> f32 {
+    (lines_h + 2.0 * PAD * style.letters.max(1.0)) / style.balloon.room()
+}
+
 /// The bubble made tall enough for its text (as wide as it is: the text goes to a new line):
 /// it grows, from its middle; never shrinks under the height given to it.
 pub fn fit(o: &mut Obj, options: &usvg::Options) {
     let Shape::Bubble { area, text, font, .. } = &mut o.shape else { return };
     let size = o.style.letters.max(1.0);
     let n = lines(text, size, font.as_deref(), text_width(area.w, &o.style), options).len().max(1) as f32;
-    let needed = (1.2 * size * n + 2.0 * PAD * size) / o.style.balloon.room();
+    let needed = height_for(1.2 * size * n, &o.style);
     if area.h < needed {
         area.h = needed;
     }
