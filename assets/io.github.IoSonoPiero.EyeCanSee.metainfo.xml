@@ -29,6 +29,8 @@
       <li xml:lang="it">Telefoni Android e fotocamere aperti direttamente via USB, molto più veloce che dal file manager</li>
       <li>SFTP, FTP and FTPS servers browsed like any folder, saved with password or SSH key</li>
       <li xml:lang="it">Server SFTP, FTP e FTPS sfogliati come qualunque cartella, salvati con password o chiave SSH</li>
+      <li>Image editor: arrows, shapes, text, highlighter, numbered steps, stamps, magnifier, cover boxes, filters, crop and rotate, saved as a copy with the metadata, also on phones and servers</li>
+      <li xml:lang="it">Editor delle immagini: frecce, forme, testo, evidenziatore, numeri di passaggio, timbri, lente, coperture, filtri, ritaglio e rotazione, salvati in una copia con i metadati, anche su telefoni e server</li>
       <li>Duplicate finder, rotation and cropping, saving and converting many images at once</li>
       <li xml:lang="it">Ricerca dei duplicati, rotazione e ritaglio, salvataggio e conversione di molte immagini insieme</li>
       <li>JPEG, PNG, WebP, HEIC, AVIF, JPEG XL, TIFF, SVG, PSD, Camera RAW and many rare formats</li>
@@ -78,6 +80,17 @@
   </provides>
 
   <releases>
+    <release version="0.74.0" date="2026-11-06">
+      <description>
+        <ul>
+          <li>Image editor (Ctrl+E): lines, arrows, rectangles, ellipses, freehand, highlighter, spotlight, text, speech bubbles, step numbers, stamps, magnifier, cover boxes for private data, filters, selection with copy and paste, crop and rotate, eyedropper, undo and redo</li>
+          <li>The editor saves a copy next to the original, updates it or overwrites the original (which goes to a trash), keeping the metadata, on the computer, phones and servers; the result can be copied to the clipboard</li>
+          <li>Toolbar with line icons, Save and Save as; full screen (F11) shows the image or video alone; the window's close button in the viewer goes back to the grid (an option)</li>
+          <li>Ctrl+Left and Ctrl+Right jump 5 seconds in a video; Enter and Esc close the result windows; a server's key or certificate fingerprint is shown apart, to compare</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.74.0</url>
+    </release>
     <release version="0.73.3" date="2026-11-05">
       <description>
         <ul>
