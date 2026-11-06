@@ -16,7 +16,7 @@ use crate::icons::{self, Line};
 use crate::transform::Op;
 
 /// The tools: icon, name, key (alone, no Ctrl).
-pub(super) const TOOLS: [(Tool, Line, &str, Key); 15] = [
+pub(super) const TOOLS: [(Tool, Line, &str, Key); 16] = [
     (Tool::Select, Line::Select, "edit-tool-select", Key::V),
     (Tool::Marquee, Line::Marquee, "edit-tool-marquee", Key::M),
     (Tool::Draw(Kind::Arrow), Line::Arrow, "edit-tool-arrow", Key::A),
@@ -29,6 +29,7 @@ pub(super) const TOOLS: [(Tool, Line, &str, Key); 15] = [
     (Tool::Draw(Kind::Text), Line::Text, "edit-tool-text", Key::T),
     (Tool::Draw(Kind::Bubble), Line::Bubble, "edit-tool-bubble", Key::U),
     (Tool::Draw(Kind::Step), Line::Step, "edit-tool-step", Key::N),
+    (Tool::Draw(Kind::Stamp), Line::Stamp, "edit-tool-stamp", Key::K),
     (Tool::Draw(Kind::Lens), Line::Lens, "edit-tool-lens", Key::Z),
     (Tool::Draw(Kind::Cover), Line::Cover, "edit-tool-cover", Key::B),
     (Tool::Crop, Line::Crop, "edit-tool-crop", Key::C),
@@ -278,6 +279,7 @@ fn hint_id(tool: Tool) -> &'static str {
         Tool::Draw(Kind::Text) => "edit-tip-text",
         Tool::Draw(Kind::Cover) => "edit-tip-cover",
         Tool::Draw(Kind::Step) => "edit-tip-step",
+        Tool::Draw(Kind::Stamp) => "edit-tip-stamp",
         Tool::Draw(Kind::Bubble) => "edit-tip-bubble",
         Tool::Draw(Kind::Lens) => "edit-tip-lens",
         Tool::Draw(Kind::Spotlight) => "edit-tip-spotlight",
@@ -308,7 +310,7 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     // A text's size lives in the text, a step's in its box; the style keeps it for the next one.
     match selected.map(|i| &w.doc.objects[i].shape) {
         Some(Shape::Text { size, .. }) => style.width = *size,
-        Some(Shape::Step { area, .. }) => style.width = area.w,
+        Some(Shape::Step { area, .. } | Shape::Stamp(area)) => style.width = area.w,
         _ => {}
     }
     if let Some(c) = w.picked.take() {
@@ -339,6 +341,7 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
         o.style = style;
         match &mut o.shape {
             Shape::Text { size, .. } => *size = style.width,
+            Shape::Stamp(area) => (area.w, area.h) = (style.width, style.width),
             Shape::Step { area, n } => {
                 (area.w, area.h) = (style.width, style.width);
                 ui.separator();
@@ -363,6 +366,7 @@ fn kind_controls(ui: &mut egui::Ui, w: &mut Window, style: &mut Style, (kind, se
     match kind {
         Kind::Bubble => super::props::bubble(ui, style, w.long(), i18n),
         Kind::Lens => super::props::lens(ui, style, i18n),
+        Kind::Stamp => super::props::stamp(ui, style, i18n),
         Kind::Spotlight => {
             ui.separator();
             super::props::round_or_square(ui, style, i18n);
@@ -413,7 +417,7 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
         Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse | Kind::Bubble => slider(ui, t("edit-width"), &mut style.width, 1.0..=max, " px"),
         // A lens may have no border.
         Kind::Lens => slider(ui, t("edit-width"), &mut style.width, 0.0..=max, " px"),
-        Kind::Text | Kind::Step => slider(ui, t("edit-size"), &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
+        Kind::Text | Kind::Step | Kind::Stamp => slider(ui, t("edit-size"), &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
         Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter | Kind::Spotlight => {}
     }
     if kind != Kind::Cover {

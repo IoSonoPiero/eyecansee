@@ -71,6 +71,7 @@ fn object(out: &mut String, o: &Obj) {
         Shape::Line(a, b, c) => line(out, *a, *b, *c, &stroke),
         Shape::Arrow(a, b, c) => arrow(out, (*a, *b, *c), head, width, &stroke, &fill),
         Shape::Step { area, n } => step(out, area, *n, o.style.color),
+        Shape::Stamp(area) => stamp(out, area, o.style.stamp, o.style.color),
         // All together, in `spotlights`.
         Shape::Spotlight(_) => Ok(()),
         Shape::Lens { area, preview } => lens(out, area, preview, &o.style, &stroke),
@@ -201,6 +202,23 @@ fn lens(out: &mut String, a: &Area, preview: &super::doc::Preview, style: &Style
         write!(out, r#"<defs><clipPath id="{id}">{shape}/></clipPath></defs><g clip-path="url(#{id})"><image {} preserveAspectRatio="none" xlink:href="data:image/png;base64,{}"/></g>"#, rect(a), pixels.png_base64())?;
     }
     if style.width > 0.0 { write!(out, "{shape} {stroke}/>") } else { Ok(()) }
+}
+
+/// A stamp: the lines of its icon, scaled from 24 to the side of its box, turned with it.
+fn stamp(out: &mut String, a: &Area, icon: super::doc::Stamp, [r, g, b]: [u8; 3]) -> std::fmt::Result {
+    let svg = icon.svg();
+    // What is inside the outer <svg …>: Lucide's attributes go on the group instead.
+    let inner = svg.find('>').zip(svg.rfind("</svg>")).map_or("", |(start, end)| &svg[start + 1..end]);
+    let Area { centre: c, w, rot, .. } = *a;
+    write!(
+        out,
+        r#"<g transform="rotate({rot} {} {}) translate({} {}) scale({})" fill="none" stroke="rgb({r},{g},{b})" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">{inner}</g>"#,
+        c.x,
+        c.y,
+        c.x - w / 2.0,
+        c.y - w / 2.0,
+        w / 24.0
+    )
 }
 
 /// Centre, radii and own angle of the ellipse in a box.
@@ -659,6 +677,24 @@ pub(crate) mod tests {
         assert_eq!((c(25, 40)[3], c(75, 40)[3], c(66, 31)[3]), (0, 0, 153), "inside both, outside the circle's corner");
         assert_eq!((c(50, 40), c(50, 10)), ([0, 0, 0, 153], [0, 0, 0, 153]));
         assert_eq!(c(50, 70), [255, 0, 0, 255], "the line over the darkening");
+    }
+
+    /// Each stamp drawn in its box and colour, nothing outside it; the check as large as Lucide
+    /// draws it in 24.
+    #[test]
+    fn stamps_drawn() {
+        for icon in crate::edit::doc::Stamp::ALL {
+            let d = doc(vec![Obj { shape: Shape::Stamp(area(0.0, 0.0, 48.0, 48.0)), style: Style { stamp: icon, color: [0, 0, 255], ..style() } }]);
+            let p = draw(&d, &whole(&d));
+            let blue = p.pixels().iter().filter(|c| c.alpha() > 200 && c.blue() > 200 && c.red() < 50).count();
+            assert!(blue > 100, "{icon:?}: {blue}");
+            assert!(p.pixels().iter().enumerate().all(|(i, c)| c.alpha() == 0 || (24..=76).contains(&(i as u32 % W)) && (14..=66).contains(&(i as u32 / W))), "{icon:?} outside its box");
+        }
+        let d = doc(vec![Obj { shape: Shape::Stamp(area(0.0, 0.0, 48.0, 48.0)), style: style() }]);
+        let (_, x0, x1) = ink(&draw(&d, &whole(&d)));
+        // The box from 26 to 74, two pixels for one of Lucide's: the check from 4 to 20 of 24,
+        // the lines 2 wide, from 32 to 68.
+        assert!(x0.abs_diff(32) <= 1 && x1.abs_diff(67) <= 1, "{x0} {x1}");
     }
 
     /// A patch: its pixels where its box is, stretched to it.

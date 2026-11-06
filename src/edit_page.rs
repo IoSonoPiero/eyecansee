@@ -439,6 +439,7 @@ fn default_style(kind: Kind, long: f32) -> Style {
         Kind::Cover => Style { color: [0, 0, 0], width, ..Style::default() },
         Kind::Text => Style { width: (long / 25.0).round().max(8.0), ..Style::default() },
         Kind::Step => Style { width: (long / 20.0).round().max(16.0), ..Style::default() },
+        Kind::Stamp => Style { color: [46, 160, 67], width: (long / 12.0).round().max(24.0), ..Style::default() },
         Kind::Spotlight => Style { opacity: 0.6, ..Style::default() },
         Kind::Lens => Style { color: [255, 255, 255], width, round: true, zoom: 2, ..Style::default() },
         Kind::Bubble => Style { color: [0, 0, 0], width, fill: Some([255, 255, 255]), letters: (long / 30.0).round().max(8.0), ..Style::default() },

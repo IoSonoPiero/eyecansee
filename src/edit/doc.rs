@@ -77,6 +77,8 @@ pub enum Shape {
     /// the photo is darkened by `Style::opacity`; with several, all their boxes stay bright and
     /// the darkest of them darkens the rest. Under the objects drawn, as the filters.
     Spotlight(Area),
+    /// A stamp: the icon of `Style::stamp` in the colour of the style, as large as its square box.
+    Stamp(Area),
     /// The ellipse inside the box, with a border and a fill as the rectangle.
     Ellipse(Area),
     Highlight(Area),
@@ -178,6 +180,37 @@ pub enum Head {
     Dot,
 }
 
+/// The icons of the stamps: Lucide's (as the buttons, `icons::Line`).
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default, Serialize, Deserialize)]
+pub enum Stamp {
+    #[default]
+    Check,
+    Cross,
+    Warning,
+    Info,
+    Question,
+    Star,
+    ThumbsUp,
+}
+
+impl Stamp {
+    #[cfg(test)]
+    pub const ALL: [Stamp; 7] = [Stamp::Check, Stamp::Cross, Stamp::Warning, Stamp::Info, Stamp::Question, Stamp::Star, Stamp::ThumbsUp];
+
+    /// Lucide's SVG of the icon (24 × 24, lines of 2, `currentColor`).
+    pub fn svg(self) -> &'static str {
+        match self {
+            Stamp::Check => include_str!("../../assets/icons/lucide/check.svg"),
+            Stamp::Cross => include_str!("../../assets/icons/lucide/x.svg"),
+            Stamp::Warning => include_str!("../../assets/icons/lucide/triangle-exclamation-point.svg"),
+            Stamp::Info => include_str!("../../assets/icons/lucide/info.svg"),
+            Stamp::Question => include_str!("../../assets/icons/lucide/circle-question-mark.svg"),
+            Stamp::Star => include_str!("../../assets/icons/lucide/star.svg"),
+            Stamp::ThumbsUp => include_str!("../../assets/icons/lucide/thumbs-up.svg"),
+        }
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
 pub struct Style {
     /// RGB: the only transparency is `opacity`.
@@ -206,11 +239,14 @@ pub struct Style {
     /// Lenses: how many times they magnify.
     #[serde(default = "Style::two")]
     pub zoom: u8,
+    /// Stamps: the icon.
+    #[serde(default)]
+    pub stamp: Stamp,
 }
 
 impl Default for Style {
     fn default() -> Style {
-        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None, ink: [0, 0, 0], letters: 0.0, round: false, zoom: 2 }
+        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None, ink: [0, 0, 0], letters: 0.0, round: false, zoom: 2, stamp: Stamp::Check }
     }
 }
 
@@ -238,14 +274,14 @@ impl Shape {
     /// The box of the objects drawn in one: rectangles, cover boxes, patches, filters…
     pub fn area(&self) -> Option<&Area> {
         match self {
-            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } | Shape::Lens { area: a, .. } | Shape::Spotlight(a) => Some(a),
+            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } | Shape::Lens { area: a, .. } | Shape::Spotlight(a) | Shape::Stamp(a) => Some(a),
             Shape::Line(..) | Shape::Arrow(..) | Shape::Pen(_) | Shape::Text { .. } => None,
         }
     }
 
     pub fn area_mut(&mut self) -> Option<&mut Area> {
         match self {
-            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } | Shape::Lens { area: a, .. } | Shape::Spotlight(a) => Some(a),
+            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } | Shape::Lens { area: a, .. } | Shape::Spotlight(a) | Shape::Stamp(a) => Some(a),
             Shape::Line(..) | Shape::Arrow(..) | Shape::Pen(_) | Shape::Text { .. } => None,
         }
     }
@@ -434,6 +470,7 @@ pub(crate) mod tests {
             Obj { shape: Shape::Bubble { area: Area { rot: 30.0, ..area }, tail: Pt::new(-2.0, 9.5), text: "Ciao".into(), font: None }, style },
             Obj { shape: Shape::Lens { area, preview: Preview::default() }, style },
             Obj { shape: Shape::Spotlight(Area { rot: 7.0, ..area }), style },
+            Obj { shape: Shape::Stamp(Area { w: 6.0, h: 6.0, ..area }), style },
             Obj { shape: Shape::Pen(vec![Pt::new(1.0, 2.0), Pt::new(3.5, -4.0), Pt::new(8.0, 0.5)]), style },
             Obj { shape: Shape::Highlight(area), style: Style { opacity: 0.4, ..style } },
             Obj { shape: Shape::Text { at: Pt::new(5.0, -6.0), text: "à €".into(), size: 12.0, rot: -3.5, font: None, path: None }, style },

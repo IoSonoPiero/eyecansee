@@ -516,3 +516,15 @@ fn spotlight_saved() {
     assert_eq!(img.get_pixel(32, 40).0[..3], BLUE);
     assert_eq!(img.get_pixel(1, 24).0[3], 0);
 }
+
+/// A stamp in the saved image, in its colour where its icon has lines; the photo between them.
+#[test]
+fn stamp_saved() {
+    let mut doc = Doc::new(64, 48, None);
+    doc.objects.push(crate::edit::geom::stamp(Pt::new(0.0, 0.0), 0.0, Style { color: BLUE, width: 40.0, ..Style::default() }));
+    let photo = motif();
+    let img = result(&doc, &Original::with_meta(photo.clone(), &[]), &options());
+    let blue = (12..52).flat_map(|x| (4..44).map(move |y| (x, y))).filter(|&(x, y)| img.get_pixel(x, y).0[..3] == BLUE).count();
+    assert!(blue > 50, "{blue}");
+    assert_eq!(img.get_pixel(14, 6), photo.get_pixel(14, 6));
+}

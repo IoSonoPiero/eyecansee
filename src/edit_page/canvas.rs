@@ -345,7 +345,7 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
             // Resizing the selected object needs no change of tool.
             Tool::Draw(_) if let Some((index, handle)) = on_handle => Hold::Handle { index, handle, start: w.doc.objects[index].clone() },
             // Placed with a click: a drag moves the view.
-            Tool::Draw(Kind::Text | Kind::Step) => Hold::Pan { at: view.at, k: view.k, from: s },
+            Tool::Draw(Kind::Text | Kind::Step | Kind::Stamp) => Hold::Pan { at: view.at, k: view.k, from: s },
             Tool::Draw(kind) => Hold::Draw { kind, from: p, index: None },
             _ => picked(w, view, s, p, tol),
         });
@@ -528,6 +528,9 @@ fn clicked(w: &mut Window, p: Pt, tol: f32) {
         w.focus_text = true;
     } else if w.tool == Tool::Draw(Kind::Step) {
         w.doc.objects.push(geom::step(p, w.doc.next_step(), w.doc.angle, w.style(Kind::Step)));
+        w.selected = Some(w.doc.objects.len() - 1);
+    } else if w.tool == Tool::Draw(Kind::Stamp) {
+        w.doc.objects.push(geom::stamp(p, w.doc.angle, w.style(Kind::Stamp)));
         w.selected = Some(w.doc.objects.len() - 1);
     } else {
         w.selected = under;

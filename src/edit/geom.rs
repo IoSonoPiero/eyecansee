@@ -19,6 +19,7 @@ pub enum Kind {
     Bubble,
     Lens,
     Spotlight,
+    Stamp,
     Highlight,
     Text,
     Cover,
@@ -40,6 +41,7 @@ impl Kind {
             Shape::Bubble { .. } => Kind::Bubble,
             Shape::Lens { .. } => Kind::Lens,
             Shape::Spotlight(_) => Kind::Spotlight,
+            Shape::Stamp(_) => Kind::Stamp,
             Shape::Highlight(_) => Kind::Highlight,
             Shape::Text { .. } => Kind::Text,
             Shape::Cover(_) => Kind::Cover,
@@ -185,9 +187,9 @@ pub fn handles(o: &Obj) -> Vec<Pt> {
 
 /// The object with handle `i` moved to `p`: the other end of a line, the opposite corner of a box
 /// stay where they were. A box keeps its own angle and is at least a pixel wide; a step stays
-/// square.
+/// square, and so does a stamp.
 pub fn with_handle(o: &Obj, i: usize, p: Pt) -> Obj {
-    let square = matches!(o.shape, Shape::Step { .. });
+    let square = matches!(o.shape, Shape::Step { .. } | Shape::Stamp(_));
     let resized = |r: &Area| {
         let fixed = corners(r)[(i + 2) % 4];
         // The dragged corner from the fixed one, on the box's own sides.
@@ -271,7 +273,7 @@ pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style, square: bool) -
         Kind::Highlight => Shape::Highlight(area()?),
         Kind::Cover => Shape::Cover(area()?),
         // Placed with a click (`step`).
-        Kind::Patch | Kind::Filter | Kind::Step => return None,
+        Kind::Patch | Kind::Filter | Kind::Step | Kind::Stamp => return None,
         Kind::Text => Shape::Text { at: a, text: String::new(), size: style.width, rot: -angle, font: None, path: None },
     };
     Some(Obj { shape, style })
@@ -349,6 +351,11 @@ mod tests {
 /// as wide as `style.width`, numbered `n`.
 pub fn step(at: Pt, n: u32, angle: f32, style: Style) -> Obj {
     Obj { shape: Shape::Step { area: Area { centre: at, w: style.width, h: style.width, rot: -angle }, n }, style }
+}
+
+/// A stamp placed with a click at `at`, as `step`, its icon that of the style.
+pub fn stamp(at: Pt, angle: f32, style: Style) -> Obj {
+    Obj { shape: Shape::Stamp(Area { centre: at, w: style.width, h: style.width, rot: -angle }), style }
 }
 
 /// A stroke drawn by hand with the pointer now at `p`: the point added when it is at least
