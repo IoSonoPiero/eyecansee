@@ -176,12 +176,12 @@ fn paint(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg
     }
     // In the order they were drawn: a cover box hides what was drawn before it, what comes after
     // it stays on top (as layers; user's choice of 2026-11-05).
-    for o in doc.objects.iter().filter(|o| !o.shape.is_layer()) {
+    for (i, o) in doc.objects.iter().enumerate().filter(|(_, o)| !o.shape.is_layer()) {
         if let Shape::Cover(area) = &o.shape {
             holes.push(cover(img, area, doc.angle, corner, o.style.color));
             continue;
         }
-        let one = Doc { turn: doc.turn, angle: doc.angle, crop: doc.crop, fill: doc.fill, objects: vec![full_size(doc, photo, o)] };
+        let one = Doc { turn: doc.turn, angle: doc.angle, crop: doc.crop, fill: doc.fill, objects: vec![full_size(doc, photo, i, options)] };
         let Some(b) = render::bounds(&one, size, options) else { continue };
         let (x0, y0) = (b[0].floor().max(0.0), b[1].floor().max(0.0));
         let (x1, y1) = (b[2].ceil().min(img.width() as f32), b[3].ceil().min(img.height() as f32));
@@ -196,9 +196,10 @@ fn paint(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg
     holes
 }
 
-/// The object as drawn in the saved file: a lens with its picture at full size, the filters on it
-/// at full size too.
-fn full_size(doc: &Doc, photo: &DynamicImage, o: &Obj) -> Obj {
+/// The object `i` as drawn in the saved file: a lens with its picture at full size, the filters on
+/// it at full size too (and the objects before it, if it shows them).
+fn full_size(doc: &Doc, photo: &DynamicImage, i: usize, options: &usvg::Options) -> Obj {
+    let o = &doc.objects[i];
     match &o.shape {
         Shape::Lens { area, .. } => {
             let zoom = o.style.zoom.max(1) as f32;
@@ -209,7 +210,8 @@ fn full_size(doc: &Doc, photo: &DynamicImage, o: &Obj) -> Obj {
                 .map(|(a, f, amount)| (a, super::filter::apply(&DynamicImage::ImageRgba8(doc.pixels_under(photo, &a)), f, amount, 1.0).to_rgba8()))
                 .collect();
             let filtered: Vec<super::photo::Filtered> = filters.iter().map(|(a, p)| (*a, p)).collect();
-            let pixels = Pixels::new(super::photo::lens(doc, photo, area, zoom, 8000, &filtered));
+            let before = o.style.with_objects.then_some((&doc.objects[..i], options));
+            let pixels = Pixels::new(super::photo::lens(doc, photo, area, (zoom, 8000), &filtered, before));
             Obj { shape: Shape::Lens { area: *area, preview: Preview(Some((*area, zoom, pixels))) }, style: o.style }
         }
         _ => o.clone(),

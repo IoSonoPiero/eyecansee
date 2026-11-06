@@ -20,6 +20,10 @@ pub(super) fn lens(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
             style.zoom = zoom;
         }
     }
+    ui.separator();
+    if ui.add(egui::Button::new(i18n.t("edit-lens-objects")).selected(style.with_objects)).on_hover_text(i18n.t("edit-lens-objects-hint")).clicked() {
+        style.with_objects = !style.with_objects;
+    }
 }
 
 /// A text: a line round its letters and a box behind them, each turned on by its button, with

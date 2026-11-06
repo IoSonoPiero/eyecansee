@@ -394,7 +394,8 @@ impl Window {
                 let (area, amount, preview) = match &o.shape {
                     Shape::Filter { area, amount, preview, .. } if !lenses => (*area, *amount, preview),
                     Shape::Highlight { area, preview } if !lenses => (*area, photo::colour_key(o.style.color), preview),
-                    Shape::Lens { area, preview } if lenses => (*area, o.style.zoom.max(1) as f32, preview),
+                    // Its key: the zoom, a half more when it shows the objects.
+                    Shape::Lens { area, preview } if lenses => (*area, o.style.zoom.max(1) as f32 + if o.style.with_objects { 0.5 } else { 0.0 }, preview),
                     _ => continue,
                 };
                 let side = if still { 1200.0 } else { 400.0 };
@@ -416,7 +417,9 @@ impl Window {
                     }
                     _ => {
                         let filtered: Vec<photo::Filtered> = self.doc.objects.iter().filter_map(|f| if let Shape::Filter { preview: Preview(Some((a, _, p))), .. } = &f.shape { Some((*a, p.image())) } else { None }).collect();
-                        photo::lens(&self.doc, &original.image, &area, amount, side as u32, &filtered)
+                        let fonts = crate::decode::usvg_options();
+                        let before = o.style.with_objects.then_some((&self.doc.objects[..i], &fonts));
+                        photo::lens(&self.doc, &original.image, &area, (amount.floor(), side as u32), &filtered, before)
                     }
                 };
                 if let Shape::Filter { preview, .. } | Shape::Lens { preview, .. } | Shape::Highlight { preview, .. } = &mut self.doc.objects[i].shape {

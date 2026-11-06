@@ -32,6 +32,28 @@ pub fn render(doc: &Doc, size: (u32, u32), view: &View, options: &usvg::Options)
     Some(pixmap)
 }
 
+/// `objects` (but the layers and the lenses) drawn in the box `a`'s own axes, `w` × `h` pixels
+/// over it: what a lens shows of them, sharp at any angle.
+pub fn local(objects: &[Obj], a: &Area, (w, h): (u32, u32), options: &usvg::Options) -> Option<tiny_skia::Pixmap> {
+    let (sx, sy) = (w as f32 / a.w, h as f32 / a.h);
+    let mut out = format!(
+        r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{w}" height="{h}"><g transform="scale({sx} {sy}) translate({} {}) rotate({}) translate({} {})">"#,
+        a.w / 2.0,
+        a.h / 2.0,
+        -a.rot,
+        -a.centre.x,
+        -a.centre.y
+    );
+    for o in objects.iter().filter(|o| !o.shape.is_layer() && !matches!(o.shape, Shape::Lens { .. })) {
+        object(&mut out, o, options);
+    }
+    out.push_str("</g></svg>");
+    let tree = usvg::Tree::from_str(&out, options).ok()?;
+    let mut pixmap = tiny_skia::Pixmap::new(w, h)?;
+    resvg::render(&tree, tiny_skia::Transform::identity(), &mut pixmap.as_mut());
+    Some(pixmap)
+}
+
 /// Where the objects of `doc` are in the result, lines and letters included: left, top, right,
 /// bottom in its pixels; `None` when nothing is drawn.
 pub fn bounds(doc: &Doc, size: (u32, u32), options: &usvg::Options) -> Option<[f32; 4]> {

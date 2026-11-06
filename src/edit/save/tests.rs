@@ -587,3 +587,31 @@ fn lens_over_a_cover() {
     let jumps = (18..45).flat_map(|x| (6..30).map(move |y| (x, y))).filter(|&(x, y)| (luma(img.get_pixel(x, y)) - luma(img.get_pixel(x + 1, y))).abs() > 100.0).count();
     assert!(jumps < 40, "{jumps} jumps");
 }
+
+/// A magnifier with the objects shows those drawn before it, magnified around its centre (a
+/// line through it stays level, twice as wide), also when the lens is turned by a free angle;
+/// not those drawn after it (they stay over it at their size); without the option, the photo
+/// alone.
+#[test]
+fn lens_with_objects() {
+    let photo = DynamicImage::ImageRgb8(RgbImage::from_pixel(64, 48, Rgb([255; 3])));
+    // A blue line across the middle (y 24), 2 wide: in a lens 2 times, 4 wide (22..26).
+    let line = obj(Shape::Line(Pt::new(-30.0, 0.0), Pt::new(30.0, 0.0), None), Style { color: BLUE, width: 2.0, ..Style::default() });
+    let lens = |rot, with_objects| obj(Shape::Lens { area: Area { centre: Pt::new(0.0, 0.0), w: 24.0, h: 24.0, rot }, preview: Default::default() }, Style { width: 0.0, zoom: 2, with_objects, ..Style::default() });
+    let shown = |objects: Vec<Obj>| {
+        let doc = Doc { objects, ..Doc::new(64, 48, None) };
+        result(&doc, &Original::with_meta(photo.clone(), &[]), &options())
+    };
+    for rot in [0.0, 30.0] {
+        let img = shown(vec![line.clone(), lens(rot, true)]);
+        // Turned, the lens's picture is drawn turned: its edges soften by a pixel at most.
+        let blue = |y| img.get_pixel(40, y).0[..3].iter().zip(BLUE).all(|(a, b)| a.abs_diff(b) <= 60);
+        assert!(blue(22) && blue(23) && blue(24) && blue(25) && img.get_pixel(40, 27).0[0] == 255, "{rot}°");
+        // Without the option the lens shows the photo: white over the line drawn before it.
+        let plain = shown(vec![line.clone(), lens(rot, false)]);
+        assert_eq!(plain.get_pixel(40, 24).0[..3], [255; 3], "{rot}°");
+    }
+    // Drawn after the lens: over it at its own width (23..25), not magnified.
+    let img = shown(vec![lens(0.0, true), line]);
+    assert_eq!((img.get_pixel(40, 24).0[..3].to_vec(), img.get_pixel(40, 26).0[0]), (BLUE.to_vec(), 255));
+}

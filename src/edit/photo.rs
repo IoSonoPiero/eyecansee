@@ -6,7 +6,9 @@ use std::hash::{Hash, Hasher};
 
 use image::{DynamicImage, RgbaImage, imageops};
 
-use super::doc::{Area, Doc, Pt, Shape};
+use resvg::usvg;
+
+use super::doc::{Area, Doc, Obj, Pt, Shape};
 
 /// A filter's pixels over its box (at any size), for a lens over it.
 pub type Filtered<'a> = (Area, &'a RgbaImage);
@@ -14,42 +16,96 @@ pub type Filtered<'a> = (Area, &'a RgbaImage);
 /// What a lens over `area` shows: the photo under a box `zoom` times smaller around the same
 /// centre, stretched smoothly to the size of the lens, at most `max` pixels a side; with the
 /// filters (`filtered`) and the cover boxes of `doc` on it, whatever their order, so it never
-/// shows what they hide. Not the other objects drawn.
-pub fn lens(doc: &Doc, photo: &DynamicImage, area: &Area, zoom: f32, max: u32, filtered: &[Filtered]) -> RgbaImage {
+/// shows what they hide. With `objects` (those drawn before the lens, and the fonts) the
+/// highlighters and those objects too, drawn in the lens's own axes at its own size: sharp at
+/// any angle of the lens or of the image.
+pub fn lens(doc: &Doc, photo: &DynamicImage, area: &Area, (zoom, max): (f32, u32), filtered: &[Filtered], objects: Option<(&[Obj], &usvg::Options)>) -> RgbaImage {
     let small = Area { w: area.w / zoom, h: area.h / zoom, ..*area };
     let k = (max as f32 / area.w.max(area.h)).min(1.0);
+    let (w, h) = (((area.w * k).round() as u32).max(1), ((area.h * k).round() as u32).max(1));
     // Read at the size it is shown, never more than a pixel for a pixel of the photo.
     let mut part = doc.pixels_under_at(photo, &small, (k * zoom).min(1.0));
-    hide(doc, &mut part, &small, filtered);
-    let (w, h) = (((area.w * k).round() as u32).max(1), ((area.h * k).round() as u32).max(1));
-    imageops::resize(&part, w, h, imageops::FilterType::Triangle)
+    on_photo(doc, &mut part, &small, filtered, objects.is_some());
+    let mut part = imageops::resize(&part, w, h, imageops::FilterType::Triangle);
+    if let Some((before, options)) = objects
+        && let Some(drawn) = super::render::local(before, &small, (w, h), options)
+    {
+        over(&mut part, &drawn);
+    }
+    covered(doc, &mut part, &small);
+    part
 }
 
-/// The filters and the cover boxes on `part`, the pixels of the box `a` along its own sides: a
-/// pixel of a filter's box takes the filter's pixel there, a pixel a cover box touches (within a
-/// pixel of `part`) takes its colour.
-fn hide(doc: &Doc, part: &mut RgbaImage, a: &Area, filtered: &[Filtered]) {
-    let covers: Vec<(Area, [u8; 3])> = doc.objects.iter().filter_map(|o| if let Shape::Cover(c) = o.shape { Some((c, o.style.color)) } else { None }).collect();
-    if covers.is_empty() && filtered.is_empty() {
+/// The pixels of the box `a` along its own sides, one a pixel of `part`, from the document.
+fn points(part: &RgbaImage, a: &Area) -> impl Fn(u32, u32) -> Pt + use<> {
+    let (w, h, a) = (part.width() as f32, part.height() as f32, *a);
+    let (s, c) = a.rot.to_radians().sin_cos();
+    move |u, v| {
+        let (x, y) = ((u as f32 + 0.5) * a.w / w - a.w / 2.0, (v as f32 + 0.5) * a.h / h - a.h / 2.0);
+        Pt::new(a.centre.x + x * c - y * s, a.centre.y + x * s + y * c)
+    }
+}
+
+/// The filters on `part` (a pixel of a filter's box takes the filter's pixel there), and with
+/// `highlights` the highlighters multiplied in.
+fn on_photo(doc: &Doc, part: &mut RgbaImage, a: &Area, filtered: &[Filtered], highlights: bool) {
+    let marks: Vec<(Area, [f32; 3])> = doc
+        .objects
+        .iter()
+        .filter(|_| highlights)
+        .filter_map(|o| if let Shape::Highlight { area, .. } = o.shape { Some((area, highlight_factor(o.style.color, o.style.opacity))) } else { None })
+        .collect();
+    if marks.is_empty() && filtered.is_empty() {
         return;
     }
-    let (w, h) = (part.width() as f32, part.height() as f32);
-    let reach = (a.w / w).max(a.h / h);
-    let (s, c) = a.rot.to_radians().sin_cos();
+    let at = points(part, a);
     for (u, v, px) in part.enumerate_pixels_mut() {
-        let (x, y) = ((u as f32 + 0.5) * a.w / w - a.w / 2.0, (v as f32 + 0.5) * a.h / h - a.h / 2.0);
-        let p = Pt::new(a.centre.x + x * c - y * s, a.centre.y + x * s + y * c);
+        let p = at(u, v);
         for (box_, pixels) in filtered {
             if let Some((fx, fy)) = local(box_, p, 0.0) {
                 let (fw, fh) = pixels.dimensions();
                 *px = *pixels.get_pixel(((fx * fw as f32 / box_.w) as u32).min(fw - 1), ((fy * fh as f32 / box_.h) as u32).min(fh - 1));
             }
         }
+        for (box_, f) in &marks {
+            if local(box_, p, 0.0).is_some() {
+                for k in 0..3 {
+                    px[k] = (px[k] as f32 * f[k]).round() as u8;
+                }
+            }
+        }
+    }
+}
+
+/// The cover boxes on `part`: a pixel one touches (within a pixel of `part`) takes its colour.
+fn covered(doc: &Doc, part: &mut RgbaImage, a: &Area) {
+    let covers: Vec<(Area, [u8; 3])> = doc.objects.iter().filter_map(|o| if let Shape::Cover(c) = o.shape { Some((c, o.style.color)) } else { None }).collect();
+    if covers.is_empty() {
+        return;
+    }
+    let reach = (a.w / part.width() as f32).max(a.h / part.height() as f32);
+    let at = points(part, a);
+    for (u, v, px) in part.enumerate_pixels_mut() {
+        let p = at(u, v);
         for (box_, [r, g, b]) in &covers {
             if local(box_, p, reach).is_some() {
                 *px = image::Rgba([*r, *g, *b, 255]);
             }
         }
+    }
+}
+
+/// The pixmap `p` (premultiplied, as large) laid over `part`.
+fn over(part: &mut RgbaImage, p: &resvg::tiny_skia::Pixmap) {
+    for (px, s) in part.pixels_mut().zip(p.pixels()) {
+        let a = s.alpha() as f32 / 255.0;
+        if a == 0.0 {
+            continue;
+        }
+        for (k, v) in [s.red(), s.green(), s.blue()].into_iter().enumerate() {
+            px[k] = (v as f32 + px[k] as f32 * (1.0 - a)).round().min(255.0) as u8;
+        }
+        px[3] = (255.0 * a + px[3] as f32 * (1.0 - a)).round() as u8;
     }
 }
 
@@ -61,10 +117,16 @@ fn local(a: &Area, p: Pt, tol: f32) -> Option<(f32, f32)> {
 }
 
 /// What a lens's picture depends on besides its box and zoom: the cover boxes and the filters
-/// (with whether their preview is made). When it changes, the previews of the lenses are made
+/// (with whether their preview is made), and all the objects for a lens that shows them. When it changes, the previews of the lenses are made
 /// again.
 pub fn hiders_key(doc: &Doc) -> u64 {
     let mut h = std::hash::DefaultHasher::new();
+    // A lens with the objects: any of them (but the lenses, whose previews these are).
+    if doc.objects.iter().any(|o| matches!(o.shape, Shape::Lens { .. }) && o.style.with_objects) {
+        for o in doc.objects.iter().filter(|o| !matches!(o.shape, Shape::Lens { .. })) {
+            format!("{o:?}").hash(&mut h);
+        }
+    }
     for o in &doc.objects {
         let (area, more) = match &o.shape {
             Shape::Cover(a) => (a, [o.style.color[0] as f32, o.style.color[1] as f32, o.style.color[2] as f32, 0.0]),
@@ -130,7 +192,7 @@ mod tests {
         let area = Area { centre: Pt::new(0.0, 0.0), w: 20.0, h: 20.0, rot: 0.0 };
         let filtered = RgbaImage::from_pixel(2, 2, image::Rgba([0, 255, 0, 255]));
         let f = Area { centre: Pt::new(4.0, 0.0), w: 4.0, h: 4.0, rot: 0.0 };
-        let l = lens(&doc, &photo, &area, 2.0, 8000, &[(f, &filtered)]);
+        let l = lens(&doc, &photo, &area, (2.0, 8000), &[(f, &filtered)], None);
         // The lens's 10 × 10 of photo from -5 to 5, twice as large: the cover from -4 to 0 at 2..10,
         // the filter from 2 to 6 at 14..20.
         assert_eq!((l.get_pixel(5, 10).0, l.get_pixel(17, 10).0, l.get_pixel(10, 2).0), ([0, 0, 255, 255], [0, 255, 0, 255], [255; 4]));
@@ -143,11 +205,11 @@ mod tests {
         let photo = DynamicImage::ImageRgb8(RgbImage::from_fn(60, 40, |x, y| if (28..32).contains(&x) && (18..22).contains(&y) { Rgb([255; 3]) } else { Rgb([0; 3]) }));
         let doc = Doc::new(60, 40, None);
         let area = Area { centre: Pt::new(0.0, 0.0), w: 30.0, h: 30.0, rot: 0.0 };
-        let full = lens(&doc, &photo, &area, 3.0, 8000, &[]);
+        let full = lens(&doc, &photo, &area, (3.0, 8000), &[], None);
         assert_eq!(full.dimensions(), (30, 30));
         // Smoothed at the edges: white well inside the 9..21 of the square, black outside it.
         assert_eq!((full.get_pixel(15, 15).0, full.get_pixel(11, 11).0, full.get_pixel(3, 3).0, full.get_pixel(26, 15).0), ([255; 4], [255; 4], [0, 0, 0, 255], [0, 0, 0, 255]));
-        let small = lens(&doc, &photo, &area, 3.0, 15, &[]);
+        let small = lens(&doc, &photo, &area, (3.0, 15), &[], None);
         assert_eq!((small.dimensions(), small.get_pixel(7, 7).0), ((15, 15), [255; 4]));
     }
 }

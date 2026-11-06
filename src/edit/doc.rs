@@ -334,6 +334,9 @@ pub struct Style {
     /// Lenses: how many times they magnify.
     #[serde(default = "Style::two")]
     pub zoom: u8,
+    /// Lenses: they show the objects drawn before them too, not only the photo.
+    #[serde(default)]
+    pub with_objects: bool,
     /// Stamps: the icon.
     #[serde(default)]
     pub stamp: Stamp,
@@ -347,7 +350,7 @@ pub struct Style {
 
 impl Default for Style {
     fn default() -> Style {
-        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None, ink: [0, 0, 0], letters: 0.0, balloon: super::bubble::Balloon::Rounded, round: false, zoom: 2, stamp: Stamp::Check, outline: None, back: None }
+        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None, ink: [0, 0, 0], letters: 0.0, balloon: super::bubble::Balloon::Rounded, round: false, zoom: 2, with_objects: false, stamp: Stamp::Check, outline: None, back: None }
     }
 }
 
