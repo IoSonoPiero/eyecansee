@@ -315,8 +315,9 @@ pub fn toggle(ui: &egui::Ui, on: bool, icon: Line) -> egui::Button<'static> {
 pub fn menu_icon(ui: &egui::Ui, icon: Option<Line>) -> egui::Image<'static> {
     match icon {
         Some(icon) => line(ui, icon, 16.0),
-        // ponytail: a transparent icon as the blank, one texture.
-        None => line_in(ui.ctx(), Line::Close, 16.0, egui::Color32::TRANSPARENT),
+        // ponytail: an icon tinted fully transparent as the blank, one texture. Drawn in
+        // TRANSPARENT it was a dark ✕: the SVG's colour has no alpha (user, 2026-11-06).
+        None => line_in(ui.ctx(), Line::Close, 16.0, egui::Color32::WHITE).tint(egui::Color32::TRANSPARENT),
     }
 }
 
