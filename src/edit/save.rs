@@ -136,10 +136,11 @@ fn earlier_copy<'a>(stem: &'a str, word: &str) -> Option<&'a str> {
     (rest.is_empty() || rest.strip_prefix(' ').is_some_and(|n| n.parse::<u32>().is_ok())).then_some(before)
 }
 
-/// Cover boxes into the pixels, then the other objects over them, in their order (a lens with
-/// its picture made from `photo` at full size). Returns the boxes whose gain an Ultra HDR photo
-/// sets to the lowest: every cover box and every object but the highlighter (left, top, right,
-/// bottom in pixels of the result).
+/// The filters, highlighters and spotlights on the photo, then cover boxes into the pixels and
+/// the other objects over them, in their order (a lens with its picture made from `photo` at
+/// full size). Returns the boxes whose gain an Ultra HDR photo sets to the lowest: every cover
+/// box, every object drawn and the filters that hide (left, top, right, bottom in pixels of the
+/// result).
 fn paint(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg::Options) -> Vec<[f32; 4]> {
     let size = (photo.width(), photo.height());
     if doc.objects.is_empty() {
@@ -156,6 +157,12 @@ fn paint(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg
             if filter.hides() {
                 holes.push(b);
             }
+        }
+    }
+    // The highlighters, multiplied into the pixels; an Ultra HDR photo keeps its gain there.
+    for o in &doc.objects {
+        if let Shape::Highlight { area, .. } = &o.shape {
+            highlight_in_place(img, area, doc.angle, corner, super::photo::highlight_factor(o.style.color, o.style.opacity));
         }
     }
     // The spotlights over the whole result, the transparent pixels left as they are; an Ultra HDR
@@ -184,9 +191,7 @@ fn paint(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg
                 over(img, &p, x0 as u32, y0 as u32, false);
             }
         }
-        if !matches!(o.shape, Shape::Highlight(_)) {
-            holes.push(b);
-        }
+        holes.push(b);
     }
     holes
 }
@@ -243,6 +248,43 @@ fn filter_in_place(img: &mut DynamicImage, area: &Area, angle: f32, (left, top):
         }
     }
     bounds
+}
+
+/// The highlighter multiplied into the pixels of the result whose centre is inside its box, in
+/// the image's own depth (`f` from `photo::highlight_factor`).
+fn highlight_in_place(img: &mut DynamicImage, area: &Area, angle: f32, (left, top): (f32, f32), f: [f32; 3]) {
+    let (s, c) = angle.to_radians().sin_cos();
+    let (cx, cy) = (area.centre.x * c - area.centre.y * s - left, area.centre.x * s + area.centre.y * c - top);
+    let (rs, rc) = (area.rot + angle).to_radians().sin_cos();
+    let (hw, hh) = (area.w / 2.0, area.h / 2.0);
+    let (ex, ey) = (rc.abs() * hw + rs.abs() * hh, rs.abs() * hw + rc.abs() * hh);
+    let range = |lo: f32, hi: f32, max: u32| (lo.floor().max(0.0) as u32).min(max)..(hi.ceil().max(0.0) as u32).min(max);
+    for y in range(cy - ey, cy + ey, img.height()) {
+        for x in range(cx - ex, cx + ex, img.width()) {
+            let (dx, dy) = (x as f32 + 0.5 - cx, y as f32 + 0.5 - cy);
+            if (dx * rc + dy * rs).abs() < hw && (-dx * rs + dy * rc).abs() < hh {
+                times(img, x, y, f);
+            }
+        }
+    }
+}
+
+/// The colours of the pixel at `x`, `y` times `f`, its alpha as it was.
+fn times(img: &mut DynamicImage, x: u32, y: u32, f: [f32; 3]) {
+    fn each<S: Copy + Into<f32>>(p: &mut [S], f: [f32; 3], back: fn(f32) -> S) {
+        for (v, k) in p.iter_mut().zip(f) {
+            *v = back((*v).into() * k);
+        }
+    }
+    match img {
+        DynamicImage::ImageRgb8(b) => each(&mut b.get_pixel_mut(x, y).0, f, |v| v.round() as u8),
+        DynamicImage::ImageRgba8(b) => each(&mut b.get_pixel_mut(x, y).0, f, |v| v.round() as u8),
+        DynamicImage::ImageRgb16(b) => each(&mut b.get_pixel_mut(x, y).0, f, |v| v.round() as u16),
+        DynamicImage::ImageRgba16(b) => each(&mut b.get_pixel_mut(x, y).0, f, |v| v.round() as u16),
+        DynamicImage::ImageRgb32F(b) => each(&mut b.get_pixel_mut(x, y).0, f, |v| v),
+        DynamicImage::ImageRgba32F(b) => each(&mut b.get_pixel_mut(x, y).0, f, |v| v),
+        _ => {}
+    }
 }
 
 /// The cover box solid in the pixels of the result: every pixel it touches even in part, opaque,

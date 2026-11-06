@@ -42,7 +42,7 @@ impl Kind {
             Shape::Lens { .. } => Kind::Lens,
             Shape::Spotlight(_) => Kind::Spotlight,
             Shape::Stamp(_) => Kind::Stamp,
-            Shape::Highlight(_) => Kind::Highlight,
+            Shape::Highlight { .. } => Kind::Highlight,
             Shape::Text { .. } => Kind::Text,
             Shape::Cover(_) => Kind::Cover,
             Shape::Patch { .. } => Kind::Patch,
@@ -270,7 +270,7 @@ pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style, square: bool) -
             let t = turned(Pt::new(-0.3 * area.w, 0.9 * area.h), area.rot);
             Shape::Bubble { area, tail: Pt::new(area.centre.x + t.x, area.centre.y + t.y), text: String::new(), font: None }
         }
-        Kind::Highlight => Shape::Highlight(area()?),
+        Kind::Highlight => Shape::Highlight { area: area()?, preview: Default::default() },
         Kind::Cover => Shape::Cover(area()?),
         // Placed with a click (`step`).
         Kind::Patch | Kind::Filter | Kind::Step | Kind::Stamp => return None,

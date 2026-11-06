@@ -1,6 +1,6 @@
 //! What some objects of the editor take from the photo itself, without the interface: the part
-//! a lens magnifies. The same function makes the preview (smaller) and the saved file (full
-//! size).
+//! a lens magnifies, the highlighter's multiply. The same functions make the preview (smaller)
+//! and the saved file (full size).
 
 use image::{DynamicImage, RgbaImage, imageops};
 
@@ -17,12 +17,47 @@ pub fn lens(doc: &Doc, photo: &DynamicImage, area: &Area, zoom: f32, max: u32) -
     imageops::resize(&part, w, h, imageops::FilterType::Triangle)
 }
 
+/// What the highlighter does to each colour of a pixel: times this. The photo multiplied by
+/// `colour`, at `opacity` (1: in full; white becomes the colour, black stays black).
+pub fn highlight_factor(colour: [u8; 3], opacity: f32) -> [f32; 3] {
+    colour.map(|c| 1.0 - opacity * (1.0 - c as f32 / 255.0))
+}
+
+/// The highlighter's preview: `colour` multiplied in full into the pixels, the alpha as it was;
+/// its opacity is the drawing's (`highlight_factor` at that opacity).
+pub fn highlighted(pixels: &mut RgbaImage, colour: [u8; 3]) {
+    let f = highlight_factor(colour, 1.0);
+    for p in pixels.pixels_mut() {
+        for k in 0..3 {
+            p[k] = (p[k] as f32 * f[k]).round() as u8;
+        }
+    }
+}
+
+/// The colour as one number, exact in an `f32`: what a highlighter's preview was made for.
+pub fn colour_key([r, g, b]: [u8; 3]) -> f32 {
+    (r as u32 * 65536 + g as u32 * 256 + b as u32) as f32
+}
+
 #[cfg(test)]
 mod tests {
     use image::{Rgb, RgbImage};
 
     use super::*;
     use crate::edit::doc::Pt;
+
+    /// The highlighter: yellow keeps black black, makes white yellow and grey a darker yellow;
+    /// at half opacity half way.
+    #[test]
+    fn multiply() {
+        let mut px = RgbaImage::from_fn(3, 1, |x, _| {
+            let v = [0, 255, 128][x as usize];
+            image::Rgba([v, v, v, 200])
+        });
+        highlighted(&mut px, [255, 230, 0]);
+        assert_eq!((px.get_pixel(0, 0).0, px.get_pixel(1, 0).0, px.get_pixel(2, 0).0), ([0, 0, 0, 200], [255, 230, 0, 200], [128, 115, 0, 200]));
+        assert_eq!(highlight_factor([255, 0, 128], 0.5), [1.0, 0.5, 0.5 + 0.5 * 128.0 / 255.0]);
+    }
 
     /// A lens 3 times: a white square of 4 pixels in the middle of the photo fills 12 in the
     /// lens; the preview is the same at a smaller size.

@@ -164,7 +164,7 @@ fn ultra_hdr_gain_under_objects() {
     // A line 2 wide from 46 to 56 at y 6, round ends: 45..57 × 5..7, in the gain map 22..29 × 2..4.
     doc.objects.push(obj(Shape::Line(Pt::new(14.0, -10.0), Pt::new(24.0, -10.0), None), Style { width: 2.0, ..Style::default() }));
     // The highlighter at 4..12 × 21..27, in the gain map 2..6 × 10..14.
-    doc.objects.push(obj(Shape::Highlight(Area { centre: Pt::new(-24.0, 8.0), w: 8.0, h: 6.0, rot: 0.0 }), Style::highlighter()));
+    doc.objects.push(obj(Shape::Highlight { area: Area { centre: Pt::new(-24.0, 8.0), w: 8.0, h: 6.0, rot: 0.0 }, preview: Default::default() }, Style::highlighter()));
     let out = saved(&bytes, "a.jpg", &doc);
     assert!(crate::ultrahdr::is(&out.data), "still Ultra HDR");
     let before = image::load_from_memory(crate::ultrahdr::split(&bytes).unwrap().1).unwrap();
@@ -527,4 +527,21 @@ fn stamp_saved() {
     let blue = (12..52).flat_map(|x| (4..44).map(move |y| (x, y))).filter(|&(x, y)| img.get_pixel(x, y).0[..3] == BLUE).count();
     assert!(blue > 50, "{blue}");
     assert_eq!(img.get_pixel(14, 6), photo.get_pixel(14, 6));
+}
+
+/// The highlighter in the saved image multiplies the photo: black stays black, white becomes its
+/// colour, at its opacity half way; a line drawn before it stays red over it (it is under the
+/// objects); 16 bits stay 16 bits.
+#[test]
+fn highlighter_multiplies() {
+    let photo = DynamicImage::ImageRgb16(image::ImageBuffer::from_fn(64, 48, |x, _| image::Rgb([if x < 32 { 0 } else { 65535 }; 3])));
+    let mut doc = Doc::new(64, 48, None);
+    let mark = |y, opacity| obj(Shape::Highlight { area: Area { centre: Pt::new(0.0, y), w: 40.0, h: 8.0, rot: 0.0 }, preview: Default::default() }, Style { opacity, ..Style::highlighter() });
+    doc.objects = vec![obj(Shape::Line(Pt::new(4.0, -20.0), Pt::new(4.0, -12.0), None), Style { width: 2.0, ..Style::default() }), mark(-16.0, 1.0), mark(10.0, 0.5)];
+    let img = result(&doc, &Original::with_meta(photo, &[]), &options());
+    let DynamicImage::ImageRgb16(b) = &img else { panic!("{:?}", img.color()) };
+    assert_eq!((b.get_pixel(20, 8).0, b.get_pixel(44, 8).0), ([0, 0, 0], [65535, 59110, 0]));
+    assert_eq!(b.get_pixel(44, 34).0, [65535, 62323, 32768]);
+    assert_eq!(b.get_pixel(36, 8).0, [65535, 0, 0], "the line over it");
+    assert_eq!(b.get_pixel(44, 24).0, [65535; 3], "outside");
 }

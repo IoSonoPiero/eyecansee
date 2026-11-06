@@ -81,7 +81,10 @@ pub enum Shape {
     Stamp(Area),
     /// The ellipse inside the box, with a border and a fill as the rectangle.
     Ellipse(Area),
-    Highlight(Area),
+    /// The highlighter: the photo under the box multiplied by the colour (at the style's opacity),
+    /// so dark letters stay dark; under the objects drawn, as the filters. `preview` as a
+    /// filter's, made from the photo with the same multiply.
+    Highlight { area: Area, preview: Preview },
     /// `at` is the centre of the text, `size` the height of its letters in pixels, `font` the
     /// family of an installed font (`None`: the sans-serif one of the system). A flip moves and
     /// tilts the text but never mirrors the letters.
@@ -250,17 +253,15 @@ impl Default for Style {
     }
 }
 
-/// Opacity the highlighter starts with: a fill over the photo, which shows through it.
-pub const HIGHLIGHT_OPACITY: f32 = 0.4;
-
 impl Style {
     fn two() -> u8 {
         2
     }
 
-    /// Where the highlighter starts: yellow, at `HIGHLIGHT_OPACITY`.
+    /// Where the highlighter starts: yellow, multiplied in full (white becomes yellow, black
+    /// stays black).
     pub fn highlighter() -> Style {
-        Style { color: [255, 230, 0], opacity: HIGHLIGHT_OPACITY, ..Style::default() }
+        Style { color: [255, 230, 0], ..Style::default() }
     }
 }
 
@@ -274,14 +275,14 @@ impl Shape {
     /// The box of the objects drawn in one: rectangles, cover boxes, patches, filters…
     pub fn area(&self) -> Option<&Area> {
         match self {
-            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } | Shape::Lens { area: a, .. } | Shape::Spotlight(a) | Shape::Stamp(a) => Some(a),
+            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight { area: a, .. } | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } | Shape::Lens { area: a, .. } | Shape::Spotlight(a) | Shape::Stamp(a) => Some(a),
             Shape::Line(..) | Shape::Arrow(..) | Shape::Pen(_) | Shape::Text { .. } => None,
         }
     }
 
     pub fn area_mut(&mut self) -> Option<&mut Area> {
         match self {
-            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } | Shape::Lens { area: a, .. } | Shape::Spotlight(a) | Shape::Stamp(a) => Some(a),
+            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight { area: a, .. } | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } | Shape::Lens { area: a, .. } | Shape::Spotlight(a) | Shape::Stamp(a) => Some(a),
             Shape::Line(..) | Shape::Arrow(..) | Shape::Pen(_) | Shape::Text { .. } => None,
         }
     }
@@ -311,10 +312,10 @@ impl Shape {
 }
 
 impl Shape {
-    /// Drawn on the photo, under all the objects (whatever their order), as a layer: the filters
-    /// and the spotlights.
+    /// Drawn on the photo, under all the objects (whatever their order), as a layer: the filters,
+    /// the highlighters and the spotlights.
     pub fn is_layer(&self) -> bool {
-        matches!(self, Shape::Filter { .. } | Shape::Spotlight(_))
+        matches!(self, Shape::Filter { .. } | Shape::Highlight { .. } | Shape::Spotlight(_))
     }
 
     /// The letters of a text or a bubble.
@@ -347,7 +348,7 @@ impl Obj {
             // The picture in the box turns (or flips) as the image did.
             Shape::Patch { pixels, .. } => *pixels = pixels.turned(op),
             // Made again for the photo under it.
-            Shape::Filter { preview, .. } | Shape::Lens { preview, .. } => *preview = Preview::default(),
+            Shape::Filter { preview, .. } | Shape::Lens { preview, .. } | Shape::Highlight { preview, .. } => *preview = Preview::default(),
             Shape::Text { rot, .. } => *rot = text_turned(*rot, op),
             _ => {}
         }
@@ -472,7 +473,7 @@ pub(crate) mod tests {
             Obj { shape: Shape::Spotlight(Area { rot: 7.0, ..area }), style },
             Obj { shape: Shape::Stamp(Area { w: 6.0, h: 6.0, ..area }), style },
             Obj { shape: Shape::Pen(vec![Pt::new(1.0, 2.0), Pt::new(3.5, -4.0), Pt::new(8.0, 0.5)]), style },
-            Obj { shape: Shape::Highlight(area), style: Style { opacity: 0.4, ..style } },
+            Obj { shape: Shape::Highlight { area, preview: Preview::default() }, style: Style { opacity: 0.4, ..style } },
             Obj { shape: Shape::Text { at: Pt::new(5.0, -6.0), text: "à €".into(), size: 12.0, rot: -3.5, font: None, path: None }, style },
             Obj { shape: Shape::Cover(Area { rot: 0.0, ..area }), style },
         ];

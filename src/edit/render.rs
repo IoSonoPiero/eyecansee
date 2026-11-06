@@ -48,9 +48,9 @@ fn svg(doc: &Doc, (w, h): (u32, u32), view: &View) -> String {
     let (left, top) = crate::rotate::corner(iw as f32, ih as f32, doc.crop);
     let (tx, ty) = (-(left + view.x), -(top + view.y));
     let mut out = format!(r#"<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="{}" height="{}"><g transform="scale({}) translate({tx} {ty}) rotate({})">"#, view.w, view.h, view.scale, doc.angle);
-    // The filters first, then the spotlights: they change the photo, the objects drawn stay over
-    // them.
-    for o in doc.objects.iter().filter(|o| matches!(o.shape, Shape::Filter { .. })) {
+    // The filters first, the highlighters, then the spotlights: they change the photo, the
+    // objects drawn stay over them.
+    for o in doc.objects.iter().filter(|o| matches!(o.shape, Shape::Filter { .. })).chain(doc.objects.iter().filter(|o| matches!(o.shape, Shape::Highlight { .. }))) {
         object(&mut out, o);
     }
     spotlights(&mut out, &doc.objects);
@@ -85,9 +85,12 @@ fn object(out: &mut String, o: &Obj) {
             }
             write!(out, r#"<{tag} {at} {stroke}/>"#)
         }
-        // A plain fill at the opacity of the style (`Style::highlighter`): over a layer of its own
-        // a multiply would have no photo to blend with (tried: plain yellow).
-        Shape::Highlight(area) => write!(out, r#"<rect {} {fill}/>"#, rect(area)),
+        // The photo multiplied (`photo::highlighted`), made by the page: over a layer of its own an
+        // SVG multiply would have no photo to blend with (tried: plain yellow).
+        Shape::Highlight { area, preview } => match &preview.0 {
+            Some((.., pixels)) => write!(out, r#"<image {} preserveAspectRatio="none" xlink:href="data:image/png;base64,{}"/>"#, rect(area), pixels.png_base64()),
+            None => Ok(()),
+        },
         Shape::Text { text, size, font, path: Some(path), .. } => text_on(out, *path, (text, *size), font.as_deref(), &fill),
         Shape::Text { at, text, size, rot, font, .. } => self::text(out, (*at, *size, *rot), text, font.as_deref(), &fill),
         // Solid, no soft edge; when saving written into the pixels instead.
@@ -521,16 +524,21 @@ pub(crate) mod tests {
         assert!(two.0 + 10 < one.0);
     }
 
-    /// The highlighter: the whole rectangle filled, yellow at 40%, turned by its own angle; the
-    /// photo shows through it.
+    /// The highlighter: its preview (the photo multiplied, made by the page) over its box, turned
+    /// by its own angle, at its opacity; nothing before the preview is made.
     #[test]
     fn highlighter() {
-        let d = doc(vec![Obj { shape: Shape::Highlight(Area { rot: 90.0, ..area(0.0, 0.0, 40.0, 10.0) }), style: Style::highlighter() }]);
+        let a = Area { rot: 90.0, ..area(0.0, 0.0, 40.0, 10.0) };
+        let pixels = crate::edit::doc::Pixels::new(image::RgbaImage::from_pixel(4, 1, image::Rgba([255, 230, 0, 255])));
+        let d = doc(vec![Obj { shape: Shape::Highlight { area: a, preview: crate::edit::doc::Preview(Some((a, 0.0, pixels))) }, style: Style { opacity: 0.5, ..Style::highlighter() } }]);
         let p = draw(&d, &whole(&d));
         // Turned upright: 10 wide (x 45 to 55), 40 high (y 20 to 60).
         let c = p.pixel(50, 40).unwrap().demultiply();
-        assert_eq!((c.red(), c.green(), c.blue(), c.alpha()), (255, 230, 0, 102));
-        assert_eq!((alpha(&p, 46, 21), alpha(&p, 53, 58), alpha(&p, 50, 18), alpha(&p, 60, 40), alpha(&p, 30, 40)), (102, 102, 0, 0, 0));
+        // 230 at half alpha, premultiplied and back: 229.
+        assert_eq!((c.red(), c.green().abs_diff(230) <= 1, c.blue(), c.alpha()), (255, true, 0, 128));
+        assert_eq!((alpha(&p, 46, 21), alpha(&p, 53, 58), alpha(&p, 50, 18), alpha(&p, 60, 40)), (128, 128, 0, 0));
+        let none = doc(vec![Obj { shape: Shape::Highlight { area: a, preview: Default::default() }, style: Style::highlighter() }]);
+        assert!(draw(&none, &whole(&none)).pixels().iter().all(|p| p.alpha() == 0));
     }
 
     /// The box of an object holds all of it, line width and arrow head included; nothing drawn,
