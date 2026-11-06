@@ -16,6 +16,10 @@ Your images, videos, phones and drives are read and changed only on your compute
 
 Settings, saved servers, the thumbnail cache and downloaded components, in the app's data folder. The Microsoft Store version removes them when it is uninstalled.
 
+## This website
+
+The website (eyecansee.montinaro.info) counts its visits with [Umami](https://umami.is), running on a server of the developer: which page was opened, the site it came from, the browser, the operating system and the country. It uses no cookies, keeps no IP address and does not follow anyone across sites; the counts are not shared with anyone. The app itself sends nothing.
+
 ## Contact
 
 https://github.com/IoSonoPiero/eyecansee/issues
