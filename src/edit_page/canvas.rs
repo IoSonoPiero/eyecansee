@@ -423,7 +423,12 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
 /// A double click on a text or a bubble: its letters to change, in the bar's field; elsewhere
 /// everything in view (but with Text, whose clicks place texts).
 fn double_clicked(w: &mut Window, p: Option<Pt>, tol: f32) {
-    let text = p.and_then(|p| geom::under(&w.doc.objects, p, tol)).filter(|&i| matches!(Kind::of(&w.doc.objects[i]), Kind::Text | Kind::Bubble));
+    // With Select, or with Text and Speech bubble on their own objects.
+    let under = |p| match w.tool {
+        Tool::Draw(kind) => geom::under_of(&w.doc.objects, p, tol, kind),
+        _ => geom::under(&w.doc.objects, p, tol),
+    };
+    let text = p.and_then(under).filter(|&i| matches!(Kind::of(&w.doc.objects[i]), Kind::Text | Kind::Bubble));
     match text {
         Some(i) => {
             w.selected = Some(i);
@@ -545,14 +550,15 @@ fn resize_cursor(w: &Window, view: &View, index: usize, handle: usize) -> Cursor
 
 /// A click: the Text tool places a text (or picks one to change), the others pick what is under it.
 fn clicked(w: &mut Window, p: Pt, tol: f32) {
-    let under = geom::under(&w.doc.objects, p, tol);
-    // With a drawing tool, an object clicked is selected and its tool chosen: the bar shows its
-    // style (user, 2026-11-05). Select stays Select, to go on moving objects. Not a filter or a
-    // patch, which have no tool (a filter on the whole image took every click).
-    let tool_of = under.map(|i| Tool::Draw(Kind::of(&w.doc.objects[i]))).filter(|t| super::tools::TOOLS.iter().any(|(tool, ..)| tool == t));
-    if let (Some(i), Some(tool), Tool::Draw(_)) = (under, tool_of, w.tool) {
-        let kind = Kind::of(&w.doc.objects[i]);
-        w.tool = tool;
+    // With a drawing tool a click selects only an object of its own kind (its style in the bar);
+    // anywhere else it places what the tool places (a text, a step, a stamp). Picking any object,
+    // of any kind, is Select's (user, 2026-11-06: the second step, clicked where a line drawn
+    // by hand passed, selected the line; it chose any object's tool before).
+    let under = match w.tool {
+        Tool::Draw(kind) => geom::under_of(&w.doc.objects, p, tol, kind),
+        _ => geom::under(&w.doc.objects, p, tol),
+    };
+    if let (Some(i), Tool::Draw(kind)) = (under, w.tool) {
         w.selected = Some(i);
         w.focus_text = matches!(kind, Kind::Text | Kind::Bubble);
         return;

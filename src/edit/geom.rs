@@ -73,6 +73,20 @@ fn inside(a: &Area, p: Pt, tol: f32) -> bool {
     d.x.abs() <= a.w / 2.0 + tol && d.y.abs() <= a.h / 2.0 + tol
 }
 
+/// On the border of the box, `width` wide, or within `tol` of it: not in the empty inside.
+fn on_border(a: &Area, p: Pt, width: f32, tol: f32) -> bool {
+    let reach = width / 2.0 + tol;
+    let d = turned(sub(p, a.centre), -a.rot);
+    inside(a, p, reach) && !(d.x.abs() < a.w / 2.0 - reach && d.y.abs() < a.h / 2.0 - reach)
+}
+
+/// On the line of the ellipse of the box, `width` wide, or within `tol` of it.
+fn on_ellipse(a: &Area, p: Pt, width: f32, tol: f32) -> bool {
+    let reach = width / 2.0 + tol;
+    let inner = Area { w: a.w - 2.0 * reach, h: a.h - 2.0 * reach, ..*a };
+    inside_ellipse(a, p, reach) && (inner.w <= 0.0 || inner.h <= 0.0 || !inside_ellipse(&inner, p, 0.0))
+}
+
 /// Inside the ellipse of the box, or within `tol` of it.
 fn inside_ellipse(a: &Area, p: Pt, tol: f32) -> bool {
     let d = turned(sub(p, a.centre), -a.rot);
@@ -126,7 +140,10 @@ pub fn hit(o: &Obj, p: Pt, tol: f32) -> bool {
         Shape::Text { path: Some((a, b, c)), size, .. } => curve_distance(p, *a, *b, *c) <= 0.6 * size + tol,
         Shape::Pen(points) => points.windows(2).map(|s| segment_distance(p, s[0], s[1])).chain(points.first().map(|q| (p.x - q.x).hypot(p.y - q.y))).fold(f32::INFINITY, f32::min) <= o.style.width / 2.0 + tol,
         Shape::Text { at, text, size, rot, .. } => inside(&text_area(*at, text, *size, *rot), p, tol),
+        // Without a fill, only their border: a click in their empty inside is not on them.
+        Shape::Ellipse(r) if o.style.fill.is_none() => on_ellipse(r, p, o.style.width, tol),
         Shape::Ellipse(r) => inside_ellipse(r, p, o.style.width / 2.0 + tol),
+        Shape::Rect(r) if o.style.fill.is_none() => on_border(r, p, o.style.width, tol),
         Shape::Step { area, .. } => inside_ellipse(area, p, tol),
         // The box, or along the tail (as wide as `render::bubble` makes it at its base).
         Shape::Bubble { area, tail, .. } => inside(area, p, tol) || segment_distance(p, area.centre, *tail) <= 0.15 * area.w.min(area.h) + tol,
@@ -139,6 +156,11 @@ pub fn hit(o: &Obj, p: Pt, tol: f32) -> bool {
 pub fn under(objects: &[Obj], p: Pt, tol: f32) -> Option<usize> {
     let layer = |o: &Obj| o.shape.is_layer();
     objects.iter().rposition(|o| !layer(o) && hit(o, p, tol)).or_else(|| objects.iter().rposition(|o| layer(o) && hit(o, p, tol)))
+}
+
+/// The topmost object of `kind` under `p`: what a drawing tool's click takes.
+pub fn under_of(objects: &[Obj], p: Pt, tol: f32, kind: Kind) -> Option<usize> {
+    objects.iter().rposition(|o| Kind::of(o) == kind && hit(o, p, tol))
 }
 
 /// The object moved by `d`.
@@ -288,7 +310,7 @@ mod tests {
     }
 
     fn rect(rot: f32) -> Obj {
-        Obj { shape: Shape::Rect(Area { centre: Pt::new(10.0, 5.0), w: 20.0, h: 10.0, rot }), style: Style::default() }
+        Obj { shape: Shape::Rect(Area { centre: Pt::new(10.0, 5.0), w: 20.0, h: 10.0, rot }), style: Style { fill: Some([0; 3]), ..Style::default() } }
     }
 
     /// Lines by their distance and width, boxes by their inside (turned too), texts by their box,
@@ -304,8 +326,8 @@ mod tests {
         assert!(hit(&text, Pt::new(11.0, 5.0), 0.0) && !hit(&text, Pt::new(13.0, 0.0), 0.0));
         assert_eq!(under(&[rect(0.0), rect(0.0), line], Pt::new(10.0, 5.0), 0.0), Some(1));
         assert_eq!(under(&[rect(0.0)], Pt::new(-50.0, 5.0), 0.0), None);
-        // An ellipse by its inside: not the corners of its box.
-        let ellipse = Obj { shape: Shape::Ellipse(Area { centre: Pt::new(0.0, 0.0), w: 20.0, h: 10.0, rot: 0.0 }), style: Style { width: 2.0, ..Style::default() } };
+        // A filled ellipse by its inside: not the corners of its box.
+        let ellipse = Obj { shape: Shape::Ellipse(Area { centre: Pt::new(0.0, 0.0), w: 20.0, h: 10.0, rot: 0.0 }), style: Style { width: 2.0, fill: Some([0; 3]), ..Style::default() } };
         assert!(hit(&ellipse, Pt::new(9.0, 0.0), 0.0) && !hit(&ellipse, Pt::new(8.0, 4.5), 0.0));
     }
 
@@ -446,5 +468,22 @@ mod curves {
         let new = drawn(Kind::Highlight, Pt::new(0.0, 0.0), Pt::new(9.0, 9.0), 0.0, Style::default(), false).unwrap();
         let Shape::Highlight { preview, .. } = redrawn(&mut old, new).shape else { unreachable!() };
         assert!(preview.0.is_some_and(|(_, _, p)| p == pixels));
+    }
+
+    /// Without a fill a rectangle or an ellipse is taken by its border only, its empty inside is
+    /// not on it; filled, all of it; a drawing tool takes only its own kind.
+    #[test]
+    fn empty_inside_and_own_kind() {
+        let a = Area { centre: Pt::new(0.0, 0.0), w: 40.0, h: 20.0, rot: 0.0 };
+        let empty = Style { width: 2.0, ..Style::default() };
+        let rect = Obj { shape: Shape::Rect(a), style: empty };
+        let ellipse = Obj { shape: Shape::Ellipse(a), style: empty };
+        assert!(hit(&rect, Pt::new(19.0, 3.0), 1.0) && !hit(&rect, Pt::new(0.0, 0.0), 1.0) && !hit(&rect, Pt::new(25.0, 0.0), 1.0));
+        assert!(hit(&ellipse, Pt::new(0.0, 9.5), 1.0) && !hit(&ellipse, Pt::new(0.0, 0.0), 1.0));
+        let filled = Obj { shape: Shape::Rect(a), style: Style { fill: Some([0; 3]), ..empty } };
+        assert!(hit(&filled, Pt::new(0.0, 0.0), 1.0));
+        let line = Obj { shape: Shape::Line(Pt::new(-20.0, 0.0), Pt::new(20.0, 0.0), None), style: empty };
+        let objects = [filled, line];
+        assert_eq!((under(&objects, Pt::new(0.0, 0.0), 1.0), under_of(&objects, Pt::new(0.0, 0.0), 1.0, Kind::Rect), under_of(&objects, Pt::new(0.0, 0.0), 1.0, Kind::Step)), (Some(1), Some(0), None));
     }
 }
