@@ -68,7 +68,7 @@ fn measure(line: &str, size: f32, font: Option<&str>, options: &usvg::Options) -
 }
 
 /// The width the letters of a bubble of `w` may take.
-fn text_width(w: f32, style: &Style) -> f32 {
+pub fn text_width(w: f32, style: &Style) -> f32 {
     (w * style.balloon.room() - 2.0 * PAD * style.letters).max(style.letters)
 }
 

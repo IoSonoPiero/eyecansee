@@ -24,6 +24,7 @@ mod crop;
 mod props;
 mod save;
 mod tools;
+mod typing;
 use canvas::canvas;
 use save::Leave;
 
@@ -141,6 +142,8 @@ pub struct Window {
     hiders: u64,
     /// The list of the keys stays open (the Keys button clicked).
     keys_open: bool,
+    /// The text (or bubble) being typed on the image itself (`typing`).
+    editing: Option<usize>,
     /// A line under the buttons ("Copied…") and until when (seconds of `egui::InputState::time`).
     note: Option<(String, f64)>,
     copying: bool,
@@ -204,6 +207,7 @@ impl Window {
             filters_made: 0,
             hiders: 0,
             keys_open: false,
+            editing: None,
             note: None,
             copying: false,
             follow: Follow::Inside,

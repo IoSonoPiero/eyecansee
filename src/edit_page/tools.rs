@@ -603,7 +603,8 @@ fn text_field(ui: &mut egui::Ui, w: &mut Window, selected: Option<usize>, i18n: 
         return;
     };
     let r = ui.add(egui::TextEdit::multiline(text).desired_rows(1).desired_width(280.0).hint_text(i18n.t("edit-text-hint")));
-    if std::mem::take(&mut w.focus_text) {
+    // A text typed on the image takes the keys there (`typing`).
+    if w.editing.is_none() && std::mem::take(&mut w.focus_text) {
         r.request_focus();
     }
 }

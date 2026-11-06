@@ -70,7 +70,21 @@ pub(super) fn canvas(ui: &mut egui::Ui, w: &mut Window, tex: &TextureHandle, siz
     // Drawn with the view after the mouse moved it.
     let (at, k) = w.view.unwrap_or((at, k));
     w.shown = (at, k);
-    paint(ui, w, tex, &View { centre: rect.center(), at, k }, rect);
+    // A text or bubble that takes the keys is typed on the image.
+    if w.focus_text && let Some(i) = w.selected.filter(|&i| super::typing::can(&w.doc, i)) {
+        w.editing = Some(i);
+    }
+    let view = View { centre: rect.center(), at, k };
+    paint(ui, w, tex, &view, rect);
+    if let Some(i) = w.editing.filter(|_| !crop_tool) {
+        let centre = match &w.doc.objects.get(i).map(|o| &o.shape) {
+            Some(Shape::Text { at, .. }) => *at,
+            Some(Shape::Bubble { area, .. }) => area.centre,
+            _ => crate::edit::doc::Pt::default(),
+        };
+        let angle = w.doc.angle;
+        super::typing::overlay(ui, w, i, view.of(centre, angle), k);
+    }
 }
 
 fn paint(ui: &egui::Ui, w: &mut Window, tex: &TextureHandle, view: &View, rect: Rect) {
@@ -199,7 +213,9 @@ fn objects_texture(ui: &egui::Ui, w: &mut Window, view: &View, rect: Rect) -> Op
         return None;
     }
     let ppp = ui.ctx().pixels_per_point();
-    let key = Drawn { doc: w.doc.clone(), made: w.filters_made, at: view.at, k: view.k, rect, ppp };
+    // The letters being typed on the image are hidden: the field over them shows them.
+    let doc = super::typing::hidden(&w.doc, w.editing);
+    let key = Drawn { doc, made: w.filters_made, at: view.at, k: view.k, rect, ppp };
     if let Some((drawn, tex)) = &w.objects
         && *drawn == key
     {
@@ -209,7 +225,7 @@ fn objects_texture(ui: &egui::Ui, w: &mut Window, view: &View, rect: Rect) -> Op
     let (left, top) = rotate::corner(iw, ih, w.doc.crop);
     let p0 = view.image(rect.min);
     let part = render::View { x: p0.x - left, y: p0.y - top, w: (rect.width() * ppp).round().max(1.0) as u32, h: (rect.height() * ppp).round().max(1.0) as u32, scale: view.k * ppp };
-    let pixmap = render::render(&w.doc, w.upright(), &part, &crate::decode::usvg_options())?;
+    let pixmap = render::render(&key.doc, w.upright(), &part, &crate::decode::usvg_options())?;
     let img = egui::ColorImage::from_rgba_premultiplied([pixmap.width() as usize, pixmap.height() as usize], pixmap.data());
     match &mut w.objects {
         Some((drawn, tex)) => {
