@@ -11,7 +11,7 @@ use std::collections::HashSet;
 use image::{DynamicImage, GenericImage, GenericImageView};
 use resvg::{tiny_skia, usvg};
 
-use super::doc::{Area, Doc, Shape};
+use super::doc::{Area, Doc, Obj, Pixels, Preview, Shape};
 use super::render::{self, View};
 use crate::encode::{Format, Options, Original};
 
@@ -52,7 +52,7 @@ pub fn save(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str
     }
     let mut o = Original::clone(original);
     let (float, deep) = (is_float(&o.image), is_deep(&o.image));
-    let holes = edited(doc, size, &mut o.image, options);
+    let holes = edited(doc, &original.image, &mut o.image, options);
     if same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes) {
         let data = crate::ultrahdr::edited(bytes, o.image, &[doc.edit()], &holes)?;
         return Ok(Saved { data, name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept });
@@ -78,14 +78,15 @@ fn target(name: &str, float: bool, transparent: bool) -> Format {
 /// The result, as it would be saved: for the clipboard.
 pub fn result(doc: &Doc, original: &Original, options: &usvg::Options) -> DynamicImage {
     let mut img = original.image.clone();
-    edited(doc, (img.width(), img.height()), &mut img, options);
+    edited(doc, &original.image, &mut img, options);
     img
 }
 
-/// `img` turned, rotated and cropped, with the objects; the boxes of `paint`.
-fn edited(doc: &Doc, size: (u32, u32), img: &mut DynamicImage, options: &usvg::Options) -> Vec<[f32; 4]> {
+/// `img` (a copy of `photo`, upright as read) turned, rotated and cropped, with the objects; the
+/// boxes of `paint`.
+fn edited(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg::Options) -> Vec<[f32; 4]> {
     doc.edit().apply(img);
-    paint(doc, size, img, options)
+    paint(doc, photo, img, options)
 }
 
 fn depth(float: bool, deep: bool, format: Format) -> Depth {
@@ -135,10 +136,12 @@ fn earlier_copy<'a>(stem: &'a str, word: &str) -> Option<&'a str> {
     (rest.is_empty() || rest.strip_prefix(' ').is_some_and(|n| n.parse::<u32>().is_ok())).then_some(before)
 }
 
-/// Cover boxes into the pixels, then the other objects over them, in their order. Returns the
-/// boxes whose gain an Ultra HDR photo sets to the lowest: every cover box and every object but
-/// the highlighter (left, top, right, bottom in pixels of the result).
-fn paint(doc: &Doc, size: (u32, u32), img: &mut DynamicImage, options: &usvg::Options) -> Vec<[f32; 4]> {
+/// Cover boxes into the pixels, then the other objects over them, in their order (a lens with
+/// its picture made from `photo` at full size). Returns the boxes whose gain an Ultra HDR photo
+/// sets to the lowest: every cover box and every object but the highlighter (left, top, right,
+/// bottom in pixels of the result).
+fn paint(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg::Options) -> Vec<[f32; 4]> {
+    let size = (photo.width(), photo.height());
     if doc.objects.is_empty() {
         return Vec::new();
     }
@@ -162,7 +165,7 @@ fn paint(doc: &Doc, size: (u32, u32), img: &mut DynamicImage, options: &usvg::Op
             holes.push(cover(img, area, doc.angle, corner, o.style.color));
             continue;
         }
-        let one = Doc { turn: doc.turn, angle: doc.angle, crop: doc.crop, fill: doc.fill, objects: vec![o.clone()] };
+        let one = Doc { turn: doc.turn, angle: doc.angle, crop: doc.crop, fill: doc.fill, objects: vec![full_size(doc, photo, o)] };
         let Some(b) = render::bounds(&one, size, options) else { continue };
         let (x0, y0) = (b[0].floor().max(0.0), b[1].floor().max(0.0));
         let (x1, y1) = (b[2].ceil().min(img.width() as f32), b[3].ceil().min(img.height() as f32));
@@ -177,6 +180,18 @@ fn paint(doc: &Doc, size: (u32, u32), img: &mut DynamicImage, options: &usvg::Op
         }
     }
     holes
+}
+
+/// The object as drawn in the saved file: a lens with its picture at full size.
+fn full_size(doc: &Doc, photo: &DynamicImage, o: &Obj) -> Obj {
+    match &o.shape {
+        Shape::Lens { area, .. } => {
+            let zoom = o.style.zoom.max(1) as f32;
+            let pixels = Pixels::new(super::photo::lens(doc, photo, area, zoom, 8000));
+            Obj { shape: Shape::Lens { area: *area, preview: Preview(Some((*area, zoom, pixels))) }, style: o.style }
+        }
+        _ => o.clone(),
+    }
 }
 
 /// A grey image gets colours, for objects that have them.

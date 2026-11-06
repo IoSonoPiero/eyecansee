@@ -484,3 +484,20 @@ fn bubble_saved() {
     assert_eq!(img.get_pixel(40, 12).0[..3], [255; 3]);
     assert_eq!(img.get_pixel(25, 34).0[..3], [255; 3]);
 }
+
+/// A lens in the saved image shows the photo magnified at full size: on a gradient, 8 pixels
+/// right of its centre the photo of 4 pixels right of it; outside it the photo as it was. Its box
+/// is one where an Ultra HDR photo loses its gain (what it shows is from elsewhere).
+#[test]
+fn lens_saved() {
+    let photo = DynamicImage::ImageRgb8(RgbImage::from_fn(64, 48, |x, _| Rgb([(x * 4) as u8; 3])));
+    let mut doc = Doc::new(64, 48, None);
+    doc.objects.push(obj(Shape::Lens { area: Area { centre: Pt::new(0.0, 0.0), w: 24.0, h: 24.0, rot: 0.0 }, preview: Default::default() }, Style { width: 0.0, zoom: 2, ..Style::default() }));
+    let img = result(&doc, &Original::with_meta(photo.clone(), &[]), &options());
+    let v = img.get_pixel(40, 24).0[0];
+    assert!(v.abs_diff(144) <= 4, "magnified: {v}");
+    assert_eq!(img.get_pixel(50, 24), photo.get_pixel(50, 24));
+    let mut copy = photo.clone();
+    doc.edit().apply(&mut copy);
+    assert_eq!(paint(&doc, &photo, &mut copy, &options()).len(), 1);
+}

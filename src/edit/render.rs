@@ -67,6 +67,7 @@ fn object(out: &mut String, o: &Obj) {
         Shape::Line(a, b, c) => line(out, *a, *b, *c, &stroke),
         Shape::Arrow(a, b, c) => arrow(out, (*a, *b, *c), head, width, &stroke, &fill),
         Shape::Step { area, n } => step(out, area, *n, o.style.color),
+        Shape::Lens { area, preview } => lens(out, area, preview, &o.style, &stroke),
         Shape::Bubble { area, tail, text, font } => bubble(out, (area, *tail), text, font.as_deref(), &o.style),
         Shape::Pen(points) => write!(out, r#"<path d="{}" {stroke} stroke-linejoin="round"/>"#, smooth(points)),
         // The inside first, the border over it.
@@ -168,6 +169,18 @@ fn bubble(out: &mut String, (a, tail): (&Area, Pt), text: &str, font: Option<&st
         return Ok(());
     }
     self::text(out, (a.centre, style.letters.max(1.0), a.rot), text, font, &format!(r#"fill="rgb({ir},{ig},{ib})""#))
+}
+
+/// A lens: its picture (the preview, or the full size one when saving) cut to a circle or to its
+/// box, and its border.
+fn lens(out: &mut String, a: &Area, preview: &super::doc::Preview, style: &Style, stroke: &str) -> std::fmt::Result {
+    let shape = if style.round { format!("<ellipse {}", ellipse(a)) } else { format!("<rect {}", rect(a)) };
+    if let Some((.., pixels)) = &preview.0 {
+        let id = format!("l{:x}", a as *const Area as usize);
+        // The cut on a group without a transform: on the image it would be turned twice.
+        write!(out, r#"<defs><clipPath id="{id}">{shape}/></clipPath></defs><g clip-path="url(#{id})"><image {} preserveAspectRatio="none" xlink:href="data:image/png;base64,{}"/></g>"#, rect(a), pixels.png_base64())?;
+    }
+    if style.width > 0.0 { write!(out, "{shape} {stroke}/>") } else { Ok(()) }
 }
 
 /// Centre, radii and own angle of the ellipse in a box.
@@ -597,6 +610,19 @@ pub(crate) mod tests {
             let blue = (40..60).flat_map(|x| (24..36).map(move |y| (x, y))).filter(|&(x, y)| c(x, y)[2] > 150 && c(x, y)[0] < 100).count();
             assert!(blue > 10, "letters: {blue}");
         }
+    }
+
+    /// A round lens: its picture inside the circle, the border on it, nothing in the corners of its
+    /// box.
+    #[test]
+    fn lens_cut_round() {
+        let pixels = crate::edit::doc::Pixels::new(image::RgbaImage::from_pixel(4, 4, image::Rgba([0, 0, 255, 255])));
+        let a = area(0.0, 0.0, 40.0, 40.0);
+        let preview = crate::edit::doc::Preview(Some((a, 2.0, pixels)));
+        let d = doc(vec![Obj { shape: Shape::Lens { area: a, preview }, style: Style { width: 2.0, round: true, ..style() } }]);
+        let p = draw(&d, &whole(&d));
+        let c = |x, y| { let c = p.pixel(x, y).unwrap().demultiply(); [c.red(), c.green(), c.blue(), c.alpha()] };
+        assert_eq!((c(50, 40), c(50, 20), c(32, 22)[3]), ([0, 0, 255, 255], [255, 0, 0, 255], 0));
     }
 
     /// A patch: its pixels where its box is, stretched to it.

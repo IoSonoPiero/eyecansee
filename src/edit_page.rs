@@ -360,25 +360,35 @@ impl Window {
         self.refit();
     }
 
-    /// The filters whose preview is missing or was made for another box or amount: made again from
-    /// the photo, at most 1200 pixels a side. Not while a drag is under way (the old one is
-    /// stretched meanwhile).
-    fn refresh_filters(&mut self) {
+    /// The filters and lenses whose preview is missing or was made for another box or amount
+    /// (zoom): made again from the photo, at most 1200 pixels a side. Not while a drag is under
+    /// way (the old one is stretched meanwhile).
+    fn refresh_previews(&mut self) {
         use crate::edit::doc::{Pixels, Preview};
         let Some(Ok((original, ..))) = &self.original else { return };
         if self.hold.is_some() {
             return;
         }
-        let stale: Vec<usize> = (0..self.doc.objects.len())
-            .filter(|&i| matches!(&self.doc.objects[i].shape, Shape::Filter { area, amount, preview, .. } if preview.0.as_ref().is_none_or(|(a, m, _)| a != area || m != amount)))
-            .collect();
-        for i in stale {
-            let Shape::Filter { area, filter, amount, .. } = self.doc.objects[i].shape.clone() else { continue };
-            let scale = (1200.0 / area.w.max(area.h)).min(1.0);
-            let photo = image::DynamicImage::ImageRgba8(self.doc.pixels_under_at(&original.image, &area, scale));
-            let pixels = Pixels::new(crate::edit::filter::apply(&photo, filter, amount, scale).to_rgba8());
-            if let Shape::Filter { preview, .. } = &mut self.doc.objects[i].shape {
-                *preview = Preview(Some((area, amount, pixels)));
+        for i in 0..self.doc.objects.len() {
+            let o = &self.doc.objects[i];
+            let (area, amount, preview) = match &o.shape {
+                Shape::Filter { area, amount, preview, .. } => (*area, *amount, preview),
+                Shape::Lens { area, preview } => (*area, o.style.zoom.max(1) as f32, preview),
+                _ => continue,
+            };
+            if preview.0.as_ref().is_some_and(|(a, m, _)| *a == area && *m == amount) {
+                continue;
+            }
+            let pixels = match &o.shape {
+                Shape::Filter { filter, .. } => {
+                    let scale = (1200.0 / area.w.max(area.h)).min(1.0);
+                    let photo = image::DynamicImage::ImageRgba8(self.doc.pixels_under_at(&original.image, &area, scale));
+                    crate::edit::filter::apply(&photo, *filter, amount, scale).to_rgba8()
+                }
+                _ => crate::edit::photo::lens(&self.doc, &original.image, &area, amount, 1200),
+            };
+            if let Shape::Filter { preview, .. } | Shape::Lens { preview, .. } = &mut self.doc.objects[i].shape {
+                *preview = Preview(Some((area, amount, Pixels::new(pixels))));
             }
             self.filters_made += 1;
         }
@@ -429,6 +439,7 @@ fn default_style(kind: Kind, long: f32) -> Style {
         Kind::Cover => Style { color: [0, 0, 0], width, ..Style::default() },
         Kind::Text => Style { width: (long / 25.0).round().max(8.0), ..Style::default() },
         Kind::Step => Style { width: (long / 20.0).round().max(16.0), ..Style::default() },
+        Kind::Lens => Style { color: [255, 255, 255], width, round: true, zoom: 2, ..Style::default() },
         Kind::Bubble => Style { color: [0, 0, 0], width, fill: Some([255, 255, 255]), letters: (long / 30.0).round().max(8.0), ..Style::default() },
         _ => Style { width, ..Style::default() },
     }
@@ -551,7 +562,7 @@ impl App {
         };
         let mut handed = false;
         if let Some(tex) = tex {
-            w.refresh_filters();
+            w.refresh_previews();
             let mut ask = self.edit_keys(ui.ctx(), &mut w);
             egui::Panel::top("edit-tools").show(ui, |ui| ask = self.edit_toolbar(ui, &mut w).or(ask.take()));
             egui::Panel::top("edit-props").show(ui, |ui| self.props_bar(ui, &mut w));

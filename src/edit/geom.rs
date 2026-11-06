@@ -17,6 +17,7 @@ pub enum Kind {
     Ellipse,
     Step,
     Bubble,
+    Lens,
     Highlight,
     Text,
     Cover,
@@ -36,6 +37,7 @@ impl Kind {
             Shape::Ellipse(_) => Kind::Ellipse,
             Shape::Step { .. } => Kind::Step,
             Shape::Bubble { .. } => Kind::Bubble,
+            Shape::Lens { .. } => Kind::Lens,
             Shape::Highlight(_) => Kind::Highlight,
             Shape::Text { .. } => Kind::Text,
             Shape::Cover(_) => Kind::Cover,
@@ -256,6 +258,7 @@ pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style, square: bool) -
         Kind::Pen => long.then_some(Shape::Pen(vec![a, b]))?,
         Kind::Rect => Shape::Rect(area()?),
         Kind::Ellipse => Shape::Ellipse(area()?),
+        Kind::Lens => Shape::Lens { area: area()?, preview: Default::default() },
         // The tail at first down and to the left, out of the box.
         Kind::Bubble => {
             let area = area()?;

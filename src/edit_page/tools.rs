@@ -16,7 +16,7 @@ use crate::icons::{self, Line};
 use crate::transform::Op;
 
 /// The tools: icon, name, key (alone, no Ctrl).
-pub(super) const TOOLS: [(Tool, Line, &str, Key); 13] = [
+pub(super) const TOOLS: [(Tool, Line, &str, Key); 14] = [
     (Tool::Select, Line::Select, "edit-tool-select", Key::V),
     (Tool::Marquee, Line::Marquee, "edit-tool-marquee", Key::M),
     (Tool::Draw(Kind::Arrow), Line::Arrow, "edit-tool-arrow", Key::A),
@@ -28,6 +28,7 @@ pub(super) const TOOLS: [(Tool, Line, &str, Key); 13] = [
     (Tool::Draw(Kind::Text), Line::Text, "edit-tool-text", Key::T),
     (Tool::Draw(Kind::Bubble), Line::Bubble, "edit-tool-bubble", Key::U),
     (Tool::Draw(Kind::Step), Line::Step, "edit-tool-step", Key::N),
+    (Tool::Draw(Kind::Lens), Line::Lens, "edit-tool-lens", Key::Z),
     (Tool::Draw(Kind::Cover), Line::Cover, "edit-tool-cover", Key::B),
     (Tool::Crop, Line::Crop, "edit-tool-crop", Key::C),
 ];
@@ -277,6 +278,7 @@ fn hint_id(tool: Tool) -> &'static str {
         Tool::Draw(Kind::Cover) => "edit-tip-cover",
         Tool::Draw(Kind::Step) => "edit-tip-step",
         Tool::Draw(Kind::Bubble) => "edit-tip-bubble",
+        Tool::Draw(Kind::Lens) => "edit-tip-lens",
         Tool::Draw(_) => "edit-tip-draw",
     }
 }
@@ -329,8 +331,10 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
         fill_colours(ui, &mut style.fill, i18n);
     }
     style_controls(ui, &mut style, kind, w.long(), i18n);
-    if kind == Kind::Bubble {
-        super::props::bubble(ui, &mut style, w.long(), i18n);
+    match kind {
+        Kind::Bubble => super::props::bubble(ui, &mut style, w.long(), i18n),
+        Kind::Lens => super::props::lens(ui, &mut style, i18n),
+        _ => {}
     }
     if matches!(kind, Kind::Text | Kind::Bubble) {
         ui.separator();
@@ -395,6 +399,8 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
     ui.spacing_mut().slider_width = 110.0;
     match kind {
         Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse | Kind::Bubble => slider(ui, t("edit-width"), &mut style.width, 1.0..=max, " px"),
+        // A lens may have no border.
+        Kind::Lens => slider(ui, t("edit-width"), &mut style.width, 0.0..=max, " px"),
         Kind::Text | Kind::Step => slider(ui, t("edit-size"), &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
         Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter => {}
     }

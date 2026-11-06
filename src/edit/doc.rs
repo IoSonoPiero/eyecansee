@@ -70,6 +70,9 @@ pub enum Shape {
     /// A speech bubble: rounded or oval (`Style::round`) in its box, a tail to `tail`, its text
     /// in the middle in `font` (as `Text`), the letters as the style says (`ink`, `letters`).
     Bubble { area: Area, tail: Pt, text: String, font: Option<String> },
+    /// A lens: the photo under the box magnified `Style::zoom` times, round (`Style::round`) or
+    /// as the box, with a border; `preview` as a filter's, made from the photo.
+    Lens { area: Area, preview: Preview },
     /// The ellipse inside the box, with a border and a fill as the rectangle.
     Ellipse(Area),
     Highlight(Area),
@@ -193,14 +196,17 @@ pub struct Style {
     /// Bubbles: the height of the letters, in pixels of the image (0 in styles kept before it).
     #[serde(default)]
     pub letters: f32,
-    /// Bubbles oval instead of rounded.
+    /// Bubbles oval instead of rounded, lenses round instead of square.
     #[serde(default)]
     pub round: bool,
+    /// Lenses: how many times they magnify.
+    #[serde(default = "Style::two")]
+    pub zoom: u8,
 }
 
 impl Default for Style {
     fn default() -> Style {
-        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None, ink: [0, 0, 0], letters: 0.0, round: false }
+        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None, ink: [0, 0, 0], letters: 0.0, round: false, zoom: 2 }
     }
 }
 
@@ -208,6 +214,10 @@ impl Default for Style {
 pub const HIGHLIGHT_OPACITY: f32 = 0.4;
 
 impl Style {
+    fn two() -> u8 {
+        2
+    }
+
     /// Where the highlighter starts: yellow, at `HIGHLIGHT_OPACITY`.
     pub fn highlighter() -> Style {
         Style { color: [255, 230, 0], opacity: HIGHLIGHT_OPACITY, ..Style::default() }
@@ -224,14 +234,14 @@ impl Shape {
     /// The box of the objects drawn in one: rectangles, cover boxes, patches, filters…
     pub fn area(&self) -> Option<&Area> {
         match self {
-            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } => Some(a),
+            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } | Shape::Lens { area: a, .. } => Some(a),
             Shape::Line(..) | Shape::Arrow(..) | Shape::Pen(_) | Shape::Text { .. } => None,
         }
     }
 
     pub fn area_mut(&mut self) -> Option<&mut Area> {
         match self {
-            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } => Some(a),
+            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } | Shape::Lens { area: a, .. } => Some(a),
             Shape::Line(..) | Shape::Arrow(..) | Shape::Pen(_) | Shape::Text { .. } => None,
         }
     }
@@ -291,7 +301,7 @@ impl Obj {
             // The picture in the box turns (or flips) as the image did.
             Shape::Patch { pixels, .. } => *pixels = pixels.turned(op),
             // Made again for the photo under it.
-            Shape::Filter { preview, .. } => *preview = Preview::default(),
+            Shape::Filter { preview, .. } | Shape::Lens { preview, .. } => *preview = Preview::default(),
             Shape::Text { rot, .. } => *rot = text_turned(*rot, op),
             _ => {}
         }
@@ -412,6 +422,7 @@ pub(crate) mod tests {
             Obj { shape: Shape::Ellipse(Area { rot: 12.0, ..area }), style },
             Obj { shape: Shape::Step { area: Area { w: 5.0, h: 5.0, ..area }, n: 3 }, style },
             Obj { shape: Shape::Bubble { area: Area { rot: 30.0, ..area }, tail: Pt::new(-2.0, 9.5), text: "Ciao".into(), font: None }, style },
+            Obj { shape: Shape::Lens { area, preview: Preview::default() }, style },
             Obj { shape: Shape::Pen(vec![Pt::new(1.0, 2.0), Pt::new(3.5, -4.0), Pt::new(8.0, 0.5)]), style },
             Obj { shape: Shape::Highlight(area), style: Style { opacity: 0.4, ..style } },
             Obj { shape: Shape::Text { at: Pt::new(5.0, -6.0), text: "à €".into(), size: 12.0, rot: -3.5, font: None, path: None }, style },
