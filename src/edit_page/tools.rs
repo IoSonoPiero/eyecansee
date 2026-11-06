@@ -16,12 +16,13 @@ use crate::icons::{self, Line};
 use crate::transform::Op;
 
 /// The tools: icon, name, key (alone, no Ctrl).
-pub(super) const TOOLS: [(Tool, Line, &str, Key); 9] = [
+pub(super) const TOOLS: [(Tool, Line, &str, Key); 10] = [
     (Tool::Select, Line::Select, "edit-tool-select", Key::V),
     (Tool::Marquee, Line::Marquee, "edit-tool-marquee", Key::M),
     (Tool::Draw(Kind::Arrow), Line::Arrow, "edit-tool-arrow", Key::A),
     (Tool::Draw(Kind::Line), Line::Stroke, "edit-tool-line", Key::L),
     (Tool::Draw(Kind::Rect), Line::Rect, "edit-tool-rect", Key::R),
+    (Tool::Draw(Kind::Ellipse), Line::Ellipse, "edit-tool-ellipse", Key::E),
     (Tool::Draw(Kind::Highlight), Line::Highlight, "edit-tool-highlight", Key::H),
     (Tool::Draw(Kind::Text), Line::Text, "edit-tool-text", Key::T),
     (Tool::Draw(Kind::Cover), Line::Cover, "edit-tool-cover", Key::B),
@@ -306,7 +307,8 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     // "what is the opacity for, if nothing is selected?").
     let whose = if selected.is_some() { ("edit-props-selected", "edit-props-selected-hint") } else { ("edit-props-next", "edit-props-next-hint") };
     ui.weak(i18n.t(whose.0)).on_hover_text(i18n.t(whose.1));
-    if kind == Kind::Rect {
+    let boxed = matches!(kind, Kind::Rect | Kind::Ellipse);
+    if boxed {
         ui.label(i18n.t("edit-border"));
     }
     // A piece of image has its own colours.
@@ -314,7 +316,7 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
         colours(ui, &mut style.color, i18n);
         eyedroppers(ui, w, i18n)
     };
-    if kind == Kind::Rect {
+    if boxed {
         ui.separator();
         ui.label(i18n.t("edit-fill"));
         fill_colours(ui, &mut style.fill, i18n);
@@ -373,7 +375,7 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
     };
     ui.spacing_mut().slider_width = 110.0;
     match kind {
-        Kind::Line | Kind::Arrow | Kind::Rect => slider(ui, t("edit-width"), &mut style.width, 1.0..=max, " px"),
+        Kind::Line | Kind::Arrow | Kind::Rect | Kind::Ellipse => slider(ui, t("edit-width"), &mut style.width, 1.0..=max, " px"),
         Kind::Text => slider(ui, t("edit-size"), &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
         Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter => {}
     }
@@ -390,7 +392,7 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
             }
         }
     }
-    if matches!(kind, Kind::Line | Kind::Arrow | Kind::Rect) {
+    if matches!(kind, Kind::Line | Kind::Arrow | Kind::Rect | Kind::Ellipse) {
         ui.separator();
         for (dash, icon, id) in [(Dash::Solid, Line::Solid, "edit-solid"), (Dash::Dashed, Line::Dashed, "edit-dashed"), (Dash::Dotted, Line::Dotted, "edit-dotted")] {
             if ui.add(icons::toggle(ui, style.dash == dash, icon)).on_hover_text(t(id)).clicked() {

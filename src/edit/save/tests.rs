@@ -439,3 +439,14 @@ fn filter_under_the_objects() {
     }
 }
 
+
+/// An ellipse in the saved image: its fill inside, the photo in the corners of its box.
+#[test]
+fn ellipse_saved() {
+    let mut doc = Doc::new(64, 48, None);
+    doc.objects.push(obj(Shape::Ellipse(Area { centre: Pt::new(0.0, 0.0), w: 40.0, h: 20.0, rot: 0.0 }), Style { width: 2.0, fill: Some(BLUE), ..Style::default() }));
+    let photo = motif();
+    let img = result(&doc, &Original::with_meta(photo.clone(), &[]), &options());
+    assert_eq!(img.get_pixel(32, 24).0[..3], BLUE);
+    assert_eq!(img.get_pixel(13, 15), photo.get_pixel(13, 15), "corner of the box");
+}

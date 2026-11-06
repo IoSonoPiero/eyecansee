@@ -350,12 +350,13 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
     }
     if let (Some(mut hold), Some(s)) = (w.hold.take(), response.interact_pointer_pos()) {
         let p = view.doc(s, angle);
+        let square = ui.input(|i| i.modifiers.shift);
         match &mut hold {
             Hold::Move { index, start, from } => w.doc.objects[*index] = geom::moved(start, Pt::new(p.x - from.x, p.y - from.y)),
             Hold::Handle { index, handle, start } => w.doc.objects[*index] = geom::with_handle(start, *handle, p),
             Hold::Pan { at, k, from } => w.view = Some((*at - (s - *from) / *k, *k)),
             Hold::Marquee { .. } => {}
-            Hold::Draw { kind, from, index } => match (geom::drawn(*kind, *from, p, angle, w.style(*kind)), *index) {
+            Hold::Draw { kind, from, index } => match (geom::drawn(*kind, *from, p, angle, w.style(*kind), square), *index) {
                 (Some(o), Some(i)) => w.doc.objects[i] = o,
                 (Some(o), None) => {
                     w.doc.objects.push(o);
@@ -428,7 +429,8 @@ fn marquee_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
     if let Some(s) = response.interact_pointer_pos() {
         match &w.hold {
             Some(Hold::Marquee { from }) => {
-                let drawn = geom::drawn(Kind::Rect, *from, view.doc(s, w.doc.angle), w.doc.angle, crate::edit::doc::Style::default());
+                let square = ui.input(|i| i.modifiers.shift);
+                let drawn = geom::drawn(Kind::Rect, *from, view.doc(s, w.doc.angle), w.doc.angle, crate::edit::doc::Style::default(), square);
                 w.marquee = drawn.and_then(|o| if let Shape::Rect(a) = o.shape { Some(a) } else { None });
             }
             Some(Hold::Pan { at, k, from }) => w.view = Some((*at - (s - *from) / *k, *k)),
@@ -507,7 +509,7 @@ fn clicked(w: &mut Window, p: Pt, tol: f32) {
         return;
     }
     if w.tool == Tool::Draw(Kind::Text) {
-        if let Some(mut o) = geom::drawn(Kind::Text, p, p, w.doc.angle, w.style(Kind::Text)) {
+        if let Some(mut o) = geom::drawn(Kind::Text, p, p, w.doc.angle, w.style(Kind::Text), false) {
             // In the font chosen last.
             if let Shape::Text { font, .. } = &mut o.shape {
                 font.clone_from(&w.text_font);

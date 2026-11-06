@@ -62,6 +62,8 @@ pub enum Shape {
     /// From the first point to the second, where the head is; bent as a line.
     Arrow(Pt, Pt, Option<Pt>),
     Rect(Area),
+    /// The ellipse inside the box, with a border and a fill as the rectangle.
+    Ellipse(Area),
     Highlight(Area),
     /// `at` is the centre of the text, `size` the height of its letters in pixels, `font` the
     /// family of an installed font (`None`: the sans-serif one of the system). A flip moves and
@@ -173,7 +175,7 @@ pub struct Style {
     /// Arrows only. Styles remembered before it had none: the filled head.
     #[serde(default)]
     pub head: Head,
-    /// Rectangles only: the inside, at the same opacity as the border; `None`: empty.
+    /// Rectangles and ellipses only: the inside, at the same opacity as the border; `None`: empty.
     #[serde(default)]
     pub fill: Option<[u8; 3]>,
 }
@@ -204,14 +206,14 @@ impl Shape {
     /// The box of the objects drawn in one: rectangles, cover boxes, patches, filters…
     pub fn area(&self) -> Option<&Area> {
         match self {
-            Shape::Rect(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } => Some(a),
+            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } => Some(a),
             Shape::Line(..) | Shape::Arrow(..) | Shape::Text { .. } => None,
         }
     }
 
     pub fn area_mut(&mut self) -> Option<&mut Area> {
         match self {
-            Shape::Rect(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } => Some(a),
+            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } => Some(a),
             Shape::Line(..) | Shape::Arrow(..) | Shape::Text { .. } => None,
         }
     }
@@ -364,6 +366,7 @@ pub(crate) mod tests {
             Obj { shape: Shape::Line(Pt::new(-10.0, -5.0), Pt::new(3.0, 8.0), Some(Pt::new(4.5, -2.25))), style },
             Obj { shape: Shape::Arrow(Pt::new(0.1, 0.2), Pt::new(-12.3, 7.7), None), style: Style { dash: Dash::Dashed, ..style } },
             Obj { shape: Shape::Rect(area), style },
+            Obj { shape: Shape::Ellipse(Area { rot: 12.0, ..area }), style },
             Obj { shape: Shape::Highlight(area), style: Style { opacity: 0.4, ..style } },
             Obj { shape: Shape::Text { at: Pt::new(5.0, -6.0), text: "à €".into(), size: 12.0, rot: -3.5, font: None, path: None }, style },
             Obj { shape: Shape::Cover(Area { rot: 0.0, ..area }), style },
@@ -377,8 +380,8 @@ pub(crate) mod tests {
             .iter()
             .flat_map(|o| match &o.shape {
                 Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => [*a, *b].into_iter().chain(*c).collect(),
-                Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) | Shape::Patch { area: r, .. } | Shape::Filter { area: r, .. } => vec![r.centre],
                 Shape::Text { at, .. } => vec![*at],
+                shape => vec![shape.area().unwrap().centre],
             })
             .collect()
     }

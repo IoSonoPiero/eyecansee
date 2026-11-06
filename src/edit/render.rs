@@ -67,11 +67,12 @@ fn object(out: &mut String, o: &Obj) {
         Shape::Line(a, b, c) => line(out, *a, *b, *c, &stroke),
         Shape::Arrow(a, b, c) => arrow(out, (*a, *b, *c), head, width, &stroke, &fill),
         // The inside first, the border over it.
-        Shape::Rect(area) => {
+        Shape::Rect(area) | Shape::Ellipse(area) => {
+            let (tag, at) = if matches!(o.shape, Shape::Rect(_)) { ("rect", rect(area)) } else { ("ellipse", ellipse(area)) };
             if let Some([fr, fg, fb]) = inside {
-                let _ = write!(out, r#"<rect {} fill="rgb({fr},{fg},{fb})"/>"#, rect(area));
+                let _ = write!(out, r#"<{tag} {at} fill="rgb({fr},{fg},{fb})"/>"#);
             }
-            write!(out, r#"<rect {} {stroke}/>"#, rect(area))
+            write!(out, r#"<{tag} {at} {stroke}/>"#)
         }
         // A plain fill at the opacity of the style (`Style::highlighter`): over a layer of its own
         // a multiply would have no photo to blend with (tried: plain yellow).
@@ -105,6 +106,12 @@ fn dashes(dash: Dash, width: f32) -> String {
 fn rect(a: &Area) -> String {
     let Area { centre: c, w, h, rot } = *a;
     format!(r#"x="{}" y="{}" width="{w}" height="{h}" transform="rotate({rot} {} {})""#, c.x - w / 2.0, c.y - h / 2.0, c.x, c.y)
+}
+
+/// Centre, radii and own angle of the ellipse in a box.
+fn ellipse(a: &Area) -> String {
+    let Area { centre: c, w, h, rot } = *a;
+    format!(r#"cx="{}" cy="{}" rx="{}" ry="{}" transform="rotate({rot} {} {})""#, c.x, c.y, w / 2.0, h / 2.0, c.x, c.y)
 }
 
 /// A line from `a` to `b`, straight or bent by `c`.
@@ -465,6 +472,22 @@ pub(crate) mod tests {
         let p = draw(&d, &whole(&d));
         let c = |x, y| { let c = p.pixel(x, y).unwrap().demultiply(); (c.red(), c.green(), c.blue(), c.alpha()) };
         assert_eq!((c(50, 40), c(30, 40)), ((0, 0, 255, 255), (255, 0, 0, 255)));
+    }
+
+    /// An ellipse filled: the inside in its colour, the border on the ellipse, the corners of its
+    /// box empty; turned by its own angle.
+    #[test]
+    fn filled_ellipse() {
+        let d = doc(vec![Obj { shape: Shape::Ellipse(area(0.0, 0.0, 40.0, 20.0)), style: Style { fill: Some([0, 0, 255]), ..style() } }]);
+        let p = draw(&d, &whole(&d));
+        let c = |p: &tiny_skia::Pixmap, x, y| { let c = p.pixel(x, y).unwrap().demultiply(); (c.red(), c.green(), c.blue(), c.alpha()) };
+        // Centre 50, 40; radii 20 and 10: the border at x 30 and y 30.
+        assert_eq!((c(&p, 50, 40), c(&p, 30, 40), c(&p, 50, 30)), ((0, 0, 255, 255), (255, 0, 0, 255), (255, 0, 0, 255)));
+        assert_eq!((c(&p, 31, 31).3, c(&p, 69, 49).3), (0, 0));
+        // Turned upright: 20 wide, 40 high.
+        let d = doc(vec![Obj { shape: Shape::Ellipse(Area { rot: 90.0, ..area(0.0, 0.0, 40.0, 20.0) }), style: Style { fill: Some([0, 0, 255]), ..style() } }]);
+        let p = draw(&d, &whole(&d));
+        assert_eq!((c(&p, 50, 25).2, c(&p, 35, 40).3), (255, 0));
     }
 
     /// A patch: its pixels where its box is, stretched to it.

@@ -13,6 +13,7 @@ pub enum Kind {
     Line,
     Arrow,
     Rect,
+    Ellipse,
     Highlight,
     Text,
     Cover,
@@ -28,6 +29,7 @@ impl Kind {
             Shape::Line(..) => Kind::Line,
             Shape::Arrow(..) => Kind::Arrow,
             Shape::Rect(_) => Kind::Rect,
+            Shape::Ellipse(_) => Kind::Ellipse,
             Shape::Highlight(_) => Kind::Highlight,
             Shape::Text { .. } => Kind::Text,
             Shape::Cover(_) => Kind::Cover,
@@ -57,6 +59,12 @@ pub fn text_area(at: Pt, text: &str, size: f32, rot: f32) -> Area {
 fn inside(a: &Area, p: Pt, tol: f32) -> bool {
     let d = turned(sub(p, a.centre), -a.rot);
     d.x.abs() <= a.w / 2.0 + tol && d.y.abs() <= a.h / 2.0 + tol
+}
+
+/// Inside the ellipse of the box, or within `tol` of it.
+fn inside_ellipse(a: &Area, p: Pt, tol: f32) -> bool {
+    let d = turned(sub(p, a.centre), -a.rot);
+    (d.x / (a.w / 2.0 + tol)).powi(2) + (d.y / (a.h / 2.0 + tol)).powi(2) <= 1.0
 }
 
 /// Points along a line from `a` to `b`, bent by the control point `c` (a quadratic Bézier
@@ -105,6 +113,7 @@ pub fn hit(o: &Obj, p: Pt, tol: f32) -> bool {
         Shape::Arrow(a, b, c) => curve_distance(p, *a, *b, *c) <= (2.0 * o.style.width + 2.0).max(o.style.width / 2.0) + tol,
         Shape::Text { path: Some((a, b, c)), size, .. } => curve_distance(p, *a, *b, *c) <= 0.6 * size + tol,
         Shape::Text { at, text, size, rot, .. } => inside(&text_area(*at, text, *size, *rot), p, tol),
+        Shape::Ellipse(r) => inside_ellipse(r, p, o.style.width / 2.0 + tol),
         shape => shape.area().is_some_and(|r| inside(r, p, tol)),
     }
 }
@@ -189,9 +198,14 @@ fn line_handle(a: Pt, b: Pt, c: Option<Pt>, i: usize, p: Pt, shape: fn(Pt, Pt, O
 
 /// The object a drag from `a` to `b` draws, on an image shown turned by `angle`: boxes and text
 /// upright on the screen (their own angle `-angle`), a text with no letters yet, its size
-/// `style.width`. `None` for a drag too short to draw anything.
-pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style) -> Option<Obj> {
-    let (sa, sb) = (turned(a, angle), turned(b, angle));
+/// `style.width`; with `square` (Shift held) a box as wide as high. `None` for a drag too short
+/// to draw anything.
+pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style, square: bool) -> Option<Obj> {
+    let (sa, mut sb) = (turned(a, angle), turned(b, angle));
+    if square {
+        let side = (sb.x - sa.x).abs().max((sb.y - sa.y).abs());
+        sb = Pt::new(sa.x + side.copysign(sb.x - sa.x), sa.y + side.copysign(sb.y - sa.y));
+    }
     let area = || {
         let (w, h) = ((sb.x - sa.x).abs(), (sb.y - sa.y).abs());
         (w >= 1.0 && h >= 1.0).then(|| Area { centre: turned(Pt::new((sa.x + sb.x) / 2.0, (sa.y + sb.y) / 2.0), -angle), w, h, rot: -angle })
@@ -201,6 +215,7 @@ pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style) -> Option<Obj> 
         Kind::Line => long.then_some(Shape::Line(a, b, None))?,
         Kind::Arrow => long.then_some(Shape::Arrow(a, b, None))?,
         Kind::Rect => Shape::Rect(area()?),
+        Kind::Ellipse => Shape::Ellipse(area()?),
         Kind::Highlight => Shape::Highlight(area()?),
         Kind::Cover => Shape::Cover(area()?),
         Kind::Patch | Kind::Filter => return None,
@@ -234,6 +249,9 @@ mod tests {
         assert!(hit(&text, Pt::new(11.0, 5.0), 0.0) && !hit(&text, Pt::new(13.0, 0.0), 0.0));
         assert_eq!(under(&[rect(0.0), rect(0.0), line], Pt::new(10.0, 5.0), 0.0), Some(1));
         assert_eq!(under(&[rect(0.0)], Pt::new(-50.0, 5.0), 0.0), None);
+        // An ellipse by its inside: not the corners of its box.
+        let ellipse = Obj { shape: Shape::Ellipse(Area { centre: Pt::new(0.0, 0.0), w: 20.0, h: 10.0, rot: 0.0 }), style: Style { width: 2.0, ..Style::default() } };
+        assert!(hit(&ellipse, Pt::new(9.0, 0.0), 0.0) && !hit(&ellipse, Pt::new(8.0, 4.5), 0.0));
     }
 
     /// A corner dragged: the opposite one stays, the box keeps its angle; the ends of a line.
@@ -260,13 +278,16 @@ mod tests {
     #[test]
     fn drawn_upright_on_screen() {
         let (a, b) = (turned(Pt::new(-10.0, -5.0), -30.0), turned(Pt::new(30.0, 15.0), -30.0));
-        let o = drawn(Kind::Cover, a, b, 30.0, Style::default()).unwrap();
+        let o = drawn(Kind::Cover, a, b, 30.0, Style::default(), false).unwrap();
         let Shape::Cover(r) = o.shape else { unreachable!() };
         assert!((r.w - 40.0).abs() < 1e-3 && (r.h - 20.0).abs() < 1e-3 && r.rot == -30.0);
         let h = handles(&o);
         assert!(close(h[0], a) && close(h[2], b), "{h:?}");
-        assert!(drawn(Kind::Rect, a, a, 30.0, Style::default()).is_none() && drawn(Kind::Arrow, a, a, 0.0, Style::default()).is_none());
-        let t = drawn(Kind::Text, a, a, 30.0, Style { width: 24.0, ..Style::default() }).unwrap();
+        assert!(drawn(Kind::Rect, a, a, 30.0, Style::default(), false).is_none() && drawn(Kind::Arrow, a, a, 0.0, Style::default(), false).is_none());
+        let t = drawn(Kind::Text, a, a, 30.0, Style { width: 24.0, ..Style::default() }, false).unwrap();
+        // With Shift: as wide as high, the longer side kept, towards where the drag went.
+        let Shape::Ellipse(e) = drawn(Kind::Ellipse, Pt::new(0.0, 0.0), Pt::new(-30.0, 10.0), 0.0, Style::default(), true).unwrap().shape else { unreachable!() };
+        assert_eq!((e.w, e.h, e.centre), (30.0, 30.0, Pt::new(-15.0, 15.0)));
         assert_eq!(t.shape, Shape::Text { at: a, text: String::new(), size: 24.0, rot: -30.0, font: None, path: None });
     }
 }
