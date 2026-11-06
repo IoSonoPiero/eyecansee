@@ -648,6 +648,7 @@ edit-filter-sepia = Sepia
 edit-filter-brightness = Brightness
 edit-filter-contrast = Contrast
 edit-filter-amount = Amount
+edit-filter-not-cover = Blur and Pixelate are not enough to hide private text or numbers: at a low amount they can be read, or worked back. For those use Cover (B).
 edit-text-curve = On a curve
 edit-text-curve-hint = The text follows a line: drag its middle point to bend it, its ends to stretch or turn it.
 edit-outline = Outline

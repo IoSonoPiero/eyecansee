@@ -247,7 +247,10 @@ fn filters_menu(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
         ui.label(egui::RichText::new(i18n.t(if w.marquee.is_some() { "edit-filters-part" } else { "edit-filters-whole" })).strong());
         ui.separator();
         for f in crate::edit::filter::Filter::ALL {
-            if ui.add(icons::menu_item(ui, Some(Line::Filter(f)), i18n.t(f.label()), String::new())).clicked() {
+            let r = ui.add(icons::menu_item(ui, Some(Line::Filter(f)), i18n.t(f.label()), String::new()));
+            // Blur and Pixelate look like hiding, and are not enough for private text.
+            let r = if f.hides() { r.on_hover_text(i18n.t("edit-filter-not-cover")) } else { r };
+            if r.clicked() {
                 w.add_filter(f);
             }
         }
@@ -264,6 +267,9 @@ fn filter_bar(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
         ui.label(i18n.t("edit-filter-amount"));
         ui.spacing_mut().slider_width = 160.0;
         ui.add(egui::Slider::new(amount, lo..=hi).integer());
+    }
+    if filter.hides() {
+        ui.label(crate::theme::alert(i18n.t("edit-filter-not-cover")));
     }
     ui.separator();
     if bar_button(ui, icons::button(ui, Line::Delete), format!("{} ({})", i18n.t("edit-delete"), i18n.t("key-delete")), None) {
@@ -645,6 +651,16 @@ pub(super) fn keys_id(tool: Tool) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    /// The warning that Blur and Pixelate are no cover is in both languages.
+    #[test]
+    fn blur_warning() {
+        for ftl in [include_str!("../../locales/en.ftl"), include_str!("../../locales/it.ftl")] {
+            assert!(ftl.lines().any(|l| l.starts_with("edit-filter-not-cover = ")));
+        }
+        use crate::edit::filter::Filter;
+        assert!(Filter::Blur.hides() && Filter::Pixelate.hides() && !Filter::Gray.hides());
+    }
+
     /// Every tool has its list of keys, in both languages.
     #[test]
     fn keys_listed() {

@@ -647,6 +647,7 @@ edit-filter-sepia = Seppia
 edit-filter-brightness = Luminosità
 edit-filter-contrast = Contrasto
 edit-filter-amount = Intensità
+edit-filter-not-cover = Sfoca e Pixel grossi non bastano per nascondere testi o numeri sensibili: con poca intensità si leggono, o si possono ricostruire. Per quelli usa Copertura (B).
 edit-text-curve = Su una curva
 edit-text-curve-hint = Il testo segue una linea: trascina il punto di mezzo per curvarla, i capi per allungarla o girarla.
 edit-outline = Contorno
