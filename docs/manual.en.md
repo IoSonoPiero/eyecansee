@@ -150,7 +150,7 @@ Audio files (M4A, MP3, Opus, Ogg, FLAC, WAV, MKA and others, for example those m
 
 Right click (or **File**) > **Export as a 3D model** saves the models chosen (one or more) as STL, OBJ, PLY or glTF (GLB), each next to itself, with as much of the original as the format holds: glTF (GLB) keeps the textures, normals and surfaces, the other formats get the colours (taken from the textures where there are any); each file has the up axis other programs expect (Z for STL and PLY, Y for OBJ and glTF), so it opens standing there too, and the axes in the viewer's corner may differ from the original's; the status bar says the name it got.
 
-For 3D models and CAD drawings, the **Keys** button on the right of the status bar lists these keys, one a row: while the mouse is on it, or until it is clicked again. In the top right corner the axes of the file (X red, Y green, Z blue) turn with the model, as in CAD programs; a CAD drawing shows its X and Y in the bottom left corner.
+In the viewer the **Keys** button on the right of the status bar lists the keys of what you are looking at (an image, a video, a 3D model or a CAD drawing), one a row: while the mouse is on it, or until it is clicked again. In the top right corner the axes of the file (X red, Y green, Z blue) turn with the model, as in CAD programs; a CAD drawing shows its X and Y in the bottom left corner.
 
 The colours stored in the file are shown (colours of materials, faces and vertices) and, in glTF, 3MF, OBJ, FBX, Collada, 3DS, VRML and X3D files, the pictures on the surfaces (textures); glTF and FBX materials also show how smooth or metallic they are (with a highlight), their bumps (normal maps), shadows in their creases (occlusion) and their own light. Curved surfaces look smooth and edges stay sharp, also in models that do not store their normals (scans, STL); a model without colours is light grey. The status bar shows the number of triangles, the zoom and, while the model moves, the frames per second. *Convert and resize* turns several models into images at once, seen from the starting view.
 
@@ -311,7 +311,7 @@ In the viewer:
 | Ctrl+S, Ctrl+Shift+S | Save, Save as |
 | Ctrl+E | Edit image (see *Editing an image*) |
 
-The mouse wheel zooms around the pointer, + and − around the middle of the window; Ctrl and the wheel always zoom, also when the wheel is set to change image (see *Options*). A zoomed image is moved by dragging it. It never gets smaller than fitted to the window, nor larger than the largest zoom set in the options (2000% at first); the status bar shows the zoom. The next image starts fitted again.
+The **Keys** button on the right of the status bar lists these keys. The mouse wheel zooms around the pointer, + and − around the middle of the window; Ctrl and the wheel always zoom, also when the wheel is set to change image (see *Options*). A zoomed image is moved by dragging it. It never gets smaller than fitted to the window, nor larger than the largest zoom set in the options (2000% at first); the status bar shows the zoom. The next image starts fitted again.
 
 A thumbnail is made once and kept: it is made again only when the file changes size or date. If one looks wrong (for example made by an older version), right-click the image, or select several, and choose **Redo thumbnails** (also in the View menu). **Shift+F5** redoes all the thumbnails of the open folder.
 

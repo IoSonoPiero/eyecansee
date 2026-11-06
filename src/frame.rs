@@ -84,8 +84,8 @@ impl App {
                 Some(current) => {
                     let bar = egui::Frame::side_top_panel(ui.style()).fill(theme::solid(ui.visuals()));
                     let status = egui::Panel::bottom("viewer-status").frame(bar).show(ui, |ui| self.viewer_status(ui, current));
-                    // The keys of the 3D and CAD viewers: listed while the button is pointed at, or
-                    // until it is clicked again.
+                    // The keys of the viewer: listed while the button is pointed at, or until it is
+                    // clicked again.
                     if let (Some(button), Some(id)) = (status.inner, self.keys_hint(current)) {
                         if button.clicked() {
                             self.keys_open = !self.keys_open;
