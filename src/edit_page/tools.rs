@@ -16,7 +16,7 @@ use crate::icons::{self, Line};
 use crate::transform::Op;
 
 /// The tools: icon, name, key (alone, no Ctrl).
-pub(super) const TOOLS: [(Tool, Line, &str, Key); 12] = [
+pub(super) const TOOLS: [(Tool, Line, &str, Key); 13] = [
     (Tool::Select, Line::Select, "edit-tool-select", Key::V),
     (Tool::Marquee, Line::Marquee, "edit-tool-marquee", Key::M),
     (Tool::Draw(Kind::Arrow), Line::Arrow, "edit-tool-arrow", Key::A),
@@ -26,6 +26,7 @@ pub(super) const TOOLS: [(Tool, Line, &str, Key); 12] = [
     (Tool::Draw(Kind::Ellipse), Line::Ellipse, "edit-tool-ellipse", Key::E),
     (Tool::Draw(Kind::Highlight), Line::Highlight, "edit-tool-highlight", Key::H),
     (Tool::Draw(Kind::Text), Line::Text, "edit-tool-text", Key::T),
+    (Tool::Draw(Kind::Bubble), Line::Bubble, "edit-tool-bubble", Key::U),
     (Tool::Draw(Kind::Step), Line::Step, "edit-tool-step", Key::N),
     (Tool::Draw(Kind::Cover), Line::Cover, "edit-tool-cover", Key::B),
     (Tool::Crop, Line::Crop, "edit-tool-crop", Key::C),
@@ -275,6 +276,7 @@ fn hint_id(tool: Tool) -> &'static str {
         Tool::Draw(Kind::Text) => "edit-tip-text",
         Tool::Draw(Kind::Cover) => "edit-tip-cover",
         Tool::Draw(Kind::Step) => "edit-tip-step",
+        Tool::Draw(Kind::Bubble) => "edit-tip-bubble",
         Tool::Draw(_) => "edit-tip-draw",
     }
 }
@@ -312,7 +314,7 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     // "what is the opacity for, if nothing is selected?").
     let whose = if selected.is_some() { ("edit-props-selected", "edit-props-selected-hint") } else { ("edit-props-next", "edit-props-next-hint") };
     ui.weak(i18n.t(whose.0)).on_hover_text(i18n.t(whose.1));
-    let boxed = matches!(kind, Kind::Rect | Kind::Ellipse);
+    let boxed = matches!(kind, Kind::Rect | Kind::Ellipse | Kind::Bubble);
     if boxed {
         ui.label(i18n.t("edit-border"));
     }
@@ -327,12 +329,17 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
         fill_colours(ui, &mut style.fill, i18n);
     }
     style_controls(ui, &mut style, kind, w.long(), i18n);
-    if kind == Kind::Text {
+    if kind == Kind::Bubble {
+        super::props::bubble(ui, &mut style, w.long(), i18n);
+    }
+    if matches!(kind, Kind::Text | Kind::Bubble) {
         ui.separator();
         if let Some(i) = selected {
             font_choice(ui, w, i, i18n);
-            text_curve(ui, w, i, i18n);
-            text_angle(ui, w, i, i18n);
+            if kind == Kind::Text {
+                text_curve(ui, w, i, i18n);
+                text_angle(ui, w, i, i18n);
+            }
         }
         text_field(ui, w, selected, i18n);
     }
@@ -387,7 +394,7 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
     };
     ui.spacing_mut().slider_width = 110.0;
     match kind {
-        Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse => slider(ui, t("edit-width"), &mut style.width, 1.0..=max, " px"),
+        Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse | Kind::Bubble => slider(ui, t("edit-width"), &mut style.width, 1.0..=max, " px"),
         Kind::Text | Kind::Step => slider(ui, t("edit-size"), &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
         Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter => {}
     }
@@ -416,7 +423,7 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
 
 /// The ready-made colours as swatches, the one in use ringed, then any other colour; `true` when
 /// one is chosen.
-fn colours(ui: &mut egui::Ui, color: &mut [u8; 3], i18n: &I18n) -> bool {
+pub(super) fn colours(ui: &mut egui::Ui, color: &mut [u8; 3], i18n: &I18n) -> bool {
     let mut chosen = false;
     ui.spacing_mut().item_spacing.x = 4.0;
     let ring = ui.visuals().selection.stroke.color;
@@ -442,7 +449,7 @@ fn colours(ui: &mut egui::Ui, color: &mut [u8; 3], i18n: &I18n) -> bool {
 /// The font of the selected text: pointing at one in the list shows the text in it, choosing one
 /// keeps it, closing the list without choosing puts the text's own back.
 fn font_choice(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
-    let Shape::Text { font, .. } = &w.doc.objects[i].shape else { return };
+    let Some(font) = w.doc.objects[i].shape.font_mut() else { return };
     let own = w.font_preview.as_ref().filter(|(j, _)| *j == i).map_or_else(|| font.clone(), |(_, f)| f.clone());
     let default = i18n.t("edit-font-default");
     let (mut pointed, mut chosen) = (None, None);
@@ -460,7 +467,7 @@ fn font_choice(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     });
     r.response.on_hover_text(i18n.t("edit-font-hint"));
     let set = |w: &mut Window, f: Option<String>| {
-        if let Some(Shape::Text { font, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) {
+        if let Some(font) = w.doc.objects.get_mut(i).and_then(|o| o.shape.font_mut()) {
             *font = f;
         }
     };
@@ -556,7 +563,7 @@ fn fill_colours(ui: &mut egui::Ui, fill: &mut Option<[u8; 3]>, i18n: &I18n) {
 
 /// The letters of the selected text, typed here; a text just placed takes the keys at once.
 fn text_field(ui: &mut egui::Ui, w: &mut Window, selected: Option<usize>, i18n: &I18n) {
-    let Some(Shape::Text { text, .. }) = selected.map(|i| &mut w.doc.objects[i].shape) else {
+    let Some(text) = selected.and_then(|i| w.doc.objects[i].shape.text_mut()) else {
         w.focus_text = false;
         ui.weak(i18n.t("edit-text-hint"));
         return;

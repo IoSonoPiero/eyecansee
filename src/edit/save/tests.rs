@@ -471,3 +471,16 @@ fn step_saved() {
     let white = (24..40).flat_map(|x| (16..32).map(move |y| (x, y))).filter(|&(x, y)| img.get_pixel(x, y).0[..3].iter().all(|&v| v > 180)).count();
     assert!(white > 15, "{white}");
 }
+
+/// A bubble in the saved image: its border, its fill, its tail.
+#[test]
+fn bubble_saved() {
+    let mut doc = Doc::new(64, 48, None);
+    let style = Style { color: BLUE, width: 2.0, fill: Some([255, 255, 255]), letters: 8.0, ..Style::default() };
+    doc.objects.push(obj(Shape::Bubble { area: Area { centre: Pt::new(0.0, -8.0), w: 40.0, h: 20.0, rot: 0.0 }, tail: Pt::new(-10.0, 20.0), text: String::new(), font: None }, style));
+    let img = result(&doc, &Original::with_meta(motif(), &[]), &options());
+    // The box 12..52 × 6..26: the border above it, white inside, the tail under it.
+    assert_eq!(img.get_pixel(32, 5).0[..3], BLUE);
+    assert_eq!(img.get_pixel(40, 12).0[..3], [255; 3]);
+    assert_eq!(img.get_pixel(25, 34).0[..3], [255; 3]);
+}

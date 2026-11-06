@@ -67,6 +67,9 @@ pub enum Shape {
     /// A step: a disc of the colour of the style with the number `n` in it, in black or white,
     /// whichever reads better on it; its box is square.
     Step { area: Area, n: u32 },
+    /// A speech bubble: rounded or oval (`Style::round`) in its box, a tail to `tail`, its text
+    /// in the middle in `font` (as `Text`), the letters as the style says (`ink`, `letters`).
+    Bubble { area: Area, tail: Pt, text: String, font: Option<String> },
     /// The ellipse inside the box, with a border and a fill as the rectangle.
     Ellipse(Area),
     Highlight(Area),
@@ -180,14 +183,24 @@ pub struct Style {
     /// Arrows only. Styles remembered before it had none: the filled head.
     #[serde(default)]
     pub head: Head,
-    /// Rectangles and ellipses only: the inside, at the same opacity as the border; `None`: empty.
+    /// Rectangles, ellipses and bubbles only: the inside, at the same opacity as the border;
+    /// `None`: empty.
     #[serde(default)]
     pub fill: Option<[u8; 3]>,
+    /// Bubbles: the colour of the letters.
+    #[serde(default)]
+    pub ink: [u8; 3],
+    /// Bubbles: the height of the letters, in pixels of the image (0 in styles kept before it).
+    #[serde(default)]
+    pub letters: f32,
+    /// Bubbles oval instead of rounded.
+    #[serde(default)]
+    pub round: bool,
 }
 
 impl Default for Style {
     fn default() -> Style {
-        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None }
+        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None, ink: [0, 0, 0], letters: 0.0, round: false }
     }
 }
 
@@ -211,14 +224,14 @@ impl Shape {
     /// The box of the objects drawn in one: rectangles, cover boxes, patches, filters…
     pub fn area(&self) -> Option<&Area> {
         match self {
-            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } => Some(a),
+            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } => Some(a),
             Shape::Line(..) | Shape::Arrow(..) | Shape::Pen(_) | Shape::Text { .. } => None,
         }
     }
 
     pub fn area_mut(&mut self) -> Option<&mut Area> {
         match self {
-            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } => Some(a),
+            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } | Shape::Bubble { area: a, .. } => Some(a),
             Shape::Line(..) | Shape::Arrow(..) | Shape::Pen(_) | Shape::Text { .. } => None,
         }
     }
@@ -234,6 +247,7 @@ impl Shape {
         match self {
             Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => line(a, b, c),
             Shape::Pen(points) => points.iter_mut().collect(),
+            Shape::Bubble { tail, .. } => vec![tail],
             Shape::Text { at, path, .. } => {
                 let mut v = vec![at];
                 if let Some((a, b, c)) = path {
@@ -242,6 +256,24 @@ impl Shape {
                 v
             }
             _ => Vec::new(),
+        }
+    }
+}
+
+impl Shape {
+    /// The letters of a text or a bubble.
+    pub fn text_mut(&mut self) -> Option<&mut String> {
+        match self {
+            Shape::Text { text, .. } | Shape::Bubble { text, .. } => Some(text),
+            _ => None,
+        }
+    }
+
+    /// The font of a text or a bubble.
+    pub fn font_mut(&mut self) -> Option<&mut Option<String>> {
+        match self {
+            Shape::Text { font, .. } | Shape::Bubble { font, .. } => Some(font),
+            _ => None,
         }
     }
 }
@@ -379,6 +411,7 @@ pub(crate) mod tests {
             Obj { shape: Shape::Rect(area), style },
             Obj { shape: Shape::Ellipse(Area { rot: 12.0, ..area }), style },
             Obj { shape: Shape::Step { area: Area { w: 5.0, h: 5.0, ..area }, n: 3 }, style },
+            Obj { shape: Shape::Bubble { area: Area { rot: 30.0, ..area }, tail: Pt::new(-2.0, 9.5), text: "Ciao".into(), font: None }, style },
             Obj { shape: Shape::Pen(vec![Pt::new(1.0, 2.0), Pt::new(3.5, -4.0), Pt::new(8.0, 0.5)]), style },
             Obj { shape: Shape::Highlight(area), style: Style { opacity: 0.4, ..style } },
             Obj { shape: Shape::Text { at: Pt::new(5.0, -6.0), text: "à €".into(), size: 12.0, rot: -3.5, font: None, path: None }, style },

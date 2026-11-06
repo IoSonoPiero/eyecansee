@@ -58,7 +58,7 @@ fn svg(doc: &Doc, (w, h): (u32, u32), view: &View) -> String {
 }
 
 fn object(out: &mut String, o: &Obj) {
-    let Style { color: [r, g, b], width, opacity, dash, head, fill: inside } = o.style;
+    let Style { color: [r, g, b], width, opacity, dash, head, fill: inside, .. } = o.style;
     let stroke = format!(r#"stroke="rgb({r},{g},{b})" stroke-width="{width}" fill="none"{}"#, dashes(dash, width));
     let fill = format!(r#"fill="rgb({r},{g},{b})""#);
     // The opacity on a group: where the line of an arrow meets its head it is not doubled.
@@ -67,6 +67,7 @@ fn object(out: &mut String, o: &Obj) {
         Shape::Line(a, b, c) => line(out, *a, *b, *c, &stroke),
         Shape::Arrow(a, b, c) => arrow(out, (*a, *b, *c), head, width, &stroke, &fill),
         Shape::Step { area, n } => step(out, area, *n, o.style.color),
+        Shape::Bubble { area, tail, text, font } => bubble(out, (area, *tail), text, font.as_deref(), &o.style),
         Shape::Pen(points) => write!(out, r#"<path d="{}" {stroke} stroke-linejoin="round"/>"#, smooth(points)),
         // The inside first, the border over it.
         Shape::Rect(area) | Shape::Ellipse(area) => {
@@ -141,6 +142,32 @@ fn step(out: &mut String, a: &Area, n: u32, colour: [u8; 3]) -> std::fmt::Result
         r#"<g transform="rotate({rot} {} {})"><circle cx="{}" cy="{}" r="{}" fill="rgb({r},{g},{b})"/><text x="{}" y="{}" font-family="sans-serif" font-weight="bold" font-size="{size}" text-anchor="middle" dominant-baseline="central" fill="rgb({ir},{ig},{ib})">{n}</text></g>"#,
         c.x, c.y, c.x, c.y, w / 2.0, c.x, c.y
     )
+}
+
+/// A speech bubble: its border is drawn twice as wide around its shape and its tail, and the
+/// inside of both is cut out of it (a mask), so it shows only outside them, with no line where
+/// the tail joins; then the fill, then the letters.
+fn bubble(out: &mut String, (a, tail): (&Area, Pt), text: &str, font: Option<&str>, style: &Style) -> std::fmt::Result {
+    let ([r, g, b], [ir, ig, ib]) = (style.color, style.ink);
+    // Its own id in this SVG: the address of its box, unique while it is drawn.
+    let id = format!("b{:x}", a as *const Area as usize);
+    let short = a.w.min(a.h);
+    let body = if style.round { format!("<ellipse {}/>", ellipse(a)) } else { format!(r#"<rect {} rx="{}"/>"#, rect(a), 0.2 * short) };
+    // The tail from a base across the middle of the bubble, as wide as a third of its short side.
+    let (dx, dy) = (tail.x - a.centre.x, tail.y - a.centre.y);
+    let len = dx.hypot(dy).max(1e-3);
+    let (nx, ny) = (-dy / len * 0.15 * short, dx / len * 0.15 * short);
+    let shape = format!(r#"{body}<polygon points="{},{} {},{} {},{}"/>"#, a.centre.x + nx, a.centre.y + ny, tail.x, tail.y, a.centre.x - nx, a.centre.y - ny);
+    let far = 1e5;
+    write!(out, r#"<defs><mask id="{id}" maskUnits="userSpaceOnUse" x="{}" y="{}" width="{}" height="{}"><rect x="{}" y="{}" width="{}" height="{}" fill="white"/><g fill="black">{shape}</g></mask></defs>"#, -far, -far, 2.0 * far, 2.0 * far, -far, -far, 2.0 * far, 2.0 * far)?;
+    write!(out, r#"<g mask="url(#{id})" fill="none" stroke="rgb({r},{g},{b})" stroke-width="{}" stroke-linejoin="round">{shape}</g>"#, 2.0 * style.width)?;
+    if let Some([fr, fg, fb]) = style.fill {
+        write!(out, r#"<g fill="rgb({fr},{fg},{fb})">{shape}</g>"#)?;
+    }
+    if text.trim().is_empty() {
+        return Ok(());
+    }
+    self::text(out, (a.centre, style.letters.max(1.0), a.rot), text, font, &format!(r#"fill="rgb({ir},{ig},{ib})""#))
 }
 
 /// Centre, radii and own angle of the ellipse in a box.
@@ -312,7 +339,7 @@ pub(crate) mod tests {
     }
 
     fn style() -> Style {
-        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None }
+        Style::default()
     }
 
     fn area(x: f32, y: f32, w: f32, h: f32) -> Area {
@@ -550,6 +577,25 @@ pub(crate) mod tests {
             let inked = (35..65).flat_map(|x| (25..55).map(move |y| (x, y))).filter(|&(x, y)| near(x, y)).count();
             assert!(inked > 20, "{inked} pixels of the number");
             assert_eq!((alpha(&p, 33, 23), alpha(&p, 75, 40)), (0, 0));
+        }
+    }
+
+    /// A bubble: its border outside the shape and the tail, none where they join, the fill inside,
+    /// the letters in the middle in their colour; oval too.
+    #[test]
+    fn bubble_with_tail() {
+        for round in [false, true] {
+            let s = Style { color: [255, 0, 0], width: 2.0, fill: Some([255, 255, 255]), ink: [0, 0, 255], letters: 16.0, round, ..style() };
+            let d = doc(vec![Obj { shape: Shape::Bubble { area: area(0.0, -10.0, 60.0, 30.0), tail: Pt::new(-20.0, 30.0), text: "Hi".into(), font: None }, style: s }]);
+            let p = draw(&d, &whole(&d));
+            let c = |x, y| { let c = p.pixel(x, y).unwrap().demultiply(); [c.red(), c.green(), c.blue(), c.alpha()] };
+            // The box 20..80 × 15..45: the border just outside its top side, white inside.
+            assert_eq!((c(50, 14), c(60, 20)), ([255, 0, 0, 255], [255, 255, 255, 255]), "round {round}");
+            // The tail from the middle (50, 30) to 30, 70: white along it under the box, no red
+            // line where it joins the bubble (y 45).
+            assert_eq!((c(38, 54), c(42, 45)), ([255, 255, 255, 255], [255, 255, 255, 255]), "round {round}");
+            let blue = (40..60).flat_map(|x| (24..36).map(move |y| (x, y))).filter(|&(x, y)| c(x, y)[2] > 150 && c(x, y)[0] < 100).count();
+            assert!(blue > 10, "letters: {blue}");
         }
     }
 

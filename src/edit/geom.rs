@@ -16,6 +16,7 @@ pub enum Kind {
     Rect,
     Ellipse,
     Step,
+    Bubble,
     Highlight,
     Text,
     Cover,
@@ -34,6 +35,7 @@ impl Kind {
             Shape::Rect(_) => Kind::Rect,
             Shape::Ellipse(_) => Kind::Ellipse,
             Shape::Step { .. } => Kind::Step,
+            Shape::Bubble { .. } => Kind::Bubble,
             Shape::Highlight(_) => Kind::Highlight,
             Shape::Text { .. } => Kind::Text,
             Shape::Cover(_) => Kind::Cover,
@@ -120,6 +122,8 @@ pub fn hit(o: &Obj, p: Pt, tol: f32) -> bool {
         Shape::Text { at, text, size, rot, .. } => inside(&text_area(*at, text, *size, *rot), p, tol),
         Shape::Ellipse(r) => inside_ellipse(r, p, o.style.width / 2.0 + tol),
         Shape::Step { area, .. } => inside_ellipse(area, p, tol),
+        // The box, or along the tail (as wide as `render::bubble` makes it at its base).
+        Shape::Bubble { area, tail, .. } => inside(area, p, tol) || segment_distance(p, area.centre, *tail) <= 0.15 * area.w.min(area.h) + tol,
         shape => shape.area().is_some_and(|r| inside(r, p, tol)),
     }
 }
@@ -169,6 +173,8 @@ pub fn handles(o: &Obj) -> Vec<Pt> {
         // On a curve: its two ends and the middle that bends it, as a line.
         Shape::Text { path: Some((a, b, c)), .. } => vec![*a, *b, bend_handle(*a, *b, *c)],
         Shape::Pen(points) => corners(&pen_box(points)).to_vec(),
+        // The corners, then the end of the tail.
+        Shape::Bubble { area, tail, .. } => corners(area).into_iter().chain([*tail]).collect(),
         shape => shape.area().map_or_else(Vec::new, |r| corners(r).to_vec()),
     }
 }
@@ -197,6 +203,7 @@ pub fn with_handle(o: &Obj, i: usize, p: Pt) -> Obj {
             let Shape::Line(na, nb, nc) = line_handle(*a, *b, *c, i, p, Shape::Line) else { unreachable!() };
             (*a, *b, *c) = (na, nb, nc);
         }
+        Shape::Bubble { tail, .. } if i == 4 => *tail = p,
         // Its points stretched with the box, from the opposite corner (a flat stroke stays flat).
         Shape::Pen(points) => {
             let (from, to) = (pen_box(points), resized(&pen_box(points)));
@@ -249,6 +256,12 @@ pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style, square: bool) -
         Kind::Pen => long.then_some(Shape::Pen(vec![a, b]))?,
         Kind::Rect => Shape::Rect(area()?),
         Kind::Ellipse => Shape::Ellipse(area()?),
+        // The tail at first down and to the left, out of the box.
+        Kind::Bubble => {
+            let area = area()?;
+            let t = turned(Pt::new(-0.3 * area.w, 0.9 * area.h), area.rot);
+            Shape::Bubble { area, tail: Pt::new(area.centre.x + t.x, area.centre.y + t.y), text: String::new(), font: None }
+        }
         Kind::Highlight => Shape::Highlight(area()?),
         Kind::Cover => Shape::Cover(area()?),
         // Placed with a click (`step`).
@@ -385,5 +398,18 @@ mod curves {
         assert!(hit(&o, Pt::new(9.0, 0.0), 0.0) && !hit(&o, Pt::new(9.0, 9.0), 0.0));
         let Shape::Step { area, .. } = with_handle(&o, 2, Pt::new(30.0, 15.0)).shape else { unreachable!() };
         assert_eq!((area.w, area.h, area.centre), (40.0, 40.0, Pt::new(10.0, 10.0)));
+    }
+
+    /// A bubble: drawn with its tail below it, which its fifth handle moves alone; hit along the
+    /// tail, outside the box.
+    #[test]
+    fn bubble_tail() {
+        let o = drawn(Kind::Bubble, Pt::new(0.0, 0.0), Pt::new(40.0, 20.0), 0.0, Style::default(), false).unwrap();
+        let Shape::Bubble { tail, .. } = o.shape else { unreachable!() };
+        assert_eq!(tail, Pt::new(8.0, 28.0));
+        assert!(hit(&o, Pt::new(10.0, 24.0), 0.0) && !hit(&o, Pt::new(35.0, 28.0), 0.0));
+        let moved_tail = with_handle(&o, 4, Pt::new(60.0, 40.0));
+        assert_eq!(handles(&moved_tail)[..4], handles(&o)[..4]);
+        assert_eq!(handles(&moved_tail)[4], Pt::new(60.0, 40.0));
     }
 }

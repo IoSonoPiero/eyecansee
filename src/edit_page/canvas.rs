@@ -162,6 +162,7 @@ fn selection(painter: &egui::Painter, o: &Obj, view: &View, angle: f32) {
     let outline: Vec<Pos2> = match &o.shape {
         Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => geom::curve(*a, *b, *c).into_iter().map(|p| view.of(p, angle)).collect(),
         Shape::Text { path: Some((a, b, c)), .. } => geom::curve(*a, *b, *c).into_iter().map(|p| view.of(p, angle)).collect(),
+        Shape::Bubble { area, .. } => geom::handles(&Obj { shape: Shape::Rect(*area), style: o.style }).into_iter().map(|p| view.of(p, angle)).collect(),
         Shape::Text { at, text, size, rot, .. } => {
             let area = geom::text_area(*at, text, *size, *rot);
             let box_ = crate::edit::doc::Obj { shape: Shape::Rect(area), style: o.style };
@@ -375,8 +376,10 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
         w.hold = Some(hold);
     }
     if response.drag_stopped() {
-        if let Some(Hold::Draw { index: Some(i), .. }) = w.hold {
+        if let Some(Hold::Draw { kind, index: Some(i), .. }) = w.hold {
             w.selected = Some(i);
+            // A bubble just drawn takes the keys, for its text.
+            w.focus_text = kind == Kind::Bubble;
         }
         w.hold = None;
     }
@@ -510,7 +513,7 @@ fn clicked(w: &mut Window, p: Pt, tol: f32) {
         let kind = Kind::of(&w.doc.objects[i]);
         w.tool = tool;
         w.selected = Some(i);
-        w.focus_text = kind == Kind::Text;
+        w.focus_text = matches!(kind, Kind::Text | Kind::Bubble);
         return;
     }
     if w.tool == Tool::Draw(Kind::Text) {

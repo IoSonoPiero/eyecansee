@@ -21,6 +21,7 @@ use crate::{App, source};
 mod canvas;
 mod clip;
 mod crop;
+mod props;
 mod save;
 mod tools;
 use canvas::canvas;
@@ -275,7 +276,9 @@ impl Window {
 
     /// The style a new object of `kind` starts with.
     fn style(&self, kind: Kind) -> Style {
-        self.styles.iter().find(|(k, _)| *k == kind).map_or_else(|| default_style(kind, self.long()), |(_, s)| *s)
+        let first = default_style(kind, self.long());
+        // Letters of no size: a style kept before they had one.
+        self.styles.iter().find(|(k, _)| *k == kind).map_or(first, |(_, s)| Style { letters: if s.letters > 0.0 { s.letters } else { first.letters }, ..*s })
     }
 
     fn remember(&mut self, kind: Kind, style: Style) {
@@ -426,6 +429,7 @@ fn default_style(kind: Kind, long: f32) -> Style {
         Kind::Cover => Style { color: [0, 0, 0], width, ..Style::default() },
         Kind::Text => Style { width: (long / 25.0).round().max(8.0), ..Style::default() },
         Kind::Step => Style { width: (long / 20.0).round().max(16.0), ..Style::default() },
+        Kind::Bubble => Style { color: [0, 0, 0], width, fill: Some([255, 255, 255]), letters: (long / 30.0).round().max(8.0), ..Style::default() },
         _ => Style { width, ..Style::default() },
     }
 }
@@ -521,6 +525,7 @@ impl App {
         let long = w.long();
         for (_, s) in &mut w.styles {
             s.width = (s.width * long).max(1.0);
+            s.letters *= long;
         }
     }
 
@@ -685,7 +690,7 @@ impl App {
         }
         if std::mem::take(&mut w.styles_changed) {
             let long = w.long();
-            self.settings.edit_styles = w.styles.iter().map(|(k, s)| (*k, Style { width: s.width / long, ..*s })).collect();
+            self.settings.edit_styles = w.styles.iter().map(|(k, s)| (*k, Style { width: s.width / long, letters: s.letters / long, ..*s })).collect();
             self.settings.save();
         }
     }
