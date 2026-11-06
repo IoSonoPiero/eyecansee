@@ -18,7 +18,11 @@ Settings, saved servers, the thumbnail cache and downloaded components, in the a
 
 ## This website
 
-The website (eyecansee.montinaro.info) counts its visits with [Umami](https://umami.is), running on a server of the developer: which page was opened, the site it came from, the browser, the operating system and the country. It uses no cookies, keeps no IP address and does not follow anyone across sites; the counts are not shared with anyone. The app itself sends nothing.
+The website (eyecansee.montinaro.info) counts its visits with [Umami](https://umami.is) 3.4.1, running on a server of the developer. For each page opened it records the time, the page's address and title, the address of the page the visitor came from, the browser, the operating system, the kind of device (desktop, laptop, tablet or phone), the screen size, the browser's language, and the country, region and city found from the IP address. Umami does not store the IP address, sets no cookies and writes nothing on the visitor's device; the counts are not shared with anyone.
+
+The requests to umami.montinaro.info go through Cloudflare, which sees the IP address of each request.
+
+The app itself sends nothing.
 
 ## Contact
 
