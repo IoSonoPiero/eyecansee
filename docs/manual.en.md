@@ -304,6 +304,7 @@ In the viewer:
 | F2, Del, Shift+Del | Rename and delete, as in the grid |
 | Up arrow, Down arrow (or the mouse wheel) | On a video: volume up and down |
 | M | On a video: sound off and on |
+| Ctrl+Left, Ctrl+Right | On a video: 5 seconds back, forward |
 | + and − (or the mouse wheel) | Zoom in and out |
 | 0 | Fit the image to the window |
 | 1 | 100%: one image pixel per screen pixel |

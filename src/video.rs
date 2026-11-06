@@ -44,6 +44,16 @@ enum Click {
     Restart,
 }
 
+/// Seconds a jump with Ctrl and an arrow moves a video (issue #10).
+pub(crate) const JUMP: f64 = 5.0;
+
+/// Where a jump of `by` seconds from `at` lands: within 0 and the `length` of the video (a little
+/// before its end, which would stop it), anywhere when the length is not known.
+fn jumped(at: f64, by: f64, length: f64) -> f64 {
+    let to = (at + by).max(0.0);
+    if length > 0.0 { to.min((length - 0.1).max(0.0)) } else { to }
+}
+
 impl App {
     /// The viewer shows a video.
     pub(crate) fn viewing_video(&self) -> bool {
@@ -70,6 +80,13 @@ impl App {
     pub(crate) fn toggle_video(&self) {
         if let Some(Playing { player: Ok(p), .. }) = &self.video {
             p.toggle();
+        }
+    }
+
+    /// Ctrl and an arrow in the viewer of a video: `seconds` forward (or back), within the video.
+    pub(crate) fn video_jump(&self, seconds: f64) {
+        if let Some(Playing { player: Ok(p), .. }) = &self.video {
+            p.seek(jumped(p.position(), seconds, p.duration()), true);
         }
     }
 
@@ -438,5 +455,14 @@ fn sound_controls(ui: &mut egui::Ui, player: &mpv::Player, (volume, mute): (&mut
     // The arrows change the volume through `viewer_keys`: a focused slider would move as well.
     if r.has_focus() {
         r.surrender_focus();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// A jump of 5 seconds back from 3 lands at 0, forward near the end stops just before it.
+    #[test]
+    fn jumps_stay_in_the_video() {
+        assert_eq!((super::jumped(3.0, -5.0, 60.0), super::jumped(10.0, 5.0, 60.0), super::jumped(58.0, 5.0, 60.0), super::jumped(58.0, 5.0, 0.0)), (0.0, 15.0, 59.9, 63.0));
     }
 }

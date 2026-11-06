@@ -304,6 +304,7 @@ Nel visore:
 | F2, Canc, Maiusc+Canc | Rinomina ed elimina, come nella griglia |
 | Freccia su, Freccia giù (o la rotellina del mouse) | Su un video: alza e abbassa il volume |
 | M | Su un video: silenzia e riattiva l'audio |
+| Ctrl+freccia sinistra, Ctrl+freccia destra | Su un video: 5 secondi indietro, avanti |
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |
 | 0 | Adatta l'immagine alla finestra |
 | 1 | 100%: un pixel dell'immagine per pixel dello schermo |
