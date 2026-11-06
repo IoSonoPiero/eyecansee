@@ -132,6 +132,10 @@ pub struct Window {
     screen_picking: bool,
     /// A colour taken, for the style shown in the properties bar.
     picked: Option<[u8; 3]>,
+    /// The colour just taken, for its codes in the status bar.
+    just_picked: Option<[u8; 3]>,
+    /// The eyedropper takes one pixel, or the average of 3 × 3 or 5 × 5.
+    pick_size: u8,
     /// I pressed: the eyedropper as if its button were clicked.
     /// I or Shift+I pressed: the eyedropper as if its button were clicked; `Some(true)` for the
     /// desktop's picker on the whole screen (Shift+I, Linux).
@@ -212,6 +216,8 @@ impl Window {
             picking: false,
             screen_picking: false,
             picked: None,
+            just_picked: None,
+            pick_size: 1,
             ask_pick: None,
             marquee: None,
             clip: None,

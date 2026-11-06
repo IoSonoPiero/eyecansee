@@ -37,7 +37,8 @@ impl App {
         match r {
             Ok(c) => {
                 w.picked = Some(c);
-                w.note = Some((crate::eyedropper::codes(c).replace('\n', " · "), ctx.input(|i| i.time) + 8.0));
+                w.just_picked = Some(c);
+                ctx.copy_text(format!("#{:02X}{:02X}{:02X}", c[0], c[1], c[2]));
             }
             Err(e) if e == "cancelled" => {}
             Err(e) => w.note = Some((self.i18n.t_args("edit-pick-failed", &[("detail", &e)]), ctx.input(|i| i.time) + 6.0)),

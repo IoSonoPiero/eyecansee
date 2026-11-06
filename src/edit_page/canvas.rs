@@ -333,7 +333,8 @@ fn mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, 
 /// The other tools: Select picks, moves and resizes objects, the drawing tools draw them, a text
 /// is placed with a click; the right or middle button moves the view.
 fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, rect: Rect) {
-    if w.picking {
+    // Alt with a drawing tool: the eyedropper for a click, the tool stays (as in Photoshop).
+    if w.picking || (matches!(w.tool, Tool::Draw(_)) && ui.input(|i| i.modifiers.alt)) {
         return super::pick::mouse(ui, w, response, view);
     }
     let angle = w.doc.angle;

@@ -187,6 +187,10 @@ impl App {
     pub(super) fn edit_status(&self, ui: &mut egui::Ui, w: &mut Window) -> egui::Response {
         let i18n = &self.i18n;
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
+        // A colour just taken: its codes, and that its hex code is on the clipboard.
+        if let Some(c) = w.just_picked.take() {
+            w.note = Some((i18n.t_args("edit-picked", &[("codes", &crate::eyedropper::codes(c).replace('\n', " · "))]), ui.input(|i| i.time) + 8.0));
+        }
         ui.horizontal(|ui| {
             ui.label(crate::source::name(&w.path));
             let (pw, ph) = w.doc.crop.pixels();
@@ -370,7 +374,11 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     // A piece of image has its own colours, a spotlight none.
     let screen = !matches!(kind, Kind::Patch | Kind::Spotlight) && {
         colours(ui, &mut style.color, i18n);
-        eyedroppers(ui, w, i18n)
+        let screen = eyedroppers(ui, w, i18n);
+        if w.picking {
+            pick_sizes(ui, w, i18n);
+        }
+        screen
     };
     if boxed {
         ui.separator();
@@ -450,6 +458,15 @@ fn eyedroppers(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     }
     w.picking = !w.picking;
     false
+}
+
+/// While picking: one pixel, or the average of 3 × 3 or 5 × 5 (as in the photo editors).
+fn pick_sizes(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
+    for (size, label) in [(1, "1 px"), (3, "3×3"), (5, "5×5")] {
+        if ui.add(egui::Button::new(label).selected(w.pick_size == size)).on_hover_text(i18n.t("edit-pick-size")).clicked() {
+            w.pick_size = size;
+        }
+    }
 }
 
 /// Colours, width (size of a text), opacity, dashes, as each kind has them.

@@ -2,8 +2,8 @@
 //! read the screen by itself under Wayland: it asks the desktop (xdg-desktop-portal,
 //! `org.freedesktop.portal.Screenshot.PickColor`), which shows its own picker and answers with
 //! the colour (its button and Shift+I; I picks on the image inside EyeCanSee, with a live box);
-//! the same works under X11 with a portal. On Windows the pixel of the screen under
-//! the pointer is read (`at_cursor`): what is drawn on the image too, and anywhere on the screen
+//! the same works under X11 with a portal. On Windows the pixels of the screen around
+//! the pointer are read (`around_cursor`): what is drawn on the image too, and anywhere on the screen
 //! when the pointer is pressed on the image and let go elsewhere (user, 2026-11-06).
 
 /// The colour the user picked on the screen, 0-255; `Err` with why not (cancelled, no portal).
@@ -47,14 +47,16 @@ pub fn on_screen() -> bool {
     cfg!(target_os = "linux")
 }
 
-/// The colour of the screen's pixel under the pointer (Windows: GDI); `None` elsewhere.
+/// The `n` × `n` pixels of the screen around the pointer, row by row (Windows: GDI), for the
+/// eyedropper's magnifier; `None` elsewhere.
 #[cfg(windows)]
-pub fn at_cursor() -> Option<[u8; 3]> {
+pub fn around_cursor(n: usize) -> Option<Vec<[u8; 3]>> {
     use windows_sys::Win32::Foundation::POINT;
-    use windows_sys::Win32::Graphics::Gdi::{CLR_INVALID, GetDC, GetPixel, ReleaseDC};
+    use windows_sys::Win32::Graphics::Gdi::{GetDC, GetPixel, ReleaseDC};
     use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
     let mut p = POINT { x: 0, y: 0 };
-    // SAFETY: plain GDI calls on the screen's device context, released at once.
+    let half = (n / 2) as i32;
+    // SAFETY: plain GDI calls on the screen's device context, released at the end.
     unsafe {
         if GetCursorPos(&mut p) == 0 {
             return None;
@@ -63,14 +65,19 @@ pub fn at_cursor() -> Option<[u8; 3]> {
         if dc.is_null() {
             return None;
         }
-        let c = GetPixel(dc, p.x, p.y);
+        let out = (0..n * n)
+            .map(|i| {
+                let c = GetPixel(dc, p.x - half + (i % n) as i32, p.y - half + (i / n) as i32);
+                [(c & 0xFF) as u8, ((c >> 8) & 0xFF) as u8, ((c >> 16) & 0xFF) as u8]
+            })
+            .collect();
         ReleaseDC(std::ptr::null_mut(), dc);
-        (c != CLR_INVALID).then(|| [(c & 0xFF) as u8, ((c >> 8) & 0xFF) as u8, ((c >> 16) & 0xFF) as u8])
+        Some(out)
     }
 }
 
 #[cfg(not(windows))]
-pub fn at_cursor() -> Option<[u8; 3]> {
+pub fn around_cursor(_n: usize) -> Option<Vec<[u8; 3]>> {
     None
 }
 
