@@ -79,7 +79,7 @@ pub enum Msg {
     Prepared(String, crate::transform::Turn, Result<(Arc<Vec<u8>>, bool), source::Error>),
     /// The editor's copy or overwrite made, for its confirmation (`edit_page::save`): the file,
     /// its name and what it loses; `true` for an overwrite.
-    EditPrepared(String, Result<(Arc<crate::edit::save::Saved>, bool), source::Error>),
+    EditPrepared(String, Result<Arc<crate::edit_page::Prepared>, source::Error>),
     /// An image saved over itself after a turn ("Save"): its path and the outcome.
     Replaced(String, Result<(), source::Error>),
     /// An image that could not be saved on a phone or server, kept on the computer (`kept.rs`).

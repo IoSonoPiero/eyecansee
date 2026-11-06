@@ -110,8 +110,11 @@ impl App {
     fn save_buttons(&self, ui: &mut egui::Ui, w: &Window) -> Option<Ask> {
         let i18n = &self.i18n;
         let mut ask = None;
+        // While the last save is still being sent (a phone, a server): the next one waits for it.
+        let sending = [&w.copy, &w.overwritten].into_iter().flatten().any(|m| self.saving.contains(&m.path));
         let off = match () {
             _ if w.preparing => Some(i18n.t("edit-off-preparing")),
+            _ if sending => Some(i18n.t("edit-off-sending")),
             _ if !w.changed() => Some(i18n.t("edit-off-unchanged")),
             _ => None,
         };
@@ -138,7 +141,12 @@ impl App {
         });
         r.on_hover_text(i18n.t("edit-save-more"));
         // A new image has no file yet: its main button is Save as….
-        let (label, hint, main_ask, off) = if w.new { ("menu-save-copy", "rc-save-as-hint", Ask::SaveAs, w.preparing.then(|| i18n.t("edit-off-preparing"))) } else { ("edit-save-copy", "rc-save-hint", Ask::Save, off) };
+        // After a first copy the button updates it (user, 2026-11-06).
+        let (label, hint, main_ask, off) = match () {
+            _ if w.new => ("menu-save-copy", "rc-save-as-hint", Ask::SaveAs, w.preparing.then(|| i18n.t("edit-off-preparing"))),
+            _ if w.copy.is_some() => ("edit-update-copy", "edit-update-hint", Ask::Save, off),
+            _ => ("edit-save-copy", "rc-save-hint", Ask::Save, off),
+        };
         let main = crate::theme::main_button(ui, i18n.t(label)).min_size(egui::vec2(0.0, icons::BUTTON.y));
         if bar_button(ui, main, format!("{} (Ctrl+S)\n{}", i18n.t(label), i18n.t(hint)), off) {
             ask = Some(main_ask);

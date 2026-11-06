@@ -25,11 +25,69 @@ pub(super) enum Leave {
     Discard,
 }
 
-/// A copy, or the image to write over the original (`over`), waiting for its confirmation.
-pub struct Ready {
-    saved: Arc<Saved>,
-    over: bool,
+/// A file the editor wrote (the copy, or the original overwritten) and the SHA-256 of what it
+/// wrote: the next save writes over it only while it is still that file.
+#[derive(Clone, Debug)]
+pub(crate) struct Written {
+    pub path: String,
+    pub sha: [u8; 32],
 }
+
+impl Written {
+    pub fn of(path: String, data: &[u8]) -> Written {
+        Written { path, sha: sha256(data) }
+    }
+}
+
+fn sha256(data: &[u8]) -> [u8; 32] {
+    ring::digest::digest(&ring::digest::SHA256, data).as_ref().try_into().expect("32 bytes")
+}
+
+/// A save made in the background: the file, where it goes and how, the original's bytes (kept
+/// for the next saves: they start from it, never from what was written since).
+#[derive(Debug)]
+pub struct Prepared {
+    saved: Saved,
+    target: String,
+    send: Send,
+    over: bool,
+    /// The copy saved before is gone or was changed by another program: a new one is made.
+    gone: bool,
+    bytes: Arc<Vec<u8>>,
+}
+
+/// The save of `doc` on `original` (its file `path`, its bytes if already read): a copy (`over`
+/// false) or over the original. A copy goes over the one written before (`written`) while it is
+/// still that file, otherwise is a new one with the first free name; over the original, the first
+/// time the original goes to a trash, the next times what was written before is replaced (while
+/// it is still that), only the true original in the trash (user, 2026-11-06).
+pub(crate) async fn prepare(store: &crate::source::Store, path: &str, (doc, original): (&crate::edit::doc::Doc, Arc<Original>), bytes: Option<Arc<Vec<u8>>>, (word, over, written): (String, bool, Option<Written>)) -> Result<Prepared, source::Error> {
+    let bytes = match bytes {
+        Some(b) => b,
+        None => Arc::new(store.read(path).await?),
+    };
+    let still = match &written {
+        Some(w) => store.read(&w.path).await.is_ok_and(|b| sha256(&b) == w.sha),
+        None => false,
+    };
+    let taken: Vec<String> = store.names(&source::parent(path)).await?.into_iter().collect();
+    let (doc, b, name) = (doc.clone(), bytes.clone(), source::name(path).to_string());
+    let mut saved = tokio::task::spawn_blocking(move || crate::edit::save::save(&doc, &original, &b, &name, &word, &taken, &crate::decode::usvg_options()).map_err(|e| ("error-detail", e)))
+        .await
+        .map_err(|e| ("error-detail", e.to_string()))??;
+    let (target, send, gone) = match (over, written) {
+        (true, _) => (path.to_string(), if still { Send::Again } else { Send::Keeping }, false),
+        (false, Some(w)) if still => (w.path, Send::Again, false),
+        (false, w) => (format!("{}{}", source::parent(path), saved.name), Send::Create, w.is_some()),
+    };
+    if !over {
+        saved.name = source::name(&target).to_string();
+    }
+    Ok(Prepared { saved, target, send, over, gone, bytes })
+}
+
+/// A save made, waiting for its confirmation.
+pub struct Ready(Arc<Prepared>);
 
 impl App {
     /// The copy cannot go next to the original: a temporary copy Windows made of a phone's file
@@ -54,7 +112,8 @@ impl App {
         }
     }
 
-    /// Save (`over` false) or Overwrite: the file made in the background (`Msg::EditPrepared`).
+    /// Save (`over` false) or Overwrite: the file made in the background (`Msg::EditPrepared`),
+    /// always from the original as read at the start, with the whole document.
     pub(super) fn edit_prepare(&mut self, ctx: &egui::Context, w: &mut Window, over: bool) {
         if !over && self.copy_refused(w) {
             w.note = Some((self.i18n.t("edit-temp-copy"), ctx.input(|i| i.time) + 8.0));
@@ -63,29 +122,25 @@ impl App {
         }
         let (Some(loader), Some(Ok((original, ..)))) = (&self.loader, &w.original) else { return };
         let (store, path, doc, original, word) = (loader.store(), w.path.clone(), w.doc.clone(), original.clone(), self.i18n.t("edit-copy-word"));
+        let (bytes, written) = (w.bytes.clone(), if over { w.overwritten.clone() } else { w.copy.clone() });
         let (tx, ctx) = (self.tx.clone(), ctx.clone());
-        log!("edit: prepare {path:?}, over {over}");
+        log!("edit: prepare {path:?}, over {over}, after {written:?}");
         self.rt.spawn(async move {
-            let made = async {
-                let bytes = store.read(&path).await?;
-                let taken: Vec<String> = store.names(&source::parent(&path)).await?.into_iter().collect();
-                let name = source::name(&path).to_string();
-                tokio::task::spawn_blocking(move || crate::edit::save::save(&doc, &original, &bytes, &name, &word, &taken, &crate::decode::usvg_options()).map_err(|e| ("error-detail", e)))
-                    .await
-                    .map_err(|e| ("error-detail", e.to_string()))?
-            };
-            let r = made.await.map(|s| (Arc::new(s), over));
+            let r = prepare(&store, &path, (&doc, original), bytes, (word, over, written)).await.map(Arc::new);
             let _ = tx.send(crate::loader::Msg::EditPrepared(path, r));
             ctx.request_repaint();
         });
         w.preparing = true;
     }
 
-    pub(crate) fn on_edit_prepared(&mut self, path: String, r: Result<(Arc<Saved>, bool), source::Error>) {
+    pub(crate) fn on_edit_prepared(&mut self, path: String, r: Result<Arc<Prepared>, source::Error>) {
         let Some(w) = self.editor.as_mut().filter(|w| w.path == path) else { return };
         w.preparing = false;
         match r {
-            Ok((saved, over)) => w.ready = Some(Ready { saved, over }),
+            Ok(p) => {
+                w.bytes.get_or_insert_with(|| p.bytes.clone());
+                w.ready = Some(Ready(p));
+            }
             Err(e) => self.save_failed(e, Some(Act::RotateSaveAs)),
         }
     }
@@ -110,38 +165,46 @@ impl App {
     /// overwrite is sent: the page closes. After a copy it stays open, the document saved (user,
     /// 2026-11-05: Save copy must not close the image).
     pub(super) fn edit_confirm(&mut self, ctx: &egui::Context, w: &mut Window) -> bool {
-        let (Some(ready), Some(loader)) = (&w.ready, &self.loader) else { return false };
-        let (saved, over) = (ready.saved.clone(), ready.over);
+        let (Some(Ready(p)), Some(loader)) = (&w.ready, &self.loader) else { return false };
+        let p = p.clone();
         let how = loader.deletion(&w.path, false, crate::settings::RemoteDelete::TrashFolder);
         let md = crate::save_dialogs::md;
-        let (text, yes) = if over {
-            (self.i18n.t_args(trash_id(how), &[("name", &md(source::name(&w.path)))]), self.i18n.t("edit-overwrite-yes"))
-        } else {
-            (self.i18n.t_args("edit-save-confirm", &[("name", &md(source::name(&w.path))), ("copy", &md(&saved.name))]), self.i18n.t("save-yes"))
+        let (text, yes) = match (p.over, p.send) {
+            (true, Send::Again) => (self.i18n.t_args("edit-overwrite-again", &[("name", &md(source::name(&w.path)))]), self.i18n.t("edit-overwrite-yes")),
+            (true, _) => (self.i18n.t_args(trash_id(how), &[("name", &md(source::name(&w.path)))]), self.i18n.t("edit-overwrite-yes")),
+            (false, Send::Again) => (self.i18n.t_args("edit-update-confirm", &[("copy", &md(&p.saved.name))]), self.i18n.t("save-yes")),
+            (false, _) => (self.i18n.t_args("edit-save-confirm", &[("name", &md(source::name(&w.path))), ("copy", &md(&p.saved.name))]), self.i18n.t("save-yes")),
         };
-        let text = format!("{text}{}", self.losses(&saved, over));
+        let text = format!("{text}{}", self.losses(&p.saved, p.over));
         let no = self.i18n.t("delete-no");
         match confirm::yes_no(ctx, "edit-save", 460.0, text, yes, true, no, self.delete_answer.take()) {
             Some(true) => {
-                let (target, send) = if over { (w.path.clone(), Send::Keeping) } else { (format!("{}{}", source::parent(&w.path), saved.name), Send::Create) };
-                log!("edit: {send:?} {target:?} ({} bytes)", saved.data.len());
+                let (target, data, send) = (p.target.clone(), p.saved.data.clone(), p.send);
+                log!("edit: {send:?} {target:?} ({} bytes)", data.len());
                 let (store, base, tx, ctx) = (loader.store(), self.base.clone(), self.tx.clone(), ctx.clone());
                 self.saving.insert(target.clone());
                 // The copy is what the grid selects and the viewer shows once it is there.
-                if !over {
+                if !p.over {
                     self.select_after = Some(target.clone());
                 }
+                if p.gone {
+                    w.note = Some((self.i18n.t("edit-copy-gone"), ctx.input(|i| i.time) + 8.0));
+                }
+                let mark = Written::of(target.clone(), &data);
+                if p.over { w.overwritten = Some(mark) } else { w.copy = Some(mark) }
                 self.rt.spawn(async move {
-                    let r = crate::kept::send(&store, &base, &target, saved.data.clone(), how, send).await;
+                    let r = crate::kept::send(&store, &base, &target, data, how, send).await;
                     let _ = tx.send(crate::loader::replaced(target, r));
                     ctx.request_repaint();
                 });
                 w.ready = None;
-                if !over && let Some(h) = &mut w.history {
+                // Saved: closing asks nothing until something changes again (the page stays
+                // open after an overwrite too, user 2026-11-06).
+                if let Some(h) = &mut w.history {
                     h.push(w.doc.clone());
                     h.saved();
                 }
-                over
+                false
             }
             Some(false) => {
                 w.ready = None;
@@ -189,5 +252,99 @@ fn trash_id(how: Deletion) -> &'static str {
     match how {
         Deletion::SystemTrash => "edit-overwrite-trash",
         Deletion::TrashFolder | Deletion::Permanent => "edit-overwrite-folder",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::edit::doc::{Area, Doc, Obj, Pt, Shape, Style};
+    use crate::source::Store;
+
+    fn cover(x: f32) -> Obj {
+        Obj { shape: Shape::Cover(Area { centre: Pt::new(x, 0.0), w: 8.0, h: 8.0, rot: 0.0 }), style: Style::default() }
+    }
+
+    /// A folder `p` with `a.jpg` (quality 80) in a temporary place, as a store.
+    fn place(name: &str) -> (std::path::PathBuf, Store, Vec<u8>) {
+        let dir = std::env::temp_dir().join(format!("eyecansee-edit-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("p")).unwrap();
+        let bytes = crate::encode::jpeg_quality::tests::jpeg(80, crate::encode::Chroma::Quarter);
+        std::fs::write(dir.join("p/a.jpg"), &bytes).unwrap();
+        let store = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        (dir, store, bytes)
+    }
+
+    /// One save as the page does it: prepared, sent, and the mark of what was written.
+    fn save(rt: &tokio::runtime::Runtime, store: &Store, doc: &Doc, over: bool, bytes: Option<Arc<Vec<u8>>>, written: Option<Written>) -> (Arc<Prepared>, Written) {
+        let original = Arc::new(Original::with_meta_of(crate::decode::decode_full(&std::fs::read(store.local_file("p/a.jpg").unwrap()).unwrap(), "a.jpg").unwrap(), &[], "a.jpg"));
+        let original = bytes.as_ref().map_or(original, |b| Arc::new(Original::with_meta_of(crate::decode::decode_full(b, "a.jpg").unwrap(), b, "a.jpg")));
+        let p = Arc::new(rt.block_on(prepare(store, "p/a.jpg", (doc, original), bytes, ("edited".into(), over, written))).unwrap());
+        rt.block_on(crate::kept::send(store, "file:///x/", &p.target, p.saved.data.clone(), Deletion::TrashFolder, p.send)).unwrap_or_else(|e| panic!("{:?}", e.0));
+        let mark = Written::of(p.target.clone(), &p.saved.data);
+        (p, mark)
+    }
+
+    fn names(dir: &std::path::Path) -> Vec<String> {
+        let mut v: Vec<String> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        v.sort();
+        v
+    }
+
+    /// Two Save copy give one copy, updated, made from the original with all the objects; a copy
+    /// deleted between them gives a new one with the first free name, said to be gone.
+    #[test]
+    fn copy_updated() {
+        let (dir, store, original) = place("copy");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let mut doc = Doc::new(64, 48, None);
+        doc.objects.push(cover(-10.0));
+        let (first, mark) = save(&rt, &store, &doc, false, None, None);
+        assert_eq!((first.send, first.target.as_str()), (Send::Create, "p/a (edited).jpg"));
+        doc.objects.push(cover(10.0));
+        let (second, mark) = save(&rt, &store, &doc, false, Some(first.bytes.clone()), Some(mark));
+        assert_eq!((second.send, second.target.as_str(), second.gone), (Send::Again, "p/a (edited).jpg", false));
+        assert_eq!(names(&dir.join("p")), ["a (edited).jpg", "a.jpg"]);
+        // The copy is the original with both boxes, as one save from it makes it.
+        let direct = crate::edit::save::save(&doc, &Original::with_meta_of(crate::decode::decode_full(&original, "a.jpg").unwrap(), &original, "a.jpg"), &original, "a.jpg", "edited", &[], &crate::decode::usvg_options()).unwrap();
+        assert_eq!(std::fs::read(dir.join("p/a (edited).jpg")).unwrap(), direct.data);
+        std::fs::remove_file(dir.join("p/a (edited).jpg")).unwrap();
+        let (third, _) = save(&rt, &store, &doc, false, Some(second.bytes.clone()), Some(mark));
+        assert_eq!((third.send, third.target.as_str(), third.gone), (Send::Create, "p/a (edited).jpg", true));
+        // Changed by another program: a new copy beside it, the changed one left alone.
+        std::fs::write(dir.join("p/a (edited).jpg"), b"changed").unwrap();
+        let (fourth, _) = save(&rt, &store, &doc, false, Some(third.bytes.clone()), Some(Written::of("p/a (edited).jpg".into(), &third.saved.data)));
+        assert_eq!((fourth.target.as_str(), fourth.gone), ("p/a (edited 2).jpg", true));
+        assert_eq!(std::fs::read(dir.join("p/a (edited).jpg")).unwrap(), b"changed");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Two Overwrite in a row on a JPEG: the file is the original with all the changes,
+    /// compressed once from it (as one save from the original makes it, at its quality 80), and
+    /// in the trash only the original, once.
+    #[test]
+    fn overwritten_twice() {
+        let (dir, store, original) = place("over");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let mut doc = Doc::new(64, 48, None);
+        doc.objects.push(cover(-10.0));
+        let (first, mark) = save(&rt, &store, &doc, true, None, None);
+        assert_eq!(first.send, Send::Keeping);
+        doc.objects.push(cover(10.0));
+        let (second, _) = save(&rt, &store, &doc, true, Some(first.bytes.clone()), Some(mark));
+        assert_eq!(second.send, Send::Again);
+        let direct = crate::edit::save::save(&doc, &Original::with_meta_of(crate::decode::decode_full(&original, "a.jpg").unwrap(), &original, "a.jpg"), &original, "a.jpg", "edited", &[], &crate::decode::usvg_options()).unwrap();
+        let now = std::fs::read(dir.join("p/a.jpg")).unwrap();
+        assert_eq!(now, direct.data);
+        assert_eq!(crate::encode::jpeg_quality::of(&now).map(|q| q.0), Some(80));
+        let trash = dir.join("p").join(crate::source::TRASH_DIR);
+        let trashed: Vec<Vec<u8>> = walk(&trash).iter().filter(|p| p.extension().is_some_and(|e| e == "jpg")).map(|p| std::fs::read(p).unwrap()).collect();
+        assert_eq!(trashed, [original]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
+        std::fs::read_dir(dir).map(|r| r.flat_map(|e| { let p = e.unwrap().path(); if p.is_dir() { walk(&p) } else { vec![p] } }).collect()).unwrap_or_default()
     }
 }

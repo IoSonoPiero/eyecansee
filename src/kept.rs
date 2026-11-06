@@ -40,6 +40,9 @@ pub enum Send {
     Keeping,
     /// A new file, never over another one: the editor's copy.
     Create,
+    /// Over a file EyeCanSee itself wrote in this editing (the copy updated, the original
+    /// overwritten again): the version replaced is deleted, not trashed (it can be made again).
+    Again,
 }
 
 /// The app's data folder for kept images.
@@ -121,6 +124,7 @@ async fn send_in(root: Option<PathBuf>, store: &Store, base: &str, path: &str, d
         Send::Replace => crate::replace::replace(store, path, data, how).await,
         Send::Keeping => crate::replace::replace_keeping(store, path, data, how).await,
         Send::Create => create(store, path, data).await,
+        Send::Again => crate::replace::replace(store, path, data, source::Deletion::Permanent).await,
     };
     match (sent, file) {
         (Ok(()), Some(file)) => {
@@ -172,7 +176,7 @@ impl App {
                     log!("save {:?}: again from {:?}", k.path, k.file);
                     self.saving.insert(k.path.clone());
                     // The editor's copy: shown once it is there, as after a Save that went well.
-                    if k.send == Send::Create {
+                    if matches!(k.send, Send::Create | Send::Again) {
                         self.select_after = Some(k.path.clone());
                     }
                     loader.replace_kept(k);

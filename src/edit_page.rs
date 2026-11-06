@@ -26,6 +26,7 @@ mod save;
 mod tools;
 mod typing;
 use canvas::canvas;
+pub(crate) use save::Prepared;
 use save::Leave;
 
 type Loaded = Result<(Arc<Original>, TextureHandle, u64), String>;
@@ -144,6 +145,13 @@ pub struct Window {
     keys_open: bool,
     /// The text (or bubble) being typed on the image itself (`typing`).
     editing: Option<usize>,
+    /// The original's bytes, read at the first save: every save starts from them.
+    bytes: Option<Arc<Vec<u8>>>,
+    /// The copy written last, updated by the next Save while it is still that file.
+    copy: Option<save::Written>,
+    /// What Overwrite wrote last over the original: the next Overwrite replaces it without the
+    /// trash while it is still that file.
+    overwritten: Option<save::Written>,
     /// A line under the buttons ("Copied…") and until when (seconds of `egui::InputState::time`).
     note: Option<(String, f64)>,
     copying: bool,
@@ -208,6 +216,9 @@ impl Window {
             hiders: 0,
             keys_open: false,
             editing: None,
+            bytes: None,
+            copy: None,
+            overwritten: None,
             note: None,
             copying: false,
             follow: Follow::Inside,
