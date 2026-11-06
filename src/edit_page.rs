@@ -688,6 +688,9 @@ impl App {
     }
 
     fn not_ready_inside(&self, ui: &mut egui::Ui, w: &Window) -> bool {
+        // The whole page: the frame was only as tall as its lines, the rest of it left bare
+        // (half the window white, half black, while loading: user, 2026-11-06).
+        ui.set_min_size(ui.available_size());
         let mut open = true;
         ui.horizontal(|ui| {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
