@@ -450,3 +450,13 @@ fn ellipse_saved() {
     assert_eq!(img.get_pixel(32, 24).0[..3], BLUE);
     assert_eq!(img.get_pixel(13, 15), photo.get_pixel(13, 15), "corner of the box");
 }
+
+/// A stroke by hand in the saved image, where it was drawn.
+#[test]
+fn by_hand_saved() {
+    let mut doc = Doc::new(64, 48, None);
+    doc.objects.push(obj(Shape::Pen(vec![Pt::new(-20.0, -10.0), Pt::new(0.0, 0.0), Pt::new(20.0, -10.0)]), Style { color: BLUE, width: 3.0, ..Style::default() }));
+    let img = result(&doc, &Original::with_meta(motif(), &[]), &options());
+    assert_eq!(img.get_pixel(12, 14).0[..3], BLUE);
+    assert_eq!(img.get_pixel(52, 14).0[..3], BLUE);
+}

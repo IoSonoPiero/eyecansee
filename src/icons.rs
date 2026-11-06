@@ -134,6 +134,7 @@ pub enum Line {
     Select,
     Arrow,
     Stroke,
+    Pen,
     Rect,
     Ellipse,
     Highlight,
@@ -210,6 +211,7 @@ fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Select => lucide!("mouse-pointer-2").into(),
         Line::Arrow => lucide!("move-up-right").into(),
         Line::Stroke => lucide!("slash").into(),
+        Line::Pen => lucide!("pencil").into(),
         Line::Rect => lucide!("square").into(),
         Line::Ellipse => lucide!("ellipse").into(),
         Line::Highlight => lucide!("highlighter").into(),
@@ -314,7 +316,7 @@ mod tests {
     #[test]
     fn line_icons_draw() {
         use Line::*;
-        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Rect, Ellipse, Highlight, Text, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Settings, Manual, Quit, Server, Address, Slideshow, FlipH, FlipV, Updates, Pipette, Marquee, Filters, NewImage, HeadFilled, HeadOpen, HeadDouble, HeadDot, Solid, Dashed, Dotted] {
+        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Pen, Rect, Ellipse, Highlight, Text, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Settings, Manual, Quit, Server, Address, Slideshow, FlipH, FlipV, Updates, Pipette, Marquee, Filters, NewImage, HeadFilled, HeadOpen, HeadDouble, HeadDot, Solid, Dashed, Dotted] {
             let img = render(&line_svg(icon).replace("currentColor", "#ff0000"), 24);
             let red = img.pixels.iter().filter(|p| p.a() > 128 && p.r() > 200 && p.g() < 60).count();
             assert!(red > 10, "{icon:?}: {red} pixels");

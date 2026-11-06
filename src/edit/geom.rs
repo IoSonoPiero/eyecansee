@@ -12,6 +12,7 @@ use super::doc::{Area, Obj, Pt, Shape, Style};
 pub enum Kind {
     Line,
     Arrow,
+    Pen,
     Rect,
     Ellipse,
     Highlight,
@@ -28,6 +29,7 @@ impl Kind {
         match o.shape {
             Shape::Line(..) => Kind::Line,
             Shape::Arrow(..) => Kind::Arrow,
+            Shape::Pen(_) => Kind::Pen,
             Shape::Rect(_) => Kind::Rect,
             Shape::Ellipse(_) => Kind::Ellipse,
             Shape::Highlight(_) => Kind::Highlight,
@@ -112,6 +114,7 @@ pub fn hit(o: &Obj, p: Pt, tol: f32) -> bool {
         // The head is as wide as `render::arrow` makes it.
         Shape::Arrow(a, b, c) => curve_distance(p, *a, *b, *c) <= (2.0 * o.style.width + 2.0).max(o.style.width / 2.0) + tol,
         Shape::Text { path: Some((a, b, c)), size, .. } => curve_distance(p, *a, *b, *c) <= 0.6 * size + tol,
+        Shape::Pen(points) => points.windows(2).map(|s| segment_distance(p, s[0], s[1])).chain(points.first().map(|q| (p.x - q.x).hypot(p.y - q.y))).fold(f32::INFINITY, f32::min) <= o.style.width / 2.0 + tol,
         Shape::Text { at, text, size, rot, .. } => inside(&text_area(*at, text, *size, *rot), p, tol),
         Shape::Ellipse(r) => inside_ellipse(r, p, o.style.width / 2.0 + tol),
         shape => shape.area().is_some_and(|r| inside(r, p, tol)),
@@ -138,6 +141,15 @@ pub fn moved(o: &Obj, d: Pt) -> Obj {
     o
 }
 
+/// The box around a stroke drawn by hand, upright on the image.
+pub fn pen_box(points: &[Pt]) -> Area {
+    let (mut l, mut t, mut r, mut b) = (f32::INFINITY, f32::INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
+    for p in points {
+        (l, t, r, b) = (l.min(p.x), t.min(p.y), r.max(p.x), b.max(p.y));
+    }
+    Area { centre: Pt::new((l + r) / 2.0, (t + b) / 2.0), w: r - l, h: b - t, rot: 0.0 }
+}
+
 /// Corners of a box, clockwise from the top left one (on the box's own sides).
 fn corners(r: &Area) -> [Pt; 4] {
     [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)].map(|(sx, sy)| {
@@ -153,6 +165,7 @@ pub fn handles(o: &Obj) -> Vec<Pt> {
         Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => vec![*a, *b, bend_handle(*a, *b, *c)],
         // On a curve: its two ends and the middle that bends it, as a line.
         Shape::Text { path: Some((a, b, c)), .. } => vec![*a, *b, bend_handle(*a, *b, *c)],
+        Shape::Pen(points) => corners(&pen_box(points)).to_vec(),
         shape => shape.area().map_or_else(Vec::new, |r| corners(r).to_vec()),
     }
 }
@@ -174,6 +187,15 @@ pub fn with_handle(o: &Obj, i: usize, p: Pt) -> Obj {
         Shape::Text { path: Some((a, b, c)), .. } => {
             let Shape::Line(na, nb, nc) = line_handle(*a, *b, *c, i, p, Shape::Line) else { unreachable!() };
             (*a, *b, *c) = (na, nb, nc);
+        }
+        // Its points stretched with the box, from the opposite corner (a flat stroke stays flat).
+        Shape::Pen(points) => {
+            let (from, to) = (pen_box(points), resized(&pen_box(points)));
+            let k = |a: f32, b: f32| if a > 0.0 { b / a } else { 1.0 };
+            let (kx, ky) = (k(from.w, to.w), k(from.h, to.h));
+            for q in points.iter_mut() {
+                *q = Pt::new(to.centre.x + (q.x - from.centre.x) * kx, to.centre.y + (q.y - from.centre.y) * ky);
+            }
         }
         shape => {
             if let Some(r) = shape.area_mut() {
@@ -214,6 +236,8 @@ pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style, square: bool) -
     let shape = match kind {
         Kind::Line => long.then_some(Shape::Line(a, b, None))?,
         Kind::Arrow => long.then_some(Shape::Arrow(a, b, None))?,
+        // Its first two points; the page adds the others as the pointer goes on.
+        Kind::Pen => long.then_some(Shape::Pen(vec![a, b]))?,
         Kind::Rect => Shape::Rect(area()?),
         Kind::Ellipse => Shape::Ellipse(area()?),
         Kind::Highlight => Shape::Highlight(area()?),
@@ -292,6 +316,16 @@ mod tests {
     }
 }
 
+/// A stroke drawn by hand with the pointer now at `p`: the point added when it is at least
+/// `step` from the last one (a pointer that hardly moved would add a crowd of points).
+pub fn pen_to(o: &mut Obj, p: Pt, step: f32) {
+    if let Shape::Pen(points) = &mut o.shape
+        && points.last().is_none_or(|q| (p.x - q.x).hypot(p.y - q.y) >= step)
+    {
+        points.push(p);
+    }
+}
+
 #[cfg(test)]
 mod curves {
     use super::*;
@@ -310,5 +344,20 @@ mod curves {
         let moved_end = with_handle(&bent, 1, Pt::new(120.0, 0.0));
         let m = handles(&moved_end)[2];
         assert!((m.x - 60.0).abs() < 1e-3 && (m.y - 30.0).abs() < 1e-3, "{m:?}");
+    }
+
+    /// A stroke by hand: points added only when the pointer moved enough; hit along it; dragging
+    /// a corner stretches it from the opposite one.
+    #[test]
+    fn by_hand() {
+        let mut o = drawn(Kind::Pen, Pt::new(0.0, 0.0), Pt::new(10.0, 0.0), 0.0, Style { width: 2.0, ..Style::default() }, false).unwrap();
+        pen_to(&mut o, Pt::new(10.5, 0.0), 2.0);
+        pen_to(&mut o, Pt::new(10.0, 10.0), 2.0);
+        assert_eq!(o.shape, Shape::Pen(vec![Pt::new(0.0, 0.0), Pt::new(10.0, 0.0), Pt::new(10.0, 10.0)]));
+        assert!(hit(&o, Pt::new(11.0, 5.0), 0.5) && !hit(&o, Pt::new(5.0, 5.0), 0.5));
+        // Bottom right corner (10, 10) to (20, 30): twice as wide, three times as high.
+        let big = with_handle(&o, 2, Pt::new(20.0, 30.0));
+        assert_eq!(big.shape, Shape::Pen(vec![Pt::new(0.0, 0.0), Pt::new(20.0, 0.0), Pt::new(20.0, 30.0)]));
+        assert_eq!(handles(&moved(&big, Pt::new(1.0, 1.0)))[0], Pt::new(1.0, 1.0));
     }
 }

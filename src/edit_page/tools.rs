@@ -16,11 +16,12 @@ use crate::icons::{self, Line};
 use crate::transform::Op;
 
 /// The tools: icon, name, key (alone, no Ctrl).
-pub(super) const TOOLS: [(Tool, Line, &str, Key); 10] = [
+pub(super) const TOOLS: [(Tool, Line, &str, Key); 11] = [
     (Tool::Select, Line::Select, "edit-tool-select", Key::V),
     (Tool::Marquee, Line::Marquee, "edit-tool-marquee", Key::M),
     (Tool::Draw(Kind::Arrow), Line::Arrow, "edit-tool-arrow", Key::A),
     (Tool::Draw(Kind::Line), Line::Stroke, "edit-tool-line", Key::L),
+    (Tool::Draw(Kind::Pen), Line::Pen, "edit-tool-pen", Key::P),
     (Tool::Draw(Kind::Rect), Line::Rect, "edit-tool-rect", Key::R),
     (Tool::Draw(Kind::Ellipse), Line::Ellipse, "edit-tool-ellipse", Key::E),
     (Tool::Draw(Kind::Highlight), Line::Highlight, "edit-tool-highlight", Key::H),
@@ -375,7 +376,7 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
     };
     ui.spacing_mut().slider_width = 110.0;
     match kind {
-        Kind::Line | Kind::Arrow | Kind::Rect | Kind::Ellipse => slider(ui, t("edit-width"), &mut style.width, 1.0..=max, " px"),
+        Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse => slider(ui, t("edit-width"), &mut style.width, 1.0..=max, " px"),
         Kind::Text => slider(ui, t("edit-size"), &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
         Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter => {}
     }
@@ -392,7 +393,7 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
             }
         }
     }
-    if matches!(kind, Kind::Line | Kind::Arrow | Kind::Rect | Kind::Ellipse) {
+    if matches!(kind, Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse) {
         ui.separator();
         for (dash, icon, id) in [(Dash::Solid, Line::Solid, "edit-solid"), (Dash::Dashed, Line::Dashed, "edit-dashed"), (Dash::Dotted, Line::Dotted, "edit-dotted")] {
             if ui.add(icons::toggle(ui, style.dash == dash, icon)).on_hover_text(t(id)).clicked() {

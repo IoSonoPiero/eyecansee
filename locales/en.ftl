@@ -462,6 +462,7 @@ key-edit = Ctrl+E
 edit-tool-select = Select
 edit-tool-arrow = Arrow
 edit-tool-line = Line
+edit-tool-pen = Freehand
 edit-tool-rect = Rectangle
 edit-tool-ellipse = Ellipse
 edit-tool-highlight = Highlighter

@@ -66,6 +66,7 @@ fn object(out: &mut String, o: &Obj) {
     let _ = match &o.shape {
         Shape::Line(a, b, c) => line(out, *a, *b, *c, &stroke),
         Shape::Arrow(a, b, c) => arrow(out, (*a, *b, *c), head, width, &stroke, &fill),
+        Shape::Pen(points) => write!(out, r#"<path d="{}" {stroke} stroke-linejoin="round"/>"#, smooth(points)),
         // The inside first, the border over it.
         Shape::Rect(area) | Shape::Ellipse(area) => {
             let (tag, at) = if matches!(o.shape, Shape::Rect(_)) { ("rect", rect(area)) } else { ("ellipse", ellipse(area)) };
@@ -106,6 +107,18 @@ fn dashes(dash: Dash, width: f32) -> String {
 fn rect(a: &Area) -> String {
     let Area { centre: c, w, h, rot } = *a;
     format!(r#"x="{}" y="{}" width="{w}" height="{h}" transform="rotate({rot} {} {})""#, c.x - w / 2.0, c.y - h / 2.0, c.x, c.y)
+}
+
+/// The path of a stroke drawn by hand, smoothed: a quadratic curve from the middle of each segment
+/// to the next, each point of the pointer its control point.
+fn smooth(points: &[Pt]) -> String {
+    let (Some(first), Some(last)) = (points.first(), points.last()) else { return String::new() };
+    let mut d = format!("M{} {}", first.x, first.y);
+    for s in points.windows(2).skip(1) {
+        let _ = write!(d, " Q{} {} {} {}", s[0].x, s[0].y, (s[0].x + s[1].x) / 2.0, (s[0].y + s[1].y) / 2.0);
+    }
+    let _ = write!(d, " L{} {}", last.x, last.y);
+    d
 }
 
 /// Centre, radii and own angle of the ellipse in a box.
@@ -488,6 +501,17 @@ pub(crate) mod tests {
         let d = doc(vec![Obj { shape: Shape::Ellipse(Area { rot: 90.0, ..area(0.0, 0.0, 40.0, 20.0) }), style: Style { fill: Some([0, 0, 255]), ..style() } }]);
         let p = draw(&d, &whole(&d));
         assert_eq!((c(&p, 50, 25).2, c(&p, 35, 40).3), (255, 0));
+    }
+
+    /// A stroke by hand: smooth through the corner of its points (the corner rounded off, inside
+    /// it), from the first to the last.
+    #[test]
+    fn by_hand_smoothed() {
+        let d = doc(vec![Obj { shape: Shape::Pen(vec![Pt::new(-30.0, 0.0), Pt::new(0.0, 0.0), Pt::new(0.0, 30.0)]), style: style() }]);
+        let p = draw(&d, &whole(&d));
+        // Both ends drawn; the sharp corner at 50, 40 cut off: the curve passes inside it.
+        assert!(alpha(&p, 21, 40) > 128 && alpha(&p, 50, 69) > 128);
+        assert!(alpha(&p, 52, 38) == 0 && alpha(&p, 46, 44) > 128, "{} {}", alpha(&p, 52, 38), alpha(&p, 46, 44));
     }
 
     /// A patch: its pixels where its box is, stretched to it.

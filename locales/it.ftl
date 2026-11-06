@@ -461,6 +461,7 @@ key-edit = Ctrl+E
 edit-tool-select = Seleziona
 edit-tool-arrow = Freccia
 edit-tool-line = Linea
+edit-tool-pen = Mano libera
 edit-tool-rect = Rettangolo
 edit-tool-ellipse = Ellisse
 edit-tool-highlight = Evidenziatore
