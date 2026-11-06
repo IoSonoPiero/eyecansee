@@ -29,8 +29,8 @@ pub fn turned_file(bytes: &[u8], name: &str, turn: Turn) -> Result<(Vec<u8>, boo
     edited_file(bytes, name, |img| turn.apply(img))
 }
 
-/// The file decoded, changed by `edit` and encoded again in its own format: a JPEG at quality 95,
-/// a lossless WebP still lossless. Also says whether it lost quality (the confirmation warns about it).
+/// The file decoded, changed by `edit` and encoded again in its own format: a JPEG at its own
+/// quality and subsampling (`encode::jpeg_quality`), a lossless WebP still lossless. Also says whether it lost quality (the confirmation warns about it).
 pub fn edited_file(bytes: &[u8], name: &str, edit: impl FnOnce(&mut DynamicImage)) -> Result<(Vec<u8>, bool), String> {
     let mut img = crate::decode::decode_full(bytes, name)?;
     edit(&mut img);
@@ -46,7 +46,9 @@ pub fn encoded_back(bytes: &[u8], name: &str, image: DynamicImage) -> Result<(Ve
     }
     let format = Format::of_file(name).filter(|_| can_turn_in_place(bytes, name)).ok_or_else(|| name.to_string())?;
     let webp_lossless = format == Format::Webp && bytes.windows(4).any(|w| w == b"VP8L");
+    // A JPEG at its own quality and subsampling: not compressed harder a second time.
     let o = Options { format, jpeg_quality: 95, webp_lossless, ..Default::default() };
+    let o = if format == Format::Jpeg { crate::encode::jpeg_quality::like(bytes, o) } else { o };
     // GIF too: its colours are chosen again (at most 256).
     let lossy = matches!(format, Format::Jpeg | Format::Avif | Format::Gif) || (format == Format::Webp && !webp_lossless);
     Ok((Original::with_meta(image, bytes).encode(&o)?, lossy))

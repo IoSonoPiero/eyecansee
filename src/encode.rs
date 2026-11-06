@@ -2,6 +2,8 @@
 //! offers is there: libjpeg-turbo for JPEG, `image` for PNG, GIF, BMP and QOI, libwebp for WebP,
 //! ravif for AVIF, `tiff` for TIFF, `image` for ICO, TGA, PNM, OpenEXR, Radiance HDR and Farbfeld. Writing back over the original: `save_back`.
 
+
+pub mod jpeg_quality;
 use std::io::Cursor;
 
 use image::codecs::{bmp, farbfeld, gif, hdr, ico, openexr, png, pnm, qoi, tga};

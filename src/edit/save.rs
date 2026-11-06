@@ -63,6 +63,9 @@ pub fn save(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str
     }
     let webp_lossless = format == Format::Webp && bytes.windows(4).any(|w| w == b"VP8L");
     let opts = Options { format, jpeg_quality: 95, webp_lossless, ..Options::default() };
+    // A JPEG saved again as JPEG at its own quality and subsampling (not compressed harder a
+    // second time); from another format at 95.
+    let opts = if same == Some(Format::Jpeg) { crate::encode::jpeg_quality::like(bytes, opts) } else { opts };
     let lossy = matches!(format, Format::Jpeg | Format::Avif | Format::Gif) || (format == Format::Webp && !webp_lossless);
     let data = o.alone().encode(&opts)?;
     let ext = if same.is_some() { None } else { Some(format.ext()) };

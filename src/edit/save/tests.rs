@@ -615,3 +615,19 @@ fn lens_with_objects() {
     let img = shown(vec![lens(0.0, true), line]);
     assert_eq!((img.get_pixel(40, 24).0[..3].to_vec(), img.get_pixel(40, 26).0[0]), (BLUE.to_vec(), 255));
 }
+
+/// A JPEG saved again by the editor keeps its quality and subsampling: 80 with 4:2:0 and 95
+/// with 4:4:4 come out as they went in; a PNG saved as… stays PNG, a HEIC-like one as JPEG
+/// would be at 95 (`target`).
+#[test]
+fn jpeg_quality_kept() {
+    use crate::encode::Chroma;
+    use crate::encode::jpeg_quality::{of, tests::jpeg};
+    for (q, chroma) in [(80, Chroma::Quarter), (95, Chroma::Full)] {
+        let bytes = jpeg(q, chroma);
+        let mut doc = Doc::new(64, 48, None);
+        doc.objects.push(cover_at(0.0, 0.0, 10.0, 10.0));
+        let out = saved(&bytes, "a.jpg", &doc);
+        assert_eq!(of(&out.data), Some((q, chroma)), "{q} {chroma:?}");
+    }
+}

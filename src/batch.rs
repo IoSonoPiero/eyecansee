@@ -163,9 +163,10 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     }
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
     match job.format {
-        // As "Save" writes them (which would refuse a phone JPEG: it writes over the original).
+        // As "Save" writes them, at the original's quality (which would refuse a phone JPEG: it
+        // writes over the original).
         None if Format::of_file(name) == Some(Format::Jpeg) => {
-            let options = Options { jpeg_quality: 95, ..Options::default() };
+            let options = crate::encode::jpeg_quality::like(bytes, Options::default());
             Ok((name.to_string(), encode::Original::with_meta_of(image, bytes, name).encode(&options).map_err(failed)?))
         }
         None => crate::save_back::encoded_back(bytes, name, image).map(|(data, _)| (name.to_string(), data)).map_err(|_| (SKIP_INSIDE, name.to_string())),

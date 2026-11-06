@@ -55,7 +55,8 @@ pub fn turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
 /// opaque objects) get the lowest gain on every pixel of the gain map they touch even in part.
 pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]]) -> Result<Vec<u8>, String> {
     let (photo, gain) = split(b).ok_or("not Ultra HDR")?;
-    let o = Options { format: Format::Jpeg, jpeg_quality: 95, ..Options::default() };
+    // Each at its own quality and subsampling: not compressed harder a second time.
+    let like = |jpeg| crate::encode::jpeg_quality::like(jpeg, Options { format: Format::Jpeg, ..Options::default() });
     // The gain map upright as the photo shown, then the edits at its scale.
     let turn = transform::exif_turn(photo);
     let (w, h) = image::ImageReader::new(std::io::Cursor::new(photo)).with_guessed_format().map_err(|e| e.to_string())?.into_dimensions().map_err(|e| e.to_string())?;
@@ -75,8 +76,8 @@ pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]])
     if gray {
         g = DynamicImage::ImageLuma8(g.to_luma8());
     }
-    let new_photo = keep_segments(photo, Original::with_meta(image, photo).encode(&o)?);
-    let new_gain = keep_segments(gain, Original::with_meta(g, gain).encode(&o)?);
+    let new_photo = keep_segments(photo, Original::with_meta(image, photo).encode(&like(photo))?);
+    let new_gain = keep_segments(gain, Original::with_meta(g, gain).encode(&like(gain))?);
     assemble(new_photo, &new_gain)
 }
 
@@ -119,14 +120,14 @@ fn assemble(mut photo: Vec<u8>, gain: &[u8]) -> Result<Vec<u8>, String> {
 }
 
 /// One of the two pictures turned: without encoding again when its size allows it, otherwise
-/// at quality 95; the segments the turn left out (XMP, MPF…) put back.
+/// at its own quality and subsampling; the segments the turn left out (XMP, MPF…) put back.
 fn one(jpeg: &[u8], turn: Turn, lossless: impl FnOnce(&[u8]) -> Option<Vec<u8>>) -> Result<(Vec<u8>, bool), String> {
     let (out, lossy) = match lossless(jpeg) {
         Some(out) => (out, false),
         None => {
             let mut img = crate::decode::decode_full(jpeg, "x.jpg")?;
             turn.apply(&mut img);
-            let o = Options { format: Format::Jpeg, jpeg_quality: 95, ..Options::default() };
+            let o = crate::encode::jpeg_quality::like(jpeg, Options { format: Format::Jpeg, ..Options::default() });
             (Original::with_meta(img, jpeg).encode(&o)?, true)
         }
     };
