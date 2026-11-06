@@ -315,7 +315,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 
 Una miniatura si fa una volta e resta: si rifà solo quando il file cambia dimensione o data. Se una sembra sbagliata (per esempio fatta da una versione vecchia), clic destro sull'immagine, o su più immagini selezionate, e scegli **Aggiorna miniature** (anche nel menù Visualizza). **Maiusc+F5** rifà tutte le miniature della cartella aperta.
 
-Ovunque: **F1** apre questo manuale, **F5** rilegge le cartelle, **F11** passa a schermo intero e torna indietro. Su un portatile con due schede video, un modello 3D girato su un monitor collegato all'altra scheda può andare a scatti in finestra e scorre fluido a schermo intero. Nel visore F5 resta sull'immagine aperta; se nel frattempo è stata cancellata, torna alla griglia.
+Ovunque: **F1** apre questo manuale, **F5** rilegge le cartelle, **F11** passa a schermo intero e torna indietro; nel visore lo schermo intero mostra solo l'immagine (o il video, il modello, il disegno), senza menù né barre, ed Esc ne esce prima di tornare alla griglia. Su un portatile con due schede video, un modello 3D girato su un monitor collegato all'altra scheda può andare a scatti in finestra e scorre fluido a schermo intero. Nel visore F5 resta sull'immagine aperta; se nel frattempo è stata cancellata, torna alla griglia.
 
 Le cartelle del computer si aggiornano da sole: immagini aggiunte, eliminate, rinominate o ripristinate dal cestino da un altro programma compaiono e spariscono senza F5, anche nel visore, che resta sull'immagine aperta. Anche sui telefoni, quando il telefono comunica cosa è cambiato (vedi Dispositivi esterni); sui server serve F5.
 

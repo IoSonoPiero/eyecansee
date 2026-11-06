@@ -315,7 +315,7 @@ The **Keys** button on the right of the status bar lists these keys. The mouse w
 
 A thumbnail is made once and kept: it is made again only when the file changes size or date. If one looks wrong (for example made by an older version), right-click the image, or select several, and choose **Redo thumbnails** (also in the View menu). **Shift+F5** redoes all the thumbnails of the open folder.
 
-Everywhere: **F1** opens this manual, **F5** reloads the folders, **F11** goes full screen and back. On a laptop with two graphics cards, a 3D model turned on a monitor of the other card can stutter in a window and runs smoothly in full screen. In the viewer F5 stays on the open image; if it has been deleted in the meantime, it goes back to the grid.
+Everywhere: **F1** opens this manual, **F5** reloads the folders, **F11** goes full screen and back; in the viewer full screen shows the image alone (or the video, model, drawing), without menus or bars, and Esc leaves it before going back to the grid. On a laptop with two graphics cards, a 3D model turned on a monitor of the other card can stutter in a window and runs smoothly in full screen. In the viewer F5 stays on the open image; if it has been deleted in the meantime, it goes back to the grid.
 
 Folders on this computer update by themselves: images added, deleted, renamed or restored from the trash by another program appear and disappear without F5, also in the viewer, which stays on the open image. On phones too, when the phone says what changed (see External devices); on servers you need F5.
 

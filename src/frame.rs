@@ -68,8 +68,13 @@ impl App {
         } else if self.dup_page_shown() {
             self.dup_page(ui);
         } else {
-            egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
-            egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui, ctx));
+            // Full screen in the viewer: the picture (or video, model, drawing) alone, no bars
+            // (user, 2026-11-06; issue #43 asked it for videos).
+            let bare = self.viewing.is_some() && ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+            if !bare {
+                egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
+                egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui, ctx));
+            }
             if let Some(e) = self.error.clone() {
                 egui::Panel::bottom("error").show(ui, |ui| {
                     ui.horizontal(|ui| {
@@ -81,6 +86,9 @@ impl App {
                 });
             }
             match self.viewing {
+                Some(current) if bare => {
+                    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(Color32::BLACK)).show(ui, |ui| self.viewer(ui, current));
+                }
                 Some(current) => {
                     let bar = egui::Frame::side_top_panel(ui.style()).fill(theme::solid(ui.visuals()));
                     let status = egui::Panel::bottom("viewer-status").frame(bar).show(ui, |ui| self.viewer_status(ui, current));

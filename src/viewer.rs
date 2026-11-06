@@ -34,7 +34,10 @@ impl App {
                 self.go(to);
             }
         }
-        if close {
+        // Esc in full screen leaves it first, with the bars back; then the viewer.
+        if close && ctx.input(|i| i.viewport().fullscreen.unwrap_or(false)) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
+        } else if close {
             self.close_viewer();
         }
         if video {
