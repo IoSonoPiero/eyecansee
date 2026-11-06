@@ -269,8 +269,9 @@ impl App {
         }
     }
 
+    /// Help > About: closes with Enter or Esc too, as the other windows (user, 2026-11-06).
     pub(crate) fn about_window(&mut self, ctx: &egui::Context) {
-        let mut open = self.about;
+        let mut open = self.about && (self.notice.is_some() || self.update_note.is_some() || self.delete_answer.take().is_none());
         let icon = self.about_icon.get_or_insert_with(|| {
             let img = decode::app_icon(96).unwrap_or_default();
             ctx.load_texture("about-icon", decode::to_color_image(img.into()), TextureOptions::LINEAR)
