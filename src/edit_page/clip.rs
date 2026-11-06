@@ -41,11 +41,16 @@ impl App {
         }
     }
 
-    /// The part chosen with Selection copied: `false` when there is none.
+    /// The part chosen with Selection copied as it is seen: the photo with the filters, the
+    /// highlighters, the objects drawn and the cover boxes (it was the photo alone: user,
+    /// 2026-11-06), as a magnifier of 1× with its objects makes it. `false` when there is none.
     fn copy_part(&mut self, ctx: &egui::Context) -> bool {
+        use crate::edit::doc::{Pixels, Preview};
         let Some(w) = &mut self.editor else { return false };
         let (Some(area), Some(Ok((original, ..)))) = (w.marquee, &w.original) else { return false };
-        let pixels = crate::edit::doc::Pixels::new(w.doc.pixels_under(&original.image, &area));
+        let filtered: Vec<crate::edit::photo::Filtered> = w.doc.objects.iter().filter_map(|f| if let Shape::Filter { preview: Preview(Some((a, _, p))), .. } = &f.shape { Some((*a, p.image())) } else { None }).collect();
+        let fonts = crate::decode::usvg_options();
+        let pixels = Pixels::new(crate::edit::photo::lens(&w.doc, &original.image, &area, (1.0, 8000), &filtered, Some((&w.doc.objects, &fonts))));
         let img = pixels.image();
         ctx.copy_image(ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()));
         w.clip = Some((area, pixels));

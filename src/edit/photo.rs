@@ -198,6 +198,18 @@ mod tests {
         assert_eq!((l.get_pixel(5, 10).0, l.get_pixel(17, 10).0, l.get_pixel(10, 2).0), ([0, 0, 255, 255], [0, 255, 0, 255], [255; 4]));
     }
 
+    /// A part copied as it is seen (a lens of 1× with its objects): a line drawn over it is in it.
+    #[test]
+    fn part_with_objects() {
+        use crate::edit::doc::{Obj, Style};
+        let photo = DynamicImage::ImageRgb8(RgbImage::from_pixel(60, 40, Rgb([255; 3])));
+        let mut doc = Doc::new(60, 40, None);
+        doc.objects.push(Obj { shape: Shape::Line(Pt::new(-20.0, 0.0), Pt::new(20.0, 0.0), None), style: Style { color: [0, 0, 255], width: 2.0, ..Style::default() } });
+        let area = Area { centre: Pt::new(0.0, 0.0), w: 20.0, h: 10.0, rot: 0.0 };
+        let part = lens(&doc, &photo, &area, (1.0, 8000), &[], Some((&doc.objects, &crate::edit::render::tests::options())));
+        assert_eq!((part.dimensions(), part.get_pixel(10, 5).0, part.get_pixel(10, 1).0), ((20, 10), [0, 0, 255, 255], [255; 4]));
+    }
+
     /// A lens 3 times: a white square of 4 pixels in the middle of the photo fills 12 in the
     /// lens; the preview is the same at a smaller size.
     #[test]
