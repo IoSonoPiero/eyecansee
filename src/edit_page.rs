@@ -367,10 +367,11 @@ impl Window {
     }
 
     /// The filters, highlighters and lenses whose preview is missing or was made for another box
-    /// or amount (colour, zoom): made again from the photo, at most 1200 pixels a side. Filters
-    /// and lenses not while a drag is under way (the old one is stretched meanwhile): some are
-    /// slow. The lenses last, with the filters' previews and the cover boxes on them, and again
-    /// whenever those changed.
+    /// or amount (colour, zoom): made again from the photo, at most 1200 pixels a side; while a
+    /// drag is under way at most 400, to follow the pointer (the old one, stretched over the new
+    /// place, showed the part it came from: user, 2026-11-06), and sharp again once let go. The
+    /// lenses last, with the filters' previews and the cover boxes on them, and again whenever
+    /// those changed.
     fn refresh_previews(&mut self) {
         use crate::edit::doc::{Pixels, Preview};
         use crate::edit::photo;
@@ -387,15 +388,18 @@ impl Window {
             for i in 0..self.doc.objects.len() {
                 let o = &self.doc.objects[i];
                 let (area, amount, preview) = match &o.shape {
-                    Shape::Filter { area, amount, preview, .. } if still && !lenses => (*area, *amount, preview),
+                    Shape::Filter { area, amount, preview, .. } if !lenses => (*area, *amount, preview),
                     Shape::Highlight { area, preview } if !lenses => (*area, photo::colour_key(o.style.color), preview),
-                    Shape::Lens { area, preview } if still && lenses => (*area, o.style.zoom.max(1) as f32, preview),
+                    Shape::Lens { area, preview } if lenses => (*area, o.style.zoom.max(1) as f32, preview),
                     _ => continue,
                 };
-                if preview.0.as_ref().is_some_and(|(a, m, _)| *a == area && *m == amount) {
+                let side = if still { 1200.0 } else { 400.0 };
+                let scale = (side / area.w.max(area.h)).min(1.0);
+                // Made for this box and amount, and as sharp as it is to be now.
+                let sharp = |p: &Pixels| p.image().width() + 1 >= (area.w * scale).round() as u32;
+                if preview.0.as_ref().is_some_and(|(a, m, p)| *a == area && *m == amount && sharp(p)) {
                     continue;
                 }
-                let scale = (1200.0 / area.w.max(area.h)).min(1.0);
                 let pixels = match &o.shape {
                     Shape::Filter { filter, .. } => {
                         let under = image::DynamicImage::ImageRgba8(self.doc.pixels_under_at(&original.image, &area, scale));
@@ -408,7 +412,7 @@ impl Window {
                     }
                     _ => {
                         let filtered: Vec<photo::Filtered> = self.doc.objects.iter().filter_map(|f| if let Shape::Filter { preview: Preview(Some((a, _, p))), .. } = &f.shape { Some((*a, p.image())) } else { None }).collect();
-                        photo::lens(&self.doc, &original.image, &area, amount, 1200, &filtered)
+                        photo::lens(&self.doc, &original.image, &area, amount, side as u32, &filtered)
                     }
                 };
                 if let Shape::Filter { preview, .. } | Shape::Lens { preview, .. } | Shape::Highlight { preview, .. } = &mut self.doc.objects[i].shape {
