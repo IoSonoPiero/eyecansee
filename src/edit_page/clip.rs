@@ -35,7 +35,10 @@ impl App {
         let Some(w) = &mut self.editor else { return };
         w.screen_picking = false;
         match r {
-            Ok(c) => w.picked = Some(c),
+            Ok(c) => {
+                w.picked = Some(c);
+                w.note = Some((crate::eyedropper::codes(c).replace('\n', " · "), ctx.input(|i| i.time) + 8.0));
+            }
             Err(e) if e == "cancelled" => {}
             Err(e) => w.note = Some((self.i18n.t_args("edit-pick-failed", &[("detail", &e)]), ctx.input(|i| i.time) + 6.0)),
         }

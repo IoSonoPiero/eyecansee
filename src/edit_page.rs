@@ -132,7 +132,9 @@ pub struct Window {
     /// A colour taken, for the style shown in the properties bar.
     picked: Option<[u8; 3]>,
     /// I pressed: the eyedropper as if its button were clicked.
-    ask_pick: bool,
+    /// I or Shift+I pressed: the eyedropper as if its button were clicked; `Some(true)` for the
+    /// desktop's picker on the whole screen (Shift+I, Linux).
+    ask_pick: Option<bool>,
     /// The part of the image chosen with Selection (upright on the screen when drawn).
     marquee: Option<crate::edit::doc::Area>,
     /// A part copied or cut: Paste puts it back as a patch where it was (a little aside).
@@ -209,7 +211,7 @@ impl Window {
             picking: false,
             screen_picking: false,
             picked: None,
-            ask_pick: false,
+            ask_pick: None,
             marquee: None,
             clip: None,
             filters_made: 0,
@@ -722,8 +724,11 @@ impl App {
         if w.tool == Tool::Crop && ctx.input_mut(|i| i.consume_key(M::NONE, Key::Enter)) {
             w.apply_crop();
         }
-        if w.tool != Tool::Crop && ctx.input_mut(|i| i.consume_key(M::NONE, Key::I)) {
-            w.ask_pick = true;
+        if w.tool != Tool::Crop {
+            let (screen, here) = ctx.input_mut(|i| (i.consume_key(M::SHIFT, Key::I), i.consume_key(M::NONE, Key::I)));
+            if screen || here {
+                w.ask_pick = Some(screen);
+            }
         }
         let tool = ctx.input_mut(|i| tools::TOOLS.iter().find(|t| i.consume_key(M::NONE, t.3)).map(|t| t.0));
         if let Some(tool) = tool {

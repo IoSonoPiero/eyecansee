@@ -510,7 +510,7 @@ fn pick_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &V
         // The colour under the pointer, live: by the pointer, or (dragged out of the window,
         // where nothing can be drawn) in the bottom left corner of the canvas (user, 2026-11-06).
         let at = ui.input(|i| i.pointer.latest_pos()).filter(|p| response.rect.contains(*p));
-        let under = crate::eyedropper::at_cursor().or_else(|| at.and_then(|s| colour_at(w, view, s)));
+        let under = crate::eyedropper::at_cursor().or_else(|| at.and_then(|s| colour_seen(w, view, s)));
         if let Some(c) = under {
             let place = at.map_or(response.rect.left_bottom() + egui::vec2(12.0, -96.0), |p| p + egui::vec2(18.0, 18.0));
             swatch(ui.ctx(), place, c);
@@ -522,8 +522,11 @@ fn pick_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &V
     if (response.clicked() || response.drag_stopped())
         && let Some(s) = response.interact_pointer_pos()
     {
-        w.picked = crate::eyedropper::at_cursor().or_else(|| colour_at(w, view, s)).or(w.picked);
+        w.picked = crate::eyedropper::at_cursor().or_else(|| colour_seen(w, view, s)).or(w.picked);
         w.picking = false;
+        if let Some(c) = w.picked {
+            w.note = Some((crate::eyedropper::codes(c).replace('\n', " · "), ui.input(|i| i.time) + 8.0));
+        }
     }
 }
 
@@ -539,6 +542,22 @@ fn swatch(ctx: &egui::Context, at: Pos2, [r, g, b]: [u8; 3]) {
             });
         });
     });
+}
+
+/// The colour seen at `s`: the photo with the objects drawn over it (a pixel of them drawn there).
+fn colour_seen(w: &Window, view: &View, s: Pos2) -> Option<[u8; 3]> {
+    let photo = colour_at(w, view, s)?;
+    if w.doc.objects.is_empty() {
+        return Some(photo);
+    }
+    let (iw, ih) = w.size();
+    let (left, top) = rotate::corner(iw, ih, w.doc.crop);
+    let p = view.image(s);
+    let one = render::View { x: p.x - left, y: p.y - top, w: 1, h: 1, scale: 1.0 };
+    let Some(px) = render::render(&w.doc, w.upright(), &one, &crate::decode::usvg_options()).and_then(|m| m.pixel(0, 0)) else { return Some(photo) };
+    let a = px.alpha() as f32 / 255.0;
+    let mix = |src: u8, under: u8| (src as f32 + under as f32 * (1.0 - a)).round().min(255.0) as u8;
+    Some([mix(px.red(), photo[0]), mix(px.green(), photo[1]), mix(px.blue(), photo[2])])
 }
 
 /// The colour of the image under `s` (the photo, without the objects); `None` outside it.

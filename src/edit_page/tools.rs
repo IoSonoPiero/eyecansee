@@ -432,19 +432,24 @@ fn kind_controls(ui: &mut egui::Ui, w: &mut Window, style: &mut Style, (kind, se
 
 /// One eyedropper (user, 2026-11-05: "only the one that takes any colour"), its button or I:
 /// anywhere on the screen where the system allows it, `true` then; elsewhere a click on the image.
+/// I picks on the image (what is drawn on it too, with a live box of the colour); the button,
+/// and Shift+I, the desktop's picker on the whole screen where there is one (Linux: user,
+/// 2026-11-06, the picker shows no codes).
 fn eyedroppers(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     let screen = crate::eyedropper::on_screen();
-    let id = if screen { "edit-pick" } else { "edit-pick-image" };
+    let (id, keys) = if screen { ("edit-pick", "I, Shift+I") } else { ("edit-pick-image", "I") };
     let off = w.screen_picking.then(|| i18n.t("edit-pick-screen-busy"));
-    let asked = bar_button(ui, icons::toggle(ui, w.picking || w.screen_picking, Line::Pipette), tip(i18n, id, "I"), off) || std::mem::take(&mut w.ask_pick);
-    match () {
-        _ if !asked => false,
-        _ if screen => true,
-        _ => {
-            w.picking = !w.picking;
-            false
-        }
+    let clicked = bar_button(ui, icons::toggle(ui, w.picking || w.screen_picking, Line::Pipette), tip(i18n, id, keys), off);
+    let whole = match (clicked, w.ask_pick.take()) {
+        (true, _) => true,
+        (false, Some(whole)) => whole,
+        (false, None) => return false,
+    };
+    if whole && screen {
+        return true;
     }
+    w.picking = !w.picking;
+    false
 }
 
 /// Colours, width (size of a text), opacity, dashes, as each kind has them.

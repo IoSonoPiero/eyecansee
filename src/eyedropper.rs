@@ -1,7 +1,8 @@
 //! A colour from anywhere on the screen, for the editor's eyedropper. On Linux a program cannot
 //! read the screen by itself under Wayland: it asks the desktop (xdg-desktop-portal,
 //! `org.freedesktop.portal.Screenshot.PickColor`), which shows its own picker and answers with
-//! the colour; the same works under X11 with a portal. On Windows the pixel of the screen under
+//! the colour (its button and Shift+I; I picks on the image inside EyeCanSee, with a live box);
+//! the same works under X11 with a portal. On Windows the pixel of the screen under
 //! the pointer is read (`at_cursor`): what is drawn on the image too, and anywhere on the screen
 //! when the pointer is pressed on the image and let go elsewhere (user, 2026-11-06).
 
