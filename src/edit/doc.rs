@@ -200,27 +200,61 @@ pub struct Obj {
     pub style: Style,
 }
 
+impl Shape {
+    /// The box of the objects drawn in one: rectangles, cover boxes, patches, filters…
+    pub fn area(&self) -> Option<&Area> {
+        match self {
+            Shape::Rect(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } => Some(a),
+            Shape::Line(..) | Shape::Arrow(..) | Shape::Text { .. } => None,
+        }
+    }
+
+    pub fn area_mut(&mut self) -> Option<&mut Area> {
+        match self {
+            Shape::Rect(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } => Some(a),
+            Shape::Line(..) | Shape::Arrow(..) | Shape::Text { .. } => None,
+        }
+    }
+
+    /// The points of the object that are not in its box: the ends and bend of a line, where a
+    /// text is and the line it follows.
+    pub fn points_mut(&mut self) -> Vec<&mut Pt> {
+        fn line<'a>(a: &'a mut Pt, b: &'a mut Pt, c: &'a mut Option<Pt>) -> Vec<&'a mut Pt> {
+            let mut v = vec![a, b];
+            v.extend(c.as_mut());
+            v
+        }
+        match self {
+            Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => line(a, b, c),
+            Shape::Text { at, path, .. } => {
+                let mut v = vec![at];
+                if let Some((a, b, c)) = path {
+                    v.extend(line(a, b, c));
+                }
+                v
+            }
+            _ => Vec::new(),
+        }
+    }
+}
+
 impl Obj {
     fn turned(&self, op: Op) -> Obj {
-        let shape = match &self.shape {
-            Shape::Line(a, b, c) => Shape::Line(a.turned(op), b.turned(op), c.map(|c| c.turned(op))),
-            Shape::Arrow(a, b, c) => Shape::Arrow(a.turned(op), b.turned(op), c.map(|c| c.turned(op))),
-            Shape::Rect(r) => Shape::Rect(r.turned(op)),
-            Shape::Highlight(r) => Shape::Highlight(r.turned(op)),
-            Shape::Cover(r) => Shape::Cover(r.turned(op)),
-            // The box turns as the others; the picture in it turns (or flips) as the image did.
-            Shape::Patch { area, pixels } => Shape::Patch { area: area.turned(op), pixels: pixels.turned(op) },
+        let mut shape = self.shape.clone();
+        for p in shape.points_mut() {
+            *p = p.turned(op);
+        }
+        if let Some(a) = shape.area_mut() {
+            *a = a.turned(op);
+        }
+        match &mut shape {
+            // The picture in the box turns (or flips) as the image did.
+            Shape::Patch { pixels, .. } => *pixels = pixels.turned(op),
             // Made again for the photo under it.
-            Shape::Filter { area, filter, amount, .. } => Shape::Filter { area: area.turned(op), filter: *filter, amount: *amount, preview: Preview::default() },
-            Shape::Text { at, text, size, rot, font, path } => Shape::Text {
-                at: at.turned(op),
-                text: text.clone(),
-                size: *size,
-                rot: text_turned(*rot, op),
-                font: font.clone(),
-                path: path.map(|(a, b, c)| (a.turned(op), b.turned(op), c.map(|c| c.turned(op)))),
-            },
-        };
+            Shape::Filter { preview, .. } => *preview = Preview::default(),
+            Shape::Text { rot, .. } => *rot = text_turned(*rot, op),
+            _ => {}
+        }
         Obj { shape, style: self.style }
     }
 }

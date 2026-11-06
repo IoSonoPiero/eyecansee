@@ -103,9 +103,9 @@ pub fn hit(o: &Obj, p: Pt, tol: f32) -> bool {
         Shape::Line(a, b, c) => curve_distance(p, *a, *b, *c) <= o.style.width / 2.0 + tol,
         // The head is as wide as `render::arrow` makes it.
         Shape::Arrow(a, b, c) => curve_distance(p, *a, *b, *c) <= (2.0 * o.style.width + 2.0).max(o.style.width / 2.0) + tol,
-        Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) | Shape::Patch { area: r, .. } | Shape::Filter { area: r, .. } => inside(r, p, tol),
         Shape::Text { path: Some((a, b, c)), size, .. } => curve_distance(p, *a, *b, *c) <= 0.6 * size + tol,
         Shape::Text { at, text, size, rot, .. } => inside(&text_area(*at, text, *size, *rot), p, tol),
+        shape => shape.area().is_some_and(|r| inside(r, p, tol)),
     }
 }
 
@@ -119,18 +119,14 @@ pub fn under(objects: &[Obj], p: Pt, tol: f32) -> Option<usize> {
 /// The object moved by `d`.
 pub fn moved(o: &Obj, d: Pt) -> Obj {
     let m = |p: Pt| Pt::new(p.x + d.x, p.y + d.y);
-    let area = |r: &Area| Area { centre: m(r.centre), ..*r };
-    let shape = match &o.shape {
-        Shape::Line(a, b, c) => Shape::Line(m(*a), m(*b), c.map(m)),
-        Shape::Arrow(a, b, c) => Shape::Arrow(m(*a), m(*b), c.map(m)),
-        Shape::Rect(r) => Shape::Rect(area(r)),
-        Shape::Highlight(r) => Shape::Highlight(area(r)),
-        Shape::Cover(r) => Shape::Cover(area(r)),
-        Shape::Patch { area: r, pixels } => Shape::Patch { area: area(r), pixels: pixels.clone() },
-        Shape::Filter { area: r, filter, amount, preview } => Shape::Filter { area: area(r), filter: *filter, amount: *amount, preview: preview.clone() },
-        Shape::Text { at, text, size, rot, font, path } => Shape::Text { at: m(*at), text: text.clone(), size: *size, rot: *rot, font: font.clone(), path: path.map(|(a, b, c)| (m(a), m(b), c.map(m))) },
-    };
-    Obj { shape, style: o.style }
+    let mut o = o.clone();
+    for p in o.shape.points_mut() {
+        *p = m(*p);
+    }
+    if let Some(a) = o.shape.area_mut() {
+        a.centre = m(a.centre);
+    }
+    o
 }
 
 /// Corners of a box, clockwise from the top left one (on the box's own sides).
@@ -146,10 +142,9 @@ fn corners(r: &Area) -> [Pt; 4] {
 pub fn handles(o: &Obj) -> Vec<Pt> {
     match &o.shape {
         Shape::Line(a, b, c) | Shape::Arrow(a, b, c) => vec![*a, *b, bend_handle(*a, *b, *c)],
-        Shape::Rect(r) | Shape::Highlight(r) | Shape::Cover(r) | Shape::Patch { area: r, .. } | Shape::Filter { area: r, .. } => corners(r).to_vec(),
         // On a curve: its two ends and the middle that bends it, as a line.
         Shape::Text { path: Some((a, b, c)), .. } => vec![*a, *b, bend_handle(*a, *b, *c)],
-        Shape::Text { .. } => Vec::new(),
+        shape => shape.area().map_or_else(Vec::new, |r| corners(r).to_vec()),
     }
 }
 
@@ -163,21 +158,21 @@ pub fn with_handle(o: &Obj, i: usize, p: Pt) -> Obj {
         let mid = turned(Pt::new(q.x / 2.0, q.y / 2.0), r.rot);
         Area { centre: Pt::new(fixed.x + mid.x, fixed.y + mid.y), w: q.x.abs().max(1.0), h: q.y.abs().max(1.0), rot: r.rot }
     };
-    let shape = match &o.shape {
-        Shape::Line(a, b, c) => line_handle(*a, *b, *c, i, p, Shape::Line),
-        Shape::Arrow(a, b, c) => line_handle(*a, *b, *c, i, p, Shape::Arrow),
-        Shape::Rect(r) => Shape::Rect(resized(r)),
-        Shape::Highlight(r) => Shape::Highlight(resized(r)),
-        Shape::Cover(r) => Shape::Cover(resized(r)),
-        Shape::Patch { area, pixels } => Shape::Patch { area: resized(area), pixels: pixels.clone() },
-        Shape::Text { at, text, size, rot, font, path: Some((a, b, c)) } => {
-            let Shape::Line(a, b, c) = line_handle(*a, *b, *c, i, p, Shape::Line) else { unreachable!() };
-            Shape::Text { at: *at, text: text.clone(), size: *size, rot: *rot, font: font.clone(), path: Some((a, b, c)) }
+    let mut o = o.clone();
+    match &mut o.shape {
+        Shape::Line(a, b, c) => o.shape = line_handle(*a, *b, *c, i, p, Shape::Line),
+        Shape::Arrow(a, b, c) => o.shape = line_handle(*a, *b, *c, i, p, Shape::Arrow),
+        Shape::Text { path: Some((a, b, c)), .. } => {
+            let Shape::Line(na, nb, nc) = line_handle(*a, *b, *c, i, p, Shape::Line) else { unreachable!() };
+            (*a, *b, *c) = (na, nb, nc);
         }
-        Shape::Filter { area, filter, amount, preview } => Shape::Filter { area: resized(area), filter: *filter, amount: *amount, preview: preview.clone() },
-        text => text.clone(),
-    };
-    Obj { shape, style: o.style }
+        shape => {
+            if let Some(r) = shape.area_mut() {
+                *r = resized(r);
+            }
+        }
+    }
+    o
 }
 
 /// A line with handle `i` moved to `p`: an end (the bend goes with it, so the curve keeps its
