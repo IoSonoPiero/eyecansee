@@ -247,6 +247,17 @@ fn dark() -> Visuals {
     v
 }
 
+/// A file being read: a large spinner and `text` under it, in the middle of the space left (user,
+/// 2026-11-06: a slow HEIC showed a small spinner only, or nothing).
+pub fn loading(ui: &mut egui::Ui, text: String) {
+    ui.vertical_centered(|ui| {
+        ui.add_space((ui.available_height() / 2.0 - 40.0).max(0.0));
+        ui.add(egui::Spinner::new().size(36.0));
+        ui.add_space(10.0);
+        ui.label(egui::RichText::new(text).size(16.0));
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

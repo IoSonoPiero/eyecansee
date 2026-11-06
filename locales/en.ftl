@@ -250,6 +250,7 @@ meta-map = Open on the map
 meta-close = Close (reopen it from View or with the ℹ button)
 meta-none-selected = Select an image
 meta-loading = Reading…
+loading-file = Loading the file…
 meta-no-exif = This file contains no metadata
 meta-empty = No data
 tb-meta = Metadata: show or hide the boxes

@@ -702,7 +702,7 @@ impl App {
                 ui.label(crate::browser::error_text(ui, self.i18n.t_args("cannot-load", &[("file", source::name(&w.path)), ("error", e)])));
             }
             _ => {
-                ui.centered_and_justified(|ui| ui.spinner());
+                crate::theme::loading(ui, self.i18n.t("loading-file"));
             }
         }
         open

@@ -186,9 +186,7 @@ impl App {
                 let name = self.files().get(current).map_or("", |f| source::shown(&f.path));
                 ui.label(browser::error_text(ui, self.i18n.t_args("cannot-load", &[("file", name), ("error", e)])));
             }
-            None => {
-                ui.spinner();
-            }
+            None => crate::theme::loading(ui, self.i18n.t("loading-file")),
         });
         if chosen.is_some() {
             self.act = chosen;
