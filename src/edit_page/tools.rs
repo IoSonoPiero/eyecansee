@@ -298,6 +298,12 @@ fn filter_bar(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     if bar_button(ui, icons::button(ui, Line::Delete), format!("{} ({})", i18n.t("edit-delete"), i18n.t("key-delete")), None) {
         w.doc.objects.remove(i);
         w.selected = None;
+        return;
+    }
+    // Done: as Esc, the filter let go of as it is; it was not clear it is already applied (user,
+    // 2026-11-06, as Paint.NET's and Photoshop's OK).
+    if bar_button(ui, crate::theme::main_button(ui, i18n.t("edit-filter-done")), format!("{} (Esc)\n{}", i18n.t("edit-filter-done"), i18n.t("edit-filter-done-hint")), None) {
+        w.escape();
     }
 }
 
