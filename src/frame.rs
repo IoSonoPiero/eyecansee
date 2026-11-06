@@ -12,6 +12,9 @@ use crate::{App, browser, meta, save_dialogs, theme};
 impl App {
     /// Every frame, before drawing: messages, retries, keys, title and window size.
     pub(crate) fn before_frame(&mut self, ctx: &egui::Context) {
+        if ctx.input(|i| i.viewport().close_requested()) {
+            log!("close requested (the window's ✕ or the system), editor open {}", self.editor.is_some());
+        }
         // Closing during a copy: it is cancelled, and the window closes once the file being copied
         // is finished. Closed in the middle, a phone kept half an operation and the next session
         // got its leftovers ("Transaction ID mismatch", until it was plugged in again).
@@ -23,11 +26,16 @@ impl App {
             self.quit_after_transfer = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
-        // Closing with an image turned and not saved: asked first, as when leaving the image.
-        if self.transfer.is_none()
+        // The ✕ in the viewer goes back to the grid, as Esc, when chosen in the Options (on at
+        // first: user, 2026-11-06); a turned image not saved is asked about as when leaving it.
+        if self.transfer.is_none() && self.settings.close_to_grid && self.viewing.is_some() && self.editor.is_none() && ctx.input(|i| i.viewport().close_requested()) {
+            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            self.close_viewer();
+        } else if self.transfer.is_none()
             && ctx.input(|i| i.viewport().close_requested())
             && self.hold_for_turn(save_dialogs::After::Quit)
         {
+            // Closing with an image turned and not saved: asked first, as when leaving the image.
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
         self.receive(ctx);
@@ -173,6 +181,7 @@ impl App {
 /// Windows after a 45-megapixel HEIC (user, 2026-11-06).
 impl Drop for crate::App {
     fn drop(&mut self) {
+        log!("quitting");
         if self.saving.is_empty()
             && let Ok(small) = tokio::runtime::Builder::new_current_thread().build()
         {

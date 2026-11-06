@@ -22,6 +22,8 @@ pub struct Settings {
     pub servers_plain_warned: bool,
     /// In the viewer, after the last image the first one follows (and the other way round).
     pub wrap_around: bool,
+    /// In the viewer the window's ✕ goes back to the grid, as Esc; otherwise it closes the app.
+    pub close_to_grid: bool,
     /// The mouse wheel zooms the viewer; otherwise it changes image (Ctrl and the wheel always zoom).
     pub wheel_zoom: bool,
     /// Largest zoom in the viewer, in percent of the image's pixels.
@@ -176,6 +178,7 @@ impl Default for Settings {
             remember_scroll: false,
             servers_plain_warned: false,
             wrap_around: false,
+            close_to_grid: true,
             wheel_zoom: true,
             // As GNOME's image viewer (Loupe).
             max_zoom: 2000,
@@ -281,6 +284,7 @@ mod tests {
     fn missing_keys_get_defaults() {
         let s: Settings = serde_json::from_str(r#"{"thumb_cache_mb": 50}"#).unwrap();
         assert_eq!(s, Settings { thumb_cache_mb: 50, ..Settings::default() });
+        assert!(s.close_to_grid, "the ✕ goes back to the grid unless turned off");
         let s: Settings = serde_json::from_str(r#"{"thumb_cache_mb": 50, "window_start": "maximized"}"#).unwrap();
         assert_eq!(s.window_start, WindowStart::Maximized);
         let back: Settings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();

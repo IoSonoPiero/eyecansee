@@ -682,6 +682,8 @@ impl App {
         }
         if open {
             self.editor = Some(w);
+        } else {
+            log!("edit: page closed, viewing {:?}", self.viewing);
         }
     }
 

@@ -19,6 +19,7 @@ impl App {
             (t("opt-window"), t("opt-window-normal"), t("opt-window-maximized"), t("opt-window-remember"));
         let (scroll, scroll_hint) = (t("opt-remember-scroll"), t("opt-remember-scroll-hint"));
         let (wrap, wrap_hint) = (t("opt-wrap-around"), t("opt-wrap-around-hint"));
+        let (to_grid, to_grid_hint) = (t("opt-close-to-grid"), t("opt-close-to-grid-hint"));
         let (wheel, wheel_zoom, wheel_next, wheel_hint) = (t("opt-wheel"), t("opt-wheel-zoom"), t("opt-wheel-next"), t("opt-wheel-hint"));
         let (max_zoom, max_zoom_hint) = (t("opt-max-zoom"), t("opt-max-zoom-hint"));
         let (language_label, language_system) = (t("opt-language"), t("opt-language-system"));
@@ -106,6 +107,7 @@ impl App {
                     OptTab::Browsing => {
                         ui.checkbox(&mut s.remember_scroll, scroll).on_hover_text(scroll_hint);
                         ui.checkbox(&mut s.wrap_around, wrap).on_hover_text(wrap_hint);
+                        ui.checkbox(&mut s.close_to_grid, to_grid).on_hover_text(to_grid_hint);
                         ui.add_space(6.0);
                         ui.label(wheel).on_hover_text(&wheel_hint);
                         ui.radio_value(&mut s.wheel_zoom, true, wheel_zoom).on_hover_text(&wheel_hint);

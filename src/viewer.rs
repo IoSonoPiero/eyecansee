@@ -84,6 +84,7 @@ impl App {
     }
 
     pub(crate) fn close_viewer(&mut self) {
+        log!("viewer: closed");
         if self.hold_for_turn(crate::save_dialogs::After::Close) {
             return;
         }

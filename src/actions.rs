@@ -271,7 +271,10 @@ impl App {
             Act::Copy(path) => self.clip(ctx, path, false),
             Act::Cut(path) => self.clip(ctx, path, true),
             Act::Paste(dir) => self.paste(dir),
-            Act::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            Act::Quit => {
+                log!("quit from the menu");
+                ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            }
             Act::Update => {
                 let Some(ready) = &self.update else { return };
                 match update::apply(ready) {
