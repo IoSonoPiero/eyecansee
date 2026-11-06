@@ -85,7 +85,7 @@ pub fn around_cursor(n: usize) -> Option<Vec<[u8; 3]>> {
         ReleaseDC(std::ptr::null_mut(), screen);
         lines == side
     };
-    read.then(|| bgra.chunks_exact(4).map(|c| [c[2], c[1], c[0]]).collect())
+    read.then(|| bgra.as_chunks::<4>().0.iter().map(|c| [c[2], c[1], c[0]]).collect())
 }
 
 #[cfg(not(windows))]
