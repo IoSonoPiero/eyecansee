@@ -86,6 +86,7 @@ footer nav { display: flex; flex-wrap: wrap; gap: 8px 20px; }
   #features .cards { grid-template-columns: repeat(6, 1fr); }
   #features .card { grid-column: span 2; }
   #features .card.half { grid-column: span 3; }
+  #features .card.full { grid-column: 1 / -1; }
 }
 @media (max-width: 480px) {
   pre { white-space: pre-wrap; overflow-wrap: anywhere; } /* the command wraps instead of hiding its end */
