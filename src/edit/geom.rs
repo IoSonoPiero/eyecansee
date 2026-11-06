@@ -347,6 +347,16 @@ mod tests {
     }
 }
 
+/// `new`, made again by a drag (drawn, moved, resized) from what was `old`, with `old`'s preview
+/// until its own is made: a highlighter or a magnifier being drawn was empty until let go, one
+/// moved showed the part it came from (user, 2026-11-06).
+pub fn redrawn(old: &mut Obj, mut new: Obj) -> Obj {
+    if let (Some(from), Some(to)) = (old.shape.preview_mut(), new.shape.preview_mut()) {
+        *to = std::mem::take(from);
+    }
+    new
+}
+
 /// A step placed with a click at `at` on an image shown turned by `angle`: upright on the screen,
 /// as wide as `style.width`, numbered `n`.
 pub fn step(at: Pt, n: u32, angle: f32, style: Style) -> Obj {
@@ -424,5 +434,17 @@ mod curves {
         let moved_tail = with_handle(&o, 4, Pt::new(60.0, 40.0));
         assert_eq!(handles(&moved_tail)[..4], handles(&o)[..4]);
         assert_eq!(handles(&moved_tail)[4], Pt::new(60.0, 40.0));
+    }
+
+    /// A highlighter drawn again as the drag goes on keeps the preview it had: it stays tinted.
+    #[test]
+    fn redrawn_keeps_the_preview() {
+        use crate::edit::doc::{Pixels, Preview};
+        let a = Area { centre: Pt::new(0.0, 0.0), w: 4.0, h: 4.0, rot: 0.0 };
+        let pixels = Pixels::new(image::RgbaImage::new(2, 2));
+        let mut old = Obj { shape: Shape::Highlight { area: a, preview: Preview(Some((a, 1.0, pixels.clone()))) }, style: Style::default() };
+        let new = drawn(Kind::Highlight, Pt::new(0.0, 0.0), Pt::new(9.0, 9.0), 0.0, Style::default(), false).unwrap();
+        let Shape::Highlight { preview, .. } = redrawn(&mut old, new).shape else { unreachable!() };
+        assert!(preview.0.is_some_and(|(_, _, p)| p == pixels));
     }
 }

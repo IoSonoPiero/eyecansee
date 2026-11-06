@@ -379,14 +379,16 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
         let p = view.doc(s, angle);
         let square = ui.input(|i| i.modifiers.shift);
         match &mut hold {
-            Hold::Move { index, start, from } => w.doc.objects[*index] = geom::moved(start, Pt::new(p.x - from.x, p.y - from.y)),
-            Hold::Handle { index, handle, start } => w.doc.objects[*index] = geom::with_handle(start, *handle, p),
+            // From the object as the drag started, with the preview made since (the one it started
+            // with showed the part it came from).
+            Hold::Move { index, start, from } => w.doc.objects[*index] = geom::redrawn(&mut w.doc.objects[*index], geom::moved(start, Pt::new(p.x - from.x, p.y - from.y))),
+            Hold::Handle { index, handle, start } => w.doc.objects[*index] = geom::redrawn(&mut w.doc.objects[*index], geom::with_handle(start, *handle, p)),
             Hold::Pan { at, k, from } => w.view = Some((*at - (s - *from) / *k, *k)),
             Hold::Marquee { .. } => {}
             // By hand: a point more where the pointer went (one every point and a half of the screen).
             Hold::Draw { kind: Kind::Pen, index: Some(i), .. } => geom::pen_to(&mut w.doc.objects[*i], p, 1.5 / view.k),
             Hold::Draw { kind, from, index } => match (geom::drawn(*kind, *from, p, angle, w.style(*kind), square), *index) {
-                (Some(o), Some(i)) => w.doc.objects[i] = o,
+                (Some(o), Some(i)) => w.doc.objects[i] = geom::redrawn(&mut w.doc.objects[i], o),
                 (Some(o), None) => {
                     w.doc.objects.push(o);
                     *index = Some(w.doc.objects.len() - 1);

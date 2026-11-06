@@ -416,6 +416,14 @@ impl Shape {
         matches!(self, Shape::Filter { .. } | Shape::Highlight { .. } | Shape::Spotlight(_))
     }
 
+    /// The preview of a filter, highlighter or magnifier.
+    pub fn preview_mut(&mut self) -> Option<&mut Preview> {
+        match self {
+            Shape::Filter { preview, .. } | Shape::Highlight { preview, .. } | Shape::Lens { preview, .. } => Some(preview),
+            _ => None,
+        }
+    }
+
     /// The letters of a text or a bubble.
     pub fn text_mut(&mut self) -> Option<&mut String> {
         match self {
