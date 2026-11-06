@@ -59,7 +59,7 @@ fn svg(doc: &Doc, (w, h): (u32, u32), view: &View, options: &usvg::Options) -> S
     if !layer.is_empty() {
         let _ = write!(out, "{group}{layer}</g>");
     }
-    spotlights(&mut out, &doc.objects, view, &group);
+    spotlights(&mut out, &doc.objects, view, (&group, tx, ty, doc.angle));
     out.push_str(&group);
     for o in doc.objects.iter().filter(|o| !o.shape.is_layer()) {
         object(&mut out, o, options);
@@ -121,19 +121,61 @@ fn object(out: &mut String, o: &Obj, options: &usvg::Options) {
     out.push_str("</g>");
 }
 
-/// The spotlights: black over everything but their boxes (a mask), as dark as the darkest of them.
-/// Over the whole view, in its own pixels: a mask as large as the whole image cost seconds
-/// (2026-11-06, 2.7 s for one spotlight on a 3336 × 2393 photo); `group` places the boxes.
-fn spotlights(out: &mut String, objects: &[Obj], view: &View, group: &str) {
-    let spots: Vec<&Obj> = objects.iter().filter(|o| matches!(o.shape, Shape::Spotlight(_))).collect();
-    let Some(dark) = spots.iter().map(|o| o.style.opacity).reduce(f32::max) else { return };
+/// The spotlights: black over the whole view but their boxes, as dark as the darkest of them.
+/// Boxes apart from one another are holes of one path (fast); boxes that overlap need a mask
+/// (an overlap of two holes would be filled again), in the view's own pixels: a mask as large as
+/// the whole image cost seconds (2026-11-06, 2.7 s for one spotlight on a 3336 × 2393 photo,
+/// 0.2 s as large as the view). `group` and `tx`, `ty`, `angle` place the boxes.
+fn spotlights(out: &mut String, objects: &[Obj], view: &View, (group, tx, ty, angle): (&str, f32, f32, f32)) {
+    let spots: Vec<(&Area, bool)> = objects.iter().filter_map(|o| if let Shape::Spotlight(a) = &o.shape { Some((a, o.style.round)) } else { None }).collect();
+    let Some(dark) = objects.iter().filter(|o| matches!(o.shape, Shape::Spotlight(_))).map(|o| o.style.opacity).reduce(f32::max) else { return };
+    let reach = |a: &Area| {
+        let (s, c) = a.rot.to_radians().sin_cos();
+        (c.abs() * a.w / 2.0 + s.abs() * a.h / 2.0, s.abs() * a.w / 2.0 + c.abs() * a.h / 2.0)
+    };
+    let apart = spots.iter().enumerate().all(|(i, (a, _))| {
+        spots[i + 1..].iter().all(|(b, _)| {
+            let ((ax, ay), (bx, by)) = (reach(a), reach(b));
+            (a.centre.x - b.centre.x).abs() > ax + bx || (a.centre.y - b.centre.y).abs() > ay + by
+        })
+    });
+    if apart {
+        // The view's corners where the boxes are: the transform of `group` undone.
+        let corner = |x: f32, y: f32| super::geom::turned(Pt::new(x / view.scale - tx, y / view.scale - ty), -angle);
+        let (w, h) = (view.w as f32, view.h as f32);
+        let mut d = String::new();
+        for p in [corner(0.0, 0.0), corner(w, 0.0), corner(w, h), corner(0.0, h)] {
+            let _ = write!(d, "{}{} {} ", if d.is_empty() { "M" } else { "L" }, p.x, p.y);
+        }
+        d.push('Z');
+        for (a, round) in &spots {
+            hole(&mut d, a, *round);
+        }
+        let _ = write!(out, r#"{group}<path d="{d}" fill="black" fill-opacity="{dark}" fill-rule="evenodd"/></g>"#);
+        return;
+    }
     let all = format!(r#"x="0" y="0" width="{}" height="{}""#, view.w, view.h);
     let _ = write!(out, r#"<defs><mask id="spots" maskUnits="userSpaceOnUse" {all}><rect {all} fill="white"/>{group}"#);
-    for o in spots {
-        let Shape::Spotlight(a) = &o.shape else { continue };
-        let _ = if o.style.round { write!(out, r#"<ellipse {} fill="black"/>"#, ellipse(a)) } else { write!(out, r#"<rect {} fill="black"/>"#, rect(a)) };
+    for (a, round) in spots {
+        let _ = if round { write!(out, r#"<ellipse {} fill="black"/>"#, ellipse(a)) } else { write!(out, r#"<rect {} fill="black"/>"#, rect(a)) };
     }
     let _ = write!(out, r#"</g></mask></defs><rect {all} fill="black" opacity="{dark}" mask="url(#spots)"/>"#);
+}
+
+/// A box, or the ellipse in it, as a closed part of a path.
+fn hole(d: &mut String, a: &Area, round: bool) {
+    let at = |x: f32, y: f32| {
+        let p = super::geom::turned(Pt::new(x, y), a.rot);
+        Pt::new(a.centre.x + p.x, a.centre.y + p.y)
+    };
+    let (hw, hh) = (a.w / 2.0, a.h / 2.0);
+    if round {
+        let (p, q) = (at(hw, 0.0), at(-hw, 0.0));
+        let _ = write!(d, " M{} {} A{hw} {hh} {} 1 0 {} {} A{hw} {hh} {} 1 0 {} {} Z", p.x, p.y, a.rot, q.x, q.y, a.rot, p.x, p.y);
+    } else {
+        let c = [at(-hw, -hh), at(hw, -hh), at(hw, hh), at(-hw, hh)];
+        let _ = write!(d, " M{} {} L{} {} L{} {} L{} {} Z", c[0].x, c[0].y, c[1].x, c[1].y, c[2].x, c[2].y, c[3].x, c[3].y);
+    }
 }
 
 /// Ends of the lines and dashes: round when solid; square ends on dashes, round ones would
@@ -738,6 +780,17 @@ pub(crate) mod tests {
         assert_eq!((c(25, 40)[3], c(75, 40)[3], c(66, 31)[3]), (0, 0, 153), "inside both, outside the circle's corner");
         assert_eq!((c(50, 40), c(50, 10)), ([0, 0, 0, 153], [0, 0, 0, 153]));
         assert_eq!(c(50, 70), [255, 0, 0, 255], "the line over the darkening");
+        // Overlapping (a mask instead of holes): both parts bright, the overlap too, turned by 30°.
+        let d = doc(vec![
+            Obj { shape: Shape::Spotlight(Area { rot: 30.0, ..area(-5.0, 0.0, 20.0, 20.0) }), style: Style { opacity: 0.6, ..style() } },
+            Obj { shape: Shape::Spotlight(area(5.0, 0.0, 20.0, 20.0)), style: Style { opacity: 0.6, round: true, ..style() } },
+        ]);
+        let p = draw(&d, &whole(&d));
+        assert_eq!((p.pixel(45, 40).unwrap().alpha(), p.pixel(50, 40).unwrap().alpha(), p.pixel(62, 40).unwrap().alpha(), p.pixel(80, 40).unwrap().alpha()), (0, 0, 0, 153));
+        // Apart and turned: the hole turned with its box (a corner of the upright box is dark).
+        let d = doc(vec![Obj { shape: Shape::Spotlight(Area { rot: 45.0, ..area(0.0, 0.0, 20.0, 20.0) }), style: Style { opacity: 0.6, ..style() } }]);
+        let p = draw(&d, &whole(&d));
+        assert_eq!((p.pixel(50, 40).unwrap().alpha(), p.pixel(50, 27).unwrap().alpha(), p.pixel(41, 31).unwrap().alpha()), (0, 0, 153));
     }
 
     /// Each stamp drawn in its box and colour, nothing outside it; the check as large as Lucide
@@ -807,5 +860,7 @@ pub(crate) mod tests {
         assert!(cy > 60.0, "letters at {cy}");
     }
 }
+
+
 
 
