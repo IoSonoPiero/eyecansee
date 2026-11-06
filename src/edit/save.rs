@@ -25,6 +25,8 @@ pub enum Depth {
     HdrCut,
 }
 
+/// `name`, `lossy` and `depth` are read by the tests (the window takes them from `plan`).
+#[cfg_attr(not(test), allow(dead_code))]
 #[derive(Debug)]
 pub struct Saved {
     pub data: Vec<u8>,
@@ -33,6 +35,56 @@ pub struct Saved {
     /// Encoded again with loss (the Save window says so).
     pub lossy: bool,
     pub depth: Depth,
+}
+
+/// What a save will write, known before the file is made (the slow part): the name proposed,
+/// whether it is encoded again with loss, the depth kept; the file itself when it is already
+/// made (flips and quarter turns alone, without encoding again: quick).
+#[derive(Debug)]
+pub struct Plan {
+    pub name: String,
+    pub lossy: bool,
+    pub depth: Depth,
+    pub data: Option<Vec<u8>>,
+}
+
+/// `save`'s choices without making the file: the confirmation shows at once, the file is made
+/// once confirmed (user, 2026-11-06: it took a second and a half on a large photo).
+pub fn plan(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str, taken: &[String]) -> Result<Plan, String> {
+    if animated(bytes, name) {
+        return Err(format!("{name}: animated or with several pages"));
+    }
+    let same = Format::of_file(name);
+    let size = (original.image.width(), original.image.height());
+    if same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::is(bytes)) {
+        let (data, lossy) = crate::save_back::turned_file(bytes, name, doc.turn)?;
+        return Ok(Plan { name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept, data: Some(data) });
+    }
+    if same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes) {
+        return Ok(Plan { name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept, data: None });
+    }
+    let (float, deep) = (is_float(&original.image), is_deep(&original.image));
+    let format = target(name, float, will_be_transparent(doc, &original.image));
+    let lossy = matches!(format, Format::Jpeg | Format::Avif | Format::Gif) || (format == Format::Webp && !bytes.windows(4).any(|w| w == b"VP8L"));
+    let ext = if same.is_some() { None } else { Some(format.ext()) };
+    Ok(Plan { name: copy_name(name, ext, word, taken), lossy, depth: depth(float, deep, format), data: None })
+}
+
+/// The edited image will have transparent pixels: the original has some, or the empty corners
+/// of a free angle or of a crop past the image are left transparent (no fill colour).
+fn will_be_transparent(doc: &Doc, img: &DynamicImage) -> bool {
+    if transparent(img) {
+        return true;
+    }
+    if doc.fill.is_some() {
+        return false;
+    }
+    let (w, h) = if doc.turn.sideways() { (img.height() as f32, img.width() as f32) } else { (img.width() as f32, img.height() as f32) };
+    let c = doc.crop;
+    [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)].iter().any(|(sx, sy)| {
+        let q = super::geom::turned(super::doc::Pt::new(c.cx + sx * c.w / 2.0, c.cy + sy * c.h / 2.0), -doc.angle);
+        q.x.abs() > w / 2.0 + 0.5 || q.y.abs() > h / 2.0 + 0.5
+    })
 }
 
 /// The copy of `name` (the file `bytes`, decoded as `original`) with `doc` done to it. `word` is
@@ -57,7 +109,8 @@ pub fn save(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str
         let data = crate::ultrahdr::edited(bytes, o.image, &[doc.edit()], &holes)?;
         return Ok(Saved { data, name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept });
     }
-    let format = target(name, float, transparent(&o.image));
+    // As `plan` chose it (the confirmation said it before the file was made).
+    let format = target(name, float, will_be_transparent(doc, &original.image));
     if float {
         o.image = if o.image.color().has_alpha() { DynamicImage::ImageRgba16(o.image.to_rgba16()) } else { DynamicImage::ImageRgb16(o.image.to_rgb16()) };
     }

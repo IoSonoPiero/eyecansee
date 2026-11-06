@@ -56,6 +56,7 @@ impl App {
                 }
                 Msg::Original(r) => self.convert_original(ctx, r),
                 Msg::EditPrepared(path, r) => self.on_edit_prepared(path, r),
+                Msg::EditWritten(path, mark, over) => self.on_edit_written(path, mark, over),
                 Msg::Encoded(generation, r) => self.convert_encoded(ctx, generation, r),
                 Msg::Saved(r) => self.convert_saved(r),
                 Msg::Exported(r) => self.on_exported(ctx, r),

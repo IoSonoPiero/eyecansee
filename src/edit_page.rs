@@ -27,7 +27,7 @@ mod save;
 mod tools;
 mod typing;
 use canvas::canvas;
-pub(crate) use save::Prepared;
+pub(crate) use save::{Prepared, Written};
 use save::Leave;
 
 type Loaded = Result<(Arc<Original>, TextureHandle, u64), String>;

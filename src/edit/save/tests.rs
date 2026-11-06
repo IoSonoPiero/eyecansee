@@ -38,7 +38,12 @@ fn file(img: &DynamicImage, format: Format, webp_lossless: bool) -> Vec<u8> {
 
 fn saved(bytes: &[u8], name: &str, doc: &Doc) -> Saved {
     let original = Original::with_meta_of(crate::decode::decode_full(bytes, name).unwrap(), bytes, name);
-    save(doc, &original, bytes, name, "edited", &[name.to_string()], &options()).unwrap()
+    let out = save(doc, &original, bytes, name, "edited", &[name.to_string()], &options()).unwrap();
+    // The Save window asks before the file is made: what it says comes from `plan`, and must be
+    // what `save` then writes.
+    let p = plan(doc, &original, bytes, name, "edited", &[name.to_string()]).unwrap();
+    assert_eq!((&p.name, p.lossy, p.depth), (&out.name, out.lossy, out.depth), "{name}");
+    out
 }
 
 /// Luminance of a pixel.

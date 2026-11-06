@@ -11,7 +11,7 @@ use eframe::egui;
 
 use super::Window;
 use crate::actions::Act;
-use crate::edit::save::{Depth, Saved};
+use crate::edit::save::{Depth, Plan};
 use crate::encode::Original;
 use crate::kept::Send;
 use crate::source::{self, Deletion};
@@ -43,11 +43,15 @@ fn sha256(data: &[u8]) -> [u8; 32] {
     ring::digest::digest(&ring::digest::SHA256, data).as_ref().try_into().expect("32 bytes")
 }
 
-/// A save made in the background: the file, where it goes and how, the original's bytes (kept
-/// for the next saves: they start from it, never from what was written since).
-#[derive(Debug)]
+/// A save planned in the background: what it writes and loses (`Plan`), where it goes and how,
+/// the original's bytes (kept for the next saves: they start from it, never from what was
+/// written since), and what makes the file once confirmed (`make`).
 pub struct Prepared {
-    saved: Saved,
+    plan: Plan,
+    doc: crate::edit::doc::Doc,
+    original: Arc<Original>,
+    word: String,
+    taken: Vec<String>,
     target: String,
     send: Send,
     over: bool,
@@ -71,19 +75,27 @@ pub(crate) async fn prepare(store: &crate::source::Store, path: &str, (doc, orig
         None => false,
     };
     let taken: Vec<String> = store.names(&source::parent(path)).await?.into_iter().collect();
-    let (doc, b, name) = (doc.clone(), bytes.clone(), source::name(path).to_string());
-    let mut saved = tokio::task::spawn_blocking(move || crate::edit::save::save(&doc, &original, &b, &name, &word, &taken, &crate::decode::usvg_options()).map_err(|e| ("error-detail", e)))
+    let (d, o, b, name, (w2, t2)) = (doc.clone(), original.clone(), bytes.clone(), source::name(path).to_string(), (word.clone(), taken.clone()));
+    let mut plan = tokio::task::spawn_blocking(move || crate::edit::save::plan(&d, &o, &b, &name, &w2, &t2).map_err(|e| ("error-detail", e)))
         .await
         .map_err(|e| ("error-detail", e.to_string()))??;
     let (target, send, gone) = match (over, written) {
         (true, _) => (path.to_string(), if still { Send::Again } else { Send::Keeping }, false),
         (false, Some(w)) if still => (w.path, Send::Again, false),
-        (false, w) => (format!("{}{}", source::parent(path), saved.name), Send::Create, w.is_some()),
+        (false, w) => (format!("{}{}", source::parent(path), plan.name), Send::Create, w.is_some()),
     };
     if !over {
-        saved.name = source::name(&target).to_string();
+        plan.name = source::name(&target).to_string();
     }
-    Ok(Prepared { saved, target, send, over, gone, bytes })
+    Ok(Prepared { plan, doc: doc.clone(), original, word, taken, target, send, over, gone, bytes })
+}
+
+/// The file of a confirmed save: made now (the slow part), or already made by `plan`.
+pub(crate) fn make(p: &Prepared, name: &str) -> Result<Vec<u8>, String> {
+    if let Some(data) = &p.plan.data {
+        return Ok(data.clone());
+    }
+    crate::edit::save::save(&p.doc, &p.original, &p.bytes, name, &p.word, &p.taken, &crate::decode::usvg_options()).map(|s| s.data)
 }
 
 /// A save made, waiting for its confirmation.
@@ -133,6 +145,12 @@ impl App {
         w.preparing = true;
     }
 
+    /// What a confirmed save wrote: the next one goes over it while it is still that file.
+    pub(crate) fn on_edit_written(&mut self, path: String, mark: Written, over: bool) {
+        let Some(w) = self.editor.as_mut().filter(|w| w.path == path) else { return };
+        if over { w.overwritten = Some(mark) } else { w.copy = Some(mark) }
+    }
+
     pub(crate) fn on_edit_prepared(&mut self, path: String, r: Result<Arc<Prepared>, source::Error>) {
         let Some(w) = self.editor.as_mut().filter(|w| w.path == path) else { return };
         w.preparing = false;
@@ -147,7 +165,7 @@ impl App {
 
     /// What the copy (or the file written over the original, `over`) loses, a line each: encoded
     /// again, fewer bits, highlights cut.
-    fn losses(&self, s: &Saved, over: bool) -> String {
+    fn losses(&self, s: &Plan, over: bool) -> String {
         let mut ids = Vec::new();
         if s.lossy {
             ids.push(if over { "edit-over-loss-lossy" } else { "edit-loss-lossy" });
@@ -172,15 +190,15 @@ impl App {
         let (text, yes) = match (p.over, p.send) {
             (true, Send::Again) => (self.i18n.t_args("edit-overwrite-again", &[("name", &md(source::name(&w.path)))]), self.i18n.t("edit-overwrite-yes")),
             (true, _) => (self.i18n.t_args(trash_id(how), &[("name", &md(source::name(&w.path)))]), self.i18n.t("edit-overwrite-yes")),
-            (false, Send::Again) => (self.i18n.t_args("edit-update-confirm", &[("copy", &md(&p.saved.name))]), self.i18n.t("save-yes")),
-            (false, _) => (self.i18n.t_args("edit-save-confirm", &[("name", &md(source::name(&w.path))), ("copy", &md(&p.saved.name))]), self.i18n.t("save-yes")),
+            (false, Send::Again) => (self.i18n.t_args("edit-update-confirm", &[("copy", &md(&p.plan.name))]), self.i18n.t("save-yes")),
+            (false, _) => (self.i18n.t_args("edit-save-confirm", &[("name", &md(source::name(&w.path))), ("copy", &md(&p.plan.name))]), self.i18n.t("save-yes")),
         };
-        let text = format!("{text}{}", self.losses(&p.saved, p.over));
+        let text = format!("{text}{}", self.losses(&p.plan, p.over));
         let no = self.i18n.t("delete-no");
         match confirm::yes_no(ctx, "edit-save", 460.0, text, yes, true, no, self.delete_answer.take()) {
             Some(true) => {
-                let (target, data, send) = (p.target.clone(), p.saved.data.clone(), p.send);
-                log!("edit: {send:?} {target:?} ({} bytes)", data.len());
+                let (target, send, over, path) = (p.target.clone(), p.send, p.over, w.path.clone());
+                log!("edit: {send:?} {target:?}");
                 let (store, base, tx, ctx) = (loader.store(), self.base.clone(), self.tx.clone(), ctx.clone());
                 self.saving.insert(target.clone());
                 // The copy is what the grid selects and the viewer shows once it is there.
@@ -190,10 +208,22 @@ impl App {
                 if p.gone {
                     w.note = Some((self.i18n.t("edit-copy-gone"), ctx.input(|i| i.time) + 8.0));
                 }
-                let mark = Written::of(target.clone(), &data);
+                // Where it goes, at once (the button says Update copy, and waits while it is
+                // sent); what it wrote once the file is made (`Msg::EditWritten`).
+                let mark = Written { path: target.clone(), sha: [0; 32] };
                 if p.over { w.overwritten = Some(mark) } else { w.copy = Some(mark) }
+                let name = source::name(&w.path).to_string();
                 self.rt.spawn(async move {
-                    let r = crate::kept::send(&store, &base, &target, data, how, send).await;
+                    let p2 = p.clone();
+                    let made = tokio::task::spawn_blocking(move || make(&p2, &name)).await.unwrap_or_else(|e| Err(e.to_string()));
+                    let r = match made {
+                        Ok(data) => {
+                            log!("edit: made {target:?} ({} bytes)", data.len());
+                            let _ = tx.send(crate::loader::Msg::EditWritten(path, Written::of(target.clone(), &data), over));
+                            crate::kept::send(&store, &base, &target, data, how, send).await
+                        }
+                        Err(e) => Err((("error-detail", e), None)),
+                    };
                     let _ = tx.send(crate::loader::replaced(target, r));
                     ctx.request_repaint();
                 });
@@ -281,8 +311,9 @@ mod tests {
         let original = Arc::new(Original::with_meta_of(crate::decode::decode_full(&std::fs::read(store.local_file("p/a.jpg").unwrap()).unwrap(), "a.jpg").unwrap(), &[], "a.jpg"));
         let original = bytes.as_ref().map_or(original, |b| Arc::new(Original::with_meta_of(crate::decode::decode_full(b, "a.jpg").unwrap(), b, "a.jpg")));
         let p = Arc::new(rt.block_on(prepare(store, "p/a.jpg", (doc, original), bytes, ("edited".into(), over, written))).unwrap());
-        rt.block_on(crate::kept::send(store, "file:///x/", &p.target, p.saved.data.clone(), Deletion::TrashFolder, p.send)).unwrap_or_else(|e| panic!("{:?}", e.0));
-        let mark = Written::of(p.target.clone(), &p.saved.data);
+        let data = make(&p, "a.jpg").unwrap();
+        rt.block_on(crate::kept::send(store, "file:///x/", &p.target, data.clone(), Deletion::TrashFolder, p.send)).unwrap_or_else(|e| panic!("{:?}", e.0));
+        let mark = Written::of(p.target.clone(), &data);
         (p, mark)
     }
 
@@ -314,7 +345,7 @@ mod tests {
         assert_eq!((third.send, third.target.as_str(), third.gone), (Send::Create, "p/a (edited).jpg", true));
         // Changed by another program: a new copy beside it, the changed one left alone.
         std::fs::write(dir.join("p/a (edited).jpg"), b"changed").unwrap();
-        let (fourth, _) = save(&rt, &store, &doc, false, Some(third.bytes.clone()), Some(Written::of("p/a (edited).jpg".into(), &third.saved.data)));
+        let (fourth, _) = save(&rt, &store, &doc, false, Some(third.bytes.clone()), Some(Written::of("p/a (edited).jpg".into(), &make(&third, "a.jpg").unwrap())));
         assert_eq!((fourth.target.as_str(), fourth.gone), ("p/a (edited 2).jpg", true));
         assert_eq!(std::fs::read(dir.join("p/a (edited).jpg")).unwrap(), b"changed");
         std::fs::remove_dir_all(&dir).unwrap();
