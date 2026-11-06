@@ -62,48 +62,41 @@ fn bar_button(ui: &mut egui::Ui, button: egui::Button, tip: String, off: Option<
 }
 
 impl App {
-    /// The bar at the top; what its buttons ask for.
+    /// The bar at the top; what its buttons ask for. When the window is too narrow for one row
+    /// the tools go to a new line and Copy, Close and Save copy get a row of their own, on the
+    /// right (they were cut off: user, 2026-11-06).
     pub(super) fn edit_toolbar(&mut self, ui: &mut egui::Ui, w: &mut Window) -> Option<Ask> {
-        let i18n = &self.i18n;
         let (mut ask, mut copy) = (None, false);
-        ui.horizontal(|ui| {
-            for (n, &(tool, icon, id, key)) in TOOLS.iter().enumerate() {
-                if n == TOOLS.len() - 1 {
-                    ui.separator();
-                }
-                if bar_button(ui, icons::toggle(ui, w.tool == tool, icon), tip(i18n, id, key.name()), None) {
-                    w.choose(tool);
-                }
-            }
-            for (op, icon, id, key) in [(Op::Ccw, Line::RotateCcw, "tf-rotate-ccw", "key-rotate-ccw"), (Op::Cw, Line::RotateCw, "tf-rotate-cw", "key-rotate-cw")] {
-                if bar_button(ui, icons::button(ui, icon), tip(i18n, id, &i18n.t(key)), None) {
-                    w.turn(op);
-                }
-            }
-            filters_menu(ui, w, i18n);
-            ui.separator();
-            let (can_undo, can_redo) = w.history.as_ref().map_or((false, false), |h| (h.can_undo() || w.doc != *h.doc(), h.can_redo()));
-            if bar_button(ui, icons::button(ui, Line::Undo), tip(i18n, "edit-undo", "Ctrl+Z"), (!can_undo).then(|| i18n.t("edit-off-undo"))) {
-                w.undo();
-            }
-            if bar_button(ui, icons::button(ui, Line::Redo), tip(i18n, "edit-redo", "Ctrl+Y"), (!can_redo).then(|| i18n.t("edit-off-redo"))) {
-                w.redo();
-            }
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ask = self.save_buttons(ui, w);
-                if bar_button(ui, icons::button(ui, Line::Close), tip(i18n, "rc-close", "Esc"), None) {
-                    ask = Some(Ask::Close);
-                }
-                if w.copying {
-                    ui.spinner();
-                }
-                copy = bar_button(ui, icons::button(ui, Line::Copy), tip(i18n, "edit-copy", "Ctrl+C"), w.copying.then(|| i18n.t("edit-off-copying")));
+        let step = icons::BUTTON.x + ui.spacing().item_spacing.x;
+        // The tools, the turns, Filters, Undo and Redo, three separators; Copy, Close, Save copy.
+        let need = (TOOLS.len() + 5) as f32 * step + 3.0 * 12.0 + 2.0 * step + 200.0;
+        if ui.available_width() >= need {
+            ui.horizontal(|ui| {
+                tools_row(ui, w, &self.i18n);
+                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| (ask, copy) = self.right_row(ui, w));
             });
-        });
+        } else {
+            ui.horizontal_wrapped(|ui| tools_row(ui, w, &self.i18n));
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| (ask, copy) = self.right_row(ui, w));
+        }
         if copy {
             self.act = Some(Act::EditCopy);
         }
         ask
+    }
+
+    /// Save copy (with its arrow), Close, Copy: drawn right to left; what they ask, and Copy.
+    fn right_row(&self, ui: &mut egui::Ui, w: &mut Window) -> (Option<Ask>, bool) {
+        let i18n = &self.i18n;
+        let mut ask = self.save_buttons(ui, w);
+        if bar_button(ui, icons::button(ui, Line::Close), tip(i18n, "rc-close", "Esc"), None) {
+            ask = Some(Ask::Close);
+        }
+        if w.copying {
+            ui.spinner();
+        }
+        let copy = bar_button(ui, icons::button(ui, Line::Copy), tip(i18n, "edit-copy", "Ctrl+C"), w.copying.then(|| i18n.t("edit-off-copying")));
+        (ask, copy)
     }
 
     /// Save copy, and its arrow with Save as… and Overwrite the original…: drawn right to left.
@@ -236,6 +229,32 @@ impl App {
             .inner
         })
         .inner
+    }
+}
+
+/// The tools, the quarter turns, Filters, Undo and Redo.
+fn tools_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
+    for (n, &(tool, icon, id, key)) in TOOLS.iter().enumerate() {
+        if n == TOOLS.len() - 1 {
+            ui.separator();
+        }
+        if bar_button(ui, icons::toggle(ui, w.tool == tool, icon), tip(i18n, id, key.name()), None) {
+            w.choose(tool);
+        }
+    }
+    for (op, icon, id, key) in [(Op::Ccw, Line::RotateCcw, "tf-rotate-ccw", "key-rotate-ccw"), (Op::Cw, Line::RotateCw, "tf-rotate-cw", "key-rotate-cw")] {
+        if bar_button(ui, icons::button(ui, icon), tip(i18n, id, &i18n.t(key)), None) {
+            w.turn(op);
+        }
+    }
+    filters_menu(ui, w, i18n);
+    ui.separator();
+    let (can_undo, can_redo) = w.history.as_ref().map_or((false, false), |h| (h.can_undo() || w.doc != *h.doc(), h.can_redo()));
+    if bar_button(ui, icons::button(ui, Line::Undo), tip(i18n, "edit-undo", "Ctrl+Z"), (!can_undo).then(|| i18n.t("edit-off-undo"))) {
+        w.undo();
+    }
+    if bar_button(ui, icons::button(ui, Line::Redo), tip(i18n, "edit-redo", "Ctrl+Y"), (!can_redo).then(|| i18n.t("edit-off-redo"))) {
+        w.redo();
     }
 }
 
