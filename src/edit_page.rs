@@ -632,6 +632,10 @@ impl App {
             let mut ask = self.edit_keys(ui.ctx(), &mut w);
             egui::Panel::top("edit-tools").show(ui, |ui| ask = self.edit_toolbar(ui, &mut w).or(ask.take()));
             egui::Panel::top("edit-props").show(ui, |ui| self.props_bar(ui, &mut w));
+            // I where the bar has no eyedropper (Select with nothing selected, a filter, Crop):
+            // dropped, or it turned the eyedropper on later with a drawing tool, and a second I off
+            // again (user, 2026-11-06: "only the +").
+            w.ask_pick = None;
             let bar = egui::Frame::side_top_panel(ui.style()).fill(crate::theme::solid(ui.visuals()));
             let status = egui::Panel::bottom("edit-status").frame(bar).show(ui, |ui| self.edit_status(ui, &mut w));
             // The keys of the tool in use: listed while the button is pointed at, or until it is
