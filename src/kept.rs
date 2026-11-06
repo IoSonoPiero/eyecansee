@@ -325,9 +325,27 @@ mod tests {
     #[test]
     #[ignore]
     fn edit_server_live() {
-        let url = std::env::var("EYECANSEE_SFTP").or_else(|_| std::env::var("EYECANSEE_FTP")).expect("EYECANSEE_SFTP or EYECANSEE_FTP");
         let root = std::env::temp_dir().join(format!("eyecansee-kept-live-{}", std::process::id()));
+        let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
         tokio::runtime::Runtime::new().unwrap().block_on(async {
+            // A phone (EYECANSEE_MTP=<serial>, EyeCanSee closed): in its first storage.
+            let (store, dir, url) = if let Ok(serial) = std::env::var("EYECANSEE_MTP") {
+                let op = Store::Mtp(std::sync::Arc::new(crate::mtp::Phone::new(&serial)));
+                let first = op.list("").await.unwrap().dirs[0].clone();
+                (op, format!("{first}eyecansee-edit-test-{secs}/"), format!("mtp://{serial}/"))
+            } else {
+                server_dir(secs).await
+            };
+            edit_live(&root, &store, &dir, &url).await;
+        });
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    /// The server of EYECANSEE_SFTP or EYECANSEE_FTP, the test folder in its home, its address
+    /// without the password.
+    async fn server_dir(secs: u64) -> (Store, String, String) {
+        let url = std::env::var("EYECANSEE_SFTP").or_else(|_| std::env::var("EYECANSEE_FTP")).expect("EYECANSEE_SFTP, EYECANSEE_FTP or EYECANSEE_MTP");
+        {
             let mut s = source::open(&url).unwrap();
             // A key with a passphrase, as a saved server has it (never the system's agent):
             // EYECANSEE_SSH_KEY and EYECANSEE_SSH_PASSPHRASE, never written to a file.
@@ -341,17 +359,21 @@ mod tests {
                 Store::Ftp(server) => server.home().await.unwrap(),
                 _ => panic!("not a server"),
             };
-            let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
             let dir = format!("{}eyecansee-edit-test-{secs}/", if s.home { &home } else { &s.dir });
-            let op = &s.op;
             // The address without its password, as the app keeps it (`Source::base`).
-            let url = s.base.clone();
+            (s.op, dir, s.base)
+        }
+    }
+
+    /// The steps of `edit_server_live` in `dir` (made, then deleted) of `op`.
+    async fn edit_live(root: &std::path::Path, op: &Store, dir: &str, url: &str) {
+        {
             println!("{url}: {dir}");
-            op.create_dir(&dir).await.unwrap();
+            op.create_dir(dir).await.unwrap();
             let put = |path: String, data: &'static [u8]| async move { crate::replace::write_whole(op, &path, data.to_vec()).await.unwrap() };
             put(format!("{dir}a.jpg"), b"original").await;
             let send = |path: String, data: &'static [u8], how| {
-                let (root, url) = (root.clone(), url.clone());
+                let (root, url) = (root.to_path_buf(), url.to_string());
                 async move { send_in(Some(root), op, &url, &path, data.to_vec(), source::Deletion::TrashFolder, how).await }
             };
             // The copy, then the same name again: refused, kept.
@@ -384,10 +406,9 @@ mod tests {
             let mut names: Vec<String> = op.names(&format!("{dir}b/")).await.unwrap().into_iter().collect();
             names.sort();
             assert_eq!(names, [crate::trash::TRASH_DIR, "a.jpg"]);
-            op.delete(&dir, source::Deletion::Permanent).await.unwrap();
-            assert_eq!(op.check_dir(&dir).await.unwrap_err().0, source::NOT_FOUND);
+            op.delete(dir, source::Deletion::Permanent).await.unwrap();
+            assert_eq!(op.check_dir(dir).await.unwrap_err().0, source::NOT_FOUND);
             println!("{url}: all done, {dir} deleted");
-        });
-        let _ = std::fs::remove_dir_all(&root);
+        }
     }
 }
