@@ -113,6 +113,15 @@ fn paint(ui: &egui::Ui, w: &mut Window, tex: &TextureHandle, view: &View, rect: 
         if let Some(a) = w.marquee {
             ants(&painter, a, view, w.doc.angle);
         }
+        // A highlighter or a spotlight being drawn shows its box: on a dark photo the tint alone
+        // hardly shows where it goes (user, 2026-11-06).
+        if let Some(Hold::Draw { index: Some(i), .. }) = &w.hold
+            && let Some(o) = w.doc.objects.get(*i)
+            && matches!(o.shape, Shape::Highlight { .. } | Shape::Spotlight(_))
+            && let Some(a) = o.shape.area()
+        {
+            ants(&painter, *a, view, w.doc.angle);
+        }
     }
 }
 
