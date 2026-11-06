@@ -166,3 +166,17 @@ impl App {
         self.next_restore();
     }
 }
+
+/// Closing EyeCanSee: a save under way is waited for; anything else in the background (the
+/// decoding of a large image, the neighbours read ahead, thumbnails) gets half a second, then is
+/// left: the runtime waited for every one of them, and the window stayed frozen for seconds on
+/// Windows after a 45-megapixel HEIC (user, 2026-11-06).
+impl Drop for crate::App {
+    fn drop(&mut self) {
+        if self.saving.is_empty()
+            && let Ok(small) = tokio::runtime::Builder::new_current_thread().build()
+        {
+            std::mem::replace(&mut self.rt, small).shutdown_timeout(std::time::Duration::from_millis(500));
+        }
+    }
+}
