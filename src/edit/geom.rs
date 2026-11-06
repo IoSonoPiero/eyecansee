@@ -15,6 +15,7 @@ pub enum Kind {
     Pen,
     Rect,
     Ellipse,
+    Step,
     Highlight,
     Text,
     Cover,
@@ -32,6 +33,7 @@ impl Kind {
             Shape::Pen(_) => Kind::Pen,
             Shape::Rect(_) => Kind::Rect,
             Shape::Ellipse(_) => Kind::Ellipse,
+            Shape::Step { .. } => Kind::Step,
             Shape::Highlight(_) => Kind::Highlight,
             Shape::Text { .. } => Kind::Text,
             Shape::Cover(_) => Kind::Cover,
@@ -117,6 +119,7 @@ pub fn hit(o: &Obj, p: Pt, tol: f32) -> bool {
         Shape::Pen(points) => points.windows(2).map(|s| segment_distance(p, s[0], s[1])).chain(points.first().map(|q| (p.x - q.x).hypot(p.y - q.y))).fold(f32::INFINITY, f32::min) <= o.style.width / 2.0 + tol,
         Shape::Text { at, text, size, rot, .. } => inside(&text_area(*at, text, *size, *rot), p, tol),
         Shape::Ellipse(r) => inside_ellipse(r, p, o.style.width / 2.0 + tol),
+        Shape::Step { area, .. } => inside_ellipse(area, p, tol),
         shape => shape.area().is_some_and(|r| inside(r, p, tol)),
     }
 }
@@ -171,12 +174,18 @@ pub fn handles(o: &Obj) -> Vec<Pt> {
 }
 
 /// The object with handle `i` moved to `p`: the other end of a line, the opposite corner of a box
-/// stay where they were. A box keeps its own angle and is at least a pixel wide.
+/// stay where they were. A box keeps its own angle and is at least a pixel wide; a step stays
+/// square.
 pub fn with_handle(o: &Obj, i: usize, p: Pt) -> Obj {
+    let square = matches!(o.shape, Shape::Step { .. });
     let resized = |r: &Area| {
         let fixed = corners(r)[(i + 2) % 4];
         // The dragged corner from the fixed one, on the box's own sides.
-        let q = turned(sub(p, fixed), -r.rot);
+        let mut q = turned(sub(p, fixed), -r.rot);
+        if square {
+            let side = q.x.abs().max(q.y.abs());
+            q = Pt::new(side.copysign(q.x), side.copysign(q.y));
+        }
         let mid = turned(Pt::new(q.x / 2.0, q.y / 2.0), r.rot);
         Area { centre: Pt::new(fixed.x + mid.x, fixed.y + mid.y), w: q.x.abs().max(1.0), h: q.y.abs().max(1.0), rot: r.rot }
     };
@@ -242,7 +251,8 @@ pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style, square: bool) -
         Kind::Ellipse => Shape::Ellipse(area()?),
         Kind::Highlight => Shape::Highlight(area()?),
         Kind::Cover => Shape::Cover(area()?),
-        Kind::Patch | Kind::Filter => return None,
+        // Placed with a click (`step`).
+        Kind::Patch | Kind::Filter | Kind::Step => return None,
         Kind::Text => Shape::Text { at: a, text: String::new(), size: style.width, rot: -angle, font: None, path: None },
     };
     Some(Obj { shape, style })
@@ -316,6 +326,12 @@ mod tests {
     }
 }
 
+/// A step placed with a click at `at` on an image shown turned by `angle`: upright on the screen,
+/// as wide as `style.width`, numbered `n`.
+pub fn step(at: Pt, n: u32, angle: f32, style: Style) -> Obj {
+    Obj { shape: Shape::Step { area: Area { centre: at, w: style.width, h: style.width, rot: -angle }, n }, style }
+}
+
 /// A stroke drawn by hand with the pointer now at `p`: the point added when it is at least
 /// `step` from the last one (a pointer that hardly moved would add a crowd of points).
 pub fn pen_to(o: &mut Obj, p: Pt, step: f32) {
@@ -359,5 +375,15 @@ mod curves {
         let big = with_handle(&o, 2, Pt::new(20.0, 30.0));
         assert_eq!(big.shape, Shape::Pen(vec![Pt::new(0.0, 0.0), Pt::new(20.0, 0.0), Pt::new(20.0, 30.0)]));
         assert_eq!(handles(&moved(&big, Pt::new(1.0, 1.0)))[0], Pt::new(1.0, 1.0));
+    }
+
+    /// A step: hit inside its disc, not in the corners of its box; a corner dragged keeps it
+    /// square, the opposite corner where it was.
+    #[test]
+    fn step_stays_round() {
+        let o = step(Pt::new(0.0, 0.0), 1, 0.0, Style { width: 20.0, ..Style::default() });
+        assert!(hit(&o, Pt::new(9.0, 0.0), 0.0) && !hit(&o, Pt::new(9.0, 9.0), 0.0));
+        let Shape::Step { area, .. } = with_handle(&o, 2, Pt::new(30.0, 15.0)).shape else { unreachable!() };
+        assert_eq!((area.w, area.h, area.centre), (40.0, 40.0, Pt::new(10.0, 10.0)));
     }
 }

@@ -16,7 +16,7 @@ use crate::icons::{self, Line};
 use crate::transform::Op;
 
 /// The tools: icon, name, key (alone, no Ctrl).
-pub(super) const TOOLS: [(Tool, Line, &str, Key); 11] = [
+pub(super) const TOOLS: [(Tool, Line, &str, Key); 12] = [
     (Tool::Select, Line::Select, "edit-tool-select", Key::V),
     (Tool::Marquee, Line::Marquee, "edit-tool-marquee", Key::M),
     (Tool::Draw(Kind::Arrow), Line::Arrow, "edit-tool-arrow", Key::A),
@@ -26,6 +26,7 @@ pub(super) const TOOLS: [(Tool, Line, &str, Key); 11] = [
     (Tool::Draw(Kind::Ellipse), Line::Ellipse, "edit-tool-ellipse", Key::E),
     (Tool::Draw(Kind::Highlight), Line::Highlight, "edit-tool-highlight", Key::H),
     (Tool::Draw(Kind::Text), Line::Text, "edit-tool-text", Key::T),
+    (Tool::Draw(Kind::Step), Line::Step, "edit-tool-step", Key::N),
     (Tool::Draw(Kind::Cover), Line::Cover, "edit-tool-cover", Key::B),
     (Tool::Crop, Line::Crop, "edit-tool-crop", Key::C),
 ];
@@ -273,6 +274,7 @@ fn hint_id(tool: Tool) -> &'static str {
         Tool::Crop => "edit-tip-crop",
         Tool::Draw(Kind::Text) => "edit-tip-text",
         Tool::Draw(Kind::Cover) => "edit-tip-cover",
+        Tool::Draw(Kind::Step) => "edit-tip-step",
         Tool::Draw(_) => "edit-tip-draw",
     }
 }
@@ -297,9 +299,11 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
         Some(i) => w.doc.objects[i].style,
         None => w.style(kind),
     };
-    // A text's size lives in the text; the style keeps it for the next one.
-    if let Some(Shape::Text { size, .. }) = selected.map(|i| &w.doc.objects[i].shape) {
-        style.width = *size;
+    // A text's size lives in the text, a step's in its box; the style keeps it for the next one.
+    match selected.map(|i| &w.doc.objects[i].shape) {
+        Some(Shape::Text { size, .. }) => style.width = *size,
+        Some(Shape::Step { area, .. }) => style.width = area.w,
+        _ => {}
     }
     if let Some(c) = w.picked.take() {
         style.color = c;
@@ -335,8 +339,15 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     if let Some(i) = selected {
         let o = &mut w.doc.objects[i];
         o.style = style;
-        if let Shape::Text { size, .. } = &mut o.shape {
-            *size = style.width;
+        match &mut o.shape {
+            Shape::Text { size, .. } => *size = style.width,
+            Shape::Step { area, n } => {
+                (area.w, area.h) = (style.width, style.width);
+                ui.separator();
+                ui.label(i18n.t("edit-step-number"));
+                ui.add(egui::DragValue::new(n).range(0..=999));
+            }
+            _ => {}
         }
         ui.separator();
         if bar_button(ui, icons::button(ui, Line::Delete), format!("{} ({})", i18n.t("edit-delete"), i18n.t("key-delete")), None) {
@@ -377,7 +388,7 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
     ui.spacing_mut().slider_width = 110.0;
     match kind {
         Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse => slider(ui, t("edit-width"), &mut style.width, 1.0..=max, " px"),
-        Kind::Text => slider(ui, t("edit-size"), &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
+        Kind::Text | Kind::Step => slider(ui, t("edit-size"), &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
         Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter => {}
     }
     if kind != Kind::Cover {

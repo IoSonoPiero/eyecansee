@@ -460,3 +460,14 @@ fn by_hand_saved() {
     assert_eq!(img.get_pixel(12, 14).0[..3], BLUE);
     assert_eq!(img.get_pixel(52, 14).0[..3], BLUE);
 }
+
+/// A step in the saved image: its disc in its colour around the white number.
+#[test]
+fn step_saved() {
+    let mut doc = Doc::new(64, 48, None);
+    doc.objects.push(crate::edit::geom::step(Pt::new(0.0, 0.0), 2, 0.0, Style { color: BLUE, width: 30.0, ..Style::default() }));
+    let img = result(&doc, &Original::with_meta(motif(), &[]), &options());
+    assert_eq!(img.get_pixel(32, 11).0[..3], BLUE);
+    let white = (24..40).flat_map(|x| (16..32).map(move |y| (x, y))).filter(|&(x, y)| img.get_pixel(x, y).0[..3].iter().all(|&v| v > 180)).count();
+    assert!(white > 15, "{white}");
+}

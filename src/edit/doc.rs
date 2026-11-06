@@ -64,6 +64,9 @@ pub enum Shape {
     Rect(Area),
     /// A stroke drawn by hand: the points the pointer went through, drawn smoothed.
     Pen(Vec<Pt>),
+    /// A step: a disc of the colour of the style with the number `n` in it, in black or white,
+    /// whichever reads better on it; its box is square.
+    Step { area: Area, n: u32 },
     /// The ellipse inside the box, with a border and a fill as the rectangle.
     Ellipse(Area),
     Highlight(Area),
@@ -208,14 +211,14 @@ impl Shape {
     /// The box of the objects drawn in one: rectangles, cover boxes, patches, filters…
     pub fn area(&self) -> Option<&Area> {
         match self {
-            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } => Some(a),
+            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } => Some(a),
             Shape::Line(..) | Shape::Arrow(..) | Shape::Pen(_) | Shape::Text { .. } => None,
         }
     }
 
     pub fn area_mut(&mut self) -> Option<&mut Area> {
         match self {
-            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } => Some(a),
+            Shape::Rect(a) | Shape::Ellipse(a) | Shape::Highlight(a) | Shape::Cover(a) | Shape::Patch { area: a, .. } | Shape::Filter { area: a, .. } | Shape::Step { area: a, .. } => Some(a),
             Shape::Line(..) | Shape::Arrow(..) | Shape::Pen(_) | Shape::Text { .. } => None,
         }
     }
@@ -320,6 +323,11 @@ impl Doc {
         })
     }
 
+    /// The number of the next step: one more than the highest there is.
+    pub fn next_step(&self) -> u32 {
+        self.objects.iter().filter_map(|o| if let Shape::Step { n, .. } = o.shape { Some(n) } else { None }).max().unwrap_or(0) + 1
+    }
+
     /// The point of the upright image, from its centre, that `p` (from the centre of the image
     /// after the flips and quarter turns) is over: what the turn did, undone.
     pub fn source(&self, p: Pt) -> Pt {
@@ -370,6 +378,7 @@ pub(crate) mod tests {
             Obj { shape: Shape::Arrow(Pt::new(0.1, 0.2), Pt::new(-12.3, 7.7), None), style: Style { dash: Dash::Dashed, ..style } },
             Obj { shape: Shape::Rect(area), style },
             Obj { shape: Shape::Ellipse(Area { rot: 12.0, ..area }), style },
+            Obj { shape: Shape::Step { area: Area { w: 5.0, h: 5.0, ..area }, n: 3 }, style },
             Obj { shape: Shape::Pen(vec![Pt::new(1.0, 2.0), Pt::new(3.5, -4.0), Pt::new(8.0, 0.5)]), style },
             Obj { shape: Shape::Highlight(area), style: Style { opacity: 0.4, ..style } },
             Obj { shape: Shape::Text { at: Pt::new(5.0, -6.0), text: "à €".into(), size: 12.0, rot: -3.5, font: None, path: None }, style },
@@ -389,6 +398,15 @@ pub(crate) mod tests {
                 shape => vec![shape.area().unwrap().centre],
             })
             .collect()
+    }
+
+    /// The next step is one more than the highest, whatever the order; 1 with none.
+    #[test]
+    fn next_step() {
+        let mut d = sample();
+        assert_eq!(d.next_step(), 4);
+        d.objects.retain(|o| !matches!(o.shape, Shape::Step { .. }));
+        assert_eq!(d.next_step(), 1);
     }
 
     /// Four quarter turns, two halves, two flips of either kind, a turn and its opposite: the

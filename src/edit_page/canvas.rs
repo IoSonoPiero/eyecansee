@@ -343,7 +343,8 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
             _ if pan => Hold::Pan { at: view.at, k: view.k, from: s },
             // Resizing the selected object needs no change of tool.
             Tool::Draw(_) if let Some((index, handle)) = on_handle => Hold::Handle { index, handle, start: w.doc.objects[index].clone() },
-            Tool::Draw(Kind::Text) => Hold::Pan { at: view.at, k: view.k, from: s },
+            // Placed with a click: a drag moves the view.
+            Tool::Draw(Kind::Text | Kind::Step) => Hold::Pan { at: view.at, k: view.k, from: s },
             Tool::Draw(kind) => Hold::Draw { kind, from: p, index: None },
             _ => picked(w, view, s, p, tol),
         });
@@ -502,10 +503,12 @@ fn resize_cursor(w: &Window, view: &View, index: usize, handle: usize) -> Cursor
 fn clicked(w: &mut Window, p: Pt, tol: f32) {
     let under = geom::under(&w.doc.objects, p, tol);
     // With a drawing tool, an object clicked is selected and its tool chosen: the bar shows its
-    // style (user, 2026-11-05). Select stays Select, to go on moving objects.
-    if let (Some(i), Tool::Draw(_)) = (under, w.tool) {
+    // style (user, 2026-11-05). Select stays Select, to go on moving objects. Not a filter or a
+    // patch, which have no tool (a filter on the whole image took every click).
+    let tool_of = under.map(|i| Tool::Draw(Kind::of(&w.doc.objects[i]))).filter(|t| super::tools::TOOLS.iter().any(|(tool, ..)| tool == t));
+    if let (Some(i), Some(tool), Tool::Draw(_)) = (under, tool_of, w.tool) {
         let kind = Kind::of(&w.doc.objects[i]);
-        w.tool = Tool::Draw(kind);
+        w.tool = tool;
         w.selected = Some(i);
         w.focus_text = kind == Kind::Text;
         return;
@@ -520,6 +523,9 @@ fn clicked(w: &mut Window, p: Pt, tol: f32) {
             w.selected = Some(w.doc.objects.len() - 1);
         }
         w.focus_text = true;
+    } else if w.tool == Tool::Draw(Kind::Step) {
+        w.doc.objects.push(geom::step(p, w.doc.next_step(), w.doc.angle, w.style(Kind::Step)));
+        w.selected = Some(w.doc.objects.len() - 1);
     } else {
         w.selected = under;
     }

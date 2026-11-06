@@ -425,6 +425,7 @@ fn default_style(kind: Kind, long: f32) -> Style {
         Kind::Highlight => Style::highlighter(),
         Kind::Cover => Style { color: [0, 0, 0], width, ..Style::default() },
         Kind::Text => Style { width: (long / 25.0).round().max(8.0), ..Style::default() },
+        Kind::Step => Style { width: (long / 20.0).round().max(16.0), ..Style::default() },
         _ => Style { width, ..Style::default() },
     }
 }

@@ -66,6 +66,7 @@ fn object(out: &mut String, o: &Obj) {
     let _ = match &o.shape {
         Shape::Line(a, b, c) => line(out, *a, *b, *c, &stroke),
         Shape::Arrow(a, b, c) => arrow(out, (*a, *b, *c), head, width, &stroke, &fill),
+        Shape::Step { area, n } => step(out, area, *n, o.style.color),
         Shape::Pen(points) => write!(out, r#"<path d="{}" {stroke} stroke-linejoin="round"/>"#, smooth(points)),
         // The inside first, the border over it.
         Shape::Rect(area) | Shape::Ellipse(area) => {
@@ -119,6 +120,27 @@ fn smooth(points: &[Pt]) -> String {
     }
     let _ = write!(d, " L{} {}", last.x, last.y);
     d
+}
+
+/// Black or white, whichever reads better on `c` (by its luminance).
+pub fn ink_on([r, g, b]: [u8; 3]) -> [u8; 3] {
+    if 0.299 * r as f32 + 0.587 * g as f32 + 0.114 * b as f32 > 140.0 { [0, 0, 0] } else { [255, 255, 255] }
+}
+
+/// A step: the disc, and its number in bold, smaller as it has more digits.
+fn step(out: &mut String, a: &Area, n: u32, colour: [u8; 3]) -> std::fmt::Result {
+    let ([r, g, b], [ir, ig, ib]) = (colour, ink_on(colour));
+    let Area { centre: c, w, rot, .. } = *a;
+    let size = w * match n {
+        0..=9 => 0.62,
+        10..=99 => 0.5,
+        _ => 0.38,
+    };
+    write!(
+        out,
+        r#"<g transform="rotate({rot} {} {})"><circle cx="{}" cy="{}" r="{}" fill="rgb({r},{g},{b})"/><text x="{}" y="{}" font-family="sans-serif" font-weight="bold" font-size="{size}" text-anchor="middle" dominant-baseline="central" fill="rgb({ir},{ig},{ib})">{n}</text></g>"#,
+        c.x, c.y, c.x, c.y, w / 2.0, c.x, c.y
+    )
 }
 
 /// Centre, radii and own angle of the ellipse in a box.
@@ -512,6 +534,23 @@ pub(crate) mod tests {
         // Both ends drawn; the sharp corner at 50, 40 cut off: the curve passes inside it.
         assert!(alpha(&p, 21, 40) > 128 && alpha(&p, 50, 69) > 128);
         assert!(alpha(&p, 52, 38) == 0 && alpha(&p, 46, 44) > 128, "{} {}", alpha(&p, 52, 38), alpha(&p, 46, 44));
+    }
+
+    /// A step: the disc in its colour, the number in white on red, in black on yellow, in the
+    /// middle; nothing outside the disc.
+    #[test]
+    fn step_numbered() {
+        for (colour, ink) in [([255, 0, 0], [255, 255, 255]), ([255, 230, 0], [0, 0, 0])] {
+            let d = doc(vec![Obj { shape: Shape::Step { area: area(0.0, 0.0, 40.0, 40.0), n: 7 }, style: Style { color: colour, ..style() } }]);
+            let p = draw(&d, &whole(&d));
+            let c = |x, y| { let c = p.pixel(x, y).unwrap().demultiply(); [c.red(), c.green(), c.blue()] };
+            assert_eq!((c(50, 22), c(32, 40)), (colour, colour), "the disc");
+            // Pixels nearer to the ink than to the disc: the strokes of the 7.
+            let near = |x, y| c(x, y).iter().zip(&ink).map(|(a, b)| a.abs_diff(*b) as u32).sum::<u32>() < 120;
+            let inked = (35..65).flat_map(|x| (25..55).map(move |y| (x, y))).filter(|&(x, y)| near(x, y)).count();
+            assert!(inked > 20, "{inked} pixels of the number");
+            assert_eq!((alpha(&p, 33, 23), alpha(&p, 75, 40)), (0, 0));
+        }
     }
 
     /// A patch: its pixels where its box is, stretched to it.
