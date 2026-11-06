@@ -619,6 +619,11 @@ impl App {
                 Some(Ask::Close) => open = false,
                 None => {}
             }
+            // Bubbles as tall as their text needs (it goes to a new line at their width).
+            let fonts = crate::decode::usvg_options();
+            for o in &mut w.doc.objects {
+                crate::edit::bubble::fit(o, &fonts);
+            }
             self.settle(ui.ctx(), &mut w);
         } else {
             open &= self.edit_not_ready(ui, &w);

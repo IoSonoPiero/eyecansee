@@ -82,7 +82,7 @@ fn object(out: &mut String, o: &Obj, options: &usvg::Options) {
         // All together, in `spotlights`.
         Shape::Spotlight(_) => Ok(()),
         Shape::Lens { area, preview } => lens(out, area, preview, &o.style, &stroke),
-        Shape::Bubble { area, tail, text, font } => bubble(out, (area, *tail), text, font.as_deref(), &o.style),
+        Shape::Bubble { area, tail, text, font } => super::bubble::svg(out, (area, *tail), (text, font.as_deref()), &o.style, options),
         Shape::Pen(points) => write!(out, r#"<path d="{}" {stroke} stroke-linejoin="round"/>"#, smooth(points)),
         // The inside first, the border over it.
         Shape::Rect(area) | Shape::Ellipse(area) => {
@@ -227,36 +227,6 @@ fn step(out: &mut String, a: &Area, n: u32, colour: [u8; 3]) -> std::fmt::Result
     )
 }
 
-/// A speech bubble: its border is drawn twice as wide around its shape and its tail, and the
-/// inside of both is cut out of it (a mask), so it shows only outside them, with no line where
-/// the tail joins; then the fill, then the letters.
-fn bubble(out: &mut String, (a, tail): (&Area, Pt), text: &str, font: Option<&str>, style: &Style) -> std::fmt::Result {
-    let ([r, g, b], [ir, ig, ib]) = (style.color, style.ink);
-    // Its own id in this SVG: the address of its box, unique while it is drawn.
-    let id = format!("b{:x}", a as *const Area as usize);
-    let short = a.w.min(a.h);
-    let body = if style.round { format!("<ellipse {}/>", ellipse(a)) } else { format!(r#"<rect {} rx="{}"/>"#, rect(a), 0.2 * short) };
-    // The tail from a base across the middle of the bubble, as wide as a third of its short side.
-    let (dx, dy) = (tail.x - a.centre.x, tail.y - a.centre.y);
-    let len = dx.hypot(dy).max(1e-3);
-    let (nx, ny) = (-dy / len * 0.15 * short, dx / len * 0.15 * short);
-    let shape = format!(r#"{body}<polygon points="{},{} {},{} {},{}"/>"#, a.centre.x + nx, a.centre.y + ny, tail.x, tail.y, a.centre.x - nx, a.centre.y - ny);
-    // The mask only round the bubble and its border: one as large as the image cost seconds.
-    let reach = a.w.hypot(a.h) / 2.0 + 2.0 * style.width + 1.0;
-    let (x0, y0) = ((a.centre.x - reach).min(tail.x - 2.0 * style.width - 1.0), (a.centre.y - reach).min(tail.y - 2.0 * style.width - 1.0));
-    let (x1, y1) = ((a.centre.x + reach).max(tail.x + 2.0 * style.width + 1.0), (a.centre.y + reach).max(tail.y + 2.0 * style.width + 1.0));
-    let all = format!(r#"x="{x0}" y="{y0}" width="{}" height="{}""#, x1 - x0, y1 - y0);
-    write!(out, r#"<defs><mask id="{id}" maskUnits="userSpaceOnUse" {all}><rect {all} fill="white"/><g fill="black">{shape}</g></mask></defs>"#)?;
-    write!(out, r#"<g mask="url(#{id})" fill="none" stroke="rgb({r},{g},{b})" stroke-width="{}" stroke-linejoin="round">{shape}</g>"#, 2.0 * style.width)?;
-    if let Some([fr, fg, fb]) = style.fill {
-        write!(out, r#"<g fill="rgb({fr},{fg},{fb})">{shape}</g>"#)?;
-    }
-    if text.trim().is_empty() {
-        return Ok(());
-    }
-    self::text(out, (a.centre, style.letters.max(1.0), a.rot), text, font, &format!(r#"fill="rgb({ir},{ig},{ib})""#))
-}
-
 /// A lens: its picture (the preview, or the full size one when saving) cut to a circle or to its
 /// box, and its border.
 fn lens(out: &mut String, a: &Area, preview: &super::doc::Preview, style: &Style, stroke: &str) -> std::fmt::Result {
@@ -352,7 +322,7 @@ fn arrow(out: &mut String, (a, b, c): (Pt, Pt, Option<Pt>), head: Head, width: f
 
 /// Centred on `at`, one line under the other, in `font` (falling back on the system's
 /// sans-serif one, also for a font no longer installed).
-fn text(out: &mut String, (at, size, rot): (Pt, f32, f32), text: &str, font: Option<&str>, fill: &str) -> std::fmt::Result {
+pub(super) fn text(out: &mut String, (at, size, rot): (Pt, f32, f32), text: &str, font: Option<&str>, fill: &str) -> std::fmt::Result {
     let lines: Vec<&str> = text.lines().collect();
     let first = at.y - (lines.len().max(1) - 1) as f32 * 0.6 * size;
     let family = family(font);
@@ -738,16 +708,16 @@ pub(crate) mod tests {
     /// the letters in the middle in their colour; oval too.
     #[test]
     fn bubble_with_tail() {
-        for round in [false, true] {
-            let s = Style { color: [255, 0, 0], width: 2.0, fill: Some([255, 255, 255]), ink: [0, 0, 255], letters: 16.0, round, ..style() };
+        for round in [crate::edit::bubble::Balloon::Rounded, crate::edit::bubble::Balloon::Oval] {
+            let s = Style { color: [255, 0, 0], width: 2.0, fill: Some([255, 255, 255]), ink: [0, 0, 255], letters: 16.0, balloon: round, ..style() };
             let d = doc(vec![Obj { shape: Shape::Bubble { area: area(0.0, -10.0, 60.0, 30.0), tail: Pt::new(-20.0, 30.0), text: "Hi".into(), font: None }, style: s }]);
             let p = draw(&d, &whole(&d));
             let c = |x, y| { let c = p.pixel(x, y).unwrap().demultiply(); [c.red(), c.green(), c.blue(), c.alpha()] };
             // The box 20..80 × 15..45: the border just outside its top side, white inside.
-            assert_eq!((c(50, 14), c(60, 20)), ([255, 0, 0, 255], [255, 255, 255, 255]), "round {round}");
+            assert_eq!((c(50, 14), c(60, 20)), ([255, 0, 0, 255], [255, 255, 255, 255]), "{round:?}");
             // The tail from the middle (50, 30) to 30, 70: white along it under the box, no red
             // line where it joins the bubble (y 45).
-            assert_eq!((c(38, 54), c(42, 45)), ([255, 255, 255, 255], [255, 255, 255, 255]), "round {round}");
+            assert_eq!((c(38, 54), c(42, 45)), ([255, 255, 255, 255], [255, 255, 255, 255]), "{round:?}");
             let blue = (40..60).flat_map(|x| (24..36).map(move |y| (x, y))).filter(|&(x, y)| c(x, y)[2] > 150 && c(x, y)[0] < 100).count();
             assert!(blue > 10, "letters: {blue}");
         }

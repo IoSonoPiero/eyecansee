@@ -96,9 +96,10 @@ pub(super) fn round_or_square(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n)
 /// image, for the largest size).
 pub(super) fn bubble(ui: &mut egui::Ui, style: &mut Style, long: f32, i18n: &I18n) {
     ui.separator();
-    for (round, icon, id) in [(false, Line::Bubble, "edit-bubble-rounded"), (true, Line::Ellipse, "edit-bubble-oval")] {
-        if ui.add(icons::toggle(ui, style.round == round, icon)).on_hover_text(i18n.t(id)).clicked() {
-            style.round = round;
+    use crate::edit::bubble::Balloon;
+    for (balloon, id) in Balloon::ALL.into_iter().zip(["edit-bubble-rounded", "edit-bubble-oval", "edit-bubble-square", "edit-bubble-cloud", "edit-bubble-shout"]) {
+        if ui.add(icons::toggle(ui, style.balloon == balloon, Line::Balloon(balloon))).on_hover_text(i18n.t(id)).clicked() {
+            style.balloon = balloon;
         }
     }
     ui.separator();

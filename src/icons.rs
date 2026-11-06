@@ -147,6 +147,8 @@ pub enum Line {
     Stamp,
     /// The icon of a stamp.
     Mark(crate::edit::doc::Stamp),
+    /// The shape of a bubble.
+    Balloon(crate::edit::bubble::Balloon),
     Cover,
     Crop,
     Undo,
@@ -231,6 +233,7 @@ fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Circle => lucide!("circle").into(),
         Line::Stamp => lucide!("stamp").into(),
         Line::Mark(stamp) => stamp.svg().into(),
+        Line::Balloon(b) => balloon_svg(b),
         Line::Cover => lucide!("eye-off").into(),
         Line::Crop => lucide!("crop").into(),
         Line::Undo => lucide!("undo-2").into(),
@@ -269,6 +272,19 @@ fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Dashed => own("M3 12h4M10 12h4M17 12h4"),
         // Dots wider than the line, or they look like specks.
         Line::Dotted => format!("{}<path d=\"M4.5 12h.01M9.5 12h.01M14.5 12h.01M19.5 12h.01\"/></svg>", LINE.replace("stroke-width=\"2\"", "stroke-width=\"3.5\"")).into(),
+    }
+}
+
+/// The shapes of a bubble: Lucide's rounded and round ones, ours for the others, same style.
+fn balloon_svg(b: crate::edit::bubble::Balloon) -> std::borrow::Cow<'static, str> {
+    use crate::edit::bubble::Balloon;
+    let own = |path: &str| format!("{LINE}<path d=\"{path}\"/></svg>").into();
+    match b {
+        Balloon::Rounded => lucide!("message-square").into(),
+        Balloon::Oval => lucide!("message-circle").into(),
+        Balloon::Square => own("M3 3h18v14H8l-5 4z"),
+        Balloon::Cloud => format!(r#"{LINE}<path d="M7 17a4 4 0 0 1-1-7.9A5 5 0 0 1 15 6a4 4 0 0 1 4 7 3 3 0 0 1-3 4z"/><circle cx="6" cy="20.5" r="1.2"/><circle cx="3" cy="22" r=".6"/></svg>"#).into(),
+        Balloon::Shout => own("M12 2l1.8 4.6 4.7-1.9-1.4 4.8 4.9 1.5-4.4 2.5 2.6 4.3-5-.6-.5 5-3.7-3.4-3.7 3.4-.5-5-5 .6 2.6-4.3L2.4 11l4.9-1.5-1.4-4.8 4.7 1.9z"),
     }
 }
 
@@ -336,6 +352,10 @@ mod tests {
             let img = render(&line_svg(icon).replace("currentColor", "#ff0000"), 24);
             let red = img.pixels.iter().filter(|p| p.a() > 128 && p.r() > 200 && p.g() < 60).count();
             assert!(red > 10, "{icon:?}: {red} pixels");
+        }
+        for b in crate::edit::bubble::Balloon::ALL {
+            let img = render(&line_svg(Balloon(b)).replace("currentColor", "#ff0000"), 24);
+            assert!(img.pixels.iter().filter(|p| p.a() > 128 && p.r() > 200).count() > 10, "{b:?}");
         }
         for &stamp in crate::edit::doc::Stamp::ALL {
             let img = render(&line_svg(Mark(stamp)).replace("currentColor", "#ff0000"), 24);

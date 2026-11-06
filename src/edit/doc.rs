@@ -67,8 +67,9 @@ pub enum Shape {
     /// A step: a disc of the colour of the style with the number `n` in it, in black or white,
     /// whichever reads better on it; its box is square.
     Step { area: Area, n: u32 },
-    /// A speech bubble: rounded or oval (`Style::round`) in its box, a tail to `tail`, its text
-    /// in the middle in `font` (as `Text`), the letters as the style says (`ink`, `letters`).
+    /// A speech bubble: of the shape of `Style::balloon` in its box, a tail to `tail`, its text
+    /// in the middle in `font` (as `Text`), broken into lines to fit, the letters as the style
+    /// says (`ink`, `letters`); `edit::bubble`.
     Bubble { area: Area, tail: Pt, text: String, font: Option<String> },
     /// A lens: the photo under the box magnified `Style::zoom` times, round (`Style::round`) or
     /// as the box, with a border; `preview` as a filter's, made from the photo.
@@ -324,7 +325,10 @@ pub struct Style {
     /// Bubbles: the height of the letters, in pixels of the image (0 in styles kept before it).
     #[serde(default)]
     pub letters: f32,
-    /// Bubbles oval instead of rounded, lenses and spotlights round instead of square.
+    /// Bubbles: their shape.
+    #[serde(default)]
+    pub balloon: super::bubble::Balloon,
+    /// Lenses and spotlights round instead of square.
     #[serde(default)]
     pub round: bool,
     /// Lenses: how many times they magnify.
@@ -343,7 +347,7 @@ pub struct Style {
 
 impl Default for Style {
     fn default() -> Style {
-        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None, ink: [0, 0, 0], letters: 0.0, round: false, zoom: 2, stamp: Stamp::Check, outline: None, back: None }
+        Style { color: [255, 0, 0], width: 4.0, opacity: 1.0, dash: Dash::Solid, head: Head::Filled, fill: None, ink: [0, 0, 0], letters: 0.0, balloon: super::bubble::Balloon::Rounded, round: false, zoom: 2, stamp: Stamp::Check, outline: None, back: None }
     }
 }
 
