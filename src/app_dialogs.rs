@@ -18,8 +18,9 @@ impl App {
             (OptTab::General, t("opt-tab-general")),
             (OptTab::Look, t("opt-tab-look")),
             (OptTab::Browsing, t("opt-tab-browsing")),
-            (OptTab::Deleting, t("opt-tab-deleting")),
+            // Next to Browsing: both are about the grid.
             (OptTab::Thumbnails, t("opt-tab-thumbnails")),
+            (OptTab::Deleting, t("opt-tab-deleting")),
             (OptTab::Slideshow, t("opt-tab-slideshow")),
             (OptTab::Video, t("opt-tab-video")),
         ];

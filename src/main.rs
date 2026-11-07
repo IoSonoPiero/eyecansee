@@ -203,8 +203,8 @@ enum OptTab {
     General,
     Look,
     Browsing,
-    Deleting,
     Thumbnails,
+    Deleting,
     Slideshow,
     Video,
 }
