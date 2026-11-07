@@ -445,8 +445,8 @@ impl Store {
             Store::Ftp(server) => server.send(path, 0, size, CHUNK, cancel, push).await?,
             Store::Mtp(phone) => {
                 let mut download = phone.download(path).await?;
-                while let Some(window) = phone.next_window(&mut download).await {
-                    push(Bytes::from(window?)).await?;
+                while let Some(chunk) = phone.next_chunk(&mut download).await {
+                    push(chunk?).await?;
                 }
             }
         }

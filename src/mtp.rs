@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 
 use bytes::Bytes;
-use mtp_rs::mtp::{MtpDevice, NewObjectInfo, ObjectHandle, Storage, WindowedDownload};
+use mtp_rs::mtp::{FileDownload, MtpDevice, NewObjectInfo, ObjectHandle, Storage};
 use tokio::sync::OnceCell;
 
 use crate::source::{self, Error, Listing, NOT_FOUND};
@@ -55,7 +55,7 @@ pub struct Phone {
 
 /// A file read in windows, holding the phone's `downloads` turn until it is dropped.
 pub struct Download<'a> {
-    windows: WindowedDownload,
+    file: FileDownload,
     path: String,
     _turn: tokio::sync::MutexGuard<'a, ()>,
 }
@@ -465,18 +465,20 @@ impl Phone {
         Ok(())
     }
 
-    /// A file read in windows of 4 MB: the phone stays free for listings between one and the next.
+    /// A file read in windows of about 2 s, sized by mtp-rs from the speed (0.38): the phone stays
+    /// free for listings between one and the next. Fixed 4 MB windows (until 0.37) cost ~10% at
+    /// 30 MB/s (Galaxy A57, 2026-11-07).
     pub async fn download(&self, path: &str) -> Result<Download<'_>, Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
         let _turn = self.downloads.lock().await;
-        let windows = self.queued("download", path, storage.download_windowed(handle, mtp_rs::mtp::ByteRange::Full, 4 << 20)).await.map_err(error)?;
-        Ok(Download { windows, path: path.to_string(), _turn })
+        let file = self.queued("download", path, storage.download(handle, mtp_rs::mtp::ByteRange::Full)).await.map_err(error)?;
+        Ok(Download { file, path: path.to_string(), _turn })
     }
 
-    /// The next window of a `download`.
-    pub async fn next_window(&self, download: &mut Download<'_>) -> Option<Result<Vec<u8>, Error>> {
-        self.queued("next_window", &download.path, download.windows.next_window()).await.map(|r| r.map_err(error))
+    /// The next chunk (up to 64 KB) of a `download`.
+    pub async fn next_chunk(&self, download: &mut Download<'_>) -> Option<Result<Bytes, Error>> {
+        self.queued("next_chunk", &download.path, download.file.next_chunk()).await.map(|r| r.map_err(error))
     }
 
     /// Copies a file inside the phone, without passing through the computer (MTP `CopyObject`),
@@ -713,6 +715,19 @@ mod tests {
                         bytes += phone.read(&f.path).await.unwrap().len();
                     }
                     println!("read {bytes} bytes in {:?}", t.elapsed());
+                    // The path of a copy (`Store::send_chunks`): all the files, then the biggest alone.
+                    let biggest = l.files.iter().max_by_key(|f| f.size).unwrap();
+                    for (what, files) in [("all", l.files.iter().collect::<Vec<_>>()), ("biggest", vec![biggest])] {
+                        let t = std::time::Instant::now();
+                        let mut bytes = 0;
+                        for f in files {
+                            let mut d = phone.download(&f.path).await.unwrap();
+                            while let Some(w) = phone.next_chunk(&mut d).await {
+                                bytes += w.unwrap().len();
+                            }
+                        }
+                        println!("download {what}: {bytes} bytes in {:?}", t.elapsed());
+                    }
                 }
                 Err(e) => println!("{camera}: {e:?}"),
             }
