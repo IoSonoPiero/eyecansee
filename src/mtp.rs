@@ -11,7 +11,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 
 use bytes::Bytes;
-use mtp_rs::mtp::{FileDownload, MtpDevice, NewObjectInfo, ObjectHandle, Storage};
+use mtp_rs::mtp::{DownloadPacing, FileDownload, MtpDevice, NewObjectInfo, ObjectHandle, Storage};
 use tokio::sync::OnceCell;
 
 use crate::source::{self, Error, Listing, NOT_FOUND};
@@ -469,14 +469,15 @@ impl Phone {
         Ok(())
     }
 
-    /// A file read in windows of about 2 s, sized by mtp-rs from the speed (0.38): the phone stays
+    /// A file read in windows of about 0.5 s, sized by mtp-rs from the speed (0.38): the phone stays
     /// free for listings between one and the next. Fixed 4 MB windows (until 0.37) cost ~10% at
-    /// 30 MB/s (Galaxy A57, 2026-11-07).
+    /// 30 MB/s (Galaxy A57, 2026-11-07); mtp-rs's default of 2 s made a listing or a thumbnail
+    /// wait up to ~6 s during a copy (POCO X7 Pro, Windows, 2026-11-07).
     pub async fn download(&self, path: &str) -> Result<Download<'_>, Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
         let _turn = self.downloads.lock().await;
-        let file = self.queued("download", path, storage.download(handle, mtp_rs::mtp::ByteRange::Full)).await.map_err(error)?;
+        let file = self.queued("download", path, storage.download_with_pacing(handle, mtp_rs::mtp::ByteRange::Full, DownloadPacing::MaxCancelDelay(std::time::Duration::from_millis(500)))).await.map_err(error)?;
         Ok(Download { file, path: path.to_string(), window: None, _turn })
     }
 
