@@ -80,6 +80,17 @@
   </provides>
 
   <releases>
+    <release version="0.74.1" date="2026-11-07">
+      <description>
+        <ul>
+          <li>Ultra HDR photos stay Ultra HDR when Convert and resize writes them as JPEG, also resized; in the other formats the window says that they lose their HDR</li>
+          <li>Motion photos that are also Ultra HDR (Pixel, Xiaomi) keep their HDR in the image editor, and Save and Convert turn them with their video</li>
+          <li>Save as proposes the quality and colour detail of a JPEG original; converted phone photos no longer describe a gain map they do not have</li>
+          <li>Paste and Ctrl+V paste the files copied in EyeCanSee only while the clipboard still holds them, not after a copy in another program</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.74.1</url>
+    </release>
     <release version="0.74.0" date="2026-11-06">
       <description>
         <ul>
