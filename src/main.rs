@@ -647,12 +647,15 @@ impl eframe::App for App {
             });
             return;
         }
+        let clip = self.clip.as_ref();
         raw_input.events.retain(|e| {
             *act = match e {
                 egui::Event::Copy => Some(Act::Copy(None)),
                 egui::Event::Cut if shift_del => Some(Act::Delete(None, true)),
                 egui::Event::Cut => Some(Act::Cut(None)),
-                egui::Event::Paste(_) => Some(Act::Paste(None)),
+                egui::Event::Paste(text) if clip.is_some_and(|c| transfer::on_clipboard(&c.text, text)) => Some(Act::Paste(None)),
+                // Something copied in another program since: not the old files.
+                egui::Event::Paste(_) => return false,
                 _ => return true,
             };
             false

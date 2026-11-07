@@ -27,8 +27,9 @@ impl App {
             return;
         }
         log!("clip {paths:?} cut {cut}");
-        ctx.copy_text(paths.iter().map(|p| self.display(p)).collect::<Vec<_>>().join("\n"));
-        self.clip = Some(transfer::Clip { op: loader.store(), base: self.base.clone(), paths, cut });
+        let text = paths.iter().map(|p| self.display(p)).collect::<Vec<_>>().join("\n");
+        ctx.copy_text(text.clone());
+        self.clip = Some(transfer::Clip { op: loader.store(), base: self.base.clone(), paths, cut, text });
     }
 
     /// Where a paste can go: a folder of the open source, not its root on a phone, not a trash.

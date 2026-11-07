@@ -19,6 +19,15 @@ pub struct Clip {
     pub base: String,
     pub paths: Vec<String>,
     pub cut: bool,
+    /// The text put on the system clipboard with the copy (the paths, one per line).
+    pub text: String,
+}
+
+/// Ctrl+V pastes the items only while the system clipboard still holds `copied`, the text of
+/// their copy: after a copy in another program it holds something else (#61). Line ends compared
+/// as one (Windows gives `\r\n` back).
+pub fn on_clipboard(copied: &str, clipboard: &str) -> bool {
+    copied.lines().eq(clipboard.trim_end_matches(['\r', '\n']).lines())
 }
 
 /// Answer for an item whose name is already in the destination.
@@ -290,6 +299,17 @@ async fn copy_file(from: &Store, src: &str, to: &Store, dest: &str, size: u64, p
 mod tests {
     use super::*;
 
+    /// The paste of the files only with the text of their copy still on the clipboard.
+    #[test]
+    fn paste_only_with_own_text() {
+        let copied = "/home/a/x.jpg\n/home/a/y.png";
+        assert!(on_clipboard(copied, copied));
+        assert!(on_clipboard(copied, "/home/a/x.jpg\r\n/home/a/y.png\r\n"));
+        assert!(!on_clipboard(copied, "some text copied elsewhere"));
+        assert!(!on_clipboard(copied, "/home/a/x.jpg"));
+        assert!(!on_clipboard(copied, ""));
+    }
+
     /// The speed of the last 4 seconds, not of the whole copy.
     #[test]
     fn recent_speed() {
@@ -315,7 +335,7 @@ mod tests {
         std::fs::write(dir.join("b/x.jpg"), b"old").unwrap();
         let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
         let base = format!("test-transfer-{}://", std::process::id());
-        let clip = |paths: &[&str], cut| Clip { op: op.clone(), base: base.clone(), paths: paths.iter().map(|s| s.to_string()).collect(), cut };
+        let clip = |paths: &[&str], cut| Clip { op: op.clone(), base: base.clone(), paths: paths.iter().map(|s| s.to_string()).collect(), cut, text: String::new() };
         // The thumbnail of x.jpg, saved (asynchronously) before the copies.
         let x = crate::source::File { path: "a/x.jpg".into(), size: 3 << 20, modified: "then".into() };
         thumbcache::save(&base, &x, &image::DynamicImage::new_rgb8(4, 3));
@@ -398,7 +418,7 @@ mod tests {
         let store = |sub: &str| Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.join(sub).to_str().unwrap())).unwrap());
         let (one, two) = (store("one"), store("two"));
         let (base1, base2) = (format!("test-trash1-{}://", std::process::id()), format!("test-trash2-{}://", std::process::id()));
-        let clip = |op: &Store, base: &str, path: &str, cut| Clip { op: op.clone(), base: base.to_string(), paths: vec![path.to_string()], cut };
+        let clip = |op: &Store, base: &str, path: &str, cut| Clip { op: op.clone(), base: base.to_string(), paths: vec![path.to_string()], cut, text: String::new() };
         let read = |path: &str| std::fs::read(dir.join(path)).ok();
         rt.block_on(async {
             // A copy to another device: the trash stays behind.
