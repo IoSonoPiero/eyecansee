@@ -99,11 +99,38 @@ pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]])
     }
     let (kx, ky) = (g.width() as f32 / image.width() as f32, g.height() as f32 / image.height() as f32);
     lowest_gain(&mut g, holes, kx, ky);
+    rebuilt(photo, image, &like(photo), gain, g, gray)
+}
+
+/// The photo after Convert and resize (`image`: decoded upright, turned by `turn`, maybe resized)
+/// written as JPEG with `o` and still Ultra HDR (#65): the gain map turned the same way and
+/// resized by the same factor (bilinear: a smooth picture, no halos), at its own quality. The
+/// video of a Motion Photo is not written: the copy is a new, smaller file (Piero, 2026-11-07).
+pub fn resized(b: &[u8], image: DynamicImage, turn: Turn, o: &Options) -> Result<Vec<u8>, String> {
+    let (photo, gain) = split(b).ok_or("not Ultra HDR")?;
+    let (w, h) = image::ImageReader::new(std::io::Cursor::new(photo)).with_guessed_format().map_err(|e| e.to_string())?.into_dimensions().map_err(|e| e.to_string())?;
+    let mut g = crate::decode::decode_full(gain, "x.jpg")?;
+    let gray = !g.color().has_color();
+    turn.after(transform::exif_turn(photo)).apply(&mut g);
+    // The gain map's share of the photo, long side to long side, kept.
+    let k = g.width().max(g.height()) as f32 / w.max(h) as f32;
+    let size = |side: u32| ((side as f32 * k).round() as u32).max(1);
+    let (gw, gh) = (size(image.width()), size(image.height()));
+    if (gw, gh) != (g.width(), g.height()) {
+        g = g.resize_exact(gw, gh, image::imageops::FilterType::Triangle);
+    }
+    rebuilt(photo, image, o, gain, g, gray)
+}
+
+/// The new photo `image` (encoded with `o`) and gain map `g` (at the old one's quality, grey if
+/// it was) in one Ultra HDR file, each with the segments of the old `photo` and `gain`.
+fn rebuilt(photo: &[u8], image: DynamicImage, o: &Options, gain: &[u8], mut g: DynamicImage, gray: bool) -> Result<Vec<u8>, String> {
     if gray {
         g = DynamicImage::ImageLuma8(g.to_luma8());
     }
-    let new_photo = keep_segments(photo, Original::with_meta(image, photo).encode(&like(photo))?);
-    let new_gain = keep_segments(gain, Original::with_meta(g, gain).encode(&like(gain))?);
+    let like = crate::encode::jpeg_quality::like(gain, Options { format: Format::Jpeg, ..Options::default() });
+    let new_photo = keep_segments(photo, Original::with_meta(image, photo).encode(o)?);
+    let new_gain = keep_segments(gain, Original::with_meta(g, gain).encode(&like)?);
     assemble(new_photo, &new_gain)
 }
 
@@ -385,6 +412,25 @@ pub(crate) mod tests {
         let p = parts(&out).expect("still Ultra HDR");
         assert!(p.video && out.len() - p.end == video.len());
         assert_eq!(&out[p.end..], crate::mp4::turned(&video, cw).unwrap());
+    }
+
+    /// Convert and resize (#65): turned and halved, the gain map turned and halved with it (its
+    /// share of the photo kept), lengths right, still Ultra HDR, the XMP fitting the new photo.
+    #[test]
+    fn resize_ultra_hdr() {
+        let file = sample(64, 32);
+        let cw = Turn::default().then(transform::Op::Cw);
+        let mut img = crate::decode::decode_full(&file, "a.jpg").unwrap();
+        cw.apply(&mut img);
+        let img = img.resize_exact(16, 32, image::imageops::FilterType::Triangle);
+        let out = resized(&file, img, cw, &Options::default()).unwrap();
+        let p = parts(&out).expect("still Ultra HDR");
+        let photo = image::load_from_memory(&out[..p.gain]).unwrap();
+        let gain = image::load_from_memory(&out[p.gain..p.end]).unwrap();
+        assert_eq!((photo.dimensions(), gain.dimensions()), ((16, 32), (8, 16)));
+        let xmp = String::from_utf8_lossy(&out[..p.gain]).into_owned();
+        assert!(xmp.contains(&format!("Item:Length=\"{}\"", p.end - p.gain)));
+        fitted(&out[..p.gain], 16);
     }
 
     /// A hole gives gain 0 to every pixel of the gain map it touches even in part, and to no other.

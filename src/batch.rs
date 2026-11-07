@@ -162,6 +162,16 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
         image = image.resize_exact(w, h, job.filter.kind());
     }
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
+    // An Ultra HDR photo written as JPEG with its metadata stays Ultra HDR, its gain map turned
+    // and resized with it (#65); without metadata there is nothing to hold the gain map.
+    let to_jpeg = job.format.map_or(Format::of_file(name) == Some(Format::Jpeg), |f| f == Format::Jpeg);
+    if to_jpeg && job.options.keep_meta && crate::ultrahdr::is(bytes) {
+        let (out, options) = match job.format {
+            None => (name.to_string(), crate::encode::jpeg_quality::like(bytes, Options::default())),
+            Some(f) => (with_ext(name, f), Options { format: f, turn: Turn::default(), ..job.options }),
+        };
+        return Ok((out, crate::ultrahdr::resized(bytes, image, job.turn, &options).map_err(failed)?));
+    }
     // Encoded again, the file is the picture alone: the XMP of a gain map or a motion photo
     // video it no longer has goes (`Original::alone`).
     match job.format {
@@ -607,6 +617,54 @@ mod tests {
         assert_eq!(quality(&convert(&jpeg, "a.jpg", &chosen).unwrap().1), Some(40));
         let kept = Job { format: None, size: Size::Fit(32, 32), ..Default::default() };
         assert_eq!(quality(&convert(&jpeg, "a.jpg", &kept).unwrap().1), Some(70));
+    }
+
+    /// An Ultra HDR photo resized as JPEG, or converted to JPEG, stays Ultra HDR (#65); in PNG, or
+    /// without its metadata, it is the picture alone.
+    #[test]
+    fn ultra_hdr_kept_in_jpeg() {
+        let bytes = crate::ultrahdr::tests::sample(64, 32);
+        let fit = Job { format: None, size: Size::Fit(32, 32), ..Default::default() };
+        let jpeg = Job { format: Some(Format::Jpeg), options: Options { format: Format::Jpeg, jpeg_quality: 70, ..Options::default() }, ..Default::default() };
+        for job in [fit, jpeg] {
+            let (_, data) = convert(&bytes, "a.jpg", &job).unwrap();
+            assert!(crate::ultrahdr::is(&data), "{:?}", job.format);
+        }
+        let (_, png) = convert(&bytes, "a.jpg", &Job { format: Some(Format::Png), ..Default::default() }).unwrap();
+        assert!(!crate::ultrahdr::is(&png) && png.starts_with(b"\x89PNG"));
+        let bare = Job { format: Some(Format::Jpeg), options: Options { format: Format::Jpeg, keep_meta: false, ..Options::default() }, ..Default::default() };
+        assert!(!crate::ultrahdr::is(&convert(&bytes, "a.jpg", &bare).unwrap().1));
+    }
+
+    /// The real Ultra HDR photos halved as JPEG (#65): the Apple one of the test files
+    /// (`notes/test-files/online/telefono`) and the Pixel 7a Motion Photo of `EYECANSEE_SAMPLES`
+    /// (`~/Prove/editor`), written to `EYECANSEE_SAMPLES_OUT` to look at. Each stays Ultra HDR with
+    /// its gain map halved, MPF lengths adding up to the file, and no video after it.
+    #[test]
+    #[ignore]
+    fn ultra_hdr_resized_live() {
+        use image::GenericImageView;
+        let out_dir = std::env::var("EYECANSEE_SAMPLES_OUT").expect("EYECANSEE_SAMPLES_OUT");
+        let samples = std::env::var("EYECANSEE_SAMPLES").expect("EYECANSEE_SAMPLES");
+        let apple = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("notes/test-files/online/telefono/apple_gainmap_new.jpg");
+        for path in [apple, std::path::Path::new(&samples).join("PXL_20250327_052203484.MP.jpg")] {
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            let bytes = std::fs::read(&path).unwrap();
+            let (w, h) = image::load_from_memory(&bytes).unwrap().dimensions();
+            let (gw, _) = image::load_from_memory(crate::ultrahdr::split(&bytes).unwrap().1).unwrap().dimensions();
+            let job = Job { format: None, size: Size::Percent(50), ..Default::default() };
+            let (_, d) = convert(&bytes, &name, &job).unwrap();
+            let (photo, gain) = crate::ultrahdr::split(&d).expect("still Ultra HDR");
+            assert_eq!(photo.len() + gain.len(), d.len(), "{name}: nothing after the gain map");
+            let p = image::load_from_memory(photo).unwrap().dimensions();
+            let g = image::load_from_memory(gain).unwrap().dimensions();
+            assert_eq!(p, (w / 2, h / 2), "{name}");
+            assert!(g.0.abs_diff(gw / 2) <= 1, "{name}: gain map {g:?}, was {gw} wide");
+            let text = String::from_utf8_lossy(photo);
+            assert!(!text.contains("MotionPhoto") && !text.contains("MicroVideo"), "{name}: video described");
+            std::fs::write(std::path::Path::new(&out_dir).join(&name), &d).unwrap();
+            println!("{name}: {w}x{h} -> {p:?}, gain map {gw} -> {g:?}, {} bytes", d.len());
+        }
     }
 
     /// A phone photo converted (resized in JPEG, or PNG) is the picture alone: the XMP no longer

@@ -903,6 +903,7 @@ batch-images = { $n ->
 }
 batch-same-format = Uguale all'originale
 batch-same-format-hint = Ogni immagine nel suo formato, scritta come la scrive Salva (un JPEG con la sua qualità). I formati che EyeCanSee non sa scrivere (HEIC, RAW…) vengono esclusi.
+batch-ultra-hdr-lost = Se tra le foto ce ne sono in Ultra HDR, in questo formato perdono l'HDR: solo JPEG lo tiene.
 batch-size = Dimensioni
 batch-size-same = Invariate
 batch-size-percent = Percentuale dell'originale

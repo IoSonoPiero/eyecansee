@@ -904,6 +904,7 @@ batch-images = { $n ->
 }
 batch-same-format = Same as the original
 batch-same-format-hint = Each image in its own format, written as Save writes it (a JPEG at its own quality). Formats EyeCanSee cannot write (HEIC, RAW…) are left out.
+batch-ultra-hdr-lost = If some photos are Ultra HDR, they lose their HDR in this format: only JPEG keeps it.
 batch-size = Size
 batch-size-same = Unchanged
 batch-size-percent = Percent of the original

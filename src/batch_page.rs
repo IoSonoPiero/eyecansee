@@ -58,6 +58,8 @@ pub struct Form {
     picker: Option<Picker>,
     /// What the selection holds, set when the window opens.
     images: bool,
+    /// JPEGs among them: in another format an Ultra HDR one loses its HDR (#65).
+    jpegs: bool,
     videos: bool,
     video: VideoForm,
     /// CAD drawings exported (`Drawn`): the window shows just their format, size and destination.
@@ -89,6 +91,7 @@ impl Form {
             browse: false,
             picker: None,
             images: true,
+            jpegs: false,
             videos: false,
             video: VideoForm { container: 0, codec: Codec::H264, encoder: None, quality: Quality::Medium, audio: true, meta: true, download: None },
             drawing: false,
@@ -187,6 +190,7 @@ impl App {
         form.drawing = drawings;
         form.videos = paths.iter().any(|p| crate::decode::is_video(p));
         form.images = !drawings && paths.iter().any(|p| !crate::decode::is_video(p));
+        form.jpegs = paths.iter().any(|p| Format::of_file(p) == Some(Format::Jpeg));
         if form.other.is_empty() {
             form.other = crate::navigation::shown(&self.base, &self.dir);
         }
@@ -467,7 +471,12 @@ fn format_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
         None => {
             ui.weak(t("batch-same-format-hint"));
         }
-        Some(format) => format_options(ui, f, format, i18n),
+        Some(format) => {
+            if format != Format::Jpeg && f.jpegs {
+                ui.label(crate::theme::alert(t("batch-ultra-hdr-lost")));
+            }
+            format_options(ui, f, format, i18n);
+        }
     }
 }
 
