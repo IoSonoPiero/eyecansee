@@ -1,6 +1,7 @@
 //! The preview some cameras store inside their MP4 files, which gives a thumbnail without opening
 //! the video: `moov/udta/thmb` (the Umino UM-D1M dashcam: 320×180, ~11 KB) or the standard cover
 //! `moov/udta/meta/ilst/covr` (DJI Mini 4 Pro: 1280×720, ~625 KB; music and films too). 2026-10-27.
+//! Also the video of a Motion Photo shown turned with its photo (`turned`, #54).
 
 /// Bytes read from the start of a video to look for the preview: the whole `moov` of a
 /// fragmented dashcam video fits (12 KB for 3 minutes).
@@ -149,8 +150,62 @@ pub fn copy_preview(original: &std::path::Path, copy: &std::path::Path) -> std::
     Ok(true)
 }
 
+/// The boxes in `b[from..to]`: type, start of the content and end, as offsets in `b`.
+fn boxes(b: &[u8], from: usize, to: usize) -> Vec<([u8; 4], usize, usize)> {
+    let mut v = Vec::new();
+    let mut at = from;
+    while at + 8 <= to {
+        let Some((kind, size)) = box_header(&b[at..to]) else { break };
+        let header = if b[at..at + 4] == [0, 0, 0, 1] { 16 } else { 8 };
+        let end = if size == 0 { to } else { at.saturating_add(usize::try_from(size).unwrap_or(usize::MAX)) };
+        if end > to || end < at + header {
+            break;
+        }
+        v.push((kind, at + header, end));
+        at = end;
+    }
+    v
+}
+
+/// `video` (a whole MP4 or MOV, the video of a Motion Photo) shown turned by `turn` as its
+/// photo is: the display matrix in the `tkhd` of each video track changed, nothing encoded again
+/// (#54). `None` without a video track to change.
+pub fn turned(video: &[u8], turn: crate::transform::Turn) -> Option<Vec<u8>> {
+    // Display coordinates (y down), a point as a row: p' = p·M. Flip x, then clockwise quarters.
+    let (flip, quarter) = turn.parts();
+    let mut t: [[i64; 2]; 2] = if flip { [[-1, 0], [0, 1]] } else { [[1, 0], [0, 1]] };
+    for _ in 0..quarter {
+        t = [[-t[0][1], t[0][0]], [-t[1][1], t[1][0]]];
+    }
+    let mut out = video.to_vec();
+    let (_, ms, me) = *boxes(video, 0, video.len()).iter().find(|b| &b.0 == b"moov")?;
+    let mut done = false;
+    for (_, ts, te) in boxes(video, ms, me).into_iter().filter(|b| &b.0 == b"trak") {
+        let inside = boxes(video, ts, te);
+        let hdlr = inside.iter().filter(|b| &b.0 == b"mdia").flat_map(|&(_, s, e)| boxes(video, s, e)).find(|b| &b.0 == b"hdlr");
+        let Some(&(_, s, _)) = inside.iter().find(|b| &b.0 == b"tkhd") else { continue };
+        if hdlr.and_then(|(_, hs, _)| video.get(hs + 8..hs + 12)) != Some(b"vide") {
+            continue;
+        }
+        // The matrix after version 0's 32-bit or version 1's 64-bit times; width and height after it.
+        let m = s + if video.get(s)? == &1 { 52 } else { 40 };
+        let get = |i: usize| -> Option<i64> { Some(i32::from_be_bytes(video.get(m + 4 * i..m + 4 * i + 4)?.try_into().ok()?) as i64) };
+        let (a, b, c, d) = (get(0)?, get(1)?, get(3)?, get(4)?);
+        let (w, h) = (get(9)? as u32 as i64, get(10)? as u32 as i64);
+        let (a, b, c, d) = (a * t[0][0] + b * t[1][0], a * t[0][1] + b * t[1][1], c * t[0][0] + d * t[1][0], c * t[0][1] + d * t[1][1]);
+        // Moved back to start at 0, 0 (16.16, as the sizes).
+        let corners = [(0, 0), (w, 0), (0, h), (w, h)].map(|(x, y)| ((x * a + y * c) >> 16, (x * b + y * d) >> 16));
+        let (tx, ty) = (-corners.iter().map(|p| p.0).min()?, -corners.iter().map(|p| p.1).min()?);
+        for (i, v) in [(0, a), (1, b), (3, c), (4, d), (6, tx), (7, ty)] {
+            out[m + 4 * i..m + 4 * i + 4].copy_from_slice(&i32::try_from(v).ok()?.to_be_bytes());
+        }
+        done = true;
+    }
+    done.then_some(out)
+}
+
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::thumbnail;
 
     fn mp4_box(kind: &[u8; 4], content: &[u8]) -> Vec<u8> {
@@ -158,6 +213,47 @@ mod tests {
         b.extend_from_slice(kind);
         b.extend_from_slice(content);
         b
+    }
+
+    /// A track: `tkhd` version 0 with the identity matrix and `w` × `h`, `hdlr` of `handler`.
+    fn trak(handler: &[u8; 4], w: u32, h: u32) -> Vec<u8> {
+        let one = 1u32 << 16;
+        let matrix: Vec<u8> = [one, 0, 0, 0, one, 0, 0, 0, 1 << 30].iter().flat_map(|v| v.to_be_bytes()).collect();
+        let tkhd = [&[0u8; 40][..], &matrix, &(w << 16).to_be_bytes(), &(h << 16).to_be_bytes()].concat();
+        let hdlr = [&[0u8; 8][..], handler, &[0; 13]].concat();
+        mp4_box(b"trak", &[mp4_box(b"tkhd", &tkhd), mp4_box(b"mdia", &mp4_box(b"hdlr", &hdlr))].concat())
+    }
+
+    /// The matrix (a, b, c, d, x, y, in units) of the `n`th track of a file made by `video`.
+    fn matrix(file: &[u8], n: usize) -> [i32; 6] {
+        let at = file.windows(4).enumerate().filter(|(_, w)| w == b"tkhd").nth(n).unwrap().0 + 4 + 40;
+        let v = |i: usize| i32::from_be_bytes(file[at + 4 * i..at + 4 * i + 4].try_into().unwrap()) >> 16;
+        [v(0), v(1), v(3), v(4), v(6), v(7)]
+    }
+
+    /// A Motion Photo's video, `w` × `h`: `ftyp`, then `moov` with a sound track and a video track.
+    pub(crate) fn video(w: u32, h: u32) -> Vec<u8> {
+        let moov = mp4_box(b"moov", &[mp4_box(b"mvhd", &[0; 20]), trak(b"soun", 0, 0), trak(b"vide", w, h)].concat());
+        [mp4_box(b"ftyp", b"mp42mp42"), moov, mp4_box(b"mdat", &[9; 30])].concat()
+    }
+
+    /// Only the video track turns: a quarter clockwise (x' = -y + h, y' = x), a flip (x' = -x + w),
+    /// four quarters back to the start; nothing else of the file changes.
+    #[test]
+    fn video_turned() {
+        use crate::transform::{Op, Turn};
+        let file = video(160, 90);
+        let cw = super::turned(&file, Turn::default().then(Op::Cw)).unwrap();
+        assert_eq!(cw.len(), file.len());
+        assert_eq!((matrix(&cw, 0), matrix(&cw, 1)), ([1, 0, 0, 1, 0, 0], [0, 1, -1, 0, 90, 0]));
+        let flip = super::turned(&file, Turn::default().then(Op::FlipH)).unwrap();
+        assert_eq!(matrix(&flip, 1), [-1, 0, 0, 1, 160, 0]);
+        let mut back = file.clone();
+        for _ in 0..4 {
+            back = super::turned(&back, Turn::default().then(Op::Cw)).unwrap();
+        }
+        assert_eq!(back, file);
+        assert_eq!(super::turned(&[mp4_box(b"ftyp", b"mp42"), mp4_box(b"moov", &trak(b"soun", 0, 0))].concat(), Turn::default()), None);
     }
 
     #[test]

@@ -28,17 +28,26 @@ enum Fix {
     Set(String),
 }
 
+/// How a packet is written again (`fix`).
+#[derive(Clone, Copy, Default)]
+struct How {
+    merged: bool,
+    alone: bool,
+    /// The video of a Motion Photo is written too (a lossless turn of an Ultra HDR one, #54): its
+    /// description stays.
+    video: bool,
+}
+
 /// `merged`: the extended XMP is in the packet, the GUID that pointed to it goes. The video of a
-/// Motion Photo is never written again, so what describes it always goes (also when the original
+/// Motion Photo is written again only by a lossless turn (`video`), so what describes it goes (also when the original
 /// says so without having one, as a Pixel 8 photo seen). `alone`: the picture is written without
 /// the gain map of an Ultra HDR photo either, so its description and the container directory go.
-fn fix(ns: &str, local: &str, w: u32, h: u32, merged: bool, alone: bool) -> Option<Fix> {
+fn fix(ns: &str, local: &str, w: u32, h: u32, how: How) -> Option<Fix> {
     match (ns, local) {
-        (XMP_NOTE, "HasExtendedXMP") if merged => Some(Fix::Drop),
-        // ponytail: true while no save keeps the video (`motion_photo_turned`); a save that keeps
-        // it (the lossless turn of plan step 7) needs a flag here, or the file stops being one.
-        (GCAMERA, l) if l.starts_with("MotionPhoto") || l.starts_with("MicroVideo") => Some(Fix::Drop),
-        (CONTAINER, "Directory") | (HDRGM, _) if alone => Some(Fix::Drop),
+        (XMP_NOTE, "HasExtendedXMP") if how.merged => Some(Fix::Drop),
+        // Only the lossless turn of an Ultra HDR Motion Photo keeps the video (`how.video`).
+        (GCAMERA, l) if !how.video && (l.starts_with("MotionPhoto") || l.starts_with("MicroVideo")) => Some(Fix::Drop),
+        (CONTAINER, "Directory") | (HDRGM, _) if how.alone => Some(Fix::Drop),
         (CRS, _) | (XAP, "Thumbnails") => Some(Fix::Drop),
         (TIFF, "ImageWidth") | (EXIF, "PixelXDimension") => Some(Fix::Set(w.to_string())),
         (TIFF, "ImageLength") | (EXIF, "PixelYDimension") => Some(Fix::Set(h.to_string())),
@@ -83,10 +92,17 @@ pub fn fit_with(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Opt
         (start <= end).then_some((start, end))
     };
     let merged = ext.zip(inner(xmp)).zip(ext.and_then(inner)).map(|((ext, (_, at)), (s, e))| [&xmp[..at], &ext[s..e], &xmp[at..]].concat());
-    if let Some(out) = merged.and_then(|m| rewrite(&m, w, h, &props, true, false)) {
+    if let Some(out) = merged.and_then(|m| rewrite(&m, w, h, &props, How { merged: true, ..How::default() })) {
         return Some(out);
     }
-    Some(rewrite(xmp, w, h, &props, false, false).unwrap_or_else(|| xmp.to_vec()))
+    Some(rewrite(xmp, w, h, &props, How::default()).unwrap_or_else(|| xmp.to_vec()))
+}
+
+/// As `fit`, for a lossless turn that writes the Motion Photo's video again after the picture
+/// (#54): its description and its item in the container directory stay. A packet that is not
+/// well-formed XML is returned as it was.
+pub fn fit_keeping_video(xmp: &[u8], w: u32, h: u32) -> Vec<u8> {
+    rewrite(xmp, w, h, &[], How { video: true, ..How::default() }).unwrap_or_else(|| xmp.to_vec())
 }
 
 /// `xmp` without the item of a Motion Photo's video in the container directory (the video is
@@ -107,10 +123,10 @@ fn without_video_item(xmp: &[u8]) -> std::borrow::Cow<'_, [u8]> {
 /// Ultra HDR gain map and its container directory), for a picture written alone; sizes set to
 /// `w` × `h` as `fit` does. A packet that is not well-formed XML is returned as it was.
 pub fn alone(xmp: &[u8], w: u32, h: u32) -> Vec<u8> {
-    rewrite(xmp, w, h, &[], false, true).unwrap_or_else(|| xmp.to_vec())
+    rewrite(xmp, w, h, &[], How { alone: true, ..How::default() }).unwrap_or_else(|| xmp.to_vec())
 }
 
-fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], merged: bool, alone: bool) -> Option<Vec<u8>> {
+fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], how: How) -> Option<Vec<u8>> {
     let mut r = NsReader::from_reader(xmp);
     let mut out = Writer::new(Vec::with_capacity(xmp.len()));
     // Depth inside a dropped element; the new value for the text of the element being read, and
@@ -124,17 +140,17 @@ fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], merged: bool, alone: bool
             Event::Start(_) | Event::Empty(_) if skip > 0 => skip += matches!(event, Event::Start(_)) as usize,
             Event::End(_) if skip > 0 => skip -= 1,
             _ if skip > 0 => {}
-            Event::Start(ref e) | Event::Empty(ref e) if matches!(fix(&ns, e.local_name().as_ref(), w, h, merged, alone), Some(Fix::Drop)) => {
+            Event::Start(ref e) | Event::Empty(ref e) if matches!(fix(&ns, e.local_name().as_ref(), w, h, how), Some(Fix::Drop)) => {
                 skip = matches!(event, Event::Start(_)) as usize;
             }
             Event::Start(ref e) | Event::Empty(ref e) => {
                 seen.push((ns.clone(), e.local_name().as_ref().to_string()));
-                if let Some(Fix::Set(v)) = fix(&ns, e.local_name().as_ref(), w, h, merged, alone)
+                if let Some(Fix::Set(v)) = fix(&ns, e.local_name().as_ref(), w, h, how)
                     && matches!(event, Event::Start(_))
                 {
                     (set, replacing) = (Some(v), true);
                 }
-                let e = attributes(&r, e, w, h, (merged, alone), &mut seen)?;
+                let e = attributes(&r, e, w, h, how, &mut seen)?;
                 out.write_event(if matches!(event, Event::Start(_)) { Event::Start(e) } else { Event::Empty(e) }).ok()?;
             }
             Event::Text(_) | Event::GeneralRef(_) if replacing => {
@@ -162,7 +178,7 @@ fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], merged: bool, alone: bool
 
 /// The attributes of an element, without those of Camera Raw (and its namespace) and with the
 /// sizes and orientation set; the element as it was when nothing changes.
-fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, (merged, alone): (bool, bool), seen: &mut Vec<(String, String)>) -> Option<BytesStart<'a>> {
+fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, how: How, seen: &mut Vec<(String, String)>) -> Option<BytesStart<'a>> {
     let mut kept: Vec<(String, String)> = Vec::new();
     let mut changed = false;
     for a in e.attributes() {
@@ -180,7 +196,7 @@ fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, (merg
         let (ns, local) = r.resolver().resolve_attribute(a.key);
         let ns = bound(&ns);
         seen.push((ns.clone(), local.as_ref().to_string()));
-        match fix(&ns, local.as_ref(), w, h, merged, alone) {
+        match fix(&ns, local.as_ref(), w, h, how) {
             Some(Fix::Drop) => changed = true,
             Some(Fix::Set(v)) => {
                 changed |= v != value;

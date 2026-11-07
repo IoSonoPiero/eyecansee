@@ -321,7 +321,7 @@ fn save_live() {
         let d = &out.data;
         let hdr = crate::ultrahdr::is(d);
         // A Motion Photo that is also Ultra HDR keeps its gain map too, without the video (#54).
-        assert_eq!(hdr, crate::ultrahdr::has_gain_map(&bytes), "{name}: Ultra HDR kept");
+        assert_eq!(hdr, crate::ultrahdr::is(&bytes), "{name}: Ultra HDR kept");
         let text = String::from_utf8_lossy(d);
         assert!(!text.contains("MotionPhoto") && !text.contains("MicroVideo") && !d.windows(4).any(|w| w == b"ftyp"), "{name}: Motion Photo");
         if !hdr {

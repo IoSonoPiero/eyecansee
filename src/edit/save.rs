@@ -60,7 +60,7 @@ pub fn plan(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str
         let (data, lossy) = crate::save_back::turned_file(bytes, name, doc.turn)?;
         return Ok(Plan { name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept, data: Some(data) });
     }
-    if same == Some(Format::Jpeg) && crate::ultrahdr::has_gain_map(bytes) {
+    if same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes) {
         return Ok(Plan { name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept, data: None });
     }
     let (float, deep) = (is_float(&original.image), is_deep(&original.image));
@@ -105,7 +105,7 @@ pub fn save(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str
     let mut o = Original::clone(original);
     let (float, deep) = (is_float(&o.image), is_deep(&o.image));
     let holes = edited(doc, &original.image, &mut o.image, options);
-    if same == Some(Format::Jpeg) && crate::ultrahdr::has_gain_map(bytes) {
+    if same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes) {
         let data = crate::ultrahdr::edited(bytes, o.image, &[doc.edit()], &holes)?;
         return Ok(Saved { data, name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept });
     }

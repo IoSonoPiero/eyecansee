@@ -34,33 +34,45 @@ fn parts(b: &[u8]) -> Option<Parts> {
     (jpeg.starts_with(&[0xFF, 0xD8, 0xFF]) && (video || b[end..].iter().all(|&x| x == 0))).then_some(Parts { gain, end, video })
 }
 
-/// Is this an Ultra HDR JPEG that `turned` can turn?
-// ponytail: not with a Motion Photo video after the gain map until Piero chooses whether the
-// lossless turn keeps the video (#54); `has_gain_map` for the saves that encode again.
+/// Is this an Ultra HDR JPEG (with a Motion Photo video after it or not) that `turned` can turn?
 pub fn is(b: &[u8]) -> bool {
-    parts(b).is_some_and(|p| !p.video)
-}
-
-/// Has an HDR gain map, maybe with a Motion Photo video after it: `edited` keeps the gain map.
-pub fn has_gain_map(b: &[u8]) -> bool {
     parts(b).is_some()
 }
 
-/// The file turned, photo and gain map; `None` if it is not an Ultra HDR file. Also says
-/// whether it lost quality (a picture whose size is not a multiple of the JPEG blocks is encoded
-/// again at quality 95).
+/// The file turned, photo and gain map, and the video of a Motion Photo after them shown turned
+/// the same way (Piero, 2026-11-07: nothing is lost, #54); `None` if it is not an Ultra HDR file.
+/// Also says whether it lost quality (a picture whose size is not a multiple of the JPEG blocks
+/// is encoded again at quality 95).
 pub fn turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
-    if !is(b) {
-        return None;
-    }
+    let p = parts(b)?;
     let (photo, gain) = split(b)?;
     Some((|| {
         // The gain map has the photo's pixels in the photo's orientation: it turns as they do.
         let total = turn.after(transform::exif_turn(photo));
-        let (photo, lossy_photo) = one(photo, turn, |j| transform::jpeg_lossless(j, turn))?;
+        let (mut new_photo, lossy_photo) = one(photo, turn, |j| transform::jpeg_lossless(j, turn))?;
         let (gain, lossy_gain) = one(gain, total, |j| transform::jpeg_lossless_total(j, total))?;
-        Ok((assemble(photo, &gain)?, lossy_photo || lossy_gain))
+        if p.video {
+            keep_video_xmp(&mut new_photo, photo)?;
+        }
+        let mut out = assemble(new_photo, &gain)?;
+        if p.video {
+            out.extend(crate::mp4::turned(&b[p.end..], turn).ok_or("Motion Photo: its video could not be turned")?);
+        }
+        Ok((out, lossy_photo || lossy_gain))
     })())
+}
+
+/// The XMP of the turned `photo` made again from the original's `old`, keeping the description
+/// of the video that is written after the gain map (`xmp::fit_keeping_video`).
+fn keep_video_xmp(photo: &mut Vec<u8>, old: &[u8]) -> Result<(), String> {
+    let xmp = |b: &[u8]| segments(b).into_iter().find(|&(m, s, e)| m == 0xE1 && b[s + 4..e].starts_with(crate::meta_write::JPEG_XMP));
+    let (Some((_, os, oe)), Some((_, s, e))) = (xmp(old), xmp(photo)) else { return Err("Motion Photo: XMP lost".into()) };
+    let (w, h) = image::ImageReader::new(std::io::Cursor::new(&photo[..])).with_guessed_format().map_err(|e| e.to_string())?.into_dimensions().map_err(|e| e.to_string())?;
+    let packet = crate::xmp::fit_keeping_video(&old[os + 4 + crate::meta_write::JPEG_XMP.len()..oe], w, h);
+    let body = [crate::meta_write::JPEG_XMP, &packet].concat();
+    let len = u16::try_from(body.len() + 2).map_err(|_| "Motion Photo: XMP too long")?;
+    photo.splice(s..e, [&[0xFF, 0xE1][..], &len.to_be_bytes(), &body].concat());
+    Ok(())
 }
 
 /// The photo after "Rotate and crop" (`image`: decoded upright and already edited) written back
@@ -354,20 +366,25 @@ pub(crate) mod tests {
         fitted(&out[..p.gain], 20);
     }
 
-    /// A Motion Photo that is also Ultra HDR (Pixel, Xiaomi): its video after the gain map. The
-    /// gain map is found; the editor's copy keeps it, without the video; the lossless turn waits
-    /// for Piero's choice (#54). Random bytes after the gain map are still not Ultra HDR.
+    /// A Motion Photo that is also Ultra HDR (Pixel, Xiaomi): its video after the gain map (#54).
+    /// The gain map is found; the editor's copy keeps it, without the video; a lossless turn keeps
+    /// the video too, shown turned as the photo, with the same length. Random bytes after the gain
+    /// map are still not Ultra HDR.
     #[test]
     fn video_after_gain_map() {
         let file = sample(64, 32);
-        let video = [&[0, 0, 0, 0x18][..], b"ftypmp42", &[7; 40]].concat();
+        let video = crate::mp4::tests::video(160, 90);
         let motion = [file.as_slice(), &video].concat();
-        assert!(has_gain_map(&motion) && !is(&motion) && turned(&motion, Turn::default()).is_none());
-        assert_eq!(split(&motion), split(&file));
-        assert!(!has_gain_map(&[file.as_slice(), &[7; 40]].concat()));
+        assert!(is(&motion) && split(&motion) == split(&file));
+        assert!(!is(&[file.as_slice(), &[7; 40]].concat()));
         let img = crate::decode::decode_full(&motion, "a.jpg").unwrap();
         let out = edited(&motion, img, &[Edit { turn: Turn::default(), angle: 0.0, crop: Crop::centred(64.0, 32.0), fill: None }], &[]).unwrap();
         assert!(is(&out) && !out.windows(4).any(|w| w == b"ftyp"));
+        let cw = Turn::default().then(transform::Op::Cw);
+        let (out, _) = turned(&motion, cw).unwrap().unwrap();
+        let p = parts(&out).expect("still Ultra HDR");
+        assert!(p.video && out.len() - p.end == video.len());
+        assert_eq!(&out[p.end..], crate::mp4::turned(&video, cw).unwrap());
     }
 
     /// A hole gives gain 0 to every pixel of the gain map it touches even in part, and to no other.
