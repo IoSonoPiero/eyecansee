@@ -71,8 +71,11 @@ pub(crate) enum Act {
     Restore(Option<String>),
     Copy(Option<String>),
     Cut(Option<String>),
-    /// Into a folder (`None` = the one open).
+    /// Into a folder (`None` = the one open), from a menu or the toolbar: first the clipboard is
+    /// read (`App::ask_paste`), then it is a Ctrl+V.
     Paste(Option<String>),
+    /// Ctrl+V, with the clipboard still holding the copy: into a folder (`None` = the one open).
+    PasteNow(Option<String>),
     Quit,
     /// Install the downloaded update and start EyeCanSee again.
     Update,
@@ -270,7 +273,8 @@ impl App {
             Act::Restore(path) => self.ask_restore(path),
             Act::Copy(path) => self.clip(ctx, path, false),
             Act::Cut(path) => self.clip(ctx, path, true),
-            Act::Paste(dir) => self.paste(dir),
+            Act::Paste(dir) => self.ask_paste(ctx, dir),
+            Act::PasteNow(dir) => self.paste(dir),
             Act::Quit => {
                 log!("quit from the menu");
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);

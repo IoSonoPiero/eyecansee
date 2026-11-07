@@ -400,6 +400,8 @@ struct App {
     restore_conflict: Option<String>,
     /// Ctrl+C / Ctrl+X.
     clip: Option<transfer::Clip>,
+    /// Paste from a menu: the folder, until the clipboard read for it arrives (`App::ask_paste`).
+    paste_to: Option<String>,
     paste_ask: Option<PasteAsk>,
     /// Copy running: progress, move, source (`base`) and folder where it goes.
     transfer: Option<(Arc<transfer::Progress>, bool, String, String)>,
@@ -521,6 +523,7 @@ impl App {
             help_cache: CommonMarkCache::default(),
             about: false,
             clip: None,
+            paste_to: None,
             paste_ask: None,
             transfer: None,
             touched_at: 0.0,
@@ -606,6 +609,8 @@ impl App {
 
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        // Asked for in the frame before: it comes now as a paste, or never (nothing on the clipboard).
+        let paste_to = self.paste_to.take();
         // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer).
         // Open location and Convert and resize have fields to type in: there the keys go to the field.
         if self.asking() && !((self.open_address.is_some() || self.server_manager.is_some() || self.unlock.is_some() || self.batch.is_some()) && ctx.egui_wants_keyboard_input()) {
@@ -653,7 +658,7 @@ impl eframe::App for App {
                 egui::Event::Copy => Some(Act::Copy(None)),
                 egui::Event::Cut if shift_del => Some(Act::Delete(None, true)),
                 egui::Event::Cut => Some(Act::Cut(None)),
-                egui::Event::Paste(text) if clip.is_some_and(|c| transfer::on_clipboard(&c.text, text)) => Some(Act::Paste(None)),
+                egui::Event::Paste(text) if clip.is_some_and(|c| transfer::on_clipboard(&c.text, text)) => Some(Act::PasteNow(paste_to.clone())),
                 // Something copied in another program since: not the old files.
                 egui::Event::Paste(_) => return false,
                 _ => return true,

@@ -41,6 +41,16 @@ impl App {
             && !source::is_trash(dir)
     }
 
+    /// Paste from a menu or the toolbar: as Ctrl+V, only while the clipboard still holds the copy
+    /// (#61). egui reads it and gives it as a paste at the next frame (`raw_input_hook`).
+    pub(crate) fn ask_paste(&mut self, ctx: &egui::Context, dir: Option<String>) {
+        let dir = dir.unwrap_or_else(|| self.dir.clone());
+        if self.can_paste(&dir) {
+            self.paste_to = Some(dir);
+            ctx.send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+        }
+    }
+
     /// Ctrl+V: into `dir` (`None` = the folder open). First the loader looks for names already there.
     pub(crate) fn paste(&mut self, dir: Option<String>) {
         let dir = dir.unwrap_or_else(|| self.dir.clone());
