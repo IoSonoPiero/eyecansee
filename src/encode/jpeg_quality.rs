@@ -164,4 +164,15 @@ pub(crate) mod tests {
         let o = like(cut, Options::default());
         assert_eq!((o.jpeg_quality, o.chroma), (92, Chroma::Quarter));
     }
+
+    /// "Save in another format" proposes what the original had (`Original::jpeg`): a JPEG at 92
+    /// and 4:4:4 gives both; a PNG nothing (the window keeps 90 and 4:2:0).
+    #[test]
+    fn save_as_proposes_it() {
+        let bytes = jpeg(92, Chroma::Full);
+        let img = image::load_from_memory(&bytes).unwrap();
+        assert_eq!(Original::with_meta(img.clone(), &bytes).jpeg, Some((92, Chroma::Full)));
+        let png = Original::with_meta(img.clone(), &[]).encode(&Options { format: Format::Png, ..Options::default() }).unwrap();
+        assert_eq!(Original::with_meta(img, &png).jpeg, None);
+    }
 }

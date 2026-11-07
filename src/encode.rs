@@ -223,6 +223,8 @@ pub struct Original {
     irb: Option<Vec<u8>>,
     /// The segments of a JPEG's extended XMP (`meta_write::jpeg_xmp_ext`).
     xmp_ext: Vec<Vec<u8>>,
+    /// A JPEG's quality and subsampling, when they can be read (`jpeg_quality::of`).
+    pub jpeg: Option<(u8, Chroma)>,
 }
 
 /// The metadata of a file being written, made to fit its pixels (`Original::blocks`).
@@ -263,7 +265,7 @@ impl Original {
         }
         let exif = exif.or(x.exif).or_else(|| crate::meta::exif_chunk(bytes));
         let xmp_ext = x.xmp.as_deref().map_or_else(Vec::new, |m| crate::meta_write::jpeg_xmp_ext(bytes, m));
-        Original { xmp_ext, ..Original::upright(image, exif, icc.or(x.icc), x.xmp, x.irb) }
+        Original { xmp_ext, jpeg: jpeg_quality::of(bytes), ..Original::upright(image, exif, icc.or(x.icc), x.xmp, x.irb) }
     }
 
     /// The pixels are already turned upright: the EXIF orientation is set back to "upright".
@@ -271,7 +273,7 @@ impl Original {
         if let Some(chunk) = &mut exif {
             let _ = Orientation::remove_from_exif_chunk(chunk);
         }
-        Original { image, exif, icc, xmp, irb, xmp_ext: Vec::new() }
+        Original { image, exif, icc, xmp, irb, xmp_ext: Vec::new(), jpeg: None }
     }
 
     /// For a picture written without what followed it in the file (Motion Photo video, Ultra HDR
@@ -468,7 +470,7 @@ pub(crate) mod tests {
         let xmp = crate::xmp::tests::SAMPLE.as_bytes().to_vec();
         let iim = crate::xmp::tests::iim(&[(80, "Ann"), (90, "Québec")]);
         let irb = [crate::meta_write::resource(1036, &[1; 9]), crate::meta_write::irb_of_iim(&iim)].concat();
-        let original = Original { image: DynamicImage::ImageRgba8(img), exif: Some(exif.clone()), icc: Some(icc.clone()), xmp: Some(xmp), irb: Some(irb), xmp_ext: Vec::new() };
+        let original = Original { image: DynamicImage::ImageRgba8(img), exif: Some(exif.clone()), icc: Some(icc.clone()), xmp: Some(xmp), irb: Some(irb), xmp_ext: Vec::new(), jpeg: None };
         let d = Options::default();
         let variants = [
             Options { format: Format::Jpeg, ..d },
@@ -608,7 +610,7 @@ pub(crate) mod tests {
         for little in [false, true] {
             let mut exif = Cursor::new(Vec::new());
             w.write(&mut exif, little).unwrap();
-            let original = Original { image: DynamicImage::new_rgb8(8, 6), exif: Some(exif.into_inner()), icc: None, xmp: None, irb: None, xmp_ext: Vec::new() };
+            let original = Original { image: DynamicImage::new_rgb8(8, 6), exif: Some(exif.into_inner()), icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None };
             let bytes = original.encode(&Options { format: Format::Tiff, ..Default::default() }).unwrap();
             let back = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes)).unwrap();
             for f in &fields {
@@ -622,7 +624,7 @@ pub(crate) mod tests {
     /// formats only "Save as…" writes are not saved back over an original.
     #[test]
     fn ico_and_save_back() {
-        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None, xmp: None, irb: None, xmp_ext: Vec::new() };
+        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None };
         let bytes = original.encode(&Options { format: Format::Ico, ..Default::default() }).unwrap();
         let back = crate::decode::decode_full(&bytes, "x.ico").unwrap();
         assert_eq!((back.width(), back.height()), (256, 128));

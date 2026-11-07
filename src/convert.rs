@@ -79,6 +79,10 @@ impl crate::App {
 
     pub(crate) fn convert_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, ColorImage, u64), String>) {
         let Some(w) = &mut self.convert else { return };
+        // A JPEG: its own quality and subsampling proposed, 90 and 4:2:0 when they cannot be read.
+        if let Some((q, chroma)) = r.as_ref().ok().and_then(|(o, ..)| o.jpeg) {
+            (w.options.jpeg_quality, w.options.chroma) = (q, chroma);
+        }
         w.original = Some(r.map(|(original, preview, size)| {
             w.pan = egui::vec2(preview.size[0] as f32, preview.size[1] as f32) / 2.0;
             (original, ctx.load_texture("convert-original", preview, egui::TextureOptions::LINEAR), size)
