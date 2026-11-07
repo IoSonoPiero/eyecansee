@@ -27,6 +27,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Options per saved server in the server manager (FTP active mode, text encoding, ciphers) when a server needs them ([#18](https://github.com/IoSonoPiero/eyecansee/issues/18)).
 - Encrypting files and folders with a password ([#19](https://github.com/IoSonoPiero/eyecansee/issues/19)).
 - Faster HEIC thumbnails from the preview stored in the file ([#20](https://github.com/IoSonoPiero/eyecansee/issues/20)).
+- Windows: phone photos opened from File Explorer go through the direct connection, so they can be saved back to the phone ([#52](https://github.com/IoSonoPiero/eyecansee/issues/52)).
 
 ### Formats
 
@@ -51,6 +52,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Deleting a folder: look into its subfolders too for files EyeCanSee does not show (today the warning checks the first level only) ([#31](https://github.com/IoSonoPiero/eyecansee/issues/31)).
 - Set as wallpaper ([#32](https://github.com/IoSonoPiero/eyecansee/issues/32)).
 - CPU/GPU/NPU acceleration with a "Check" button that enables what works on the PC ([#33](https://github.com/IoSonoPiero/eyecansee/issues/33)).
+- Options: download the add-on engines (video engine, FFmpeg, CAD engine) in advance, and remove them ([#50](https://github.com/IoSonoPiero/eyecansee/issues/50)).
 
 ## Documentation
 
@@ -66,6 +68,8 @@ The order is indicative: features arrive when they are ready and tested on real 
 - FTPS: a server that wants the data connection to resume the TLS session of the control connection may never send the data ([#37](https://github.com/IoSonoPiero/eyecansee/issues/37)).
 - Windows: JNG files do not open, because the ImageMagick security policy shipped with the program blocks them ([#38](https://github.com/IoSonoPiero/eyecansee/issues/38)).
 - Xiaomi phones: photos deleted from the Xiaomi Gallery go to the Gallery's own private trash, which EyeCanSee cannot see ([#39](https://github.com/IoSonoPiero/eyecansee/issues/39)).
+- Windows: if the connection to the phone breaks while Windows still sees the phone, after Try again the open folder keeps saying the phone was disconnected until EyeCanSee is restarted. The file is saved anyway ([#40](https://github.com/IoSonoPiero/eyecansee/issues/40)).
+- Converted Camera RAW photos do not keep the maker note, the camera maker's own data ([#41](https://github.com/IoSonoPiero/eyecansee/issues/41)).
 
 ## Not planned
 
