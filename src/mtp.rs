@@ -57,6 +57,10 @@ pub struct Phone {
 pub struct Download<'a> {
     file: FileDownload,
     path: String,
+    /// The phone's `turn`, kept while a window is in flight (`holds_session`): mtp-rs holds the
+    /// phone until the window is read, so a call taking the turn then waited for the phone while
+    /// the window waited for the turn (copy and listing both stuck, mtp-rs 0.38, Windows 2026-11-07).
+    window: Option<tokio::sync::MutexGuard<'a, ()>>,
     _turn: tokio::sync::MutexGuard<'a, ()>,
 }
 
@@ -473,12 +477,22 @@ impl Phone {
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
         let _turn = self.downloads.lock().await;
         let file = self.queued("download", path, storage.download(handle, mtp_rs::mtp::ByteRange::Full)).await.map_err(error)?;
-        Ok(Download { file, path: path.to_string(), _turn })
+        Ok(Download { file, path: path.to_string(), window: None, _turn })
     }
 
     /// The next chunk (up to 64 KB) of a `download`.
-    pub async fn next_chunk(&self, download: &mut Download<'_>) -> Option<Result<Bytes, Error>> {
-        self.queued("next_chunk", &download.path, download.file.next_chunk()).await.map(|r| r.map_err(error))
+    pub async fn next_chunk<'a>(&'a self, download: &mut Download<'a>) -> Option<Result<Bytes, Error>> {
+        if download.window.is_none() {
+            download.window = Some(self.turn.lock().await);
+        }
+        let chunk = {
+            let _waiting = Waiting::start("next_chunk", &download.path);
+            download.file.next_chunk().await
+        };
+        if !download.file.holds_session() {
+            download.window = None;
+        }
+        chunk.map(|r| r.map_err(error))
     }
 
     /// Copies a file inside the phone, without passing through the computer (MTP `CopyObject`),
@@ -717,6 +731,21 @@ mod tests {
                     println!("read {bytes} bytes in {:?}", t.elapsed());
                     // The path of a copy (`Store::send_chunks`): all the files, then the biggest alone.
                     let biggest = l.files.iter().max_by_key(|f| f.size).unwrap();
+                    // A listing while a download is half way: it must get in between two windows.
+                    let during = async {
+                        let mut d = phone.download(&biggest.path).await.unwrap();
+                        while let Some(w) = phone.next_chunk(&mut d).await {
+                            w.unwrap();
+                        }
+                    };
+                    let listing = async {
+                        tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                        let t = std::time::Instant::now();
+                        phone.list(first).await.unwrap();
+                        t.elapsed()
+                    };
+                    let both = tokio::time::timeout(std::time::Duration::from_secs(60), async { tokio::join!(during, listing) });
+                    println!("listing during a download: {:?}", both.await.expect("download and listing stuck").1);
                     for (what, files) in [("all", l.files.iter().collect::<Vec<_>>()), ("biggest", vec![biggest])] {
                         let t = std::time::Instant::now();
                         let mut bytes = 0;
