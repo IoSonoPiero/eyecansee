@@ -162,17 +162,19 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
         image = image.resize_exact(w, h, job.filter.kind());
     }
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
+    // Encoded again, the file is the picture alone: the XMP of a gain map or a motion photo
+    // video it no longer has goes (`Original::alone`).
     match job.format {
         // As "Save" writes them, at the original's quality (which would refuse a phone JPEG: it
         // writes over the original).
         None if Format::of_file(name) == Some(Format::Jpeg) => {
             let options = crate::encode::jpeg_quality::like(bytes, Options::default());
-            Ok((name.to_string(), encode::Original::with_meta_of(image, bytes, name).encode(&options).map_err(failed)?))
+            Ok((name.to_string(), encode::Original::with_meta_of(image, bytes, name).alone().encode(&options).map_err(failed)?))
         }
         None => crate::save_back::encoded_back(bytes, name, image).map(|(data, _)| (name.to_string(), data)).map_err(|_| (SKIP_INSIDE, name.to_string())),
         Some(format) => {
             let options = Options { format, turn: Turn::default(), ..job.options };
-            let data = encode::Original::with_meta_of(image, bytes, name).encode(&options).map_err(failed)?;
+            let data = encode::Original::with_meta_of(image, bytes, name).alone().encode(&options).map_err(failed)?;
             Ok((with_ext(name, format), data))
         }
     }
@@ -605,6 +607,32 @@ mod tests {
         assert_eq!(quality(&convert(&jpeg, "a.jpg", &chosen).unwrap().1), Some(40));
         let kept = Job { format: None, size: Size::Fit(32, 32), ..Default::default() };
         assert_eq!(quality(&convert(&jpeg, "a.jpg", &kept).unwrap().1), Some(70));
+    }
+
+    /// A phone photo converted (resized in JPEG, or PNG) is the picture alone: the XMP no longer
+    /// describes a gain map (`Container:Directory`, `hdrgm:`), the rest of it stays.
+    #[test]
+    fn converted_without_gain_map_xmp() {
+        let xmp = concat!(
+            "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">",
+            "<rdf:Description xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:hdrgm=\"http://ns.adobe.com/hdr-gain-map/1.0/\" ",
+            "xmlns:Container=\"http://ns.google.com/photos/1.0/container/\" xmlns:Item=\"http://ns.google.com/photos/1.0/container/item/\" hdrgm:Version=\"1.0\">",
+            "<dc:creator><rdf:Seq><rdf:li>Ann</rdf:li></rdf:Seq></dc:creator>",
+            "<Container:Directory><rdf:Seq><rdf:li><Container:Item Item:Semantic=\"Primary\" Item:Mime=\"image/jpeg\"/></rdf:li>",
+            "<rdf:li><Container:Item Item:Semantic=\"GainMap\" Item:Mime=\"image/jpeg\" Item:Length=\"100\"/></rdf:li></rdf:Seq></Container:Directory>",
+            "</rdf:Description></rdf:RDF></x:xmpmeta>"
+        );
+        let jpeg = crate::encode::jpeg_quality::tests::jpeg(90, crate::encode::Chroma::Quarter);
+        let len = (xmp.len() + 2) as u16;
+        let bytes = [&jpeg[..2], &[0xFF, 0xE1], &len.to_be_bytes(), xmp.as_bytes(), &jpeg[2..]].concat();
+        for job in [Job { format: None, size: Size::Fit(32, 32), ..Default::default() }, Job { format: Some(Format::Png), ..Default::default() }] {
+            let (name, data) = convert(&bytes, "a.jpg", &job).unwrap();
+            let text = String::from_utf8_lossy(&data);
+            for gone in ["Container:Directory", "Container:Item", "hdrgm:Version"] {
+                assert!(!text.contains(gone), "{name}: {gone} still there");
+            }
+            assert!(text.contains("<rdf:li>Ann</rdf:li>"), "{name}: the rest of the XMP");
+        }
     }
 
     #[test]

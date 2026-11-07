@@ -351,6 +351,9 @@ impl Loader {
                         return Err(crate::edit_page::ANIMATED.to_string());
                     }
                     let original = crate::encode::Original::with_meta_of(decode::decode_full_with(&bytes, &path, &sibling)?, &bytes, &path);
+                    // Save in another format writes the picture alone (`Original::alone`); the
+                    // editor needs the whole XMP to save a phone photo as it was.
+                    let original = if edit { original } else { original.alone() };
                     let preview = decode::preview(&original.image);
                     Ok((Arc::new(original), preview, bytes.len() as u64))
                 })
