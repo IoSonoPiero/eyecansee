@@ -400,8 +400,9 @@ struct App {
     restore_conflict: Option<String>,
     /// Ctrl+C / Ctrl+X.
     clip: Option<transfer::Clip>,
-    /// Paste from a menu: the folder, until the clipboard read for it arrives (`App::ask_paste`).
-    paste_to: Option<String>,
+    /// Paste from a menu: the folder and when it was asked, until the clipboard read for it
+    /// arrives (`App::ask_paste`).
+    paste_to: Option<(String, std::time::Instant)>,
     paste_ask: Option<PasteAsk>,
     /// Copy running: progress, move, source (`base`) and folder where it goes.
     transfer: Option<(Arc<transfer::Progress>, bool, String, String)>,
@@ -609,8 +610,13 @@ impl App {
 
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
-        // Asked for in the frame before: it comes now as a paste, or never (nothing on the clipboard).
-        let paste_to = self.paste_to.take();
+        // Asked for in a frame before: it comes as a paste some frames later (on Windows not in the
+        // next one: "Paste into this folder" went into the folder open, 2026-11-08), or never
+        // (nothing on the clipboard): forgotten after a second, so a later Ctrl+V goes where it is.
+        if self.paste_to.as_ref().is_some_and(|(_, at)| at.elapsed() > std::time::Duration::from_secs(1)) {
+            self.paste_to = None;
+        }
+        let paste_to = if raw_input.events.iter().any(|e| matches!(e, egui::Event::Paste(_))) { self.paste_to.take().map(|(dir, _)| dir) } else { None };
         // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer).
         // Open location and Convert and resize have fields to type in: there the keys go to the field.
         if self.asking() && !((self.open_address.is_some() || self.server_manager.is_some() || self.unlock.is_some() || self.batch.is_some()) && ctx.egui_wants_keyboard_input()) {
