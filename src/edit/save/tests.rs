@@ -320,12 +320,13 @@ fn save_live() {
         let out = save(&doc, &original, &bytes, &name, "edited", std::slice::from_ref(&name), &crate::decode::usvg_options()).unwrap();
         let d = &out.data;
         let hdr = crate::ultrahdr::is(d);
-        assert_eq!(hdr, crate::ultrahdr::is(&bytes), "{name}: Ultra HDR kept");
+        // A Motion Photo that is also Ultra HDR keeps its gain map too, without the video (#54).
+        assert_eq!(hdr, crate::ultrahdr::has_gain_map(&bytes), "{name}: Ultra HDR kept");
+        let text = String::from_utf8_lossy(d);
+        assert!(!text.contains("MotionPhoto") && !text.contains("MicroVideo") && !d.windows(4).any(|w| w == b"ftyp"), "{name}: Motion Photo");
         if !hdr {
             assert!(d.ends_with(&[0xFF, 0xD9]), "{name}: something after the picture");
             assert!(crate::ultrahdr::segments(d).iter().all(|&(m, s, e)| !(m == 0xE2 && d[s + 4..e].starts_with(b"MPF\0"))), "{name}: MPF");
-            let text = String::from_utf8_lossy(d);
-            assert!(!text.contains("MotionPhoto") && !text.contains("MicroVideo"), "{name}: Motion Photo");
         }
         if let Ok(exif) = exif::Reader::new().read_from_container(&mut Cursor::new(d)) {
             assert!(exif.fields().all(|f| f.ifd_num != In::THUMBNAIL), "{name}: EXIF thumbnail");

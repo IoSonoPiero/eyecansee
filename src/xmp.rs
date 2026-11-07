@@ -69,7 +69,8 @@ pub fn fit(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>) -> Option<Vec
 /// the main packet alone.
 pub fn fit_with(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&[u8]>) -> Option<Vec<u8>> {
     let props = iim.map(iim_props).unwrap_or_default();
-    let xmp = match xmp {
+    let xmp = xmp.map(without_video_item);
+    let xmp = match xmp.as_deref() {
         Some(x) => x,
         None if props.is_empty() => return None,
         None => EMPTY.as_bytes(),
@@ -86,6 +87,20 @@ pub fn fit_with(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Opt
         return Some(out);
     }
     Some(rewrite(xmp, w, h, &props, false, false).unwrap_or_else(|| xmp.to_vec()))
+}
+
+/// `xmp` without the item of a Motion Photo's video in the container directory (the video is
+/// never written again, as `fix` says), the other items (the gain map) kept: an `rdf:li` holding
+/// `Item:Semantic="MotionPhoto"` goes, with the blanks before it.
+// ponytail: by text, with the prefixes the phones write (Pixel); an item written as elements
+// (`<Item:Semantic>MotionPhoto</Item:Semantic>`) stays.
+fn without_video_item(xmp: &[u8]) -> std::borrow::Cow<'_, [u8]> {
+    let find = |hay: &[u8], needle: &[u8]| hay.windows(needle.len()).position(|w| w == needle);
+    let rfind = |hay: &[u8], needle: &[u8]| hay.windows(needle.len()).rposition(|w| w == needle);
+    let Some(at) = find(xmp, b"Item:Semantic=\"MotionPhoto\"") else { return xmp.into() };
+    let (Some(open), Some(close)) = (rfind(&xmp[..at], b"<rdf:li"), find(&xmp[at..], b"</rdf:li>")) else { return xmp.into() };
+    let start = open - xmp[..open].iter().rev().take_while(|c| c.is_ascii_whitespace()).count();
+    [&xmp[..start], &xmp[at + close + b"</rdf:li>".len()..]].concat().into()
 }
 
 /// `xmp` without what describes the parts after the picture in the file (Motion Photo video,
@@ -343,7 +358,8 @@ pub(crate) mod tests {
     }
 
     /// The description of a Motion Photo's video goes from every packet written again (no save
-    /// writes the video), attributes and elements; with `alone` the container directory and the
+    /// writes the video), attributes, elements and its item in the container directory (the gain
+    /// map's stays, #54); with `alone` the container directory and the
     /// gain map's description go too; the rest stays.
     #[test]
     fn motion_photo_described_no_more() {
@@ -351,12 +367,14 @@ pub(crate) mod tests {
             "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">",
             "<rdf:Description xmlns:GCamera=\"http://ns.google.com/photos/1.0/camera/\" xmlns:Container=\"http://ns.google.com/photos/1.0/container/\" xmlns:Item=\"http://ns.google.com/photos/1.0/container/item/\" xmlns:hdrgm=\"http://ns.adobe.com/hdr-gain-map/1.0/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" GCamera:MotionPhoto=\"1\" GCamera:MotionPhotoVersion=\"1\" hdrgm:Version=\"1.0\">",
             "<GCamera:MicroVideoOffset>40</GCamera:MicroVideoOffset><dc:creator><rdf:Seq><rdf:li>Ann</rdf:li></rdf:Seq></dc:creator>",
-            "<Container:Directory><rdf:Seq><rdf:li rdf:parseType=\"Resource\"><Container:Item Item:Semantic=\"GainMap\" Item:Mime=\"image/jpeg\"/></rdf:li></rdf:Seq></Container:Directory>",
+            "<Container:Directory><rdf:Seq><rdf:li rdf:parseType=\"Resource\"><Container:Item Item:Semantic=\"GainMap\" Item:Mime=\"image/jpeg\"/></rdf:li>",
+            "\n  <rdf:li rdf:parseType=\"Resource\"><Container:Item Item:Mime=\"video/mp4\" Item:Semantic=\"MotionPhoto\" Item:Length=\"40\"/></rdf:li></rdf:Seq></Container:Directory>",
             "</rdf:Description></rdf:RDF></x:xmpmeta>"
         );
         let kept = String::from_utf8(fit(Some(xmp.as_bytes()), 8, 6, None).unwrap()).unwrap();
         assert!(!kept.contains("MotionPhoto") && !kept.contains("MicroVideo"), "{kept}");
-        assert!(kept.contains("Container:Directory") && kept.contains("hdrgm:Version") && kept.contains("Ann"), "{kept}");
+        assert!(kept.contains("Container:Directory") && kept.contains("Item:Semantic=\"GainMap\"") && kept.contains("hdrgm:Version") && kept.contains("Ann"), "{kept}");
+        assert!(!kept.contains("video/mp4") && kept.contains("</rdf:li></rdf:Seq>"), "{kept}");
         let alone = String::from_utf8(alone(xmp.as_bytes(), 8, 6)).unwrap();
         assert!(!alone.contains("Container:") && !alone.contains("hdrgm:Version") && alone.contains("Ann"), "{alone}");
     }

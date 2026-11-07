@@ -10,14 +10,17 @@ use crate::encode::{Format, Options, Original};
 use crate::rotate::{Crop, Edit};
 use crate::transform::{self, Turn};
 
-/// Where the parts of an Ultra HDR file are: the gain map from `gain` to the end (zeros after
-/// it are padding).
+/// Where the parts of an Ultra HDR file are: the gain map from `gain` to `end`; after it zeros
+/// (padding) or, in a Motion Photo, its video (`video`).
 struct Parts {
     gain: usize,
+    end: usize,
+    video: bool,
 }
 
 /// The two pictures of an Ultra HDR file, if it is one: an MPF segment listing exactly two
-/// images, the second starting where the photo ends and reaching the end of the file.
+/// images, the second starting where the photo ends and followed only by padding or by the video
+/// of a Motion Photo (an MP4 or MOV: its first box is `ftyp`; Pixel and Xiaomi, #54).
 fn parts(b: &[u8]) -> Option<Parts> {
     let m = mpf(b)?;
     if m.images != 2 {
@@ -27,11 +30,19 @@ fn parts(b: &[u8]) -> Option<Parts> {
     let gain = m.tiff + read_u32(b, m.table + 16 + 8, m.little)? as usize;
     let end = gain.checked_add(size)?;
     let jpeg = b.get(gain..end)?;
-    (jpeg.starts_with(&[0xFF, 0xD8, 0xFF]) && b[end..].iter().all(|&x| x == 0)).then_some(Parts { gain })
+    let video = b.get(end + 4..end + 8) == Some(b"ftyp");
+    (jpeg.starts_with(&[0xFF, 0xD8, 0xFF]) && (video || b[end..].iter().all(|&x| x == 0))).then_some(Parts { gain, end, video })
 }
 
 /// Is this an Ultra HDR JPEG that `turned` can turn?
+// ponytail: not with a Motion Photo video after the gain map until Piero chooses whether the
+// lossless turn keeps the video (#54); `has_gain_map` for the saves that encode again.
 pub fn is(b: &[u8]) -> bool {
+    parts(b).is_some_and(|p| !p.video)
+}
+
+/// Has an HDR gain map, maybe with a Motion Photo video after it: `edited` keeps the gain map.
+pub fn has_gain_map(b: &[u8]) -> bool {
     parts(b).is_some()
 }
 
@@ -39,6 +50,9 @@ pub fn is(b: &[u8]) -> bool {
 /// whether it lost quality (a picture whose size is not a multiple of the JPEG blocks is encoded
 /// again at quality 95).
 pub fn turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
+    if !is(b) {
+        return None;
+    }
     let (photo, gain) = split(b)?;
     Some((|| {
         // The gain map has the photo's pixels in the photo's orientation: it turns as they do.
@@ -96,10 +110,11 @@ fn lowest_gain(g: &mut DynamicImage, holes: &[[f32; 4]], kx: f32, ky: f32) {
     }
 }
 
-/// The photo and the gain map (without the padding after it), if it is an Ultra HDR file.
+/// The photo and the gain map (without the padding or the video after it), if it is an Ultra
+/// HDR file.
 pub(crate) fn split(b: &[u8]) -> Option<(&[u8], &[u8])> {
     let p = parts(b)?;
-    let gain = &b[p.gain..];
+    let gain = &b[p.gain..p.end];
     let end = gain.len() - gain.iter().rev().take_while(|&&x| x == 0).count();
     Some((&b[..p.gain], &gain[..end]))
 }
@@ -337,6 +352,22 @@ pub(crate) mod tests {
         let xmp = String::from_utf8_lossy(&out[..p.gain]).into_owned();
         assert!(xmp.contains(&format!("Item:Length=\"{}\"", out.len() - p.gain)));
         fitted(&out[..p.gain], 20);
+    }
+
+    /// A Motion Photo that is also Ultra HDR (Pixel, Xiaomi): its video after the gain map. The
+    /// gain map is found; the editor's copy keeps it, without the video; the lossless turn waits
+    /// for Piero's choice (#54). Random bytes after the gain map are still not Ultra HDR.
+    #[test]
+    fn video_after_gain_map() {
+        let file = sample(64, 32);
+        let video = [&[0, 0, 0, 0x18][..], b"ftypmp42", &[7; 40]].concat();
+        let motion = [file.as_slice(), &video].concat();
+        assert!(has_gain_map(&motion) && !is(&motion) && turned(&motion, Turn::default()).is_none());
+        assert_eq!(split(&motion), split(&file));
+        assert!(!has_gain_map(&[file.as_slice(), &[7; 40]].concat()));
+        let img = crate::decode::decode_full(&motion, "a.jpg").unwrap();
+        let out = edited(&motion, img, &[Edit { turn: Turn::default(), angle: 0.0, crop: Crop::centred(64.0, 32.0), fill: None }], &[]).unwrap();
+        assert!(is(&out) && !out.windows(4).any(|w| w == b"ftyp"));
     }
 
     /// A hole gives gain 0 to every pixel of the gain map it touches even in part, and to no other.
