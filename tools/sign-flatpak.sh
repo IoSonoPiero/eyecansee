@@ -39,6 +39,9 @@ fetch() { # repo tag-or-empty file
 }
 content() { ostree --repo="$1" show "$2" | sed -n 's/^ContentChecksum: *//p'; }
 
+# The trial paths as given from where the script was started (it works in a folder of its own).
+abs() { [[ -z $1 || $1 == none || $1 == /* ]] && echo "$1" || echo "$PWD/$1"; }
+CI_TAR=$(abs "${CI_TAR:-}") PREV_TAR=$(abs "${PREV_TAR:-}") OUT_DIR=$(abs "${OUT_DIR:-}") PUB=$(abs "$PUB")
 W=$(mktemp -d); trap 'rm -rf "$W"' EXIT
 cd "$W"
 if [[ -n ${CI_TAR:-} ]]; then cp "$CI_TAR" ci.tar; else fetch "$SRC" "$TAG" "flatpak-commit-$VER.tar"; mv "flatpak-commit-$VER.tar" ci.tar; fi
@@ -76,6 +79,8 @@ MB=$(( $(du -sb --apparent-size repo media | awk '{s+=$1} END {print s}') / 1000
 echo "EyeCanSee $VER: commit ${NEW:0:12} (was ${OLD:0:12}), repository $MB MB, signatures valid."
 
 if [[ -n ${OUT_DIR:-} ]]; then
+    # Emptied first: only if it holds nothing but a previous trial's repo/ and media/.
+    [[ ! -e $OUT_DIR || -z $(ls -A "$OUT_DIR" | grep -vxE 'repo|media') ]] || die "$OUT_DIR holds other files: not emptied"
     rm -rf "$OUT_DIR"; mkdir -p "$OUT_DIR"
     tar -cf "$OUT_DIR.tar" ./repo ./media
     tar -C "$OUT_DIR" -xf "$OUT_DIR.tar"
