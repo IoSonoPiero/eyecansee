@@ -399,13 +399,23 @@ fn paint_fitted(painter: &egui::Painter, area: Rect, player: &mpv::Player, textu
     }
     let Some([w, h]) = player.video_size() else { return false };
     let ppp = painter.ctx().pixels_per_point();
-    let scale = (area.width() * ppp / w as f32).min(area.height() * ppp / h as f32);
-    let pixels = [(w as f32 * scale).round().max(1.0) as u32, (h as f32 * scale).round().max(1.0) as u32];
-    player.set_size(pixels);
+    let (drawn, shown) = frame_sizes([w, h], [area.width() * ppp, area.height() * ppp]);
+    player.set_size(drawn);
     let Some(t) = texture else { return false };
-    let shown = Rect::from_center_size(area.center(), vec2(pixels[0] as f32, pixels[1] as f32) / ppp);
+    let shown = Rect::from_center_size(area.center(), vec2(shown[0] as f32, shown[1] as f32) / ppp);
     painter.image(t.id(), shown, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
     true
+}
+
+/// The video of `video` pixels fitted to `room` pixels: the size mpv draws the frames at and the
+/// size they are shown at. Never drawn larger than the video: the card enlarges the texture, mpv's
+/// software renderer did it on the processor (1080p in a maximized 2560x1440 window: 88% of a core
+/// before, 76% after; 116% and 81% on a laptop screen of the other card, 2026-11-09).
+fn frame_sizes(video: [u32; 2], room: [f32; 2]) -> ([u32; 2], [u32; 2]) {
+    let [w, h] = video.map(|v| v.max(1) as f32);
+    let scale = (room[0] / w).min(room[1] / h);
+    let shown = [(w * scale).round().max(1.0) as u32, (h * scale).round().max(1.0) as u32];
+    (if scale > 1.0 { video } else { shown }, shown)
 }
 
 /// Play/pause, time, position, then sound off and volume. On the viewer's dark background in both themes.
@@ -464,5 +474,13 @@ mod tests {
     #[test]
     fn jumps_stay_in_the_video() {
         assert_eq!((super::jumped(3.0, -5.0, 60.0), super::jumped(10.0, 5.0, 60.0), super::jumped(58.0, 5.0, 60.0), super::jumped(58.0, 5.0, 0.0)), (0.0, 15.0, 59.9, 63.0));
+    }
+
+    /// Larger room: drawn at the video's size, shown fitted; smaller room: drawn as shown.
+    #[test]
+    fn frames_never_drawn_larger_than_the_video() {
+        assert_eq!(super::frame_sizes([1920, 1080], [2560.0, 1400.0]), ([1920, 1080], [2489, 1400]));
+        assert_eq!(super::frame_sizes([1920, 1080], [960.0, 1000.0]), ([960, 540], [960, 540]));
+        assert_eq!(super::frame_sizes([1080, 1920], [2560.0, 1400.0]), ([788, 1400], [788, 1400]));
     }
 }
