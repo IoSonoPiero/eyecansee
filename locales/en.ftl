@@ -822,7 +822,9 @@ vault-unreadable = The file of the servers cannot be read: { $detail }
 vault-on = 🔒 Master password on: the file of the servers is encrypted.
 vault-on-hint = Every change is written at once, encrypted. EyeCanSee asks for the password once per session, at the first server.
 vault-off = ⚠ No master password: passwords and passphrases are saved in plain text.
-vault-off-hint = Anyone who can read your files can read these passwords too. A master password encrypts the whole file of the servers.
+vault-off-hint =
+    Anyone who can read your files can read these passwords too.
+    With a master password, the file of the servers is encrypted.
 vault-set = Set a master password…
 vault-change = Change the master password…
 vault-remove = Remove the master password…
