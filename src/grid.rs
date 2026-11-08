@@ -446,6 +446,10 @@ impl App {
             Some(Err(_)) if self.files().get(file).is_some_and(|f| crate::decode::is_audio(&f.path)) => {
                 icons::paint(painter, Icon::Audio, Rect::from_center_size(thumb_rect.center(), vec2(side * 0.45, side * 0.45)));
             }
+            // A video without the video engine: its sign, not a warning (#71).
+            Some(Err(e)) if e == crate::video_read::NO_ENGINE => {
+                icons::paint(painter, Icon::Video, Rect::from_center_size(thumb_rect.center(), vec2(side * 0.45, side * 0.45)));
+            }
             Some(Err(_)) => {
                 painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "⚠", FontId::proportional(side * 0.3), dim);
             }

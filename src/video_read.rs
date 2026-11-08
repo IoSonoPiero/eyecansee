@@ -422,6 +422,16 @@ fn on_home_disk(file: &std::path::Path) -> bool {
 /// one per thumbnail worker, as images: with one decoding thread each, 32 at a time make 73 a
 /// second, 4 made 11 (2026-10-27).
 pub(crate) async fn video_still(op: &Store, path: &str, size: u64, side: u32) -> Result<image::DynamicImage, String> {
+    // A thumbnail without the video engine: no frame can be made, so the video is not read for
+    // one. A phone video on Windows was copied whole first, then failed (1 GB, 32 s, #71).
+    if side > 0 && !crate::mpv_load::available() {
+        if whole_only(op)
+            && let Some(img) = head_preview(op, path, size, side).await
+        {
+            return Ok(img);
+        }
+        return Err(NO_ENGINE.into());
+    }
     if whole_only(op) {
         return still_from_copy(op, path, size, side).await;
     }
@@ -429,6 +439,17 @@ pub(crate) async fn video_still(op: &Store, path: &str, size: u64, side: u32) ->
     tokio::task::spawn_blocking(move || crate::mpv::still(input, side).map(|i| image::DynamicImage::ImageRgba8(i).to_rgb8().into()))
         .await
         .unwrap_or_else(|e| Err(e.to_string()))
+}
+
+/// The error of a video's thumbnail without the video engine: the grid shows the video sign.
+pub(crate) const NO_ENGINE: &str = "no video engine";
+
+/// The camera's preview in the first bytes of a phone video on Windows (`preview_jpeg` skips
+/// such a phone): the start of the file is read without reading anything before it.
+/// ponytail: the start only; a preview in a `moov` at the end waits for partial reads (#71).
+async fn head_preview(op: &Store, path: &str, size: u64, side: u32) -> Option<image::DynamicImage> {
+    let head = op.read_range(path, 0, size.min(crate::mp4::HEAD)).await.ok()?;
+    decode::thumbnail(crate::mp4::thumbnail(&head)?, "preview.jpg", side).ok()
 }
 
 /// `video_still` for a phone on Windows: the file copied whole once (kept, so the viewer opens it
@@ -506,6 +527,29 @@ mod tests {
         forget_copies();
         assert!(!tmp.exists() || cfg!(windows));
         assert_eq!(again.read(2_999_000, 5_000).unwrap(), data[2_999_000..]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Without the video engine (#71): the camera's preview in the first bytes is found; a
+    /// preview after them, or none, gives nothing (the whole file is not read for it).
+    #[test]
+    fn preview_in_head_only() {
+        let mp4_box = |kind: &[u8; 4], content: &[u8]| [&((content.len() + 8) as u32).to_be_bytes()[..], kind, content].concat();
+        let mut jpeg = Vec::new();
+        image::DynamicImage::new_rgb8(32, 18).write_to(&mut std::io::Cursor::new(&mut jpeg), image::ImageFormat::Jpeg).unwrap();
+        let moov = mp4_box(b"moov", &mp4_box(b"udta", &mp4_box(b"thmb", &jpeg)));
+        let (ftyp, mdat) = (mp4_box(b"ftyp", b"isomisom"), mp4_box(b"mdat", &vec![9; 200_000]));
+        let dir = std::env::temp_dir().join(format!("eyecansee-head-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("first.mp4"), [&ftyp[..], &moov, &mdat].concat()).unwrap();
+        std::fs::write(dir.join("last.mp4"), [&ftyp[..], &mdat, &moov].concat()).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let size = |n: &str| std::fs::metadata(dir.join(n)).unwrap().len();
+        let first = rt.block_on(head_preview(&op, "first.mp4", size("first.mp4"), 16)).expect("preview at the start");
+        assert_eq!((first.width(), first.height()), (16, 9));
+        assert!(rt.block_on(head_preview(&op, "last.mp4", size("last.mp4"), 16)).is_none(), "moov after the first bytes");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }
