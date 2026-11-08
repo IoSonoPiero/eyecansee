@@ -1,0 +1,10 @@
+[Flatpak Ref]
+Title=EyeCanSee
+Name=io.github.IoSonoPiero.EyeCanSee
+Branch=master
+Url=https://flatpak.montinaro.info/repo/
+SuggestRemoteName=eyecansee
+Homepage=https://github.com/IoSonoPiero/eyecansee
+IsRuntime=false
+RuntimeRepo=https://dl.flathub.org/repo/flathub.flatpakrepo
+GPGKey=mDMEavCEwBYJKwYBBAHaRw8BAQdA5QWBIr+aZTvK50Mk/lpcuDqytH+mc3H/N3R30TdO+xa0HEV5ZUNhblNlZSBGbGF0cGFrIHJlcG9zaXRvcnmIkwQTFgoAOxYhBBH30afY01bS/eisR9VOkve2TEJ9BQJq8ITAAhsDBQsJCAcCAiICBhUKCQgLAgQWAgMBAh4HAheAAAoJENVOkve2TEJ9iRYBANqtFuGTWFne4wLs7WrmrA3jgl2Xx13ltKEgXwJRNkTiAP90QbN3QRuzBrLOk4SfQTZCayXS5ZoyJt7oLDJ9apupDg==
