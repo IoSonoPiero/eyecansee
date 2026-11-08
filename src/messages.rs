@@ -176,6 +176,11 @@ impl App {
     }
 
     fn on_loaded(&mut self, ctx: &egui::Context, index: usize, thumb: bool, image: Result<ColorImage, String>) {
+        // `loader::with_id`: translated here, where the language is.
+        let image = image.map_err(|e| match e.split_once('\u{1}') {
+            Some((id, detail)) => self.i18n.t_args(id, &[("detail", detail)]),
+            None => e,
+        });
         let name = self.files().get(index).map(|f| f.path.clone()).unwrap_or_default();
         match &image {
             Err(e) => log!("{} {index} {name:?}: ERROR {e}", if thumb { "thumbnail" } else { "image" }),

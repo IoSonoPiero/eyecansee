@@ -185,7 +185,9 @@ impl App {
             Some(Err(_)) if self.files().get(current).is_some_and(|f| crate::occt::needs_engine(&f.path)) => self.cad_engine_card(ui),
             Some(Err(e)) => {
                 let name = self.files().get(current).map_or("", |f| source::shown(&f.path));
-                ui.label(browser::error_text(ui, self.i18n.t_args("cannot-load", &[("file", name), ("error", e)])));
+                // The viewer is always dark: the theme's red was dark and small on it (2026-11-08).
+                let text = egui::RichText::new(self.i18n.t_args("cannot-load", &[("file", name), ("error", e)]));
+                ui.add(egui::Label::new(text.size(18.0).color(egui::Color32::from_rgb(255, 140, 130))).wrap());
             }
             None => crate::theme::loading(ui, self.i18n.t("loading-file"), Some(egui::Color32::from_gray(220))),
         });

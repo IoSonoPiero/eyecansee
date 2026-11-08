@@ -23,6 +23,13 @@ pub const SKIPPED: &str = "save-skipped";
 /// Side of the decoded thumbnails; the grid shows them at this size or smaller.
 pub const THUMB_SIDE: u32 = 256;
 
+/// A source error sent as the `String` of `Msg::Loaded`, with its Fluent id ("id\u{1}detail"):
+/// `on_loaded` translates it. Only the viewer's `load_full` sends it; a busy phone showed the raw
+/// "device busy" (Windows Photos importing, 2026-11-08).
+fn with_id((id, detail): crate::source::Error) -> String {
+    format!("{id}\u{1}{detail}")
+}
+
 pub enum Msg {
     Listed(String, Result<Listing, source::Error>),
     /// The folder a server starts in, once connected (`Loader::home`): source base and folder.
@@ -560,7 +567,7 @@ impl Loader {
                 let _place = if slow_video(&op, &path) { SLOW.acquire().await.ok() } else { None };
                 match op.size(&path).await {
                     Ok(size) => video_still(&op, &path, size, 0).await.map(decode::to_color_image),
-                    Err((_, detail)) => Err(detail),
+                    Err(e) => Err(with_id(e)),
                 }
             } else {
                 let (tx, ctx) = (tx.clone(), ctx.clone());
@@ -590,7 +597,7 @@ impl Loader {
                     })
                     .await
                     .unwrap_or_else(|e| Err(e.to_string())),
-                    Err((_, detail)) => Err(detail),
+                    Err(e) => Err(with_id(e)),
                 }
             };
             let _ = tx.send(Msg::Loaded { generation, index, thumb: false, image });
