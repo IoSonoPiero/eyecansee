@@ -1,6 +1,6 @@
 //! Thumbnails in the background: the priority queue the UI rewrites, the workers that take from
 //! it (from the cache when there, otherwise made from the file: videos of slow disks two at a
-//! time), and the upkeep of the cache. Split from `loader.rs` on 2026-11-01.
+//! time, after the pictures), and the upkeep of the cache. Split from `loader.rs` on 2026-11-01.
 
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::sync::mpsc::Sender;
@@ -56,6 +56,10 @@ pub(crate) async fn thumb_worker(
             item.map(|item| (generation, at, item))
         };
         let Some((generation, at, (index, file))) = next else {
+            // No pictures left: now the slow videos waiting.
+            if !make_slow(&op, &base, &queue, &send).await {
+                return;
+            }
             notified.await;
             continue;
         };
@@ -67,14 +71,17 @@ pub(crate) async fn thumb_worker(
         };
         let sent = match found {
             Some(img) => send(generation, index, Ok(img)),
+            // Made after the pictures still queued: a phone video is copied whole first (8.8 s for
+            // one on a POCO X6 Pro, Windows), and every photo waited behind it (2026-11-08).
             None if slow_video(&op, &file.path) => {
-                {
+                let pictures_left = {
                     let mut q = queue.lock().unwrap();
                     if q.generation == generation {
                         q.slow.insert(at, (index, file));
                     }
-                }
-                make_slow(&op, &base, &queue, &send).await
+                    !q.items.is_empty()
+                };
+                pictures_left || make_slow(&op, &base, &queue, &send).await
             }
             None => send(generation, index, generate(&op, &base, file).await),
         };
