@@ -52,7 +52,7 @@ Installato dal Microsoft Store, EyeCanSee lo aggiorna lo Store e non cerca aggio
 - **Aiuto > Verifica aggiornamenti** fa lo stesso controllo quando vuoi e ti dice com'è andata.
 - Il controllo si può spegnere in **Strumenti > Opzioni… > Generale**. Spento, EyeCanSee contatta GitHub solo quando scegli Verifica aggiornamenti. Non viene inviato niente su di te o sulle tue immagini: solo la richiesta dell'ultima versione.
 - Su Fedora EyeCanSee si aggiorna con `dnf`, insieme al resto del sistema.
-- Come Flatpak, EyeCanSee si aggiorna con `flatpak update`, GNOME Software o Discover, e non cerca aggiornamenti da sé.
+- Come Flatpak, EyeCanSee si aggiorna con `flatpak update` o con il centro software del sistema (per esempio GNOME Software, Discover o il Gestore aggiornamenti di Linux Mint), e non cerca aggiornamenti da sé.
 
 ## Eliminare e rinominare
 
