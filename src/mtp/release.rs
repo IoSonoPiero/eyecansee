@@ -119,6 +119,11 @@ pub(super) fn drop_stale_kiod(serial: &str) {
             log!("stale {comm} ({pid:?}) terminated for phone {serial}");
         }
     }
+    // Flatpak: kiod6 is out of sight, so it is asked to quit whether it is stale or not (seen on
+    // Plasma 6.8: Dolphin said "udi=… does not exist" after EyeCanSee let the phone go).
+    if flatpak_kde() {
+        kiod_quit();
+    }
 }
 
 #[cfg(windows)]
