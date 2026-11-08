@@ -60,6 +60,16 @@ fn entries(dir: &Path) -> Vec<(String, String)> {
 /// Mounted external disks, wherever they are: /run/media or /media (automatic mounting) but also
 /// /mnt from fstab (real case: ext4 partition of a USB SSD in /mnt/Linux, 2026-10-20). What counts
 /// is the device, not the mount point: external if it sits on USB in /sys, or an SD card.
+/// Flatpak: the host's file system is also under /run/host/root, and a disk mounted while the app
+/// runs can be listed there first. The path without that prefix is the one the trash (the Path in
+/// .trashinfo) and the file manager know (a stick in Silverblue, 2026-11-08; a disk in /mnt, 2026-10-26).
+fn host_path(mount: String) -> String {
+    match mount.strip_prefix("/run/host/root") {
+        Some(p) if p.starts_with('/') && Path::new(p).exists() => p.to_string(),
+        _ => mount,
+    }
+}
+
 fn external_disks() -> Vec<Device> {
     let Ok(mounts) = std::fs::read_to_string("/proc/self/mounts") else { return Vec::new() };
     // Partition labels: /dev/disk/by-label/<label> -> ../../sda1
@@ -82,7 +92,7 @@ fn external_disks() -> Vec<Device> {
         if !is_external(dev) || !seen.insert(dev.to_string()) {
             continue;
         }
-        let mount = unescape_mount(mount);
+        let mount = host_path(unescape_mount(mount));
         let name = labels.get(dev).cloned().unwrap_or_else(|| {
             Path::new(&mount).file_name().map_or(dev.to_string(), |n| n.to_string_lossy().into_owned())
         });
@@ -463,6 +473,14 @@ mod tests {
         assert_eq!(direct_address(gvfs, &[phone("mtp://OTHER1234567/")]), None);
         assert_eq!(direct_address("/run/user/1000/gvfs/gphoto2:host=Maker_Phone_ABCD1234EFGH/DCIM/a.jpg", &devices), None);
         assert_eq!(direct_address("/home/me/a.jpg", &devices), None);
+    }
+
+    #[test]
+    fn host_path_outside_the_sandbox() {
+        assert_eq!(host_path("/run/host/root/tmp".into()), "/tmp");
+        assert_eq!(host_path("/run/host/root/no-such-mount-here".into()), "/run/host/root/no-such-mount-here");
+        assert_eq!(host_path("/run/host/rootless".into()), "/run/host/rootless");
+        assert_eq!(host_path("/run/media/me/Disk".into()), "/run/media/me/Disk");
     }
 
     #[test]
