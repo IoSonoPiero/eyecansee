@@ -144,6 +144,12 @@ inherits = "release"
 lto = "fat"
 codegen-units = 1
 
+# Trial builds by hand (`--profile prova`): as `release`, but only what changed is compiled again.
+# The same code; only the exe is bigger. Never for packages.
+[profile.prova]
+inherits = "release"
+incremental = true
+
 # magick_rust 2.1.1 imports ResourceType only on Linux and macOS, so it does not build on Windows.
 # avif-serialize 0.8.9 and ravif 0.13.0 write no colour profile and no XMP: the copies in vendor/ add
 # them (`colr` of type `prof`, a `mime` item), proposed to their author (notes/avif-serialize-pr.md).
