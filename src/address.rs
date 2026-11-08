@@ -99,11 +99,14 @@ impl AddressForm {
         if !self.port.trim().is_empty() {
             u.set_port(Some(self.port.trim().parse().ok()?)).ok()?;
         }
+        // Encoded here: `url` leaves a "%" as it is, and "ab%cd" came back as another password
+        // (a Storage Box refused it, 2026-11-08).
+        let encoded = |s: &str| percent_encoding::utf8_percent_encode(s, percent_encoding::NON_ALPHANUMERIC).to_string();
         if !self.user.is_empty() {
-            u.set_username(&self.user).ok()?;
+            u.set_username(&encoded(&self.user)).ok()?;
         }
         if !self.password.is_empty() {
-            u.set_password(Some(&self.password)).ok()?;
+            u.set_password(Some(&encoded(&self.password))).ok()?;
         }
         // A folder: with "/" at the end, or its last part would be taken for a file.
         let folder = self.folder.trim().trim_matches('/');
@@ -306,6 +309,13 @@ mod tests {
         assert_eq!(f("127.0.0.1", "2121", "", "", "/Foto/2026/"), Some("ftp://127.0.0.1:2121/Foto/2026/".into()));
         assert_eq!(f("nas.lan", "", "me@home", "p:w/d", "Foto"), Some("ftp://me%40home:p%3Aw%2Fd@nas.lan/Foto/".into()));
         assert_eq!(f("nas.lan", "porta", "", "", ""), None);
+        // Every character of a password comes back as it was typed, "%" too.
+        for c in "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~ €àèé§°£".chars() {
+            let typed = format!("ab{c}cd{c}");
+            let u = url::Url::parse(&f("nas.lan", "", &typed, &typed, "").unwrap()).unwrap();
+            let back = |s: &str| super::percent_decode_str(s).decode_utf8_lossy().into_owned();
+            assert_eq!((back(u.username()), u.password().map(back)), (typed.clone(), Some(typed)), "{c:?}");
+        }
         let whole = super::AddressForm { url: " C:\\Foto ".into(), host: "ignored".into(), ..Default::default() };
         assert_eq!(whole.address(), Some("C:\\Foto".into()));
     }
