@@ -5,7 +5,9 @@ language-name = Italiano
 
 counter = { $n } di { $total }
 folder-empty = Questa cartella non contiene immagini né sottocartelle
-cannot-load = Impossibile aprire { $file }: { $error }
+cannot-load =
+    Impossibile aprire { $file }:
+    { $error }
 video-no-mpv = Per i video serve libmpv, che non è stata trovata. Installare il pacchetto con libmpv: mpv-libs su Fedora, libmpv2 su Debian, Ubuntu e openSUSE (libmpv1 su Ubuntu 22.04), mpv su Arch.
 video-component-title = Motore video
 video-component-restart-needed = Il motore video è scaricato, ma non è stato possibile avviarlo. Di solito basta riavviare EyeCanSee.
@@ -69,7 +71,9 @@ error-device-kde-back = KDE ha ripreso il telefono: chiudi Dolphin e premi di nu
 error-device-kde = Il telefono è in uso da KDE (il suo servizio kiod). Premi F5 per aprirlo comunque in EyeCanSee. ({ $detail })
 error-no-device = Il dispositivo non è stato trovato: se è collegato, sbloccalo e scegli "Trasferimento file". EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })
 error-phone-disconnected = Il telefono è stato scollegato. ({ $detail })
-error-phone-busy = Il telefono è occupato con un altro programma, per esempio un'importazione di foto. Aspetta che finisca o chiudilo, poi premi F5. ({ $detail })
+error-phone-busy =
+    Il telefono è occupato con un altro programma, per esempio un'importazione di foto.
+    Aspetta che finisca o chiudilo, poi premi F5.
 error-phone-timeout = Il telefono ha smesso di rispondere: forse è stato scollegato o bloccato. ({ $detail })
 error-phone-name-taken = Il telefono ha rifiutato la copia: nella cartella c'è già un file con quel nome. Non è cambiato niente. ({ $detail })
 error-not-ready = Il telefono non risponde: sbloccalo e scegli "Trasferimento file" nella sua notifica USB. EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })

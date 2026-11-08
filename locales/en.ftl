@@ -6,7 +6,9 @@ language-name = English
 
 counter = { $n } of { $total }
 folder-empty = This folder contains no images or subfolders
-cannot-load = Cannot open { $file }: { $error }
+cannot-load =
+    Cannot open { $file }:
+    { $error }
 video-no-mpv = Videos need libmpv, which was not found. Install the package with libmpv: mpv-libs on Fedora, libmpv2 on Debian, Ubuntu and openSUSE (libmpv1 on Ubuntu 22.04), mpv on Arch.
 video-component-title = Video engine
 video-component-restart-needed = The video engine is downloaded, but it could not be started. Starting EyeCanSee again usually solves it.
@@ -70,7 +72,9 @@ error-device-kde-back = KDE took the phone back: close Dolphin and press Release
 error-device-kde = KDE is using the phone (its kiod service). Press F5 to open it in EyeCanSee anyway. ({ $detail })
 error-no-device = The device was not found: if it is connected, unlock it and choose "File transfer" on it. EyeCanSee retries by itself every 2 seconds. ({ $detail })
 error-phone-disconnected = The phone was disconnected. ({ $detail })
-error-phone-busy = The phone is busy with another program, for example a photo import. Wait for it to finish or close it, then press F5. ({ $detail })
+error-phone-busy =
+    The phone is busy with another program, for example a photo import.
+    Wait for it to finish or close it, then press F5.
 error-phone-timeout = The phone stopped answering: it may have been disconnected or locked. ({ $detail })
 error-phone-name-taken = The phone refused the copy: the folder already has a file with that name. Nothing was changed. ({ $detail })
 error-not-ready = The phone does not answer: unlock it and choose "File transfer" in its USB notification. EyeCanSee retries by itself every 2 seconds. ({ $detail })
