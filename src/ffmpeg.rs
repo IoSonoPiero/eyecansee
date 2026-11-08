@@ -163,6 +163,60 @@ pub struct Video {
 // ponytail: the first render node only; on a PC with two cards VA-API may sit on the second
 const VAAPI_DEVICE: &str = "/dev/dri/renderD128";
 
+/// A graphics card that encodes and can also read, turn and resize the video itself, so the
+/// frames never go back to the processor (#33): with NVENC the processor did 16 times less work
+/// for the same time (HEVC 1080p, 2026-11-08).
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Card {
+    Cuda,
+    Vaapi,
+}
+
+impl Card {
+    fn of(encoder: &str) -> Option<Card> {
+        match encoder.rsplit('_').next() {
+            Some("nvenc") => Some(Card::Cuda),
+            Some("vaapi") => Some(Card::Vaapi),
+            _ => None,
+        }
+    }
+
+    /// The name FFmpeg gives it, in `-hwaccel` and in its filters (`scale_cuda`, `transpose_vaapi`).
+    fn name(self) -> &'static str {
+        match self {
+            Card::Cuda => "cuda",
+            Card::Vaapi => "vaapi",
+        }
+    }
+}
+
+/// The turn as one transposition of the card's filter: the same picture as `Turn::video_filters`.
+fn card_turn(turn: Turn) -> Option<&'static str> {
+    match turn.parts() {
+        (false, 0) => None,
+        (false, 1) => Some("clock"),
+        (false, 2) => Some("reversal"),
+        (false, _) => Some("cclock"),
+        (true, 0) => Some("hflip"),
+        (true, 1) => Some("clock_flip"),
+        (true, 2) => Some("vflip"),
+        (true, _) => Some("cclock_flip"),
+    }
+}
+
+/// The filters done by the card: turn, then size and, for H.264, 8 bits (a phone's 10-bit HDR
+/// video as H.264 would be "High 10", which almost nothing plays).
+fn card_filters(card: Card, encoder: &str, size: Size, enlarge: bool, turn: Turn) -> Vec<String> {
+    let c = card.name();
+    let mut f: Vec<String> = card_turn(turn).map(|d| format!("transpose_{c}=dir={d}")).into_iter().collect();
+    let scaled = scale(size, enlarge).map(|s| s.trim_start_matches("scale=").to_string());
+    let parts: Vec<String> = scaled.into_iter().chain(encoder.starts_with("h264_").then(|| "format=nv12".to_string())).collect();
+    if !parts.is_empty() {
+        f.push(format!("scale_{c}={}", parts.join(":")));
+    }
+    f
+}
+
 /// The encoder's options for a quality, from the best to the smallest file.
 fn quality_args(encoder: &str, q: Quality) -> Vec<String> {
     let i = q as usize;
@@ -210,32 +264,44 @@ fn scale(size: Size, enlarge: bool) -> Option<String> {
 /// The arguments of ffmpeg for one video. `audio_encoders`: those this FFmpeg has. FFmpeg turns
 /// the picture as the phone recorded it by itself; `turn` comes after.
 /// `(input, output)`: the files. `tags`: container tags added to the file (`-metadata`) when `v.meta`, such as a dashcam's position.
-pub fn args(v: &Video, size: Size, enlarge: bool, turn: Turn, (input, output): (&str, &str), audio_encoders: &[String], tags: &[(String, String)]) -> Vec<String> {
+/// `on_card`: the video read, turned and resized by the encoder's card (`Probe::card` says where it works).
+#[allow(clippy::too_many_arguments)]
+pub fn args(v: &Video, size: Size, enlarge: bool, turn: Turn, on_card: bool, (input, output): (&str, &str), audio_encoders: &[String], tags: &[(String, String)]) -> Vec<String> {
     let c = &CONTAINERS[v.container];
     let vaapi = v.encoder.ends_with("_vaapi");
+    let copy = v.encoder == "copy";
+    let card = Card::of(v.encoder).filter(|_| on_card && !copy);
     let mut a: Vec<String> = ["-hide_banner", "-nostdin", "-y", "-progress", "pipe:1", "-nostats"].map(String::from).to_vec();
     if vaapi {
         a.extend(["-vaapi_device".into(), VAAPI_DEVICE.into()]);
+    }
+    if let Some(card) = card {
+        a.extend(["-hwaccel".into(), card.name().into(), "-hwaccel_output_format".into(), card.name().into()]);
     }
     a.extend(["-i".into(), input.into(), "-map".into(), "0:V:0".into()]);
     let audio = c.audio.iter().find(|e| audio_encoders.iter().any(|a| a == *e)).filter(|_| v.audio);
     if audio.is_some() {
         a.extend(["-map".into(), "0:a:0?".into()]);
     }
-    let copy = v.encoder == "copy";
-    let mut filters: Vec<String> = if copy { Vec::new() } else { turn.video_filters().into_iter().map(String::from).collect() };
-    if !copy {
-        filters.extend(scale(size, enlarge));
-    }
-    if vaapi {
-        filters.push("format=nv12,hwupload".into());
-    }
+    let filters: Vec<String> = match card {
+        _ if copy => Vec::new(),
+        Some(card) => card_filters(card, v.encoder, size, enlarge, turn),
+        None => {
+            let mut f: Vec<String> = turn.video_filters().into_iter().map(String::from).collect();
+            f.extend(scale(size, enlarge));
+            if vaapi {
+                f.push("format=nv12,hwupload".into());
+            }
+            f
+        }
+    };
     if !filters.is_empty() {
         a.extend(["-vf".into(), filters.join(",")]);
     }
     a.extend(["-c:v".into(), v.encoder.into()]);
     a.extend(quality_args(v.encoder, v.quality));
     // 8 bits: a phone's 10-bit HDR video as H.264 would be "High 10", which almost nothing plays.
+    // On the card `card_filters` does it.
     if matches!(v.encoder, "libx264" | "libopenh264" | "mpeg4") {
         a.extend(["-pix_fmt".into(), "yuv420p".into()]);
     }
@@ -345,6 +411,8 @@ pub struct Probe {
     pub program: PathBuf,
     /// Video encoders that made a file, in the order of `Codec::encoders`.
     pub video: Vec<&'static str>,
+    /// Those of `video` whose card also turned and resized the frames itself (`args`' `on_card`).
+    pub card: Vec<&'static str>,
     pub audio: Vec<String>,
 }
 
@@ -385,9 +453,15 @@ pub fn start_probe(done: impl Fn() + Send + 'static) {
             let jobs: Vec<_> = wanted.iter().map(|e| s.spawn(|| try_encoder(&program, e))).collect();
             jobs.into_iter().map(|j| j.join().unwrap_or(false)).collect()
         });
-        let video = wanted.iter().zip(works).filter(|(_, ok)| *ok).map(|(e, _)| *e).collect();
-        let probe = Probe { audio: audio_encoders(&program), program, video };
-        log!("ffmpeg {:?}: {:?}", probe.program, probe.video);
+        let video: Vec<&'static str> = wanted.iter().zip(works).filter(|(_, ok)| *ok).map(|(e, _)| *e).collect();
+        let on_card: Vec<&'static str> = video.iter().copied().filter(|e| Card::of(e).is_some()).collect();
+        let card_works: Vec<bool> = std::thread::scope(|s| {
+            let jobs: Vec<_> = on_card.iter().map(|e| s.spawn(|| try_card(&program, e))).collect();
+            jobs.into_iter().map(|j| j.join().unwrap_or(false)).collect()
+        });
+        let card = on_card.into_iter().zip(card_works).filter(|(_, ok)| *ok).map(|(e, _)| e).collect();
+        let probe = Probe { audio: audio_encoders(&program), program, video, card };
+        log!("ffmpeg {:?}: {:?}, on the card {:?}", probe.program, probe.video, probe.card);
         let _ = PROBE.set(probe);
         done();
     });
@@ -407,6 +481,24 @@ fn try_encoder(program: &Path, encoder: &str) -> bool {
         c.args(["-vf", "format=nv12,hwupload"]);
     }
     // With the options of a real conversion: vp9_qsv encoded the probe and refused them.
+    c.args(["-c:v", encoder]).args(quality_args(encoder, Quality::Medium)).args(["-f", "null", "-"]);
+    c.stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
+}
+
+/// Ten black frames put on `encoder`'s card, turned and halved there, then encoded: whether a
+/// conversion can stay on the card. Reading a real video there is tried by the conversion, which
+/// falls back on the processor (`batch::video`).
+fn try_card(program: &Path, encoder: &str) -> bool {
+    let Some(card) = Card::of(encoder) else { return false };
+    let mut c = command(program);
+    c.args(["-hide_banner", "-loglevel", "error"]);
+    match card {
+        Card::Cuda => c.args(["-init_hw_device", "cuda=gpu", "-filter_hw_device", "gpu"]),
+        Card::Vaapi => c.args(["-vaapi_device", VAAPI_DEVICE]),
+    };
+    let filters = card_filters(card, encoder, Size::Percent(50), false, Turn::default().then(crate::transform::Op::Cw));
+    // Not smaller: turned and halved it must stay 160 px wide or more, the least NVENC takes.
+    c.args(["-f", "lavfi", "-i", "color=c=black:s=640x360:r=25:d=0.4", "-vf", &format!("format=nv12,hwupload,{}", filters.join(","))]);
     c.args(["-c:v", encoder]).args(quality_args(encoder, Quality::Medium)).args(["-f", "null", "-"]);
     c.stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
 }
@@ -489,29 +581,82 @@ mod tests {
     fn arguments() {
         let v = Video { container: 0, encoder: "libx264", quality: Quality::Medium, audio: true, meta: true };
         let turn = Turn::default().then(Op::FlipH).then(Op::Cw);
-        let a = args(&v, Size::Fit(1920, 1080), false, turn, ("in.mov", "out.mp4"), &["aac".into()], &[]).join(" ");
+        let a = args(&v, Size::Fit(1920, 1080), false, turn, false, ("in.mov", "out.mp4"), &["aac".into()], &[]).join(" ");
         assert!(a.contains("-i in.mov -map 0:V:0 -map 0:a:0?"), "{a}");
         assert!(a.contains("-vf hflip,transpose=clock,scale=w='min(1920,iw)':h='min(1080,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2"), "{a}");
         assert!(a.contains("-c:v libx264 -crf 23 -preset medium -pix_fmt yuv420p -c:a aac -b:a 128k"), "{a}");
         assert!(a.ends_with("-map_metadata 0 -movflags +faststart+use_metadata_tags -f mp4 out.mp4"), "{a}");
         // No audio encoder for WebM here: no sound. No metadata, no filters.
         let v = Video { container: 2, encoder: "libsvtav1", quality: Quality::High, audio: true, meta: false };
-        let a = args(&v, Size::Same, false, Turn::default(), ("a", "b"), &["aac".into()], &[("location".to_string(), "+42.5+014.1/".to_string())]).join(" ");
+        let a = args(&v, Size::Same, false, Turn::default(), false, ("a", "b"), &["aac".into()], &[("location".to_string(), "+42.5+014.1/".to_string())]).join(" ");
         assert!(a.contains("-c:v libsvtav1 -crf 24 -preset 8 -an -sn -dn -map_metadata -1 -f webm b"), "{a}");
         assert!(!a.contains("-vf") && !a.contains("-metadata"), "{a}"); // no tags without meta
         let v = Video { meta: true, ..v };
-        let a = args(&v, Size::Same, false, Turn::default(), ("a", "b"), &[], &[("location".to_string(), "+42.5+014.1/".to_string())]).join(" ");
+        let a = args(&v, Size::Same, false, Turn::default(), false, ("a", "b"), &[], &[("location".to_string(), "+42.5+014.1/".to_string())]).join(" ");
         assert!(a.contains("-map_metadata 0 -metadata location=+42.5+014.1/ -f webm b"), "{a}");
         // Copy: no filters, no quality, the sound copied too.
         let v = Video { container: 0, encoder: "copy", quality: Quality::Small, audio: true, meta: true };
-        let a = args(&v, Size::Percent(50), false, Turn::default().then(Op::Cw), ("a", "b"), &["aac".into()], &[]).join(" ");
+        let a = args(&v, Size::Percent(50), false, Turn::default().then(Op::Cw), false, ("a", "b"), &["aac".into()], &[]).join(" ");
         assert!(a.contains("-i a -map 0:V:0 -map 0:a:0? -c:v copy -c:a copy -sn -dn -map_metadata 0"), "{a}");
         assert!(!a.contains("-vf"), "{a}");
         // VA-API: the device, and frames uploaded to the card.
         let v = Video { container: 1, encoder: "hevc_vaapi", quality: Quality::Small, audio: false, meta: true };
-        let a = args(&v, Size::Percent(50), false, Turn::default(), ("a", "b"), &[], &[]).join(" ");
+        let a = args(&v, Size::Percent(50), false, Turn::default(), false, ("a", "b"), &[], &[]).join(" ");
         assert!(a.contains("-vaapi_device /dev/dri/renderD128 -i a"), "{a}");
         assert!(a.contains("-vf scale=w='trunc(iw*50/200)*2':h=-2,format=nv12,hwupload -c:v hevc_vaapi -rc_mode CQP -global_quality:v 30 -an"), "{a}");
+        // On the card: read there, turned and resized there; H.264 brought to 8 bits there.
+        let v = Video { container: 0, encoder: "h264_nvenc", quality: Quality::Medium, audio: false, meta: false };
+        let a = args(&v, Size::Fit(1920, 1080), false, Turn::default().then(Op::Cw), true, ("a", "b"), &[], &[]).join(" ");
+        assert!(a.contains("-hwaccel cuda -hwaccel_output_format cuda -i a"), "{a}");
+        assert!(a.contains("-vf transpose_cuda=dir=clock,scale_cuda=w='min(1920,iw)':h='min(1080,ih)':force_original_aspect_ratio=decrease:force_divisible_by=2:format=nv12 -c:v h264_nvenc"), "{a}");
+        let v = Video { container: 1, encoder: "hevc_vaapi", quality: Quality::Small, audio: false, meta: true };
+        let a = args(&v, Size::Same, false, Turn::default().then(Op::FlipH), true, ("a", "b"), &[], &[]).join(" ");
+        assert!(a.contains("-vaapi_device /dev/dri/renderD128 -hwaccel vaapi -hwaccel_output_format vaapi -i a"), "{a}");
+        assert!(a.contains("-vf transpose_vaapi=dir=hflip -c:v hevc_vaapi"), "{a}");
+        // A processor's encoder stays on the processor even if asked.
+        let v = Video { container: 0, encoder: "libx264", quality: Quality::Medium, audio: false, meta: false };
+        assert!(!args(&v, Size::Same, false, Turn::default(), true, ("a", "b"), &[], &[]).join(" ").contains("-hwaccel"));
+    }
+
+    /// Every flip and turn done by the card's one transposition gives the same picture as the
+    /// processor's filters, on a 2×3 picture whose pixels are all different.
+    #[test]
+    fn card_turns_match() {
+        type Pic = Vec<Vec<u8>>;
+        let cw = |p: &Pic| -> Pic { (0..p[0].len()).map(|x| (0..p.len()).rev().map(|y| p[y][x]).collect()).collect() };
+        let ccw = |p: &Pic| -> Pic { (0..p[0].len()).rev().map(|x| (0..p.len()).map(|y| p[y][x]).collect()).collect() };
+        let hflip = |p: &Pic| -> Pic { p.iter().map(|r| r.iter().rev().copied().collect()).collect() };
+        let vflip = |p: &Pic| -> Pic { p.iter().rev().cloned().collect() };
+        let cpu = |f: &str, p: &Pic| match f {
+            "hflip" => hflip(p),
+            "vflip" => vflip(p),
+            "transpose=clock" => cw(p),
+            "transpose=cclock" => ccw(p),
+            _ => panic!("{f}"),
+        };
+        // FFmpeg's `transpose` directions: the `_flip` ones flip vertically after the turn.
+        let card = |d: Option<&str>, p: &Pic| match d {
+            None => p.clone(),
+            Some("clock") => cw(p),
+            Some("cclock") => ccw(p),
+            Some("reversal") => vflip(&hflip(p)),
+            Some("hflip") => hflip(p),
+            Some("vflip") => vflip(p),
+            Some("clock_flip") => vflip(&cw(p)),
+            Some("cclock_flip") => vflip(&ccw(p)),
+            Some(d) => panic!("{d}"),
+        };
+        let pic: Pic = vec![vec![1, 2, 3], vec![4, 5, 6]];
+        for flip in [false, true] {
+            for q in 0..4 {
+                let mut turn = if flip { Turn::default().then(Op::FlipH) } else { Turn::default() };
+                for _ in 0..q {
+                    turn = turn.then(Op::Cw);
+                }
+                let by_cpu = turn.video_filters().iter().fold(pic.clone(), |p, f| cpu(f, &p));
+                assert_eq!(card(card_turn(turn), &pic), by_cpu, "{turn:?}");
+            }
+        }
     }
 
     #[test]
@@ -538,34 +683,44 @@ mod tests {
     #[test]
     #[ignore]
     fn ffmpeg_matrix_live() {
+        // The downloaded FFmpeg instead of the system's (`XDG_DATA_HOME`/`LOCALAPPDATA` where it is).
+        if std::env::var_os("EYECANSEE_FFMPEG_DOWNLOADED").is_some() {
+            crate::engine::set_choice(crate::settings::EngineChoice::Downloaded);
+        }
         start_probe(|| {});
         while probed().is_none() {
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
         let p = probed().unwrap();
-        println!("{:?}\nvideo: {:?}\naudio: {:?}", p.program, p.video, p.audio);
+        println!("{:?}\nvideo: {:?}\non the card: {:?}\naudio: {:?}", p.program, p.video, p.card, p.audio);
         let dir = std::env::temp_dir().join(format!("eyecansee-ffmpeg-matrix-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let input = dir.join("in.mp4");
-        let clip = ["-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x480:rate=30:duration=1", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:v", "mpeg4", "-q:v", "5", "-c:a", "aac", "-shortest"].map(String::from);
+        // H.264 as a phone's, which the cards read (MPEG-4 Part 2 they mostly do not).
+        let h264 = ["libx264", "libopenh264"].into_iter().find(|e| p.video.contains(e)).unwrap_or("mpeg4");
+        let clip = ["-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x480:rate=30:duration=1", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:v", h264, "-pix_fmt", "yuv420p", "-c:a", "aac", "-shortest"].map(String::from);
         run(&p.program, &[clip.to_vec(), vec![input.to_string_lossy().into()]].concat(), |_| {}, &AtomicBool::new(false)).unwrap();
         let (mut runs, mut failed) = (0, Vec::new());
         for (container, c) in CONTAINERS.iter().enumerate() {
             for encoder in c.codecs.iter().flat_map(|&codec| p.of(codec)) {
                 for quality in [Quality::High, Quality::Medium, Quality::Small] {
-                    for audio in [true, false] {
+                    // Both ways where the card can do it all (`Probe::card`).
+                    for (audio, on_card) in [(true, false), (false, false), (true, true), (false, true)] {
+                        if on_card && !p.card.contains(&encoder) {
+                            continue;
+                        }
                         let out = dir.join(format!("out.{}", c.ext));
                         let v = Video { container, encoder, quality, audio, meta: true };
                         // Not smaller: NVENC refuses frames under 160 px wide (RTX 4070).
-                        let a = args(&v, Size::Fit(480, 360), false, Turn::default().then(Op::Cw), (&input.to_string_lossy(), &out.to_string_lossy()), &p.audio, &[("location".into(), "+45.0+009.0/".into())]);
+                        let a = args(&v, Size::Fit(480, 360), false, Turn::default().then(Op::Cw), on_card, (&input.to_string_lossy(), &out.to_string_lossy()), &p.audio, &[("location".into(), "+45.0+009.0/".into())]);
                         runs += 1;
                         let r = run(&p.program, &a, |_| {}, &AtomicBool::new(false));
                         let size = std::fs::metadata(&out).map(|m| m.len()).unwrap_or(0);
                         let _ = std::fs::remove_file(&out);
                         match r {
                             Ok(()) if size > 0 => {}
-                            Ok(()) => failed.push(format!("{} {encoder} {quality:?} audio={audio}: empty file", c.name)),
-                            Err(e) => failed.push(format!("{} {encoder} {quality:?} audio={audio}: {}", c.name, e.lines().rev().find(|l| !l.starts_with("frame=") && !l.starts_with("Conversion failed")).unwrap_or_default())),
+                            Ok(()) => failed.push(format!("{} {encoder} {quality:?} audio={audio} card={on_card}: empty file", c.name)),
+                            Err(e) => failed.push(format!("{} {encoder} {quality:?} audio={audio} card={on_card}: {}", c.name, e.lines().rev().find(|l| !l.starts_with("frame=") && !l.starts_with("Conversion failed")).unwrap_or_default())),
                         }
                     }
                 }
@@ -591,7 +746,7 @@ mod tests {
         let encoder = p.of(Codec::H264)[0];
         let out = std::env::temp_dir().join(format!("eyecansee-ffmpeg-live-{}.mp4", std::process::id()));
         let v = Video { container: 0, encoder, quality: Quality::Medium, audio: true, meta: true };
-        let a = args(&v, Size::Fit(1280, 720), false, Turn::default().then(Op::Cw), (&input, &out.to_string_lossy()), &p.audio, &[]);
+        let a = args(&v, Size::Fit(1280, 720), false, Turn::default().then(Op::Cw), false, (&input, &out.to_string_lossy()), &p.audio, &[]);
         let t = std::time::Instant::now();
         let last = Mutex::new(0.0);
         run(&p.program, &a, |f| *last.lock().unwrap() = f, &AtomicBool::new(false)).unwrap();

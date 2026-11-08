@@ -301,12 +301,19 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
     let output = out.local_file(to).map_or_else(|| (temp("out"), true), |f| (f, false));
     let _writing = Writing::start(output.0.clone());
     let tags = if v.meta { crate::video_read::track_tags(op, path).await } else { Vec::new() };
-    let args = crate::ffmpeg::args(&v, job.size, job.enlarge, job.turn, (&input.0.to_string_lossy(), &output.0.to_string_lossy()), &probe.audio, &tags);
-    log!("ffmpeg {args:?}");
-    let (program, ph, first) = (probe.program.clone(), phases.clone(), remote_in as u32);
-    let r = tokio::task::spawn_blocking(move || crate::ffmpeg::run(&program, &args, |f| ph.set(first, f), &ph.p.cancel))
-        .await
-        .unwrap_or_else(|e| Err(e.to_string()));
+    let args = |on_card| crate::ffmpeg::args(&v, job.size, job.enlarge, job.turn, on_card, (&input.0.to_string_lossy(), &output.0.to_string_lossy()), &probe.audio, &tags);
+    let ffmpeg = |args: Vec<String>| {
+        log!("ffmpeg {args:?}");
+        let (program, ph, first) = (probe.program.clone(), phases.clone(), remote_in as u32);
+        tokio::task::spawn_blocking(move || crate::ffmpeg::run(&program, &args, |f| ph.set(first, f), &ph.p.cancel))
+    };
+    let on_card = probe.card.contains(&v.encoder);
+    let mut r = ffmpeg(args(on_card)).await.unwrap_or_else(|e| Err(e.to_string()));
+    // A video the card cannot read (a codec or a format it lacks): again as before, on the processor.
+    if on_card && r.is_err() && !p.cancel.load(Ordering::Relaxed) {
+        log!("ffmpeg on the card failed ({}), again on the processor", r.as_ref().unwrap_err());
+        r = ffmpeg(args(false)).await.unwrap_or_else(|e| Err(e.to_string()));
+    }
     if input.1 {
         let _ = std::fs::remove_file(&input.0);
     }
