@@ -38,7 +38,14 @@ pub(super) async fn open(serial: &str) -> Result<MtpDevice, Error> {
             Release::Done => {
                 log!("phone {serial} released from the desktop");
                 tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-                MtpDevice::open_by_serial(serial).await.map_err(error)
+                MtpDevice::open_by_serial(serial).await.map_err(|e| match e.is_exclusive_access() && flatpak_kde() {
+                    // kiod6 quit, but KDE took the phone back (Dolphin open on it): the user is asked again.
+                    true => {
+                        KIOD_ALLOWED.store(false, Ordering::Relaxed);
+                        ("error-device-kde-back", e.to_string())
+                    }
+                    false => error(e),
+                })
             }
             Release::AskKiod => Err(("error-device-kde", e.to_string())),
             Release::No => Err(error(e)),
@@ -83,7 +90,7 @@ fn release_from_desktop(serial: &str) -> Release {
         released = gvfs_unmount(serial);
         FROM_GVFS.fetch_or(released, Ordering::Relaxed);
         // KDE: kiod6 is out of sight too; after the user's yes it is asked to quit over D-Bus.
-        if !released && std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|d| d.contains("KDE")) {
+        if !released && flatpak_kde() {
             match KIOD_ALLOWED.load(Ordering::Relaxed) {
                 true => released = kiod_quit(),
                 false => ask = true,
@@ -176,6 +183,11 @@ fn gvfs_mount(list: &str, serial: &str) -> Option<(String, String)> {
         let ours = f.get(6)?.starts_with("mtp:host=") && f[6].ends_with(&format!("_{serial}"));
         (ours && f[2].starts_with("/org/gtk/vfs/mount/")).then(|| (f[0].to_string(), f[2].to_string()))
     })
+}
+
+#[cfg(not(windows))]
+fn flatpak_kde() -> bool {
+    std::env::var_os("FLATPAK_ID").is_some() && std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|d| d.contains("KDE"))
 }
 
 /// Flatpak on KDE (`--talk-name=org.kde.kiod6`): kiod6 asked to quit, as `kquitapp6 kiod6` does.

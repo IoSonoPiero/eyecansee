@@ -66,6 +66,7 @@ error-device-busy =
     EyeCanSee cannot open the device: another program is using it.
     Close the file manager and the other programs using it, then press F5.
     If that is not enough, unplug the device, plug it back in (on a phone choose File transfer) and open it in EyeCanSee first.
+error-device-kde-back = KDE took the phone back: close Dolphin and press Release the phone again. ({ $detail })
 error-device-kde = KDE is using the phone (its kiod service). Press F5 to open it in EyeCanSee anyway. ({ $detail })
 error-no-device = The device was not found: if it is connected, unlock it and choose "File transfer" on it. EyeCanSee retries by itself every 2 seconds. ({ $detail })
 error-phone-disconnected = The phone was disconnected. ({ $detail })
@@ -865,9 +866,9 @@ kiod-ask = KDE is holding the phone through its kiod service, the one Dolphin us
     This **does not depend on EyeCanSee**: KDE keeps phones and those passwords in the same service, and lets nobody release only the phone.
 kiod-ok = OK
 kiod-ask-flatpak =
-    KDE is using the phone because it was opened in the file manager, and the Flatpak version of EyeCanSee cannot take it over by itself.
-    Close Dolphin and press Free the phone: KDE closes the service holding it and starts it again when needed, but **forgets the network folder passwords that were not saved** and stops copies running in Dolphin.
-kiod-free = Free the phone
+    The phone is held by a KDE service, and the Flatpak version of EyeCanSee cannot take it over by itself.
+    Close Dolphin and press Release the phone: EyeCanSee closes that service, and KDE starts it again when needed. Network folder passwords that were not saved are forgotten, and copies running in Dolphin stop, but they can be resumed with Retry.
+kiod-free = Release the phone
 
 # Find duplicates
 menu-duplicates = Find duplicates…

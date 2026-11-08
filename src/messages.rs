@@ -75,7 +75,7 @@ impl App {
     /// folder. `true`: the listing is dropped (another folder opens instead).
     fn listing_error(&mut self, dir: &str, r: &Result<Listing, source::Error>) -> bool {
         match r {
-            Err(("error-device-kde", _)) => self.kiod_ask = true,
+            Err(("error-device-kde" | "error-device-kde-back", _)) => self.kiod_ask = true,
             Err(("error-host-unknown" | "error-cert-unknown", _)) => self.host_ask = true,
             // A server that refused the login: File > Open location asks for the password.
             Err(("error-login" | "error-login-ssh", _)) if dir == self.dir && self.open_address.is_none() => {
