@@ -27,6 +27,7 @@ finish-args:
   - --filesystem=host               # folders and disks anywhere, ~/.ssh/known_hosts, the trash in ~/.local/share/Trash and .Trash-<uid> on disks
   - --filesystem=xdg-run/gvfs       # phones mounted by gvfs (fallback when the direct connection fails)
   - --talk-name=org.gtk.vfs.*       # gvfs lets the phone go (mtp::gvfs_unmount)
+  - --talk-name=org.kde.kiod6       # KDE keeps a phone opened in Dolphin: EyeCanSee asks kiod6 to quit, after the user's yes (mtp::kiod_quit)
   - --talk-name=org.a11y.Bus         # screen readers (AccessKit asks this name whether accessibility is on)
   - --filesystem=/run/udev:ro       # partitions not mounted yet (devices::external_disks)
   - --system-talk-name=org.freedesktop.UDisks2  # mount partitions with a click (devices::mount_dbus)

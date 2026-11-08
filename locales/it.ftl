@@ -61,7 +61,10 @@ sftp-rsa-key = **{ $host }** aperto con una chiave RSA.
     Questo avviso compare una volta per server a ogni avvio di EyeCanSee.
 error-trash-failed = Non è stato possibile spostare l'originale nel cestino: l'originale è intatto. ({ $detail })
 error-not-found = Non trovato: { $detail }
-error-device-busy = Il dispositivo è in uso da un'altra applicazione (per esempio il gestore dei file). Chiudila, oppure scollega e ricollega il dispositivo. ({ $detail })
+error-device-busy =
+    EyeCanSee non riesce ad aprire il dispositivo: lo sta usando un altro programma.
+    Chiudi il file manager e gli altri programmi che lo usano, poi premi F5.
+    Se non basta, scollega il dispositivo, ricollegalo (sul telefono scegli Trasferimento file) e aprilo prima in EyeCanSee.
 error-device-kde = Il telefono è in uso da KDE (il suo servizio kiod). Premi F5 per aprirlo comunque in EyeCanSee. ({ $detail })
 error-no-device = Il dispositivo non è stato trovato: se è collegato, sbloccalo e scegli "Trasferimento file". EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })
 error-phone-disconnected = Il telefono è stato scollegato. ({ $detail })
@@ -860,6 +863,10 @@ kiod-ask = KDE tiene il telefono con il suo servizio kiod, quello che Dolphin us
 
     Questo **non dipende da EyeCanSee**: KDE tiene i telefoni e quelle password nello stesso servizio, e non permette di liberare solo il telefono.
 kiod-ok = OK
+kiod-ask-flatpak =
+    Il telefono è in uso da KDE, perché è stato aperto nel file manager, ed EyeCanSee in versione Flatpak non può prenderlo da solo.
+    Chiudi Dolphin e premi Libera il telefono: KDE chiude il servizio che lo tiene e lo riavvia quando serve, ma **dimentica le password delle cartelle di rete non salvate** e ferma le copie in corso in Dolphin.
+kiod-free = Libera il telefono
 
 # Trova duplicati
 menu-duplicates = Trova duplicati…

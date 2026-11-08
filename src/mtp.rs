@@ -208,6 +208,13 @@ fn release_from_desktop(serial: &str) -> Release {
     if !released && !ask && std::env::var_os("FLATPAK_ID").is_some() {
         released = gvfs_unmount(serial);
         FROM_GVFS.fetch_or(released, Ordering::Relaxed);
+        // KDE: kiod6 is out of sight too; after the user's yes it is asked to quit over D-Bus.
+        if !released && std::env::var("XDG_CURRENT_DESKTOP").is_ok_and(|d| d.contains("KDE")) {
+            match KIOD_ALLOWED.load(Ordering::Relaxed) {
+                true => released = kiod_quit(),
+                false => ask = true,
+            }
+        }
     }
     match (released, ask) {
         (true, _) => Release::Done,
@@ -295,6 +302,16 @@ fn gvfs_mount(list: &str, serial: &str) -> Option<(String, String)> {
         let ours = f.get(6)?.starts_with("mtp:host=") && f[6].ends_with(&format!("_{serial}"));
         (ours && f[2].starts_with("/org/gtk/vfs/mount/")).then(|| (f[0].to_string(), f[2].to_string()))
     })
+}
+
+/// Flatpak on KDE (`--talk-name=org.kde.kiod6`): kiod6 asked to quit, as `kquitapp6 kiod6` does.
+/// It lets the phone go; KDE starts it again when Dolphin needs it (tried on Plasma 6.8, 2026-11-08).
+#[cfg(not(windows))]
+fn kiod_quit() -> bool {
+    let quit = ["call", "--session", "--dest", "org.kde.kiod6", "--object-path", "/MainApplication", "--method", "org.qtproject.Qt.QCoreApplication.quit"];
+    let done = std::process::Command::new("gdbus").args(quit).output().is_ok_and(|o| o.status.success());
+    log!("kiod6 asked to quit over D-Bus: {done}");
+    done
 }
 
 #[cfg(not(windows))]

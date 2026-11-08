@@ -124,7 +124,9 @@ impl App {
         if !self.kiod_ask {
             return;
         }
-        let (text, ok, cancel) = (self.i18n.t("kiod-ask"), self.i18n.t("kiod-ok"), self.i18n.t("delete-no"));
+        // In the Flatpak the user must close Dolphin first: with the phone open there, KDE takes it back.
+        let (ask, ok) = if crate::update::packaged() { ("kiod-ask-flatpak", "kiod-free") } else { ("kiod-ask", "kiod-ok") };
+        let (text, ok, cancel) = (self.i18n.t(ask), self.i18n.t(ok), self.i18n.t("delete-no"));
         match confirm::yes_no(ctx, "kiod", 460.0, text, ok, true, cancel, self.delete_answer.take()) {
             Some(true) => {
                 log!("kiod: allowed");
