@@ -448,8 +448,22 @@ impl App {
             Some(Err(_)) => {
                 painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "⚠", FontId::proportional(side * 0.3), dim);
             }
+            // Being made: a turning arc, as egui's spinner, so a slow phone does not look stuck
+            // (a still "…" looked like nothing happening, 2026-11-08); a video also shows its sign.
             None => {
-                painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "…", FontId::proportional(24.0), dim);
+                let ctx = painter.ctx();
+                ctx.request_repaint();
+                let turn = ctx.input(|i| i.time) * std::f64::consts::TAU;
+                let radius = (side * 0.1).clamp(8.0, 16.0);
+                let centre = thumb_rect.center();
+                let arc = (0..=24).map(|k| {
+                    let a = turn + k as f64 / 24.0 * std::f64::consts::PI * 1.5;
+                    centre + radius * vec2(a.cos() as f32, a.sin() as f32)
+                });
+                painter.add(egui::Shape::line(arc.collect(), egui::Stroke::new(3.0, dim)));
+                if self.files().get(file).is_some_and(|f| crate::decode::is_video(&f.path)) {
+                    icons::paint(painter, Icon::Video, Rect::from_center_size(centre + vec2(0.0, radius + 18.0), vec2(24.0, 24.0)));
+                }
             }
         }
     }
