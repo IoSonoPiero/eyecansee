@@ -25,6 +25,11 @@ jobs:
       # Only a warning, never a failure.
       - name: File sizes
         run: tools/check-sizes.sh
+      # The Flatpak builds offline from flatpak/cargo-sources.json: it must follow Cargo.lock.
+      - name: Offline crates of the Flatpak match Cargo.lock
+        run: |
+          python3 tools/flatpak-cargo-sources.py | diff -q - flatpak/cargo-sources.json \
+            || { echo "::error::run tools/flatpak-cargo-sources.py > flatpak/cargo-sources.json"; exit 1; }
       # The decoders and ImageMagick compiled by release.yml (same key): on main and its pull
       # requests that cache is readable, so they are not compiled again.
       - id: deps
