@@ -1,5 +1,6 @@
 # Publishes the latest release's eyecansee-flatpak-repo.tar (signed on the developer's PC by
-# tools/sign-flatpak.sh of IoSonoPiero/eyecansee) under /repo/, with site/ at the root.
+# tools/sign-flatpak.sh of IoSonoPiero/eyecansee): repo/ (OSTree) and media/ (icons and screenshots
+# AppStream points to), with site/ at the root.
 name: pages
 on:
   release:
@@ -31,7 +32,7 @@ jobs:
           gh release download --repo "$GITHUB_REPOSITORY" --pattern "$F"
           WANT=$(gh release view --repo "$GITHUB_REPOSITORY" --json body --jq .body | grep -oP "^SHA-256 of \Q$F\E: \`\K[0-9a-f]{64}")
           echo "$WANT  $F" | sha256sum -c
-          cp -r site _site && mkdir _site/repo && tar -C _site/repo -xf "$F"
+          cp -r site _site && tar -C _site -xf "$F"  # repo/ and media/
           du -sh _site
       - uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0
       - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0

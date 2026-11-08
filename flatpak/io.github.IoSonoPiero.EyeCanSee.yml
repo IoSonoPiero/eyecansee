@@ -64,6 +64,7 @@ modules:
       - install -Dm644 assets/eyecansee.desktop /app/share/applications/eyecansee.desktop
       - install -Dm644 assets/eyecansee.svg /app/share/icons/hicolor/scalable/apps/eyecansee.svg
       - install -Dm644 assets/io.github.IoSonoPiero.EyeCanSee.metainfo.xml -t /app/share/metainfo
+      - install -d /app/share/licenses/io.github.IoSonoPiero.EyeCanSee  # not made yet by older flatpak-builder (1.4.2 on Ubuntu 24.04)
       - tools/third-party-licenses.sh /app/share/licenses/io.github.IoSonoPiero.EyeCanSee/THIRD-PARTY-LICENSES.txt
         --offline --no-default-features --features heif,magick,libheif-rs/embedded-libheif
     sources:
