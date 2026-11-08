@@ -638,7 +638,7 @@ mod tests {
 
     /// The real Ultra HDR photos halved as JPEG (#65): the Apple one of the test files
     /// (`notes/test-files/online/telefono`) and the Pixel 7a Motion Photo of `EYECANSEE_SAMPLES`
-    /// (`~/Prove/editor`), written to `EYECANSEE_SAMPLES_OUT` to look at. Each stays Ultra HDR with
+    /// (the same folder), written to `EYECANSEE_SAMPLES_OUT` to look at. Each stays Ultra HDR with
     /// its gain map halved, MPF lengths adding up to the file, and no video after it.
     #[test]
     #[ignore]
