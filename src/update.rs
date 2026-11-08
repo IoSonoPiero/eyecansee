@@ -2,7 +2,8 @@
 //! asked for in the background; a newer one is downloaded, checked against the SHA-256 GitHub
 //! publishes for it, and installed when the user clicks "Install and restart".
 //! Only copies that can replace themselves: the Windows installer and zip, the AppImage. The RPM
-//! is updated by dnf, development builds (in `target`) never.
+//! is updated by dnf, the Store and Flatpak copies by their own (`packaged`), development builds
+//! (in `target`) never.
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -38,14 +39,15 @@ pub fn packaged() -> bool {
     unsafe { GetCurrentPackageFullName(&mut len, std::ptr::null_mut()) != APPMODEL_ERROR_NO_PACKAGE }
 }
 
+/// Running as a Flatpak: flatpak updates it (`flatpak update`, GNOME Software, Discover).
 #[cfg(not(windows))]
 pub fn packaged() -> bool {
-    false
+    std::env::var_os("FLATPAK_ID").is_some()
 }
 
 impl Kind {
     pub fn detect() -> Option<Kind> {
-        // The Microsoft Store updates its own copies.
+        // The Microsoft Store and flatpak update their own copies.
         if packaged() {
             return None;
         }

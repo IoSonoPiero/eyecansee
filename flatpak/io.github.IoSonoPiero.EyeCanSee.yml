@@ -1,0 +1,73 @@
+# Flatpak of EyeCanSee, for our own repository (not Flathub). Local build into an OSTree repository:
+#   flatpak-builder --user --force-clean --state-dir=target/flatpak-state --repo=target/flatpak-repo \
+#     target/flatpak flatpak/io.github.IoSonoPiero.EyeCanSee.yml
+#   flatpak --user remote-add --no-gpg-verify eyecansee-local target/flatpak-repo
+#   flatpak --user install eyecansee-local io.github.IoSonoPiero.EyeCanSee
+# Check: flatpak run --command=flatpak-builder-lint org.flatpak.Builder manifest flatpak/io.github.IoSonoPiero.EyeCanSee.yml
+#        flatpak run --filesystem=$PWD --command=flatpak-builder-lint org.flatpak.Builder repo target/flatpak-repo
+# Library versions and cargo features as in tools/build-appimage.sh. After every change of
+# Cargo.lock: tools/flatpak-cargo-sources.py > flatpak/cargo-sources.json
+app-id: io.github.IoSonoPiero.EyeCanSee
+runtime: org.freedesktop.Platform
+runtime-version: '26.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.llvm22  # libclang for the bindings of magick_rust
+command: eyecansee
+rename-desktop-file: eyecansee.desktop
+rename-icon: eyecansee
+finish-args:
+  - --share=ipc                     # X11 shared memory (fallback-x11)
+  - --share=network                 # servers (FTP, FTPS, SFTP), downloads of the video engine, FFmpeg and the CAD engine
+  - --socket=wayland
+  - --socket=fallback-x11           # only where there is no Wayland
+  - --socket=pulseaudio             # sound of the videos (libmpv)
+  - --device=all                    # GPU, and phones over USB opened directly (mtp-rs, nusb)
+  - --filesystem=host               # folders and disks anywhere, ~/.ssh/known_hosts, the trash in ~/.local/share/Trash and .Trash-<uid> on disks
+  - --filesystem=xdg-run/gvfs       # phones mounted by gvfs (fallback when the direct connection fails)
+  - --talk-name=org.gtk.vfs.*       # gvfs lets the phone go (mtp::gvfs_unmount)
+  - --talk-name=org.a11y.Bus         # screen readers (AccessKit asks this name whether accessibility is on)
+  - --filesystem=/run/udev:ro       # partitions not mounted yet (devices::external_disks)
+  - --system-talk-name=org.freedesktop.UDisks2  # mount partitions with a click (devices::mount_dbus)
+modules:
+  - name: libde265  # HEIC: not in the runtime (patents)
+    buildsystem: cmake-ninja
+    config-opts: [-DCMAKE_BUILD_TYPE=Release, -DENABLE_DECODER=OFF, -DENABLE_ENCODER=OFF, -DENABLE_SDL=OFF]
+    license-files: [COPYING]
+    sources:
+      - type: archive
+        url: https://github.com/strukturag/libde265/archive/refs/tags/v1.1.3.tar.gz
+        sha256: 189baa08fd6d2dd34db099de411bd6b2e6bd5eb88e81236a3d0fa3826b9715c4
+
+  - name: imagemagick
+    config-opts: [--enable-shared, --disable-static, --without-modules, --enable-hdri,
+                  --without-magick-plus-plus, --without-perl, --without-x, --without-xml, --disable-docs]
+    cleanup: [/bin, /include, /lib/pkgconfig, /share/doc, /share/man]
+    license-files: [LICENSE, NOTICE]
+    sources:
+      - type: archive
+        url: https://github.com/ImageMagick/ImageMagick/archive/refs/tags/7.1.2-34.tar.gz
+        sha256: f5163a573a1c1bff16358d0a592b2fb168ad0fd3b9dc5ff57dc7820eebc5cf79
+
+  - name: eyecansee
+    buildsystem: simple
+    build-options:
+      append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/llvm22/bin
+      prepend-ld-library-path: /usr/lib/sdk/llvm22/lib
+      env:
+        LIBCLANG_PATH: /usr/lib/sdk/llvm22/lib
+        CARGO_HOME: /run/build/eyecansee/cargo
+    build-commands:
+      - cargo build --offline --profile dist --locked --no-default-features --features heif,magick,libheif-rs/embedded-libheif
+      - install -Dm755 target/dist/eyecansee /app/bin/eyecansee
+      - install -Dm644 assets/eyecansee.desktop /app/share/applications/eyecansee.desktop
+      - install -Dm644 assets/eyecansee.svg /app/share/icons/hicolor/scalable/apps/eyecansee.svg
+      - install -Dm644 assets/io.github.IoSonoPiero.EyeCanSee.metainfo.xml -t /app/share/metainfo
+      - tools/third-party-licenses.sh /app/share/licenses/io.github.IoSonoPiero.EyeCanSee/THIRD-PARTY-LICENSES.txt
+        --offline --no-default-features --features heif,magick,libheif-rs/embedded-libheif
+    sources:
+      - type: dir
+        path: ..
+        skip: [target, notes, .git]
+      - cargo-sources.json

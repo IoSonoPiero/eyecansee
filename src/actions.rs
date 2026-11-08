@@ -304,7 +304,7 @@ impl App {
                 } else if self.check_updates(ctx) {
                     "update-checking"
                 } else if crate::update::packaged() {
-                    "update-store"
+                    if cfg!(windows) { "update-store" } else { "update-flatpak" }
                 } else {
                     "update-unavailable"
                 };

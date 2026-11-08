@@ -223,7 +223,7 @@ fn general_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, languages: &[(&
     for (code, name) in languages {
         ui.radio_value(&mut s.language, Some(code.to_string()), name);
     }
-    // The Store updates its copies itself.
+    // The Store and flatpak update their copies themselves.
     if !crate::update::packaged() {
         ui.add_space(6.0);
         ui.checkbox(&mut s.check_updates, t("opt-check-updates")).on_hover_text(t("opt-check-updates-hint"));

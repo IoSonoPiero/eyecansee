@@ -52,6 +52,7 @@ Installed from the Microsoft Store, EyeCanSee is updated by the Store and does n
 - **Help > Check for updates** does the same check at any time and tells you the outcome.
 - The check can be turned off in **Tools > Options… > General**. When off, EyeCanSee contacts GitHub only when you choose Check for updates. Nothing about you or your images is sent: only the request for the latest version.
 - On Fedora, EyeCanSee is updated by `dnf` with the rest of the system.
+- As a Flatpak, EyeCanSee is updated by `flatpak update`, GNOME Software or Discover, and does not look for updates by itself.
 
 ## Deleting and renaming
 

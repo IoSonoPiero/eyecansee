@@ -104,12 +104,16 @@ pub const OCCT: Option<Component> = Some(Component {
 });
 
 /// Where components go: the app's data folder (`%LOCALAPPDATA%\eyecansee\components` on Windows,
-/// `~/.local/share/eyecansee/components` on Linux).
+/// `~/.local/share/eyecansee/components` on Linux, `~/.var/app/<id>/data/eyecansee/components` in
+/// the Flatpak, whose `XDG_DATA_HOME` main.rs points at the host's for the trash).
 pub fn dir() -> Option<PathBuf> {
     #[cfg(windows)]
     let base = std::env::var_os("LOCALAPPDATA").map(PathBuf::from);
     #[cfg(not(windows))]
-    let base = std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).or_else(|| std::env::home_dir().map(|h| h.join(".local/share")));
+    let base = match std::env::var_os("FLATPAK_ID") {
+        Some(id) => std::env::home_dir().map(|h| h.join(".var/app").join(id).join("data")),
+        None => std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).or_else(|| std::env::home_dir().map(|h| h.join(".local/share"))),
+    };
     Some(base?.join("eyecansee").join("components"))
 }
 
