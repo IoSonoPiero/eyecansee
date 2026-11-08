@@ -82,7 +82,9 @@ pub enum RemoteDelete {
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum EngineChoice {
-    /// The system's when at least `mpv::MIN_API` / `ffmpeg::MIN_VERSION`, else the downloaded one.
+    /// "Automatic": the system's when at least `mpv::MIN_API` / `ffmpeg::MIN_VERSION`, else the
+    /// downloaded one; for FFmpeg also the downloaded one when it does more on the card
+    /// (`ffmpeg::start_probe`). The old name stays: it is what `settings.json` holds.
     #[default]
     SystemIfRecent,
     /// The system's whatever its version; nothing is downloaded.

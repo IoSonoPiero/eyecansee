@@ -60,6 +60,9 @@ fn ffmpeg_ready(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) -> Option<&'s
 pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     let t = |id| i18n.t(id);
     let Some(probe) = ffmpeg_ready(ui, v, i18n) else { return };
+    if crate::ffmpeg::download_better(v.download.is_some()) {
+        better_download(ui, v, i18n);
+    }
     egui::ComboBox::from_label(t("batch-video-container")).selected_text(CONTAINERS[v.container].name).show_ui(ui, |ui| {
         for (i, c) in CONTAINERS.iter().enumerate() {
             ui.selectable_value(&mut v.container, i, c.name);
@@ -141,14 +144,32 @@ fn ffmpeg_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
             ui.label(i18n.t_args("batch-video-need-ffmpeg", &[("size", &size)]));
         }
     }
+    // Done: `ffmpeg::program` finds it at the next frame.
+    if download_row(ui, v, i18n, c) {
+        ui.ctx().request_repaint();
+    }
+}
+
+/// The system's FFmpeg works, but the downloaded one would also keep the reading, turning and
+/// resizing on the card ("Automatic", `ffmpeg::download_better`): said, with the button.
+fn better_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
+    let Some(c) = crate::component::FFMPEG else { return };
+    ui.label(i18n.t_args("batch-video-better-ffmpeg", &[("size", &format!("{} MB", c.size / 1_000_000))]));
+    if download_row(ui, v, i18n, c) {
+        ui.label(i18n.t("opt-engine-restart"));
+    }
+    ui.add_space(4.0);
+}
+
+/// The progress of the download, or its button (with the error of the last try): true once done.
+fn download_row(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n, c: crate::component::Component) -> bool {
     let state = v.download.as_ref().map(|d| (d.done.load(Ordering::Relaxed), d.result.lock().unwrap().clone()));
     match state {
         Some((done, None)) => {
             ui.add(egui::ProgressBar::new(done as f32 / c.size as f32).show_percentage());
             ui.ctx().request_repaint_after(std::time::Duration::from_millis(300));
         }
-        // Done: `ffmpeg::program` finds it at the next frame.
-        Some((_, Some(Ok(())))) => ui.ctx().request_repaint(),
+        Some((_, Some(Ok(())))) => return true,
         failed => {
             if let Some((_, Some(Err(e)))) = failed {
                 ui.label(crate::browser::error_text(ui, i18n.t_args("batch-video-download-failed", &[("detail", &e)])));
@@ -159,4 +180,5 @@ fn ffmpeg_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
             }
         }
     }
+    false
 }

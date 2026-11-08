@@ -428,10 +428,15 @@ pub fn program() -> Option<PathBuf> {
 
 /// For the conversion page and the Options.
 pub fn status() -> crate::engine::Status {
+    let version = || crate::component::FFMPEG.map(|c| c.version.to_string()).unwrap_or_default();
+    // Kept by "Automatic" after the probe (`start_probe`).
+    if probed().is_some_and(|p| Some(&p.program) == downloaded().as_ref()) {
+        return crate::engine::Status::Ready(crate::engine::Source::Downloaded, version());
+    }
     let found = system().map(|s| (s.version.is_none_or(|v| v >= MIN_VERSION), s.text.clone()));
     crate::engine::status(crate::engine::choice(), found, downloaded().is_some(), MIN_TEXT, |src| match src {
         crate::engine::Source::System => system().map(|s| s.text.clone()).unwrap_or_default(),
-        crate::engine::Source::Downloaded => crate::component::FFMPEG.map(|c| c.version.to_string()).unwrap_or_default(),
+        crate::engine::Source::Downloaded => version(),
     })
 }
 
@@ -447,6 +452,12 @@ pub struct Probe {
 }
 
 impl Probe {
+    /// A card encoder works here but the card cannot also read, turn and resize: the system's
+    /// FFmpeg of Fedora 44 (8.1.3) has no `transpose_cuda` (2026-11-09).
+    pub fn card_short(&self) -> bool {
+        self.video.iter().any(|e| Card::of(e).is_some() && !self.card.contains(e))
+    }
+
     /// Encoders of `codec` that work here (`copy` always: nothing is encoded).
     pub fn of(&self, codec: Codec) -> Vec<&'static str> {
         codec.encoders().iter().copied().filter(|e| *e == "copy" || self.video.contains(e)).collect()
@@ -472,29 +483,52 @@ pub fn start_probe(done: impl Fn() + Send + 'static) {
         return;
     };
     std::thread::spawn(move || {
-        let all: Vec<&'static str> = CONTAINERS.iter().flat_map(|c| c.codecs).flat_map(|c| c.encoders()).copied().collect();
-        let mut wanted: Vec<&'static str> = Vec::new();
-        for e in all {
-            if !wanted.contains(&e) {
-                wanted.push(e);
-            }
+        let mut p = probe(program);
+        // "Automatic": the downloaded one too, when the system's leaves work to the processor
+        // that the card could do; the one that does more on the card is kept.
+        let automatic = crate::engine::choice() == crate::settings::EngineChoice::SystemIfRecent;
+        if automatic && p.card_short()
+            && let Some(other) = downloaded().filter(|d| *d != p.program).map(probe)
+            && other.card.len() > p.card.len()
+        {
+            p = other;
         }
-        let works: Vec<bool> = std::thread::scope(|s| {
-            let jobs: Vec<_> = wanted.iter().map(|e| s.spawn(|| try_encoder(&program, e))).collect();
-            jobs.into_iter().map(|j| j.join().unwrap_or(false)).collect()
-        });
-        let video: Vec<&'static str> = wanted.iter().zip(works).filter(|(_, ok)| *ok).map(|(e, _)| *e).collect();
-        let on_card: Vec<&'static str> = video.iter().copied().filter(|e| Card::of(e).is_some()).collect();
-        let card_works: Vec<bool> = std::thread::scope(|s| {
-            let jobs: Vec<_> = on_card.iter().map(|e| s.spawn(|| try_card(&program, e))).collect();
-            jobs.into_iter().map(|j| j.join().unwrap_or(false)).collect()
-        });
-        let card = on_card.into_iter().zip(card_works).filter(|(_, ok)| *ok).map(|(e, _)| e).collect();
-        let probe = Probe { audio: audio_encoders(&program), program, video, card };
-        log!("ffmpeg {:?}: {:?}, on the card {:?}", probe.program, probe.video, probe.card);
-        let _ = PROBE.set(probe);
+        let _ = PROBE.set(p);
         done();
     });
+}
+
+/// Every encoder of `program` tried, then the card ones with the card doing it all.
+fn probe(program: PathBuf) -> Probe {
+    let all: Vec<&'static str> = CONTAINERS.iter().flat_map(|c| c.codecs).flat_map(|c| c.encoders()).copied().collect();
+    let mut wanted: Vec<&'static str> = Vec::new();
+    for e in all {
+        if !wanted.contains(&e) {
+            wanted.push(e);
+        }
+    }
+    let works: Vec<bool> = std::thread::scope(|s| {
+        let jobs: Vec<_> = wanted.iter().map(|e| s.spawn(|| try_encoder(&program, e))).collect();
+        jobs.into_iter().map(|j| j.join().unwrap_or(false)).collect()
+    });
+    let video: Vec<&'static str> = wanted.iter().zip(works).filter(|(_, ok)| *ok).map(|(e, _)| *e).collect();
+    let on_card: Vec<&'static str> = video.iter().copied().filter(|e| Card::of(e).is_some()).collect();
+    let card_works: Vec<bool> = std::thread::scope(|s| {
+        let jobs: Vec<_> = on_card.iter().map(|e| s.spawn(|| try_card(&program, e))).collect();
+        jobs.into_iter().map(|j| j.join().unwrap_or(false)).collect()
+    });
+    let card = on_card.into_iter().zip(card_works).filter(|(_, ok)| *ok).map(|(e, _)| e).collect();
+    let probe = Probe { audio: audio_encoders(&program), program, video, card };
+    log!("ffmpeg {:?}: {:?}, on the card {:?}", probe.program, probe.video, probe.card);
+    probe
+}
+
+/// "Automatic", the system's FFmpeg in use and leaving card work to the processor, nothing
+/// downloaded (or `downloading` now): the conversion page offers the download, used from the next
+/// start (the probe is done once).
+pub fn download_better(downloading: bool) -> bool {
+    let system = probed().is_some_and(|p| p.card_short() && Some(&p.program) != downloaded().as_ref());
+    crate::engine::choice() == crate::settings::EngineChoice::SystemIfRecent && system && (downloading || downloaded().is_none())
 }
 
 /// Ten black frames through `encoder`, written nowhere.
@@ -726,6 +760,15 @@ mod tests {
         assert_eq!(quality_args("h264_amf", Quality::High).join(" "), "-rc cqp -qp_i 20 -qp_p 20 -qp_b 20");
         // Every codec of a container has an encoder.
         assert!(CONTAINERS.iter().all(|c| c.codecs.iter().all(|k| !k.encoders().is_empty())));
+    }
+
+    /// Short when a card encoder works but not with the card doing it all.
+    #[test]
+    fn card_short() {
+        let p = |video: Vec<&'static str>, card: Vec<&'static str>| Probe { video, card, ..Default::default() };
+        assert!(p(vec!["h264_nvenc", "h264_qsv", "libx264"], vec!["h264_qsv"]).card_short());
+        assert!(!p(vec!["h264_nvenc", "h264_qsv", "libx264"], vec!["h264_nvenc", "h264_qsv"]).card_short());
+        assert!(!p(vec!["libx264", "mpeg4"], vec![]).card_short());
     }
 
     /// `cargo test ffmpeg_matrix_live -- --ignored --nocapture`: every container, every encoder
