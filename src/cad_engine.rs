@@ -1,6 +1,6 @@
 //! The CAD engine (`component::OCCT`, for STEP, IGES and BREP) offered for download: a card in
 //! the viewer on such a file, and a red button in the menu bar while the open folder has some.
-//! Once downloaded it is used straight away: the folder and its thumbnails are made again.
+//! Once downloaded it is used straight away: the thumbnails of those files are made again.
 
 use eframe::egui::{self, Color32};
 
@@ -25,9 +25,11 @@ impl App {
             }
             Some(Err(e)) => State::Failed(e),
             Some(Ok(())) => {
-                // There now: what failed without it is read again.
+                // There now: the thumbnails that failed without it are made again, only those.
+                // Redoing them all read every other file of the folder again (a phone, 2026-11-08).
                 self.model.engine = None;
-                self.act = Some(crate::Act::RedoAllThumbs);
+                let models = self.files().iter().filter(|f| crate::occt::is_occt(&f.path)).map(|f| f.path.clone()).collect();
+                self.on_forgotten(models);
                 ctx.request_repaint();
                 State::Downloading(done)
             }
