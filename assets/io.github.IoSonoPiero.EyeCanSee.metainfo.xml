@@ -80,6 +80,18 @@
   </provides>
 
   <releases>
+    <release version="0.74.2" date="2026-11-08">
+      <description>
+        <ul>
+          <li>EyeCanSee as a Flatpak for every Linux distribution, from its own signed repository at flatpak.montinaro.info</li>
+          <li>A phone or camera held or kept busy by another program: the message says what to do; in the Flatpak on KDE, Release the phone</li>
+          <li>The viewer's error message is larger and easier to read</li>
+          <li>Server manager: the warning without a master password says to set one to encrypt the list of servers</li>
+          <li>The short description mentions the image editor</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.74.2</url>
+    </release>
     <release version="0.74.1" date="2026-11-08">
       <description>
         <ul>
