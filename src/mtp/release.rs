@@ -210,11 +210,11 @@ fn kill(pid: &std::ffi::OsStr) -> bool {
     std::process::Command::new("kill").arg(pid).status().is_ok_and(|s| s.success())
 }
 
-#[cfg(test)]
+// The gvfs parts exist on Linux only.
+#[cfg(all(test, not(windows)))]
 mod tests {
     use super::*;
 
-    #[cfg(not(windows))]
     #[test]
     fn gvfs_mount_of_phone() {
         let list = "([(':1.919', objectpath '/org/gtk/vfs/mount/1', '', 'http:uri=https%3A%2F%2F127.0.0.1%3A8384', '', '', '', '', false, b'', (b'/', {'type': <b'http'>}), b''), (':1.1546', '/org/gtk/vfs/mount/1', 'mtp', 'mtp:host=SAMSUNG_SAMSUNG_Android_R52W80FSD5D', '', '. GThemedIcon phone', '', '', true, b'/run/user/1000/gvfs/mtp:host=SAMSUNG_SAMSUNG_Android_R52W80FSD5D', (b'/', {'host': <b'SAMSUNG_SAMSUNG_Android_R52W80FSD5D'>, 'type': <b'mtp'>}), b'')],)";

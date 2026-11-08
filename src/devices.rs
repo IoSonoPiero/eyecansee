@@ -475,6 +475,8 @@ mod tests {
         assert_eq!(direct_address("/home/me/a.jpg", &devices), None);
     }
 
+    // Linux paths (the Flatpak's sandbox): /tmp is not there on Windows.
+    #[cfg(not(windows))]
     #[test]
     fn host_path_outside_the_sandbox() {
         assert_eq!(host_path("/run/host/root/tmp".into()), "/tmp");
