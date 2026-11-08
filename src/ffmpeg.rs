@@ -170,6 +170,7 @@ const VAAPI_DEVICE: &str = "/dev/dri/renderD128";
 enum Card {
     Cuda,
     Vaapi,
+    Qsv,
 }
 
 impl Card {
@@ -177,6 +178,7 @@ impl Card {
         match encoder.rsplit('_').next() {
             Some("nvenc") => Some(Card::Cuda),
             Some("vaapi") => Some(Card::Vaapi),
+            Some("qsv") => Some(Card::Qsv),
             _ => None,
         }
     }
@@ -186,6 +188,7 @@ impl Card {
         match self {
             Card::Cuda => "cuda",
             Card::Vaapi => "vaapi",
+            Card::Qsv => "qsv",
         }
     }
 }
@@ -208,8 +211,17 @@ fn card_turn(turn: Turn) -> Option<&'static str> {
 /// video as H.264 would be "High 10", which almost nothing plays).
 fn card_filters(card: Card, encoder: &str, size: Size, enlarge: bool, turn: Turn) -> Vec<String> {
     let c = card.name();
-    let mut f: Vec<String> = card_turn(turn).map(|d| format!("transpose_{c}=dir={d}")).into_iter().collect();
-    let scaled = scale(size, enlarge).map(|s| s.trim_start_matches("scale=").to_string());
+    let mut f: Vec<String> = card_turn(turn)
+        .map(|d| match (card, d) {
+            // vpp_qsv names the two flipped quarter turns the other way round (frames compared on an Intel UHD, 2026-11-08).
+            (Card::Qsv, "clock_flip") => "vpp_qsv=transpose=cclock_hflip".to_string(),
+            (Card::Qsv, "cclock_flip") => "vpp_qsv=transpose=clock_hflip".to_string(),
+            (Card::Qsv, d) => format!("vpp_qsv=transpose={d}"),
+            _ => format!("transpose_{c}=dir={d}"),
+        })
+        .into_iter()
+        .collect();
+    let scaled = if card == Card::Qsv { qsv_scale(size, enlarge) } else { scale(size, enlarge).map(|s| s.trim_start_matches("scale=").to_string()) };
     let parts: Vec<String> = scaled.into_iter().chain(encoder.starts_with("h264_").then(|| "format=nv12".to_string())).collect();
     if !parts.is_empty() {
         f.push(format!("scale_{c}={}", parts.join(":")));
@@ -259,6 +271,24 @@ fn scale(size: Size, enlarge: bool) -> Option<String> {
         Size::Fit(w, h) if enlarge => Some(format!("scale=w={w}:h={h}:force_original_aspect_ratio=decrease:force_divisible_by=2")),
         Size::Fit(w, h) => Some(format!("scale=w='min({w},iw)':h='min({h},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2")),
     }
+}
+
+/// `scale`'s sizes for `scale_qsv`, which neither keeps the proportions nor evens the sides by itself.
+fn qsv_scale(size: Size, enlarge: bool) -> Option<String> {
+    let factor = match size {
+        Size::Same => return None,
+        Size::Percent(p) => {
+            let p = if enlarge { p } else { p.min(100) };
+            if p == 100 {
+                return None;
+            }
+            format!("{p}/100")
+        }
+        Size::Fit(w, h) if enlarge => format!("min({w}/iw,{h}/ih)"),
+        Size::Fit(w, h) => format!("min(1,min({w}/iw,{h}/ih))"),
+    };
+    // Rounded as `force_divisible_by` does: 405 px becomes 406, as on the processor.
+    Some(format!("w='round(iw*{factor}/2)*2':h='round(ih*{factor}/2)*2'"))
 }
 
 /// The arguments of ffmpeg for one video. `audio_encoders`: those this FFmpeg has. FFmpeg turns
@@ -490,17 +520,32 @@ fn try_encoder(program: &Path, encoder: &str) -> bool {
 /// falls back on the processor (`batch::video`).
 fn try_card(program: &Path, encoder: &str) -> bool {
     let Some(card) = Card::of(encoder) else { return false };
+    let ok = |c: &mut Command| c.stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success());
+    let filters = card_filters(card, encoder, Size::Percent(50), false, Turn::default().then(crate::transform::Op::Cw)).join(",");
+    // Not smaller: turned and halved it must stay 160 px wide or more, the least NVENC takes.
+    let black = ["-f", "lavfi", "-i", "color=c=black:s=640x360:r=25:d=0.4"];
+    let clip = std::env::temp_dir().join(format!("eyecansee-card-{}-{encoder}.mkv", std::process::id()));
     let mut c = command(program);
     c.args(["-hide_banner", "-loglevel", "error"]);
     match card {
-        Card::Cuda => c.args(["-init_hw_device", "cuda=gpu", "-filter_hw_device", "gpu"]),
-        Card::Vaapi => c.args(["-vaapi_device", VAAPI_DEVICE]),
+        Card::Cuda => c.args(["-init_hw_device", "cuda=gpu", "-filter_hw_device", "gpu"]).args(black).args(["-vf", &format!("format=nv12,hwupload,{filters}")]),
+        Card::Vaapi => c.args(["-vaapi_device", VAAPI_DEVICE]).args(black).args(["-vf", &format!("format=nv12,hwupload,{filters}")]),
+        // Frames uploaded to QSV fail on Windows ("Could not create the texture", Intel UHD,
+        // 2026-11-08): a clip of this encoder read there instead, as a conversion does.
+        Card::Qsv => {
+            let mut make = command(program);
+            make.args(["-hide_banner", "-loglevel", "error", "-y"]).args(black).args(["-c:v", encoder]).args(quality_args(encoder, Quality::Medium)).arg(&clip);
+            if !ok(&mut make) {
+                let _ = std::fs::remove_file(&clip);
+                return false;
+            }
+            c.args(["-hwaccel", "qsv", "-hwaccel_output_format", "qsv", "-i"]).arg(&clip).args(["-vf", &filters])
+        }
     };
-    let filters = card_filters(card, encoder, Size::Percent(50), false, Turn::default().then(crate::transform::Op::Cw));
-    // Not smaller: turned and halved it must stay 160 px wide or more, the least NVENC takes.
-    c.args(["-f", "lavfi", "-i", "color=c=black:s=640x360:r=25:d=0.4", "-vf", &format!("format=nv12,hwupload,{}", filters.join(","))]);
     c.args(["-c:v", encoder]).args(quality_args(encoder, Quality::Medium)).args(["-f", "null", "-"]);
-    c.stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success())
+    let works = ok(&mut c);
+    let _ = std::fs::remove_file(&clip);
+    works
 }
 
 /// Audio encoders of `ffmpeg -encoders` (lines " A..... name  description").
@@ -613,6 +658,14 @@ mod tests {
         let a = args(&v, Size::Same, false, Turn::default().then(Op::FlipH), true, ("a", "b"), &[], &[]).join(" ");
         assert!(a.contains("-vaapi_device /dev/dri/renderD128 -hwaccel vaapi -hwaccel_output_format vaapi -i a"), "{a}");
         assert!(a.contains("-vf transpose_vaapi=dir=hflip -c:v hevc_vaapi"), "{a}");
+        // Quick Sync: its own turn filter and flip names, sizes worked out by hand.
+        let v = Video { container: 0, encoder: "h264_qsv", quality: Quality::Medium, audio: false, meta: false };
+        let a = args(&v, Size::Fit(1920, 1080), false, Turn::default().then(Op::FlipH).then(Op::Cw), true, ("a", "b"), &[], &[]).join(" ");
+        assert!(a.contains("-hwaccel qsv -hwaccel_output_format qsv -i a"), "{a}");
+        assert!(a.contains("-vf vpp_qsv=transpose=cclock_hflip,scale_qsv=w='round(iw*min(1,min(1920/iw,1080/ih))/2)*2':h='round(ih*min(1,min(1920/iw,1080/ih))/2)*2':format=nv12 -c:v h264_qsv"), "{a}");
+        let v = Video { encoder: "hevc_qsv", ..v };
+        let a = args(&v, Size::Percent(50), false, Turn::default(), true, ("a", "b"), &[], &[]).join(" ");
+        assert!(a.contains("-vf scale_qsv=w='round(iw*50/100/2)*2':h='round(ih*50/100/2)*2' -c:v hevc_qsv"), "{a}");
         // A processor's encoder stays on the processor even if asked.
         let v = Video { container: 0, encoder: "libx264", quality: Quality::Medium, audio: false, meta: false };
         assert!(!args(&v, Size::Same, false, Turn::default(), true, ("a", "b"), &[], &[]).join(" ").contains("-hwaccel"));
