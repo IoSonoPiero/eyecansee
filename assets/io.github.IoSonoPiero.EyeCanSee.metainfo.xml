@@ -2,8 +2,8 @@
 <component type="desktop-application">
   <id>io.github.IoSonoPiero.EyeCanSee</id>
   <name>EyeCanSee</name>
-  <summary>Viewer and manager for photos, videos, 3D models and CAD drawings</summary>
-  <summary xml:lang="it">Visualizzatore e gestore di foto, video, modelli 3D e disegni CAD</summary>
+  <summary>Viewer, manager and editor for photos, videos, 3D models and CAD drawings</summary>
+  <summary xml:lang="it">Visualizzatore, gestore ed editor di foto, video, modelli 3D e disegni CAD</summary>
   <developer id="io.github.iosonopiero">
     <name>Pierluigi Montinaro</name>
   </developer>
@@ -12,8 +12,8 @@
   <launchable type="desktop-id">eyecansee.desktop</launchable>
 
   <description>
-    <p>A viewer and manager for photos, videos, 3D models and CAD drawings: browse them on computers, disks, servers and phones, copy and move them from one device to another, find duplicate copies and convert them to other formats.</p>
-    <p xml:lang="it">Un visualizzatore e gestore di foto, video, modelli 3D e disegni CAD: sfogliali su computer, dischi, server e telefoni, copiali e spostali da un dispositivo all'altro, trova le copie doppie e convertili in altri formati.</p>
+    <p>A viewer, manager and editor for photos, videos, 3D models and CAD drawings: browse them on computers, disks, servers and phones, copy and move them from one device to another, find duplicate copies and convert them to other formats.</p>
+    <p xml:lang="it">Un visualizzatore, gestore ed editor di foto, video, modelli 3D e disegni CAD: sfogliali su computer, dischi, server e telefoni, copiali e spostali da un dispositivo all'altro, trova le copie doppie e convertili in altri formati.</p>
     <ul>
       <li>Folders on the computer, external disks, USB sticks and SD cards, with cached thumbnails</li>
       <li xml:lang="it">Cartelle del computer, dischi esterni, chiavette USB e schede SD, con le miniature in cache</li>

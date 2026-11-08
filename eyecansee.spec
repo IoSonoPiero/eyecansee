@@ -4,7 +4,7 @@
 Name:           eyecansee
 Version:        0
 Release:        1%{?dist}
-Summary:        Viewer and manager for photos, videos, 3D models and CAD drawings
+Summary:        Viewer, manager and editor for photos, videos, 3D models and CAD drawings
 License:        GPL-3.0-or-later
 URL:            https://github.com/IoSonoPiero/eyecansee
 Source0:        %{name}-%{version}.tar.gz
@@ -32,7 +32,7 @@ Recommends:     mpv-libs
 %global _lto_cflags %{nil}
 
 %description
-EyeCanSee is a viewer and manager for photos, videos, 3D models and CAD drawings, written in
+EyeCanSee is a viewer, manager and editor for photos, videos, 3D models and CAD drawings, written in
 Rust. It browses them in local folders, on external disks, on SFTP and FTP servers and on
 Android phones connected directly over USB (MTP), with thumbnails and a full-screen viewer;
 it copies and moves them from one device to another, finds duplicate copies and converts

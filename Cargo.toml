@@ -2,7 +2,7 @@
 name = "eyecansee"
 version = "0.74.2"
 edition = "2024"
-description = "A viewer and manager for photos, videos, 3D models and CAD drawings, for Linux and Windows"
+description = "A viewer, manager and editor for photos, videos, 3D models and CAD drawings, for Linux and Windows"
 license = "GPL-3.0-or-later"
 repository = "https://github.com/IoSonoPiero/eyecansee"
 
