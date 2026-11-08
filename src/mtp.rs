@@ -118,6 +118,8 @@ fn error(e: mtp_rs::Error) -> Error {
         // The cable pulled, the phone locked or switched off "File transfer".
         mtp_rs::Error::Disconnected => "error-phone-disconnected",
         mtp_rs::Error::Timeout => "error-phone-timeout",
+        // The phone answered DeviceBusy: Windows Photos importing from it (POCO X7 Pro, 2026-11-08).
+        mtp_rs::Error::Busy => "error-phone-busy",
         // Windows (WPD) when the phone goes away during a transfer: ERROR_OPERATION_ABORTED, then
         // 0x802a0002 (shut down already) on that session; mtp-rs 0.37.3 leaves both as `Other`
         // (POCO X7 Pro, upload cut off, 2026-11-04).
