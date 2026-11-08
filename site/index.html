@@ -71,24 +71,39 @@
 <main>
 <section id="download">
   <h2>Download</h2>
-  <div class="cards download">
-    <div class="card">
-      <h3>Windows</h3>
-      <a class="store" href="https://apps.microsoft.com/detail/9PK1598MXLBK"><picture><source srcset="img/store-badge-en-light.svg" media="(prefers-color-scheme: dark)"><img src="img/store-badge-en.svg" width="200" alt="Download from the Microsoft Store"></picture></a>
-      <p>The recommended way: the package is signed by Microsoft, so Windows shows no SmartScreen warning, and the Store keeps it up to date.</p>
-      <p>Or, from the <a href="https://github.com/IoSonoPiero/eyecansee/releases/latest">latest release</a>, the installer (<code>-setup.exe</code>, no administrator rights needed) or the zip to extract anywhere. Windows may warn you the first time: click <b>More info</b>, then <b>Run anyway</b>.</p>
+  <div class="get">
+    <div class="way" id="windows">
+      <div class="who"><h3>Windows</h3><p>Microsoft Store, installer or zip</p></div>
+      <div class="how">
+        <a class="store" href="https://apps.microsoft.com/detail/9PK1598MXLBK"><picture><source srcset="img/store-badge-en-light.svg" media="(prefers-color-scheme: dark)"><img src="img/store-badge-en.svg" width="176" height="48" alt="Download from the Microsoft Store"></picture></a>
+        <p>The recommended way: the package is signed by Microsoft, so Windows shows no SmartScreen warning, and the Store keeps it up to date.</p>
+        <p>Or, from the <a href="https://github.com/IoSonoPiero/eyecansee/releases/latest">latest release</a>, the installer (<code>-setup.exe</code>, no administrator rights needed) or the zip to extract anywhere. Windows may warn you the first time: click <b>More info</b>, then <b>Run anyway</b>.</p>
+      </div>
     </div>
-    <div class="card">
-      <h3 id="fedora">Fedora</h3>
-      <p>Fedora 43 and later, from the <a href="https://copr.fedorainfracloud.org/coprs/iosonopiero/eyecansee/">COPR repository</a>: updates arrive with the system ones.</p>
+    <div class="way" id="flatpak">
+      <div class="who"><h3>Flatpak</h3><p>Any Linux distribution, Fedora Atomic included</p></div>
+      <div class="how">
+        <a class="button" href="https://flatpak.montinaro.info/eyecansee.flatpakref">Install with your software center</a>
+        <p>From EyeCanSee's own repository, signed by the developer, or in a terminal:</p>
+<pre><code>flatpak install https://flatpak.montinaro.info/eyecansee.flatpakref</code></pre>
+        <p>Flatpak not set up yet? Follow <a href="https://flathub.org/setup">the guide for your distribution</a> first. More on the <a href="https://flatpak.montinaro.info/">Flatpak page</a>.</p>
+      </div>
+    </div>
+    <div class="way" id="fedora">
+      <div class="who"><h3>Fedora Workstation</h3><p>Fedora 43 and later</p></div>
+      <div class="how">
+        <p>From the <a href="https://copr.fedorainfracloud.org/coprs/iosonopiero/eyecansee/">COPR repository</a>: updates arrive with the system ones.</p>
 <pre><code>sudo dnf copr enable iosonopiero/eyecansee
 sudo dnf install eyecansee</code></pre>
-      <p>HEIC photos also need <code>libheif-freeworld</code> from <a href="https://rpmfusion.org/">RPM Fusion</a>.</p>
+        <p>HEIC photos also need <code>libheif-freeworld</code> from <a href="https://rpmfusion.org/">RPM Fusion</a>.</p>
+      </div>
     </div>
-    <div class="card wide">
-      <h3 id="appimage">Other Linux distributions</h3>
-      <p>The <code>.AppImage</code> from the <a href="https://github.com/IoSonoPiero/eyecansee/releases/latest">latest release</a>: make it executable and run it, nothing else to install. It needs a distribution from 2022 or later.</p>
-      <p>For the applications menu, open it with <a href="https://flathub.org/apps/it.mijorus.gearlever">Gear Lever</a>. It keeps updating itself.</p>
+    <div class="way" id="appimage">
+      <div class="who"><h3>AppImage</h3><p>Other Linux distributions, from 2022 on</p></div>
+      <div class="how">
+        <p>The <code>.AppImage</code> from the <a href="https://github.com/IoSonoPiero/eyecansee/releases/latest">latest release</a>: make it executable and run it, nothing else to install.</p>
+        <p>For the applications menu, open it with <a href="https://flathub.org/apps/it.mijorus.gearlever">Gear Lever</a>. It keeps updating itself.</p>
+      </div>
     </div>
   </div>
 </section>

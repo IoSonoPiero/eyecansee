@@ -71,24 +71,39 @@
 <main>
 <section id="download">
   <h2>Scarica</h2>
-  <div class="cards download">
-    <div class="card">
-      <h3>Windows</h3>
-      <a class="store" href="https://apps.microsoft.com/detail/9PK1598MXLBK"><picture><source srcset="../img/store-badge-it-light.svg" media="(prefers-color-scheme: dark)"><img src="../img/store-badge-it.svg" width="200" alt="Scarica da Microsoft Store"></picture></a>
-      <p>La strada consigliata: il pacchetto è firmato da Microsoft, quindi Windows non mostra l'avviso di SmartScreen, e lo Store lo tiene aggiornato.</p>
-      <p>In alternativa, dall'<a href="https://github.com/IoSonoPiero/eyecansee/releases/latest">ultima release</a>, l'installer (<code>-setup.exe</code>, senza diritti di amministratore) o lo zip da estrarre dove vuoi. La prima volta Windows può avvisarti: fai clic su <b>Ulteriori informazioni</b>, poi su <b>Esegui comunque</b>.</p>
+  <div class="get">
+    <div class="way" id="windows">
+      <div class="who"><h3>Windows</h3><p>Microsoft Store, installer o zip</p></div>
+      <div class="how">
+        <a class="store" href="https://apps.microsoft.com/detail/9PK1598MXLBK"><picture><source srcset="../img/store-badge-it-light.svg" media="(prefers-color-scheme: dark)"><img src="../img/store-badge-it.svg" width="176" height="48" alt="Scarica da Microsoft Store"></picture></a>
+        <p>La strada consigliata: il pacchetto è firmato da Microsoft, quindi Windows non mostra l'avviso di SmartScreen, e lo Store lo tiene aggiornato.</p>
+        <p>In alternativa, dall'<a href="https://github.com/IoSonoPiero/eyecansee/releases/latest">ultima release</a>, l'installer (<code>-setup.exe</code>, senza diritti di amministratore) o lo zip da estrarre dove vuoi. La prima volta Windows può avvisarti: fai clic su <b>Ulteriori informazioni</b>, poi su <b>Esegui comunque</b>.</p>
+      </div>
     </div>
-    <div class="card">
-      <h3 id="fedora">Fedora</h3>
-      <p>Fedora 43 e successive, dal <a href="https://copr.fedorainfracloud.org/coprs/iosonopiero/eyecansee/">repository COPR</a>: gli aggiornamenti arrivano insieme a quelli del sistema.</p>
+    <div class="way" id="flatpak">
+      <div class="who"><h3>Flatpak</h3><p>Tutte le distribuzioni Linux, Fedora Atomic compresa</p></div>
+      <div class="how">
+        <a class="button" href="https://flatpak.montinaro.info/eyecansee.flatpakref">Installa col centro software</a>
+        <p>Dal repository di EyeCanSee, firmato dallo sviluppatore, oppure da terminale:</p>
+<pre><code>flatpak install https://flatpak.montinaro.info/eyecansee.flatpakref</code></pre>
+        <p>Flatpak non è ancora configurato? Prima segui <a href="https://flathub.org/setup">la guida per la tua distribuzione</a>. Altro sulla <a href="https://flatpak.montinaro.info/">pagina del Flatpak</a> (in inglese).</p>
+      </div>
+    </div>
+    <div class="way" id="fedora">
+      <div class="who"><h3>Fedora Workstation</h3><p>Fedora 43 e successive</p></div>
+      <div class="how">
+        <p>Dal <a href="https://copr.fedorainfracloud.org/coprs/iosonopiero/eyecansee/">repository COPR</a>: gli aggiornamenti arrivano insieme a quelli del sistema.</p>
 <pre><code>sudo dnf copr enable iosonopiero/eyecansee
 sudo dnf install eyecansee</code></pre>
-      <p>Per le foto HEIC serve anche <code>libheif-freeworld</code> di <a href="https://rpmfusion.org/">RPM Fusion</a>.</p>
+        <p>Per le foto HEIC serve anche <code>libheif-freeworld</code> di <a href="https://rpmfusion.org/">RPM Fusion</a>.</p>
+      </div>
     </div>
-    <div class="card wide">
-      <h3 id="appimage">Altre distribuzioni Linux</h3>
-      <p>L'<code>.AppImage</code> dell'<a href="https://github.com/IoSonoPiero/eyecansee/releases/latest">ultima release</a>: rendila eseguibile e avviala, non c'è altro da installare. Serve una distribuzione del 2022 o più recente.</p>
-      <p>Per averla nel menu delle applicazioni, aprila con <a href="https://flathub.org/apps/it.mijorus.gearlever">Gear Lever</a>. Si aggiorna da sola.</p>
+    <div class="way" id="appimage">
+      <div class="who"><h3>AppImage</h3><p>Altre distribuzioni Linux, dal 2022 in poi</p></div>
+      <div class="how">
+        <p>L'<code>.AppImage</code> dell'<a href="https://github.com/IoSonoPiero/eyecansee/releases/latest">ultima release</a>: rendila eseguibile e avviala, non c'è altro da installare.</p>
+        <p>Per averla nel menu delle applicazioni, aprila con <a href="https://flathub.org/apps/it.mijorus.gearlever">Gear Lever</a>. Si aggiorna da sola.</p>
+      </div>
     </div>
   </div>
 </section>

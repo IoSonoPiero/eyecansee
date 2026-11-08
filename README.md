@@ -3,14 +3,13 @@
 A viewer and manager for photos, videos, 3D models and CAD drawings, with an image editor, for Linux and Windows, written in Rust: it browses them on computers, disks, servers and phones, copies and moves them from one device to another, finds duplicate copies, converts them to other formats, and annotates images and covers private data in them. Free and open source.
 
 <p>
-  <a href="https://apps.microsoft.com/detail/9PK1598MXLBK"><img src="https://get.microsoft.com/images/en-us%20dark.svg" width="200" alt="Download from the Microsoft Store"/></a>
-  &nbsp;&nbsp;&nbsp;&nbsp;
-  <a href="#fedora"><img src="https://img.shields.io/badge/Fedora-COPR-51A2DA?style=for-the-badge&logo=fedora&logoColor=white" alt="Fedora | COPR"/></a>
-  &nbsp;&nbsp;
-  <a href="#other-distributions-appimage"><img src="https://img.shields.io/badge/Linux-AppImage-555555?style=for-the-badge&logo=linux&logoColor=white" alt="Linux | AppImage"/></a>
-  &nbsp;&nbsp;
-  <a href="https://eyecansee.montinaro.info/"><img src="https://img.shields.io/badge/Website-eyecansee.montinaro.info-1D3557?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Website | eyecansee.montinaro.info"/></a>
+  <a href="#windows"><img src="https://img.shields.io/badge/Microsoft_Store-1D3557?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0id2hpdGUiIGQ9Ik04IDdWNmE0IDQgMCAwIDEgOCAwdjFoNGwtMSAxNUg1TDQgN3ptMiAwaDRWNmEyIDIgMCAwIDAtNCAweiIvPjwvc3ZnPgo%3D" height="28" alt="Microsoft Store"/></a>
+  <a href="#flatpak"><img src="https://img.shields.io/badge/Flatpak-1D3557?style=for-the-badge&logo=flatpak&logoColor=white" height="28" alt="Flatpak"/></a>
+  <a href="#fedora-workstation"><img src="https://img.shields.io/badge/Fedora_COPR-1D3557?style=for-the-badge&logo=fedora&logoColor=white" height="28" alt="Fedora COPR"/></a>
+  <a href="#appimage"><img src="https://img.shields.io/badge/AppImage-1D3557?style=for-the-badge&logo=linux&logoColor=white" height="28" alt="AppImage"/></a>
 </p>
+
+Website: [eyecansee.montinaro.info](https://eyecansee.montinaro.info/)
 
 It is early in development. This page lists only what works now: new features arrive step by step, each one only when it is ready and tested.
 
@@ -124,7 +123,22 @@ As an alternative, from the [latest release](https://github.com/IoSonoPiero/eyec
 
 ### Linux
 
-#### Fedora
+#### Flatpak
+
+Any distribution, Fedora Atomic included. EyeCanSee has its own Flatpak repository, signed by the developer (key `11F7D1A7D8D356D2FDE8AC47D54E92F7B64C427D`); it is not on Flathub. Open [eyecansee.flatpakref](https://flatpak.montinaro.info/eyecansee.flatpakref) with your software center, or in a terminal:
+
+```bash
+flatpak install https://flatpak.montinaro.info/eyecansee.flatpakref
+```
+
+The runtime it needs comes from Flathub, added for you if it is missing. Updates come with `flatpak update` or your software center. Flatpak not set up yet? Follow [the guide for your distribution](https://flathub.org/setup) first. More on the [Flatpak page](https://flatpak.montinaro.info/).
+
+Tried on Fedora Workstation, Fedora Silverblue, Fedora KDE, Linux Mint and Kubuntu 24.04; not yet on Ubuntu with GNOME and its App Center.
+
+- **H.264 and HEVC** video conversion needs `org.freedesktop.Platform.codecs-extra`, which Flatpak installs with the runtime; AV1, VP9 and the audio formats work without it.
+- **Separate settings**: the Flatpak has its own settings, so the list of servers starts empty and is apart from the AppImage's and the Fedora package's. Trusted SSH server keys (`~/.ssh/known_hosts`) are shared.
+
+#### Fedora Workstation
 
 Fedora 43 and later: install it from the [COPR repository](https://copr.fedorainfracloud.org/coprs/iosonopiero/eyecansee/), and updates arrive with the system ones through `dnf`:
 ```bash
@@ -133,7 +147,9 @@ sudo dnf install eyecansee
 ```
 HEIC photos also need `libheif-freeworld` from [RPM Fusion](https://rpmfusion.org/), which `dnf` installs by itself if RPM Fusion is enabled.
 
-#### Other distributions (AppImage)
+#### AppImage
+
+For the other distributions.
 
 Download the `.AppImage` file from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), make it executable (`chmod +x EyeCanSee-*.AppImage`, or Properties → "Allow executing file as program" in the file manager) and run it. Nothing else to install: videos use the system's libmpv if there is one, otherwise EyeCanSee offers to download its video engine (10 MB) the first time a video is opened. It needs a distribution from 2022 or later (glibc 2.35).
 
@@ -153,7 +169,7 @@ On Linux it is tested on GNOME, Cinnamon (Linux Mint) and KDE Plasma 5 and 6. Ot
 
 ### Updates
 
-The Microsoft Store version is updated by the Store, and on Fedora updates come from `dnf`. The Windows installer, the zip and the AppImage update themselves: at startup EyeCanSee checks the latest release on GitHub in the background, downloads the new version, checks its SHA-256 and its signature, and offers to install it with one click. Only files signed with the developer's [minisign](https://jedisct1.github.io/minisign/) key are installed; the key is not on GitHub, so whoever could upload files to a release could not ship an update. The check can be turned off in Options.
+The Microsoft Store version is updated by the Store, on Fedora updates come from `dnf`, and the Flatpak is updated by `flatpak update` or your software center. The Windows installer, the zip and the AppImage update themselves: at startup EyeCanSee checks the latest release on GitHub in the background, downloads the new version, checks its SHA-256 and its signature, and offers to install it with one click. Only files signed with the developer's [minisign](https://jedisct1.github.io/minisign/) key are installed; the key is not on GitHub, so whoever could upload files to a release could not ship an update. The check can be turned off in Options.
 
 ## Build
 
