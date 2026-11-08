@@ -1,0 +1,41 @@
+# TEMPORARY, to be removed before merging the flatpak branch: tries the steps of release.yml's
+# flatpak job on GitHub's runners. Publishes nothing (no release, asset, artifact or Pages).
+name: flatpak-prova
+on:
+  push:
+    branches: [flatpak]
+
+permissions:
+  contents: read
+
+jobs:
+  flatpak:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Tools and SDK
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq flatpak flatpak-builder ostree >/dev/null
+          flatpak remote-add --user --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+      - id: mods
+        run: echo "key=$(grep -E 'url:|sha256:' flatpak/io.github.IoSonoPiero.EyeCanSee.yml | sha256sum | cut -c1-16)" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: .flatpak-builder/cache
+          key: flatpak-modules-${{ steps.mods.outputs.key }}
+      - name: Offline crates match Cargo.lock
+        run: python3 tools/flatpak-cargo-sources.py | diff -q - flatpak/cargo-sources.json
+      - name: Build
+        run: |
+          flatpak-builder --user --install-deps-from=flathub --disable-rofiles-fuse --force-clean --repo=target/flatpak-repo \
+            target/flatpak flatpak/io.github.IoSonoPiero.EyeCanSee.yml
+          REF=app/io.github.IoSonoPiero.EyeCanSee/x86_64/master
+          ostree init --repo=target/flatpak-commit --mode=archive-z2
+          ostree pull-local --repo=target/flatpak-commit target/flatpak-repo "$REF"
+          tar -C target/flatpak-commit -cf flatpak-commit-prova.tar .
+      - name: What would go next to the draft (nothing is uploaded)
+        run: |
+          ostree --repo=target/flatpak-commit show app/io.github.IoSonoPiero.EyeCanSee/x86_64/master
+          ostree --repo=target/flatpak-commit ls app/io.github.IoSonoPiero.EyeCanSee/x86_64/master /files/bin
+          ls -l flatpak-commit-prova.tar && sha256sum flatpak-commit-prova.tar
