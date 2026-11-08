@@ -187,7 +187,8 @@ impl App {
     pub(crate) fn grid_counts(&self, ui: &mut Ui) -> Option<(usize, usize)> {
         let Some(Ok(listing)) = self.listings.get(&self.dir) else {
             ui.centered_and_justified(|ui| match self.listings.get(&self.dir) {
-                Some(Err(e)) => ui.label(error_text(ui, e.as_str()).size(16.0)),
+                // Wrapped: a long message (several lines on what to do) ran off both sides.
+                Some(Err(e)) => ui.add(egui::Label::new(error_text(ui, e.as_str()).size(16.0)).wrap()),
                 _ => ui.spinner(),
             });
             return None;

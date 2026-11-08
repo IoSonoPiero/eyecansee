@@ -867,7 +867,11 @@ kiod-ask = KDE is holding the phone through its kiod service, the one Dolphin us
 kiod-ok = OK
 kiod-ask-flatpak =
     The phone is held by a KDE service, and the Flatpak version of EyeCanSee cannot take it over by itself.
-    Close Dolphin and press Release the phone: EyeCanSee closes that service, and KDE starts it again when needed. Network folder passwords that were not saved are forgotten, and copies running in Dolphin stop, but they can be resumed with Retry.
+
+    Close Dolphin and press **Release the phone**: EyeCanSee closes that service, and KDE starts it again when needed.
+
+    - Network folder passwords that were not saved are forgotten.
+    - Copies running in Dolphin stop, but they can be resumed with Retry.
 kiod-free = Release the phone
 
 # Find duplicates
