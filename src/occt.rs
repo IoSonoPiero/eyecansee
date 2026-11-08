@@ -52,6 +52,9 @@ fn library() -> Option<PathBuf> {
     crate::component::OCCT.and_then(|c| crate::component::path(&c)).filter(|p| p.exists())
 }
 
+/// The error without the engine: the grid shows the model's sign waiting for the download.
+pub const MISSING: &str = "the CAD engine is missing";
+
 /// The engine is there (downloaded, or given by `EYECANSEE_OCCT`): looked for on disk until found
 /// (only for STEP, IGES and BREP files), then remembered.
 pub fn available() -> bool {
@@ -70,7 +73,7 @@ fn engine() -> Result<&'static Engine, String> {
     if let Some(e) = ENGINE.get() {
         return Ok(e);
     }
-    let path = library().ok_or("the CAD engine is missing")?;
+    let path = library().ok_or(MISSING)?;
     // SAFETY: our own library, checked by SHA-256 when downloaded; its functions have these types.
     let e = unsafe {
         let lib = libloading::Library::new(&path).map_err(|e| format!("{}: {e}", path.display()))?;

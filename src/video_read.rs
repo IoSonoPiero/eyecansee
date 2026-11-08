@@ -441,7 +441,8 @@ pub(crate) async fn video_still(op: &Store, path: &str, size: u64, side: u32) ->
         .unwrap_or_else(|e| Err(e.to_string()))
 }
 
-/// The error of a video's thumbnail without the video engine: the grid shows the video sign.
+/// The error of a video's thumbnail without the video engine: the grid shows the video sign
+/// waiting for the download.
 pub(crate) const NO_ENGINE: &str = "no video engine";
 
 /// The camera's preview in the first bytes of a phone video on Windows (`preview_jpeg` skips

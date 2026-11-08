@@ -446,12 +446,12 @@ impl App {
             Some(Err(_)) if self.files().get(file).is_some_and(|f| crate::decode::is_audio(&f.path)) => {
                 icons::paint(painter, Icon::Audio, Rect::from_center_size(thumb_rect.center(), vec2(side * 0.45, side * 0.45)));
             }
-            // A video without the video engine: its sign, with the warning beside it, smaller
-            // (the sign alone looked like a thumbnail made, 2026-11-08; #71).
-            Some(Err(e)) if e == crate::video_read::NO_ENGINE => {
+            // Waiting for an engine to download (#71): the file's sign with the download badge
+            // beside it. The warning is kept for files that are damaged or not supported (2026-11-08).
+            Some(Err(e)) if e == crate::video_read::NO_ENGINE || e == crate::occt::MISSING => {
                 let sign = Rect::from_center_size(thumb_rect.center(), vec2(side * 0.45, side * 0.45));
-                icons::paint(painter, Icon::Video, sign);
-                painter.text(sign.right_bottom(), Align2::LEFT_BOTTOM, "⚠", FontId::proportional(side * 0.18), dim);
+                icons::paint(painter, if e == crate::occt::MISSING { Icon::Model } else { Icon::Video }, sign);
+                icons::paint(painter, Icon::Download, Rect::from_min_size(sign.right_bottom() - vec2(side * 0.08, side * 0.14), vec2(side * 0.18, side * 0.18)));
             }
             Some(Err(_)) => {
                 painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "⚠", FontId::proportional(side * 0.3), dim);

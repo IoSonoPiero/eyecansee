@@ -159,7 +159,7 @@ async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, Stri
     // Without the CAD engine a STEP, IGES or BREP gives no picture: not read for nothing, whole,
     // from a phone or a server (#71).
     if crate::occt::needs_engine(&file.path) {
-        return Err("the CAD engine is missing".into());
+        return Err(crate::occt::MISSING.into());
     }
     let bytes = op.read(&file.path).await.map_err(|(_, detail)| detail)?;
     let base = base.to_string();
