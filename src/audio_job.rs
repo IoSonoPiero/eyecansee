@@ -135,7 +135,7 @@ pub async fn run(op: &Store, (base, path): (&str, &str), out: &Store, dest: &str
         Some(file) => (file, false),
         None => {
             let file = temp("in", &name);
-            download(op, path, &file, |f| phases.set(0, f)).await.map_err(|e| failed(e.to_string()))?;
+            download(op, path, &file, || phases.p.cancel.load(std::sync::atomic::Ordering::Relaxed), |f| phases.set(0, f)).await.map_err(|e| failed(e.to_string()))?;
             (file, true)
         }
     };
@@ -207,7 +207,8 @@ async fn write(
     for (to, (file, remote)) in tos.iter().zip(&files) {
         if r.is_ok() && *remote {
             let (ph, last) = (phases.clone(), phases.count - 1);
-            r = upload(out, to, file, move |f| ph.set(last, f)).await.map_err(|e| Err(e.to_string()));
+            let p = phases.p.clone();
+            r = upload(out, to, file, move || p.cancel.load(std::sync::atomic::Ordering::Relaxed), move |f| ph.set(last, f)).await.map_err(|e| Err(e.to_string()));
         }
     }
     for (file, remote) in &files {

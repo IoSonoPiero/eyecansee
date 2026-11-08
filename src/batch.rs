@@ -294,7 +294,7 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
         Some(file) => (file, false),
         None => {
             let file = temp("in");
-            download(op, path, &file, |f| phases.set(0, f)).await.map_err(|e| failed(e.to_string()))?;
+            download(op, path, &file, || phases.p.cancel.load(Ordering::Relaxed), |f| phases.set(0, f)).await.map_err(|e| failed(e.to_string()))?;
             (file, true)
         }
     };
@@ -316,7 +316,8 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
     let r = match r {
         Ok(()) if output.1 => {
             let (ph, last) = (phases.clone(), phases.count - 1);
-            upload(out, to, &output.0, move |f| ph.set(last, f)).await.map_err(|e| failed(e.to_string()))
+            let p = phases.p.clone();
+            upload(out, to, &output.0, move || p.cancel.load(Ordering::Relaxed), move |f| ph.set(last, f)).await.map_err(|e| failed(e.to_string()))
         }
         Ok(()) => Ok(()),
         Err(e) => Err(failed(e)),
@@ -342,12 +343,29 @@ impl Phases {
 }
 
 /// `path` of `op` into the local `file`, 4 MB at a time; `progress` gets 0 to 1.
-pub(crate) async fn download(op: &Store, path: &str, file: &std::path::Path, progress: impl Fn(f32)) -> std::io::Result<()> {
+pub(crate) async fn download(op: &Store, path: &str, file: &std::path::Path, cancelled: impl Fn() -> bool, progress: impl Fn(f32)) -> std::io::Result<()> {
+    let r = download_pieces(op, path, file, cancelled, progress).await;
+    // Cancelled or failed: nothing half copied is left behind.
+    if r.is_err() {
+        let _ = std::fs::remove_file(file);
+    }
+    r
+}
+
+/// The error of a transfer stopped by Cancel, piece by piece (#74).
+fn stopped() -> std::io::Error {
+    std::io::Error::new(std::io::ErrorKind::Interrupted, "cancelled")
+}
+
+async fn download_pieces(op: &Store, path: &str, file: &std::path::Path, cancelled: impl Fn() -> bool, progress: impl Fn(f32)) -> std::io::Result<()> {
     use std::io::Write;
     let size = op.size(path).await.map_err(|(_, d)| std::io::Error::other(d))?;
     let mut f = std::fs::File::create(file)?;
     let mut at = 0;
     while at < size {
+        if cancelled() {
+            return Err(stopped());
+        }
         let piece = op.read_range(path, at, (size - at).min(4 << 20)).await.map_err(|(_, d)| std::io::Error::other(d))?;
         if piece.is_empty() {
             return Err(std::io::Error::other("short read"));
@@ -360,8 +378,9 @@ pub(crate) async fn download(op: &Store, path: &str, file: &std::path::Path, pro
 }
 
 /// The local `file` written to `to` of `out`, 1 MB at a time; `progress` gets 0 to 1 as it is
-/// read (a few MB ahead of what the server has).
-pub(crate) async fn upload(out: &Store, to: &str, file: &std::path::Path, progress: impl Fn(f32) + Send + 'static) -> std::io::Result<()> {
+/// read (a few MB ahead of what the server has). Cancelled, it stops at the next MB and the
+/// destination deletes what it had (`write_chunks` does on an error).
+pub(crate) async fn upload(out: &Store, to: &str, file: &std::path::Path, cancelled: impl Fn() -> bool + Send + 'static, progress: impl Fn(f32) + Send + 'static) -> std::io::Result<()> {
     use std::io::Read;
     let size = std::fs::metadata(file)?.len();
     let mut f = std::fs::File::open(file)?;
@@ -369,6 +388,10 @@ pub(crate) async fn upload(out: &Store, to: &str, file: &std::path::Path, progre
     let reader = tokio::task::spawn_blocking(move || {
         let mut sent = 0;
         loop {
+            if cancelled() {
+                let _ = tx.blocking_send(Err(stopped()));
+                return;
+            }
             let mut buf = vec![0; 1 << 20];
             let n = match f.read(&mut buf) {
                 Ok(0) => return,
@@ -391,7 +414,8 @@ pub(crate) async fn upload(out: &Store, to: &str, file: &std::path::Path, progre
     r
 }
 
-/// How the job is going, read by the window; `cancel` stops it after the image under way.
+/// How the job is going, read by the window; `cancel` stops it after the image under way, and
+/// a video or audio file between two pieces of its download or upload (#74).
 #[derive(Default)]
 pub struct Progress {
     pub done: AtomicUsize,
