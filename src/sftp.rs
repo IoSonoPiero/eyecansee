@@ -101,26 +101,35 @@ impl Drop for Opened {
     }
 }
 
-/// `$op`, an expression using the connection `$c` (`&Arc<Conn>`), run once more on a new
-/// connection if the first one had dropped. A macro, not a closure: async closures over
-/// references are not `Send` for the tasks that run them.
+/// Tries of a request that changes nothing on the server (reads, listings, the opening of a
+/// file): the first, then on a new connection each time the one before dropped. On the link of
+/// #75 a new connection sometimes stopped again within seconds (Windows to the DS725+ through
+/// Tailscale, 2026-11-09); three tries give up after about 3 × `SILENCE`, about the 60 s of a
+/// single wait before.
+const READ_TRIES: u32 = 3;
+
+/// `$op`, an expression using the connection `$c` (`&Arc<Conn>`), run up to `$tries` times, each
+/// on a new connection if the one before had dropped (twice when not given: an operation that
+/// changes something, such as a rename, may have been done already). A macro, not a closure:
+/// async closures over references are not `Send` for the tasks that run them.
 macro_rules! retry {
-    ($server:expr, $path:expr, |$c:ident| $op:expr) => {{
-        let conn = $server.session().await?;
-        let first = {
-            let $c = &conn;
-            $op
-        };
-        match first {
-            Err(e) if $server.dropped(&conn, &e).await => {
-                let conn = $server.session().await?;
-                let again = {
-                    let $c = &conn;
-                    $op
-                };
-                $server.checked(&conn, again, $path).await
+    ($server:expr, $path:expr, |$c:ident| $op:expr) => {
+        retry!($server, $path, 2, |$c| $op)
+    };
+    ($server:expr, $path:expr, $tries:expr, |$c:ident| $op:expr) => {{
+        let mut left: u32 = $tries;
+        loop {
+            let conn = $server.session().await?;
+            let r = {
+                let $c = &conn;
+                $op
+            };
+            left -= 1;
+            match r {
+                // A connection that dropped is forgotten even when no try is left.
+                Err(e) if $server.dropped(&conn, &e).await && left > 0 => continue,
+                r => break r.map_err(|e| error(e, $path)),
             }
-            r => r.map_err(|e| error(e, $path)),
         }
     }};
 }
@@ -183,18 +192,18 @@ impl Server {
 
     /// The folder the server starts in (usually the user's home), as a source path.
     pub async fn home(&self) -> Result<String, Error> {
-        let name = retry!(self, ".", |c| c.ask(c.raw.realpath(".")).await)?;
+        let name = retry!(self, ".", READ_TRIES, |c| c.ask(c.raw.realpath(".")).await)?;
         let home = name.files.first().map(|f| f.filename.trim_matches('/').to_string()).unwrap_or_default();
         Ok(if home.is_empty() { home } else { format!("{home}/") })
     }
 
     async fn stat(&self, path: &str) -> Result<FileAttributes, Error> {
-        retry!(self, path, |c| c.ask(c.raw.stat(abs(path))).await.map(|a| a.attrs))
+        retry!(self, path, READ_TRIES, |c| c.ask(c.raw.stat(abs(path))).await.map(|a| a.attrs))
     }
 
     /// Everything in a folder but "." and "..", with its attributes.
     async fn entries(&self, dir: &str) -> Result<Vec<(String, FileAttributes)>, Error> {
-        retry!(self, dir, |c| read_dir(c, dir).await)
+        retry!(self, dir, READ_TRIES, |c| read_dir(c, dir).await)
     }
 
     /// Is this entry a folder? A symlink is followed.
@@ -237,17 +246,17 @@ impl Server {
     }
 
     async fn open_file(&self, path: &str, flags: OpenFlags) -> Result<Opened, Error> {
-        retry!(self, path, |c| open_file(c, path, flags).await)
+        retry!(self, path, READ_TRIES, |c| open_file(c, path, flags).await)
     }
 
-    /// A whole file. Each read below goes once more on a new connection when the first dropped:
-    /// reading the same bytes again changes nothing (#75).
+    /// A whole file. The reads below go again on a new connection when one dropped
+    /// (`READ_TRIES`): reading the same bytes again changes nothing (#75).
     pub async fn read(&self, path: &str) -> Result<Vec<u8>, Error> {
-        retry!(self, path, |c| read_whole(c, path).await)
+        retry!(self, path, READ_TRIES, |c| read_whole(c, path).await)
     }
 
     pub async fn read_range(&self, path: &str, offset: u64, len: u64) -> Result<Vec<u8>, Error> {
-        retry!(self, path, |c| read_from(c, path, offset, len).await)
+        retry!(self, path, READ_TRIES, |c| read_from(c, path, offset, len).await)
     }
 
     /// Writes a file from the chunks of a copy, replacing one with the same name; removed if the
@@ -311,7 +320,7 @@ impl Server {
     }
 
     pub async fn exists(&self, path: &str) -> bool {
-        let r: Result<_, Error> = (async { retry!(self, path, |c| c.ask(c.raw.lstat(abs(path))).await) }).await;
+        let r: Result<_, Error> = (async { retry!(self, path, READ_TRIES, |c| c.ask(c.raw.lstat(abs(path))).await) }).await;
         r.is_ok()
     }
 
@@ -372,12 +381,18 @@ impl Server {
             }
             let n = chunk.min(size - at);
             // A chunk lost with its connection is read again, the file opened on a new one (#75).
-            let data = match read_at(&f, at, n).await {
-                Err(e) if self.dropped(&f.conn, &e).await => {
-                    f = self.open_file(path, OpenFlags::READ).await?;
-                    self.checked(&f.conn, read_at(&f, at, n).await, path).await?
+            let mut left = READ_TRIES;
+            let data = loop {
+                match read_at(&f, at, n).await {
+                    Ok(data) => break data,
+                    Err(e) => {
+                        left -= 1;
+                        if !(self.dropped(&f.conn, &e).await && left > 0) {
+                            return Err(error(e, path));
+                        }
+                        f = self.open_file(path, OpenFlags::READ).await?;
+                    }
                 }
-                r => r.map_err(|e| error(e, path))?,
             };
             if data.is_empty() {
                 return Err(("error-detail", format!("{path}: file shorter than expected")));
