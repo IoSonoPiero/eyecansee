@@ -390,6 +390,14 @@ pub fn direct_address(address: &str, devices: &[Device]) -> Option<String> {
     devices.iter().any(|d| d.path == base).then(|| format!("{base}{}", percent_encoding::utf8_percent_encode(inner, CUT)))
 }
 
+/// An `mtp://<serial>/…` address whose phone is not connected (no device in `devices` has that
+/// serial; on GNOME the same phone may show up as a gvfs mount, with the serial too). `false` for
+/// any other address.
+pub fn phone_missing(address: &str, devices: &[Device]) -> bool {
+    let serial = address.strip_prefix("mtp://").map(|s| s.split('/').next().unwrap_or_default());
+    serial.is_some_and(|s| !devices.iter().any(|d| d.serial.as_deref() == Some(s)))
+}
+
 /// gvfs mount of the phone with this serial (which `scan` does not show: it opens directly).
 pub fn gvfs_mount(serial: &str) -> Option<String> {
     let run = std::env::var_os("XDG_RUNTIME_DIR")?;
@@ -473,6 +481,15 @@ mod tests {
         assert_eq!(direct_address(gvfs, &[phone("mtp://OTHER1234567/")]), None);
         assert_eq!(direct_address("/run/user/1000/gvfs/gphoto2:host=Maker_Phone_ABCD1234EFGH/DCIM/a.jpg", &devices), None);
         assert_eq!(direct_address("/home/me/a.jpg", &devices), None);
+    }
+
+    #[test]
+    fn phone_not_connected() {
+        let phone = Device { name: "Phone".into(), path: "mtp://ABCD1234EFGH/".into(), phone: true, serial: Some("ABCD1234EFGH".into()), block: None, internal: false };
+        assert!(!phone_missing("mtp://ABCD1234EFGH/Internal storage/DCIM/", std::slice::from_ref(&phone)));
+        assert!(phone_missing("mtp://OTHER1234567/Internal storage/", &[phone]));
+        assert!(!phone_missing("/home/me/Pictures/", &[]));
+        assert!(!phone_missing("sftp://me@nas/", &[]));
     }
 
     // Linux paths (the Flatpak's sandbox): /tmp is not there on Windows.

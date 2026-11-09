@@ -592,8 +592,7 @@ impl App {
                 // error would arrive later, in the home tree): `devices` tells.
                 // By serial: the address can be a subfolder, and on GNOME the same phone shows up
                 // as a gvfs mount (then `mounted_twin` switches to it by itself).
-                let serial = last.strip_prefix("mtp://").map(|s| s.split('/').next().unwrap_or_default());
-                let phone_gone = serial.is_some_and(|s| !app.devices.iter().any(|d| d.serial.as_deref() == Some(s)));
+                let phone_gone = devices::phone_missing(&last, &app.devices);
                 if !phone_gone {
                     app.open_source(ctx, &last);
                 }
