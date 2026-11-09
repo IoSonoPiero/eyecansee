@@ -490,8 +490,8 @@ mod tests {
         assert_eq!(gvariant_path("('/run/media/me/Backup Linux',)\n").as_deref(), Some("/run/media/me/Backup Linux"));
         assert_eq!(gvariant_path("(\"/run/media/me/Pier's\",)").as_deref(), Some("/run/media/me/Pier's"));
         assert_eq!(gvariant_path("()"), None);
-        let e = "Error mounting /dev/sdb1: GDBus.Error:org.freedesktop.UDisks2.Error.AlreadyMounted: Device /dev/sdb1 is already mounted at `/run/media/me/UM-D1M'.";
-        assert_eq!(already_mounted(e).as_deref(), Some("/run/media/me/UM-D1M"));
+        let e = "Error mounting /dev/sdb1: GDBus.Error:org.freedesktop.UDisks2.Error.AlreadyMounted: Device /dev/sdb1 is already mounted at `/run/media/me/SD CARD'.";
+        assert_eq!(already_mounted(e).as_deref(), Some("/run/media/me/SD CARD"));
         assert_eq!(already_mounted("Error mounting /dev/sdb1: not authorized"), None);
     }
 

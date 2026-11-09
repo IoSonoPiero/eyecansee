@@ -1,5 +1,5 @@
 //! The preview some cameras store inside their MP4 files, which gives a thumbnail without opening
-//! the video: `moov/udta/thmb` (the Umino UM-D1M dashcam: 320×180, ~11 KB) or the standard cover
+//! the video: `moov/udta/thmb` (a dashcam) or the standard cover
 //! `moov/udta/meta/ilst/covr` (DJI Mini 4 Pro: 1280×720, ~625 KB; music and films too). 2026-10-27.
 //! Also the video of a Motion Photo shown turned with its photo (`turned`, #54).
 
@@ -130,7 +130,7 @@ fn read_at(f: &mut std::fs::File, at: u64, size: u64) -> std::io::Result<Option<
     Ok(Some(b))
 }
 
-/// The camera's preview (`moov/udta/thmb`, the Umino dashcam) of `original` written into `copy`,
+/// The camera's preview (`moov/udta/thmb`, a dashcam's) of `original` written into `copy`,
 /// which FFmpeg made without it (it does not know the box). Only when the copy's `moov` is the
 /// last box of the file, as FFmpeg writes it without `+faststart`: the sample tables point to the
 /// media data before it, so `moov` can grow. `false` when there was nothing to do.

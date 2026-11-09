@@ -1,5 +1,5 @@
 //! GPS positions kept beside the videos rather than inside them (2026-10-27):
-//! - the Umino UM-D1M dashcam writes `gps.sqlite` at the root of its card (table `gps_track`: Unix
+//! - a dashcam writes `gps.sqlite` at the root of its card (table `gps_track`: Unix
 //!   seconds, latitude and longitude in millionths of a degree, altitude in decimetres, a point
 //!   every 3 s);
 //! - DJI drones write a `.SRT` with the same name as the video, a subtitle for every frame with

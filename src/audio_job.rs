@@ -324,7 +324,7 @@ mod tests {
                 assert!(text.contains("Prova"), "{name}: the title is lost\n{text}");
             }
         }
-        // A camera's video with its own preview (`EYECANSEE_PREVIEW_VIDEO`, an Umino dashcam's):
+        // A camera's video with its own preview (`EYECANSEE_PREVIEW_VIDEO`, a dashcam's):
         // the copy without audio has the same preview.
         if let Ok(video) = std::env::var("EYECANSEE_PREVIEW_VIDEO") {
             let original = std::fs::read(&video).unwrap();
