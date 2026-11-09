@@ -517,8 +517,8 @@ impl Server {
         Ok(found)
     }
 
-    /// Reads a file of `size` bytes in chunks of `chunk` bytes, handing each to `push`.
-    pub async fn send<F, Fut>(&self, path: &str, size: u64, chunk: u64, cancel: &AtomicBool, push: F) -> Result<(), Error>
+    /// Reads a file of `size` bytes from `from` in chunks of `chunk` bytes, handing each to `push`.
+    pub async fn send<F, Fut>(&self, path: &str, from: u64, size: u64, chunk: u64, cancel: &AtomicBool, push: F) -> Result<(), Error>
     where
         F: Fn(Bytes) -> Fut,
         Fut: std::future::Future<Output = Result<(), Error>>,
@@ -528,9 +528,9 @@ impl Server {
         let began = AtomicBool::new(false);
         let r: Result<(), Error> = (async {
             with!(self, path, transfer |c| async {
-                let mut r = waited(self.data(&mut c.s, format!("RETR {}", abs(path)), 0)).await?;
+                let mut r = waited(self.data(&mut c.s, format!("RETR {}", abs(path)), from)).await?;
                 once(&began)?;
-                let mut at = 0;
+                let mut at = from;
                 while at < size {
                     let stop = if cancel.load(Ordering::Relaxed) { Some(("error-cancelled", String::new())) } else { None };
                     let mut data = vec![0; chunk.min(size - at) as usize];

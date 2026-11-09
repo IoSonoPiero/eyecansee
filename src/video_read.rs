@@ -212,8 +212,8 @@ fn input(rt: Handle, op: &Store, path: &str, size: u64, play: bool) -> (crate::m
         Some(file) => (crate::mpv::Input::File(file), None),
         None => {
             let mut reader = StoreReader::new(rt, op, path, size, whole_only(op));
-            // ponytail: SFTP only, where a 4K video stuttered (#77); FTP and phones read as before
-            reader.ahead = (play && matches!(op, Store::Sftp(_))).then(Default::default);
+            // ponytail: servers only, where a 4K video stuttered (#77); phones read as before
+            reader.ahead = (play && matches!(op, Store::Sftp(_) | Store::Ftp(_))).then(Default::default);
             let copied = reader.copy.is_some().then(|| reader.copied.clone());
             (crate::mpv::Input::Stream(Arc::new(reader)), copied)
         }
@@ -237,10 +237,10 @@ struct StoreReader {
     ahead: Option<std::sync::Mutex<Option<Ahead>>>,
 }
 
-/// A file read in order from `next` on, about 4 MiB asked ahead (`sftp::Server::send`) and up to
-/// `AHEAD_CHUNKS` chunks waiting: a 4K video of 6.9 MB/s stuttered when each 1 MiB mpv asked for
-/// was a request of its own, 6.4 MB/s from a Storage Box with a 50 ms ping (#77). Dropped (mpv
-/// seeks elsewhere, the viewer closes) it stops.
+/// A file read in order from `next` on (`sftp::Server::send`, about 4 MiB asked ahead, or one
+/// FTP transfer from there, `ftp::Server::send`), up to `AHEAD_CHUNKS` chunks waiting: a 4K video
+/// of 6.9 MB/s stuttered when each 1 MiB mpv asked for was a request of its own, 6.4 MB/s from a
+/// Storage Box with a 50 ms ping (#77). Dropped (mpv seeks elsewhere, the viewer closes) it stops.
 struct Ahead {
     next: u64,
     /// What mpv did not take of the last chunk.
@@ -266,45 +266,54 @@ impl StoreReader {
     fn start(&self, from: u64) -> Ahead {
         let (tx, chunks) = tokio::sync::mpsc::channel(AHEAD_CHUNKS);
         let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
-        if let Store::Sftp(server) = &self.op {
-            let (server, path, size, stop) = (server.clone(), self.path.clone(), self.size, cancel.clone());
-            self.rt.spawn(async move {
-                let push = |b| {
-                    let tx = tx.clone();
-                    async move { tx.send(Ok(b)).await.map_err(|_| ("error-cancelled", String::new())) }
-                };
-                if let Err(e) = server.send(&path, from, size, 1 << 20, &stop, push).await {
-                    let _ = tx.send(Err(e)).await;
-                }
-            });
-        }
+        let (op, path, size, stop) = (self.op.clone(), self.path.clone(), self.size, cancel.clone());
+        self.rt.spawn(async move {
+            let push = |b| {
+                let tx = tx.clone();
+                async move { tx.send(Ok(b)).await.map_err(|_| ("error-cancelled", String::new())) }
+            };
+            let r = match &op {
+                Store::Sftp(server) => server.send(&path, from, size, 1 << 20, &stop, push).await,
+                Store::Ftp(server) => server.send(&path, from, size, 1 << 20, &stop, push).await,
+                _ => Err(("error-detail", format!("{path}: no reading ahead here"))),
+            };
+            if let Err(e) = r {
+                let _ = tx.send(Err(e)).await;
+            }
+        });
         Ahead { next: from, left: bytes::Bytes::new(), chunks, cancel }
     }
 
     /// Up to `len` bytes from `offset`, from the reading under way when it is there, else from a
-    /// new one.
+    /// new one. A reading that ends with an error starts again once from there (an FTP server
+    /// may close a transfer left waiting while the video is paused).
     fn read_ahead(&self, ahead: &std::sync::Mutex<Option<Ahead>>, offset: u64, len: u64) -> Result<Vec<u8>, String> {
         let mut ahead = ahead.lock().unwrap();
-        if ahead.as_ref().is_none_or(|a| a.next != offset) {
-            *ahead = Some(self.start(offset));
-        }
-        let a = ahead.as_mut().expect("just started");
-        if a.left.is_empty() {
-            a.left = match a.chunks.blocking_recv() {
-                Some(Ok(chunk)) => chunk,
-                Some(Err((id, detail))) => {
-                    *ahead = None;
-                    return Err(format!("{id} {detail}"));
+        let mut again = true;
+        loop {
+            if ahead.as_ref().is_none_or(|a| a.next != offset) {
+                *ahead = Some(self.start(offset));
+            }
+            let a = ahead.as_mut().expect("just started");
+            if a.left.is_empty() {
+                match a.chunks.blocking_recv() {
+                    Some(Ok(chunk)) => a.left = chunk,
+                    end => {
+                        *ahead = None;
+                        if std::mem::replace(&mut again, false) {
+                            continue;
+                        }
+                        return Err(match end {
+                            Some(Err((id, detail))) => format!("{id} {detail}"),
+                            _ => "read ahead ended".into(),
+                        });
+                    }
                 }
-                None => {
-                    *ahead = None;
-                    return Err("read ahead ended".into());
-                }
-            };
+            }
+            let data = a.left.split_to((len as usize).min(a.left.len()));
+            a.next += data.len() as u64;
+            return Ok(data.to_vec());
         }
-        let data = a.left.split_to((len as usize).min(a.left.len()));
-        a.next += data.len() as u64;
-        Ok(data.to_vec())
     }
 
     async fn copy_whole(&self) -> Result<OpenCopy, String> {
