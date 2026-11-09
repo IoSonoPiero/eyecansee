@@ -20,7 +20,7 @@ It is early in development. This page lists only what works now: new features ar
 - An image editor to annotate images and cover private data, also on phones and servers.
 - Signed releases that update themselves.
 
-![Browsing a folder in EyeCanSee: thumbnails, the viewer and a video](docs/screenshots/browse.gif)
+![EyeCanSee in use: a folder of photos in the grid, a photo opened and zoomed in, the editor adding an arrow, a text and a box that covers a part, three photos converted, and a 3D model turned with the mouse](docs/screenshots/browse.gif)
 
 ![The grid: thumbnails of a folder, with the devices and the folder tree on the left](docs/screenshots/grid.png)
 
