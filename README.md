@@ -255,6 +255,10 @@ The interface is available in English and Italian. To add a language, see [CONTR
 
 EyeCanSee collects no data. It connects only to GitHub (optional components and, outside the Microsoft Store, the update check), to the servers you add and, when you ask, to OpenStreetMap: see [PRIVACY.md](PRIVACY.md).
 
+## Elsewhere
+
+<a href="https://alternativeto.net/software/eyecansee/about/?utm_source=badge&amp;utm_medium=referral"><img src="site/img/alternativeto-badge.svg" width="244" height="83" alt="EyeCanSee | AlternativeTo"></a>
+
 ## License
 
 EyeCanSee is released under the GNU General Public License, version 3 or later: see [LICENSE](LICENSE).
