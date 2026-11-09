@@ -197,16 +197,23 @@ fn whole_only(op: &Store) -> bool {
 /// What mpv plays: the file itself when it is on this computer (also through gvfs), otherwise
 /// read a piece at a time from the phone or the server.
 pub(crate) fn video_input(rt: Handle, op: &Store, path: &str, size: u64) -> crate::mpv::Input {
-    video_input_copied(rt, op, path, size).0
+    input(rt, op, path, size, false).0
 }
 
-/// As `video_input`, with the bytes copied so far when the file is copied whole first (a phone
-/// on Windows): the viewer shows how far that is, since nothing plays until it is done.
+/// As `video_input`, for playing, with the bytes copied so far when the file is copied whole
+/// first (a phone on Windows): the viewer shows how far that is, since nothing plays until it is
+/// done. A server's file is read ahead (`Ahead`).
 pub(crate) fn video_input_copied(rt: Handle, op: &Store, path: &str, size: u64) -> (crate::mpv::Input, Option<Arc<AtomicU64>>) {
+    input(rt, op, path, size, true)
+}
+
+fn input(rt: Handle, op: &Store, path: &str, size: u64, play: bool) -> (crate::mpv::Input, Option<Arc<AtomicU64>>) {
     match op.local_file(path) {
         Some(file) => (crate::mpv::Input::File(file), None),
         None => {
-            let reader = StoreReader::new(rt, op, path, size, whole_only(op));
+            let mut reader = StoreReader::new(rt, op, path, size, whole_only(op));
+            // ponytail: SFTP only, where a 4K video stuttered (#77); FTP and phones read as before
+            reader.ahead = (play && matches!(op, Store::Sftp(_))).then(Default::default);
             let copied = reader.copy.is_some().then(|| reader.copied.clone());
             (crate::mpv::Input::Stream(Arc::new(reader)), copied)
         }
@@ -226,11 +233,78 @@ struct StoreReader {
     copy: Option<std::sync::OnceLock<Result<OpenCopy, String>>>,
     /// Bytes of that copy done.
     copied: Arc<AtomicU64>,
+    /// For playing from a server: the file read ahead from where mpv reads.
+    ahead: Option<std::sync::Mutex<Option<Ahead>>>,
+}
+
+/// A file read in order from `next` on, about 4 MiB asked ahead (`sftp::Server::send`) and up to
+/// `AHEAD_CHUNKS` chunks waiting: a 4K video of 6.9 MB/s stuttered when each 1 MiB mpv asked for
+/// was a request of its own, 6.4 MB/s from a Storage Box with a 50 ms ping (#77). Dropped (mpv
+/// seeks elsewhere, the viewer closes) it stops.
+struct Ahead {
+    next: u64,
+    /// What mpv did not take of the last chunk.
+    left: bytes::Bytes,
+    chunks: tokio::sync::mpsc::Receiver<Result<bytes::Bytes, crate::source::Error>>,
+    cancel: Arc<std::sync::atomic::AtomicBool>,
+}
+
+const AHEAD_CHUNKS: usize = 8;
+
+impl Drop for Ahead {
+    fn drop(&mut self) {
+        self.cancel.store(true, Ordering::Relaxed);
+    }
 }
 
 impl StoreReader {
     fn new(rt: Handle, op: &Store, path: &str, size: u64, whole: bool) -> Self {
-        StoreReader { rt, op: op.clone(), path: path.to_string(), size, copy: whole.then(std::sync::OnceLock::new), copied: Arc::default() }
+        StoreReader { rt, op: op.clone(), path: path.to_string(), size, copy: whole.then(std::sync::OnceLock::new), copied: Arc::default(), ahead: None }
+    }
+
+    /// Reading in order from `from` on a server.
+    fn start(&self, from: u64) -> Ahead {
+        let (tx, chunks) = tokio::sync::mpsc::channel(AHEAD_CHUNKS);
+        let cancel = Arc::new(std::sync::atomic::AtomicBool::new(false));
+        if let Store::Sftp(server) = &self.op {
+            let (server, path, size, stop) = (server.clone(), self.path.clone(), self.size, cancel.clone());
+            self.rt.spawn(async move {
+                let push = |b| {
+                    let tx = tx.clone();
+                    async move { tx.send(Ok(b)).await.map_err(|_| ("error-cancelled", String::new())) }
+                };
+                if let Err(e) = server.send(&path, from, size, 1 << 20, &stop, push).await {
+                    let _ = tx.send(Err(e)).await;
+                }
+            });
+        }
+        Ahead { next: from, left: bytes::Bytes::new(), chunks, cancel }
+    }
+
+    /// Up to `len` bytes from `offset`, from the reading under way when it is there, else from a
+    /// new one.
+    fn read_ahead(&self, ahead: &std::sync::Mutex<Option<Ahead>>, offset: u64, len: u64) -> Result<Vec<u8>, String> {
+        let mut ahead = ahead.lock().unwrap();
+        if ahead.as_ref().is_none_or(|a| a.next != offset) {
+            *ahead = Some(self.start(offset));
+        }
+        let a = ahead.as_mut().expect("just started");
+        if a.left.is_empty() {
+            a.left = match a.chunks.blocking_recv() {
+                Some(Ok(chunk)) => chunk,
+                Some(Err((id, detail))) => {
+                    *ahead = None;
+                    return Err(format!("{id} {detail}"));
+                }
+                None => {
+                    *ahead = None;
+                    return Err("read ahead ended".into());
+                }
+            };
+        }
+        let data = a.left.split_to((len as usize).min(a.left.len()));
+        a.next += data.len() as u64;
+        Ok(data.to_vec())
     }
 
     async fn copy_whole(&self) -> Result<OpenCopy, String> {
@@ -390,6 +464,7 @@ impl crate::mpv::Reader for StoreReader {
                 Ok((_, file)) => Self::read_copy(file, offset, len),
                 Err(e) => Err(e.clone()),
             },
+            None if let Some(ahead) = &self.ahead => self.read_ahead(ahead, offset, len),
             // With the error's id: the log said only the path when the file was gone (2026-10-29).
             None => self.rt.block_on(self.op.read_range(&self.path, offset, len)).map_err(|(id, detail)| format!("{id} {detail}")),
         }

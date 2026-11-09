@@ -444,7 +444,7 @@ impl Store {
                     push(chunk).await?;
                 }
             }
-            Store::Sftp(server) => server.send(path, size, CHUNK, cancel, push).await?,
+            Store::Sftp(server) => server.send(path, 0, size, CHUNK, cancel, push).await?,
             Store::Ftp(server) => server.send(path, size, CHUNK, cancel, push).await?,
             Store::Mtp(phone) => {
                 let mut download = phone.download(path).await?;

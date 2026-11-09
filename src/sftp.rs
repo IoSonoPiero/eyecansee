@@ -367,14 +367,14 @@ impl Server {
         Ok(found)
     }
 
-    /// Reads a file of `size` bytes in chunks of `chunk` bytes, handing each to `push`.
-    pub async fn send<F, Fut>(&self, path: &str, size: u64, chunk: u64, cancel: &AtomicBool, push: F) -> Result<(), Error>
+    /// Reads a file of `size` bytes from `from` in chunks of `chunk` bytes, handing each to `push`.
+    pub async fn send<F, Fut>(&self, path: &str, from: u64, size: u64, chunk: u64, cancel: &AtomicBool, push: F) -> Result<(), Error>
     where
         F: Fn(Bytes) -> Fut,
         Fut: std::future::Future<Output = Result<(), Error>>,
     {
         let mut f = self.open_file(path, OpenFlags::READ).await?;
-        let (mut at, mut buf, mut left) = (0, Vec::new(), READ_TRIES);
+        let (mut at, mut buf, mut left) = (from, Vec::new(), READ_TRIES);
         loop {
             let from = at;
             match read_ahead(&f, path, size, chunk, cancel, (&mut at, &mut buf), &push).await {
