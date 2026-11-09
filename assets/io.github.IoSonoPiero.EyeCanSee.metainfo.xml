@@ -87,7 +87,7 @@
           <li>Options: the automatic choice of the video engine and FFmpeg, the best for this computer</li>
           <li>The viewer leaves the enlarging of a video to the graphics card and uses less processor</li>
           <li>Convert and resize: Cancel also stops a file being downloaded from a server or uploaded to it</li>
-          <li>SFTP: a server that stops answering is left after about 20 seconds of silence and the work goes on over a new connection</li>
+          <li>SFTP: a server that stops answering is left, usually after about 20 seconds of silence, and the work goes on over a new connection</li>
           <li>Open location: a user name or password with % reaches the server as written</li>
           <li>Thumbnails waiting for the video or CAD engine show a download badge</li>
           <li>The built-in SQLite updated to 3.54 for a security advisory</li>
