@@ -1,4 +1,5 @@
-/* EyeCanSee site: one hand-written page per language, no external resources. */
+/* EyeCanSee site: one hand-written page per language; the only external resource is the
+   cookie-free Umami visit counter (see PRIVACY.md). */
 :root {
   --bg: #f6f8fa;
   --card: #ffffff;
@@ -35,6 +36,11 @@ img, video { max-width: 100%; height: auto; display: block; }
 main, header, footer { max-width: 960px; margin: 0 auto; padding: 0 16px; }
 .lang { text-align: right; padding-top: 12px; font-size: 0.9rem; color: var(--muted); }
 .lang a[aria-current] { color: var(--text); font-weight: 600; text-decoration: none; }
+/* On phones the two language links are at least 44 px tall, easy to touch. */
+@media (max-width: 700px) {
+  .lang { padding-top: 0; }
+  .lang a { display: inline-block; padding: 11px 8px; }
+}
 .hero { text-align: center; padding: 24px 0 8px; }
 .hero .icon { width: 96px; margin: 0 auto 8px; }
 .hero h1 { margin: 0; font-size: 2.4rem; color: var(--brand); letter-spacing: 0.5px; }
@@ -92,6 +98,7 @@ li code { overflow-wrap: anywhere; } /* a long name in a list breaks instead of 
 .number span { color: var(--muted); font-size: 0.95rem; }
 .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
 .gallery figure { margin: 0; }
+.gallery a { display: block; } /* each screenshot opens at full size */
 /* One 3:2 frame for every screenshot, whatever its own size, so a row starts and ends level:
    a wider one (video-convert, 2:1) is cut at the right, never stretched. */
 .gallery .shot { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; object-position: left center; }
