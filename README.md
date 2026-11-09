@@ -32,7 +32,7 @@ It is early in development. This page lists only what works now: new features ar
 
 ![A DWG drawing with layers and dimensions](docs/screenshots/cad-drawing.png)
 
-![Folders, a server and a phone side by side in the left panel](docs/screenshots/devices.png)
+![Folders, two servers and a phone side by side in the left panel](docs/screenshots/devices.png)
 
 ![Saving in another format, the original and the result side by side](docs/screenshots/convert.png)
 
