@@ -383,6 +383,9 @@ impl App {
         let saved = p.saved.lock().unwrap().len();
         let failed = std::mem::take(&mut *p.failed.lock().unwrap());
         log!("batch: {saved} saved, {} left out", failed.len());
+        for (id, detail) in &failed {
+            log!("batch: left out: {id} {detail}");
+        }
         let mut text = self.i18n.t_args("batch-result", &[("n", &saved.to_string()), ("folder", &md(&w.dest.0))]);
         let (done, total) = (p.done.load(Ordering::Relaxed), p.total.load(Ordering::Relaxed));
         if done < total {
