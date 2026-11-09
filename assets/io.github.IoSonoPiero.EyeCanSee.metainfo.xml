@@ -80,13 +80,15 @@
   </provides>
 
   <releases>
-    <release version="0.75.1" date="2026-11-09">
+    <release version="0.76.0" date="2026-11-10">
       <description>
         <ul>
+          <li>Bookmarks: folders, disks, phones and servers saved by name and opened with one click, from the star next to the address bar, the Bookmarks menu or Ctrl+Shift+D</li>
           <li>SFTP: downloads up to about three times faster on a distant server, as fast as uploads</li>
+          <li>SFTP and FTP: videos from a distant server play without stutter, also in 4K</li>
         </ul>
       </description>
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.75.1</url>
+      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.76.0</url>
     </release>
     <release version="0.75.0" date="2026-11-09">
       <description>
