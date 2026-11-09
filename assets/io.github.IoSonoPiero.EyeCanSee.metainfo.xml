@@ -80,6 +80,14 @@
   </provides>
 
   <releases>
+    <release version="0.75.1" date="2026-11-09">
+      <description>
+        <ul>
+          <li>SFTP: downloads up to about three times faster on a distant server, as fast as uploads</li>
+        </ul>
+      </description>
+      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.75.1</url>
+    </release>
     <release version="0.75.0" date="2026-11-09">
       <description>
         <ul>

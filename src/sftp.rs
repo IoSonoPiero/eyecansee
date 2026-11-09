@@ -374,34 +374,60 @@ impl Server {
         Fut: std::future::Future<Output = Result<(), Error>>,
     {
         let mut f = self.open_file(path, OpenFlags::READ).await?;
-        let mut at = 0;
-        while at < size {
-            if cancel.load(Ordering::Relaxed) {
-                return Err(("error-cancelled", String::new()));
-            }
-            let n = chunk.min(size - at);
-            // A chunk lost with its connection is read again, the file opened on a new one (#75).
-            let mut left = READ_TRIES;
-            let data = loop {
-                match read_at(&f, at, n).await {
-                    Ok(data) => break data,
-                    Err(e) => {
-                        left -= 1;
-                        if !(self.dropped(&f.conn, &e).await && left > 0) {
-                            return Err(error(e, path));
-                        }
-                        f = self.open_file(path, OpenFlags::READ).await?;
+        let (mut at, mut buf, mut left) = (0, Vec::new(), READ_TRIES);
+        loop {
+            let from = at;
+            match read_ahead(&f, path, size, chunk, cancel, (&mut at, &mut buf), &push).await {
+                Ok(()) => return Ok(()),
+                Err(Err(e)) => return Err(e),
+                // What a dropped connection lost is read again, the file opened on a new one (#75).
+                Err(Ok(e)) => {
+                    left = if at > from { READ_TRIES } else { left } - 1;
+                    if !(self.dropped(&f.conn, &e).await && left > 0) {
+                        return Err(error(e, path));
                     }
+                    f = self.open_file(path, OpenFlags::READ).await?;
                 }
-            };
-            if data.is_empty() {
-                return Err(("error-detail", format!("{path}: file shorter than expected")));
             }
-            at += data.len() as u64;
-            push(Bytes::from(data)).await?;
         }
-        Ok(())
     }
+}
+
+/// Reads `f` from `at` to `size` with about 4 MiB always asked ahead, whatever the size of the
+/// pieces (asking a chunk at a time and waiting for it slowed downloads), handing `push` `chunk`
+/// bytes at a time. `at` follows the bytes received, `buf` holds those not yet pushed. Errors: the
+/// server's, or ours (cancelled, file shorter, `push`).
+async fn read_ahead<F, Fut>(f: &Opened, path: &str, size: u64, chunk: u64, cancel: &AtomicBool, (at, buf): (&mut u64, &mut Vec<u8>), push: &F) -> Result<(), Result<SftpError, Error>>
+where
+    F: Fn(Bytes) -> Fut,
+    Fut: std::future::Future<Output = Result<(), Error>>,
+{
+    use futures_util::StreamExt;
+    let piece = u64::from(f.conn.read_len);
+    let ahead = ((4 << 20) / piece) as usize;
+    let mut reads = futures_util::stream::FuturesOrdered::new();
+    let mut next = *at;
+    while *at < size {
+        while reads.len() < ahead && next < size {
+            let n = piece.min(size - next);
+            reads.push_back(read_piece(&f.conn, &f.handle, next, n as u32));
+            next += n;
+        }
+        let Some(part) = reads.next().await else { break };
+        let part = part.map_err(Ok)?;
+        if cancel.load(Ordering::Relaxed) {
+            return Err(Err(("error-cancelled", String::new())));
+        }
+        if (part.len() as u64) < piece.min(size - *at) {
+            return Err(Err(("error-detail", format!("{path}: file shorter than expected"))));
+        }
+        *at += part.len() as u64;
+        buf.extend(part);
+        if buf.len() as u64 >= chunk || *at == size {
+            push(Bytes::from(std::mem::take(buf))).await.map_err(Err)?;
+        }
+    }
+    Ok(())
 }
 
 /// Connected, logged in, with the SFTP subsystem started. The steps after the login within

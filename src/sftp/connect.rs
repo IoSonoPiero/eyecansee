@@ -154,6 +154,9 @@ pub(super) async fn connect(t: &Target) -> Result<Handle<Client>, Error> {
     let handler = Client { label: label.clone(), host: r.host.clone(), port: r.port, refused: refused.clone() };
     let config = Arc::new(client::Config {
         keepalive_interval: Some(Duration::from_secs(30)),
+        // russh's 2 MiB (asked again at half) held downloads from a Storage Box (50 ms ping) to
+        // 10 MB/s; 8 MiB gave 22-31, like FileZilla.
+        window_size: 8 << 20,
         preferred: russh::Preferred { key: known_first(&r.host, r.port).into(), kex: KEX.into(), ..Default::default() },
         ..Default::default()
     });
