@@ -13,7 +13,7 @@ a folder Sample photos on disk with the 13 photos below, Bees on flowers.webm, E
 Flowers.webm and Avocado.glb (below). Quebec City.jpg in the viewer, zoomed in and back; the image
 editor with an arrow, a text and a box covering the parked cars, then Save copy; Iceberg.jpg,
 Moth.jpg and Orchid.jpg converted to WebP inside 1920 x 1080 with Convert and resize; Avocado.glb
-turned in the 3D viewer. Light theme, 1200 x 800, recorded by EyeCanSee itself, the pointer drawn
+turned in the 3D viewer. Dark theme, 1200 x 800, recorded by EyeCanSee itself, the pointer drawn
 afterwards. The home folder shown (/home/demo) is a test one, with no disks.
 
 model-3d.png: Avocado.glb in the 3D viewer, from the Khronos glTF Sample Assets
