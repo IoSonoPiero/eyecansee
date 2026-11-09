@@ -1,6 +1,6 @@
 # EyeCanSee
 
-A viewer and manager for photos, videos, 3D models and CAD drawings, with an image editor, for Linux and Windows, written in Rust: it browses them on computers, disks, servers and phones, copies and moves them from one device to another, finds duplicate copies, converts them to other formats, and annotates images and covers private data in them. Free and open source.
+A viewer and manager for photos, videos, 3D models and CAD drawings, with an image editor, for Linux and Windows, written in Rust. It browses them on computers, disks, servers and phones, copies and moves them from one device to another, finds duplicate copies and converts them to other formats. The editor annotates images and covers private data in them. Free and open source.
 
 <p>
   <a href="#windows"><img src="https://img.shields.io/badge/Microsoft_Store-1D3557?style=for-the-badge&logo=data%3Aimage%2Fsvg%2Bxml%3Bbase64%2CPHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCI%2BPHBhdGggZmlsbD0id2hpdGUiIGQ9Ik04IDdWNmE0IDQgMCAwIDEgOCAwdjFoNGwtMSAxNUg1TDQgN3ptMiAwaDRWNmEyIDIgMCAwIDAtNCAweiIvPjwvc3ZnPgo%3D" height="28" alt="Microsoft Store"/></a>
@@ -24,11 +24,14 @@ It is early in development. This page lists only what works now: new features ar
 
 ![The grid: thumbnails of a folder, with the devices and the folder tree on the left](docs/screenshots/grid.png)
 
-![The viewer](docs/screenshots/viewer.png)
-
 ![The image editor: a speech bubble, an ellipse, numbered steps, a text and a stamp on a photo](docs/screenshots/editor.png)
 
 ![A 3D model with its textures](docs/screenshots/model-3d.png)
+
+<details>
+<summary>More screenshots</summary>
+
+![The viewer](docs/screenshots/viewer.png)
 
 ![A DWG drawing with layers and dimensions](docs/screenshots/cad-drawing.png)
 
@@ -41,6 +44,8 @@ It is early in development. This page lists only what works now: new features ar
 ![Rotating and cropping](docs/screenshots/rotate.png)
 
 ![The server manager, with a master password for the saved servers](docs/screenshots/servers.png)
+
+</details>
 
 ## About
 
