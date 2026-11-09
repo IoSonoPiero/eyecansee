@@ -1013,6 +1013,27 @@ menu-new-folder-in = Nuova cartella qui dentro…
 key-new-folder = Ctrl+Maiusc+N
 key-batch = Ctrl+B
 key-duplicates = Ctrl+D
+key-bookmarks = Ctrl+Maiusc+D
+menu-bookmarks = Segnalibri
+bm-title = Segnalibri
+bm-empty = Ancora nessun segnalibro.
+bm-empty-configure = Ancora nessun segnalibro: apri una cartella e scegli "+ Aggiungi la cartella corrente" nel menù Segnalibri o sotto la stella accanto alla barra degli indirizzi.
+bm-add-folder = + Aggiungi la cartella corrente
+bm-add-image = + Aggiungi questa immagine
+bm-already = È già tra i segnalibri.
+bm-configure = Configura…
+bm-added = "{ $name }" aggiunto ai segnalibri.
+bm-name-hint = Nome
+bm-up = Sposta su
+bm-down = Sposta giù
+bm-remove = Togli dai segnalibri
+bm-file = Salvati in { $path }.
+bm-missing-place = **{ $name }** non si apre: { $address } non esiste più, oppure è su un disco non collegato.
+
+    Il segnalibro resta: collega il disco e sceglilo di nuovo, oppure toglilo in **Segnalibri > Configura…**.
+bm-missing-phone = **{ $name }** non si apre: il telefono di { $address } non è collegato.
+
+    Il segnalibro resta: collega il telefono, scegli "Trasferimento file" e sceglilo di nuovo, oppure toglilo in **Segnalibri > Configura…**.
 tb-more = Altre operazioni
 tb-off-nothing = Seleziona prima un file o una cartella.
 tb-off-viewer = Non nel visore: torna alla griglia.

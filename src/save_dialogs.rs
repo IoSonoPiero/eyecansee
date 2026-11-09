@@ -14,6 +14,8 @@ pub(crate) enum After {
     Close,
     Up,
     Quit,
+    /// A bookmark, by its place in the list (`App::open_bookmark`).
+    Bookmark(usize),
 }
 
 /// Answers to "save the changes?" before leaving the image.
@@ -49,6 +51,7 @@ impl App {
             After::Close => self.close_viewer(),
             After::Up => self.go_up(),
             After::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
+            After::Bookmark(i) => self.open_bookmark(ctx, i),
         }
     }
 

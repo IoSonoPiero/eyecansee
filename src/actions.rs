@@ -18,6 +18,12 @@ pub(crate) enum Act {
     Off(String),
     Address,
     Servers,
+    /// A bookmark opened, by its place in the list.
+    Bookmark(usize),
+    /// "+ Add current folder" (in the viewer, the image).
+    AddBookmark,
+    /// Bookmarks > Configure….
+    Bookmarks,
     Options,
     /// Ctrl+A in the grid.
     SelectAll,
@@ -168,6 +174,7 @@ impl App {
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::E)) && !ctx.egui_wants_keyboard_input() && self.can_edit(None) {
             self.open_editor(None, crate::edit_page::Tool::Select);
         }
+        self.bookmark_keys(ctx);
         // Ctrl+B and Ctrl+D: Convert and resize, Find duplicates (as their toolbar buttons).
         let (batch, duplicates) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::COMMAND, Key::B), i.consume_key(egui::Modifiers::COMMAND, Key::D)));
         if !ctx.egui_wants_keyboard_input() {
@@ -242,6 +249,7 @@ impl App {
             Act::Servers if crate::servers::locked() => self.ask_master(crate::vault_page::Then::Manager),
             Act::Servers => self.server_manager = Some(AddressForm::manager()),
             Act::Options => self.options = true,
+            Act::Bookmark(_) | Act::AddBookmark | Act::Bookmarks => self.bookmark_act(ctx, act),
             Act::SelectAll => self.select_all(),
             Act::RotateSaveAs => {
                 if let Some(w) = &mut self.editor {

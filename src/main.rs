@@ -46,6 +46,7 @@ mod app_dialogs;
 mod batch;
 mod batch_page;
 mod batch_video;
+mod bookmarks;
 mod browser;
 mod cad;
 mod cad_engine;
@@ -329,6 +330,8 @@ struct App {
     note_until: Option<f64>,
     /// The message of a stalled phone, while it lasts (`App::phone_stall`).
     stall_notice: Option<String>,
+    /// The star menu of the bookmarks, and their Configure window.
+    bookmarks: bookmarks::State,
     /// File > Server manager: the window, with the server being changed.
     server_manager: Option<AddressForm>,
     /// The master password asked before a saved server is used.
@@ -503,6 +506,7 @@ impl App {
             kiod_ask: false,
             host_ask: false,
             server_manager: None,
+            bookmarks: Default::default(),
             unlock: None,
             saved_servers: servers::load(),
             last_dirs: HashMap::new(),
@@ -618,7 +622,7 @@ impl eframe::App for App {
         let paste_to = if raw_input.events.iter().any(|e| matches!(e, egui::Event::Paste(_))) { self.paste_to.take().map(|(dir, _)| dir) } else { None };
         // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer).
         // Open location and Convert and resize have fields to type in: there the keys go to the field.
-        if self.asking() && !((self.open_address.is_some() || self.server_manager.is_some() || self.unlock.is_some() || self.batch.is_some()) && ctx.egui_wants_keyboard_input()) {
+        if self.asking() && !((self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some()) && ctx.egui_wants_keyboard_input()) {
             let answer = &mut self.delete_answer;
             raw_input.events.retain(|e| match e {
                 egui::Event::Key { key, pressed: true, .. } => {

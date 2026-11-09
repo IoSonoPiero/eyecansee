@@ -4,8 +4,8 @@ Premi **F1** in qualsiasi momento per aprire o chiudere questo manuale.
 
 ## La finestra
 
-- **Barra dei menù**: File, Modifica, Immagine, Visualizza, Strumenti, Aiuto. A destra il numero di versione; **Aiuto → Informazioni su EyeCanSee** mostra versione, autore, licenza e il link al codice sorgente. Ogni azione che si fa con la tastiera o col doppio clic ha anche una voce di menù, con il tasto scritto accanto; le voci hanno la stessa icona del loro pulsante, anche nel menù del clic destro.
-- **Barra strumenti**: cartella superiore (nel visore: torna alla griglia) e aggiorna; le operazioni divise in gruppi: **File** (nuova cartella, taglia, copia, incolla, rinomina, elimina), **Immagine** (ruota a sinistra e a destra, modifica immagine, salva, salva come) e **Strumenti** (converti e ridimensiona, trova duplicati); poi metadati, barra degli indirizzi, ordine delle immagini e cursore per la dimensione delle miniature. Passando sopra un pulsante compaiono il nome e il tasto; su uno spento, anche perché non si può usare. Quando la finestra è stretta e la barra degli indirizzi resterebbe troppo corta, i gruppi Immagine e Strumenti stanno nel menù **⋯**. I pulsanti hanno le icone di [Lucide](https://lucide.dev); cartelle, dispositivi e file hanno le icone colorate.
+- **Barra dei menù**: File, Modifica, Immagine, Visualizza, Segnalibri, Strumenti, Aiuto. A destra il numero di versione; **Aiuto → Informazioni su EyeCanSee** mostra versione, autore, licenza e il link al codice sorgente. Ogni azione che si fa con la tastiera o col doppio clic ha anche una voce di menù, con il tasto scritto accanto; le voci hanno la stessa icona del loro pulsante, anche nel menù del clic destro.
+- **Barra strumenti**: cartella superiore (nel visore: torna alla griglia) e aggiorna; le operazioni divise in gruppi: **File** (nuova cartella, taglia, copia, incolla, rinomina, elimina), **Immagine** (ruota a sinistra e a destra, modifica immagine, salva, salva come) e **Strumenti** (converti e ridimensiona, trova duplicati); poi metadati, stella dei segnalibri (vedi *Segnalibri*), barra degli indirizzi, ordine delle immagini e cursore per la dimensione delle miniature. Passando sopra un pulsante compaiono il nome e il tasto; su uno spento, anche perché non si può usare. Quando la finestra è stretta e la barra degli indirizzi resterebbe troppo corta, i gruppi Immagine e Strumenti stanno nel menù **⋯**. I pulsanti hanno le icone di [Lucide](https://lucide.dev); cartelle, dispositivi e file hanno le icone colorate.
 - **Albero delle cartelle** a sinistra, sotto **Questo computer** (e sotto **Dispositivi** se ne hai collegati): clic su una cartella per mostrarne il contenuto. Le cartelle vengono lette solo quando le espandi, così le sorgenti remote restano veloci. Quando cambi cartella, anche dalla griglia, l'albero si apre fino a quella cartella e la evidenzia.
 - **Griglia** a destra: la cella **..** per salire di un livello (non in cima a un disco o a un dispositivo), le sottocartelle, poi le immagini come miniature, distribuite su tutta la larghezza. Entrando in una cartella nessun elemento è selezionato; risalendo è selezionata la cartella da cui vieni.
 - **Ordine delle immagini** dalla tendina nella barra strumenti (con accanto il pulsante ▲/▼ per invertirlo) o da **Visualizza → Ordina per**: per nome, data di modifica, dimensione o tipo (estensione), più **Ordine decrescente**. Le cartelle restano prima, per nome; i file senza data restano in fondo. La scelta viene ricordata.
@@ -259,6 +259,18 @@ Le cartelle remote si comportano come quelle locali: albero, griglia e visore fu
 
 Con SFTP, su Linux e Windows, EyeCanSee legge `~/.ssh/config` come ssh (alias, HostName, User, Port, IdentityFile; non ProxyJump) e accede con i file di chiave senza passphrase o con la password (mai con l'agent SSH del sistema; per una chiave con passphrase salva il server in **File > Gestione server…**): se il server rifiuta, si apre **File > Apri indirizzo…** e la chiede. Una password scritta nell'indirizzo si prova per prima. Un indirizzo senza cartella si apre nella cartella iniziale del server (di solito la tua home). Una cartella di un server che non esiste più (spostata, cancellata, riaperta all'avvio) lascia il posto alla cartella del server salvato, o a quella iniziale del server. La prima volta che ti colleghi a un server, EyeCanSee mostra l'impronta della sua chiave a parte, in un riquadro evidenziato, da confrontare lettera per lettera con quella che mostra il server, e chiede se fidarsi; dopo la conferma va in `~/.ssh/known_hosts`, come fa ssh. Un server con la chiave cambiata viene rifiutato. Con FTPS il certificato del server si controlla come fa un browser; uno che nessuna autorità riconosciuta garantisce (succede con i NAS, che se lo creano da soli) viene mostrato con la sua impronta SHA-256 la prima volta, e dopo la conferma EyeCanSee lo ricorda. Le chiavi RSA funzionano, ma dopo un accesso con una di esse EyeCanSee avvisa una volta per server: la libreria RSA che usa ha un difetto noto non ancora corretto (RUSTSEC-2023-0071), quindi conviene passare a una chiave ed25519. EyeCanSee tiene una connessione per server, e rinomine e spostamenti (anche di cartelle) li fa il server stesso. Se un server SFTP smette di rispondere, EyeCanSee lascia quella connessione, di solito dopo circa 20 secondi di silenzio, e ripete la richiesta su una nuova (letture ed elenchi delle cartelle fino a tre volte).
 
+## Segnalibri
+
+I segnalibri riportano con un clic nei posti che usi di più, come l'elenco delle cartelle preferite di Total Commander: comodi per copiare e incollare tra un telefono, un disco e un server. Un segnalibro può essere qualsiasi posto che la barra degli indirizzi apre: una cartella del computer, un disco, una cartella di un telefono o di un server, oppure un'immagine (si apre nel visore, con la sua cartella dietro).
+
+- Il pulsante con la **stella** accanto alla barra degli indirizzi, il menù **Segnalibri** e **Ctrl+Maiusc+D** aprono lo stesso elenco: i segnalibri per nome (passandoci sopra si vede l'indirizzo), poi **+ Aggiungi la cartella corrente** (nel visore **+ Aggiungi questa immagine**) e **Configura…**. Con Ctrl+Maiusc+D la freccia giù entra nell'elenco e Invio apre il segnalibro scelto.
+- Un segnalibro nuovo prende il nome della cartella o dell'immagine (il nome del dispositivo per la cima di un disco o di un telefono); un posto che è già tra i segnalibri non si aggiunge due volte.
+- Scegliere un segnalibro lo apre esattamente come se il suo indirizzo fosse scritto nella barra degli indirizzi: un server chiede la password principale o la password come sempre, e per un'immagine ruotata e non salvata prima viene chiesto cosa fare.
+- **Configura…** elenca i segnalibri: cambi il nome nel suo campo, sposti un segnalibro su o giù con le frecce, lo togli con il cestino. Le modifiche si salvano alla chiusura della finestra.
+- Un segnalibro il cui posto non esiste più, o il cui disco o telefono non è collegato, non viene mai tolto da solo: sceglierlo dice perché non si apre, e resta nell'elenco per quando il dispositivo sarà di nuovo collegato. Una cartella di un server che non esiste più la segnala il server quando si apre, come quando se ne scrive l'indirizzo.
+
+I segnalibri sono salvati con le altre impostazioni, in `settings.json` (`~/.config/eyecansee` su Linux, `%APPDATA%\eyecansee` su Windows); l'indirizzo di un server è salvato senza la sua password.
+
 ## Tastiera
 
 Nella griglia:
@@ -277,6 +289,7 @@ Nella griglia:
 | Ctrl+A | Seleziona tutto nella cartella |
 | Ctrl+B | Converti e ridimensiona (vedi *Convertire e ridimensionare immagini e video*) |
 | Ctrl+D | Trova duplicati (vedi *Trovare i duplicati*) |
+| Ctrl+Maiusc+D | Segnalibri (vedi *Segnalibri*) |
 | Maiusc+frecce | Allargano la selezione |
 | Maiusc+Canc | Elimina definitivamente |
 | Maiusc+F5 | Rifà tutte le miniature della cartella |
@@ -314,6 +327,7 @@ Nel visore:
 | Ctrl+R, Ctrl+Maiusc+R | Ruota di 90° in senso orario, antiorario |
 | Ctrl+S, Ctrl+Maiusc+S | Salva, Salva come |
 | Ctrl+E | Modifica immagine (vedi *Modificare un'immagine*) |
+| Ctrl+Maiusc+D | Segnalibri (vedi *Segnalibri*) |
 
 La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della finestra; Ctrl con la rotellina ingrandisce sempre, anche quando la rotellina è impostata per cambiare immagine (vedi *Opzioni*). Un'immagine ingrandita si sposta trascinandola. Non diventa mai più piccola di quando è adattata alla finestra, né più grande dell'ingrandimento massimo impostato nelle opzioni (2000% all'inizio); la barra di stato mostra l'ingrandimento. L'immagine successiva riparte adattata.
 

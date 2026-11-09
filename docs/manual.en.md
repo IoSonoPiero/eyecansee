@@ -4,8 +4,8 @@ Press **F1** at any time to open or close this manual.
 
 ## The window
 
-- **Menu bar**: File, Edit, Image, View, Tools, Help. The version number is on the right; **Help → About EyeCanSee** shows the version, the author, the license and the link to the source code. Every action you can do with the keyboard or a double click also has a menu item, with its key shown next to it; the items have the same icon as their button, also in the right-click menu.
-- **Toolbar**: parent folder (in the viewer: back to the grid) and refresh; the operations in groups: **File** (new folder, cut, copy, paste, rename, delete), **Image** (turn left and right, edit image, save, save as) and **Tools** (convert and resize, find duplicates); then metadata, the address bar, the image order and the thumbnail size slider. Pointing at a button shows its name and key; on one that is off, also why it cannot be used. When the window is narrow and the address bar would be left too short, the Image and Tools groups are in the **⋯** menu. The buttons have [Lucide](https://lucide.dev) icons; folders, devices and files have the coloured ones.
+- **Menu bar**: File, Edit, Image, View, Bookmarks, Tools, Help. The version number is on the right; **Help → About EyeCanSee** shows the version, the author, the license and the link to the source code. Every action you can do with the keyboard or a double click also has a menu item, with its key shown next to it; the items have the same icon as their button, also in the right-click menu.
+- **Toolbar**: parent folder (in the viewer: back to the grid) and refresh; the operations in groups: **File** (new folder, cut, copy, paste, rename, delete), **Image** (turn left and right, edit image, save, save as) and **Tools** (convert and resize, find duplicates); then metadata, the star of the bookmarks (see *Bookmarks*), the address bar, the image order and the thumbnail size slider. Pointing at a button shows its name and key; on one that is off, also why it cannot be used. When the window is narrow and the address bar would be left too short, the Image and Tools groups are in the **⋯** menu. The buttons have [Lucide](https://lucide.dev) icons; folders, devices and files have the coloured ones.
 - **Folder tree** on the left, under **This computer** (and under **Devices** if you have any connected): click a folder to show its content. Folders open only when you expand them, so remote sources stay fast. When you change folder, also from the grid, the tree opens down to that folder and highlights it.
 - **Grid** on the right: the **..** cell to go up one level (not at the top of a disk or device), the subfolders, then the images as thumbnails, spread over the whole width. When you enter a folder nothing is selected; when you go up, the folder you came from is selected.
 - **Image order** from the drop-down list in the toolbar (with the ▲/▼ button next to it to reverse it) or from **View → Sort by**: by name, modification date, size or type (extension), plus **Descending order**. Folders stay first, by name; files without a date stay at the end. The choice is remembered.
@@ -259,6 +259,18 @@ Remote folders behave exactly like local ones: the tree, the grid and the viewer
 
 With SFTP, on Linux and Windows, EyeCanSee reads `~/.ssh/config` as ssh does (aliases, HostName, User, Port, IdentityFile; not ProxyJump) and logs in with key files without a passphrase or with the password (never with the system's SSH agent; for a key with a passphrase save the server in **File > Server manager…**): if the server refuses, **File > Open location…** opens and asks for it. A password typed in the address is tried first. An address without a folder opens in the folder the server starts in (usually your home). A server's folder that no longer exists (moved, deleted, reopened at startup) gives way to the saved server's folder, or to the server's starting folder. The first time you connect to a server, EyeCanSee shows its key fingerprint apart, in a highlighted box, to compare letter by letter with the one the server shows, and asks whether to trust it; once trusted it goes into `~/.ssh/known_hosts`, as ssh does. A server whose key has changed is refused. With FTPS the server's certificate is checked as a browser does; one that no known authority vouches for (common with NAS boxes, which make their own) is shown with its SHA-256 fingerprint the first time, and once confirmed EyeCanSee remembers it. RSA keys work, but after a login with one EyeCanSee warns once per server: the RSA library it uses has a known flaw with no fix yet (RUSTSEC-2023-0071), so an ed25519 key is the better choice. EyeCanSee keeps one connection per server, and renames and moves (folders too) are done by the server itself. If an SFTP server stops answering, EyeCanSee leaves that connection, usually after about 20 seconds of silence, and repeats the request on a new one (reads and folder listings up to three times).
 
+## Bookmarks
+
+Bookmarks take you back with one click to the places you use most, as the "Directory hotlist" of Total Commander: handy to copy and paste between a phone, a disk and a server. A bookmark can be any place the address bar opens: a folder of this computer, a disk, a folder of a phone or of a server, or an image (it opens in the viewer, with its folder behind).
+
+- The **star** button next to the address bar, the **Bookmarks** menu and **Ctrl+Shift+D** open the same list: the bookmarks by name (pointing at one shows its address), then **+ Add current folder** (in the viewer **+ Add this image**) and **Configure…**. With Ctrl+Shift+D, the down arrow enters the list and Enter opens the bookmark chosen.
+- A new bookmark takes the name of the folder or image (the name of the device for the top of a disk or phone); a place already among the bookmarks is not added twice.
+- Choosing a bookmark opens it exactly as if its address were typed in the address bar: a server asks for the master password or the password as usual, and an image turned and not saved is asked about first.
+- **Configure…** lists the bookmarks: change a name in its field, move a bookmark up or down with the arrows, remove it with the bin. The changes are saved when the window closes.
+- A bookmark whose place no longer exists, or whose disk or phone is not connected, is never removed by itself: choosing it says why it cannot be opened, and it stays in the list for when the device is connected again. A server folder that no longer exists is said by the server when it is opened, as when its address is typed.
+
+The bookmarks are saved with the other settings, in `settings.json` (`~/.config/eyecansee` on Linux, `%APPDATA%\eyecansee` on Windows); a server's address is kept without its password.
+
 ## Keyboard
 
 In the grid:
@@ -277,6 +289,7 @@ In the grid:
 | Ctrl+A | Select everything in the folder |
 | Ctrl+B | Convert and resize (see *Converting and resizing images and videos*) |
 | Ctrl+D | Find duplicates (see *Finding duplicates*) |
+| Ctrl+Shift+D | Bookmarks (see *Bookmarks*) |
 | Shift+arrows | Extend the selection |
 | Shift+Del | Delete for good |
 | Shift+F5 | Redo all the thumbnails of the folder |
@@ -314,6 +327,7 @@ In the viewer:
 | Ctrl+R, Ctrl+Shift+R | Rotate 90° clockwise, anticlockwise |
 | Ctrl+S, Ctrl+Shift+S | Save, Save as |
 | Ctrl+E | Edit image (see *Editing an image*) |
+| Ctrl+Shift+D | Bookmarks (see *Bookmarks*) |
 
 The **Keys** button on the right of the status bar lists these keys. The mouse wheel zooms around the pointer, + and − around the middle of the window; Ctrl and the wheel always zoom, also when the wheel is set to change image (see *Options*). A zoomed image is moved by dragging it. It never gets smaller than fitted to the window, nor larger than the largest zoom set in the options (2000% at first); the status bar shows the zoom. The next image starts fitted again.
 

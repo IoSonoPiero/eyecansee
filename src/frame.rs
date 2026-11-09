@@ -164,6 +164,7 @@ impl App {
         self.host_window(ctx);
         self.address_window(ctx);
         self.server_manager_window(ctx);
+        self.bookmarks_window(ctx);
         self.unlock_window(ctx);
         self.paste_window(ctx);
         self.transfer_window(ctx);

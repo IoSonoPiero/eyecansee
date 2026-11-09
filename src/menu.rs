@@ -17,12 +17,17 @@ impl App {
         // A Cell: the plain items, the radio buttons and the check boxes all record into it.
         let act = Cell::new(None);
         // As in most programs: XnView MP (Edit, Tools with the settings), Explorer and Dolphin
-        // (Rename and Delete in File); no Go menu, as image viewers.
+        // (Rename and Delete in File); no Go menu, as image viewers; Bookmarks as the browsers.
         egui::MenuBar::new().ui(ui, |ui| {
             ui.menu_button(self.i18n.t("menu-file"), |ui| self.file_menu(ui, &act));
             ui.menu_button(self.i18n.t("menu-edit"), |ui| self.edit_menu(ui, &act));
             ui.menu_button(self.i18n.t("menu-image"), |ui| self.image_menu(ui, &act));
             ui.menu_button(self.i18n.t("menu-view"), |ui| self.view_menu(ui, &act));
+            ui.menu_button(self.i18n.t("menu-bookmarks"), |ui| {
+                if let Some(a) = self.bookmark_items(ui) {
+                    act.set(Some(a));
+                }
+            });
             ui.menu_button(self.i18n.t("menu-tools"), |ui| self.tools_menu(ui, &act));
             ui.menu_button(self.i18n.t("menu-help"), |ui| self.help_menu(ui, &act));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
@@ -218,6 +223,7 @@ impl App {
                     }
                 }
             }
+            self.bookmark_button(ui);
             // Space to the right of the address: sorting (drop-down and direction) and thumbnail slider.
             let slider_width = if self.viewing.is_none() { 370.0 } else { 0.0 };
             let address = egui::TextEdit::singleline(&mut self.address)

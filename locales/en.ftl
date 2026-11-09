@@ -1014,6 +1014,27 @@ menu-new-folder-in = New folder inside…
 key-new-folder = Ctrl+Shift+N
 key-batch = Ctrl+B
 key-duplicates = Ctrl+D
+key-bookmarks = Ctrl+Shift+D
+menu-bookmarks = Bookmarks
+bm-title = Bookmarks
+bm-empty = No bookmarks yet.
+bm-empty-configure = No bookmarks yet: open a folder and choose "+ Add current folder" in the Bookmarks menu or under the star next to the address bar.
+bm-add-folder = + Add current folder
+bm-add-image = + Add this image
+bm-already = Already among the bookmarks.
+bm-configure = Configure…
+bm-added = "{ $name }" added to the bookmarks.
+bm-name-hint = Name
+bm-up = Move up
+bm-down = Move down
+bm-remove = Remove from the bookmarks
+bm-file = Saved in { $path }.
+bm-missing-place = **{ $name }** cannot be opened: { $address } does not exist any more, or it is on a disk that is not connected.
+
+    The bookmark stays: connect the disk and choose it again, or remove it in **Bookmarks > Configure…**.
+bm-missing-phone = **{ $name }** cannot be opened: the phone of { $address } is not connected.
+
+    The bookmark stays: connect the phone, choose "File transfer" on it and choose the bookmark again, or remove it in **Bookmarks > Configure…**.
 tb-more = More operations
 tb-off-nothing = Select a file or a folder first.
 tb-off-viewer = Not in the viewer: go back to the grid.

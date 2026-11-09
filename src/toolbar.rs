@@ -124,11 +124,11 @@ impl App {
         let mut chosen = None;
         group(ui, &self.file_ops(), &self.i18n, &mut chosen);
         let (image, tools) = (self.image_ops(), self.tool_ops());
-        // What follows the groups: the metadata button, then in the grid sorting and the slider
-        // (the 370 points `toolbar` keeps for them).
+        // What follows the groups: the metadata and bookmarks buttons, then in the grid sorting and
+        // the slider (the 370 points `toolbar` keeps for them).
         let step = icons::BUTTON.x + ui.spacing().item_spacing.x;
         let groups = (image.len() + tools.len()) as f32 * step + 2.0 * (1.0 + 2.0 * ui.spacing().item_spacing.x);
-        let after = step + if self.viewing.is_none() { 370.0 } else { 0.0 };
+        let after = 2.0 * step + if self.viewing.is_none() { 370.0 } else { 0.0 };
         let wide = ui.available_width() - groups - after >= ADDRESS;
         if wide {
             group(ui, &image, &self.i18n, &mut chosen);

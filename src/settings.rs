@@ -66,6 +66,8 @@ pub struct Settings {
     /// The highlighters remembered before it multiplied (at 40%, for a plain fill) are at full
     /// opacity: done once (2026-11-06).
     pub edit_multiply: bool,
+    /// Bookmarks > places to go back to (`bookmarks.rs`), in the menu's order.
+    pub bookmarks: Vec<crate::bookmarks::Bookmark>,
 }
 
 /// For phones, FTP, SFTP; local files go by `local_permanent`.
@@ -207,6 +209,7 @@ impl Default for Settings {
             slideshow_loop: true,
             edit_styles: Vec::new(),
             edit_multiply: false,
+            bookmarks: Vec::new(),
         }
     }
 }
