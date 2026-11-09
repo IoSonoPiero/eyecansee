@@ -1,11 +1,12 @@
 //! SFTP servers with `russh` and `russh-sftp` (pure Rust, Linux and Windows). One SSH connection
 //! per server, shared by every request: `RawSftpSession` sends many requests at once and matches
 //! the answers by id, so a file is read in pieces fetched together, not one after the other.
-//! A connection that dropped is opened again at the next request.
+//! A connection that dropped, or stopped answering (`watch`), is opened again at the next
+//! request, and the request that found it gone goes once more on the new one.
 //!
 //! Paths as for the other sources, relative to the server's "/" (folders end in "/").
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 
@@ -18,7 +19,9 @@ use russh_sftp::protocol::{FileAttributes, OpenFlags, StatusCode};
 use crate::source::{Error, Listing, NOT_FOUND};
 
 mod connect;
+mod watch;
 pub use connect::{Target, rsa_login, trust, unknown};
+use watch::{SILENCE, Watch, lost};
 
 /// Requests in flight for one read or write.
 const IN_FLIGHT: usize = 16;
@@ -35,6 +38,14 @@ struct Conn {
     /// server must accept).
     read_len: u32,
     write_len: usize,
+    watch: Watch,
+}
+
+impl Conn {
+    /// A request on this connection; `Timeout` when the connection stays silent (`watch`).
+    async fn ask<T>(&self, req: impl Future<Output = Result<T, SftpError>>) -> Result<T, SftpError> {
+        self.watch.ask(SILENCE, req).await
+    }
 }
 
 /// Servers in use: the clipboard can keep the source of a copy, which then shares the connection.
@@ -90,21 +101,24 @@ impl Drop for Opened {
     }
 }
 
-/// `$op`, an expression using the connection `$c`, run once more on a new connection if the
-/// first one had dropped. A macro, not a closure: async closures over references are not `Send`
-/// for the tasks that run them.
+/// `$op`, an expression using the connection `$c` (`&Arc<Conn>`), run once more on a new
+/// connection if the first one had dropped. A macro, not a closure: async closures over
+/// references are not `Send` for the tasks that run them.
 macro_rules! retry {
     ($server:expr, $path:expr, |$c:ident| $op:expr) => {{
         let conn = $server.session().await?;
         let first = {
-            let $c: &Conn = &conn;
+            let $c = &conn;
             $op
         };
         match first {
             Err(e) if $server.dropped(&conn, &e).await => {
                 let conn = $server.session().await?;
-                let $c: &Conn = &conn;
-                $op.map_err(|e| error(e, $path))
+                let again = {
+                    let $c = &conn;
+                    $op
+                };
+                $server.checked(&conn, again, $path).await
             }
             r => r.map_err(|e| error(e, $path)),
         }
@@ -143,26 +157,39 @@ impl Server {
         Ok(c)
     }
 
-    /// After a request failed on `c`: was it the connection that dropped? Then it is forgotten,
-    /// and the next request connects again.
-    async fn dropped(&self, c: &Conn, e: &SftpError) -> bool {
-        let dropped = c.handle.is_closed() || matches!(e, SftpError::IO(_) | SftpError::Timeout);
-        if dropped {
-            log!("sftp {}: {e}, connecting again", self.target.host);
-            self.conn.lock().await.take();
+    /// After a request failed on `c`: was it the connection that dropped (`watch::lost`)? Then it
+    /// is forgotten, and the next request connects again. Forgotten once: the other requests that
+    /// were waiting on it must not drop the new connection.
+    async fn dropped(&self, c: &Arc<Conn>, e: &SftpError) -> bool {
+        if !lost(c.handle.is_closed(), e) {
+            return false;
         }
-        dropped
+        let mut conn = self.conn.lock().await;
+        if conn.as_ref().is_some_and(|now| Arc::ptr_eq(now, c)) {
+            conn.take();
+            log!("sftp {}: {e}, connecting again", self.target.host);
+        }
+        true
+    }
+
+    /// The result of a last try on `c`, as the app's error; a connection that dropped is forgotten
+    /// all the same.
+    async fn checked<T>(&self, c: &Arc<Conn>, r: Result<T, SftpError>, path: &str) -> Result<T, Error> {
+        if let Err(e) = &r {
+            self.dropped(c, e).await;
+        }
+        r.map_err(|e| error(e, path))
     }
 
     /// The folder the server starts in (usually the user's home), as a source path.
     pub async fn home(&self) -> Result<String, Error> {
-        let name = retry!(self, ".", |c| c.raw.realpath(".").await)?;
+        let name = retry!(self, ".", |c| c.ask(c.raw.realpath(".")).await)?;
         let home = name.files.first().map(|f| f.filename.trim_matches('/').to_string()).unwrap_or_default();
         Ok(if home.is_empty() { home } else { format!("{home}/") })
     }
 
     async fn stat(&self, path: &str) -> Result<FileAttributes, Error> {
-        retry!(self, path, |c| c.raw.stat(abs(path)).await.map(|a| a.attrs))
+        retry!(self, path, |c| c.ask(c.raw.stat(abs(path))).await.map(|a| a.attrs))
     }
 
     /// Everything in a folder but "." and "..", with its attributes.
@@ -209,81 +236,57 @@ impl Server {
         }
     }
 
-    pub async fn open_read(&self, path: &str) -> Result<Opened, Error> {
-        let c = self.session().await?;
-        let handle = c.raw.open(abs(path), OpenFlags::READ, FileAttributes::default()).await.map_err(|e| error(e, path))?.handle;
-        Ok(Opened { conn: c, handle })
+    async fn open_file(&self, path: &str, flags: OpenFlags) -> Result<Opened, Error> {
+        retry!(self, path, |c| open_file(c, path, flags).await)
     }
 
-    /// `len` bytes from `offset`, fewer at the end of the file: pieces fetched together.
-    pub async fn read_at(&self, f: &Opened, offset: u64, len: u64) -> Result<Vec<u8>, Error> {
-        let piece = u64::from(f.conn.read_len);
-        let pieces: Vec<(u64, u32)> = (offset..offset + len).step_by(piece as usize).map(|at| (at, piece.min(offset + len - at) as u32)).collect();
-        let mut data = Vec::with_capacity(len as usize);
-        for batch in pieces.chunks(IN_FLIGHT) {
-            let mut reads = Vec::with_capacity(batch.len());
-            for &(at, n) in batch {
-                reads.push(read_piece(&f.conn, &f.handle, at, n));
-            }
-            for part in futures_util::future::try_join_all(reads).await.map_err(|e| error(e, ""))? {
-                let short = part.len() < piece as usize;
-                data.extend(part);
-                if short {
-                    return Ok(data); // end of the file
-                }
-            }
-        }
-        Ok(data)
-    }
-
+    /// A whole file. Each read below goes once more on a new connection when the first dropped:
+    /// reading the same bytes again changes nothing (#75).
     pub async fn read(&self, path: &str) -> Result<Vec<u8>, Error> {
-        let f = self.open_read(path).await?;
-        let size = f.conn.raw.fstat(f.handle.clone()).await.map_err(|e| error(e, path))?.attrs.size;
-        match size {
-            Some(size) => self.read_at(&f, 0, size).await,
-            // ponytail: size unknown (rare servers): one piece at a time until the end
-            None => {
-                let mut data = Vec::new();
-                loop {
-                    let part = read_piece(&f.conn, &f.handle, data.len() as u64, f.conn.read_len).await.map_err(|e| error(e, path))?;
-                    if part.is_empty() {
-                        return Ok(data);
-                    }
-                    data.extend(part);
-                }
-            }
-        }
+        retry!(self, path, |c| read_whole(c, path).await)
     }
 
     pub async fn read_range(&self, path: &str, offset: u64, len: u64) -> Result<Vec<u8>, Error> {
-        let f = self.open_read(path).await?;
-        self.read_at(&f, offset, len).await
+        retry!(self, path, |c| read_from(c, path, offset, len).await)
     }
 
     /// Writes a file from the chunks of a copy, replacing one with the same name; removed if the
-    /// chunks end with an error or a write fails.
+    /// chunks end with an error or a write fails. A connection that drops is replaced once per
+    /// piece of progress: the pieces it had not confirmed go again on the new one (`Pending`).
     pub async fn write_chunks(&self, path: &str, mut chunks: tokio::sync::mpsc::Receiver<std::io::Result<Bytes>>) -> Result<(), Error> {
-        let c = self.session().await?;
-        let flags = OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::TRUNCATE;
-        let handle = c.raw.open(abs(path), flags, FileAttributes::default()).await.map_err(|e| error(e, path))?.handle;
-        let mut f = Opened { conn: c, handle };
-        let failed = write_all(&f, &mut chunks).await.err().map(|e| match e {
-            Ok(e) => error(e, path),
-            Err(e) => ("error-detail", e.to_string()),
-        });
-        let closed = f.conn.raw.close(std::mem::take(&mut f.handle)).await;
-        match (failed, closed) {
-            (None, Ok(_)) => Ok(()),
-            (failed, closed) => {
-                let _ = self.delete(path).await;
-                Err(failed.unwrap_or_else(|| error(closed.unwrap_err(), path)))
+        let mut f = self.open_file(path, OpenFlags::WRITE | OpenFlags::CREATE | OpenFlags::TRUNCATE).await?;
+        let mut w = Pending::default();
+        let failed = loop {
+            match write_all(&f, &mut chunks, &mut w).await {
+                Ok(()) => break None,
+                // Opened again without truncating it: what got through stays.
+                Err(Ok(e)) if self.dropped(&f.conn, &e).await && w.again() => match self.open_file(path, OpenFlags::WRITE).await {
+                    Ok(again) => f = again,
+                    Err(e) => break Some(e),
+                },
+                Err(Ok(e)) => break Some(error(e, path)),
+                Err(Err(e)) => break Some(("error-detail", e.to_string())),
             }
+        };
+        let r = match failed {
+            // The handle is closed in the background: on a connection that stopped, waiting for
+            // the answer would only add the silence again.
+            Some(e) => Err(e),
+            None => {
+                let closed = f.conn.ask(f.conn.raw.close(std::mem::take(&mut f.handle))).await;
+                self.checked(&f.conn, closed, path).await.map(|_| ())
+            }
+        };
+        if r.is_err() {
+            drop(f);
+            let _ = self.delete(path).await;
         }
+        r
     }
 
     /// Creates a folder whose parent exists; nothing if it is already there.
     pub async fn create_dir(&self, dir: &str) -> Result<(), Error> {
-        let made = retry!(self, dir, |c| c.raw.mkdir(abs(dir), FileAttributes::default()).await);
+        let made = retry!(self, dir, |c| c.ask(c.raw.mkdir(abs(dir), FileAttributes::default())).await);
         match made {
             Err(_) if self.is_dir(dir).await => Ok(()),
             r => r.map(|_| ()),
@@ -304,18 +307,18 @@ impl Server {
 
     /// Renames or moves a file or folder on the server itself; `to` must be free.
     pub async fn rename(&self, from: &str, to: &str) -> Result<(), Error> {
-        retry!(self, from, |c| c.raw.rename(abs(from), abs(to)).await).map(|_| ())
+        retry!(self, from, |c| c.ask(c.raw.rename(abs(from), abs(to))).await).map(|_| ())
     }
 
     pub async fn exists(&self, path: &str) -> bool {
-        let r: Result<_, Error> = (async { retry!(self, path, |c| c.raw.lstat(abs(path)).await) }).await;
+        let r: Result<_, Error> = (async { retry!(self, path, |c| c.ask(c.raw.lstat(abs(path))).await) }).await;
         r.is_ok()
     }
 
     /// Deletes a file, or a folder with everything inside it.
     pub async fn delete(&self, path: &str) -> Result<(), Error> {
         if !path.ends_with('/') {
-            return retry!(self, path, |c| c.raw.remove(abs(path)).await).map(|_| ());
+            return retry!(self, path, |c| c.ask(c.raw.remove(abs(path))).await).map(|_| ());
         }
         for (name, a) in self.entries(path).await? {
             let child = format!("{path}{name}");
@@ -323,10 +326,10 @@ impl Server {
             if a.file_type().is_dir() {
                 Box::pin(self.delete(&format!("{child}/"))).await?;
             } else {
-                retry!(self, &child, |c| c.raw.remove(abs(&child)).await)?;
+                retry!(self, &child, |c| c.ask(c.raw.remove(abs(&child))).await)?;
             }
         }
-        retry!(self, path, |c| c.raw.rmdir(abs(path)).await).map(|_| ())
+        retry!(self, path, |c| c.ask(c.raw.rmdir(abs(path))).await).map(|_| ())
     }
 
     /// Everything below a folder, hidden items and EyeCanSee's trash folders too
@@ -361,13 +364,21 @@ impl Server {
         F: Fn(Bytes) -> Fut,
         Fut: std::future::Future<Output = Result<(), Error>>,
     {
-        let f = self.open_read(path).await?;
+        let mut f = self.open_file(path, OpenFlags::READ).await?;
         let mut at = 0;
         while at < size {
             if cancel.load(Ordering::Relaxed) {
                 return Err(("error-cancelled", String::new()));
             }
-            let data = self.read_at(&f, at, chunk.min(size - at)).await?;
+            let n = chunk.min(size - at);
+            // A chunk lost with its connection is read again, the file opened on a new one (#75).
+            let data = match read_at(&f, at, n).await {
+                Err(e) if self.dropped(&f.conn, &e).await => {
+                    f = self.open_file(path, OpenFlags::READ).await?;
+                    self.checked(&f.conn, read_at(&f, at, n).await, path).await?
+                }
+                r => r.map_err(|e| error(e, path))?,
+            };
             if data.is_empty() {
                 return Err(("error-detail", format!("{path}: file shorter than expected")));
             }
@@ -378,9 +389,18 @@ impl Server {
     }
 }
 
-/// Connected, logged in, with the SFTP subsystem started.
+/// Connected, logged in, with the SFTP subsystem started. The steps after the login within
+/// `SILENCE`: the lock of the connection is held meanwhile, and every request waits for it (#75).
 async fn open(t: &Target) -> Result<Conn, Error> {
     let handle = connect::connect(t).await?;
+    match tokio::time::timeout(SILENCE, start(handle, t)).await {
+        Ok(r) => r,
+        Err(_) => Err(("error-detail", format!("{}: no answer", t.host))),
+    }
+}
+
+/// The SFTP subsystem started on a connection logged in.
+async fn start(handle: Handle<connect::Client>, t: &Target) -> Result<Conn, Error> {
     let detail = |e: &dyn std::fmt::Display| ("error-detail", format!("{}: {e}", t.host));
     let channel = handle.channel_open_session().await.map_err(|e| detail(&e))?;
     // A server with SSH but no SFTP (a Synology with SFTP off) refuses here.
@@ -393,30 +413,84 @@ async fn open(t: &Target) -> Result<Conn, Error> {
         write_len = limits.max_write_len.clamp(32 << 10, 256 << 10);
         raw.set_limits(limits.into());
     }
+    // Only a last resort: a connection that stopped is found by `Conn::ask` after `SILENCE`.
     raw.set_timeout(60);
-    Ok(Conn { handle, raw, read_len: read_len as u32, write_len: write_len as usize })
+    Ok(Conn { handle, raw, read_len: read_len as u32, write_len: write_len as usize, watch: Watch::default() })
 }
 
 /// Everything in a folder but "." and "..", with its attributes.
 async fn read_dir(c: &Conn, dir: &str) -> Result<Vec<(String, FileAttributes)>, SftpError> {
-    let handle = c.raw.opendir(abs(dir)).await?.handle;
+    let handle = c.ask(c.raw.opendir(abs(dir))).await?.handle;
     let mut all = Vec::new();
     let r = loop {
-        match c.raw.readdir(handle.as_str()).await {
+        match c.ask(c.raw.readdir(handle.as_str())).await {
             Ok(name) => all.extend(name.files.into_iter().filter(|f| f.filename != "." && f.filename != "..").map(|f| (f.filename, f.attrs))),
             Err(e) if is_eof(&e) => break Ok(all),
             Err(e) => break Err(e),
         }
     };
-    let _ = c.raw.close(handle).await;
+    // Not on a connection that stopped: that would wait for the silence once more.
+    if r.as_ref().err().is_none_or(|e| !lost(false, e)) {
+        let _ = c.ask(c.raw.close(handle)).await;
+    }
     r
+}
+
+async fn open_file(c: &Arc<Conn>, path: &str, flags: OpenFlags) -> Result<Opened, SftpError> {
+    let handle = c.ask(c.raw.open(abs(path), flags, FileAttributes::default())).await?.handle;
+    Ok(Opened { conn: c.clone(), handle })
+}
+
+/// A whole file, on the connection `c`.
+async fn read_whole(c: &Arc<Conn>, path: &str) -> Result<Vec<u8>, SftpError> {
+    let f = open_file(c, path, OpenFlags::READ).await?;
+    match c.ask(c.raw.fstat(f.handle.as_str())).await?.attrs.size {
+        Some(size) => read_at(&f, 0, size).await,
+        // ponytail: size unknown (rare servers): one piece at a time until the end
+        None => {
+            let mut data = Vec::new();
+            loop {
+                let part = read_piece(c, &f.handle, data.len() as u64, c.read_len).await?;
+                if part.is_empty() {
+                    return Ok(data);
+                }
+                data.extend(part);
+            }
+        }
+    }
+}
+
+/// `len` bytes of a file from `offset`, on the connection `c`.
+async fn read_from(c: &Arc<Conn>, path: &str, offset: u64, len: u64) -> Result<Vec<u8>, SftpError> {
+    read_at(&open_file(c, path, OpenFlags::READ).await?, offset, len).await
+}
+
+/// `len` bytes from `offset`, fewer at the end of the file: pieces fetched together.
+async fn read_at(f: &Opened, offset: u64, len: u64) -> Result<Vec<u8>, SftpError> {
+    let piece = u64::from(f.conn.read_len);
+    let pieces: Vec<(u64, u32)> = (offset..offset + len).step_by(piece as usize).map(|at| (at, piece.min(offset + len - at) as u32)).collect();
+    let mut data = Vec::with_capacity(len as usize);
+    for batch in pieces.chunks(IN_FLIGHT) {
+        let mut reads = Vec::with_capacity(batch.len());
+        for &(at, n) in batch {
+            reads.push(read_piece(&f.conn, &f.handle, at, n));
+        }
+        for part in futures_util::future::try_join_all(reads).await? {
+            let short = part.len() < piece as usize;
+            data.extend(part);
+            if short {
+                return Ok(data); // end of the file
+            }
+        }
+    }
+    Ok(data)
 }
 
 /// `n` bytes from `at`, fewer only at the end of the file (servers may answer with less).
 async fn read_piece(c: &Conn, handle: &str, at: u64, n: u32) -> Result<Vec<u8>, SftpError> {
     let mut data = Vec::with_capacity(n as usize);
     while data.len() < n as usize {
-        match c.raw.read(handle, at + data.len() as u64, n - data.len() as u32).await {
+        match c.ask(c.raw.read(handle, at + data.len() as u64, n - data.len() as u32)).await {
             Ok(d) if d.data.is_empty() => break,
             Ok(d) => data.extend(d.data),
             Err(e) if is_eof(&e) => break,
@@ -426,34 +500,105 @@ async fn read_piece(c: &Conn, handle: &str, at: u64, n: u32) -> Result<Vec<u8>, 
     Ok(data)
 }
 
-/// Writes the chunks of a copy in pieces, up to `IN_FLIGHT` sent and not yet confirmed: the
-/// next chunk goes out while the server confirms the previous one. Errors: the server's, or the
-/// one that ended the chunks.
-async fn write_all(f: &Opened, chunks: &mut tokio::sync::mpsc::Receiver<std::io::Result<Bytes>>) -> Result<(), Result<SftpError, std::io::Error>> {
+/// The pieces of a write sent and not yet confirmed, by their place in the file. When the
+/// connection drops they go again on a new one, at the same places, in the file opened without
+/// truncating it: a piece written twice holds the same bytes, so the file cannot come out wrong,
+/// whatever the old connection still delivers (#75).
+#[derive(Default)]
+struct Pending {
+    /// Where the next piece goes.
+    at: u64,
+    parts: BTreeMap<u64, Bytes>,
+    /// A new connection taken, and no piece confirmed since.
+    tried: bool,
+}
+
+impl Pending {
+    /// `part` goes next in the file: its place.
+    fn sent(&mut self, part: Bytes) -> u64 {
+        let at = self.at;
+        self.at += part.len() as u64;
+        self.parts.insert(at, part);
+        at
+    }
+
+    fn confirmed(&mut self, at: u64) {
+        self.parts.remove(&at);
+        self.tried = false;
+    }
+
+    /// Once more on a new connection? Not twice in a row without a piece getting through.
+    fn again(&mut self) -> bool {
+        !std::mem::replace(&mut self.tried, true)
+    }
+}
+
+/// Writes the chunks of a copy in pieces, the ones left by a dropped connection first, about
+/// `IN_FLIGHT` sent and not yet confirmed: the next chunk goes out while the server confirms the
+/// previous one. Errors: the server's, or the one that ended the chunks.
+async fn write_all(f: &Opened, chunks: &mut tokio::sync::mpsc::Receiver<std::io::Result<Bytes>>, w: &mut Pending) -> Result<(), Result<SftpError, std::io::Error>> {
     use futures_util::StreamExt;
     let mut sent = futures_util::stream::FuturesUnordered::new();
-    let mut at = 0u64;
-    while let Some(chunk) = chunks.recv().await {
-        let chunk = chunk.map_err(Err)?;
-        for part in chunk.chunks(f.conn.write_len) {
-            sent.push(f.conn.raw.write(f.handle.clone(), at, part.to_vec()));
-            at += part.len() as u64;
-            if sent.len() >= IN_FLIGHT
-                && let Some(r) = sent.next().await
-            {
+    for (&at, part) in &w.parts {
+        sent.push(write_part(f, at, part.clone()));
+    }
+    let mut ended = false;
+    while !ended || !sent.is_empty() {
+        tokio::select! {
+            biased;
+            Some((at, r)) = sent.next(), if !sent.is_empty() => {
                 r.map_err(Ok)?;
+                w.confirmed(at);
             }
+            chunk = chunks.recv(), if !ended && sent.len() < IN_FLIGHT => match chunk {
+                None => ended = true,
+                Some(chunk) => {
+                    let chunk = chunk.map_err(Err)?;
+                    for from in (0..chunk.len()).step_by(f.conn.write_len) {
+                        let part = chunk.slice(from..(from + f.conn.write_len).min(chunk.len()));
+                        sent.push(write_part(f, w.sent(part.clone()), part));
+                    }
+                }
+            },
         }
     }
-    while let Some(r) = sent.next().await {
-        r.map_err(Ok)?;
-    }
     Ok(())
+}
+
+/// One piece at its place, and the place back with the answer.
+async fn write_part(f: &Opened, at: u64, part: Bytes) -> (u64, Result<(), SftpError>) {
+    (at, f.conn.ask(f.conn.raw.write(f.handle.as_str(), at, part.to_vec())).await.map(|_| ()))
 }
 
 #[cfg(test)]
 mod tests {
     use crate::source::{self, Deletion, Store};
+    use bytes::Bytes;
+
+    /// The pieces a dropped connection did not confirm, sent again at their places over what got
+    /// through, give the whole file; a new connection only after some progress.
+    #[test]
+    fn pending_pieces_sent_again() {
+        let data: Vec<u8> = (0..100u8).collect();
+        let mut w = super::Pending::default();
+        let places: Vec<u64> = data.chunks(30).map(|p| w.sent(Bytes::copy_from_slice(p))).collect();
+        assert_eq!(places, [0, 30, 60, 90]);
+        // The server wrote the pieces at 0 and 60 and confirmed the first; then nothing more.
+        let mut file = vec![0u8; 100];
+        file[..30].copy_from_slice(&data[..30]);
+        file[60..90].copy_from_slice(&data[60..90]);
+        w.confirmed(0);
+        assert!(w.again());
+        assert_eq!(w.parts.keys().copied().collect::<Vec<_>>(), [30, 60, 90]);
+        for (&at, part) in &w.parts {
+            file[at as usize..at as usize + part.len()].copy_from_slice(part);
+        }
+        assert_eq!(file, data);
+        // The new connection drops too before any piece got through: no third one.
+        assert!(!w.again());
+        w.confirmed(30);
+        assert!(w.again());
+    }
 
     #[test]
     fn absolute_paths() {
@@ -488,6 +633,50 @@ mod tests {
     #[ignore]
     fn ftp_live() {
         server_live("EYECANSEE_FTP");
+    }
+
+    /// The connection cut in the middle of a write, a read of a range and a whole read: each goes
+    /// on, on a new connection, and the file comes back whole (#75). In a new folder, deleted.
+    /// `EYECANSEE_SFTP=sftp://user@host:port/folder/ cargo test --release sftp_cut_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn sftp_cut_live() {
+        let url = std::env::var("EYECANSEE_SFTP").expect("EYECANSEE_SFTP not set");
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let s = source::open(&url).unwrap();
+            let Store::Sftp(server) = &s.op else { panic!("not SFTP") };
+            let home = server.home().await.unwrap();
+            let secs = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_secs();
+            let dir = format!("{}eyecansee-test-{secs}/", if s.home { &home } else { &s.dir });
+            let (op, file) = (&s.op, format!("{dir}cut.bin"));
+            op.create_dir(&dir).await.unwrap();
+            let data: Vec<u8> = (0..256u32 << 20).map(|i| (i.wrapping_mul(2654435761) >> 11) as u8).collect();
+            let conn = || async { server.conn.lock().await.clone().expect("a connection") };
+            // The connection in use cut 200 ms after the start, as a stalled one is left; the
+            // operation must have gone on, on a new one.
+            let cut = |what: &'static str| async move {
+                let before = conn().await;
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+                println!("{what}: cut: {:?}", before.handle.disconnect(russh::Disconnect::ByApplication, "", "en").await);
+                before
+            };
+            let t = std::time::Instant::now();
+            let ((), before) = tokio::join!(write(op, &file, &data), cut("write"));
+            println!("write 256 MB with a cut: {:?}", t.elapsed());
+            assert!(!std::sync::Arc::ptr_eq(&before, &conn().await), "the write ended before the cut");
+            assert_eq!(op.size(&file).await.unwrap(), data.len() as u64);
+            let t = std::time::Instant::now();
+            let (part, before) = tokio::join!(op.read_range(&file, 1 << 20, 200 << 20), cut("range"));
+            println!("range of 200 MB with a cut: {:?}", t.elapsed());
+            assert!(!std::sync::Arc::ptr_eq(&before, &conn().await), "the read ended before the cut");
+            assert!(part.unwrap() == data[1 << 20..201 << 20], "range differs");
+            let t = std::time::Instant::now();
+            let (whole, before) = tokio::join!(op.read(&file), cut("read"));
+            println!("read 256 MB with a cut: {:?}", t.elapsed());
+            assert!(!std::sync::Arc::ptr_eq(&before, &conn().await), "the read ended before the cut");
+            assert!(whole.unwrap() == data, "read back differs");
+            op.delete(&dir, Deletion::Permanent).await.unwrap();
+        });
     }
 
     fn server_live(var: &str) {

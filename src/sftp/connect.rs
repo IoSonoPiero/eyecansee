@@ -131,6 +131,10 @@ const KEX: &[russh::kex::Name] = &[
     russh::kex::EXTENSION_OPENSSH_STRICT_KEX_AS_CLIENT,
 ];
 
+/// The whole login, every key and password tried: a few answers of the server, some of them after
+/// its pause for a refused password (2-3 s in OpenSSH [Inference]).
+const LOGIN: Duration = Duration::from_secs(30);
+
 /// Connected and logged in.
 pub(super) async fn connect(t: &Target) -> Result<Handle<Client>, Error> {
     let r = resolve(t);
@@ -159,7 +163,13 @@ pub(super) async fn connect(t: &Target) -> Result<Handle<Client>, Error> {
         Ok(Err(e)) => return Err(refused.lock().unwrap().take().unwrap_or(("error-detail", format!("{label}: {e}")))),
         Ok(Ok(h)) => h,
     };
-    let rsa = login(&mut handle, &r, t.password.as_deref(), key).await.map_err(|()| ("error-login-ssh", format!("{}@{label}", r.user)))?;
+    // Within a time limit too: the connection's lock is held meanwhile, and every request waits
+    // for it (#75).
+    let rsa = match tokio::time::timeout(LOGIN, login(&mut handle, &r, t.password.as_deref(), key)).await {
+        Err(_) => return Err(("error-detail", format!("{label}: no answer"))),
+        Ok(r) => r,
+    };
+    let rsa = rsa.map_err(|()| ("error-login-ssh", format!("{}@{label}", r.user)))?;
     log!("sftp: logged in to {label} as {}{}", r.user, if rsa { " with an RSA key" } else { "" });
     let mut warned = RSA.lock().unwrap();
     if rsa && !warned.0.contains(&label) {
