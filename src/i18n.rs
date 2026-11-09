@@ -109,6 +109,31 @@ mod tests {
     }
 
     /// Every language has the same messages as English and a manual with the same structure.
+    /// Every error id written in the code (`"error-…"`) has its message.
+    #[test]
+    fn error_ids_exist() {
+        let known = ids(LANGS[0].1);
+        let mut paths = vec![std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/src"))];
+        let mut missing = vec![];
+        while let Some(p) = paths.pop() {
+            if p.is_dir() {
+                paths.extend(std::fs::read_dir(&p).unwrap().map(|e| e.unwrap().path()));
+                continue;
+            }
+            let text = std::fs::read_to_string(&p).unwrap();
+            for rest in text.split("\"error-").skip(1) {
+                let tail = rest.split('"').next().unwrap();
+                let id = format!("error-{tail}");
+                let plain = !tail.is_empty() && tail.bytes().all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-');
+                if plain && !known.contains(&id) {
+                    missing.push(format!("{id} ({})", p.display()));
+                }
+            }
+        }
+        assert!(missing.is_empty(), "error ids without a message: {missing:?}");
+        assert!(I18n::new("it").t_args(crate::source::SILENT, &[("detail", "nas")]).starts_with("Il server nas non risponde"));
+    }
+
     #[test]
     fn languages_in_sync() {
         let (en, en_ftl, en_manual) = LANGS[0];

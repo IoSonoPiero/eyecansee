@@ -16,7 +16,7 @@ use russh_sftp::client::RawSftpSession;
 use russh_sftp::client::error::Error as SftpError;
 use russh_sftp::protocol::{FileAttributes, OpenFlags, StatusCode};
 
-use crate::source::{Error, Listing, NOT_FOUND};
+use crate::source::{Error, Listing, NOT_FOUND, SILENT};
 
 mod connect;
 mod watch;
@@ -410,7 +410,7 @@ async fn open(t: &Target) -> Result<Conn, Error> {
     let handle = connect::connect(t).await?;
     match tokio::time::timeout(SILENCE, start(handle, t)).await {
         Ok(r) => r,
-        Err(_) => Err(("error-detail", format!("{}: no answer", t.host))),
+        Err(_) => Err((SILENT, t.host.clone())),
     }
 }
 

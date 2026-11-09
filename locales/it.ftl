@@ -39,6 +39,7 @@ error-no-sftp = Il server risponde in SSH ma non ha il servizio SFTP ({ $detail 
 error-host-unknown = { $detail } non è mai stato usato da questo computer: conferma la sua chiave per collegarti.
 error-cert-unknown = Il certificato di { $detail } non è firmato da un'autorità riconosciuta: confermalo per collegarti.
 error-host-changed = La chiave di { $detail } non è quella registrata in ~/.ssh/known_hosts, quindi EyeCanSee non si collega: qualcuno potrebbe fingersi quel server. Se il server è stato reinstallato, togli la sua riga vecchia da known_hosts.
+error-server-silent = Il server { $detail } non risponde: controlla che sia acceso e raggiungibile, poi riprova.
 host-ask =
     { "**" }Primo collegamento a { $host }.**
 

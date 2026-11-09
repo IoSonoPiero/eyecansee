@@ -11,7 +11,7 @@ use std::time::Duration;
 use russh::client::{self, AuthResult, Handle, KeyboardInteractiveAuthResponse};
 use russh::keys::{self, HashAlg, PrivateKeyWithHashAlg, PublicKey, PublicKeyOrCertificate};
 
-use crate::source::Error;
+use crate::source::{Error, SILENT};
 
 /// Where to connect, as the address gives it; what is missing comes from `~/.ssh/config`.
 #[derive(Clone, PartialEq, Eq, Debug)]
@@ -159,14 +159,14 @@ pub(super) async fn connect(t: &Target) -> Result<Handle<Client>, Error> {
     });
     let connecting = client::connect(config, (r.host.as_str(), r.port), handler);
     let mut handle = match tokio::time::timeout(Duration::from_secs(20), connecting).await {
-        Err(_) => return Err(("error-detail", format!("{label}: no answer"))),
+        Err(_) => return Err((SILENT, label)),
         Ok(Err(e)) => return Err(refused.lock().unwrap().take().unwrap_or(("error-detail", format!("{label}: {e}")))),
         Ok(Ok(h)) => h,
     };
     // Within a time limit too: the connection's lock is held meanwhile, and every request waits
     // for it (#75).
     let rsa = match tokio::time::timeout(LOGIN, login(&mut handle, &r, t.password.as_deref(), key)).await {
-        Err(_) => return Err(("error-detail", format!("{label}: no answer"))),
+        Err(_) => return Err((SILENT, label)),
         Ok(r) => r,
     };
     let rsa = rsa.map_err(|()| ("error-login-ssh", format!("{}@{label}", r.user)))?;

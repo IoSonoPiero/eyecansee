@@ -22,6 +22,10 @@ pub type Error = (&'static str, String);
 /// Id of the "not found" error, recognised by cache maintenance.
 pub const NOT_FOUND: &str = "error-not-found";
 
+/// Id of the error of a server that does not answer in time (connection, login, start), with
+/// the server as detail (#75).
+pub const SILENT: &str = "error-server-silent";
+
 /// Chunks of a file being copied, from the reader to the writer (`Store::send_chunks`).
 pub type Chunks = tokio::sync::mpsc::Sender<std::io::Result<Bytes>>;
 

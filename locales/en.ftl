@@ -40,6 +40,7 @@ error-no-sftp = The server answers over SSH but has no SFTP service ({ $detail }
 error-host-unknown = { $detail } has never been used from this computer: confirm its key to connect.
 error-cert-unknown = The certificate of { $detail } is not signed by a known authority: confirm it to connect.
 error-host-changed = The key of { $detail } is not the one recorded in ~/.ssh/known_hosts, so EyeCanSee does not connect: someone may be pretending to be that server. If the server was reinstalled, remove its old line from known_hosts.
+error-server-silent = The server { $detail } does not answer: check that it is on and reachable, then try again.
 host-ask =
     { "**" }First connection to { $host }.**
 

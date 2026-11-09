@@ -18,7 +18,7 @@ use suppaftp::types::FileType;
 use suppaftp::{FtpError, Mode, Status};
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
-use crate::source::{Error, Listing, NOT_FOUND};
+use crate::source::{Error, Listing, NOT_FOUND, SILENT};
 
 mod tls;
 pub use tls::{trust, unknown};
@@ -299,7 +299,7 @@ impl Server {
         let started = std::time::Instant::now();
         let connecting = Stream::connect(format!("{}:{}", t.host, t.port));
         let mut s = match tokio::time::timeout(Duration::from_secs(20), connecting).await {
-            Err(_) => return Err(("error-detail", format!("{label}: no answer"))),
+            Err(_) => return Err((SILENT, label)),
             Ok(Err(e)) => return Err(("error-detail", format!("{label}: {e}"))),
             Ok(Ok(s)) => s,
         };
