@@ -60,7 +60,7 @@ webpki-roots = "1.0.11"
 # encryption is ring's ChaCha20-Poly1305); zxcvbn rates how strong a new one is.
 argon2 = "0.5.3"
 zxcvbn = "3.1.1"
-rusqlite = { version = "0.40.2", features = ["bundled"] }
+rusqlite = { version = "0.41.1", features = ["bundled"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 sys-locale = "0.3.2"
