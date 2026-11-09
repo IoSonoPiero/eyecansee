@@ -86,7 +86,7 @@ The full list of features, keys and limits is in the manual: [English](docs/manu
 
 ![Opening a phone folder in EyeCanSee](docs/screenshots/mtp-open.gif)
 
-*Opening a folder of 400 files on a POCO X7 Pro over USB (Fedora 44, EyeCanSee 0.63.0, cold caches): the file manager (gvfs) takes 9.3 s to list the names; EyeCanSee lists them in 0.07 s after a 0.5 s open and shows the first thumbnails within 0.8 s. Test images: public-domain photos, copied several times.*
+*Opening a folder of 400 files on a POCO X7 Pro over USB (Fedora 44, cold caches): the file manager (gvfs) takes 9.3 s to list the names; EyeCanSee lists them in 0.07 s after a 0.5 s open and shows the first thumbnails within 0.8 s. Test images: public-domain photos, copied several times.*
 
 | Model | System | Notes |
 |---|---|---|
