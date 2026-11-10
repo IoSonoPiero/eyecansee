@@ -181,7 +181,13 @@ pub(crate) fn find(address: &str) -> Option<Saved> {
     find_in(load(), address)
 }
 
-fn find_in(servers: Vec<Saved>, address: &str) -> Option<Saved> {
+fn find_in(mut servers: Vec<Saved>, address: &str) -> Option<Saved> {
+    let i = find_index(&servers, address)?;
+    Some(servers.swap_remove(i))
+}
+
+/// Where `find` finds the address among `servers`.
+fn find_index(servers: &[Saved], address: &str) -> Option<usize> {
     let u = url::Url::parse(address).ok()?;
     let host = u.host_str()?;
     let user = percent_decode_str(u.username()).decode_utf8_lossy();
@@ -194,10 +200,34 @@ fn find_in(servers: Vec<Saved>, address: &str) -> Option<Saved> {
         inside.then_some(folder.len())
     };
     let same = |s: &Saved| s.scheme == u.scheme() && s.host.trim().eq_ignore_ascii_case(host) && port(&s.scheme, s.port) == wanted && s.user.trim() == user;
-    let mut found: Vec<Saved> = servers.into_iter().filter(same).collect();
     // The first of the longest folders; no folder holding the path: the first one, as before.
-    let best = found.iter().enumerate().max_by_key(|(i, s)| (covers(s), std::cmp::Reverse(*i))).map(|(i, _)| i)?;
-    Some(found.swap_remove(best))
+    servers.iter().enumerate().filter(|(_, s)| same(s)).max_by_key(|(i, s)| (covers(s), std::cmp::Reverse(*i))).map(|(i, _)| i)
+}
+
+/// What File > Open location's "Save and open" did to the saved servers.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum Kept {
+    /// A new server, at the end.
+    Added,
+    /// The password of this saved server changed.
+    Updated(usize),
+    /// Nothing to write: the same password, or none typed for a saved server.
+    Same,
+}
+
+/// "Save and open": the saved server `new` logs in as (found as `find` does) gets its password,
+/// keeping its name, folder and key (the folder typed is where to go now, not where the server
+/// starts); none: `new` is added. An empty password does not wipe a saved one.
+pub(crate) fn keep(servers: &mut Vec<Saved>, new: Saved) -> Kept {
+    let Some(i) = new.address().and_then(|a| find_index(servers, &a)) else {
+        servers.push(new);
+        return Kept::Added;
+    };
+    if new.password.is_empty() || servers[i].password == new.password {
+        return Kept::Same;
+    }
+    servers[i].password = new.password;
+    Kept::Updated(i)
 }
 
 /// The port, the protocol's own when none is written: an address drops ":21" from ftp://.
@@ -319,6 +349,30 @@ mod tests {
         assert_eq!(super::load(), vec![moved]);
         let leftovers: Vec<_> = std::fs::read_dir(&dir).unwrap().filter_map(|e| e.ok()).map(|e| e.file_name()).filter(|n| n.to_string_lossy().ends_with(".tmp")).collect();
         assert!(leftovers.is_empty(), "{leftovers:?}");
+    }
+
+    #[test]
+    fn kept_from_open_location() {
+        let home = Saved { name: "Home".into(), scheme: "sftp".into(), host: "nas.lan".into(), port: Some(2222), user: "me".into(), password: "old".into(), key_file: "~/.ssh/id".into(), ..Default::default() };
+        let photos = Saved { name: "Photos".into(), folder: "/srv/photos".into(), ..home.clone() };
+        let typed = |folder: &str, password: &str| Saved { name: "nas.lan".into(), folder: folder.into(), password: password.into(), key_file: String::new(), ..home.clone() };
+        // The same login in a folder of "Photos": that one gets the password, nothing else changes.
+        let mut list = vec![home.clone(), photos.clone()];
+        assert_eq!(super::keep(&mut list, typed("/srv/photos/2026/", " new ")), super::Kept::Updated(1));
+        assert_eq!(list, vec![home.clone(), Saved { password: " new ".into(), ..photos.clone() }]);
+        // Elsewhere on the server: the first one, its folder and key kept.
+        assert_eq!(super::keep(&mut list, typed("/tmp/", "pw")), super::Kept::Updated(0));
+        assert_eq!(list[0], Saved { password: "pw".into(), ..home.clone() });
+        // The same password, or none: nothing to write.
+        assert_eq!(super::keep(&mut list, typed("/", "pw")), super::Kept::Same);
+        assert_eq!(super::keep(&mut list, typed("/", "")), super::Kept::Same);
+        assert_eq!(list[0].password, "pw");
+        // Another user, port or protocol: a new server at the end, as typed.
+        for other in [Saved { user: "you".into(), ..typed("/", "x") }, Saved { port: None, ..typed("/", "x") }, Saved { scheme: "ftp".into(), ..typed("/", "x") }] {
+            let mut list = vec![home.clone()];
+            assert_eq!(super::keep(&mut list, other.clone()), super::Kept::Added);
+            assert_eq!(list, vec![home.clone(), other]);
+        }
     }
 
     #[test]

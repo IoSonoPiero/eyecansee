@@ -28,7 +28,7 @@ L'ultimo è un alias di `~/.ssh/config`. Senza utente, FTP entra come `anonymous
 - EyeCanSee legge `~/.ssh/config` come fa ssh (alias, HostName, User, Port, IdentityFile; non ProxyJump), su Linux e su Windows.
 - Entra con i file di chiave senza passphrase, oppure con la password. Non usa mai l'agente SSH del sistema. Per una chiave con passphrase, salva il server nella gestione server.
 - Una password scritta nell'indirizzo viene provata per prima.
-- Se il server rifiuta, si apre **File > Apri indirizzo…** con tutto compilato, pronto per la password.
+- Se il server rifiuta, si apre **File > Apri indirizzo…** con tutto compilato, pronto per la password; **Salva e apri** la conserva anche tra i server salvati.
 - Le chiavi RSA funzionano, ma dopo un accesso con una di esse EyeCanSee avvisa una volta per server: la libreria che usa ha un difetto noto ancora senza correzione. Una chiave ed25519 è la scelta migliore.
 
 ## Lavorare su un server

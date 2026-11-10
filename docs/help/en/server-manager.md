@@ -38,7 +38,8 @@ Every saved server appears in the panel on the left, in the **Servers** section 
 
 ## Things to know
 
-- Without a master password, passwords and passphrases are saved in plain text: the first time you save a server, EyeCanSee warns you once. See [Saved passwords](passwords.md).
+- A server can also be saved from **File > Open location…** with **Save and open**, for example when a server refuses the login and asks for the password: a saved server with the same login gets the new password and keeps the rest (see [Address bar and Open location](address.md)).
+- Without a master password, passwords and passphrases are saved in plain text: the first time you save a server, here or with **Save and open**, EyeCanSee warns you once. See [Saved passwords](passwords.md).
 - The port can be left empty: FTP uses 21, SFTP 22.
 - Spaces before or after a value, for example pasted with it, are left out when the server is saved; not in passwords and passphrases, where they can be part of them.
 - From the panel you copy and paste between servers, the computer, disks and phones as between two folders (see [Copying and moving](copy-move.md)).

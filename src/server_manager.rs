@@ -47,12 +47,8 @@ impl App {
                 (close, connect) = self.server_buttons(ui, &mut f, close);
             }
         });
-        // The first server saved without a master password: said once.
-        if f.servers != before && !crate::servers::encrypted() && !self.settings.servers_plain_warned {
-            self.settings.servers_plain_warned = true;
-            self.settings.save();
-            let (title, text) = (self.i18n.t("vault-plain-title"), self.i18n.t("vault-plain-warning"));
-            self.notice = Some(crate::save_dialogs::Notice { warning: true, ..crate::save_dialogs::Notice::new(title, text) });
+        if f.servers != before {
+            self.plain_servers_notice();
         }
         self.saved_servers = f.servers.clone();
         self.server_manager = (!close).then_some(f);
@@ -60,6 +56,18 @@ impl App {
             self.server_manager = None;
             self.open_source(ctx, &address);
         }
+    }
+
+    /// The servers just saved without a master password, the first time: "Servers saved in plain
+    /// text", said once (Server manager and Open location's "Save and open").
+    pub(crate) fn plain_servers_notice(&mut self) {
+        if crate::servers::encrypted() || self.settings.servers_plain_warned {
+            return;
+        }
+        self.settings.servers_plain_warned = true;
+        self.settings.save();
+        let (title, text) = (self.i18n.t("vault-plain-title"), self.i18n.t("vault-plain-warning"));
+        self.notice = Some(crate::save_dialogs::Notice { warning: true, ..crate::save_dialogs::Notice::new(title, text) });
     }
 
     /// The saved servers, the chosen one highlighted, and "New server" below.

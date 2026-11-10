@@ -4,7 +4,7 @@ The passwords and key passphrases of the saved servers can be protected with a m
 
 ## Without a master password
 
-The yellow box at the top of **File > Server manager…**, with the warning triangle, says **No master password: passwords and passphrases are saved in plain text.** They are written in the file `servers.json` of the settings folder (on Linux, readable only by you). Anyone who can read your files can read these passwords too. The first time you save a server, EyeCanSee says so in a warning, **Servers saved in plain text**.
+The yellow box at the top of **File > Server manager…**, with the warning triangle, says **No master password: passwords and passphrases are saved in plain text.** They are written in the file `servers.json` of the settings folder (on Linux, readable only by you). Anyone who can read your files can read these passwords too. The first time you save a server, in the server manager or with **Save and open** in **File > Open location…**, EyeCanSee says so in a warning, **Servers saved in plain text**.
 
 ## Setting a master password
 
