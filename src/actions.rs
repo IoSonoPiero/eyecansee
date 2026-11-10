@@ -194,7 +194,7 @@ impl App {
             }
         }
         if help {
-            self.help = !self.help;
+            self.toggle_help("index");
         }
         // Full screen in and out. Also smoother on a monitor of the other graphics card of a hybrid
         // laptop: the desktop sends the window to it without composing (measured 2026-11-01).
@@ -303,7 +303,7 @@ impl App {
             Act::Refresh => self.refresh(),
             Act::Go(to) => self.go(to),
             Act::Up => self.go_up(),
-            Act::Manual => self.help = true,
+            Act::Manual => self.open_help("index"),
             Act::About => self.about = true,
             Act::CheckUpdates => {
                 let id = if let Some(r) = &self.update {

@@ -198,6 +198,9 @@ pub enum Line {
     Dotted,
     Star,
     Bookmark,
+    /// Back and forward in the guide's history (Lucide's arrow-left and arrow-right).
+    Back,
+    Forward,
 }
 
 macro_rules! lucide {
@@ -279,6 +282,8 @@ fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::NewImage => lucide!("image-plus").into(),
         Line::Star => lucide!("star").into(),
         Line::Bookmark => lucide!("bookmark").into(),
+        Line::Back => own("m12 19-7-7 7-7M19 12H5"),
+        Line::Forward => own("M5 12h14M12 5l7 7-7 7"),
         Line::HeadFilled => format!(r#"{LINE}<path d="M3 12h11"/><path d="M13 7l8 5-8 5z" fill="currentColor"/></svg>"#).into(),
         Line::HeadOpen => own("M3 12h17M15 7l5 5-5 5"),
         Line::HeadDouble => format!(r#"{LINE}<path d="M9 12h6"/><path d="M10 7l-7 5 7 5zM14 7l7 5-7 5z" fill="currentColor"/></svg>"#).into(),

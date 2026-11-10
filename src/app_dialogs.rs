@@ -1,7 +1,6 @@
 //! Program windows: Options, update and About.
 
 use eframe::egui::{self, TextureOptions};
-use egui_commonmark::CommonMarkCache;
 
 use crate::{App, OptTab, confirm, decode, mtp, theme, thumbcache, update, version};
 use crate::i18n::I18n;
@@ -76,8 +75,8 @@ impl App {
         if self.settings.language != before.language {
             log!("language {:?}", self.settings.language);
             self.i18n = I18n::detect(self.settings.language.as_deref());
-            // The cached manual is the one of the previous language.
-            self.help_cache = CommonMarkCache::default();
+            // The guide shows the pages of the new language.
+            self.help.language(self.i18n.code);
         }
         if self.settings.theme != before.theme {
             theme::choose(ctx, self.settings.theme);

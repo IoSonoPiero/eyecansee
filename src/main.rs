@@ -80,6 +80,8 @@ mod frame;
 mod ftp;
 mod gps_track;
 mod grid;
+mod help;
+mod help_search;
 mod human;
 mod i18n;
 mod kept;
@@ -157,7 +159,6 @@ use std::sync::Arc;
 use std::sync::mpsc::{self, Receiver, Sender};
 
 use eframe::egui::{self, Key, TextureHandle};
-use egui_commonmark::CommonMarkCache;
 use actions::Act;
 use address::AddressForm;
 use i18n::I18n;
@@ -375,11 +376,11 @@ struct App {
     /// The slideshow under way, at full screen.
     show: Option<slideshow::Show>,
     title: String,
-    help: bool,
+    /// The guide (F1, Help > Manual).
+    help: help::Guide,
     about: bool,
     /// App icon for the About window, made the first time it opens.
     about_icon: Option<TextureHandle>,
-    help_cache: CommonMarkCache,
     settings: Settings,
     devices: Vec<devices::Device>,
     /// The tree must open down to the current folder (after every folder change).
@@ -524,8 +525,7 @@ impl App {
             error: None,
             kept: Vec::new(),
             title: String::new(),
-            help: false,
-            help_cache: CommonMarkCache::default(),
+            help: help::Guide::default(),
             about: false,
             clip: None,
             paste_to: None,
