@@ -236,7 +236,8 @@ impl Store {
     }
 
     /// Moves a file or folder (path ending in "/") into `to_dir`, created if missing, with the
-    /// name `new_name`; returns the new path. The name must be free (`free_name`).
+    /// name `new_name`; returns the new path. The name must be free (`free_name`), except on this
+    /// computer, where a file there is replaced (`local::rename`).
     pub async fn move_into(&self, path: &str, to_dir: &str, new_name: &str) -> Result<String, Error> {
         let slash = if path.ends_with('/') { "/" } else { "" };
         let to = format!("{to_dir}{new_name}{slash}");
@@ -246,7 +247,7 @@ impl Store {
                 let (from, dir, dest) = (local_path(op, path), local_path(op, to_dir), local_path(op, &to));
                 tokio::task::spawn_blocking(move || {
                     std::fs::create_dir_all(&dir)?;
-                    std::fs::rename(&from, &dest)
+                    local::rename(&from, &dest)
                 })
                 .await
                 .map_err(|e| ("error-detail", e.to_string()))?

@@ -1,9 +1,7 @@
 //! Local disks (and gvfs mounts) of a `Store::Dal`: their paths, the reads under gvfs two at a
 //! time, the names that are not valid UTF-8, and the folders listed with `std::fs`.
 
-use std::path::PathBuf;
-#[cfg(windows)]
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use opendal::Operator;
 
@@ -82,6 +80,30 @@ pub(super) async fn list(op: &Operator, dir: &str) -> Result<Listing, Error> {
     }
     listing.sort();
     Ok(listing)
+}
+
+/// Renames a local file or folder, over a file already there if any. On Windows that file's
+/// creation date goes to the one taking its place (#90): the rename keeps the moved file's own,
+/// while up to 0.75.0 the old file was deleted first and NTFS gave its date back (tunneling).
+pub(super) fn rename(from: &Path, to: &Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    let created = std::fs::symlink_metadata(to).ok().filter(|m| m.is_file()).and_then(|m| m.created().ok());
+    std::fs::rename(from, to)?;
+    #[cfg(windows)]
+    if let Some(t) = created {
+        // The file is already moved: without its old date it is still whole, so a failure stays silent.
+        let _ = set_created(to, t);
+    }
+    Ok(())
+}
+
+/// Sets a file's creation date, opening it only to write its attributes (read-only files too).
+#[cfg(windows)]
+fn set_created(path: &Path, t: std::time::SystemTime) -> std::io::Result<()> {
+    use std::os::windows::fs::{FileTimesExt, OpenOptionsExt};
+    use windows_sys::Win32::Storage::FileSystem::FILE_WRITE_ATTRIBUTES;
+    let f = std::fs::OpenOptions::new().access_mode(FILE_WRITE_ATTRIBUTES).open(path)?;
+    f.set_times(std::fs::FileTimes::new().set_created(t))
 }
 
 /// On Windows, local files with the "hidden" attribute, which File Explorer does not show. Among
@@ -173,6 +195,33 @@ mod tests {
         assert!(top.join("folder").join(TRASH_DIR).join("inner").symlink_metadata().unwrap().is_symlink());
         assert!(top.join("real/a.jpg").exists() && top.join("real/sub/b.jpg").exists());
         std::fs::remove_dir_all(&top).unwrap();
+    }
+
+    /// A file renamed over another takes its place with the new content; on Windows it keeps the
+    /// creation date of the one it replaced (#90).
+    #[test]
+    fn rename_over_a_file() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-rename-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let (old, new) = (dir.join("a.jpg"), dir.join("b.jpg"));
+        std::fs::write(&old, b"old").unwrap();
+        #[cfg(windows)]
+        let created = {
+            let t = std::time::UNIX_EPOCH + std::time::Duration::from_secs(1_000_000_000);
+            set_created(&old, t).unwrap();
+            t
+        };
+        std::fs::write(&new, b"new").unwrap();
+        rename(&new, &old).unwrap();
+        assert_eq!(std::fs::read(&old).unwrap(), b"new");
+        assert!(!new.exists());
+        #[cfg(windows)]
+        assert_eq!(std::fs::metadata(&old).unwrap().created().unwrap(), created);
+        // Onto a free name nothing changes.
+        rename(&old, &new).unwrap();
+        assert_eq!(std::fs::read(&new).unwrap(), b"new");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[cfg(windows)]
