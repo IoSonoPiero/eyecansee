@@ -33,7 +33,7 @@ Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le ch
 | Ctrl+N | Nuova immagine (vedi [Nuova immagine](new-image.md)) |
 | Ctrl+E | Modifica immagine (vedi [Modificare un'immagine](editor.md)) |
 | Ctrl+B | Converti e ridimensiona (vedi [Convertire e ridimensionare le immagini](convert.md)) |
-| Ctrl+D | Trova duplicati (vedi [Trovare i doppioni](duplicates.md)) |
+| Ctrl+D | Trova duplicati (vedi [Trovare i duplicati](duplicates.md)) |
 | Maiusc+F5 | Rifà tutte le miniature della cartella |
 
 Con il mouse: **Ctrl+clic** aggiunge o toglie un elemento, **Maiusc+clic** seleziona dall'ultimo elemento cliccato fino a questo, e trascinando sulla griglia si disegna un rettangolo che seleziona ciò che tocca (con Ctrl si aggiunge alla selezione). Vedi [Selezionare i file](selection.md).

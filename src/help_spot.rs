@@ -142,13 +142,6 @@ fn place_spot(base: &str, dir: &str, devices: &[Device]) -> Option<&'static str>
     Some(if device.phone { "help:phone" } else { "help:devices" })
 }
 
-// placeholder until help.rs
-impl App {
-    pub(crate) fn toggle_help(&mut self, _spot: &str) {
-        self.help = true;
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -14,7 +14,7 @@ Il primo livello mostra le memorie del telefono (per esempio "Memoria condivisa 
 
 ## Che cosa puoi fare
 
-Tutto quello che fai con le cartelle del computer: guardare foto e video, copiarli e spostarli dal computer e verso il computer (vedi [Copiare e spostare](copy-move.md)), rinominare, eliminare, convertire, cercare i doppioni, creare cartelle. Quando salvi un'immagine modificata, viene prima tenuta su questo computer e poi mandata al telefono: se l'invio non riesce (cavo staccato), l'originale sul telefono resta com'era, e una finestra dice dov'è l'immagine modificata, con **Riprova**, **Salva come…** e **Apri la cartella**.
+Tutto quello che fai con le cartelle del computer: guardare foto e video, copiarli e spostarli dal computer e verso il computer (vedi [Copiare e spostare](copy-move.md)), rinominare, eliminare, convertire, cercare i duplicati, creare cartelle. Quando salvi un'immagine modificata, viene prima tenuta su questo computer e poi mandata al telefono: se l'invio non riesce (cavo staccato), l'originale sul telefono resta com'era, e una finestra dice dov'è l'immagine modificata, con **Riprova**, **Salva come…** e **Apri la cartella**.
 
 Le foto scattate, eliminate o spostate sul telefono mentre la sua cartella è aperta compaiono e spariscono da sole, pochi secondi dopo che il telefono ha finito. Se il file era aperto nel visore, il visore si chiude e un messaggio dice quale file è stato tolto.
 

@@ -5,8 +5,6 @@ use std::sync::atomic::Ordering;
 
 use eframe::egui::{self, Color32};
 
-use egui_commonmark::CommonMarkViewer;
-
 use crate::{App, browser, meta, save_dialogs, theme};
 
 impl App {
@@ -141,18 +139,9 @@ impl App {
         }
     }
 
-    /// The windows over the panels (manual, dialogs, confirmations) and the chosen menu item.
+    /// The windows over the panels (guide, dialogs, confirmations) and the chosen menu item.
     pub(crate) fn windows(&mut self, ctx: &egui::Context) {
-        let mut open = self.help;
-        egui::Window::new(self.i18n.t("menu-manual"))
-            .open(&mut open)
-            .default_size([560.0, 480.0])
-            .show(ctx, |ui| {
-                egui::ScrollArea::vertical().show(ui, |ui| {
-                    CommonMarkViewer::new().show(ui, &mut self.help_cache, self.i18n.manual);
-                });
-            });
-        self.help = open;
+        self.help_window(ctx);
         self.about_window(ctx);
         self.update_window(ctx);
         self.options_window(ctx);

@@ -1,6 +1,6 @@
-# Presentazione
+# Carosello
 
-La presentazione, che nei menù si chiama **Carosello**, mostra le foto una dopo l'altra a schermo intero, su fondo nero, con un passaggio tra l'una e l'altra.
+Il **Carosello** mostra le foto una dopo l'altra a schermo intero, su fondo nero, con un passaggio tra l'una e l'altra.
 
 ## Avviare il carosello
 

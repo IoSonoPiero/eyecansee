@@ -47,7 +47,7 @@ Vedi [Eliminare e cestino](delete.md).
 - **Passaggio tra le immagini**: **Nessuno (stacco netto)**, **Dissolvenza incrociata** (predefinito), **Dissolvenza al nero**, **Scorrimento**, **Zoom e dissolvenza**.
 - **Ricomincia dopo l'ultima immagine** (accesa).
 
-Vedi [Presentazione](slideshow.md).
+Vedi [Carosello](slideshow.md).
 
 ## Video
 

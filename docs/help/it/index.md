@@ -8,7 +8,7 @@
 
 - [La griglia delle miniature](grid.md)
 - [Cartelle e pannello laterale](folders.md)
-- [Barra degli indirizzi e Apri posizione](address.md)
+- [Barra degli indirizzi e Apri indirizzo](address.md)
 - [Segnalibri](bookmarks.md)
 - [Selezionare i file](selection.md)
 
@@ -16,7 +16,7 @@
 
 - [Guardare le immagini](viewer.md)
 - [Informazioni sul file](metadata.md)
-- [Presentazione](slideshow.md)
+- [Carosello](slideshow.md)
 - [Riprodurre i video](video.md)
 - [Modelli 3D](model-3d.md)
 - [Esportare i modelli 3D](model-export.md)
@@ -50,7 +50,7 @@
 - [Rinominare e nuove cartelle](rename.md)
 - [Eliminare e cestino](delete.md)
 - [Nuova immagine](new-image.md)
-- [Trovare i doppioni](duplicates.md)
+- [Trovare i duplicati](duplicates.md)
 
 ## Dispositivi e server
 

@@ -1,4 +1,4 @@
-# Barra degli indirizzi e Apri posizione
+# Barra degli indirizzi e Apri indirizzo
 
 La barra degli indirizzi, nella barra strumenti, mostra dove sei e porta ovunque: una cartella di questo computer, una foto, un telefono o un server.
 

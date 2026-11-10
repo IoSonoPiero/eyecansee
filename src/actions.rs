@@ -298,7 +298,7 @@ impl App {
             Act::Refresh => self.refresh(),
             Act::Go(to) => self.go(to),
             Act::Up => self.go_up(),
-            Act::Manual => self.help = true,
+            Act::Manual => self.open_help("index"),
             Act::About => self.about = true,
             Act::CheckUpdates => {
                 let id = if let Some(r) = &self.update {

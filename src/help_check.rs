@@ -7,8 +7,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-mod stubs; // stub until guida-A/guida-C merge
-use stubs::{IMAGES, PAGES, icon_exists};
+use crate::help::{IMAGES, PAGES};
+use crate::help_icons::icon_exists;
 
 /// Languages of the guide, in the order of `Area::names`, with the title of the contents page.
 const LANGS: &[(&str, &str)] = &[("en", "Contents"), ("it", "Sommario")];
@@ -472,7 +472,6 @@ fn sources(root: &Path) -> Vec<(String, String)> {
 
 /// The whole guide: files, contents, links, images, icons, placeholders, embedded tables, F1 spots.
 #[test]
-#[ignore = "until the guida merge: needs docs/help, crate::help::{PAGES, IMAGES} and crate::help_icons::icon_exists"]
 fn guide_is_consistent() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let docs = load(&root.join("docs/help"));

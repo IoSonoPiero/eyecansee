@@ -4,7 +4,7 @@ EyeCanSee apre le cartelle di un server, per esempio un NAS di casa o uno spazio
 
 ## Aprire un server
 
-- Scrivi il suo indirizzo nella barra degli indirizzi e premi **Invio**, oppure scegli **File > Apri indirizzo…** e compila protocollo, server, porta, utente, password e cartella (vedi [Barra degli indirizzi e Apri posizione](address.md)).
+- Scrivi il suo indirizzo nella barra degli indirizzi e premi **Invio**, oppure scegli **File > Apri indirizzo…** e compila protocollo, server, porta, utente, password e cartella (vedi [Barra degli indirizzi e Apri indirizzo](address.md)).
 - Oppure salvalo una volta in **File > Gestione server…** e poi aprilo con un clic dalla sezione **Server** del pannello a sinistra (vedi [Gestire i server](server-manager.md)).
 
 Esempi di indirizzi:

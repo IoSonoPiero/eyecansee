@@ -24,7 +24,7 @@ Quando cambi cartella in un altro modo (dalla griglia, dalla barra degli indiriz
 
 ## Il menù del clic destro su una cartella
 
-Il clic destro su una cartella dell'albero offre **Apri**, **Nuova cartella qui dentro…**, **Taglia**, **Copia**, **Incolla in questa cartella** (quando hai copiato qualcosa), **Trova duplicati…**, **Rinomina…**, **Elimina…** ed **Elimina definitivamente…**. Vedi [Copiare e spostare](copy-move.md), [Rinominare e nuove cartelle](rename.md), [Eliminare e cestino](delete.md) e [Trovare i doppioni](duplicates.md).
+Il clic destro su una cartella dell'albero offre **Apri**, **Nuova cartella qui dentro…**, **Taglia**, **Copia**, **Incolla in questa cartella** (quando hai copiato qualcosa), **Trova duplicati…**, **Rinomina…**, **Elimina…** ed **Elimina definitivamente…**. Vedi [Copiare e spostare](copy-move.md), [Rinominare e nuove cartelle](rename.md), [Eliminare e cestino](delete.md) e [Trovare i duplicati](duplicates.md).
 
 La cartella principale di un disco, di un telefono o di un server, e le memorie di un telefono, non si possono rinominare né eliminare.
 

@@ -1,4 +1,4 @@
-# Trovare i doppioni
+# Trovare i duplicati
 
 Trova i file identici in una cartella e nelle sue sottocartelle, così puoi eliminare le copie in più e liberare spazio. Identici vuol dire lo stesso file byte per byte, anche con un altro nome o in un'altra cartella. Le foto ridimensionate, convertite o salvate di nuovo non sono identiche, e non vengono trovate. Funziona su tutte le sorgenti: computer, dischi esterni, telefoni e server.
 

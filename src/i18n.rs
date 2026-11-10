@@ -1,20 +1,18 @@
-//! Translations (Fluent, `locales/*.ftl`) and manual (`docs/manual.*.md`), embedded in the executable.
-//! The online help shows the same file as the manual, so they cannot drift apart.
+//! Translations (Fluent, `locales/*.ftl`), embedded in the executable. The guide's pages are in
+//! `help.rs`.
 
 use fluent_bundle::{FluentArgs, FluentBundle, FluentResource, FluentValue};
 use unic_langid::LanguageIdentifier;
 
-/// To add a language: translate `locales/en.ftl` and `docs/manual.en.md`, then add a line.
-/// The first line is the fallback language for missing messages.
-const LANGS: &[(&str, &str, &str)] = &[
-    ("en", include_str!("../locales/en.ftl"), include_str!("../docs/manual.en.md")),
-    ("it", include_str!("../locales/it.ftl"), include_str!("../docs/manual.it.md")),
-];
+/// To add a language: translate `locales/en.ftl` and the guide's pages (`docs/help/en/`, listed in
+/// `help.rs`), then add a line. The first line is the fallback language for missing messages.
+const LANGS: &[(&str, &str)] = &[("en", include_str!("../locales/en.ftl")), ("it", include_str!("../locales/it.ftl"))];
 
 pub struct I18n {
     bundle: FluentBundle<FluentResource>,
     fallback: FluentBundle<FluentResource>,
-    pub manual: &'static str,
+    /// The language chosen (`en`, `it`), for the guide's pages.
+    pub code: &'static str,
 }
 
 fn bundle(code: &str, ftl: &str) -> FluentBundle<FluentResource> {
@@ -31,7 +29,7 @@ fn bundle(code: &str, ftl: &str) -> FluentBundle<FluentResource> {
 pub fn languages() -> Vec<(&'static str, String)> {
     LANGS
         .iter()
-        .map(|&(code, ftl, _)| {
+        .map(|&(code, ftl)| {
             let b = bundle(code, ftl);
             let name = b.get_message("language-name").and_then(|m| m.value()).map(|p| b.format_pattern(p, None, &mut vec![]).into_owned());
             (code, name.unwrap_or_else(|| code.to_string()))
@@ -54,8 +52,8 @@ impl I18n {
     pub fn new(wanted: &str) -> Self {
         // "it-IT", "it_IT.UTF-8", "it" → "it"
         let prefix = wanted.split(['-', '_', '.']).next().unwrap_or("").to_lowercase();
-        let &(code, ftl, manual) = LANGS.iter().find(|l| l.0 == prefix).unwrap_or(&LANGS[0]);
-        Self { bundle: bundle(code, ftl), fallback: bundle(LANGS[0].0, LANGS[0].1), manual }
+        let &(code, ftl) = LANGS.iter().find(|l| l.0 == prefix).unwrap_or(&LANGS[0]);
+        Self { bundle: bundle(code, ftl), fallback: bundle(LANGS[0].0, LANGS[0].1), code }
     }
 
     pub fn t(&self, id: &str) -> String {
@@ -104,11 +102,6 @@ mod tests {
         assert!(en.t_args("save-format", &[("name", "007")]).contains("**007**"));
     }
 
-    fn headings(md: &str) -> usize {
-        md.lines().filter(|l| l.starts_with('#')).count()
-    }
-
-    /// Every language has the same messages as English and a manual with the same structure.
     /// Every error id written in the code (`"error-…"`) has its message.
     #[test]
     fn error_ids_exist() {
@@ -134,13 +127,13 @@ mod tests {
         assert!(I18n::new("it").t_args(crate::source::SILENT, &[("detail", "nas")]).starts_with("Il server nas non risponde"));
     }
 
+    /// Every language has the same messages as English.
     #[test]
     fn languages_in_sync() {
-        let (en, en_ftl, en_manual) = LANGS[0];
-        for &(code, ftl, manual) in LANGS {
+        let (en, en_ftl) = LANGS[0];
+        for &(code, ftl) in LANGS {
             bundle(code, ftl);
             assert_eq!(ids(ftl), ids(en_ftl), "messages of {code} differ from {en}");
-            assert_eq!(headings(manual), headings(en_manual), "manual {code} has different sections from {en}");
         }
         assert_eq!(I18n::new("it_IT.UTF-8").t_args("counter", &[("n", "1"), ("total", "9")]), "1 di 9");
         assert_eq!(I18n::new("xx").t("menu-help"), "Help");

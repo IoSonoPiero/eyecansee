@@ -16,7 +16,7 @@ EyeCanSee mostra le foto, i video, i modelli 3D e i disegni CAD di una cartella 
 ## Aprire una cartella
 
 - Fai clic su una cartella nel pannello laterale, oppure doppio clic su una cartella nella griglia.
-- Scrivi l'indirizzo di una cartella nella barra degli indirizzi e premi Invio. Vedi [Barra degli indirizzi e Apri posizione](address.md).
+- Scrivi l'indirizzo di una cartella nella barra degli indirizzi e premi Invio. Vedi [Barra degli indirizzi e Apri indirizzo](address.md).
 - Scegli uno dei tuoi [segnalibri](bookmarks.md).
 
 All'avvio EyeCanSee riapre la cartella che stavi guardando quando l'hai chiuso (si può spegnere nelle [Opzioni](options.md)), oppure la tua cartella home. Se apri una foto con EyeCanSee da un altro programma, mostra quella foto.

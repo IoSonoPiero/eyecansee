@@ -20,7 +20,7 @@ Dischi esterni, chiavette USB e schede di memoria compaiono nel pannello a sinis
 
 - Chiavette USB, schede di memoria e dischi collegati via USB compaiono con il nome che hanno in Esplora file, per esempio "Backup (D:)".
 - Le unità interne (C: ed eventuali altre) sono sotto **Questo computer**: un clic apre un'altra unità.
-- Le unità di rete e i CD o DVD non compaiono nel pannello: aprili con **File > Apri indirizzo…**, per esempio `E:\` (vedi [Barra degli indirizzi e Apri posizione](address.md)).
+- Le unità di rete e i CD o DVD non compaiono nel pannello: aprili con **File > Apri indirizzo…**, per esempio `E:\` (vedi [Barra degli indirizzi e Apri indirizzo](address.md)).
 - Chiavette USB, schede di memoria e unità di rete non hanno il Cestino: un file eliminato lì va in una cartella nascosta `.EyeCanSee-trash` accanto a lui, che puoi aprire da EyeCanSee (vedi [Eliminare e cestino](delete.md)).
 
 ## Da sapere
