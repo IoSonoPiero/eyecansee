@@ -34,6 +34,7 @@ error-detail = { $detail }
 error-login = Il server ha rifiutato l'accesso: nome utente o password sbagliati.
 error-login-ssh = Il server { $detail } ha rifiutato l'accesso: non ha accettato nessuna delle tue chiavi SSH e non c'è una password, oppure la password è sbagliata.
 error-key-failed = La chiave salvata per { $detail } non si apre: la passphrase è sbagliata, oppure il file manca o non è una chiave. Correggila in File > Gestione server.
+error-key-failed-open = La chiave salvata per { $detail } non si apre: la passphrase è sbagliata, oppure il file manca o non è una chiave. Correggila nella Gestione server, aperta su questo server.
 error-permission = Permesso negato: { $detail }
 error-no-sftp = Il server risponde in SSH ma non ha il servizio SFTP ({ $detail }). Su un NAS, attiva SFTP nelle sue impostazioni.
 error-host-unknown = { $detail } non è mai stato usato da questo computer: conferma la sua chiave per collegarti.

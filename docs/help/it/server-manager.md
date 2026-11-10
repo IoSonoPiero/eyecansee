@@ -24,7 +24,7 @@ Scegli **File > Gestione server…** (![Gestione server…](icon://server)). Se 
 
 ## Come entra un server salvato
 
-Un server salvato entra **solo** con la password e la chiave salvate qui, mai con l'agente SSH o con le chiavi del sistema in `~/.ssh`. Se la chiave non si apre (passphrase sbagliata, file mancante), non entra, e la gestione server si apre su quel server per correggerlo.
+Un server salvato entra **solo** con la password e la chiave salvate qui, mai con l'agente SSH o con le chiavi del sistema in `~/.ssh`. Se la chiave non si apre (passphrase sbagliata, file mancante), non entra, e la gestione server si apre su quel server per correggerlo; il messaggio dice che è aperta lì. Se la gestione server era già aperta, il messaggio chiede di correggere la chiave in **File > Gestione server**.
 
 Anche un indirizzo che corrisponde a un server salvato (stesso protocollo, server, porta e utente), scritto nella barra degli indirizzi o riaperto all'avvio, usa la sua password e la sua chiave.
 

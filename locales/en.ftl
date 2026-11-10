@@ -35,6 +35,7 @@ error-detail = { $detail }
 error-login = The server refused the login: wrong user name or password.
 error-login-ssh = The server { $detail } refused the login: it accepted none of your SSH keys and no password was given, or the password is wrong.
 error-key-failed = The saved key of { $detail } could not be opened: wrong passphrase, or the file is missing or is not a key. Fix it in File > Server manager.
+error-key-failed-open = The saved key of { $detail } could not be opened: wrong passphrase, or the file is missing or is not a key. Fix it in the Server manager, open on this server.
 error-permission = Permission denied: { $detail }
 error-no-sftp = The server answers over SSH but has no SFTP service ({ $detail }). On a NAS, turn SFTP on in its settings.
 error-host-unknown = { $detail } has never been used from this computer: confirm its key to connect.

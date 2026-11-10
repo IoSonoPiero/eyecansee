@@ -73,7 +73,7 @@ impl App {
 
     /// What an error of the listing of `dir` asks for: a confirmation, a password, another
     /// folder. `true`: the listing is dropped (another folder opens instead).
-    fn listing_error(&mut self, dir: &str, r: &Result<Listing, source::Error>) -> bool {
+    fn listing_error(&mut self, dir: &str, r: &mut Result<Listing, source::Error>) -> bool {
         match r {
             Err(("error-device-kde" | "error-device-kde-back", _)) => self.kiod_ask = true,
             Err(("error-host-unknown" | "error-cert-unknown", _)) => self.host_ask = true,
@@ -98,12 +98,14 @@ impl App {
                 }
                 return true;
             }
-            // A saved key that does not open: the server manager on that server, to fix it.
-            Err(("error-key-failed", _)) if dir == self.dir && self.server_manager.is_none() => {
+            // A saved key that does not open: the server manager on that server, to fix it, and a
+            // message that says it is open there.
+            Err((id, _)) if *id == "error-key-failed" && dir == self.dir && self.server_manager.is_none() => {
                 let address = format!("{}{}", self.base, self.dir);
                 let mut f = AddressForm::manager();
                 f.choose(f.servers.iter().position(|s| crate::servers::find(&address).is_some_and(|found| found == *s)));
                 self.server_manager = Some(f);
+                *id = "error-key-failed-open";
             }
             _ => {}
         }
@@ -128,7 +130,7 @@ impl App {
                 crate::shots::phone_folders(&mut l.dirs);
             }
         }
-        if self.listing_error(&dir, &r) {
+        if self.listing_error(&dir, &mut r) {
             return;
         }
         if self.use_mount(ctx, &dir, &r) {
