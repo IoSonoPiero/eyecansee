@@ -1,6 +1,17 @@
-# A CAD drawing in the viewer: ezdxf's map of the United States.
+# A CAD drawing in the viewer: the flat plan (Flat.dxf), first saved as DWG next to it with
+# Export drawing, then the DWG opened.
 open /home/demo/Documents/Drawings
+2 select Flat.dxf
+3 act drawings
+4 click 328 293
+4.5 move 330 450 0.1
+4.8 wheel -300
+5.5 click 315 477
+6.5 click 285 422
+7 click 287 586
+10 key Escape
+11 open Flat.dwg
+11.5 move 1150 400 0.2
 width 1000
-2 open United States.dxf
-6 shot
-6.5 end
+15 shot
+15.5 end

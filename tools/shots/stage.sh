@@ -28,14 +28,11 @@ for f in "Lake Sherburne" "North Cascades" "Grand Canyon" "Wilder Kaiser" "Apple
     cp "$P/$f.jpg" "$S/Photos/IMG_0$n.jpg"; n=$((n + 1))
 done
 for m in Avocado Lantern ToyCar; do cp "$FILES/3d/gltf/$m.glb" "$D/Documents/3D models/"; done
-# ezdxf's examples (MIT) and a drawing of ours.
-cp "$FILES/cad/dxf/ezdxf-usa.dxf" "$D/Documents/Drawings/United States.dxf"
-cp "$FILES/cad/dxf/ezdxf-hatches_2.dxf" "$D/Documents/Drawings/Outlines.dxf"
-cp "$FILES/cad/generati/linee-e-retini.dxf" "$D/Documents/Drawings/Line types.dxf"
-# A place for the metadata panel: Grand Canyon.jpg has its camera's data but no GPS; added, the
-# South Rim of the photo's title (approximate).
-exiftool -q -overwrite_original -GPSLatitude=36.0592 -GPSLatitudeRef=N -GPSLongitude=112.1090 \
-    -GPSLongitudeRef=W "$H/Grand Canyon.jpg"
+# A flat plan of ours (tools/shots/Flat.dxf); the cad scene saves it as DWG with Export drawing.
+cp "$(dirname "$0")/Flat.dxf" "$D/Documents/Drawings/"
+# A photo with its real place for the metadata panel: a phone's raw file from raw.pixls.us (CC0),
+# above Lake Garda, with the GPS position, altitude and date the phone wrote.
+cp "$FILES/formati/RAW/Google - Pixel 6 Pro - 16bit (4-3).dng" "$H/Lake Garda.dng"
 # One date for all, as if copied from the camera after a holiday (the copies a day later).
 find "$D" "$WORK/disks" -type f -exec touch -d "2025-07-14 18:30" {} +
 find "$D/Pictures/Phone backup" -type f -exec touch -d "2025-07-15 09:12" {} +

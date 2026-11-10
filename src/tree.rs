@@ -444,6 +444,10 @@ impl App {
         header.body(|ui| match self.listings.get(&dir) {
             Some(Ok(listing)) => {
                 for child in listing.dirs.clone() {
+                    #[cfg(feature = "shots")]
+                    if crate::shots::tree_hides(&dir, &child) {
+                        continue;
+                    }
                     let label = self.item_name(&child);
                     self.tree_node(ui, salt, child, Icon::Folder, &label, may_reveal);
                 }
