@@ -153,6 +153,8 @@ mod video_read;
 mod viewer;
 mod watch;
 mod xmp;
+#[cfg(test)]
+mod help_check;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
