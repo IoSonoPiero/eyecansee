@@ -1,6 +1,6 @@
 //! Bookmarks, as the "Directory hotlist" of Total Commander (issue #25): places to go back to with
-//! one click, from the star button next to the address bar, the Bookmarks menu or Ctrl+Shift+D
-//! (Ctrl+D is Find duplicates). A bookmark is any address the address bar opens (a folder, a
+//! one click. The star next to the address bar adds; the drop-down beside it, the Bookmarks menu
+//! or Ctrl+Shift+D choose (Ctrl+D is Find duplicates). A bookmark is any address the address bar opens (a folder, a
 //! disk, a phone's folder, a server's folder, an image), kept as the bar shows it (never with a
 //! password) in `settings.json`, and opened as if typed there. One that cannot be opened (a
 //! folder gone, a disk or phone not connected) is said so in a message, never removed.
@@ -35,6 +35,8 @@ impl Bookmark {
 pub(crate) struct State {
     /// Bookmarks > Configure… is open.
     pub(crate) configuring: bool,
+    /// The row of the Configure window whose name and address are being changed.
+    editing: Option<usize>,
     /// The star button and its menu, to open it from the keyboard.
     menu: Option<(egui::Id, egui::Id)>,
     /// The menu was opened from the keyboard: the button has the focus until it closes.
@@ -102,9 +104,10 @@ impl App {
         }
     }
 
-    /// The items of the star menu and of the Bookmarks menu: the bookmarks by name (the address
-    /// on hover), then Add and Configure. The one chosen.
-    pub(crate) fn bookmark_items(&self, ui: &mut egui::Ui) -> Option<Act> {
+    /// The items of the drop-down next to the star and of the Bookmarks menu: the bookmarks by
+    /// name (the address on hover), then Add (in the menu only: the star adds) and Configure. The
+    /// one chosen.
+    pub(crate) fn bookmark_items(&self, ui: &mut egui::Ui, with_add: bool) -> Option<Act> {
         let t = |id| self.i18n.t(id);
         let mut chosen = None;
         let list = &self.settings.bookmarks;
@@ -118,12 +121,13 @@ impl App {
             }
         }
         ui.separator();
-        let here = self.here();
-        let have = list.iter().any(|b| same(&b.address, &here));
-        let add = t(if self.viewing.is_some() { "bm-add-image" } else { "bm-add-folder" });
-        let r = ui.add_enabled(self.loader.is_some() && !have, icons::menu_item(ui, None, add, String::new()));
-        if (if have { r.on_disabled_hover_text(t("bm-already")) } else { r }).clicked() {
-            chosen = Some(Act::AddBookmark);
+        if with_add {
+            let have = self.here_kept();
+            let add = t(if self.viewing.is_some() { "bm-add-image" } else { "bm-add-folder" });
+            let r = ui.add_enabled(self.loader.is_some() && !have, icons::menu_item(ui, None, add, String::new()));
+            if (if have { r.on_disabled_hover_text(t("bm-already")) } else { r }).clicked() {
+                chosen = Some(Act::AddBookmark);
+            }
         }
         if ui.add(icons::menu_item(ui, None, t("bm-configure"), String::new())).clicked() {
             chosen = Some(Act::Bookmarks);
@@ -131,10 +135,27 @@ impl App {
         chosen
     }
 
-    /// The star button next to the address bar, with the menu of the bookmarks.
+    /// The place shown is among the bookmarks.
+    fn here_kept(&self) -> bool {
+        let here = self.here();
+        self.settings.bookmarks.iter().any(|b| same(&b.address, &here))
+    }
+
+    /// Next to the address bar, as in Total Commander: the star adds the place shown, lit when it
+    /// is a bookmark already, and then takes it away, as in the browsers; the drop-down beside it
+    /// chooses one (Piero, 2026-11-10).
     pub(crate) fn bookmark_button(&mut self, ui: &mut egui::Ui) {
-        let button = icons::button(ui, Line::Star);
-        let (r, inner) = egui::containers::menu::MenuButton::from_button(button).ui(ui, |ui| self.bookmark_items(ui));
+        let have = self.here_kept();
+        let tip = self.i18n.t(if have { "bm-remove" } else if self.viewing.is_some() { "bm-star-image" } else { "bm-star-folder" });
+        if ui.add_enabled(self.loader.is_some(), icons::toggle(ui, have, Line::Star)).on_hover_text(tip).clicked() {
+            if have {
+                self.remove_here(ui.ctx());
+            } else {
+                self.act = Some(Act::AddBookmark);
+            }
+        }
+        let button = egui::Button::new((icons::line(ui, Line::Bookmark, 18.0), icons::line(ui, Line::Down, 14.0))).min_size(icons::BUTTON);
+        let (r, inner) = egui::containers::menu::MenuButton::from_button(button).ui(ui, |ui| self.bookmark_items(ui, false));
         let menu = egui::Popup::default_response_id(&r);
         self.bookmarks.menu = Some((r.id, menu));
         // Opened with the keys: once closed, the keys go back to the grid.
@@ -205,6 +226,17 @@ impl App {
         }
     }
 
+    /// The lit star clicked: the place shown is no longer a bookmark; the status bar says so.
+    fn remove_here(&mut self, ctx: &egui::Context) {
+        let here = self.here();
+        let Some(i) = self.settings.bookmarks.iter().position(|b| same(&b.address, &here)) else { return };
+        let gone = self.settings.bookmarks.remove(i);
+        log!("bookmark removed: {:?}", gone.address);
+        self.settings.save();
+        self.status_note = Some(self.i18n.t_args("bm-removed", &[("name", gone.label())]));
+        self.note_until = Some(ctx.input(|i| i.time) + 6.0);
+    }
+
     /// Bookmarks > Configure…: rename, move up and down, remove. Saved when the window closes
     /// (Close, Enter or Esc).
     pub(crate) fn bookmarks_window(&mut self, ctx: &egui::Context) {
@@ -215,57 +247,102 @@ impl App {
         let mut close = self.delete_answer.take().is_some() || ctx.input(|i| i.key_pressed(egui::Key::Escape));
         let mut list = std::mem::take(&mut self.settings.bookmarks);
         let file = crate::settings::config_path("settings.json").map(|p| p.display().to_string()).unwrap_or_default();
+        let mut editing = self.bookmarks.editing;
         egui::Modal::new(egui::Id::unique("bookmarks")).show(ctx, |ui| {
             ui.set_width(640.0);
             crate::theme::title(ui, self.i18n.t("bm-title"));
-            ui.add_space(4.0);
-            self.bookmark_rows(ui, &mut list);
-            ui.add_space(6.0);
-            ui.label(egui::RichText::new(self.i18n.t_args("bm-file", &[("path", &file)])).weak().small());
             ui.add_space(8.0);
-            close |= ui.button(self.i18n.t("srv-close")).clicked();
+            self.bookmark_rows(ui, &mut list, &mut editing);
+            ui.add_space(8.0);
+            ui.vertical_centered(|ui| {
+                ui.label(egui::RichText::new(self.i18n.t_args("bm-file", &[("path", &file)])).weak().small());
+                ui.add_space(8.0);
+                close |= ui.button(self.i18n.t("srv-close")).clicked();
+            });
         });
         self.settings.bookmarks = list;
+        self.bookmarks.editing = editing;
         if close {
+            for b in &mut self.settings.bookmarks {
+                b.address = crate::address::without_password(b.address.trim());
+            }
             self.bookmarks.configuring = false;
+            self.bookmarks.editing = None;
             self.settings.save();
         }
     }
 
-    /// One row per bookmark: its name to change, the address, up, down and remove.
-    fn bookmark_rows(&self, ui: &mut egui::Ui, list: &mut Vec<Bookmark>) {
+    /// One box per bookmark: its name and address, up, down, change (the pencil: name and address
+    /// in fields) and remove.
+    fn bookmark_rows(&self, ui: &mut egui::Ui, list: &mut Vec<Bookmark>, editing: &mut Option<usize>) {
         let t = |id| self.i18n.t(id);
         if list.is_empty() {
-            ui.label(egui::RichText::new(t("bm-empty-configure")).weak());
+            ui.vertical_centered(|ui| ui.label(egui::RichText::new(t("bm-empty-configure")).weak()));
             return;
         }
         let n = list.len();
         // (row, -1 up, 1 down, 0 remove), done after the rows are drawn.
         let mut change = None;
-        egui::ScrollArea::vertical().max_height(360.0).auto_shrink([false, true]).show(ui, |ui| {
-            egui::Grid::new("bm-rows").num_columns(5).spacing([6.0, 4.0]).show(ui, |ui| {
-                for (i, b) in list.iter_mut().enumerate() {
-                    ui.add(egui::TextEdit::singleline(&mut b.name).hint_text(t("bm-name-hint")).desired_width(200.0));
-                    let address = egui::Label::new(egui::RichText::new(&b.address).weak()).truncate();
-                    ui.add_sized([300.0, 20.0], address).on_hover_text(&b.address);
-                    for (on, icon, tip, what) in [(i > 0, Line::ChevronUp, "bm-up", -1), (i + 1 < n, Line::Down, "bm-down", 1), (true, Line::Delete, "bm-remove", 0)] {
-                        if ui.add_enabled(on, icons::small(ui, icon)).on_hover_text(t(tip)).clicked() {
-                            change = Some((i, what));
+        egui::ScrollArea::vertical().max_height(400.0).auto_shrink([false, true]).show(ui, |ui| {
+            for (i, b) in list.iter_mut().enumerate() {
+                egui::Frame::group(ui.style()).inner_margin(8.0).show(ui, |ui| {
+                    ui.set_width(ui.available_width());
+                    if *editing == Some(i) {
+                        if self.bookmark_fields(ui, b) {
+                            *editing = None;
                         }
+                        return;
                     }
-                    ui.end_row();
-                }
-            });
+                    ui.horizontal(|ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let buttons = [(true, Line::Delete, "bm-remove", 0), (true, Line::Pen, "bm-edit", 2), (i + 1 < n, Line::Down, "bm-down", 1), (i > 0, Line::ChevronUp, "bm-up", -1)];
+                            for (on, icon, tip, what) in buttons {
+                                if ui.add_enabled(on, icons::small(ui, icon)).on_hover_text(t(tip)).clicked() {
+                                    change = Some((i, what));
+                                }
+                            }
+                            ui.with_layout(egui::Layout::top_down(egui::Align::Min), |ui| {
+                                ui.add(egui::Label::new(egui::RichText::new(b.label()).strong().size(15.0)).truncate());
+                                ui.add(egui::Label::new(egui::RichText::new(&b.address).weak()).truncate()).on_hover_text(&b.address);
+                            });
+                        });
+                    });
+                });
+                ui.add_space(4.0);
+            }
         });
         match change {
             Some((i, 0)) => {
                 list.remove(i);
+                *editing = None;
             }
+            Some((i, 2)) => *editing = Some(i),
             Some((i, step)) => {
                 shift(list, i, step < 0);
+                *editing = None;
             }
             None => {}
         }
+    }
+
+    /// The name and the address of a bookmark in fields, and Done: `true` when done (also Enter).
+    fn bookmark_fields(&self, ui: &mut egui::Ui, b: &mut Bookmark) -> bool {
+        let t = |id| self.i18n.t(id);
+        let mut done = false;
+        let width = ui.available_width() - 100.0;
+        egui::Grid::new("bm-edit").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| {
+            ui.label(t("bm-name-hint"));
+            let name = ui.add(egui::TextEdit::singleline(&mut b.name).desired_width(width));
+            ui.end_row();
+            ui.label(t("bm-address"));
+            let address = ui.add(egui::TextEdit::singleline(&mut b.address).desired_width(width));
+            ui.end_row();
+            let enter = ui.input(|i| i.key_pressed(egui::Key::Enter));
+            done = enter && (name.lost_focus() || address.lost_focus());
+        });
+        ui.add_space(4.0);
+        ui.vertical_centered(|ui| done |= ui.button(t("bm-done")).clicked());
+        done
     }
 }
 

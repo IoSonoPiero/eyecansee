@@ -24,7 +24,7 @@ impl App {
             ui.menu_button(self.i18n.t("menu-image"), |ui| self.image_menu(ui, &act));
             ui.menu_button(self.i18n.t("menu-view"), |ui| self.view_menu(ui, &act));
             ui.menu_button(self.i18n.t("menu-bookmarks"), |ui| {
-                if let Some(a) = self.bookmark_items(ui) {
+                if let Some(a) = self.bookmark_items(ui, true) {
                     act.set(Some(a));
                 }
             });

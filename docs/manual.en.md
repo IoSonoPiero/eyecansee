@@ -263,10 +263,11 @@ With SFTP, on Linux and Windows, EyeCanSee reads `~/.ssh/config` as ssh does (al
 
 Bookmarks take you back with one click to the places you use most, as the "Directory hotlist" of Total Commander: handy to copy and paste between a phone, a disk and a server. A bookmark can be any place the address bar opens: a folder of this computer, a disk, a folder of a phone or of a server, or an image (it opens in the viewer, with its folder behind).
 
-- The **star** button next to the address bar, the **Bookmarks** menu and **Ctrl+Shift+D** open the same list: the bookmarks by name (pointing at one shows its address), then **+ Add current folder** (in the viewer **+ Add this image**) and **Configure…**. With Ctrl+Shift+D, the down arrow enters the list and Enter opens the bookmark chosen.
+- The **star** next to the address bar adds the folder open (in the viewer the image); it is lit when the place is already a bookmark, and then a click removes it.
+- The **Bookmarks** drop-down just after the star, and **Ctrl+Shift+D**, show the bookmarks by name (pointing at one shows its address) and **Configure…**; the **Bookmarks** menu at the top also has **+ Add current folder** (in the viewer **+ Add this image**). With Ctrl+Shift+D, the down arrow enters the list and Enter opens the bookmark chosen.
 - A new bookmark takes the name of the folder or image (the name of the device for the top of a disk or phone); a place already among the bookmarks is not added twice.
 - Choosing a bookmark opens it exactly as if its address were typed in the address bar: a server asks for the master password or the password as usual, and an image turned and not saved is asked about first.
-- **Configure…** lists the bookmarks: change a name in its field, move a bookmark up or down with the arrows, remove it with the bin. The changes are saved when the window closes.
+- **Configure…** shows a box for each bookmark, with its name and its address under it: the **pencil** opens the name and the address to change (**Done** or Enter to finish; a password typed in the address is not saved), the arrows move it up or down, the bin removes it. The changes are saved when the window closes.
 - A bookmark whose place no longer exists, or whose disk or phone is not connected, is never removed by itself: choosing it says why it cannot be opened, and it stays in the list for when the device is connected again. A server folder that no longer exists is said by the server when it is opened, as when its address is typed.
 
 The bookmarks are saved with the other settings, in `settings.json` (`~/.config/eyecansee` on Linux, `%APPDATA%\eyecansee` on Windows); a server's address is kept without its password.

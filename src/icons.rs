@@ -197,6 +197,7 @@ pub enum Line {
     Dashed,
     Dotted,
     Star,
+    Bookmark,
 }
 
 macro_rules! lucide {
@@ -277,6 +278,7 @@ fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Filters => lucide!("wand-sparkles").into(),
         Line::NewImage => lucide!("image-plus").into(),
         Line::Star => lucide!("star").into(),
+        Line::Bookmark => lucide!("bookmark").into(),
         Line::HeadFilled => format!(r#"{LINE}<path d="M3 12h11"/><path d="M13 7l8 5-8 5z" fill="currentColor"/></svg>"#).into(),
         Line::HeadOpen => own("M3 12h17M15 7l5 5-5 5"),
         Line::HeadDouble => format!(r#"{LINE}<path d="M9 12h6"/><path d="M10 7l-7 5 7 5zM14 7l7 5-7 5z" fill="currentColor"/></svg>"#).into(),
@@ -376,7 +378,7 @@ mod tests {
     #[test]
     fn line_icons_draw() {
         use Line::*;
-        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Pen, Rect, Ellipse, Highlight, Spotlight, Text, Bubble, Step, Lens, Circle, Stamp, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Settings, Manual, Quit, Server, Address, Slideshow, FlipH, FlipV, Updates, Pipette, Marquee, Filters, NewImage, HeadFilled, HeadOpen, HeadDouble, HeadDot, Solid, Dashed, Dotted, Star] {
+        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Pen, Rect, Ellipse, Highlight, Spotlight, Text, Bubble, Step, Lens, Circle, Stamp, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Settings, Manual, Quit, Server, Address, Slideshow, FlipH, FlipV, Updates, Pipette, Marquee, Filters, NewImage, HeadFilled, HeadOpen, HeadDouble, HeadDot, Solid, Dashed, Dotted, Star, Bookmark] {
             let img = render(&line_svg(icon).replace("currentColor", "#ff0000"), 24);
             let red = img.pixels.iter().filter(|p| p.a() > 128 && p.r() > 200 && p.g() < 60).count();
             assert!(red > 10, "{icon:?}: {red} pixels");
