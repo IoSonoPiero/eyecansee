@@ -5,8 +5,9 @@ The slideshow shows the pictures one after the other at full screen, on black, w
 ## Starting the slideshow
 
 - **View > Slideshow**, or ![Slideshow](icon://presentation) **Slideshow** in the right-click menu of a picture, in the grid or in the viewer.
-- With several pictures selected, it shows only those (pictures and videos), always from the first in the grid.
-- Otherwise it shows the folder, starting from the picture chosen (or the one open in the viewer).
+- With several files selected, it shows only the pictures and videos among them, always from the first in the grid.
+- Otherwise it shows the pictures and videos of the folder, starting from the one chosen (or the one open in the viewer). If the file chosen is not a picture or a video, it starts from the first picture of the folder.
+- 3D models, CAD drawings and audio files are never shown. In a folder without pictures or videos, **View > Slideshow** is off.
 
 ## During the slideshow
 

@@ -5,8 +5,9 @@ Il **Carosello** mostra le foto una dopo l'altra a schermo intero, su fondo nero
 ## Avviare il carosello
 
 - **Visualizza > Carosello**, oppure ![Carosello](icon://presentation) **Carosello** nel menù del clic destro su una foto, nella griglia o nel visore.
-- Con più foto selezionate mostra solo quelle (foto e video), sempre a partire dalla prima nella griglia.
-- Altrimenti mostra la cartella, a partire dalla foto scelta (o da quella aperta nel visore).
+- Con più file selezionati mostra solo le foto e i video tra quelli, sempre a partire dal primo nella griglia.
+- Altrimenti mostra le foto e i video della cartella, a partire da quello scelto (o da quello aperto nel visore). Se il file scelto non è una foto né un video, parte dalla prima foto della cartella.
+- I modelli 3D, i disegni CAD e i file audio non compaiono mai. In una cartella senza foto né video, **Visualizza > Carosello** è spento.
 
 ## Durante il carosello
 

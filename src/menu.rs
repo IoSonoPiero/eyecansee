@@ -138,7 +138,9 @@ impl App {
         let has_items = self.items() > 0;
         entry(ui, act, !viewing && has_items && self.cursor, item(t("menu-open-selected"), t("key-enter")), Act::Open);
         entry(ui, act, viewing, item(t("menu-back-to-grid"), "Esc".into()), Act::Back);
-        entry(ui, act, !self.files().is_empty(), item(t("menu-slideshow"), String::new()), Act::Slideshow(None));
+        // Off without pictures and videos: the rest stays out of the slideshow.
+        let show = self.files().iter().any(|f| crate::slideshow::in_show(&f.path));
+        entry(ui, act, show, item(t("menu-slideshow"), String::new()), Act::Slideshow(None));
         ui.separator();
         // Moving around (once a menu of its own, "Go", with only these).
         entry(ui, act, has_items, item(t("menu-next"), "→".into()), Act::Go(Go::Next));

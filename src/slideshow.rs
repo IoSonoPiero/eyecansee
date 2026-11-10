@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::App;
 use crate::i18n::I18n;
+use crate::selection::{PLAYED, kind};
 use crate::settings::Settings;
 
 /// How one image gives way to the next.
@@ -78,21 +79,35 @@ pub fn passage(now: f64, since: f64, secs: f64) -> f32 {
     ((now - since) / FADE_SECS.min(secs / 2.0)).clamp(0.0, 1.0) as f32
 }
 
+/// A picture or a video: 3D models, CAD drawings and audio files stay out of the slideshow
+/// (looked at closely, not in passing).
+pub fn in_show(path: &str) -> bool {
+    PLAYED.contains(&kind(path))
+}
+
+/// The slideshow's files and where it starts: the pictures and videos among `chosen` when there
+/// are several, from the first; otherwise those of the whole folder (`files`), from `current`,
+/// or from the first when `current` is not one of them.
+pub fn show_list(files: &[String], chosen: &[String], current: Option<&str>) -> (Vec<String>, usize) {
+    let several = chosen.iter().filter(|p| in_show(p)).count() > 1;
+    let paths: Vec<String> = files.iter().filter(|p| in_show(p) && (!several || chosen.contains(p))).cloned().collect();
+    let at = if several { 0 } else { current.and_then(|c| paths.iter().position(|p| p == c)).unwrap_or(0) };
+    (paths, at)
+}
+
 impl App {
-    /// From the menus: the marked images from the first, or every image of the folder from the
-    /// chosen one.
+    /// From the menus: the marked pictures and videos from the first, or every picture and video
+    /// of the folder from the chosen one.
     pub(crate) fn start_show(&mut self, ctx: &egui::Context, path: Option<String>) {
         let files: Vec<String> = self.files().iter().map(|f| f.path.clone()).collect();
-        // Pictures and videos: the 3D models, drawings and audio files chosen with them left out.
-        let chosen = self.grid_of(path.clone(), crate::selection::PLAYED);
+        let chosen = self.grid_of(path.clone(), PLAYED);
         let current = path.or_else(|| self.viewing.and_then(|i| files.get(i).cloned())).or_else(|| chosen.first().cloned());
-        let paths: Vec<String> = if chosen.len() > 1 { files.iter().filter(|p| chosen.contains(p)).cloned().collect() } else { files };
+        let (paths, at) = show_list(&files, &chosen, current.as_deref());
         if paths.is_empty() {
+            // View > Slideshow is off then; from elsewhere nothing happens.
+            log!("slideshow: no pictures or videos");
             return;
         }
-        // With several selected always from the first of them, as Open (also from the right
-        // click on another one); otherwise from the image chosen or open.
-        let at = if chosen.len() > 1 { 0 } else { current.and_then(|c| paths.iter().position(|p| *p == c)).unwrap_or(0) };
         log!("slideshow: {} images from {at}", paths.len());
         let was_full = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
         ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
@@ -325,5 +340,24 @@ mod tests {
         assert_eq!(passage(12.0, 10.0, 5.0), 1.0);
         // A short time per image: the passage takes half of it at most.
         assert_eq!(passage(10.5, 10.0, 1.0), 1.0);
+    }
+
+    #[test]
+    fn only_pictures_and_videos() {
+        let files: Vec<String> = ["a.jpg", "b.glb", "c.dxf", "d.mp3", "e.mp4", "f.png"].map(String::from).to_vec();
+        let all = || vec!["a.jpg".to_string(), "e.mp4".into(), "f.png".into()];
+        // Nothing selected: the whole folder without the 3D model, the drawing and the audio.
+        assert_eq!(show_list(&files, &[], None), (all(), 0));
+        // One picture or video: the folder, from it.
+        assert_eq!(show_list(&files, &["e.mp4".into()], Some("e.mp4")), (all(), 1));
+        // A 3D model alone (chosen or open in the viewer): from the first picture.
+        assert_eq!(show_list(&files, &["b.glb".into()], Some("b.glb")), (all(), 0));
+        // Several: only those that are pictures or videos, from the first.
+        let chosen: Vec<String> = ["f.png", "b.glb", "a.jpg"].map(String::from).to_vec();
+        assert_eq!(show_list(&files, &chosen, Some("f.png")), (vec!["a.jpg".to_string(), "f.png".into()], 0));
+        // No picture nor video: nothing to show.
+        let none: Vec<String> = ["b.glb", "c.dxf", "d.mp3"].map(String::from).to_vec();
+        assert_eq!(show_list(&none, &[], None), (vec![], 0));
+        assert!(!none.iter().any(|p| in_show(p)));
     }
 }
