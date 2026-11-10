@@ -362,10 +362,15 @@ impl App {
         let name = self.item_name(&path);
         let mut response = ui.interact(rect, ui.scope_id().with(("cell", i)), Sense::click());
         // Not under a confirmation: the name popping up next to it looked like a highlighted item.
+        // A file shows its details (the name under it is often cut, issue #89), a folder its name.
         if !self.asking() {
-            response = response.on_hover_text(&name);
+            response = match i.checked_sub(ndirs) {
+                Some(file) => response.on_hover_ui(|ui| {
+                    ui.label(self.file_tooltip(file));
+                }),
+                None => response.on_hover_text(&name),
+            };
         }
-
         let painter = ui.painter_at(rect);
         let active = self.focus == Focus::Grid;
         let fill = selection_fill(ui, active);

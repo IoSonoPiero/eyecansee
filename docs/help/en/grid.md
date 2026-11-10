@@ -10,6 +10,8 @@ The grid shows what is in the open folder: first the ![..](icon://color-up) **..
 - **Audio files**, with their cover and the ![Audio](icon://color-audio) sign, or a note when they have no cover.
 - **3D models** and **CAD drawings**, with a picture of the model or the drawing. See [3D models](model-3d.md) and [CAD drawings](cad.md).
 
+Rest the mouse on a file to see its details: the full name with its extension (the name under the thumbnail may be cut), the size, the file date and, once its metadata have been read, the size in pixels. On a folder you see its name.
+
 A turning circle means the thumbnail is still being made. The ![Download](icon://color-download) sign means that a component must be downloaded first to show that file (see [Add-on components](components.md)). Hidden files and folders are not shown. An empty folder says "This folder contains no images or subfolders".
 
 Files you have copied or cut carry the ![Copied](icon://color-copied) or ![Cut](icon://color-cut) sign until you paste them, and cut files look faded (see [Copying and moving](copy-move.md)). A folder where you deleted something on a phone or a server has a strip at the top with **Open the trash** (see [Deleting and the trash](delete.md)).

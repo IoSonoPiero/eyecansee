@@ -10,6 +10,8 @@ La griglia mostra cosa c'è nella cartella aperta: prima la cella ![..](icon://c
 - I **file audio**, con la loro copertina e il simbolo ![Audio](icon://color-audio), oppure con una nota se non hanno copertina.
 - I **modelli 3D** e i **disegni CAD**, con un'immagine del modello o del disegno. Vedi [Modelli 3D](model-3d.md) e [Disegni CAD](cad.md).
 
+Tieni il mouse fermo su un file per vederne i dettagli: il nome intero con l'estensione (quello sotto la miniatura può essere tagliato), il peso, la data del file e, quando i suoi metadati sono già stati letti, le dimensioni in pixel. Su una cartella compare il suo nome.
+
 Un cerchio che gira vuol dire che la miniatura è ancora in preparazione. Il simbolo ![Download](icon://color-download) vuol dire che per mostrare quel file bisogna prima scaricare un componente (vedi [Componenti aggiuntivi](components.md)). I file e le cartelle nascosti non si vedono. Una cartella vuota dice "Questa cartella non contiene immagini né sottocartelle".
 
 I file che hai copiato o tagliato portano il simbolo ![Copiati](icon://color-copied) o ![Tagliati](icon://color-cut) finché non li incolli, e quelli tagliati sono sbiaditi (vedi [Copiare e spostare](copy-move.md)). Una cartella in cui hai eliminato qualcosa su un telefono o su un server ha in alto una striscia con **Apri il cestino** (vedi [Eliminare e cestino](delete.md)).

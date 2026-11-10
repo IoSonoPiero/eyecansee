@@ -1,21 +1,32 @@
 //! Sizes, dates and times as the user reads them.
 
 use crate::App;
+use crate::i18n::I18n;
 
 impl App {
-    /// Modification date in the computer's time zone, in the language's format. `modified` stays
-    /// as it arrived (the thumbnail cache needs it): Unix seconds from phones, RFC 3339 from OpenDAL.
+    /// Modification date in the language's format (`date`).
     pub(crate) fn file_date(&self, modified: &str) -> Option<String> {
-        let local = parse_modified(modified)?.to_zoned(jiff::tz::TimeZone::system());
-        Some(local.strftime(&self.i18n.t("date-format")).to_string())
+        date(&self.i18n, modified)
     }
 
-    /// 850 KB, 3.9 MB (the language's decimal separator).
+    /// 850 KB, 3.9 MB (`size`).
     pub(crate) fn human_size(&self, bytes: u64) -> String {
-        let kb = bytes as f64 / 1024.0;
-        let s = if kb < 1024.0 { format!("{kb:.0} KB") } else { format!("{:.1} MB", kb / 1024.0) };
-        s.replace('.', &self.i18n.t("decimal-separator"))
+        size(&self.i18n, bytes)
     }
+}
+
+/// Modification date in the computer's time zone, in the language's format. `modified` stays
+/// as it arrived (the thumbnail cache needs it): Unix seconds from phones, RFC 3339 from OpenDAL.
+pub(crate) fn date(i18n: &I18n, modified: &str) -> Option<String> {
+    let local = parse_modified(modified)?.to_zoned(jiff::tz::TimeZone::system());
+    Some(local.strftime(&i18n.t("date-format")).to_string())
+}
+
+/// 850 KB, 3.9 MB (the language's decimal separator).
+pub(crate) fn size(i18n: &I18n, bytes: u64) -> String {
+    let kb = bytes as f64 / 1024.0;
+    let s = if kb < 1024.0 { format!("{kb:.0} KB") } else { format!("{:.1} MB", kb / 1024.0) };
+    s.replace('.', &i18n.t("decimal-separator"))
 }
 
 /// `File::modified` as an instant: Unix seconds (phones) or RFC 3339 (OpenDAL); "" = no date.

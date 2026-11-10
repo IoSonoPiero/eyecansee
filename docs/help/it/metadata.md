@@ -6,7 +6,7 @@ Sotto la griglia, il pannello dei metadati mostra quello che si sa del file sele
 
 ## I riquadri
 
-- **File**: nome, peso (anche in byte), data del file e dimensioni in pixel. C'è per ogni file, anche senza metadati.
+- **File**: nome, peso (anche in byte), data del file e dimensioni in pixel. C'è per ogni file, anche senza metadati. Gli stessi dettagli compaiono tenendo il mouse fermo su un file nella griglia (vedi [La griglia delle miniature](grid.md)).
 - **Fotocamera**: marca, modello, obiettivo e software.
 - **Scatto**: data dello scatto, esposizione, diaframma, ISO, lunghezza focale e flash.
 - **Immagine**: formato, larghezza e altezza, colore e bit per canale, spazio colore. Per una foto RAW sono quelli dell'immagine che EyeCanSee ne sviluppa (ritagliata come dice la fotocamera); un disegno SVG ha le sue dimensioni e niente colore né bit.

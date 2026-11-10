@@ -2,8 +2,9 @@
 
 use eframe::egui::{self, Align2, Color32, Rect, ScrollArea, Sense, Ui, pos2, vec2};
 
+use crate::i18n::I18n;
 use crate::meta::Group;
-use crate::{App, meta};
+use crate::{App, human, meta};
 use crate::source;
 
 impl App {
@@ -148,24 +149,24 @@ impl App {
             ui.weak(t("meta-none-selected"));
             return;
         };
-        let field = |label: &str| meta.and_then(|m| m.fields.iter().find(|(_, l, _)| *l == label).map(|(_, _, v)| v.clone()));
-        let pixels = field("meta-width").zip(field("meta-height")).map(|(w, h)| format!("{} × {h}", w.trim_end_matches(" px")));
-        let size = format!("{} ({} {})", self.human_size(f.size), grouped(f.size, &t("thousands-separator")), t("meta-bytes"));
-        let rows = [
-            ("meta-file-name", Some(source::shown(&f.path).trim_end_matches('/').to_string())),
-            ("meta-file-size", Some(size)),
-            ("meta-file-date", self.file_date(&f.modified)),
-            ("meta-pixels", pixels),
-        ];
         egui::Grid::new(("meta", "file")).num_columns(2).show(ui, |ui| {
-            for (label, value) in rows {
-                if let Some(v) = value {
-                    ui.weak(t(label));
-                    ui.add(egui::Label::new(v).truncate());
-                    ui.end_row();
-                }
+            for (label, value) in file_rows(&self.i18n, f, meta) {
+                ui.weak(t(label));
+                ui.add(egui::Label::new(value).truncate());
+                ui.end_row();
             }
         });
+    }
+
+    /// Tooltip of a file of the grid (`file`: index among the images): the File box's lines, the
+    /// pixels only if its metadata were already read (no file is read for a tooltip).
+    pub(crate) fn file_tooltip(&self, file: usize) -> String {
+        let Some(f) = self.files().get(file) else { return String::new() };
+        let meta = match &self.meta {
+            Some((i, Ok(Some(m)))) if *i == file => Some(m),
+            _ => None,
+        };
+        file_hint(&self.i18n, f, meta)
     }
 
     /// Status bar of the viewer, like the grid's: name, position, pixels, size on disk, date
@@ -300,6 +301,28 @@ fn key_rows(text: &str) -> Vec<(&str, &str)> {
     text.split('|').filter_map(|part| part.split_once(':')).map(|(k, w)| (k.trim(), w.trim())).collect()
 }
 
+/// The File box's lines (label id, value): name, size on disk (exact too), file date and, once
+/// the metadata are read (`meta`), the pixels. Lines without a value are left out.
+fn file_rows(i18n: &I18n, f: &source::File, meta: Option<&meta::Meta>) -> Vec<(&'static str, String)> {
+    let t = |id: &str| i18n.t(id);
+    let field = |label: &str| meta.and_then(|m| m.fields.iter().find(|(_, l, _)| *l == label).map(|(_, _, v)| v.clone()));
+    let pixels = field("meta-width").zip(field("meta-height")).map(|(w, h)| format!("{} × {h}", w.trim_end_matches(" px")));
+    let size = format!("{} ({} {})", human::size(i18n, f.size), grouped(f.size, &t("thousands-separator")), t("meta-bytes"));
+    let rows = [
+        ("meta-file-name", Some(source::shown(&f.path).trim_end_matches('/').to_string())),
+        ("meta-file-size", Some(size)),
+        ("meta-file-date", human::date(i18n, &f.modified)),
+        ("meta-pixels", pixels),
+    ];
+    rows.into_iter().filter_map(|(label, value)| value.map(|v| (label, v))).collect()
+}
+
+/// The grid's tooltip on a file: the File box's lines, one "label: value" a line.
+fn file_hint(i18n: &I18n, f: &source::File, meta: Option<&meta::Meta>) -> String {
+    let lines: Vec<_> = file_rows(i18n, f, meta).into_iter().map(|(label, v)| format!("{}: {v}", i18n.t(label))).collect();
+    lines.join("\n")
+}
+
 /// 245464190 → "245.464.190" with `sep` between the groups of three digits.
 fn grouped(n: u64, sep: &str) -> String {
     let digits = n.to_string();
@@ -325,6 +348,25 @@ mod tests {
                 assert_eq!(super::key_rows(text).len(), text.split('|').count(), "{line}");
             }
         }
+    }
+
+    /// The grid's tooltip on a file: full name, size, date, and the pixels only once known.
+    #[test]
+    fn file_tooltip_lines() {
+        use crate::i18n::I18n;
+        use crate::meta::{Group, Meta};
+        let f = crate::source::File { path: "DCIM/Camera/a rather long holiday name.jpg".into(), size: 4_089_123, modified: String::new() };
+        let en = I18n::new("en");
+        assert_eq!(super::file_hint(&en, &f, None), "Name: a rather long holiday name.jpg\nSize: 3.9 MB (4,089,123 bytes)");
+        let meta = Meta { fields: vec![(Group::Image, "meta-width", "4000 px".into()), (Group::Image, "meta-height", "3000 px".into())], gps: None };
+        let it = I18n::new("it");
+        let dated = crate::source::File { modified: "1776333600".into(), ..f };
+        let lines: Vec<_> = super::file_hint(&it, &dated, Some(&meta)).lines().map(str::to_string).collect();
+        assert_eq!(lines.len(), 4, "{lines:?}");
+        assert_eq!(lines[0], "Nome: a rather long holiday name.jpg");
+        assert_eq!(lines[1], "Dimensione: 3,9 MB (4.089.123 byte)");
+        assert!(lines[2].starts_with("Data del file: ") && lines[2].contains("/2026 "), "{}", lines[2]);
+        assert_eq!(lines[3], "Pixel: 4000 × 3000 px");
     }
 
     #[test]

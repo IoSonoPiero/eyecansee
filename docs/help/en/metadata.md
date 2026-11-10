@@ -6,7 +6,7 @@ Under the grid, the metadata panel shows what is known about the selected file: 
 
 ## The boxes
 
-- **File**: name, size (also in bytes), file date and size in pixels. Every file has it, also without metadata.
+- **File**: name, size (also in bytes), file date and size in pixels. Every file has it, also without metadata. The same details appear when you rest the mouse on a file in the grid (see [The thumbnail grid](grid.md)).
 - **Camera**: make, model, lens and software.
 - **Shot**: date taken, exposure, aperture, ISO, focal length and flash.
 - **Image**: format, width and height, colour and bits per channel, colour space. For a Camera RAW photo they are those of the picture EyeCanSee develops from it (cut as the camera says); an SVG drawing has its own size and no colour or bits.
