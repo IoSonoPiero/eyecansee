@@ -92,7 +92,8 @@ fn files(dir: &Path, problems: &mut Vec<String>) -> Vec<(String, PathBuf)> {
     out
 }
 
-/// Reads `<root>/<lang>/*.md` for every language and the names of `<root>/img/*.webp`.
+/// Reads `<root>/<lang>/*.md` for every language and the names of `<root>/img/*.webp` (besides
+/// them only `CREDITS.md`).
 fn load(root: &Path) -> Docs {
     let mut docs = Docs::default();
     for &(lang, _) in LANGS {
@@ -112,6 +113,8 @@ fn load(root: &Path) -> Docs {
     for (name, path) in files(&root.join("img"), &mut docs.problems) {
         match name.strip_suffix(".webp") {
             Some(stem) => _ = docs.images.insert(stem.to_string()),
+            // The authors and licences of what the pictures show: not built into the program.
+            None if name == "CREDITS.md" => {}
             None => docs.problems.push(format!("{}: images are .webp", path.display())),
         }
     }

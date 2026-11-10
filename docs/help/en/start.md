@@ -44,3 +44,7 @@ Press **F1** at any time: this guide opens on the page about what you are doing.
 - [Copying and moving](copy-move.md) and [Deleting and the trash](delete.md), to tidy up your photos.
 - [Android phones](phone.md) and [Servers (FTP and SFTP)](servers.md), to work on the photos of a phone or a NAS.
 - [Editing an image](editor.md), to draw on a picture, crop it or hide parts of it.
+
+## Picture credits
+
+The photos, videos, 3D models and drawings shown in the pictures of this guide are in the public domain or free to use. Their authors, licences and sources are listed in [CREDITS.md](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/help/img/CREDITS.md).

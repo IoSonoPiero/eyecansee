@@ -60,6 +60,19 @@ pub(crate) fn active() -> bool {
     std::env::var_os("EYECANSEE_SHOTS_SCENE").is_some()
 }
 
+/// The demo home of `tools/shots.sh`, as the tree names it (no leading `/`).
+const HOME: &str = "home/demo/";
+
+/// In the tree of "This computer", the folders above the demo home show only the way down to it:
+/// not `bin`, `etc`, `proc`… `true` for a `child` of `dir` left out.
+pub(crate) fn tree_hides(dir: &str, child: &str) -> bool {
+    active() && off_the_way(dir, child)
+}
+
+fn off_the_way(dir: &str, child: &str) -> bool {
+    HOME.starts_with(dir) && dir.len() < HOME.len() && !HOME.starts_with(child)
+}
+
 fn key(name: &str) -> Key {
     Key::from_name(name).unwrap_or_else(|| panic!("shots: unknown key {name}"))
 }
@@ -322,6 +335,15 @@ pub(crate) fn phone_folders(dirs: &mut Vec<String>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn tree_way_home() {
+        let hidden: Vec<bool> = [("", "home/"), ("", "etc/"), ("home/", "home/demo/"), ("home/", "home/other/"), ("home/demo/", "home/demo/Music/")]
+            .iter()
+            .map(|(dir, child)| off_the_way(dir, child))
+            .collect();
+        assert_eq!(hidden, [false, true, false, true, false]);
+    }
 
     #[test]
     fn scene_steps() {

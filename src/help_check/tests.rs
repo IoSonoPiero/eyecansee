@@ -192,7 +192,9 @@ fn load_from_disk() {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, text).unwrap();
     }
-    std::fs::write(root.join("img/grid.png"), "").unwrap();
+    for name in ["grid.png", "CREDITS.md", "notes.md"] {
+        std::fs::write(root.join("img").join(name), "").unwrap();
+    }
     let docs = load(&root);
     std::fs::remove_dir_all(&root).unwrap();
     assert_eq!(docs.pages["en"]["one"], "# One\n");
@@ -200,5 +202,7 @@ fn load_from_disk() {
     assert_eq!(docs.images.iter().collect::<Vec<_>>(), ["grid"]);
     finds(&docs.problems, "notes.txt: not a .md page");
     finds(&docs.problems, "grid.png: images are .webp");
+    finds(&docs.problems, "notes.md: images are .webp");
+    assert!(!docs.problems.iter().any(|p| p.contains("CREDITS.md")), "{:?}", docs.problems);
     assert_eq!(load(&root).problems.len(), 3, "a missing folder for each language and for the images");
 }
