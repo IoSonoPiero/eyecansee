@@ -1,0 +1,16 @@
+# Android phones: a real phone (connected, unlocked, in File transfer) opened from the Devices
+# block, in its folder DCIM/EyeCanSee-guida made for the pictures (12 of the free files of
+# SOURCES.txt). Only these folders of the phone are shown, the others stay out; the address bar
+# (with the phone's serial number) is cut away. Before: `pkill -x gvfsd-mtp` (in the namespace the
+# app cannot take the phone from gvfs); after: `gio mount mtp://<the phone>/` gives it back to the
+# desktop. The phone's place in the Devices block (third, after the made-up BACKUP and USB STICK)
+# is clicked. Take it before trash-strip: afterwards the folder has a trash, and its strip.
+phone-folders DCIM Documents Download Movies Music Pictures EyeCanSee-guida
+width 1000
+3 click 100 132
+6.5 open interna
+9.5 open DCIM
+12.5 open EyeCanSee-guida
+16 click 1100 700
+18 shot phone 0 56 1200 744
+18.5 end

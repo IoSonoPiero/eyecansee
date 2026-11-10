@@ -305,6 +305,20 @@ fn save(img: &egui::ColorImage, ppp: f32, part: Option<Rect>, width: Option<u32>
     Ok((small.width(), small.height(), webp.len()))
 }
 
+/// The folders of a real phone that a scene may show, from its line `phone-folders <name>…`
+/// (the other folders of the user's phone stay out of the pictures). No line: all of them.
+pub(crate) fn phone_folders(dirs: &mut Vec<String>) {
+    static SHOWN: std::sync::OnceLock<Option<Vec<String>>> = std::sync::OnceLock::new();
+    let shown = SHOWN.get_or_init(|| {
+        let text = std::fs::read_to_string(std::env::var_os("EYECANSEE_SHOTS_SCENE")?).ok()?;
+        let line = text.lines().find_map(|l| l.strip_prefix("phone-folders "))?;
+        Some(line.split_whitespace().map(String::from).collect())
+    });
+    if let Some(shown) = shown {
+        dirs.retain(|d| shown.iter().any(|s| d.trim_end_matches('/').rsplit('/').next() == Some(s.as_str())));
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
