@@ -1,0 +1,6 @@
+# The Options window over the grid.
+open /home/demo/Pictures/Holiday
+width 1000
+3 act options
+5 shot
+5.5 end

@@ -1,0 +1,5 @@
+# Crop: the New image window (A4 is the size it starts with).
+open /home/demo/Pictures/Holiday
+3 act new-image
+5 shot new-image 412 294 377 216
+5.5 end

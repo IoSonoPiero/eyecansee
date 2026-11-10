@@ -31,7 +31,14 @@ impl App {
             ui.menu_button(self.i18n.t("menu-tools"), |ui| self.tools_menu(ui, &act));
             ui.menu_button(self.i18n.t("menu-help"), |ui| self.help_menu(ui, &act));
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                ui.weak(format!("EyeCanSee {}", version()));
+                // Left out of the manual's pictures, which it would date.
+                #[cfg(feature = "shots")]
+                let version_shown = !crate::shots::active();
+                #[cfg(not(feature = "shots"))]
+                let version_shown = true;
+                if version_shown {
+                    ui.weak(format!("EyeCanSee {}", version()));
+                }
                 if let Some(r) = &self.update {
                     // Red: as a plain button it went unnoticed.
                     let text = self.i18n.t_args("update-install", &[("version", &r.version)]);
