@@ -38,7 +38,8 @@ Ogni server salvato compare nel pannello a sinistra, nella sezione **Server** so
 
 ## Da sapere
 
-- Senza password principale, password e passphrase vengono salvate in chiaro: la prima volta che salvi un server, EyeCanSee te lo dice una volta. Vedi [Password salvate](passwords.md).
+- Un server si salva anche da **File > Apri indirizzo…** con **Salva e apri**, per esempio quando un server rifiuta l'accesso e chiede la password: un server salvato con lo stesso accesso prende la password nuova e tiene il resto (vedi [Barra degli indirizzi e Apri indirizzo](address.md)).
+- Senza password principale, password e passphrase vengono salvate in chiaro: la prima volta che salvi un server, qui o con **Salva e apri**, EyeCanSee te lo dice una volta. Vedi [Password salvate](passwords.md).
 - La porta si può lasciare vuota: FTP usa la 21, SFTP la 22.
 - Gli spazi prima o dopo un valore, per esempio incollati insieme, vengono tolti quando salvi il server; non in password e passphrase, dove possono farne parte.
 - Dal pannello copi e incolli tra server, computer, dischi e telefoni come tra due cartelle (vedi [Copiare e spostare](copy-move.md)).

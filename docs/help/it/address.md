@@ -25,15 +25,17 @@ Quando cambi cartella, la barra mostra quella nuova. Una password non compare ma
 4. **Porta**: solo se non è quella solita (21 per FTP, 22 per SFTP).
 5. **Utente** e **Password**. Con FTP, un utente vuoto entra come `anonymous`.
 6. **Cartella**: la cartella da aprire (`/` se vuota).
-7. **Apri** (o **Invio**) la apre; **Annulla** (o **Esc**) chiude la finestra.
+7. **Apri** (o **Invio**) la apre senza salvare nulla; **Salva e apri** salva anche il server con la sua password nella [gestione server](server-manager.md), poi lo apre; **Annulla** (o **Esc**) chiude la finestra.
+
+**Salva e apri** vale solo per un server: per una cartella di questo computer è grigio. Se un server salvato ha già questo accesso (stesso protocollo, server, porta e utente), prende la password che hai scritto e tiene nome, cartella e chiave; altrimenti si aggiunge un server salvato nuovo, col nome del server. Se i server salvati sono protetti da una password principale, EyeCanSee la chiede prima (vedi [Password salvate](passwords.md)).
 
 I campi restano grigi finché il campo in alto contiene qualcosa. Gli spazi prima o dopo un valore, per esempio incollati insieme, vengono tolti; non nella password, dove possono farne parte.
 
 ## Quando un server chiede la password
 
-Se un server rifiuta l'accesso, Apri indirizzo si apre da solo con l'indirizzo già compilato: scrivi la password e premi **Invio**. Succede lo stesso all'avvio quando l'ultima cartella era su un server FTP con un utente che non è tra i server salvati, perché EyeCanSee non conserva quella password.
+Se un server rifiuta l'accesso, Apri indirizzo si apre da solo con l'indirizzo già compilato: scrivi la password e premi **Invio** per usarla solo questa volta, oppure fai clic su **Salva e apri** per tenerla (anche quando la password di un server salvato è cambiata). Succede lo stesso all'avvio quando l'ultima cartella era su un server FTP con un utente che non è tra i server salvati, perché EyeCanSee non conserva quella password.
 
-Per non scrivere la password ogni volta, salva il server in **File > Gestione server…**: un indirizzo che corrisponde a un server salvato (stesso protocollo, server, porta e utente), anche scritto nella barra degli indirizzi, usa la sua password e la sua chiave. Vedi [Gestire i server](server-manager.md).
+Per non scrivere la password ogni volta, fai clic su **Salva e apri**, oppure salva il server in **File > Gestione server…**: un indirizzo che corrisponde a un server salvato (stesso protocollo, server, porta e utente), anche scritto nella barra degli indirizzi, usa la sua password e la sua chiave. Vedi [Gestire i server](server-manager.md).
 
 ## Avviare EyeCanSee su un indirizzo
 

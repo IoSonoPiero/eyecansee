@@ -28,7 +28,7 @@ The last one is an alias of `~/.ssh/config`. Without a user, FTP logs in as `ano
 - EyeCanSee reads `~/.ssh/config` as ssh does (aliases, HostName, User, Port, IdentityFile; not ProxyJump), on Linux and on Windows.
 - It logs in with key files without a passphrase, or with the password. It never uses the system's SSH agent. For a key with a passphrase, save the server in the server manager.
 - A password typed in the address is tried first.
-- If the server refuses, **File > Open location…** opens with everything filled in, ready for the password.
+- If the server refuses, **File > Open location…** opens with everything filled in, ready for the password; **Save and open** also keeps it among the saved servers.
 - RSA keys work, but after a login with one EyeCanSee warns once per server: the library it uses has a known flaw with no fix yet. An ed25519 key is the better choice.
 
 ## Working on a server

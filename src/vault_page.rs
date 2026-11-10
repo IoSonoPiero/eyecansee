@@ -11,6 +11,8 @@ use crate::{App, browser, servers};
 #[derive(Clone)]
 pub(crate) enum Then {
     Open(String),
+    /// File > Open location's "Save and open": the server to save, then the address to open.
+    SaveOpen(servers::Saved, String),
     Manager,
     /// The left panel's list of servers.
     Panel,
@@ -100,6 +102,10 @@ impl App {
                     self.saved_servers = servers::load();
                     match u.then {
                         Then::Open(address) => self.open_source(ctx, &address),
+                        Then::SaveOpen(s, address) => match self.keep_server(s) {
+                            Ok(()) => self.open_source(ctx, &address),
+                            Err(e) => self.error = Some(self.i18n.t_args("srv-save-failed", &[("detail", e.as_str())])),
+                        },
                         Then::Manager => self.server_manager = Some(AddressForm::manager()),
                         Then::Panel => {}
                     }

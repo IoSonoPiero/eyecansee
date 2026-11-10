@@ -149,6 +149,17 @@ impl AddressForm {
         })
     }
 
+    /// What "Save and open" writes: the fields, or the whole address typed when it is a server's
+    /// (its password as typed). `None` for a local folder or another kind of address.
+    pub(crate) fn to_keep(&self) -> Option<Saved> {
+        let url = self.url.trim();
+        if url.is_empty() {
+            return self.saved();
+        }
+        let password = url::Url::parse(url).ok()?.password().map(|p| percent_decode_str(p).decode_utf8_lossy().into_owned()).unwrap_or_default();
+        Self { password, ..Self::for_password(url)? }.saved()
+    }
+
     /// Save: the chosen server changed, or a new one added; then the file written and the fields
     /// shown as saved (trimmed).
     pub(crate) fn store(&mut self) {
@@ -195,6 +206,7 @@ impl App {
         // In a field Enter and Esc reach the window; elsewhere they arrive as `delete_answer`.
         let keys = self.delete_answer.take();
         let mut answer = ctx.input(|i| if i.key_pressed(Key::Escape) || keys == Some(false) { Some(false) } else { None });
+        let mut save = None;
         egui::Modal::new(egui::Id::unique("open-address")).show(ctx, |ui| {
             ui.set_width(460.0);
             crate::theme::title(ui, t("addr-title"));
@@ -214,8 +226,18 @@ impl App {
                 ui.label(browser::error_text(ui, t("addr-bad-port")));
             }
             ui.add_space(8.0);
+            if let Some(e) = &f.error {
+                ui.label(browser::error_text(ui, self.i18n.t_args("srv-save-failed", &[("detail", e.as_str())])));
+            }
+            // Enter: Open, without saving.
             let enter = keys == Some(true) || ui.input(|i| i.key_pressed(Key::Enter));
             ui.horizontal(|ui| {
+                let keep = address.as_ref().and(f.to_keep());
+                if ui.add_enabled(keep.is_some(), egui::Button::new(t("addr-save-open"))).on_hover_text(t("addr-save-open-hint")).on_disabled_hover_text(t("addr-save-open-local")).clicked() {
+                    log!("open location: save and open");
+                    save = keep;
+                    answer = Some(true);
+                }
                 if ui.add_enabled(address.is_some(), egui::Button::new(t("addr-open"))).clicked() || (enter && address.is_some()) {
                     answer = Some(true);
                 }
@@ -224,16 +246,45 @@ impl App {
                 }
             });
         });
-        match answer {
-            Some(true) => {
-                self.open_address = None;
-                if let Some(a) = address {
-                    self.open_source(ctx, &a);
-                }
-            }
-            Some(false) => self.open_address = None,
-            None => self.open_address = Some(f),
+        match (answer, address) {
+            (Some(true), Some(a)) => self.address_answered(ctx, f, save, a),
+            (Some(_), _) => self.open_address = None,
+            (None, _) => self.open_address = Some(f),
         }
+    }
+
+    /// Open location answered: the server saved first ("Save and open", after the master
+    /// password when the saved servers are locked), then the address opened. Not saved: the
+    /// window stays, with the reason.
+    fn address_answered(&mut self, ctx: &egui::Context, mut f: AddressForm, save: Option<Saved>, address: String) {
+        self.open_address = None;
+        match save {
+            Some(s) if servers::locked() => self.ask_master(crate::vault_page::Then::SaveOpen(s, address)),
+            Some(s) => match self.keep_server(s) {
+                Ok(()) => self.open_source(ctx, &address),
+                Err(e) => {
+                    f.error = Some(e);
+                    self.open_address = Some(f);
+                }
+            },
+            None => self.open_source(ctx, &address),
+        }
+    }
+
+    /// "Save and open": the saved server with this login gets the password, or a new one is
+    /// added; the file written (encrypted when there is a master password: never in plain text
+    /// then, `servers::save` refuses while locked), the panel updated.
+    pub(crate) fn keep_server(&mut self, s: Saved) -> Result<(), String> {
+        let mut list = servers::load();
+        let kept = servers::keep(&mut list, s);
+        log!("open location: saved server {kept:?}");
+        if kept == servers::Kept::Same {
+            return Ok(());
+        }
+        servers::save(&list).map_err(|e| e.to_string())?;
+        self.saved_servers = list;
+        self.plain_servers_notice();
+        Ok(())
     }
 
     /// The fields of an address; for the server manager (`saved`) also name, key file and passphrase.
@@ -382,6 +433,23 @@ mod tests {
         assert_eq!((s.key_file.as_str(), s.password.as_str(), s.key_passphrase.as_str()), ("~/.ssh/id", " pw ", " phrase "));
         assert_eq!(s.address(), Some("sftp://me@nas.lan:2222/Foto/".into()));
         assert_eq!(f.address(), Some("sftp://me:%20pw%20@nas.lan:2222/Foto/".into()));
+    }
+
+    #[test]
+    fn save_and_open_server() {
+        // Asked after a refused login: the fields, named after the server, the password as typed.
+        let asked = super::AddressForm::for_password("sftp://me@nas.lan:2222/srv/photos/").unwrap();
+        let s = super::AddressForm { password: " p w ".into(), ..asked }.to_keep().unwrap();
+        assert_eq!((s.name.as_str(), s.scheme.as_str(), s.host.as_str(), s.port, s.user.as_str()), ("nas.lan", "sftp", "nas.lan", Some(2222), "me"));
+        assert_eq!((s.password.as_str(), s.folder.as_str(), s.key_file.as_str()), (" p w ", "/srv/photos/", ""));
+        // A whole server address: its parts, the password decoded.
+        let whole = |url: &str| super::AddressForm { url: url.into(), host: "ignored".into(), ..Default::default() }.to_keep();
+        let s = whole(" ftp://me%40home:p%3Aw@nas.lan/Foto/ ").unwrap();
+        assert_eq!((s.scheme.as_str(), s.host.as_str(), s.port, s.user.as_str(), s.password.as_str(), s.folder.as_str()), ("ftp", "nas.lan", None, "me@home", "p:w", "/Foto/"));
+        // A local folder, a phone, a picture: nothing to save.
+        for a in ["/home/me/Foto/", "C:\\Foto", "mtp://X/", "~/beach.jpg"] {
+            assert_eq!(whole(a), None, "{a}");
+        }
     }
 
     #[test]
