@@ -197,6 +197,12 @@ impl Server {
         Ok(if home.is_empty() { home } else { format!("{home}/") })
     }
 
+    /// The absolute path with links resolved (the server's `realpath`).
+    pub async fn real_path(&self, path: &str) -> Result<String, Error> {
+        let name = retry!(self, path, READ_TRIES, |c| c.ask(c.raw.realpath(abs(path))).await)?;
+        Ok(name.files.first().map(|f| f.filename.clone()).unwrap_or_default())
+    }
+
     async fn stat(&self, path: &str) -> Result<FileAttributes, Error> {
         retry!(self, path, READ_TRIES, |c| c.ask(c.raw.stat(abs(path))).await.map(|a| a.attrs))
     }

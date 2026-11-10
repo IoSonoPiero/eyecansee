@@ -11,7 +11,7 @@ Trova i file identici in una cartella e nelle sue sottocartelle, così puoi elim
 
 Una finestra mostra quanti file sono stati esaminati su quelli trovati e quanti dati sono stati letti; **Annulla** ferma la ricerca. Vengono letti e confrontati solo i file con lo stesso peso, quindi sul computer è veloce. Su un telefono ogni file che potrebbe essere una copia viene letto per intero, e ci vuole tempo: la finestra lo dice.
 
-Le cartelle del cestino e le cartelle nascoste restano fuori.
+Le cartelle del cestino e le cartelle nascoste restano fuori. Una cartella o un file raggiunti di nuovo tramite un collegamento contano una volta sola: sono lo stesso file, non una copia.
 
 ## I risultati
 

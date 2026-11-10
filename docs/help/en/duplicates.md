@@ -11,7 +11,7 @@ Finds identical files in a folder and its subfolders, so you can delete the extr
 
 A window shows how many files have been examined out of those found, and how much has been read; **Cancel** stops the search. Only files with the same size are read and compared, so on a computer it is quick. On a phone every file that could be a copy is read in full, and it takes time: the window says so.
 
-Trash folders and hidden folders are left out.
+Trash folders and hidden folders are left out. A folder or a file reached again through a link counts once: it is the same file, not a copy.
 
 ## The results
 

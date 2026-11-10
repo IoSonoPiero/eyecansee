@@ -2,7 +2,7 @@
 //! source. Only images of the same size are read, and compared by SHA-256 of their content.
 //! The page that shows them is `dup_page`.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -121,8 +121,9 @@ pub async fn find(op: &Store, dir: &str, sub: bool, p: &Progress) -> Result<Vec<
     }
     let mut groups = Vec::new();
     for same in by_size.into_values() {
+        let same = if same.len() < 2 { same } else { distinct(op, same, p).await };
         if same.len() < 2 {
-            p.examined.fetch_add(1, Ordering::Relaxed);
+            p.examined.fetch_add(same.len() as u64, Ordering::Relaxed);
             continue;
         }
         let mut by_hash: HashMap<Vec<u8>, Vec<File>> = HashMap::new();
@@ -149,11 +150,22 @@ pub async fn find(op: &Store, dir: &str, sub: bool, p: &Progress) -> Result<Vec<
 
 /// Every image of `dir`, and below it with `sub` (trash folders and hidden folders stay out,
 /// as in the listings). Only an error on `dir` itself stops the search.
+/// A folder reached again through a link (to a folder above or beside) is searched once; where
+/// links cannot be resolved (FTP), the search goes no deeper than `MAX_DEPTH` (issue #87).
 async fn collect(op: &Store, dir: &str, sub: bool, p: &Progress) -> Result<Vec<File>, Error> {
-    let (mut dirs, mut files) = (vec![dir.to_string()], Vec::new());
+    let (mut dirs, mut files, mut seen) = (vec![dir.to_string()], Vec::new(), HashSet::new());
     while let Some(d) = dirs.pop() {
         if p.cancel.load(Ordering::Relaxed) {
             return Err(("error-cancelled", String::new()));
+        }
+        if let Some(real) = op.real_path(&d).await
+            && !seen.insert(real)
+        {
+            continue;
+        }
+        if d[dir.len()..].matches('/').count() > MAX_DEPTH {
+            log!("duplicates: {d:?} too deep, not searched");
+            continue;
         }
         let listing = match op.list(&d).await {
             Ok(l) => l,
@@ -166,10 +178,37 @@ async fn collect(op: &Store, dir: &str, sub: bool, p: &Progress) -> Result<Vec<F
         p.found.fetch_add(listing.files.len() as u64, Ordering::Relaxed);
         files.extend(listing.files);
         if sub {
-            dirs.extend(listing.dirs);
+            // Popped in listing order, so a real folder usually comes before a link to it.
+            dirs.extend(listing.dirs.into_iter().rev());
         }
     }
     Ok(files)
+}
+
+/// Folders below the one searched, at most.
+const MAX_DEPTH: usize = 64;
+
+/// The same file reached by two paths (a link to it, or to a folder of it) is one file, not two
+/// copies: deleting the "copy" would delete it. The path that goes through no link stays, or else
+/// the first found; the others count as examined.
+async fn distinct(op: &Store, files: Vec<File>, p: &Progress) -> Vec<File> {
+    let (mut seen, mut out) = (HashMap::new(), Vec::new());
+    for f in files {
+        let Some(real) = op.real_path(&f.path).await else {
+            out.push(f);
+            continue;
+        };
+        if let Some(&i) = seen.get(&real) {
+            p.examined.fetch_add(1, Ordering::Relaxed);
+            if f.path == real {
+                out[i] = f;
+            }
+        } else {
+            seen.insert(real, out.len());
+            out.push(f);
+        }
+    }
+    out
 }
 
 #[cfg(test)]
@@ -239,5 +278,38 @@ mod tests {
         assert_eq!(g[0].split(' ').count(), 3);
         assert_eq!(found, 5);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Links to a folder beside, to a folder above and to a file: the same file reached by several
+    /// paths is never a copy of itself (deleting the "copy" would delete it), and the search ends
+    /// (issue #87). Only a real copy makes a group.
+    #[cfg(unix)]
+    #[test]
+    fn links_not_copies() {
+        use std::os::unix::fs::symlink;
+        let dir = std::env::temp_dir().join(format!("eyecansee-dup-links-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("A")).unwrap();
+        std::fs::write(dir.join("A/x.jpg"), b"same").unwrap();
+        std::fs::write(dir.join("c.jpg"), b"same").unwrap(); // the only real copy
+        symlink("A", dir.join("B")).unwrap();
+        symlink("..", dir.join("A/up")).unwrap();
+        symlink("A/x.jpg", dir.join("l.jpg")).unwrap();
+        let path = dir.to_string_lossy().into_owned();
+        // On a separate thread, so a search that does not end fails instead of hanging.
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let _guard = rt.enter();
+            let s = crate::source::open(&path).unwrap();
+            let groups = rt.block_on(find(&s.op, &s.dir, true, &Progress::default())).unwrap();
+            let below = |f: File| f.path.strip_prefix(&s.dir).unwrap_or(&f.path).to_string();
+            let _ = tx.send(groups.into_iter().map(|g| g.files.into_iter().map(below).collect::<Vec<_>>()).collect::<Vec<_>>());
+        });
+        let groups = rx.recv_timeout(std::time::Duration::from_secs(60));
+        std::fs::remove_dir_all(&dir).unwrap();
+        let groups = groups.expect("the search ends");
+        // x.jpg reached as A/x.jpg, B/x.jpg, l.jpg, A/up/A/x.jpg… is one file, shown by the path
+        // that goes through no link (deleting it frees the space); c.jpg is the only copy.
+        assert_eq!(groups, [["c.jpg", "A/x.jpg"]]);
     }
 }
