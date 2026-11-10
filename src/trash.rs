@@ -14,9 +14,12 @@ pub const TRASH_DIR: &str = ".EyeCanSee-trash";
 
 /// Endings of the hidden names an image has while it is saved over itself (`loader::replace`):
 /// the new file is written as ".name.eyecansee-new", the original waits as ".name.eyecansee-old"
-/// until the new one has taken its name.
+/// until the new one has taken its name. A file with more than one name (hard links) is
+/// replaced by copying the new file into it: the new file, whole, waits as
+/// ".name.eyecansee-inplace" until that copy is finished (`replace::copy_in_place`).
 const NEW: &str = ".eyecansee-new";
 const OLD: &str = ".eyecansee-old";
+const INPLACE: &str = ".eyecansee-inplace";
 
 /// Images being saved over themselves: `Store::recover` leaves their hidden files alone.
 pub static SAVING: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
@@ -29,6 +32,11 @@ const NAME_MAX: usize = 255;
 pub fn save_names(path: &str) -> (String, String) {
     let (dir, own) = (parent(path), name(path));
     (format!("{dir}{}", hidden(own, NEW)), format!("{dir}{}", hidden(own, OLD)))
+}
+
+/// The hidden path of the whole new version of `path` while it is copied into `path` in place.
+pub fn in_place_name(path: &str) -> String {
+    format!("{}{}", parent(path), hidden(name(path), INPLACE))
 }
 
 /// ".name" + `end`; for a name too long for that (a paste over a file of 241-255 characters
@@ -53,14 +61,14 @@ fn fnv(text: &str) -> u32 {
 
 /// Is this name one of `save_names`?
 pub fn leftover(name: &str) -> bool {
-    name.starts_with('.') && (name.ends_with(NEW) || name.ends_with(OLD))
+    name.starts_with('.') && [NEW, OLD, INPLACE].iter().any(|end| name.ends_with(end))
 }
 
 /// The name between "." and the ending of a name of `save_names`, and whether it was cut
 /// (`hidden`): then only the image's own name gives it back (`owner`).
 fn inner(name: &str) -> Option<(&str, bool)> {
     let n = name.strip_prefix('.')?;
-    let n = n.strip_suffix(NEW).or_else(|| n.strip_suffix(OLD))?;
+    let n = [NEW, OLD, INPLACE].iter().find_map(|end| n.strip_suffix(end))?;
     let tagged = n.rsplit_once('~').is_some_and(|(_, h)| h.len() == 8 && h.bytes().all(|b| b.is_ascii_hexdigit()));
     Some((n, tagged && name.len() + 3 >= NAME_MAX))
 }
@@ -82,7 +90,7 @@ fn owner(dir: &str, own: &str, names: &HashSet<String>) -> Option<String> {
     if !cut {
         return Some(n.to_string());
     }
-    let end = if own.ends_with(NEW) { NEW } else { OLD };
+    let end = [NEW, OLD, INPLACE].into_iter().find(|end| own.ends_with(end))?;
     let saving: Vec<String> = SAVING.lock().unwrap().iter().filter(|p| parent(p) == dir).map(|p| name(p).to_string()).collect();
     names.iter().chain(&saving).find(|n| hidden(n, end) == own).cloned()
 }
@@ -167,7 +175,9 @@ impl Store {
     /// next to its new version stays: the save had worked, and the next save of that image sends
     /// it where a deletion would. A new file alone, its name free and no original waiting, is
     /// whole: on a phone the original is deleted before the new file is renamed (`replace::
-    /// put_in_place`), and only that rename was missing; it takes the name.
+    /// put_in_place`), and only that rename was missing; it takes the name. A new file that was
+    /// being copied into its image in place (hard links) is whole, and the image may be cut: the
+    /// copy is made again, or the new file takes the name if it is free.
     pub(crate) async fn recover(&self, dir: &str, leftovers: &[String]) {
         let Ok(names) = self.names(dir).await else { return };
         for path in leftovers {
@@ -185,7 +195,11 @@ impl Store {
                 continue;
             }
             let waiting = names.contains(&hidden(original, OLD));
-            let r = if own.ends_with(NEW) && !waiting && !names.contains(original) {
+            let r = if own.ends_with(INPLACE) && names.contains(original) {
+                self.copy_again(path, &format!("{dir}{original}")).await
+            } else if own.ends_with(INPLACE) {
+                self.rename(path, original).await.map(|_| ())
+            } else if own.ends_with(NEW) && !waiting && !names.contains(original) {
                 self.rename(path, original).await.map(|_| ())
             } else if own.ends_with(NEW) {
                 self.delete(path, Deletion::Permanent).await
@@ -196,6 +210,18 @@ impl Store {
             };
             log!("recover {path:?}: {r:?}");
         }
+    }
+
+    /// The whole new file `from`, left by a copy in place cut short, copied into `to` again. Only
+    /// a local file is copied in place; on any other store it is left as it is.
+    async fn copy_again(&self, from: &str, to: &str) -> Result<(), Error> {
+        let detail = |e: &dyn std::fmt::Display| ("error-detail", e.to_string());
+        let Store::Dal(op) = self else { return Err(detail(&"not a local file, left")) };
+        if op.info().scheme() != "fs" {
+            return Err(detail(&"not a local file, left"));
+        }
+        let (from, to) = (local_path(op, from), local_path(op, to));
+        tokio::task::spawn_blocking(move || crate::replace::copy_in_place(&from, &to)).await.map_err(|e| detail(&e))?.map_err(|e| detail(&e))
     }
 
     /// What deleting `path` does: local files go to the system trash unless `local_permanent`;
@@ -439,6 +465,41 @@ mod tests {
         assert_eq!(std::fs::read(p.join("a.jpg")).unwrap(), b"a");
         assert!(!p.join(".b.jpg.eyecansee-new").exists() && !p.join(".a.jpg.eyecansee-old").exists());
         assert!(p.join(".c.jpg.eyecansee-old").exists() && p.join(".d.jpg.eyecansee-new").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A copy in place of a file with two names (hard links) cut short: the new file, whole, is
+    /// copied into the cut image again and both names see it; one whose copy had finished goes;
+    /// one whose image is gone takes its name. Nothing hidden is left.
+    #[cfg(unix)]
+    #[test]
+    fn recover_copy_in_place() {
+        use std::os::unix::fs::MetadataExt;
+        let dir = std::env::temp_dir().join(format!("eyecansee-recover-inplace-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let p = dir.join("inplace");
+        std::fs::create_dir_all(&p).unwrap();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        assert_eq!(in_place_name("inplace/a.jpg"), "inplace/.a.jpg.eyecansee-inplace");
+        std::fs::write(p.join("a.jpg"), b"the new co").unwrap();
+        std::fs::hard_link(p.join("a.jpg"), p.join("b.jpg")).unwrap();
+        std::fs::write(p.join(".a.jpg.eyecansee-inplace"), b"the new content").unwrap();
+        std::fs::write(p.join("c.jpg"), b"done").unwrap();
+        std::fs::write(p.join(".c.jpg.eyecansee-inplace"), b"done").unwrap();
+        std::fs::write(p.join(".d.jpg.eyecansee-inplace"), b"d new").unwrap();
+        let ino = std::fs::metadata(p.join("a.jpg")).unwrap().ino();
+        let l = tokio::runtime::Runtime::new().unwrap().block_on(op.list("inplace/")).unwrap();
+        let files: Vec<&str> = l.files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(files, ["inplace/a.jpg", "inplace/b.jpg", "inplace/c.jpg", "inplace/d.jpg"]);
+        assert_eq!(std::fs::read(p.join("a.jpg")).unwrap(), b"the new content");
+        assert_eq!(std::fs::read(p.join("b.jpg")).unwrap(), b"the new content");
+        assert_eq!(std::fs::metadata(p.join("b.jpg")).unwrap().ino(), ino);
+        assert_eq!(std::fs::metadata(p.join("a.jpg")).unwrap().ino(), ino);
+        assert_eq!(std::fs::read(p.join("c.jpg")).unwrap(), b"done");
+        assert_eq!(std::fs::read(p.join("d.jpg")).unwrap(), b"d new");
+        let mut left: Vec<String> = std::fs::read_dir(&p).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        left.sort();
+        assert_eq!(left, ["a.jpg", "b.jpg", "c.jpg", "d.jpg"]);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

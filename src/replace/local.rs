@@ -15,9 +15,12 @@
 //! - Windows: `ReplaceFileW` gives the new file the old one's attributes, creation time, ACL and
 //!   other streams (`Zone.Identifier`);
 //! - a file with more than one name (hard links), which a rename would split: the new file is
-//!   written whole under the hidden name first, then copied into the old file in place, so every
-//!   name sees the new content. Only that local copy can still fail halfway (a full disk), as every
-//!   write did before 0.76.0; then the new file takes the name on its own, whole.
+//!   written whole under the hidden name first, renamed ".name.eyecansee-inplace" once whole,
+//!   then copied into the old file in place, so every name sees the new content; it is deleted
+//!   only when the copy is finished. Only that local copy can still fail halfway (a full disk), as
+//!   every write did before 0.76.0; then the new file takes the name on its own, whole. If the app
+//!   is closed during the copy, `Store::recover` finds the ".eyecansee-inplace" file whole and
+//!   makes the copy again.
 //!
 //! A folder where no file can be made (no permission, as a folder of mode 555) whose file can be
 //! written: the hidden file cannot be there, and the new content is written into the file in
@@ -103,8 +106,16 @@ fn replace(file: &Path, real: &Path, mut chunks: Chunks) -> Result<(), Error> {
         Err(e) => return Err(at(&temp, "write")(e)),
     };
     write_new(f, &temp, &mut chunks, (!shared).then_some((real, &meta)))?;
-    let placed = if shared { copy_in_place(&temp, real) } else { put_over(&temp, real) };
+    let placed = if shared {
+        // Under its own name the new file is known whole: a copy cut short is made again.
+        let whole = real.with_file_name(crate::trash::in_place_name(&own));
+        std::fs::rename(&temp, &whole).and_then(|()| copy_in_place(&whole, real))
+    } else {
+        put_over(&temp, real)
+    };
     if placed.is_err() {
+        // Only the file still under ".eyecansee-new"; one left as ".eyecansee-inplace" is whole
+        // and its copy failed: `Store::recover` makes it again.
         let _ = std::fs::remove_file(&temp);
     }
     placed.map_err(at(real, "replace"))
@@ -301,9 +312,10 @@ fn put_over(temp: &Path, real: &Path) -> std::io::Result<()> {
 }
 
 /// The whole new file `temp` copied into `real` in place, so that every name of `real` sees it;
-/// `temp` deleted after. If the copy fails halfway, `temp` takes the name instead: the new
-/// content is under it whole, and the other names keep the part copied.
-fn copy_in_place(temp: &Path, real: &Path) -> std::io::Result<()> {
+/// `temp` deleted only after (also by `Store::recover`, when a copy was cut short). If the copy
+/// fails halfway, `temp` takes the name instead: the new content is under it whole, and the other
+/// names keep the part copied.
+pub(crate) fn copy_in_place(temp: &Path, real: &Path) -> std::io::Result<()> {
     let copied = (|| {
         let mut from = File::open(temp)?;
         let mut to = OpenOptions::new().write(true).truncate(true).open(real)?;

@@ -7,7 +7,7 @@ use crate::source::{self, Store};
 
 mod local;
 
-pub(crate) use local::closed_folder;
+pub(crate) use local::{closed_folder, copy_in_place};
 
 /// Writes a file whole: as `write_file`, nothing half written left at a failure.
 pub(crate) async fn write_whole(op: &Store, path: &str, data: Vec<u8>) -> Result<(), source::Error> {
