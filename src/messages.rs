@@ -123,6 +123,10 @@ impl App {
         if let Ok(l) = &mut r {
             l.files.retain(|f| self.settings.show.allows(&f.path));
             l.sort_files(self.settings.sort_by, self.settings.sort_desc);
+            #[cfg(feature = "shots")]
+            if self.base.starts_with("mtp://") && !dir.is_empty() {
+                crate::shots::phone_folders(&mut l.dirs);
+            }
         }
         if self.listing_error(&dir, &r) {
             return;
