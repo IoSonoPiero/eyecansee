@@ -7,6 +7,7 @@ Every key of EyeCanSee, by place. The menus show the key next to each item, and 
 | Key | Action |
 |---|---|
 | F1 | Open this guide on the page about what you are doing; again to close it |
+| Esc twice, quickly | Close this guide, with the pointer on it or while typing in its search field (one Esc only leaves the field) |
 
 ## In the grid and the viewer
 

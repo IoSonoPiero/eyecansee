@@ -49,6 +49,8 @@ impl App {
             log!("help spot {spot}");
             self.toggle_help(spot);
         }
+        // Esc over the guide is the guide's: taken here, before the pages under it read it.
+        self.help_esc(ctx);
         // "Save in another format" and the duplicates cover the window: the keys must not reach the grid under them.
         if self.convert.is_none() && self.editor.is_none() && self.show.is_none() && !self.dup_page_shown() {
             self.global_keys(ctx);

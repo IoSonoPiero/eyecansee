@@ -101,6 +101,7 @@ help-back = Back
 help-forward = Forward
 help-contents = Contents
 help-search = Search the manual
+help-clear-search = Clear the search
 help-nothing-found = Nothing found.
 help-previous-match = Previous match
 help-next-match = Next match
