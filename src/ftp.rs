@@ -7,7 +7,7 @@
 //! Paths as for the other sources, relative to the server's "/" (folders end in "/").
 
 use std::collections::HashSet;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
@@ -75,6 +75,37 @@ pub struct Server {
     permits: tokio::sync::Semaphore,
     /// FTPS: the TLS shared by the control and data connections.
     tls: Option<tokio_rustls::TlsConnector>,
+    /// Whether a rename onto a file replaces it here (`UNKNOWN`, `REPLACES`, `REFUSES`): learnt
+    /// at the first try (`rename_over`).
+    over: AtomicU8,
+}
+
+const UNKNOWN: u8 = 0;
+const REPLACES: u8 = 1;
+const REFUSES: u8 = 2;
+
+/// A rename of `from` over a file (issue #92): `attempt` renames and gives `Some(status)` when
+/// the server answers with a refusal. `None`: renaming over a file is refused here, known from
+/// `over` (then not tried again) or from this answer; nothing has changed and the caller does
+/// it another way. Learnt at the first answer: a server that has replaced once is not marked as
+/// refusing by a later refusal with another cause.
+async fn over<F: std::future::Future<Output = Result<Option<Status>, Error>>>(over: &AtomicU8, from: &str, attempt: impl FnOnce() -> F) -> Option<Result<(), Error>> {
+    if over.load(Ordering::Relaxed) == REFUSES {
+        return None;
+    }
+    match attempt().await {
+        Ok(None) => {
+            over.store(REPLACES, Ordering::Relaxed);
+            Some(Ok(()))
+        }
+        Ok(Some(status)) => {
+            if over.compare_exchange(UNKNOWN, REFUSES, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+                log!("ftp: renaming {from:?} over a file refused ({status:?}): moving the file aside from now on");
+            }
+            None
+        }
+        Err(e) => Some(Err(e)),
+    }
 }
 
 /// A connection taken from the pool; `ok` false: not given back (broken, or a transfer left in
@@ -282,7 +313,7 @@ impl Server {
         }
         let key = format!("{}:{}", target.host, target.port);
         let tls = target.secure.then(|| tls::connector(&target.host, &key));
-        let s = Arc::new(Server { target, idle: Mutex::new(Vec::new()), permits: tokio::sync::Semaphore::new(POOL), tls });
+        let s = Arc::new(Server { target, idle: Mutex::new(Vec::new()), permits: tokio::sync::Semaphore::new(POOL), tls, over: AtomicU8::new(UNKNOWN) });
         servers.push(Arc::downgrade(&s));
         s
     }
@@ -469,6 +500,21 @@ impl Server {
         with!(self, from, |c| c.s.rename(abs(from), abs(to)).await)
     }
 
+    /// `from` renamed `to`, replacing the file there, with one RNFR/RNTO (issue #92): many
+    /// servers (vsftpd, ProFTPD, a Storage Box) replace it, others refuse and leave both files as
+    /// they were. `None` where it is refused (see `over`): the caller moves the file aside first.
+    pub async fn rename_over(&self, from: &str, to: &str) -> Option<Result<(), Error>> {
+        over(&self.over, from, || async {
+            with!(self, from, |c| match c.s.rename(abs(from), abs(to)).await {
+                // An answer of the server: refused. 421 is a connection closing, as for `broken`.
+                Err(FtpError::UnexpectedResponse(r)) if r.status != Status::NotAvailable => Ok(Some(r.status)),
+                Err(e) => Err(e),
+                Ok(()) => Ok(None),
+            })
+        })
+        .await
+    }
+
     pub async fn exists(&self, path: &str) -> bool {
         let name = crate::source::name(path);
         self.names(&crate::source::parent(path)).await.is_ok_and(|n| n.contains(name))
@@ -582,5 +628,40 @@ mod tests {
         assert_eq!(super::pasv_port("Entering Passive Mode"), None);
         assert_eq!(super::epsv_port("Entering Extended Passive Mode (|||55677|)"), Some(55677));
         assert_eq!(super::epsv_port("Entering Extended Passive Mode"), None);
+    }
+
+    /// Renaming over a file (issue #92): done where the server replaces; where it refuses, `None`
+    /// (the caller moves the original aside) and never tried again on that server; an error of
+    /// the connection is an error. A server that replaced once stays so after a refusal.
+    #[test]
+    fn rename_over_learnt() {
+        use super::*;
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let tries = std::cell::Cell::new(0);
+        let attempt = |answer: Result<Option<Status>, Error>| {
+            let tries = &tries;
+            move || async move {
+                tries.set(tries.get() + 1);
+                answer
+            }
+        };
+        // Replaces.
+        let memo = AtomicU8::new(UNKNOWN);
+        assert_eq!(rt.block_on(over(&memo, "a", attempt(Ok(None)))), Some(Ok(())));
+        assert_eq!(memo.load(Ordering::Relaxed), REPLACES);
+        assert_eq!(rt.block_on(over(&memo, "a", attempt(Ok(Some(Status::FileUnavailable))))), None);
+        assert_eq!(memo.load(Ordering::Relaxed), REPLACES);
+        // Refuses: remembered, not tried again.
+        let memo = AtomicU8::new(UNKNOWN);
+        assert_eq!(rt.block_on(over(&memo, "a", attempt(Ok(Some(Status::BadFilename))))), None);
+        assert_eq!(memo.load(Ordering::Relaxed), REFUSES);
+        tries.set(0);
+        assert_eq!(rt.block_on(over(&memo, "a", attempt(Ok(None)))), None);
+        assert_eq!(tries.get(), 0);
+        // The connection lost: an error, nothing learnt.
+        let memo = AtomicU8::new(UNKNOWN);
+        let lost: Error = ("error-detail", "a: connection lost".to_string());
+        assert_eq!(rt.block_on(over(&memo, "a", attempt(Err(lost.clone())))), Some(Err(lost)));
+        assert_eq!(memo.load(Ordering::Relaxed), UNKNOWN);
     }
 }

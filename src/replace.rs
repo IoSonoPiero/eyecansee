@@ -59,13 +59,16 @@ pub(crate) async fn write_file(op: &Store, path: &str, size: u64, chunks: Chunks
 /// - Phone: the original deleted, then the new file renamed (MTP would keep two files with the
 ///   same name). If the rename fails, the new file waits under its hidden name and takes the
 ///   free name when the folder is read again (`Store::recover`).
-/// - Other servers (FTP: whether a rename replaces a file depends on the server): the original
-///   renamed aside as `old`, the new file renamed in, `old` deleted; at a failure the original
-///   gets its name back (`undo`).
+/// - FTP: one rename over it where the server replaces the file (issue #92: the four more
+///   commands per file of the way below made a folder merge twice as slow); where it refuses,
+///   learnt at the first file (`ftp::Server::rename_over`), as other servers.
+/// - Other servers: the original renamed aside as `old`, the new file renamed in, `old` deleted;
+///   at a failure the original gets its name back (`undo`).
 async fn put_in_place(op: &Store, new: &str, path: &str, old: &str) -> Result<(), source::Error> {
     let own = source::name(path);
     let r = match op {
         Store::Sftp(server) => server.rename_over(new, path).await,
+        Store::Ftp(server) => server.rename_over(new, path).await,
         Store::Mtp(phone) => {
             match phone.delete(path).await {
                 Err(e) if e.0 != source::NOT_FOUND => {
