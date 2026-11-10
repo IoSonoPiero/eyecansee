@@ -382,20 +382,28 @@ impl Phone {
         Ok(())
     }
 
-    /// The name must not be in the folder already: `App::rename_window` checks it against the listing.
+    /// Never onto a name already in the folder (MTP would keep both): `error-exists`. The folder
+    /// is listed for it only the first time (`taken`).
     pub async fn rename(&self, path: &str, new_name: &str) -> Result<(), Error> {
         let (storage, handle) = self.locate(path).await?;
         let handle = handle.ok_or((NOT_FOUND, path.to_string()))?;
+        let to = format!("{}{new_name}", source::parent(path));
+        if self.taken(&to).await? || self.taken(&format!("{to}/")).await? {
+            return Err(("error-exists", to));
+        }
         self.own.mark(handle);
         self.queued("rename", path, storage.rename(handle, new_name)).await.map_err(error)?;
         // The folder's paths below it are stale too: the cache fills again at the next listing.
+        // A file leaves its folder's cache complete, nothing else changed there: a paste over
+        // many files renames each one (#90).
         let mut handles = self.handles.lock().unwrap();
         handles.retain(|p, _| !p.starts_with(path));
-        if !path.ends_with('/') {
-            handles.insert(format!("{}{new_name}", source::parent(path)), handle);
+        if path.ends_with('/') {
+            drop(handles);
+            self.complete.lock().unwrap().remove(&source::parent(path));
+        } else {
+            handles.insert(to, handle);
         }
-        drop(handles);
-        self.complete.lock().unwrap().remove(&source::parent(path));
         Ok(())
     }
 

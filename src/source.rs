@@ -41,6 +41,12 @@ const CHUNK: u64 = 1 << 20;
 
 pub use crate::trash::{android_trashed, free_name, in_trash, is_trash, leftover, listed_in, restore_place, save_names, saved_image, shown, trash_of, Conflict, Deletion, SAVING, TRASH_DIR};
 
+#[cfg(test)]
+thread_local! {
+    /// Folders read by `Store::names` on this thread: a paste must not read one per file (#90).
+    pub static FOLDERS_READ: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
 /// The operations the app needs, the same for all sources.
 #[derive(Clone)]
 pub enum Store {
@@ -219,6 +225,8 @@ impl Store {
 
     /// Names of everything in a folder, of any type, hidden ones too (folders without the "/").
     pub async fn names(&self, dir: &str) -> Result<HashSet<String>, Error> {
+        #[cfg(test)]
+        FOLDERS_READ.with(|n| n.set(n.get() + 1));
         match self {
             Store::Dal(op) => Ok(local_items(op, dir).await?.into_iter().map(|i| i.1).collect()),
             Store::Mtp(phone) => phone.names(dir).await,

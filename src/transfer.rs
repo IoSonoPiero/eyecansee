@@ -178,22 +178,24 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
     *p.looked.lock().unwrap() = start.elapsed().as_secs_f64();
     let _ = p.started.set(Instant::now());
 
+    // The names in each destination folder of a merge, read once (`Present`).
+    let mut there = Present::new(to_dir, present);
     for ((src, _, exists), list) in copies.iter().zip(lists) {
-        // Whether a file is already where it goes: a file pasted over one, or one of a folder that
-        // merges into another is looked for; in a new folder nothing is there.
-        let existed = match (src.ends_with('/'), exists) {
-            (false, e) => Some(*e),
-            (true, true) => None,
-            (true, false) => Some(false),
-        };
+        let merging = src.ends_with('/') && *exists;
         for (from, dest, size) in list {
             if from.ends_with('/') {
+                if merging {
+                    there.made(to, &dest).await;
+                }
                 to.create_dir(&dest).await?;
             } else {
                 if p.cancel.load(Ordering::Relaxed) {
                     return Err(("error-cancelled", String::new()));
                 }
                 *p.current.lock().unwrap() = name(&from).to_string();
+                // Whether a file is already where it goes: a file pasted over one, or one of a
+                // folder that merges into another; in a new folder nothing is there.
+                let existed = if merging { there.has(to, &dest).await } else { Some(*exists) };
                 copy_file(&clip.op, &from, (to, &dest, existed), size, p).await?;
                 keep_thumbnail(thumbcache::stored(&clip.base, &from), &dest, Some(size));
                 p.files.fetch_add(1, Ordering::Relaxed);
@@ -207,6 +209,34 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
         }
     }
     Ok(())
+}
+
+/// The names already in the destination folders of a merge, each folder read once, when its first
+/// file is copied: asking for every file whether it is there cost a request each (#90 follow-up).
+/// A folder the merge makes is empty.
+struct Present(HashMap<String, HashSet<String>>);
+
+impl Present {
+    /// Starting with the names of `dir`, read already.
+    fn new(dir: &str, names: HashSet<String>) -> Self {
+        Present(HashMap::from([(dir.to_string(), names)]))
+    }
+
+    /// Is there an item at `path`? `None` if its folder cannot be read (`write_file` asks then).
+    async fn has(&mut self, to: &Store, path: &str) -> Option<bool> {
+        let dir = parent(path);
+        if !self.0.contains_key(&dir) {
+            self.0.insert(dir.clone(), to.names(&dir).await.ok()?);
+        }
+        Some(self.0[&dir].contains(name(path)))
+    }
+
+    /// The folder `dir` is about to be made, if it is not there: it starts empty.
+    async fn made(&mut self, to: &Store, dir: &str) {
+        if self.has(to, dir).await == Some(false) {
+            self.0.insert(dir.to_string(), HashSet::new());
+        }
+    }
 }
 
 /// A folder and everything to copy from below it: (source, destination, size).
@@ -402,6 +432,39 @@ mod tests {
             assert_eq!(r.unwrap_err().0, "error-cancelled");
             assert!(!dir.join("a/x.jpg").exists());
         });
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A folder merged into one of the same name replaces its files reading each destination
+    /// folder once, not once per file (a paste of 300 files over SFTP took 241 s instead of 44);
+    /// a folder the merge makes is not read at all.
+    #[test]
+    fn merge_reads_each_folder_once() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let dir = std::env::temp_dir().join(format!("eyecansee-merge-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        for d in ["a/f/g", "a/f/h", "b/f/h"] {
+            std::fs::create_dir_all(dir.join(d)).unwrap();
+        }
+        let files = ["f/1.jpg", "f/2.jpg", "f/3.jpg", "f/4.jpg", "f/g/5.jpg", "f/g/6.jpg", "f/h/7.jpg", "f/h/8.jpg"];
+        for f in files {
+            std::fs::write(dir.join("a").join(f), f.as_bytes()).unwrap();
+            if !f.contains("/g/") {
+                std::fs::write(dir.join("b").join(f), b"old").unwrap();
+            }
+        }
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let clip = Clip { op: op.clone(), base: "test-merge-a://".into(), paths: vec!["a/f/".into()], cut: false, text: String::new() };
+        crate::source::FOLDERS_READ.with(|n| n.set(0));
+        let (_, r) = rt.block_on(run(&clip, &op, "test-merge-b://", "b/", &HashMap::new(), &Progress::default()));
+        r.unwrap();
+        // "b/" for the plan, then "b/f/" and "b/f/h/" once each.
+        assert_eq!(crate::source::FOLDERS_READ.with(|n| n.get()), 3);
+        for f in files {
+            assert_eq!(std::fs::read(dir.join("b").join(f)).unwrap(), f.as_bytes(), "{f}");
+        }
+        let hidden = |d: &str| std::fs::read_dir(dir.join(d)).unwrap().filter(|e| e.as_ref().unwrap().file_name().to_string_lossy().starts_with('.')).count();
+        assert_eq!(hidden("b/f") + hidden("b/f/g") + hidden("b/f/h"), 0);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

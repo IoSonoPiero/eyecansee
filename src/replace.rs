@@ -5,6 +5,8 @@
 use crate::loader::SKIPPED;
 use crate::source::{self, Store};
 
+mod local;
+
 /// Writes a file whole: as `write_file`, nothing half written left at a failure.
 pub(crate) async fn write_whole(op: &Store, path: &str, data: Vec<u8>) -> Result<(), source::Error> {
     let size = data.len() as u64;
@@ -23,9 +25,12 @@ type Chunks = tokio::sync::mpsc::Receiver<std::io::Result<bytes::Bytes>>;
 /// Writes a file of `size` bytes from `chunks` as `path`, leaving nothing half written at a
 /// failure (issue #90): a new file is deleted (`Store::write_chunks`); a file already there keeps
 /// its content until the new one is whole, written under its hidden name and then put in its
-/// place as `replace` does, the old one deleted. `existed`: whether `path` is already there, when
-/// the caller knows (`None`: asked). Where renaming is not possible or not safe (gvfs, see
-/// `replace`) the new file is written over the old one as before.
+/// place, the old one deleted (`local::write_over`, `put_in_place`). `existed`: whether `path` is
+/// already there, when the caller knows (`None`: asked). Where renaming is not possible or not
+/// safe (gvfs, see `replace`) the new file is written over the old one as before.
+/// The folder is never read for this: what a save cut short left there is tidied up when the
+/// folder is listed (`Store::recover`). Reading it for every file made a paste of 300 files over
+/// SFTP take 241 s instead of 44 (2026-11-10).
 pub(crate) async fn write_file(op: &Store, path: &str, size: u64, chunks: Chunks, existed: Option<bool>) -> Result<(), source::Error> {
     let existed = match existed {
         Some(e) => e,
@@ -34,10 +39,93 @@ pub(crate) async fn write_file(op: &Store, path: &str, size: u64, chunks: Chunks
     if !existed || !op.can_rename() || op.gvfs(path) {
         return op.write_chunks(path, size, chunks).await;
     }
+    if let Some(file) = op.local_file(path) {
+        return local::write_over(op, path, file, chunks).await;
+    }
     source::SAVING.lock().unwrap().insert(path.to_string());
-    let r = swap(op, path, |new| async move { op.write_chunks(&new, size, chunks).await }, source::Deletion::Permanent, false).await;
+    let (new, old) = source::save_names(path);
+    let r = match op.write_chunks(&new, size, chunks).await {
+        Ok(()) => put_in_place(op, &new, path, &old).await,
+        Err(e) => Err(e),
+    };
     source::SAVING.lock().unwrap().remove(path);
     r
+}
+
+/// On a phone or a server, the new file `new`, whole, takes the place of `path`, which is deleted.
+/// - SFTP with `posix-rename@openssh.com` (OpenSSH and most servers): one rename over it.
+/// - Phone: the original deleted, then the new file renamed (MTP would keep two files with the
+///   same name). If the rename fails, the new file waits under its hidden name and takes the
+///   free name when the folder is read again (`Store::recover`).
+/// - Other servers (FTP: whether a rename replaces a file depends on the server): the original
+///   renamed aside as `old`, the new file renamed in, `old` deleted; at a failure the original
+///   gets its name back (`undo`).
+async fn put_in_place(op: &Store, new: &str, path: &str, old: &str) -> Result<(), source::Error> {
+    let own = source::name(path);
+    let r = match op {
+        Store::Sftp(server) => server.rename_over(new, path).await,
+        Store::Mtp(phone) => {
+            match phone.delete(path).await {
+                Err(e) if e.0 != source::NOT_FOUND => {
+                    let _ = phone.delete(new).await;
+                    return Err(e);
+                }
+                _ => {}
+            }
+            return phone.rename(new, own).await.inspect_err(|e| log!("save {path:?}: the new file stays as {new:?}: {e:?}"));
+        }
+        _ => None,
+    };
+    if let Some(r) = r {
+        if r.is_err() {
+            let _ = op.delete(new, source::Deletion::Permanent).await;
+        }
+        return r;
+    }
+    let named = match aside(op, path, old).await {
+        Ok(moved) => raw_rename(op, new, path).await.map(|()| moved),
+        Err(e) => Err(e),
+    };
+    match named {
+        Err(e) => {
+            undo(op, path, new, old).await;
+            Err(e)
+        }
+        Ok(true) => {
+            if let Err(e) = op.delete(old, source::Deletion::Permanent).await {
+                log!("save {path:?}: original kept as {old:?}: {e:?}");
+            }
+            Ok(())
+        }
+        Ok(false) => Ok(()),
+    }
+}
+
+/// The original `path` renamed `old`; false if it is not there any more (gone since it was seen).
+/// Looked at only when the rename fails: an original already under `old`, left by a save cut
+/// short after its new version took the name, is deleted first, as that save would have done.
+async fn aside(op: &Store, path: &str, old: &str) -> Result<bool, source::Error> {
+    let Err(e) = raw_rename(op, path, old).await else { return Ok(true) };
+    match (op.exists(path).await, op.exists(old).await) {
+        (true, true) => {
+            op.delete(old, source::Deletion::Permanent).await?;
+            raw_rename(op, path, old).await.map(|()| true)
+        }
+        // The rename was done, its answer lost with the connection.
+        (false, true) => Ok(true),
+        (false, false) => Ok(false),
+        (true, false) => Err(e),
+    }
+}
+
+/// `from` renamed `to` (a path of the same folder) on a server without asking first whether `to`
+/// is free, which costs a request: the server refuses, or replaces it (some FTP servers).
+async fn raw_rename(op: &Store, from: &str, to: &str) -> Result<(), source::Error> {
+    match op {
+        Store::Sftp(server) => server.rename(from, to).await,
+        Store::Ftp(server) => server.rename(from, to).await,
+        _ => op.rename(from, source::name(to)).await.map(|_| ()),
+    }
 }
 
 /// The image read and turned in its own format, and whether it lost quality.
@@ -91,6 +179,9 @@ async fn replace_as(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion
     if op.temp_copy(path) {
         return Err(("error-save-temp-copy", path.to_string()));
     }
+    if let Some(file) = op.local_file(path) {
+        local::writable(&file)?;
+    }
     source::SAVING.lock().unwrap().insert(path.to_string());
     let size = data.len() as u64;
     let r = swap(op, path, |new| async move { op.write_chunks(&new, size, whole(data)).await }, how, strict).await;
@@ -103,22 +194,18 @@ async fn replace_as(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion
 async fn swap<W: Future<Output = Result<(), source::Error>>>(op: &Store, path: &str, write: impl FnOnce(String) -> W, how: source::Deletion, strict: bool) -> Result<(), source::Error> {
     let own = source::name(path);
     let (new, old) = source::save_names(path);
-    // An original left by an earlier save cut short after its new version took the name: it goes
-    // where that save would have sent it.
-    if op.names(&source::parent(path)).await?.contains(source::name(&old)) {
-        put_away(op, &old, own, how).await?;
-    }
     // A failed write leaves nothing (`Store::write_chunks`), the original untouched.
     write(new.clone()).await?;
-    // The original leaves its name and waits as `old`. To the system trash it goes now with its
-    // own name (restoring it from there gives it back), `old` being a second name of it.
-    let left = match how {
-        source::Deletion::SystemTrash => match op.link_or_copy(path, &old).await {
-            Ok(()) => op.delete(path, how).await.map_err(|e| if strict { trash_failed(e) } else { e }),
+    let mut left = leave(op, path, &old, how, strict).await;
+    // An original left by an earlier save cut short after its new version took the name: it goes
+    // where that save would have sent it, then this one leaves. Looked for only when needed: the
+    // folder is not read for every save.
+    if left.is_err() && op.exists(&old).await && op.exists(path).await {
+        left = match put_away(op, &old, own, how).await {
+            Ok(()) => leave(op, path, &old, how, strict).await,
             Err(e) => Err(e),
-        },
-        _ => op.rename(path, source::name(&old)).await.map(|_| ()),
-    };
+        };
+    }
     let named = match left {
         Ok(()) => op.rename(&new, own).await.map(|_| ()),
         Err(e) => Err(e),
@@ -137,6 +224,18 @@ async fn swap<W: Future<Output = Result<(), source::Error>>>(op: &Store, path: &
         }
     }
     Ok(())
+}
+
+/// The original leaves its name and waits as `old`. To the system trash it goes now with its own
+/// name (restoring it from there gives it back), `old` being a second name of it.
+async fn leave(op: &Store, path: &str, old: &str, how: source::Deletion, strict: bool) -> Result<(), source::Error> {
+    match how {
+        source::Deletion::SystemTrash => {
+            op.link_or_copy(path, old).await?;
+            op.delete(path, how).await.map_err(|e| if strict { trash_failed(e) } else { e })
+        }
+        _ => op.rename(path, source::name(old)).await.map(|_| ()),
+    }
 }
 
 /// The original could not go to the trash: said plainly, what went wrong (id and detail) at the end.

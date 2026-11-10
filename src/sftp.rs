@@ -14,7 +14,7 @@ use bytes::Bytes;
 use russh::client::Handle;
 use russh_sftp::client::RawSftpSession;
 use russh_sftp::client::error::Error as SftpError;
-use russh_sftp::protocol::{FileAttributes, OpenFlags, StatusCode};
+use russh_sftp::protocol::{FileAttributes, OpenFlags, Packet, StatusCode};
 
 use crate::source::{Error, Listing, NOT_FOUND, SILENT};
 
@@ -38,6 +38,8 @@ struct Conn {
     /// server must accept).
     read_len: u32,
     write_len: usize,
+    /// The server renames a file over another in one request (`posix-rename@openssh.com`).
+    posix_rename: bool,
     watch: Watch,
 }
 
@@ -325,6 +327,20 @@ impl Server {
         retry!(self, from, |c| c.ask(c.raw.rename(abs(from), abs(to))).await).map(|_| ())
     }
 
+    /// Renames the file `from` over the file `to` in one request, as `rename(2)` does, where the
+    /// server can (`posix-rename@openssh.com`: OpenSSH and most servers); `None` where it cannot.
+    pub async fn rename_over(&self, from: &str, to: &str) -> Option<Result<(), Error>> {
+        match self.session().await {
+            Ok(c) if !c.posix_rename => None,
+            Ok(_) => Some(self.posix_rename(from, to).await),
+            Err(e) => Some(Err(e)),
+        }
+    }
+
+    async fn posix_rename(&self, from: &str, to: &str) -> Result<(), Error> {
+        retry!(self, from, |c| posix_rename(c, from, to).await)
+    }
+
     pub async fn exists(&self, path: &str) -> bool {
         let r: Result<_, Error> = (async { retry!(self, path, READ_TRIES, |c| c.ask(c.raw.lstat(abs(path))).await) }).await;
         r.is_ok()
@@ -453,7 +469,9 @@ async fn start(handle: Handle<connect::Client>, t: &Target) -> Result<Conn, Erro
     // A server with SSH but no SFTP (a Synology with SFTP off) refuses here.
     channel.request_subsystem(true, "sftp").await.map_err(|e| ("error-no-sftp", format!("{}: {e}", t.host)))?;
     let mut raw = RawSftpSession::new(channel.into_stream());
-    raw.init().await.map_err(|e| ("error-no-sftp", format!("{}: {e}", t.host)))?;
+    let version = raw.init().await.map_err(|e| ("error-no-sftp", format!("{}: {e}", t.host)))?;
+    let posix_rename = version.extensions.get(POSIX_RENAME).is_some_and(|v| v == "1");
+    log!("sftp {}: extensions {:?}", t.host, version.extensions);
     let (mut read_len, mut write_len) = (32 << 10, 32 << 10);
     if let Ok(limits) = raw.limits().await {
         read_len = limits.max_read_len.clamp(32 << 10, 256 << 10);
@@ -462,7 +480,23 @@ async fn start(handle: Handle<connect::Client>, t: &Target) -> Result<Conn, Erro
     }
     // Only a last resort: a connection that stopped is found by `Conn::ask` after `SILENCE`.
     raw.set_timeout(60);
-    Ok(Conn { handle, raw, read_len: read_len as u32, write_len: write_len as usize, watch: Watch::default() })
+    Ok(Conn { handle, raw, read_len: read_len as u32, write_len: write_len as usize, posix_rename, watch: Watch::default() })
+}
+
+/// The extension that renames over a file; its request carries the two paths as SFTP strings.
+const POSIX_RENAME: &str = "posix-rename@openssh.com";
+
+async fn posix_rename(c: &Conn, from: &str, to: &str) -> Result<(), SftpError> {
+    let mut data = Vec::new();
+    for p in [abs(from), abs(to)] {
+        data.extend_from_slice(&(p.len() as u32).to_be_bytes());
+        data.extend_from_slice(p.as_bytes());
+    }
+    match c.ask(c.raw.extended(POSIX_RENAME, data)).await? {
+        Packet::Status(s) if s.status_code == StatusCode::Ok => Ok(()),
+        Packet::Status(s) => Err(s.into()),
+        _ => Err(SftpError::UnexpectedPacket),
+    }
 }
 
 /// Everything in a folder but "." and "..", with its attributes.

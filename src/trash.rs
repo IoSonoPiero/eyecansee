@@ -21,10 +21,34 @@ const OLD: &str = ".eyecansee-old";
 /// Images being saved over themselves: `Store::recover` leaves their hidden files alone.
 pub static SAVING: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
 
+/// The longest name disks take: 255 bytes on Linux, 255 UTF-16 units on Windows (never more
+/// than the bytes of the same name).
+const NAME_MAX: usize = 255;
+
 /// The two hidden paths of `path` while it is saved over itself: new file, original.
 pub fn save_names(path: &str) -> (String, String) {
     let (dir, own) = (parent(path), name(path));
-    (format!("{dir}.{own}{NEW}"), format!("{dir}.{own}{OLD}"))
+    (format!("{dir}{}", hidden(own, NEW)), format!("{dir}{}", hidden(own, OLD)))
+}
+
+/// ".name" + `end`; for a name too long for that (a paste over a file of 241-255 characters
+/// failed with "name not accepted"), the name cut, with "~" and a hash of the whole name, to fit.
+fn hidden(own: &str, end: &str) -> String {
+    let full = format!(".{own}{end}");
+    if full.len() <= NAME_MAX {
+        return full;
+    }
+    let tag = format!("~{:08x}", fnv(own));
+    let mut cut = NAME_MAX - 1 - tag.len() - end.len();
+    while !own.is_char_boundary(cut) {
+        cut -= 1;
+    }
+    format!(".{}{tag}{end}", &own[..cut])
+}
+
+/// FNV-1a, 32 bits: the same on every system and in every version.
+fn fnv(text: &str) -> u32 {
+    text.bytes().fold(0x811c_9dc5, |h, b| (h ^ b as u32).wrapping_mul(0x0100_0193))
 }
 
 /// Is this name one of `save_names`?
@@ -32,10 +56,35 @@ pub fn leftover(name: &str) -> bool {
     name.starts_with('.') && (name.ends_with(NEW) || name.ends_with(OLD))
 }
 
+/// The name between "." and the ending of a name of `save_names`, and whether it was cut
+/// (`hidden`): then only the image's own name gives it back (`owner`).
+fn inner(name: &str) -> Option<(&str, bool)> {
+    let n = name.strip_prefix('.')?;
+    let n = n.strip_suffix(NEW).or_else(|| n.strip_suffix(OLD))?;
+    let tagged = n.rsplit_once('~').is_some_and(|(_, h)| h.len() == 8 && h.bytes().all(|b| b.is_ascii_hexdigit()));
+    Some((n, tagged && name.len() + 3 >= NAME_MAX))
+}
+
 /// The image a name of `save_names` belongs to: an error about the hidden file names the image
-/// (#90). Any other name as it is.
+/// (#90), the beginning of it for a cut name. Any other name as it is.
 pub fn saved_image(name: &str) -> &str {
-    name.strip_prefix('.').and_then(|n| n.strip_suffix(NEW).or_else(|| n.strip_suffix(OLD))).unwrap_or(name)
+    match inner(name) {
+        Some((n, true)) => n.rsplit_once('~').map_or(n, |(start, _)| start),
+        Some((n, false)) => n,
+        None => name,
+    }
+}
+
+/// The image the hidden file `own` of `dir` belongs to: its name; for a cut name, the one among
+/// `names` (and the images being saved there) that gives it.
+fn owner(dir: &str, own: &str, names: &HashSet<String>) -> Option<String> {
+    let (n, cut) = inner(own)?;
+    if !cut {
+        return Some(n.to_string());
+    }
+    let end = if own.ends_with(NEW) { NEW } else { OLD };
+    let saving: Vec<String> = SAVING.lock().unwrap().iter().filter(|p| parent(p) == dir).map(|p| name(p).to_string()).collect();
+    names.iter().chain(&saving).find(|n| hidden(n, end) == own).cloned()
 }
 
 /// What to do when an item put back from the trash finds its name taken (`Store::restore`).
@@ -113,18 +162,32 @@ pub enum Deletion {
 }
 
 impl Store {
-    /// Files left by a "Save" cut short (the app closed): a new file goes, it may be incomplete; an
-    /// original whose name is free takes it back. An original next to its new version stays: the
-    /// save had worked, and the next save of that image sends it where a deletion would.
+    /// Files left by a "Save" or a paste cut short (the app closed, the phone unplugged): a new
+    /// file goes, it may be incomplete; an original whose name is free takes it back. An original
+    /// next to its new version stays: the save had worked, and the next save of that image sends
+    /// it where a deletion would. A new file alone, its name free and no original waiting, is
+    /// whole: on a phone the original is deleted before the new file is renamed (`replace::
+    /// put_in_place`), and only that rename was missing; it takes the name.
     pub(crate) async fn recover(&self, dir: &str, leftovers: &[String]) {
         let Ok(names) = self.names(dir).await else { return };
         for path in leftovers {
             let own = name(path);
-            let Some(original) = own.strip_prefix('.').and_then(|n| n.strip_suffix(NEW).or_else(|| n.strip_suffix(OLD))) else { continue };
+            let Some(original) = owner(dir, own, &names) else {
+                // A cut name whose image is not there: a new file goes, an original stays hidden.
+                if own.ends_with(NEW) && inner(own).is_some() {
+                    let r = self.delete(path, Deletion::Permanent).await;
+                    log!("recover {path:?}, its image unknown: {r:?}");
+                }
+                continue;
+            };
+            let original = original.as_str();
             if SAVING.lock().unwrap().contains(&format!("{dir}{original}")) {
                 continue;
             }
-            let r = if own.ends_with(NEW) {
+            let waiting = names.contains(&hidden(original, OLD));
+            let r = if own.ends_with(NEW) && !waiting && !names.contains(original) {
+                self.rename(path, original).await.map(|_| ())
+            } else if own.ends_with(NEW) {
                 self.delete(path, Deletion::Permanent).await
             } else if !names.contains(original) {
                 self.rename(path, original).await.map(|_| ())
@@ -251,6 +314,51 @@ impl Store {
 mod tests {
     use super::*;
     use opendal::{services, Operator};
+
+    /// The hidden names of a save fit on every disk: a name too long is cut and hashed, and the
+    /// folder's listing still finds its image. What a save or a paste cut short left is tidied:
+    /// a new file next to its image goes; a new file alone (a phone, between the deletion of the
+    /// original and the rename) takes the name; an original whose name is free gets it back.
+    #[test]
+    fn hidden_names_and_recover() {
+        assert_eq!(save_names("d/a.jpg"), ("d/.a.jpg.eyecansee-new".into(), "d/.a.jpg.eyecansee-old".into()));
+        assert_eq!(saved_image(".a.jpg.eyecansee-new"), "a.jpg");
+        let long = format!("{}.jpg", "é".repeat(124));
+        let (new, old) = save_names(&format!("d/{long}"));
+        let (new, old) = (name(&new).to_string(), name(&old).to_string());
+        assert!(new.len() <= NAME_MAX && old.len() <= NAME_MAX && leftover(&new) && leftover(&old), "{new}");
+        assert!(long.starts_with(saved_image(&new)) && saved_image(&new).len() > 200);
+        assert_eq!(owner("d/", &new, &HashSet::from([long.clone()])), Some(long.clone()));
+        assert_eq!(owner("d/", &new, &HashSet::new()), None);
+
+        let dir = std::env::temp_dir().join(format!("eyecansee-hidden-names-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let w =|n: &str, b: &[u8]| std::fs::write(dir.join(n), b).unwrap();
+        w(&long, b"image");
+        w(&new, b"half");
+        w(&old, b"original");
+        w(".b.jpg.eyecansee-new", b"whole");
+        w("c.jpg", b"c");
+        w(".c.jpg.eyecansee-new", b"half");
+        w(".d.jpg.eyecansee-old", b"d");
+        w(".e.jpg.eyecansee-new", b"half");
+        w(".e.jpg.eyecansee-old", b"e");
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        rt_list(&op);
+        let mut left: Vec<String> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        left.sort();
+        let mut want = vec![old.clone(), "b.jpg".into(), "c.jpg".into(), "d.jpg".into(), "e.jpg".into(), long.clone()];
+        want.sort();
+        assert_eq!(left, want);
+        assert_eq!(std::fs::read(dir.join("b.jpg")).unwrap(), b"whole");
+        assert_eq!(std::fs::read(dir.join("e.jpg")).unwrap(), b"e");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    fn rt_list(op: &Store) {
+        tokio::runtime::Runtime::new().unwrap().block_on(op.list("")).unwrap();
+    }
 
     /// Android's trash: hidden ".trashed-<seconds>-<name>" files, shown in the folder's trash
     /// and put back by renaming.

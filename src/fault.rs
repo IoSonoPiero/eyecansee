@@ -71,8 +71,18 @@ impl Kind {
 /// system ("(os error 28)") comes first: OpenDAL calls "Unexpected" a full disk or a read-only
 /// one. The code is read on the system that gave it, so Windows' codes are Windows' own.
 pub(crate) fn recognise(text: &str) -> Option<(Kind, Option<String>)> {
-    let kind = os_code(text).and_then(|code| Kind::of_io(std::io::Error::from_raw_os_error(code).kind())).or_else(|| Kind::of_dal(text))?;
+    let kind = os_code(text).and_then(of_code).or_else(|| Kind::of_dal(text))?;
     Some((kind, context_path(text).map(|p| source::saved_image(source::name(&p)).to_string()).filter(|n| !n.is_empty())))
+}
+
+/// The kind of a system's error code. Windows says that a file is held by another program with
+/// codes Rust leaves uncategorized: ERROR_SHARING_VIOLATION (32), ERROR_LOCK_VIOLATION (33), and
+/// ERROR_UNABLE_TO_REMOVE_REPLACED (1175) from the `ReplaceFileW` of a paste over a file (#90).
+fn of_code(code: i32) -> Option<Kind> {
+    if cfg!(windows) && matches!(code, 32 | 33 | 1175) {
+        return Some(Kind::InUse);
+    }
+    Kind::of_io(std::io::Error::from_raw_os_error(code).kind())
 }
 
 /// N in "(os error N)".
@@ -161,6 +171,16 @@ mod tests {
         assert_eq!(recognise("Permission denied (os error 13)"), Some((Kind::Denied, None)));
         assert_eq!(recognise("File exists (os error 17)"), Some((Kind::Exists, None)));
         assert_eq!(recognise("File too large (os error 27)"), Some((Kind::TooLarge, None)));
+    }
+
+    /// A file held by another program, as Windows says it: opening it, or replacing it (#90).
+    #[cfg(windows)]
+    #[test]
+    fn windows_in_use() {
+        for code in [32, 33, 1175] {
+            let t = format!("replace, context: {{ path: a.jpg }} => in use (os error {code})");
+            assert_eq!(recognise(&t), Some((Kind::InUse, Some("a.jpg".into()))), "{code}");
+        }
     }
 
     #[test]

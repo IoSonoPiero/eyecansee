@@ -121,8 +121,9 @@ impl crate::App {
         let Some(mut w) = self.convert.take() else { return };
         self.start_encoding(&mut w, ctx);
         let dir = crate::source::parent(&w.path);
+        // What the grid does not show is taken too: a hidden "e (2).jpg" was overwritten.
         let taken: HashSet<String> = match self.listings.get(&dir) {
-            Some(Ok(l)) => l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).collect(),
+            Some(Ok(l)) => l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).chain(l.unseen.iter().cloned()).collect(),
             _ => HashSet::new(),
         };
         let final_name = crate::source::free_name(&taken, w.name.trim());
