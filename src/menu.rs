@@ -10,6 +10,11 @@ use crate::{App, icons, meta, settings, source, transform, version};
 use crate::loader::THUMB_SIDE;
 use crate::selection::{Kind, PLAYED, fits, starred};
 
+/// The address bar's field: F1 while typing in it opens the page on addresses (`help_spot`).
+pub(crate) fn address_id() -> egui::Id {
+    egui::Id::unique("address")
+}
+
 impl App {
     /// Every keyboard or double-click action also has a menu item, with the shortcut next to it.
     /// The menus only record the chosen item; the action runs afterwards, with access to the whole app.
@@ -234,7 +239,7 @@ impl App {
             // Space to the right of the address: sorting (drop-down and direction) and thumbnail slider.
             let slider_width = if self.viewing.is_none() { 370.0 } else { 0.0 };
             let address = egui::TextEdit::singleline(&mut self.address)
-                .id(egui::Id::unique("address"))
+                .id(address_id())
                 .hint_text(self.i18n.t("tb-address-hint"))
                 .desired_width(ui.available_width() - slider_width);
             let response = ui.add(address);

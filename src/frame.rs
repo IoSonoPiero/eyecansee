@@ -45,7 +45,7 @@ impl App {
         // F1 everywhere, also over the pages, the dialogs and in a field: the guide on the page of
         // what is in front (`help_spot`).
         if ctx.input(|i| i.key_pressed(egui::Key::F1)) {
-            let spot = self.help_spot();
+            let spot = self.help_spot(ctx);
             log!("help spot {spot}");
             self.toggle_help(spot);
         }

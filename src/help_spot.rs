@@ -1,9 +1,11 @@
 //! F1 opens the guide on the page of what is in front of the user: the window on top, else the
 //! page open (the editor with its tool, Save in another format, the slideshow, the duplicates),
-//! else the viewer by kind of file, else the device or server open, else the grid. A spot is
+//! else the address bar while typing in it, else the viewer by kind of file, else the device or server open, else the grid. A spot is
 //! always the id of a page of the guide, written as a `"help:<id>"` literal (the test of the
 //! guide finds every one and checks that the page exists); a spot without a page of its own gives
 //! the page of its area.
+
+use eframe::egui;
 
 use crate::App;
 use crate::devices::Device;
@@ -23,9 +25,10 @@ pub(crate) struct EditView {
 
 impl App {
     /// The page of the guide for what is in front of the user, as `"help:<id>"`.
-    pub(crate) fn help_spot(&self) -> &'static str {
-        let page = self.window_spot().or_else(|| self.page_spot());
-        page.or_else(|| self.viewer_spot()).or_else(|| place_spot(&self.base, &self.dir, &self.devices)).unwrap_or("help:grid")
+    pub(crate) fn help_spot(&self, ctx: &egui::Context) -> &'static str {
+        let top = self.window_spot().or_else(|| self.page_spot());
+        let typing = ctx.memory(|m| m.has_focus(crate::menu::address_id()));
+        pick(top, typing, || self.viewer_spot().or_else(|| place_spot(&self.base, &self.dir, &self.devices)))
     }
 
     /// The window on top, if one is open: the last ones drawn by `windows()` first (the modals
@@ -74,6 +77,12 @@ impl App {
     fn viewer_spot(&self) -> Option<&'static str> {
         self.viewing.and_then(|i| self.files().get(i)).map(|f| file_spot(&f.path))
     }
+}
+
+/// The spot from the layers: a window or a page on top, then the address bar being typed in,
+/// then what is under it (the viewer or the device), else the grid.
+fn pick(top: Option<&'static str>, typing: bool, under: impl FnOnce() -> Option<&'static str>) -> &'static str {
+    top.or_else(|| typing.then_some("help:address")).or_else(under).unwrap_or("help:grid")
 }
 
 /// Convert and resize: on videos only (or their sound), on CAD drawings, or on pictures.
@@ -189,6 +198,18 @@ mod tests {
         assert_eq!(place_spot("/media/USB/", "", &devices), Some("help:devices"));
         assert_eq!(place_spot("/", "run/gvfs/mtp:host=A/DCIM/", &devices), Some("help:phone"));
         assert_eq!(place_spot("/", "home/Pictures/", &devices), None);
+    }
+
+    #[test]
+    fn address_bar() {
+        let under = || Some("help:viewer");
+        assert_eq!(pick(None, true, under), "help:address");
+        assert_eq!(pick(None, true, || None), "help:address");
+        // A window or a page over the bar comes first; without typing, what is under it.
+        assert_eq!(pick(Some("help:options"), true, under), "help:options");
+        assert_eq!(pick(Some("help:editor-crop"), true, under), "help:editor-crop");
+        assert_eq!(pick(None, false, under), "help:viewer");
+        assert_eq!(pick(None, false, || None), "help:grid");
     }
 
     #[test]
