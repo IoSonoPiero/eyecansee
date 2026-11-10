@@ -82,6 +82,7 @@ impl App {
                 self.open_address = AddressForm::for_password(&format!("{}{}", self.base, self.dir));
                 if let Some(f) = &mut self.open_address {
                     f.refused = Some(self.i18n.error(id, detail));
+                    f.enter_saves = crate::servers::find(&format!("{}{}", self.base, self.dir)).is_some();
                 }
             }
             // A server's folder that is gone (moved, deleted, reopened at startup): the saved

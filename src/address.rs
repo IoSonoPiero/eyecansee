@@ -37,6 +37,9 @@ pub(crate) struct AddressForm {
     /// Opened because the server refused the login: why, shown at the top of the window (behind
     /// it, in the grid and the side panel, it could not be read: user, 2026-11-10).
     pub(crate) refused: Option<String>,
+    /// The refused server is a saved one: Enter is "Save and open", so its new password stays
+    /// (user, 2026-11-10); otherwise Enter is "Open".
+    pub(crate) enter_saves: bool,
     /// Opened because the saved key of this server (index) did not open: the message, shown
     /// above its fields until it is saved again.
     pub(crate) key_problem: Option<(usize, String)>,
@@ -240,12 +243,13 @@ impl App {
             let enter = keys == Some(true) || ui.input(|i| i.key_pressed(Key::Enter));
             ui.horizontal(|ui| {
                 let keep = address.as_ref().and(f.to_keep());
-                if ui.add_enabled(keep.is_some(), egui::Button::new(t("addr-save-open"))).on_hover_text(t("addr-save-open-hint")).on_disabled_hover_text(t("addr-save-open-local")).clicked() {
+                let enter_saves = enter && f.enter_saves && keep.is_some();
+                if ui.add_enabled(keep.is_some(), egui::Button::new(t("addr-save-open"))).on_hover_text(t("addr-save-open-hint")).on_disabled_hover_text(t("addr-save-open-local")).clicked() || enter_saves {
                     log!("open location: save and open");
                     save = keep;
                     answer = Some(true);
                 }
-                if ui.add_enabled(address.is_some(), egui::Button::new(t("addr-open"))).clicked() || (enter && address.is_some()) {
+                if ui.add_enabled(address.is_some(), egui::Button::new(t("addr-open"))).clicked() || (enter && !enter_saves && address.is_some()) {
                     answer = Some(true);
                 }
                 if ui.button(t("delete-no")).clicked() {
