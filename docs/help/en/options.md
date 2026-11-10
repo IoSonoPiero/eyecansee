@@ -8,7 +8,7 @@ Choose **Tools > Options…** (![Options…](icon://settings)). The window is di
 
 Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Linux and in `%APPDATA%\eyecansee` on Windows. It is a text file you can also edit by hand.
 
-<!-- shot: options | panoramica | The Options window on the General tab: Reopen the last folder at startup, Window at startup, Language, Check for updates at startup -->
+![Options](../img/options.webp)
 
 ## General
 

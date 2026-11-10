@@ -12,7 +12,7 @@ Per una sola immagine con l'anteprima dal vivo usa [Salvare in un altro formato]
 
 La finestra lavora su foto e video. Gli altri file selezionati (modelli 3D, disegni CAD, file audio) restano fuori, e la finestra dice quanti sono. Non funziona dal visore, e si fa una conversione alla volta.
 
-<!-- shot: convert | panoramica | The Convert and resize window over the grid with several photos selected: Format JPEG, Turn and flip, Size Inside 1920 x 1080, Where In the subfolder converted -->
+![Convertire e ridimensionare le immagini](../img/convert.webp)
 
 ## Formato
 

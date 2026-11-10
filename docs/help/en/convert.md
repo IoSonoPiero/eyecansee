@@ -12,7 +12,7 @@ For one image with a live preview use [Saving in another format](save-as.md). Vi
 
 The window works on pictures and videos. Other files you selected (3D models, CAD drawings, audio files) are left out, and the window says how many. It does not work from the viewer, and only one conversion runs at a time.
 
-<!-- shot: convert | panoramica | The Convert and resize window over the grid with several photos selected: Format JPEG, Turn and flip, Size Inside 1920 x 1080, Where In the subfolder converted -->
+![Converting and resizing images](../img/convert.webp)
 
 ## Format
 

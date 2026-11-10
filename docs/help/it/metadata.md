@@ -2,7 +2,7 @@
 
 Sotto la griglia, il pannello dei metadati mostra quello che si sa del file selezionato: il nome e il peso, e quello che la fotocamera o il telefono ci hanno scritto dentro (quando, con quale fotocamera, dove).
 
-<!-- shot: metadata-panel | ritaglio | the metadata panel under the grid for a phone photo, with the boxes File, Camera, Shot, Image and Location filled in, and the Open on the map link -->
+![Informazioni sul file](../img/metadata-panel.webp)
 
 ## I riquadri
 

@@ -2,7 +2,7 @@
 
 AutoCAD drawings (**DWG** and **DXF**) and plotter files (**HP-GL** and **HP-GL/2**: `.plt`, `.hpgl`) appear in the grid with a picture of the drawing as thumbnail, and open in the viewer like a picture.
 
-<!-- shot: cad | panoramica | a DWG floor plan open in the viewer on its dark background, zoomed in a little, with the X Y axes in the bottom left corner and the status bar showing the size in metres, the layout name and the zoom -->
+![CAD drawings](../img/cad.webp)
 
 ## Looking at a drawing
 

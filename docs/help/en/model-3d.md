@@ -2,7 +2,7 @@
 
 3D models appear in the grid next to the pictures, with a picture of the model as thumbnail. In the viewer the graphics card draws them, and you can turn them and look at them from every side.
 
-<!-- shot: model-3d | panoramica | a coloured 3D model open in the viewer, turned a little, with the X Y Z axes in the top right corner and the status bar showing triangles and zoom -->
+![3D models](../img/model-3d.webp)
 
 ## Which models
 

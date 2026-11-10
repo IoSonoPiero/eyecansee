@@ -2,7 +2,7 @@
 
 The viewer shows one picture at a time, as large as the window allows. From there you move to the next picture, zoom in, turn the picture, and go back to the grid.
 
-<!-- shot: viewer | panoramica | a landscape photo open in the viewer, slightly zoomed in, with the toolbar above and the status bar below showing name, position, pixels, zoom, size, date and the Keys button -->
+![Viewing images](../img/viewer.webp)
 
 ## Opening and closing the viewer
 

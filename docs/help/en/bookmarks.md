@@ -12,7 +12,7 @@ A new bookmark takes the name of the folder or the picture; for the top of a dis
 
 ## Opening a bookmark
 
-<!-- shot: bookmarks-menu | ritaglio | the star (lit) and the Bookmarks drop-down open under it, with three bookmarks and Configure… -->
+![Bookmarks](../img/bookmarks-menu.webp)
 
 - Click ![Bookmarks](icon://bookmark) **Bookmarks**, the drop-down just after the star, and choose a bookmark. Pointing at a bookmark shows its address.
 - Or use the **Bookmarks** menu in the menu bar.

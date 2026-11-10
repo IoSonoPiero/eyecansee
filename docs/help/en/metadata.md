@@ -2,7 +2,7 @@
 
 Under the grid, the metadata panel shows what is known about the selected file: its name and size, and what the camera or phone wrote in it (when, with which camera, where).
 
-<!-- shot: metadata-panel | ritaglio | the metadata panel under the grid for a phone photo, with the boxes File, Camera, Shot, Image and Location filled in, and the Open on the map link -->
+![Image information](../img/metadata-panel.webp)
 
 ## The boxes
 

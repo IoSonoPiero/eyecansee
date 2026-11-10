@@ -6,7 +6,7 @@ The server manager keeps the servers you use, with their password or key, so the
 
 Choose **File > Server manager…** (![Server manager…](icon://server)). If the saved servers are protected by a master password, EyeCanSee asks for it first (see [Saved passwords](passwords.md)).
 
-<!-- shot: server-manager | panoramica | The Server manager window: the master password box at the top, two saved servers on the left with the first one chosen, its fields on the right (Name, Protocol SFTP, Server example.com, Port, User, Password, Folder, Key file with Browse, Key passphrase), the buttons below -->
+![Managing servers](../img/server-manager.webp)
 
 ## The window
 

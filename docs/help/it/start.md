@@ -4,7 +4,7 @@ EyeCanSee mostra le foto, i video, i modelli 3D e i disegni CAD di una cartella 
 
 ## La finestra
 
-<!-- shot: start | panoramica | the whole window on a folder of holiday photos: menu bar, toolbar with the address bar, side panel with Devices and This computer, grid with a few folders and thumbnails (one selected), metadata panel and status bar -->
+![Per cominciare](../img/start.webp)
 
 - **Barra dei menù** in alto: File, Modifica, Immagine, Visualizza, Segnalibri, Strumenti e Aiuto.
 - **Barra strumenti** subito sotto: i pulsanti delle operazioni più comuni, i segnalibri e la barra degli indirizzi. Passando col mouse su un pulsante compaiono il suo nome e il suo tasto; su un pulsante grigio, anche il motivo per cui ora non si può usare.

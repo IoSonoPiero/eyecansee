@@ -2,7 +2,7 @@
 
 I video compaiono nella griglia insieme alle foto, con un fotogramma del video come miniatura e il simbolo ![Video](icon://color-video). Si aprono nel visore, dove partono con l'audio. Lì si ascoltano anche i file audio.
 
-<!-- shot: video | panoramica | a video playing in the viewer, with the bar under it: pause button, time, position slider, sound button and volume slider -->
+![Riprodurre i video](../img/video.webp)
 
 ## Guardare un video
 

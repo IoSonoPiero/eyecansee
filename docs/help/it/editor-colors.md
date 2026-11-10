@@ -2,7 +2,7 @@
 
 La barra delle proprietà, sotto gli strumenti, contiene lo stile di ciò che disegni: colore, spessore, opacità e tipo di tratto. Cambia con lo strumento.
 
-<!-- shot: editor-props | ritaglio | the properties bar with a rectangle selected: "Selected object:", Border with the eight colours and Other colour, the eyedropper, Fill with the no-fill square and the colours, Width, Opacity, the three line buttons, the bin -->
+![Colori, linee e contagocce](../img/editor-props.webp)
 
 ## Prossimo oggetto o oggetto selezionato
 

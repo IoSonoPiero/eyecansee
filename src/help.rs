@@ -37,7 +37,28 @@ macro_rules! images {
     };
 }
 
-images![];
+images![
+    "bookmarks-menu",
+    "cad",
+    "convert",
+    "convert-video",
+    "devices",
+    "duplicates",
+    "editor",
+    "editor-crop",
+    "editor-props",
+    "metadata-panel",
+    "model-3d",
+    "new-image",
+    "open-location",
+    "options",
+    "save-as",
+    "server-manager",
+    "side-panel",
+    "start",
+    "video",
+    "viewer",
+];
 
 /// The address of a picture as the pages write it (`../img/<name>.webp`) with the prefix the
 /// viewer gives to addresses without a scheme.

@@ -2,7 +2,7 @@
 
 **File > Nuova immagine…** (Ctrl+N) crea un'immagine vuota e la apre nell'editor, per disegnare uno schema, un cartello o un'immagine per i social.
 
-<!-- shot: new-image | ritaglio | the New image window: Size with A4 chosen, Width × height with the unit, Resolution, Background (White, Transparent, Colour), the line with the size in pixels, Create and Cancel -->
+![Nuova immagine](../img/new-image.webp)
 
 ## Creare un'immagine nuova
 

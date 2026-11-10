@@ -2,7 +2,7 @@
 
 Il pannello a sinistra della finestra porta in ogni posto che EyeCanSee sa aprire: le cartelle di questo computer, i tuoi dischi e telefoni, e i server salvati. Puoi allargarlo o stringerlo trascinandone il bordo destro.
 
-<!-- shot: side-panel | ritaglio | the side panel with the Devices block (a USB stick and a phone), the Servers block (one saved server) and the This computer tree open down to a Holiday folder, highlighted -->
+![Cartelle e pannello laterale](../img/side-panel.webp)
 
 ## Le parti del pannello
 

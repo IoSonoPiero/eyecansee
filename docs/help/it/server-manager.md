@@ -6,7 +6,7 @@ La gestione server tiene i server che usi, con la loro password o chiave, così 
 
 Scegli **File > Gestione server…** (![Gestione server…](icon://server)). Se i server salvati sono protetti da una password principale, EyeCanSee la chiede prima (vedi [Password salvate](passwords.md)).
 
-<!-- shot: server-manager | panoramica | The Server manager window: the master password box at the top, two saved servers on the left with the first one chosen, its fields on the right (Name, Protocol SFTP, Server example.com, Port, User, Password, Folder, Key file with Browse, Key passphrase), the buttons below -->
+![Gestire i server](../img/server-manager.webp)
 
 ## La finestra
 

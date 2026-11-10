@@ -17,7 +17,7 @@ When you change folder, the bar shows the new one. A password is never shown in 
 
 **File > Open location…** opens a window where you can type a server address in pieces, without remembering how it is written.
 
-<!-- shot: open-location | ritaglio | the Open location window with SFTP chosen and Server, User and Folder filled in, Password hidden -->
+![Address bar and Open location](../img/open-location.webp)
 
 1. Either type the whole address in the field at the top, or leave it empty and fill in the fields below it.
 2. **Protocol**: FTP, FTPS or SFTP.

@@ -2,7 +2,7 @@
 
 I modelli 3D compaiono nella griglia insieme alle foto, con un'immagine del modello come miniatura. Nel visore li disegna la scheda video, e puoi girarli e guardarli da ogni lato.
 
-<!-- shot: model-3d | panoramica | a coloured 3D model open in the viewer, turned a little, with the X Y Z axes in the top right corner and the status bar showing triangles and zoom -->
+![Modelli 3D](../img/model-3d.webp)
 
 ## Quali modelli
 

@@ -4,7 +4,7 @@ EyeCanSee shows the pictures, videos, 3D models and CAD drawings of a folder as 
 
 ## The window
 
-<!-- shot: start | panoramica | the whole window on a folder of holiday photos: menu bar, toolbar with the address bar, side panel with Devices and This computer, grid with a few folders and thumbnails (one selected), metadata panel and status bar -->
+![Getting started](../img/start.webp)
 
 - **Menu bar** at the top: File, Edit, Image, View, Bookmarks, Tools and Help.
 - **Toolbar** under it: the buttons for the most common operations, the bookmarks and the address bar. Pointing at a button shows its name and its key; on a greyed-out button it also says why it cannot be used now.

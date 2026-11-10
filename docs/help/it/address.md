@@ -17,7 +17,7 @@ Quando cambi cartella, la barra mostra quella nuova. Una password non compare ma
 
 **File > Apri indirizzo…** apre una finestra in cui scrivere l'indirizzo di un server un pezzo alla volta, senza ricordare come si scrive.
 
-<!-- shot: open-location | ritaglio | the Open location window with SFTP chosen and Server, User and Folder filled in, Password hidden -->
+![Barra degli indirizzi e Apri indirizzo](../img/open-location.webp)
 
 1. Scrivi l'indirizzo intero nel campo in alto, oppure lascialo vuoto e compila i campi sotto.
 2. **Protocollo**: FTP, FTPS o SFTP.

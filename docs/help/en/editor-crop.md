@@ -4,7 +4,7 @@
 
 With this tool the whole image is shown, with the crop frame over it and the parts outside darkened. With the other tools you see only the result.
 
-<!-- shot: editor-crop | panoramica | the editor with Crop and rotate chosen on a slightly tilted landscape: the frame with its handles and the thirds lines, outside darkened, the properties bar with Rotation, Straighten, Crop proportions, Image only, Whole image, Empty corners and Apply -->
+![Crop and rotate](../img/editor-crop.webp)
 
 ## Rotating
 

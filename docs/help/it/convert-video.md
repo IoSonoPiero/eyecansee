@@ -15,7 +15,7 @@ I video li converte FFmpeg.
 - La prima volta EyeCanSee controlla quali codificatori funzionano su questo computer ("Controllo quali codificatori funzionano su questo computer…") e poi mostra solo quelli.
 - Quando l'FFmpeg del computer lascia al processore una parte del lavoro della scheda video, e in **Opzioni > Video** è scelto Automatica, la finestra lo dice e propone di scaricare quello di EyeCanSee, usato dall'avvio successivo.
 
-<!-- shot: convert-video | ritaglio | The Videos part of the Convert and resize window: Container MP4, Codec H.264, an encoder of the graphics card in green, Quality Medium, Keep the sound and Keep the metadata ticked -->
+![Convertire i video](../img/convert-video.webp)
 
 ## Le scelte
 

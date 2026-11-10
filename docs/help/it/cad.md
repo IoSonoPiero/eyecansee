@@ -2,7 +2,7 @@
 
 I disegni di AutoCAD (**DWG** e **DXF**) e i file per plotter (**HP-GL** e **HP-GL/2**: `.plt`, `.hpgl`) compaiono nella griglia con un'immagine del disegno come miniatura, e si aprono nel visore come una foto.
 
-<!-- shot: cad | panoramica | a DWG floor plan open in the viewer on its dark background, zoomed in a little, with the X Y axes in the bottom left corner and the status bar showing the size in metres, the layout name and the zoom -->
+![Disegni CAD](../img/cad.webp)
 
 ## Guardare un disegno
 

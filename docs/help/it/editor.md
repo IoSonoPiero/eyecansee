@@ -2,7 +2,7 @@
 
 L'editor è una pagina a sé dove disegni su un'immagine, copri i dati privati, aggiungi filtri, la ruoti e la ritagli. Il file originale non cambia mai, a meno che tu non scelga di sovrascriverlo.
 
-<!-- shot: editor | panoramica | the editor page on a photo: the toolbar at the top, the properties bar under it with the style of a selected arrow, a few objects on the image (an arrow, a text, two step numbers), the status bar at the bottom with the Keys button -->
+![Modificare un'immagine](../img/editor.webp)
 
 ## Aprire l'editor
 

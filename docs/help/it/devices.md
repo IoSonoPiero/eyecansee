@@ -8,7 +8,7 @@ Dischi esterni, chiavette USB e schede di memoria compaiono nel pannello a sinis
 - Sotto **Questo computer** c'è l'albero delle cartelle del computer; su Windows anche le sue unità (![Disco interno](icon://color-internal-disk)).
 - Fai clic su un dispositivo per aprirlo a destra. Quando lo scolleghi sparisce; se lo stavi guardando, EyeCanSee torna alla tua cartella home.
 
-<!-- shot: devices | panoramica | The main window with the Devices block on the left showing a USB stick and an external disk, This computer below it, and the grid of a folder of the USB stick on the right -->
+![Dischi e chiavette](../img/devices.webp)
 
 ## Su Linux
 

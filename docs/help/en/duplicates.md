@@ -15,7 +15,7 @@ Trash folders and hidden folders are left out.
 
 ## The results
 
-<!-- shot: duplicates | panoramica | The duplicates page: two or three groups of identical photos, each with its thumbnail and one line per copy, the first copy with Stays, the others ticked, faded and struck through; Order, Keep the first, Keep the last, Keep all at the top; the summary and Delete the marked copies at the bottom -->
+![Finding duplicates](../img/duplicates.webp)
 
 The results fill the window. Every group of identical files has its thumbnail and one line per copy, with its date and its path below the folder searched (the full path when you point at it).
 

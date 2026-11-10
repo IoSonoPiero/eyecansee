@@ -15,7 +15,7 @@ Videos are converted by FFmpeg.
 - The first time, EyeCanSee checks which encoders work on this computer ("Checking which encoders work on this computer…") and then shows only those.
 - When the computer's FFmpeg leaves part of the graphics card's work to the processor, and the choice in **Options > Video** is Automatic, the window says so and offers to download EyeCanSee's own, used from the next start.
 
-<!-- shot: convert-video | ritaglio | The Videos part of the Convert and resize window: Container MP4, Codec H.264, an encoder of the graphics card in green, Quality Medium, Keep the sound and Keep the metadata ticked -->
+![Converting videos](../img/convert-video.webp)
 
 ## The choices
 

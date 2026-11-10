@@ -2,7 +2,7 @@
 
 **File > New image…** (Ctrl+N) makes an empty image and opens it in the editor, to draw a diagram, a sign or a picture for social media.
 
-<!-- shot: new-image | ritaglio | the New image window: Size with A4 chosen, Width × height with the unit, Resolution, Background (White, Transparent, Colour), the line with the size in pixels, Create and Cancel -->
+![New image](../img/new-image.webp)
 
 ## Making a new image
 

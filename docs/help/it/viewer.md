@@ -2,7 +2,7 @@
 
 Il visore mostra una foto alla volta, grande quanto la finestra permette. Da lì passi alla foto successiva, ingrandisci, ruoti la foto e torni alla griglia.
 
-<!-- shot: viewer | panoramica | a landscape photo open in the viewer, slightly zoomed in, with the toolbar above and the status bar below showing name, position, pixels, zoom, size, date and the Keys button -->
+![Guardare le immagini](../img/viewer.webp)
 
 ## Aprire e chiudere il visore
 

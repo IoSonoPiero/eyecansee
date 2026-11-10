@@ -11,7 +11,7 @@ To convert or resize many images at once, use [Converting and resizing images](c
 - In the viewer, a 3D model or a CAD drawing can be saved as a picture too, as it is shown on screen: a model at least 1920 pixels on its long side, a drawing with the layout you are looking at. On a 3D model **Ctrl+S** does the same.
 - In the editor, **Save as…** opens this page with the edited image (see [Saving an edited image](editor-save.md)).
 
-<!-- shot: save-as | panoramica | The Save in another format page on a photo: original on the left, converted on the right, JPEG chosen with its options and the file name under the right image -->
+![Saving in another format](../img/save-as.webp)
 
 ## What the page shows
 

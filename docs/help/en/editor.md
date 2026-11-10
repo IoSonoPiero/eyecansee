@@ -2,7 +2,7 @@
 
 The editor is a page of its own where you draw on one image, cover private details, add filters, and rotate and crop it. The original file is never changed unless you choose to overwrite it.
 
-<!-- shot: editor | panoramica | the editor page on a photo: the toolbar at the top, the properties bar under it with the style of a selected arrow, a few objects on the image (an arrow, a text, two step numbers), the status bar at the bottom with the Keys button -->
+![Editing an image](../img/editor.webp)
 
 ## Opening the editor
 

@@ -15,7 +15,7 @@ Le cartelle del cestino e le cartelle nascoste restano fuori.
 
 ## I risultati
 
-<!-- shot: duplicates | panoramica | The duplicates page: two or three groups of identical photos, each with its thumbnail and one line per copy, the first copy with Stays, the others ticked, faded and struck through; Order, Keep the first, Keep the last, Keep all at the top; the summary and Delete the marked copies at the bottom -->
+![Trovare i duplicati](../img/duplicates.webp)
 
 I risultati riempiono la finestra. Ogni gruppo di file identici ha la sua miniatura e una riga per copia, con la data e il percorso sotto la cartella cercata (il percorso completo passandoci sopra).
 

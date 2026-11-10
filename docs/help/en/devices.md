@@ -8,7 +8,7 @@ External disks, USB sticks and memory cards appear in the panel on the left as s
 - Under **This computer** is the folder tree of the computer; on Windows also its own drives (![Internal disk](icon://color-internal-disk)).
 - Click a device to open it on the right. When you disconnect it, it disappears; if you were looking at it, EyeCanSee goes back to your home folder.
 
-<!-- shot: devices | panoramica | The main window with the Devices block on the left showing a USB stick and an external disk, This computer below it, and the grid of a folder of the USB stick on the right -->
+![Disks and USB sticks](../img/devices.webp)
 
 ## On Linux
 

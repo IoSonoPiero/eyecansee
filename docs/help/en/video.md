@@ -2,7 +2,7 @@
 
 Videos appear in the grid next to the pictures, with a frame of the video as thumbnail and the ![Video](icon://color-video) sign. They open in the viewer, where they play with sound. Audio files play there too.
 
-<!-- shot: video | panoramica | a video playing in the viewer, with the bar under it: pause button, time, position slider, sound button and volume slider -->
+![Playing videos](../img/video.webp)
 
 ## Playing a video
 

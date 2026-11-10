@@ -2,7 +2,7 @@
 
 The panel on the left of the window takes you to every place EyeCanSee can open: the folders of this computer, your disks and phones, and your saved servers. You can make it wider or narrower by dragging its right edge.
 
-<!-- shot: side-panel | ritaglio | the side panel with the Devices block (a USB stick and a phone), the Servers block (one saved server) and the This computer tree open down to a Holiday folder, highlighted -->
+![Folders and the side panel](../img/side-panel.webp)
 
 ## The parts of the panel
 

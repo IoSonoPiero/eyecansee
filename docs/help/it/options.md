@@ -8,7 +8,7 @@ Scegli **Strumenti > Opzioni…** (![Opzioni…](icon://settings)). La finestra 
 
 Ogni modifica viene salvata subito in `settings.json`: in `~/.config/eyecansee` su Linux e in `%APPDATA%\eyecansee` su Windows. È un file di testo che puoi anche modificare a mano.
 
-<!-- shot: options | panoramica | The Options window on the General tab: Reopen the last folder at startup, Window at startup, Language, Check for updates at startup -->
+![Opzioni](../img/options.webp)
 
 ## Generale
 

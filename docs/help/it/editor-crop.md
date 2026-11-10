@@ -4,7 +4,7 @@
 
 Con questo strumento si vede tutta l'immagine, con sopra la cornice del ritaglio e le parti fuori scurite. Con gli altri strumenti si vede solo il risultato.
 
-<!-- shot: editor-crop | panoramica | the editor with Crop and rotate chosen on a slightly tilted landscape: the frame with its handles and the thirds lines, outside darkened, the properties bar with Rotation, Straighten, Crop proportions, Image only, Whole image, Empty corners and Apply -->
+![Ritagliare e ruotare](../img/editor-crop.webp)
 
 ## Ruotare
 

@@ -12,7 +12,7 @@ Un segnalibro nuovo prende il nome della cartella o della foto; per la cima di u
 
 ## Aprire un segnalibro
 
-<!-- shot: bookmarks-menu | ritaglio | the star (lit) and the Bookmarks drop-down open under it, with three bookmarks and Configure… -->
+![Segnalibri](../img/bookmarks-menu.webp)
 
 - Fai clic su ![Segnalibri](icon://bookmark) **Segnalibri**, la tendina subito dopo la stella, e scegli un segnalibro. Passando col mouse su un segnalibro compare il suo indirizzo.
 - Oppure usa il menù **Segnalibri** nella barra dei menù.

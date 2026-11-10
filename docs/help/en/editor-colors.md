@@ -2,7 +2,7 @@
 
 The properties bar, under the toolbar, holds the style of what you draw: colour, width, opacity and the kind of line. It changes with the tool.
 
-<!-- shot: editor-props | ritaglio | the properties bar with a rectangle selected: "Selected object:", Border with the eight colours and Other colour, the eyedropper, Fill with the no-fill square and the colours, Width, Opacity, the three line buttons, the bin -->
+![Colours, lines and the eyedropper](../img/editor-props.webp)
 
 ## Next object or selected object
 

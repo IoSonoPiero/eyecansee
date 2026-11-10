@@ -11,7 +11,7 @@ Per convertire o ridimensionare tante immagini insieme usa [Convertire e ridimen
 - Nel visore anche un modello 3D o un disegno CAD si possono salvare come immagine, così come si vedono: un modello di almeno 1920 pixel sul lato lungo, un disegno con il layout che stai guardando. Su un modello 3D fa lo stesso anche **Ctrl+S**.
 - Nell'editor, **Salva come…** apre questa pagina con l'immagine modificata (vedi [Salvare un'immagine modificata](editor-save.md)).
 
-<!-- shot: save-as | panoramica | The Save in another format page on a photo: original on the left, converted on the right, JPEG chosen with its options and the file name under the right image -->
+![Salvare in un altro formato](../img/save-as.webp)
 
 ## Che cosa mostra la pagina
 
