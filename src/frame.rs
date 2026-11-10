@@ -40,6 +40,7 @@ impl App {
         self.phone_events(ctx);
         self.phone_stall();
         self.notice_gone(ctx);
+        self.error_leaves_with_page(ctx);
         self.retry(ctx);
         self.reread_changed(ctx);
         // F1 everywhere, also over the pages, the dialogs and in a field: the guide on the page of
@@ -133,6 +134,46 @@ impl App {
         }
     }
 
+    /// The error goes away with the page it was shown on: the editor, Save in another format, the
+    /// duplicates, the slideshow, the viewer, or the folder of the grid (user, 2026-11-10: it
+    /// stayed until its ✕). The page it was first shown on is kept in egui's memory.
+    fn error_leaves_with_page(&mut self, ctx: &egui::Context) {
+        let id = egui::Id::unique("page-of-the-error");
+        let Some(error) = self.error.clone() else {
+            ctx.data_mut(|d| d.remove::<(String, String)>(id));
+            return;
+        };
+        let page = self.page_key();
+        match ctx.data(|d| d.get_temp::<(String, String)>(id)) {
+            Some(seen) if seen.0 == error => {
+                if left_page(&seen, &error, &page) {
+                    self.error = None;
+                    ctx.data_mut(|d| d.remove::<(String, String)>(id));
+                }
+            }
+            _ => ctx.data_mut(|d| {
+                d.insert_temp(id, (error, page));
+            }),
+        }
+    }
+
+    /// The page in front, as a key: the pages that cover the window, the viewer, or the folder.
+    fn page_key(&self) -> String {
+        if self.editor.is_some() {
+            "editor".into()
+        } else if self.convert.is_some() {
+            "convert".into()
+        } else if self.show.is_some() {
+            "slideshow".into()
+        } else if self.dup_page_shown() {
+            "duplicates".into()
+        } else if self.viewing.is_some() {
+            "viewer".into()
+        } else {
+            format!("grid {}{}", self.base, self.dir)
+        }
+    }
+
     /// The last error, at the bottom of the window with a ✕ to close it. Over the pages that
     /// cover the window too (editor, Save in another format, duplicates, slideshow): drawn only
     /// in the grid and the viewer, a save that failed in the editor was told once it was closed.
@@ -203,5 +244,24 @@ impl Drop for crate::App {
         {
             std::mem::replace(&mut self.rt, small).shutdown_timeout(std::time::Duration::from_millis(500));
         }
+    }
+}
+
+/// The error first shown on `seen.1` is still `error`, and the page in front is another one.
+fn left_page(seen: &(String, String), error: &str, page: &str) -> bool {
+    seen.0 == error && seen.1 != page
+}
+
+#[cfg(test)]
+mod tests {
+    use super::left_page;
+
+    #[test]
+    fn error_goes_with_its_page() {
+        let seen = ("Cannot save".to_string(), "editor".to_string());
+        assert!(!left_page(&seen, "Cannot save", "editor"));
+        assert!(left_page(&seen, "Cannot save", "viewer"));
+        // Another error is a new one, shown on the page in front.
+        assert!(!left_page(&seen, "Disk full", "viewer"));
     }
 }

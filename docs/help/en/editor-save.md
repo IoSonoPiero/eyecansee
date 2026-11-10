@@ -12,7 +12,7 @@ The editor never changes the original unless you ask. The main button, **Save co
 
 The original stays as it is. The page stays open, so you can go on. When you close it, the grid selects the copy and the viewer shows it.
 
-If a save fails, a yellow band with a warning triangle at the bottom of the window says why in plain words (for example that the folder is read-only or the disk is full), and the page stays open with your changes.
+If a save fails, a yellow band with a warning triangle at the bottom of the window says why in plain words (for example that the folder is read-only or the disk is full), and the page stays open with your changes. The band goes away when you close the page, or earlier with its ✕.
 
 ## Update copy
 
