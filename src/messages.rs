@@ -405,6 +405,7 @@ impl App {
 
     pub(crate) fn on_replaced(&mut self, ctx: &egui::Context, path: String, r: Result<(), source::Error>) {
         self.saving.remove(&path);
+        self.edit_saved(&path, r.is_ok());
         match r {
             Ok(()) => {
                 log!("saved {path:?}");

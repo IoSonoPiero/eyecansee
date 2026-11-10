@@ -80,7 +80,7 @@ Il pulsante **Tasti** nella barra di stato elenca i tasti e i movimenti del mous
 
 ## Chiudere
 
-![Chiudi](icon://x) **Chiudi**, la ✕ della finestra o Esc chiudono la pagina. Con modifiche non salvate EyeCanSee chiede prima se **Salva…** (una copia, come Salva copia), **Salva come…** o **Non salvare**; **Annulla** torna alla pagina. Vedi [Salvare un'immagine modificata](editor-save.md).
+![Chiudi](icon://x) **Chiudi**, la ✕ della finestra o Esc chiudono la pagina. Con modifiche non salvate EyeCanSee chiede prima se **Salva…** (una copia, come Salva copia; la pagina si chiude appena è scritta), **Salva come…** o **Non salvare**; **Annulla** torna alla pagina. Vedi [Salvare un'immagine modificata](editor-save.md).
 
 ## Telefoni e server
 

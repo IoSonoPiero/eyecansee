@@ -80,7 +80,7 @@ The **Keys** button in the status bar lists the keys and mouse moves of the tool
 
 ## Closing
 
-![Close](icon://x) **Close**, the window's ✕ or Esc close the page. With changes not saved, EyeCanSee first asks whether to **Save…** (a copy, as Save copy does), **Save as…** or **Don't save**; **Cancel** goes back to the page. See [Saving an edited image](editor-save.md).
+![Close](icon://x) **Close**, the window's ✕ or Esc close the page. With changes not saved, EyeCanSee first asks whether to **Save…** (a copy, as Save copy does; the page closes once it is written), **Save as…** or **Don't save**; **Cancel** goes back to the page. See [Saving an edited image](editor-save.md).
 
 ## Phones and servers
 
