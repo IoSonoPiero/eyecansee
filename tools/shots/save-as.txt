@@ -1,0 +1,7 @@
+# Saving in another format: Wilderness from the viewer, JPEG with its options.
+open /home/demo/Pictures/Holiday
+width 1000
+2 open Wilderness.jpg
+3.5 act convert
+7 shot
+7.5 end

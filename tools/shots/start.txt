@@ -1,0 +1,9 @@
+# The whole window on the Holiday folder: Grand Canyon clicked (camera data and a place), the
+# metadata panel open. Also the crop of the side panel (Devices, Servers, This computer).
+open /home/demo/Pictures/Holiday
+set meta_collapsed false
+3 click 341 344
+9 shot side-panel 0 56 240 500
+width 1000
+9.3 shot
+9.8 end

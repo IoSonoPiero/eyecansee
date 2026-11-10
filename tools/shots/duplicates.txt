@@ -1,0 +1,7 @@
+# Finding duplicates: in Pictures and its subfolders (Phone backup has copies of five photos).
+open /home/demo/Pictures
+width 1000
+3 act duplicates
+5 click 472 440
+9 shot
+9.5 end

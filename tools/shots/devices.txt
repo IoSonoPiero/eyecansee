@@ -1,0 +1,6 @@
+# Disks and USB sticks: a folder of the (made-up) USB stick open, the stick and the external disk
+# in the Devices block.
+open /run/media/demo/USB STICK/Photos
+width 1000
+6 shot
+6.5 end

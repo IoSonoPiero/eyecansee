@@ -1,0 +1,7 @@
+# Crop: the Videos part of Convert and resize, for the three videos of Videos (the encoders
+# offered, in green those of the graphics card, depend on the computer).
+open /home/demo/Videos
+3 act select-all
+4 act batch
+9 shot convert-video 254 96 692 330
+9.5 end

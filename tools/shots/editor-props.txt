@@ -1,0 +1,8 @@
+# Crop: the editor's properties bar with a rectangle selected.
+open /home/demo/Pictures/Holiday
+2 open Wilderness.jpg
+3.5 act edit
+6 key R
+6.2 drag 700 470 830 590 0.5
+8 shot editor-props 0 32 1200 64
+8.5 end

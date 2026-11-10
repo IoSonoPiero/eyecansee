@@ -1,0 +1,7 @@
+# Viewing an image: Quebec City in the viewer, zoomed in one step.
+open /home/demo/Pictures/Holiday
+width 1000
+2 open Quebec City.jpg
+4 key Plus
+5.5 shot
+6 end

@@ -1,0 +1,5 @@
+# Crop: the star (lit: Holiday is a bookmark) and the bookmarks drop-down open under it.
+open /home/demo/Pictures/Holiday
+3 click 532 41
+5 shot bookmarks-menu 424 24 218 148
+5.5 end

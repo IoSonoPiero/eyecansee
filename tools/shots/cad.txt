@@ -1,0 +1,6 @@
+# A CAD drawing in the viewer: ezdxf's map of the United States.
+open /home/demo/Documents/Drawings
+width 1000
+2 open United States.dxf
+6 shot
+6.5 end

@@ -1,0 +1,17 @@
+# Editing an image: Wilderness with two step numbers, a text and an arrow (still selected, so its
+# options show). Coordinates for a 1200 x 800 window.
+open /home/demo/Pictures/Holiday
+width 1000
+2 open Wilderness.jpg
+3.5 act edit
+6 key N
+6.2 click 340 470
+6.8 click 960 500
+7.5 key T
+7.7 click 360 160
+8.2 type Made it to the top!
+10 key Escape
+10.5 key A
+10.7 drag 470 260 740 500 0.6
+12.5 shot
+13 end

@@ -1,0 +1,11 @@
+# Converting and resizing images: four photos chosen, Size "Inside 1920 x 1080".
+open /home/demo/Pictures/Holiday
+width 1000
+3 mark Moth.jpg
+3 mark Iceberg.jpg
+3 mark Sunset.jpg
+3 mark Wilderness.jpg
+4 act batch
+8 click 286 420
+9 shot
+9.5 end

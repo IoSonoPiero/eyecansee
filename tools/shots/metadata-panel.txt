@@ -1,0 +1,9 @@
+# Crop: the metadata panel of Grand Canyon (camera data and a place), in a window wide enough
+# for its five boxes.
+open /home/demo/Pictures/Holiday
+set meta_collapsed false
+set window_start "remember"
+set window_size [1500, 800]
+3 select Grand Canyon.jpg
+9 shot metadata-panel 0 566 1380 208
+9.5 end

@@ -1,0 +1,7 @@
+# Playing a video: Bees on flowers in the viewer, with the player's bar.
+open /home/demo/Pictures/Holiday
+width 1000
+2 open Bees on flowers.webm
+6 move 600 500 0.3
+7 shot
+7.5 end

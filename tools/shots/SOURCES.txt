@@ -1,0 +1,19 @@
+What the pictures of the illustrated manual (docs/help/img/*.webp) show. They are taken by
+EyeCanSee itself (tools/shots.sh, the scenes in this folder) in a home folder made for them
+(/home/demo), 1200 x 800 points, dark theme, English. Made up for the pictures: the servers
+(example.com), the USB stick "USB STICK" and the external disk "BACKUP" (folders in memory that
+the app takes for disks), and the GPS position of Grand Canyon.jpg (the South Rim of the photo's
+title, approximate), added for the metadata panel.
+
+Photos and videos (Pictures/Holiday, Videos, the USB stick, Pictures/Phone backup): the 13
+photos and Bees on flowers.webm, Flowers.webm, Earth from space.webm of docs/screenshots/SOURCES.txt,
+public domain or CC0 from Wikimedia Commons (authors and links there). On the USB stick and in
+Phone backup they are copies renamed IMG_0001.jpg ... IMG_0108.jpg.
+
+3D models (Documents/3D models): Avocado.glb, Lantern.glb, ToyCar.glb from the Khronos glTF
+Sample Assets (https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models), CC0 1.0
+as their LICENSE.md files say.
+
+Drawings (Documents/Drawings): "United States.dxf" (usa.dxf) and "Outlines.dxf"
+(hatches_2.dxf) from the examples of ezdxf (https://github.com/mozman/ezdxf), MIT licence;
+"Line types.dxf", drawn for EyeCanSee with ezdxf: free to use for any purpose.

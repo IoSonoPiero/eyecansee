@@ -1,0 +1,7 @@
+# A 3D model: the avocado, turned a little.
+open /home/demo/Documents/3D models
+width 1000
+2 open Avocado.glb
+5 drag 600 420 700 400 1.0
+8 shot
+8.5 end

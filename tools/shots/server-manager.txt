@@ -1,0 +1,6 @@
+# Managing servers: the two made-up servers.
+open /home/demo/Pictures/Holiday
+width 1000
+3 act servers
+5 shot
+5.5 end

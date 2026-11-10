@@ -1,0 +1,12 @@
+# Crop and rotate in the editor: Iceberg turned by 4 degrees, the frame with its handles.
+open /home/demo/Pictures/Holiday
+width 1000
+2 open Iceberg.jpg
+3.5 act edit
+6 key C
+7 click 253 49
+7.5 key ctrl A
+7.7 type 4
+8 key Enter
+9.5 shot
+10 end

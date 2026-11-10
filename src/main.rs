@@ -135,6 +135,8 @@ mod selection;
 mod server_manager;
 mod servers;
 mod settings;
+#[cfg(feature = "shots")]
+mod shots;
 mod sftp;
 mod single;
 mod slideshow;
@@ -618,6 +620,8 @@ impl App {
 
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        #[cfg(feature = "shots")]
+        self.shots_input(raw_input);
         // Asked for in a frame before: it comes as a paste some frames later (on Windows not in the
         // next one: "Paste into this folder" went into the folder open, 2026-11-08), or never
         // (nothing on the clipboard): forgotten after a second, so a later Ctrl+V goes where it is.
@@ -710,6 +714,8 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.pace(frame);
         let ctx = ui.ctx().clone();
+        #[cfg(feature = "shots")]
+        self.shots_tick(&ctx);
         self.before_frame(&ctx);
         self.panels(ui, &ctx);
         self.windows(&ctx);
