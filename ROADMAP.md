@@ -50,7 +50,6 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Hide folders without images or videos ([#30](https://github.com/IoSonoPiero/eyecansee/issues/30)).
 - Deleting a folder: look into its subfolders too for files EyeCanSee does not show (today the warning checks the first level only) ([#31](https://github.com/IoSonoPiero/eyecansee/issues/31)).
 - Set as wallpaper ([#32](https://github.com/IoSonoPiero/eyecansee/issues/32)).
-- CPU/GPU/NPU acceleration with a "Check" button that enables what works on the PC ([#33](https://github.com/IoSonoPiero/eyecansee/issues/33)).
 - Options: download the add-on engines (video engine, FFmpeg, CAD engine) in advance, and remove them ([#50](https://github.com/IoSonoPiero/eyecansee/issues/50)).
 
 ## Documentation
