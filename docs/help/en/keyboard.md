@@ -14,6 +14,7 @@ Every key of EyeCanSee, by place. The menus show the key next to each item, and 
 |---|---|
 | F5 | Read the folders again (in the viewer it stays on the open image) |
 | F11 | Full screen and back; in the viewer only the image is shown, without menus or bars |
+| Ctrl+R, Ctrl+Shift+R | Turn the picture 90° clockwise, anticlockwise: in the viewer you see it before saving, in the grid the selected pictures are saved after asking (see [Rotating and flipping](rotate.md)) |
 | Ctrl+Shift+D | Bookmarks: the list opens; ↓ enters it, Enter opens the bookmark chosen (see [Bookmarks](bookmarks.md)) |
 
 In the windows that tell how an operation went, **Enter** or **Esc** closes them; in those that ask for a choice, **Enter** confirms and **Esc** cancels. Two exceptions: a deletion that includes a folder (there Enter cancels too) and turning or flipping pictures in the grid (Enter does not confirm).
@@ -67,7 +68,6 @@ In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device e
 | + and − (or the mouse wheel) | Zoom in and out |
 | 0 | Fit the image to the window |
 | 1 | 100%: one image pixel per screen pixel |
-| Ctrl+R, Ctrl+Shift+R | Turn 90° clockwise, anticlockwise (see [Rotating and flipping](rotate.md)) |
 | Ctrl+S | Save the turned image over the original |
 | Ctrl+Shift+S | Save as (see [Saving in another format](save-as.md)) |
 | Ctrl+E | Edit image |

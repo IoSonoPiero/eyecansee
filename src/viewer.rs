@@ -4,7 +4,7 @@ use eframe::egui::{self, Key, TextureHandle};
 
 use crate::navigation::Go;
 use crate::actions::Act;
-use crate::{AROUND, App, browser, paint, source, transform};
+use crate::{AROUND, App, browser, paint, source};
 
 impl App {
     pub(crate) fn viewer_keys(&mut self, ctx: &egui::Context) {
@@ -65,18 +65,13 @@ impl App {
         if let Some(current) = self.viewing {
             self.cad_keys(ctx, current);
         }
-        let (cw, ccw, save, save_copy) = ctx.input_mut(|i| {
-            let shift = egui::Modifiers::COMMAND | egui::Modifiers::SHIFT;
-            // With Shift first: Ctrl+R would match Ctrl+Shift+R too.
-            let ccw = i.consume_key(shift, Key::R);
-            let save_copy = i.consume_key(shift, Key::S);
-            (i.consume_key(egui::Modifiers::COMMAND, Key::R), ccw, i.consume_key(egui::Modifiers::COMMAND, Key::S), save_copy)
+        // Ctrl+R and Ctrl+Shift+R: in `global_keys`, for the grid too.
+        let (save, save_copy) = ctx.input_mut(|i| {
+            // With Shift first: Ctrl+S would match Ctrl+Shift+S too.
+            let save_copy = i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::S);
+            (i.consume_key(egui::Modifiers::COMMAND, Key::S), save_copy)
         });
-        if cw {
-            self.act = Some(Act::Transform(transform::Op::Cw, None));
-        } else if ccw {
-            self.act = Some(Act::Transform(transform::Op::Ccw, None));
-        } else if save {
+        if save {
             self.act = Some(Act::Save);
         } else if save_copy {
             self.act = Some(Act::Convert(None));

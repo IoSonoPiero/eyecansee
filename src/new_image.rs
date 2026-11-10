@@ -96,12 +96,23 @@ impl Form {
     }
 }
 
+/// New image… is on with a folder open, in the grid: as New folder, it makes a file in the folder
+/// open, and in the viewer the File menu works on the image shown.
+fn available(folder_open: bool, viewing: bool) -> bool {
+    folder_open && !viewing
+}
+
 enum Answer {
     Create,
     Cancel,
 }
 
 impl App {
+    /// File > New image… and Ctrl+N: on or off together.
+    pub(crate) fn can_new_image(&self) -> bool {
+        available(self.loader.is_some(), self.viewing.is_some())
+    }
+
     /// The window of File > New image…; Create opens the image in the editor.
     pub(crate) fn new_image_window(&mut self, ctx: &egui::Context) {
         let Some(mut f) = self.new_image.take() else { return };
@@ -212,5 +223,13 @@ mod tests {
         let b = blank((4, 3), None);
         assert!(b.to_rgba8().pixels().all(|p| p[3] == 0));
         assert_eq!(blank((4, 3), Some([1, 2, 3])).to_rgba8().get_pixel(3, 2).0, [1, 2, 3, 255]);
+    }
+
+    /// In the grid of a folder open; not in the viewer, not before a folder is open.
+    #[test]
+    fn available_in_the_grid_only() {
+        assert!(available(true, false));
+        assert!(!available(true, true));
+        assert!(!available(false, false));
     }
 }

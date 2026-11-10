@@ -67,7 +67,7 @@ impl App {
         let t = |id| self.i18n.t(id);
         let viewing = self.viewing.is_some();
         // As the Image menu: in the viewer the picture shown, in the grid the pictures chosen.
-        let fit = if viewing { self.viewing_photo().then_some(true) } else { fits(&self.grid_items(None), &[Kind::Picture]) };
+        let fit = self.turns_fit();
         let no_picture = || t(if viewing { "tb-off-not-picture" } else { "tb-off-no-picture" });
         let turn = off(fit.is_some(), no_picture);
         let edit = turn.clone().or_else(|| self.edit_off(None));

@@ -11,6 +11,8 @@
 3. Scegli lo **Sfondo**.
 4. Fai clic su **Crea** (o premi Invio).
 
+Nel visore **Nuova immagine…** è grigia e Ctrl+N non fa niente: prima torna alla griglia (Esc).
+
 ## Misura
 
 - Misure pronte: A3, A4, A5, Lettera, Legale (fogli), Full HD, 4K UHD, HD (schermi), **Quadrata** (1080 × 1080) e **Verticale per le storie** (1080 × 1920).

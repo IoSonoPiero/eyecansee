@@ -63,7 +63,7 @@ impl App {
         entry(ui, act, true, item(t("menu-open-location"), String::new()), Act::Address);
         entry(ui, act, true, item(t("menu-servers"), String::new()), Act::Servers);
         entry(ui, act, self.can_make_folder(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder(None));
-        entry(ui, act, self.loader.is_some() && self.viewing.is_none(), item(t("menu-new-image"), t("key-new-image")), Act::NewImage);
+        entry(ui, act, self.can_new_image(), item(t("menu-new-image"), t("key-new-image")), Act::NewImage);
         ui.separator();
         // Also when it cannot overwrite (FTP, gvfs, format): `ask_save` then says why and offers Save as….
         let changed = self.viewing.is_some() && !self.turn.is_none() && self.save_ready.is_none();
@@ -113,7 +113,7 @@ impl App {
     fn image_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
         // In the grid the pictures among the files chosen ("*" with other kinds).
-        let fit = if self.viewing.is_some() { self.viewing_photo().then_some(true) } else { fits(&self.grid_items(None), &[Kind::Picture]) };
+        let fit = self.turns_fit();
         let star = |label| starred(label, fit != Some(false));
         for (op, label, keys) in transform_items() {
             entry(ui, act, fit.is_some(), item(star(t(label)), keys.map(t).unwrap_or_default()), Act::Transform(op, None));
