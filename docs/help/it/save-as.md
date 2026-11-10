@@ -1,0 +1,65 @@
+# Salvare in un altro formato
+
+Salva un'immagine come file nuovo in un altro formato: per esempio una foto HEIC del telefono come JPEG, o un PNG come WebP più leggero. Prima di salvare vedi esattamente come sarà il file nuovo e quanto pesa. L'originale non viene mai toccato.
+
+Per convertire o ridimensionare tante immagini insieme usa [Convertire e ridimensionare le immagini](convert.md).
+
+## Aprire la pagina
+
+- Nella griglia seleziona un'immagine e fai clic su ![Salva come…](icon://file-output) nella barra strumenti, oppure scegli **File > Salva come…**, oppure fai clic destro sull'immagine e scegli **Salva come…**.
+- Nel visore premi **Ctrl+Maiusc+S**, o usa le stesse voci di menù. Se nel visore hai ruotato o riflesso l'immagine, viene salvata ruotata.
+- Nel visore anche un modello 3D o un disegno CAD si possono salvare come immagine, così come si vedono: un modello largo almeno 1920 pixel, un disegno con il layout che stai guardando. Su un modello 3D fa lo stesso anche **Ctrl+S**.
+- Nell'editor, **Salva come…** apre questa pagina con l'immagine modificata (vedi [Salvare un'immagine modificata](editor-save.md)).
+
+<!-- shot: save-as | panoramica | The Save in another format page on a photo: original on the left, converted on the right, JPEG chosen with its options and the file name under the right image -->
+
+## Che cosa mostra la pagina
+
+La pagina occupa tutta la finestra. A sinistra c'è l'originale, a destra l'immagine convertita, ciascuna con il formato, le dimensioni in pixel e il peso su disco; per quella convertita anche in percentuale dell'originale.
+
+L'immagine a destra è il file vero: ogni volta che cambi un'opzione, EyeCanSee rifà il file e lo mostra. Mentre lavora, il peso dice "Calcolo della dimensione in corso…" e **Salva** aspetta: così il peso che vedi è sempre quello del file che otterrai.
+
+Spunta **100%** per vedere i pixel veri. Poi trascina una delle due immagini per spostarle entrambe e confrontare lo stesso punto.
+
+## Salvare
+
+1. Scegli il **Formato**.
+2. Se vuoi, cambia le sue opzioni (vedi sotto).
+3. Controlla il nome in **Nome del file** e fai clic su **Salva**.
+
+Il file nuovo va nella stessa cartella dell'originale. Se il nome è già preso, viene aggiunto " (2)" e la pagina lo dice prima che tu salvi. Dopo il salvataggio la pagina si chiude.
+
+**Esc** o la X della finestra chiudono la pagina senza salvare.
+
+## Formati e opzioni
+
+| Formato | Opzioni |
+|---|---|
+| JPEG | Qualità, Dettaglio del colore, Progressivo, Tabelle di Huffman ottimizzate, Codifica aritmetica, JPEG senza perdita |
+| PNG | Livello di compressione (da 0 a 9), Filtro |
+| WebP | Con perdita (Qualità, Bordi dei colori più nitidi) o Senza perdita (Quasi senza perdita); Sforzo |
+| AVIF | Qualità, Qualità della trasparenza (per le immagini con trasparenza), Velocità, 10 bit per canale, RGB dentro il file |
+| TIFF | Compressione (Nessuna, LZW, Deflate veloce, normale o massima, PackBits), Predittore orizzontale |
+| GIF | Qualità della riduzione dei colori (al massimo 256 colori) |
+| TGA | Compresso (RLE) |
+| BMP, QOI, ICO, PNM, OpenEXR, Radiance HDR, Farbfeld | nessuna |
+
+- Per un originale JPEG vengono proposti la sua qualità e il suo dettaglio del colore, letti dal file; altrimenti qualità 90 e dettaglio Un quarto (4:2:0).
+- Sotto le opzioni una riga dice quando il file nuovo tiene esattamente gli stessi pixel ("Senza perdita").
+- Codifica aritmetica e JPEG senza perdita fanno file più piccoli o identici, ma molti programmi non li aprono.
+
+## Metadati
+
+**Mantieni i metadati (EXIF, XMP, IPTC, profilo colore)** è acceso all'inizio. Conserva la fotocamera, la data dello scatto, il luogo (GPS), autore, copyright, descrizioni, parole chiave e il profilo colore.
+
+- Solo JPEG, PNG, WebP, AVIF e TIFF possono contenere metadati. Con un altro formato, o se l'originale non ne ha, la casella è grigia; passandoci sopra si legge il perché.
+- L'orientamento viene messo dritto, perché i pixel salvati sono già ruotati, e le dimensioni scritte dentro sono quelle dell'immagine nuova.
+- Restano fuori: le piccole anteprime che le fotocamere mettono nel file, le impostazioni di Lightroom e Camera Raw e, per le foto dei telefoni, la mappa HDR e il video della foto in movimento, che il file nuovo non ha.
+
+## Da sapere
+
+- JPEG e Radiance HDR non hanno la trasparenza: le parti trasparenti diventano bianche. La pagina lo dice.
+- Un'icona (ICO) contiene al massimo 256 × 256 pixel: un'immagine più grande viene ridotta. La pagina lo dice.
+- EyeCanSee non sa scrivere HEIC né JPEG XL: vedi [Formati supportati](formats.md).
+- Solo JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF e QOI si possono anche riscrivere sopra l'originale dopo una rotazione (vedi [Ruotare e riflettere](rotate.md)); gli altri formati solo da questa pagina.
+- La tabella completa di formati e opzioni è in [docs/formats.md](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/formats.md).
