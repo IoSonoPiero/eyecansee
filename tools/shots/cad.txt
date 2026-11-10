@@ -10,6 +10,9 @@ open /home/demo/Documents/Drawings
 6.5 click 285 422
 7 click 287 586
 10 key Escape
+# The DWG just written gets the made-up date of the other files, then the folder is read again.
+10.3 date Flat.dwg
+10.5 key F5
 11 open Flat.dwg
 11.5 move 1150 400 0.2
 width 1000

@@ -6,8 +6,10 @@ the app takes for disks). Authors, licences and sources of every file: docs/help
 
 Photos and videos (Pictures/Holiday, Videos, the USB stick, Pictures/Phone backup): the 13
 photos and Bees on flowers.webm, Flowers.webm, Earth from space.webm of docs/screenshots/SOURCES.txt,
-public domain or CC0 from Wikimedia Commons. On the USB stick and in Phone backup they are copies
-renamed IMG_0001.jpg ... IMG_0108.jpg. Lake Garda.dng (Pictures/Holiday, the metadata panel, with
+public domain or CC0 from Wikimedia Commons. In Pictures/Phone backup IMG_0001-0003.jpg are copies
+of Moth, Iceberg, Sunset; on the USB stick IMG_0101-0108.jpg of Lake Sherburne, North Cascades,
+Grand Canyon, Wilder Kaiser, Apple blossoms, Quebec City, Iceberg, Moth. The phone scenes copy the
+same photos and Bees on flowers.webm into DCIM/EyeCanSee-guida on the phone. Lake Garda.dng (Pictures/Holiday, the metadata panel, with
 the GPS position the phone wrote): the Google Pixel 6 Pro file of raw.pixls.us, CC0, in the test
 files as formati/RAW/Google - Pixel 6 Pro - 16bit (4-3).dng.
 
@@ -16,5 +18,5 @@ Sample Assets (https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Mode
 as their LICENSE.md files say.
 
 Drawing (Documents/Drawings): Flat.dxf (this folder), a flat plan drawn for EyeCanSee with ezdxf
-1.4.5, free to use for any purpose; the cad scene saves it as Flat.dwg with Export drawing and
+1.4.5, CC0 1.0; the cad scene saves it as Flat.dwg with Export drawing and
 shows the DWG.

@@ -9,7 +9,7 @@ Licences, checked on 2026-11-10 on the pages linked below:
 
 ## Photos
 
-In `Pictures/Holiday`; on the USB stick and in `Pictures/Phone backup` some of them are copied with other names (`IMG_0101.jpg`, `IMG_0001.jpg`…). From Wikimedia Commons, resized to 1920 pixels wide, except `Lake Garda.dng`.
+In `Pictures/Holiday`, and on a phone in `DCIM/EyeCanSee-guida` (the `phone` and `trash-strip` pictures). Some are copied with other names: in `Pictures/Phone backup`, `IMG_0001.jpg`, `IMG_0002.jpg`, `IMG_0003.jpg` are Moth, Iceberg and Sunset; on the USB stick, `IMG_0101.jpg` to `IMG_0108.jpg` are Lake Sherburne, North Cascades, Grand Canyon, Wilder Kaiser, Apple blossoms, Quebec City, Iceberg and Moth. From Wikimedia Commons, resized to 1920 pixels wide, except `Lake Garda.dng`.
 
 | Name in the pictures | Author | Licence | Source |
 |---|---|---|---|
@@ -52,7 +52,7 @@ In `Documents/3D models`, from the [Khronos glTF Sample Assets](https://github.c
 
 | Name in the pictures | Author | Licence | Source |
 |---|---|---|---|
-| Flat.dxf, Flat.dwg | drawn for EyeCanSee with [ezdxf](https://github.com/mozman/ezdxf) 1.4.5; the DWG saved by EyeCanSee's Export drawing | free to use for any purpose | [tools/shots/Flat.dxf](https://github.com/IoSonoPiero/eyecansee/blob/main/tools/shots/Flat.dxf) |
+| Flat.dxf, Flat.dwg | drawn for EyeCanSee with [ezdxf](https://github.com/mozman/ezdxf) 1.4.5; the DWG saved by EyeCanSee's Export drawing | CC0 1.0 | [tools/shots/Flat.dxf](https://github.com/IoSonoPiero/eyecansee/blob/main/tools/shots/Flat.dxf) |
 
 ## Made up for the pictures
 

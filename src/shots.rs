@@ -33,6 +33,8 @@ enum Step {
     Open(String),
     Mark(String),
     Act(String),
+    /// A file made during the scene gets the made-up date of the others (`stage.sh`).
+    Date(String),
     /// Picture name and the part taken, in points (`None` = the whole window).
     Shot(String, Option<Rect>, Option<u32>),
     End,
@@ -145,6 +147,7 @@ fn parse_step(steps: &mut Vec<(f64, Step)>, t: f64, w: &[&str], rest: &str, name
         "open" => push(0.0, Step::Open(arg)),
         "mark" => push(0.0, Step::Mark(arg)),
         "act" => push(0.0, Step::Act(arg)),
+        "date" => push(0.0, Step::Date(arg)),
         "shot" => {
             let named = w.get(1).is_some_and(|s| s.parse::<f32>().is_err());
             let (pic, k) = if named { (w[1].to_string(), 2) } else { (name.to_string(), 1) };
@@ -265,10 +268,19 @@ impl crate::App {
                 }
             }
             Step::Act(name) => self.act = Some(act(&name)),
+            // The folder's address has no leading slash on Linux.
+            Step::Date(name) => fake_date(&std::path::Path::new("/").join(&self.dir).join(name)),
             Step::Shot(name, part, width) => shot(ctx, run, name, part, width),
             Step::End => run.end = true,
         }
     }
+}
+
+/// The date `stage.sh` gives to every file, so that no picture shows when it was taken.
+fn fake_date(path: &std::path::Path) {
+    let when = jiff::civil::datetime(2025, 7, 14, 18, 30, 0, 0).to_zoned(jiff::tz::TimeZone::system()).expect("shots: date");
+    let file = std::fs::File::options().write(true).open(path).unwrap_or_else(|e| panic!("shots: date {}: {e}", path.display()));
+    file.set_modified(when.timestamp().into()).expect("shots: date");
 }
 
 /// Ends the process at once. On Linux without the exit handlers: libmpv's, with a video open,

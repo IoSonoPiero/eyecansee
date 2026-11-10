@@ -1,4 +1,4 @@
-# Finding duplicates: in Pictures and its subfolders (Phone backup has copies of five photos).
+# Finding duplicates: in Pictures and its subfolders (Phone backup has copies of three photos).
 open /home/demo/Pictures
 width 1000
 3 act duplicates
