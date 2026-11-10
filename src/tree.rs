@@ -213,8 +213,9 @@ impl App {
         }
     }
 
-    /// The saved servers (File > Server manager): a click opens one, the open one is highlighted;
-    /// right click: close its connection, edit it.
+    /// The saved servers (File > Server manager): a click opens one in its saved folder (none: the
+    /// folder the server starts in), the open one is highlighted; right click: close its
+    /// connection, edit it.
     fn server_block(&mut self, ui: &mut Ui) {
         // Encrypted and not unlocked yet: one row asking for the master password.
         if self.saved_servers.is_empty() && crate::servers::locked() {
@@ -239,8 +240,10 @@ impl App {
                 || (s.scheme == "ftp" || s.scheme == "ftps") && crate::ftp::connected(&s.host, ftp_port, &s.user);
             let icon = icons::image(ui.ctx(), Icon::Server, TREE_ICON);
             let r = ui.selectable_label(here, (icon, s.name.as_str())).on_hover_text(crate::address::without_password(&address));
+            // Its own address, not the last folder of the connection: that one is shared by the
+            // servers with the same login, and its root ("") opened as the home.
             if r.clicked() {
-                open = Some(self.back_to(&address));
+                open = Some(address.clone());
             }
             r.context_menu(|ui| {
                 // Not during a copy: it could be using this connection.

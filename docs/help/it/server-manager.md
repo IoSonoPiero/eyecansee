@@ -24,7 +24,7 @@ Scegli **File > Gestione server…** (![Gestione server…](icon://server)). Se 
 
 ## Come entra un server salvato
 
-Un server salvato entra **solo** con la password e la chiave salvate qui, mai con l'agente SSH o con le chiavi del sistema in `~/.ssh`. Se la chiave non si apre (passphrase sbagliata, file mancante), non entra, e la gestione server si apre su quel server per correggerlo; il messaggio dice che è aperta lì. Se la gestione server era già aperta, il messaggio chiede di correggere la chiave in **File > Gestione server**.
+Un server salvato entra **solo** con la password e la chiave salvate qui, mai con l'agente SSH o con le chiavi del sistema in `~/.ssh`. Se la chiave non si apre (passphrase sbagliata, file mancante), non entra, e la gestione server si apre su quel server per correggerlo; il messaggio dice che è aperta lì, e dentro la finestra è ripetuto in rosso sopra i campi di quel server finché non lo salvi. Se la gestione server era già aperta, il messaggio chiede di correggere la chiave in **File > Gestione server**.
 
 Anche un indirizzo che corrisponde a un server salvato (stesso protocollo, server, porta e utente), scritto nella barra degli indirizzi o riaperto all'avvio, usa la sua password e la sua chiave.
 
@@ -32,7 +32,7 @@ Anche un indirizzo che corrisponde a un server salvato (stesso protocollo, serve
 
 Ogni server salvato compare nel pannello a sinistra, nella sezione **Server** sotto i dispositivi, con l'icona ![Server](icon://color-server).
 
-- Un clic lo apre. Tornando a un server, o al computer, ritrovi l'ultima cartella in cui eri, finché EyeCanSee resta aperto.
+- Un clic lo apre nella sua **Cartella** salvata, ogni volta; senza cartella, in quella da cui parte il server (di solito la tua home lì).
 - Clic destro: **Chiudi connessione** (se è aperto torni alla tua cartella home; non durante una copia) e **Modifica…**, che apre la gestione server su quel server.
 - Con un server o un telefono aperto, il pannello mostra anche **Questo computer**, con la tua cartella home e l'ultima cartella del computer in cui eri.
 
@@ -40,4 +40,5 @@ Ogni server salvato compare nel pannello a sinistra, nella sezione **Server** so
 
 - Senza password principale, password e passphrase vengono salvate in chiaro: la prima volta che salvi un server, EyeCanSee te lo dice una volta. Vedi [Password salvate](passwords.md).
 - La porta si può lasciare vuota: FTP usa la 21, SFTP la 22.
+- Gli spazi prima o dopo un valore, per esempio incollati insieme, vengono tolti quando salvi il server; non in password e passphrase, dove possono farne parte.
 - Dal pannello copi e incolli tra server, computer, dischi e telefoni come tra due cartelle (vedi [Copiare e spostare](copy-move.md)).

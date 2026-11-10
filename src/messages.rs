@@ -100,12 +100,14 @@ impl App {
             }
             // A saved key that does not open: the server manager on that server, to fix it, and a
             // message that says it is open there.
-            Err((id, _)) if *id == "error-key-failed" && dir == self.dir && self.server_manager.is_none() => {
+            // The window covers the message in the middle: it is said inside it too.
+            Err((id, detail)) if *id == "error-key-failed" && dir == self.dir && self.server_manager.is_none() => {
                 let address = format!("{}{}", self.base, self.dir);
                 let mut f = AddressForm::manager();
                 f.choose(f.servers.iter().position(|s| crate::servers::find(&address).is_some_and(|found| found == *s)));
-                self.server_manager = Some(f);
                 *id = "error-key-failed-open";
+                f.key_problem = f.chosen.map(|i| (i, self.i18n.t_args(id, &[("detail", detail.as_str())])));
+                self.server_manager = Some(f);
             }
             _ => {}
         }

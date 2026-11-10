@@ -27,7 +27,7 @@ When you change folder, the bar shows the new one. A password is never shown in 
 6. **Folder**: the folder to open (`/` when empty).
 7. **Open** (or **Enter**) opens it; **Cancel** (or **Esc**) closes the window.
 
-The fields are greyed out while the field at the top has something in it.
+The fields are greyed out while the field at the top has something in it. Spaces before or after a value, for example pasted with it, are left out; not in the password, where they can be part of it.
 
 ## When a server asks for the password
 

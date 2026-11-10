@@ -25,6 +25,10 @@ impl App {
                 ui.vertical(|ui| self.server_list(ui, &mut f));
                 ui.add_space(12.0);
                 ui.vertical(|ui| {
+                    if let Some((_, problem)) = f.key_problem.as_ref().filter(|(i, _)| f.chosen == Some(*i)) {
+                        ui.label(browser::error_text(ui, problem.clone()));
+                        ui.add_space(6.0);
+                    }
                     egui::Grid::new("srv-fields").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| self.address_grid(ui, &mut f, true));
                 });
             });

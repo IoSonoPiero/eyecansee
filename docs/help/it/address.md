@@ -27,7 +27,7 @@ Quando cambi cartella, la barra mostra quella nuova. Una password non compare ma
 6. **Cartella**: la cartella da aprire (`/` se vuota).
 7. **Apri** (o **Invio**) la apre; **Annulla** (o **Esc**) chiude la finestra.
 
-I campi restano grigi finché il campo in alto contiene qualcosa.
+I campi restano grigi finché il campo in alto contiene qualcosa. Gli spazi prima o dopo un valore, per esempio incollati insieme, vengono tolti; non nella password, dove possono farne parte.
 
 ## Quando un server chiede la password
 

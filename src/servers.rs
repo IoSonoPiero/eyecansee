@@ -50,8 +50,8 @@ impl Saved {
     pub(crate) fn address(&self) -> Option<String> {
         let mut u = url::Url::parse(&format!("{}://{}/", self.scheme, self.host.trim())).ok()?;
         u.set_port(self.port).ok()?;
-        if !self.user.is_empty() {
-            u.set_username(&self.user).ok()?;
+        if !self.user.trim().is_empty() {
+            u.set_username(self.user.trim()).ok()?;
         }
         let folder = self.folder.trim().trim_matches('/');
         u.set_path(&if folder.is_empty() { "/".to_string() } else { format!("/{folder}/") });
@@ -175,7 +175,8 @@ fn write_safely(path: &std::path::Path, data: &[u8], good: impl Fn(&[u8]) -> boo
     std::fs::rename(&tmp, path)
 }
 
-/// The saved server an address points to: same protocol, server, port and user.
+/// The saved server an address points to: same protocol, server, port and user. Of two saved
+/// with the same login (another key, another folder), the one whose folder holds the address's.
 pub(crate) fn find(address: &str) -> Option<Saved> {
     find_in(load(), address)
 }
@@ -185,7 +186,18 @@ fn find_in(servers: Vec<Saved>, address: &str) -> Option<Saved> {
     let host = u.host_str()?;
     let user = percent_decode_str(u.username()).decode_utf8_lossy();
     let wanted = port(u.scheme(), u.port());
-    servers.into_iter().find(|s| s.scheme == u.scheme() && s.host.eq_ignore_ascii_case(host) && port(&s.scheme, s.port) == wanted && s.user == user)
+    let path = percent_decode_str(u.path()).decode_utf8_lossy().trim_matches('/').to_string();
+    // How much of the path the saved folder covers: none for another folder.
+    let covers = |s: &Saved| {
+        let folder = s.folder.trim().trim_matches('/');
+        let inside = folder.is_empty() || path == folder || path.starts_with(&format!("{folder}/"));
+        inside.then_some(folder.len())
+    };
+    let same = |s: &Saved| s.scheme == u.scheme() && s.host.trim().eq_ignore_ascii_case(host) && port(&s.scheme, s.port) == wanted && s.user.trim() == user;
+    let mut found: Vec<Saved> = servers.into_iter().filter(same).collect();
+    // The first of the longest folders; no folder holding the path: the first one, as before.
+    let best = found.iter().enumerate().max_by_key(|(i, s)| (covers(s), std::cmp::Reverse(*i))).map(|(i, _)| i)?;
+    Some(found.swap_remove(best))
 }
 
 /// The port, the protocol's own when none is written: an address drops ":21" from ftp://.
@@ -227,6 +239,42 @@ mod tests {
         assert_eq!(super::find_in(vec![s.clone()], &s.address().unwrap()).map(|s| s.password), Some("pw".into()));
         let ftp = Saved { scheme: "ftp".into(), host: "nas.lan".into(), ..Default::default() };
         assert_eq!(ftp.address(), Some("ftp://nas.lan/".into()));
+    }
+
+    #[test]
+    fn same_login_other_folder() {
+        // Two servers with the same login: the address of each finds that one, with its key.
+        let home = Saved { name: "Home".into(), scheme: "sftp".into(), host: "nas.lan".into(), port: Some(2222), user: "me".into(), key_passphrase: "a".into(), ..Default::default() };
+        let photos = Saved { name: "Photos".into(), folder: "/srv/photos/2026".into(), key_passphrase: "b".into(), ..home.clone() };
+        let find = |a: &str| super::find_in(vec![home.clone(), photos.clone()], a).map(|s| s.name);
+        assert_eq!(find(&photos.address().unwrap()), Some("Photos".into()));
+        assert_eq!(find("sftp://me@nas.lan:2222/srv/photos/2026/May/"), Some("Photos".into()));
+        assert_eq!(find(&home.address().unwrap()), Some("Home".into()));
+        assert_eq!(find("sftp://me@nas.lan:2222/srv/photos/2026-old/"), Some("Home".into()));
+        // Neither folder holds it: the first of them, as before.
+        let other = Saved { folder: "/other".into(), ..photos.clone() };
+        assert_eq!(super::find_in(vec![photos.clone(), other], "sftp://me@nas.lan:2222/tmp/").map(|s| s.folder), Some("/srv/photos/2026".into()));
+    }
+
+    /// A click on a saved server in the panel opens its address: its folder, not the home the
+    /// server starts in (an empty folder only).
+    #[test]
+    fn panel_opens_saved_folder() {
+        for scheme in ["sftp", "ftp"] {
+            let s = Saved { scheme: scheme.into(), host: "nas.lan".into(), port: Some(2222), user: "me".into(), folder: "/srv/photos/2026".into(), ..Default::default() };
+            let opened = crate::source::open(&s.address().unwrap()).unwrap();
+            assert_eq!((opened.dir.as_str(), opened.home), ("srv/photos/2026/", false), "{scheme}");
+            let home = Saved { folder: String::new(), ..s };
+            assert!(crate::source::open(&home.address().unwrap()).unwrap().home, "{scheme}");
+        }
+    }
+
+    #[test]
+    fn saved_with_spaces() {
+        // Saved with spaces around by an older version: still found and opened without them.
+        let old = Saved { scheme: "sftp".into(), host: " nas.lan".into(), user: " me".into(), folder: " /Foto ".into(), ..Default::default() };
+        assert_eq!(old.address(), Some("sftp://me@nas.lan/Foto/".into()));
+        assert!(super::find_in(vec![old], "sftp://me@nas.lan/").is_some());
     }
 
     #[test]

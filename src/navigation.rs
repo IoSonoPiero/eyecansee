@@ -10,12 +10,6 @@ use crate::{App, devices, settings};
 
 impl App {
     /// Opens an address (path or URL). If it fails, stays on the current source.
-    /// A place of the left panel: the folder where it was left, if it was open before.
-    pub(crate) fn back_to(&self, address: &str) -> String {
-        let base = source::open(address).map(|s| s.base).unwrap_or_default();
-        self.last_dirs.get(&base).cloned().unwrap_or_else(|| address.to_string())
-    }
-
     pub(crate) fn open_source(&mut self, ctx: &egui::Context, address: &str) {
         // A server while the saved ones are locked: the master password first (they may hold its
         // password and key).

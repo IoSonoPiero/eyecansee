@@ -34,6 +34,9 @@ pub(crate) struct AddressForm {
     pub(crate) deleting: bool,
     /// Why the servers could not be saved.
     pub(crate) error: Option<String>,
+    /// Opened because the saved key of this server (index) did not open: the message, shown
+    /// above its fields until it is saved again.
+    pub(crate) key_problem: Option<(usize, String)>,
     /// The key file chosen in the system window, filled in when it closes.
     pub(crate) key_pick: Arc<Mutex<Option<PathBuf>>>,
     /// Server manager: setting, changing or removing the master password.
@@ -102,8 +105,9 @@ impl AddressForm {
         // Encoded here: `url` leaves a "%" as it is, and "ab%cd" came back as another password
         // (a Storage Box refused it, 2026-11-08).
         let encoded = |s: &str| percent_encoding::utf8_percent_encode(s, percent_encoding::NON_ALPHANUMERIC).to_string();
-        if !self.user.is_empty() {
-            u.set_username(&encoded(&self.user)).ok()?;
+        // Spaces around a pasted user are not part of it; around a password they may be.
+        if !self.user.trim().is_empty() {
+            u.set_username(&encoded(self.user.trim())).ok()?;
         }
         if !self.password.is_empty() {
             u.set_password(Some(&encoded(&self.password))).ok()?;
@@ -125,7 +129,8 @@ impl AddressForm {
         self.url.clear();
     }
 
-    /// The fields as a saved server: `None` without a server or with a bad port.
+    /// The fields as a saved server, without the spaces around them (passwords and passphrases
+    /// as typed: spaces can be part of them). `None` without a server or with a bad port.
     pub(crate) fn saved(&self) -> Option<Saved> {
         let host = self.host.trim();
         let port = self.port.trim();
@@ -136,7 +141,7 @@ impl AddressForm {
             scheme: SCHEMES[self.scheme].to_string(),
             host: host.to_string(),
             port,
-            user: self.user.clone(),
+            user: self.user.trim().to_string(),
             password: self.password.clone(),
             folder: self.folder.trim().to_string(),
             key_file: if sftp { self.key_file.trim().to_string() } else { String::new() },
@@ -144,10 +149,10 @@ impl AddressForm {
         })
     }
 
-    /// Save: the chosen server changed, or a new one added; then the file written.
+    /// Save: the chosen server changed, or a new one added; then the file written and the fields
+    /// shown as saved (trimmed).
     pub(crate) fn store(&mut self) {
         let Some(s) = self.saved() else { return };
-        self.name = s.name.clone();
         match self.chosen.filter(|i| *i < self.servers.len()) {
             Some(i) => self.servers[i] = s,
             None => {
@@ -155,7 +160,9 @@ impl AddressForm {
                 self.chosen = Some(self.servers.len() - 1);
             }
         }
-        self.error = servers::save(&self.servers).err().map(|e| e.to_string());
+        let error = servers::save(&self.servers).err().map(|e| e.to_string());
+        self.choose(self.chosen);
+        (self.error, self.key_problem) = (error, None);
     }
 
     /// The chosen server deleted, the fields emptied for a new one.
@@ -314,7 +321,8 @@ mod tests {
             let typed = format!("ab{c}cd{c}");
             let u = url::Url::parse(&f("nas.lan", "", &typed, &typed, "").unwrap()).unwrap();
             let back = |s: &str| super::percent_decode_str(s).decode_utf8_lossy().into_owned();
-            assert_eq!((back(u.username()), u.password().map(back)), (typed.clone(), Some(typed)), "{c:?}");
+            // The user without the spaces around it (`fields_trimmed`).
+            assert_eq!((back(u.username()), u.password().map(back)), (typed.trim().to_string(), Some(typed)), "{c:?}");
         }
         let whole = super::AddressForm { url: " C:\\Foto ".into(), host: "ignored".into(), ..Default::default() };
         assert_eq!(whole.address(), Some("C:\\Foto".into()));
@@ -352,6 +360,28 @@ mod tests {
         assert_eq!(whole.saved(), None);
         f.choose(None);
         assert_eq!((f.host.as_str(), f.password.as_str(), f.chosen, f.servers.len()), ("", "", None, 1));
+    }
+
+    #[test]
+    fn fields_trimmed() {
+        // Pasted with spaces around: saved and opened without them; passwords and passphrases as typed.
+        let f = super::AddressForm {
+            scheme: 2,
+            name: " NAS ".into(),
+            host: " nas.lan ".into(),
+            port: " 2222 ".into(),
+            user: " me ".into(),
+            password: " pw ".into(),
+            folder: " /Foto/ ".into(),
+            key_file: " ~/.ssh/id ".into(),
+            key_passphrase: " phrase ".into(),
+            ..Default::default()
+        };
+        let s = f.saved().unwrap();
+        assert_eq!((s.name.as_str(), s.host.as_str(), s.port, s.user.as_str(), s.folder.as_str()), ("NAS", "nas.lan", Some(2222), "me", "/Foto/"));
+        assert_eq!((s.key_file.as_str(), s.password.as_str(), s.key_passphrase.as_str()), ("~/.ssh/id", " pw ", " phrase "));
+        assert_eq!(s.address(), Some("sftp://me@nas.lan:2222/Foto/".into()));
+        assert_eq!(f.address(), Some("sftp://me:%20pw%20@nas.lan:2222/Foto/".into()));
     }
 
     #[test]
