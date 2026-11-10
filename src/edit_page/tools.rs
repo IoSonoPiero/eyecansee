@@ -145,7 +145,7 @@ impl App {
         // After a first copy the button updates it (user, 2026-11-06).
         let (label, hint, main_ask, off) = match () {
             _ if w.new => ("menu-save-copy", "rc-save-as-hint", Ask::SaveAs, w.preparing.then(|| i18n.t("edit-off-preparing"))),
-            _ if w.copy.is_some() => ("edit-update-copy", "edit-update-hint", Ask::Save, off),
+            _ if w.copy.done.is_some() => ("edit-update-copy", "edit-update-hint", Ask::Save, off),
             _ => ("edit-save-copy", "rc-save-hint", Ask::Save, off),
         };
         let main = crate::theme::main_button(ui, i18n.t(label)).min_size(egui::vec2(0.0, icons::BUTTON.y));

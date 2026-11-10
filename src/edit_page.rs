@@ -155,11 +155,11 @@ pub struct Window {
     editing: Option<usize>,
     /// The original's bytes, read at the first save: every save starts from them.
     bytes: Option<Arc<Vec<u8>>>,
-    /// The copy written last, updated by the next Save while it is still that file.
-    copy: Option<save::Written>,
+    /// The copy written last and the one being sent: the next Save updates it while it is that file.
+    copy: save::Marks,
     /// What Overwrite wrote last over the original: the next Overwrite replaces it without the
     /// trash while it is still that file.
-    overwritten: Option<save::Written>,
+    overwritten: save::Marks,
     /// A line under the buttons ("Copied…") and until when (seconds of `egui::InputState::time`).
     note: Option<(String, f64)>,
     copying: bool,
@@ -230,8 +230,8 @@ impl Window {
             keys_open: false,
             editing: None,
             bytes: None,
-            copy: None,
-            overwritten: None,
+            copy: save::Marks::default(),
+            overwritten: save::Marks::default(),
             note: None,
             copying: false,
             follow: Follow::Inside,

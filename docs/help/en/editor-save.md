@@ -14,7 +14,9 @@ The original stays as it is. The page stays open, so you can go on. When you clo
 
 ## Update copy
 
-After the first save the button becomes **Update copy**. It writes the same copy again, always from the original with all the changes, so nothing is compressed twice. If the copy was deleted or another program changed it, a new copy is made and the status bar says so.
+After the first copy is written the button becomes **Update copy**. It writes the same copy again, always from the original with all the changes, so nothing is compressed twice. If the copy was deleted or another program changed it, a new copy is made and the status bar says so.
+
+A save that fails changes nothing here: the button stays as it was, and your changes are still there to save. If no copy was written before, the next save makes a new one; if one was, it updates that one.
 
 The button is off when there is nothing new to save.
 

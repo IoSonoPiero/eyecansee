@@ -39,6 +39,46 @@ impl Written {
     }
 }
 
+/// The editor's saves of one kind (the copy, or over the original): the file written last
+/// (`done`, what the next save goes over and what makes the button say Update copy), and the save
+/// under way (`sending`), which takes its place only once sent (issue #86). One that failed stays
+/// in `sending` without counting: Try again on a phone or a server can still send it.
+#[derive(Default)]
+pub(crate) struct Marks {
+    pub(super) done: Option<Written>,
+    sending: Option<Written>,
+}
+
+impl Marks {
+    /// A save confirmed, to `path`: the file is not made yet.
+    fn start(&mut self, path: String) {
+        self.sending = Some(Written { path, sha: [0; 32] });
+    }
+
+    /// The file of the save under way made: what it will be once sent.
+    fn made(&mut self, mark: Written) {
+        if self.sending.as_ref().is_some_and(|m| m.path == mark.path) {
+            self.sending = Some(mark);
+        }
+    }
+
+    /// The save of `path` ended (`ok`); `true` if it was this one. Only one that went well becomes
+    /// the file written: a failure leaves the one before, or none.
+    fn ended(&mut self, path: &str, ok: bool) -> bool {
+        if !self.sending.as_ref().is_some_and(|m| m.path == path) {
+            return false;
+        }
+        if ok {
+            self.done = self.sending.take();
+        }
+        true
+    }
+
+    fn paths(&self) -> impl Iterator<Item = &str> {
+        [&self.done, &self.sending].into_iter().flatten().map(|m| m.path.as_str())
+    }
+}
+
 fn sha256(data: &[u8]) -> [u8; 32] {
     ring::digest::digest(&ring::digest::SHA256, data).as_ref().try_into().expect("32 bytes")
 }
@@ -127,7 +167,7 @@ impl App {
     /// The last save is still being made or sent: the next one waits for it (the button is off;
     /// Ctrl+S too, or it would find the copy not yet written and make another).
     pub(super) fn edit_sending(&self, w: &Window) -> bool {
-        [&w.copy, &w.overwritten].into_iter().flatten().any(|m| self.saving.contains(&m.path))
+        w.copy.paths().chain(w.overwritten.paths()).any(|p| self.saving.contains(p))
     }
 
     /// Save (`over` false) or Overwrite: the file made in the background (`Msg::EditPrepared`),
@@ -143,7 +183,7 @@ impl App {
         }
         let (Some(loader), Some(Ok((original, ..)))) = (&self.loader, &w.original) else { return };
         let (store, path, doc, original, word) = (loader.store(), w.path.clone(), w.doc.clone(), original.clone(), self.i18n.t("edit-copy-word"));
-        let (bytes, written) = (w.bytes.clone(), if over { w.overwritten.clone() } else { w.copy.clone() });
+        let (bytes, written) = (w.bytes.clone(), if over { &w.overwritten } else { &w.copy }.done.clone());
         let (tx, ctx) = (self.tx.clone(), ctx.clone());
         log!("edit: prepare {path:?}, over {over}, after {written:?}");
         self.rt.spawn(async move {
@@ -157,7 +197,7 @@ impl App {
     /// What a confirmed save wrote: the next one goes over it while it is still that file.
     pub(crate) fn on_edit_written(&mut self, path: String, mark: Written, over: bool) {
         let Some(w) = self.editor.as_mut().filter(|w| w.path == path) else { return };
-        if over { w.overwritten = Some(mark) } else { w.copy = Some(mark) }
+        if over { &mut w.overwritten } else { &mut w.copy }.made(mark);
     }
 
     pub(crate) fn on_edit_prepared(&mut self, path: String, r: Result<Arc<Prepared>, source::Error>) {
@@ -230,10 +270,9 @@ impl App {
                 if p.gone {
                     w.note = Some((self.i18n.t("edit-copy-gone"), ctx.input(|i| i.time) + 8.0));
                 }
-                // Where it goes, at once (the button says Update copy, and waits while it is
-                // sent); what it wrote once the file is made (`Msg::EditWritten`).
-                let mark = Written { path: target.clone(), sha: [0; 32] };
-                if p.over { w.overwritten = Some(mark) } else { w.copy = Some(mark) }
+                // Where it goes, at once (the button waits while it is sent); what it wrote once
+                // the file is made (`Msg::EditWritten`); the file written once sent (`edit_saved`).
+                if p.over { &mut w.overwritten } else { &mut w.copy }.start(target.clone());
                 let name = source::name(&w.path).to_string();
                 self.rt.spawn(async move {
                     let p2 = p.clone();
@@ -319,9 +358,10 @@ impl App {
 
 impl Window {
     /// The save of `path` ended (`ok`); `true`: the page closes now (Save… chosen on closing,
-    /// nothing changed since). One that failed leaves something to save: closing asks again.
+    /// nothing changed since). One that failed leaves something to save: closing asks again, and
+    /// the next save goes where it would have gone before it (issue #86).
     fn saved_to(&mut self, path: &str, ok: bool) -> bool {
-        if ![&self.copy, &self.overwritten].into_iter().flatten().any(|m| m.path == path) {
+        if !(self.copy.ended(path, ok) || self.overwritten.ended(path, ok)) {
             return false;
         }
         let closing = std::mem::take(&mut self.closing);
@@ -439,7 +479,8 @@ mod tests {
         w.doc.objects.push(cover(0.0));
         h.push(w.doc.clone());
         h.saved();
-        (w.history, w.closing, w.copy) = (Some(h), closing, Some(Written { path: "p/a (edited).jpg".into(), sha: [0; 32] }));
+        (w.history, w.closing) = (Some(h), closing);
+        w.copy.start("p/a (edited).jpg".into());
         w
     }
 
@@ -463,6 +504,32 @@ mod tests {
         let mut w = page(true);
         w.doc.objects.push(cover(9.0));
         assert!(!w.saved_to(copy, true) && w.changed());
+    }
+
+    /// Issue #86: a save that failed is not the file written. Without a copy before, the next
+    /// save makes a new one (the button says Save copy); after one that went well, the next updates
+    /// that one. The order of the messages: the file made (`made`), then the end of sending.
+    #[test]
+    fn failed_save_leaves_the_mark_before() {
+        let copy = "p/a (edited).jpg";
+        let mut w = page(false);
+        w.copy.made(Written::of(copy.into(), b"first"));
+        assert!(!w.saved_to(copy, false));
+        assert!(w.copy.done.is_none(), "no copy written");
+        assert!(w.changed(), "the changes stay to save");
+        // Try again on a phone or a server sends the same file: now it is the copy.
+        assert!(!w.saved_to(copy, true));
+        assert_eq!(w.copy.done.as_ref().map(|m| m.sha), Some(sha256(b"first")));
+        // A second save to the same copy fails: the first stays the copy written.
+        w.copy.start(copy.into());
+        w.copy.made(Written::of(copy.into(), b"second"));
+        assert!(!w.saved_to(copy, false));
+        assert_eq!(w.copy.done.as_ref().map(|m| (m.path.as_str(), m.sha)), Some((copy, sha256(b"first"))));
+        // An Overwrite that fails: nothing written over the original, the copy as it was.
+        w.overwritten.start("p/a.jpg".into());
+        assert!(!w.saved_to("p/a.jpg", false));
+        assert!(w.overwritten.done.is_none());
+        assert_eq!(w.copy.done.as_ref().map(|m| m.sha), Some(sha256(b"first")));
     }
 
     fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {
