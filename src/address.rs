@@ -34,6 +34,9 @@ pub(crate) struct AddressForm {
     pub(crate) deleting: bool,
     /// Why the servers could not be saved.
     pub(crate) error: Option<String>,
+    /// Opened because the server refused the login: why, shown at the top of the window (behind
+    /// it, in the grid and the side panel, it could not be read: user, 2026-11-10).
+    pub(crate) refused: Option<String>,
     /// Opened because the saved key of this server (index) did not open: the message, shown
     /// above its fields until it is saved again.
     pub(crate) key_problem: Option<(usize, String)>,
@@ -211,6 +214,10 @@ impl App {
             ui.set_width(460.0);
             crate::theme::title(ui, t("addr-title"));
             ui.add_space(4.0);
+            if let Some(why) = &f.refused {
+                ui.label(browser::error_text(ui, why.clone()));
+                ui.add_space(6.0);
+            }
             let url = ui.add(egui::TextEdit::singleline(&mut f.url).hint_text(t("tb-address-hint")).desired_width(f32::INFINITY));
             if f.first {
                 url.request_focus();

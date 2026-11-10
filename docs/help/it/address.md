@@ -33,7 +33,7 @@ I campi restano grigi finché il campo in alto contiene qualcosa. Gli spazi prim
 
 ## Quando un server chiede la password
 
-Se un server rifiuta l'accesso, Apri indirizzo si apre da solo con l'indirizzo già compilato: scrivi la password e premi **Invio** per usarla solo questa volta, oppure fai clic su **Salva e apri** per tenerla (anche quando la password di un server salvato è cambiata). Succede lo stesso all'avvio quando l'ultima cartella era su un server FTP con un utente che non è tra i server salvati, perché EyeCanSee non conserva quella password.
+Se un server rifiuta l'accesso, Apri indirizzo si apre da solo con l'indirizzo già compilato e, in alto, il motivo del rifiuto: scrivi la password e premi **Invio** per usarla solo questa volta, oppure fai clic su **Salva e apri** per tenerla (anche quando la password di un server salvato è cambiata). Succede lo stesso all'avvio quando l'ultima cartella era su un server FTP con un utente che non è tra i server salvati, perché EyeCanSee non conserva quella password.
 
 Per non scrivere la password ogni volta, fai clic su **Salva e apri**, oppure salva il server in **File > Gestione server…**: un indirizzo che corrisponde a un server salvato (stesso protocollo, server, porta e utente), anche scritto nella barra degli indirizzi, usa la sua password e la sua chiave. Vedi [Gestire i server](server-manager.md).
 

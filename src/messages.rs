@@ -78,8 +78,11 @@ impl App {
             Err(("error-device-kde" | "error-device-kde-back", _)) => self.kiod_ask = true,
             Err(("error-host-unknown" | "error-cert-unknown", _)) => self.host_ask = true,
             // A server that refused the login: File > Open location asks for the password.
-            Err(("error-login" | "error-login-ssh", _)) if dir == self.dir && self.open_address.is_none() => {
+            Err((id @ ("error-login" | "error-login-ssh"), detail)) if dir == self.dir && self.open_address.is_none() => {
                 self.open_address = AddressForm::for_password(&format!("{}{}", self.base, self.dir));
+                if let Some(f) = &mut self.open_address {
+                    f.refused = Some(self.i18n.error(id, detail));
+                }
             }
             // A server's folder that is gone (moved, deleted, reopened at startup): the saved
             // server's folder instead, or the server's starting folder.

@@ -33,7 +33,7 @@ The fields are greyed out while the field at the top has something in it. Spaces
 
 ## When a server asks for the password
 
-If a server refuses the login, Open location opens by itself with the address already filled in: type the password and press **Enter** to use it only this time, or click **Save and open** to keep it (also when a saved server's password has changed). The same happens at startup when the last folder was on an FTP server with a user that is not among the saved servers, since EyeCanSee does not keep that password.
+If a server refuses the login, Open location opens by itself with the address already filled in and, at the top, why it was refused: type the password and press **Enter** to use it only this time, or click **Save and open** to keep it (also when a saved server's password has changed). The same happens at startup when the last folder was on an FTP server with a user that is not among the saved servers, since EyeCanSee does not keep that password.
 
 To avoid typing the password every time, click **Save and open**, or save the server in **File > Server manager…**: an address that matches a saved server (same protocol, server, port and user), also typed in the address bar, uses its password and key. See [Managing servers](server-manager.md).
 
