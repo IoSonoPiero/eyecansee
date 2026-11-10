@@ -48,7 +48,7 @@ It is early in development. This page lists only what works now: new features ar
 
 ![The server manager, with a master password for the saved servers](docs/screenshots/servers.png)
 
-![The Bookmarks menu: folders, disks, phones and servers saved by name, opened with one click](docs/screenshots/bookmarks.webp)
+![The Bookmarks menu: folders, a disk and a server saved by name, opened with one click](docs/screenshots/bookmarks.webp)
 
 </details>
 
@@ -78,7 +78,7 @@ What comes next is in [ROADMAP.md](ROADMAP.md).
 - **Saving in another format** (JPEG, PNG, WebP, AVIF, TIFF and others) with every option of each format, the original and the result side by side, and the file size before you save.
 - **Converting and resizing many files at once**: format, turn, size and filter for a whole selection of images and videos, into new files next to the originals, in a subfolder or in another folder, also on another device.
 - **Video conversion** with FFmpeg (the system's, or downloaded once: 63 MB on Windows, 67 MB on Linux): MP4, MKV, WebM, MOV, AVI and GIF with H.264, HEVC, AV1, VP9 and other codecs, turned and resized, on the graphics card when it can (NVIDIA, Intel, AMD, VA-API), or copied as they are without re-encoding; the audio can also be taken out of a video, or extracted into files of its own, without re-encoding; the metadata go into the new file, including a dashcam's GPS position and speeds (`gps.sqlite` on the card) and a DJI drone's position (`.SRT`), so the copy keeps them away from the card. Details in [docs/video-formats.md](docs/video-formats.md).
-- **Servers**: SFTP, FTP and FTPS, on Linux and Windows, browsed like any folder (thumbnails, viewer, videos, copy and move to and from any other device, rename, trash). A server manager keeps the servers you use, with password or SSH key, in the left panel next to the disks, in a file that a master password can encrypt; a server opened from **Open location** is kept there with **Save and open**. SFTP downloads come close to FileZilla's speed, and videos play from a server without stutter, also in 4K, when the connection is fast enough. Tested on a Synology NAS, a Hetzner Storage Box and Linux servers.
+- **Servers**: SFTP, FTP and FTPS, on Linux and Windows, browsed like any folder (thumbnails, viewer, videos, copy and move to and from any other device, rename, trash). A server manager keeps the servers you use, with password or SSH key, in the left panel next to the disks, in a file that a master password can encrypt; a server opened from **Open location** is added to it with **Save and open**. SFTP downloads come close to FileZilla's speed, and videos play from a server without stutter, even in 4K, when the connection is fast enough. Tested on a Synology NAS, a Hetzner Storage Box and Linux servers.
 - English and Italian, light and dark theme, an illustrated guide built in: F1 opens the page of what is on screen, with search across every page.
 
 ### Formats
@@ -165,7 +165,7 @@ Download the `.AppImage` file from the [latest release](https://github.com/IoSon
 
 To have it in the applications menu (and in "Open with" for images and videos), open the AppImage with [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever), available from the software centre of most distributions, and let it move the file into its folder and add it to the menu. EyeCanSee keeps updating itself there.
 
-From version 0.28.0, every file of a release has its signature next to it (`.minisig`). To check a file you downloaded by hand (the same works for the Windows installer and zip):
+Every file of a release has its signature next to it (`.minisig`). To check a file you downloaded by hand (the same works for the Windows installer and zip):
 
 ```bash
 minisign -Vm EyeCanSee-<version>-x86_64.AppImage -P RWRgiMFmEPRN5JASovMqT3NdY1Ui/mhebEzDTdsmKDiXno3K/9B4/biD
