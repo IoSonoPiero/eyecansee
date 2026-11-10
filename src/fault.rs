@@ -16,6 +16,9 @@ pub(crate) enum Kind {
     Denied,
     ReadOnly,
     NoSpace,
+    /// No space for the hidden new version of a file being replaced (#90): the disk needs room
+    /// for a second copy of the file while it is replaced.
+    NoSpaceToReplace,
     TooLarge,
     NotFound,
     Exists,
@@ -30,6 +33,7 @@ impl Kind {
             Kind::Denied => "fault-denied",
             Kind::ReadOnly => "fault-read-only",
             Kind::NoSpace => "fault-no-space",
+            Kind::NoSpaceToReplace => "fault-no-space-replace",
             Kind::TooLarge => "fault-too-large",
             Kind::NotFound => "fault-not-found",
             Kind::Exists => "fault-exists",
@@ -70,9 +74,16 @@ impl Kind {
 /// The kind of a raw error text and the file it names, when there is one. The code of the
 /// system ("(os error 28)") comes first: OpenDAL calls "Unexpected" a full disk or a read-only
 /// one. The code is read on the system that gave it, so Windows' codes are Windows' own.
+/// A full disk while writing the hidden files of a replace (`source::save_names`) says why a
+/// file that fits on the disk did not (#90).
 pub(crate) fn recognise(text: &str) -> Option<(Kind, Option<String>)> {
-    let kind = os_code(text).and_then(of_code).or_else(|| Kind::of_dal(text))?;
-    Some((kind, context_path(text).map(|p| source::saved_image(source::name(&p)).to_string()).filter(|n| !n.is_empty())))
+    let mut kind = os_code(text).and_then(of_code).or_else(|| Kind::of_dal(text))?;
+    let path = context_path(text);
+    let own = path.as_deref().map(source::name).unwrap_or_default();
+    if kind == Kind::NoSpace && source::leftover(own) {
+        kind = Kind::NoSpaceToReplace;
+    }
+    Some((kind, Some(source::saved_image(own).to_string()).filter(|n| !n.is_empty())))
 }
 
 /// The kind of a system's error code. Windows says that a file is held by another program with
@@ -162,9 +173,12 @@ mod tests {
         // OpenDAL calls a full disk and a read-only one "Unexpected": the system's code says which.
         let full = "Unexpected (temporary) at write, context: { service: fs, path: a/b.jpg } => no storage space, source: No space left on device (os error 28)";
         assert_eq!(recognise(full), Some((Kind::NoSpace, Some("b.jpg".into()))));
-        // The new version written under its hidden name: the image's name is said (#90).
+        // The new version written under its hidden name: the image's name is said (#90), and why.
         let hidden = full.replace("a/b.jpg", "a/.b.jpg.eyecansee-new");
-        assert_eq!(recognise(&hidden), Some((Kind::NoSpace, Some("b.jpg".into()))));
+        assert_eq!(recognise(&hidden), Some((Kind::NoSpaceToReplace, Some("b.jpg".into()))));
+        // As the local replace words it (`replace::local::at`).
+        let local = "write, context: { path: .b.jpg.eyecansee-new } => No space left on device (os error 28)";
+        assert_eq!(recognise(local), Some((Kind::NoSpaceToReplace, Some("b.jpg".into()))));
         let ro = "Unexpected (temporary) at write, context: { path: c.png, service: fs } => read-only filesystem or storage medium, source: Read-only file system (os error 30)";
         assert_eq!(recognise(ro), Some((Kind::ReadOnly, Some("c.png".into()))));
         // A plain system error: the kind, no name.
@@ -211,12 +225,27 @@ mod tests {
         assert!(trash.contains("trash") && trash.contains("Orchid") && !trash.contains("PermissionDenied"), "{trash}");
         // Not recognised: as before.
         assert_eq!(i18n.error("error-detail", "timeout"), "timeout");
-        for kind in [Kind::Denied, Kind::ReadOnly, Kind::NoSpace, Kind::TooLarge, Kind::NotFound, Kind::Exists, Kind::InUse, Kind::BadName] {
+        for kind in [Kind::Denied, Kind::ReadOnly, Kind::NoSpace, Kind::NoSpaceToReplace, Kind::TooLarge, Kind::NotFound, Kind::Exists, Kind::InUse, Kind::BadName] {
             for lang in ["en", "it"] {
                 let i18n = I18n::new(lang);
                 let (named, unnamed) = (i18n.fault(kind, Some("x.jpg")), i18n.fault(kind, None));
                 assert!(named.contains("x.jpg") && !unnamed.contains("x.jpg") && named != unnamed, "{lang} {kind:?}");
             }
         }
+    }
+
+    /// The message of a replace refused for want of room for the second copy (#90), in both
+    /// languages: the reason, the name, what to do.
+    #[cfg(unix)]
+    #[test]
+    fn no_space_to_replace() {
+        let t = "write, context: { path: .f.jpg.eyecansee-new } => No space left on device (os error 28)";
+        let en = I18n::new("en").error("error-detail", t);
+        assert_eq!(en, "There is not enough space on the disk to replace \"f.jpg\": while it is being replaced, the disk needs room for a second copy of the file. Free some space and try again.");
+        let it = I18n::new("it").error("error-detail", t);
+        assert_eq!(it, "Sul disco non c'è abbastanza spazio per sostituire \"f.jpg\": durante la sostituzione serve spazio per una seconda copia del file. Libera un po' di spazio e riprova.");
+        // A full disk while writing the file itself: the plain message.
+        let plain = I18n::new("en").error("error-detail", &t.replace(".f.jpg.eyecansee-new", "f.jpg"));
+        assert_eq!(plain, I18n::new("en").fault(Kind::NoSpace, Some("f.jpg")));
     }
 }

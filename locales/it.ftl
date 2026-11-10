@@ -776,6 +776,10 @@ fault-no-space = { $known ->
     [yes] Sul disco non c'è più spazio per "{ $name }": libera un po' di spazio e riprova.
    *[no] Sul disco non c'è più spazio: libera un po' di spazio e riprova.
 }
+fault-no-space-replace = { $known ->
+    [yes] Sul disco non c'è abbastanza spazio per sostituire "{ $name }": durante la sostituzione serve spazio per una seconda copia del file. Libera un po' di spazio e riprova.
+   *[no] Sul disco non c'è abbastanza spazio per sostituire il file: durante la sostituzione serve spazio per una sua seconda copia. Libera un po' di spazio e riprova.
+}
 fault-too-large = { $known ->
     [yes] "{ $name }" è troppo grande per questo disco: i dischi FAT32 accettano file fino a 4 GB.
    *[no] Il file è troppo grande per questo disco: i dischi FAT32 accettano file fino a 4 GB.
