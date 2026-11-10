@@ -71,6 +71,8 @@ impl App {
     /// The panels of the window: the "Save in another format" page, or the bars with the viewer
     /// or with the tree, the metadata and the grid.
     pub(crate) fn panels(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        // First, so that it is at the very bottom on every page, under their own bars (issue #85).
+        self.error_bar(ui);
         if self.show.is_some() {
             egui::CentralPanel::default().frame(egui::Frame::NONE.fill(egui::Color32::BLACK)).show(ui, |ui| self.show_page(ui));
         } else if self.convert.is_some() {
@@ -87,16 +89,6 @@ impl App {
             if !bare {
                 egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
                 egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui, ctx));
-            }
-            if let Some(e) = self.error.clone() {
-                egui::Panel::bottom("error").show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        ui.label(browser::error_text(ui, e));
-                        if ui.add(crate::icons::small(ui, crate::icons::Line::Close)).on_hover_text(self.i18n.t("notice-close")).clicked() {
-                            self.error = None;
-                        }
-                    });
-                });
             }
             match self.viewing {
                 Some(current) if bare => {
@@ -137,6 +129,22 @@ impl App {
                 }
             }
         }
+    }
+
+    /// The last error, at the bottom of the window with a ✕ to close it. Over the pages that
+    /// cover the window too (editor, Save in another format, duplicates, slideshow): drawn only
+    /// in the grid and the viewer, a save that failed in the editor was told once it was closed.
+    /// The slideshow goes on above it: the error is seen, and its ✕ closes it.
+    fn error_bar(&mut self, ui: &mut egui::Ui) {
+        let Some(e) = self.error.clone() else { return };
+        egui::Panel::bottom("error").show(ui, |ui| {
+            ui.horizontal(|ui| {
+                ui.label(browser::error_text(ui, e));
+                if ui.add(crate::icons::small(ui, crate::icons::Line::Close)).on_hover_text(self.i18n.t("notice-close")).clicked() {
+                    self.error = None;
+                }
+            });
+        });
     }
 
     /// The windows over the panels (guide, dialogs, confirmations) and the chosen menu item.

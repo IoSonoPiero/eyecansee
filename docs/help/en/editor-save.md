@@ -12,6 +12,8 @@ The editor never changes the original unless you ask. The main button, **Save co
 
 The original stays as it is. The page stays open, so you can go on. When you close it, the grid selects the copy and the viewer shows it.
 
+If a save fails, a message in red at the bottom of the window says why, and the page stays open with your changes.
+
 ## Update copy
 
 After the first save the button becomes **Update copy**. It writes the same copy again, always from the original with all the changes, so nothing is compressed twice. If the copy was deleted or another program changed it, a new copy is made and the status bar says so.
