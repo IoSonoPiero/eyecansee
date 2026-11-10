@@ -431,6 +431,11 @@ impl Phone {
         Ok(found)
     }
 
+    /// Is there an item named `path`? An answer that does not come counts as no.
+    pub async fn exists(&self, path: &str) -> bool {
+        self.taken(path).await.unwrap_or(false)
+    }
+
     /// Is there an item at `path`? Lists its folder only the first time.
     async fn taken(&self, path: &str) -> Result<bool, Error> {
         let dir = source::parent(path);

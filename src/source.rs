@@ -39,7 +39,7 @@ pub type Chunks = tokio::sync::mpsc::Sender<std::io::Result<Bytes>>;
 /// Size of the chunks read from disks and servers.
 const CHUNK: u64 = 1 << 20;
 
-pub use crate::trash::{android_trashed, free_name, in_trash, is_trash, leftover, listed_in, restore_place, save_names, shown, trash_of, Conflict, Deletion, SAVING, TRASH_DIR};
+pub use crate::trash::{android_trashed, free_name, in_trash, is_trash, leftover, listed_in, restore_place, save_names, saved_image, shown, trash_of, Conflict, Deletion, SAVING, TRASH_DIR};
 
 /// The operations the app needs, the same for all sources.
 #[derive(Clone)]
@@ -444,45 +444,29 @@ impl Store {
         Ok(())
     }
 
-    /// Writes a file of `size` bytes from the chunks of `send_chunks`, replacing one with the same
-    /// name; deleted if the chunks end with an error.
+    /// Writes a new file of `size` bytes from the chunks of `send_chunks`. At any failure (an error
+    /// in the chunks, a write or the closing that fails, for example for lack of space) what was
+    /// written is deleted: `path` must be a name this write owns, a file already there is replaced
+    /// only through `replace::write_file` (issue #90).
     pub async fn write_chunks(&self, path: &str, size: u64, chunks: tokio::sync::mpsc::Receiver<std::io::Result<Bytes>>) -> Result<(), Error> {
-        let detail = |e: std::io::Error| ("error-detail", e.to_string());
         match self {
-            Store::Dal(op) => {
-                let _permit = gvfs_permit(op, path).await;
-                let mut writer = op.writer(path).await.map_err(dal_error)?;
-                let mut chunks = chunks;
-                let mut failed = None;
-                while let Some(chunk) = chunks.recv().await {
-                    match chunk {
-                        Ok(c) => {
-                            if let Err(e) = writer.write(c).await {
-                                failed = Some(dal_error(e));
-                                break;
-                            }
-                        }
-                        Err(e) => {
-                            failed = Some(detail(e));
-                            break;
-                        }
-                    }
-                }
-                match failed {
-                    None => writer.close().await.map(|_| ()).map_err(dal_error),
-                    Some(e) => {
-                        let _ = writer.abort().await;
-                        let _ = op.delete(path).await;
-                        Err(e)
-                    }
-                }
-            }
+            Store::Dal(op) => write_dal(op, path, chunks).await,
             Store::Sftp(server) => server.write_chunks(path, chunks).await,
             Store::Ftp(server) => server.write_chunks(path, chunks).await,
             Store::Mtp(phone) => {
                 let stream = futures_util::stream::unfold(chunks, |mut c| async { c.recv().await.map(|x| (x, c)) });
                 phone.upload(path, size, Box::pin(stream)).await
             }
+        }
+    }
+
+    /// Is there an item named `path`? An answer that does not come counts as no.
+    pub async fn exists(&self, path: &str) -> bool {
+        match self {
+            Store::Dal(op) => op.exists(path).await.unwrap_or(false),
+            Store::Mtp(phone) => phone.exists(path).await,
+            Store::Sftp(server) => server.exists(path).await,
+            Store::Ftp(server) => server.exists(path).await,
         }
     }
 
@@ -496,6 +480,33 @@ impl Store {
             Store::Ftp(server) => server.check_dir(dir).await,
         }
     }
+}
+
+/// `Store::write_chunks` on this computer. The writer is closed before the file is deleted
+/// (Windows does not delete an open file). The error of a full disk often comes only when the file
+/// is closed: tokio writes in the background, the closing flushes (#90).
+async fn write_dal(op: &Operator, path: &str, mut chunks: tokio::sync::mpsc::Receiver<std::io::Result<Bytes>>) -> Result<(), Error> {
+    let _permit = gvfs_permit(op, path).await;
+    let r = async {
+        let mut writer = op.writer(path).await.map_err(dal_error)?;
+        while let Some(chunk) = chunks.recv().await {
+            let written = match chunk {
+                Ok(c) => writer.write(c).await.map_err(dal_error),
+                Err(e) => Err(("error-detail", e.to_string())),
+            };
+            if let Err(e) = written {
+                let _ = writer.abort().await;
+                return Err(e);
+            }
+        }
+        writer.close().await.map(|_| ()).map_err(dal_error)
+    }
+    .await;
+    if let Err(e) = &r {
+        let gone = op.delete(path).await;
+        log!("write {path:?} failed ({e:?}), what was written deleted: {gone:?}");
+    }
+    r
 }
 
 pub struct Source {

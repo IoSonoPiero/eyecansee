@@ -32,6 +32,12 @@ pub fn leftover(name: &str) -> bool {
     name.starts_with('.') && (name.ends_with(NEW) || name.ends_with(OLD))
 }
 
+/// The image a name of `save_names` belongs to: an error about the hidden file names the image
+/// (#90). Any other name as it is.
+pub fn saved_image(name: &str) -> &str {
+    name.strip_prefix('.').and_then(|n| n.strip_suffix(NEW).or_else(|| n.strip_suffix(OLD))).unwrap_or(name)
+}
+
 /// What to do when an item put back from the trash finds its name taken (`Store::restore`).
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Conflict {

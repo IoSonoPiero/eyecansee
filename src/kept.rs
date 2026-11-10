@@ -205,7 +205,7 @@ impl App {
         self.rt.spawn(async move {
             let Some(to) = dialog.save_file().await else { return };
             let to = to.path().to_path_buf();
-            let r = std::fs::copy(&file, &to).map(|_| to.display().to_string()).map_err(|e| ("error-detail", e.to_string()));
+            let r = copy_whole(&file, &to).map(|()| to.display().to_string()).map_err(|e| ("error-detail", e.to_string()));
             log!("kept copy {file:?} saved as {to:?}: {r:?}");
             let _ = tx.send(crate::loader::Msg::KeptSaved(r));
             ctx.request_repaint();
@@ -218,6 +218,19 @@ impl App {
             Err((id, detail)) => self.error = Some(self.i18n.save_failed(&(id, detail))),
         }
     }
+}
+
+/// `file` copied to `to` on this computer under the hidden name of a "Save" next to it, renamed at
+/// the end: a copy that fails (a full disk) leaves nothing, and a file it replaces stays as it was
+/// (#90).
+fn copy_whole(file: &Path, to: &Path) -> std::io::Result<()> {
+    let own = to.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    let tmp = to.with_file_name(source::save_names(&own).0);
+    let r = std::fs::copy(file, &tmp).and_then(|_| std::fs::rename(&tmp, to));
+    if r.is_err() {
+        let _ = std::fs::remove_file(&tmp);
+    }
+    r
 }
 
 /// The folder in the system's file manager.
@@ -410,5 +423,28 @@ mod tests {
             assert_eq!(op.check_dir(dir).await.unwrap_err().0, source::NOT_FOUND);
             println!("{url}: all done, {dir} deleted");
         }
+    }
+
+    /// "Save a copy" of a kept image: it replaces a file through a hidden name; a copy that fails
+    /// leaves the file there as it was and nothing hidden (#90).
+    #[test]
+    fn copy_whole_replaces_or_leaves_nothing() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-copy-whole-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("kept.jpg"), b"new").unwrap();
+        std::fs::write(dir.join("a.jpg"), b"old").unwrap();
+        let names = || std::fs::read_dir(&dir).unwrap().count();
+        assert!(copy_whole(&dir.join("missing.jpg"), &dir.join("a.jpg")).is_err());
+        assert_eq!((std::fs::read(dir.join("a.jpg")).unwrap(), names()), (b"old".to_vec(), 2));
+        #[cfg(target_os = "linux")]
+        {
+            std::os::unix::fs::symlink("/dev/full", dir.join(".a.jpg.eyecansee-new")).unwrap();
+            assert!(copy_whole(&dir.join("kept.jpg"), &dir.join("a.jpg")).is_err());
+            assert_eq!((std::fs::read(dir.join("a.jpg")).unwrap(), names()), (b"old".to_vec(), 2));
+        }
+        copy_whole(&dir.join("kept.jpg"), &dir.join("a.jpg")).unwrap();
+        assert_eq!((std::fs::read(dir.join("a.jpg")).unwrap(), names()), (b"new".to_vec(), 2));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

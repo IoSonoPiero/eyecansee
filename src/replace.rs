@@ -1,16 +1,43 @@
-//! Writing a file whole, and saving an image over its original safely: the new file under a
-//! hidden name, the original put away as asked, the new one renamed into place, everything put
-//! back at any failure. Split from `loader.rs` on 2026-11-01.
+//! Writing a file that leaves nothing half written at a failure (#90), and saving an image over
+//! its original safely: the new file under a hidden name, the original put away as asked, the new
+//! one renamed into place, everything put back at any failure. Split from `loader.rs` on 2026-11-01.
 
 use crate::loader::SKIPPED;
 use crate::source::{self, Store};
 
+/// Writes a file whole: as `write_file`, nothing half written left at a failure.
 pub(crate) async fn write_whole(op: &Store, path: &str, data: Vec<u8>) -> Result<(), source::Error> {
-    let (chunks, rx) = tokio::sync::mpsc::channel(1);
     let size = data.len() as u64;
-    let _ = chunks.send(Ok(bytes::Bytes::from(data))).await;
-    drop(chunks);
-    op.write_chunks(path, size, rx).await
+    write_file(op, path, size, whole(data), None).await
+}
+
+/// The chunks of `data`, all of it in one.
+fn whole(data: Vec<u8>) -> Chunks {
+    let (tx, rx) = tokio::sync::mpsc::channel(1);
+    let _ = tx.try_send(Ok(bytes::Bytes::from(data)));
+    rx
+}
+
+type Chunks = tokio::sync::mpsc::Receiver<std::io::Result<bytes::Bytes>>;
+
+/// Writes a file of `size` bytes from `chunks` as `path`, leaving nothing half written at a
+/// failure (issue #90): a new file is deleted (`Store::write_chunks`); a file already there keeps
+/// its content until the new one is whole, written under its hidden name and then put in its
+/// place as `replace` does, the old one deleted. `existed`: whether `path` is already there, when
+/// the caller knows (`None`: asked). Where renaming is not possible or not safe (gvfs, see
+/// `replace`) the new file is written over the old one as before.
+pub(crate) async fn write_file(op: &Store, path: &str, size: u64, chunks: Chunks, existed: Option<bool>) -> Result<(), source::Error> {
+    let existed = match existed {
+        Some(e) => e,
+        None => op.exists(path).await,
+    };
+    if !existed || !op.can_rename() || op.gvfs(path) {
+        return op.write_chunks(path, size, chunks).await;
+    }
+    source::SAVING.lock().unwrap().insert(path.to_string());
+    let r = swap(op, path, |new| async move { op.write_chunks(&new, size, chunks).await }, source::Deletion::Permanent, false).await;
+    source::SAVING.lock().unwrap().remove(path);
+    r
 }
 
 /// The image read and turned in its own format, and whether it lost quality.
@@ -65,12 +92,15 @@ async fn replace_as(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion
         return Err(("error-save-temp-copy", path.to_string()));
     }
     source::SAVING.lock().unwrap().insert(path.to_string());
-    let r = swap(op, path, data, how, strict).await;
+    let size = data.len() as u64;
+    let r = swap(op, path, |new| async move { op.write_chunks(&new, size, whole(data)).await }, how, strict).await;
     source::SAVING.lock().unwrap().remove(path);
     r
 }
 
-async fn swap(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion, strict: bool) -> Result<(), source::Error> {
+/// The new file written by `write` (given its hidden name) and put in the place of the original,
+/// which goes as `how` says.
+async fn swap<W: Future<Output = Result<(), source::Error>>>(op: &Store, path: &str, write: impl FnOnce(String) -> W, how: source::Deletion, strict: bool) -> Result<(), source::Error> {
     let own = source::name(path);
     let (new, old) = source::save_names(path);
     // An original left by an earlier save cut short after its new version took the name: it goes
@@ -78,7 +108,8 @@ async fn swap(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion, stri
     if op.names(&source::parent(path)).await?.contains(source::name(&old)) {
         put_away(op, &old, own, how).await?;
     }
-    write_whole(op, &new, data).await?;
+    // A failed write leaves nothing (`Store::write_chunks`), the original untouched.
+    write(new.clone()).await?;
     // The original leaves its name and waits as `old`. To the system trash it goes now with its
     // own name (restoring it from there gives it back), `old` being a second name of it.
     let left = match how {
@@ -186,6 +217,58 @@ mod tests {
         assert_eq!(std::fs::read(dir.join("free/a.jpg")).unwrap(), b"new");
         assert_eq!(std::fs::read(dir.join("free").join(crate::trash::TRASH_DIR).join("a.jpg")).unwrap(), b"original");
         assert_eq!(names("free"), [crate::trash::TRASH_DIR, "a.jpg"]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A write that fails halfway leaves nothing (#90): a new file is gone, a file it was replacing
+    /// stays as it was, and no hidden file is left. The failure comes from the chunks (the reader
+    /// stopped) and, on Linux, from the disk (`/dev/full` behind the name being written, as a full
+    /// disk answers).
+    #[test]
+    fn failed_write_leaves_nothing() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-failed-write-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.jpg"), b"original").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let names = || {
+            let mut v: Vec<String> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+            v.sort();
+            v
+        };
+        let broken = || {
+            let (tx, rx) = tokio::sync::mpsc::channel(2);
+            tx.try_send(Ok(bytes::Bytes::from(vec![1u8; 4096]))).unwrap();
+            tx.try_send(Err(std::io::Error::other("the reader stopped"))).unwrap();
+            rx
+        };
+        for path in ["new.jpg", "a.jpg"] {
+            for existed in [None, Some(path == "a.jpg")] {
+                let e = rt.block_on(write_file(&op, path, 8192, broken(), existed)).unwrap_err();
+                assert_eq!(e.1, "the reader stopped");
+                assert_eq!(names(), ["a.jpg"], "{path} {existed:?}");
+                assert_eq!(std::fs::read(dir.join("a.jpg")).unwrap(), b"original");
+            }
+        }
+        // A whole write over a file replaces it, nothing hidden left.
+        rt.block_on(write_whole(&op, "a.jpg", b"second".to_vec())).unwrap();
+        assert_eq!(std::fs::read(dir.join("a.jpg")).unwrap(), b"second");
+        assert_eq!(names(), ["a.jpg"]);
+        #[cfg(target_os = "linux")]
+        {
+            let big = vec![7u8; 4 << 20];
+            // A new file on a full disk.
+            std::os::unix::fs::symlink("/dev/full", dir.join("full.jpg")).unwrap();
+            let e = rt.block_on(op.write_chunks("full.jpg", big.len() as u64, whole(big.clone()))).unwrap_err();
+            assert!(e.1.to_lowercase().contains("space"), "{e:?}");
+            assert_eq!(names(), ["a.jpg"]);
+            // Over a file: the new version, under its hidden name, does not fit.
+            std::os::unix::fs::symlink("/dev/full", dir.join(source::save_names("a.jpg").0)).unwrap();
+            rt.block_on(write_whole(&op, "a.jpg", big)).unwrap_err();
+            assert_eq!(names(), ["a.jpg"]);
+            assert_eq!(std::fs::read(dir.join("a.jpg")).unwrap(), b"second");
+        }
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

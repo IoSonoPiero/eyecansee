@@ -37,6 +37,7 @@ With several such items, tick **Do the same for all the other items with a name 
 - Each copy or cut is pasted once: to paste again, copy again.
 - After you copy something else in another program, Ctrl+V and Paste no longer paste the items copied in EyeCanSee.
 - Pasted into the folder they came from, copies become "name (2)"; a move does nothing.
+- A copy that fails, for example because the disk is full, leaves nothing half-written: the file being copied is removed, and a file it was replacing stays as it was.
 - Moving on the same disk only changes the place, at once. Between different devices, EyeCanSee copies everything first and deletes the originals only after the copy worked; the originals do not go to the trash.
 - Copies inside the same phone are made by the phone itself.
 - A folder cannot be pasted inside itself. Nothing can be pasted into a trash or onto the list of a phone's storages, and items inside a trash cannot be copied.

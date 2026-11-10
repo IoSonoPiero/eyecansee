@@ -141,12 +141,15 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
     }
 
     // On the same device a move is a rename, unless a folder has to merge into an existing one;
-    // if the rename fails (another disk: different file system) the files are copied.
+    // if the rename fails (another disk: different file system) the files are copied. On this
+    // computer the rename itself replaces a file: one that is there stays until then, and still
+    // there if the copy fails (#90). Phones, servers and gvfs rename only onto a free name.
     let mut copies = Vec::new();
-    for (src, dest, exists) in plan {
+    for (src, dest, mut exists) in plan {
         if clip.cut && same && !(exists && dest.ends_with('/')) {
-            if exists {
+            if exists && (to.local_file(&dest).is_none() || to.gvfs(&dest)) {
                 to.delete(&dest, Deletion::Permanent).await?;
+                exists = false;
             }
             let thumb = (!src.ends_with('/')).then(|| thumbcache::stored(&clip.base, &src)).flatten();
             if clip.op.move_into(&src, to_dir, name(&dest)).await.is_ok() {
@@ -155,13 +158,13 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
                 continue;
             }
         }
-        copies.push((src, dest));
+        copies.push((src, dest, exists));
     }
 
     // Everything to copy, with sizes for the progress bar.
     let start = Instant::now();
     let mut lists = Vec::new();
-    for (src, dest) in &copies {
+    for (src, dest, _) in &copies {
         let list = if src.ends_with('/') {
             folder_items(clip, to, src, dest, p).await?
         } else {
@@ -175,7 +178,14 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
     *p.looked.lock().unwrap() = start.elapsed().as_secs_f64();
     let _ = p.started.set(Instant::now());
 
-    for ((src, _), list) in copies.iter().zip(lists) {
+    for ((src, _, exists), list) in copies.iter().zip(lists) {
+        // Whether a file is already where it goes: a file pasted over one, or one of a folder that
+        // merges into another is looked for; in a new folder nothing is there.
+        let existed = match (src.ends_with('/'), exists) {
+            (false, e) => Some(*e),
+            (true, true) => None,
+            (true, false) => Some(false),
+        };
         for (from, dest, size) in list {
             if from.ends_with('/') {
                 to.create_dir(&dest).await?;
@@ -184,7 +194,7 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
                     return Err(("error-cancelled", String::new()));
                 }
                 *p.current.lock().unwrap() = name(&from).to_string();
-                copy_file(&clip.op, &from, to, &dest, size, p).await?;
+                copy_file(&clip.op, &from, (to, &dest, existed), size, p).await?;
                 keep_thumbnail(thumbcache::stored(&clip.base, &from), &dest, Some(size));
                 p.files.fetch_add(1, Ordering::Relaxed);
             }
@@ -263,7 +273,10 @@ fn writing_guard(to: &Store, dest: &str) -> Option<crate::batch::Writing> {
     to.local_file(dest).map(crate::batch::Writing::start)
 }
 
-async fn copy_file(from: &Store, src: &str, to: &Store, dest: &str, size: u64, p: &Progress) -> Result<(), Error> {
+/// A file of `size` bytes from `src` of `from` to `dest` of `to`; `existed`: whether something is
+/// already there (`replace::write_file`): a copy that fails leaves nothing, and a file it was
+/// replacing as it was (#90).
+async fn copy_file(from: &Store, src: &str, (to, dest, existed): (&Store, &str, Option<bool>), size: u64, p: &Progress) -> Result<(), Error> {
     // Inside the same phone: copied by the phone itself. Through the computer the upload would
     // hold the phone while waiting for the download of the same file from it.
     if let (Store::Mtp(a), Store::Mtp(b)) = (from, to)
@@ -281,7 +294,7 @@ async fn copy_file(from: &Store, src: &str, to: &Store, dest: &str, size: u64, p
     let cancel = if to_phone { &never } else { &p.cancel };
     let (tx, rx) = tokio::sync::mpsc::channel(4);
     let writing = writing_guard(to, dest);
-    let (read, write) = futures_util::future::join(from.send_chunks(src, size, tx, &p.done, cancel), to.write_chunks(dest, size, rx)).await;
+    let (read, write) = futures_util::future::join(from.send_chunks(src, size, tx, &p.done, cancel), crate::replace::write_file(to, dest, size, rx, existed)).await;
     drop(writing);
     if to_phone && read.is_ok() && write.is_ok() && p.cancel.load(Ordering::Relaxed) {
         p.files.fetch_add(1, Ordering::Relaxed);
@@ -451,6 +464,46 @@ mod tests {
             assert_eq!(read(&format!("two/D/Holiday/{trash}/Album/q.jpg")).as_deref(), Some(&b"q"[..]));
             assert_eq!(read(&format!("two/D/Holiday/{trash}/Album (2)/p.jpg")).as_deref(), Some(&b"p"[..]));
             assert!(!dir.join("two/C/Holiday").exists());
+        });
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A paste that does not fit (`/dev/full` behind the name written, as a full disk answers)
+    /// leaves nothing (#90): a new file is gone; a file it was replacing stays as it was, also in
+    /// a move, whose original stays too.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn failed_paste_leaves_nothing() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let dir = std::env::temp_dir().join(format!("eyecansee-paste-full-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("a")).unwrap();
+        std::fs::create_dir_all(dir.join("b")).unwrap();
+        std::fs::write(dir.join("a/x.jpg"), vec![7u8; 3 << 20]).unwrap();
+        std::fs::write(dir.join("b/x.jpg"), b"old").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let names = |sub: &str| {
+            let mut v: Vec<String> = std::fs::read_dir(dir.join(sub)).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+            v.sort();
+            v
+        };
+        rt.block_on(async {
+            // A new file.
+            std::os::unix::fs::symlink("/dev/full", dir.join("b/new.jpg")).unwrap();
+            let p = Progress::default();
+            copy_file(&op, "a/x.jpg", (&op, "b/new.jpg", Some(false)), 3 << 20, &p).await.unwrap_err();
+            assert_eq!(names("b"), ["x.jpg"]);
+            // Replacing x.jpg, in a copy and in a move (another device: copied, then deleted).
+            std::os::unix::fs::symlink("/dev/full", dir.join("b/.x.jpg.eyecansee-new")).unwrap();
+            let clip = |cut| Clip { op: op.clone(), base: "test-full-a://".into(), paths: vec!["a/x.jpg".into()], cut, text: String::new() };
+            for cut in [false, true] {
+                let (gone, r) = run(&clip(cut), &op, "test-full-b://", "b/", &HashMap::new(), &Progress::default()).await;
+                assert!(r.is_err() && gone.is_empty(), "{r:?} {gone:?}");
+                assert_eq!(std::fs::read(dir.join("b/x.jpg")).unwrap(), b"old");
+                assert_eq!(names("b"), ["x.jpg"], "the hidden new version gone (the link to /dev/full)");
+                assert_eq!(std::fs::read(dir.join("a/x.jpg")).unwrap().len(), 3 << 20);
+                std::os::unix::fs::symlink("/dev/full", dir.join("b/.x.jpg.eyecansee-new")).unwrap();
+            }
         });
         std::fs::remove_dir_all(&dir).unwrap();
     }

@@ -72,7 +72,7 @@ impl Kind {
 /// one. The code is read on the system that gave it, so Windows' codes are Windows' own.
 pub(crate) fn recognise(text: &str) -> Option<(Kind, Option<String>)> {
     let kind = os_code(text).and_then(|code| Kind::of_io(std::io::Error::from_raw_os_error(code).kind())).or_else(|| Kind::of_dal(text))?;
-    Some((kind, context_path(text).map(|p| source::name(&p).to_string()).filter(|n| !n.is_empty())))
+    Some((kind, context_path(text).map(|p| source::saved_image(source::name(&p)).to_string()).filter(|n| !n.is_empty())))
 }
 
 /// N in "(os error N)".
@@ -152,6 +152,9 @@ mod tests {
         // OpenDAL calls a full disk and a read-only one "Unexpected": the system's code says which.
         let full = "Unexpected (temporary) at write, context: { service: fs, path: a/b.jpg } => no storage space, source: No space left on device (os error 28)";
         assert_eq!(recognise(full), Some((Kind::NoSpace, Some("b.jpg".into()))));
+        // The new version written under its hidden name: the image's name is said (#90).
+        let hidden = full.replace("a/b.jpg", "a/.b.jpg.eyecansee-new");
+        assert_eq!(recognise(&hidden), Some((Kind::NoSpace, Some("b.jpg".into()))));
         let ro = "Unexpected (temporary) at write, context: { path: c.png, service: fs } => read-only filesystem or storage medium, source: Read-only file system (os error 30)";
         assert_eq!(recognise(ro), Some((Kind::ReadOnly, Some("c.png".into()))));
         // A plain system error: the kind, no name.

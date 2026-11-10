@@ -37,6 +37,7 @@ Con più elementi in questa situazione, spunta **Fai lo stesso per tutti gli alt
 - Ogni copia o taglio si incolla una volta sola: per incollare di nuovo, copia di nuovo.
 - Se nel frattempo copi qualcos'altro in un altro programma, Ctrl+V e Incolla non incollano più gli elementi copiati in EyeCanSee.
 - Incollate nella cartella da cui vengono, le copie diventano "nome (2)"; uno spostamento non fa niente.
+- Una copia che non riesce, per esempio perché il disco è pieno, non lascia niente scritto a metà: il file in corso viene tolto, e un file che stava sostituendo resta com'era.
 - Uno spostamento sullo stesso disco cambia solo il posto, all'istante. Tra dispositivi diversi EyeCanSee prima copia tutto e cancella gli originali solo quando la copia è riuscita; gli originali non vanno nel cestino.
 - Le copie dentro lo stesso telefono le fa il telefono stesso.
 - Una cartella non si può incollare dentro se stessa. Non si può incollare niente in un cestino o nell'elenco delle memorie di un telefono, e gli elementi dentro un cestino non si possono copiare.
