@@ -101,7 +101,7 @@ Every feature, key and known limit is described in the guide, which the program 
 | Samsung Galaxy A56 5G (Android 16, One UI 8.5) | Fedora 44, Windows | Connection, listing and transfer tests of the MTP library |
 | Samsung Galaxy Tab S11 5G (Android 16, One UI 8.5) | Fedora 44, Windows | Connection, listing and transfer tests of the MTP library |
 
-Other Android phones open directly when mtp-rs supports them, otherwise through the file manager's mount, slower (see [Android phones](docs/help/en/phone.md) in the guide). iPhones open through the file manager's mount only.
+Other Android phones open directly when mtp-rs supports them, otherwise through the file manager's mount, slower (see the guide: [English](docs/help/en/index.md), [Italiano](docs/help/it/index.md)). iPhones open through the file manager's mount only.
 
 On Windows, Windows' own MTP driver can stall for minutes after a photo is taken or a file deleted on the phone: after 15 s EyeCanSee says so and explains what to do ([docs/phone-stall.en.md](docs/phone-stall.en.md)).
 
