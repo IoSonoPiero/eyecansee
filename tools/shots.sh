@@ -14,6 +14,16 @@
 # servers (example.com), a made-up USB stick and external disk (/run/media/demo), and the real disks
 # hidden (/sys/class/block, /dev/disk/by-label, /run/media, /mnt, gvfs), as the real USB devices
 # but in the scenes of a phone. Nothing of the user's settings, cache or disks is read or written.
+#
+# The site's pictures (site/img, docs/screenshots) have their scenes in tools/shots/site/, left out
+# when no scene is named: tools/shots.sh site/guide site/guide-search site/bookmarks
+# site/open-location, with EYECANSEE_SHOTS_TO=<folder> for the pictures (default docs/help/img).
+# Each is the whole window, 1200 x 800 (for those of 0.76.0 src/shots.rs wrote a lossless WebP,
+# `encode_lossless()` in place of `encode(QUALITY)`, changed for that run only); then, with
+# ImageMagick, for site/img/<name>.png and .webp and docs/screenshots/<name>.webp:
+#   magick <name>.webp -strip <name>.png
+#   magick <name>.png -resize x533 -strip -quality 82 -define webp:method=6 site/img/<name>.webp
+#   magick <name>.png -strip -quality 82 -define webp:method=6 docs/screenshots/<name>.webp
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 
@@ -92,7 +102,10 @@ WORK=$(mktemp -d "${TMPDIR:-/tmp}/eyecansee-shots.XXXXXX")
 cp "$TARGET/release/eyecansee" "$WORK/"
 mkdir -p "$WORK/scenes" "$WORK/out" "$WORK/log"
 PATHS=()
-for n in "${SCENES[@]}"; do cp "$ROOT/tools/shots/$n.txt" "$WORK/scenes/" && PATHS+=("$WORK/scenes/$n.txt"); done
+for n in "${SCENES[@]}"; do
+    mkdir -p "$(dirname "$WORK/scenes/$n.txt")"
+    cp "$ROOT/tools/shots/$n.txt" "$WORK/scenes/$n.txt" && PATHS+=("$WORK/scenes/$n.txt")
+done
 "$ROOT/tools/shots/stage.sh" "$FILES" "$WORK"
 
 # Kept on while the pictures are taken: a screen gone dark sends no frames.
@@ -101,13 +114,14 @@ command -v gnome-session-inhibit >/dev/null && INHIBIT=(gnome-session-inhibit --
 "${INHIBIT[@]}" env SHOTS_UID="$(id -u)" unshare -r -n -m --propagation private \
     "$0" --inside "$WORK" "${PATHS[@]}"
 
-mkdir -p "$ROOT/docs/help/img"
+TO=${EYECANSEE_SHOTS_TO:-$ROOT/docs/help/img}
+mkdir -p "$TO"
 missing=0
 for n in "${SCENES[@]}"; do
     # A scene can save more pictures than its own (crops): every `shot <name>`.
     for pic in $(awk '$2 == "shot" { print ($3 ~ /^[a-z]/ ? $3 : FILENAME) }' "$WORK/scenes/$n.txt" | sed 's|.*/||; s|\.txt$||' | sort -u); do
         if [[ -f $WORK/out/$pic.webp ]]; then
-            cp "$WORK/out/$pic.webp" "$ROOT/docs/help/img/"
+            cp "$WORK/out/$pic.webp" "$TO/"
             echo "$pic.webp $(stat -c %s "$WORK/out/$pic.webp") B"
         else
             echo "$pic.webp: NOT TAKEN (log: $(tail -3 "$WORK/log/$n.log" 2>/dev/null | tr '\n' ' '))" >&2

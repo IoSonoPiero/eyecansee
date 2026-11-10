@@ -1,0 +1,11 @@
+# The guide's search: the results on the left, the page of one open with the words found
+# highlighted. Coordinates for a 1200 x 800 window.
+open /home/demo/Pictures/Holiday
+3 act manual
+4.5 drag 452 33 535 85 0.6
+6 drag 993 682 1100 768 0.6
+7.5 click 216 157
+8 type crop
+9.5 click 196 208
+11.5 shot
+12 end
