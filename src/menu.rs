@@ -63,7 +63,7 @@ impl App {
         entry(ui, act, true, item(t("menu-open-location"), String::new()), Act::Address);
         entry(ui, act, true, item(t("menu-servers"), String::new()), Act::Servers);
         entry(ui, act, self.can_make_folder(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder(None));
-        entry(ui, act, self.loader.is_some() && self.viewing.is_none(), item(t("menu-new-image"), t("key-new-image")), Act::NewImage);
+        entry(ui, act, self.can_new_image(), item(t("menu-new-image"), t("key-new-image")), Act::NewImage);
         ui.separator();
         // Also when it cannot overwrite (FTP, gvfs, format): `ask_save` then says why and offers Save as….
         let changed = self.viewing.is_some() && !self.turn.is_none() && self.save_ready.is_none();

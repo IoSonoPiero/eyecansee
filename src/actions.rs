@@ -164,8 +164,8 @@ impl App {
         if new_folder && !ctx.egui_wants_keyboard_input() {
             self.ask_new_folder(None);
         }
-        // Ctrl+N: a new image (after Ctrl+Shift+N, which took the key for a folder).
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::N)) && !ctx.egui_wants_keyboard_input() && self.loader.is_some() {
+        // Ctrl+N: a new image (after Ctrl+Shift+N, which took the key for a folder), as the menu.
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::N)) && !ctx.egui_wants_keyboard_input() && self.can_new_image() {
             self.new_image = Some(crate::new_image::Form::new());
         }
         // Ctrl+E, as Photos on Windows: Edit image.

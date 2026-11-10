@@ -11,6 +11,8 @@
 3. Choose the **Background**.
 4. Click **Create** (or press Enter).
 
+In the viewer **New image…** is greyed out and Ctrl+N does nothing: go back to the grid first (Esc).
+
 ## Size
 
 - Ready-made sizes: A3, A4, A5, Letter, Legal (paper), Full HD, 4K UHD, HD (screens), **Square** (1080 × 1080) and **Upright, for stories** (1080 × 1920).
