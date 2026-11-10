@@ -18,6 +18,7 @@ It is early in development. This page lists only what works now: new features ar
 - Opens modern and camera formats: HEIC, AVIF, JPEG XL, Camera RAW, PSD and videos.
 - Photo and video conversion, on the graphics card when it can.
 - An image editor to annotate images and cover private data, also on phones and servers.
+- An illustrated guide inside the program: F1 opens the page of what is on screen.
 - Signed releases that update themselves.
 
 ![EyeCanSee in use: a folder of photos in the grid, a photo opened and zoomed in, the editor adding an arrow, a text and a box that covers a part, three photos converted, and a 3D model turned with the mouse](docs/screenshots/browse.gif)
@@ -25,6 +26,8 @@ It is early in development. This page lists only what works now: new features ar
 ![The grid: thumbnails of a folder, with the devices and the folder tree on the left](docs/screenshots/grid.png)
 
 ![The image editor: a speech bubble, an ellipse, numbered steps, a text and a stamp on a photo](docs/screenshots/editor.png)
+
+![The illustrated guide inside the program: its contents and the page about the image editor](docs/screenshots/guide.webp)
 
 ![A 3D model with its textures](docs/screenshots/model-3d.png)
 
@@ -45,6 +48,8 @@ It is early in development. This page lists only what works now: new features ar
 
 ![The server manager, with a master password for the saved servers](docs/screenshots/servers.png)
 
+![The Bookmarks menu: folders, disks, phones and servers saved by name, opened with one click](docs/screenshots/bookmarks.webp)
+
 </details>
 
 ## About
@@ -63,7 +68,7 @@ What comes next is in [ROADMAP.md](ROADMAP.md).
 
 - **Browsing** of folders on the computer, external disks (also USB sticks, SD cards and dashcams that connect as a USB disk) and Android phones and cameras (opened directly over USB), with cached thumbnails; folders on the computer and on phones update by themselves when files change. Sorting by name, date, size or type; images and videos shown together or apart; bookmarks to jump between folders, phones, disks and servers; "Open with" from the file manager, for images and videos, shows the file in the window already open. On Linux the phone opens directly over USB, in seconds.
 - **Viewer** with zoom (mouse wheel and keys) and preloading, so moving between images never waits, photo details such as camera, exposure, date and location, and a full-screen slideshow with fades.
-- **File management**: copy and move (also from one device to another), create folders, rename and delete, also several items at once, with a trash on every device to restore or empty.
+- **File management**: copy and move (also from one device to another), create folders, rename and delete, also several items at once, with a trash on every device to restore or empty. A copy or a save that fails, for example on a full disk, leaves no half-written file, and a file being replaced stays as it was until the new one is complete.
 - **Videos**: thumbnails in the grid, playback with sound and volume control in the viewer and their details (date, length, format, location from phones), on the computer, external disks and phones (with the system's libmpv on Linux, otherwise a video engine downloaded the first time a video is opened, as always on Windows). Audio files are shown and played too, with their cover when they have one.
 - **Duplicates**: finds identical photos, videos and audio files in a folder and its subfolders, on any device, and deletes the copies you choose, always keeping at least one.
 - **Image editor**: arrows and lines (also curved), rectangles, ellipses, freehand, highlighter, spotlight, text (also along a curve), speech bubbles, numbered steps, stamps, a magnifier, solid boxes to cover private data (nothing of what they cover is left in the file), filters (blur, pixelate, sharpen, black and white, sepia, brightness, contrast), a selection to copy, cut and paste, crop and rotation by any angle, an eyedropper, undo and redo. Everything stays an object to move, resize or delete until saving. It saves a copy next to the original, or overwrites the original (which goes to a trash), keeping the metadata, also on phones and servers; the result can also be copied to the clipboard. Formats EyeCanSee does not write back in the editor (HEIC, RAW, JPEG XL, PSD) are saved as JPEG or PNG.
@@ -73,7 +78,7 @@ What comes next is in [ROADMAP.md](ROADMAP.md).
 - **Saving in another format** (JPEG, PNG, WebP, AVIF, TIFF and others) with every option of each format, the original and the result side by side, and the file size before you save.
 - **Converting and resizing many files at once**: format, turn, size and filter for a whole selection of images and videos, into new files next to the originals, in a subfolder or in another folder, also on another device.
 - **Video conversion** with FFmpeg (the system's, or downloaded once: 63 MB on Windows, 67 MB on Linux): MP4, MKV, WebM, MOV, AVI and GIF with H.264, HEVC, AV1, VP9 and other codecs, turned and resized, on the graphics card when it can (NVIDIA, Intel, AMD, VA-API), or copied as they are without re-encoding; the audio can also be taken out of a video, or extracted into files of its own, without re-encoding; the metadata go into the new file, including a dashcam's GPS position and speeds (`gps.sqlite` on the card) and a DJI drone's position (`.SRT`), so the copy keeps them away from the card. Details in [docs/video-formats.md](docs/video-formats.md).
-- **Servers**: SFTP, FTP and FTPS, on Linux and Windows, browsed like any folder (thumbnails, viewer, videos, copy and move to and from any other device, rename, trash). A server manager keeps the servers you use, with password or SSH key, in the left panel next to the disks, in a file that a master password can encrypt. Tested on a Synology NAS, a Hetzner Storage Box and Linux servers.
+- **Servers**: SFTP, FTP and FTPS, on Linux and Windows, browsed like any folder (thumbnails, viewer, videos, copy and move to and from any other device, rename, trash). A server manager keeps the servers you use, with password or SSH key, in the left panel next to the disks, in a file that a master password can encrypt; a server opened from **Open location** is kept there with **Save and open**. SFTP downloads come close to FileZilla's speed, and videos play from a server without stutter, also in 4K, when the connection is fast enough. Tested on a Synology NAS, a Hetzner Storage Box and Linux servers.
 - English and Italian, light and dark theme, an illustrated guide built in: F1 opens the page of what is on screen, with search across every page.
 
 ### Formats
