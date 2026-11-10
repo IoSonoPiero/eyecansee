@@ -1,6 +1,7 @@
 //! CAD drawings (DXF, DWG) read with `acadrust` and seen from above as an SVG picture, which
 //! `decode` draws with resvg: the model space with its blocks, layers (hidden ones left out) and
 //! colours, line types and weights, hatch patterns, on the dark background of CAD programs.
+//! The entities' points are in `cad_shape`, units and sizes in `cad_units`.
 // ponytail: one picture of the whole drawing; zooming in shows its pixels, not new detail
 
 use std::io::Cursor;
@@ -10,7 +11,10 @@ use acadrust::types::{Color, Vector3};
 use acadrust::{CadDocument, DwgReader, DxfReader};
 
 use crate::cad_geom::{self, Affine, P};
+use crate::cad_shape::{boundary, shape};
 use crate::cad_text::{Label, gdt, label};
+use crate::cad_units::insunits;
+pub use crate::cad_units::{Unit, readable, size_text};
 
 pub(crate) const CAD: &[&str] = &["dxf", "dwg", "plt", "hpgl", "hpg", "hgl"];
 
@@ -84,82 +88,6 @@ pub struct Drawing {
     /// Width and height AutoCAD stored ($EXTMIN, $EXTMAX), when valid: its own measure, where
     /// ours estimates the texts' width (14% too tall on a plan, 2026-11-02).
     pub(crate) extents: Option<(f64, f64)>,
-}
-
-/// A unit of length a drawing is shown in: its symbol, the same in every language, and how many
-/// of it one drawing unit is (a plot is in 1/40 mm).
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub struct Unit {
-    pub symbol: &'static str,
-    pub factor: f64,
-}
-
-/// `$INSUNITS` as AutoCAD numbers it; 0 and the rare ones (light years, parsecs…) as unitless.
-pub(crate) fn insunits(code: i16) -> Option<Unit> {
-    let symbol = match code {
-        1 => "in",
-        2 => "ft",
-        3 => "mi",
-        4 => "mm",
-        5 => "cm",
-        6 => "m",
-        7 => "km",
-        8 => "µin",
-        9 => "mil",
-        10 => "yd",
-        11 => "Å",
-        12 => "nm",
-        13 => "µm",
-        14 => "dm",
-        _ => return None,
-    };
-    Some(Unit { symbol, factor: 1.0 })
-}
-
-/// A metric size of 10000 or more in a larger unit, so that it reads at a glance: a plan of
-/// 3540706 mm is 3541 m (user, 2026-11-02). Other units stay as they are.
-pub fn readable(mut w: f64, mut h: f64, mut unit: &str) -> (f64, f64, &str) {
-    while w.max(h) >= 10_000.0 {
-        let (k, larger) = match unit {
-            "nm" => (1000.0, "µm"),
-            "µm" => (1000.0, "mm"),
-            "mm" => (1000.0, "m"),
-            "cm" => (100.0, "m"),
-            "dm" => (10.0, "m"),
-            "m" => (1000.0, "km"),
-            _ => break,
-        };
-        (w, h, unit) = (w / k, h / k, larger);
-    }
-    (w, h, unit)
-}
-
-/// "420 × 297 mm": three significant digits or more, trailing zeros dropped, `decimal` as the
-/// language writes it.
-pub fn size_text(w: f64, h: f64, unit: &str, decimal: &str) -> String {
-    let n = |v: f64| {
-        let s = match v.abs() {
-            a if a >= 100.0 => format!("{v:.0}"),
-            a if a >= 10.0 => format!("{v:.1}"),
-            _ => format!("{v:.2}"),
-        };
-        let s = if s.contains('.') { s.trim_end_matches('0').trim_end_matches('.').to_string() } else { s };
-        s.replace('.', decimal)
-    };
-    format!("{} × {} {unit}", n(w), n(h))
-}
-
-impl Drawing {
-    /// Width and height of what is drawn, in its unit: for the status bar, in place of the
-    /// pixels a picture has (a drawing has none, user 2026-11-02).
-    pub fn size(&self) -> Option<(f64, f64)> {
-        let (w, h) = match self.extents {
-            Some(e) => e,
-            None => self.bounds().map(|[x0, y0, x1, y1]| (x1 - x0, y1 - y0))?,
-        };
-        let k = self.unit.map_or(1.0, |u| u.factor);
-        Some((w * k, h * k))
-    }
 }
 
 pub fn read(bytes: &[u8], name: &str) -> Result<Drawing, String> {
@@ -653,111 +581,6 @@ impl<'a> Walk<'a> {
     }
 }
 
-/// A hatch boundary as a closed list of points.
-fn boundary(path: &acadrust::entities::BoundaryPath) -> Vec<P> {
-    use acadrust::entities::BoundaryEdge as E;
-    let mut pts: Vec<P> = Vec::new();
-    for edge in &path.edges {
-        let part = match edge {
-            E::Line(l) => vec![[l.start.x, l.start.y], [l.end.x, l.end.y]],
-            E::CircularArc(a) => {
-                let c = [a.center.x, a.center.y];
-                if a.counter_clockwise {
-                    cad_geom::arc(c, a.radius, a.start_angle, a.end_angle)
-                } else {
-                    // Clockwise arcs store their angles measured clockwise.
-                    let mut p = cad_geom::arc(c, a.radius, -a.end_angle, -a.start_angle);
-                    p.reverse();
-                    p
-                }
-            }
-            E::EllipticArc(e) => {
-                let mut p = cad_geom::ellipse([e.center.x, e.center.y], [e.major_axis_endpoint.x, e.major_axis_endpoint.y], e.minor_axis_ratio, e.start_angle, e.end_angle);
-                if !e.counter_clockwise {
-                    p.reverse();
-                }
-                p
-            }
-            E::Spline(s) => {
-                let control: Vec<P> = s.control_points.iter().map(xy).collect();
-                cad_geom::spline(s.degree.max(0) as usize, &s.knots, &control, &[]).unwrap_or(control)
-            }
-            E::Polyline(p) => {
-                let v: Vec<(P, f64)> = p.vertices.iter().map(|v| ([v.x, v.y], v.z)).collect();
-                cad_geom::bulged(&v, p.is_closed)
-            }
-        };
-        pts.extend(part);
-    }
-    if let Some(&first) = pts.first() {
-        pts.push(first);
-    }
-    pts
-}
-
-/// Lines and filled outlines, in their coordinate system: points and the fill's opacity.
-fn shape(e: &EntityType) -> Option<(Affine, Vec<P>, Option<f32>)> {
-    let ocs = |n: &Vector3| Affine::ocs(n3(n));
-    let closed = |mut pts: Vec<P>, close: bool| {
-        if close && let Some(&first) = pts.first() {
-            pts.push(first);
-        }
-        pts
-    };
-    Some(match e {
-        EntityType::Line(l) => (Affine::IDENTITY, vec![xy(&l.start), xy(&l.end)], None),
-        EntityType::Circle(c) => (ocs(&c.normal), cad_geom::circle(xy(&c.center), c.radius), None),
-        EntityType::Arc(a) => (ocs(&a.normal), cad_geom::arc(xy(&a.center), a.radius, a.start_angle, a.end_angle), None),
-        EntityType::Ellipse(el) => {
-            let pts = cad_geom::ellipse(xy(&el.center), xy(&el.major_axis), el.minor_axis_ratio, el.start_parameter, el.end_parameter);
-            // The centre and axis are in world coordinates; a normal pointing down turns the parameter the other way.
-            let pts = if el.normal.z < 0.0 { mirror_about(pts, xy(&el.center), xy(&el.major_axis)) } else { pts };
-            (Affine::IDENTITY, pts, None)
-        }
-        EntityType::LwPolyline(p) => {
-            let v: Vec<(P, f64)> = p.vertices.iter().map(|v| ([v.location.x, v.location.y], v.bulge)).collect();
-            (ocs(&p.normal), cad_geom::bulged(&v, p.is_closed), None)
-        }
-        EntityType::Polyline2D(p) => {
-            let v: Vec<(P, f64)> = p.vertices.iter().map(|v| (xy(&v.location), v.bulge)).collect();
-            (ocs(&p.normal), cad_geom::bulged(&v, p.is_closed()), None)
-        }
-        EntityType::Polyline3D(p) => (Affine::IDENTITY, closed(p.vertices.iter().map(|v| xy(&v.position)).collect(), p.flags.closed), None),
-        EntityType::Polyline(p) => (Affine::IDENTITY, closed(p.vertices.iter().map(|v| xy(&v.location)).collect(), p.flags.bits() & 1 != 0), None),
-        EntityType::Spline(s) => {
-            let control: Vec<P> = s.control_points.iter().map(xy).collect();
-            let pts = cad_geom::spline(s.degree.max(0) as usize, &s.knots, &control, &s.weights).unwrap_or_else(|| s.fit_points.iter().map(xy).collect());
-            (Affine::IDENTITY, pts, None)
-        }
-        // Corners in the order 1 2 4 3 make the outline.
-        EntityType::Solid(s) => (ocs(&s.normal), vec![xy(&s.first_corner), xy(&s.second_corner), xy(&s.fourth_corner), xy(&s.third_corner), xy(&s.first_corner)], Some(1.0)),
-        EntityType::Face3D(f) => (Affine::IDENTITY, vec![xy(&f.first_corner), xy(&f.second_corner), xy(&f.third_corner), xy(&f.fourth_corner), xy(&f.first_corner)], None),
-        EntityType::Leader(l) => (Affine::IDENTITY, l.vertices.iter().map(xy).collect(), None),
-        // The picture is another file: its frame with a cross.
-        EntityType::RasterImage(r) => {
-            let c = r.corners().map(|v| xy(&v));
-            (Affine::IDENTITY, vec![c[0], c[1], c[2], c[3], c[0], c[2], c[3], c[1]], None)
-        }
-        _ => return None,
-    })
-}
-
-/// An ellipse drawn with its normal pointing down: mirrored across its major axis.
-fn mirror_about(pts: Vec<P>, c: P, major: P) -> Vec<P> {
-    let len = major[0].hypot(major[1]);
-    if len == 0.0 {
-        return pts;
-    }
-    let (ux, uy) = (major[0] / len, major[1] / len);
-    pts.into_iter()
-        .map(|p| {
-            let (dx, dy) = (p[0] - c[0], p[1] - c[1]);
-            let along = dx * ux + dy * uy;
-            [c[0] + 2.0 * along * ux - dx, c[1] + 2.0 * along * uy - dy]
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -798,18 +621,6 @@ mod tests {
             let d = read(&bytes, &name).unwrap();
             println!("{name}: shown {:?}, AutoCAD extents {ext:?}, INSUNITS {}, drawn {:?}", d.size(), h.insertion_units, d.bounds());
         }
-    }
-
-    #[test]
-    fn sizes_written() {
-        assert_eq!(size_text(420.0, 297.0, "mm", ","), "420 × 297 mm");
-        assert_eq!(size_text(16.535, 11.69, "in", ","), "16,5 × 11,7 in");
-        assert_eq!(size_text(2.5, 0.126, "m", "."), "2.5 × 0.13 m");
-        assert_eq!(insunits(4), Some(Unit { symbol: "mm", factor: 1.0 }));
-        assert_eq!(insunits(0), None);
-        assert_eq!(readable(3540706.0, 2726368.0, "mm"), (3540.706, 2726.368, "m"));
-        assert_eq!(readable(25_000.0, 1.0, "m"), (25.0, 0.001, "km"));
-        assert_eq!(readable(25_000.0, 1.0, "in"), (25_000.0, 1.0, "in"));
     }
 
     /// Every drawing under `EYECANSEE_CAD` read and drawn into `EYECANSEE_CAD_OUT` (PNG), with times.
