@@ -441,8 +441,12 @@ fn keep_copy(key: String, tmp: PathBuf) {
 }
 
 /// At start (after `single::hand_over`, so no other copy of the app is using them): the copies a
-/// copy of the app closed by force or crashed left in the temporary folder.
+/// copy of the app closed by force or crashed left in the temporary folder. Not with
+/// `EYECANSEE_MULTI`: another instance may be using them.
 pub(crate) fn remove_old_copies() {
+    if crate::single::multi() {
+        return;
+    }
     let Ok(dir) = std::fs::read_dir(std::env::temp_dir()) else { return };
     for entry in dir.flatten() {
         let name = entry.file_name();
