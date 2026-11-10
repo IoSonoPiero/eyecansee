@@ -44,3 +44,7 @@ Premi **F1** in qualunque momento: questa guida si apre sulla pagina di ciò che
 - [Copiare e spostare](copy-move.md) ed [Eliminare e cestino](delete.md), per mettere in ordine le foto.
 - [Telefoni Android](phone.md) e [Server (FTP e SFTP)](servers.md), per lavorare sulle foto di un telefono o di un NAS.
 - [Modificare un'immagine](editor.md), per disegnare su una foto, ritagliarla o nasconderne delle parti.
+
+## Crediti delle immagini
+
+Le foto, i video, i modelli 3D e i disegni che si vedono nelle immagini di questa guida sono di pubblico dominio o liberi da usare. Autori, licenze e fonti sono elencati in [CREDITS.md](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/help/img/CREDITS.md) (in inglese).
