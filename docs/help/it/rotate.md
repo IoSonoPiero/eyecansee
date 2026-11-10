@@ -22,7 +22,7 @@ Se lasci la foto senza salvare (un'altra foto, ritorno alla griglia, un segnalib
 
 ## Nella griglia
 
-Seleziona una o più foto e scegli una rotazione o un ribaltamento dal menù **Immagine**, dalla barra strumenti o dal menù del clic destro, oppure premi **Ctrl+R** o **Ctrl+Maiusc+R**. Una finestra dice quante foto verranno salvate sopra gli originali e dove vanno gli originali; **Salva** lo fa, **Annulla** (o **Esc**) non fa niente. Qui **Invio** non conferma, così non si sovrascrivono tante foto per sbaglio. Poi le miniature vengono rifatte.
+Seleziona una o più foto e scegli una rotazione o un ribaltamento dal menù **Immagine**, dalla barra strumenti o dal menù del clic destro, oppure premi **Ctrl+R** o **Ctrl+Maiusc+R**. Una finestra dice quante foto verranno salvate sopra gli originali e dove vanno gli originali; **Salva** lo fa, **Annulla** (o **Esc**) non fa niente. Qui **Invio** non conferma, così non si sovrascrivono tante foto per sbaglio. Poi le miniature vengono rifatte, e un messaggio con il titolo di ciò che è stato fatto (per esempio **Immagini ruotate**) dice quante foto sono state salvate.
 
 Le foto in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) vengono escluse, e la finestra dice quante sono. Vengono saltati anche i file animati, quelli con più pagine e le foto in movimento; le foto Ultra HDR dei telefoni vengono ruotate insieme al loro HDR, e al loro video se sono anche foto in movimento. Quando l'unica foto scelta non si può salvare sopra sé stessa, la finestra spiega perché e propone **Salva come…**, già ruotata.
 

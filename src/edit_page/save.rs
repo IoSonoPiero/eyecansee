@@ -257,7 +257,8 @@ impl App {
         };
         let text = format!("{text}{}", self.losses(&p.plan, p.over));
         let no = self.i18n.t("delete-no");
-        match confirm::yes_no(ctx, "edit-save", 460.0, text, yes, true, no, self.delete_answer.take()) {
+        let title = self.i18n.t(if p.over { "edit-overwrite-title" } else { "edit-save-copy" });
+        match confirm::yes_no(ctx, "edit-save", 460.0, (title, text), yes, true, no, self.delete_answer.take()) {
             Some(true) => {
                 let (target, send, over, path) = (p.target.clone(), p.send, p.over, w.path.clone());
                 log!("edit: {send:?} {target:?}");
@@ -350,7 +351,7 @@ impl App {
         let choices = vec![(i18n.t("rc-save"), !w.preparing, Leave::Save), (i18n.t("menu-save-copy"), true, Leave::SaveAs), (i18n.t("rc-discard"), true, Leave::Discard)];
         // Esc: back to the page; Enter does nothing here (no choice is safe to guess).
         let keys = self.delete_answer.take().filter(|yes| !yes).map(|_| None);
-        let answer = confirm::choose(ctx, "rotate-leave", 440.0, text, choices, i18n.t("delete-no"), keys)?;
+        let answer = confirm::choose(ctx, "rotate-leave", 440.0, (i18n.t("leave-title"), text), choices, i18n.t("delete-no"), keys)?;
         w.leaving = false;
         answer
     }

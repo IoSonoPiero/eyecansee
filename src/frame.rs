@@ -5,7 +5,7 @@ use std::sync::atomic::Ordering;
 
 use eframe::egui::{self, Color32};
 
-use crate::{App, browser, meta, save_dialogs, theme};
+use crate::{App, meta, save_dialogs, theme};
 
 impl App {
     /// Every frame, before drawing: messages, retries, keys, title and window size.
@@ -137,14 +137,23 @@ impl App {
     /// cover the window too (editor, Save in another format, duplicates, slideshow): drawn only
     /// in the grid and the viewer, a save that failed in the editor was told once it was closed.
     /// The slideshow goes on above it: the error is seen, and its ✕ closes it.
+    /// A band in the warning colours with the triangle and the text on as many lines as it needs:
+    /// red text on one long line, on the dark bar, was hard to read (user, 2026-11-10). It stays
+    /// at the bottom, where the status bar is: at the top it would push the toolbar and the
+    /// address bar down every time an error comes and goes.
     fn error_bar(&mut self, ui: &mut egui::Ui) {
         let Some(e) = self.error.clone() else { return };
-        egui::Panel::bottom("error").show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.label(browser::error_text(ui, e));
+        let (frame, ink) = (theme::warning_frame(ui.visuals()), theme::warning_text(ui.visuals()));
+        egui::Panel::bottom("error").frame(frame).show(ui, |ui| {
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 if ui.add(crate::icons::small(ui, crate::icons::Line::Close)).on_hover_text(self.i18n.t("notice-close")).clicked() {
                     self.error = None;
                 }
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
+                    theme::warning_icon(ui, 22.0);
+                    ui.add_space(4.0);
+                    ui.add(egui::Label::new(egui::RichText::new(e).color(ink).size(15.0)).wrap());
+                });
             });
         });
     }

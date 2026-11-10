@@ -204,7 +204,7 @@ impl App {
         if let Some(id) = missing(&b.address, &self.devices) {
             log!("bookmark {:?} cannot be opened: {id}", b.address);
             let md = crate::save_dialogs::md;
-            self.notice = Some((self.i18n.t_args(id, &[("name", &md(b.label())), ("address", &md(&b.address))]), None));
+            self.tell("bm-missing-title", self.i18n.t_args(id, &[("name", &md(b.label())), ("address", &md(&b.address))]));
             return;
         }
         self.open_source(ctx, &b.address);

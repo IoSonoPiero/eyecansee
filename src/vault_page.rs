@@ -117,14 +117,23 @@ impl App {
     }
 
     /// The master password at the top of the server manager, standing out: its state, and set,
-    /// change or remove.
+    /// change or remove. Without it, in the warning colours with the triangle, as the error bar and
+    /// the message about servers saved in plain text.
     pub(crate) fn master_section(&self, ui: &mut egui::Ui, f: &mut AddressForm) {
         let t = |id| self.i18n.t(id);
         let encrypted = servers::encrypted();
-        let accent = if encrypted { crate::theme::good(ui.visuals()) } else { strength_color(2) };
-        egui::Frame::group(ui.style()).stroke(egui::Stroke::new(2.0, accent)).inner_margin(10.0).show(ui, |ui| {
+        let (frame, ink) = match encrypted {
+            true => (egui::Frame::group(ui.style()).stroke(egui::Stroke::new(2.0, crate::theme::good(ui.visuals()))), crate::theme::good(ui.visuals())),
+            false => (crate::theme::warning_frame(ui.visuals()), crate::theme::warning_text(ui.visuals())),
+        };
+        frame.inner_margin(10.0).show(ui, |ui| {
             ui.set_width(ui.available_width());
-            ui.label(egui::RichText::new(t(if encrypted { "vault-on" } else { "vault-off" })).strong().color(accent));
+            ui.horizontal(|ui| {
+                if !encrypted {
+                    crate::theme::warning_icon(ui, 20.0);
+                }
+                ui.label(egui::RichText::new(t(if encrypted { "vault-on" } else { "vault-off" })).strong().color(ink));
+            });
             match f.master.clone() {
                 Change::None => {
                     ui.label(t(if encrypted { "vault-on-hint" } else { "vault-off-hint" }));

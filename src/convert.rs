@@ -108,7 +108,7 @@ impl crate::App {
             Err((id, detail)) => {
                 if let Some(w) = &mut self.convert {
                     w.saving = false;
-                    w.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
+                    w.error = Some(self.i18n.error(id, &detail));
                 }
             }
         }

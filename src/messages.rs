@@ -8,7 +8,7 @@ use std::sync::atomic::Ordering;
 use eframe::egui::{self, ColorImage, TextureOptions};
 
 use crate::address::{AddressForm, without_password};
-use crate::save_dialogs::md;
+use crate::save_dialogs::{Notice, md};
 use crate::actions::Act;
 use crate::{App, RETRY_SECS, devices, encode, loader, meta, source, transform, update, version};
 use crate::loader::Msg;
@@ -173,7 +173,7 @@ impl App {
             };
             self.retry_at = no_storage.then(|| ctx.input(|i| i.time) + RETRY_SECS);
         }
-        let r = r.map_err(|(id, detail)| self.i18n.t_args(id, &[("detail", &detail)]));
+        let r = r.map_err(|(id, detail)| self.i18n.error(id, &detail));
         match r {
             Ok(l) if self.relisting.remove(&dir) => self.swap_listing(&dir, l),
             r => {
@@ -186,7 +186,7 @@ impl App {
     fn on_loaded(&mut self, ctx: &egui::Context, index: usize, thumb: bool, image: Result<ColorImage, String>) {
         // `loader::with_id`: translated here, where the language is.
         let image = image.map_err(|e| match e.split_once('\u{1}') {
-            Some((id, detail)) => self.i18n.t_args(id, &[("detail", detail)]),
+            Some((id, detail)) => self.i18n.error(id, detail),
             None => e,
         });
         let name = self.files().get(index).map(|f| f.path.clone()).unwrap_or_default();
@@ -234,7 +234,7 @@ impl App {
                 log!("delete {path:?}: ERROR {id} {detail}");
                 // The loader stops at the first error: the others will not come.
                 self.deleting = 0;
-                self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
+                self.error = Some(self.i18n.error(id, &detail));
             }
         }
     }
@@ -262,7 +262,7 @@ impl App {
                 log!("restore {path:?}: ERROR {id} {detail}");
                 self.restore_busy = false;
                 self.restore_queue.clear();
-                self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
+                self.error = Some(self.i18n.error(id, &detail));
             }
         }
     }
@@ -275,7 +275,7 @@ impl App {
             }
             (old, Err((id, detail))) => {
                 log!("rename {old:?}: ERROR {id} {detail}");
-                self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
+                self.error = Some(self.i18n.error(id, &detail));
             }
         }
     }
@@ -291,7 +291,7 @@ impl App {
             Err((id, detail)) => {
                 log!("paste: ERROR {id} {detail}");
                 self.paste_ask = None;
-                self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
+                self.error = Some(self.i18n.error(id, &detail));
             }
         }
     }
@@ -324,7 +324,7 @@ impl App {
         if let Err((id, detail)) = r
             && id != "error-cancelled"
         {
-            self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
+            self.error = Some(self.i18n.error(id, &detail));
         }
     }
 
@@ -396,11 +396,12 @@ impl App {
                     Some(_) => "save-animated",
                     None => loader::SKIPPED,
                 };
-                self.notice = Some((self.i18n.t_args(id, &[("detail", &md(&name))]), save_as));
+                let text = self.i18n.t_args(id, &[("detail", &md(&name))]);
+                self.notice = Some(Notice { save_as, ..Notice::new(self.i18n.t("save-not-possible"), text) });
             }
             (id, detail) => {
                 log!("save: ERROR {id} {detail}");
-                self.error = Some(self.i18n.t_args("save-failed", &[("detail", &self.i18n.t_args(id, &[("detail", &detail)]))]));
+                self.error = Some(self.i18n.save_failed(&(id, detail)));
             }
         }
     }
@@ -411,7 +412,7 @@ impl App {
         match r {
             Ok(()) => {
                 log!("saved {path:?}");
-                if let Some(n) = &mut self.batch_saved {
+                if let Some((_, n)) = &mut self.batch_saved {
                     *n += 1;
                 }
                 // Same name, maybe the same size: what is in memory is the old image.
@@ -432,21 +433,26 @@ impl App {
                 log!("save: ERROR {id} {detail}");
                 // With the image kept, its own window says what happened.
                 if !self.kept.iter().any(|k| k.path == path) {
-                    self.error = Some(self.i18n.t_args("save-failed", &[("detail", &self.i18n.t_args(id, &[("detail", &detail)]))]));
+                    self.error = Some(self.i18n.save_failed(&(id, detail)));
                 }
             }
         }
         if self.saving.is_empty()
-            && let Some(n) = self.batch_saved.take()
+            && let Some((op, n)) = self.batch_saved.take()
             // Nothing saved and every failure in its own window (`kept.rs`): "saved: 0" said nothing more.
             && !(n == 0 && self.skipped.is_empty() && !self.kept.is_empty())
         {
-            let mut text = self.i18n.t_args("batch-done", &[("n", &n.to_string())]);
+            // What was done, in the title and in the text (user, 2026-11-10: "Images saved: 2." alone
+            // did not say what had happened).
+            let args = [("n", n.to_string()), ("op", crate::save_dialogs::op_id(op).to_string())];
+            let args = args.each_ref().map(|(k, v)| (*k, v.as_str()));
+            let title = self.i18n.t_args("batch-done-title", &args);
+            let mut text = self.i18n.t_args("batch-done", &args);
             if !self.skipped.is_empty() {
                 let names: String = std::mem::take(&mut self.skipped).iter().map(|n| format!("\n- {}", md(n))).collect();
                 text = format!("{text}\n\n{}\n{names}", self.i18n.t("batch-skipped-names"));
             }
-            self.notice = Some((text, None));
+            self.notice = Some(Notice::new(title, text));
         }
     }
 

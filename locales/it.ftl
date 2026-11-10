@@ -760,6 +760,59 @@ save-confirm-permanent = Salvare le modifiche sopra **{ $name }**?
     L'originale viene eliminato **definitivamente**.
 save-yes = Salva
 save-failed = Impossibile salvare: { $detail }
+## Errors said plainly (src/fault.rs). $known is "yes" when the file's name is known, then in $name.
+fault-denied = { $known ->
+    [yes] Accesso negato a "{ $name }": la cartella o il file sono protetti e il tuo utente non può scrivere o leggere lì.
+   *[no] Accesso negato: la cartella o il file sono protetti e il tuo utente non può scrivere o leggere lì.
+}
+fault-read-only = { $known ->
+    [yes] Il disco o la cartella sono in sola lettura: lì non si può scrivere "{ $name }".
+   *[no] Il disco o la cartella sono in sola lettura: lì non si può scrivere nulla.
+}
+fault-no-space = { $known ->
+    [yes] Sul disco non c'è più spazio per "{ $name }": libera un po' di spazio e riprova.
+   *[no] Sul disco non c'è più spazio: libera un po' di spazio e riprova.
+}
+fault-too-large = { $known ->
+    [yes] "{ $name }" è troppo grande per questo disco: i dischi FAT32 accettano file fino a 4 GB.
+   *[no] Il file è troppo grande per questo disco: i dischi FAT32 accettano file fino a 4 GB.
+}
+fault-not-found = { $known ->
+    [yes] "{ $name }" non c'è più: forse è stato spostato, rinominato o eliminato.
+   *[no] Il file o la cartella non ci sono più: forse sono stati spostati, rinominati o eliminati.
+}
+fault-exists = { $known ->
+    [yes] Lì c'è già un elemento chiamato "{ $name }".
+   *[no] Lì c'è già un elemento con questo nome.
+}
+fault-in-use = { $known ->
+    [yes] "{ $name }" è in uso da un altro programma: chiudilo e riprova.
+   *[no] Il file è in uso da un altro programma: chiudilo e riprova.
+}
+fault-bad-name = { $known ->
+    [yes] Il nome "{ $name }" lì non è accettato: è troppo lungo o ha caratteri che questo disco non permette.
+   *[no] Il nome lì non è accettato: è troppo lungo o ha caratteri che questo disco non permette.
+}
+## Titles of the message and confirmation windows.
+save-title = Salva sopra l'originale
+save-not-possible = Impossibile salvare sopra l'originale
+leave-title = Modifiche non salvate
+kept-title = Immagine non salvata
+kept-saved-title = Copia salvata
+file-removed-title = File rimosso
+phone-stalled-title = Il telefono non risponde
+bm-missing-title = Segnalibro non disponibile
+taken-title = Nome già usato
+delete-title-trash = Sposta nel cestino
+delete-title-permanent = Elimina definitivamente
+delete-title-empty = Svuota il cestino
+kiod-title = Telefono occupato da KDE
+host-title = Nuovo server SSH
+cert-title = Nuovo server FTPS
+sftp-rsa-title = Meglio cambiare questa chiave RSA
+edit-overwrite-title = Sovrascrivi l'originale
+dup-ask-title = Cerca duplicati
+vault-plain-title = Server salvati in chiaro
 kept-failed-phone = **{ $name }** non è stato salvato sul telefono: { $error }
 
     L'originale sul telefono è intatto.
@@ -783,8 +836,8 @@ status-modified = Modificata, non salvata
 status-saving = Salvataggio in corso…
 status-preparing = Preparo il salvataggio…
 batch-turn-confirm = { $n ->
-    [one] **{ $op }**: **1 immagine** verrà sovrascritta.
-   *[other] **{ $op }**: fino a **{ $n } immagini** verranno sovrascritte.
+    [one] **1 immagine** verrà modificata e salvata sopra l'originale.
+   *[other] Fino a **{ $n } immagini** verranno modificate e salvate sopra gli originali.
 }
 batch-originals-trash = Gli originali vanno **nel cestino**.
 batch-originals-folder = Gli originali vanno nel **Cestino di questa cartella**, da cui si ripristinano con **Apri il cestino**.
@@ -807,7 +860,38 @@ save-gvfs = Qui le immagini **non si possono salvare sopra se stesse**: questa c
 save-no-rename = Qui le immagini **non si possono salvare sopra se stesse**: questa sorgente non sa rinominare i file.
 batch-animated = I file **animati**, **multipagina** e le **foto in movimento** vengono saltati. Le foto Ultra HDR vengono ruotate insieme alla loro mappa HDR, e al loro video se sono anche foto in movimento.
 batch-skipped-names = Saltate perché animate, multipagina o foto in movimento:
-batch-done = Immagini salvate: **{ $n }**.
+# $op is the id of the menu item of the change (tf-…).
+batch-done-title = { $op ->
+    [tf-flip-h] { $n ->
+        [one] Immagine riflessa
+       *[other] Immagini riflesse
+    }
+    [tf-flip-v] { $n ->
+        [one] Immagine riflessa
+       *[other] Immagini riflesse
+    }
+   *[other] { $n ->
+        [one] Immagine ruotata
+       *[other] Immagini ruotate
+    }
+}
+batch-done = { $n ->
+    [0] Nessuna immagine è stata salvata.
+    [one] **1 immagine** è stata { $op ->
+        [tf-flip-h] riflessa orizzontalmente
+        [tf-flip-v] riflessa verticalmente
+        [tf-rotate-cw] ruotata di 90° in senso orario
+        [tf-rotate-ccw] ruotata di 90° in senso antiorario
+       *[other] ruotata di 180°
+    } e salvata sopra l'originale.
+   *[other] **{ $n } immagini** sono state { $op ->
+        [tf-flip-h] riflesse orizzontalmente
+        [tf-flip-v] riflesse verticalmente
+        [tf-rotate-cw] ruotate di 90° in senso orario
+        [tf-rotate-ccw] ruotate di 90° in senso antiorario
+       *[other] ruotate di 180°
+    } e salvate sopra gli originali.
+}
 save-psd-flatten = **Questo PSD verrà appiattito**: livelli, testi, effetti e maschere si perdono, resta solo l'immagine come si vede. Per tenerli usa **Salva come…** o modificalo con Photoshop.
 batch-psd-flatten = I PSD con più livelli, testi o effetti vengono **appiattiti**: resta solo l'immagine come si vede.
 save-format = Le modifiche non si possono salvare sopra **{ $name }**: EyeCanSee non sa scrivere questo formato (HEIC, RAW…).
@@ -840,7 +924,7 @@ vault-wrong = Password sbagliata.
 vault-unreadable = Il file dei server non si legge: { $detail }
 vault-on = 🔒 Password principale attiva: l'elenco dei server è cifrato.
 vault-on-hint = Ogni modifica viene scritta subito, cifrata. EyeCanSee chiede la password una volta per sessione, al primo server.
-vault-off = ⚠ Nessuna password principale: password e passphrase sono salvate in chiaro.
+vault-off = Nessuna password principale: password e passphrase sono salvate in chiaro.
 vault-off-hint =
     Chiunque possa leggere i tuoi file può leggere anche queste password.
     Imposta una password principale per cifrare l'elenco dei server.
@@ -861,9 +945,13 @@ vault-different = Le due password sono diverse.
 vault-forget = Se la dimentichi, i server salvati non si recuperano: conservala in un gestore di password.
 vault-save = Salva la password principale
 vault-plain-warning =
-    { "**" }Server salvati in chiaro.**
+    Le password e le passphrase dei tuoi server sono scritte **così come sono** nel file dei server.
 
-    Senza una password principale, password e passphrase dei server salvati sono scritte in chiaro nel file dei server: chi può leggere i tuoi file può leggerle. Puoi impostarla in alto in File > Gestione server. Questo avviso non compare più.
+    { "**" }Chi può leggere i tuoi file può leggerle.**
+
+    Per proteggerle imposta una **password principale** in alto in File > Gestione server.
+
+    Questo avviso compare una volta sola.
 srv-title = Gestione server
 srv-new = Nuovo server
 srv-connect = Salva e connetti
@@ -957,7 +1045,11 @@ batch-start = Converti
 batch-working = Conversione in corso
 batch-counts = { $n } di { $total } file
 batch-stopping = Mi fermo…
-batch-result = File convertiti: **{ $n }**, in { $folder }.
+batch-result = { $n ->
+    [0] Nessun file è stato salvato in { $folder }.
+    [one] **1 file** è stato salvato in { $folder }.
+   *[other] **{ $n } file** sono stati salvati in { $folder }.
+}
 batch-cancelled = Fermato dopo { $n } di { $total } file.
 batch-left-out = Escluse:
 batch-left-out-kind = { $n ->
