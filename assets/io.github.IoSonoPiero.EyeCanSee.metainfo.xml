@@ -91,6 +91,7 @@
           <li>Messages with a title, errors in plain words in a yellow band</li>
           <li>Find duplicates: a file reached through a link to a folder is no longer taken for its own copy</li>
           <li>Grid: pointing at a file shows its details, with the full name, the file size, the date and the size in pixels</li>
+          <li>A save or a paste that fails, for example on a full disk, no longer leaves a half-written file</li>
           <li>Many fixes: Ctrl+R in the grid, the editor's Save on closing, the slideshow of a folder, the Image box of RAW files, a file whose name is not valid UTF-8 no longer reported as removed</li>
         </ul>
       </description>
