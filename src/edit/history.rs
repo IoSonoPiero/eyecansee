@@ -10,12 +10,13 @@ pub struct History {
     /// The state shown.
     at: usize,
     /// The document as last saved (as opened, at first): closing asks only when it changed.
-    saved: Doc,
+    /// `None` after a save that failed: closing asks whatever is shown.
+    saved: Option<Doc>,
 }
 
 impl History {
     pub fn new(doc: Doc) -> History {
-        History { saved: doc.clone(), states: vec![doc], at: 0 }
+        History { saved: Some(doc.clone()), states: vec![doc], at: 0 }
     }
 
     pub fn doc(&self) -> &Doc {
@@ -63,12 +64,17 @@ impl History {
 
     /// Something to save: the document shown is not the one opened or last saved.
     pub fn changed(&self) -> bool {
-        *self.doc() != self.saved
+        self.saved.as_ref() != Some(self.doc())
     }
 
     /// The document shown was just saved (a copy): the page stays open, nothing more to save.
     pub fn saved(&mut self) {
-        self.saved = self.doc().clone();
+        self.saved = Some(self.doc().clone());
+    }
+
+    /// The save failed: nothing counts as saved, closing asks again.
+    pub fn unsaved(&mut self) {
+        self.saved = None;
     }
 }
 
@@ -176,6 +182,10 @@ mod tests {
         h.saved();
         assert!(!h.changed());
         h.undo();
+        assert!(h.changed());
+        // A save that failed: something to save, whatever is shown.
+        h.redo();
+        h.unsaved();
         assert!(h.changed());
     }
 }

@@ -38,8 +38,8 @@ Sovrascrivi è spento, e passandoci sopra dice perché, per un'immagine nuova, p
 
 Chiudi, la ✕ della finestra o Esc chiedono prima cosa fare:
 
-- **Salva…**: una copia, come Salva copia (Salva come… per un'immagine nuova).
-- **Salva come…**: apre Salvare in un altro formato.
+- **Salva…**: una copia, come Salva copia (Salva come… per un'immagine nuova). Dopo la conferma, la pagina si chiude appena la copia è scritta. Se il salvataggio non riesce, la pagina resta aperta con le modifiche.
+- **Salva come…**: chiude la pagina e apre Salvare in un altro formato.
 - **Non salvare**: chiude e dimentica le modifiche.
 - **Annulla**: torna alla pagina.
 

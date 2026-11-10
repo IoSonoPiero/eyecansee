@@ -168,7 +168,19 @@ impl App {
                 w.bytes.get_or_insert_with(|| p.bytes.clone());
                 w.ready = Some(Ready(p));
             }
-            Err(e) => self.save_failed(e, Some(Act::RotateSaveAs)),
+            Err(e) => {
+                w.closing = false;
+                self.save_failed(e, Some(Act::RotateSaveAs));
+            }
+        }
+    }
+
+    /// A save ended (`ok`) for the file `path`: the page closes if it was Save… chosen on closing;
+    /// a save that failed leaves it open, its changes to save again.
+    pub(crate) fn edit_saved(&mut self, path: &str, ok: bool) {
+        if self.editor.as_mut().is_some_and(|w| w.saved_to(path, ok)) {
+            self.editor = None;
+            log!("edit: page closed after saving {path:?}, viewing {:?}", self.viewing);
         }
     }
 
@@ -188,11 +200,12 @@ impl App {
     }
 
     /// The confirmation: the copy's name, or over the original with where the original goes
-    /// (always a trash, also with deleting for good chosen in the Options). `true` once an
-    /// overwrite is sent: the page closes. After a copy it stays open, the document saved (user,
-    /// 2026-11-05: Save copy must not close the image).
-    pub(super) fn edit_confirm(&mut self, ctx: &egui::Context, w: &mut Window) -> bool {
-        let (Some(Ready(p)), Some(loader)) = (&w.ready, &self.loader) else { return false };
+    /// (always a trash, also with deleting for good chosen in the Options). After a save from the
+    /// toolbar the page stays open, the document saved (user, 2026-11-05: Save copy must not close
+    /// the image; 2026-11-06: nor Overwrite). After Save… chosen on closing it closes once the copy
+    /// is written (`edit_saved`, issue #79).
+    pub(super) fn edit_confirm(&mut self, ctx: &egui::Context, w: &mut Window) {
+        let (Some(Ready(p)), Some(loader)) = (&w.ready, &self.loader) else { return };
         let p = p.clone();
         let how = loader.deletion(&w.path, false, crate::settings::RemoteDelete::TrashFolder);
         let md = crate::save_dialogs::md;
@@ -243,13 +256,12 @@ impl App {
                     h.push(w.doc.clone());
                     h.saved();
                 }
-                false
             }
             Some(false) => {
                 w.ready = None;
-                false
+                w.closing = false;
             }
-            None => false,
+            None => {}
         }
     }
 
@@ -272,8 +284,28 @@ impl App {
         true
     }
 
+    /// The question on closing with changes not saved, if open, and its answer; `false`: the page
+    /// closes. Save… closes it only once the copy is written (`edit_saved`): if that fails, the
+    /// page and its changes stay.
+    pub(super) fn edit_leave(&mut self, ctx: &egui::Context, w: &mut Window) -> bool {
+        if !w.leaving {
+            return true;
+        }
+        match self.rotate_leave(ctx, w) {
+            Some(Leave::Save) if !w.new => {
+                self.edit_prepare(ctx, w, false);
+                // Not when it went to Save as… (a temporary copy) or did not start.
+                w.closing = w.preparing;
+                true
+            }
+            Some(Leave::Save | Leave::SaveAs) => !self.rotate_save_as(ctx, w),
+            Some(Leave::Discard) => false,
+            None => true,
+        }
+    }
+
     /// Closing with changes not saved: Save (a copy), Save as…, Don't save, or Cancel (stays open).
-    pub(super) fn rotate_leave(&mut self, ctx: &egui::Context, w: &mut Window) -> Option<Leave> {
+    fn rotate_leave(&mut self, ctx: &egui::Context, w: &mut Window) -> Option<Leave> {
         let i18n = &self.i18n;
         let text = i18n.t_args("edit-leave", &[("name", &crate::save_dialogs::md(source::name(&w.path)))]);
         let choices = vec![(i18n.t("rc-save"), !w.preparing, Leave::Save), (i18n.t("menu-save-copy"), true, Leave::SaveAs), (i18n.t("rc-discard"), true, Leave::Discard)];
@@ -282,6 +314,21 @@ impl App {
         let answer = confirm::choose(ctx, "rotate-leave", 440.0, text, choices, i18n.t("delete-no"), keys)?;
         w.leaving = false;
         answer
+    }
+}
+
+impl Window {
+    /// The save of `path` ended (`ok`); `true`: the page closes now (Save… chosen on closing,
+    /// nothing changed since). One that failed leaves something to save: closing asks again.
+    fn saved_to(&mut self, path: &str, ok: bool) -> bool {
+        if ![&self.copy, &self.overwritten].into_iter().flatten().any(|m| m.path == path) {
+            return false;
+        }
+        let closing = std::mem::take(&mut self.closing);
+        if !ok && let Some(h) = &mut self.history {
+            h.unsaved();
+        }
+        ok && closing && !self.changed()
     }
 }
 
@@ -382,6 +429,40 @@ mod tests {
         let trashed: Vec<Vec<u8>> = walk(&trash).iter().filter(|p| p.extension().is_some_and(|e| e == "jpg")).map(|p| std::fs::read(p).unwrap()).collect();
         assert_eq!(trashed, [original]);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A page with a box drawn, its copy `p/a (edited).jpg` sent and the document marked saved
+    /// (as `edit_confirm` leaves it); `closing`: Save… chosen in the question on closing.
+    fn page(closing: bool) -> Window {
+        let mut w = Window::new("p/a.jpg".into(), Default::default(), super::super::Tool::Select);
+        let mut h = crate::edit::history::History::new(Doc::new(64, 48, None));
+        w.doc.objects.push(cover(0.0));
+        h.push(w.doc.clone());
+        h.saved();
+        (w.history, w.closing, w.copy) = (Some(h), closing, Some(Written { path: "p/a (edited).jpg".into(), sha: [0; 32] }));
+        w
+    }
+
+    /// Issue #79: Save… on closing closes the page once the copy is written, and only then; a save
+    /// from the toolbar leaves it open; one that failed leaves it open with something to save.
+    #[test]
+    fn closes_after_save_on_closing() {
+        let copy = "p/a (edited).jpg";
+        let mut w = page(true);
+        assert!(!w.saved_to("p/other.jpg", true), "another file's save");
+        assert!(w.closing);
+        assert!(w.saved_to(copy, true));
+        let mut w = page(false);
+        assert!(!w.saved_to(copy, true), "Save copy from the toolbar");
+        assert!(!w.changed());
+        let mut w = page(true);
+        assert!(!w.saved_to(copy, false), "failed");
+        assert!(w.changed() && !w.closing, "the changes stay to save");
+        assert!(!w.saved_to(copy, true), "a later save from the toolbar (Try again)");
+        // Changed again while the copy was being written: the page stays, closing asks.
+        let mut w = page(true);
+        w.doc.objects.push(cover(9.0));
+        assert!(!w.saved_to(copy, true) && w.changed());
     }
 
     fn walk(dir: &std::path::Path) -> Vec<std::path::PathBuf> {

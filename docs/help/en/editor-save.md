@@ -38,8 +38,8 @@ Overwrite is off, and pointing at it says why, for a new image, for a format Eye
 
 Close, the window's ✕ or Esc first ask what to do:
 
-- **Save…**: a copy, as Save copy does (Save as… for a new image).
-- **Save as…**: opens Saving in another format.
+- **Save…**: a copy, as Save copy does (Save as… for a new image). Once you confirm, the page closes as soon as the copy is written. If saving fails, the page stays open with your changes.
+- **Save as…**: closes the page and opens Saving in another format.
 - **Don't save**: closes and forgets the changes.
 - **Cancel**: back to the page.
 

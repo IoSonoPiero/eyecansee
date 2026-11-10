@@ -28,7 +28,6 @@ mod tools;
 mod typing;
 use canvas::canvas;
 pub(crate) use save::{Prepared, Written};
-use save::Leave;
 
 type Loaded = Result<(Arc<Original>, TextureHandle, u64), String>;
 
@@ -189,6 +188,8 @@ pub struct Window {
     remote: Option<&'static str>,
     /// Closing with changes not saved: the question is open.
     pub leaving: bool,
+    /// Save… chosen in that question: the page closes once the copy is written (`edit_saved`).
+    closing: bool,
     /// Save as… chosen in the message saying Save cannot write over the original.
     pub save_as: bool,
     /// A new image (File > New image…): no file yet, its Save is Save as….
@@ -248,6 +249,7 @@ impl Window {
             ready: None,
             remote: None,
             leaving: false,
+            closing: false,
             save_as: false,
             new: false,
         }
@@ -673,17 +675,8 @@ impl App {
             w.leaving = true;
             open = true;
         }
-        if w.leaving {
-            match self.rotate_leave(ui.ctx(), &mut w) {
-                Some(Leave::Save) if !w.new => self.edit_prepare(ui.ctx(), &mut w, false),
-                Some(Leave::Save | Leave::SaveAs) => open = !self.rotate_save_as(ui.ctx(), &w),
-                Some(Leave::Discard) => open = false,
-                None => {}
-            }
-        }
-        if w.ready.is_some() && self.edit_confirm(ui.ctx(), &mut w) {
-            open = false;
-        }
+        open &= self.edit_leave(ui.ctx(), &mut w);
+        self.edit_confirm(ui.ctx(), &mut w);
         if open {
             self.editor = Some(w);
         } else {
