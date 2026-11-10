@@ -4,11 +4,12 @@
 //! the view change. Every change goes into the document (`edit::doc`); once an operation is over
 //! (no button held, no field being typed in) it becomes a step of the history (`edit::history`).
 //! The bars (tools, properties, status) are in `tools`, Rotate and crop's controls in `crop`, the
-//! canvas in `canvas`, the questions before saving or closing in `save`.
+//! canvas in `canvas`, the questions before saving or closing in `save`, the page opened in `open`,
+//! its keys in `keys`, the previews of the filters in `previews`.
 
 use std::sync::Arc;
 
-use eframe::egui::{self, Color32, ColorImage, Pos2, TextureHandle, Vec2};
+use eframe::egui::{self, Color32, Pos2, TextureHandle, Vec2};
 
 use crate::edit::doc::{Doc, Obj, Pt, Shape, Style};
 use crate::edit::geom::Kind;
@@ -21,7 +22,10 @@ use crate::{App, source};
 mod canvas;
 mod clip;
 mod crop;
+mod keys;
+mod open;
 mod pick;
+mod previews;
 mod props;
 mod save;
 mod tools;
@@ -395,84 +399,6 @@ impl Window {
         self.refit();
     }
 
-    /// The filters, highlighters and lenses whose preview is missing or was made for another box
-    /// or amount (colour, zoom): made again from the photo, at most 1200 pixels a side; while a
-    /// drag is under way at most 400, to follow the pointer (the old one, stretched over the new
-    /// place, showed the part it came from: user, 2026-11-06), and sharp again once let go. The
-    /// lenses last, with the filters' previews and the cover boxes on them, and again whenever
-    /// those changed.
-    fn refresh_previews(&mut self) {
-        use crate::edit::doc::{Pixels, Preview};
-        use crate::edit::photo;
-        let Some(Ok((original, ..))) = &self.original else { return };
-        let still = self.hold.is_none();
-        for lenses in [false, true] {
-            if lenses && still && std::mem::replace(&mut self.hiders, photo::hiders_key(&self.doc)) != self.hiders {
-                for o in &mut self.doc.objects {
-                    if let Shape::Lens { preview, .. } = &mut o.shape {
-                        *preview = Preview::default();
-                    }
-                }
-            }
-            for i in 0..self.doc.objects.len() {
-                let o = &self.doc.objects[i];
-                let (area, amount, preview) = match &o.shape {
-                    Shape::Filter { area, amount, preview, .. } if !lenses => (*area, *amount, preview),
-                    Shape::Highlight { area, preview } if !lenses => (*area, photo::colour_key(o.style.color), preview),
-                    // Its key: the zoom, a half more when it shows the objects.
-                    Shape::Lens { area, preview } if lenses => (*area, o.style.zoom.max(1) as f32 + if o.style.with_objects { 0.5 } else { 0.0 }, preview),
-                    _ => continue,
-                };
-                // A highlighter is quick to make and is over text, read closely: sharper.
-                let side = match (still, &o.shape) {
-                    (false, _) => 400.0,
-                    (true, Shape::Highlight { .. }) => 3000.0,
-                    _ => 1200.0,
-                };
-                let scale = (side / area.w.max(area.h)).min(1.0);
-                // Made for this box and amount, and as sharp as it is to be now.
-                let sharp = |p: &Pixels| p.image().width() + 1 >= (area.w * scale).round() as u32;
-                if preview.0.as_ref().is_some_and(|(a, m, p)| *a == area && *m == amount && sharp(p)) {
-                    continue;
-                }
-                let pixels = match &o.shape {
-                    Shape::Filter { filter, .. } => {
-                        let under = image::DynamicImage::ImageRgba8(self.doc.pixels_under_at(&original.image, &area, scale));
-                        crate::edit::filter::apply(&under, *filter, amount, scale).to_rgba8()
-                    }
-                    Shape::Highlight { .. } => {
-                        let mut under = self.doc.pixels_under_at(&original.image, &area, scale);
-                        photo::highlighted(&mut under, o.style.color);
-                        under
-                    }
-                    _ => {
-                        let filtered: Vec<photo::Filtered> = self.doc.objects.iter().filter_map(|f| if let Shape::Filter { preview: Preview(Some((a, _, p))), .. } = &f.shape { Some((*a, p.image())) } else { None }).collect();
-                        let fonts = crate::decode::usvg_options();
-                        let before = o.style.with_objects.then_some((&self.doc.objects[..i], &fonts));
-                        photo::lens(&self.doc, &original.image, &area, (amount.floor(), side as u32), &filtered, before)
-                    }
-                };
-                if let Shape::Filter { preview, .. } | Shape::Lens { preview, .. } | Shape::Highlight { preview, .. } = &mut self.doc.objects[i].shape {
-                    *preview = Preview(Some((area, amount, Pixels::new(pixels))));
-                }
-                self.filters_made += 1;
-            }
-        }
-    }
-
-    /// A filter from the menu: on the part chosen with Selection, or on the whole image; selected,
-    /// with Select chosen to move it or change its amount.
-    fn add_filter(&mut self, filter: crate::edit::filter::Filter) {
-        let (iw, ih) = self.size();
-        let area = self.marquee.unwrap_or(crate::edit::doc::Area { centre: Pt::new(0.0, 0.0), w: iw, h: ih, rot: 0.0 });
-        let amount = filter.amount(self.long()).map_or(0.0, |(_, _, start)| start);
-        self.doc.objects.push(Obj { shape: Shape::Filter { area, filter, amount, preview: Default::default() }, style: Style::default() });
-        self.selected = Some(self.doc.objects.len() - 1);
-        self.choose(Tool::Select);
-        // `choose` keeps it when Select was already the tool.
-        self.marquee = None;
-    }
-
     /// Zoom in or out around the middle of the view.
     fn zoom(&mut self, factor: f32) {
         let (at, k) = self.shown;
@@ -522,92 +448,6 @@ enum Ask {
 }
 
 impl App {
-    /// The image Edit image… and Rotate and crop… would open: one picture (in the viewer the one
-    /// shown); `None` too for one the viewer found animated or of several pages.
-    pub(crate) fn edit_target(&self, path: Option<String>) -> Option<String> {
-        let picture = if self.viewing.is_some() {
-            self.viewing_photo().then(|| self.target()).flatten()
-        } else {
-            let images = self.grid_images(path);
-            if images.len() == 1 { images.into_iter().next() } else { None }
-        };
-        picture.filter(|p| !self.animated.contains(p))
-    }
-
-    pub(crate) fn can_edit(&self, path: Option<String>) -> bool {
-        self.edit_target(path).is_some()
-    }
-
-    /// Why the editor is off for the item: several images, or one found animated.
-    pub(crate) fn edit_off(&self, path: Option<String>) -> Option<String> {
-        if self.viewing.is_none() && self.grid_images(path.clone()).len() > 1 {
-            Some(self.i18n.t("rc-one-only"))
-        } else if path.or_else(|| self.target()).is_some_and(|p| self.animated.contains(&p)) {
-            Some(self.i18n.t("edit-animated-off"))
-        } else {
-            None
-        }
-    }
-
-    /// Edit image… (`Tool::Select`) or Rotate and crop… (`Tool::Crop`) on one image.
-    pub(crate) fn open_editor(&mut self, path: Option<String>, tool: Tool) {
-        // In the grid the one picture among the files chosen (a video next to it is left out).
-        let picture = if self.viewing.is_some() { None } else { self.grid_images(path.clone()).into_iter().next() };
-        let Some(path) = picture.or(path).or_else(|| self.target()).filter(|p| crate::decode::is_image(p)) else { return };
-        if self.animated.contains(&path) {
-            return;
-        }
-        let Some(loader) = &self.loader else { return };
-        loader.load_original(path.clone(), true);
-        // From the viewer: as it is shown there.
-        let turn = if self.viewing.is_some() { self.turn } else { Turn::default() };
-        let mut w = Window::new(path, turn, tool);
-        let store = loader.store();
-        w.remote = crate::kept::remote(&store).then_some(if matches!(store, crate::source::Store::Mtp(_)) { "edit-remote-phone" } else { "edit-remote-server" });
-        // Fractions of the long side until the image is read (`editor_original`).
-        w.styles = self.settings.edit_styles.clone();
-        self.editor = Some(w);
-    }
-
-    /// File > New image…: the empty image in the editor, named in the folder open; Save as…
-    /// writes it.
-    pub(crate) fn open_new_image(&mut self, ctx: &egui::Context, image: image::DynamicImage, name: &str) {
-        if self.loader.is_none() {
-            return;
-        }
-        let mut w = Window::new(format!("{}{name}.png", self.dir), Turn::default(), Tool::Select);
-        w.new = true;
-        w.styles = self.settings.edit_styles.clone();
-        self.editor = Some(w);
-        let original = Arc::new(Original::with_meta(image, &[]));
-        let preview = crate::decode::preview(&original.image);
-        self.editor_original(ctx, Ok((original, preview, 0)));
-    }
-
-    pub(crate) fn editor_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, ColorImage, u64), String>) {
-        let Some(w) = &mut self.editor else { return };
-        w.original = Some(r.map(|(original, preview, size)| (original, ctx.load_texture("edit-original", preview, egui::TextureOptions::LINEAR), size)));
-        if w.history.is_some() {
-            return;
-        }
-        // The document starts from the image as the viewer showed it.
-        let (iw, ih) = w.upright();
-        let mut doc = Doc::new(iw, ih, (!w.transparent).then(|| [w.color.r(), w.color.g(), w.color.b()]));
-        doc.turn = w.start_turn;
-        if doc.turn.sideways() {
-            doc.crop = Crop::centred(ih as f32, iw as f32);
-        }
-        w.doc = doc;
-        w.refit();
-        w.history = Some(History::new(w.doc.clone()));
-        // The widths remembered are fractions of the long side: in pixels of this image now.
-        let long = w.long();
-        for (_, s) in &mut w.styles {
-            s.width = (s.width * long).max(1.0);
-            s.letters *= long;
-        }
-    }
-
     /// Drawn in place of the whole interface, as "Save in another format": the tools at the top,
     /// the properties under them, the status at the bottom, the image in the middle.
     pub(crate) fn edit_page(&mut self, ui: &mut egui::Ui) {
@@ -711,61 +551,6 @@ impl App {
             }
         }
         open
-    }
-
-    /// Without a field taking the keys (text has its own undo there): undo and redo, Del, the
-    /// tools' letters, the quarter turns, zoom, Ctrl+S (Save copy) and Ctrl+Shift+S (Save as…).
-    fn edit_keys(&self, ctx: &egui::Context, w: &mut Window) -> Option<Ask> {
-        if ctx.egui_wants_keyboard_input() || w.hold.is_some() || w.drag.is_some() {
-            return None;
-        }
-        use egui::{Key, Modifiers as M};
-        let cmd_shift = M::COMMAND | M::SHIFT;
-        let (redo, undo, delete) = ctx.input_mut(|i| {
-            let redo = i.consume_key(cmd_shift, Key::Z) || i.consume_key(M::COMMAND, Key::Y);
-            (redo, i.consume_key(M::COMMAND, Key::Z), i.consume_key(M::NONE, Key::Delete))
-        });
-        if redo {
-            w.redo();
-        } else if undo {
-            w.undo();
-        }
-        if delete && let Some(i) = w.selected.take() {
-            w.doc.objects.remove(i);
-        }
-        if w.tool == Tool::Crop && ctx.input_mut(|i| i.consume_key(M::NONE, Key::Enter)) {
-            w.apply_crop();
-        }
-        if w.tool != Tool::Crop {
-            let (screen, here) = ctx.input_mut(|i| (i.consume_key(M::SHIFT, Key::I), i.consume_key(M::NONE, Key::I)));
-            if screen || here {
-                w.ask_pick = Some(screen);
-            }
-        }
-        let tool = ctx.input_mut(|i| tools::TOOLS.iter().find(|t| i.consume_key(M::NONE, t.3)).map(|t| t.0));
-        if let Some(tool) = tool {
-            w.choose(tool);
-        }
-        let (ccw, cw) = ctx.input_mut(|i| (i.consume_key(cmd_shift, Key::R), i.consume_key(M::COMMAND, Key::R)));
-        if ccw {
-            w.turn(crate::transform::Op::Ccw);
-        } else if cw {
-            w.turn(crate::transform::Op::Cw);
-        }
-        let (zoom_in, zoom_out, fit) = ctx.input(|i| (i.key_pressed(Key::Plus) || i.key_pressed(Key::Equals), i.key_pressed(Key::Minus), i.key_pressed(Key::Num0)));
-        if zoom_in {
-            w.zoom(1.25);
-        } else if zoom_out {
-            w.zoom(0.8);
-        } else if fit {
-            w.view = None;
-        }
-        let (save_as, save) = ctx.input_mut(|i| (i.consume_key(cmd_shift, Key::S), i.consume_key(M::COMMAND, Key::S)));
-        match () {
-            _ if (save_as || save && w.new) && !w.preparing => Some(Ask::SaveAs),
-            _ if save && !w.preparing && w.changed() => Some(Ask::Save),
-            _ => None,
-        }
     }
 
     /// End of the frame: an operation over (no button held, no field typed in, no drag) becomes a
