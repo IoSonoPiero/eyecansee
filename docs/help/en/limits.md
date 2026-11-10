@@ -14,6 +14,7 @@ What EyeCanSee does not do yet, or does only in part. The up-to-date list of kno
 
 - Files are sorted alphabetically: `img10` comes before `img2`.
 - Hidden files and folders (whose name starts with a dot, or on Windows with the "hidden" attribute) are not shown.
+- A file or folder whose name is not valid UTF-8 (on Linux, for example one made by an old program or copied from an old disk) is shown with � in place of the characters that cannot be read, but it cannot be opened, copied or converted: rename it in the file manager.
 - Changes made on a server by other programs are seen only after **F5**.
 
 ## Phones

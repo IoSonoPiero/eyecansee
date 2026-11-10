@@ -730,7 +730,7 @@ fn main() -> eframe::Result {
     // Each start marked, also in a log file shared with an earlier instance.
     log!("EyeCanSee {} started, process {}", version(), std::process::id());
     // A local path is made absolute: the instance it is handed to has another working folder.
-    let arg = std::env::args().nth(1).map(|a| match a.contains("://") {
+    let arg = std::env::args_os().nth(1).map(|a| a.to_string_lossy().into_owned()).map(|a| match a.contains("://") {
         true => a,
         false => std::path::absolute(&a).map_or(a, |p| p.to_string_lossy().into_owned()),
     });

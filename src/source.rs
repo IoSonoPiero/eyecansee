@@ -21,6 +21,8 @@ pub type Error = (&'static str, String);
 
 /// Id of the "not found" error, recognised by cache maintenance.
 pub const NOT_FOUND: &str = "error-not-found";
+/// A local name that is not valid UTF-8 (`bad_name`).
+pub const BAD_NAME: &str = "error-bad-name";
 
 /// Id of the error of a server that does not answer in time (connection, login, start), with
 /// the server as detail (#75).
@@ -92,14 +94,6 @@ pub fn is_gone((id, detail): &Error) -> bool {
     *id == NOT_FOUND || detail.contains("stale object handle")
 }
 
-fn noticed<T>(r: Result<T, Error>, path: &str) -> Result<T, Error> {
-    if let Err(e) = &r
-        && is_gone(e)
-    {
-        mark_gone(path.to_string());
-    }
-    r
-}
 
 /// The paths found gone since the last call.
 pub fn take_gone() -> Vec<String> {
@@ -116,7 +110,29 @@ pub(crate) fn dal_error(e: opendal::Error) -> Error {
     (id, e.to_string())
 }
 
+/// A local name that is not valid UTF-8 on Linux (on Windows, UTF-16 with an unpaired
+/// surrogate) is listed with U+FFFD in place of what cannot be read, so its path leads
+/// nowhere (issue #88): the app keeps paths as text, and carrying the raw bytes everywhere is not
+/// worth it for such rare names. A path of this kind that is not found is such a name, not a file
+/// gone.
+fn bad_name(op: &Operator, path: &str) -> bool {
+    op.info().scheme() == "fs" && path.contains(char::REPLACEMENT_CHARACTER)
+}
+
 impl Store {
+    /// A read's result, with a file gone noticed (`GONE`) and a local name that cannot be read
+    /// (`bad_name`) said as such.
+    fn noticed<T>(&self, r: Result<T, Error>, path: &str) -> Result<T, Error> {
+        match r {
+            Err((NOT_FOUND, _)) if matches!(self, Store::Dal(op) if bad_name(op, path)) => Err((BAD_NAME, name(path).to_string())),
+            Err(e) if is_gone(&e) => {
+                mark_gone(path.to_string());
+                Err(e)
+            }
+            r => r,
+        }
+    }
+
     /// The file on this computer (gvfs mounts too), for libraries that open it themselves (libmpv).
     pub fn local_file(&self, path: &str) -> Option<PathBuf> {
         match self {
@@ -224,7 +240,7 @@ impl Store {
             Store::Sftp(server) => server.read(path).await,
             Store::Ftp(server) => server.read(path).await,
         };
-        noticed(r, path)
+        self.noticed(r, path)
     }
 
     /// `len` bytes from `offset`: videos are read a piece at a time (`mpv::Reader`).
@@ -238,7 +254,7 @@ impl Store {
             Store::Sftp(server) => server.read_range(path, offset, len).await,
             Store::Ftp(server) => server.read_range(path, offset, len).await,
         };
-        noticed(r, path)
+        self.noticed(r, path)
     }
 
     /// Names of everything in a folder, of any type, hidden ones too (folders without the "/").
@@ -370,7 +386,7 @@ impl Store {
             Store::Sftp(server) => server.size(path).await,
             Store::Ftp(server) => server.size(path).await,
         };
-        noticed(r, path)
+        self.noticed(r, path)
     }
 
     /// Everything below a folder, hidden items and EyeCanSee's trash folders too (a copy leaves
@@ -427,7 +443,7 @@ impl Store {
     /// knows the file is incomplete.
     pub async fn send_chunks(&self, path: &str, size: u64, out: Chunks, done: &AtomicU64, cancel: &AtomicBool) -> Result<(), Error> {
         // Also what a phone on Windows answers after a stale handle (the whole copy of a video).
-        let r = noticed(self.send(path, size, &out, done, cancel).await, path);
+        let r = self.noticed(self.send(path, size, &out, done, cancel).await, path);
         if let Err((_, detail)) = &r {
             let _ = out.send(Err(std::io::Error::other(detail.clone()))).await;
         }
@@ -633,7 +649,11 @@ pub fn open(arg: &str) -> Result<Source, Error> {
 }
 
 fn local(path: &Path) -> Result<Source, Error> {
-    let path = path.canonicalize().map_err(|e| ("error-path", format!("{}: {e}", path.display())))?;
+    let lossy = path.to_string_lossy();
+    let path = path.canonicalize().map_err(|e| match lossy.contains(char::REPLACEMENT_CHARACTER) && e.kind() == std::io::ErrorKind::NotFound {
+        true => (BAD_NAME, lossy.to_string()), // an argument whose name is not valid UTF-8 (`bad_name`)
+        false => ("error-path", format!("{}: {e}", path.display())),
+    })?;
     // "/" on Linux, "\\?\C:\" on Windows.
     let root = path.ancestors().last().unwrap_or(&path);
     let rel = path.strip_prefix(root).unwrap_or(&path);
@@ -714,12 +734,14 @@ type LocalItem = (String, String, bool, u64, String);
 /// Everything in a local folder, hidden items too, read without OpenDAL's lister: OpenDAL 0.59.5
 /// gives a link to a folder the mode of a folder but a path without "/", and debug builds panic on
 /// it (issue #82, apache/opendal#8456). A link counts as what it points to; one that leads nowhere
-/// (or to itself) is left out, as OpenDAL did. A folder that is missing or not a folder is empty.
+/// (or to itself) is left out, as OpenDAL did. A folder that is missing or not a folder is empty,
+/// unless its own name cannot be read (`bad_name`).
 async fn local_items(op: &Operator, dir: &str) -> Result<Vec<LocalItem>, Error> {
-    let (full, dir) = (local_path(op, dir), dir.to_string());
+    let (full, dir, bad) = (local_path(op, dir), dir.to_string(), bad_name(op, dir));
     let io = |e: std::io::Error| (if e.kind() == std::io::ErrorKind::NotFound { NOT_FOUND } else { "error-detail" }, e.to_string());
     tokio::task::spawn_blocking(move || {
         let entries = match std::fs::read_dir(&full) {
+            Err(e) if bad && e.kind() == std::io::ErrorKind::NotFound => return Err((BAD_NAME, name(&dir).to_string())),
             Err(e) if matches!(e.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory) => return Ok(Vec::new()),
             r => r.map_err(io)?,
         };
@@ -769,9 +791,13 @@ fn hidden(_: &Operator, _: &str) -> bool {
 mod tests {
     use super::*;
 
+    /// The tests that take what `GONE` holds, one at a time.
+    static GONE_TESTS: Mutex<()> = Mutex::new(());
+
     /// A read of a file that is not there any more is noticed, so the folder gets read again.
     #[test]
     fn gone_noticed() {
+        let _one = GONE_TESTS.lock().unwrap_or_else(|e| e.into_inner());
         assert!(is_gone(&(NOT_FOUND, "a.jpg".into())));
         assert!(is_gone(&("error-detail", "stale object handle (device re-keyed it; re-list and retry)".into())));
         assert!(!is_gone(&("error-detail", "timeout".into())));
@@ -787,6 +813,37 @@ mod tests {
         assert!(rt.block_on(op.size("b.jpg")).is_err());
         assert_eq!(take_gone(), ["b.jpg", "b.jpg", "b.jpg"]);
         assert!(take_gone().is_empty(), "taken once");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A name that is not valid UTF-8 is listed with U+FFFD; reading it says the name cannot be
+    /// read, not that the file is gone (issue #88). A folder with such a name says the same.
+    #[cfg(unix)]
+    #[test]
+    fn name_not_utf8() {
+        use std::os::unix::ffi::OsStrExt;
+        let _one = GONE_TESTS.lock().unwrap_or_else(|e| e.into_inner());
+        let dir = std::env::temp_dir().join(format!("eyecansee-not-utf8-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join(std::ffi::OsStr::from_bytes(b"dir\xff"))).unwrap();
+        std::fs::write(dir.join("a.jpg"), b"x").unwrap();
+        std::fs::write(dir.join(std::ffi::OsStr::from_bytes(b"bad\xff\xfe.jpg")), b"x").unwrap();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let listing = rt.block_on(op.list("")).unwrap();
+        let files: Vec<_> = listing.files.iter().map(|f| f.path.as_str()).collect();
+        assert_eq!(files, ["a.jpg", "bad\u{FFFD}\u{FFFD}.jpg"], "still listed, marked");
+        assert_eq!(listing.dirs, ["dir\u{FFFD}/"]);
+        let _ = take_gone();
+        let bad = (BAD_NAME, "bad\u{FFFD}\u{FFFD}.jpg".to_string());
+        assert_eq!(rt.block_on(op.read(files[1])).unwrap_err(), bad);
+        assert_eq!(rt.block_on(op.read_range(files[1], 0, 1)).unwrap_err(), bad);
+        assert_eq!(rt.block_on(op.size(files[1])).unwrap_err(), bad);
+        assert!(!take_gone().iter().any(|p| p.contains(char::REPLACEMENT_CHARACTER)), "not taken for a file gone");
+        assert_eq!(rt.block_on(op.list("dir\u{FFFD}/")).err(), Some((BAD_NAME, "dir\u{FFFD}".to_string())));
+        let arg = dir.join(std::ffi::OsStr::from_bytes(b"bad\xff\xfe.jpg"));
+        assert_eq!(open(&arg.to_string_lossy()).err().map(|e| e.0), Some(BAD_NAME), "the same name given to the app");
+        assert!(rt.block_on(op.read("nothing.jpg")).is_err());
+        assert!(take_gone().contains(&"nothing.jpg".to_string()), "a file really gone is still noticed");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

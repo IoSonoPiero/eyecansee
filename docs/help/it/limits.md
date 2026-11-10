@@ -14,6 +14,7 @@ Che cosa EyeCanSee non fa ancora, o fa solo in parte. L'elenco aggiornato dei pr
 
 - I file sono in ordine alfabetico: `img10` viene prima di `img2`.
 - I file e le cartelle nascosti (il cui nome inizia con un punto, o su Windows con l'attributo "nascosto") non vengono mostrati.
+- Un file o una cartella il cui nome non è UTF-8 valido (su Linux, per esempio creato da un vecchio programma o copiato da un vecchio disco) compare con � al posto dei caratteri che non si possono leggere, ma non si può aprire, copiare né convertire: rinominalo nel gestore dei file.
 - Le modifiche fatte su un server da altri programmi si vedono solo dopo **F5**.
 
 ## Telefoni

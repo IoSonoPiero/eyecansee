@@ -65,6 +65,7 @@ sftp-rsa-key = **{ $host }** aperto con una chiave RSA.
     Questo avviso compare una volta per server a ogni avvio di EyeCanSee.
 error-trash-failed = Non è stato possibile spostare l'originale nel cestino: l'originale è intatto. ({ $detail })
 error-not-found = Non trovato: { $detail }
+error-bad-name = Il nome di "{ $detail }" non si può leggere (non è UTF-8 valido): rinominalo nel gestore dei file per aprirlo.
 error-device-busy =
     EyeCanSee non riesce ad aprire il dispositivo: lo sta usando un altro programma.
     Chiudi il file manager e gli altri programmi che lo usano, poi premi F5.
