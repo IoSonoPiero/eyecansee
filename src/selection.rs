@@ -39,6 +39,16 @@ pub(crate) fn fits(files: &[String], kinds: &[Kind]) -> Option<bool> {
     (n > 0).then_some(n == files.len())
 }
 
+/// How the flips and turns of the Image menu (and their keys and toolbar buttons) fit: in the
+/// viewer (`viewing_photo` is `Some`) the picture shown or nothing, in the grid the pictures
+/// among the files chosen.
+pub(crate) fn turn_fit(viewing_photo: Option<bool>, grid: &[String]) -> Option<bool> {
+    match viewing_photo {
+        Some(photo) => photo.then_some(true),
+        None => fits(grid, &[Kind::Picture]),
+    }
+}
+
 /// The label of an entry, with "*" when it works on only some of the files chosen.
 pub(crate) fn starred(label: String, all: bool) -> String {
     if all { label } else { format!("{label} *") }
@@ -56,6 +66,11 @@ impl App {
     /// The files of `grid_items` of these kinds.
     pub(crate) fn grid_of(&self, path: Option<String>, kinds: &[Kind]) -> Vec<String> {
         self.grid_items(path).into_iter().filter(|p| kinds.contains(&kind(p))).collect()
+    }
+
+    /// `turn_fit` for what is in front: the Image menu, the toolbar and Ctrl+R agree.
+    pub(crate) fn turns_fit(&self) -> Option<bool> {
+        turn_fit(self.viewing.map(|_| self.viewing_photo()), &self.grid_items(None))
     }
 
     /// The images and videos (not folders) an action on `path` in the grid works on, as `chosen`.
@@ -144,5 +159,18 @@ mod tests {
         assert_eq!(fits(&files[..2], PLAYED), Some(true));
         assert_eq!(fits(&files[4..], THUMBED), None);
         assert_eq!(starred("Copy".into(), false), "Copy *");
+    }
+
+    #[test]
+    fn turns_fit_the_viewer_or_the_grid() {
+        let grid: Vec<String> = ["a.jpg", "b.mp4"].map(String::from).to_vec();
+        // In the viewer only a picture turns, whatever the grid holds.
+        assert_eq!(turn_fit(Some(true), &[]), Some(true));
+        assert_eq!(turn_fit(Some(false), &grid), None);
+        // In the grid: a picture and a video is "*", a video alone is greyed out.
+        assert_eq!(turn_fit(None, &grid), Some(false));
+        assert_eq!(turn_fit(None, &grid[..1]), Some(true));
+        assert_eq!(turn_fit(None, &grid[1..]), None);
+        assert_eq!(turn_fit(None, &[]), None);
     }
 }

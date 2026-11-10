@@ -173,6 +173,7 @@ impl App {
             self.open_editor(None, crate::edit_page::Tool::Select);
         }
         self.bookmark_keys(ctx);
+        self.turn_keys(ctx);
         // Ctrl+B and Ctrl+D: Convert and resize, Find duplicates (as their toolbar buttons).
         let (batch, duplicates) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::COMMAND, Key::B), i.consume_key(egui::Modifiers::COMMAND, Key::D)));
         if !ctx.egui_wants_keyboard_input() {
@@ -201,6 +202,20 @@ impl App {
             self.redo_all_thumbs(ctx);
         } else if refresh {
             self.refresh();
+        }
+    }
+
+    /// Ctrl+R and Ctrl+Shift+R, in the grid and the viewer: what the Image menu's turns do, where
+    /// they are on (`turns_fit`). The editor turns its own image (`edit_page.rs`).
+    fn turn_keys(&mut self, ctx: &egui::Context) {
+        let (ccw, cw) = ctx.input_mut(|i| {
+            // With Shift first: Ctrl+R would match Ctrl+Shift+R too.
+            let ccw = i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::R);
+            (ccw, i.consume_key(egui::Modifiers::COMMAND, Key::R))
+        });
+        let op = if ccw { transform::Op::Ccw } else { transform::Op::Cw };
+        if (cw || ccw) && !ctx.egui_wants_keyboard_input() && self.turns_fit().is_some() {
+            self.act = Some(Act::Transform(op, None));
         }
     }
 

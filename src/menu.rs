@@ -113,7 +113,7 @@ impl App {
     fn image_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
         // In the grid the pictures among the files chosen ("*" with other kinds).
-        let fit = if self.viewing.is_some() { self.viewing_photo().then_some(true) } else { fits(&self.grid_items(None), &[Kind::Picture]) };
+        let fit = self.turns_fit();
         let star = |label| starred(label, fit != Some(false));
         for (op, label, keys) in transform_items() {
             entry(ui, act, fit.is_some(), item(star(t(label)), keys.map(t).unwrap_or_default()), Act::Transform(op, None));

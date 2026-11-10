@@ -7,8 +7,8 @@ Una foto scattata di traverso si può raddrizzare, e un'immagine si può riflett
 Sono nel menù **Immagine**, e nel menù del clic destro sotto **Trasforma**:
 
 - ![Rifletti orizzontalmente](icon://square-split-horizontal) **Rifletti orizzontalmente** e ![Rifletti verticalmente](icon://square-split-vertical) **Rifletti verticalmente**;
-- **Ruota di 90° in senso orario** (**Ctrl+R**, nel visore), ![Ruota di 90° in senso orario](icon://rotate-cw-square) nella barra strumenti;
-- **Ruota di 90° in senso antiorario** (**Ctrl+Maiusc+R**, nel visore), ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) nella barra strumenti;
+- **Ruota di 90° in senso orario** (**Ctrl+R**), ![Ruota di 90° in senso orario](icon://rotate-cw-square) nella barra strumenti;
+- **Ruota di 90° in senso antiorario** (**Ctrl+Maiusc+R**), ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) nella barra strumenti;
 - **Ruota di 180°**.
 
 Funzionano solo sulle foto: su video, modelli 3D e disegni CAD sono grigi. Per ruotare un video vedi [Convertire i video](convert-video.md). Per ruotare una foto di un angolo qualsiasi, per esempio per raddrizzare un orizzonte, usa **Immagine > Ruota e ritaglia…**: vedi [Ritagliare e ruotare](editor-crop.md).
@@ -22,7 +22,7 @@ Se lasci la foto senza salvare (un'altra foto, ritorno alla griglia, un segnalib
 
 ## Nella griglia
 
-Seleziona una o più foto e scegli una rotazione o un ribaltamento dal menù **Immagine**, dalla barra strumenti o dal menù del clic destro. Una finestra dice quante foto verranno salvate sopra gli originali e dove vanno gli originali; **Salva** lo fa, **Annulla** (o **Esc**) non fa niente. Qui **Invio** non conferma, così non si sovrascrivono tante foto per sbaglio. Poi le miniature vengono rifatte.
+Seleziona una o più foto e scegli una rotazione o un ribaltamento dal menù **Immagine**, dalla barra strumenti o dal menù del clic destro, oppure premi **Ctrl+R** o **Ctrl+Maiusc+R**. Una finestra dice quante foto verranno salvate sopra gli originali e dove vanno gli originali; **Salva** lo fa, **Annulla** (o **Esc**) non fa niente. Qui **Invio** non conferma, così non si sovrascrivono tante foto per sbaglio. Poi le miniature vengono rifatte.
 
 Le foto in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) vengono escluse, e la finestra dice quante sono. Vengono saltati anche i file animati, quelli con più pagine e le foto in movimento; le foto Ultra HDR dei telefoni vengono ruotate insieme al loro HDR, e al loro video se sono anche foto in movimento. Quando l'unica foto scelta non si può salvare sopra sé stessa, la finestra spiega perché e propone **Salva come…**, già ruotata.
 

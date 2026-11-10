@@ -7,8 +7,8 @@ A photo taken sideways can be turned upright, and a picture can be flipped as in
 They are in the **Image** menu, and in the right-click menu under **Transform**:
 
 - ![Flip horizontally](icon://square-split-horizontal) **Flip horizontally** and ![Flip vertically](icon://square-split-vertical) **Flip vertically**;
-- **Rotate 90° clockwise** (**Ctrl+R**, in the viewer), ![Rotate 90° clockwise](icon://rotate-cw-square) in the toolbar;
-- **Rotate 90° anticlockwise** (**Ctrl+Shift+R**, in the viewer), ![Rotate 90° anticlockwise](icon://rotate-ccw-square) in the toolbar;
+- **Rotate 90° clockwise** (**Ctrl+R**), ![Rotate 90° clockwise](icon://rotate-cw-square) in the toolbar;
+- **Rotate 90° anticlockwise** (**Ctrl+Shift+R**), ![Rotate 90° anticlockwise](icon://rotate-ccw-square) in the toolbar;
 - **Rotate 180°**.
 
 They work on pictures only: on videos, 3D models and CAD drawings they are greyed out. To turn a video see [Converting videos](convert-video.md). To turn a picture by any angle, for example to straighten a horizon, use **Image > Rotate and crop…**: see [Crop and rotate](editor-crop.md).
@@ -22,7 +22,7 @@ If you leave the picture without saving (another picture, back to the grid, a bo
 
 ## In the grid
 
-Select one or more pictures and choose a turn or a flip from the **Image** menu, the toolbar or the right-click menu. A window says how many pictures will be saved over and where the originals go; **Save** does it, **Cancel** (or **Esc**) does nothing. **Enter** does not confirm here, so you cannot overwrite many pictures by mistake. The thumbnails are then made again.
+Select one or more pictures and choose a turn or a flip from the **Image** menu, the toolbar or the right-click menu, or press **Ctrl+R** or **Ctrl+Shift+R**. A window says how many pictures will be saved over and where the originals go; **Save** does it, **Cancel** (or **Esc**) does nothing. **Enter** does not confirm here, so you cannot overwrite many pictures by mistake. The thumbnails are then made again.
 
 Pictures in a format EyeCanSee cannot write (HEIC, RAW…) are left out, and the window says how many. Animated pictures, files with several pages and motion photos are skipped too; Ultra HDR phone photos are turned with their HDR, and with their video when they are also motion photos. When the only picture chosen cannot be saved over itself, the window says why and offers **Save as…**, already turned.
 
