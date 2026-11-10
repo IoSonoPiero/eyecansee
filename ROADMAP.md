@@ -42,7 +42,6 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Open an image from the clipboard ([#57](https://github.com/IoSonoPiero/eyecansee/issues/57)).
 - Image editor: the preview where a filter and a highlighter overlap ([#58](https://github.com/IoSonoPiero/eyecansee/issues/58)).
 - Image editor: recent work kept, recovered after a crash, resumed later ([#59](https://github.com/IoSonoPiero/eyecansee/issues/59)).
-- Favourites: a list of folders and images to open with one click ([#25](https://github.com/IoSonoPiero/eyecansee/issues/25)).
 - Archives: zip and 7z opened as read-only folders first, then creating zip archives ([#26](https://github.com/IoSonoPiero/eyecansee/issues/26)).
 - Multiple rename ([#27](https://github.com/IoSonoPiero/eyecansee/issues/27)).
 - Metadata editor for EXIF and GPS ([#28](https://github.com/IoSonoPiero/eyecansee/issues/28)).
@@ -51,10 +50,6 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Deleting a folder: look into its subfolders too for files EyeCanSee does not show (today the warning checks the first level only) ([#31](https://github.com/IoSonoPiero/eyecansee/issues/31)).
 - Set as wallpaper ([#32](https://github.com/IoSonoPiero/eyecansee/issues/32)).
 - Options: download the add-on engines (video engine, FFmpeg, CAD engine) in advance, and remove them ([#50](https://github.com/IoSonoPiero/eyecansee/issues/50)).
-
-## Documentation
-
-- Illustrated manual ([#34](https://github.com/IoSonoPiero/eyecansee/issues/34)).
 
 ## Later, if requested
 
