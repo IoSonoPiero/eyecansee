@@ -93,16 +93,19 @@ impl App {
         let can_save = f.saved().is_some();
         ui.horizontal(|ui| {
             if ui.add_enabled(can_save, egui::Button::new(t("srv-connect"))).clicked() {
+                log!("server manager: save and connect");
                 f.store();
                 connect = f.chosen.and_then(|i| f.servers.get(i)).and_then(|s| s.address()).filter(|_| f.error.is_none());
             }
             if ui.add_enabled(can_save, egui::Button::new(t("srv-save"))).clicked() {
+                log!("server manager: save");
                 f.store();
             }
             if ui.add_enabled(f.chosen.is_some(), egui::Button::new(t("srv-delete"))).clicked() {
                 f.deleting = true;
             }
             if ui.button(t("srv-close")).clicked() {
+                log!("server manager: close");
                 close = true;
             }
         });

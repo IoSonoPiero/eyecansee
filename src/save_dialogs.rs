@@ -275,6 +275,9 @@ impl App {
         }
         // Enter and Esc arrive as `delete_answer` (`raw_input_hook`).
         let mut close = self.delete_answer.take().is_some();
+        if close {
+            log!("notice: closed with Enter or Esc");
+        }
         let stalled = self.stall_notice.as_ref() == Some(&text);
         let (why, url) = (self.i18n.t("phone-stalled-why"), self.i18n.t("phone-stalled-url"));
         message(ctx, "notice", Head { title: &title, warning }, &text, |ui| {
@@ -290,6 +293,7 @@ impl App {
                     close = true;
                 }
                 if ui.button(close_label).clicked() {
+                    log!("notice: Close");
                     close = true;
                 }
             });

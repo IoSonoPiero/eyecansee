@@ -243,6 +243,7 @@ impl App {
             // Its own address, not the last folder of the connection: that one is shared by the
             // servers with the same login, and its root ("") opened as the home.
             if r.clicked() {
+                log!("panel: server {}", s.name);
                 open = Some(address.clone());
             }
             r.context_menu(|ui| {
