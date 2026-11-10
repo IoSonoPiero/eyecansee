@@ -7,6 +7,7 @@ Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto 
 | Tasto | Azione |
 |---|---|
 | F1 | Apre questa guida sulla pagina di ciò che stai facendo; di nuovo per chiuderla |
+| Esc due volte, di seguito | Chiude questa guida, col puntatore sopra o mentre scrivi nel suo campo di ricerca (un solo Esc esce dal campo) |
 
 ## Nella griglia e nel visore
 

@@ -94,6 +94,14 @@ fn viewer_id() -> egui::Id {
     egui::Id::unique("help-page")
 }
 
+/// The id of the guide's window.
+fn window_id() -> egui::Id {
+    egui::Id::unique("help-window")
+}
+
+/// Two presses of Esc within this many seconds close the guide.
+const DOUBLE_ESC: f64 = 0.5;
+
 /// The guide's window: open or not, the page shown, the history and the search.
 pub(crate) struct Guide {
     pub(crate) open: bool,
@@ -110,6 +118,10 @@ pub(crate) struct Guide {
     /// After a result is opened, the match is brought into view again until then (time of
     /// egui): the pictures above it are decoded in the background and push it down.
     settle: Option<f64>,
+    /// When the last Esc for the guide was pressed (time of egui), for the double Esc.
+    last_esc: Option<f64>,
+    /// The search field had the keyboard in the frame before: an Esc there is the guide's.
+    typing: bool,
 }
 
 impl Default for Guide {
@@ -125,6 +137,8 @@ impl Default for Guide {
             hits: vec![],
             images: false,
             settle: None,
+            last_esc: None,
+            typing: false,
         }
     }
 }
@@ -141,20 +155,19 @@ fn fresh_cache() -> CommonMarkCache {
 impl Guide {
     /// Another page; the one left goes in the history.
     fn go(&mut self, id: &'static str) {
-        self.settle = None;
         if id != self.page {
             self.back.push(self.page);
             self.forward.clear();
             self.page = id;
         }
-        self.cache = fresh_cache();
+        self.fresh();
     }
 
     fn back(&mut self) {
         if let Some(id) = self.back.pop() {
             self.forward.push(self.page);
             self.page = id;
-            self.cache = fresh_cache();
+            self.fresh();
         }
     }
 
@@ -162,7 +175,7 @@ impl Guide {
         if let Some(id) = self.forward.pop() {
             self.back.push(self.page);
             self.page = id;
-            self.cache = fresh_cache();
+            self.fresh();
         }
     }
 
@@ -173,8 +186,40 @@ impl Guide {
         self.search();
     }
 
+    /// The results of the field, and its words highlighted in the page shown.
     fn search(&mut self) {
         self.hits = help_search::search(&searched(self.lang), &self.query);
+        self.highlight();
+    }
+
+    /// The page shown from the start, with the words of the field highlighted.
+    fn fresh(&mut self) {
+        self.cache = fresh_cache();
+        self.highlight();
+    }
+
+    /// The matches highlighted in the page follow the search field: none when it is empty, only
+    /// those of the new words when it changes. The page does not move for it while typing.
+    fn highlight(&mut self) {
+        let id = viewer_id();
+        *self.cache.search_options_mut(&id) = SearchOptions::REGEX;
+        *self.cache.search_query_mut(&id) = help_search::pattern(&self.query);
+        self.cache.update_search_matches(&id, page_text(self.lang, self.page));
+        let found = self.cache.search_cache_mut(&id);
+        if found.search_ranges.is_empty() {
+            // With no words egui_commonmark keeps the old active match: dropped here.
+            found.active_match = None;
+            found.sync_active_search_range();
+        }
+        found.take_pending_scroll_to_active_match();
+        self.settle = None;
+    }
+
+    /// An Esc for the guide at `now` (seconds): true when it is the second within `DOUBLE_ESC`.
+    fn esc(&mut self, now: f64) -> bool {
+        let double = self.last_esc.is_some_and(|t| now - t <= DOUBLE_ESC);
+        self.last_esc = if double { None } else { Some(now) };
+        double
     }
 
     /// Opens the page of a result with every match of the search highlighted, the one of the
@@ -183,9 +228,6 @@ impl Guide {
         let Some(hit) = self.hits.get(i).cloned() else { return };
         self.go(hit.id);
         let id = viewer_id();
-        *self.cache.search_options_mut(&id) = SearchOptions::REGEX;
-        *self.cache.search_query_mut(&id) = help_search::pattern(&self.query);
-        self.cache.update_search_matches(&id, page_text(self.lang, hit.id));
         let target = self.cache.search_ranges(&id).iter().position(|r| r.end > hit.at).unwrap_or(0);
         let now = self.cache.active_match(&id).unwrap_or(0);
         self.cache.go_to_match(&id, target.cast_signed() - now.cast_signed());
@@ -248,6 +290,7 @@ struct View {
     can_forward: bool,
     tips: [String; 5],
     hint: String,
+    clear: String,
     nothing: String,
 }
 
@@ -269,7 +312,29 @@ impl App {
     /// Opens the guide on a page (Help > Manual: the table of contents).
     pub(crate) fn open_help(&mut self, id: &'static str) {
         self.help.open = true;
+        self.help.typing = false;
         self.help.go(id);
+    }
+
+    /// Before drawing: an Esc over the guide (the pointer on it, or typing in its search field)
+    /// is the guide's and reaches nothing under it (viewer, editor, slideshow). Once it only
+    /// leaves the field (egui does it); twice within `DOUBLE_ESC` it closes the guide. The
+    /// questions are not reached: their Esc is taken before (`raw_input_hook`).
+    pub(crate) fn help_esc(&mut self, ctx: &egui::Context) {
+        if !self.help.open {
+            return;
+        }
+        let pointer = ctx.input(|i| i.pointer.hover_pos());
+        let over = pointer.zip(ctx.memory(|m| m.area_rect(window_id()))).is_some_and(|(p, r)| r.contains(p));
+        if !over && !self.help.typing {
+            return;
+        }
+        let (esc, now) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, egui::Key::Escape), i.time));
+        if esc && self.help.esc(now) {
+            log!("help: closed with a double Esc");
+            self.help.open = false;
+            self.help.typing = false;
+        }
     }
 
     /// The guide's window, when open.
@@ -290,7 +355,7 @@ impl App {
         }
         self.help.keep_match_in_view(ctx);
         // F1 works with a dialog open: the guide goes over it and its backdrop, and stays usable.
-        let id = egui::Id::unique("help-window");
+        let id = window_id();
         let layer = egui::LayerId::new(egui::Order::Foreground, id);
         if !ctx.memory(|m| m.allows_interaction(layer)) {
             ctx.move_to_top(layer);
@@ -333,6 +398,7 @@ impl App {
             can_forward: !g.forward.is_empty(),
             tips: ["help-back", "help-forward", "help-contents", "help-previous-match", "help-next-match"].map(t),
             hint: t("help-search"),
+            clear: t("help-clear-search"),
             nothing: t("help-nothing-found"),
         }
     }
@@ -409,10 +475,7 @@ fn bar(ui: &mut egui::Ui, v: &View, todo: &mut Option<Do>) {
 /// The search field and under it the results, or the table of contents when it is empty.
 fn side(ui: &mut egui::Ui, g: &mut Guide, v: &View, todo: &mut Option<Do>) {
     ui.add_space(4.0);
-    let field = egui::TextEdit::singleline(&mut g.query).hint_text(&v.hint).desired_width(f32::INFINITY);
-    if ui.add(field).changed() {
-        *todo = Some(Do::Search);
-    }
+    search_field(ui, g, v, todo);
     ui.add_space(4.0);
     egui::ScrollArea::vertical().id_salt("help-side").auto_shrink(false).show(ui, |ui| {
         if g.query.trim().is_empty() {
@@ -437,6 +500,23 @@ fn side(ui: &mut egui::Ui, g: &mut Guide, v: &View, todo: &mut Option<Do>) {
                 }
                 ui.add_space(4.0);
             }
+        }
+    });
+}
+
+/// The search field with a ✕ on its right that empties it, and the highlight in the page with it.
+fn search_field(ui: &mut egui::Ui, g: &mut Guide, v: &View, todo: &mut Option<Do>) {
+    let row = egui::vec2(ui.available_width(), ui.spacing().interact_size.y);
+    ui.allocate_ui_with_layout(row, egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        let clear = ui.add_enabled(!g.query.is_empty(), icons::small(ui, icons::Line::Close)).on_hover_text(&v.clear);
+        if clear.clicked() {
+            g.query.clear();
+            *todo = Some(Do::Search);
+        }
+        let field = ui.add(egui::TextEdit::singleline(&mut g.query).hint_text(&v.hint).desired_width(f32::INFINITY));
+        g.typing = field.has_focus();
+        if field.changed() {
+            *todo = Some(Do::Search);
         }
     });
 }
@@ -514,5 +594,46 @@ mod tests {
         assert_eq!(g.page, "editor-crop");
         assert!(!g.cache.search_ranges(&viewer_id()).is_empty());
         assert_eq!(g.cache.active_match(&viewer_id()), Some(0));
+    }
+
+    /// The highlight follows the field: emptied, nothing; another word, only its matches; on
+    /// another page, the words of the field.
+    #[test]
+    fn highlight_follows_the_field() {
+        let ranges = |g: &Guide| g.cache.search_ranges(&viewer_id()).to_vec();
+        let only = |g: &Guide, word: &str| {
+            let text = page_text(g.lang, g.page);
+            let found = ranges(g);
+            !found.is_empty() && found.iter().all(|r| text[r.clone()].to_lowercase() == word)
+        };
+        let mut g = Guide::default();
+        g.language("en");
+        g.query = "crop".into();
+        g.search();
+        g.open_hit(0);
+        assert!(only(&g, "crop"));
+        g.query.clear();
+        g.search();
+        assert!(ranges(&g).is_empty());
+        assert_eq!(g.cache.active_match(&viewer_id()), None);
+        g.query = "rotate".into();
+        g.search();
+        assert!(only(&g, "rotate"), "only the new word");
+        g.go("rotate");
+        assert!(only(&g, "rotate"), "another page, the words of the field");
+        g.query = "   ".into();
+        g.search();
+        assert!(ranges(&g).is_empty(), "spaces are no search");
+    }
+
+    /// Two presses of Esc close the guide only when close together; a third starts again.
+    #[test]
+    fn double_esc() {
+        let mut g = Guide::default();
+        assert!(!g.esc(10.0));
+        assert!(g.esc(10.4));
+        assert!(!g.esc(10.5), "a third press starts again");
+        assert!(!g.esc(11.2), "too late");
+        assert!(g.esc(11.6));
     }
 }

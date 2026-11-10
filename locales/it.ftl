@@ -100,6 +100,7 @@ help-back = Indietro
 help-forward = Avanti
 help-contents = Sommario
 help-search = Cerca nel manuale
+help-clear-search = Svuota la ricerca
 help-nothing-found = Nessun risultato.
 help-previous-match = Risultato precedente
 help-next-match = Risultato successivo
