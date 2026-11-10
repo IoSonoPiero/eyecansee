@@ -302,10 +302,14 @@ mod tests {
     /// What an interrupted "Save" left is tidied up when the folder is read: an original alone
     /// takes its name back, a new file goes; an original next to its new version, and the files
     /// of a save still running, stay.
+    ///
+    /// `SAVING` is shared by the tests running in parallel and holds paths without their store: a
+    /// folder no other test uses, or their "p/a.jpg" being saved would keep ".a.jpg.eyecansee-old".
     #[test]
     fn recover_leftovers() {
         let dir = std::env::temp_dir().join(format!("eyecansee-recover-{}", std::process::id()));
-        let p = dir.join("p");
+        let _ = std::fs::remove_dir_all(&dir);
+        let p = dir.join("recover");
         std::fs::create_dir_all(&p).unwrap();
         let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
         std::fs::write(p.join(".a.jpg.eyecansee-old"), b"a").unwrap();
@@ -314,10 +318,10 @@ mod tests {
         std::fs::write(p.join("c.jpg"), b"c").unwrap();
         std::fs::write(p.join(".c.jpg.eyecansee-old"), b"c old").unwrap();
         std::fs::write(p.join(".d.jpg.eyecansee-new"), b"writing").unwrap();
-        SAVING.lock().unwrap().insert("p/d.jpg".into());
-        let l = tokio::runtime::Runtime::new().unwrap().block_on(op.list("p/")).unwrap();
-        SAVING.lock().unwrap().remove("p/d.jpg");
-        assert_eq!(l.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["p/a.jpg", "p/b.jpg", "p/c.jpg"]);
+        SAVING.lock().unwrap().insert("recover/d.jpg".into());
+        let l = tokio::runtime::Runtime::new().unwrap().block_on(op.list("recover/")).unwrap();
+        SAVING.lock().unwrap().remove("recover/d.jpg");
+        assert_eq!(l.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["recover/a.jpg", "recover/b.jpg", "recover/c.jpg"]);
         assert_eq!(std::fs::read(p.join("a.jpg")).unwrap(), b"a");
         assert!(!p.join(".b.jpg.eyecansee-new").exists() && !p.join(".a.jpg.eyecansee-old").exists());
         assert!(p.join(".c.jpg.eyecansee-old").exists() && p.join(".d.jpg.eyecansee-new").exists());
