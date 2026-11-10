@@ -111,9 +111,9 @@ sudo dnf install eyecansee</code></pre>
 <section id="features">
   <h2>What it does</h2>
   <div class="cards">
-    <div class="card"><h3>Browse everything the same way</h3><p>Folders, external disks and USB sticks, SFTP, FTP and FTPS servers, Android phones and cameras over USB. No import and no database: open a folder and the photos are there.</p></div>
-    <div class="card"><h3>Viewer</h3><p>Zoom, preloading so moving between images never waits, photo details (camera, exposure, date, place on a map), videos with sound and a full-screen slideshow.</p></div>
-    <div class="card"><h3>Copy between devices</h3><p>Copy and move from the phone to a disk or a server and back, rename, delete with a trash on every device.</p></div>
+    <div class="card"><h3>Browse everything the same way</h3><p>Folders, external disks and USB sticks, SFTP, FTP and FTPS servers, Android phones and cameras over USB. No import and no database: open a folder and the photos are there. Bookmarks bring any of them back with one click.</p></div>
+    <div class="card"><h3>Viewer</h3><p>Zoom, preloading so moving between images never waits, photo details (camera, exposure, date, place on a map), videos with sound, also from a server without stutter when the connection is fast enough, and a full-screen slideshow.</p></div>
+    <div class="card"><h3>Copy between devices</h3><p>Copy and move from the phone to a disk or a server and back, rename, delete with a trash on every device. Downloads from a distant SFTP server come close to FileZilla's speed on the same computer: about 15 MB/s from a Hetzner Storage Box.</p></div>
     <div class="card"><h3>Convert</h3><p>Images to JPEG, PNG, WebP, AVIF, TIFF and more, many files at once; videos with FFmpeg, on the graphics card when it can, keeping the metadata and the GPS track of dashcams and drones.</p></div>
     <div class="card"><h3>Duplicates</h3><p>Finds identical photos, videos and audio files in a folder and its subfolders, on any device, and always keeps at least one copy.</p></div>
     <div class="card"><h3>Formats</h3><p>HEIC, AVIF, JPEG XL, PSD, Camera RAW from many brands, and rarer formats through ImageMagick. English and Italian, light and dark theme.</p></div>
@@ -131,6 +131,17 @@ sudo dnf install eyecansee</code></pre>
     <div class="card"><h3>Mark up</h3><p>Lines and arrows (also curved), rectangles, ellipses, freehand, highlighter, spotlight, text (also along a curve), speech bubbles, numbered steps, stamps and a magnifier.</p></div>
     <div class="card"><h3>Cover private data</h3><p>Solid boxes: nothing of what they cover is left in the saved file. Blur and pixelate too, with a warning that they are not enough to hide text.</p></div>
     <div class="card"><h3>Change, then save</h3><p>Filters on a part or on the whole image, a selection to copy, cut and paste, crop and rotate by any angle, an eyedropper. Everything can be moved and undone until you save.</p></div>
+  </div>
+</section>
+
+<section id="guide">
+  <h2>Illustrated guide</h2>
+  <a href="img/guide.png"><img class="shot" src="img/guide.webp" width="800" height="533" loading="lazy" alt="The guide inside EyeCanSee: the contents on the left and, on the right, a page about the image editor with its picture"></a>
+  <p>Press F1 at any time: the guide opens inside EyeCanSee on the page about what is on screen, whether the grid, the viewer, the editor with the tool in use, a window or the address bar. F1 again closes it; Help &gt; Manual opens the contents.</p>
+  <div class="cards">
+    <div class="card"><h3>Every feature, with pictures</h3><p>45 pages in English and Italian, from getting started to the keyboard shortcuts, the supported formats and the known limits, with screenshots of the program.</p></div>
+    <div class="card"><h3>Search every page</h3><p>The search field is ready as soon as the guide opens. It looks through every page, ignoring capitals and accents, and highlights the words found.</p></div>
+    <div class="card"><h3>As in a browser</h3><p>Back and forward, links from one page to another, the contents always at hand. The same pages can also be read <a href="https://github.com/IoSonoPiero/eyecansee/blob/main/docs/help/en/index.md">on GitHub</a>.</p></div>
   </div>
 </section>
 
@@ -155,10 +166,13 @@ sudo dnf install eyecansee</code></pre>
     <figure><a href="img/model-3d.png"><img class="shot" src="img/model-3d.webp" width="800" height="533" loading="lazy" alt="A 3D model of an avocado with its textures, in the 3D viewer"></a><figcaption>A 3D model with its textures</figcaption></figure>
     <figure><a href="img/cad-drawing.png"><img class="shot" src="img/cad-drawing.webp" width="800" height="533" loading="lazy" alt="A DWG floor plan of a flat, with room names, furniture and dimensions"></a><figcaption>A DWG drawing with layers and dimensions</figcaption></figure>
     <figure><a href="img/devices.png"><img class="shot" src="img/devices.webp" width="800" height="533" loading="lazy" alt="The left panel with a phone, two servers and the home folder, and a folder of an FTP server open in the grid"></a><figcaption>Folders, two servers and a phone side by side</figcaption></figure>
+    <figure><a href="img/bookmarks.png"><img class="shot" src="img/bookmarks.webp" width="800" height="533" loading="lazy" alt="The Bookmarks menu open, with the places saved by name, ready to open with one click"></a><figcaption>Bookmarks</figcaption></figure>
     <figure><a href="img/convert.png"><img class="shot" src="img/convert.webp" width="800" height="533" loading="lazy" alt="Save in another format: the original JPEG and the converted one side by side, with format, quality and metadata options"></a><figcaption>Saving in another format</figcaption></figure>
     <figure><a href="img/video-convert.png"><img class="shot" src="img/video-convert.webp" width="1066" height="533" loading="lazy" alt="The Convert and resize window for four videos: container, codec, graphics card encoder, quality, turn and size"></a><figcaption>Converting videos</figcaption></figure>
     <figure><a href="img/rotate.png"><img class="shot" src="img/rotate.webp" width="800" height="533" loading="lazy" alt="Rotate and crop: a mountain photo with the crop frame and the rotation and crop controls"></a><figcaption>Rotating and cropping</figcaption></figure>
+    <figure><a href="img/open-location.png"><img class="shot" src="img/open-location.webp" width="800" height="533" loading="lazy" alt="Open location: protocol, server, port, user, password and folder of a server, with the Open and Save and open buttons"></a><figcaption>Opening a server, and saving it</figcaption></figure>
     <figure><a href="img/servers.png"><img class="shot" src="img/servers.webp" width="800" height="533" loading="lazy" alt="The server manager: a saved FTP server and the master password that encrypts the saved servers"></a><figcaption>The server manager</figcaption></figure>
+    <figure><a href="img/guide-search.png"><img class="shot" src="img/guide-search.webp" width="800" height="533" loading="lazy" alt="A search in the guide: the pages found listed on the left and the words found highlighted in the page"></a><figcaption>Searching the guide</figcaption></figure>
   </div>
 </section>
 
@@ -166,6 +180,7 @@ sudo dnf install eyecansee</code></pre>
   <h2>Trust</h2>
   <ul class="trust">
     <li>Every release file is signed with <a href="https://jedisct1.github.io/minisign/">minisign</a>, and the app installs only updates with a valid signature.</li>
+    <li>A save or a paste that fails, for example on a full disk, leaves no half-written file: a file being replaced stays as it was until the new one is complete.</li>
     <li>Free and open source, <a href="https://github.com/IoSonoPiero/eyecansee/blob/main/LICENSE">GPL-3.0-or-later</a>.</li>
     <li>No ads, no account, and the app collects no data; the website counts its visits without cookies: see the <a href="https://github.com/IoSonoPiero/eyecansee/blob/main/PRIVACY.md">privacy policy</a>.</li>
     <li>I am not a programmer any more: I wrote EyeCanSee with the help of <a href="https://claude.com/claude-code">Claude Code</a>, and I test every feature on my own computers and devices before it goes in.</li>

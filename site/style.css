@@ -98,7 +98,7 @@ li code { overflow-wrap: anywhere; } /* a long name in a list breaks instead of 
 .number span { color: var(--muted); font-size: 0.95rem; }
 .gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
 .gallery figure { margin: 0; }
-.gallery a { display: block; } /* each screenshot opens at full size */
+.gallery a, #guide > a { display: block; } /* each screenshot opens at full size */
 /* One 3:2 frame for every screenshot, whatever its own size, so a row starts and ends level:
    a wider one (video-convert, 2:1) is cut at the right, never stretched. */
 .gallery .shot { width: 100%; aspect-ratio: 3 / 2; object-fit: cover; object-position: left center; }
