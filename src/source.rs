@@ -157,7 +157,7 @@ impl Store {
 
     async fn list_once(&self, dir: &str) -> Result<Listing, Error> {
         match self {
-            Store::Dal(op) => list(op, dir).await.map_err(dal_error),
+            Store::Dal(op) => list(op, dir).await,
             Store::Mtp(phone) => phone.list(dir).await,
             Store::Sftp(server) => server.list(dir).await,
             Store::Ftp(server) => server.list(dir).await,
@@ -228,14 +228,7 @@ impl Store {
     /// Names of everything in a folder, of any type, hidden ones too (folders without the "/").
     pub async fn names(&self, dir: &str) -> Result<HashSet<String>, Error> {
         match self {
-            Store::Dal(op) => {
-                let entries = op.list(if dir.is_empty() { "/" } else { dir }).await.map_err(dal_error)?;
-                Ok(entries
-                    .iter()
-                    .filter(|e| e.path().trim_start_matches('/') != dir)
-                    .map(|e| e.name().trim_end_matches('/').to_string())
-                    .collect())
-            }
+            Store::Dal(op) => Ok(local_items(op, dir).await?.into_iter().map(|i| i.1).collect()),
             Store::Mtp(phone) => phone.names(dir).await,
             Store::Sftp(server) => server.names(dir).await,
             Store::Ftp(server) => server.names(dir).await,
@@ -372,20 +365,23 @@ impl Store {
         match self {
             Store::Dal(op) => {
                 *p.current.lock().unwrap() = dir.to_string();
-                let entries = op.list_with(dir).recursive(true).await.map_err(dal_error)?;
-                let mut found = Vec::new();
-                for e in entries {
-                    if p.cancel.load(Ordering::Relaxed) {
-                        return Err(("error-cancelled", String::new()));
-                    }
-                    let path = e.path().trim_start_matches('/').to_string();
-                    if path == dir {
+                let (mut found, mut todo, mut seen) = (Vec::new(), vec![dir.to_string()], HashSet::new());
+                while let Some(dir) = todo.pop() {
+                    // Links to folders are followed, but a folder already walked (a link to a
+                    // folder above) is not walked again.
+                    if !seen.insert(local_path(op, &dir).canonicalize().unwrap_or_default()) {
                         continue;
                     }
-                    // The size is not always in the listing (local files): asked one by one.
-                    let size = if path.ends_with('/') { 0 } else { self.size(&path).await? };
-                    found.push((path, size));
-                    p.found.fetch_add(1, Ordering::Relaxed);
+                    for (path, _, is_dir, size, _) in local_items(op, &dir).await? {
+                        if p.cancel.load(Ordering::Relaxed) {
+                            return Err(("error-cancelled", String::new()));
+                        }
+                        if is_dir {
+                            todo.push(path.clone());
+                        }
+                        found.push((path, size));
+                        p.found.fetch_add(1, Ordering::Relaxed);
+                    }
                 }
                 // A folder before its contents, whatever order the service lists them in.
                 found.sort_by(|a, b| a.0.cmp(&b.0));
@@ -696,20 +692,42 @@ impl Listing {
     }
 }
 
-/// Subfolders (without hidden ones) and images of `dir`, sorted by name.
-async fn list(op: &Operator, dir: &str) -> opendal::Result<Listing> {
-    let mut listing = Listing::default();
-    for e in op.list(if dir.is_empty() { "/" } else { dir }).await? {
-        let path = e.path().trim_start_matches('/');
-        if path == dir {
-            continue;
+/// One item of a local folder: path (folders end in "/"), name, folder or not, size, date.
+type LocalItem = (String, String, bool, u64, String);
+
+/// Everything in a local folder, hidden items too, read without OpenDAL's lister: OpenDAL 0.59.5
+/// gives a link to a folder the mode of a folder but a path without "/", and debug builds panic on
+/// it (issue #82, apache/opendal#8456). A link counts as what it points to; one that leads nowhere
+/// (or to itself) is left out, as OpenDAL did. A folder that is missing or not a folder is empty.
+async fn local_items(op: &Operator, dir: &str) -> Result<Vec<LocalItem>, Error> {
+    let (full, dir) = (local_path(op, dir), dir.to_string());
+    let io = |e: std::io::Error| (if e.kind() == std::io::ErrorKind::NotFound { NOT_FOUND } else { "error-detail" }, e.to_string());
+    tokio::task::spawn_blocking(move || {
+        let entries = match std::fs::read_dir(&full) {
+            Err(e) if matches!(e.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory) => return Ok(Vec::new()),
+            r => r.map_err(io)?,
+        };
+        let mut items = Vec::new();
+        for e in entries {
+            let e = e.map_err(io)?;
+            let Ok(m) = std::fs::metadata(e.path()) else { continue };
+            let name = e.file_name().to_string_lossy().into_owned();
+            let path = format!("{dir}{name}{}", if m.is_dir() { "/" } else { "" });
+            let modified = m.modified().ok().and_then(|t| jiff::Timestamp::try_from(t).ok()).map(|t| t.to_string());
+            items.push((path, name, m.is_dir(), if m.is_file() { m.len() } else { 0 }, modified.unwrap_or_default()));
         }
-        let m = e.metadata();
-        // Symlinks to folders arrive without a trailing "/" (see Cargo.toml).
-        let path = if m.is_dir() && !path.ends_with('/') { format!("{path}/") } else { path.to_string() };
-        let modified = m.last_modified().map(|t| t.to_string()).unwrap_or_default();
+        Ok(items)
+    })
+    .await
+    .map_err(|e| ("error-detail", e.to_string()))?
+}
+
+/// Subfolders (without hidden ones) and images of `dir`, sorted by name.
+async fn list(op: &Operator, dir: &str) -> Result<Listing, Error> {
+    let mut listing = Listing::default();
+    for (path, name, is_dir, size, modified) in local_items(op, dir).await? {
         let shown = !hidden(op, &path) && !crate::batch::writing(&local_path(op, &path));
-        listing.add(path, e.name().trim_end_matches('/'), m.is_dir(), m.content_length(), modified, shown);
+        listing.add(path, &name, is_dir, size, modified, shown);
     }
     listing.sort();
     Ok(listing)
@@ -832,6 +850,45 @@ mod tests {
         assert!(dir.join("photos/f/inner").is_dir() && dir.join("photos/f/x (2).jpg").exists());
         assert!(!trash.join("f").exists());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Issue #82: links to folders are folders when listing (debug builds panicked inside
+    /// OpenDAL) and when copying; deleting one takes the link away, never what it points to.
+    #[cfg(unix)]
+    #[test]
+    fn links_to_folders() {
+        let top = std::env::temp_dir().join(format!("eyecansee-links-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&top);
+        std::fs::create_dir_all(top.join("real/sub")).unwrap();
+        std::fs::create_dir_all(top.join("folder")).unwrap();
+        for f in ["real/a.jpg", "real/sub/b.jpg", "folder/c.jpg"] {
+            std::fs::write(top.join(f), b"x").unwrap();
+        }
+        let link = |to: &str, at: &str| std::os::unix::fs::symlink(to, top.join(at)).unwrap();
+        link("real", "link");
+        link("nowhere", "dangling");
+        link("../real", "folder/inner");
+        link(".", "folder/self");
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&top.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let l = rt.block_on(op.list("")).unwrap();
+        assert_eq!(l.dirs, ["folder/", "link/", "real/"]);
+        let l = rt.block_on(op.list("link/")).unwrap();
+        assert_eq!((l.dirs, l.files.len()), (vec!["link/sub/".to_string()], 1));
+        let mut names: Vec<_> = rt.block_on(op.names("")).unwrap().into_iter().collect();
+        names.sort();
+        assert_eq!(names, ["folder", "link", "real"]);
+        // A copy takes what a link points to; a link back to a folder being copied stays empty.
+        let walked = rt.block_on(op.walk("folder/", &crate::transfer::Progress::default())).unwrap();
+        let walked: Vec<_> = walked.iter().map(|(p, size)| format!("{p} {size}")).collect();
+        assert_eq!(walked, ["folder/c.jpg 1", "folder/inner/ 0", "folder/inner/a.jpg 1", "folder/inner/sub/ 0", "folder/inner/sub/b.jpg 1", "folder/self/ 0"]);
+        // Deleted for good or into the trash folder: the link goes, the folder it points to stays whole.
+        rt.block_on(op.delete("link/", Deletion::Permanent)).unwrap();
+        rt.block_on(op.delete("folder/inner/", Deletion::TrashFolder)).unwrap();
+        assert!(top.join("link").symlink_metadata().is_err() && top.join("folder/inner").symlink_metadata().is_err());
+        assert!(top.join("folder").join(TRASH_DIR).join("inner").symlink_metadata().unwrap().is_symlink());
+        assert!(top.join("real/a.jpg").exists() && top.join("real/sub/b.jpg").exists());
+        std::fs::remove_dir_all(&top).unwrap();
     }
 
     #[test]
