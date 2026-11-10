@@ -305,14 +305,43 @@ fn jxl(bytes: &[u8]) -> Result<DynamicImage> {
     oriented(jxl_oxide::integration::JxlDecoder::new(Cursor::new(bytes))?)
 }
 
-/// Format, stored size and colour of an image, from its header (nothing decoded): for the
-/// metadata panel, also when the file has no EXIF. `None` for formats read only by the other
-/// decoders (RAW, SVG, PSD, ImageMagick).
-pub fn header(bytes: &[u8], name: &str) -> Option<(String, [u32; 2], image::ColorType)> {
+/// What a file's header says, for the metadata panel.
+pub struct Header {
+    pub format: String,
+    /// Stored size, before the EXIF orientation turns it.
+    pub size: [u32; 2],
+    /// `None` when the file does not say it (a vector drawing).
+    pub color: Option<Color>,
+}
+
+pub struct Color {
+    pub rgb: bool,
+    pub alpha: bool,
+    /// Bits per channel.
+    pub bits: u16,
+}
+
+impl From<image::ColorType> for Color {
+    fn from(c: image::ColorType) -> Self {
+        Color { rgb: c.has_color(), alpha: c.has_alpha(), bits: c.bits_per_pixel() / u16::from(c.channel_count()) }
+    }
+}
+
+/// Format, stored size and colour of an image, from its header (nothing decoded, nothing
+/// developed): for the metadata panel, also when the file has no EXIF. `None` for the formats
+/// read only by ImageMagick and the other rare decoders.
+pub fn header(bytes: &[u8], name: &str) -> Option<Header> {
     let ext = ext(name).unwrap_or_default();
+    let found = |format: &str, size: (u32, u32), color: image::ColorType| Header { format: format.into(), size: size.into(), color: Some(color.into()) };
+    match kind(name) {
+        Some(Kind::Raw) => return crate::raw_meta::header(bytes),
+        Some(Kind::Svg) => return svg_header(bytes),
+        _ if ext == "psd" || ext == "psb" => return crate::psd::header(bytes),
+        _ => {}
+    }
     if ext == "jxl" {
         let d = jxl_oxide::integration::JxlDecoder::new(Cursor::new(bytes)).ok()?;
-        return Some(("JPEG XL".into(), d.dimensions().into(), d.color_type()));
+        return Some(found("JPEG XL", d.dimensions(), d.color_type()));
     }
     #[cfg(feature = "heif")]
     if HEIF.contains(&ext.as_str()) {
@@ -325,7 +354,7 @@ pub fn header(bytes: &[u8], name: &str) -> Option<(String, [u32; 2], image::Colo
             (false, true) => image::ColorType::Rgb16,
             (true, true) => image::ColorType::Rgba16,
         };
-        return Some((ext.to_uppercase(), [h.width(), h.height()], color));
+        return Some(found(&ext.to_uppercase(), (h.width(), h.height()), color));
     }
     let reader = image::ImageReader::new(Cursor::new(bytes)).with_guessed_format().ok()?;
     let format = reader.format()?;
@@ -335,7 +364,15 @@ pub fn header(bytes: &[u8], name: &str) -> Option<(String, [u32; 2], image::Colo
         image::ImageFormat::OpenExr => "OpenEXR".to_string(),
         f => format!("{f:?}").to_uppercase(),
     };
-    Some((name, d.dimensions().into(), d.color_type()))
+    Some(found(&name, d.dimensions(), d.color_type()))
+}
+
+/// An SVG's own size (its `width` and `height`, else its `viewBox`), parsed without the system
+/// fonts: the size does not depend on them. Shown rasterised at `SVG_SIDE`, but that is not the file's.
+fn svg_header(bytes: &[u8]) -> Option<Header> {
+    let tree = usvg::Tree::from_data(bytes, &usvg::Options::default()).ok()?;
+    let size = tree.size();
+    Some(Header { format: "SVG".into(), size: [size.width().round() as u32, size.height().round() as u32], color: None })
 }
 
 /// HEIC and AVIF. libheif applies the container's rotations and mirroring by itself.
@@ -672,6 +709,10 @@ mod tests {
         assert!(e.contains("16-bit"), "{e}");
         let img = extra(&psd(8), "x.psd").unwrap();
         assert_eq!((img.width(), img.height()), (2, 2));
+        // The metadata panel reads the same from the header alone.
+        let h = header(&psd(16), "x.psd").unwrap();
+        let c = h.color.unwrap();
+        assert_eq!((h.format.as_str(), h.size, c.rgb, c.alpha, c.bits), ("PSD", [2, 2], true, false, 16));
         assert_eq!(img.to_rgba8().get_pixel(1, 1), &image::Rgba([10, 20, 30, 255]));
         #[cfg(feature = "magick")]
         assert_eq!(decode_any(&psd(16), "x.psd").unwrap().to_rgba8().get_pixel(1, 1), &image::Rgba([10, 20, 30, 255]));
@@ -691,6 +732,10 @@ mod tests {
         let img = decode(svg_src, "x.svg").unwrap();
         assert_eq!(img.size, [2048, 1024]);
         assert_eq!(img.pixels[0], eframe::egui::Color32::RED);
+        // Its own size in the metadata panel, not the one it is drawn at; no colour model.
+        let h = header(svg_src, "x.svg").unwrap();
+        assert_eq!((h.format.as_str(), h.size, h.color.is_none()), ("SVG", [20, 10], true));
+        assert!(header(b"I am not an image", "x.svg").is_none() && header(b"I am not an image", "x.dng").is_none());
 
         let mut png = Vec::new();
         RgbaImage::new(3, 2).write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
@@ -748,6 +793,40 @@ mod tests {
         }
         let n = n.max(1);
         println!("{n} files, per file: full decoding {:?} + resize {:?}; thumbnail() {:?}", dec / n, resize / n, fast / n);
+    }
+
+    /// The size the metadata panel gives a RAW file, from its structure, against the developed
+    /// picture (or turned by its orientation), and how long each takes:
+    /// `EYECANSEE_SAMPLES=/folder cargo test --release raw_header -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn raw_header() {
+        let dir = std::env::var("EYECANSEE_SAMPLES").expect("EYECANSEE_SAMPLES not set");
+        let mut paths: Vec<_> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).collect();
+        paths.sort();
+        for p in paths {
+            let name = p.file_name().unwrap().to_string_lossy().into_owned();
+            if kind(&name) != Some(Kind::Raw) {
+                continue;
+            }
+            let bytes = std::fs::read(&p).unwrap();
+            let t = std::time::Instant::now();
+            let h = header(&bytes, &name);
+            let fast = t.elapsed();
+            let t = std::time::Instant::now();
+            let img = raw(&bytes);
+            let slow = t.elapsed();
+            let (Some(h), Ok(img)) = (h, img) else {
+                println!("{name:60} not read; header {fast:?}, development {slow:?}");
+                continue;
+            };
+            let c = h.color.unwrap();
+            println!("{name:60} {} {:?} rgb {}; header {fast:?}, developed {:?} {:?} in {slow:?}", h.format, h.size, c.rgb, [img.width(), img.height()], img.color());
+            let d = Color::from(img.color());
+            assert_eq!((c.rgb, c.alpha, c.bits), (d.rgb, d.alpha, d.bits), "{name}");
+            let [w, h] = h.size;
+            assert!((w, h) == (img.width(), img.height()) || (h, w) == (img.width(), img.height()), "{name}");
+        }
     }
 
     /// Manual check on real files:

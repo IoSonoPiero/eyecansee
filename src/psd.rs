@@ -48,6 +48,27 @@ pub fn metadata(bytes: &[u8]) -> Option<crate::meta_write::Extra> {
     Some(crate::meta_write::Extra { xmp: i.xmp, irb: (!i.irb.is_empty()).then_some(i.irb), icc: i.icc, exif: i.exif })
 }
 
+/// Format, size and colour from the 26 bytes of the header (PSD, or PSB its big version), for
+/// the metadata panel; the colour only for the RGB and greyscale modes, the panel has no names
+/// for the others (CMYK, Lab, indexed…). `None` if it is not one.
+pub fn header(bytes: &[u8]) -> Option<crate::decode::Header> {
+    let h = bytes.get(..26).filter(|h| h.starts_with(b"8BPS"))?;
+    let be16 = |at: usize| u16::from_be_bytes([h[at], h[at + 1]]);
+    let be32 = |at: usize| u32::from_be_bytes([h[at], h[at + 1], h[at + 2], h[at + 3]]);
+    let format = match be16(4) {
+        1 => "PSD",
+        2 => "PSB",
+        _ => return None,
+    };
+    let (channels, bits) = (be16(12), be16(22));
+    let color = match be16(24) {
+        3 => Some(crate::decode::Color { rgb: true, alpha: channels > 3, bits }),
+        1 => Some(crate::decode::Color { rgb: false, alpha: channels > 1, bits }),
+        _ => None,
+    };
+    Some(crate::decode::Header { format: format.into(), size: [be32(18), be32(14)], color })
+}
+
 /// Can this PSD be saved over itself without losing anything but pixels it does not have?
 pub fn simple(bytes: &[u8]) -> bool {
     read(bytes).is_some_and(|i| i.simple)

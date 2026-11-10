@@ -247,31 +247,31 @@ pub fn read_file(bytes: &[u8], name: &str) -> Option<Meta> {
         return None;
     }
     let meta_ref = meta.get_or_insert_default();
-    if let Some((format, [w, h], color)) = header {
+    if let Some(crate::decode::Header { format, size: [w, h], color }) = header {
         let has = |label| meta_ref.fields.iter().any(|(_, l, _)| *l == label);
         let mut add = vec![(Group::Image, "meta-format", format)];
         if !has("meta-width") {
             add.push((Group::Image, "meta-width", format!("{w} px")));
             add.push((Group::Image, "meta-height", format!("{h} px")));
         }
-        let (kind, bits) = color_kind(color);
-        add.push((Group::Image, "meta-color", kind.to_string()));
-        add.push((Group::Image, "meta-depth", format!("{bits} bit")));
+        if let Some(c) = color {
+            add.push((Group::Image, "meta-color", color_kind(&c).to_string()));
+            add.push((Group::Image, "meta-depth", format!("{} bit", c.bits)));
+        }
         // Format first in its box, the EXIF fields after.
         meta_ref.fields.splice(0..0, add);
     }
     meta
 }
 
-/// Fluent id of the colour model and bits per channel.
-fn color_kind(c: image::ColorType) -> (&'static str, u16) {
-    let kind = match (c.has_color(), c.has_alpha()) {
+/// Fluent id of the colour model.
+fn color_kind(c: &crate::decode::Color) -> &'static str {
+    match (c.rgb, c.alpha) {
         (true, false) => "meta-color-rgb",
         (true, true) => "meta-color-rgba",
         (false, false) => "meta-color-gray",
         (false, true) => "meta-color-graya",
-    };
-    (kind, c.bits_per_pixel() / u16::from(c.channel_count()))
+    }
 }
 
 /// `None` if the file has no EXIF (or it cannot be read).
