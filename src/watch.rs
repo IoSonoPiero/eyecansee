@@ -113,7 +113,7 @@ impl App {
         // In the status bar for a while, and in a message to close (user, 2026-10-29).
         self.status_note = Some(text.clone());
         self.note_until = Some(ctx.input(|i| i.time) + NOTE_SECS);
-        self.notice = Some((text, None));
+        self.tell("file-removed-title", text);
     }
 
     /// Changes made on the open phone itself (`mtp::take_changes`): the open folder is read again,
@@ -158,13 +158,14 @@ impl App {
                     self.i18n.t("phone-stalled")
                 };
                 log!("phone stalled: message shown");
-                (self.notice, self.stall_notice) = (Some((text.clone(), None)), Some(text));
+                self.tell("phone-stalled-title", text.clone());
+                self.stall_notice = Some(text);
             }
             Some(_) => {}
             None => {
                 // Answering again: our message goes, another one stays.
                 if let Some(text) = self.stall_notice.take()
-                    && self.notice.as_ref().is_some_and(|(t, _)| *t == text)
+                    && self.notice.as_ref().is_some_and(|n| n.text == text)
                 {
                     self.notice = None;
                 }

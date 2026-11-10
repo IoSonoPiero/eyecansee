@@ -4,7 +4,7 @@ Le password e le passphrase delle chiavi dei server salvati si possono protegger
 
 ## Senza password principale
 
-Il riquadro in cima a **File > Gestione server…** dice **Nessuna password principale: password e passphrase sono salvate in chiaro.** Sono scritte nel file `servers.json` della cartella delle impostazioni (su Linux leggibile solo da te). Chi può leggere i tuoi file può leggere anche queste password. La prima volta che salvi un server, EyeCanSee te lo dice con un avviso.
+Il riquadro giallo in cima a **File > Gestione server…**, con il triangolo di avviso, dice **Nessuna password principale: password e passphrase sono salvate in chiaro.** Sono scritte nel file `servers.json` della cartella delle impostazioni (su Linux leggibile solo da te). Chi può leggere i tuoi file può leggere anche queste password. La prima volta che salvi un server, EyeCanSee te lo dice con un avviso, **Server salvati in chiaro**.
 
 ## Impostare una password principale
 

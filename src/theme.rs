@@ -117,7 +117,37 @@ pub fn alert_button(text: String) -> egui::Button<'static> {
 /// Something under way or not saved, in the status bars: a yellow label with dark bold text
 /// (contrast about 13:1). White on the blue bar went unnoticed (user, 2026-10-26).
 pub fn alert(text: String) -> egui::RichText {
-    egui::RichText::new(format!(" {text} ")).strong().color(Color32::from_gray(26)).background_color(Color32::from_rgb(0xFF, 0xD5, 0x4F))
+    egui::RichText::new(format!(" {text} ")).strong().color(Color32::from_gray(26)).background_color(ALERT_YELLOW)
+}
+
+const ALERT_YELLOW: Color32 = Color32::from_rgb(0xFF, 0xD5, 0x4F);
+/// The edge and the "!" of the warning triangle: dark on its yellow in both themes.
+const ALERT_INK: Color32 = Color32::from_rgb(0x4A, 0x32, 0x00);
+
+/// Something that went wrong or needs reading: the error bar, the warning about servers saved in
+/// plain text. A band of pale amber with a darker edge and dark text (light theme, text 13:1 on
+/// the fill, edge 3.5:1), dark amber with pale text (dark theme, 12:1 and 6:1). Red text on the
+/// dark bar was hard to read (user, 2026-11-10).
+pub fn warning_frame(v: &Visuals) -> egui::Frame {
+    let (fill, edge) = if v.dark_mode { (rgb(60, 44, 8), rgb(230, 170, 40)) } else { (rgb(255, 243, 205), rgb(176, 120, 0)) };
+    egui::Frame::new().fill(fill).stroke(Stroke::new(1.5, edge)).corner_radius(4).inner_margin(egui::Margin::symmetric(10, 8))
+}
+
+/// The text in `warning_frame`.
+pub fn warning_text(v: &Visuals) -> Color32 {
+    if v.dark_mode { rgb(255, 232, 170) } else { rgb(61, 40, 0) }
+}
+
+/// The warning triangle: yellow with a dark edge and "!", the same in both themes, as road signs.
+pub fn warning_icon(ui: &mut egui::Ui, size: f32) -> egui::Response {
+    let (rect, response) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
+    let (s, p) = (size, ui.painter());
+    let at = |x: f32, y: f32| rect.min + egui::vec2(x * s, y * s);
+    let edge = Stroke::new((s * 0.06).max(1.0), ALERT_INK);
+    p.add(egui::Shape::convex_polygon(vec![at(0.5, 0.06), at(0.97, 0.9), at(0.03, 0.9)], ALERT_YELLOW, edge));
+    p.line_segment([at(0.5, 0.35), at(0.5, 0.62)], Stroke::new(s * 0.1, ALERT_INK));
+    p.circle_filled(at(0.5, 0.75), s * 0.055, ALERT_INK);
+    response
 }
 
 pub fn canvas(v: &Visuals) -> Color32 {

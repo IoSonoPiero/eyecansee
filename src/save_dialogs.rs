@@ -71,7 +71,7 @@ impl App {
         ];
         // Esc: back to the image; Enter does nothing here (no choice is safe to guess).
         let keys = self.delete_answer.take().filter(|yes| !yes).map(|_| None);
-        let Some(answer) = confirm::choose(ctx, "turn-leave", 440.0, text, choices, self.i18n.t("delete-no"), keys) else { return };
+        let Some(answer) = confirm::choose(ctx, "turn-leave", 440.0, (self.i18n.t("leave-title"), text), choices, self.i18n.t("delete-no"), keys) else { return };
         self.after_turn = None;
         match answer {
             Some(Leave::Save) => {
@@ -101,14 +101,14 @@ impl App {
             return;
         }
         let how = ok.first().map_or(source::Deletion::Permanent, |p| loader.deletion(p, self.settings.local_permanent, self.settings.remote_delete));
-        let label = transform_items().into_iter().find(|(o, ..)| *o == op).map_or("", |(_, l, _)| l);
+        let label = self.op_label(op);
         let n = ok.len().to_string();
         let where_id = match how {
             source::Deletion::SystemTrash => "batch-originals-trash",
             source::Deletion::TrashFolder => "batch-originals-folder",
             source::Deletion::Permanent => "batch-originals-permanent",
         };
-        let mut text = format!("{}\n\n{}", self.i18n.t_args("batch-turn-confirm", &[("op", &self.i18n.t(label)), ("n", &n)]), self.i18n.t(where_id));
+        let mut text = format!("{}\n\n{}", self.i18n.t_args("batch-turn-confirm", &[("n", &n)]), self.i18n.t(where_id));
         if ok.iter().any(|p| matches!(encode::Format::of_file(p), Some(encode::Format::Jpeg | encode::Format::Webp | encode::Format::Avif | encode::Format::Gif))) {
             text = format!("{text}\n\n{}", self.i18n.t("batch-lossy"));
         }
@@ -126,17 +126,22 @@ impl App {
         let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
         // Only Esc (as `delete_answer`): Enter does not overwrite many images.
         let keys = self.delete_answer.take().and_then(|yes| (!yes).then_some(false));
-        match confirm::yes_no(ctx, "batch-turn", 460.0, text, yes, !ok.is_empty(), no, keys) {
+        match confirm::yes_no(ctx, "batch-turn", 460.0, (label.clone(), text), yes, !ok.is_empty(), no, keys) {
             Some(true) => {
                 log!("transform {op:?} on {} images, {how:?}", ok.len());
                 self.saving.extend(ok.iter().cloned());
                 loader.replace(ok, transform::Turn::default().then(op), how);
-                self.batch_saved.get_or_insert(0);
+                self.batch_saved.get_or_insert((op, 0));
                 self.batch_turn = None;
             }
             Some(false) => self.batch_turn = None,
             None => {}
         }
+    }
+
+    /// The name of a transform as its menu item says it: the title of its windows.
+    fn op_label(&self, op: transform::Op) -> String {
+        self.i18n.t(op_id(op))
     }
 
     /// Not one of the images can be saved over itself: say why instead of "up to 0 images will be
@@ -156,7 +161,7 @@ impl App {
         let choices = single.iter().map(|p| (self.i18n.t("menu-save-copy"), true, p.clone())).collect();
         // Enter: Save as… (when there is one); Esc: cancel.
         let keys = self.delete_answer.take().map(|yes| if yes { single.clone() } else { None });
-        match confirm::choose(ctx, "batch-turn", 460.0, text, choices, self.i18n.t("delete-no"), keys) {
+        match confirm::choose(ctx, "batch-turn", 460.0, (self.op_label(op), text), choices, self.i18n.t("delete-no"), keys) {
             Some(Some(path)) => {
                 self.batch_turn = None;
                 self.open_convert(Some(path));
@@ -204,7 +209,7 @@ impl App {
                     .map(|f| self.i18n.t_args("save-format", &[("name", &md(source::name(&f.path)))]))
             };
             if let Some(text) = text {
-                self.notice = Some((text, Some(Act::Convert(None))));
+                self.notice = Some(Notice { save_as: Some(Act::Convert(None)), ..Notice::new(self.i18n.t("save-not-possible"), text) });
             }
             return;
         }
@@ -228,7 +233,7 @@ impl App {
         let text = self.save_confirm_text(&path, how, lossy);
         let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
         // Enter and Esc arrive as `delete_answer` (`raw_input_hook`).
-        match confirm::yes_no(ctx, "save", 420.0, text, yes, true, no, self.delete_answer.take()) {
+        match confirm::yes_no(ctx, "save", 420.0, (self.i18n.t("save-title"), text), yes, true, no, self.delete_answer.take()) {
             Some(true) => {
                 log!("save {path:?} {turn:?} {how:?}");
                 loader.replace_with(path.clone(), data, how);
@@ -263,7 +268,7 @@ impl App {
     /// A message that needs reading (Markdown: names in bold, lists), with "Save as…" for the
     /// open image when it helps.
     pub(crate) fn notice_window(&mut self, ctx: &egui::Context) {
-        let Some((mut text, save_as)) = self.notice.clone() else { return };
+        let Some(Notice { title, mut text, save_as, warning }) = self.notice.clone() else { return };
         let (copy, close_label) = (self.i18n.t("menu-save-copy"), self.i18n.t("notice-close"));
         if save_as.is_some() {
             text = format!("{text}\n\n{}", self.i18n.t("save-as-hint"));
@@ -272,7 +277,7 @@ impl App {
         let mut close = self.delete_answer.take().is_some();
         let stalled = self.stall_notice.as_ref() == Some(&text);
         let (why, url) = (self.i18n.t("phone-stalled-why"), self.i18n.t("phone-stalled-url"));
-        message(ctx, "notice", &text, |ui| {
+        message(ctx, "notice", Head { title: &title, warning }, &text, |ui| {
             // A stalled phone (`phone_stall`): our page on why, in the app's language.
             if stalled {
                 ui.hyperlink_to(why, url);
@@ -293,15 +298,69 @@ impl App {
             self.notice = None;
         }
     }
+
+    /// A message window titled with the Fluent id `title`.
+    pub(crate) fn tell(&mut self, title: &str, text: String) {
+        self.notice = Some(Notice::new(self.i18n.t(title), text));
+    }
 }
 
-/// A message window, as all of them look (issue #11): modal, 320 to 460 points wide, the text
-/// (`notice_text`), then what `below` adds (its buttons).
-pub(crate) fn message(ctx: &egui::Context, id: &str, text: &str, below: impl FnOnce(&mut egui::Ui)) {
+/// The Fluent id of a transform's menu item; also the key of its variants in "batch-done".
+pub(crate) fn op_id(op: transform::Op) -> &'static str {
+    transform_items().into_iter().find(|(o, ..)| *o == op).map_or("", |(_, l, _)| l)
+}
+
+/// A message to read (`App::notice`): what it is about, what happened, and "Save as…" for the
+/// open image when that helps. A box with only "Images saved: 2." left the user wondering what
+/// had happened (2026-11-10): every message has its title.
+#[derive(Clone)]
+pub(crate) struct Notice {
+    pub(crate) title: String,
+    pub(crate) text: String,
+    pub(crate) save_as: Option<Act>,
+    /// A warning to take in: the yellow triangle over the title (`theme::warning_icon`).
+    pub(crate) warning: bool,
+}
+
+impl Notice {
+    pub(crate) fn new(title: String, text: String) -> Self {
+        Notice { title, text, save_as: None, warning: false }
+    }
+}
+
+/// The top of a message or confirmation window: its title, centred, under the warning triangle
+/// when `warning`.
+#[derive(Clone, Copy)]
+pub(crate) struct Head<'a> {
+    pub(crate) title: &'a str,
+    pub(crate) warning: bool,
+}
+
+impl<'a> Head<'a> {
+    pub(crate) fn new(title: &'a str) -> Self {
+        Head { title, warning: false }
+    }
+
+    pub(crate) fn show(self, ui: &mut egui::Ui) {
+        ui.vertical_centered(|ui| {
+            if self.warning {
+                crate::theme::warning_icon(ui, 30.0);
+                ui.add_space(2.0);
+            }
+            ui.heading(self.title);
+        });
+        ui.add_space(6.0);
+    }
+}
+
+/// A message window, as all of them look (issue #11): modal, 320 to 460 points wide, the title
+/// (`Head`), the text (`notice_text`), then what `below` adds (its buttons).
+pub(crate) fn message(ctx: &egui::Context, id: &str, head: Head, text: &str, below: impl FnOnce(&mut egui::Ui)) {
     egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
         ui.set_max_width(460.0);
         // A short message ("Images saved: 1.") made a box so small it went unnoticed.
         ui.set_min_width(320.0);
+        head.show(ui);
         notice_text(ui, text);
         ui.add_space(8.0);
         below(ui);

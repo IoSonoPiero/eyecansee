@@ -90,10 +90,12 @@ impl App {
             (t("paste-skip"), transfer::Choice::Skip),
             (t("restore-keep-both"), transfer::Choice::KeepBoth),
         ];
-        let (cancel, all_label) = (t("delete-no"), t("paste-all"));
+        let (cancel, all_label, title) = (t("delete-no"), t("paste-all"), t("taken-title"));
         let mut answer = self.delete_answer.take().and_then(|yes| (!yes).then_some(None));
         egui::Modal::new(egui::Id::unique("paste")).show(ctx, |ui| {
             ui.set_max_width(440.0);
+            ui.set_min_width(320.0);
+            crate::save_dialogs::Head::new(&title).show(ui);
             crate::save_dialogs::notice_text(ui, &text);
             if many {
                 ui.checkbox(&mut ask.all, all_label);
@@ -250,7 +252,8 @@ impl App {
         let no = self.i18n.t("delete-no");
         let keys = self.delete_answer.take().map(|enter| enter && !folders);
         let ask = if folders { confirm::yes_no_cancel_first } else { confirm::yes_no };
-        match ask(ctx, "delete", 420.0, text, yes, !reading, no, keys) {
+        let title = self.i18n.t(if source::is_trash(&paths[0]) && paths.len() == 1 { "delete-title-empty" } else if how == source::Deletion::Permanent { "delete-title-permanent" } else { "delete-title-trash" });
+        match ask(ctx, "delete", 420.0, (title, text), yes, !reading, no, keys) {
             Some(true) => {
                 self.stop_delete_check();
                 if let Some(loader) = &self.loader {
@@ -417,7 +420,7 @@ impl App {
         let buttons = vec![(first.0, true, first.1), (t("restore-keep-both"), true, source::Conflict::KeepBoth)];
         let cancel = t("delete-no");
         let keys = self.delete_answer.take().and_then(|yes| (!yes).then_some(None));
-        match confirm::choose(ctx, "restore", 420.0, text, buttons, cancel, keys) {
+        match confirm::choose(ctx, "restore", 420.0, (t("taken-title"), text), buttons, cancel, keys) {
             Some(Some(conflict)) => {
                 if let Some(loader) = &self.loader {
                     self.restore_busy = true;

@@ -95,7 +95,7 @@ impl App {
                         w.groups = Some(groups);
                     }
                     Err((id, detail)) => {
-                        self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
+                        self.error = Some(self.i18n.error(id, &detail));
                         open = false;
                     }
                 }
@@ -123,6 +123,8 @@ impl App {
         let mut answer = None;
         egui::Modal::new(egui::Id::unique("dup-ask")).show(ctx, |ui| {
             ui.set_max_width(440.0);
+            ui.set_min_width(320.0);
+            crate::save_dialogs::Head::new(&t("dup-ask-title")).show(ui);
             let folder = crate::save_dialogs::md(&self.display(&w.dir));
             crate::save_dialogs::notice_text(ui, &self.i18n.t_args("dup-ask", &[("folder", &folder)]));
             ui.add_space(6.0);
@@ -150,6 +152,7 @@ impl App {
         let mut open = true;
         egui::Modal::new(egui::Id::unique("dup-progress")).show(ctx, |ui| {
             ui.set_width(440.0);
+            crate::save_dialogs::Head::new(&self.i18n.t("dup-ask-title")).show(ui);
             ui.label(self.i18n.t("dup-searching"));
             ui.add_space(6.0);
             ui.add(egui::ProgressBar::new(examined as f32 / found.max(1) as f32).show_percentage());

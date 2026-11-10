@@ -73,6 +73,7 @@ mod encode;
 mod eyedropper;
 mod encoders;
 mod engine;
+mod fault;
 mod ffmpeg;
 mod file_dialogs;
 mod folder_pick;
@@ -316,8 +317,8 @@ struct App {
     preparing: Option<String>,
     /// Names left out of a "Save" on the grid (animated…), shown once every save is done.
     skipped: Vec<String>,
-    /// Images saved by transforms on the grid, for the summary once every save is done.
-    batch_saved: Option<usize>,
+    /// Images saved by a transform on the grid, and which, for the summary once every save is done.
+    batch_saved: Option<(transform::Op, usize)>,
     /// An image just saved from Rotate and crop, as the viewer shows it: kept in the viewer when
     /// the file and the folder listing change, instead of the old one until it is read again.
     fresh: Option<(String, TextureHandle)>,
@@ -325,8 +326,8 @@ struct App {
     after_turn: Option<save_dialogs::After>,
     /// The same, after Save was chosen: done once the save is confirmed.
     after_save: Option<save_dialogs::After>,
-    /// A message in a window (a "Save" refused, how a grid save went); `true` offers "Save as…".
-    notice: Option<(String, Option<Act>)>,
+    /// A message in a window (a "Save" refused, how a grid save went), with its title.
+    notice: Option<save_dialogs::Notice>,
     /// KDE holds the phone: asking whether to terminate kiod (`kiod_window`).
     kiod_ask: bool,
     /// An SFTP server never used from this computer: asking whether to trust its key (`host_window`).

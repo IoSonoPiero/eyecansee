@@ -163,13 +163,13 @@ impl App {
         let Some(k) = self.kept.first().cloned() else { return };
         let place = if k.store.is_none() { "kept-failed-phone" } else { "kept-failed-server" };
         let (id, detail) = &k.error;
-        let error = self.i18n.t_args(id, &[("detail", detail)]);
+        let error = self.i18n.error_md(id, detail);
         let folder = k.file.parent().unwrap_or(&k.file).display().to_string();
         let text = self.i18n.t_args(place, &[("name", &crate::save_dialogs::md(source::name(&k.path))), ("error", &error), ("folder", &format!("**{}**", crate::save_dialogs::md(&folder)))]);
         let t = |id| self.i18n.t(id);
         // Esc closes; Enter does nothing here (it must not choose one of the actions).
         let choices = vec![(t("kept-retry"), self.loader.is_some(), Choice::Retry), (t("menu-save-copy"), true, Choice::SaveAs), (t("kept-open-folder"), true, Choice::Folder)];
-        match crate::confirm::choose(ctx, "kept", 480.0, text, choices, t("notice-close"), self.delete_answer.take().and_then(|enter| (!enter).then_some(None))) {
+        match crate::confirm::choose(ctx, "kept", 480.0, (t("kept-title"), text), choices, t("notice-close"), self.delete_answer.take().and_then(|enter| (!enter).then_some(None))) {
             Some(Some(Choice::Retry)) => {
                 self.kept.remove(0);
                 if let Some(loader) = &self.loader {
@@ -214,8 +214,8 @@ impl App {
 
     pub(crate) fn on_kept_saved(&mut self, r: Result<String, source::Error>) {
         match r {
-            Ok(to) => self.notice = Some((self.i18n.t_args("kept-saved", &[("path", &crate::save_dialogs::md(&to))]), None)),
-            Err((id, detail)) => self.error = Some(self.i18n.t_args("save-failed", &[("detail", &self.i18n.t_args(id, &[("detail", &detail)]))])),
+            Ok(to) => self.tell("kept-saved-title", self.i18n.t_args("kept-saved", &[("path", &crate::save_dialogs::md(&to))])),
+            Err((id, detail)) => self.error = Some(self.i18n.save_failed(&(id, detail))),
         }
     }
 }

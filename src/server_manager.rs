@@ -47,7 +47,8 @@ impl App {
         if f.servers != before && !crate::servers::encrypted() && !self.settings.servers_plain_warned {
             self.settings.servers_plain_warned = true;
             self.settings.save();
-            self.notice = Some((self.i18n.t("vault-plain-warning"), None));
+            let (title, text) = (self.i18n.t("vault-plain-title"), self.i18n.t("vault-plain-warning"));
+            self.notice = Some(crate::save_dialogs::Notice { warning: true, ..crate::save_dialogs::Notice::new(title, text) });
         }
         self.saved_servers = f.servers.clone();
         self.server_manager = (!close).then_some(f);

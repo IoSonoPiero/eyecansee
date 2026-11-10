@@ -50,7 +50,7 @@ impl App {
             }
             Err((id, detail)) => {
                 log!("open failed: {id} {detail}");
-                self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
+                self.error = Some(self.i18n.error(id, &detail));
                 self.address = self.display(&self.dir);
             }
         }

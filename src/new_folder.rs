@@ -59,7 +59,7 @@ impl App {
             }
             Err((id, detail)) => {
                 log!("new folder {path:?}: ERROR {id} {detail}");
-                self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
+                self.error = Some(self.i18n.error(id, &detail));
             }
         }
     }

@@ -1,18 +1,19 @@
-//! Confirmation windows: a text and a row of buttons, the last one cancelling. Enter and Esc
+//! Confirmation windows: a title, a text and a row of buttons, the last one cancelling. Enter and Esc
 //! reach them as `App::delete_answer` (`raw_input_hook`), passed in as `answer`.
 
 use eframe::egui;
 
 use crate::App;
 
-/// A modal with `text` (`**bold**` and paragraphs, as in message windows), one button per choice (greyed out when its flag is false) and `cancel`.
+/// A modal with `text`: its title, centred, then its text (`**bold**` and paragraphs, as in message windows),
+/// one button per choice (greyed out when its flag is false) and `cancel`.
 /// `Some(Some(choice))` for a choice, `Some(None)` for cancel; otherwise `answer` (from the keys),
 /// `None` while the window stays open.
 pub(crate) fn choose<T>(
     ctx: &egui::Context,
     id: &str,
     width: f32,
-    text: String,
+    text: (String, String),
     choices: Vec<(String, bool, T)>,
     cancel: String,
     answer: Option<Option<T>>,
@@ -26,7 +27,7 @@ fn choose_with<T>(
     ctx: &egui::Context,
     id: &str,
     width: f32,
-    text: String,
+    (title, text): (String, String),
     choices: Vec<(String, bool, T)>,
     cancel: String,
     mut answer: Option<Option<T>>,
@@ -36,6 +37,7 @@ fn choose_with<T>(
     egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
         ui.set_max_width(width);
         ui.set_min_width(320.0_f32.min(width));
+        crate::save_dialogs::Head::new(&title).show(ui);
         crate::save_dialogs::notice_text(ui, &text);
         ui.add_space(8.0);
         ui.horizontal(|ui| {
@@ -62,7 +64,7 @@ pub(crate) fn yes_no(
     ctx: &egui::Context,
     id: &str,
     width: f32,
-    text: String,
+    text: (String, String),
     yes: String,
     yes_enabled: bool,
     no: String,
@@ -77,7 +79,7 @@ pub(crate) fn yes_no_cancel_first(
     ctx: &egui::Context,
     id: &str,
     width: f32,
-    text: String,
+    text: (String, String),
     yes: String,
     yes_enabled: bool,
     no: String,

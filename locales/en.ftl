@@ -760,6 +760,59 @@ save-confirm-permanent = Save the changes over **{ $name }**?
     The original is deleted **for good**.
 save-yes = Save
 save-failed = Cannot save: { $detail }
+## Errors said plainly (src/fault.rs). $known is "yes" when the file's name is known, then in $name.
+fault-denied = { $known ->
+    [yes] Access denied to "{ $name }": the folder or the file is protected, and your user cannot write or read it there.
+   *[no] Access denied: the folder or the file is protected, and your user cannot write or read it there.
+}
+fault-read-only = { $known ->
+    [yes] The disk or the folder is read-only: "{ $name }" cannot be written there.
+   *[no] The disk or the folder is read-only: nothing can be written there.
+}
+fault-no-space = { $known ->
+    [yes] There is no space left on the disk for "{ $name }": free some space and try again.
+   *[no] There is no space left on the disk: free some space and try again.
+}
+fault-too-large = { $known ->
+    [yes] "{ $name }" is too large for this disk: FAT32 disks take files of at most 4 GB.
+   *[no] The file is too large for this disk: FAT32 disks take files of at most 4 GB.
+}
+fault-not-found = { $known ->
+    [yes] "{ $name }" is not there any more: it may have been moved, renamed or deleted.
+   *[no] The file or folder is not there any more: it may have been moved, renamed or deleted.
+}
+fault-exists = { $known ->
+    [yes] There is already an item named "{ $name }" there.
+   *[no] There is already an item with this name there.
+}
+fault-in-use = { $known ->
+    [yes] "{ $name }" is in use by another program: close it and try again.
+   *[no] The file is in use by another program: close it and try again.
+}
+fault-bad-name = { $known ->
+    [yes] The name "{ $name }" is not accepted there: it is too long, or has characters this disk does not allow.
+   *[no] The name is not accepted there: it is too long, or has characters this disk does not allow.
+}
+## Titles of the message and confirmation windows.
+save-title = Save over the original
+save-not-possible = Cannot save over the original
+leave-title = Changes not saved
+kept-title = Image not saved
+kept-saved-title = Copy saved
+file-removed-title = File removed
+phone-stalled-title = The phone does not answer
+bm-missing-title = Bookmark not available
+taken-title = Name already in use
+delete-title-trash = Move to the trash
+delete-title-permanent = Delete for good
+delete-title-empty = Empty the trash
+kiod-title = Phone held by KDE
+host-title = New SSH server
+cert-title = New FTPS server
+sftp-rsa-title = Better change this RSA key
+edit-overwrite-title = Overwrite the original
+dup-ask-title = Find duplicates
+vault-plain-title = Servers saved in plain text
 kept-failed-phone = **{ $name }** was not saved on the phone: { $error }
 
     The original on the phone is unchanged.
@@ -783,8 +836,8 @@ status-modified = Changed, not saved
 status-saving = Saving…
 status-preparing = Preparing to save…
 batch-turn-confirm = { $n ->
-    [one] **{ $op }**: **1 image** will be overwritten.
-   *[other] **{ $op }**: up to **{ $n } images** will be overwritten.
+    [one] **1 image** will be changed and saved over its original.
+   *[other] Up to **{ $n } images** will be changed and saved over their originals.
 }
 batch-originals-trash = The originals go **to the trash**.
 batch-originals-folder = The originals go to **this folder's Trash**, where **Open the trash** restores them.
@@ -807,7 +860,38 @@ save-gvfs = Images **cannot be saved over themselves** here: this folder was ope
 save-no-rename = Images **cannot be saved over themselves** here: this source cannot rename files.
 batch-animated = **Animated** and **multi-page** images and **motion photos** are skipped. Ultra HDR photos are turned with their HDR map, and with their video when they are motion photos too.
 batch-skipped-names = Left out, because they are animated, have several pages or are motion photos:
-batch-done = Images saved: **{ $n }**.
+# $op is the id of the menu item of the change (tf-…).
+batch-done-title = { $op ->
+    [tf-flip-h] { $n ->
+        [one] Image flipped
+       *[other] Images flipped
+    }
+    [tf-flip-v] { $n ->
+        [one] Image flipped
+       *[other] Images flipped
+    }
+   *[other] { $n ->
+        [one] Image rotated
+       *[other] Images rotated
+    }
+}
+batch-done = { $n ->
+    [0] No image was saved.
+    [one] **1 image** was { $op ->
+        [tf-flip-h] flipped horizontally
+        [tf-flip-v] flipped vertically
+        [tf-rotate-cw] rotated 90° clockwise
+        [tf-rotate-ccw] rotated 90° anticlockwise
+       *[other] rotated 180°
+    } and saved over its original.
+   *[other] **{ $n } images** were { $op ->
+        [tf-flip-h] flipped horizontally
+        [tf-flip-v] flipped vertically
+        [tf-rotate-cw] rotated 90° clockwise
+        [tf-rotate-ccw] rotated 90° anticlockwise
+       *[other] rotated 180°
+    } and saved over their originals.
+}
 save-psd-flatten = **This PSD will be flattened**: layers, text, effects and masks are lost, only the image as it looks remains. To keep them use **Save as…** or edit it in Photoshop.
 batch-psd-flatten = PSD files with several layers, text or effects are **flattened**: only the image as it looks remains.
 save-format = The changes cannot be saved over **{ $name }**: EyeCanSee cannot write this format (HEIC, RAW…).
@@ -840,7 +924,7 @@ vault-wrong = Wrong password.
 vault-unreadable = The file of the servers cannot be read: { $detail }
 vault-on = 🔒 Master password on: the list of servers is encrypted.
 vault-on-hint = Every change is written at once, encrypted. EyeCanSee asks for the password once per session, at the first server.
-vault-off = ⚠ No master password: passwords and passphrases are saved in plain text.
+vault-off = No master password: passwords and passphrases are saved in plain text.
 vault-off-hint =
     Anyone who can read your files can read these passwords too.
     Set a master password to encrypt the list of servers.
@@ -861,9 +945,13 @@ vault-different = The two passwords are different.
 vault-forget = If you forget it, the saved servers cannot be recovered: keep it in a password manager.
 vault-save = Save the master password
 vault-plain-warning =
-    { "**" }Servers saved in plain text.**
+    The passwords and passphrases of your servers are written **as they are** in the file of the servers.
 
-    Without a master password, passwords and passphrases of the saved servers are written in plain text in the file of the servers: anyone who can read your files can read them. You can set one at the top of File > Server manager. This warning is not shown again.
+    { "**" }Anyone who can read your files can read them.**
+
+    To protect them, set a **master password** at the top of File > Server manager.
+
+    This warning is shown only once.
 srv-title = Server manager
 srv-new = New server
 srv-connect = Save and connect
@@ -957,7 +1045,11 @@ batch-start = Convert
 batch-working = Converting
 batch-counts = { $n } of { $total } files
 batch-stopping = Stopping…
-batch-result = Files converted: **{ $n }**, in { $folder }.
+batch-result = { $n ->
+    [0] No file was saved in { $folder }.
+    [one] **1 file** was saved in { $folder }.
+   *[other] **{ $n } files** were saved in { $folder }.
+}
 batch-cancelled = Stopped after { $n } of { $total } files.
 batch-left-out = Left out:
 batch-left-out-kind = { $n ->

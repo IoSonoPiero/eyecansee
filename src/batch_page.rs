@@ -166,6 +166,18 @@ pub struct Window {
     left_out: usize,
 }
 
+impl Form {
+    /// The Fluent id of the window's title, and of the message at the end.
+    fn title(&self) -> &'static str {
+        match self.audio {
+            Some(AudioJob::Strip) => "batch-title-strip",
+            Some(AudioJob::Extract) => "batch-title-extract",
+            None if self.drawing => "drawing-title",
+            None => "batch-title",
+        }
+    }
+}
+
 impl Window {
     /// The choices are open (keys answer them).
     pub fn asking(&self) -> bool {
@@ -257,12 +269,7 @@ impl App {
     fn batch_ask(&mut self, ctx: &egui::Context, w: &mut Window) -> bool {
         let Some(mut form) = self.batch_form.take() else { return false };
         let n = w.paths.len().to_string();
-        let title = self.i18n.t(match form.audio {
-            Some(AudioJob::Strip) => "batch-title-strip",
-            Some(AudioJob::Extract) => "batch-title-extract",
-            None if form.drawing => "drawing-title",
-            None => "batch-title",
-        });
+        let title = self.i18n.t(form.title());
         let mut intro = self.i18n.t_args("batch-images", &[("n", &n), ("folder", &md(&self.display(&w.dir)))]);
         if w.left_out > 0 {
             intro = format!("{intro} {}", self.i18n.t_args("batch-left-out-kind", &[("n", &w.left_out.to_string())]));
@@ -305,7 +312,7 @@ impl App {
                 }
                 // The other folder cannot be opened: said in the error bar, the window stays open.
                 Err((id, detail)) => {
-                    self.error = Some(self.i18n.t_args(id, &[("detail", &detail)]));
+                    self.error = Some(self.i18n.error(id, &detail));
                     true
                 }
             },
@@ -402,10 +409,11 @@ impl App {
             text = format!("{text}\n\n{}", self.i18n.t_args("batch-cancelled", &[("n", &done.to_string()), ("total", &total.to_string())]));
         }
         if !failed.is_empty() {
-            let lines: String = failed.iter().map(|(id, detail)| format!("\n- {}", self.i18n.t_args(id, &[("detail", &md(detail))]))).collect();
+            let lines: String = failed.iter().map(|(id, detail)| format!("\n- {}", self.i18n.error_md(id, detail))).collect();
             text = format!("{text}\n\n{}{lines}", self.i18n.t("batch-left-out"));
         }
-        self.notice = Some((text, None));
+        let title = self.batch_form.as_ref().map_or("batch-title", Form::title);
+        self.tell(title, text);
         self.relist(w.dir.clone());
         if let Some(dest) = w.dest.1.clone().filter(|d| *d != w.dir) {
             self.relist(dest);

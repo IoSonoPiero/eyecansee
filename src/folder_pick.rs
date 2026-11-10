@@ -192,7 +192,7 @@ fn folders_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
             ui.spinner();
         }
         Some(Err((id, detail))) => {
-            ui.label(error_text(ui, i18n.t_args(id, &[("detail", &detail)])));
+            ui.label(error_text(ui, i18n.error(id, &detail)));
         }
         Some(Ok(dirs)) if dirs.is_empty() => {
             ui.weak(i18n.t("pick-empty"));

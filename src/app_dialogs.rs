@@ -105,9 +105,9 @@ impl App {
     /// Drawn as every message window (issue #11: one style for all of them).
     pub(crate) fn update_window(&mut self, ctx: &egui::Context) {
         let Some(text) = &self.update_note else { return };
-        let text = format!("**{}**\n\n{text}", self.i18n.t("menu-check-updates"));
+        let title = self.i18n.t("menu-check-updates");
         let mut open = self.notice.is_some() || self.delete_answer.take().is_none();
-        crate::save_dialogs::message(ctx, "update", &text, |ui| {
+        crate::save_dialogs::message(ctx, "update", crate::save_dialogs::Head::new(&title), text, |ui| {
             if ui.button(self.i18n.t("notice-close")).clicked() {
                 open = false;
             }
@@ -126,7 +126,7 @@ impl App {
         // In the Flatpak the user must close Dolphin first: with the phone open there, KDE takes it back.
         let (ask, ok) = if crate::update::packaged() { ("kiod-ask-flatpak", "kiod-free") } else { ("kiod-ask", "kiod-ok") };
         let (text, ok, cancel) = (self.i18n.t(ask), self.i18n.t(ok), self.i18n.t("delete-no"));
-        match confirm::yes_no(ctx, "kiod", 460.0, text, ok, true, cancel, self.delete_answer.take()) {
+        match confirm::yes_no(ctx, "kiod", 460.0, (self.i18n.t("kiod-title"), text), ok, true, cancel, self.delete_answer.take()) {
             Some(true) => {
                 log!("kiod: allowed");
                 mtp::allow_kiod();
@@ -147,7 +147,8 @@ impl App {
         if self.notice.is_none()
             && let Some(host) = crate::sftp::rsa_login()
         {
-            self.notice = Some((self.i18n.t_args("sftp-rsa-key", &[("host", &host)]), None));
+            let text = self.i18n.t_args("sftp-rsa-key", &[("host", &host)]);
+            self.notice = Some(crate::save_dialogs::Notice { warning: true, ..crate::save_dialogs::Notice::new(self.i18n.t("sftp-rsa-title"), text) });
         }
         if !self.host_ask {
             return;
@@ -162,8 +163,9 @@ impl App {
             return;
         };
         let text = self.i18n.t_args(if cert { "cert-ask" } else { "host-ask" }, &[("host", &host), ("fingerprint", &fingerprint)]);
+        let title = self.i18n.t(if cert { "cert-title" } else { "host-title" });
         let (ok, cancel) = (self.i18n.t("host-ok"), self.i18n.t("delete-no"));
-        match confirm::yes_no(ctx, "host", 460.0, text, ok, true, cancel, self.delete_answer.take()) {
+        match confirm::yes_no(ctx, "host", 460.0, (title, text), ok, true, cancel, self.delete_answer.take()) {
             Some(true) => {
                 if cert {
                     crate::ftp::trust();
