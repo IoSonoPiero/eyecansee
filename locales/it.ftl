@@ -145,6 +145,8 @@ key-end = Fine
 
 tb-up = Cartella superiore (Backspace)
 tb-address-hint = Cartella, ftp://… o sftp://…
+tb-address-copy = Copia l'indirizzo
+tb-address-paste = Incolla un indirizzo (poi Invio)
 tb-thumb-size = Dimensione miniature
 
 status-folders = Cartelle: { $n }

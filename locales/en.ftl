@@ -146,6 +146,8 @@ key-end = End
 
 tb-up = Parent folder (Backspace)
 tb-address-hint = Folder, ftp://… or sftp://…
+tb-address-copy = Copy the address
+tb-address-paste = Paste an address (then Enter)
 tb-thumb-size = Thumbnail size
 
 status-folders = Folders: { $n }

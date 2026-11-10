@@ -10,6 +10,11 @@ use crate::{App, icons, meta, settings, source, transform, version};
 use crate::loader::THUMB_SIDE;
 use crate::selection::{Kind, PLAYED, fits, starred};
 
+/// Below this width of the address bar the copy and paste buttons are left out.
+const ADDRESS_WITH_CLIP: f32 = 420.0;
+/// The room the two buttons take at the end of the address bar.
+const CLIP_BUTTONS: f32 = 64.0;
+
 /// The address bar's field: F1 while typing in it opens the page on addresses (`help_spot`).
 pub(crate) fn address_id() -> egui::Id {
     egui::Id::unique("address")
@@ -240,11 +245,17 @@ impl App {
             self.bookmark_button(ui);
             // Space to the right of the address: sorting (drop-down and direction) and thumbnail slider.
             let slider_width = if self.viewing.is_none() { 370.0 } else { 0.0 };
+            // Copy and paste of the address at its end, when the bar has room for them.
+            let room = ui.available_width() - slider_width;
+            let clip = room > ADDRESS_WITH_CLIP;
             let address = egui::TextEdit::singleline(&mut self.address)
                 .id(address_id())
                 .hint_text(self.i18n.t("tb-address-hint"))
-                .desired_width(ui.available_width() - slider_width);
+                .desired_width(if clip { room - CLIP_BUTTONS } else { room });
             let response = ui.add(address);
+            if clip {
+                self.address_clip(ui);
+            }
             // The Enter is taken here: left to the grid drawn after, it opened the selected file
             // (an address that does not open left the viewer on it: user, 2026-11-10).
             if response.lost_focus() && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter)) {
@@ -359,6 +370,19 @@ impl App {
                 }
             }
         });
+    }
+
+    /// Copy the address shown (never with a password), or paste one in its place: the field
+    /// takes the keyboard and gets what the clipboard holds, ready for Enter.
+    fn address_clip(&mut self, ui: &mut egui::Ui) {
+        if ui.add(icons::small(ui, icons::Line::Copy)).on_hover_text(self.i18n.t("tb-address-copy")).clicked() {
+            ui.ctx().copy_text(crate::address::without_password(&self.address));
+        }
+        if ui.add(icons::small(ui, icons::Line::Paste)).on_hover_text(self.i18n.t("tb-address-paste")).clicked() {
+            self.address.clear();
+            ui.ctx().memory_mut(|m| m.request_focus(address_id()));
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+        }
     }
 }
 
