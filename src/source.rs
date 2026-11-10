@@ -125,6 +125,22 @@ impl Store {
         }
     }
 
+    /// Where a path really leads, links resolved, to tell the same file or folder reached by two
+    /// paths: on this computer and on SFTP servers; `None` where it is not known or not needed.
+    /// Written as the paths of the source (without the final "/"), so a path that goes through
+    /// no link is its own real path.
+    pub async fn real_path(&self, path: &str) -> Option<String> {
+        match self {
+            Store::Dal(op) if op.info().scheme() == "fs" => {
+                let (root, real) = (Path::new(&op.info().root()).canonicalize().ok()?, local_path(op, path).canonicalize().ok()?);
+                let real = real.strip_prefix(&root).unwrap_or(&real);
+                Some(real.iter().map(|s| s.to_string_lossy()).collect::<Vec<_>>().join("/"))
+            }
+            Store::Sftp(server) => server.real_path(path).await.ok().map(|p| p.trim_start_matches('/').to_string()),
+            _ => None,
+        }
+    }
+
     /// Images and folders of `dir`, after tidying up what an interrupted "Save" left there.
     pub async fn list(&self, dir: &str) -> Result<Listing, Error> {
         if is_trash(dir) {
