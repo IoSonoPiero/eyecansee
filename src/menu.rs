@@ -245,7 +245,9 @@ impl App {
                 .hint_text(self.i18n.t("tb-address-hint"))
                 .desired_width(ui.available_width() - slider_width);
             let response = ui.add(address);
-            if response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter)) {
+            // The Enter is taken here: left to the grid drawn after, it opened the selected file
+            // (an address that does not open left the viewer on it: user, 2026-11-10).
+            if response.lost_focus() && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter)) {
                 let address = self.address.clone();
                 self.open_source(ctx, &address);
             }
