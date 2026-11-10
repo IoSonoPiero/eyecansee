@@ -122,6 +122,8 @@ pub(crate) struct Guide {
     last_esc: Option<f64>,
     /// The search field had the keyboard in the frame before: an Esc there is the guide's.
     typing: bool,
+    /// The search field takes the keyboard at the next frame: the guide has just opened.
+    focus: bool,
 }
 
 impl Default for Guide {
@@ -139,6 +141,7 @@ impl Default for Guide {
             settle: None,
             last_esc: None,
             typing: false,
+            focus: false,
         }
     }
 }
@@ -313,6 +316,7 @@ impl App {
     pub(crate) fn open_help(&mut self, id: &'static str) {
         self.help.open = true;
         self.help.typing = false;
+        self.help.focus = true;
         self.help.go(id);
     }
 
@@ -514,6 +518,9 @@ fn search_field(ui: &mut egui::Ui, g: &mut Guide, v: &View, todo: &mut Option<Do
             *todo = Some(Do::Search);
         }
         let field = ui.add(egui::TextEdit::singleline(&mut g.query).hint_text(&v.hint).desired_width(f32::INFINITY));
+        if std::mem::take(&mut g.focus) {
+            field.request_focus();
+        }
         g.typing = field.has_focus();
         if field.changed() {
             *todo = Some(Do::Search);

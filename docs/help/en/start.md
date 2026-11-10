@@ -38,7 +38,7 @@ Double-click a thumbnail, or select it and press **Enter**: the picture fills th
 
 Press **F1** at any time: this guide opens on the page about what you are doing. Press **F1** again to close it, or press **Esc** twice quickly with the pointer on the guide. **Help > Manual** opens the list of all the pages.
 
-The field at the top left searches every page: a result opens its page with the words found highlighted. The highlight follows the field, and ![Clear the search](icon://x) empties it.
+The field at the top left searches every page, ready for typing as soon as the guide opens: a result opens its page with the words found highlighted. The highlight follows the field, and ![Clear the search](icon://x) empties it.
 
 ## Where to go next
 
