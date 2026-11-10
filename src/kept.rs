@@ -222,11 +222,24 @@ impl App {
 
 /// `file` copied to `to` on this computer under the hidden name of a "Save" next to it, renamed at
 /// the end: a copy that fails (a full disk) leaves nothing, and a file it replaces stays as it was
-/// (#90).
+/// (#90). In a folder where no file can be made, a file `to` that can be written is written in
+/// place, as up to 0.75.0 (`replace::closed_folder`).
 fn copy_whole(file: &Path, to: &Path) -> std::io::Result<()> {
+    let mut from = std::fs::File::open(file)?;
     let own = to.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let tmp = to.with_file_name(source::save_names(&own).0);
-    let r = std::fs::copy(file, &tmp).and_then(|_| std::fs::rename(&tmp, to));
+    let mut out = match std::fs::File::create(&tmp) {
+        Ok(f) => f,
+        Err(e) if crate::replace::closed_folder(&e) && std::fs::OpenOptions::new().write(true).open(to).is_ok() => {
+            log!("copy {file:?} to {to:?}: no hidden file next to it ({e}), written in place");
+            let mut out = std::fs::OpenOptions::new().write(true).truncate(true).open(to)?;
+            return std::io::copy(&mut from, &mut out).and_then(|_| out.sync_all());
+        }
+        Err(e) => return Err(e),
+    };
+    let r = std::io::copy(&mut from, &mut out).and_then(|_| out.sync_all());
+    drop(out);
+    let r = r.and_then(|()| std::fs::rename(&tmp, to));
     if r.is_err() {
         let _ = std::fs::remove_file(&tmp);
     }
@@ -445,6 +458,27 @@ mod tests {
         }
         copy_whole(&dir.join("kept.jpg"), &dir.join("a.jpg")).unwrap();
         assert_eq!((std::fs::read(dir.join("a.jpg")).unwrap(), names()), (b"new".to_vec(), 2));
+        // A folder where no file can be made: a file that can be written is written in place, a
+        // read-only one is refused (not as root, who writes anyway).
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let closed = dir.join("closed");
+            std::fs::create_dir_all(&closed).unwrap();
+            std::fs::write(closed.join("a.jpg"), b"old").unwrap();
+            std::fs::write(closed.join("b.jpg"), b"old").unwrap();
+            std::fs::set_permissions(closed.join("b.jpg"), std::fs::Permissions::from_mode(0o444)).unwrap();
+            std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o555)).unwrap();
+            // SAFETY: a plain call without arguments.
+            if unsafe { libc::geteuid() } != 0 {
+                copy_whole(&dir.join("kept.jpg"), &closed.join("a.jpg")).unwrap();
+                assert_eq!(std::fs::read(closed.join("a.jpg")).unwrap(), b"new");
+                assert!(copy_whole(&dir.join("kept.jpg"), &closed.join("b.jpg")).is_err());
+                assert_eq!(std::fs::read(closed.join("b.jpg")).unwrap(), b"old");
+                assert_eq!(std::fs::read_dir(&closed).unwrap().count(), 2);
+            }
+            std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o755)).unwrap();
+        }
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

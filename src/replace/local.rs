@@ -18,6 +18,10 @@
 //!   written whole under the hidden name first, then copied into the old file in place, so every
 //!   name sees the new content. Only that local copy can still fail halfway (a full disk), as every
 //!   write did before 0.76.0; then the new file takes the name on its own, whole.
+//!
+//! A folder where no file can be made (no permission, as a folder of mode 555) whose file can be
+//! written: the hidden file cannot be there, and the new content is written into the file in
+//! place, as up to 0.75.0, with its old risk (a write that fails halfway leaves it cut).
 
 use std::fs::{File, Metadata, OpenOptions};
 use std::io::Write;
@@ -78,7 +82,10 @@ fn replace(file: &Path, real: &Path, mut chunks: Chunks) -> Result<(), Error> {
         Ok(f) => f,
         // Gone since it was seen, or a link that leads nowhere: a new file, written through the
         // link as before (the file it names is made).
-        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return write_new(file, &mut chunks, None),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            let f = new_file(file, false).map_err(at(file, "write"))?;
+            return write_new(f, file, &mut chunks, None);
+        }
         Err(e) => return Err(at(real, "open")(e)),
     };
     let meta = original.metadata().map_err(at(real, "stat"))?;
@@ -86,7 +93,16 @@ fn replace(file: &Path, real: &Path, mut chunks: Chunks) -> Result<(), Error> {
     drop(original);
     let own = real.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
     let temp = real.with_file_name(source::save_names(&own).0);
-    write_new(&temp, &mut chunks, (!shared).then_some((real, &meta)))?;
+    let f = match new_file(&temp, !shared) {
+        Ok(f) => f,
+        // The file opened for writing above: it can take the new content in place.
+        Err(e) if closed_folder(&e) => {
+            log!("replace {real:?}: no hidden file next to it ({e}), written in place");
+            return write_in_place(real, &mut chunks);
+        }
+        Err(e) => return Err(at(&temp, "write")(e)),
+    };
+    write_new(f, &temp, &mut chunks, (!shared).then_some((real, &meta)))?;
     let placed = if shared { copy_in_place(&temp, real) } else { put_over(&temp, real) };
     if placed.is_err() {
         let _ = std::fs::remove_file(&temp);
@@ -94,26 +110,46 @@ fn replace(file: &Path, real: &Path, mut chunks: Chunks) -> Result<(), Error> {
     placed.map_err(at(real, "replace"))
 }
 
-/// The file of `chunks` written as `to`, flushed to the disk (as OpenDAL's writer did: a full
-/// disk or a network share that fails says so here at the latest) and, with `like`, given what
-/// the file it replaces has (`keep`). Deleted at any failure.
-fn write_new(to: &Path, chunks: &mut Chunks, like: Option<(&Path, &Metadata)>) -> Result<(), Error> {
+/// The file of `chunks` written into `f`, just made as `to`, flushed to the disk (as OpenDAL's
+/// writer did: a full disk or a network share that fails says so here at the latest) and, with
+/// `like`, given what the file it replaces has (`keep`). Deleted at any failure.
+fn write_new(mut f: File, to: &Path, chunks: &mut Chunks, like: Option<(&Path, &Metadata)>) -> Result<(), Error> {
     let disk = at(to, "write");
-    let r = (|| {
-        let mut f = new_file(to, like.is_some()).map_err(&disk)?;
-        while let Some(chunk) = chunks.blocking_recv() {
-            let chunk = chunk.map_err(|e| ("error-detail", e.to_string()))?;
-            f.write_all(&chunk).map_err(&disk)?;
-        }
+    let r = fill(&mut f, chunks, &disk).and_then(|()| {
         if let Some((real, meta)) = like {
             keep(&f, real, meta);
         }
         f.sync_all().map_err(&disk)
-    })();
+    });
     if r.is_err() {
+        drop(f);
         let _ = std::fs::remove_file(to);
     }
     r
+}
+
+/// The chunks written into `f`.
+fn fill(f: &mut File, chunks: &mut Chunks, disk: &impl Fn(std::io::Error) -> Error) -> Result<(), Error> {
+    while let Some(chunk) = chunks.blocking_recv() {
+        let chunk = chunk.map_err(|e| ("error-detail", e.to_string()))?;
+        f.write_all(&chunk).map_err(disk)?;
+    }
+    Ok(())
+}
+
+/// Could the hidden file not be made because nothing can be made in its folder? No permission
+/// (a folder of mode 555, an ACL), or a disk mounted read-only.
+pub(crate) fn closed_folder(e: &std::io::Error) -> bool {
+    matches!(e.kind(), std::io::ErrorKind::PermissionDenied | std::io::ErrorKind::ReadOnlyFilesystem)
+}
+
+/// The file of `chunks` written into `real` in place, as up to 0.75.0: a write that fails halfway
+/// leaves it cut, and it is not deleted (in its folder it could not be, either).
+fn write_in_place(real: &Path, chunks: &mut Chunks) -> Result<(), Error> {
+    let disk = at(real, "write");
+    let mut f = OpenOptions::new().write(true).truncate(true).open(real).map_err(&disk)?;
+    fill(&mut f, chunks, &disk)?;
+    f.sync_all().map_err(&disk)
 }
 
 /// A file opened to be written from the start. One that will replace another (`private`) can be
@@ -285,8 +321,12 @@ fn copy_in_place(temp: &Path, real: &Path) -> std::io::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::{whole, write_file, write_whole};
-    use crate::source::{FOLDERS_READ, Store};
+    use super::super::write_whole;
+    #[cfg(unix)]
+    use super::super::{whole, write_file};
+    use crate::source::Store;
+    #[cfg(target_os = "linux")]
+    use crate::source::FOLDERS_READ;
     use std::path::{Path, PathBuf};
 
     fn setup(tag: &str) -> (PathBuf, Store, tokio::runtime::Runtime) {
@@ -381,6 +421,36 @@ mod tests {
             assert_eq!(std::fs::read(&file).unwrap(), b"old");
             assert_eq!(names(&dir), ["a.jpg"]);
         }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A folder where no file can be made (mode 555): a file that can be written is replaced in
+    /// place, as up to 0.75.0; a read-only file there is refused and stays as it was.
+    #[cfg(unix)]
+    #[test]
+    fn closed_folder_written_in_place() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let (dir, op, rt) = setup("closed");
+        let closed = dir.join("closed");
+        std::fs::create_dir_all(&closed).unwrap();
+        std::fs::write(closed.join("a.jpg"), b"old").unwrap();
+        std::fs::write(closed.join("b.jpg"), b"old").unwrap();
+        std::fs::set_permissions(closed.join("b.jpg"), std::fs::Permissions::from_mode(0o444)).unwrap();
+        let mode = |p: &Path| std::fs::metadata(p).unwrap().mode() & 0o7777;
+        std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o555)).unwrap();
+        // Not as root, who writes anyway.
+        // SAFETY: a plain call without arguments.
+        if unsafe { libc::geteuid() } != 0 {
+            let ino = std::fs::metadata(closed.join("a.jpg")).unwrap().ino();
+            rt.block_on(write_whole(&op, "closed/a.jpg", b"new".to_vec())).unwrap();
+            assert_eq!(std::fs::read(closed.join("a.jpg")).unwrap(), b"new");
+            assert_eq!(std::fs::metadata(closed.join("a.jpg")).unwrap().ino(), ino, "written in place");
+            let e = rt.block_on(write_whole(&op, "closed/b.jpg", b"new".to_vec())).unwrap_err();
+            assert_eq!(crate::fault::recognise(&e.1), Some((crate::fault::Kind::Denied, Some("b.jpg".into()))), "{e:?}");
+            assert_eq!(std::fs::read(closed.join("b.jpg")).unwrap(), b"old");
+            assert_eq!((names(&closed), mode(&closed)), (vec!["a.jpg".to_string(), "b.jpg".to_string()], 0o555));
+        }
+        std::fs::set_permissions(&closed, std::fs::Permissions::from_mode(0o755)).unwrap();
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
