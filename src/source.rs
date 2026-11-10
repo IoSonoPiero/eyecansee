@@ -2,6 +2,8 @@
 //! phones connected directly over MTP (`mtp://<serial>/`).
 //! Every source has its root at the top, so the folder tree can climb all the way up.
 //! Folders are paths relative to the root ending in `/` ("" is the root).
+//! Here the operations of every source (`Store`); local disks in `local`, addresses and paths in
+//! `paths`, a folder's listing in `listing`.
 
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
@@ -9,12 +11,15 @@ use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use bytes::Bytes;
-use opendal::{Operator, services};
-use percent_encoding::percent_decode_str;
-use url::Url;
+use opendal::Operator;
 
-use crate::decode::is_media;
-use crate::settings::SortBy;
+mod listing;
+mod local;
+mod paths;
+pub use listing::{File, Listing};
+pub(crate) use local::local_path;
+use local::{bad_name, fs_gvfs, gvfs_permit, list, local_items};
+pub use paths::{in_gvfs, name, open, parent, windows_temp_copy};
 
 /// Translatable error: Fluent message id and technical detail.
 pub type Error = (&'static str, String);
@@ -45,42 +50,6 @@ pub enum Store {
     Ftp(Arc<crate::ftp::Server>),
 }
 
-/// Reads under gvfs (phones, cameras, shares mounted by the desktop), two at a time like the
-/// workers of `Store::Mtp`. With too many requests at once gvfs stalls: 12 file opens while a
-/// 796-entry folder was being listed gave 12 files out of 30 in 31 s and the listing never ended;
-/// with 8 or fewer everything took 3-6 s (script, 2026-10-20; gvfsd-fuse has 10 worker threads
-/// [Inference: the limit comes from there]). More parallel reads are not faster: gvfsd-mtp serves
-/// one request at a time and in a large folder every file costs ~1.5 s (FUSE_LOOKUP + FUSE_OPEN,
-/// kernel trace). Listings stay out, otherwise the tree waits for the thumbnails (Pictures after 14 s).
-static GVFS: tokio::sync::Semaphore = tokio::sync::Semaphore::const_new(2);
-
-async fn gvfs_permit(op: &Operator, path: &str) -> Option<tokio::sync::SemaphorePermit<'static>> {
-    if fs_gvfs(op, path) { GVFS.acquire().await.ok() } else { None }
-}
-
-/// A path of the local file system under a gvfs mount.
-fn fs_gvfs(op: &Operator, path: &str) -> bool {
-    op.info().scheme() == "fs" && in_gvfs(&op.info().root(), path)
-}
-
-pub fn in_gvfs(root: &str, path: &str) -> bool {
-    format!("{root}/{path}").contains("/gvfs/")
-}
-
-/// A temporary copy Windows made of a file it cannot hand over as a path, kept in its internet
-/// cache: a phone photo opened with a double click in File Explorer arrives as
-/// `C:\Users\<user>\AppData\Local\Microsoft\Windows\INetCache\IE\<random>\<name>[1].jpg`
-/// (seen on Windows 11 with a phone in "File transfer" mode, issue #47). Saving over it would
-/// change only the copy, not the file on the phone.
-pub fn windows_temp_copy(path: &str) -> bool {
-    path.replace('\\', "/").to_ascii_lowercase().contains("/microsoft/windows/inetcache/")
-}
-
-/// Absolute path of a local file, pushed one element at a time: Windows' "\\?\" root does not accept "/".
-pub(crate) fn local_path(op: &Operator, path: &str) -> PathBuf {
-    std::iter::once(op.info().root()).chain(path.split('/').filter(|s| !s.is_empty()).map(String::from)).collect()
-}
-
 /// Files a read found gone: not there any more, or a stale MTP handle (the phone re-keyed the
 /// object after a change made on the phone itself), or removed by a phone's event while the
 /// viewer showed them (`mark_gone`). The app reads the folder again (`App::notice_gone`).
@@ -108,15 +77,6 @@ pub(crate) fn dal_error(e: opendal::Error) -> Error {
         _ => "error-detail",
     };
     (id, e.to_string())
-}
-
-/// A local name that is not valid UTF-8 on Linux (on Windows, UTF-16 with an unpaired
-/// surrogate) is listed with U+FFFD in place of what cannot be read, so its path leads
-/// nowhere (issue #88): the app keeps paths as text, and carrying the raw bytes everywhere is not
-/// worth it for such rare names. A path of this kind that is not found is such a name, not a file
-/// gone.
-fn bad_name(op: &Operator, path: &str) -> bool {
-    op.info().scheme() == "fs" && path.contains(char::REPLACEMENT_CHARACTER)
 }
 
 impl Store {
@@ -551,245 +511,10 @@ pub struct Source {
     pub home: bool,
 }
 
-#[derive(Default, Clone)]
-pub struct Listing {
-    pub dirs: Vec<String>,
-    pub files: Vec<File>,
-    /// The trash folder in this folder, if any: kept out of `dirs`, it opens from its own button
-    /// in the toolbar (among the folders it was in the way).
-    pub trash: Option<String>,
-    /// Hidden files of an interrupted "Save" (`save_names`), for `Store::recover`.
-    pub leftovers: Vec<String>,
-    /// Files in Android's trash (`android_trashed`): shown in the folder's trash, not here.
-    pub trashed: Vec<File>,
-    /// Names of what the grid leaves out: files that are not media, hidden items (a name starting
-    /// with ".", EyeCanSee's trash too, Android's trashed files, Windows' hidden attribute). For
-    /// the check before deleting a folder.
-    pub unseen: Vec<String>,
-}
-
-#[derive(Clone)]
-pub struct File {
-    pub path: String,
-    /// Size and modification date: they identify the file's version for the thumbnail cache.
-    pub size: u64,
-    /// As the source gives it ("" if it does not): only used for comparison.
-    pub modified: String,
-}
-
-/// Splits a relative path into (folder, file) if the last element is an image or a video.
-fn split(path: &str) -> (String, Option<String>) {
-    let path = path.trim_matches('/');
-    let dir = |d: &str| if d.is_empty() { String::new() } else { format!("{d}/") };
-    match path.rsplit_once('/').unwrap_or(("", path)) {
-        (d, name) if is_media(name) => (dir(d), Some(path.to_string())),
-        _ => (dir(path), None),
-    }
-}
-
-fn decode(s: &str) -> String {
-    percent_decode_str(s).decode_utf8_lossy().into_owned()
-}
-
-/// Last element of a relative path, for labels and titles.
-pub fn name(path: &str) -> &str {
-    path.trim_end_matches('/').rsplit('/').next().unwrap_or(path)
-}
-
-/// Folder containing `dir` ("" if `dir` is already the root).
-pub fn parent(dir: &str) -> String {
-    match dir.trim_end_matches('/').rsplit_once('/') {
-        Some((p, _)) => format!("{p}/"),
-        None => String::new(),
-    }
-}
-
-/// Accepts a local path or `file://`, `ftp://`, `ftps://`, `sftp://`, `mtp://`.
-pub fn open(arg: &str) -> Result<Source, Error> {
-    // "C:\photos" would be read as a URL with scheme "c": one-letter schemes are paths.
-    let url = Url::parse(arg).ok().filter(|u| u.scheme().len() > 1);
-    let Some(url) = url else { return local(Path::new(arg)) };
-    if url.scheme() == "file" {
-        let path = url.to_file_path().map_err(|_| ("error-path", arg.to_string()))?;
-        return local(&path);
-    }
-
-    let host = url.host_str().ok_or(("error-no-host", arg.to_string()))?;
-    let (dir, start) = split(&decode(url.path()));
-    if url.scheme() == "mtp" {
-        let serial = decode(host);
-        let base = format!("mtp://{serial}/");
-        let op = Store::Mtp(crate::mtp::Phone::shared(&serial));
-        return Ok(Source { op, base, dir, start, home: false });
-    }
-    let user = match url.username() {
-        "" => String::new(),
-        u => format!("{}@", decode(u)),
-    };
-    let port = url.port().map(|p| format!(":{p}")).unwrap_or_default();
-    // The password never appears in the address bar.
-    let base = format!("{}://{user}{host}{port}/", url.scheme());
-    // A saved server gives what the address leaves out: password and key, and only those.
-    let found = crate::servers::find(arg);
-    let saved = found.clone().unwrap_or_default();
-    let password = url.password().map(decode).or_else(|| Some(saved.password.clone()).filter(|p| !p.is_empty()));
-    if url.scheme() == "sftp" {
-        let (user, port, key) = (decode(url.username()), url.port(), saved.key());
-        let target = crate::sftp::Target { user, host: host.to_string(), port, password, key, saved: found.is_some() };
-        let home = dir.is_empty() && start.is_none();
-        return Ok(Source { op: Store::Sftp(crate::sftp::Server::shared(target)), base, dir, start, home });
-    }
-    if let scheme @ ("ftp" | "ftps") = url.scheme() {
-        let (user, port, secure) = (decode(url.username()), url.port_or_known_default().unwrap_or(21), scheme == "ftps");
-        let target = crate::ftp::Target { host: host.to_string(), port, user, password: password.unwrap_or_default(), secure };
-        let home = dir.is_empty() && start.is_none();
-        return Ok(Source { op: Store::Ftp(crate::ftp::Server::shared(target)), base, dir, start, home });
-    }
-    Err(("error-unsupported", url.scheme().to_string()))
-}
-
-fn local(path: &Path) -> Result<Source, Error> {
-    let lossy = path.to_string_lossy();
-    let path = path.canonicalize().map_err(|e| match lossy.contains(char::REPLACEMENT_CHARACTER) && e.kind() == std::io::ErrorKind::NotFound {
-        true => (BAD_NAME, lossy.to_string()), // an argument whose name is not valid UTF-8 (`bad_name`)
-        false => ("error-path", format!("{}: {e}", path.display())),
-    })?;
-    // "/" on Linux, "\\?\C:\" on Windows.
-    let root = path.ancestors().last().unwrap_or(&path);
-    let rel = path.strip_prefix(root).unwrap_or(&path);
-    let rel: Vec<_> = rel.components().map(|c| c.as_os_str().to_string_lossy().into_owned()).collect();
-    let (dir, start) = split(&rel.join("/"));
-    let op = Operator::new(services::Fs::default().root(&root.to_string_lossy()))
-        .map_err(|e| ("error-source", e.to_string()))?;
-    // ponytail: Windows' "\\?\" prefix is hidden only in the bar; it is really needed only for paths over 260 characters
-    let base = root.to_string_lossy().trim_start_matches(r"\\?\").to_string();
-    Ok(Source { op: Store::Dal(op), base, dir, start, home: false })
-}
-
-impl Listing {
-    /// One item of a folder being read, put where it belongs: the hidden files of an interrupted
-    /// "Save" in `leftovers`, Android's trashed files in `trashed`, then folders and images. Hidden
-    /// items are not shown, apart from EyeCanSee's trash folders; `shown` false hides it too
-    /// (Windows' hidden attribute, a file being written). Folder paths end in "/".
-    pub(crate) fn add(&mut self, path: String, name: &str, is_dir: bool, size: u64, modified: String, shown: bool) {
-        if !is_dir && leftover(name) {
-            self.leftovers.push(path.clone());
-        }
-        if !is_dir && android_trashed(name).is_some() {
-            self.unseen.push(name.to_string());
-            self.trashed.push(File { path, size, modified });
-            return;
-        }
-        if !shown || name.starts_with('.') {
-            self.unseen.push(name.to_string());
-        }
-        if !shown || (name.starts_with('.') && !(is_dir && name == TRASH_DIR)) {
-            return;
-        }
-        if is_dir {
-            self.dirs.push(path);
-        } else if is_media(name) {
-            self.files.push(File { path, size, modified });
-        } else {
-            self.unseen.push(name.to_string());
-        }
-    }
-
-    // ponytail: plain alphabetical order, "img10" before "img2"; natural sort if it bothers anyone
-    /// Also takes the trash folder out of `dirs`, into `trash`.
-    pub fn sort(&mut self) {
-        if let Some(i) = self.dirs.iter().position(|d| is_trash(d)) {
-            self.trash = Some(self.dirs.remove(i));
-        }
-        self.dirs.sort_by_key(|n| n.to_lowercase());
-        self.files.sort_by_key(|f| f.path.to_lowercase());
-    }
-
-    /// Images in the order chosen by the user; ties broken by name. Those without a date (or with
-    /// zero size) go last, in descending order too.
-    pub fn sort_files(&mut self, by: SortBy, desc: bool) {
-        use std::cmp::Ordering;
-        let name = |f: &File| f.path.to_lowercase();
-        let ext = |f: &File| f.path.rsplit_once('.').map(|(_, e)| e.to_lowercase()).unwrap_or_default();
-        let date = |f: &File| crate::human::parse_modified(&f.modified);
-        self.files.sort_by(|a, b| {
-            let flip = |o: Ordering| if desc { o.reverse() } else { o };
-            let primary = match by {
-                SortBy::Name => flip(name(a).cmp(&name(b))),
-                SortBy::Type => flip(ext(a).cmp(&ext(b))),
-                SortBy::Size => (a.size == 0).cmp(&(b.size == 0)).then(flip(a.size.cmp(&b.size))),
-                SortBy::Date => match (date(a), date(b)) {
-                    (Some(x), Some(y)) => flip(x.cmp(&y)),
-                    (x, y) => x.is_none().cmp(&y.is_none()),
-                },
-            };
-            primary.then_with(|| name(a).cmp(&name(b)))
-        });
-    }
-}
-
-/// One item of a local folder: path (folders end in "/"), name, folder or not, size, date.
-type LocalItem = (String, String, bool, u64, String);
-
-/// Everything in a local folder, hidden items too, read without OpenDAL's lister: OpenDAL 0.59.5
-/// gives a link to a folder the mode of a folder but a path without "/", and debug builds panic on
-/// it (issue #82, apache/opendal#8456). A link counts as what it points to; one that leads nowhere
-/// (or to itself) is left out, as OpenDAL did. A folder that is missing or not a folder is empty,
-/// unless its own name cannot be read (`bad_name`).
-async fn local_items(op: &Operator, dir: &str) -> Result<Vec<LocalItem>, Error> {
-    let (full, dir, bad) = (local_path(op, dir), dir.to_string(), bad_name(op, dir));
-    let io = |e: std::io::Error| (if e.kind() == std::io::ErrorKind::NotFound { NOT_FOUND } else { "error-detail" }, e.to_string());
-    tokio::task::spawn_blocking(move || {
-        let entries = match std::fs::read_dir(&full) {
-            Err(e) if bad && e.kind() == std::io::ErrorKind::NotFound => return Err((BAD_NAME, name(&dir).to_string())),
-            Err(e) if matches!(e.kind(), std::io::ErrorKind::NotFound | std::io::ErrorKind::NotADirectory) => return Ok(Vec::new()),
-            r => r.map_err(io)?,
-        };
-        let mut items = Vec::new();
-        for e in entries {
-            let e = e.map_err(io)?;
-            let Ok(m) = std::fs::metadata(e.path()) else { continue };
-            let name = e.file_name().to_string_lossy().into_owned();
-            let path = format!("{dir}{name}{}", if m.is_dir() { "/" } else { "" });
-            let modified = m.modified().ok().and_then(|t| jiff::Timestamp::try_from(t).ok()).map(|t| t.to_string());
-            items.push((path, name, m.is_dir(), if m.is_file() { m.len() } else { 0 }, modified.unwrap_or_default()));
-        }
-        Ok(items)
-    })
-    .await
-    .map_err(|e| ("error-detail", e.to_string()))?
-}
-
-/// Subfolders (without hidden ones) and images of `dir`, sorted by name.
-async fn list(op: &Operator, dir: &str) -> Result<Listing, Error> {
-    let mut listing = Listing::default();
-    for (path, name, is_dir, size, modified) in local_items(op, dir).await? {
-        let shown = !hidden(op, &path) && !crate::batch::writing(&local_path(op, &path));
-        listing.add(path, &name, is_dir, size, modified, shown);
-    }
-    listing.sort();
-    Ok(listing)
-}
-
-/// On Windows, local files with the "hidden" attribute, which File Explorer does not show. Among
-/// them the compatibility junctions such as `Documents\My Pictures`, which deny listing to everyone.
-#[cfg(windows)]
-fn hidden(op: &Operator, path: &str) -> bool {
-    use std::os::windows::fs::MetadataExt;
-    const FILE_ATTRIBUTE_HIDDEN: u32 = 0x2;
-    op.info().scheme() == "fs"
-        && std::fs::symlink_metadata(Path::new(&op.info().root()).join(path.trim_end_matches('/')))
-            .is_ok_and(|m| m.file_attributes() & FILE_ATTRIBUTE_HIDDEN != 0)
-}
-
-#[cfg(not(windows))]
-fn hidden(_: &Operator, _: &str) -> bool {
-    false
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use opendal::services;
 
     /// The tests that take what `GONE` holds, one at a time.
     static GONE_TESTS: Mutex<()> = Mutex::new(());
@@ -847,35 +572,6 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
-    /// A file a conversion is writing is left out of the listing until it is closed, however its
-    /// path is written (OpenDAL canonicalizes the root: on Windows `\\?\` and long names, while the
-    /// temp folder has short ones; on Linux a symlink in the path does the same).
-    #[test]
-    fn writing_left_out() {
-        let top = std::env::temp_dir().join(format!("eyecansee-writing-{}", std::process::id()));
-        let real = top.join("real");
-        std::fs::create_dir_all(&real).unwrap();
-        // On Linux the folder is reached through a symlink, which OpenDAL resolves as Windows
-        // resolves the short names of the temp folder.
-        #[cfg(unix)]
-        let dir = {
-            std::os::unix::fs::symlink(&real, top.join("link")).unwrap();
-            top.join("link")
-        };
-        #[cfg(not(unix))]
-        let dir = real.clone();
-        std::fs::write(dir.join("a.jpg"), b"x").unwrap();
-        std::fs::write(dir.join("b.mp4"), b"x").unwrap();
-        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let names = |l: Listing| l.files.into_iter().map(|f| f.path).collect::<Vec<_>>();
-        let writing = crate::batch::Writing::start(dir.join("b.mp4"));
-        assert_eq!(names(rt.block_on(op.list("")).unwrap()), ["a.jpg"]);
-        drop(writing);
-        assert_eq!(names(rt.block_on(op.list("")).unwrap()), ["a.jpg", "b.mp4"]);
-        std::fs::remove_dir_all(&top).unwrap();
-    }
-
     /// Trash folder, permanent deletion and renaming, on a temporary folder.
     #[test]
     fn delete_and_rename() {
@@ -923,137 +619,6 @@ mod tests {
         assert!(dir.join("photos/f/inner").is_dir() && dir.join("photos/f/x (2).jpg").exists());
         assert!(!trash.join("f").exists());
         std::fs::remove_dir_all(&dir).unwrap();
-    }
-
-    /// Issue #82: links to folders are folders when listing (debug builds panicked inside
-    /// OpenDAL) and when copying; deleting one takes the link away, never what it points to.
-    #[cfg(unix)]
-    #[test]
-    fn links_to_folders() {
-        let top = std::env::temp_dir().join(format!("eyecansee-links-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&top);
-        std::fs::create_dir_all(top.join("real/sub")).unwrap();
-        std::fs::create_dir_all(top.join("folder")).unwrap();
-        for f in ["real/a.jpg", "real/sub/b.jpg", "folder/c.jpg"] {
-            std::fs::write(top.join(f), b"x").unwrap();
-        }
-        let link = |to: &str, at: &str| std::os::unix::fs::symlink(to, top.join(at)).unwrap();
-        link("real", "link");
-        link("nowhere", "dangling");
-        link("../real", "folder/inner");
-        link(".", "folder/self");
-        let op = Store::Dal(Operator::new(services::Fs::default().root(&top.to_string_lossy())).unwrap());
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        let l = rt.block_on(op.list("")).unwrap();
-        assert_eq!(l.dirs, ["folder/", "link/", "real/"]);
-        let l = rt.block_on(op.list("link/")).unwrap();
-        assert_eq!((l.dirs, l.files.len()), (vec!["link/sub/".to_string()], 1));
-        let mut names: Vec<_> = rt.block_on(op.names("")).unwrap().into_iter().collect();
-        names.sort();
-        assert_eq!(names, ["folder", "link", "real"]);
-        // A copy takes what a link points to; a link back to a folder being copied stays empty.
-        let walked = rt.block_on(op.walk("folder/", &crate::transfer::Progress::default())).unwrap();
-        let walked: Vec<_> = walked.iter().map(|(p, size)| format!("{p} {size}")).collect();
-        assert_eq!(walked, ["folder/c.jpg 1", "folder/inner/ 0", "folder/inner/a.jpg 1", "folder/inner/sub/ 0", "folder/inner/sub/b.jpg 1", "folder/self/ 0"]);
-        // Deleted for good or into the trash folder: the link goes, the folder it points to stays whole.
-        rt.block_on(op.delete("link/", Deletion::Permanent)).unwrap();
-        rt.block_on(op.delete("folder/inner/", Deletion::TrashFolder)).unwrap();
-        assert!(top.join("link").symlink_metadata().is_err() && top.join("folder/inner").symlink_metadata().is_err());
-        assert!(top.join("folder").join(TRASH_DIR).join("inner").symlink_metadata().unwrap().is_symlink());
-        assert!(top.join("real/a.jpg").exists() && top.join("real/sub/b.jpg").exists());
-        std::fs::remove_dir_all(&top).unwrap();
-    }
-
-    #[test]
-    fn sort_files() {
-        let f = |path: &str, size, modified: &str| File { path: path.into(), size, modified: modified.into() };
-        let mut l = Listing {
-            files: vec![
-                f("b.png", 300, "1776333600"),
-                f("A.jpg", 100, ""),
-                f("c.jpg", 200, "2026-01-01T00:00:00Z"),
-            ],
-            ..Default::default()
-        };
-        let names = |l: &Listing| l.files.iter().map(|f| f.path.clone()).collect::<Vec<_>>();
-        l.sort_files(SortBy::Name, false);
-        assert_eq!(names(&l), ["A.jpg", "b.png", "c.jpg"]);
-        l.sort_files(SortBy::Size, true);
-        assert_eq!(names(&l), ["b.png", "c.jpg", "A.jpg"]);
-        // Without a date last, in reverse order too.
-        l.sort_files(SortBy::Date, false);
-        assert_eq!(names(&l), ["c.jpg", "b.png", "A.jpg"]);
-        l.sort_files(SortBy::Date, true);
-        assert_eq!(names(&l), ["b.png", "c.jpg", "A.jpg"]);
-        l.sort_files(SortBy::Type, false);
-        assert_eq!(names(&l), ["A.jpg", "c.jpg", "b.png"]);
-    }
-
-    #[test]
-    fn trash_apart() {
-        let dirs = |v: &[&str]| v.iter().map(|s| s.to_string()).collect::<Vec<_>>();
-        let trash = format!("p/{TRASH_DIR}/");
-        let mut l = Listing { dirs: dirs(&["p/b/", &trash, "p/.a/", "p/A/"]), ..Default::default() };
-        l.sort();
-        assert_eq!(l.dirs, dirs(&["p/.a/", "p/A/", "p/b/"]));
-        assert_eq!(l.trash, Some(trash));
-    }
-
-    #[test]
-    fn paths_and_open() {
-        assert_eq!(split("/photos/sea/"), ("photos/sea/".into(), None));
-        assert_eq!(split("/photos/a.JPG"), ("photos/".into(), Some("photos/a.JPG".into())));
-        assert_eq!(split("/a.png"), ("".into(), Some("a.png".into())));
-        assert_eq!(split("/"), ("".into(), None));
-        assert_eq!((parent("a/b/"), parent("a/"), parent("")), ("a/".into(), "".into(), "".into()));
-        assert_eq!((name("a/b/"), name("a/c.jpg")), ("b", "c.jpg"));
-        // Building the FTP operator does not open connections.
-        let s = open("ftp://me:p%40ss@nas.lan/Sea%20photos/a.png").unwrap();
-        assert_eq!((s.base.as_str(), s.dir.as_str()), ("ftp://me@nas.lan/", "Sea photos/"));
-        assert_eq!(s.start.as_deref(), Some("Sea photos/a.png"));
-        assert_eq!(open("gopher://x/").err().map(|e| e.0), Some("error-unsupported"));
-        // The checkout folder can have any name (/src in the AppImage container).
-        let here = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).file_name().unwrap().to_string_lossy();
-        let l = open(env!("CARGO_MANIFEST_DIR")).unwrap();
-        assert!(l.dir.ends_with(&format!("{here}/")) && l.start.is_none());
-        assert!(in_gvfs("/", "run/user/1000/gvfs/mtp:host=X/DCIM/") && in_gvfs("/run/user/1000/gvfs/", "a.jpg"));
-        assert!(!in_gvfs("/", "home/me/a.jpg"));
-        // Issue #47: the path Windows 11 handed over for a phone photo opened from File Explorer.
-        assert!(windows_temp_copy(r"C:\Users\Pierluigi\AppData\Local\Microsoft\Windows\INetCache\IE\OC6EAUQ4\prova-47[1].jpg"));
-        assert!(windows_temp_copy("C:\\/Users/Pierluigi/AppData/Local/Microsoft/Windows/INetCache/IE/OC6EAUQ4/prova-47[1].jpg"));
-        for normal in [r"C:\Users\Ann\Pictures\IMG_0001.jpg", r"D:\Photos\Microsoft\Windows\a.jpg", r"C:\Users\Ann\INetCache\a.jpg", "/home/me/Microsoft/a.jpg"] {
-            assert!(!windows_temp_copy(normal), "{normal}");
-        }
-    }
-
-    #[cfg(windows)]
-    #[test]
-    fn windows_hidden() {
-        let dir = std::env::temp_dir().join("eyecansee-hidden-test");
-        let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(dir.join("visible")).unwrap();
-        std::fs::create_dir_all(dir.join("hidden")).unwrap();
-        let ok = std::process::Command::new("attrib").arg("+h").arg(dir.join("hidden")).status().unwrap();
-        assert!(ok.success());
-        let s = open(&dir.to_string_lossy()).unwrap();
-        let Store::Dal(op) = &s.op else { unreachable!() };
-        let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
-        let l = rt.block_on(list(op, &s.dir)).unwrap();
-        let _ = std::fs::remove_dir_all(&dir);
-        assert_eq!(l.dirs, [format!("{}visible/", s.dir)]);
-    }
-
-    /// What the grid leaves out of a folder is noted, for the check before deleting it.
-    #[test]
-    fn unseen_names() {
-        let mut l = Listing::default();
-        for (name, is_dir) in [("a.jpg", false), ("contract.pdf", false), ("sub", true), (".git", true), (TRASH_DIR, true), (".trashed-1795803477-b.jpg", false), ("c.stl", false)] {
-            l.add(if is_dir { format!("{name}/") } else { name.to_string() }, name, is_dir, 1, String::new(), true);
-        }
-        l.add("hidden.jpg".into(), "hidden.jpg", false, 1, String::new(), false);
-        let mut unseen = l.unseen.clone();
-        unseen.sort();
-        assert_eq!(unseen, [TRASH_DIR, ".git", ".trashed-1795803477-b.jpg", "contract.pdf", "hidden.jpg"]);
     }
 }
 
