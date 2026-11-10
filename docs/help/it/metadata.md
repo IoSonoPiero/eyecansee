@@ -9,7 +9,7 @@ Sotto la griglia, il pannello dei metadati mostra quello che si sa del file sele
 - **File**: nome, peso (anche in byte), data del file e dimensioni in pixel. C'è per ogni file, anche senza metadati.
 - **Fotocamera**: marca, modello, obiettivo e software.
 - **Scatto**: data dello scatto, esposizione, diaframma, ISO, lunghezza focale e flash.
-- **Immagine**: formato, larghezza e altezza, colore e bit per canale, spazio colore.
+- **Immagine**: formato, larghezza e altezza, colore e bit per canale, spazio colore. Per una foto RAW sono quelli dell'immagine che EyeCanSee ne sviluppa (ritagliata come dice la fotocamera); un disegno SVG ha le sue dimensioni e niente colore né bit.
 - **Posizione**: coordinate GPS e altitudine, con **Apri sulla mappa**, che apre il posto su OpenStreetMap nel browser.
 
 Un riquadro dice "Nessun dato" quando il file non ha niente per lui, e "Questo file non contiene metadati" quando il file non ha nessun metadato.

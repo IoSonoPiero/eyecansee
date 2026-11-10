@@ -9,7 +9,7 @@ Under the grid, the metadata panel shows what is known about the selected file: 
 - **File**: name, size (also in bytes), file date and size in pixels. Every file has it, also without metadata.
 - **Camera**: make, model, lens and software.
 - **Shot**: date taken, exposure, aperture, ISO, focal length and flash.
-- **Image**: format, width and height, colour and bits per channel, colour space.
+- **Image**: format, width and height, colour and bits per channel, colour space. For a Camera RAW photo they are those of the picture EyeCanSee develops from it (cut as the camera says); an SVG drawing has its own size and no colour or bits.
 - **Location**: GPS coordinates and altitude, with **Open on the map**, which opens the place on OpenStreetMap in your browser.
 
 A box shows "No data" when the file has nothing for it, and "This file contains no metadata" when the file has no metadata at all.

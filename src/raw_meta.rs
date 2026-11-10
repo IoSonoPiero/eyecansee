@@ -135,6 +135,64 @@ fn exif_fields(bytes: &[u8]) -> Option<(Vec<Field>, bool)> {
     crate::meta::exif_fields(bytes)
 }
 
+/// Format, size and colour of a RAW file's picture as `decode::raw` develops it (the camera's
+/// crop applied, before the EXIF orientation turns it): from the file's structure only, the
+/// sensor data is not read. `None` if rawler cannot read it.
+pub fn header(bytes: &[u8]) -> Option<crate::decode::Header> {
+    use rawler::decoders::FormatHint;
+    let src = RawSource::new_from_slice(bytes);
+    let decoder = rawler::get_decoder(&src).ok()?;
+    let (format, (size, rgb)) = match decoder.format_hint() {
+        // rawler 0.8.0 decompresses a DNG's sensor data even when asked for the "dummy" image
+        // (0.4 s for a Leica M10): its tags are read here instead.
+        FormatHint::DNG => {
+            let ifd = decoder.ifd(rawler::decoders::WellKnownIFD::Raw).ok()??;
+            ("DNG".to_string(), dng_shape(&ifd)?)
+        }
+        hint => {
+            let raw = decoder.raw_image(&src, &RawDecodeParams::default(), true).ok()?;
+            let name = if hint == FormatHint::Unknown { "RAW".to_string() } else { format!("{hint:?}") };
+            (name, developed_shape(&raw))
+        }
+    };
+    // Always at 16 bits per channel (`Intermediate::to_dynamic_image`), also from 12-bit sensors.
+    let color = crate::decode::Color { rgb, alpha: false, bits: 16 };
+    Some(crate::decode::Header { format, size: size.map(|s| s as u32), color: Some(color) })
+}
+
+/// Size and colour (`true`) of the picture `RawDevelop::develop_intermediate` makes with its
+/// default steps: the default crop, else the active area, else the whole sensor, which old
+/// Fujifilm sensors turn by 45°. A colour filter or several components per pixel give colour.
+fn developed_shape(raw: &rawler::RawImage) -> ([usize; 2], bool) {
+    let size = match (raw.crop_area.or(raw.active_area), raw.fuji_rotation_width) {
+        (Some(crop), _) => [crop.d.w, crop.d.h],
+        (None, Some(t)) => {
+            let s = if raw.camera.find_hint("fuji_rotate_90cw") { raw.height } else { raw.width } as f64;
+            let (a, b) = ((t as f64 * std::f64::consts::SQRT_2) as usize, ((s - t as f64) * std::f64::consts::SQRT_2) as usize);
+            [a.max(b), a.min(b)]
+        }
+        (None, None) => [raw.width, raw.height],
+    };
+    (size, raw.cpp > 1 || matches!(raw.photometric, rawler::rawimage::RawPhotometricInterpretation::Cfa(_)))
+}
+
+/// `developed_shape` from the tags of a DNG's raw image, as rawler's DNG decoder reads them:
+/// DefaultCropSize, else ActiveArea (top, left, bottom, right), else the whole image.
+fn dng_shape(ifd: &rawler::formats::tiff::IFD) -> Option<([usize; 2], bool)> {
+    use rawler::tags::{DngTag, TiffCommonTag};
+    let get = |e: Option<&rawler::formats::tiff::Entry>, i| e.map(|e| e.force_usize(i));
+    let crop = ifd.get_entry(DngTag::DefaultCropOrigin).and(ifd.get_entry(DngTag::DefaultCropSize));
+    let area = ifd.get_entry(DngTag::ActiveArea);
+    let size = match (crop, area) {
+        (Some(c), _) => [get(Some(c), 0)?, get(Some(c), 1)?],
+        (None, Some(a)) => [a.force_usize(3).checked_sub(a.force_usize(1))?, a.force_usize(2).checked_sub(a.force_usize(0))?],
+        (None, None) => [get(ifd.get_entry(TiffCommonTag::ImageWidth), 0)?, get(ifd.get_entry(TiffCommonTag::ImageLength), 0)?],
+    };
+    let cpp = get(ifd.get_entry(TiffCommonTag::SamplesPerPixel), 0).unwrap_or(1);
+    let cfa = get(ifd.get_entry(TiffCommonTag::PhotometricInt), 0) == Some(32803);
+    Some((size, cpp > 1 || cfa))
+}
+
 /// The EXIF orientation of a RAW file as the file holds it, for `decode::raw` when rawler gives
 /// none.
 pub fn orientation(bytes: &[u8]) -> Option<u16> {
