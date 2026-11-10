@@ -43,8 +43,9 @@ struct Stored {
     gps: Option<(f64, f64)>,
 }
 
-/// Raised when the panel learns to read something new: 1 = drone positions from the `.SRT`.
-const STORED: u32 = 1;
+/// Raised when the panel learns to read something new: 1 = drone positions from the `.SRT`,
+/// 2 = the Image box in one order (`IMAGE_ORDER`).
+const STORED: u32 = 2;
 
 impl Meta {
     pub fn to_json(&self) -> String {
@@ -258,10 +259,26 @@ pub fn read_file(bytes: &[u8], name: &str) -> Option<Meta> {
             add.push((Group::Image, "meta-color", color_kind(&c).to_string()));
             add.push((Group::Image, "meta-depth", format!("{} bit", c.bits)));
         }
-        // Format first in its box, the EXIF fields after.
         meta_ref.fields.splice(0..0, add);
     }
+    if let Some(m) = &mut meta {
+        order_image(&mut m.fields);
+    }
     meta
+}
+
+/// The rows of the Image box, in this order whatever the format; the others after them as they
+/// came. A CR2 had its EXIF width and height after the colour, a DNG before it.
+const IMAGE_ORDER: &[&str] = &["meta-format", "meta-width", "meta-height", "meta-color", "meta-depth", "meta-colorspace"];
+
+/// The Image box in `IMAGE_ORDER`; the other boxes stay as they are.
+fn order_image(fields: &mut [(Group, &'static str, String)]) {
+    let at: Vec<usize> = (0..fields.len()).filter(|&i| fields[i].0 == Group::Image).collect();
+    let mut image: Vec<_> = at.iter().map(|&i| fields[i].clone()).collect();
+    image.sort_by_key(|(_, label, _)| IMAGE_ORDER.iter().position(|l| l == label).unwrap_or(IMAGE_ORDER.len()));
+    for (i, f) in at.into_iter().zip(image) {
+        fields[i] = f;
+    }
 }
 
 /// Fluent id of the colour model.
@@ -597,6 +614,28 @@ mod tests {
         assert_eq!((get("meta-width"), get("meta-height")), (Some("30 px"), Some("20 px")));
         assert_eq!((get("meta-color"), get("meta-depth")), (Some("meta-color-rgba"), Some("8 bit")));
         assert!(read_file(b"not an image", "a.txt").is_none());
+    }
+
+    #[test]
+    fn image_rows_in_one_order() {
+        use super::Group::{Camera, Image};
+        // As a CR2 came (EXIF width, height and colour space after the header's colour) and as a
+        // DNG came (no colour space): the same order for both.
+        let mut cr2 = vec![
+            (Image, "meta-format", String::new()),
+            (Image, "meta-color", String::new()),
+            (Image, "meta-depth", String::new()),
+            (Camera, "meta-make", String::new()),
+            (Image, "meta-width", String::new()),
+            (Image, "meta-height", String::new()),
+            (Image, "meta-colorspace", String::new()),
+        ];
+        super::order_image(&mut cr2);
+        let labels = |f: &[(super::Group, &'static str, String)]| f.iter().map(|(_, l, _)| *l).collect::<Vec<_>>();
+        assert_eq!(labels(&cr2), ["meta-format", "meta-width", "meta-height", "meta-make", "meta-color", "meta-depth", "meta-colorspace"]);
+        let mut dng: Vec<_> = ["meta-format", "meta-width", "meta-height", "meta-color", "meta-depth"].map(|l| (Image, l, String::new())).into();
+        super::order_image(&mut dng);
+        assert_eq!(labels(&dng), ["meta-format", "meta-width", "meta-height", "meta-color", "meta-depth"]);
     }
 
     #[test]
