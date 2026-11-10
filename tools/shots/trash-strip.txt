@@ -1,0 +1,17 @@
+# The trash of a phone folder: on the real phone of phone.txt, in DCIM/EyeCanSee-guida, one file
+# deleted (into the hidden .EyeCanSee-trash next to it), then Open the trash; the crop is the strip
+# at the top of the grid (whose trash, Restore all, Empty the trash). Each run deletes one more
+# test file there.
+phone-folders DCIM Documents Download Movies Music Pictures EyeCanSee-guida
+3 click 100 132
+6.5 open interna
+9.5 open DCIM
+12.5 open EyeCanSee-guida
+15 click 1100 700
+15.3 select Wilder Kaiser.jpg
+15.5 key Delete
+17 key Enter
+21 click 1128 83
+24 move 700 600
+26.2 shot trash-strip 248 66 944 36
+26.5 end
