@@ -11,7 +11,7 @@ EyeCanSee shows the pictures, videos, 3D models and CAD drawings of a folder as 
 - **Side panel** on the left: your disks, phones and saved servers, and the folders of this computer. See [Folders and the side panel](folders.md).
 - **Grid** in the middle: the subfolders and the files of the open folder, as thumbnails. See [The thumbnail grid](grid.md).
 - **Metadata panel** under the grid: the information about the selected file. See [Image information](metadata.md).
-- **Status bar** at the bottom: how many folders and files there are, and the name, size and date of the selected item.
+- **Status bar** at the bottom: how many folders and files there are, and the name, size and date of the selected file (of a folder, its name).
 
 ## Opening a folder
 

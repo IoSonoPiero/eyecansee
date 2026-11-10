@@ -18,9 +18,9 @@ A selected line or arrow has three handles: its two ends and its middle.
 
 ## Options in the properties bar
 
-- **Colour**, **Width** and **Opacity**. See [Colours, lines and the eyedropper](editor-colors.md).
-- **Line**: ![Solid](icon://line-solid) solid, ![Dashed](icon://line-dashed) dashed or ![Dotted](icon://line-dotted) dotted.
-- **Heads** (Arrow only): ![Filled head](icon://head-filled) filled, ![Open head](icon://head-open) open, ![Head at both ends](icon://head-double) at both ends, or ![Dot](icon://head-dot) a dot.
+- The colour swatches, **Width** and **Opacity**. See [Colours, lines and the eyedropper](editor-colors.md).
+- Line style: ![Solid](icon://line-solid) solid, ![Dashed](icon://line-dashed) dashed or ![Dotted](icon://line-dotted) dotted.
+- Arrow heads (Arrow only): ![Filled head](icon://head-filled) filled, ![Open head](icon://head-open) open, ![Head at both ends](icon://head-double) at both ends, or ![Dot](icon://head-dot) a dot.
 
 ## Keys
 

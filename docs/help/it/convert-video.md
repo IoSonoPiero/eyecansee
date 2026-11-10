@@ -45,7 +45,7 @@ Il riquadro in basso a destra mostra a che punto è; la barra avanza anche duran
 **Strumenti > Copia senza audio…** e **Strumenti > Salva l'audio in un file…** (anche nel clic destro) aprono una finestra breve sui video scelti, in cui scegli solo la destinazione. All'inizio è accanto agli originali.
 
 - **Copia senza audio** crea un video nuovo, uguale all'originale ma senza audio. L'immagine e le altre tracce (sottotitoli, capitoli) vengono copiate così come sono, con i metadati. Il file nuovo prende un nome libero, per esempio `video (2).mp4`.
-- **Salva l'audio in un file** scrive ogni traccia audio in un file suo, copiata così com'è: AAC come `.m4a`, Opus come `.opus`, MP3 come `.mp3`, FLAC come `.flac`, Vorbis come `.ogg`, l'audio non compresso per lo più come `.wav`, i formati più rari come `.mka`. Un video con due tracce dà `video.m4a` e `video-2.m4a`. Per un altro formato (per esempio MP3 da AAC) usa Converti e ridimensiona.
+- **Salva l'audio in un file** scrive ogni traccia audio in un file suo, copiata così com'è: AAC come `.m4a`, Opus come `.opus`, MP3 come `.mp3`, FLAC come `.flac`, Vorbis come `.ogg`, AC-3 come `.ac3`, E-AC-3 come `.eac3`, AMR come `.amr`, l'audio non compresso per lo più come `.wav`, i formati più rari come `.mka`. Un video con due tracce dà `video.m4a` e `video-2.m4a`. Per un altro formato (per esempio MP3 da AAC) usa Converti e ridimensiona.
 
 Un video senza audio resta fuori, e alla fine viene nominato.
 

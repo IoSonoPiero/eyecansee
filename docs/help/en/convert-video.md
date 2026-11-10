@@ -45,7 +45,7 @@ The box at the bottom right shows how far it got; the bar moves during a long vi
 **Tools > Copy without sound…** and **Tools > Save the sound as a file…** (also in the right-click menu) open a short window on the videos chosen, where you only choose the destination. At first it is next to the originals.
 
 - **Copy without sound** makes a new video, the same as the original but without its sound. The picture and the other tracks (subtitles, chapters) are copied as they are, with the metadata. The new file gets a free name, for example `video (2).mp4`.
-- **Save the sound as a file** writes each sound track into a file of its own, copied as it is: AAC as `.m4a`, Opus as `.opus`, MP3 as `.mp3`, FLAC as `.flac`, Vorbis as `.ogg`, uncompressed sound mostly as `.wav`, the rarer ones as `.mka`. A video with two tracks gives `video.m4a` and `video-2.m4a`. For another format (for example MP3 from AAC), use Convert and resize.
+- **Save the sound as a file** writes each sound track into a file of its own, copied as it is: AAC as `.m4a`, Opus as `.opus`, MP3 as `.mp3`, FLAC as `.flac`, Vorbis as `.ogg`, AC-3 as `.ac3`, E-AC-3 as `.eac3`, AMR as `.amr`, uncompressed sound mostly as `.wav`, the rarer ones as `.mka`. A video with two tracks gives `video.m4a` and `video-2.m4a`. For another format (for example MP3 from AAC), use Convert and resize.
 
 A video without sound is left out and named at the end.
 

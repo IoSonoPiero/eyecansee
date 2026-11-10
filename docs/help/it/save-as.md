@@ -8,7 +8,7 @@ Per convertire o ridimensionare tante immagini insieme usa [Convertire e ridimen
 
 - Nella griglia seleziona un'immagine e fai clic su ![Salva come…](icon://file-output) nella barra strumenti, oppure scegli **File > Salva come…**, oppure fai clic destro sull'immagine e scegli **Salva come…**.
 - Nel visore premi **Ctrl+Maiusc+S**, o usa le stesse voci di menù. Se nel visore hai ruotato o riflesso l'immagine, viene salvata ruotata.
-- Nel visore anche un modello 3D o un disegno CAD si possono salvare come immagine, così come si vedono: un modello largo almeno 1920 pixel, un disegno con il layout che stai guardando. Su un modello 3D fa lo stesso anche **Ctrl+S**.
+- Nel visore anche un modello 3D o un disegno CAD si possono salvare come immagine, così come si vedono: un modello di almeno 1920 pixel sul lato lungo, un disegno con il layout che stai guardando. Su un modello 3D fa lo stesso anche **Ctrl+S**.
 - Nell'editor, **Salva come…** apre questa pagina con l'immagine modificata (vedi [Salvare un'immagine modificata](editor-save.md)).
 
 <!-- shot: save-as | panoramica | The Save in another format page on a photo: original on the left, converted on the right, JPEG chosen with its options and the file name under the right image -->
@@ -61,5 +61,5 @@ Il file nuovo va nella stessa cartella dell'originale. Se il nome è già preso,
 - JPEG e Radiance HDR non hanno la trasparenza: le parti trasparenti diventano bianche. La pagina lo dice.
 - Un'icona (ICO) contiene al massimo 256 × 256 pixel: un'immagine più grande viene ridotta. La pagina lo dice.
 - EyeCanSee non sa scrivere HEIC né JPEG XL: vedi [Formati supportati](formats.md).
-- Solo JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF e QOI si possono anche riscrivere sopra l'originale dopo una rotazione (vedi [Ruotare e riflettere](rotate.md)); gli altri formati solo da questa pagina.
+- Solo JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI e i file PSD (appiattiti) si possono anche riscrivere sopra l'originale dopo una rotazione (vedi [Ruotare e riflettere](rotate.md)); gli altri formati solo da questa pagina.
 - La tabella completa di formati e opzioni è in [docs/formats.md](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/formats.md).

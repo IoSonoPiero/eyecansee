@@ -4,7 +4,7 @@ Le opzioni cambiano come EyeCanSee si avvia, il suo aspetto, come passa da un'im
 
 ## Aprire le opzioni
 
-Scegli **Strumenti > Opzioni…** (![Opzioni…](icon://settings)). La finestra è divisa in schede: **Generale**, **Aspetto**, **Navigazione**, **Miniature**, **Eliminazione**, **Carosello** e **Video**. Passando sopra un'opzione compare una breve spiegazione.
+Scegli **Strumenti > Opzioni…** (![Opzioni…](icon://settings)). La finestra è divisa in schede: **Generale**, **Aspetto**, **Navigazione**, **Miniature**, **Eliminazione**, **Carosello** e **Video**. Passando sopra molte opzioni compare una breve spiegazione.
 
 Ogni modifica viene salvata subito in `settings.json`: in `~/.config/eyecansee` su Linux e in `%APPDATA%\eyecansee` su Windows. È un file di testo che puoi anche modificare a mano.
 

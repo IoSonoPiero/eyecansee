@@ -56,11 +56,11 @@ Se una miniatura sembra sbagliata, fai clic destro sul file (o su più file sele
 ## Il menù del clic destro
 
 - Su un **file**: le azioni che funzionano su di lui, come Apri, Carosello, Modifica immagine…, Converti e ridimensiona…, Taglia, Copia, Rinomina… ed Elimina…. Con più file selezionati, il menù agisce su tutti (vedi [Selezionare i file](selection.md)).
-- Su una **cartella**: Apri, Nuova cartella qui dentro…, Taglia, Copia, Incolla in questa cartella, Trova duplicati…, Rinomina…, Elimina….
+- Su una **cartella**: Apri, Nuova cartella qui dentro…, Taglia, Copia, Incolla in questa cartella, Trova duplicati…, Rinomina…, Elimina…, Elimina definitivamente….
 - Su uno **spazio vuoto**: Incolla (quando hai copiato qualcosa), Seleziona tutto, Nuova cartella…, Cartella superiore, Aggiorna, Mostra e Trova duplicati….
 
 Una voce segnata con **\*** funziona solo su una parte dei file scelti (per esempio Converti e ridimensiona sulle foto e sui video che ci sono in mezzo); una riga in fondo al menù lo dice.
 
 ## La barra di stato
 
-In fondo alla finestra: quante cartelle, immagini, video e file audio ci sono nella cartella, e nome, peso e data dell'elemento selezionato. Con più elementi selezionati dice quanti sono e quanto pesano i loro file. Dopo Copia o Taglia ricorda di premere Ctrl+V.
+In fondo alla finestra: quante cartelle, immagini, video e file audio ci sono nella cartella, e nome, peso e data del file selezionato (di una cartella, il nome). Con più elementi selezionati dice quanti sono e quanto pesano i loro file. Dopo Copia o Taglia ricorda di premere Ctrl+V.

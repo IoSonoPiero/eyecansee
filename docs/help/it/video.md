@@ -40,7 +40,7 @@ I file audio (per esempio MP3, M4A, FLAC, Opus) compaiono nella griglia con la l
 
 ## Il motore video
 
-I video li riproduce mpv. Quando EyeCanSee ha bisogno di una copia sua (sempre su Windows; su Linux quando il sistema non ce l'ha, o ne ha una troppo vecchia), il visore propone di scaricarla la prima volta che apri un video, e in alto a destra nella barra dei menù compare il pulsante rosso **Scarica il motore video** appena la cartella aperta contiene un video. Si scarica una volta sola. Vedi [Componenti aggiuntivi](components.md).
+I video li riproduce mpv. Quando EyeCanSee ha bisogno di una copia sua (di solito su Windows; su Linux quando il sistema non ce l'ha, o ne ha una troppo vecchia), il visore propone di scaricarla la prima volta che apri un video, e in alto a destra nella barra dei menù compare il pulsante rosso **Scarica il motore video** appena la cartella aperta contiene un video. Si scarica una volta sola. Vedi [Componenti aggiuntivi](components.md).
 
 Fino ad allora la miniatura di un video è l'anteprima salvata dalla videocamera, quando c'è, oppure il simbolo del video con ![Download](icon://color-download).
 

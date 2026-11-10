@@ -11,7 +11,7 @@ EyeCanSee mostra le foto, i video, i modelli 3D e i disegni CAD di una cartella 
 - **Pannello laterale** a sinistra: i tuoi dischi, i telefoni, i server salvati e le cartelle di questo computer. Vedi [Cartelle e pannello laterale](folders.md).
 - **Griglia** al centro: le sottocartelle e i file della cartella aperta, come miniature. Vedi [La griglia delle miniature](grid.md).
 - **Pannello dei metadati** sotto la griglia: le informazioni sul file selezionato. Vedi [Informazioni sul file](metadata.md).
-- **Barra di stato** in fondo: quante cartelle e quanti file ci sono, e nome, peso e data dell'elemento selezionato.
+- **Barra di stato** in fondo: quante cartelle e quanti file ci sono, e nome, peso e data del file selezionato (di una cartella, il nome).
 
 ## Aprire una cartella
 

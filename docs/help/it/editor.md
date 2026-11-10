@@ -57,7 +57,7 @@ Da sapere:
 - Un rettangolo o un'ellisse senza riempimento si prende dal bordo, non dall'interno vuoto.
 - Filtri, evidenziatori e riflettori stanno sotto gli altri oggetti: un clic li prende solo dove non c'è nient'altro.
 - Gli oggetti stanno uno sopra l'altro nell'ordine in cui li disegni.
-- Cambiare strumento lascia l'oggetto selezionato (tranne quando scegli Seleziona).
+- Cambiare strumento deseleziona l'oggetto (tranne quando scegli Seleziona).
 
 ## Annullare e ripetere
 

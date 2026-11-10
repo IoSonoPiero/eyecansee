@@ -28,6 +28,6 @@ EyeCanSee remembers which boxes are open and whether the panel is collapsed.
 
 ## Good to know
 
-- The panel follows the selected file in the grid; it is not shown in the viewer. The viewer's status bar shows the date the picture was taken (see [Viewing images](viewer.md)).
+- The panel follows the selected file in the grid; it is not shown in the viewer. The viewer's status bar shows the date taken once the metadata have been read in the grid (see [Viewing images](viewer.md)).
 - To read the metadata EyeCanSee reads the file again, so on a phone or a server it takes a moment. Once read, it is kept with the thumbnails and shows at once the next time, until the file changes.
 - When you convert or save a picture, its metadata is kept in the new file where the format allows it. See [Saving in another format](save-as.md).

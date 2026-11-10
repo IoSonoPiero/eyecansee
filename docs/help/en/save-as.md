@@ -8,7 +8,7 @@ To convert or resize many images at once, use [Converting and resizing images](c
 
 - In the grid, select one image and click ![Save as…](icon://file-output) in the toolbar, or choose **File > Save as…**, or right-click the image and choose **Save as…**.
 - In the viewer, press **Ctrl+Shift+S**, or use the same menu items. If you turned or flipped the image in the viewer, it is saved turned.
-- In the viewer, a 3D model or a CAD drawing can be saved as a picture too, as it is shown on screen: a model at least 1920 pixels wide, a drawing with the layout you are looking at. On a 3D model **Ctrl+S** does the same.
+- In the viewer, a 3D model or a CAD drawing can be saved as a picture too, as it is shown on screen: a model at least 1920 pixels on its long side, a drawing with the layout you are looking at. On a 3D model **Ctrl+S** does the same.
 - In the editor, **Save as…** opens this page with the edited image (see [Saving an edited image](editor-save.md)).
 
 <!-- shot: save-as | panoramica | The Save in another format page on a photo: original on the left, converted on the right, JPEG chosen with its options and the file name under the right image -->
@@ -61,5 +61,5 @@ The new file goes into the same folder as the original. If the name is already t
 - JPEG and Radiance HDR have no transparency: transparent parts become white. The page says so.
 - An icon (ICO) holds at most 256 × 256 pixels: a larger image is reduced. The page says so.
 - EyeCanSee cannot write HEIC or JPEG XL: see [Supported formats](formats.md).
-- Only JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF and QOI can also be written back over the original after a turn (see [Rotating and flipping](rotate.md)); the other formats only through this page.
+- Only JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI and PSD files (flattened) can also be written back over the original after a turn (see [Rotating and flipping](rotate.md)); the other formats only through this page.
 - The full table of formats and options is in [docs/formats.md](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/formats.md).

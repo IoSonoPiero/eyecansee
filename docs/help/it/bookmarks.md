@@ -37,5 +37,5 @@ Le modifiche si salvano quando chiudi la finestra con **Chiudi** o **Esc**.
 ## Da sapere
 
 - Un segnalibro il cui posto non esiste più, o il cui disco o telefono non è collegato, non viene mai tolto da solo: sceglierlo spiega perché non si apre, e resta nell'elenco per quando il dispositivo sarà di nuovo collegato.
-- Una cartella di un server che non esiste più la segnala il server quando la apri.
+- Un segnalibro a una cartella di un server che non esiste più apre invece la cartella del server salvato, o quella da cui parte il server.
 - I segnalibri sono salvati con le altre impostazioni, in `settings.json`; l'indirizzo di un server viene conservato senza la password.

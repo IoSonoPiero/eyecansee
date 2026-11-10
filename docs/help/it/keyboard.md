@@ -7,11 +7,16 @@ Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto 
 | Tasto | Azione |
 |---|---|
 | F1 | Apre questa guida sulla pagina di ciò che stai facendo; di nuovo per chiuderla |
+
+## Nella griglia e nel visore
+
+| Tasto | Azione |
+|---|---|
 | F5 | Rilegge le cartelle (nel visore resta sull'immagine aperta) |
 | F11 | Schermo intero e ritorno; nel visore si vede solo l'immagine, senza menù né barre |
 | Ctrl+Maiusc+D | Segnalibri: si apre l'elenco; ↓ ci entra, Invio apre il segnalibro scelto (vedi [Segnalibri](bookmarks.md)) |
 
-Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le chiudono; in quelle che chiedono una scelta, **Invio** conferma ed **Esc** annulla. Fa eccezione un'eliminazione che comprende una cartella: lì anche Invio annulla.
+Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le chiudono; in quelle che chiedono una scelta, **Invio** conferma ed **Esc** annulla. Fanno eccezione un'eliminazione che comprende una cartella (lì anche Invio annulla) e la rotazione o il ribaltamento di foto nella griglia (Invio non conferma).
 
 ## Nella griglia
 

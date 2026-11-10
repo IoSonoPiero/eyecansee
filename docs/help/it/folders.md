@@ -20,7 +20,7 @@ Quando cambi cartella in un altro modo (dalla griglia, dalla barra degli indiriz
 
 - Un clic su un dispositivo lo apre. Su Linux un disco che il sistema non ha ancora aperto ha il nome sbiadito: un clic lo apre.
 - Un clic su un server salvato si collega e apre la sua cartella. Il clic destro offre **Chiudi connessione** e **Modifica…**. Se i server salvati sono protetti da una password principale, il pannello mostra **Sblocca i server salvati…** finché non la scrivi (vedi [Password salvate](passwords.md)).
-- Mentre è aperto un telefono o un server, **Questo computer** mostra la tua cartella home ![Home](icon://color-home) e l'ultima cartella del computer in cui eri (con un server, anche le unità del computer): un clic ti riporta lì.
+- Mentre è aperto un telefono o un server, **Questo computer** mostra la tua cartella home ![Home](icon://color-home) e l'ultima cartella del computer in cui eri (con un server o un telefono aperto direttamente, anche le unità del computer): un clic ti riporta lì.
 
 ## Il menù del clic destro su una cartella
 

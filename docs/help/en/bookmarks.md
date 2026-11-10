@@ -37,5 +37,5 @@ The changes are saved when you close the window with **Close** or **Esc**.
 ## Good to know
 
 - A bookmark whose place no longer exists, or whose disk or phone is not connected, is never removed by itself: choosing it says why it cannot be opened, and it stays in the list for when the device is connected again.
-- A server folder that no longer exists is reported by the server when you open it.
+- A bookmark to a server folder that no longer exists opens the saved server's folder instead, or the folder where the server starts.
 - Bookmarks are saved with the other settings, in `settings.json`; a server's address is kept without its password.

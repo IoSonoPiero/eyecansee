@@ -18,9 +18,9 @@ Una linea o una freccia selezionata ha tre maniglie: i due capi e il punto di me
 
 ## Opzioni nella barra delle proprietà
 
-- **Colore**, **Spessore** e **Opacità**. Vedi [Colori, linee e contagocce](editor-colors.md).
-- **Tratto**: ![Continuo](icon://line-solid) continuo, ![Tratteggiato](icon://line-dashed) tratteggiato o ![Puntinato](icon://line-dotted) puntinato.
-- **Punte** (solo Freccia): ![Punta piena](icon://head-filled) piena, ![Punta aperta](icon://head-open) aperta, ![Punta ai due capi](icon://head-double) ai due capi, o ![Pallino](icon://head-dot) un pallino.
+- I campioni di colore, **Spessore** e **Opacità**. Vedi [Colori, linee e contagocce](editor-colors.md).
+- Tipo di tratto: ![Continuo](icon://line-solid) continuo, ![Tratteggiato](icon://line-dashed) tratteggiato o ![Puntinato](icon://line-dotted) puntinato.
+- Punte della freccia (solo Freccia): ![Punta piena](icon://head-filled) piena, ![Punta aperta](icon://head-open) aperta, ![Punta ai due capi](icon://head-double) ai due capi, o ![Pallino](icon://head-dot) un pallino.
 
 ## Tasti
 

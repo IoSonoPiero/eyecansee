@@ -20,7 +20,7 @@ When you change folder in another way (from the grid, the address bar or a bookm
 
 - A click on a device opens it. On Linux a disk that the system has not opened yet has a dimmed name: a click opens it.
 - A click on a saved server connects to it and opens its folder. A right click offers **Close connection** and **Edit…**. If your saved servers are protected by a master password, the panel shows **Unlock the saved servers…** until you type it (see [Saved passwords](passwords.md)).
-- While a phone or a server is open, **This computer** shows your home folder ![Home](icon://color-home) and the last folder of the computer you were in (with a server, also the drives of the computer): one click takes you back there.
+- While a phone or a server is open, **This computer** shows your home folder ![Home](icon://color-home) and the last folder of the computer you were in (with a server or a phone opened directly, also the drives of the computer): one click takes you back there.
 
 ## The right-click menu of a folder
 

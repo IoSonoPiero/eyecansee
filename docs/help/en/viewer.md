@@ -32,7 +32,7 @@ A picture is never shown smaller than fitted to the window, and a small picture 
 
 ## The status bar of the viewer
 
-At the bottom: the file name, its position in the folder (for example 12 / 51), its size in pixels, the zoom, its size on disk, and the date it was taken (or modified, if the picture does not say when it was taken). After a turn not yet saved it also says **Changed, not saved**.
+At the bottom: the file name, its position in the folder (for example 12 / 51), its size in pixels, the zoom, its size on disk, and its date: the date taken when its metadata were already read in the grid, otherwise the date the file was modified. After a turn not yet saved it also says **Changed, not saved**.
 
 The **Keys** button on the right lists the keys of what you are looking at (a picture, a video, a 3D model or a CAD drawing): while the mouse is on it, or until you click it again.
 
