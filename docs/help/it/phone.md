@@ -8,9 +8,9 @@ Collega un telefono Android con il cavo USB per guardare le sue foto e i suoi vi
 2. Nella notifica USB del telefono scegli **Trasferimento file** (MTP) per vedere tutta la memoria, oppure **Trasferimento foto** (PTP) per vedere solo le cartelle delle foto (`DCIM`, `Pictures`).
 3. Il telefono compare nel blocco **Dispositivi** in alto a sinistra con l'icona ![Telefono](icon://color-phone), entro un paio di secondi. Fai clic per aprirlo.
 
-Il primo livello mostra le memorie del telefono (per esempio "Memoria condivisa interna"): aprine una per vedere le cartelle. Sotto **Questo computer** c'è la tua cartella home, per tornare al computer.
+Il primo livello mostra le memorie del telefono (per esempio "Memoria condivisa interna"; il nome lo dà il telefono, nella sua lingua): aprine una per vedere le cartelle. Sotto **Questo computer** c'è la tua cartella home, per tornare al computer.
 
-<!-- shot: phone | panoramica | The main window with a phone open: the phone in the Devices block on the left with its DCIM and Pictures folders, This computer with the home folder below, the grid of the Camera folder on the right -->
+![Telefoni Android](../img/phone.webp)
 
 ## Che cosa puoi fare
 

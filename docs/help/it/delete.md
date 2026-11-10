@@ -38,7 +38,7 @@ Ogni cartella in cui hai eliminato qualcosa su un telefono o su un server (e su 
 - Clic destro su uno spazio vuoto del cestino: **Ripristina tutto** e **Svuota il cestino…** (tutto eliminato per sempre, dopo una conferma).
 - Un cestino rimasto vuoto sparisce insieme alla sua striscia.
 
-<!-- shot: trash-strip | ritaglio | The strip at the top of the grid inside a phone folder's trash: trash icon, Trash of the folder Camera, Restore all and Empty the trash buttons -->
+![Eliminare e cestino](../img/trash-strip.webp)
 
 Se il nome di un elemento da ripristinare è già preso, EyeCanSee chiede: per un file **Sostituisci** o **Tieni entrambi** (quello ripristinato diventa per esempio `foto (2).jpg`); per una cartella **Unisci** o **Tieni entrambi**. **Annulla** ferma anche il resto di un Ripristina tutto.
 

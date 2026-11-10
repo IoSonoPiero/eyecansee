@@ -8,9 +8,9 @@ Connect an Android phone with its USB cable to look at its photos and videos, co
 2. In the phone's USB notification choose **File transfer** (MTP) to see the whole storage, or **Transfer photos** (PTP) to see only the photo folders (`DCIM`, `Pictures`).
 3. The phone appears in the **Devices** block at the top left with the ![Phone](icon://color-phone) icon, within a couple of seconds. Click it to open it.
 
-The first level shows the phone's storages (for example "Internal shared storage"): open one to see its folders. Under **This computer** there is your home folder, to go back to the computer.
+The first level shows the phone's storages (for example "Internal shared storage"; the phone gives the name, in its own language): open one to see its folders. Under **This computer** there is your home folder, to go back to the computer.
 
-<!-- shot: phone | panoramica | The main window with a phone open: the phone in the Devices block on the left with its DCIM and Pictures folders, This computer with the home folder below, the grid of the Camera folder on the right -->
+![Android phones](../img/phone.webp)
 
 ## What you can do
 

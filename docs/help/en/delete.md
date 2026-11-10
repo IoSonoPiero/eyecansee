@@ -38,7 +38,7 @@ Every folder where you deleted something on a phone or a server (and on a USB st
 - Right click on an empty spot inside the trash: **Restore all** and **Empty the trash…** (everything deleted forever, after a confirmation).
 - A trash left empty goes away together with its strip.
 
-<!-- shot: trash-strip | ritaglio | The strip at the top of the grid inside a phone folder's trash: trash icon, Trash of the folder Camera, Restore all and Empty the trash buttons -->
+![Deleting and the trash](../img/trash-strip.webp)
 
 If the name of an item being restored is already taken, EyeCanSee asks: for a file **Replace** or **Keep both** (the restored one becomes for example `photo (2).jpg`); for a folder **Merge** or **Keep both**. **Cancel** also stops the rest of a Restore all.
 

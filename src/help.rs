@@ -38,6 +38,8 @@ macro_rules! images {
 }
 
 images![
+    "trash-strip",
+    "phone",
     "bookmarks-menu",
     "cad",
     "convert",
