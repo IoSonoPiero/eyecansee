@@ -86,11 +86,12 @@
           <li>An illustrated guide in the program: F1 opens the page of what is on screen, with search across every page</li>
           <li>Bookmarks: folders, disks, phones and servers saved by name and opened with one click, from the star next to the address bar, the Bookmarks menu or Ctrl+Shift+D</li>
           <li>Open location: Save and open keeps the server and its password</li>
-          <li>SFTP: downloads up to about three times faster on a distant server, as fast as uploads</li>
-          <li>SFTP and FTP: videos from a distant server play without stutter, also in 4K</li>
+          <li>SFTP: faster downloads from a distant server</li>
+          <li>SFTP and FTP: videos from a distant server play without stutter, also in 4K, when the connection is fast enough</li>
           <li>Messages with a title, errors in plain words in a yellow band</li>
           <li>Find duplicates: a file reached through a link to a folder is no longer taken for its own copy</li>
-          <li>Many fixes: Ctrl+R in the grid, the editor's Save on closing, the slideshow of a folder, the Image box of RAW files</li>
+          <li>Grid: pointing at a file shows its details, with the full name, the file size, the date and the size in pixels</li>
+          <li>Many fixes: Ctrl+R in the grid, the editor's Save on closing, the slideshow of a folder, the Image box of RAW files, a file whose name is not valid UTF-8 no longer reported as removed</li>
         </ul>
       </description>
       <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.76.0</url>
