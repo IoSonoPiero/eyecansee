@@ -12,6 +12,8 @@ L'editor non cambia mai l'originale se non lo chiedi. Il pulsante principale, **
 
 L'originale resta com'è. La pagina resta aperta, così puoi continuare. Quando la chiudi, la griglia seleziona la copia e il visore la mostra.
 
+Se un salvataggio non riesce, un messaggio in rosso in fondo alla finestra dice perché, e la pagina resta aperta con le modifiche.
+
 ## Aggiorna copia
 
 Dopo il primo salvataggio il pulsante diventa **Aggiorna copia**. Riscrive la stessa copia, sempre partendo dall'originale con tutte le modifiche, così niente viene compresso due volte. Se la copia è stata cancellata o un altro programma l'ha cambiata, ne fa una nuova e la barra di stato lo dice.
