@@ -55,7 +55,7 @@ const COPIED: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24
 const CUT: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11.5" fill="#d9541e"/><circle cx="8" cy="16.5" r="2.4" fill="none" stroke="#ffffff" stroke-width="1.8"/><circle cx="16" cy="16.5" r="2.4" fill="none" stroke="#ffffff" stroke-width="1.8"/><path d="M9.6 14.6 16.5 5M14.4 14.6 7.5 5" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/></svg>"##;
 
 
-fn svg(icon: Icon) -> &'static str {
+pub(crate) fn svg(icon: Icon) -> &'static str {
     match icon {
         Icon::Folder => FOLDER,
         Icon::Up => UP,
@@ -88,7 +88,7 @@ fn texture(ctx: &egui::Context, icon: Icon, side: f32) -> TextureHandle {
         .clone()
 }
 
-fn render(svg: &str, px: u32) -> ColorImage {
+pub(crate) fn render(svg: &str, px: u32) -> ColorImage {
     // The SVGs are ours or Lucide's, and valid: a failure would be a bug, shown as an empty square.
     let Ok(tree) = usvg::Tree::from_str(svg, &usvg::Options::default()) else {
         return ColorImage::new([px as usize; 2], vec![egui::Color32::TRANSPARENT; (px * px) as usize]);
@@ -208,7 +208,7 @@ macro_rules! lucide {
 
 const LINE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">"#;
 
-fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
+pub(crate) fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
     let own = |path: &str| format!("{LINE}<path d=\"{path}\"/></svg>").into();
     match icon {
         Line::Up => lucide!("arrow-up").into(),

@@ -81,6 +81,7 @@ mod ftp;
 mod gps_track;
 mod grid;
 mod human;
+mod help_icons;
 mod i18n;
 mod kept;
 mod icons;
@@ -447,6 +448,7 @@ impl App {
     #[allow(clippy::too_many_lines)] // constructor: one line per field
     fn new(ctx: &egui::Context, settings: Settings, arg: Option<String>) -> Self {
         ctx.set_fonts(fonts());
+        help_icons::install(ctx);
         let (tx, rx) = mpsc::channel();
         let mut app = Self {
             i18n: I18n::detect(settings.language.as_deref()),
