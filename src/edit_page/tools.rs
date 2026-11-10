@@ -47,6 +47,14 @@ const COLOURS: [([u8; 3], &str); 8] = [
     ([255, 255, 255], "edit-col-white"),
 ];
 
+impl Window {
+    /// What F1 needs to choose the editor's page of the guide.
+    pub(crate) fn help_view(&self) -> crate::help_spot::EditView {
+        let selected = self.selected.and_then(|i| self.doc.objects.get(i)).map(Kind::of);
+        crate::help_spot::EditView { tool: self.tool, selected, saving: self.ready.is_some() || self.leaving, picking: self.picking || self.screen_picking }
+    }
+}
+
 /// "Name (key)".
 fn tip(i18n: &I18n, id: &str, key: &str) -> String {
     format!("{} ({key})", i18n.t(id))

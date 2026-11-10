@@ -77,6 +77,7 @@ mod ffmpeg;
 mod file_dialogs;
 mod folder_pick;
 mod frame;
+mod help_spot;
 mod ftp;
 mod gps_track;
 mod grid;
@@ -622,11 +623,13 @@ impl eframe::App for App {
             self.paste_to = None;
         }
         let paste_to = if raw_input.events.iter().any(|e| matches!(e, egui::Event::Paste(_))) { self.paste_to.take().map(|(dir, _)| dir) } else { None };
-        // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer).
+        // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer);
+        // F1 still opens the guide.
         // Open location and Convert and resize have fields to type in: there the keys go to the field.
         if self.asking() && !((self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some()) && ctx.egui_wants_keyboard_input()) {
             let answer = &mut self.delete_answer;
             raw_input.events.retain(|e| match e {
+                egui::Event::Key { key: Key::F1, .. } => true,
                 egui::Event::Key { key, pressed: true, .. } => {
                     match key {
                         Key::Enter => *answer = Some(true),

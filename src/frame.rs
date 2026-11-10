@@ -44,6 +44,13 @@ impl App {
         self.notice_gone(ctx);
         self.retry(ctx);
         self.reread_changed(ctx);
+        // F1 everywhere, also over the pages, the dialogs and in a field: the guide on the page of
+        // what is in front (`help_spot`).
+        if ctx.input(|i| i.key_pressed(egui::Key::F1)) {
+            let spot = self.help_spot();
+            log!("help spot {spot}");
+            self.toggle_help(spot);
+        }
         // "Save in another format" and the duplicates cover the window: the keys must not reach the grid under them.
         if self.convert.is_none() && self.editor.is_none() && self.show.is_none() && !self.dup_page_shown() {
             self.global_keys(ctx);

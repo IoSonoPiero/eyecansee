@@ -113,6 +113,16 @@ impl Form {
         Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio, base: String::new(), drawing }
     }
 
+    /// On videos only, or only their sound: F1 opens the page on converting videos.
+    pub(crate) fn videos_only(&self) -> bool {
+        self.audio.is_some() || self.videos && !self.images
+    }
+
+    /// On CAD drawings, exported.
+    pub(crate) fn drawings(&self) -> bool {
+        self.drawing
+    }
+
     /// The flips first, then the turn.
     fn turn(&self) -> Turn {
         let mut turn = Turn::default();

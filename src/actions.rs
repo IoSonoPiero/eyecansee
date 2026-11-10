@@ -1,5 +1,5 @@
 //! Menu items and keys that act on the whole app: what each item of the menu bar and of the
-//! right-click menus does, F1, F2, F5 and Delete, thumbnails made again.
+//! right-click menus does, F2, F5 and Delete (F1 in `frame.rs`), thumbnails made again.
 
 use eframe::egui::{self, Key};
 
@@ -158,9 +158,7 @@ impl Act {
 
 impl App {
     pub(crate) fn global_keys(&mut self, ctx: &egui::Context) {
-        let (help, refresh, delete, shift, rename) = ctx.input(|i| {
-            (i.key_pressed(Key::F1), i.key_pressed(Key::F5), i.key_pressed(Key::Delete), i.modifiers.shift, i.key_pressed(Key::F2))
-        });
+        let (refresh, delete, shift, rename) = ctx.input(|i| (i.key_pressed(Key::F5), i.key_pressed(Key::Delete), i.modifiers.shift, i.key_pressed(Key::F2)));
         // Ctrl+Shift+N, as in the file managers.
         let new_folder = ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::N));
         if new_folder && !ctx.egui_wants_keyboard_input() {
@@ -192,9 +190,6 @@ impl App {
             if rename {
                 self.ask_rename(None);
             }
-        }
-        if help {
-            self.help = !self.help;
         }
         // Full screen in and out. Also smoother on a monitor of the other graphics card of a hybrid
         // laptop: the desktop sends the window to it without composing (measured 2026-11-01).
