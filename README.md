@@ -83,9 +83,9 @@ What comes next is in [ROADMAP.md](ROADMAP.md).
 - 3D models: STL, 3MF, OBJ, PLY, glTF, FBX, Collada, 3DS, OFF, AMF, VRML, X3D, IFC, STEP, IGES and BREP; CAD drawings: DWG, DXF and HP-GL.
 - Camera RAW files: CR2, CR3, NEF, ARW, RAF, ORF, RW2, DNG and others (tested with real files from Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic and Google cameras, and a Samsung Galaxy phone).
 
-All the formats it opens and saves, on Linux and Windows: [docs/formats.md](docs/formats.md). Sample files to try them, including real HEIC and Camera RAW photos: [download the test files](https://github.com/IoSonoPiero/eyecansee/releases/download/test-files/EyeCanSee-test-files.zip) (zip, 139 MB), and for 3D models and CAD drawings [the 3D and CAD test files](https://github.com/IoSonoPiero/eyecansee/releases/download/test-files/EyeCanSee-test-files-3d-cad.zip) (zip, 46 MB); sources and licences in the [release page](https://github.com/IoSonoPiero/eyecansee/releases/tag/test-files) and in each zip.
+All the formats it opens and saves, on Linux and Windows: [Supported formats](docs/help/en/formats.md). Sample files to try them, including real HEIC and Camera RAW photos: [download the test files](https://github.com/IoSonoPiero/eyecansee/releases/download/test-files/EyeCanSee-test-files.zip) (zip, 139 MB), and for 3D models and CAD drawings [the 3D and CAD test files](https://github.com/IoSonoPiero/eyecansee/releases/download/test-files/EyeCanSee-test-files-3d-cad.zip) (zip, 46 MB); sources and licences in the [release page](https://github.com/IoSonoPiero/eyecansee/releases/tag/test-files) and in each zip.
 
-The full list of features, keys and limits is in the manual: [English](docs/manual.en.md), [Italiano](docs/manual.it.md).
+Every feature, key and known limit is described in the guide, which the program also shows with F1: [English](docs/help/en/index.md), [Italiano](docs/help/it/index.md).
 
 ## Phones
 
@@ -101,7 +101,7 @@ The full list of features, keys and limits is in the manual: [English](docs/manu
 | Samsung Galaxy A56 5G (Android 16, One UI 8.5) | Fedora 44, Windows | Connection, listing and transfer tests of the MTP library |
 | Samsung Galaxy Tab S11 5G (Android 16, One UI 8.5) | Fedora 44, Windows | Connection, listing and transfer tests of the MTP library |
 
-Other Android phones open directly when mtp-rs supports them, otherwise through the file manager's mount, slower (see the [manual](docs/manual.en.md)). iPhones open through the file manager's mount only.
+Other Android phones open directly when mtp-rs supports them, otherwise through the file manager's mount, slower (see [Android phones](docs/help/en/phone.md) in the guide). iPhones open through the file manager's mount only.
 
 On Windows, Windows' own MTP driver can stall for minutes after a photo is taken or a file deleted on the phone: after 15 s EyeCanSee says so and explains what to do ([docs/phone-stall.en.md](docs/phone-stall.en.md)).
 

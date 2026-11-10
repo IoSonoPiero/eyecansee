@@ -62,4 +62,4 @@ Il file nuovo va nella stessa cartella dell'originale. Se il nome è già preso,
 - Un'icona (ICO) contiene al massimo 256 × 256 pixel: un'immagine più grande viene ridotta. La pagina lo dice.
 - EyeCanSee non sa scrivere HEIC né JPEG XL: vedi [Formati supportati](formats.md).
 - Solo JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI e i file PSD (appiattiti) si possono anche riscrivere sopra l'originale dopo una rotazione (vedi [Ruotare e riflettere](rotate.md)); gli altri formati solo da questa pagina.
-- La tabella completa di formati e opzioni è in [docs/formats.md](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/formats.md).
+- La tabella di ogni formato con le sue opzioni è in [Formati supportati](formats.md).

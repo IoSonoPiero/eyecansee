@@ -62,4 +62,4 @@ The new file goes into the same folder as the original. If the name is already t
 - An icon (ICO) holds at most 256 × 256 pixels: a larger image is reduced. The page says so.
 - EyeCanSee cannot write HEIC or JPEG XL: see [Supported formats](formats.md).
 - Only JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI and PSD files (flattened) can also be written back over the original after a turn (see [Rotating and flipping](rotate.md)); the other formats only through this page.
-- The full table of formats and options is in [docs/formats.md](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/formats.md).
+- The table of every format and its options is in [Supported formats](formats.md).
