@@ -16,7 +16,9 @@ Se un salvataggio non riesce, un messaggio in rosso in fondo alla finestra dice 
 
 ## Aggiorna copia
 
-Dopo il primo salvataggio il pulsante diventa **Aggiorna copia**. Riscrive la stessa copia, sempre partendo dall'originale con tutte le modifiche, così niente viene compresso due volte. Se la copia è stata cancellata o un altro programma l'ha cambiata, ne fa una nuova e la barra di stato lo dice.
+Dopo che la prima copia è stata scritta il pulsante diventa **Aggiorna copia**. Riscrive la stessa copia, sempre partendo dall'originale con tutte le modifiche, così niente viene compresso due volte. Se la copia è stata cancellata o un altro programma l'ha cambiata, ne fa una nuova e la barra di stato lo dice.
+
+Un salvataggio che non riesce qui non cambia niente: il pulsante resta com'era e le modifiche sono ancora da salvare. Se prima non era stata scritta nessuna copia, il salvataggio successivo ne fa una nuova; se era stata scritta, aggiorna quella.
 
 Il pulsante è spento quando non c'è niente di nuovo da salvare.
 
