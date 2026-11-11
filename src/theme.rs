@@ -176,7 +176,7 @@ pub fn apply(ctx: &egui::Context, choice: ThemeChoice) {
 }
 
 /// Theme chosen in the Options; with `System` egui follows system changes while the app is open
-/// (on Linux read from the desktop portal by `system_theme`).
+/// (read by `system_theme`: on Linux from the desktop portal, on Windows from the registry).
 pub fn choose(ctx: &egui::Context, choice: ThemeChoice) {
     ctx.set_theme(match choice {
         ThemeChoice::System => ThemePreference::System,

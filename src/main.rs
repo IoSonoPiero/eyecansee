@@ -122,7 +122,7 @@ mod single;
 mod slideshow;
 mod source;
 mod theme;
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", windows))]
 mod system_theme;
 mod thumb_queue;
 mod thumbcache;
@@ -434,8 +434,9 @@ struct App {
 
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
-        // winit does not read the desktop's theme on Linux: the portal's (#100).
-        #[cfg(target_os = "linux")]
+        // winit does not read the desktop's theme on Linux (#100), and on Windows it follows a
+        // change one step late: the portal's, or the registry's.
+        #[cfg(any(target_os = "linux", windows))]
         system_theme::fill(ctx, raw_input);
         #[cfg(feature = "shots")]
         self.shots_input(raw_input);
@@ -535,6 +536,8 @@ impl eframe::App for App {
         #[cfg(feature = "shots")]
         self.shots_tick(&ctx);
         self.before_frame(&ctx);
+        #[cfg(windows)]
+        system_theme::sync_window(&ctx);
         self.panels(ui, &ctx);
         self.windows(&ctx);
 
@@ -559,7 +562,7 @@ fn main() -> eframe::Result {
         unsafe { std::env::set_var("XDG_DATA_HOME", std::path::Path::new(&home).join(".local/share")) };
     }
     // Read while the window is made, so the first frame already has the desktop's colours.
-    #[cfg(target_os = "linux")]
+    #[cfg(any(target_os = "linux", windows))]
     system_theme::start();
     let settings = Settings::load();
     engine::set_choice(settings.video_engine);
