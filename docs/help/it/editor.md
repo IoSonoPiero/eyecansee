@@ -14,7 +14,7 @@ L'editor lavora su un'immagine alla volta. Con più immagini selezionate queste 
 
 ## La pagina
 
-- **Barra degli strumenti** (in alto): un pulsante per strumento, poi ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square), ![Filtri](icon://wand-sparkles), ![Annulla](icon://undo-2) e ![Ripeti](icon://redo-2). A destra: ![Copia](icon://copy), ![Chiudi](icon://x) e **Salva copia** con la sua freccia ![Altri modi di salvare](icon://chevron-down). Lo strumento in uso è evidenziato. Passando sopra un pulsante vedi il nome e il tasto; su un pulsante spento anche il perché.
+- **Barra degli strumenti** (in alto): un pulsante per strumento, poi ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square), ![Filtri](icon://wand-sparkles), ![Annulla](icon://undo-2) e ![Ripeti](icon://redo-2). A destra: ![Copia](icon://copy), ![Chiudi](icon://x) e **Salva copia** (o **Sovrascrivi l'originale…**, se scelto nelle [Opzioni](options.md)) con la sua freccia ![Altri modi di salvare](icon://chevron-down). Lo strumento in uso è evidenziato. Passando sopra un pulsante vedi il nome e il tasto; su un pulsante spento anche il perché.
 - **Barra delle proprietà** (sotto gli strumenti): lo stile dell'oggetto selezionato, o del prossimo che lo strumento disegnerà. Con lo strumento del ritaglio contiene i comandi del ritaglio. Vedi [Colori, linee e contagocce](editor-colors.md).
 - **Barra di stato** (in basso): il nome del file, la misura del risultato in pixel, un breve suggerimento sullo strumento, l'ingrandimento e il pulsante **Tasti**.
 
@@ -80,7 +80,7 @@ Il pulsante **Tasti** nella barra di stato elenca i tasti e i movimenti del mous
 
 ## Chiudere
 
-![Chiudi](icon://x) **Chiudi**, la ✕ della finestra o Esc chiudono la pagina. Con modifiche non salvate EyeCanSee chiede prima se **Salva…** (una copia, come Salva copia; la pagina si chiude appena è scritta), **Salva come…** o **Non salvare**; **Annulla** torna alla pagina. Vedi [Salvare un'immagine modificata](editor-save.md).
+![Chiudi](icon://x) **Chiudi**, la ✕ della finestra o Esc chiudono la pagina. Con modifiche non salvate EyeCanSee chiede prima se **Salva…** (il salvataggio principale: una copia, come Salva copia, a meno che nelle Opzioni sia scelto Sovrascrivi; la pagina si chiude appena il file è scritto), **Salva come…** o **Non salvare**; **Annulla** torna alla pagina. Vedi [Salvare un'immagine modificata](editor-save.md).
 
 ## Telefoni e server
 

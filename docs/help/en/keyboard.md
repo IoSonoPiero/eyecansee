@@ -148,7 +148,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | Shift+wheel | With Crop and rotate: turn by 0.1° |
 | Enter | With Crop and rotate: apply the crop |
 | + and −, 0 | Zoom in and out, everything in view |
-| Ctrl+S | Save copy |
+| Ctrl+S | Save copy, or Overwrite the original when chosen in the Options (see [Saving an edited image](editor-save.md)) |
 | Ctrl+Shift+S | Save as |
 | Esc | One step at a time: stops what is under way, ends the text, lets go of the selection; then closes the editor |
 

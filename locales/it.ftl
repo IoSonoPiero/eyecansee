@@ -743,6 +743,9 @@ edit-over-loss-hdr = Il file nuovo ha 16 bit per colore: ciò che nell'originale
 edit-leave = Le modifiche a **{ $name }** non sono salvate.
 
     { "**" }Salva** crea una copia accanto all'originale, **Salva come…** un file nuovo dove scegli, **Non salvare** le perde.
+edit-leave-over = Le modifiche a **{ $name }** non sono salvate.
+
+    { "**" }Salva** le scrive sopra l'originale, che va nel cestino; **Salva come…** un file nuovo dove scegli, **Non salvare** le perde.
 edit-temp-copy = Questa immagine è una copia temporanea che Windows ha fatto di un file del telefono o di un altro dispositivo: una copia accanto a lei potrebbe essere cancellata da Windows. Scegli dove salvarla.
 edit-remote-phone = L'immagine si modifica in una copia su questo computer: Salva manda il risultato al telefono.
 edit-remote-server = L'immagine si modifica in una copia su questo computer: Salva manda il risultato al server.
@@ -1099,6 +1102,9 @@ opt-tab-video = Video
 opt-tab-editor = Editor
 opt-edit-back = Dopo il salvataggio, torna alle miniature
 opt-edit-back-hint = Dopo Salva copia o Sovrascrivi l'originale… l'editor si chiude e la griglia seleziona l'immagine salvata. Spenta, l'editor resta aperto per continuare a modificare.
+opt-edit-main = Pulsante principale di salvataggio (anche Ctrl+S):
+opt-edit-main-overwrite = Sovrascrivi l'originale
+opt-edit-main-hint = L'altro resta nel menu della freccia accanto. Dove l'originale non si può sovrascrivere (un'immagine nuova, HEIC, RAW…) il pulsante principale è Salva copia.
 opt-engine = Motore video (libmpv) e FFmpeg da usare
 opt-engine-hint = I video li riproduce libmpv e li converte FFmpeg. Entrambi possono venire dal sistema (su Linux i pacchetti della distribuzione, meglio integrati con la scheda video; su Windows una copia accanto al programma) oppure essere scaricati una volta sola da EyeCanSee. A EyeCanSee servono almeno libmpv 1.109 (mpv 0.33) e FFmpeg 4.3. Automatica usa quelli di sistema se abbastanza recenti, altrimenti quelli scaricati; per FFmpeg anche quello scaricato quando lascia più lavoro alla scheda video.
 opt-engine-system-recent = Automatica: la migliore per questo computer

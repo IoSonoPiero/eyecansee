@@ -108,6 +108,7 @@ impl App {
     }
 
     /// Save copy, and its arrow with Save as… and Overwrite the original…: drawn right to left.
+    /// With Overwrite chosen as the main save in the Options (issue #96) the two swap places.
     fn save_buttons(&self, ui: &mut egui::Ui, w: &Window) -> Option<Ask> {
         let i18n = &self.i18n;
         let mut ask = None;
@@ -119,14 +120,27 @@ impl App {
             _ if !w.changed() => Some(i18n.t("edit-off-unchanged")),
             _ => None,
         };
+        let over_main = self.main_overwrites(w);
+        // A new image has no file yet: its main button is Save as….
+        // After a first copy the button updates it (user, 2026-11-06).
+        let copy = if w.copy.done.is_some() { ("edit-update-copy", "edit-update-hint") } else { ("edit-save-copy", "rc-save-hint") };
         let solid = crate::theme::solid(ui.visuals());
         ui.spacing_mut().item_spacing.x = 1.0;
         let arrow = egui::Button::image(icons::line_in(ui.ctx(), Line::Down, 16.0, Color32::WHITE)).fill(solid).min_size(egui::vec2(24.0, icons::BUTTON.y));
         let (r, _) = egui::containers::menu::MenuButton::from_button(arrow).ui(ui, |ui| {
+            if over_main {
+                let r = ui.add_enabled(off.is_none(), egui::Button::image_and_text(icons::line(ui, Line::Save, 16.0), i18n.t(copy.0))).on_hover_text(i18n.t(copy.1));
+                if r.clicked() {
+                    ask = Some(Ask::Save);
+                }
+            }
             let save_as = egui::Button::image_and_text(icons::line(ui, Line::SaveAs, 16.0), i18n.t("menu-save-copy")).shortcut_text(i18n.t("key-save-copy"));
             let r = ui.add_enabled(!w.preparing, save_as).on_hover_text(i18n.t("rc-save-as-hint"));
             if r.clicked() {
                 ask = Some(Ask::SaveAs);
+            }
+            if over_main {
+                return;
             }
             let why = off.clone().or_else(|| self.why_not_overwrite(w));
             let r = ui.add_enabled(why.is_none(), egui::Button::image_and_text(icons::line(ui, Line::Save, 16.0), i18n.t("edit-overwrite"))).on_hover_text(i18n.t("edit-overwrite-hint"));
@@ -141,15 +155,18 @@ impl App {
             }
         });
         r.on_hover_text(i18n.t("edit-save-more"));
-        // A new image has no file yet: its main button is Save as….
-        // After a first copy the button updates it (user, 2026-11-06).
         let (label, hint, main_ask, off) = match () {
             _ if w.new => ("menu-save-copy", "rc-save-as-hint", Ask::SaveAs, w.preparing.then(|| i18n.t("edit-off-preparing"))),
-            _ if w.copy.done.is_some() => ("edit-update-copy", "edit-update-hint", Ask::Save, off),
-            _ => ("edit-save-copy", "rc-save-hint", Ask::Save, off),
+            _ if over_main => ("edit-overwrite", "edit-overwrite-hint", Ask::Overwrite, off.or_else(|| self.why_not_overwrite(w))),
+            _ => (copy.0, copy.1, Ask::Save, off),
         };
+        let mut tip = format!("{} (Ctrl+S)\n{}", i18n.t(label), i18n.t(hint));
+        // Overwrite chosen as the main save but not possible here: why it is Save copy.
+        if self.settings.edit_main_overwrite && !w.new && let Some(why) = self.why_never_overwrite(w) {
+            tip = format!("{tip}\n\n{}", crate::help_search::plain(&why));
+        }
         let main = crate::theme::main_button(ui, i18n.t(label)).min_size(egui::vec2(0.0, icons::BUTTON.y));
-        if bar_button(ui, main, format!("{} (Ctrl+S)\n{}", i18n.t(label), i18n.t(hint)), off) {
+        if bar_button(ui, main, tip, off) {
             ask = Some(main_ask);
         }
         ui.spacing_mut().item_spacing.x = 8.0;

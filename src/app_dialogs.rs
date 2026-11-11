@@ -261,10 +261,15 @@ fn browsing_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
     });
 }
 
-/// After saving (issue #95).
+/// After saving (issue #95) and the main save button (issue #96).
 fn editor_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
     let t = |id| i18n.t(id);
     ui.checkbox(&mut s.edit_back_to_grid, t("opt-edit-back")).on_hover_text(t("opt-edit-back-hint"));
+    ui.add_space(6.0);
+    let hint = t("opt-edit-main-hint");
+    ui.label(t("opt-edit-main")).on_hover_text(&hint);
+    ui.radio_value(&mut s.edit_main_overwrite, false, t("edit-save-copy")).on_hover_text(&hint);
+    ui.radio_value(&mut s.edit_main_overwrite, true, t("opt-edit-main-overwrite")).on_hover_text(&hint);
 }
 
 fn deleting_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {

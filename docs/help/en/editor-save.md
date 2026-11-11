@@ -1,6 +1,6 @@
 # Saving an edited image
 
-The editor never changes the original unless you ask. The main button, **Save copy**, writes a new file next to it. In the [Options](options.md), **Editor** tab, you can have the editor close after saving.
+The editor never changes the original unless you ask. The main button, **Save copy**, writes a new file next to it. In the [Options](options.md), **Editor** tab, you can make **Overwrite the original…** the main button instead, and have the editor close after saving.
 
 ## Save copy
 
@@ -26,12 +26,22 @@ The button is off when there is nothing new to save.
 
 ## More ways to save
 
-The arrow ![More ways to save](icon://chevron-down) next to Save copy has two more:
+The arrow ![More ways to save](icon://chevron-down) next to Save copy has two more (with Overwrite as the main button, see below, it has **Save copy** and **Save as…**):
 
 - ![Save as…](icon://file-output) **Save as…** (Ctrl+Shift+S): opens [Saving in another format](save-as.md) with the result, to choose the name, the format and the folder.
 - ![Overwrite the original…](icon://save) **Overwrite the original…**: writes the edited image over the original, after asking. The original goes to the trash, even when deleting for good is chosen in the [Options](options.md). If it cannot go to a trash, nothing is overwritten. The page stays open (unless going back to the thumbnails is turned on: then it closes and the grid keeps the image selected); a second Overwrite starts again from the original as it was opened and replaces what was written before, so only the true original is in the trash. See [Deleting and the trash](delete.md).
 
 Overwrite is off, and pointing at it says why, for a new image, for a format EyeCanSee does not write back (HEIC, RAW…), and in places where EyeCanSee never writes over a file (a folder opened through the file manager's gvfs link, a temporary copy made by Windows).
+
+## The main save button
+
+In **Tools > Options…**, **Editor** tab, **Main save button (also Ctrl+S)** is **Save copy** (the default) or **Overwrite the original**. With Overwrite the original:
+
+- the main button is **Overwrite the original…**, and Ctrl+S overwrites, after the same question;
+- **Save copy** (or **Update copy**) is in the arrow's menu, with Save as…;
+- **Save…** in the question on closing overwrites too.
+
+Where the original cannot be overwritten (a format EyeCanSee does not write back, such as HEIC or RAW, and the places listed above) the main button stays **Save copy**, and pointing at it says why. A new image keeps **Save as…**.
 
 ## What the saved file keeps
 
@@ -44,7 +54,7 @@ Overwrite is off, and pointing at it says why, for a new image, for a format Eye
 
 Close, the window's ✕ or Esc first ask what to do:
 
-- **Save…**: a copy, as Save copy does (Save as… for a new image). Once you confirm, the page closes as soon as the copy is written. If saving fails, the page stays open with your changes.
+- **Save…**: the main save: a copy, as Save copy does, or over the original when that is the main button (Save as… for a new image). Once you confirm, the page closes as soon as the file is written. If saving fails, the page stays open with your changes.
 - **Save as…**: closes the page and opens Saving in another format.
 - **Don't save**: closes and forgets the changes.
 - **Cancel**: back to the page.

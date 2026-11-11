@@ -744,6 +744,9 @@ edit-over-loss-hdr = The new file has 16 bits per colour: what is **brighter tha
 edit-leave = The changes to **{ $name }** are not saved.
 
     { "**" }Save** makes a copy next to the original, **Save as…** a new file where you choose, **Don't save** loses them.
+edit-leave-over = The changes to **{ $name }** are not saved.
+
+    { "**" }Save** writes them over the original, which goes to the trash; **Save as…** a new file where you choose, **Don't save** loses them.
 edit-temp-copy = This image is a temporary copy Windows made of a file of a phone or another device: a copy next to it could be deleted by Windows. Choose where to save it.
 edit-remote-phone = The image is edited in a copy on this computer: Save sends the result to the phone.
 edit-remote-server = The image is edited in a copy on this computer: Save sends the result to the server.
@@ -1100,6 +1103,9 @@ opt-tab-video = Video
 opt-tab-editor = Editor
 opt-edit-back = After saving, go back to the thumbnails
 opt-edit-back-hint = After Save copy or Overwrite the original… the editor closes and the grid selects the saved image. When off, the editor stays open to go on editing.
+opt-edit-main = Main save button (also Ctrl+S):
+opt-edit-main-overwrite = Overwrite the original
+opt-edit-main-hint = The other one stays in the menu of the arrow next to it. Where the original cannot be overwritten (a new image, HEIC, RAW…) the main button is Save copy.
 opt-engine = Video engine (libmpv) and FFmpeg to use
 opt-engine-hint = Videos are played by libmpv and converted by FFmpeg. Both can come from the system (on Linux the distribution's packages, better integrated with the graphics card; on Windows a copy next to the program) or be downloaded once by EyeCanSee. EyeCanSee needs at least libmpv 1.109 (mpv 0.33) and FFmpeg 4.3. Automatic uses the system's when it is recent enough, otherwise the downloaded one; for FFmpeg also the downloaded one when it leaves more of the work to the graphics card.
 opt-engine-system-recent = Automatic: the best for this computer

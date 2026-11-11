@@ -152,16 +152,29 @@ impl App {
     /// over (gvfs, temporary copies, no renaming), a format EyeCanSee does not write back (the copy
     /// of a HEIC or a RAW is a JPEG or a PNG).
     pub(super) fn why_not_overwrite(&self, w: &Window) -> Option<String> {
+        let busy = || self.saving.contains(&w.path).then(|| self.i18n.t_args("save-format", &[("name", &crate::save_dialogs::md(source::name(&w.path)))]));
+        self.why_never_overwrite(w).or_else(busy)
+    }
+
+    /// Why this page can never write over its original (`why_not_overwrite` without a save under
+    /// way): what decides the main button (issue #96), which must not change while a save is sent.
+    pub(super) fn why_never_overwrite(&self, w: &Window) -> Option<String> {
         if w.new {
             return Some(self.i18n.t("edit-new-off"));
         }
         if let Some(id) = self.loader.as_ref().and_then(|l| l.no_overwrite(&w.path)) {
             Some(self.i18n.t(id))
-        } else if crate::encode::Format::of_file(&w.path).is_none() || !self.can_change(&w.path) || self.saving.contains(&w.path) {
+        } else if crate::encode::Format::of_file(&w.path).is_none() || !self.can_change(&w.path) {
             Some(self.i18n.t_args("save-format", &[("name", &crate::save_dialogs::md(source::name(&w.path)))]))
         } else {
             None
         }
+    }
+
+    /// The main save (the button, Ctrl+S, Save… on closing) overwrites the original: chosen in the
+    /// Options and possible here (issue #96). Otherwise it is Save copy.
+    pub(super) fn main_overwrites(&self, w: &Window) -> bool {
+        self.settings.edit_main_overwrite && self.why_never_overwrite(w).is_none()
     }
 
     /// The last save is still being made or sent: the next one waits for it (the button is off;
@@ -340,7 +353,8 @@ impl App {
         }
         match self.rotate_leave(ctx, w) {
             Some(Leave::Save) if !w.new => {
-                self.edit_prepare(ctx, w, false);
+                let over = self.main_overwrites(w);
+                self.edit_prepare(ctx, w, over);
                 // Not when it went to Save as… (a temporary copy) or did not start.
                 w.closing = w.preparing;
                 true
@@ -351,10 +365,13 @@ impl App {
         }
     }
 
-    /// Closing with changes not saved: Save (a copy), Save as…, Don't save, or Cancel (stays open).
+    /// Closing with changes not saved: Save (the main save: a copy, or over the original as chosen
+    /// in the Options, issue #96), Save as…, Don't save, or Cancel (stays open).
     fn rotate_leave(&mut self, ctx: &egui::Context, w: &mut Window) -> Option<Leave> {
         let i18n = &self.i18n;
-        let text = i18n.t_args("edit-leave", &[("name", &crate::save_dialogs::md(source::name(&w.path)))]);
+        // Save is the main save: it says it overwrites when that is the main button (issue #96).
+        let id = if self.main_overwrites(w) { "edit-leave-over" } else { "edit-leave" };
+        let text = i18n.t_args(id, &[("name", &crate::save_dialogs::md(source::name(&w.path)))]);
         let choices = vec![(i18n.t("rc-save"), !w.preparing, Leave::Save), (i18n.t("menu-save-copy"), true, Leave::SaveAs), (i18n.t("rc-discard"), true, Leave::Discard)];
         // Esc: back to the page; Enter does nothing here (no choice is safe to guess).
         let keys = self.delete_answer.take().filter(|yes| !yes).map(|_| None);

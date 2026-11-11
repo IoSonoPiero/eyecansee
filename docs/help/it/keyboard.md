@@ -148,7 +148,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | Maiusc+rotellina | Con Ritaglia e ruota: ruota di 0,1° |
 | Invio | Con Ritaglia e ruota: applica il ritaglio |
 | + e −, 0 | Ingrandisce e rimpicciolisce, tutto in vista |
-| Ctrl+S | Salva copia |
+| Ctrl+S | Salva copia, o Sovrascrivi l'originale se scelto nelle Opzioni (vedi [Salvare un'immagine modificata](editor-save.md)) |
 | Ctrl+Maiusc+S | Salva come |
 | Esc | Un passo alla volta: ferma ciò che è in corso, chiude il testo, lascia la selezione; poi chiude l'editor |
 

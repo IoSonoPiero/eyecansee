@@ -1,6 +1,6 @@
 # Salvare un'immagine modificata
 
-L'editor non cambia mai l'originale se non lo chiedi. Il pulsante principale, **Salva copia**, scrive un file nuovo accanto all'originale. Nelle [Opzioni](options.md), scheda **Editor**, puoi far chiudere l'editor dopo il salvataggio.
+L'editor non cambia mai l'originale se non lo chiedi. Il pulsante principale, **Salva copia**, scrive un file nuovo accanto all'originale. Nelle [Opzioni](options.md), scheda **Editor**, puoi rendere pulsante principale **Sovrascrivi l'originale…** e far chiudere l'editor dopo il salvataggio.
 
 ## Salva copia
 
@@ -26,12 +26,22 @@ Il pulsante è spento quando non c'è niente di nuovo da salvare.
 
 ## Altri modi di salvare
 
-La freccia ![Altri modi di salvare](icon://chevron-down) accanto a Salva copia ne ha altri due:
+La freccia ![Altri modi di salvare](icon://chevron-down) accanto a Salva copia ne ha altri due (con Sovrascrivi come pulsante principale, vedi sotto, ha **Salva copia** e **Salva come…**):
 
 - ![Salva come…](icon://file-output) **Salva come…** (Ctrl+Maiusc+S): apre [Salvare in un altro formato](save-as.md) con il risultato, per scegliere nome, formato e cartella.
 - ![Sovrascrivi l'originale…](icon://save) **Sovrascrivi l'originale…**: scrive l'immagine modificata sopra l'originale, dopo una domanda. L'originale va nel cestino, anche quando nelle [Opzioni](options.md) è scelta l'eliminazione definitiva. Se non può andare in un cestino, non viene sovrascritto niente. La pagina resta aperta (a meno che sia acceso il ritorno alle miniature: allora si chiude e la griglia lascia selezionata l'immagine); un secondo Sovrascrivi riparte dall'originale com'era all'apertura e sostituisce ciò che era stato scritto prima, così nel cestino c'è solo il vero originale. Vedi [Eliminare e cestino](delete.md).
 
 Sovrascrivi è spento, e passandoci sopra dice perché, per un'immagine nuova, per un formato che EyeCanSee non riscrive (HEIC, RAW…) e nei posti dove EyeCanSee non scrive mai sopra un file (una cartella aperta tramite il collegamento gvfs del file manager, una copia temporanea fatta da Windows).
+
+## Il pulsante principale di salvataggio
+
+In **Strumenti > Opzioni…**, scheda **Editor**, **Pulsante principale di salvataggio (anche Ctrl+S)** è **Salva copia** (predefinito) o **Sovrascrivi l'originale**. Con Sovrascrivi l'originale:
+
+- il pulsante principale è **Sovrascrivi l'originale…**, e Ctrl+S sovrascrive, dopo la stessa domanda;
+- **Salva copia** (o **Aggiorna copia**) sta nel menu della freccia, con Salva come…;
+- anche **Salva…** nella domanda alla chiusura sovrascrive.
+
+Dove l'originale non si può sovrascrivere (un formato che EyeCanSee non riscrive, come HEIC o RAW, e i posti elencati sopra) il pulsante principale resta **Salva copia**, e passandoci sopra dice perché. Un'immagine nuova tiene **Salva come…**.
 
 ## Cosa conserva il file salvato
 
@@ -44,7 +54,7 @@ Sovrascrivi è spento, e passandoci sopra dice perché, per un'immagine nuova, p
 
 Chiudi, la ✕ della finestra o Esc chiedono prima cosa fare:
 
-- **Salva…**: una copia, come Salva copia (Salva come… per un'immagine nuova). Dopo la conferma, la pagina si chiude appena la copia è scritta. Se il salvataggio non riesce, la pagina resta aperta con le modifiche.
+- **Salva…**: il salvataggio principale: una copia, come Salva copia, o sopra l'originale quando è quello il pulsante principale (Salva come… per un'immagine nuova). Dopo la conferma, la pagina si chiude appena il file è scritto. Se il salvataggio non riesce, la pagina resta aperta con le modifiche.
 - **Salva come…**: chiude la pagina e apre Salvare in un altro formato.
 - **Non salvare**: chiude e dimentica le modifiche.
 - **Annulla**: torna alla pagina.

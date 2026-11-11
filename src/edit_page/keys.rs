@@ -7,7 +7,8 @@ use crate::App;
 
 impl App {
     /// Without a field taking the keys (text has its own undo there): undo and redo, Del, the
-    /// tools' letters, the quarter turns, zoom, Ctrl+S (Save copy) and Ctrl+Shift+S (Save as…).
+    /// tools' letters, the quarter turns, zoom, Ctrl+S (the main save: Save copy, or Overwrite as
+    /// chosen in the Options) and Ctrl+Shift+S (Save as…).
     pub(super) fn edit_keys(&self, ctx: &egui::Context, w: &mut Window) -> Option<Ask> {
         if ctx.egui_wants_keyboard_input() || w.hold.is_some() || w.drag.is_some() {
             return None;
@@ -56,7 +57,8 @@ impl App {
         let (save_as, save) = ctx.input_mut(|i| (i.consume_key(cmd_shift, Key::S), i.consume_key(M::COMMAND, Key::S)));
         match () {
             _ if (save_as || save && w.new) && !w.preparing => Some(Ask::SaveAs),
-            _ if save && !w.preparing && w.changed() => Some(Ask::Save),
+            // Save copy, or Overwrite when chosen as the main save (issue #96).
+            _ if save && !w.preparing && w.changed() => Some(if self.main_overwrites(w) { Ask::Overwrite } else { Ask::Save }),
             _ => None,
         }
     }
