@@ -238,6 +238,7 @@ impl App {
             if self.settings.edit_after_save == crate::settings::AfterSave::Thumbnails && self.viewing.is_some() {
                 self.close_viewer();
             }
+            self.select_saved();
         }
     }
 
@@ -282,14 +283,13 @@ impl App {
                 log!("edit: {send:?} {target:?}");
                 let (store, base, tx, ctx) = (loader.store(), self.base.clone(), self.tx.clone(), ctx.clone());
                 self.saving.insert(target.clone());
-                // The copy is what the grid selects and the viewer shows once it is there.
-                if !p.over {
-                    self.select_after = Some(target.clone());
-                }
+                // The file saved last (the copy, or the original overwritten) is what the grid
+                // selects and the viewer shows once the editor is closed (issue #98).
+                self.select_after = Some(target.clone());
                 // "After saving" other than staying: closed once the file is written, as Save… on
-                // closing: the copy selected as above, an overwritten original stays the file
-                // selected, the viewer closed too for the thumbnails (`edit_saved`); a save that
-                // fails leaves the page open (issue #95, staying at first).
+                // closing: the file saved selected as above, the viewer closed too for the
+                // thumbnails (`edit_saved`); a save that fails leaves the page open (issue #95,
+                // staying at first).
                 if self.settings.edit_after_save != crate::settings::AfterSave::Stay {
                     w.closing = true;
                 }

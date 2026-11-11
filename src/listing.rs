@@ -102,12 +102,14 @@ impl App {
             Some(d) => new.dirs.iter().position(|x| x == d),
             None => file_at(self.selected - old.dirs.len()).map(|j| ndirs + j),
         };
-        // A folder just made, or the copy the editor just saved, is selected instead.
-        let made = self.select_after.take().and_then(|p| new.dirs.iter().position(|d| *d == p).or_else(|| new.files.iter().position(|f| f.path == p).map(|j| ndirs + j)));
+        // A folder just made, or the file the editor saved last, is selected instead; the
+        // editor's only once it is closed (`select_saved`): until then the viewer stays on the
+        // image being edited, and so does the window's title (issue #98).
+        let made = if self.editor.is_some() { None } else { self.select_after.take().and_then(|p| place(new, &p)) };
         self.selected = made.or(followed).unwrap_or(self.selected).min((ndirs + n).saturating_sub(1));
         self.cursor = (self.cursor || made.is_some()) && ndirs + n > 0;
         self.scroll_to_selected |= made.is_some();
-        // The viewer goes to that copy: what was just saved is what is shown (user, 2026-11-05).
+        // The viewer goes to that file: what was just saved is what is shown (user, 2026-11-05).
         let copy = made.and_then(|m| m.checked_sub(ndirs));
         if self.viewing.is_some() && copy.is_some() {
             self.turn = Default::default();
@@ -119,5 +121,40 @@ impl App {
         self.thumb_queue_key = None;
         self.pending.clear();
         self.meta_asked = None;
+    }
+
+    /// The editor closed: the file it saved last (`select_after`), if already listed, is selected
+    /// and shown by an open viewer (issue #98); if not yet, the next listing selects it.
+    pub(crate) fn select_saved(&mut self) {
+        let Some(Ok(l)) = self.listings.get(&self.dir) else { return };
+        let Some(i) = self.select_after.as_deref().and_then(|p| place(l, p)) else { return };
+        let file = i.checked_sub(l.dirs.len());
+        self.select_after = None;
+        (self.selected, self.cursor, self.scroll_to_selected) = (i, true, true);
+        if self.viewing.is_some() && file.is_some() && self.viewing != file {
+            self.viewing = file;
+            self.turn = Default::default();
+        }
+    }
+}
+
+/// The item of `path` in a listing: folders first, then files.
+fn place(l: &Listing, path: &str) -> Option<usize> {
+    l.dirs.iter().position(|d| d == path).or_else(|| l.files.iter().position(|f| f.path == path).map(|j| l.dirs.len() + j))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::source::File;
+
+    /// Folders come before files: a file's item counts the folders first.
+    #[test]
+    fn place_of_folders_and_files() {
+        let file = |p: &str| File { path: p.into(), size: 1, modified: String::new() };
+        let l = Listing { dirs: vec!["p/sub/".into()], files: vec![file("p/a.jpg"), file("p/a (edited).jpg")], ..Default::default() };
+        assert_eq!(place(&l, "p/sub/"), Some(0));
+        assert_eq!(place(&l, "p/a (edited).jpg"), Some(2));
+        assert_eq!(place(&l, "p/gone.jpg"), None);
     }
 }

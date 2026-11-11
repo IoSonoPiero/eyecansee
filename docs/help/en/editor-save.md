@@ -10,7 +10,7 @@ The editor never changes the original unless you ask. The main button, **Save co
 - Its format is the original's when EyeCanSee can write that format (JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI). Otherwise it is a PNG when the image has transparency or comes from an OpenEXR or Radiance HDR file, and a JPEG in the other cases (a HEIC, a RAW or a PSD, for example).
 - Before writing, a window gives the copy's name and what it loses, if anything: encoded again with a little loss, 8 bits per colour instead of more, what is brighter than white. **Save** writes it; **Cancel** goes back.
 
-The original stays as it is. The page stays open, so you can go on. When you close it, the grid selects the copy and the viewer shows it.
+The original stays as it is. The page stays open, so you can go on; meanwhile the viewer behind it, and the window's title, stay on the image you are editing. When you close it, the grid selects the file saved last and the viewer shows it: the copy, or the original if you overwrote it after the copy.
 
 In the Options, **After saving** can close the page as soon as the file is written (at first **Stay in the editor**). With **Go back to where you were** the grid selects the copy if you opened the editor from the grid, the viewer shows it if you opened it from the viewer; with **Go back to the thumbnails** you are always back in the thumbnails with the copy selected. This goes for **Update copy** and **Overwrite the original…** too. A save that fails leaves the page open, as below.
 

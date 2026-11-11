@@ -10,7 +10,7 @@ L'editor non cambia mai l'originale se non lo chiedi. Il pulsante principale, **
 - Il formato è quello dell'originale quando EyeCanSee sa scriverlo (JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI). Altrimenti è un PNG se l'immagine ha trasparenza o viene da un file OpenEXR o Radiance HDR, e un JPEG negli altri casi (per esempio un HEIC, un RAW o un PSD).
 - Prima di scrivere, una finestra dice il nome della copia e cosa perde, se perde qualcosa: ricodificata con una piccola perdita, 8 bit per colore invece di più, ciò che è più luminoso del bianco. **Salva** la scrive; **Annulla** torna indietro.
 
-L'originale resta com'è. La pagina resta aperta, così puoi continuare. Quando la chiudi, la griglia seleziona la copia e il visore la mostra.
+L'originale resta com'è. La pagina resta aperta, così puoi continuare; intanto il visore dietro di lei, e il titolo della finestra, restano sull'immagine che stai modificando. Quando la chiudi, la griglia seleziona l'ultimo file salvato e il visore lo mostra: la copia, o l'originale se l'hai sovrascritto dopo la copia.
 
 Nelle Opzioni, **Dopo il salvataggio** può chiudere la pagina appena il file è scritto (all'inizio **Resta nell'editor**). Con **Torna da dove eri** la griglia seleziona la copia se avevi aperto l'editor dalla griglia, il visore la mostra se l'avevi aperto dal visore; con **Torna alle miniature** torni sempre alle miniature con la copia selezionata. Vale anche per **Sovrascrivi l'originale…** e **Aggiorna copia**. Un salvataggio che non riesce lascia la pagina aperta, come sotto.
 

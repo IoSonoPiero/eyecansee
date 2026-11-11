@@ -109,9 +109,9 @@ impl crate::App {
                     log!("edit: page closed after Save as…, viewing {:?}", self.viewing);
                     // The file just saved is selected, or shown by the viewer, as after Save copy
                     // (user, 2026-11-11): only in the open folder, the only one listed for it.
-                    if crate::source::parent(&path) == self.dir {
-                        self.select_after = Some(path.clone());
-                    }
+                    // Saved elsewhere, a copy saved before it is not selected either (issue #98):
+                    // the viewer stays on the image edited.
+                    self.select_after = (crate::source::parent(&path) == self.dir).then(|| path.clone());
                 }
                 self.relist(crate::source::parent(&path));
             }
