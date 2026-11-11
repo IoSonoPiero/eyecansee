@@ -220,17 +220,15 @@ impl App {
     }
 
     pub(crate) fn update_title(&mut self, ctx: &egui::Context) {
-        let title = match self.viewing {
-            Some(i) => {
-                // Among the images it moves through: "2 of 3" with three marked.
-                let set = self.viewer_set();
-                let at = set.iter().position(|&k| k == i).unwrap_or(0);
-                let counter = self.i18n.t_args("counter", &[("n", &(at + 1).to_string()), ("total", &set.len().to_string())]);
-                let name = self.files().get(i).map_or("", |f| source::shown(&f.path));
-                format!("{name} ({counter}) - EyeCanSee")
-            }
-            None => format!("{} - EyeCanSee", self.display(&self.dir)),
-        };
+        let editing = self.editor.as_ref().map(|w| source::shown(&w.path));
+        let viewing = self.viewing.filter(|_| editing.is_none()).map(|i| {
+            // Among the images it moves through: "2 of 3" with three marked.
+            let set = self.viewer_set();
+            let at = set.iter().position(|&k| k == i).unwrap_or(0);
+            let counter = self.i18n.t_args("counter", &[("n", &(at + 1).to_string()), ("total", &set.len().to_string())]);
+            (self.files().get(i).map_or("", |f| source::shown(&f.path)), counter)
+        });
+        let title = window_title(editing, viewing, &self.display(&self.dir));
         if title != self.title {
             log!("title {title:?}");
             ctx.send_viewport_cmd(egui::ViewportCommand::Title(title.clone()));
@@ -295,6 +293,17 @@ pub(crate) fn step(at: usize, n: usize, to: Go, wrap: bool) -> usize {
     }
 }
 
+/// The window's title: with the editor open the name of the file edited (in applications working
+/// on documents the title is the document's name, GNOME's guidelines), else in the viewer the image
+/// shown and its `counter`, else the `folder`.
+pub(crate) fn window_title(editing: Option<&str>, viewing: Option<(&str, String)>, folder: &str) -> String {
+    match (editing, viewing) {
+        (Some(name), _) => format!("{name} - EyeCanSee"),
+        (None, Some((name, counter))) => format!("{name} ({counter}) - EyeCanSee"),
+        (None, None) => format!("{folder} - EyeCanSee"),
+    }
+}
+
 /// A folder of a source as the address bar shows it: `base` plus the folder, with `\` on Windows.
 pub(crate) fn shown(base: &str, dir: &str) -> String {
     let sep = if base.contains("://") || !base.contains('\\') { "/" } else { "\\" };
@@ -315,5 +324,17 @@ mod tests {
         assert_eq!(step(1, 3, Go::First, false), 0);
         assert_eq!(step(1, 3, Go::Last, false), 2);
         assert_eq!(step(0, 1, Go::Next, true), 0);
+    }
+
+    #[test]
+    fn titles() {
+        // The grid: the folder.
+        assert_eq!(window_title(None, None, "/home/a/Pictures"), "/home/a/Pictures - EyeCanSee");
+        // The viewer: the image and where it is among the others.
+        assert_eq!(window_title(None, Some(("b.jpg", "2 of 5".into())), "/home/a/Pictures"), "b.jpg (2 of 5) - EyeCanSee");
+        // The editor, opened from the grid, from the viewer or on a new image: the file edited.
+        assert_eq!(window_title(Some("b.jpg"), None, "/home/a/Pictures"), "b.jpg - EyeCanSee");
+        assert_eq!(window_title(Some("b.jpg"), Some(("c.jpg", "3 of 5".into())), "/home/a/Pictures"), "b.jpg - EyeCanSee");
+        assert_eq!(window_title(Some("New image.png"), None, "/home/a/Pictures"), "New image.png - EyeCanSee");
     }
 }
