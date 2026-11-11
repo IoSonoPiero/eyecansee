@@ -46,7 +46,7 @@ Fino ad allora la miniatura di un video è l'anteprima salvata dalla videocamera
 
 ## Da sapere
 
-- I video su un telefono o su un server si leggono un pezzo alla volta mentre scorrono. Su Windows un telefono non permette di saltare in mezzo a un file: lì il video viene prima copiato tutto, e una barra mostra quanto ne è stato letto.
+- I video su un telefono o su un server si leggono un pezzo alla volta mentre scorrono, anche da un telefono su Windows. Solo un telefono che non permette di saltare in mezzo a un file (Windows se ne accorge alla prima lettura lenta) ha i video copiati tutti prima, con una barra che mostra quanto ne è stato letto.
 - Ruotare, salvare e modificare nel visore valgono per le foto. Per ruotare, rimpicciolire o convertire un video usa [Convertire i video](convert-video.md).
 - Il pannello dei metadati mostra i dati di un video selezionato: vedi [Informazioni sul file](metadata.md).
 - Quali formati si riproducono: vedi [Formati supportati](formats.md).

@@ -46,7 +46,7 @@ Until then the thumbnail of a video is the preview stored by the camera, when th
 
 ## Good to know
 
-- Videos on a phone or a server are read a piece at a time while they play. A phone on Windows cannot jump into the middle of a file: there the video is first copied whole, and a bar shows how much has been read.
+- Videos on a phone or a server are read a piece at a time while they play, also from a phone on Windows. Only a phone that cannot jump into the middle of a file (Windows notices on the first slow read) has its videos copied whole first, with a bar that shows how much has been read.
 - Turning, saving and editing in the viewer are for pictures. To turn, shrink or convert a video use [Converting videos](convert-video.md).
 - The metadata panel shows the details of a selected video: see [Image information](metadata.md).
 - Which formats play: see [Supported formats](formats.md).

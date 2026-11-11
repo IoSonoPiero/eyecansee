@@ -51,7 +51,14 @@ pub struct Phone {
     /// from the start, each window slower than the last (POCO X7 Pro, 2026-10-28: 1.2 s to 3.7 s
     /// per 4 MB). Listings still pass between two windows of the same download.
     downloads: tokio::sync::Mutex<()>,
+    /// A read inside a file was slow (Windows, #71): the phone or its driver has no partial reads,
+    /// so WPD read the file from the start up to there. Its videos are then copied whole.
+    ranges_slow: AtomicBool,
 }
+
+/// A read from this far into a file that takes longer than `RANGE_SLOW` means no partial reads.
+const RANGE_FAR: u64 = 64 << 20;
+const RANGE_SLOW: std::time::Duration = std::time::Duration::from_secs(5);
 
 /// A file read in windows, holding the phone's `downloads` turn until it is dropped.
 pub struct Download<'a> {
@@ -179,6 +186,7 @@ impl Phone {
             complete: Mutex::default(),
             turn: tokio::sync::Mutex::const_new(()),
             downloads: tokio::sync::Mutex::const_new(()),
+            ranges_slow: Default::default(),
         }
     }
 
@@ -298,7 +306,20 @@ impl Phone {
 
     /// `len` bytes from `offset` (MTP GetPartialObject64).
     pub async fn read_range(&self, path: &str, offset: u64, len: u32) -> Result<Vec<u8>, Error> {
-        self.read_with("read_range", path, |s, h| async move { s.read_range(h, offset, len).await }).await
+        let start = std::time::Instant::now();
+        let r = self.read_with("read_range", path, |s, h| async move { s.read_range(h, offset, len).await }).await;
+        // A partial read takes 0.16 s for 4 MB anywhere in a 1 GB file; reading up to the offset
+        // took 16.6 s at the middle (POCO X6 Pro, mtp-rs 0.38.1). Waiting behind other calls
+        // counts too: a busy phone at worst goes back to whole copies, as before.
+        if cfg!(windows) && offset >= RANGE_FAR && start.elapsed() > RANGE_SLOW && !self.ranges_slow.swap(true, Ordering::Relaxed) {
+            log!("phone {}: read at {offset} of {path} took {:.1} s: no partial reads, videos copied whole", self.serial, start.elapsed().as_secs_f32());
+        }
+        r
+    }
+
+    /// Whether a read inside a file was slow (`read_range`).
+    pub fn ranges_slow(&self) -> bool {
+        self.ranges_slow.load(Ordering::Relaxed)
     }
 
     /// The thumbnail the phone made for the file (MTP GetThumb): a video's still without reading

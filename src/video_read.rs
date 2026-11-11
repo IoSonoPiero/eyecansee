@@ -21,8 +21,8 @@ pub(crate) async fn preview(op: &Store, base: &str, file: &File) -> Option<Color
     let start = std::time::Instant::now();
     let found = match phone_thumbnail(op, &file.path).await {
         Some(jpeg) => Some((jpeg, "the phone's thumbnail")),
-        // A phone on Windows reads a file only from the start: the preview, at the end with the
-        // `moov`, is looked for in the whole copy the frame needs anyway (`video_still`).
+        // A phone on Windows without partial reads: the preview, at the end with the `moov`, is
+        // looked for in the whole copy the frame needs anyway (`video_still`).
         None if whole_only(op) => None,
         None => preview_jpeg(op, &file.path, file.size).await.map(|j| (j, "the video's preview")),
     };
@@ -187,11 +187,12 @@ async fn phone_thumbnail(op: &Store, path: &str) -> Option<Vec<u8>> {
     image::load_from_memory(&jpeg).ok().map(|_| jpeg)
 }
 
-/// A phone on Windows is read through WPD, whose streams cannot seek: every read at an offset
-/// reads the file from the start up to there, and the Samsung A57 dropped the connection after
-/// minutes of that (2026-10-27). Such a file is read whole, in order, once.
+/// A phone on Windows whose reads inside a file are slow (`Phone::ranges_slow`): without MTP
+/// partial reads WPD reads the file from the start up to the offset, and the Samsung A57 dropped
+/// the connection after minutes of that (2026-10-27). Such a file is read whole, in order, once.
+/// With partial reads (mtp-rs 0.38.1) a phone on Windows is read as on Linux (#71).
 fn whole_only(op: &Store) -> bool {
-    cfg!(windows) && matches!(op, Store::Mtp(_))
+    cfg!(windows) && matches!(op, Store::Mtp(phone) if phone.ranges_slow())
 }
 
 /// What mpv plays: the file itself when it is on this computer (also through gvfs), otherwise
@@ -201,7 +202,7 @@ pub(crate) fn video_input(rt: Handle, op: &Store, path: &str, size: u64) -> crat
 }
 
 /// As `video_input`, for playing, with the bytes copied so far when the file is copied whole
-/// first (a phone on Windows): the viewer shows how far that is, since nothing plays until it is
+/// first (a phone on Windows without partial reads): the viewer shows how far that is, since nothing plays until it is
 /// done. A server's file is read ahead (`Ahead`).
 pub(crate) fn video_input_copied(rt: Handle, op: &Store, path: &str, size: u64) -> (crate::mpv::Input, Option<Arc<AtomicU64>>) {
     input(rt, op, path, size, true)
@@ -524,18 +525,22 @@ pub(crate) async fn video_still(op: &Store, path: &str, size: u64, side: u32) ->
         return still_from_copy(op, path, size, side).await;
     }
     let input = video_input(Handle::current(), op, path, size);
-    tokio::task::spawn_blocking(move || crate::mpv::still(input, side).map(|i| image::DynamicImage::ImageRgba8(i).to_rgb8().into()))
+    let start = std::time::Instant::now();
+    let still = tokio::task::spawn_blocking(move || crate::mpv::still(input, side).map(|i| image::DynamicImage::ImageRgba8(i).to_rgb8().into()))
         .await
-        .unwrap_or_else(|e| Err(e.to_string()))
+        .unwrap_or_else(|e| Err(e.to_string()));
+    if op.local_file(path).is_none() {
+        log!("still {path:?}: {} in {:.2} s, read a piece at a time", if still.is_ok() { "a frame" } else { "failed" }, start.elapsed().as_secs_f64());
+    }
+    still
 }
 
 /// The error of a video's thumbnail without the video engine: the grid shows the video sign
 /// waiting for the download.
 pub(crate) const NO_ENGINE: &str = "no video engine";
 
-/// The camera's preview in the first bytes of a phone video on Windows (`preview_jpeg` skips
-/// such a phone): the start of the file is read without reading anything before it.
-/// ponytail: the start only; a preview in a `moov` at the end waits for partial reads (#71).
+/// The camera's preview in the first bytes of a phone video on Windows without partial reads
+/// (`preview_jpeg` skips such a phone): the start of the file is read without reading anything before it.
 async fn head_preview(op: &Store, path: &str, size: u64, side: u32) -> Option<image::DynamicImage> {
     let head = op.read_range(path, 0, size.min(crate::mp4::HEAD)).await.ok()?;
     decode::thumbnail(crate::mp4::thumbnail(&head)?, "preview.jpg", side).ok()
