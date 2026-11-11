@@ -37,6 +37,8 @@ pub struct Window {
     /// Height of the part under the images, measured at the last frame.
     bottom_h: f32,
     error: Option<String>,
+    /// A new image from the editor: no file yet, so no size on disk to show or compare with.
+    unsaved: bool,
 }
 
 impl Window {
@@ -47,7 +49,7 @@ impl Window {
     /// For a new image from the editor (File > New image…): PNG, as the editor names it
     /// (issue #104), not the JPEG proposed for a photo.
     pub fn for_new_image(path: String) -> Self {
-        Self::with(path, Options { format: Format::Png, ..Options::default() })
+        Window { unsaved: true, ..Self::with(path, Options { format: Format::Png, ..Options::default() }) }
     }
 
     fn with(path: String, options: Options) -> Self {
@@ -66,6 +68,7 @@ impl Window {
             saving: false,
             bottom_h: 300.0,
             error: None,
+            unsaved: false,
         }
     }
 }
@@ -204,7 +207,8 @@ impl crate::App {
             }
             Some(Ok(o)) => o.clone(),
         };
-        let (image, tex, size) = (&original.0.image, &original.1, original.2);
+        // A new image has no file: no size on disk, no percentage of it (issue #99).
+        let (image, tex, size) = (&original.0.image, &original.1, (!w.unsaved).then_some(original.2));
         let half = (ui.available_width() - GAP) / 2.0;
         // The images get what the options below leave (their height measured at the last frame).
         let pane = egui::vec2(half, (ui.available_height() - 22.0 - 16.0 - w.bottom_h).max(120.0));
@@ -217,7 +221,9 @@ impl crate::App {
                 ui.set_width(half);
                 let ext = crate::source::name(&w.path).rsplit_once('.').map_or(String::new(), |(_, e)| e.to_uppercase());
                 ui.label(format!("{ext} · {pixels}"));
-                ui.label(i18n.t_args("convert-file-size", &[("size", &self.human_size(size))]));
+                if let Some(size) = size {
+                    ui.label(i18n.t_args("convert-file-size", &[("size", &self.human_size(size))]));
+                }
                 ui.add_space(6.0);
                 ui.checkbox(&mut w.actual, t("convert-actual"));
             });
@@ -246,7 +252,7 @@ impl crate::App {
     }
 
     /// Format and size of the new file, against the original's; its error if it failed.
-    fn result_info(&self, ui: &mut egui::Ui, w: &Window, pixels: &str, size: u64) {
+    fn result_info(&self, ui: &mut egui::Ui, w: &Window, pixels: &str, size: Option<u64>) {
         let i18n = &self.i18n;
         match &w.result {
             // Options changed, new file not made yet: the old size would pass for the new one
@@ -259,13 +265,12 @@ impl crate::App {
                 });
             }
             Some(Ok((bytes, _))) => {
-                let percent = (bytes.len() as u64 * 100 / size.max(1)).to_string();
                 ui.label(format!("{} · {pixels}", w.options.format.label()));
-                ui.label(format!(
-                    "{} ({})",
-                    i18n.t_args("convert-file-size", &[("size", &self.human_size(bytes.len() as u64))]),
-                    i18n.t_args("convert-ratio", &[("percent", &percent)])
-                ));
+                let on_disk = i18n.t_args("convert-file-size", &[("size", &self.human_size(bytes.len() as u64))]);
+                match ratio(bytes.len() as u64, size) {
+                    Some(percent) => ui.label(format!("{on_disk} ({})", i18n.t_args("convert-ratio", &[("percent", &percent.to_string())]))),
+                    None => ui.label(on_disk),
+                };
             }
             Some(Err(e)) => {
                 ui.label(crate::browser::error_text(ui, i18n.t_args("convert-error", &[("detail", e)])));
@@ -276,6 +281,12 @@ impl crate::App {
             }
         }
     }
+}
+
+/// The new file's size in percent of the original's; none without an original file (a new image,
+/// issue #99).
+fn ratio(new: u64, original: Option<u64>) -> Option<u64> {
+    original.filter(|&s| s > 0).map(|s| new * 100 / s)
 }
 
 /// Space between the two halves of the page.
@@ -617,5 +628,15 @@ mod tests {
         assert_eq!((w.options.format, w.name.as_str()), (Format::Png, "New image.png"));
         let w = Window::new("p/beach.webp".into());
         assert_eq!((w.options.format, w.name.as_str()), (Format::Jpeg, "beach.jpg"));
+    }
+
+    /// Issue #99: a new image has no file, so no size on disk and no percentage of it.
+    #[test]
+    fn no_ratio_without_a_file() {
+        assert!(Window::for_new_image("p/New image.png".into()).unsaved);
+        assert!(!Window::new("p/beach.jpg".into()).unsaved);
+        assert_eq!(ratio(42_159, None), None);
+        assert_eq!(ratio(42_159, Some(0)), None);
+        assert_eq!(ratio(50, Some(200)), Some(25));
     }
 }

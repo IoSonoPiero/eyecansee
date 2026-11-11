@@ -15,7 +15,7 @@ Per convertire o ridimensionare tante immagini insieme usa [Convertire e ridimen
 
 ## Che cosa mostra la pagina
 
-La pagina occupa tutta la finestra. A sinistra c'è l'originale, a destra l'immagine convertita, ciascuna con il formato, le dimensioni in pixel e il peso su disco; per quella convertita anche in percentuale dell'originale.
+La pagina occupa tutta la finestra. A sinistra c'è l'originale, a destra l'immagine convertita, ciascuna con il formato, le dimensioni in pixel e il peso su disco; per quella convertita anche in percentuale dell'originale. Un'immagine nuova dell'editor non ha ancora un file, quindi il suo peso su disco e la percentuale non compaiono.
 
 L'immagine a destra è il file vero: ogni volta che cambi un'opzione, EyeCanSee rifà il file e lo mostra. Mentre lavora, il peso dice "Calcolo della dimensione in corso…" e **Salva** aspetta: così il peso che vedi è sempre quello del file che otterrai.
 

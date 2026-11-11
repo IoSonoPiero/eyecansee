@@ -15,7 +15,7 @@ To convert or resize many images at once, use [Converting and resizing images](c
 
 ## What the page shows
 
-The page takes the whole window. On the left is the original, on the right the converted image, each with its format, its size in pixels and its size on disk; for the converted one also as a percentage of the original.
+The page takes the whole window. On the left is the original, on the right the converted image, each with its format, its size in pixels and its size on disk; for the converted one also as a percentage of the original. A new image from the editor has no file yet, so its size on disk and the percentage are not shown.
 
 The image on the right is the real file: every time you change an option, EyeCanSee makes the file again and shows it. While it works, the size says "Working out the size…" and **Save** waits, so the size you see is always the size of the file you will get.
 
