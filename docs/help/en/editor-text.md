@@ -9,7 +9,7 @@
 3. Type. The letters appear on the image itself; Enter starts a new line.
 4. Press Esc, or click elsewhere, when you are done.
 
-A text left empty goes away. While you type, the letters are shown in the interface's font; they take their own font when you are done.
+A text left empty goes away when you are done with it. A click outside the image places no text. While you type, the letters are shown in the interface's font; they take their own font when you are done.
 
 To change a text already written, double-click it (with Text or Select), or select it and change it in the field of the properties bar. Undo takes back the whole change at once.
 
@@ -49,7 +49,7 @@ Options:
 
 The disc takes the colour chosen; the number is black or white, whichever reads better on it. When a step is selected, the bar has a **Number** field to change it. Change the size in the bar or by dragging a corner (the disc stays round).
 
-A click on an existing step selects it. Anywhere else, even inside a rectangle, a new step is placed. To move a step, use Select and drag it; with Step numbers, dragging moves the view.
+A click on an existing step selects it. Anywhere else on the image, even inside a rectangle, a new step is placed; a click outside the image places none. To move a step, use Select and drag it; with Step numbers, dragging moves the view.
 
 ## Keys
 

@@ -526,6 +526,8 @@ fn resize_cursor(w: &Window, view: &View, index: usize, handle: usize) -> Cursor
 
 /// A click: the Text tool places a text (or picks one to change), the others pick what is under it.
 fn clicked(w: &mut Window, p: Pt, tol: f32) {
+    // The text being typed is done: left empty, it goes (also when another one is placed now).
+    w.drop_empty_texts();
     // With a drawing tool a click selects only an object of its own kind (its style in the bar);
     // anywhere else it places what the tool places (a text, a step, a stamp). Picking any object,
     // of any kind, is Select's (user, 2026-11-06: the second step, clicked where a line drawn
@@ -537,6 +539,15 @@ fn clicked(w: &mut Window, p: Pt, tol: f32) {
     if let (Some(i), Tool::Draw(kind)) = (under, w.tool) {
         w.selected = Some(i);
         w.focus_text = matches!(kind, Kind::Text | Kind::Bubble);
+        return;
+    }
+    // Outside the result a text, a step or a stamp would not be in the saved file, and an empty
+    // text there took the keys (issue #103): the click only lets the selection go.
+    let placing = matches!(w.tool, Tool::Draw(Kind::Text | Kind::Step | Kind::Stamp));
+    let q = geom::turned(p, w.doc.angle);
+    if placing && !w.doc.crop.contains(q.x, q.y) {
+        w.selected = None;
+        w.focus_text = false;
         return;
     }
     if w.tool == Tool::Draw(Kind::Text) {
@@ -625,5 +636,32 @@ mod tests {
         assert_eq!((sq.w, sq.h, sq.cx + sq.w / 2.0, sq.cy + sq.h / 2.0), (90.0, 90.0, 50.0, 25.0));
         // Past the opposite side: a pixel wide, not turned inside out.
         assert_eq!(resized(start, 1, 0, egui::vec2(-500.0, 0.0), None).w, 1.0);
+    }
+
+    /// Issue #103: a click outside the result with Text, Step numbers or Stamps places nothing and
+    /// gives no text the keys; inside it places one. An empty text goes when another is placed.
+    #[test]
+    fn click_outside_places_nothing() {
+        use crate::edit::doc::Doc;
+        for kind in [Kind::Text, Kind::Step, Kind::Stamp] {
+            let mut w = Window::new("p/a.png".into(), Default::default(), Tool::Draw(kind));
+            w.doc = Doc::new(64, 48, None);
+            clicked(&mut w, Pt::new(40.0, 0.0), 1.0);
+            assert!(w.doc.objects.is_empty() && w.selected.is_none() && !w.focus_text, "{kind:?} outside");
+            clicked(&mut w, Pt::new(-20.0, 10.0), 1.0);
+            assert_eq!((w.doc.objects.len(), w.selected, w.focus_text), (1, Some(0), kind == Kind::Text), "{kind:?} inside");
+        }
+        let mut w = Window::new("p/a.png".into(), Default::default(), Tool::Draw(Kind::Text));
+        w.doc = Doc::new(64, 48, None);
+        clicked(&mut w, Pt::new(-20.0, 10.0), 1.0);
+        // Turned by 90°, the result is 48 wide: y = 28 of the image, turned to the side, is
+        // outside it (and x = 28 inside).
+        w.doc.angle = 90.0;
+        w.doc.crop = crate::rotate::Crop::centred(48.0, 64.0);
+        clicked(&mut w, Pt::new(0.0, 28.0), 1.0);
+        assert!(w.doc.objects.is_empty() && w.selected.is_none(), "the empty text went, none placed");
+        clicked(&mut w, Pt::new(28.0, 0.0), 1.0);
+        clicked(&mut w, Pt::new(-20.0, 0.0), 1.0);
+        assert_eq!((w.doc.objects.len(), w.selected), (1, Some(0)), "the first, empty, went");
     }
 }

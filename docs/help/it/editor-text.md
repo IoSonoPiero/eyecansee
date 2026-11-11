@@ -9,7 +9,7 @@
 3. Scrivi. Le lettere compaiono sull'immagine stessa; Invio va a capo.
 4. Quando hai finito premi Esc, o fai clic altrove.
 
-Un testo lasciato vuoto sparisce. Mentre scrivi, le lettere sono nel font dell'interfaccia; prendono il loro font quando hai finito.
+Un testo lasciato vuoto sparisce quando hai finito. Un clic fuori dall'immagine non mette nessun testo. Mentre scrivi, le lettere sono nel font dell'interfaccia; prendono il loro font quando hai finito.
 
 Per cambiare un testo già scritto fai doppio clic (con Testo o Seleziona), oppure selezionalo e cambialo nel campo della barra delle proprietà. Annulla toglie tutta la modifica in una volta.
 
@@ -49,7 +49,7 @@ Opzioni:
 
 Il dischetto prende il colore scelto; il numero è nero o bianco, quello che si legge meglio. Con un numero selezionato la barra ha il campo **Numero** per cambiarlo. La dimensione si cambia nella barra o trascinando un angolo (il dischetto resta rotondo).
 
-Un clic su un numero già messo lo seleziona. Altrove, anche dentro un rettangolo, ne mette uno nuovo. Per spostare un numero usa Seleziona e trascinalo; con Numeri di passaggio, trascinare sposta la vista.
+Un clic su un numero già messo lo seleziona. Altrove sull'immagine, anche dentro un rettangolo, ne mette uno nuovo; un clic fuori dall'immagine non ne mette nessuno. Per spostare un numero usa Seleziona e trascinalo; con Numeri di passaggio, trascinare sposta la vista.
 
 ## Tasti
 

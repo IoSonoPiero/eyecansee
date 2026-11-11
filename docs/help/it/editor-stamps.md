@@ -21,7 +21,7 @@ Le prime sette sono nella barra: ![Spunta](icon://check) Spunta, ![Croce](icon:/
 
 ## Da sapere
 
-- Un clic su un timbro già messo lo seleziona. Altrove ne mette uno nuovo.
+- Un clic su un timbro già messo lo seleziona. Altrove sull'immagine ne mette uno nuovo; un clic fuori dall'immagine non ne mette nessuno.
 - Per spostare un timbro usa ![Seleziona](icon://mouse-pointer-2) **Seleziona** e trascinalo. Con Timbri, trascinare sposta la vista.
 - **I**: contagocce. **Alt+clic**: prende un colore e lo strumento resta. **Canc**: elimina il timbro selezionato.
 

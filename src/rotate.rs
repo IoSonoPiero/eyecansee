@@ -26,6 +26,12 @@ impl Crop {
         Crop { w, h, ..self }
     }
 
+    /// Whether the point `x`, `y` (from the centre of the rotated image) is inside the crop: in the
+    /// result, the saved file.
+    pub fn contains(self, x: f32, y: f32) -> bool {
+        (x - self.cx).abs() <= self.w / 2.0 && (y - self.cy).abs() <= self.h / 2.0
+    }
+
     /// Size of the result in pixels, at least 1×1.
     pub fn pixels(self) -> (u32, u32) {
         (self.w.round().max(1.0) as u32, self.h.round().max(1.0) as u32)
@@ -282,6 +288,13 @@ mod tests {
         // Nearly upright (a wall): made upright, not level.
         assert_eq!(straightened(0.0, dy, dx), 5.0);
         assert_eq!(straightened(7.0, 0.0, 0.0), 7.0);
+    }
+
+    #[test]
+    fn contains() {
+        let c = Crop { cx: 10.0, cy: -5.0, w: 20.0, h: 10.0 };
+        assert!(c.contains(10.0, -5.0) && c.contains(0.0, 0.0) && c.contains(20.0, -10.0));
+        assert!(!c.contains(-0.5, -5.0) && !c.contains(10.0, 0.5) && !c.contains(21.0, -5.0));
     }
 
     #[test]

@@ -369,6 +369,14 @@ impl Window {
         true
     }
 
+    /// The texts left empty go (the selection follows the objects that stay).
+    fn drop_empty_texts(&mut self) {
+        while let Some(i) = self.doc.objects.iter().position(|o| matches!(&o.shape, Shape::Text { text, .. } if text.trim().is_empty())) {
+            self.doc.objects.remove(i);
+            self.selected = self.selected.filter(|&s| s != i).map(|s| if s > i { s - 1 } else { s });
+        }
+    }
+
     /// A tool of the toolbar (or its key): changing tool lets go of the selection (but for Select).
     fn choose(&mut self, tool: Tool) {
         if tool == self.tool {
@@ -565,10 +573,7 @@ impl App {
         if busy {
             return;
         }
-        if let Some(i) = w.doc.objects.iter().position(|o| matches!(&o.shape, Shape::Text { text, .. } if text.trim().is_empty())) {
-            w.doc.objects.remove(i);
-            w.selected = w.selected.filter(|&s| s != i).map(|s| if s > i { s - 1 } else { s });
-        }
+        w.drop_empty_texts();
         if let Some(h) = &mut w.history {
             h.push(w.doc.clone());
         }
