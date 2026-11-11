@@ -426,6 +426,7 @@ cad-engine-title = CAD engine
 cad-engine-ask = To open STEP, IGES and BREP models of CAD programs EyeCanSee needs the CAD engine (Open CASCADE), downloaded once: { $size }.
 cad-engine-download = Download the CAD engine
 cad-engine-button = Download the CAD engine ({ $size })
+cad-engine-missing = The CAD engine is missing.
 convert-file-size = { $size } on disk
 convert-ratio = { $percent }% of the original
 convert-format = Format

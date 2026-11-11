@@ -425,6 +425,7 @@ cad-engine-title = Motore CAD
 cad-engine-ask = Per aprire i modelli STEP, IGES e BREP dei programmi CAD EyeCanSee ha bisogno del motore CAD (Open CASCADE), da scaricare una volta sola: { $size }.
 cad-engine-download = Scarica il motore CAD
 cad-engine-button = Scarica il motore CAD ({ $size })
+cad-engine-missing = Manca il motore CAD.
 convert-file-size = { $size } su disco
 convert-ratio = { $percent }% dell'originale
 convert-format = Formato

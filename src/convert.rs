@@ -190,7 +190,7 @@ impl crate::App {
                 return save;
             }
             Some(Err(e)) => {
-                ui.label(crate::browser::error_text(ui, i18n.t_args("cannot-load", &[("file", crate::source::name(&w.path)), ("error", e)])));
+                ui.label(crate::browser::error_text(ui, i18n.t_args("cannot-load", &[("file", crate::source::name(&w.path)), ("error", &i18n.load_error(e))])));
                 return save;
             }
             Some(Ok(o)) => o.clone(),

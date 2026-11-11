@@ -548,7 +548,7 @@ impl App {
                 ui.label(crate::browser::error_text(ui, self.i18n.t_args("edit-animated", &[("name", source::name(&w.path))])));
             }
             Some(Err(e)) => {
-                ui.label(crate::browser::error_text(ui, self.i18n.t_args("cannot-load", &[("file", source::name(&w.path)), ("error", e)])));
+                ui.label(crate::browser::error_text(ui, self.i18n.t_args("cannot-load", &[("file", source::name(&w.path)), ("error", &self.i18n.load_error(e))])));
             }
             _ => {
                 crate::theme::loading(ui, self.i18n.t("loading-file"), None);

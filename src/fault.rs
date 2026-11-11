@@ -136,6 +136,12 @@ impl I18n {
         if WRAPPERS.contains(&id) { plain } else { self.t_args(id, &[("detail", &plain)]) }
     }
 
+    /// A failed load as shown. The fixed sentences the grid recognises (`occt::MISSING`) stay
+    /// untranslated where they are kept and are translated here (#102).
+    pub(crate) fn load_error(&self, e: &str) -> String {
+        if e == crate::occt::MISSING { self.t("cad-engine-missing") } else { e.to_string() }
+    }
+
     /// `error`, to go in a message window's Markdown (`save_dialogs::notice_text`).
     pub(crate) fn error_md(&self, id: &str, detail: &str) -> String {
         match recognise(detail) {
@@ -232,6 +238,13 @@ mod tests {
                 assert!(named.contains("x.jpg") && !unnamed.contains("x.jpg") && named != unnamed, "{lang} {kind:?}");
             }
         }
+    }
+
+    #[test]
+    fn engine_missing_translated() {
+        assert_eq!(I18n::new("en").load_error(crate::occt::MISSING), "The CAD engine is missing.");
+        assert_eq!(I18n::new("it").load_error(crate::occt::MISSING), "Manca il motore CAD.");
+        assert_eq!(I18n::new("it").load_error("timeout"), "timeout");
     }
 
     /// The message of a replace refused for want of room for the second copy (#90), in both

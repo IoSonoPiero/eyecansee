@@ -1,6 +1,7 @@
 //! The CAD engine (`component::OCCT`, for STEP, IGES and BREP) offered for download: a card in
 //! the viewer on such a file, and a red button in the menu bar while the open folder has some.
-//! Once downloaded it is used straight away: the thumbnails of those files are made again.
+//! Once downloaded it is used straight away: the thumbnails of those files are made again, and so
+//! is the model open in the viewer.
 
 use eframe::egui::{self, Color32};
 
@@ -30,6 +31,8 @@ impl App {
                 self.model.engine = None;
                 let models = self.files().iter().filter(|f| crate::occt::is_occt(&f.path)).map(|f| f.path.clone()).collect();
                 self.on_forgotten(models);
+                // The viewer kept its failed load and showed the old error (#102): read again.
+                drop_missing(&mut self.full);
                 ctx.request_repaint();
                 State::Downloading(done)
             }
@@ -109,5 +112,25 @@ impl App {
                 }
             }
         }
+    }
+}
+
+/// The viewer's loads that failed only for want of the engine (`occt::MISSING`): dropped, so
+/// that the viewer asks for them again (`prefetch_full`).
+fn drop_missing<T>(full: &mut std::collections::HashMap<usize, Result<T, String>>) {
+    full.retain(|_, r| !matches!(r, Err(e) if e == crate::occt::MISSING));
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn only_missing_engine_dropped() {
+        let mut full = std::collections::HashMap::from([(0, Ok(())), (1, Err(crate::occt::MISSING.to_string())), (2, Err("broken file".to_string()))]);
+        drop_missing(&mut full);
+        let mut left: Vec<usize> = full.into_keys().collect();
+        left.sort_unstable();
+        assert_eq!(left, [0, 2]);
     }
 }
