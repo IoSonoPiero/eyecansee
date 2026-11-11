@@ -311,6 +311,33 @@ pub fn drawn(kind: Kind, a: Pt, b: Pt, angle: f32, style: Style, square: bool) -
     Some(Obj { shape, style })
 }
 
+/// Whether nothing of `o` is in the result, the part of the image turned by `angle` that `crop`
+/// keeps: its box, with its line and an arrow's head, does not reach it at all. A spotlight never
+/// is: it darkens all the rest, the result too.
+pub fn outside(o: &Obj, angle: f32, crop: crate::rotate::Crop) -> bool {
+    let w = o.style.width;
+    let line = |a: Pt, b: Pt, c: Option<Pt>| [a, b].into_iter().chain(c).collect::<Vec<_>>();
+    let (points, reach) = match &o.shape {
+        Shape::Spotlight(_) => return false,
+        // The curve stays within its ends and its control point.
+        Shape::Line(a, b, c) => (line(*a, *b, *c), w / 2.0),
+        // The head is 4 widths and 4 pixels long, as wide.
+        Shape::Arrow(a, b, c) => (line(*a, *b, *c), 2.5 * w + 2.0),
+        Shape::Pen(points) => (points.clone(), w / 2.0),
+        Shape::Bubble { area, tail, .. } => (corners(area).into_iter().chain([*tail]).collect(), w / 2.0),
+        Shape::Text { path: Some((a, b, c)), size, .. } => (line(*a, *b, *c), *size),
+        Shape::Text { at, text, size, rot, .. } => (corners(&text_area(*at, text, *size, *rot)).to_vec(), 0.0),
+        Shape::Rect(a) | Shape::Ellipse(a) | Shape::Lens { area: a, .. } => (corners(a).to_vec(), w / 2.0),
+        shape => (shape.area().map_or_else(Vec::new, |a| corners(a).to_vec()), 0.0),
+    };
+    let (mut l, mut t, mut r, mut b) = (f32::INFINITY, f32::INFINITY, f32::NEG_INFINITY, f32::NEG_INFINITY);
+    for p in points.into_iter().map(|p| turned(p, angle)) {
+        (l, t, r, b) = (l.min(p.x), t.min(p.y), r.max(p.x), b.max(p.y));
+    }
+    let (hw, hh) = (crop.w / 2.0, crop.h / 2.0);
+    !(l - reach < crop.cx + hw && r + reach > crop.cx - hw && t - reach < crop.cy + hh && b + reach > crop.cy - hh)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -376,6 +403,36 @@ mod tests {
         let Shape::Ellipse(e) = drawn(Kind::Ellipse, Pt::new(0.0, 0.0), Pt::new(-30.0, 10.0), 0.0, Style::default(), true).unwrap().shape else { unreachable!() };
         assert_eq!((e.w, e.h, e.centre), (30.0, 30.0, Pt::new(-15.0, 15.0)));
         assert_eq!(t.shape, Shape::Text { at: a, text: String::new(), size: 24.0, rot: -30.0, font: None, path: None });
+    }
+
+    /// Drawn on the dark area around the result: outside if nothing of it, its line included,
+    /// reaches the crop; a part inside is enough to stay. With the image turned and cropped.
+    #[test]
+    fn outside_the_result() {
+        use crate::rotate::Crop;
+        let rect = |x: f32, y: f32, width: f32| Obj { shape: Shape::Rect(Area { centre: Pt::new(x, y), w: 4.0, h: 4.0, rot: 0.0 }), style: Style { width, ..Style::default() } };
+        // Only x from 0 to 20 of the image is kept.
+        let crop = Crop { cx: 10.0, cy: 0.0, w: 20.0, h: 48.0 };
+        assert!(outside(&rect(-10.0, 0.0, 0.0), 0.0, crop) && outside(&rect(30.0, 0.0, 0.0), 0.0, crop) && outside(&rect(10.0, 30.0, 0.0), 0.0, crop));
+        assert!(!outside(&rect(-1.0, 0.0, 0.0), 0.0, crop) && !outside(&rect(10.0, 0.0, 0.0), 0.0, crop), "partly or all inside");
+        // Its border, as wide as `width` on the edge of the box: 2 pixels out of 4 reach x = 0.
+        assert!(outside(&rect(-4.0, 0.0, 4.0), 0.0, crop) && !outside(&rect(-4.0, 0.0, 6.0), 0.0, crop));
+        // A box larger than the result, all round it.
+        let over = Obj { shape: Shape::Cover(Area { centre: Pt::new(0.0, 0.0), w: 200.0, h: 200.0, rot: 30.0 }), style: Style::default() };
+        assert!(!outside(&over, 0.0, crop));
+        // Turned by 90°, the result is 48 wide and 64 high: y = 28 of the image goes to the side,
+        // out of it, x = 28 down, in it.
+        let turned = Crop::centred(48.0, 64.0);
+        assert!(outside(&rect(0.0, 28.0, 0.0), 90.0, turned) && !outside(&rect(28.0, 0.0, 0.0), 90.0, turned));
+        // Lines by their ends and bend, strokes by their points.
+        let line = |a: Pt, b: Pt, c: Option<Pt>| Obj { shape: Shape::Line(a, b, c), style: Style { width: 2.0, ..Style::default() } };
+        assert!(outside(&line(Pt::new(-30.0, -10.0), Pt::new(-5.0, 10.0), None), 0.0, crop));
+        assert!(!outside(&line(Pt::new(-30.0, -10.0), Pt::new(-5.0, 10.0), Some(Pt::new(15.0, 0.0))), 0.0, crop), "bent into it");
+        let pen = Obj { shape: Shape::Pen(vec![Pt::new(-30.0, 0.0), Pt::new(-10.0, 5.0), Pt::new(5.0, 0.0)]), style: Style::default() };
+        assert!(!outside(&pen, 0.0, crop) && outside(&Obj { shape: Shape::Pen(vec![Pt::new(-30.0, 0.0), Pt::new(-10.0, 5.0)]), ..pen }, 0.0, crop));
+        // A spotlight darkens the rest, the result too: never outside.
+        let spot = Obj { shape: Shape::Spotlight(Area { centre: Pt::new(-50.0, 0.0), w: 4.0, h: 4.0, rot: 0.0 }), style: Style::default() };
+        assert!(!outside(&spot, 0.0, crop));
     }
 }
 

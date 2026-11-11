@@ -405,12 +405,7 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
         w.hold = Some(hold);
     }
     if response.drag_stopped() {
-        if let Some(Hold::Draw { kind, index: Some(i), .. }) = w.hold {
-            w.selected = Some(i);
-            // A bubble just drawn takes the keys, for its text.
-            w.focus_text = kind == Kind::Bubble;
-        }
-        w.hold = None;
+        draw_ended(w);
     }
     if response.clicked()
         && let Some(s) = response.interact_pointer_pos()
@@ -419,6 +414,23 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
     }
     if response.hovered() {
         wheel(ui, w, view, rect, false);
+    }
+}
+
+/// The end of a drag: what a drawing tool drew is selected, but where nothing of it is in the
+/// result (the saved file) it goes, with no step in the history (user, 2026-11-12: a rectangle
+/// drawn on the dark area around the image).
+fn draw_ended(w: &mut Window) {
+    if let Some(Hold::Draw { kind, index: Some(i), .. }) = w.hold.take() {
+        if geom::outside(&w.doc.objects[i], w.doc.angle, w.doc.crop) {
+            w.doc.objects.remove(i);
+            w.selected = None;
+            w.focus_text = false;
+            return;
+        }
+        w.selected = Some(i);
+        // A bubble just drawn takes the keys, for its text.
+        w.focus_text = kind == Kind::Bubble;
     }
 }
 
@@ -663,5 +675,37 @@ mod tests {
         clicked(&mut w, Pt::new(28.0, 0.0), 1.0);
         clicked(&mut w, Pt::new(-20.0, 0.0), 1.0);
         assert_eq!((w.doc.objects.len(), w.selected), (1, Some(0)), "the first, empty, went");
+    }
+
+    /// A drag with a drawing tool all on the dark area around the result draws nothing: the
+    /// document is as before (no step in the history), nothing is selected; one reaching into the
+    /// result stays and is selected. Also on an image turned and cropped.
+    #[test]
+    fn drawn_outside_goes() {
+        use crate::edit::doc::Doc;
+        use crate::edit::history::History;
+        for kind in [Kind::Rect, Kind::Ellipse, Kind::Arrow, Kind::Line, Kind::Pen, Kind::Highlight, Kind::Cover, Kind::Lens, Kind::Bubble] {
+            let mut w = Window::new("p/a.png".into(), Default::default(), Tool::Draw(kind));
+            w.doc = Doc::new(64, 48, None);
+            w.doc.angle = 90.0;
+            w.doc.crop = crate::rotate::Crop { cx: 0.0, cy: 0.0, w: 40.0, h: 60.0 };
+            // A stamp already there, selected.
+            w.doc.objects.push(geom::stamp(Pt::new(0.0, 0.0), 90.0, w.style(Kind::Stamp)));
+            w.selected = Some(0);
+            let mut history = History::new(w.doc.clone());
+            let draw = |w: &mut Window, from: Pt, to: Pt| {
+                w.doc.objects.push(geom::drawn(kind, from, to, w.doc.angle, w.style(kind), false).unwrap());
+                w.hold = Some(Hold::Draw { kind, from, index: Some(w.doc.objects.len() - 1) });
+                draw_ended(w);
+            };
+            // Turned by 90°, image y from 30 to 32 is left of the result (x = -30 to -32 there).
+            draw(&mut w, Pt::new(-10.0, 30.0), Pt::new(10.0, 31.0));
+            history.push(w.doc.clone());
+            assert!(w.doc.objects.len() == 1 && w.selected.is_none() && !w.focus_text && w.hold.is_none(), "{kind:?} outside");
+            assert!(!history.can_undo(), "{kind:?}: no step");
+            // From there to y = 10, in the result.
+            draw(&mut w, Pt::new(-10.0, 30.0), Pt::new(10.0, 10.0));
+            assert_eq!((w.doc.objects.len(), w.selected, w.focus_text), (2, Some(1), kind == Kind::Bubble), "{kind:?} reaching in");
+        }
     }
 }

@@ -54,6 +54,7 @@ Good to know:
 
 - With a drawing tool, a click selects only an object of that tool's kind (an arrow with Arrow, a step with Step numbers). Anywhere else the tool does its own work, even on top of other objects.
 - The corners of the selected object can be dragged with any tool.
+- A shape, line or bubble drawn all on the dark area around the image is not kept: only what reaches the image stays.
 - A rectangle or an ellipse with no fill is picked by its border, not by its empty inside.
 - Filters, highlighters and spotlights lie under the other objects: a click picks them only where no other object is.
 - Objects are stacked in the order you draw them.
