@@ -62,6 +62,6 @@ The tab also shows which ones are in use now, with their versions. A change appl
 ## Editor
 
 - **Main save button (also Ctrl+S)**: **Save copy** (the default) or **Overwrite the original**. The other one stays in the menu of the arrow next to it; **Save…** in the question on closing follows the same choice. Where the original cannot be overwritten (HEIC, RAW…) the main button is Save copy.
-- **After saving, close the editor** (off): after **Save copy**, **Update copy** or **Overwrite the original…** the editor closes as soon as the file is written. Opened from the grid, the grid selects the saved image; opened from the viewer, the viewer shows it. When off, the editor stays open to go on editing.
+- **After saving**: what happens after **Save copy**, **Update copy** or **Overwrite the original…**. **Stay in the editor** (the default): the editor stays open to go on editing. **Go back to where you were (thumbnails or viewer)**: the editor closes as soon as the file is written; opened from the grid, the grid selects the saved image, opened from the viewer, the viewer shows it. **Go back to the thumbnails**: the editor closes and you are always back in the thumbnails with the saved image selected, also when you opened it from the viewer.
 
 See [Saving an edited image](editor-save.md).

@@ -5,7 +5,7 @@ use eframe::egui::{self, TextureOptions};
 use crate::{App, OptTab, confirm, decode, mtp, theme, thumbcache, update, version};
 use crate::i18n::I18n;
 use crate::loader::Msg;
-use crate::settings::{RemoteDelete, Settings, ThemeChoice, WindowStart};
+use crate::settings::{AfterSave, RemoteDelete, Settings, ThemeChoice, WindowStart};
 
 impl App {
     /// Every change is saved immediately.
@@ -271,7 +271,11 @@ fn editor_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
     ui.radio_value(&mut s.edit_main_overwrite, false, t("edit-save-copy")).on_hover_text(&hint);
     ui.radio_value(&mut s.edit_main_overwrite, true, t("opt-edit-main-overwrite")).on_hover_text(&hint);
     ui.add_space(6.0);
-    ui.checkbox(&mut s.edit_back_to_grid, t("opt-edit-back")).on_hover_text(t("opt-edit-back-hint"));
+    let hint = t("opt-edit-after-hint");
+    ui.label(t("opt-edit-after")).on_hover_text(&hint);
+    for (value, id) in [(AfterSave::Stay, "opt-edit-after-stay"), (AfterSave::Back, "opt-edit-after-back"), (AfterSave::Thumbnails, "opt-edit-after-grid")] {
+        ui.radio_value(&mut s.edit_after_save, value, t(id)).on_hover_text(&hint);
+    }
 }
 
 fn deleting_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {

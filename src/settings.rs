@@ -66,15 +66,25 @@ pub struct Settings {
     /// The highlighters remembered before it multiplied (at 40%, for a plain fill) are at full
     /// opacity: done once (2026-11-06).
     pub edit_multiply: bool,
-    /// "After saving, close the editor": after Save copy or Overwrite the editor closes, the grid
-    /// selecting the saved file or the viewer showing it (issue #95). The key keeps its first name
-    /// ("back to the grid"): renamed in the interface only, no migration.
-    pub edit_back_to_grid: bool,
+    /// What the editor does after Save copy, Update copy or Overwrite (issue #95).
+    pub edit_after_save: AfterSave,
     /// The editor's main button and Ctrl+S overwrite the original instead of saving a copy, where
     /// overwriting is possible (issue #96).
     pub edit_main_overwrite: bool,
     /// Bookmarks > places to go back to (`bookmarks.rs`), in the menu's order.
     pub bookmarks: Vec<crate::bookmarks::Bookmark>,
+}
+
+/// After Save copy, Update copy or Overwrite in the editor (issue #95): the page stays open (as
+/// in 0.76.0), or it closes once the file is written and goes back where it was opened from (the
+/// grid selecting the saved file, the viewer showing it) or to the thumbnails in any case.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AfterSave {
+    #[default]
+    Stay,
+    Back,
+    Thumbnails,
 }
 
 /// For phones, FTP, SFTP; local files go by `local_permanent`.
@@ -219,7 +229,7 @@ impl Default for Settings {
             // Off: Save copy and Overwrite leave the page open, as up to 0.76.0 (user, 2026-11-05
             // and 2026-11-06); who updates does not find the editor closing without choosing it
             // (user, 2026-11-11).
-            edit_back_to_grid: false,
+            edit_after_save: AfterSave::Stay,
             // Overwriting an original is the risky choice: a copy unless asked.
             edit_main_overwrite: false,
             bookmarks: Vec::new(),
@@ -305,10 +315,10 @@ mod tests {
         // Every key 0.76.0 wrote, none of the two added after it.
         let mut old = serde_json::to_value(Settings::default()).unwrap();
         let keys = old.as_object_mut().unwrap();
-        keys.retain(|k, _| k != "edit_back_to_grid" && k != "edit_main_overwrite");
+        keys.retain(|k, _| k != "edit_after_save" && k != "edit_main_overwrite");
         assert_eq!(keys.len(), 32, "the keys of 0.76.0's settings.json");
         let s: Settings = serde_json::from_value(old).unwrap();
-        assert!(!s.edit_back_to_grid, "back to the grid: off unless chosen");
+        assert_eq!(s.edit_after_save, AfterSave::Stay, "the page stays open unless chosen");
         assert!(!s.edit_main_overwrite, "the main save: Save copy unless chosen");
         let back: Settings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert_eq!(back, s);
@@ -319,7 +329,9 @@ mod tests {
         let s: Settings = serde_json::from_str(r#"{"thumb_cache_mb": 50}"#).unwrap();
         assert_eq!(s, Settings { thumb_cache_mb: 50, ..Settings::default() });
         assert!(s.close_to_grid, "the ✕ goes back to the grid unless turned off");
-        assert!(!s.edit_back_to_grid && !s.edit_main_overwrite, "the editor: the page stays open, Save copy first");
+        assert!(s.edit_after_save == AfterSave::Stay && !s.edit_main_overwrite, "the editor: the page stays open, Save copy first");
+        let s: Settings = serde_json::from_str(r#"{"edit_after_save": "thumbnails"}"#).unwrap();
+        assert_eq!(s.edit_after_save, AfterSave::Thumbnails);
         let s: Settings = serde_json::from_str(r#"{"thumb_cache_mb": 50, "window_start": "maximized"}"#).unwrap();
         assert_eq!(s.window_start, WindowStart::Maximized);
         let back: Settings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();

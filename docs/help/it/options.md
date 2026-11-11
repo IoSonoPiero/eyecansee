@@ -62,6 +62,6 @@ La scheda mostra anche quali sono in uso adesso, con le loro versioni. Una modif
 ## Editor
 
 - **Pulsante principale di salvataggio (anche Ctrl+S)**: **Salva copia** (predefinito) o **Sovrascrivi l'originale**. L'altro resta nel menu della freccia accanto; anche **Salva…** nella domanda alla chiusura segue la stessa scelta. Dove l'originale non si può sovrascrivere (HEIC, RAW…) il pulsante principale è Salva copia.
-- **Dopo il salvataggio, chiudi l'editor** (spenta): dopo **Salva copia**, **Aggiorna copia** o **Sovrascrivi l'originale…** l'editor si chiude appena il file è scritto. Se era aperto dalla griglia, la griglia seleziona l'immagine salvata; se era aperto dal visore, il visore la mostra. Spenta, l'editor resta aperto per continuare a modificare.
+- **Dopo il salvataggio**: cosa succede dopo **Salva copia**, **Aggiorna copia** o **Sovrascrivi l'originale…**. **Resta nell'editor** (predefinito): l'editor resta aperto per continuare a modificare. **Torna da dove eri (miniature o visore)**: l'editor si chiude appena il file è scritto; se era aperto dalla griglia, la griglia seleziona l'immagine salvata, se era aperto dal visore, il visore la mostra. **Torna alle miniature**: l'editor si chiude e torni sempre alle miniature con l'immagine salvata selezionata, anche se l'avevi aperto dal visore.
 
 Vedi [Salvare un'immagine modificata](editor-save.md).

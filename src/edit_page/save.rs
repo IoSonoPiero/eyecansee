@@ -234,6 +234,10 @@ impl App {
         if self.editor.as_mut().is_some_and(|w| w.saved_to(path, ok)) {
             self.editor = None;
             log!("edit: page closed after saving {path:?}, viewing {:?}", self.viewing);
+            // "After saving: go back to the thumbnails", also when opened from the viewer (#95).
+            if self.settings.edit_after_save == crate::settings::AfterSave::Thumbnails && self.viewing.is_some() {
+                self.close_viewer();
+            }
         }
     }
 
@@ -255,7 +259,7 @@ impl App {
     /// The confirmation: the copy's name, or over the original with where the original goes
     /// (always a trash, also with deleting for good chosen in the Options). After a save from the
     /// toolbar the page stays open, the document saved (user, 2026-11-05: Save copy must not close
-    /// the image; 2026-11-06: nor Overwrite), unless the Options say to close the editor after saving
+    /// the image; 2026-11-06: nor Overwrite), unless the Options say otherwise
     /// (issue #95, off at first). After Save… chosen on closing it closes once the file is written
     /// (`edit_saved`, issue #79).
     pub(super) fn edit_confirm(&mut self, ctx: &egui::Context, w: &mut Window) {
@@ -282,10 +286,11 @@ impl App {
                 if !p.over {
                     self.select_after = Some(target.clone());
                 }
-                // "After saving, close the editor": once the file is written, as Save… on closing: the
-                // copy selected as above, an overwritten original stays the file selected; a save
-                // that fails leaves the page open (issue #95, off at first).
-                if self.settings.edit_back_to_grid {
+                // "After saving" other than staying: closed once the file is written, as Save… on
+                // closing: the copy selected as above, an overwritten original stays the file
+                // selected, the viewer closed too for the thumbnails (`edit_saved`); a save that
+                // fails leaves the page open (issue #95, staying at first).
+                if self.settings.edit_after_save != crate::settings::AfterSave::Stay {
                     w.closing = true;
                 }
                 if p.gone {
