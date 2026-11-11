@@ -103,6 +103,11 @@ impl crate::App {
             Ok(path) => {
                 log!("saved as {path:?}");
                 self.convert = None;
+                // Opened from the editor: the page under it closes now that the file is written.
+                if self.editor.as_mut().is_some_and(|w| w.save_as_ended(true)) {
+                    self.editor = None;
+                    log!("edit: page closed after Save as…, viewing {:?}", self.viewing);
+                }
                 self.relist(crate::source::parent(&path));
             }
             Err((id, detail)) => {

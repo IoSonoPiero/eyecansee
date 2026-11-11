@@ -159,10 +159,11 @@ impl App {
 
     /// The page in front, as a key: the pages that cover the window, the viewer, or the folder.
     fn page_key(&self) -> String {
-        if self.editor.is_some() {
-            "editor".into()
-        } else if self.convert.is_some() {
+        // Save in another format first: it can be open over the editor.
+        if self.convert.is_some() {
             "convert".into()
+        } else if self.editor.is_some() {
+            "editor".into()
         } else if self.show.is_some() {
             "slideshow".into()
         } else if self.dup_page_shown() {

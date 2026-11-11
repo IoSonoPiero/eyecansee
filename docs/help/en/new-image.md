@@ -28,7 +28,7 @@ No side can be longer than 20,000 pixels.
 
 ## Saving it
 
-The new image has no file yet. In the editor its main button is **Save as…** (also Ctrl+S): it opens [Saving in another format](save-as.md), where you choose the name, the format and the folder. **Overwrite the original…** is off.
+The new image has no file yet. In the editor its main button is **Save as…** (also Ctrl+S): it opens [Saving in another format](save-as.md), where you choose the name, the format and the folder; closing it without saving goes back to the editor with the drawing. **Overwrite the original…** is off.
 
 If you close the editor without drawing anything, nothing is asked and nothing is saved.
 

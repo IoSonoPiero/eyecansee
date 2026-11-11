@@ -48,7 +48,9 @@ impl App {
                 Msg::Open(address) => self.on_open(ctx, address),
                 Msg::Home(base, r) => self.on_home(base, r),
                 // Shown in a window only when asked from the Help menu (the window is open).
-                Msg::Original(r) if self.editor.is_some() => self.editor_original(ctx, r),
+                // The editor's own image; with Save in another format open over it, the result
+                // the editor handed to it.
+                Msg::Original(r) if self.editor.is_some() && self.convert.is_none() => self.editor_original(ctx, r),
                 Msg::EditCopy(img) => self.on_edit_copy(ctx, img),
                 Msg::EditPicked(r) => self.on_edit_picked(ctx, r),
                 Msg::Animated(path) => {

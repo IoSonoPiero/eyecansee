@@ -196,6 +196,10 @@ pub struct Window {
     closing: bool,
     /// Save as… chosen in the message saying Save cannot write over the original.
     pub save_as: bool,
+    /// Save in another format is open over the page with its result: the page waits under it and
+    /// closes once that file is written (`convert_saved`); cancelled, or after a save that failed,
+    /// it comes back with its changes (until 0.76.0 it closed at once, the drawing lost).
+    saving_as: bool,
     /// A new image (File > New image…): no file yet, its Save is Save as….
     new: bool,
 }
@@ -255,6 +259,7 @@ impl Window {
             leaving: false,
             closing: false,
             save_as: false,
+            saving_as: false,
             new: false,
         }
     }
@@ -452,6 +457,10 @@ impl App {
     /// the properties under them, the status at the bottom, the image in the middle.
     pub(crate) fn edit_page(&mut self, ui: &mut egui::Ui) {
         let Some(mut w) = self.editor.take() else { return };
+        // Drawn again under Save in another format: it was closed without saving.
+        if std::mem::take(&mut w.saving_as) {
+            log!("edit: back from Save as…, the changes kept");
+        }
         let busy = ui.ctx().egui_wants_keyboard_input() || w.hold.is_some() || w.picking;
         let mut open = !crate::theme::close_asked(ui);
         // The window's ✕ during a drag or while typing: it stops only that.
@@ -468,7 +477,6 @@ impl App {
             Some(Ok((_, tex, _))) => Some(tex.clone()),
             _ => None,
         };
-        let mut handed = false;
         if let Some(tex) = tex {
             w.refresh_previews();
             let mut ask = self.edit_keys(ui.ctx(), &mut w);
@@ -493,10 +501,7 @@ impl App {
             match if std::mem::take(&mut w.save_as) { Some(Ask::SaveAs) } else { ask } {
                 Some(Ask::Save) => self.edit_prepare(ui.ctx(), &mut w, false),
                 Some(Ask::Overwrite) => self.edit_prepare(ui.ctx(), &mut w, true),
-                Some(Ask::SaveAs) => {
-                    handed = self.rotate_save_as(ui.ctx(), &w);
-                    open = !handed;
-                }
+                Some(Ask::SaveAs) => w.saving_as = self.rotate_save_as(ui.ctx(), &w),
                 Some(Ask::Close) => open = false,
                 None => {}
             }
@@ -509,9 +514,8 @@ impl App {
         } else {
             open &= self.edit_not_ready(ui, &w);
         }
-        // Closing (Esc, ✕, Close) with changes not saved: asked first. Not after Save as…: the
-        // page stayed open under it and took the image meant for it (spinner for ever).
-        if !open && !handed && w.changed() && w.ready.is_none() {
+        // Closing (Esc, ✕, Close) with changes not saved: asked first.
+        if !open && w.changed() && w.ready.is_none() {
             w.leaving = true;
             open = true;
         }

@@ -28,7 +28,7 @@ Nessun lato può superare i 20.000 pixel.
 
 ## Salvarla
 
-L'immagine nuova non ha ancora un file. Nell'editor il suo pulsante principale è **Salva come…** (anche Ctrl+S): apre [Salvare in un altro formato](save-as.md), dove scegli nome, formato e cartella. **Sovrascrivi l'originale…** è spento.
+L'immagine nuova non ha ancora un file. Nell'editor il suo pulsante principale è **Salva come…** (anche Ctrl+S): apre [Salvare in un altro formato](save-as.md), dove scegli nome, formato e cartella; chiudendola senza salvare torni all'editor col disegno. **Sovrascrivi l'originale…** è spento.
 
 Se chiudi l'editor senza aver disegnato niente, non viene chiesto niente e non viene salvato niente.
 

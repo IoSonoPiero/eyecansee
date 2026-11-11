@@ -28,7 +28,7 @@ The button is off when there is nothing new to save.
 
 The arrow ![More ways to save](icon://chevron-down) next to Save copy has two more (with Overwrite as the main button, see below, it has **Save copy** and **Save as…**):
 
-- ![Save as…](icon://file-output) **Save as…** (Ctrl+Shift+S): opens [Saving in another format](save-as.md) with the result, to choose the name, the format and the folder.
+- ![Save as…](icon://file-output) **Save as…** (Ctrl+Shift+S): opens [Saving in another format](save-as.md) with the result, to choose the name, the format and the folder. The editor waits under it: once the file is saved, it closes. If you close Save in another format without saving (Esc or the window's ✕), also after a save that failed, you are back in the editor with your changes, still to save.
 - ![Overwrite the original…](icon://save) **Overwrite the original…**: writes the edited image over the original, after asking. The original goes to the trash, even when deleting for good is chosen in the [Options](options.md). If it cannot go to a trash, nothing is overwritten. The page stays open (unless **After saving, close the editor** is turned on: then it closes, and the grid keeps the image selected, or the viewer shows it); a second Overwrite starts again from the original as it was opened and replaces what was written before, so only the true original is in the trash. See [Deleting and the trash](delete.md).
 
 Overwrite is off, and pointing at it says why, for a new image, for a format EyeCanSee does not write back (HEIC, RAW…), and in places where EyeCanSee never writes over a file (a folder opened through the file manager's gvfs link, a temporary copy made by Windows).
@@ -55,7 +55,7 @@ Where the original cannot be overwritten (a format EyeCanSee does not write back
 Close, the window's ✕ or Esc first ask what to do:
 
 - **Save…**: the main save: a copy, as Save copy does, or over the original when that is the main button (Save as… for a new image). Once you confirm, the page closes as soon as the file is written. If saving fails, the page stays open with your changes.
-- **Save as…**: closes the page and opens Saving in another format.
+- **Save as…**: opens Saving in another format. The page closes once the file is saved; if you close Save in another format without saving, you are back in the page with your changes.
 - **Don't save**: closes and forgets the changes.
 - **Cancel**: back to the page.
 

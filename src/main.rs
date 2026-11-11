@@ -471,7 +471,8 @@ impl eframe::App for App {
         let act = &mut self.act;
         // In the editor Ctrl+C copies the result (with Selection, that part), Ctrl+X cuts the part,
         // Ctrl+V pastes it, or an image copied in another program; no files are cut or pasted there.
-        if self.editor.is_some() {
+        // Not with Save in another format open over it: its name field takes them.
+        if self.editor.is_some() && self.convert.is_none() {
             raw_input.events.retain(|e| {
                 *act = match e {
                     egui::Event::Copy => Some(Act::EditCopy),

@@ -326,7 +326,8 @@ impl App {
     }
 
     /// "Save in another format" with the result (objects too), made in the background
-    /// (`Msg::Original`); `true` once opened. Without the gain map, so without its description.
+    /// (`Msg::Original`, to it and not to the page: `messages.rs`); `true` once opened. Without
+    /// the gain map, so without its description.
     pub(super) fn rotate_save_as(&mut self, ctx: &egui::Context, w: &Window) -> bool {
         let Some(Ok((original, _, size))) = &w.original else { return false };
         let (original, doc, size, tx, ctx) = (original.clone(), w.doc.clone(), *size, self.tx.clone(), ctx.clone());
@@ -359,7 +360,11 @@ impl App {
                 w.closing = w.preparing;
                 true
             }
-            Some(Leave::Save | Leave::SaveAs) => !self.rotate_save_as(ctx, w),
+            // Save in another format over the page, which waits under it (`saving_as`).
+            Some(Leave::Save | Leave::SaveAs) => {
+                w.saving_as = self.rotate_save_as(ctx, w);
+                true
+            }
             Some(Leave::Discard) => false,
             None => true,
         }
@@ -382,6 +387,13 @@ impl App {
 }
 
 impl Window {
+    /// Save in another format, opened from this page, ended: `true` (its file written, `saved`)
+    /// closes the page, as Save as… did before; cancelled, or still open after a save that
+    /// failed, the page stays with its changes.
+    pub(crate) fn save_as_ended(&mut self, saved: bool) -> bool {
+        std::mem::take(&mut self.saving_as) && saved
+    }
+
     /// The save of `path` ended (`ok`); `true`: the page closes now (Save… chosen on closing,
     /// nothing changed since). One that failed leaves something to save: closing asks again, and
     /// the next save goes where it would have gone before it (issue #86).
@@ -494,6 +506,26 @@ mod tests {
         let trashed: Vec<Vec<u8>> = walk(&trash).iter().filter(|p| p.extension().is_some_and(|e| e == "jpg")).map(|p| std::fs::read(p).unwrap()).collect();
         assert_eq!(trashed, [original]);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Save in another format cancelled, or closed after its save failed: the page stays, with its
+    /// changes still to save; only a file written closes it, and only once.
+    #[test]
+    fn save_as_closes_only_once_saved() {
+        let mut w = page(false);
+        w.doc.objects.push(cover(9.0));
+        assert!(w.changed());
+        w.saving_as = true;
+        assert!(!w.save_as_ended(false), "cancelled: the page stays");
+        assert!(w.changed() && w.doc.objects.len() == 2, "the drawing and its changes kept");
+        assert!(!w.saving_as);
+        // A save that failed leaves Save in another format open: nothing ends; then cancelled.
+        w.saving_as = true;
+        assert!(!w.save_as_ended(false));
+        assert!(w.changed());
+        w.saving_as = true;
+        assert!(w.save_as_ended(true), "the file written: the page closes");
+        assert!(!w.save_as_ended(true), "once: a later save elsewhere does not close it");
     }
 
     /// A page with a box drawn, its copy `p/a (edited).jpg` sent and the document marked saved
