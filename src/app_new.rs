@@ -154,6 +154,13 @@ impl App {
         match (arg, last) {
             (Some(arg), _) => {
                 app.open_outside(ctx, &arg);
+                // An address that does not open (a folder the user may not read, say): its error,
+                // with home behind it; without a source the tree and the grid spun for ever (#105).
+                if app.loader.is_none() {
+                    let error = app.error.take();
+                    app.open_source(ctx, &home);
+                    app.error = error.or(app.error.take());
+                }
             }
             // An FTP server with a user: the password is never saved, so instead of a login sure to
             // be refused File > Open location asks for it, with the rest filled in; home behind it.
