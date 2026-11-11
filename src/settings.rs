@@ -66,8 +66,9 @@ pub struct Settings {
     /// The highlighters remembered before it multiplied (at 40%, for a plain fill) are at full
     /// opacity: done once (2026-11-06).
     pub edit_multiply: bool,
-    /// After Save copy or Overwrite the editor closes: back to the thumbnails, the saved file
-    /// selected (issue #95).
+    /// "After saving, close the editor": after Save copy or Overwrite the editor closes, the grid
+    /// selecting the saved file or the viewer showing it (issue #95). The key keeps its first name
+    /// ("back to the grid"): renamed in the interface only, no migration.
     pub edit_back_to_grid: bool,
     /// The editor's main button and Ctrl+S overwrite the original instead of saving a copy, where
     /// overwriting is possible (issue #96).

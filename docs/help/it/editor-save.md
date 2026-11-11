@@ -12,7 +12,7 @@ L'editor non cambia mai l'originale se non lo chiedi. Il pulsante principale, **
 
 L'originale resta com'è. La pagina resta aperta, così puoi continuare. Quando la chiudi, la griglia seleziona la copia e il visore la mostra.
 
-Con **Dopo il salvataggio, torna alle miniature** accesa nelle Opzioni (all'inizio è spenta), la pagina si chiude appena il file è scritto e la griglia seleziona la copia (il visore la mostra, se avevi aperto l'editor dal visore). Vale anche per **Aggiorna copia** e **Sovrascrivi l'originale…**. Un salvataggio che non riesce lascia la pagina aperta, come sotto.
+Con **Dopo il salvataggio, chiudi l'editor** accesa nelle Opzioni (all'inizio è spenta), la pagina si chiude appena il file è scritto. Se avevi aperto l'editor dalla griglia, la griglia seleziona la copia; se l'avevi aperto dal visore, il visore mostra la copia. Vale anche per **Sovrascrivi l'originale…** e **Aggiorna copia**. Un salvataggio che non riesce lascia la pagina aperta, come sotto.
 
 Se un salvataggio non riesce, una fascia gialla con il triangolo di avviso in fondo alla finestra dice perché in parole semplici (per esempio che la cartella è in sola lettura o il disco è pieno), e la pagina resta aperta con le modifiche. Nella cartella non resta niente scritto a metà: una copia nuova che non ci sta viene tolta, e una copia che si stava aggiornando resta com'era. La fascia sparisce quando chiudi la pagina, o prima con la sua ✕.
 
@@ -29,7 +29,7 @@ Il pulsante è spento quando non c'è niente di nuovo da salvare.
 La freccia ![Altri modi di salvare](icon://chevron-down) accanto a Salva copia ne ha altri due (con Sovrascrivi come pulsante principale, vedi sotto, ha **Salva copia** e **Salva come…**):
 
 - ![Salva come…](icon://file-output) **Salva come…** (Ctrl+Maiusc+S): apre [Salvare in un altro formato](save-as.md) con il risultato, per scegliere nome, formato e cartella.
-- ![Sovrascrivi l'originale…](icon://save) **Sovrascrivi l'originale…**: scrive l'immagine modificata sopra l'originale, dopo una domanda. L'originale va nel cestino, anche quando nelle [Opzioni](options.md) è scelta l'eliminazione definitiva. Se non può andare in un cestino, non viene sovrascritto niente. La pagina resta aperta (a meno che sia acceso il ritorno alle miniature: allora si chiude e la griglia lascia selezionata l'immagine); un secondo Sovrascrivi riparte dall'originale com'era all'apertura e sostituisce ciò che era stato scritto prima, così nel cestino c'è solo il vero originale. Vedi [Eliminare e cestino](delete.md).
+- ![Sovrascrivi l'originale…](icon://save) **Sovrascrivi l'originale…**: scrive l'immagine modificata sopra l'originale, dopo una domanda. L'originale va nel cestino, anche quando nelle [Opzioni](options.md) è scelta l'eliminazione definitiva. Se non può andare in un cestino, non viene sovrascritto niente. La pagina resta aperta (a meno che sia accesa **Dopo il salvataggio, chiudi l'editor**: allora si chiude, e la griglia lascia selezionata l'immagine, o il visore la mostra); un secondo Sovrascrivi riparte dall'originale com'era all'apertura e sostituisce ciò che era stato scritto prima, così nel cestino c'è solo il vero originale. Vedi [Eliminare e cestino](delete.md).
 
 Sovrascrivi è spento, e passandoci sopra dice perché, per un'immagine nuova, per un formato che EyeCanSee non riscrive (HEIC, RAW…) e nei posti dove EyeCanSee non scrive mai sopra un file (una cartella aperta tramite il collegamento gvfs del file manager, una copia temporanea fatta da Windows).
 
