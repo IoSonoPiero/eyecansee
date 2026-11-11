@@ -116,6 +116,7 @@ key-paste = Ctrl+V
 paste-taken = **"{ $name }"** è già in questa cartella.
 paste-skip = Salta
 paste-all = Fai lo stesso per tutti gli altri elementi con un nome già presente
+paste-gvfs = Qui **non si può sostituire** un file né unire una cartella: questa cartella è aperta tramite il file manager (gvfs), dove sostituire un file può far perdere l'originale. Scegli **Tieni entrambi** o **Salta**.
 transfer-copying = Copia in corso
 transfer-moving = Spostamento in corso
 transfer-looking = Esamino le cartelle: { $n } elementi trovati

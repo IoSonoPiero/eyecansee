@@ -40,6 +40,14 @@ pub enum Choice {
     KeepBoth,
 }
 
+/// Can a paste into `to_dir` replace an item already there (or merge a folder into one)? Not in
+/// a folder opened through gvfs (issue #91): a file cannot be renamed into place there safely
+/// (#45), so it would be written over, and a copy cut short would leave it damaged. "Keep both"
+/// and "Skip" stay; a move there keeps both too.
+pub fn can_replace(to: &Store, to_dir: &str) -> bool {
+    !to.gvfs(to_dir)
+}
+
 /// Shared with the UI, which shows it while the copy runs.
 #[derive(Default)]
 pub struct Progress {
@@ -131,6 +139,8 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
             (true, false) => Choice::KeepBoth,
             _ => choices.get(src).copied().unwrap_or(Choice::Replace),
         };
+        // Under gvfs nothing is replaced, not even an item that came after the question: both stay.
+        let choice = if choice == Choice::Replace && taken.contains(own) && !can_replace(to, to_dir) { Choice::KeepBoth } else { choice };
         let dest_name = match choice {
             Choice::Skip => continue,
             Choice::KeepBoth => free_name(&taken, own),
@@ -567,6 +577,51 @@ mod tests {
                 assert_eq!(std::fs::read(dir.join("a/x.jpg")).unwrap().len(), 3 << 20);
                 std::os::unix::fs::symlink("/dev/full", dir.join("b/.x.jpg.eyecansee-new")).unwrap();
             }
+        });
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Issue #91: in a folder opened through gvfs a paste never replaces. A file answered
+    /// "Replace", or one whose name came after the question, is kept both; a folder is not merged
+    /// but kept both; a move on the same device too. Elsewhere Replace stays.
+    #[test]
+    fn gvfs_paste_never_replaces() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let dir = std::env::temp_dir().join(format!("eyecansee-paste-gvfs-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let dcim = "gvfs/mtp:host=Phone_ABCD1234EFGH/DCIM/";
+        for d in ["src/f", &format!("{dcim}f")] {
+            std::fs::create_dir_all(dir.join(d)).unwrap();
+        }
+        for (f, data) in [("a.jpg", "new a"), ("b.jpg", "new b"), ("c.jpg", "new c"), ("f/1.jpg", "new 1")] {
+            std::fs::write(dir.join("src").join(f), data).unwrap();
+            std::fs::write(dir.join(dcim).join(f), "original").unwrap();
+        }
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        assert!(!can_replace(&op, dcim));
+        assert!(can_replace(&op, "src/"));
+        let clip = |paths: &[&str], cut, base: &str| Clip { op: op.clone(), base: base.into(), paths: paths.iter().map(|s| s.to_string()).collect(), cut, text: String::new() };
+        let replace = |paths: &[&str]| paths.iter().map(|p| (p.to_string(), Choice::Replace)).collect::<HashMap<_, _>>();
+        let read = |f: &str| std::fs::read_to_string(dir.join(dcim).join(f)).unwrap();
+        rt.block_on(async {
+            // A copy from another device: a.jpg and the folder answered Replace, c.jpg not asked.
+            let c = clip(&["src/a.jpg", "src/f/", "src/c.jpg"], false, "test-gvfs-other://");
+            let (_, r) = run(&c, &op, "test-gvfs://", dcim, &replace(&["src/a.jpg", "src/f/"]), &Progress::default()).await;
+            r.unwrap();
+            assert_eq!((read("a.jpg"), read("a (2).jpg")), ("original".into(), "new a".into()));
+            assert_eq!((read("f/1.jpg"), read("f (2)/1.jpg")), ("original".into(), "new 1".into()));
+            assert_eq!((read("c.jpg"), read("c (2).jpg")), ("original".into(), "new c".into()));
+            // A move on the same device: the file there stays, the one moved is kept beside it.
+            let (gone, r) = run(&clip(&["src/b.jpg"], true, "test-gvfs://"), &op, "test-gvfs://", dcim, &replace(&["src/b.jpg"]), &Progress::default()).await;
+            r.unwrap();
+            assert_eq!(gone, vec!["src/b.jpg"]);
+            assert_eq!((read("b.jpg"), read("b (2).jpg")), ("original".into(), "new b".into()));
+            // Outside gvfs Replace replaces.
+            let from = format!("{dcim}a.jpg");
+            let (_, r) = run(&clip(&[&from], false, "test-gvfs://"), &op, "test-gvfs://", "src/", &replace(&[&from]), &Progress::default()).await;
+            r.unwrap();
+            assert_eq!(std::fs::read_to_string(dir.join("src/a.jpg")).unwrap(), "original");
+            assert!(!dir.join("src/a (2).jpg").exists());
         });
         std::fs::remove_dir_all(&dir).unwrap();
     }

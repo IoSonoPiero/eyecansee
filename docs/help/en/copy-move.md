@@ -28,6 +28,8 @@ If an item with the same name is already in the destination, EyeCanSee asks what
 
 With several such items, tick **Do the same for all the other items with a name already there** to answer once.
 
+On Linux, in a folder opened through the file manager's connection (gvfs, for example a phone or a network folder opened from the Files app), **Replace** and **Merge** are not offered, and the window says why: there replacing a file can lose the original. Choose **Keep both** or **Skip**; a move there keeps both too.
+
 ## Cancelling
 
 **Cancel** in the box stops the copy. The files already copied stay; the file being copied is not left half-written. Towards a phone, Cancel waits for the end of the file being copied, because a phone that receives half a file stops answering.

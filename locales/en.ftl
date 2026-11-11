@@ -117,6 +117,7 @@ key-paste = Ctrl+V
 paste-taken = **"{ $name }"** is already in this folder.
 paste-skip = Skip
 paste-all = Do the same for all the other items with a name already there
+paste-gvfs = Here a file **cannot be replaced**, nor a folder merged: this folder was opened through the file manager (gvfs), where replacing a file can lose the original. Choose **Keep both** or **Skip**.
 transfer-copying = Copying
 transfer-moving = Moving
 transfer-looking = Looking inside the folders: { $n } items found

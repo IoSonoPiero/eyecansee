@@ -74,6 +74,10 @@ impl App {
 
     /// Asks about each item whose name is already in the destination; then the copy starts.
     pub(crate) fn paste_window(&mut self, ctx: &egui::Context) {
+        let over = match (&self.loader, &self.paste_ask) {
+            (Some(loader), Some(ask)) => loader.can_paste_over(&ask.dir),
+            _ => true,
+        };
         let Some(ask) = &mut self.paste_ask else { return };
         let Some(conflicts) = &ask.conflicts else { return };
         let Some(path) = conflicts.first().cloned() else {
@@ -83,13 +87,18 @@ impl App {
         };
         let many = conflicts.len() > 1;
         let t = |id| self.i18n.t(id);
-        let text = self.i18n.t_args("paste-taken", &[("name", &crate::save_dialogs::md(source::name(&path)))]);
+        let mut text = self.i18n.t_args("paste-taken", &[("name", &crate::save_dialogs::md(source::name(&path)))]);
         let first = if path.ends_with('/') { t("restore-merge") } else { t("restore-replace") };
-        let buttons = [
+        let mut buttons = vec![
             (first, transfer::Choice::Replace),
             (t("paste-skip"), transfer::Choice::Skip),
             (t("restore-keep-both"), transfer::Choice::KeepBoth),
         ];
+        // Under gvfs nothing is replaced (issue #91): the reason, and no Replace or Merge.
+        if !over {
+            text = format!("{text}\n\n{}", t("paste-gvfs"));
+            buttons.remove(0);
+        }
         let (cancel, all_label, title) = (t("delete-no"), t("paste-all"), t("taken-title"));
         let mut answer = self.delete_answer.take().and_then(|yes| (!yes).then_some(None));
         egui::Modal::new(egui::Id::unique("paste")).show(ctx, |ui| {

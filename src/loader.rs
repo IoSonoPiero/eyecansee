@@ -236,6 +236,11 @@ impl Loader {
         });
     }
 
+    /// Can a paste into `dir` replace an item already there? Not under gvfs (`transfer::can_replace`).
+    pub fn can_paste_over(&self, dir: &str) -> bool {
+        transfer::can_replace(&self.op, dir)
+    }
+
     pub fn paste(&self, clip: transfer::Clip, dir: String, choices: HashMap<String, transfer::Choice>, progress: Arc<transfer::Progress>) {
         let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {

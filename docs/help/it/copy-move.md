@@ -28,6 +28,8 @@ Se nella destinazione c'è già un elemento con lo stesso nome, EyeCanSee chiede
 
 Con più elementi in questa situazione, spunta **Fai lo stesso per tutti gli altri elementi con un nome già presente** per rispondere una volta sola.
 
+Su Linux, in una cartella aperta tramite il collegamento del gestore dei file (gvfs, per esempio un telefono o una cartella di rete aperti dall'app File), **Sostituisci** e **Unisci** non ci sono, e la finestra dice perché: lì sostituire un file può far perdere l'originale. Scegli **Tieni entrambi** o **Salta**; anche uno spostamento lì li tiene entrambi.
+
 ## Annullare
 
 **Annulla** nel riquadro ferma la copia. I file già copiati restano; il file in corso non resta scritto a metà. Verso un telefono, Annulla aspetta la fine del file in corso, perché un telefono che riceve mezzo file smette di rispondere.

@@ -29,7 +29,8 @@ type Chunks = tokio::sync::mpsc::Receiver<std::io::Result<bytes::Bytes>>;
 /// its content until the new one is whole, written under its hidden name and then put in its
 /// place, the old one deleted (`local::write_over`, `put_in_place`). `existed`: whether `path` is
 /// already there, when the caller knows (`None`: asked). Where renaming is not possible or not
-/// safe (gvfs, see `replace`) the new file is written over the old one as before.
+/// safe (gvfs, see `replace`) the new file is written over the old one as before; a paste never
+/// asks for that under gvfs (`transfer::can_replace`, issue #91).
 /// The folder is never read for this: what a save cut short left there is tidied up when the
 /// folder is listed (`Store::recover`). Reading it for every file made a paste of 300 files over
 /// SFTP take 241 s instead of 44 (2026-11-10).
