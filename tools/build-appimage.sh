@@ -26,7 +26,7 @@ export CARGO_TARGET_DIR=/src/target/appimage PATH=/cache/cargo/bin:$PATH
 apt-get update -qq
 apt-get install -y -qq build-essential cmake nasm curl file jq pkg-config meson ninja-build \
     libglib2.0-0 libclang-dev libpng-dev libjpeg-turbo8-dev libtiff-dev libwebp-dev libopenjp2-7-dev \
-    liblcms2-dev libfreetype-dev libbz2-dev liblzma-dev zlib1g-dev >/dev/null
+    liblcms2-dev libfreetype-dev libbz2-dev liblzma-dev zlib1g-dev libxkbcommon-x11-0 >/dev/null
 DE265=1.1.3 DAV1D=1.5.4
 DEPS=/cache/deps-de265-$DE265-dav1d-$DAV1D
 if [[ ! -d $DEPS ]]; then
@@ -105,7 +105,9 @@ cd "$CARGO_TARGET_DIR"
 # appimagetool (since 31 October 2026) wants a PNG named after Icon= at the top of the AppDir, to make
 # .DirIcon from it; linuxdeploy puts the SVG there, so the PNG goes in first.
 install -m 644 /src/assets/eyecansee.png "$APPDIR/eyecansee.png"
+# winit opens libxkbcommon-x11 at run time (dlopen) on X11, so linuxdeploy does not see it: without it the
+# app panics at start on systems that lack it (the AppImage catalog test, Ubuntu 22.04 with Xvfb).
 APPIMAGE_EXTRACT_AND_RUN=1 LINUXDEPLOY_OUTPUT_VERSION=$VER $LD --appdir "$APPDIR" \
-    -e $PROFILE/eyecansee -d /src/assets/eyecansee.desktop -i /src/assets/eyecansee.svg -i /src/assets/eyecansee.png --output appimage
+    -e $PROFILE/eyecansee -l /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0 -d /src/assets/eyecansee.desktop -i /src/assets/eyecansee.svg -i /src/assets/eyecansee.png --output appimage
 chown "$(stat -c %u:%g /src)" EyeCanSee-*.AppImage
 ls -l EyeCanSee-*.AppImage
