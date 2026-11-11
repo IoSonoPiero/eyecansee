@@ -234,7 +234,8 @@ jobs:
   copr:
     permissions:
       contents: read
-    needs: version
+    # After every other build: if one fails, nothing reaches the users of COPR either.
+    needs: [version, windows, appimage, flatpak]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     container: registry.fedoraproject.org/fedora:44
