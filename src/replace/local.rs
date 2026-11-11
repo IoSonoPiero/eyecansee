@@ -265,7 +265,8 @@ fn put_over(temp: &Path, real: &Path) -> std::io::Result<()> {
 
 /// `ReplaceFileW`: the new file takes the name and what is not content (attributes, creation
 /// time, ACL, other streams such as `Zone.Identifier`) of `real`, which waits as its hidden
-/// ".name.eyecansee-old" until then and is deleted after. A file held open by another program
+/// ".name.eyecansee-aside" (`source::aside_name`) until then and is deleted after; a
+/// ".name.eyecansee-old" left by a save cut short is never touched (issue #91). A file held open by another program
 /// without sharing its deletion cannot be replaced: everything stays as it was and the error says
 /// the file is in use (`fault`). Where the call is not supported (some disks or network shares)
 /// a plain replace (`MoveFileExW`, what `std::fs::rename` does) follows.
@@ -275,8 +276,8 @@ fn put_over(temp: &Path, real: &Path) -> std::io::Result<()> {
     use windows_sys::Win32::Storage::FileSystem::{REPLACEFILE_IGNORE_ACL_ERRORS, REPLACEFILE_IGNORE_MERGE_ERRORS, ReplaceFileW};
     let wide = |p: &Path| p.as_os_str().encode_wide().chain([0]).collect::<Vec<u16>>();
     let own = real.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let backup = real.with_file_name(source::save_names(&own).1);
-    // An original left by a save cut short after its new version took the name: it goes now,
+    let backup = real.with_file_name(source::aside_name(&own));
+    // A file left aside by a replace cut short after its new version took the name: it goes now,
     // read-only too (0.76.0 left such a file hidden: renamed aside, it could not be deleted).
     if let Ok(m) = backup.symlink_metadata() {
         if m.permissions().readonly() {

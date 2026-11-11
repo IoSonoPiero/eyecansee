@@ -46,7 +46,7 @@ pub(crate) async fn write_file(op: &Store, path: &str, size: u64, chunks: Chunks
         return local::write_over(op, path, file, chunks).await;
     }
     source::SAVING.lock().unwrap().insert(path.to_string());
-    let (new, old) = source::save_names(path);
+    let (new, old) = (source::save_names(path).0, source::aside_name(path));
     let r = match op.write_chunks(&new, size, chunks).await {
         Ok(()) => put_in_place(op, &new, path, &old).await,
         Err(e) => Err(e),
@@ -62,7 +62,9 @@ pub(crate) async fn write_file(op: &Store, path: &str, size: u64, chunks: Chunks
 ///   commands per file of the way below made a folder merge twice as slow); where it refuses,
 ///   learnt at the first file (`ftp::Server::rename_over`), as other servers.
 /// - Other servers: the original renamed aside as `old`, the new file renamed in, `old` deleted;
-///   at a failure the original gets its name back (`undo`).
+///   at a failure the original gets its name back (`undo`). `old` is `source::aside_name`, never
+///   the hidden name of a save's original: one left by a save cut short may be the only copy of
+///   the image as it was, and a paste never touches it (issue #91).
 async fn put_in_place(op: &Store, new: &str, path: &str, old: &str) -> Result<(), source::Error> {
     let r = match op {
         Store::Sftp(server) => server.rename_over(new, path).await,
@@ -96,8 +98,8 @@ async fn put_in_place(op: &Store, new: &str, path: &str, old: &str) -> Result<()
 }
 
 /// The original `path` renamed `old`; false if it is not there any more (gone since it was seen).
-/// Looked at only when the rename fails: an original already under `old`, left by a save cut
-/// short after its new version took the name, is deleted first, as that save would have done.
+/// Looked at only when the rename fails: a file already under `old`, put aside by a paste cut
+/// short after its new version took the name, is deleted first, as that paste would have done.
 async fn aside(op: &Store, path: &str, old: &str) -> Result<bool, source::Error> {
     let Err(e) = raw_rename(op, path, old).await else { return Ok(true) };
     match (op.exists(path).await, op.exists(old).await) {
@@ -324,6 +326,39 @@ mod tests {
         assert_eq!(std::fs::read(dir.join("free/a.jpg")).unwrap(), b"new");
         assert_eq!(std::fs::read(dir.join("free").join(crate::trash::TRASH_DIR).join("a.jpg")).unwrap(), b"original");
         assert_eq!(names("free"), [crate::trash::TRASH_DIR, "a.jpg"]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Issue #91: a paste over a file where the server refuses to rename onto a taken name (as
+    /// FTP servers that refuse a rename over a file, and the local store here) puts the file aside
+    /// under a name of its own: an original left by a save cut short, ".a.jpg.eyecansee-old", is
+    /// never touched. A file a paste cut short had put aside, next to its image, goes as that
+    /// paste would have done.
+    #[test]
+    fn paste_never_touches_a_saves_original() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-paste-aside-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let names = || {
+            let mut v: Vec<String> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+            v.sort();
+            v
+        };
+        let (new, old) = source::save_names("a.jpg");
+        std::fs::write(dir.join("a.jpg"), b"original").unwrap();
+        std::fs::write(dir.join(&old), b"saved before").unwrap();
+        for (round, aside_left) in [(1, false), (2, true)] {
+            if aside_left {
+                std::fs::write(dir.join(source::aside_name("a.jpg")), b"pasted over before").unwrap();
+            }
+            std::fs::write(dir.join(&new), format!("pasted {round}")).unwrap();
+            rt.block_on(put_in_place(&op, &new, "a.jpg", &source::aside_name("a.jpg"))).unwrap();
+            assert_eq!(std::fs::read_to_string(dir.join("a.jpg")).unwrap(), format!("pasted {round}"));
+            assert_eq!(std::fs::read(dir.join(&old)).unwrap(), b"saved before", "round {round}");
+            assert_eq!(names(), [".a.jpg.eyecansee-old", "a.jpg"], "round {round}");
+        }
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

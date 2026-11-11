@@ -16,10 +16,15 @@ pub const TRASH_DIR: &str = ".EyeCanSee-trash";
 /// the new file is written as ".name.eyecansee-new", the original waits as ".name.eyecansee-old"
 /// until the new one has taken its name. A file with more than one name (hard links) is
 /// replaced by copying the new file into it: the new file, whole, waits as
-/// ".name.eyecansee-inplace" until that copy is finished (`replace::copy_in_place`).
+/// ".name.eyecansee-inplace" until that copy is finished (`replace::copy_in_place`). A file
+/// replaced by a paste, where the new one cannot be renamed over it, waits as
+/// ".name.eyecansee-aside" (`aside_name`): never the name of a save's original, which a save cut
+/// short may have left and is never touched by a paste (issue #91).
 const NEW: &str = ".eyecansee-new";
 const OLD: &str = ".eyecansee-old";
 const INPLACE: &str = ".eyecansee-inplace";
+const ASIDE: &str = ".eyecansee-aside";
+const ENDS: [&str; 4] = [NEW, OLD, INPLACE, ASIDE];
 
 /// Images being saved over themselves: `Store::recover` leaves their hidden files alone.
 pub static SAVING: Mutex<BTreeSet<String>> = Mutex::new(BTreeSet::new());
@@ -32,6 +37,11 @@ const NAME_MAX: usize = 255;
 pub fn save_names(path: &str) -> (String, String) {
     let (dir, own) = (parent(path), name(path));
     (format!("{dir}{}", hidden(own, NEW)), format!("{dir}{}", hidden(own, OLD)))
+}
+
+/// The hidden path a file `path` replaced by a paste waits under until the new file has its name.
+pub fn aside_name(path: &str) -> String {
+    format!("{}{}", parent(path), hidden(name(path), ASIDE))
 }
 
 /// The hidden path of the whole new version of `path` while it is copied into `path` in place.
@@ -61,14 +71,14 @@ fn fnv(text: &str) -> u32 {
 
 /// Is this name one of `save_names`?
 pub fn leftover(name: &str) -> bool {
-    name.starts_with('.') && [NEW, OLD, INPLACE].iter().any(|end| name.ends_with(end))
+    name.starts_with('.') && ENDS.iter().any(|end| name.ends_with(end))
 }
 
 /// The name between "." and the ending of a name of `save_names`, and whether it was cut
 /// (`hidden`): then only the image's own name gives it back (`owner`).
 fn inner(name: &str) -> Option<(&str, bool)> {
     let n = name.strip_prefix('.')?;
-    let n = [NEW, OLD, INPLACE].iter().find_map(|end| n.strip_suffix(end))?;
+    let n = ENDS.iter().find_map(|end| n.strip_suffix(end))?;
     let tagged = n.rsplit_once('~').is_some_and(|(_, h)| h.len() == 8 && h.bytes().all(|b| b.is_ascii_hexdigit()));
     Some((n, tagged && name.len() + 3 >= NAME_MAX))
 }
@@ -90,7 +100,7 @@ fn owner(dir: &str, own: &str, names: &HashSet<String>) -> Option<String> {
     if !cut {
         return Some(n.to_string());
     }
-    let end = [NEW, OLD, INPLACE].into_iter().find(|end| own.ends_with(end))?;
+    let end = ENDS.into_iter().find(|end| own.ends_with(end))?;
     let saving: Vec<String> = SAVING.lock().unwrap().iter().filter(|p| parent(p) == dir).map(|p| name(p).to_string()).collect();
     names.iter().chain(&saving).find(|n| hidden(n, end) == own).cloned()
 }
@@ -177,7 +187,9 @@ impl Store {
     /// whole: on a phone the original is deleted before the new file is renamed (`replace::
     /// put_in_place`), and only that rename was missing; it takes the name. A new file that was
     /// being copied into its image in place (hard links) is whole, and the image may be cut: the
-    /// copy is made again, or the new file takes the name if it is free.
+    /// copy is made again, or the new file takes the name if it is free. A file a paste put aside
+    /// (`aside_name`) is an original too, and the one that gets the name back before an older
+    /// original a save left.
     pub(crate) async fn recover(&self, dir: &str, leftovers: &[String]) {
         let Ok(names) = self.names(dir).await else { return };
         for path in leftovers {
@@ -194,7 +206,9 @@ impl Store {
             if SAVING.lock().unwrap().contains(&format!("{dir}{original}")) {
                 continue;
             }
-            let waiting = names.contains(&hidden(original, OLD));
+            // A file a paste put aside is the newer original: it takes the name before a save's.
+            let aside = names.contains(&hidden(original, ASIDE));
+            let waiting = aside || names.contains(&hidden(original, OLD));
             let r = if own.ends_with(INPLACE) && names.contains(original) {
                 self.copy_again(path, &format!("{dir}{original}")).await
             } else if own.ends_with(INPLACE) {
@@ -203,7 +217,7 @@ impl Store {
                 self.rename(path, original).await.map(|_| ())
             } else if own.ends_with(NEW) {
                 self.delete(path, Deletion::Permanent).await
-            } else if !names.contains(original) {
+            } else if !names.contains(original) && !(aside && own.ends_with(OLD)) {
                 self.rename(path, original).await.map(|_| ())
             } else {
                 continue;
@@ -465,6 +479,40 @@ mod tests {
         assert_eq!(std::fs::read(p.join("a.jpg")).unwrap(), b"a");
         assert!(!p.join(".b.jpg.eyecansee-new").exists() && !p.join(".a.jpg.eyecansee-old").exists());
         assert!(p.join(".c.jpg.eyecansee-old").exists() && p.join(".d.jpg.eyecansee-new").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// What a paste cut short left (issue #91): a file put aside alone takes its name back; with
+    /// the new file and a save's older original beside it, the file put aside gets the name, the
+    /// new file goes and the save's original stays hidden; one next to its image stays.
+    #[test]
+    fn recover_set_aside() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-recover-aside-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let p = dir.join("aside");
+        std::fs::create_dir_all(&p).unwrap();
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        assert_eq!(aside_name("aside/a.jpg"), "aside/.a.jpg.eyecansee-aside");
+        assert!(leftover(".a.jpg.eyecansee-aside"));
+        assert_eq!(saved_image(".a.jpg.eyecansee-aside"), "a.jpg");
+        for (f, data) in [
+            (".a.jpg.eyecansee-aside", "a"),
+            (".b.jpg.eyecansee-aside", "b"),
+            (".b.jpg.eyecansee-new", "b pasted"),
+            (".b.jpg.eyecansee-old", "b saved before"),
+            ("c.jpg", "c pasted"),
+            (".c.jpg.eyecansee-aside", "c"),
+        ] {
+            std::fs::write(p.join(f), data).unwrap();
+        }
+        let l = tokio::runtime::Runtime::new().unwrap().block_on(op.list("aside/")).unwrap();
+        assert_eq!(l.files.iter().map(|f| f.path.as_str()).collect::<Vec<_>>(), ["aside/a.jpg", "aside/b.jpg", "aside/c.jpg"]);
+        let read = |f: &str| std::fs::read_to_string(p.join(f)).unwrap();
+        assert_eq!((read("a.jpg"), read("b.jpg"), read("c.jpg")), ("a".into(), "b".into(), "c pasted".into()));
+        let mut left: Vec<String> = std::fs::read_dir(&p).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        left.sort();
+        assert_eq!(left, [".b.jpg.eyecansee-old", ".c.jpg.eyecansee-aside", "a.jpg", "b.jpg", "c.jpg"]);
+        assert_eq!(read(".b.jpg.eyecansee-old"), "b saved before");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
