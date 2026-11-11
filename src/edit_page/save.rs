@@ -331,18 +331,32 @@ impl App {
     }
 
     /// "Save in another format" with the result (objects too), made in the background
-    /// (`Msg::Original`, to it and not to the page: `messages.rs`); `true` once opened. Without
-    /// the gain map, so without its description.
+    /// (`Msg::Original`, to it and not to the page: `messages.rs`); `true` once opened. The
+    /// picture alone, but an Ultra HDR photo saved there as JPEG stays one, its gain map edited
+    /// as the photo (#66): for that the file is read, if no save read it yet.
     pub(super) fn rotate_save_as(&mut self, ctx: &egui::Context, w: &Window) -> bool {
         let Some(Ok((original, _, size))) = &w.original else { return false };
         let (original, doc, size, tx, ctx) = (original.clone(), w.doc.clone(), *size, self.tx.clone(), ctx.clone());
-        std::thread::spawn(move || {
-            let image = crate::edit::save::result(&doc, &original, &crate::decode::usvg_options());
-            let mut o = Original::clone(&original);
-            o.image = image;
-            let o = o.alone();
-            let preview = crate::decode::preview(&o.image);
-            if tx.send(crate::loader::Msg::Original(Ok((Arc::new(o), preview, size)))).is_ok() {
+        let jpeg = crate::encode::Format::of_file(&w.path) == Some(crate::encode::Format::Jpeg);
+        let (store, path, bytes) = (self.loader.as_ref().map(|l| l.store()).filter(|_| jpeg), w.path.clone(), w.bytes.clone());
+        self.rt.spawn(async move {
+            let file = match (bytes, store) {
+                (Some(b), _) => Some(b),
+                (None, Some(store)) => store.read(&path).await.ok().map(Arc::new),
+                (None, None) => None,
+            };
+            let made = tokio::task::spawn_blocking(move || {
+                let (image, holes) = crate::edit::save::result_with_holes(&doc, &original, &crate::decode::usvg_options());
+                let mut o = Original::clone(&original);
+                o.image = image;
+                let mut o = o.alone();
+                o.hdr = file.and_then(|f| crate::ultrahdr::Source::of(f, vec![doc.edit()], holes)).map(Arc::new);
+                let preview = crate::decode::preview(&o.image);
+                (o, preview)
+            });
+            if let Ok((o, preview)) = made.await
+                && tx.send(crate::loader::Msg::Original(Ok((Arc::new(o), preview, size)))).is_ok()
+            {
                 ctx.request_repaint();
             }
         });

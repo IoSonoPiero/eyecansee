@@ -360,9 +360,14 @@ impl Loader {
                     let original = crate::encode::Original::with_meta_of(decode::decode_full_with(&bytes, &path, &sibling)?, &bytes, &path);
                     // Save in another format writes the picture alone (`Original::alone`); the
                     // editor needs the whole XMP to save a phone photo as it was.
-                    let original = if edit { original } else { original.alone() };
+                    let mut original = if edit { original } else { original.alone() };
+                    let size = bytes.len() as u64;
+                    // An Ultra HDR photo saved as JPEG stays one (#66).
+                    if !edit {
+                        original.hdr = crate::ultrahdr::Source::of(Arc::new(bytes), Vec::new(), Vec::new()).map(Arc::new);
+                    }
                     let preview = decode::preview(&original.image);
-                    Ok((Arc::new(original), preview, bytes.len() as u64))
+                    Ok((Arc::new(original), preview, size))
                 })
                 .await
                 .unwrap_or_else(|e| Err(e.to_string())),

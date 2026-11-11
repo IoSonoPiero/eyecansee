@@ -167,7 +167,7 @@ impl crate::App {
             w.encoded_with = Some(w.options);
             let (original, options, generation, tx, ctx2) = (original.clone(), w.options, w.generation, self.tx.clone(), ctx.clone());
             std::thread::spawn(move || {
-                let r = original.encode(&options).map(|bytes| {
+                let r = encoded(&original, &options).map(|bytes| {
                     let preview = crate::decode::decode(&bytes, &format!("x.{}", options.format.ext())).ok();
                     (Arc::new(bytes), preview)
                 });
@@ -472,6 +472,23 @@ fn meta_options(ui: &mut egui::Ui, o: &mut Options, original: &Original, i18n: &
     if !hint.is_empty() {
         r.on_disabled_hover_text(hint);
     }
+    if original.hdr.is_some() && !keeps_hdr(o) {
+        ui.label(crate::theme::alert(t("convert-ultra-hdr-lost")));
+    }
+}
+
+/// The file Save writes: an Ultra HDR photo saved as JPEG with its metadata stays Ultra HDR, as
+/// in Convert and resize (#66); otherwise the picture alone.
+fn encoded(original: &Original, o: &Options) -> Result<Vec<u8>, String> {
+    match &original.hdr {
+        Some(hdr) if keeps_hdr(o) => hdr.write(&original.image, o),
+        _ => original.encode(o),
+    }
+}
+
+/// Only a JPEG with its metadata holds the gain map and the XMP that describes it.
+fn keeps_hdr(o: &Options) -> bool {
+    o.format == Format::Jpeg && o.keep_meta
 }
 
 /// Name of the new file and Save (`true` when clicked); the name it will really get if taken.
@@ -531,5 +548,56 @@ fn preview(ui: &mut egui::Ui, size: egui::Vec2, tex: Option<&TextureHandle>, not
 fn drag(response: &egui::Response, actual: bool, pan: &mut egui::Vec2) {
     if actual && response.dragged() {
         *pan -= response.drag_delta() * response.ctx.pixels_per_point();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Save in another format keeps an Ultra HDR photo Ultra HDR in JPEG with its metadata (#66);
+    /// in another format, or without the metadata, the picture alone.
+    #[test]
+    fn ultra_hdr_only_in_jpeg_with_meta() {
+        let file = crate::ultrahdr::tests::sample(64, 32);
+        let mut original = Original::with_meta(crate::decode::decode_full(&file, "a.jpg").unwrap(), &file).alone();
+        original.hdr = crate::ultrahdr::Source::of(Arc::new(file), Vec::new(), Vec::new()).map(Arc::new);
+        let jpeg = Options { format: Format::Jpeg, ..Options::default() };
+        assert!(crate::ultrahdr::is(&encoded(&original, &jpeg).unwrap()));
+        let bare = encoded(&original, &Options { keep_meta: false, ..jpeg }).unwrap();
+        assert!(!crate::ultrahdr::is(&bare) && bare.starts_with(&[0xFF, 0xD8]));
+        let png = encoded(&original, &Options { format: Format::Png, ..Options::default() }).unwrap();
+        assert!(png.starts_with(b"\x89PNG"));
+    }
+
+    /// The real Ultra HDR photos of the test files (`notes/test-files/online/telefono`, or
+    /// `EYECANSEE_PHONE_SAMPLES`) saved as JPEG turned, as from the viewer: each stays Ultra HDR,
+    /// photo and gain map turned, nothing after the gain map (#66).
+    #[test]
+    #[ignore]
+    fn ultra_hdr_saved_live() {
+        use image::GenericImageView;
+        let dir = std::env::var_os("EYECANSEE_PHONE_SAMPLES").map_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("notes/test-files/online/telefono"), std::path::PathBuf::from);
+        let mut seen = 0;
+        for entry in std::fs::read_dir(&dir).unwrap() {
+            let path = entry.unwrap().path();
+            let bytes = std::fs::read(&path).unwrap();
+            let Some(hdr) = crate::ultrahdr::Source::of(Arc::new(bytes.clone()), Vec::new(), Vec::new()) else { continue };
+            let name = path.file_name().unwrap().to_string_lossy().into_owned();
+            let mut original = Original::with_meta_of(crate::decode::decode_full(&bytes, &name).unwrap(), &bytes, &name).alone();
+            original.hdr = Some(Arc::new(hdr));
+            let (w, h) = original.image.dimensions();
+            let o = Options { format: Format::Jpeg, turn: Turn::default().then(crate::transform::Op::Cw), ..Options::default() };
+            let d = encoded(&original, &o).unwrap();
+            let (photo, gain) = crate::ultrahdr::split(&d).unwrap_or_else(|| panic!("{name}: no longer Ultra HDR"));
+            assert_eq!(photo.len() + gain.len(), d.len(), "{name}: nothing after the gain map");
+            let p = image::load_from_memory(photo).unwrap().dimensions();
+            let g = image::load_from_memory(gain).unwrap().dimensions();
+            assert_eq!(p, (h, w), "{name}");
+            assert_eq!(g.0 > g.1, p.0 > p.1, "{name}: gain map {g:?} turned with the photo {p:?}");
+            println!("{name}: {w}x{h} -> {p:?}, gain map {g:?}, {} bytes", d.len());
+            seen += 1;
+        }
+        assert!(seen > 0, "no Ultra HDR photo in {}", dir.display());
     }
 }

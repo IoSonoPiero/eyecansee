@@ -54,7 +54,8 @@ The new file goes into the same folder as the original. If the name is already t
 
 - Only JPEG, PNG, WebP, AVIF and TIFF can hold metadata. With another format, or when the original has none, the box is greyed out; pointing at it says why.
 - The orientation is set to upright, since the saved pixels are already turned, and the sizes written inside are those of the new image.
-- Left out: the small previews that cameras store inside the file, the Lightroom and Camera Raw settings, and for phone photos the HDR map and the motion photo video, which the new file does not have.
+- Left out: the small previews that cameras store inside the file, the Lightroom and Camera Raw settings, and the video of a motion photo, which the new file does not have.
+- An **Ultra HDR** phone photo stays HDR when you save it as JPEG with the metadata, also from the editor: its HDR part is turned, cropped and covered together with the photo. In another format, or without the metadata, it loses its HDR, and the page tells you before you save.
 
 ## Things to know
 

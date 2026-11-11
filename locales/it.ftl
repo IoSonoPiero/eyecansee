@@ -435,6 +435,7 @@ convert-speed-hint = Più lenta fa un file più piccolo a parità di qualità.
 convert-lossless = Senza perdita: gli stessi pixel dell'originale.
 convert-gif = Al massimo 256 colori.
 convert-keep-meta = Mantieni i metadati (EXIF, XMP, IPTC, profilo colore)
+convert-ultra-hdr-lost = Questa foto è Ultra HDR: resta HDR solo in JPEG con i metadati.
 convert-no-meta = L'originale non ha metadati.
 convert-meta-unsupported = Questo formato non può contenere metadati.
 convert-name = Nome del file

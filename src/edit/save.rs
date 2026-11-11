@@ -133,9 +133,15 @@ fn target(name: &str, float: bool, transparent: bool) -> Format {
 
 /// The result, as it would be saved: for the clipboard.
 pub fn result(doc: &Doc, original: &Original, options: &usvg::Options) -> DynamicImage {
+    result_with_holes(doc, original, options).0
+}
+
+/// As `result`, with the boxes that hide what was under them (`paint`): for the gain map of an
+/// Ultra HDR photo (`ultrahdr::Source`).
+pub fn result_with_holes(doc: &Doc, original: &Original, options: &usvg::Options) -> (DynamicImage, Vec<[f32; 4]>) {
     let mut img = original.image.clone();
-    edited(doc, &original.image, &mut img, options);
-    img
+    let holes = edited(doc, &original.image, &mut img, options);
+    (img, holes)
 }
 
 /// `img` (a copy of `photo`, upright as read) turned, rotated and cropped, with the objects; the

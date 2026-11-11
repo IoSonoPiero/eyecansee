@@ -54,7 +54,8 @@ Il file nuovo va nella stessa cartella dell'originale. Se il nome è già preso,
 
 - Solo JPEG, PNG, WebP, AVIF e TIFF possono contenere metadati. Con un altro formato, o se l'originale non ne ha, la casella è grigia; passandoci sopra si legge il perché.
 - L'orientamento viene messo dritto, perché i pixel salvati sono già ruotati, e le dimensioni scritte dentro sono quelle dell'immagine nuova.
-- Restano fuori: le piccole anteprime che le fotocamere mettono nel file, le impostazioni di Lightroom e Camera Raw e, per le foto dei telefoni, la mappa HDR e il video della foto in movimento, che il file nuovo non ha.
+- Restano fuori: le piccole anteprime che le fotocamere mettono nel file, le impostazioni di Lightroom e Camera Raw e il video della foto in movimento, che il file nuovo non ha.
+- Una foto **Ultra HDR** del telefono resta HDR se la salvi in JPEG con i metadati, anche dall'editor: la sua parte HDR viene ruotata, ritagliata e coperta insieme alla foto. In un altro formato, o senza i metadati, perde l'HDR, e la pagina te lo dice prima di salvare.
 
 ## Da sapere
 

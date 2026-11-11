@@ -80,9 +80,15 @@ fn keep_video_xmp(photo: &mut Vec<u8>, old: &[u8]) -> Result<(), String> {
 /// `holes` (left, top, right, bottom in pixels of the edited photo: the editor's cover boxes and
 /// opaque objects) get the lowest gain on every pixel of the gain map they touch even in part.
 pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]]) -> Result<Vec<u8>, String> {
+    let (photo, _) = split(b).ok_or("not Ultra HDR")?;
+    // At its own quality and subsampling: not compressed harder a second time.
+    let o = crate::encode::jpeg_quality::like(photo, Options { format: Format::Jpeg, ..Options::default() });
+    edited_with(b, image, edits, holes, &o)
+}
+
+/// As `edited`, the photo encoded with `o` (Save in another format, #66).
+fn edited_with(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]], o: &Options) -> Result<Vec<u8>, String> {
     let (photo, gain) = split(b).ok_or("not Ultra HDR")?;
-    // Each at its own quality and subsampling: not compressed harder a second time.
-    let like = |jpeg| crate::encode::jpeg_quality::like(jpeg, Options { format: Format::Jpeg, ..Options::default() });
     // The gain map upright as the photo shown, then the edits at its scale.
     let turn = transform::exif_turn(photo);
     let (w, h) = image::ImageReader::new(std::io::Cursor::new(photo)).with_guessed_format().map_err(|e| e.to_string())?.into_dimensions().map_err(|e| e.to_string())?;
@@ -99,7 +105,7 @@ pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]])
     }
     let (kx, ky) = (g.width() as f32 / image.width() as f32, g.height() as f32 / image.height() as f32);
     lowest_gain(&mut g, holes, kx, ky);
-    rebuilt(photo, image, &like(photo), gain, g, gray)
+    rebuilt(photo, image, o, gain, g, gray)
 }
 
 /// The photo after Convert and resize (`image`: decoded upright, turned by `turn`, maybe resized)
@@ -120,6 +126,36 @@ pub fn resized(b: &[u8], image: DynamicImage, turn: Turn, o: &Options) -> Result
         g = g.resize_exact(gw, gh, image::imageops::FilterType::Triangle);
     }
     rebuilt(photo, image, o, gain, g, gray)
+}
+
+/// An Ultra HDR original as "Save in another format" needs it to write a JPEG still Ultra HDR
+/// (#66), as Convert and resize does (`resized`): the file, and what the editor did to the photo
+/// when the page was opened from it (none from the viewer).
+pub struct Source {
+    file: std::sync::Arc<Vec<u8>>,
+    edits: Vec<Edit>,
+    holes: Vec<[f32; 4]>,
+}
+
+impl Source {
+    /// `None` if `file` is not an Ultra HDR JPEG. `edits` and `holes` as `edited` takes them.
+    pub fn of(file: std::sync::Arc<Vec<u8>>, edits: Vec<Edit>, holes: Vec<[f32; 4]>) -> Option<Source> {
+        is(&file).then_some(Source { file, edits, holes })
+    }
+
+    /// `image` (the original decoded upright, or the editor's result) written as JPEG with `o`,
+    /// turned by `o.turn` (the viewer's; the editor's turn is in its edits), with the gain map
+    /// done the same way.
+    pub fn write(&self, image: &DynamicImage, o: &Options) -> Result<Vec<u8>, String> {
+        let mut image = image.clone();
+        o.turn.apply(&mut image);
+        let plain = Options { turn: Turn::default(), ..*o };
+        if self.edits.is_empty() {
+            resized(&self.file, image, o.turn, &plain)
+        } else {
+            edited_with(&self.file, image, &self.edits, &self.holes, &plain)
+        }
+    }
 }
 
 /// The new photo `image` (encoded with `o`) and gain map `g` (at the old one's quality, grey if
@@ -431,6 +467,33 @@ pub(crate) mod tests {
         let xmp = String::from_utf8_lossy(&out[..p.gain]).into_owned();
         assert!(xmp.contains(&format!("Item:Length=\"{}\"", p.end - p.gain)));
         fitted(&out[..p.gain], 16);
+    }
+
+    /// Save in another format (#66): from the viewer, turned and at the quality chosen, the gain
+    /// map turned with the photo; from the editor, cropped as the photo. Still Ultra HDR, lengths
+    /// right; a plain JPEG is no source.
+    #[test]
+    fn source_writes_ultra_hdr() {
+        let file = std::sync::Arc::new(sample(64, 32));
+        assert!(Source::of(std::sync::Arc::new(jpeg(64, 32)), Vec::new(), Vec::new()).is_none());
+        let img = crate::decode::decode_full(&file, "a.jpg").unwrap();
+        let viewer = Source::of(file.clone(), Vec::new(), Vec::new()).unwrap();
+        let o = Options { jpeg_quality: 60, turn: Turn::default().then(transform::Op::Cw), ..Options::default() };
+        let out = viewer.write(&img, &o).unwrap();
+        let p = parts(&out).expect("still Ultra HDR");
+        let photo = image::load_from_memory(&out[..p.gain]).unwrap();
+        let gain = image::load_from_memory(&out[p.gain..p.end]).unwrap();
+        assert_eq!((photo.dimensions(), gain.dimensions()), ((32, 64), (16, 32)));
+        assert_eq!(crate::encode::jpeg_quality::of(&out[..p.gain]).map(|(q, _)| q), Some(60));
+        let crop = Edit { turn: Turn::default(), angle: 0.0, crop: Crop::centred(32.0, 16.0), fill: None };
+        let mut cropped = img.clone();
+        crop.apply(&mut cropped);
+        let editor = Source::of(file, vec![crop], Vec::new()).unwrap();
+        let out = editor.write(&cropped, &Options::default()).unwrap();
+        let p = parts(&out).expect("still Ultra HDR");
+        assert_eq!(image::load_from_memory(&out[p.gain..p.end]).unwrap().dimensions(), (16, 8));
+        let xmp = String::from_utf8_lossy(&out[..p.gain]).into_owned();
+        assert!(xmp.contains(&format!("Item:Length=\"{}\"", p.end - p.gain)));
     }
 
     /// A hole gives gain 0 to every pixel of the gain map it touches even in part, and to no other.
