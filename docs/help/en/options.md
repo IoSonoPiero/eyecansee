@@ -53,7 +53,7 @@ See [Slideshow](slideshow.md).
 
 **Video engine (libmpv) and FFmpeg to use**: libmpv plays the videos, FFmpeg converts them.
 
-- **Automatic: the best for this computer** (the default): the system's when it is recent enough, otherwise the downloaded one; for FFmpeg also the downloaded one when it does more of the work on the graphics card.
+- **Automatic: the best for this computer** (the default): the system's when it is recent enough and can play H.264 and HEVC, the formats phones record in, otherwise the downloaded one; for FFmpeg also the downloaded one when it does more of the work on the graphics card.
 - **Always the system's, whatever its version**: nothing is downloaded.
 - **Always the downloaded one**.
 

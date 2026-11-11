@@ -10,7 +10,7 @@ Some parts of EyeCanSee are large and not everybody needs them, so they are not 
 | FFmpeg | Converting videos | In the Convert and resize window, when the computer has no usable FFmpeg |
 | CAD engine (Open CASCADE) | Opening STEP, IGES and BREP models | When the open folder holds one of those files |
 
-On Linux, EyeCanSee uses the system's libmpv and FFmpeg when they are recent enough (libmpv 1.109, that is mpv 0.33, and FFmpeg 4.3 or later); the download is offered only when they are missing or too old.
+On Linux, EyeCanSee uses the system's libmpv and FFmpeg when they are recent enough (libmpv 1.109, that is mpv 0.33, and FFmpeg 4.3 or later); the download is offered only when they are missing or too old, or when they cannot play H.264 and HEVC, the formats phones record in (Fedora's own packages, for example, lack both).
 
 ## Downloading one
 

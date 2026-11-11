@@ -53,7 +53,7 @@ Vedi [Carosello](slideshow.md).
 
 **Motore video (libmpv) e FFmpeg da usare**: libmpv riproduce i video, FFmpeg li converte.
 
-- **Automatica: la migliore per questo computer** (predefinita): quelli del sistema quando sono abbastanza recenti, altrimenti quelli scaricati; per FFmpeg anche quello scaricato quando fa fare più lavoro alla scheda video.
+- **Automatica: la migliore per questo computer** (predefinita): quelli del sistema quando sono abbastanza recenti e sanno riprodurre H.264 e HEVC, i formati in cui registrano i telefoni, altrimenti quelli scaricati; per FFmpeg anche quello scaricato quando fa fare più lavoro alla scheda video.
 - **Sempre di sistema, qualunque versione sia**: non si scarica niente.
 - **Sempre quello scaricato**.
 

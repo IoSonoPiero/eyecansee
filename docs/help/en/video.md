@@ -40,7 +40,7 @@ Audio files (for example MP3, M4A, FLAC, Opus) appear in the grid with their cov
 
 ## The video engine
 
-Videos are played by mpv. When EyeCanSee needs its own copy (usually on Windows; on Linux when the system has none, or one too old), the viewer offers to download it the first time you open a video, and a red **Download the video engine** button appears at the top right of the menu bar as soon as the open folder holds a video. It is downloaded once. See [Add-on components](components.md).
+Videos are played by mpv. When EyeCanSee needs its own copy (usually on Windows; on Linux when the system has none, one too old, or one that cannot play H.264 and HEVC, the formats phones record in), the viewer offers to download it the first time you open a video, and a red **Download the video engine** button appears at the top right of the menu bar as soon as the open folder holds a video. It is downloaded once. See [Add-on components](components.md).
 
 Until then the thumbnail of a video is the preview stored by the camera, when there is one, or the video sign with ![Download](icon://color-download).
 

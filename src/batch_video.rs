@@ -127,7 +127,7 @@ pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     });
 }
 
-/// No usable FFmpeg on this computer (none, or too old): what it is, its size and the button;
+/// No usable FFmpeg on this computer (none, too old, or without the phones' decoders): what it is, its size and the button;
 /// then the progress. With "the system's only" in the Options, just the reason.
 fn ffmpeg_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     let Some(c) = crate::component::FFMPEG else { return };
@@ -139,6 +139,9 @@ fn ffmpeg_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
         }
         crate::engine::Status::TooOld { found, required } => {
             ui.label(i18n.t_args("batch-video-old-ffmpeg", &[("found", &found), ("required", required), ("size", &size)]));
+        }
+        crate::engine::Status::Lacks { found, missing } => {
+            ui.label(i18n.t_args("batch-video-lacks-ffmpeg", &[("found", &found), ("missing", &missing), ("size", &size)]));
         }
         _ => {
             ui.label(i18n.t_args("batch-video-need-ffmpeg", &[("size", &size)]));

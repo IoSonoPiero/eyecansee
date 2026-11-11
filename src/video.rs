@@ -35,6 +35,8 @@ enum Engine {
     Ready(Option<String>),
     /// The system's is too old and nothing is downloaded yet (`mpv::MIN_API`).
     TooOld { found: String, required: &'static str },
+    /// The system's cannot play what phones record and nothing is downloaded yet (issue #67).
+    Lacks { found: String, missing: String },
     /// The Options say "the system's only" and there is none: nothing to download.
     SystemOnly,
 }
@@ -212,6 +214,7 @@ impl App {
             _ if on_disk => Engine::Ready(self.restart_error.clone()),
             _ => match mpv::status() {
                 crate::engine::Status::TooOld { found, required } => Engine::TooOld { found, required },
+                crate::engine::Status::Lacks { found, missing } => Engine::Lacks { found, missing },
                 crate::engine::Status::SystemOnly => Engine::SystemOnly,
                 _ => Engine::Missing,
             },
@@ -249,18 +252,15 @@ impl App {
         }
         let state = self.engine_state(ui.ctx(), c);
         let videos = self.listings.get(&self.dir).and_then(|l| l.as_ref().ok()).is_some_and(|l| l.files.iter().any(|f| decode::is_played(&f.path)));
-        if matches!(state, Engine::SystemOnly) || (!videos && matches!(state, Engine::Missing | Engine::TooOld { .. })) {
+        if matches!(state, Engine::SystemOnly) || (!videos && matches!(state, Engine::Missing | Engine::TooOld { .. } | Engine::Lacks { .. })) {
             return;
         }
         let t = |id: &str, args: &[(&str, &str)]| self.i18n.t_args(id, args);
         // Red, as the update button (see `menu_bar`).
         let red = crate::theme::alert_button;
         let click = match &state {
-            Engine::Missing | Engine::Failed(_) | Engine::TooOld { .. } => {
-                let hover = match &state {
-                    Engine::TooOld { found, required } => t("video-engine-old", &[("found", found), ("required", required), ("size", &self.human_size(c.size))]),
-                    _ => t("video-component-ask", &[("size", &self.human_size(c.size))]),
-                };
+            Engine::Missing | Engine::Failed(_) | Engine::TooOld { .. } | Engine::Lacks { .. } => {
+                let hover = self.engine_ask(&state, c);
                 let button = ui.add(red(t("video-component-button", &[("size", &self.human_size(c.size))]))).on_hover_text(hover);
                 button.clicked().then_some(Click::Download)
             }
@@ -274,6 +274,16 @@ impl App {
         };
         if let Some(click) = click {
             self.engine_click(ui.ctx(), c, click);
+        }
+    }
+
+    /// Why the engine is to be downloaded, with its size: for the card and the menu bar's button.
+    fn engine_ask(&self, state: &Engine, c: crate::component::Component) -> String {
+        let size = self.human_size(c.size);
+        match state {
+            Engine::TooOld { found, required } => self.i18n.t_args("video-engine-old", &[("found", found), ("required", required), ("size", &size)]),
+            Engine::Lacks { found, missing } => self.i18n.t_args("video-engine-lacks", &[("found", found), ("missing", missing), ("size", &size)]),
+            _ => self.i18n.t_args("video-component-ask", &[("size", &size)]),
         }
     }
 
@@ -297,12 +307,8 @@ impl App {
                         Engine::SystemOnly => {
                             wrap(ui, egui::RichText::new(t("video-engine-system-only", &[])).color(light));
                         }
-                        Engine::Missing | Engine::Failed(_) | Engine::TooOld { .. } => {
-                            let ask = match state {
-                                Engine::TooOld { found, required } => t("video-engine-old", &[("found", found), ("required", required), ("size", &self.human_size(c.size))]),
-                                _ => t("video-component-ask", &[("size", &self.human_size(c.size))]),
-                            };
-                            wrap(ui, egui::RichText::new(ask).color(light));
+                        Engine::Missing | Engine::Failed(_) | Engine::TooOld { .. } | Engine::Lacks { .. } => {
+                            wrap(ui, egui::RichText::new(self.engine_ask(state, c)).color(light));
                             if let Engine::Failed(e) = state {
                                 ui.add_space(6.0);
                                 wrap(ui, browser::error_text(ui, t("video-component-error", &[("error", e)])));

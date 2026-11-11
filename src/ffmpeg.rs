@@ -375,24 +375,37 @@ pub const MIN_VERSION: (u32, u32) = (4, 3);
 pub const MIN_TEXT: &str = "4.3";
 
 /// The system's `ffmpeg`: where, its version (`None` for a git build without a number, taken as
-/// recent) and the version as its first line prints it.
+/// recent), the version as its first line prints it and its video decoders (`None` when the list
+/// could not be read).
 struct System {
     path: PathBuf,
     version: Option<(u32, u32)>,
     text: String,
+    decoders: Option<Vec<String>>,
 }
 
-/// Looked for once: in `PATH`, then `ffmpeg -version`.
+impl System {
+    /// Whether "Automatic" takes it: recent enough and able to read the phones' videos (issue #67:
+    /// the ffmpeg-free of Fedora has no H.264 and HEVC decoders, so their conversion fails).
+    fn fit(&self) -> crate::engine::Fit {
+        crate::engine::fit(self.version.is_none_or(|v| v >= MIN_VERSION), self.decoders.as_deref())
+    }
+}
+
+/// Looked for once: in `PATH`, then `ffmpeg -decoders`, which prints the version first (on the
+/// error output, as `-version` does on the normal one) and then the decoders: one run, as before.
 fn system() -> Option<&'static System> {
     static SYSTEM: OnceLock<Option<System>> = OnceLock::new();
     SYSTEM
         .get_or_init(|| {
             let name = if cfg!(windows) { "ffmpeg.exe" } else { "ffmpeg" };
             let path = std::env::var_os("PATH").and_then(|p| std::env::split_paths(&p).map(|d| d.join(name)).find(|p| p.is_file()))?;
-            let out = command(&path).arg("-version").output().ok()?;
-            let text = version_text(&String::from_utf8_lossy(&out.stdout));
-            log!("ffmpeg {path:?}: version {text:?}");
-            Some(System { path, version: parse_version(&text), text })
+            let out = command(&path).arg("-decoders").output().ok()?;
+            let text = version_text(&String::from_utf8_lossy(&out.stderr));
+            let list = String::from_utf8_lossy(&out.stdout);
+            let decoders = list.contains("------").then(|| parse_list(&list, 'V'));
+            log!("ffmpeg {path:?}: version {text:?}, without {:?}", decoders.as_deref().map(crate::engine::lacking));
+            Some(System { path, version: parse_version(&text), text, decoders })
         })
         .as_ref()
 }
@@ -414,13 +427,10 @@ fn downloaded() -> Option<PathBuf> {
     crate::component::FFMPEG.as_ref().and_then(crate::component::path).filter(|p| p.is_file())
 }
 
-fn system_recent() -> Option<bool> {
-    system().map(|s| s.version.is_none_or(|v| v >= MIN_VERSION))
-}
-
 /// The `ffmpeg` to use: the system's or the downloaded component, by the option (`engine.rs`).
 pub fn program() -> Option<PathBuf> {
-    match crate::engine::pick(crate::engine::choice(), system_recent(), downloaded().is_some())? {
+    let fits = system().map(|s| s.fit() == crate::engine::Fit::Yes);
+    match crate::engine::pick(crate::engine::choice(), fits, downloaded().is_some())? {
         crate::engine::Source::System => system().map(|s| s.path.clone()),
         crate::engine::Source::Downloaded => downloaded(),
     }
@@ -433,7 +443,7 @@ pub fn status() -> crate::engine::Status {
     if probed().is_some_and(|p| Some(&p.program) == downloaded().as_ref()) {
         return crate::engine::Status::Ready(crate::engine::Source::Downloaded, version());
     }
-    let found = system().map(|s| (s.version.is_none_or(|v| v >= MIN_VERSION), s.text.clone()));
+    let found = system().map(|s| (s.fit(), s.text.clone()));
     crate::engine::status(crate::engine::choice(), found, downloaded().is_some(), MIN_TEXT, |src| match src {
         crate::engine::Source::System => system().map(|s| s.text.clone()).unwrap_or_default(),
         crate::engine::Source::Downloaded => version(),
@@ -585,13 +595,14 @@ fn try_card(program: &Path, encoder: &str) -> bool {
 /// Audio encoders of `ffmpeg -encoders` (lines " A..... name  description").
 fn audio_encoders(program: &Path) -> Vec<String> {
     let Ok(out) = command(program).args(["-hide_banner", "-encoders"]).output() else { return Vec::new() };
-    parse_audio(&String::from_utf8_lossy(&out.stdout))
+    parse_list(&String::from_utf8_lossy(&out.stdout), 'A')
 }
 
-fn parse_audio(list: &str) -> Vec<String> {
+/// The names of `kind` ('A' audio, 'V' video) in the list of `ffmpeg -encoders` or `-decoders`.
+fn parse_list(list: &str, kind: char) -> Vec<String> {
     // The legend above the dashes has lines like " A..... = Audio".
-    let encoders = list.lines().skip_while(|l| !l.trim_start().starts_with("---")).skip(1);
-    encoders.filter(|l| l.trim_start().starts_with('A')).filter_map(|l| l.split_whitespace().nth(1)).map(String::from).collect()
+    let codecs = list.lines().skip_while(|l| !l.trim_start().starts_with("---")).skip(1);
+    codecs.filter(|l| l.trim_start().starts_with(kind)).filter_map(|l| l.split_whitespace().nth(1)).map(String::from).collect()
 }
 
 /// Runs ffmpeg with `args`; `progress` gets 0 to 1. `cancel` stops it: the caller removes what
@@ -752,7 +763,12 @@ mod tests {
         assert_eq!(scale(Size::Fit(640, 480), true).unwrap(), "scale=w=640:h=480:force_original_aspect_ratio=decrease:force_divisible_by=2");
         assert_eq!(clock("00:01:02.50"), Some(62.5));
         let list = "Encoders:\n A..... = Audio\n ------\n V....D libx264  libx264 H.264\n A....D aac   AAC (Advanced Audio Coding)\n A....D libopus  Opus\n";
-        assert_eq!(parse_audio(list), ["aac", "libopus"]);
+        assert_eq!(parse_list(list, 'A'), ["aac", "libopus"]);
+        // `ffmpeg -decoders` of Fedora's ffmpeg-free (shortened): H.264 only through openh264.
+        let decoders = "Decoders:\n V..... = Video\n ------\n VFS..D vp9   Google VP9\n V....D libopenh264  OpenH264 H.264\n A....D aac  AAC\n";
+        let fedora = parse_list(decoders, 'V');
+        assert_eq!(fedora, ["vp9", "libopenh264"]);
+        assert_eq!(crate::engine::lacking(&fedora), ["H.264", "HEVC"]);
         assert_eq!(maker("h264_nvenc"), "NVIDIA");
         assert_eq!(maker("libx264"), "CPU");
         assert_eq!(hint("hevc_qsv"), "video-enc-qsv");
@@ -825,6 +841,16 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
         println!("{runs} runs, {} failed", failed.len());
         assert!(failed.is_empty(), "{}", failed.join("\n"));
+    }
+
+    /// The system's FFmpeg and what "Automatic" makes of it, on this computer:
+    /// `cargo test system_ffmpeg_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn system_ffmpeg_live() {
+        let s = system().expect("no ffmpeg in PATH");
+        println!("{:?} {} decoders {:?}: {:?}", s.path, s.text, s.decoders.as_ref().map(Vec::len), s.fit());
+        assert!(s.decoders.is_some());
     }
 
     /// `cargo test ffmpeg_live -- --ignored --nocapture`: every encoder of the system's FFmpeg,

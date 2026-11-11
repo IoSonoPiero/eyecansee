@@ -42,11 +42,47 @@ pub enum Status {
     Missing,
     /// The system's is older than `required` and nothing was downloaded yet.
     TooOld { found: String, required: &'static str },
+    /// The system's cannot decode `missing` (`PHONE_CODECS`) and nothing was downloaded yet.
+    Lacks { found: String, missing: String },
     /// The options say "the system's only" and there is none.
     SystemOnly,
 }
 
-/// Which one to use. `system`: `None` when there is none, else whether it is recent enough;
+/// Whether the system's engine is the one "Automatic" takes.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Fit {
+    Yes,
+    /// Older than the version EyeCanSee needs.
+    TooOld,
+    /// Cannot decode these codecs (`lacking`): "H.264, HEVC".
+    Lacks(String),
+}
+
+/// What phones record: a system engine without one of them leaves their videos black (issue #67,
+/// the libavcodec-free of Fedora has neither). FFmpeg's decoder names, with the name to show.
+pub const PHONE_CODECS: [(&str, &str); 2] = [("h264", "H.264"), ("hevc", "HEVC")];
+
+/// The `PHONE_CODECS` that none of `decoders` (FFmpeg's decoder names, `driver` of mpv's
+/// `decoder-list`) decodes, as shown. FFmpeg's own decoders only, named as the codec: the wrappers
+/// are listed whether or not they work, `libopenh264` of Fedora is a stub until Cisco's library is
+/// installed (noopenh264) and `h264_cuvid`, `_qsv`, `_v4l2m2m`, `_amf` need that hardware.
+pub fn lacking<S: AsRef<str>>(decoders: &[S]) -> Vec<&'static str> {
+    PHONE_CODECS.iter().filter(|(name, _)| !decoders.iter().any(|d| d.as_ref() == *name)).map(|(_, shown)| *shown).collect()
+}
+
+/// `Fit` of a system engine: recent enough, then (when its list could be read) its decoders.
+pub fn fit<S: AsRef<str>>(recent: bool, decoders: Option<&[S]>) -> Fit {
+    let missing = decoders.map(lacking).unwrap_or_default();
+    if !recent {
+        Fit::TooOld
+    } else if !missing.is_empty() {
+        Fit::Lacks(missing.join(", "))
+    } else {
+        Fit::Yes
+    }
+}
+
+/// Which one to use. `system`: `None` when there is none, else whether "Automatic" takes it (`Fit::Yes`);
 /// `downloaded`: the component is on disk. `None`: nothing usable (see `status`).
 pub fn pick(choice: EngineChoice, system: Option<bool>, downloaded: bool) -> Option<Source> {
     match choice {
@@ -56,14 +92,15 @@ pub fn pick(choice: EngineChoice, system: Option<bool>, downloaded: bool) -> Opt
     }
 }
 
-/// `pick` and the reason when it picks nothing. `system`: recent enough and the version found.
+/// `pick` and the reason when it picks nothing. `system`: whether it fits and the version found.
 /// `version`: that of the one picked.
-pub fn status(choice: EngineChoice, system: Option<(bool, String)>, downloaded: bool, required: &'static str, version: impl Fn(Source) -> String) -> Status {
-    match pick(choice, system.as_ref().map(|s| s.0), downloaded) {
+pub fn status(choice: EngineChoice, system: Option<(Fit, String)>, downloaded: bool, required: &'static str, version: impl Fn(Source) -> String) -> Status {
+    match pick(choice, system.as_ref().map(|s| s.0 == Fit::Yes), downloaded) {
         Some(src) => Status::Ready(src, version(src)),
         None => match (choice, system) {
             (EngineChoice::System, None) => Status::SystemOnly,
-            (EngineChoice::SystemIfRecent, Some((false, found))) => Status::TooOld { found, required },
+            (EngineChoice::SystemIfRecent, Some((Fit::TooOld, found))) => Status::TooOld { found, required },
+            (EngineChoice::SystemIfRecent, Some((Fit::Lacks(missing), found))) => Status::Lacks { found, missing },
             _ => Status::Missing,
         },
     }
@@ -88,6 +125,7 @@ pub fn status_text(i18n: &I18n, status: &Status) -> String {
         Status::Ready(Source::Downloaded, v) => i18n.t_args("engine-downloaded", &[("version", v)]),
         Status::Missing => i18n.t("engine-missing"),
         Status::TooOld { found, required } => i18n.t_args("engine-too-old", &[("found", found), ("required", required)]),
+        Status::Lacks { found, missing } => i18n.t_args("engine-lacks", &[("found", found), ("missing", missing)]),
         Status::SystemOnly => i18n.t("engine-system-only"),
     }
 }
@@ -117,12 +155,36 @@ mod tests {
     #[test]
     fn why_nothing() {
         let v = |s: Source| format!("{s:?}");
-        assert_eq!(status(SystemIfRecent, Some((false, "mpv 0.32".into())), false, "1.109", v), Status::TooOld { found: "mpv 0.32".into(), required: "1.109" });
-        assert_eq!(status(SystemIfRecent, Some((false, "mpv 0.32".into())), true, "1.109", v), Status::Ready(Source::Downloaded, "Downloaded".into()));
+        assert_eq!(status(SystemIfRecent, Some((Fit::TooOld, "mpv 0.32".into())), false, "1.109", v), Status::TooOld { found: "mpv 0.32".into(), required: "1.109" });
+        assert_eq!(status(SystemIfRecent, Some((Fit::TooOld, "mpv 0.32".into())), true, "1.109", v), Status::Ready(Source::Downloaded, "Downloaded".into()));
         assert_eq!(status(SystemIfRecent, None, false, "1.109", v), Status::Missing);
         assert_eq!(status(System, None, true, "1.109", v), Status::SystemOnly);
-        assert_eq!(status(System, Some((false, "old".into())), false, "1.109", v), Status::Ready(Source::System, "System".into()));
-        assert_eq!(status(Downloaded, Some((true, "new".into())), false, "1.109", v), Status::Missing);
+        assert_eq!(status(System, Some((Fit::TooOld, "old".into())), false, "1.109", v), Status::Ready(Source::System, "System".into()));
+        assert_eq!(status(Downloaded, Some((Fit::Yes, "new".into())), false, "1.109", v), Status::Missing);
+        // Without the phones' decoders (issue #67): as too old for "Automatic" only.
+        let lacks = || Some((Fit::Lacks("H.264, HEVC".into()), "mpv v0.41.0".into()));
+        assert_eq!(status(SystemIfRecent, lacks(), false, "1.109", v), Status::Lacks { found: "mpv v0.41.0".into(), missing: "H.264, HEVC".into() });
+        assert_eq!(status(SystemIfRecent, lacks(), true, "1.109", v), Status::Ready(Source::Downloaded, "Downloaded".into()));
+        assert_eq!(status(System, lacks(), true, "1.109", v), Status::Ready(Source::System, "System".into()));
+        assert_eq!(status(Downloaded, lacks(), true, "1.109", v), Status::Ready(Source::Downloaded, "Downloaded".into()));
+        assert_eq!(status(SystemIfRecent, Some((Fit::Yes, "mpv v0.41.0".into())), true, "1.109", v), Status::Ready(Source::System, "System".into()));
+    }
+
+    #[test]
+    fn phone_decoders() {
+        // Fedora's libavcodec-free: H.264 only through the openh264 wrapper, no HEVC.
+        let fedora = ["vp9", "av1", "libdav1d", "libopenh264", "aac"];
+        assert_eq!(lacking(&fedora), ["H.264", "HEVC"]);
+        assert_eq!(fit(true, Some(&fedora[..])), Fit::Lacks("H.264, HEVC".into()));
+        // Wrappers that need hardware do not count; FFmpeg's own decoders do.
+        assert_eq!(lacking(&["h264_cuvid", "hevc_qsv", "hevc"]), ["H.264"]);
+        let full = ["h264", "h264_v4l2m2m", "hevc", "libopenh264"];
+        assert!(lacking(&full).is_empty());
+        assert_eq!(fit(true, Some(&full[..])), Fit::Yes);
+        // Too old comes first; a list that could not be read changes nothing.
+        assert_eq!(fit(false, Some(&fedora[..])), Fit::TooOld);
+        assert_eq!(fit::<&str>(true, None), Fit::Yes);
+        assert_eq!(fit::<&str>(false, None), Fit::TooOld);
     }
 
     #[test]

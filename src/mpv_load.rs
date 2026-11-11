@@ -51,17 +51,37 @@ pub(crate) fn api() -> Result<&'static Api, String> {
     Ok(API.get_or_init(|| api))
 }
 
-/// What a libmpv is: its client API (`mpv_client_api_version`, major and minor) and its
-/// `mpv-version` ("mpv 0.41.0"), read through a handle of its own that shows nothing.
+/// What a libmpv is: its client API (`mpv_client_api_version`, major and minor), its
+/// `mpv-version` ("mpv 0.41.0") and its decoders, read through a handle of its own that shows nothing.
 pub struct Version {
     pub api: (u32, u32),
     pub mpv: String,
+    /// The `driver` of each entry of `decoder-list`; `None` when it could not be read.
+    pub decoders: Option<Vec<String>>,
 }
 
 impl Version {
     fn text(&self) -> String {
         format!("{} (API {}.{})", self.mpv, self.api.0, self.api.1)
     }
+
+    /// Whether "Automatic" takes it: recent enough and with the phones' decoders (issue #67).
+    fn fit(&self) -> engine::Fit {
+        engine::fit(self.api >= MIN_API, self.decoders.as_deref())
+    }
+}
+
+/// The decoders' names in `decoder-list` read as a string: a list property is a node, which
+/// libmpv prints as JSON (`print_node` in mpv's options/m_option.c), each entry with `codec`,
+/// `driver` and `description` (DOCS/man/input.rst). Read right after `mpv_initialize`: it needs
+/// no file. The `driver` is the decoder ("h264", "libopenh264", "h264_cuvid").
+pub fn parse_decoders(json: &str) -> Option<Vec<String>> {
+    #[derive(serde::Deserialize)]
+    struct Entry {
+        driver: String,
+    }
+    let list: Vec<Entry> = serde_json::from_str(json).ok()?;
+    Some(list.into_iter().map(|e| e.driver).collect())
 }
 
 /// `mpv_client_api_version` packs the version as `(major << 16) | minor`.
@@ -84,19 +104,28 @@ fn version_of(lib: &libloading::Library) -> Option<Version> {
         let destroy: libloading::Symbol<unsafe extern "C" fn(Handle)> = lib.get(b"mpv_terminate_destroy\0").ok()?;
         let handle = create();
         if handle.is_null() {
-            return Some(Version { api, mpv: String::new() });
+            return Some(Version { api, mpv: String::new(), decoders: None });
         }
         set(handle, c"terminal".as_ptr(), c"no".as_ptr());
-        let mut mpv = String::new();
-        if initialize(handle) >= 0 {
+        let read = |name: &std::ffi::CStr| {
             let mut value: *mut c_char = std::ptr::null_mut();
-            if get(handle, c"mpv-version".as_ptr(), FORMAT_STRING, &mut value as *mut *mut c_char as *mut c_void) >= 0 && !value.is_null() {
-                mpv = std::ffi::CStr::from_ptr(value).to_string_lossy().into_owned();
-                free(value as *mut c_void);
+            if get(handle, name.as_ptr(), FORMAT_STRING, &mut value as *mut *mut c_char as *mut c_void) < 0 || value.is_null() {
+                return None;
             }
+            let text = std::ffi::CStr::from_ptr(value).to_string_lossy().into_owned();
+            free(value as *mut c_void);
+            Some(text)
+        };
+        let (mut mpv, mut decoders) = (String::new(), None);
+        if initialize(handle) >= 0 {
+            mpv = read(c"mpv-version").unwrap_or_default();
+            decoders = read(c"decoder-list").as_deref().and_then(parse_decoders);
         }
         destroy(handle);
-        Some(Version { api, mpv })
+        if let Some(d) = &decoders {
+            log!("libmpv {mpv}: {} decoders, without {:?}", d.len(), engine::lacking(d));
+        }
+        Some(Version { api, mpv, decoders })
     }
 }
 
@@ -122,7 +151,7 @@ pub fn status() -> Status {
     if let Some((src, v)) = USED.get() {
         return Status::Ready(*src, v.clone());
     }
-    let found = system().map(|v| (v.api >= MIN_API, v.text()));
+    let found = system().map(|v| (v.fit(), v.text()));
     engine::status(engine::choice(), found, downloaded().is_some(), MIN_TEXT, |src| match src {
         Source::System => system().map(Version::text).unwrap_or_default(),
         Source::Downloaded => crate::component::VIDEO.map(|c| format!("mpv {}", c.version)).unwrap_or_default(),
@@ -134,9 +163,10 @@ fn load() -> Result<Api, String> {
     if cfg!(debug_assertions) && std::env::var_os("EYECANSEE_NO_MPV").is_some() {
         return Err("EYECANSEE_NO_MPV".into());
     }
-    // The system's when the option allows it and it is recent enough, else the downloaded component.
+    // The system's when the option allows it and it fits (recent, phones' decoders), else the
+    // downloaded component.
     let downloaded = downloaded();
-    let src = engine::pick(engine::choice(), system().map(|v| v.api >= MIN_API), downloaded.is_some()).ok_or_else(|| format!("{} not found", NAMES[0]))?;
+    let src = engine::pick(engine::choice(), system().map(|v| v.fit() == engine::Fit::Yes), downloaded.is_some()).ok_or_else(|| format!("{} not found", NAMES[0]))?;
     // SAFETY: libmpv runs no code of its own when loaded.
     let lib = unsafe {
         match src {
@@ -197,5 +227,24 @@ mod tests {
         assert_eq!(api_pair(0x0002_0006), (2, 6));
         assert!((1, 109) >= MIN_API);
         assert!((1, 108) < MIN_API);
+    }
+
+    #[test]
+    fn decoder_list() {
+        // As libmpv 0.41 prints it (shortened).
+        let json = r#"[{"codec":"h264","driver":"h264","description":"H.264 / AVC"},{"codec":"h264","driver":"libopenh264","description":"OpenH264"},{"codec":"hevc","driver":"hevc_qsv","description":"HEVC (QSV)"}]"#;
+        assert_eq!(parse_decoders(json).unwrap(), ["h264", "libopenh264", "hevc_qsv"]);
+        assert_eq!(parse_decoders("[]").unwrap(), Vec::<String>::new());
+        assert_eq!(parse_decoders("decoders"), None);
+    }
+
+    /// The system's libmpv and what "Automatic" makes of it, on this computer:
+    /// `cargo test system_mpv_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn system_mpv_live() {
+        let v = system().expect("no libmpv on this computer");
+        println!("{} decoders {:?}: {:?}", v.text(), v.decoders.as_ref().map(Vec::len), v.fit());
+        assert!(v.decoders.is_some());
     }
 }
