@@ -604,7 +604,10 @@ fn argument(a: &str) -> String {
 /// Windows: a backslash before the closing quote escapes it (`CommandLineToArgvW`), so
 /// `"C:\Photos\"` arrives as `C:\Photos"` (#101). No Windows path can hold a `"`: it is dropped,
 /// and a drive left alone gets its backslash back (`D:` is the drive's current folder, not its root).
+/// cmd and PowerShell's `Start-Process` end the command line with a space, which then stays inside
+/// the quotes (`C:\Photos" `): spaces at the end are dropped first, as Windows drops them from paths.
 fn quote_left(a: &str) -> String {
+    let a = a.trim_end();
     match a.strip_suffix('"') {
         Some(p) if p.ends_with(':') => format!("{p}\\"),
         Some(p) => p.to_string(),
@@ -624,6 +627,9 @@ mod tests {
         use super::quote_left;
         assert_eq!(quote_left(r#"C:\Photos""#), r"C:\Photos");
         assert_eq!(quote_left(r#"D:""#), r"D:\");
+        // The space cmd and Start-Process put at the end of the command line.
+        assert_eq!(quote_left(r#"C:\Photos" "#), r"C:\Photos");
+        assert_eq!(quote_left(r#"D:" "#), r"D:\");
         assert_eq!(quote_left(r#"\\server\share""#), r"\\server\share");
         assert_eq!(quote_left(r"C:\Photos\"), r"C:\Photos\");
         assert_eq!(quote_left(r"C:\Photos"), r"C:\Photos");
