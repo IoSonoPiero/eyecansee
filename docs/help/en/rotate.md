@@ -24,7 +24,7 @@ If you leave the picture without saving (another picture, back to the grid, a bo
 
 Select one or more pictures and choose a turn or a flip from the **Image** menu, the toolbar or the right-click menu, or press **Ctrl+R** or **Ctrl+Shift+R**. A window says how many pictures will be saved over and where the originals go; **Save** does it, **Cancel** (or **Esc**) does nothing. **Enter** does not confirm here, so you cannot overwrite many pictures by mistake. The thumbnails are then made again, and a message titled with what was done (for example **Images rotated**) says how many pictures were saved.
 
-Pictures in a format EyeCanSee cannot write (HEIC, RAW…) are left out, and the window says how many. Animated pictures, files with several pages and motion photos are skipped too; Ultra HDR phone photos are turned with their HDR, and with their video when they are also motion photos. When the only picture chosen cannot be saved over itself, the window says why and offers **Save as…**, already turned.
+Pictures in a format EyeCanSee cannot write (HEIC, RAW…) are left out, and the window says how many. Animated pictures, files with several pages, motion photos and photos with a depth map (the portrait photos of some phones) are skipped too, because saving over them would lose those parts; Ultra HDR phone photos are turned with their HDR, and with their video when they are also motion photos. When the only picture chosen cannot be saved over itself, the window says why and offers **Save as…**, already turned.
 
 ## Saving over the original
 
