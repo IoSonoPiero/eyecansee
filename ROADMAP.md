@@ -64,6 +64,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Windows: if the connection to the phone breaks while Windows still sees the phone, after Try again the open folder keeps saying the phone was disconnected until EyeCanSee is restarted. The file is saved anyway ([#40](https://github.com/IoSonoPiero/eyecansee/issues/40)).
 - Converted Camera RAW photos do not keep the maker note, the camera maker's own data ([#41](https://github.com/IoSonoPiero/eyecansee/issues/41)).
 - Windows: a file owned by another account (for example created as administrator) and replaced with Paste > Replace gets the current user as owner. Its content is right; files owned by the user are not affected ([#93](https://github.com/IoSonoPiero/eyecansee/issues/93)).
+- Linux: with **Colors > Same as the system** (the default) the colors are always dark, whatever the desktop's theme, because EyeCanSee does not read the desktop's theme on Linux yet. **Light** in **Options > Look** gives light colors ([#100](https://github.com/IoSonoPiero/eyecansee/issues/100)).
 
 ## Not planned
 
