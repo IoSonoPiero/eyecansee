@@ -206,7 +206,7 @@ async fn swap<W: Future<Output = Result<(), source::Error>>>(op: &Store, path: &
     // where that save would have sent it, then this one leaves. Looked for only when needed: the
     // folder is not read for every save.
     if left.is_err() && op.exists(&old).await && op.exists(path).await {
-        left = match put_away(op, &old, own, how).await {
+        left = match put_away_leftover(op, &old, own, how).await {
             Ok(()) => leave(op, path, &old, how, strict).await,
             Err(e) => Err(e),
         };
@@ -271,6 +271,20 @@ pub(crate) async fn undo(op: &Store, path: &str, new: &str, old: &str) {
     if names.contains(source::name(new)) {
         let _ = op.delete(new, source::Deletion::Permanent).await;
     }
+}
+
+/// An original left by an earlier save cut short: where a deletion would send it. To the system
+/// trash under a free name one can see ("a (2).jpg"), not deleted for good: it may be the only copy
+/// of the original left, and Restore would give back a hidden file under its hidden name (issue #91).
+/// If the trash refuses it, it stays in its folder under that name, where it can be seen.
+async fn put_away_leftover(op: &Store, old: &str, own: &str, how: source::Deletion) -> Result<(), source::Error> {
+    if how != source::Deletion::SystemTrash {
+        return put_away(op, old, own, how).await;
+    }
+    let dir = source::parent(old);
+    let shown = source::free_name(&op.names(&dir).await?, own);
+    let shown = op.rename(old, &shown).await?;
+    op.delete(&shown, how).await
 }
 
 /// The original, waiting as `old`, goes as `how` says, under its own name `own`. With the system

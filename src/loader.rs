@@ -902,6 +902,25 @@ mod tests {
         }
     }
 
+    /// Issue #91: an original left by an earlier save cut short goes to the system trash under a
+    /// free name one can see, not deleted for good; the image saved now goes there under its own.
+    fn check_trash_leftover(dir: Option<PathBuf>) {
+        let (dir, op) = live_dir(dir, "save-trash-leftover");
+        fixtures(&dir);
+        std::fs::write(dir.join(".even.jpg.eyecansee-old"), b"an earlier original").unwrap();
+        let ours = |dir: &Path| {
+            let canonical = PathBuf::from(dir.canonicalize().unwrap().to_string_lossy().trim_start_matches(r"\\?\").to_string());
+            trash::os_limited::list().unwrap().into_iter().filter(|i| i.original_parent == canonical).collect::<Vec<_>>()
+        };
+        save(&tokio::runtime::Runtime::new().unwrap(), &op, "even.jpg", Turn::default().then(Op::Cw), Deletion::SystemTrash).unwrap();
+        assert!(hidden_in(&dir).is_empty(), "hidden files left");
+        let items = ours(&dir);
+        let mut names = items.iter().map(|i| i.name.to_string_lossy().into_owned()).collect::<Vec<_>>();
+        names.sort();
+        assert_eq!(names, ["even (2).jpg", "even.jpg"], "both originals in the trash, under names one can see");
+        trash::os_limited::purge_all(items).unwrap();
+    }
+
     fn check_lossless(dir: Option<PathBuf>) {
         let (dir, op) = live_dir(dir, "save-lossless");
         fixtures(&dir);
@@ -983,6 +1002,13 @@ mod tests {
     #[ignore]
     fn save_live_trash() {
         check_trash(None);
+    }
+
+    /// Issue #91 with the real system trash: see `check_trash_leftover`.
+    #[test]
+    #[ignore]
+    fn save_live_trash_leftover() {
+        check_trash_leftover(None);
     }
 
     /// Four quarter turns of a JPEG give back the same pixels; EXIF 6 ends upright, metadata kept.
