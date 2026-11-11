@@ -80,6 +80,18 @@
   </provides>
 
   <releases>
+    <release version="0.76.1" date="2026-11-11">
+      <description>
+        <ul>
+          <li>Image editor: in Options, what happens after saving: stay in the editor, go back to where you were, or go back to the thumbnails</li>
+          <li>Image editor: Overwrite the original can be the main save button, also for Ctrl+S</li>
+          <li>Image editor: Save as no longer closes the editor before the file is written, so closing it without saving keeps the drawing; the saved file is then selected</li>
+          <li>Phones on Windows: video thumbnails and playback no longer copy the whole video first, and a large copy stays fast while you browse the phone</li>
+          <li>Phones on Windows: no more "the phone is not answering" while a large file is being written to it</li>
+          <li>The Options window is wide enough for all its tabs</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.76.0" date="2026-11-10">
       <description>
         <ul>

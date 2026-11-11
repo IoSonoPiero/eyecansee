@@ -5514,14 +5514,14 @@
     {
         "type": "archive",
         "archive-type": "tar-gzip",
-        "url": "https://static.crates.io/crates/mtp-rs/mtp-rs-0.37.3.crate",
-        "sha256": "744e37b0feb9db5a5696fa6abc06b33375ed250ebd0a2bec96bff5e58e09307a",
-        "dest": "cargo/vendor/mtp-rs-0.37.3"
+        "url": "https://static.crates.io/crates/mtp-rs/mtp-rs-0.38.1.crate",
+        "sha256": "0b85f4c2595077769722d07772af222e518e59810c0dbeb52fbb2fd4584cef13",
+        "dest": "cargo/vendor/mtp-rs-0.38.1"
     },
     {
         "type": "inline",
-        "contents": "{\"package\": \"744e37b0feb9db5a5696fa6abc06b33375ed250ebd0a2bec96bff5e58e09307a\", \"files\": {}}",
-        "dest": "cargo/vendor/mtp-rs-0.37.3",
+        "contents": "{\"package\": \"0b85f4c2595077769722d07772af222e518e59810c0dbeb52fbb2fd4584cef13\", \"files\": {}}",
+        "dest": "cargo/vendor/mtp-rs-0.38.1",
         "dest-filename": ".cargo-checksum.json"
     },
     {
