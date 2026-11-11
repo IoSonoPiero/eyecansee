@@ -541,11 +541,7 @@ impl eframe::App for App {
 fn main() -> eframe::Result {
     // Each start marked, also in a log file shared with an earlier instance.
     log!("EyeCanSee {} started, process {}", version(), std::process::id());
-    // A local path is made absolute: the instance it is handed to has another working folder.
-    let arg = std::env::args_os().nth(1).map(|a| a.to_string_lossy().into_owned()).map(|a| match a.contains("://") {
-        true => a,
-        false => std::path::absolute(&a).map_or(a, |p| p.to_string_lossy().into_owned()),
-    });
+    let arg = std::env::args_os().nth(1).map(|a| argument(&a.to_string_lossy()));
     // The screenshot of a test run must not end up in the user's window.
     if std::env::var_os("EYECANSEE_SCREENSHOT").is_none() && single::hand_over(arg.as_deref().unwrap_or("")) {
         return Ok(());
@@ -587,10 +583,41 @@ fn main() -> eframe::Result {
     eframe::run_native("EyeCanSee", options, Box::new(move |cc| Ok(Box::new(App::new(&cc.egui_ctx, settings, arg).with_gpu(cc)))))
 }
 
+/// The address given on the command line. A local path is made absolute: the instance it is
+/// handed to has another working folder.
+fn argument(a: &str) -> String {
+    if a.contains("://") {
+        return a.to_string();
+    }
+    let a = if cfg!(windows) { quote_left(a) } else { a.to_string() };
+    std::path::absolute(&a).map_or(a, |p| p.to_string_lossy().into_owned())
+}
+
+/// Windows: a backslash before the closing quote escapes it (`CommandLineToArgvW`), so
+/// `"C:\Photos\"` arrives as `C:\Photos"` (#101). No Windows path can hold a `"`: it is dropped,
+/// and a drive left alone gets its backslash back (`D:` is the drive's current folder, not its root).
+fn quote_left(a: &str) -> String {
+    match a.strip_suffix('"') {
+        Some(p) if p.ends_with(':') => format!("{p}\\"),
+        Some(p) => p.to_string(),
+        None => a.to_string(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
     fn version_matches_cargo() {
         assert_eq!(super::version(), env!("CARGO_PKG_VERSION"), "VERSION and Cargo.toml must match");
+    }
+
+    #[test]
+    fn quote_left_by_windows() {
+        use super::quote_left;
+        assert_eq!(quote_left(r#"C:\Photos""#), r"C:\Photos");
+        assert_eq!(quote_left(r#"D:""#), r"D:\");
+        assert_eq!(quote_left(r#"\\server\share""#), r"\\server\share");
+        assert_eq!(quote_left(r"C:\Photos\"), r"C:\Photos\");
+        assert_eq!(quote_left(r"C:\Photos"), r"C:\Photos");
     }
 }
