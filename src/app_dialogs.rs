@@ -37,8 +37,9 @@ impl App {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            // Wide enough for the eight tabs in every language (Italian is the longest).
-            .fixed_size([600.0, 330.0])
+            // Wide enough for the eight tabs in every language (Italian is the longest: 600 let
+            // Editor push the body past the title bar, 2026-11-11).
+            .fixed_size([640.0, 330.0])
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 // As tall as the longest tab (General), so changing tab does not resize the window.
@@ -264,12 +265,13 @@ fn browsing_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
 /// After saving (issue #95) and the main save button (issue #96).
 fn editor_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
     let t = |id| i18n.t(id);
-    ui.checkbox(&mut s.edit_back_to_grid, t("opt-edit-back")).on_hover_text(t("opt-edit-back-hint"));
-    ui.add_space(6.0);
+    // How to save first, then what happens after saving.
     let hint = t("opt-edit-main-hint");
     ui.label(t("opt-edit-main")).on_hover_text(&hint);
     ui.radio_value(&mut s.edit_main_overwrite, false, t("edit-save-copy")).on_hover_text(&hint);
     ui.radio_value(&mut s.edit_main_overwrite, true, t("opt-edit-main-overwrite")).on_hover_text(&hint);
+    ui.add_space(6.0);
+    ui.checkbox(&mut s.edit_back_to_grid, t("opt-edit-back")).on_hover_text(t("opt-edit-back-hint"));
 }
 
 fn deleting_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
