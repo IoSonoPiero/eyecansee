@@ -122,6 +122,8 @@ mod single;
 mod slideshow;
 mod source;
 mod theme;
+#[cfg(target_os = "linux")]
+mod system_theme;
 mod thumb_queue;
 mod thumbcache;
 mod toolbar;
@@ -432,6 +434,9 @@ struct App {
 
 impl eframe::App for App {
     fn raw_input_hook(&mut self, ctx: &egui::Context, raw_input: &mut egui::RawInput) {
+        // winit does not read the desktop's theme on Linux: the portal's (#100).
+        #[cfg(target_os = "linux")]
+        system_theme::fill(ctx, raw_input);
         #[cfg(feature = "shots")]
         self.shots_input(raw_input);
         // Asked for in a frame before: it comes as a paste some frames later (on Windows not in the
@@ -553,6 +558,9 @@ fn main() -> eframe::Result {
         // SAFETY: no other thread is running yet.
         unsafe { std::env::set_var("XDG_DATA_HOME", std::path::Path::new(&home).join(".local/share")) };
     }
+    // Read while the window is made, so the first frame already has the desktop's colours.
+    #[cfg(target_os = "linux")]
+    system_theme::start();
     let settings = Settings::load();
     engine::set_choice(settings.video_engine);
     // The window is matched to its .desktop file by this id (in Flatpak, the id of the app).

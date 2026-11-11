@@ -19,7 +19,7 @@ Ogni modifica viene salvata subito in `settings.json`: in `~/.config/eyecansee` 
 
 ## Aspetto
 
-- **Colori**: **Come il sistema** (su Windows chiari o scuri come il sistema; su Linux sempre scuri, vedi [Limiti noti](limits.md)), **Chiari** o **Scuri**. La modifica vale subito.
+- **Colori**: **Come il sistema** (chiari o scuri come il sistema, e lo seguono quando cambia), **Chiari** o **Scuri**. La modifica vale subito.
 
 ## Navigazione
 

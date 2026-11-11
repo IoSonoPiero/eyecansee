@@ -36,7 +36,3 @@ Che cosa EyeCanSee non fa ancora, o fa solo in parte. L'elenco aggiornato dei pr
 
 - **Modelli 3D**: c'è una sola luce e non si riflette nessun ambiente, quindi i metalli sembrano meno lucidi che nei programmi 3D. In OBJ, Collada, 3DS, 3MF, VRML e X3D si usano solo il colore di base e la sua immagine. I file glTF 1.0 e VRML 1.0 non si aprono. Le animazioni non vengono riprodotte: i modelli si vedono nella posa di riposo. I testi in VRML e X3D usano un carattere del sistema.
 - I **disegni CAD** si vedono dall'alto: i solidi 3D non vengono disegnati, le finestre mostrano il modello dall'alto e tagliato al loro rettangolo, i tratteggi troppo fitti per vederli appaiono come un riempimento chiaro, un tipo di linea troppo fine per l'ingrandimento attuale viene disegnato continuo, i testi di cui non si trova il carattere SHX usano un carattere del sistema, e un'immagine collegata al disegno il cui file non è accanto a lui appare come un riquadro con una croce.
-
-## Aspetto
-
-- Su Linux **Colori > Come il sistema** è sempre scuro: EyeCanSee non legge ancora il tema del desktop. Per i colori chiari scegli **Chiari** in **Opzioni > Aspetto**.
