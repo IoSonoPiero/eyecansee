@@ -748,6 +748,9 @@ edit-leave = Le modifiche a **{ $name }** non sono salvate.
 edit-leave-over = Le modifiche a **{ $name }** non sono salvate.
 
     { "**" }Salva** le scrive sopra l'originale, che va nel cestino; **Salva come…** un file nuovo dove scegli, **Non salvare** le perde.
+edit-leave-new = L'immagine nuova **{ $name }** non è ancora salvata.
+
+    { "**" }Salva** e **Salva come…** scelgono dove salvarla e in quale formato, **Non salvare** la perde.
 edit-temp-copy = Questa immagine è una copia temporanea che Windows ha fatto di un file del telefono o di un altro dispositivo: una copia accanto a lei potrebbe essere cancellata da Windows. Scegli dove salvarla.
 edit-remote-phone = L'immagine si modifica in una copia su questo computer: Salva manda il risultato al telefono.
 edit-remote-server = L'immagine si modifica in una copia su questo computer: Salva manda il risultato al server.

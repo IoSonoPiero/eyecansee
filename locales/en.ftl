@@ -749,6 +749,9 @@ edit-leave = The changes to **{ $name }** are not saved.
 edit-leave-over = The changes to **{ $name }** are not saved.
 
     { "**" }Save** writes them over the original, which goes to the trash; **Save as…** a new file where you choose, **Don't save** loses them.
+edit-leave-new = The new image **{ $name }** is not saved yet.
+
+    { "**" }Save** and **Save as…** choose where to save it and in which format, **Don't save** loses it.
 edit-temp-copy = This image is a temporary copy Windows made of a file of a phone or another device: a copy next to it could be deleted by Windows. Choose where to save it.
 edit-remote-phone = The image is edited in a copy on this computer: Save sends the result to the phone.
 edit-remote-server = The image is edited in a copy on this computer: Save sends the result to the server.

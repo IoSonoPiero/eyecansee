@@ -360,7 +360,8 @@ impl App {
                 ctx.request_repaint();
             }
         });
-        self.convert = Some(crate::convert::Window::new(w.path.clone()));
+        let path = w.path.clone();
+        self.convert = Some(if w.new { crate::convert::Window::for_new_image(path) } else { crate::convert::Window::new(path) });
         true
     }
 
@@ -393,8 +394,15 @@ impl App {
     /// in the Options, issue #96), Save as…, Don't save, or Cancel (stays open).
     fn rotate_leave(&mut self, ctx: &egui::Context, w: &mut Window) -> Option<Leave> {
         let i18n = &self.i18n;
-        // Save is the main save: it says it overwrites when that is the main button (issue #96).
-        let id = if self.main_overwrites(w) { "edit-leave-over" } else { "edit-leave" };
+        // Save is the main save: it says it overwrites when that is the main button (issue #96);
+        // for a new image it chooses where, as Save as… (issue #104).
+        let id = if w.new {
+            "edit-leave-new"
+        } else if self.main_overwrites(w) {
+            "edit-leave-over"
+        } else {
+            "edit-leave"
+        };
         let text = i18n.t_args(id, &[("name", &crate::save_dialogs::md(source::name(&w.path)))]);
         let choices = vec![(i18n.t("rc-save"), !w.preparing, Leave::Save), (i18n.t("menu-save-copy"), true, Leave::SaveAs), (i18n.t("rc-discard"), true, Leave::Discard)];
         // Esc: back to the page; Enter does nothing here (no choice is safe to guess).

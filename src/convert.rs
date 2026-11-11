@@ -41,7 +41,16 @@ pub struct Window {
 
 impl Window {
     pub fn new(path: String) -> Self {
-        let options = Options::default();
+        Self::with(path, Options::default())
+    }
+
+    /// For a new image from the editor (File > New image…): PNG, as the editor names it
+    /// (issue #104), not the JPEG proposed for a photo.
+    pub fn for_new_image(path: String) -> Self {
+        Self::with(path, Options { format: Format::Png, ..Options::default() })
+    }
+
+    fn with(path: String, options: Options) -> Self {
         let name = with_ext(crate::source::name(&path), options.format);
         Window {
             path,
@@ -599,5 +608,14 @@ mod tests {
             seen += 1;
         }
         assert!(seen > 0, "no Ultra HDR photo in {}", dir.display());
+    }
+
+    /// Issue #104: a new image is proposed as the PNG the editor names; a photo as a JPEG.
+    #[test]
+    fn new_image_proposed_as_png() {
+        let w = Window::for_new_image("p/New image.png".into());
+        assert_eq!((w.options.format, w.name.as_str()), (Format::Png, "New image.png"));
+        let w = Window::new("p/beach.webp".into());
+        assert_eq!((w.options.format, w.name.as_str()), (Format::Jpeg, "beach.jpg"));
     }
 }
