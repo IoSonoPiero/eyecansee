@@ -107,7 +107,9 @@ cd "$CARGO_TARGET_DIR"
 install -m 644 /src/assets/eyecansee.png "$APPDIR/eyecansee.png"
 # winit opens libxkbcommon-x11 at run time (dlopen) on X11, so linuxdeploy does not see it: without it the
 # app panics at start on systems that lack it (the AppImage catalog test, Ubuntu 22.04 with Xvfb).
+# libxkbcommon itself stays the system's: the 22.04 copy is older than the keyboard files of newer
+# systems (Kubuntu 26.04 printed "unrecognized keysym dead_hamza" from its Compose file).
 APPIMAGE_EXTRACT_AND_RUN=1 LINUXDEPLOY_OUTPUT_VERSION=$VER $LD --appdir "$APPDIR" \
-    -e $PROFILE/eyecansee -l /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0 -d /src/assets/eyecansee.desktop -i /src/assets/eyecansee.svg -i /src/assets/eyecansee.png --output appimage
+    -e $PROFILE/eyecansee -l /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0 --exclude-library 'libxkbcommon.so*' -d /src/assets/eyecansee.desktop -i /src/assets/eyecansee.svg -i /src/assets/eyecansee.png --output appimage
 chown "$(stat -c %u:%g /src)" EyeCanSee-*.AppImage
 ls -l EyeCanSee-*.AppImage
