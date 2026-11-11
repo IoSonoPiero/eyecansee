@@ -19,7 +19,7 @@ Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Li
 
 ## Look
 
-- **Colors**: **Same as the system** (light or dark as the system, and it follows it when it changes), **Light** or **Dark**. The change applies at once.
+- **Colors**: **Same as the system** (on Windows light or dark as the system; on Linux always dark, see [Known limits](limits.md)), **Light** or **Dark**. The change applies at once.
 
 ## Browsing
 

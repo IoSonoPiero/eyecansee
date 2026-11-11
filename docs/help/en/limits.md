@@ -36,3 +36,7 @@ What EyeCanSee does not do yet, or does only in part. The up-to-date list of kno
 
 - **3D models**: one light and no surroundings are reflected, so metals look less shiny than in 3D programs. In OBJ, Collada, 3DS, 3MF, VRML and X3D only the base colour and its picture are used. glTF 1.0 and VRML 1.0 files are not opened. Animations are not played: models show in their rest pose. Texts in VRML and X3D use a system font.
 - **CAD drawings** are seen from above: 3D solids are not drawn, viewports show the model from above and cut to their rectangle, hatches too dense to see show as a light fill, a line type too fine at the current zoom is drawn continuous, texts whose SHX font is not found use a system font, and a picture attached to the drawing whose file is not next to it shows as a frame with a cross.
+
+## Look
+
+- On Linux, **Colors > Same as the system** is always dark: EyeCanSee does not read the desktop's theme yet. Choose **Light** in **Options > Look** for light colors.
