@@ -1,6 +1,6 @@
 # Saving an edited image
 
-The editor never changes the original unless you ask. The main button, **Save copy**, writes a new file next to it.
+The editor never changes the original unless you ask. The main button, **Save copy**, writes a new file next to it. In the [Options](options.md), **Editor** tab, you can have the editor close after saving.
 
 ## Save copy
 
@@ -11,6 +11,8 @@ The editor never changes the original unless you ask. The main button, **Save co
 - Before writing, a window gives the copy's name and what it loses, if anything: encoded again with a little loss, 8 bits per colour instead of more, what is brighter than white. **Save** writes it; **Cancel** goes back.
 
 The original stays as it is. The page stays open, so you can go on. When you close it, the grid selects the copy and the viewer shows it.
+
+With **After saving, go back to the thumbnails** turned on in the Options (off at first), the page closes as soon as the file is written, and the grid selects the copy (the viewer shows it, if you opened the editor from the viewer). This goes for **Update copy** and **Overwrite the original…** too. A save that fails leaves the page open, as below.
 
 If a save fails, a yellow band with a warning triangle at the bottom of the window says why in plain words (for example that the folder is read-only or the disk is full), and the page stays open with your changes. Nothing half-written is left in the folder: a new copy that does not fit is removed, and a copy being updated stays as it was. The band goes away when you close the page, or earlier with its ✕.
 
@@ -27,7 +29,7 @@ The button is off when there is nothing new to save.
 The arrow ![More ways to save](icon://chevron-down) next to Save copy has two more:
 
 - ![Save as…](icon://file-output) **Save as…** (Ctrl+Shift+S): opens [Saving in another format](save-as.md) with the result, to choose the name, the format and the folder.
-- ![Overwrite the original…](icon://save) **Overwrite the original…**: writes the edited image over the original, after asking. The original goes to the trash, even when deleting for good is chosen in the [Options](options.md). If it cannot go to a trash, nothing is overwritten. The page stays open; a second Overwrite starts again from the original as it was opened and replaces what was written before, so only the true original is in the trash. See [Deleting and the trash](delete.md).
+- ![Overwrite the original…](icon://save) **Overwrite the original…**: writes the edited image over the original, after asking. The original goes to the trash, even when deleting for good is chosen in the [Options](options.md). If it cannot go to a trash, nothing is overwritten. The page stays open (unless going back to the thumbnails is turned on: then it closes and the grid keeps the image selected); a second Overwrite starts again from the original as it was opened and replaces what was written before, so only the true original is in the trash. See [Deleting and the trash](delete.md).
 
 Overwrite is off, and pointing at it says why, for a new image, for a format EyeCanSee does not write back (HEIC, RAW…), and in places where EyeCanSee never writes over a file (a folder opened through the file manager's gvfs link, a temporary copy made by Windows).
 

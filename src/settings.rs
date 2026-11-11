@@ -66,6 +66,9 @@ pub struct Settings {
     /// The highlighters remembered before it multiplied (at 40%, for a plain fill) are at full
     /// opacity: done once (2026-11-06).
     pub edit_multiply: bool,
+    /// After Save copy or Overwrite the editor closes: back to the thumbnails, the saved file
+    /// selected (issue #95).
+    pub edit_back_to_grid: bool,
     /// Bookmarks > places to go back to (`bookmarks.rs`), in the menu's order.
     pub bookmarks: Vec<crate::bookmarks::Bookmark>,
 }
@@ -209,6 +212,10 @@ impl Default for Settings {
             slideshow_loop: true,
             edit_styles: Vec::new(),
             edit_multiply: false,
+            // Off: Save copy and Overwrite leave the page open, as up to 0.76.0 (user, 2026-11-05
+            // and 2026-11-06); who updates does not find the editor closing without choosing it
+            // (user, 2026-11-11).
+            edit_back_to_grid: false,
             bookmarks: Vec::new(),
         }
     }
@@ -285,11 +292,27 @@ mod tests {
         assert_eq!(again.upgraded().edit_styles[0].1.opacity, 0.4);
     }
 
+    /// A settings.json written by 0.76.0 (no editor keys): the editor behaves as in 0.76.0, the
+    /// page open after saving (issue #95).
+    #[test]
+    fn settings_of_0_76_0_keep_the_editor_as_it_was() {
+        // Every key 0.76.0 wrote, not the one added after it.
+        let mut old = serde_json::to_value(Settings::default()).unwrap();
+        let keys = old.as_object_mut().unwrap();
+        keys.retain(|k, _| k != "edit_back_to_grid");
+        assert_eq!(keys.len(), 32, "the keys of 0.76.0's settings.json");
+        let s: Settings = serde_json::from_value(old).unwrap();
+        assert!(!s.edit_back_to_grid, "back to the grid: off unless chosen");
+        let back: Settings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
+        assert_eq!(back, s);
+    }
+
     #[test]
     fn missing_keys_get_defaults() {
         let s: Settings = serde_json::from_str(r#"{"thumb_cache_mb": 50}"#).unwrap();
         assert_eq!(s, Settings { thumb_cache_mb: 50, ..Settings::default() });
         assert!(s.close_to_grid, "the ✕ goes back to the grid unless turned off");
+        assert!(!s.edit_back_to_grid, "the editor: the page stays open after saving");
         let s: Settings = serde_json::from_str(r#"{"thumb_cache_mb": 50, "window_start": "maximized"}"#).unwrap();
         assert_eq!(s.window_start, WindowStart::Maximized);
         let back: Settings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();

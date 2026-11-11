@@ -196,6 +196,7 @@ enum OptTab {
     Deleting,
     Slideshow,
     Video,
+    Editor,
 }
 
 /// Images kept in memory around the one open in the viewer, on each side.

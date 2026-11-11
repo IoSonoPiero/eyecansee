@@ -1,10 +1,10 @@
 # Opzioni
 
-Le opzioni cambiano come EyeCanSee si avvia, il suo aspetto, come passa da un'immagine all'altra, come elimina, come mostra il carosello e come riproduce i video.
+Le opzioni cambiano come EyeCanSee si avvia, il suo aspetto, come passa da un'immagine all'altra, come elimina, come mostra il carosello, come riproduce i video e come salva l'editor.
 
 ## Aprire le opzioni
 
-Scegli **Strumenti > Opzioni…** (![Opzioni…](icon://settings)). La finestra è divisa in schede: **Generale**, **Aspetto**, **Navigazione**, **Miniature**, **Eliminazione**, **Carosello** e **Video**. Passando sopra molte opzioni compare una breve spiegazione.
+Scegli **Strumenti > Opzioni…** (![Opzioni…](icon://settings)). La finestra è divisa in schede: **Generale**, **Aspetto**, **Navigazione**, **Miniature**, **Eliminazione**, **Carosello**, **Video** e **Editor**. Passando sopra molte opzioni compare una breve spiegazione.
 
 Ogni modifica viene salvata subito in `settings.json`: in `~/.config/eyecansee` su Linux e in `%APPDATA%\eyecansee` su Windows. È un file di testo che puoi anche modificare a mano.
 
@@ -58,3 +58,9 @@ Vedi [Carosello](slideshow.md).
 - **Sempre quello scaricato**.
 
 La scheda mostra anche quali sono in uso adesso, con le loro versioni. Una modifica vale dal prossimo avvio di EyeCanSee. Vedi [Componenti aggiuntivi](components.md).
+
+## Editor
+
+- **Dopo il salvataggio, torna alle miniature** (spenta): dopo **Salva copia**, **Aggiorna copia** o **Sovrascrivi l'originale…** l'editor si chiude appena il file è scritto e la griglia seleziona l'immagine salvata. Spenta, l'editor resta aperto per continuare a modificare.
+
+Vedi [Salvare un'immagine modificata](editor-save.md).

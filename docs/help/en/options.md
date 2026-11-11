@@ -1,10 +1,10 @@
 # Options
 
-The options change how EyeCanSee starts, looks, moves between images, deletes, shows slideshows and plays videos.
+The options change how EyeCanSee starts, looks, moves between images, deletes, shows slideshows, plays videos and saves in the editor.
 
 ## Opening the options
 
-Choose **Tools > Options…** (![Options…](icon://settings)). The window is divided into tabs: **General**, **Look**, **Browsing**, **Thumbnails**, **Deleting**, **Slideshow** and **Video**. Pointing at many options shows a short explanation.
+Choose **Tools > Options…** (![Options…](icon://settings)). The window is divided into tabs: **General**, **Look**, **Browsing**, **Thumbnails**, **Deleting**, **Slideshow**, **Video** and **Editor**. Pointing at many options shows a short explanation.
 
 Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Linux and in `%APPDATA%\eyecansee` on Windows. It is a text file you can also edit by hand.
 
@@ -58,3 +58,9 @@ See [Slideshow](slideshow.md).
 - **Always the downloaded one**.
 
 The tab also shows which ones are in use now, with their versions. A change applies the next time EyeCanSee starts. See [Add-on components](components.md).
+
+## Editor
+
+- **After saving, go back to the thumbnails** (off): after **Save copy**, **Update copy** or **Overwrite the original…** the editor closes as soon as the file is written, and the grid selects the saved image. When off, the editor stays open to go on editing.
+
+See [Saving an edited image](editor-save.md).

@@ -22,6 +22,7 @@ impl App {
             (OptTab::Deleting, t("opt-tab-deleting")),
             (OptTab::Slideshow, t("opt-tab-slideshow")),
             (OptTab::Video, t("opt-tab-video")),
+            (OptTab::Editor, t("opt-tab-editor")),
         ];
         let mut purged = false;
         let (i18n, languages) = (&self.i18n, &self.languages);
@@ -36,7 +37,7 @@ impl App {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            // Wide enough for the seven tabs in every language (Italian is the longest).
+            // Wide enough for the eight tabs in every language (Italian is the longest).
             .fixed_size([600.0, 330.0])
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
@@ -56,6 +57,7 @@ impl App {
                     OptTab::Browsing => browsing_tab(ui, s, i18n),
                     OptTab::Deleting => deleting_tab(ui, s, i18n),
                     OptTab::Thumbnails => purged = thumbnails_tab(ui, s, i18n, confirm),
+                    OptTab::Editor => editor_tab(ui, s, i18n),
                 }
             });
         if !open {
@@ -257,6 +259,12 @@ fn browsing_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
         ui.label(t("opt-max-zoom")).on_hover_text(&max_zoom_hint);
         ui.add(egui::DragValue::new(&mut s.max_zoom).range(100..=10_000).speed(10).suffix("%")).on_hover_text(&max_zoom_hint);
     });
+}
+
+/// After saving (issue #95).
+fn editor_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
+    let t = |id| i18n.t(id);
+    ui.checkbox(&mut s.edit_back_to_grid, t("opt-edit-back")).on_hover_text(t("opt-edit-back-hint"));
 }
 
 fn deleting_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
