@@ -21,7 +21,7 @@ pub fn read(bytes: &[u8]) -> Option<RawMeta> {
     let src = RawSource::new_from_slice(bytes);
     let decoder = rawler::get_decoder(&src).ok()?;
     let params = RawDecodeParams::default();
-    let m = decoder.raw_metadata(&src, &params).ok()?;
+    let m = metadata(decoder.as_ref(), &src)?;
     // As `decode::raw`: the camera's own full-size picture when there is one, in the colour space
     // the camera was set to; otherwise developed by rawler, in sRGB. The picture is asked for only
     // when the camera says Adobe RGB (it is decoded once more just to know it is there).
@@ -62,9 +62,19 @@ pub fn read(bytes: &[u8]) -> Option<RawMeta> {
 /// cannot read the file (CR3, RAF, ORF, RW2, MRW).
 pub fn exif(bytes: &[u8]) -> Option<Vec<u8>> {
     let src = RawSource::new_from_slice(bytes);
-    let rawler = rawler::get_decoder(&src).ok().and_then(|d| d.raw_metadata(&src, &RawDecodeParams::default()).ok());
+    let rawler = rawler::get_decoder(&src).ok().and_then(|d| metadata(d.as_ref(), &src));
     let (fields, little) = merge(exif_fields(bytes), rawler.map(|m| (from_rawler(&m), true)))?;
     crate::meta::write_exif(&fields, little)
+}
+
+/// rawler's metadata of the file, never for a Sigma X3F: rawler 0.8.0 only reads the directory of
+/// an X3F, and its `raw_metadata` there is a `todo!()` that panics (the metadata panel of an X3F
+/// showed the panic instead of the fields `kamadak-exif` reads).
+pub(crate) fn metadata(decoder: &dyn rawler::decoders::Decoder, src: &RawSource) -> Option<rawler::decoders::RawMetadata> {
+    if decoder.format_hint() == rawler::decoders::FormatHint::X3F {
+        return None;
+    }
+    decoder.raw_metadata(src, &RawDecodeParams::default()).ok()
 }
 
 /// The XMP packet of a RAW file, wherever the maker put it (a TIFF tag, a CR3 box, the JPEG of a
@@ -524,6 +534,17 @@ mod tests {
         let mut half = seen[1].clone();
         crate::transform::Turn::default().then(crate::transform::Op::Cw).then(crate::transform::Op::Cw).apply(&mut half);
         assert_eq!(half.to_rgb8().get_pixel(100, 100), seen[0].to_rgb8().get_pixel(100, 100));
+    }
+
+    /// The smallest file rawler takes for a Sigma X3F: the "FOVb" mark and an empty directory.
+    /// Its metadata was a `todo!()` in rawler 0.8.0 that panicked (#7).
+    #[test]
+    fn x3f_metadata() {
+        let x3f = [&b"FOVb\0\0\0\0SECd"[..], &0x0002_0000u32.to_le_bytes(), &0u32.to_le_bytes(), &8u32.to_le_bytes()].concat();
+        assert!(rawler::get_decoder(&RawSource::new_from_slice(&x3f)).is_ok());
+        assert!(exif(&x3f).is_none());
+        assert!(read(&x3f).is_none());
+        assert!(crate::meta::read_file(&x3f, "a.x3f").is_none());
     }
 
     #[test]
