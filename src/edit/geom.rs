@@ -474,7 +474,7 @@ mod curves {
         use crate::edit::doc::{Pixels, Preview};
         let a = Area { centre: Pt::new(0.0, 0.0), w: 4.0, h: 4.0, rot: 0.0 };
         let pixels = Pixels::new(image::RgbaImage::new(2, 2));
-        let mut old = Obj { shape: Shape::Highlight { area: a, preview: Preview(Some((a, 1.0, pixels.clone()))) }, style: Style::default() };
+        let mut old = Obj { shape: Shape::Highlight { area: a, preview: Preview(Some((a, 1, pixels.clone()))) }, style: Style::default() };
         let new = drawn(Kind::Highlight, Pt::new(0.0, 0.0), Pt::new(9.0, 9.0), 0.0, Style::default(), false).unwrap();
         let Shape::Highlight { preview, .. } = redrawn(&mut old, new).shape else { unreachable!() };
         assert!(preview.0.is_some_and(|(_, _, p)| p == pixels));

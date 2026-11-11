@@ -617,7 +617,7 @@ pub(crate) mod tests {
     fn highlighter() {
         let a = Area { rot: 90.0, ..area(0.0, 0.0, 40.0, 10.0) };
         let pixels = crate::edit::doc::Pixels::new(image::RgbaImage::from_pixel(4, 1, image::Rgba([255, 230, 0, 255])));
-        let d = doc(vec![Obj { shape: Shape::Highlight { area: a, preview: crate::edit::doc::Preview(Some((a, 0.0, pixels))) }, style: Style { opacity: 0.5, ..Style::highlighter() } }]);
+        let d = doc(vec![Obj { shape: Shape::Highlight { area: a, preview: crate::edit::doc::Preview(Some((a, 0, pixels))) }, style: Style { opacity: 0.5, ..Style::highlighter() } }]);
         let p = draw(&d, &whole(&d));
         // Turned upright: 10 wide (x 45 to 55), 40 high (y 20 to 60).
         let c = p.pixel(50, 40).unwrap().demultiply();
@@ -751,7 +751,7 @@ pub(crate) mod tests {
     fn lens_cut_round() {
         let pixels = crate::edit::doc::Pixels::new(image::RgbaImage::from_pixel(4, 4, image::Rgba([0, 0, 255, 255])));
         let a = area(0.0, 0.0, 40.0, 40.0);
-        let preview = crate::edit::doc::Preview(Some((a, 2.0, pixels)));
+        let preview = crate::edit::doc::Preview(Some((a, 2, pixels)));
         let d = doc(vec![Obj { shape: Shape::Lens { area: a, preview }, style: Style { width: 2.0, round: true, ..style() } }]);
         let p = draw(&d, &whole(&d));
         let c = |x, y| { let c = p.pixel(x, y).unwrap().demultiply(); [c.red(), c.green(), c.blue(), c.alpha()] };

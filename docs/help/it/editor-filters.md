@@ -28,5 +28,6 @@ Un filtro sta sotto gli oggetti che disegni, quindi un clic lo prende solo dove 
 ## Da sapere
 
 - Sullo schermo vedi un'anteprima. Nel file salvato il filtro è applicato a piena grandezza.
+- Dove i filtri si sovrappongono, ognuno lavora sul risultato di quelli aggiunti prima. Un evidenziatore lavora sul risultato di tutti i filtri. Lo schermo lo mostra come nel file salvato.
 - Sfoca e Pixel grossi non bastano per nascondere testi o numeri privati: con poca intensità si leggono, o si possono ricostruire. La barra lo ricorda. Per quelli usa [Copertura](editor-cover.md).
 - In una foto Ultra HDR, Sfoca e Pixel grossi nascondono anche la parte HDR che hanno sotto.

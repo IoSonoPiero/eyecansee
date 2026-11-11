@@ -102,11 +102,12 @@ pub enum Shape {
     Filter { area: Area, filter: crate::edit::filter::Filter, amount: f32, preview: Preview },
 }
 
-/// The preview of a filter: its pixels, at a smaller size, and the box and amount they were made
-/// for. Not part of what the document is: two documents that differ only here are the same, for
-/// the history and for saving (which filters the photo at full size).
+/// The preview of a filter: its pixels, at a smaller size, and the box and the key they were made
+/// for (its amount or colour and what was under it: `photo::refresh_layers`; a lens's zoom). Not
+/// part of what the document is: two documents that differ only here are the same, for the
+/// history and for saving (which filters the photo at full size).
 #[derive(Clone, Debug, Default)]
-pub struct Preview(pub Option<(Area, f32, Pixels)>);
+pub struct Preview(pub Option<(Area, u64, Pixels)>);
 
 impl PartialEq for Preview {
     fn eq(&self, _: &Preview) -> bool {
@@ -502,12 +503,8 @@ impl Doc {
 
     /// The pixels of the photo `img` (upright, as read) under the box `a`, one per pixel of the
     /// box, along its own sides; transparent where the box goes past the photo. The objects
-    /// drawn are not in them. At most 8000 pixels a side.
-    pub fn pixels_under(&self, img: &image::DynamicImage, a: &Area) -> image::RgbaImage {
-        self.pixels_under_at(img, a, 1.0)
-    }
-
-    /// `pixels_under` at `scale` pixels per pixel of the box (a filter's preview).
+    /// drawn are not in them. At most 8000 pixels a side. At `scale` pixels per pixel of the box
+    /// (smaller for a filter's preview).
     pub fn pixels_under_at(&self, img: &image::DynamicImage, a: &Area, scale: f32) -> image::RgbaImage {
         use image::GenericImageView;
         let (w, h) = ((a.w * scale).round().clamp(1.0, 8000.0) as u32, (a.h * scale).round().clamp(1.0, 8000.0) as u32);
@@ -748,7 +745,7 @@ pub(crate) mod tests {
     fn pixels_blended() {
         let img = DynamicImage::ImageRgb8(RgbImage::from_fn(8, 2, |x, _| image::Rgb([if x % 2 == 0 { 0 } else { 255 }; 3])));
         let d = Doc::new(8, 2, None);
-        let out = d.pixels_under(&img, &Area { centre: Pt::new(0.5, 0.0), w: 2.0, h: 2.0, rot: 0.0 });
+        let out = d.pixels_under_at(&img, &Area { centre: Pt::new(0.5, 0.0), w: 2.0, h: 2.0, rot: 0.0 }, 1.0);
         let v = out.get_pixel(0, 0)[0];
         assert!((100..=155).contains(&v), "{v}");
     }
@@ -761,12 +758,12 @@ pub(crate) mod tests {
         let quarter = img.crop_imm(0, 0, 4, 3).to_rgba8();
         let mut d = Doc::new(8, 6, None);
         let a = Area { centre: Pt::new(-2.0, -1.5), w: 4.0, h: 3.0, rot: 0.0 };
-        assert_eq!(d.pixels_under(&img, &a), quarter);
+        assert_eq!(d.pixels_under_at(&img, &a, 1.0), quarter);
         d.turned(Op::Cw);
         let turned = Area { centre: Pt::new(-2.0, -1.5), w: 4.0, h: 3.0, rot: 0.0 }.turned(Op::Cw);
-        assert_eq!(d.pixels_under(&img, &turned), image::imageops::rotate90(&quarter));
+        assert_eq!(d.pixels_under_at(&img, &turned, 1.0), image::imageops::rotate90(&quarter));
         // Past the photo: transparent.
-        let out = d.pixels_under(&img, &Area { centre: Pt::new(20.0, 0.0), w: 2.0, h: 2.0, rot: 0.0 });
+        let out = d.pixels_under_at(&img, &Area { centre: Pt::new(20.0, 0.0), w: 2.0, h: 2.0, rot: 0.0 }, 1.0);
         assert!(out.pixels().all(|p| p[3] == 0));
     }
 }

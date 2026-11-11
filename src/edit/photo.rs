@@ -8,10 +8,119 @@ use image::{DynamicImage, RgbaImage, imageops};
 
 use resvg::usvg;
 
-use super::doc::{Area, Doc, Obj, Pt, Shape};
+use super::doc::{Area, Doc, Obj, Pixels, Preview, Pt, Shape};
 
 /// A filter's pixels over its box (at any size), for a lens over it.
 pub type Filtered<'a> = (Area, &'a RgbaImage);
+
+/// A highlighter on the pixels under it: its box and what it multiplies each colour by
+/// (`highlight_factor`).
+pub type Mark = (Area, [f32; 3]);
+
+/// The previews of the filters and the highlighters made again where missing, made for another
+/// box, amount or colour, less sharp than `side` (the longest side it is to have) asks, or made
+/// over something else. In the order the saved file applies them (`edit::save::paint`): the
+/// filters in theirs, each over the filters before it, then the highlighters, each over all the
+/// filters and the highlighters before it; so where they overlap the screen shows what the file
+/// has (issue #58). Returns how many were made.
+pub fn refresh_layers(doc: &mut Doc, photo: &DynamicImage, side: impl Fn(&Shape) -> f32) -> usize {
+    let filters = (0..doc.objects.len()).filter(|&i| matches!(doc.objects[i].shape, Shape::Filter { .. }));
+    let marks = (0..doc.objects.len()).filter(|&i| matches!(doc.objects[i].shape, Shape::Highlight { .. }));
+    let order: Vec<usize> = filters.chain(marks).collect();
+    let mut made = 0;
+    for i in order {
+        let o = &doc.objects[i];
+        let (Shape::Filter { area, preview, .. } | Shape::Highlight { area, preview }) = &o.shape else { continue };
+        let area = *area;
+        let scale = (side(&o.shape) / area.w.max(area.h)).min(1.0);
+        let (filtered, marks, under) = beneath(doc, i);
+        let key = own_key(o, under);
+        // Made for this box and key, and as sharp as it is to be now.
+        let sharp = |p: &Pixels| p.image().width() + 1 >= (area.w * scale).round() as u32;
+        if preview.0.as_ref().is_some_and(|(a, k, p)| *a == area && *k == key && sharp(p)) {
+            continue;
+        }
+        let mut part = doc.pixels_under_at(photo, &area, scale);
+        on_photo(&mut part, &area, &filtered, &marks);
+        let pixels = match &o.shape {
+            Shape::Filter { filter, amount, .. } => super::filter::apply(&DynamicImage::ImageRgba8(part), *filter, *amount, scale).to_rgba8(),
+            _ => {
+                highlighted(&mut part, o.style.color);
+                part
+            }
+        };
+        if let Some(p) = doc.objects[i].shape.preview_mut() {
+            *p = Preview(Some((area, key, Pixels::new(pixels))));
+        }
+        made += 1;
+    }
+    made
+}
+
+/// What the saved file has already put on the photo where the filter or highlighter `i` goes:
+/// for a filter the filters before it, for a highlighter all the filters and the highlighters
+/// before it; only those whose box reaches `i`'s. The filters as their previews (each made over
+/// those before it). With a key that changes when any of it does.
+fn beneath(doc: &Doc, i: usize) -> (Vec<Filtered<'_>>, Vec<Mark>, u64) {
+    let mut h = std::hash::DefaultHasher::new();
+    let (mut filtered, mut marks) = (Vec::new(), Vec::new());
+    let Some(me) = doc.objects[i].shape.area() else { return (filtered, marks, 0) };
+    let mark = matches!(doc.objects[i].shape, Shape::Highlight { .. });
+    for (j, o) in doc.objects.iter().enumerate() {
+        let before = j < i;
+        match &o.shape {
+            Shape::Filter { area, preview, .. } if (before || mark) && reaches(area, me) => {
+                hash_area(&mut h, area);
+                if let Some((_, key, p)) = &preview.0 {
+                    (key, p.image().dimensions()).hash(&mut h);
+                    filtered.push((*area, p.image()));
+                }
+            }
+            Shape::Highlight { area, .. } if before && mark && reaches(area, me) => {
+                let f = highlight_factor(o.style.color, o.style.opacity);
+                hash_area(&mut h, area);
+                f.map(f32::to_bits).hash(&mut h);
+                marks.push((*area, f));
+            }
+            _ => {}
+        }
+    }
+    (filtered, marks, h.finish())
+}
+
+/// The key of a filter's or highlighter's preview: its own amount or colour, and `under`.
+fn own_key(o: &Obj, under: u64) -> u64 {
+    let mut h = std::hash::DefaultHasher::new();
+    match &o.shape {
+        Shape::Filter { filter, amount, .. } => (*filter, amount.to_bits()).hash(&mut h),
+        _ => o.style.color.hash(&mut h),
+    }
+    under.hash(&mut h);
+    h.finish()
+}
+
+fn hash_area(h: &mut impl Hasher, a: &Area) {
+    [a.centre.x, a.centre.y, a.w, a.h, a.rot].map(f32::to_bits).hash(h);
+}
+
+/// Whether the boxes `a` and `b` may overlap (their circles do).
+fn reaches(a: &Area, b: &Area) -> bool {
+    let d = (a.centre.x - b.centre.x).hypot(a.centre.y - b.centre.y);
+    d <= (a.w.hypot(a.h) + b.w.hypot(b.h)) / 2.0
+}
+
+/// The highlighters of `doc`, as they multiply the pixels under them.
+fn all_marks(doc: &Doc) -> Vec<Mark> {
+    doc.objects.iter().filter_map(|o| if let Shape::Highlight { area, .. } = o.shape { Some((area, highlight_factor(o.style.color, o.style.opacity))) } else { None }).collect()
+}
+
+/// The photo under `area` at `scale` with the filters `filtered` on it, in their order (each over
+/// those before it): what a filter of the saved file is applied to.
+pub fn under(doc: &Doc, photo: &DynamicImage, area: &Area, scale: f32, filtered: &[Filtered]) -> RgbaImage {
+    let mut part = doc.pixels_under_at(photo, area, scale);
+    on_photo(&mut part, area, filtered, &[]);
+    part
+}
 
 /// What a lens over `area` shows: the photo under a box `zoom` times smaller around the same
 /// centre, stretched smoothly to the size of the lens, at most `max` pixels a side; with the
@@ -25,7 +134,8 @@ pub fn lens(doc: &Doc, photo: &DynamicImage, area: &Area, (zoom, max): (f32, u32
     let (w, h) = (((area.w * k).round() as u32).max(1), ((area.h * k).round() as u32).max(1));
     // Read at the size it is shown, never more than a pixel for a pixel of the photo.
     let mut part = doc.pixels_under_at(photo, &small, (k * zoom).min(1.0));
-    on_photo(doc, &mut part, &small, filtered, objects.is_some());
+    let marks = if objects.is_some() { all_marks(doc) } else { Vec::new() };
+    on_photo(&mut part, &small, filtered, &marks);
     let mut part = imageops::resize(&part, w, h, imageops::FilterType::Triangle);
     if let Some((before, options)) = objects
         && let Some(drawn) = super::render::local(before, &small, (w, h), options)
@@ -46,15 +156,10 @@ fn points(part: &RgbaImage, a: &Area) -> impl Fn(u32, u32) -> Pt + use<> {
     }
 }
 
-/// The filters on `part` (a pixel of a filter's box takes the filter's pixel there), and with
-/// `highlights` the highlighters multiplied in.
-fn on_photo(doc: &Doc, part: &mut RgbaImage, a: &Area, filtered: &[Filtered], highlights: bool) {
-    let marks: Vec<(Area, [f32; 3])> = doc
-        .objects
-        .iter()
-        .filter(|_| highlights)
-        .filter_map(|o| if let Shape::Highlight { area, .. } = o.shape { Some((area, highlight_factor(o.style.color, o.style.opacity))) } else { None })
-        .collect();
+/// The filters on `part`, the box `a` of the document (a pixel of a filter's box takes the
+/// filter's pixel there, the last one's where they overlap), then the highlighters `marks`
+/// multiplied in.
+fn on_photo(part: &mut RgbaImage, a: &Area, filtered: &[Filtered], marks: &[Mark]) {
     if marks.is_empty() && filtered.is_empty() {
         return;
     }
@@ -67,7 +172,7 @@ fn on_photo(doc: &Doc, part: &mut RgbaImage, a: &Area, filtered: &[Filtered], hi
                 *px = *pixels.get_pixel(((fx * fw as f32 / box_.w) as u32).min(fw - 1), ((fy * fh as f32 / box_.h) as u32).min(fh - 1));
             }
         }
-        for (box_, f) in &marks {
+        for (box_, f) in marks {
             if local(box_, p, 0.0).is_some() {
                 for k in 0..3 {
                     px[k] = (px[k] as f32 * f[k]).round() as u8;
@@ -117,8 +222,8 @@ fn local(a: &Area, p: Pt, tol: f32) -> Option<(f32, f32)> {
 }
 
 /// What a lens's picture depends on besides its box and zoom: the cover boxes and the filters
-/// (with whether their preview is made), and all the objects for a lens that shows them. When it changes, the previews of the lenses are made
-/// again.
+/// (with the key of their preview), and all the objects for a lens that shows them. When it
+/// changes, the previews of the lenses are made again.
 pub fn hiders_key(doc: &Doc) -> u64 {
     let mut h = std::hash::DefaultHasher::new();
     // A lens with the objects: any of them (but the lenses, whose previews these are).
@@ -130,7 +235,10 @@ pub fn hiders_key(doc: &Doc) -> u64 {
     for o in &doc.objects {
         let (area, more) = match &o.shape {
             Shape::Cover(a) => (a, [o.style.color[0] as f32, o.style.color[1] as f32, o.style.color[2] as f32, 0.0]),
-            Shape::Filter { area, filter, amount, preview } => (area, [*filter as u8 as f32, *amount, preview.0.is_some() as u8 as f32, 1.0]),
+            Shape::Filter { area, filter, amount, preview } => {
+                preview.0.as_ref().map(|(_, k, _)| *k).hash(&mut h);
+                (area, [*filter as u8 as f32, *amount, 0.0, 1.0])
+            }
             _ => continue,
         };
         for v in [area.centre.x, area.centre.y, area.w, area.h, area.rot].into_iter().chain(more) {
@@ -157,11 +265,6 @@ pub fn highlighted(pixels: &mut RgbaImage, colour: [u8; 3]) {
     }
 }
 
-/// The colour as one number, exact in an `f32`: what a highlighter's preview was made for.
-pub fn colour_key([r, g, b]: [u8; 3]) -> f32 {
-    (r as u32 * 65536 + g as u32 * 256 + b as u32) as f32
-}
-
 #[cfg(test)]
 mod tests {
     use image::{Rgb, RgbImage};
@@ -180,6 +283,29 @@ mod tests {
         highlighted(&mut px, [255, 230, 0]);
         assert_eq!((px.get_pixel(0, 0).0, px.get_pixel(1, 0).0, px.get_pixel(2, 0).0), ([0, 0, 0, 200], [255, 230, 0, 200], [128, 115, 0, 200]));
         assert_eq!(highlight_factor([255, 0, 128], 0.5), [1.0, 0.5, 0.5 + 0.5 * 128.0 / 255.0]);
+    }
+
+    /// A filter or highlighter's preview is made again when what is under it changes (a filter
+    /// before it moved), and only then: one away from the others stays as it was.
+    #[test]
+    fn layers_made_again_when_under_changes() {
+        use crate::edit::doc::{Obj, Style};
+        let photo = DynamicImage::ImageRgb8(RgbImage::from_pixel(60, 40, Rgb([200; 3])));
+        let mut doc = Doc::new(60, 40, None);
+        let area = |x| Area { centre: Pt::new(x, 0.0), w: 10.0, h: 10.0, rot: 0.0 };
+        let filter = |x| Obj { shape: Shape::Filter { area: area(x), filter: crate::edit::filter::Filter::Gray, amount: 0.0, preview: Default::default() }, style: Style::default() };
+        doc.objects = vec![filter(-4.0), Obj { shape: Shape::Highlight { area: area(0.0), preview: Default::default() }, style: Style::highlighter() }, filter(24.0)];
+        assert_eq!(refresh_layers(&mut doc, &photo, |_| 100.0), 3);
+        if let Some(a) = doc.objects[0].shape.area_mut() {
+            a.centre.x = -2.0;
+        }
+        assert_eq!(refresh_layers(&mut doc, &photo, |_| 100.0), 2, "the filter moved and the highlighter over it");
+        doc.objects[1].style.opacity = 0.5;
+        assert_eq!(refresh_layers(&mut doc, &photo, |_| 100.0), 0, "its own opacity is the drawing's");
+        if let Some(a) = doc.objects[2].shape.area_mut() {
+            a.centre.x = 22.0;
+        }
+        assert_eq!(refresh_layers(&mut doc, &photo, |_| 100.0), 1, "away from the others");
     }
 
     /// A lens over a cover box shows the box, also where only its edge is in view; over a filter

@@ -637,3 +637,37 @@ fn jpeg_quality_kept() {
         assert_eq!(of(&out.data), Some((q, chroma)), "{q} {chroma:?}");
     }
 }
+
+/// Issue #58: where filters and a highlighter overlap, the screen (the photo, with the previews
+/// made by `photo::refresh_layers` drawn over it by `render`) is the saved file: each filter over
+/// those before it, the highlighter over all of them, whatever their order in the list.
+#[test]
+fn preview_is_the_file() {
+    use crate::edit::filter::Filter;
+    let photo = motif();
+    let mut doc = Doc::new(64, 48, None);
+    let area = |x, w| Area { centre: Pt::new(x, 0.0), w, h: 20.0, rot: 0.0 };
+    let filter = |x, w, filter, amount| obj(Shape::Filter { area: area(x, w), filter, amount, preview: Default::default() }, Style::default());
+    doc.objects = vec![
+        filter(-8.0, 24.0, Filter::Gray, 0.0),
+        obj(Shape::Highlight { area: area(6.0, 24.0), preview: Default::default() }, Style { opacity: 0.6, ..Style::highlighter() }),
+        filter(0.0, 16.0, Filter::Brightness, 40.0),
+    ];
+    // At full size, as the file.
+    assert_eq!(crate::edit::photo::refresh_layers(&mut doc, &photo, |_| 8000.0), 3);
+    assert_eq!(crate::edit::photo::refresh_layers(&mut doc, &photo, |_| 8000.0), 0, "made once");
+    let mut screen = photo.clone();
+    doc.edit().apply(&mut screen);
+    let drawn = render::render(&doc, (64, 48), &View { x: 0.0, y: 0.0, w: 64, h: 48, scale: 1.0 }, &options()).unwrap();
+    over(&mut screen, &drawn, 0, 0, false);
+    let file = result(&doc, &Original::with_meta(photo.clone(), &[]), &options());
+    let (screen, file) = (screen.to_rgba8(), file.to_rgba8());
+    for (x, y, a) in screen.enumerate_pixels() {
+        let b = file.get_pixel(x, y);
+        assert!(a.0.iter().zip(b.0).all(|(a, b)| a.abs_diff(b) <= 2), "at {x},{y}: screen {a:?}, file {b:?}");
+    }
+    // Where the three overlap the file is not the highlighter on the photo alone.
+    let alone = |c: u8, k: usize| (c as f32 * crate::edit::photo::highlight_factor([255, 230, 0], 0.6)[k]).round() as u8;
+    let (p, f) = (photo.get_pixel(30, 24), file.get_pixel(30, 24));
+    assert!((0..3).any(|k| alone(p[k], k).abs_diff(f[k]) > 20), "{p:?} {f:?}");
+}

@@ -28,5 +28,6 @@ A filter lies under the objects you draw, so a click picks it only where no othe
 ## Good to know
 
 - On the screen you see a preview. In the saved file the filter is applied at full size.
+- Where filters overlap, each works on the result of those added before it. A highlighter works on the result of all the filters. The screen shows it as the saved file has it.
 - Blur and Pixelate are not enough to hide private text or numbers: at a low amount they can be read, or worked back. The bar reminds you. For those use [Cover](editor-cover.md).
 - On an Ultra HDR photo, Blur and Pixelate also hide the HDR part under them.

@@ -259,16 +259,17 @@ fn full_size(doc: &Doc, photo: &DynamicImage, i: usize, options: &usvg::Options)
     match &o.shape {
         Shape::Lens { area, .. } => {
             let zoom = o.style.zoom.max(1) as f32;
-            let filters: Vec<(Area, image::RgbaImage)> = doc
-                .objects
-                .iter()
-                .filter_map(|f| if let Shape::Filter { area, filter, amount, .. } = &f.shape { Some((*area, *filter, *amount)) } else { None })
-                .map(|(a, f, amount)| (a, super::filter::apply(&DynamicImage::ImageRgba8(doc.pixels_under(photo, &a)), f, amount, 1.0).to_rgba8()))
-                .collect();
+            // Each filter over those before it, as the file has them.
+            let mut filters: Vec<(Area, image::RgbaImage)> = Vec::new();
+            for (a, f, amount) in doc.objects.iter().filter_map(|f| if let Shape::Filter { area, filter, amount, .. } = &f.shape { Some((*area, *filter, *amount)) } else { None }) {
+                let filtered: Vec<super::photo::Filtered> = filters.iter().map(|(a, p)| (*a, p)).collect();
+                let part = super::photo::under(doc, photo, &a, 1.0, &filtered);
+                filters.push((a, super::filter::apply(&DynamicImage::ImageRgba8(part), f, amount, 1.0).to_rgba8()));
+            }
             let filtered: Vec<super::photo::Filtered> = filters.iter().map(|(a, p)| (*a, p)).collect();
             let before = o.style.with_objects.then_some((&doc.objects[..i], options));
             let pixels = Pixels::new(super::photo::lens(doc, photo, area, (zoom, 8000), &filtered, before));
-            Obj { shape: Shape::Lens { area: *area, preview: Preview(Some((*area, zoom, pixels))) }, style: o.style }
+            Obj { shape: Shape::Lens { area: *area, preview: Preview(Some((*area, zoom.to_bits() as u64, pixels))) }, style: o.style }
         }
         _ => o.clone(),
     }
