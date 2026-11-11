@@ -551,9 +551,16 @@ impl Phone {
     /// file already there (seen on the POCO X7 Pro on Windows, 2026-11-04; Android's bug, mtp-rs #59,
     /// refused with `AlreadyExists` since 0.37.3). So whenever the name is taken there the copy is
     /// made in a hidden folder next to it and moved in with its new name.
+    /// Replacing an item: the copy is made under the hidden name of a "Save" (`save_names`) and
+    /// takes the item's place only once whole (`put_in_place`): until then the item stays, and a
+    /// copy that fails leaves it as it was (issue #91; it was deleted first up to 0.76.1).
     pub async fn copy_inside(&self, path: &str, dest: &str) -> Result<(), Error> {
         if self.taken(dest).await? {
-            self.delete(dest).await?;
+            // `Store::recover`, at a listing meanwhile, would delete the new file next to its item.
+            source::SAVING.lock().unwrap().insert(dest.to_string());
+            let r = self.copy_over(path, dest).await;
+            source::SAVING.lock().unwrap().remove(dest);
+            return r;
         }
         let dir = source::parent(dest);
         let name = source::name(path).to_lowercase();
@@ -566,6 +573,23 @@ impl Phone {
             self.handles.lock().unwrap().insert(dest.to_string(), h);
             return Ok(());
         }
+        self.copy_aside(path, dest).await
+    }
+
+    /// `path` copied over the item `dest`: whole under its hidden name first, then in its place.
+    async fn copy_over(&self, path: &str, dest: &str) -> Result<(), Error> {
+        let new = source::save_names(dest).0;
+        // Left by a copy or a save cut short, next to its item: never the whole one.
+        if self.taken(&new).await? {
+            self.delete(&new).await?;
+        }
+        self.copy_aside(path, &new).await?;
+        self.put_in_place(&new, dest).await
+    }
+
+    /// `path` copied in the hidden folder next to `dest` and moved in as `dest`, a free name.
+    async fn copy_aside(&self, path: &str, dest: &str) -> Result<(), Error> {
+        let dir = source::parent(dest);
         // Left over from a copy broken off: what is in it is ours, and a copy is found there by name.
         let tmp = format!("{dir}{COPY_DIR}/");
         if self.taken(&tmp).await? {
@@ -876,6 +900,68 @@ mod tests {
                 let copy = kept.iter().find(|o| o.1 == "a (2).jpg").expect("the copy next to it");
                 assert_eq!(content(copy.0).await.unwrap(), data);
                 assert!(!kept.iter().any(|o| o.1 == COPY_DIR), "hidden folder left behind");
+            };
+            let r = futures_util::FutureExt::catch_unwind(std::panic::AssertUnwindSafe(check)).await;
+            phone.delete(&dir).await.unwrap();
+            if let Err(e) = r {
+                std::panic::resume_unwind(e);
+            }
+        });
+    }
+
+    /// Issue #91, Ctrl+C and Ctrl+V with Replace on a real phone: over a file of its own folder,
+    /// over one in a subfolder and over itself, the replaced file gets the copy's content and no
+    /// hidden name or folder is left; a copy that fails (its source gone) leaves the file it would
+    /// have replaced as it was. "Keep both" in its own folder too, through the hidden folder. Works in a new folder `Download/EyeCanSee-replace/` of the first
+    /// storage, deleted at the end:
+    /// `EYECANSEE_MTP=<serial> cargo test --release mtp_copy_replace_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn mtp_copy_replace_live() {
+        let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let phone = Phone::new(&serial);
+            let root = phone.list("").await.unwrap();
+            let dir = format!("{}Download/EyeCanSee-replace/", root.dirs[0]);
+            assert!(!phone.taken(&dir).await.unwrap(), "{dir} already exists");
+            phone.create_dir(&dir).await.unwrap();
+            phone.create_dir(&format!("{dir}sub/")).await.unwrap();
+            let file = |seed: u32, len: u32| (0..len).map(|i| (i * seed % 251) as u8).collect::<Vec<u8>>();
+            let (a, b, c) = (file(7, 100_000), file(13, 300_000), file(17, 50_000));
+            for (name, data) in [("a.jpg", &a), ("b.jpg", &b), ("sub/a.jpg", &c)] {
+                phone.upload(&format!("{dir}{name}"), data.len() as u64, futures_util::stream::iter([Ok(Bytes::from(data.clone()))])).await.unwrap();
+            }
+            let src = format!("{dir}a.jpg");
+            // Not a replace: "Keep both" in its own folder, through the hidden folder.
+            let both = phone.copy_inside(&src, &format!("{dir}a (2).jpg")).await;
+            println!("keep both: {both:?}");
+            let same = phone.copy_inside(&src, &format!("{dir}b.jpg")).await;
+            println!("over b.jpg: {same:?}");
+            let below = phone.copy_inside(&src, &format!("{dir}sub/a.jpg")).await;
+            println!("over sub/a.jpg: {below:?}");
+            let itself = phone.copy_inside(&src, &src).await;
+            println!("over itself: {itself:?}");
+            let failed = phone.copy_inside(&format!("{dir}missing.jpg"), &format!("{dir}b.jpg")).await;
+            println!("from a missing file: {failed:?}");
+            let after = objects(&phone, &dir).await;
+            let sub = objects(&phone, &format!("{dir}sub/")).await;
+            println!("after: {after:?}\nsub: {sub:?}");
+            let (storage, _) = phone.locate(&dir).await.unwrap();
+            let content = |list: &[(ObjectHandle, String, u64)], name: &str| {
+                let h = list.iter().find(|o| o.1 == name).unwrap_or_else(|| panic!("{name} missing")).0;
+                storage.download_to_vec(h)
+            };
+            let check = async {
+                assert!(both.is_ok() && same.is_ok() && below.is_ok() && itself.is_ok(), "copies failed");
+                assert!(failed.is_err(), "a copy from a missing file");
+                let mut names: Vec<&str> = after.iter().map(|o| o.1.as_str()).collect();
+                names.sort();
+                assert_eq!(names, ["a (2).jpg", "a.jpg", "b.jpg", "sub"], "one file per name, nothing hidden left");
+                assert_eq!(sub.iter().map(|o| o.1.as_str()).collect::<Vec<_>>(), ["a.jpg"]);
+                assert_eq!(content(&after, "a.jpg").await.unwrap(), a);
+                assert_eq!(content(&after, "a (2).jpg").await.unwrap(), a);
+                assert_eq!(content(&after, "b.jpg").await.unwrap(), a, "b.jpg replaced, and kept by the failed copy");
+                assert_eq!(content(&sub, "a.jpg").await.unwrap(), a);
             };
             let r = futures_util::FutureExt::catch_unwind(std::panic::AssertUnwindSafe(check)).await;
             phone.delete(&dir).await.unwrap();
