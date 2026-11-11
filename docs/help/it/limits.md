@@ -9,6 +9,9 @@ Che cosa EyeCanSee non fa ancora, o fa solo in parte. L'elenco aggiornato dei pr
 - EyeCanSee non sa salvare file HEIC o JPEG XL: vedi [Formati supportati](formats.md).
 - Le foto RAW convertite non tengono la maker note, i dati propri del produttore della fotocamera.
 - Su Windows i file JNG non si aprono: li blocca la politica di sicurezza di ImageMagick che arriva con il programma.
+- I file Sigma X3F (sensori Foveon) non si aprono.
+- I file della Phase One P40+ si aprono a piena risoluzione solo dove ImageMagick sa leggerli (il pacchetto per Fedora); nell'AppImage e nel Flatpak si vede la loro anteprima piccola.
+- I file della Sony DSC-F828 (SRF) si aprono con una forte dominante ciano: la fotocamera ha un sensore a quattro colori.
 
 ## Navigare
 
