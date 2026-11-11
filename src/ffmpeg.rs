@@ -436,6 +436,17 @@ pub fn program() -> Option<PathBuf> {
     }
 }
 
+/// The `ffmpeg` for the jobs that copy the streams as they are, decoding and encoding nothing
+/// ("Same as the original", `audio_job`): `program`, else with "Automatic" the system's that only
+/// lacks the phones' decoders (`engine::pick_copy`).
+pub fn copier() -> Option<PathBuf> {
+    let fit = system().map(System::fit);
+    match crate::engine::pick_copy(crate::engine::choice(), fit.as_ref(), downloaded().is_some())? {
+        crate::engine::Source::System => system().map(|s| s.path.clone()),
+        crate::engine::Source::Downloaded => downloaded(),
+    }
+}
+
 /// For the conversion page and the Options.
 pub fn status() -> crate::engine::Status {
     let version = || crate::component::FFMPEG.map(|c| c.version.to_string()).unwrap_or_default();
@@ -480,6 +491,31 @@ static PROBING: AtomicBool = AtomicBool::new(false);
 /// The result of `start_probe`, once there.
 pub fn probed() -> Option<&'static Probe> {
     PROBE.get()
+}
+
+static COPY_PROBE: OnceLock<Probe> = OnceLock::new();
+static COPY_PROBING: AtomicBool = AtomicBool::new(false);
+
+/// What copies the streams ("Same as the original"): the probe of `start_probe` when there is
+/// one, else that of `start_copy_probe`.
+pub fn copy_probed() -> Option<&'static Probe> {
+    probed().or_else(|| COPY_PROBE.get())
+}
+
+/// With no `program` but a `copier`: its audio encoders read in the background (`args` keeps the
+/// sound by them), no video encoder tried; `done` when ready.
+pub fn start_copy_probe(done: impl Fn() + Send + 'static) {
+    if COPY_PROBE.get().is_some() || COPY_PROBING.swap(true, Ordering::Relaxed) {
+        return;
+    }
+    let Some(program) = copier() else {
+        COPY_PROBING.store(false, Ordering::Relaxed);
+        return;
+    };
+    std::thread::spawn(move || {
+        let _ = COPY_PROBE.set(Probe { audio: audio_encoders(&program), program, ..Default::default() });
+        done();
+    });
 }
 
 /// Tries every encoder in the background (a second or two, once per session); `done` when ready.

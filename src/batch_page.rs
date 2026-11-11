@@ -138,7 +138,7 @@ impl Form {
     fn why_not(&self) -> Option<&'static str> {
         let name = self.sub_name.trim();
         let media = match self.audio {
-            Some(_) => crate::ffmpeg::probed().is_none().then_some("batch-audio-not-ready"),
+            Some(_) => crate::ffmpeg::copier().is_none().then_some("batch-audio-not-ready"),
             None if self.images && self.job().does_nothing() => Some("batch-nothing"),
             None if self.videos && self.job().video.is_none() => Some("batch-video-not-ready"),
             None => None,

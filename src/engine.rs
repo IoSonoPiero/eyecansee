@@ -92,6 +92,13 @@ pub fn pick(choice: EngineChoice, system: Option<bool>, downloaded: bool) -> Opt
     }
 }
 
+/// `pick` for a job that copies the streams without decoding or encoding them (`-c copy`):
+/// "Automatic" also takes a system's FFmpeg that only lacks the phones' decoders, when the one of
+/// `pick` is missing (Piero, 2026-11-12: the download is asked only to decode or encode).
+pub fn pick_copy(choice: EngineChoice, system: Option<&Fit>, downloaded: bool) -> Option<Source> {
+    pick(choice, system.map(|f| *f == Fit::Yes), downloaded).or_else(|| pick(choice, system.map(|f| *f != Fit::TooOld), downloaded))
+}
+
 /// `pick` and the reason when it picks nothing. `system`: whether it fits and the version found.
 /// `version`: that of the one picked.
 pub fn status(choice: EngineChoice, system: Option<(Fit, String)>, downloaded: bool, required: &'static str, version: impl Fn(Source) -> String) -> Status {
@@ -150,6 +157,24 @@ mod tests {
         // The download only.
         assert_eq!(pick(Downloaded, Some(true), true), Some(Source::Downloaded));
         assert_eq!(pick(Downloaded, Some(true), false), None);
+    }
+
+    #[test]
+    fn which_one_to_copy() {
+        let lacks = Fit::Lacks("H.264, HEVC".into());
+        // Automatic: without the phones' decoders the system's still copies, the download first if there.
+        assert_eq!(pick_copy(SystemIfRecent, Some(&lacks), false), Some(Source::System));
+        assert_eq!(pick_copy(SystemIfRecent, Some(&lacks), true), Some(Source::Downloaded));
+        assert_eq!(pick_copy(SystemIfRecent, Some(&Fit::Yes), true), Some(Source::System));
+        // Too old copies nothing; none at all neither.
+        assert_eq!(pick_copy(SystemIfRecent, Some(&Fit::TooOld), false), None);
+        assert_eq!(pick_copy(SystemIfRecent, Some(&Fit::TooOld), true), Some(Source::Downloaded));
+        assert_eq!(pick_copy(SystemIfRecent, None, false), None);
+        // The other two choices as `pick`.
+        assert_eq!(pick_copy(System, Some(&Fit::TooOld), true), Some(Source::System));
+        assert_eq!(pick_copy(System, None, true), None);
+        assert_eq!(pick_copy(Downloaded, Some(&lacks), false), None);
+        assert_eq!(pick_copy(Downloaded, Some(&Fit::Yes), true), Some(Source::Downloaded));
     }
 
     #[test]

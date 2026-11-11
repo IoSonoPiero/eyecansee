@@ -26,40 +26,49 @@ pub(crate) struct VideoForm {
     pub(crate) download: Option<Arc<crate::component::Download>>,
 }
 
-/// The audio jobs: FFmpeg ready, and what the job does; nothing else to choose.
+/// The audio jobs: FFmpeg ready, and what the job does; nothing else to choose. They copy the
+/// streams: an FFmpeg without the phones' decoders does them too (`ffmpeg::copier`), no encoder
+/// to try.
 pub(crate) fn audio_rows(ui: &mut egui::Ui, v: &mut VideoForm, job: AudioJob, i18n: &I18n) {
-    if ffmpeg_ready(ui, v, i18n).is_some() {
-        ui.label(i18n.t(match job {
-            AudioJob::Strip => "batch-strip-hint",
-            AudioJob::Extract => "batch-extract-hint",
-        }));
+    if crate::ffmpeg::copier().is_none() {
+        ffmpeg_download(ui, v, i18n);
+        return;
     }
+    ui.label(i18n.t(match job {
+        AudioJob::Strip => "batch-strip-hint",
+        AudioJob::Extract => "batch-extract-hint",
+    }));
 }
 
 /// FFmpeg found and its encoders tried: downloaded first where there is none, a spinner while
-/// it is tried.
-fn ffmpeg_ready(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) -> Option<&'static crate::ffmpeg::Probe> {
-    if crate::ffmpeg::program().is_none() {
+/// it is tried. With only a `copier` (an FFmpeg without the phones' decoders), the probe for the
+/// copied streams and `true`: the other codecs ask for the download when chosen.
+fn ffmpeg_ready(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) -> Option<(&'static crate::ffmpeg::Probe, bool)> {
+    let ctx = ui.ctx().clone();
+    let (probe, copy_only) = if crate::ffmpeg::program().is_some() {
+        crate::ffmpeg::start_probe(move || ctx.request_repaint());
+        (crate::ffmpeg::probed(), false)
+    } else if crate::ffmpeg::copier().is_some() {
+        crate::ffmpeg::start_copy_probe(move || ctx.request_repaint());
+        (crate::ffmpeg::copy_probed(), true)
+    } else {
         ffmpeg_download(ui, v, i18n);
         return None;
-    }
-    let ctx = ui.ctx().clone();
-    crate::ffmpeg::start_probe(move || ctx.request_repaint());
-    let probe = crate::ffmpeg::probed();
+    };
     if probe.is_none() {
         ui.horizontal(|ui| {
             ui.spinner();
             ui.label(i18n.t("batch-video-checking"));
         });
     }
-    probe
+    probe.map(|p| (p, copy_only))
 }
 
 /// Container, codec, encoder (only those that work here), quality, sound and metadata; FFmpeg
 /// downloaded first where there is none.
 pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     let t = |id| i18n.t(id);
-    let Some(probe) = ffmpeg_ready(ui, v, i18n) else { return };
+    let Some((probe, copy_only)) = ffmpeg_ready(ui, v, i18n) else { return };
     if crate::ffmpeg::download_better(v.download.is_some()) {
         better_download(ui, v, i18n);
     }
@@ -69,13 +78,15 @@ pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
         }
     });
     let c = &CONTAINERS[v.container];
-    if !c.codecs.contains(&v.codec) || probe.of(v.codec).is_empty() {
-        v.codec = c.codecs.iter().copied().find(|k| !probe.of(*k).is_empty()).unwrap_or(c.codecs[0]);
+    // With only a copier the codecs that encode stay open: choosing one offers the download.
+    let usable = |k: Codec| copy_only || !probe.of(k).is_empty();
+    if !c.codecs.contains(&v.codec) || !usable(v.codec) {
+        v.codec = c.codecs.iter().copied().find(|k| usable(*k)).unwrap_or(c.codecs[0]);
     }
     let label = |k: Codec| if k == Codec::Copy { t("batch-video-copy") } else { k.label().to_string() };
     egui::ComboBox::from_label(t("batch-video-codec")).selected_text(label(v.codec)).show_ui(ui, |ui| {
         for &k in c.codecs {
-            let usable = !probe.of(k).is_empty();
+            let usable = usable(k);
             let label = if usable { label(k) } else { i18n.t_args("batch-video-unavailable", &[("codec", k.label())]) };
             ui.add_enabled_ui(usable, |ui| ui.selectable_value(&mut v.codec, k, label));
         }
@@ -84,7 +95,11 @@ pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     let encoders = probe.of(v.codec);
     if encoders.is_empty() {
         v.encoder = None;
-        ui.label(crate::browser::error_text(ui, t("batch-video-none")));
+        if copy_only {
+            ffmpeg_download(ui, v, i18n);
+        } else {
+            ui.label(crate::browser::error_text(ui, t("batch-video-none")));
+        }
         return;
     }
     if !v.encoder.is_some_and(|e| encoders.contains(&e)) {

@@ -10,7 +10,7 @@ Alcune parti di EyeCanSee sono grandi e non servono a tutti, quindi non sono nel
 | FFmpeg | Convertire i video | Nella finestra Converti e ridimensiona, quando sul computer non c'è un FFmpeg utilizzabile |
 | Motore CAD (Open CASCADE) | Aprire i modelli STEP, IGES e BREP | Quando la cartella aperta contiene uno di questi file |
 
-Su Linux EyeCanSee usa libmpv e FFmpeg del sistema quando sono abbastanza recenti (libmpv 1.109, cioè mpv 0.33, e FFmpeg 4.3 o più recenti); lo scaricamento viene proposto solo se mancano o sono troppo vecchi, oppure se non sanno riprodurre H.264 e HEVC, i formati in cui registrano i telefoni (per esempio i pacchetti di Fedora non hanno nessuno dei due).
+Su Linux EyeCanSee usa libmpv e FFmpeg del sistema quando sono abbastanza recenti (libmpv 1.109, cioè mpv 0.33, e FFmpeg 4.3 o più recenti); lo scaricamento viene proposto solo se mancano o sono troppo vecchi, oppure se non sanno riprodurre H.264 e HEVC, i formati in cui registrano i telefoni (per esempio i pacchetti di Fedora non hanno nessuno dei due). Un FFmpeg così copia comunque video e audio così come sono, senza scaricamento.
 
 ## Scaricarne uno
 

@@ -11,7 +11,7 @@ Seleziona i video nella griglia (si possono selezionare anche immagini) e scegli
 I video li converte FFmpeg.
 
 - Se sul computer c'è FFmpeg 4.3 o più recente, EyeCanSee usa quello. Altrimenti la finestra propone **Scarica FFmpeg**, con il suo peso: si scarica una volta sola nella cartella dei dati dell'app e viene controllato prima dell'uso (vedi [Componenti aggiuntivi](components.md)).
-- Se l'FFmpeg del computer è troppo vecchio, la finestra dice quale versione ha trovato. Lo stesso quando non sa leggere H.264 e HEVC, i formati in cui registrano i telefoni (per esempio l'FFmpeg di Fedora), con la scelta Automatica in **Opzioni > Video**.
+- Se l'FFmpeg del computer è troppo vecchio, la finestra dice quale versione ha trovato. Lo stesso quando non sa leggere H.264 e HEVC, i formati in cui registrano i telefoni (per esempio l'FFmpeg di Fedora), con la scelta Automatica in **Opzioni > Video**. Quell'FFmpeg si usa comunque per ciò che copia i flussi così come sono, senza leggerli: **Uguale all'originale**, **Copia con i metadati**, **Copia senza audio** e **Salva l'audio in un file**; lo scaricamento viene proposto solo quando scegli un codec che converte.
 - La prima volta EyeCanSee controlla quali codificatori funzionano su questo computer ("Controllo quali codificatori funzionano su questo computer…") e poi mostra solo quelli.
 - Quando l'FFmpeg del computer lascia al processore una parte del lavoro della scheda video, e in **Opzioni > Video** è scelto Automatica, la finestra lo dice e propone di scaricare quello di EyeCanSee, usato dall'avvio successivo.
 

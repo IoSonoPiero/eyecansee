@@ -11,7 +11,7 @@ Select the videos in the grid (pictures can be selected too) and choose ![Conver
 Videos are converted by FFmpeg.
 
 - If the computer has FFmpeg 4.3 or later, EyeCanSee uses it. Otherwise the window offers **Download FFmpeg**, with its size: it is downloaded once into the app's data folder and checked before use (see [Add-on components](components.md)).
-- If the computer's FFmpeg is too old, the window says which version it found. The same when it cannot read H.264 and HEVC, the formats phones record in (Fedora's own FFmpeg, for example), with the Automatic choice in **Options > Video**.
+- If the computer's FFmpeg is too old, the window says which version it found. The same when it cannot read H.264 and HEVC, the formats phones record in (Fedora's own FFmpeg, for example), with the Automatic choice in **Options > Video**. That FFmpeg is still used for what copies the streams as they are, without reading them: **Same as the original**, **Copy with the metadata**, **Copy without sound** and **Save the sound as a file**; the download is offered only when you choose a codec that converts.
 - The first time, EyeCanSee checks which encoders work on this computer ("Checking which encoders work on this computer…") and then shows only those.
 - When the computer's FFmpeg leaves part of the graphics card's work to the processor, and the choice in **Options > Video** is Automatic, the window says so and offers to download EyeCanSee's own, used from the next start.
 

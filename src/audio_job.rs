@@ -124,9 +124,8 @@ fn tracks(program: &Path, input: &Path) -> Result<Vec<String>, String> {
 pub async fn run(op: &Store, (base, path): (&str, &str), out: &Store, dest: &str, job: AudioJob, taken: &mut HashSet<String>, p: &Arc<Progress>) -> Result<Vec<String>, source::Error> {
     let name = source::name(path).to_string();
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
-    if crate::ffmpeg::probed().is_none() {
-        return Err((SKIP_VIDEO, name));
-    }
+    // Copied streams: an FFmpeg without the phones' decoders does it too (`ffmpeg::copier`).
+    let Some(program) = crate::ffmpeg::copier() else { return Err((SKIP_VIDEO, name)) };
     let temp = |what: &str, n: &str| std::env::temp_dir().join(format!("eyecansee-{what}-{}-{n}", std::process::id()));
     let remote_in = op.local_file(path).is_none();
     let remote_out = out.local_file(&format!("{dest}{name}")).is_none();
@@ -141,7 +140,7 @@ pub async fn run(op: &Store, (base, path): (&str, &str), out: &Store, dest: &str
     };
     // The same pictures without the audio: the original's thumbnail, not a frame made again.
     let thumb = (job == AudioJob::Strip).then(|| crate::thumbcache::stored(base, path)).flatten();
-    let r = write(&input.0, out, dest, job, taken, &phases, (remote_in as u32, temp, thumb)).await.map_err(|e| e.unwrap_or_else(failed));
+    let r = write((&program, &input.0), out, dest, job, taken, &phases, (remote_in as u32, temp, thumb)).await.map_err(|e| e.unwrap_or_else(failed));
     if input.1 {
         let _ = std::fs::remove_file(&input.0);
     }
@@ -151,7 +150,7 @@ pub async fn run(op: &Store, (base, path): (&str, &str), out: &Store, dest: &str
 /// The work of `run` once the video is a local file. `Err(Ok)`: an error with its Fluent id,
 /// `Err(Err)`: what ffmpeg or the copy said.
 async fn write(
-    input: &Path,
+    (program, input): (&Path, &Path),
     out: &Store,
     dest: &str,
     job: AudioJob,
@@ -160,9 +159,9 @@ async fn write(
     (first, temp, thumb): (u32, impl Fn(&str, &str) -> PathBuf, Option<(u64, Vec<u8>)>),
 ) -> Result<Vec<String>, Result<source::Error, String>> {
     let name = input.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let probe = crate::ffmpeg::probed().ok_or(Err(String::new()))?;
-    let (program, file) = (probe.program.clone(), input.to_path_buf());
-    let codecs = tokio::task::spawn_blocking(move || tracks(&program, &file)).await.unwrap_or_else(|e| Err(e.to_string())).map_err(Err)?;
+    let (program, file) = (program.to_path_buf(), input.to_path_buf());
+    let p = program.clone();
+    let codecs = tokio::task::spawn_blocking(move || tracks(&p, &file)).await.unwrap_or_else(|e| Err(e.to_string())).map_err(Err)?;
     if codecs.is_empty() {
         return Err(Ok((NO_AUDIO, name)));
     }
@@ -175,7 +174,7 @@ async fn write(
     let input = input.to_string_lossy().into_owned();
     let attempt = |args: Vec<String>| {
         log!("ffmpeg {args:?}");
-        let (program, ph) = (probe.program.clone(), phases.clone());
+        let (program, ph) = (program.clone(), phases.clone());
         async move { tokio::task::spawn_blocking(move || crate::ffmpeg::run(&program, &args, |f| ph.set(first, f), &ph.p.cancel)).await.unwrap_or_else(|e| Err(e.to_string())) }
     };
     let mut r = match job {
@@ -258,9 +257,51 @@ mod tests {
         assert!(a.ends_with("-i in.mkv -vn -map 0:a:0 -c:a copy -map_metadata 0 -movflags +use_metadata_tags a.m4a -vn -map 0:a:1 -c:a copy -map_metadata 0 b.opus"), "{a}");
     }
 
+    /// The jobs that copy the streams (both audio jobs and "Same as the original") on
+    /// `EYECANSEE_VIDEO`, a phone's H.264 or HEVC video with sound, with the FFmpeg of `copier`
+    /// and no probe of the encoders. Where the system's FFmpeg has no H.264 and HEVC decoders
+    /// (Fedora's ffmpeg-free, issue #67) they work without the download:
+    /// `EYECANSEE_VIDEO=… cargo test copy_jobs_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn copy_jobs_live() {
+        let video = std::env::var("EYECANSEE_VIDEO").expect("EYECANSEE_VIDEO: a phone's video");
+        println!("program {:?}, copier {:?}", crate::ffmpeg::program(), crate::ffmpeg::copier());
+        crate::ffmpeg::copier().expect("no FFmpeg that copies");
+        crate::ffmpeg::start_copy_probe(|| {});
+        while crate::ffmpeg::copy_probed().is_none() {
+            std::thread::sleep(std::time::Duration::from_millis(100));
+        }
+        let dir = std::env::temp_dir().join(format!("eyecansee-copy-jobs-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::copy(&video, dir.join("v.mp4")).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let same = crate::ffmpeg::Video { container: 0, encoder: "copy", quality: crate::ffmpeg::Quality::Medium, audio: true, meta: true };
+        let jobs = [
+            ("strip/", crate::batch::Job { audio: Some(AudioJob::Strip), ..Default::default() }),
+            ("extract/", crate::batch::Job { audio: Some(AudioJob::Extract), ..Default::default() }),
+            ("same/", crate::batch::Job { video: Some(same), ..Default::default() }),
+        ];
+        for (sub, job) in jobs {
+            let p = Arc::new(Progress::default());
+            let dest = crate::batch::Dest { op: op.clone(), dir: sub.into(), create: true };
+            rt.block_on(crate::batch::run(&op, vec!["v.mp4".into()], dest, job, p.clone()));
+            println!("{sub}: saved {:?}, failed {:?}", p.saved.lock().unwrap(), p.failed.lock().unwrap());
+            assert!(p.failed.lock().unwrap().is_empty() && !p.saved.lock().unwrap().is_empty(), "{sub}");
+        }
+        let strip = about(&dir.join("strip").join("v.mp4"));
+        assert!(audio_codecs(&strip).is_empty() && strip.contains("Video:"), "{strip}");
+        let same = about(&dir.join("same").join("v.mp4"));
+        assert!(!audio_codecs(&same).is_empty() && same.contains("Video:"), "{same}");
+        let extracted = std::fs::read_dir(dir.join("extract")).unwrap().count();
+        assert!(extracted > 0);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
     /// What `ffmpeg -i` says of a file: its streams and tags.
     fn about(file: &Path) -> String {
-        let program = crate::ffmpeg::probed().unwrap().program.clone();
+        let program = crate::ffmpeg::copier().unwrap();
         let out = crate::ffmpeg::command(&program).args(["-hide_banner", "-i"]).arg(file).output().unwrap();
         String::from_utf8_lossy(&out.stderr).into_owned()
     }
@@ -273,12 +314,13 @@ mod tests {
     #[test]
     #[ignore]
     fn audio_jobs_live() {
+        // The clips are made by the FFmpeg that encodes, the jobs run with `copier`.
         crate::ffmpeg::start_probe(|| {});
         while crate::ffmpeg::probed().is_none() {
             std::thread::sleep(std::time::Duration::from_millis(100));
         }
         let program = crate::ffmpeg::probed().unwrap().program.clone();
-        println!("{program:?}");
+        println!("{program:?}, copies with {:?}", crate::ffmpeg::copier());
         let dir = std::env::temp_dir().join(format!("eyecansee-audio-jobs-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("s.srt"), "1\n00:00:00,000 --> 00:00:00,800\nCiao\n").unwrap();

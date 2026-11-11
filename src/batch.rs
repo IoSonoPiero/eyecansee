@@ -284,7 +284,9 @@ impl Drop for Writing {
 async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc<Progress>) -> Result<(), source::Error> {
     let name = source::name(path).to_string();
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
-    let (Some(v), Some(probe)) = (job.video.clone(), crate::ffmpeg::probed()) else { return Err((SKIP_VIDEO, name)) };
+    // Copied streams: an FFmpeg without the phones' decoders does it too (`ffmpeg::copier`).
+    let probe = job.video.as_ref().and_then(|v| if v.encoder == "copy" { crate::ffmpeg::copy_probed() } else { crate::ffmpeg::probed() });
+    let (Some(v), Some(probe)) = (job.video.clone(), probe) else { return Err((SKIP_VIDEO, name)) };
     let temp = |what: &str| std::env::temp_dir().join(format!("eyecansee-{what}-{}-{}", std::process::id(), source::name(to)));
     // Download, ffmpeg and upload share the video's bar in equal parts.
     // ponytail: equal parts, not by time: a "copy" conversion jumps through its third.
