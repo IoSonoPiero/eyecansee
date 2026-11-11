@@ -584,6 +584,8 @@ mod tests {
     /// Issue #91: in a folder opened through gvfs a paste never replaces. A file answered
     /// "Replace", or one whose name came after the question, is kept both; a folder is not merged
     /// but kept both; a move on the same device too. Elsewhere Replace stays.
+    // gvfs mounts are Linux's; the mount's name has a ':' no Windows path may hold.
+    #[cfg(unix)]
     #[test]
     fn gvfs_paste_never_replaces() {
         let rt = tokio::runtime::Runtime::new().unwrap();
