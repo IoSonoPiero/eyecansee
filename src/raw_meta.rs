@@ -196,8 +196,76 @@ fn dng_shape(ifd: &rawler::formats::tiff::IFD) -> Option<([usize; 2], bool)> {
 /// The EXIF orientation of a RAW file as the file holds it, for `decode::raw` when rawler gives
 /// none.
 pub fn orientation(bytes: &[u8]) -> Option<u16> {
-    let (fields, _) = exif_fields(bytes)?;
-    fields.iter().find(|f| f.tag == Tag::Orientation)?.value.get_uint(0).and_then(|o| u16::try_from(o).ok())
+    let exif = exif_fields(bytes).and_then(|(fields, _)| fields.iter().find(|f| f.tag == Tag::Orientation)?.value.get_uint(0).and_then(|o| u16::try_from(o).ok()));
+    exif.or_else(|| ciff_orientation(bytes))
+}
+
+/// Records read at most in a CIFF file: its sub-heaps could point at each other.
+const CIFF_RECORDS: usize = 4096;
+
+/// The rotation of a Canon CRW (CIFF) file as an EXIF orientation (#8): old Canon cameras (EOS
+/// 300D, D30, D60, 10D…) write it only in their own records, which rawler does not read.
+/// ImageInfo, record 0x1810 (in the ImageProps sub-heap 0x300a), is 32-bit: width, height,
+/// pixel aspect ratio, then Rotation as int32s (ExifTool, https://exiftool.org/TagNames/CanonRaw.html
+/// and https://exiftool.org/canon_raw.html for the heaps), in degrees: dcraw 1.478 (`parse_ciff`
+/// and the `(flip+3600) % 360` switch) makes 90 its flip 6, 180 flip 3, 270 flip 5, which its
+/// Orientation table ("50132467") gives for EXIF 6, 3 and 8. A file not trusted: every offset
+/// checked, sub-heaps 8 deep and `CIFF_RECORDS` records at most.
+pub fn ciff_orientation(b: &[u8]) -> Option<u16> {
+    let little = match b.get(..2)? {
+        b"II" => true,
+        b"MM" => false,
+        _ => return None,
+    };
+    if b.get(6..14)? != b"HEAPCCDR" {
+        return None;
+    }
+    let root = ciff_u32(b, 2, little)? as usize;
+    let mut budget = CIFF_RECORDS;
+    let rotation = ciff_rotation(b.get(root..)?, little, 0, &mut budget)?;
+    match rotation.rem_euclid(360) {
+        90 => Some(6),
+        180 => Some(3),
+        270 => Some(8),
+        _ => None,
+    }
+}
+
+/// Rotation in the heap `heap` or in one of its sub-heaps: the last 4 bytes give where its table
+/// starts, a count of records of 10 bytes (type, size, offset in the heap). Bits 14-15 of the
+/// type say where the data is (0: in the heap), bits 11-13 its format (0x2800 and 0x3000: a
+/// sub-heap), the rest which record it is.
+fn ciff_rotation(heap: &[u8], little: bool, depth: u32, budget: &mut usize) -> Option<i32> {
+    let table = ciff_u32(heap, heap.len().checked_sub(4)?, little)? as usize;
+    let count = ciff_u16(heap, table, little)? as usize;
+    for i in 0..count {
+        *budget = budget.checked_sub(1)?;
+        let at = table.checked_add(2 + 10 * i)?;
+        let (kind, size, offset) = (ciff_u16(heap, at, little)?, ciff_u32(heap, at + 2, little)? as usize, ciff_u32(heap, at + 6, little)? as usize);
+        if kind & 0xC000 != 0 {
+            continue;
+        }
+        let Some(data) = offset.checked_add(size).and_then(|end| heap.get(offset..end)) else { continue };
+        let found = match kind & 0x3800 {
+            0x2800 | 0x3000 if depth < 8 => ciff_rotation(data, little, depth + 1, budget),
+            _ if kind == 0x1810 && data.len() >= 16 => ciff_u32(data, 12, little).map(|r| r as i32),
+            _ => None,
+        };
+        if found.is_some() {
+            return found;
+        }
+    }
+    None
+}
+
+fn ciff_u16(b: &[u8], at: usize, little: bool) -> Option<u16> {
+    let v: [u8; 2] = b.get(at..at.checked_add(2)?)?.try_into().ok()?;
+    Some(if little { u16::from_le_bytes(v) } else { u16::from_be_bytes(v) })
+}
+
+fn ciff_u32(b: &[u8], at: usize, little: bool) -> Option<u32> {
+    let v: [u8; 4] = b.get(at..at.checked_add(4)?)?.try_into().ok()?;
+    Some(if little { u32::from_le_bytes(v) } else { u32::from_be_bytes(v) })
 }
 
 /// The fields of `a`, then those of `b` that `a` does not have.
@@ -364,6 +432,98 @@ mod tests {
         let (fields, _) = exif_fields(&mrw).unwrap();
         assert!(fields.iter().any(|f| f.tag == Tag::Make));
         assert_eq!(orientation(&mrw), Some(6));
+    }
+
+    /// A CIFF heap: `data` then the table of `records` (type, size, offset), its offset last.
+    fn heap(data: &[u8], records: &[(u16, u32, u32)]) -> Vec<u8> {
+        let mut h = data.to_vec();
+        h.extend_from_slice(&(records.len() as u16).to_le_bytes());
+        for &(kind, size, offset) in records {
+            h.extend_from_slice(&[kind.to_le_bytes().as_slice(), &size.to_le_bytes(), &offset.to_le_bytes()].concat());
+        }
+        h.extend_from_slice(&(data.len() as u32).to_le_bytes());
+        h
+    }
+
+    /// A CRW as the EOS 300D writes it: ImageInfo (0x1810) with `rotation` in the ImageProps
+    /// sub-heap (0x300a), after a record whose data is in the record itself.
+    fn crw(rotation: i32) -> Vec<u8> {
+        let info: Vec<u8> = [3072u32, 2048, 1.0f32.to_bits(), rotation as u32, 8, 24, 257].iter().flat_map(|v| v.to_le_bytes()).collect();
+        let props = heap(&info, &[(0x5803, 0x20001, 0x4120_0000), (0x1810, 28, 0)]);
+        ciff(&heap(&props, &[(0x300a, props.len() as u32, 0)]))
+    }
+
+    /// A CIFF file of 26 bytes of header (order, its length, signature, version, 8 reserved)
+    /// and the root heap.
+    fn ciff(root: &[u8]) -> Vec<u8> {
+        [&b"II"[..], &26u32.to_le_bytes(), b"HEAPCCDR", &[2, 0, 1, 0], &[0; 8], root].concat()
+    }
+
+    /// The rotation of a CRW (#8) in degrees, as dcraw reads it: 90 → EXIF 6, 180 → 3, 270 (or
+    /// -90) → 8, none for 0.
+    #[test]
+    fn crw_rotation() {
+        for (degrees, exif) in [(0, None), (90, Some(6)), (180, Some(3)), (270, Some(8)), (-90, Some(8))] {
+            assert_eq!(orientation(&crw(degrees)), exif, "{degrees}");
+        }
+    }
+
+    /// A CRW not to be trusted: cut anywhere, no panic and no other rotation (cut right after
+    /// ImageProps, that is a whole heap of its own); with a heap holding itself, it stops at once.
+    #[test]
+    fn crw_damaged() {
+        let file = crw(90);
+        for end in 0..file.len() {
+            assert!(matches!(ciff_orientation(&file[..end]), None | Some(6)), "cut at {end}");
+        }
+        // 50 records, each a sub-heap that is the heap itself: 50^8 without a limit.
+        let looped = heap(&[], &[(0x300a, 2 + 10 * 50 + 4, 0); 50]);
+        let started = std::time::Instant::now();
+        assert_eq!(ciff_orientation(&ciff(&looped)), None);
+        assert!(started.elapsed().as_secs() < 1);
+        // Offsets past the end, a table past the end.
+        let mut far = crw(90);
+        let n = far.len();
+        far[n - 4..].copy_from_slice(&u32::MAX.to_le_bytes());
+        assert_eq!(ciff_orientation(&far), None);
+    }
+
+    /// The real EOS 300D CRW of the test files (`notes/test-files/online/raw`, Rotation 270 in
+    /// ImageInfo, no EXIF) comes out upright, in portrait; the same file with the rotation set to
+    /// 90 (a copy, here only) is turned the other way, at 0 it stays in landscape (#8). Written
+    /// to `EYECANSEE_SAMPLES_OUT`, if set, to look at.
+    #[test]
+    #[ignore]
+    fn crw_portrait_live() {
+        use image::GenericImageView;
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("notes/test-files/online/raw/Canon-EOS300D-rot-adobergb.crw");
+        let bytes = std::fs::read(&path).expect("test-files/scarica.sh online-raw");
+        assert_eq!(orientation(&bytes), Some(8));
+        // ImageInfo (3072, 2048, 1.0, 270), its rotation replaced in a copy.
+        let info = [0, 12, 0, 0, 0, 8, 0, 0, 0, 0, 0x80, 0x3F, 14, 1, 0, 0];
+        let at = bytes.windows(16).position(|w| w == info).expect("ImageInfo") + 12;
+        let with = |r: i32| {
+            let mut b = bytes.clone();
+            b[at..at + 4].copy_from_slice(&r.to_le_bytes());
+            b
+        };
+        let out = std::env::var_os("EYECANSEE_SAMPLES_OUT");
+        let mut seen = Vec::new();
+        for (r, portrait) in [(270, true), (90, true), (0, false)] {
+            let b = with(r);
+            let img = crate::decode::decode_full(&b, "a.crw").unwrap();
+            assert_eq!(img.width() < img.height(), portrait, "rotation {r}: {:?}", img.dimensions());
+            let thumb = crate::decode::thumbnail(&b, "a.crw", 256).unwrap();
+            assert_eq!(thumb.width() < thumb.height(), portrait, "thumbnail, rotation {r}");
+            if let Some(dir) = &out {
+                thumb.save(std::path::Path::new(dir).join(format!("crw-{r}.png"))).unwrap();
+            }
+            seen.push(img);
+        }
+        // 270 and 90: the same picture turned by half a turn.
+        let mut half = seen[1].clone();
+        crate::transform::Turn::default().then(crate::transform::Op::Cw).then(crate::transform::Op::Cw).apply(&mut half);
+        assert_eq!(half.to_rgb8().get_pixel(100, 100), seen[0].to_rgb8().get_pixel(100, 100));
     }
 
     #[test]
