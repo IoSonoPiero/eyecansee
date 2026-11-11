@@ -118,8 +118,17 @@ pub fn exif_chunk(bytes: &[u8]) -> Option<Vec<u8>> {
 /// tags that describe the original's own image data (strips, sensor layout, DNG tags of a RAW) and
 /// the maker note, whose offsets point into the original file.
 pub fn exif_fields(bytes: &[u8]) -> Option<(Vec<exif::Field>, bool)> {
-    let exif = Reader::new().read_from_container(&mut Cursor::new(bytes)).ok()?;
+    let exif = lenient(|r| r.read_from_container(&mut Cursor::new(bytes)))?;
     Some((exif.fields().filter(|f| keep_field(f)).cloned().collect(), exif.little_endian()))
+}
+
+/// The EXIF that `read` gives a reader, with the fields that can be read when a part of it is not valid
+/// (issue #68: a "next" link where none is expected made kamadak-exif reject a whole JPEG's EXIF,
+/// GPS included). `None` if nothing can be read.
+fn lenient(read: impl FnOnce(&Reader) -> Result<Exif, exif::Error>) -> Option<Exif> {
+    let mut reader = Reader::new();
+    reader.continue_on_error(true);
+    read(&reader).or_else(|e| e.distill_partial_result(|_| {})).ok()
 }
 
 /// A field `exif_fields` keeps.
@@ -293,10 +302,13 @@ fn color_kind(c: &crate::decode::Color) -> &'static str {
 
 /// `None` if the file has no EXIF (or it cannot be read).
 pub fn read(bytes: &[u8]) -> Option<Meta> {
-    let exif = match Reader::new().read_from_container(&mut Cursor::new(bytes)) {
-        Ok(exif) => exif,
+    let exif = match lenient(|r| r.read_from_container(&mut Cursor::new(bytes))) {
+        Some(exif) => exif,
         // RAW files not built on TIFF: their EXIF as Convert reads it.
-        Err(_) => Reader::new().read_raw(crate::raw_meta::exif(bytes)?).ok()?,
+        None => {
+            let raw = crate::raw_meta::exif(bytes)?;
+            lenient(|r| r.read_raw(raw))?
+        }
     };
     let mut meta = Meta::default();
     for &(group, tag, label) in FIELDS {
@@ -524,6 +536,40 @@ mod tests {
         assert!((lat - 45.5).abs() < 1e-9);
         assert!((lon + 9.26).abs() < 1e-9);
         assert_eq!(super::read(b"not an image"), None);
+    }
+
+    /// An EXIF whose Exif directory has a "next" link, which kamadak-exif rejects as a whole
+    /// (issue #68): the panel and a converted copy keep the fields that can be read.
+    #[test]
+    fn exif_with_an_invalid_part() {
+        let mut tiff = b"MM\0\x2a\0\0\0\x08".to_vec();
+        // IFD0: Make "Abc", the Exif directory at 38, no next directory.
+        tiff.extend(b"\0\x02\x01\x0f\0\x02\0\0\0\x04Abc\0\x87\x69\0\x04\0\0\0\x01\0\0\0\x26\0\0\0\0");
+        // Exif directory: ExifVersion, then a next directory where none is expected.
+        tiff.extend(b"\0\x01\x90\x00\0\x07\0\0\0\x040231\0\0\0\x01");
+        assert!(exif::Reader::new().read_raw(tiff.clone()).is_err(), "rejected without continue_on_error");
+        let meta = super::read(&tiff).expect("the fields that can be read");
+        assert!(meta.fields.iter().any(|(_, l, v)| *l == "meta-make" && v == "Abc"));
+        let (fields, _) = super::exif_fields(&tiff).unwrap();
+        assert!(fields.iter().any(|f| f.tag == Tag::Make));
+    }
+
+    /// The real photo of issue #68 (`notes/test-files/foto-video`, from the private release with
+    /// `test-files/scarica.sh`, or the folder `EYECANSEE_TEST_FILES`): its EXIF has an invalid
+    /// part, and the panel shows the camera and the GPS position.
+    #[test]
+    #[ignore]
+    fn quebec_city_live() {
+        let dir = std::env::var_os("EYECANSEE_TEST_FILES").map_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("notes/test-files"), std::path::PathBuf::from);
+        let path = dir.join("foto-video/Quebec City.jpg");
+        let bytes = std::fs::read(&path).unwrap_or_else(|e| panic!("{}: {e} (test-files/scarica.sh)", path.display()));
+        assert!(exif::Reader::new().read_from_container(&mut std::io::Cursor::new(&bytes)).is_err(), "no longer an invalid EXIF");
+        let meta = read_file(&bytes, "Quebec City.jpg").unwrap();
+        let (lat, lon) = meta.gps.expect("GPS position");
+        // The file says East (exiftool too), although Quebec City is West.
+        assert!((lat - 46.812).abs() < 0.001 && (lon - 71.201).abs() < 0.001, "{lat}, {lon}");
+        assert!(meta.fields.iter().any(|(_, l, _)| *l == "meta-make"), "{:?}", meta.fields);
+        assert!(super::exif_fields(&bytes).is_some_and(|(f, _)| f.iter().any(|f| f.tag == Tag::GPSLatitude)));
     }
 
     #[test]
