@@ -50,7 +50,7 @@ Le foto vengono raddrizzate secondo il loro orientamento EXIF. L'estensione è s
 
 ### RAW delle fotocamere
 
-I file 3FR, ARI, ARW, CR2, CR3, CRM, CRW, DCR, DCS, DNG, ERF, FFF, IIQ, KDC, MEF, MOS, MRW, NEF, NRW, ORF, ORI, PEF, QTK, RAF, RAW, RW2, RWL e SRW si leggono con `rawler`, provato con file veri di fotocamere Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic e Google e di un telefono Samsung Galaxy. EyeCanSee sviluppa i dati del sensore; quando il risultato esce di un solo colore uniforme (come con i DNG di alcuni telefoni Samsung Galaxy), mostra invece l'anteprima a grandezza piena salvata nel file. Le foto si vedono dritte, anche quelle verticali delle vecchie Canon (CRW, come la EOS 300D), che annotano la rotazione solo nei dati propri di Canon.
+I file 3FR, ARI, ARW, CR2, CR3, CRM, CRW, DCR, DCS, DNG, ERF, FFF, IIQ, KDC, MEF, MOS, MRW, NEF, NRW, ORF, ORI, PEF, QTK, RAF, RAW, RW2, RWL, SR2, SRF e SRW si leggono con `rawler`, provato con file veri di fotocamere Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic e Google e di un telefono Samsung Galaxy. EyeCanSee sviluppa i dati del sensore; quando il risultato esce di un solo colore uniforme (come con i DNG di alcuni telefoni Samsung Galaxy), mostra invece l'anteprima a grandezza piena salvata nel file. Le foto si vedono dritte, anche quelle verticali delle vecchie Canon (CRW, come la EOS 300D), che annotano la rotazione solo nei dati propri di Canon. Un RAW di una fotocamera che `rawler` non conosce ancora (come la Phase One P40+) viene sviluppato da ImageMagick dove è compilato con LibRaw (come nel pacchetto di Fedora); altrimenti si vede solo la piccola anteprima dentro il file.
 
 ### Video e audio
 

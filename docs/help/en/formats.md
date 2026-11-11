@@ -50,7 +50,7 @@ Photos are turned upright using their EXIF orientation. The extension is only a 
 
 ### Camera RAW
 
-3FR, ARI, ARW, CR2, CR3, CRM, CRW, DCR, DCS, DNG, ERF, FFF, IIQ, KDC, MEF, MOS, MRW, NEF, NRW, ORF, ORI, PEF, QTK, RAF, RAW, RW2, RWL and SRW files are read with `rawler`, and tested with real files from Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic and Google cameras, and a Samsung Galaxy phone. EyeCanSee develops the sensor data; when the result comes out as a single flat colour (as with the DNG files of some Samsung Galaxy phones), it shows the full-size preview stored in the file instead. Photos are shown upright, also the portrait ones of old Canon cameras (CRW, such as the EOS 300D), which note the turn only in Canon's own data.
+3FR, ARI, ARW, CR2, CR3, CRM, CRW, DCR, DCS, DNG, ERF, FFF, IIQ, KDC, MEF, MOS, MRW, NEF, NRW, ORF, ORI, PEF, QTK, RAF, RAW, RW2, RWL, SR2, SRF and SRW files are read with `rawler`, and tested with real files from Canon, Nikon, Sony, Fujifilm, Olympus, Panasonic and Google cameras, and a Samsung Galaxy phone. EyeCanSee develops the sensor data; when the result comes out as a single flat colour (as with the DNG files of some Samsung Galaxy phones), it shows the full-size preview stored in the file instead. Photos are shown upright, also the portrait ones of old Canon cameras (CRW, such as the EOS 300D), which note the turn only in Canon's own data. A RAW file from a camera `rawler` does not know yet (such as the Phase One P40+) is developed by ImageMagick where it was built with LibRaw (as in the Fedora package); otherwise only the small preview inside the file is shown.
 
 ### Videos and audio
 

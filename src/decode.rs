@@ -49,6 +49,10 @@ const MAGICK: &[&str] = &[
     "pfm", "pgx", "wpg", "viff", "vicar",
 ];
 
+/// Sony RAW files that rawler reads (its ARW decoder: DSC-F828, DSC-R1) but leaves out of
+/// `supported_extensions`: without them they were not even shown in the grid (#7).
+const SONY_RAW: &[&str] = &["srf", "sr2"];
+
 #[derive(Clone, Copy, PartialEq)]
 enum Kind {
     Image,
@@ -73,7 +77,7 @@ fn kind(name: &str) -> Option<Kind> {
         Kind::Heif
     } else if SVG.contains(&e) {
         Kind::Svg
-    } else if rawler::decoders::supported_extensions().iter().any(|r| r.eq_ignore_ascii_case(e)) {
+    } else if SONY_RAW.contains(&e) || rawler::decoders::supported_extensions().iter().any(|r| r.eq_ignore_ascii_case(e)) {
         Kind::Raw
     } else if image::ImageFormat::from_extension(image_alias(e)).is_some_and(|f| f.reading_enabled()) {
         Kind::Image
@@ -160,7 +164,10 @@ fn run(kind: Kind, bytes: &[u8], name: &str) -> Result<DynamicImage> {
         Kind::Jxl => jxl(bytes),
         Kind::Heif => heif(bytes),
         Kind::Svg => svg(bytes),
-        Kind::Raw => raw(bytes),
+        // A RAW rawler cannot read (a camera missing from its list, such as the Phase One P40+):
+        // ImageMagick, told the format, develops it at full size where it has LibRaw. Read by its
+        // content instead, as below, it gave only the small TIFF thumbnail inside (304×220, #7).
+        Kind::Raw => raw(bytes).or_else(|e| magick(bytes, ext(name).as_deref()).map_err(|_| e)),
         Kind::Extra => extra(bytes, name),
         Kind::Magick => magick(bytes, ext(name).as_deref()),
     }
@@ -721,6 +728,7 @@ mod tests {
     #[test]
     fn decoders() {
         assert!(is_image("a.JXL") && is_image("c.CR3"));
+        assert!(kind("a.SRF") == Some(Kind::Raw) && kind("b.sr2") == Some(Kind::Raw) && kind("c.x3f") == Some(Kind::Raw));
         assert_eq!(is_image("b.heic"), cfg!(feature = "heif"));
         assert!(is_image("d.psd") && is_image("g.pcx") && is_image("h.jp2") && is_image("i.cur"));
         assert_eq!(is_image("d.xcf"), cfg!(feature = "magick"));
@@ -826,6 +834,34 @@ mod tests {
             assert_eq!((c.rgb, c.alpha, c.bits), (d.rgb, d.alpha, d.bits), "{name}");
             let [w, h] = h.size;
             assert!((w, h) == (img.width(), img.height()) || (h, w) == (img.width(), img.height()), "{name}");
+        }
+    }
+
+    /// The RAW files of #7 (`test-files/online/raw` of the notes): Sony SRF and SR2 developed by
+    /// rawler, the Phase One P40+ (unknown to rawler) by ImageMagick with LibRaw at full size, not
+    /// its 304×220 thumbnail; the Sigma X3F read by no one, without a panic in the metadata.
+    /// `EYECANSEE_RAW=/folder cargo test --release raw_issue7_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn raw_issue7_live() {
+        let dir = std::path::PathBuf::from(std::env::var("EYECANSEE_RAW").expect("EYECANSEE_RAW not set"));
+        let read = |name: &str| std::fs::read(dir.join(name)).unwrap_or_else(|e| panic!("{name}: {e}"));
+        let mut sizes = vec![("Sony-DSCF828.srf", [3264, 2448]), ("Sony-DSCR1-adobergb.sr2", [3888, 2592])];
+        if cfg!(feature = "magick") {
+            sizes.push(("PhaseOne-P40plus-iiqS.iiq", [3658, 2740]));
+        }
+        for (name, [w, h]) in sizes {
+            let bytes = read(name);
+            let img = decode_full(&bytes, name).unwrap_or_else(|e| panic!("{name}: {e}"));
+            println!("{name}: {}x{}", img.width(), img.height());
+            assert_eq!((img.width(), img.height()), (w, h), "{name}");
+            assert!(thumbnail(&bytes, name, 256).is_ok() && crate::meta::read_file(&bytes, name).is_some(), "{name}");
+        }
+        for name in ["Sigma-DP1.x3f", "Sigma-dp2Quattro.x3f"] {
+            let bytes = read(name);
+            assert!(decode_full(&bytes, name).is_err(), "{name}");
+            // Without a panic, whatever it finds.
+            println!("{name}: metadata {}", crate::meta::read_file(&bytes, name).is_some());
         }
     }
 
