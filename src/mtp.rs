@@ -369,6 +369,21 @@ impl Phone {
         Ok(())
     }
 
+    /// The whole new file `new` (a hidden name next to it) takes the place of `path`: `path` is
+    /// deleted first, as MTP would keep two files with the same name. If that fails the new file
+    /// goes and `path` stays; if the rename fails, the new file waits under its hidden name and
+    /// takes the free name when the folder is read again (`Store::recover`).
+    pub async fn put_in_place(&self, new: &str, path: &str) -> Result<(), Error> {
+        match self.delete(path).await {
+            Err(e) if e.0 != NOT_FOUND => {
+                let _ = self.delete(new).await;
+                return Err(e);
+            }
+            _ => {}
+        }
+        self.rename(new, source::name(path)).await.inspect_err(|e| log!("save {path:?}: the new file stays as {new:?}: {e:?}"))
+    }
+
     /// Names of everything in a folder, of any type and hidden ones too: `list` keeps only images.
     pub async fn names(&self, dir: &str) -> Result<HashSet<String>, Error> {
         if dir.is_empty() {
