@@ -35,7 +35,7 @@ Le foto scattate, eliminate o spostate sul telefono mentre la sua cartella è ap
 
 ## Windows
 
-- Subito dopo aver scattato una foto, o eliminato un file, sul telefono, Windows può smettere di parlare con il telefono per circa sei minuti. Dopo 15 secondi un messaggio lo dice, e si chiude da solo quando il telefono risponde di nuovo. Staccare il cavo e ricollegarlo (poi Trasferimento file) lo sblocca subito. Di più in [Windows smette di parlare con il telefono](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.it.md).
+- Subito dopo aver scattato una foto, o eliminato un file, sul telefono, Windows può smettere di parlare con il telefono per circa sei minuti. Dopo 15 secondi un messaggio lo dice (un file grande che si sta scrivendo sul telefono conta solo quando i dati smettono di passare), e si chiude da solo quando il telefono risponde di nuovo. Staccare il cavo e ricollegarlo (poi Trasferimento file) lo sblocca subito. Di più in [Windows smette di parlare con il telefono](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.it.md).
 - Un video sul telefono viene prima copiato tutto sul computer e poi parte, con una barra che mostra quanto è stato letto.
 - Una foto del telefono aperta con un doppio clic in Esplora file è una copia temporanea fatta da Windows, non il file sul telefono: EyeCanSee non può salvarci sopra, e la barra di stato lo dice. Usa **Salva come…**.
 

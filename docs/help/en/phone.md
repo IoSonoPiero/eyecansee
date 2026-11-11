@@ -35,7 +35,7 @@ Photos taken, deleted or moved on the phone itself while its folder is open appe
 
 ## Windows
 
-- Right after a photo is taken, or a file is deleted, on the phone, Windows can stop talking to the phone for about six minutes. After 15 seconds a message says so, and it closes by itself when the phone answers again. Unplugging the cable and plugging it in again (then File transfer) frees it at once. More in [Windows stops talking to the phone](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.en.md).
+- Right after a photo is taken, or a file is deleted, on the phone, Windows can stop talking to the phone for about six minutes. After 15 seconds a message says so (a large file being written to the phone counts only when its data stops moving), and it closes by itself when the phone answers again. Unplugging the cable and plugging it in again (then File transfer) frees it at once. More in [Windows stops talking to the phone](https://github.com/IoSonoPiero/eyecansee/blob/main/docs/phone-stall.en.md).
 - A video on the phone is first copied whole to the computer, then it plays, with a bar showing how much has been read.
 - A phone photo opened with a double click in File Explorer is a temporary copy Windows made, not the file on the phone: EyeCanSee cannot save over it, and the status bar says so. Use **Save as…**.
 

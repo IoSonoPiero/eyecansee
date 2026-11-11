@@ -81,7 +81,8 @@ fn unix_seconds(m: mtp_rs::DateTime) -> Option<i64> {
     })
 }
 
-/// The call a phone is answering right now (what, path, start): the status bar says when it takes long.
+/// The call a phone is answering right now (what, path, start or last data written): the status
+/// bar says when it takes long.
 /// A POCO X7 Pro under Windows took 377 s to delete one file (2026-10-28), with everything else queued.
 static WAITING: Mutex<Option<(String, String, std::time::Instant)>> = Mutex::new(None);
 
@@ -92,6 +93,14 @@ impl Waiting {
     fn start(what: &str, path: &str) -> Self {
         *WAITING.lock().unwrap() = Some((what.to_string(), path.to_string(), std::time::Instant::now()));
         Waiting
+    }
+
+    /// Data of a write reached the phone: a write that moves is not stalled. Writing 555 MB to a
+    /// POCO X6 Pro under Windows was one 17 s call, and the stall message came at 15 s (2026-11-11).
+    fn moved() {
+        if let Some((_, _, since)) = WAITING.lock().unwrap().as_mut() {
+            *since = std::time::Instant::now();
+        }
     }
 }
 
@@ -109,8 +118,9 @@ pub const STALL_SECS: u64 = 15;
 /// came before it without logging every call.
 static LAST: Mutex<Option<(String, String, std::time::Instant)>> = Mutex::new(None);
 
-/// The file of a call the phone has not answered for at least `secs` seconds, the seconds, and
-/// whether it is a file being written to the phone (unplugged, it would stay there half written).
+/// The file of a call the phone has not answered for at least `secs` seconds (a write: no data
+/// taken for that long), the seconds, and whether it is a file being written to the phone
+/// (unplugged, it would stay there half written).
 pub fn waiting(secs: u64) -> Option<(String, u64, bool)> {
     let w = WAITING.lock().unwrap();
     let (what, path, since) = w.as_ref()?;
@@ -627,6 +637,8 @@ impl Phone {
             self.delete(path).await?;
         }
         let (storage, parent) = self.locate(&source::parent(path)).await?;
+        // mtp-rs takes each chunk as the phone takes the one before (back pressure).
+        let data = futures_util::StreamExt::inspect(data, |_| Waiting::moved());
         // Marked as soon as it exists: its ObjectAdded event may come at once.
         let upload = async {
             let r = storage.upload(parent, NewObjectInfo::file(source::name(path), size), data).await;
@@ -684,6 +696,8 @@ mod tests {
         assert_eq!(waiting(30), None);
         *WAITING.lock().unwrap() = Some(("upload".to_string(), "DCIM/b.jpg".to_string(), since));
         assert_eq!(waiting(3).map(|(_, _, up)| up), Some(true));
+        Waiting::moved();
+        assert_eq!(waiting(3), None, "a write whose data moves is not stalled");
         *WAITING.lock().unwrap() = old;
     }
     use super::*;
