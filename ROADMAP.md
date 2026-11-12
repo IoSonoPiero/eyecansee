@@ -39,6 +39,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 ### Browsing and editing
 
 - Image editor: light and colour corrections (exposure, saturation, automatic levels, colour temperature, invert) ([#60](https://github.com/IoSonoPiero/eyecansee/issues/60)).
+- Image editor: resize the image ([#114](https://github.com/IoSonoPiero/eyecansee/issues/114)).
 - Open an image from the clipboard ([#57](https://github.com/IoSonoPiero/eyecansee/issues/57)).
 - Image editor: recent work kept, recovered after a crash, resumed later ([#59](https://github.com/IoSonoPiero/eyecansee/issues/59)).
 - Archives: zip and 7z opened as read-only folders first, then creating zip archives ([#26](https://github.com/IoSonoPiero/eyecansee/issues/26)).
