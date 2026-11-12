@@ -72,7 +72,7 @@ fn bar_button(ui: &mut egui::Ui, button: egui::Button, tip: String, off: Option<
 impl App {
     /// The bar at the top; what its buttons ask for. When the window is too narrow for one row
     /// the tools go to a new line and Copy, Close and Save copy get a row of their own, on the
-    /// right (they were cut off: user, 2026-11-06).
+    /// right (they were cut off).
     pub(super) fn edit_toolbar(&mut self, ui: &mut egui::Ui, w: &mut Window) -> Option<Ask> {
         let (mut ask, mut copy) = (None, false);
         let step = icons::BUTTON.x + ui.spacing().item_spacing.x;
@@ -122,7 +122,7 @@ impl App {
         };
         let over_main = self.main_overwrites(w);
         // A new image has no file yet: its main button is Save as….
-        // After a first copy the button updates it (user, 2026-11-06).
+        // After a first copy the button updates it.
         let copy = if w.copy.done.is_some() { ("edit-update-copy", "edit-update-hint") } else { ("edit-save-copy", "rc-save-hint") };
         let solid = crate::theme::solid(ui.visuals());
         ui.spacing_mut().item_spacing.x = 1.0;
@@ -290,7 +290,7 @@ fn tools_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
 /// The Filters menu: on the part chosen with Selection, or on the whole image.
 fn filters_menu(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     let (r, _) = egui::containers::menu::MenuButton::from_button(icons::button(ui, Line::Filters)).ui(ui, |ui| {
-        // Readable at once: where the filter goes (user, 2026-11-06: the faint line was not read).
+        // Readable at once: where the filter goes (the faint line was not read).
         ui.set_max_width(300.0);
         ui.label(egui::RichText::new(i18n.t(if w.marquee.is_some() { "edit-filters-part" } else { "edit-filters-whole" })).strong());
         ui.separator();
@@ -394,8 +394,8 @@ fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     if let Some(c) = w.picked.take() {
         style.color = c;
     }
-    // What the controls change: the object selected, or the next one drawn (user, 2026-11-05:
-    // "what is the opacity for, if nothing is selected?").
+    // What the controls change: the object selected, or the next one drawn
+    // ("what is the opacity for, if nothing is selected?").
     let whose = if selected.is_some() { ("edit-props-selected", "edit-props-selected-hint") } else { ("edit-props-next", "edit-props-next-hint") };
     ui.weak(i18n.t(whose.0)).on_hover_text(i18n.t(whose.1));
     let boxed = matches!(kind, Kind::Rect | Kind::Ellipse | Kind::Bubble);
@@ -469,7 +469,7 @@ fn kind_controls(ui: &mut egui::Ui, w: &mut Window, style: &mut Style, (kind, se
     }
 }
 
-/// One eyedropper (user, 2026-11-05: "only the one that takes any colour"), its button or I:
+/// One eyedropper ("only the one that takes any colour"), its button or I:
 /// anywhere on the screen where the system allows it, `true` then; elsewhere a click on the image.
 /// I picks on the image (what is drawn on it too, with a live box of the colour); the button,
 /// and Shift+I, the desktop's picker on the whole screen where there is one (Linux: user,

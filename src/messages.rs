@@ -448,7 +448,7 @@ impl App {
             // Nothing saved and every failure in its own window (`kept.rs`): "saved: 0" said nothing more.
             && !(n == 0 && self.skipped.is_empty() && !self.kept.is_empty())
         {
-            // What was done, in the title and in the text (user, 2026-11-10: "Images saved: 2." alone
+            // What was done, in the title and in the text ("Images saved: 2." alone
             // did not say what had happened).
             let args = [("n", n.to_string()), ("op", crate::save_dialogs::op_id(op).to_string())];
             let args = args.each_ref().map(|(k, v)| (*k, v.as_str()));

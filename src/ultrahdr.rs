@@ -40,7 +40,7 @@ pub fn is(b: &[u8]) -> bool {
 }
 
 /// The file turned, photo and gain map, and the video of a Motion Photo after them shown turned
-/// the same way (Piero, 2026-11-07: nothing is lost, #54); `None` if it is not an Ultra HDR file.
+/// the same way (nothing is lost, #54); `None` if it is not an Ultra HDR file.
 /// Also says whether it lost quality (a picture whose size is not a multiple of the JPEG blocks
 /// is encoded again at quality 95).
 pub fn turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
@@ -111,7 +111,7 @@ fn edited_with(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]]
 /// The photo after Convert and resize (`image`: decoded upright, turned by `turn`, maybe resized)
 /// written as JPEG with `o` and still Ultra HDR (#65): the gain map turned the same way and
 /// resized by the same factor (bilinear: a smooth picture, no halos), at its own quality. The
-/// video of a Motion Photo is not written: the copy is a new, smaller file (Piero, 2026-11-07).
+/// video of a Motion Photo is not written: the copy is a new, smaller file.
 pub fn resized(b: &[u8], image: DynamicImage, turn: Turn, o: &Options) -> Result<Vec<u8>, String> {
     let (photo, gain) = split(b).ok_or("not Ultra HDR")?;
     let (w, h) = image::ImageReader::new(std::io::Cursor::new(photo)).with_guessed_format().map_err(|e| e.to_string())?.into_dimensions().map_err(|e| e.to_string())?;

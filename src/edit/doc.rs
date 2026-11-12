@@ -275,7 +275,7 @@ stamps! {
 }
 
 impl Stamp {
-    /// How many are on the bar (user, 2026-11-06: the seven of the start stay in view, the
+    /// How many are on the bar (the seven of the start stay in view, the
     /// others are a click away).
     pub const SHOWN: usize = 7;
 }
@@ -515,7 +515,7 @@ impl Doc {
             let q = self.source(Pt::new(a.centre.x + x * c - y * s, a.centre.y + x * s + y * c));
             let (px, py) = (q.x + iw / 2.0, q.y + ih / 2.0);
             // Blended from the four pixels around (bilinear): taken one by one, the letters of a
-            // text under a highlighter came out jagged (user, 2026-11-06).
+            // text under a highlighter came out jagged.
             if px >= 0.0 && py >= 0.0 && px < iw && py < ih {
                 image::imageops::interpolate_bilinear(img, (px - 0.5).clamp(0.0, iw - 1.0), (py - 0.5).clamp(0.0, ih - 1.0)).unwrap_or_else(|| img.get_pixel(px as u32, py as u32))
             } else {

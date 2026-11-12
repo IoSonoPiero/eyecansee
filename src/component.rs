@@ -1,6 +1,5 @@
-//! Add-ons downloaded the first time they are needed, not shipped in the package (decided by the
-//! user on 2026-10-24): the video engine, libmpv, which carries patented decoders (HEVC), and
-//! FFmpeg, which converts videos.
+//! Add-ons downloaded the first time they are needed, not shipped in the package: the video
+//! engine, libmpv, which carries patented decoders (HEVC), and FFmpeg, which converts videos.
 //! The file comes from a release of ours ("components"); its SHA-256 is written here, in the
 //! signed executable, so a different file is refused.
 

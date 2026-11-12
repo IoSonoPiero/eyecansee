@@ -1,6 +1,6 @@
 //! The quality a JPEG was saved at, read back from its quantization tables, and its colour
 //! subsampling: a JPEG saved again as JPEG by the editor or the viewer keeps both, so it is not
-//! compressed harder a second time (user, 2026-11-06). The tables are compared with the standard
+//! compressed harder a second time. The tables are compared with the standard
 //! IJG ones scaled for each quality from 1 to 100 (what libjpeg, libjpeg-turbo and most cameras
 //! and programs write), as ImageMagick estimates it; with other tables the nearest wins.
 

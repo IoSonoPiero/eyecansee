@@ -1,8 +1,7 @@
-//! Coloured icons (style "B", chosen by the user on 2026-10-22) for folders, devices and badges,
-//! and line icons for every button (`Line`, from Lucide, chosen by the user on 2026-11-05), the
-//! same on Windows and Linux. Drawn from SVG with resvg, like SVG images, and kept as textures,
-//! one per icon, size in pixels (and colour): sharp at every size. The font glyphs used before had
-//! one colour only.
+//! Coloured icons (style "B") for folders, devices and badges, and line icons for every button
+//! (`Line`, from Lucide), the same on Windows and Linux. Drawn from SVG with resvg, like SVG
+//! images, and kept as textures, one per icon, size in pixels (and colour): sharp at every size.
+//! The font glyphs used before had one colour only.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -218,7 +217,7 @@ pub(crate) fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Refresh => lucide!("refresh-cw").into(),
         Line::Info => lucide!("info").into(),
         Line::Grid => lucide!("layout-grid").into(),
-        // With a square: the image turns; the bare arrows looked like Undo and Redo (user, 2026-11-05).
+        // With a square: the image turns; the bare arrows looked like Undo and Redo.
         Line::RotateCcw => lucide!("rotate-ccw-square").into(),
         Line::RotateCw => lucide!("rotate-cw-square").into(),
         Line::NewFolder => lucide!("folder-plus").into(),
@@ -360,7 +359,7 @@ pub fn menu_icon(ui: &egui::Ui, icon: Option<Line>) -> egui::Image<'static> {
     match icon {
         Some(icon) => line(ui, icon, 16.0),
         // ponytail: an icon tinted fully transparent as the blank, one texture. Drawn in
-        // TRANSPARENT it was a dark ✕: the SVG's colour has no alpha (user, 2026-11-06).
+        // TRANSPARENT it was a dark ✕: the SVG's colour has no alpha.
         None => line_in(ui.ctx(), Line::Close, 16.0, egui::Color32::WHITE).tint(egui::Color32::TRANSPARENT),
     }
 }

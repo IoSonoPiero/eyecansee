@@ -128,7 +128,7 @@ fn paint(ui: &egui::Ui, w: &mut Window, tex: &TextureHandle, view: &View, rect: 
             ants(&painter, a, view, w.doc.angle);
         }
         // A highlighter or a spotlight being drawn shows its box: on a dark photo the tint alone
-        // hardly shows where it goes (user, 2026-11-06).
+        // hardly shows where it goes.
         if let Some(Hold::Draw { index: Some(i), .. }) = &w.hold
             && let Some(o) = w.doc.objects.get(*i)
             && matches!(o.shape, Shape::Highlight { .. } | Shape::Spotlight(_))
@@ -418,7 +418,7 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
 }
 
 /// The end of a drag: what a drawing tool drew is selected, but where nothing of it is in the
-/// result (the saved file) it goes, with no step in the history (user, 2026-11-12: a rectangle
+/// result (the saved file) it goes, with no step in the history (a rectangle
 /// drawn on the dark area around the image).
 fn draw_ended(w: &mut Window) {
     if let Some(Hold::Draw { kind, index: Some(i), .. }) = w.hold.take() {
@@ -542,7 +542,7 @@ fn clicked(w: &mut Window, p: Pt, tol: f32) {
     w.drop_empty_texts();
     // With a drawing tool a click selects only an object of its own kind (its style in the bar);
     // anywhere else it places what the tool places (a text, a step, a stamp). Picking any object,
-    // of any kind, is Select's (user, 2026-11-06: the second step, clicked where a line drawn
+    // of any kind, is Select's (the second step, clicked where a line drawn
     // by hand passed, selected the line; it chose any object's tool before).
     let under = match w.tool {
         Tool::Draw(kind) => geom::under_of(&w.doc.objects, p, tol, kind),

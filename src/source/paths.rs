@@ -137,8 +137,8 @@ mod tests {
         assert!(in_gvfs("/", "run/user/1000/gvfs/mtp:host=X/DCIM/") && in_gvfs("/run/user/1000/gvfs/", "a.jpg"));
         assert!(!in_gvfs("/", "home/me/a.jpg"));
         // Issue #47: the path Windows 11 handed over for a phone photo opened from File Explorer.
-        assert!(windows_temp_copy(r"C:\Users\Pierluigi\AppData\Local\Microsoft\Windows\INetCache\IE\OC6EAUQ4\prova-47[1].jpg"));
-        assert!(windows_temp_copy("C:\\/Users/Pierluigi/AppData/Local/Microsoft/Windows/INetCache/IE/OC6EAUQ4/prova-47[1].jpg"));
+        assert!(windows_temp_copy(r"C:\Users\Ann\AppData\Local\Microsoft\Windows\INetCache\IE\OC6EAUQ4\photo-47[1].jpg"));
+        assert!(windows_temp_copy("C:\\/Users/Ann/AppData/Local/Microsoft/Windows/INetCache/IE/OC6EAUQ4/photo-47[1].jpg"));
         for normal in [r"C:\Users\Ann\Pictures\IMG_0001.jpg", r"D:\Photos\Microsoft\Windows\a.jpg", r"C:\Users\Ann\INetCache\a.jpg", "/home/me/Microsoft/a.jpg"] {
             assert!(!windows_temp_copy(normal), "{normal}");
         }

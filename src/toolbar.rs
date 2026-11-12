@@ -48,7 +48,7 @@ impl App {
             Op { icon: Line::Delete, label: "menu-delete", keys: t("key-delete"), act: Act::Delete(None, false), off: off(can_change, nothing) },
         );
         // In the viewer only what works on the image shown: making folders, cutting, copying and
-        // pasting files are for the grid (user, 2026-11-06); they stay in the menus.
+        // pasting files are for the grid; they stay in the menus.
         if viewing {
             return vec![rename, delete];
         }

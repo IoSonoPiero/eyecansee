@@ -25,7 +25,7 @@ impl App {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
         // The ✕ in the viewer goes back to the grid, as Esc, when chosen in the Options (on at
-        // first: user, 2026-11-06); a turned image not saved is asked about as when leaving it.
+        // first); a turned image not saved is asked about as when leaving it.
         if self.transfer.is_none() && self.settings.close_to_grid && self.viewing.is_some() && self.editor.is_none() && ctx.input(|i| i.viewport().close_requested()) {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
             self.close_viewer();
@@ -87,7 +87,7 @@ impl App {
             self.dup_page(ui);
         } else {
             // Full screen in the viewer: the picture (or video, model, drawing) alone, no bars
-            // (user, 2026-11-06; issue #43 asked it for videos).
+            // (issue #43 asked it for videos).
             let bare = self.viewing.is_some() && ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
             if !bare {
                 egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
@@ -135,7 +135,7 @@ impl App {
     }
 
     /// The error goes away with the page it was shown on: the editor, Save in another format, the
-    /// duplicates, the slideshow, the viewer, or the folder of the grid (user, 2026-11-10: it
+    /// duplicates, the slideshow, the viewer, or the folder of the grid (it
     /// stayed until its ✕). The page it was first shown on is kept in egui's memory.
     fn error_leaves_with_page(&mut self, ctx: &egui::Context) {
         let id = egui::Id::unique("page-of-the-error");
@@ -180,7 +180,7 @@ impl App {
     /// in the grid and the viewer, a save that failed in the editor was told once it was closed.
     /// The slideshow goes on above it: the error is seen, and its ✕ closes it.
     /// A band in the warning colours with the triangle and the text on as many lines as it needs:
-    /// red text on one long line, on the dark bar, was hard to read (user, 2026-11-10). It stays
+    /// red text on one long line, on the dark bar, was hard to read. It stays
     /// at the bottom, where the status bar is: at the top it would push the toolbar and the
     /// address bar down every time an error comes and goes.
     fn error_bar(&mut self, ui: &mut egui::Ui) {
@@ -236,7 +236,7 @@ impl App {
 /// Closing EyeCanSee: a save under way is waited for; anything else in the background (the
 /// decoding of a large image, the neighbours read ahead, thumbnails) gets half a second, then is
 /// left: the runtime waited for every one of them, and the window stayed frozen for seconds on
-/// Windows after a 45-megapixel HEIC (user, 2026-11-06).
+/// Windows after a 45-megapixel HEIC.
 impl Drop for crate::App {
     fn drop(&mut self) {
         log!("quitting");

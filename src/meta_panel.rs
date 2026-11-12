@@ -197,7 +197,7 @@ impl App {
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
             } else if crate::cad::is_cad(&f.path) {
-                // A drawing has no pixels: its own size, in its unit (user, 2026-11-02).
+                // A drawing has no pixels: its own size, in its unit.
                 for text in [self.cad_size_text(current), self.cad_sheet_name(current)].into_iter().flatten() {
                     ui.separator();
                     ui.label(text);
@@ -236,7 +236,7 @@ impl App {
                 ui.separator();
                 ui.label(date);
             }
-            // On the right, out of the way: the keys, listed when asked (user, 2026-11-02). Blue on
+            // On the right, out of the way: the keys, listed when asked. Blue on
             // white: the bar makes every text white, and the button was white on white.
             let keys = egui::Button::new(egui::RichText::new(self.i18n.t("keys-button")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
             self.keys_hint(current).map(|_| ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.add(keys)).inner)
@@ -245,7 +245,7 @@ impl App {
     }
 
     /// The keys of the viewer, one a row, over its bottom right corner above the status bar
-    /// (`bar`: its height): in place of a band whose letters got smaller to fit (user, 2026-11-02).
+    /// (`bar`: its height): in place of a band whose letters got smaller to fit.
     pub(crate) fn keys_window(&self, ctx: &egui::Context, id: &str, bar: f32) {
         let text = self.i18n.t(id);
         egui::Area::new(egui::Id::unique("viewer-keys")).order(egui::Order::Foreground).anchor(Align2::RIGHT_BOTTOM, vec2(-8.0, -bar - 8.0)).show(ctx, |ui| {
@@ -253,7 +253,7 @@ impl App {
                 ui.label(egui::RichText::new(self.i18n.t("keys-button")).strong().size(16.0));
                 ui.separator();
                 // A row for each key, in alternating stripes, so a key stays with what it does. The
-                // dark theme's stripe was the popup's own grey, the light one too faint (user, 2026-11-02).
+                // dark theme's stripe was the popup's own grey, the light one too faint.
                 ui.visuals_mut().faint_bg_color = if ui.visuals().dark_mode { Color32::from_gray(60) } else { Color32::from_gray(228) };
                 egui::Grid::new("viewer-keys-grid").num_columns(2).spacing([18.0, 6.0]).striped(true).show(ui, |ui| {
                     for (keys, what) in key_rows(&text) {
@@ -267,7 +267,7 @@ impl App {
     }
 
     /// The keys of the file shown (a 3D model, a CAD drawing, a video or sound, an image): the
-    /// Fluent id of their list (`keys_window`). Images too (user, 2026-11-06: only the 3D and CAD
+    /// Fluent id of their list (`keys_window`). Images too (only the 3D and CAD
     /// viewers had the button).
     pub(crate) fn keys_hint(&self, current: usize) -> Option<&'static str> {
         if self.viewed_mesh().is_some() {

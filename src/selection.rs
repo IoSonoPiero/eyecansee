@@ -4,7 +4,7 @@
 use crate::{App, Focus, source};
 
 /// What a file is, for the menus: each entry works on some kinds, and only on those files of a
-/// mixed selection (user, 2026-11-02).
+/// mixed selection.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Kind {
     Picture,

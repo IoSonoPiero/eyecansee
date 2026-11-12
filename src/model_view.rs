@@ -57,8 +57,8 @@ impl App {
     /// At the first frame, mailbox presentation where the card offers it (`render_gpu::present_mode`);
     /// then, with mailbox, no more frames a second than the screen under the window shows (it
     /// never waits for the screen, and frames it cannot show keep the card busy for nothing), and
-    /// at most 120 outside the 3D viewer. A 3D model turns as smoothly as the screen allows (the
-    /// user's choice, 2026-11-02): 60, 144, 240...
+    /// at most 120 outside the 3D viewer. A 3D model turns as smoothly as the screen allows:
+    /// 60, 144, 240...
     pub(crate) fn pace(&mut self, frame: &mut eframe::Frame) {
         let model = self.viewed_mesh().is_some();
         let s = &mut self.model;

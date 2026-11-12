@@ -104,7 +104,7 @@ pub struct Prepared {
 /// false) or over the original. A copy goes over the one written before (`written`) while it is
 /// still that file, otherwise is a new one with the first free name; over the original, the first
 /// time the original goes to a trash, the next times what was written before is replaced (while
-/// it is still that), only the true original in the trash (user, 2026-11-06).
+/// it is still that), only the true original in the trash.
 pub(crate) async fn prepare(store: &crate::source::Store, path: &str, (doc, original): (&crate::edit::doc::Doc, Arc<Original>), bytes: Option<Arc<Vec<u8>>>, (word, over, written): (String, bool, Option<Written>)) -> Result<Prepared, source::Error> {
     let bytes = match bytes {
         Some(b) => b,
@@ -259,7 +259,7 @@ impl App {
 
     /// The confirmation: the copy's name, or over the original with where the original goes
     /// (always a trash, also with deleting for good chosen in the Options). After a save from the
-    /// toolbar the page stays open, the document saved (user, 2026-11-05: Save copy must not close
+    /// toolbar the page stays open, the document saved (Save copy must not close
     /// the image; 2026-11-06: nor Overwrite), unless the Options say otherwise
     /// (issue #95, off at first). After Save… chosen on closing it closes once the file is written
     /// (`edit_saved`, issue #79).

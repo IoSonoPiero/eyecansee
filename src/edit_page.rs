@@ -343,7 +343,7 @@ impl Window {
         }
     }
 
-    /// Esc, one thing at a time (user, 2026-11-05: Esc after placing a text closed the page): the
+    /// Esc, one thing at a time (Esc after placing a text closed the page): the
     /// eyedropper or a drag stops, a text being typed or just placed is done (and goes if empty),
     /// the selection goes. `false` when there was nothing of it: Esc closes the page then.
     fn escape(&mut self) -> bool {
@@ -492,7 +492,7 @@ impl App {
             egui::Panel::top("edit-props").show(ui, |ui| self.props_bar(ui, &mut w));
             // I where the bar has no eyedropper (Select with nothing selected, a filter, Crop):
             // dropped, or it turned the eyedropper on later with a drawing tool, and a second I off
-            // again (user, 2026-11-06: "only the +").
+            // again ("only the +").
             w.ask_pick = None;
             let bar = egui::Frame::side_top_panel(ui.style()).fill(crate::theme::solid(ui.visuals()));
             let status = egui::Panel::bottom("edit-status").frame(bar).show(ui, |ui| self.edit_status(ui, &mut w));
@@ -544,7 +544,7 @@ impl App {
 
     fn not_ready_inside(&self, ui: &mut egui::Ui, w: &Window) -> bool {
         // The whole page: the frame was only as tall as its lines, the rest of it left bare
-        // (half the window white, half black, while loading: user, 2026-11-06).
+        // (half the window white, half black, while loading).
         ui.set_min_size(ui.available_size());
         let mut open = true;
         ui.horizontal(|ui| {

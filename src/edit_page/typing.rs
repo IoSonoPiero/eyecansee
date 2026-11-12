@@ -1,4 +1,4 @@
-//! Typing a text or a bubble's letters on the image itself (user, 2026-11-06: "I want to select
+//! Typing a text or a bubble's letters on the image itself ("I want to select
 //! the text on the image too"): while it is being typed, a field without a frame lies over it,
 //! where the pointer selects letters as in any field; the letters drawn by `edit::render` are
 //! hidden meanwhile (the field shows them, in the interface's font), and are back when it ends.

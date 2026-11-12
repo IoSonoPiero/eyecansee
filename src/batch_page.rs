@@ -233,7 +233,7 @@ impl App {
     }
 
     /// "Copy without sound" and "Save the sound as a file": the window on the videos chosen, with only the
-    /// destination to choose, next to the originals at first (user, 2026-10-30).
+    /// destination to choose, next to the originals at first.
     pub(crate) fn open_audio(&mut self, job: AudioJob, path: Option<String>) {
         if self.batch.is_some() {
             return;

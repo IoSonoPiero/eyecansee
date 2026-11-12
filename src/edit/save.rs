@@ -49,7 +49,7 @@ pub struct Plan {
 }
 
 /// `save`'s choices without making the file: the confirmation shows at once, the file is made
-/// once confirmed (user, 2026-11-06: it took a second and a half on a large photo).
+/// once confirmed (it took a second and a half on a large photo).
 pub fn plan(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str, taken: &[String]) -> Result<Plan, String> {
     if animated(bytes, name) {
         return Err(format!("{name}: animated or with several pages"));
@@ -237,7 +237,7 @@ fn paint(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg
         }
     }
     // In the order they were drawn: a cover box hides what was drawn before it, what comes after
-    // it stays on top (as layers; user's choice of 2026-11-05).
+    // it stays on top (as layers).
     for (i, o) in doc.objects.iter().enumerate().filter(|(_, o)| !o.shape.is_layer()) {
         if let Shape::Cover(area) = &o.shape {
             holes.push(cover(img, area, doc.angle, corner, o.style.color));

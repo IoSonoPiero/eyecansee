@@ -226,9 +226,8 @@ impl Default for Settings {
             slideshow_loop: true,
             edit_styles: Vec::new(),
             edit_multiply: false,
-            // Off: Save copy and Overwrite leave the page open, as up to 0.76.0 (user, 2026-11-05
-            // and 2026-11-06); who updates does not find the editor closing without choosing it
-            // (user, 2026-11-11).
+            // Off: Save copy and Overwrite leave the page open, as up to 0.76.0; who updates
+            // does not find the editor closing without choosing it.
             edit_after_save: AfterSave::Stay,
             // Overwriting an original is the risky choice: a copy unless asked.
             edit_main_overwrite: false,

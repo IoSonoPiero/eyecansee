@@ -94,7 +94,7 @@ pub fn pick(choice: EngineChoice, system: Option<bool>, downloaded: bool) -> Opt
 
 /// `pick` for a job that copies the streams without decoding or encoding them (`-c copy`):
 /// "Automatic" also takes a system's FFmpeg that only lacks the phones' decoders, when the one of
-/// `pick` is missing (Piero, 2026-11-12: the download is asked only to decode or encode).
+/// `pick` is missing (the download is asked only to decode or encode).
 pub fn pick_copy(choice: EngineChoice, system: Option<&Fit>, downloaded: bool) -> Option<Source> {
     pick(choice, system.map(|f| *f == Fit::Yes), downloaded).or_else(|| pick(choice, system.map(|f| *f != Fit::TooOld), downloaded))
 }

@@ -105,8 +105,8 @@ impl Drop for Opened {
 
 /// Tries of a request that changes nothing on the server (reads, listings, the opening of a
 /// file): the first, then on a new connection each time the one before dropped. On the link of
-/// #75 a new connection sometimes stopped again within seconds (Windows to the DS725+ through
-/// Tailscale, 2026-11-09); three tries give up after about 3 × `SILENCE`, about the 60 s of a
+/// #75 a new connection sometimes stopped again within seconds (Windows to a NAS through a VPN);
+/// three tries give up after about 3 × `SILENCE`, about the 60 s of a
 /// single wait before.
 const READ_TRIES: u32 = 3;
 

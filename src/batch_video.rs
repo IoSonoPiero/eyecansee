@@ -107,7 +107,7 @@ pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     }
     // Copied streams: nothing to choose about the encoder or the quality.
     if v.codec != Codec::Copy {
-        // The graphics card's encoders in green (user, 2026-10-29), with a line that says so.
+        // The graphics card's encoders in green, with a line that says so.
         let good = crate::theme::good(ui.visuals());
         let name = |e: &str| {
             let text = egui::RichText::new(format!("{} ({e})", crate::ffmpeg::maker(e)));

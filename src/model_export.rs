@@ -1,5 +1,5 @@
-//! A 3D model saved in another 3D format, with as much of the original as the format holds
-//! (user, 2026-11-02): GLB (glTF) keeps the pictures, their coordinates, the normals and the
+//! A 3D model saved in another 3D format, with as much of the original as the format holds:
+//! GLB (glTF) keeps the pictures, their coordinates, the normals and the
 //! surfaces (metal, roughness, bumps, occlusion, glow); OBJ the normals and colours on the
 //! vertices; PLY (binary) and STL (binary, VisCAM colours) a colour per triangle. Where the
 //! format cannot hold a picture, its colours are taken from it. Each is written with the up axis

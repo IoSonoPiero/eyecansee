@@ -175,7 +175,7 @@ impl App {
     }
 
     /// libmpv can play videos: also the engine just downloaded, at once, as FFmpeg and the CAD
-    /// engine (user, 2026-11-02; the restart asked for on 2026-10-27 seemed slow). A restart is
+    /// engine (the restart asked for on 2026-10-27 seemed slow). A restart is
     /// offered only when it cannot be loaded (`Engine::Ready`: the first load right after the
     /// download failed once on Windows, 2026-10-27).
     fn engine(&self) -> bool {

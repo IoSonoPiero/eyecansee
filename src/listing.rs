@@ -109,7 +109,7 @@ impl App {
         self.selected = made.or(followed).unwrap_or(self.selected).min((ndirs + n).saturating_sub(1));
         self.cursor = (self.cursor || made.is_some()) && ndirs + n > 0;
         self.scroll_to_selected |= made.is_some();
-        // The viewer goes to that file: what was just saved is what is shown (user, 2026-11-05).
+        // The viewer goes to that file: what was just saved is what is shown.
         let copy = made.and_then(|m| m.checked_sub(ndirs));
         if self.viewing.is_some() && copy.is_some() {
             self.turn = Default::default();

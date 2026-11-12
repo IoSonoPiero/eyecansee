@@ -215,7 +215,7 @@ pub fn with_handle(o: &Obj, i: usize, p: Pt) -> Obj {
     with_handle_kept(o, i, p, false)
 }
 
-/// `with_handle`; with `keep` (Shift held) a box keeps the proportions it had (user, 2026-11-06).
+/// `with_handle`; with `keep` (Shift held) a box keeps the proportions it had.
 pub fn with_handle_kept(o: &Obj, i: usize, p: Pt, keep: bool) -> Obj {
     let square = matches!(o.shape, Shape::Step { .. } | Shape::Stamp(_));
     let resized = |r: &Area| {
@@ -438,7 +438,7 @@ mod tests {
 
 /// `new`, made again by a drag (drawn, moved, resized) from what was `old`, with `old`'s preview
 /// until its own is made: a highlighter or a magnifier being drawn was empty until let go, one
-/// moved showed the part it came from (user, 2026-11-06).
+/// moved showed the part it came from.
 pub fn redrawn(old: &mut Obj, mut new: Obj) -> Obj {
     if let (Some(from), Some(to)) = (old.shape.preview_mut(), new.shape.preview_mut()) {
         *to = std::mem::take(from);

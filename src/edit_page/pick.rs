@@ -1,4 +1,4 @@
-//! The editor's eyedropper on the canvas, as in the photo editors (user, 2026-11-06: "do what the
+//! The editor's eyedropper on the canvas, as in the photo editors ("do what the
 //! others do"): a box by the pointer with a magnifier (the pixels around it, the one taken
 //! framed), the new colour next to the one in use, the codes; the colour of one pixel or the
 //! average of 3 × 3 or 5 × 5; what is seen (the photo with the objects drawn); a click copies its
@@ -22,7 +22,7 @@ pub(super) fn mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, vi
     if response.hovered() || response.dragged() {
         ui.ctx().set_cursor_icon(CursorIcon::Crosshair);
         // By the pointer, kept inside the window; dragged out of it (where nothing can be drawn)
-        // where it was last (it jumped to a corner of the canvas: user, 2026-11-06).
+        // where it was last (it jumped to a corner of the canvas).
         let window = ui.ctx().content_rect();
         let pointer = ui.input(|i| i.pointer.latest_pos()).filter(|p| window.contains(*p));
         if let Some(p) = pointer {
@@ -30,7 +30,7 @@ pub(super) fn mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, vi
         }
         let at = pointer.filter(|p| response.rect.contains(*p));
         // Over the image only, as on Linux; past it only while dragging, to take a colour from
-        // elsewhere on the screen (user, 2026-11-06).
+        // elsewhere on the screen.
         let on_image = at.is_some_and(|s| photo_at(w, view.doc(s, w.doc.angle)).is_some());
         if let Some(grid) = (on_image || response.dragged()).then(|| around(w, view, at)).flatten() {
             let p = w.pick_box.unwrap_or(response.rect.left_bottom()) + egui::vec2(18.0, 18.0);

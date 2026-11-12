@@ -143,7 +143,7 @@ impl App {
 
     /// Next to the address bar, as in Total Commander: the star adds the place shown, lit when it
     /// is a bookmark already, and then takes it away, as in the browsers; the drop-down beside it
-    /// chooses one (Piero, 2026-11-10).
+    /// chooses one.
     pub(crate) fn bookmark_button(&mut self, ui: &mut egui::Ui) {
         let have = self.here_kept();
         let tip = self.i18n.t(if have { "bm-remove" } else if self.viewing.is_some() { "bm-star-image" } else { "bm-star-folder" });

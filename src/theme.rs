@@ -69,7 +69,7 @@ pub fn solid(v: &Visuals) -> Color32 {
     palette(v).solid
 }
 
-/// The title of a window drawn in its content, centered (user, 2026-10-27: every window's title
+/// The title of a window drawn in its content, centered (every window's title
 /// in the middle, as egui's title bars have it).
 pub fn title(ui: &mut egui::Ui, text: impl Into<egui::RichText>) {
     ui.vertical_centered(|ui| ui.heading(text));
@@ -77,7 +77,7 @@ pub fn title(ui: &mut egui::Ui, text: impl Into<egui::RichText>) {
 
 /// The title of a page covering the window, centered, cut with "…" when too long. `true` when
 /// the window's ✕ is clicked: it closes the page, not the app. The page had a ✕ of its own,
-/// unseen and then a double ✕ under the window's (user, 2026-11-02).
+/// unseen and then a double ✕ under the window's.
 pub fn page_title(ui: &mut egui::Ui, text: &str) -> bool {
     let close = close_asked(ui);
     ui.vertical_centered(|ui| ui.add(egui::Label::new(egui::RichText::new(text).heading()).truncate()));
@@ -106,7 +106,7 @@ pub fn main_button(ui: &egui::Ui, text: String) -> egui::Button<'static> {
 }
 
 /// Dark red behind `alert_button`'s white text: 7.5:1. The red before (#C62828) was 5.6:1 on
-/// paper, but its thin letters, blended into the red at their edges, read pink (user, 2026-10-31).
+/// paper, but its thin letters, blended into the red at their edges, read pink.
 const ALERT_RED: Color32 = Color32::from_rgb(0xA5, 0x1C, 0x1C);
 
 /// Something to do now, in the menu bar (an update, the video engine): white bold on dark red.
@@ -115,7 +115,7 @@ pub fn alert_button(text: String) -> egui::Button<'static> {
 }
 
 /// Something under way or not saved, in the status bars: a yellow label with dark bold text
-/// (contrast about 13:1). White on the blue bar went unnoticed (user, 2026-10-26).
+/// (contrast about 13:1). White on the blue bar went unnoticed.
 pub fn alert(text: String) -> egui::RichText {
     egui::RichText::new(format!(" {text} ")).strong().color(Color32::from_gray(26)).background_color(ALERT_YELLOW)
 }
@@ -127,7 +127,7 @@ const ALERT_INK: Color32 = Color32::from_rgb(0x4A, 0x32, 0x00);
 /// Something that went wrong or needs reading: the error bar, the warning about servers saved in
 /// plain text. A band of pale amber with a darker edge and dark text (light theme, text 13:1 on
 /// the fill, edge 3.5:1), dark amber with pale text (dark theme, 12:1 and 6:1). Red text on the
-/// dark bar was hard to read (user, 2026-11-10).
+/// dark bar was hard to read.
 pub fn warning_frame(v: &Visuals) -> egui::Frame {
     let (fill, edge) = if v.dark_mode { (rgb(60, 44, 8), rgb(230, 170, 40)) } else { (rgb(255, 243, 205), rgb(176, 120, 0)) };
     egui::Frame::new().fill(fill).stroke(Stroke::new(1.5, edge)).corner_radius(4).inner_margin(egui::Margin::symmetric(10, 8))

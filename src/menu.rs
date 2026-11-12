@@ -216,7 +216,7 @@ impl App {
     }
 
     pub(crate) fn toolbar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
-        // Line icons in square buttons with a border (Lucide, user's choice of 2026-11-05).
+        // Line icons in square buttons with a border (Lucide).
         ui.horizontal(|ui| {
             if self.viewing.is_some() {
                 if ui.add(icons::button(ui, icons::Line::Grid)).on_hover_text(self.i18n.t("menu-back-to-grid")).clicked() {
@@ -258,7 +258,7 @@ impl App {
                 self.address_clip(ui);
             }
             // The Enter is taken here: left to the grid drawn after, it opened the selected file
-            // (an address that does not open left the viewer on it: user, 2026-11-10).
+            // (an address that does not open left the viewer on it).
             if response.lost_focus() && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter)) {
                 let address = crate::navigation::typed_address(&self.address);
                 self.open_source(ctx, &address);
