@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Takes again the pictures of the illustrated manual, docs/help/img/<name>.webp: all the scenes of
+# Takes again the pictures of the illustrated guide, docs/help/img/<name>.webp: all the scenes of
 # tools/shots/, or those named (tools/shots.sh start editor). EyeCanSee, built with the feature
 # `shots`, plays each scene (src/shots.rs) and saves the pictures itself.
 #

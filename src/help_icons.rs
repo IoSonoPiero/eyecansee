@@ -1,4 +1,4 @@
-//! The icons inside the text of the illustrated manual: `![Save](icon://save)` in a page draws,
+//! The icons inside the text of the illustrated guide: `![Save](icon://save)` in a page draws,
 //! in the line of text, the same icon as the button. A texture loader for the `icon://` scheme,
 //! installed at start: the names are the Lucide files of `assets/icons/lucide/` (all of them,
 //! also those only used by stamps, filters and bubbles), our own line icons and the coloured ones

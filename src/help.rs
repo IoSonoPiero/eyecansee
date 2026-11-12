@@ -1,4 +1,4 @@
-//! The guide (F1, Help > Manual): pages embedded in the executable (`docs/help/<lang>/<id>.md`,
+//! The guide (F1, Help > Guide): pages embedded in the executable (`docs/help/<lang>/<id>.md`,
 //! pictures in `docs/help/img/`), a table of contents read from `index.md`, Back and Forward as in
 //! a browser, and a search over every page. The search itself is in `help_search`, without egui.
 
@@ -312,7 +312,7 @@ impl App {
         }
     }
 
-    /// Opens the guide on a page (Help > Manual: the table of contents).
+    /// Opens the guide on a page (Help > Guide: the table of contents).
     pub(crate) fn open_help(&mut self, id: &'static str) {
         self.help.open = true;
         self.help.typing = false;

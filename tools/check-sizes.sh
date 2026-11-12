@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Warns (never fails) about files in src/ longer than 800 lines, not counting the `#[cfg(test)]`
-# module at the end, and about the pictures of the illustrated manual (docs/help/img/*.webp, built
+# module at the end, and about the pictures of the illustrated guide (docs/help/img/*.webp, built
 # into the program): each under 250 KB, all together under 3 MB. On GitHub Actions the warning
 # shows up as an annotation on the file.
 # Usage: tools/check-sizes.sh [limit]

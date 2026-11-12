@@ -13,7 +13,7 @@ repository = "https://github.com/IoSonoPiero/eyecansee"
 default = ["heif", "magick"]
 heif = ["dep:libheif-rs"]
 magick = ["dep:magick_rust"]
-# The pictures of the illustrated manual, taken by the app itself (src/shots.rs, tools/shots.sh).
+# The pictures of the illustrated guide, taken by the app itself (src/shots.rs, tools/shots.sh).
 shots = []
 # The private test copy: red icon, its own folders, no updates (src/test_copy.rs). Never in a
 # public package: build.rs refuses it on GitHub Actions.

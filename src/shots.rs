@@ -1,4 +1,4 @@
-//! Screenshots of the illustrated manual (`docs/help/img/`), only with the Cargo feature `shots`
+//! Screenshots of the illustrated guide (`docs/help/img/`), only with the Cargo feature `shots`
 //! (`tools/shots.sh` builds and runs it). A scene (`tools/shots/<name>.txt`, path in
 //! `EYECANSEE_SHOTS_SCENE`) drives the app with real input events (pointer, keys, text) put in
 //! `raw_input_hook`, and with menu actions; each `shot` saves the window, or a part of it, as a

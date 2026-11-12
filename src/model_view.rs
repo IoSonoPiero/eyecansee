@@ -185,7 +185,7 @@ impl App {
 
     /// Frames per second while the model moves; `None` when still (no frames are drawn then).
     pub(crate) fn model_fps(&self) -> Option<usize> {
-        // Not in the manual's pictures: the number is the computer's, not the program's.
+        // Not in the guide's pictures: the number is the computer's, not the program's.
         #[cfg(feature = "shots")]
         if crate::shots::active() {
             return None;

@@ -367,7 +367,7 @@ struct App {
     /// The slideshow under way, at full screen.
     show: Option<slideshow::Show>,
     title: String,
-    /// The guide (F1, Help > Manual).
+    /// The guide (F1, Help > Guide).
     help: help::Guide,
     about: bool,
     /// App icon for the About window, made the first time it opens.
