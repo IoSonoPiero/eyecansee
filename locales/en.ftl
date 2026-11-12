@@ -372,14 +372,15 @@ restore-merge = Merge
 delete-ntfs = This is an **NTFS disk**: the Files app (Nautilus) cannot restore from its trash. The file can still be restored from a terminal with "gio trash --restore" (see the manual, Known limits).
 
 opt-check-updates = Check for updates at startup
-opt-check-updates-hint = When EyeCanSee starts, it asks GitHub for the latest release. A newer version is downloaded in the background and checked; it is installed only when you click "Install … and restart". Windows (installer and zip) and the AppImage; on Fedora updates come with dnf.
+opt-check-updates-hint = When EyeCanSee starts, it asks GitHub for the latest release. A newer version is downloaded in the background and checked; it is installed only when you click "Install … and restart". Windows (installer and zip) and the AppImage; the copy from the Microsoft Store asks the Store instead, and the button opens its page; on Fedora updates come with dnf.
 update-install = Install { $version } and restart
 update-failed = Cannot install the update: { $detail }
 menu-check-updates = Check for updates
 update-checking = Checking for updates…
 update-latest = EyeCanSee { $version } is the latest version.
 update-found = EyeCanSee { $version } is ready: click the red button at the top right to install it.
-update-store = This copy comes from the Microsoft Store, which updates it.
+update-found-store = EyeCanSee { $version } is in the Microsoft Store: click the red button at the top right to open its page and update.
+update-in-store = Update to { $version } in the Microsoft Store
 update-flatpak = This copy is a Flatpak: it is updated through flatpak update or your software center.
 update-unavailable = This copy is not updated by EyeCanSee: on Fedora updates come with dnf, and development builds are never updated.
 update-check-failed = Cannot check for updates: { $detail }

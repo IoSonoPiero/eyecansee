@@ -5,7 +5,7 @@ EyeCanSee can keep itself up to date. How depends on how you installed it.
 ## Which copies update themselves
 
 - **Windows installer, Windows zip and AppImage**: EyeCanSee updates itself, as described below.
-- **Microsoft Store**: the Store updates it.
+- **Microsoft Store**: the Store updates it. EyeCanSee asks the Store whether it has a newer version: if so, a red **Update to … in the Microsoft Store** button appears at the top right of the menu bar, and clicking it opens EyeCanSee's page in the Store, where you update it.
 - **Flatpak**: it is updated by `flatpak update` or by your software center (for example GNOME Software, Discover or the Linux Mint Update Manager).
 - **Fedora package**: it is updated by `dnf` with the rest of the system.
 
@@ -18,8 +18,8 @@ EyeCanSee can keep itself up to date. How depends on how you installed it.
 
 ## Checking by hand
 
-**Help > Check for updates** (![Check for updates](icon://download)) does the same check at any time and tells you the outcome: that you have the latest version, that a new one is ready (then click the red button), or why this copy is not updated by EyeCanSee (Store, Flatpak, Fedora package, or a development build). If the check fails, it says why.
+**Help > Check for updates** (![Check for updates](icon://download)) does the same check at any time and tells you the outcome: that you have the latest version, that a new one is ready (then click the red button), or why this copy is not updated by EyeCanSee (Flatpak, Fedora package, or a development build). In the copy from the Microsoft Store it asks the Store. If the check fails, it says why.
 
 ## Turning the check off
 
-Untick **Check for updates at startup** in **Tools > Options… > General**. EyeCanSee then contacts GitHub only when you choose **Check for updates**. Nothing about you or your images is ever sent: only the request for the latest version.
+Untick **Check for updates at startup** in **Tools > Options… > General**. EyeCanSee then contacts GitHub (or, in the copy from the Microsoft Store, the Store) only when you choose **Check for updates**. Nothing about you or your images is ever sent: only the request for the latest version.

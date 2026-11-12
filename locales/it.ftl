@@ -371,14 +371,15 @@ restore-merge = Unisci
 delete-ntfs = Questo è un **disco NTFS**: l'app File (Nautilus) non riesce a ripristinare dal suo cestino. Il file si può comunque ripristinare dal terminale con "gio trash --restore" (vedi il manuale, Limiti noti).
 
 opt-check-updates = Controlla gli aggiornamenti all'avvio
-opt-check-updates-hint = All'avvio EyeCanSee chiede a GitHub l'ultima versione pubblicata. Se è più nuova la scarica in background e la controlla; la installa solo quando fai clic su "Installa … e riavvia". Windows (installer e zip) e AppImage; su Fedora gli aggiornamenti arrivano con dnf.
+opt-check-updates-hint = All'avvio EyeCanSee chiede a GitHub l'ultima versione pubblicata. Se è più nuova la scarica in background e la controlla; la installa solo quando fai clic su "Installa … e riavvia". Windows (installer e zip) e AppImage; la copia del Microsoft Store chiede invece allo Store, e il pulsante apre la sua pagina; su Fedora gli aggiornamenti arrivano con dnf.
 update-install = Installa la { $version } e riavvia
 update-failed = Impossibile installare l'aggiornamento: { $detail }
 menu-check-updates = Verifica aggiornamenti
 update-checking = Controllo degli aggiornamenti…
 update-latest = EyeCanSee { $version } è l'ultima versione.
 update-found = EyeCanSee { $version } è pronto: per installarlo fai clic sul pulsante rosso in alto a destra.
-update-store = Questa copia viene dal Microsoft Store, che la aggiorna.
+update-found-store = EyeCanSee { $version } è nel Microsoft Store: fai clic sul pulsante rosso in alto a destra per aprire la sua pagina e aggiornare.
+update-in-store = Aggiorna alla { $version } nel Microsoft Store
 update-flatpak = Questa copia è un Flatpak: si aggiorna con flatpak update o con il centro software del sistema.
 update-unavailable = Questa copia non viene aggiornata da EyeCanSee: su Fedora gli aggiornamenti arrivano con dnf, e le versioni di sviluppo non si aggiornano mai.
 update-check-failed = Impossibile controllare gli aggiornamenti: { $detail }

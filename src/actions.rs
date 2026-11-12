@@ -297,16 +297,7 @@ impl App {
                 log!("quit from the menu");
                 ctx.send_viewport_cmd(egui::ViewportCommand::Close);
             }
-            Act::Update => {
-                let Some(ready) = &self.update else { return };
-                match update::apply(ready) {
-                    Ok(()) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
-                    Err(e) => {
-                        log!("update: ERROR {e}");
-                        self.error = Some(self.i18n.t_args("update-failed", &[("detail", &e)]));
-                    }
-                }
-            }
+            Act::Update => self.install_update(ctx),
             Act::Open => self.open_selected(),
             Act::OpenDir(dir) => self.set_dir(dir),
             Act::Back => self.close_viewer(),
@@ -315,23 +306,48 @@ impl App {
             Act::Up => self.go_up(),
             Act::Manual => self.open_help("index"),
             Act::About => self.about = true,
-            Act::CheckUpdates => {
-                let id = if let Some(r) = &self.update {
-                    self.update_note = Some(self.i18n.t_args("update-found", &[("version", &r.version)]));
-                    return;
-                } else if self.check_updates(ctx) {
-                    "update-checking"
-                } else if crate::update::packaged() {
-                    if cfg!(windows) { "update-store" } else { "update-flatpak" }
-                } else {
-                    "update-unavailable"
-                };
-                self.update_note = Some(self.i18n.t(id));
-            }
+            Act::CheckUpdates => self.check_updates_now(ctx),
             Act::Meta(g) => self.show_meta(g, !self.meta_shown(g)),
             Act::Sort(by) => self.set_sort(by, self.settings.sort_desc),
             Act::SortDesc => self.set_sort(self.settings.sort_by, !self.settings.sort_desc),
             Act::Show(show) => self.set_show(show),
         }
+    }
+
+    /// The red button: the new version installed and EyeCanSee started again, or, for the copy from
+    /// the Microsoft Store, the Store's page opened.
+    fn install_update(&mut self, ctx: &egui::Context) {
+        let Some(ready) = &self.update else { return };
+        #[cfg(windows)]
+        let r = if ready.in_store() { update::open_store().map(|()| false) } else { update::apply(ready).map(|()| true) };
+        #[cfg(not(windows))]
+        let r = update::apply(ready).map(|()| true);
+        match r {
+            Ok(close) => {
+                if close {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+                }
+            }
+            Err(e) => {
+                log!("update: ERROR {e}");
+                self.error = Some(self.i18n.t_args("update-failed", &[("detail", &e)]));
+            }
+        }
+    }
+
+    /// Help > Check for updates.
+    fn check_updates_now(&mut self, ctx: &egui::Context) {
+        let id = if let Some(r) = &self.update {
+            let found = if r.in_store() { "update-found-store" } else { "update-found" };
+            self.update_note = Some(self.i18n.t_args(found, &[("version", &r.version)]));
+            return;
+        } else if self.check_updates(ctx) {
+            "update-checking"
+        } else if crate::update::packaged() {
+            "update-flatpak"
+        } else {
+            "update-unavailable"
+        };
+        self.update_note = Some(self.i18n.t(id));
     }
 }

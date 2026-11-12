@@ -486,7 +486,10 @@ impl App {
     fn on_update(&mut self, r: Result<Option<update::Ready>, String>) {
         log!("update: {r:?}");
         let note = match &r {
-            Ok(Some(ready)) => self.i18n.t_args("update-found", &[("version", &ready.version)]),
+            Ok(Some(ready)) => {
+                let found = if ready.in_store() { "update-found-store" } else { "update-found" };
+                self.i18n.t_args(found, &[("version", &ready.version)])
+            }
             Ok(None) => self.i18n.t_args("update-latest", &[("version", version())]),
             Err(e) => self.i18n.t_args("update-check-failed", &[("detail", e)]),
         };

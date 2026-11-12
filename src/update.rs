@@ -3,7 +3,8 @@
 //! publishes for it, and installed when the user clicks "Install and restart".
 //! Only copies that can replace themselves: the Windows installer and zip, the AppImage. The RPM
 //! is updated by dnf, the Store and Flatpak copies by their own (`packaged`), development builds
-//! (in `target`) never.
+//! (in `target`) never. The Store copy asks the Store whether it has a newer version and offers
+//! its page (`Kind::Store`).
 
 use std::io::{Read, Write};
 use std::path::{Path, PathBuf};
@@ -26,7 +27,15 @@ pub enum Kind {
     Zip,
     /// Linux AppImage at this path (`$APPIMAGE`): the new file takes its place.
     AppImage(PathBuf),
+    /// Windows, from the Microsoft Store: the Store is asked for a newer version, and the button
+    /// opens EyeCanSee's page there, where it is installed.
+    #[cfg(windows)]
+    Store,
 }
+
+/// EyeCanSee's page in the Microsoft Store app.
+#[cfg(windows)]
+const STORE_PAGE: &str = "ms-windows-store://pdp/?productid=9PK1598MXLBK";
 
 /// Running from an MSIX package (the Microsoft Store): its folder is read-only and the Store
 /// updates it.
@@ -47,9 +56,9 @@ pub fn packaged() -> bool {
 
 impl Kind {
     pub fn detect() -> Option<Kind> {
-        // The Microsoft Store and flatpak update their own copies.
+        // flatpak updates its own copies; the Microsoft Store too, but it is asked whether it has one.
         if packaged() {
-            return None;
+            return Self::store();
         }
         if let Some(path) = std::env::var_os("APPIMAGE") {
             return Some(Kind::AppImage(path.into()));
@@ -70,12 +79,24 @@ impl Kind {
         Some(Kind::Zip)
     }
 
+    #[cfg(windows)]
+    fn store() -> Option<Kind> {
+        Some(Kind::Store)
+    }
+
+    #[cfg(not(windows))]
+    fn store() -> Option<Kind> {
+        None
+    }
+
     /// End of the release file name for this kind.
     fn asset_suffix(&self) -> &'static str {
         match self {
             Kind::Installer { .. } => "-windows-x64-setup.exe",
             Kind::Zip => "-windows-x64.zip",
             Kind::AppImage(_) => "-x86_64.AppImage",
+            #[cfg(windows)]
+            Kind::Store => "",
         }
     }
 }
@@ -86,6 +107,16 @@ pub struct Ready {
     pub version: String,
     kind: Kind,
     file: PathBuf,
+}
+
+impl Ready {
+    /// A newer version in the Microsoft Store: its button opens the Store page, nothing is installed here.
+    pub fn in_store(&self) -> bool {
+        #[cfg(windows)]
+        return matches!(self.kind, Kind::Store);
+        #[cfg(not(windows))]
+        false
+    }
 }
 
 /// "0.24.5" → (0, 24, 5); anything else (a suffix like "-test1") → `None`.
@@ -107,6 +138,10 @@ pub(crate) fn agent() -> ureq::Agent {
 /// Asks GitHub for the latest release; if newer than `current`, downloads its file for `kind`.
 /// `Ok(None)` = already up to date.
 pub fn check(kind: Kind, current: &str) -> Result<Option<Ready>, String> {
+    #[cfg(windows)]
+    if let Kind::Store = kind {
+        return Ok(store_update()?.map(|version| Ready { version, kind, file: PathBuf::new() }));
+    }
     let agent = agent();
     let text = agent.get(LATEST).call().and_then(|mut r| r.body_mut().read_to_string()).map_err(|e| e.to_string())?;
     let release: serde_json::Value = serde_json::from_str(&text).map_err(|e| e.to_string())?;
@@ -154,6 +189,29 @@ pub fn check(kind: Kind, current: &str) -> Result<Option<Ready>, String> {
         std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
     }
     Ok(Some(Ready { version: version.to_string(), kind, file }))
+}
+
+/// The Microsoft Store's newest update of this package, as "0.77.1", or `None` when there is none.
+/// The Store answers only for a package it knows (the same name and publisher as in Partner Center).
+#[cfg(windows)]
+fn store_update() -> Result<Option<String>, String> {
+    use windows::Services::Store::StoreContext;
+    let updates = StoreContext::GetDefault()
+        .and_then(|c| c.GetAppAndOptionalStorePackageUpdatesAsync())
+        .and_then(|op| op.join())
+        .map_err(|e| format!("Microsoft Store: {e}"))?;
+    let mut newest = None;
+    for i in 0..updates.Size().map_err(|e| e.to_string())? {
+        let v = updates.GetAt(i).and_then(|u| u.Package()).and_then(|p| p.Id()).and_then(|id| id.Version()).map_err(|e| e.to_string())?;
+        newest = newest.max(Some((v.Major, v.Minor, v.Build)));
+    }
+    Ok(newest.map(|(a, b, c)| format!("{a}.{b}.{c}")))
+}
+
+/// Opens EyeCanSee's page in the Microsoft Store app.
+#[cfg(windows)]
+pub fn open_store() -> Result<(), String> {
+    std::process::Command::new("explorer").arg(STORE_PAGE).spawn().map(drop).map_err(|e| e.to_string())
 }
 
 /// Download address of `<name>.minisig`: without it there is no update.
@@ -300,6 +358,9 @@ pub fn apply(ready: &Ready) -> Result<(), String> {
                 old = quote(&exe.with_extension("exe.old")),
             ))
         }
+        // `Act::Update` opens the Store page instead (`in_store`).
+        #[cfg(windows)]
+        Kind::Store => Err("the Microsoft Store installs its own updates".into()),
     }
 }
 

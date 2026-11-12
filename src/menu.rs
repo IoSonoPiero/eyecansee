@@ -51,7 +51,8 @@ impl App {
                 }
                 if let Some(r) = &self.update {
                     // Red: as a plain button it went unnoticed.
-                    let text = self.i18n.t_args("update-install", &[("version", &r.version)]);
+                    let id = if r.in_store() { "update-in-store" } else { "update-install" };
+                    let text = self.i18n.t_args(id, &[("version", &r.version)]);
                     pick(&act, ui.add(crate::theme::alert_button(text)), Act::Update);
                 }
                 self.engine_bar(ui);
