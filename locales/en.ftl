@@ -969,7 +969,7 @@ vault-save = Save the master password
 vault-plain-warning =
     The passwords and passphrases of your servers are written **as they are** in the file of the servers.
 
-    { "**" }Anyone who can read your files can read them.**
+    { "**" }Anyone who can read your files can read these passwords too.**
 
     To protect them, set a **master password** at the top of File > Server manager.
 

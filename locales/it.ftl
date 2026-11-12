@@ -968,7 +968,7 @@ vault-save = Salva la password principale
 vault-plain-warning =
     Le password e le passphrase dei tuoi server sono scritte **così come sono** nel file dei server.
 
-    { "**" }Chi può leggere i tuoi file può leggerle.**
+    { "**" }Chiunque possa leggere i tuoi file può leggere anche queste password.**
 
     Per proteggerle imposta una **password principale** in alto in File > Gestione server.
 
