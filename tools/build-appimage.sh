@@ -109,7 +109,11 @@ install -m 644 /src/assets/eyecansee.png "$APPDIR/eyecansee.png"
 # app panics at start on systems that lack it (the AppImage catalog test, Ubuntu 22.04 with Xvfb).
 # libxkbcommon itself stays the system's: the 22.04 copy is older than the keyboard files of newer
 # systems (Kubuntu 26.04 printed "unrecognized keysym dead_hamza" from its Compose file).
+# Update information for AppImageUpdate and the tools built on it (#107): the latest GitHub release's
+# .zsync, made next to the AppImage by appimagetool. No GPG signature inside, ever (decided in #107):
+# EyeCanSee's own update checks the minisign signature.
+export LDAI_UPDATE_INFORMATION="gh-releases-zsync|IoSonoPiero|eyecansee|latest|EyeCanSee-*-x86_64.AppImage.zsync"
 APPIMAGE_EXTRACT_AND_RUN=1 LINUXDEPLOY_OUTPUT_VERSION=$VER $LD --appdir "$APPDIR" \
     -e $PROFILE/eyecansee -l /usr/lib/x86_64-linux-gnu/libxkbcommon-x11.so.0 --exclude-library 'libxkbcommon.so*' -d /src/assets/eyecansee.desktop -i /src/assets/eyecansee.svg -i /src/assets/eyecansee.png --output appimage
-chown "$(stat -c %u:%g /src)" EyeCanSee-*.AppImage
-ls -l EyeCanSee-*.AppImage
+chown "$(stat -c %u:%g /src)" EyeCanSee-*.AppImage EyeCanSee-*.AppImage.zsync
+ls -l EyeCanSee-*.AppImage EyeCanSee-*.AppImage.zsync

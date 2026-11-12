@@ -184,7 +184,10 @@ jobs:
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
         with:
           name: appimage
-          path: target/appimage/EyeCanSee-*-x86_64.AppImage
+          # The .zsync, for AppImageUpdate (#107), goes into the draft next to the AppImage.
+          path: |
+            target/appimage/EyeCanSee-*-x86_64.AppImage
+            target/appimage/EyeCanSee-*-x86_64.AppImage.zsync
 
   # The Flatpak, not signed: only the new commit of the app (no .Debug, no appstream) in an OSTree
   # repository packed as flatpak-commit-<ver>.tar, next to the draft with its SHA-256. The developer
