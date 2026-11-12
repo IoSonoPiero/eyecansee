@@ -1,6 +1,6 @@
 # The Microsoft Store package (MSIX) from the folder the zip is made of (pkg\ in release.yml).
 # Unsigned: the Store signs what it publishes. To install it locally it must be signed with a
-# certificate whose subject is the manifest's Publisher (see notes, WINDOWS.md).
+# certificate whose subject is the manifest's Publisher.
 #   .\tools\msix.ps1 -Pkg pkg -Version 0.72.0 -Out EyeCanSee-0.72.0-windows-x64.msix
 param(
     [Parameter(Mandatory)] [string] $Pkg,

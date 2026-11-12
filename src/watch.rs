@@ -144,7 +144,7 @@ impl App {
         }
     }
 
-    /// Windows only: a phone call stalled for `mtp::STALL_SECS` (WPD, FATTI) opens a message
+    /// Windows only: a phone call stalled for `mtp::STALL_SECS` (WPD) opens a message
     /// window once, saying what to do; it closes by itself when the phone answers again.
     pub(crate) fn phone_stall(&mut self) {
         if !cfg!(windows) {

@@ -488,7 +488,7 @@ mod tests {
     /// `EYECANSEE_META` through each save path, written to `EYECANSEE_META_OUT` as
     /// `<name>.<path>.<ext>`: crop (Rotate and crop), turn (Save), and conversion at half size to
     /// JPEG, PNG, WebP, TIFF and AVIF (Convert and resize, Save in another format). The tags lost
-    /// are counted with exiftool (notes, DIARIO 0.73.1).
+    /// are counted with exiftool.
     #[test]
     #[ignore]
     fn meta_live() {

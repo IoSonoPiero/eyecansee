@@ -2,7 +2,7 @@
 # src/test_copy.rs) and packs it like the release zip, with BUILD.txt (commit and date) and
 # install-windows.ps1: EyeCanSee-prova-<commit>.zip in the repository folder.
 # Run from the repository in the Windows build machine, with VCPKG_ROOT, IMAGE_MAGICK_DIR and
-# LIBCLANG_PATH set (notes: WINDOWS.md). Never on GitHub Actions (build.rs refuses it there).
+# LIBCLANG_PATH set (README.md, "Build" for Windows). Never on GitHub Actions (build.rs refuses it there).
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..\..")
 foreach ($v in [Environment]::GetEnvironmentVariables("User").GetEnumerator()) {

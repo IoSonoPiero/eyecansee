@@ -9,7 +9,7 @@
 //! folder again. Asking WPD about an object just added (`get_object_info`) was followed by a
 //! stall of every call to that phone for ~340 s twice out of two, none in 7 tries without it
 //! (2026-10-29). Windows stalls that way by itself too: a photo taken on a POCO X7 Pro while the
-//! phone is open, with no call at all from the app (FATTI, issue #52); only unplugging frees it.
+//! phone is open, with no call at all from the app (issue #52); only unplugging frees it.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex, OnceLock};
@@ -51,7 +51,7 @@ fn push(serial: &str, change: Change) {
 }
 
 /// How long an object EyeCanSee itself added or removed keeps its events silent. WPD can hold a
-/// request for minutes (FATTI, issue #52): a late event of our own would only read the folder again.
+/// request for minutes (issue #52): a late event of our own would only read the folder again.
 const OWN_SECS: u64 = 600;
 
 /// Objects EyeCanSee itself added, removed or changed (copy, move, delete, conversion to the

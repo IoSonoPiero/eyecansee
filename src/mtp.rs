@@ -110,7 +110,7 @@ impl Drop for Waiting {
     }
 }
 
-/// Seconds after which a call still waiting on Windows is taken for WPD's stall (FATTI): ~340 s
+/// Seconds after which a call still waiting on Windows is taken for WPD's stall: ~340 s
 /// unless the cable is unplugged. Calls that are only slow end well before.
 pub const STALL_SECS: u64 = 15;
 
@@ -238,7 +238,7 @@ impl Phone {
             .open
             .get_or_try_init(|| async {
                 let t = std::time::Instant::now();
-                // Opening stalls too while WPD does (FATTI); no file to name yet.
+                // Opening stalls too while WPD does; no file to name yet.
                 let _waiting = Waiting::start("open", "");
                 let device = open(&self.serial).await.map_err(|e| self.open_failed(e))?;
                 log!("phone {} opened in {:.2} s", self.serial, t.elapsed().as_secs_f32());

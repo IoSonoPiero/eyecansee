@@ -1,5 +1,5 @@
 //! A PSD saved over itself after a turn or "Rotate and crop", written by ImageMagick with the colour
-//! profile, EXIF and XMP of the original. Always flattened: tried on 12 sample PSDs (notes, PROVE),
+//! profile, EXIF and XMP of the original. Always flattened: tried on 12 sample PSDs,
 //! ImageMagick drops text, effects, smart objects, masks, vectors, fills, groups and notes, and no
 //! free program does better. A "simple" PSD (RGB, 8 bit, at most one layer of plain pixels) loses
 //! nothing; for the others the confirmation warns that they will be flattened (asked by the user).
