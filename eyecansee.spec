@@ -20,6 +20,8 @@ BuildRequires:  pkgconfig(libheif) >= 1.23
 BuildRequires:  pkgconfig(MagickWand) >= 7
 BuildRequires:  desktop-file-utils
 BuildRequires:  appstream
+# tools/third-party-licenses.sh, for THIRD-PARTY-LICENSES.txt
+BuildRequires:  jq
 # HEIC needs the HEVC decoder plugin, which Fedora does not ship (patents): RPM Fusion has it.
 Recommends:     libheif-freeworld
 # Videos: libmpv, opened at run time (src/mpv.rs). HEVC videos need RPM Fusion's ffmpeg too.
@@ -44,6 +46,8 @@ them to other formats.
 %build
 export CARGO_HOME=%{_builddir}/cargo-home
 cargo build --release --locked
+# Licences and copyright notices of the crates and C libraries linked into the executable.
+tools/third-party-licenses.sh THIRD-PARTY-LICENSES.txt --locked
 
 %install
 install -Dm755 target/release/eyecansee %{buildroot}%{_bindir}/eyecansee
@@ -56,7 +60,7 @@ desktop-file-validate %{buildroot}%{_datadir}/applications/eyecansee.desktop
 appstreamcli validate --no-net %{buildroot}%{_metainfodir}/io.github.IoSonoPiero.EyeCanSee.metainfo.xml
 
 %files
-%license LICENSE assets/icons/lucide/LICENSE-lucide.txt assets/fonts/UFL.txt
+%license LICENSE assets/icons/lucide/LICENSE-lucide.txt assets/fonts/UFL.txt THIRD-PARTY-LICENSES.txt
 %doc README.md
 %{_bindir}/eyecansee
 %{_datadir}/applications/eyecansee.desktop
