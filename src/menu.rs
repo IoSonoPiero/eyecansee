@@ -259,7 +259,7 @@ impl App {
             // The Enter is taken here: left to the grid drawn after, it opened the selected file
             // (an address that does not open left the viewer on it: user, 2026-11-10).
             if response.lost_focus() && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Enter)) {
-                let address = self.address.clone();
+                let address = crate::navigation::typed_address(&self.address);
                 self.open_source(ctx, &address);
             }
             if self.viewing.is_none() {

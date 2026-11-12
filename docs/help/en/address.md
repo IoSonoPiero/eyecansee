@@ -11,6 +11,8 @@ Click in the address bar, type an address and press **Enter**. You can type:
 - a server: `ftp://…`, `ftps://…` or `sftp://…`, for example `sftp://anna@nas.lan/Photos` or `ftp://nas.lan:2121/Photos` (see [Servers (FTP and SFTP)](servers.md));
 - a folder of a phone, as the bar shows it when the phone is open: `mtp://…` (see [Android phones](phone.md)).
 
+Quotes around the whole address, as Windows' **Copy as path** adds them, and spaces before or after it are left out. On Windows a drive letter alone, such as `C:`, opens the drive's main folder (`C:\`).
+
 When you change folder, the bar shows the new one. When there is room, at its end ![Copy the address](icon://copy) copies the address and ![Paste an address](icon://clipboard-paste) puts the copied one in its place, ready for **Enter**. A password is never shown in the bar, even when you typed it there. If the address cannot be opened, a yellow band with a warning triangle at the bottom of the window says why (it goes away when you change folder, or earlier with its ✕), and the bar goes back to the folder you were in.
 
 ## Open location

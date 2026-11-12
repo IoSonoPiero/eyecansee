@@ -293,6 +293,18 @@ pub(crate) fn step(at: usize, n: usize, to: Go, wrap: bool) -> usize {
     }
 }
 
+/// An address typed or pasted in the bar: spaces around it go, and so do quotes around all of it,
+/// as Windows' "Copy as path" puts them (`"C:\Photos\"`). On Windows a drive alone (`C:`) is its
+/// root, as in Explorer, not the drive's current folder (the app's working folder, often System32).
+pub(crate) fn typed_address(a: &str) -> String {
+    let a = a.trim();
+    let a = a.strip_prefix('"').and_then(|a| a.strip_suffix('"')).map_or(a, str::trim);
+    match a.as_bytes() {
+        [d, b':'] if cfg!(windows) && d.is_ascii_alphabetic() => format!("{a}\\"),
+        _ => a.to_string(),
+    }
+}
+
 /// The window's title: with the editor open the name of the file edited (in applications working
 /// on documents the title is the document's name, GNOME's guidelines), else in the viewer the image
 /// shown and its `counter`, else the `folder`.
@@ -313,6 +325,19 @@ pub(crate) fn shown(base: &str, dir: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn typed_address_without_quotes() {
+        assert_eq!(typed_address(r#" "C:\Photos\" "#), r"C:\Photos\");
+        assert_eq!(typed_address(r#""/home/a b""#), "/home/a b");
+        assert_eq!(typed_address("sftp://host/dir"), "sftp://host/dir");
+        // Only a pair around all of it.
+        assert_eq!(typed_address(r#"C:\a"b"#), r#"C:\a"b"#);
+        assert_eq!(typed_address(r#""C:\Photos"#), r#""C:\Photos"#);
+        // A drive alone: its root on Windows.
+        assert_eq!(typed_address(r#" "d:" "#), if cfg!(windows) { r"d:\" } else { "d:" });
+        assert_eq!(typed_address("C:\\"), "C:\\");
+    }
 
     #[test]
     fn steps() {

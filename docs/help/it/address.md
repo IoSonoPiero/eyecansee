@@ -11,6 +11,8 @@ Fai clic nella barra degli indirizzi, scrivi un indirizzo e premi **Invio**. Puo
 - un server: `ftp://…`, `ftps://…` o `sftp://…`, per esempio `sftp://anna@nas.lan/Foto` o `ftp://nas.lan:2121/Foto` (vedi [Server (FTP e SFTP)](servers.md));
 - una cartella di un telefono, come la mostra la barra quando il telefono è aperto: `mtp://…` (vedi [Telefoni Android](phone.md)).
 
+Le virgolette intorno a tutto l'indirizzo, come le mette **Copia come percorso** di Windows, e gli spazi prima o dopo vengono tolti. Su Windows la sola lettera di un disco, come `C:`, apre la cartella principale del disco (`C:\`).
+
 Quando cambi cartella, la barra mostra quella nuova. Se c'è spazio, alla sua fine ![Copia l'indirizzo](icon://copy) copia l'indirizzo e ![Incolla un indirizzo](icon://clipboard-paste) lo sostituisce con quello copiato, pronto per **Invio**. Una password non compare mai nella barra, anche se l'hai scritta lì. Se l'indirizzo non si apre, una fascia gialla con il triangolo di avviso in fondo alla finestra spiega perché (sparisce quando cambi cartella, o prima con la sua ✕), e la barra torna alla cartella in cui eri.
 
 ## Apri indirizzo
