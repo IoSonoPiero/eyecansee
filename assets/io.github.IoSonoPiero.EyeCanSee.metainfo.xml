@@ -80,6 +80,20 @@
   </provides>
 
   <releases>
+    <release version="0.76.2" date="2026-11-12">
+      <description>
+        <ul>
+          <li>Image editor: the window title and the viewer stay on the image being edited, and after closing the editor show the file saved last</li>
+          <li>Image editor: a click or a shape outside the image no longer leaves an object there, and overlapping filters and highlighters look as in the saved file</li>
+          <li>Save in another format keeps Ultra HDR photos in JPEG, and suits a new image (PNG, no "0 KB")</li>
+          <li>Replace no longer loses the original in three rare cases: a copy inside the same phone, folders mounted by the file manager, an original left by a save cut short</li>
+          <li>Same as the system follows the desktop's light or dark theme on Linux, and a change at once on Windows</li>
+          <li>Fedora: with the system's mpv or FFmpeg without H.264 and HEVC decoders, phone videos use the downloaded engine instead of staying black</li>
+          <li>More RAW files: Sony SRF and SR2 open, Canon CRW portraits are upright; EXIF is shown also when a part of it is not valid</li>
+          <li>Windows: quoted paths ending in a backslash, quotes in the address bar and a drive letter alone open the right folder</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.76.1" date="2026-11-11">
       <description>
         <ul>
