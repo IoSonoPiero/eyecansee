@@ -127,7 +127,7 @@ No SMB, WebDAV or cloud services for now. FTPS on servers that want the data con
 
 <a href="https://apps.microsoft.com/detail/9PK1598MXLBK"><img src="https://get.microsoft.com/images/en-us%20dark.svg" width="200" alt="Download from the Microsoft Store"/></a>
 
-The recommended way: the [Microsoft Store](https://apps.microsoft.com/detail/9PK1598MXLBK). The package is signed by Microsoft, so Windows shows no SmartScreen warning, and the Store keeps it up to date; for this reason EyeCanSee's own update check is turned off in the Store version.
+The recommended way: the [Microsoft Store](https://apps.microsoft.com/detail/9PK1598MXLBK). The package is signed by Microsoft, so Windows shows no SmartScreen warning, and the Store keeps it up to date. EyeCanSee also asks the Store whether a newer version is out and offers to open its page there; Options can turn this off, as in the other copies.
 
 As an alternative, from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), either run the installer (`-setup.exe`: Start menu entry, optional desktop shortcut, "Open with" for images and videos, removal from Settings, no administrator rights needed) or download the zip, extract the whole folder anywhere and run `eyecansee.exe` (it needs the files next to it). These files are not signed with a Windows certificate, so Windows may warn you the first time: click **More info**, then **Run anyway**. They update themselves (see [Updates](#updates)).
 
@@ -258,7 +258,7 @@ The interface is available in English and Italian. To add a language, see [CONTR
 
 ## Privacy
 
-EyeCanSee collects no data. It connects only to GitHub (optional components and, outside the Microsoft Store, the update check), to the servers you add and, when you ask, to OpenStreetMap: see [PRIVACY.md](PRIVACY.md).
+EyeCanSee collects no data. It connects only to GitHub (optional components and, outside the Microsoft Store, the update check), to the Microsoft Store (the update check of the Store version), to the servers you add and, when you ask, to OpenStreetMap: see [PRIVACY.md](PRIVACY.md).
 
 ## Elsewhere
 

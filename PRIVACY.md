@@ -4,7 +4,8 @@ The EyeCanSee app does not collect, store or send any personal data. It has no a
 
 ## What it connects to
 
-- **GitHub**, only to download optional components (the video engine, FFmpeg and the CAD engine) when you ask for them, and, in copies installed from GitHub (installer, zip, AppImage), to check for new versions (this can be turned off in Options). The Microsoft Store version does not check: the Store updates it. These requests carry what any download carries (your IP address and the app's name and version); [GitHub's privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) applies to them.
+- **GitHub**, only to download optional components (the video engine, FFmpeg and the CAD engine) when you ask for them, and, in copies installed from GitHub (installer, zip, AppImage), to check for new versions (this can be turned off in Options). These requests carry what any download carries (your IP address and the app's name and version); [GitHub's privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement) applies to them.
+- **The Microsoft Store**, only in the Microsoft Store version: it asks the Store, through Windows, whether a newer version is available (this can be turned off in Options, with the same setting). If there is one, the app offers to open its page in the Store, which installs it; [Microsoft's privacy statement](https://privacy.microsoft.com/privacystatement) applies.
 - **Servers you add yourself** (SFTP, FTP, FTPS), with the details you give. Saved passwords stay on your computer, encrypted if you set a master password.
 - **OpenStreetMap**, only when you click "Open on the map", in your browser.
 
