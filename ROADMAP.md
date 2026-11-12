@@ -36,9 +36,8 @@ The order is indicative: features arrive when they are ready and tested on real 
 ### Formats
 
 - Save in JPEG XL ([#21](https://github.com/IoSonoPiero/eyecansee/issues/21)).
-- Camera RAW photos from more brands ([#7](https://github.com/IoSonoPiero/eyecansee/issues/7)).
 - PDF: images to a PDF, and a PDF to images ([#22](https://github.com/IoSonoPiero/eyecansee/issues/22)).
-- 3D models and CAD files: materials beyond the base colour and its picture ([#23](https://github.com/IoSonoPiero/eyecansee/issues/23)).
+- 3D models and CAD drawings: materials beyond the base colour and its texture ([#23](https://github.com/IoSonoPiero/eyecansee/issues/23)).
 - Read the .xmp sidecar files next to RAW photos ([#24](https://github.com/IoSonoPiero/eyecansee/issues/24)).
 
 ### Browsing and editing
@@ -51,7 +50,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Open an image from the clipboard ([#57](https://github.com/IoSonoPiero/eyecansee/issues/57)).
 - Image editor: recent work kept, recovered after a crash, resumed later ([#59](https://github.com/IoSonoPiero/eyecansee/issues/59)).
 - Archives: zip and 7z opened as read-only folders first, then creating zip archives ([#26](https://github.com/IoSonoPiero/eyecansee/issues/26)).
-- Multiple rename ([#27](https://github.com/IoSonoPiero/eyecansee/issues/27)).
+- Rename several files at once ([#27](https://github.com/IoSonoPiero/eyecansee/issues/27)).
 - Metadata editor for EXIF and GPS ([#28](https://github.com/IoSonoPiero/eyecansee/issues/28)).
 - Similar images (the same photo resized or recompressed) ([#29](https://github.com/IoSonoPiero/eyecansee/issues/29)).
 - Hide folders without images or videos ([#30](https://github.com/IoSonoPiero/eyecansee/issues/30)).
@@ -75,6 +74,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Converted Camera RAW photos do not keep the maker note, the camera maker's own data ([#41](https://github.com/IoSonoPiero/eyecansee/issues/41)).
 - GIMP files (XCF) keep only their colour profile when converted: GIMP stores EXIF, XMP and IPTC as text of its own, which ImageMagick does not read ([#42](https://github.com/IoSonoPiero/eyecansee/issues/42)).
 - Windows: a file owned by another account (for example created as administrator) and replaced with Paste > Replace gets the current user as owner. Its content is right; files owned by the user are not affected ([#93](https://github.com/IoSonoPiero/eyecansee/issues/93)).
+- Camera RAW: Sigma X3F files do not open, Sony SRF files open with a cyan cast, Phase One P40+ files show only their preview outside the Fedora package ([#7](https://github.com/IoSonoPiero/eyecansee/issues/7)).
 
 ## Not planned
 
