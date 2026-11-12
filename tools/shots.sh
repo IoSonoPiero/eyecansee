@@ -17,13 +17,15 @@
 #
 # The site's pictures (site/img, docs/screenshots) have their scenes in tools/shots/site/, left out
 # when no scene is named: tools/shots.sh site/guide site/guide-search site/bookmarks
-# site/open-location, with EYECANSEE_SHOTS_TO=<folder> for the pictures (default docs/help/img).
+# site/open-location site/servers, with EYECANSEE_SHOTS_TO=<folder> for the pictures (default
+# docs/help/img).
 # Each is the whole window, 1200 x 800 (for those of 0.76.0 src/shots.rs wrote a lossless WebP,
 # `encode_lossless()` in place of `encode(QUALITY)`, changed for that run only); then, with
 # ImageMagick, for site/img/<name>.png and .webp and docs/screenshots/<name>.webp:
 #   magick <name>.webp -strip <name>.png
 #   magick <name>.png -resize x533 -strip -quality 82 -define webp:method=6 site/img/<name>.webp
 #   magick <name>.png -strip -quality 82 -define webp:method=6 docs/screenshots/<name>.webp
+# (docs/screenshots/servers.png stays a PNG, as the README shows it: the first command only.)
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 
