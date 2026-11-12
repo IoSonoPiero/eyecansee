@@ -19,7 +19,7 @@ struct Area {
     ids: &'static [&'static str],
 }
 
-/// The pages of the guide (notes/guida-contratto.md, point 1), in reading order.
+/// The pages of the guide (notes/lavori/guida-contratto.md, point 1), in reading order.
 const CONTRACT: &[Area] = &[
     Area { names: ["Getting started", "Per cominciare"], ids: &["start"] },
     Area { names: ["Browsing", "Navigare"], ids: &["grid", "folders", "address", "bookmarks", "selection"] },
@@ -293,7 +293,7 @@ fn check_page_set(docs: &Docs, contract: &[Area]) -> Vec<String> {
             }
         }
         for id in pages.keys().filter(|id| !expected.contains(id.as_str())) {
-            out.push(format!("{}: not a page of the contract (notes/guida-contratto.md)", at(lang, id)));
+            out.push(format!("{}: not a page of the contract (notes/lavori/guida-contratto.md)", at(lang, id)));
         }
     }
     out
