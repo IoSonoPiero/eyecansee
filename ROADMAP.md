@@ -23,6 +23,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Full screen: hide the video controls too until the mouse moves ([#43](https://github.com/IoSonoPiero/eyecansee/issues/43)).
 - Smoother playback of 4K/60 videos ([#17](https://github.com/IoSonoPiero/eyecansee/issues/17)).
 - Convert: keep the FFmpeg encoder check between starts instead of running it again each time ([#112](https://github.com/IoSonoPiero/eyecansee/issues/112)).
+- Video engine on Linux: move to the current mpv and FFmpeg releases ([#117](https://github.com/IoSonoPiero/eyecansee/issues/117)).
 
 ### Devices and servers
 
