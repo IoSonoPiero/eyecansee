@@ -217,9 +217,9 @@ mod tests {
 
     #[test]
     fn gvfs_mount_of_phone() {
-        let list = "([(':1.919', objectpath '/org/gtk/vfs/mount/1', '', 'http:uri=https%3A%2F%2F127.0.0.1%3A8384', '', '', '', '', false, b'', (b'/', {'type': <b'http'>}), b''), (':1.1546', '/org/gtk/vfs/mount/1', 'mtp', 'mtp:host=SAMSUNG_SAMSUNG_Android_R52W80FSD5D', '', '. GThemedIcon phone', '', '', true, b'/run/user/1000/gvfs/mtp:host=SAMSUNG_SAMSUNG_Android_R52W80FSD5D', (b'/', {'host': <b'SAMSUNG_SAMSUNG_Android_R52W80FSD5D'>, 'type': <b'mtp'>}), b'')],)";
-        assert_eq!(gvfs_mount(list, "R52W80FSD5D"), Some((":1.1546".into(), "/org/gtk/vfs/mount/1".into())));
-        assert_eq!(gvfs_mount(list, "80FSD5D"), None);
-        assert_eq!(gvfs_mount("([],)", "R52W80FSD5D"), None);
+        let list = "([(':1.919', objectpath '/org/gtk/vfs/mount/1', '', 'http:uri=https%3A%2F%2F127.0.0.1%3A8384', '', '', '', '', false, b'', (b'/', {'type': <b'http'>}), b''), (':1.1546', '/org/gtk/vfs/mount/1', 'mtp', 'mtp:host=SAMSUNG_SAMSUNG_Android_ABCD1234EFGH', '', '. GThemedIcon phone', '', '', true, b'/run/user/1000/gvfs/mtp:host=SAMSUNG_SAMSUNG_Android_ABCD1234EFGH', (b'/', {'host': <b'SAMSUNG_SAMSUNG_Android_ABCD1234EFGH'>, 'type': <b'mtp'>}), b'')],)";
+        assert_eq!(gvfs_mount(list, "ABCD1234EFGH"), Some((":1.1546".into(), "/org/gtk/vfs/mount/1".into())));
+        assert_eq!(gvfs_mount(list, "1234EFGH"), None);
+        assert_eq!(gvfs_mount("([],)", "ABCD1234EFGH"), None);
     }
 }
