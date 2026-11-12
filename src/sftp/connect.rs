@@ -105,7 +105,7 @@ fn resolve(t: &Target) -> Resolved {
 }
 
 /// The server as the user wrote it, with the address it stands for when it is an alias of
-/// `~/.ssh/config`: "ironmanl (100.64.10.6:40222)".
+/// `~/.ssh/config`: "nas (192.0.2.10:2222)".
 fn label(t: &Target, r: &Resolved) -> String {
     let addr = if r.port == 22 { r.host.clone() } else { format!("{}:{}", r.host, r.port) };
     if t.host == r.host { addr } else { format!("{} ({addr})", t.host) }
