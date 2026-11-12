@@ -1,8 +1,8 @@
 //! FTP and FTPS servers with `suppaftp` (tokio, TLS in `ftp/tls.rs`): up to `POOL` connections per server, each with one
 //! transfer at a time, kept open between requests. Passive mode, with the data connection to the
 //! address of the control connection (`set_passive_nat_workaround`), as curl and FileZilla do: a
-//! server behind NAT or a VPN often announces an address that cannot be reached (a Synology
-//! reached over Tailscale says 127.0.0.1).
+//! server behind NAT or a VPN often announces an address that cannot be reached (a NAS reached
+//! through a VPN said 127.0.0.1).
 //!
 //! Paths as for the other sources, relative to the server's "/" (folders end in "/").
 
