@@ -15,6 +15,9 @@ heif = ["dep:libheif-rs"]
 magick = ["dep:magick_rust"]
 # The pictures of the illustrated manual, taken by the app itself (src/shots.rs, tools/shots.sh).
 shots = []
+# The private test copy: red icon, its own folders, no updates (src/test_copy.rs). Never in a
+# public package: build.rs refuses it on GitHub Actions.
+test-copy = []
 
 [dependencies]
 bytes = "1.12.1"

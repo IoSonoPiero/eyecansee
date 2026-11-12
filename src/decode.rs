@@ -472,7 +472,7 @@ pub(crate) fn font_families() -> Arc<Vec<String>> {
 /// App icon (`assets/eyecansee.svg`, the same as on Linux) in RGBA, `side`×`side`. Without the
 /// system fonts, which the icon does not use: at startup they would cost time.
 pub fn app_icon(side: u32) -> Option<RgbaImage> {
-    let tree = usvg::Tree::from_data(include_bytes!("../assets/eyecansee.svg"), &usvg::Options::default()).ok()?;
+    let tree = usvg::Tree::from_data(crate::test_copy::ICON_SVG, &usvg::Options::default()).ok()?;
     let scale = side as f32 / tree.size().width().max(tree.size().height());
     let mut pixmap = tiny_skia::Pixmap::new(side, side)?;
     resvg::render(&tree, tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
@@ -761,6 +761,7 @@ mod tests {
 
     /// Regenerates `assets/eyecansee.ico` (icon of the Windows executable, see `build.rs`) from the
     /// SVG, to be run again if the SVG changes: `cargo test --no-default-features make_ico -- --ignored`.
+    /// With `--features test-copy` it makes the red `assets/eyecansee-prova.ico` and `.png`.
     #[test]
     #[ignore]
     fn make_ico() {
@@ -772,8 +773,12 @@ mod tests {
                 IcoFrame::as_png(img.as_raw(), side, side, image::ExtendedColorType::Rgba8).unwrap()
             })
             .collect();
-        let file = std::fs::File::create(concat!(env!("CARGO_MANIFEST_DIR"), "/assets/eyecansee.ico")).unwrap();
-        IcoEncoder::new(file).encode_images(&frames).unwrap();
+        let base = format!("{}/assets/{}", env!("CARGO_MANIFEST_DIR"), crate::test_copy::NAME);
+        IcoEncoder::new(std::fs::File::create(format!("{base}.ico")).unwrap()).encode_images(&frames).unwrap();
+        // The test copy's .desktop on Linux points to a PNG (tools/test-copy/install-linux.sh).
+        if cfg!(feature = "test-copy") {
+            app_icon(256).unwrap().save(format!("{base}.png")).unwrap();
+        }
     }
 
     /// Where thumbnail time goes, on one thread:

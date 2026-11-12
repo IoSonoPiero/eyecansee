@@ -14,8 +14,13 @@ use crate::loader::Msg;
 
 /// One name per user: abstract sockets and named pipes are visible to every user of the computer.
 fn name() -> Option<Name<'static>> {
+    socket().to_ns_name::<GenericNamespaced>().ok()
+}
+
+/// "eyecansee-<user>.sock" (the test copy's has its own name: `test_copy::NAME`).
+pub(crate) fn socket() -> String {
     let user = std::env::var("USER").or_else(|_| std::env::var("USERNAME")).unwrap_or_default();
-    format!("eyecansee-{user}.sock").to_ns_name::<GenericNamespaced>().ok()
+    format!("{}-{user}.sock", crate::test_copy::NAME)
 }
 
 /// `EYECANSEE_MULTI=1` (any value but empty or `0`): this process runs on its own, for tests that

@@ -125,6 +125,7 @@ mod theme;
 #[cfg(any(target_os = "linux", windows))]
 mod system_theme;
 mod thumb_queue;
+mod test_copy;
 mod thumbcache;
 mod toolbar;
 mod transfer;
@@ -567,7 +568,7 @@ fn main() -> eframe::Result {
     let settings = Settings::load();
     engine::set_choice(settings.video_engine);
     // The window is matched to its .desktop file by this id (in Flatpak, the id of the app).
-    let app_id = flatpak_id.unwrap_or_else(|| "eyecansee".into());
+    let app_id = flatpak_id.unwrap_or_else(|| crate::test_copy::NAME.into());
     let mut viewport = egui::ViewportBuilder::default().with_inner_size([1200.0, 800.0]).with_app_id(app_id);
     // Title bar and task bar (without it, eframe puts its own). On Windows the icon of the
     // .exe file is something else: `build.rs` embeds it.

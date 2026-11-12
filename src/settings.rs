@@ -250,7 +250,7 @@ pub(crate) fn config_path(name: &str) -> Option<PathBuf> {
             .map(PathBuf::from)
             .or_else(|| std::env::home_dir().map(|h| h.join(".config")))
     };
-    Some(base?.join("eyecansee").join(name))
+    Some(base?.join(crate::test_copy::NAME).join(name))
 }
 
 impl Settings {

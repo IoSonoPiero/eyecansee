@@ -114,7 +114,7 @@ pub fn dir() -> Option<PathBuf> {
         Some(id) => std::env::home_dir().map(|h| h.join(".var/app").join(id).join("data")),
         None => std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).or_else(|| std::env::home_dir().map(|h| h.join(".local/share"))),
     };
-    Some(base?.join("eyecansee").join("components"))
+    Some(base?.join(crate::test_copy::NAME).join("components"))
 }
 
 fn folder(c: &Component) -> String {

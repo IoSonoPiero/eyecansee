@@ -18,6 +18,11 @@ use rusqlite::{Connection, params};
 
 use crate::source::File;
 
+/// The thumbnail folder inside the cache folder `base`.
+pub(crate) fn dir_in(base: &std::path::Path) -> PathBuf {
+    base.join(crate::test_copy::NAME)
+}
+
 fn db_path() -> Option<&'static PathBuf> {
     static PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
     PATH.get_or_init(|| {
@@ -28,7 +33,7 @@ fn db_path() -> Option<&'static PathBuf> {
                 .map(PathBuf::from)
                 .or_else(|| std::env::home_dir().map(|h| h.join(".cache")))
         };
-        let dir = base?.join("eyecansee");
+        let dir = dir_in(&base?);
         std::fs::create_dir_all(&dir).ok()?;
         Some(dir.join("thumbs.db"))
     })

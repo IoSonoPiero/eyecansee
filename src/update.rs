@@ -56,6 +56,10 @@ pub fn packaged() -> bool {
 
 impl Kind {
     pub fn detect() -> Option<Kind> {
+        // The private test copy is replaced by hand, never by a public release (`test_copy`).
+        if cfg!(feature = "test-copy") {
+            return None;
+        }
         // flatpak updates its own copies; the Microsoft Store too, but it is asked whether it has one.
         if packaged() {
             return Self::store();

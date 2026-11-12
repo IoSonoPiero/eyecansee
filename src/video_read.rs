@@ -390,7 +390,7 @@ async fn copy_whole(op: &Store, path: &str, size: u64, copied: &AtomicU64) -> Re
 
 async fn copy_now(op: &Store, path: &str, size: u64, copied: &AtomicU64, key: String) -> Result<PathBuf, String> {
     static N: AtomicU64 = AtomicU64::new(0);
-    let tmp = std::env::temp_dir().join(format!("eyecansee-video-{}-{}.tmp", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
+    let tmp = std::env::temp_dir().join(format!("{}{}-{}.tmp", temp_prefix(), std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
     let (tx, mut rx) = tokio::sync::mpsc::channel::<std::io::Result<bytes::Bytes>>(4);
     let never = std::sync::atomic::AtomicBool::new(false);
     let write = async {
@@ -441,6 +441,12 @@ fn keep_copy(key: String, tmp: PathBuf) {
     }
 }
 
+/// Start of the names of the temporary video copies: "eyecansee-video-" (the test copy has its
+/// own, so the two copies of the app never remove each other's).
+pub(crate) fn temp_prefix() -> String {
+    format!("{}-video-", crate::test_copy::NAME)
+}
+
 /// At start (after `single::hand_over`, so no other copy of the app is using them): the copies a
 /// copy of the app closed by force or crashed left in the temporary folder. Not with
 /// `EYECANSEE_MULTI`: another instance may be using them.
@@ -452,7 +458,7 @@ pub(crate) fn remove_old_copies() {
     for entry in dir.flatten() {
         let name = entry.file_name();
         let name = name.to_string_lossy();
-        if name.starts_with("eyecansee-video-") && name.ends_with(".tmp") {
+        if name.starts_with(&temp_prefix()) && name.ends_with(".tmp") {
             log!("old video copy removed: {name}");
             let _ = std::fs::remove_file(entry.path());
         }
