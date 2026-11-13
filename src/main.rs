@@ -539,7 +539,7 @@ impl eframe::App for App {
         #[cfg(feature = "shots")]
         self.shots_tick(&ctx);
         self.before_frame(&ctx);
-        #[cfg(windows)]
+        #[cfg(any(target_os = "linux", windows))]
         system_theme::sync_window(&ctx);
         self.panels(ui, &ctx);
         self.windows(&ctx);
