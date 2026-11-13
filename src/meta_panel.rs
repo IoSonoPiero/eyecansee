@@ -159,14 +159,28 @@ impl App {
     }
 
     /// Tooltip of a file of the grid (`file`: index among the images): the File box's lines, the
-    /// pixels only if its metadata were already read (no file is read for a tooltip).
-    pub(crate) fn file_tooltip(&self, file: usize) -> String {
-        let Some(f) = self.files().get(file) else { return String::new() };
+    /// pixels only if its metadata were already read (no file is read for a tooltip). Two columns
+    /// (#118): the labels in bold and right-aligned, so every value starts at the same place.
+    pub(crate) fn file_tooltip(&self, ui: &mut Ui, file: usize) {
+        let Some(f) = self.files().get(file) else { return };
         let meta = match &self.meta {
             Some((i, Ok(Some(m)))) if *i == file => Some(m),
             _ => None,
         };
-        file_hint(&self.i18n, f, meta)
+        let rows = file_hint(&self.i18n, f, meta);
+        let font = egui::FontId::new(egui::TextStyle::Body.resolve(ui.style()).size, egui::FontFamily::Name(crate::fonts::BOLD.into()));
+        let color = ui.visuals().text_color();
+        // The labels' column as wide as the longest label, each one right-aligned in it.
+        let size = rows.iter().map(|(label, _)| ui.painter().layout_no_wrap(label.clone(), font.clone(), color).size()).fold(egui::Vec2::ZERO, egui::Vec2::max);
+        egui::Grid::new("file-tooltip").num_columns(2).show(ui, |ui| {
+            for (label, value) in rows {
+                ui.allocate_ui_with_layout(size, egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                    ui.label(egui::RichText::new(label).font(font.clone()));
+                });
+                ui.label(value);
+                ui.end_row();
+            }
+        });
     }
 
     /// Status bar of the viewer, like the grid's: name, position, pixels, size on disk, date
@@ -317,10 +331,9 @@ fn file_rows(i18n: &I18n, f: &source::File, meta: Option<&meta::Meta>) -> Vec<(&
     rows.into_iter().filter_map(|(label, value)| value.map(|v| (label, v))).collect()
 }
 
-/// The grid's tooltip on a file: the File box's lines, one "label: value" a line.
-fn file_hint(i18n: &I18n, f: &source::File, meta: Option<&meta::Meta>) -> String {
-    let lines: Vec<_> = file_rows(i18n, f, meta).into_iter().map(|(label, v)| format!("{}: {v}", i18n.t(label))).collect();
-    lines.join("\n")
+/// The grid's tooltip on a file: the File box's lines, as (label, value) in the interface's language.
+fn file_hint(i18n: &I18n, f: &source::File, meta: Option<&meta::Meta>) -> Vec<(String, String)> {
+    file_rows(i18n, f, meta).into_iter().map(|(label, v)| (i18n.t(label), v)).collect()
 }
 
 /// 245464190 → "245.464.190" with `sep` between the groups of three digits.
@@ -357,16 +370,17 @@ mod tests {
         use crate::meta::{Group, Meta};
         let f = crate::source::File { path: "DCIM/Camera/a rather long holiday name.jpg".into(), size: 4_089_123, modified: String::new() };
         let en = I18n::new("en");
-        assert_eq!(super::file_hint(&en, &f, None), "Name: a rather long holiday name.jpg\nSize: 3.9 MB (4,089,123 bytes)");
+        let row = |label: &str, value: &str| (label.to_string(), value.to_string());
+        assert_eq!(super::file_hint(&en, &f, None), [row("Name", "a rather long holiday name.jpg"), row("Size", "3.9 MB (4,089,123 bytes)")]);
         let meta = Meta { fields: vec![(Group::Image, "meta-width", "4000 px".into()), (Group::Image, "meta-height", "3000 px".into())], gps: None };
         let it = I18n::new("it");
         let dated = crate::source::File { modified: "1776333600".into(), ..f };
-        let lines: Vec<_> = super::file_hint(&it, &dated, Some(&meta)).lines().map(str::to_string).collect();
-        assert_eq!(lines.len(), 4, "{lines:?}");
-        assert_eq!(lines[0], "Nome: a rather long holiday name.jpg");
-        assert_eq!(lines[1], "Dimensione: 3,9 MB (4.089.123 byte)");
-        assert!(lines[2].starts_with("Data del file: ") && lines[2].contains("/2026 "), "{}", lines[2]);
-        assert_eq!(lines[3], "Pixel: 4000 × 3000 px");
+        let rows = super::file_hint(&it, &dated, Some(&meta));
+        assert_eq!(rows.len(), 4, "{rows:?}");
+        assert_eq!(rows[0], row("Nome", "a rather long holiday name.jpg"));
+        assert_eq!(rows[1], row("Dimensione", "3,9 MB (4.089.123 byte)"));
+        assert!(rows[2].0 == "Data del file" && rows[2].1.contains("/2026 "), "{:?}", rows[2]);
+        assert_eq!(rows[3], row("Pixel", "4000 × 3000 px"));
     }
 
     #[test]

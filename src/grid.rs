@@ -365,9 +365,7 @@ impl App {
         // A file shows its details (the name under it is often cut, issue #89), a folder its name.
         if !self.asking() {
             response = match i.checked_sub(ndirs) {
-                Some(file) => response.on_hover_ui(|ui| {
-                    ui.label(self.file_tooltip(file));
-                }),
+                Some(file) => response.on_hover_ui(|ui| self.file_tooltip(ui, file)),
                 None => response.on_hover_text(&name),
             };
         }
