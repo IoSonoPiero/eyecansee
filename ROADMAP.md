@@ -45,6 +45,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Save in another format: a Cancel button ([#106](https://github.com/IoSonoPiero/eyecansee/issues/106)).
 - Prepare for sharing: resize, convert, remove metadata and stay under a file size, in one step ([#115](https://github.com/IoSonoPiero/eyecansee/issues/115)).
 - Output profiles: saved settings applied the same way to a series of images ([#116](https://github.com/IoSonoPiero/eyecansee/issues/116)).
+- Resize many images from the right-click menu: presets with one click, and more ways to give the size ([#119](https://github.com/IoSonoPiero/eyecansee/issues/119)).
 - Open an image from the clipboard ([#57](https://github.com/IoSonoPiero/eyecansee/issues/57)).
 - Image editor: recent work kept, recovered after a crash, resumed later ([#59](https://github.com/IoSonoPiero/eyecansee/issues/59)).
 - Archives: zip and 7z opened as read-only folders first, then creating zip archives ([#26](https://github.com/IoSonoPiero/eyecansee/issues/26)).
