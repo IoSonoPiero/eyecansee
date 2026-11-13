@@ -58,7 +58,7 @@ If a thumbnail looks wrong, right-click the file (or several selected files) and
 ## The right-click menu
 
 - On a **file**: the actions that work on it, such as Open, Slideshow, Edit image…, Convert and resize…, Cut, Copy, Rename… and Delete…. With several files selected, the menu works on all of them (see [Selecting files](selection.md)).
-- On a **folder**: Open, New folder inside…, Cut, Copy, Paste into this folder, Find duplicates…, Rename…, Delete…, Delete for good….
+- On a **folder**: Open, New folder inside…, Cut, Copy, Paste into this folder, Add this folder to the bookmarks (see [Bookmarks](bookmarks.md)), Find duplicates…, Rename…, Delete…, Delete for good….
 - On an **empty space**: Paste (when you have copied something), Select all, New folder…, Parent folder, Refresh, Show and Find duplicates….
 
 An entry marked with **\*** works only on some of the files chosen (for example Convert and resize on the pictures and videos among them); a line at the bottom of the menu says so.

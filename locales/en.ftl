@@ -1169,6 +1169,7 @@ bm-empty-configure = No bookmarks yet: open a folder and click the star next to 
 bm-add-folder = + Add current folder
 bm-add-image = + Add this image
 bm-already = Already among the bookmarks.
+bm-one-only = Bookmarks are added one folder at a time.
 bm-star-folder = Add this folder to the bookmarks
 bm-star-image = Add this image to the bookmarks
 bm-configure = Configure…

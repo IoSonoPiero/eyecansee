@@ -8,6 +8,8 @@ Fai clic sulla ![Aggiungi questa cartella ai segnalibri](icon://star) **stella**
 
 Puoi anche usare **Segnalibri > + Aggiungi la cartella corrente** nella barra dei menù (nel visore **+ Aggiungi questa immagine**).
 
+Per aggiungere una cartella senza aprirla, fai clic destro sulla cartella, nella griglia o nell'albero delle cartelle a sinistra, e scegli **Aggiungi questa cartella ai segnalibri**. Funziona su una cartella alla volta: con più elementi selezionati la voce è grigia.
+
 Un segnalibro nuovo prende il nome della cartella o della foto; per la cima di un disco o di un telefono, il nome del dispositivo. Un posto che è già un segnalibro non viene aggiunto due volte: la stella è accesa, e la voce del menù è grigia.
 
 ## Aprire un segnalibro
@@ -23,6 +25,8 @@ Un segnalibro si apre proprio come se avessi scritto il suo indirizzo nella barr
 ## Togliere un segnalibro
 
 Quando il posto aperto è un segnalibro, la stella è accesa: un clic sulla stella lo toglie. La barra di stato lo conferma.
+
+Su una cartella che è già un segnalibro, il menù del clic destro offre **Togli dai segnalibri** al posto di Aggiungi.
 
 ## Configura
 

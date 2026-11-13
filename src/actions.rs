@@ -20,8 +20,10 @@ pub(crate) enum Act {
     Servers,
     /// A bookmark opened, by its place in the list.
     Bookmark(usize),
-    /// "+ Add current folder" (in the viewer, the image).
-    AddBookmark,
+    /// "+ Add current folder" (in the viewer, the image), or a folder of a right-click menu.
+    AddBookmark(Option<String>),
+    /// The lit star, or a folder of a right-click menu that is a bookmark already.
+    RemoveBookmark(Option<String>),
     /// Bookmarks > Configure….
     Bookmarks,
     Options,
@@ -130,6 +132,7 @@ impl Act {
             Act::Convert(_) | Act::ExportModel(..) | Act::ExportDrawings(_) => Line::SaveAs,
             Act::Batch(_) => Line::Batch,
             Act::Duplicates(_) => Line::Duplicates,
+            Act::AddBookmark(_) | Act::RemoveBookmark(_) => Line::Star,
             Act::Slideshow(_) => Line::Slideshow,
             Act::RedoThumbs(_) | Act::RedoAllThumbs | Act::Refresh => Line::Refresh,
             Act::Transform(Op::Cw, _) => Line::RotateCw,
@@ -259,7 +262,7 @@ impl App {
             Act::Servers if crate::servers::locked() => self.ask_master(crate::vault_page::Then::Manager),
             Act::Servers => self.server_manager = Some(AddressForm::manager()),
             Act::Options => self.options = true,
-            Act::Bookmark(_) | Act::AddBookmark | Act::Bookmarks => self.bookmark_act(ctx, act),
+            Act::Bookmark(_) | Act::AddBookmark(_) | Act::RemoveBookmark(_) | Act::Bookmarks => self.bookmark_act(ctx, act),
             Act::SelectAll => self.select_all(),
             Act::RotateSaveAs => {
                 if let Some(w) = &mut self.editor {

@@ -8,7 +8,6 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 - Saving without the GPS position, or without metadata ([#55](https://github.com/IoSonoPiero/eyecansee/issues/55)).
 - Image editor: an SVG stays an SVG ([#56](https://github.com/IoSonoPiero/eyecansee/issues/56)).
-- Bookmarks: Add to bookmarks in the right-click menu of folders ([#111](https://github.com/IoSonoPiero/eyecansee/issues/111)).
 - RPM: update texts and option on Fedora and Fedora Atomic ([#69](https://github.com/IoSonoPiero/eyecansee/issues/69)).
 
 ### Next

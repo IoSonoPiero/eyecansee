@@ -1168,6 +1168,7 @@ bm-empty-configure = Ancora nessun segnalibro: apri una cartella e fai clic sull
 bm-add-folder = + Aggiungi la cartella corrente
 bm-add-image = + Aggiungi questa immagine
 bm-already = È già tra i segnalibri.
+bm-one-only = I segnalibri si aggiungono una cartella alla volta.
 bm-star-folder = Aggiungi questa cartella ai segnalibri
 bm-star-image = Aggiungi questa immagine ai segnalibri
 bm-configure = Configura…

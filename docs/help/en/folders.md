@@ -24,9 +24,9 @@ When you change folder in another way (from the grid, the address bar or a bookm
 
 ## The right-click menu of a folder
 
-A right click on a folder in the tree offers **Open**, **New folder inside…**, **Cut**, **Copy**, **Paste into this folder** (when you have copied something), **Find duplicates…**, **Rename…**, **Delete…** and **Delete for good…**. See [Copying and moving](copy-move.md), [Renaming and new folders](rename.md), [Deleting and the trash](delete.md) and [Finding duplicates](duplicates.md).
+A right click on a folder in the tree offers **Open**, **New folder inside…**, **Cut**, **Copy**, **Paste into this folder** (when you have copied something), **Add this folder to the bookmarks** (see [Bookmarks](bookmarks.md)), **Find duplicates…**, **Rename…**, **Delete…** and **Delete for good…**. See [Copying and moving](copy-move.md), [Renaming and new folders](rename.md), [Deleting and the trash](delete.md) and [Finding duplicates](duplicates.md).
 
-The top folder of a disk, a phone or a server, and the storages of a phone, cannot be renamed or deleted.
+The top folder of a disk, a phone or a server, and the storages of a phone, cannot be renamed or deleted; they can become bookmarks.
 
 ## Keys
 

@@ -11,6 +11,7 @@ use eframe::egui;
 use serde::{Deserialize, Serialize};
 
 use crate::actions::Act;
+use crate::browser::MenuItem;
 use crate::devices::{self, Device};
 use crate::icons::{self, Line};
 use crate::App;
@@ -48,9 +49,14 @@ pub(crate) fn same(a: &str, b: &str) -> bool {
     a.trim_end_matches(['/', '\\']) == b.trim_end_matches(['/', '\\'])
 }
 
+/// Where the place is among the bookmarks, with or without the separator at the end.
+pub(crate) fn position(list: &[Bookmark], address: &str) -> Option<usize> {
+    list.iter().position(|b| same(&b.address, address))
+}
+
 /// Adds a bookmark at the end; `false` (and nothing added) when the place is already there.
 pub(crate) fn add(list: &mut Vec<Bookmark>, name: &str, address: &str) -> bool {
-    if list.iter().any(|b| same(&b.address, address)) {
+    if position(list, address).is_some() {
         return false;
     }
     list.push(Bookmark { name: name.to_string(), address: address.to_string() });
@@ -104,6 +110,28 @@ impl App {
         }
     }
 
+    /// The address of a folder of the source (`path`, from a right-click menu), or of what is
+    /// open (`None`).
+    fn place(&self, path: Option<&str>) -> String {
+        path.map_or_else(|| self.here(), |p| self.display(p))
+    }
+
+    /// The item of a folder's right-click menu, in the grid and in the left panel (issue #111),
+    /// as the star: it adds the folder without opening it, or takes it away when it is a bookmark
+    /// already. One folder at a time, as Rename and the file managers: with several marked it is
+    /// greyed out.
+    pub(crate) fn bookmark_entry(&self, path: &str, several: bool) -> MenuItem {
+        let t = |id| self.i18n.t(id);
+        let path = Some(path.to_string());
+        Some(if several {
+            (t("bm-star-folder"), String::new(), Act::Off(t("bm-one-only")))
+        } else if position(&self.settings.bookmarks, &self.place(path.as_deref())).is_some() {
+            (t("bm-remove"), String::new(), Act::RemoveBookmark(path))
+        } else {
+            (t("bm-star-folder"), String::new(), Act::AddBookmark(path))
+        })
+    }
+
     /// The items of the drop-down next to the star and of the Bookmarks menu: the bookmarks by
     /// name (the address on hover), then Add (in the menu only: the star adds) and Configure. The
     /// one chosen.
@@ -126,7 +154,7 @@ impl App {
             let add = t(if self.viewing.is_some() { "bm-add-image" } else { "bm-add-folder" });
             let r = ui.add_enabled(self.loader.is_some() && !have, icons::menu_item(ui, None, add, String::new()));
             if (if have { r.on_disabled_hover_text(t("bm-already")) } else { r }).clicked() {
-                chosen = Some(Act::AddBookmark);
+                chosen = Some(Act::AddBookmark(None));
             }
         }
         if ui.add(icons::menu_item(ui, None, t("bm-configure"), String::new())).clicked() {
@@ -137,8 +165,7 @@ impl App {
 
     /// The place shown is among the bookmarks.
     fn here_kept(&self) -> bool {
-        let here = self.here();
-        self.settings.bookmarks.iter().any(|b| same(&b.address, &here))
+        position(&self.settings.bookmarks, &self.here()).is_some()
     }
 
     /// Next to the address bar, as in Total Commander: the star adds the place shown, lit when it
@@ -148,11 +175,7 @@ impl App {
         let have = self.here_kept();
         let tip = self.i18n.t(if have { "bm-remove" } else if self.viewing.is_some() { "bm-star-image" } else { "bm-star-folder" });
         if ui.add_enabled(self.loader.is_some(), icons::toggle(ui, have, Line::Star)).on_hover_text(tip).clicked() {
-            if have {
-                self.remove_here(ui.ctx());
-            } else {
-                self.act = Some(Act::AddBookmark);
-            }
+            self.act = Some(if have { Act::RemoveBookmark(None) } else { Act::AddBookmark(None) });
         }
         let button = egui::Button::new((icons::line(ui, Line::Bookmark, 18.0), icons::line(ui, Line::Down, 14.0))).min_size(icons::BUTTON);
         let (r, inner) = egui::containers::menu::MenuButton::from_button(button).ui(ui, |ui| self.bookmark_items(ui, false));
@@ -184,11 +207,12 @@ impl App {
         }
     }
 
-    /// The items of the menus: open, add, Configure….
+    /// The items of the menus: open, add, remove, Configure….
     pub(crate) fn bookmark_act(&mut self, ctx: &egui::Context, act: Act) {
         match act {
             Act::Bookmark(i) => self.open_bookmark(ctx, i),
-            Act::AddBookmark => self.add_bookmark(ctx),
+            Act::AddBookmark(path) => self.add_bookmark(ctx, path.as_deref()),
+            Act::RemoveBookmark(path) => self.remove_bookmark(ctx, path.as_deref()),
             Act::Bookmarks => self.bookmarks.configuring = true,
             _ => {}
         }
@@ -210,13 +234,13 @@ impl App {
         self.open_source(ctx, &b.address);
     }
 
-    /// "+ Add current folder" (in the viewer "+ Add this image"), with the name of its last part;
-    /// the status bar says so for a while.
-    pub(crate) fn add_bookmark(&mut self, ctx: &egui::Context) {
+    /// "+ Add current folder" (in the viewer "+ Add this image"), or the folder `path` of a
+    /// right-click menu, with the name of its last part; the status bar says so for a while.
+    pub(crate) fn add_bookmark(&mut self, ctx: &egui::Context, path: Option<&str>) {
         if self.loader.is_none() {
             return;
         }
-        let address = self.here();
+        let address = self.place(path);
         let name = default_name(&address, &self.devices);
         if add(&mut self.settings.bookmarks, &name, &address) {
             log!("bookmark added: {address:?}");
@@ -226,10 +250,10 @@ impl App {
         }
     }
 
-    /// The lit star clicked: the place shown is no longer a bookmark; the status bar says so.
-    fn remove_here(&mut self, ctx: &egui::Context) {
-        let here = self.here();
-        let Some(i) = self.settings.bookmarks.iter().position(|b| same(&b.address, &here)) else { return };
+    /// The lit star clicked (or "Remove from the bookmarks" on the folder `path` of a right-click
+    /// menu): the place is no longer a bookmark; the status bar says so.
+    fn remove_bookmark(&mut self, ctx: &egui::Context, path: Option<&str>) {
+        let Some(i) = position(&self.settings.bookmarks, &self.place(path)) else { return };
         let gone = self.settings.bookmarks.remove(i);
         log!("bookmark removed: {:?}", gone.address);
         self.settings.save();
@@ -377,6 +401,26 @@ mod tests {
         list[0].name = "  ".into();
         list[1].name = " Holidays ".into();
         assert_eq!(names(&list), ["sftp://me@nas.lan/srv/photos/", "Holidays", "Camera"]);
+    }
+
+    /// A folder added from its right-click menu (issue #111) is the same bookmark as the folder
+    /// open: the star is lit there, and its menu offers to remove it.
+    #[test]
+    fn folder_of_a_menu_is_the_folder_open() {
+        use crate::navigation::shown;
+        let mut list = Vec::new();
+        let places = [("/", "home/me/Photos/"), ("C:\\", "Users/me/Pictures/"), ("mtp://ABCD1234EFGH/", "Internal storage/DCIM/"), ("sftp://me@nas.lan/", "srv/photos/"), ("/", "")];
+        for (base, folder) in places {
+            let address = shown(base, folder);
+            assert!(add(&mut list, &default_name(&address, &[]), &address));
+            assert!(!add(&mut list, "Again", &address));
+            // Typed in the address bar without the separator at the end: the same place.
+            assert!(position(&list, address.trim_end_matches(['/', '\\'])).is_some(), "{address}");
+        }
+        assert_eq!(names(&list), ["Photos", "Pictures", "DCIM", "photos", "/"]);
+        assert_eq!(list[1].address, "C:\\Users\\me\\Pictures\\");
+        assert_eq!(position(&list, &shown("sftp://me@nas.lan/", "srv/photos/")), Some(3));
+        assert_eq!(position(&list, "/home/me/"), None);
     }
 
     #[test]

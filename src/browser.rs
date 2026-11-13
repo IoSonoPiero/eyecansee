@@ -70,7 +70,11 @@ impl App {
             // The root of a drive, in the tree: it cannot be cut or renamed, but a folder can be
             // made in it (not in the storages of a phone).
             if path.as_deref() == Some("") && self.can_make_folder_in("") {
-                items.push(Some((self.i18n.t("menu-new-folder-in"), String::new(), Act::NewFolder(path))));
+                items.push(Some((self.i18n.t("menu-new-folder-in"), String::new(), Act::NewFolder(path.clone()))));
+            }
+            // It, or a storage of a phone, can be a bookmark all the same.
+            if let Some(dir) = path.filter(|p| p.is_empty() || p.ends_with('/')) {
+                items.extend([None, self.bookmark_entry(&dir, false)]);
             }
             return items;
         };
@@ -107,7 +111,9 @@ impl App {
         if !copied && self.can_paste(target) {
             items.push(Some((t("menu-paste-into"), String::new(), Act::Paste(Some(target.to_string())))));
         }
+        // Bookmarks, then Tools, as in the menu bar.
         items.push(None);
+        items.push(self.bookmark_entry(target, self.chosen(path.clone()).len() > 1));
         items.push(Some((t("menu-duplicates"), String::new(), Act::Duplicates(Some(target.to_string())))));
         items.extend(self.rename_delete(path));
         items
