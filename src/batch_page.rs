@@ -16,7 +16,7 @@ use crate::folder_pick::{Picker, pick_ui};
 use crate::i18n::I18n;
 use crate::transform::{Op, Turn};
 use crate::save_dialogs::{md, notice_text};
-use crate::selection::{Kind, PLAYED, kind};
+use crate::selection::{Kind, PLAYED, left_out_id, split};
 use crate::{App, source};
 
 /// Where the new files go.
@@ -63,6 +63,19 @@ pub struct Form {
     side: u32,
     /// Only the audio of the videos: the window shows just FFmpeg and the destination.
     audio: Option<AudioJob>,
+    /// The part the window was last opened on: the format (Convert…) or the size (Resize >
+    /// Custom…); `scroll`: it scrolls there when it opens.
+    part: Part,
+    scroll: bool,
+    /// The format chosen for Convert…, given back after Resize > Custom… set Same as the original.
+    format_before: Option<Format>,
+}
+
+/// Where the window opens.
+#[derive(Clone, Copy, PartialEq)]
+enum Part {
+    Format,
+    Size,
 }
 
 impl Form {
@@ -90,6 +103,9 @@ impl Form {
             kept: None,
             side: 4096,
             audio: None,
+            part: Part::Format,
+            scroll: false,
+            format_before: Some(Format::Jpeg),
         }
     }
 
@@ -150,8 +166,10 @@ pub struct Window {
     progress: Option<Arc<Progress>>,
     /// Where the files go, as shown; the folder to read again at the end, if it is on this source.
     dest: (String, Option<String>),
-    /// Files chosen that this window does not work on (another kind), said under the count.
-    left_out: usize,
+    /// Files chosen that this window does not work on (not of `kinds`): their number said under
+    /// the count, their names in the message at the end.
+    left_out: Vec<String>,
+    kinds: &'static [Kind],
     /// Resize with a preset (no window): the title of the message at the end.
     title: Option<&'static str>,
 }
@@ -176,11 +194,19 @@ impl Window {
 }
 
 impl App {
-    /// From the menus: the marked images of the grid, or `path`, or the selected one.
-    /// Pictures and videos only: audio files are not converted ("Save the sound as a file" makes
-    /// them as they are), CAD drawings are exported (`open_drawings`), 3D models too.
+    /// Convert…, on the part of the format: the marked images of the grid, or `path`, or the
+    /// selected one. Pictures and videos only: audio files are not converted ("Save the sound as
+    /// a file" makes them as they are), CAD drawings are exported (`open_drawings`), 3D models too.
     pub(crate) fn open_batch(&mut self, path: Option<String>) {
-        self.open_batch_of(path, false);
+        if !self.open_batch_of(path, false) {
+            return;
+        }
+        if let Some(form) = self.batch_form.as_mut() {
+            if form.part == Part::Size {
+                form.format = form.format_before;
+            }
+            (form.part, form.scroll) = (Part::Format, true);
+        }
     }
 
     /// "Export drawing": the CAD drawings among the marked files, drawn again.
@@ -188,14 +214,15 @@ impl App {
         self.open_batch_of(path, true);
     }
 
-    fn open_batch_of(&mut self, path: Option<String>, drawings: bool) {
+    /// `false`: not opened (one already open, or no file of its kinds).
+    fn open_batch_of(&mut self, path: Option<String>, drawings: bool) -> bool {
         if self.batch.is_some() {
-            return;
+            return false;
         }
-        let all = self.grid_items(path.clone()).len();
-        let paths = self.grid_of(path, if drawings { &[Kind::Drawing] } else { PLAYED });
+        let kinds: &'static [Kind] = if drawings { &[Kind::Drawing] } else { PLAYED };
+        let (paths, left_out) = split(self.grid_items(path), kinds);
         if paths.is_empty() {
-            return;
+            return false;
         }
         let form = self.batch_form.get_or_insert_with(|| Form::new(self.i18n.t("batch-subfolder-name")));
         form.audio = None;
@@ -210,15 +237,18 @@ impl App {
         if form.other.is_empty() {
             form.other = crate::navigation::shown(&self.base, &self.dir);
         }
-        let left_out = all - paths.len();
-        self.batch = Some(Window { paths, dir: self.dir.clone(), progress: None, dest: Default::default(), left_out, title: None });
+        self.batch = Some(Window { paths, dir: self.dir.clone(), progress: None, dest: Default::default(), left_out, kinds, title: None });
+        true
     }
 
     /// "Copy with the metadata": the window on "Same as the original" (streams copied, metadata
     /// written), the destination left to choose.
     pub(crate) fn open_copy_meta(&mut self, path: Option<String>) {
-        self.open_batch(path);
-        if let Some(form) = self.batch_form.as_mut().filter(|_| self.batch.is_some()) {
+        if !self.open_batch_of(path, false) || !self.batch_only(&[Kind::Video]) {
+            return;
+        }
+        if let Some(form) = self.batch_form.as_mut() {
+            form.images = false;
             if !CONTAINERS[form.video.container].codecs.contains(&Codec::Copy) {
                 form.video.container = 0;
             }
@@ -229,11 +259,7 @@ impl App {
     /// "Copy without sound" and "Save the sound as a file": the window on the videos chosen, with only the
     /// destination to choose, next to the originals at first.
     pub(crate) fn open_audio(&mut self, job: AudioJob, path: Option<String>) {
-        if self.batch.is_some() {
-            return;
-        }
-        self.open_batch(path);
-        if !self.batch_only(crate::decode::is_video) {
+        if !self.open_batch_of(path, false) || !self.batch_only(&[Kind::Video]) {
             return;
         }
         if let Some(form) = self.batch_form.as_mut() {
@@ -243,31 +269,30 @@ impl App {
         }
     }
 
-    /// Resize > Custom…: the window on the pictures chosen, in their own format, on a size of
-    /// Long side at first.
+    /// Resize > Custom…: the window on the pictures chosen, on the part of the size, in their own
+    /// format, on a size of Long side at first.
     pub(crate) fn open_resize(&mut self, path: Option<String>) {
-        if self.batch.is_some() {
-            return;
-        }
-        self.open_batch(path);
-        if !self.batch_only(|p| kind(p) == Kind::Picture) {
+        if !self.open_batch_of(path, false) || !self.batch_only(&[Kind::Picture]) {
             return;
         }
         if let Some(form) = self.batch_form.as_mut() {
-            (form.images, form.videos, form.format) = (true, false, None);
+            if form.part == Part::Format {
+                form.format_before = form.format;
+            }
+            (form.images, form.videos, form.format, form.part, form.scroll) = (true, false, None, Part::Size, true);
             if form.size == 0 {
                 form.size = Size::KINDS.iter().position(|k| matches!(k, Size::Long(_))).unwrap_or(0);
             }
         }
     }
 
-    /// The window just opened kept on the files `keep` takes, the others counted as left out.
+    /// The window just opened kept on the files of `kinds`, the others left out.
     /// `false`: none left, the window closed.
-    fn batch_only(&mut self, keep: impl Fn(&str) -> bool) -> bool {
+    fn batch_only(&mut self, kinds: &'static [Kind]) -> bool {
         let Some(w) = self.batch.as_mut() else { return false };
-        let before = w.paths.len();
-        w.paths.retain(|p| keep(p));
-        w.left_out += before - w.paths.len();
+        let (paths, out) = split(std::mem::take(&mut w.paths), kinds);
+        (w.paths, w.kinds) = (paths, kinds);
+        w.left_out.extend(out);
         if w.paths.is_empty() {
             self.batch = None;
         }
@@ -281,15 +306,14 @@ impl App {
         if self.batch.is_some() {
             return;
         }
-        let all = self.grid_items(path.clone()).len();
-        let paths = self.grid_of(path, &[Kind::Picture]);
+        let kinds: &'static [Kind] = &[Kind::Picture];
+        let (paths, left_out) = split(self.grid_items(path), kinds);
         if paths.is_empty() {
             return;
         }
         let dir = self.dir.clone();
         let to = Dest { op: loader.store(), dir: dir.clone(), create: false };
-        let left_out = all - paths.len();
-        let mut w = Window { paths, dir: dir.clone(), progress: None, dest: (self.display(&dir), Some(dir)), left_out, title: Some("preset-title") };
+        let mut w = Window { paths, dir: dir.clone(), progress: None, dest: (self.display(&dir), Some(dir)), left_out, kinds, title: Some("preset-title") };
         let job = Job { format: None, size, tag: size.tag(), ..Job::default() };
         self.start_batch(&mut w, job, to, ctx);
         self.batch = Some(w);
@@ -312,8 +336,8 @@ impl App {
         let n = w.paths.len().to_string();
         let title = self.i18n.t(form.title());
         let mut intro = self.i18n.t_args("batch-images", &[("n", &n), ("folder", &md(&self.display(&w.dir)))]);
-        if w.left_out > 0 {
-            intro = format!("{intro} {}", self.i18n.t_args("batch-left-out-kind", &[("n", &w.left_out.to_string())]));
+        if !w.left_out.is_empty() {
+            intro = format!("{intro} {}", self.i18n.t_args("batch-left-out-kind", &[("n", &w.left_out.len().to_string())]));
         }
         let keys = self.delete_answer.take();
         let (places, rt) = (self.pick_places(), self.rt.handle().clone());
@@ -439,7 +463,9 @@ impl App {
     /// What was saved and where, what was left out and why; the folders shown again.
     fn batch_done(&mut self, w: &Window, p: &Progress) {
         let saved = p.saved.lock().unwrap().len();
-        let failed = std::mem::take(&mut *p.failed.lock().unwrap());
+        // The files of another kind first, then those the work left out.
+        let other_kind = w.left_out.iter().map(|path| (left_out_id(w.kinds), source::name(path).to_string()));
+        let failed: Vec<_> = other_kind.chain(std::mem::take(&mut *p.failed.lock().unwrap())).collect();
         log!("batch: {saved} saved, {} left out", failed.len());
         for (id, detail) in &failed {
             log!("batch: left out: {id} {detail}");
@@ -448,10 +474,6 @@ impl App {
         let (done, total) = (p.done.load(Ordering::Relaxed), p.total.load(Ordering::Relaxed));
         if done < total {
             text = format!("{text}\n\n{}", self.i18n.t_args("batch-cancelled", &[("n", &done.to_string()), ("total", &total.to_string())]));
-        }
-        // Resize says here what the window says at the start.
-        if w.title.is_some() && w.left_out > 0 {
-            text = format!("{text}\n\n{}", self.i18n.t_args("batch-left-out-kind", &[("n", &w.left_out.to_string())]));
         }
         if !failed.is_empty() {
             // Resize has no format to choose: its own words for a format not written.
@@ -474,7 +496,14 @@ fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bool> {
     ui.spacing_mut().item_spacing.y = 6.0;
     // On a low screen the choices scroll, the buttons stay in view.
     let max = (ui.ctx().content_rect().height() - 170.0).max(200.0);
-    egui::ScrollArea::vertical().max_height(max).show(ui, |ui| {
+    // Where it opens (`Form::part`): the top, or the size; not in the pass that measures the window.
+    let scroll = f.scroll && !ui.is_sizing_pass();
+    f.scroll &= !scroll;
+    let mut area = egui::ScrollArea::vertical().max_height(max);
+    if scroll && f.part == Part::Format {
+        area = area.vertical_scroll_offset(0.0);
+    }
+    area.show(ui, |ui| {
         if let Some(job) = f.audio {
             section(ui, t("batch-video"), |ui| audio_rows(ui, &mut f.video, job, i18n));
             section(ui, t("batch-where"), |ui| where_rows(ui, f, i18n));
@@ -494,6 +523,10 @@ fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bool> {
         // Copied streams keep their turn and size: with videos only there is nothing to choose.
         let fixed = f.videos && !f.images && f.video.codec == Codec::Copy;
         ui.add_enabled_ui(!fixed, |ui| {
+            // The size, with the turn above it (a picture's shape, after the format).
+            if scroll && f.part == Part::Size {
+                ui.scroll_to_cursor(Some(egui::Align::TOP));
+            }
             section(ui, t("batch-turn"), |ui| turn_rows(ui, f, i18n));
             section(ui, t("batch-size"), |ui| size_rows(ui, f, i18n));
         });

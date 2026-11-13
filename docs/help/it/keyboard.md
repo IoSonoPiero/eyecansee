@@ -39,7 +39,7 @@ Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le ch
 | Maiusc+Canc | Elimina definitivamente |
 | Ctrl+N | Nuova immagine (vedi [Nuova immagine](new-image.md)) |
 | Ctrl+E | Modifica immagine (vedi [Modificare un'immagine](editor.md)) |
-| Ctrl+B | Converti e ridimensiona (vedi [Convertire e ridimensionare le immagini](convert.md)) |
+| Ctrl+B | Converti… (vedi [Convertire e ridimensionare le immagini](convert.md)) |
 | Ctrl+D | Trova duplicati (vedi [Trovare i duplicati](duplicates.md)) |
 | Maiusc+F5 | Rifà tutte le miniature della cartella |
 

@@ -7,10 +7,10 @@ Per una sola immagine con l'anteprima dal vivo usa [Salvare in un altro formato]
 ## Avviare la conversione
 
 1. Nella griglia seleziona le immagini (vedi [Selezionare i file](selection.md)). Se non hai selezionato niente, vale l'immagine su cui sta il cursore.
-2. Fai clic su ![Converti e ridimensiona…](icon://scaling) nella barra strumenti, oppure scegli **Strumenti > Converti e ridimensiona…** (**Ctrl+B**), oppure fai clic destro su uno dei file selezionati e scegli **Converti e ridimensiona…**.
+2. Fai clic su ![Converti…](icon://scaling) nella barra strumenti, oppure scegli **Strumenti > Converti…** (**Ctrl+B**), oppure fai clic destro su uno dei file selezionati e scegli **Converti…**. La finestra si apre sul formato; **Ridimensiona > Personalizzata…** la apre sulle dimensioni (vedi più sotto).
 3. Fai le tue scelte nella finestra e premi **Converti**.
 
-La finestra lavora su foto e video. Gli altri file selezionati (modelli 3D, disegni CAD, file audio) restano fuori, e la finestra dice quanti sono. Non funziona dal visore, e si fa una conversione alla volta.
+La finestra lavora su foto e video. Gli altri file selezionati (modelli 3D, disegni CAD, file audio) restano fuori: la finestra dice quanti sono, il messaggio finale quali. Non funziona dal visore, e si fa una conversione alla volta.
 
 ![Convertire e ridimensionare le immagini](../img/convert.webp)
 
@@ -18,9 +18,9 @@ La finestra lavora su foto e video. Gli altri file selezionati (modelli 3D, dise
 
 Per fare solo delle copie più piccole delle foto, senza la finestra: fai clic destro sui file selezionati, oppure apri **Strumenti**, e scegli **Ridimensiona** e una delle sue misure: **Piccola (lato lungo 1280 px)**, **Media (lato lungo 1920 px)**, **Grande (lato lungo 2560 px)** o **50 %**. Le misure le puoi cambiare nelle [Opzioni](options.md), nella scheda **Ridimensiona**.
 
-Il lavoro parte subito su tutte le immagini scelte, con lo stesso riquadro e **Annulla** descritti più sotto e il messaggio finale. Le copie vanno accanto agli originali, nel loro formato e con i loro metadati (una foto **Ultra HDR** resta Ultra HDR), con la misura nel nome: `foto (1920 px).jpg`, `foto (50%).jpg`. Un nome già preso riceve " (2)". Le immagini già più piccole della misura vengono copiate così come sono, mai ingrandite. Quelle in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) restano fuori, e il messaggio dice perché. Restano fuori anche video, modelli 3D, disegni CAD e file audio: se tra i file scelti ce ne sono, **Ridimensiona** è segnata con **\***.
+Il lavoro parte subito su tutte le immagini scelte, con lo stesso riquadro e **Annulla** descritti più sotto e il messaggio finale. Le copie vanno accanto agli originali, nel loro formato e con i loro metadati (una foto **Ultra HDR** resta Ultra HDR), con la misura nel nome: `foto (1920 px).jpg`, `foto (50%).jpg`. Un nome già preso riceve " (2)". Le immagini già più piccole della misura vengono copiate così come sono, mai ingrandite. Quelle in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) restano fuori, e il messaggio dice perché. Restano fuori anche video, modelli 3D, disegni CAD e file audio, e il messaggio li elenca: se tra i file scelti ce ne sono, **Ridimensiona** è segnata con **\***; se non c'è nessuna immagine, è grigia.
 
-**Ridimensiona > Personalizzata…** apre questa finestra sulle immagini, con il formato **Uguale all'originale**.
+**Ridimensiona > Personalizzata…** apre questa finestra sulle immagini, sulla rotazione e sulle dimensioni, con il formato **Uguale all'originale**.
 
 ## Formato
 

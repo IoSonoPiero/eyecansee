@@ -57,11 +57,11 @@ Se una miniatura sembra sbagliata, fai clic destro sul file (o su più file sele
 
 ## Il menù del clic destro
 
-- Su un **file**: le azioni che funzionano su di lui, come Apri, Carosello, Modifica immagine…, Converti e ridimensiona…, Ridimensiona, Taglia, Copia, Rinomina… ed Elimina…. Con più file selezionati, il menù agisce su tutti (vedi [Selezionare i file](selection.md)).
+- Su un **file**: le azioni che funzionano su di lui, come Apri, Carosello, Modifica immagine…, Converti…, Ridimensiona, Taglia, Copia, Rinomina… ed Elimina…. Con più file selezionati, il menù agisce su tutti (vedi [Selezionare i file](selection.md)).
 - Su una **cartella**: Apri, Nuova cartella qui dentro…, Taglia, Copia, Incolla in questa cartella, Aggiungi questa cartella ai segnalibri (vedi [Segnalibri](bookmarks.md)), Trova duplicati…, Rinomina…, Elimina…, Elimina definitivamente….
 - Su uno **spazio vuoto**: Incolla (quando hai copiato qualcosa), Seleziona tutto, Nuova cartella…, Cartella superiore, Aggiorna, Mostra e Trova duplicati….
 
-Una voce segnata con **\*** funziona solo su una parte dei file scelti (per esempio Converti e ridimensiona sulle foto e sui video che ci sono in mezzo, Ridimensiona sulle foto); una riga in fondo al menù lo dice.
+Una voce segnata con **\*** funziona solo su una parte dei file scelti (per esempio Converti… sulle foto e sui video che ci sono in mezzo, Ridimensiona sulle foto); una riga in fondo al menù lo dice. Una voce che non funziona su nessuno resta al suo posto, grigia: tieni il mouse sopra per leggere il perché (per esempio "Nessuna immagine tra i file scelti").
 
 ## La barra di stato
 

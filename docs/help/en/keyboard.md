@@ -39,7 +39,7 @@ In the windows that tell how an operation went, **Enter** or **Esc** closes them
 | Shift+Del | Delete for good |
 | Ctrl+N | New image (see [New image](new-image.md)) |
 | Ctrl+E | Edit image (see [Editing an image](editor.md)) |
-| Ctrl+B | Convert and resize (see [Converting and resizing images](convert.md)) |
+| Ctrl+B | Convert… (see [Converting and resizing images](convert.md)) |
 | Ctrl+D | Find duplicates (see [Finding duplicates](duplicates.md)) |
 | Shift+F5 | Make all the thumbnails of the folder again |
 

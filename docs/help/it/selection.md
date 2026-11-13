@@ -21,7 +21,7 @@ La barra di stato mostra quanti elementi sono selezionati e quanto pesano i loro
 ## Cosa succede alla selezione
 
 - Il **clic destro** su uno degli elementi selezionati apre un menù che agisce su tutti. Il clic destro su un elemento fuori dalla selezione seleziona solo quello.
-- **Copia**, **Taglia**, **Elimina**, **Converti e ridimensiona** e **Aggiorna miniature** lavorano su tutti gli elementi selezionati.
+- **Copia**, **Taglia**, **Elimina**, **Converti…**, **Ridimensiona** e **Aggiorna miniature** lavorano su tutti gli elementi selezionati.
 - **Invio** (o **Apri**) apre nel visore il primo dei file selezionati, e il visore poi si muove solo tra quelli. Anche il **Carosello** mostra solo quelli (le foto e i video tra quelli), dal primo.
 - **Rinomina** lavora su un elemento alla volta: con più elementi selezionati è grigio.
 

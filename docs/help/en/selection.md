@@ -21,7 +21,7 @@ The status bar shows how many items are selected and how much their files weigh,
 ## What happens to the selection
 
 - A **right click** on one of the selected items opens a menu that works on all of them. A right click on an item outside the selection selects only that one.
-- **Copy**, **Cut**, **Delete**, **Convert and resize** and **Redo thumbnails** work on all the items selected.
+- **Copy**, **Cut**, **Delete**, **Convert…**, **Resize** and **Redo thumbnails** work on all the items selected.
 - **Enter** (or **Open**) opens the first of the selected files in the viewer, which then moves only among them. The **Slideshow** too shows only them (the pictures and videos among them), from the first.
 - **Rename** works on one item at a time: with several selected it is greyed out.
 
