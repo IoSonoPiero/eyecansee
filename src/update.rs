@@ -2,7 +2,8 @@
 //! asked for in the background; a newer one is downloaded, checked against the SHA-256 GitHub
 //! publishes for it, and installed when the user clicks "Install and restart".
 //! Only copies that can replace themselves: the Windows installer and zip, the AppImage. The RPM
-//! is updated by dnf, the Store and Flatpak copies by their own (`packaged`), development builds
+//! is updated by the system (`RPM`: dnf, or rpm-ostree on Fedora Atomic), the Store and Flatpak
+//! copies by their own (`packaged`), development builds
 //! (in `target`) never. The Store copy asks the Store whether it has a newer version and offers
 //! its page (`Kind::Store`).
 
@@ -54,10 +55,40 @@ pub fn packaged() -> bool {
     std::env::var_os("FLATPAK_ID").is_some()
 }
 
+/// Built for the Fedora package: `eyecansee.spec` builds with the `rpm` feature, so the RPM of COPR
+/// is known for sure. A test on the path (/usr/bin) would also take a copy built from the sources
+/// and installed there by hand, which nothing updates.
+pub const RPM: bool = cfg!(feature = "rpm");
+
+/// Updated by the system, never by EyeCanSee: the Flatpak and the Fedora package. Their option
+/// "Check for updates at startup" would do nothing and is hidden; the Store copy keeps it, as it
+/// asks the Store.
+pub fn by_system() -> bool {
+    RPM || (!cfg!(windows) && packaged())
+}
+
+/// What Help > Check for updates says in a copy that EyeCanSee does not update (Fluent id).
+pub fn not_updated_note() -> &'static str {
+    // Fedora Atomic (Silverblue, Kinoite…) boots from an ostree deployment, which leaves this file:
+    // the RPM is layered on it with rpm-ostree, and dnf cannot install there.
+    let ostree = RPM && Path::new("/run/ostree-booted").exists();
+    not_updated_id(!cfg!(windows) && packaged(), RPM, ostree)
+}
+
+fn not_updated_id(flatpak: bool, rpm: bool, ostree: bool) -> &'static str {
+    match (flatpak, rpm, ostree) {
+        (true, ..) => "update-flatpak",
+        (false, true, true) => "update-rpm-ostree",
+        (false, true, false) => "update-rpm",
+        (false, false, _) => "update-unavailable",
+    }
+}
+
 impl Kind {
     pub fn detect() -> Option<Kind> {
-        // The private test copy is replaced by hand, never by a public release (`test_copy`).
-        if cfg!(feature = "test-copy") {
+        // The private test copy is replaced by hand, never by a public release (`test_copy`); the
+        // Fedora package by the system.
+        if cfg!(feature = "test-copy") || RPM {
             return None;
         }
         // flatpak updates its own copies; the Microsoft Store too, but it is asked whether it has one.
@@ -429,6 +460,18 @@ mod tests {
             "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
         );
         assert_eq!(quote(Path::new(r"C:\Users\O'Neil\a.exe")), r"'C:\Users\O''Neil\a.exe'");
+    }
+
+    /// Issue #69: the Fedora package says how the system updates it, rpm-ostree on Fedora Atomic.
+    #[test]
+    fn not_updated_notes() {
+        assert_eq!(not_updated_id(true, false, false), "update-flatpak");
+        assert_eq!(not_updated_id(false, true, false), "update-rpm");
+        assert_eq!(not_updated_id(false, true, true), "update-rpm-ostree");
+        assert_eq!(not_updated_id(false, false, false), "update-unavailable");
+        // Only the spec builds the RPM: its build must keep the feature, or the option comes back.
+        let spec = include_str!("../eyecansee.spec");
+        assert!(spec.lines().any(|l| l.starts_with("cargo build") && l.contains("--features rpm")));
     }
 
     // Made with minisign 0.12 and two throwaway keys without password, A and B:

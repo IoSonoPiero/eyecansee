@@ -91,7 +91,7 @@ impl App {
     }
 
     /// In the background; the answer comes as `Msg::Update`. `false` = this copy is not updated
-    /// by EyeCanSee (RPM, development build).
+    /// by EyeCanSee (Flatpak, RPM, development build).
     pub(crate) fn check_updates(&self, ctx: &egui::Context) -> bool {
         let Some(kind) = update::Kind::detect() else { return false };
         let (tx, ctx) = (self.tx.clone(), ctx.clone());
@@ -229,8 +229,9 @@ fn general_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, languages: &[(&
     for (code, name) in languages {
         ui.radio_value(&mut s.language, Some(code.to_string()), name);
     }
-    // flatpak updates its copies itself; the Store copy asks the Store (`update::Kind::Store`).
-    if !crate::update::packaged() || cfg!(windows) {
+    // The Flatpak and the Fedora package are updated by the system; the Store copy asks the Store
+    // (`update::Kind::Store`).
+    if !crate::update::by_system() {
         ui.add_space(6.0);
         ui.checkbox(&mut s.check_updates, t("opt-check-updates")).on_hover_text(t("opt-check-updates-hint"));
     }

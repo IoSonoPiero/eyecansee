@@ -45,7 +45,8 @@ them to other formats.
 
 %build
 export CARGO_HOME=%{_builddir}/cargo-home
-cargo build --release --locked
+# The rpm feature: the system updates this copy, the app does not check (src/update.rs).
+cargo build --release --locked --features rpm
 # Licences and copyright notices of the crates and C libraries linked into the executable.
 tools/third-party-licenses.sh THIRD-PARTY-LICENSES.txt --locked
 

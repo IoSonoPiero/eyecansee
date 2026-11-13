@@ -7,7 +7,7 @@ EyeCanSee può tenersi aggiornato da solo. Come, dipende da come l'hai installat
 - **Installer di Windows, zip di Windows e AppImage**: EyeCanSee si aggiorna da solo, come spiegato sotto.
 - **Microsoft Store**: lo aggiorna lo Store. EyeCanSee chiede allo Store se ha una versione più nuova: se c'è, in alto a destra nella barra dei menù compare un pulsante rosso **Aggiorna alla … nel Microsoft Store**, e il clic apre la pagina di EyeCanSee nello Store, dove lo aggiorni.
 - **Flatpak**: si aggiorna con `flatpak update` o con il centro software del sistema (per esempio GNOME Software, Discover o il Gestore aggiornamenti di Linux Mint).
-- **Pacchetto Fedora**: lo aggiorna `dnf` insieme al resto del sistema.
+- **Pacchetto Fedora**: si aggiorna insieme al resto del sistema, con `sudo dnf upgrade` o con il centro software (GNOME Software, Discover). Su Fedora Atomic (Silverblue, Kinoite), dove è sovrapposto con `rpm-ostree`, con `rpm-ostree upgrade` e un riavvio, o con il centro software. Non ha l'opzione **Controlla gli aggiornamenti all'avvio**.
 
 ## Come funziona
 

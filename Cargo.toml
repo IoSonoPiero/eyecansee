@@ -18,6 +18,9 @@ shots = []
 # The private test copy: red icon, its own folders, no updates (src/test_copy.rs). Never in a
 # public package: build.rs refuses it on GitHub Actions.
 test-copy = []
+# The Fedora package (eyecansee.spec): updated by the system, so the app neither checks for
+# updates nor shows that option, and says how dnf or rpm-ostree updates it (src/update.rs).
+rpm = []
 
 [dependencies]
 bytes = "1.12.1"
