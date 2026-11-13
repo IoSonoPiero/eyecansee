@@ -16,7 +16,7 @@ use crate::folder_pick::{Picker, pick_ui};
 use crate::i18n::I18n;
 use crate::transform::{Op, Turn};
 use crate::save_dialogs::{md, notice_text};
-use crate::selection::{Kind, PLAYED};
+use crate::selection::{Kind, PLAYED, kind};
 use crate::{App, source};
 
 /// Where the new files go.
@@ -28,20 +28,13 @@ enum Place {
     Other,
 }
 
-#[derive(Clone, Copy, PartialEq)]
-enum SizeKind {
-    Same,
-    Percent,
-    Fit,
-}
-
 /// The choices, kept for the next time while the program is open.
 pub struct Form {
     format: Option<Format>,
     options: Options,
-    size: SizeKind,
-    percent: u32,
-    fit: (u32, u32),
+    /// One size of each kind with its measures (`Size::KINDS`), and which one is chosen.
+    sizes: [Size; 9],
+    size: usize,
     filter: Filter,
     enlarge: bool,
     flip_h: bool,
@@ -77,9 +70,8 @@ impl Form {
         Form {
             format: Some(Format::Jpeg),
             options: Options::default(),
-            size: SizeKind::Same,
-            percent: 50,
-            fit: (1920, 1080),
+            sizes: Size::KINDS,
+            size: 0,
             filter: Filter::Lanczos3,
             enlarge: false,
             flip_h: false,
@@ -102,15 +94,11 @@ impl Form {
     }
 
     fn job(&self) -> Job {
-        let size = match self.size {
-            SizeKind::Same => Size::Same,
-            SizeKind::Percent => Size::Percent(self.percent),
-            SizeKind::Fit => Size::Fit(self.fit.0, self.fit.1),
-        };
+        let size = self.sizes[self.size];
         let v = &self.video;
         let video = v.encoder.filter(|_| self.videos).map(|encoder| Video { container: v.container, encoder, quality: v.quality, audio: v.audio, meta: v.meta });
         let drawing = self.drawing.then_some(self.kept.unwrap_or(Drawn::Side(self.side)));
-        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio, base: String::new(), drawing }
+        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio, base: String::new(), drawing, tag: String::new() }
     }
 
     /// On videos only, or only their sound: F1 opens the page on converting videos.
@@ -164,6 +152,8 @@ pub struct Window {
     dest: (String, Option<String>),
     /// Files chosen that this window does not work on (another kind), said under the count.
     left_out: usize,
+    /// Resize with a preset (no window): the title of the message at the end.
+    title: Option<&'static str>,
 }
 
 impl Form {
@@ -213,11 +203,15 @@ impl App {
         form.videos = paths.iter().any(|p| crate::decode::is_video(p));
         form.images = !drawings && paths.iter().any(|p| !crate::decode::is_video(p));
         form.jpegs = paths.iter().any(|p| Format::of_file(p) == Some(Format::Jpeg));
+        // The sizes for pictures only are off with videos.
+        if form.videos && !form.sizes[form.size].for_videos() {
+            form.size = 0;
+        }
         if form.other.is_empty() {
             form.other = crate::navigation::shown(&self.base, &self.dir);
         }
         let left_out = all - paths.len();
-        self.batch = Some(Window { paths, dir: self.dir.clone(), progress: None, dest: Default::default(), left_out });
+        self.batch = Some(Window { paths, dir: self.dir.clone(), progress: None, dest: Default::default(), left_out, title: None });
     }
 
     /// "Copy with the metadata": the window on "Same as the original" (streams copied, metadata
@@ -239,12 +233,7 @@ impl App {
             return;
         }
         self.open_batch(path);
-        let Some(w) = self.batch.as_mut() else { return };
-        let before = w.paths.len();
-        w.paths.retain(|p| crate::decode::is_video(p));
-        w.left_out += before - w.paths.len();
-        if w.paths.is_empty() {
-            self.batch = None;
+        if !self.batch_only(crate::decode::is_video) {
             return;
         }
         if let Some(form) = self.batch_form.as_mut() {
@@ -252,6 +241,58 @@ impl App {
             form.images = false;
             form.place = Place::Next;
         }
+    }
+
+    /// Resize > Custom…: the window on the pictures chosen, in their own format, on a size of
+    /// Long side at first.
+    pub(crate) fn open_resize(&mut self, path: Option<String>) {
+        if self.batch.is_some() {
+            return;
+        }
+        self.open_batch(path);
+        if !self.batch_only(|p| kind(p) == Kind::Picture) {
+            return;
+        }
+        if let Some(form) = self.batch_form.as_mut() {
+            (form.images, form.videos, form.format) = (true, false, None);
+            if form.size == 0 {
+                form.size = Size::KINDS.iter().position(|k| matches!(k, Size::Long(_))).unwrap_or(0);
+            }
+        }
+    }
+
+    /// The window just opened kept on the files `keep` takes, the others counted as left out.
+    /// `false`: none left, the window closed.
+    fn batch_only(&mut self, keep: impl Fn(&str) -> bool) -> bool {
+        let Some(w) = self.batch.as_mut() else { return false };
+        let before = w.paths.len();
+        w.paths.retain(|p| keep(p));
+        w.left_out += before - w.paths.len();
+        if w.paths.is_empty() {
+            self.batch = None;
+        }
+        self.batch.is_some()
+    }
+
+    /// Resize > a preset: the pictures chosen resized at once, without a window, next to the
+    /// originals, in their format with their metadata, the size in their names ("photo (1920 px).jpg").
+    pub(crate) fn resize_now(&mut self, ctx: &egui::Context, size: Size, path: Option<String>) {
+        let Some(loader) = &self.loader else { return };
+        if self.batch.is_some() {
+            return;
+        }
+        let all = self.grid_items(path.clone()).len();
+        let paths = self.grid_of(path, &[Kind::Picture]);
+        if paths.is_empty() {
+            return;
+        }
+        let dir = self.dir.clone();
+        let to = Dest { op: loader.store(), dir: dir.clone(), create: false };
+        let left_out = all - paths.len();
+        let mut w = Window { paths, dir: dir.clone(), progress: None, dest: (self.display(&dir), Some(dir)), left_out, title: Some("preset-title") };
+        let job = Job { format: None, size, tag: size.tag(), ..Job::default() };
+        self.start_batch(&mut w, job, to, ctx);
+        self.batch = Some(w);
     }
 
     pub(crate) fn batch_window(&mut self, ctx: &egui::Context) {
@@ -408,11 +449,17 @@ impl App {
         if done < total {
             text = format!("{text}\n\n{}", self.i18n.t_args("batch-cancelled", &[("n", &done.to_string()), ("total", &total.to_string())]));
         }
+        // Resize says here what the window says at the start.
+        if w.title.is_some() && w.left_out > 0 {
+            text = format!("{text}\n\n{}", self.i18n.t_args("batch-left-out-kind", &[("n", &w.left_out.to_string())]));
+        }
         if !failed.is_empty() {
-            let lines: String = failed.iter().map(|(id, detail)| format!("\n- {}", self.i18n.error_md(id, detail))).collect();
+            // Resize has no format to choose: its own words for a format not written.
+            let said = |id: &'static str| if w.title.is_some() && id == crate::batch::SKIP_FORMAT { "preset-skip-format" } else { id };
+            let lines: String = failed.iter().map(|(id, detail)| format!("\n- {}", self.i18n.error_md(said(id), detail))).collect();
             text = format!("{text}\n\n{}{lines}", self.i18n.t("batch-left-out"));
         }
-        let title = self.batch_form.as_ref().map_or("batch-title", Form::title);
+        let title = w.title.unwrap_or_else(|| self.batch_form.as_ref().map_or("batch-title", Form::title));
         self.tell(title, text);
         self.relist(w.dir.clone());
         if let Some(dest) = w.dest.1.clone().filter(|d| *d != w.dir) {
@@ -567,21 +614,19 @@ fn turn_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
 
 fn size_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
     let t = |id| i18n.t(id);
-    ui.radio_value(&mut f.size, SizeKind::Same, t("batch-size-same"));
-    ui.horizontal(|ui| {
-        ui.radio_value(&mut f.size, SizeKind::Percent, t("batch-size-percent"));
-        ui.add_enabled(f.size == SizeKind::Percent, egui::DragValue::new(&mut f.percent).range(1..=1000).suffix(" %"));
-    });
-    ui.horizontal(|ui| {
-        ui.radio_value(&mut f.size, SizeKind::Fit, t("batch-size-fit"));
-        let on = f.size == SizeKind::Fit;
-        ui.add_enabled(on, egui::DragValue::new(&mut f.fit.0).range(1..=65535));
-        ui.label("×");
-        ui.add_enabled(on, egui::DragValue::new(&mut f.fit.1).range(1..=65535));
-        ui.label(t("batch-pixels"));
-    });
+    for i in 0..f.sizes.len() {
+        // Videos are resized only by percent or into a box (`Size::for_videos`).
+        let on = !f.videos || f.sizes[i].for_videos();
+        let row = ui.add_enabled_ui(on, |ui| {
+            ui.horizontal(|ui| {
+                ui.radio_value(&mut f.size, i, t(f.sizes[i].label()));
+                size_fields(ui, &mut f.sizes[i], f.size == i, i18n);
+            })
+        });
+        row.response.on_disabled_hover_text(t("batch-size-images-only"));
+    }
     ui.add_space(4.0);
-    ui.add_enabled_ui(f.size != SizeKind::Same, |ui| {
+    ui.add_enabled_ui(f.size != 0, |ui| {
         ui.checkbox(&mut f.enlarge, t("batch-enlarge"));
         if !f.images {
             return;
@@ -592,6 +637,30 @@ fn size_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
             }
         });
     });
+}
+
+/// The measures of `size`, to change (`on`): a percent, one side or a box, in pixels. Also in
+/// the Options, for the presets of Resize.
+pub(crate) fn size_fields(ui: &mut egui::Ui, size: &mut Size, on: bool, i18n: &I18n) {
+    let side = |ui: &mut egui::Ui, v: &mut u32| ui.add_enabled(on, egui::DragValue::new(v).range(1..=65535));
+    // Only a box keeps the proportions.
+    let unit = i18n.t(if matches!(size, Size::Fit(..)) { "batch-pixels" } else { "batch-px" });
+    match size {
+        Size::Same => {}
+        Size::Percent(p) => {
+            ui.add_enabled(on, egui::DragValue::new(p).range(1..=1000).suffix(" %"));
+        }
+        Size::Long(n) | Size::Short(n) | Size::Width(n) | Size::Height(n) => {
+            side(ui, n);
+            ui.label(unit);
+        }
+        Size::Fit(w, h) | Size::Crop(w, h) | Size::Stretch(w, h) => {
+            side(ui, w);
+            ui.label("×");
+            side(ui, h);
+            ui.label(unit);
+        }
+    }
 }
 
 fn where_rows(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) {
@@ -625,9 +694,11 @@ mod tests {
         assert_eq!(f.why_not(), None);
         f.format = None;
         assert_eq!(f.why_not(), Some("batch-nothing"));
-        f.size = SizeKind::Percent;
+        f.size = 1;
         assert_eq!(f.why_not(), None);
         assert_eq!(f.job().size, Size::Percent(50));
+        f.size = 7;
+        assert_eq!(f.job().size, Size::Crop(1920, 1080));
         for bad in ["", "  ", "a/b", "..", "a\\b"] {
             f.sub_name = bad.into();
             assert_eq!(f.why_not(), Some("batch-bad-folder"), "{bad:?}");
@@ -639,7 +710,7 @@ mod tests {
         f.other = "/tmp".into();
         assert_eq!(f.why_not(), None);
         // Only turned: something to do. Flips first, then the turn.
-        f.size = SizeKind::Same;
+        f.size = 0;
         f.quarter = 1;
         f.flip_h = true;
         assert_eq!(f.why_not(), None);

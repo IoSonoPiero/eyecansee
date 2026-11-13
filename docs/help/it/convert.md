@@ -14,6 +14,14 @@ La finestra lavora su foto e video. Gli altri file selezionati (modelli 3D, dise
 
 ![Convertire e ridimensionare le immagini](../img/convert.webp)
 
+## Ridimensionare con un clic
+
+Per fare solo delle copie più piccole delle foto, senza la finestra: fai clic destro sui file selezionati, oppure apri **Strumenti**, e scegli **Ridimensiona** e una delle sue misure: **Piccola (lato lungo 1280 px)**, **Media (lato lungo 1920 px)**, **Grande (lato lungo 2560 px)** o **50 %**. Le misure le puoi cambiare nelle [Opzioni](options.md), nella scheda **Ridimensiona**.
+
+Il lavoro parte subito su tutte le immagini scelte, con lo stesso riquadro e **Annulla** descritti più sotto e il messaggio finale. Le copie vanno accanto agli originali, nel loro formato e con i loro metadati (una foto **Ultra HDR** resta Ultra HDR), con la misura nel nome: `foto (1920 px).jpg`, `foto (50%).jpg`. Un nome già preso riceve " (2)". Le immagini già più piccole della misura vengono copiate così come sono, mai ingrandite. Quelle in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) restano fuori, e il messaggio dice perché. Restano fuori anche video, modelli 3D, disegni CAD e file audio: se tra i file scelti ce ne sono, **Ridimensiona** è segnata con **\***.
+
+**Ridimensiona > Personalizzata…** apre questa finestra sulle immagini, con il formato **Uguale all'originale**.
+
 ## Formato
 
 - **Uguale all'originale**: ogni immagine resta nel suo formato e viene scritta come la scrive Salva (un JPEG tiene la sua qualità). Le immagini in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) restano fuori.
@@ -31,7 +39,11 @@ La finestra lavora su foto e video. Gli altri file selezionati (modelli 3D, dise
 - **Invariate**.
 - **Percentuale dell'originale** (50 % all'inizio).
 - **Entro** un riquadro di pixel (1920 × 1080 all'inizio): ogni immagine diventa grande quanto entra nel riquadro, con le sue proporzioni, dopo la rotazione.
-- **Ingrandisci anche i file più piccoli**: spenta all'inizio, così le immagini già più piccole della misura chiesta restano come sono.
+- **Lato lungo**, **Lato corto**, **Larghezza** o **Altezza** di tanti pixel, con le proporzioni: un lato lungo di 1920 porta le foto orizzontali e quelle verticali a 1920 pixel sul loro lato più lungo.
+- **Misura esatta, tagliata al centro**: esattamente la misura scritta; ciò che non entra nelle proporzioni viene tagliato in parti uguali dai due lati.
+- **Misura esatta, deformata**: esattamente la misura scritta, con l'immagine allungata o schiacciata.
+- Se tra i file scelti ci sono dei video si possono scegliere solo **Invariate**, **Percentuale dell'originale** ed **Entro**: le altre misure valgono solo per le immagini.
+- **Ingrandisci anche i file più piccoli**: spenta all'inizio, così le immagini già più piccole della misura chiesta restano come sono (con una misura esatta, nessun lato diventa più grande di quello dell'originale).
 - **Filtro**, cioè come si calcolano i pixel nuovi: **Lanczos** (il più nitido, quello predefinito), **Catmull-Rom**, **Gaussiano** (morbido), **Bilineare** (veloce), **Pixel più vicino** (tiene i bordi netti della pixel art).
 
 Se non cambierebbe niente (stesso formato, stesse dimensioni, nessuna rotazione), **Converti** resta spento e una riga rossa lo dice: le immagini perderebbero solo qualità.

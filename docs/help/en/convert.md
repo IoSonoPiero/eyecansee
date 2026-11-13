@@ -14,6 +14,14 @@ The window works on pictures and videos. Other files you selected (3D models, CA
 
 ![Converting and resizing images](../img/convert.webp)
 
+## Resizing in one click
+
+To only make smaller copies of photos, without the window: right-click the selected files, or open **Tools**, and choose **Resize** and one of its sizes: **Small (long side 1280 px)**, **Medium (long side 1920 px)**, **Large (long side 2560 px)** or **50%**. The sizes are yours to change in [Options](options.md), on the **Resize** tab.
+
+The work starts at once on every picture chosen, with the same box and **Cancel** as below and the message at the end. The copies go next to the originals, in their format and with their metadata (an **Ultra HDR** photo stays Ultra HDR), the size in their names: `photo (1920 px).jpg`, `photo (50%).jpg`. A name already taken gets " (2)". Pictures already smaller than the size are copied as they are, never enlarged. Pictures in a format EyeCanSee cannot write (HEIC, RAW…) are left out, and the message says why. Videos, 3D models, CAD drawings and audio files are left out too: with some of them among the files chosen, **Resize** is marked with **\***.
+
+**Resize > Custom…** opens this window on the pictures, with the format **Same as the original**.
+
 ## Format
 
 - **Same as the original**: each image stays in its own format and is written as Save writes it (a JPEG keeps its own quality). Images in a format EyeCanSee cannot write (HEIC, RAW…) are left out.
@@ -31,7 +39,11 @@ The window works on pictures and videos. Other files you selected (3D models, CA
 - **Unchanged**.
 - **Percent of the original** (50 % at first).
 - **Inside** a box of pixels (1920 × 1080 at first): each image is made as large as fits in the box, keeping its proportions, after the turn.
-- **Enlarge smaller files too**: off at first, so images already smaller than the size asked stay as they are.
+- **Long side**, **Short side**, **Width** or **Height** of so many pixels, keeping the proportions: a long side of 1920 makes landscape and portrait photos alike 1920 pixels on their longer side.
+- **Exactly, cropped in the middle**: exactly the size written; what does not fit the proportions is cut off equally on both sides.
+- **Exactly, stretched**: exactly the size written, the picture stretched or squeezed to it.
+- With videos among the files chosen, only **Unchanged**, **Percent of the original** and **Inside** can be chosen: the other sizes are for pictures only.
+- **Enlarge smaller files too**: off at first, so images already smaller than the size asked stay as they are (with an exact size, no side grows larger than the original's).
 - **Filter**, how the new pixels are worked out: **Lanczos** (sharpest, the default), **Catmull-Rom**, **Gaussian** (soft), **Bilinear** (fast), **Nearest pixel** (keeps the hard edges of pixel art).
 
 If nothing would change (same format, same size, no turn), **Convert** stays off and a red line says so: the images would only lose quality.

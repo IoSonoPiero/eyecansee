@@ -270,6 +270,8 @@ fn scale(size: Size, enlarge: bool) -> Option<String> {
         }
         Size::Fit(w, h) if enlarge => Some(format!("scale=w={w}:h={h}:force_original_aspect_ratio=decrease:force_divisible_by=2")),
         Size::Fit(w, h) => Some(format!("scale=w='min({w},iw)':h='min({h},ih)':force_original_aspect_ratio=decrease:force_divisible_by=2")),
+        // Pictures only (`Size::for_videos`): Convert and resize keeps them off with videos.
+        _ => None,
     }
 }
 
@@ -286,6 +288,7 @@ fn qsv_scale(size: Size, enlarge: bool) -> Option<String> {
         }
         Size::Fit(w, h) if enlarge => format!("min({w}/iw,{h}/ih)"),
         Size::Fit(w, h) => format!("min(1,min({w}/iw,{h}/ih))"),
+        _ => return None,
     };
     // Rounded as `force_divisible_by` does: 405 px becomes 406, as on the processor.
     Some(format!("w='round(iw*{factor}/2)*2':h='round(ih*{factor}/2)*2'"))

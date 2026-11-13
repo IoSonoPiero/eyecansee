@@ -197,11 +197,21 @@ impl App {
             entry(ui, act, free && fit.is_some(), item(starred(self.i18n.t(label), fit != Some(false)), keys), a);
         };
         kinds_entry(ui, PLAYED, "menu-batch", t("key-batch"), Act::Batch(None));
+        // Resize: its presets in a submenu, as in the right-click menu.
+        let resize = fits(&chosen, &[Kind::Picture]);
+        ui.add_enabled_ui(free && resize.is_some(), |ui| {
+            ui.menu_button((icons::menu_icon(ui, None), starred(t("menu-resize"), resize != Some(false))), |ui| {
+                if let Some(a) = crate::browser::context_menu(ui, self.resize_items(None)) {
+                    act.set(Some(a));
+                }
+            });
+        });
         kinds_entry(ui, &[Kind::Drawing], "menu-export-drawings", String::new(), Act::ExportDrawings(None));
         kinds_entry(ui, &[Kind::Video], "menu-copy-meta", String::new(), Act::CopyMeta(None));
         kinds_entry(ui, &[Kind::Video], "menu-strip-audio", String::new(), Act::Audio(crate::audio_job::AudioJob::Strip, None));
         kinds_entry(ui, &[Kind::Video], "menu-extract-audio", String::new(), Act::Audio(crate::audio_job::AudioJob::Extract, None));
         entry(ui, act, self.duplicates_off().is_none(), item(t("menu-duplicates"), t("key-duplicates")), Act::Duplicates(None));
+        partial |= free && resize == Some(false);
         partial_note(ui, partial, &self.i18n);
         ui.separator();
         entry(ui, act, true, item(t("menu-options"), String::new()), Act::Options);

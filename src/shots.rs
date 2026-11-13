@@ -166,6 +166,7 @@ fn act(name: &str) -> Act {
     match name {
         "edit" => Act::Edit(None),
         "batch" => Act::Batch(None),
+        "resize" => Act::ResizeCustom(None),
         "duplicates" => Act::Duplicates(None),
         "slideshow" => Act::Slideshow(None),
         "options" => Act::Options,

@@ -186,6 +186,10 @@ impl App {
         }
         if !in_viewer && self.batch.is_none() {
             add(&mut items, PLAYED, "menu-batch", String::new(), Act::Batch(path.clone()));
+            if let Some(all) = fits(&files, &[Kind::Picture]) {
+                partial.set(partial.get() | !all);
+                items.push(Some((starred(t("menu-resize"), all), String::new(), Act::Submenu(self.resize_items(path.clone())))));
+            }
             add(&mut items, &[Kind::Drawing], "menu-export-drawings", String::new(), Act::ExportDrawings(path.clone()));
             add(&mut items, &[Kind::Video], "menu-copy-meta", String::new(), Act::CopyMeta(path.clone()));
             add(&mut items, &[Kind::Video], "menu-strip-audio", String::new(), Act::Audio(AudioJob::Strip, path.clone()));

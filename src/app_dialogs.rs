@@ -23,6 +23,7 @@ impl App {
             (OptTab::Slideshow, t("opt-tab-slideshow")),
             (OptTab::Video, t("opt-tab-video")),
             (OptTab::Editor, t("opt-tab-editor")),
+            (OptTab::Resize, t("opt-tab-resize")),
         ];
         let mut purged = false;
         let (i18n, languages) = (&self.i18n, &self.languages);
@@ -37,9 +38,9 @@ impl App {
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            // Wide enough for the eight tabs in every language (Italian is the longest: 600 let
-            // Editor push the body past the title bar, 2026-11-11).
-            .fixed_size([640.0, 330.0])
+            // Wide enough for the nine tabs in every language (Italian is the longest: 600 let
+            // Editor push the body past the title bar, 2026-11-11; 640 for eight).
+            .fixed_size([740.0, 330.0])
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 // As tall as the longest tab (General), so changing tab does not resize the window.
@@ -59,6 +60,7 @@ impl App {
                     OptTab::Deleting => deleting_tab(ui, s, i18n),
                     OptTab::Thumbnails => purged = thumbnails_tab(ui, s, i18n, confirm),
                     OptTab::Editor => editor_tab(ui, s, i18n),
+                    OptTab::Resize => crate::presets::options_ui(ui, s, i18n),
                 }
             });
         if !open {
