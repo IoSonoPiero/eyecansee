@@ -24,7 +24,8 @@ enum Step {
     Text(String),
     /// The pointer glides there in that many seconds.
     Move(Pos2, f64),
-    Button(bool),
+    /// Pressed or released.
+    Button(PointerButton, bool),
     /// Held from now on (`mods ctrl`, `mods none`), as for a Ctrl+click.
     Mods(Modifiers),
     Wheel(f32),
@@ -112,7 +113,7 @@ fn parse(text: &str, name: &str) -> Vec<(f64, Step)> {
 
 /// One line: `key <name>` (egui's names: `Escape`, `Plus`, `E`, `F1`…), `key <mods> <name>`
 /// (`ctrl`, `shift`, `ctrl+shift`), `type <text>`, `move <x> <y> [seconds]`, `down`, `up`,
-/// `click <x> <y>`, `dclick <x> <y>`, `drag <x> <y> <x2> <y2> [seconds]`, `mods <mods>`,
+/// `click <x> <y>`, `dclick <x> <y>`, `rclick <x> <y>` (the right button), `drag <x> <y> <x2> <y2> [seconds]`, `mods <mods>`,
 /// `wheel <points>`, `select|open|mark <end of a name>`, `act <action>` (`action`),
 /// `shot [name] [x y w h]`, `end`.
 fn parse_step(steps: &mut Vec<(f64, Step)>, t: f64, w: &[&str], rest: &str, name: &str, width: Option<u32>) {
@@ -124,22 +125,23 @@ fn parse_step(steps: &mut Vec<(f64, Step)>, t: f64, w: &[&str], rest: &str, name
         "key" => push(0.0, Step::Key(key(w[1]), Modifiers::NONE)),
         "type" => arg.chars().enumerate().for_each(|(i, c)| push(i as f64 * 0.05, Step::Text(c.to_string()))),
         "move" => push(0.0, Step::Move(at(1), w.get(3).map_or(0.4, |_| num(w, 3)))),
-        "down" => push(0.0, Step::Button(true)),
-        "up" => push(0.0, Step::Button(false)),
-        "click" | "dclick" => {
+        "down" => push(0.0, Step::Button(PointerButton::Primary, true)),
+        "up" => push(0.0, Step::Button(PointerButton::Primary, false)),
+        "click" | "dclick" | "rclick" => {
             push(0.0, Step::Move(at(1), 0.0));
-            let n = if w[0] == "click" { 1 } else { 2 };
+            let n = if w[0] == "dclick" { 2 } else { 1 };
+            let button = if w[0] == "rclick" { PointerButton::Secondary } else { PointerButton::Primary };
             for i in 0..n {
-                push(0.05 + i as f64 * 0.1, Step::Button(true));
-                push(0.08 + i as f64 * 0.1, Step::Button(false));
+                push(0.05 + i as f64 * 0.1, Step::Button(button, true));
+                push(0.08 + i as f64 * 0.1, Step::Button(button, false));
             }
         }
         "drag" => {
             push(0.0, Step::Move(at(1), 0.0));
-            push(0.05, Step::Button(true));
+            push(0.05, Step::Button(PointerButton::Primary, true));
             let secs = w.get(5).map_or(0.6, |_| num(w, 5));
             push(0.1, Step::Move(at(3), secs));
-            push(0.2 + secs, Step::Button(false));
+            push(0.2 + secs, Step::Button(PointerButton::Primary, false));
         }
         "mods" => push(0.0, Step::Mods(mods(w[1]))),
         "wheel" => push(0.0, Step::Wheel(num(w, 1))),
@@ -245,9 +247,9 @@ impl crate::App {
             }
             Step::Text(x) => run.queue.push(Event::Text(x)),
             Step::Move(to, secs) => run.glide = Some((t, t + secs, run.pointer.unwrap_or(to), to)),
-            Step::Button(pressed) => {
+            Step::Button(button, pressed) => {
                 let pos = run.pointer.unwrap_or_default();
-                run.queue.push(Event::PointerButton { pos, button: PointerButton::Primary, pressed, modifiers: mods });
+                run.queue.push(Event::PointerButton { pos, button, pressed, modifiers: mods });
             }
             Step::Mods(m) => run.mods = m,
             Step::Wheel(y) => {
