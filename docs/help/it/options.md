@@ -13,7 +13,7 @@ Ogni modifica viene salvata subito in `settings.json`: in `~/.config/eyecansee` 
 ## Generale
 
 - **Riapri l'ultima cartella all'avvio** (accesa): quando EyeCanSee parte senza una cartella, per esempio dal menù delle applicazioni, apre la cartella che stavi guardando alla chiusura. Se quella cartella non esiste più, o il suo disco o telefono non è collegato, apre la tua cartella home. Un server salvato si apre con la sua password salvata; un server FTP con utente che non è salvato apre **File > Apri indirizzo…** con tutto compilato tranne la password.
-- **Finestra all'avvio**: **Dimensione normale**, **Massimizzata** (riempie lo schermo lasciando visibili le barre del sistema) o **Dimensione che aveva alla chiusura** (se era massimizzata, si riapre massimizzata).
+- **Finestra all'avvio**: **Dimensione normale**, **Massimizzata** (riempie lo schermo lasciando visibili le barre del sistema) o **Dimensione che aveva alla chiusura** (se era massimizzata, si riapre massimizzata). Su Windows la finestra non massimizzata si apre al centro dell'area libera del suo schermo, sopra la barra delle applicazioni, e più piccola se non ci sta.
 - **Lingua**: **Come il sistema** (inglese se la lingua del sistema non c'è) o una delle lingue elencate, ognuna scritta nella sua lingua. La modifica vale subito, anche per questa guida.
 - **Controlla gli aggiornamenti all'avvio** (accesa): vedi [Aggiornamenti](updates.md). Non compare nel Flatpak, che si aggiorna da sé; nella copia del Microsoft Store chiede allo Store.
 

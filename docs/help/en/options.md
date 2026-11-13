@@ -13,7 +13,7 @@ Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Li
 ## General
 
 - **Reopen the last folder at startup** (on): when EyeCanSee starts without a folder, for example from the applications menu, it opens the folder you were looking at when you closed it. If that folder no longer exists, or its disk or phone is not connected, it opens your home folder. A saved server opens with its saved password; an FTP server with a user that is not saved opens **File > Open location…** with everything filled in except the password.
-- **Window at startup**: **Normal size**, **Maximized** (fills the screen, leaving the system bars visible) or **Size it had when closed** (if it was maximized, it reopens maximized).
+- **Window at startup**: **Normal size**, **Maximized** (fills the screen, leaving the system bars visible) or **Size it had when closed** (if it was maximized, it reopens maximized). On Windows a window that is not maximized opens centred in the free area of its screen, above the taskbar, and smaller if it would not fit.
 - **Language**: **Same as the system** (English if the system's language is not available) or one of the languages listed, each shown by its own name. The change applies at once, this guide included.
 - **Check for updates at startup** (on): see [Updates](updates.md). Not shown in the Flatpak, which is updated by its own; in the copy from the Microsoft Store it asks the Store.
 

@@ -139,6 +139,8 @@ mod video;
 mod video_read;
 mod viewer;
 mod watch;
+#[cfg(any(windows, test))]
+mod window_place;
 mod xmp;
 #[cfg(test)]
 mod help_check;
@@ -575,6 +577,13 @@ fn main() -> eframe::Result {
     if let Some(icon) = decode::app_icon(256) {
         viewport = viewport.with_icon(egui::IconData { rgba: icon.into_raw(), width: 256, height: 256 });
     }
+    // Not maximized: on Windows moved inside the screen's free area once made (#109).
+    #[cfg(windows)]
+    let fit_window = match settings.window_start {
+        WindowStart::Normal => true,
+        WindowStart::Maximized => false,
+        WindowStart::Remember => !settings.window_maximized,
+    };
     match settings.window_start {
         WindowStart::Normal => {}
         WindowStart::Maximized => viewport = viewport.with_maximized(true),
@@ -592,7 +601,17 @@ fn main() -> eframe::Result {
     if let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_options.wgpu_setup {
         setup.native_adapter_selector = Some(render_gpu::adapter_selector());
     }
-    eframe::run_native("EyeCanSee", options, Box::new(move |cc| Ok(Box::new(App::new(&cc.egui_ctx, settings, arg).with_gpu(cc)))))
+    eframe::run_native(
+        "EyeCanSee",
+        options,
+        Box::new(move |cc| {
+            #[cfg(windows)]
+            if fit_window {
+                window_place::place(cc);
+            }
+            Ok(Box::new(App::new(&cc.egui_ctx, settings, arg).with_gpu(cc)))
+        }),
+    )
 }
 
 /// The address given on the command line. A local path is made absolute: the instance it is
