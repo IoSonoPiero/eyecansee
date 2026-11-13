@@ -38,17 +38,17 @@ pub const VIDEO: Option<Component> = Some(Component {
 });
 
 /// libmpv for Linux, used when the system has none (the AppImage on a live system):
-/// `tools/build-mpv-linux.sh`, mpv 0.35.1 with FFmpeg 6.0.1 and dav1d inside, built on Ubuntu
-/// 22.04 (glibc 2.35), with libass and three libraries it needs (24 MB, 10 MB compressed).
+/// `tools/build-mpv-linux.sh`, mpv 0.42.0 with FFmpeg 9.0.2, dav1d and libplacebo inside, built
+/// on Ubuntu 22.04 (glibc 2.35), with libass and three libraries it needs (28 MB, 12 MB compressed).
 #[cfg(not(windows))]
 pub const VIDEO: Option<Component> = Some(Component {
     kind: "libmpv",
-    version: "0.35.1",
+    version: "0.42.0",
     file: "libmpv.so.2",
-    url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/libmpv-linux-x64-0.35.1.tar.gz",
+    url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/libmpv-linux-x64-0.42.0.tar.gz",
     archive: true,
-    sha256: "4639f8fa245dcab04bbc02bd19148f53cce3129e9e5c2312469f605868e52a8e",
-    size: 10_266_355,
+    sha256: "257d9ec7df75e1ca9520c438054749a2b367f774ae8364846ee836e809645b6f",
+    size: 11_884_392,
 });
 
 /// FFmpeg 9.0 of BtbN/FFmpeg-Builds (`ffmpeg-n9.0-latest-*-gpl-9.0`, built 2026-10-26), only the
