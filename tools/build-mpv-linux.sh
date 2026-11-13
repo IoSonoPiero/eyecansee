@@ -100,6 +100,16 @@ cp "$B/ffmpeg-$FFMPEG/COPYING.LGPLv2.1" "$OUT/LICENSE.ffmpeg"
 cp "$B/dav1d-$DAV1D/COPYING" "$OUT/LICENSE.dav1d"
 cp "$B/libplacebo-src/LICENSE" "$OUT/LICENSE.libplacebo"
 cp "$B/libplacebo-src/3rdparty/fast_float/LICENSE-MIT" "$OUT/LICENSE.fast_float"
+# The libraries copied from Ubuntu above: their package's copyright file, followed by the full
+# text of the common licences it refers to.
+for pkg in libass9:libass libfribidi0:fribidi libharfbuzz0b:harfbuzz libgraphite2-3:graphite2; do
+    c=/usr/share/doc/${pkg%%:*}/copyright
+    { cat "$c"
+      for l in $(grep -o '/usr/share/common-licenses/[A-Za-z0-9.+-]*[A-Za-z0-9]' "$c" | sort -u); do
+          printf '\n\n===== %s\n\n' "$l"; cat "$l"
+      done
+    } > "$OUT/LICENSE.${pkg#*:}"
+done
 NAME=libmpv-linux-x64-$MPV.tar.gz
 tar -C "$OUT" --owner=0 --group=0 --sort=name --mtime=@0 -czf "/src/target/mpv-linux/$NAME" .
 ls -la "$OUT" "/src/target/mpv-linux/$NAME"

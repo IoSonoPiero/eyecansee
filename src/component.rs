@@ -47,8 +47,8 @@ pub const VIDEO: Option<Component> = Some(Component {
     file: "libmpv.so.2",
     url: "https://github.com/IoSonoPiero/eyecansee/releases/download/components/libmpv-linux-x64-0.42.0.tar.gz",
     archive: true,
-    sha256: "257d9ec7df75e1ca9520c438054749a2b367f774ae8364846ee836e809645b6f",
-    size: 11_884_392,
+    sha256: "9ccb8e17798953941bb07d1526188e4a74d78ccaf9e722a60c8b52ee817a8c32",
+    size: 11_920_684,
 });
 
 /// FFmpeg 9.0 of BtbN/FFmpeg-Builds (`ffmpeg-n9.0-latest-*-gpl-9.0`, built 2026-10-26), only the
