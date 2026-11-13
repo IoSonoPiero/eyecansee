@@ -179,7 +179,7 @@ On Linux it is tested on GNOME, Cinnamon (Linux Mint) and KDE Plasma 5 and 6. Ot
 
 ### Updates
 
-The Microsoft Store version is updated by the Store, on Fedora updates come from `dnf`, and the Flatpak is updated by `flatpak update` or your software center. The Windows installer, the zip and the AppImage update themselves: at startup EyeCanSee checks the latest release on GitHub in the background, downloads the new version, checks its SHA-256 and its signature, and offers to install it with one click. Only files signed with the developer's [minisign](https://jedisct1.github.io/minisign/) key are installed; the key is not on GitHub, so whoever could upload files to a release could not ship an update. The check can be turned off in Options.
+The Microsoft Store version is updated by the Store, on Fedora updates come from `dnf` (from `rpm-ostree` on Fedora Atomic, where the package is layered), and the Flatpak is updated by `flatpak update` or your software center. The Windows installer, the zip and the AppImage update themselves: at startup EyeCanSee checks the latest release on GitHub in the background, downloads the new version, checks its SHA-256 and its signature, and offers to install it with one click. Only files signed with the developer's [minisign](https://jedisct1.github.io/minisign/) key are installed; the key is not on GitHub, so whoever could upload files to a release could not ship an update. The check can be turned off in Options.
 
 ## Build
 
