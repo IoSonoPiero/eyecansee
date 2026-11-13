@@ -671,3 +671,58 @@ fn preview_is_the_file() {
     let (p, f) = (photo.get_pixel(30, 24), file.get_pixel(30, 24));
     assert!((0..3).any(|k| alone(p[k], k).abs_diff(f[k]) > 20), "{p:?} {f:?}");
 }
+
+/// Resize (#114): a phone JPEG halved with a cover box on it is saved at half its size, the box
+/// halved with it, the EXIF with the new size and the rest kept; a plain JPEG turned and resized
+/// is not the quick lossless turn (it would keep the old size).
+#[test]
+fn resized_with_the_objects() {
+    use crate::batch::Filter;
+    use crate::edit::resize::resized;
+    let img = motif();
+    let thumb = file(&DynamicImage::ImageRgb8(RgbImage::from_fn(16, 12, |x, y| Rgb([(x * 15) as u8, (y * 20) as u8, 7]))), Format::Jpeg, false);
+    let bytes = motion_photo(&img, &thumb);
+    let mut doc = Doc::new(64, 48, None);
+    doc.objects.push(cover_at(0.0, 0.0, 32.0, 24.0));
+    let doc = resized(&doc, (64, 48), (64, 48), (32, 24), Filter::Lanczos3);
+    let out = saved(&bytes, "a.jpg", &doc);
+    let back = crate::decode::decode_full(&out.data, "x.jpg").unwrap();
+    assert_eq!(back.dimensions(), (32, 24));
+    // The box now 8..24 × 6..18.
+    for (x, y) in [(10, 8), (16, 12), (22, 16)] {
+        let p = back.get_pixel(x, y);
+        assert!(p[0] < 40 && p[1] < 40 && p[2] > 200, "at {x},{y}: {p:?}");
+    }
+    let exif = exif::Reader::new().read_from_container(&mut Cursor::new(&out.data)).unwrap();
+    let get = |tag| exif.get_field(tag, In::PRIMARY).and_then(|f| f.value.get_uint(0));
+    assert_eq!((get(Tag::PixelXDimension), get(Tag::PixelYDimension)), (Some(32), Some(24)));
+    assert!(exif.get_field(Tag::Make, In::PRIMARY).is_some());
+    assert!(String::from_utf8_lossy(&out.data).contains("<rdf:li>Ann</rdf:li>"), "author kept");
+    let plain = file(&img, Format::Jpeg, false);
+    assert!(crate::save_back::can_turn_in_place(&plain, "a.jpg"));
+    let mut doc = Doc::new(64, 48, None);
+    doc.turned(Op::Cw);
+    let doc = resized(&doc, (64, 48), (64, 48), (24, 32), Filter::Bilinear);
+    let out = saved(&plain, "a.jpg", &doc);
+    assert!(out.lossy);
+    assert_eq!(crate::decode::decode_full(&out.data, "x.jpg").unwrap().dimensions(), (24, 32));
+}
+
+/// Resize (#114) of an Ultra HDR photo: still HDR, the gain map resized with it (half the photo,
+/// as it was), also in Save in another format (`ultrahdr::Source`).
+#[test]
+fn resized_ultra_hdr() {
+    use crate::edit::resize::resized;
+    let bytes = crate::ultrahdr::tests::sample(64, 32);
+    let doc = resized(&Doc::new(64, 32, None), (64, 32), (64, 32), (32, 16), crate::batch::Filter::Lanczos3);
+    let out = saved(&bytes, "a.jpg", &doc);
+    let (photo, gain) = crate::ultrahdr::split(&out.data).expect("still Ultra HDR");
+    let dims = |b: &[u8]| image::load_from_memory(b).unwrap().dimensions();
+    assert_eq!((dims(photo), dims(gain)), ((32, 16), (16, 8)));
+    let original = Original::with_meta(crate::decode::decode_full(&bytes, "a.jpg").unwrap(), &bytes);
+    let (image, holes) = result_with_holes(&doc, &original, &options());
+    let source = crate::ultrahdr::Source::of(std::sync::Arc::new(bytes), vec![doc.edit()], holes).unwrap().sized(doc.scale.map(|s| (s.w, s.h)));
+    let out = source.write(&image, &Options::default()).unwrap();
+    let (photo, gain) = crate::ultrahdr::split(&out).expect("still Ultra HDR");
+    assert_eq!((dims(photo), dims(gain)), ((32, 16), (16, 8)));
+}

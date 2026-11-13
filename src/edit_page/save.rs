@@ -350,7 +350,7 @@ impl App {
                 let mut o = Original::clone(&original);
                 o.image = image;
                 let mut o = o.alone();
-                o.hdr = file.and_then(|f| crate::ultrahdr::Source::of(f, vec![doc.edit()], holes)).map(Arc::new);
+                o.hdr = file.and_then(|f| crate::ultrahdr::Source::of(f, vec![doc.edit()], holes)).map(|s| Arc::new(s.sized(doc.scale.map(|s| (s.w, s.h)))));
                 let preview = crate::decode::preview(&o.image);
                 (o, preview)
             });

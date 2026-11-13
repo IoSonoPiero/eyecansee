@@ -55,7 +55,7 @@ pub fn plan(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str
         return Err(format!("{name}: animated or with several pages"));
     }
     let same = Format::of_file(name);
-    let size = (original.image.width(), original.image.height());
+    let size = photo_size(doc, original);
     if same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::is(bytes)) {
         let (data, lossy) = crate::save_back::turned_file(bytes, name, doc.turn)?;
         return Ok(Plan { name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept, data: Some(data) });
@@ -64,22 +64,23 @@ pub fn plan(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str
         return Ok(Plan { name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept, data: None });
     }
     let (float, deep) = (is_float(&original.image), is_deep(&original.image));
-    let format = target(name, float, will_be_transparent(doc, &original.image));
+    let format = target(name, float, will_be_transparent(doc, &original.image, size));
     let lossy = matches!(format, Format::Jpeg | Format::Avif | Format::Gif) || (format == Format::Webp && !bytes.windows(4).any(|w| w == b"VP8L"));
     let ext = if same.is_some() { None } else { Some(format.ext()) };
     Ok(Plan { name: copy_name(name, ext, word, taken), lossy, depth: depth(float, deep, format), data: None })
 }
 
 /// The edited image will have transparent pixels: the original has some, or the empty corners
-/// of a free angle or of a crop past the image are left transparent (no fill colour).
-fn will_be_transparent(doc: &Doc, img: &DynamicImage) -> bool {
+/// of a free angle or of a crop past the image are left transparent (no fill colour). `size`:
+/// the photo's, as the document has it (`photo_size`).
+fn will_be_transparent(doc: &Doc, img: &DynamicImage, (w, h): (u32, u32)) -> bool {
     if transparent(img) {
         return true;
     }
     if doc.fill.is_some() {
         return false;
     }
-    let (w, h) = if doc.turn.sideways() { (img.height() as f32, img.width() as f32) } else { (img.width() as f32, img.height() as f32) };
+    let (w, h) = if doc.turn.sideways() { (h as f32, w as f32) } else { (w as f32, h as f32) };
     let c = doc.crop;
     [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)].iter().any(|(sx, sy)| {
         let q = super::geom::turned(super::doc::Pt::new(c.cx + sx * c.w / 2.0, c.cy + sy * c.h / 2.0), -doc.angle);
@@ -87,30 +88,32 @@ fn will_be_transparent(doc: &Doc, img: &DynamicImage) -> bool {
     })
 }
 
-/// The copy of `name` (the file `bytes`, decoded as `original`) with `doc` done to it. `word` is
-/// "edited" in the language of the interface (`edit-copy-word`), `taken` the names in the folder;
-/// `options` gives the fonts (`decode::usvg_options`).
+/// The copy of `name` (the file `bytes`, decoded as `original`, or that resampled to the
+/// document's size: `resize::at_size`) with `doc` done to it. `word` is "edited" in the language
+/// of the interface (`edit-copy-word`), `taken` the names in the folder; `options` gives the
+/// fonts (`decode::usvg_options`).
 pub fn save(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str, taken: &[String], options: &usvg::Options) -> Result<Saved, String> {
     if animated(bytes, name) {
         return Err(format!("{name}: animated or with several pages"));
     }
     let same = Format::of_file(name);
-    let size = (original.image.width(), original.image.height());
+    let size = photo_size(doc, original);
     // Flips and quarter turns alone: as the viewer's Save, a JPEG without re-encoding when its
     // size allows it, an Ultra HDR photo still HDR.
     if same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::is(bytes)) {
         let (data, lossy) = crate::save_back::turned_file(bytes, name, doc.turn)?;
         return Ok(Saved { data, name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept });
     }
-    let mut o = Original::clone(original);
+    let original = super::resize::at_size(original, doc.scale);
+    let mut o = Original::clone(&original);
     let (float, deep) = (is_float(&o.image), is_deep(&o.image));
     let holes = edited(doc, &original.image, &mut o.image, options);
     if same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes) {
-        let data = crate::ultrahdr::edited(bytes, o.image, &[doc.edit()], &holes)?;
+        let data = crate::ultrahdr::edited(bytes, o.image, &[doc.edit()], &holes, doc.scale.map(|s| (s.w, s.h)))?;
         return Ok(Saved { data, name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept });
     }
     // As `plan` chose it (the confirmation said it before the file was made).
-    let format = target(name, float, will_be_transparent(doc, &original.image));
+    let format = target(name, float, will_be_transparent(doc, &original.image, size));
     if float {
         o.image = if o.image.color().has_alpha() { DynamicImage::ImageRgba16(o.image.to_rgba16()) } else { DynamicImage::ImageRgb16(o.image.to_rgb16()) };
     }
@@ -139,6 +142,7 @@ pub fn result(doc: &Doc, original: &Original, options: &usvg::Options) -> Dynami
 /// As `result`, with the boxes that hide what was under them (`paint`): for the gain map of an
 /// Ultra HDR photo (`ultrahdr::Source`).
 pub fn result_with_holes(doc: &Doc, original: &Original, options: &usvg::Options) -> (DynamicImage, Vec<[f32; 4]>) {
+    let original = super::resize::at_size(original, doc.scale);
     let mut img = original.image.clone();
     let holes = edited(doc, &original.image, &mut img, options);
     (img, holes)
@@ -149,6 +153,11 @@ pub fn result_with_holes(doc: &Doc, original: &Original, options: &usvg::Options
 fn edited(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg::Options) -> Vec<[f32; 4]> {
     doc.edit().apply(img);
     paint(doc, photo, img, options)
+}
+
+/// The photo's size, upright, as the document has it: resized, or the original's.
+fn photo_size(doc: &Doc, original: &Original) -> (u32, u32) {
+    doc.scale.map_or((original.image.width(), original.image.height()), |s| (s.w, s.h))
 }
 
 fn depth(float: bool, deep: bool, format: Format) -> Depth {
@@ -164,10 +173,11 @@ pub(crate) fn animated(bytes: &[u8], name: &str) -> bool {
     matches!(Format::of_file(name), Some(Format::Png | Format::Webp | Format::Tiff | Format::Avif | Format::Gif)) && !crate::save_back::can_turn_in_place(bytes, name)
 }
 
-/// Only flips and quarter turns: no angle, no object, the crop all the image.
+/// Only flips and quarter turns: no angle, no object, the crop all the image, the size the
+/// original's.
 fn only_turned(doc: &Doc, (w, h): (u32, u32)) -> bool {
     let whole = if doc.turn.sideways() { (h, w) } else { (w, h) };
-    doc.angle.rem_euclid(360.0) == 0.0 && doc.objects.is_empty() && doc.crop.pixels() == whole && doc.crop.cx.abs() < 0.5 && doc.crop.cy.abs() < 0.5
+    doc.scale.is_none() && doc.angle.rem_euclid(360.0) == 0.0 && doc.objects.is_empty() && doc.crop.pixels() == whole && doc.crop.cx.abs() < 0.5 && doc.crop.cy.abs() < 0.5
 }
 
 /// "photo (edited).jpg", "photo (edited 2).jpg"… the first free in `taken` (letter case aside, as
@@ -231,7 +241,7 @@ fn paint(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg
     // photo keeps its gain there (darkened, the HDR one is darkened as much).
     let spots: Vec<Obj> = doc.objects.iter().filter(|o| matches!(o.shape, Shape::Spotlight(_))).cloned().collect();
     if !spots.is_empty() {
-        let all = Doc { turn: doc.turn, angle: doc.angle, crop: doc.crop, fill: doc.fill, objects: spots };
+        let all = Doc { turn: doc.turn, angle: doc.angle, crop: doc.crop, fill: doc.fill, objects: spots, scale: doc.scale };
         if let Some(p) = render::render(&all, size, &View { x: 0.0, y: 0.0, w: img.width(), h: img.height(), scale: 1.0 }, options) {
             over(img, &p, 0, 0, true);
         }
@@ -243,7 +253,7 @@ fn paint(doc: &Doc, photo: &DynamicImage, img: &mut DynamicImage, options: &usvg
             holes.push(cover(img, area, doc.angle, corner, o.style.color));
             continue;
         }
-        let one = Doc { turn: doc.turn, angle: doc.angle, crop: doc.crop, fill: doc.fill, objects: vec![full_size(doc, photo, i, options)] };
+        let one = Doc { turn: doc.turn, angle: doc.angle, crop: doc.crop, fill: doc.fill, objects: vec![full_size(doc, photo, i, options)], scale: doc.scale };
         let Some(b) = render::bounds(&one, size, options) else { continue };
         let (x0, y0) = (b[0].floor().max(0.0), b[1].floor().max(0.0));
         let (x1, y1) = (b[2].ceil().min(img.width() as f32), b[3].ceil().min(img.height() as f32));

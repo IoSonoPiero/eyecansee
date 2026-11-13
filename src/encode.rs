@@ -287,6 +287,12 @@ impl Original {
         self
     }
 
+    /// `image` with this one's metadata, without copying these pixels (the editor's Resize).
+    pub fn with_image(&self, image: DynamicImage) -> Original {
+        let (exif, icc, xmp, irb, xmp_ext) = (self.exif.clone(), self.icc.clone(), self.xmp.clone(), self.irb.clone(), self.xmp_ext.clone());
+        Original { image, exif, icc, xmp, irb, xmp_ext, jpeg: self.jpeg, hdr: self.hdr.clone() }
+    }
+
     pub fn has_meta(&self) -> bool {
         self.exif.is_some() || self.icc.is_some() || self.xmp.is_some() || self.irb.is_some()
     }

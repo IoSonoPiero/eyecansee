@@ -50,7 +50,7 @@ impl Filter {
         }
     }
 
-    fn kind(self) -> FilterType {
+    pub(crate) fn kind(self) -> FilterType {
         match self {
             Filter::Lanczos3 => FilterType::Lanczos3,
             Filter::CatmullRom => FilterType::CatmullRom,

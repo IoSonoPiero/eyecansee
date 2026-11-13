@@ -474,12 +474,15 @@ pub struct Doc {
     pub crop: Crop,
     pub fill: Option<[u8; 3]>,
     pub objects: Vec<Obj>,
+    /// Resize (#114): the photo resampled to this size; `None`: the original's pixels. Everything
+    /// above is in pixels of that photo.
+    pub scale: Option<super::resize::Scale>,
 }
 
 impl Doc {
     /// Nothing changed yet on an upright image of `w` × `h` pixels: the crop is all of it.
     pub fn new(w: u32, h: u32, fill: Option<[u8; 3]>) -> Doc {
-        Doc { turn: Turn::default(), angle: 0.0, crop: Crop::centred(w as f32, h as f32), fill, objects: Vec::new() }
+        Doc { turn: Turn::default(), angle: 0.0, crop: Crop::centred(w as f32, h as f32), fill, objects: Vec::new(), scale: None }
     }
 
     /// The flips, quarter turns, angle and crop, as "Rotate and crop" applies them to the pixels.

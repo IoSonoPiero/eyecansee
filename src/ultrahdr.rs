@@ -79,15 +79,17 @@ fn keep_video_xmp(photo: &mut Vec<u8>, old: &[u8]) -> Result<(), String> {
 /// as Ultra HDR: the gain map gets the same edits, scaled to its size, so the photo stays HDR.
 /// `holes` (left, top, right, bottom in pixels of the edited photo: the editor's cover boxes and
 /// opaque objects) get the lowest gain on every pixel of the gain map they touch even in part.
-pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]]) -> Result<Vec<u8>, String> {
+/// `size`: the photo resized in the editor (#114) to this size, upright, before the edits: the
+/// gain map is resized as Convert and resize does it (`resized`).
+pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]], size: Option<(u32, u32)>) -> Result<Vec<u8>, String> {
     let (photo, _) = split(b).ok_or("not Ultra HDR")?;
     // At its own quality and subsampling: not compressed harder a second time.
     let o = crate::encode::jpeg_quality::like(photo, Options { format: Format::Jpeg, ..Options::default() });
-    edited_with(b, image, edits, holes, &o)
+    edited_with(b, image, edits, holes, &o, size)
 }
 
 /// As `edited`, the photo encoded with `o` (Save in another format, #66).
-fn edited_with(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]], o: &Options) -> Result<Vec<u8>, String> {
+fn edited_with(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]], o: &Options, size: Option<(u32, u32)>) -> Result<Vec<u8>, String> {
     let (photo, gain) = split(b).ok_or("not Ultra HDR")?;
     // The gain map upright as the photo shown, then the edits at its scale.
     let turn = transform::exif_turn(photo);
@@ -96,7 +98,13 @@ fn edited_with(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]]
     let gray = !g.color().has_color();
     turn.apply(&mut g);
     // Long side to long side: the same whatever the orientation.
-    let k = g.width().max(g.height()) as f32 / w.max(h) as f32;
+    let mut k = g.width().max(g.height()) as f32 / w.max(h) as f32;
+    if let Some((w, h)) = size {
+        // Its share of the photo kept, smooth as in `resized`.
+        let side = |v: u32| ((v as f32 * k).round() as u32).max(1);
+        g = g.resize_exact(side(w), side(h), image::imageops::FilterType::Triangle);
+        k = g.width().max(g.height()) as f32 / w.max(h) as f32;
+    }
     for e in edits {
         let crop = Crop { cx: e.crop.cx * k, cy: e.crop.cy * k, w: e.crop.w * k, h: e.crop.h * k };
         // ponytail: corners outside the photo take the lowest gain (0), no boost when GainMapMin
@@ -135,12 +143,18 @@ pub struct Source {
     file: std::sync::Arc<Vec<u8>>,
     edits: Vec<Edit>,
     holes: Vec<[f32; 4]>,
+    size: Option<(u32, u32)>,
 }
 
 impl Source {
     /// `None` if `file` is not an Ultra HDR JPEG. `edits` and `holes` as `edited` takes them.
     pub fn of(file: std::sync::Arc<Vec<u8>>, edits: Vec<Edit>, holes: Vec<[f32; 4]>) -> Option<Source> {
-        is(&file).then_some(Source { file, edits, holes })
+        is(&file).then_some(Source { file, edits, holes, size: None })
+    }
+
+    /// The photo resized in the editor before the edits, as `edited` takes it.
+    pub fn sized(self, size: Option<(u32, u32)>) -> Source {
+        Source { size, ..self }
     }
 
     /// `image` (the original decoded upright, or the editor's result) written as JPEG with `o`,
@@ -153,7 +167,7 @@ impl Source {
         if self.edits.is_empty() {
             resized(&self.file, image, o.turn, &plain)
         } else {
-            edited_with(&self.file, image, &self.edits, &self.holes, &plain)
+            edited_with(&self.file, image, &self.edits, &self.holes, &plain, self.size)
         }
     }
 }
@@ -419,7 +433,7 @@ pub(crate) mod tests {
         let mut img = crate::decode::decode_full(&file, "a.jpg").unwrap();
         let e = Edit { turn: Turn::default().then(transform::Op::Cw), angle: 10.0, crop: Crop::centred(20.0, 40.0), fill: Some([255; 3]) };
         e.apply(&mut img);
-        let out = edited(&file, img, &[e], &[]).unwrap();
+        let out = edited(&file, img, &[e], &[], None).unwrap();
         let p = parts(&out).expect("still Ultra HDR");
         let photo = image::load_from_memory(&out[..p.gain]).unwrap();
         let gain = image::load_from_memory(&out[p.gain..]).unwrap();
@@ -441,7 +455,7 @@ pub(crate) mod tests {
         assert!(is(&motion) && split(&motion) == split(&file));
         assert!(!is(&[file.as_slice(), &[7; 40]].concat()));
         let img = crate::decode::decode_full(&motion, "a.jpg").unwrap();
-        let out = edited(&motion, img, &[Edit { turn: Turn::default(), angle: 0.0, crop: Crop::centred(64.0, 32.0), fill: None }], &[]).unwrap();
+        let out = edited(&motion, img, &[Edit { turn: Turn::default(), angle: 0.0, crop: Crop::centred(64.0, 32.0), fill: None }], &[], None).unwrap();
         assert!(is(&out) && !out.windows(4).any(|w| w == b"ftyp"));
         let cw = Turn::default().then(transform::Op::Cw);
         let (out, _) = turned(&motion, cw).unwrap().unwrap();
@@ -526,7 +540,7 @@ pub(crate) mod tests {
             let (w, h) = (img.width() as f32, img.height() as f32);
             let e = Edit { turn: Turn::default(), angle: 7.5, crop: crate::rotate::inside(w, h, 7.5, w / h), fill: Some([255; 3]) };
             e.apply(&mut img);
-            let out = edited(&b, img, &[e], &[]).unwrap();
+            let out = edited(&b, img, &[e], &[], None).unwrap();
             assert!(is(&out), "{}", path.display());
             std::fs::write(std::path::Path::new(&out_dir).join(path.file_name().unwrap()), &out).unwrap();
         }
