@@ -15,13 +15,19 @@ impl App {
         let video = self.viewing_video();
         // On a 3D model the arrows turn it.
         let model = self.viewed_mesh().is_some();
-        // On a video Ctrl and the arrows jump back and forward (issue #10), not to another file.
-        let jump = video && ctx.input(|i| i.modifiers.command);
+        // On a video Ctrl and the arrows jump back and forward (issue #10), not to another file: taken
+        // first, so the arrows left below are those without Ctrl.
+        if video {
+            let jumps = ctx.input_mut(take_jumps);
+            if jumps != 0 {
+                self.video_jump(jumps as f64 * crate::video::JUMP);
+            }
+        }
         let (next, prev, first, last, close, space) = ctx.input(|i| {
             let any = |keys: &[Key]| keys.iter().any(|k| i.key_pressed(*k));
             (
-                (i.key_pressed(Key::ArrowRight) && !model && !jump) || i.key_pressed(Key::PageDown) || (i.key_pressed(Key::Space) && !video),
-                (i.key_pressed(Key::ArrowLeft) && !model && !jump) || any(&[Key::Backspace, Key::PageUp]),
+                (i.key_pressed(Key::ArrowRight) && !model) || i.key_pressed(Key::PageDown) || (i.key_pressed(Key::Space) && !video),
+                (i.key_pressed(Key::ArrowLeft) && !model) || any(&[Key::Backspace, Key::PageUp]),
                 i.key_pressed(Key::Home),
                 i.key_pressed(Key::End),
                 i.key_pressed(Key::Escape),
@@ -41,12 +47,6 @@ impl App {
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
         } else if close {
             self.close_viewer();
-        }
-        if jump {
-            let (back, on) = ctx.input(|i| (i.key_pressed(Key::ArrowLeft), i.key_pressed(Key::ArrowRight)));
-            if back || on {
-                self.video_jump(if on { crate::video::JUMP } else { -crate::video::JUMP });
-            }
         }
         if video {
             // Up and down the volume, M sound off and on, as in the players; turning and saving are for images.
@@ -308,5 +308,60 @@ pub(crate) fn notches(unit: egui::MouseWheelUnit, delta: egui::Vec2) -> f32 {
         egui::MouseWheelUnit::Line => delta.y,
         egui::MouseWheelUnit::Point => delta.y / 50.0,
         egui::MouseWheelUnit::Page => delta.y * 3.0,
+    }
+}
+
+/// Ctrl+arrows pressed this pass, taken from the input: right forward, left back. Each press by
+/// its own modifiers, not by those at the end of the pass: Ctrl let go in the same pass as the
+/// arrow made Ctrl+right a move to the next file (seen with keys in quick succession, 2026-11-13).
+fn take_jumps(i: &mut egui::InputState) -> i32 {
+    let on = i.count_and_consume_key(egui::Modifiers::COMMAND, Key::ArrowRight);
+    let back = i.count_and_consume_key(egui::Modifiers::COMMAND, Key::ArrowLeft);
+    on as i32 - back as i32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::{Event, Modifiers};
+
+    fn key(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
+        Event::Key { key, physical_key: None, pressed, repeat: false, modifiers }
+    }
+
+    #[test]
+    fn jump_with_ctrl_let_go_in_the_same_pass() {
+        // Ctrl+right, then Ctrl let go before the pass ends: a jump, and no arrow left to change file.
+        let mut i = egui::InputState::default();
+        i.events = vec![
+            key(Key::ArrowRight, true, Modifiers::COMMAND),
+            key(Key::ArrowRight, false, Modifiers::COMMAND),
+            Event::ModifiersChanged(Modifiers::NONE),
+        ];
+        assert_eq!(take_jumps(&mut i), 1);
+        assert!(!i.key_pressed(Key::ArrowRight));
+    }
+
+    #[test]
+    fn arrow_without_ctrl_stays_for_the_next_file() {
+        // The arrow before Ctrl pressed in the same pass: no jump, the arrow changes file.
+        let mut i = egui::InputState::default();
+        i.modifiers = Modifiers::COMMAND;
+        i.events = vec![key(Key::ArrowRight, true, Modifiers::NONE), Event::ModifiersChanged(Modifiers::COMMAND)];
+        assert_eq!(take_jumps(&mut i), 0);
+        assert!(i.key_pressed(Key::ArrowRight));
+    }
+
+    #[test]
+    fn jumps_count_each_press() {
+        let mut i = egui::InputState::default();
+        i.events = vec![
+            key(Key::ArrowRight, true, Modifiers::COMMAND),
+            key(Key::ArrowRight, true, Modifiers::COMMAND),
+            key(Key::ArrowLeft, true, Modifiers::COMMAND),
+            key(Key::ArrowLeft, true, Modifiers::COMMAND | Modifiers::SHIFT),
+            key(Key::ArrowLeft, true, Modifiers::COMMAND),
+        ];
+        assert_eq!(take_jumps(&mut i), -1);
     }
 }
