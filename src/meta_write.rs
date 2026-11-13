@@ -60,16 +60,19 @@ fn data(r: &[u8]) -> Option<&[u8]> {
 /// The IPTC-IIM for a TIFF and its Photoshop block, as Photoshop writes them: the IIM padded with
 /// zeros to a multiple of 4 bytes (the tag is a list of LONGs), the same in the block, and the
 /// digest made that of the padded IIM, if it was that of the IIM (a digest already out of date
-/// stays, it says the XMP may not match). `None` without IPTC.
+/// stays, it says the XMP may not match). exiftool computes it before padding the IIM of a TIFF,
+/// so a digest of the IIM without its padding (up to 3 zeros at the end) is current too. `None`
+/// without IPTC.
 pub fn tiff_iptc(irb: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
     let old = iim(irb)?;
     let padded = [old, &[0; 3][..(4 - old.len() % 4) % 4]].concat();
-    let current = md5::compute(old).0;
+    let unpadded = (0..4).filter(|&k| old.len() >= k && old[old.len() - k..].iter().all(|&b| b == 0)).map(|k| &old[..old.len() - k]);
+    let current: Vec<[u8; 16]> = unpadded.map(|i| md5::compute(i).0).collect();
     let block = resources(irb)
         .into_iter()
         .flat_map(|(id, r)| match id {
             IPTC => resource(IPTC, &padded),
-            IPTC_DIGEST if data(r) == Some(&current[..]) => resource(IPTC_DIGEST, &md5::compute(&padded).0),
+            IPTC_DIGEST if data(r).is_some_and(|d| current.iter().any(|c| c[..] == *d)) => resource(IPTC_DIGEST, &md5::compute(&padded).0),
             _ => r.to_vec(),
         })
         .collect();
@@ -402,6 +405,23 @@ mod tests {
         let (_, block) = tiff_iptc(&[resource(IPTC, &old), resource(IPTC_DIGEST, &[9; 16])].concat()).unwrap();
         assert_eq!(digest(&block), Some(vec![9; 16]));
         assert!(tiff_iptc(&resource(1036, &[1; 4])).is_none());
+    }
+
+    /// exiftool writes the digest of a TIFF's IPTC before padding it (#48): the IIM read from the
+    /// tag carries the padding, the digest is that of the IIM without it, and it is current.
+    #[test]
+    fn tiff_iptc_exiftool_digest() {
+        use super::{IPTC, IPTC_DIGEST, resource, resources, tiff_iptc};
+        let old = [0x1C, 2, 80, 0, 4, b'A', b'n', b'n', b'a'];
+        let tag = [&old[..], &[0, 0, 0]].concat();
+        let digest = |irb: &[u8]| resources(irb).into_iter().find(|(id, _)| *id == IPTC_DIGEST).and_then(|(_, r)| super::data(r).map(<[u8]>::to_vec));
+        let (padded, block) = tiff_iptc(&[resource(IPTC_DIGEST, &md5::compute(old).0), resource(IPTC, &tag)].concat()).unwrap();
+        assert_eq!(padded, tag);
+        assert_eq!(digest(&block), Some(md5::compute(&tag).0.to_vec()));
+        // Only zeros are padding: the digest of an IIM missing a byte that is not zero stays.
+        let full = [&old[..], &[7, 7, 7]].concat();
+        let (_, block) = tiff_iptc(&[resource(IPTC_DIGEST, &md5::compute(&full[..11]).0), resource(IPTC, &full)].concat()).unwrap();
+        assert_eq!(digest(&block), Some(md5::compute(&full[..11]).0.to_vec()));
     }
 
     /// An XCF by hand: header, the parasites property with an "icc-profile", PROP_END.
