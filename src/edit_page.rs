@@ -5,7 +5,7 @@
 //! (no button held, no field being typed in) it becomes a step of the history (`edit::history`).
 //! The bars (tools, properties, status) are in `tools`, Rotate and crop's controls in `crop`, the
 //! canvas in `canvas`, the questions before saving or closing in `save`, the page opened in `open`,
-//! its keys in `keys`, the previews of the filters in `previews`.
+//! its keys in `keys`, the previews of the filters in `previews`, Resize in `resize`.
 
 use std::sync::Arc;
 
@@ -27,6 +27,7 @@ mod open;
 mod pick;
 mod previews;
 mod props;
+mod resize;
 mod save;
 mod tools;
 mod typing;
@@ -106,7 +107,14 @@ struct Drawn {
 
 pub struct Window {
     pub path: String,
+    /// The photo at the document's size (`follow_size`), its texture, the file's size.
     original: Option<Loaded>,
+    /// The photo as read: Resize resamples it.
+    full: Option<Arc<Original>>,
+    /// The size `original` was made for (`Doc::scale`).
+    scaled: Option<crate::edit::resize::Scale>,
+    /// The Resize window is open.
+    resizing: Option<crate::edit::resize::Form>,
     /// The document shown, changed by the controls and the mouse.
     doc: Doc,
     /// The operations done; `None` until the image is read.
@@ -211,6 +219,9 @@ impl Window {
         Window {
             path,
             original: None,
+            full: None,
+            scaled: None,
+            resizing: None,
             doc: Doc::new(1, 1, None),
             history: None,
             start_turn: turn,
@@ -311,6 +322,16 @@ impl Window {
             }
             Follow::Manual => self.ratio().map_or(self.doc.crop, |r| self.doc.crop.fit(r)),
         };
+    }
+
+    /// A question or a window over the page takes Enter and Esc (`confirm::asking`).
+    pub(crate) fn asking(&self) -> bool {
+        self.ready.is_some() || self.leaving || self.resizing.is_some()
+    }
+
+    /// The Resize window is open: it has fields to type in.
+    pub(crate) fn resizing(&self) -> bool {
+        self.resizing.is_some()
     }
 
     /// Anything not saved yet.
@@ -476,11 +497,11 @@ impl App {
             open = true;
             w.escape();
         }
-        // With a question open (save, leave) Esc is its Cancel, not the page's.
-        let asking = w.ready.is_some() || w.leaving;
-        if !asking && ui.input(|i| i.key_pressed(egui::Key::Escape)) && !w.escape() {
+        // With a question open (save, leave, Resize) Esc is its Cancel, not the page's.
+        if !w.asking() && ui.input(|i| i.key_pressed(egui::Key::Escape)) && !w.escape() {
             open = false;
         }
+        w.follow_size(ui.ctx());
         let tex = match &w.original {
             Some(Ok((_, tex, _))) => Some(tex.clone()),
             _ => None,
@@ -504,8 +525,15 @@ impl App {
             if w.keys_open || status.inner.hovered() {
                 self.keys_window(ui.ctx(), tools::keys_id(w.tool), status.response.rect.height());
             }
+            // Undo, Redo from the keys or the bars: the photo at the size they take it back to.
+            w.follow_size(ui.ctx());
+            let tex = match &w.original {
+                Some(Ok((_, tex, _))) => tex.clone(),
+                _ => tex,
+            };
             let stage = egui::Frame::NONE.fill(crate::theme::stage(ui.visuals()));
             egui::CentralPanel::default().frame(stage).show(ui, |ui| canvas(ui, &mut w, &tex, ui.available_size()));
+            self.resize_window(ui.ctx(), &mut w);
             match if std::mem::take(&mut w.save_as) { Some(Ask::SaveAs) } else { ask } {
                 Some(Ask::Save) => self.edit_prepare(ui.ctx(), &mut w, false),
                 Some(Ask::Overwrite) => self.edit_prepare(ui.ctx(), &mut w, true),

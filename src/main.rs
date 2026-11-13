@@ -452,8 +452,10 @@ impl eframe::App for App {
         let paste_to = if raw_input.events.iter().any(|e| matches!(e, egui::Event::Paste(_))) { self.paste_to.take().map(|(dir, _)| dir) } else { None };
         // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer);
         // F1 still opens the guide.
-        // Open location and Convert and resize have fields to type in: there the keys go to the field.
-        if self.asking() && !((self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some()) && ctx.egui_wants_keyboard_input()) {
+        // Open location, Convert and resize and the editor's Resize have fields to type in: there
+        // the keys go to the field.
+        let fields = self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some() || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing);
+        if self.asking() && !(fields && ctx.egui_wants_keyboard_input()) {
             let answer = &mut self.delete_answer;
             raw_input.events.retain(|e| match e {
                 egui::Event::Key { key: Key::F1, .. } => true,

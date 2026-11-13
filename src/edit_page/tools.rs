@@ -1,4 +1,4 @@
-//! The editor's bars: the tools at the top (drawing tools, Crop and the quarter turns, Undo and
+//! The editor's bars: the tools at the top (drawing tools, Crop, the quarter turns, Resize, Undo and
 //! Redo; on the right Copy, Close and Save copy with its menu), the properties under them (the
 //! style of the object being drawn or selected, or Rotate and crop's controls) and the status bar
 //! at the bottom (name, size, the tool's hint, zoom). Laid out as Snagit, ShareX and Satty (user,
@@ -76,8 +76,8 @@ impl App {
     pub(super) fn edit_toolbar(&mut self, ui: &mut egui::Ui, w: &mut Window) -> Option<Ask> {
         let (mut ask, mut copy) = (None, false);
         let step = icons::BUTTON.x + ui.spacing().item_spacing.x;
-        // The tools, the turns, Filters, Undo and Redo, three separators; Copy, Close, Save copy.
-        let need = (TOOLS.len() + 5) as f32 * step + 3.0 * 12.0 + 2.0 * step + 200.0;
+        // The tools, the turns, Resize, Filters, Undo and Redo, three separators; Copy, Close, Save copy.
+        let need = (TOOLS.len() + 6) as f32 * step + 3.0 * 12.0 + 2.0 * step + 200.0;
         if ui.available_width() >= need {
             ui.horizontal(|ui| {
                 tools_row(ui, w, &self.i18n);
@@ -261,7 +261,7 @@ impl App {
     }
 }
 
-/// The tools, the quarter turns, Filters, Undo and Redo.
+/// The tools, the quarter turns, Resize, Filters, Undo and Redo.
 fn tools_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     for (n, &(tool, icon, id, key)) in TOOLS.iter().enumerate() {
         if n == TOOLS.len() - 1 {
@@ -275,6 +275,9 @@ fn tools_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
         if bar_button(ui, icons::button(ui, icon), tip(i18n, id, &i18n.t(key)), None) {
             w.turn(op);
         }
+    }
+    if bar_button(ui, icons::button(ui, Line::Batch), format!("{}\n{}", tip(i18n, "edit-resize", &i18n.t("key-edit-resize")), i18n.t("edit-resize-hint")), None) {
+        w.ask_resize();
     }
     filters_menu(ui, w, i18n);
     ui.separator();

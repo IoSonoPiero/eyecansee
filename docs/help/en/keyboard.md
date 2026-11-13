@@ -145,6 +145,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | Ctrl+C | Copy the result (with Selection, the part chosen) |
 | Ctrl+X, Ctrl+V | With Selection: cut the part, paste it as an object |
 | Ctrl+R, Ctrl+Shift+R | Turn right, left |
+| Ctrl+Alt+I | Resize the image (see [Editing an image](editor.md)) |
 | Shift+wheel | With Crop and rotate: turn by 0.1° |
 | Enter | With Crop and rotate: apply the crop |
 | + and −, 0 | Zoom in and out, everything in view |

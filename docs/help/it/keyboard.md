@@ -145,6 +145,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | Ctrl+C | Copia il risultato (con Selezione, la parte scelta) |
 | Ctrl+X, Ctrl+V | Con Selezione: taglia la parte, la incolla come oggetto |
 | Ctrl+R, Ctrl+Maiusc+R | Ruota a destra, a sinistra |
+| Ctrl+Alt+I | Ridimensiona l'immagine (vedi [Modificare un'immagine](editor.md)) |
 | Maiusc+rotellina | Con Ritaglia e ruota: ruota di 0,1° |
 | Invio | Con Ritaglia e ruota: applica il ritaglio |
 | + e −, 0 | Ingrandisce e rimpicciolisce, tutto in vista |

@@ -78,6 +78,9 @@ impl App {
 
     pub(crate) fn editor_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, ColorImage, u64), String>) {
         let Some(w) = &mut self.editor else { return };
+        // The photo as read; at the document's size from the next frame (`follow_size`).
+        w.full = r.as_ref().ok().map(|(original, ..)| original.clone());
+        w.scaled = None;
         w.original = Some(r.map(|(original, preview, size)| (original, ctx.load_texture("edit-original", preview, egui::TextureOptions::LINEAR), size)));
         if w.history.is_some() {
             return;

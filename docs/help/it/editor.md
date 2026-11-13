@@ -14,7 +14,7 @@ L'editor lavora su un'immagine alla volta. Con più immagini selezionate queste 
 
 ## La pagina
 
-- **Barra degli strumenti** (in alto): un pulsante per strumento, poi ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square), ![Filtri](icon://wand-sparkles), ![Annulla](icon://undo-2) e ![Ripeti](icon://redo-2). A destra: ![Copia](icon://copy), ![Chiudi](icon://x) e **Salva copia** (o **Sovrascrivi l'originale…**, se scelto nelle [Opzioni](options.md)) con la sua freccia ![Altri modi di salvare](icon://chevron-down). Lo strumento in uso è evidenziato. Passando sopra un pulsante vedi il nome e il tasto; su un pulsante spento anche il perché.
+- **Barra degli strumenti** (in alto): un pulsante per strumento, poi ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square), ![Ridimensiona](icon://scaling), ![Filtri](icon://wand-sparkles), ![Annulla](icon://undo-2) e ![Ripeti](icon://redo-2). A destra: ![Copia](icon://copy), ![Chiudi](icon://x) e **Salva copia** (o **Sovrascrivi l'originale…**, se scelto nelle [Opzioni](options.md)) con la sua freccia ![Altri modi di salvare](icon://chevron-down). Lo strumento in uso è evidenziato. Passando sopra un pulsante vedi il nome e il tasto; su un pulsante spento anche il perché.
 - **Barra delle proprietà** (sotto gli strumenti): lo stile dell'oggetto selezionato, o del prossimo che lo strumento disegnerà. Con lo strumento del ritaglio contiene i comandi del ritaglio. Vedi [Colori, linee e contagocce](editor-colors.md).
 - **Barra di stato** (in basso): il nome del file, la misura del risultato in pixel, un breve suggerimento sullo strumento, l'ingrandimento e il pulsante **Tasti**.
 
@@ -64,6 +64,24 @@ Da sapere:
 
 ![Annulla](icon://undo-2) **Annulla** (Ctrl+Z) e ![Ripeti](icon://redo-2) **Ripeti** (Ctrl+Y o Ctrl+Maiusc+Z) vanno avanti e indietro tra tutte le modifiche, rotazione e ritaglio compresi. Mentre scrivi in un campo di testo, Ctrl+Z annulla ciò che hai scritto in quel campo.
 
+## Ridimensionare l'immagine
+
+![Ridimensiona](icon://scaling) **Ridimensiona** (Ctrl+Alt+I) cambia la dimensione dell'immagine, per esempio per rimpicciolire una schermata annotata da mettere in un documento.
+
+1. Fai clic su ![Ridimensiona](icon://scaling) **Ridimensiona**. La finestra mostra la dimensione attuale del risultato.
+2. Scrivi la nuova larghezza o altezza, in **pixel** o **per cento** della dimensione attuale. Con **Mantieni le proporzioni** acceso (come all'inizio), l'altro lato segue.
+3. Scegli il **Filtro**, se vuoi: Lanczos (il più nitido) per rimpicciolire, Catmull-Rom per ingrandire, a meno che tu ne scelga un altro. **Pixel più vicino** tiene i bordi netti della pixel art.
+4. Fai clic su **Ridimensiona** (o Invio).
+
+Ciò che hai disegnato segue l'immagine: frecce, riquadri, testi e gli spessori delle linee crescono o calano con lei, e così il ritaglio. Poi gli strumenti lavorano in pixel della nuova dimensione.
+
+Buono a sapersi:
+
+- **Annulla** (Ctrl+Z) riporta l'immagine alla dimensione che aveva, in un passo. Ridimensionare di nuovo riparte sempre dall'originale, così l'immagine non perde qualità due volte.
+- Con l'immagine ruotata di un angolo (vedi [Ritagliare e ruotare](editor-crop.md)) le proporzioni restano quelle: con altre verrebbe storta.
+- La nuova dimensione va nei metadati del file salvato; il resto dei metadati resta. Una foto Ultra HDR resta HDR.
+- Al massimo 20000 pixel per lato. Per ridimensionare molte immagini insieme usa [Convertire e ridimensionare le immagini](convert.md).
+
 ## Muoversi nell'immagine
 
 - Rotellina del mouse (o Ctrl+rotellina, o il pizzico): ingrandisce intorno al puntatore.
@@ -77,6 +95,7 @@ Il pulsante **Tasti** nella barra di stato elenca i tasti e i movimenti del mous
 
 - **Ctrl+C** (o ![Copia](icon://copy) **Copia**) mette negli appunti tutto il risultato, a piena grandezza, da incollare in un altro programma. Con Selezione copia solo la zona scelta.
 - **Ctrl+R** e **Ctrl+Maiusc+R** girano l'immagine di un quarto a destra o a sinistra.
+- **Ctrl+Alt+I** apre Ridimensiona.
 - **Esc** fa una cosa alla volta: ferma il contagocce o un trascinamento, finisce il testo che stai scrivendo, lascia la zona o l'oggetto selezionati. Quando non c'è più niente da fermare, chiude la pagina.
 
 ## Chiudere

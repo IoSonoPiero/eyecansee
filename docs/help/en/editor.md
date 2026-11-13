@@ -14,7 +14,7 @@ The editor works on one image at a time. With several images selected, these ite
 
 ## The page
 
-- **Toolbar** (top): one button per tool, then ![Rotate 90° anticlockwise](icon://rotate-ccw-square) and ![Rotate 90° clockwise](icon://rotate-cw-square), ![Filters](icon://wand-sparkles), ![Undo](icon://undo-2) and ![Redo](icon://redo-2). On the right: ![Copy](icon://copy), ![Close](icon://x) and **Save copy** (or **Overwrite the original…**, if chosen in the [Options](options.md)) with its arrow ![More ways to save](icon://chevron-down). The tool in use is highlighted. Point at a button to see its name and key; on a button that is off you also see why.
+- **Toolbar** (top): one button per tool, then ![Rotate 90° anticlockwise](icon://rotate-ccw-square) and ![Rotate 90° clockwise](icon://rotate-cw-square), ![Resize](icon://scaling), ![Filters](icon://wand-sparkles), ![Undo](icon://undo-2) and ![Redo](icon://redo-2). On the right: ![Copy](icon://copy), ![Close](icon://x) and **Save copy** (or **Overwrite the original…**, if chosen in the [Options](options.md)) with its arrow ![More ways to save](icon://chevron-down). The tool in use is highlighted. Point at a button to see its name and key; on a button that is off you also see why.
 - **Properties bar** (under the toolbar): the style of the selected object, or of the next one the tool will draw. With the crop tool it holds the crop controls. See [Colours, lines and the eyedropper](editor-colors.md).
 - **Status bar** (bottom): the file name, the size of the result in pixels, a short hint for the tool, the zoom, and the **Keys** button.
 
@@ -64,6 +64,24 @@ Good to know:
 
 ![Undo](icon://undo-2) **Undo** (Ctrl+Z) and ![Redo](icon://redo-2) **Redo** (Ctrl+Y or Ctrl+Shift+Z) go back and forward through every change, rotation and crop included. While you type in a text field, Ctrl+Z undoes the typing in that field.
 
+## Resizing the image
+
+![Resize](icon://scaling) **Resize** (Ctrl+Alt+I) changes the size of the image, for example to make a marked-up screenshot smaller for a document.
+
+1. Click ![Resize](icon://scaling) **Resize**. The window shows the size of the result now.
+2. Type the new width or height, in **pixels** or in **percent** of the size now. With **Keep the proportions** on (as it starts), the other side follows.
+3. Choose the **Filter**, if you like: Lanczos (the sharpest) to make it smaller, Catmull-Rom to make it larger, unless you choose another one. **Nearest pixel** keeps the hard edges of pixel art.
+4. Click **Resize** (or Enter).
+
+What you drew follows the image: arrows, boxes, texts and the widths of the lines grow or shrink with it, and so does the crop. The tools then work in pixels of the new size.
+
+Good to know:
+
+- **Undo** (Ctrl+Z) takes the image back to the size it had, in one step. Resizing again always starts from the original, so the picture never loses quality twice.
+- With the image turned by an angle (see [Crop and rotate](editor-crop.md)) the proportions stay as they are: with others it would come out slanted.
+- The new size goes into the saved file's metadata; the rest of the metadata is kept. An Ultra HDR photo stays HDR.
+- At most 20000 pixels a side. To resize many images at once use [Converting and resizing images](convert.md).
+
 ## Moving around the image
 
 - Mouse wheel (or Ctrl+wheel, or a pinch): zoom around the pointer.
@@ -77,6 +95,7 @@ The **Keys** button in the status bar lists the keys and mouse moves of the tool
 
 - **Ctrl+C** (or ![Copy](icon://copy) **Copy**) puts the whole result, at full size, on the clipboard, to paste in another program. With Selection it copies only the chosen part.
 - **Ctrl+R** and **Ctrl+Shift+R** turn the image a quarter to the right or left.
+- **Ctrl+Alt+I** opens Resize.
 - **Esc** does one thing at a time: it stops the eyedropper or a drag, ends the text being typed, lets go of the selected area or object. When there is nothing left to stop, it closes the page.
 
 ## Closing
