@@ -25,6 +25,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Convert audio files to MP3, AAC, Opus, FLAC, WAV or Ogg, many at once, keeping their tags ([#120](https://github.com/IoSonoPiero/eyecansee/issues/120)).
 - Rotate a video as a photo, without converting it ([#125](https://github.com/IoSonoPiero/eyecansee/issues/125)).
 - Viewer: play the video of motion photos ([#123](https://github.com/IoSonoPiero/eyecansee/issues/123)).
+- Crop a video and rotate it by any angle, as a photo ([#129](https://github.com/IoSonoPiero/eyecansee/issues/129)).
 
 ### Devices and servers
 
