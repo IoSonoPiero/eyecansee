@@ -4,7 +4,7 @@ Le opzioni cambiano come EyeCanSee si avvia, il suo aspetto, come passa da un'im
 
 ## Aprire le opzioni
 
-Scegli **Strumenti > Opzioni…** (![Opzioni…](icon://settings)). La finestra è divisa in schede: **Generale**, **Aspetto**, **Navigazione**, **Miniature**, **Eliminazione**, **Carosello**, **Video** e **Editor**. Passando sopra molte opzioni compare una breve spiegazione.
+Scegli **Strumenti > Opzioni…** (![Opzioni…](icon://settings)). La finestra è divisa in schede: **Generale**, **Aspetto**, **Navigazione**, **Miniature**, **Eliminazione**, **Carosello**, **Video**, **Editor** e **Ridimensiona**. Passando sopra molte opzioni compare una breve spiegazione.
 
 Ogni modifica viene salvata subito in `settings.json`: in `~/.config/eyecansee` su Linux e in `%APPDATA%\eyecansee` su Windows. È un file di testo che puoi anche modificare a mano.
 
@@ -65,3 +65,9 @@ La scheda mostra anche quali sono in uso adesso, con le loro versioni. Una modif
 - **Dopo il salvataggio**: cosa succede dopo **Salva copia**, **Aggiorna copia** o **Sovrascrivi l'originale…**. **Resta nell'editor** (predefinito): l'editor resta aperto per continuare a modificare. **Torna da dove eri (miniature o visore)**: l'editor si chiude appena il file è scritto; se era aperto dalla griglia, la griglia seleziona l'immagine salvata, se era aperto dal visore, il visore la mostra. **Torna alle miniature**: l'editor si chiude e torni sempre alle miniature con l'immagine salvata selezionata, anche se l'avevi aperto dal visore.
 
 Vedi [Salvare un'immagine modificata](editor-save.md).
+
+## Ridimensiona
+
+Le misure di **Ridimensiona**, nel menù del clic destro sulle miniature e in **Strumenti** (vedi [Convertire e ridimensionare le immagini](convert.md)). All'inizio **Piccola** (lato lungo 1280 px), **Media** (lato lungo 1920 px), **Grande** (lato lungo 2560 px) e **Metà** (50 %).
+
+Ogni riga è una misura: il suo **Nome** (può restare vuoto: il menù mostra allora solo la misura), il tipo (**Percentuale dell'originale**, **Entro**, **Lato lungo**, **Lato corto**, **Larghezza**, **Altezza**, **Misura esatta, tagliata al centro**, **Misura esatta, deformata**) e i pixel o la percentuale. ![Togli](icon://x) la toglie, **Aggiungi** ne aggiunge una, **Rimetti quelle di partenza** rimette le quattro misure iniziali. Finché non le cambi, i loro nomi seguono la lingua di EyeCanSee.

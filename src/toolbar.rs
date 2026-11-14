@@ -97,13 +97,18 @@ impl App {
         ]
     }
 
-    /// Why Convert and resize cannot start (also for Ctrl+B): as the Tools menu.
+    /// Why Convert… cannot start (also for Ctrl+B): as the Tools menu.
     pub(crate) fn batch_off(&self) -> Option<String> {
+        self.tools_off().or_else(|| fits(&self.grid_items(None), PLAYED).is_none().then(|| self.i18n.t("tb-off-batch")))
+    }
+
+    /// Why no entry of Tools on the files chosen can start now: in the viewer, or one conversion
+    /// at a time (the entries wait for the one running).
+    pub(crate) fn tools_off(&self) -> Option<String> {
         let t = |id| self.i18n.t(id);
         match () {
             _ if self.viewing.is_some() => Some(t("tb-off-viewer")),
             _ if self.batch.is_some() => Some(t("tb-off-busy")),
-            _ if fits(&self.grid_items(None), PLAYED).is_none() => Some(t("tb-off-batch")),
             _ => None,
         }
     }

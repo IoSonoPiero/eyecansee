@@ -8,7 +8,7 @@ use crate::navigation::Go;
 use crate::actions::{Act, transform_items};
 use crate::{App, icons, meta, settings, source, transform, version};
 use crate::loader::THUMB_SIDE;
-use crate::selection::{Kind, PLAYED, fits, starred};
+use crate::selection::{Kind, fits, starred};
 
 /// Below this width of the address bar the copy and paste buttons are left out.
 const ADDRESS_WITH_CLIP: f32 = 420.0;
@@ -184,25 +184,13 @@ impl App {
     /// Work on many images at once, and the settings.
     fn tools_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
-        let viewing = self.viewing.is_some();
-        // One conversion at a time: the entries wait for the one running.
-        let free = !viewing && self.batch.is_none();
-        // As in the right-click menu: each entry off when none of the files chosen is of a kind
-        // it works on, with "*" when only some are.
-        let chosen = self.grid_items(None);
-        let mut partial = false;
-        let mut kinds_entry = |ui: &mut egui::Ui, kinds: &[Kind], label: &str, keys: String, a: Act| {
-            let fit = fits(&chosen, kinds);
-            partial |= free && fit == Some(false);
-            entry(ui, act, free && fit.is_some(), item(starred(self.i18n.t(label), fit != Some(false)), keys), a);
-        };
-        kinds_entry(ui, PLAYED, "menu-batch", t("key-batch"), Act::Batch(None));
-        kinds_entry(ui, &[Kind::Drawing], "menu-export-drawings", String::new(), Act::ExportDrawings(None));
-        kinds_entry(ui, &[Kind::Video], "menu-copy-meta", String::new(), Act::CopyMeta(None));
-        kinds_entry(ui, &[Kind::Video], "menu-strip-audio", String::new(), Act::Audio(crate::audio_job::AudioJob::Strip, None));
-        kinds_entry(ui, &[Kind::Video], "menu-extract-audio", String::new(), Act::Audio(crate::audio_job::AudioJob::Extract, None));
+        // As in the right-click menu: the same entries, greyed out with why or with "*".
+        let partial = Cell::new(false);
+        if let Some(a) = crate::browser::context_menu(ui, self.tool_items(None, self.tools_off(), &partial)) {
+            act.set(Some(a));
+        }
         entry(ui, act, self.duplicates_off().is_none(), item(t("menu-duplicates"), t("key-duplicates")), Act::Duplicates(None));
-        partial_note(ui, partial, &self.i18n);
+        partial_note(ui, partial.get(), &self.i18n);
         ui.separator();
         entry(ui, act, true, item(t("menu-options"), String::new()), Act::Options);
     }

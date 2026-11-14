@@ -1,12 +1,14 @@
 //! Browse mode, the parts shared by the tree (`tree`), the grid (`grid`) and the metadata panel
 //! (`meta_panel`): right-click menus, error text, selection colour and focus frame.
 
-use crate::audio_job::AudioJob;
+use std::cell::Cell;
+
 use eframe::egui::{self, Color32, Ui};
 
+use crate::audio_job::AudioJob;
 use crate::actions::Act;
 use crate::App;
-use crate::selection::{Kind, PLAYED, THUMBED, fits, starred};
+use crate::selection::{Kind, PLAYED, THUMBED, fits, none_of, starred};
 use crate::source;
 
 /// Selection colour: full in the part receiving the keyboard, faint in the other, so the two
@@ -120,8 +122,8 @@ impl App {
     }
 
     /// Transform: flips and turns (in the viewer shown until saved, in the grid saved straight
-    /// away), then Rotate and crop; "*" when `all` the files chosen are not pictures.
-    fn turn_menu(&self, path: Option<String>, in_viewer: bool, all: bool) -> MenuItem {
+    /// away), then Rotate and crop.
+    fn turn_items(&self, path: Option<String>, in_viewer: bool) -> Vec<MenuItem> {
         let t = |id| self.i18n.t(id);
         let mut turns = Vec::new();
         for (op, label, keys) in crate::actions::transform_items() {
@@ -134,62 +136,77 @@ impl App {
         // One image at a time: with several marked it would open on one and leave the others.
         let rotate = match self.edit_off(path.clone()) {
             Some(why) => Act::Off(why),
-            None => Act::RotateCrop(path.clone()),
+            None => Act::RotateCrop(path),
         };
         turns.push(Some((t("menu-rotate-crop"), String::new(), rotate)));
-        Some((crate::selection::starred(t("menu-transform"), all), String::new(), Act::Submenu(turns)))
+        turns
+    }
+
+    /// An entry that works on some kinds of file, always in its place: greyed out with why when
+    /// `act` is (`Act::Off`) or when none of the `files` is of its `kinds`; "*" when only some
+    /// are, which sets `partial` for the line at the bottom of the menu.
+    pub(crate) fn kind_entry(&self, files: &[String], partial: &Cell<bool>, kinds: &[Kind], label: &str, keys: String, act: Act) -> MenuItem {
+        let label = self.i18n.t(label);
+        Some(match (fits(files, kinds), act) {
+            (_, off @ Act::Off(_)) => (label, keys, off),
+            (None, _) => (label, keys, Act::Off(self.i18n.t(none_of(kinds)))),
+            (Some(all), act) => {
+                partial.set(partial.get() | !all);
+                (starred(label, all), keys, act)
+            }
+        })
+    }
+
+    /// The entries of Tools that work on files of some kinds, in the Tools menu and in the
+    /// right-click menu of a file of the grid. `off`: why none of them can start now (in the
+    /// viewer, or a conversion already under way).
+    pub(crate) fn tool_items(&self, path: Option<String>, off: Option<String>, partial: &Cell<bool>) -> Vec<MenuItem> {
+        let files = self.grid_items(path.clone());
+        let entry = |kinds: &[Kind], label: &str, keys: String, act: Act| self.kind_entry(&files, partial, kinds, label, keys, off.clone().map_or(act, Act::Off));
+        vec![
+            entry(PLAYED, "menu-batch", self.i18n.t("key-batch"), Act::Batch(path.clone())),
+            entry(&[Kind::Picture], "menu-resize", String::new(), Act::Submenu(self.resize_items(path.clone()))),
+            entry(&[Kind::Drawing], "menu-export-drawings", String::new(), Act::ExportDrawings(path.clone())),
+            entry(PLAYED, "menu-copy-meta", String::new(), Act::CopyMeta(path.clone())),
+            entry(&[Kind::Video], "menu-strip-audio", String::new(), Act::Audio(AudioJob::Strip, path.clone())),
+            entry(&[Kind::Video], "menu-extract-audio", String::new(), Act::Audio(AudioJob::Extract, path)),
+        ]
     }
 
     /// After Open (or Back to the grid), in the order of the menu bar: View (slideshow,
-    /// thumbnails), Image and saving, Tools, Edit, then rename and the deletions apart. Each entry
-    /// shown when some of the files chosen are of a kind it works on (`selection::Kind`), with
-    /// "*" when not all of them are, and a line at the bottom that says what "*" means.
+    /// thumbnails), Image and saving, Tools, Edit, then rename and the deletions apart. The entries
+    /// for some kinds of file (`selection::Kind`) are always there (`kind_entry`), with a line at
+    /// the bottom that says what "*" means.
     fn file_items(&self, path: Option<String>, in_viewer: bool) -> Vec<MenuItem> {
         let t = |id| self.i18n.t(id);
         let files = self.files_chosen(path.clone());
-        let one = files.len() <= 1;
-        let partial = std::cell::Cell::new(false);
-        let mut items = Vec::new();
-        let add = |items: &mut Vec<MenuItem>, kinds: &[Kind], label: &str, keys: String, act: Act| {
-            if let Some(all) = fits(&files, kinds) {
-                partial.set(partial.get() | !all);
-                items.push(Some((starred(self.i18n.t(label), all), keys, act)));
-            }
-        };
+        let partial = Cell::new(false);
+        let entry = |kinds: &[Kind], label: &str, keys: String, act: Act| self.kind_entry(&files, &partial, kinds, label, keys, act);
         // A 3D model or a CAD drawing: no slideshow (looked at closely, not in passing); the
         // slideshow stays in View for the whole folder.
-        add(&mut items, PLAYED, "menu-slideshow", String::new(), Act::Slideshow(path.clone()));
-        add(&mut items, THUMBED, "menu-redo-thumbs", String::new(), Act::RedoThumbs(path.clone()));
-        items.push(None);
-        if let Some(all) = fits(&files, &[Kind::Picture]) {
-            partial.set(partial.get() | !all);
-            let edit = match self.edit_off(path.clone()) {
-                Some(why) => Act::Off(why),
-                None => Act::Edit(path.clone()),
-            };
-            items.push(Some((starred(t("menu-edit-image"), all), if in_viewer { t("key-edit") } else { String::new() }, edit)));
-            items.push(self.turn_menu(path.clone(), in_viewer, all));
-        }
+        let mut items = vec![
+            entry(PLAYED, "menu-slideshow", String::new(), Act::Slideshow(path.clone())),
+            entry(THUMBED, "menu-redo-thumbs", String::new(), Act::RedoThumbs(path.clone())),
+            None,
+        ];
+        let edit = match self.edit_off(path.clone()) {
+            Some(why) => Act::Off(why),
+            None => Act::Edit(path.clone()),
+        };
+        items.push(entry(&[Kind::Picture], "menu-edit-image", if in_viewer { t("key-edit") } else { String::new() }, edit));
+        items.push(entry(&[Kind::Picture], "menu-transform", String::new(), Act::Submenu(self.turn_items(path.clone(), in_viewer))));
         if in_viewer && self.can_save() {
             items.push(Some((t("menu-save"), t("key-save"), Act::Save)));
         }
         // One file: a picture, or in the viewer what is shown (a 3D model from its side, the
         // layout of a drawing open). In the grid a drawing is exported, a model saved as a model.
         let save_as: &[Kind] = if in_viewer { &[Kind::Picture, Kind::Model, Kind::Drawing] } else { &[Kind::Picture] };
-        if one {
-            add(&mut items, save_as, "menu-save-copy", String::new(), Act::Convert(path.clone()));
-        }
-        if let Some(all) = fits(&files, &[Kind::Model]) {
-            partial.set(partial.get() | !all);
-            let kinds = crate::model_export::Kind::ALL.iter().map(|&k| Some((k.label().to_string(), String::new(), Act::ExportModel(path.clone(), k)))).collect();
-            items.push(Some((starred(t("menu-export-3d"), all), String::new(), Act::Submenu(kinds))));
-        }
-        if !in_viewer && self.batch.is_none() {
-            add(&mut items, PLAYED, "menu-batch", String::new(), Act::Batch(path.clone()));
-            add(&mut items, &[Kind::Drawing], "menu-export-drawings", String::new(), Act::ExportDrawings(path.clone()));
-            add(&mut items, &[Kind::Video], "menu-copy-meta", String::new(), Act::CopyMeta(path.clone()));
-            add(&mut items, &[Kind::Video], "menu-strip-audio", String::new(), Act::Audio(AudioJob::Strip, path.clone()));
-            add(&mut items, &[Kind::Video], "menu-extract-audio", String::new(), Act::Audio(AudioJob::Extract, path.clone()));
+        let convert = if files.len() > 1 { Act::Off(t("tb-off-one-picture")) } else { Act::Convert(path.clone()) };
+        items.push(entry(save_as, "menu-save-copy", String::new(), convert));
+        let kinds = crate::model_export::Kind::ALL.iter().map(|&k| Some((k.label().to_string(), String::new(), Act::ExportModel(path.clone(), k)))).collect();
+        items.push(entry(&[Kind::Model], "menu-export-3d", String::new(), Act::Submenu(kinds)));
+        if !in_viewer {
+            items.extend(self.tool_items(path.clone(), self.tools_off(), &partial));
         }
         items.push(None);
         items.push(Some((t("menu-cut"), t("key-cut"), Act::Cut(path.clone()))));
@@ -198,8 +215,6 @@ impl App {
         if partial.get() {
             items.extend([None, Some((t("menu-partial"), String::new(), Act::Off(t("menu-partial-hint"))))]);
         }
-        // A separator after nothing (an audio file: no slideshow, no thumbnail) shown once.
-        items.dedup_by(|a, b| a.is_none() && b.is_none());
         items
     }
 

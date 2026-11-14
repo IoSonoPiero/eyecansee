@@ -43,8 +43,14 @@ pub(crate) enum Act {
     Convert(Option<String>),
     /// A 3D model saved in another 3D format, next to it (`None` = the selected one or the one in the viewer).
     ExportModel(Option<String>, crate::model_export::Kind),
-    /// Convert and resize images of the grid (`None` = the marked ones or the selected one).
+    /// Convert…: the window of Convert and resize on the pictures and videos of the grid, on the
+    /// part of the format (`None` = the marked ones or the selected one).
     Batch(Option<String>),
+    /// Resize > a preset: the pictures of the grid resized at once, next to them (same `None`).
+    Resize(crate::batch::Size, Option<String>),
+    /// Resize > Custom…: the same window on the pictures, on the part of the size, in their own
+    /// format (same `None`).
+    ResizeCustom(Option<String>),
     /// CAD drawings of the grid as pictures or SVG, drawn again (same `None`).
     ExportDrawings(Option<String>),
     /// Converti e ridimensiona preset on copied streams: the video rewritten with its metadata.
@@ -177,7 +183,7 @@ impl App {
         }
         self.bookmark_keys(ctx);
         self.turn_keys(ctx);
-        // Ctrl+B and Ctrl+D: Convert and resize, Find duplicates (as their toolbar buttons).
+        // Ctrl+B and Ctrl+D: Convert…, Find duplicates (as their toolbar buttons).
         let (batch, duplicates) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::COMMAND, Key::B), i.consume_key(egui::Modifiers::COMMAND, Key::D)));
         if !ctx.egui_wants_keyboard_input() {
             if batch && self.batch_off().is_none() {
@@ -277,6 +283,8 @@ impl App {
             Act::ExportModel(path, kind) => self.export_model(path, kind),
             Act::Duplicates(dir) => self.open_duplicates(dir),
             Act::Batch(path) => self.open_batch(path),
+            Act::Resize(size, path) => self.resize_now(ctx, size, path),
+            Act::ResizeCustom(path) => self.open_resize(path),
             Act::ExportDrawings(path) => self.open_drawings(path),
             Act::CopyMeta(path) => self.open_copy_meta(path),
             Act::Audio(job, path) => self.open_audio(job, path),

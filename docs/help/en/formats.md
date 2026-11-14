@@ -93,7 +93,7 @@ Seen from above (the model space, and the layouts with **L**) and shown as a pic
 
 ## Saving images
 
-**Save as…** and **Convert and resize** write these formats, with the same choices on Linux and Windows: all the encoders are part of the program (see [Saving in another format](save-as.md)).
+**Save as…** and **Convert…** write these formats, with the same choices on Linux and Windows: all the encoders are part of the program (see [Saving in another format](save-as.md)).
 
 | Format | Options | Lossless | Keeps metadata | Written with |
 |---|---|:-:|:-:|---|

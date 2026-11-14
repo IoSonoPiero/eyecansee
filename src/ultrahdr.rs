@@ -116,11 +116,12 @@ fn edited_with(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]]
     rebuilt(photo, image, o, gain, g, gray)
 }
 
-/// The photo after Convert and resize (`image`: decoded upright, turned by `turn`, maybe resized)
-/// written as JPEG with `o` and still Ultra HDR (#65): the gain map turned the same way and
-/// resized by the same factor (bilinear: a smooth picture, no halos), at its own quality. The
-/// video of a Motion Photo is not written: the copy is a new, smaller file.
-pub fn resized(b: &[u8], image: DynamicImage, turn: Turn, o: &Options) -> Result<Vec<u8>, String> {
+/// The photo after Convert and resize (`image`: decoded upright, turned by `turn`, maybe cut to
+/// `cut` (left, top, width, height of the turned photo) and resized) written as JPEG with `o`
+/// and still Ultra HDR (#65): the gain map turned and cut the same way and resized by the same
+/// factor (bilinear: a smooth picture, no halos), at its own quality. The video of a Motion Photo
+/// is not written: the copy is a new, smaller file.
+pub fn resized(b: &[u8], image: DynamicImage, turn: Turn, cut: Option<(u32, u32, u32, u32)>, o: &Options) -> Result<Vec<u8>, String> {
     let (photo, gain) = split(b).ok_or("not Ultra HDR")?;
     let (w, h) = image::ImageReader::new(std::io::Cursor::new(photo)).with_guessed_format().map_err(|e| e.to_string())?.into_dimensions().map_err(|e| e.to_string())?;
     let mut g = crate::decode::decode_full(gain, "x.jpg")?;
@@ -129,6 +130,11 @@ pub fn resized(b: &[u8], image: DynamicImage, turn: Turn, o: &Options) -> Result
     // The gain map's share of the photo, long side to long side, kept.
     let k = g.width().max(g.height()) as f32 / w.max(h) as f32;
     let size = |side: u32| ((side as f32 * k).round() as u32).max(1);
+    if let Some((x, y, cw, ch)) = cut {
+        let at = |v: u32| (v as f32 * k).round() as u32;
+        let (gx, gy) = (at(x).min(g.width() - 1), at(y).min(g.height() - 1));
+        g = g.crop_imm(gx, gy, size(cw).min(g.width() - gx), size(ch).min(g.height() - gy));
+    }
     let (gw, gh) = (size(image.width()), size(image.height()));
     if (gw, gh) != (g.width(), g.height()) {
         g = g.resize_exact(gw, gh, image::imageops::FilterType::Triangle);
@@ -165,7 +171,7 @@ impl Source {
         o.turn.apply(&mut image);
         let plain = Options { turn: Turn::default(), ..*o };
         if self.edits.is_empty() {
-            resized(&self.file, image, o.turn, &plain)
+            resized(&self.file, image, o.turn, None, &plain)
         } else {
             edited_with(&self.file, image, &self.edits, &self.holes, &plain, self.size)
         }
@@ -473,7 +479,7 @@ pub(crate) mod tests {
         let mut img = crate::decode::decode_full(&file, "a.jpg").unwrap();
         cw.apply(&mut img);
         let img = img.resize_exact(16, 32, image::imageops::FilterType::Triangle);
-        let out = resized(&file, img, cw, &Options::default()).unwrap();
+        let out = resized(&file, img, cw, None, &Options::default()).unwrap();
         let p = parts(&out).expect("still Ultra HDR");
         let photo = image::load_from_memory(&out[..p.gain]).unwrap();
         let gain = image::load_from_memory(&out[p.gain..p.end]).unwrap();

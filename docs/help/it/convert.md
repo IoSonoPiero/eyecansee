@@ -7,12 +7,31 @@ Per una sola immagine con l'anteprima dal vivo usa [Salvare in un altro formato]
 ## Avviare la conversione
 
 1. Nella griglia seleziona le immagini (vedi [Selezionare i file](selection.md)). Se non hai selezionato niente, vale l'immagine su cui sta il cursore.
-2. Fai clic su ![Converti e ridimensiona…](icon://scaling) nella barra strumenti, oppure scegli **Strumenti > Converti e ridimensiona…** (**Ctrl+B**), oppure fai clic destro su uno dei file selezionati e scegli **Converti e ridimensiona…**.
+2. Fai clic su ![Converti…](icon://scaling) nella barra strumenti, oppure scegli **Strumenti > Converti…** (**Ctrl+B**), oppure fai clic destro su uno dei file selezionati e scegli **Converti…**. La finestra si apre sul formato, con le dimensioni **Invariate** e senza rotazione né riflessione; **Ridimensiona > Personalizzata…** la apre sulle dimensioni (vedi più sotto).
 3. Fai le tue scelte nella finestra e premi **Converti**.
 
-La finestra lavora su foto e video. Gli altri file selezionati (modelli 3D, disegni CAD, file audio) restano fuori, e la finestra dice quanti sono. Non funziona dal visore, e si fa una conversione alla volta.
+La finestra lavora su foto e video. Gli altri file selezionati (modelli 3D, disegni CAD, file audio) restano fuori: la finestra dice quanti sono, il messaggio finale quali. Non funziona dal visore, e si fa una conversione alla volta.
 
 ![Convertire e ridimensionare le immagini](../img/convert.webp)
+
+## Ridimensionare con un clic
+
+Per fare solo delle copie più piccole delle foto, senza la finestra: fai clic destro sui file selezionati, oppure apri **Strumenti**, e scegli **Ridimensiona** e una delle sue misure: **Piccola (lato lungo 1280 px)**, **Media (lato lungo 1920 px)**, **Grande (lato lungo 2560 px)** o **Metà (50 %)**. Le misure le puoi cambiare nelle [Opzioni](options.md), nella scheda **Ridimensiona**.
+
+Il lavoro parte subito su tutte le immagini scelte, con lo stesso riquadro e **Annulla** descritti più sotto e il messaggio finale. Le copie vanno accanto agli originali, nel loro formato e con i loro metadati (una foto **Ultra HDR** resta Ultra HDR), con la misura nel nome: `foto (1920 px).jpg`, `foto (50%).jpg`. Un nome già preso riceve " (2)". Per le immagini che hanno già quella misura, o sono più piccole (non vengono mai ingrandite), non si fa nessuna copia, e il messaggio le elenca: così ridimensionare di nuovo una copia non crea `foto (1920 px) (1920 px).jpg`. Quelle in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) restano fuori, e il messaggio dice perché. Restano fuori anche video, modelli 3D, disegni CAD e file audio, e il messaggio li elenca: se tra i file scelti ce ne sono, **Ridimensiona** è segnata con **\***; se non c'è nessuna immagine, è grigia.
+
+**Ridimensiona > Personalizzata…** apre questa finestra, che si chiama **Ridimensiona** e ha il pulsante **Ridimensiona**, sulle immagini, sulla rotazione e sulle dimensioni, con il formato **Uguale all'originale** e le copie accanto agli originali. Riparte dalla misura e dalla rotazione dell'ultima Personalizzata… (all'inizio **Lato lungo** 1920 px, non ruotata); **Converti…** invece riparte sempre da **Invariate**, senza rotazione né riflessione. Come con le misure qui sopra, le copie delle immagini davvero ridimensionate hanno la misura nel nome (quelle solo ruotate, ciò che è cambiato), in qualunque formato e dovunque vadano:
+
+| Dimensioni | Nome della copia |
+|---|---|
+| Lato lungo, Lato corto, Larghezza o Altezza di 600 px | `foto (600 px).jpg` |
+| Entro 800 × 600 | `foto (800x600).jpg` |
+| Percentuale dell'originale, 50 | `foto (50%).jpg` |
+| Misura esatta 800 × 600, tagliata o deformata | `foto (800x600).jpg` |
+| Invariate, ruotata (riflessa o no) | `foto (ruotata).jpg` |
+| Invariate, solo riflessa | `foto (riflessa).jpg` |
+
+Con una misura e una rotazione, il nome dice solo la misura. Un'immagine lasciata alla sua misura (già più piccola di quella chiesta, non ingrandita) tiene il suo nome: in un altro formato cambia solo l'estensione, `foto.png`. Un nome già preso riceve " (2)" dopo: `foto (600 px) (2).jpg`, `foto (ruotata) (2).jpg`.
 
 ## Formato
 
@@ -31,10 +50,14 @@ La finestra lavora su foto e video. Gli altri file selezionati (modelli 3D, dise
 - **Invariate**.
 - **Percentuale dell'originale** (50 % all'inizio).
 - **Entro** un riquadro di pixel (1920 × 1080 all'inizio): ogni immagine diventa grande quanto entra nel riquadro, con le sue proporzioni, dopo la rotazione.
-- **Ingrandisci anche i file più piccoli**: spenta all'inizio, così le immagini già più piccole della misura chiesta restano come sono.
+- **Lato lungo**, **Lato corto**, **Larghezza** o **Altezza** di tanti pixel, con le proporzioni: un lato lungo di 1920 porta le foto orizzontali e quelle verticali a 1920 pixel sul loro lato più lungo.
+- **Misura esatta, tagliata al centro**: esattamente la misura scritta; ciò che non entra nelle proporzioni viene tagliato in parti uguali dai due lati.
+- **Misura esatta, deformata**: esattamente la misura scritta, con l'immagine allungata o schiacciata.
+- Se tra i file scelti ci sono dei video si possono scegliere solo **Invariate**, **Percentuale dell'originale** ed **Entro**: le altre misure valgono solo per le immagini.
+- **Ingrandisci anche i file più piccoli**: spenta all'inizio, così le immagini già più piccole della misura chiesta restano come sono (con una misura esatta, nessun lato diventa più grande di quello dell'originale). Con il formato **Uguale all'originale**, per un'immagine che verrebbe uguale all'originale non si fa nessuna copia, e il messaggio la elenca.
 - **Filtro**, cioè come si calcolano i pixel nuovi: **Lanczos** (il più nitido, quello predefinito), **Catmull-Rom**, **Gaussiano** (morbido), **Bilineare** (veloce), **Pixel più vicino** (tiene i bordi netti della pixel art).
 
-Se non cambierebbe niente (stesso formato, stesse dimensioni, nessuna rotazione), **Converti** resta spento e una riga rossa lo dice: le immagini perderebbero solo qualità.
+Se non cambierebbe niente (stesso formato, stesse dimensioni, nessuna rotazione), **Converti** (o **Ridimensiona**) resta spento e una riga rossa lo dice: le immagini perderebbero solo qualità.
 
 ## Dove
 
@@ -44,7 +67,7 @@ Se non cambierebbe niente (stesso formato, stesse dimensioni, nessuna rotazione)
 
 Un nome già preso riceve " (2)": nessun file viene mai sovrascritto. Così puoi, per esempio, convertire le foto del telefono direttamente in una cartella del computer.
 
-La finestra ricorda le tue scelte finché EyeCanSee resta aperto.
+La finestra ricorda le scelte che confermi finché EyeCanSee resta aperto. **Annulla** (o **Esc**) dimentica quelle fatte da quando si è aperta: la volta dopo si riapre com'era prima.
 
 ## Mentre lavora
 

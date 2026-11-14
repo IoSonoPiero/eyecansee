@@ -102,6 +102,7 @@ mod occt;
 mod new_folder;
 mod new_image;
 mod paint;
+mod presets;
 mod psd;
 mod render3d;
 mod render_gpu;
@@ -202,6 +203,7 @@ enum OptTab {
     Slideshow,
     Video,
     Editor,
+    Resize,
 }
 
 /// Images kept in memory around the one open in the viewer, on each side.

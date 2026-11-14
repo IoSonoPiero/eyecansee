@@ -19,6 +19,7 @@ const HEIGHT: f32 = 340.0;
 type Dirs = Arc<Mutex<Option<Result<Vec<String>, source::Error>>>>;
 
 /// The folder being looked at and its subfolders, read in the background.
+#[derive(Clone)]
 pub struct Picker {
     base: String,
     /// `None` until a place opens.

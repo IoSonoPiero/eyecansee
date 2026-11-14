@@ -13,6 +13,7 @@ use crate::i18n::I18n;
 
 
 /// The choices for the videos.
+#[derive(Clone)]
 pub(crate) struct VideoForm {
     /// Index in `CONTAINERS`.
     pub(crate) container: usize,

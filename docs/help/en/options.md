@@ -4,7 +4,7 @@ The options change how EyeCanSee starts, looks, moves between images, deletes, s
 
 ## Opening the options
 
-Choose **Tools > Options…** (![Options…](icon://settings)). The window is divided into tabs: **General**, **Look**, **Browsing**, **Thumbnails**, **Deleting**, **Slideshow**, **Video** and **Editor**. Pointing at many options shows a short explanation.
+Choose **Tools > Options…** (![Options…](icon://settings)). The window is divided into tabs: **General**, **Look**, **Browsing**, **Thumbnails**, **Deleting**, **Slideshow**, **Video**, **Editor** and **Resize**. Pointing at many options shows a short explanation.
 
 Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Linux and in `%APPDATA%\eyecansee` on Windows. It is a text file you can also edit by hand.
 
@@ -65,3 +65,9 @@ The tab also shows which ones are in use now, with their versions. A change appl
 - **After saving**: what happens after **Save copy**, **Update copy** or **Overwrite the original…**. **Stay in the editor** (the default): the editor stays open to go on editing. **Go back to where you were (thumbnails or viewer)**: the editor closes as soon as the file is written; opened from the grid, the grid selects the saved image, opened from the viewer, the viewer shows it. **Go back to the thumbnails**: the editor closes and you are always back in the thumbnails with the saved image selected, also when you opened it from the viewer.
 
 See [Saving an edited image](editor-save.md).
+
+## Resize
+
+The sizes of **Resize**, in the right-click menu of the thumbnails and in **Tools** (see [Converting and resizing images](convert.md)). At first **Small** (long side 1280 px), **Medium** (long side 1920 px), **Large** (long side 2560 px) and **Half** (50%).
+
+Each row is one size: its **Name** (it can stay empty: the menu then shows only the size), the kind (**Percent of the original**, **Inside**, **Long side**, **Short side**, **Width**, **Height**, **Exactly, cropped in the middle**, **Exactly, stretched**) and the pixels or the percent. ![Remove](icon://x) removes it, **Add** adds one, **Back to the first ones** puts back the four sizes you started with. Until you change them, their names follow the language of EyeCanSee.

@@ -39,6 +39,33 @@ pub(crate) fn fits(files: &[String], kinds: &[Kind]) -> Option<bool> {
     (n > 0).then_some(n == files.len())
 }
 
+/// The `files` of `kinds`, and the others.
+pub(crate) fn split(files: Vec<String>, kinds: &[Kind]) -> (Vec<String>, Vec<String>) {
+    files.into_iter().partition(|p| kinds.contains(&kind(p)))
+}
+
+/// Why an entry is greyed out when none of the files chosen is of its kinds (Fluent id).
+pub(crate) fn none_of(kinds: &[Kind]) -> &'static str {
+    match kinds {
+        [Kind::Picture] => "off-no-picture",
+        [Kind::Video] => "off-no-video",
+        [Kind::Model] => "off-no-model",
+        [Kind::Drawing] => "off-no-drawing",
+        [Kind::Picture, Kind::Video] => "off-no-played",
+        _ => "off-no-kind",
+    }
+}
+
+/// A file left out of a work on `kinds`, in the message at the end (Fluent id, `$detail` = its name).
+pub(crate) fn left_out_id(kinds: &[Kind]) -> &'static str {
+    match kinds {
+        [Kind::Picture] => "skip-not-picture",
+        [Kind::Video] => "skip-not-video",
+        [Kind::Drawing] => "skip-not-drawing",
+        _ => "skip-not-played",
+    }
+}
+
 /// How the flips and turns of the Image menu (and their keys and toolbar buttons) fit: in the
 /// viewer (`viewing_photo` is `Some`) the picture shown or nothing, in the grid the pictures
 /// among the files chosen.
@@ -159,6 +186,16 @@ mod tests {
         assert_eq!(fits(&files[..2], PLAYED), Some(true));
         assert_eq!(fits(&files[4..], THUMBED), None);
         assert_eq!(starred("Copy".into(), false), "Copy *");
+        // Why an entry is off, and why a file was left out, said in both languages.
+        for code in ["en", "it"] {
+            let i18n = crate::i18n::I18n::new(code);
+            for kinds in [&[Kind::Picture][..], &[Kind::Video], &[Kind::Model], &[Kind::Drawing], PLAYED, THUMBED] {
+                for id in [none_of(kinds), left_out_id(kinds)] {
+                    assert_ne!(i18n.t(id), id, "{code}: {id}");
+                }
+            }
+        }
+        assert_eq!(none_of(PLAYED), "off-no-played");
     }
 
     #[test]
