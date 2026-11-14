@@ -120,12 +120,12 @@ Visti dall'alto (lo spazio modello, e i layout con **L**) e mostrati come immagi
 
 I metadati (EXIF, XMP, IPTC, profilo colore) si possono mantenere in JPEG, PNG, WebP, AVIF e TIFF.
 
-- L'**EXIF** passa da JPEG, PNG, WebP, TIFF, HEIC, AVIF, PSD e dai RAW di ogni marca (provato su 49 fotocamere; i Kodak KDC danno solo una parte del loro). Dai RAW e dagli HEIC passano i campi di fotocamera, obiettivo, scatto, GPS, autore e copyright, non la nota del produttore, i cui riferimenti puntano dentro il file originale. I tag che descrivono i dati RAW stessi (sensore, strisce, anteprime, calibrazione DNG) restano fuori.
+- L'**EXIF** passa da JPEG, PNG, WebP, TIFF, HEIC, AVIF, JPEG XL, PSD e dai RAW di ogni marca (provato su 49 fotocamere; i Kodak KDC danno solo una parte del loro). Dai RAW e dagli HEIC passano i campi di fotocamera, obiettivo, scatto, GPS, autore e copyright, non la nota del produttore, i cui riferimenti puntano dentro il file originale. I tag che descrivono i dati RAW stessi (sensore, strisce, anteprime, calibrazione DNG) restano fuori.
 - Il **profilo colore** viene da JPEG, PNG, WebP, TIFF, GIF, HEIC, AVIF e PSD. Un RAW riceve il profilo sRGB dei pixel che EyeCanSee ne sviluppa (dai Compact ICC Profiles CC0 di Clinton Ingram).
 - **XMP e IPTC** (autore, copyright, licenza, descrizioni, parole chiave) si mantengono in JPEG, PNG e TIFF; WebP e AVIF non hanno posto per l'IPTC, quindi i suoi campi vanno nell'XMP. Si leggono da JPEG, PNG, WebP, TIFF, HEIC, AVIF, PSD e PSB, e l'XMP anche dai RAW. Dimensioni e orientamento nell'XMP vengono aggiornati; le miniature salvate da fotocamere e Photoshop e le impostazioni di Lightroom e Camera Raw (un ritaglio e regolazioni già nei pixel) restano fuori.
 - I formati rari letti tramite ImageMagick danno l'EXIF, l'XMP, l'IPTC e il profilo colore che ImageMagick ci trova (il profilo solo se è RGB, come i pixel scritti); i file di GIMP (XCF) solo il loro profilo colore, perché GIMP tiene il resto in una forma sua.
 - L'orientamento EXIF viene messo dritto, perché i pixel salvati sono già ruotati.
-- Un JPEG salvato di nuovo come JPEG mantiene la risoluzione dell'originale (per esempio 600 dpi) e la sua unità.
+- La **risoluzione** (per esempio 600 dpi, o punti per centimetro) e la sua unità passano da ogni originale che ne ha una (JPEG, PNG, TIFF, BMP, PSD, e l'EXIF di WebP, HEIC, AVIF, JPEG XL e RAW) a JPEG, PNG, TIFF, WebP, AVIF e BMP, anche quando l'immagine viene ridimensionata: i pixel cambiano, la risoluzione resta quella dell'originale. Un originale senza risoluzione dà un file senza.
 
 ## Salvare video, modelli 3D e disegni
 

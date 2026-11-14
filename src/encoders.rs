@@ -32,9 +32,9 @@ pub(crate) fn jpeg(img: &DynamicImage, o: &Options, b: &Blocks) -> Result<Vec<u8
     c.set_lossless(o.jpeg_lossless).map_err(tj)?;
     let image = turbojpeg::Image { pixels: rgb.as_raw().as_slice(), width: w, pitch: w * 3, height: h, format: turbojpeg::PixelFormat::RGB };
     let mut file = c.compress_to_vec(image).map_err(tj)?;
-    // The original JPEG's density in place of libjpeg-turbo's 1:1 without unit.
-    if let Some(d) = b.jfif {
-        crate::encode::jfif::set(&mut file, d);
+    // The original's density in place of libjpeg-turbo's 1:1 without unit.
+    if let Some(d) = b.density {
+        crate::encode::jfif::set(&mut file, crate::encode::density::to_jfif(d));
     }
     Ok(jpeg_meta(file, b))
 }
@@ -206,6 +206,11 @@ pub(crate) fn tiff(img: &DynamicImage, o: &Options, b: &Blocks, out: &mut Cursor
     let mut main: Vec<(u16, Type, Vec<u8>)> = fields.into_iter().filter(|f| f.0 == Dir::Main).map(|(_, t, ty, v)| (t, ty, v)).collect();
     main.extend(exif_at.map(|at| (34665, Type::LONG, at.to_ne_bytes().to_vec())));
     main.extend(gps_at.map(|at| (34853, Type::LONG, at.to_ne_bytes().to_vec())));
+    // The original's density, wherever it came from, in place of the EXIF's.
+    if let Some(d) = b.density {
+        main.retain(|f| !crate::encode::density::TAGS.contains(&f.0));
+        main.extend(crate::encode::density::tiff_fields(d));
+    }
     main.extend(b.icc.clone().map(|v| (34675, Type::UNDEFINED, v)));
     main.extend(b.xmp.clone().map(|v| (700, Type::BYTE, v)));
     // IPTC as LONGs, as Photoshop writes it: its bytes in their order, padded to a multiple of 4.

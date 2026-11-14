@@ -114,6 +114,35 @@ pub fn exif_chunk(bytes: &[u8]) -> Option<Vec<u8>> {
     write_exif(&fields, little)
 }
 
+/// The EXIF of a JPEG XL file, from its "Exif" box (a 4-byte offset, then TIFF data), as
+/// `exif_chunk` gives it. `None` for a bare codestream, which has no place for it.
+pub fn jxl_exif(bytes: &[u8]) -> Option<Vec<u8>> {
+    if !bytes.starts_with(b"\0\0\0\x0CJXL ") {
+        return None;
+    }
+    let be32 = |b: &[u8]| u32::from_be_bytes([b[0], b[1], b[2], b[3]]) as usize;
+    let mut i = 0;
+    while let Some(head) = bytes.get(i..i + 8) {
+        let (len, start) = match be32(head) {
+            0 => (bytes.len() - i, i + 8),
+            1 => (u64::from_be_bytes(bytes.get(i + 8..i + 16)?.try_into().ok()?) as usize, i + 16),
+            n => (n, i + 8),
+        };
+        if len < start - i {
+            return None;
+        }
+        if &head[4..] == b"Exif" {
+            let data = bytes.get(start..i.checked_add(len)?)?;
+            let tiff = data.get(4usize.checked_add(be32(data.get(..4)?))?..)?;
+            let exif = lenient(|r| r.read_raw(tiff.to_vec()))?;
+            let fields: Vec<_> = exif.fields().filter(|f| keep_field(f)).cloned().collect();
+            return write_exif(&fields, exif.little_endian());
+        }
+        i = i.checked_add(len)?;
+    }
+    None
+}
+
 /// The EXIF fields of a file worth keeping in a converted copy, and the byte order. Left out: the
 /// tags that describe the original's own image data (strips, sensor layout, DNG tags of a RAW) and
 /// the maker note, whose offsets point into the original file.

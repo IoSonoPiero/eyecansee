@@ -50,6 +50,11 @@ pub fn iim(irb: &[u8]) -> Option<&[u8]> {
     resources(irb).into_iter().find(|(id, _)| *id == IPTC).and_then(|(_, r)| data(r))
 }
 
+/// The data of the resource `id` of a Photoshop block.
+pub(crate) fn resource_data(irb: &[u8], id: u16) -> Option<&[u8]> {
+    resources(irb).into_iter().find(|(i, _)| *i == id).and_then(|(_, r)| data(r))
+}
+
 /// The data of one resource (`resources`).
 fn data(r: &[u8]) -> Option<&[u8]> {
     let at = 6 + (1 + r[6] as usize).next_multiple_of(2);
@@ -145,7 +150,8 @@ pub fn png_chunks(png: Vec<u8>, xmp: Option<&[u8]>, irb: Option<&[u8]>) -> Vec<u
     out
 }
 
-fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
+/// A PNG chunk: length, kind, data and checksum.
+pub(crate) fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
     let mut crc = flate2::Crc::new();
     crc.update(kind);
     crc.update(data);

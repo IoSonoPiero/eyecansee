@@ -305,12 +305,12 @@ fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut:
         // writes over the original).
         None if Format::of_file(name) == Some(Format::Jpeg) => {
             let options = crate::encode::jpeg_quality::like(bytes, Options::default());
-            Ok((name.to_string(), encode::Original::with_meta_of(image, bytes, name).alone().encode(&options).map_err(failed)?))
+            Ok((name.to_string(), encode::Original::with_meta_of(image, bytes, name).alone().turned(job.turn).encode(&options).map_err(failed)?))
         }
         None => crate::save_back::encoded_back(bytes, name, image).map(|(data, _)| (name.to_string(), data)).map_err(|_| (SKIP_INSIDE, name.to_string())),
         Some(format) => {
             let options = Options { format, turn: Turn::default(), ..job.options };
-            let data = encode::Original::with_meta_of(image, bytes, name).alone().encode(&options).map_err(failed)?;
+            let data = encode::Original::with_meta_of(image, bytes, name).alone().turned(job.turn).encode(&options).map_err(failed)?;
             Ok((with_ext(name, format), data))
         }
     }

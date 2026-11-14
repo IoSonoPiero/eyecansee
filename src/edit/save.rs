@@ -105,7 +105,7 @@ pub fn save(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str
         return Ok(Saved { data, name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept });
     }
     let original = super::resize::at_size(original, doc.scale);
-    let mut o = Original::clone(&original);
+    let mut o = Original::clone(&original).turned(doc.turn);
     let (float, deep) = (is_float(&o.image), is_deep(&o.image));
     let holes = edited(doc, &original.image, &mut o.image, options);
     if same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes) {

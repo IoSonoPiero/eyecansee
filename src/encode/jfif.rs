@@ -1,6 +1,7 @@
 //! The JFIF density of a JPEG (its APP0 segment: unit and density across and down), read from an
 //! original JPEG and written into every JPEG made from it. libjpeg-turbo writes 1:1 without unit:
-//! a 600 dpi scan saved again came out with no unit at all.
+//! a 600 dpi scan saved again came out with no unit at all. The density of the other formats,
+//! and which one counts: `density`.
 
 /// Unit (0 none: the two numbers are only an aspect ratio, 1 dots per inch, 2 dots per
 /// centimetre) and density across (`x`) and down (`y`).
@@ -111,7 +112,7 @@ mod tests {
     }
 
     /// A source without JFIF segment (as phones write their photos), a PNG, a damaged density:
-    /// what libjpeg-turbo writes, as before; and a written PNG does not change.
+    /// what libjpeg-turbo writes, as before; and a PNG made from that JPEG gets no density either.
     #[test]
     fn source_without_jfif() {
         let mut bytes = jpeg_with(Density { unit: 1, x: 300, y: 300 });
@@ -126,8 +127,7 @@ mod tests {
         set(&mut zero, Density { unit: 1, x: 0, y: 300 });
         assert_eq!(read(&zero), None);
         assert_eq!(read(&again(&zero, &jpeg_options())), Some(PLAIN));
-        let jpeg = jpeg_with(Density { unit: 1, x: 600, y: 600 });
-        let png_again = Original::with_meta(photo(40, 30), &jpeg).encode(&Options { format: Format::Png, ..Options::default() }).unwrap();
+        let png_again = Original::with_meta(photo(40, 30), &bytes).encode(&Options { format: Format::Png, ..Options::default() }).unwrap();
         assert_eq!(png_again, png);
     }
 

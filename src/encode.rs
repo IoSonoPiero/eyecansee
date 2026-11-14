@@ -3,6 +3,7 @@
 //! ravif for AVIF, `tiff` for TIFF, `image` for ICO, TGA, PNM, OpenEXR, Radiance HDR and Farbfeld. Writing back over the original: `save_back`.
 
 
+pub mod density;
 pub mod jfif;
 pub mod jpeg_quality;
 use std::io::Cursor;
@@ -226,8 +227,9 @@ pub struct Original {
     xmp_ext: Vec<Vec<u8>>,
     /// A JPEG's quality and subsampling, when they can be read (`jpeg_quality::of`).
     pub jpeg: Option<(u8, Chroma)>,
-    /// A JPEG's JFIF density and unit (`jfif::read`), written into the JPEG made from it.
-    jfif: Option<jfif::Density>,
+    /// The pixel density and its unit (`density::read`), written into every file made from it
+    /// that can hold one.
+    density: Option<density::Density>,
     /// An Ultra HDR photo opened in Save in another format: what writes it as JPEG still Ultra
     /// HDR (#66). Not used by `encode`, which writes the picture alone.
     pub hdr: Option<std::sync::Arc<crate::ultrahdr::Source>>,
@@ -242,8 +244,9 @@ pub(crate) struct Blocks {
     pub irb: Option<Vec<u8>>,
     /// A JPEG's extended XMP, as `Original::xmp_ext`; only for a JPEG.
     pub xmp_ext: Vec<Vec<u8>>,
-    /// The original JPEG's JFIF density; only the JPEG encoder uses it.
-    pub jfif: Option<jfif::Density>,
+    /// The original's pixel density, turned with the pixels; each encoder writes it where its
+    /// format keeps it (the EXIF already has it).
+    pub density: Option<density::Density>,
 }
 
 impl Original {
@@ -260,7 +263,8 @@ impl Original {
         // the IPTC where it is in a TIFF tag.
         if let Some(raw) = crate::raw_meta::read(bytes) {
             let x = crate::meta_write::read(bytes, None);
-            return Original::upright(image, raw.exif, raw.icc, raw.xmp.or(x.xmp), x.irb);
+            let density = density::read(bytes, raw.exif.as_deref(), x.irb.as_deref());
+            return Original { density, ..Original::upright(image, raw.exif, raw.icc, raw.xmp.or(x.xmp), x.irb) };
         }
         // As found in the formats `image` reads (JPEG, PNG, WebP, TIFF), then in the file itself
         // (`meta_write::read`), then from ImageMagick for the formats it reads.
@@ -271,9 +275,10 @@ impl Original {
             let m = crate::decode::magick_meta(bytes);
             x = crate::meta_write::Extra { xmp: x.xmp.or(m.xmp), irb: x.irb.or(m.irb), icc: x.icc.or(m.icc), exif: x.exif.or(m.exif) };
         }
-        let exif = exif.or(x.exif).or_else(|| crate::meta::exif_chunk(bytes));
+        let exif = exif.or(x.exif).or_else(|| crate::meta::exif_chunk(bytes)).or_else(|| crate::meta::jxl_exif(bytes));
         let xmp_ext = x.xmp.as_deref().map_or_else(Vec::new, |m| crate::meta_write::jpeg_xmp_ext(bytes, m));
-        Original { xmp_ext, jpeg: jpeg_quality::of(bytes), jfif: jfif::read(bytes), ..Original::upright(image, exif, icc.or(x.icc), x.xmp, x.irb) }
+        let density = density::read(bytes, exif.as_deref(), x.irb.as_deref());
+        Original { xmp_ext, jpeg: jpeg_quality::of(bytes), density, ..Original::upright(image, exif, icc.or(x.icc), x.xmp, x.irb) }
     }
 
     /// The pixels are already turned upright: the EXIF orientation is set back to "upright".
@@ -281,7 +286,7 @@ impl Original {
         if let Some(chunk) = &mut exif {
             let _ = Orientation::remove_from_exif_chunk(chunk);
         }
-        Original { image, exif, icc, xmp, irb, xmp_ext: Vec::new(), jpeg: None, jfif: None, hdr: None }
+        Original { image, exif, icc, xmp, irb, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None }
     }
 
     /// For a picture written without what followed it in the file (Motion Photo video, Ultra HDR
@@ -295,7 +300,16 @@ impl Original {
     /// `image` with this one's metadata, without copying these pixels (the editor's Resize).
     pub fn with_image(&self, image: DynamicImage) -> Original {
         let (exif, icc, xmp, irb, xmp_ext) = (self.exif.clone(), self.icc.clone(), self.xmp.clone(), self.irb.clone(), self.xmp_ext.clone());
-        Original { image, exif, icc, xmp, irb, xmp_ext, jpeg: self.jpeg, jfif: self.jfif, hdr: self.hdr.clone() }
+        Original { image, exif, icc, xmp, irb, xmp_ext, jpeg: self.jpeg, density: self.density, hdr: self.hdr.clone() }
+    }
+
+    /// The pixels were turned by `turn` after this was made (the editor, Convert and resize):
+    /// a quarter turn exchanges the density across and down.
+    pub fn turned(mut self, turn: Turn) -> Original {
+        if turn.sideways() {
+            self.density = self.density.map(density::Density::swapped);
+        }
+        self
     }
 
     pub fn has_meta(&self) -> bool {
@@ -304,10 +318,14 @@ impl Original {
 
     /// The metadata for a `format` file of `w` × `h` pixels: sizes set, the old thumbnails out
     /// (they showed the original), the Camera Raw settings out of the XMP (already in the pixels).
-    fn blocks(&self, format: Format, w: u32, h: u32) -> Blocks {
+    fn blocks(&self, format: Format, w: u32, h: u32, sideways: bool) -> Blocks {
         let mut exif = self.exif.clone();
         if let Some(e) = &mut exif {
             crate::meta::fit_exif(e, w, h);
+        }
+        let density = self.density.map(|d| if sideways { d.swapped() } else { d });
+        if let Some(d) = density {
+            exif = density::set_exif(exif, d, matches!(format, Format::Webp | Format::Avif));
         }
         let irb = self.irb.as_deref().and_then(crate::meta_write::fit_irb);
         // WebP and AVIF have no place for IPTC: its fields go into the XMP.
@@ -316,7 +334,7 @@ impl Original {
         // digest of their content); the other formats hold an XMP of any size: it joins the main one.
         let (ext, xmp_ext) = if format == Format::Jpeg { (None, self.xmp_ext.clone()) } else { (crate::meta_write::xmp_ext_packet(&self.xmp_ext), Vec::new()) };
         let xmp = crate::xmp::fit_with(self.xmp.as_deref(), w, h, iim, ext.as_deref());
-        Blocks { exif, icc: self.icc.clone(), xmp, irb, xmp_ext, jfif: self.jfif }
+        Blocks { exif, icc: self.icc.clone(), xmp, irb, xmp_ext, density }
     }
 
     /// The file as it would be saved.
@@ -331,7 +349,7 @@ impl Original {
             &turned
         };
         let img = pixels(image, o.format);
-        let b = if o.keep_meta { self.blocks(o.format, img.width(), img.height()) } else { Blocks::default() };
+        let b = if o.keep_meta { self.blocks(o.format, img.width(), img.height(), o.turn.sideways()) } else { Blocks::default() };
         let mut out = Cursor::new(Vec::new());
         match o.format {
             Format::Jpeg => return encoders::jpeg(&img, o, &b),
@@ -356,9 +374,18 @@ impl Original {
                     let _ = e.set_exif_metadata(exif.clone());
                 }
                 img.write_with_encoder(e).map_err(|e| e.to_string())?;
-                return Ok(crate::meta_write::png_chunks(out.into_inner(), b.xmp.as_deref(), b.irb.as_deref()));
+                let file = crate::meta_write::png_chunks(out.into_inner(), b.xmp.as_deref(), b.irb.as_deref());
+                return Ok(match b.density {
+                    Some(d) => density::set_png(file, d),
+                    None => file,
+                });
             }
-            Format::Bmp => img.write_with_encoder(bmp::BmpEncoder::new(&mut out)).map_err(|e| e.to_string())?,
+            Format::Bmp => {
+                img.write_with_encoder(bmp::BmpEncoder::new(&mut out)).map_err(|e| e.to_string())?;
+                if let Some(d) = b.density {
+                    density::set_bmp(out.get_mut(), d);
+                }
+            }
             Format::Gif => img.write_with_encoder(gif::GifEncoder::new_with_speed(&mut out, 31 - o.gif_quality.clamp(1, 30) as i32)).map_err(|e| e.to_string())?,
             Format::Qoi => img.write_with_encoder(qoi::QoiEncoder::new(&mut out)).map_err(|e| e.to_string())?,
             Format::Ico => img.write_with_encoder(ico::IcoEncoder::new(&mut out)).map_err(|e| e.to_string())?,
@@ -484,7 +511,7 @@ pub(crate) mod tests {
         let xmp = crate::xmp::tests::SAMPLE.as_bytes().to_vec();
         let iim = crate::xmp::tests::iim(&[(80, "Ann"), (90, "Québec")]);
         let irb = [crate::meta_write::resource(1036, &[1; 9]), crate::meta_write::irb_of_iim(&iim)].concat();
-        let original = Original { image: DynamicImage::ImageRgba8(img), exif: Some(exif.clone()), icc: Some(icc.clone()), xmp: Some(xmp), irb: Some(irb), xmp_ext: Vec::new(), jpeg: None, jfif: None, hdr: None };
+        let original = Original { image: DynamicImage::ImageRgba8(img), exif: Some(exif.clone()), icc: Some(icc.clone()), xmp: Some(xmp), irb: Some(irb), xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None };
         let d = Options::default();
         let variants = [
             Options { format: Format::Jpeg, ..d },
@@ -624,7 +651,7 @@ pub(crate) mod tests {
         for little in [false, true] {
             let mut exif = Cursor::new(Vec::new());
             w.write(&mut exif, little).unwrap();
-            let original = Original { image: DynamicImage::new_rgb8(8, 6), exif: Some(exif.into_inner()), icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, jfif: None, hdr: None };
+            let original = Original { image: DynamicImage::new_rgb8(8, 6), exif: Some(exif.into_inner()), icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None };
             let bytes = original.encode(&Options { format: Format::Tiff, ..Default::default() }).unwrap();
             let back = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes)).unwrap();
             for f in &fields {
@@ -638,7 +665,7 @@ pub(crate) mod tests {
     /// formats only "Save as…" writes are not saved back over an original.
     #[test]
     fn ico_and_save_back() {
-        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, jfif: None, hdr: None };
+        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None };
         let bytes = original.encode(&Options { format: Format::Ico, ..Default::default() }).unwrap();
         let back = crate::decode::decode_full(&bytes, "x.ico").unwrap();
         assert_eq!((back.width(), back.height()), (256, 128));

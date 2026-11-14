@@ -33,6 +33,8 @@ struct Info {
     /// The resources a Photoshop block of another file holds too: IPTC (1028), copyright flag
     /// (1034), URL (1035), IPTC digest (1061).
     irb: Vec<u8>,
+    /// The resolution info (1005), resource and all: for a file converted from it (`density`).
+    resolution: Vec<u8>,
 }
 
 /// Resources kept in the Photoshop block of a saved PSD, or of a file converted from it.
@@ -45,7 +47,8 @@ pub fn metadata(bytes: &[u8]) -> Option<crate::meta_write::Extra> {
         return None;
     }
     let i = read(bytes)?;
-    Some(crate::meta_write::Extra { xmp: i.xmp, irb: (!i.irb.is_empty()).then_some(i.irb), icc: i.icc, exif: i.exif })
+    let irb = [i.irb, i.resolution].concat();
+    Some(crate::meta_write::Extra { xmp: i.xmp, irb: (!irb.is_empty()).then_some(irb), icc: i.icc, exif: i.exif })
 }
 
 /// Format, size and colour from the 26 bytes of the header (PSD, or PSB its big version), for
@@ -116,6 +119,7 @@ fn read(bytes: &[u8]) -> Option<Info> {
             1039 => info.icc = Some(data),
             1058 => info.exif = Some(data),
             1060 => info.xmp = Some(data),
+            1005 => info.resolution = crate::meta_write::resource(id, &data),
             id if KEEP.contains(&id) => info.irb.extend(crate::meta_write::resource(id, &data)),
             _ => {}
         }
@@ -355,6 +359,20 @@ mod tests {
         let e = exif::Reader::new().read_raw(back.exif.unwrap()).unwrap();
         assert_eq!(e.get_field(exif::Tag::Orientation, exif::In::PRIMARY).unwrap().value.get_uint(0), Some(1));
         assert_eq!(e.get_field(exif::Tag::PixelXDimension, exif::In::PRIMARY).unwrap().value.get_uint(0), Some(30));
+    }
+
+    /// The resolution info (1005) goes with the Photoshop block of a file converted from the PSD:
+    /// 300 dpi stay 300 dpi.
+    #[test]
+    fn resolution_for_a_copy() {
+        use crate::encode::density::{Density, Unit};
+        let fixed = [&(300u32 << 16).to_be_bytes()[..], &[0, 1, 0, 1]].concat();
+        let resources = crate::meta_write::resource(1005, &[&fixed[..], &fixed].concat());
+        let mut file = psd(1, &[], false);
+        file.splice(30..34, [&(resources.len() as u32).to_be_bytes()[..], &resources].concat());
+        let irb = metadata(&file).unwrap().irb;
+        assert_eq!(crate::encode::density::read(&file, None, irb.as_deref()), Density::new(Unit::Inch, (300, 1), (300, 1)));
+        assert_eq!(crate::encode::density::read(&psd(1, &[], false), None, metadata(&psd(1, &[], false)).unwrap().irb.as_deref()), None);
     }
 
     /// Manual: every PSD in `EYECANSEE_PSD` turned clockwise as "Save" does, written to
