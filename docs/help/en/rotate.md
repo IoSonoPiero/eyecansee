@@ -28,7 +28,7 @@ Pictures in a format EyeCanSee cannot write (HEIC, RAW…) are left out, and the
 
 ## Videos
 
-A video is turned as a picture is, in the viewer or in the grid, and saved over the original in the same way, with the original going to the trash. It is not encoded again: only the rotation that players read changes, so it takes seconds and loses nothing, and the metadata stay. It works on MP4, MOV, MKV and WebM, with an FFmpeg (see [Converting videos](convert-video.md)). A video cannot be flipped this way: to flip it, use **Convert…**.
+A video is turned as a picture is, in the viewer or in the grid, and saved over the original in the same way, with the original going to the trash. It is not encoded again: only the rotation that players read changes, so it takes seconds and loses nothing, and the metadata stay. It works on MP4, MOV, MKV and WebM, with an FFmpeg (see [Converting videos](convert-video.md)). A video cannot be flipped this way: to flip it, use **Convert…**. On other videos (AVI, MPEG…) the rotations are greyed out: turn them with **Convert…**. **Rotate and crop…** and **Edit image…** work on pictures only: on a video they are greyed out too, and pointing at them says why.
 
 ## Saving over the original
 

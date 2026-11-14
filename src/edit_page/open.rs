@@ -54,15 +54,14 @@ impl App {
         self.edit_target(path).is_some()
     }
 
-    /// Why the editor is off for the item: several images, or one found animated.
+    /// Why the editor is off for the item (`off::editor_id`): no picture (a video, an audio file,
+    /// a 3D model, a CAD drawing), several, or one found animated.
     pub(crate) fn edit_off(&self, path: Option<String>) -> Option<String> {
-        if self.viewing.is_none() && self.grid_images(path.clone()).len() > 1 {
-            Some(self.i18n.t("rc-one-only"))
-        } else if path.or_else(|| self.target()).is_some_and(|p| self.animated.contains(&p)) {
-            Some(self.i18n.t("edit-animated-off"))
-        } else {
-            None
-        }
+        let files = self.files_chosen(path);
+        let pictures: Vec<&String> = files.iter().filter(|p| crate::decode::is_image(p)).collect();
+        let video = files.iter().any(|p| crate::decode::is_video(p));
+        let animated = matches!(pictures.as_slice(), [p] if self.animated.contains(p));
+        crate::off::editor_id(files.len(), pictures.len(), video, animated).map(|id| self.i18n.t(id))
     }
 
     /// In the grid, the one picture chosen is looked at before the editor is asked for: animated or

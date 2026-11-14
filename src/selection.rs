@@ -91,6 +91,18 @@ pub(crate) fn turn_fit(viewing_photo: Option<bool>, grid: &[String]) -> Option<b
     }
 }
 
+/// What a quarter turn (`op`) works on: a picture, or a video whose container keeps a rotation.
+pub(crate) fn turned(path: &str, op: crate::transform::Op) -> bool {
+    crate::decode::is_image(path) || crate::video_turn::turned_by(path, op)
+}
+
+/// How a quarter turn fits the files chosen in the grid, as `fits`: only on what it turns, so an
+/// AVI alone greys it out instead of leaving it on with nothing to do.
+pub(crate) fn turned_fit(files: &[String], op: crate::transform::Op) -> Option<bool> {
+    let n = files.iter().filter(|p| turned(p, op)).count();
+    (n > 0).then_some(n == files.len())
+}
+
 /// The label of an entry, with "*" when it works on only some of the files chosen.
 pub(crate) fn starred(label: String, all: bool) -> String {
     if all { label } else { format!("{label} *") }
@@ -128,14 +140,14 @@ impl App {
         }
         let shown = self.target().filter(|p| !source::in_trash(p));
         match self.viewing {
-            Some(_) => shown.filter(|p| crate::decode::is_image(p) || crate::video_turn::turned_by(p, op)).map(|_| true),
-            None => fits(&self.grid_chosen(None), &[Kind::Picture, Kind::Video]),
+            Some(_) => shown.filter(|p| turned(p, op)).map(|_| true),
+            None => turned_fit(&self.grid_chosen(None), op),
         }
     }
 
     /// The files a flip or a turn in the grid works on: pictures, and videos for the quarter turns.
     pub(crate) fn grid_turned(&self, path: Option<String>, op: crate::transform::Op) -> Vec<String> {
-        self.grid_items(path).into_iter().filter(|p| crate::decode::is_image(p) || crate::video_turn::turned_by(p, op)).collect()
+        self.grid_items(path).into_iter().filter(|p| turned(p, op)).collect()
     }
 
     /// `turn_fit` for what is in front: the Image menu, the toolbar and Ctrl+R agree.
@@ -283,5 +295,13 @@ mod tests {
         assert_eq!(turn_fit(None, &grid[..1]), Some(true));
         assert_eq!(turn_fit(None, &grid[1..]), None);
         assert_eq!(turn_fit(None, &[]), None);
+        // A quarter turn: on the videos that keep a rotation, not on an AVI (#125).
+        let cw = crate::transform::Op::Cw;
+        let files: Vec<String> = ["a.jpg", "b.mp4", "c.avi", "d/"].map(String::from).to_vec();
+        assert_eq!(turned_fit(&files[1..2], cw), Some(true));
+        assert_eq!(turned_fit(&files[..2], cw), Some(true));
+        assert_eq!(turned_fit(&files[..3], cw), Some(false));
+        assert_eq!(turned_fit(&files[2..3], cw), None);
+        assert_eq!(turned_fit(&files[2..], cw), None);
     }
 }

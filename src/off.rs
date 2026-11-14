@@ -73,6 +73,34 @@ pub(crate) fn save_as_id(shown: Option<Kind>, saved: usize) -> Option<&'static s
     }
 }
 
+/// Why a flip or a turn is off (Fluent id). `turns_videos`: a quarter turn, which videos take
+/// too; `fits`: it works on what is in front (`turn_fits`); `shown`: in the viewer the kind of the
+/// file shown (`None` in the grid); `video`: a video among the files (in the viewer the one shown).
+pub(crate) fn turn_id(turns_videos: bool, fits: bool, shown: Option<Kind>, video: bool) -> Option<&'static str> {
+    match () {
+        _ if fits => None,
+        // A quarter turn off on a video: its container keeps no rotation (AVI, MPEG…).
+        _ if video && turns_videos => Some("off-video-no-rotation"),
+        _ if video => Some("off-video-flip"),
+        _ if shown.is_some() => Some(if turns_videos { "off-turn-kind" } else { "off-flip-kind" }),
+        _ => Some(if turns_videos { "off-no-turned" } else { "tb-off-no-picture" }),
+    }
+}
+
+/// Why Edit image… and Rotate and crop… are off (Fluent id): they open one picture. `files`: how
+/// many items they would act on (in the viewer the file shown), `pictures` of them, `video`: a
+/// video among them, `animated`: the one picture found animated or of several pages.
+pub(crate) fn editor_id(files: usize, pictures: usize, video: bool, animated: bool) -> Option<&'static str> {
+    match pictures {
+        0 if files == 0 => Some("tb-off-one-picture"),
+        0 if video => Some("off-edit-video"),
+        0 => Some("off-edit-picture"),
+        1 if animated => Some("edit-animated-off"),
+        1 => None,
+        _ => Some("rc-one-only"),
+    }
+}
+
 /// Restore in the File and Edit menus, inside a trash only: label and why it is off (Fluent ids).
 /// `target`: the item selected or in the viewer is a trash folder (`Some(true)`) or inside one
 /// (`Some(false)`); `here`: the folder open is a trash.
@@ -211,25 +239,16 @@ impl App {
         self.off((files == 0).then_some("off-no-file"))
     }
 
-    /// The flips and turns: in the viewer the picture shown, in the grid the pictures chosen.
-    pub(crate) fn turn_off(&self) -> Option<String> {
-        let id = if self.viewing.is_some() { "tb-off-not-picture" } else { "tb-off-no-picture" };
-        self.trash_off().or_else(|| self.off(self.turns_fit().is_none().then_some(id)))
-    }
-
-    /// One flip or turn (`turn_fits`): a flip of a video says why it cannot be done.
+    /// A flip or a turn (`turn_fits`): where it is off, why, by the kind of the files.
     pub(crate) fn turn_op_off(&self, op: crate::transform::Op) -> Option<String> {
-        if crate::video_turn::turns_videos(op) {
-            let id = if self.viewing.is_some() { "tb-off-not-picture" } else { "tb-off-no-picture" };
-            return self.trash_off().or_else(|| self.off(self.turn_fits(op).is_none().then_some(id)));
-        }
-        let video = self.target().is_some_and(|p| crate::decode::is_video(&p)) && (self.viewing.is_some() || self.turns_fit().is_none());
-        if video { self.off(Some("off-video-flip")) } else { self.turn_off() }
+        let video = self.files_chosen(None).iter().any(|p| crate::decode::is_video(p));
+        let id = turn_id(crate::video_turn::turns_videos(op), self.turn_fits(op).is_some(), self.shown(), video);
+        self.trash_off().or_else(|| self.off(id))
     }
 
-    /// Edit image… and Rotate and crop…: as the turns, then one image that is not animated.
+    /// Edit image… and Rotate and crop…: one picture, not animated, not in a trash.
     pub(crate) fn editor_off(&self) -> Option<String> {
-        self.turn_off().or_else(|| self.edit_off(None))
+        self.trash_off().or_else(|| self.edit_off(None))
     }
 }
 
@@ -273,8 +292,25 @@ mod tests {
         assert_eq!(save_as_id(None, 1), None);
         assert_eq!(save_as_id(None, 0), Some("tb-off-one-picture"));
         assert_eq!(save_as_id(None, 2), Some("tb-off-one-picture"));
+        // The turns and flips by the kind of the files (#125): a video turns, if its container keeps a rotation.
+        assert_eq!(turn_id(true, true, Some(Kind::Video), true), None);
+        assert_eq!(turn_id(true, false, Some(Kind::Video), true), Some("off-video-no-rotation"));
+        assert_eq!(turn_id(true, false, None, true), Some("off-video-no-rotation"));
+        assert_eq!(turn_id(false, false, Some(Kind::Video), true), Some("off-video-flip"));
+        assert_eq!(turn_id(true, false, Some(Kind::Model), false), Some("off-turn-kind"));
+        assert_eq!(turn_id(false, false, Some(Kind::Audio), false), Some("off-flip-kind"));
+        assert_eq!(turn_id(true, false, None, false), Some("off-no-turned"));
+        assert_eq!(turn_id(false, false, None, false), Some("tb-off-no-picture"));
+        // The editor: one picture, never a video, an audio file, a 3D model or a CAD drawing.
+        assert_eq!(editor_id(1, 1, false, false), None);
+        assert_eq!(editor_id(2, 1, true, false), None);
+        assert_eq!(editor_id(1, 0, true, false), Some("off-edit-video"));
+        assert_eq!(editor_id(1, 0, false, false), Some("off-edit-picture"));
+        assert_eq!(editor_id(0, 0, false, false), Some("tb-off-one-picture"));
+        assert_eq!(editor_id(2, 2, false, false), Some("rc-one-only"));
+        assert_eq!(editor_id(1, 1, false, true), Some("edit-animated-off"));
         // Each reason said in both languages.
-        let ids = ["off-trash-clip", "off-trash-rename", "off-trash-change", "off-restore", "off-save-model", "off-save-drawing", "off-save-played", "off-save-as-played", "tb-off-nothing", "tb-off-viewer", "off-empty", "tb-off-paste", "tb-off-paste-here", "rename-one-only", "off-top", "off-not-viewer", "off-no-show", "off-no-file", "tb-off-save", "tb-off-folder", "tb-off-no-folder", "tb-off-not-picture", "tb-off-no-picture"];
+        let ids = ["off-trash-clip", "off-trash-rename", "off-trash-change", "off-restore", "off-save-model", "off-save-drawing", "off-save-played", "off-save-as-played", "tb-off-nothing", "tb-off-viewer", "off-empty", "tb-off-paste", "tb-off-paste-here", "rename-one-only", "off-top", "off-not-viewer", "off-no-show", "off-no-file", "tb-off-save", "tb-off-folder", "tb-off-no-folder", "tb-off-no-picture", "tb-off-one-picture", "off-video-no-rotation", "off-video-flip", "off-turn-kind", "off-flip-kind", "off-no-turned", "off-edit-video", "off-edit-picture", "rc-one-only", "edit-animated-off"];
         for code in ["en", "it"] {
             let i18n = crate::i18n::I18n::new(code);
             for id in ids {
