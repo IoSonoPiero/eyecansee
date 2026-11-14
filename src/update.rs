@@ -175,7 +175,7 @@ pub(crate) fn agent() -> ureq::Agent {
 pub fn check(kind: Kind, current: &str) -> Result<Option<Ready>, String> {
     #[cfg(windows)]
     if let Kind::Store = kind {
-        return Ok(store_update()?.map(|version| Ready { version, kind, file: PathBuf::new() }));
+        return Ok(store_update()?.then(|| Ready { version: String::new(), kind, file: PathBuf::new() }));
     }
     let agent = agent();
     let text = agent.get(LATEST).call().and_then(|mut r| r.body_mut().read_to_string()).map_err(|e| e.to_string())?;
@@ -226,27 +226,27 @@ pub fn check(kind: Kind, current: &str) -> Result<Option<Ready>, String> {
     Ok(Some(Ready { version: version.to_string(), kind, file }))
 }
 
-/// The Microsoft Store's newest update of this package, as "0.77.1", or `None` when there is none.
+/// Whether the Microsoft Store has an update of this package. The Store does not say which version:
+/// `StorePackageUpdate::Package` is the installed package, not the new one (seen with the real Store).
 /// The Store answers only for a package it knows (the same name and publisher as in Partner Center).
 #[cfg(windows)]
-fn store_update() -> Result<Option<String>, String> {
+fn store_update() -> Result<bool, String> {
     use windows::Services::Store::StoreContext;
     let updates = StoreContext::GetDefault()
         .and_then(|c| c.GetAppAndOptionalStorePackageUpdatesAsync())
         .and_then(|op| op.join())
         .map_err(|e| format!("Microsoft Store: {e}"))?;
-    let mut newest = None;
-    for i in 0..updates.Size().map_err(|e| e.to_string())? {
-        let v = updates.GetAt(i).and_then(|u| u.Package()).and_then(|p| p.Id()).and_then(|id| id.Version()).map_err(|e| e.to_string())?;
-        newest = newest.max(Some((v.Major, v.Minor, v.Build)));
-    }
-    Ok(newest.map(|(a, b, c)| format!("{a}.{b}.{c}")))
+    Ok(updates.Size().map_err(|e| e.to_string())? > 0)
 }
 
 /// Opens EyeCanSee's page in the Microsoft Store app.
 #[cfg(windows)]
 pub fn open_store() -> Result<(), String> {
-    std::process::Command::new("explorer").arg(STORE_PAGE).spawn().map(drop).map_err(|e| e.to_string())
+    // Through the handler Windows registered for the address, as a link: `explorer <uri>` opened
+    // Documents instead. No console window; the address has no `&` for cmd.
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    std::process::Command::new("cmd").args(["/C", "start", "", STORE_PAGE]).creation_flags(CREATE_NO_WINDOW).spawn().map(drop).map_err(|e| e.to_string())
 }
 
 /// Download address of `<name>.minisig`: without it there is no update.
