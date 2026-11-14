@@ -11,10 +11,10 @@ Che cosa apre EyeCanSee, e che cosa sa salvare. Tutto funziona allo stesso modo 
 | JPEG | jpg, jpeg, jfif, jpe | libjpeg-turbo, `image` |
 | MPO, JPS (più immagini e stereo: la prima immagine) | mpo, jps | `image` |
 | PNG (animato: il primo fotogramma) | png, apng | `image` |
-| WebP | webp | `image` |
+| WebP (animato: il primo fotogramma) | webp | `image` |
 | GIF (il primo fotogramma) | gif | `image` |
 | BMP | bmp | `image` |
-| TIFF | tif, tiff | `image` |
+| TIFF (più pagine: la prima) | tif, tiff | `image` |
 | ICO, CUR | ico, cur | `image` |
 | TGA | tga | `image` |
 | QOI | qoi | `image` |
@@ -23,7 +23,7 @@ Che cosa apre EyeCanSee, e che cosa sa salvare. Tutto funziona allo stesso modo 
 | Radiance HDR | hdr | `image` |
 | Farbfeld | ff | `image` |
 | HEIC, HEIF | heic, heif, hif | libheif con libde265 |
-| AVIF | avif | libheif con dav1d |
+| AVIF (sequenza: il primo fotogramma) | avif | libheif con dav1d |
 | JPEG XL | jxl | `jxl-oxide` |
 | SVG | svg, svgz | `resvg` |
 | Photoshop (l'immagine unita) | psd | `psd` |
@@ -46,7 +46,7 @@ Che cosa apre EyeCanSee, e che cosa sa salvare. Tutto funziona allo stesso modo 
 | PGX, WPG, VIFF, VICAR | pgx, wpg, viff, vicar | ImageMagick |
 | XWD (solo col pacchetto per Fedora, non nell'AppImage, nel Flatpak né su Windows) | xwd | ImageMagick |
 
-Le foto vengono raddrizzate secondo il loro orientamento EXIF. L'estensione è solo un indizio: un file con quella sbagliata (per esempio una foto HEIC dell'iPhone rinominata `.jpg`) viene riconosciuto dal contenuto. Un file che il lettore del suo formato non riesce a leggere viene riprovato con ImageMagick, che apre anche i PSD che il lettore interno non gestisce.
+Le foto vengono raddrizzate secondo il loro orientamento EXIF. L'estensione è solo un indizio: un file con quella sbagliata (per esempio una foto HEIC dell'iPhone rinominata `.jpg`) viene riconosciuto dal contenuto. Un file che il lettore del suo formato non riesce a leggere viene riprovato con ImageMagick, che apre anche i PSD che il lettore interno non gestisce. Che cosa il visore non fa ancora (animazioni, pagine, il video delle foto in movimento, HDR) è in [Limiti noti](limits.md).
 
 ### RAW delle fotocamere
 

@@ -754,6 +754,25 @@ mod tests {
         assert_eq!(own_size(&decode(&png(30, 20), "small.png").unwrap()), None);
     }
 
+    /// What the guide's known limits say: of an animation and of a TIFF with more pages the
+    /// viewer shows only the first frame or page.
+    #[test]
+    fn first_frame_only() {
+        use eframe::egui::Color32;
+        let (red, blue) = (image::Rgba([255, 0, 0, 255]), image::Rgba([0, 0, 255, 255]));
+        let mut gif = Vec::new();
+        let frame = |c| image::Frame::new(image::RgbaImage::from_pixel(4, 4, c));
+        image::codecs::gif::GifEncoder::new(&mut gif).encode_frames([frame(red), frame(blue)]).unwrap();
+        let first = decode(&gif, "a.gif").unwrap().pixels[0];
+        assert!(first.r() > 200 && first.b() < 50, "{first:?}");
+        let mut tiff = Vec::new();
+        let mut enc = tiff::encoder::TiffEncoder::new(std::io::Cursor::new(&mut tiff)).unwrap();
+        for c in [[255u8, 0, 0], [0, 0, 255]] {
+            enc.write_image::<tiff::encoder::colortype::RGB8>(4, 4, &c.repeat(16)).unwrap();
+        }
+        assert_eq!(decode(&tiff, "a.tif").unwrap().pixels[0], Color32::RED);
+    }
+
     #[test]
     fn decoders() {
         assert!(is_image("a.JXL") && is_image("c.CR3"));

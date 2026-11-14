@@ -11,10 +11,10 @@ What EyeCanSee opens, and what it can save. Everything here works the same on Li
 | JPEG | jpg, jpeg, jfif, jpe | libjpeg-turbo, `image` |
 | MPO, JPS (multi-picture and stereo: the first picture) | mpo, jps | `image` |
 | PNG (animated: the first frame) | png, apng | `image` |
-| WebP | webp | `image` |
+| WebP (animated: the first frame) | webp | `image` |
 | GIF (the first frame) | gif | `image` |
 | BMP | bmp | `image` |
-| TIFF | tif, tiff | `image` |
+| TIFF (more pages: the first) | tif, tiff | `image` |
 | ICO, CUR | ico, cur | `image` |
 | TGA | tga | `image` |
 | QOI | qoi | `image` |
@@ -23,7 +23,7 @@ What EyeCanSee opens, and what it can save. Everything here works the same on Li
 | Radiance HDR | hdr | `image` |
 | Farbfeld | ff | `image` |
 | HEIC, HEIF | heic, heif, hif | libheif with libde265 |
-| AVIF | avif | libheif with dav1d |
+| AVIF (sequence: the first frame) | avif | libheif with dav1d |
 | JPEG XL | jxl | `jxl-oxide` |
 | SVG | svg, svgz | `resvg` |
 | Photoshop (the merged image) | psd | `psd` |
@@ -46,7 +46,7 @@ What EyeCanSee opens, and what it can save. Everything here works the same on Li
 | PGX, WPG, VIFF, VICAR | pgx, wpg, viff, vicar | ImageMagick |
 | XWD (only with the Fedora package, not in the AppImage, the Flatpak or on Windows) | xwd | ImageMagick |
 
-Photos are turned upright using their EXIF orientation. The extension is only a hint: a file with the wrong one (for example an iPhone HEIC photo renamed to `.jpg`) is recognised from its content. A file the reader of its format cannot read is tried once more with ImageMagick, which also opens the PSD files the built-in reader does not handle.
+Photos are turned upright using their EXIF orientation. The extension is only a hint: a file with the wrong one (for example an iPhone HEIC photo renamed to `.jpg`) is recognised from its content. A file the reader of its format cannot read is tried once more with ImageMagick, which also opens the PSD files the built-in reader does not handle. What the viewer does not do yet (animations, pages, the video of motion photos, HDR) is in [Known limits](limits.md).
 
 ### Camera RAW
 

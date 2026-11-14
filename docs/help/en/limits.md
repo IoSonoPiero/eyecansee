@@ -6,6 +6,10 @@ What EyeCanSee does not do yet, or does only in part. The up-to-date list of kno
 
 - Images larger than 8192 pixels per side are shown reduced; the status bar still says their own size. SVG drawings are drawn at 2048 pixels on their long side.
 - HDR images (EXR, HDR, PFM) are shown without tone mapping and may look overexposed.
+- Animations (GIF, animated PNG and WebP, AVIF sequences) show only their first frame in the viewer ([#121](https://github.com/IoSonoPiero/eyecansee/issues/121)).
+- Of a TIFF with more pages the viewer shows only the first, and of a Photoshop file only the merged image, not its layers ([#122](https://github.com/IoSonoPiero/eyecansee/issues/122)).
+- The short video inside a motion photo is not played: the viewer shows the photo ([#123](https://github.com/IoSonoPiero/eyecansee/issues/123)).
+- Ultra HDR photos are shown as normal photos, also on a screen that supports HDR ([#124](https://github.com/IoSonoPiero/eyecansee/issues/124)).
 - EyeCanSee cannot save HEIC or JPEG XL files: see [Supported formats](formats.md).
 - Converted Camera RAW photos do not keep the maker note, the camera maker's own data.
 - On Windows, JNG files do not open: the ImageMagick security policy that comes with the program blocks them.
