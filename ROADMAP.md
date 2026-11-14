@@ -65,6 +65,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - New window: more than one EyeCanSee window at the same time ([#130](https://github.com/IoSonoPiero/eyecansee/issues/130)).
 - Open an image from the clipboard ([#57](https://github.com/IoSonoPiero/eyecansee/issues/57)).
 - Image editor: recent work kept, recovered after a crash, resumed later ([#59](https://github.com/IoSonoPiero/eyecansee/issues/59)).
+- Image editor: a working file (.eye) that keeps texts, arrows and pasted pieces editable ([#138](https://github.com/IoSonoPiero/eyecansee/issues/138)).
 - Archives: zip and 7z opened as read-only folders first, then creating zip archives ([#26](https://github.com/IoSonoPiero/eyecansee/issues/26)).
 - Thumbnails: invert the selection ([#135](https://github.com/IoSonoPiero/eyecansee/issues/135)).
 - Rename several files at once ([#27](https://github.com/IoSonoPiero/eyecansee/issues/27)).
