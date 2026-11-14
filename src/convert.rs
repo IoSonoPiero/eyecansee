@@ -10,11 +10,15 @@ use eframe::egui::{self, ColorImage, TextureHandle};
 
 use crate::i18n::I18n;
 use crate::batch::with_ext;
-use crate::encode::{Chroma, Format, Options, Original, PngFilter, TiffCompression};
-use crate::paint::{paint_turned, paint_zoomed};
-use crate::transform::Turn;
+use crate::encode::{Format, Options, Original};
 
 mod folder;
+mod format_ui;
+mod panes;
+
+pub(crate) use format_ui::format_options;
+use format_ui::{format_choice, meta_options};
+use panes::convert_images;
 
 /// The original decoded, its texture and file size.
 type Loaded = Result<(Arc<Original>, TextureHandle, u64), String>;
@@ -391,200 +395,6 @@ pub(crate) fn page_header(ui: &mut egui::Ui, title: &str) -> bool {
     open
 }
 
-/// The original and the new image side by side, each under its title.
-fn convert_images(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, tex: &TextureHandle, half: f32, pane: egui::Vec2) {
-    let t = |id| i18n.t(id);
-    let result_tex = match &w.result {
-        Some(Ok((_, Some(tex)))) => Some(tex),
-        _ => None,
-    };
-    // Titles in rows of the same height (the spinner is taller than the text), so the
-    // two images start at the same height.
-    let title = |ui: &mut egui::Ui, text: String, busy: bool| {
-        ui.allocate_ui_with_layout(egui::vec2(half, 22.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-            ui.set_min_size(egui::vec2(half, 22.0));
-            ui.strong(text);
-            if busy {
-                ui.spinner();
-                ui.weak(t("convert-working"));
-            }
-        });
-    };
-    ui.horizontal_top(|ui| {
-        ui.spacing_mut().item_spacing.x = GAP;
-        ui.vertical(|ui| {
-            title(ui, t("convert-original"), false);
-            let r = preview(ui, pane, Some(tex), None, w.actual, &mut w.pan);
-            drag(&r, w.actual, &mut w.pan);
-        });
-        ui.vertical(|ui| {
-            title(ui, t("convert-result"), w.busy);
-            let note = match &w.result {
-                _ if w.busy && result_tex.is_none() => Some(t("convert-working")),
-                Some(Ok((_, None))) => Some(t("convert-no-preview")),
-                _ => None,
-            };
-            let r = preview(ui, pane, result_tex, note.as_deref(), w.actual, &mut w.pan);
-            drag(&r, w.actual, &mut w.pan);
-        });
-    });
-}
-
-/// The output format; the name takes its extension.
-fn format_choice(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
-    let o = &mut w.options;
-    let before = o.format;
-    egui::ComboBox::from_label(i18n.t("convert-format")).selected_text(o.format.label()).show_ui(ui, |ui| {
-        for f in Format::ALL {
-            ui.selectable_value(&mut o.format, f, f.label());
-        }
-    });
-    if o.format != before {
-        w.name = with_ext(&w.name, o.format);
-    }
-}
-
-fn quality(ui: &mut egui::Ui, v: &mut u8, label: String) {
-    ui.add(egui::Slider::new(v, 1..=100).text(label));
-}
-
-/// The options of the chosen format's encoder, for an image with transparency (`alpha`) or larger
-/// than an icon (`big`); with several images, as if they all were.
-pub(crate) fn format_options(ui: &mut egui::Ui, o: &mut Options, alpha: bool, big: bool, i18n: &I18n) {
-    let t = |id| i18n.t(id);
-    if alpha && matches!(o.format, Format::Jpeg | Format::Hdr) {
-        ui.weak(t("convert-on-white"));
-    }
-    match o.format {
-        Format::Jpeg => jpeg_options(ui, o, i18n),
-        Format::Png => png_options(ui, o, i18n),
-        Format::Webp => webp_options(ui, o, i18n),
-        Format::Avif => {
-            quality(ui, &mut o.avif_quality, t("convert-quality"));
-            if alpha {
-                quality(ui, &mut o.avif_alpha_quality, t("convert-alpha-quality"));
-            }
-            ui.add(egui::Slider::new(&mut o.avif_speed, 1..=10).text(t("convert-speed"))).on_hover_text(t("convert-speed-hint"));
-            ui.checkbox(&mut o.avif_ten_bit, t("convert-ten-bit"));
-            ui.checkbox(&mut o.avif_rgb, t("convert-avif-rgb"));
-        }
-        Format::Tiff => tiff_options(ui, o, i18n),
-        Format::Gif => {
-            ui.add(egui::Slider::new(&mut o.gif_quality, 1..=30).text(t("convert-gif-quality")));
-        }
-        Format::Tga => {
-            ui.checkbox(&mut o.tga_rle, t("convert-tga-rle"));
-        }
-        Format::Ico if big => {
-            ui.weak(t("convert-ico-reduced"));
-        }
-        Format::Bmp | Format::Qoi | Format::Ico | Format::Pnm | Format::Exr | Format::Hdr | Format::Farbfeld => {}
-    }
-}
-
-fn jpeg_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
-    let t = |id| i18n.t(id);
-    ui.add_enabled_ui(!o.jpeg_lossless, |ui| {
-        quality(ui, &mut o.jpeg_quality, t("convert-quality"));
-        egui::ComboBox::from_label(t("convert-chroma"))
-            .selected_text(t(match o.chroma {
-                Chroma::Full => "convert-chroma-full",
-                Chroma::Half => "convert-chroma-half",
-                Chroma::Quarter => "convert-chroma-quarter",
-                Chroma::Grey => "convert-chroma-grey",
-            }))
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut o.chroma, Chroma::Full, t("convert-chroma-full"));
-                ui.selectable_value(&mut o.chroma, Chroma::Half, t("convert-chroma-half"));
-                ui.selectable_value(&mut o.chroma, Chroma::Quarter, t("convert-chroma-quarter"));
-                ui.selectable_value(&mut o.chroma, Chroma::Grey, t("convert-chroma-grey"));
-            });
-    });
-    ui.checkbox(&mut o.progressive, t("convert-progressive"));
-    ui.checkbox(&mut o.optimize, t("convert-optimize"));
-    ui.checkbox(&mut o.arithmetic, t("convert-arithmetic"));
-    ui.checkbox(&mut o.jpeg_lossless, t("convert-jpeg-lossless"));
-}
-
-fn png_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
-    let t = |id| i18n.t(id);
-    ui.add(egui::Slider::new(&mut o.png_level, 0..=9).text(t("convert-png-level")));
-    let filters = [
-        (PngFilter::Adaptive, t("convert-filter-adaptive")),
-        (PngFilter::None, t("convert-none")),
-        (PngFilter::Sub, "Sub".to_string()),
-        (PngFilter::Up, "Up".to_string()),
-        (PngFilter::Avg, "Average".to_string()),
-        (PngFilter::Paeth, "Paeth".to_string()),
-    ];
-    let shown = filters.iter().find(|(f, _)| *f == o.png_filter).map(|(_, l)| l.clone()).unwrap_or_default();
-    egui::ComboBox::from_label(t("convert-png-filter")).selected_text(shown).show_ui(ui, |ui| {
-        for (f, label) in filters {
-            ui.selectable_value(&mut o.png_filter, f, label);
-        }
-    });
-}
-
-fn webp_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
-    let t = |id| i18n.t(id);
-    ui.horizontal(|ui| {
-        ui.radio_value(&mut o.webp_lossless, false, t("convert-lossy"));
-        ui.radio_value(&mut o.webp_lossless, true, t("convert-lossless-mode"));
-    });
-    if o.webp_lossless {
-        ui.add(egui::Slider::new(&mut o.near_lossless, 0..=100).text(t("convert-near-lossless")));
-    } else {
-        quality(ui, &mut o.webp_quality, t("convert-quality"));
-        ui.checkbox(&mut o.sharp_yuv, t("convert-sharp-yuv"));
-    }
-    ui.add(egui::Slider::new(&mut o.webp_effort, 0..=6).text(t("convert-effort"))).on_hover_text(t("convert-speed-hint"));
-}
-
-fn tiff_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
-    let t = |id| i18n.t(id);
-    let kinds = [
-        (TiffCompression::None, t("convert-none")),
-        (TiffCompression::Lzw, "LZW".to_string()),
-        (TiffCompression::DeflateFast, t("convert-deflate-fast")),
-        (TiffCompression::Deflate, "Deflate".to_string()),
-        (TiffCompression::DeflateBest, t("convert-deflate-best")),
-        (TiffCompression::PackBits, "PackBits".to_string()),
-    ];
-    let shown = kinds.iter().find(|(k, _)| *k == o.tiff).map(|(_, l)| l.clone()).unwrap_or_default();
-    egui::ComboBox::from_label(t("convert-compression")).selected_text(shown).show_ui(ui, |ui| {
-        for (k, label) in kinds {
-            ui.selectable_value(&mut o.tiff, k, label);
-        }
-    });
-    let predictor = matches!(o.tiff, TiffCompression::Lzw | TiffCompression::DeflateFast | TiffCompression::Deflate | TiffCompression::DeflateBest);
-    ui.add_enabled(predictor, egui::Checkbox::new(&mut o.tiff_predictor, t("convert-predictor")));
-}
-
-/// Whether the format loses quality, and the metadata kept when both the original and the format have some.
-fn meta_options(ui: &mut egui::Ui, o: &mut Options, original: &Original, i18n: &I18n) {
-    let t = |id| i18n.t(id);
-    let lossless = match o.format {
-        Format::Png | Format::Tiff | Format::Bmp | Format::Qoi | Format::Tga | Format::Pnm | Format::Exr | Format::Farbfeld => true,
-        Format::Ico => original.image.width().max(original.image.height()) <= crate::encode::ICO_SIDE,
-        Format::Webp => o.webp_lossless && o.near_lossless == 100,
-        Format::Jpeg => o.jpeg_lossless,
-        _ => false,
-    };
-    if lossless {
-        ui.weak(t("convert-lossless"));
-    } else if o.format == Format::Gif {
-        ui.weak(t("convert-gif"));
-    }
-    let (can_meta, hint) = original.meta_box(o.format);
-    let r = ui.add_enabled(can_meta, egui::Checkbox::new(&mut o.keep_meta, t(o.format.meta_label())));
-    if let Some(hint) = hint {
-        r.on_hover_text(t(hint)).on_disabled_hover_text(t(hint));
-    }
-    if original.hdr.is_some() && !keeps_hdr(o) {
-        ui.label(crate::theme::alert(t("convert-ultra-hdr-lost")));
-    }
-}
-
 /// The file Save writes: an Ultra HDR photo saved as JPEG with its metadata stays Ultra HDR, as
 /// in Convert and resize (#66); otherwise the picture alone.
 fn encoded(original: &Original, o: &Options) -> Result<Vec<u8>, String> {
@@ -638,41 +448,6 @@ fn name_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, half: f32, final_nam
     save
 }
 
-/// The image fitted into `size` (never enlarged), or at 100% around `pan`; grey when none.
-/// `note` is written in the middle when there is no image (converting, no preview for the format).
-fn preview(ui: &mut egui::Ui, size: egui::Vec2, tex: Option<&TextureHandle>, note: Option<&str>, actual: bool, pan: &mut egui::Vec2) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::drag());
-    let painter = ui.painter_at(rect);
-    // Grey ground and a border: on the window's own colour the two images ran into each other.
-    let ground = if ui.visuals().dark_mode { egui::Color32::from_gray(24) } else { egui::Color32::from_gray(200) };
-    painter.rect_filled(rect, 2.0, ground);
-    painter.rect_stroke(rect, 2.0, egui::Stroke::new(1.0, ui.visuals().weak_text_color()), egui::StrokeKind::Inside);
-    let Some(tex) = tex else {
-        if let Some(note) = note {
-            let font = egui::TextStyle::Body.resolve(ui.style());
-            painter.text(rect.center(), egui::Align2::CENTER_CENTER, note, font, ui.visuals().text_color());
-        }
-        return response;
-    };
-    let ppp = ui.ctx().pixels_per_point();
-    let t = tex.size_vec2();
-    if actual {
-        paint_zoomed(&painter, rect, tex, 1.0, pan, Turn::default());
-    } else {
-        let scale = (rect.width() / t.x).min(rect.height() / t.y).min(1.0 / ppp);
-        let dest = egui::Rect::from_center_size(rect.center(), t * scale);
-        paint_turned(&painter, tex, dest, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), Turn::default());
-    }
-    response
-}
-
-
-/// Dragging either preview moves both, at 100%.
-fn drag(response: &egui::Response, actual: bool, pan: &mut egui::Vec2) {
-    if actual && response.dragged() {
-        *pan -= response.drag_delta() * response.ctx.pixels_per_point();
-    }
-}
 
 /// Writes `data` as `path` in `store`, or under the first free name beside it; the path written.
 async fn write_free(store: &crate::source::Store, path: &str, data: Vec<u8>) -> Result<String, crate::source::Error> {
@@ -685,6 +460,7 @@ async fn write_free(store: &crate::source::Store, path: &str, data: Vec<u8>) -> 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::transform::Turn;
 
     /// Save as… from the editor writes in the editor's place under a name free there, checked in
     /// that folder (the grid may list another place): a file already there is never replaced.
