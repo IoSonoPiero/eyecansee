@@ -353,6 +353,21 @@ fn release(editing: bool, held: &mut Option<String>) -> Option<String> {
 mod tests {
     use super::*;
 
+    /// An address from outside while the editor is open is kept (the last one) and opened once it
+    /// is closed; without the editor it opens at once, and "" (just come forward) is never kept.
+    #[test]
+    fn address_held_while_editing() {
+        let mut held = None;
+        assert_eq!(hold(true, &mut held, "/home/u/a.jpg".into()), None);
+        assert_eq!(hold(true, &mut held, "/home/u/b.jpg".into()), None);
+        assert_eq!(hold(true, &mut held, String::new()), Some(String::new()));
+        assert_eq!(release(true, &mut held), None, "still editing");
+        assert_eq!(release(false, &mut held).as_deref(), Some("/home/u/b.jpg"));
+        assert_eq!(release(false, &mut held), None, "once");
+        assert_eq!(hold(false, &mut held, "/home/u/c.jpg".into()).as_deref(), Some("/home/u/c.jpg"));
+        assert_eq!(held, None);
+    }
+
     #[test]
     fn typed_address_without_quotes() {
         assert_eq!(typed_address(r#" "C:\Photos\" "#), r"C:\Photos\");

@@ -510,6 +510,41 @@ mod tests {
         (p, mark)
     }
 
+    /// The page saves where its image is (`Place`), whatever the grid opens meanwhile. As in the
+    /// second launch of 2026-11-14: the image on a "server" (a folder standing for it), and the
+    /// computer, which the grid opened under the page, with another file at the same path. Save
+    /// copy and Overwrite go to the server, its original to the server's trash; the computer's
+    /// file stays as it was (until 0.77.0 it went to the trash, replaced by the server's photo).
+    #[test]
+    fn saves_where_the_image_is() {
+        let (server, server_store, original) = place("server");
+        let (computer, ..) = place("computer");
+        std::fs::write(computer.join("p/a.jpg"), b"another file of the computer").unwrap();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let mut w = Window::new("p/a.jpg".into(), Default::default(), super::super::Tool::Select);
+        w.place = Some(crate::edit_page::Place { store: server_store, base: "sftp://u@server/".into() });
+        let image = Arc::new(Original::with_meta_of(crate::decode::decode_full(&original, "a.jpg").unwrap(), &original, "a.jpg"));
+        let tex = egui::Context::default().load_texture("t", egui::ColorImage::filled([1, 1], egui::Color32::WHITE), Default::default());
+        w.original = Some(Ok((image, tex, original.len() as u64)));
+        w.doc = Doc::new(64, 48, None);
+        w.doc.objects.push(cover(0.0));
+        let (tx, rx) = std::sync::mpsc::channel();
+        for over in [false, true] {
+            let p = Arc::new(rt.block_on(w.prepare_save(over, "edited".into()).unwrap()).unwrap());
+            w.bytes.get_or_insert_with(|| p.bytes.clone());
+            rt.block_on(w.send_save(p, Deletion::TrashFolder, tx.clone()).unwrap()).unwrap_or_else(|e| panic!("{:?}", e.0));
+        }
+        assert_eq!(rx.try_iter().count(), 2, "both files told as made");
+        assert_eq!(names(&server.join("p")), [crate::source::TRASH_DIR, "a (edited).jpg", "a.jpg"]);
+        assert_ne!(std::fs::read(server.join("p/a.jpg")).unwrap(), original, "overwritten on the server");
+        let trashed: Vec<Vec<u8>> = walk(&server.join("p").join(crate::source::TRASH_DIR)).iter().filter(|p| p.extension().is_some_and(|e| e == "jpg")).map(|p| std::fs::read(p).unwrap()).collect();
+        assert_eq!(trashed, [original]);
+        assert_eq!(names(&computer.join("p")), ["a.jpg"]);
+        assert_eq!(std::fs::read(computer.join("p/a.jpg")).unwrap(), b"another file of the computer");
+        std::fs::remove_dir_all(&server).unwrap();
+        std::fs::remove_dir_all(&computer).unwrap();
+    }
+
     fn names(dir: &std::path::Path) -> Vec<String> {
         let mut v: Vec<String> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
         v.sort();

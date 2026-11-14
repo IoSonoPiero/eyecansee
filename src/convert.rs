@@ -195,14 +195,7 @@ impl crate::App {
     fn save_in_place(&self, ctx: &egui::Context, store: crate::source::Store, path: String, data: Arc<Vec<u8>>) -> bool {
         let (tx, ctx) = (self.tx.clone(), ctx.clone());
         self.rt.spawn(async move {
-            let dir = crate::source::parent(&path);
-            let r = match store.names(&dir).await {
-                Ok(taken) => {
-                    let path = format!("{dir}{}", crate::source::free_name(&taken, crate::source::name(&path)));
-                    crate::replace::write_whole(&store, &path, data.to_vec()).await.map(|()| path)
-                }
-                Err(e) => Err(e),
-            };
+            let r = write_free(&store, &path, data.to_vec()).await;
             let _ = tx.send(crate::loader::Msg::Saved(r));
             ctx.request_repaint();
         });
@@ -633,9 +626,34 @@ fn drag(response: &egui::Response, actual: bool, pan: &mut egui::Vec2) {
     }
 }
 
+/// Writes `data` as `path` in `store`, or under the first free name beside it; the path written.
+async fn write_free(store: &crate::source::Store, path: &str, data: Vec<u8>) -> Result<String, crate::source::Error> {
+    let dir = crate::source::parent(path);
+    let taken = store.names(&dir).await?;
+    let path = format!("{dir}{}", crate::source::free_name(&taken, crate::source::name(path)));
+    crate::replace::write_whole(store, &path, data).await.map(|()| path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Save as… from the editor writes in the editor's place under a name free there, checked in
+    /// that folder (the grid may list another place): a file already there is never replaced.
+    #[test]
+    fn saved_as_under_a_free_name_of_its_place() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-convert-free-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("p")).unwrap();
+        std::fs::write(dir.join("p/a.png"), b"there before").unwrap();
+        let store = crate::source::Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        assert_eq!(rt.block_on(write_free(&store, "p/b.png", b"b".to_vec())).unwrap(), "p/b.png");
+        assert_eq!(rt.block_on(write_free(&store, "p/a.png", b"new".to_vec())).unwrap(), "p/a (2).png");
+        assert_eq!(std::fs::read(dir.join("p/a.png")).unwrap(), b"there before");
+        assert_eq!(std::fs::read(dir.join("p/a (2).png")).unwrap(), b"new");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     /// Save in another format keeps an Ultra HDR photo Ultra HDR in JPEG with its metadata (#66);
     /// in another format, or without the metadata, the picture alone.
