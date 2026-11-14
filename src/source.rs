@@ -571,8 +571,11 @@ mod tests {
         assert_eq!(rt.block_on(op.read("b.jpg")).unwrap_err().0, NOT_FOUND);
         assert!(rt.block_on(op.read_range("b.jpg", 0, 1)).is_err());
         assert!(rt.block_on(op.size("b.jpg")).is_err());
-        assert_eq!(take_gone(), ["b.jpg", "b.jpg", "b.jpg"]);
-        assert!(take_gone().is_empty(), "taken once");
+        // Only this test's names: other tests running at the same time (the editor's saves) put
+        // theirs in the same list, and on Windows one came between (2026-11-14, winvm).
+        let mine = || take_gone().into_iter().filter(|p| p == "b.jpg").count();
+        assert_eq!(mine(), 3);
+        assert_eq!(mine(), 0, "taken once");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
