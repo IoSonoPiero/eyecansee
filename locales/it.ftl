@@ -906,6 +906,8 @@ save-extra = Le modifiche non si possono salvare sopra **{ $detail }**: contiene
 save-temp-copy = Questa immagine **non si può salvare sopra se stessa**: è una copia temporanea che Windows ha fatto aprendo il file da un telefono o da un altro dispositivo, non il file che sta lì. Salvarci sopra cambierebbe solo la copia, che Windows può cancellare. Usa **Salva come…** per tenere le modifiche.
 save-gvfs = Qui le immagini **non si possono salvare sopra se stesse**: questa cartella è aperta tramite il file manager (gvfs), dove sostituire un file può far perdere l'originale.
 save-no-rename = Qui le immagini **non si possono salvare sopra se stesse**: questa sorgente non sa rinominare i file.
+batch-turn-videos = I **video** non vengono ricodificati: cambia solo la rotazione che leggono i lettori, in pochi secondi e senza perdite.
+off-video-flip = Un video qui si può solo ruotare: per rifletterlo usa Converti….
 batch-animated = I file **animati**, **multipagina**, le **foto in movimento** e le foto con una **mappa di profondità** (i ritratti di alcuni telefoni) vengono saltati: salvandoci sopra quelle parti andrebbero perse. Le foto Ultra HDR vengono ruotate insieme alla loro mappa HDR, e al loro video se sono anche foto in movimento.
 batch-skipped-names = Saltate perché animate, multipagina, foto in movimento o con una mappa di profondità:
 # $op is the id of the menu item of the change (tf-…).
