@@ -31,7 +31,11 @@ pub(crate) fn jpeg(img: &DynamicImage, o: &Options, b: &Blocks) -> Result<Vec<u8
     c.set_arithmetic(o.arithmetic).map_err(tj)?;
     c.set_lossless(o.jpeg_lossless).map_err(tj)?;
     let image = turbojpeg::Image { pixels: rgb.as_raw().as_slice(), width: w, pitch: w * 3, height: h, format: turbojpeg::PixelFormat::RGB };
-    let file = c.compress_to_vec(image).map_err(tj)?;
+    let mut file = c.compress_to_vec(image).map_err(tj)?;
+    // The original JPEG's density in place of libjpeg-turbo's 1:1 without unit.
+    if let Some(d) = b.jfif {
+        crate::encode::jfif::set(&mut file, d);
+    }
     Ok(jpeg_meta(file, b))
 }
 

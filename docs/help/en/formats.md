@@ -125,6 +125,7 @@ The metadata (EXIF, XMP, IPTC, colour profile) can be kept in JPEG, PNG, WebP, A
 - **XMP and IPTC** (author, copyright, licence, descriptions, keywords) are kept in JPEG, PNG and TIFF; WebP and AVIF have no place for IPTC, so its fields go into the XMP. They are read from JPEG, PNG, WebP, TIFF, HEIC, AVIF, PSD and PSB, and the XMP also from RAW files. The sizes and orientation in the XMP are updated; the thumbnails stored by cameras and Photoshop and the Lightroom and Camera Raw settings (a crop and adjustments already in the pixels) are left out.
 - The rare formats read through ImageMagick give the EXIF, XMP, IPTC and colour profile ImageMagick finds in them (the profile only when it is RGB, like the pixels written); GIMP files (XCF) only their colour profile, since GIMP keeps the rest in a form of its own.
 - The EXIF orientation is set to upright, since the saved pixels are already turned.
+- A JPEG saved again as JPEG keeps the resolution of the original (for example 600 dpi) and its unit.
 
 ## Saving videos, 3D models and drawings
 
