@@ -22,6 +22,9 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Smoother playback of 4K/60 videos ([#17](https://github.com/IoSonoPiero/eyecansee/issues/17)).
 - Convert: keep the FFmpeg encoder check between starts instead of running it again each time ([#112](https://github.com/IoSonoPiero/eyecansee/issues/112)).
 - Video engine on Linux: move to the current mpv and FFmpeg releases ([#117](https://github.com/IoSonoPiero/eyecansee/issues/117)).
+- Convert audio files to MP3, AAC, Opus, FLAC, WAV or Ogg, many at once, keeping their tags ([#120](https://github.com/IoSonoPiero/eyecansee/issues/120)).
+- Rotate a video as a photo, without converting it ([#125](https://github.com/IoSonoPiero/eyecansee/issues/125)).
+- Viewer: play the video of motion photos ([#123](https://github.com/IoSonoPiero/eyecansee/issues/123)).
 
 ### Devices and servers
 
@@ -38,6 +41,9 @@ The order is indicative: features arrive when they are ready and tested on real 
 - PDF: images to a PDF, and a PDF to images ([#22](https://github.com/IoSonoPiero/eyecansee/issues/22)).
 - 3D models and CAD drawings: materials beyond the base colour and its texture ([#23](https://github.com/IoSonoPiero/eyecansee/issues/23)).
 - Read the .xmp sidecar files next to RAW photos ([#24](https://github.com/IoSonoPiero/eyecansee/issues/24)).
+- Viewer: play animated GIF, WebP and APNG images ([#121](https://github.com/IoSonoPiero/eyecansee/issues/121)).
+- Viewer: move between the pages of multi-page images ([#122](https://github.com/IoSonoPiero/eyecansee/issues/122)).
+- Viewer: show HDR photos in HDR on screens that support it ([#124](https://github.com/IoSonoPiero/eyecansee/issues/124)).
 
 ### Browsing and editing
 
@@ -46,6 +52,9 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Prepare for sharing: resize, convert, remove metadata and stay under a file size, in one step ([#115](https://github.com/IoSonoPiero/eyecansee/issues/115)).
 - Output profiles: saved settings applied the same way to a series of images ([#116](https://github.com/IoSonoPiero/eyecansee/issues/116)).
 - Resize many images from the right-click menu: presets with one click, and more ways to give the size ([#119](https://github.com/IoSonoPiero/eyecansee/issues/119)).
+- Restore from the trash in the File and Edit menus ([#126](https://github.com/IoSonoPiero/eyecansee/issues/126)).
+- Save as: choose the folder ([#127](https://github.com/IoSonoPiero/eyecansee/issues/127)).
+- Export as 3D model and Export drawing in the same places, working the same way ([#128](https://github.com/IoSonoPiero/eyecansee/issues/128)).
 - Open an image from the clipboard ([#57](https://github.com/IoSonoPiero/eyecansee/issues/57)).
 - Image editor: recent work kept, recovered after a crash, resumed later ([#59](https://github.com/IoSonoPiero/eyecansee/issues/59)).
 - Archives: zip and 7z opened as read-only folders first, then creating zip archives ([#26](https://github.com/IoSonoPiero/eyecansee/issues/26)).
