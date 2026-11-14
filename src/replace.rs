@@ -164,7 +164,28 @@ pub(crate) async fn replace_keeping(op: &Store, path: &str, data: Vec<u8>, how: 
     replace_as(op, path, data, how, true).await
 }
 
+/// As `replace`, the new file a local `file`, sent a MB at a time: a video turned (#125), too
+/// large to hold in memory.
+pub(crate) async fn replace_with_file(op: &Store, path: &str, file: &std::path::Path, how: source::Deletion) -> Result<(), source::Error> {
+    can_replace(op, path)?;
+    source::SAVING.lock().unwrap().insert(path.to_string());
+    let write = |new: String| async move { crate::batch::upload(op, &new, file, || false, |_| {}).await.map_err(|e| ("error-detail", e.to_string())) };
+    let r = swap(op, path, write, how, false).await;
+    source::SAVING.lock().unwrap().remove(path);
+    r
+}
+
 async fn replace_as(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion, strict: bool) -> Result<(), source::Error> {
+    can_replace(op, path)?;
+    source::SAVING.lock().unwrap().insert(path.to_string());
+    let size = data.len() as u64;
+    let r = swap(op, path, |new| async move { op.write_chunks(&new, size, whole(data)).await }, how, strict).await;
+    source::SAVING.lock().unwrap().remove(path);
+    r
+}
+
+/// Whether `path` can be saved over here (`replace`).
+fn can_replace(op: &Store, path: &str) -> Result<(), source::Error> {
     if !op.can_rename() {
         return Err(("error-rename-unsupported", path.to_string()));
     }
@@ -178,11 +199,7 @@ async fn replace_as(op: &Store, path: &str, data: Vec<u8>, how: source::Deletion
     if let Some(file) = op.local_file(path) {
         local::writable(&file)?;
     }
-    source::SAVING.lock().unwrap().insert(path.to_string());
-    let size = data.len() as u64;
-    let r = swap(op, path, |new| async move { op.write_chunks(&new, size, whole(data)).await }, how, strict).await;
-    source::SAVING.lock().unwrap().remove(path);
-    r
+    Ok(())
 }
 
 /// The new file written by `write` (given its hidden name) and put in the place of the original,
