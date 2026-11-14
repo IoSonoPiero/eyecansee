@@ -32,7 +32,7 @@ Tick **100%** to see the real pixels. Then drag either image to move both, so yo
 
 If the name is already taken in that folder, " (2)" is added, and the page tells you before you save. Once saved, the page closes.
 
-Opened from the viewer, the viewer then shows the new file, already turned or flipped as you left it. The original stays as it is on disk: it is no longer marked as modified, and closing asks nothing. If you saved into another folder, the viewer stays on the original and a message says where the new file is. If you close the page without saving, or saving fails, the viewer stays as it was, turns included.
+Opened from the viewer, the viewer then shows the new file, already turned or flipped as you left it. The original stays as it is on disk: it is no longer marked as modified, and closing asks nothing. If you saved into another folder, the viewer stays on the original and a message says where the new file is. If you close the page without saving, or saving fails, the viewer stays as it was, turns included. The same holds when you open it from the editor started in the viewer: once the file is saved the editor closes, and the viewer does as above.
 
 **Esc** or the ✕ of the window closes the page without saving.
 

@@ -32,7 +32,7 @@ Spunta **100%** per vedere i pixel veri. Poi trascina una delle due immagini per
 
 Se il nome è già preso in quella cartella, viene aggiunto " (2)" e la pagina lo dice prima che tu salvi. Dopo il salvataggio la pagina si chiude.
 
-Se l'avevi aperta dal visore, il visore mostra poi il file nuovo, già ruotato o riflesso come l'avevi lasciato. L'originale resta com'è sul disco: non è più segnato come modificato e la chiusura non chiede niente. Se hai salvato in un'altra cartella, il visore resta sull'originale e un messaggio dice dov'è il file nuovo. Se chiudi la pagina senza salvare, o il salvataggio non riesce, il visore resta com'era, rotazioni comprese.
+Se l'avevi aperta dal visore, il visore mostra poi il file nuovo, già ruotato o riflesso come l'avevi lasciato. L'originale resta com'è sul disco: non è più segnato come modificato e la chiusura non chiede niente. Se hai salvato in un'altra cartella, il visore resta sull'originale e un messaggio dice dov'è il file nuovo. Se chiudi la pagina senza salvare, o il salvataggio non riesce, il visore resta com'era, rotazioni comprese. Lo stesso vale se la apri dall'editor aperto dal visore: appena il file è salvato l'editor si chiude, e il visore fa come qui sopra.
 
 **Esc** o la X della finestra chiudono la pagina senza salvare.
 

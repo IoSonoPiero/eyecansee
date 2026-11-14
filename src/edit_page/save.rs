@@ -354,11 +354,7 @@ impl App {
                 ctx.request_repaint();
             }
         });
-        let path = w.path.clone();
-        let mut convert = if w.new { crate::convert::Window::for_new_image(path) } else { crate::convert::Window::new(path) };
-        // Saved where the image is, as the page's own saves.
-        convert.place = w.place.clone();
-        self.convert = Some(convert);
+        self.convert = Some(w.save_as_page(self.viewing.is_some()));
         true
     }
 
@@ -445,6 +441,17 @@ impl Window {
     /// the grid to refresh for it.
     pub(crate) fn saves_elsewhere(&self, base: &str, path: &str) -> bool {
         self.place.as_ref().is_some_and(|p| p.base != base) && self.copy.paths().chain(self.overwritten.paths()).any(|p| p == path)
+    }
+
+    /// The Save as… page for the result, saved where the image is, as the page's own saves. Over
+    /// the viewer (`viewing`), the image it shows: once saved, the viewer does as after Save as…
+    /// from it (`convert::viewer_after`); not a new image, which is not that one.
+    pub(crate) fn save_as_page(&self, viewing: bool) -> crate::convert::Window {
+        let path = self.path.clone();
+        let mut convert = if self.new { crate::convert::Window::for_new_image(path) } else { crate::convert::Window::new(path) };
+        convert.place = self.place.clone();
+        convert.from_viewer = viewing && !self.new;
+        convert
     }
 
     /// Save in another format, opened from this page, ended: `true` (its file written, `saved`)
@@ -621,6 +628,24 @@ mod tests {
         w.saving_as = true;
         assert!(w.save_as_ended(true), "the file written: the page closes");
         assert!(!w.save_as_ended(true), "once: a later save elsewhere does not close it");
+    }
+
+    /// Save as… from the editor opened from the viewer does, once saved, as from the viewer
+    /// (`convert::viewer_after`); from the grid, or for a new image, not. Either way where the
+    /// image is.
+    #[test]
+    fn save_as_page_from_the_viewer() {
+        let (dir, store, _) = place("save-as-page");
+        let mut w = page(false);
+        w.place = Some(crate::edit_page::Place { store, base: "sftp://u@server/".into() });
+        let from_viewer = w.save_as_page(true);
+        assert!(from_viewer.from_viewer);
+        assert_eq!(from_viewer.path, "p/a.jpg");
+        assert_eq!(from_viewer.place.map(|p| p.base).as_deref(), Some("sftp://u@server/"));
+        assert!(!w.save_as_page(false).from_viewer, "from the grid");
+        w.new = true;
+        assert!(!w.save_as_page(true).from_viewer, "a new image is not the one the viewer shows");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     /// A page with a box drawn, its copy `p/a (edited).jpg` sent and the document marked saved
