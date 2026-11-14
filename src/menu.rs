@@ -8,7 +8,7 @@ use crate::navigation::Go;
 use crate::actions::{Act, transform_items};
 use crate::{App, icons, meta, settings, source, transform, version};
 use crate::loader::THUMB_SIDE;
-use crate::selection::{Kind, fits, starred};
+use crate::selection::{Kind, fits, none_of, starred};
 
 /// Below this width of the address bar the copy and paste buttons are left out.
 const ADDRESS_WITH_CLIP: f32 = 420.0;
@@ -66,29 +66,28 @@ impl App {
 
     fn file_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
-        entry(ui, act, true, item(t("menu-open-location"), String::new()), Act::Address);
-        entry(ui, act, true, item(t("menu-servers"), String::new()), Act::Servers);
-        entry(ui, act, self.can_make_folder(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder(None));
-        entry(ui, act, self.can_new_image(), item(t("menu-new-image"), t("key-new-image")), Act::NewImage);
+        entry(ui, act, None, item(t("menu-open-location"), String::new()), Act::Address);
+        entry(ui, act, None, item(t("menu-servers"), String::new()), Act::Servers);
+        entry(ui, act, self.new_folder_off(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder(None));
+        entry(ui, act, self.new_image_off(), item(t("menu-new-image"), t("key-new-image")), Act::NewImage);
         ui.separator();
         // Also when it cannot overwrite (FTP, gvfs, format): `ask_save` then says why and offers Save as….
-        let changed = self.viewing.is_some() && !self.turn.is_none() && self.save_ready.is_none();
-        entry(ui, act, self.can_save() || changed, item(t("menu-save"), t("key-save")), Act::Save);
+        entry(ui, act, self.save_off(), item(t("menu-save"), t("key-save")), Act::Save);
         // As in the right-click menu: in the grid one picture, in the viewer also what a 3D model
         // or a CAD drawing shows.
         let files = self.files_chosen(None);
-        let one_picture = self.viewing.is_none() && files.len() == 1 && fits(&files, &[Kind::Picture]).is_some();
         // Ctrl+Shift+S works in the viewer only.
         let keys = if self.viewing.is_some() { t("key-save-copy") } else { String::new() };
-        entry(ui, act, self.viewing_image() || one_picture, item(t("menu-save-copy"), keys), Act::Convert(None));
+        entry(ui, act, self.save_as_off(), item(t("menu-save-copy"), keys), Act::Convert(None));
         // As in the right-click menu: the 3D models among the files chosen.
         let model = fits(&files, &[Kind::Model]);
         ui.add_enabled_ui(model.is_some(), |ui| {
-            ui.menu_button((icons::menu_icon(ui, None), starred(t("menu-export-3d"), model != Some(false))), |ui| {
+            let r = ui.menu_button((icons::menu_icon(ui, None), starred(t("menu-export-3d"), model != Some(false))), |ui| {
                 for k in crate::model_export::Kind::ALL {
-                    entry(ui, act, true, item(k.label().into(), String::new()), Act::ExportModel(None, k));
+                    entry(ui, act, None, item(k.label().into(), String::new()), Act::ExportModel(None, k));
                 }
             });
+            r.response.on_disabled_hover_text(t(none_of(&[Kind::Model])));
         });
         partial_note(ui, model == Some(false), &self.i18n);
         ui.separator();
@@ -122,18 +121,15 @@ impl App {
         let fit = self.turns_fit();
         let star = |label| starred(label, fit != Some(false));
         for (op, label, keys) in transform_items() {
-            entry(ui, act, fit.is_some(), item(star(t(label)), keys.map(t).unwrap_or_default()), Act::Transform(op, None));
+            entry(ui, act, self.turn_off(), item(star(t(label)), keys.map(t).unwrap_or_default()), Act::Transform(op, None));
             if op == transform::Op::FlipV {
                 ui.separator();
             }
         }
         ui.separator();
-        let off = self.edit_off(None);
-        let ok = fit.is_some() && off.is_none();
+        let off = self.editor_off();
         for (label, keys, a) in [("menu-edit-image", t("key-edit"), Act::Edit(None)), ("menu-rotate-crop", String::new(), Act::RotateCrop(None))] {
-            let button = icons::menu_item(ui, a.icon(), star(t(label)), keys);
-            let r = ui.add_enabled(ok, button);
-            pick(act, match &off { Some(why) => r.on_disabled_hover_text(why), None => r }, a);
+            entry(ui, act, off.clone(), item(star(t(label)), keys), a);
         }
         partial_note(ui, fit == Some(false), &self.i18n);
     }
@@ -141,23 +137,21 @@ impl App {
     fn view_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
         let viewing = self.viewing.is_some();
-        let has_items = self.items() > 0;
-        entry(ui, act, !viewing && has_items && self.cursor, item(t("menu-open-selected"), t("key-enter")), Act::Open);
-        entry(ui, act, viewing, item(t("menu-back-to-grid"), "Esc".into()), Act::Back);
+        entry(ui, act, self.open_off(), item(t("menu-open-selected"), t("key-enter")), Act::Open);
+        entry(ui, act, self.back_off(), item(t("menu-back-to-grid"), "Esc".into()), Act::Back);
         // Off without pictures and videos: the rest stays out of the slideshow.
-        let show = self.files().iter().any(|f| crate::slideshow::in_show(&f.path));
-        entry(ui, act, show, item(t("menu-slideshow"), String::new()), Act::Slideshow(None));
+        entry(ui, act, self.slideshow_off(), item(t("menu-slideshow"), String::new()), Act::Slideshow(None));
         ui.separator();
         // Moving around (once a menu of its own, "Go", with only these).
-        entry(ui, act, has_items, item(t("menu-next"), "→".into()), Act::Go(Go::Next));
-        entry(ui, act, has_items, item(t("menu-prev"), "←".into()), Act::Go(Go::Prev));
-        entry(ui, act, has_items, item(t("menu-first"), t("key-home")), Act::Go(Go::First));
-        entry(ui, act, has_items, item(t("menu-last"), t("key-end")), Act::Go(Go::Last));
-        entry(ui, act, !viewing && !self.dir.is_empty(), item(t("menu-parent"), t("key-backspace")), Act::Up);
+        entry(ui, act, self.go_off(), item(t("menu-next"), "→".into()), Act::Go(Go::Next));
+        entry(ui, act, self.go_off(), item(t("menu-prev"), "←".into()), Act::Go(Go::Prev));
+        entry(ui, act, self.go_off(), item(t("menu-first"), t("key-home")), Act::Go(Go::First));
+        entry(ui, act, self.go_off(), item(t("menu-last"), t("key-end")), Act::Go(Go::Last));
+        entry(ui, act, self.parent_off(), item(t("menu-parent"), t("key-backspace")), Act::Up);
         ui.separator();
-        entry(ui, act, true, item(t("menu-refresh"), "F5".into()), Act::Refresh);
-        entry(ui, act, self.chosen(None).iter().any(|p| !p.ends_with('/')), item(t("menu-redo-thumbs"), String::new()), Act::RedoThumbs(None));
-        entry(ui, act, !viewing && has_items, item(t("menu-redo-all-thumbs"), t("key-shift-f5")), Act::RedoAllThumbs);
+        entry(ui, act, None, item(t("menu-refresh"), "F5".into()), Act::Refresh);
+        entry(ui, act, self.redo_thumbs_off(), item(t("menu-redo-thumbs"), String::new()), Act::RedoThumbs(None));
+        entry(ui, act, self.grid_off(), item(t("menu-redo-all-thumbs"), t("key-shift-f5")), Act::RedoAllThumbs);
         ui.separator();
         ui.menu_button((icons::menu_icon(ui, None), t("sort-by")), |ui| {
             for by in settings::SortBy::ALL {
@@ -172,16 +166,16 @@ impl App {
             }
         });
         ui.add_enabled_ui(!viewing, |ui| {
-            ui.menu_button((icons::menu_icon(ui, None), t("menu-meta")), |ui| {
+            let r = ui.menu_button((icons::menu_icon(ui, None), t("menu-meta")), |ui| {
                 for g in meta::Group::ALL {
                     let label = self.i18n.t(&format!("meta-{}", g.key()));
                     pick(act, ui.checkbox(&mut self.meta_shown(g), label), Act::Meta(g));
                 }
             });
+            r.response.on_disabled_hover_text(t("tb-off-viewer"));
         });
     }
 
-    /// Work on many images at once, and the settings.
     fn tools_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
         // As in the right-click menu: the same entries, greyed out with why or with "*".
@@ -189,18 +183,18 @@ impl App {
         if let Some(a) = crate::browser::context_menu(ui, self.tool_items(None, self.tools_off(), &partial)) {
             act.set(Some(a));
         }
-        entry(ui, act, self.duplicates_off().is_none(), item(t("menu-duplicates"), t("key-duplicates")), Act::Duplicates(None));
+        entry(ui, act, self.duplicates_off(), item(t("menu-duplicates"), t("key-duplicates")), Act::Duplicates(None));
         partial_note(ui, partial.get(), &self.i18n);
         ui.separator();
-        entry(ui, act, true, item(t("menu-options"), String::new()), Act::Options);
+        entry(ui, act, None, item(t("menu-options"), String::new()), Act::Options);
     }
 
     fn help_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
-        entry(ui, act, true, item(t("menu-manual"), "F1".into()), Act::Manual);
+        entry(ui, act, None, item(t("menu-manual"), "F1".into()), Act::Manual);
         ui.separator();
-        entry(ui, act, true, item(t("menu-check-updates"), String::new()), Act::CheckUpdates);
-        entry(ui, act, true, item(t("menu-about"), String::new()), Act::About);
+        entry(ui, act, None, item(t("menu-check-updates"), String::new()), Act::CheckUpdates);
+        entry(ui, act, None, item(t("menu-about"), String::new()), Act::About);
     }
 
     pub(crate) fn toolbar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
@@ -387,9 +381,14 @@ fn pick(act: &Cell<Option<Act>>, r: egui::Response, a: Act) {
     }
 }
 
-fn entry(ui: &mut egui::Ui, act: &Cell<Option<Act>>, enabled: bool, (label, keys): (String, String), a: Act) {
+/// An entry of the menu bar; greyed out with why (`off`) on hover, as in the right-click menus.
+fn entry(ui: &mut egui::Ui, act: &Cell<Option<Act>>, off: Option<String>, (label, keys): (String, String), a: Act) {
     let button = icons::menu_item(ui, a.icon(), label, keys);
-    pick(act, ui.add_enabled(enabled, button), a);
+    let r = ui.add_enabled(off.is_none(), button);
+    pick(act, match off {
+        Some(why) => r.on_disabled_hover_text(why),
+        None => r,
+    }, a);
 }
 
 /// At the bottom of a menu with an entry marked "*": what the mark means.

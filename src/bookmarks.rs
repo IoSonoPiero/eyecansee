@@ -153,7 +153,7 @@ impl App {
             let have = self.here_kept();
             let add = t(if self.viewing.is_some() { "bm-add-image" } else { "bm-add-folder" });
             let r = ui.add_enabled(self.loader.is_some() && !have, icons::menu_item(ui, None, add, String::new()));
-            if (if have { r.on_disabled_hover_text(t("bm-already")) } else { r }).clicked() {
+            if r.on_disabled_hover_text(t(if have { "bm-already" } else { "tb-off-no-folder" })).clicked() {
                 chosen = Some(Act::AddBookmark(None));
             }
         }

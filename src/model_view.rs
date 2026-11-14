@@ -96,7 +96,7 @@ impl App {
     }
 
     /// Keys of the viewer on a model: arrows turn it (held: it keeps turning), + − and 0 zoom,
-    /// Ctrl+S saves the picture. The other keys move among the files as for images.
+    /// Ctrl+Shift+S saves the picture. The other keys move among the files as for images.
     pub(crate) fn model_keys(&mut self, ctx: &egui::Context) {
         let (dx, dy, zoom, reset) = ctx.input(|i| {
             let held = |k| if i.key_down(k) && !i.modifiers.command { 1.0 } else { 0.0 };
@@ -109,7 +109,8 @@ impl App {
             let zoom = if key(Key::Plus) || key(Key::Equals) { 1.25 } else if key(Key::Minus) { 0.8 } else { 1.0 };
             ((held(Key::ArrowRight) - held(Key::ArrowLeft)) * dt, (held(Key::ArrowUp) - held(Key::ArrowDown)) * dt, zoom, key(Key::Num0))
         });
-        let save = ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::S) || i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::S));
+        // Ctrl+S is "over the original", which a model is not (File > Save says why): Ctrl+Shift+S only.
+        let save = ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::S));
         if dx != 0.0 || dy != 0.0 {
             self.model.view.turn(dx, dy);
             ctx.request_repaint();

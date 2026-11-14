@@ -6,7 +6,7 @@ EyeCanSee mostra le foto, i video, i modelli 3D e i disegni CAD di una cartella 
 
 ![Per cominciare](../img/start.webp)
 
-- **Barra dei menù** in alto: File, Modifica, Immagine, Visualizza, Segnalibri, Strumenti e Aiuto.
+- **Barra dei menù** in alto: File, Modifica, Immagine, Visualizza, Segnalibri, Strumenti e Aiuto. Passando col mouse su una voce grigia compare il motivo per cui ora non si può usare.
 - **Barra strumenti** subito sotto: i pulsanti delle operazioni più comuni, i segnalibri e la barra degli indirizzi. Passando col mouse su un pulsante compaiono il suo nome e il suo tasto; su un pulsante grigio, anche il motivo per cui ora non si può usare.
 - **Pannello laterale** a sinistra: i tuoi dischi, i telefoni, i server salvati e le cartelle di questo computer. Vedi [Cartelle e pannello laterale](folders.md).
 - **Griglia** al centro: le sottocartelle e i file della cartella aperta, come miniature. Vedi [La griglia delle miniature](grid.md).

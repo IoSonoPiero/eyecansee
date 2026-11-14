@@ -103,7 +103,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | 0 | Torna alla vista iniziale |
 | Pagina giù, Spazio | Elemento successivo |
 | Pagina su, Backspace | Elemento precedente |
-| Ctrl+S, Ctrl+Maiusc+S | Salva il modello come si vede, come immagine |
+| Ctrl+Maiusc+S | Salva il modello come si vede, come immagine (Ctrl+S, che salva sopra l'originale, su un modello è grigio) |
 | Esc | Torna alla griglia |
 
 ## Nel visore: disegni CAD

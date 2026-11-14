@@ -28,5 +28,5 @@ Ogni file viene scritto con l'asse verso l'alto che si aspettano gli altri progr
 
 ## Da sapere
 
-- Per salvare invece un modello come immagine, vedi [Modelli 3D](model-3d.md) (Ctrl+S nel visore).
+- Per salvare invece un modello come immagine, vedi [Modelli 3D](model-3d.md) (Ctrl+Maiusc+S nel visore).
 - I modelli che EyeCanSee apre sono elencati in [Formati supportati](formats.md).

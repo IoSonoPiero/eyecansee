@@ -6,7 +6,7 @@ EyeCanSee shows the pictures, videos, 3D models and CAD drawings of a folder as 
 
 ![Getting started](../img/start.webp)
 
-- **Menu bar** at the top: File, Edit, Image, View, Bookmarks, Tools and Help.
+- **Menu bar** at the top: File, Edit, Image, View, Bookmarks, Tools and Help. A greyed-out entry says why it cannot be used now when you point at it.
 - **Toolbar** under it: the buttons for the most common operations, the bookmarks and the address bar. Pointing at a button shows its name and its key; on a greyed-out button it also says why it cannot be used now.
 - **Side panel** on the left: your disks, phones and saved servers, and the folders of this computer. See [Folders and the side panel](folders.md).
 - **Grid** in the middle: the subfolders and the files of the open folder, as thumbnails. See [The thumbnail grid](grid.md).

@@ -123,11 +123,12 @@ impl App {
 
     /// Transform: flips and turns (in the viewer shown until saved, in the grid saved straight
     /// away), then Rotate and crop.
-    fn turn_items(&self, path: Option<String>, in_viewer: bool) -> Vec<MenuItem> {
+    fn turn_items(&self, path: Option<String>) -> Vec<MenuItem> {
         let t = |id| self.i18n.t(id);
         let mut turns = Vec::new();
         for (op, label, keys) in crate::actions::transform_items() {
-            turns.push(Some((t(label), if in_viewer { keys.map(t).unwrap_or_default() } else { String::new() }, Act::Transform(op, path.clone()))));
+            // Ctrl+R and Ctrl+Shift+R work in the grid too (`turn_keys`).
+            turns.push(Some((t(label), keys.map(t).unwrap_or_default(), Act::Transform(op, path.clone()))));
             if op == crate::transform::Op::FlipV {
                 turns.push(None);
             }
@@ -193,16 +194,18 @@ impl App {
             Some(why) => Act::Off(why),
             None => Act::Edit(path.clone()),
         };
-        items.push(entry(&[Kind::Picture], "menu-edit-image", if in_viewer { t("key-edit") } else { String::new() }, edit));
-        items.push(entry(&[Kind::Picture], "menu-transform", String::new(), Act::Submenu(self.turn_items(path.clone(), in_viewer))));
-        if in_viewer && self.can_save() {
-            items.push(Some((t("menu-save"), t("key-save"), Act::Save)));
+        // Ctrl+E works in the grid too (`global_keys`).
+        items.push(entry(&[Kind::Picture], "menu-edit-image", t("key-edit"), edit));
+        items.push(entry(&[Kind::Picture], "menu-transform", String::new(), Act::Submenu(self.turn_items(path.clone()))));
+        // In the viewer always there, as in File: greyed out with why when there is nothing to save.
+        if in_viewer {
+            items.push(Some((t("menu-save"), t("key-save"), self.save_off().map_or(Act::Save, Act::Off))));
         }
         // One file: a picture, or in the viewer what is shown (a 3D model from its side, the
         // layout of a drawing open). In the grid a drawing is exported, a model saved as a model.
         let save_as: &[Kind] = if in_viewer { &[Kind::Picture, Kind::Model, Kind::Drawing] } else { &[Kind::Picture] };
         let convert = if files.len() > 1 { Act::Off(t("tb-off-one-picture")) } else { Act::Convert(path.clone()) };
-        items.push(entry(save_as, "menu-save-copy", String::new(), convert));
+        items.push(entry(save_as, "menu-save-copy", if in_viewer { t("key-save-copy") } else { String::new() }, convert));
         let kinds = crate::model_export::Kind::ALL.iter().map(|&k| Some((k.label().to_string(), String::new(), Act::ExportModel(path.clone(), k)))).collect();
         items.push(entry(&[Kind::Model], "menu-export-3d", String::new(), Act::Submenu(kinds)));
         if !in_viewer {

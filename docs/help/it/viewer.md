@@ -48,7 +48,7 @@ Il pulsante **Tasti** a destra elenca i tasti di ciò che stai guardando (una fo
 
 ## La barra strumenti nel visore
 
-La barra strumenti tiene solo ciò che lavora sulla foto mostrata: ![Rinomina…](icon://text-cursor-input) **Rinomina…**, ![Elimina…](icon://trash) **Elimina…**, ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square) per ruotarla, ![Modifica immagine…](icon://square-pen) **Modifica immagine…**, ![Salva](icon://save) **Salva** e ![Salva come…](icon://file-output) **Salva come…**, poi i segnalibri e la barra degli indirizzi. Nuova cartella, taglia, copia, incolla e gli strumenti sono per la griglia; restano nei menù.
+La barra strumenti tiene solo ciò che lavora sulla foto mostrata: ![Rinomina…](icon://text-cursor-input) **Rinomina…**, ![Elimina…](icon://trash) **Elimina…**, ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square) per ruotarla, ![Modifica immagine…](icon://square-pen) **Modifica immagine…**, ![Salva](icon://save) **Salva** e ![Salva come…](icon://file-output) **Salva come…**, poi i segnalibri e la barra degli indirizzi. Nuova cartella, taglia, copia, incolla e gli strumenti sono per la griglia; restano nei menù. Su un video o un file audio i pulsanti per le immagini restano al loro posto, grigi: passando col mouse su uno compare il motivo.
 
 ## Schermo intero
 

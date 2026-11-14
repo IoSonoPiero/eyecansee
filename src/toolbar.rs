@@ -7,7 +7,7 @@ use eframe::egui;
 use crate::actions::Act;
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
-use crate::selection::{CONVERTED, Kind, fits};
+use crate::selection::{CONVERTED, fits};
 use crate::{App, source, transform};
 
 /// The address is never narrower than this because of the icons: Image and Tools go into the
@@ -27,37 +27,21 @@ struct Op {
 impl App {
     fn file_ops(&self) -> Vec<Op> {
         let t = |id| self.i18n.t(id);
-        let viewing = self.viewing.is_some();
-        let chosen = self.chosen(None);
-        let nothing = || t("tb-off-nothing");
-        let some = (!chosen.is_empty()).then_some(()).ok_or_else(nothing);
-        let can_change = self.target().is_some();
-        let paste = match () {
-            _ if viewing => Some(t("tb-off-viewer")),
-            _ if self.clip.is_none() => Some(t("tb-off-paste")),
-            _ if !self.can_paste(&self.dir) => Some(t("tb-off-paste-here")),
-            _ => None,
-        };
-        let rename = match () {
-            _ if chosen.len() > 1 => Some(t("rename-one-only")),
-            _ if !can_change => Some(nothing()),
-            _ => None,
-        };
         let (rename, delete) = (
-            Op { icon: Line::Rename, label: "menu-rename", keys: "F2".into(), act: Act::Rename(None), off: rename },
-            Op { icon: Line::Delete, label: "menu-delete", keys: t("key-delete"), act: Act::Delete(None, false), off: off(can_change, nothing) },
+            Op { icon: Line::Rename, label: "menu-rename", keys: "F2".into(), act: Act::Rename(None), off: self.rename_off() },
+            Op { icon: Line::Delete, label: "menu-delete", keys: t("key-delete"), act: Act::Delete(None, false), off: self.delete_off() },
         );
         // In the viewer only what works on the image shown: making folders, cutting, copying and
         // pasting files are for the grid; they stay in the menus.
-        if viewing {
+        if self.viewing.is_some() {
             return vec![rename, delete];
         }
         vec![
-            Op { icon: Line::NewFolder, label: "menu-new-folder", keys: t("key-new-folder"), act: Act::NewFolder(None), off: off(self.can_make_folder(), || t("tb-off-folder")) },
+            Op { icon: Line::NewFolder, label: "menu-new-folder", keys: t("key-new-folder"), act: Act::NewFolder(None), off: self.new_folder_off() },
             // Cut before Copy, as Explorer and the Edit menu.
-            Op { icon: Line::Cut, label: "menu-cut", keys: t("key-cut"), act: Act::Cut(None), off: some.clone().err() },
-            Op { icon: Line::Copy, label: "menu-copy", keys: t("key-copy"), act: Act::Copy(None), off: some.err() },
-            Op { icon: Line::Paste, label: "menu-paste", keys: t("key-paste"), act: Act::Paste(None), off: paste },
+            Op { icon: Line::Cut, label: "menu-cut", keys: t("key-cut"), act: Act::Cut(None), off: self.clip_off() },
+            Op { icon: Line::Copy, label: "menu-copy", keys: t("key-copy"), act: Act::Copy(None), off: self.clip_off() },
+            Op { icon: Line::Paste, label: "menu-paste", keys: t("key-paste"), act: Act::Paste(None), off: self.paste_off() },
             rename,
             delete,
         ]
@@ -67,21 +51,14 @@ impl App {
         let t = |id| self.i18n.t(id);
         let viewing = self.viewing.is_some();
         // As the Image menu: in the viewer the picture shown, in the grid the pictures chosen.
-        let fit = self.turns_fit();
-        let no_picture = || t(if viewing { "tb-off-not-picture" } else { "tb-off-no-picture" });
-        let turn = off(fit.is_some(), no_picture);
-        let edit = turn.clone().or_else(|| self.edit_off(None));
-        let changed = viewing && !self.turn.is_none() && self.save_ready.is_none();
-        let files = self.files_chosen(None);
-        let one_picture = !viewing && files.len() == 1 && fits(&files, &[Kind::Picture]).is_some();
-        let rotate = |op, icon, label, keys| Op { icon, label, keys: t(keys), act: Act::Transform(op, None), off: turn.clone() };
+        let rotate = |op, icon, label, keys| Op { icon, label, keys: t(keys), act: Act::Transform(op, None), off: self.turn_off() };
         vec![
             rotate(transform::Op::Ccw, Line::RotateCcw, "tf-rotate-ccw", "key-rotate-ccw"),
             rotate(transform::Op::Cw, Line::RotateCw, "tf-rotate-cw", "key-rotate-cw"),
-            Op { icon: Line::Edit, label: "menu-edit-image", keys: t("key-edit"), act: Act::Edit(None), off: edit },
-            Op { icon: Line::Save, label: "menu-save", keys: t("key-save"), act: Act::Save, off: off(self.can_save() || changed, || t("tb-off-save")) },
+            Op { icon: Line::Edit, label: "menu-edit-image", keys: t("key-edit"), act: Act::Edit(None), off: self.editor_off() },
+            Op { icon: Line::Save, label: "menu-save", keys: t("key-save"), act: Act::Save, off: self.save_off() },
             // Ctrl+Shift+S works in the viewer only.
-            Op { icon: Line::SaveAs, label: "menu-save-copy", keys: if viewing { t("key-save-copy") } else { String::new() }, act: Act::Convert(None), off: off(self.viewing_image() || one_picture, || t("tb-off-one-picture")) },
+            Op { icon: Line::SaveAs, label: "menu-save-copy", keys: if viewing { t("key-save-copy") } else { String::new() }, act: Act::Convert(None), off: self.save_as_off() },
         ]
     }
 
@@ -149,10 +126,6 @@ impl App {
             self.act = chosen;
         }
     }
-}
-
-fn off(on: bool, why: impl FnOnce() -> String) -> Option<String> {
-    (!on).then(why)
 }
 
 /// "Name (keys)".

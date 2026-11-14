@@ -106,6 +106,7 @@ mod navigation;
 mod occt;
 mod new_folder;
 mod new_image;
+mod off;
 mod paint;
 mod presets;
 mod psd;

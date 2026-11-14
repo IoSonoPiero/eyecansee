@@ -103,7 +103,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | 0 | Back to the starting view |
 | Page Down, Space | Next item |
 | Page Up, Backspace | Previous item |
-| Ctrl+S, Ctrl+Shift+S | Save the model as it is shown, as an image |
+| Ctrl+Shift+S | Save the model as it is shown, as an image (Ctrl+S, which saves over the original, is greyed out on a model) |
 | Esc | Back to the grid |
 
 ## In the viewer: CAD drawings

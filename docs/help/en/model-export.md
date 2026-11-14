@@ -28,5 +28,5 @@ Each file is written with the up axis other programs expect: Z for STL and PLY, 
 
 ## Good to know
 
-- To save a model as a picture instead, see [3D models](model-3d.md) (Ctrl+S in the viewer).
+- To save a model as a picture instead, see [3D models](model-3d.md) (Ctrl+Shift+S in the viewer).
 - The models EyeCanSee opens are listed in [Supported formats](formats.md).

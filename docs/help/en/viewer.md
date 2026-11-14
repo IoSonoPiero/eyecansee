@@ -48,7 +48,7 @@ The **Keys** button on the right lists the keys of what you are looking at (a pi
 
 ## The toolbar in the viewer
 
-The toolbar keeps only what works on the picture shown: ![Rename…](icon://text-cursor-input) **Rename…**, ![Delete…](icon://trash) **Delete…**, ![Rotate 90° anticlockwise](icon://rotate-ccw-square) and ![Rotate 90° clockwise](icon://rotate-cw-square) to turn it, ![Edit image…](icon://square-pen) **Edit image…**, ![Save](icon://save) **Save** and ![Save as…](icon://file-output) **Save as…**, then the bookmarks and the address bar. New folder, cut, copy, paste and the tools are for the grid; they stay in the menus.
+The toolbar keeps only what works on the picture shown: ![Rename…](icon://text-cursor-input) **Rename…**, ![Delete…](icon://trash) **Delete…**, ![Rotate 90° anticlockwise](icon://rotate-ccw-square) and ![Rotate 90° clockwise](icon://rotate-cw-square) to turn it, ![Edit image…](icon://square-pen) **Edit image…**, ![Save](icon://save) **Save** and ![Save as…](icon://file-output) **Save as…**, then the bookmarks and the address bar. New folder, cut, copy, paste and the tools are for the grid; they stay in the menus. On a video or an audio file the buttons for pictures stay in their place, greyed out: pointing at one says why.
 
 ## Full screen
 
