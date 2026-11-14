@@ -29,7 +29,9 @@ pub(super) fn slider(ui: &mut egui::Ui, salt: &str, label: String, slider: egui:
         if !label.is_empty() {
             ui.label(label);
         }
-        ui.add(slider)
+        // Clamped only when the user changes it: by default egui rounds and clamps the value
+        // each time it is drawn, so a width or angle with a fraction changed by itself.
+        ui.add(slider.clamping(egui::SliderClamping::Edits))
     });
     let width = r.response.rect.width();
     ui.data_mut(|d| d.insert_temp(id, width));
@@ -138,4 +140,26 @@ pub(super) fn bubble(ui: &mut egui::Ui, style: &mut Style, long: f32, i18n: &I18
     ui.label(i18n.t("edit-letters"));
     colours(ui, &mut style.ink, i18n);
     slider(ui, "edit-letters", String::new(), egui::Slider::new(&mut style.letters, 4.0..=(long / 4.0).max(100.0)).integer().suffix(" px"));
+}
+
+#[cfg(test)]
+mod tests {
+    use eframe::egui;
+
+    /// A value with a fraction (a width from the remembered styles, an angle on a straightened
+    /// image) stays as it is when its whole-number slider is drawn: rounded and written back, the
+    /// object changed by itself and each Undo made a step of its own (the pasted piece, 2026-11-14).
+    #[test]
+    fn drawing_keeps_a_fraction() {
+        let ctx = egui::Context::default();
+        let mut v = 2.37_f32;
+        for _ in 0..3 {
+            ctx.run_ui(Default::default(), |ui| {
+                super::slider(ui, "t", String::new(), egui::Slider::new(&mut v, 0.0..=10.0).integer());
+            })
+            .textures_delta
+            .clear();
+        }
+        assert_eq!(v, 2.37);
+    }
 }
