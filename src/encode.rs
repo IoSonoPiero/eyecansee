@@ -312,8 +312,10 @@ impl Original {
         self
     }
 
+    /// Has something "Keep the metadata" keeps: a pixel density alone counts too, so that it can
+    /// be left out.
     pub fn has_meta(&self) -> bool {
-        self.exif.is_some() || self.icc.is_some() || self.xmp.is_some() || self.irb.is_some()
+        self.exif.is_some() || self.icc.is_some() || self.xmp.is_some() || self.irb.is_some() || self.density.is_some()
     }
 
     /// The metadata for a `format` file of `w` × `h` pixels: sizes set, the old thumbnails out

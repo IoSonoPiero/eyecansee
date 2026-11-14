@@ -536,10 +536,13 @@ mod tests {
         assert_eq!(of_exif(&open(&webp, Format::Webp).exif.unwrap()), Some(DPI600));
     }
 
-    /// Without "Keep the metadata" no density is written, as no other metadata.
+    /// Without "Keep the metadata" no density is written, as no other metadata; an original
+    /// with a density alone has metadata to keep (Save in another format lets it be left out).
     #[test]
     fn not_without_metadata() {
         let original = open(&source(Format::Png, Some(DPI600)), Format::Png);
+        assert!(original.has_meta());
+        assert!(!open(&source(Format::Png, None), Format::Png).has_meta());
         for t in WRITTEN {
             let out = original.encode(&Options { keep_meta: false, ..opts(t) }).unwrap();
             assert_eq!(of(&out, t), None, "{t:?}");
