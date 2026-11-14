@@ -18,7 +18,8 @@ type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 // ponytail: 8192 is supported by any recent GPU; viewing larger photos at 100% needs tiling
 const MAX_SIDE: u32 = 8192;
 
-/// Vector images without a useful size (24 px icons) are rasterised at this long side.
+/// Every vector image (SVG) is rasterised at this long side, whatever size it declares: a 24 px
+/// icon and a 10000 px poster alike (the file's own size is in `svg_header`).
 const SVG_SIDE: f32 = 2048.0;
 
 const HEIF: &[&str] = &["heic", "heif", "hif", "avif"];
