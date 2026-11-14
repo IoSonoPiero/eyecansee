@@ -55,8 +55,9 @@ pub struct Window {
     browse: bool,
     /// The folder chooser, open over the page.
     picker: Option<crate::folder_pick::Picker>,
-    /// Opened from the viewer: once saved, the viewer shows the new file (`viewer_after`).
-    from_viewer: bool,
+    /// Opened from the viewer, or from the editor opened from it: once saved, the viewer shows
+    /// the new file, or stays and says where it is (`viewer_after`).
+    pub(crate) from_viewer: bool,
 }
 
 impl Window {
@@ -152,10 +153,8 @@ impl crate::App {
                 let from_viewer = w.as_ref().is_some_and(|w| w.from_viewer);
                 let shown = w.as_ref().map_or_else(|| path.clone(), |w| crate::navigation::shown(w.dest_base(&self.base), &path));
                 self.save_as_format = w.map(|w| w.options.format).or(self.save_as_format);
-                if let Some(after) = viewer_after(from_viewer, Some(&path), here, &self.dir) {
-                    self.viewer_saved_as(after, &path, &shown);
-                }
-                // Opened from the editor: the page under it closes now that the file is written.
+                // Opened from the editor: the page under it closes now that the file is written,
+                // before the viewer under it changes and says where the file went.
                 if self.editor.as_mut().is_some_and(|w| w.save_as_ended(true)) {
                     self.editor = None;
                     log!("edit: page closed after Save as…, viewing {:?}", self.viewing);
@@ -164,6 +163,9 @@ impl crate::App {
                     // Saved elsewhere, a copy saved before it is not selected either (issue #98):
                     // the viewer stays on the image edited.
                     self.select_after = (here && crate::source::parent(&path) == self.dir).then(|| path.clone());
+                }
+                if let Some(after) = viewer_after(from_viewer, Some(&path), here, &self.dir) {
+                    self.viewer_saved_as(after, &path, &shown);
                 }
                 if here {
                     self.relist(crate::source::parent(&path));
@@ -401,8 +403,9 @@ enum ViewerAfter {
     Stay,
 }
 
-/// The viewer after Save as…: `None` when opened elsewhere (the grid, the editor) or nothing
-/// was saved (`saved` none: cancelled or failed), which leaves it as it was.
+/// The viewer after Save as…, opened from it or from the editor opened from it (`from_viewer`):
+/// `None` when opened elsewhere (the grid, the editor opened from the grid) or nothing was saved
+/// (`saved` none: cancelled or failed), which leaves it as it was.
 fn viewer_after(from_viewer: bool, saved: Option<&str>, here: bool, open_dir: &str) -> Option<ViewerAfter> {
     let path = saved.filter(|_| from_viewer)?;
     Some(if here && crate::source::parent(path) == open_dir { ViewerAfter::Show } else { ViewerAfter::Stay })
@@ -653,9 +656,9 @@ mod tests {
         }
     }
 
-    /// Save as… from the viewer: beside the original the viewer goes to the new file; in another
-    /// folder or place it stays, and says where; cancelled or failed, or opened from the grid or
-    /// the editor, nothing changes.
+    /// Save as… from the viewer, or from the editor opened from it: beside the original the viewer
+    /// goes to the new file; in another folder or place it stays, and says where; cancelled or
+    /// failed, or opened from the grid or the editor opened from the grid, nothing changes.
     #[test]
     fn viewer_after_save_as() {
         assert_eq!(viewer_after(true, Some("p/a.jpg"), true, "p/"), Some(ViewerAfter::Show));
