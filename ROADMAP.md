@@ -21,6 +21,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Full screen: hide the video controls too until the mouse moves ([#43](https://github.com/IoSonoPiero/eyecansee/issues/43)).
 - Smoother playback of 4K/60 videos ([#17](https://github.com/IoSonoPiero/eyecansee/issues/17)).
 - Convert: keep the FFmpeg encoder check between starts instead of running it again each time ([#112](https://github.com/IoSonoPiero/eyecansee/issues/112)).
+- Windows: the Convert window narrow the first time, while FFmpeg checks the encoders ([#136](https://github.com/IoSonoPiero/eyecansee/issues/136)).
 - Video engine on Linux: move to the current mpv and FFmpeg releases ([#117](https://github.com/IoSonoPiero/eyecansee/issues/117)).
 - Convert audio files to MP3, AAC, Opus, FLAC, WAV or Ogg, many at once, keeping their tags ([#120](https://github.com/IoSonoPiero/eyecansee/issues/120)).
 - Rotate a video as a photo, without converting it ([#125](https://github.com/IoSonoPiero/eyecansee/issues/125)).
@@ -53,6 +54,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Image editor: rotate, flip, size and arrange a pasted piece of image ([#132](https://github.com/IoSonoPiero/eyecansee/issues/132)).
 - Image editor: light and colour corrections (exposure, saturation, automatic levels, colour temperature, invert) ([#60](https://github.com/IoSonoPiero/eyecansee/issues/60)).
 - Save in another format: a Cancel button ([#106](https://github.com/IoSonoPiero/eyecansee/issues/106)).
+- Convert and resize: a clearer summary when the work is done ([#134](https://github.com/IoSonoPiero/eyecansee/issues/134)).
 - Prepare for sharing: resize, convert, remove metadata and stay under a file size, in one step ([#115](https://github.com/IoSonoPiero/eyecansee/issues/115)).
 - Output profiles: saved settings applied the same way to a series of images ([#116](https://github.com/IoSonoPiero/eyecansee/issues/116)).
 - Resize many images from the right-click menu: presets with one click, and more ways to give the size ([#119](https://github.com/IoSonoPiero/eyecansee/issues/119)).
@@ -63,6 +65,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Open an image from the clipboard ([#57](https://github.com/IoSonoPiero/eyecansee/issues/57)).
 - Image editor: recent work kept, recovered after a crash, resumed later ([#59](https://github.com/IoSonoPiero/eyecansee/issues/59)).
 - Archives: zip and 7z opened as read-only folders first, then creating zip archives ([#26](https://github.com/IoSonoPiero/eyecansee/issues/26)).
+- Thumbnails: invert the selection ([#135](https://github.com/IoSonoPiero/eyecansee/issues/135)).
 - Rename several files at once ([#27](https://github.com/IoSonoPiero/eyecansee/issues/27)).
 - Metadata editor for EXIF and GPS ([#28](https://github.com/IoSonoPiero/eyecansee/issues/28)).
 - Similar images (the same photo resized or recompressed) ([#29](https://github.com/IoSonoPiero/eyecansee/issues/29)).
