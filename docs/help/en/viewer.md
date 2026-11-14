@@ -28,6 +28,10 @@ Animated GIF, WebP and PNG (APNG) pictures play in the viewer, over and over. **
 
 A TIFF with several pages (a scanned document, a fax) opens on its first page. **Page Down** and **Page Up** turn the pages, as do the arrows in the bar at the bottom, which shows the page (for example Page 2 / 5, also in the status bar); past the last page Page Down goes to the next file, and before the first Page Up to the previous one. Each page is fitted to the window.
 
+## Motion photos
+
+A motion photo (Google Pixel, Samsung, Xiaomi and other phones) carries a short video recorded with the photo. The viewer shows the photo with a **Play motion** button at the bottom; the button or **Space** plays the video once, with the bar of a [video](video.md), then the photo comes back. The video needs the video engine, as all videos do.
+
 ## Zooming
 
 - The **mouse wheel** zooms in and out around the pointer; **+** and **−** around the middle of the window. On a touchpad, pinch.

@@ -59,6 +59,9 @@ impl App {
                 Msg::Frames(path, seq) => {
                     self.frames.read.insert(path, seq);
                 }
+                Msg::Motion(path, video) => {
+                    self.motion.read.insert(path, video);
+                }
                 Msg::Original(r) => self.convert_original(ctx, r),
                 Msg::EditPrepared(path, r) => self.on_edit_prepared(path, r),
                 Msg::EditWritten(path, mark, over) => self.on_edit_written(path, mark, over),

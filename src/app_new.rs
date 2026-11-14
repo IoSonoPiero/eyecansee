@@ -122,6 +122,7 @@ impl App {
             editor: None,
             animated: Default::default(),
             frames: Default::default(),
+            motion: Default::default(),
             duplicates: None,
             batch: None,
             batch_form: None,

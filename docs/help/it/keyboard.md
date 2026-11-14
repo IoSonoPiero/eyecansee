@@ -66,6 +66,7 @@ Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositiv
 | ←, Backspace, Pagina su | Immagine precedente |
 | Inizio, Fine | Prima, ultima immagine |
 | Spazio (su un'animazione) | La mette in pausa e la fa ripartire |
+| Spazio (su una foto in movimento) | Riproduce il suo video |
 | Pagina giù, Pagina su (su un TIFF con più pagine) | Pagina successiva, precedente |
 | Esc | Torna alla griglia (a schermo intero prima esce dallo schermo intero) |
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |

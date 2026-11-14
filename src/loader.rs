@@ -76,6 +76,8 @@ pub enum Msg {
     Animated(String),
     /// The frames or pages of such an image, to play or turn in the viewer (`frames::read`).
     Frames(String, Arc<crate::frames::Sequence>),
+    /// The video of a Motion Photo read by the viewer (`motion::video_start`), to play it there.
+    Motion(String, Arc<Vec<u8>>),
     /// The image encoded with the options of `generation`, and the encoded file decoded back
     /// (`None`: no decoder for that format in this build).
     Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
@@ -589,6 +591,9 @@ impl Loader {
                             if crate::edit::save::animated(&bytes, &path) {
                                 let _ = tx.send(Msg::Animated(path.clone()));
                                 frames(bytes.clone(), path.clone(), tx.clone(), ctx.clone());
+                            }
+                            if let Some(start) = crate::motion::video_start(&bytes) {
+                                let _ = tx.send(Msg::Motion(path.clone(), Arc::new(bytes[start..].to_vec())));
                             }
                             return decode::decode(&bytes, &path);
                         }

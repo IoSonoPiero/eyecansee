@@ -13,8 +13,10 @@ impl App {
         }
         // Space on an animation, Page Up and Down on pages: theirs, taken before the keys below.
         self.frames_keys(ctx);
+        // Space on a Motion Photo plays its video, which then has the keys of a video.
+        self.motion_keys(ctx);
         // On a video Space plays and pauses, as in a player.
-        let video = self.viewing_video();
+        let video = self.viewing_video() || self.playing_motion();
         // On a 3D model the arrows turn it.
         let model = self.viewed_mesh().is_some();
         // On a video Ctrl and the arrows jump back and forward (issue #10), not to another file: taken
@@ -92,6 +94,7 @@ impl App {
         }
         self.full.clear();
         self.frames.read.clear();
+        self.motion.read.clear();
         self.model.meshes.clear();
         self.model.cad.drawings.clear();
         self.zoom_of = None;
@@ -143,12 +146,14 @@ impl App {
         self.model.meshes.retain(|p, _| paths.contains(&p));
         self.model.cad.drawings.retain(|p, _| paths.contains(&p));
         self.frames.read.retain(|p, _| paths.contains(&p));
+        self.motion.read.retain(|p, _| paths.contains(&p));
     }
 
     pub(crate) fn viewer(&mut self, ui: &mut egui::Ui, current: usize) {
-        if self.viewing_video() {
+        if self.viewing_video() || self.playing_motion() {
             return self.video_view(ui, current);
         }
+        self.motion_done();
         self.video = None;
         let mut chosen = None;
         if let Some(response) = self.model_view(ui) {
@@ -170,6 +175,7 @@ impl App {
             let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
             self.zoom_view(ui, &response, &tex, current);
             self.frames_bar(ui, rect);
+            self.motion_bar(ui, rect);
             if response.double_clicked() {
                 self.close_viewer();
             }

@@ -28,6 +28,10 @@ Le immagini animate GIF, WebP e PNG (APNG) si muovono nel visore, ripetendosi. *
 
 Un TIFF con più pagine (un documento scansionato, un fax) si apre sulla prima pagina. **Pag↓** e **Pag↑** sfogliano le pagine, come le frecce nella barra in fondo, che mostra la pagina (per esempio Pagina 2 / 5, anche nella barra di stato); dopo l'ultima pagina Pag↓ passa al file successivo, e prima della prima Pag↑ al precedente. Ogni pagina viene adattata alla finestra.
 
+## Foto in movimento
+
+Una foto in movimento (Google Pixel, Samsung, Xiaomi e altri telefoni) contiene un breve video registrato insieme alla foto. Il visore mostra la foto con un pulsante **Riproduci il movimento** in fondo; il pulsante o **Spazio** riproducono il video una volta, con la barra di un [video](video.md), poi torna la foto. Il video ha bisogno del motore video, come tutti i video.
+
 ## Ingrandire
 
 - La **rotellina del mouse** ingrandisce e rimpicciolisce attorno al puntatore; **+** e **−** attorno al centro della finestra. Sul touchpad, avvicina o allontana due dita.

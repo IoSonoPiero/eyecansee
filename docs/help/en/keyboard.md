@@ -66,6 +66,7 @@ In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device e
 | ←, Backspace, Page Up | Previous image |
 | Home, End | First, last image |
 | Space (on an animation) | Pause and play it |
+| Space (on a motion photo) | Play its video |
 | Page Down, Page Up (on a TIFF with pages) | Next, previous page |
 | Esc | Back to the grid (in full screen it first leaves full screen) |
 | + and − (or the mouse wheel) | Zoom in and out |

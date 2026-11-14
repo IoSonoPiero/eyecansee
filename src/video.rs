@@ -370,6 +370,28 @@ impl App {
         click
     }
 
+    /// The video of a Motion Photo (`motion.rs`), played from memory under the photo's path.
+    pub(crate) fn open_motion(&self, ctx: &egui::Context, path: String, video: Arc<Vec<u8>>) -> Playing {
+        let ctx = ctx.clone();
+        let input = mpv::Input::Stream(Arc::new(crate::motion::Video(video)));
+        let player = if self.engine() {
+            mpv::Player::open(input, self.settings.video_volume, self.settings.video_mute, move || ctx.request_repaint())
+                .map_err(|e| self.i18n.t_args("cannot-load", &[("file", crate::source::name(&path)), ("error", &e)]))
+        } else {
+            Err(self.i18n.t("video-no-mpv"))
+        };
+        if let Err(e) = &player {
+            log!("motion photo {path:?}: ERROR {e}");
+        }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None }
+    }
+
+    /// The video open for `path` has not reached its end (it plays, it is paused, or it could
+    /// not open: its card stays until another image).
+    pub(crate) fn video_playing(&self, path: &str) -> bool {
+        self.video.as_ref().is_some_and(|v| v.path == path && !v.player.as_ref().is_ok_and(|p| p.ended()))
+    }
+
     fn open_video(&self, ctx: &egui::Context, path: String, size: u64) -> Playing {
         let ctx = ctx.clone();
         let mut copying = None;

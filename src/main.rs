@@ -96,6 +96,8 @@ mod model_text;
 mod model_vrml;
 mod model_x3d;
 mod model_view;
+mod motion;
+mod motion_view;
 mod mp4;
 mod mpv;
 mod mpv_load;
@@ -375,6 +377,8 @@ struct App {
     animated: crate::edit_page::Animated,
     /// Frames of animated images and pages of TIFFs, played and turned in the viewer.
     frames: frames_view::State,
+    /// Videos of Motion Photos, played in the viewer.
+    motion: motion_view::State,
     /// Find duplicates: the search and its results page.
     duplicates: Option<dup_page::Window>,
     /// Convert and resize several images: the choices, then the work.
