@@ -77,8 +77,9 @@ pub struct Form {
     /// The format and the destination of Convert…, given back after another use of the window
     /// changed them.
     convert: (Option<Format>, Place),
-    /// The size (in `sizes`) and the turn of the last Resize > Custom…: quarter turns, flips.
-    resize: (usize, (u8, bool, bool)),
+    /// The size (in `sizes`), the measures and the turn of the last Resize > Custom…: quarter
+    /// turns, flips.
+    resize: (usize, [Size; 9], (u8, bool, bool)),
 }
 
 /// What the window is opened for.
@@ -124,31 +125,49 @@ impl Form {
             part: Part::Convert,
             scroll: false,
             convert: (Some(Format::Jpeg), Place::Sub),
-            resize: (LONG, (0, false, false)),
+            resize: (LONG, Size::KINDS, (0, false, false)),
         }
     }
 
-    /// Opened for `to`: the choices of the use before kept (Convert…'s format and destination,
-    /// the size and turn of Custom…), those of `to` set. Custom… on its last size and turn, the
-    /// others always on the size of the original (Unchanged), not turned nor flipped (#119).
+    /// Opened for `to`, after `files`: the choices of the use before kept (Convert…'s format and
+    /// destination, the size, measures and turn of Custom…), those of `to` set. Custom… on its
+    /// last size, measures and turn, the others always on the size of the original (Unchanged),
+    /// not turned nor flipped (#119). A size for pictures only is off with videos: only here,
+    /// after the choices of Custom… are kept, so that a video never changes them.
     /// Convert… in its own format; Custom… and Copy with the metadata in the format of the
     /// originals; Custom… and the sound of the videos next to the originals.
     fn open_on(&mut self, to: Part) {
         match self.part {
             Part::Convert => self.convert = (self.format, self.place),
-            Part::Resize => self.resize = (self.size, (self.quarter, self.flip_h, self.flip_v)),
+            Part::Resize => self.resize = (self.size, self.sizes, (self.quarter, self.flip_h, self.flip_v)),
             Part::CopyMeta | Part::Audio => {}
         }
         (self.part, self.scroll) = (to, true);
         (self.format, self.place) = self.convert;
-        let (size, turn) = if to == Part::Resize { self.resize } else { (0, (0, false, false)) };
-        (self.size, (self.quarter, self.flip_h, self.flip_v)) = (size, turn);
+        if to == Part::Resize {
+            (self.size, self.sizes, (self.quarter, self.flip_h, self.flip_v)) = self.resize;
+        } else {
+            (self.size, (self.quarter, self.flip_h, self.flip_v)) = (0, (0, false, false));
+        }
+        if self.videos && !self.sizes[self.size].for_videos() {
+            self.size = 0;
+        }
         match to {
             Part::Convert => {}
             Part::Resize => (self.format, self.place) = (None, Place::Next),
             Part::CopyMeta => self.format = None,
             Part::Audio => self.place = Place::Next,
         }
+    }
+
+    /// What the files chosen are (`paths`; CAD drawings exported with `drawings`), before
+    /// `open_on`.
+    fn files(&mut self, paths: &[String], drawings: bool) {
+        self.audio = None;
+        self.drawing = drawings;
+        self.videos = paths.iter().any(|p| crate::decode::is_video(p));
+        self.images = !drawings && paths.iter().any(|p| !crate::decode::is_video(p));
+        self.jpegs = paths.iter().any(|p| Format::of_file(p) == Some(Format::Jpeg));
     }
 
     /// Cancel pressed: the choices as they were `before` the window opened, as if it had never
@@ -304,15 +323,7 @@ impl App {
         }
         let form = self.batch_form.get_or_insert_with(|| Form::new(self.i18n.t("batch-subfolder-name")));
         let before = Some(form.clone());
-        form.audio = None;
-        form.drawing = drawings;
-        form.videos = paths.iter().any(|p| crate::decode::is_video(p));
-        form.images = !drawings && paths.iter().any(|p| !crate::decode::is_video(p));
-        form.jpegs = paths.iter().any(|p| Format::of_file(p) == Some(Format::Jpeg));
-        // The sizes for pictures only are off with videos.
-        if form.videos && !form.sizes[form.size].for_videos() {
-            form.size = 0;
-        }
+        form.files(&paths, drawings);
         if form.other.is_empty() {
             form.other = crate::navigation::shown(&self.base, &self.dir);
         }
@@ -742,6 +753,35 @@ mod tests {
         assert!(f.job().does_nothing());
         f.open_on(Part::Resize);
         assert_eq!((f.quarter, f.flip_h, f.size), (1, true, 4));
+    }
+
+    /// Custom… opens again on its own size, with its measure, and its turn after Copy with the
+    /// metadata of a video and a Convert… that changed the measures (#119, seen on IronManL:
+    /// Unchanged with the turn kept). Convert… and Copy with the metadata still start unturned.
+    #[test]
+    fn custom_keeps_its_size_after_a_video() {
+        let mut f = Form::new("converted".into());
+        let (photo, clip) = (vec!["a.jpg".to_string()], vec!["clip.mp4".to_string()]);
+        // As `open_resize`: the pictures only.
+        let resize = |f: &mut Form| {
+            f.files(&photo, false);
+            (f.images, f.videos) = (true, false);
+            f.open_on(Part::Resize);
+        };
+        resize(&mut f);
+        (f.size, f.sizes[LONG], f.quarter) = (LONG, Size::Long(1920), 1);
+        f.files(&clip, false);
+        f.open_on(Part::CopyMeta);
+        assert_eq!((f.job().size, f.quarter), (Size::Same, 0));
+        resize(&mut f);
+        assert_eq!((f.job().size, f.quarter), (Size::Long(1920), 1));
+        // Convert… of a picture and a video, on Long side changed to 800.
+        f.files(&[photo[0].clone(), clip[0].clone()], false);
+        f.open_on(Part::Convert);
+        assert_eq!((f.job().size, f.quarter), (Size::Same, 0));
+        (f.size, f.sizes[LONG]) = (LONG, Size::Long(800));
+        resize(&mut f);
+        assert_eq!((f.job().size, f.quarter), (Size::Long(1920), 1));
     }
 
     /// Cancel forgets what was chosen in the window, whichever use opened it: opened again, it
