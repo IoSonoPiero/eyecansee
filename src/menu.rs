@@ -91,26 +91,29 @@ impl App {
         });
         partial_note(ui, model == Some(false), &self.i18n);
         ui.separator();
-        let can_change = self.target().is_some();
-        let one = self.chosen(None).len() <= 1;
-        let rename = icons::menu_item(ui, Some(icons::Line::Rename), t("menu-rename"), "F2".into());
-        let r = ui.add_enabled(can_change && one, rename);
-        pick(act, if one { r } else { r.on_disabled_hover_text(t("rename-one-only")) }, Act::Rename(None));
-        entry(ui, act, can_change, item(t("menu-delete"), t("key-delete")), Act::Delete(None, false));
-        entry(ui, act, can_change, item(t("menu-delete-permanent"), t("key-shift-delete")), Act::Delete(None, true));
+        self.restore_item(ui, act);
+        entry(ui, act, self.rename_off(), item(t("menu-rename"), "F2".into()), Act::Rename(None));
+        entry(ui, act, self.delete_off(), item(t("menu-delete"), t("key-delete")), Act::Delete(None, false));
+        entry(ui, act, self.delete_off(), item(t("menu-delete-permanent"), t("key-shift-delete")), Act::Delete(None, true));
         ui.separator();
-        entry(ui, act, true, item(t("menu-quit"), String::new()), Act::Quit);
+        entry(ui, act, None, item(t("menu-quit"), String::new()), Act::Quit);
     }
 
     fn edit_menu(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
         let t = |id| self.i18n.t(id);
-        let viewing = self.viewing.is_some();
-        let can_clip = !self.chosen(None).is_empty();
-        entry(ui, act, can_clip, item(t("menu-cut"), t("key-cut")), Act::Cut(None));
-        entry(ui, act, can_clip, item(t("menu-copy"), t("key-copy")), Act::Copy(None));
-        entry(ui, act, !viewing && self.can_paste(&self.dir), item(t("menu-paste"), t("key-paste")), Act::Paste(None));
+        entry(ui, act, self.clip_off(), item(t("menu-cut"), t("key-cut")), Act::Cut(None));
+        entry(ui, act, self.clip_off(), item(t("menu-copy"), t("key-copy")), Act::Copy(None));
+        entry(ui, act, self.paste_off(), item(t("menu-paste"), t("key-paste")), Act::Paste(None));
+        self.restore_item(ui, act);
         ui.separator();
-        entry(ui, act, !viewing && self.items() > 0, item(t("menu-select-all"), t("key-select-all")), Act::SelectAll);
+        entry(ui, act, self.grid_off(), item(t("menu-select-all"), t("key-select-all")), Act::SelectAll);
+    }
+
+    /// Inside a trash, Restore (Restore all on the trash folder), as in the right-click menu (issue #126).
+    fn restore_item(&self, ui: &mut egui::Ui, act: &Cell<Option<Act>>) {
+        if let Some((label, off)) = self.restore_entry() {
+            entry(ui, act, off, item(label, String::new()), Act::Restore(None));
+        }
     }
 
     /// The flips and turns straight in the menu (in the right-click menu they are under

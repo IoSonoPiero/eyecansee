@@ -175,7 +175,7 @@ impl App {
     }
 
     /// "Save" overwrites only what changed and what can be written back in its own format, where
-    /// renaming is possible, and not while that image is being saved already. What is inside the
+    /// renaming is possible, not in a trash, and not while that image is being saved already. What is inside the
     /// file (animated, several pages…) is looked at by `Loader::prepare`.
     pub(crate) fn can_save(&self) -> bool {
         let Some(current) = self.viewing else { return false };
@@ -186,6 +186,7 @@ impl App {
                     && self.can_change(&f.path)
                     && !self.saving.contains(&f.path)
                     && encode::saves_back(&f.path)
+                    && !source::in_trash(&f.path)
             })
     }
 

@@ -179,7 +179,7 @@ impl App {
             self.new_image = Some(crate::new_image::Form::new());
         }
         // Ctrl+E, as Photos on Windows: Edit image.
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::E)) && !ctx.egui_wants_keyboard_input() && self.can_edit(None) {
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::E)) && !ctx.egui_wants_keyboard_input() && self.can_edit(None) && !self.chosen_in_trash() {
             self.open_editor(None, crate::edit_page::Tool::Select);
         }
         self.bookmark_keys(ctx);
@@ -249,8 +249,8 @@ impl App {
     /// A flip or a turn: shown in the viewer until saved, saved straight away in the grid.
     fn transform(&mut self, op: crate::transform::Op, path: Option<String>) {
         if self.viewing.is_some() {
-            // Also from the keys: only pictures turn (`viewing_photo`).
-            if self.viewing_photo() {
+            // Also from the keys: only pictures turn, not in a trash (`turns_fit`).
+            if self.turns_fit().is_some() {
                 self.turn = self.turn.then(op);
             }
         } else {

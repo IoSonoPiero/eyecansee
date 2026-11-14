@@ -101,8 +101,10 @@ impl App {
     }
 
     /// `turn_fit` for what is in front: the Image menu, the toolbar and Ctrl+R agree.
+    /// Not a file in a trash (a turn there would be saved over it).
     pub(crate) fn turns_fit(&self) -> Option<bool> {
-        turn_fit(self.viewing.map(|_| self.viewing_photo()), &self.grid_items(None))
+        let photo = || self.viewing_photo() && !self.target().is_some_and(|p| source::in_trash(&p));
+        turn_fit(self.viewing.map(|_| photo()), &self.grid_items(None))
     }
 
     /// The images and videos (not folders) an action on `path` in the grid works on, as `chosen`.

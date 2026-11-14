@@ -79,13 +79,15 @@ impl App {
         self.tools_off().or_else(|| fits(&self.grid_items(None), CONVERTED).is_none().then(|| self.i18n.t("tb-off-batch")))
     }
 
-    /// Why no entry of Tools on the files chosen can start now: in the viewer, or one conversion
-    /// at a time (the entries wait for the one running).
+    /// Why no entry of Tools on the files chosen can start now: in the viewer, one conversion
+    /// at a time (the entries wait for the one running), or in a trash.
     pub(crate) fn tools_off(&self) -> Option<String> {
         let t = |id| self.i18n.t(id);
         match () {
             _ if self.viewing.is_some() => Some(t("tb-off-viewer")),
             _ if self.batch.is_some() => Some(t("tb-off-busy")),
+            // The files in a trash are left out of every work (`grid_items`).
+            _ if self.chosen_in_trash() => Some(t("tb-off-trash")),
             _ => None,
         }
     }

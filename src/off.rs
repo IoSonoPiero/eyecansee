@@ -71,6 +71,17 @@ pub(crate) fn save_as_id(shown: Option<Kind>, one_picture: bool) -> Option<&'sta
     }
 }
 
+/// Restore in the File and Edit menus, inside a trash only: label and why it is off (Fluent ids).
+/// `target`: the item selected or in the viewer is a trash folder (`Some(true)`) or inside one
+/// (`Some(false)`); `here`: the folder open is a trash.
+pub(crate) fn restore_ids(target: Option<bool>, here: bool) -> Option<(&'static str, Option<&'static str>)> {
+    match target {
+        Some(true) => Some(("menu-restore-all", None)),
+        Some(false) => Some(("menu-restore", None)),
+        None => here.then_some(("menu-restore", Some("off-restore"))),
+    }
+}
+
 impl App {
     fn off(&self, id: Option<&str>) -> Option<String> {
         id.map(|id| self.i18n.t(id))
@@ -104,20 +115,39 @@ impl App {
     /// says why and offers Save as…).
     pub(crate) fn save_off(&self) -> Option<String> {
         let changed = self.viewing.is_some() && !self.turn.is_none() && self.save_ready.is_none();
-        self.off(save_id(self.shown(), changed))
+        self.trash_off().or_else(|| self.off(save_id(self.shown(), changed)))
     }
 
     /// Save as…: in the grid one picture, in the viewer what is shown.
     pub(crate) fn save_as_off(&self) -> Option<String> {
         let files = self.files_chosen(None);
         let one_picture = files.len() == 1 && fits(&files, &[Kind::Picture]).is_some();
-        self.off(save_as_id(self.shown(), one_picture))
+        self.trash_off().or_else(|| self.off(save_as_id(self.shown(), one_picture)))
     }
 
     pub(crate) fn rename_off(&self) -> Option<String> {
-        self.off(rename_id(self.chosen(None).len(), self.target().is_some()))
+        let trash = self.chosen_in_trash().then_some("off-trash-rename");
+        self.off(trash.or_else(|| rename_id(self.chosen(None).len(), self.target().is_some())))
     }
 
+    /// Something chosen (or the file in the viewer) is inside a trash: it can be looked at, put
+    /// back or deleted for good, nothing else.
+    pub(crate) fn chosen_in_trash(&self) -> bool {
+        self.chosen(None).iter().any(|p| crate::source::in_trash(p))
+    }
+
+    /// Why what changes the file chosen (turns, the editor, Save, Save as…) is off in a trash.
+    fn trash_off(&self) -> Option<String> {
+        self.off(self.chosen_in_trash().then_some("off-trash-change"))
+    }
+
+    /// Restore of the File and Edit menus, inside a trash: its label, and why it is off.
+    pub(crate) fn restore_entry(&self) -> Option<(String, Option<String>)> {
+        use crate::source::{in_trash, is_trash};
+        let target = self.target().filter(|p| is_trash(p) || in_trash(p)).map(|p| is_trash(&p));
+        let (label, off) = restore_ids(target, is_trash(&self.dir))?;
+        Some((self.i18n.t(label), self.off(off)))
+    }
 
     pub(crate) fn delete_off(&self) -> Option<String> {
         self.off(nothing_id(usize::from(self.target().is_some())))
@@ -125,7 +155,8 @@ impl App {
 
     /// Cut and Copy.
     pub(crate) fn clip_off(&self) -> Option<String> {
-        self.off(nothing_id(self.chosen(None).len()))
+        let trash = self.chosen_in_trash().then_some("off-trash-clip");
+        self.off(trash.or_else(|| nothing_id(self.chosen(None).len())))
     }
 
     pub(crate) fn paste_off(&self) -> Option<String> {
@@ -170,7 +201,7 @@ impl App {
     /// The flips and turns: in the viewer the picture shown, in the grid the pictures chosen.
     pub(crate) fn turn_off(&self) -> Option<String> {
         let id = if self.viewing.is_some() { "tb-off-not-picture" } else { "tb-off-no-picture" };
-        self.off(self.turns_fit().is_none().then_some(id))
+        self.trash_off().or_else(|| self.off(self.turns_fit().is_none().then_some(id)))
     }
 
     /// Edit image… and Rotate and crop…: as the turns, then one image that is not animated.
@@ -198,6 +229,11 @@ mod tests {
         assert_eq!(rename_id(1, true), None);
         assert_eq!(parent_id(false, true), Some("off-top"));
         assert_eq!(parent_id(false, false), None);
+        // Restore in the menus: only inside a trash, greyed out there with nothing chosen.
+        assert_eq!(restore_ids(Some(true), false), Some(("menu-restore-all", None)));
+        assert_eq!(restore_ids(Some(false), true), Some(("menu-restore", None)));
+        assert_eq!(restore_ids(None, true), Some(("menu-restore", Some("off-restore"))));
+        assert_eq!(restore_ids(None, false), None);
         // Save over the original: a turned picture only, and why not on the other kinds.
         assert_eq!(save_id(Some(Kind::Picture), true), None);
         assert_eq!(save_id(Some(Kind::Picture), false), Some("tb-off-save"));
@@ -212,7 +248,7 @@ mod tests {
         assert_eq!(save_as_id(None, true), None);
         assert_eq!(save_as_id(None, false), Some("tb-off-one-picture"));
         // Each reason said in both languages.
-        let ids = ["off-save-model", "off-save-drawing", "off-save-played", "off-save-as-played", "tb-off-nothing", "tb-off-viewer", "off-empty", "tb-off-paste", "tb-off-paste-here", "rename-one-only", "off-top", "off-not-viewer", "off-no-show", "off-no-file", "tb-off-save", "tb-off-folder", "tb-off-no-folder", "tb-off-not-picture", "tb-off-no-picture"];
+        let ids = ["off-trash-clip", "off-trash-rename", "off-trash-change", "off-restore", "off-save-model", "off-save-drawing", "off-save-played", "off-save-as-played", "tb-off-nothing", "tb-off-viewer", "off-empty", "tb-off-paste", "tb-off-paste-here", "rename-one-only", "off-top", "off-not-viewer", "off-no-show", "off-no-file", "tb-off-save", "tb-off-folder", "tb-off-no-folder", "tb-off-not-picture", "tb-off-no-picture"];
         for code in ["en", "it"] {
             let i18n = crate::i18n::I18n::new(code);
             for id in ids {
