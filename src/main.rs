@@ -366,8 +366,8 @@ struct App {
     save_as_format: Option<encode::Format>,
     /// Rotate and crop, a page of its own.
     editor: Option<edit_page::Window>,
-    /// Images read by the viewer that are animated or have several pages: the editor is off for them.
-    animated: std::collections::HashSet<String>,
+    /// Images found animated or with several pages, by the viewer or from their start (`edit_page::Animated`): the editor is off for them.
+    animated: crate::edit_page::Animated,
     /// Find duplicates: the search and its results page.
     duplicates: Option<dup_page::Window>,
     /// Convert and resize several images: the choices, then the work.

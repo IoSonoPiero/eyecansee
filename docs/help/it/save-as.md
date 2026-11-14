@@ -62,6 +62,7 @@ Se il nome è già preso in quella cartella, viene aggiunto " (2)" e la pagina l
 
 - JPEG e Radiance HDR non hanno la trasparenza: le parti trasparenti diventano bianche. La pagina lo dice.
 - Un'icona (ICO) contiene al massimo 256 × 256 pixel: un'immagine più grande viene ridotta. La pagina lo dice.
+- Un'immagine animata (GIF, WebP, APNG, AVIF) o con più pagine (TIFF) viene salvata come l'immagine mostrata, il suo primo fotogramma o la prima pagina: il file nuovo ha solo quella. La pagina lo dice.
 - EyeCanSee non sa scrivere HEIC né JPEG XL: vedi [Formati supportati](formats.md).
 - Solo JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI e i file PSD (appiattiti) si possono anche riscrivere sopra l'originale dopo una rotazione (vedi [Ruotare e riflettere](rotate.md)); gli altri formati solo da questa pagina.
 - La tabella di ogni formato con le sue opzioni è in [Formati supportati](formats.md).

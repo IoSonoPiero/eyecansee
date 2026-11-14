@@ -442,6 +442,7 @@ convert-lossless = Senza perdita: gli stessi pixel dell'originale.
 convert-gif = Al massimo 256 colori.
 convert-keep-meta = Mantieni i metadati (EXIF, XMP, IPTC, profilo colore)
 convert-ultra-hdr-lost = Questa foto è Ultra HDR: resta HDR solo in JPEG con i metadati.
+convert-first-only = Questa immagine è animata o ha più pagine: viene salvata solo l'immagine mostrata.
 convert-no-meta = L'originale non ha metadati.
 convert-meta-unsupported = Questo formato non può contenere metadati.
 convert-folder = Cartella

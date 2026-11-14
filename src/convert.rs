@@ -169,6 +169,10 @@ impl crate::App {
     pub(crate) fn convert_page(&mut self, ui: &mut egui::Ui) {
         let ctx = &ui.ctx().clone();
         let Some(mut w) = self.convert.take() else { return };
+        // A file of the grid or the viewer, not the editor's result: animated or with pages?
+        if w.place.is_none() {
+            self.probe_animated(ctx, &w.path, true);
+        }
         self.start_encoding(&mut w, ctx);
         let dir = w.dest_dir();
         let final_name = crate::source::free_name(&self.convert_taken(&w, &dir), w.name.trim());
@@ -296,6 +300,10 @@ impl crate::App {
                 let image = &original.0.image;
                 format_options(ui, &mut w.options, image.color().has_alpha(), image.width().max(image.height()) > crate::encode::ICO_SIDE, i18n);
                 meta_options(ui, &mut w.options, &original.0, i18n);
+                // The other frames or pages are not in the new file (as Convert… says, leaving them out).
+                if w.place.is_none() && self.animated.contains(&w.path) {
+                    ui.label(crate::theme::alert(t("convert-first-only")));
+                }
                 // The folder and the name belong to the new image, so they sit on its side.
                 ui.add_space(6.0);
                 folder::folder_row(ui, w, i18n, folder);

@@ -1,17 +1,41 @@
 //! The editor opened: on which image Edit image… and Rotate and crop… act (or why not), the page
 //! opened on it or on a new image, and the document started once the image is read.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use eframe::egui::{self, ColorImage};
 
 use super::{Place, Tool, Window};
 use crate::App;
+use crate::edit::animated::{self as anim, HEAD};
 use crate::edit::doc::Doc;
 use crate::edit::history::History;
 use crate::encode::Original;
 use crate::rotate::Crop;
 use crate::transform::Turn;
+
+/// The pictures found animated or with several pages (the editor is off for them, Save as… says
+/// it saves only the picture shown), and those already looked at (`probe_animated`).
+#[derive(Default)]
+pub(crate) struct Animated {
+    found: HashSet<String>,
+    /// Place and path (marked when read whole if needed): a file is read once.
+    probed: HashSet<String>,
+}
+
+impl Animated {
+    pub(crate) fn insert(&mut self, path: String) -> bool {
+        self.found.insert(path)
+    }
+
+    pub(crate) fn contains(&self, path: &str) -> bool {
+        self.found.contains(path)
+    }
+}
+
+/// Read whole, to tell what its start does not, when on this computer and no larger than this.
+const WHOLE_LOCAL: u64 = 64 << 20;
 
 impl App {
     /// The image Edit image… and Rotate and crop… would open: one picture (in the viewer the one
@@ -39,6 +63,40 @@ impl App {
         } else {
             None
         }
+    }
+
+    /// Reads the start of `path`, without decoding it, to know whether it is animated or has
+    /// several pages (`animated`, through `Msg::Animated`). When the start does not tell, the
+    /// whole file: with `whole`, or on this computer up to `WHOLE_LOCAL`. Once per file.
+    pub(crate) fn probe_animated(&mut self, ctx: &egui::Context, path: &str, whole: bool) {
+        if !anim::may_be(path) || self.animated.contains(path) || !self.animated.probed.insert(format!("{}{}{path}", if whole { "*" } else { "" }, self.base)) {
+            return;
+        }
+        let Some(loader) = &self.loader else { return };
+        let store = loader.store();
+        // The size from the listing: a file shorter than `HEAD` is read whole at once.
+        let size = self.listings.get(&crate::source::parent(path)).and_then(|l| l.as_ref().ok()).and_then(|l| l.files.iter().find(|f| f.path == path)).map(|f| f.size);
+        let whole = whole || (!crate::kept::remote(&store) && size.is_some_and(|s| s <= WHOLE_LOCAL));
+        let (tx, ctx, path) = (self.tx.clone(), ctx.clone(), path.to_string());
+        self.rt.spawn(async move {
+            let short = size.is_none_or(|s| s <= HEAD);
+            let head = if short { store.read(&path).await } else { store.read_range(&path, 0, HEAD).await };
+            let Ok(head) = head else { return };
+            let told = if short { None } else { anim::from_head(&head, &path) };
+            let found = match told {
+                Some(found) => found,
+                None if short || whole => {
+                    let bytes = if short { head } else { store.read(&path).await.unwrap_or_default() };
+                    let name = path.clone();
+                    tokio::task::spawn_blocking(move || !bytes.is_empty() && crate::edit::save::animated(&bytes, &name)).await.unwrap_or(false)
+                }
+                None => false,
+            };
+            log!("animated {path:?}: {found} ({})", if told.is_some() { "from its start" } else { "read whole" });
+            if found && tx.send(crate::loader::Msg::Animated(path)).is_ok() {
+                ctx.request_repaint();
+            }
+        });
     }
 
     /// Edit image… (`Tool::Select`) or Rotate and crop… (`Tool::Crop`) on one image.

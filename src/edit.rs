@@ -2,6 +2,7 @@
 //! undo history (`history`), the objects under the mouse (`geom`), the objects drawn (`render`), what they take from the photo (`photo`),
 //! the copy saved (`save`), the size changed (`resize`). The image itself is changed only when saving.
 
+pub mod animated;
 pub mod bubble;
 pub mod doc;
 pub mod filter;

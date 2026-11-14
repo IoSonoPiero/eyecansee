@@ -34,6 +34,7 @@ mod tools;
 mod typing;
 use canvas::canvas;
 pub(crate) use save::{Prepared, Written};
+pub(crate) use open::Animated;
 
 type Loaded = Result<(Arc<Original>, TextureHandle, u64), String>;
 
