@@ -171,7 +171,9 @@ mod tests {
         assert!(names.contains("b.png"));
         let dir = f.dir.clone();
         w.folder = Some(f);
-        assert_eq!((w.dest_dir(), w.dest_base("/"), w.original_base("/")), (dir, "/", "sftp://u@server/"));
+        // The base of this computer: "/" here, the drive (as "C:\\") on Windows.
+        let base = if cfg!(windows) { root.to_string_lossy()[..3].to_string() } else { "/".to_string() };
+        assert_eq!((w.dest_dir(), w.dest_base("/"), w.original_base("/")), (dir, base.as_str(), "sftp://u@server/"));
         assert_eq!(crate::source::free_name(&w.folder.as_ref().unwrap().taken(), "b.png"), "b (2).png");
         std::fs::remove_dir_all(root).unwrap();
     }

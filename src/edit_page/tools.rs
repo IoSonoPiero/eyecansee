@@ -783,12 +783,15 @@ mod tests {
                 let mut edge = 0.0;
                 // The fonts are ready from the second pass.
                 for _ in 0..3 {
-                    let _ = ctx.run_ui(input.clone(), |ui| {
+                    // Debug builds check that the texture changes were taken: nobody draws them here.
+                    ctx.run_ui(input.clone(), |ui| {
                         egui::Panel::top("edit-props").show(ui, |ui| {
                             let r = ui.horizontal_wrapped(|ui| style_bar(ui, &mut w, &i18n));
                             edge = r.response.rect.right();
                         });
-                    });
+                    })
+                    .textures_delta
+                    .clear();
                 }
                 assert!(edge <= width, "{lang}, {width} px, selected {selected}: drawn to {edge}");
             }

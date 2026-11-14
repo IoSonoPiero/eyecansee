@@ -118,7 +118,8 @@ mod tests {
             // The fonts are ready from the second pass.
             for _ in 0..2 {
                 seen.clear();
-                let _ = ctx.run_ui(input.clone(), |ui| {
+                // Debug builds check that the texture changes were taken: nobody draws them here.
+                ctx.run_ui(input.clone(), |ui| {
                     egui::Panel::top("edit-tools").show(ui, |ui| {
                         for (lang, _) in crate::i18n::languages() {
                             let i18n = I18n::new(lang);
@@ -128,7 +129,9 @@ mod tests {
                             }
                         }
                     });
-                });
+                })
+                .textures_delta
+                .clear();
             }
             assert!(!seen.is_empty());
             for (what, available, need) in &seen {
