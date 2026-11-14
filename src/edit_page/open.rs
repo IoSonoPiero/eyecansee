@@ -59,7 +59,8 @@ impl App {
     pub(crate) fn edit_off(&self, path: Option<String>) -> Option<String> {
         let files = self.files_chosen(path);
         let pictures: Vec<&String> = files.iter().filter(|p| crate::decode::is_image(p)).collect();
-        let video = files.iter().any(|p| crate::decode::is_video(p));
+        // A video that turns here is told so; an AVI only that the editor is for pictures.
+        let video = files.iter().any(|p| crate::decode::is_video(p) && crate::video_turn::holds_rotation(p));
         let animated = matches!(pictures.as_slice(), [p] if self.animated.contains(p));
         crate::off::editor_id(files.len(), pictures.len(), video, animated).map(|id| self.i18n.t(id))
     }

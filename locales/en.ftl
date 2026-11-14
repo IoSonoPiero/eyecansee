@@ -1296,6 +1296,7 @@ off-no-kind = None of the files chosen is of a kind this entry works on.
 off-edit-picture = Edit image and Rotate and crop work on pictures only.
 off-edit-video = Videos are turned with Rotate 90° and Rotate 180°, not in the editor: Edit image and Rotate and crop work on pictures only.
 off-video-no-rotation = Only MP4, MOV, MKV and WebM videos keep a rotation without being encoded again: turn the others with Convert…
+off-video-convert = AVI, MPEG and the other videos that keep no rotation are flipped and turned with Convert…
 off-no-turned = Select one or more pictures or videos first.
 off-turn-kind = Only pictures and videos can be turned.
 off-flip-kind = Only pictures can be flipped.

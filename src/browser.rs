@@ -199,7 +199,9 @@ impl App {
         };
         // Ctrl+E works in the grid too (`global_keys`).
         items.push(entry(&[Kind::Picture], "menu-edit-image", t("key-edit"), edit));
-        items.push(entry(&[Kind::Picture, Kind::Video], "menu-transform", String::new(), Act::Submenu(self.turn_items(path.clone()))));
+        // With every entry inside greyed out (an AVI), Transform is greyed out itself, with their reason.
+        let turns = self.turn_items(path.clone());
+        items.push(entry(&[Kind::Picture, Kind::Video], "menu-transform", String::new(), all_off(&turns).map_or(Act::Submenu(turns), Act::Off)));
         // In the viewer always there, as in File: greyed out with why when there is nothing to save.
         if in_viewer {
             items.push(Some((t("menu-save"), t("key-save"), self.save_off().map_or(Act::Save, Act::Off))));
@@ -246,6 +248,33 @@ impl App {
     }
 }
 
+/// Why a submenu is greyed out: all its entries are, and the first says why; `None` when one is on.
+pub(crate) fn all_off(items: &[MenuItem]) -> Option<String> {
+    let mut acts = items.iter().flatten().map(|(_, _, act)| act);
+    let why = match acts.next()? {
+        Act::Off(why) => why.clone(),
+        _ => return None,
+    };
+    acts.all(|a| matches!(a, Act::Off(_))).then_some(why)
+}
+
 pub(crate) fn error_text(ui: &Ui, text: impl Into<String>) -> egui::RichText {
     egui::RichText::new(text).color(ui.visuals().error_fg_color)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Transform on an AVI: every entry greyed out, so the submenu too, with the first reason.
+    #[test]
+    fn a_submenu_all_greyed_out_is_greyed_out() {
+        let off = |why: &str| Some((String::new(), String::new(), Act::Off(why.into())));
+        let on = Some((String::new(), String::new(), Act::Back));
+        assert_eq!(all_off(&[off("a"), None, off("b")]), Some("a".to_string()));
+        assert_eq!(all_off(&[off("a"), None, on.clone()]), None);
+        assert_eq!(all_off(&[on, off("a")]), None);
+        assert_eq!(all_off(&[None]), None);
+        assert_eq!(all_off(&[]), None);
+    }
 }

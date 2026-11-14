@@ -1295,6 +1295,7 @@ off-no-kind = Nessuno dei file scelti è di un tipo su cui questa voce lavora.
 off-edit-picture = Modifica immagine e Ruota e ritaglia lavorano solo sulle immagini.
 off-edit-video = I video si ruotano con Ruota di 90° e Ruota di 180°, non nell'editor: Modifica immagine e Ruota e ritaglia lavorano solo sulle immagini.
 off-video-no-rotation = Solo i video MP4, MOV, MKV e WebM tengono una rotazione senza essere ricodificati: gli altri si ruotano con Converti…
+off-video-convert = I video AVI, MPEG e gli altri che non tengono una rotazione si riflettono e si ruotano con Converti…
 off-no-turned = Seleziona prima una o più immagini o video.
 off-turn-kind = Si ruotano solo immagini e video.
 off-flip-kind = Si riflettono solo le immagini.
