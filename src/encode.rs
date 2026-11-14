@@ -100,6 +100,12 @@ impl Format {
         matches!(self, Format::Jpeg | Format::Png | Format::Webp | Format::Avif | Format::Tiff)
     }
 
+    /// Of the metadata, keeps only the pixel density (with a unit), in its header: BMP. The
+    /// other formats outside `holds_meta` keep nothing.
+    pub fn holds_density_only(self) -> bool {
+        self == Format::Bmp
+    }
+
     /// The format a file can be saved back in after a turn ("Save"), from its name (what is
     /// inside, animated or not, is looked at by `save_back::can_turn_in_place`). The other names
     /// of a JPEG (`.jpeg`, `.jfif`, `.jpe`) and of a TIFF (`.tiff`) count as theirs.
@@ -322,6 +328,21 @@ impl Original {
     /// be left out.
     pub fn has_meta(&self) -> bool {
         self.exif.is_some() || self.icc.is_some() || self.xmp.is_some() || self.irb.is_some() || self.density.is_some()
+    }
+
+    /// "Keep the metadata" for a `format` file: whether it can be changed (something of this
+    /// original would be kept) and the Fluent id of what pointing at it says. A BMP keeps a
+    /// density with a unit and nothing else.
+    pub fn meta_box(&self, format: Format) -> (bool, Option<&'static str>) {
+        if !self.has_meta() {
+            (false, Some("convert-no-meta"))
+        } else if format.holds_meta() {
+            (true, None)
+        } else if format.holds_density_only() {
+            (self.density.is_some_and(|d| d.per_metre_counts().is_some()), Some("convert-meta-density-only"))
+        } else {
+            (false, Some("convert-meta-unsupported"))
+        }
     }
 
     /// The metadata for a `format` file of `w` × `h` pixels: sizes set, the old thumbnails out

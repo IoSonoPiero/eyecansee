@@ -112,6 +112,8 @@ fn format_options(ui: &mut egui::Ui, f: &mut Form, format: Format, i18n: &I18n) 
         crate::convert::format_options(ui, &mut f.options, true, true, i18n);
         if format.holds_meta() {
             ui.checkbox(&mut f.options.keep_meta, i18n.t("convert-keep-meta"));
+        } else if format.holds_density_only() {
+            ui.checkbox(&mut f.options.keep_meta, i18n.t("convert-keep-meta")).on_hover_text(i18n.t("convert-meta-density-only"));
         }
     });
 }

@@ -575,11 +575,10 @@ fn meta_options(ui: &mut egui::Ui, o: &mut Options, original: &Original, i18n: &
     } else if o.format == Format::Gif {
         ui.weak(t("convert-gif"));
     }
-    let can_meta = original.has_meta() && o.format.holds_meta();
-    let hint = if !original.has_meta() { t("convert-no-meta") } else if !o.format.holds_meta() { t("convert-meta-unsupported") } else { String::new() };
+    let (can_meta, hint) = original.meta_box(o.format);
     let r = ui.add_enabled(can_meta, egui::Checkbox::new(&mut o.keep_meta, t("convert-keep-meta")));
-    if !hint.is_empty() {
-        r.on_disabled_hover_text(hint);
+    if let Some(hint) = hint {
+        r.on_hover_text(t(hint)).on_disabled_hover_text(t(hint));
     }
     if original.hdr.is_some() && !keeps_hdr(o) {
         ui.label(crate::theme::alert(t("convert-ultra-hdr-lost")));

@@ -102,7 +102,7 @@ Visti dall'alto (lo spazio modello, e i layout con **L**) e mostrati come immagi
 | WebP | con perdita (qualità 1–100, bordi dei colori più nitidi) o senza perdita (quasi senza perdita 0–100); impegno 0–6 | modalità senza perdita | ✓ | libwebp |
 | AVIF | qualità 1–100; qualità della trasparenza 1–100; velocità 1–10; 8 o 10 bit per canale; RGB o YCbCr dentro il file | – | ✓ | ravif (rav1e) |
 | TIFF | compressione: nessuna, LZW, Deflate (veloce, normale, massima), PackBits; predittore orizzontale | ✓ | ✓ | `tiff` |
-| BMP | – | ✓ | – | `image` |
+| BMP | – | ✓ | solo la risoluzione | `image` |
 | GIF | qualità della riduzione dei colori 1–30 (al massimo 256 colori) | – | – | `image` |
 | QOI | – | ✓ | – | `image` |
 | ICO | – (al massimo 256 × 256 pixel: le immagini più grandi vengono ridotte) | fino a 256 × 256 | – | `image` |
@@ -118,7 +118,7 @@ Visti dall'alto (lo spazio modello, e i layout con **L**) e mostrati come immagi
 
 ## Metadati nelle immagini salvate
 
-I metadati (EXIF, XMP, IPTC, profilo colore) si possono mantenere in JPEG, PNG, WebP, AVIF e TIFF.
+I metadati (EXIF, XMP, IPTC, profilo colore) si possono mantenere in JPEG, PNG, WebP, AVIF e TIFF; BMP mantiene solo la risoluzione.
 
 - L'**EXIF** passa da JPEG, PNG, WebP, TIFF, HEIC, AVIF, JPEG XL, PSD e dai RAW di ogni marca (provato su 49 fotocamere; i Kodak KDC danno solo una parte del loro). Dai RAW e dagli HEIC passano i campi di fotocamera, obiettivo, scatto, GPS, autore e copyright, non la nota del produttore, i cui riferimenti puntano dentro il file originale. I tag che descrivono i dati RAW stessi (sensore, strisce, anteprime, calibrazione DNG) restano fuori.
 - Il **profilo colore** viene da JPEG, PNG, WebP, TIFF, GIF, HEIC, AVIF e PSD. Un RAW riceve il profilo sRGB dei pixel che EyeCanSee ne sviluppa (dai Compact ICC Profiles CC0 di Clinton Ingram).

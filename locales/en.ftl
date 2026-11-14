@@ -454,6 +454,7 @@ convert-ultra-hdr-lost = This photo is Ultra HDR: it keeps its HDR only in JPEG 
 convert-first-only = This image is animated or has several pages: only the picture shown is saved.
 convert-no-meta = The original has no metadata.
 convert-meta-unsupported = This format cannot keep metadata.
+convert-meta-density-only = This format keeps only the resolution (dpi), when the original has one.
 convert-folder = Folder
 convert-name = File name
 convert-save = Save

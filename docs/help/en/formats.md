@@ -102,7 +102,7 @@ Seen from above (the model space, and the layouts with **L**) and shown as a pic
 | WebP | lossy (quality 1–100, sharper colour edges) or lossless (near-lossless 0–100); effort 0–6 | lossless mode | ✓ | libwebp |
 | AVIF | quality 1–100; transparency quality 1–100; speed 1–10; 8 or 10 bits per channel; RGB or YCbCr inside the file | – | ✓ | ravif (rav1e) |
 | TIFF | compression: none, LZW, Deflate (fast, normal, maximum), PackBits; horizontal predictor | ✓ | ✓ | `tiff` |
-| BMP | – | ✓ | – | `image` |
+| BMP | – | ✓ | resolution only | `image` |
 | GIF | colour reduction quality 1–30 (at most 256 colours) | – | – | `image` |
 | QOI | – | ✓ | – | `image` |
 | ICO | – (at most 256 × 256 pixels: larger images are reduced) | up to 256 × 256 | – | `image` |
@@ -118,7 +118,7 @@ Seen from above (the model space, and the layouts with **L**) and shown as a pic
 
 ## Metadata in saved images
 
-The metadata (EXIF, XMP, IPTC, colour profile) can be kept in JPEG, PNG, WebP, AVIF and TIFF.
+The metadata (EXIF, XMP, IPTC, colour profile) can be kept in JPEG, PNG, WebP, AVIF and TIFF; BMP keeps only the resolution.
 
 - **EXIF** is carried over from JPEG, PNG, WebP, TIFF, HEIC, AVIF, JPEG XL, PSD and the RAW files of every maker (tested on 49 cameras; Kodak KDC files give only part of theirs). From RAW and HEIC files the camera, lens, shot, GPS, author and copyright fields go in, not the maker note, whose offsets point into the original file. The tags that describe the RAW data itself (sensor, strips, previews, DNG calibration) are left out.
 - The **colour profile** comes from JPEG, PNG, WebP, TIFF, GIF, HEIC, AVIF and PSD. A RAW file gets the sRGB profile of the pixels EyeCanSee develops from it (from the CC0 Compact ICC Profiles by Clinton Ingram).

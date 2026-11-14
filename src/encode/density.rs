@@ -549,6 +549,38 @@ mod tests {
         }
     }
 
+    /// BMP keeps a density with a unit and nothing else: "Keep the metadata" can be changed
+    /// when the original has one, and does what it says; the formats that keep no metadata at
+    /// all leave it greyed out.
+    #[test]
+    fn bmp_box() {
+        for s in [Format::Jpeg, Format::Png, Format::Tiff, Format::Bmp] {
+            let with = open(&source(s, Some(DPI72)), s);
+            assert_eq!(with.meta_box(Format::Bmp), (true, Some("convert-meta-density-only")), "{s:?}");
+            for keep in [true, false] {
+                let out = with.encode(&Options { keep_meta: keep, ..opts(Format::Bmp) }).unwrap();
+                assert_eq!(of(&out, Format::Bmp), keep.then_some(DPI72), "{s:?} {keep}");
+            }
+            let without = open(&source(s, None), s);
+            assert!(!without.meta_box(Format::Bmp).0, "{s:?}");
+            assert_eq!(of(&without.encode(&opts(Format::Bmp)).unwrap(), Format::Bmp), None, "{s:?}");
+        }
+        // A shape without unit, or metadata other than a density, has nothing for a BMP.
+        assert!(!open(&source(Format::Jpeg, Some(WIDE)), Format::Jpeg).meta_box(Format::Bmp).0);
+        let exif = Original { exif: Some(exif_of(&[(Tag::Artist, Value::Ascii(vec![b"Ann".to_vec()]))])), ..Original::with_meta(photo(4, 3), &[]) };
+        assert_eq!(exif.meta_box(Format::Bmp), (false, Some("convert-meta-density-only")));
+        let with = open(&source(Format::Png, Some(DPI72)), Format::Png);
+        for f in Format::ALL {
+            let expected = match f {
+                _ if f.holds_meta() => (true, None),
+                Format::Bmp => (true, Some("convert-meta-density-only")),
+                _ => (false, Some("convert-meta-unsupported")),
+            };
+            assert_eq!(with.meta_box(f), expected, "{f:?}");
+        }
+        assert_eq!(open(&source(Format::Png, None), Format::Png).meta_box(Format::Jpeg), (false, Some("convert-no-meta")));
+    }
+
     /// A quarter turn exchanges the density across and down; a half turn does not.
     #[test]
     fn quarter_turn() {
