@@ -95,8 +95,12 @@ impl App {
         };
         // A folder just made, or the file the editor saved last, is selected instead; the
         // editor's only once it is closed (`select_saved`): until then the viewer stays on the
-        // image being edited, and so does the window's title (issue #98).
-        let made = if self.editor.is_some() { None } else { self.select_after.take().and_then(|p| place(new, &p)) };
+        // image being edited, and so does the window's title (issue #98). Kept until a listing
+        // has it: one read before it was written must not drop it (Save as… from the viewer).
+        let made = if self.editor.is_some() { None } else { self.select_after.as_deref().and_then(|p| place(new, p)) };
+        if made.is_some() {
+            self.select_after = None;
+        }
         self.selected = made.or(followed).unwrap_or(self.selected).min((ndirs + n).saturating_sub(1));
         self.cursor = (self.cursor || made.is_some()) && ndirs + n > 0;
         self.scroll_to_selected |= made.is_some();

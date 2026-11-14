@@ -468,6 +468,10 @@ convert-folder = Cartella
 convert-name = Nome del file
 convert-save = Salva
 convert-exists = Esiste già un elemento con questo nome: verrà salvato come { $name }.
+convert-saved-elsewhere-title = Immagine salvata
+convert-saved-elsewhere = Salvata come **{ $path }**.
+
+    L'immagine mostrata è l'originale, com'è sul disco.
 convert-chroma = Dettaglio del colore
 convert-chroma-full = Pieno (4:4:4)
 convert-chroma-half = Metà (4:2:2)
