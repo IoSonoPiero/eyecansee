@@ -34,6 +34,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Faster HEIC thumbnails from the preview stored in the file ([#20](https://github.com/IoSonoPiero/eyecansee/issues/20)).
 - Windows: phone photos opened from File Explorer go through the direct connection, so they can be saved back to the phone ([#52](https://github.com/IoSonoPiero/eyecansee/issues/52)).
 - Side panel: the folders of the open server, down to the one open, as for This computer ([#110](https://github.com/IoSonoPiero/eyecansee/issues/110)).
+- Saved servers: log in through the SSH agent ([#133](https://github.com/IoSonoPiero/eyecansee/issues/133)).
 - Merging a folder with many replaced files on phones and SFTP servers as fast as before the safe replace of 0.76.0 ([#94](https://github.com/IoSonoPiero/eyecansee/issues/94)).
 
 ### Formats
@@ -49,6 +50,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 ### Browsing and editing
 
+- Image editor: rotate, flip, size and arrange a pasted piece of image ([#132](https://github.com/IoSonoPiero/eyecansee/issues/132)).
 - Image editor: light and colour corrections (exposure, saturation, automatic levels, colour temperature, invert) ([#60](https://github.com/IoSonoPiero/eyecansee/issues/60)).
 - Save in another format: a Cancel button ([#106](https://github.com/IoSonoPiero/eyecansee/issues/106)).
 - Prepare for sharing: resize, convert, remove metadata and stay under a file size, in one step ([#115](https://github.com/IoSonoPiero/eyecansee/issues/115)).
