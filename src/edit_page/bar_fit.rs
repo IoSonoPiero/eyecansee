@@ -1,11 +1,12 @@
-//! Whether the editor's top bar fits on one row: its width summed from the parts it is drawn
-//! with (the square buttons, the separators, the spacing of the style, the label of the main save
-//! button measured in the bar's font). An estimate before put the bar on two rows in a 1200 px
-//! window where one was enough (issue #114).
+//! How the editor's top bar is laid out: its widths summed from the parts it is drawn with (the
+//! square buttons, the separators, the spacing of the style, the label of the main save button
+//! measured in the bar's font), and the rows it takes. An estimate before put the bar on two rows
+//! in a 1200 px window where one was enough (issue #114); when the tools wrapped, Copy, Close and
+//! Save copy went alone on a third row although the second had room for them (Windows at 110 %,
+//! a 900 px window).
 
 use eframe::egui::{self, Color32};
 
-use super::tools::TOOLS;
 use crate::icons;
 
 /// Side of the icon of the arrow next to Save copy, with Save as… and Overwrite in its menu.
@@ -16,10 +17,6 @@ pub(super) const ARROW_MIN: f32 = 24.0;
 pub(super) const SAVE_GAP: f32 = 1.0;
 /// Width of a separator of the bar.
 pub(super) const SEPARATOR: f32 = 6.0;
-/// The square buttons on the left: the tools, the two quarter turns, Resize, Filters, Undo, Redo.
-const LEFT_BUTTONS: usize = TOOLS.len() + 6;
-/// The separators on the left: before Crop, before Undo.
-const LEFT_SEPARATORS: usize = 2;
 
 /// The widths the top bar is made of, in points.
 #[derive(Clone, Copy, Debug)]
@@ -59,19 +56,53 @@ impl BarParts {
     }
 }
 
-/// The width the bar needs on one row. On the left the buttons and the separators, each with the
-/// room after it; on the right, drawn right to left, the arrow and Save copy, Close, the spinner
-/// while copying, Copy (`App::right_row`).
-pub(super) fn one_row_width(p: BarParts) -> f32 {
-    let items = (LEFT_BUTTONS + LEFT_SEPARATORS) as f32;
-    let left = LEFT_BUTTONS as f32 * p.button + LEFT_SEPARATORS as f32 * SEPARATOR + items * p.spacing;
-    let right = p.arrow + SAVE_GAP + p.save + SAVE_GAP + p.button + p.spacing + p.spinner + p.button;
-    left + right
+/// The widths of the left part, in the order drawn (`tools::tools_row`): the tools, a separator,
+/// Crop, the two quarter turns, Resize, Filters, a separator, Undo, Redo.
+#[cfg(test)]
+fn left_items(p: BarParts) -> impl Iterator<Item = f32> {
+    let buttons = |n| std::iter::repeat_n(p.button, n);
+    buttons(super::tools::TOOLS.len() - 1).chain([SEPARATOR]).chain(buttons(5)).chain([SEPARATOR]).chain(buttons(2))
 }
 
-/// The bar fits on one row in `available` points.
-pub(super) fn fits(available: f32, p: BarParts) -> bool {
-    available >= one_row_width(p)
+/// The width of the right part, drawn right to left: the arrow and Save copy, Close, the spinner
+/// while copying, Copy (`App::right_row`).
+pub(super) fn group_width(p: BarParts) -> f32 {
+    p.arrow + SAVE_GAP + p.save + SAVE_GAP + p.button + p.spacing + p.spinner + p.button
+}
+
+/// The width the bar needs on one row: the left part, each item with the room after it, and the
+/// right part.
+#[cfg(test)]
+pub(super) fn one_row_width(p: BarParts) -> f32 {
+    left_items(p).map(|w| w + p.spacing).sum::<f32>() + group_width(p)
+}
+
+/// The rows the bar takes in `available` points: the left part wrapped as egui wraps it (an item
+/// wider than what is left of the row starts the next one), then the right part at the end of the
+/// last row when it fits in what is left of it, else on a row of its own (`right_end`). The bar
+/// itself is laid out by egui, which measures what is left of the row: this is the model the
+/// tests check that layout against.
+#[cfg(test)]
+pub(super) fn rows(available: f32, p: BarParts) -> usize {
+    let (mut rows, mut x) = (1, 0.0);
+    for w in left_items(p) {
+        if x > 0.0 && available - x < w {
+            (rows, x) = (rows + 1, 0.0);
+        }
+        x += w + p.spacing;
+    }
+    if available - x < group_width(p) { rows + 1 } else { rows }
+}
+
+/// In the bar's wrapped row, after the left part: `add` (the right part, `group_width` wide) drawn
+/// right to left at the right end of the last row when it fits in what is left of it, else at the
+/// right end of a row of its own.
+pub(super) fn right_end(ui: &mut egui::Ui, p: BarParts, add: impl FnOnce(&mut egui::Ui)) {
+    if ui.available_size_before_wrap().x < group_width(p) {
+        ui.end_row();
+    }
+    let room = egui::vec2(ui.available_size_before_wrap().x, icons::BUTTON.y);
+    ui.allocate_ui_with_layout(room, egui::Layout::right_to_left(egui::Align::Center), add);
 }
 
 #[cfg(test)]
@@ -95,48 +126,86 @@ mod tests {
         assert_eq!(one_row_width(default_parts(60.0, true)), left + right + 28.0);
     }
 
-    /// Just as wide as the bar: one row; half a point less: two.
+    /// Just as wide as the bar: one row; half a point less: two, the tools on the first and the
+    /// right part alone on the second.
     #[test]
     fn boundary() {
         let p = default_parts(70.0, false);
         let need = one_row_width(p);
-        assert!(fits(need, p));
-        assert!(!fits(need - 0.5, p));
+        assert_eq!(rows(need, p), 1);
+        assert_eq!(rows(need - 0.5, p), 2);
+        // The tools alone on one row, and no room after them.
+        assert_eq!(rows(need - group_width(p), p), 2);
     }
 
-    /// Through egui with the app's fonts, every label the main save button can have in every
-    /// language (Overwrite the original… as the bar shows it, Overwrite…): one row in a 1200 px
-    /// window, two in a 900 px one.
+    /// When the tools wrap, the right part goes at the end of their second row if there is room
+    /// there: two rows at 815 points (a 900 px window at 110 %), not three. The tools on two rows
+    /// and their second row full: three.
+    #[test]
+    fn group_after_the_tools() {
+        let p = default_parts(70.0, false);
+        let tools = one_row_width(p) - group_width(p);
+        for available in [815.0, 900.0, 700.0, tools - 1.0] {
+            assert_eq!(rows(available, p), 2, "{available}");
+        }
+        // 12 items of 42 on the first row (504), 12 on the second (16 + 13 + 18 = 492 with the
+        // separators): no room for the 202 of the right part.
+        assert_eq!(rows(505.0, p), 3);
+    }
+
+    /// Through egui with the app's fonts, the real tools and a stand-in as wide as the right part,
+    /// for every label the main save button can have in every language (Overwrite the original…
+    /// as the bar shows it, Overwrite…), at 100 % and 110 %: the rows counted in the layout are
+    /// those of `rows`; one in a 1200 px window at 100 %, two in a 900 or 820 px one, nothing past
+    /// the right edge in a 700 px one.
     #[test]
     fn real_window() {
+        use super::super::{Tool, Window};
         let ctx = egui::Context::default();
         ctx.set_fonts(crate::fonts::fonts());
         let labels = ["edit-save-copy", "edit-update-copy", "menu-save-copy", super::super::tools::bar_label("edit-overwrite")];
-        for (width, one_row) in [(1200.0, true), (900.0, false)] {
+        let mut w = Window::new("p/a.png".into(), Default::default(), Tool::Select);
+        let mut checked = 0;
+        for (ppp, px, want) in [(1.0, 1200.0, Some(1)), (1.0, 900.0, Some(2)), (1.0, 820.0, Some(2)), (1.1, 900.0, Some(2)), (1.1, 820.0, Some(2)), (1.0, 700.0, None), (1.1, 700.0, None), (1.1, 1200.0, None)] {
+            ctx.set_pixels_per_point(ppp);
+            let width = px / ppp;
             let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, 800.0))), ..Default::default() };
-            let mut seen = Vec::new();
-            // The fonts are ready from the second pass.
-            for _ in 0..2 {
-                seen.clear();
-                // Debug builds check that the texture changes were taken: nobody draws them here.
-                ctx.run_ui(input.clone(), |ui| {
-                    egui::Panel::top("edit-tools").show(ui, |ui| {
-                        for (lang, _) in crate::i18n::languages() {
-                            let i18n = I18n::new(lang);
-                            for id in labels {
+            for (lang, _) in crate::i18n::languages() {
+                let i18n = I18n::new(lang);
+                for id in labels {
+                    let mut seen = (0.0, 0, egui::Rect::NOTHING, egui::Rect::NOTHING);
+                    // The fonts are ready from the second pass.
+                    for _ in 0..3 {
+                        // Debug builds check that the texture changes were taken: nobody draws them here.
+                        ctx.run_ui(input.clone(), |ui| {
+                            egui::Panel::top("edit-tools").show(ui, |ui| {
                                 let p = BarParts::measure(ui, i18n.t(id), false);
-                                seen.push((format!("{lang} {id}"), ui.available_width(), one_row_width(p)));
-                            }
-                        }
-                    });
-                })
-                .textures_delta
-                .clear();
-            }
-            assert!(!seen.is_empty());
-            for (what, available, need) in &seen {
-                assert_eq!(available >= need, one_row, "{width} px, {what}: {need} needed, {available} available");
+                                let available = ui.available_width();
+                                let mut group = egui::Rect::NOTHING;
+                                let bar = ui.horizontal_wrapped(|ui| {
+                                    super::super::tools::tools_row(ui, &mut w, &i18n);
+                                    right_end(ui, p, |ui| group = ui.allocate_exact_size(egui::vec2(group_width(p), icons::BUTTON.y), egui::Sense::hover()).0);
+                                });
+                                seen = (available, rows(available, p), bar.response.rect, group);
+                            });
+                        })
+                        .textures_delta
+                        .clear();
+                    }
+                    let (available, expected, bar, group) = seen;
+                    let what = format!("{px} px at {ppp}, {lang} {id}");
+                    let row = icons::BUTTON.y + ctx.global_style().spacing.item_spacing.y;
+                    let counted = ((bar.height() + ctx.global_style().spacing.item_spacing.y) / row).round() as usize;
+                    assert_eq!(counted, expected, "{what}: {bar:?}, {available} available");
+                    if let Some(want) = want {
+                        assert_eq!(counted, want, "{what}");
+                    }
+                    assert!(bar.right() <= width && group.right() <= width && group.left() >= bar.left(), "{what}: {bar:?} {group:?}");
+                    assert!((group.bottom() - bar.bottom()).abs() < 0.5, "{what}: the right part on the last row");
+                    checked += 1;
+                }
             }
         }
+        assert!(checked >= 8 * 2 * labels.len());
     }
 }

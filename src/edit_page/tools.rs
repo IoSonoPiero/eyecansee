@@ -78,20 +78,15 @@ fn bar_button(ui: &mut egui::Ui, button: egui::Button, tip: String, off: Option<
 
 impl App {
     /// The bar at the top; what its buttons ask for. When the window is too narrow for one row
-    /// (`bar_fit`) the tools go to a new line and Copy, Close and Save copy get a row of their
-    /// own, on the right (they were cut off).
+    /// the tools wrap, and Copy, Close and Save copy go at the right end of their last row, or of
+    /// a row of their own when there is no room there (`bar_fit`).
     pub(super) fn edit_toolbar(&mut self, ui: &mut egui::Ui, w: &mut Window) -> Option<Ask> {
         let (mut ask, mut copy) = (None, false);
         let parts = BarParts::measure(ui, self.i18n.t(bar_label(self.main_save_text(w).0)), w.copying);
-        if bar_fit::fits(ui.available_width(), parts) {
-            ui.horizontal(|ui| {
-                tools_row(ui, w, &self.i18n);
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| (ask, copy) = self.right_row(ui, w));
-            });
-        } else {
-            ui.horizontal_wrapped(|ui| tools_row(ui, w, &self.i18n));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| (ask, copy) = self.right_row(ui, w));
-        }
+        ui.horizontal_wrapped(|ui| {
+            tools_row(ui, w, &self.i18n);
+            bar_fit::right_end(ui, parts, |ui| (ask, copy) = self.right_row(ui, w));
+        });
         if copy {
             self.act = Some(Act::EditCopy);
         }
@@ -295,7 +290,7 @@ fn copy_text(w: &Window) -> (&'static str, &'static str) {
 }
 
 /// The tools, the quarter turns, Resize, Filters, Undo and Redo.
-fn tools_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
+pub(super) fn tools_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     for (n, &(tool, icon, id, key)) in TOOLS.iter().enumerate() {
         if n == TOOLS.len() - 1 {
             ui.add(egui::Separator::default().spacing(SEPARATOR));
