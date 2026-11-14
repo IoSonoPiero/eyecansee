@@ -95,7 +95,7 @@ impl App {
         let paths: Vec<String> = paths.collect();
         // One folder: the reason, if any, is the same for all.
         let refused = paths.first().and_then(|p| loader.no_overwrite(p));
-        let (ok, skipped): (Vec<String>, Vec<String>) = paths.into_iter().partition(|p| refused.is_none() && encode::saves_back(p));
+        let (ok, skipped): (Vec<String>, Vec<String>) = paths.into_iter().partition(|p| refused.is_none() && (encode::saves_back(p) || crate::video_turn::turned_by(p, op)));
         if ok.is_empty() {
             self.batch_turn_none(ctx, &skipped, refused, op);
             return;
@@ -117,6 +117,9 @@ impl App {
         }
         if !ok.is_empty() {
             text = format!("{text}\n\n{}", self.i18n.t("batch-animated"));
+        }
+        if ok.iter().any(|p| crate::decode::is_video(p)) {
+            text = format!("{text}\n\n{}", self.i18n.t("batch-turn-videos"));
         }
         if let Some(id) = refused {
             text = format!("{text}\n\n{}", self.i18n.t(id));
@@ -185,7 +188,7 @@ impl App {
                 self.loader.as_ref().is_some_and(|l| l.can_overwrite(&f.path))
                     && self.can_change(&f.path)
                     && !self.saving.contains(&f.path)
-                    && encode::saves_back(&f.path)
+                    && (encode::saves_back(&f.path) || crate::video_turn::turned_by(&f.path, transform::Op::Cw))
                     && !source::in_trash(&f.path)
             })
     }
@@ -237,7 +240,12 @@ impl App {
         match confirm::yes_no(ctx, "save", 420.0, (self.i18n.t("save-title"), text), yes, true, no, self.delete_answer.take()) {
             Some(true) => {
                 log!("save {path:?} {turn:?} {how:?}");
-                loader.replace_with(path.clone(), data, how);
+                // A video: its rotation written when it is saved, nothing prepared (#125).
+                if crate::decode::is_video(&path) {
+                    loader.replace(vec![path.clone()], turn, how);
+                } else {
+                    loader.replace_with(path.clone(), data, how);
+                }
                 self.saving.insert(path);
                 self.save_ready = None;
                 // Saved on the way out of the image: now what was asked.

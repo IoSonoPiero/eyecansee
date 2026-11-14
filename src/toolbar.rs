@@ -51,7 +51,7 @@ impl App {
         let t = |id| self.i18n.t(id);
         let viewing = self.viewing.is_some();
         // As the Image menu: in the viewer the picture shown, in the grid the pictures chosen.
-        let rotate = |op, icon, label, keys| Op { icon, label, keys: t(keys), act: Act::Transform(op, None), off: self.turn_off() };
+        let rotate = |op, icon, label, keys| Op { icon, label, keys: t(keys), act: Act::Transform(op, None), off: self.turn_op_off(op) };
         vec![
             rotate(transform::Op::Ccw, Line::RotateCcw, "tf-rotate-ccw", "key-rotate-ccw"),
             rotate(transform::Op::Cw, Line::RotateCw, "tf-rotate-cw", "key-rotate-cw"),

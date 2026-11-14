@@ -13,6 +13,17 @@ pub fn holds_rotation(name: &str) -> bool {
     matches!(ext.as_str(), "mp4" | "m4v" | "mov" | "qt" | "3gp" | "3g2" | "mkv" | "webm")
 }
 
+/// Whether `op` turns a video too: the quarter turns, not the flips, which FFmpeg does not read
+/// back from a file (a flipped matrix shows as a rotation of 180°).
+pub fn turns_videos(op: crate::transform::Op) -> bool {
+    !matches!(op, crate::transform::Op::FlipH | crate::transform::Op::FlipV)
+}
+
+/// A video turned by `op` and saved over itself (`replace`).
+pub fn turned_by(path: &str, op: crate::transform::Op) -> bool {
+    turns_videos(op) && crate::decode::is_video(path) && holds_rotation(path)
+}
+
 /// A video in a container without a rotation (AVI, MPEG…): turned only by Convert….
 pub const NO_ROTATION: &str = "save-video-no-rotation";
 
@@ -138,6 +149,9 @@ mod tests {
         let a = args("in.mp4", "out.mp4", -90, false, true).join(" ");
         assert!(a.contains("-i in.mp4 -map 0 -map -0:d -c copy -metadata:s:v:0 rotate=90 -map_metadata 0"), "{a}");
         assert!(!a.contains("display_rotation"), "{a}");
+        use crate::transform::Op;
+        assert!(turned_by("a.mp4", Op::Cw) && turned_by("a.webm", Op::Half) && !turned_by("a.mp4", Op::FlipH));
+        assert!(!turned_by("a.avi", Op::Cw) && !turned_by("a.jpg", Op::Cw) && !turned_by("a.mp3", Op::Cw));
         assert!(holds_rotation("a.MP4") && holds_rotation("b.mov") && holds_rotation("c.webm") && !holds_rotation("d.avi"));
     }
 

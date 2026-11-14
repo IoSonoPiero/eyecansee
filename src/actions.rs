@@ -225,7 +225,7 @@ impl App {
             (ccw, i.consume_key(egui::Modifiers::COMMAND, Key::R))
         });
         let op = if ccw { transform::Op::Ccw } else { transform::Op::Cw };
-        if (cw || ccw) && !ctx.egui_wants_keyboard_input() && self.turns_fit().is_some() {
+        if (cw || ccw) && !ctx.egui_wants_keyboard_input() && self.turn_fits(op).is_some() {
             self.act = Some(Act::Transform(op, None));
         }
     }
@@ -251,11 +251,11 @@ impl App {
     fn transform(&mut self, op: crate::transform::Op, path: Option<String>) {
         if self.viewing.is_some() {
             // Also from the keys: only pictures turn, not in a trash (`turns_fit`).
-            if self.turns_fit().is_some() {
+            if self.turn_fits(op).is_some() {
                 self.turn = self.turn.then(op);
             }
         } else {
-            let paths = self.grid_images(path);
+            let paths = self.grid_turned(path, op);
             if !paths.is_empty() {
                 self.batch_turn = Some((paths, op));
             }

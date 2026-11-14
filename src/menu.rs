@@ -123,7 +123,8 @@ impl App {
         let fit = self.turns_fit();
         let star = |label| starred(label, fit != Some(false));
         for (op, label, keys) in transform_items() {
-            entry(ui, act, self.turn_off(), item(star(t(label)), keys.map(t).unwrap_or_default()), Act::Transform(op, None));
+            let label = starred(t(label), self.turn_fits(op) != Some(false));
+            entry(ui, act, self.turn_op_off(op), item(label, keys.map(t).unwrap_or_default()), Act::Transform(op, None));
             if op == transform::Op::FlipV {
                 ui.separator();
             }

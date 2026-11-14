@@ -121,6 +121,23 @@ impl App {
         self.grid_items(path).into_iter().filter(|p| kinds.contains(&kind(p))).collect()
     }
 
+    /// As `turns_fit`, for one flip or turn: the quarter turns work on videos too (#125).
+    pub(crate) fn turn_fits(&self, op: crate::transform::Op) -> Option<bool> {
+        if !crate::video_turn::turns_videos(op) {
+            return self.turns_fit();
+        }
+        let shown = self.target().filter(|p| !source::in_trash(p));
+        match self.viewing {
+            Some(_) => shown.filter(|p| crate::decode::is_image(p) || crate::video_turn::turned_by(p, op)).map(|_| true),
+            None => fits(&self.grid_chosen(None), &[Kind::Picture, Kind::Video]),
+        }
+    }
+
+    /// The files a flip or a turn in the grid works on: pictures, and videos for the quarter turns.
+    pub(crate) fn grid_turned(&self, path: Option<String>, op: crate::transform::Op) -> Vec<String> {
+        self.grid_items(path).into_iter().filter(|p| crate::decode::is_image(p) || crate::video_turn::turned_by(p, op)).collect()
+    }
+
     /// `turn_fit` for what is in front: the Image menu, the toolbar and Ctrl+R agree.
     /// Not a file in a trash (a turn there would be saved over it).
     pub(crate) fn turns_fit(&self) -> Option<bool> {

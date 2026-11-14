@@ -128,7 +128,11 @@ impl App {
         let mut turns = Vec::new();
         for (op, label, keys) in crate::actions::transform_items() {
             // Ctrl+R and Ctrl+Shift+R work in the grid too (`turn_keys`).
-            turns.push(Some((t(label), keys.map(t).unwrap_or_default(), Act::Transform(op, path.clone()))));
+            let act = match self.turn_op_off(op) {
+                Some(why) if path.as_deref().is_none_or(|p| !crate::decode::is_image(p)) => Act::Off(why),
+                _ => Act::Transform(op, path.clone()),
+            };
+            turns.push(Some((t(label), keys.map(t).unwrap_or_default(), act)));
             if op == crate::transform::Op::FlipV {
                 turns.push(None);
             }
@@ -195,7 +199,7 @@ impl App {
         };
         // Ctrl+E works in the grid too (`global_keys`).
         items.push(entry(&[Kind::Picture], "menu-edit-image", t("key-edit"), edit));
-        items.push(entry(&[Kind::Picture], "menu-transform", String::new(), Act::Submenu(self.turn_items(path.clone()))));
+        items.push(entry(&[Kind::Picture, Kind::Video], "menu-transform", String::new(), Act::Submenu(self.turn_items(path.clone()))));
         // In the viewer always there, as in File: greyed out with why when there is nothing to save.
         if in_viewer {
             items.push(Some((t("menu-save"), t("key-save"), self.save_off().map_or(Act::Save, Act::Off))));

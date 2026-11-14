@@ -215,6 +215,16 @@ impl App {
         self.trash_off().or_else(|| self.off(self.turns_fit().is_none().then_some(id)))
     }
 
+    /// One flip or turn (`turn_fits`): a flip of a video says why it cannot be done.
+    pub(crate) fn turn_op_off(&self, op: crate::transform::Op) -> Option<String> {
+        if crate::video_turn::turns_videos(op) {
+            let id = if self.viewing.is_some() { "tb-off-not-picture" } else { "tb-off-no-picture" };
+            return self.trash_off().or_else(|| self.off(self.turn_fits(op).is_none().then_some(id)));
+        }
+        let video = self.target().is_some_and(|p| crate::decode::is_video(&p)) && (self.viewing.is_some() || self.turns_fit().is_none());
+        if video { self.off(Some("off-video-flip")) } else { self.turn_off() }
+    }
+
     /// Edit image… and Rotate and crop…: as the turns, then one image that is not animated.
     pub(crate) fn editor_off(&self) -> Option<String> {
         self.turn_off().or_else(|| self.edit_off(None))
