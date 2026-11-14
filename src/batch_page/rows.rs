@@ -13,7 +13,7 @@ pub(super) fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bo
     let scroll = f.scroll && !ui.is_sizing_pass();
     f.scroll &= !scroll;
     let mut area = egui::ScrollArea::vertical().max_height(max);
-    if scroll && f.part == Part::Format {
+    if scroll && f.part != Part::Resize {
         area = area.vertical_scroll_offset(0.0);
     }
     area.show(ui, |ui| {
@@ -37,7 +37,7 @@ pub(super) fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bo
         let fixed = f.videos && !f.images && f.video.codec == Codec::Copy;
         ui.add_enabled_ui(!fixed, |ui| {
             // The size, with the turn above it (a picture's shape, after the format).
-            if scroll && f.part == Part::Size {
+            if scroll && f.part == Part::Resize {
                 ui.scroll_to_cursor(Some(egui::Align::TOP));
             }
             section(ui, t("batch-turn"), |ui| turn_rows(ui, f, i18n));

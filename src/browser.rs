@@ -167,7 +167,7 @@ impl App {
             entry(PLAYED, "menu-batch", self.i18n.t("key-batch"), Act::Batch(path.clone())),
             entry(&[Kind::Picture], "menu-resize", String::new(), Act::Submenu(self.resize_items(path.clone()))),
             entry(&[Kind::Drawing], "menu-export-drawings", String::new(), Act::ExportDrawings(path.clone())),
-            entry(&[Kind::Video], "menu-copy-meta", String::new(), Act::CopyMeta(path.clone())),
+            entry(PLAYED, "menu-copy-meta", String::new(), Act::CopyMeta(path.clone())),
             entry(&[Kind::Video], "menu-strip-audio", String::new(), Act::Audio(AudioJob::Strip, path.clone())),
             entry(&[Kind::Video], "menu-extract-audio", String::new(), Act::Audio(AudioJob::Extract, path)),
         ]

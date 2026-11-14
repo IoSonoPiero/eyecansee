@@ -7,7 +7,7 @@ For one image with a live preview use [Saving in another format](save-as.md). Vi
 ## Starting
 
 1. In the grid, select the pictures (see [Selecting files](selection.md)). With nothing selected, the image under the cursor is used.
-2. Click ![Convert…](icon://scaling) in the toolbar, or choose **Tools > Convert…** (**Ctrl+B**), or right-click one of the selected files and choose **Convert…**. The window opens on its format; **Resize > Custom…** opens it on its size (see below).
+2. Click ![Convert…](icon://scaling) in the toolbar, or choose **Tools > Convert…** (**Ctrl+B**), or right-click one of the selected files and choose **Convert…**. The window opens on its format, with the size **Unchanged**; **Resize > Custom…** opens it on its size (see below).
 3. Make your choices in the window and click **Convert**.
 
 The window works on pictures and videos. Other files you selected (3D models, CAD drawings, audio files) are left out: the window says how many, the message at the end which ones. It does not work from the viewer, and only one conversion runs at a time.
@@ -16,11 +16,11 @@ The window works on pictures and videos. Other files you selected (3D models, CA
 
 ## Resizing in one click
 
-To only make smaller copies of photos, without the window: right-click the selected files, or open **Tools**, and choose **Resize** and one of its sizes: **Small (long side 1280 px)**, **Medium (long side 1920 px)**, **Large (long side 2560 px)** or **50%**. The sizes are yours to change in [Options](options.md), on the **Resize** tab.
+To only make smaller copies of photos, without the window: right-click the selected files, or open **Tools**, and choose **Resize** and one of its sizes: **Small (long side 1280 px)**, **Medium (long side 1920 px)**, **Large (long side 2560 px)** or **Half (50%)**. The sizes are yours to change in [Options](options.md), on the **Resize** tab.
 
-The work starts at once on every picture chosen, with the same box and **Cancel** as below and the message at the end. The copies go next to the originals, in their format and with their metadata (an **Ultra HDR** photo stays Ultra HDR), the size in their names: `photo (1920 px).jpg`, `photo (50%).jpg`. A name already taken gets " (2)". Pictures already smaller than the size are copied as they are, never enlarged. Pictures in a format EyeCanSee cannot write (HEIC, RAW…) are left out, and the message says why. Videos, 3D models, CAD drawings and audio files are left out too, and the message names them: with some of them among the files chosen, **Resize** is marked with **\***; with no picture at all, it is greyed out.
+The work starts at once on every picture chosen, with the same box and **Cancel** as below and the message at the end. The copies go next to the originals, in their format and with their metadata (an **Ultra HDR** photo stays Ultra HDR), the size in their names: `photo (1920 px).jpg`, `photo (50%).jpg`. A name already taken gets " (2)". Pictures already of that size, or smaller (they are never enlarged), get no copy, and the message names them: so resizing a copy again does not make `photo (1920 px) (1920 px).jpg`. Pictures in a format EyeCanSee cannot write (HEIC, RAW…) are left out, and the message says why. Videos, 3D models, CAD drawings and audio files are left out too, and the message names them: with some of them among the files chosen, **Resize** is marked with **\***; with no picture at all, it is greyed out.
 
-**Resize > Custom…** opens this window on the pictures, on the turn and the size, with the format **Same as the original**.
+**Resize > Custom…** opens this window, called **Resize**, on the pictures, on the turn and the size, with the format **Same as the original** and the copies next to the originals. It starts from the size of the last Custom… (at first **Long side** 1920 px); **Convert…** instead always starts from **Unchanged**.
 
 ## Format
 
@@ -43,7 +43,7 @@ The work starts at once on every picture chosen, with the same box and **Cancel*
 - **Exactly, cropped in the middle**: exactly the size written; what does not fit the proportions is cut off equally on both sides.
 - **Exactly, stretched**: exactly the size written, the picture stretched or squeezed to it.
 - With videos among the files chosen, only **Unchanged**, **Percent of the original** and **Inside** can be chosen: the other sizes are for pictures only.
-- **Enlarge smaller files too**: off at first, so images already smaller than the size asked stay as they are (with an exact size, no side grows larger than the original's).
+- **Enlarge smaller files too**: off at first, so images already smaller than the size asked stay as they are (with an exact size, no side grows larger than the original's). In the format **Same as the original**, a picture that would come out the same as the original gets no copy, and the message names it.
 - **Filter**, how the new pixels are worked out: **Lanczos** (sharpest, the default), **Catmull-Rom**, **Gaussian** (soft), **Bilinear** (fast), **Nearest pixel** (keeps the hard edges of pixel art).
 
 If nothing would change (same format, same size, no turn), **Convert** stays off and a red line says so: the images would only lose quality.

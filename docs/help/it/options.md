@@ -68,6 +68,6 @@ Vedi [Salvare un'immagine modificata](editor-save.md).
 
 ## Ridimensiona
 
-Le misure di **Ridimensiona**, nel menù del clic destro sulle miniature e in **Strumenti** (vedi [Convertire e ridimensionare le immagini](convert.md)). All'inizio **Piccola** (lato lungo 1280 px), **Media** (lato lungo 1920 px), **Grande** (lato lungo 2560 px) e **50 %**.
+Le misure di **Ridimensiona**, nel menù del clic destro sulle miniature e in **Strumenti** (vedi [Convertire e ridimensionare le immagini](convert.md)). All'inizio **Piccola** (lato lungo 1280 px), **Media** (lato lungo 1920 px), **Grande** (lato lungo 2560 px) e **Metà** (50 %).
 
 Ogni riga è una misura: il suo **Nome** (può restare vuoto: il menù mostra allora solo la misura), il tipo (**Percentuale dell'originale**, **Entro**, **Lato lungo**, **Lato corto**, **Larghezza**, **Altezza**, **Misura esatta, tagliata al centro**, **Misura esatta, deformata**) e i pixel o la percentuale. ![Togli](icon://x) la toglie, **Aggiungi** ne aggiunge una, **Rimetti quelle di partenza** rimette le quattro misure iniziali. Finché non le cambi, i loro nomi seguono la lingua di EyeCanSee.

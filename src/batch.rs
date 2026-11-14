@@ -216,6 +216,7 @@ pub fn tagged(name: &str, tag: &str) -> String {
 /// Why an image was left out (Fluent ids), with its name.
 pub const SKIP_FORMAT: &str = "batch-skip-format";
 pub const SKIP_INSIDE: &str = "batch-skip-inside";
+pub const SKIP_SAME_SIZE: &str = "batch-skip-same-size";
 pub const SKIP_VIDEO: &str = "batch-skip-video";
 pub const SKIP_NOT_AUTOCAD: &str = "drawing-skip-not-autocad";
 pub const SKIP_WOULD_LOSE: &str = "drawing-skip-would-lose";
@@ -231,6 +232,10 @@ pub fn convert(bytes: &[u8], name: &str, job: &Job) -> Result<(String, Vec<u8>),
 pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::Sibling) -> Result<(String, Vec<u8>), (&'static str, String)> {
     if let Some(drawn) = job.drawing {
         return drawing(bytes, name, job, drawn, sibling);
+    }
+    // Copy with the metadata: the picture as it is, everything in it kept.
+    if job.does_nothing() {
+        return Ok((name.to_string(), bytes.to_vec()));
     }
     if job.format.is_none() && !encode::saves_back(name) {
         return Err((SKIP_FORMAT, name.to_string()));
@@ -254,10 +259,10 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     job.turn.apply(&mut image);
     let (w, h) = target(image.width(), image.height(), job.size, job.enlarge);
     let cut = crop(image.width(), image.height(), job.size, job.enlarge);
-    // Nothing to do in its own format (an image smaller than the size asked): the copy is the
-    // original as it is, nothing lost.
+    // Already of the size asked in its own format (or smaller, not enlarged): a copy would be
+    // the original again, under a longer name at each Resize. None is made.
     if job.format.is_none() && job.turn.is_none() && cut.is_none() && (w, h) == (image.width(), image.height()) {
-        return Ok((name.to_string(), bytes.to_vec()));
+        return Err((SKIP_SAME_SIZE, name.to_string()));
     }
     if let Some((x, y, cw, ch)) = cut {
         image = image.crop_imm(x, y, cw, ch);
@@ -732,7 +737,8 @@ mod tests {
     }
 
     /// Resize with a preset: copies next to the originals with the size in their names, a name
-    /// taken gets " (2)", a smaller image is copied as it is, a format not written is left out.
+    /// taken gets " (2)", an image already of that size (or smaller) and a format not written are
+    /// left out.
     #[test]
     fn resized_next_to_the_originals() {
         let dir = std::env::temp_dir().join(format!("eyecansee-resize-{}", std::process::id()));
@@ -758,9 +764,20 @@ mod tests {
         assert_eq!(failed, [(SKIP_FORMAT, "t.tga".to_string())]);
         let back = crate::decode::decode_full(&std::fs::read(dir.join(&saved[0])).unwrap(), "x.png").unwrap();
         assert_eq!((back.width(), back.height()), (200, 150));
-        // Larger than the image: the same file.
-        assert_eq!(resize(Size::Long(1920)).0, ["a (1920 px).png"]);
-        assert_eq!(std::fs::read(dir.join("a (1920 px).png")).unwrap(), png);
+        // Larger than the image, or its size: no copy, said by name (#119).
+        for size in [Size::Long(1920), Size::Long(400), Size::Fit(400, 400), Size::Stretch(400, 300), Size::Crop(400, 300), Size::Percent(100)] {
+            let (saved, failed) = resize(size);
+            assert!(saved.is_empty(), "{size:?}: {saved:?}");
+            assert_eq!(failed[0], (SKIP_SAME_SIZE, "a.png".to_string()), "{size:?}");
+        }
+        assert!(!dir.join("a (1920 px).png").exists());
+        // Copy with the metadata: the file as it is, also in a format not written (TGA).
+        let p = Arc::new(Progress::default());
+        let job = Job { format: None, ..Default::default() };
+        rt.block_on(run(&op, vec!["a.png".into(), "t.tga".into()], Dest { op: op.clone(), dir: String::new(), create: false }, job, p.clone()));
+        assert_eq!(*p.saved.lock().unwrap(), ["a (2).png", "t (2).tga"]);
+        assert_eq!(std::fs::read(dir.join("a (2).png")).unwrap(), png);
+        assert!(p.failed.lock().unwrap().is_empty());
         // Cropped in the middle: the left column of the copy comes from x = 50.
         let (saved, _) = resize(Size::Crop(100, 100));
         let back = crate::decode::decode_full(&std::fs::read(dir.join(&saved[0])).unwrap(), "x.png").unwrap().to_rgb8();

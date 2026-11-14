@@ -21,8 +21,8 @@ pub struct Preset {
 
 /// The first presets, named in the language of `i18n`.
 pub fn defaults(i18n: &I18n) -> Vec<Preset> {
-    [("preset-small", Size::Long(1280)), ("preset-medium", Size::Long(1920)), ("preset-large", Size::Long(2560)), ("", Size::Percent(50))]
-        .map(|(id, size)| Preset { name: if id.is_empty() { String::new() } else { i18n.t(id) }, size })
+    [("preset-small", Size::Long(1280)), ("preset-medium", Size::Long(1920)), ("preset-large", Size::Long(2560)), ("preset-half", Size::Percent(50))]
+        .map(|(id, size)| Preset { name: i18n.t(id), size })
         .to_vec()
 }
 
@@ -130,9 +130,10 @@ mod tests {
         }
         let en = I18n::new("en");
         let first = defaults(&en);
-        assert_eq!(first.iter().map(|p| p.label(&en)).collect::<Vec<_>>(), ["Small (long side 1280 px)", "Medium (long side 1920 px)", "Large (long side 2560 px)", "50%"]);
+        assert_eq!(first.iter().map(|p| p.label(&en)).collect::<Vec<_>>(), ["Small (long side 1280 px)", "Medium (long side 1920 px)", "Large (long side 2560 px)", "Half (50%)"]);
         let it = I18n::new("it");
         assert_eq!(defaults(&it)[1].label(&it), "Media (lato lungo 1920 px)");
+        assert_eq!(defaults(&it)[3].label(&it), "Metà (50 %)");
         assert_eq!(Preset { name: " ".into(), size: Size::Crop(800, 600) }.label(&en), "exactly 800 × 600 px, cropped");
     }
 
