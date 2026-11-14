@@ -6,6 +6,7 @@ use eframe::egui::{self, ColorImage};
 
 use super::Tool;
 use crate::App;
+use crate::actions::Act;
 use crate::edit::doc::{Obj, Pt, Shape, Style};
 
 impl App {
@@ -75,10 +76,25 @@ impl App {
         w.doc.objects.push(Obj { shape: Shape::Cover(area), style: Style { color, ..Style::default() } });
     }
 
+    /// The editor's copy, cut and paste among the window's events (Ctrl+C, X, V and the system's
+    /// keys), taken out of them. A Ctrl+V that brought nothing is a paste too, so it says why: with
+    /// an empty clipboard, or one that could not be read, egui sends no paste, only the key let go.
+    pub(crate) fn edit_clip_events(&mut self, events: &mut Vec<egui::Event>) -> Option<Act> {
+        let w = self.editor.as_mut()?;
+        let mut act = None;
+        events.retain(|e| {
+            let (a, keep) = clip_event(e, &mut w.pasted);
+            act = a.or(act.take());
+            keep
+        });
+        act
+    }
+
     /// Ctrl+V or Paste: the part copied, as a patch a little aside of where it was; without one,
     /// an image from the clipboard of another program, in the middle of the result, at most 80% of
-    /// it. Selected, with Select chosen to move it.
-    pub(crate) fn edit_paste(&mut self, img: Option<std::sync::Arc<ColorImage>>) {
+    /// it. Selected, with Select chosen to move it. Nothing to paste: a note says so (it was
+    /// silent, as when the clipboard holds text).
+    pub(crate) fn edit_paste(&mut self, ctx: &egui::Context, img: Option<std::sync::Arc<ColorImage>>) {
         let Some(w) = &mut self.editor else { return };
         // An image of another size in the clipboard was copied elsewhere after the part: it wins.
         let clip = w.clip.as_ref().filter(|(_, p)| img.as_ref().is_none_or(|i| i.size == [p.image().width() as usize, p.image().height() as usize]));
@@ -96,7 +112,10 @@ impl App {
                 let centre = crate::edit::geom::turned(Pt::new(c.cx, c.cy), -w.doc.angle);
                 (crate::edit::doc::Area { centre, w: image.width() as f32 * k, h: image.height() as f32 * k, rot: -w.doc.angle }, crate::edit::doc::Pixels::new(image))
             }
-            (None, None) => return,
+            (None, None) => {
+                w.note = Some((self.i18n.t("edit-paste-none"), ctx.input(|i| i.time) + 4.0));
+                return;
+            }
         };
         w.doc.objects.push(Obj { shape: Shape::Patch { area, pixels }, style: Style::default() });
         w.selected = Some(w.doc.objects.len() - 1);
@@ -109,5 +128,50 @@ impl App {
         w.copying = false;
         ctx.copy_image(img);
         w.note = Some((self.i18n.t("edit-copied"), ctx.input(|i| i.time) + 4.0));
+    }
+}
+
+/// What one event of the window does in the editor, and whether it stays for the others. `pasted`:
+/// the clipboard gave something since the last Ctrl+V let go.
+fn clip_event(e: &egui::Event, pasted: &mut bool) -> (Option<Act>, bool) {
+    match e {
+        egui::Event::Copy => (Some(Act::EditCopy), false),
+        egui::Event::Cut => (Some(Act::EditCut), false),
+        egui::Event::Paste(_) => {
+            *pasted = true;
+            (Some(Act::EditPaste(None)), false)
+        }
+        egui::Event::PasteImage(img) => {
+            *pasted = true;
+            (Some(Act::EditPaste(Some(img.clone()))), false)
+        }
+        egui::Event::Key { key: egui::Key::V, pressed: false, modifiers, .. } if modifiers.command => (if std::mem::take(pasted) { None } else { Some(Act::EditPaste(None)) }, true),
+        _ => (None, true),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use eframe::egui::{Event, Key, Modifiers};
+
+    use super::*;
+
+    fn v_up(modifiers: Modifiers) -> Event {
+        Event::Key { key: Key::V, physical_key: None, pressed: false, repeat: false, modifiers }
+    }
+
+    /// Ctrl+V with an image pastes it once; with nothing on the clipboard (no paste event, only the
+    /// key let go) it is a paste of nothing, which says so; V alone is not.
+    #[test]
+    fn paste_of_nothing_is_seen() {
+        let img = std::sync::Arc::new(ColorImage::filled([1, 1], egui::Color32::RED));
+        let mut pasted = false;
+        let (a, keep) = clip_event(&Event::PasteImage(img), &mut pasted);
+        assert!(matches!(a, Some(Act::EditPaste(Some(_)))) && !keep);
+        assert!(matches!(clip_event(&v_up(Modifiers::COMMAND), &mut pasted), (None, true)));
+        assert!(matches!(clip_event(&v_up(Modifiers::COMMAND), &mut pasted), (Some(Act::EditPaste(None)), true)));
+        assert!(matches!(clip_event(&v_up(Modifiers::NONE), &mut pasted), (None, true)));
+        assert!(matches!(clip_event(&Event::Paste("text".into()), &mut pasted), (Some(Act::EditPaste(None)), false)));
+        assert!(matches!(clip_event(&v_up(Modifiers::COMMAND), &mut pasted), (None, true)));
     }
 }

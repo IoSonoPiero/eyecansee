@@ -172,6 +172,8 @@ pub struct Window {
     marquee: Option<crate::edit::doc::Area>,
     /// A part copied or cut: Paste puts it back as a patch where it was (a little aside).
     clip: Option<(crate::edit::doc::Area, crate::edit::doc::Pixels)>,
+    /// The clipboard gave something since the last Ctrl+V let go (`clip::edit_clip_events`).
+    pasted: bool,
     /// How many times the previews of the filters were made: the objects are drawn again then.
     filters_made: u64,
     /// What the lenses' previews were made with (`photo::hiders_key`).
@@ -260,6 +262,7 @@ impl Window {
             ask_pick: None,
             marquee: None,
             clip: None,
+            pasted: false,
             filters_made: 0,
             hiders: 0,
             keys_open: false,

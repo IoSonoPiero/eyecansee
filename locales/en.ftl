@@ -682,6 +682,7 @@ edit-cut-part = Cut the part
 edit-paste-part = Paste
 edit-off-no-marquee = Choose a part first, dragging on the image.
 edit-off-no-clip = Nothing to paste: copy or cut a part first.
+edit-paste-none = No image in the clipboard.
 edit-part-copied = Part copied: Ctrl+V pastes it as an object, also in another program.
 edit-filters = Filters
 edit-filters-part = On the part chosen:

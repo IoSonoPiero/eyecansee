@@ -681,6 +681,7 @@ edit-cut-part = Taglia la zona
 edit-paste-part = Incolla
 edit-off-no-marquee = Prima scegli una zona trascinando sull'immagine.
 edit-off-no-clip = Niente da incollare: prima copia o taglia una zona.
+edit-paste-none = Negli appunti non c'è un'immagine.
 edit-part-copied = Zona copiata: Ctrl+V la incolla come oggetto, anche in un altro programma.
 edit-filters = Filtri
 edit-filters-part = Sulla zona scelta:

@@ -298,7 +298,7 @@ impl App {
             Act::Edit(path) => self.open_editor(path, crate::edit_page::Tool::Select),
             Act::EditCopy => self.edit_copy(ctx),
             Act::EditCut => self.edit_cut(ctx),
-            Act::EditPaste(img) => self.edit_paste(img),
+            Act::EditPaste(img) => self.edit_paste(ctx, img),
             Act::Save => self.ask_save(),
             Act::Submenu(_) | Act::Off(_) => {}
             Act::Restore(path) => self.ask_restore(path),

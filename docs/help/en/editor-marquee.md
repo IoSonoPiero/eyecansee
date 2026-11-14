@@ -20,7 +20,7 @@ The properties bar has three buttons, also on the keyboard:
 
 ## Pasting from another program
 
-Ctrl+V also pastes an image copied in another program. It goes in the middle of the result, at most four fifths of its size, as an object you can move and resize. If you copied something in another program after copying a part here, that image is pasted instead.
+Ctrl+V also pastes an image copied in another program. It goes in the middle of the result, at most four fifths of its size, as an object you can move and resize. If you copied something in another program after copying a part here, that image is pasted instead. When there is no image to paste, the status bar says so.
 
 ## Filters on a part
 
