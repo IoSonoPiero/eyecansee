@@ -74,16 +74,7 @@ impl App {
             return;
         }
         let Some(Ok(new)) = self.listings.get(dir) else { return };
-        let at: HashMap<&str, usize> = new.files.iter().enumerate().map(|(i, f)| (f.path.as_str(), i)).collect();
-        let moved: HashMap<usize, usize> = old
-            .files
-            .iter()
-            .enumerate()
-            .filter_map(|(i, f)| {
-                let j = *at.get(f.path.as_str())?;
-                (new.files[j].size == f.size && new.files[j].modified == f.modified).then_some((i, j))
-            })
-            .collect();
+        let (to, moved) = moves(&old, new);
         fn remap<T>(map: &mut HashMap<usize, T>, moved: &HashMap<usize, usize>) {
             *map = map.drain().filter_map(|(k, v)| Some((*moved.get(&k)?, v))).collect();
         }
@@ -91,13 +82,13 @@ impl App {
         remap(&mut self.full, &moved);
         // An image just saved from Rotate and crop: its new file is what it shows already.
         if let Some((path, tex)) = self.fresh.take()
-            && let Some(&j) = at.get(path.as_str())
+            && let Some(j) = new.files.iter().position(|f| f.path == path)
         {
             self.full.insert(j, Ok(tex));
         }
         self.generated = self.generated.iter().filter_map(|k| moved.get(k).copied()).collect();
         let (ndirs, n) = (new.dirs.len(), new.files.len());
-        let file_at = |i: usize| old.files.get(i).and_then(|f| at.get(f.path.as_str()).copied());
+        let file_at = |i: usize| to.get(i).copied().flatten();
         let followed = match old.dirs.get(self.selected) {
             Some(d) => new.dirs.iter().position(|x| x == d),
             None => file_at(self.selected - old.dirs.len()).map(|j| ndirs + j),
@@ -115,6 +106,11 @@ impl App {
             self.turn = Default::default();
         }
         self.viewing = self.viewing.filter(|_| n > 0).map(|v| copy.unwrap_or_else(|| file_at(v).unwrap_or(v.min(n - 1))));
+        // The viewer's zoom and turns, and the metadata read, follow their file too: with a new
+        // file before it the image looked like another one, its turns not saved were dropped
+        // and the date taken became the file's.
+        self.zoom_of = self.zoom_of.and_then(file_at);
+        self.meta = self.meta.take().and_then(|(i, m)| Some((*moved.get(&i)?, m)));
         if let Some(loader) = &self.loader {
             self.generation = loader.next_generation();
         }
@@ -138,6 +134,17 @@ impl App {
     }
 }
 
+/// Where the files of `old` are in `new` (positions among the images): every file still there,
+/// by its path, and those unchanged too (same size and date), whose images are still good.
+fn moves(old: &Listing, new: &Listing) -> (Vec<Option<usize>>, HashMap<usize, usize>) {
+    let at: HashMap<&str, usize> = new.files.iter().enumerate().map(|(i, f)| (f.path.as_str(), i)).collect();
+    let to: Vec<Option<usize>> = old.files.iter().map(|f| at.get(f.path.as_str()).copied()).collect();
+    let moved = (old.files.iter().zip(&to).enumerate())
+        .filter_map(|(i, (f, j))| j.filter(|&j| new.files[j].size == f.size && new.files[j].modified == f.modified).map(|j| (i, j)))
+        .collect();
+    (to, moved)
+}
+
 /// The item of `path` in a listing: folders first, then files.
 fn place(l: &Listing, path: &str) -> Option<usize> {
     l.dirs.iter().position(|d| d == path).or_else(|| l.files.iter().position(|f| f.path == path).map(|j| l.dirs.len() + j))
@@ -156,5 +163,24 @@ mod tests {
         assert_eq!(place(&l, "p/sub/"), Some(0));
         assert_eq!(place(&l, "p/a (edited).jpg"), Some(2));
         assert_eq!(place(&l, "p/gone.jpg"), None);
+    }
+
+    /// A file new before the one viewed moves it one place on, a file gone one place back: it
+    /// is followed by its path (zoom, turns not saved, metadata), its images only if unchanged.
+    #[test]
+    fn files_followed_to_their_new_place() {
+        let file = |p: &str, size| File { path: p.into(), size, modified: "2026-11-14".into() };
+        let listing = |files: Vec<File>| Listing { files, ..Default::default() };
+        let old = listing(vec![file("p/b.jpg", 1), file("p/q.jpg", 2), file("p/z.jpg", 3)]);
+        let added = listing(vec![file("p/a.jpg", 9), file("p/b.jpg", 1), file("p/q.jpg", 2), file("p/z.jpg", 4)]);
+        let (to, moved) = moves(&old, &added);
+        assert_eq!(to, [Some(1), Some(2), Some(3)]);
+        assert_eq!(moved, HashMap::from([(0, 1), (1, 2)]), "z.jpg changed: its images are dropped");
+        let removed = listing(vec![file("p/q.jpg", 2), file("p/z.jpg", 3)]);
+        let (to, moved) = moves(&old, &removed);
+        assert_eq!(to, [None, Some(0), Some(1)]);
+        assert_eq!(moved, HashMap::from([(1, 0), (2, 1)]));
+        let after = listing(vec![file("p/b.jpg", 1), file("p/q.jpg", 2), file("p/z.jpg", 3), file("p/zeta.jpg", 5)]);
+        assert_eq!(moves(&old, &after).0, [Some(0), Some(1), Some(2)]);
     }
 }
