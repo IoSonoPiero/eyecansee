@@ -493,6 +493,9 @@ struct State {
     size: [u32; 2],
     frame: Option<ColorImage>,
     quit: bool,
+    /// A turn not saved yet, clockwise degrees on top of the file's own (#125); `None` until the
+    /// file is loaded and its rotation known.
+    turn: Option<i64>,
 }
 
 #[derive(Default)]
@@ -602,7 +605,15 @@ impl Player {
 
     /// A turn not saved yet (#125): clockwise degrees, added by mpv to the file's own rotation.
     pub fn set_rotate(&self, degrees: u32) {
-        let _ = self.mpv.command(&["set", "video-rotate", &(degrees % 360).to_string()]);
+        let mut st = self.shared.state.lock().unwrap();
+        // Before the file is loaded the player's thread sets it with the file's rotation.
+        let loaded = st.turn.is_some();
+        st.turn = Some(degrees as i64);
+        drop(st);
+        if loaded {
+            turn_frames(&self.mpv, degrees as i64);
+            self.shared.change(|st| st.dirty = true);
+        }
     }
 }
 
@@ -613,6 +624,17 @@ impl Drop for Player {
             let _ = t.join();
         }
     }
+}
+
+/// The frames turned by the file's rotation and `turn` more (clockwise degrees), by a filter.
+fn turn_frames(mpv: &Mpv, turn: i64) {
+    let filter = match (mpv.rotation() + turn).rem_euclid(360) {
+        90 => "transpose=clock",
+        180 => "hflip,vflip",
+        270 => "transpose=cclock",
+        _ => "",
+    };
+    let _ = if filter.is_empty() { mpv.command(&["vf", "clr", ""]) } else { mpv.command(&["vf", "set", filter]) };
 }
 
 fn draw_loop(mpv: &Mpv, shared: &Shared, repaint: impl Fn()) {
@@ -630,15 +652,11 @@ fn draw_loop(mpv: &Mpv, shared: &Shared, repaint: impl Fn()) {
             _ => {}
         }
     }
-    let filter = match mpv.rotation() {
-        90 => Some("transpose=clock"),
-        180 => Some("hflip,vflip"),
-        270 => Some("transpose=cclock"),
-        _ => None,
+    let turn = {
+        let mut st = shared.state.lock().unwrap();
+        *st.turn.get_or_insert(0)
     };
-    if let Some(filter) = filter {
-        let _ = mpv.command(&["vf", "set", filter]);
-    }
+    turn_frames(mpv, turn);
     loop {
         let size = {
             let mut st = shared.state.lock().unwrap();

@@ -54,6 +54,8 @@ pub(crate) fn save_id(shown: Option<Kind>, changed: bool) -> Option<&'static str
     match shown {
         Some(Kind::Model) => Some("off-save-model"),
         Some(Kind::Drawing) => Some("off-save-drawing"),
+        // A video turned (#125): its new rotation is saved.
+        Some(Kind::Video) if changed => None,
         Some(Kind::Video | Kind::Audio) => Some("off-save-played"),
         _ if changed => None,
         _ => Some("tb-off-save"),
@@ -262,6 +264,8 @@ mod tests {
         assert_eq!(save_id(Some(Kind::Drawing), false), Some("off-save-drawing"));
         assert_eq!(save_id(Some(Kind::Video), false), Some("off-save-played"));
         assert_eq!(save_id(Some(Kind::Audio), false), Some("off-save-played"));
+        assert_eq!(save_id(Some(Kind::Video), true), None);
+        assert_eq!(save_id(Some(Kind::Audio), true), Some("off-save-played"));
         assert_eq!(save_id(None, false), Some("tb-off-save"));
         // Save as…: what the viewer shows, but not a video or an audio file; one picture in the grid.
         assert_eq!(save_as_id(Some(Kind::Model), 0), None);
