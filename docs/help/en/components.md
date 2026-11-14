@@ -14,7 +14,7 @@ On Linux, EyeCanSee uses the system's libmpv and FFmpeg when they are recent eno
 
 ## Downloading one
 
-- **Video engine**: a red **Download the video engine** button appears at the top right of the menu bar, with its size; the viewer offers it too, the first time a video is opened. Usually the videos play at once; if the engine cannot start, the button becomes **Restart EyeCanSee**.
+- **Video engine**: a red **Download the video engine** button appears at the top right of the menu bar, with its size; the viewer offers it too, the first time a video is opened. Until then videos and audio files show their sign (a play button, a note) with a download arrow in the grid. Usually the videos play at once; if the engine cannot start, the button becomes **Restart EyeCanSee**.
 - **FFmpeg**: the Convert and resize window shows **Download FFmpeg**, with its size, and a bar while it downloads (see [Converting videos](convert-video.md)).
 - **CAD engine**: a red **Download the CAD engine** button appears at the top right of the menu bar, with its size. Until then those models show a cube with a download arrow, and nothing is read from a phone or a server to make their thumbnail. Once it is downloaded, the thumbnails and a model open in the viewer appear by themselves.
 

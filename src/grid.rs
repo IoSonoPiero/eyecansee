@@ -445,16 +445,17 @@ impl App {
                     _ => {}
                 }
             }
+            // Waiting for an engine to download (#71): the file's sign with the download badge
+            // beside it, for an audio file too. The warning is kept for files that are damaged or
+            // not supported (2026-11-08).
+            Some(Err(e)) if let Some(icon) = engine_sign(e, self.files().get(file).map_or("", |f| f.path.as_str())) => {
+                let sign = Rect::from_center_size(thumb_rect.center(), vec2(side * 0.45, side * 0.45));
+                icons::paint(painter, icon, sign);
+                icons::paint(painter, Icon::Download, Rect::from_min_size(sign.right_bottom() - vec2(side * 0.08, side * 0.14), vec2(side * 0.18, side * 0.18)));
+            }
             // An audio file without a cover has no picture: a note in place of the warning.
             Some(Err(_)) if self.files().get(file).is_some_and(|f| crate::decode::is_audio(&f.path)) => {
                 icons::paint(painter, Icon::Audio, Rect::from_center_size(thumb_rect.center(), vec2(side * 0.45, side * 0.45)));
-            }
-            // Waiting for an engine to download (#71): the file's sign with the download badge
-            // beside it. The warning is kept for files that are damaged or not supported (2026-11-08).
-            Some(Err(e)) if e == crate::video_read::NO_ENGINE || e == crate::occt::MISSING => {
-                let sign = Rect::from_center_size(thumb_rect.center(), vec2(side * 0.45, side * 0.45));
-                icons::paint(painter, if e == crate::occt::MISSING { Icon::Model } else { Icon::Video }, sign);
-                icons::paint(painter, Icon::Download, Rect::from_min_size(sign.right_bottom() - vec2(side * 0.08, side * 0.14), vec2(side * 0.18, side * 0.18)));
             }
             Some(Err(_)) => {
                 painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "⚠", FontId::proportional(side * 0.3), dim);
@@ -642,6 +643,20 @@ impl App {
     }
 }
 
+/// The sign of a file whose thumbnail waits for an engine to download: the model for the CAD
+/// engine, the note for an audio file and the film for a video without the video engine.
+fn engine_sign(error: &str, path: &str) -> Option<Icon> {
+    if error == crate::occt::MISSING {
+        Some(Icon::Model)
+    } else if error != crate::video_read::NO_ENGINE {
+        None
+    } else if crate::decode::is_audio(path) {
+        Some(Icon::Audio)
+    } else {
+        Some(Icon::Video)
+    }
+}
+
 /// Order in which thumbnails are generated: selected, visible, nearby rows, the rest of those to
 /// keep in memory (even if already on disk, they must be reloaded), then the rest of the folder
 /// not yet generated.
@@ -663,7 +678,17 @@ fn thumb_order(
 
 #[cfg(test)]
 mod tests {
-    use super::thumb_order;
+    use super::{engine_sign, thumb_order};
+    use crate::icons::Icon;
+
+    #[test]
+    fn engine_sign_audio() {
+        // An audio file without the video engine: the note with the download arrow, as a video.
+        assert_eq!(engine_sign(crate::video_read::NO_ENGINE, "a/song.mp3"), Some(Icon::Audio));
+        assert_eq!(engine_sign(crate::video_read::NO_ENGINE, "a/clip.mp4"), Some(Icon::Video));
+        assert_eq!(engine_sign(crate::occt::MISSING, "a/part.step"), Some(Icon::Model));
+        assert_eq!(engine_sign("damaged", "a/song.mp3"), None);
+    }
 
     #[test]
     pub(crate) fn order() {
