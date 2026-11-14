@@ -579,6 +579,10 @@ mod tests {
             assert_eq!(with.meta_box(f), expected, "{f:?}");
         }
         assert_eq!(open(&source(Format::Png, None), Format::Png).meta_box(Format::Jpeg), (false, Some("convert-no-meta")));
+        // The box names what it keeps: the resolution alone for a BMP.
+        for f in Format::ALL {
+            assert_eq!(f.meta_label(), if f == Format::Bmp { "convert-keep-density" } else { "convert-keep-meta" }, "{f:?}");
+        }
     }
 
     /// A quarter turn exchanges the density across and down; a half turn does not.

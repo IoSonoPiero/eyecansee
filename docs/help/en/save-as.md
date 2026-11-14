@@ -53,7 +53,7 @@ If the name is already taken in that folder, " (2)" is added, and the page tells
 
 **Keep the metadata (EXIF, XMP, IPTC, colour profile)** is on at first. It keeps the camera, the date the photo was taken, the place (GPS), author, copyright, descriptions, keywords, the colour profile and the resolution (dots per inch).
 
-- Only JPEG, PNG, WebP, AVIF and TIFF can hold metadata. BMP holds only the resolution: with BMP the box can be changed when the original has a resolution. With another format, or when the original has none, the box is greyed out; pointing at it says why.
+- Only JPEG, PNG, WebP, AVIF and TIFF can hold metadata. BMP holds only the resolution: with BMP the box reads **Keep the metadata (resolution only)** and can be changed when the original has a resolution. With another format, or when the original has none, the box is greyed out; pointing at it says why.
 - The **resolution** (for example the 600 dpi of a scan) is part of the metadata: without **Keep the metadata** the file is saved without it, also when the original has nothing else.
 - The orientation is set to upright, since the saved pixels are already turned, and the sizes written inside are those of the new image.
 - Left out: the small previews that cameras store inside the file, the Lightroom and Camera Raw settings, and the video of a motion photo, which the new file does not have.

@@ -106,6 +106,11 @@ impl Format {
         self == Format::Bmp
     }
 
+    /// The Fluent id of the "Keep the metadata" box for this format: it names what is kept.
+    pub fn meta_label(self) -> &'static str {
+        if self.holds_density_only() { "convert-keep-density" } else { "convert-keep-meta" }
+    }
+
     /// The format a file can be saved back in after a turn ("Save"), from its name (what is
     /// inside, animated or not, is looked at by `save_back::can_turn_in_place`). The other names
     /// of a JPEG (`.jpeg`, `.jfif`, `.jpe`) and of a TIFF (`.tiff`) count as theirs.

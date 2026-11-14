@@ -53,7 +53,7 @@ Se il nome è già preso in quella cartella, viene aggiunto " (2)" e la pagina l
 
 **Mantieni i metadati (EXIF, XMP, IPTC, profilo colore)** è acceso all'inizio. Conserva la fotocamera, la data dello scatto, il luogo (GPS), autore, copyright, descrizioni, parole chiave, il profilo colore e la risoluzione (punti per pollice).
 
-- Solo JPEG, PNG, WebP, AVIF e TIFF possono contenere metadati. BMP contiene solo la risoluzione: con BMP la casella si può cambiare quando l'originale ha una risoluzione. Con un altro formato, o se l'originale non ne ha, la casella è grigia; passandoci sopra si legge il perché.
+- Solo JPEG, PNG, WebP, AVIF e TIFF possono contenere metadati. BMP contiene solo la risoluzione: con BMP la casella diventa **Mantieni i metadati (solo la risoluzione)** e si può cambiare quando l'originale ha una risoluzione. Con un altro formato, o se l'originale non ne ha, la casella è grigia; passandoci sopra si legge il perché.
 - La **risoluzione** (per esempio i 600 dpi di una scansione) fa parte dei metadati: senza **Mantieni i metadati** il file si salva senza, anche quando l'originale non ha altro.
 - L'orientamento viene messo dritto, perché i pixel salvati sono già ruotati, e le dimensioni scritte dentro sono quelle dell'immagine nuova.
 - Restano fuori: le piccole anteprime che le fotocamere mettono nel file, le impostazioni di Lightroom e Camera Raw e il video della foto in movimento, che il file nuovo non ha.

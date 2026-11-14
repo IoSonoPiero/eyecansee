@@ -576,7 +576,7 @@ fn meta_options(ui: &mut egui::Ui, o: &mut Options, original: &Original, i18n: &
         ui.weak(t("convert-gif"));
     }
     let (can_meta, hint) = original.meta_box(o.format);
-    let r = ui.add_enabled(can_meta, egui::Checkbox::new(&mut o.keep_meta, t("convert-keep-meta")));
+    let r = ui.add_enabled(can_meta, egui::Checkbox::new(&mut o.keep_meta, t(o.format.meta_label())));
     if let Some(hint) = hint {
         r.on_hover_text(t(hint)).on_disabled_hover_text(t(hint));
     }
