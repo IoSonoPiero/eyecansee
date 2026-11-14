@@ -47,7 +47,7 @@ Tutto ciò che disegni resta un oggetto a sé fino al salvataggio: puoi spostarl
 
 1. Scegli ![Seleziona](icon://mouse-pointer-2) **Seleziona** (V).
 2. Fai clic su un oggetto per selezionarlo. La barra delle proprietà mostra il suo stile: cambialo lì.
-3. Trascina l'oggetto per spostarlo. Trascina un angolo o un capo per ridimensionarlo; tieni premuto Maiusc per mantenere le proporzioni di un riquadro.
+3. Trascina l'oggetto per spostarlo. Trascina un angolo o un capo per ridimensionarlo; tieni premuto Maiusc per mantenere le proporzioni di un riquadro. Un pezzo incollato mantiene le proporzioni senza Maiusc, e Maiusc le libera; ha anche una maniglia tonda per ruotarlo (vedi [Selezionare un'area](editor-marquee.md)).
 4. Premi **Canc**, o fai clic su ![Elimina](icon://trash) nella barra delle proprietà, per toglierlo.
 
 Da sapere:
@@ -57,7 +57,7 @@ Da sapere:
 - Una forma, una linea o un fumetto disegnati tutti sulla zona scura intorno all'immagine non restano: resta solo ciò che arriva sull'immagine.
 - Un rettangolo o un'ellisse senza riempimento si prende dal bordo, non dall'interno vuoto.
 - Filtri, evidenziatori e riflettori stanno sotto gli altri oggetti: un clic li prende solo dove non c'è nient'altro.
-- Gli oggetti stanno uno sopra l'altro nell'ordine in cui li disegni.
+- Gli oggetti stanno uno sopra l'altro nell'ordine in cui li disegni. Un pezzo incollato si può portare in primo piano o dietro.
 - Cambiare strumento deseleziona l'oggetto (tranne quando scegli Seleziona).
 
 ## Annullare e ripetere

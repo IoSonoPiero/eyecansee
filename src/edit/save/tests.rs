@@ -729,3 +729,79 @@ fn resized_ultra_hdr() {
     let (photo, gain) = crate::ultrahdr::split(&out).expect("still Ultra HDR");
     assert_eq!((dims(photo), dims(gain)), ((32, 16), (16, 8)));
 }
+
+/// A pasted piece (`edit::patch`) half red on the left, half blue on the right.
+fn piece() -> crate::edit::doc::Pixels {
+    crate::edit::doc::Pixels::new(image::RgbaImage::from_fn(8, 4, |x, _| if x < 4 { image::Rgba([255, 0, 0, 255]) } else { image::Rgba([0, 0, 255, 255]) }))
+}
+
+fn patch_doc(area: Area, mirrored: bool, opacity: f32) -> Doc {
+    let mut doc = Doc::new(64, 48, None);
+    doc.objects = vec![obj(Shape::Patch { area, pixels: piece(), mirrored }, Style { opacity, ..Style::default() })];
+    doc
+}
+
+/// A pasted piece mirrored shows its right half on the left; turned, mirrored, sized and back
+/// many times it is saved as at the start, pixel for pixel: drawn each time from the pixels
+/// pasted, never from a result already resampled.
+#[test]
+fn pasted_piece_from_its_pixels() {
+    use crate::edit::patch;
+    let original = Original::with_meta(motif(), &[]);
+    let area = Area { centre: Pt::new(0.0, 0.0), w: 24.0, h: 12.0, rot: 0.0 };
+    let red = |p: &image::Rgba<u8>| p[0] > 200 && p[2] < 60;
+    let blue = |p: &image::Rgba<u8>| p[2] > 200 && p[0] < 60;
+    let plain = result(&patch_doc(area, false, 1.0), &original, &options()).to_rgba8();
+    assert!(red(plain.get_pixel(24, 24)) && blue(plain.get_pixel(40, 24)));
+    let (a, m) = patch::flipped(&area, false, true, 0.0);
+    let mirrored = result(&patch_doc(a, m, 1.0), &original, &options()).to_rgba8();
+    assert!(blue(mirrored.get_pixel(24, 24)) && red(mirrored.get_pixel(40, 24)));
+    // Top to bottom, the halves stay where they were (left red, right blue).
+    let (a, m) = patch::flipped(&area, false, false, 0.0);
+    let upside = result(&patch_doc(a, m, 1.0), &original, &options()).to_rgba8();
+    assert!(red(upside.get_pixel(24, 24)) && blue(upside.get_pixel(40, 24)));
+    // Four quarter turns, the handle to 90° and back to 0° with Shift, larger and back, four flips.
+    let (mut b, mut m) = (area, false);
+    for _ in 0..4 {
+        b = patch::quarter(&b, false);
+    }
+    b.rot = patch::turned_to(&b, Pt::new(30.0, 1.0), 0.0, true);
+    assert_eq!(b.rot, 90.0);
+    b.rot = patch::turned_to(&b, Pt::new(-1.0, -30.0), 0.0, true);
+    b = patch::sized(&patch::sized(&b, 200.0, true, true), 24.0, true, true);
+    for horizontal in [true, false, true, false] {
+        (b, m) = patch::flipped(&b, m, horizontal, 0.0);
+    }
+    assert!(!m && b.rot.rem_euclid(360.0) == 0.0 && (b.w, b.h) == (24.0, 12.0), "{b:?}");
+    assert_eq!(result(&patch_doc(b, m, 1.0), &original, &options()).to_rgba8(), plain);
+}
+
+/// The screen is the saved file for a piece turned by 30°, a quarter, mirrored and at 70%; and
+/// the image turned a quarter with it shows the same piece turned with the image.
+#[test]
+fn pasted_piece_preview_is_the_file() {
+    use crate::edit::patch;
+    let photo = motif();
+    let original = Original::with_meta(photo.clone(), &[]);
+    let area = Area { centre: Pt::new(-6.0, 3.0), w: 24.0, h: 12.0, rot: 30.0 };
+    let (a, m) = patch::flipped(&patch::quarter(&area, true), false, false, 0.0);
+    let doc = patch_doc(a, m, 0.7);
+    let mut screen = photo.clone();
+    doc.edit().apply(&mut screen);
+    let drawn = render::render(&doc, (64, 48), &View { x: 0.0, y: 0.0, w: 64, h: 48, scale: 1.0 }, &options()).unwrap();
+    over(&mut screen, &drawn, 0, 0, false);
+    let file = result(&doc, &original, &options()).to_rgba8();
+    for (x, y, a) in screen.to_rgba8().enumerate_pixels() {
+        let b = file.get_pixel(x, y);
+        assert!(a.0.iter().zip(b.0).all(|(a, b)| a.abs_diff(b) <= 2), "at {x},{y}: screen {a:?}, file {b:?}");
+    }
+    // The whole image turned clockwise: the file is the one before, turned (but a few pixels on
+    // the slanted edges of the piece, smoothed on another grid).
+    let mut turned = doc.clone();
+    turned.turned(Op::Cw);
+    let after = result(&turned, &original, &options()).to_rgba8();
+    let before = image::imageops::rotate90(&file);
+    assert_eq!(after.dimensions(), before.dimensions());
+    let off = after.pixels().zip(before.pixels()).filter(|(a, b)| a.0.iter().zip(b.0).any(|(a, b)| a.abs_diff(b) > 40)).count();
+    assert!(off < 30, "{off} pixels differ");
+}

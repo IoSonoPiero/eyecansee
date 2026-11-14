@@ -202,6 +202,9 @@ pub enum Line {
     /// Back and forward in the guide's history (Lucide's arrow-left and arrow-right).
     Back,
     Forward,
+    /// A pasted piece over all the others, or under them (ours, as Lucide's arrows).
+    ToFront,
+    ToBack,
 }
 
 macro_rules! lucide {
@@ -284,8 +287,7 @@ pub(crate) fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Star => lucide!("star").into(),
         Line::StarFilled => lucide!("star").replacen("fill=\"none\"", "fill=\"currentColor\"", 1).into(),
         Line::Bookmark => lucide!("bookmark").into(),
-        Line::Back => own("m12 19-7-7 7-7M19 12H5"),
-        Line::Forward => own("M5 12h14M12 5l7 7-7 7"),
+        Line::Back | Line::Forward | Line::ToFront | Line::ToBack => own(arrow(icon)),
         Line::HeadFilled => format!(r#"{LINE}<path d="M3 12h11"/><path d="M13 7l8 5-8 5z" fill="currentColor"/></svg>"#).into(),
         Line::HeadOpen => own("M3 12h17M15 7l5 5-5 5"),
         Line::HeadDouble => format!(r#"{LINE}<path d="M9 12h6"/><path d="M10 7l-7 5 7 5zM14 7l7 5-7 5z" fill="currentColor"/></svg>"#).into(),
@@ -294,6 +296,17 @@ pub(crate) fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Dashed => own("M3 12h4M10 12h4M17 12h4"),
         // Dots wider than the line, or they look like specks.
         Line::Dotted => format!("{}<path d=\"M4.5 12h.01M9.5 12h.01M14.5 12h.01M19.5 12h.01\"/></svg>", LINE.replace("stroke-width=\"2\"", "stroke-width=\"3.5\"")).into(),
+    }
+}
+
+/// The path of an arrow: back and forward (Lucide's arrow-left and arrow-right), to the front and
+/// to the back (ours, an arrow to a line).
+fn arrow(icon: Line) -> &'static str {
+    match icon {
+        Line::Back => "m12 19-7-7 7-7M19 12H5",
+        Line::Forward => "M5 12h14M12 5l7 7-7 7",
+        Line::ToFront => "M5 3h14M12 21V8M7 13l5-5 5 5",
+        _ => "M5 21h14M12 3v13M7 11l5 5 5-5",
     }
 }
 
@@ -388,7 +401,7 @@ mod tests {
     #[test]
     fn line_icons_draw() {
         use Line::*;
-        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Pen, Rect, Ellipse, Highlight, Spotlight, Text, Bubble, Step, Lens, Circle, Stamp, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Settings, Manual, Quit, Server, Address, Slideshow, FlipH, FlipV, Updates, Pipette, Marquee, Filters, NewImage, HeadFilled, HeadOpen, HeadDouble, HeadDot, Solid, Dashed, Dotted, Star, StarFilled, Bookmark] {
+        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Pen, Rect, Ellipse, Highlight, Spotlight, Text, Bubble, Step, Lens, Circle, Stamp, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Settings, Manual, Quit, Server, Address, Slideshow, FlipH, FlipV, Updates, Pipette, Marquee, Filters, NewImage, HeadFilled, HeadOpen, HeadDouble, HeadDot, Solid, Dashed, Dotted, Star, StarFilled, Bookmark, ToFront, ToBack] {
             let img = render(&line_svg(icon).replace("currentColor", "#ff0000"), 24);
             let red = img.pixels.iter().filter(|p| p.a() > 128 && p.r() > 200 && p.g() < 60).count();
             assert!(red > 10, "{icon:?}: {red} pixels");

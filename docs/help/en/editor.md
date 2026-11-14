@@ -47,7 +47,7 @@ Everything you draw stays a separate object until you save: you can move it, cha
 
 1. Choose ![Select](icon://mouse-pointer-2) **Select** (V).
 2. Click an object to select it. The properties bar shows its style; change it there.
-3. Drag the object to move it. Drag a corner or an end to resize it; hold Shift to keep the proportions of a box.
+3. Drag the object to move it. Drag a corner or an end to resize it; hold Shift to keep the proportions of a box. A pasted piece keeps its proportions without Shift, and Shift frees them; it also has a round handle to rotate it (see [Selecting an area](editor-marquee.md)).
 4. Press **Del**, or click ![Delete](icon://trash) in the properties bar, to remove it.
 
 Good to know:
@@ -57,7 +57,7 @@ Good to know:
 - A shape, line or bubble drawn all on the dark area around the image is not kept: only what reaches the image stays.
 - A rectangle or an ellipse with no fill is picked by its border, not by its empty inside.
 - Filters, highlighters and spotlights lie under the other objects: a click picks them only where no other object is.
-- Objects are stacked in the order you draw them.
+- Objects are stacked in the order you draw them. A pasted piece can be brought to the front or sent to the back.
 - Changing tool lets go of the selected object (except when you choose Select).
 
 ## Undo and redo

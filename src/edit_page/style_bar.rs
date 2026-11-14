@@ -101,7 +101,8 @@ pub(super) fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool 
     }
     style_controls(ui, &mut style, kind, w.long(), i18n);
     kind_controls(ui, w, &mut style, (kind, selected), i18n);
-    if let Some(i) = selected {
+    // A piece brought to the front or sent to the back is at its new place.
+    if let Some(i) = selected.and(w.selected) {
         let o = &mut w.doc.objects[i];
         o.style = style;
         match &mut o.shape {
@@ -138,6 +139,9 @@ fn kind_controls(ui: &mut egui::Ui, w: &mut Window, style: &mut Style, (kind, se
             super::props::round_or_square(ui, style, i18n);
         }
         _ => {}
+    }
+    if let (Kind::Patch, Some(i)) = (kind, selected) {
+        super::patch::bar(ui, w, i, i18n);
     }
     if matches!(kind, Kind::Text | Kind::Bubble) {
         ui.separator();
@@ -191,7 +195,7 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
         ui.separator();
         super::props::slider(ui, id, t(id), egui::Slider::new(value, range).integer().suffix(suffix));
     };
-    ui.spacing_mut().slider_width = 110.0;
+    ui.spacing_mut().slider_width = if kind == Kind::Patch { super::patch::SLIDER } else { 110.0 };
     match kind {
         Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse | Kind::Bubble => slider(ui, "edit-width", &mut style.width, 1.0..=max, " px"),
         // A lens may have no border.

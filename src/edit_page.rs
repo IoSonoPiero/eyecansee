@@ -26,6 +26,7 @@ mod clip;
 mod crop;
 mod keys;
 mod open;
+mod patch;
 mod pick;
 mod previews;
 mod props;
@@ -101,6 +102,8 @@ pub(crate) enum Tool {
 enum Hold {
     Move { index: usize, start: Obj, from: Pt },
     Handle { index: usize, handle: usize, start: Obj },
+    /// A pasted piece turned by the handle above it.
+    Turn { index: usize, start: Obj },
     /// The object drawn is at `index` once the drag is long enough.
     Draw { kind: Kind, from: Pt, index: Option<usize> },
     Pan { at: Vec2, k: f32, from: Pos2 },
@@ -147,6 +150,9 @@ pub struct Window {
     /// The last style of each kind of object, the widths in pixels of this image.
     styles: Vec<(Kind, Style)>,
     styles_changed: bool,
+    /// A pasted piece keeps its proportions, by its corners (Shift frees them) and by its sizes
+    /// in the properties bar.
+    keep_patch: bool,
     /// The text field takes the keys in the next frame (a text just placed).
     focus_text: bool,
     /// The font of the next text: the last one chosen.
@@ -255,6 +261,7 @@ impl Window {
             objects: None,
             styles: Vec::new(),
             styles_changed: false,
+            keep_patch: true,
             focus_text: false,
             text_font: None,
             font_preview: None,

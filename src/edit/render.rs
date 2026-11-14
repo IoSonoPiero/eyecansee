@@ -133,7 +133,7 @@ fn object(out: &mut String, o: &Obj, options: &usvg::Options) {
         // Solid, no soft edge; when saving written into the pixels instead.
         Shape::Cover(area) => write!(out, r#"<rect {} {fill} shape-rendering="crispEdges"/>"#, rect(area)),
         // The picture stretched over its box, turned with it.
-        Shape::Patch { area, pixels } => write!(out, r#"<image {} preserveAspectRatio="none" xlink:href="data:image/png;base64,{}"/>"#, rect(area), pixels.png_base64()),
+        Shape::Patch { area, pixels, mirrored } => write!(out, r#"<image {} preserveAspectRatio="none" xlink:href="data:image/png;base64,{}"/>"#, patch_rect(area, *mirrored), pixels.png_base64()),
         // Its preview (made by the page from the photo), over the box as it is now.
         Shape::Filter { area, preview, .. } => match &preview.0 {
             Some((_, _, pixels)) => write!(out, r#"<image {} preserveAspectRatio="none" xlink:href="data:image/png;base64,{}"/>"#, rect(area), pixels.png_base64()),
@@ -211,6 +211,15 @@ fn dashes(dash: Dash, width: f32) -> String {
 }
 
 /// Position, size and own angle of a rectangle.
+/// `rect`, the picture mirrored left to right around the middle of the box when `mirrored`.
+fn patch_rect(a: &Area, mirrored: bool) -> String {
+    if !mirrored {
+        return rect(a);
+    }
+    let Area { centre: c, w, h, rot } = *a;
+    format!(r#"x="{}" y="{}" width="{w}" height="{h}" transform="rotate({rot} {} {}) translate({} 0) scale(-1 1) translate({} 0)""#, c.x - w / 2.0, c.y - h / 2.0, c.x, c.y, c.x, -c.x)
+}
+
 fn rect(a: &Area) -> String {
     let Area { centre: c, w, h, rot } = *a;
     format!(r#"x="{}" y="{}" width="{w}" height="{h}" transform="rotate({rot} {} {})""#, c.x - w / 2.0, c.y - h / 2.0, c.x, c.y)
@@ -834,7 +843,7 @@ pub(crate) mod tests {
     #[test]
     fn patch_drawn_in_its_box() {
         let pixels = crate::edit::doc::Pixels::new(image::RgbaImage::from_fn(4, 2, |x, _| if x < 2 { image::Rgba([0, 0, 255, 255]) } else { image::Rgba([0, 255, 0, 255]) }));
-        let d = doc(vec![Obj { shape: Shape::Patch { area: area(0.0, 0.0, 40.0, 20.0), pixels }, style: style() }]);
+        let d = doc(vec![Obj { shape: Shape::Patch { area: area(0.0, 0.0, 40.0, 20.0), pixels, mirrored: false }, style: style() }]);
         let p = draw(&d, &whole(&d));
         let c = |x, y| { let c = p.pixel(x, y).unwrap().demultiply(); (c.red(), c.green(), c.blue(), c.alpha()) };
         // The box from 30 to 70: its left half blue, its right half green, nothing outside.
