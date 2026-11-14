@@ -116,6 +116,7 @@ impl App {
             update: None,
             update_note: None,
             convert: None,
+            save_as_format: None,
             editor: None,
             animated: Default::default(),
             duplicates: None,

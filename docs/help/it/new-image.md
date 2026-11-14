@@ -28,7 +28,7 @@ Nessun lato può superare i 20.000 pixel.
 
 ## Salvarla
 
-L'immagine nuova non ha ancora un file. Nell'editor il suo pulsante principale è **Salva come…** (anche Ctrl+S): apre [Salvare in un altro formato](save-as.md), dove scegli nome, formato e cartella. Propone un PNG di nome `Nuova immagine.png`, come la chiama l'editor; chiudendola senza salvare torni all'editor col disegno. **Sovrascrivi l'originale…** è spento.
+L'immagine nuova non ha ancora un file. Nell'editor il suo pulsante principale è **Salva come…** (anche Ctrl+S): apre [Salvare in un altro formato](save-as.md), dove scegli nome, formato e cartella. Propone un PNG di nome `Nuova immagine.png`, come la chiama l'editor, o il formato dell'ultimo Salva come…; chiudendola senza salvare torni all'editor col disegno. **Sovrascrivi l'originale…** è spento.
 
 Se chiudi l'editor senza aver disegnato niente, non viene chiesto niente e non viene salvato niente. Con un disegno, alla chiusura viene chiesto prima: **Salva…** e **Salva come…** aprono entrambi Salvare in un altro formato, **Non salvare** perde il disegno, **Annulla** torna al disegno.
 

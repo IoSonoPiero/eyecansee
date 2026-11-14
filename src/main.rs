@@ -358,6 +358,8 @@ struct App {
     update_note: Option<String>,
     /// "Save in another format" window.
     convert: Option<convert::Window>,
+    /// The format of the last Save as…, proposed by the next one while the program is open.
+    save_as_format: Option<encode::Format>,
     /// Rotate and crop, a page of its own.
     editor: Option<edit_page::Window>,
     /// Images read by the viewer that are animated or have several pages: the editor is off for them.

@@ -95,6 +95,12 @@ impl crate::App {
         if let Some((q, chroma)) = r.as_ref().ok().and_then(|(o, ..)| o.jpeg) {
             (w.options.jpeg_quality, w.options.chroma) = (q, chroma);
         }
+        // The format of the last Save as…, once the image's size is known (nothing can be chosen
+        // before it arrives).
+        if let (None, Ok((o, ..))) = (&w.original, &r) {
+            w.options.format = proposed(self.save_as_format, w.options.format, o.image.width().max(o.image.height()));
+            w.name = with_ext(&w.name, w.options.format);
+        }
         w.original = Some(r.map(|(original, preview, size)| {
             w.pan = egui::vec2(preview.size[0] as f32, preview.size[1] as f32) / 2.0;
             (original, ctx.load_texture("convert-original", preview, egui::TextureOptions::LINEAR), size)
@@ -114,7 +120,7 @@ impl crate::App {
         match r {
             Ok(path) => {
                 log!("saved as {path:?}");
-                self.convert = None;
+                self.save_as_format = self.convert.take().map(|w| w.options.format).or(self.save_as_format);
                 // Opened from the editor: the page under it closes now that the file is written.
                 if self.editor.as_mut().is_some_and(|w| w.save_as_ended(true)) {
                     self.editor = None;
@@ -287,6 +293,23 @@ impl crate::App {
 /// issue #99).
 fn ratio(new: u64, original: Option<u64>) -> Option<u64> {
     original.filter(|&s| s > 0).map(|s| new * 100 / s)
+}
+
+/// The format Save as… opens on: that of the last one, unless this image is larger than it can
+/// hold; then `default`, as before (JPEG, PNG for a new image from the editor).
+fn proposed(last: Option<Format>, default: Format, side: u32) -> Format {
+    last.filter(|&f| max_side(f).is_none_or(|max| side <= max)).unwrap_or(default)
+}
+
+/// The longest side the format's encoder writes: libwebp 16383, libjpeg-turbo 65500, GIF and TGA
+/// 65535 (sizes in 16 bits); the others have no limit an image reaches (ICO is reduced).
+fn max_side(f: Format) -> Option<u32> {
+    match f {
+        Format::Webp => Some(16_383),
+        Format::Jpeg => Some(65_500),
+        Format::Gif | Format::Tga => Some(65_535),
+        _ => None,
+    }
 }
 
 /// Space between the two halves of the page.
@@ -628,6 +651,33 @@ mod tests {
         assert_eq!((w.options.format, w.name.as_str()), (Format::Png, "New image.png"));
         let w = Window::new("p/beach.webp".into());
         assert_eq!((w.options.format, w.name.as_str()), (Format::Jpeg, "beach.jpg"));
+    }
+
+    /// Save as… opens on the format of the last one; an image larger than that format holds, on
+    /// the format proposed before (JPEG, or PNG for a new image).
+    #[test]
+    fn save_as_proposes_the_last_format() {
+        assert_eq!(proposed(None, Format::Jpeg, 4000), Format::Jpeg);
+        assert_eq!(proposed(None, Format::Png, 800), Format::Png);
+        assert_eq!(proposed(Some(Format::Avif), Format::Jpeg, 4000), Format::Avif);
+        assert_eq!(proposed(Some(Format::Webp), Format::Png, 800), Format::Webp);
+        assert_eq!(proposed(Some(Format::Webp), Format::Jpeg, 16_383), Format::Webp);
+        assert_eq!(proposed(Some(Format::Webp), Format::Jpeg, 16_384), Format::Jpeg);
+        assert_eq!(proposed(Some(Format::Gif), Format::Jpeg, 70_000), Format::Jpeg);
+        assert_eq!(proposed(Some(Format::Png), Format::Jpeg, 70_000), Format::Png);
+    }
+
+    /// The limits of `max_side` are those of the encoders: one pixel more fails, the limit itself
+    /// is written.
+    #[test]
+    fn max_side_is_the_encoders() {
+        for f in Format::ALL {
+            let Some(max) = max_side(f) else { continue };
+            let o = Options { format: f, ..Options::default() };
+            let at = |w| Original::with_meta(image::DynamicImage::new_rgb8(w, 1), &[]).alone().encode(&o);
+            assert!(at(max).is_ok(), "{f:?} at {max}");
+            assert!(at(max + 1).is_err(), "{f:?} at {}", max + 1);
+        }
     }
 
     /// Issue #99: a new image has no file, so no size on disk and no percentage of it.
