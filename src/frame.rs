@@ -60,6 +60,11 @@ impl App {
         }
         // Esc over the guide is the guide's: taken here, before the pages under it read it.
         self.help_esc(ctx);
+        // Esc with a menu open closes the menu only: left in the input, the page under it read it
+        // too and closed the viewer or the editor with the menu.
+        if egui::Popup::is_any_open(ctx) && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+            egui::Popup::close_all(ctx);
+        }
         // "Save in another format" and the duplicates cover the window: the keys must not reach the grid under them.
         if self.convert.is_none() && self.editor.is_none() && self.show.is_none() && !self.dup_page_shown() {
             self.global_keys(ctx);
