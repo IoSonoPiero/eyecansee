@@ -419,9 +419,13 @@ impl App {
     }
 
     pub(crate) fn on_replaced(&mut self, ctx: &egui::Context, path: String, r: Result<(), source::Error>) {
+        // The editor's file on its place, which the grid no longer shows: a file of the same
+        // path here is another one.
+        let elsewhere = self.editor.as_ref().is_some_and(|w| w.saves_elsewhere(&self.base, &path));
         self.saving.remove(&path);
         self.edit_saved(&path, r.is_ok());
         match r {
+            Ok(()) if elsewhere => log!("saved {path:?}, in the editor's place"),
             Ok(()) => {
                 log!("saved {path:?}");
                 if let Some((_, n)) = &mut self.batch_saved {

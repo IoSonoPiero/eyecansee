@@ -450,15 +450,7 @@ impl Loader {
 
     /// Why "Save" cannot overwrite `path`: the text id, or `None` when it can.
     pub fn no_overwrite(&self, path: &str) -> Option<&'static str> {
-        if !self.op.can_rename() {
-            Some("save-no-rename")
-        } else if self.op.gvfs(path) {
-            Some("save-gvfs")
-        } else if self.op.temp_copy(path) {
-            Some("save-temp-copy")
-        } else {
-            None
-        }
+        self.op.no_overwrite(path)
     }
 
     /// "Save" from the viewer, first half: the image turned in memory. The confirmation shows

@@ -31,6 +31,8 @@ impl App {
                 self.loader = Some(Loader::new(handle, s.op, s.base.clone(), self.tx.clone(), ctx.clone()));
                 self.base = s.base;
                 self.listings.clear();
+                // A file to select belongs to the place before.
+                self.select_after = None;
                 self.listing_pending.clear();
                 self.relist_again.clear();
                 self.error = None;

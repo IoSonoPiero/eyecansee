@@ -172,6 +172,21 @@ impl Store {
         matches!(self, Store::Dal(op) if op.info().scheme() == "fs" && windows_temp_copy(&format!("{}/{path}", op.info().root())))
     }
 
+    /// Why "Save" cannot overwrite `path` here: the text id, or `None` when it can. It needs
+    /// renaming (not on FTP), and not under gvfs, where renaming can lose the original, nor on a
+    /// temporary copy made by Windows (`replace::replace`).
+    pub fn no_overwrite(&self, path: &str) -> Option<&'static str> {
+        if !self.can_rename() {
+            Some("save-no-rename")
+        } else if self.gvfs(path) {
+            Some("save-gvfs")
+        } else if self.temp_copy(path) {
+            Some("save-temp-copy")
+        } else {
+            None
+        }
+    }
+
     /// Can it rename files? OpenDAL's FTP cannot, and "Save" needs it.
     pub fn can_rename(&self) -> bool {
         match self {

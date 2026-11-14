@@ -138,6 +138,9 @@ pub(crate) fn make(p: &Prepared, name: &str) -> Result<Vec<u8>, String> {
     crate::edit::save::save(&p.doc, &p.original, &p.bytes, name, &p.word, &p.taken, &crate::decode::usvg_options()).map(|s| s.data)
 }
 
+/// How a save ended: with the image kept on this computer if it could not be sent (`kept`).
+type Sent = Result<(), (source::Error, Option<Box<crate::kept::Kept>>)>;
+
 /// A save made, waiting for its confirmation.
 pub struct Ready(Arc<Prepared>);
 
@@ -145,7 +148,7 @@ impl App {
     /// The copy cannot go next to the original: a temporary copy Windows made of a phone's file
     /// (issue #47), which Windows can delete. Save opens Save as… instead.
     fn copy_refused(&self, w: &Window) -> bool {
-        self.loader.as_ref().and_then(|l| l.no_overwrite(&w.path)) == Some("save-temp-copy")
+        w.place.as_ref().and_then(|p| p.store.no_overwrite(&w.path)) == Some("save-temp-copy")
     }
 
     /// Why Overwrite cannot write over the original, if it cannot: the places Save never writes
@@ -162,9 +165,10 @@ impl App {
         if w.new {
             return Some(self.i18n.t("edit-new-off"));
         }
-        if let Some(id) = self.loader.as_ref().and_then(|l| l.no_overwrite(&w.path)) {
+        let place = w.place.as_ref();
+        if let Some(id) = place.and_then(|p| p.store.no_overwrite(&w.path)) {
             Some(self.i18n.t(id))
-        } else if crate::encode::Format::of_file(&w.path).is_none() || !self.can_change(&w.path) {
+        } else if crate::encode::Format::of_file(&w.path).is_none() || !place.is_some_and(|p| crate::selection::can_change_in(&p.base, &w.path)) {
             Some(self.i18n.t_args("save-format", &[("name", &crate::save_dialogs::md(source::name(&w.path)))]))
         } else {
             None
@@ -194,13 +198,10 @@ impl App {
             w.save_as = true;
             return;
         }
-        let (Some(loader), Some(Ok((original, ..)))) = (&self.loader, &w.original) else { return };
-        let (store, path, doc, original, word) = (loader.store(), w.path.clone(), w.doc.clone(), original.clone(), self.i18n.t("edit-copy-word"));
-        let (bytes, written) = (w.bytes.clone(), if over { &w.overwritten } else { &w.copy }.done.clone());
-        let (tx, ctx) = (self.tx.clone(), ctx.clone());
-        log!("edit: prepare {path:?}, over {over}, after {written:?}");
+        let Some(job) = w.prepare_save(over, self.i18n.t("edit-copy-word")) else { return };
+        let (path, tx, ctx) = (w.path.clone(), self.tx.clone(), ctx.clone());
         self.rt.spawn(async move {
-            let r = prepare(&store, &path, (&doc, original), bytes, (word, over, written)).await.map(Arc::new);
+            let r = job.await.map(Arc::new);
             let _ = tx.send(crate::loader::Msg::EditPrepared(path, r));
             ctx.request_repaint();
         });
@@ -264,9 +265,10 @@ impl App {
     /// (issue #95, off at first). After Save… chosen on closing it closes once the file is written
     /// (`edit_saved`, issue #79).
     pub(super) fn edit_confirm(&mut self, ctx: &egui::Context, w: &mut Window) {
-        let (Some(Ready(p)), Some(loader)) = (&w.ready, &self.loader) else { return };
-        let p = p.clone();
-        let how = loader.deletion(&w.path, false, crate::settings::RemoteDelete::TrashFolder);
+        let (Some(Ready(p)), Some(place)) = (&w.ready, &w.place) else { return };
+        // The grid still shows the place of the image (`Place`): what it saves is selected there.
+        let (p, here) = (p.clone(), place.base == self.base);
+        let how = place.store.deletion(&w.path, false, crate::settings::RemoteDelete::TrashFolder);
         let md = crate::save_dialogs::md;
         let (text, yes) = match (p.over, p.send) {
             (true, Send::Again) => (self.i18n.t_args("edit-overwrite-again", &[("name", &md(source::name(&w.path)))]), self.i18n.t("edit-overwrite-yes")),
@@ -279,13 +281,15 @@ impl App {
         let title = self.i18n.t(if p.over { "edit-overwrite-title" } else { "edit-save-copy" });
         match confirm::yes_no(ctx, "edit-save", 460.0, (title, text), yes, true, no, self.delete_answer.take()) {
             Some(true) => {
-                let (target, send, over, path) = (p.target.clone(), p.send, p.over, w.path.clone());
-                log!("edit: {send:?} {target:?}");
-                let (store, base, tx, ctx) = (loader.store(), self.base.clone(), self.tx.clone(), ctx.clone());
+                let target = p.target.clone();
+                log!("edit: {:?} {target:?}", p.send);
+                let Some(job) = w.send_save(p.clone(), how, self.tx.clone()) else { return };
+                let (tx, ctx) = (self.tx.clone(), ctx.clone());
                 self.saving.insert(target.clone());
                 // The file saved last (the copy, or the original overwritten) is what the grid
-                // selects and the viewer shows once the editor is closed (issue #98).
-                self.select_after = Some(target.clone());
+                // selects and the viewer shows once the editor is closed (issue #98); only if the
+                // grid still shows that place.
+                self.select_after = here.then(|| target.clone());
                 // "After saving" other than staying: closed once the file is written, as Save… on
                 // closing: the file saved selected as above, the viewer closed too for the
                 // thumbnails (`edit_saved`); a save that fails leaves the page open (issue #95,
@@ -299,18 +303,8 @@ impl App {
                 // Where it goes, at once (the button waits while it is sent); what it wrote once
                 // the file is made (`Msg::EditWritten`); the file written once sent (`edit_saved`).
                 if p.over { &mut w.overwritten } else { &mut w.copy }.start(target.clone());
-                let name = source::name(&w.path).to_string();
                 self.rt.spawn(async move {
-                    let p2 = p.clone();
-                    let made = tokio::task::spawn_blocking(move || make(&p2, &name)).await.unwrap_or_else(|e| Err(e.to_string()));
-                    let r = match made {
-                        Ok(data) => {
-                            log!("edit: made {target:?} ({} bytes)", data.len());
-                            let _ = tx.send(crate::loader::Msg::EditWritten(path, Written::of(target.clone(), &data), over));
-                            crate::kept::send(&store, &base, &target, data, how, send).await
-                        }
-                        Err(e) => Err((("error-detail", e), None)),
-                    };
+                    let r = job.await;
                     let _ = tx.send(crate::loader::replaced(target, r));
                     ctx.request_repaint();
                 });
@@ -338,7 +332,7 @@ impl App {
         let Some(Ok((original, _, size))) = &w.original else { return false };
         let (original, doc, size, tx, ctx) = (original.clone(), w.doc.clone(), *size, self.tx.clone(), ctx.clone());
         let jpeg = crate::encode::Format::of_file(&w.path) == Some(crate::encode::Format::Jpeg);
-        let (store, path, bytes) = (self.loader.as_ref().map(|l| l.store()).filter(|_| jpeg), w.path.clone(), w.bytes.clone());
+        let (store, path, bytes) = (w.place.as_ref().map(|p| p.store.clone()).filter(|_| jpeg), w.path.clone(), w.bytes.clone());
         self.rt.spawn(async move {
             let file = match (bytes, store) {
                 (Some(b), _) => Some(b),
@@ -361,7 +355,10 @@ impl App {
             }
         });
         let path = w.path.clone();
-        self.convert = Some(if w.new { crate::convert::Window::for_new_image(path) } else { crate::convert::Window::new(path) });
+        let mut convert = if w.new { crate::convert::Window::for_new_image(path) } else { crate::convert::Window::new(path) };
+        // Saved where the image is, as the page's own saves.
+        convert.place = w.place.clone();
+        self.convert = Some(convert);
         true
     }
 
@@ -414,6 +411,42 @@ impl App {
 }
 
 impl Window {
+    /// The save of the page (`over`: over the original), prepared where its image is (`Place`),
+    /// never in the place the grid shows now; `None` before the image is read.
+    fn prepare_save(&self, over: bool, word: String) -> Option<impl Future<Output = Result<Prepared, source::Error>> + use<>> {
+        let (Some(place), Some(Ok((original, ..)))) = (&self.place, &self.original) else { return None };
+        let (store, path, doc, original) = (place.store.clone(), self.path.clone(), self.doc.clone(), original.clone());
+        let (bytes, written) = (self.bytes.clone(), if over { &self.overwritten } else { &self.copy }.done.clone());
+        log!("edit: prepare {path:?}, over {over}, after {written:?}");
+        Some(async move { prepare(&store, &path, (&doc, original), bytes, (word, over, written)).await })
+    }
+
+    /// The confirmed save `p` made and sent where the image is (`Place`): on a phone or a server
+    /// through `kept`, which keeps it on this computer under the place's address if sending fails.
+    /// The file made is told first (`Msg::EditWritten`).
+    fn send_save(&self, p: Arc<Prepared>, how: Deletion, tx: std::sync::mpsc::Sender<crate::loader::Msg>) -> Option<impl Future<Output = Sent> + use<>> {
+        let crate::edit_page::Place { store, base } = self.place.clone()?;
+        let (path, name) = (self.path.clone(), source::name(&self.path).to_string());
+        Some(async move {
+            let (target, send, over) = (p.target.clone(), p.send, p.over);
+            let made = tokio::task::spawn_blocking(move || make(&p, &name)).await.unwrap_or_else(|e| Err(e.to_string()));
+            match made {
+                Ok(data) => {
+                    log!("edit: made {target:?} ({} bytes)", data.len());
+                    let _ = tx.send(crate::loader::Msg::EditWritten(path, Written::of(target.clone(), &data), over));
+                    crate::kept::send(&store, &base, &target, data, how, send).await
+                }
+                Err(e) => Err((("error-detail", e), None)),
+            }
+        })
+    }
+
+    /// `path` is a save of this page to a place other than `base` (the grid's now): nothing of
+    /// the grid to refresh for it.
+    pub(crate) fn saves_elsewhere(&self, base: &str, path: &str) -> bool {
+        self.place.as_ref().is_some_and(|p| p.base != base) && self.copy.paths().chain(self.overwritten.paths()).any(|p| p == path)
+    }
+
     /// Save in another format, opened from this page, ended: `true` (its file written, `saved`)
     /// closes the page, as Save as… did before; cancelled, or still open after a save that
     /// failed, the page stays with its changes.

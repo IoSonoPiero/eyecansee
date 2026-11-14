@@ -39,6 +39,9 @@ pub struct Window {
     error: Option<String>,
     /// A new image from the editor: no file yet, so no size on disk to show or compare with.
     unsaved: bool,
+    /// Opened from the editor: where its image is, and so where this file goes, whatever the grid
+    /// shows (`edit_page::Place`).
+    pub(crate) place: Option<crate::edit_page::Place>,
 }
 
 impl Window {
@@ -69,6 +72,7 @@ impl Window {
             bottom_h: 300.0,
             error: None,
             unsaved: false,
+            place: None,
         }
     }
 }
@@ -121,6 +125,9 @@ impl crate::App {
         match r {
             Ok(path) => {
                 log!("saved as {path:?}");
+                // From the editor, on a place the grid no longer shows: nothing there to select or
+                // list again.
+                let here = self.convert.as_ref().and_then(|w| w.place.as_ref()).is_none_or(|p| p.base == self.base);
                 self.save_as_format = self.convert.take().map(|w| w.options.format).or(self.save_as_format);
                 // Opened from the editor: the page under it closes now that the file is written.
                 if self.editor.as_mut().is_some_and(|w| w.save_as_ended(true)) {
@@ -130,9 +137,11 @@ impl crate::App {
                     // only in the open folder, the only one listed for it.
                     // Saved elsewhere, a copy saved before it is not selected either (issue #98):
                     // the viewer stays on the image edited.
-                    self.select_after = (crate::source::parent(&path) == self.dir).then(|| path.clone());
+                    self.select_after = (here && crate::source::parent(&path) == self.dir).then(|| path.clone());
                 }
-                self.relist(crate::source::parent(&path));
+                if here {
+                    self.relist(crate::source::parent(&path));
+                }
             }
             Err((id, detail)) => {
                 if let Some(w) = &mut self.convert {
@@ -150,25 +159,54 @@ impl crate::App {
         let Some(mut w) = self.convert.take() else { return };
         self.start_encoding(&mut w, ctx);
         let dir = crate::source::parent(&w.path);
+        // The grid's names only for its own place (`save_in_place` checks them there).
+        let here = w.place.as_ref().is_none_or(|p| p.base == self.base);
         // What the grid does not show is taken too: a hidden "e (2).jpg" was overwritten.
-        let taken: HashSet<String> = match self.listings.get(&dir) {
+        let taken: HashSet<String> = match self.listings.get(&dir).filter(|_| here) {
             Some(Ok(l)) => l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).chain(l.unseen.iter().cloned()).collect(),
             _ => HashSet::new(),
         };
         let final_name = crate::source::free_name(&taken, w.name.trim());
         let open = page_header(ui, &self.i18n.t("convert-title"));
         let save = self.convert_body(ui, &mut w, &final_name);
-        if save
-            && let (Some(Ok((bytes, _))), Some(loader)) = (&w.result, &self.loader)
-        {
-            w.saving = true;
-            w.error = None;
-            loader.save(format!("{dir}{final_name}"), bytes.clone());
+        if save && let Some(Ok((bytes, _))) = &w.result {
+            let (path, bytes) = (format!("{dir}{final_name}"), bytes.clone());
+            let sent = match (&w.place, &self.loader) {
+                (Some(place), _) => self.save_in_place(ctx, place.store.clone(), path, bytes),
+                (None, Some(loader)) => {
+                    loader.save(path, bytes);
+                    true
+                }
+                (None, None) => false,
+            };
+            if sent {
+                w.saving = true;
+                w.error = None;
+            }
         }
         // Taken out while drawn (it needs the rest of the app), put back unless closed.
         if open {
             self.convert = Some(w);
         }
+    }
+
+    /// Save as… from the editor: written where its image is (`place`), under a name free there:
+    /// the grid may show another place, whose names say nothing of that folder. `true`: sent.
+    fn save_in_place(&self, ctx: &egui::Context, store: crate::source::Store, path: String, data: Arc<Vec<u8>>) -> bool {
+        let (tx, ctx) = (self.tx.clone(), ctx.clone());
+        self.rt.spawn(async move {
+            let dir = crate::source::parent(&path);
+            let r = match store.names(&dir).await {
+                Ok(taken) => {
+                    let path = format!("{dir}{}", crate::source::free_name(&taken, crate::source::name(&path)));
+                    crate::replace::write_whole(&store, &path, data.to_vec()).await.map(|()| path)
+                }
+                Err(e) => Err(e),
+            };
+            let _ = tx.send(crate::loader::Msg::Saved(r));
+            ctx.request_repaint();
+        });
+        true
     }
 
     /// One encoding at a time (AVIF takes seconds): a change made meanwhile starts when it ends.

@@ -37,6 +37,17 @@ pub(crate) use save::{Prepared, Written};
 
 type Loaded = Result<(Arc<Original>, TextureHandle, u64), String>;
 
+/// Where the image being edited is: the store and the address of the place open when the page
+/// was opened. Every save of the page goes there, also once the grid under it shows another
+/// place (until 0.77.0 a save went to the place open at that moment: a second launch with a local
+/// file under the editor of a server's photo wrote the copy on the computer, or sent a local file
+/// of the same path to the trash).
+#[derive(Clone)]
+pub(crate) struct Place {
+    pub store: source::Store,
+    pub base: String,
+}
+
 /// Distance in points at which a side or corner (of the crop or of an object) can be grabbed.
 const GRAB: f32 = 12.0;
 /// The error of `Loader::load_original` for an image the editor does not take.
@@ -108,6 +119,8 @@ struct Drawn {
 
 pub struct Window {
     pub path: String,
+    /// Where `path` is (`Place`); `None` only in the tests.
+    place: Option<Place>,
     /// The photo at the document's size (`follow_size`), its texture, the file's size.
     original: Option<Loaded>,
     /// The photo as read: Resize resamples it.
@@ -219,6 +232,7 @@ impl Window {
         let transparent = Format::of_file(&path) != Some(Format::Jpeg);
         Window {
             path,
+            place: None,
             original: None,
             full: None,
             scaled: None,

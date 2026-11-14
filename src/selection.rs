@@ -129,7 +129,7 @@ impl App {
 
     /// Never the root of the source, nor the storages of a phone.
     pub(crate) fn can_change(&self, path: &str) -> bool {
-        !path.is_empty() && !(self.base.starts_with("mtp://") && path.ends_with('/') && source::parent(path).is_empty())
+        can_change_in(&self.base, path)
     }
 
     /// Path of a grid item (folders first, then images).
@@ -169,6 +169,11 @@ impl App {
         };
         paths.into_iter().filter(|p| self.can_change(p)).collect()
     }
+}
+
+/// `App::can_change` for the place `base` (the editor's, which may no longer be the grid's).
+pub(crate) fn can_change_in(base: &str, path: &str) -> bool {
+    !path.is_empty() && !(base.starts_with("mtp://") && path.ends_with('/') && source::parent(path).is_empty())
 }
 
 #[cfg(test)]

@@ -5,7 +5,7 @@ use std::sync::Arc;
 
 use eframe::egui::{self, ColorImage};
 
-use super::{Tool, Window};
+use super::{Place, Tool, Window};
 use crate::App;
 use crate::edit::doc::Doc;
 use crate::edit::history::History;
@@ -56,6 +56,8 @@ impl App {
         let mut w = Window::new(path, turn, tool);
         let store = loader.store();
         w.remote = crate::kept::remote(&store).then_some(if matches!(store, crate::source::Store::Mtp(_)) { "edit-remote-phone" } else { "edit-remote-server" });
+        // Every save goes where the image is, whatever the grid opens meanwhile.
+        w.place = Some(Place { store, base: self.base.clone() });
         // Fractions of the long side until the image is read (`editor_original`).
         w.styles = self.settings.edit_styles.clone();
         self.editor = Some(w);
@@ -64,10 +66,9 @@ impl App {
     /// File > New image…: the empty image in the editor, named in the folder open; Save as…
     /// writes it.
     pub(crate) fn open_new_image(&mut self, ctx: &egui::Context, image: image::DynamicImage, name: &str) {
-        if self.loader.is_none() {
-            return;
-        }
+        let Some(loader) = &self.loader else { return };
         let mut w = Window::new(format!("{}{name}.png", self.dir), Turn::default(), Tool::Select);
+        w.place = Some(Place { store: loader.store(), base: self.base.clone() });
         w.new = true;
         w.styles = self.settings.edit_styles.clone();
         self.editor = Some(w);
