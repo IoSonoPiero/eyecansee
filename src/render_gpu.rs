@@ -127,6 +127,22 @@ pub fn adapter_selector() -> eframe::egui_wgpu::NativeAdapterSelectorMethod {
     })
 }
 
+/// eframe's device, asked for with small blocks of graphics memory: a texture larger than a block
+/// gets memory of its own, given back to the card (or, on cards that share the computer's memory,
+/// to the computer) as soon as it is freed. With wgpu's default ("performance") the blocks are of
+/// 128-256 MB and the last empty one of each kind is kept: after the editor closed on a 50 MP
+/// photo (its 8192 × 5462 texture, 179 MB) the process kept 256 MB more of graphics memory until
+/// it quit (Linux, NVIDIA, Vulkan; on Windows with an Intel card the same 250 MB showed as the
+/// process's own memory, 2026-11-14). Pictures are few and large: the smaller blocks cost nothing
+/// measurable [Inference].
+pub fn frugal(base: Arc<dyn Fn(&wgpu::Adapter) -> wgpu::DeviceDescriptor<'static> + Send + Sync>) -> Arc<dyn Fn(&wgpu::Adapter) -> wgpu::DeviceDescriptor<'static> + Send + Sync> {
+    Arc::new(move |adapter| frugal_descriptor(base(adapter)))
+}
+
+fn frugal_descriptor(base: wgpu::DeviceDescriptor<'static>) -> wgpu::DeviceDescriptor<'static> {
+    wgpu::DeviceDescriptor { memory_hints: wgpu::MemoryHints::MemoryUsage, ..base }
+}
+
 /// The presentation to ask for once the window exists: mailbox where the card offers it, with
 /// two frames in flight: with one, full screen on a 240 Hz laptop panel (GNOME showing the window
 /// directly) went at 120, every other refresh (2026-11-02).
@@ -395,5 +411,19 @@ fn vertices(mesh: &Mesh, i: usize, out: &mut Vec<u8>) {
         out.extend(uv[k].iter().chain(&normals[k]).flat_map(|f| f.to_le_bytes()));
         out.extend(pbr);
         out.extend([glow[0], glow[1], glow[2], 255]);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// eframe's device as it asks for it (limits, label), only with the small memory blocks.
+    #[test]
+    fn frugal_keeps_the_rest() {
+        let base = wgpu::DeviceDescriptor { label: Some("egui wgpu device"), required_limits: wgpu::Limits { max_texture_dimension_2d: 8192, ..Default::default() }, ..Default::default() };
+        let d = frugal_descriptor(base);
+        assert!(matches!(d.memory_hints, wgpu::MemoryHints::MemoryUsage));
+        assert_eq!((d.label, d.required_limits.max_texture_dimension_2d), (Some("egui wgpu device"), 8192));
     }
 }
