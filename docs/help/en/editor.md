@@ -100,7 +100,7 @@ The **Keys** button in the status bar lists the keys and mouse moves of the tool
 
 ## Closing
 
-![Close](icon://x) **Close**, the window's ✕ or Esc close the page. With changes not saved, EyeCanSee first asks whether to **Save…** (the main save: a copy, as Save copy does, unless Overwrite is chosen in the Options; the page closes once the file is written), **Save as…** or **Don't save**; **Cancel** goes back to the page. See [Saving an edited image](editor-save.md).
+![Close](icon://x) **Close**, the window's ✕ or Esc close the page. With changes not saved, EyeCanSee first asks whether to **Save…** (the main save: a copy, as Save copy does, unless Overwrite is chosen in the Options; the page closes once the file is written), **Save as…** or **Don't save**; **Cancel** goes back to the page. See [Saving an edited image](editor-save.md). With **The window's ✕ goes back to the grid** off in [Options](options.md), the window's ✕ closes EyeCanSee too, after the same question.
 
 ## Phones and servers
 

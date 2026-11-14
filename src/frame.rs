@@ -5,6 +5,7 @@ use std::sync::atomic::Ordering;
 
 use eframe::egui::{self, Color32};
 
+use crate::window_close::Step;
 use crate::{App, meta, save_dialogs, theme};
 
 impl App {
@@ -24,17 +25,23 @@ impl App {
             self.quit_after_transfer = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
-        // The ✕ in the viewer goes back to the grid, as Esc, when chosen in the Options (on at
-        // first); a turned image not saved is asked about as when leaving it.
-        if self.transfer.is_none() && self.settings.close_to_grid && self.viewing.is_some() && self.editor.is_none() && ctx.input(|i| i.viewport().close_requested()) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            self.close_viewer();
-        } else if self.transfer.is_none()
-            && ctx.input(|i| i.viewport().close_requested())
-            && self.hold_for_turn(save_dialogs::After::Quit)
-        {
-            // Closing with an image turned and not saved: asked first, as when leaving the image.
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        // The editor closed after the ✕ with the option off: EyeCanSee now.
+        self.quit_after_editor(ctx);
+        // The ✕ (`window_close`): over the editor the page takes it (`edit_page`); in the viewer
+        // back to the grid, as Esc, when chosen in the Options (on at first), or EyeCanSee; a
+        // turned image not saved is asked about first, as when leaving it.
+        if self.transfer.is_none() && self.editor.is_none() && ctx.input(|i| i.viewport().close_requested()) {
+            let close = self.on_close(self.turn_unsaved());
+            match close.step {
+                Step::Viewer => {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                    self.close_viewer();
+                }
+                Step::Quit if close.ask && self.hold_for_turn(save_dialogs::After::Quit) => {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                }
+                _ => {}
+            }
         }
         self.receive(ctx);
         self.open_held(ctx);

@@ -100,7 +100,7 @@ Il pulsante **Tasti** nella barra di stato elenca i tasti e i movimenti del mous
 
 ## Chiudere
 
-![Chiudi](icon://x) **Chiudi**, la ✕ della finestra o Esc chiudono la pagina. Con modifiche non salvate EyeCanSee chiede prima se **Salva…** (il salvataggio principale: una copia, come Salva copia, a meno che nelle Opzioni sia scelto Sovrascrivi; la pagina si chiude appena il file è scritto), **Salva come…** o **Non salvare**; **Annulla** torna alla pagina. Vedi [Salvare un'immagine modificata](editor-save.md).
+![Chiudi](icon://x) **Chiudi**, la ✕ della finestra o Esc chiudono la pagina. Con modifiche non salvate EyeCanSee chiede prima se **Salva…** (il salvataggio principale: una copia, come Salva copia, a meno che nelle Opzioni sia scelto Sovrascrivi; la pagina si chiude appena il file è scritto), **Salva come…** o **Non salvare**; **Annulla** torna alla pagina. Vedi [Salvare un'immagine modificata](editor-save.md). Con **La X della finestra torna alla griglia** spenta nelle [Opzioni](options.md), la ✕ della finestra chiude anche EyeCanSee, dopo la stessa domanda.
 
 ## Telefoni e server
 

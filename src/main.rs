@@ -149,6 +149,7 @@ mod video_turn;
 mod video_read;
 mod viewer;
 mod watch;
+mod window_close;
 #[cfg(any(windows, test))]
 mod window_place;
 mod xmp;
@@ -431,6 +432,9 @@ struct App {
     deleting: usize,
     /// Window closed during a copy: it closes when the copy has stopped.
     quit_after_transfer: bool,
+    /// The window's ✕ over the editor with "goes back to the grid" off: EyeCanSee closes once the
+    /// editor has (`window_close`); `Some(true)`: the editor asked about its changes.
+    quit_after_editor: Option<bool>,
     /// Rename in progress: name being written, path, first frame (focus and selection to set).
     rename: Option<(String, String, bool)>,
     /// New folder: name, the folder it goes in, first frame (the name gets selected).

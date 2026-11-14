@@ -352,6 +352,12 @@ impl Window {
         self.ready.is_some() || self.leaving || self.resizing.is_some()
     }
 
+    /// Closing, or on the way to: the question on closing open, or the save chosen there (made,
+    /// confirmed, written, or in Save in another format over the page).
+    pub(crate) fn on_the_way_out(&self) -> bool {
+        self.leaving || self.closing || self.preparing || self.ready.is_some() || self.saving_as
+    }
+
     /// The Resize window is open: it has fields to type in.
     pub(crate) fn resizing(&self) -> bool {
         self.resizing.is_some()
@@ -519,6 +525,14 @@ impl App {
         if !open && busy {
             open = true;
             w.escape();
+        } else if !open {
+            // With "goes back to the grid" off EyeCanSee closes too, once the page has
+            // (`quit_after_editor`), after the question below if something is not saved.
+            use crate::window_close::{Page, Step, on_close};
+            let close = on_close(self.settings.close_to_grid, Page::Editor, w.changed());
+            if close.step == Step::Quit {
+                self.quit_after_editor = Some(close.ask);
+            }
         }
         // With a question open (save, leave, Resize) Esc is its Cancel, not the page's.
         if !w.asking() && ui.input(|i| i.key_pressed(egui::Key::Escape)) && !w.escape() {
