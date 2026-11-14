@@ -30,3 +30,4 @@ With a part chosen, the ![Filters](icon://wand-sparkles) **Filters** menu applie
 
 - Without a part chosen, Ctrl+C copies the whole result, and Ctrl+X does nothing.
 - The part copied is a picture: the objects in it can no longer be changed one by one.
+- On Linux with GNOME or X11, other programs get at most 16 MB of a copy (a PNG image), about 12 megapixels of a photo. A larger copy pastes only in the window it comes from, and the status bar says so.

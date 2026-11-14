@@ -30,3 +30,4 @@ Con una zona scelta, il menù ![Filtri](icon://wand-sparkles) **Filtri** applica
 
 - Senza una zona scelta, Ctrl+C copia tutto il risultato e Ctrl+X non fa niente.
 - La zona copiata è un'immagine: gli oggetti che contiene non si cambiano più uno per uno.
+- Su Linux con GNOME o X11 gli altri programmi ricevono al massimo 16 MB di una copia (un'immagine PNG), circa 12 megapixel di una foto. Una copia più grande si incolla solo nella finestra da cui viene, e lo dice la barra di stato.

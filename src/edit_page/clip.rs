@@ -23,8 +23,15 @@ impl App {
         }
         w.copying = true;
         let (doc, original, tx, ctx) = (w.doc.clone(), original.clone(), self.tx.clone(), ctx.clone());
+        let size = watch_size(w);
         std::thread::spawn(move || {
             let img = crate::edit::save::result(&doc, &original, &crate::decode::usvg_options());
+            if let Some(size) = size {
+                let too_large = |i: &image::RgbaImage| crate::edit::clip_limit::too_large(i.as_raw(), i.width(), i.height());
+                if let Some(n) = img.as_rgba8().map_or_else(|| too_large(&img.to_rgba8()), too_large) {
+                    let _ = size.send(n);
+                }
+            }
             if tx.send(crate::loader::Msg::EditCopy(crate::decode::to_color_image(img))).is_ok() {
                 ctx.request_repaint();
             }
@@ -59,6 +66,17 @@ impl App {
         let pixels = Pixels::new(crate::edit::photo::lens(&w.doc, &original.image, &area, (1.0, 8000), &filtered, Some((&w.doc.objects, &fonts))));
         let img = pixels.image();
         ctx.copy_image(ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()));
+        if let Some(size) = watch_size(w) {
+            let (part, ctx) = (pixels.clone(), ctx.clone());
+            std::thread::spawn(move || {
+                let img = part.image();
+                if let Some(n) = crate::edit::clip_limit::too_large(img.as_raw(), img.width(), img.height())
+                    && size.send(n).is_ok()
+                {
+                    ctx.request_repaint();
+                }
+            });
+        }
         w.clip = Some((area, pixels));
         w.note = Some((self.i18n.t("edit-part-copied"), ctx.input(|i| i.time) + 4.0));
         true
@@ -129,6 +147,18 @@ impl App {
         ctx.copy_image(img);
         w.note = Some((self.i18n.t("edit-copied"), ctx.input(|i| i.time) + 4.0));
     }
+}
+
+/// On X11, where other programs get at most about 16 MB of a copy (`clip_limit`), where to send its
+/// size when it is over: the status bar says it.
+fn watch_size(w: &mut super::Window) -> Option<std::sync::mpsc::Sender<usize>> {
+    w.too_big = None;
+    if !crate::edit::clip_limit::through_x11() {
+        return None;
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    w.too_big = Some(rx);
+    Some(tx)
 }
 
 /// What one event of the window does in the editor, and whether it stays for the others. `pasted`:

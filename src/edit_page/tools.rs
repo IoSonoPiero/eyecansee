@@ -233,6 +233,14 @@ impl App {
         if let Some(c) = w.just_picked.take() {
             w.note = Some((i18n.t_args("edit-picked", &[("codes", &crate::eyedropper::codes(c).replace('\n', " · "))]), ui.input(|i| i.time) + 8.0));
         }
+        // A copy too large for other programs (X11), once "Copied" is shown.
+        if !w.copying
+            && let Some(n) = w.too_big.as_ref().and_then(|r| r.try_recv().ok())
+        {
+            w.too_big = None;
+            let size = format!("{:.1}", n as f64 / 1_048_576.0);
+            w.note = Some((i18n.t_args("edit-copy-too-large", &[("size", &size)]), ui.input(|i| i.time) + 12.0));
+        }
         ui.horizontal(|ui| {
             ui.label(crate::source::name(&w.path));
             let (pw, ph) = w.doc.crop.pixels();

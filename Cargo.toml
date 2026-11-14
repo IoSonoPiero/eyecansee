@@ -138,6 +138,9 @@ libc = "0.2"
 # The editor's eyedropper on the whole screen, through the desktop's portal (eyedropper.rs);
 # already built for the accessibility of egui (accesskit), with the same features.
 zbus = { version = "5.19.0", default-features = false, features = ["async-io"] }
+# Whether the clipboard goes through X11, as arboard decides it (edit/clip_limit.rs); already built
+# for arboard, with the same (no) features.
+wl-clipboard-rs = "0.9.4"
 
 # Functions longer than the limit in clippy.toml fail the check (check.yml runs clippy with -D warnings).
 [lints.clippy]

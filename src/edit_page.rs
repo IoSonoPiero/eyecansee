@@ -174,6 +174,9 @@ pub struct Window {
     clip: Option<(crate::edit::doc::Area, crate::edit::doc::Pixels)>,
     /// The clipboard gave something since the last Ctrl+V let go (`clip::edit_clip_events`).
     pasted: bool,
+    /// On X11, the size of the copy just made when it is too large for other programs, worked
+    /// out aside (`clip::watch_size`); the status bar says it.
+    too_big: Option<std::sync::mpsc::Receiver<usize>>,
     /// How many times the previews of the filters were made: the objects are drawn again then.
     filters_made: u64,
     /// What the lenses' previews were made with (`photo::hiders_key`).
@@ -263,6 +266,7 @@ impl Window {
             marquee: None,
             clip: None,
             pasted: false,
+            too_big: None,
             filters_made: 0,
             hiders: 0,
             keys_open: false,
