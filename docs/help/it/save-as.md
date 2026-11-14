@@ -19,6 +19,8 @@ La pagina occupa tutta la finestra. A sinistra c'è l'originale, a destra l'imma
 
 L'immagine a destra è il file vero: ogni volta che cambi un'opzione, EyeCanSee rifà il file e lo mostra. Mentre lavora, il peso dice "Calcolo della dimensione in corso…" e **Salva** aspetta: così il peso che vedi è sempre quello del file che otterrai.
 
+Un'immagine riflessa o ruotata nel visore si vede così da tutte e due le parti, perché le due corrispondano; sotto l'originale restano le sue dimensioni sul disco, con quello che ha fatto il visore, per esempio "ruotata di 90° in senso orario nel visore".
+
 Spunta **100%** per vedere i pixel veri. Poi trascina una delle due immagini per spostarle entrambe e confrontare lo stesso punto.
 
 ## Salvare

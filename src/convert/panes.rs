@@ -5,7 +5,7 @@ use eframe::egui::{self, TextureHandle};
 
 use super::{GAP, Window};
 use crate::i18n::I18n;
-use crate::paint::{paint_turned, paint_zoomed};
+use crate::paint::{paint_turned, paint_zoomed, turned_size};
 use crate::transform::Turn;
 
 /// The original and the new image side by side, each under its title.
@@ -31,7 +31,8 @@ pub(super) fn convert_images(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, tex
         ui.spacing_mut().item_spacing.x = GAP;
         ui.vertical(|ui| {
             title(ui, t("convert-original"), false);
-            let r = preview(ui, pane, Some(tex), None, w.actual, &mut w.pan);
+            // Turned and flipped as in the viewer, as the new image is: the same spot side by side.
+            let r = preview(ui, pane, Some(tex), None, w.options.turn, w.actual, &mut w.pan);
             drag(&r, w.actual, &mut w.pan);
         });
         ui.vertical(|ui| {
@@ -41,15 +42,17 @@ pub(super) fn convert_images(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, tex
                 Some(Ok((_, None))) => Some(t("convert-no-preview")),
                 _ => None,
             };
-            let r = preview(ui, pane, result_tex, note.as_deref(), w.actual, &mut w.pan);
+            // The file written, decoded back: already turned.
+            let r = preview(ui, pane, result_tex, note.as_deref(), Turn::default(), w.actual, &mut w.pan);
             drag(&r, w.actual, &mut w.pan);
         });
     });
 }
 
-/// The image fitted into `size` (never enlarged), or at 100% around `pan`; grey when none.
+/// The image turned by `turn`, fitted into `size` (never enlarged), or at 100% around `pan`, a point
+/// of the turned image (the same for both images); grey when none.
 /// `note` is written in the middle when there is no image (converting, no preview for the format).
-fn preview(ui: &mut egui::Ui, size: egui::Vec2, tex: Option<&TextureHandle>, note: Option<&str>, actual: bool, pan: &mut egui::Vec2) -> egui::Response {
+fn preview(ui: &mut egui::Ui, size: egui::Vec2, tex: Option<&TextureHandle>, note: Option<&str>, turn: Turn, actual: bool, pan: &mut egui::Vec2) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::drag());
     let painter = ui.painter_at(rect);
     // Grey ground and a border: on the window's own colour the two images ran into each other.
@@ -64,13 +67,13 @@ fn preview(ui: &mut egui::Ui, size: egui::Vec2, tex: Option<&TextureHandle>, not
         return response;
     };
     let ppp = ui.ctx().pixels_per_point();
-    let t = tex.size_vec2();
+    let t = turned_size(tex, turn);
     if actual {
-        paint_zoomed(&painter, rect, tex, 1.0, pan, Turn::default());
+        paint_zoomed(&painter, rect, tex, 1.0, pan, turn);
     } else {
         let scale = (rect.width() / t.x).min(rect.height() / t.y).min(1.0 / ppp);
         let dest = egui::Rect::from_center_size(rect.center(), t * scale);
-        paint_turned(&painter, tex, dest, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), Turn::default());
+        paint_turned(&painter, tex, dest, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), turn);
     }
     response
 }
@@ -79,5 +82,80 @@ fn preview(ui: &mut egui::Ui, size: egui::Vec2, tex: Option<&TextureHandle>, not
 fn drag(response: &egui::Response, actual: bool, pan: &mut egui::Vec2) {
     if actual && response.dragged() {
         *pan -= response.drag_delta() * response.ctx.pixels_per_point();
+    }
+}
+
+/// What the viewer did to the image, said under the original (`convert-turned`); none when nothing.
+pub(super) fn turn_note(turn: Turn) -> Option<&'static str> {
+    Some(match turn.parts() {
+        (false, 0) => return None,
+        (false, 1) => "cw",
+        (false, 2) => "half",
+        (false, _) => "ccw",
+        (true, 0) => "flip-h",
+        (true, 2) => "flip-v",
+        (true, 1) => "flip-h-cw",
+        (true, _) => "flip-h-ccw",
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::transform::Op;
+
+    /// The eight orientations a viewer's flips and turns make.
+    fn all_turns() -> Vec<Turn> {
+        let mut out = vec![Turn::default()];
+        for op in [Op::Cw, Op::Cw, Op::Cw, Op::FlipH, Op::Cw, Op::Cw, Op::Cw] {
+            out.push(out.last().unwrap().then(op));
+        }
+        out
+    }
+
+    /// The original drawn turned (each point of the pane taking the texture point `source_uv`
+    /// gives) shows at every point the pixel the new file has there (pixels turned by `apply`,
+    /// as `encode` does): the two panes show the same spot, fitted or at 100% around the same
+    /// `pan`, for every turn and flip.
+    #[test]
+    fn original_shown_as_the_new_file() {
+        let (w, h) = (5u32, 3u32);
+        let img = image::RgbaImage::from_fn(w, h, |x, y| image::Rgba([x as u8, y as u8, 0, 255]));
+        let turns = all_turns();
+        assert_eq!(turns.iter().map(|t| t.parts()).collect::<std::collections::HashSet<_>>().len(), 8);
+        for turn in turns {
+            let mut saved = image::DynamicImage::ImageRgba8(img.clone());
+            turn.apply(&mut saved);
+            let saved = saved.to_rgba8();
+            let (sw, sh) = saved.dimensions();
+            assert_eq!(turn.sideways(), (sw, sh) == (h, w), "{turn:?}");
+            for y in 0..sh {
+                for x in 0..sw {
+                    let shown = egui::pos2((x as f32 + 0.5) / sw as f32, (y as f32 + 0.5) / sh as f32);
+                    let src = turn.source_uv(shown);
+                    let (ox, oy) = ((src.x * w as f32) as u32, (src.y * h as f32) as u32);
+                    assert_eq!(img.get_pixel(ox, oy), saved.get_pixel(x, y), "{turn:?} at {x},{y}");
+                }
+            }
+        }
+    }
+
+    /// Under the original: nothing when the viewer did nothing, else what it did, in each language.
+    #[test]
+    fn note_under_the_original() {
+        let say = |lang: &str, turn: Turn| turn_note(turn).map(|k| I18n::new(lang).t_args("convert-turned", &[("turn", k)]));
+        let cw = Turn::default().then(Op::Cw);
+        assert_eq!(say("en", Turn::default()), None);
+        assert_eq!(say("it", cw).as_deref(), Some("ruotata di 90° in senso orario nel visore"));
+        assert_eq!(say("en", cw).as_deref(), Some("rotated 90° clockwise in the viewer"));
+        assert_eq!(say("it", Turn::default().then(Op::FlipV)).as_deref(), Some("riflessa verticalmente nel visore"));
+        let notes: std::collections::HashSet<_> = all_turns().into_iter().skip(1).map(|t| turn_note(t).unwrap()).collect();
+        assert_eq!(notes.len(), 7, "one note for each turn");
+        for lang in ["en", "it"] {
+            for t in all_turns().into_iter().skip(1) {
+                let text = say(lang, t).unwrap();
+                assert!(!text.contains("convert-turned") && !text.contains('{'), "{lang} {t:?}: {text}");
+            }
+        }
     }
 }

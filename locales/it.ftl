@@ -398,6 +398,15 @@ convert-calculating = Calcolo della dimensione in corso…
 convert-error = Impossibile convertire: { $detail }
 convert-actual = 100% (trascina le immagini per spostarti)
 convert-pixels = { $w } × { $h } pixel
+convert-turned = { $turn ->
+    [cw] ruotata di 90° in senso orario nel visore
+    [half] ruotata di 180° nel visore
+    [ccw] ruotata di 90° in senso antiorario nel visore
+    [flip-h] riflessa orizzontalmente nel visore
+    [flip-v] riflessa verticalmente nel visore
+    [flip-h-cw] riflessa orizzontalmente e ruotata di 90° in senso orario nel visore
+   *[flip-h-ccw] riflessa orizzontalmente e ruotata di 90° in senso antiorario nel visore
+}
 model-triangles = { $n } triangoli
 # The keys of the viewer, under the status bar.
 hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | ← →: precedente, successivo | Ctrl+Maiusc+S: salva come immagine | F11: schermo intero | Esc: indietro

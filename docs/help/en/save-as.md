@@ -19,6 +19,8 @@ The page takes the whole window. On the left is the original, on the right the c
 
 The image on the right is the real file: every time you change an option, EyeCanSee makes the file again and shows it. While it works, the size says "Working out the size…" and **Save** waits, so the size you see is always the size of the file you will get.
 
+An image flipped or rotated in the viewer is shown so on both sides, so the two match; under the original its size on disk stays, with what the viewer did, for example "rotated 90° clockwise in the viewer".
+
 Tick **100%** to see the real pixels. Then drag either image to move both, so you compare the same spot.
 
 ## Saving

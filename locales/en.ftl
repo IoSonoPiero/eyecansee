@@ -399,6 +399,15 @@ convert-calculating = Working out the size…
 convert-error = Cannot convert: { $detail }
 convert-actual = 100% (drag the images to move around)
 convert-pixels = { $w } × { $h } pixels
+convert-turned = { $turn ->
+    [cw] rotated 90° clockwise in the viewer
+    [half] rotated 180° in the viewer
+    [ccw] rotated 90° counter-clockwise in the viewer
+    [flip-h] flipped horizontally in the viewer
+    [flip-v] flipped vertically in the viewer
+    [flip-h-cw] flipped horizontally and rotated 90° clockwise in the viewer
+   *[flip-h-ccw] flipped horizontally and rotated 90° counter-clockwise in the viewer
+}
 model-triangles = { $n } triangles
 # The keys of the viewer, under the status bar.
 hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | ← →: previous, next | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back

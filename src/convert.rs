@@ -291,7 +291,11 @@ impl crate::App {
             ui.vertical(|ui| {
                 ui.set_width(half);
                 let ext = crate::source::name(&w.path).rsplit_once('.').map_or(String::new(), |(_, e)| e.to_uppercase());
-                ui.label(format!("{ext} · {pixels}"));
+                // The file as it is on disk, and what the viewer did to it (the image above is shown so).
+                match panes::turn_note(w.options.turn) {
+                    Some(turn) => ui.label(format!("{ext} · {pixels} · {}", i18n.t_args("convert-turned", &[("turn", turn)]))),
+                    None => ui.label(format!("{ext} · {pixels}")),
+                };
                 if let Some(size) = size {
                     ui.label(i18n.t_args("convert-file-size", &[("size", &self.human_size(size))]));
                 }
