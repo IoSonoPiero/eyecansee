@@ -278,7 +278,10 @@ impl crate::App {
         let pane = egui::vec2(half, (ui.available_height() - 22.0 - 16.0 - w.bottom_h).max(120.0));
         convert_images(ui, w, i18n, tex, half, pane);
         ui.add_space(4.0);
-        let pixels = i18n.t_args("convert-pixels", &[("w", &image.width().to_string()), ("h", &image.height().to_string())]);
+        let size_text = |(w, h): (u32, u32)| i18n.t_args("convert-pixels", &[("w", &w.to_string()), ("h", &h.to_string())]);
+        let pixels = size_text((image.width(), image.height()));
+        // The new file's own: swapped by a quarter turn made in the viewer, reduced for an ICO.
+        let saved = size_text(saved_size((image.width(), image.height()), &w.options));
         let bottom = ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = GAP;
             ui.vertical(|ui| {
@@ -294,7 +297,7 @@ impl crate::App {
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing.x = 8.0;
                 ui.set_width(half);
-                self.result_info(ui, w, &pixels, size);
+                self.result_info(ui, w, &saved, size);
                 ui.add_space(6.0);
                 format_choice(ui, w, i18n);
                 let image = &original.0.image;
@@ -592,6 +595,21 @@ fn encoded(original: &Original, o: &Options) -> Result<Vec<u8>, String> {
     }
 }
 
+/// Width and height of the file Save writes, from the original's: a quarter turn made in the
+/// viewer swaps them, an ICO is reduced into 256 × 256 as `encode` does (with
+/// `image::DynamicImage::resize`). Nothing else in Save as… changes them: the editor hands over
+/// its result already cropped and resized.
+fn saved_size((w, h): (u32, u32), o: &Options) -> (u32, u32) {
+    let (w, h) = if o.turn.sideways() { (h, w) } else { (w, h) };
+    let side = f64::from(crate::encode::ICO_SIDE);
+    if o.format != Format::Ico || w.max(h) <= crate::encode::ICO_SIDE {
+        return (w, h);
+    }
+    let ratio = f64::min(side / f64::from(w), side / f64::from(h));
+    let fit = |s: u32| ((f64::from(s) * ratio).round() as u32).max(1);
+    (fit(w), fit(h))
+}
+
 /// Only a JPEG with its metadata holds the gain map and the XMP that describes it.
 fn keeps_hdr(o: &Options) -> bool {
     o.format == Format::Jpeg && o.keep_meta
@@ -730,6 +748,49 @@ mod tests {
             seen += 1;
         }
         assert!(seen > 0, "no Ultra HDR photo in {}", dir.display());
+    }
+
+    /// A photo turned by a quarter in the viewer: Save as… says the size of the file it writes (a
+    /// 1920 × 613 photo said 1920 × 613 under the new image), and the file has its pixels turned
+    /// once, clockwise, with no EXIF orientation left to turn it again.
+    #[test]
+    fn turned_photo_saved_with_its_size() {
+        use image::{GenericImageView, ImageDecoder};
+        let cw = Turn::default().then(crate::transform::Op::Cw);
+        let half = Turn::default().then(crate::transform::Op::Half);
+        let jpeg = Options::default();
+        assert_eq!(saved_size((1920, 613), &jpeg), (1920, 613));
+        assert_eq!(saved_size((1920, 613), &Options { turn: cw, ..jpeg }), (613, 1920));
+        assert_eq!(saved_size((1920, 613), &Options { turn: half, ..jpeg }), (1920, 613));
+        // An ICO is reduced into 256 × 256, after the turn.
+        let ico = Options { format: Format::Ico, ..jpeg };
+        assert_eq!(saved_size((1920, 613), &ico), (256, 82));
+        assert_eq!(saved_size((1920, 613), &Options { turn: cw, ..ico }), (82, 256));
+        assert_eq!(saved_size((200, 100), &Options { turn: cw, ..ico }), (100, 200));
+        // A JPEG whose EXIF says "turn by a quarter" (done when decoded), red at the top left, in
+        // blocks of 16 pixels so that the JPEG keeps it red.
+        let red = |p: image::Rgba<u8>| p[0] > 200 && p[1] < 80 && p[2] < 80;
+        let img = image::RgbImage::from_fn(64, 32, |x, y| image::Rgb(if x < 16 && y < 16 { [255, 0, 0] } else { [255, 255, 255] }));
+        let mut file = Vec::new();
+        image::DynamicImage::ImageRgb8(img.clone()).write_to(&mut std::io::Cursor::new(&mut file), image::ImageFormat::Jpeg).unwrap();
+        let exif = b"Exif\0\0II*\x00\x08\x00\x00\x00\x01\x00\x12\x01\x03\x00\x01\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00";
+        let app1 = [&[0xFF, 0xE1][..], &(exif.len() as u16 + 2).to_be_bytes(), exif].concat();
+        file.splice(2..2, app1);
+        let original = Original::with_meta(image::DynamicImage::ImageRgb8(img), &file);
+        for format in [Format::Jpeg, Format::Png, Format::Ico] {
+            for turn in [Turn::default(), cw, half] {
+                let o = Options { format, turn, ..Options::default() };
+                let bytes = encoded(&original, &o).unwrap();
+                let mut d = image::ImageReader::new(std::io::Cursor::new(&bytes)).with_guessed_format().unwrap().into_decoder().unwrap();
+                assert_eq!(d.orientation().unwrap(), image::metadata::Orientation::NoTransforms, "{format:?} {turn:?}");
+                let back = image::DynamicImage::from_decoder(d).unwrap();
+                assert_eq!(back.dimensions(), saved_size((64, 32), &o), "{format:?} {turn:?}");
+                if turn == cw && format != Format::Ico {
+                    // Turned clockwise: the top left corner is now at the top right.
+                    assert!(red(back.get_pixel(24, 8)) && !red(back.get_pixel(8, 8)) && !red(back.get_pixel(8, 56)), "{format:?}");
+                }
+            }
+        }
     }
 
     /// Issue #104: a new image is proposed as the PNG the editor names; a photo as a JPEG.
