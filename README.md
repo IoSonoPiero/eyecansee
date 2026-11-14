@@ -161,7 +161,7 @@ HEIC photos also need `libheif-freeworld` from [RPM Fusion](https://rpmfusion.or
 
 For the other distributions.
 
-Download the `.AppImage` file from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), make it executable (`chmod +x EyeCanSee-*.AppImage`, or Properties → "Allow executing file as program" in the file manager) and run it. Nothing else to install: videos use the system's libmpv if there is one that plays H.264 and HEVC, otherwise EyeCanSee offers to download its video engine (10 MB) the first time a video is opened. It needs a distribution from 2022 or later (glibc 2.35).
+Download the `.AppImage` file from the [latest release](https://github.com/IoSonoPiero/eyecansee/releases/latest), make it executable (`chmod +x EyeCanSee-*.AppImage`, or Properties → "Allow executing file as program" in the file manager) and run it. Nothing else to install: videos use the system's libmpv if there is one that plays H.264 and HEVC, otherwise EyeCanSee offers to download its video engine (12 MB) the first time a video is opened. It needs a distribution from 2022 or later (glibc 2.35).
 
 To have it in the applications menu (and in "Open with" for images and videos), open the AppImage with [Gear Lever](https://flathub.org/apps/it.mijorus.gearlever), available from the software centre of most distributions, and let it move the file into its folder and add it to the menu. EyeCanSee keeps updating itself there.
 
