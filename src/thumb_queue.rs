@@ -153,9 +153,18 @@ pub(crate) async fn file_info(op: &Store, base: &str, file: &File) -> Option<cra
     // The start of the file first: the size and the EXIF of a photo are in it. The whole file
     // only when they are not there (a TIFF or a RAW whose blocks are further on).
     let head = op.read_range(path, 0, HEAD.min(file.size)).await.ok();
+    let full = file.size;
     let of = |bytes: Vec<u8>| {
         let name = file.path.clone();
-        tokio::task::spawn_blocking(move || crate::thumb_details::Info::of(&bytes, &name, thumb))
+        tokio::task::spawn_blocking(move || {
+            let info = crate::thumb_details::Info::of(&bytes, &name, thumb, None);
+            match info.pixels {
+                Some(_) => info,
+                // A rare format whose header is not read: decoded, as for its thumbnail.
+                None if bytes.len() as u64 >= full => crate::thumb_details::Info { pixels: decode::thumbnail_sized(&bytes, &name, 1).ok().and_then(|(_, own)| own), ..info },
+                None => info,
+            }
+        })
     };
     let mut info = match head {
         Some(bytes) => of(bytes).await.ok()?,
@@ -235,10 +244,10 @@ async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, Stri
         } else if crate::cad::is_cad(&file.path) {
             image::DynamicImage::ImageRgba8(decode::cad_render(&crate::cad::read_with(&bytes, &file.path, &sibling)?, THUMB_SIDE, None)?)
         } else {
-            let img = decode::thumbnail(&bytes, &file.path, THUMB_SIDE)?;
+            let (img, own) = decode::thumbnail_sized(&bytes, &file.path, THUMB_SIDE)?;
             // The file is read now anyway: its details are kept with its thumbnail, for the line
             // under it (#139), so they never cost a read of their own.
-            thumbcache::save_info(&base, &file, &crate::thumb_details::Info::of(&bytes, &file.path, (img.width(), img.height())));
+            thumbcache::save_info(&base, &file, &crate::thumb_details::Info::of(&bytes, &file.path, (img.width(), img.height()), own));
             img
         };
         thumbcache::save(&base, &file, &img);

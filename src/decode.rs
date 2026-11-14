@@ -207,22 +207,29 @@ pub fn own_size(image: &ColorImage) -> Option<[u32; 2]> {
 /// was 80% of the time.
 // ponytail: other formats are decoded in full; embedded previews of RAW and HEIC when needed
 pub fn thumbnail(bytes: &[u8], name: &str, side: u32) -> std::result::Result<DynamicImage, String> {
+    thumbnail_sized(bytes, name, side).map(|(img, _)| img)
+}
+
+/// As `thumbnail`, with the picture's own size (upright) when it was decoded whole to make it: a
+/// rare format whose header `header` cannot read (an SGI, a PCX…) has it only from there (#139).
+pub fn thumbnail_sized(bytes: &[u8], name: &str, side: u32) -> std::result::Result<(DynamicImage, Option<[u32; 2]>), String> {
     if crate::model::is_model(name) {
-        return model_picture(bytes, name, side, side * 3 / 4);
+        return model_picture(bytes, name, side, side * 3 / 4).map(|img| (img, None));
     }
     if crate::cad::is_cad(name) {
-        return cad_picture(bytes, name, side);
+        return cad_picture(bytes, name, side).map(|img| (img, None));
     }
     // Lossless JPEGs cannot be scaled while decoded: at full size instead.
     let small = bytes.starts_with(&[0xFF, 0xD8, 0xFF]).then(|| jpeg_scaled(bytes, side).or_else(|_| jpeg_scaled(bytes, u32::MAX)).ok()).flatten();
-    let mut img = match small {
-        Some(img) => img,
-        None => decode_any(bytes, name)?,
+    let (mut img, whole) = match small {
+        Some(img) => (img, false),
+        None => (decode_any(bytes, name)?, true),
     };
+    let own = whole.then(|| [img.width(), img.height()]);
     if img.width().max(img.height()) > side {
         img = img.thumbnail(side, side);
     }
-    Ok(img)
+    Ok((img, own))
 }
 
 /// For showing an image already decoded: scaled down only beyond the texture limit, as `decode`.

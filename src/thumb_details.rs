@@ -44,9 +44,10 @@ pub struct Info {
 
 impl Info {
     /// From the bytes of an image whose thumbnail, upright, is `thumb` (width, height): the size
-    /// the file stores, turned as the thumbnail is, and the date taken.
-    pub fn of(bytes: &[u8], name: &str, thumb: (u32, u32)) -> Info {
-        let pixels = crate::decode::header(bytes, name).map(|h| upright(h.size, thumb));
+    /// the file stores, turned as the thumbnail is, and the date taken. `decoded`: the size of the
+    /// picture decoded whole for its thumbnail, for the formats whose header is not read.
+    pub fn of(bytes: &[u8], name: &str, thumb: (u32, u32), decoded: Option<[u32; 2]>) -> Info {
+        let pixels = crate::decode::header(bytes, name).map(|h| upright(h.size, thumb)).or(decoded);
         let taken = crate::meta::read(bytes).and_then(|m| m.fields.into_iter().find(|(_, l, _)| *l == "meta-taken").map(|(_, _, v)| v));
         Info { pixels, taken, duration: None }
     }
@@ -199,6 +200,15 @@ mod tests {
         assert_eq!(Rows::of(&Details { duration: true, ..Details::default() }, true), Rows { name: true, measures: false, date: true });
     }
 
+    /// A format whose header is not read (an SGI, a PCX…): the size of the picture decoded for
+    /// its thumbnail.
+    #[test]
+    fn size_of_a_rare_format() {
+        let info = Info::of(b"not a header anyone reads", "x.rgb", (256, 192), Some([800, 600]));
+        assert_eq!(info.pixels, Some([800, 600]));
+        assert_eq!(Info::of(b"", "x.rgb", (256, 192), None).pixels, None);
+    }
+
     #[test]
     fn info_of_a_video() {
         use crate::meta::{Group, Meta};
@@ -231,7 +241,7 @@ mod tests {
     fn info_of_a_jpeg_and_back() {
         let mut bytes = Vec::new();
         image::DynamicImage::new_rgb8(64, 32).write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Jpeg).unwrap();
-        let info = Info::of(&bytes, "a.jpg", (64, 32));
+        let info = Info::of(&bytes, "a.jpg", (64, 32), None);
         assert_eq!(info, Info { pixels: Some([64, 32]), taken: None, duration: None });
         assert_eq!(Info::from_json(&info.to_json()), Some(info));
         // A cache row of another version (fields more or fewer) still reads.
