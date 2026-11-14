@@ -4,7 +4,7 @@
 
 use eframe::egui;
 
-use super::tools::colours;
+use super::style_bar::colours;
 use crate::edit::doc::{Back, Stamp, Style};
 use crate::i18n::I18n;
 use crate::icons::{self, Line};

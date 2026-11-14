@@ -3,9 +3,10 @@
 //! objects over it from a texture of their own (`edit::render`), redrawn only when the document or
 //! the view change. Every change goes into the document (`edit::doc`); once an operation is over
 //! (no button held, no field being typed in) it becomes a step of the history (`edit::history`).
-//! The bars (tools, properties, status) are in `tools`, Rotate and crop's controls in `crop`, the
-//! canvas in `canvas`, the questions before saving or closing in `save`, the page opened in `open`,
-//! its keys in `keys`, the previews of the filters in `previews`, Resize in `resize`.
+//! The bars (tools, properties, status) are in `tools`, the style of the objects in the properties
+//! bar in `style_bar`, Rotate and crop's controls in `crop`, the canvas in `canvas`, the questions
+//! before saving or closing in `save`, the page opened in `open`, its keys in `keys`, the previews
+//! of the filters in `previews`, Resize in `resize`.
 
 use std::sync::Arc;
 
@@ -30,6 +31,7 @@ mod previews;
 mod props;
 mod resize;
 mod save;
+mod style_bar;
 mod tools;
 mod typing;
 use canvas::canvas;
