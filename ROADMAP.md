@@ -83,6 +83,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Converted Camera RAW photos do not keep the maker note, the camera maker's own data ([#41](https://github.com/IoSonoPiero/eyecansee/issues/41)).
 - GIMP files (XCF) keep only their colour profile when converted: GIMP stores EXIF, XMP and IPTC as text of its own, which ImageMagick does not read ([#42](https://github.com/IoSonoPiero/eyecansee/issues/42)).
 - Windows: a file owned by another account (for example created as administrator) and replaced with Paste > Replace gets the current user as owner. Its content is right; files owned by the user are not affected ([#93](https://github.com/IoSonoPiero/eyecansee/issues/93)).
+- Viewer: of an AVIF sequence only the first frame is shown; animated GIF, WebP and APNG images play ([#121](https://github.com/IoSonoPiero/eyecansee/issues/121)).
 - Camera RAW: Sigma X3F files do not open, Sony SRF files open with a cyan cast, Phase One P40+ files show only their preview outside the Fedora package ([#7](https://github.com/IoSonoPiero/eyecansee/issues/7)).
 
 ## Not planned
