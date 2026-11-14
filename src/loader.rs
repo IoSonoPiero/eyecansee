@@ -462,7 +462,8 @@ impl Loader {
     pub fn prepare(&self, path: String, turn: crate::transform::Turn) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = turned(&op, &path, turn).await.map(|(data, lossy)| (Arc::new(data), lossy));
+            // A video is turned when it is saved (`replace`), by its rotation only: nothing to make before.
+            let r = if decode::is_video(&path) { Ok((Arc::new(Vec::new()), false)) } else { turned(&op, &path, turn).await.map(|(data, lossy)| (Arc::new(data), lossy)) };
             let _ = tx.send(Msg::Prepared(path, turn, r));
             ctx.request_repaint();
         });
@@ -508,6 +509,13 @@ impl Loader {
         let (op, tx, ctx, base) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), self.base.clone());
         self.rt.spawn(async move {
             for path in paths {
+                // A video: only its rotation changes, the streams copied, never read here whole (#125).
+                if decode::is_video(&path) {
+                    let r = crate::video_turn::replace(&op, &path, turn.parts().1, how).await.map_err(|e| (e, None));
+                    let _ = tx.send(replaced(path, r));
+                    ctx.request_repaint();
+                    continue;
+                }
                 let r = match turned(&op, &path, turn).await {
                     Ok((data, _)) => crate::kept::replace(&op, &base, &path, data, how).await,
                     Err(e) => Err((e, None)),

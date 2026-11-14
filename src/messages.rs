@@ -452,6 +452,10 @@ impl App {
                 }
                 if self.viewed(&path) {
                     self.turn = Default::default();
+                    // A video saved turned: opened again, with its new rotation (#125).
+                    if crate::decode::is_video(&path) {
+                        self.video = None;
+                    }
                 }
                 self.relist(source::parent(&path));
                 self.redo_thumbs(ctx, vec![path]);

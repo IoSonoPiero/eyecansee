@@ -145,8 +145,6 @@ mod update;
 mod vault_page;
 mod video;
 mod video_copy;
-// The viewer and the grid call it from Save once wired (#125); until then only its tests.
-#[allow(dead_code)]
 mod video_turn;
 mod video_read;
 mod viewer;

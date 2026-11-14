@@ -907,6 +907,7 @@ save-extra = The changes cannot be saved over **{ $detail }**: it also carries t
 save-temp-copy = This image **cannot be saved over itself**: it is a temporary copy that Windows made when it opened the file from a phone or another device, not the file there. Saving over it would change only the copy, which Windows can delete. Use **Save as…** to keep the changes.
 save-gvfs = Images **cannot be saved over themselves** here: this folder was opened through the file manager (gvfs), where replacing a file can lose the original.
 save-no-rename = Images **cannot be saved over themselves** here: this source cannot rename files.
+save-video-no-rotation = { $detail }: only MP4, MOV, MKV and WebM videos keep a rotation. To turn it, use Convert….
 batch-turn-videos = **Videos** are not encoded again: only the rotation that players read changes, in seconds and without loss.
 off-video-flip = A video can only be rotated here: to flip it, use Convert….
 batch-animated = **Animated** and **multi-page** images, **motion photos** and photos with a **depth map** (the portrait photos of some phones) are skipped: saving over them would lose those parts. Ultra HDR photos are turned with their HDR map, and with their video when they are motion photos too.

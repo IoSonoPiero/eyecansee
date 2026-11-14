@@ -13,6 +13,9 @@ pub fn holds_rotation(name: &str) -> bool {
     matches!(ext.as_str(), "mp4" | "m4v" | "mov" | "qt" | "3gp" | "3g2" | "mkv" | "webm")
 }
 
+/// A video in a container without a rotation (AVI, MPEG…): turned only by Convert….
+pub const NO_ROTATION: &str = "save-video-no-rotation";
+
 /// The rotation of the video stream as `ffmpeg -i` prints it ("displaymatrix: rotation of
 /// -90.00 degrees"), counter-clockwise in degrees; 0 without one.
 pub fn rotation_of(text: &str) -> f64 {
@@ -83,6 +86,9 @@ pub fn write(program: &Path, input: &Path, output: &Path, quarters: u8, cancel: 
 /// here first; the new one is written into a temporary file, then sent into place.
 pub(crate) async fn replace(op: &crate::source::Store, path: &str, quarters: u8, how: crate::source::Deletion) -> Result<(), crate::source::Error> {
     let name = crate::source::name(path).to_string();
+    if !holds_rotation(&name) {
+        return Err((NO_ROTATION, name));
+    }
     let Some(program) = crate::ffmpeg::copier() else { return Err((crate::batch::SKIP_VIDEO, name)) };
     let temp = |what: &str| std::env::temp_dir().join(format!("eyecansee-turn-{what}-{}-{name}", std::process::id()));
     let input = match op.local_file(path) {

@@ -24,6 +24,8 @@ pub(crate) struct Playing {
     wheel: f32,
     /// Bytes copied and the size, while the file is copied whole before playing (a phone on Windows).
     copying: Option<(Arc<AtomicU64>, u64)>,
+    /// The turn shown and not saved yet, clockwise degrees (#125).
+    rotate: u32,
 }
 
 /// Where the video engine is, for the card shown in its place.
@@ -149,6 +151,12 @@ impl App {
             (done as f32 / size.max(1) as f32, text)
         });
         let Some(v) = &mut self.video else { return };
+        // A turn not saved yet, shown as it will be saved (#125).
+        let rotate = 90 * self.turn.parts().1 as u32;
+        if let (Ok(p), true) = (&v.player, v.rotate != rotate) {
+            p.set_rotate(rotate);
+            v.rotate = rotate;
+        }
         let sound = (&mut self.settings.video_volume, &mut self.settings.video_mute);
         let Some(response) = draw(ui, v, sound, &self.i18n, wait) else { return };
         if response.hovered() {
@@ -378,7 +386,7 @@ impl App {
         if let Err(e) = &player {
             log!("motion photo {path:?}: ERROR {e}");
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None, rotate: 0 }
     }
 
     /// The video open for `path` has not reached its end (it plays, it is paused, or it could
@@ -403,7 +411,7 @@ impl App {
         if let Err(e) = &player {
             log!("video {path:?}: ERROR {e}");
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying, rotate: 0 }
     }
 }
 

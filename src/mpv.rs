@@ -599,6 +599,11 @@ impl Player {
     pub fn set_mute(&self, mute: bool) {
         let _ = self.mpv.command(&["set", "mute", if mute { "yes" } else { "no" }]);
     }
+
+    /// A turn not saved yet (#125): clockwise degrees, added by mpv to the file's own rotation.
+    pub fn set_rotate(&self, degrees: u32) {
+        let _ = self.mpv.command(&["set", "video-rotate", &(degrees % 360).to_string()]);
+    }
 }
 
 impl Drop for Player {
