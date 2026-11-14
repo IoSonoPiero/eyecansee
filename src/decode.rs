@@ -33,11 +33,12 @@ const EXTRA: &[&str] = &[
 const JPEG2000: &[&str] = &["jp2", "j2k", "j2c", "jpf", "jpx"];
 
 /// Extensions of formats that `image` reads under another name: cursors are icons, MPO
-/// (multi-picture) and JPS (stereo) start with an ordinary JPEG, which is the one shown.
+/// (multi-picture) and JPS (stereo) start with an ordinary JPEG, which is the one shown, and
+/// `.jpe` is a JPEG (`.jfif` `image` knows already).
 fn image_alias(ext: &str) -> &str {
     match ext {
         "cur" => "ico",
-        "mpo" | "jps" => "jpg",
+        "mpo" | "jps" | "jpe" => "jpg",
         e => e,
     }
 }
@@ -731,6 +732,7 @@ mod tests {
         assert!(kind("a.SRF") == Some(Kind::Raw) && kind("b.sr2") == Some(Kind::Raw) && kind("c.x3f") == Some(Kind::Raw));
         assert_eq!(is_image("b.heic"), cfg!(feature = "heif"));
         assert!(is_image("d.psd") && is_image("g.pcx") && is_image("h.jp2") && is_image("i.cur"));
+        assert!(is_image("j.jfif") && is_image("k.JPE"));
         assert_eq!(is_image("d.xcf"), cfg!(feature = "magick"));
         assert!(!is_image("e.txt") && !is_image("f.pdf") && !is_image("no_extension"));
         assert!(is_video("a.MP4") && is_media("b.mov") && !is_image("c.mkv") && !is_video("d.ts") && !is_video("e.jpg"));

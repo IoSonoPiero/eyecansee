@@ -8,7 +8,7 @@ Che cosa apre EyeCanSee, e che cosa sa salvare. Tutto funziona allo stesso modo 
 
 | Formato | Estensioni | Letto con |
 |---|---|---|
-| JPEG | jpg, jpeg, jfif | libjpeg-turbo, `image` |
+| JPEG | jpg, jpeg, jfif, jpe | libjpeg-turbo, `image` |
 | MPO, JPS (più immagini e stereo: la prima immagine) | mpo, jps | `image` |
 | PNG (animato: il primo fotogramma) | png, apng | `image` |
 | WebP | webp | `image` |
@@ -113,7 +113,7 @@ Visti dall'alto (lo spazio modello, e i layout con **L**) e mostrati come immagi
 | Farbfeld | – (16 bit per canale) | ✓ | – | `image` |
 
 - JPEG e Radiance HDR non hanno la trasparenza: le parti trasparenti vengono appoggiate sul bianco. La codifica aritmetica e il JPEG senza perdita danno file più piccoli o identici che molti programmi non sanno aprire.
-- Dopo una rotazione, **Salva** riscrive sopra l'originale solo JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF e QOI, e i file PSD (vedi [Ruotare e riflettere](rotate.md)): un ICO contiene più dimensioni, OpenEXR e HDR più di quello che si vede.
+- Dopo una rotazione, **Salva** riscrive sopra l'originale solo JPEG (anche con estensione `.jfif` o `.jpe`), PNG, WebP, AVIF, TIFF, BMP, GIF e QOI, e i file PSD (vedi [Ruotare e riflettere](rotate.md)): un ICO contiene più dimensioni, OpenEXR e HDR più di quello che si vede.
 - EyeCanSee non scrive HEIC (per i brevetti di HEVC) né JPEG XL (nel programma non c'è ancora un codificatore).
 
 ## Metadati nelle immagini salvate

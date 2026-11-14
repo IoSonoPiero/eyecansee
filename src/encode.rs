@@ -101,10 +101,16 @@ impl Format {
     }
 
     /// The format a file can be saved back in after a turn ("Save"), from its name (what is
-    /// inside, animated or not, is looked at by `save_back::can_turn_in_place`).
+    /// inside, animated or not, is looked at by `save_back::can_turn_in_place`). The other names
+    /// of a JPEG (`.jpeg`, `.jfif`, `.jpe`) and of a TIFF (`.tiff`) count as theirs.
     pub fn of_file(name: &str) -> Option<Format> {
         let ext = name.rsplit_once('.')?.1.to_ascii_lowercase();
-        Format::BACK.into_iter().find(|f| f.ext() == ext || (ext == "jpeg" && *f == Format::Jpeg) || (ext == "tiff" && *f == Format::Tiff))
+        let ext = match ext.as_str() {
+            "jpeg" | "jfif" | "jpe" => "jpg",
+            "tiff" => "tif",
+            e => e,
+        };
+        Format::BACK.into_iter().find(|f| f.ext() == ext)
     }
 }
 
@@ -672,6 +678,10 @@ pub(crate) mod tests {
         let back = crate::decode::decode_full(&bytes, "x.ico").unwrap();
         assert_eq!((back.width(), back.height()), (256, 128));
         assert_eq!(Format::of_file("a.TIFF"), Some(Format::Tiff));
+        for name in ["a.jpg", "a.JPEG", "a.jfif", "a.JPE"] {
+            assert_eq!(Format::of_file(name), Some(Format::Jpeg), "{name}");
+            assert!(saves_back(name), "{name}");
+        }
         for name in ["a.ico", "a.tga", "a.pnm", "a.exr", "a.hdr", "a.ff"] {
             assert_eq!(Format::of_file(name), None, "{name}");
         }

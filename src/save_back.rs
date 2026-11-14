@@ -177,4 +177,20 @@ mod tests {
         assert!(!can_turn_in_place(&animated_gif, "a.gif"));
         assert!(!can_turn_in_place(&jpeg, "a.heic"));
     }
+
+    /// A JPEG named `.jfif` or `.jpe` is saved back as a JPEG: turned without re-encoding, still
+    /// a JPEG (before, Save refused it: only `.jpg` and `.jpeg` were known).
+    #[test]
+    fn other_jpeg_names() {
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_fn(32, 16, |x, y| image::Rgb([x as u8 * 8, y as u8 * 16, 0])));
+        let mut jpeg = Vec::new();
+        img.write_to(&mut Cursor::new(&mut jpeg), image::ImageFormat::Jpeg).unwrap();
+        for name in ["a.jfif", "a.JPE"] {
+            assert!(can_turn_in_place(&jpeg, name), "{name}");
+            let (out, lossy) = super::turned_file(&jpeg, name, crate::transform::Turn::default().then(crate::transform::Op::Cw)).unwrap();
+            assert!(!lossy, "{name}");
+            assert_eq!(image::guess_format(&out).unwrap(), image::ImageFormat::Jpeg, "{name}");
+            assert_eq!(crate::decode::decode_full(&out, name).unwrap().width(), 16, "{name}");
+        }
+    }
 }
