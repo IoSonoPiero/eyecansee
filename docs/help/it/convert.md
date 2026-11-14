@@ -20,7 +20,18 @@ Per fare solo delle copie più piccole delle foto, senza la finestra: fai clic d
 
 Il lavoro parte subito su tutte le immagini scelte, con lo stesso riquadro e **Annulla** descritti più sotto e il messaggio finale. Le copie vanno accanto agli originali, nel loro formato e con i loro metadati (una foto **Ultra HDR** resta Ultra HDR), con la misura nel nome: `foto (1920 px).jpg`, `foto (50%).jpg`. Un nome già preso riceve " (2)". Per le immagini che hanno già quella misura, o sono più piccole (non vengono mai ingrandite), non si fa nessuna copia, e il messaggio le elenca: così ridimensionare di nuovo una copia non crea `foto (1920 px) (1920 px).jpg`. Quelle in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) restano fuori, e il messaggio dice perché. Restano fuori anche video, modelli 3D, disegni CAD e file audio, e il messaggio li elenca: se tra i file scelti ce ne sono, **Ridimensiona** è segnata con **\***; se non c'è nessuna immagine, è grigia.
 
-**Ridimensiona > Personalizzata…** apre questa finestra, che si chiama **Ridimensiona**, sulle immagini, sulla rotazione e sulle dimensioni, con il formato **Uguale all'originale** e le copie accanto agli originali. Riparte dalla misura dell'ultima Personalizzata… (all'inizio **Lato lungo** 1920 px); **Converti…** invece riparte sempre da **Invariate**.
+**Ridimensiona > Personalizzata…** apre questa finestra, che si chiama **Ridimensiona** e ha il pulsante **Ridimensiona**, sulle immagini, sulla rotazione e sulle dimensioni, con il formato **Uguale all'originale** e le copie accanto agli originali. Riparte dalla misura dell'ultima Personalizzata… (all'inizio **Lato lungo** 1920 px); **Converti…** invece riparte sempre da **Invariate**. Come con le misure qui sopra, le copie hanno la misura nel nome (con **Invariate**, ciò che è cambiato), in qualunque formato e dovunque vadano:
+
+| Dimensioni | Nome della copia |
+|---|---|
+| Lato lungo, Lato corto, Larghezza o Altezza di 600 px | `foto (600 px).jpg` |
+| Entro 800 × 600 | `foto (800x600).jpg` |
+| Percentuale dell'originale, 50 | `foto (50%).jpg` |
+| Misura esatta 800 × 600, tagliata o deformata | `foto (800x600).jpg` |
+| Invariate, ruotata (riflessa o no) | `foto (ruotata).jpg` |
+| Invariate, solo riflessa | `foto (riflessa).jpg` |
+
+Con una misura e una rotazione, il nome dice solo la misura. Un nome già preso riceve " (2)" dopo: `foto (600 px) (2).jpg`, `foto (ruotata) (2).jpg`.
 
 ## Formato
 
@@ -46,7 +57,7 @@ Il lavoro parte subito su tutte le immagini scelte, con lo stesso riquadro e **A
 - **Ingrandisci anche i file più piccoli**: spenta all'inizio, così le immagini già più piccole della misura chiesta restano come sono (con una misura esatta, nessun lato diventa più grande di quello dell'originale). Con il formato **Uguale all'originale**, per un'immagine che verrebbe uguale all'originale non si fa nessuna copia, e il messaggio la elenca.
 - **Filtro**, cioè come si calcolano i pixel nuovi: **Lanczos** (il più nitido, quello predefinito), **Catmull-Rom**, **Gaussiano** (morbido), **Bilineare** (veloce), **Pixel più vicino** (tiene i bordi netti della pixel art).
 
-Se non cambierebbe niente (stesso formato, stesse dimensioni, nessuna rotazione), **Converti** resta spento e una riga rossa lo dice: le immagini perderebbero solo qualità.
+Se non cambierebbe niente (stesso formato, stesse dimensioni, nessuna rotazione), **Converti** (o **Ridimensiona**) resta spento e una riga rossa lo dice: le immagini perderebbero solo qualità.
 
 ## Dove
 

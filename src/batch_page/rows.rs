@@ -53,7 +53,7 @@ pub(super) fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bo
     }
     let mut answer = None;
     ui.horizontal(|ui| {
-        let start = crate::theme::main_button(ui, t(if f.drawing { "drawing-start" } else { "batch-start" }));
+        let start = crate::theme::main_button(ui, t(f.titles().1));
         if ui.add_enabled(why_not.is_none(), start).clicked() {
             answer = Some(true);
         }

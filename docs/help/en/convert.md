@@ -20,7 +20,18 @@ To only make smaller copies of photos, without the window: right-click the selec
 
 The work starts at once on every picture chosen, with the same box and **Cancel** as below and the message at the end. The copies go next to the originals, in their format and with their metadata (an **Ultra HDR** photo stays Ultra HDR), the size in their names: `photo (1920 px).jpg`, `photo (50%).jpg`. A name already taken gets " (2)". Pictures already of that size, or smaller (they are never enlarged), get no copy, and the message names them: so resizing a copy again does not make `photo (1920 px) (1920 px).jpg`. Pictures in a format EyeCanSee cannot write (HEIC, RAW…) are left out, and the message says why. Videos, 3D models, CAD drawings and audio files are left out too, and the message names them: with some of them among the files chosen, **Resize** is marked with **\***; with no picture at all, it is greyed out.
 
-**Resize > Custom…** opens this window, called **Resize**, on the pictures, on the turn and the size, with the format **Same as the original** and the copies next to the originals. It starts from the size of the last Custom… (at first **Long side** 1920 px); **Convert…** instead always starts from **Unchanged**.
+**Resize > Custom…** opens this window, called **Resize** and with its button **Resize**, on the pictures, on the turn and the size, with the format **Same as the original** and the copies next to the originals. It starts from the size of the last Custom… (at first **Long side** 1920 px); **Convert…** instead always starts from **Unchanged**. As with the sizes above, the copies have the size in their names (with **Unchanged**, what was done), in whatever format and wherever they go:
+
+| Size | Name of the copy |
+|---|---|
+| Long side, Short side, Width or Height of 600 px | `photo (600 px).jpg` |
+| Inside 800 × 600 | `photo (800x600).jpg` |
+| Percent of the original, 50 | `photo (50%).jpg` |
+| Exactly 800 × 600, cropped or stretched | `photo (800x600).jpg` |
+| Unchanged, turned (flipped too or not) | `photo (rotated).jpg` |
+| Unchanged, only flipped | `photo (flipped).jpg` |
+
+With a size and a turn, the name says only the size. A name already taken gets " (2)" after it: `photo (600 px) (2).jpg`, `photo (rotated) (2).jpg`.
 
 ## Format
 
@@ -46,7 +57,7 @@ The work starts at once on every picture chosen, with the same box and **Cancel*
 - **Enlarge smaller files too**: off at first, so images already smaller than the size asked stay as they are (with an exact size, no side grows larger than the original's). In the format **Same as the original**, a picture that would come out the same as the original gets no copy, and the message names it.
 - **Filter**, how the new pixels are worked out: **Lanczos** (sharpest, the default), **Catmull-Rom**, **Gaussian** (soft), **Bilinear** (fast), **Nearest pixel** (keeps the hard edges of pixel art).
 
-If nothing would change (same format, same size, no turn), **Convert** stays off and a red line says so: the images would only lose quality.
+If nothing would change (same format, same size, no turn), **Convert** (or **Resize**) stays off and a red line says so: the images would only lose quality.
 
 ## Where
 

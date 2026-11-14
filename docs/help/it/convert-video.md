@@ -38,7 +38,7 @@ Il riquadro in basso a destra mostra a che punto è; la barra avanza anche duran
 
 ## Copia con i metadati
 
-**Strumenti > Copia con i metadati…** (anche nel clic destro) apre la stessa finestra sui video e sulle foto scelti, già impostata su **Uguale all'originale**; gli altri file scelti restano fuori, e alla fine vengono nominati. Di solito scegli solo dove mettere la copia. Il video viene riscritto in pochi secondi, con i suoi metadati dentro: per dashcam e droni anche la posizione presa dai file accanto. Una foto viene copiata così com'è, con tutti i suoi metadati; se la ruoti o la ridimensioni nella finestra, li conserva come in una conversione.
+**Strumenti > Copia con i metadati…** (anche nel clic destro) apre la stessa finestra, che si chiama **Copia con i metadati** e ha il pulsante **Copia**, sui video e sulle foto scelti, già impostata su **Uguale all'originale**; gli altri file scelti restano fuori, e alla fine vengono nominati. Di solito scegli solo dove mettere la copia. Il video viene riscritto in pochi secondi, con i suoi metadati dentro: per dashcam e droni anche la posizione presa dai file accanto. Una foto viene copiata così com'è, con tutti i suoi metadati; se la ruoti o la ridimensioni nella finestra, li conserva come in una conversione.
 
 ## Copia senza audio e Salva l'audio in un file
 

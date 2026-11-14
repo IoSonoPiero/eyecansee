@@ -154,6 +154,20 @@ impl Form {
         Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio, base: String::new(), drawing, tag: String::new() }
     }
 
+    /// What the names of the copies of Custom… say: the size, as the presets ("photo (600 px).jpg"),
+    /// or with Unchanged what was done, in the language of `i18n` ("photo (rotated).jpg", or
+    /// "flipped" without a turn). Nothing for the other uses of the window.
+    fn tag(&self, i18n: &I18n) -> String {
+        if self.part != Part::Resize {
+            return String::new();
+        }
+        match self.sizes[self.size] {
+            Size::Same if self.quarter != 0 => format!(" ({})", i18n.t("batch-tag-rotated")),
+            Size::Same if self.flip_h || self.flip_v => format!(" ({})", i18n.t("batch-tag-flipped")),
+            size => size.tag(),
+        }
+    }
+
     /// On videos only, or only their sound: F1 opens the page on converting videos.
     pub(crate) fn videos_only(&self) -> bool {
         self.audio.is_some() || self.videos && !self.images
@@ -212,21 +226,24 @@ pub struct Window {
     preset: bool,
 }
 
-/// The Fluent ids of the title of the window (and of the message at the end), and of the box
-/// that shows how the work is going.
-fn titles(audio: Option<AudioJob>, drawing: bool, resize: bool) -> (&'static str, &'static str) {
+/// The Fluent ids of the title of the window (and of the message at the end), of its button that
+/// starts the work, and of the box that shows how the work is going.
+fn titles(audio: Option<AudioJob>, drawing: bool, part: Part) -> (&'static str, &'static str, &'static str) {
     match audio {
-        Some(AudioJob::Strip) => ("batch-title-strip", "batch-working"),
-        Some(AudioJob::Extract) => ("batch-title-extract", "batch-working"),
-        None if drawing => ("drawing-title", "batch-working"),
-        None if resize => ("batch-title-resize", "batch-working-resize"),
-        None => ("batch-title", "batch-working"),
+        Some(AudioJob::Strip) => ("batch-title-strip", "batch-start", "batch-working"),
+        Some(AudioJob::Extract) => ("batch-title-extract", "batch-start", "batch-working"),
+        None if drawing => ("drawing-title", "drawing-start", "batch-working"),
+        None => match part {
+            Part::Resize => ("batch-title-resize", "batch-start-resize", "batch-working-resize"),
+            Part::CopyMeta => ("batch-title-copy-meta", "batch-start-copy", "batch-working-copy"),
+            Part::Convert | Part::Audio => ("batch-title", "batch-start", "batch-working"),
+        },
     }
 }
 
 impl Form {
-    fn titles(&self) -> (&'static str, &'static str) {
-        titles(self.audio, self.drawing, self.part == Part::Resize)
+    fn titles(&self) -> (&'static str, &'static str, &'static str) {
+        titles(self.audio, self.drawing, self.part)
     }
 }
 
@@ -362,11 +379,11 @@ impl App {
     }
 
     /// The titles of the work of `w` (`titles`): of its window, or of Resize for a preset.
-    fn batch_titles(&self, w: &Window) -> (&'static str, &'static str) {
+    fn batch_titles(&self, w: &Window) -> (&'static str, &'static str, &'static str) {
         match &self.batch_form {
-            _ if w.preset => titles(None, false, true),
+            _ if w.preset => titles(None, false, Part::Resize),
             Some(form) => form.titles(),
-            None => titles(None, false, false),
+            None => titles(None, false, Part::Convert),
         }
     }
 
@@ -423,7 +440,7 @@ impl App {
             Some(true) => match self.batch_dest(&form, &w.dir) {
                 Ok((to, dest)) => {
                     w.dest = dest;
-                    self.start_batch(w, form.job(), to, ctx);
+                    self.start_batch(w, Job { tag: form.tag(&self.i18n), ..form.job() }, to, ctx);
                     true
                 }
                 // The other folder cannot be opened: said in the error bar, the window stays open.
@@ -493,7 +510,7 @@ impl App {
         let counts = self.i18n.t_args("batch-counts", &[("n", &done.to_string()), ("total", &total.to_string())]);
         let current = p.current.lock().unwrap().clone();
         let stopping = p.cancel.load(Ordering::Relaxed);
-        egui::Window::new(self.i18n.t(self.batch_titles(w).1))
+        egui::Window::new(self.i18n.t(self.batch_titles(w).2))
             .collapsible(false)
             .resizable(false)
             .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-16.0, -40.0))
@@ -586,19 +603,20 @@ mod tests {
         // Custom…: in the format of the originals, next to them, Long side at first.
         f.open_on(Part::Resize);
         assert_eq!((f.format, f.place == Place::Next, f.job().size), (None, true, Size::Long(1920)));
-        assert_eq!(f.titles(), ("batch-title-resize", "batch-working-resize"));
+        assert_eq!(f.titles(), ("batch-title-resize", "batch-start-resize", "batch-working-resize"));
         f.size = 4;
         f.sizes[4] = Size::Short(600);
         // Convert…: its format and destination back, always on the size of the original.
         f.open_on(Part::Convert);
         assert_eq!((f.format, f.place == Place::Sub, f.job().size), (Some(Format::Png), true, Size::Same));
-        assert_eq!(f.titles(), ("batch-title", "batch-working"));
+        assert_eq!(f.titles(), ("batch-title", "batch-start", "batch-working"));
         // Custom… again: the size of the last one.
         f.open_on(Part::Resize);
         assert_eq!((f.job().size, f.place == Place::Next), (Size::Short(600), true));
         // Copy with the metadata: the pictures as they are, which Convert would refuse.
         f.open_on(Part::CopyMeta);
         assert!(f.job().does_nothing());
+        assert_eq!(f.titles(), ("batch-title-copy-meta", "batch-start-copy", "batch-working-copy"));
         assert_eq!((f.why_not(), f.place == Place::Sub), (None, true));
         f.open_on(Part::Convert);
         assert_eq!((f.format, f.job().size, f.why_not()), (Some(Format::Png), Size::Same, None));
@@ -608,13 +626,73 @@ mod tests {
         // The sound of the videos: next to them; Convert… still in its own place after.
         f.open_on(Part::Audio);
         f.audio = Some(AudioJob::Strip);
-        assert_eq!((f.place == Place::Next, f.titles()), (true, ("batch-title-strip", "batch-working")));
+        assert_eq!((f.place == Place::Next, f.titles()), (true, ("batch-title-strip", "batch-start", "batch-working")));
         f.audio = None;
         f.open_on(Part::Convert);
         assert_eq!((f.format, f.place == Place::Sub), (Some(Format::Webp), true));
         // Export drawing, and the presets of Resize (no window).
         f.drawing = true;
-        assert_eq!(f.titles().0, "drawing-title");
-        assert_eq!(titles(None, false, true), ("batch-title-resize", "batch-working-resize"));
+        assert_eq!(f.titles(), ("drawing-title", "drawing-start", "batch-working"));
+        assert_eq!(titles(None, false, Part::Resize), ("batch-title-resize", "batch-start-resize", "batch-working-resize"));
+    }
+
+    /// Resize > Custom… names its copies as the presets do, one name for each kind of size
+    /// (#119), or with Unchanged what was done; a name taken gets " (2)" after it; the other uses
+    /// of the window add nothing.
+    #[test]
+    fn custom_names_its_copies() {
+        let (en, it) = (I18n::new("en"), I18n::new("it"));
+        let mut f = Form::new("converted".into());
+        f.open_on(Part::Resize);
+        let kinds = [
+            (Size::Long(1920), "Sunset (1920 px).jpg"),
+            (Size::Short(600), "Sunset (600 px).jpg"),
+            (Size::Width(800), "Sunset (800 px).jpg"),
+            (Size::Height(600), "Sunset (600 px).jpg"),
+            (Size::Fit(800, 600), "Sunset (800x600).jpg"),
+            (Size::Percent(50), "Sunset (50%).jpg"),
+            (Size::Crop(800, 600), "Sunset (800x600).jpg"),
+            (Size::Stretch(800, 600), "Sunset (800x600).jpg"),
+            (Size::Same, "Sunset.jpg"),
+        ];
+        let named = |f: &Form, i18n: &I18n, name: &str| crate::batch::tagged(name, &f.tag(i18n));
+        for (size, name) in kinds {
+            let i = Size::KINDS.iter().position(|k| k.same_kind(size)).unwrap();
+            (f.size, f.sizes[i]) = (i, size);
+            assert_eq!(named(&f, &en, "Sunset.jpg"), name, "{size:?}");
+            // In the format chosen: the extension changes, the size stays in the name.
+            f.format = Some(Format::Png);
+            assert_eq!(named(&f, &en, &crate::batch::with_ext("Sunset.jpg", Format::Png)), name.replace(".jpg", ".png"));
+            f.format = None;
+            // Turned with a size: only the size.
+            f.quarter = 1;
+            if size != Size::Same {
+                assert_eq!(named(&f, &it, "Sunset.jpg"), name, "{size:?}");
+            }
+            f.quarter = 0;
+        }
+        // Unchanged: what was done, in the language of the interface; a turn says it before a flip.
+        f.size = 0;
+        f.quarter = 1;
+        assert_eq!((named(&f, &en, "Sunset.jpg"), named(&f, &it, "Sunset.jpg")), ("Sunset (rotated).jpg".into(), "Sunset (ruotata).jpg".into()));
+        f.flip_v = true;
+        assert_eq!(named(&f, &it, "Sunset.jpg"), "Sunset (ruotata).jpg");
+        f.quarter = 0;
+        assert_eq!((named(&f, &en, "Sunset.jpg"), named(&f, &it, "Sunset.jpg")), ("Sunset (flipped).jpg".into(), "Sunset (riflessa).jpg".into()));
+        (f.flip_v, f.flip_h) = (false, true);
+        assert_eq!(named(&f, &it, "Sunset.jpg"), "Sunset (riflessa).jpg");
+        // The rule of the names taken, as for the presets.
+        let taken: std::collections::HashSet<String> = ["Sunset (riflessa).jpg".to_string(), "Sunset (600 px).jpg".to_string()].into();
+        assert_eq!(source::free_name(&taken, &named(&f, &it, "Sunset.jpg")), "Sunset (riflessa) (2).jpg");
+        (f.size, f.sizes[4]) = (4, Size::Short(600));
+        assert_eq!(source::free_name(&taken, &named(&f, &it, "Sunset.jpg")), "Sunset (600 px) (2).jpg");
+        // Convert… and Copy with the metadata: nothing in the names, even resized or turned.
+        for part in [Part::Convert, Part::CopyMeta] {
+            f.open_on(part);
+            (f.size, f.quarter) = (4, 1);
+            assert_eq!(f.tag(&en), "", "{part:?}");
+            f.size = 0;
+            assert_eq!(f.tag(&it), "", "{part:?}");
+        }
     }
 }

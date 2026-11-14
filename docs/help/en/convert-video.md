@@ -38,7 +38,7 @@ The box at the bottom right shows how far it got; the bar moves during a long vi
 
 ## Copy with the metadata
 
-**Tools > Copy with the metadata…** (also in the right-click menu) opens the same window on the videos and pictures chosen, already set on **Same as the original**; the other files chosen are left out and named at the end. You usually only choose where the copy goes. The video is rewritten in seconds, with its metadata inside: for dashcams and drones also the position taken from the files beside it. A picture is copied as it is, with all its metadata; turned or resized in the window, it keeps them as a conversion does.
+**Tools > Copy with the metadata…** (also in the right-click menu) opens the same window, called **Copy with the metadata** and with its button **Copy**, on the videos and pictures chosen, already set on **Same as the original**; the other files chosen are left out and named at the end. You usually only choose where the copy goes. The video is rewritten in seconds, with its metadata inside: for dashcams and drones also the position taken from the files beside it. A picture is copied as it is, with all its metadata; turned or resized in the window, it keeps them as a conversion does.
 
 ## Copy without sound and Save the sound as a file
 
