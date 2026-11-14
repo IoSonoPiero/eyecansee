@@ -74,11 +74,6 @@ impl App {
         self.viewing.and_then(|i| self.files().get(i)).is_some_and(|f| decode::is_played(&f.path))
     }
 
-    /// The viewer shows an image.
-    pub(crate) fn viewing_image(&self) -> bool {
-        self.viewing.is_some() && !self.viewing_video()
-    }
-
     /// A picture open in the viewer, which turns and flips: not a video, a 3D model (its own
     /// view, a turn would only show in what is saved) or a CAD drawing (turned, it lost its sharpness).
     pub(crate) fn viewing_photo(&self) -> bool {
