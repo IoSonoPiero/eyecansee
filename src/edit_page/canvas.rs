@@ -497,7 +497,10 @@ fn marquee_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
             Some(Hold::Marquee { from }) => {
                 let square = ui.input(|i| i.modifiers.shift);
                 let drawn = geom::drawn(Kind::Rect, *from, view.doc(s, w.doc.angle), w.doc.angle, crate::edit::doc::Style::default(), square);
-                w.marquee = drawn.and_then(|o| if let Shape::Rect(a) = o.shape { Some(a) } else { None });
+                // On whole pixels, as Copy takes it.
+                let size = if let Some(Ok((o, ..))) = &w.original { Some((o.image.width(), o.image.height())) } else { None };
+                let a = drawn.and_then(|o| if let Shape::Rect(a) = o.shape { Some(a) } else { None });
+                w.marquee = a.map(|a| size.map_or(a, |s| w.doc.on_pixels(a, s)));
             }
             Some(Hold::Pan { at, k, from }) => w.view = Some((*at - (s - *from) / *k, *k)),
             _ => {}

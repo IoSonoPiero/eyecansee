@@ -6,7 +6,7 @@
 
 1. Scegli ![Selezione](icon://square-dashed) **Selezione** (M).
 2. Trascina sull'immagine. Tieni premuto Maiusc per un quadrato.
-3. Un contorno tratteggiato mostra la zona scelta.
+3. Un contorno tratteggiato mostra la zona scelta. I suoi lati seguono i bordi dei pixel dell'immagine, così una copia ha i pixel come sono.
 
 Un clic sull'immagine, o Esc, lascia la zona. La lascia anche scegliere un altro strumento.
 

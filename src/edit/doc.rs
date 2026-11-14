@@ -527,6 +527,22 @@ impl Doc {
         })
     }
 
+    /// The box `a` on whole pixels of a photo of `w` × `h`: its sides on the pixels' edges, so the
+    /// part a Selection copies is the photo's pixels as they are (a drag ends between pixels, and
+    /// the part came out resampled, a little soft). An upright box only: a tilted one has no
+    /// whole pixels to keep.
+    pub fn on_pixels(&self, a: Area, (w, h): (u32, u32)) -> Area {
+        if a.rot != 0.0 {
+            return a;
+        }
+        // The box is on the image after the quarter turns: one of them swaps its sides.
+        let (fw, fh) = if self.turn.parts().1 % 2 == 1 { (h as f32, w as f32) } else { (w as f32, h as f32) };
+        let (aw, ah) = (a.w.round().max(1.0), a.h.round().max(1.0));
+        let left = (a.centre.x - a.w / 2.0 + fw / 2.0).round();
+        let top = (a.centre.y - a.h / 2.0 + fh / 2.0).round();
+        Area { centre: Pt::new(left + aw / 2.0 - fw / 2.0, top + ah / 2.0 - fh / 2.0), w: aw, h: ah, rot: 0.0 }
+    }
+
     /// The number of the next step: one more than the highest there is.
     pub fn next_step(&self) -> u32 {
         self.objects.iter().filter_map(|o| if let Shape::Step { n, .. } = o.shape { Some(n) } else { None }).max().unwrap_or(0) + 1

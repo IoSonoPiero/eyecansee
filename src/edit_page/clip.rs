@@ -52,6 +52,7 @@ impl App {
         use crate::edit::doc::{Pixels, Preview};
         let Some(w) = &mut self.editor else { return false };
         let (Some(area), Some(Ok((original, ..)))) = (w.marquee, &w.original) else { return false };
+        let area = w.doc.on_pixels(area, (original.image.width(), original.image.height()));
         let filtered: Vec<crate::edit::photo::Filtered> = w.doc.objects.iter().filter_map(|f| if let Shape::Filter { preview: Preview(Some((a, _, p))), .. } = &f.shape { Some((*a, p.image())) } else { None }).collect();
         let fonts = crate::decode::usvg_options();
         let pixels = Pixels::new(crate::edit::photo::lens(&w.doc, &original.image, &area, (1.0, 8000), &filtered, Some((&w.doc.objects, &fonts))));

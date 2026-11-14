@@ -6,7 +6,7 @@
 
 1. Choose ![Selection](icon://square-dashed) **Selection** (M).
 2. Drag on the image. Hold Shift for a square.
-3. A dashed outline shows the part chosen.
+3. A dashed outline shows the part chosen. Its sides follow the edges of the image's pixels, so a copy has the pixels as they are.
 
 A click on the image, or Esc, lets go of the part. Choosing another tool lets go of it too.
 
