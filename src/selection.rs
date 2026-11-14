@@ -30,6 +30,8 @@ pub(crate) fn kind(path: &str) -> Kind {
 
 /// The kinds each entry works on.
 pub(crate) const PLAYED: &[Kind] = &[Kind::Picture, Kind::Video];
+/// Convert…: audio files too (#120).
+pub(crate) const CONVERTED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Audio];
 pub(crate) const THUMBED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Model, Kind::Drawing];
 
 /// How an entry fits the files chosen: on none of them (`None`: not shown), on all, or on some
@@ -52,6 +54,7 @@ pub(crate) fn none_of(kinds: &[Kind]) -> &'static str {
         [Kind::Model] => "off-no-model",
         [Kind::Drawing] => "off-no-drawing",
         [Kind::Picture, Kind::Video] => "off-no-played",
+        [Kind::Picture, Kind::Video, Kind::Audio] => "off-no-converted",
         _ => "off-no-kind",
     }
 }
@@ -62,6 +65,7 @@ pub(crate) fn left_out_id(kinds: &[Kind]) -> &'static str {
         [Kind::Picture] => "skip-not-picture",
         [Kind::Video] => "skip-not-video",
         [Kind::Drawing] => "skip-not-drawing",
+        [Kind::Picture, Kind::Video, Kind::Audio] => "skip-not-converted",
         _ => "skip-not-played",
     }
 }
@@ -194,7 +198,7 @@ mod tests {
         // Why an entry is off, and why a file was left out, said in both languages.
         for code in ["en", "it"] {
             let i18n = crate::i18n::I18n::new(code);
-            for kinds in [&[Kind::Picture][..], &[Kind::Video], &[Kind::Model], &[Kind::Drawing], PLAYED, THUMBED] {
+            for kinds in [&[Kind::Picture][..], &[Kind::Video], &[Kind::Model], &[Kind::Drawing], PLAYED, CONVERTED, THUMBED] {
                 for id in [none_of(kinds), left_out_id(kinds)] {
                     assert_ne!(i18n.t(id), id, "{code}: {id}");
                 }

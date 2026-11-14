@@ -10,7 +10,7 @@ Per una sola immagine con l'anteprima dal vivo usa [Salva come](save-as.md). I v
 2. Fai clic su ![Converti…](icon://scaling) nella barra strumenti, oppure scegli **Strumenti > Converti…** (**Ctrl+B**), oppure fai clic destro su uno dei file selezionati e scegli **Converti…**. La finestra si apre sul formato, con le dimensioni **Invariate** e senza rotazione né riflessione; **Ridimensiona > Personalizzata…** la apre sulle dimensioni (vedi più sotto).
 3. Fai le tue scelte nella finestra e premi **Converti**.
 
-La finestra lavora su foto e video. Gli altri file selezionati (modelli 3D, disegni CAD, file audio) restano fuori: la finestra dice quanti sono, il messaggio finale quali. Non funziona dal visore, e si fa una conversione alla volta.
+La finestra lavora su foto, video e file audio (vedi [Convertire i video](convert-video.md)). Gli altri file selezionati (modelli 3D, disegni CAD) restano fuori: la finestra dice quanti sono, il messaggio finale quali. Non funziona dal visore, e si fa una conversione alla volta.
 
 ![Convertire e ridimensionare le immagini](../img/convert.webp)
 

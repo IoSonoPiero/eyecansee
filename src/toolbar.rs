@@ -7,7 +7,7 @@ use eframe::egui;
 use crate::actions::Act;
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
-use crate::selection::{Kind, PLAYED, fits};
+use crate::selection::{CONVERTED, Kind, fits};
 use crate::{App, source, transform};
 
 /// The address is never narrower than this because of the icons: Image and Tools go into the
@@ -99,7 +99,7 @@ impl App {
 
     /// Why Convert… cannot start (also for Ctrl+B): as the Tools menu.
     pub(crate) fn batch_off(&self) -> Option<String> {
-        self.tools_off().or_else(|| fits(&self.grid_items(None), PLAYED).is_none().then(|| self.i18n.t("tb-off-batch")))
+        self.tools_off().or_else(|| fits(&self.grid_items(None), CONVERTED).is_none().then(|| self.i18n.t("tb-off-batch")))
     }
 
     /// Why no entry of Tools on the files chosen can start now: in the viewer, or one conversion

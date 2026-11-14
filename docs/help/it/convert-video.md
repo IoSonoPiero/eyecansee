@@ -1,6 +1,6 @@
 # Convertire i video
 
-Converte i video in un altro formato o in un'altra misura, li ruota, li fa più leggeri o trasforma una clip breve in GIF. Altri tre strumenti lavorano sui video senza convertirli: **Copia con i metadati**, **Copia senza audio** e **Salva l'audio in un file**. Gli originali non vengono mai toccati.
+Converte i video in un altro formato o in un'altra misura, li ruota, li fa più leggeri o trasforma una clip breve in GIF; anche i file audio, in un altro formato audio. Altri tre strumenti lavorano sui video senza convertirli: **Copia con i metadati**, **Copia senza audio** e **Salva l'audio in un file**. Gli originali non vengono mai toccati.
 
 ## Avviare la conversione
 
@@ -45,9 +45,15 @@ Il riquadro in basso a destra mostra a che punto è; la barra avanza anche duran
 **Strumenti > Copia senza audio…** e **Strumenti > Salva l'audio in un file…** (anche nel clic destro) aprono una finestra breve sui video scelti, in cui scegli solo la destinazione, poi fai clic su **Copia** (o **Salva** per l'audio). All'inizio è accanto agli originali.
 
 - **Copia senza audio** crea un video nuovo, uguale all'originale ma senza audio. L'immagine e le altre tracce (sottotitoli, capitoli) vengono copiate così come sono, con i metadati. Il file nuovo prende un nome libero, per esempio `video (2).mp4`.
-- **Salva l'audio in un file** scrive ogni traccia audio in un file suo, copiata così com'è: AAC come `.m4a`, Opus come `.opus`, MP3 come `.mp3`, FLAC come `.flac`, Vorbis come `.ogg`, AC-3 come `.ac3`, E-AC-3 come `.eac3`, AMR come `.amr`, l'audio non compresso per lo più come `.wav`, i formati più rari come `.mka`. Un video con due tracce dà `video.m4a` e `video-2.m4a`. Per un altro formato (per esempio MP3 da AAC) usa Converti….
+- **Salva l'audio in un file** scrive ogni traccia audio in un file suo, copiata così com'è: AAC come `.m4a`, Opus come `.opus`, MP3 come `.mp3`, FLAC come `.flac`, Vorbis come `.ogg`, AC-3 come `.ac3`, E-AC-3 come `.eac3`, AMR come `.amr`, l'audio non compresso per lo più come `.wav`, i formati più rari come `.mka`. Un video con due tracce dà `video.m4a` e `video-2.m4a`. Per un altro formato (per esempio MP3 da AAC) usa Converti… sul file nuovo (vedi sotto).
 
 Un video senza audio resta fuori, e alla fine viene nominato.
+
+## Convertire i file audio
+
+**Converti…** lavora anche sui file audio, anche su molti insieme: se tra i file scelti ci sono file audio, la finestra ha una parte **File audio**. Scegli il **Formato** (MP3, AAC (M4A), Opus, FLAC, WAV od Ogg Vorbis; compaiono solo quelli che l'FFmpeg in uso sa scrivere) e, tranne per FLAC e WAV che non perdono niente, la **Qualità**. Poi la destinazione, come per le immagini, e **Converti**. Gli originali non vengono toccati: ogni file nuovo ha il nome dell'originale con la nuova estensione, per esempio `canzone.mp3` da `canzone.flac`.
+
+I tag (titolo, artista, album, traccia…) restano. Resta anche la copertina in MP3, M4A e FLAC; Opus, Ogg Vorbis e WAV non hanno posto per lei. Come per i video serve un FFmpeg: dove non c'è, la finestra propone di scaricarlo.
 
 ## Da sapere
 

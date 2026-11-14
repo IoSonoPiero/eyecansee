@@ -15,6 +15,7 @@ macro_rules! log {
 
 mod actions;
 mod address;
+mod audio_convert;
 mod audio_job;
 mod app_dialogs;
 mod app_new;

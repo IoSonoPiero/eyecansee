@@ -10,13 +10,14 @@ use crate::audio_job::AudioJob;
 use crate::batch::{Dest, Drawn, Filter, Job, Progress, Size};
 use crate::cad_convert::Target;
 use crate::encode::{Format, Options};
-use crate::batch_video::{VideoForm, audio_rows, video_rows};
+use crate::audio_convert::Sound;
+use crate::batch_video::{SoundForm, VideoForm, audio_rows, sound_rows, video_rows};
 use crate::ffmpeg::{Codec, Quality, Video};
 use crate::folder_pick::{Picker, pick_ui};
 use crate::i18n::I18n;
 use crate::transform::{Op, Turn};
 use crate::save_dialogs::{md, notice_text};
-use crate::selection::{Kind, PLAYED, left_out_id, split};
+use crate::selection::{CONVERTED, Kind, PLAYED, left_out_id, split};
 use crate::{App, source};
 
 mod rows;
@@ -62,6 +63,9 @@ pub struct Form {
     jpegs: bool,
     videos: bool,
     video: VideoForm,
+    /// Audio files among them, and what they become (#120).
+    audios: bool,
+    sound: SoundForm,
     /// CAD drawings exported (`Drawn`): the window shows just their format, size and destination.
     drawing: bool,
     /// Not a picture: SVG or the other AutoCAD format (`None`: a picture of `side` pixels).
@@ -118,6 +122,8 @@ impl Form {
             jpegs: false,
             videos: false,
             video: VideoForm { container: 0, codec: Codec::H264, encoder: None, quality: Quality::Medium, audio: true, meta: true, download: None, copy_into: Vec::new(), copy_own: 0 },
+            audios: false,
+            sound: SoundForm { format: 0, quality: Quality::Medium, ready: false },
             drawing: false,
             kept: None,
             side: 4096,
@@ -174,7 +180,8 @@ impl Form {
         self.drawing = drawings;
         self.videos = paths.iter().any(|p| crate::decode::is_video(p));
         self.video.files(paths.iter().map(String::as_str).filter(|p| crate::decode::is_video(p)));
-        self.images = !drawings && paths.iter().any(|p| !crate::decode::is_video(p));
+        self.audios = !drawings && paths.iter().any(|p| crate::decode::is_audio(p));
+        self.images = !drawings && paths.iter().any(|p| !crate::decode::is_played(p));
         self.jpegs = paths.iter().any(|p| Format::of_file(p) == Some(Format::Jpeg));
     }
 
@@ -192,7 +199,8 @@ impl Form {
         let v = &self.video;
         let video = v.encoder.filter(|_| self.videos).map(|encoder| Video { container: v.container, encoder, quality: v.quality, audio: v.audio, meta: v.meta });
         let drawing = self.drawing.then_some(self.kept.unwrap_or(Drawn::Side(self.side)));
-        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio, base: String::new(), drawing, tag: String::new(), tag_turned: String::new() }
+        let sound = (self.audios && self.sound.ready).then_some(Sound { format: self.sound.format, quality: self.sound.quality });
+        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio, sound, base: String::new(), drawing, tag: String::new(), tag_turned: String::new() }
     }
 
     /// The job with what the names of the copies of Custom… say (`Job::named`): the size of the
@@ -208,9 +216,10 @@ impl Form {
         Job { tag: job.size.tag(), tag_turned: format!(" ({})", i18n.t(done)), ..job }
     }
 
-    /// On videos only, or only their sound: F1 opens the page on converting videos.
+    /// On videos or audio files only, or only the audio of videos: F1 opens the page on
+    /// converting videos.
     pub(crate) fn videos_only(&self) -> bool {
-        self.audio.is_some() || self.videos && !self.images
+        self.audio.is_some() || (self.videos || self.audios) && !self.images
     }
 
     /// On CAD drawings, exported.
@@ -237,6 +246,7 @@ impl Form {
             // Copy with the metadata copies the pictures as they are.
             None if self.images && self.part != Part::CopyMeta && self.job().does_nothing() => Some("batch-nothing"),
             None if self.videos && self.job().video.is_none() => Some("batch-video-not-ready"),
+            None if self.audios && self.job().sound.is_none() => Some("batch-sound-not-ready"),
             None => None,
         };
         if media.is_some() {
@@ -298,10 +308,10 @@ impl Window {
 
 impl App {
     /// Convert…, on the part of the format: the marked images of the grid, or `path`, or the
-    /// selected one. Pictures and videos only: audio files are not converted ("Save the sound as
-    /// a file" makes them as they are), CAD drawings are exported (`open_drawings`), 3D models too.
+    /// selected one. Pictures, videos and audio files (#120); CAD drawings are exported
+    /// (`open_drawings`), 3D models too.
     pub(crate) fn open_batch(&mut self, path: Option<String>) {
-        if !self.open_batch_of(path, false) {
+        if !self.open_batch_of(path, CONVERTED) {
             return;
         }
         if let Some(form) = self.batch_form.as_mut() {
@@ -312,19 +322,19 @@ impl App {
     /// "Export drawing": the CAD drawings among the marked files, drawn again, in the format and
     /// to the destination of Convert….
     pub(crate) fn open_drawings(&mut self, path: Option<String>) {
-        if self.open_batch_of(path, true)
+        if self.open_batch_of(path, &[Kind::Drawing])
             && let Some(form) = self.batch_form.as_mut()
         {
             form.open_on(Part::Convert);
         }
     }
 
-    /// `false`: not opened (one already open, or no file of its kinds).
-    fn open_batch_of(&mut self, path: Option<String>, drawings: bool) -> bool {
+    /// On the files of `kinds`. `false`: not opened (one already open, or no file of its kinds).
+    fn open_batch_of(&mut self, path: Option<String>, kinds: &'static [Kind]) -> bool {
         if self.batch.is_some() {
             return false;
         }
-        let kinds: &'static [Kind] = if drawings { &[Kind::Drawing] } else { PLAYED };
+        let drawings = kinds == [Kind::Drawing];
         let (paths, left_out) = split(self.grid_items(path), kinds);
         if paths.is_empty() {
             return false;
@@ -343,7 +353,7 @@ impl App {
     /// original" (video streams copied, metadata written; pictures copied as they are), the
     /// destination left to choose.
     pub(crate) fn open_copy_meta(&mut self, path: Option<String>) {
-        if !self.open_batch_of(path, false) {
+        if !self.open_batch_of(path, PLAYED) {
             return;
         }
         if let Some(form) = self.batch_form.as_mut() {
@@ -354,7 +364,7 @@ impl App {
     /// "Copy without sound" and "Save the sound as a file": the window on the videos chosen, with only the
     /// destination to choose, next to the originals at first.
     pub(crate) fn open_audio(&mut self, job: AudioJob, path: Option<String>) {
-        if !self.open_batch_of(path, false) || !self.batch_only(&[Kind::Video]) {
+        if !self.open_batch_of(path, PLAYED) || !self.batch_only(&[Kind::Video]) {
             return;
         }
         if let Some(form) = self.batch_form.as_mut() {
@@ -367,7 +377,7 @@ impl App {
     /// Resize > Custom…: the window on the pictures chosen, on the part of the size, in their own
     /// format, next to the originals, on the size of the last Custom… (Long side at first).
     pub(crate) fn open_resize(&mut self, path: Option<String>) {
-        if !self.open_batch_of(path, false) || !self.batch_only(&[Kind::Picture]) {
+        if !self.open_batch_of(path, PLAYED) || !self.batch_only(&[Kind::Picture]) {
             return;
         }
         if let Some(form) = self.batch_form.as_mut() {
@@ -678,10 +688,30 @@ mod tests {
         }
     }
 
+    /// Audio files chosen (#120): their part of the window, ready once FFmpeg is; alone, F1
+    /// opens the page on videos and there is no picture to turn or resize.
+    #[test]
+    fn audio_files_converted() {
+        let mut f = Form::new("converted".into());
+        f.files(&["/a/song.flac".into(), "/a/p.jpg".into()], false);
+        assert!(f.audios && f.images && !f.videos);
+        f.open_on(Part::Convert);
+        assert_eq!((f.job().sound, f.why_not()), (None, Some("batch-sound-not-ready")));
+        f.sound.ready = true;
+        assert_eq!((f.job().sound, f.why_not()), (Some(Sound { format: 0, quality: Quality::Medium }), None));
+        f.files(&["/a/song.flac".into()], false);
+        assert!(!f.images && !f.videos && f.videos_only());
+        // Exported drawings are never audio files.
+        f.files(&["/a/song.flac".into(), "/a/d.dxf".into()], true);
+        assert!(!f.audios);
+    }
+
     /// In English always "audio", never "sound": the strings and the guide.
     #[test]
     fn english_says_audio() {
-        let sound = |text: &str| text.lines().filter(|l| !l.starts_with('#')).any(|l| l.to_lowercase().split(|c: char| !c.is_alphabetic()).any(|w| w == "sound"));
+        // The text only: the ids may say "sound" (`batch-sound`).
+        let shown = |l: &str| l.split_once(" = ").map_or(l, |(_, text)| text).to_lowercase();
+        let sound = |text: &str| text.lines().filter(|l| !l.starts_with('#')).any(|l| shown(l).split(|c: char| !c.is_alphabetic()).any(|w| w == "sound"));
         assert!(!sound(include_str!("../locales/en.ftl")));
         for (lang, id, text) in crate::help::PAGES {
             assert!(*lang != "en" || !sound(text), "docs/help/en/{id}.md");

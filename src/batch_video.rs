@@ -1,5 +1,6 @@
-//! The videos' part of the Convert and resize window: container, codec, encoder, quality, sound
-//! and metadata, FFmpeg downloaded first where there is none, and the audio jobs. Split from
+//! The videos' part of the Convert window: container, codec, encoder, quality, audio and
+//! metadata, FFmpeg downloaded first where there is none, the audio jobs, and the audio files'
+//! part (#120). Split from
 //! `batch_page.rs` on 2026-11-02.
 
 use std::sync::atomic::Ordering;
@@ -59,6 +60,61 @@ pub(crate) fn audio_rows(ui: &mut egui::Ui, v: &mut VideoForm, job: AudioJob, i1
         AudioJob::Strip => "batch-strip-hint",
         AudioJob::Extract => "batch-extract-hint",
     }));
+}
+
+/// The choices for the audio files (#120).
+#[derive(Clone)]
+pub(crate) struct SoundForm {
+    /// Index in `audio_convert::FORMATS`.
+    pub(crate) format: usize,
+    pub(crate) quality: Quality,
+    /// FFmpeg found and the format's encoder there (`sound_rows`).
+    pub(crate) ready: bool,
+}
+
+/// The format of the audio files (only those whose encoder this FFmpeg has) and its quality;
+/// FFmpeg downloaded first where there is none. No video decoder is needed: an FFmpeg without
+/// the phones' decoders does it too (`ffmpeg::copier`).
+pub(crate) fn sound_rows(ui: &mut egui::Ui, s: &mut SoundForm, v: &mut VideoForm, i18n: &I18n) {
+    use crate::audio_convert::{FORMATS, available, hint};
+    let t = |id| i18n.t(id);
+    s.ready = false;
+    if crate::ffmpeg::copier().is_none() {
+        ffmpeg_download(ui, v, i18n);
+        return;
+    }
+    let ctx = ui.ctx().clone();
+    crate::ffmpeg::start_copy_probe(move || ctx.request_repaint());
+    let Some(probe) = crate::ffmpeg::copy_probed() else {
+        ui.horizontal(|ui| {
+            ui.spinner();
+            ui.label(t("batch-video-checking"));
+        });
+        return;
+    };
+    let formats = available(&probe.audio);
+    let Some(&first) = formats.first() else {
+        ui.label(crate::browser::error_text(ui, t("batch-video-none")));
+        return;
+    };
+    if !formats.contains(&s.format) {
+        s.format = first;
+    }
+    egui::ComboBox::from_label(t("batch-sound-format")).selected_text(FORMATS[s.format].name).show_ui(ui, |ui| {
+        for &i in &formats {
+            ui.selectable_value(&mut s.format, i, FORMATS[i].name);
+        }
+    });
+    if !FORMATS[s.format].lossless {
+        ui.horizontal(|ui| {
+            ui.label(t("batch-video-quality"));
+            for (q, id) in [(Quality::High, "batch-video-high"), (Quality::Medium, "batch-video-medium"), (Quality::Small, "batch-video-small")] {
+                ui.radio_value(&mut s.quality, q, t(id));
+            }
+        });
+    }
+    ui.weak(t(hint(s.format)));
+    s.ready = true;
 }
 
 /// FFmpeg found and its encoders tried: downloaded first where there is none, a spinner while

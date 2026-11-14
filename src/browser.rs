@@ -8,7 +8,7 @@ use eframe::egui::{self, Color32, Ui};
 use crate::audio_job::AudioJob;
 use crate::actions::Act;
 use crate::App;
-use crate::selection::{Kind, PLAYED, THUMBED, fits, none_of, starred};
+use crate::selection::{CONVERTED, Kind, PLAYED, THUMBED, fits, none_of, starred};
 use crate::source;
 
 /// Selection colour: full in the part receiving the keyboard, faint in the other, so the two
@@ -164,7 +164,7 @@ impl App {
         let files = self.grid_items(path.clone());
         let entry = |kinds: &[Kind], label: &str, keys: String, act: Act| self.kind_entry(&files, partial, kinds, label, keys, off.clone().map_or(act, Act::Off));
         vec![
-            entry(PLAYED, "menu-batch", self.i18n.t("key-batch"), Act::Batch(path.clone())),
+            entry(CONVERTED, "menu-batch", self.i18n.t("key-batch"), Act::Batch(path.clone())),
             entry(&[Kind::Picture], "menu-resize", String::new(), Act::Submenu(self.resize_items(path.clone()))),
             entry(&[Kind::Drawing], "menu-export-drawings", String::new(), Act::ExportDrawings(path.clone())),
             entry(PLAYED, "menu-copy-meta", String::new(), Act::CopyMeta(path.clone())),

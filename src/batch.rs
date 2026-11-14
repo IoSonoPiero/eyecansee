@@ -139,6 +139,8 @@ pub struct Job {
     pub video: Option<crate::ffmpeg::Video>,
     /// Only the audio of the videos taken out or extracted, nothing else done (`audio_job`).
     pub audio: Option<crate::audio_job::AudioJob>,
+    /// What the audio files become (#120); `None`: they are left out.
+    pub sound: Option<crate::audio_convert::Sound>,
     /// The originals' source in the thumbnail cache: a video without its audio takes its thumbnail.
     pub base: String,
     /// "Export drawing": CAD drawings drawn again (`drawing`), nothing else done.
@@ -162,7 +164,7 @@ pub enum Drawn {
 
 impl Default for Job {
     fn default() -> Self {
-        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None, audio: None, base: String::new(), drawing: None, tag: String::new(), tag_turned: String::new() }
+        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None, audio: None, sound: None, base: String::new(), drawing: None, tag: String::new(), tag_turned: String::new() }
     }
 }
 
@@ -611,8 +613,13 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
             p.done.fetch_add(1, Ordering::Relaxed);
             continue;
         }
-        if crate::decode::is_video(&path) {
-            match video(op, &path, (&out, &dest, &taken), &job, &p).await {
+        if crate::decode::is_played(&path) {
+            let r = match job.sound {
+                _ if crate::decode::is_video(&path) => video(op, &path, (&out, &dest, &taken), &job, &p).await,
+                Some(s) => crate::audio_convert::run(op, &path, (&out, &dest, &taken), s, &p).await,
+                None => Err((crate::audio_convert::SKIP_AUDIO, name.clone())),
+            };
+            match r {
                 Ok(new_name) => {
                     p.saved.lock().unwrap().push(format!("{dest}{new_name}"));
                     taken.insert(new_name);

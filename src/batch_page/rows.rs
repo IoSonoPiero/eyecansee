@@ -1,4 +1,4 @@
-//! The rows of the window of Convert and resize (`batch_page`): format, drawings, turn, size,
+//! The rows of the window of Convert (`batch_page`): format, drawings, turn, size,
 //! destination, and the buttons. Moved from `batch_page.rs` on 2026-11-14, unchanged.
 
 use super::*;
@@ -32,6 +32,14 @@ pub(super) fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bo
         }
         if f.videos {
             section(ui, t("batch-video"), |ui| video_rows(ui, &mut f.video, i18n));
+        }
+        if f.audios {
+            section(ui, t("batch-sound"), |ui| sound_rows(ui, &mut f.sound, &mut f.video, i18n));
+        }
+        // Audio files have no picture to turn or resize.
+        if !f.images && !f.videos {
+            section(ui, t("batch-where"), |ui| where_rows(ui, f, i18n));
+            return;
         }
         // Copied streams keep their turn and size: with videos only there is nothing to choose.
         let fixed = f.videos && !f.images && f.video.codec == Codec::Copy;
