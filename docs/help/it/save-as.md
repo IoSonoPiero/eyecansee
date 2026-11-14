@@ -23,7 +23,7 @@ Spunta **100%** per vedere i pixel veri. Poi trascina una delle due immagini per
 
 ## Salvare
 
-1. Scegli il **Formato**. La pagina si apre sul formato dell'ultima immagine salvata da qui finché EyeCanSee resta aperto; la prima volta su JPEG (PNG per un'immagine nuova dell'editor). Un'immagine troppo grande per quel formato (WebP tiene al massimo 16383 pixel per lato, JPEG 65500, GIF e TGA 65535) si apre su JPEG o PNG come la prima volta. Le opzioni del formato partono come descritto qui sotto.
+1. Scegli il **Formato**. La pagina si apre sul formato dell'ultima immagine salvata da qui finché EyeCanSee resta aperto; la prima volta su JPEG. Un'immagine nuova dell'editor si apre sempre su PNG. Un'immagine troppo grande per quel formato (WebP tiene al massimo 16383 pixel per lato, JPEG 65500, GIF e TGA 65535) si apre su JPEG o PNG come la prima volta. Le opzioni del formato partono come descritto qui sotto.
 2. Se vuoi, cambia le sue opzioni (vedi sotto).
 3. Controlla il nome in **Nome del file** e fai clic su **Salva**.
 

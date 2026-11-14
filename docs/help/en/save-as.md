@@ -23,7 +23,7 @@ Tick **100%** to see the real pixels. Then drag either image to move both, so yo
 
 ## Saving
 
-1. Choose the **Format**. The page opens on the format of the last image saved from it while EyeCanSee is open; the first time on JPEG (PNG for a new image from the editor). An image too large for that format (WebP holds at most 16383 pixels on a side, JPEG 65500, GIF and TGA 65535) opens on JPEG or PNG as the first time. The options of the format start as described below.
+1. Choose the **Format**. The page opens on the format of the last image saved from it while EyeCanSee is open; the first time on JPEG. A new image from the editor always opens on PNG. An image too large for that format (WebP holds at most 16383 pixels on a side, JPEG 65500, GIF and TGA 65535) opens on JPEG or PNG as the first time. The options of the format start as described below.
 2. Change its options if you want (see below).
 3. Check the name in **File name**, then click **Save**.
 

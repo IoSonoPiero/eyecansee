@@ -96,9 +96,10 @@ impl crate::App {
             (w.options.jpeg_quality, w.options.chroma) = (q, chroma);
         }
         // The format of the last Save as…, once the image's size is known (nothing can be chosen
-        // before it arrives).
+        // before it arrives); a new image keeps the PNG it is named with (issue #104).
+        let last = self.save_as_format.filter(|_| !w.unsaved);
         if let (None, Ok((o, ..))) = (&w.original, &r) {
-            w.options.format = proposed(self.save_as_format, w.options.format, o.image.width().max(o.image.height()));
+            w.options.format = proposed(last, w.options.format, o.image.width().max(o.image.height()));
             w.name = with_ext(&w.name, w.options.format);
         }
         w.original = Some(r.map(|(original, preview, size)| {
