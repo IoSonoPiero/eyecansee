@@ -52,6 +52,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 ### Browsing and editing
 
 - Image editor: rotate, flip, size and arrange a pasted piece of image ([#132](https://github.com/IoSonoPiero/eyecansee/issues/132)).
+- Image editor: rotate shapes, text, stamps and blur or pixelate filters by a handle ([#137](https://github.com/IoSonoPiero/eyecansee/issues/137)).
 - Image editor: light and colour corrections (exposure, saturation, automatic levels, colour temperature, invert) ([#60](https://github.com/IoSonoPiero/eyecansee/issues/60)).
 - Save in another format: a Cancel button ([#106](https://github.com/IoSonoPiero/eyecansee/issues/106)).
 - Convert and resize: a clearer summary when the work is done ([#134](https://github.com/IoSonoPiero/eyecansee/issues/134)).
