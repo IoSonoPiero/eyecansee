@@ -46,7 +46,7 @@ Che cosa apre EyeCanSee, e che cosa sa salvare. Tutto funziona allo stesso modo 
 | PGX, WPG, VIFF, VICAR | pgx, wpg, viff, vicar | ImageMagick |
 | XWD (solo col pacchetto per Fedora, non nell'AppImage, nel Flatpak né su Windows) | xwd | ImageMagick |
 
-Le foto vengono raddrizzate secondo il loro orientamento EXIF. L'estensione è solo un indizio: un file con quella sbagliata (per esempio una foto HEIC dell'iPhone rinominata `.jpg`) viene riconosciuto dal contenuto. Un file che il lettore del suo formato non riesce a leggere viene riprovato con ImageMagick, che apre anche i PSD che il lettore interno non gestisce. Che cosa il visore non fa ancora (animazioni, pagine, il video delle foto in movimento, HDR) è in [Limiti noti](limits.md).
+Le foto vengono raddrizzate secondo il loro orientamento EXIF. L'estensione è solo un indizio: un file con quella sbagliata (per esempio una foto HEIC dell'iPhone rinominata `.jpg`) viene riconosciuto dal contenuto. Un file che il lettore del suo formato non riesce a leggere viene riprovato con ImageMagick, che apre anche i PSD che il lettore interno non gestisce. Che cosa il visore non fa ancora (sequenze AVIF, livelli dei file Photoshop, HDR) è in [Limiti noti](limits.md).
 
 ### RAW delle fotocamere
 

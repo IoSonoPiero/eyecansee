@@ -6,9 +6,8 @@ Che cosa EyeCanSee non fa ancora, o fa solo in parte. L'elenco aggiornato dei pr
 
 - Le immagini più grandi di 8192 pixel per lato vengono mostrate ridotte; la barra di stato dice comunque le loro dimensioni. I disegni SVG vengono disegnati a 2048 pixel sul lato lungo.
 - Le immagini HDR (EXR, HDR, PFM) vengono mostrate senza tone mapping e possono sembrare sovraesposte.
-- Le animazioni (GIF, PNG e WebP animati, sequenze AVIF) mostrano nel visore solo il primo fotogramma ([#121](https://github.com/IoSonoPiero/eyecansee/issues/121)).
-- Di un TIFF con più pagine il visore mostra solo la prima, e di un file Photoshop solo l'immagine unita, non i livelli ([#122](https://github.com/IoSonoPiero/eyecansee/issues/122)).
-- Il breve video dentro una foto in movimento non viene riprodotto: il visore mostra la foto ([#123](https://github.com/IoSonoPiero/eyecansee/issues/123)).
+- Le sequenze AVIF mostrano nel visore solo il primo fotogramma (GIF, PNG e WebP animati vengono riprodotti).
+- Di un file Photoshop il visore mostra solo l'immagine unita, non i livelli ([#122](https://github.com/IoSonoPiero/eyecansee/issues/122)).
 - Le foto Ultra HDR vengono mostrate come foto normali, anche su uno schermo che supporta l'HDR ([#124](https://github.com/IoSonoPiero/eyecansee/issues/124)).
 - EyeCanSee non sa salvare file HEIC o JPEG XL: vedi [Formati supportati](formats.md).
 - Le foto RAW convertite non tengono la maker note, i dati propri del produttore della fotocamera.
