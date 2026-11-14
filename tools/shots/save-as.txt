@@ -1,4 +1,4 @@
-# Saving in another format: Wilderness from the viewer, JPEG with its options.
+# Save as: Wilderness from the viewer, JPEG with its options and the folder.
 open /home/demo/Pictures/Holiday
 width 1000
 2 open Wilderness.jpg
