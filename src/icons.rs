@@ -344,14 +344,17 @@ pub fn line(ui: &egui::Ui, icon: Line, side: f32) -> egui::Image<'static> {
 /// Size of the square icon buttons of the bars.
 pub const BUTTON: egui::Vec2 = vec2(32.0, 28.0);
 
+/// Side of the icon in those buttons.
+pub const ICON: f32 = 18.0;
+
 /// A square button of a bar with a line icon.
 pub fn button(ui: &egui::Ui, icon: Line) -> egui::Button<'static> {
-    egui::Button::image(line(ui, icon, 18.0)).min_size(BUTTON)
+    egui::Button::image(line(ui, icon, ICON)).min_size(BUTTON)
 }
 
 /// The same, shown on or off (the tool chosen, a box shown); framed also when off, as the others.
 pub fn toggle(ui: &egui::Ui, on: bool, icon: Line) -> egui::Button<'static> {
-    egui::Button::image(line(ui, icon, 18.0)).selected(on).min_size(BUTTON)
+    egui::Button::image(line(ui, icon, ICON)).selected(on).min_size(BUTTON)
 }
 
 /// The icon of a menu item, or room as wide as one (the labels stay in line).

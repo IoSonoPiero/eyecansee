@@ -19,6 +19,7 @@ use crate::rotate::{self, Crop};
 use crate::transform::Turn;
 use crate::{App, source};
 
+mod bar_fit;
 mod canvas;
 mod clip;
 mod crop;

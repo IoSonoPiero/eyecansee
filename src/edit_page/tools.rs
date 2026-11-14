@@ -6,6 +6,7 @@
 
 use eframe::egui::{self, Color32, Key};
 
+use super::bar_fit::{self, ARROW_ICON, ARROW_MIN, BarParts, SAVE_GAP, SEPARATOR};
 use super::{Ask, Tool, Window};
 use crate::App;
 use crate::actions::Act;
@@ -71,14 +72,12 @@ fn bar_button(ui: &mut egui::Ui, button: egui::Button, tip: String, off: Option<
 
 impl App {
     /// The bar at the top; what its buttons ask for. When the window is too narrow for one row
-    /// the tools go to a new line and Copy, Close and Save copy get a row of their own, on the
-    /// right (they were cut off).
+    /// (`bar_fit`) the tools go to a new line and Copy, Close and Save copy get a row of their
+    /// own, on the right (they were cut off).
     pub(super) fn edit_toolbar(&mut self, ui: &mut egui::Ui, w: &mut Window) -> Option<Ask> {
         let (mut ask, mut copy) = (None, false);
-        let step = icons::BUTTON.x + ui.spacing().item_spacing.x;
-        // The tools, the turns, Resize, Filters, Undo and Redo, three separators; Copy, Close, Save copy.
-        let need = (TOOLS.len() + 6) as f32 * step + 3.0 * 12.0 + 2.0 * step + 200.0;
-        if ui.available_width() >= need {
+        let parts = BarParts::measure(ui, self.i18n.t(self.main_save_text(w).0), w.copying);
+        if bar_fit::fits(ui.available_width(), parts) {
             ui.horizontal(|ui| {
                 tools_row(ui, w, &self.i18n);
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| (ask, copy) = self.right_row(ui, w));
@@ -123,10 +122,10 @@ impl App {
         let over_main = self.main_overwrites(w);
         // A new image has no file yet: its main button is Save as….
         // After a first copy the button updates it.
-        let copy = if w.copy.done.is_some() { ("edit-update-copy", "edit-update-hint") } else { ("edit-save-copy", "rc-save-hint") };
+        let copy = copy_text(w);
         let solid = crate::theme::solid(ui.visuals());
-        ui.spacing_mut().item_spacing.x = 1.0;
-        let arrow = egui::Button::image(icons::line_in(ui.ctx(), Line::Down, 16.0, Color32::WHITE)).fill(solid).min_size(egui::vec2(24.0, icons::BUTTON.y));
+        ui.spacing_mut().item_spacing.x = SAVE_GAP;
+        let arrow = egui::Button::image(icons::line_in(ui.ctx(), Line::Down, ARROW_ICON, Color32::WHITE)).fill(solid).min_size(egui::vec2(ARROW_MIN, icons::BUTTON.y));
         let (r, _) = egui::containers::menu::MenuButton::from_button(arrow).ui(ui, |ui| {
             if over_main {
                 let r = ui.add_enabled(off.is_none(), egui::Button::image_and_text(icons::line(ui, Line::Save, 16.0), i18n.t(copy.0))).on_hover_text(i18n.t(copy.1));
@@ -155,10 +154,11 @@ impl App {
             }
         });
         r.on_hover_text(i18n.t("edit-save-more"));
-        let (label, hint, main_ask, off) = match () {
-            _ if w.new => ("menu-save-copy", "rc-save-as-hint", Ask::SaveAs, w.preparing.then(|| i18n.t("edit-off-preparing"))),
-            _ if over_main => ("edit-overwrite", "edit-overwrite-hint", Ask::Overwrite, off.or_else(|| self.why_not_overwrite(w))),
-            _ => (copy.0, copy.1, Ask::Save, off),
+        let (label, hint) = self.main_save_text(w);
+        let (main_ask, off) = match () {
+            _ if w.new => (Ask::SaveAs, w.preparing.then(|| i18n.t("edit-off-preparing"))),
+            _ if over_main => (Ask::Overwrite, off.or_else(|| self.why_not_overwrite(w))),
+            _ => (Ask::Save, off),
         };
         let mut tip = format!("{} (Ctrl+S)\n{}", i18n.t(label), i18n.t(hint));
         // Overwrite chosen as the main save but not possible here: why it is Save copy.
@@ -171,6 +171,16 @@ impl App {
         }
         ui.spacing_mut().item_spacing.x = 8.0;
         ask
+    }
+
+    /// The label and hint of the main save button: Save as… for a new image, Overwrite when
+    /// chosen as the main save, Save copy or Update copy.
+    fn main_save_text(&self, w: &Window) -> (&'static str, &'static str) {
+        match () {
+            _ if w.new => ("menu-save-copy", "rc-save-as-hint"),
+            _ if self.main_overwrites(w) => ("edit-overwrite", "edit-overwrite-hint"),
+            _ => copy_text(w),
+        }
     }
 
     /// The bar under the tools: Rotate and crop's controls, or the style of the object.
@@ -261,11 +271,16 @@ impl App {
     }
 }
 
+/// Save copy's label and hint; Update copy after a first copy.
+fn copy_text(w: &Window) -> (&'static str, &'static str) {
+    if w.copy.done.is_some() { ("edit-update-copy", "edit-update-hint") } else { ("edit-save-copy", "rc-save-hint") }
+}
+
 /// The tools, the quarter turns, Resize, Filters, Undo and Redo.
 fn tools_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     for (n, &(tool, icon, id, key)) in TOOLS.iter().enumerate() {
         if n == TOOLS.len() - 1 {
-            ui.separator();
+            ui.add(egui::Separator::default().spacing(SEPARATOR));
         }
         if bar_button(ui, icons::toggle(ui, w.tool == tool, icon), tip(i18n, id, key.name()), None) {
             w.choose(tool);
@@ -280,7 +295,7 @@ fn tools_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
         w.ask_resize();
     }
     filters_menu(ui, w, i18n);
-    ui.separator();
+    ui.add(egui::Separator::default().spacing(SEPARATOR));
     let (can_undo, can_redo) = w.history.as_ref().map_or((false, false), |h| (h.can_undo() || w.doc != *h.doc(), h.can_redo()));
     if bar_button(ui, icons::button(ui, Line::Undo), tip(i18n, "edit-undo", "Ctrl+Z"), (!can_undo).then(|| i18n.t("edit-off-undo"))) {
         w.undo();
