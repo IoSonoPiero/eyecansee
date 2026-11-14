@@ -53,7 +53,12 @@ impl App {
             self.close_viewer();
         }
         if video {
-            // Up and down the volume, M sound off and on, as in the players; turning and saving are for images.
+            // A turned video is saved as an image (issue #125): Ctrl+S and Ctrl+Shift+S before
+            // the return below, which left them unread on a video.
+            if let Some(act) = ctx.input_mut(take_save) {
+                self.act = Some(act);
+            }
+            // Up and down the volume, M sound off and on, as in the players.
             let (up, down, mute) = ctx.input(|i| (i.key_pressed(Key::ArrowUp), i.key_pressed(Key::ArrowDown), i.key_pressed(Key::M) && !i.modifiers.command));
             if up || down {
                 self.video_volume(if up { 1 } else { -1 });
@@ -70,15 +75,8 @@ impl App {
             self.cad_keys(ctx, current);
         }
         // Ctrl+R and Ctrl+Shift+R: in `global_keys`, for the grid too.
-        let (save, save_copy) = ctx.input_mut(|i| {
-            // With Shift first: Ctrl+S would match Ctrl+Shift+S too.
-            let save_copy = i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::S);
-            (i.consume_key(egui::Modifiers::COMMAND, Key::S), save_copy)
-        });
-        if save {
-            self.act = Some(Act::Save);
-        } else if save_copy {
-            self.act = Some(Act::Convert(None));
+        if let Some(act) = ctx.input_mut(take_save) {
+            self.act = Some(act);
         }
     }
 
@@ -323,6 +321,19 @@ pub(crate) fn notches(unit: egui::MouseWheelUnit, delta: egui::Vec2) -> f32 {
     }
 }
 
+/// Ctrl+S (Save) or Ctrl+Shift+S (Save copy) pressed this pass, taken from the input: the same
+/// acts as the toolbar's buttons, for an image and for a video.
+fn take_save(i: &mut egui::InputState) -> Option<Act> {
+    // With Shift first: Ctrl+S would match Ctrl+Shift+S too.
+    let save_copy = i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::S);
+    let save = i.consume_key(egui::Modifiers::COMMAND, Key::S);
+    match (save, save_copy) {
+        (true, _) => Some(Act::Save),
+        (false, true) => Some(Act::Convert(None)),
+        _ => None,
+    }
+}
+
 /// Ctrl+arrows pressed this pass, taken from the input: right forward, left back. Each press by
 /// its own modifiers, not by those at the end of the pass: Ctrl let go in the same pass as the
 /// arrow made Ctrl+right a move to the next file (seen with keys in quick succession, 2026-11-13).
@@ -375,5 +386,17 @@ mod tests {
             key(Key::ArrowLeft, true, Modifiers::COMMAND),
         ];
         assert_eq!(take_jumps(&mut i), -1);
+    }
+
+    #[test]
+    fn ctrl_s_saves_and_ctrl_shift_s_saves_a_copy() {
+        let take = |modifiers| {
+            let mut i = egui::InputState::default();
+            i.events = vec![key(Key::S, true, modifiers)];
+            take_save(&mut i).map(|a| format!("{a:?}"))
+        };
+        assert_eq!(take(Modifiers::COMMAND).as_deref(), Some("Save"));
+        assert_eq!(take(Modifiers::COMMAND | Modifiers::SHIFT).as_deref(), Some("Convert(None)"));
+        assert_eq!(take(Modifiers::NONE), None);
     }
 }
