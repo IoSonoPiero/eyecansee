@@ -13,17 +13,18 @@ impl App {
         let mut open = self.options;
         let before = self.settings.clone();
         let t = |id| self.i18n.t(id);
+        // General first, upkeep (the thumbnail cache) last; between them the order of a visit:
+        // look, watch, edit, delete (Microsoft's guidelines for options windows).
         let tab_names = [
             (OptTab::General, t("opt-tab-general")),
             (OptTab::Look, t("opt-tab-look")),
-            (OptTab::Browsing, t("opt-tab-browsing")),
-            // Next to Browsing: both are about the grid.
-            (OptTab::Thumbnails, t("opt-tab-thumbnails")),
-            (OptTab::Deleting, t("opt-tab-deleting")),
+            (OptTab::Viewer, t("opt-tab-viewer")),
             (OptTab::Slideshow, t("opt-tab-slideshow")),
             (OptTab::Video, t("opt-tab-video")),
             (OptTab::Editor, t("opt-tab-editor")),
             (OptTab::Resize, t("opt-tab-resize")),
+            (OptTab::Deleting, t("opt-tab-deleting")),
+            (OptTab::Thumbnails, t("opt-tab-thumbnails")),
         ];
         let mut purged = false;
         let (i18n, languages) = (&self.i18n, &self.languages);
@@ -31,37 +32,41 @@ impl App {
         let confirm = &mut self.purge_confirm;
         let s = &mut self.settings;
         // Fixed id: changing language changes the title, and the window must not move.
-        // One tab per subject, as in other programs: the window stays short. Fixed size and in the
-        // middle, so changing tab does not make it jump.
+        // One tab per subject, in a column on the left (eight or more tabs do not fit in a row in
+        // every language). Fixed size and in the middle, so changing tab does not make it jump.
         egui::Window::new(i18n.t("options-title"))
             .id(egui::Id::unique("options"))
             .open(&mut open)
             .collapsible(false)
             .resizable(false)
-            // Wide enough for the nine tabs in every language (Italian is the longest: 600 let
-            // Editor push the body past the title bar, 2026-11-11; 640 for eight).
-            .fixed_size([740.0, 330.0])
+            // Wide enough for the rows of Resize (name, kind, two sizes) beside the column of tabs.
+            .fixed_size([720.0, 330.0])
             .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
             .show(ctx, |ui| {
                 // As tall as the longest tab (General), so changing tab does not resize the window.
                 ui.set_min_height(330.0);
-                ui.horizontal(|ui| {
-                    for (value, name) in tab_names {
-                        ui.selectable_value(tab, value, name);
-                    }
+                ui.horizontal_top(|ui| {
+                    ui.vertical(|ui| {
+                        ui.set_width(130.0);
+                        for (value, name) in tab_names {
+                            if ui.add_sized([130.0, 24.0], egui::Button::selectable(*tab == value, name)).clicked() {
+                                *tab = value;
+                            }
+                        }
+                    });
+                    ui.separator();
+                    ui.vertical(|ui| match tab {
+                        OptTab::Slideshow => crate::slideshow::options_ui(ui, s, i18n),
+                        OptTab::Video => crate::engine::options_ui(ui, s, i18n),
+                        OptTab::General => general_tab(ui, s, i18n, languages),
+                        OptTab::Look => look_tab(ui, s, i18n),
+                        OptTab::Viewer => viewer_tab(ui, s, i18n),
+                        OptTab::Deleting => deleting_tab(ui, s, i18n),
+                        OptTab::Thumbnails => purged = thumbnails_tab(ui, s, i18n, confirm),
+                        OptTab::Editor => editor_tab(ui, s, i18n),
+                        OptTab::Resize => crate::presets::options_ui(ui, s, i18n),
+                    });
                 });
-                ui.separator();
-                match tab {
-                    OptTab::Slideshow => crate::slideshow::options_ui(ui, s, i18n),
-                    OptTab::Video => crate::engine::options_ui(ui, s, i18n),
-                    OptTab::General => general_tab(ui, s, i18n, languages),
-                    OptTab::Look => look_tab(ui, s, i18n),
-                    OptTab::Browsing => browsing_tab(ui, s, i18n),
-                    OptTab::Deleting => deleting_tab(ui, s, i18n),
-                    OptTab::Thumbnails => purged = thumbnails_tab(ui, s, i18n, confirm),
-                    OptTab::Editor => editor_tab(ui, s, i18n),
-                    OptTab::Resize => crate::presets::options_ui(ui, s, i18n),
-                }
             });
         if !open {
             self.purge_confirm = None;
@@ -220,6 +225,7 @@ impl App {
 fn general_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, languages: &[(&'static str, String)]) {
     let t = |id| i18n.t(id);
     ui.checkbox(&mut s.remember_location, t("opt-remember-location")).on_hover_text(t("opt-remember-location-hint"));
+    ui.checkbox(&mut s.remember_scroll, t("opt-remember-scroll")).on_hover_text(t("opt-remember-scroll-hint"));
     ui.add_space(6.0);
     ui.label(t("opt-window"));
     ui.radio_value(&mut s.window_start, WindowStart::Normal, t("opt-window-normal"));
@@ -247,9 +253,8 @@ fn look_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
     ui.radio_value(&mut s.theme, ThemeChoice::Dark, t("opt-theme-dark"));
 }
 
-fn browsing_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
+fn viewer_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
     let t = |id| i18n.t(id);
-    ui.checkbox(&mut s.remember_scroll, t("opt-remember-scroll")).on_hover_text(t("opt-remember-scroll-hint"));
     ui.checkbox(&mut s.wrap_around, t("opt-wrap-around")).on_hover_text(t("opt-wrap-around-hint"));
     ui.checkbox(&mut s.close_to_grid, t("opt-close-to-grid")).on_hover_text(t("opt-close-to-grid-hint"));
     ui.add_space(6.0);

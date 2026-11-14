@@ -197,13 +197,13 @@ enum OptTab {
     #[default]
     General,
     Look,
-    Browsing,
-    Thumbnails,
-    Deleting,
+    Viewer,
     Slideshow,
     Video,
     Editor,
     Resize,
+    Deleting,
+    Thumbnails,
 }
 
 /// Images kept in memory around the one open in the viewer, on each side.
