@@ -45,6 +45,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Viewer: play animated GIF, WebP and APNG images ([#121](https://github.com/IoSonoPiero/eyecansee/issues/121)).
 - Viewer: move between the pages of multi-page images ([#122](https://github.com/IoSonoPiero/eyecansee/issues/122)).
 - Viewer: show HDR photos in HDR on screens that support it ([#124](https://github.com/IoSonoPiero/eyecansee/issues/124)).
+- Viewer: play animated AVIF ([#131](https://github.com/IoSonoPiero/eyecansee/issues/131)).
 
 ### Browsing and editing
 
@@ -56,6 +57,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Restore from the trash in the File and Edit menus ([#126](https://github.com/IoSonoPiero/eyecansee/issues/126)).
 - Save as: choose the folder ([#127](https://github.com/IoSonoPiero/eyecansee/issues/127)).
 - Export as 3D model and Export drawing in the same places, working the same way ([#128](https://github.com/IoSonoPiero/eyecansee/issues/128)).
+- New window: more than one EyeCanSee window at the same time ([#130](https://github.com/IoSonoPiero/eyecansee/issues/130)).
 - Open an image from the clipboard ([#57](https://github.com/IoSonoPiero/eyecansee/issues/57)).
 - Image editor: recent work kept, recovered after a crash, resumed later ([#59](https://github.com/IoSonoPiero/eyecansee/issues/59)).
 - Archives: zip and 7z opened as read-only folders first, then creating zip archives ([#26](https://github.com/IoSonoPiero/eyecansee/issues/26)).
