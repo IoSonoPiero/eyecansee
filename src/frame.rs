@@ -100,6 +100,9 @@ impl App {
                     egui::CentralPanel::default().frame(egui::Frame::NONE.fill(Color32::BLACK)).show(ui, |ui| self.viewer(ui, current));
                 }
                 Some(current) => {
+                    // The frame of an animation moves before the status bar says which it is (the
+                    // viewer calls it again: a second call in the same frame changes nothing).
+                    self.frames_tick(ctx, current);
                     let bar = egui::Frame::side_top_panel(ui.style()).fill(theme::solid(ui.visuals()));
                     let status = egui::Panel::bottom("viewer-status").frame(bar).show(ui, |ui| self.viewer_status(ui, current));
                     // The keys of the viewer: listed while the button is pointed at, or until it is
