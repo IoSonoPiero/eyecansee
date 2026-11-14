@@ -24,9 +24,9 @@ A bookmark opens exactly as if you typed its address in the address bar: a serve
 
 ## Removing a bookmark
 
-When the place open is a bookmark, the star is lit: click it to remove the bookmark. The status bar says so.
+When the place open is a bookmark, the star is lit and filled, ![Remove from the bookmarks](icon://star-filled): click it to remove the bookmark. The status bar says so.
 
-On a folder that is already a bookmark, the right-click menu offers **Remove from the bookmarks** in place of Add.
+On a folder that is already a bookmark, the right-click menu offers ![Remove from the bookmarks](icon://star-filled) **Remove from the bookmarks**, with the filled star, in place of Add, which has the empty one.
 
 ## Configure
 

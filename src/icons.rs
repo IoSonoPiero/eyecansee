@@ -196,6 +196,8 @@ pub enum Line {
     Dashed,
     Dotted,
     Star,
+    /// The star lit: the place is a bookmark, a click takes it away.
+    StarFilled,
     Bookmark,
     /// Back and forward in the guide's history (Lucide's arrow-left and arrow-right).
     Back,
@@ -280,6 +282,7 @@ pub(crate) fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Filters => lucide!("wand-sparkles").into(),
         Line::NewImage => lucide!("image-plus").into(),
         Line::Star => lucide!("star").into(),
+        Line::StarFilled => lucide!("star").replacen("fill=\"none\"", "fill=\"currentColor\"", 1).into(),
         Line::Bookmark => lucide!("bookmark").into(),
         Line::Back => own("m12 19-7-7 7-7M19 12H5"),
         Line::Forward => own("M5 12h14M12 5l7 7-7 7"),
@@ -385,7 +388,7 @@ mod tests {
     #[test]
     fn line_icons_draw() {
         use Line::*;
-        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Pen, Rect, Ellipse, Highlight, Spotlight, Text, Bubble, Step, Lens, Circle, Stamp, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Settings, Manual, Quit, Server, Address, Slideshow, FlipH, FlipV, Updates, Pipette, Marquee, Filters, NewImage, HeadFilled, HeadOpen, HeadDouble, HeadDot, Solid, Dashed, Dotted, Star, Bookmark] {
+        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Pen, Rect, Ellipse, Highlight, Spotlight, Text, Bubble, Step, Lens, Circle, Stamp, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Settings, Manual, Quit, Server, Address, Slideshow, FlipH, FlipV, Updates, Pipette, Marquee, Filters, NewImage, HeadFilled, HeadOpen, HeadDouble, HeadDot, Solid, Dashed, Dotted, Star, StarFilled, Bookmark] {
             let img = render(&line_svg(icon).replace("currentColor", "#ff0000"), 24);
             let red = img.pixels.iter().filter(|p| p.a() > 128 && p.r() > 200 && p.g() < 60).count();
             assert!(red > 10, "{icon:?}: {red} pixels");
@@ -402,5 +405,13 @@ mod tests {
             let img = render(&line_svg(Mark(stamp)).replace("currentColor", "#ff0000"), 24);
             assert!(img.pixels.iter().filter(|p| p.a() > 128 && p.r() > 200).count() > 10, "{stamp:?}");
         }
+    }
+
+    /// The lit star of a bookmark is the empty one filled: the same outline, far more ink.
+    #[test]
+    fn star_filled_is_filled() {
+        let ink = |icon| render(&line_svg(icon).replace("currentColor", "#ff0000"), 24).pixels.iter().filter(|p| p.a() > 128).count();
+        let (empty, filled) = (ink(Line::Star), ink(Line::StarFilled));
+        assert!(filled > empty * 3 / 2, "empty {empty}, filled {filled}");
     }
 }

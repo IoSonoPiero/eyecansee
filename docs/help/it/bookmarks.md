@@ -24,9 +24,9 @@ Un segnalibro si apre proprio come se avessi scritto il suo indirizzo nella barr
 
 ## Togliere un segnalibro
 
-Quando il posto aperto è un segnalibro, la stella è accesa: un clic sulla stella lo toglie. La barra di stato lo conferma.
+Quando il posto aperto è un segnalibro, la stella è accesa e piena, ![Togli dai segnalibri](icon://star-filled): un clic sulla stella lo toglie. La barra di stato lo conferma.
 
-Su una cartella che è già un segnalibro, il menù del clic destro offre **Togli dai segnalibri** al posto di Aggiungi.
+Su una cartella che è già un segnalibro, il menù del clic destro offre ![Togli dai segnalibri](icon://star-filled) **Togli dai segnalibri**, con la stella piena, al posto di Aggiungi, che ha quella vuota.
 
 ## Configura
 

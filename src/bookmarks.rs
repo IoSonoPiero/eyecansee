@@ -174,7 +174,7 @@ impl App {
     pub(crate) fn bookmark_button(&mut self, ui: &mut egui::Ui) {
         let have = self.here_kept();
         let tip = self.i18n.t(if have { "bm-remove" } else if self.viewing.is_some() { "bm-star-image" } else { "bm-star-folder" });
-        if ui.add_enabled(self.loader.is_some(), icons::toggle(ui, have, Line::Star)).on_hover_text(tip).clicked() {
+        if ui.add_enabled(self.loader.is_some(), icons::toggle(ui, have, if have { Line::StarFilled } else { Line::Star })).on_hover_text(tip).clicked() {
             self.act = Some(if have { Act::RemoveBookmark(None) } else { Act::AddBookmark(None) });
         }
         let button = egui::Button::new((icons::line(ui, Line::Bookmark, 18.0), icons::line(ui, Line::Down, 14.0))).min_size(icons::BUTTON);
@@ -461,5 +461,14 @@ mod tests {
         add(&mut s.bookmarks, "Camera", "mtp://ABCD1234EFGH/Internal storage/DCIM/Camera/");
         let back: crate::settings::Settings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert_eq!(back.bookmarks, s.bookmarks);
+    }
+
+    /// Add shows the empty star and Remove the lit one, in every menu that draws them.
+    #[test]
+    fn star_empty_to_add_filled_to_remove() {
+        assert_eq!(Act::AddBookmark(None).icon(), Some(Line::Star));
+        assert_eq!(Act::RemoveBookmark(None).icon(), Some(Line::StarFilled));
+        assert_eq!(Act::AddBookmark(Some("/a".into())).icon(), Some(Line::Star));
+        assert_eq!(Act::RemoveBookmark(Some("/a".into())).icon(), Some(Line::StarFilled));
     }
 }
