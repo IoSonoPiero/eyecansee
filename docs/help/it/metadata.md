@@ -16,7 +16,7 @@ Un riquadro dice "Nessun dato" quando il file non ha niente per lui, e "Questo f
 
 ## Video
 
-Per un video il pannello mostra, quando il file li contiene: marca e modello del telefono o della videocamera (e la versione di Android), data e ora della ripresa, durata, fotogrammi al secondo, dimensioni, formato video e audio, bit rate, e il posto in cui è stato girato. Alcune dashcam tengono la traccia GPS in un file accanto ai video: allora il pannello mostra dove parte il video, l'altitudine e la velocità media e massima durante il video. Vedi [Riprodurre i video](video.md). Questi dati li legge il motore video, anche per i file audio: senza, i riquadri lo dicono e spiegano come scaricarlo, vedi [Componenti aggiuntivi](components.md).
+Per un video il pannello mostra, quando il file li contiene: marca e modello del telefono o della videocamera (e la versione di Android), data e ora della ripresa, durata, fotogrammi al secondo, dimensioni, formato video e audio, bit rate, e il posto in cui è stato girato. Alcune dashcam tengono la traccia GPS in un file accanto ai video: allora il pannello mostra dove parte il video, l'altitudine e la velocità media e massima durante il video. Vedi [Riprodurre i video](video.md). Questi dati li legge il motore video, anche per i file audio: senza, il pannello mostra solo il riquadro File e, accanto, una nota che lo dice e spiega come scaricarlo, vedi [Componenti aggiuntivi](components.md).
 
 ## Mostrare e nascondere i riquadri
 

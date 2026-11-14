@@ -59,15 +59,25 @@ impl App {
         // one line), it shrank and grew back at every click and the grid above jumped.
         // It starts again from its content when a box is opened or closed (`show_meta`).
         // Only the boxes are measured: the whole panel includes the title bar and grew at every frame.
+        // A video or an audio file without the video engine: no box but File has anything, so
+        // the note once beside it, not repeated in every box.
+        let played = file.as_ref().is_some_and(|(_, f)| crate::decode::is_played(&f.path));
+        let alone = matches!(meta, Some(Err(_))) && played && !crate::mpv::available();
         let meta = meta.and_then(|m| m.ok().flatten());
         let mut close = None;
         let min_height = self.meta_height;
         let boxes = ScrollArea::horizontal().show(ui, |ui| {
             ui.set_min_height(min_height);
             ui.horizontal_top(|ui| {
-                for g in Group::ALL.into_iter().filter(|&g| self.meta_shown(g)) {
+                for g in boxes(alone, |g| self.meta_shown(g)) {
                     egui::Frame::group(ui.style()).show(ui, |ui| ui.vertical(|ui| {
                         self.meta_box(ui, g, file.as_ref().map(|(_, f)| f), meta.as_ref(), &note, &mut close);
+                    }));
+                }
+                if alone {
+                    egui::Frame::group(ui.style()).show(ui, |ui| ui.vertical(|ui| {
+                        ui.set_width(NOTE_WIDTH);
+                        ui.add(egui::Label::new(&note).wrap());
                     }));
                 }
             });
@@ -309,6 +319,15 @@ impl App {
     }
 }
 
+/// Width of the note that stands for the boxes without data (two boxes and the gap between).
+const NOTE_WIDTH: f32 = 512.0;
+
+/// The boxes drawn, those not closed (`shown`); `alone`: only File, the others have nothing to
+/// show and one note says why (the video engine missing).
+fn boxes(alone: bool, shown: impl Fn(Group) -> bool) -> Vec<Group> {
+    Group::ALL.into_iter().filter(|&g| shown(g) && (!alone || g == Group::File)).collect()
+}
+
 /// "Wheel: zoom | Drag: move" → ("Wheel", "zoom"), ("Drag", "move"): the keys and what they do,
 /// as the `hint-*` texts write them.
 fn key_rows(text: &str) -> Vec<(&str, &str)> {
@@ -381,6 +400,17 @@ mod tests {
         assert_eq!(rows[1], row("Dimensione", "3,9 MB (4.089.123 byte)"));
         assert!(rows[2].0 == "Data del file" && rows[2].1.contains("/2026 "), "{:?}", rows[2]);
         assert_eq!(rows[3], row("Pixel", "4000 × 3000 px"));
+    }
+
+    /// Without the video engine only the File box stays, if not closed: the note is said once,
+    /// not in every box.
+    #[test]
+    fn engine_note_once() {
+        use crate::meta::Group;
+        assert_eq!(super::boxes(false, |_| true), Group::ALL);
+        assert_eq!(super::boxes(true, |_| true), [Group::File]);
+        assert!(super::boxes(true, |g| g != Group::File).is_empty());
+        assert_eq!(super::boxes(false, |g| g != Group::Camera).len(), Group::ALL.len() - 1);
     }
 
     #[test]
