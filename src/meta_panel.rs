@@ -177,7 +177,20 @@ impl App {
             Some((i, Ok(Some(m)))) if *i == file => Some(m),
             _ => None,
         };
-        let rows = file_hint(&self.i18n, f, meta);
+        let mut rows = file_hint(&self.i18n, f, meta);
+        // What the grid read for the line under the thumbnail (#139): the size in pixels if the
+        // metadata are not read yet, and the date inside the file beside the file's own date.
+        if let Some(info) = self.thumb_infos.get(&f.path) {
+            let pixels = self.i18n.t("meta-pixels");
+            if let Some([w, h]) = info.pixels.filter(|_| !rows.iter().any(|(l, _)| *l == pixels)) {
+                rows.push((pixels, format!("{w} × {h}")));
+            }
+            if let Some(taken) = &info.taken {
+                let label = if crate::decode::is_played(&f.path) { "tip-recorded" } else { "tip-taken" };
+                let at = rows.iter().position(|(l, _)| *l == self.i18n.t("meta-file-date")).map_or(rows.len(), |i| i + 1);
+                rows.insert(at, (self.i18n.t(label), self.meta_value("meta-taken", taken)));
+            }
+        }
         let font = egui::FontId::new(egui::TextStyle::Body.resolve(ui.style()).size, egui::FontFamily::Name(crate::fonts::BOLD.into()));
         let color = ui.visuals().text_color();
         // The labels' column as wide as the longest label, each one right-aligned in it.

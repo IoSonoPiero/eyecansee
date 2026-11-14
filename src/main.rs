@@ -132,6 +132,7 @@ mod source;
 mod theme;
 #[cfg(any(target_os = "linux", windows))]
 mod system_theme;
+mod thumb_details;
 mod thumb_queue;
 mod test_copy;
 mod thumbcache;
@@ -297,6 +298,9 @@ struct App {
     thumb_keep: std::ops::Range<usize>,
     /// Thumbnails already done (on disk), not to be queued again for background generation.
     generated: HashSet<usize>,
+    /// The details under the thumbnails (#139) that came, by path, and those asked meanwhile.
+    thumb_infos: HashMap<String, thumb_details::Info>,
+    info_asked: HashSet<String>,
     /// Last queue sent to the loader: (visible images, selected, generation).
     thumb_queue_key: Option<(std::ops::Range<usize>, Option<usize>, u64)>,
     full: HashMap<usize, Result<TextureHandle, String>>,

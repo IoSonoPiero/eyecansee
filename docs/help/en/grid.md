@@ -45,6 +45,8 @@ The choice stays for every folder until you change it. The status bar counts ima
 
 The slider at the right end of the toolbar, next to ![Thumbnail size](icon://image), makes the thumbnails larger or smaller. The cells spread over the whole width of the grid.
 
+Under each thumbnail there is its name; in **Options > Thumbnails > Under the thumbnails** you can add the dimensions in pixels, the size and the date (see [Options](options.md)). With small thumbnails only the name stays.
+
 ## Thumbnails
 
 EyeCanSee makes the thumbnail of the selected file first, then those visible in the window, then the others of the folder. Thumbnails are saved on disk, so the next time the folder opens at once; a thumbnail is made again when its file changes.
