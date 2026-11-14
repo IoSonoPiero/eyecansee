@@ -1,6 +1,7 @@
 //! The operations of the toolbar: File, Image and Tools, each a group of line icons with the
 //! name and the shortcut on hover and, when off, why. On as their menu items are. When the address
-//! would be left narrower than `ADDRESS` points, Image and Tools go into the "More" menu.
+//! (the field with Copy and Paste) would be left narrower than `ADDRESS` points, Image and Tools go
+//! into the "More" menu.
 
 use eframe::egui;
 
@@ -8,7 +9,7 @@ use crate::actions::Act;
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
 use crate::selection::{CONVERTED, fits};
-use crate::{App, source, transform};
+use crate::{App, source, toolbar_end, transform};
 
 /// The address is never narrower than this because of the icons: Image and Tools go into the
 /// "More" menu first (at 1400 points the address was 290 wide, user 2026-11-05).
@@ -109,10 +110,11 @@ impl App {
         group(ui, &self.file_ops(), &self.i18n, &mut chosen);
         let (image, tools) = (self.image_ops(), self.tool_ops());
         // What follows the groups: the metadata and bookmarks buttons, then in the grid sorting and
-        // the slider (the 370 points `toolbar` keeps for them).
+        // the slider, as wide as `toolbar_end` draws them.
         let step = icons::BUTTON.x + ui.spacing().item_spacing.x;
         let groups = (image.len() + tools.len()) as f32 * step + 2.0 * (1.0 + 2.0 * ui.spacing().item_spacing.x);
-        let after = 2.0 * step + if self.viewing.is_none() { 370.0 } else { 0.0 };
+        let sort = if self.viewing.is_none() { toolbar_end::sort_width(toolbar_end::TailParts::measure(ui)) } else { 0.0 };
+        let after = 2.0 * step + sort;
         let wide = ui.available_width() - groups - after >= ADDRESS;
         if wide {
             group(ui, &image, &self.i18n, &mut chosen);

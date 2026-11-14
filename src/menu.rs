@@ -196,6 +196,7 @@ impl App {
 
     pub(crate) fn toolbar(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
         // Line icons in square buttons with a border (Lucide).
+        let mut below = None;
         ui.horizontal(|ui| {
             if self.viewing.is_some() {
                 if ui.add(icons::button(ui, icons::Line::Grid)).on_hover_text(self.i18n.t("menu-back-to-grid")).clicked() {
@@ -223,8 +224,11 @@ impl App {
                 }
             }
             self.bookmark_button(ui);
-            self.address_bar(ui, ctx);
+            below = self.address_field(ui, ctx);
         });
+        if let Some(tail) = below {
+            self.address_tail_row(ui, tail);
+        }
     }
 
     /// A call the phone has not answered for 3 s, in the status bars of the grid and the viewer.
