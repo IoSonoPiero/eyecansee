@@ -55,6 +55,8 @@ pub struct Window {
     browse: bool,
     /// The folder chooser, open over the page.
     picker: Option<crate::folder_pick::Picker>,
+    /// Opened from the viewer: once saved, the viewer shows the new file (`viewer_after`).
+    from_viewer: bool,
 }
 
 impl Window {
@@ -89,6 +91,7 @@ impl Window {
             folder: None,
             browse: false,
             picker: None,
+            from_viewer: false,
         }
     }
 }
@@ -105,6 +108,7 @@ impl crate::App {
         // From the viewer: saved as it is shown there.
         if self.viewing.is_some() {
             w.options.turn = self.turn;
+            w.from_viewer = true;
         }
         self.convert = Some(w);
     }
@@ -144,7 +148,13 @@ impl crate::App {
                 // From the editor, on a place the grid no longer shows, or into a folder of another
                 // device: nothing there to select or list again.
                 let here = self.convert.as_ref().is_none_or(|w| w.dest_base(&self.base) == self.base);
-                self.save_as_format = self.convert.take().map(|w| w.options.format).or(self.save_as_format);
+                let w = self.convert.take();
+                let from_viewer = w.as_ref().is_some_and(|w| w.from_viewer);
+                let shown = w.as_ref().map_or_else(|| path.clone(), |w| crate::navigation::shown(w.dest_base(&self.base), &path));
+                self.save_as_format = w.map(|w| w.options.format).or(self.save_as_format);
+                if let Some(after) = viewer_after(from_viewer, Some(&path), here, &self.dir) {
+                    self.viewer_saved_as(after, &path, &shown);
+                }
                 // Opened from the editor: the page under it closes now that the file is written.
                 if self.editor.as_mut().is_some_and(|w| w.save_as_ended(true)) {
                     self.editor = None;
@@ -164,6 +174,25 @@ impl crate::App {
                     w.saving = false;
                     w.error = Some(self.i18n.error(id, &detail));
                 }
+            }
+        }
+    }
+
+    /// Save as… from the viewer went well: the original is as it was on disk, so its flips and
+    /// turns not saved are dropped (no "Changed, not saved", no question on closing). The new
+    /// file, which has them in its pixels, is shown once listed (`select_saved` if it already
+    /// is, `swap_listing` otherwise); saved elsewhere, a message says where.
+    fn viewer_saved_as(&mut self, after: ViewerAfter, path: &str, shown: &str) {
+        self.turn = Default::default();
+        log!("save as: viewer {after:?}");
+        match after {
+            ViewerAfter::Show => {
+                self.select_after = Some(path.to_string());
+                self.select_saved();
+            }
+            ViewerAfter::Stay => {
+                let shown = crate::address::without_password(shown);
+                self.tell("convert-saved-elsewhere-title", self.i18n.t_args("convert-saved-elsewhere", &[("path", &crate::save_dialogs::md(&shown))]));
             }
         }
     }
@@ -361,6 +390,22 @@ impl crate::App {
             }
         }
     }
+}
+
+/// What the viewer does after Save as… opened from it.
+#[derive(Debug, PartialEq)]
+enum ViewerAfter {
+    /// The new file is in the open folder: the viewer goes to it.
+    Show,
+    /// It is in another folder or place: the viewer stays on the original, and says where.
+    Stay,
+}
+
+/// The viewer after Save as…: `None` when opened elsewhere (the grid, the editor) or nothing
+/// was saved (`saved` none: cancelled or failed), which leaves it as it was.
+fn viewer_after(from_viewer: bool, saved: Option<&str>, here: bool, open_dir: &str) -> Option<ViewerAfter> {
+    let path = saved.filter(|_| from_viewer)?;
+    Some(if here && crate::source::parent(path) == open_dir { ViewerAfter::Show } else { ViewerAfter::Stay })
 }
 
 /// The new file's size in percent of the original's; none without an original file (a new image,
@@ -606,6 +651,19 @@ mod tests {
             assert!(at(max).is_ok(), "{f:?} at {max}");
             assert!(at(max + 1).is_err(), "{f:?} at {}", max + 1);
         }
+    }
+
+    /// Save as… from the viewer: beside the original the viewer goes to the new file; in another
+    /// folder or place it stays, and says where; cancelled or failed, or opened from the grid or
+    /// the editor, nothing changes.
+    #[test]
+    fn viewer_after_save_as() {
+        assert_eq!(viewer_after(true, Some("p/a.jpg"), true, "p/"), Some(ViewerAfter::Show));
+        assert_eq!(viewer_after(true, Some("p/q/a.jpg"), true, "p/"), Some(ViewerAfter::Stay));
+        assert_eq!(viewer_after(true, Some("a.jpg"), true, "p/"), Some(ViewerAfter::Stay));
+        assert_eq!(viewer_after(true, Some("p/a.jpg"), false, "p/"), Some(ViewerAfter::Stay));
+        assert_eq!(viewer_after(true, None, true, "p/"), None);
+        assert_eq!(viewer_after(false, Some("p/a.jpg"), true, "p/"), None);
     }
 
     /// Issue #99: a new image has no file, so no size on disk and no percentage of it.

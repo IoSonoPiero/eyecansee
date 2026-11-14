@@ -469,6 +469,10 @@ convert-folder = Folder
 convert-name = File name
 convert-save = Save
 convert-exists = An item with this name already exists: it will be saved as { $name }.
+convert-saved-elsewhere-title = Image saved
+convert-saved-elsewhere = Saved as **{ $path }**.
+
+    The image shown is the original, as it is on disk.
 convert-chroma = Colour detail
 convert-chroma-full = Full (4:4:4)
 convert-chroma-half = Half (4:2:2)

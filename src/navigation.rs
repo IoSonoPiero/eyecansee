@@ -120,6 +120,10 @@ impl App {
             self.generation = loader.next_generation();
         }
         self.address = self.display(&dir);
+        // A file to select belongs to the folder before (the same one sorted again keeps it).
+        if dir != self.dir {
+            self.select_after = None;
+        }
         self.dir = dir;
         self.thumbs.clear();
         self.generated.clear();
