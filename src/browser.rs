@@ -8,7 +8,7 @@ use eframe::egui::{self, Color32, Ui};
 use crate::audio_job::AudioJob;
 use crate::actions::Act;
 use crate::App;
-use crate::selection::{CONVERTED, Kind, PLAYED, SAVED_AS, THUMBED, fits, none_of, starred};
+use crate::selection::{CONVERTED, Kind, META_COPIED, PLAYED, SAVED_AS, THUMBED, fits, starred, why_none};
 use crate::source;
 
 /// Selection colour: full in the part receiving the keyboard, faint in the other, so the two
@@ -148,13 +148,14 @@ impl App {
     }
 
     /// An entry that works on some kinds of file, always in its place: greyed out with why when
-    /// `act` is (`Act::Off`) or when none of the `files` is of its `kinds`; "*" when only some
+    /// `act` is (`Act::Off`) or when none of the `files` is of its `kinds` (`why_none`); "*" when only some
     /// are, which sets `partial` for the line at the bottom of the menu.
     pub(crate) fn kind_entry(&self, files: &[String], partial: &Cell<bool>, kinds: &[Kind], label: &str, keys: String, act: Act) -> MenuItem {
+        let why = why_none(label, kinds);
         let label = self.i18n.t(label);
         Some(match (fits(files, kinds), act) {
             (_, off @ Act::Off(_)) => (label, keys, off),
-            (None, _) => (label, keys, Act::Off(self.i18n.t(none_of(kinds)))),
+            (None, _) => (label, keys, Act::Off(self.i18n.t(why))),
             (Some(all), act) => {
                 partial.set(partial.get() | !all);
                 (starred(label, all), keys, act)
@@ -171,7 +172,7 @@ impl App {
         vec![
             entry(CONVERTED, "menu-batch", self.i18n.t("key-batch"), Act::Batch(path.clone())),
             entry(&[Kind::Picture], "menu-resize", String::new(), Act::Submenu(self.resize_items(path.clone()))),
-            entry(PLAYED, "menu-copy-meta", String::new(), Act::CopyMeta(path.clone())),
+            entry(META_COPIED, "menu-copy-meta", String::new(), Act::CopyMeta(path.clone())),
             entry(&[Kind::Video], "menu-strip-audio", String::new(), Act::Audio(AudioJob::Strip, path.clone())),
             entry(&[Kind::Video], "menu-extract-audio", String::new(), Act::Audio(AudioJob::Extract, path)),
         ]
