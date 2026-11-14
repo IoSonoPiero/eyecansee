@@ -10,11 +10,11 @@ What EyeCanSee opens, and what it can save. Everything here works the same on Li
 |---|---|---|
 | JPEG | jpg, jpeg, jfif, jpe | libjpeg-turbo, `image` |
 | MPO, JPS (multi-picture and stereo: the first picture) | mpo, jps | `image` |
-| PNG (animated: the first frame) | png, apng | `image` |
-| WebP (animated: the first frame) | webp | `image` |
-| GIF (the first frame) | gif | `image` |
+| PNG (animated: played in the viewer) | png, apng | `image` |
+| WebP (animated: played in the viewer) | webp | `image` |
+| GIF (animated: played in the viewer) | gif | `image` |
 | BMP | bmp | `image` |
-| TIFF (more pages: the first) | tif, tiff | `image` |
+| TIFF (several pages: turned in the viewer) | tif, tiff | `image` |
 | ICO, CUR | ico, cur | `image` |
 | TGA | tga | `image` |
 | QOI | qoi | `image` |

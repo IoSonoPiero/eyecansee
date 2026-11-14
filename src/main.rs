@@ -57,6 +57,8 @@ mod file_dialogs;
 mod folder_pick;
 mod fonts;
 mod frame;
+mod frames;
+mod frames_view;
 mod help_spot;
 mod ftp;
 mod gps_track;
@@ -371,6 +373,8 @@ struct App {
     editor: Option<edit_page::Window>,
     /// Images found animated or with several pages, by the viewer or from their start (`edit_page::Animated`): the editor is off for them.
     animated: crate::edit_page::Animated,
+    /// Frames of animated images and pages of TIFFs, played and turned in the viewer.
+    frames: frames_view::State,
     /// Find duplicates: the search and its results page.
     duplicates: Option<dup_page::Window>,
     /// Convert and resize several images: the choices, then the work.

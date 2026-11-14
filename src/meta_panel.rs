@@ -236,6 +236,10 @@ impl App {
                 ui.label(self.i18n.t_args("convert-pixels", &[("w", &w.to_string()), ("h", &h.to_string())]));
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
+                if let Some(page) = self.frames_status(&f.path) {
+                    ui.separator();
+                    ui.label(page);
+                }
             }
             if let Some([w, h]) = self.video_size() {
                 ui.separator();

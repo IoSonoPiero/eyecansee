@@ -10,11 +10,11 @@ Che cosa apre EyeCanSee, e che cosa sa salvare. Tutto funziona allo stesso modo 
 |---|---|---|
 | JPEG | jpg, jpeg, jfif, jpe | libjpeg-turbo, `image` |
 | MPO, JPS (più immagini e stereo: la prima immagine) | mpo, jps | `image` |
-| PNG (animato: il primo fotogramma) | png, apng | `image` |
-| WebP (animato: il primo fotogramma) | webp | `image` |
-| GIF (il primo fotogramma) | gif | `image` |
+| PNG (animato: riprodotto nel visore) | png, apng | `image` |
+| WebP (animato: riprodotto nel visore) | webp | `image` |
+| GIF (animato: riprodotto nel visore) | gif | `image` |
 | BMP | bmp | `image` |
-| TIFF (più pagine: la prima) | tif, tiff | `image` |
+| TIFF (più pagine: sfogliate nel visore) | tif, tiff | `image` |
 | ICO, CUR | ico, cur | `image` |
 | TGA | tga | `image` |
 | QOI | qoi | `image` |

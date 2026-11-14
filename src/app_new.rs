@@ -121,6 +121,7 @@ impl App {
             save_as_format: None,
             editor: None,
             animated: Default::default(),
+            frames: Default::default(),
             duplicates: None,
             batch: None,
             batch_form: None,

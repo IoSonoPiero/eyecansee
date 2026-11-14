@@ -56,6 +56,9 @@ impl App {
                 Msg::Animated(path) => {
                     self.animated.insert(path);
                 }
+                Msg::Frames(path, seq) => {
+                    self.frames.read.insert(path, seq);
+                }
                 Msg::Original(r) => self.convert_original(ctx, r),
                 Msg::EditPrepared(path, r) => self.on_edit_prepared(path, r),
                 Msg::EditWritten(path, mark, over) => self.on_edit_written(path, mark, over),

@@ -22,6 +22,12 @@ With several files selected, Enter opens the first of them, and the viewer moves
 
 The same items are in the **View** menu (Next, Previous, First, Last). After the last picture the viewer stops; in [Options](options.md) you can make it start again from the first. The pictures around the one shown are read in advance, so moving between them is quick even on a phone or a server.
 
+## Animations and pages
+
+Animated GIF, WebP and PNG (APNG) pictures play in the viewer, over and over. **Space** pauses and plays them again, as does the button in the small bar at the bottom of the picture, which also shows the frame (for example Frame 3 / 20, also in the status bar). The animation stops when you move to another picture and starts again from the first frame when you come back. A very long or very large animation (more than 256 MB once decoded) is not played: the viewer shows its first frame and says why.
+
+A TIFF with several pages (a scanned document, a fax) opens on its first page. **Page Down** and **Page Up** turn the pages, as do the arrows in the bar at the bottom, which shows the page (for example Page 2 / 5, also in the status bar); past the last page Page Down goes to the next file, and before the first Page Up to the previous one. Each page is fitted to the window.
+
 ## Zooming
 
 - The **mouse wheel** zooms in and out around the pointer; **+** and **−** around the middle of the window. On a touchpad, pinch.

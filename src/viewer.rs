@@ -11,6 +11,8 @@ impl App {
         if ctx.egui_wants_keyboard_input() {
             return;
         }
+        // Space on an animation, Page Up and Down on pages: theirs, taken before the keys below.
+        self.frames_keys(ctx);
         // On a video Space plays and pauses, as in a player.
         let video = self.viewing_video();
         // On a 3D model the arrows turn it.
@@ -89,6 +91,7 @@ impl App {
             self.scroll_to_selected = true;
         }
         self.full.clear();
+        self.frames.read.clear();
         self.model.meshes.clear();
         self.model.cad.drawings.clear();
         self.zoom_of = None;
@@ -139,6 +142,7 @@ impl App {
         let paths: Vec<&String> = keep.iter().filter_map(|&i| listing.files.get(i)).map(|f| &f.path).collect();
         self.model.meshes.retain(|p, _| paths.contains(&p));
         self.model.cad.drawings.retain(|p, _| paths.contains(&p));
+        self.frames.read.retain(|p, _| paths.contains(&p));
     }
 
     pub(crate) fn viewer(&mut self, ui: &mut egui::Ui, current: usize) {
@@ -159,11 +163,13 @@ impl App {
             }
             return;
         }
+        self.frames_tick(ui.ctx(), current);
         if let Some(Ok(tex)) = self.full.get(&current) {
             let tex = tex.clone();
             let rect = ui.available_rect_before_wrap();
             let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
             self.zoom_view(ui, &response, &tex, current);
+            self.frames_bar(ui, rect);
             if response.double_clicked() {
                 self.close_viewer();
             }

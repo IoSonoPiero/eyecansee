@@ -74,6 +74,8 @@ pub enum Msg {
     EditPicked(Result<[u8; 3], String>),
     /// An image read by the viewer is animated or has several pages: the editor is off for it.
     Animated(String),
+    /// The frames or pages of such an image, to play or turn in the viewer (`frames::read`).
+    Frames(String, Arc<crate::frames::Sequence>),
     /// The image encoded with the options of `generation`, and the encoded file decoded back
     /// (`None`: no decoder for that format in this build).
     Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
@@ -586,6 +588,7 @@ impl Loader {
                         if !crate::model::is_model(&path) {
                             if crate::edit::save::animated(&bytes, &path) {
                                 let _ = tx.send(Msg::Animated(path.clone()));
+                                frames(bytes.clone(), path.clone(), tx.clone(), ctx.clone());
                             }
                             return decode::decode(&bytes, &path);
                         }
@@ -606,6 +609,17 @@ impl Loader {
             ctx.request_repaint();
         });
     }
+}
+
+/// The frames or pages of an animated or multi-page image, read apart: the first picture is
+/// shown meanwhile.
+fn frames(bytes: Vec<u8>, path: String, tx: Sender<Msg>, ctx: Context) {
+    tokio::task::spawn_blocking(move || {
+        if let Some(seq) = crate::frames::read(&bytes, &path) {
+            let _ = tx.send(Msg::Frames(path, Arc::new(seq)));
+            ctx.request_repaint();
+        }
+    });
 }
 
 /// The files next to a 3D model (`model::Sibling`), read from its source. Called from a blocking
