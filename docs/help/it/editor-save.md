@@ -63,6 +63,10 @@ Chiudi, la ✕ della finestra o Esc chiedono prima cosa fare:
 
 ![Copia](icon://copy) **Copia** (Ctrl+C) mette negli appunti tutto il risultato, a piena grandezza, da incollare in un altro programma. Sul disco non viene scritto niente.
 
+Su Linux con Plasma o Cinnamon (X11), tieni aperta la finestra di EyeCanSee finché non hai incollato: chiusa la finestra, l'immagine sparisce dagli appunti.
+
+Su X11 gli altri programmi non ricevono una copia oltre circa 16 MB, e nemmeno su GNOME, dove gli appunti passano da Xwayland; la barra di stato lo dice. Su Windows questo limite non c'è.
+
 ## Telefoni e server
 
 Un'immagine su un telefono o su un server si modifica in una copia su questo computer, e la barra di stato lo dice. Il file nuovo viene prima conservato sul computer, poi inviato. Se l'invio non riesce, resta sul computer e una finestra offre **Riprova**, **Salva come…** e **Apri la cartella**. Vedi [Telefoni Android](phone.md) e [Server (FTP e SFTP)](servers.md).

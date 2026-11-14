@@ -63,6 +63,10 @@ Close, the window's ✕ or Esc first ask what to do:
 
 ![Copy](icon://copy) **Copy** (Ctrl+C) puts the whole result, at full size, on the clipboard, to paste it into another program. Nothing is written to disk.
 
+On Linux with Plasma or Cinnamon (X11), keep the EyeCanSee window open until you have pasted: once it is closed, the image is no longer on the clipboard.
+
+Other programs do not get a copy larger than about 16 MB on X11, nor on GNOME, where the clipboard goes through Xwayland; the status bar says so. On Windows there is no such limit.
+
 ## Phones and servers
 
 An image on a phone or a server is edited in a copy on this computer, and the status bar says so. The new file is kept on the computer first, then sent. If sending fails, it stays on the computer, and a window offers **Try again**, **Save as…** and **Open the folder**. See [Android phones](phone.md) and [Servers (FTP and SFTP)](servers.md).
