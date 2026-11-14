@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::i18n::I18n;
 
-/// What goes under each thumbnail; at first only the name, as before.
+/// What goes under each thumbnail; at first all of it (Piero, 15/11).
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug)]
 #[serde(default)]
 pub struct Details {
@@ -20,7 +20,7 @@ pub struct Details {
 
 impl Default for Details {
     fn default() -> Self {
-        Details { name: true, pixels: false, size: false, date: false, duration: false }
+        Details { name: true, pixels: true, size: true, date: true, duration: true }
     }
 }
 
@@ -189,15 +189,16 @@ mod tests {
         // Only what is chosen; a sound has no pixels: the size stays.
         assert_eq!(measures(&Details { pixels: false, ..all }, px.clone(), kb.clone()).as_deref(), Some("350 KB"));
         assert_eq!(measures(&all, None, kb.clone()).as_deref(), Some("350 KB"));
-        assert_eq!(measures(&Details::default(), px, kb), None);
+        let name_only = Details { name: true, pixels: false, size: false, date: false, duration: false };
+        assert_eq!(measures(&name_only, px, kb), None);
         // The rows: name, measures, date; small thumbnails or nothing ticked, the name alone.
         assert_eq!(Rows::of(&all, true), Rows { name: true, measures: true, date: true });
         assert_eq!(Rows::of(&all, true).count(), 3);
         assert_eq!(Rows::of(&all, false), Rows { name: true, measures: false, date: false });
-        assert_eq!(Rows::of(&Details { name: false, ..Details::default() }, true), Rows { name: true, measures: false, date: false });
-        assert_eq!(Rows::of(&Details { name: false, date: true, ..Details::default() }, true).count(), 1);
+        assert_eq!(Rows::of(&Details { name: false, ..name_only }, true), Rows { name: true, measures: false, date: false });
+        assert_eq!(Rows::of(&Details { name: false, date: true, ..name_only }, true).count(), 1);
         // The duration alone takes the date's row.
-        assert_eq!(Rows::of(&Details { duration: true, ..Details::default() }, true), Rows { name: true, measures: false, date: true });
+        assert_eq!(Rows::of(&Details { duration: true, ..name_only }, true), Rows { name: true, measures: false, date: true });
     }
 
     /// A format whose header is not read (an SGI, a PCX…): the size of the picture decoded for
@@ -253,8 +254,9 @@ mod tests {
     fn options_of_an_older_version() {
         let d: Details = serde_json::from_str("{}").unwrap();
         assert_eq!(d, Details::default());
-        let d: Details = serde_json::from_str(r#"{"size":true}"#).unwrap();
-        assert!(d.name && d.size && !d.pixels && !d.date && !d.duration);
+        // A choice saved before: what is there stays, what is missing is on, as at first.
+        let d: Details = serde_json::from_str(r#"{"size":false}"#).unwrap();
+        assert!(d.name && !d.size && d.pixels && d.date && d.duration);
     }
 
     #[test]
