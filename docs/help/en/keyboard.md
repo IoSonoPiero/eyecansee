@@ -84,7 +84,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | Space | Play and pause |
 | Ctrl+←, Ctrl+→ | 5 seconds back, forward |
 | ↑, ↓ (or the mouse wheel on the video) | Volume up, down |
-| M | Sound off and on |
+| M | Audio off and on |
 | →, Page Down | Next item |
 | ←, Backspace, Page Up | Previous item |
 | Home, End | First, last item |

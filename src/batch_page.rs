@@ -658,6 +658,36 @@ mod tests {
         assert_eq!(f.video.container, named("MP4"));
     }
 
+    /// Each window is called as the menu entry that opens it, in every language: "Convert", not
+    /// "Convert and resize"; Resize > Custom… opens "Resize".
+    #[test]
+    fn titles_follow_the_menu() {
+        let pairs = [
+            ("batch-title", "menu-batch"),
+            ("batch-title-resize", "menu-resize"),
+            ("batch-title-copy-meta", "menu-copy-meta"),
+            ("batch-title-strip", "menu-strip-audio"),
+            ("batch-title-extract", "menu-extract-audio"),
+            ("drawing-title", "menu-export-drawings"),
+        ];
+        for lang in ["en", "it"] {
+            let i18n = crate::i18n::I18n::new(lang);
+            for (title, menu) in pairs {
+                assert_eq!(i18n.t(title), i18n.t(menu).trim_end_matches('…'), "{lang}: {title}");
+            }
+        }
+    }
+
+    /// In English always "audio", never "sound": the strings and the guide.
+    #[test]
+    fn english_says_audio() {
+        let sound = |text: &str| text.lines().filter(|l| !l.starts_with('#')).any(|l| l.to_lowercase().split(|c: char| !c.is_alphabetic()).any(|w| w == "sound"));
+        assert!(!sound(include_str!("../locales/en.ftl")));
+        for (lang, id, text) in crate::help::PAGES {
+            assert!(*lang != "en" || !sound(text), "docs/help/en/{id}.md");
+        }
+    }
+
     /// One window for Convert…, Resize > Custom…, Copy with the metadata and the sound of the
     /// videos (#119): each opens with its own choices, and gives Convert…'s back.
     #[test]

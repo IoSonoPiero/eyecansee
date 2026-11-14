@@ -20,7 +20,7 @@ The slideshow shows the pictures one after the other at full screen, on black, w
 
 The keys are shown at the bottom for the first seconds; while paused, the screen says **Paused (Space to go on)**.
 
-A video plays whole, with its sound, then the next picture comes; **Space** pauses it too. See [Playing videos](video.md).
+A video plays whole, with its audio, then the next picture comes; **Space** pauses it too. See [Playing videos](video.md).
 
 When the slideshow ends you are back where you were, on the last picture shown.
 

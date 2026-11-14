@@ -1,6 +1,6 @@
 # Playing videos
 
-Videos appear in the grid next to the pictures, with a frame of the video as thumbnail and the ![Video](icon://color-video) sign. They open in the viewer, where they play with sound. Audio files play there too.
+Videos appear in the grid next to the pictures, with a frame of the video as thumbnail and the ![Video](icon://color-video) sign. They open in the viewer, where they play with audio. Audio files play there too.
 
 ![Playing videos](../img/video.webp)
 
@@ -13,14 +13,14 @@ Double-click a video, or select it and press **Enter**: it opens in the viewer, 
 - **Ctrl+←** and **Ctrl+→** go 5 seconds back and forward.
 - At the end the last frame stays; playing again starts from the beginning.
 
-## Sound
+## Audio
 
-The sound controls are at the right of the bar: ![Sound off](icon://volume-2) turns the sound off and ![Sound on](icon://volume-x) on again, and the slider sets the volume from 0 to 100.
+The audio controls are at the right of the bar: ![Audio off](icon://volume-2) turns the audio off and ![Audio on](icon://volume-x) on again, and the slider sets the volume from 0 to 100.
 
 - **↑** and **↓**, or the mouse wheel over the video, raise and lower the volume by 5.
-- **M** turns the sound off and on.
+- **M** turns the audio off and on.
 
-The volume and the sound off stay for the next videos and the next time EyeCanSee starts. On a video without sound, the two controls are greyed out.
+The volume and the audio off stay for the next videos and the next time EyeCanSee starts. On a video without audio, the two controls are greyed out.
 
 ## Moving between files
 

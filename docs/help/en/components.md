@@ -7,15 +7,15 @@ Some parts of EyeCanSee are large and not everybody needs them, so they are not 
 | Component | What it is for | When it is offered |
 |---|---|---|
 | Video engine (libmpv) | Playing videos and audio files | When the open folder holds a video or an audio file and the computer has no usable libmpv (on Windows, usually the first time) |
-| FFmpeg | Converting videos | In the Convert and resize window, when the computer has no usable FFmpeg |
+| FFmpeg | Converting videos | In the Convert window, when the computer has no usable FFmpeg |
 | CAD engine (Open CASCADE) | Opening STEP, IGES and BREP models | When the open folder holds one of those files |
 
-On Linux, EyeCanSee uses the system's libmpv and FFmpeg when they are recent enough (libmpv 1.109, that is mpv 0.33, and FFmpeg 4.3 or later); the download is offered only when they are missing or too old, or when they cannot play H.264 and HEVC, the formats phones record in (Fedora's own packages, for example, lack both). Such an FFmpeg still copies videos and their sound as they are, without the download.
+On Linux, EyeCanSee uses the system's libmpv and FFmpeg when they are recent enough (libmpv 1.109, that is mpv 0.33, and FFmpeg 4.3 or later); the download is offered only when they are missing or too old, or when they cannot play H.264 and HEVC, the formats phones record in (Fedora's own packages, for example, lack both). Such an FFmpeg still copies videos and their audio as they are, without the download.
 
 ## Downloading one
 
 - **Video engine**: a red **Download the video engine** button appears at the top right of the menu bar, with its size; the viewer offers it too, the first time a video is opened. Until then videos and audio files show their sign (a play button, a note) with a download arrow in the grid. Usually the videos play at once; if the engine cannot start, the button becomes **Restart EyeCanSee**.
-- **FFmpeg**: the Convert and resize window shows **Download FFmpeg**, with its size, and a bar while it downloads (see [Converting videos](convert-video.md)).
+- **FFmpeg**: the Convert window shows **Download FFmpeg**, with its size, and a bar while it downloads (see [Converting videos](convert-video.md)).
 - **CAD engine**: a red **Download the CAD engine** button appears at the top right of the menu bar, with its size. Until then those models show a cube with a download arrow, and nothing is read from a phone or a server to make their thumbnail. Once it is downloaded, the thumbnails and a model open in the viewer appear by themselves.
 
 Pointing at a red button says what the component is and how large it is.

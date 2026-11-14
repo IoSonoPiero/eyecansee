@@ -7,7 +7,7 @@ Alcune parti di EyeCanSee sono grandi e non servono a tutti, quindi non sono nel
 | Componente | A che cosa serve | Quando viene proposto |
 |---|---|---|
 | Motore video (libmpv) | Riprodurre video e file audio | Quando la cartella aperta contiene un video o un file audio e sul computer non c'è una libmpv utilizzabile (su Windows, di solito la prima volta) |
-| FFmpeg | Convertire i video | Nella finestra Converti e ridimensiona, quando sul computer non c'è un FFmpeg utilizzabile |
+| FFmpeg | Convertire i video | Nella finestra Converti, quando sul computer non c'è un FFmpeg utilizzabile |
 | Motore CAD (Open CASCADE) | Aprire i modelli STEP, IGES e BREP | Quando la cartella aperta contiene uno di questi file |
 
 Su Linux EyeCanSee usa libmpv e FFmpeg del sistema quando sono abbastanza recenti (libmpv 1.109, cioè mpv 0.33, e FFmpeg 4.3 o più recenti); lo scaricamento viene proposto solo se mancano o sono troppo vecchi, oppure se non sanno riprodurre H.264 e HEVC, i formati in cui registrano i telefoni (per esempio i pacchetti di Fedora non hanno nessuno dei due). Un FFmpeg così copia comunque video e audio così come sono, senza scaricamento.
@@ -15,7 +15,7 @@ Su Linux EyeCanSee usa libmpv e FFmpeg del sistema quando sono abbastanza recent
 ## Scaricarne uno
 
 - **Motore video**: in alto a destra nella barra dei menù compare il pulsante rosso **Scarica il motore video**, con il suo peso; lo propone anche il visore, la prima volta che apri un video. Fino ad allora nella griglia video e file audio mostrano il loro segno (il tasto play, una nota) con una freccia di scaricamento. Di solito i video partono subito; se il motore non riesce ad avviarsi, il pulsante diventa **Riavvia EyeCanSee**.
-- **FFmpeg**: la finestra Converti e ridimensiona mostra **Scarica FFmpeg**, con il suo peso, e una barra mentre scarica (vedi [Convertire i video](convert-video.md)).
+- **FFmpeg**: la finestra Converti mostra **Scarica FFmpeg**, con il suo peso, e una barra mentre scarica (vedi [Convertire i video](convert-video.md)).
 - **Motore CAD**: in alto a destra nella barra dei menù compare il pulsante rosso **Scarica il motore CAD**, con il suo peso. Fino ad allora quei modelli mostrano un cubo con una freccia di scaricamento, e da un telefono o da un server non viene letto niente per fare la loro miniatura. Appena scaricato, le miniature e il modello aperto nel visore compaiono da soli.
 
 Passando sopra un pulsante rosso si legge che cos'è il componente e quanto pesa.

@@ -1,10 +1,10 @@
 # Video formats
 
-What **Convert and resize** can turn a video into. The work is done by [FFmpeg](https://ffmpeg.org): the system's one when there is one, otherwise FFmpeg 9.0 (from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds), GPL) downloaded once by EyeCanSee into its data folder (63 MB on Windows, 67 MB on Linux). The first time the window shows videos, EyeCanSee tries every encoder below on a few black frames and lists only those that work on that computer: an encoder for a graphics card that is not there, or whose driver is missing, does not appear.
+What **Convert** can turn a video into. The work is done by [FFmpeg](https://ffmpeg.org): the system's one when there is one, otherwise FFmpeg 9.0 (from [BtbN/FFmpeg-Builds](https://github.com/BtbN/FFmpeg-Builds), GPL) downloaded once by EyeCanSee into its data folder (63 MB on Windows, 67 MB on Linux). The first time the window shows videos, EyeCanSee tries every encoder below on a few black frames and lists only those that work on that computer: an encoder for a graphics card that is not there, or whose driver is missing, does not appear.
 
 ## Containers
 
-| Container | Extension | Codecs | Sound |
+| Container | Extension | Codecs | Audio |
 |---|---|---|---|
 | MP4 | mp4 | H.264, HEVC, AV1, VP9, MPEG-4 | AAC |
 | MKV | mkv | H.264, HEVC, AV1, VP9, VP8, MPEG-4, ProRes | Opus (AAC if Opus is missing) |
@@ -13,7 +13,7 @@ What **Convert and resize** can turn a video into. The work is done by [FFmpeg](
 | AVI | avi | MPEG-4, H.264 | MP3 (AC-3 if MP3 is missing) |
 | GIF | gif | GIF | none |
 
-**Same as the original (no re-encoding)** copies video and sound as they are into MP4, MKV, WebM, MOV or AVI: the window starts on the originals' own container and offers only those that can hold their streams (MP4 and MOV for each other, MKV for all); videos of different containers chosen together go to MKV. Before copying, each video's codecs are read: one the chosen container cannot hold (VP8 in MP4, for example) is copied as MKV instead.
+**Same as the original (no re-encoding)** copies video and audio as they are into MP4, MKV, WebM, MOV or AVI: the window starts on the originals' own container and offers only those that can hold their streams (MP4 and MOV for each other, MKV for all); videos of different containers chosen together go to MKV. Before copying, each video's codecs are read: one the chosen container cannot hold (VP8 in MP4, for example) is copied as MKV instead.
 
 ## Codecs
 
@@ -26,7 +26,7 @@ What **Convert and resize** can turn a video into. The work is done by [FFmpeg](
 | VP8 | old browsers | larger than VP9 |
 | MPEG-4 Part 2 | old players (DivX, Xvid) | large |
 | ProRes | editing programs (Final Cut, DaVinci Resolve) | very large, best quality |
-| GIF | everything that shows images; no sound, 256 colours | very large |
+| GIF | everything that shows images; no audio, 256 colours | very large |
 
 ## Encoders
 
@@ -58,7 +58,7 @@ Three levels, set for each encoder:
 | Windows Media Foundation | quality 80 | quality 65 | quality 50 |
 | MPEG-4 | q 3 | q 5 | q 8 |
 | ProRes | 422 HQ | 422 | Proxy |
-| Sound (AAC, Opus, MP3…) | 192 kbit/s | 128 kbit/s | 96 kbit/s |
+| Audio (AAC, Opus, MP3…) | 192 kbit/s | 128 kbit/s | 96 kbit/s |
 
 H.264 from x264, OpenH264 and MPEG-4 is written with 8 bits per colour, so that every player opens it, also when the original is a 10-bit HDR video from a phone.
 
