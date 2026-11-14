@@ -749,6 +749,7 @@ edit-text-hint = Click on the image where the text goes, then type it here.
 edit-animated = **{ $name }** cannot be edited: it is animated or has several pages, and only the first picture would be saved.
 edit-animated-off = This image is animated or has several pages: only the first picture would be saved.
 edit-overwrite = Overwrite the original…
+edit-overwrite-short = Overwrite…
 edit-overwrite-hint = Writes the edited image over the original, after asking; the original goes to the trash, also when deleting for good is chosen in the Options.
 edit-overwrite-yes = Overwrite
 edit-save-confirm = A copy of **{ $name }** is saved next to it as **{ $copy }**. The original stays as it is.

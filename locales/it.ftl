@@ -748,6 +748,7 @@ edit-text-hint = Fai clic sull'immagine dove va il testo, poi scrivilo qui.
 edit-animated = **{ $name }** non si può modificare: è animata o ha più pagine, e si salverebbe solo la prima immagine.
 edit-animated-off = Questa immagine è animata o ha più pagine: si salverebbe solo la prima immagine.
 edit-overwrite = Sovrascrivi l'originale…
+edit-overwrite-short = Sovrascrivi…
 edit-overwrite-hint = Scrive l'immagine modificata sopra l'originale, dopo aver chiesto; l'originale va nel cestino, anche quando nelle Opzioni è scelta l'eliminazione definitiva.
 edit-overwrite-yes = Sovrascrivi
 edit-save-confirm = Una copia di **{ $name }** viene salvata accanto all'originale come **{ $copy }**. L'originale resta com'è.

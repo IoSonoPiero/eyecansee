@@ -61,6 +61,12 @@ fn tip(i18n: &I18n, id: &str, key: &str) -> String {
     format!("{} ({key})", i18n.t(id))
 }
 
+/// The label of the main save button on the bar: Overwrite the original… is shortened to
+/// Overwrite…, so the bar keeps one row in a 1200 px window; its tip has the whole name.
+pub(super) fn bar_label(id: &'static str) -> &'static str {
+    if id == "edit-overwrite" { "edit-overwrite-short" } else { id }
+}
+
 /// A button of a bar: on hover its name and key, when off also why.
 fn bar_button(ui: &mut egui::Ui, button: egui::Button, tip: String, off: Option<String>) -> bool {
     let r = ui.add_enabled(off.is_none(), button).on_hover_text(&tip);
@@ -76,7 +82,7 @@ impl App {
     /// own, on the right (they were cut off).
     pub(super) fn edit_toolbar(&mut self, ui: &mut egui::Ui, w: &mut Window) -> Option<Ask> {
         let (mut ask, mut copy) = (None, false);
-        let parts = BarParts::measure(ui, self.i18n.t(self.main_save_text(w).0), w.copying);
+        let parts = BarParts::measure(ui, self.i18n.t(bar_label(self.main_save_text(w).0)), w.copying);
         if bar_fit::fits(ui.available_width(), parts) {
             ui.horizontal(|ui| {
                 tools_row(ui, w, &self.i18n);
@@ -160,12 +166,13 @@ impl App {
             _ if over_main => (Ask::Overwrite, off.or_else(|| self.why_not_overwrite(w))),
             _ => (Ask::Save, off),
         };
+        // The tip has the whole name: on the bar Overwrite the original… is only Overwrite….
         let mut tip = format!("{} (Ctrl+S)\n{}", i18n.t(label), i18n.t(hint));
         // Overwrite chosen as the main save but not possible here: why it is Save copy.
         if self.settings.edit_main_overwrite && !w.new && let Some(why) = self.why_never_overwrite(w) {
             tip = format!("{tip}\n\n{}", crate::help_search::plain(&why));
         }
-        let main = crate::theme::main_button(ui, i18n.t(label)).min_size(egui::vec2(0.0, icons::BUTTON.y));
+        let main = crate::theme::main_button(ui, i18n.t(bar_label(label))).min_size(egui::vec2(0.0, icons::BUTTON.y));
         if bar_button(ui, main, tip, off) {
             ask = Some(main_ask);
         }

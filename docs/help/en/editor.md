@@ -14,7 +14,7 @@ The editor works on one image at a time. With several images selected, these ite
 
 ## The page
 
-- **Toolbar** (top): one button per tool, then ![Rotate 90° anticlockwise](icon://rotate-ccw-square) and ![Rotate 90° clockwise](icon://rotate-cw-square), ![Resize](icon://scaling), ![Filters](icon://wand-sparkles), ![Undo](icon://undo-2) and ![Redo](icon://redo-2). On the right: ![Copy](icon://copy), ![Close](icon://x) and **Save copy** (or **Overwrite the original…**, if chosen in the [Options](options.md)) with its arrow ![More ways to save](icon://chevron-down). The tool in use is highlighted. Point at a button to see its name and key; on a button that is off you also see why.
+- **Toolbar** (top): one button per tool, then ![Rotate 90° anticlockwise](icon://rotate-ccw-square) and ![Rotate 90° clockwise](icon://rotate-cw-square), ![Resize](icon://scaling), ![Filters](icon://wand-sparkles), ![Undo](icon://undo-2) and ![Redo](icon://redo-2). On the right: ![Copy](icon://copy), ![Close](icon://x) and **Save copy** (or **Overwrite…**, short for Overwrite the original…, if chosen in the [Options](options.md)) with its arrow ![More ways to save](icon://chevron-down). The tool in use is highlighted. Point at a button to see its name and key; on a button that is off you also see why.
 - **Properties bar** (under the toolbar): the style of the selected object, or of the next one the tool will draw. With the crop tool it holds the crop controls. See [Colours, lines and the eyedropper](editor-colors.md).
 - **Status bar** (bottom): the file name, the size of the result in pixels, a short hint for the tool, the zoom, and the **Keys** button.
 

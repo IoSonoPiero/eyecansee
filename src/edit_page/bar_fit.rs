@@ -105,12 +105,13 @@ mod tests {
     }
 
     /// Through egui with the app's fonts, every label the main save button can have in every
-    /// language: one row in a 1200 px window, two in a 900 px one.
+    /// language (Overwrite the original… as the bar shows it, Overwrite…): one row in a 1200 px
+    /// window, two in a 900 px one.
     #[test]
     fn real_window() {
         let ctx = egui::Context::default();
         ctx.set_fonts(crate::fonts::fonts());
-        let labels = ["edit-save-copy", "edit-update-copy", "menu-save-copy"];
+        let labels = ["edit-save-copy", "edit-update-copy", "menu-save-copy", super::super::tools::bar_label("edit-overwrite")];
         for (width, one_row) in [(1200.0, true), (900.0, false)] {
             let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, 800.0))), ..Default::default() };
             let mut seen = Vec::new();

@@ -37,7 +37,7 @@ Overwrite is off, and pointing at it says why, for a new image, for a format Eye
 
 In **Tools > Options…**, **Editor** tab, **Main save button (also Ctrl+S)** is **Save copy** (the default) or **Overwrite the original**. With Overwrite the original:
 
-- the main button is **Overwrite the original…**, and Ctrl+S overwrites, after the same question;
+- the main button is **Overwrite…** (pointing at it shows the whole name, Overwrite the original…), and Ctrl+S overwrites, after the same question;
 - **Save copy** (or **Update copy**) is in the arrow's menu, with Save as…;
 - **Save…** in the question on closing overwrites too.
 

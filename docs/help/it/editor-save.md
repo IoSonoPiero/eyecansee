@@ -37,7 +37,7 @@ Sovrascrivi è spento, e passandoci sopra dice perché, per un'immagine nuova, p
 
 In **Strumenti > Opzioni…**, scheda **Editor**, **Pulsante principale di salvataggio (anche Ctrl+S)** è **Salva copia** (predefinito) o **Sovrascrivi l'originale**. Con Sovrascrivi l'originale:
 
-- il pulsante principale è **Sovrascrivi l'originale…**, e Ctrl+S sovrascrive, dopo la stessa domanda;
+- il pulsante principale è **Sovrascrivi…** (passandoci sopra si vede il nome intero, Sovrascrivi l'originale…), e Ctrl+S sovrascrive, dopo la stessa domanda;
 - **Salva copia** (o **Aggiorna copia**) sta nel menu della freccia, con Salva come…;
 - anche **Salva…** nella domanda alla chiusura sovrascrive.
 
