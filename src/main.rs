@@ -153,6 +153,7 @@ mod window_close;
 #[cfg(any(windows, test))]
 mod window_place;
 mod xmp;
+mod zoom;
 #[cfg(test)]
 mod help_check;
 

@@ -4,7 +4,7 @@ use eframe::egui::{self, Key, TextureHandle};
 
 use crate::navigation::Go;
 use crate::actions::Act;
-use crate::{AROUND, App, browser, paint, source};
+use crate::{AROUND, App, browser, paint, source, zoom};
 
 impl App {
     pub(crate) fn viewer_keys(&mut self, ctx: &egui::Context) {
@@ -204,7 +204,8 @@ impl App {
     /// The open image, fitted to the window or zoomed (as GNOME's viewer, Loupe): the wheel ×1.3 a
     /// notch around the pointer (or the next image, see `wheel_zoom`; Ctrl and the wheel always
     /// zoom), + and − ×1.5 around the centre, 0 fitted, 1 at 100%, dragging moves the zoomed image.
-    /// Never smaller than fitted, never larger than `max_zoom`.
+    /// Never smaller than fitted (or than 100%, when smaller), never larger than `max_zoom`;
+    /// percentages count the file's own pixels (`zoom`).
     #[allow(clippy::too_many_lines)] // to be split
     fn zoom_view(&mut self, ui: &egui::Ui, response: &egui::Response, tex: &TextureHandle, current: usize) {
         let rect = response.rect;
@@ -225,9 +226,12 @@ impl App {
             (self.zoom, self.zoom_of, self.turn) = (None, Some(current), Default::default());
         }
         let t = paint::turned_size(tex, self.turn);
-        let fit = (rect.width() * ppp / t.x).min(rect.height() * ppp / t.y).min(1.0);
-        let max = (self.settings.max_zoom as f32 / 100.0).max(fit);
-        let scale = self.zoom.unwrap_or(fit).clamp(fit, max);
+        // A layout of a drawing has no file pixels: its percentages stay the texture's.
+        let own = if sheet.is_some() { None } else { self.files().get(current).and_then(|f| self.own_sizes.get(&f.path).copied()) };
+        let per = zoom::file_per_texture(own, tex.size());
+        let bounds = zoom::bounds((rect.width() * ppp / t.x).min(rect.height() * ppp / t.y), per, self.settings.max_zoom);
+        let fit = bounds.fit;
+        let scale = self.zoom.unwrap_or(fit).clamp(bounds.low, bounds.max);
 
         let (mut wheel, mut next) = (0.0, 0.0);
         let mut pinch = 1.0;
@@ -272,10 +276,10 @@ impl App {
             anchor = rect.center();
         }
         if actual {
-            target = 1.0;
+            target = bounds.actual;
         }
-        let target = target.clamp(fit, max);
-        if fitted || target <= fit {
+        let target = zoom::settle(scale, target, bounds);
+        if fitted || target == fit {
             (self.zoom, self.pan) = (None, t / 2.0);
         } else if target != scale {
             // The image point under the anchor stays under it.
@@ -308,7 +312,7 @@ impl App {
         if self.files().get(current).is_some_and(|f| crate::cad::is_cad(&f.path)) && self.turn.is_none() {
             crate::cad_view::ucs_corner(&painter, rect);
         }
-        self.zoom_shown = self.zoom.unwrap_or(fit);
+        self.zoom_shown = zoom::of_file(self.zoom.unwrap_or(fit), per);
     }
 }
 
