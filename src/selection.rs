@@ -32,7 +32,8 @@ pub(crate) fn kind(path: &str) -> Kind {
 pub(crate) const PLAYED: &[Kind] = &[Kind::Picture, Kind::Video];
 /// Convert…: audio files too (#120).
 pub(crate) const CONVERTED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Audio];
-pub(crate) const THUMBED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Model, Kind::Drawing];
+/// Every kind has a thumbnail: an audio file its cover (or the note).
+pub(crate) const THUMBED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Audio, Kind::Model, Kind::Drawing];
 
 /// How an entry fits the files chosen: on none of them (`None`: not shown), on all, or on some
 /// (`Some(false)`: marked with "*").
@@ -193,7 +194,9 @@ mod tests {
         assert_eq!(fits(&mixed, PLAYED), Some(false));
         assert_eq!(fits(&mixed, &[Kind::Drawing]), None);
         assert_eq!(fits(&files[..2], PLAYED), Some(true));
-        assert_eq!(fits(&files[4..], THUMBED), None);
+        // Redo thumbnails also on an audio file, whose cover is its thumbnail.
+        assert_eq!(fits(&files[4..], THUMBED), Some(true));
+        assert_eq!(fits(&files, THUMBED), Some(true));
         assert_eq!(starred("Copy".into(), false), "Copy *");
         // Why an entry is off, and why a file was left out, said in both languages.
         for code in ["en", "it"] {

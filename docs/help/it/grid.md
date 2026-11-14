@@ -49,7 +49,7 @@ Il cursore in fondo a destra nella barra strumenti, accanto a ![Dimensione minia
 
 EyeCanSee prepara prima la miniatura del file selezionato, poi quelle visibili nella finestra, poi le altre della cartella. Le miniature restano salvate su disco, così la volta dopo la cartella si apre subito; una miniatura viene rifatta quando il suo file cambia.
 
-Se una miniatura sembra sbagliata, fai clic destro sul file (o su più file selezionati) e scegli **Aggiorna miniature**. **Visualizza > Aggiorna tutte le miniature della cartella** (**Maiusc+F5**) le rifà tutte. Lo spazio che le miniature occupano su disco si regola nelle [Opzioni](options.md).
+Se una miniatura sembra sbagliata, fai clic destro sul file (o su più file selezionati) e scegli **Aggiorna miniature**: vale per ogni tipo di file, anche per un file audio, la cui miniatura è la sua copertina. **Visualizza > Aggiorna tutte le miniature della cartella** (**Maiusc+F5**) le rifà tutte. Lo spazio che le miniature occupano su disco si regola nelle [Opzioni](options.md).
 
 ## Aggiornare
 

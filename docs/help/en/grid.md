@@ -49,7 +49,7 @@ The slider at the right end of the toolbar, next to ![Thumbnail size](icon://ima
 
 EyeCanSee makes the thumbnail of the selected file first, then those visible in the window, then the others of the folder. Thumbnails are saved on disk, so the next time the folder opens at once; a thumbnail is made again when its file changes.
 
-If a thumbnail looks wrong, right-click the file (or several selected files) and choose **Redo thumbnails**. **View > Redo all thumbnails in the folder** (**Shift+F5**) makes them all again. The space the thumbnails take on disk is set in [Options](options.md).
+If a thumbnail looks wrong, right-click the file (or several selected files) and choose **Redo thumbnails**: it works on every kind of file, also on an audio file, whose thumbnail is its cover. **View > Redo all thumbnails in the folder** (**Shift+F5**) makes them all again. The space the thumbnails take on disk is set in [Options](options.md).
 
 ## Refreshing
 
