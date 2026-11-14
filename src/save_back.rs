@@ -79,13 +79,19 @@ pub fn can_turn_in_place(bytes: &[u8], name: &str) -> bool {
 /// A JPEG that ends at its EOI marker (zeros after it are padding) and has no MPF segment.
 /// libjpeg-turbo drops what follows EOI (tried: 27 bytes after it, gone after a turn).
 fn plain_jpeg(b: &[u8]) -> bool {
+    jpeg_end(b).is_some_and(|(end, mpf)| !mpf && b[end..].iter().all(|&x| x == 0))
+}
+
+/// Where the picture of a JPEG ends (just after its EOI marker), and whether it has an MPF
+/// segment (more pictures after it). `None` if it is not a JPEG that ends.
+pub(crate) fn jpeg_end(b: &[u8]) -> Option<(usize, bool)> {
     if !b.starts_with(&[0xFF, 0xD8]) {
-        return false;
+        return None;
     }
-    let mut i = 2;
+    let (mut i, mut mpf) = (2, false);
     while i + 1 < b.len() {
         if b[i] != 0xFF {
-            return false;
+            return None;
         }
         let marker = b[i + 1];
         match marker {
@@ -93,17 +99,15 @@ fn plain_jpeg(b: &[u8]) -> bool {
                 i += 1; // fill byte
                 continue;
             }
-            0xD9 => return b[i + 2..].iter().all(|&x| x == 0),
+            0xD9 => return Some((i + 2, mpf)),
             0x01 | 0xD0..=0xD7 => {
                 i += 2;
                 continue;
             }
             _ => {}
         }
-        let Some(len) = b.get(i + 2..i + 4).map(|l| u16::from_be_bytes([l[0], l[1]]) as usize).filter(|l| *l >= 2) else { return false };
-        if marker == 0xE2 && b.get(i + 4..i + 2 + len).is_some_and(|body| body.starts_with(b"MPF\0")) {
-            return false;
-        }
+        let len = b.get(i + 2..i + 4).map(|l| u16::from_be_bytes([l[0], l[1]]) as usize).filter(|l| *l >= 2)?;
+        mpf |= marker == 0xE2 && b.get(i + 4..i + 2 + len).is_some_and(|body| body.starts_with(b"MPF\0"));
         i += 2 + len;
         if marker == 0xDA {
             // Coded data, up to the next marker: not a stuffed 0xFF00, not a restart.
@@ -112,7 +116,7 @@ fn plain_jpeg(b: &[u8]) -> bool {
             }
         }
     }
-    false
+    None
 }
 
 /// AVIF image sequence: brand "avis" in the ftyp box.
