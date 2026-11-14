@@ -14,7 +14,7 @@ use crate::transform::Turn;
 /// otherwise at quality 95; the others encoded again, a lossless WebP still lossless. Also says
 /// whether it was encoded again with loss (the confirmation warns about it).
 pub fn turned_file(bytes: &[u8], name: &str, turn: Turn) -> Result<(Vec<u8>, bool), String> {
-    // A phone photo with an HDR gain map: both pictures turned, the HDR kept.
+    // A phone photo with an HDR gain map, or a Motion Photo: all of it turned, HDR and video kept.
     if Format::of_file(name) == Some(Format::Jpeg)
         && let Some(r) = crate::ultrahdr::turned(bytes, turn)
     {

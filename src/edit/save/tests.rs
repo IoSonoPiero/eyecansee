@@ -386,33 +386,36 @@ fn phone_samples() {
     println!("gain map {}×{}, checked {}..{} × {}..{}", gain.width(), gain.height(), x0, x1, y0, y1);
 }
 
-/// libmphoto's Motion Photo turned without loss: no save keeps the video after the picture, so
-/// none keeps what describes it. The viewer's Save leaves the file alone (the original keeps
-/// both); the lossless turn itself writes the picture alone (libjpeg-turbo stops at its end);
-/// the editor's copy of a turn is the picture alone too. The lossless turn keeps
-/// `Container:Directory` (an Ultra HDR photo needs it): only the GCamera tags go there. If a
-/// save ever keeps the video, the description must stay (`xmp::fix`).
+/// Motion Photos without a gain map from real phones (Google's MotionPhoto and MicroVideo, a
+/// Samsung with its own data around the video): only turned, the viewer's Save and the editor's
+/// copy keep the video, shown turned, after the photo turned without re-encoding, and the XMP
+/// that describes it. With another edit the editor's copy is the picture alone.
 #[test]
 #[ignore]
 fn motion_photo_turned() {
     let dir = std::env::var_os("EYECANSEE_PHONE_SAMPLES").map_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("notes/test-files/online/telefono"), std::path::PathBuf::from);
-    let bytes = std::fs::read(dir.join("motion_photo.jpeg")).unwrap_or_else(|e| panic!("motion_photo.jpeg in {}: {e} (test-files/scarica.sh online-telefono)", dir.display()));
     let video = |d: &[u8]| d.windows(4).any(|w| w == b"ftyp");
     // The GCamera namespace, whatever its prefix (here "Camera:").
     let tagged = |d: &[u8]| [":MotionPhoto", ":MicroVideo"].iter().any(|t| String::from_utf8_lossy(d).contains(t));
-    let described = |d: &[u8]| String::from_utf8_lossy(d).contains("MotionPhoto");
-    assert!(video(&bytes) && tagged(&bytes));
     let cw = crate::transform::Turn::default().then(Op::Cw);
-    // The viewer's Save (`replace::rewritten`) and Batch's lossless path skip it.
-    assert!(!crate::save_back::can_turn_in_place(&bytes, "motion_photo.jpeg") && !crate::ultrahdr::is(&bytes));
-    assert!(crate::save_back::turned_file(&bytes, "motion_photo.jpeg", cw).is_err());
-    let turned = crate::transform::jpeg_lossless(&bytes, cw).unwrap();
-    assert!(turned.ends_with(&[0xFF, 0xD9]) && !video(&turned) && !tagged(&turned), "lossless turn: the picture alone");
-    let mut doc = Doc::new(1024, 768, None);
-    doc.turned(Op::Cw);
-    let out = saved(&bytes, "motion_photo.jpeg", &doc);
-    assert!(!video(&out.data) && !described(&out.data), "editor's copy: the picture alone");
-    assert_eq!(crate::decode::decode_full(&out.data, "x.jpg").unwrap().dimensions(), (768, 1024));
+    for name in ["motion_photo.jpeg", "microvideo.jpeg", "MVIMG_20230506_130332.jpg"] {
+        let bytes = std::fs::read(dir.join(name)).unwrap_or_else(|e| panic!("{name} in {}: {e} (test-files/scarica.sh online-telefono)", dir.display()));
+        assert!(video(&bytes) && tagged(&bytes), "{name}");
+        assert!(!crate::save_back::can_turn_in_place(&bytes, name) && !crate::ultrahdr::is(&bytes) && crate::ultrahdr::turns_whole(&bytes), "{name}");
+        let (w, h) = crate::decode::decode_full(&bytes, name).unwrap().dimensions();
+        let (out, lossy) = crate::save_back::turned_file(&bytes, name, cw).unwrap();
+        let (end, _) = crate::save_back::jpeg_end(&out).unwrap();
+        let (old_end, _) = crate::save_back::jpeg_end(&bytes).unwrap();
+        assert!(video(&out[end..]) && tagged(&out[..end]) && !lossy, "{name}: the video kept, the photo not encoded again");
+        assert_eq!(out.len() - end, bytes.len() - old_end, "{name}: what follows the photo, of the same length");
+        assert_eq!(crate::decode::decode_full(&out, name).unwrap().dimensions(), (h, w), "{name}");
+        let mut doc = Doc::new(w, h, None);
+        doc.turned(Op::Cw);
+        assert_eq!(saved(&bytes, name, &doc).data, out, "{name}: the editor's copy, only turned");
+        doc.angle = 1.0;
+        let alone = saved(&bytes, name, &doc).data;
+        assert!(!video(&alone) && !tagged(&alone), "{name}: the editor's copy, edited: the picture alone");
+    }
 }
 
 /// Layers: a cover box hides the line drawn before it, and a line drawn after it stays on top.

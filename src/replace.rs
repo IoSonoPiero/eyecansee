@@ -131,12 +131,12 @@ pub(crate) async fn turned(op: &Store, path: &str, turn: crate::transform::Turn)
 
 /// The file read and passed to `make` (in the background), which gives the file to write and
 /// whether it lost quality; `SKIPPED` if it cannot be written back over itself. An Ultra HDR
-/// photo passes when `ultra_hdr`: only flips and quarter turns know how to keep its gain map.
+/// photo or a Motion Photo passes: flips and quarter turns keep its gain map and its video.
 pub(crate) async fn rewritten<T: Send + 'static>(op: &Store, path: &str, make: impl FnOnce(&[u8], &str) -> Result<T, String> + Send + 'static) -> Result<T, source::Error> {
     let bytes = op.read(path).await?;
     let name = source::name(path).to_string();
     tokio::task::spawn_blocking(move || {
-        if !crate::save_back::can_turn_in_place(&bytes, &name) && !crate::ultrahdr::is(&bytes) {
+        if !crate::save_back::can_turn_in_place(&bytes, &name) && !crate::ultrahdr::turns_whole(&bytes) {
             return Err((SKIPPED, name));
         }
         make(&bytes, &name).map_err(|e| ("error-detail", e))

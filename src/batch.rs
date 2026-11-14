@@ -254,7 +254,7 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     // its size allows it.
     if job.format.is_none()
         && job.size == Size::Same
-        && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::is(bytes))
+        && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes))
         && let Ok((data, _)) = crate::save_back::turned_file(bytes, name, job.turn)
     {
         return Ok((job.named(name.to_string(), false), data));

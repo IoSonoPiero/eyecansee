@@ -24,12 +24,12 @@ Se lasci la foto senza salvare (un'altra foto, ritorno alla griglia, un segnalib
 
 Seleziona una o più foto e scegli una rotazione o un ribaltamento dal menù **Immagine**, dalla barra strumenti o dal menù del clic destro, oppure premi **Ctrl+R** o **Ctrl+Maiusc+R**. Una finestra dice quante foto verranno salvate sopra gli originali e dove vanno gli originali; **Salva** lo fa, **Annulla** (o **Esc**) non fa niente. Qui **Invio** non conferma, così non si sovrascrivono tante foto per sbaglio. Poi le miniature vengono rifatte, e un messaggio con il titolo di ciò che è stato fatto (per esempio **Immagini ruotate**) dice quante foto sono state salvate.
 
-Le foto in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) vengono escluse, e la finestra dice quante sono. Vengono saltati anche i file animati, quelli con più pagine, le foto in movimento e le foto con una mappa di profondità (i ritratti di alcuni telefoni), perché salvandoci sopra quelle parti andrebbero perse; le foto Ultra HDR dei telefoni vengono ruotate insieme al loro HDR, e al loro video se sono anche foto in movimento. Quando l'unica foto scelta non si può salvare sopra sé stessa, la finestra spiega perché e propone **Salva come…**, già ruotata.
+Le foto in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) vengono escluse, e la finestra dice quante sono. Vengono saltati anche i file animati, quelli con più pagine e le foto con una mappa di profondità (i ritratti di alcuni telefoni), perché salvandoci sopra quelle parti andrebbero perse; le foto in movimento dei telefoni vengono ruotate insieme al loro video, e le foto Ultra HDR insieme al loro HDR. Quando l'unica foto scelta non si può salvare sopra sé stessa, la finestra spiega perché e propone **Salva come…**, già ruotata.
 
 ## Salvare sopra l'originale
 
 - L'originale va dove lo manderebbe un'eliminazione, di solito il cestino, così puoi recuperarlo. Vedi [Eliminare e cestino](delete.md).
 - Un JPEG viene ruotato senza perdere qualità quando larghezza e altezza sono multipli di 16 pixel; altrimenti viene risalvato con la qualità che aveva. Anche WebP, AVIF e GIF vengono risalvati, e possono perdere un po' di qualità. La conferma lo dice.
 - I metadati (data, fotocamera, posizione) restano nel file.
-- Le foto Ultra HDR dei telefoni tengono il loro HDR, e il loro video se sono anche foto in movimento.
+- Le foto Ultra HDR dei telefoni tengono il loro HDR, e le foto in movimento il loro video, mostrato ruotato come la foto (il video non viene ricodificato).
 - In una cartella dove salvare sopra un file non è sicuro (per esempio un telefono aperto dal file manager), Salva spiega perché e propone **Salva come…**.

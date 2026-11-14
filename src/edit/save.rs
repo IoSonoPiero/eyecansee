@@ -56,7 +56,7 @@ pub fn plan(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str
     }
     let same = Format::of_file(name);
     let size = photo_size(doc, original);
-    if same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::is(bytes)) {
+    if same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes)) {
         let (data, lossy) = crate::save_back::turned_file(bytes, name, doc.turn)?;
         return Ok(Plan { name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept, data: Some(data) });
     }
@@ -99,8 +99,8 @@ pub fn save(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str
     let same = Format::of_file(name);
     let size = photo_size(doc, original);
     // Flips and quarter turns alone: as the viewer's Save, a JPEG without re-encoding when its
-    // size allows it, an Ultra HDR photo still HDR.
-    if same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::is(bytes)) {
+    // size allows it, an Ultra HDR photo still HDR, a Motion Photo with its video.
+    if same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes)) {
         let (data, lossy) = crate::save_back::turned_file(bytes, name, doc.turn)?;
         return Ok(Saved { data, name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept });
     }

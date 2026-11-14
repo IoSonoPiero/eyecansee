@@ -2,7 +2,8 @@
 //! gain map, after its end. The MPF segment of the photo says where the gain map starts and how
 //! long it is, the XMP container directory says its length again. Turned as a whole: both
 //! pictures the same way, then lengths and offsets written again, so the photo stays HDR. The
-//! same for Rotate and crop (`edited`), the gain map edited at its own scale.
+//! same for Rotate and crop (`edited`), the gain map edited at its own scale. A Motion Photo
+//! without a gain map is turned whole too: the photo, and its video shown turned (`motion_turned`).
 
 use image::DynamicImage;
 
@@ -39,12 +40,52 @@ pub fn is(b: &[u8]) -> bool {
     parts(b).is_some()
 }
 
+/// Can `turned` turn this phone photo keeping all of it: an Ultra HDR JPEG, or a Motion Photo
+/// without a gain map? (`save_back::can_turn_in_place` refuses both: a plain turn would lose
+/// what comes after the photo.)
+pub fn turns_whole(b: &[u8]) -> bool {
+    is(b) || motion_parts(b).is_some()
+}
+
+/// A Motion Photo without a gain map (Pixel and Samsung phones, the "MVIMG" files): the photo,
+/// then after its end the video (an MP4 or MOV: a `ftyp` box, and a video track that
+/// `mp4::turned` can turn), maybe with the maker's data around it (Samsung). Where the photo
+/// ends and where the video starts. Not with an MPF segment: the pictures it lists after the
+/// photo would move.
+fn motion_parts(b: &[u8]) -> Option<(usize, usize)> {
+    let (end, mpf) = crate::save_back::jpeg_end(b)?;
+    if mpf {
+        return None;
+    }
+    let video = end + b.get(end..)?.windows(8).position(|w| &w[4..] == b"ftyp")?;
+    crate::mp4::turned(&b[video..], Turn::default())?;
+    Some((end, video))
+}
+
+/// A Motion Photo without a gain map turned: the photo as `one` turns it, with the XMP that
+/// describes the video, then all that followed it as it was, the video shown turned the same
+/// way (its display matrix changed, nothing encoded again). The lengths and offsets the XMP and
+/// the maker's data give count from the end of the file, which does not change.
+fn motion_turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
+    let (end, video) = motion_parts(b)?;
+    let photo = &b[..end];
+    Some((|| {
+        let turned_video = crate::mp4::turned(&b[video..], turn).ok_or("Motion Photo: its video could not be turned")?;
+        let (mut out, lossy) = one(photo, turn, |j| transform::jpeg_lossless(j, turn))?;
+        keep_video_xmp(&mut out, photo)?;
+        out.extend_from_slice(&b[end..video]);
+        out.extend(turned_video);
+        Ok((out, lossy))
+    })())
+}
+
 /// The file turned, photo and gain map, and the video of a Motion Photo after them shown turned
-/// the same way (nothing is lost, #54); `None` if it is not an Ultra HDR file.
+/// the same way (nothing is lost, #54); a Motion Photo without a gain map as `motion_turned`
+/// does it; `None` if it is neither (`turns_whole`).
 /// Also says whether it lost quality (a picture whose size is not a multiple of the JPEG blocks
 /// is encoded again at quality 95).
 pub fn turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
-    let p = parts(b)?;
+    let Some(p) = parts(b) else { return motion_turned(b, turn) };
     let (photo, gain) = split(b)?;
     Some((|| {
         // The gain map has the photo's pixels in the photo's orientation: it turns as they do.
@@ -66,7 +107,9 @@ pub fn turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
 /// of the video that is written after the gain map (`xmp::fit_keeping_video`).
 fn keep_video_xmp(photo: &mut Vec<u8>, old: &[u8]) -> Result<(), String> {
     let xmp = |b: &[u8]| segments(b).into_iter().find(|&(m, s, e)| m == 0xE1 && b[s + 4..e].starts_with(crate::meta_write::JPEG_XMP));
-    let (Some((_, os, oe)), Some((_, s, e))) = (xmp(old), xmp(photo)) else { return Err("Motion Photo: XMP lost".into()) };
+    // Without an XMP of its own (older Samsung phones) the video is described only by the maker's data.
+    let Some((_, os, oe)) = xmp(old) else { return Ok(()) };
+    let Some((_, s, e)) = xmp(photo) else { return Err("Motion Photo: XMP lost".into()) };
     let (w, h) = image::ImageReader::new(std::io::Cursor::new(&photo[..])).with_guessed_format().map_err(|e| e.to_string())?.into_dimensions().map_err(|e| e.to_string())?;
     let packet = crate::xmp::fit_keeping_video(&old[os + 4 + crate::meta_write::JPEG_XMP.len()..oe], w, h);
     let body = [crate::meta_write::JPEG_XMP, &packet].concat();
@@ -468,6 +511,40 @@ pub(crate) mod tests {
         let p = parts(&out).expect("still Ultra HDR");
         assert!(p.video && out.len() - p.end == video.len());
         assert_eq!(&out[p.end..], crate::mp4::turned(&video, cw).unwrap());
+    }
+
+    /// A Motion Photo without a gain map (older Pixels, Samsung with its own data before the
+    /// video): turned whole, the photo without re-encoding, the XMP still describing the video,
+    /// what follows the photo of the same length, the video shown turned. Not with an MPF segment
+    /// (its pictures would move), not with zeros or random bytes after the photo. Convert, only
+    /// turned, writes the same file.
+    #[test]
+    fn motion_photo_without_gain_map() {
+        let xmp = "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta><rdf:Description GCamera:MotionPhoto=\"1\"/><rdf:Seq><rdf:li><Container:Item Item:Semantic=\"Primary\" Item:Mime=\"image/jpeg\"/></rdf:li><rdf:li><Container:Item Item:Semantic=\"MotionPhoto\" Item:Mime=\"video/mp4\" Item:Length=\"999\"/></rdf:li></rdf:Seq></x:xmpmeta>";
+        let plain = jpeg(32, 16);
+        let photo = [&plain[..2], &segment(0xE1, xmp.as_bytes()), &plain[2..]].concat();
+        let video = crate::mp4::tests::video(160, 90);
+        let cw = Turn::default().then(transform::Op::Cw);
+        for maker in [&b""[..], &b"\0\0\x01\x0aMotionPhoto_Data"[..]] {
+            let file = [photo.as_slice(), maker, &video].concat();
+            assert!(turns_whole(&file) && !is(&file) && !crate::save_back::can_turn_in_place(&file, "a.jpg"));
+            let (out, lossy) = turned(&file, cw).unwrap().unwrap();
+            assert!(!lossy);
+            let (end, at) = motion_parts(&out).expect("still a Motion Photo");
+            assert_eq!(image::load_from_memory(&out[..end]).unwrap().dimensions(), (16, 32));
+            assert!(String::from_utf8_lossy(&out[..end]).contains("Item:Semantic=\"MotionPhoto\""), "the XMP still describes the video");
+            assert_eq!((&out[end..at], out.len() - end), (maker, file.len() - photo.len()));
+            assert_eq!(&out[at..], crate::mp4::turned(&video, cw).unwrap());
+            // The viewer's Save and Convert (only turned, same format) take the same path.
+            assert_eq!(crate::save_back::turned_file(&file, "a.jpg", cw).unwrap().0, out);
+            let job = crate::batch::Job { format: None, turn: cw, ..Default::default() };
+            assert_eq!(crate::batch::convert(&file, "a.jpg", &job).unwrap().1, out);
+        }
+        assert!(!turns_whole(&photo) && !turns_whole(&[photo.as_slice(), &[0; 16]].concat()) && !turns_whole(&[photo.as_slice(), &[7; 40]].concat()));
+        let mpf = [&photo[..2], &segment(0xE2, b"MPF\0II*\0"), &photo[2..], &video].concat();
+        assert!(!turns_whole(&mpf));
+        // A `ftyp` box without a video to turn after it: skipped as before, not an error.
+        assert!(!turns_whole(&[photo.as_slice(), b"\0\0\0\x18ftypmp42\0\0\0\0isommp42", &[7; 64]].concat()));
     }
 
     /// Convert and resize (#65): turned and halved, the gain map turned and halved with it (its
