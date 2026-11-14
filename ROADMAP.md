@@ -68,6 +68,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Image editor: a working file (.eye) that keeps texts, arrows and pasted pieces editable ([#138](https://github.com/IoSonoPiero/eyecansee/issues/138)).
 - Archives: zip and 7z opened as read-only folders first, then creating zip archives ([#26](https://github.com/IoSonoPiero/eyecansee/issues/26)).
 - Thumbnails: invert the selection ([#135](https://github.com/IoSonoPiero/eyecansee/issues/135)).
+- Thumbnails: choose the details shown under each thumbnail (dimensions, size, date, duration) ([#139](https://github.com/IoSonoPiero/eyecansee/issues/139)).
 - Rename several files at once ([#27](https://github.com/IoSonoPiero/eyecansee/issues/27)).
 - Metadata editor for EXIF and GPS ([#28](https://github.com/IoSonoPiero/eyecansee/issues/28)).
 - Similar images (the same photo resized or recompressed) ([#29](https://github.com/IoSonoPiero/eyecansee/issues/29)).
