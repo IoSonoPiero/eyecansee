@@ -11,7 +11,7 @@ Sono nel menù **Immagine**, e nel menù del clic destro sotto **Trasforma**:
 - **Ruota di 90° in senso antiorario** (**Ctrl+Maiusc+R**), ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) nella barra strumenti;
 - **Ruota di 180°**.
 
-Funzionano solo sulle foto: su video, modelli 3D e disegni CAD sono grigi. Per ruotare un video vedi [Convertire i video](convert-video.md). Per ruotare una foto di un angolo qualsiasi, per esempio per raddrizzare un orizzonte, usa **Immagine > Ruota e ritaglia…**: vedi [Ritagliare e ruotare](editor-crop.md).
+Funzionano sulle foto, e le tre rotazioni anche sui video (vedi sotto); su modelli 3D e disegni CAD sono grigi. Per ruotare una foto di un angolo qualsiasi, per esempio per raddrizzare un orizzonte, usa **Immagine > Ruota e ritaglia…**: vedi [Ritagliare e ruotare](editor-crop.md).
 
 ## Nel visore
 
@@ -25,6 +25,10 @@ Se lasci la foto senza salvare (un'altra foto, ritorno alla griglia, un segnalib
 Seleziona una o più foto e scegli una rotazione o un ribaltamento dal menù **Immagine**, dalla barra strumenti o dal menù del clic destro, oppure premi **Ctrl+R** o **Ctrl+Maiusc+R**. Una finestra dice quante foto verranno salvate sopra gli originali e dove vanno gli originali; **Salva** lo fa, **Annulla** (o **Esc**) non fa niente. Qui **Invio** non conferma, così non si sovrascrivono tante foto per sbaglio. Poi le miniature vengono rifatte, e un messaggio con il titolo di ciò che è stato fatto (per esempio **Immagini ruotate**) dice quante foto sono state salvate.
 
 Le foto in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) vengono escluse, e la finestra dice quante sono. Vengono saltati anche i file animati, quelli con più pagine e le foto con una mappa di profondità (i ritratti di alcuni telefoni), perché salvandoci sopra quelle parti andrebbero perse; le foto in movimento dei telefoni vengono ruotate insieme al loro video, e le foto Ultra HDR insieme al loro HDR. Quando l'unica foto scelta non si può salvare sopra sé stessa, la finestra spiega perché e propone **Salva come…**, già ruotata.
+
+## Video
+
+Un video si ruota come una foto, nel visore o nella griglia, e si salva sopra l'originale allo stesso modo, con l'originale nel cestino. Non viene ricodificato: cambia solo la rotazione che leggono i lettori, quindi bastano pochi secondi, non si perde niente e i metadati restano. Funziona su MP4, MOV, MKV e WebM, con un FFmpeg (vedi [Convertire i video](convert-video.md)). Un video non si può riflettere così: per rifletterlo usa **Converti…**.
 
 ## Salvare sopra l'originale
 
