@@ -292,6 +292,57 @@ pub fn loading(ui: &mut egui::Ui, text: String, colour: Option<Color32>) {
     });
 }
 
+/// Where a hint at the end of a wrapping bar goes, `width` wide with `left` free on this row and
+/// `full` in a whole row.
+#[derive(Debug, PartialEq)]
+enum HintPlace {
+    /// On this row, after the controls.
+    Here,
+    /// Whole on the row below.
+    NextRow,
+    /// Wider than a row: from the start of the row below, wrapped at the spaces.
+    Wrapped,
+}
+
+fn hint_place(width: f32, left: f32, full: f32) -> HintPlace {
+    if width <= left {
+        HintPlace::Here
+    } else if width <= full {
+        HintPlace::NextRow
+    } else {
+        HintPlace::Wrapped
+    }
+}
+
+/// A faint hint in a bar that wraps (`horizontal_wrapped`), in one piece. egui starts a long
+/// label after the last control and goes on at the left edge of the row below: half a sentence
+/// sat after the controls and half under them (the editor's Text tool, 2026-11-14).
+pub fn bar_hint(ui: &mut egui::Ui, text: String) {
+    let one_line = egui::WidgetText::from(egui::RichText::new(&text).weak()).into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::TextStyle::Body);
+    let (left, full) = (ui.available_size_before_wrap().x, ui.available_width());
+    match hint_place(one_line.size().x, left, full) {
+        HintPlace::Here => {
+            ui.label(one_line);
+        }
+        HintPlace::NextRow => {
+            ui.end_row();
+            ui.label(one_line);
+        }
+        HintPlace::Wrapped => {
+            if left < full {
+                ui.end_row();
+            }
+            ui.add(egui::Label::new(egui::RichText::new(text).weak()).wrap());
+        }
+    }
+}
+
+/// The width a text box needs to show `hint` on one line (its margins included).
+pub fn hint_width(ui: &egui::Ui, hint: &str) -> f32 {
+    let galley = egui::WidgetText::from(hint).into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::TextStyle::Body);
+    galley.size().x + 2.0 * ui.spacing().button_padding.x + 4.0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,5 +364,15 @@ mod tests {
     #[test]
     fn alert_button_contrast() {
         assert!(contrast(Color32::WHITE, ALERT_RED) >= 7.0, "{}", contrast(Color32::WHITE, ALERT_RED));
+    }
+
+    /// A hint goes after the controls when it fits, whole on the row below when a row holds it,
+    /// wrapped from the start of a row only when no row does.
+    #[test]
+    fn bar_hint_in_one_piece() {
+        assert_eq!(hint_place(300.0, 320.0, 900.0), HintPlace::Here);
+        assert_eq!(hint_place(300.0, 120.0, 900.0), HintPlace::NextRow);
+        assert_eq!(hint_place(300.0, 0.0, 300.0), HintPlace::NextRow);
+        assert_eq!(hint_place(300.0, 120.0, 250.0), HintPlace::Wrapped);
     }
 }

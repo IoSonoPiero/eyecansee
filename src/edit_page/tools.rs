@@ -703,10 +703,12 @@ fn fill_colours(ui: &mut egui::Ui, fill: &mut Option<[u8; 3]>, i18n: &I18n) {
 fn text_field(ui: &mut egui::Ui, w: &mut Window, selected: Option<usize>, i18n: &I18n) {
     let Some(text) = selected.and_then(|i| w.doc.objects[i].shape.text_mut()) else {
         w.focus_text = false;
-        ui.weak(i18n.t("edit-text-hint"));
+        crate::theme::bar_hint(ui, i18n.t("edit-text-hint"));
         return;
     };
-    let r = ui.add(egui::TextEdit::multiline(text).desired_rows(1).desired_width(280.0).hint_text(i18n.t("edit-text-hint")));
+    // As wide as the hint, so the empty box shows it on one line.
+    let hint = i18n.t("edit-text-hint");
+    let r = ui.add(egui::TextEdit::multiline(text).desired_rows(1).desired_width(crate::theme::hint_width(ui, &hint).max(280.0)).hint_text(hint));
     // A text typed on the image takes the keys there (`typing`).
     if w.editing.is_none() && std::mem::take(&mut w.focus_text) {
         r.request_focus();
