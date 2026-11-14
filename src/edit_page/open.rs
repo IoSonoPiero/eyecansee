@@ -65,6 +65,17 @@ impl App {
         }
     }
 
+    /// In the grid, the one picture chosen is looked at before the editor is asked for: animated or
+    /// with several pages, Edit image… is off there too, as in the viewer, which reads it whole.
+    pub(crate) fn probe_chosen(&mut self, ctx: &egui::Context) {
+        if self.viewing.is_some() || self.editor.is_some() || self.convert.is_some() {
+            return;
+        }
+        if let [path] = self.grid_images(None).as_slice() {
+            self.probe_animated(ctx, path, false);
+        }
+    }
+
     /// Reads the start of `path`, without decoding it, to know whether it is animated or has
     /// several pages (`animated`, through `Msg::Animated`). When the start does not tell, the
     /// whole file: with `whole`, or on this computer up to `WHOLE_LOCAL`. Once per file.
@@ -79,20 +90,7 @@ impl App {
         let whole = whole || (!crate::kept::remote(&store) && size.is_some_and(|s| s <= WHOLE_LOCAL));
         let (tx, ctx, path) = (self.tx.clone(), ctx.clone(), path.to_string());
         self.rt.spawn(async move {
-            let short = size.is_none_or(|s| s <= HEAD);
-            let head = if short { store.read(&path).await } else { store.read_range(&path, 0, HEAD).await };
-            let Ok(head) = head else { return };
-            let told = if short { None } else { anim::from_head(&head, &path) };
-            let found = match told {
-                Some(found) => found,
-                None if short || whole => {
-                    let bytes = if short { head } else { store.read(&path).await.unwrap_or_default() };
-                    let name = path.clone();
-                    tokio::task::spawn_blocking(move || !bytes.is_empty() && crate::edit::save::animated(&bytes, &name)).await.unwrap_or(false)
-                }
-                None => false,
-            };
-            log!("animated {path:?}: {found} ({})", if told.is_some() { "from its start" } else { "read whole" });
+            let found = found_animated(&store, &path, size, whole).await;
             if found && tx.send(crate::loader::Msg::Animated(path)).is_ok() {
                 ctx.request_repaint();
             }
@@ -137,6 +135,10 @@ impl App {
 
     pub(crate) fn editor_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, ColorImage, u64), String>) {
         let Some(w) = &mut self.editor else { return };
+        // Opened before it was known: off from now on.
+        if r.as_ref().is_err_and(|e| e == super::ANIMATED) {
+            self.animated.insert(w.path.clone());
+        }
         // The photo as read; at the document's size from the next frame (`follow_size`).
         w.full = r.as_ref().ok().map(|(original, ..)| original.clone());
         w.scaled = None;
@@ -160,5 +162,59 @@ impl App {
             s.width = (s.width * long).max(1.0);
             s.letters *= long;
         }
+    }
+}
+
+/// Whether the picture `path` (`size` bytes, if known) is animated or has several pages: told by
+/// its start, or by the whole file when short, or with `whole`; `false` when not known.
+async fn found_animated(store: &crate::source::Store, path: &str, size: Option<u64>, whole: bool) -> bool {
+    let short = size.is_none_or(|s| s <= HEAD);
+    let head = if short { store.read(path).await } else { store.read_range(path, 0, HEAD).await };
+    let Ok(head) = head else { return false };
+    let told = if short { None } else { anim::from_head(&head, path) };
+    let found = match told {
+        Some(found) => found,
+        None if short || whole => {
+            let bytes = if short { head } else { store.read(path).await.unwrap_or_default() };
+            let name = path.to_string();
+            tokio::task::spawn_blocking(move || !bytes.is_empty() && crate::edit::save::animated(&bytes, &name)).await.unwrap_or(false)
+        }
+        None => false,
+    };
+    log!("animated {path:?}: {found} ({})", if told.is_some() { "from its start" } else { "read whole" });
+    found
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Edit image… off from the grid too: an animated or multi-page file is found from its start,
+    /// a large one whose start does not tell only when it may be read whole; a still one never.
+    #[test]
+    fn found_from_the_start_or_whole() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-probe-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let small = image::DynamicImage::new_rgb8(8, 8);
+        let mut png = Vec::new();
+        small.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        // Two pages of noise: the directories come after more than `HEAD` bytes of pixels.
+        let big = image::DynamicImage::ImageRgb8(image::RgbImage::from_fn(400, 400, |x, y| image::Rgb([(x * 7 + y) as u8, (y * 3) as u8, (x ^ y) as u8])));
+        let files = [("still.png", png.clone()), ("moving.png", crate::encode::tests::apng(&png)), ("pages.tif", crate::encode::tests::tiff_pages(&big))];
+        for (name, bytes) in &files {
+            std::fs::write(dir.join(name), bytes).unwrap();
+        }
+        let store = crate::source::Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let size = |n: usize| Some(files[n].1.len() as u64);
+        assert!(files[2].1.len() as u64 > HEAD && anim::from_head(&files[2].1[..HEAD as usize], "pages.tif").is_none());
+        assert!(!rt.block_on(found_animated(&store, "still.png", size(0), false)));
+        assert!(rt.block_on(found_animated(&store, "moving.png", size(1), false)));
+        assert!(rt.block_on(found_animated(&store, "moving.png", None, false)));
+        assert!(!rt.block_on(found_animated(&store, "pages.tif", size(2), false)));
+        assert!(rt.block_on(found_animated(&store, "pages.tif", size(2), true)));
+        assert!(!rt.block_on(found_animated(&store, "gone.png", None, true)));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

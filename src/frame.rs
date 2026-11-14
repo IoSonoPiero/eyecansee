@@ -63,6 +63,7 @@ impl App {
         if let Some(current) = self.viewing {
             self.prefetch_full(current);
         }
+        self.probe_chosen(ctx);
         self.update_title(ctx);
         // Size to remember: that of the non-maximised window.
         let (size, maximized) = ctx.input(|i| (i.viewport_rect().size(), i.viewport().maximized));

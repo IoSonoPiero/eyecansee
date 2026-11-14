@@ -10,7 +10,7 @@ The editor is a page of its own where you draw on one image, cover private detai
 - **Image > Rotate and crop…** opens the same page with the crop tool already chosen. See [Crop and rotate](editor-crop.md).
 - **File > New image…** (Ctrl+N) opens an empty image in the editor. See [New image](new-image.md).
 
-The editor works on one image at a time. With several images selected, these items are off; to turn several images at once use [Rotating and flipping](rotate.md) or [Converting and resizing images](convert.md). They are also off for an animated image or one with several pages, because only the first picture would be saved.
+The editor works on one image at a time. With several images selected, these items are off; to turn several images at once use [Rotating and flipping](rotate.md) or [Converting and resizing images](convert.md). They are also off for an animated image or one with several pages, in the grid as in the viewer, because only the first picture would be saved.
 
 ## The page
 

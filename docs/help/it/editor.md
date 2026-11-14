@@ -10,7 +10,7 @@ L'editor è una pagina a sé dove disegni su un'immagine, copri i dati privati, 
 - **Immagine > Ruota e ritaglia…** apre la stessa pagina con lo strumento del ritaglio già scelto. Vedi [Ritagliare e ruotare](editor-crop.md).
 - **File > Nuova immagine…** (Ctrl+N) apre un'immagine vuota nell'editor. Vedi [Nuova immagine](new-image.md).
 
-L'editor lavora su un'immagine alla volta. Con più immagini selezionate queste voci sono spente; per girare più immagini insieme usa [Ruotare e riflettere](rotate.md) o [Convertire e ridimensionare le immagini](convert.md). Sono spente anche per un'immagine animata o con più pagine, perché si salverebbe solo la prima.
+L'editor lavora su un'immagine alla volta. Con più immagini selezionate queste voci sono spente; per girare più immagini insieme usa [Ruotare e riflettere](rotate.md) o [Convertire e ridimensionare le immagini](convert.md). Sono spente anche per un'immagine animata o con più pagine, nella griglia come nel visore, perché si salverebbe solo la prima.
 
 ## La pagina
 
