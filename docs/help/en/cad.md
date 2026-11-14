@@ -35,8 +35,8 @@ Texts are written with the drawing's SHX fonts when the font files are next to t
 
 ## Saving a drawing as a picture or in the other AutoCAD format
 
-- In the viewer, **Ctrl+Shift+S** or **Save as…** in the right-click menu saves what you see (the model or the layout shown) as a picture. See [Save as](save-as.md).
-- **Tools > Export drawing…** (also in the right-click menu) saves the drawings selected in the grid, all at once. Choose the **format**: a picture format, **SVG** (sharp at any zoom, without layers and blocks), or **DWG** / **DXF** (the whole drawing in the other AutoCAD format, with its layers, blocks, layouts and styles). For pictures choose the **Long side** in pixels: the drawing is drawn again at that size, so it stays sharp even when large. Then choose where the files go, as in [Converting and resizing images](convert.md), and press **Export**.
+- **Ctrl+Shift+S** or **Save as…** (in the File menu or in the right-click menu) saves the drawing as a picture: in the viewer what you see (the layout shown), in the grid the whole drawing. See [Save as](save-as.md).
+- **File > Export drawing…** (also in the right-click menu, in the grid and in the viewer) saves the drawings selected in the grid, or the one in the viewer, all at once. Choose the **format**: a picture format, **SVG** (sharp at any zoom, without layers and blocks), or **DWG** / **DXF** (the whole drawing in the other AutoCAD format, with its layers, blocks, layouts and styles). For pictures choose the **Long side** in pixels: the drawing is drawn again at that size, so it stays sharp even when large. Then choose where the files go, as in [Converting and resizing images](convert.md), and press **Export**.
 
 Pictures and SVG show the model space, not the layouts. A drawing saved as DWG or DXF is read back and compared with the original: if anything would be lost, it is not saved, and the summary at the end says so.
 

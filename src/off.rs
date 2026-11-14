@@ -125,6 +125,17 @@ impl App {
         self.trash_off().or_else(|| self.off(save_as_id(self.shown(), saved)))
     }
 
+    /// Export drawing…, on how the CAD drawings fit the files chosen (`selection::fits`): one
+    /// conversion at a time.
+    pub(crate) fn drawings_off(&self, fit: Option<bool>) -> Option<String> {
+        let id = match () {
+            _ if fit.is_none() => Some(crate::selection::none_of(&[Kind::Drawing])),
+            _ if self.batch.is_some() => Some("tb-off-busy"),
+            _ => None,
+        };
+        self.off(id)
+    }
+
     pub(crate) fn rename_off(&self) -> Option<String> {
         let trash = self.chosen_in_trash().then_some("off-trash-rename");
         self.off(trash.or_else(|| rename_id(self.chosen(None).len(), self.target().is_some())))

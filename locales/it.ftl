@@ -405,9 +405,17 @@ hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il
 cad-model = Modello
 cad-units = unità
 keys-button = Tasti
-menu-export-3d = Esporta come modello 3D
+menu-export-3d = Esporta come modello 3D…
 status-exported = Salvato come { $name }
 export-failed = Esportazione non riuscita: { $error }
+model-export-title = Esporta come modello 3D
+model-export-count = { $n ->
+    [one] 1 modello 3D scelto.
+   *[other] { $n } modelli 3D scelti.
+}
+model-export-format = Formato:
+model-export-where = Ogni copia va accanto al suo modello, con lo stesso nome; un nome già preso riceve " (2)".
+model-export-ok = Esporta
 hint-model = Frecce o trascinare: ruotare | Maiusc+trascinare: spostare | Rotellina, + e −: zoom | 0: vista di partenza | Pag↑, Pag↓: precedente, successivo | Ctrl+S: salva come immagine | F11: schermo intero | Esc: indietro
 hint-edit-select = Clic: seleziona un oggetto | Trascinare: lo sposta | Trascinare un angolo o un capo: ridimensiona | Doppio clic su un testo o un fumetto: cambia le lettere | Canc: elimina | Ctrl+C: copia il risultato | Esc: lascia l'oggetto
 hint-edit-marquee = Trascinare: sceglie una zona | Maiusc+trascinare: un quadrato | Ctrl+C: copia la zona | Ctrl+X: la taglia | Ctrl+V: incolla come oggetto | Clic o Esc: lascia la zona
@@ -1266,7 +1274,7 @@ off-not-viewer = Solo nel visore.
 off-no-show = Nessuna immagine o video in questa cartella.
 off-no-file = Seleziona prima uno o più file.
 off-save-model = Un modello 3D non si salva sopra il suo file: Salva come… ne fa un'immagine, Esporta come modello 3D una copia in un altro formato 3D.
-off-save-drawing = Un disegno CAD non si salva sopra il suo file: Salva come… fa un'immagine del layout mostrato, Esporta disegno… una copia come immagine o SVG.
+off-save-drawing = Un disegno CAD non si salva sopra il suo file: Salva come… fa un'immagine del layout mostrato, Esporta disegno… una copia come immagine, SVG, DWG o DXF.
 off-save-played = Niente da salvare: video e file audio non si modificano nel visore.
 off-save-as-played = Salva come… è per le immagini: video e file audio si convertono con Converti… nella griglia.
 off-trash-clip = Gli elementi del cestino non si tagliano né si copiano: prima ripristinali.

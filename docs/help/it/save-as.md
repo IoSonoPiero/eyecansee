@@ -8,7 +8,7 @@ Per convertire o ridimensionare tante immagini insieme usa [Convertire e ridimen
 
 - Nella griglia seleziona un'immagine e fai clic su ![Salva come…](icon://file-output) nella barra strumenti, oppure scegli **File > Salva come…**, oppure fai clic destro sull'immagine e scegli **Salva come…**.
 - Nel visore premi **Ctrl+Maiusc+S**, o usa le stesse voci di menù. Se nel visore hai ruotato o riflesso l'immagine, viene salvata ruotata.
-- Nel visore anche un modello 3D o un disegno CAD si possono salvare come immagine, così come si vedono: un modello di almeno 1920 pixel sul lato lungo, un disegno con il layout che stai guardando. **Ctrl+S** e **File > Salva** salvano sopra l'originale, cosa che un modello o un disegno non permettono: lì sono grigi, e passando col mouse su **Salva** compare cosa usare invece.
+- Anche un modello 3D o un disegno CAD si possono salvare come immagine. Nel visore così come si vedono: un modello di almeno 1920 pixel sul lato lungo, un disegno con il layout che stai guardando. Dalla griglia un modello dalla sua vista iniziale, 1920 × 1440 pixel, e un disegno intero. Se sono selezionati anche altri file, **Salva come…** è segnato con **\*** e lavora sull'unica immagine, modello o disegno tra questi. **Ctrl+S** e **File > Salva** salvano sopra l'originale, cosa che un modello o un disegno non permettono: lì sono grigi, e passando col mouse su **Salva** compare cosa usare invece.
 - Nell'editor, **Salva come…** apre questa pagina con l'immagine modificata (vedi [Salvare un'immagine modificata](editor-save.md)). Chiudendola senza salvare torni all'editor, con le modifiche.
 
 ![Salva come](../img/save-as.webp)

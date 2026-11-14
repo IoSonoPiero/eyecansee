@@ -41,8 +41,9 @@ pub(crate) enum Act {
     NewFolder(Option<String>),
     /// "Save in another format" for an image (`None` = the selected one or the one in the viewer).
     Convert(Option<String>),
-    /// A 3D model saved in another 3D format, next to it (`None` = the selected one or the one in the viewer).
-    ExportModel(Option<String>, crate::model_export::Kind),
+    /// Export as a 3D model…: the window that saves the 3D models chosen in another 3D format,
+    /// next to them (`None` = the marked ones, the selected one or the one in the viewer).
+    ExportModel(Option<String>),
     /// Convert…: the window of Convert and resize on the pictures and videos of the grid, on the
     /// part of the format (`None` = the marked ones or the selected one).
     Batch(Option<String>),
@@ -51,7 +52,7 @@ pub(crate) enum Act {
     /// Resize > Custom…: the same window on the pictures, on the part of the size, in their own
     /// format (same `None`).
     ResizeCustom(Option<String>),
-    /// CAD drawings of the grid as pictures or SVG, drawn again (same `None`).
+    /// CAD drawings of the grid, or the one in the viewer, as pictures or SVG, drawn again (same `None`).
     ExportDrawings(Option<String>),
     /// Converti e ridimensiona preset on copied streams: the video rewritten with its metadata.
     CopyMeta(Option<String>),
@@ -281,7 +282,7 @@ impl App {
             Act::NewFolder(dir) => self.ask_new_folder(dir),
             Act::NewImage => self.new_image = Some(crate::new_image::Form::new()),
             Act::Convert(path) => self.open_convert(self.save_as_target(path)),
-            Act::ExportModel(path, kind) => self.export_model(path, kind),
+            Act::ExportModel(path) => self.open_model_export(path),
             Act::Duplicates(dir) => self.open_duplicates(dir),
             Act::Batch(path) => self.open_batch(path),
             Act::Resize(size, path) => self.resize_now(ctx, size, path),

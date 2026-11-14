@@ -85,6 +85,7 @@ mod model_3ds;
 mod model_amf;
 mod model_dae;
 mod model_export;
+mod model_export_page;
 mod model_fbx;
 mod model_gltf;
 mod model_gltf_unpack;
@@ -435,6 +436,10 @@ struct App {
     new_folder: Option<(String, String, bool)>,
     /// File > New image…: its window is open.
     new_image: Option<new_image::Form>,
+    /// Export as a 3D model…: its window is open.
+    model_export: Option<model_export_page::Form>,
+    /// The format of the last export of a 3D model, proposed again.
+    model_export_kind: model_export::Kind,
     /// A folder just made, or the editor's copy just saved: selected (and shown in the viewer)
     /// once its folder is read again.
     select_after: Option<String>,

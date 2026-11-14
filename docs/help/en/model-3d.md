@@ -42,6 +42,6 @@ Without a graphics card EyeCanSee can use, the viewer shows the still picture of
 ## Saving
 
 - **Ctrl+Shift+S**, or **Save as…** in the File menu or in the right-click menu of the viewer, saves the model as it is shown, as a picture, at least 1920 pixels on its long side. See [Save as](save-as.md).
-- **Export as a 3D model** saves it in another 3D format. See [Exporting 3D models](model-export.md).
+- **Export as a 3D model…** saves it in another 3D format. See [Exporting 3D models](model-export.md).
 
 Turning and flipping from the Image menu do not apply to models: a model turns with the mouse and the arrows.

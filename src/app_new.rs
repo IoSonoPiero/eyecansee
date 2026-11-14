@@ -134,6 +134,8 @@ impl App {
             rename: None,
             new_folder: None,
             new_image: None,
+            model_export: None,
+            model_export_kind: crate::model_export::Kind::Stl,
             select_after: None,
             restore_queue: Default::default(),
             restore_busy: false,

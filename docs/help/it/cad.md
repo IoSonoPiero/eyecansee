@@ -35,8 +35,8 @@ I testi si scrivono con i font SHX del disegno quando i file dei font sono accan
 
 ## Salvare un disegno come immagine o nell'altro formato AutoCAD
 
-- Nel visore, **Ctrl+Maiusc+S** o **Salva come…** nel menù del clic destro salva quello che vedi (il modello o il layout mostrato) come immagine. Vedi [Salva come](save-as.md).
-- **Strumenti > Esporta disegno…** (anche nel menù del clic destro) salva i disegni selezionati nella griglia, tutti insieme. Scegli il **formato**: un formato di immagine, **SVG** (nitido a ogni ingrandimento, senza livelli né blocchi), oppure **DWG** / **DXF** (tutto il disegno nell'altro formato AutoCAD, con livelli, blocchi, layout e stili). Per le immagini scegli il **Lato lungo** in pixel: il disegno viene ridisegnato a quella misura, quindi resta nitido anche grande. Poi scegli dove vanno i file, come in [Convertire e ridimensionare le immagini](convert.md), e premi **Esporta**.
+- **Ctrl+Maiusc+S** o **Salva come…** (nel menù File o nel menù del clic destro) salva il disegno come immagine: nel visore quello che vedi (il layout mostrato), nella griglia il disegno intero. Vedi [Salva come](save-as.md).
+- **File > Esporta disegno…** (anche nel menù del clic destro, nella griglia e nel visore) salva i disegni selezionati nella griglia, o quello nel visore, tutti insieme. Scegli il **formato**: un formato di immagine, **SVG** (nitido a ogni ingrandimento, senza livelli né blocchi), oppure **DWG** / **DXF** (tutto il disegno nell'altro formato AutoCAD, con livelli, blocchi, layout e stili). Per le immagini scegli il **Lato lungo** in pixel: il disegno viene ridisegnato a quella misura, quindi resta nitido anche grande. Poi scegli dove vanno i file, come in [Convertire e ridimensionare le immagini](convert.md), e premi **Esporta**.
 
 Immagini e SVG mostrano lo spazio modello, non i layout. Un disegno salvato come DWG o DXF viene riletto e confrontato con l'originale: se qualcosa andrebbe perso non viene salvato, e il riepilogo alla fine lo dice.
 

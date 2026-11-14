@@ -335,7 +335,8 @@ impl App {
             return false;
         }
         let drawings = kinds == [Kind::Drawing];
-        let (paths, left_out) = split(self.grid_chosen(path), kinds);
+        // In the viewer the file shown (Export drawing…).
+        let (paths, left_out) = split(self.files_chosen(path), kinds);
         if paths.is_empty() {
             return false;
         }

@@ -42,6 +42,6 @@ Senza una scheda video che EyeCanSee possa usare, il visore mostra l'immagine fe
 ## Salvare
 
 - **Ctrl+Maiusc+S**, o **Salva come…** nel menù File o nel menù del clic destro del visore, salva il modello come si vede, come immagine, di almeno 1920 pixel sul lato lungo. Vedi [Salva come](save-as.md).
-- **Esporta come modello 3D** lo salva in un altro formato 3D. Vedi [Esportare i modelli 3D](model-export.md).
+- **Esporta come modello 3D…** lo salva in un altro formato 3D. Vedi [Esportare i modelli 3D](model-export.md).
 
 Le rotazioni e i ribaltamenti del menù Immagine non valgono per i modelli: un modello si gira col mouse e con le frecce.

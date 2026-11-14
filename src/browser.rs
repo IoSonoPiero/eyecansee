@@ -167,7 +167,6 @@ impl App {
         vec![
             entry(CONVERTED, "menu-batch", self.i18n.t("key-batch"), Act::Batch(path.clone())),
             entry(&[Kind::Picture], "menu-resize", String::new(), Act::Submenu(self.resize_items(path.clone()))),
-            entry(&[Kind::Drawing], "menu-export-drawings", String::new(), Act::ExportDrawings(path.clone())),
             entry(PLAYED, "menu-copy-meta", String::new(), Act::CopyMeta(path.clone())),
             entry(&[Kind::Video], "menu-strip-audio", String::new(), Act::Audio(AudioJob::Strip, path.clone())),
             entry(&[Kind::Video], "menu-extract-audio", String::new(), Act::Audio(AudioJob::Extract, path)),
@@ -201,15 +200,17 @@ impl App {
         if in_viewer {
             items.push(Some((t("menu-save"), t("key-save"), self.save_off().map_or(Act::Save, Act::Off))));
         }
-        // One file: a picture, or in the viewer what is shown (a 3D model from its side, the
-        // layout of a drawing open). In the grid a drawing is exported, a model saved as a model.
-        let save_as: &[Kind] = if in_viewer { &[Kind::Picture, Kind::Model, Kind::Drawing] } else { SAVED_AS };
+        // One file: a picture, or a picture of a 3D model (in the viewer from the side shown) or of
+        // a CAD drawing (in the viewer the layout open).
+        let save_as = SAVED_AS;
         // One of them: with more the entry is off (with none, `kind_entry` says why).
         let saved = files.iter().filter(|p| save_as.contains(&crate::selection::kind(p))).count();
         let convert = if saved > 1 { Act::Off(t("tb-off-one-picture")) } else { Act::Convert(path.clone()) };
         items.push(entry(save_as, "menu-save-copy", if in_viewer { t("key-save-copy") } else { String::new() }, convert));
-        let kinds = crate::model_export::Kind::ALL.iter().map(|&k| Some((k.label().to_string(), String::new(), Act::ExportModel(path.clone(), k)))).collect();
-        items.push(entry(&[Kind::Model], "menu-export-3d", String::new(), Act::Submenu(kinds)));
+        // The two exports, each with its window, in the grid and in the viewer (issue #128).
+        items.push(entry(&[Kind::Model], "menu-export-3d", String::new(), Act::ExportModel(path.clone())));
+        let drawings = self.drawings_off(Some(true)).map_or(Act::ExportDrawings(path.clone()), Act::Off);
+        items.push(entry(&[Kind::Drawing], "menu-export-drawings", String::new(), drawings));
         if !in_viewer {
             items.extend(self.tool_items(path.clone(), self.tools_off(), &partial));
         }

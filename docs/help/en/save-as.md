@@ -8,7 +8,7 @@ To convert or resize many images at once, use [Converting and resizing images](c
 
 - In the grid, select one image and click ![Save as…](icon://file-output) in the toolbar, or choose **File > Save as…**, or right-click the image and choose **Save as…**.
 - In the viewer, press **Ctrl+Shift+S**, or use the same menu items. If you turned or flipped the image in the viewer, it is saved turned.
-- In the viewer, a 3D model or a CAD drawing can be saved as a picture too, as it is shown on screen: a model at least 1920 pixels on its long side, a drawing with the layout you are looking at. **Ctrl+S** and **File > Save** save over the original, which a model or a drawing cannot be: there they are greyed out, and pointing at **Save** says what to use instead.
+- A 3D model or a CAD drawing can be saved as a picture too. In the viewer as it is shown on screen: a model at least 1920 pixels on its long side, a drawing with the layout you are looking at. From the grid a model from its starting view, 1920 × 1440 pixels, and a drawing whole. With other files selected too, **Save as…** is marked with **\*** and works on the one picture, model or drawing among them. **Ctrl+S** and **File > Save** save over the original, which a model or a drawing cannot be: there they are greyed out, and pointing at **Save** says what to use instead.
 - In the editor, **Save as…** opens this page with the edited image (see [Saving an edited image](editor-save.md)). Closing it without saving goes back to the editor, with the changes.
 
 ![Save as](../img/save-as.webp)

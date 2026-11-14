@@ -406,9 +406,17 @@ hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, S
 cad-model = Model
 cad-units = units
 keys-button = Keys
-menu-export-3d = Export as a 3D model
+menu-export-3d = Export as a 3D model…
 status-exported = Saved as { $name }
 export-failed = Export failed: { $error }
+model-export-title = Export as a 3D model
+model-export-count = { $n ->
+    [one] 1 3D model chosen.
+   *[other] { $n } 3D models chosen.
+}
+model-export-format = Format:
+model-export-where = Each copy goes next to its model, with the same name; a name already taken gets " (2)".
+model-export-ok = Export
 hint-model = Arrows or drag: turn | Shift+drag: move | Wheel, + and −: zoom | 0: starting view | Page Up, Page Down: previous, next | Ctrl+S: save as an image | F11: full screen | Esc: back
 hint-edit-select = Click: select an object | Drag: move it | Drag a corner or an end: resize | Double click on a text or bubble: change its letters | Del: delete | Ctrl+C: copy the result | Esc: let go of the object
 hint-edit-marquee = Drag: choose a part | Shift+drag: a square | Ctrl+C: copy the part | Ctrl+X: cut it | Ctrl+V: paste as an object | Click or Esc: let go of the part
@@ -1267,7 +1275,7 @@ off-not-viewer = Only in the viewer.
 off-no-show = No picture or video in this folder.
 off-no-file = Select one or more files first.
 off-save-model = A 3D model is not saved over its file: Save as… makes a picture of it, Export as a 3D model a copy in another 3D format.
-off-save-drawing = A CAD drawing is not saved over its file: Save as… makes a picture of the layout shown, Export drawing… a copy as a picture or SVG.
+off-save-drawing = A CAD drawing is not saved over its file: Save as… makes a picture of the layout shown, Export drawing… a copy as a picture, SVG, DWG or DXF.
 off-save-played = Nothing to save: videos and audio files are not changed in the viewer.
 off-save-as-played = Save as… is for pictures: videos and audio files are converted with Convert… in the grid.
 off-trash-clip = Items in the trash cannot be cut or copied: restore them first.

@@ -41,7 +41,7 @@ pub(crate) const CONVERTED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Audio]
 pub(crate) const THUMBED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Audio, Kind::Model, Kind::Drawing];
 
 /// What Save as… saves from the grid (in the viewer also what a 3D model or a drawing shows).
-pub(crate) const SAVED_AS: &[Kind] = &[Kind::Picture];
+pub(crate) const SAVED_AS: &[Kind] = &[Kind::Picture, Kind::Model, Kind::Drawing];
 
 /// How an entry fits the files chosen: on none of them (`None`: not shown), on all, or on some
 /// (`Some(false)`: marked with "*").

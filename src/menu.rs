@@ -80,17 +80,15 @@ impl App {
         let keys = if self.viewing.is_some() { t("key-save-copy") } else { String::new() };
         let saved = if self.viewing.is_some() { Some(true) } else { fits(&files, SAVED_AS) };
         entry(ui, act, self.save_as_off(), item(starred(t("menu-save-copy"), saved != Some(false)), keys), Act::Convert(None));
-        // As in the right-click menu: the 3D models among the files chosen.
+        // As in the right-click menus: the 3D models and the CAD drawings among the files chosen,
+        // each with its window (issue #128).
         let model = fits(&files, &[Kind::Model]);
-        ui.add_enabled_ui(model.is_some(), |ui| {
-            let r = ui.menu_button((icons::menu_icon(ui, None), starred(t("menu-export-3d"), model != Some(false))), |ui| {
-                for k in crate::model_export::Kind::ALL {
-                    entry(ui, act, None, item(k.label().into(), String::new()), Act::ExportModel(None, k));
-                }
-            });
-            r.response.on_disabled_hover_text(t(none_of(&[Kind::Model])));
-        });
-        partial_note(ui, model == Some(false) || saved == Some(false), &self.i18n);
+        let model_off = model.is_none().then(|| t(none_of(&[Kind::Model])));
+        entry(ui, act, model_off, item(starred(t("menu-export-3d"), model != Some(false)), String::new()), Act::ExportModel(None));
+        let drawing = fits(&files, &[Kind::Drawing]);
+        let drawing_off = self.drawings_off(drawing);
+        entry(ui, act, drawing_off, item(starred(t("menu-export-drawings"), drawing != Some(false)), String::new()), Act::ExportDrawings(None));
+        partial_note(ui, [model, drawing, saved].contains(&Some(false)), &self.i18n);
         ui.separator();
         self.restore_item(ui, act);
         entry(ui, act, self.rename_off(), item(t("menu-rename"), "F2".into()), Act::Rename(None));
