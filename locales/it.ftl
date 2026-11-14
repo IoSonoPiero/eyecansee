@@ -912,36 +912,62 @@ off-video-flip = Un video qui si può solo ruotare: per rifletterlo usa Converti
 batch-animated = I file **animati**, **multipagina**, le **foto in movimento** e le foto con una **mappa di profondità** (i ritratti di alcuni telefoni) vengono saltati: salvandoci sopra quelle parti andrebbero perse. Le foto Ultra HDR vengono ruotate insieme alla loro mappa HDR, e al loro video se sono anche foto in movimento.
 batch-skipped-names = Saltate perché animate, multipagina, foto in movimento o con una mappa di profondità:
 # $op is the id of the menu item of the change (tf-…).
-batch-done-title = { $op ->
-    [tf-flip-h] { $n ->
-        [one] Immagine riflessa
-       *[other] Immagini riflesse
+batch-done-title = { $what ->
+    [videos] { $n ->
+        [one] Video ruotato
+       *[other] Video ruotati
     }
-    [tf-flip-v] { $n ->
-        [one] Immagine riflessa
-       *[other] Immagini riflesse
-    }
-   *[other] { $n ->
-        [one] Immagine ruotata
-       *[other] Immagini ruotate
+    [mixed] Immagini e video ruotati
+   *[other] { $op ->
+        [tf-flip-h] { $n ->
+            [one] Immagine riflessa
+           *[other] Immagini riflesse
+        }
+        [tf-flip-v] { $n ->
+            [one] Immagine riflessa
+           *[other] Immagini riflesse
+        }
+       *[other] { $n ->
+            [one] Immagine ruotata
+           *[other] Immagini ruotate
+        }
     }
 }
-batch-done = { $n ->
-    [0] Nessuna immagine è stata salvata.
-    [one] **1 immagine** è stata { $op ->
-        [tf-flip-h] riflessa orizzontalmente
-        [tf-flip-v] riflessa verticalmente
-        [tf-rotate-cw] ruotata di 90° in senso orario
-        [tf-rotate-ccw] ruotata di 90° in senso antiorario
-       *[other] ruotata di 180°
-    } e salvata sopra l'originale.
-   *[other] **{ $n } immagini** sono state { $op ->
-        [tf-flip-h] riflesse orizzontalmente
-        [tf-flip-v] riflesse verticalmente
-        [tf-rotate-cw] ruotate di 90° in senso orario
-        [tf-rotate-ccw] ruotate di 90° in senso antiorario
-       *[other] ruotate di 180°
-    } e salvate sopra gli originali.
+batch-done = { $what ->
+    [videos] { $n ->
+        [one] **1 video** è stato { $op ->
+            [tf-rotate-cw] ruotato di 90° in senso orario
+            [tf-rotate-ccw] ruotato di 90° in senso antiorario
+           *[other] ruotato di 180°
+        } e salvato sopra l'originale.
+       *[other] **{ $n } video** sono stati { $op ->
+            [tf-rotate-cw] ruotati di 90° in senso orario
+            [tf-rotate-ccw] ruotati di 90° in senso antiorario
+           *[other] ruotati di 180°
+        } e salvati sopra gli originali.
+    }
+    [mixed] **{ $n } file** (immagini e video) sono stati { $op ->
+        [tf-rotate-cw] ruotati di 90° in senso orario
+        [tf-rotate-ccw] ruotati di 90° in senso antiorario
+       *[other] ruotati di 180°
+    } e salvati sopra gli originali.
+   *[other] { $n ->
+        [0] Nessuna immagine è stata salvata.
+        [one] **1 immagine** è stata { $op ->
+            [tf-flip-h] riflessa orizzontalmente
+            [tf-flip-v] riflessa verticalmente
+            [tf-rotate-cw] ruotata di 90° in senso orario
+            [tf-rotate-ccw] ruotata di 90° in senso antiorario
+           *[other] ruotata di 180°
+        } e salvata sopra l'originale.
+       *[other] **{ $n } immagini** sono state { $op ->
+            [tf-flip-h] riflesse orizzontalmente
+            [tf-flip-v] riflesse verticalmente
+            [tf-rotate-cw] ruotate di 90° in senso orario
+            [tf-rotate-ccw] ruotate di 90° in senso antiorario
+           *[other] ruotate di 180°
+        } e salvate sopra gli originali.
+    }
 }
 save-psd-flatten = **Questo PSD verrà appiattito**: livelli, testi, effetti e maschere si perdono, resta solo l'immagine come si vede. Per tenerli usa **Salva come…** o modificalo con Photoshop.
 batch-psd-flatten = I PSD con più livelli, testi o effetti vengono **appiattiti**: resta solo l'immagine come si vede.

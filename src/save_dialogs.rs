@@ -134,7 +134,7 @@ impl App {
                 log!("transform {op:?} on {} images, {how:?}", ok.len());
                 self.saving.extend(ok.iter().cloned());
                 loader.replace(ok, transform::Turn::default().then(op), how);
-                self.batch_saved.get_or_insert((op, 0));
+                self.batch_saved.get_or_insert((op, 0, 0));
                 self.batch_turn = None;
             }
             Some(false) => self.batch_turn = None,
@@ -318,6 +318,16 @@ impl App {
     }
 }
 
+/// What the grid's flip or turn saved, for the message at the end (`$what` of "batch-done"):
+/// `n` files, `videos` of them videos (#125).
+pub(crate) fn saved_what(n: usize, videos: usize) -> &'static str {
+    match videos {
+        0 => "images",
+        v if v == n => "videos",
+        _ => "mixed",
+    }
+}
+
 /// The Fluent id of a transform's menu item; also the key of its variants in "batch-done".
 pub(crate) fn op_id(op: transform::Op) -> &'static str {
     transform_items().into_iter().find(|(o, ..)| *o == op).map_or("", |(_, l, _)| l)
@@ -459,6 +469,27 @@ pub(crate) fn md(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// The message at the end says what was turned (#125): pictures, videos or both, in every
+    /// language and number.
+    #[test]
+    fn rotated_videos_said_as_videos() {
+        assert_eq!((super::saved_what(2, 0), super::saved_what(1, 1), super::saved_what(3, 1)), ("images", "videos", "mixed"));
+        let say = |lang: &str, n: usize, videos: usize, op: &str| {
+            let args = [("n", n.to_string()), ("op", op.to_string()), ("what", super::saved_what(n, videos).to_string())];
+            let i18n = crate::i18n::I18n::new(lang);
+            let args = args.each_ref().map(|(k, v)| (*k, v.as_str()));
+            (i18n.t_args("batch-done-title", &args), i18n.t_args("batch-done", &args))
+        };
+        assert_eq!(say("en", 1, 1, "tf-rotate-cw"), ("Video rotated".into(), "**1 video** was rotated 90° clockwise and saved over its original.".into()));
+        assert_eq!(say("en", 2, 2, "tf-rotate-180").1, "**2 videos** were rotated 180° and saved over their originals.");
+        assert_eq!(say("en", 3, 1, "tf-rotate-ccw"), ("Pictures and videos rotated".into(), "**3 files** (pictures and videos) were rotated 90° anticlockwise and saved over their originals.".into()));
+        assert_eq!(say("en", 1, 0, "tf-flip-h"), ("Image flipped".into(), "**1 image** was flipped horizontally and saved over its original.".into()));
+        assert_eq!(say("it", 1, 1, "tf-rotate-cw"), ("Video ruotato".into(), "**1 video** è stato ruotato di 90° in senso orario e salvato sopra l'originale.".into()));
+        assert_eq!(say("it", 2, 2, "tf-rotate-cw").1, "**2 video** sono stati ruotati di 90° in senso orario e salvati sopra gli originali.");
+        assert_eq!(say("it", 3, 1, "tf-rotate-cw").0, "Immagini e video ruotati");
+        assert_eq!(say("it", 0, 0, "tf-rotate-cw").1, "Nessuna immagine è stata salvata.");
+    }
+
     /// Bold, code (a fingerprint, its stars and backslashes as they are) and escaped marks.
     #[test]
     fn message_runs() {

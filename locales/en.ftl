@@ -913,36 +913,62 @@ off-video-flip = A video can only be rotated here: to flip it, use Convert….
 batch-animated = **Animated** and **multi-page** images, **motion photos** and photos with a **depth map** (the portrait photos of some phones) are skipped: saving over them would lose those parts. Ultra HDR photos are turned with their HDR map, and with their video when they are motion photos too.
 batch-skipped-names = Left out, because they are animated, have several pages, are motion photos or carry a depth map:
 # $op is the id of the menu item of the change (tf-…).
-batch-done-title = { $op ->
-    [tf-flip-h] { $n ->
-        [one] Image flipped
-       *[other] Images flipped
+batch-done-title = { $what ->
+    [videos] { $n ->
+        [one] Video rotated
+       *[other] Videos rotated
     }
-    [tf-flip-v] { $n ->
-        [one] Image flipped
-       *[other] Images flipped
-    }
-   *[other] { $n ->
-        [one] Image rotated
-       *[other] Images rotated
+    [mixed] Pictures and videos rotated
+   *[other] { $op ->
+        [tf-flip-h] { $n ->
+            [one] Image flipped
+           *[other] Images flipped
+        }
+        [tf-flip-v] { $n ->
+            [one] Image flipped
+           *[other] Images flipped
+        }
+       *[other] { $n ->
+            [one] Image rotated
+           *[other] Images rotated
+        }
     }
 }
-batch-done = { $n ->
-    [0] No image was saved.
-    [one] **1 image** was { $op ->
-        [tf-flip-h] flipped horizontally
-        [tf-flip-v] flipped vertically
-        [tf-rotate-cw] rotated 90° clockwise
-        [tf-rotate-ccw] rotated 90° anticlockwise
-       *[other] rotated 180°
-    } and saved over its original.
-   *[other] **{ $n } images** were { $op ->
-        [tf-flip-h] flipped horizontally
-        [tf-flip-v] flipped vertically
+batch-done = { $what ->
+    [videos] { $n ->
+        [one] **1 video** was { $op ->
+            [tf-rotate-cw] rotated 90° clockwise
+            [tf-rotate-ccw] rotated 90° anticlockwise
+           *[other] rotated 180°
+        } and saved over its original.
+       *[other] **{ $n } videos** were { $op ->
+            [tf-rotate-cw] rotated 90° clockwise
+            [tf-rotate-ccw] rotated 90° anticlockwise
+           *[other] rotated 180°
+        } and saved over their originals.
+    }
+    [mixed] **{ $n } files** (pictures and videos) were { $op ->
         [tf-rotate-cw] rotated 90° clockwise
         [tf-rotate-ccw] rotated 90° anticlockwise
        *[other] rotated 180°
     } and saved over their originals.
+   *[other] { $n ->
+        [0] No image was saved.
+        [one] **1 image** was { $op ->
+            [tf-flip-h] flipped horizontally
+            [tf-flip-v] flipped vertically
+            [tf-rotate-cw] rotated 90° clockwise
+            [tf-rotate-ccw] rotated 90° anticlockwise
+           *[other] rotated 180°
+        } and saved over its original.
+       *[other] **{ $n } images** were { $op ->
+            [tf-flip-h] flipped horizontally
+            [tf-flip-v] flipped vertically
+            [tf-rotate-cw] rotated 90° clockwise
+            [tf-rotate-ccw] rotated 90° anticlockwise
+           *[other] rotated 180°
+        } and saved over their originals.
+    }
 }
 save-psd-flatten = **This PSD will be flattened**: layers, text, effects and masks are lost, only the image as it looks remains. To keep them use **Save as…** or edit it in Photoshop.
 batch-psd-flatten = PSD files with several layers, text or effects are **flattened**: only the image as it looks remains.

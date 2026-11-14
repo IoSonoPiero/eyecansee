@@ -316,8 +316,8 @@ struct App {
     preparing: Option<String>,
     /// Names left out of a "Save" on the grid (animated…), shown once every save is done.
     skipped: Vec<String>,
-    /// Images saved by a transform on the grid, and which, for the summary once every save is done.
-    batch_saved: Option<(transform::Op, usize)>,
+    /// Images and videos saved by a transform on the grid (how many, how many videos), for the summary once every save is done.
+    batch_saved: Option<(transform::Op, usize, usize)>,
     /// An image just saved from Rotate and crop, as the viewer shows it: kept in the viewer when
     /// the file and the folder listing change, instead of the old one until it is read again.
     fresh: Option<(String, TextureHandle)>,

@@ -440,8 +440,9 @@ impl App {
             Ok(()) if elsewhere => log!("saved {path:?}, in the editor's place"),
             Ok(()) => {
                 log!("saved {path:?}");
-                if let Some((_, n)) = &mut self.batch_saved {
+                if let Some((_, n, videos)) = &mut self.batch_saved {
                     *n += 1;
+                    *videos += crate::decode::is_video(&path) as usize;
                 }
                 // Same name, maybe the same size: what is in memory is the old image.
                 if let Some(i) = self.files().iter().position(|f| f.path == path) {
@@ -470,13 +471,14 @@ impl App {
             }
         }
         if self.saving.is_empty()
-            && let Some((op, n)) = self.batch_saved.take()
+            && let Some((op, n, videos)) = self.batch_saved.take()
             // Nothing saved and every failure in its own window (`kept.rs`): "saved: 0" said nothing more.
             && !(n == 0 && self.skipped.is_empty() && !self.kept.is_empty())
         {
             // What was done, in the title and in the text ("Images saved: 2." alone
             // did not say what had happened).
-            let args = [("n", n.to_string()), ("op", crate::save_dialogs::op_id(op).to_string())];
+            let what = crate::save_dialogs::saved_what(n, videos);
+            let args = [("n", n.to_string()), ("op", crate::save_dialogs::op_id(op).to_string()), ("what", what.to_string())];
             let args = args.each_ref().map(|(k, v)| (*k, v.as_str()));
             let title = self.i18n.t_args("batch-done-title", &args);
             let mut text = self.i18n.t_args("batch-done", &args);
