@@ -240,6 +240,9 @@ impl App {
             if let Some(id) = w.remote {
                 ui.label(crate::theme::alert(i18n.t(id)));
             }
+            if let Some(address) = &self.held_open {
+                ui.label(crate::theme::alert(i18n.t_args("edit-open-later", &[("name", crate::source::name(&crate::address::without_password(address)))])));
+            }
             if w.preparing {
                 ui.add(egui::Spinner::new().color(Color32::WHITE));
                 ui.label(i18n.t("status-preparing"));

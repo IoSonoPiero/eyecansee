@@ -71,6 +71,14 @@ impl App {
         }
     }
 
+    /// The address from outside held while the editor was open (`hold`), once it is closed.
+    pub(crate) fn open_held(&mut self, ctx: &egui::Context) {
+        if let Some(address) = release(self.editor.is_some(), &mut self.held_open) {
+            log!("editor closed: opening {:?}", without_password(&address));
+            self.open_outside(ctx, &address);
+        }
+    }
+
     /// An address from outside (command line, the file manager): a phone file mounted by gvfs
     /// opens through the direct connection (`devices::direct_address`).
     fn outside_address(&self, address: &str) -> String {
@@ -322,6 +330,23 @@ pub(crate) fn window_title(editing: Option<&str>, viewing: Option<(&str, String)
 pub(crate) fn shown(base: &str, dir: &str) -> String {
     let sep = if base.contains("://") || !base.contains('\\') { "/" } else { "\\" };
     format!("{base}{}", dir.replace('/', sep))
+}
+
+/// An address from outside (`""`: just come forward): `Some` to open now; kept in `held` while
+/// the editor is open (the last one if more arrive), so the grid does not change place under the
+/// page. Until 0.77.0 it opened at once, and the page's saves went to the new place.
+pub(crate) fn hold(editing: bool, held: &mut Option<String>, address: String) -> Option<String> {
+    if editing && !address.is_empty() {
+        *held = Some(address);
+        None
+    } else {
+        Some(address)
+    }
+}
+
+/// The address held by `hold`, to open now that the editor is closed.
+fn release(editing: bool, held: &mut Option<String>) -> Option<String> {
+    if editing { None } else { held.take() }
 }
 
 #[cfg(test)]

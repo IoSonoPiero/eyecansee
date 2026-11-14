@@ -41,4 +41,4 @@ Per non scrivere la password ogni volta, fai clic su **Salva e apri**, oppure sa
 
 ## Avviare EyeCanSee su un indirizzo
 
-EyeCanSee si può avviare con una cartella, una foto o l'indirizzo di un server, per esempio da un altro programma con "Apri con": apre quel posto invece dell'ultima cartella. Se EyeCanSee è già aperto, il posto compare nella finestra che c'è già.
+EyeCanSee si può avviare con una cartella, una foto o l'indirizzo di un server, per esempio da un altro programma con "Apri con": apre quel posto invece dell'ultima cartella. Se EyeCanSee è già aperto, il posto compare nella finestra che c'è già. Se in quella finestra è aperto l'editor, il posto si apre quando chiudi l'editor (lo dice la sua barra di stato): l'immagine che stai modificando si salva dov'è.

@@ -37,6 +37,7 @@ impl App {
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
         self.receive(ctx);
+        self.open_held(ctx);
         self.phone_events(ctx);
         self.phone_stall();
         self.notice_gone(ctx);

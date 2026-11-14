@@ -776,6 +776,7 @@ edit-leave-new = L'immagine nuova **{ $name }** non è ancora salvata.
 edit-temp-copy = Questa immagine è una copia temporanea che Windows ha fatto di un file del telefono o di un altro dispositivo: una copia accanto a lei potrebbe essere cancellata da Windows. Scegli dove salvarla.
 edit-remote-phone = L'immagine si modifica in una copia su questo computer: Salva manda il risultato al telefono.
 edit-remote-server = L'immagine si modifica in una copia su questo computer: Salva manda il risultato al server.
+edit-open-later = { $name } si apre quando chiudi l'editor.
 key-rotate-cw = Ctrl+R
 key-rotate-ccw = Ctrl+Maiusc+R
 menu-save = Salva

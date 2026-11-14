@@ -371,7 +371,9 @@ impl App {
 
     fn on_open(&mut self, ctx: &egui::Context, address: String) {
         log!("handed over: {:?}", without_password(&address));
-        if !address.is_empty() {
+        if let Some(address) = crate::navigation::hold(self.editor.is_some(), &mut self.held_open, address)
+            && !address.is_empty()
+        {
             self.open_outside(ctx, &address);
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));

@@ -83,6 +83,7 @@ impl App {
             saved_servers: servers::load(),
             last_dirs: HashMap::new(),
             status_note: None,
+            held_open: None,
             note_until: None,
             stall_notice: None,
             open_address: None,

@@ -41,4 +41,4 @@ To avoid typing the password every time, click **Save and open**, or save the se
 
 ## Starting EyeCanSee on an address
 
-EyeCanSee can be started with a folder, a picture or a server address, for example from another program with "Open with": it opens that place instead of the last folder. If EyeCanSee is already open, the place is shown in the window already open.
+EyeCanSee can be started with a folder, a picture or a server address, for example from another program with "Open with": it opens that place instead of the last folder. If EyeCanSee is already open, the place is shown in the window already open. If that window has the image editor open, the place opens when you close the editor (its status bar says so): the image being edited is saved where it is.

@@ -323,6 +323,9 @@ struct App {
     host_ask: bool,
     /// In the status bar until the next source: the phone is open through the desktop's mount.
     status_note: Option<String>,
+    /// An address from outside that arrived while the editor was open: opened once it closes
+    /// (`navigation::hold`).
+    held_open: Option<String>,
     /// When a passing `status_note` goes away by itself (`egui` time), such as a file removed.
     note_until: Option<f64>,
     /// The message of a stalled phone, while it lasts (`App::phone_stall`).
