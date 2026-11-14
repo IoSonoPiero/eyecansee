@@ -62,6 +62,7 @@ impl App {
             generated: HashSet::new(),
             thumb_queue_key: None,
             full: HashMap::new(),
+            own_sizes: HashMap::new(),
             model: Default::default(),
             zoom: None,
             zoom_of: None,

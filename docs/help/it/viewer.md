@@ -32,7 +32,7 @@ Una foto non si vede mai più piccola che adattata alla finestra, e una foto pic
 
 ## La barra di stato del visore
 
-In fondo: il nome del file, la sua posizione nella cartella (per esempio 12 / 51), le dimensioni in pixel, l'ingrandimento, il peso su disco e la sua data: quella dello scatto se i metadati sono già stati letti nella griglia, altrimenti quella di modifica del file. Dopo una rotazione non ancora salvata dice anche **Modificata, non salvata**.
+In fondo: il nome del file, la sua posizione nella cartella (per esempio 12 / 51), le dimensioni in pixel (le sue, come nel pannello dei metadati, anche quando è mostrata ridotta, e per un disegno SVG quelle che dichiara), l'ingrandimento, il peso su disco e la sua data: quella dello scatto se i metadati sono già stati letti nella griglia, altrimenti quella di modifica del file. Dopo una rotazione non ancora salvata dice anche **Modificata, non salvata**.
 
 Il pulsante **Tasti** a destra elenca i tasti di ciò che stai guardando (una foto, un video, un modello 3D o un disegno CAD): finché il mouse ci sta sopra, o finché non ci fai clic di nuovo.
 

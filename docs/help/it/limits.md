@@ -4,7 +4,7 @@ Che cosa EyeCanSee non fa ancora, o fa solo in parte. L'elenco aggiornato dei pr
 
 ## Immagini
 
-- Le immagini più grandi di 8192 pixel per lato vengono mostrate ridotte.
+- Le immagini più grandi di 8192 pixel per lato vengono mostrate ridotte; la barra di stato dice comunque le loro dimensioni. I disegni SVG vengono disegnati a 2048 pixel sul lato lungo.
 - Le immagini HDR (EXR, HDR, PFM) vengono mostrate senza tone mapping e possono sembrare sovraesposte.
 - EyeCanSee non sa salvare file HEIC o JPEG XL: vedi [Formati supportati](formats.md).
 - Le foto RAW convertite non tengono la maker note, i dati propri del produttore della fotocamera.

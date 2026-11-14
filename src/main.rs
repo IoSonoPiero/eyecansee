@@ -289,6 +289,8 @@ struct App {
     /// Last queue sent to the loader: (visible images, selected, generation).
     thumb_queue_key: Option<(std::ops::Range<usize>, Option<usize>, u64)>,
     full: HashMap<usize, Result<TextureHandle, String>>,
+    /// Own size of the pictures shown at another one (beyond 8192 px, SVGs), by path: the status bar's.
+    own_sizes: HashMap<String, [u32; 2]>,
     model: model_view::State,
     /// Zoom of the viewer in screen pixels per image pixel (`None` = fitted to the window), for the
     /// image `zoom_of`; `pan` = centre of the view in image pixels. A new image starts fitted.

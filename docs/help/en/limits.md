@@ -4,7 +4,7 @@ What EyeCanSee does not do yet, or does only in part. The up-to-date list of kno
 
 ## Images
 
-- Images larger than 8192 pixels per side are shown reduced.
+- Images larger than 8192 pixels per side are shown reduced; the status bar still says their own size. SVG drawings are drawn at 2048 pixels on their long side.
 - HDR images (EXR, HDR, PFM) are shown without tone mapping and may look overexposed.
 - EyeCanSee cannot save HEIC or JPEG XL files: see [Supported formats](formats.md).
 - Converted Camera RAW photos do not keep the maker note, the camera maker's own data.

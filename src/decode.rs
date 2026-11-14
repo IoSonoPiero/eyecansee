@@ -177,17 +177,29 @@ fn run(kind: Kind, bytes: &[u8], name: &str) -> Result<DynamicImage> {
 
 /// Image for the viewer, scaled down only beyond the texture limit.
 /// JPEGs go through libjpeg-turbo, ~18% faster than `image` (measured on UHD photos); the formats
-/// it does not decode to RGB (CMYK) fall back to `image`.
+/// it does not decode to RGB (CMYK) fall back to `image`. Its `source_size` is the picture's own
+/// size, upright: before it was reduced, and for an SVG the size it declares (`own_size`).
 pub fn decode(bytes: &[u8], name: &str) -> std::result::Result<ColorImage, String> {
     let turbo = bytes.starts_with(&[0xFF, 0xD8, 0xFF]).then(|| jpeg_scaled(bytes, u32::MAX).ok()).flatten();
     let mut img = match turbo {
         Some(img) => img,
         None => decode_any(bytes, name)?,
     };
+    let svg = (kind(name) == Some(Kind::Svg)).then(|| svg_header(bytes)).flatten();
+    let [w, h] = svg.map_or([img.width(), img.height()], |h| h.size);
     if img.width().max(img.height()) > MAX_SIDE {
         img = img.resize(MAX_SIDE, MAX_SIDE, FilterType::Triangle);
     }
-    Ok(to_color_image(img))
+    let mut image = to_color_image(img);
+    image.source_size = eframe::egui::vec2(w as f32, h as f32);
+    Ok(image)
+}
+
+/// The own size of a picture `decode` made, when it is not the size it is shown at (a picture
+/// larger than the texture limit, an SVG): what the status bar says, as the metadata panel.
+pub fn own_size(image: &ColorImage) -> Option<[u32; 2]> {
+    let own = [image.source_size.x.round() as u32, image.source_size.y.round() as u32];
+    (own != [image.size[0] as u32, image.size[1] as u32]).then_some(own)
 }
 
 /// Thumbnail for the grid, long side at most `side`.
@@ -727,6 +739,21 @@ mod tests {
         assert_eq!(decode_any(&psd(16), "x.psd").unwrap().to_rgba8().get_pixel(1, 1), &image::Rgba([10, 20, 30, 255]));
     }
 
+    /// A picture beyond the texture limit is shown reduced and says its own size (the status bar
+    /// showed the reduced one). A small one is shown as it is.
+    #[test]
+    fn own_size_of_reduced() {
+        let png = |w, h| {
+            let mut v = Vec::new();
+            image::DynamicImage::ImageRgb8(image::RgbImage::new(w, h)).write_to(&mut std::io::Cursor::new(&mut v), image::ImageFormat::Png).unwrap();
+            v
+        };
+        let big = decode(&png(8200, 4), "big.png").unwrap();
+        assert_eq!(big.size[0], 8192);
+        assert_eq!(own_size(&big), Some([8200, 4]));
+        assert_eq!(own_size(&decode(&png(30, 20), "small.png").unwrap()), None);
+    }
+
     #[test]
     fn decoders() {
         assert!(is_image("a.JXL") && is_image("c.CR3"));
@@ -742,6 +769,8 @@ mod tests {
         let svg_src = br#"<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="red"/></svg>"#;
         let img = decode(svg_src, "x.svg").unwrap();
         assert_eq!(img.size, [2048, 1024]);
+        // The status bar says the SVG's own size, as the metadata panel.
+        assert_eq!(own_size(&img), Some([20, 10]));
         assert_eq!(img.pixels[0], eframe::egui::Color32::RED);
         // Its own size in the metadata panel, not the one it is drawn at; no colour model.
         let h = header(svg_src, "x.svg").unwrap();

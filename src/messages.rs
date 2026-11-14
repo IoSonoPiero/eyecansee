@@ -210,6 +210,10 @@ impl App {
             }
         } else {
             self.pending.remove(&index);
+            match image.as_ref().ok().and_then(crate::decode::own_size) {
+                Some(size) => self.own_sizes.insert(name.clone(), size),
+                None => self.own_sizes.remove(&name),
+            };
             let tex = image.map(|img| ctx.load_texture(name, img, TextureOptions::LINEAR));
             self.full.insert(index, tex);
         }
