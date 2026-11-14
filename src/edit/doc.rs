@@ -95,8 +95,9 @@ pub enum Shape {
     /// Solid box over private data: nothing under it is left in the saved file.
     Cover(Area),
     /// A piece of image (copied or cut with Selection, or pasted from another program) stretched
-    /// over `area`.
-    Patch { area: Area, pixels: Pixels },
+    /// over `area`, its pixels mirrored left to right in the box's own axes when `mirrored`. The
+    /// pixels stay those pasted: turns, flips and sizes change only the box (`edit::patch`).
+    Patch { area: Area, pixels: Pixels, mirrored: bool },
     /// A filter on the part of the photo under `area` (all of it for the whole image), under the
     /// objects drawn; `amount` as `Filter::amount` says.
     Filter { area: Area, filter: crate::edit::filter::Filter, amount: f32, preview: Preview },
@@ -455,14 +456,24 @@ impl Obj {
             *a = a.turned(op);
         }
         match &mut shape {
-            // The picture in the box turns (or flips) as the image did.
-            Shape::Patch { pixels, .. } => *pixels = pixels.turned(op),
+            // The picture in the box turns (or flips) as the image did; seen through its mirror a
+            // quarter turn goes the other way.
+            Shape::Patch { pixels, mirrored, .. } => *pixels = pixels.turned(if *mirrored { through_mirror(op) } else { op }),
             // Made again for the photo under it.
             Shape::Filter { preview, .. } | Shape::Lens { preview, .. } | Shape::Highlight { preview, .. } => *preview = Preview::default(),
             Shape::Text { rot, .. } => *rot = text_turned(*rot, op),
             _ => {}
         }
         Obj { shape, style: self.style }
+    }
+}
+
+/// What `op` does to pixels seen through a mirror (left to right): quarter turns the other way.
+fn through_mirror(op: Op) -> Op {
+    match op {
+        Op::Cw => Op::Ccw,
+        Op::Ccw => Op::Cw,
+        op => op,
     }
 }
 

@@ -135,7 +135,7 @@ impl App {
                 return;
             }
         };
-        w.doc.objects.push(Obj { shape: Shape::Patch { area, pixels }, style: Style::default() });
+        w.doc.objects.push(Obj { shape: Shape::Patch { area, pixels, mirrored: false }, style: Style::default() });
         w.selected = Some(w.doc.objects.len() - 1);
         w.choose(Tool::Select);
         w.marquee = None;
