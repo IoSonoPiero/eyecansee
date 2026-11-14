@@ -35,7 +35,7 @@ The properties bar has the rest:
 - **Rotation**: its angle on the screen, from −180° to 180°.
 - ![Rotate 90° anticlockwise](icon://rotate-ccw-square) and ![Rotate 90° clockwise](icon://rotate-cw-square): a quarter turn of the piece alone.
 - ![Flip horizontally](icon://square-split-horizontal) and ![Flip vertically](icon://square-split-vertical): mirror the piece left to right or top to bottom, as you see it.
-- **Size**: width and height in pixels. With **Keep the proportions** on (as it starts) the other side follows; off, each side changes alone, also when you drag a corner (Shift then keeps them).
+- Width and height in pixels. With **Keep the proportions** on (as it starts) the other side follows; off, each side changes alone, also when you drag a corner (Shift then keeps them).
 - **Opacity**.
 - ![Bring to front](icon://to-front) **Bring to front** and ![Send to back](icon://to-back) **Send to back**: over all the other objects, or under them.
 

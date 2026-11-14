@@ -195,7 +195,7 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
         ui.separator();
         super::props::slider(ui, id, t(id), egui::Slider::new(value, range).integer().suffix(suffix));
     };
-    ui.spacing_mut().slider_width = 110.0;
+    ui.spacing_mut().slider_width = if kind == Kind::Patch { super::patch::SLIDER } else { 110.0 };
     match kind {
         Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse | Kind::Bubble => slider(ui, "edit-width", &mut style.width, 1.0..=max, " px"),
         // A lens may have no border.

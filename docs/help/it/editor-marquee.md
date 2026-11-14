@@ -35,7 +35,7 @@ Il resto è nella barra delle proprietà:
 - **Rotazione**: il suo angolo sullo schermo, da −180° a 180°.
 - ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square): un quarto di giro del solo pezzo.
 - ![Rifletti orizzontalmente](icon://square-split-horizontal) e ![Rifletti verticalmente](icon://square-split-vertical): rispecchiano il pezzo da sinistra a destra o dall'alto in basso, come lo vedi.
-- **Misura**: larghezza e altezza in pixel. Con **Mantieni le proporzioni** acceso (come all'inizio) l'altro lato segue; spento, ogni lato cambia da solo, anche trascinando un angolo (allora Maiusc le mantiene).
+- Larghezza e altezza in pixel. Con **Mantieni le proporzioni** acceso (come all'inizio) l'altro lato segue; spento, ogni lato cambia da solo, anche trascinando un angolo (allora Maiusc le mantiene).
 - **Opacità**.
 - ![Porta in primo piano](icon://to-front) **Porta in primo piano** e ![Porta dietro](icon://to-back) **Porta dietro**: sopra tutti gli altri oggetti, o sotto.
 
