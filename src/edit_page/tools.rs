@@ -337,9 +337,8 @@ fn filter_bar(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     let Some(Shape::Filter { filter, amount, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
     ui.strong(i18n.t(filter.label()));
     if let Some((lo, hi, _)) = filter.amount(long) {
-        ui.label(i18n.t("edit-filter-amount"));
         ui.spacing_mut().slider_width = 160.0;
-        ui.add(egui::Slider::new(amount, lo..=hi).integer());
+        super::props::slider(ui, "edit-filter-amount", i18n.t("edit-filter-amount"), egui::Slider::new(amount, lo..=hi).integer());
     }
     if filter.hides() {
         ui.label(crate::theme::alert(i18n.t("edit-filter-not-cover")));
@@ -529,23 +528,22 @@ fn pick_sizes(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
 fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i18n: &I18n) {
     let t = |id| i18n.t(id);
     let max = (long / 10.0).max(50.0);
-    let slider = |ui: &mut egui::Ui, label: String, value: &mut f32, range, suffix| {
+    let slider = |ui: &mut egui::Ui, id: &'static str, value: &mut f32, range, suffix| {
         ui.separator();
-        ui.label(label);
-        ui.add(egui::Slider::new(value, range).integer().suffix(suffix));
+        super::props::slider(ui, id, t(id), egui::Slider::new(value, range).integer().suffix(suffix));
     };
     ui.spacing_mut().slider_width = 110.0;
     match kind {
-        Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse | Kind::Bubble => slider(ui, t("edit-width"), &mut style.width, 1.0..=max, " px"),
+        Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse | Kind::Bubble => slider(ui, "edit-width", &mut style.width, 1.0..=max, " px"),
         // A lens may have no border.
-        Kind::Lens => slider(ui, t("edit-width"), &mut style.width, 0.0..=max, " px"),
-        Kind::Text | Kind::Step | Kind::Stamp => slider(ui, t("edit-size"), &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
+        Kind::Lens => slider(ui, "edit-width", &mut style.width, 0.0..=max, " px"),
+        Kind::Text | Kind::Step | Kind::Stamp => slider(ui, "edit-size", &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
         Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter | Kind::Spotlight => {}
     }
     if kind != Kind::Cover {
         let mut pct = style.opacity * 100.0;
         // A spotlight's opacity is how dark the rest gets.
-        slider(ui, t(if kind == Kind::Spotlight { "edit-intensity" } else { "edit-opacity" }), &mut pct, 5.0..=100.0, " %");
+        slider(ui, if kind == Kind::Spotlight { "edit-intensity" } else { "edit-opacity" }, &mut pct, 5.0..=100.0, " %");
         style.opacity = (pct / 100.0).clamp(0.05, 1.0);
     }
     if kind == Kind::Arrow {
@@ -664,9 +662,8 @@ fn text_angle(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     let angle = w.doc.angle;
     let Some(Shape::Text { rot, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
     let mut shown = (*rot + angle + 180.0).rem_euclid(360.0) - 180.0;
-    ui.label(i18n.t("rc-rotation"));
     ui.spacing_mut().slider_width = 110.0;
-    if ui.add(egui::Slider::new(&mut shown, -180.0..=180.0).integer().suffix("°")).changed() {
+    if super::props::slider(ui, "rc-rotation", i18n.t("rc-rotation"), egui::Slider::new(&mut shown, -180.0..=180.0).integer().suffix("°")).changed() {
         *rot = shown - angle;
     }
 }
@@ -758,6 +755,41 @@ mod tests {
         }
         use crate::edit::filter::Filter;
         assert!(Filter::Blur.hides() && Filter::Pixelate.hides() && !Filter::Gray.hides());
+    }
+
+    /// The properties bar of a text, nothing selected and selected with its outline and box on,
+    /// in every language: nothing past the right edge of the window down to 700 px (a slider at
+    /// the end of a row was cut: "Opacity 100 %" in a 900 px window).
+    #[test]
+    fn text_bar_not_cut() {
+        use super::*;
+        use crate::edit::doc::{Back, Obj};
+        let ctx = egui::Context::default();
+        ctx.set_fonts(crate::fonts::fonts());
+        for (lang, _) in crate::i18n::languages() {
+            let i18n = I18n::new(lang);
+            for (width, selected) in [1200.0, 900.0, 700.0].into_iter().flat_map(|w| [(w, false), (w, true)]) {
+                let mut w = Window::new("p/a.png".into(), Default::default(), Tool::Draw(Kind::Text));
+                if selected {
+                    let style = Style { outline: Some(([255, 255, 255], 0.08)), back: Some(Back::default()), ..Style::default() };
+                    let shape = Shape::Text { at: Pt::new(0.0, 0.0), text: "Text".into(), size: 40.0, rot: 0.0, font: None, path: None };
+                    w.doc.objects.push(Obj { shape, style });
+                    w.selected = Some(0);
+                }
+                let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(width, 800.0))), ..Default::default() };
+                let mut edge = 0.0;
+                // The fonts are ready from the second pass.
+                for _ in 0..3 {
+                    let _ = ctx.run_ui(input.clone(), |ui| {
+                        egui::Panel::top("edit-props").show(ui, |ui| {
+                            let r = ui.horizontal_wrapped(|ui| style_bar(ui, &mut w, &i18n));
+                            edge = r.response.rect.right();
+                        });
+                    });
+                }
+                assert!(edge <= width, "{lang}, {width} px, selected {selected}: drawn to {edge}");
+            }
+        }
     }
 
     /// Every tool has its list of keys, in both languages.
