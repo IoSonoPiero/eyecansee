@@ -51,9 +51,10 @@ If the name is already taken in that folder, " (2)" is added, and the page tells
 
 ## Metadata
 
-**Keep the metadata (EXIF, XMP, IPTC, colour profile)** is on at first. It keeps the camera, the date the photo was taken, the place (GPS), author, copyright, descriptions, keywords and the colour profile.
+**Keep the metadata (EXIF, XMP, IPTC, colour profile)** is on at first. It keeps the camera, the date the photo was taken, the place (GPS), author, copyright, descriptions, keywords, the colour profile and the resolution (dots per inch).
 
 - Only JPEG, PNG, WebP, AVIF and TIFF can hold metadata. With another format, or when the original has none, the box is greyed out; pointing at it says why.
+- The **resolution** (for example the 600 dpi of a scan) is part of the metadata: without **Keep the metadata** the file is saved without it, also when the original has nothing else.
 - The orientation is set to upright, since the saved pixels are already turned, and the sizes written inside are those of the new image.
 - Left out: the small previews that cameras store inside the file, the Lightroom and Camera Raw settings, and the video of a motion photo, which the new file does not have.
 - An **Ultra HDR** phone photo stays HDR when you save it as JPEG with the metadata, also from the editor: its HDR part is turned, cropped and covered together with the photo. In another format, or without the metadata, it loses its HDR, and the page tells you before you save.

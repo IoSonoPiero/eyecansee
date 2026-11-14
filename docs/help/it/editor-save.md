@@ -46,7 +46,7 @@ Dove l'originale non si può sovrascrivere (un formato che EyeCanSee non riscriv
 ## Cosa conserva il file salvato
 
 - Un JPEG salvato come JPEG mantiene la qualità con cui era stato salvato, così non viene compresso di più. Un'immagine di un altro formato salvata come JPEG viene scritta con qualità 95.
-- I metadati (EXIF, XMP, IPTC, profilo colore) restano, con la misura nuova, senza le piccole anteprime dell'originale.
+- I metadati (EXIF, XMP, IPTC, profilo colore, risoluzione) restano, con la misura nuova, senza le piccole anteprime dell'originale.
 - Una foto Ultra HDR del telefono resta HDR. Il video di una foto in movimento non viene conservato, a meno che tu l'abbia solo girata o riflessa.
 - Ogni oggetto, filtro e ritaglio viene applicato a piena grandezza.
 

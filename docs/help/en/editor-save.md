@@ -46,7 +46,7 @@ Where the original cannot be overwritten (a format EyeCanSee does not write back
 ## What the saved file keeps
 
 - A JPEG saved as JPEG keeps the quality it was saved with, so it is not compressed harder. A picture of another format saved as JPEG is written at quality 95.
-- The metadata (EXIF, XMP, IPTC, colour profile) stay, with the new size, without the small previews of the original.
+- The metadata (EXIF, XMP, IPTC, colour profile, resolution) stay, with the new size, without the small previews of the original.
 - An Ultra HDR photo from a phone stays HDR. The video of a motion photo is not kept, unless you only turned or flipped it.
 - Every object, filter and crop is applied at full size.
 
