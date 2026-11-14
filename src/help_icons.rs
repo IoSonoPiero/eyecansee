@@ -54,7 +54,7 @@ const LUCIDE: &[(&str, &str)] = lucide_table![
 
 /// Our line icons (`icons::line_svg`): the heads and kinds of line, the bubbles not from Lucide,
 /// the lit star of a bookmark.
-const OWN: [(&str, Line); 11] = [
+const OWN: [(&str, Line); 13] = [
     ("head-filled", Line::HeadFilled),
     ("head-open", Line::HeadOpen),
     ("head-double", Line::HeadDouble),
@@ -66,6 +66,8 @@ const OWN: [(&str, Line); 11] = [
     ("balloon-cloud", Line::Balloon(Balloon::Cloud)),
     ("balloon-shout", Line::Balloon(Balloon::Shout)),
     ("star-filled", Line::StarFilled),
+    ("to-front", Line::ToFront),
+    ("to-back", Line::ToBack),
 ];
 
 /// The coloured icons, with the `color-` prefix.
