@@ -25,9 +25,13 @@ pub(super) fn bar(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     let Some(Shape::Patch { area, mirrored, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
     ui.separator();
     let mut shown = patch::shown(area.rot, angle);
+    // The slider rounds the angle the handle left (61.37°) each time it is drawn and calls that a
+    // change: written back, every Undo made a step of its own and stayed where it was. Only a
+    // whole degree other than the one shown is the user's.
+    let before = shown.round();
     ui.spacing_mut().slider_width = SLIDER;
     let slider = egui::Slider::new(&mut shown, -180.0..=180.0).integer().suffix("°");
-    if super::props::slider(ui, "rc-rotation", i18n.t("rc-rotation"), slider).on_hover_text(i18n.t("edit-patch-turn-hint")).changed() {
+    if super::props::slider(ui, "rc-rotation", i18n.t("rc-rotation"), slider).on_hover_text(i18n.t("edit-patch-turn-hint")).changed() && shown != before {
         area.rot = patch::rot_for(shown, angle);
     }
     let button = |ui: &mut egui::Ui, icon, id| bar_button(ui, icons::button(ui, icon), i18n.t(id), None);
@@ -76,6 +80,24 @@ pub(super) fn bar(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A piece turned by its handle to a fraction of a degree stays so when the bar is drawn: the
+    /// slider rounded it and the bar wrote it back, a change each frame that broke Undo
+    /// (warmachinew, 2026-11-14).
+    #[test]
+    fn drawing_keeps_the_angle() {
+        use super::super::{Tool, Window};
+        use crate::edit::doc::{Area, Obj, Pixels, Pt, Style};
+        let ctx = egui::Context::default();
+        let i18n = I18n::new("en");
+        let mut w = Window::new("p/a.png".into(), Default::default(), Tool::Select);
+        let area = Area { centre: Pt::new(0.0, 0.0), w: 100.0, h: 50.0, rot: 61.37 };
+        w.doc.objects.push(Obj { shape: Shape::Patch { area, pixels: Pixels::new(image::RgbaImage::new(2, 2)), mirrored: false }, style: Style::default() });
+        for _ in 0..3 {
+            ctx.run_ui(Default::default(), |ui| bar(ui, &mut w, 0, &i18n)).textures_delta.clear();
+        }
+        assert_eq!(w.doc.objects[0].shape.area().unwrap().rot, 61.37);
+    }
 
     /// The bar of a selected piece (four-figure sizes, an angle of three figures and a sign) in
     /// every language, on one row in a 1200 px window: with the sliders of the other bars its bin
