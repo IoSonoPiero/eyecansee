@@ -55,9 +55,7 @@ impl App {
         if video {
             // A turned video is saved as an image (issue #125): Ctrl+S and Ctrl+Shift+S before
             // the return below, which left them unread on a video.
-            if let Some(act) = ctx.input_mut(take_save) {
-                self.act = Some(act);
-            }
+            self.save_keys(ctx);
             // Up and down the volume, M sound off and on, as in the players.
             let (up, down, mute) = ctx.input(|i| (i.key_pressed(Key::ArrowUp), i.key_pressed(Key::ArrowDown), i.key_pressed(Key::M) && !i.modifiers.command));
             if up || down {
@@ -75,8 +73,16 @@ impl App {
             self.cad_keys(ctx, current);
         }
         // Ctrl+R and Ctrl+Shift+R: in `global_keys`, for the grid too.
-        if let Some(act) = ctx.input_mut(take_save) {
-            self.act = Some(act);
+        self.save_keys(ctx);
+    }
+
+    /// Ctrl+S and Ctrl+Shift+S: Ctrl+Shift+S only where Save as… is on (not on a video or an audio
+    /// file, which it would read as a picture); Ctrl+S says itself why it cannot save.
+    fn save_keys(&mut self, ctx: &egui::Context) {
+        match ctx.input_mut(take_save) {
+            Some(Act::Convert(_)) if self.save_as_off().is_some() => {}
+            Some(act) => self.act = Some(act),
+            None => {}
         }
     }
 
