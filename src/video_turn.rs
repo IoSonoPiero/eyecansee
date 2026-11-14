@@ -78,6 +78,36 @@ pub fn write(program: &Path, input: &Path, output: &Path, quarters: u8, cancel: 
     r
 }
 
+/// The video `path` of `op` saved over itself turned by `quarters` clockwise quarter turns, the
+/// original going as `how` says (as a photo's Save). A video on a phone or a server is copied
+/// here first; the new one is written into a temporary file, then sent into place.
+pub(crate) async fn replace(op: &crate::source::Store, path: &str, quarters: u8, how: crate::source::Deletion) -> Result<(), crate::source::Error> {
+    let name = crate::source::name(path).to_string();
+    let Some(program) = crate::ffmpeg::copier() else { return Err((crate::batch::SKIP_VIDEO, name)) };
+    let temp = |what: &str| std::env::temp_dir().join(format!("eyecansee-turn-{what}-{}-{name}", std::process::id()));
+    let input = match op.local_file(path) {
+        Some(file) => (file, false),
+        None => {
+            let file = temp("in");
+            crate::batch::download(op, path, &file, || false, |_| {}).await.map_err(|e| ("error-detail", e.to_string()))?;
+            (file, true)
+        }
+    };
+    let output = temp("out");
+    let (from, to) = (input.0.clone(), output.clone());
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+    let written = tokio::task::spawn_blocking(move || write(&program, &from, &to, quarters, &cancel, |_| {})).await.unwrap_or_else(|e| Err(e.to_string()));
+    if input.1 {
+        let _ = std::fs::remove_file(&input.0);
+    }
+    let r = match written {
+        Ok(()) => crate::replace::replace_with_file(op, path, &output, how).await,
+        Err(e) => Err(("batch-failed", format!("{name}: {e}"))),
+    };
+    let _ = std::fs::remove_file(&output);
+    r
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -138,5 +168,29 @@ mod tests {
         }
         std::fs::remove_dir_all(&dir).unwrap();
         assert!(failed.is_empty(), "{}", failed.join("\n"));
+    }
+
+    /// `cargo test video_saved_turned_live -- --ignored`: a video saved over itself turned once,
+    /// then once more; the original goes into the trash folder, the new one has the rotation.
+    #[test]
+    #[ignore]
+    fn video_saved_turned_live() {
+        let program = crate::ffmpeg::copier().expect("an FFmpeg");
+        let dir = std::env::temp_dir().join(format!("eyecansee-video-saved-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let clip = dir.join("v.mp4");
+        let make = ["-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x240:rate=25:duration=1", "-c:v", "libx264"];
+        let a: Vec<String> = make.iter().map(|s| s.to_string()).chain([clip.to_string_lossy().into()]).collect();
+        crate::ffmpeg::run(&program, &a, |_| {}, &std::sync::atomic::AtomicBool::new(false)).unwrap();
+        let op = crate::source::Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(replace(&op, "v.mp4", 1, crate::source::Deletion::TrashFolder)).unwrap();
+        assert_eq!(turned(read_rotation(&program, &clip).unwrap(), 0), -90);
+        assert!(dir.join(crate::trash::TRASH_DIR).join("v.mp4").is_file());
+        // Once more: from the rotation it has now, upside down.
+        rt.block_on(replace(&op, "v.mp4", 1, crate::source::Deletion::Permanent)).unwrap();
+        assert_eq!(turned(read_rotation(&program, &clip).unwrap(), 0), 180);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
