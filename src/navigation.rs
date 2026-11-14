@@ -127,6 +127,8 @@ impl App {
         self.dir = dir;
         self.thumbs.clear();
         self.generated.clear();
+        self.thumb_infos.clear();
+        self.info_asked.clear();
         self.thumb_queue_key = None;
         self.full.clear();
         self.pending.clear();

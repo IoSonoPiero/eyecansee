@@ -21,6 +21,11 @@ impl App {
                 Msg::Listed(dir, r) => self.on_listed(ctx, dir, r),
                 Msg::Loaded { generation, index, thumb, image } if generation == self.generation => self.on_loaded(ctx, index, thumb, image),
                 Msg::Meta { generation, index, meta } if generation == self.generation => self.on_meta(index, meta),
+                Msg::Info { generation, path, info } if generation == self.generation => {
+                    if let Some(info) = info {
+                        self.thumb_infos.insert(path, info);
+                    }
+                }
                 Msg::Mesh { generation, index, mesh } if generation == self.generation => {
                     if let Some(f) = self.files().get(index) {
                         self.model.meshes.insert(f.path.clone(), mesh);
@@ -31,7 +36,7 @@ impl App {
                         self.model.cad.drawings.insert(f.path.clone(), drawing);
                     }
                 }
-                Msg::Loaded { .. } | Msg::Meta { .. } | Msg::Mesh { .. } | Msg::Drawing { .. } => {} // folder has changed in the meantime
+                Msg::Loaded { .. } | Msg::Meta { .. } | Msg::Info { .. } | Msg::Mesh { .. } | Msg::Drawing { .. } => {} // folder has changed in the meantime
                 // Counted from the first event, not the last: a copy into a subfolder sends one for
                 // every file, and the folder was read again only when the copy ended.
                 Msg::Changed if self.changed_at.is_none() => self.changed_at = Some(ctx.input(|i| i.time) + 0.3),
@@ -169,6 +174,8 @@ impl App {
                 self.pending.clear();
                 self.thumbs.clear();
                 self.generated.clear();
+                self.thumb_infos.clear();
+                self.info_asked.clear();
                 self.thumb_queue_key = None;
             }
             self.viewing = found.map(|(_, i)| i);
@@ -209,6 +216,10 @@ impl App {
         }
         if thumb {
             self.generated.insert(index);
+            // Its details are saved with it: asked again if they were not there before.
+            if !self.thumb_infos.contains_key(&name) {
+                self.info_asked.remove(&name);
+            }
             // Generated in the background far from the screen: it stays on disk only.
             if self.thumb_keep.contains(&index) {
                 let tex = image.map(|img| ctx.load_texture(name, img, TextureOptions::LINEAR));

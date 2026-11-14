@@ -104,6 +104,9 @@ pub enum Msg {
     Forgotten(Vec<String>),
     /// Metadata of an image: `None` = no EXIF.
     Meta { generation: u64, index: usize, meta: Result<Option<crate::meta::Meta>, String> },
+    /// The details of a file for the line under its thumbnail (#139); `None`: not known yet (its
+    /// thumbnail is still to be made, and with it they are saved).
+    Info { generation: u64, path: String, info: Option<crate::thumb_details::Info> },
 }
 
 /// The message at the end of a save over the original: `NotReplaced` when it failed with the new
@@ -529,6 +532,23 @@ impl Loader {
     /// Metadata for the panel: saved in the cache with the thumbnails, otherwise read from the file
     /// (the thumbnail may come from the cache, without having read it); on the phone it goes
     /// through the same queue as the viewer images.
+    /// The details of `files` (the thumbnails on screen) for the lines under them, one after the
+    /// other: from the cache, or read from the file once (`thumb_queue::file_info`).
+    pub fn load_infos(&self, generation: u64, files: Vec<File>) {
+        let (op, tx, ctx, base) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), self.base.clone());
+        let current = self.generation.clone();
+        self.rt.spawn(async move {
+            for file in files {
+                if current.load(Ordering::Relaxed) != generation {
+                    return;
+                }
+                let info = crate::thumb_queue::file_info(&op, &base, &file).await;
+                let _ = tx.send(Msg::Info { generation, path: file.path, info });
+                ctx.request_repaint();
+            }
+        });
+    }
+
     pub fn load_meta(&self, generation: u64, index: usize, file: File) {
         let (op, tx, ctx, base) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), self.base.clone());
         let current = self.generation.clone();

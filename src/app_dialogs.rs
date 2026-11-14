@@ -298,6 +298,16 @@ fn deleting_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
 /// `confirm`: the files and bytes of the cache, while Empty asks to be sure. `true` once emptied.
 fn thumbnails_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, confirm: &mut Option<(u64, u64)>) -> bool {
     let t = |id| i18n.t(id);
+    // What goes under each thumbnail (#139).
+    ui.label(t("opt-under-thumbs")).on_hover_text(t("opt-under-thumbs-hint"));
+    let d = &mut s.thumb_details;
+    ui.checkbox(&mut d.name, t("opt-under-name"));
+    ui.checkbox(&mut d.pixels, t("opt-under-pixels")).on_hover_text(t("opt-under-pixels-hint"));
+    ui.checkbox(&mut d.size, t("opt-under-size"));
+    ui.checkbox(&mut d.date, t("opt-under-date")).on_hover_text(t("opt-under-date-hint"));
+    ui.checkbox(&mut d.duration, t("opt-under-duration")).on_hover_text(t("opt-under-duration-hint"));
+    ui.add_space(6.0);
+    ui.separator();
     ui.checkbox(&mut s.thumb_maintenance, t("opt-cache-maintenance")).on_hover_text(t("opt-cache-maintenance-hint"));
     ui.add_enabled_ui(s.thumb_maintenance, |ui| {
         ui.horizontal(|ui| {

@@ -24,6 +24,8 @@ pub struct Settings {
     pub wrap_around: bool,
     /// In the viewer the window's ✕ goes back to the grid, as Esc; otherwise it closes the app.
     pub close_to_grid: bool,
+    /// What goes under each thumbnail (#139): at first only the name.
+    pub thumb_details: crate::thumb_details::Details,
     /// The mouse wheel zooms the viewer; otherwise it changes image (Ctrl and the wheel always zoom).
     pub wheel_zoom: bool,
     /// Largest zoom in the viewer, in percent of the image's pixels.
@@ -202,6 +204,7 @@ impl Default for Settings {
             servers_plain_warned: false,
             wrap_around: false,
             close_to_grid: true,
+            thumb_details: Default::default(),
             wheel_zoom: true,
             // As GNOME's image viewer (Loupe).
             max_zoom: 2000,
@@ -317,7 +320,7 @@ mod tests {
         // Every key 0.76.0 wrote, none of those added after it.
         let mut old = serde_json::to_value(Settings::default()).unwrap();
         let keys = old.as_object_mut().unwrap();
-        keys.retain(|k, _| !["edit_after_save", "edit_main_overwrite", "resize_presets"].contains(&k.as_str()));
+        keys.retain(|k, _| !["edit_after_save", "edit_main_overwrite", "resize_presets", "thumb_details"].contains(&k.as_str()));
         assert_eq!(keys.len(), 32, "the keys of 0.76.0's settings.json");
         let s: Settings = serde_json::from_value(old).unwrap();
         assert_eq!(s.edit_after_save, AfterSave::Stay, "the page stays open unless chosen");

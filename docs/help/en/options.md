@@ -69,5 +69,6 @@ See [Deleting and the trash](delete.md).
 
 ## Thumbnails
 
+- **Under the thumbnails**: what is written under each thumbnail. **Name** (the only one at first), **Dimensions in pixels**, **Size** and **Date**. Dimensions and size go on one row ("1920 × 1080 · 350 KB"), the date on the row below; with small thumbnails only the name stays. The date is when the photo was taken, if the file says so, otherwise when the file was modified: with the mouse over it, a tip says which one ("Taken on…" or "Modified on…"). Dimensions and date taken are read from each photo with its thumbnail and kept with it, so they come at once the next time, also from phones and servers; for a video only the size and the date.
 - **Clean up the thumbnail cache** (off): once per session, for each location you open, removes the thumbnails of deleted images and makes again those of changed images; then removes the least recently used thumbnails until the cache is within **Cache limit** (1024 MB at first). Folders that cannot be found or reached are skipped, so a disconnected disk or a switched-off NAS keeps its thumbnails.
 - **Empty the thumbnail cache…**: deletes all the saved thumbnails, after a confirmation saying how many and how much space is freed. Your images are not touched: the thumbnails of the open folder are made again at once, the others when you open their folder.

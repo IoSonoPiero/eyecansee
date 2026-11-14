@@ -191,7 +191,7 @@ async fn phone_thumbnail(op: &Store, path: &str) -> Option<Vec<u8>> {
 /// partial reads WPD reads the file from the start up to the offset, and the Samsung A57 dropped
 /// the connection after minutes of that (2026-10-27). Such a file is read whole, in order, once.
 /// With partial reads (mtp-rs 0.38.1) a phone on Windows is read as on Linux (#71).
-fn whole_only(op: &Store) -> bool {
+pub(crate) fn whole_only(op: &Store) -> bool {
     cfg!(windows) && matches!(op, Store::Mtp(phone) if phone.ranges_slow())
 }
 

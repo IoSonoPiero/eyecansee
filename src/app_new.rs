@@ -60,6 +60,8 @@ impl App {
             thumbs: HashMap::new(),
             thumb_keep: 0..0,
             generated: HashSet::new(),
+            thumb_infos: HashMap::new(),
+            info_asked: HashSet::new(),
             thumb_queue_key: None,
             full: HashMap::new(),
             own_sizes: HashMap::new(),
