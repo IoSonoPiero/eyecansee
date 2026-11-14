@@ -70,7 +70,7 @@ In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device e
 | 0 | Fit the image to the window |
 | 1 | 100%: one image pixel per screen pixel |
 | Ctrl+S | Save the turned image over the original |
-| Ctrl+Shift+S | Save as (see [Saving in another format](save-as.md)) |
+| Ctrl+Shift+S | Save as (see [Save as](save-as.md)) |
 | Ctrl+E | Edit image |
 | Ctrl+C, Ctrl+X | Copy or cut the image shown, to paste it in a folder |
 | F2, Del, Shift+Del | Rename and delete, as in the grid |
@@ -157,5 +157,5 @@ See [Editing an image](editor.md).
 
 ## In other pages
 
-- **Save in another format**: **Esc** closes the page without saving.
+- **Save as**: **Esc** closes the page without saving.
 - **Find duplicates**: **↑** and **↓** move between the copies, **Space** ticks or unticks, **Esc** closes. Enter does not delete.

@@ -40,7 +40,7 @@
 
 ## Salvare e convertire
 
-- [Salvare in un altro formato](save-as.md)
+- [Salva come](save-as.md)
 - [Convertire e ridimensionare le immagini](convert.md)
 - [Convertire i video](convert-video.md)
 

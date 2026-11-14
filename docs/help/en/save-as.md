@@ -1,6 +1,6 @@
-# Saving in another format
+# Save as
 
-Saves one image as a new file in another format, for example a phone's HEIC photo as a JPEG, or a PNG as a smaller WebP. Before saving you see exactly how the new file will look and how large it will be. The original is never changed.
+Saves one image as a new file, in the format and the folder you choose, for example a phone's HEIC photo as a JPEG, or a PNG as a smaller WebP. Before saving you see exactly how the new file will look and how large it will be. The original is never changed.
 
 To convert or resize many images at once, use [Converting and resizing images](convert.md).
 
@@ -11,7 +11,7 @@ To convert or resize many images at once, use [Converting and resizing images](c
 - In the viewer, a 3D model or a CAD drawing can be saved as a picture too, as it is shown on screen: a model at least 1920 pixels on its long side, a drawing with the layout you are looking at. On a 3D model **Ctrl+S** does the same.
 - In the editor, **Save as…** opens this page with the edited image (see [Saving an edited image](editor-save.md)). Closing it without saving goes back to the editor, with the changes.
 
-![Saving in another format](../img/save-as.webp)
+![Save as](../img/save-as.webp)
 
 ## What the page shows
 
@@ -25,9 +25,10 @@ Tick **100%** to see the real pixels. Then drag either image to move both, so yo
 
 1. Choose the **Format**. The page opens on the format of the last image saved from it while EyeCanSee is open; the first time on JPEG. A new image from the editor always opens on PNG. An image too large for that format (WebP holds at most 16383 pixels on a side, JPEG 65500, GIF and TGA 65535) opens on JPEG or PNG as the first time. The options of the format start as described below.
 2. Change its options if you want (see below).
-3. Check the name in **File name**, then click **Save**.
+3. Check the folder in **Folder**: at first it is the original's. To save somewhere else click **Browse…** and choose another folder, also on another device: a phone, a disk or a saved server, as in [Converting and resizing images](convert.md). **Enter** or **Use this folder** chooses it, **Esc** or **Cancel** keeps the folder you had.
+4. Check the name in **File name**, then click **Save**.
 
-The new file goes into the same folder as the original. If the name is already taken, " (2)" is added, and the page tells you before you save. Once saved, the page closes.
+If the name is already taken in that folder, " (2)" is added, and the page tells you before you save. Once saved, the page closes.
 
 **Esc** or the ✕ of the window closes the page without saving.
 

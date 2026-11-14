@@ -2,7 +2,7 @@
 
 Converte tante immagini insieme: in un altro formato, più piccole o più grandi, ruotate o riflesse, nella stessa cartella, in una sottocartella o in un'altra cartella, anche su un altro dispositivo. Gli originali non vengono mai toccati: i file nuovi vanno accanto a loro o dove scegli tu.
 
-Per una sola immagine con l'anteprima dal vivo usa [Salvare in un altro formato](save-as.md). I video passano dalla stessa finestra: vedi [Convertire i video](convert-video.md).
+Per una sola immagine con l'anteprima dal vivo usa [Salva come](save-as.md). I video passano dalla stessa finestra: vedi [Convertire i video](convert-video.md).
 
 ## Avviare la conversione
 
@@ -36,7 +36,7 @@ Con una misura e una rotazione, il nome dice solo la misura. Un'immagine lasciat
 ## Formato
 
 - **Uguale all'originale**: ogni immagine resta nel suo formato e viene scritta come la scrive Salva (un JPEG tiene la sua qualità). Le immagini in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) restano fuori.
-- Uno dei formati di [Salvare in un altro formato](save-as.md). Le sue opzioni sono sotto **Opzioni JPEG** (o il nome del formato scelto): fai clic sul titolo per aprirle. Lì c'è anche **Mantieni i metadati**.
+- Uno dei formati di [Salva come](save-as.md). Le sue opzioni sono sotto **Opzioni JPEG** (o il nome del formato scelto): fai clic sul titolo per aprirle. Lì c'è anche **Mantieni i metadati**.
 - Le foto **Ultra HDR** dei telefoni restano HDR solo in JPEG. Se tra i file ci sono dei JPEG e scegli un altro formato, la finestra te lo ricorda.
 
 ## Rotazione e ribaltamenti

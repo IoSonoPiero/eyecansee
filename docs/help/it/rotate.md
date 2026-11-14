@@ -16,7 +16,7 @@ Funzionano solo sulle foto: su video, modelli 3D e disegni CAD sono grigi. Per r
 ## Nel visore
 
 1. Apri la foto e ruotala o rifletti: vedi subito il risultato, e la barra di stato dice **Modificata, non salvata**.
-2. **File > Salva** (**Ctrl+S**) la salva sopra l'originale, dopo aver chiesto. **File > Salva come…** (**Ctrl+Maiusc+S**) salva un file nuovo nel formato che scegli, e lascia l'originale com'è (vedi [Salvare in un altro formato](save-as.md)).
+2. **File > Salva** (**Ctrl+S**) la salva sopra l'originale, dopo aver chiesto. **File > Salva come…** (**Ctrl+Maiusc+S**) salva un file nuovo nel formato che scegli, e lascia l'originale com'è (vedi [Salva come](save-as.md)).
 
 Se lasci la foto senza salvare (un'altra foto, ritorno alla griglia, un segnalibro, chiusura di EyeCanSee), EyeCanSee chiede prima: **Salva…**, **Salva come…**, **Non salvare**, oppure **Annulla** per restare sulla foto.
 

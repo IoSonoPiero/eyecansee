@@ -30,4 +30,4 @@ EyeCanSee si ricorda quali riquadri sono aperti e se il pannello è compresso.
 
 - Il pannello segue il file selezionato nella griglia; nel visore non c'è. La barra di stato del visore mostra la data dello scatto se i metadati sono già stati letti nella griglia (vedi [Guardare le immagini](viewer.md)).
 - Per leggere i metadati EyeCanSee rilegge il file, quindi su un telefono o su un server ci vuole un attimo. Una volta letti restano salvati con le miniature e la volta dopo compaiono subito, finché il file non cambia.
-- Quando converti o salvi una foto, i suoi metadati restano nel file nuovo, se il formato li sa contenere. Vedi [Salvare in un altro formato](save-as.md).
+- Quando converti o salvi una foto, i suoi metadati restano nel file nuovo, se il formato li sa contenere. Vedi [Salva come](save-as.md).

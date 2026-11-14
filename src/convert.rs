@@ -1,6 +1,7 @@
-//! "Save in another format": the image decoded in full, encoded again with the chosen format and
-//! options (`encode`). The encoded bytes are both what gets saved and, decoded back, the preview: what the
-//! window shows is what the file will contain.
+//! Save as…: the image decoded in full, encoded again with the chosen format and options
+//! (`encode`), saved in the original's folder or another one (`folder`). The encoded bytes are
+//! both what gets saved and, decoded back, the preview: what the window shows is what the file
+//! will contain.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -13,12 +14,14 @@ use crate::encode::{Chroma, Format, Options, Original, PngFilter, TiffCompressio
 use crate::paint::{paint_turned, paint_zoomed};
 use crate::transform::Turn;
 
+mod folder;
+
 /// The original decoded, its texture and file size.
 type Loaded = Result<(Arc<Original>, TextureHandle, u64), String>;
 /// The encoded file and, decoded back, its texture.
 type Encoded = Result<(Arc<Vec<u8>>, Option<TextureHandle>), String>;
 
-/// The open "Save in another format" window.
+/// The open Save as… page.
 pub struct Window {
     /// The original, relative to the source.
     pub path: String,
@@ -42,6 +45,12 @@ pub struct Window {
     /// Opened from the editor: where its image is, and so where this file goes, whatever the grid
     /// shows (`edit_page::Place`).
     pub(crate) place: Option<crate::edit_page::Place>,
+    /// Another folder chosen for the new file (issue #127); `None`: the original's.
+    folder: Option<folder::Folder>,
+    /// Browse… was pressed: the folder chooser opens after drawing.
+    browse: bool,
+    /// The folder chooser, open over the page.
+    picker: Option<crate::folder_pick::Picker>,
 }
 
 impl Window {
@@ -73,6 +82,9 @@ impl Window {
             error: None,
             unsaved: false,
             place: None,
+            folder: None,
+            browse: false,
+            picker: None,
         }
     }
 }
@@ -125,9 +137,9 @@ impl crate::App {
         match r {
             Ok(path) => {
                 log!("saved as {path:?}");
-                // From the editor, on a place the grid no longer shows: nothing there to select or
-                // list again.
-                let here = self.convert.as_ref().and_then(|w| w.place.as_ref()).is_none_or(|p| p.base == self.base);
+                // From the editor, on a place the grid no longer shows, or into a folder of another
+                // device: nothing there to select or list again.
+                let here = self.convert.as_ref().is_none_or(|w| w.dest_base(&self.base) == self.base);
                 self.save_as_format = self.convert.take().map(|w| w.options.format).or(self.save_as_format);
                 // Opened from the editor: the page under it closes now that the file is written.
                 if self.editor.as_mut().is_some_and(|w| w.save_as_ended(true)) {
@@ -158,21 +170,15 @@ impl crate::App {
         let ctx = &ui.ctx().clone();
         let Some(mut w) = self.convert.take() else { return };
         self.start_encoding(&mut w, ctx);
-        let dir = crate::source::parent(&w.path);
-        // The grid's names only for its own place (`save_in_place` checks them there).
-        let here = w.place.as_ref().is_none_or(|p| p.base == self.base);
-        // What the grid does not show is taken too: a hidden "e (2).jpg" was overwritten.
-        let taken: HashSet<String> = match self.listings.get(&dir).filter(|_| here) {
-            Some(Ok(l)) => l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).chain(l.unseen.iter().cloned()).collect(),
-            _ => HashSet::new(),
-        };
-        let final_name = crate::source::free_name(&taken, w.name.trim());
+        let dir = w.dest_dir();
+        let final_name = crate::source::free_name(&self.convert_taken(&w, &dir), w.name.trim());
         let open = page_header(ui, &self.i18n.t("convert-title"));
-        let save = self.convert_body(ui, &mut w, &final_name);
+        let shown = crate::navigation::shown(w.dest_base(&self.base), &dir);
+        let save = self.convert_body(ui, &mut w, &final_name, &shown);
         if save && let Some(Ok((bytes, _))) = &w.result {
             let (path, bytes) = (format!("{dir}{final_name}"), bytes.clone());
-            let sent = match (&w.place, &self.loader) {
-                (Some(place), _) => self.save_in_place(ctx, place.store.clone(), path, bytes),
+            let sent = match (w.dest_store(), &self.loader) {
+                (Some(store), _) => self.save_in_place(ctx, store.clone(), path, bytes),
                 (None, Some(loader)) => {
                     loader.save(path, bytes);
                     true
@@ -184,14 +190,30 @@ impl crate::App {
                 w.error = None;
             }
         }
+        self.convert_pick(ctx, &mut w);
         // Taken out while drawn (it needs the rest of the app), put back unless closed.
         if open {
             self.convert = Some(w);
         }
     }
 
-    /// Save as… from the editor: written where its image is (`place`), under a name free there:
-    /// the grid may show another place, whose names say nothing of that folder. `true`: sent.
+    /// The names taken in `dir`, where the file goes: the grid's for its own place (`save_in_place`
+    /// checks them again elsewhere), those read in a folder chosen (`folder`).
+    fn convert_taken(&self, w: &Window, dir: &str) -> HashSet<String> {
+        if let Some(f) = &w.folder {
+            return f.taken();
+        }
+        let here = w.dest_base(&self.base) == self.base;
+        // What the grid does not show is taken too: a hidden "e (2).jpg" was overwritten.
+        match self.listings.get(dir).filter(|_| here) {
+            Some(Ok(l)) => l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).chain(l.unseen.iter().cloned()).collect(),
+            _ => HashSet::new(),
+        }
+    }
+
+    /// Save as… from the editor, or into a folder chosen: written there (`place`, `folder`),
+    /// under a name free there: the grid may show another place, whose names say nothing of that
+    /// folder. `true`: sent.
     fn save_in_place(&self, ctx: &egui::Context, store: crate::source::Store, path: String, data: Arc<Vec<u8>>) -> bool {
         let (tx, ctx) = (self.tx.clone(), ctx.clone());
         self.rt.spawn(async move {
@@ -230,7 +252,7 @@ impl crate::App {
 
     /// Everything under the title: the two images, then what each one is, with the options and
     /// the name on the side of the new one. `true`: Save clicked.
-    fn convert_body(&self, ui: &mut egui::Ui, w: &mut Window, final_name: &str) -> bool {
+    fn convert_body(&self, ui: &mut egui::Ui, w: &mut Window, final_name: &str, folder: &str) -> bool {
         let i18n = &self.i18n;
         let t = |id| i18n.t(id);
         let mut save = false;
@@ -274,8 +296,9 @@ impl crate::App {
                 let image = &original.0.image;
                 format_options(ui, &mut w.options, image.color().has_alpha(), image.width().max(image.height()) > crate::encode::ICO_SIDE, i18n);
                 meta_options(ui, &mut w.options, &original.0, i18n);
-                // The name belongs to the new image, so it sits on its side.
+                // The folder and the name belong to the new image, so they sit on its side.
                 ui.add_space(6.0);
+                folder::folder_row(ui, w, i18n, folder);
                 save = name_row(ui, w, i18n, half, final_name);
             });
         })

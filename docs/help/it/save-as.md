@@ -1,6 +1,6 @@
-# Salvare in un altro formato
+# Salva come
 
-Salva un'immagine come file nuovo in un altro formato: per esempio una foto HEIC del telefono come JPEG, o un PNG come WebP più leggero. Prima di salvare vedi esattamente come sarà il file nuovo e quanto pesa. L'originale non viene mai toccato.
+Salva un'immagine come file nuovo, nel formato e nella cartella che scegli: per esempio una foto HEIC del telefono come JPEG, o un PNG come WebP più leggero. Prima di salvare vedi esattamente come sarà il file nuovo e quanto pesa. L'originale non viene mai toccato.
 
 Per convertire o ridimensionare tante immagini insieme usa [Convertire e ridimensionare le immagini](convert.md).
 
@@ -11,7 +11,7 @@ Per convertire o ridimensionare tante immagini insieme usa [Convertire e ridimen
 - Nel visore anche un modello 3D o un disegno CAD si possono salvare come immagine, così come si vedono: un modello di almeno 1920 pixel sul lato lungo, un disegno con il layout che stai guardando. Su un modello 3D fa lo stesso anche **Ctrl+S**.
 - Nell'editor, **Salva come…** apre questa pagina con l'immagine modificata (vedi [Salvare un'immagine modificata](editor-save.md)). Chiudendola senza salvare torni all'editor, con le modifiche.
 
-![Salvare in un altro formato](../img/save-as.webp)
+![Salva come](../img/save-as.webp)
 
 ## Che cosa mostra la pagina
 
@@ -25,9 +25,10 @@ Spunta **100%** per vedere i pixel veri. Poi trascina una delle due immagini per
 
 1. Scegli il **Formato**. La pagina si apre sul formato dell'ultima immagine salvata da qui finché EyeCanSee resta aperto; la prima volta su JPEG. Un'immagine nuova dell'editor si apre sempre su PNG. Un'immagine troppo grande per quel formato (WebP tiene al massimo 16383 pixel per lato, JPEG 65500, GIF e TGA 65535) si apre su JPEG o PNG come la prima volta. Le opzioni del formato partono come descritto qui sotto.
 2. Se vuoi, cambia le sue opzioni (vedi sotto).
-3. Controlla il nome in **Nome del file** e fai clic su **Salva**.
+3. Controlla la cartella in **Cartella**: all'inizio è quella dell'originale. Per salvare altrove fai clic su **Sfoglia…** e scegli un'altra cartella, anche su un altro dispositivo: un telefono, un disco o un server salvato, come in [Convertire e ridimensionare le immagini](convert.md). **Invio** o **Usa questa cartella** la sceglie, **Esc** o **Annulla** tiene la cartella che avevi.
+4. Controlla il nome in **Nome del file** e fai clic su **Salva**.
 
-Il file nuovo va nella stessa cartella dell'originale. Se il nome è già preso, viene aggiunto " (2)" e la pagina lo dice prima che tu salvi. Dopo il salvataggio la pagina si chiude.
+Se il nome è già preso in quella cartella, viene aggiunto " (2)" e la pagina lo dice prima che tu salvi. Dopo il salvataggio la pagina si chiude.
 
 **Esc** o la X della finestra chiudono la pagina senza salvare.
 

@@ -40,7 +40,7 @@
 
 ## Saving and converting
 
-- [Saving in another format](save-as.md)
+- [Save as](save-as.md)
 - [Converting and resizing images](convert.md)
 - [Converting videos](convert-video.md)
 

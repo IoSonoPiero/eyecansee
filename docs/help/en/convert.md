@@ -2,7 +2,7 @@
 
 Converts many pictures at once: into another format, smaller or larger, turned or flipped, into the same folder, a subfolder or another folder, also on another device. The originals are never touched: the new files are written beside them or where you choose.
 
-For one image with a live preview use [Saving in another format](save-as.md). Videos go through the same window: see [Converting videos](convert-video.md).
+For one image with a live preview use [Save as](save-as.md). Videos go through the same window: see [Converting videos](convert-video.md).
 
 ## Starting
 
@@ -36,7 +36,7 @@ With a size and a turn, the name says only the size. A picture left at its size 
 ## Format
 
 - **Same as the original**: each image stays in its own format and is written as Save writes it (a JPEG keeps its own quality). Images in a format EyeCanSee cannot write (HEIC, RAW…) are left out.
-- One of the formats of [Saving in another format](save-as.md). Its options are under **JPEG options** (or the name of the format you chose): click the title to open them. **Keep the metadata** is there too.
+- One of the formats of [Save as](save-as.md). Its options are under **JPEG options** (or the name of the format you chose): click the title to open them. **Keep the metadata** is there too.
 - **Ultra HDR** phone photos stay HDR only in JPEG. When JPEG photos are among the files and you choose another format, the window warns you.
 
 ## Turn and flip

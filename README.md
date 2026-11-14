@@ -40,7 +40,7 @@ It is early in development. This page lists only what works now: new features ar
 
 ![Folders, two servers and a phone side by side in the left panel](docs/screenshots/devices.png)
 
-![Saving in another format, the original and the result side by side](docs/screenshots/convert.png)
+![Save as, the original and the result side by side](docs/screenshots/convert.png)
 
 ![Converting videos, on the graphics card when it can](docs/screenshots/video-convert.png)
 
@@ -75,7 +75,7 @@ What comes next is in [ROADMAP.md](ROADMAP.md).
 - **Rotating**: flips and quarter turns on one or many images at once, saved over the original without loss where the format allows it.
 - **3D models**: STL, 3MF, OBJ, PLY (also point clouds), glTF, FBX, Collada, 3DS, OFF, AMF, VRML, X3D and IFC (building models), and STEP, IGES and BREP from mechanical CAD programs (with a CAD engine downloaded on first use), in the grid and in the viewer with their colours and textures, turned, moved and zoomed with the mouse or the keys, drawn by the graphics card, saved as an image just as they are shown, or converted to glTF (with their textures), OBJ, PLY or STL.
 - **CAD drawings**: DWG and DXF from AutoCAD and other CAD programs, with their layers, blocks, dimensions and texts, and HP-GL plot files, sharp at any zoom, and exported as images, SVG, or DWG ↔ DXF, many at once.
-- **Saving in another format** (JPEG, PNG, WebP, AVIF, TIFF and others) with every option of each format, the original and the result side by side, and the file size before you save.
+- **Save as…** in another format (JPEG, PNG, WebP, AVIF, TIFF and others) and in another folder, also on another device, with every option of each format, the original and the result side by side, and the file size before you save.
 - **Converting and resizing many files at once**: format, turn, size and filter for a whole selection of images and videos, into new files next to the originals, in a subfolder or in another folder, also on another device.
 - **Video conversion** with FFmpeg (the system's, or downloaded once: 63 MB on Windows, 67 MB on Linux): MP4, MKV, WebM, MOV, AVI and GIF with H.264, HEVC, AV1, VP9 and other codecs, turned and resized, on the graphics card when it can (NVIDIA, Intel, AMD, VA-API), or copied as they are without re-encoding; the audio can also be taken out of a video, or extracted into files of its own, without re-encoding; the metadata go into the new file, including a dashcam's GPS position and speeds (`gps.sqlite` on the card) and a DJI drone's position (`.SRT`), so the copy keeps them away from the card. Details in [docs/video-formats.md](docs/video-formats.md).
 - **Servers**: SFTP, FTP and FTPS, on Linux and Windows, browsed like any folder (thumbnails, viewer, videos, copy and move to and from any other device, rename, trash). A server manager keeps the servers you use, with password or SSH key, in the left panel next to the disks, in a file that a master password can encrypt; a server opened from **Open location** is added to it with **Save and open**. SFTP downloads come close to FileZilla's speed, and videos play from a server without stutter, even in 4K, when the connection is fast enough. Tested on a Synology NAS, a Hetzner Storage Box and Linux servers.

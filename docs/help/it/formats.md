@@ -93,7 +93,7 @@ Visti dall'alto (lo spazio modello, e i layout con **L**) e mostrati come immagi
 
 ## Salvare le immagini
 
-**Salva come…** e **Converti…** scrivono questi formati, con le stesse scelte su Linux e su Windows: tutti i codificatori fanno parte del programma (vedi [Salvare in un altro formato](save-as.md)).
+**Salva come…** e **Converti…** scrivono questi formati, con le stesse scelte su Linux e su Windows: tutti i codificatori fanno parte del programma (vedi [Salva come](save-as.md)).
 
 | Formato | Opzioni | Senza perdita | Mantiene i metadati | Scritto con |
 |---|---|:-:|:-:|---|

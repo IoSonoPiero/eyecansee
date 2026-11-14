@@ -70,7 +70,7 @@ Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositiv
 | 0 | Adatta l'immagine alla finestra |
 | 1 | 100%: un pixel dell'immagine per pixel dello schermo |
 | Ctrl+S | Salva l'immagine ruotata sopra l'originale |
-| Ctrl+Maiusc+S | Salva come (vedi [Salvare in un altro formato](save-as.md)) |
+| Ctrl+Maiusc+S | Salva come (vedi [Salva come](save-as.md)) |
 | Ctrl+E | Modifica immagine |
 | Ctrl+C, Ctrl+X | Copia o taglia l'immagine mostrata, per incollarla in una cartella |
 | F2, Canc, Maiusc+Canc | Rinomina ed elimina, come nella griglia |
@@ -157,5 +157,5 @@ Vedi [Modificare un'immagine](editor.md).
 
 ## In altre pagine
 
-- **Salva in un altro formato**: **Esc** chiude la pagina senza salvare.
+- **Salva come**: **Esc** chiude la pagina senza salvare.
 - **Trova duplicati**: **↑** e **↓** passano tra le copie, **Spazio** spunta o toglie, **Esc** chiude. Invio non elimina.

@@ -16,7 +16,7 @@ They work on pictures only: on videos, 3D models and CAD drawings they are greye
 ## In the viewer
 
 1. Open the picture and turn or flip it: you see the result at once, and the status bar says **Changed, not saved**.
-2. **File > Save** (**Ctrl+S**) saves it over the original, after asking. **File > Save as…** (**Ctrl+Shift+S**) saves a new file in the format you choose, and leaves the original as it is (see [Saving in another format](save-as.md)).
+2. **File > Save** (**Ctrl+S**) saves it over the original, after asking. **File > Save as…** (**Ctrl+Shift+S**) saves a new file in the format you choose, and leaves the original as it is (see [Save as](save-as.md)).
 
 If you leave the picture without saving (another picture, back to the grid, a bookmark, closing EyeCanSee), EyeCanSee asks first: **Save…**, **Save as…**, **Don't save**, or **Cancel** to stay on the picture.
 

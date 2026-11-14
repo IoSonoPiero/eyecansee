@@ -48,6 +48,6 @@ La barra strumenti tiene solo ciò che lavora sulla foto mostrata: ![Rinomina…
 
 - Ruotare e riflettere la foto: vedi [Ruotare e riflettere](rotate.md).
 - Disegnarci sopra, ritagliarla, nasconderne delle parti: vedi [Modificare un'immagine](editor.md) (**Ctrl+E**).
-- Salvarne una copia in un altro formato: vedi [Salvare in un altro formato](save-as.md) (**Ctrl+Maiusc+S**).
+- Salvarne una copia in un altro formato: vedi [Salva come](save-as.md) (**Ctrl+Maiusc+S**).
 - **F2** rinomina la foto e **Canc** la elimina, come nella griglia; dopo l'eliminazione compare la foto successiva.
 - Il clic destro sulla foto apre un menù con queste azioni e altre.
