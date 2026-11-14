@@ -25,7 +25,7 @@ La barra di stato mostra quanti elementi sono selezionati e quanto pesano i loro
 - **Invio** (o **Apri**) apre nel visore il primo dei file selezionati, e il visore poi si muove solo tra quelli. Anche il **Carosello** mostra solo quelli (le foto e i video tra quelli), dal primo.
 - **Rinomina** lavora su un elemento alla volta: con più elementi selezionati è grigio.
 
-Quando la selezione mescola tipi di file diversi (per esempio foto e un modello 3D), nei menù una voce che funziona solo su una parte è segnata con **\***: agisce solo su quelli, e una riga in fondo al menù lo dice.
+Quando la selezione mescola tipi di file diversi (per esempio foto e un modello 3D), nei menù una voce che funziona solo su una parte è segnata con **\***: agisce solo su quelli, e una riga in fondo al menù lo dice. Lo stesso vale per le cartelle selezionate insieme ai file: restano fuori, e il messaggio alla fine del lavoro le nomina.
 
 ## Le due parti della finestra
 

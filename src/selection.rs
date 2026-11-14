@@ -12,10 +12,15 @@ pub(crate) enum Kind {
     Audio,
     Model,
     Drawing,
+    /// Chosen together with files: no entry for files works on it, it is left out as the other
+    /// kinds are ("*", and named in the message at the end).
+    Folder,
 }
 
 pub(crate) fn kind(path: &str) -> Kind {
-    if crate::decode::is_video(path) {
+    if path.ends_with('/') {
+        Kind::Folder
+    } else if crate::decode::is_video(path) {
         Kind::Video
     } else if crate::decode::is_audio(path) {
         Kind::Audio
@@ -34,6 +39,9 @@ pub(crate) const PLAYED: &[Kind] = &[Kind::Picture, Kind::Video];
 pub(crate) const CONVERTED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Audio];
 /// Every kind has a thumbnail: an audio file its cover (or the note).
 pub(crate) const THUMBED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Audio, Kind::Model, Kind::Drawing];
+
+/// What Save as… saves from the grid (in the viewer also what a 3D model or a drawing shows).
+pub(crate) const SAVED_AS: &[Kind] = &[Kind::Picture];
 
 /// How an entry fits the files chosen: on none of them (`None`: not shown), on all, or on some
 /// (`Some(false)`: marked with "*").
@@ -60,9 +68,11 @@ pub(crate) fn none_of(kinds: &[Kind]) -> &'static str {
     }
 }
 
-/// A file left out of a work on `kinds`, in the message at the end (Fluent id, `$detail` = its name).
-pub(crate) fn left_out_id(kinds: &[Kind]) -> &'static str {
+/// A file (or folder) left out of a work on `kinds`, in the message at the end (Fluent id,
+/// `$detail` = its name).
+pub(crate) fn left_out_id(kinds: &[Kind], path: &str) -> &'static str {
     match kinds {
+        _ if kind(path) == Kind::Folder => "skip-folder",
         [Kind::Picture] => "skip-not-picture",
         [Kind::Video] => "skip-not-video",
         [Kind::Drawing] => "skip-not-drawing",
@@ -87,12 +97,23 @@ pub(crate) fn starred(label: String, all: bool) -> String {
 }
 
 impl App {
-    /// The files an action works on: the one in the viewer, or `grid_items`.
+    /// The files an action works on: the one in the viewer, or `grid_chosen` (with the folders,
+    /// which the entries count as left out).
     pub(crate) fn files_chosen(&self, path: Option<String>) -> Vec<String> {
         if self.viewing.is_some() {
             return path.or_else(|| self.target()).into_iter().collect();
         }
-        self.grid_items(path)
+        self.grid_chosen(path)
+    }
+
+    /// What Save as… works on: in the viewer the file shown (`path`), in the grid the one file
+    /// of `SAVED_AS` among those chosen (a folder or a video next to it is left out, "*").
+    pub(crate) fn save_as_target(&self, path: Option<String>) -> Option<String> {
+        if self.viewing.is_some() {
+            return path;
+        }
+        let mut files = self.grid_of(path.clone(), SAVED_AS);
+        if files.len() == 1 { files.pop() } else { path }
     }
 
     /// The files of `grid_items` of these kinds.
@@ -104,15 +125,21 @@ impl App {
     /// Not a file in a trash (a turn there would be saved over it).
     pub(crate) fn turns_fit(&self) -> Option<bool> {
         let photo = || self.viewing_photo() && !self.target().is_some_and(|p| source::in_trash(&p));
-        turn_fit(self.viewing.map(|_| photo()), &self.grid_items(None))
+        turn_fit(self.viewing.map(|_| photo()), &self.grid_chosen(None))
     }
 
-    /// The images and videos (not folders) an action on `path` in the grid works on, as `chosen`.
+    /// The files (not folders) an action on `path` in the grid works on, as `chosen`.
     pub(crate) fn grid_items(&self, path: Option<String>) -> Vec<String> {
+        self.grid_chosen(path).into_iter().filter(|p| !p.ends_with('/')).collect()
+    }
+
+    /// As `grid_items`, with the folders chosen: an entry for some kinds of file counts them among
+    /// the items left out ("*"), and a work names them in its message.
+    pub(crate) fn grid_chosen(&self, path: Option<String>) -> Vec<String> {
         if self.viewing.is_some() {
             return Vec::new();
         }
-        self.chosen(path).into_iter().filter(|p| !p.ends_with('/') && !source::in_trash(p)).collect()
+        self.chosen(path).into_iter().filter(|p| !source::in_trash(p)).collect()
     }
 
     /// As `grid_items`, pictures only (no videos, audio, 3D models or CAD drawings): for the image edits.
@@ -204,12 +231,28 @@ mod tests {
         for code in ["en", "it"] {
             let i18n = crate::i18n::I18n::new(code);
             for kinds in [&[Kind::Picture][..], &[Kind::Video], &[Kind::Model], &[Kind::Drawing], PLAYED, CONVERTED, THUMBED] {
-                for id in [none_of(kinds), left_out_id(kinds)] {
+                for id in [none_of(kinds), left_out_id(kinds, "a.wav"), left_out_id(kinds, "dir/")] {
                     assert_ne!(i18n.t(id), id, "{code}: {id}");
                 }
             }
         }
         assert_eq!(none_of(PLAYED), "off-no-played");
+    }
+
+    #[test]
+    fn folders_chosen_with_files_are_left_out() {
+        let chosen: Vec<String> = ["photos/", "a.jpg", "b.mp4"].map(String::from).to_vec();
+        assert_eq!(kind("photos/"), Kind::Folder);
+        // A folder is of no kind an entry works on: "*" with the files, greyed out alone.
+        assert_eq!(fits(&chosen, PLAYED), Some(false));
+        assert_eq!(fits(&chosen[1..], PLAYED), Some(true));
+        assert_eq!(fits(&chosen[..1], THUMBED), None);
+        assert_eq!(turn_fit(None, &chosen[..2]), Some(false));
+        // Left out of a work, and named so in its message.
+        let (files, out) = split(chosen, PLAYED);
+        assert_eq!((files.len(), out), (2, vec!["photos/".to_string()]));
+        assert_eq!(left_out_id(PLAYED, "photos/"), "skip-folder");
+        assert_eq!(left_out_id(PLAYED, "c.stl"), "skip-not-played");
     }
 
     #[test]

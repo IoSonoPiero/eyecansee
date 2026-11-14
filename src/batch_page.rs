@@ -335,7 +335,7 @@ impl App {
             return false;
         }
         let drawings = kinds == [Kind::Drawing];
-        let (paths, left_out) = split(self.grid_items(path), kinds);
+        let (paths, left_out) = split(self.grid_chosen(path), kinds);
         if paths.is_empty() {
             return false;
         }
@@ -407,7 +407,7 @@ impl App {
             return;
         }
         let kinds: &'static [Kind] = &[Kind::Picture];
-        let (paths, left_out) = split(self.grid_items(path), kinds);
+        let (paths, left_out) = split(self.grid_chosen(path), kinds);
         if paths.is_empty() {
             return;
         }
@@ -579,7 +579,7 @@ impl App {
     fn batch_done(&mut self, w: &Window, p: &Progress) {
         let saved = p.saved.lock().unwrap().len();
         // The files of another kind first, then those the work left out.
-        let other_kind = w.left_out.iter().map(|path| (left_out_id(w.kinds), source::name(path).to_string()));
+        let other_kind = w.left_out.iter().map(|path| (left_out_id(w.kinds, path), source::name(path).to_string()));
         let failed: Vec<_> = other_kind.chain(std::mem::take(&mut *p.failed.lock().unwrap())).collect();
         log!("batch: {saved} saved, {} left out", failed.len());
         for (id, detail) in &failed {

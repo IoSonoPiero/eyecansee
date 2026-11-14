@@ -8,7 +8,7 @@ use crate::navigation::Go;
 use crate::actions::{Act, transform_items};
 use crate::{App, icons, meta, settings, source, transform, version};
 use crate::loader::THUMB_SIDE;
-use crate::selection::{Kind, fits, none_of, starred};
+use crate::selection::{Kind, SAVED_AS, fits, none_of, starred};
 
 /// Below this width of the address bar the copy and paste buttons are left out.
 const ADDRESS_WITH_CLIP: f32 = 420.0;
@@ -78,7 +78,8 @@ impl App {
         let files = self.files_chosen(None);
         // Ctrl+Shift+S works in the viewer only.
         let keys = if self.viewing.is_some() { t("key-save-copy") } else { String::new() };
-        entry(ui, act, self.save_as_off(), item(t("menu-save-copy"), keys), Act::Convert(None));
+        let saved = if self.viewing.is_some() { Some(true) } else { fits(&files, SAVED_AS) };
+        entry(ui, act, self.save_as_off(), item(starred(t("menu-save-copy"), saved != Some(false)), keys), Act::Convert(None));
         // As in the right-click menu: the 3D models among the files chosen.
         let model = fits(&files, &[Kind::Model]);
         ui.add_enabled_ui(model.is_some(), |ui| {
@@ -89,7 +90,7 @@ impl App {
             });
             r.response.on_disabled_hover_text(t(none_of(&[Kind::Model])));
         });
-        partial_note(ui, model == Some(false), &self.i18n);
+        partial_note(ui, model == Some(false) || saved == Some(false), &self.i18n);
         ui.separator();
         self.restore_item(ui, act);
         entry(ui, act, self.rename_off(), item(t("menu-rename"), "F2".into()), Act::Rename(None));

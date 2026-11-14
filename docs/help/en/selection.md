@@ -25,7 +25,7 @@ The status bar shows how many items are selected and how much their files weigh,
 - **Enter** (or **Open**) opens the first of the selected files in the viewer, which then moves only among them. The **Slideshow** too shows only them (the pictures and videos among them), from the first.
 - **Rename** works on one item at a time: with several selected it is greyed out.
 
-When the selection mixes different kinds of files (for example pictures and a 3D model), an entry that works only on some of them is marked with **\*** in the menus: it acts only on those, and a line at the bottom of the menu says so.
+When the selection mixes different kinds of files (for example pictures and a 3D model), an entry that works only on some of them is marked with **\*** in the menus: it acts only on those, and a line at the bottom of the menu says so. Folders selected together with files count the same way: they are left out, and the message at the end of the work names them.
 
 ## Two sides of the window
 

@@ -76,7 +76,7 @@ impl App {
 
     /// Why Convert… cannot start (also for Ctrl+B): as the Tools menu.
     pub(crate) fn batch_off(&self) -> Option<String> {
-        self.tools_off().or_else(|| fits(&self.grid_items(None), CONVERTED).is_none().then(|| self.i18n.t("tb-off-batch")))
+        self.tools_off().or_else(|| fits(&self.grid_chosen(None), CONVERTED).is_none().then(|| self.i18n.t("tb-off-batch")))
     }
 
     /// Why no entry of Tools on the files chosen can start now: in the viewer, one conversion

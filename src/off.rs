@@ -3,7 +3,7 @@
 //! The choices are plain functions on what is in front (testable); `App` gives them its state.
 
 use crate::App;
-use crate::selection::{Kind, fits, kind};
+use crate::selection::{Kind, SAVED_AS, kind};
 
 /// Why an entry that needs one item chosen is off (Fluent id): nothing chosen.
 pub(crate) fn nothing_id(chosen: usize) -> Option<&'static str> {
@@ -61,12 +61,12 @@ pub(crate) fn save_id(shown: Option<Kind>, changed: bool) -> Option<&'static str
 }
 
 /// Why Save as… is off (Fluent id): in the viewer on a video or an audio file, in the grid
-/// unless one picture is chosen.
-pub(crate) fn save_as_id(shown: Option<Kind>, one_picture: bool) -> Option<&'static str> {
+/// unless one picture is among the files chosen (`saved`: how many of `SAVED_AS`).
+pub(crate) fn save_as_id(shown: Option<Kind>, saved: usize) -> Option<&'static str> {
     match shown {
         Some(Kind::Video | Kind::Audio) => Some("off-save-as-played"),
         Some(_) => None,
-        None if one_picture => None,
+        None if saved == 1 => None,
         None => Some("tb-off-one-picture"),
     }
 }
@@ -121,8 +121,8 @@ impl App {
     /// Save as…: in the grid one picture, in the viewer what is shown.
     pub(crate) fn save_as_off(&self) -> Option<String> {
         let files = self.files_chosen(None);
-        let one_picture = files.len() == 1 && fits(&files, &[Kind::Picture]).is_some();
-        self.trash_off().or_else(|| self.off(save_as_id(self.shown(), one_picture)))
+        let saved = files.iter().filter(|p| SAVED_AS.contains(&kind(p))).count();
+        self.trash_off().or_else(|| self.off(save_as_id(self.shown(), saved)))
     }
 
     pub(crate) fn rename_off(&self) -> Option<String> {
@@ -243,10 +243,11 @@ mod tests {
         assert_eq!(save_id(Some(Kind::Audio), false), Some("off-save-played"));
         assert_eq!(save_id(None, false), Some("tb-off-save"));
         // Save as…: what the viewer shows, but not a video or an audio file; one picture in the grid.
-        assert_eq!(save_as_id(Some(Kind::Model), false), None);
-        assert_eq!(save_as_id(Some(Kind::Audio), false), Some("off-save-as-played"));
-        assert_eq!(save_as_id(None, true), None);
-        assert_eq!(save_as_id(None, false), Some("tb-off-one-picture"));
+        assert_eq!(save_as_id(Some(Kind::Model), 0), None);
+        assert_eq!(save_as_id(Some(Kind::Audio), 0), Some("off-save-as-played"));
+        assert_eq!(save_as_id(None, 1), None);
+        assert_eq!(save_as_id(None, 0), Some("tb-off-one-picture"));
+        assert_eq!(save_as_id(None, 2), Some("tb-off-one-picture"));
         // Each reason said in both languages.
         let ids = ["off-trash-clip", "off-trash-rename", "off-trash-change", "off-restore", "off-save-model", "off-save-drawing", "off-save-played", "off-save-as-played", "tb-off-nothing", "tb-off-viewer", "off-empty", "tb-off-paste", "tb-off-paste-here", "rename-one-only", "off-top", "off-not-viewer", "off-no-show", "off-no-file", "tb-off-save", "tb-off-folder", "tb-off-no-folder", "tb-off-not-picture", "tb-off-no-picture"];
         for code in ["en", "it"] {

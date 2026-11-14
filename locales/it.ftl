@@ -1258,6 +1258,7 @@ skip-not-video = { $detail }: non è un video.
 skip-not-drawing = { $detail }: non è un disegno CAD.
 skip-not-played = { $detail }: non è né un'immagine né un video.
 skip-not-converted = { $detail }: non è un'immagine, un video o un file audio.
+skip-folder = { $detail }: è una cartella.
 tb-off-trash = Non nel cestino.
 off-empty = Questa cartella è vuota.
 off-top = Questa è già la cartella più in alto.

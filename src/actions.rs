@@ -280,7 +280,7 @@ impl App {
             Act::Rename(path) => self.ask_rename(path),
             Act::NewFolder(dir) => self.ask_new_folder(dir),
             Act::NewImage => self.new_image = Some(crate::new_image::Form::new()),
-            Act::Convert(path) => self.open_convert(path),
+            Act::Convert(path) => self.open_convert(self.save_as_target(path)),
             Act::ExportModel(path, kind) => self.export_model(path, kind),
             Act::Duplicates(dir) => self.open_duplicates(dir),
             Act::Batch(path) => self.open_batch(path),

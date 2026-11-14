@@ -1259,6 +1259,7 @@ skip-not-video = { $detail }: not a video.
 skip-not-drawing = { $detail }: not a CAD drawing.
 skip-not-played = { $detail }: neither a picture nor a video.
 skip-not-converted = { $detail }: not a picture, a video or an audio file.
+skip-folder = { $detail }: a folder.
 tb-off-trash = Not in the trash.
 off-empty = This folder is empty.
 off-top = This is the top folder already.

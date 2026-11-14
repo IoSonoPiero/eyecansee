@@ -8,7 +8,7 @@ use eframe::egui::{self, Color32, Ui};
 use crate::audio_job::AudioJob;
 use crate::actions::Act;
 use crate::App;
-use crate::selection::{CONVERTED, Kind, PLAYED, THUMBED, fits, none_of, starred};
+use crate::selection::{CONVERTED, Kind, PLAYED, SAVED_AS, THUMBED, fits, none_of, starred};
 use crate::source;
 
 /// Selection colour: full in the part receiving the keyboard, faint in the other, so the two
@@ -162,7 +162,7 @@ impl App {
     /// right-click menu of a file of the grid. `off`: why none of them can start now (in the
     /// viewer, or a conversion already under way).
     pub(crate) fn tool_items(&self, path: Option<String>, off: Option<String>, partial: &Cell<bool>) -> Vec<MenuItem> {
-        let files = self.grid_items(path.clone());
+        let files = self.grid_chosen(path.clone());
         let entry = |kinds: &[Kind], label: &str, keys: String, act: Act| self.kind_entry(&files, partial, kinds, label, keys, off.clone().map_or(act, Act::Off));
         vec![
             entry(CONVERTED, "menu-batch", self.i18n.t("key-batch"), Act::Batch(path.clone())),
@@ -203,8 +203,10 @@ impl App {
         }
         // One file: a picture, or in the viewer what is shown (a 3D model from its side, the
         // layout of a drawing open). In the grid a drawing is exported, a model saved as a model.
-        let save_as: &[Kind] = if in_viewer { &[Kind::Picture, Kind::Model, Kind::Drawing] } else { &[Kind::Picture] };
-        let convert = if files.len() > 1 { Act::Off(t("tb-off-one-picture")) } else { Act::Convert(path.clone()) };
+        let save_as: &[Kind] = if in_viewer { &[Kind::Picture, Kind::Model, Kind::Drawing] } else { SAVED_AS };
+        // One of them: with more the entry is off (with none, `kind_entry` says why).
+        let saved = files.iter().filter(|p| save_as.contains(&crate::selection::kind(p))).count();
+        let convert = if saved > 1 { Act::Off(t("tb-off-one-picture")) } else { Act::Convert(path.clone()) };
         items.push(entry(save_as, "menu-save-copy", if in_viewer { t("key-save-copy") } else { String::new() }, convert));
         let kinds = crate::model_export::Kind::ALL.iter().map(|&k| Some((k.label().to_string(), String::new(), Act::ExportModel(path.clone(), k)))).collect();
         items.push(entry(&[Kind::Model], "menu-export-3d", String::new(), Act::Submenu(kinds)));
