@@ -143,8 +143,11 @@ pub struct Job {
     pub base: String,
     /// "Export drawing": CAD drawings drawn again (`drawing`), nothing else done.
     pub drawing: Option<Drawn>,
-    /// Added to the names of the pictures, before the extension (Resize: `Size::tag`).
+    /// Added to the names of the pictures really resized, before the extension (Resize:
+    /// `Size::tag`); a picture left at its size keeps its name (`Job::named`).
     pub tag: String,
+    /// Added instead to the names of the pictures turned or flipped but not resized (Custom…).
+    pub tag_turned: String,
 }
 
 /// What a CAD drawing becomes: an SVG, or a picture in `Job::format` drawn at this many pixels
@@ -159,7 +162,7 @@ pub enum Drawn {
 
 impl Default for Job {
     fn default() -> Self {
-        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None, audio: None, base: String::new(), drawing: None, tag: String::new() }
+        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None, audio: None, base: String::new(), drawing: None, tag: String::new(), tag_turned: String::new() }
     }
 }
 
@@ -167,6 +170,13 @@ impl Job {
     /// Same format, same size, not turned: every image would only be encoded again, losing quality.
     pub fn does_nothing(&self) -> bool {
         self.format.is_none() && self.size == Size::Same && self.turn.is_none()
+    }
+
+    /// The name of the copy of a picture: with `tag` when it was `resized`, with `tag_turned`
+    /// when it was only turned, its own name when it was left at its size (#119).
+    pub fn named(&self, name: String, resized: bool) -> String {
+        let tag = if resized { &self.tag } else if self.turn.is_none() { "" } else { &self.tag_turned };
+        if tag.is_empty() { name } else { tagged(&name, tag) }
     }
 }
 
@@ -247,7 +257,7 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
         && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::is(bytes))
         && let Ok((data, _)) = crate::save_back::turned_file(bytes, name, job.turn)
     {
-        return Ok((name.to_string(), data));
+        return Ok((job.named(name.to_string(), false), data));
     }
     let mut image = crate::decode::decode_full_with(bytes, name, sibling).map_err(|e| ("batch-failed", format!("{name}: {e}")))?;
     // The other frames of an animation, the other pages would be lost. After decoding, so that
@@ -259,9 +269,10 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     job.turn.apply(&mut image);
     let (w, h) = target(image.width(), image.height(), job.size, job.enlarge);
     let cut = crop(image.width(), image.height(), job.size, job.enlarge);
+    let resized = cut.is_some() || (w, h) != (image.width(), image.height());
     // Already of the size asked in its own format (or smaller, not enlarged): a copy would be
     // the original again, under a longer name at each Resize. None is made.
-    if job.format.is_none() && job.turn.is_none() && cut.is_none() && (w, h) == (image.width(), image.height()) {
+    if job.format.is_none() && job.turn.is_none() && !resized {
         return Err((SKIP_SAME_SIZE, name.to_string()));
     }
     if let Some((x, y, cw, ch)) = cut {
@@ -270,6 +281,12 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     if (w, h) != (image.width(), image.height()) {
         image = image.resize_exact(w, h, job.filter.kind());
     }
+    encoded(bytes, name, job, image, cut).map(|(out, data)| (job.named(out, resized), data))
+}
+
+/// The picture `image` made from `bytes` (named `name`, cut by `cut`) written as `job` asks:
+/// the new name, without its tag, and the content.
+fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut: Option<(u32, u32, u32, u32)>) -> Result<(String, Vec<u8>), (&'static str, String)> {
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
     // An Ultra HDR photo written as JPEG with its metadata stays Ultra HDR, its gain map turned
     // and resized with it (#65); without metadata there is nothing to hold the gain map.
@@ -620,7 +637,7 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
         };
         match r {
             Ok((new_name, data)) => {
-                let new_name = source::free_name(&taken, &tagged(&new_name, &job.tag));
+                let new_name = source::free_name(&taken, &new_name);
                 let to = format!("{dest}{new_name}");
                 match crate::replace::write_whole(&out, &to, data).await {
                     Ok(()) => {
@@ -771,6 +788,27 @@ mod tests {
             assert_eq!(failed[0], (SKIP_SAME_SIZE, "a.png".to_string()), "{size:?}");
         }
         assert!(!dir.join("a (1920 px).png").exists());
+        // Custom… (#119): the size in the name only when the picture was resized; left at its
+        // size in another format it keeps its name, and a name taken gets " (2)"; only turned,
+        // what was done.
+        let custom = |format: Option<Format>, size: Size, turn: Turn| {
+            let p = Arc::new(Progress::default());
+            let to = Dest { op: op.clone(), dir: String::new(), create: false };
+            let job = Job { format, size, turn, tag: size.tag(), tag_turned: " (rotated)".into(), ..Default::default() };
+            rt.block_on(run(&op, vec!["a.png".into()], to, job, p.clone()));
+            assert!(p.failed.lock().unwrap().is_empty(), "{size:?}");
+            p.saved.lock().unwrap().clone()
+        };
+        let none = Turn::default();
+        assert_eq!(custom(Some(Format::Jpeg), Size::Long(1920), none), ["a.jpg"]);
+        assert_eq!(custom(Some(Format::Jpeg), Size::Long(1920), none), ["a (2).jpg"]);
+        assert_eq!(custom(Some(Format::Jpeg), Size::Long(200), none), ["a (200 px).jpg"]);
+        let cw = none.then(crate::transform::Op::Cw);
+        assert_eq!(custom(None, Size::Long(1920), cw), ["a (rotated).png"]);
+        assert_eq!(custom(None, Size::Long(200), cw), ["a (200 px) (3).png"]);
+        for f in ["a.jpg", "a (2).jpg", "a (200 px).jpg", "a (rotated).png", "a (200 px) (3).png"] {
+            std::fs::remove_file(dir.join(f)).unwrap();
+        }
         // Copy with the metadata: the file as it is, also in a format not written (TGA).
         let p = Arc::new(Progress::default());
         let job = Job { format: None, ..Default::default() };

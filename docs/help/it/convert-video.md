@@ -38,11 +38,11 @@ Il riquadro in basso a destra mostra a che punto è; la barra avanza anche duran
 
 ## Copia con i metadati
 
-**Strumenti > Copia con i metadati…** (anche nel clic destro) apre la stessa finestra, che si chiama **Copia con i metadati** e ha il pulsante **Copia**, sui video e sulle foto scelti, già impostata su **Uguale all'originale**; gli altri file scelti restano fuori, e alla fine vengono nominati. Di solito scegli solo dove mettere la copia. Il video viene riscritto in pochi secondi, con i suoi metadati dentro: per dashcam e droni anche la posizione presa dai file accanto. Una foto viene copiata così com'è, con tutti i suoi metadati; se la ruoti o la ridimensioni nella finestra, li conserva come in una conversione.
+**Strumenti > Copia con i metadati…** (anche nel clic destro) apre la stessa finestra, che si chiama **Copia con i metadati** e ha il pulsante **Copia**, sui video e sulle foto scelti, già impostata su **Uguale all'originale**, senza rotazione né riflessione; gli altri file scelti restano fuori, e alla fine vengono nominati. Di solito scegli solo dove mettere la copia. Il video viene riscritto in pochi secondi, con i suoi metadati dentro: per dashcam e droni anche la posizione presa dai file accanto. Una foto viene copiata così com'è, con tutti i suoi metadati; se la ruoti o la ridimensioni nella finestra, li conserva come in una conversione.
 
 ## Copia senza audio e Salva l'audio in un file
 
-**Strumenti > Copia senza audio…** e **Strumenti > Salva l'audio in un file…** (anche nel clic destro) aprono una finestra breve sui video scelti, in cui scegli solo la destinazione. All'inizio è accanto agli originali.
+**Strumenti > Copia senza audio…** e **Strumenti > Salva l'audio in un file…** (anche nel clic destro) aprono una finestra breve sui video scelti, in cui scegli solo la destinazione, poi fai clic su **Copia** (o **Salva** per l'audio). All'inizio è accanto agli originali.
 
 - **Copia senza audio** crea un video nuovo, uguale all'originale ma senza audio. L'immagine e le altre tracce (sottotitoli, capitoli) vengono copiate così come sono, con i metadati. Il file nuovo prende un nome libero, per esempio `video (2).mp4`.
 - **Salva l'audio in un file** scrive ogni traccia audio in un file suo, copiata così com'è: AAC come `.m4a`, Opus come `.opus`, MP3 come `.mp3`, FLAC come `.flac`, Vorbis come `.ogg`, AC-3 come `.ac3`, E-AC-3 come `.eac3`, AMR come `.amr`, l'audio non compresso per lo più come `.wav`, i formati più rari come `.mka`. Un video con due tracce dà `video.m4a` e `video-2.m4a`. Per un altro formato (per esempio MP3 da AAC) usa Converti….

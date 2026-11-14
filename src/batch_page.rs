@@ -25,7 +25,7 @@ use rows::form_ui;
 pub(crate) use rows::size_fields;
 
 /// Where the new files go.
-#[derive(Clone, Copy, PartialEq)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Place {
     Next,
     Sub,
@@ -33,7 +33,9 @@ enum Place {
     Other,
 }
 
-/// The choices, kept for the next time while the program is open.
+/// The choices, kept for the next time while the program is open; those of a window cancelled
+/// are forgotten (`Form::cancelled`).
+#[derive(Clone)]
 pub struct Form {
     format: Option<Format>,
     options: Options,
@@ -75,8 +77,8 @@ pub struct Form {
     /// The format and the destination of Convert…, given back after another use of the window
     /// changed them.
     convert: (Option<Format>, Place),
-    /// The size of the last Resize > Custom… (in `sizes`).
-    resize_size: usize,
+    /// The size (in `sizes`) and the turn of the last Resize > Custom…: quarter turns, flips.
+    resize: (usize, (u8, bool, bool)),
 }
 
 /// What the window is opened for.
@@ -122,28 +124,40 @@ impl Form {
             part: Part::Convert,
             scroll: false,
             convert: (Some(Format::Jpeg), Place::Sub),
-            resize_size: LONG,
+            resize: (LONG, (0, false, false)),
         }
     }
 
     /// Opened for `to`: the choices of the use before kept (Convert…'s format and destination,
-    /// the size of Custom…), those of `to` set. Convert… in its own format, always on the size of
-    /// the original (Unchanged); Custom… and Copy with the metadata in the format of the
+    /// the size and turn of Custom…), those of `to` set. Custom… on its last size and turn, the
+    /// others always on the size of the original (Unchanged), not turned nor flipped (#119).
+    /// Convert… in its own format; Custom… and Copy with the metadata in the format of the
     /// originals; Custom… and the sound of the videos next to the originals.
     fn open_on(&mut self, to: Part) {
         match self.part {
             Part::Convert => self.convert = (self.format, self.place),
-            Part::Resize => self.resize_size = self.size,
+            Part::Resize => self.resize = (self.size, (self.quarter, self.flip_h, self.flip_v)),
             Part::CopyMeta | Part::Audio => {}
         }
         (self.part, self.scroll) = (to, true);
         (self.format, self.place) = self.convert;
+        let (size, turn) = if to == Part::Resize { self.resize } else { (0, (0, false, false)) };
+        (self.size, (self.quarter, self.flip_h, self.flip_v)) = (size, turn);
         match to {
-            Part::Convert => self.size = 0,
-            Part::Resize => (self.format, self.place, self.size) = (None, Place::Next, self.resize_size),
-            Part::CopyMeta => (self.format, self.size) = (None, 0),
+            Part::Convert => {}
+            Part::Resize => (self.format, self.place) = (None, Place::Next),
+            Part::CopyMeta => self.format = None,
             Part::Audio => self.place = Place::Next,
         }
+    }
+
+    /// Cancel pressed: the choices as they were `before` the window opened, as if it had never
+    /// been touched; only an FFmpeg download started in it goes on.
+    fn cancelled(self, before: Form) -> Form {
+        let mut form = before;
+        form.video.download = self.video.download.or(form.video.download);
+        form.picker = None;
+        form
     }
 
     fn job(&self) -> Job {
@@ -151,21 +165,20 @@ impl Form {
         let v = &self.video;
         let video = v.encoder.filter(|_| self.videos).map(|encoder| Video { container: v.container, encoder, quality: v.quality, audio: v.audio, meta: v.meta });
         let drawing = self.drawing.then_some(self.kept.unwrap_or(Drawn::Side(self.side)));
-        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio, base: String::new(), drawing, tag: String::new() }
+        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio, base: String::new(), drawing, tag: String::new(), tag_turned: String::new() }
     }
 
-    /// What the names of the copies of Custom… say: the size, as the presets ("photo (600 px).jpg"),
-    /// or with Unchanged what was done, in the language of `i18n` ("photo (rotated).jpg", or
-    /// "flipped" without a turn). Nothing for the other uses of the window.
-    fn tag(&self, i18n: &I18n) -> String {
+    /// The job with what the names of the copies of Custom… say (`Job::named`): the size of the
+    /// pictures resized, as the presets ("photo (600 px).jpg"); for those only turned what was
+    /// done, in the language of `i18n` ("photo (rotated).jpg", or "flipped" without a turn).
+    /// Nothing for the other uses of the window.
+    fn job_named(&self, i18n: &I18n) -> Job {
+        let job = self.job();
         if self.part != Part::Resize {
-            return String::new();
+            return job;
         }
-        match self.sizes[self.size] {
-            Size::Same if self.quarter != 0 => format!(" ({})", i18n.t("batch-tag-rotated")),
-            Size::Same if self.flip_h || self.flip_v => format!(" ({})", i18n.t("batch-tag-flipped")),
-            size => size.tag(),
-        }
+        let done = if self.quarter != 0 { "batch-tag-rotated" } else { "batch-tag-flipped" };
+        Job { tag: job.size.tag(), tag_turned: format!(" ({})", i18n.t(done)), ..job }
     }
 
     /// On videos only, or only their sound: F1 opens the page on converting videos.
@@ -224,14 +237,16 @@ pub struct Window {
     kinds: &'static [Kind],
     /// Resize with a preset, without the window.
     preset: bool,
+    /// The choices before the window opened, given back by Cancel (`Form::cancelled`).
+    before: Option<Form>,
 }
 
 /// The Fluent ids of the title of the window (and of the message at the end), of its button that
 /// starts the work, and of the box that shows how the work is going.
 fn titles(audio: Option<AudioJob>, drawing: bool, part: Part) -> (&'static str, &'static str, &'static str) {
     match audio {
-        Some(AudioJob::Strip) => ("batch-title-strip", "batch-start", "batch-working"),
-        Some(AudioJob::Extract) => ("batch-title-extract", "batch-start", "batch-working"),
+        Some(AudioJob::Strip) => ("batch-title-strip", "batch-start-copy", "batch-working-copy"),
+        Some(AudioJob::Extract) => ("batch-title-extract", "save-yes", "batch-working"),
         None if drawing => ("drawing-title", "drawing-start", "batch-working"),
         None => match part {
             Part::Resize => ("batch-title-resize", "batch-start-resize", "batch-working-resize"),
@@ -288,6 +303,7 @@ impl App {
             return false;
         }
         let form = self.batch_form.get_or_insert_with(|| Form::new(self.i18n.t("batch-subfolder-name")));
+        let before = Some(form.clone());
         form.audio = None;
         form.drawing = drawings;
         form.videos = paths.iter().any(|p| crate::decode::is_video(p));
@@ -300,7 +316,7 @@ impl App {
         if form.other.is_empty() {
             form.other = crate::navigation::shown(&self.base, &self.dir);
         }
-        self.batch = Some(Window { paths, dir: self.dir.clone(), progress: None, dest: Default::default(), left_out, kinds, preset: false });
+        self.batch = Some(Window { paths, dir: self.dir.clone(), progress: None, dest: Default::default(), left_out, kinds, preset: false, before });
         true
     }
 
@@ -372,7 +388,7 @@ impl App {
         }
         let dir = self.dir.clone();
         let to = Dest { op: loader.store(), dir: dir.clone(), create: false };
-        let mut w = Window { paths, dir: dir.clone(), progress: None, dest: (self.display(&dir), Some(dir)), left_out, kinds, preset: true };
+        let mut w = Window { paths, dir: dir.clone(), progress: None, dest: (self.display(&dir), Some(dir)), left_out, kinds, preset: true, before: None };
         let job = Job { format: None, size, tag: size.tag(), ..Job::default() };
         self.start_batch(&mut w, job, to, ctx);
         self.batch = Some(w);
@@ -440,7 +456,7 @@ impl App {
             Some(true) => match self.batch_dest(&form, &w.dir) {
                 Ok((to, dest)) => {
                     w.dest = dest;
-                    self.start_batch(w, Job { tag: form.tag(&self.i18n), ..form.job() }, to, ctx);
+                    self.start_batch(w, form.job_named(&self.i18n), to, ctx);
                     true
                 }
                 // The other folder cannot be opened: said in the error bar, the window stays open.
@@ -449,7 +465,12 @@ impl App {
                     true
                 }
             },
-            Some(false) => false,
+            Some(false) => {
+                if let Some(before) = w.before.take() {
+                    form = form.cancelled(before);
+                }
+                false
+            }
             None => true,
         };
         self.batch_form = Some(form);
@@ -626,7 +647,10 @@ mod tests {
         // The sound of the videos: next to them; Convert… still in its own place after.
         f.open_on(Part::Audio);
         f.audio = Some(AudioJob::Strip);
-        assert_eq!((f.place == Place::Next, f.titles()), (true, ("batch-title-strip", "batch-start", "batch-working")));
+        assert_eq!((f.place == Place::Next, f.titles()), (true, ("batch-title-strip", "batch-start-copy", "batch-working-copy")));
+        // Its buttons say what they do (#119): Copy, Save.
+        f.audio = Some(AudioJob::Extract);
+        assert_eq!(f.titles(), ("batch-title-extract", "save-yes", "batch-working"));
         f.audio = None;
         f.open_on(Part::Convert);
         assert_eq!((f.format, f.place == Place::Sub), (Some(Format::Webp), true));
@@ -655,7 +679,9 @@ mod tests {
             (Size::Stretch(800, 600), "Sunset (800x600).jpg"),
             (Size::Same, "Sunset.jpg"),
         ];
-        let named = |f: &Form, i18n: &I18n, name: &str| crate::batch::tagged(name, &f.tag(i18n));
+        // As a picture larger than the size asked is named (`batch::convert`); with Unchanged it is
+        // only turned.
+        let named = |f: &Form, i18n: &I18n, name: &str| f.job_named(i18n).named(name.to_string(), f.sizes[f.size] != Size::Same);
         for (size, name) in kinds {
             let i = Size::KINDS.iter().position(|k| k.same_kind(size)).unwrap();
             (f.size, f.sizes[i]) = (i, size);
@@ -690,9 +716,61 @@ mod tests {
         for part in [Part::Convert, Part::CopyMeta] {
             f.open_on(part);
             (f.size, f.quarter) = (4, 1);
-            assert_eq!(f.tag(&en), "", "{part:?}");
-            f.size = 0;
-            assert_eq!(f.tag(&it), "", "{part:?}");
+            let job = f.job_named(&en);
+            assert_eq!((job.tag.as_str(), job.tag_turned.as_str()), ("", ""), "{part:?}");
         }
+    }
+
+    /// What a window shows and does, to compare two forms.
+    fn seen(f: &Form) -> String {
+        format!("{:?}", (f.job(), f.place, &f.sub_name, &f.other, f.sizes, f.size, f.enlarge, f.part, f.convert, f.resize, f.video.codec, f.video.container))
+    }
+
+    /// Convert… and Copy with the metadata never start turned or flipped, whatever the last
+    /// Custom… did (#119, seen in winvm: photos copied mirrored); Custom… keeps its own.
+    #[test]
+    fn convert_and_copy_start_not_turned() {
+        let mut f = Form::new("converted".into());
+        f.open_on(Part::Resize);
+        (f.quarter, f.flip_h, f.size) = (1, true, 4);
+        for part in [Part::Convert, Part::CopyMeta, Part::Audio] {
+            f.open_on(part);
+            assert_eq!((f.quarter, f.flip_h, f.flip_v, f.job().size), (0, false, false, Size::Same), "{part:?}");
+            assert!(f.job().turn.is_none(), "{part:?}");
+        }
+        f.open_on(Part::CopyMeta);
+        assert!(f.job().does_nothing());
+        f.open_on(Part::Resize);
+        assert_eq!((f.quarter, f.flip_h, f.size), (1, true, 4));
+    }
+
+    /// Cancel forgets what was chosen in the window, whichever use opened it: opened again, it
+    /// is as if never touched (#119). What was confirmed stays.
+    #[test]
+    fn cancel_forgets_the_choices() {
+        let mut f = Form::new("converted".into());
+        // Confirmed before: Convert… to PNG in the subfolder, a Custom… of 600 px turned.
+        f.open_on(Part::Convert);
+        f.format = Some(Format::Png);
+        f.open_on(Part::Resize);
+        (f.size, f.sizes[4], f.quarter) = (4, Size::Short(600), 1);
+        for part in [Part::Convert, Part::Resize, Part::CopyMeta, Part::Audio] {
+            let before = f.clone();
+            let mut untouched = f.clone();
+            untouched.open_on(part);
+            f.open_on(part);
+            (f.format, f.place, f.size, f.sizes[2], f.quarter, f.flip_h, f.flip_v, f.enlarge) = (Some(Format::Webp), Place::Other, 2, Size::Fit(10, 10), 3, true, true, true);
+            (f.sub_name, f.other, f.video.codec, f.video.container) = ("x".into(), "/tmp".into(), Codec::Vp9, 1);
+            f = f.cancelled(before.clone());
+            assert_eq!(seen(&f), seen(&before), "{part:?}");
+            f.open_on(part);
+            assert_eq!(seen(&f), seen(&untouched), "{part:?}");
+        }
+        // Confirmed (no Cancel): kept for the next time.
+        f.open_on(Part::Resize);
+        (f.size, f.flip_v) = (1, true);
+        f.open_on(Part::Convert);
+        f.open_on(Part::Resize);
+        assert_eq!((f.size, f.flip_v, f.quarter), (1, true, 1));
     }
 }
