@@ -219,6 +219,12 @@ impl App {
         if let Err(e) = &meta {
             log!("metadata {index}: ERROR {e}");
         }
+        // A video or an audio file without the engine: why, in words, not libmpv's error.
+        let played = self.files().get(index).is_some_and(|f| crate::decode::is_played(&f.path));
+        let meta = match meta {
+            Err(_) if played && !crate::mpv::available() => Err(self.engine_note()),
+            m => m,
+        };
         self.meta = Some((index, meta));
     }
 

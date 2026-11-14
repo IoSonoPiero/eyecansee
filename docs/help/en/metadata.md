@@ -16,7 +16,7 @@ A box shows "No data" when the file has nothing for it, and "This file contains 
 
 ## Videos
 
-For a video the panel shows, when the file has them: make and model of the phone or camera (and the Android version), date and time of recording, length, frame rate, size, video and audio format, bit rate, and the place where the video was taken. Some dashcams keep their GPS track in a file beside the videos: then the panel shows where the video starts, the altitude, and the average and top speed during the video. See [Playing videos](video.md).
+For a video the panel shows, when the file has them: make and model of the phone or camera (and the Android version), date and time of recording, length, frame rate, size, video and audio format, bit rate, and the place where the video was taken. Some dashcams keep their GPS track in a file beside the videos: then the panel shows where the video starts, the altitude, and the average and top speed during the video. See [Playing videos](video.md). These details are read by the video engine, for audio files too: without it the boxes say so and how to download it, see [Add-on components](components.md).
 
 ## Showing and hiding the boxes
 

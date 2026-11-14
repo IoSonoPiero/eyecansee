@@ -21,6 +21,7 @@ video-component-error = Scaricamento non riuscito: { $error }
 video-engine-old = Il motore video di questo computer è troppo vecchio: { $found }, mentre a EyeCanSee serve almeno libmpv { $required }. EyeCanSee può scaricare il suo, una volta sola ({ $size }).
 video-engine-lacks = Il motore video di questo computer ({ $found }) non sa riprodurre { $missing }, i formati in cui registrano i telefoni. EyeCanSee può scaricare il suo, che li riproduce, una volta sola ({ $size }).
 video-engine-system-only = Il motore video (libmpv) su questo computer non c'è, e nelle Opzioni è scelto di usare solo quello di sistema. Installalo (il pacchetto mpv), oppure cambia la scelta in Strumenti > Opzioni > Video.
+meta-video-engine = I dati di video e file audio li legge il motore video, che non è installato. Scaricalo una volta sola ({ $size }) con il pulsante Scarica il motore video nella barra dei menù, oppure apri il file.
 video-play = Riproduci (Spazio)
 video-pause = Pausa (Spazio)
 video-mute = Silenzia (M)

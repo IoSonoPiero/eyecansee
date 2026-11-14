@@ -22,6 +22,7 @@ video-component-error = The download failed: { $error }
 video-engine-old = The video engine on this computer is too old: { $found }, while EyeCanSee needs at least libmpv { $required }. EyeCanSee can download its own, once ({ $size }).
 video-engine-lacks = The video engine on this computer ({ $found }) cannot play { $missing }, the formats phones record in. EyeCanSee can download its own, which plays them, once ({ $size }).
 video-engine-system-only = The video engine (libmpv) is not on this computer, and the Options say to use the system's only. Install it (the mpv package), or change the choice under Tools > Options > Video.
+meta-video-engine = The details of videos and audio files are read by the video engine, which is not installed. Download it once ({ $size }) with the Download the video engine button in the menu bar, or open the file.
 video-play = Play (Space)
 video-pause = Pause (Space)
 video-mute = Sound off (M)

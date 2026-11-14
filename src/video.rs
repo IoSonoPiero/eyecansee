@@ -46,6 +46,18 @@ enum Click {
     Restart,
 }
 
+/// The Fluent id of the metadata panel's note for a video or an audio file without the engine:
+/// never the library's own error.
+fn note_id(state: &Engine) -> &'static str {
+    match state {
+        Engine::Ready(_) => "video-component-restart-needed",
+        Engine::SystemOnly => "video-engine-system-only",
+        Engine::TooOld { .. } => "video-engine-old",
+        Engine::Lacks { .. } => "video-engine-lacks",
+        Engine::Missing | Engine::Downloading(_) | Engine::Failed(_) => "meta-video-engine",
+    }
+}
+
 /// Seconds a jump with Ctrl and an arrow moves a video (issue #10).
 pub(crate) const JUMP: f64 = 5.0;
 
@@ -205,10 +217,19 @@ impl App {
     }
 
     fn engine_state(&self, ctx: &egui::Context, c: crate::component::Component) -> Engine {
+        let state = self.engine_now(c);
+        if matches!(state, Engine::Downloading(_)) {
+            ctx.request_repaint_after(std::time::Duration::from_millis(300));
+        }
+        state
+    }
+
+    /// Where the engine is now (`engine_state` also asks for repaints while it downloads).
+    fn engine_now(&self, c: crate::component::Component) -> Engine {
         let result = self.download.as_ref().map(|d| (d.done.load(std::sync::atomic::Ordering::Relaxed), d.result.lock().unwrap().clone()));
         let on_disk = crate::component::path(&c).is_some_and(|p| p.is_file());
         // Downloaded, or on disk but not loadable: a restart activates it (`engine`).
-        let state = match &result {
+        match &result {
             Some((done, None)) => Engine::Downloading(*done),
             Some((_, Some(Err(e)))) => Engine::Failed(e.clone()),
             _ if on_disk => Engine::Ready(self.restart_error.clone()),
@@ -218,11 +239,18 @@ impl App {
                 crate::engine::Status::SystemOnly => Engine::SystemOnly,
                 _ => Engine::Missing,
             },
-        };
-        if matches!(state, Engine::Downloading(_)) {
-            ctx.request_repaint_after(std::time::Duration::from_millis(300));
         }
-        state
+    }
+
+    /// The metadata panel of a video or an audio file when the engine is missing: why, in words,
+    /// with how to get it, in place of libmpv's raw "libmpv-2.dll not found".
+    pub(crate) fn engine_note(&self) -> String {
+        let Some(c) = crate::component::VIDEO else { return self.i18n.t("video-no-mpv") };
+        let state = self.engine_now(c);
+        match note_id(&state) {
+            "video-engine-old" | "video-engine-lacks" => self.engine_ask(&state, c),
+            id => self.i18n.t_args(id, &[("size", &self.human_size(c.size))]),
+        }
     }
 
     fn engine_click(&mut self, ctx: &egui::Context, c: crate::component::Component, click: Click) {
@@ -488,5 +516,34 @@ mod tests {
         assert_eq!(super::frame_sizes([1920, 1080], [2560.0, 1400.0]), ([1920, 1080], [2489, 1400]));
         assert_eq!(super::frame_sizes([1920, 1080], [960.0, 1000.0]), ([960, 540], [960, 540]));
         assert_eq!(super::frame_sizes([1080, 1920], [2560.0, 1400.0]), ([788, 1400], [788, 1400]));
+    }
+
+    /// Without the engine the metadata panel says why in the user's language, never the
+    /// library's error ("libmpv-2.dll not found"); every state has its message in both languages.
+    #[test]
+    fn engine_note_in_words() {
+        use super::{Engine, note_id};
+        let states = [
+            Engine::Missing,
+            Engine::Downloading(10),
+            Engine::Failed("x".into()),
+            Engine::Ready(None),
+            Engine::TooOld { found: "mpv 0.32".into(), required: "1.109" },
+            Engine::Lacks { found: "mpv 0.36".into(), missing: "HEVC".into() },
+            Engine::SystemOnly,
+        ];
+        assert_eq!(note_id(&Engine::Missing), "meta-video-engine");
+        assert_eq!(note_id(&Engine::SystemOnly), "video-engine-system-only");
+        assert_eq!(note_id(&Engine::Ready(None)), "video-component-restart-needed");
+        for lang in ["en", "it"] {
+            let i18n = crate::i18n::I18n::new(lang);
+            for state in &states {
+                let id = note_id(state);
+                let text = i18n.t_args(id, &[("size", "10 MB"), ("found", "f"), ("required", "r"), ("missing", "m")]);
+                assert!(text != id && !text.contains("not found") && !text.contains("libmpv-2.dll"), "{lang} {id}: {text}");
+            }
+        }
+        let it = crate::i18n::I18n::new("it").t_args("meta-video-engine", &[("size", "10 MB")]);
+        assert!(it.contains("motore video") && it.contains("10 MB"), "{it}");
     }
 }
