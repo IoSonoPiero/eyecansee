@@ -24,8 +24,8 @@ Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Li
 
 ## Viewer
 
-- **In the viewer, after the last image start again from the first** (off): and from the first image, going back shows the last one. When off, the viewer stops at the first and the last image.
-- **In the viewer, the window's ✕ goes back to the grid** (on): the ✕ at the top right does as Esc. When off, the ✕ closes EyeCanSee from the viewer too.
+- **After the last image start again from the first** (off): and from the first image, going back shows the last one. When off, the viewer stops at the first and the last image.
+- **The window's ✕ goes back to the grid** (on): the ✕ at the top right does as Esc. When off, the ✕ closes EyeCanSee from the viewer too.
 - **Mouse wheel in the viewer**: **Zooms in and out** (the default) or **Shows the next or previous image**. Holding Ctrl, the wheel always zooms.
 - **Largest zoom in the viewer** (2000% at first): how far the wheel and **+** can enlarge an image.
 
