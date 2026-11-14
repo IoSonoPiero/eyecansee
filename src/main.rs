@@ -136,6 +136,7 @@ mod thumb_queue;
 mod test_copy;
 mod thumbcache;
 mod toolbar;
+mod toolbar_end;
 mod transfer;
 mod transform;
 mod trash;

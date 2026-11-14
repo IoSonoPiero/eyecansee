@@ -388,9 +388,12 @@ pub fn menu_item(ui: &egui::Ui, icon: Option<Line>, label: String, keys: String)
     egui::Button::image_and_text(menu_icon(ui, icon), label).shortcut_text(keys)
 }
 
+/// Side of the icon in a small button.
+pub const SMALL_ICON: f32 = 13.0;
+
 /// A small button with a line icon, inside a row of text (close a box, fold a panel).
 pub fn small(ui: &egui::Ui, icon: Line) -> egui::Button<'static> {
-    egui::Button::image(line(ui, icon, 13.0)).small()
+    egui::Button::image(line(ui, icon, SMALL_ICON)).small()
 }
 
 #[cfg(test)]
