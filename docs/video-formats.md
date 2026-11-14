@@ -13,6 +13,8 @@ What **Convert and resize** can turn a video into. The work is done by [FFmpeg](
 | AVI | avi | MPEG-4, H.264 | MP3 (AC-3 if MP3 is missing) |
 | GIF | gif | GIF | none |
 
+**Same as the original (no re-encoding)** copies video and sound as they are into MP4, MKV, WebM, MOV or AVI: the window starts on the originals' own container and offers only those that can hold their streams (MP4 and MOV for each other, MKV for all); videos of different containers chosen together go to MKV. Before copying, each video's codecs are read: one the chosen container cannot hold (VP8 in MP4, for example) is copied as MKV instead.
+
 ## Codecs
 
 | Codec | Plays on | Size at the same quality |

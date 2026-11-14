@@ -11,7 +11,7 @@ use crate::batch::{Dest, Drawn, Filter, Job, Progress, Size};
 use crate::cad_convert::Target;
 use crate::encode::{Format, Options};
 use crate::batch_video::{VideoForm, audio_rows, video_rows};
-use crate::ffmpeg::{CONTAINERS, Codec, Quality, Video};
+use crate::ffmpeg::{Codec, Quality, Video};
 use crate::folder_pick::{Picker, pick_ui};
 use crate::i18n::I18n;
 use crate::transform::{Op, Turn};
@@ -117,7 +117,7 @@ impl Form {
             images: true,
             jpegs: false,
             videos: false,
-            video: VideoForm { container: 0, codec: Codec::H264, encoder: None, quality: Quality::Medium, audio: true, meta: true, download: None },
+            video: VideoForm { container: 0, codec: Codec::H264, encoder: None, quality: Quality::Medium, audio: true, meta: true, download: None, copy_into: Vec::new(), copy_own: 0 },
             drawing: false,
             kept: None,
             side: 4096,
@@ -160,12 +160,20 @@ impl Form {
         }
     }
 
+    /// Copy with the metadata: the videos copied on the originals' container (a .webm as WebM),
+    /// MKV for different ones (`video_copy`).
+    fn open_copy(&mut self) {
+        self.open_on(Part::CopyMeta);
+        (self.video.codec, self.video.container) = (Codec::Copy, self.video.copy_own);
+    }
+
     /// What the files chosen are (`paths`; CAD drawings exported with `drawings`), before
     /// `open_on`.
     fn files(&mut self, paths: &[String], drawings: bool) {
         self.audio = None;
         self.drawing = drawings;
         self.videos = paths.iter().any(|p| crate::decode::is_video(p));
+        self.video.files(paths.iter().map(String::as_str).filter(|p| crate::decode::is_video(p)));
         self.images = !drawings && paths.iter().any(|p| !crate::decode::is_video(p));
         self.jpegs = paths.iter().any(|p| Format::of_file(p) == Some(Format::Jpeg));
     }
@@ -339,11 +347,7 @@ impl App {
             return;
         }
         if let Some(form) = self.batch_form.as_mut() {
-            form.open_on(Part::CopyMeta);
-            if !CONTAINERS[form.video.container].codecs.contains(&Codec::Copy) {
-                form.video.container = 0;
-            }
-            form.video.codec = Codec::Copy;
+            form.open_copy();
         }
     }
 
@@ -622,6 +626,36 @@ mod tests {
         f.flip_h = true;
         assert_eq!(f.why_not(), None);
         assert_eq!(f.job().turn, Turn::default().then(Op::FlipH).then(Op::Cw));
+    }
+
+    /// Copied as it is, on the originals' container: a .webm as WebM (it failed in MP4), MKV for
+    /// different ones; the copy chosen in Convert… from a container that cannot hold them moves
+    /// there.
+    #[test]
+    fn copy_on_the_originals_container() {
+        let named = |c: &str| crate::ffmpeg::CONTAINERS.iter().position(|x| x.name == c).unwrap();
+        let mut f = Form::new("x".into());
+        f.files(&["/v/Bees on flowers.webm".into(), "/v/a.jpg".into()], false);
+        f.open_copy();
+        assert_eq!((f.video.codec, f.video.container), (Codec::Copy, named("WebM")));
+        f.files(&["/v/a.mp4".into()], false);
+        f.open_copy();
+        assert_eq!(f.video.container, named("MP4"));
+        f.files(&["/v/a.mp4".into(), "/v/b.webm".into()], false);
+        f.open_copy();
+        assert_eq!((f.video.container, &f.video.copy_into), (named("MKV"), &vec![named("MKV")]));
+        f.files(&["/v/b.webm".into()], false);
+        f.open_on(Part::Convert);
+        (f.video.codec, f.video.container) = (Codec::Copy, named("MP4"));
+        f.video.copy_container();
+        assert_eq!(f.video.container, named("WebM"));
+        f.video.container = named("MKV");
+        f.video.copy_container();
+        assert_eq!(f.video.container, named("MKV"));
+        // Converted: any container.
+        (f.video.codec, f.video.container) = (Codec::H264, named("MP4"));
+        f.video.copy_container();
+        assert_eq!(f.video.container, named("MP4"));
     }
 
     /// One window for Convert…, Resize > Custom…, Copy with the metadata and the sound of the

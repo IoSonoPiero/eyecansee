@@ -21,7 +21,7 @@ I video li converte FFmpeg.
 
 - **Contenitore**: MP4 (quello predefinito), MKV, WebM, MOV, AVI o GIF.
 - **Codifica**: quelle che il contenitore accetta, tra H.264 (quella predefinita), HEVC, AV1, VP9, VP8, MPEG-4, ProRes e GIF. Una riga dice a che cosa serve la codifica scelta. Una codifica senza codificatori funzionanti su questo computer è grigia.
-- **Uguale all'originale (senza ricodifica)**, in MP4, MKV e MOV: video e audio vengono copiati così come sono, in pochi secondi e senza nessuna perdita, con i metadati. Rotazione e dimensioni non si applicano.
+- **Uguale all'originale (senza ricodifica)**: video e audio vengono copiati così come sono, in pochi secondi e senza nessuna perdita, con i metadati. Rotazione e dimensioni non si applicano. Il contenitore parte da quello degli originali (un WebM resta WebM) ed elenca solo quelli che possono contenerne le tracce; video di formati diversi scelti insieme vengono copiati in MKV, che li contiene tutti. Un video le cui tracce il contenitore scelto non può comunque contenere viene copiato in MKV, così la copia non fallisce per questo.
 - **Codificatore**: prima quelli della scheda video, in verde (NVIDIA, Intel Quick Sync, AMD, VA-API su Linux), poi quello di Windows e quelli del processore. La scheda video è molto più veloce e lascia libero il computer; il processore fa file un po' più piccoli a parità di qualità. Una riga dice a che cosa serve il codificatore scelto.
 - **Qualità**: **Alta**, **Media** (quella predefinita) o **File piccolo**.
 - **Mantieni l'audio** e **Mantieni i metadati (data, posizione, fotocamera)**, accese all'inizio.
@@ -38,7 +38,7 @@ Il riquadro in basso a destra mostra a che punto è; la barra avanza anche duran
 
 ## Copia con i metadati
 
-**Strumenti > Copia con i metadati…** (anche nel clic destro) apre la stessa finestra, che si chiama **Copia con i metadati** e ha il pulsante **Copia**, sui video e sulle foto scelti, già impostata su **Uguale all'originale**, senza rotazione né riflessione; gli altri file scelti restano fuori, e alla fine vengono nominati. Di solito scegli solo dove mettere la copia. Il video viene riscritto in pochi secondi, con i suoi metadati dentro: per dashcam e droni anche la posizione presa dai file accanto. Una foto viene copiata così com'è, con tutti i suoi metadati; se la ruoti o la ridimensioni nella finestra, li conserva come in una conversione.
+**Strumenti > Copia con i metadati…** (anche nel clic destro) apre la stessa finestra, che si chiama **Copia con i metadati** e ha il pulsante **Copia**, sui video e sulle foto scelti, già impostata su **Uguale all'originale**, nel contenitore degli originali (MKV per video di formati diversi), senza rotazione né riflessione; gli altri file scelti restano fuori, e alla fine vengono nominati. Di solito scegli solo dove mettere la copia. Il video viene riscritto in pochi secondi, con i suoi metadati dentro: per dashcam e droni anche la posizione presa dai file accanto. Una foto viene copiata così com'è, con tutti i suoi metadati; se la ruoti o la ridimensioni nella finestra, li conserva come in una conversione.
 
 ## Copia senza audio e Salva l'audio in un file
 

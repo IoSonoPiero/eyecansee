@@ -78,9 +78,9 @@ pub const CONTAINERS: &[Container] = &[
         codecs: &[Codec::H264, Codec::Hevc, Codec::Av1, Codec::Vp9, Codec::Vp8, Codec::Mpeg4, Codec::ProRes, Codec::Copy],
         audio: &["libopus", "aac"],
     },
-    Container { name: "WebM", muxer: "webm", ext: "webm", codecs: &[Codec::Av1, Codec::Vp9, Codec::Vp8], audio: &["libopus", "libvorbis"] },
+    Container { name: "WebM", muxer: "webm", ext: "webm", codecs: &[Codec::Av1, Codec::Vp9, Codec::Vp8, Codec::Copy], audio: &["libopus", "libvorbis"] },
     Container { name: "MOV", muxer: "mov", ext: "mov", codecs: &[Codec::H264, Codec::Hevc, Codec::ProRes, Codec::Copy], audio: &["aac"] },
-    Container { name: "AVI", muxer: "avi", ext: "avi", codecs: &[Codec::Mpeg4, Codec::H264], audio: &["libmp3lame", "ac3"] },
+    Container { name: "AVI", muxer: "avi", ext: "avi", codecs: &[Codec::Mpeg4, Codec::H264, Codec::Copy], audio: &["libmp3lame", "ac3"] },
     Container { name: "GIF", muxer: "gif", ext: "gif", codecs: &[Codec::Gif], audio: &[] },
 ];
 
@@ -311,8 +311,14 @@ pub fn args(v: &Video, size: Size, enlarge: bool, turn: Turn, on_card: bool, (in
     if let Some(card) = card {
         a.extend(["-hwaccel".into(), card.name().into(), "-hwaccel_output_format".into(), card.name().into()]);
     }
+    if copy {
+        // An AVI's B-frames have no times: Matroska refused them ("unknown timestamp").
+        a.extend(["-fflags".into(), "+genpts".into()]);
+    }
     a.extend(["-i".into(), input.into(), "-map".into(), "0:V:0".into()]);
-    let audio = c.audio.iter().find(|e| audio_encoders.iter().any(|a| a == *e)).filter(|_| v.audio);
+    // Copied: the sound as it is, whatever encoders this FFmpeg has (`video_copy` checked that
+    // the container holds it).
+    let audio = if copy { Some(&"copy") } else { c.audio.iter().find(|e| audio_encoders.iter().any(|a| a == *e)) }.filter(|_| v.audio);
     if audio.is_some() {
         a.extend(["-map".into(), "0:a:0?".into()]);
     }
@@ -726,8 +732,12 @@ mod tests {
         // Copy: no filters, no quality, the sound copied too.
         let v = Video { container: 0, encoder: "copy", quality: Quality::Small, audio: true, meta: true };
         let a = args(&v, Size::Percent(50), false, Turn::default().then(Op::Cw), false, ("a", "b"), &["aac".into()], &[]).join(" ");
-        assert!(a.contains("-i a -map 0:V:0 -map 0:a:0? -c:v copy -c:a copy -sn -dn -map_metadata 0"), "{a}");
+        assert!(a.contains("-fflags +genpts -i a -map 0:V:0 -map 0:a:0? -c:v copy -c:a copy -sn -dn -map_metadata 0"), "{a}");
         assert!(!a.contains("-vf"), "{a}");
+        // Copied into WebM: the sound kept without an Opus or Vorbis encoder here.
+        let v = Video { container: 2, ..v };
+        let a = args(&v, Size::Same, false, Turn::default(), false, ("a", "b"), &[], &[]).join(" ");
+        assert!(a.contains("-c:v copy -c:a copy -sn -dn -map_metadata 0 -f webm b"), "{a}");
         // VA-API: the device, and frames uploaded to the card.
         let v = Video { container: 1, encoder: "hevc_vaapi", quality: Quality::Small, audio: false, meta: true };
         let a = args(&v, Size::Percent(50), false, Turn::default(), false, ("a", "b"), &[], &[]).join(" ");
@@ -853,7 +863,8 @@ mod tests {
         run(&p.program, &[clip.to_vec(), vec![input.to_string_lossy().into()]].concat(), |_| {}, &AtomicBool::new(false)).unwrap();
         let (mut runs, mut failed) = (0, Vec::new());
         for (container, c) in CONTAINERS.iter().enumerate() {
-            for encoder in c.codecs.iter().flat_map(|&codec| p.of(codec)) {
+            // The copy: by `copy_matrix`, from sources it can hold.
+            for encoder in c.codecs.iter().flat_map(|&codec| p.of(codec)).filter(|e| *e != "copy") {
                 for quality in [Quality::High, Quality::Medium, Quality::Small] {
                     // Both ways where the card can do it all (`Probe::card`).
                     for (audio, on_card) in [(true, false), (false, false), (true, true), (false, true)] {
@@ -877,9 +888,54 @@ mod tests {
                 }
             }
         }
+        copy_matrix(p, &dir, &mut runs, &mut failed);
         std::fs::remove_dir_all(&dir).unwrap();
         println!("{runs} runs, {} failed", failed.len());
         assert!(failed.is_empty(), "{}", failed.join("\n"));
+    }
+
+    /// The copy ("Same as the original"): clips of the usual codecs of every container, each
+    /// copied into every container that takes a copy, with and without sound, through the
+    /// container `video_copy` picks for it (the one chosen, or MKV): each run must make a file.
+    fn copy_matrix(p: &Probe, dir: &Path, runs: &mut usize, failed: &mut Vec<String>) {
+        let has = |e: &str| p.video.contains(&e) || p.audio.iter().any(|a| a == e);
+        // Name, video encoder and its options, audio encoder. MPEG-4 with B-frames: an AVI has no times for them.
+        let clips: [(&str, &[&str], &str); 6] = [
+            ("h264.mp4", &["libx264", "-pix_fmt", "yuv420p"], "aac"),
+            ("hevc.mov", &["libx265", "-pix_fmt", "yuv420p", "-tag:v", "hvc1"], "aac"),
+            ("vp8.webm", &["libvpx"], "libvorbis"),
+            ("vp9.webm", &["libvpx-vp9"], "libopus"),
+            ("mpeg4.avi", &["mpeg4", "-bf", "2"], "libmp3lame"),
+            ("prores.mov", &["prores_ks"], "pcm_s16le"),
+        ];
+        for (name, video, audio) in clips {
+            if !has(video[0]) || !(has(audio) || audio.starts_with("pcm")) {
+                println!("copy from {name}: skipped, no {} or {audio} here", video[0]);
+                continue;
+            }
+            let input = dir.join(format!("copy-{name}"));
+            let make = ["-hide_banner", "-nostdin", "-y", "-f", "lavfi", "-i", "testsrc2=size=640x480:rate=30:duration=1", "-f", "lavfi", "-i", "sine=frequency=440:duration=1", "-c:v"];
+            let a: Vec<String> = make.iter().chain(video).chain(&["-c:a", audio, "-shortest"]).map(|s| s.to_string()).chain([input.to_string_lossy().into()]).collect();
+            run(&p.program, &a, |_| {}, &AtomicBool::new(false)).unwrap();
+            for (chosen, c) in CONTAINERS.iter().enumerate().filter(|(_, c)| c.codecs.contains(&Codec::Copy)) {
+                let container = crate::video_copy::for_file(chosen, name, &p.program, &input);
+                for audio in [true, false] {
+                    let out = dir.join(format!("copy-out.{}", CONTAINERS[container].ext));
+                    let v = Video { container, encoder: "copy", quality: Quality::Medium, audio, meta: true };
+                    let a = args(&v, Size::Same, false, Turn::default(), false, (&input.to_string_lossy(), &out.to_string_lossy()), &p.audio, &[]);
+                    *runs += 1;
+                    let r = run(&p.program, &a, |_| {}, &AtomicBool::new(false));
+                    let size = std::fs::metadata(&out).map(|m| m.len()).unwrap_or(0);
+                    let _ = std::fs::remove_file(&out);
+                    let what = format!("copy {name} into {} (as {}) audio={audio}", c.name, CONTAINERS[container].name);
+                    match r {
+                        Ok(()) if size > 0 => println!("{what}: ok"),
+                        Ok(()) => failed.push(format!("{what}: empty file")),
+                        Err(e) => failed.push(format!("{what}: {}", e.lines().rev().find(|l| !l.starts_with("Conversion failed")).unwrap_or_default())),
+                    }
+                }
+            }
+        }
     }
 
     /// The system's FFmpeg and what "Automatic" makes of it, on this computer:

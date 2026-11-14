@@ -21,7 +21,7 @@ Videos are converted by FFmpeg.
 
 - **Container**: MP4 (the default), MKV, WebM, MOV, AVI or GIF.
 - **Codec**: the ones the container can hold, among H.264 (the default), HEVC, AV1, VP9, VP8, MPEG-4, ProRes and GIF. A line says what the codec chosen is good for. A codec with no working encoder on this computer is greyed out.
-- **Same as the original (no re-encoding)**, in MP4, MKV and MOV: video and sound are copied as they are, in seconds and without any loss, with the metadata. Turn and size do not apply.
+- **Same as the original (no re-encoding)**: video and sound are copied as they are, in seconds and without any loss, with the metadata. Turn and size do not apply. The container starts on the originals' own (a WebM stays WebM) and lists only those that can hold their streams; videos of different formats chosen together are copied as MKV, which holds them all. A video whose streams the chosen container cannot take after all is copied as MKV, so the copy does not fail for that.
 - **Encoder**: the graphics card's first, in green (NVIDIA, Intel Quick Sync, AMD, VA-API on Linux), then Windows' own and the processor's. The graphics card is much faster and leaves the computer free; the processor makes slightly smaller files at the same quality. A line says what the encoder chosen is good for.
 - **Quality**: **High**, **Medium** (the default) or **Small file**.
 - **Keep the sound** and **Keep the metadata (date, place, camera)**, both on at first.
@@ -38,7 +38,7 @@ The box at the bottom right shows how far it got; the bar moves during a long vi
 
 ## Copy with the metadata
 
-**Tools > Copy with the metadata…** (also in the right-click menu) opens the same window, called **Copy with the metadata** and with its button **Copy**, on the videos and pictures chosen, already set on **Same as the original**, not turned nor flipped; the other files chosen are left out and named at the end. You usually only choose where the copy goes. The video is rewritten in seconds, with its metadata inside: for dashcams and drones also the position taken from the files beside it. A picture is copied as it is, with all its metadata; turned or resized in the window, it keeps them as a conversion does.
+**Tools > Copy with the metadata…** (also in the right-click menu) opens the same window, called **Copy with the metadata** and with its button **Copy**, on the videos and pictures chosen, already set on **Same as the original**, in the originals' own container (MKV for videos of different formats), not turned nor flipped; the other files chosen are left out and named at the end. You usually only choose where the copy goes. The video is rewritten in seconds, with its metadata inside: for dashcams and drones also the position taken from the files beside it. A picture is copied as it is, with all its metadata; turned or resized in the window, it keeps them as a conversion does.
 
 ## Copy without sound and Save the sound as a file
 

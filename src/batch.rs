@@ -404,19 +404,19 @@ impl Drop for Writing {
     }
 }
 
-/// A video converted by ffmpeg into `to` of `out`. ffmpeg reads and writes files of this
-/// computer: a video on a phone or a server is copied into a temporary file first, a destination
-/// there gets the temporary result at the end.
-async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc<Progress>) -> Result<(), source::Error> {
+/// A video converted by ffmpeg into the folder `dest` of `out`, with a name free in `taken`,
+/// returned. ffmpeg reads and writes files of this computer: a video on a phone or a server is
+/// copied into a temporary file first, a destination there gets the temporary result at the end.
+async fn video(op: &Store, path: &str, (out, dest, taken): (&Store, &str, &HashSet<String>), job: &Job, p: &Arc<Progress>) -> Result<String, source::Error> {
     let name = source::name(path).to_string();
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
     // Copied streams: an FFmpeg without the phones' decoders does it too (`ffmpeg::copier`).
     let probe = job.video.as_ref().and_then(|v| if v.encoder == "copy" { crate::ffmpeg::copy_probed() } else { crate::ffmpeg::probed() });
-    let (Some(v), Some(probe)) = (job.video.clone(), probe) else { return Err((SKIP_VIDEO, name)) };
-    let temp = |what: &str| std::env::temp_dir().join(format!("eyecansee-{what}-{}-{}", std::process::id(), source::name(to)));
+    let (Some(mut v), Some(probe)) = (job.video.clone(), probe) else { return Err((SKIP_VIDEO, name)) };
+    let temp = |what: &str| std::env::temp_dir().join(format!("eyecansee-{what}-{}-{name}", std::process::id()));
     // Download, ffmpeg and upload share the video's bar in equal parts.
     // ponytail: equal parts, not by time: a "copy" conversion jumps through its third.
-    let (remote_in, remote_out) = (op.local_file(path).is_none(), out.local_file(to).is_none());
+    let (remote_in, remote_out) = (op.local_file(path).is_none(), out.local_file(&format!("{dest}{name}")).is_none());
     let phases = Phases { p: p.clone(), count: 1 + remote_in as u32 + remote_out as u32 };
     let input = match op.local_file(path) {
         Some(file) => (file, false),
@@ -426,6 +426,12 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
             (file, true)
         }
     };
+    // Copied as it is: into a container that holds its streams (`video_copy`), MKV otherwise.
+    if v.encoder == "copy" {
+        v.container = crate::video_copy::for_file(v.container, &name, &probe.program, &input.0);
+    }
+    let new_name = source::free_name(taken, &ext(&name, crate::ffmpeg::CONTAINERS[v.container].ext));
+    let to = &format!("{dest}{new_name}");
     let output = out.local_file(to).map_or_else(|| (temp("out"), true), |f| (f, false));
     let _writing = Writing::start(output.0.clone());
     let tags = if v.meta { crate::video_read::track_tags(op, path).await } else { Vec::new() };
@@ -460,7 +466,7 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
     if output.1 || r.is_err() {
         let _ = std::fs::remove_file(&output.0);
     }
-    r
+    r.map(|()| new_name)
 }
 
 /// The parts of a video's conversion on the bar: `set(phase, 0 to 1)`.
@@ -606,19 +612,10 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
             continue;
         }
         if crate::decode::is_video(&path) {
-            let new_name = match &job.video {
-                Some(v) => source::free_name(&taken, &ext(&name, crate::ffmpeg::CONTAINERS[v.container].ext)),
-                None => {
-                    p.failed.lock().unwrap().push((SKIP_VIDEO, name));
-                    p.done.fetch_add(1, Ordering::Relaxed);
-                    continue;
-                }
-            };
-            let to = format!("{dest}{new_name}");
-            match video(op, &path, &out, &to, &job, &p).await {
-                Ok(()) => {
+            match video(op, &path, (&out, &dest, &taken), &job, &p).await {
+                Ok(new_name) => {
+                    p.saved.lock().unwrap().push(format!("{dest}{new_name}"));
                     taken.insert(new_name);
-                    p.saved.lock().unwrap().push(to);
                 }
                 // Cancelled: neither saved nor "left out", the summary says where it stopped.
                 Err(_) if p.cancel.load(Ordering::Relaxed) => break,
