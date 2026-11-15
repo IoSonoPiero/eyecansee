@@ -200,10 +200,18 @@ impl App {
         }
         let (mut close, mut delete) = (dup_keys(&ctx, &mut w), false);
         egui::Panel::top("dup-head").show(ui, |ui| close |= !self.dup_header(ui, &mut w));
-        egui::Panel::bottom("dup-foot").show(ui, |ui| {
-            let (c, d) = self.dup_footer(ui, &w);
+        let foot = egui::Panel::bottom("dup-foot").show(ui, |ui| {
+            let (c, d, keys) = self.dup_footer(ui, &w);
             (close, delete) = (close | c, delete | d);
+            keys
         });
+        // The keys of the page, as in the viewer and the grid (issue #150).
+        if foot.inner.clicked() {
+            self.keys_open = !self.keys_open;
+        }
+        if self.keys_open || foot.inner.hovered() {
+            self.keys_window(&ctx, "hint-dup", foot.response.rect.height());
+        }
         let mut view = None;
         egui::CentralPanel::default()
             .frame(egui::Frame::central_panel(ui.style()).fill(theme::canvas(ui.visuals())))
@@ -256,13 +264,14 @@ impl App {
     }
 
     /// What deleting will do, Close and Delete: (close, delete) clicked.
-    fn dup_footer(&self, ui: &mut egui::Ui, w: &Window) -> (bool, bool) {
+    /// Close and Delete asked, and the Keys button.
+    fn dup_footer(&self, ui: &mut egui::Ui, w: &Window) -> (bool, bool, egui::Response) {
         let groups = w.groups.as_deref().unwrap_or_default();
         let marked = groups.iter().flat_map(|g| g.files.iter().zip(&g.delete)).filter(|(_, d)| **d);
         let (n, size) = marked.fold((0, 0), |(n, s), (f, _)| (n + 1, s + f.size));
         let (mut close, mut delete) = (false, false);
         ui.add_space(4.0);
-        ui.horizontal(|ui| {
+        let keys = ui.horizontal(|ui| {
             if !groups.is_empty() {
                 let args = [("groups", groups.len().to_string()), ("n", n.to_string()), ("size", self.human_size(size))];
                 ui.label(self.i18n.t_args("dup-summary", &args.each_ref().map(|(k, v)| (*k, v.as_str()))));
@@ -271,10 +280,13 @@ impl App {
                 let label = egui::RichText::new(self.i18n.t("dup-delete")).family(egui::FontFamily::Name(BOLD.into()));
                 delete = ui.add_enabled(n > 0 && self.deleting == 0, egui::Button::new(label)).clicked();
                 close = ui.button(self.i18n.t("notice-close")).on_hover_text("Esc").clicked();
-            });
-        });
+                ui.button(self.i18n.t("keys-button"))
+            })
+            .inner
+        })
+        .inner;
         ui.add_space(2.0);
-        (close, delete)
+        (close, delete, keys)
     }
 
     /// Every group in a frame of its own; the image clicked to open in the viewer.
