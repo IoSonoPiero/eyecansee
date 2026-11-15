@@ -8,13 +8,21 @@ use eframe::egui::{self, pos2};
 
 use crate::App;
 use crate::cad_measure::number;
-use crate::measure_view::{draw_points, lines_and_copy, result_box};
+use crate::measure_view::{INK, Shown, draw_points, pointer_label};
 use crate::model::Mesh;
 use crate::model_measure::Sizes;
 
+/// Above this many triangles the point under the pointer is not looked for at every move.
+const LIVE_MAX: usize = 2_000_000;
+
+fn distance3(a: [f32; 3], b: [f32; 3]) -> f64 {
+    (0..3).map(|k| f64::from(b[k] - a[k]).powi(2)).sum::<f64>().sqrt()
+}
+
 impl App {
     /// Over the model drawn in `rect`: a click (not a drag) takes the point of the model under
-    /// the pointer, two give a distance; the points, the line and the results.
+    /// the pointer, two give a distance, written next to the pointer while choosing the second;
+    /// the points and the line; the results go to the status bar (`measure_status`).
     pub(crate) fn model_measure(&mut self, ui: &egui::Ui, response: &egui::Response, path: &str, mesh: &Arc<Mesh>) {
         if !self.model.measure.on {
             return;
@@ -23,31 +31,41 @@ impl App {
         let ppp = ui.ctx().pixels_per_point();
         let size = [rect.width() * ppp, rect.height() * ppp];
         let view = self.model.view;
+        let under = |p: egui::Pos2| {
+            let (origin, dir) = crate::render3d::ray(mesh, &view, size, [(p.x - rect.min.x) * ppp, (p.y - rect.min.y) * ppp]);
+            crate::model_measure::hit(mesh, origin, dir)
+        };
         let m = &mut self.model.measure;
         if response.clicked()
-            && let Some(p) = response.interact_pointer_pos()
+            && let Some(hit) = response.interact_pointer_pos().and_then(under)
         {
-            let (origin, dir) = crate::render3d::ray(mesh, &view, size, [(p.x - rect.min.x) * ppp, (p.y - rect.min.y) * ppp]);
-            if let Some(hit) = crate::model_measure::hit(mesh, origin, dir) {
-                if m.pts3.len() >= 2 {
-                    m.pts3.clear();
-                }
-                m.pts3.push(hit);
+            if m.pts3.len() >= 2 {
+                m.pts3.clear();
             }
+            m.pts3.push(hit);
         }
-        let shown: Vec<egui::Pos2> = m.pts3.iter().filter_map(|&p| crate::render3d::to_screen(mesh, &view, size, p)).map(|[x, y]| pos2(rect.min.x + x / ppp, rect.min.y + y / ppp)).collect();
-        draw_points(&ui.painter_at(rect), &shown, false);
+        let screen = |p: [f32; 3]| crate::render3d::to_screen(mesh, &view, size, p).map(|[x, y]| pos2(rect.min.x + x / ppp, rect.min.y + y / ppp));
+        let painter = ui.painter_at(rect);
+        draw_points(&painter, &m.pts3.iter().filter_map(|&p| screen(p)).collect::<Vec<_>>(), false);
+        let dec = self.i18n.t("decimal-separator");
+        let with_unit = |d: f64| mesh.unit.map_or_else(|| number(d, &dec), |u| format!("{} {u}", number(d, &dec)));
+        // With one point: the line and the distance to the point under the pointer (not on very
+        // large models, where finding it at every move would slow the view).
+        if let ([a], Some(p)) = (&m.pts3[..], response.hover_pos().filter(|_| mesh.tris.len() <= LIVE_MAX))
+            && let Some(b) = under(p)
+            && let (Some(sa), Some(sb)) = (screen(*a), screen(b))
+        {
+            painter.line_segment([sa, sb], egui::Stroke::new(1.0, INK.gamma_multiply(0.6)));
+            pointer_label(&painter, p, &with_unit(distance3(*a, b)));
+        }
+        if let ([a, b], Some(sb)) = (&m.pts3[..], m.pts3.get(1).copied().and_then(screen)) {
+            pointer_label(&painter, sb, &with_unit(distance3(*a, *b)));
+        }
         let sizes = self.model_sizes(ui.ctx(), path, mesh);
         let lines = self.model_lines(sizes.as_ref(), mesh.unit);
-        let hint = self.i18n.t("measure-hint-3d");
-        let measuring = sizes.is_none().then(|| self.i18n.t("measure-measuring"));
-        result_box(ui.ctx(), rect, egui::Align2::LEFT_TOP, &self.i18n.t("measure-title"), |ui| {
-            ui.weak(&hint);
-            if let Some(text) = &measuring {
-                ui.weak(text);
-            }
-            lines_and_copy(ui, &lines, mesh.unit.is_none(), &self.i18n);
-        });
+        let hint = if sizes.is_none() { self.i18n.t("measure-measuring") } else { self.i18n.t("measure-hint-3d") };
+        let more = if self.model.measure.pts3.len() < 2 { hint.clone() } else { String::new() };
+        self.model.measure.shown = Some(Shown { what: self.i18n.t("measure-title"), lines, hint, no_unit: mesh.unit.is_none(), more });
     }
 
     /// The sizes of the model, asked once and worked out in the background: `None` meanwhile.
@@ -80,6 +98,10 @@ impl App {
         };
         let t = |id: &str| self.i18n.t(id);
         let mut lines = Vec::new();
+        // The distance first: the status bar may cut what follows.
+        if let [a, b] = &self.model.measure.pts3[..] {
+            lines.push((t("measure-distance"), with(n(distance3(*a, *b)), "")));
+        }
         if let Some(s) = sizes {
             lines.push((t("measure-size"), with(s.size.map(n).join(" × "), "")));
             lines.push((t("measure-surface"), with(n(s.surface), "²")));
@@ -88,10 +110,6 @@ impl App {
                 None => self.i18n.t_args("measure-open", &[("n", &s.open_edges.to_string())]),
             };
             lines.push((t("measure-volume"), volume));
-        }
-        if let [a, b] = &self.model.measure.pts3[..] {
-            let d = (0..3).map(|k| f64::from(b[k] - a[k]).powi(2)).sum::<f64>().sqrt();
-            lines.push((t("measure-distance"), with(n(d), "")));
         }
         lines
     }

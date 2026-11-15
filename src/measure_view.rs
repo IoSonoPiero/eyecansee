@@ -1,7 +1,9 @@
 //! The Measure tool of the viewer (#141), on and off with M: on a CAD drawing, points clicked
 //! with snap (`cad_measure`) for a distance, an area with its perimeter, or an angle; on a 3D
 //! model (`measure_model`) its overall size, surface and volume, and the distance between two
-//! points clicked on it. The results stay on screen until Esc, with a button that copies them.
+//! points clicked on it. While measuring, the value is written next to the pointer; the results
+//! go to the status bar (`measure_status`), with Copy (also Ctrl+C), until Esc. Nothing covers
+//! the drawing or the model (Piero, 15/11).
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -31,6 +33,27 @@ pub(crate) struct State {
     /// The sizes of the models, measured in the background (`None` while being measured).
     pub(crate) sizes: HashMap<String, Option<crate::model_measure::Sizes>>,
     pub(crate) sizes_done: Arc<Mutex<Vec<(String, crate::model_measure::Sizes)>>>,
+    /// What the status bar shows, set by the viewer at every frame while measuring.
+    pub(crate) shown: Option<Shown>,
+}
+
+/// The status bar's part of a measure: what is measured, the results (label, value) or how to
+/// go on, and whether the file says its unit.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct Shown {
+    pub what: String,
+    pub lines: Vec<(String, String)>,
+    pub hint: String,
+    pub no_unit: bool,
+    /// After the results, not copied: how to go on (on a model, the two points to click).
+    pub more: String,
+}
+
+impl Shown {
+    /// The results as copied: one per row.
+    pub(crate) fn text(&self) -> String {
+        self.lines.iter().map(|(l, v)| format!("{l}: {v}")).collect::<Vec<_>>().join("\n")
+    }
 }
 
 impl State {
@@ -54,7 +77,27 @@ impl App {
     pub(crate) fn toggle_measure(&mut self) {
         let m = &mut self.model.measure;
         m.on = !m.on;
+        m.shown = None;
         m.clear();
+    }
+
+    /// For the status bar while measuring: what is measured, then the results or how to go on.
+    pub(crate) fn measure_status(&self) -> Option<(String, bool)> {
+        let s = self.model.measure.shown.as_ref().filter(|_| self.model.measure.on)?;
+        if s.lines.is_empty() {
+            return Some((format!("{}: {}", s.what, s.hint), false));
+        }
+        let body = s.lines.iter().map(|(l, v)| format!("{l} {v}")).collect::<Vec<_>>().join(" · ");
+        let unit = if s.no_unit { format!(" ({})", self.i18n.t("measure-no-unit")) } else { String::new() };
+        let more = if s.more.is_empty() { String::new() } else { format!(" · {}", s.more) };
+        Some((body + &unit + &more, true))
+    }
+
+    /// The results of the measure on the clipboard (Copy in the status bar, Ctrl+C).
+    pub(crate) fn copy_measure(&self, ctx: &egui::Context) {
+        if let Some(s) = self.model.measure.shown.as_ref().filter(|s| !s.lines.is_empty()) {
+            ctx.copy_text(s.text());
+        }
     }
 
     /// M turns Measure on and off; while on, Esc clears the points (and with none closes it),
@@ -72,6 +115,11 @@ impl App {
         if !m.on {
             return;
         }
+        // Ctrl+C copies the results, not the file, while there are some.
+        if m.shown.as_ref().is_some_and(|s| !s.lines.is_empty()) && ctx.input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::C)) {
+            self.copy_measure(ctx);
+        }
+        let m = &mut self.model.measure;
         let (esc, enter, back) = ctx.input_mut(|i| (i.consume_key(Modifiers::NONE, Key::Escape), i.consume_key(Modifiers::NONE, Key::Enter), i.consume_key(Modifiers::NONE, Key::Backspace)));
         if esc {
             if m.pts.is_empty() && m.pts3.is_empty() { m.on = false } else { m.clear() }
@@ -128,44 +176,39 @@ impl App {
         }
         let painter = ui.painter_at(response.rect);
         draw_points(&painter, &m.pts.iter().map(|&p| to_screen(p)).collect::<Vec<_>>(), m.mode == Mode::Area && (m.done || m.pts.len() >= 3));
+        let unit = d.unit.map(|u| u.symbol);
+        let going = !m.done && m.pts.len() < m.mode.points();
         if let Some((p, kind)) = hover {
             let at = to_screen(p);
-            if let Some(&last) = m.pts.last().filter(|_| !m.done && m.pts.len() < m.mode.points()) {
+            if let Some(&last) = m.pts.last().filter(|_| going) {
                 painter.line_segment([to_screen(last), at], egui::Stroke::new(1.0, INK.gamma_multiply(0.6)));
             }
             snap_mark(&painter, at, kind);
+            // The value as it would be with the point under the pointer, next to it.
+            let mut next = m.pts.clone();
+            next.push(p);
+            if let Some((_, value)) = going.then(|| cad_lines(&self.i18n, measured(m.mode, &next), unit).into_iter().next()).flatten() {
+                pointer_label(&painter, at, &value);
+            }
         }
-        let unit = d.unit.map(|u| u.symbol);
-        self.measure_box(ui.ctx(), response.rect, unit);
-    }
-
-    /// The box of the results, at the top right of the viewer: what is measured (D, A, G), how
-    /// to go on, the results, Copy.
-    fn measure_box(&mut self, ctx: &egui::Context, rect: egui::Rect, unit: Option<&str>) {
-        let t = |id: &str| self.i18n.t(id);
         let m = &self.model.measure;
-        let lines = cad_lines(&self.i18n, measured(m.mode, &m.pts), unit);
-        let hint = t(match m.mode {
-            Mode::Distance => "measure-hint-distance",
-            Mode::Area => "measure-hint-area",
-            Mode::Angle => "measure-hint-angle",
-        });
-        let modes = [(Mode::Distance, "measure-distance", "D"), (Mode::Area, "measure-area", "A"), (Mode::Angle, "measure-angle", "G")];
-        let mut chosen = m.mode;
-        result_box(ctx, rect, egui::Align2::RIGHT_TOP, &t("measure-title"), |ui| {
-            ui.horizontal(|ui| {
-                for (mode, label, key) in modes {
-                    ui.selectable_value(&mut chosen, mode, t(label)).on_hover_text(key);
-                }
-            });
-            ui.weak(&hint);
-            lines_and_copy(ui, &lines, unit.is_none(), &self.i18n);
-        });
-        if chosen != self.model.measure.mode {
-            self.model.measure.mode = chosen;
-            self.model.measure.clear();
-        }
+        let (what, hint) = match m.mode {
+            Mode::Distance => ("measure-distance", "measure-hint-distance"),
+            Mode::Area => ("measure-area", "measure-hint-area"),
+            Mode::Angle => ("measure-angle", "measure-hint-angle"),
+        };
+        let shown = Shown { what: self.i18n.t(what), lines: cad_lines(&self.i18n, measured(m.mode, &m.pts), unit), hint: self.i18n.t(hint), no_unit: unit.is_none(), more: String::new() };
+        self.model.measure.shown = Some(shown);
     }
+}
+
+/// A value written next to the pointer `at`, on a dark band so it reads on any drawing.
+pub(crate) fn pointer_label(painter: &egui::Painter, at: Pos2, text: &str) {
+    let galley = painter.layout_no_wrap(text.to_string(), egui::FontId::proportional(14.0), INK);
+    let pos = at + egui::vec2(16.0, 14.0);
+    let rect = egui::Rect::from_min_size(pos, galley.size()).expand2(egui::vec2(5.0, 2.0));
+    painter.rect_filled(rect, 3.0, Color32::from_black_alpha(190));
+    painter.galley(pos, galley, INK);
 }
 
 /// The lines of a drawing's measure, as shown and copied.
@@ -194,31 +237,6 @@ pub(crate) fn result_box(ctx: &egui::Context, rect: egui::Rect, corner: egui::Al
             ui.strong(title);
             add(ui);
         });
-    });
-}
-
-/// The results in two columns, the note on a missing unit, Copy and the keys.
-pub(crate) fn lines_and_copy(ui: &mut egui::Ui, lines: &[(String, String)], no_unit: bool, i18n: &crate::i18n::I18n) {
-    if lines.is_empty() {
-        return;
-    }
-    ui.separator();
-    egui::Grid::new("measure-lines").num_columns(2).show(ui, |ui| {
-        for (label, value) in lines {
-            ui.weak(label);
-            ui.strong(value);
-            ui.end_row();
-        }
-    });
-    if no_unit {
-        ui.weak(i18n.t("measure-no-unit"));
-    }
-    ui.horizontal(|ui| {
-        if ui.button(i18n.t("measure-copy")).clicked() {
-            let text: Vec<String> = lines.iter().map(|(l, v)| format!("{l}: {v}")).collect();
-            ui.ctx().copy_text(text.join("\n"));
-        }
-        ui.weak(i18n.t("measure-keys"));
     });
 }
 

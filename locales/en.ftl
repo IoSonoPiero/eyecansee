@@ -462,25 +462,25 @@ compare-status = Compared with { $name }: { $n ->
     [one] 1 change
    *[other] { $n } changes
 } (N: next)
-compare-units = different units: { $a } and { $b }
+compare-units = ⚠ Different units: { $first } in { $a }, { $second } in { $b }. Compared as they are, not converted.
+compare-no-unit = no unit
 measure-off = Only for a CAD drawing or a 3D model in the viewer
 measure-title = Measure
 measure-distance = Distance
 measure-area = Area
 measure-angle = Angle
 measure-perimeter = Perimeter
-measure-hint-distance = Click two points: they snap to ends, middles, centres and crossings.
-measure-hint-area = Click the corners; Enter or a double click closes the shape.
-measure-hint-angle = Click a point, the corner, then a point on the other side.
-measure-hint-3d = Click two points on the model for their distance.
+measure-hint-distance = click two points; they snap to ends, middles, centres and crossings · D, A, G: distance, area, angle · Esc: clear
+measure-hint-area = click the corners; Enter or a double click closes the shape · D, A, G: distance, area, angle · Esc: clear
+measure-hint-angle = click a point, the corner, then a point on the other side · D, A, G: distance, area, angle · Esc: clear
+measure-hint-3d = click two points on the model for their distance · Esc: clear
 measure-measuring = Measuring the model…
 measure-size = Size (X × Y × Z)
 measure-surface = Surface
 measure-volume = Volume
 measure-open = none: the model is not closed ({ $n } open edges)
-measure-no-unit = The file does not say its unit.
+measure-no-unit = the file does not say its unit
 measure-copy = Copy
-measure-keys = Esc: clear · M: close
 section-title = Section
 section-flip = Other side
 section-where = Where
