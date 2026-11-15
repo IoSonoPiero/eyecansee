@@ -4,10 +4,10 @@
 
 use std::collections::HashSet;
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
-use crate::batch::{Phases, Progress, Writing, download, keep_thumbnail, upload};
+use crate::batch::Progress;
 use crate::ffmpeg::Quality;
+use crate::ffmpeg_files::{Input, Output, deliver, failed};
 use crate::source::{self, Store};
 
 /// An audio file, and no FFmpeg to convert it.
@@ -94,67 +94,32 @@ pub fn new_name(name: &str, s: Sound) -> String {
 
 /// One audio file of `batch::run`, converted into the folder `dest` of `out` with a name free in
 /// `taken`, returned. As `batch::video`, a file on a phone or a server is copied into a temporary
-/// file first, and the result goes there at the end.
+/// file first, and the result goes there at the end (`ffmpeg_files`).
 pub async fn run(op: &Store, path: &str, (out, dest, taken): (&Store, &str, &HashSet<String>), s: Sound, p: &Arc<Progress>) -> Result<String, source::Error> {
     let name = source::name(path).to_string();
-    let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
     // Nothing of the phones' video decoders is needed: an FFmpeg without them does it too.
     let Some(probe) = crate::ffmpeg::copy_probed() else { return Err((SKIP_AUDIO, name)) };
-    let temp = |what: &str| std::env::temp_dir().join(format!("eyecansee-{what}-{}-{name}", std::process::id()));
-    let (remote_in, remote_out) = (op.local_file(path).is_none(), out.local_file(&format!("{dest}{name}")).is_none());
-    let phases = Phases { p: p.clone(), count: 1 + remote_in as u32 + remote_out as u32 };
-    let input = match op.local_file(path) {
-        Some(file) => (file, false),
-        None => {
-            let file = temp("in");
-            download(op, path, &file, || phases.p.cancel.load(Ordering::Relaxed), |f| phases.set(0, f)).await.map_err(|e| failed(e.to_string()))?;
-            (file, true)
-        }
-    };
+    let input = Input::fetch(op, path, (out, dest), p).await?;
     let new_name = source::free_name(taken, &new_name(&name, s));
-    let to = format!("{dest}{new_name}");
-    let output = out.local_file(&to).map_or_else(|| (temp("out"), true), |f| (f, false));
-    let _writing = Writing::start(output.0.clone());
+    let output = Output::new(out, format!("{dest}{new_name}"), &name);
     let mut r = Err(String::new());
     // With the cover, then without it: a cover the format cannot take (a BMP into M4A) does not
     // stop the conversion.
     for cover in [true, false] {
-        if p.cancel.load(Ordering::Relaxed) || (!cover && !FORMATS[s.format].cover) {
+        if input.cancelled() || (!cover && !FORMATS[s.format].cover) {
             break;
         }
-        let a = args(s, (&input.0.to_string_lossy(), &output.0.to_string_lossy()), cover);
-        log!("ffmpeg {a:?}");
-        let (program, ph, first) = (probe.program.clone(), phases.clone(), remote_in as u32);
-        r = tokio::task::spawn_blocking(move || crate::ffmpeg::run(&program, &a, |f| ph.set(first, f), &ph.p.cancel)).await.unwrap_or_else(|e| Err(e.to_string()));
+        r = input.ffmpeg(&probe.program, args(s, (&input.file.to_string_lossy(), &output.file.to_string_lossy()), cover)).await;
         if r.is_ok() {
             break;
         }
         log!("ffmpeg: failed ({}), again without the cover", r.as_ref().unwrap_err());
     }
-    if input.1 {
-        let _ = std::fs::remove_file(&input.0);
-    }
-    deliver(out, &to, &output, &phases, r.map_err(failed)).await?;
+    let phases = input.phases.clone();
+    drop(input);
+    let r = r.map_err(|e| failed(&name, e));
+    deliver(out, &output, &phases, r, |e| failed(&new_name, e)).await?;
     Ok(new_name)
-}
-
-/// The converted file's thumbnail kept, the file sent to a phone or a server, the temporary
-/// copy removed.
-async fn deliver(out: &Store, to: &str, (file, remote): &(std::path::PathBuf, bool), phases: &Phases, r: Result<(), source::Error>) -> Result<(), source::Error> {
-    if r.is_ok() {
-        keep_thumbnail(to, file).await;
-    }
-    let r = match r {
-        Ok(()) if *remote => {
-            let (ph, last, p) = (phases.clone(), phases.count - 1, phases.p.clone());
-            upload(out, to, file, move || p.cancel.load(Ordering::Relaxed), move |f| ph.set(last, f)).await.map_err(|e| ("batch-failed", format!("{}: {e}", source::name(to))))
-        }
-        r => r,
-    };
-    if *remote || r.is_err() {
-        let _ = std::fs::remove_file(file);
-    }
-    r
 }
 
 /// `ffmpeg -i` of a file: its streams and tags, as FFmpeg prints them.
