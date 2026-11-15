@@ -427,6 +427,115 @@ pub(super) fn keys_id(tool: Tool) -> &'static str {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    /// Each id has its message in both languages.
+    fn in_both_languages(ids: &[&str]) {
+        for ftl in [include_str!("../../locales/en.ftl"), include_str!("../../locales/it.ftl")] {
+            for id in ids {
+                assert!(ftl.lines().any(|l| l.starts_with(&format!("{id} = "))), "{id}");
+            }
+        }
+    }
+
+    /// Save copy is off while a save is prepared, then while the last one is sent, then when
+    /// nothing changed; the first reason that holds is the one shown.
+    #[test]
+    fn save_off_reasons() {
+        assert_eq!(save_off(true, true, false), Some("edit-off-preparing"));
+        assert_eq!(save_off(false, true, false), Some("edit-off-sending"));
+        assert_eq!(save_off(false, false, false), Some("edit-off-unchanged"));
+        assert_eq!(save_off(false, false, true), None);
+        in_both_languages(&["edit-off-preparing", "edit-off-sending", "edit-off-unchanged"]);
+    }
+
+    /// The main save button: Save as… for a new image (also with Overwrite chosen), Overwrite when
+    /// chosen and possible, Save copy, Update copy after a first copy.
+    #[test]
+    fn main_save_button() {
+        for over in [false, true] {
+            for copied in [false, true] {
+                assert_eq!(main_save(true, over, copied), (Ask::SaveAs, "menu-save-copy", "rc-save-as-hint"));
+                assert_eq!(main_save(false, true, copied), (Ask::Overwrite, "edit-overwrite", "edit-overwrite-hint"));
+            }
+        }
+        assert_eq!(main_save(false, false, false), (Ask::Save, "edit-save-copy", "rc-save-hint"));
+        assert_eq!(main_save(false, false, true), (Ask::Save, "edit-update-copy", "edit-update-hint"));
+        in_both_languages(&["menu-save-copy", "rc-save-as-hint", "edit-overwrite", "edit-overwrite-hint", "edit-save-copy", "rc-save-hint", "edit-update-copy", "edit-update-hint"]);
+    }
+
+    /// On the bar only Overwrite the original… is shortened, to Overwrite….
+    #[test]
+    fn short_labels() {
+        assert_eq!(bar_label("edit-overwrite"), "edit-overwrite-short");
+        for id in ["edit-save-copy", "edit-update-copy", "menu-save-copy"] {
+            assert_eq!(bar_label(id), id);
+        }
+        in_both_languages(&["edit-overwrite-short"]);
+    }
+
+    /// The tools: Select first, Crop last after its separator (as `bar_fit` sums the bar), each
+    /// with its own key, none of them I (the eyedropper), each named in both languages.
+    #[test]
+    fn tools_listed() {
+        assert_eq!(TOOLS[0].0, Tool::Select);
+        assert_eq!(TOOLS[TOOLS.len() - 1].0, Tool::Crop);
+        for (n, a) in TOOLS.iter().enumerate() {
+            assert!(TOOLS[n + 1..].iter().all(|b| a.0 != b.0 && a.2 != b.2 && a.3 != b.3), "{}", a.2);
+            assert_ne!(a.3, Key::I, "{}", a.2);
+        }
+        in_both_languages(&TOOLS.map(|t| t.2));
+    }
+
+    /// Undo and Redo: off with no history; Undo on with a change not yet a step; after Undo only
+    /// Redo, after Redo only Undo.
+    #[test]
+    fn undo_and_redo_on() {
+        use crate::edit::doc::{Doc, Obj, Pt, Shape, Style};
+        let mut w = Window::new("p/a.png".into(), Default::default(), Tool::Select);
+        assert_eq!(undo_redo(&w), (false, false));
+        w.doc = Doc::new(64, 48, None);
+        w.history = Some(crate::edit::history::History::new(w.doc.clone()));
+        assert_eq!(undo_redo(&w), (false, false));
+        w.doc.objects.push(Obj { shape: Shape::Line(Pt::new(0.0, 0.0), Pt::new(9.0, 9.0), None), style: Style::default() });
+        assert_eq!(undo_redo(&w), (true, false));
+        w.undo();
+        assert!(w.doc.objects.is_empty());
+        assert_eq!(undo_redo(&w), (false, true));
+        w.redo();
+        assert_eq!(undo_redo(&w), (true, false));
+        in_both_languages(&["edit-off-undo", "edit-off-redo"]);
+    }
+
+    /// Selection's Copy and Cut need a part chosen, its Paste something copied.
+    #[test]
+    fn marquee_buttons() {
+        assert_eq!(marquee_off(false, false), (Some("edit-off-no-marquee"), Some("edit-off-no-clip")));
+        assert_eq!(marquee_off(true, false), (None, Some("edit-off-no-clip")));
+        assert_eq!(marquee_off(false, true), (Some("edit-off-no-marquee"), None));
+        assert_eq!(marquee_off(true, true), (None, None));
+        assert_eq!((filters_heading(true), filters_heading(false)), ("edit-filters-part", "edit-filters-whole"));
+        in_both_languages(&["edit-off-no-marquee", "edit-off-no-clip", "edit-filters-part", "edit-filters-whole"]);
+    }
+
+    /// The status bar: the zoom in pixels of the screen (a point is 2 pixels at 200 %), sizes in
+    /// MiB, the hint of every tool and of the eyedropper in both languages.
+    #[test]
+    fn status_bar_texts() {
+        assert_eq!(zoom_label(1.0, 1.0), "100%");
+        assert_eq!(zoom_label(0.5, 2.0), "100%");
+        assert_eq!(zoom_label(0.25, 1.0), "25%");
+        assert_eq!(zoom_label(2.0, 1.1), "220%");
+        assert_eq!(mib(0), "0.0");
+        assert_eq!(mib(1_048_576), "1.0");
+        assert_eq!(mib(25 * 1_048_576 / 2), "12.5");
+        for (tool, ..) in TOOLS {
+            assert_eq!(status_hint(true, tool), "edit-tip-pick");
+            in_both_languages(&[status_hint(false, tool)]);
+        }
+        in_both_languages(&["edit-tip-pick"]);
+    }
+
     /// The warning that Blur and Pixelate are no cover is in both languages.
     #[test]
     fn blur_warning() {

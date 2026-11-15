@@ -431,6 +431,95 @@ fn text_field(ui: &mut egui::Ui, w: &mut Window, selected: Option<usize>, i18n: 
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    /// Every kind of object.
+    const KINDS: [Kind; 15] = [
+        Kind::Line,
+        Kind::Arrow,
+        Kind::Pen,
+        Kind::Rect,
+        Kind::Ellipse,
+        Kind::Step,
+        Kind::Bubble,
+        Kind::Lens,
+        Kind::Spotlight,
+        Kind::Stamp,
+        Kind::Highlight,
+        Kind::Text,
+        Kind::Cover,
+        Kind::Patch,
+        Kind::Filter,
+    ];
+
+    /// Which kinds have which controls: border and fill, colours, dashes.
+    #[test]
+    fn controls_by_kind() {
+        let with = |f: fn(Kind) -> bool| KINDS.into_iter().filter(|&k| f(k)).collect::<Vec<_>>();
+        assert_eq!(with(boxed), [Kind::Rect, Kind::Ellipse, Kind::Bubble]);
+        assert_eq!(with(dashed), [Kind::Line, Kind::Arrow, Kind::Pen, Kind::Rect, Kind::Ellipse]);
+        assert_eq!(KINDS.into_iter().filter(|&k| !coloured(k)).collect::<Vec<_>>(), [Kind::Spotlight, Kind::Patch]);
+    }
+
+    /// The width slider: from 1 pixel (a lens's from 0, it may have no border) to a tenth of the
+    /// long side, at least 50; the size of a text, a step or a stamp from 4 to a quarter of the
+    /// long side, at least 100; none for the kinds without a line.
+    #[test]
+    fn width_ranges() {
+        for k in KINDS {
+            let (big, small) = (width_slider(k, 2000.0), width_slider(k, 100.0));
+            match k {
+                Kind::Lens => assert_eq!((big, small), (Some(("edit-width", 0.0..=200.0)), Some(("edit-width", 0.0..=50.0)))),
+                Kind::Text | Kind::Step | Kind::Stamp => assert_eq!((big, small), (Some(("edit-size", 4.0..=500.0)), Some(("edit-size", 4.0..=100.0)))),
+                Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter | Kind::Spotlight => assert_eq!((big, small), (None, None), "{k:?}"),
+                _ => assert_eq!((big, small), (Some(("edit-width", 1.0..=200.0)), Some(("edit-width", 1.0..=50.0))), "{k:?}"),
+            }
+        }
+    }
+
+    /// Opacity for all but a cover box; a spotlight's is its intensity. The ids in both languages.
+    #[test]
+    fn opacity_names() {
+        for k in KINDS {
+            let want = match k {
+                Kind::Cover => None,
+                Kind::Spotlight => Some("edit-intensity"),
+                _ => Some("edit-opacity"),
+            };
+            assert_eq!(opacity_slider(k), want, "{k:?}");
+        }
+        for ftl in [include_str!("../../locales/en.ftl"), include_str!("../../locales/it.ftl")] {
+            for id in ["edit-width", "edit-size", "edit-opacity", "edit-intensity", "edit-border", "edit-fill"] {
+                assert!(ftl.lines().any(|l| l.starts_with(&format!("{id} = "))), "{id}");
+            }
+        }
+    }
+
+    /// A text's angle on the screen: its own plus the image's, from -180° to just under 180°.
+    #[test]
+    fn text_angle_on_screen() {
+        for (rot, angle, shown) in [(0.0, 0.0, 0.0), (30.0, 15.0, 45.0), (170.0, 20.0, -170.0), (180.0, 0.0, -180.0), (-180.0, 0.0, -180.0), (350.0, 0.0, -10.0), (90.0, -90.0, 0.0), (-200.0, 0.0, 160.0)] {
+            assert!((screen_angle(rot, angle) - shown).abs() < 1e-4, "{rot} + {angle}: {}", screen_angle(rot, angle));
+        }
+    }
+
+    /// "On a curve": the line goes through the text's anchor, as long as the text and a size more
+    /// on each side, along its angle; its middle handle is the anchor, where "off" puts it back.
+    #[test]
+    fn curve_through_the_text() {
+        let close = |a: Pt, b: Pt| (a.x - b.x).abs() < 1e-3 && (a.y - b.y).abs() < 1e-3;
+        let at = Pt::new(100.0, 50.0);
+        // "abcd" at size 10: 24 wide, so 12 + 10 on each side.
+        let (a, b) = curve_line(at, "abcd", 10.0, 0.0);
+        assert!(close(a, Pt::new(78.0, 50.0)) && close(b, Pt::new(122.0, 50.0)), "{a:?} {b:?}");
+        let (a, b) = curve_line(at, "abcd", 10.0, 90.0);
+        assert!(close(a, Pt::new(100.0, 28.0)) && close(b, Pt::new(100.0, 72.0)), "{a:?} {b:?}");
+        for rot in [0.0, 37.0, -120.0] {
+            let (a, b) = curve_line(at, "two\nlines", 24.0, rot);
+            assert!(close(crate::edit::geom::bend_handle(a, b, None), at), "{rot}");
+        }
+    }
+
     /// The properties bar of a text, nothing selected and selected with its outline and box on,
     /// in every language: nothing past the right edge of the window down to 700 px (a slider at
     /// the end of a row was cut: "Opacity 100 %" in a 900 px window).
