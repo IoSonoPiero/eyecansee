@@ -40,8 +40,12 @@ impl App {
                 let version_shown = !crate::shots::active();
                 #[cfg(not(feature = "shots"))]
                 let version_shown = true;
-                if version_shown {
-                    ui.weak(format!("EyeCanSee {}", version()));
+                // Only where it fits: in a narrow window it was drawn over the Help menu.
+                let text = format!("EyeCanSee {}", version());
+                let font = egui::TextStyle::Body.resolve(ui.style());
+                let width = ui.painter().layout_no_wrap(text.clone(), font, ui.visuals().weak_text_color()).size().x;
+                if version_shown && ui.available_width() >= width + ui.spacing().item_spacing.x {
+                    ui.weak(text);
                 }
                 if let Some(r) = &self.update {
                     // Red: as a plain button it went unnoticed.
