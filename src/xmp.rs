@@ -144,6 +144,42 @@ pub fn without_camera_raw(xmp: &[u8], w: u32, h: u32) -> Vec<u8> {
     rewrite(xmp, w, h, &[], How { raw: true, ..How::default() }).unwrap_or_else(|| xmp.to_vec())
 }
 
+/// The XMP of a photo that is not RAW with what its sidecar (#24) says: the sidecar's packet, with
+/// the properties only `inside` (the file's own XMP) has added after it, as digiKam merges them
+/// (the sidecar's values count first). Either one not well-formed: the sidecar as it is.
+pub fn with_sidecar(inside: Option<&[u8]>, sidecar: &[u8]) -> Vec<u8> {
+    let text = |x: &[u8]| String::from_utf8_lossy(x).trim_start_matches(|c| c != '<').trim_end_matches(|c| c != '>').to_string();
+    let (outer, own) = (text(sidecar), inside.map(text).unwrap_or_default());
+    let (Ok(side), Ok(doc)) = (roxmltree::Document::parse(&outer), roxmltree::Document::parse(&own)) else { return sidecar.to_vec() };
+    let Some(end) = sidecar.windows(10).rposition(|w| w == b"</rdf:RDF>") else { return sidecar.to_vec() };
+    let key = |ns: Option<&str>, local: &str| (ns.unwrap_or("").to_string(), local.to_string());
+    fn descriptions<'a, 'i>(d: &'a roxmltree::Document<'i>) -> impl Iterator<Item = roxmltree::Node<'a, 'i>> {
+        d.descendants().filter(|n| n.has_tag_name((RDF, "Description")))
+    }
+    let mut seen = std::collections::HashSet::new();
+    for d in descriptions(&side) {
+        seen.extend(d.attributes().map(|a| key(a.namespace(), a.name())));
+        seen.extend(d.children().filter(|n| n.is_element()).map(|n| key(n.tag_name().namespace(), n.tag_name().name())));
+    }
+    let esc = |v: &str| quick_xml::escape::escape(v).into_owned();
+    let mut added = String::new();
+    for d in descriptions(&doc) {
+        let prefix = |uri: &str| d.namespaces().find(|n| n.uri() == uri).and_then(|n| n.name());
+        let attrs: Vec<String> = d
+            .attributes()
+            .filter(|a| a.namespace().is_some_and(|ns| ns != RDF) && !seen.contains(&key(a.namespace(), a.name())))
+            .filter_map(|a| Some(format!(" {}:{}=\"{}\"", prefix(a.namespace()?)?, a.name(), esc(a.value()))))
+            .collect();
+        let elements: Vec<&str> = d.children().filter(|n| n.is_element() && !seen.contains(&key(n.tag_name().namespace(), n.tag_name().name()))).map(|n| &own[n.range()]).collect();
+        if attrs.is_empty() && elements.is_empty() {
+            continue;
+        }
+        let decls: String = d.namespaces().filter_map(|n| Some(format!(" xmlns:{}=\"{}\"", n.name()?, esc(n.uri())))).filter(|x| !x.starts_with(" xmlns:xml=")).collect();
+        added += &format!("<rdf:Description rdf:about=\"\"{decls}{}>{}</rdf:Description>", attrs.concat(), elements.concat());
+    }
+    [&sidecar[..end], added.as_bytes(), &sidecar[end..]].concat()
+}
+
 /// `xmp` without what describes the parts after the picture in the file (Motion Photo video,
 /// Ultra HDR gain map and its container directory), for a picture written alone; sizes set to
 /// `w` × `h` as `fit` does. A packet that is not well-formed XML is returned as it was.
@@ -436,6 +472,27 @@ pub(crate) mod tests {
         }
         assert!(out.contains("xmp:Rating=\"3\"") && out.contains("<darktable:colorlabels><rdf:Seq><rdf:li>2</rdf:li></rdf:Seq></darktable:colorlabels>"), "{out}");
         assert_eq!(crate::xmp_fields::read(out.as_bytes()).labels, ["Green"]);
+    }
+
+    /// A JPEG's sidecar with its own XMP: the sidecar's values first, what only the file has added,
+    /// its namespaces declared; still XML.
+    #[test]
+    fn sidecar_with_the_file() {
+        let side = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmp:Rating="5">
+<dc:title><rdf:Alt><rdf:li xml:lang="x-default">From the sidecar</rdf:li></rdf:Alt></dc:title></rdf:Description></rdf:RDF></x:xmpmeta>"#;
+        let inside = r#"<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:xap="http://ns.adobe.com/xap/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:Iptc4xmpCore="http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/"
+ xap:Rating="1" xap:Label="Blue &amp; co" Iptc4xmpCore:Location="Lecce">
+<dc:title><rdf:Alt><rdf:li xml:lang="x-default">From the file</rdf:li></rdf:Alt></dc:title>
+<dc:creator><rdf:Seq><rdf:li>Ann</rdf:li></rdf:Seq></dc:creator></rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>"#;
+        let out = String::from_utf8(with_sidecar(Some(inside.as_bytes()), side.as_bytes())).unwrap();
+        let f = crate::xmp_fields::read(out.as_bytes());
+        assert_eq!((f.title.as_deref(), f.rating), (Some("From the sidecar"), Some(5)), "{out}");
+        assert_eq!((f.labels, f.creators), (vec!["Blue & co".to_string()], vec!["Ann".to_string()]), "{out}");
+        assert!(out.contains("Iptc4xmpCore:Location=\"Lecce\"") && !out.contains("From the file") && !out.contains("\"1\""), "{out}");
+        assert_eq!(with_sidecar(None, side.as_bytes()), side.as_bytes());
+        assert_eq!(with_sidecar(Some(b"<broken"), side.as_bytes()), side.as_bytes());
     }
 
     /// IPTC fields go into the XMP when it lacks them, into a new packet when there is none.

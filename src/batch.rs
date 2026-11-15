@@ -308,9 +308,9 @@ fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut:
         // writes over the original).
         None if Format::of_file(name) == Some(Format::Jpeg) => {
             let options = crate::encode::jpeg_quality::like(bytes, Options::default());
-            Ok((name.to_string(), encode::Original::with_meta_of(image, bytes, name).alone().turned(job.turn).encode(&options).map_err(failed)?))
+            Ok((name.to_string(), encode::Original::with_meta_beside(image, bytes, name, sidecar).alone().turned(job.turn).encode(&options).map_err(failed)?))
         }
-        None => crate::save_back::encoded_back(bytes, name, image).map(|(data, _)| (name.to_string(), data)).map_err(|_| (SKIP_INSIDE, name.to_string())),
+        None => crate::save_back::encoded_beside(bytes, name, image, sidecar).map(|(data, _)| (name.to_string(), data)).map_err(|_| (SKIP_INSIDE, name.to_string())),
         Some(format) => {
             let options = Options { format, turn: Turn::default(), ..job.options };
             let data = encode::Original::with_meta_beside(image, bytes, name, sidecar).alone().turned(job.turn).encode(&options).map_err(failed)?;
@@ -682,7 +682,7 @@ mod tests {
                     continue;
                 }
                 let path = entry.path().to_string_lossy().to_string();
-                let sidecar = crate::sidecar::names(&path).into_iter().find_map(|p| std::fs::read(&p).ok().filter(|x| crate::sidecar::belongs(&path, &p, x)));
+                let sidecar = crate::sidecar::names(&path).into_iter().find_map(|p| std::fs::read(&p).ok().filter(|x| crate::sidecar::belongs(&path, &p, crate::sidecar::sidecar_for(x).as_deref(), false)));
                 match super::convert_with(&bytes, &name, &super::Job { format: Some(format), ..Default::default() }, &|_| None, sidecar.as_deref()) {
                     // The original's extension kept in the name: a.miff and a.psb do not overwrite each other.
                     Ok((new, data)) => std::fs::write(format!("{out}/{name}.{}", new.rsplit_once('.').unwrap().1), data).unwrap(),

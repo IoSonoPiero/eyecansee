@@ -48,6 +48,7 @@ Sui telefoni Android, il cestino di una cartella mostra anche le foto e i video 
 
 ## Da sapere
 
+- Il file `.xmp` di una foto (vedi [Informazioni sul file](metadata.md)) si elimina con lei, nello stesso cestino. Nel cestino di EyeCanSee prende il nome che la foto ha lì ("IMG_0001 (2).CR2" con "IMG_0001 (2).CR2.xmp"), e **Ripristina** lo rimette al suo posto con la foto. Nel cestino di sistema sono due elementi: ripristinali tutti e due con il gestore di file.
 - Non si possono eliminare la cartella principale di un disco, di un telefono o di un server e le memorie di un telefono.
 - Una cartella spostata su un altro dispositivo, o unita a una cartella con lo stesso nome, si porta dietro il suo cestino; una copia lo lascia fuori.
 - Su Linux, su un disco **NTFS** (per esempio un disco esterno usato anche con Windows), l'app File non riesce a ripristinare dal cestino. I file però ci sono: la conferma te lo ricorda, e [Limiti noti](limits.md) spiega come ripristinarli dal terminale.

@@ -281,6 +281,7 @@ impl Loader {
     pub fn delete(&self, paths: Vec<String>, how: source::Deletion) {
         let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
+            let mut folders = crate::sidecar_follow::Folders::new();
             'all: for path in paths {
                 // Emptying a trash: the folder (if it is there at all), then Android's trashed
                 // files of its folder. The view leaves the trash at the folder's message.
@@ -291,7 +292,7 @@ impl Loader {
                     (false, vec![path])
                 };
                 for (i, path) in items.into_iter().enumerate() {
-                    let r = if i == 0 && missing { Ok(()) } else { op.delete(&path, how).await };
+                    let r = if i == 0 && missing { Ok(()) } else { crate::sidecar_follow::delete(&op, &path, how, &mut folders).await };
                     let failed = r.is_err();
                     if !failed {
                         thumbcache::delete(&base, &path);
@@ -313,7 +314,7 @@ impl Loader {
     pub fn restore(&self, path: String, conflict: source::Conflict) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = op.restore(&path, conflict).await;
+            let r = crate::sidecar_follow::restore(&op, &path, conflict).await;
             let ok = r.is_ok();
             let trash = source::trash_of(&path);
             let _ = tx.send(Msg::Restored(path, r));
@@ -342,7 +343,7 @@ impl Loader {
     pub fn rename(&self, path: String, new_name: String) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = op.rename(&path, &new_name).await;
+            let r = crate::sidecar_follow::rename(&op, &path, &new_name).await;
             let _ = tx.send(Msg::Renamed(path, r));
             ctx.request_repaint();
         });

@@ -36,6 +36,7 @@ Su Linux, in una cartella aperta tramite il collegamento del gestore dei file (g
 
 ## Da sapere
 
+- Il file `.xmp` di una foto (il suo "sidecar", vedi [Informazioni sul file](metadata.md)) va con lei, anche da un dispositivo all'altro: con **Tieni entrambi** prende il nome nuovo della foto ("IMG_0001 (2).CR2" con "IMG_0001 (2).CR2.xmp"), con **Sostituisci** sostituisce quello che c'è. Un nome occupato nella destinazione solo da un file `.xmp` conta come un nome che c'è già. Annullando a metà, una foto non resta mai senza il suo file `.xmp` nella cartella da cui partiva.
 - Ogni copia o taglio si incolla una volta sola: per incollare di nuovo, copia di nuovo.
 - Se nel frattempo copi qualcos'altro in un altro programma, Ctrl+V e Incolla non incollano più gli elementi copiati in EyeCanSee.
 - Incollate nella cartella da cui vengono, le copie diventano "nome (2)"; uno spostamento non fa niente.

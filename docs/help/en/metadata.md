@@ -13,13 +13,17 @@ Under the grid, the metadata panel shows what is known about the selected file: 
 - **Location**: GPS coordinates and altitude, with **Open on the map**, which opens the place on OpenStreetMap in your browser.
 - **Description**: what was written about the photo in its XMP: title, caption, keywords, rating (from 1 to 5, or rejected), colour label, author and copyright.
 
-## RAW photos and their .xmp files
+## Photos and their .xmp files
 
-Lightroom, Camera Raw, darktable and digiKam do not write into a RAW photo: they keep what you set (rating, label, keywords, title, position) in a small file beside it, with the same name and the `.xmp` extension, a "sidecar". EyeCanSee reads it: the Description box and the Location box show what it holds, and the box says which file it came from. Both names are found: `IMG_0001.CR2.xmp` (darktable, digiKam) and `IMG_0001.xmp` (Lightroom, Camera Raw); with both, the first counts, since it cannot belong to another file. An `IMG_0001.xmp` that says it belongs to another file with the same name (the JPEG of a RAW + JPEG pair) is not used for the RAW photo. As in Lightroom, the .xmp file counts instead of the XMP inside the RAW photo, and its position instead of the camera's.
+Lightroom, Camera Raw, darktable and digiKam keep what you set about a photo (rating, label, keywords, title, position) in a small file beside it, with the same name and the `.xmp` extension, a "sidecar": always for a RAW photo, which they do not write into, and for any photo with darktable, or with digiKam when set so. EyeCanSee reads it for every photo: the Description box and the Location box show what it holds, and the box says which file it came from.
 
-When you convert a RAW photo or save it in another format, what the .xmp file holds goes into the new file, the position into its EXIF too, so the copy keeps them on its own. The development settings of Lightroom, Camera Raw and darktable are left out: EyeCanSee develops the photo without them.
+- **The names**: `IMG_0001.CR2.xmp` (darktable, digiKam) and `IMG_0001.xmp` (Lightroom, Camera Raw, digiKam "compatible with commercial programs"). With both, the first counts, since it cannot belong to another file.
+- **Whose `IMG_0001.xmp` is**: the file whose extension it names, when it names one (Lightroom does); otherwise the RAW photo with that name, if there is one (Lightroom treats a JPEG taken with a RAW as part of the RAW); otherwise the photo with that name.
+- **With the XMP inside the photo**: a RAW photo's .xmp file counts instead of it, as in Lightroom; for the other photos the two add up, and where both say something the .xmp file counts, as in digiKam. Its position counts instead of the camera's.
 
-The .xmp files are not shown in the grid, and they stay where they are when you copy, move, rename or delete the RAW photo: copy them with a file manager if you need them beside the copy.
+When you convert a photo or save it in another format, what the .xmp file holds goes into the new file, so the copy keeps it on its own (for a RAW photo the position goes into its EXIF too). The development settings of Lightroom, Camera Raw and darktable in the .xmp file are left out: they are not in the pixels EyeCanSee writes.
+
+The .xmp files are not shown in the grid, and they follow their photo: when you copy, move, rename or delete it, and when you restore it from EyeCanSee's trash. See [Copying and moving](copy-move.md).
 
 A box shows "No data" when the file has nothing for it, and "This file contains no metadata" when the file has no metadata at all.
 

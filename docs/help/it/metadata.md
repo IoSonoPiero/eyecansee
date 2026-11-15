@@ -13,13 +13,17 @@ Sotto la griglia, il pannello dei metadati mostra quello che si sa del file sele
 - **Posizione**: coordinate GPS e altitudine, con **Apri sulla mappa**, che apre il posto su OpenStreetMap nel browser.
 - **Descrizione**: quello che è stato scritto sulla foto nel suo XMP: titolo, didascalia, parole chiave, valutazione (da 1 a 5, o scartata), etichetta colore, autore e copyright.
 
-## Le foto RAW e i loro file .xmp
+## Le foto e i loro file .xmp
 
-Lightroom, Camera Raw, darktable e digiKam non scrivono dentro una foto RAW: tengono quello che imposti (valutazione, etichetta, parole chiave, titolo, posizione) in un piccolo file accanto, con lo stesso nome e l'estensione `.xmp`, un "sidecar". EyeCanSee lo legge: i riquadri Descrizione e Posizione mostrano quello che contiene, e il riquadro dice da quale file arriva. Si trovano tutti e due i nomi: `IMG_0001.CR2.xmp` (darktable, digiKam) e `IMG_0001.xmp` (Lightroom, Camera Raw); se ci sono tutti e due vale il primo, che non può essere di un altro file. Un `IMG_0001.xmp` che dice di essere di un altro file con lo stesso nome (il JPEG di una coppia RAW + JPEG) non si usa per la foto RAW. Come in Lightroom, il file .xmp vale al posto dell'XMP dentro la foto RAW, e la sua posizione al posto di quella della fotocamera.
+Lightroom, Camera Raw, darktable e digiKam tengono quello che imposti su una foto (valutazione, etichetta, parole chiave, titolo, posizione) in un piccolo file accanto, con lo stesso nome e l'estensione `.xmp`, un "sidecar": sempre per una foto RAW, dentro la quale non scrivono, e per qualunque foto con darktable, o con digiKam se impostato così. EyeCanSee lo legge per ogni foto: i riquadri Descrizione e Posizione mostrano quello che contiene, e il riquadro dice da quale file arriva.
 
-Quando converti una foto RAW o la salvi in un altro formato, quello che il file .xmp contiene va nel file nuovo, la posizione anche nel suo EXIF, così la copia lo tiene da sola. Le impostazioni di sviluppo di Lightroom, Camera Raw e darktable restano fuori: EyeCanSee sviluppa la foto senza di esse.
+- **I nomi**: `IMG_0001.CR2.xmp` (darktable, digiKam) e `IMG_0001.xmp` (Lightroom, Camera Raw, digiKam "compatibile con i programmi commerciali"). Se ci sono tutti e due vale il primo, che non può essere di un altro file.
+- **Di chi è `IMG_0001.xmp`**: del file di cui nomina l'estensione, se la nomina (Lightroom lo fa); altrimenti della foto RAW con quel nome, se c'è (Lightroom considera un JPEG scattato insieme a un RAW parte del RAW); altrimenti della foto con quel nome.
+- **Con l'XMP dentro la foto**: il file .xmp di una foto RAW vale al posto suo, come in Lightroom; per le altre foto i due si sommano, e dove dicono tutti e due qualcosa vale il file .xmp, come in digiKam. La sua posizione vale al posto di quella della fotocamera.
 
-I file .xmp non compaiono nella griglia e restano dove sono quando copi, sposti, rinomini o elimini la foto RAW: copiali con un gestore di file se ti servono accanto alla copia.
+Quando converti una foto o la salvi in un altro formato, quello che il file .xmp contiene va nel file nuovo, così la copia lo tiene da sola (per una foto RAW la posizione va anche nel suo EXIF). Le impostazioni di sviluppo di Lightroom, Camera Raw e darktable nel file .xmp restano fuori: non sono nei pixel che EyeCanSee scrive.
+
+I file .xmp non compaiono nella griglia e seguono la loro foto: quando la copi, la sposti, la rinomini o la elimini, e quando la ripristini dal cestino di EyeCanSee. Vedi [Copiare e spostare](copy-move.md).
 
 Un riquadro dice "Nessun dato" quando il file non ha niente per lui, e "Questo file non contiene metadati" quando il file non ha nessun metadato.
 

@@ -337,11 +337,18 @@ pub fn read_file(bytes: &[u8], name: &str) -> Option<Meta> {
     meta
 }
 
-/// As `read_file`, with the Description box (`xmp_fields`) from the sidecar of a RAW photo
-/// (`sidecar`, #24) or else from the XMP inside the file.
+/// As `read_file`, with the Description box (`xmp_fields`) from the XMP inside the file and its
+/// `sidecar` (#24): a RAW photo's instead of it, as in Lightroom; another photo's added to it,
+/// its values first, as in digiKam (`xmp::with_sidecar`).
 pub fn read_file_with(bytes: &[u8], name: &str, sidecar: Option<&crate::sidecar::Sidecar>) -> Option<Meta> {
     let mut meta = read_file(bytes, name);
-    let fields = sidecar.map(|s| s.xmp.clone()).or_else(|| crate::raw_meta::xmp(bytes)).map(|x| crate::xmp_fields::read(&x)).unwrap_or_default();
+    let inside = || crate::raw_meta::xmp(bytes);
+    let xmp = match sidecar {
+        Some(s) if crate::decode::is_raw(name) => Some(s.xmp.clone()),
+        Some(s) => Some(crate::xmp::with_sidecar(inside().as_deref(), &s.xmp)),
+        None => inside(),
+    };
+    let fields = xmp.map(|x| crate::xmp_fields::read(&x)).unwrap_or_default();
     if !fields.is_empty() || sidecar.is_some() {
         crate::xmp_fields::add_to(meta.get_or_insert_default(), &fields, sidecar.map(|s| s.name.as_str()));
     }

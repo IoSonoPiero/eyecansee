@@ -124,6 +124,7 @@ mod server_manager;
 mod servers;
 mod settings;
 mod sidecar;
+mod sidecar_follow;
 #[cfg(feature = "shots")]
 mod shots;
 mod sftp;
