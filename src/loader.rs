@@ -416,6 +416,20 @@ impl Loader {
         });
     }
 
+    /// The frame of a paused video (#16), sent by the player to `image`, as the original of
+    /// Save as…, with the video's metadata (`video_frame::original`).
+    pub fn frame_original(&self, path: String, at: f64, image: std::sync::mpsc::Receiver<image::RgbaImage>) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let r = crate::video_frame::original(&op, &path, at, image).await;
+            if let Err(e) = &r {
+                log!("frame of {path:?}: ERROR {e}");
+            }
+            let _ = tx.send(Msg::Original(r));
+            ctx.request_repaint();
+        });
+    }
+
     /// Each model `path` read (with the files next to it) and written to `to` as `kind`, one after
     /// the other (a phone reads one file at a time, and a model can take much memory).
     pub fn export_models(&self, jobs: Vec<(String, String)>, kind: crate::model_export::Kind) {

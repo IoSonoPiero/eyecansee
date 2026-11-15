@@ -501,7 +501,7 @@ pub fn first(t: &str) -> &str {
 }
 
 /// ISO 6709 as phones write it: "+45.4641+009.1919/", with the altitude "+45.4641+009.1919+123.5/".
-fn iso6709(s: &str) -> Option<(f64, f64, Option<f64>)> {
+pub(crate) fn iso6709(s: &str) -> Option<(f64, f64, Option<f64>)> {
     let s = s.trim().trim_end_matches('/');
     let mut parts = Vec::new();
     let mut start = 0;

@@ -298,6 +298,11 @@ impl Original {
         Original { xmp_ext, jpeg: jpeg_quality::of(bytes), density, ..Original::upright(image, exif, icc.or(x.icc), x.xmp, x.irb) }
     }
 
+    /// A picture made here (a video's frame, #16) with the EXIF made for it.
+    pub fn with_exif(image: DynamicImage, exif: Option<Vec<u8>>) -> Original {
+        Original::upright(image, exif, None, None, None)
+    }
+
     /// The pixels are already turned upright: the EXIF orientation is set back to "upright".
     fn upright(image: DynamicImage, mut exif: Option<Vec<u8>>, icc: Option<Vec<u8>>, xmp: Option<Vec<u8>>, irb: Option<Vec<u8>>) -> Original {
         if let Some(chunk) = &mut exif {

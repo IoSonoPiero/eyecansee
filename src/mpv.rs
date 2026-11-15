@@ -496,7 +496,12 @@ struct State {
     /// A turn not saved yet, clockwise degrees on top of the file's own (#125); `None` until the
     /// file is loaded and its rotation known.
     turn: Option<i64>,
+    /// Who asked for the frame shown at the video's own size (`Player::grab`).
+    grab: Option<Grab>,
 }
+
+/// Called with the frame at the video's own size, from the player's thread.
+type Grab = Box<dyn FnOnce(RgbaImage) + Send>;
 
 #[derive(Default)]
 struct Shared {
@@ -571,6 +576,17 @@ impl Player {
     /// Played to the end (the last frame stays, see keep-open).
     pub fn ended(&self) -> bool {
         self.mpv.property::<c_int>("eof-reached", FORMAT_FLAG).unwrap_or(0) != 0
+    }
+
+    pub fn pause(&self) {
+        let _ = self.mpv.command(&["set", "pause", "yes"]);
+    }
+
+    /// The frame shown, at the video's own size (as shown: aspect ratio and turns applied), to
+    /// `done` from the player's thread (#16). The software renderer draws it again from the frame
+    /// it keeps; `done` is dropped without a call if there is no picture (an audio file).
+    pub fn grab(&self, done: impl FnOnce(RgbaImage) + Send + 'static) {
+        self.shared.change(|st| st.grab = Some(Box::new(done)));
     }
 
     /// Play or pause; at the end, play from the start.
@@ -658,19 +674,22 @@ fn draw_loop(mpv: &Mpv, shared: &Shared, repaint: impl Fn()) {
     };
     turn_frames(mpv, turn);
     loop {
-        let size = {
+        let (size, grab) = {
             let mut st = shared.state.lock().unwrap();
-            while !st.dirty && !st.quit {
+            while !st.dirty && !st.quit && st.grab.is_none() {
                 st = shared.cv.wait(st).unwrap();
             }
             if st.quit {
                 return;
             }
-            st.dirty = false;
-            st.size
+            let dirty = std::mem::take(&mut st.dirty);
+            (if dirty { st.size } else { [0, 0] }, st.grab.take())
         };
         // Called at every wake-up, as render.h asks, even when nothing is drawn.
         mpv.update();
+        if let (Some(grab), Some(full)) = (grab, mpv.size()) {
+            grab(mpv.draw(full, false));
+        }
         if size[0] == 0 || size[1] == 0 {
             continue;
         }

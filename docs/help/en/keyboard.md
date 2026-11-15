@@ -88,6 +88,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | Ctrl+←, Ctrl+→ | 5 seconds back, forward |
 | ↑, ↓ (or the mouse wheel on the video) | Volume up, down |
 | M | Audio off and on |
+| Ctrl+Shift+S | Pause and save the frame shown as a picture (see [Playing videos](video.md)) |
 | →, Page Down | Next item |
 | ←, Backspace, Page Up | Previous item |
 | Home, End | First, last item |

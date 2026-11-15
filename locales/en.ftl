@@ -415,6 +415,7 @@ convert-calculating = Working out the size…
 convert-error = Cannot convert: { $detail }
 convert-actual = 100% (drag the images to move around)
 convert-pixels = { $w } × { $h } pixels
+convert-frame-at = frame at { $time }
 convert-turned = { $turn ->
     [cw] rotated 90° clockwise in the viewer
     [half] rotated 180° in the viewer
@@ -836,6 +837,7 @@ key-rotate-ccw = Ctrl+Shift+R
 menu-save = Save
 key-save = Ctrl+S
 menu-save-copy = Save as…
+menu-save-frame = Save frame as…
 key-save-copy = Ctrl+Shift+S
 save-confirm-trash = Save the changes over **{ $name }**?
 
@@ -1356,7 +1358,8 @@ off-no-file = Select one or more files first.
 off-save-model = A 3D model is not saved over its file: Save as… makes a picture of it, Export as a 3D model a copy in another 3D format.
 off-save-drawing = A CAD drawing is not saved over its file: Save as… makes a picture of the layout shown, Export drawing… a copy as a picture, SVG, DWG or DXF.
 off-save-played = Nothing to save: rotate the video first; audio files are not changed in the viewer.
-off-save-as-played = Save as… is for pictures: videos and audio files are converted with Convert… in the grid.
+off-save-as-played = Save as… is for pictures and for the frames of videos: audio files are converted with Convert… in the grid.
+off-save-frame-wait = The frame can be saved once the video has opened in the viewer.
 off-trash-clip = Items in the trash cannot be cut or copied: restore them first.
 off-trash-rename = Items in the trash cannot be renamed: restore them first.
 off-trash-change = A file in the trash cannot be changed or saved: restore it first.
