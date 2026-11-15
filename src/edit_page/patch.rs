@@ -7,7 +7,7 @@ use eframe::egui;
 use super::Window;
 use super::tools::bar_button;
 use crate::edit::doc::Shape;
-use crate::edit::{patch, turn};
+use crate::edit::patch;
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
 
@@ -22,18 +22,9 @@ pub(super) const SLIDER: f32 = 60.0;
 /// The controls of the selected piece `i`, after its opacity.
 pub(super) fn bar(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     let (angle, keep) = (w.doc.angle, w.keep_patch);
-    let Some(Shape::Patch { area, mirrored, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
     ui.separator();
-    let mut shown = turn::shown(area.rot, angle);
-    // The slider rounds the angle the handle left (61.37°) each time it is drawn and calls that a
-    // change: written back, every Undo made a step of its own and stayed where it was. Only a
-    // whole degree other than the one shown is the user's.
-    let before = shown.round();
-    ui.spacing_mut().slider_width = SLIDER;
-    let slider = egui::Slider::new(&mut shown, -180.0..=180.0).integer().suffix("°");
-    if super::props::slider(ui, "rc-rotation", i18n.t("rc-rotation"), slider).on_hover_text(i18n.t("edit-patch-turn-hint")).changed() && shown != before {
-        area.rot = turn::rot_for(shown, angle);
-    }
+    super::style_bar::angle(ui, w, i, i18n);
+    let Some(Shape::Patch { area, mirrored, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
     let button = |ui: &mut egui::Ui, icon, id| bar_button(ui, icons::button(ui, icon), i18n.t(id), None);
     if button(ui, Line::RotateCcw, "edit-patch-ccw") {
         *area = patch::quarter(area, true);

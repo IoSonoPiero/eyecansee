@@ -374,7 +374,7 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
         let on_handle = handle_at(w, view, s);
         w.hold = Some(match w.tool {
             _ if pan => Hold::Pan { at: view.at, k: view.k, from: s },
-            // The round handle above a pasted piece turns it, with any tool.
+            // The round handle above the selected object turns it, with any tool.
             _ if let Some(index) = turn_at(w, view, s) => Hold::Turn { index, start: w.doc.objects[index].clone() },
             // Resizing the selected object needs no change of tool.
             Tool::Draw(_) if let Some((index, handle)) = on_handle => Hold::Handle { index, handle, start: w.doc.objects[index].clone() },
@@ -383,6 +383,12 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
             Tool::Draw(kind) => Hold::Draw { kind, from: p, index: None },
             _ => picked(w, view, s, p, tol),
         });
+        // A text or bubble being typed is let go of when turned: the field over it stays upright,
+        // the letters under it turn (seen on 2026-11-15).
+        if matches!(w.hold, Some(Hold::Turn { .. })) {
+            w.editing = None;
+            w.focus_text = false;
+        }
     }
     if let (Some(mut hold), Some(s)) = (w.hold.take(), response.interact_pointer_pos()) {
         let p = view.doc(s, angle);
@@ -398,7 +404,7 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
                 w.doc.objects[*index] = geom::redrawn(&mut w.doc.objects[*index], geom::with_handle_kept(start, *handle, p, keep));
             }
             // Shift: by 15° on the screen.
-            Hold::Turn { index, start } => w.doc.objects[*index] = turned_piece(start, p, angle, square),
+            Hold::Turn { index, start } => w.doc.objects[*index] = geom::redrawn(&mut w.doc.objects[*index], turned_object(start, p, angle, square)),
             Hold::Pan { at, k, from } => w.view = Some((*at - (s - *from) / *k, *k)),
             Hold::Marquee { .. } => {}
             // By hand: a point more where the pointer went (one every point and a half of the screen).
@@ -532,24 +538,25 @@ fn marquee_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
     }
 }
 
-/// The selected pasted piece, its turn handle on the screen and the middle of its top side.
+/// The selected object that turns (`edit::turn::turn_box`), its turn handle on the screen and the
+/// middle of its box's top side.
 fn turn_handle(w: &Window, view: &View) -> Option<(usize, Pos2, Pos2)> {
     let i = w.selected?;
-    let Shape::Patch { area, .. } = &w.doc.objects.get(i)?.shape else { return None };
-    let at = |reach| view.of(turn::turn_handle(area, reach), w.doc.angle);
+    let area = turn::turn_box(&w.doc.objects.get(i)?.shape)?;
+    let at = |reach| view.of(turn::turn_handle(&area, reach), w.doc.angle);
     Some((i, at(super::patch::REACH / view.k), at(0.0)))
 }
 
-/// The selected pasted piece when its turn handle is within reach of `s`.
+/// The selected object when its turn handle is within reach of `s`.
 fn turn_at(w: &Window, view: &View, s: Pos2) -> Option<usize> {
     turn_handle(w, view).filter(|(_, at, _)| at.distance(s) <= GRAB).map(|(i, ..)| i)
 }
 
-/// The piece as the turn started, its handle dragged to `p` (`edit::turn::turned_to`).
-fn turned_piece(start: &Obj, p: Pt, angle: f32, snap: bool) -> Obj {
+/// The object as the turn started, its handle dragged to `p` (`edit::turn::turned_to`).
+fn turned_object(start: &Obj, p: Pt, angle: f32, snap: bool) -> Obj {
     let mut o = start.clone();
-    if let Some(a) = o.shape.area_mut() {
-        a.rot = turn::turned_to(a, p, angle, snap);
+    if let Some(a) = turn::turn_box(&o.shape) {
+        turn::set_rot(&mut o.shape, turn::turned_to(&a, p, angle, snap));
     }
     o
 }

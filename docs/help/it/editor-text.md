@@ -13,7 +13,7 @@ Un testo lasciato vuoto sparisce quando hai finito. Un clic fuori dall'immagine 
 
 Per cambiare un testo già scritto fai doppio clic (con Testo o Seleziona), oppure selezionalo e cambialo nel campo della barra delle proprietà. Annulla toglie tutta la modifica in una volta.
 
-Un testo non ha maniglie agli angoli: la sua dimensione è nella barra delle proprietà. Per spostarlo usa ![Seleziona](icon://mouse-pointer-2) **Seleziona** e trascinalo. Con lo strumento Testo, trascinare sposta invece la vista.
+Un testo non ha maniglie agli angoli: la sua dimensione è nella barra delle proprietà. Ha la maniglia tonda sopra di sé per ruotarlo, come gli altri oggetti (vedi [Selezionare e cambiare gli oggetti](editor.md)). Per spostarlo usa ![Seleziona](icon://mouse-pointer-2) **Seleziona** e trascinalo. Con lo strumento Testo, trascinare sposta invece la vista.
 
 ## Opzioni di un testo
 
@@ -25,7 +25,7 @@ Quando il testo è selezionato, la barra ha anche:
 
 - **Il font**: l'elenco mostra i font installati sul computer. Passa sopra un nome per vedere subito il testo in quel font; fai clic per sceglierlo (vale anche per i testi seguenti). Chiudendo l'elenco senza scegliere, il font torna com'era.
 - **Su una curva**: il testo segue una linea con due capi e un punto di mezzo. Trascina il punto di mezzo per curvare la linea, i capi per allungarla o girarla; le lettere la seguono. Un testo su una curva si scrive solo nel campo della barra. Con lo sfondo, il riquadro diventa una fascia lungo tutta la linea.
-- **Rotazione**: inclina il testo, da -180° a 180°.
+- **Rotazione**: inclina il testo, da -180° a 180°. Un testo su una curva gira con la sua linea, intorno al centro della curva.
 
 ## Fumetti
 
@@ -33,7 +33,7 @@ Quando il testo è selezionato, la barra ha anche:
 2. Trascina per disegnare il fumetto.
 3. Scrivi subito il suo testo; Invio va a capo.
 
-Il testo va a capo alla larghezza del fumetto, che si allunga in altezza per contenerlo. La coda finisce in una quinta maniglia: trascinala per orientarla. Trascina un angolo per ridimensionare il fumetto (Maiusc mantiene le proporzioni); il testo si adatta alla nuova larghezza. Fai doppio clic su un fumetto per cambiarne il testo.
+Il testo va a capo alla larghezza del fumetto, che si allunga in altezza per contenerlo. La coda finisce in una quinta maniglia: trascinala per orientarla. Trascina un angolo per ridimensionare il fumetto (Maiusc mantiene le proporzioni); il testo si adatta alla nuova larghezza. La maniglia tonda sopra di lui ruota il fumetto con il suo testo, e la coda gira con lui. Fai doppio clic su un fumetto per cambiarne il testo.
 
 Opzioni:
 

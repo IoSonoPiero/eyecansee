@@ -318,8 +318,13 @@ fn filter_in_place(img: &mut DynamicImage, area: &Area, angle: f32, (left, top):
     if x1 <= x0 || y1 <= y0 {
         return bounds;
     }
+    let upright = (rot / 90.0 - (rot / 90.0).round()).abs() * 90.0 < 1e-3;
+    if !upright && f == crate::edit::filter::Filter::Pixelate {
+        pixelate_turned(img, area, (cx, cy, rot), amount, (x0..x1, y0..y1));
+        return bounds;
+    }
     let part = crate::edit::filter::apply(&img.crop_imm(x0, y0, x1 - x0, y1 - y0), f, amount, 1.0);
-    if (rot / 90.0 - (rot / 90.0).round()).abs() * 90.0 < 1e-3 {
+    if upright {
         image::imageops::replace(img, &part, x0 as i64, y0 as i64);
     } else {
         for (y, x) in (y0..y1).flat_map(|y| (x0..x1).map(move |x| (y, x))) {
@@ -331,6 +336,33 @@ fn filter_in_place(img: &mut DynamicImage, area: &Area, angle: f32, (left, top):
         }
     }
     bounds
+}
+
+/// Pixelate in a box turned on the result (its centre `cx`, `cy` and angle there): the blocks
+/// along the box's own sides, as the preview has them (`photo::refresh_layers` takes the photo
+/// along them), not along the image's (issue #137). The pixels of the result under the box, read
+/// along its sides (the edge of the image repeated past it), pixelated, and each pixel of the
+/// result whose centre is inside the box takes its block's colour (through 8 bits there).
+fn pixelate_turned(img: &mut DynamicImage, area: &Area, (cx, cy, rot): (f32, f32, f32), amount: f32, (xs, ys): (std::ops::Range<u32>, std::ops::Range<u32>)) {
+    let (rs, rc) = rot.to_radians().sin_cos();
+    let (hw, hh) = (area.w / 2.0, area.h / 2.0);
+    let (w, h) = (area.w.round().clamp(1.0, 8000.0) as u32, area.h.round().clamp(1.0, 8000.0) as u32);
+    let (iw, ih) = (img.width() as f32, img.height() as f32);
+    let src = &*img;
+    let part = image::RgbaImage::from_fn(w, h, |u, v| {
+        let (bx, by) = ((u as f32 + 0.5) * area.w / w as f32 - hw, (v as f32 + 0.5) * area.h / h as f32 - hh);
+        let (x, y) = (cx + bx * rc - by * rs, cy + bx * rs + by * rc);
+        image::imageops::interpolate_bilinear(src, (x - 0.5).clamp(0.0, iw - 1.0), (y - 0.5).clamp(0.0, ih - 1.0)).unwrap_or_else(|| src.get_pixel((x.max(0.0) as u32).min(src.width() - 1), (y.max(0.0) as u32).min(src.height() - 1)))
+    });
+    let part = crate::edit::filter::apply(&DynamicImage::ImageRgba8(part), crate::edit::filter::Filter::Pixelate, amount, 1.0).to_rgba8();
+    for (y, x) in ys.flat_map(|y| xs.clone().map(move |x| (y, x))) {
+        let (dx, dy) = (x as f32 + 0.5 - cx, y as f32 + 0.5 - cy);
+        let (u, v) = (dx * rc + dy * rs, -dx * rs + dy * rc);
+        if u.abs() < hw && v.abs() < hh {
+            let (pu, pv) = ((((u + hw) * w as f32 / area.w) as u32).min(w - 1), (((v + hh) * h as f32 / area.h) as u32).min(h - 1));
+            img.put_pixel(x, y, *part.get_pixel(pu, pv));
+        }
+    }
 }
 
 /// The highlighter multiplied into the pixels of the result whose centre is inside its box, in

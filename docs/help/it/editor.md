@@ -47,13 +47,14 @@ Tutto ciò che disegni resta un oggetto a sé fino al salvataggio: puoi spostarl
 
 1. Scegli ![Seleziona](icon://mouse-pointer-2) **Seleziona** (V).
 2. Fai clic su un oggetto per selezionarlo. La barra delle proprietà mostra il suo stile: cambialo lì.
-3. Trascina l'oggetto per spostarlo. Trascina un angolo o un capo per ridimensionarlo; tieni premuto Maiusc per mantenere le proporzioni di un riquadro. Un pezzo incollato mantiene le proporzioni senza Maiusc, e Maiusc le libera; ha anche una maniglia tonda per ruotarlo (vedi [Selezionare un'area](editor-marquee.md)).
-4. Premi **Canc**, o fai clic su ![Elimina](icon://trash) nella barra delle proprietà, per toglierlo.
+3. Trascina l'oggetto per spostarlo. Trascina un angolo o un capo per ridimensionarlo; tieni premuto Maiusc per mantenere le proporzioni di un riquadro. Un pezzo incollato mantiene le proporzioni senza Maiusc, e Maiusc le libera (vedi [Selezionare un'area](editor-marquee.md)).
+4. Trascina la maniglia tonda sopra l'oggetto selezionato per ruotarlo intorno al suo centro; tieni premuto **Maiusc** per girarlo a scatti di 15°. Il suo angolo è anche nella barra delle proprietà, da -180° a 180°, da scrivere o trascinare. Ruotano rettangoli, ellissi, evidenziatori, coperture, lenti, riflettori, fumetti (con la coda), testi, timbri, pezzi incollati e i filtri Sfoca e Pixel grossi; linee e frecce si girano dai capi, e i numeri di passaggio restano dritti.
+5. Premi **Canc**, o fai clic su ![Elimina](icon://trash) nella barra delle proprietà, per toglierlo.
 
 Da sapere:
 
 - Con uno strumento di disegno, un clic seleziona solo un oggetto del suo tipo (una freccia con Freccia, un numero con Numeri di passaggio). Altrove lo strumento fa il suo lavoro, anche sopra altri oggetti.
-- Gli angoli dell'oggetto selezionato si trascinano con qualsiasi strumento.
+- Gli angoli e la maniglia tonda dell'oggetto selezionato si trascinano con qualsiasi strumento. Su un oggetto ruotato gli angoli girano con lui.
 - Una forma, una linea o un fumetto disegnati tutti sulla zona scura intorno all'immagine non restano: resta solo ciò che arriva sull'immagine.
 - Un rettangolo o un'ellisse senza riempimento si prende dal bordo, non dall'interno vuoto.
 - Filtri, evidenziatori e riflettori stanno sotto gli altri oggetti: un clic li prende solo dove non c'è nient'altro.

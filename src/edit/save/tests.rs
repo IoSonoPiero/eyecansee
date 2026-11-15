@@ -805,3 +805,46 @@ fn pasted_piece_preview_is_the_file() {
     let off = after.pixels().zip(before.pixels()).filter(|(a, b)| a.0.iter().zip(b.0).any(|(a, b)| a.abs_diff(b) > 40)).count();
     assert!(off < 30, "{off} pixels differ");
 }
+
+/// Issue #137: objects turned by their handle are saved as the screen shows them, on an image
+/// upright or straightened by a free angle: a cover box over the edge of the image, a blur, a
+/// highlighter, a pixelate whose blocks turn with its box, a rectangle. Only the pixels on their
+/// slanted edges, smoothed on another grid, may differ. The blur goes over the edge of the upright
+/// image; on the straightened one it stays inside: by the empty corners the file blurs the edge of
+/// the photo into them and the screen does not, turned or not (seen on 2026-11-15, not of #137).
+#[test]
+fn turned_objects_preview_is_the_file() {
+    use crate::edit::filter::Filter;
+    let photo = motif();
+    let original = Original::with_meta(photo.clone(), &[]);
+    let at = |x, y, w, h, rot| Area { centre: Pt::new(x, y), w, h, rot };
+    let filter = |area, filter, amount| obj(Shape::Filter { area, filter, amount, preview: Default::default() }, Style::default());
+    for angle in [0.0, 7.0] {
+        let blur_x = if angle == 0.0 { 28.0 } else { 18.0 };
+        let objects = [
+            ("pixelate", filter(at(6.0, -4.0, 24.0, 16.0, 35.0), Filter::Pixelate, 6.0), 10),
+            ("blur", filter(at(blur_x, 12.0, 16.0, 12.0, -20.0), Filter::Blur, 2.0), 10),
+            ("highlighter", obj(Shape::Highlight { area: at(-10.0, 12.0, 20.0, 8.0, 25.0), preview: Default::default() }, Style { opacity: 0.6, ..Style::highlighter() }), 10),
+            // The file covers every pixel the box touches even in part (nothing of what is under
+            // it is left), the screen those it mostly covers: a ring round its slanted sides.
+            ("cover", obj(Shape::Cover(at(-30.0, -10.0, 16.0, 10.0, 30.0)), Style { color: BLUE, ..Style::default() }), 40),
+            ("rectangle", obj(Shape::Rect(at(-12.0, -12.0, 14.0, 8.0, -40.0)), Style { width: 2.0, ..Style::default() }), 10),
+        ];
+        for (name, o, most) in objects {
+            let mut doc = Doc::new(64, 48, None);
+            doc.angle = angle;
+            doc.objects = vec![o];
+            crate::edit::photo::refresh_layers(&mut doc, &photo, |_| 8000.0);
+            let mut screen = photo.clone();
+            doc.edit().apply(&mut screen);
+            let (w, h) = (screen.width(), screen.height());
+            let drawn = render::render(&doc, (64, 48), &View { x: 0.0, y: 0.0, w, h, scale: 1.0 }, &options()).unwrap();
+            over(&mut screen, &drawn, 0, 0, false);
+            let file = result(&doc, &original, &options()).to_rgba8();
+            let screen = screen.to_rgba8();
+            assert_eq!(screen.dimensions(), file.dimensions());
+            let off = screen.enumerate_pixels().filter(|(x, y, a)| a.0.iter().zip(file.get_pixel(*x, *y).0).any(|(a, b)| a.abs_diff(b) > 48)).count();
+            assert!(off <= most, "{name} {angle}°: {off} pixels differ");
+        }
+    }
+}
