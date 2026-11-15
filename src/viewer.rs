@@ -107,6 +107,7 @@ impl App {
         self.frames.read.clear();
         self.motion.read.clear();
         self.model.meshes.clear();
+        self.end_compare();
         self.model.cad.drawings.clear();
         self.zoom_of = None;
     }
@@ -166,6 +167,7 @@ impl App {
         }
         self.motion_done();
         self.video = None;
+        self.compare_left(current);
         let mut chosen = None;
         if let Some(response) = self.model_view(ui) {
             if response.double_clicked() && !self.model.measure.on {
@@ -238,6 +240,10 @@ impl App {
         if self.zoom_of != Some(current) {
             // Reached only once the turns were saved or dropped: leaving the image asks first (`hold_for_turn`).
             (self.zoom, self.zoom_of, self.turn) = (None, Some(current), Default::default());
+        }
+        // Two drawings compared: N and Shift+N zoom to a change.
+        if let Some((zoom, pan)) = self.compare_jump(tex.size_vec2(), rect, ppp) {
+            (self.zoom, self.pan) = (Some(zoom), pan);
         }
         let t = paint::turned_size(tex, self.turn);
         // A layout of a drawing has no file pixels: its percentages stay the texture's.

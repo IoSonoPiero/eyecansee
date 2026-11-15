@@ -50,7 +50,7 @@ pub(crate) struct State {
     /// The sheet shown of the open drawing (0 the model), and the pictures of the layouts and of
     /// the model with other layers, drawn when first shown (`None` while being drawn), and the
     /// one that could not be.
-    sheet: (String, usize),
+    pub(crate) sheet: (String, usize),
     sheets: HashMap<SheetKey, Option<TextureHandle>>,
     sheet_done: Arc<Mutex<Option<SheetDrawn>>>,
     sheet_failed: Option<SheetKey>,
@@ -62,6 +62,25 @@ pub(crate) struct State {
     pub(crate) search: String,
     /// The sheet shown with the layers chosen, kept while they stay so.
     chosen: Option<(SheetKey, Arc<Drawing>)>,
+    /// Two drawings compared, shown in place of the first (`cad_compare_view`).
+    pub(crate) compare: Option<crate::cad_compare_view::Comparison>,
+}
+
+impl State {
+    /// The pictures drawn of `path` beyond the loader's (layouts, other layers, a comparison),
+    /// forgotten when what it shows changes.
+    pub(crate) fn forget(&mut self, path: &str) {
+        self.sheets.retain(|k, _| k.0 != path);
+        if self.chosen.as_ref().is_some_and(|(k, _)| k.0 == path) {
+            self.chosen = None;
+        }
+        if self.sheet_failed.as_ref().is_some_and(|k| k.0 == path) {
+            self.sheet_failed = None;
+        }
+        self.sharp = None;
+        self.waiting = None;
+        self.failed = None;
+    }
 }
 
 impl App {
@@ -189,6 +208,7 @@ impl App {
 
     /// L the next sheet, Shift+L the one before; the view starts fitted. Ctrl+L the layers.
     pub(crate) fn cad_keys(&mut self, ctx: &egui::Context, current: usize) {
+        self.compare_keys(ctx);
         // Ctrl+L the layers panel, open and closed.
         if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::L)) && self.cad_layers_off().is_none() {
             self.model.cad.panel = !self.model.cad.panel;

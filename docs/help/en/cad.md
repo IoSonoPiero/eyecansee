@@ -17,6 +17,7 @@ Double-click a drawing, or select it and press **Enter**. The drawing is seen fr
 | L, Shift+L | Next, previous layout |
 | Ctrl+L | Layers panel |
 | M | Measure |
+| N, Shift+N | Next, previous change, when comparing two drawings |
 | Ctrl+Shift+S | Save as a picture |
 | F11 | Full screen |
 | Esc, double click | Back to the grid |
@@ -42,6 +43,14 @@ A block on a hidden layer is hidden whole, also its parts on other layers. The c
 - **Angle**: a point, the corner, then a point on the other side.
 
 A click snaps to what is under the pointer, as in CAD programs: the end of a line (a square), its middle (a triangle), the centre of a circle or arc (a circle), where two lines cross (a cross); with nothing near, the point clicked (a small cross). Hidden layers are left out. Results are in the drawing's unit (as in the status bar; when the drawing does not say its unit, the box says so). On a layout they are measured on the sheet. **Copy** puts them on the clipboard. **Backspace** takes back the last point, **Esc** clears the points, and **Esc** again or **M** closes the tool. Dragging still moves the drawing.
+
+## Comparing two versions of a drawing
+
+Select two drawings in the grid (Ctrl+click), then **Compare drawings** in the right-click menu or in the File menu. The viewer shows them one over the other, aligned by their coordinates: what is in both in grey, what is only in the first in red, what is only in the second in blue. The status bar says what the drawing is compared with and how many places changed; **N** zooms to the next change and **Shift+N** to the one before.
+
+The layers panel opens with three layers, **In both**, **Only in** the first and **Only in** the second, with their colours: it is the legend, and unticking one shows the first drawing alone, the second alone or only the changes. Zoom, Measure and **Save as…** work as on any drawing, so the comparison can be saved as a picture.
+
+Things match when they are of the same kind at the same place (lines whichever way they go, texts with the same words): a block that moved shows as removed and added, and a change of colour or layer alone is not shown. Layers hidden in the files are left out; the model space is compared, not the layouts. When the two drawings have different units the status bar says so, and they are compared as they are. Moving to another file or leaving the viewer ends the comparison.
 
 ## Drawing number and title block
 

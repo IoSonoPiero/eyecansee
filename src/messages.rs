@@ -32,7 +32,8 @@ impl App {
                     }
                 }
                 Msg::Drawing { generation, index, drawing } if generation == self.generation => {
-                    if let Some(f) = self.files().get(index) {
+                    // The first of two drawings compared shows the comparison (`cad_compare_view`).
+                    if let Some(f) = self.files().get(index).filter(|f| !self.comparing(&f.path)) {
                         self.model.cad.drawings.insert(f.path.clone(), drawing);
                     }
                 }
@@ -73,6 +74,7 @@ impl App {
                 Msg::Encoded(generation, r) => self.convert_encoded(ctx, generation, r),
                 Msg::Saved(asked, r) => self.convert_saved(&asked, r),
                 Msg::Exported(r) => self.on_exported(ctx, r),
+                Msg::Compared(r) => self.on_compared(ctx, r),
                 Msg::Prepared(path, turn, r) => self.on_prepared(path, turn, r),
                 Msg::Replaced(path, r) => self.on_replaced(ctx, path, r),
                 Msg::NotReplaced(kept) => self.on_not_replaced(ctx, kept),

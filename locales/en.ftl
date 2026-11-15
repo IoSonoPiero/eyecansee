@@ -439,8 +439,8 @@ convert-turned = { $turn ->
 }
 model-triangles = { $n } triangles
 # The keys of the viewer, under the status bar.
-hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | Ctrl+L: layers | M: measure | ← →: previous, next | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
-hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift+L: next, previous layout | Ctrl+L: layers | M: measure | ← →: previous, next file | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
+hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | Ctrl+L: layers | M: measure | N, Shift+N: next, previous change of a comparison | ← →: previous, next | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
+hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift+L: next, previous layout | Ctrl+L: layers | M: measure | N, Shift+N: next, previous change of a comparison | ← →: previous, next file | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
 menu-layers = Layers of the drawing
 key-layers = Ctrl+L
 cad-layers-title = Layers
@@ -453,6 +453,17 @@ cad-layers-all-off = All off
 cad-layers-all-hint = The layers listed: all of them, or those found by the search
 cad-layers-none = No layer with this name
 menu-measure = Measure
+menu-compare = Compare drawings
+compare-off = Choose two CAD drawings in the grid to compare them
+compare-reading = Comparing the drawings…
+compare-failed = The drawings could not be compared: { $error }
+compare-both = In both
+compare-only = Only in { $name }
+compare-status = Compared with { $name }: { $n ->
+    [one] 1 change
+   *[other] { $n } changes
+} (N: next)
+compare-units = different units: { $a } and { $b }
 measure-off = Only for a CAD drawing or a 3D model in the viewer
 measure-title = Measure
 measure-distance = Distance

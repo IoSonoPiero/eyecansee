@@ -438,8 +438,8 @@ convert-turned = { $turn ->
 }
 model-triangles = { $n } triangoli
 # The keys of the viewer, under the status bar.
-hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | Ctrl+L: livelli | M: misura | ← →: precedente, successivo | Ctrl+Maiusc+S: salva come immagine | F11: schermo intero | Esc: indietro
-hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | L, Maiusc+L: layout successivo, precedente | Ctrl+L: livelli | M: misura | ← →: file precedente, successivo | Ctrl+Maiusc+S: salva come immagine | F11: schermo intero | Esc: indietro
+hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | Ctrl+L: livelli | M: misura | N, Maiusc+N: modifica successiva, precedente di un confronto | ← →: precedente, successivo | Ctrl+Maiusc+S: salva come immagine | F11: schermo intero | Esc: indietro
+hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | L, Maiusc+L: layout successivo, precedente | Ctrl+L: livelli | M: misura | N, Maiusc+N: modifica successiva, precedente di un confronto | ← →: file precedente, successivo | Ctrl+Maiusc+S: salva come immagine | F11: schermo intero | Esc: indietro
 menu-layers = Livelli del disegno
 key-layers = Ctrl+L
 cad-layers-title = Livelli
@@ -452,6 +452,17 @@ cad-layers-all-off = Tutti spenti
 cad-layers-all-hint = I livelli elencati: tutti, o quelli trovati dalla ricerca
 cad-layers-none = Nessun livello con questo nome
 menu-measure = Misura
+menu-compare = Confronta disegni
+compare-off = Scegli due disegni CAD nella griglia per confrontarli
+compare-reading = Confronto i disegni…
+compare-failed = Non è stato possibile confrontare i disegni: { $error }
+compare-both = In tutti e due
+compare-only = Solo in { $name }
+compare-status = Confrontato con { $name }: { $n ->
+    [one] 1 modifica
+   *[other] { $n } modifiche
+} (N: la successiva)
+compare-units = unità diverse: { $a } e { $b }
 measure-off = Solo per un disegno CAD o un modello 3D nel visore
 measure-title = Misura
 measure-distance = Distanza

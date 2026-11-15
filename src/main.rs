@@ -27,6 +27,8 @@ mod browser;
 mod cad;
 mod cad_engine;
 mod cad_geom;
+mod cad_compare;
+mod cad_compare_view;
 mod cad_convert;
 mod cad_hpgl;
 mod cad_image;

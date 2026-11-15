@@ -82,6 +82,7 @@ impl App {
         let drawing = fits(&files, &[Kind::Drawing]);
         let drawing_off = self.drawings_off(drawing);
         entry(ui, act, drawing_off, item(starred(t("menu-export-drawings"), drawing != Some(false)), String::new()), Act::ExportDrawings(None));
+        entry(ui, act, self.compare_off(&files), item(t("menu-compare"), String::new()), Act::Compare);
         partial_note(ui, [model, drawing, saved].contains(&Some(false)), &self.i18n);
         ui.separator();
         self.restore_item(ui, act);

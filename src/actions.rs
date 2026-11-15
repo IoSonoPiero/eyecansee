@@ -113,6 +113,8 @@ pub(crate) enum Act {
     Layers,
     /// View > Measure (M): the Measure tool on a drawing or a model, on and off.
     Measure,
+    /// Compare drawings: the two CAD drawings chosen in the grid, one over the other (#143).
+    Compare,
 }
 
 /// Image > Transform, as GIMP orders it: flips, then turns. Label and keys (Fluent ids).
@@ -330,6 +332,7 @@ impl App {
             Act::Show(show) => self.set_show(show),
             Act::Layers => self.model.cad.panel = !self.model.cad.panel,
             Act::Measure => self.toggle_measure(),
+            Act::Compare => self.start_compare(ctx),
         }
     }
 

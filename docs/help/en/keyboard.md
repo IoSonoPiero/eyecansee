@@ -119,6 +119,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | L, Shift+L | Next, previous layout |
 | Ctrl+L | Layers panel |
 | M | Measure (then D distance, A area, G angle; Enter closes an area, Backspace takes back a point, Esc clears) |
+| N, Shift+N | Next, previous change, when comparing two drawings |
 | Ctrl+Shift+S | Save the drawing as an image |
 | Esc | Back to the grid |
 
