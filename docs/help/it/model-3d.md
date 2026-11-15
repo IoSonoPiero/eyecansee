@@ -23,6 +23,8 @@ Fai doppio clic su un modello, oppure selezionalo e premi **Invio**.
 | Maiusc+trascinare, o trascinare col tasto centrale | Spostano il modello nella finestra |
 | Rotellina, + e − | Ingrandiscono e rimpiccioliscono |
 | 0 | Torna alla vista di partenza |
+| M | Misura |
+| S | Sezione |
 | Pag↓, Spazio | File successivo |
 | Pag↑, Backspace | File precedente |
 | Inizio, Fine | Primo, ultimo file |
@@ -32,6 +34,21 @@ Fai doppio clic su un modello, oppure selezionalo e premi **Invio**.
 Qui le frecce girano il modello, quindi non cambiano file. Il pulsante **Tasti** nella barra di stato elenca questi tasti.
 
 In alto a destra gli assi del file (X rosso, Y verde, Z blu) girano col modello, come nei programmi CAD. La barra di stato mostra quanti triangoli ha il modello, l'ingrandimento e, mentre si muove, quanti fotogrammi al secondo vengono disegnati.
+
+## Misurare
+
+**M**, o **Visualizza > Misura**, accende lo strumento Misura: un riquadro in alto a sinistra mostra l'ingombro del modello lungo X, Y e Z, la sua superficie e il suo volume. Il volume c'è solo per un modello chiuso (ogni spigolo condiviso da due triangoli, come deve essere un modello per la stampa 3D); altrimenti il riquadro dice quanti spigoli sono aperti. Fai clic su due punti del modello per la loro distanza; un terzo clic ricomincia. Le misure sono nell'unità del file quando il formato o il file la dice (glTF, IFC, X3D e VRML in metri, STEP e IGES in millimetri, 3MF e AMF come dicono); STL, OBJ, PLY e altri non hanno unità, e il riquadro lo dice. **Copia** mette i risultati negli appunti; **Esc** cancella i punti, **Esc** di nuovo o **M** chiudono lo strumento. Trascinare gira ancora il modello.
+
+## Sezione
+
+**S** taglia il modello con un piano, per vederci dentro: ciò che sta oltre il piano non si vede, e l'interno visto attraverso il taglio è rosso, così pareti e spessori risaltano. Il piano parte dal centro del modello, attraverso Z per un modello con Z in alto (per un edificio IFC, la pianta del piano che attraversa), altrimenti attraverso Y. Nel riquadro in basso a sinistra, o coi tasti:
+
+- **X**, **Y**, **Z**: l'asse che il piano attraversa;
+- **Alt** e la rotellina del mouse, **,** e **.**, o il cursore: spostano il piano;
+- **F**, o **Altro lato**: tiene l'altro lato;
+- **S** di nuovo: il modello intero.
+
+**Salva come…** salva il modello con la sua sezione, come si vede. Il rosso del taglio è giusto per i modelli chiusi coi triangoli rivolti verso l'esterno, come sono quasi tutti; su altri alcune facce possono apparire rosse. Senza una scheda grafica che EyeCanSee possa usare la sezione non c'è.
 
 ## Cosa si vede
 

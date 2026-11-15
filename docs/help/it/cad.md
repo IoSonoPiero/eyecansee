@@ -16,6 +16,7 @@ Fai doppio clic su un disegno, oppure selezionalo e premi **Invio**. Il disegno 
 | →, ← | File successivo, precedente |
 | L, Maiusc+L | Layout successivo, precedente |
 | Ctrl+L | Riquadro dei livelli |
+| M | Misura |
 | Ctrl+Maiusc+S | Salva come immagine |
 | F11 | Schermo intero |
 | Esc, doppio clic | Torna alla griglia |
@@ -31,6 +32,16 @@ Un disegno con layout (spazio carta) mostra nella barra di stato **Modello** o i
 **Ctrl+L**, il pulsante **Livelli** nella barra di stato o **Visualizza > Livelli del disegno** aprono il riquadro dei livelli a destra di un disegno DWG o DXF. Elenca i livelli su cui c'è qualcosa, ciascuno col suo colore e una casella: togli la spunta a un livello per nasconderlo, rimettila per mostrarlo di nuovo, anche un livello spento o congelato nel file. **Tutti accesi** e **Tutti spenti** valgono per i livelli elencati; con molti livelli scrivi parte di un nome in **Cerca** per elencare solo quelli. Il riquadro dice quanti livelli si vedono.
 
 Un blocco su un livello nascosto si nasconde tutto, anche le sue parti su altri livelli. La scelta vale per il modello e per i layout (i livelli congelati in una finestra di un layout restano nascosti lì) e cambia solo ciò che si vede: il file non cambia. Ogni disegno tiene la sua scelta finché EyeCanSee resta aperto, anche passando ad altri file e tornando. **Salva come…** ed **Esporta disegno…** (immagini e SVG) salvano i disegni con i livelli come si vedono; i disegni di cui non hai toccato i livelli si salvano come li ha il file.
+
+## Misurare
+
+**M**, o **Visualizza > Misura**, accende lo strumento Misura; un riquadro in alto a destra (si può trascinare altrove) mostra cosa si misura e i risultati. Scegli **Distanza** (D), **Area** (A) o **Angolo** (G), poi fai clic sul disegno:
+
+- **Distanza**: due punti. Il riquadro mostra la distanza e quanto distano i punti lungo X e Y.
+- **Area**: gli angoli di una forma, uno dopo l'altro; **Invio** o un doppio clic la chiudono. Il riquadro mostra l'area e il perimetro, anche mentre fai clic.
+- **Angolo**: un punto, il vertice, poi un punto dell'altro lato.
+
+Un clic si aggancia a ciò che c'è sotto il puntatore, come nei programmi CAD: l'estremo di una linea (un quadrato), il suo punto medio (un triangolo), il centro di un cerchio o di un arco (un cerchio), dove due linee si incrociano (una croce); senza niente vicino, il punto cliccato (una crocetta). I livelli nascosti non contano. I risultati sono nell'unità del disegno (come nella barra di stato; quando il disegno non dice la sua unità, il riquadro lo dice). Su un layout si misura sul foglio. **Copia** li mette negli appunti. **Backspace** toglie l'ultimo punto, **Esc** cancella i punti, e **Esc** di nuovo o **M** chiudono lo strumento. Trascinare sposta ancora il disegno.
 
 ## Numero del disegno e cartiglio
 

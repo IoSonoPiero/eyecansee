@@ -165,6 +165,8 @@ impl App {
         // A CAD drawing in the viewer: its layers panel.
         let tick = if self.cad_layers_shown() { "✔ " } else { "" };
         entry(ui, act, self.cad_layers_off(), item(format!("{tick}{}", t("menu-layers")), t("key-layers")), Act::Layers);
+        let tick = if self.model.measure.on && self.measure_off().is_none() { "✔ " } else { "" };
+        entry(ui, act, self.measure_off(), item(format!("{tick}{}", t("menu-measure")), "M".into()), Act::Measure);
         ui.add_enabled_ui(!viewing, |ui| {
             let r = ui.menu_button((icons::menu_icon(ui, None), t("menu-meta")), |ui| {
                 for g in meta::Group::ALL {

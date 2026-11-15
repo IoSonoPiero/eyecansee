@@ -111,6 +111,8 @@ pub(crate) enum Act {
     Show(settings::Show),
     /// View > Layers (Ctrl+L): the layers panel of a CAD drawing, open and closed.
     Layers,
+    /// View > Measure (M): the Measure tool on a drawing or a model, on and off.
+    Measure,
 }
 
 /// Image > Transform, as GIMP orders it: flips, then turns. Label and keys (Fluent ids).
@@ -327,6 +329,7 @@ impl App {
             Act::SortDesc => self.set_sort(self.settings.sort_by, !self.settings.sort_desc),
             Act::Show(show) => self.set_show(show),
             Act::Layers => self.model.cad.panel = !self.model.cad.panel,
+            Act::Measure => self.toggle_measure(),
         }
     }
 

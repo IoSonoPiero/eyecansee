@@ -16,6 +16,8 @@ impl App {
         if ctx.egui_wants_keyboard_input() {
             return;
         }
+        // M, and while measuring Esc, Enter, Backspace and D, A, G: taken before the keys below.
+        self.measure_keys(ctx);
         // Space on an animation, Page Up and Down on pages: theirs, taken before the keys below.
         self.frames_keys(ctx);
         // Space on a Motion Photo plays its video, which then has the keys of a video.
@@ -166,7 +168,7 @@ impl App {
         self.video = None;
         let mut chosen = None;
         if let Some(response) = self.model_view(ui) {
-            if response.double_clicked() {
+            if response.double_clicked() && !self.model.measure.on {
                 self.close_viewer();
             }
             response.context_menu(|ui| {
@@ -185,7 +187,8 @@ impl App {
             self.zoom_view(ui, &response, &tex, current);
             self.frames_bar(ui, rect);
             self.motion_bar(ui, rect);
-            if response.double_clicked() {
+            // While measuring a double click closes an area.
+            if response.double_clicked() && !self.model.measure.on {
                 self.close_viewer();
             }
             response.context_menu(|ui| {
@@ -320,6 +323,7 @@ impl App {
         };
         // A CAD drawing: drawn again sharp once the view stops.
         self.cad_sharpen(ui, current, tex.size_vec2(), dest, uv);
+        self.cad_measure(ui, response, current, dest, uv);
         if self.files().get(current).is_some_and(|f| crate::cad::is_cad(&f.path)) && self.turn.is_none() {
             crate::cad_view::ucs_corner(&painter, rect);
         }

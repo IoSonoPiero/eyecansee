@@ -98,6 +98,8 @@ pub struct Drawing {
     pub(crate) frame: Option<[f64; 4]>,
     /// Its number and revision, for the line under the thumbnail (`cad_meta::summary`).
     pub summary: Option<String>,
+    /// The centres of its circles and arcs, with their set of layers, for the measures.
+    pub(crate) centres: Vec<(P, u32)>,
 }
 
 pub fn read(bytes: &[u8], name: &str) -> Result<Drawing, String> {
@@ -405,10 +407,22 @@ impl<'a> Walk<'a> {
             e => match shape(e) {
                 Some((ocs, pts, fill)) => {
                     let stroke = self.stroke(style, t);
-                    self.line(pts, &t.then_inner(&ocs), color, fill, stroke)
+                    let t = t.then_inner(&ocs);
+                    if let EntityType::Circle(acadrust::entities::Circle { center, .. }) | EntityType::Arc(acadrust::entities::Arc { center, .. }) = e {
+                        self.centre(t.apply(xy(center)));
+                    }
+                    self.line(pts, &t, color, fill, stroke)
                 }
                 None => Ok(()),
             },
+        }
+    }
+
+    /// The centre of a circle or an arc, for the measures to snap to (`cad_measure`).
+    fn centre(&mut self, p: P) {
+        let outside = self.clip.is_some_and(|b| p[0] < b[0] || p[0] > b[2] || p[1] < b[1] || p[1] > b[3]);
+        if !outside && p[0].is_finite() && p[1].is_finite() {
+            self.out.centres.push((p, self.set));
         }
     }
 

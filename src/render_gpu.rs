@@ -23,9 +23,12 @@ const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
 /// normal (3 × f32, zero for the face's own), metal, roughness, occlusion and what applies (4 ×
 /// u8: 1 = the surface, 2 = bumps), glow (4 × u8).
 const STRIDE: u64 = 44;
+/// Bytes of the camera: two 4×4 matrices, the plane of a section and the colour of its cut.
+const CAMERA: u64 = 160;
 
 const SHADER: &str = r"
-struct Camera { clip: mat4x4<f32>, eye: mat4x4<f32> };
+// `plane` and `cap` for a section (`render3d::Cut`): cap.w 1 when there is one.
+struct Camera { clip: mat4x4<f32>, eye: mat4x4<f32>, plane: vec4<f32>, cap: vec4<f32> };
 @group(0) @binding(0) var<uniform> cam: Camera;
 
 @group(1) @binding(0) var picture: texture_2d<f32>;
@@ -43,6 +46,7 @@ struct Out {
     @location(3) normal: vec3<f32>,
     @location(4) pbr: vec4<f32>,
     @location(5) glow: vec3<f32>,
+    @location(6) world: vec3<f32>,
 };
 
 @vertex fn vs(@location(0) p: vec3<f32>, @location(1) c: vec4<f32>, @location(2) uv: vec2<f32>, @location(3) n: vec3<f32>, @location(4) pbr: vec4<f32>, @location(5) glow: vec4<f32>) -> Out {
@@ -54,6 +58,7 @@ struct Out {
     o.normal = (cam.eye * vec4(n, 0.0)).xyz;
     o.pbr = pbr;
     o.glow = glow.rgb;
+    o.world = p;
     return o;
 }
 
@@ -64,7 +69,16 @@ fn unit(v: vec3<f32>) -> vec3<f32> {
 
 // Flat shading (the triangle's normal from the derivatives, both faces lit) as render3d; with a
 // surface the same light as render_shine: change both together.
-@fragment fn fs(i: Out) -> @location(0) vec4<f32> {
+@fragment fn fs(i: Out, @builtin(front_facing) front: bool) -> @location(0) vec4<f32> {
+    // A section as render3d draws it: beyond the plane nothing, the inside in the cut's colour.
+    if (cam.cap.w > 0.5) {
+        if (dot(cam.plane.xyz, i.world) > cam.plane.w) {
+            discard;
+        }
+        if (!front) {
+            return vec4(cam.cap.rgb, 1.0);
+        }
+    }
     let dp1 = dpdx(i.eye);
     let dp2 = dpdy(i.eye);
     let duv1 = dpdx(i.uv);
@@ -185,12 +199,12 @@ impl Gpu {
     pub fn new(rs: RenderState) -> Self {
         let device = &rs.device;
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("model"), source: wgpu::ShaderSource::Wgsl(SHADER.into()) });
-        let camera = device.create_buffer(&wgpu::BufferDescriptor { label: Some("camera"), size: 128, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let camera = device.create_buffer(&wgpu::BufferDescriptor { label: Some("camera"), size: CAMERA, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None },
                 count: None,
             }],
@@ -251,10 +265,13 @@ impl Gpu {
         }
         let (Some(model), Some(t)) = (&self.model, &self.target) else { unreachable!() };
         let (clip, eye) = render3d::camera(mesh, view, size[0], size[1]);
-        let mut bytes = Vec::with_capacity(128);
+        let mut bytes = Vec::with_capacity(CAMERA as usize);
         for m in [clip, eye] {
             bytes.extend(m.iter().flatten().flat_map(|v| v.to_le_bytes()));
         }
+        let (plane, on) = view.cut.map_or(([0.0; 4], 0.0), |c| (c.plane(mesh), 1.0));
+        let cap = render3d::CAP.map(|c| f32::from(c) / 255.0);
+        bytes.extend(plane.into_iter().chain([cap[0], cap[1], cap[2], on]).flat_map(|v: f32| v.to_le_bytes()));
         self.rs.queue.write_buffer(&self.camera, 0, &bytes);
         let mut encoder = self.rs.device.create_command_encoder(&Default::default());
         {
