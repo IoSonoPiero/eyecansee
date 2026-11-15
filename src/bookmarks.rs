@@ -164,21 +164,31 @@ impl App {
     }
 
     /// The place shown is among the bookmarks.
-    fn here_kept(&self) -> bool {
+    pub(crate) fn here_kept(&self) -> bool {
         position(&self.settings.bookmarks, &self.here()).is_some()
+    }
+
+    /// The star's name (Fluent id): what a click does.
+    pub(crate) fn star_label(&self) -> &'static str {
+        if self.here_kept() {
+            "bm-remove"
+        } else if self.viewing.is_some() {
+            "bm-star-image"
+        } else {
+            "bm-star-folder"
+        }
     }
 
     /// Next to the address bar, as in Total Commander: the star adds the place shown, lit when it
     /// is a bookmark already, and then takes it away, as in the browsers; the drop-down beside it
-    /// chooses one.
-    pub(crate) fn bookmark_button(&mut self, ui: &mut egui::Ui) {
+    /// chooses one. Without the star (`star` false) when it is in the "More" menu of a narrow
+    /// window.
+    pub(crate) fn bookmark_button(&mut self, ui: &mut egui::Ui, star: bool) {
         let have = self.here_kept();
-        let tip = self.i18n.t(if have { "bm-remove" } else if self.viewing.is_some() { "bm-star-image" } else { "bm-star-folder" });
-        if ui.add_enabled(self.loader.is_some(), icons::toggle(ui, have, if have { Line::StarFilled } else { Line::Star })).on_hover_text(tip).clicked() {
+        if star && ui.add_enabled(self.loader.is_some(), icons::toggle(ui, have, if have { Line::StarFilled } else { Line::Star })).on_hover_text(self.i18n.t(self.star_label())).clicked() {
             self.act = Some(if have { Act::RemoveBookmark(None) } else { Act::AddBookmark(None) });
         }
-        let button = egui::Button::new((icons::line(ui, Line::Bookmark, 18.0), icons::line(ui, Line::Down, 14.0))).min_size(icons::BUTTON);
-        let (r, inner) = egui::containers::menu::MenuButton::from_button(button).ui(ui, |ui| self.bookmark_items(ui, false));
+        let (r, inner) = egui::containers::menu::MenuButton::from_button(menu_button(ui)).ui(ui, |ui| self.bookmark_items(ui, false));
         let menu = egui::Popup::default_response_id(&r);
         self.bookmarks.menu = Some((r.id, menu));
         // Opened with the keys: once closed, the keys go back to the grid.
@@ -368,6 +378,11 @@ impl App {
         ui.vertical_centered(|ui| done |= ui.button(t("bm-done")).clicked());
         done
     }
+}
+
+/// The Bookmarks drop-down of the toolbar: its icon and a small arrow (`toolbar::RowParts`).
+pub(crate) fn menu_button(ui: &egui::Ui) -> egui::Button<'static> {
+    egui::Button::new((icons::line(ui, Line::Bookmark, 18.0), icons::line(ui, Line::Down, 14.0))).min_size(icons::BUTTON)
 }
 
 #[cfg(test)]

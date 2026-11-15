@@ -78,6 +78,16 @@ pub(crate) fn lead(available: f32, p: TailParts, tail: f32) -> f32 {
     (available - tail + p.spacing).max(0.0)
 }
 
+/// The least width of the thumbnail slider.
+const SLIDER_LEAST: f32 = 48.0;
+
+/// On a row of its own narrower than what follows the field (a 400 px window), the thumbnail
+/// slider is shortened by what is missing, to `SLIDER_LEAST`: it went past the right edge.
+pub(crate) fn slider_room(available: f32, p: TailParts, tail: f32) -> f32 {
+    let missing = (tail - p.spacing - available).max(0.0);
+    (p.slider - missing).max(SLIDER_LEAST.min(p.slider))
+}
+
 impl App {
     /// The address field, to the end of the toolbar's row, with what follows it when the field
     /// keeps `FIELD_MIN`. Otherwise returns the width of what follows, for `address_tail_row`.
@@ -106,7 +116,9 @@ impl App {
     /// Under the toolbar's row, what follows the field (`tail` wide), ending at the right edge.
     pub(crate) fn address_tail_row(&mut self, ui: &mut egui::Ui, tail: f32) {
         ui.horizontal(|ui| {
-            ui.add_space(lead(ui.available_width(), TailParts::measure(ui), tail));
+            let (available, p) = (ui.available_width(), TailParts::measure(ui));
+            ui.add_space(lead(available, p, tail));
+            ui.spacing_mut().slider_width = slider_room(available, p, tail);
             self.address_tail(ui);
         });
     }
@@ -197,6 +209,10 @@ mod tests {
         let available = 600.0;
         assert_eq!(lead(available, p, tail) + tail - p.spacing, available);
         assert_eq!(lead(100.0, p, tail), 0.0);
+        // Room enough: the slider as it is; 24 points short: as much shorter, never below 48.
+        assert_eq!(slider_room(available, p, tail), 100.0);
+        assert_eq!(slider_room(tail - p.spacing - 24.0, p, tail), 76.0);
+        assert_eq!(slider_room(100.0, p, tail), SLIDER_LEAST);
     }
 
     /// Through egui with the app's fonts and the real Copy, Paste, sorting and slider, after a

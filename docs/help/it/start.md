@@ -31,7 +31,7 @@ Fai doppio clic su una miniatura, oppure selezionala e premi **Invio**: la foto 
 
 - Il **clic destro** su qualunque cosa (una miniatura, una cartella, uno spazio vuoto della griglia, la foto nel visore) apre un menù con quello che puoi farci.
 - Ogni azione ha una voce di menù, con il tasto scritto accanto. L'elenco di tutti i tasti è in [Scorciatoie da tastiera](keyboard.md).
-- Quando la finestra è stretta, alcuni pulsanti della barra strumenti passano nel menù ![Altre operazioni](icon://ellipsis) **Altre operazioni**.
+- Quando la finestra è stretta, i pulsanti della barra strumenti che non ci stanno passano nel menù ![Altre operazioni](icon://ellipsis) **Altre operazioni**: prima quelli dell'immagine e degli strumenti, poi le operazioni sui file, il pulsante dei metadati, la stella dei segnalibri e Aggiorna. La barra degli indirizzi resta sempre in vista.
 - **F11** mette la finestra a schermo intero, e la riporta com'era.
 
 ## Aiuto
