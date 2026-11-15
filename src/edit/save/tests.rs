@@ -746,7 +746,7 @@ fn patch_doc(area: Area, mirrored: bool, opacity: f32) -> Doc {
 /// pasted, never from a result already resampled.
 #[test]
 fn pasted_piece_from_its_pixels() {
-    use crate::edit::patch;
+    use crate::edit::{patch, turn};
     let original = Original::with_meta(motif(), &[]);
     let area = Area { centre: Pt::new(0.0, 0.0), w: 24.0, h: 12.0, rot: 0.0 };
     let red = |p: &image::Rgba<u8>| p[0] > 200 && p[2] < 60;
@@ -765,9 +765,9 @@ fn pasted_piece_from_its_pixels() {
     for _ in 0..4 {
         b = patch::quarter(&b, false);
     }
-    b.rot = patch::turned_to(&b, Pt::new(30.0, 1.0), 0.0, true);
+    b.rot = turn::turned_to(&b, Pt::new(30.0, 1.0), 0.0, true);
     assert_eq!(b.rot, 90.0);
-    b.rot = patch::turned_to(&b, Pt::new(-1.0, -30.0), 0.0, true);
+    b.rot = turn::turned_to(&b, Pt::new(-1.0, -30.0), 0.0, true);
     b = patch::sized(&patch::sized(&b, 200.0, true, true), 24.0, true, true);
     for horizontal in [true, false, true, false] {
         (b, m) = patch::flipped(&b, m, horizontal, 0.0);

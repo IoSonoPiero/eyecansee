@@ -7,8 +7,8 @@ use eframe::egui::{self, Color32, CursorIcon, Pos2, Rect, TextureHandle, Texture
 use super::{Drawn, Follow, GRAB, Grab, Hold, Tool, Window};
 use crate::edit::doc::{Obj, Pt, Shape};
 use crate::edit::geom::{self, Kind};
-use crate::edit::patch;
 use crate::edit::render;
+use crate::edit::turn;
 use crate::rotate::{self, Crop};
 
 /// From image pixels (rotated, from the centre of the image) to the screen and back.
@@ -536,7 +536,7 @@ fn marquee_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
 fn turn_handle(w: &Window, view: &View) -> Option<(usize, Pos2, Pos2)> {
     let i = w.selected?;
     let Shape::Patch { area, .. } = &w.doc.objects.get(i)?.shape else { return None };
-    let at = |reach| view.of(patch::turn_handle(area, reach), w.doc.angle);
+    let at = |reach| view.of(turn::turn_handle(area, reach), w.doc.angle);
     Some((i, at(super::patch::REACH / view.k), at(0.0)))
 }
 
@@ -545,11 +545,11 @@ fn turn_at(w: &Window, view: &View, s: Pos2) -> Option<usize> {
     turn_handle(w, view).filter(|(_, at, _)| at.distance(s) <= GRAB).map(|(i, ..)| i)
 }
 
-/// The piece as the turn started, its handle dragged to `p` (`edit::patch::turned_to`).
+/// The piece as the turn started, its handle dragged to `p` (`edit::turn::turned_to`).
 fn turned_piece(start: &Obj, p: Pt, angle: f32, snap: bool) -> Obj {
     let mut o = start.clone();
     if let Some(a) = o.shape.area_mut() {
-        a.rot = patch::turned_to(a, p, angle, snap);
+        a.rot = turn::turned_to(a, p, angle, snap);
     }
     o
 }
