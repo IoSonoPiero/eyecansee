@@ -55,6 +55,7 @@ mod encoders;
 mod engine;
 mod fault;
 mod ffmpeg;
+mod ffmpeg_files;
 mod file_dialogs;
 mod folder_pick;
 mod fonts;

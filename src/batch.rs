@@ -422,65 +422,32 @@ impl Drop for Writing {
 /// returned. ffmpeg reads and writes files of this computer: a video on a phone or a server is
 /// copied into a temporary file first, a destination there gets the temporary result at the end.
 async fn video(op: &Store, path: &str, (out, dest, taken): (&Store, &str, &HashSet<String>), job: &Job, p: &Arc<Progress>) -> Result<String, source::Error> {
+    use crate::ffmpeg_files::{Input, Output, deliver};
     let name = source::name(path).to_string();
-    let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
+    let failed = |e: String| crate::ffmpeg_files::failed(&name, e);
     // Copied streams: an FFmpeg without the phones' decoders does it too (`ffmpeg::copier`).
     let probe = job.video.as_ref().and_then(|v| if v.encoder == "copy" { crate::ffmpeg::copy_probed() } else { crate::ffmpeg::probed() });
     let (Some(mut v), Some(probe)) = (job.video.clone(), probe) else { return Err((SKIP_VIDEO, name)) };
-    let temp = |what: &str| std::env::temp_dir().join(format!("eyecansee-{what}-{}-{name}", std::process::id()));
-    // Download, ffmpeg and upload share the video's bar in equal parts.
-    // ponytail: equal parts, not by time: a "copy" conversion jumps through its third.
-    let (remote_in, remote_out) = (op.local_file(path).is_none(), out.local_file(&format!("{dest}{name}")).is_none());
-    let phases = Phases { p: p.clone(), count: 1 + remote_in as u32 + remote_out as u32 };
-    let input = match op.local_file(path) {
-        Some(file) => (file, false),
-        None => {
-            let file = temp("in");
-            download(op, path, &file, || phases.p.cancel.load(Ordering::Relaxed), |f| phases.set(0, f)).await.map_err(|e| failed(e.to_string()))?;
-            (file, true)
-        }
-    };
+    let input = Input::fetch(op, path, (out, dest), p).await?;
     // Copied as it is: into a container that holds its streams (`video_copy`), MKV otherwise.
     if v.encoder == "copy" {
-        v.container = crate::video_copy::for_file(v.container, &name, &probe.program, &input.0);
+        v.container = crate::video_copy::for_file(v.container, &name, &probe.program, &input.file);
     }
     let new_name = source::free_name(taken, &ext(&name, crate::ffmpeg::CONTAINERS[v.container].ext));
-    let to = &format!("{dest}{new_name}");
-    let output = out.local_file(to).map_or_else(|| (temp("out"), true), |f| (f, false));
-    let _writing = Writing::start(output.0.clone());
+    let output = Output::new(out, format!("{dest}{new_name}"), &name);
     let tags = if v.meta { crate::video_read::track_tags(op, path).await } else { Vec::new() };
-    let args = |on_card| crate::ffmpeg::args(&v, job.size, job.enlarge, job.turn, on_card, (&input.0.to_string_lossy(), &output.0.to_string_lossy()), &probe.audio, &tags);
-    let ffmpeg = |args: Vec<String>| {
-        log!("ffmpeg {args:?}");
-        let (program, ph, first) = (probe.program.clone(), phases.clone(), remote_in as u32);
-        tokio::task::spawn_blocking(move || crate::ffmpeg::run(&program, &args, |f| ph.set(first, f), &ph.p.cancel))
-    };
+    let args = |on_card| crate::ffmpeg::args(&v, job.size, job.enlarge, job.turn, on_card, (&input.file.to_string_lossy(), &output.file.to_string_lossy()), &probe.audio, &tags);
     let on_card = probe.card.contains(&v.encoder);
-    let mut r = ffmpeg(args(on_card)).await.unwrap_or_else(|e| Err(e.to_string()));
+    let mut r = input.ffmpeg(&probe.program, args(on_card)).await;
     // A video the card cannot read (a codec or a format it lacks): again as before, on the processor.
-    if on_card && r.is_err() && !p.cancel.load(Ordering::Relaxed) {
+    if on_card && r.is_err() && !input.cancelled() {
         log!("ffmpeg on the card failed ({}), again on the processor", r.as_ref().unwrap_err());
-        r = ffmpeg(args(false)).await.unwrap_or_else(|e| Err(e.to_string()));
+        r = input.ffmpeg(&probe.program, args(false)).await;
     }
-    if input.1 {
-        let _ = std::fs::remove_file(&input.0);
-    }
-    if r.is_ok() {
-        keep_thumbnail(to, &output.0).await;
-    }
-    let r = match r {
-        Ok(()) if output.1 => {
-            let (ph, last) = (phases.clone(), phases.count - 1);
-            let p = phases.p.clone();
-            upload(out, to, &output.0, move || p.cancel.load(Ordering::Relaxed), move |f| ph.set(last, f)).await.map_err(|e| failed(e.to_string()))
-        }
-        Ok(()) => Ok(()),
-        Err(e) => Err(failed(e)),
-    };
-    if output.1 || r.is_err() {
-        let _ = std::fs::remove_file(&output.0);
-    }
-    r.map(|()| new_name)
+    let phases = input.phases.clone();
+    drop(input);
+    deliver(out, &output, &phases, r.map_err(failed), failed).await?;
+    Ok(new_name)
 }
 
 /// The parts of a video's conversion on the bar: `set(phase, 0 to 1)`.
