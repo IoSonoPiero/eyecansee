@@ -682,6 +682,10 @@ pub(crate) mod tests {
         for f in &fields {
             w.push_field(f);
         }
+        // A maker note that can move (`meta::movable_maker_note`) goes in too.
+        let note = b"Apple iOS\0\0\x01MM\0\0".to_vec();
+        let maker = Field { tag: Tag::MakerNote, ifd_num: In::PRIMARY, value: Value::Undefined(note.clone(), 0) };
+        w.push_field(&maker);
         for little in [false, true] {
             let mut exif = Cursor::new(Vec::new());
             w.write(&mut exif, little).unwrap();
@@ -691,6 +695,7 @@ pub(crate) mod tests {
             for f in &fields {
                 assert_eq!(back.get_field(f.tag, In::PRIMARY).map(|b| format!("{:?}", b.value)), Some(format!("{:?}", f.value)), "{:?}", f.tag);
             }
+            assert!(matches!(back.get_field(Tag::MakerNote, In::PRIMARY).map(|f| &f.value), Some(Value::Undefined(v, _)) if *v == note), "maker note");
             assert_eq!(crate::decode::decode_full(&bytes, "x.tif").unwrap().width(), 8);
         }
     }
