@@ -495,7 +495,8 @@ impl Window {
 }
 
 /// Where each kind of object starts the first time: red lines a 250th of the long side (at least
-/// 2 pixels), letters a 25th, the highlighter yellow at 40%, the cover box black.
+/// 2 pixels), letters a 25th, the highlighter yellow multiplied in full (`Style::highlighter`),
+/// the cover box black.
 fn default_style(kind: Kind, long: f32) -> Style {
     let width = (long / 250.0).round().max(2.0);
     match kind {
