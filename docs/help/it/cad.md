@@ -32,6 +32,10 @@ Un disegno con layout (spazio carta) mostra nella barra di stato **Modello** o i
 
 Un blocco su un livello nascosto si nasconde tutto, anche le sue parti su altri livelli. La scelta vale per il modello e per i layout (i livelli congelati in una finestra di un layout restano nascosti lì) e cambia solo ciò che si vede: il file non cambia. Ogni disegno tiene la sua scelta finché EyeCanSee resta aperto, anche passando ad altri file e tornando. **Salva come…** ed **Esporta disegno…** (immagini e SVG) salvano i disegni con i livelli come si vedono; i disegni di cui non hai toccato i livelli si salvano come li ha il file.
 
+## Numero del disegno e cartiglio
+
+Nella griglia un disegno DWG o DXF mostra sotto la miniatura il suo numero e la revisione, prima del peso ("A-101 rev. C · 350 KB"): dal cartiglio, o altrimenti dal titolo e dal numero di revisione. Selezionato, il riquadro **Disegno** del pannello dei metadati elenca le proprietà del disegno e gli attributi del cartiglio. Vedi [Informazioni sul file](metadata.md) e, per togliere il numero, [Opzioni](options.md).
+
 ## La barra di stato
 
 Un disegno non ha pixel: la barra di stato mostra la sua misura nella sua unità (come la scrive il disegno; millimetri per un file per plotter; una misura grande passa a un'unità più grande, per esempio metri invece di millimetri), il layout e l'ingrandimento. In basso a sinistra gli assi X (rosso) e Y (verde) del disegno mostrano dove puntano.

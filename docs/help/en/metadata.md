@@ -11,6 +11,7 @@ Under the grid, the metadata panel shows what is known about the selected file: 
 - **Shot**: date taken, exposure, aperture, ISO, focal length and flash.
 - **Image**: format, width and height, colour and bits per channel, colour space. For a Camera RAW photo they are those of the picture EyeCanSee develops from it (cut as the camera says); an SVG drawing has its own size and no colour or bits.
 - **Location**: GPS coordinates and altitude, with **Open on the map**, which opens the place on OpenStreetMap in your browser.
+- **Drawing**: only for DWG and DXF drawings, which have the File box and this one. The drawing properties stored in the file (title, subject, author, keywords, comments, revision number, custom properties, as AutoCAD's DWGPROPS command writes them), then under **Title block** the attributes of the title block with their own names (for example DWG_NO, REV, DATE, SCALE): those of the block with the most attributes filled in on the first layout that has one, or in the model space for a drawing without layouts.
 
 A box shows "No data" when the file has nothing for it, and "This file contains no metadata" when the file has no metadata at all.
 

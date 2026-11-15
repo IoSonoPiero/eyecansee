@@ -96,6 +96,8 @@ pub struct Drawing {
     pub(crate) on: Vec<u32>,
     /// The box shown when some layers are (`Drawing::with_layers`), in place of what is drawn.
     pub(crate) frame: Option<[f64; 4]>,
+    /// Its number and revision, for the line under the thumbnail (`cad_meta::summary`).
+    pub summary: Option<String>,
 }
 
 pub fn read(bytes: &[u8], name: &str) -> Result<Drawing, String> {
@@ -115,7 +117,8 @@ pub fn read_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Re
     };
     let (layers, index) = crate::cad_layers::table(&doc);
     let index = std::rc::Rc::new(index);
-    let mut d = Drawing { unit: insunits(doc.header.insertion_units), extents: extents(&doc), layers: layers.clone(), ..Default::default() };
+    let summary = crate::cad_meta::summary(&crate::cad_meta::props(&doc));
+    let mut d = Drawing { unit: insunits(doc.header.insertion_units), extents: extents(&doc), layers: layers.clone(), summary, ..Default::default() };
     let fonts = std::rc::Rc::new(crate::cad_text::fonts(&doc, sibling));
     let mut walk = Walk::new(&doc, &mut d);
     walk.sibling = sibling;

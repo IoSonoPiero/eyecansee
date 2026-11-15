@@ -11,6 +11,7 @@ Sotto la griglia, il pannello dei metadati mostra quello che si sa del file sele
 - **Scatto**: data dello scatto, esposizione, diaframma, ISO, lunghezza focale e flash.
 - **Immagine**: formato, larghezza e altezza, colore e bit per canale, spazio colore. Per una foto RAW sono quelli dell'immagine che EyeCanSee ne sviluppa (ritagliata come dice la fotocamera); un disegno SVG ha le sue dimensioni e niente colore né bit.
 - **Posizione**: coordinate GPS e altitudine, con **Apri sulla mappa**, che apre il posto su OpenStreetMap nel browser.
+- **Disegno**: solo per i disegni DWG e DXF, che hanno il riquadro File e questo. Le proprietà del disegno scritte nel file (titolo, oggetto, autore, parole chiave, commenti, numero di revisione, proprietà personalizzate, come le scrive il comando DWGPROPS di AutoCAD), poi sotto **Cartiglio** gli attributi del cartiglio coi loro nomi (per esempio DWG_NO, REV, DATA, SCALA): quelli del blocco con più attributi compilati nel primo layout che ne ha uno, o nello spazio modello per un disegno senza layout.
 
 Un riquadro dice "Nessun dato" quando il file non ha niente per lui, e "Questo file non contiene metadati" quando il file non ha nessun metadato.
 

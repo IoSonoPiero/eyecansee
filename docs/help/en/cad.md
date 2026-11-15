@@ -32,6 +32,10 @@ A drawing with layouts (paper space) shows **Model** or the name of the layout i
 
 A block on a hidden layer is hidden whole, also its parts on other layers. The choice applies to the model and the layouts (layers frozen in one viewport of a layout stay hidden there), and changes only what is shown: the file is not changed. Each drawing keeps its choice until EyeCanSee is closed, also while moving to other files and back. **Save as…** and **Export drawing…** (pictures and SVG) save the drawings with the layers as they are shown; drawings whose layers were not touched are saved as their file has them.
 
+## Drawing number and title block
+
+In the grid, a DWG or DXF drawing shows its number and revision under its thumbnail, before its size ("A-101 rev. C · 350 KB"): from its title block, or else from its title and revision number. Selected, its **Drawing** box in the metadata panel lists the drawing properties and the title block's attributes. See [Image information](metadata.md) and, to leave the number out, [Options](options.md).
+
 ## The status bar
 
 A drawing has no pixels: the status bar shows its size in its own unit (as the drawing stores it; millimetres for a plotter file; a large size moves to a larger unit, for example metres instead of millimetres), the layout and the zoom. In the bottom left corner the drawing's X (red) and Y (green) axes show which way they point.

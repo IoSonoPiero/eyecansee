@@ -48,10 +48,12 @@ impl App {
             _ => None,
         };
         let t = |id: &str| self.i18n.t(id);
+        let drawing = file.as_ref().is_some_and(|(_, f)| crate::cad_convert::can_convert(&f.path));
         let note = match (&file, &meta) {
             (None, _) => t("meta-none-selected"),
             (Some(_), None) => t("meta-loading"),
             (_, Some(Err(e))) => e.clone(),
+            (_, Some(Ok(None))) if drawing => t("cad-props-none"),
             (_, Some(Ok(None))) => t("meta-no-exif"),
             _ => String::new(),
         };
@@ -69,7 +71,7 @@ impl App {
         let boxes = ScrollArea::horizontal().show(ui, |ui| {
             ui.set_min_height(min_height);
             ui.horizontal_top(|ui| {
-                for g in boxes(alone, |g| self.meta_shown(g)) {
+                for g in boxes(alone, drawing, |g| self.meta_shown(g)) {
                     egui::Frame::group(ui.style()).show(ui, |ui| ui.vertical(|ui| {
                         self.meta_box(ui, g, file.as_ref().map(|(_, f)| f), meta.as_ref(), &note, &mut close);
                     }));
@@ -140,7 +142,12 @@ impl App {
                 ui.end_row();
             }
             for (_, label, value) in fields {
-                ui.weak(t(label));
+                // A name the drawing gives (`cad_meta`) as it is; a heading in bold.
+                match label.strip_prefix('=') {
+                    Some(own) => ui.weak(own),
+                    None if value.is_empty() => ui.strong(t(label)),
+                    None => ui.weak(t(label)),
+                };
                 ui.label(self.meta_value(label, value));
                 ui.end_row();
             }
@@ -354,8 +361,16 @@ const NOTE_WIDTH: f32 = 512.0;
 
 /// The boxes drawn, those not closed (`shown`); `alone`: only File, the others have nothing to
 /// show and one note says why (the video engine missing).
-fn boxes(alone: bool, shown: impl Fn(Group) -> bool) -> Vec<Group> {
-    Group::ALL.into_iter().filter(|&g| shown(g) && (!alone || g == Group::File)).collect()
+/// The boxes for a file: with `alone` only File; a CAD `drawing` has File and Drawing, the
+/// others have every box but Drawing.
+fn boxes(alone: bool, drawing: bool, shown: impl Fn(Group) -> bool) -> Vec<Group> {
+    let fits = |g: Group| match g {
+        Group::File => true,
+        _ if alone => false,
+        Group::Drawing => drawing,
+        _ => !drawing,
+    };
+    Group::ALL.into_iter().filter(|&g| shown(g) && fits(g)).collect()
 }
 
 /// "Wheel: zoom | Drag: move" → ("Wheel", "zoom"), ("Drag", "move"): the keys and what they do,
@@ -437,10 +452,12 @@ mod tests {
     #[test]
     fn engine_note_once() {
         use crate::meta::Group;
-        assert_eq!(super::boxes(false, |_| true), Group::ALL);
-        assert_eq!(super::boxes(true, |_| true), [Group::File]);
-        assert!(super::boxes(true, |g| g != Group::File).is_empty());
-        assert_eq!(super::boxes(false, |g| g != Group::Camera).len(), Group::ALL.len() - 1);
+        assert_eq!(super::boxes(false, false, |_| true), [Group::File, Group::Camera, Group::Shot, Group::Image, Group::Gps]);
+        assert_eq!(super::boxes(true, false, |_| true), [Group::File]);
+        assert!(super::boxes(true, false, |g| g != Group::File).is_empty());
+        assert_eq!(super::boxes(false, false, |g| g != Group::Camera).len(), 4);
+        // A drawing: its properties beside the File box, nothing of a photo.
+        assert_eq!(super::boxes(false, true, |_| true), [Group::File, Group::Drawing]);
     }
 
     #[test]
