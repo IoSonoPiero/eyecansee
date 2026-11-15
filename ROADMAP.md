@@ -63,6 +63,10 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Image editor: rotate, flip, size and arrange a pasted piece of image ([#132](https://github.com/IoSonoPiero/eyecansee/issues/132)).
 - Image editor: rotate shapes, text, stamps and blur or pixelate filters by a handle ([#137](https://github.com/IoSonoPiero/eyecansee/issues/137)).
 - Image editor: light and colour corrections (exposure, saturation, automatic levels, colour temperature, invert) ([#60](https://github.com/IoSonoPiero/eyecansee/issues/60)).
+- Image editor: magic wand and fill by colour ([#146](https://github.com/IoSonoPiero/eyecansee/issues/146)).
+- Image editor: clone stamp ([#147](https://github.com/IoSonoPiero/eyecansee/issues/147)).
+- Image editor: recolour ([#148](https://github.com/IoSonoPiero/eyecansee/issues/148)).
+- Image editor: gradient ([#149](https://github.com/IoSonoPiero/eyecansee/issues/149)).
 - Save in another format: a Cancel button ([#106](https://github.com/IoSonoPiero/eyecansee/issues/106)).
 - Convert and resize: a clearer summary when the work is done ([#134](https://github.com/IoSonoPiero/eyecansee/issues/134)).
 - Prepare for sharing: resize, convert, remove metadata and stay under a file size, in one step ([#115](https://github.com/IoSonoPiero/eyecansee/issues/115)).
