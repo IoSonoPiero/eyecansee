@@ -94,6 +94,7 @@ impl App {
             batch_summary: None,
             pan: egui::Vec2::ZERO,
             zoom_shown: 1.0,
+            zoom_bar: Default::default(),
             wheel_notches: 0.0,
             pending: HashSet::new(),
             thumb_size: 160.0,

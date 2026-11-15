@@ -183,6 +183,7 @@ mod xmp;
 mod xmp_ext;
 mod xmp_fields;
 mod zoom;
+mod zoom_bar;
 #[cfg(test)]
 mod help_check;
 
@@ -393,6 +394,8 @@ struct App {
     pan: egui::Vec2,
     /// Zoom shown, for the status bar.
     zoom_shown: f32,
+    /// The zoom's limits for the status bar, and the zoom it asks for (`zoom_bar`).
+    zoom_bar: zoom::Bar,
     /// Wheel turned towards the next image, in notches, when the wheel changes image.
     wheel_notches: f32,
     /// Viewer images already requested from the loader.

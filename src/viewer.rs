@@ -219,9 +219,10 @@ impl App {
 
     /// The open image, fitted to the window or zoomed (as GNOME's viewer, Loupe): the wheel ×1.3 a
     /// notch around the pointer (or the next image, see `wheel_zoom`; Ctrl and the wheel always
-    /// zoom), + and − ×1.5 around the centre, 0 fitted, 1 at 100%, dragging moves the zoomed image.
-    /// Never smaller than fitted (or than 100%, when smaller), never larger than `max_zoom`;
-    /// percentages count the file's own pixels (`zoom`).
+    /// zoom), + and − ×1.5 around the centre, 0 fitted, 1 at 100%, dragging moves the zoomed image;
+    /// the zoom typed or set with the slider in the status bar (`zoom_bar`, issue #152). A picture
+    /// goes below fitted, centred, down to `zoom::below_fit` (a drawing stops at fitted); never
+    /// larger than `max_zoom`; percentages count the file's own pixels (`zoom`).
     #[allow(clippy::too_many_lines)] // to be split
     fn zoom_view(&mut self, ui: &egui::Ui, response: &egui::Response, tex: &crate::mipmap::Picture, current: usize) {
         let rect = response.rect;
@@ -249,7 +250,11 @@ impl App {
         // A layout of a drawing has no file pixels: its percentages stay the texture's.
         let own = if sheet.is_some() { None } else { self.files().get(current).and_then(|f| self.own_sizes.get(&f.path).copied()) };
         let per = zoom::file_per_texture(own, tex.size());
-        let bounds = zoom::bounds((rect.width() * ppp / t.x).min(rect.height() * ppp / t.y), per, self.settings.max_zoom);
+        let cad = self.files().get(current).is_some_and(|f| crate::cad::is_cad(&f.path));
+        let mut bounds = zoom::bounds((rect.width() * ppp / t.x).min(rect.height() * ppp / t.y), per, self.settings.max_zoom);
+        if !cad {
+            bounds = zoom::below_fit(bounds, per, t.x.min(t.y));
+        }
         let fit = bounds.fit;
         let scale = self.zoom.unwrap_or(fit).clamp(bounds.low, bounds.max);
 
@@ -298,7 +303,13 @@ impl App {
         if actual {
             target = bounds.actual;
         }
-        let target = zoom::settle(scale, target, bounds);
+        let target = match self.zoom_bar.ask.take() {
+            Some(asked) => {
+                anchor = rect.center();
+                zoom::reach(asked * per, bounds)
+            }
+            None => zoom::settle(scale, target, bounds),
+        };
         if fitted || target == fit {
             (self.zoom, self.pan) = (None, t / 2.0);
         } else if target != scale {
@@ -315,7 +326,9 @@ impl App {
         let painter = ui.painter_at(rect);
         let (dest, uv) = match self.zoom {
             Some(scale) => {
-                if response.hovered() {
+                // The hand only where there is something to move: not on a picture smaller than the window.
+                let larger = t * scale / ppp;
+                if response.hovered() && (larger.x > rect.width() + 0.5 || larger.y > rect.height() + 0.5) {
                     ui.ctx().set_cursor_icon(if response.dragged() { egui::CursorIcon::Grabbing } else { egui::CursorIcon::Grab });
                 }
                 paint::paint_zoomed(&painter, rect, tex, scale, &mut self.pan, self.turn)
@@ -330,10 +343,11 @@ impl App {
         // A CAD drawing: drawn again sharp once the view stops.
         self.cad_sharpen(ui, current, tex.size_vec2(), dest, uv);
         self.cad_measure(ui, response, current, dest, uv);
-        if self.files().get(current).is_some_and(|f| crate::cad::is_cad(&f.path)) && self.turn.is_none() {
+        if cad && self.turn.is_none() {
             crate::cad_view::ucs_corner(&painter, rect);
         }
         self.zoom_shown = zoom::of_file(self.zoom.unwrap_or(fit), per);
+        self.zoom_bar.range = [zoom::of_file(bounds.low, per), zoom::of_file(bounds.max, per)];
     }
 }
 

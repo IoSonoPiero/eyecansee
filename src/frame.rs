@@ -119,7 +119,10 @@ impl App {
                     let status = egui::Panel::bottom("viewer-status").frame(bar).show(ui, |ui| self.viewer_status(ui, current));
                     // The keys of the viewer: listed while the button is pointed at, or until it is
                     // clicked again.
-                    let [keys, layers, copy] = status.inner;
+                    let ([keys, layers, copy], zoom_asked) = status.inner;
+                    if zoom_asked.is_some() {
+                        self.zoom_bar.ask = zoom_asked;
+                    }
                     self.section_slider(ctx);
                     if copy.is_some_and(|b| b.clicked()) {
                         self.copy_measure(ctx);

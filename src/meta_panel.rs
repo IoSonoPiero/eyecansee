@@ -229,10 +229,12 @@ impl App {
     /// Status bar of the viewer, like the grid's: name, position, pixels, size on disk, date
     /// taken (or modified, without EXIF or with the metadata boxes closed).
     /// The Keys button (`keys_window`), on a CAD drawing with layers the Layers button, and while
-    /// measuring with results Copy.
-    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) -> [Option<egui::Response>; 3] {
+    /// measuring with results Copy; on a picture the zoom to type and its slider (`zoom_bar`),
+    /// with the zoom they ask for.
+    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) -> ([Option<egui::Response>; 3], Option<f32>) {
         let files = self.files();
-        let Some(f) = files.get(current) else { return [None, None, None] };
+        let Some(f) = files.get(current) else { return ([None, None, None], None) };
+        let mut zoom_asked = None;
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
         // On more rows in a narrow window (`bar_rows`): the date went under Keys at 520 px.
         crate::bar_rows::rows(ui, |ui| {
@@ -275,7 +277,7 @@ impl App {
                 ui.separator();
                 ui.label(self.i18n.t_args("convert-pixels", &[("w", &w.to_string()), ("h", &h.to_string())]));
                 ui.separator();
-                ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
+                zoom_asked = self.zoom_controls(ui);
                 if let Some(page) = self.frames_status(&f.path) {
                     ui.separator();
                     ui.label(page);
@@ -305,7 +307,7 @@ impl App {
                 ui.separator();
                 ui.label(date);
             }
-            self.status_buttons(ui, current)
+            (self.status_buttons(ui, current), zoom_asked)
         })
     }
 

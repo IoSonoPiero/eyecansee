@@ -1014,6 +1014,8 @@ kept-saved = Salvata come **{ $path }**.
 status-modified = Modificata, non salvata
 status-saving = Salvataggio in corso…
 status-preparing = Preparo il salvataggio…
+zoom-field-hint = Zoom: clic per scrivere una percentuale, poi Invio (Esc: come prima)
+zoom-slider-hint = Zoom: trascina per ingrandire o rimpicciolire la foto
 batch-turn-confirm = { $n ->
     [one] **1 immagine** verrà modificata e salvata sopra l'originale.
    *[other] Fino a **{ $n } immagini** verranno modificate e salvate sopra gli originali.
