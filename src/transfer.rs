@@ -129,26 +129,7 @@ pub async fn run(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: 
 async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress, gone: &mut Vec<String>) -> Result<(), Error> {
     let same = clip.base == to_base;
     let present = to.names(to_dir).await?;
-    let mut taken = present.clone();
-    // (source, destination, there is already an item with that name)
-    let mut plan = Vec::new();
-    for src in &clip.paths {
-        let own = name(src);
-        let choice = match (same && parent(src) == to_dir, clip.cut) {
-            (true, true) => continue,
-            (true, false) => Choice::KeepBoth,
-            _ => choices.get(src).copied().unwrap_or(Choice::Replace),
-        };
-        // Under gvfs nothing is replaced, not even an item that came after the question: both stay.
-        let choice = if choice == Choice::Replace && taken.contains(own) && !can_replace(to, to_dir) { Choice::KeepBoth } else { choice };
-        let dest_name = match choice {
-            Choice::Skip => continue,
-            Choice::KeepBoth => free_name(&taken, own),
-            Choice::Replace => own.to_string(),
-        };
-        taken.insert(dest_name.clone());
-        plan.push((src.clone(), format!("{to_dir}{dest_name}{}", if src.ends_with('/') { "/" } else { "" }), present.contains(&dest_name)));
-    }
+    let plan = planned(clip, to, to_dir, same, choices, &present);
 
     // On the same device a move is a rename, unless a folder has to merge into an existing one;
     // if the rename fails (another disk: different file system) the files are copied. On this
@@ -219,6 +200,31 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
         }
     }
     Ok(())
+}
+
+/// What goes where: (source, destination, there is already an item with that name), as the
+/// answers to the conflicts (`choices`) say; `present`: the names in `to_dir`.
+fn planned(clip: &Clip, to: &Store, to_dir: &str, same: bool, choices: &HashMap<String, Choice>, present: &HashSet<String>) -> Vec<(String, String, bool)> {
+    let mut taken = present.clone();
+    let mut plan = Vec::new();
+    for src in &clip.paths {
+        let own = name(src);
+        let choice = match (same && parent(src) == to_dir, clip.cut) {
+            (true, true) => continue,
+            (true, false) => Choice::KeepBoth,
+            _ => choices.get(src).copied().unwrap_or(Choice::Replace),
+        };
+        // Under gvfs nothing is replaced, not even an item that came after the question: both stay.
+        let choice = if choice == Choice::Replace && taken.contains(own) && !can_replace(to, to_dir) { Choice::KeepBoth } else { choice };
+        let dest_name = match choice {
+            Choice::Skip => continue,
+            Choice::KeepBoth => free_name(&taken, own),
+            Choice::Replace => own.to_string(),
+        };
+        taken.insert(dest_name.clone());
+        plan.push((src.clone(), format!("{to_dir}{dest_name}{}", if src.ends_with('/') { "/" } else { "" }), present.contains(&dest_name)));
+    }
+    plan
 }
 
 /// The names already in the destination folders of a merge, each folder read once, when its first
