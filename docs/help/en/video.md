@@ -30,7 +30,7 @@ The volume and the audio off stay for the next videos and the next time EyeCanSe
 | ←, Backspace, Page Up | Previous file |
 | Home, End | First, last file |
 | Esc, double click | Back to the grid |
-| F11 | Full screen: the video alone |
+| F11 | Full screen: the video alone, its bar over the picture while the mouse moves |
 
 **F2** renames the video and **Del** deletes it, as for pictures. The **Keys** button in the status bar lists these keys.
 

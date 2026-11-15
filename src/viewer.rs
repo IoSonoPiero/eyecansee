@@ -6,6 +6,11 @@ use crate::navigation::Go;
 use crate::actions::Act;
 use crate::{AROUND, App, browser, paint, source, zoom};
 
+/// The window is at full screen (F11).
+pub(crate) fn full_screen(ctx: &egui::Context) -> bool {
+    ctx.input(|i| i.viewport().fullscreen.unwrap_or(false))
+}
+
 impl App {
     pub(crate) fn viewer_keys(&mut self, ctx: &egui::Context) {
         if ctx.egui_wants_keyboard_input() {
@@ -47,7 +52,7 @@ impl App {
             }
         }
         // Esc in full screen leaves it first, with the bars back; then the viewer.
-        if close && ctx.input(|i| i.viewport().fullscreen.unwrap_or(false)) {
+        if close && full_screen(ctx) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
         } else if close {
             self.close_viewer();

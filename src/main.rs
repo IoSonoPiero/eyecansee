@@ -153,6 +153,7 @@ mod vault_page;
 mod video;
 mod video_copy;
 mod video_turn;
+mod video_full;
 mod video_read;
 mod viewer;
 mod watch;
