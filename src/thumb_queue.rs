@@ -185,14 +185,15 @@ const HEAD: u64 = 256 * 1024;
 /// without partial reads would copy the whole video first: nothing then (the viewer reads it
 /// when the video is opened). Without the video engine nothing is read either.
 async fn video_info(op: &Store, base: &str, file: &File) -> Option<crate::thumb_details::Info> {
-    let (b, f) = (base.to_string(), file.clone());
-    let saved = tokio::task::spawn_blocking(move || thumbcache::load_meta(&b, &f)).await.ok().flatten();
+    let key = crate::video_read::meta_key(op, file).await;
+    let (b, k) = (base.to_string(), key.clone());
+    let saved = tokio::task::spawn_blocking(move || thumbcache::load_meta(&b, &k)).await.ok().flatten();
     let meta = match saved.as_deref().and_then(crate::meta::Meta::from_json) {
         Some(meta) => meta,
         None if crate::video_read::whole_only(op) || !crate::mpv_load::available() => return Some(Default::default()),
         None => {
             let meta = crate::video_read::video_meta(op, &file.path).await.ok().flatten()?;
-            thumbcache::save_meta(base, file, meta.to_json());
+            thumbcache::save_meta(base, &key, meta.to_json());
             meta
         }
     };

@@ -555,9 +555,11 @@ impl Loader {
         let permits = self.full.clone();
         self.rt.spawn(async move {
             // From the cache first, without waiting for a place: what was read once comes at once.
+            // A video's key counts the files beside it too (`video_read::meta_key`).
+            let key = crate::video_read::meta_key(&op, &file).await;
             let saved = {
-                let (base, file) = (base.clone(), file.clone());
-                tokio::task::spawn_blocking(move || thumbcache::load_meta(&base, &file)).await.ok().flatten()
+                let (base, key) = (base.clone(), key.clone());
+                tokio::task::spawn_blocking(move || thumbcache::load_meta(&base, &key)).await.ok().flatten()
             };
             if let Some(meta) = saved.as_deref().and_then(crate::meta::Meta::from_json) {
                 let _ = tx.send(Msg::Meta { generation, index, meta: Ok(Some(meta)) });
@@ -579,7 +581,7 @@ impl Loader {
                 }
             };
             if let Ok(Some(m)) = &meta {
-                thumbcache::save_meta(&base, &file, m.to_json());
+                thumbcache::save_meta(&base, &key, m.to_json());
             }
             let _ = tx.send(Msg::Meta { generation, index, meta });
             ctx.request_repaint();

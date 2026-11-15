@@ -19,10 +19,15 @@ const UP: usize = 4;
 /// The points recorded from `start` to `end` (Unix seconds) by the dashcam whose card holds
 /// `video`; empty without a track.
 pub fn points(video: &Path, start: i64, end: i64) -> Vec<Point> {
-    let Some(db) = video.ancestors().skip(1).take(UP).map(|d| d.join("gps.sqlite")).find(|p| p.is_file()) else {
+    let Some(db) = db_of(video) else {
         return Vec::new();
     };
     read(&db, start, end).unwrap_or_default()
+}
+
+/// The dashcam's `gps.sqlite` for `video`, in its folder or up to `UP` folders above.
+pub fn db_of(video: &Path) -> Option<std::path::PathBuf> {
+    video.ancestors().skip(1).take(UP).map(|d| d.join("gps.sqlite")).find(|p| p.is_file())
 }
 
 fn read(db: &Path, start: i64, end: i64) -> rusqlite::Result<Vec<Point>> {
