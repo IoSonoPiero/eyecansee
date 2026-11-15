@@ -528,14 +528,16 @@ impl eframe::App for App {
             return;
         }
         let act = &mut self.act;
-        let clip = self.clip.as_ref();
+        let copied = self.clip.as_ref().map(|c| c.text.as_str());
+        let viewing = self.viewing.is_some();
         raw_input.events.retain(|e| {
             *act = match e {
                 egui::Event::Copy => Some(Act::Copy(None)),
                 egui::Event::Cut if shift_del => Some(Act::Delete(None, true)),
                 egui::Event::Cut => Some(Act::Cut(None)),
-                egui::Event::Paste(text) if clip.is_some_and(|c| transfer::on_clipboard(&c.text, text)) => Some(Act::PasteNow(paste_to.clone())),
-                // Something copied in another program since: not the old files.
+                egui::Event::Paste(text) if transfer::pastes_items(viewing, copied, text) => Some(Act::PasteNow(paste_to.clone())),
+                // In the viewer (Edit > Paste is greyed out there), or something copied in another
+                // program since: not the old files.
                 egui::Event::Paste(_) => return false,
                 _ => return true,
             };
