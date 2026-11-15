@@ -115,6 +115,7 @@ mod model_vrml;
 mod model_x3d;
 mod model_view;
 mod mipmap;
+mod smooth_gpu;
 mod motion;
 mod motion_view;
 mod mp4;
@@ -599,6 +600,7 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.pace(frame);
+        smooth_gpu::new_frame();
         let ctx = ui.ctx().clone();
         #[cfg(feature = "shots")]
         self.shots_tick(&ctx);

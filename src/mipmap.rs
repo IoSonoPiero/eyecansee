@@ -96,9 +96,14 @@ impl Picture {
 
     /// The texture to draw at `scale` screen pixels per pixel of the picture.
     pub(crate) fn id_at(&self, scale: f32) -> TextureId {
+        self.texture_at(scale).id()
+    }
+
+    /// The copy for `scale` screen pixels per pixel of the picture.
+    pub(crate) fn texture_at(&self, scale: f32) -> &TextureHandle {
         match level(scale, self.halves.len()) {
-            0 => self.tex.id(),
-            l => self.halves[l - 1].id(),
+            0 => &self.tex,
+            l => &self.halves[l - 1],
         }
     }
 

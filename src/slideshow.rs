@@ -273,9 +273,8 @@ fn paint_passage(p: &egui::Painter, rect: Rect, from: Option<&Picture>, to: &Pic
     let ppp = p.ctx().pixels_per_point();
     let uv = Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
     let draw = |tex: &Picture, scale: f32, dx: f32, alpha: f32| {
-        let dest = fitted(rect, tex, ppp, scale, dx);
-        // Smaller than its pixels: from the halved copy of its size (`mipmap`).
-        p.image(tex.id_at(dest.width() * ppp / tex.size_vec2().x), dest, uv, Color32::WHITE.gamma_multiply(alpha.clamp(0.0, 1.0)));
+        // Smaller than its pixels: filtered as in the viewer (`paint`).
+        crate::paint::paint_tinted(p, tex, fitted(rect, tex, ppp, scale, dx), uv, Default::default(), Color32::WHITE.gamma_multiply(alpha.clamp(0.0, 1.0)));
     };
     let Some(from) = from.filter(|_| t < 1.0 && fade != Fade::None) else {
         draw(to, 1.0, 0.0, 1.0);
