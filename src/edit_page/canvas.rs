@@ -370,25 +370,7 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
     if response.drag_started()
         && let Some(s) = ui.input(|i| i.pointer.press_origin()).or(response.interact_pointer_pos())
     {
-        let p = view.doc(s, angle);
-        let on_handle = handle_at(w, view, s);
-        w.hold = Some(match w.tool {
-            _ if pan => Hold::Pan { at: view.at, k: view.k, from: s },
-            // The round handle above the selected object turns it, with any tool.
-            _ if let Some(index) = turn_at(w, view, s) => Hold::Turn { index, start: w.doc.objects[index].clone() },
-            // Resizing the selected object needs no change of tool.
-            Tool::Draw(_) if let Some((index, handle)) = on_handle => Hold::Handle { index, handle, start: w.doc.objects[index].clone() },
-            // Placed with a click: a drag moves the view.
-            Tool::Draw(Kind::Text | Kind::Step | Kind::Stamp) => Hold::Pan { at: view.at, k: view.k, from: s },
-            Tool::Draw(kind) => Hold::Draw { kind, from: p, index: None },
-            _ => picked(w, view, s, p, tol),
-        });
-        // A text or bubble being typed is let go of when turned: the field over it stays upright,
-        // the letters under it turn (seen on 2026-11-15).
-        if matches!(w.hold, Some(Hold::Turn { .. })) {
-            w.editing = None;
-            w.focus_text = false;
-        }
+        drag_started(w, view, s, pan, tol);
     }
     if let (Some(mut hold), Some(s)) = (w.hold.take(), response.interact_pointer_pos()) {
         let p = view.doc(s, angle);
@@ -435,6 +417,31 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
     }
     if response.hovered() {
         wheel(ui, w, view, rect, false);
+    }
+}
+
+/// A drag started at `s` on the screen with the left button (`pan`: with the right or middle
+/// one): what it holds, `Window::hold`.
+fn drag_started(w: &mut Window, view: &View, s: Pos2, pan: bool, tol: f32) {
+    let angle = w.doc.angle;
+    let p = view.doc(s, angle);
+    let on_handle = handle_at(w, view, s);
+    w.hold = Some(match w.tool {
+        _ if pan => Hold::Pan { at: view.at, k: view.k, from: s },
+        // The round handle above the selected object turns it, with any tool.
+        _ if let Some(index) = turn_at(w, view, s) => Hold::Turn { index, start: w.doc.objects[index].clone() },
+        // Resizing the selected object needs no change of tool.
+        Tool::Draw(_) if let Some((index, handle)) = on_handle => Hold::Handle { index, handle, start: w.doc.objects[index].clone() },
+        // Placed with a click: a drag moves the view.
+        Tool::Draw(Kind::Text | Kind::Step | Kind::Stamp) => Hold::Pan { at: view.at, k: view.k, from: s },
+        Tool::Draw(kind) => Hold::Draw { kind, from: p, index: None },
+        _ => picked(w, view, s, p, tol),
+    });
+    // A text or bubble being typed is let go of when turned: the field over it stays upright,
+    // the letters under it turn (seen on 2026-11-15).
+    if matches!(w.hold, Some(Hold::Turn { .. })) {
+        w.editing = None;
+        w.focus_text = false;
     }
 }
 
