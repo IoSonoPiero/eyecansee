@@ -14,6 +14,7 @@ use crate::edit::geom::Kind;
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
 use crate::transform::Op;
+use crate::zoom::Ask as ZoomAsk;
 
 /// The tools: icon, name, key (alone, no Ctrl).
 pub(super) const TOOLS: [(Tool, Line, &str, Key); 16] = [
@@ -234,19 +235,14 @@ impl App {
                 // Blue on white, as the viewer's: the bar makes every text white.
                 let keys = ui.add(egui::Button::new(egui::RichText::new(i18n.t("keys-button")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE));
                 ui.separator();
-                let ctx = ui.ctx().clone();
-                let white = |icon| egui::Button::image(icons::line_in(&ctx, icon, 16.0, Color32::WHITE)).frame(false);
-                if ui.add(white(Line::ZoomIn)).on_hover_text(tip(i18n, "edit-zoom-in", "+")).clicked() {
-                    w.zoom(1.25);
-                }
-                // The percentage to type and the slider, as in the viewer (#152).
+                // −, the percentage to type, the slider and +, as in the viewer (#152).
                 let ppp = ui.ctx().pixels_per_point();
                 let range = [super::ZOOM_LEAST * ppp, super::ZOOM_MOST * ppp];
-                if let Some(zoom) = crate::zoom_bar::controls(ui, i18n, super::ZOOM_SALT, shown_zoom(w.shown.1, ppp), range) {
-                    w.zoom_to(zoom, ppp);
-                }
-                if ui.add(white(Line::ZoomOut)).on_hover_text(tip(i18n, "edit-zoom-out", "−")).clicked() {
-                    w.zoom(0.8);
+                match crate::zoom_bar::group(ui, i18n, super::ZOOM_SALT, shown_zoom(w.shown.1, ppp), range) {
+                    Some(ZoomAsk::In) => w.zoom(1.25),
+                    Some(ZoomAsk::Out) => w.zoom(0.8),
+                    Some(ZoomAsk::To(zoom)) => w.zoom_to(zoom, ppp),
+                    None => {}
                 }
                 ui.separator();
                 ui.add(egui::Label::new(i18n.t(status_hint(w.picking, w.tool))).truncate());

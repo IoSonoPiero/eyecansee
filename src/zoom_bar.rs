@@ -8,7 +8,8 @@
 use eframe::egui;
 
 use crate::i18n::I18n;
-use crate::{App, zoom};
+use crate::zoom::{self, Ask};
+use crate::App;
 
 /// The slider's length, in points: room for a mark every 6 points over the zooms of the Options.
 const SLIDER: f32 = 120.0;
@@ -24,16 +25,33 @@ struct Typing {
 }
 
 impl App {
-    /// The viewer's percentage and slider: the zoom asked, of the file's pixels.
-    pub(crate) fn zoom_controls(&self, ui: &mut egui::Ui) -> Option<f32> {
-        controls(ui, &self.i18n, "viewer-zoom", self.zoom_shown, self.zoom_bar.range)
+    /// The viewer's zoom group, at the right of its status bar beside Keys: the zoom asked, of
+    /// the file's pixels.
+    pub(crate) fn zoom_group(&self, ui: &mut egui::Ui) -> Option<Ask> {
+        group(ui, &self.i18n, "viewer-zoom", self.zoom_shown, self.zoom_bar.range)
+    }
+}
+
+/// −, the percentage, the slider and + (#152), as in Paint, Paint.NET, Windows Photos and Word:
+/// at the right of a status bar drawn from the right, beside Keys.
+pub(crate) fn group(ui: &mut egui::Ui, i18n: &I18n, salt: &str, shown: f32, range: [f32; 2]) -> Option<Ask> {
+    let ctx = ui.ctx().clone();
+    let white = |icon| egui::Button::image(crate::icons::line_in(&ctx, icon, 16.0, egui::Color32::WHITE)).frame(false);
+    let hint = |id: &str, key: &str| format!("{} ({key})", i18n.t(id));
+    let zoom_in = ui.add(white(crate::icons::Line::ZoomIn)).on_hover_text(hint("edit-zoom-in", "+")).clicked();
+    let asked = controls(ui, i18n, salt, shown, range).map(Ask::To);
+    let zoom_out = ui.add(white(crate::icons::Line::ZoomOut)).on_hover_text(hint("edit-zoom-out", "−")).clicked();
+    match () {
+        _ if zoom_in => Some(Ask::In),
+        _ if zoom_out => Some(Ask::Out),
+        _ => asked,
     }
 }
 
 /// The percentage of `shown` (1 = 100%) and the slider from `range[0]` to `range[1]`, kept
 /// together on a row of the bar (`bar_rows`), in reading order also in a bar drawn from the
 /// right: the zoom asked by either. `salt` tells the field of one bar from another's.
-pub(crate) fn controls(ui: &mut egui::Ui, i18n: &I18n, salt: &str, shown: f32, range: [f32; 2]) -> Option<f32> {
+fn controls(ui: &mut egui::Ui, i18n: &I18n, salt: &str, shown: f32, range: [f32; 2]) -> Option<f32> {
     ui.horizontal(|ui| {
         if ui.layout().prefer_right_to_left() {
             let slid = slider(ui, i18n, shown, range);

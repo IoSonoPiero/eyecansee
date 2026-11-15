@@ -73,14 +73,24 @@ pub fn of_file(scale: f32, per: f32) -> f32 {
     scale / per
 }
 
+/// What the zoom group of a status bar asks for (`zoom_bar::group`).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Ask {
+    /// A zoom typed or set with the slider, of the file's pixels (1 = 100%).
+    To(f32),
+    /// The − and + buttons, as the − and + keys.
+    Out,
+    In,
+}
+
 /// What the viewer's status bar knows of the zoom and asks of it.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Bar {
     /// The smallest and the largest zoom of the open picture, of its file's pixels (1 = 100%),
     /// from the last pass of the viewer; the slider goes from one to the other.
     pub range: [f32; 2],
-    /// A zoom typed or set with the slider, of the file's pixels, for the viewer to reach.
-    pub ask: Option<f32>,
+    /// What the status bar asked, for the viewer to do.
+    pub ask: Option<Ask>,
 }
 
 /// The zoom typed in the status bar, of the file's pixels (`37`, `37%`, ` 37,5 % ` are 0.37 and

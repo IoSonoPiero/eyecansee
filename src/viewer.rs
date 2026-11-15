@@ -220,7 +220,7 @@ impl App {
     /// The open image, fitted to the window or zoomed (as GNOME's viewer, Loupe): the wheel ×1.3 a
     /// notch around the pointer (or the next image, see `wheel_zoom`; Ctrl and the wheel always
     /// zoom), + and − ×1.5 around the centre, 0 fitted, 1 at 100%, dragging moves the zoomed image;
-    /// the zoom typed or set with the slider in the status bar (`zoom_bar`, issue #152). A picture
+    /// the zoom typed, set with the slider or with − and + in the status bar (`zoom_bar`, #152). A picture
     /// goes below fitted, centred, down to `zoom::below_fit` (a drawing stops at fitted); never
     /// larger than `max_zoom`; percentages count the file's own pixels (`zoom`).
     #[allow(clippy::too_many_lines)] // to be split
@@ -285,6 +285,7 @@ impl App {
             self.wheel_notches -= self.wheel_notches.signum();
             self.go(if forward { Go::Next } else { Go::Prev });
         }
+        let asked = self.zoom_bar.ask.take();
         let (zoom_in, zoom_out, fitted, actual) = if ui.ctx().egui_wants_keyboard_input() {
             (false, false, false, false)
         } else {
@@ -293,6 +294,8 @@ impl App {
                 (key(Key::Plus) || key(Key::Equals), key(Key::Minus), key(Key::Num0), key(Key::Num1))
             })
         };
+        // The − and + of the status bar do as the keys.
+        let (zoom_in, zoom_out) = (zoom_in || asked == Some(zoom::Ask::In), zoom_out || asked == Some(zoom::Ask::Out));
 
         let mut target = scale * 1.3f32.powf(wheel) * pinch;
         let mut anchor = response.hover_pos().filter(|_| wheel != 0.0 || pinch != 1.0).unwrap_or(rect.center());
@@ -303,12 +306,12 @@ impl App {
         if actual {
             target = bounds.actual;
         }
-        let target = match self.zoom_bar.ask.take() {
-            Some(asked) => {
+        let target = match asked {
+            Some(zoom::Ask::To(asked)) => {
                 anchor = rect.center();
                 zoom::reach(asked * per, bounds)
             }
-            None => zoom::settle(scale, target, bounds),
+            _ => zoom::settle(scale, target, bounds),
         };
         if fitted || target == fit {
             (self.zoom, self.pan) = (None, t / 2.0);

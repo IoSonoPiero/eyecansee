@@ -36,7 +36,7 @@ Una foto in movimento (Google Pixel, Samsung, Xiaomi e altri telefoni) contiene 
 
 - La **rotellina del mouse** ingrandisce e rimpicciolisce attorno al puntatore; **+** e **−** attorno al centro della finestra. Sul touchpad, avvicina o allontana due dita.
 - **0** adatta di nuovo la foto alla finestra; **1** la mostra al 100%, un pixel della foto per ogni pixel dello schermo. Le percentuali contano i pixel del file, anche per una foto molto grande mostrata ridotta e per un disegno SVG (alla grandezza che dichiara).
-- Nella barra di stato in fondo, fai clic sulla percentuale e scrivine un'altra (per esempio **37** e **Invio**; **Esc** la lascia com'era), oppure trascina il cursore accanto: le sue tacche stanno su zoom tondi (10%, 25%, 50%, 100%, 200%…), e più è a sinistra, più la foto è piccola.
+- A destra nella barra di stato, accanto a **Tasti**: ![Riduci](icon://zoom-out) e ![Ingrandisci](icon://zoom-in) fanno come **−** e **+**; fai clic sulla percentuale e scrivine un'altra (per esempio **37** e **Invio**; **Esc** la lascia com'era), oppure trascina il cursore accanto: le sue tacche stanno su zoom tondi (10%, 25%, 50%, 100%, 200%…), e più è a sinistra, più la foto è piccola.
 - Trascina una foto ingrandita per spostarla.
 - Sotto il 100% ogni punto dello schermo mostra la media dei pixel che copre, a ogni zoom: i bordi restano lisci e i dettagli fini (erba, capelli) non diventano granulosi.
 
@@ -44,7 +44,7 @@ Una foto si apre adattata alla finestra, e una foto piccola alla sua grandezza v
 
 ## La barra di stato del visore
 
-In fondo: il nome del file, la sua posizione nella cartella (per esempio 12 / 51), le dimensioni in pixel (le sue, come nel pannello dei metadati, anche quando è mostrata ridotta, e per un disegno SVG quelle che dichiara), l'ingrandimento con il suo cursore (vedi Ingrandire, sopra), il peso su disco e la sua data: quella dello scatto se i metadati sono già stati letti nella griglia, altrimenti quella di modifica del file. Dopo una rotazione non ancora salvata dice anche **Modificata, non salvata**.
+In fondo: il nome del file, la sua posizione nella cartella (per esempio 12 / 51), le dimensioni in pixel (le sue, come nel pannello dei metadati, anche quando è mostrata ridotta, e per un disegno SVG quelle che dichiara), il peso su disco e la sua data: quella dello scatto se i metadati sono già stati letti nella griglia, altrimenti quella di modifica del file. Dopo una rotazione non ancora salvata dice anche **Modificata, non salvata**. A destra, su una foto, lo zoom con i suoi pulsanti e il cursore (vedi Ingrandire, sopra).
 
 Il pulsante **Tasti** a destra elenca i tasti di ciò che stai guardando (una foto, un video, un modello 3D o un disegno CAD): finché il mouse ci sta sopra, o finché non ci fai clic di nuovo.
 

@@ -229,12 +229,12 @@ impl App {
     /// Status bar of the viewer, like the grid's: name, position, pixels, size on disk, date
     /// taken (or modified, without EXIF or with the metadata boxes closed).
     /// The Keys button (`keys_window`), on a CAD drawing with layers the Layers button, and while
-    /// measuring with results Copy; on a picture the zoom to type and its slider (`zoom_bar`),
-    /// with the zoom they ask for.
-    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) -> ([Option<egui::Response>; 3], Option<f32>) {
+    /// measuring with results Copy; on a picture the zoom group beside Keys (`zoom_bar`), with
+    /// what it asks for.
+    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) -> ([Option<egui::Response>; 3], Option<crate::zoom::Ask>) {
         let files = self.files();
         let Some(f) = files.get(current) else { return ([None, None, None], None) };
-        let mut zoom_asked = None;
+        let mut zoom_on = false;
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
         // On more rows in a narrow window (`bar_rows`): the date went under Keys at 520 px.
         crate::bar_rows::rows(ui, |ui| {
@@ -276,8 +276,7 @@ impl App {
                 let (w, h) = if self.turn.sideways() { (h, w) } else { (w, h) };
                 ui.separator();
                 ui.label(self.i18n.t_args("convert-pixels", &[("w", &w.to_string()), ("h", &h.to_string())]));
-                ui.separator();
-                zoom_asked = self.zoom_controls(ui);
+                zoom_on = true;
                 if let Some(page) = self.frames_status(&f.path) {
                     ui.separator();
                     ui.label(page);
@@ -307,13 +306,14 @@ impl App {
                 ui.separator();
                 ui.label(date);
             }
-            (self.status_buttons(ui, current), zoom_asked)
+            self.status_buttons(ui, current, zoom_on)
         })
     }
 
-    /// The right of the viewer's status bar: Keys, Layers on a drawing with layers, and while
-    /// measuring the results (or how to go on) with Copy.
-    fn status_buttons(&self, ui: &mut Ui, current: usize) -> [Option<egui::Response>; 3] {
+    /// The right of the viewer's status bar: Keys, on a picture (`zoom_on`) the zoom group beside
+    /// it (#152), Layers on a drawing with layers, and while measuring the results (or how to go
+    /// on) with Copy. Together they go on a row of their own when they do not fit (`bar_rows`).
+    fn status_buttons(&self, ui: &mut Ui, current: usize, zoom_on: bool) -> ([Option<egui::Response>; 3], Option<crate::zoom::Ask>) {
         // On the right, out of the way: the keys, listed when asked. Blue on
         // white: the bar makes every text white, and the button was white on white.
         let button = |id: &str| egui::Button::new(egui::RichText::new(self.i18n.t(id)).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
@@ -322,6 +322,10 @@ impl App {
         let measure = self.measure_status();
         crate::bar_rows::right_end(ui, "viewer-status", |ui| {
             let keys = self.keys_hint(current).map(|_| self.keys_button(ui));
+            let zoom = zoom_on.then(|| {
+                ui.separator();
+                self.zoom_group(ui)
+            });
             let layers = layers_on.then(|| ui.add(layers).on_hover_text(self.i18n.t("key-layers")));
             // While measuring: the results (or how to go on) take the room left, Copy beside.
             let copy = measure.as_ref().and_then(|(_, results)| results.then(|| ui.add(copy).on_hover_text("Ctrl+C")));
@@ -331,7 +335,7 @@ impl App {
                 ui.separator();
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| ui.add(egui::Label::new(egui::RichText::new(&text).strong()).truncate()).on_hover_text(&text));
             }
-            ([keys, layers, copy], need)
+            (([keys, layers, copy], zoom.flatten()), need)
         })
     }
 
