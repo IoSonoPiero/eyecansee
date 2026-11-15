@@ -302,7 +302,7 @@ impl Mpv {
     /// (opaque, so premultiplied or not is the same).
     fn draw_frame(&self, size: [u32; 2], wait: bool) -> ColorImage {
         let [w, h] = size;
-        let mut pixels = vec![Color32::BLACK; w as usize * h as usize];
+        let mut pixels = zeroed_pixels(w as usize * h as usize);
         // SAFETY: Color32 is four u8 in the order r, g, b, a (repr(C)).
         let bytes = unsafe { std::slice::from_raw_parts_mut(pixels.as_mut_ptr() as *mut u8, pixels.len() * 4) };
         self.draw_into(size, wait, bytes);
@@ -327,6 +327,24 @@ impl Mpv {
         unsafe { (self.api.render)(self.render, params.as_mut_ptr()) };
         // "rgb0": the fourth byte is undefined.
         pixels.as_chunks_mut::<4>().0.iter_mut().for_each(|p| p[3] = 255);
+    }
+}
+
+/// `n` pixels to draw into, from memory the system gives already zeroed: no pass to fill them
+/// first, which mpv overwrites (2 ms a 4K frame, 0.4 ms at 2560x1440 on IronManL, #17).
+fn zeroed_pixels(n: usize) -> Vec<Color32> {
+    if n == 0 {
+        return Vec::new();
+    }
+    let layout = std::alloc::Layout::array::<Color32>(n).expect("frame size");
+    // SAFETY: zeroed bytes are a valid Color32 (four u8); the Vec gets the pointer with the length
+    // and capacity of the layout it was allocated with, so it frees it with the same layout.
+    unsafe {
+        let ptr = std::alloc::alloc_zeroed(layout) as *mut Color32;
+        if ptr.is_null() {
+            std::alloc::handle_alloc_error(layout);
+        }
+        Vec::from_raw_parts(ptr, n, n)
     }
 }
 
@@ -498,6 +516,12 @@ struct State {
     turn: Option<i64>,
     /// Who asked for the frame shown at the video's own size (`Player::grab`).
     grab: Option<Grab>,
+    /// Frames drawn, frames drawn over before the window took them, time spent drawing, the
+    /// longest draw (#17, written in the log when the video closes).
+    drawn: u64,
+    lost: u64,
+    drawing: Duration,
+    longest: Duration,
 }
 
 /// Called with the frame at the video's own size, from the player's thread.
@@ -578,6 +602,30 @@ impl Player {
         self.mpv.property::<c_int>("eof-reached", FORMAT_FLAG).unwrap_or(0) != 0
     }
 
+    /// How the playback went, in the log when the video closes (#17): frames drawn and lost on
+    /// our side, mpv's own counts, the decoding.
+    fn log_stats(&self) {
+        let st = self.shared.state.lock().unwrap();
+        let (drawn, lost, drawing, longest) = (st.drawn, st.lost, st.drawing, st.longest);
+        drop(st);
+        let int = |p: &str| self.mpv.property::<i64>(p, FORMAT_INT64).unwrap_or(-1);
+        let text = |p: &str| self.mpv.string(p).unwrap_or_default();
+        log!(
+            "video stats: {drawn} frames drawn up to {:.1} s, {lost} drawn over before shown, a draw {:.1} ms on average with its wait (longest {:.1}), mpv dropped {} (decoder {}), delayed {}, {}x{} {} at {} fps, hwdec {}",
+            self.position(),
+            drawing.as_secs_f64() * 1000.0 / drawn.max(1) as f64,
+            longest.as_secs_f64() * 1000.0,
+            int("frame-drop-count"),
+            int("decoder-frame-drop-count"),
+            int("vo-delayed-frame-count"),
+            int("width"),
+            int("height"),
+            text("video-codec"),
+            text("container-fps"),
+            text("hwdec-current"),
+        );
+    }
+
     pub fn pause(&self) {
         let _ = self.mpv.command(&["set", "pause", "yes"]);
     }
@@ -635,6 +683,7 @@ impl Player {
 
 impl Drop for Player {
     fn drop(&mut self) {
+        self.log_stats();
         self.shared.change(|st| st.quit = true);
         if let Some(t) = self.thread.take() {
             let _ = t.join();
@@ -693,8 +742,16 @@ fn draw_loop(mpv: &Mpv, shared: &Shared, repaint: impl Fn()) {
         if size[0] == 0 || size[1] == 0 {
             continue;
         }
+        let start = Instant::now();
         let frame = mpv.draw_frame(size, true);
-        shared.state.lock().unwrap().frame = Some(frame);
+        let took = start.elapsed();
+        let mut st = shared.state.lock().unwrap();
+        st.lost += u64::from(st.frame.is_some());
+        st.frame = Some(frame);
+        st.drawn += 1;
+        st.drawing += took;
+        st.longest = st.longest.max(took);
+        drop(st);
         repaint();
     }
 }
@@ -734,6 +791,15 @@ mod tests {
             }
             self.0.read(offset, len)
         }
+    }
+
+    /// The pixels a frame is drawn into: as many as asked, all zero, freed as any Vec.
+    #[test]
+    fn pixels_come_zeroed() {
+        let p = zeroed_pixels(1920 * 1080);
+        assert_eq!(p.len(), 1920 * 1080);
+        assert!(p.iter().all(|c| *c == Color32::TRANSPARENT));
+        assert!(zeroed_pixels(0).is_empty());
     }
 
     #[test]
@@ -826,6 +892,51 @@ mod tests {
         player.set_volume(250);
         assert_eq!(volume(), Some(100.0));
     }
+
+    /// How fast this computer decodes and draws a video with the software renderer, as fast as it
+    /// can (#17): frames a second at the size of the window, `EYECANSEE_VIDEO_SIZE` (default
+    /// 2560x1440), for 10 s; `EYECANSEE_HWDEC` as mpv's `hwdec`. `EYECANSEE_VIDEO=<file> cargo test --release render_speed_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn render_speed_live() {
+        let file = std::path::PathBuf::from(std::env::var("EYECANSEE_VIDEO").expect("EYECANSEE_VIDEO"));
+        let room = std::env::var("EYECANSEE_VIDEO_SIZE").ok().and_then(|s| s.split_once('x').and_then(|(w, h)| Some([w.parse().ok()?, h.parse().ok()?]))).unwrap_or([2560u32, 1440]);
+        let signal = Arc::new(Signal::default());
+        let s = signal.clone();
+        // `EYECANSEE_HWDEC=no`: decoded by the processor too, as on a computer without a card that decodes it.
+        let hwdec = std::env::var("EYECANSEE_HWDEC").unwrap_or_else(|_| "auto-copy-safe".into());
+        // `EYECANSEE_MPV_OPTS=zimg-scaler=bilinear,zimg-dither=no`: more of mpv's options.
+        let extra = std::env::var("EYECANSEE_MPV_OPTS").unwrap_or_default();
+        let mut options = vec![("hwdec", hwdec.as_str()), ("ao", "null"), ("untimed", "yes"), ("video-sync", "desync")];
+        options.extend(extra.split(',').filter_map(|o| o.split_once('=')));
+        let mpv = Mpv::new(&options, move || s.raise()).unwrap();
+        let mut mpv = mpv;
+        mpv.load(Input::File(file)).unwrap();
+        let start = Instant::now();
+        let (mut frames, mut drawing, mut size) = (0u32, Duration::ZERO, None);
+        while start.elapsed() < Duration::from_secs(10) {
+            signal.wait(Duration::from_millis(100));
+            if mpv.update() & UPDATE_FRAME == 0 {
+                continue;
+            }
+            let Some(video) = size.or_else(|| mpv.size()) else { continue };
+            size = Some(video);
+            let scale = (room[0] as f64 / video[0] as f64).min(room[1] as f64 / video[1] as f64).min(1.0);
+            let drawn = [(video[0] as f64 * scale) as u32, (video[1] as f64 * scale) as u32];
+            let t = Instant::now();
+            let _ = mpv.draw_frame(drawn, false);
+            drawing += t.elapsed();
+            frames += 1;
+        }
+        let secs = start.elapsed().as_secs_f64();
+        println!(
+            "{size:?} drawn into {room:?}: {frames} frames in {secs:.1} s = {:.1} fps, a draw {:.1} ms, hwdec {:?}, dropped {:?}",
+            frames as f64 / secs,
+            drawing.as_secs_f64() * 1000.0 / frames.max(1) as f64,
+            mpv.string("hwdec-current"),
+            mpv.property::<i64>("frame-drop-count", FORMAT_INT64)
+        );
+    }
 }
 
 #[cfg(test)]
@@ -838,4 +949,5 @@ mod info_tests {
         let info = super::info(super::Input::File(file)).unwrap();
         println!("tags: {:?}\nduration {:?} video {:?}", info.tags, info.duration, info.video);
     }
+
 }
