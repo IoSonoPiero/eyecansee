@@ -197,7 +197,7 @@ impl App {
     /// screen, which has no toolbar.
     pub(crate) fn bookmark_keys(&mut self, ctx: &egui::Context) {
         let pressed = ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, egui::Key::D));
-        let bare = self.viewing.is_some() && ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+        let bare = self.viewing.is_some() && crate::viewer::full_screen(ctx);
         if pressed && !bare && !ctx.egui_wants_keyboard_input()
             && let Some((button, menu)) = self.bookmarks.menu
         {

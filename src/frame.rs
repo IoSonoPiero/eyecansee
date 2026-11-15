@@ -102,7 +102,7 @@ impl App {
         } else {
             // Full screen in the viewer: the picture (or video, model, drawing) alone, no bars
             // (issue #43 asked it for videos).
-            let bare = self.viewing.is_some() && ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+            let bare = self.viewing.is_some() && crate::viewer::full_screen(ctx);
             if !bare {
                 egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
                 egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui, ctx));
