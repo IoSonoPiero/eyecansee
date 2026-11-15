@@ -483,6 +483,7 @@ convert-meta-density-only = Questo formato mantiene solo la risoluzione (dpi), s
 convert-folder = Cartella
 convert-name = Nome del file
 convert-save = Salva
+convert-cancel = Annulla
 convert-exists = Esiste già un elemento con questo nome: verrà salvato come { $name }.
 convert-saved-elsewhere-title = Immagine salvata
 convert-saved-elsewhere = Salvata come **{ $path }**.

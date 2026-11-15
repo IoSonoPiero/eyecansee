@@ -484,6 +484,7 @@ convert-meta-density-only = This format keeps only the resolution (dpi), when th
 convert-folder = Folder
 convert-name = File name
 convert-save = Save
+convert-cancel = Cancel
 convert-exists = An item with this name already exists: it will be saved as { $name }.
 convert-saved-elsewhere-title = Image saved
 convert-saved-elsewhere = Saved as **{ $path }**.

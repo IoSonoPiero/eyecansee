@@ -9,7 +9,7 @@ To convert or resize many images at once, use [Converting and resizing images](c
 - In the grid, select one image and click ![Save as…](icon://file-output) in the toolbar, or choose **File > Save as…**, or right-click the image and choose **Save as…**.
 - In the viewer, press **Ctrl+Shift+S**, or use the same menu items. If you turned or flipped the image in the viewer, it is saved turned.
 - A 3D model or a CAD drawing can be saved as a picture too. In the viewer as it is shown on screen: a model at least 1920 pixels on its long side, a drawing with the layout you are looking at. From the grid a model from its starting view, 1920 × 1440 pixels, and a drawing whole. With other files selected too, **Save as…** is marked with **\*** and works on the one picture, model or drawing among them. **Ctrl+S** and **File > Save** save over the original, which a model or a drawing cannot be: there they are greyed out, and pointing at **Save** says what to use instead.
-- In the editor, **Save as…** opens this page with the edited image (see [Saving an edited image](editor-save.md)). Closing it without saving goes back to the editor, with the changes.
+- In the editor, **Save as…** opens this page with the edited image (see [Saving an edited image](editor-save.md)). Closing it without saving (**Cancel**, **Esc** or the window's ✕) goes back to the editor, with the changes.
 
 ![Save as](../img/save-as.webp)
 
@@ -34,7 +34,7 @@ If the name is already taken in that folder, " (2)" is added, and the page tells
 
 Opened from the viewer, the viewer then shows the new file, already turned or flipped as you left it. The original stays as it is on disk: it is no longer marked as modified, and closing asks nothing. If you saved into another folder, the viewer stays on the original and a message says where the new file is. If you close the page without saving, or saving fails, the viewer stays as it was, turns included. The same holds when you open it from the editor started in the viewer: once the file is saved the editor closes, and the viewer does as above.
 
-**Esc** or the ✕ of the window closes the page without saving.
+**Cancel**, next to **Save**, closes the page without saving, as **Esc** or the ✕ of the window do: from the editor you are back in the editor, otherwise where you opened it. While the file is being written it is greyed out.
 
 ## Formats and options
 
