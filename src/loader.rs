@@ -40,7 +40,8 @@ pub enum Msg {
     Devices(Vec<crate::devices::Device>),
     /// Outcome of mounting a partition: absolute path or error.
     Mounted(Result<String, String>),
-    Loaded { generation: u64, index: usize, thumb: bool, image: Result<ColorImage, String> },
+    /// `halves`: the picture's halved copies for the viewer (`mipmap`), none for a thumbnail.
+    Loaded { generation: u64, index: usize, thumb: bool, image: Result<ColorImage, String>, halves: Vec<ColorImage> },
     /// A 3D model read for the viewer (with its picture in `Loaded`), to turn around in it.
     Mesh { generation: u64, index: usize, mesh: Arc<crate::model::Mesh> },
     /// A CAD drawing read for the viewer (with its picture in `Loaded`), drawn again sharp when zoomed.
@@ -640,7 +641,14 @@ impl Loader {
                     Err(e) => Err(with_id(e)),
                 }
             };
-            let _ = tx.send(Msg::Loaded { generation, index, thumb: false, image });
+            // Its halved copies made here, not on the window's thread (`mipmap`).
+            let (image, halves) = tokio::task::spawn_blocking(move || {
+                let halves = image.as_ref().map(crate::mipmap::picture_halves).unwrap_or_default();
+                (image, halves)
+            })
+            .await
+            .unwrap_or_else(|e| (Err(e.to_string()), Vec::new()));
+            let _ = tx.send(Msg::Loaded { generation, index, thumb: false, image, halves });
             ctx.request_repaint();
         });
     }

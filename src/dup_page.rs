@@ -5,9 +5,10 @@ use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
-use eframe::egui::{self, ColorImage, Key, TextureHandle};
+use eframe::egui::{self, ColorImage, Key};
 
 use crate::duplicates::{Group, Keep, Order, Progress};
+use crate::mipmap::{self, Picture};
 use crate::{App, BOLD, browser, icons, source, theme};
 
 /// Side of the thumbnail of each group.
@@ -28,7 +29,7 @@ pub struct Window {
     /// The focused copy moved from the keyboard: scrolled into view.
     scroll: bool,
     /// One per group, by the path of its first copy; `None` while it comes.
-    thumbs: HashMap<String, Option<Result<TextureHandle, String>>>,
+    thumbs: HashMap<String, Option<Result<Picture, String>>>,
     incoming: Incoming,
 }
 
@@ -195,7 +196,7 @@ impl App {
         let ctx = ui.ctx().clone();
         let Some(mut w) = self.duplicates.take() else { return };
         for (path, image) in w.incoming.lock().unwrap().drain(..) {
-            let tex = image.map(|i| ctx.load_texture(format!("dup-{path}"), i, egui::TextureOptions::LINEAR));
+            let tex = image.map(|i| Picture::now(&ctx, &format!("dup-{path}"), i, mipmap::SMALLEST_THUMB));
             w.thumbs.insert(path, Some(tex));
         }
         let (mut close, mut delete) = (dup_keys(&ctx, &mut w), false);
@@ -340,7 +341,9 @@ impl App {
         match w.thumbs.get(&file.path) {
             Some(Some(Ok(tex))) => {
                 let fit = egui::Rect::from_center_size(rect.center(), tex.size_vec2() * (THUMB / tex.size_vec2().max_elem()));
-                egui::Image::new(tex).paint_at(ui, fit);
+                // Smaller than its pixels: from the halved copy of its size (`mipmap`).
+                let id = tex.id_at(fit.width() * ui.ctx().pixels_per_point() / tex.size_vec2().x);
+                egui::Image::new(egui::load::SizedTexture::new(id, fit.size())).paint_at(ui, fit);
             }
             Some(Some(Err(e))) => {
                 ui.painter().rect_stroke(rect, 4.0, egui::Stroke::new(1.0, theme::tile(ui.visuals()).1), egui::StrokeKind::Inside);

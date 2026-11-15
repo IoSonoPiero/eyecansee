@@ -2,13 +2,14 @@
 
 use eframe::egui::{self, TextureHandle};
 
+use crate::mipmap::Picture;
 use crate::transform::Turn;
 
 /// `tex` drawn in `rect` at `scale` screen pixels per image pixel, around `pan` (the centre of the
 /// view, in image pixels). `pan` is kept inside the image; a side smaller than the view stays centred.
 /// `turn`: flipped and turned as in the viewer (sizes and `pan` are those of the turned image).
 /// Returns where the image went and which part of it (0 to 1).
-pub fn paint_zoomed(painter: &egui::Painter, rect: egui::Rect, tex: &TextureHandle, scale: f32, pan: &mut egui::Vec2, turn: Turn) -> (egui::Rect, egui::Rect) {
+pub fn paint_zoomed(painter: &egui::Painter, rect: egui::Rect, tex: &Picture, scale: f32, pan: &mut egui::Vec2, turn: Turn) -> (egui::Rect, egui::Rect) {
     let ppp = painter.ctx().pixels_per_point();
     let t = turned_size(tex, turn);
     let half = rect.size() * ppp / scale / 2.0;
@@ -28,9 +29,11 @@ pub fn turned_size(tex: &TextureHandle, turn: Turn) -> egui::Vec2 {
 }
 
 /// The part `uv` of the turned image (0 to 1 on each side) in `dest`: each corner takes the
-/// texture point it comes from, so the GPU turns it.
-pub fn paint_turned(painter: &egui::Painter, tex: &TextureHandle, dest: egui::Rect, uv: egui::Rect, turn: Turn) {
-    let mut mesh = egui::Mesh::with_texture(tex.id());
+/// texture point it comes from, so the GPU turns it. Smaller than its pixels: from the halved
+/// copy of its size (`mipmap`).
+pub fn paint_turned(painter: &egui::Painter, tex: &Picture, dest: egui::Rect, uv: egui::Rect, turn: Turn) {
+    let scale = dest.width() * painter.ctx().pixels_per_point() / (uv.width() * turned_size(tex, turn).x);
+    let mut mesh = egui::Mesh::with_texture(tex.id_at(scale));
     for (pos, shown) in [(dest.left_top(), uv.left_top()), (dest.right_top(), uv.right_top()), (dest.right_bottom(), uv.right_bottom()), (dest.left_bottom(), uv.left_bottom())] {
         mesh.vertices.push(egui::epaint::Vertex { pos, uv: turn.source_uv(shown), color: egui::Color32::WHITE });
     }

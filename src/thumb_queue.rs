@@ -38,7 +38,7 @@ pub(crate) async fn thumb_worker(
 ) {
     let send = |generation, index, image| {
         ctx.request_repaint();
-        tx.send(Msg::Loaded { generation, index, thumb: true, image }).is_ok()
+        tx.send(Msg::Loaded { generation, index, thumb: true, image, halves: Vec::new() }).is_ok()
     };
     loop {
         // Register before looking at the queue: a new queue arriving in the meantime must not be lost.

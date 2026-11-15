@@ -37,6 +37,7 @@ A motion photo (Google Pixel, Samsung, Xiaomi and other phones) carries a short 
 - The **mouse wheel** zooms in and out around the pointer; **+** and **−** around the middle of the window. On a touchpad, pinch.
 - **0** fits the picture to the window again; **1** shows it at 100%, one pixel of the picture for each pixel of the screen. The percentages count the pixels of the file, also for a very large photo shown reduced and for an SVG drawing (at the size it declares).
 - Drag a zoomed picture to move it.
+- Below 100% each point of the screen shows the average of the pixels it covers, at every zoom: edges stay smooth and fine details (grass, hair) do not turn grainy.
 
 A picture is never shown smaller than fitted to the window, and a small picture is shown at its real size, not enlarged. An SVG drawing is enlarged to fit the window; when it is smaller than the window, you can zoom out down to 100%. The largest zoom (2000% at first) is set in [Options](options.md); for an SVG drawing smaller than 2048 pixels it counts on the 2048 pixels it is drawn at, so its percentage can go much higher. In Options you can also make the wheel change picture instead of zooming: then **Ctrl** and the wheel still zoom. The next picture starts fitted again.
 

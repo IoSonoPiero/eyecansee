@@ -463,7 +463,8 @@ impl App {
                 let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
                 // In the centre of the tile: the tile keeps the photo together with its name.
                 let image = Rect::from_center_size(thumb_rect.center(), size * scale);
-                painter.image(tex.id(), image, uv, Color32::WHITE);
+                // Smaller than its pixels: from the halved copy of its size (`mipmap`).
+                painter.image(tex.id_at(image.width() * painter.ctx().pixels_per_point() / size.x), image, uv, Color32::WHITE);
                 let badge = Rect::from_min_size(image.left_bottom() + vec2(4.0, -28.0), vec2(24.0, 24.0));
                 match self.files().get(file).map(|f| f.path.as_str()) {
                     Some(p) if crate::decode::is_video(p) => icons::paint(painter, Icon::Video, badge),

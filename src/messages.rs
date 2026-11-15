@@ -5,11 +5,12 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use eframe::egui::{self, ColorImage, TextureOptions};
+use eframe::egui::{self, ColorImage};
 
 use crate::address::{AddressForm, without_password};
 use crate::save_dialogs::{Notice, md};
 use crate::actions::Act;
+use crate::mipmap::{self, Picture};
 use crate::{App, RETRY_SECS, devices, encode, loader, meta, source, transform, update, version};
 use crate::loader::Msg;
 use crate::source::Listing;
@@ -19,7 +20,7 @@ impl App {
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
                 Msg::Listed(dir, r) => self.on_listed(ctx, dir, r),
-                Msg::Loaded { generation, index, thumb, image } if generation == self.generation => self.on_loaded(ctx, index, thumb, image),
+                Msg::Loaded { generation, index, thumb, image, halves } if generation == self.generation => self.on_loaded(ctx, index, thumb, image, halves),
                 Msg::Meta { generation, index, meta } if generation == self.generation => self.on_meta(index, meta),
                 Msg::Info { generation, path, info } if generation == self.generation => {
                     if let Some(info) = info {
@@ -202,7 +203,7 @@ impl App {
         }
     }
 
-    fn on_loaded(&mut self, ctx: &egui::Context, index: usize, thumb: bool, image: Result<ColorImage, String>) {
+    fn on_loaded(&mut self, ctx: &egui::Context, index: usize, thumb: bool, image: Result<ColorImage, String>, halves: Vec<ColorImage>) {
         // `loader::with_id`: translated here, where the language is.
         let image = image.map_err(|e| match e.split_once('\u{1}') {
             Some((id, detail)) => self.i18n.error(id, detail),
@@ -222,7 +223,8 @@ impl App {
             }
             // Generated in the background far from the screen: it stays on disk only.
             if self.thumb_keep.contains(&index) {
-                let tex = image.map(|img| ctx.load_texture(name, img, TextureOptions::LINEAR));
+                // Its halves here: small, and drawn down to 64 points (`mipmap`).
+                let tex = image.map(|img| Picture::now(ctx, &name, img, mipmap::SMALLEST_THUMB));
                 self.thumbs.insert(index, tex);
             }
         } else {
@@ -231,7 +233,7 @@ impl App {
                 Some(size) => self.own_sizes.insert(name.clone(), size),
                 None => self.own_sizes.remove(&name),
             };
-            let tex = image.map(|img| ctx.load_texture(name, img, TextureOptions::LINEAR));
+            let tex = image.map(|img| Picture::new(ctx, &name, img, halves));
             self.full.insert(index, tex);
         }
     }

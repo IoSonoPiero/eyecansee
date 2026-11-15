@@ -6,9 +6,10 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use eframe::egui::{self, ColorImage, TextureHandle};
+use eframe::egui::{self, ColorImage};
 
 use crate::i18n::I18n;
+use crate::mipmap::Picture;
 use crate::batch::with_ext;
 use crate::encode::{Format, Options, Original};
 
@@ -21,9 +22,9 @@ use format_ui::{format_choice, meta_options};
 use panes::convert_images;
 
 /// The original decoded, its texture and file size.
-type Loaded = Result<(Arc<Original>, TextureHandle, u64), String>;
+type Loaded = Result<(Arc<Original>, Picture, u64), String>;
 /// The encoded file and, decoded back, its texture.
-type Encoded = Result<(Arc<Vec<u8>>, Option<TextureHandle>), String>;
+type Encoded = Result<(Arc<Vec<u8>>, Option<Picture>), String>;
 
 /// The open Save as… page.
 pub struct Window {
@@ -129,7 +130,9 @@ impl crate::App {
         }
         w.original = Some(r.map(|(original, preview, size)| {
             w.pan = egui::vec2(preview.size[0] as f32, preview.size[1] as f32) / 2.0;
-            (original, ctx.load_texture("convert-original", preview, egui::TextureOptions::LINEAR), size)
+            // Its halves here, once: shown fitted, smaller than its pixels (`mipmap`).
+            let halves = crate::mipmap::picture_halves(&preview);
+            (original, Picture::new(ctx, "convert-original", preview, halves), size)
         }));
     }
 
@@ -139,7 +142,10 @@ impl crate::App {
             return;
         }
         w.busy = false;
-        w.result = Some(r.map(|(bytes, preview)| (bytes, preview.map(|p| ctx.load_texture("convert-result", p, egui::TextureOptions::LINEAR)))));
+        w.result = Some(r.map(|(bytes, preview)| (bytes, preview.map(|p| {
+            let halves = crate::mipmap::picture_halves(&p);
+            Picture::new(ctx, "convert-result", p, halves)
+        }))));
     }
 
     pub(crate) fn convert_saved(&mut self, r: Result<String, crate::source::Error>) {

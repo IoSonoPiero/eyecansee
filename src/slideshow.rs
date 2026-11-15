@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::App;
 use crate::i18n::I18n;
+use crate::mipmap::Picture;
 use crate::selection::{PLAYED, kind};
 use crate::settings::Settings;
 
@@ -268,11 +269,13 @@ fn fitted(rect: Rect, tex: &TextureHandle, ppp: f32, scale: f32, dx: f32) -> Rec
 }
 
 /// The passage at `t` (0 to 1) from `from` to `to`; `back`: going to the previous image.
-fn paint_passage(p: &egui::Painter, rect: Rect, from: Option<&TextureHandle>, to: &TextureHandle, (fade, back): (Fade, bool), t: f32) {
+fn paint_passage(p: &egui::Painter, rect: Rect, from: Option<&Picture>, to: &Picture, (fade, back): (Fade, bool), t: f32) {
     let ppp = p.ctx().pixels_per_point();
     let uv = Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
-    let draw = |tex: &TextureHandle, scale: f32, dx: f32, alpha: f32| {
-        p.image(tex.id(), fitted(rect, tex, ppp, scale, dx), uv, Color32::WHITE.gamma_multiply(alpha.clamp(0.0, 1.0)));
+    let draw = |tex: &Picture, scale: f32, dx: f32, alpha: f32| {
+        let dest = fitted(rect, tex, ppp, scale, dx);
+        // Smaller than its pixels: from the halved copy of its size (`mipmap`).
+        p.image(tex.id_at(dest.width() * ppp / tex.size_vec2().x), dest, uv, Color32::WHITE.gamma_multiply(alpha.clamp(0.0, 1.0)));
     };
     let Some(from) = from.filter(|_| t < 1.0 && fade != Fade::None) else {
         draw(to, 1.0, 0.0, 1.0);

@@ -37,6 +37,7 @@ Una foto in movimento (Google Pixel, Samsung, Xiaomi e altri telefoni) contiene 
 - La **rotellina del mouse** ingrandisce e rimpicciolisce attorno al puntatore; **+** e **−** attorno al centro della finestra. Sul touchpad, avvicina o allontana due dita.
 - **0** adatta di nuovo la foto alla finestra; **1** la mostra al 100%, un pixel della foto per ogni pixel dello schermo. Le percentuali contano i pixel del file, anche per una foto molto grande mostrata ridotta e per un disegno SVG (alla grandezza che dichiara).
 - Trascina una foto ingrandita per spostarla.
+- Sotto il 100% ogni punto dello schermo mostra la media dei pixel che copre, a ogni zoom: i bordi restano lisci e i dettagli fini (erba, capelli) non diventano granulosi.
 
 Una foto non si vede mai più piccola che adattata alla finestra, e una foto piccola si vede alla sua grandezza vera, senza ingrandirla. Un disegno SVG si ingrandisce fino a riempire la finestra; se è più piccolo della finestra, puoi rimpicciolirlo fino al 100%. L'ingrandimento massimo (2000% all'inizio) si regola nelle [Opzioni](options.md); per un disegno SVG più piccolo di 2048 pixel si conta sui 2048 pixel a cui viene disegnato, quindi la sua percentuale può salire molto di più. Nelle Opzioni puoi anche far cambiare foto alla rotellina invece di ingrandire: allora **Ctrl** e la rotellina ingrandiscono comunque. La foto successiva parte di nuovo adattata.
 

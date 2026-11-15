@@ -296,7 +296,7 @@ struct App {
     /// Image to open as soon as the folder's listing arrives.
     start: Option<String>,
     /// Thumbnails in memory: only those in the window around the visible rows (`thumb_keep`).
-    thumbs: HashMap<usize, Result<TextureHandle, String>>,
+    thumbs: HashMap<usize, Result<mipmap::Picture, String>>,
     thumb_keep: std::ops::Range<usize>,
     /// Thumbnails already done (on disk), not to be queued again for background generation.
     generated: HashSet<usize>,
@@ -305,7 +305,7 @@ struct App {
     info_asked: HashSet<String>,
     /// Last queue sent to the loader: (visible images, selected, generation).
     thumb_queue_key: Option<(std::ops::Range<usize>, Option<usize>, u64)>,
-    full: HashMap<usize, Result<TextureHandle, String>>,
+    full: HashMap<usize, Result<mipmap::Picture, String>>,
     /// Own size of the pictures shown at another one (beyond 8192 px, SVGs), by path: the status bar's.
     own_sizes: HashMap<String, [u32; 2]>,
     model: model_view::State,
@@ -329,7 +329,7 @@ struct App {
     batch_saved: Option<(transform::Op, usize, usize)>,
     /// An image just saved from Rotate and crop, as the viewer shows it: kept in the viewer when
     /// the file and the folder listing change, instead of the old one until it is read again.
-    fresh: Option<(String, TextureHandle)>,
+    fresh: Option<(String, mipmap::Picture)>,
     /// Leaving an image with changes not saved: what was asked, while the question is open.
     after_turn: Option<save_dialogs::After>,
     /// The same, after Save was chosen: done once the save is confirmed.

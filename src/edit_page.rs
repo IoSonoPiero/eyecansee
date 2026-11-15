@@ -39,7 +39,7 @@ use canvas::canvas;
 pub(crate) use save::{Prepared, Written};
 pub(crate) use open::Animated;
 
-type Loaded = Result<(Arc<Original>, TextureHandle, u64), String>;
+type Loaded = Result<(Arc<Original>, crate::mipmap::Picture, u64), String>;
 
 /// Where the image being edited is: the store and the address of the place open when the page
 /// was opened. Every save of the page goes there, also once the grid under it shows another

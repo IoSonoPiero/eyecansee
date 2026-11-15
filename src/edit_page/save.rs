@@ -532,7 +532,7 @@ mod tests {
         w.place = Some(crate::edit_page::Place { store: server_store, base: "sftp://u@server/".into() });
         let image = Arc::new(Original::with_meta_of(crate::decode::decode_full(&original, "a.jpg").unwrap(), &original, "a.jpg"));
         let tex = egui::Context::default().load_texture("t", egui::ColorImage::filled([1, 1], egui::Color32::WHITE), Default::default());
-        w.original = Some(Ok((image, tex, original.len() as u64)));
+        w.original = Some(Ok((image, tex.into(), original.len() as u64)));
         w.doc = Doc::new(64, 48, None);
         w.doc.objects.push(cover(0.0));
         let (tx, rx) = std::sync::mpsc::channel();

@@ -38,7 +38,7 @@ impl Window {
             Some(s) => Arc::new(resize::resample(&full, s)),
             None => full,
         };
-        let tex = ctx.load_texture("edit-original", crate::decode::preview(&photo.image), egui::TextureOptions::LINEAR);
+        let tex = crate::mipmap::Picture::now(ctx, "edit-original", crate::decode::preview(&photo.image), crate::mipmap::SMALLEST_PICTURE);
         log!("edit: photo at {:?} in {:?}", self.doc.scale, start.elapsed());
         let before = self.long();
         self.original = Some(Ok((photo, tex, size)));

@@ -1,6 +1,6 @@
 //! Viewer: the image at full window, zoom and pan, its keys, the images read ahead.
 
-use eframe::egui::{self, Key, TextureHandle};
+use eframe::egui::{self, Key};
 
 use crate::navigation::Go;
 use crate::actions::Act;
@@ -213,7 +213,7 @@ impl App {
     /// Never smaller than fitted (or than 100%, when smaller), never larger than `max_zoom`;
     /// percentages count the file's own pixels (`zoom`).
     #[allow(clippy::too_many_lines)] // to be split
-    fn zoom_view(&mut self, ui: &egui::Ui, response: &egui::Response, tex: &TextureHandle, current: usize) {
+    fn zoom_view(&mut self, ui: &egui::Ui, response: &egui::Response, tex: &crate::mipmap::Picture, current: usize) {
         let rect = response.rect;
         // A layout of a CAD drawing in place of its model, once drawn.
         let sheet = self.cad_sheet_texture(ui.ctx(), current);

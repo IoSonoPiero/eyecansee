@@ -10,6 +10,7 @@ use eframe::egui::{self, TextureHandle};
 
 use crate::App;
 use crate::cad::Drawing;
+use crate::mipmap::Picture;
 
 /// Seconds without changes before drawing again.
 const SETTLE: f64 = 0.2;
@@ -27,7 +28,7 @@ struct Key {
 /// A view drawn in the background: `None` if it could not be.
 type Drawn = (Key, Option<egui::ColorImage>);
 /// A layout drawn in the background (path, sheet): `None` if it could not be.
-type SheetDrawn = ((String, usize), Option<egui::ColorImage>);
+type SheetDrawn = ((String, usize), Option<(egui::ColorImage, Vec<egui::ColorImage>)>);
 
 #[derive(Default)]
 pub(crate) struct State {
@@ -45,7 +46,7 @@ pub(crate) struct State {
     /// The sheet shown of the open drawing (0 the model), and the layouts' pictures, drawn when
     /// first shown (`None` while being drawn).
     sheet: (String, usize),
-    sheets: HashMap<(String, usize), Option<TextureHandle>>,
+    sheets: HashMap<(String, usize), Option<Picture>>,
     sheet_done: Arc<Mutex<Option<SheetDrawn>>>,
 }
 
@@ -171,7 +172,7 @@ impl App {
 
     /// The picture of the sheet shown in place of the model's, drawn in the background the first
     /// time; `None` for the model, or while it is being drawn.
-    pub(crate) fn cad_sheet_texture(&mut self, ctx: &egui::Context, current: usize) -> Option<TextureHandle> {
+    pub(crate) fn cad_sheet_texture(&mut self, ctx: &egui::Context, current: usize) -> Option<Picture> {
         let path = self.files().get(current)?.path.clone();
         let sheet = self.cad_sheet(&path);
         if sheet == 0 {
@@ -180,8 +181,8 @@ impl App {
         let s = &mut self.model.cad;
         if let Some((key, img)) = s.sheet_done.lock().unwrap().take() {
             match img {
-                Some(img) => {
-                    s.sheets.insert(key.clone(), Some(ctx.load_texture(format!("cad-sheet-{}", key.1), img, egui::TextureOptions::LINEAR)));
+                Some((img, halves)) => {
+                    s.sheets.insert(key.clone(), Some(Picture::new(ctx, &format!("cad-sheet-{}", key.1), img, halves)));
                 }
                 // Not drawn: back to the model.
                 None => {
@@ -202,7 +203,11 @@ impl App {
         std::thread::spawn(move || {
             let img = crate::decode::cad_render(&drawing, crate::decode::CAD_SIDE, None)
                 .ok()
-                .map(|img| egui::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()));
+                .map(|img| egui::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()))
+                .map(|img| {
+                    let halves = crate::mipmap::picture_halves(&img);
+                    (img, halves)
+                });
             *done.lock().unwrap() = Some((key, img));
             ctx.request_repaint();
         });

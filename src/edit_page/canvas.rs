@@ -2,13 +2,14 @@
 //! objects, and over them the crop (Rotate and crop) or the selection; the mouse and the wheel on
 //! them. Rotate and crop's part moved from `rotate_page.rs` on 2026-11-05.
 
-use eframe::egui::{self, Color32, CursorIcon, Pos2, Rect, TextureHandle, TextureId, Vec2};
+use eframe::egui::{self, Color32, CursorIcon, Pos2, Rect, TextureId, Vec2};
 
 use super::{Drawn, Follow, GRAB, Grab, Hold, Tool, Window};
 use crate::edit::doc::{Obj, Pt, Shape};
 use crate::edit::geom::{self, Kind};
 use crate::edit::patch;
 use crate::edit::render;
+use crate::mipmap::Picture;
 use crate::rotate::{self, Crop};
 
 /// From image pixels (rotated, from the centre of the image) to the screen and back.
@@ -44,7 +45,7 @@ impl View {
 }
 
 /// The image, the objects and the crop or the selection, and the mouse on them.
-pub(super) fn canvas(ui: &mut egui::Ui, w: &mut Window, tex: &TextureHandle, size: Vec2) {
+pub(super) fn canvas(ui: &mut egui::Ui, w: &mut Window, tex: &Picture, size: Vec2) {
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::click_and_drag());
     let (iw, ih) = w.size();
     let crop_tool = w.tool == Tool::Crop;
@@ -88,7 +89,7 @@ pub(super) fn canvas(ui: &mut egui::Ui, w: &mut Window, tex: &TextureHandle, siz
     }
 }
 
-fn paint(ui: &egui::Ui, w: &mut Window, tex: &TextureHandle, view: &View, rect: Rect) {
+fn paint(ui: &egui::Ui, w: &mut Window, tex: &Picture, view: &View, rect: Rect) {
     let painter = ui.painter_at(rect);
     let stage = crate::theme::stage(ui.visuals());
     painter.rect_filled(rect, 0.0, stage);
@@ -102,7 +103,11 @@ fn paint(ui: &egui::Ui, w: &mut Window, tex: &TextureHandle, view: &View, rect: 
     let (iw, ih) = w.size();
     let (s, c) = (w.doc.angle as f64).to_radians().sin_cos();
     let (s, c) = (s as f32, c as f32);
-    let mut mesh = egui::Mesh::with_texture(tex.id());
+    // Smaller than its pixels: from the halved copy of its size (`mipmap`). `k` counts the
+    // image's pixels, the texture has fewer beyond 8192.
+    let turned = crate::paint::turned_size(tex, w.doc.turn);
+    let scale = view.k * ui.ctx().pixels_per_point() * iw.max(ih) / turned.x.max(turned.y);
+    let mut mesh = egui::Mesh::with_texture(tex.id_at(scale));
     for (x, y) in [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)] {
         let (qx, qy) = ((x - 0.5) * iw, (y - 0.5) * ih);
         let pos = view.screen(egui::vec2(qx * c - qy * s, qx * s + qy * c));
