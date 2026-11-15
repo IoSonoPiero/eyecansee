@@ -51,8 +51,8 @@ struct Stored {
 
 /// Raised when the panel learns to read something new: 1 = drone positions from the `.SRT`,
 /// 2 = the Image box in one order (`IMAGE_ORDER`), 3 = the Description box from the XMP and the
-/// sidecar of a RAW photo (#24).
-const STORED: u32 = 3;
+/// sidecar of a RAW photo (#24), 4 = its caption from the EXIF and the IPTC too (`mwg`).
+const STORED: u32 = 4;
 
 impl Meta {
     pub fn to_json(&self) -> String {
@@ -315,13 +315,18 @@ pub fn fit_exif(t: &mut [u8], w: u32, h: u32) {
 
 /// The panel for an image: its EXIF if any, and always what the header says (format, size,
 /// colour). `None` only when neither can be read. For a DWG or DXF drawing its properties and
-/// title block (`cad_meta`).
+/// title block (`cad_meta`). The panel itself reads `read_file_with`.
+#[cfg(test)]
 pub fn read_file(bytes: &[u8], name: &str) -> Option<Meta> {
     if crate::cad_convert::can_convert(name) {
         return crate::cad_meta::meta(bytes, name);
     }
+    with_header(read(bytes), bytes, name)
+}
+
+/// `meta` (the EXIF's) with what the header of the file says.
+fn with_header(mut meta: Option<Meta>, bytes: &[u8], name: &str) -> Option<Meta> {
     let header = crate::decode::header(bytes, name);
-    let mut meta = read(bytes);
     if meta.is_none() && header.is_none() {
         return None;
     }
@@ -347,20 +352,35 @@ pub fn read_file(bytes: &[u8], name: &str) -> Option<Meta> {
 
 /// As `read_file`, with the Description box (`xmp_fields`) from the XMP inside the file and its
 /// `sidecar` (#24): a RAW photo's instead of it, as in Lightroom; another photo's added to it,
-/// its values first, as in digiKam (`xmp::with_sidecar`).
+/// its values first, as in digiKam (`xmp::with_sidecar`). The caption from the file's EXIF, IPTC
+/// and XMP together (`mwg`), unless the sidecar has one: as its other fields, it counts.
 pub fn read_file_with(bytes: &[u8], name: &str, sidecar: Option<&crate::sidecar::Sidecar>) -> Option<Meta> {
-    let mut meta = read_file(bytes, name);
-    let inside = || crate::raw_meta::xmp(bytes);
+    let exif = parse(bytes);
+    let mut meta = if crate::cad_convert::can_convert(name) { crate::cad_meta::meta(bytes, name) } else { with_header(exif.as_ref().map(from_exif), bytes, name) };
+    let inside = crate::raw_meta::xmp(bytes);
     let xmp = match sidecar {
         Some(s) if crate::decode::is_raw(name) => Some(s.xmp.clone()),
-        Some(s) => Some(crate::xmp::with_sidecar(inside().as_deref(), &s.xmp)),
-        None => inside(),
+        Some(s) => Some(crate::xmp::with_sidecar(inside.as_deref(), &s.xmp)),
+        None => inside.clone(),
     };
-    let fields = xmp.map(|x| crate::xmp_fields::read(&x)).unwrap_or_default();
+    let mut fields = xmp.map(|x| crate::xmp_fields::read(&x)).unwrap_or_default();
+    if sidecar.is_none_or(|s| crate::xmp_fields::read(&s.xmp).caption.is_none()) {
+        let own = if sidecar.is_some() { inside.and_then(|x| crate::xmp_fields::read(&x).caption) } else { fields.caption.take() };
+        let exif = exif.as_ref().and_then(image_description);
+        fields.caption = crate::mwg::description(exif.as_deref(), crate::mwg::photoshop_block(bytes).as_deref(), own.as_deref());
+    }
     if !fields.is_empty() || sidecar.is_some() {
         crate::xmp_fields::add_to(meta.get_or_insert_default(), &fields, sidecar.map(|s| s.name.as_str()));
     }
     meta
+}
+
+/// The bytes of the EXIF ImageDescription, its first text that is not empty.
+fn image_description(exif: &Exif) -> Option<Vec<u8>> {
+    match &exif.get_field(Tag::ImageDescription, In::PRIMARY)?.value {
+        Value::Ascii(parts) => parts.iter().find(|p| !p.is_empty()).cloned(),
+        _ => None,
+    }
 }
 
 /// The rows of the Image box, in this order whatever the format; the others after them as they
@@ -389,27 +409,36 @@ fn color_kind(c: &crate::decode::Color) -> &'static str {
 
 /// `None` if the file has no EXIF (or it cannot be read).
 pub fn read(bytes: &[u8]) -> Option<Meta> {
-    let exif = match lenient(|r| r.read_from_container(&mut Cursor::new(bytes))) {
-        Some(exif) => exif,
+    parse(bytes).map(|exif| from_exif(&exif))
+}
+
+/// The EXIF of a file; `None` if it has none (or it cannot be read).
+fn parse(bytes: &[u8]) -> Option<Exif> {
+    match lenient(|r| r.read_from_container(&mut Cursor::new(bytes))) {
+        Some(exif) => Some(exif),
         // RAW files not built on TIFF: their EXIF as Convert reads it.
         None => {
             let raw = crate::raw_meta::exif(bytes)?;
-            lenient(|r| r.read_raw(raw))?
+            lenient(|r| r.read_raw(raw))
         }
-    };
+    }
+}
+
+/// The panel's fields of an EXIF.
+fn from_exif(exif: &Exif) -> Meta {
     let mut meta = Meta::default();
     for &(group, tag, label) in FIELDS {
         if let Some(f) = exif.get_field(tag, In::PRIMARY) {
-            let value = value(&exif, f);
+            let value = value(exif, f);
             if !value.is_empty() {
                 meta.fields.push((group, label, value));
             }
         }
     }
-    let lat = coord(&exif, Tag::GPSLatitude, Tag::GPSLatitudeRef, 'S');
-    let lon = coord(&exif, Tag::GPSLongitude, Tag::GPSLongitudeRef, 'W');
+    let lat = coord(exif, Tag::GPSLatitude, Tag::GPSLatitudeRef, 'S');
+    let lon = coord(exif, Tag::GPSLongitude, Tag::GPSLongitudeRef, 'W');
     meta.gps = lat.zip(lon);
-    Some(meta)
+    meta
 }
 
 /// Readable value. Texts: only the non-empty parts, without quotes (the POCO X7 Pro writes
@@ -784,6 +813,42 @@ mod tests {
         assert_eq!((get("meta-width"), get("meta-height")), (Some("30 px"), Some("20 px")));
         assert_eq!((get("meta-color"), get("meta-depth")), (Some("meta-color-rgba"), Some("8 bit")));
         assert!(read_file(b"not an image", "a.txt").is_none());
+    }
+
+    /// The caption of a JPEG from its EXIF, IPTC and XMP as the MWG guidelines say (`mwg`), and
+    /// from the sidecar of a RAW photo when it has one.
+    #[test]
+    fn caption_from_three_places() {
+        use crate::meta_write::{JPEG_PHOTOSHOP, JPEG_XMP, irb_of_iim, resource};
+        let mut writer = Writer::new();
+        let description = field(Tag::ImageDescription, Value::Ascii(vec![b"From EXIF".to_vec()]));
+        writer.push_field(&description);
+        let mut tiff = std::io::Cursor::new(Vec::new());
+        writer.write(&mut tiff, false).unwrap();
+        let xmp = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:description><rdf:Alt><rdf:li xml:lang="x-default">From XMP</rdf:li></rdf:Alt></dc:description></rdf:Description></rdf:RDF></x:xmpmeta>"#;
+        let iim = crate::xmp::tests::iim(&[(120, "From IPTC")]);
+        let seg = |marker: u8, parts: &[&[u8]]| {
+            let body = parts.concat();
+            [&[0xFF, marker][..], &((body.len() + 2) as u16).to_be_bytes(), &body].concat()
+        };
+        let jpeg = |exif: bool, digest: &[u8]| {
+            let irb = [irb_of_iim(&iim), resource(1061, digest)].concat();
+            let exif = if exif { seg(0xE1, &[b"Exif\0\0", tiff.get_ref()]) } else { Vec::new() };
+            [&[0xFF, 0xD8][..], &exif, &seg(0xE1, &[JPEG_XMP, xmp.as_bytes()]), &seg(0xED, &[JPEG_PHOTOSHOP, &irb]), &[0xFF, 0xD9]].concat()
+        };
+        let caption = |bytes: &[u8], sidecar: Option<&crate::sidecar::Sidecar>| {
+            let m = super::read_file_with(bytes, "a.jpg", sidecar).unwrap();
+            m.fields.into_iter().find(|(_, l, _)| *l == "meta-xmp-caption").map(|(_, _, v)| v)
+        };
+        let current = md5::compute(&iim).0;
+        assert_eq!(caption(&jpeg(true, &current), None).as_deref(), Some("From EXIF"));
+        assert_eq!(caption(&jpeg(false, &current), None).as_deref(), Some("From XMP"));
+        assert_eq!(caption(&jpeg(false, &[0; 16]), None).as_deref(), Some("From IPTC"));
+        let sidecar = |xmp: &str| crate::sidecar::Sidecar { name: "a.xmp".into(), xmp: xmp.as_bytes().to_vec() };
+        let other = xmp.replace("From XMP", "From the sidecar");
+        assert_eq!(caption(&jpeg(true, &current), Some(&sidecar(&other))).as_deref(), Some("From the sidecar"));
+        let without = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmp:Rating="3"/></rdf:RDF></x:xmpmeta>"#;
+        assert_eq!(caption(&jpeg(false, &current), Some(&sidecar(without))).as_deref(), Some("From XMP"));
     }
 
     #[test]

@@ -90,6 +90,7 @@ mod measure_view;
 mod meta_panel;
 mod meta_strip;
 mod meta_write;
+mod mwg;
 mod raw_meta;
 mod model;
 mod model_3mf;

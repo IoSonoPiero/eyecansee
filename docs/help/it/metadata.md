@@ -11,7 +11,7 @@ Sotto la griglia, il pannello dei metadati mostra quello che si sa del file sele
 - **Scatto**: data dello scatto, esposizione, diaframma, ISO, lunghezza focale e flash.
 - **Immagine**: formato, larghezza e altezza, colore e bit per canale, spazio colore. Per una foto RAW sono quelli dell'immagine che EyeCanSee ne sviluppa (ritagliata come dice la fotocamera); un disegno SVG ha le sue dimensioni e niente colore né bit.
 - **Posizione**: coordinate GPS e altitudine, con **Apri sulla mappa**, che apre il posto su OpenStreetMap nel browser.
-- **Descrizione**: quello che è stato scritto sulla foto nel suo XMP: titolo, didascalia, parole chiave, valutazione (da 1 a 5, o scartata), etichetta colore, autore e copyright.
+- **Descrizione**: quello che è stato scritto sulla foto nel suo XMP: titolo, didascalia, parole chiave, valutazione (da 1 a 5, o scartata), etichetta colore, autore e copyright. I programmi possono scrivere la didascalia in tre posti, EXIF, IPTC e XMP: EyeCanSee li legge tutti e tre e, se sono diversi, sceglie come dicono le linee guida del Metadata Working Group: prima l'EXIF, poi l'XMP, poi l'IPTC, ma prima l'IPTC quando dopo l'ha cambiato un programma che conosce solo l'IPTC. Quello che alcune fotocamere ci scrivono da sole, come "OLYMPUS DIGITAL CAMERA" o "SONY DSC", non compare.
 - **Disegno**: solo per i disegni DWG e DXF, che hanno il riquadro File e questo. Le proprietà del disegno scritte nel file (titolo, oggetto, autore, parole chiave, commenti, numero di revisione, proprietà personalizzate, come le scrive il comando DWGPROPS di AutoCAD), poi sotto **Cartiglio** gli attributi del cartiglio coi loro nomi (per esempio DWG_NO, REV, DATA, SCALA): quelli del blocco con più attributi compilati nel primo layout che ne ha uno, o nello spazio modello per un disegno senza layout.
 
 ## Le foto e i loro file .xmp
@@ -20,7 +20,7 @@ Lightroom, Camera Raw, darktable e digiKam tengono quello che imposti su una fot
 
 - **I nomi**: `IMG_0001.CR2.xmp` (darktable, digiKam) e `IMG_0001.xmp` (Lightroom, Camera Raw, digiKam "compatibile con i programmi commerciali"). Se ci sono tutti e due vale il primo, che non può essere di un altro file.
 - **Di chi è `IMG_0001.xmp`**: del file di cui nomina l'estensione, se la nomina (Lightroom lo fa); altrimenti della foto RAW con quel nome, se c'è (Lightroom considera un JPEG scattato insieme a un RAW parte del RAW); altrimenti della foto con quel nome.
-- **Con l'XMP dentro la foto**: il file .xmp di una foto RAW vale al posto suo, come in Lightroom; per le altre foto i due si sommano, e dove dicono tutti e due qualcosa vale il file .xmp, come in digiKam. La sua posizione vale al posto di quella della fotocamera.
+- **Con l'XMP dentro la foto**: il file .xmp di una foto RAW vale al posto suo, come in Lightroom; per le altre foto i due si sommano, e dove dicono tutti e due qualcosa vale il file .xmp, come in digiKam. La sua didascalia vale al posto di quella della foto (EXIF, IPTC o XMP), e la sua posizione al posto di quella della fotocamera.
 
 Quando converti una foto o la salvi in un altro formato, quello che il file .xmp contiene va nel file nuovo, così la copia lo tiene da sola (per una foto RAW la posizione va anche nel suo EXIF). Le impostazioni di sviluppo di Lightroom, Camera Raw e darktable nel file .xmp restano fuori: non sono nei pixel che EyeCanSee scrive. Con **Metadati** su **Tutti tranne il luogo** restano fuori anche la sua posizione e i luoghi, e con **Nessuno** non ne va niente (vedi [Salva come](save-as.md)).
 
