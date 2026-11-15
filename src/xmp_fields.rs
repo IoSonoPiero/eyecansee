@@ -32,11 +32,14 @@ pub struct Fields {
     pub altitude: Option<f64>,
     /// `photoshop:SidecarForExtension`: the extension of the file a `foo.xmp` belongs to.
     pub sidecar_for: Option<String>,
+    /// `photoshop:DateCreated`, as written: when the photo was taken, for the Shot box (`mwg`).
+    pub taken: Option<String>,
 }
 
 impl Fields {
+    /// Nothing for the Description box (the date goes to the Shot box).
     pub fn is_empty(&self) -> bool {
-        self == &Fields { sidecar_for: self.sidecar_for.clone(), ..Fields::default() }
+        self == &Fields { sidecar_for: self.sidecar_for.clone(), taken: self.taken.clone(), ..Fields::default() }
     }
 }
 
@@ -72,6 +75,7 @@ pub fn read(xmp: &[u8]) -> Fields {
     let below = first(EXIF, "GPSAltitudeRef").is_some_and(|r| r == "1");
     f.altitude = first(EXIF, "GPSAltitude").and_then(|v| rational(&v)).map(|a| if below { -a } else { a });
     f.sidecar_for = first(PHOTOSHOP, "SidecarForExtension");
+    f.taken = first(PHOTOSHOP, "DateCreated");
     f
 }
 

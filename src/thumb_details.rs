@@ -33,8 +33,8 @@ pub struct Info {
     /// Width and height as the picture is shown, after the EXIF orientation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub pixels: Option<[u32; 2]>,
-    /// When it was taken (EXIF `DateTimeOriginal`, a video's `creation_time`), ISO as the metadata
-    /// panel has it.
+    /// When it was taken (EXIF, IPTC or XMP as the metadata panel reads it, `mwg`; a video's
+    /// `creation_time`), ISO as the panel has it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub taken: Option<String>,
     /// Of a video or a sound, as the player writes it ("1:24").
@@ -48,7 +48,7 @@ impl Info {
     /// picture decoded whole for its thumbnail, for the formats whose header is not read.
     pub fn of(bytes: &[u8], name: &str, thumb: (u32, u32), decoded: Option<[u32; 2]>) -> Info {
         let pixels = crate::decode::header(bytes, name).map(|h| upright(h.size, thumb)).or(decoded);
-        let taken = crate::meta::read(bytes).and_then(|m| m.fields.into_iter().find(|(_, l, _)| *l == "meta-taken").map(|(_, _, v)| v));
+        let taken = crate::meta::taken(bytes);
         Info { pixels, taken, duration: None }
     }
 
