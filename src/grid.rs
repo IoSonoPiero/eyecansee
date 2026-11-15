@@ -622,6 +622,9 @@ impl App {
             self.cursor = p >= up;
             self.selected = p.saturating_sub(up);
             self.scroll_to_selected = true;
+            // The scroll happens in the next frame: asked now, or it waited for the mouse to move
+            // (seen on Windows: arrows took the selection out of sight).
+            ctx.request_repaint();
             match shift && self.cursor {
                 true => self.mark_range(self.selected),
                 false => {
