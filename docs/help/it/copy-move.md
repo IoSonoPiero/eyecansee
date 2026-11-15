@@ -9,7 +9,7 @@ Copia o sposta file e cartelle, con tutto quello che contengono, in un'altra car
 3. Apri la cartella dove devono andare: sul computer, su un disco, su un telefono o su un server (vedi [Cartelle e pannello laterale](folders.md)).
 4. Premi **Ctrl+V**, oppure fai clic su ![Incolla](icon://clipboard-paste), oppure scegli **Modifica > Incolla**.
 
-Per incollare direttamente in una cartella senza aprirla, fai clic destro su di essa (nella griglia o nell'albero) e scegli **Incolla in questa cartella**. Nel visore **Ctrl+C** e **Ctrl+X** prendono l'immagine mostrata.
+Per incollare direttamente in una cartella senza aprirla, fai clic destro su di essa (nella griglia o nell'albero) e scegli **Incolla in questa cartella**. Nel visore **Ctrl+C** e **Ctrl+X** prendono l'immagine mostrata; **Ctrl+V** lì non fa niente, come **Modifica > Incolla**: per incollare si torna alla griglia.
 
 ## Che cosa vedi
 

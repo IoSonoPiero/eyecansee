@@ -30,6 +30,13 @@ pub fn on_clipboard(copied: &str, clipboard: &str) -> bool {
     copied.lines().eq(clipboard.trim_end_matches(['\r', '\n']).lines())
 }
 
+/// Whether a paste given by egui (Ctrl+V, or Paste chosen in a menu) pastes the items copied
+/// (`copied`: the text of their copy): not in the viewer, where Edit > Paste is greyed out too,
+/// and only while the clipboard still holds that copy.
+pub fn pastes_items(viewing: bool, copied: Option<&str>, clipboard: &str) -> bool {
+    !viewing && copied.is_some_and(|c| on_clipboard(c, clipboard))
+}
+
 /// Answer for an item whose name is already in the destination.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Choice {
@@ -361,6 +368,16 @@ mod tests {
         assert!(!on_clipboard(copied, "some text copied elsewhere"));
         assert!(!on_clipboard(copied, "/home/a/x.jpg"));
         assert!(!on_clipboard(copied, ""));
+    }
+
+    /// Ctrl+V in the viewer pastes nothing, as Edit > Paste is greyed out there; in the grid the items.
+    #[test]
+    fn no_paste_in_the_viewer() {
+        let copied = "/home/a/x.jpg";
+        assert!(pastes_items(false, Some(copied), copied));
+        assert!(!pastes_items(true, Some(copied), copied));
+        assert!(!pastes_items(false, None, copied));
+        assert!(!pastes_items(false, Some(copied), "some text copied elsewhere"));
     }
 
     /// The speed of the last 4 seconds, not of the whole copy.

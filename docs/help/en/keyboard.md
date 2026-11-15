@@ -75,7 +75,7 @@ In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device e
 | Ctrl+S | Save the turned image over the original |
 | Ctrl+Shift+S | Save as (see [Save as](save-as.md)) |
 | Ctrl+E | Edit image |
-| Ctrl+C, Ctrl+X | Copy or cut the image shown, to paste it in a folder |
+| Ctrl+C, Ctrl+X | Copy or cut the image shown, to paste it in a folder from the grid (Ctrl+V does nothing in the viewer) |
 | F2, Del, Shift+Del | Rename and delete, as in the grid |
 
 The mouse wheel zooms around the pointer, + and − around the middle of the window; Ctrl and the wheel always zoom, also when the wheel is set to change image (see [Options](options.md)).

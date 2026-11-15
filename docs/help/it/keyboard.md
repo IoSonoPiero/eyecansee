@@ -75,7 +75,7 @@ Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositiv
 | Ctrl+S | Salva l'immagine ruotata sopra l'originale |
 | Ctrl+Maiusc+S | Salva come (vedi [Salva come](save-as.md)) |
 | Ctrl+E | Modifica immagine |
-| Ctrl+C, Ctrl+X | Copia o taglia l'immagine mostrata, per incollarla in una cartella |
+| Ctrl+C, Ctrl+X | Copia o taglia l'immagine mostrata, per incollarla in una cartella dalla griglia (nel visore Ctrl+V non fa niente) |
 | F2, Canc, Maiusc+Canc | Rinomina ed elimina, come nella griglia |
 
 La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della finestra; Ctrl con la rotellina ingrandisce sempre, anche quando la rotellina è impostata per cambiare immagine (vedi [Opzioni](options.md)).
