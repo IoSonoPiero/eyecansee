@@ -52,7 +52,7 @@ In alto a destra gli assi del file (X rosso, Y verde, Z blu) girano col modello,
 
 ## Cosa si vede
 
-Si vedono i colori scritti nel file e, in molti formati, anche le immagini sulle superfici (texture). Un modello senza colori è grigio chiaro. Le superfici curve sono morbide e gli spigoli restano netti, anche nei modelli che non salvano queste informazioni.
+Si vedono i colori scritti nel file e, in molti formati, anche le immagini sulle superfici (texture). Un modello senza colori è grigio chiaro. I materiali dei modelli glTF e FBX, e dei modelli OBJ (il loro file `.mtl`), mostrano anche quanto una superficie è lucida o metallica, la luce che emette (una lampada) e i piccoli rilievi di una normal map. Le superfici curve sono morbide e gli spigoli restano netti, anche nei modelli che non salvano queste informazioni.
 
 Senza una scheda video che EyeCanSee possa usare, il visore mostra l'immagine ferma del modello.
 

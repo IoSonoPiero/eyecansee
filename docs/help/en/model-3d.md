@@ -52,7 +52,7 @@ In the top right corner the axes of the file (X red, Y green, Z blue) turn with 
 
 ## What is shown
 
-The colours stored in the file are shown, and in many formats also the pictures on the surfaces (textures). A model without colours is light grey. Curved surfaces look smooth and edges stay sharp, also in models that do not store this information.
+The colours stored in the file are shown, and in many formats also the pictures on the surfaces (textures). A model without colours is light grey. The materials of glTF and FBX models, and of OBJ models (their `.mtl` file), also show how shiny or metallic a surface is, the light it gives (a lamp), and the small bumps of a normal map. Curved surfaces look smooth and edges stay sharp, also in models that do not store this information.
 
 Without a graphics card EyeCanSee can use, the viewer shows the still picture of the model.
 

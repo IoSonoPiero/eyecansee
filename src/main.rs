@@ -104,6 +104,7 @@ mod model_gltf_unpack;
 mod model_ifc;
 mod model_lines;
 mod model_measure;
+mod model_mtl;
 mod model_off;
 mod model_smooth;
 mod model_text;

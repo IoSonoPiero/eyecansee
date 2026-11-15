@@ -358,8 +358,8 @@ pub(crate) fn percent_decoded(s: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
-/// With the colours of its materials (`Kd` of the `.mtl` files it names) or of its vertices, and
-/// their pictures (`map_Kd`).
+/// With the colours of its materials (`Kd` of the `.mtl` files it names) or of its vertices,
+/// their pictures (`map_Kd`) and the rest of the material (`model_mtl`: highlight, glow, normal map).
 fn obj(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     let options = tobj::LoadOptions { triangulate: true, single_index: true, ignore_points: true, ignore_lines: true };
     let mtl = |p: &std::path::Path| match p.to_str().and_then(sibling) {
@@ -369,7 +369,10 @@ fn obj(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     let (models, materials) = tobj::load_obj_buf(&mut Cursor::new(utf8(bytes).as_bytes()), &options, mtl).map_err(|e| e.to_string())?;
     let materials = materials.unwrap_or_default();
     let mut b = Builder::default();
+    let mut surfaces: std::collections::HashMap<usize, u16> = std::collections::HashMap::new();
     for m in models {
+        let id = m.mesh.material_id;
+        let surface = id.and_then(|i| Some((i, materials.get(i)?))).map_or(0, |(i, mat)| *surfaces.entry(i).or_insert_with(|| crate::model_mtl::surface(mat, &mut b, sibling).map_or(0, |s| b.surface(s))));
         let m = m.mesh;
         let pos = m.positions.as_chunks::<3>().0.to_vec();
         let tris: Vec<[u32; 3]> = m.indices.as_chunks::<3>().0.to_vec();
@@ -387,7 +390,13 @@ fn obj(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
             let c = tris[i].map(|v| uv.get(v as usize).copied());
             c.iter().all(Option::is_some).then(|| (c.map(Option::unwrap_or_default), tex))
         };
-        b.add_textured(pos, tris.clone(), colors, corners)?;
+        // The file's normals with a material that has a surface; matte, as before, worked out.
+        let normals: Vec<[f32; 3]> = if surface > 0 { m.normals.as_chunks::<3>().0.to_vec() } else { Vec::new() };
+        let shine = |i: usize| {
+            let n = tris[i].map(|v| normals.get(v as usize).copied());
+            (corners(i), surface, n.iter().all(Option::is_some).then(|| n.map(Option::unwrap_or_default)))
+        };
+        b.add_shiny(pos, tris.clone(), colors, shine)?;
     }
     b.finish(false)
 }
