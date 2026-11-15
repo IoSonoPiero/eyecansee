@@ -239,9 +239,11 @@ impl App {
                 if ui.add(white(Line::ZoomIn)).on_hover_text(tip(i18n, "edit-zoom-in", "+")).clicked() {
                     w.zoom(1.25);
                 }
-                let pct = zoom_label(w.shown.1, ui.ctx().pixels_per_point());
-                if ui.add(egui::Button::new(pct).frame(false)).on_hover_text(tip(i18n, "edit-zoom-fit", "0")).clicked() {
-                    w.view = None;
+                // The percentage to type and the slider, as in the viewer (#152).
+                let ppp = ui.ctx().pixels_per_point();
+                let range = [super::ZOOM_LEAST * ppp, super::ZOOM_MOST * ppp];
+                if let Some(zoom) = crate::zoom_bar::controls(ui, i18n, super::ZOOM_SALT, shown_zoom(w.shown.1, ppp), range) {
+                    w.zoom_to(zoom, ppp);
                 }
                 if ui.add(white(Line::ZoomOut)).on_hover_text(tip(i18n, "edit-zoom-out", "−")).clicked() {
                     w.zoom(0.8);
@@ -302,10 +304,10 @@ fn filters_heading(marquee: bool) -> &'static str {
     if marquee { "edit-filters-part" } else { "edit-filters-whole" }
 }
 
-/// The zoom in the status bar, in pixels of the screen per pixel of the image: `scale` points per
-/// pixel at `ppp` pixels per point.
-fn zoom_label(scale: f32, ppp: f32) -> String {
-    format!("{:.0}%", scale * ppp * 100.0)
+/// The zoom in the status bar, in pixels of the screen per pixel of the image (1 = 100%): `scale`
+/// points per pixel at `ppp` pixels per point.
+fn shown_zoom(scale: f32, ppp: f32) -> f32 {
+    scale * ppp
 }
 
 /// Bytes in MiB, one decimal.
@@ -522,10 +524,12 @@ mod tests {
     /// MiB, the hint of every tool and of the eyedropper in both languages.
     #[test]
     fn status_bar_texts() {
-        assert_eq!(zoom_label(1.0, 1.0), "100%");
-        assert_eq!(zoom_label(0.5, 2.0), "100%");
-        assert_eq!(zoom_label(0.25, 1.0), "25%");
-        assert_eq!(zoom_label(2.0, 1.1), "220%");
+        let label = |scale, ppp| crate::zoom::percent_text(shown_zoom(scale, ppp), ".");
+        assert_eq!(label(1.0, 1.0), "100%");
+        assert_eq!(label(0.5, 2.0), "100%");
+        assert_eq!(label(0.25, 1.0), "25%");
+        assert_eq!(label(2.0, 1.1), "220%");
+        assert_eq!(label(0.015, 1.0), "1.5%");
         assert_eq!(mib(0), "0.0");
         assert_eq!(mib(1_048_576), "1.0");
         assert_eq!(mib(25 * 1_048_576 / 2), "12.5");

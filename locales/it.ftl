@@ -670,7 +670,6 @@ edit-off-redo = Niente da ripetere.
 edit-off-copying = La copia negli appunti è in corso.
 edit-zoom-in = Ingrandisci
 edit-zoom-out = Riduci
-edit-zoom-fit = Tutto in vista (anche doppio clic)
 edit-col-red = Rosso
 edit-col-orange = Arancione
 edit-col-yellow = Giallo

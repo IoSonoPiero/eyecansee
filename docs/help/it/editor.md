@@ -17,7 +17,7 @@ L'editor lavora su un'immagine alla volta. Con più immagini selezionate queste 
 
 - **Barra degli strumenti** (in alto): un pulsante per strumento, poi ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square), ![Ridimensiona](icon://scaling), ![Filtri](icon://wand-sparkles), ![Annulla](icon://undo-2) e ![Ripeti](icon://redo-2). A destra: ![Copia](icon://copy), ![Chiudi](icon://x) e **Salva copia** (o **Sovrascrivi…**, cioè Sovrascrivi l'originale…, se scelto nelle [Opzioni](options.md)) con la sua freccia ![Altri modi di salvare](icon://chevron-down). Lo strumento in uso è evidenziato. Passando sopra un pulsante vedi il nome e il tasto; su un pulsante spento anche il perché.
 - **Barra delle proprietà** (sotto gli strumenti): lo stile dell'oggetto selezionato, o del prossimo che lo strumento disegnerà. Con lo strumento del ritaglio contiene i comandi del ritaglio. Vedi [Colori, linee e contagocce](editor-colors.md).
-- **Barra di stato** (in basso): il nome del file, la misura del risultato in pixel, un breve suggerimento sullo strumento, l'ingrandimento e il pulsante **Tasti**.
+- **Barra di stato** (in basso): il nome del file, la misura del risultato in pixel, un breve suggerimento sullo strumento, l'ingrandimento con il suo cursore e il pulsante **Tasti**.
 
 ## Gli strumenti
 
@@ -87,7 +87,8 @@ Buono a sapersi:
 ## Muoversi nell'immagine
 
 - Rotellina del mouse (o Ctrl+rotellina, o il pizzico): ingrandisce intorno al puntatore.
-- **+** e **−**: ingrandiscono intorno al centro. **0**, un clic sulla percentuale o un doppio clic: tutto in vista.
+- **+** e **−**: ingrandiscono intorno al centro. **0** o un doppio clic: tutto in vista.
+- Nella barra di stato, fai clic sulla percentuale e scrivine un'altra (per esempio **37** e **Invio**; **Esc** la lascia com'era), oppure trascina il cursore accanto, con le tacche su zoom tondi (10%, 25%, 50%, 100%, 200%…), come nel [visore](viewer.md).
 - Trascina col tasto destro o centrale per spostare la vista. Con Seleziona sposta la vista anche trascinare su un punto vuoto.
 - I pulsanti ![Ingrandisci](icon://zoom-in) e ![Riduci](icon://zoom-out) sono nella barra di stato.
 

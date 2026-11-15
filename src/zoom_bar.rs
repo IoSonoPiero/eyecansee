@@ -1,9 +1,9 @@
-//! The zoom in the viewer's status bar (issue #152), as in XnView MP and
+//! The zoom in the status bars of the viewer and of the editor (issue #152), as in XnView MP and
 //! Windows Photos: the percentage, which a click turns into a field to type another (Enter sets
 //! it, Esc or a click elsewhere leaves it as it was), and beside it a slider on a logarithmic
 //! scale with marks on round zooms (`ticked`). Both ask for a zoom: the viewer reaches it in the
 //! same pass (`zoom::Bar::ask`), as the status bar is drawn before it, with the limits of the last
-//! pass. The logic is in `zoom`.
+//! pass; the editor at once. The logic is in `zoom`.
 
 use eframe::egui;
 
@@ -31,13 +31,24 @@ impl App {
 }
 
 /// The percentage of `shown` (1 = 100%) and the slider from `range[0]` to `range[1]`, kept
-/// together on a row of the bar (`bar_rows`): the zoom asked by either. `salt` tells the field of one bar from another's.
+/// together on a row of the bar (`bar_rows`), in reading order also in a bar drawn from the
+/// right: the zoom asked by either. `salt` tells the field of one bar from another's.
 pub(crate) fn controls(ui: &mut egui::Ui, i18n: &I18n, salt: &str, shown: f32, range: [f32; 2]) -> Option<f32> {
     ui.horizontal(|ui| {
-        let typed = field(ui, i18n, salt, shown);
-        typed.or(slider(ui, i18n, shown, range))
+        if ui.layout().prefer_right_to_left() {
+            let slid = slider(ui, i18n, shown, range);
+            field(ui, i18n, salt, shown).or(slid)
+        } else {
+            let typed = field(ui, i18n, salt, shown);
+            typed.or(slider(ui, i18n, shown, range))
+        }
     })
     .inner
+}
+
+/// The field of `salt` is taking the keys: Esc is its, not the page's.
+pub(crate) fn typing(ctx: &egui::Context, salt: &str) -> bool {
+    ctx.memory(|m| m.has_focus(field_id(salt).with("edit")))
 }
 
 fn field_id(salt: &str) -> egui::Id {
@@ -74,7 +85,7 @@ fn field(ui: &mut egui::Ui, i18n: &I18n, salt: &str, zoom: f32) -> Option<f32> {
         return None;
     }
     // Enter ends the typing (the field lets the focus go), Esc is kept by the field and taken
-    // here, so that it does not also close the viewer.
+    // here, so that it does not also close the viewer or the editor.
     let esc = r.has_focus() && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
     let enter = r.lost_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));
     if r.has_focus() && !esc {
@@ -100,7 +111,7 @@ fn slider(ui: &mut egui::Ui, i18n: &I18n, zoom: f32, range: [f32; 2]) -> Option<
     let r = ui.add_sized([SLIDER, thick + 6.0], slider).on_hover_text(i18n.t("zoom-slider-hint"));
     let marks: Vec<f64> = zoom::slider_marks(range).into_iter().map(|z| f64::from(zoom::to_slider(z, range))).collect();
     crate::ticked::paint(ui, &r, 0.0..=1.0, &marks);
-    // The arrows change the image through `viewer_keys`: a focused slider would move as well.
+    // The arrows change the image (or move what is selected): a focused slider would move as well.
     if r.has_focus() {
         r.surrender_focus();
     }

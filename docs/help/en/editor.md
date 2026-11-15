@@ -17,7 +17,7 @@ The editor works on one image at a time. With several images selected, these ite
 
 - **Toolbar** (top): one button per tool, then ![Rotate 90° anticlockwise](icon://rotate-ccw-square) and ![Rotate 90° clockwise](icon://rotate-cw-square), ![Resize](icon://scaling), ![Filters](icon://wand-sparkles), ![Undo](icon://undo-2) and ![Redo](icon://redo-2). On the right: ![Copy](icon://copy), ![Close](icon://x) and **Save copy** (or **Overwrite…**, short for Overwrite the original…, if chosen in the [Options](options.md)) with its arrow ![More ways to save](icon://chevron-down). The tool in use is highlighted. Point at a button to see its name and key; on a button that is off you also see why.
 - **Properties bar** (under the toolbar): the style of the selected object, or of the next one the tool will draw. With the crop tool it holds the crop controls. See [Colours, lines and the eyedropper](editor-colors.md).
-- **Status bar** (bottom): the file name, the size of the result in pixels, a short hint for the tool, the zoom, and the **Keys** button.
+- **Status bar** (bottom): the file name, the size of the result in pixels, a short hint for the tool, the zoom with its slider, and the **Keys** button.
 
 ## The tools
 
@@ -87,7 +87,8 @@ Good to know:
 ## Moving around the image
 
 - Mouse wheel (or Ctrl+wheel, or a pinch): zoom around the pointer.
-- **+** and **−**: zoom around the middle. **0**, a click on the percentage, or a double click: everything in view.
+- **+** and **−**: zoom around the middle. **0** or a double click: everything in view.
+- In the status bar, click the percentage and type another (for example **37** and **Enter**; **Esc** leaves it as it was), or drag the slider beside it, with marks on round zooms (10%, 25%, 50%, 100%, 200%…), as in the [viewer](viewer.md).
 - Drag with the right or middle button to move the view. With Select, dragging on an empty spot moves the view too.
 - The zoom buttons ![Zoom in](icon://zoom-in) and ![Zoom out](icon://zoom-out) are in the status bar.
 

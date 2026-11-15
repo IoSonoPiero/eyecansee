@@ -671,7 +671,6 @@ edit-off-redo = Nothing to redo.
 edit-off-copying = Copying to the clipboard.
 edit-zoom-in = Zoom in
 edit-zoom-out = Zoom out
-edit-zoom-fit = Everything in view (also double click)
 edit-col-red = Red
 edit-col-orange = Orange
 edit-col-yellow = Yellow

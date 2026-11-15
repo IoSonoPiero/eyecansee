@@ -677,7 +677,7 @@ fn wheel(ui: &egui::Ui, w: &mut Window, view: &View, rect: Rect, turn: bool) {
     {
         // The point under the pointer stays under it.
         let fixed = view.image(p);
-        let k = (view.k * factor).clamp(0.01, 64.0);
+        let k = (view.k * factor).clamp(super::ZOOM_LEAST, super::ZOOM_MOST);
         w.view = Some((fixed - (p - rect.center()) / k, k));
     }
 }

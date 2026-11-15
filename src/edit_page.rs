@@ -36,6 +36,12 @@ mod style_bar;
 mod tools;
 mod typing;
 use canvas::canvas;
+
+/// The smallest and the largest zoom, in points of the screen per pixel of the image.
+const ZOOM_LEAST: f32 = 0.01;
+const ZOOM_MOST: f32 = 64.0;
+/// The zoom field of the status bar (`zoom_bar`).
+const ZOOM_SALT: &str = "editor-zoom";
 pub(crate) use save::{Prepared, Written};
 pub(crate) use open::Animated;
 
@@ -481,7 +487,14 @@ impl Window {
     /// Zoom in or out around the middle of the view.
     fn zoom(&mut self, factor: f32) {
         let (at, k) = self.shown;
-        self.view = Some((at, (k * factor).clamp(0.01, 64.0)));
+        self.view = Some((at, (k * factor).clamp(ZOOM_LEAST, ZOOM_MOST)));
+    }
+
+    /// The zoom typed or set with the slider of the status bar (#152), in pixels of the screen
+    /// per pixel of the image at `ppp` pixels per point: around the middle of the view.
+    fn zoom_to(&mut self, zoom: f32, ppp: f32) {
+        let (at, _) = self.shown;
+        self.view = Some((at, (zoom / ppp).clamp(ZOOM_LEAST, ZOOM_MOST)));
     }
 
     fn undo(&mut self) {
@@ -553,7 +566,8 @@ impl App {
             }
         }
         // With a question open (save, leave, Resize) Esc is its Cancel, not the page's.
-        if !w.asking() && ui.input(|i| i.key_pressed(egui::Key::Escape)) && !w.escape() {
+        // While the zoom is typed in the status bar, Esc is the field's.
+        if !w.asking() && !crate::zoom_bar::typing(ui.ctx(), ZOOM_SALT) && ui.input(|i| i.key_pressed(egui::Key::Escape)) && !w.escape() {
             open = false;
         }
         w.follow_size(ui.ctx());
