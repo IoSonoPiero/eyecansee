@@ -17,7 +17,7 @@ use crate::folder_pick::{Picker, pick_ui};
 use crate::i18n::I18n;
 use crate::transform::{Op, Turn};
 use crate::save_dialogs::{md, notice_text};
-use crate::selection::{CONVERTED, Kind, PLAYED, left_out_id, split};
+use crate::selection::{CONVERTED, Kind, META_COPIED, PLAYED, left_out_id, split};
 use crate::{App, source};
 
 mod rows;
@@ -243,8 +243,7 @@ impl Form {
         let name = self.sub_name.trim();
         let media = match self.audio {
             Some(_) => crate::ffmpeg::copier().is_none().then_some("batch-audio-not-ready"),
-            // Copy with the metadata copies the pictures as they are.
-            None if self.images && self.part != Part::CopyMeta && self.job().does_nothing() => Some("batch-nothing"),
+            None if self.images && self.job().does_nothing() => Some("batch-nothing"),
             None if self.videos && self.job().video.is_none() => Some("batch-video-not-ready"),
             None if self.audios && self.job().sound.is_none() => Some("batch-sound-not-ready"),
             None => None,
@@ -350,11 +349,11 @@ impl App {
         true
     }
 
-    /// "Copy with the metadata": the window on the pictures and videos chosen, on "Same as the
-    /// original" (video streams copied, metadata written; pictures copied as they are), the
-    /// destination left to choose.
+    /// "Copy with the metadata": the window on the videos chosen, on "Same as the original"
+    /// (streams copied, metadata written), the destination left to choose. Never on pictures,
+    /// which keep their metadata in their own file: they are left out as the other files.
     pub(crate) fn open_copy_meta(&mut self, path: Option<String>) {
-        if !self.open_batch_of(path, PLAYED) {
+        if !self.open_batch_of(path, META_COPIED) {
             return;
         }
         if let Some(form) = self.batch_form.as_mut() {
@@ -740,11 +739,13 @@ mod tests {
         // Custom… again: the size of the last one.
         f.open_on(Part::Resize);
         assert_eq!((f.job().size, f.place == Place::Next), (Size::Short(600), true));
-        // Copy with the metadata: the pictures as they are, which Convert would refuse.
+        // Copy with the metadata: the streams as they are, on videos only (`open_copy_meta`).
         f.open_on(Part::CopyMeta);
         assert!(f.job().does_nothing());
         assert_eq!(f.titles(), ("batch-title-copy-meta", "batch-start-copy", "batch-working-copy"));
-        assert_eq!((f.why_not(), f.place == Place::Sub), (None, true));
+        f.files(&["/a/clip.mp4".into()], false);
+        assert!(!f.images && f.videos_only() && f.place == Place::Sub);
+        f.files(&["/a/Sunset.jpg".into()], false);
         f.open_on(Part::Convert);
         assert_eq!((f.format, f.job().size, f.why_not()), (Some(Format::Png), Size::Same, None));
         f.format = None;

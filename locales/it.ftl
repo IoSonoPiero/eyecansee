@@ -1331,6 +1331,7 @@ off-no-model = Nessun modello 3D tra i file scelti.
 off-no-drawing = Nessun disegno CAD tra i file scelti.
 off-no-played = Nessuna immagine o video tra i file scelti.
 off-no-converted = Nessuna immagine, video o file audio tra i file scelti.
+off-copy-meta-no-video = Serve per i video: le foto hanno già i loro metadati dentro il file.
 off-no-kind = Nessuno dei file scelti è di un tipo su cui questa voce lavora.
 off-edit-picture = Modifica immagine e Ruota e ritaglia lavorano solo sulle immagini.
 off-edit-video = I video si ruotano con Ruota di 90° e Ruota di 180°, non nell'editor: Modifica immagine e Ruota e ritaglia lavorano solo sulle immagini.

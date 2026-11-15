@@ -40,6 +40,9 @@ pub(crate) const CONVERTED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Audio]
 /// Every kind has a thumbnail: an audio file its cover (or the note).
 pub(crate) const THUMBED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Audio, Kind::Model, Kind::Drawing];
 
+/// Copy with the metadata…: videos only, a picture already keeps its metadata in its own file.
+pub(crate) const META_COPIED: &[Kind] = &[Kind::Video];
+
 /// What Save as… saves from the grid (in the viewer also what a 3D model or a drawing shows).
 pub(crate) const SAVED_AS: &[Kind] = &[Kind::Picture, Kind::Model, Kind::Drawing];
 
@@ -65,6 +68,15 @@ pub(crate) fn none_of(kinds: &[Kind]) -> &'static str {
         [Kind::Picture, Kind::Video] => "off-no-played",
         [Kind::Picture, Kind::Video, Kind::Audio] => "off-no-converted",
         _ => "off-no-kind",
+    }
+}
+
+/// Why the entry `label` (Fluent id) is greyed out when none of the files chosen is of its
+/// `kinds`: its own reason when it has one, otherwise `none_of`.
+pub(crate) fn why_none(label: &str, kinds: &[Kind]) -> &'static str {
+    match label {
+        "menu-copy-meta" => "off-copy-meta-no-video",
+        _ => none_of(kinds),
     }
 }
 
@@ -266,6 +278,31 @@ mod tests {
             }
         }
         assert_eq!(none_of(PLAYED), "off-no-played");
+    }
+
+    /// Copy with the metadata: greyed out with its own reason on pictures only (also a motion
+    /// photo, a JPEG) and on audio files, "*" with a picture next to a video.
+    #[test]
+    fn copy_meta_fits_the_videos() {
+        let files: Vec<String> = ["a.jpg", "b.MP4", "c.mov", "d.mp3", "e/", "f.MP.jpg"].map(String::from).to_vec();
+        assert_eq!(fits(&files[..1], META_COPIED), None);
+        assert_eq!(fits(&files[5..], META_COPIED), None);
+        assert_eq!(fits(&files[3..4], META_COPIED), None);
+        assert_eq!(fits(&files[1..3], META_COPIED), Some(true));
+        assert_eq!(fits(&files[..2], META_COPIED), Some(false));
+        assert_eq!(fits(&files[2..5], META_COPIED), Some(false));
+        assert_eq!(why_none("menu-copy-meta", META_COPIED), "off-copy-meta-no-video");
+        // The other video entries keep the common reason.
+        assert_eq!(why_none("menu-strip-audio", &[Kind::Video]), "off-no-video");
+        assert_eq!(why_none("menu-batch", CONVERTED), "off-no-converted");
+        // The pictures and the audio files chosen with videos are left out, and named so.
+        let (videos, out) = split(files.clone(), META_COPIED);
+        assert_eq!((videos.len(), out.len()), (2, 4));
+        assert_eq!(left_out_id(META_COPIED, "a.jpg"), "skip-not-video");
+        for code in ["en", "it"] {
+            let i18n = crate::i18n::I18n::new(code);
+            assert_ne!(i18n.t("off-copy-meta-no-video"), "off-copy-meta-no-video", "{code}");
+        }
     }
 
     #[test]

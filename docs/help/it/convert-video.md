@@ -38,7 +38,9 @@ Il riquadro in basso a destra mostra a che punto è; la barra avanza anche duran
 
 ## Copia con i metadati
 
-**Strumenti > Copia con i metadati…** (anche nel clic destro) apre la stessa finestra, che si chiama **Copia con i metadati** e ha il pulsante **Copia**, sui video e sulle foto scelti, già impostata su **Uguale all'originale**, nel contenitore degli originali (MKV per video di formati diversi), senza rotazione né riflessione; gli altri file scelti restano fuori, e alla fine vengono nominati. Di solito scegli solo dove mettere la copia. Il video viene riscritto in pochi secondi, con i suoi metadati dentro: per dashcam e droni anche la posizione presa dai file accanto. Una foto viene copiata così com'è, con tutti i suoi metadati; se la ruoti o la ridimensioni nella finestra, li conserva come in una conversione.
+**Strumenti > Copia con i metadati…** (anche nel clic destro) apre la stessa finestra, che si chiama **Copia con i metadati** e ha il pulsante **Copia**, sui video scelti, già impostata su **Uguale all'originale**, nel contenitore degli originali (MKV per video di formati diversi), senza rotazione né riflessione. Di solito scegli solo dove mettere la copia. Il video viene riscritto in pochi secondi, con i suoi metadati dentro: per dashcam e droni anche la posizione presa dai file accanto.
+
+Serve solo per i video: una foto ha già i suoi metadati dentro il file, quindi una copia normale (**Modifica > Copia** e **Incolla**) li conserva. Con foto, file audio o altri file scelti insieme ai video, la voce ha l'**\***: quei file restano fuori, e alla fine vengono nominati. Senza nessun video, la voce è grigia e, se ci passi sopra col mouse, dice perché.
 
 ## Copia senza audio e Salva l'audio in un file
 
