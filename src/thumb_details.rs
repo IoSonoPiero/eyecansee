@@ -16,11 +16,13 @@ pub struct Details {
     pub date: bool,
     /// Of videos and sounds, beside the date.
     pub duration: bool,
+    /// Of CAD drawings, the number and revision of the title block (#144), before the size.
+    pub drawing: bool,
 }
 
 impl Default for Details {
     fn default() -> Self {
-        Details { name: true, pixels: true, size: true, date: true, duration: true }
+        Details { name: true, pixels: true, size: true, date: true, duration: true, drawing: true }
     }
 }
 
@@ -40,6 +42,9 @@ pub struct Info {
     /// Of a video or a sound, as the player writes it ("1:24").
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub duration: Option<String>,
+    /// Of a CAD drawing, its number and revision ("A-101 rev. C", `cad_meta::summary`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub drawing: Option<String>,
 }
 
 impl Info {
@@ -49,7 +54,7 @@ impl Info {
     pub fn of(bytes: &[u8], name: &str, thumb: (u32, u32), decoded: Option<[u32; 2]>) -> Info {
         let pixels = crate::decode::header(bytes, name).map(|h| upright(h.size, thumb)).or(decoded);
         let taken = crate::meta::read(bytes).and_then(|m| m.fields.into_iter().find(|(_, l, _)| *l == "meta-taken").map(|(_, _, v)| v));
-        Info { pixels, taken, duration: None }
+        Info { pixels, taken, duration: None, drawing: None }
     }
 
     /// From the metadata panel's reading of a video or a sound (`video_read::video_meta`): its
@@ -57,7 +62,7 @@ impl Info {
     pub fn of_video(meta: &crate::meta::Meta) -> Info {
         let field = |label: &str| meta.fields.iter().find(|(_, l, _)| *l == label).map(|(_, _, v)| v.clone());
         let px = |label: &str| field(label).and_then(|v| v.trim_end_matches(" px").parse::<u32>().ok());
-        Info { pixels: px("meta-width").zip(px("meta-height")).map(|(w, h)| [w, h]), taken: field("meta-taken"), duration: field("meta-duration") }
+        Info { pixels: px("meta-width").zip(px("meta-height")).map(|(w, h)| [w, h]), taken: field("meta-taken"), duration: field("meta-duration"), drawing: None }
     }
 
     pub fn to_json(&self) -> String {
@@ -99,7 +104,7 @@ impl Rows {
     /// Small thumbnails (`big` false), or nothing ticked: only the name. The duration goes on the
     /// date's row ("01/11/2026 14:43 · 1:24"): beside dimensions and size it was cut.
     pub fn of(d: &Details, big: bool) -> Rows {
-        let (measures, date) = ((d.pixels || d.size) && big, (d.date || d.duration) && big);
+        let (measures, date) = ((d.pixels || d.size || d.drawing) && big, (d.date || d.duration) && big);
         Rows { name: d.name || !(measures || date), measures, date }
     }
 
@@ -110,9 +115,9 @@ impl Rows {
 
 /// The row of dimensions and size, the chosen ones joined by a dot; `None` with nothing to write
 /// for this file. `pixels` and `size` already in words, `None` where they do not apply (no pixels
-/// for a sound).
-pub fn measures(d: &Details, pixels: Option<String>, size: Option<String>) -> Option<String> {
-    let parts: Vec<String> = [pixels.filter(|_| d.pixels), size.filter(|_| d.size)].into_iter().flatten().collect();
+/// for a sound); a drawing's number and revision first.
+pub fn measures(d: &Details, drawing: Option<String>, pixels: Option<String>, size: Option<String>) -> Option<String> {
+    let parts: Vec<String> = [drawing.filter(|_| d.drawing), pixels.filter(|_| d.pixels), size.filter(|_| d.size)].into_iter().flatten().collect();
     (!parts.is_empty()).then(|| parts.join(" · "))
 }
 
@@ -142,7 +147,7 @@ impl crate::App {
     pub(crate) fn ask_infos(&mut self, files: std::ops::Range<usize>) {
         let rows = self.detail_rows();
         let d = self.settings.thumb_details;
-        if !(rows.measures && d.pixels || rows.date && (d.date || d.duration)) {
+        if !(rows.measures && (d.pixels || d.drawing) || rows.date && (d.date || d.duration)) {
             return;
         }
         let Some(loader) = &self.loader else { return };
@@ -162,7 +167,8 @@ impl crate::App {
         let d = self.settings.thumb_details;
         let info = self.thumb_infos.get(&file.path);
         let pixels = info.and_then(|i| i.pixels).map(|p| pixels_text(&self.i18n, p));
-        let measures = measures(&d, pixels, Some(self.human_size(file.size)));
+        let drawing = info.and_then(|i| i.drawing.clone());
+        let measures = measures(&d, drawing, pixels, Some(self.human_size(file.size)));
         let date = info
             .and_then(|i| i.taken.as_deref())
             .map(|t| (self.meta_value("meta-taken", t), if crate::decode::is_played(&file.path) { DateKind::Recorded } else { DateKind::Taken }))
@@ -183,22 +189,27 @@ mod tests {
 
     #[test]
     fn the_rows() {
-        let all = Details { name: true, pixels: true, size: true, date: true, duration: true };
+        let all = Details { name: true, pixels: true, size: true, date: true, duration: true, drawing: true };
         let (px, kb) = (Some("1920 × 1080".to_string()), Some("350 KB".to_string()));
-        assert_eq!(measures(&all, px.clone(), kb.clone()).as_deref(), Some("1920 × 1080 · 350 KB"));
+        assert_eq!(measures(&all, None, px.clone(), kb.clone()).as_deref(), Some("1920 × 1080 · 350 KB"));
         // Only what is chosen; a sound has no pixels: the size stays.
-        assert_eq!(measures(&Details { pixels: false, ..all }, px.clone(), kb.clone()).as_deref(), Some("350 KB"));
-        assert_eq!(measures(&all, None, kb.clone()).as_deref(), Some("350 KB"));
-        let name_only = Details { name: true, pixels: false, size: false, date: false, duration: false };
-        assert_eq!(measures(&name_only, px, kb), None);
+        assert_eq!(measures(&Details { pixels: false, ..all }, None, px.clone(), kb.clone()).as_deref(), Some("350 KB"));
+        assert_eq!(measures(&all, None, None, kb.clone()).as_deref(), Some("350 KB"));
+        // A drawing's number and revision before its size, if chosen.
+        let number = Some("A-101 rev. C".to_string());
+        assert_eq!(measures(&all, number.clone(), None, kb.clone()).as_deref(), Some("A-101 rev. C · 350 KB"));
+        assert_eq!(measures(&Details { drawing: false, ..all }, number.clone(), None, kb.clone()).as_deref(), Some("350 KB"));
+        let name_only = Details { name: true, pixels: false, size: false, date: false, duration: false, drawing: false };
+        assert_eq!(measures(&name_only, number, px, kb), None);
         // The rows: name, measures, date; small thumbnails or nothing ticked, the name alone.
         assert_eq!(Rows::of(&all, true), Rows { name: true, measures: true, date: true });
         assert_eq!(Rows::of(&all, true).count(), 3);
         assert_eq!(Rows::of(&all, false), Rows { name: true, measures: false, date: false });
         assert_eq!(Rows::of(&Details { name: false, ..name_only }, true), Rows { name: true, measures: false, date: false });
         assert_eq!(Rows::of(&Details { name: false, date: true, ..name_only }, true).count(), 1);
-        // The duration alone takes the date's row.
+        // The duration alone takes the date's row; the drawing's number alone the measures' row.
         assert_eq!(Rows::of(&Details { duration: true, ..name_only }, true), Rows { name: true, measures: false, date: true });
+        assert_eq!(Rows::of(&Details { drawing: true, ..name_only }, true), Rows { name: true, measures: true, date: false });
     }
 
     /// A format whose header is not read (an SGI, a PCX…): the size of the picture decoded for
@@ -222,7 +233,7 @@ mod tests {
             ],
             gps: None,
         };
-        assert_eq!(Info::of_video(&meta), Info { pixels: Some([1080, 1920]), taken: Some("2026-10-09 17:48:35".into()), duration: Some("1:24".into()) });
+        assert_eq!(Info::of_video(&meta), Info { pixels: Some([1080, 1920]), taken: Some("2026-10-09 17:48:35".into()), duration: Some("1:24".into()), drawing: None });
         // A sound: no pixels.
         let sound = Meta { fields: vec![(Group::Shot, "meta-duration", "3:00".into())], gps: None };
         assert_eq!(Info::of_video(&sound), Info { duration: Some("3:00".into()), ..Info::default() });
@@ -243,7 +254,7 @@ mod tests {
         let mut bytes = Vec::new();
         image::DynamicImage::new_rgb8(64, 32).write_to(&mut std::io::Cursor::new(&mut bytes), image::ImageFormat::Jpeg).unwrap();
         let info = Info::of(&bytes, "a.jpg", (64, 32), None);
-        assert_eq!(info, Info { pixels: Some([64, 32]), taken: None, duration: None });
+        assert_eq!(info, Info { pixels: Some([64, 32]), taken: None, duration: None, drawing: None });
         assert_eq!(Info::from_json(&info.to_json()), Some(info));
         // A cache row of another version (fields more or fewer) still reads.
         assert_eq!(Info::from_json(r#"{"pixels":[3,2],"later":1}"#).unwrap().pixels, Some([3, 2]));

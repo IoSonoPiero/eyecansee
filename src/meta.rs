@@ -16,10 +16,12 @@ pub enum Group {
     Shot,
     Image,
     Gps,
+    /// A CAD drawing's properties and title block (`cad_meta`), shown only for drawings.
+    Drawing,
 }
 
 impl Group {
-    pub const ALL: [Group; 5] = [Group::File, Group::Camera, Group::Shot, Group::Image, Group::Gps];
+    pub const ALL: [Group; 6] = [Group::File, Group::Camera, Group::Shot, Group::Image, Group::Gps, Group::Drawing];
 
     /// Name in the settings and, with `meta-` in front, Fluent id of the title.
     pub fn key(self) -> &'static str {
@@ -29,6 +31,7 @@ impl Group {
             Group::Shot => "shot",
             Group::Image => "image",
             Group::Gps => "gps",
+            Group::Drawing => "drawing",
         }
     }
 }
@@ -65,8 +68,9 @@ impl Meta {
     }
 }
 
-/// The labels are Fluent ids, a few dozen in all: each kept once for the whole session.
-fn intern(s: &str) -> &'static str {
+/// The labels are Fluent ids, a few dozen in all, and the names a drawing gives its own (`=` in
+/// front, `cad_meta`): each kept once for the whole session.
+pub(crate) fn intern(s: &str) -> &'static str {
     static SEEN: std::sync::Mutex<std::collections::BTreeSet<&'static str>> = std::sync::Mutex::new(std::collections::BTreeSet::new());
     let mut seen = SEEN.lock().unwrap();
     match seen.get(s) {
@@ -278,8 +282,12 @@ pub fn fit_exif(t: &mut [u8], w: u32, h: u32) {
 }
 
 /// The panel for an image: its EXIF if any, and always what the header says (format, size,
-/// colour). `None` only when neither can be read.
+/// colour). `None` only when neither can be read. For a DWG or DXF drawing its properties and
+/// title block (`cad_meta`).
 pub fn read_file(bytes: &[u8], name: &str) -> Option<Meta> {
+    if crate::cad_convert::can_convert(name) {
+        return crate::cad_meta::meta(bytes, name);
+    }
     let header = crate::decode::header(bytes, name);
     let mut meta = read(bytes);
     if meta.is_none() && header.is_none() {
