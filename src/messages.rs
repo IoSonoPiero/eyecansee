@@ -276,6 +276,8 @@ impl App {
     }
 
     fn on_trash_items(&mut self, paths: Vec<String>) {
+        // A RAW photo's sidecars go back with it (`sidecar_follow::restore`).
+        let paths = crate::sidecar_follow::without_sidecars(paths);
         log!("restore all: {} items", paths.len());
         self.restore_queue.extend(paths);
     }

@@ -242,11 +242,12 @@ pub const SKIP_WOULD_LOSE: &str = "drawing-skip-would-lose";
 /// content. `Err((id, detail))`: a Fluent id with the name or the error.
 #[cfg(test)]
 pub fn convert(bytes: &[u8], name: &str, job: &Job) -> Result<(String, Vec<u8>), (&'static str, String)> {
-    convert_with(bytes, name, job, &|_| None)
+    convert_with(bytes, name, job, &|_| None, None)
 }
 
-/// Like `convert`, reading the files next to a 3D model or a CAD drawing through `sibling`.
-pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::Sibling) -> Result<(String, Vec<u8>), (&'static str, String)> {
+/// Like `convert`, reading the files next to a 3D model or a CAD drawing through `sibling`; a RAW
+/// photo's copy has the XMP of its `sidecar` (#24).
+pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::Sibling, sidecar: Option<&[u8]>) -> Result<(String, Vec<u8>), (&'static str, String)> {
     if let Some(drawn) = job.drawing {
         return drawing(bytes, name, job, drawn, sibling);
     }
@@ -288,12 +289,12 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     if (w, h) != (image.width(), image.height()) {
         image = image.resize_exact(w, h, job.filter.kind());
     }
-    encoded(bytes, name, job, image, cut).map(|(out, data)| (job.named(out, resized), data))
+    encoded(bytes, name, job, image, cut, sidecar).map(|(out, data)| (job.named(out, resized), data))
 }
 
-/// The picture `image` made from `bytes` (named `name`, cut by `cut`) written as `job` asks:
-/// the new name, without its tag, and the content.
-fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut: Option<(u32, u32, u32, u32)>) -> Result<(String, Vec<u8>), (&'static str, String)> {
+/// The picture `image` made from `bytes` (named `name`, cut by `cut`, with the XMP of the RAW
+/// photo's `sidecar`) written as `job` asks: the new name, without its tag, and the content.
+fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut: Option<(u32, u32, u32, u32)>, sidecar: Option<&[u8]>) -> Result<(String, Vec<u8>), (&'static str, String)> {
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
     // An Ultra HDR photo written as JPEG with its metadata stays Ultra HDR, its gain map turned
     // and resized with it (#65); without metadata there is nothing to hold the gain map.
@@ -312,12 +313,12 @@ fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut:
         // writes over the original).
         None if Format::of_file(name) == Some(Format::Jpeg) => {
             let options = crate::encode::jpeg_quality::like(bytes, Options::default());
-            Ok((name.to_string(), encode::Original::with_meta_of(image, bytes, name).alone().turned(job.turn).encode(&options).map_err(failed)?))
+            Ok((name.to_string(), encode::Original::with_meta_beside(image, bytes, name, sidecar).alone().turned(job.turn).encode(&options).map_err(failed)?))
         }
-        None => crate::save_back::encoded_back(bytes, name, image).map(|(data, _)| (name.to_string(), data)).map_err(|_| (SKIP_INSIDE, name.to_string())),
+        None => crate::save_back::encoded_beside(bytes, name, image, sidecar).map(|(data, _)| (name.to_string(), data)).map_err(|_| (SKIP_INSIDE, name.to_string())),
         Some(format) => {
             let options = Options { format, turn: Turn::default(), ..job.options };
-            let data = encode::Original::with_meta_of(image, bytes, name).alone().turned(job.turn).encode(&options).map_err(failed)?;
+            let data = encode::Original::with_meta_beside(image, bytes, name, sidecar).alone().turned(job.turn).encode(&options).map_err(failed)?;
             Ok((with_ext(name, format), data))
         }
     }
@@ -652,17 +653,7 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
             p.done.fetch_add(1, Ordering::Relaxed);
             continue;
         }
-        let r = match op.read(&path).await {
-            Ok(bytes) => {
-                let (mut job, before) = (Job::clone(&job), bytes.len() as u64);
-                job.shown = job.layers.get(&path).cloned();
-                let sibling = crate::loader::siblings(op.clone(), path.clone());
-                let made = tokio::task::spawn_blocking(move || convert_with(&bytes, &name, &job, &sibling)).await.unwrap_or_else(|e| Err(("batch-failed", e.to_string())));
-                made.map(|(name, data)| (name, data, before))
-            }
-            Err((id, detail)) => Err((id, detail)),
-        };
-        match r {
+        match picture(op, &path, name, &job).await {
             Ok((new_name, data, before)) => {
                 let new_name = source::free_name(&taken, &new_name);
                 let to = format!("{dest}{new_name}");
@@ -683,6 +674,18 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
     p.finished.store(true, Ordering::Relaxed);
 }
 
+/// The picture at `path` (named `name`) after `job`, with its photo's sidecar (#24) and the
+/// layers shown of a drawing: the new name, the content and the size of the original.
+async fn picture(op: &Store, path: &str, name: String, job: &Job) -> Result<(String, Vec<u8>, u64), (&'static str, String)> {
+    let bytes = op.read(path).await?;
+    let (mut job, before) = (job.clone(), bytes.len() as u64);
+    job.shown = job.layers.get(path).cloned();
+    let sibling = crate::loader::siblings(op.clone(), path.to_string());
+    let sidecar = crate::sidecar::read(op, path).await.map(|s| s.xmp);
+    let made = tokio::task::spawn_blocking(move || convert_with(&bytes, &name, &job, &sibling, sidecar.as_deref())).await.unwrap_or_else(|e| Err(("batch-failed", e.to_string())));
+    made.map(|(name, data)| (name, data, before))
+}
+
 #[cfg(test)]
 mod tests {
     use image::DynamicImage;
@@ -690,7 +693,8 @@ mod tests {
     /// Every file of `EYECANSEE_META_IN` converted to JPEG, PNG, WebP, TIFF and AVIF into
     /// `EYECANSEE_META_OUT`, as Convert and resize writes them, to compare the metadata with exiftool:
     /// `EYECANSEE_META_IN=<dir> EYECANSEE_META_OUT=<dir> cargo test --release meta_files_live -- --ignored --nocapture`
-    /// (`EYECANSEE_META_FORMATS=jpg,tif` for only some of them).
+    /// (`EYECANSEE_META_FORMATS=jpg,tif` for only some of them). A RAW photo's sidecar is read as
+    /// the app reads it (#24).
     #[test]
     #[ignore]
     fn meta_files_live() {
@@ -703,7 +707,9 @@ mod tests {
                 if !only.is_empty() && !only.split(',').any(|e| e == format.ext()) {
                     continue;
                 }
-                match super::convert(&bytes, &name, &super::Job { format: Some(format), ..Default::default() }) {
+                let path = entry.path().to_string_lossy().to_string();
+                let sidecar = crate::sidecar::names(&path).into_iter().find_map(|p| std::fs::read(&p).ok().filter(|x| crate::sidecar::belongs(&path, &p, crate::sidecar::sidecar_for(x).as_deref(), false)));
+                match super::convert_with(&bytes, &name, &super::Job { format: Some(format), ..Default::default() }, &|_| None, sidecar.as_deref()) {
                     // The original's extension kept in the name: a.miff and a.psb do not overwrite each other.
                     Ok((new, data)) => std::fs::write(format!("{out}/{name}.{}", new.rsplit_once('.').unwrap().1), data).unwrap(),
                     Err(e) => println!("{name} -> {format:?}: {e:?}"),
@@ -1011,7 +1017,7 @@ mod tests {
             let img = crate::decode::decode_full(data, "x.png").unwrap().to_rgb8();
             img.pixels().filter(|p| p[0] > 120 && p[1] < 60 && p[2] < 60).count()
         };
-        assert!(red(&convert_with(obj, "q.obj", &job, &next).unwrap().1) > 1000);
+        assert!(red(&convert_with(obj, "q.obj", &job, &next, None).unwrap().1) > 1000);
         assert_eq!(red(&convert(obj, "q.obj", &job).unwrap().1), 0);
     }
 

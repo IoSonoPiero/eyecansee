@@ -14,6 +14,7 @@ EyeCanSee checks the name while you type: it cannot be empty, contain `/` or `\`
 ## Things to know about renaming
 
 - Rename works on one item at a time: with several selected it is off, and pointing at the button says why.
+- A photo's `.xmp` file (see [Image information](metadata.md)) is renamed with it, in the same pattern: "IMG_0001.CR2.xmp" or "IMG_0001.xmp" become "Sea.CR2.xmp" or "Sea.xmp". If another file already has the name the `.xmp` file would take, nothing is renamed and the message says which file.
 - The top folder of a disk, phone or server, the storages of a phone and the items inside a trash cannot be renamed.
 - On a server the server itself renames the item, also a folder, so it is quick.
 

@@ -139,6 +139,8 @@ mod selection;
 mod server_manager;
 mod servers;
 mod settings;
+mod sidecar;
+mod sidecar_follow;
 #[cfg(feature = "shots")]
 mod shots;
 mod sftp;
@@ -174,6 +176,7 @@ mod window_close;
 #[cfg(any(windows, test))]
 mod window_place;
 mod xmp;
+mod xmp_fields;
 mod zoom;
 #[cfg(test)]
 mod help_check;

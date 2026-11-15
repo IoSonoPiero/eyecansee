@@ -17,7 +17,17 @@ pub struct RawMeta {
 }
 
 /// `None` if rawler does not take the file for a RAW.
+#[cfg(test)]
 pub fn read(bytes: &[u8]) -> Option<RawMeta> {
+    read_placed(bytes, None)
+}
+
+/// A position for the EXIF of a copy: latitude and longitude, altitude.
+pub type Place = ((f64, f64), Option<f64>);
+
+/// As `read`, with `place` (from the photo's sidecar, #24) in the EXIF instead of the file's own
+/// position: it is what the person set in Lightroom or darktable.
+pub fn read_placed(bytes: &[u8], place: Option<Place>) -> Option<RawMeta> {
     let src = RawSource::new_from_slice(bytes);
     let decoder = rawler::get_decoder(&src).ok()?;
     let params = RawDecodeParams::default();
@@ -28,6 +38,9 @@ pub fn read(bytes: &[u8]) -> Option<RawMeta> {
     let adobe = m.exif.color_space == Some(UNCALIBRATED) && matches!(decoder.full_image(&src, &params), Ok(Some(_)));
     let profile: &[u8] = if adobe { include_bytes!("../assets/icc/AdobeCompat-v2.icc") } else { include_bytes!("../assets/icc/sRGB-v2-micro.icc") };
     let (mut fields, little) = merge(exif_fields(bytes), Some((from_rawler(&m), true))).unwrap_or_default();
+    if let Some(place) = place {
+        placed(&mut fields, place);
+    }
     // The sizes of the image written, which JPEG requires: `meta::fit_exif` sets them.
     for tag in [Tag::PixelXDimension, Tag::PixelYDimension] {
         if !fields.iter().any(|f| f.tag == tag) {
@@ -57,6 +70,30 @@ pub fn read(bytes: &[u8]) -> Option<RawMeta> {
     Some(RawMeta { exif: crate::meta::write_exif(&fields, little), icc: Some(profile.to_vec()), xmp: xmp(bytes) })
 }
 
+/// `fields` with the position `place`: latitude and longitude (degrees, minutes and seconds, as
+/// EXIF has them) and, if it has one, altitude, in place of those there were.
+fn placed(fields: &mut Vec<Field>, ((lat, lon), alt): Place) {
+    let gone = |t: Tag| [Tag::GPSLatitude, Tag::GPSLatitudeRef, Tag::GPSLongitude, Tag::GPSLongitudeRef].contains(&t) || (alt.is_some() && [Tag::GPSAltitude, Tag::GPSAltitudeRef].contains(&t));
+    fields.retain(|f| !gone(f.tag));
+    let dms = |v: f64| {
+        let v = v.abs();
+        let (d, m) = (v.trunc(), (v.fract() * 60.0).trunc());
+        let s = ((v * 3600.0 - d * 3600.0 - m * 60.0) * 1000.0).round().max(0.0);
+        Value::Rational(vec![Rational { num: d as u32, denom: 1 }, Rational { num: m as u32, denom: 1 }, Rational { num: s as u32, denom: 1000 }])
+    };
+    let side = |v: f64, plus: &str, minus: &str| Value::Ascii(vec![if v < 0.0 { minus } else { plus }.as_bytes().to_vec()]);
+    fields.extend([
+        field(Tag::GPSLatitudeRef, side(lat, "N", "S")),
+        field(Tag::GPSLatitude, dms(lat)),
+        field(Tag::GPSLongitudeRef, side(lon, "E", "W")),
+        field(Tag::GPSLongitude, dms(lon)),
+    ]);
+    if let Some(a) = alt {
+        fields.push(field(Tag::GPSAltitudeRef, Value::Byte(vec![(a < 0.0) as u8])));
+        fields.push(field(Tag::GPSAltitude, Value::Rational(vec![Rational { num: (a.abs() * 100.0).round() as u32, denom: 100 }])));
+    }
+}
+
 /// The EXIF of a RAW file as a TIFF block, read as `read` does (the file's own, filled by rawler),
 /// without the fields `read` sets for the copy: for the metadata panel, when `kamadak-exif`
 /// cannot read the file (CR3, RAF, ORF, RW2, MRW).
@@ -78,8 +115,9 @@ pub(crate) fn metadata(decoder: &dyn rawler::decoders::Decoder, src: &RawSource)
 }
 
 /// The XMP packet of a RAW file, wherever the maker put it (a TIFF tag, a CR3 box, the JPEG of a
-/// RAF): found by its text, as the XMP specification allows ("packet scanning").
-fn xmp(bytes: &[u8]) -> Option<Vec<u8>> {
+/// RAF): found by its text, as the XMP specification allows ("packet scanning"). The metadata
+/// panel reads that of any image so (`meta::read_file_with`).
+pub(crate) fn xmp(bytes: &[u8]) -> Option<Vec<u8>> {
     let find = |from: usize, what: &[u8]| bytes.get(from..)?.windows(what.len()).position(|w| w == what).map(|i| from + i);
     // The largest packet: a Hasselblad FFF has an empty one before the real one.
     let mut packets = Vec::new();
@@ -568,5 +606,24 @@ mod tests {
         // The largest of two packets.
         let two = b"<x:xmpmeta/></x:xmpmeta> <x:xmpmeta><rdf>real</rdf></x:xmpmeta>";
         assert!(super::xmp(two).unwrap().windows(4).any(|w| w == b"real"));
+    }
+
+    /// The sidecar's position takes the place of the camera's (#24), as EXIF writes it.
+    #[test]
+    fn placed_from_the_sidecar() {
+        let mut fields = vec![field(Tag::GPSLatitudeRef, ascii("N")), field(Tag::GPSLatitude, Value::Rational(vec![Rational { num: 1, denom: 1 }; 3])), field(Tag::GPSAltitude, Value::Rational(vec![Rational { num: 7, denom: 1 }])), field(Tag::Make, ascii("M"))];
+        placed(&mut fields, ((40.351131, -18.17), None));
+        let exif = exif::Reader::new().read_raw(tiff(&fields)).unwrap();
+        let get = |t: Tag| exif.get_field(t, In::PRIMARY).unwrap().display_value().to_string();
+        assert_eq!((get(Tag::GPSLatitudeRef), get(Tag::GPSLongitudeRef)), ("N".to_string(), "W".to_string()));
+        assert_eq!(get(Tag::GPSLatitude), "40 deg 21 min 4.072 sec");
+        assert_eq!(get(Tag::GPSLongitude), "18 deg 10 min 12 sec");
+        // Without an altitude in the sidecar, the camera's stays.
+        assert_eq!((get(Tag::GPSAltitude), get(Tag::Make)), ("7".to_string(), "\"M\"".to_string()));
+        placed(&mut fields, ((-1.5, 2.0), Some(-12.34)));
+        let exif = exif::Reader::new().read_raw(tiff(&fields)).unwrap();
+        let get = |t: Tag| exif.get_field(t, In::PRIMARY).unwrap().display_value().to_string();
+        assert_eq!((get(Tag::GPSLatitudeRef), get(Tag::GPSAltitude), get(Tag::GPSAltitudeRef)), ("S".to_string(), "12.34".to_string(), "below sea level".to_string()));
+        assert_eq!(fields.iter().filter(|f| f.tag == Tag::GPSLatitude).count(), 1);
     }
 }

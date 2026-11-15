@@ -285,6 +285,7 @@ impl Loader {
     pub fn delete(&self, paths: Vec<String>, how: source::Deletion) {
         let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
+            let mut folders = crate::sidecar_follow::Folders::new();
             'all: for path in paths {
                 // Emptying a trash: the folder (if it is there at all), then Android's trashed
                 // files of its folder. The view leaves the trash at the folder's message.
@@ -295,7 +296,7 @@ impl Loader {
                     (false, vec![path])
                 };
                 for (i, path) in items.into_iter().enumerate() {
-                    let r = if i == 0 && missing { Ok(()) } else { op.delete(&path, how).await };
+                    let r = if i == 0 && missing { Ok(()) } else { crate::sidecar_follow::delete(&op, &path, how, &mut folders).await };
                     let failed = r.is_err();
                     if !failed {
                         thumbcache::delete(&base, &path);
@@ -317,7 +318,7 @@ impl Loader {
     pub fn restore(&self, path: String, conflict: source::Conflict) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = op.restore(&path, conflict).await;
+            let r = crate::sidecar_follow::restore(&op, &path, conflict).await;
             let ok = r.is_ok();
             let trash = source::trash_of(&path);
             let _ = tx.send(Msg::Restored(path, r));
@@ -346,7 +347,7 @@ impl Loader {
     pub fn rename(&self, path: String, new_name: String) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = op.rename(&path, &new_name).await;
+            let r = crate::sidecar_follow::rename(&op, &path, &new_name).await;
             let _ = tx.send(Msg::Renamed(path, r));
             ctx.request_repaint();
         });
@@ -368,12 +369,14 @@ impl Loader {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
             let sibling = siblings(op.clone(), path.clone());
+            let sidecar = crate::sidecar::read(&op, &path).await.map(|s| s.xmp);
             let r = match op.read(&path).await {
                 Ok(bytes) => tokio::task::spawn_blocking(move || {
                     if edit && crate::edit::save::animated(&bytes, &path) {
                         return Err(crate::edit_page::ANIMATED.to_string());
                     }
-                    let original = crate::encode::Original::with_meta_of(decode::decode_full_with(&bytes, &path, &sibling)?, &bytes, &path);
+                    let image = decode::decode_full_with(&bytes, &path, &sibling)?;
+                    let original = crate::encode::Original::with_meta_beside(image, &bytes, &path, sidecar.as_deref());
                     // Save in another format writes the picture alone (`Original::alone`); the
                     // editor needs the whole XMP to save a phone photo as it was.
                     let mut original = if edit { original } else { original.alone() };
@@ -629,8 +632,9 @@ impl Loader {
             let meta = if decode::is_played(&path) {
                 video_meta(&op, &path).await
             } else {
+                let sidecar = crate::sidecar::read(&op, &path).await;
                 match op.read(&path).await {
-                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::meta::read_file(&bytes, &path)).await.map_err(|e| e.to_string()),
+                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::meta::read_file_with(&bytes, &path, sidecar.as_ref())).await.map_err(|e| e.to_string()),
                     Err((_, detail)) => Err(detail),
                 }
             };

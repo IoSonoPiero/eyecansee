@@ -36,6 +36,7 @@ On Linux, in a folder opened through the file manager's connection (gvfs, for ex
 
 ## Things to know
 
+- A photo's `.xmp` file (its "sidecar", see [Image information](metadata.md)) goes with it, also from one device to another: with **Keep both** it takes the photo's new name ("IMG_0001 (2).CR2" with "IMG_0001 (2).CR2.xmp"), with **Replace** it replaces the one there. A name taken only by an `.xmp` file in the destination counts as a name already there. Cancelled halfway, a photo is never left without its own `.xmp` file in the folder it came from.
 - Each copy or cut is pasted once: to paste again, copy again.
 - After you copy something else in another program, Ctrl+V and Paste no longer paste the items copied in EyeCanSee.
 - Pasted into the folder they came from, copies become "name (2)"; a move does nothing.

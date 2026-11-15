@@ -278,13 +278,22 @@ impl Original {
     /// As `with_meta`; the file's `name` tells the formats ImageMagick reads, whose metadata only
     /// ImageMagick gives.
     pub fn with_meta_of(image: DynamicImage, bytes: &[u8], name: &str) -> Original {
+        Original::with_meta_beside(image, bytes, name, None)
+    }
+
+    /// As `with_meta_of`, with the XMP of the photo's `sidecar` (#24): for a RAW photo in place of
+    /// the file's own, as Lightroom reads it, and its position in the EXIF; for another photo
+    /// added to the file's own, its values first, as digiKam reads it (`xmp::with_sidecar`).
+    pub fn with_meta_beside(image: DynamicImage, bytes: &[u8], name: &str, sidecar: Option<&[u8]>) -> Original {
         // RAW: the EXIF of every maker (`raw_meta`), the profile of the decoded pixels, the XMP,
         // the IPTC where it is in a TIFF tag.
-        if let Some(raw) = crate::raw_meta::read(bytes) {
+        let place = sidecar.map(crate::xmp_fields::read).and_then(|f| Some((f.gps?, f.altitude)));
+        if let Some(raw) = crate::raw_meta::read_placed(bytes, place) {
             let x = crate::meta_write::read(bytes, None);
             let density = density::read(bytes, raw.exif.as_deref(), x.irb.as_deref());
-            // Its Camera Raw settings are not in the pixels EyeCanSee develops: they go.
-            let xmp = raw.xmp.or(x.xmp).map(|m| crate::xmp::without_camera_raw(&m, image.width(), image.height()));
+            // Its Camera Raw settings (and darktable's history) are not in the pixels EyeCanSee
+            // develops: they go.
+            let xmp = sidecar.map(<[u8]>::to_vec).or(raw.xmp).or(x.xmp).map(|m| crate::xmp::without_camera_raw(&m, image.width(), image.height()));
             return Original { density, ..Original::upright(image, raw.exif, raw.icc, xmp, x.irb) };
         }
         // As found in the formats `image` reads (JPEG, PNG, WebP, TIFF), then in the file itself
@@ -298,6 +307,10 @@ impl Original {
         }
         let exif = exif.or(x.exif).or_else(|| crate::meta::exif_chunk(bytes)).or_else(|| crate::meta::jxl_exif(bytes));
         let xmp_ext = x.xmp.as_deref().map_or_else(Vec::new, |m| crate::meta_write::jpeg_xmp_ext(bytes, m));
+        // The sidecar's development settings (darktable's history) are not in these pixels either.
+        if let Some(side) = sidecar {
+            x.xmp = Some(crate::xmp::with_sidecar(x.xmp.as_deref(), &crate::xmp::without_camera_raw(side, image.width(), image.height())));
+        }
         let density = density::read(bytes, exif.as_deref(), x.irb.as_deref());
         Original { xmp_ext, jpeg: jpeg_quality::of(bytes), density, ..Original::upright(image, exif, icc.or(x.icc), x.xmp, x.irb) }
     }

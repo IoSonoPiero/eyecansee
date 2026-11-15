@@ -368,8 +368,9 @@ impl App {
 
     /// Value of a metadata field as shown: Fluent ids translated, dates in the language's format.
     pub(crate) fn meta_value(&self, label: &str, value: &str) -> String {
-        if value.starts_with("meta-") {
-            return self.i18n.t(value);
+        if value.starts_with("meta-") || label == "meta-xmp-label" {
+            // Colour labels: one id each ("meta-label-red, meta-label-blue"), or Lightroom's own names.
+            return value.split(", ").map(|v| if v.starts_with("meta-") { self.i18n.t(v) } else { v.to_string() }).collect::<Vec<_>>().join(", ");
         }
         let formatted = match label {
             "meta-taken" => value.parse::<jiff::civil::DateTime>().ok().map(|d| d.strftime(&self.i18n.t("date-format")).to_string()),
@@ -476,10 +477,10 @@ mod tests {
     #[test]
     fn engine_note_once() {
         use crate::meta::Group;
-        assert_eq!(super::boxes(false, false, |_| true), [Group::File, Group::Camera, Group::Shot, Group::Image, Group::Gps]);
+        assert_eq!(super::boxes(false, false, |_| true), [Group::File, Group::Camera, Group::Shot, Group::Image, Group::Gps, Group::Info]);
         assert_eq!(super::boxes(true, false, |_| true), [Group::File]);
         assert!(super::boxes(true, false, |g| g != Group::File).is_empty());
-        assert_eq!(super::boxes(false, false, |g| g != Group::Camera).len(), 4);
+        assert_eq!(super::boxes(false, false, |g| g != Group::Camera).len(), 5);
         // A drawing: its properties beside the File box, nothing of a photo.
         assert_eq!(super::boxes(false, true, |_| true), [Group::File, Group::Drawing]);
     }
