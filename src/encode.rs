@@ -283,7 +283,9 @@ impl Original {
         if let Some(raw) = crate::raw_meta::read(bytes) {
             let x = crate::meta_write::read(bytes, None);
             let density = density::read(bytes, raw.exif.as_deref(), x.irb.as_deref());
-            return Original { density, ..Original::upright(image, raw.exif, raw.icc, raw.xmp.or(x.xmp), x.irb) };
+            // Its Camera Raw settings are not in the pixels EyeCanSee develops: they go.
+            let xmp = raw.xmp.or(x.xmp).map(|m| crate::xmp::without_camera_raw(&m, image.width(), image.height()));
+            return Original { density, ..Original::upright(image, raw.exif, raw.icc, xmp, x.irb) };
         }
         // As found in the formats `image` reads (JPEG, PNG, WebP, TIFF), then in the file itself
         // (`meta_write::read`), then from ImageMagick for the formats it reads.
@@ -353,10 +355,10 @@ impl Original {
     }
 
     /// The metadata for a `format` file of `w` × `h` pixels: sizes set, the old thumbnails out
-    /// (they showed the original), the Camera Raw settings out of the XMP (already in the pixels).
-    /// As `keep` says (#55): without the place, the GPS of the EXIF and the place in the XMP and
-    /// the IPTC go (an XMP that cannot be read goes whole); with nothing, only the colour profile
-    /// stays, which the picture needs to look right.
+    /// (they showed the original), the Camera Raw settings of the XMP marked as already in the
+    /// pixels (`xmp::fix`). As `keep` says (#55): without the place, the GPS of the EXIF and the
+    /// place in the XMP and the IPTC go (an XMP that cannot be read goes whole); with nothing, only
+    /// the colour profile stays, which the picture needs to look right.
     fn blocks(&self, format: Format, w: u32, h: u32, sideways: bool, keep: Keep) -> Blocks {
         if keep == Keep::Nothing {
             return Blocks { icc: self.icc.clone(), ..Blocks::default() };
@@ -647,6 +649,8 @@ pub(crate) mod tests {
         let text = format!("{:?} {:?}", back.xmp.as_deref().map(String::from_utf8_lossy), back.irb.as_deref().map(String::from_utf8_lossy));
         assert!(!text.contains("bec") && !text.contains("City"), "{o:?}: {text}");
         assert!(text.contains("Ann"), "{o:?}: {text}");
+        // The Camera Raw settings of a photo stay, marked as applied (they go only with None).
+        assert!(text.contains("crs:AlreadyApplied"), "{o:?}: {text}");
     }
 
     /// XMP and IPTC of a file written from `every_format`'s original, read back as the program
@@ -663,15 +667,15 @@ pub(crate) mod tests {
         }
     }
 
-    /// The XMP of `xmp::tests::SAMPLE` in a written file: sizes `w` × `h`, upright, no Camera Raw
-    /// nor thumbnail, the author kept.
+    /// The XMP of `xmp::tests::SAMPLE` in a written file: sizes `w` × `h`, upright, no thumbnail,
+    /// the author kept, the Camera Raw settings kept and marked as already applied.
     pub(crate) fn kept_xmp_like(bytes: &[u8], w: u32, h: u32) -> String {
         let back = Original::with_meta(DynamicImage::new_rgb8(1, 1), bytes);
         let xmp = String::from_utf8(back.xmp.clone().expect("no XMP")).unwrap();
         for kept in [format!("exif:PixelXDimension=\"{w}\""), format!("<exif:PixelYDimension>{h}</exif:PixelYDimension>"), "tiff:Orientation=\"1\"".into(), "Ann &lt;Author&gt;".into()] {
             assert!(xmp.contains(&kept), "{kept} not in {xmp}");
         }
-        assert!(!xmp.contains("crs:") && !xmp.contains("Thumbnails"), "{xmp}");
+        assert!(xmp.contains("crs:HasCrop=\"True\"") && xmp.contains("crs:AlreadyApplied=\"True\"") && !xmp.contains("Thumbnails"), "{xmp}");
         xmp
     }
 
@@ -712,6 +716,10 @@ pub(crate) mod tests {
         for f in &fields {
             w.push_field(f);
         }
+        // A maker note that can move (`meta::movable_maker_note`) goes in too.
+        let note = b"Apple iOS\0\0\x01MM\0\0".to_vec();
+        let maker = Field { tag: Tag::MakerNote, ifd_num: In::PRIMARY, value: Value::Undefined(note.clone(), 0) };
+        w.push_field(&maker);
         for little in [false, true] {
             let mut exif = Cursor::new(Vec::new());
             w.write(&mut exif, little).unwrap();
@@ -721,6 +729,7 @@ pub(crate) mod tests {
             for f in &fields {
                 assert_eq!(back.get_field(f.tag, In::PRIMARY).map(|b| format!("{:?}", b.value)), Some(format!("{:?}", f.value)), "{:?}", f.tag);
             }
+            assert!(matches!(back.get_field(Tag::MakerNote, In::PRIMARY).map(|f| &f.value), Some(Value::Undefined(v, _)) if *v == note), "maker note");
             assert_eq!(crate::decode::decode_full(&bytes, "x.tif").unwrap().width(), 8);
         }
     }

@@ -65,7 +65,7 @@ Ogni volta che la pagina si apre, la scelta riparte da **Tutti**.
 - Solo JPEG, PNG, WebP, AVIF e TIFF possono contenere metadati. BMP contiene solo la risoluzione: con BMP al posto dell'elenco c'è una casella, **Mantieni i metadati (solo la risoluzione)**, che si può cambiare quando l'originale ha una risoluzione. Con un altro formato, o se l'originale non ne ha, è grigia; passandoci sopra si legge il perché.
 - La **risoluzione** (per esempio i 600 dpi di una scansione) fa parte dei metadati: con **Nessuno** il file si salva senza, anche quando l'originale non ha altro.
 - L'orientamento viene messo dritto, perché i pixel salvati sono già ruotati, e le dimensioni scritte dentro sono quelle dell'immagine nuova.
-- Restano fuori: le piccole anteprime che le fotocamere mettono nel file, le impostazioni di Lightroom e Camera Raw e il video della foto in movimento, che il file nuovo non ha.
+- Restano fuori: le piccole anteprime che le fotocamere mettono nel file e il video della foto in movimento, che il file nuovo non ha; le impostazioni di Lightroom e Camera Raw di un RAW, che EyeCanSee non usa quando lo sviluppa. Quelle delle altre foto restano, segnate come già applicate, anche con **Tutti tranne il luogo**; con **Nessuno** vanno via, come la maker note.
 - Una foto **Ultra HDR** del telefono resta HDR se la salvi in JPEG con i metadati, anche dall'editor: la sua parte HDR viene ruotata, ritagliata e coperta insieme alla foto. Anche senza il luogo resta HDR. In un altro formato, o con **Nessuno**, perde l'HDR, e la pagina te lo dice prima di salvare.
 
 ## Da sapere

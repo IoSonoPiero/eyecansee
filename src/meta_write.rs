@@ -375,8 +375,8 @@ pub enum Dir {
 
 /// The fields of an EXIF block (as `meta::exif_chunk` writes it) for a TIFF written by the `tiff`
 /// crate: directory, tag, type and value in this machine's byte order. Left out: the tags of the
-/// image data (the encoder writes its own), the directory links (written again) and the maker note,
-/// whose offsets point into the original file.
+/// image data (the encoder writes its own), the directory links (written again) and a maker note
+/// whose offsets point into the original file (`meta::movable_maker_note`).
 pub fn tiff_fields(exif: &[u8]) -> Vec<(Dir, u16, tiff::tags::Type, Vec<u8>)> {
     use exif::{Context, Tag, Value};
     use tiff::tags::Type;
@@ -391,7 +391,7 @@ pub fn tiff_fields(exif: &[u8]) -> Vec<(Dir, u16, tiff::tags::Type, Vec<u8>)> {
         .filter_map(|f| {
             let dir = match f.tag.context() {
                 Context::Tiff if MAIN.contains(&f.tag) => Dir::Main,
-                Context::Exif if ![Tag::MakerNote, Tag::InteropIFDPointer].contains(&f.tag) => Dir::Exif,
+                Context::Exif if f.tag != Tag::InteropIFDPointer && (f.tag != Tag::MakerNote || crate::meta::movable_maker_note(f)) => Dir::Exif,
                 Context::Gps => Dir::Gps,
                 _ => return None,
             };

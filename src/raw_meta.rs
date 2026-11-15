@@ -1,7 +1,7 @@
 //! A RAW file converted to another format: its EXIF and the colour profile of the pixels
 //! `decode::raw` gives. `kamadak-exif` reads only the RAW files built on TIFF (CR2, NEF, ARW, DNG);
 //! rawler reads the camera and shot data of every maker (CR3, RAF, ORF, RW2 too) and fills what
-//! is missing. The maker note stays out, as for every converted file (`meta::exif_fields`).
+//! is missing. The maker note stays out (`meta::exif_fields`): its offsets point into the RAW file.
 
 use exif::{Field, In, Rational, SRational, Tag, Value};
 use rawler::decoders::RawDecodeParams;

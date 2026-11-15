@@ -114,7 +114,7 @@ fn motion_photo(img: &DynamicImage, thumb: &[u8]) -> Vec<u8> {
     let exif = [&b"Exif\0\0"[..], tiff.get_ref()].concat();
     let xmp = concat!(
         "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">",
-        "<rdf:Description xmlns:GCamera=\"http://ns.google.com/photos/1.0/camera/\" xmlns:Container=\"http://ns.google.com/photos/1.0/container/\" xmlns:Item=\"http://ns.google.com/photos/1.0/container/item/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmlns:xmpGImg=\"http://ns.adobe.com/xap/1.0/g/img/\" GCamera:MotionPhoto=\"1\" GCamera:MotionPhotoVersion=\"1\" GCamera:MicroVideoOffset=\"40\">",
+        "<rdf:Description xmlns:GCamera=\"http://ns.google.com/photos/1.0/camera/\" xmlns:Container=\"http://ns.google.com/photos/1.0/container/\" xmlns:Item=\"http://ns.google.com/photos/1.0/container/item/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmlns:xmpGImg=\"http://ns.adobe.com/xap/1.0/g/img/\" xmlns:photoshop=\"http://ns.adobe.com/photoshop/1.0/\" xmlns:crs=\"http://ns.adobe.com/camera-raw-settings/1.0/\" photoshop:DateCreated=\"2023-02-11T17:16:17.074-04:00\" crs:HasCrop=\"True\" GCamera:MotionPhoto=\"1\" GCamera:MotionPhotoVersion=\"1\" GCamera:MicroVideoOffset=\"40\">",
         "<dc:creator><rdf:Seq><rdf:li>Ann</rdf:li></rdf:Seq></dc:creator>",
         "<xmp:Thumbnails><rdf:Alt><rdf:li rdf:parseType=\"Resource\"><xmpGImg:image>/9j/4AAQ</xmpGImg:image></rdf:li></rdf:Alt></xmp:Thumbnails>",
         "<Container:Directory><rdf:Seq><rdf:li rdf:parseType=\"Resource\"><Container:Item Item:Semantic=\"Primary\" Item:Mime=\"image/jpeg\"/></rdf:li><rdf:li rdf:parseType=\"Resource\"><Container:Item Item:Semantic=\"MotionPhoto\" Item:Mime=\"video/mp4\" Item:Length=\"40\"/></rdf:li></rdf:Seq></Container:Directory>",
@@ -149,6 +149,9 @@ fn copy_is_the_picture_alone() {
         assert!(!text.contains(gone), "{gone} still there");
     }
     assert!(text.contains("<rdf:li>Ann</rdf:li>"), "author kept");
+    // The date the photo was taken stays; the Camera Raw settings too, marked as already applied.
+    assert!(text.contains("photoshop:DateCreated=\"2023-02-11T17:16:17.074-04:00\""), "XMP date");
+    assert!(text.contains("crs:AlreadyApplied=\"True\"") && text.contains("crs:HasCrop=\"True\""), "Camera Raw");
     assert!(!d.windows(thumb.len()).any(|w| w == thumb) && !d.windows(24).any(|w| w == [0x5A; 24]), "a thumbnail is still there");
     let exif = exif::Reader::new().read_from_container(&mut Cursor::new(d)).unwrap();
     let get = |tag| exif.get_field(tag, In::PRIMARY).and_then(|f| f.value.get_uint(0));
