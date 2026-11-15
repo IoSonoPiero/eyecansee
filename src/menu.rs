@@ -73,7 +73,7 @@ impl App {
         // Ctrl+Shift+S works in the viewer only.
         let keys = if self.viewing.is_some() { t("key-save-copy") } else { String::new() };
         let saved = if self.viewing.is_some() { Some(true) } else { fits(&files, SAVED_AS) };
-        entry(ui, act, self.save_as_off(), item(starred(t("menu-save-copy"), saved != Some(false)), keys), Act::Convert(None));
+        entry(ui, act, self.save_as_off(), item(starred(t(self.save_as_label()), saved != Some(false)), keys), Act::Convert(None));
         // As in the right-click menus: the 3D models and the CAD drawings among the files chosen,
         // each with its window (issue #128).
         let model = fits(&files, &[Kind::Model]);

@@ -213,7 +213,12 @@ impl App {
         // One of them: with more the entry is off (with none, `kind_entry` says why).
         let saved = files.iter().filter(|p| save_as.contains(&crate::selection::kind(p))).count();
         let convert = if saved > 1 { Act::Off(t("tb-off-one-picture")) } else { Act::Convert(path.clone()) };
-        items.push(entry(save_as, "menu-save-copy", if in_viewer { t("key-save-copy") } else { String::new() }, convert));
+        if in_viewer && self.viewing_video() {
+            // The frame shown (#16), on its own: a video is not among `SAVED_AS` in the grid.
+            items.push(Some((t("menu-save-frame"), t("key-save-copy"), self.save_as_off().map_or(convert, Act::Off))));
+        } else {
+            items.push(entry(save_as, "menu-save-copy", if in_viewer { t("key-save-copy") } else { String::new() }, convert));
+        }
         // The two exports, each with its window, in the grid and in the viewer (issue #128).
         items.push(entry(&[Kind::Model], "menu-export-3d", String::new(), Act::ExportModel(path.clone())));
         let drawings = self.drawings_off(Some(true)).map_or(Act::ExportDrawings(path.clone()), Act::Off);

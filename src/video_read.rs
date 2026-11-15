@@ -196,7 +196,7 @@ pub(crate) async fn meta_key(op: &Store, file: &File) -> File {
 
 /// A drone's position when the video started, from the first frame of the `.SRT` with the same
 /// name (`gps_track::srt_start`); any source, only its first 2 KB read.
-async fn drone_start(op: &Store, path: &str) -> Option<(f64, f64)> {
+pub(crate) async fn drone_start(op: &Store, path: &str) -> Option<(f64, f64)> {
     let stem = path.rsplit_once('.')?.0;
     for ext in ["SRT", "srt"] {
         let srt = format!("{stem}.{ext}");

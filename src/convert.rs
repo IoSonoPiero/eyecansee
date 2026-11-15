@@ -58,6 +58,9 @@ pub struct Window {
     /// Opened from the viewer, or from the editor opened from it: once saved, the viewer shows
     /// the new file, or stays and says where it is (`viewer_after`).
     pub(crate) from_viewer: bool,
+    /// The frame of a video (#16): its time in seconds. Like a new image, no file of its own to
+    /// compare sizes with; the viewer stays on the video once it is saved.
+    frame: Option<f64>,
 }
 
 impl Window {
@@ -93,6 +96,7 @@ impl Window {
             browse: false,
             picker: None,
             from_viewer: false,
+            frame: None,
         }
     }
 }
@@ -100,14 +104,24 @@ impl Window {
 impl crate::App {
     pub(crate) fn open_convert(&mut self, path: Option<String>) {
         let Some(path) = path.or_else(|| self.target()).filter(|p| !p.ends_with('/')) else { return };
+        // A video in the viewer: its frame, paused (already turned as shown).
+        let frame = if crate::decode::is_played(&path) {
+            let Some(at) = self.convert_frame(&path) else { return };
+            Some(at)
+        } else {
+            None
+        };
         // A 3D model in the viewer: its picture as shown.
-        if !self.convert_model(&path) && !self.convert_sheet(&path) {
+        if frame.is_none() && !self.convert_model(&path) && !self.convert_sheet(&path) {
             let Some(loader) = &self.loader else { return };
             loader.load_original(path.clone(), false);
         }
         let mut w = Window::new(path);
-        // From the viewer: saved as it is shown there.
-        if self.viewing.is_some() {
+        if let Some(at) = frame {
+            w.frame = Some(at);
+            w.name = crate::video_frame::frame_name(crate::source::name(&w.path), at, w.options.format);
+        } else if self.viewing.is_some() {
+            // From the viewer: saved as it is shown there.
             w.options.turn = self.turn;
             w.from_viewer = true;
         }
@@ -314,7 +328,7 @@ impl crate::App {
             Some(Ok(o)) => o.clone(),
         };
         // A new image has no file: no size on disk, no percentage of it (issue #99).
-        let (image, tex, size) = (&original.0.image, &original.1, (!w.unsaved).then_some(original.2));
+        let (image, tex, size) = (&original.0.image, &original.1, (!w.unsaved && w.frame.is_none()).then_some(original.2));
         let half = (ui.available_width() - GAP) / 2.0;
         // The images get what the options below leave (their height measured at the last frame).
         let pane = egui::vec2(half, (ui.available_height() - 22.0 - 16.0 - w.bottom_h).max(120.0));
@@ -330,9 +344,10 @@ impl crate::App {
                 ui.set_width(half);
                 let ext = crate::source::name(&w.path).rsplit_once('.').map_or(String::new(), |(_, e)| e.to_uppercase());
                 // The file as it is on disk, and what the viewer did to it (the image above is shown so).
-                match panes::turn_note(w.options.turn) {
-                    Some(turn) => ui.label(format!("{ext} · {pixels} · {}", i18n.t_args("convert-turned", &[("turn", turn)]))),
-                    None => ui.label(format!("{ext} · {pixels}")),
+                match (panes::turn_note(w.options.turn), w.frame) {
+                    (Some(turn), _) => ui.label(format!("{ext} · {pixels} · {}", i18n.t_args("convert-turned", &[("turn", turn)]))),
+                    (None, Some(at)) => ui.label(format!("{ext} · {pixels} · {}", i18n.t_args("convert-frame-at", &[("time", &frame_clock(at))]))),
+                    (None, None) => ui.label(format!("{ext} · {pixels}")),
                 };
                 if let Some(size) = size {
                     ui.label(i18n.t_args("convert-file-size", &[("size", &self.human_size(size))]));
@@ -416,6 +431,12 @@ enum ViewerAfter {
 fn viewer_after(from_viewer: bool, saved: Option<&str>, here: bool, open_dir: &str) -> Option<ViewerAfter> {
     let path = saved.filter(|_| from_viewer)?;
     Some(if here && crate::source::parent(path) == open_dir { ViewerAfter::Show } else { ViewerAfter::Stay })
+}
+
+/// The time of a frame with its thousandths: "1:02.345".
+fn frame_clock(at: f64) -> String {
+    let ms = (at.max(0.0) * 1000.0).round() as u64;
+    format!("{}.{:03}", crate::mpv::clock((ms / 1000) as f64), ms % 1000)
 }
 
 /// The new file's size in percent of the original's; none without an original file (a new image,

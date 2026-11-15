@@ -84,6 +84,13 @@ impl App {
         self.viewing.and_then(|i| self.files().get(i)).is_some_and(|f| crate::decode::is_image(&f.path))
     }
 
+    /// The player of the video `path` open in the viewer, once it opened and has a picture (not an
+    /// audio file): its frame can be saved (#16).
+    pub(crate) fn player_of(&self, path: &str) -> Option<&mpv::Player> {
+        let v = self.video.as_ref().filter(|v| v.path == path && !decode::is_audio(path))?;
+        v.player.as_ref().ok().filter(|p| p.video_size().is_some())
+    }
+
     /// Size of the video playing, for the status bar.
     pub(crate) fn video_size(&self) -> Option<[u32; 2]> {
         self.video.as_ref()?.player.as_ref().ok()?.video_size()

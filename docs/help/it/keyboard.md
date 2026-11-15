@@ -88,6 +88,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | Ctrl+←, Ctrl+→ | 5 secondi indietro, avanti |
 | ↑, ↓ (o la rotellina sul video) | Alza, abbassa il volume |
 | M | Toglie e rimette l'audio |
+| Ctrl+Maiusc+S | Mette in pausa e salva come immagine il fotogramma mostrato (vedi [Riprodurre i video](video.md)) |
 | →, Pagina giù | Elemento successivo |
 | ←, Backspace, Pagina su | Elemento precedente |
 | Inizio, Fine | Primo, ultimo elemento |

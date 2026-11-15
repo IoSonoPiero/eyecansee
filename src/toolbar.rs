@@ -59,7 +59,7 @@ impl App {
             Op { icon: Line::Edit, label: "menu-edit-image", keys: t("key-edit"), act: Act::Edit(None), off: self.editor_off() },
             Op { icon: Line::Save, label: "menu-save", keys: t("key-save"), act: Act::Save, off: self.save_off() },
             // Ctrl+Shift+S works in the viewer only.
-            Op { icon: Line::SaveAs, label: "menu-save-copy", keys: if viewing { t("key-save-copy") } else { String::new() }, act: Act::Convert(None), off: self.save_as_off() },
+            Op { icon: Line::SaveAs, label: self.save_as_label(), keys: if viewing { t("key-save-copy") } else { String::new() }, act: Act::Convert(None), off: self.save_as_off() },
         ]
     }
 

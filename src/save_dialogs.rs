@@ -69,6 +69,8 @@ impl App {
             (self.i18n.t("menu-save-copy"), true, Leave::SaveAs),
             (self.i18n.t("rc-discard"), true, Leave::Discard),
         ];
+        // A video turned: Save as… would save its frame (#16), not the video.
+        let choices: Vec<_> = choices.into_iter().filter(|c| !(self.viewing_video() && matches!(c.2, Leave::SaveAs))).collect();
         // Esc: back to the image; Enter does nothing here (no choice is safe to guess).
         let keys = self.delete_answer.take().filter(|yes| !yes).map(|_| None);
         let Some(answer) = confirm::choose(ctx, "turn-leave", 440.0, (self.i18n.t("leave-title"), text), choices, self.i18n.t("delete-no"), keys) else { return };
@@ -213,7 +215,9 @@ impl App {
                     .map(|f| self.i18n.t_args("save-format", &[("name", &md(source::name(&f.path)))]))
             };
             if let Some(text) = text {
-                self.notice = Some(Notice { save_as: Some(Act::Convert(None)), ..Notice::new(self.i18n.t("save-not-possible"), text) });
+                // Not on a video, whose Save as… saves its frame (#16).
+                let save_as = (!self.viewing_video()).then_some(Act::Convert(None));
+                self.notice = Some(Notice { save_as, ..Notice::new(self.i18n.t("save-not-possible"), text) });
             }
             return;
         }

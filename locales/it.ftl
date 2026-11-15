@@ -426,6 +426,7 @@ convert-calculating = Calcolo della dimensione in corso…
 convert-error = Impossibile convertire: { $detail }
 convert-actual = 100% (trascina le immagini per spostarti)
 convert-pixels = { $w } × { $h } pixel
+convert-frame-at = fotogramma a { $time }
 convert-turned = { $turn ->
     [cw] ruotata di 90° in senso orario nel visore
     [half] ruotata di 180° nel visore
@@ -882,6 +883,7 @@ key-rotate-ccw = Ctrl+Maiusc+R
 menu-save = Salva
 key-save = Ctrl+S
 menu-save-copy = Salva come…
+menu-save-frame = Salva il fotogramma come…
 key-save-copy = Ctrl+Maiusc+S
 save-confirm-trash = Salvare le modifiche sopra **{ $name }**?
 
@@ -1402,7 +1404,8 @@ off-no-file = Seleziona prima uno o più file.
 off-save-model = Un modello 3D non si salva sopra il suo file: Salva come… ne fa un'immagine, Esporta come modello 3D una copia in un altro formato 3D.
 off-save-drawing = Un disegno CAD non si salva sopra il suo file: Salva come… fa un'immagine del layout mostrato, Esporta disegno… una copia come immagine, SVG, DWG o DXF.
 off-save-played = Niente da salvare: prima ruota il video; i file audio non si modificano nel visore.
-off-save-as-played = Salva come… è per le immagini: video e file audio si convertono con Converti… nella griglia.
+off-save-as-played = Salva come… è per le immagini e per i fotogrammi dei video: i file audio si convertono con Converti… nella griglia.
+off-save-frame-wait = Il fotogramma si può salvare quando il video si è aperto nel visore.
 off-trash-clip = Gli elementi del cestino non si tagliano né si copiano: prima ripristinali.
 off-trash-rename = Gli elementi del cestino non si rinominano: prima ripristinali.
 off-trash-change = Un file del cestino non si modifica né si salva: prima ripristinalo.
