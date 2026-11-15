@@ -78,6 +78,7 @@ mod menu;
 mod messages;
 mod meta;
 mod meta_panel;
+mod meta_strip;
 mod meta_write;
 mod raw_meta;
 mod model;

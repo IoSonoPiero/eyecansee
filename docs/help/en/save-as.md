@@ -55,13 +55,18 @@ Opened from the viewer, the viewer then shows the new file, already turned or fl
 
 ## Metadata
 
-**Keep the metadata (EXIF, XMP, IPTC, colour profile)** is on at first. It keeps the camera, the date the photo was taken, the place (GPS), author, copyright, descriptions, keywords, the colour profile and the resolution (dots per inch).
+**Metadata** says what the new file keeps of the original's, and starts on **All (EXIF, XMP, IPTC, colour profile)**: the camera, the date the photo was taken, the place (GPS), author, copyright, descriptions, keywords, the colour profile and the resolution (dots per inch). The other two choices are for a copy to share:
 
-- Only JPEG, PNG, WebP, AVIF and TIFF can hold metadata. BMP holds only the resolution: with BMP the box reads **Keep the metadata (resolution only)** and can be changed when the original has a resolution. With another format, or when the original has none, the box is greyed out; pointing at it says why.
-- The **resolution** (for example the 600 dpi of a scan) is part of the metadata: without **Keep the metadata** the file is saved without it, also when the original has nothing else.
+- **All but the place (no GPS position)**: the same without where the photo was taken: the GPS position (with its altitude and direction), and the city, state, country and location written in the XMP or the IPTC.
+- **None (only the colour profile)**: nothing but the colour profile, which the picture needs to show its colours right.
+
+The choice starts again on **All** each time the page opens.
+
+- Only JPEG, PNG, WebP, AVIF and TIFF can hold metadata. BMP holds only the resolution: with BMP a box, **Keep the metadata (resolution only)**, takes the place of the list, and can be changed when the original has a resolution. With another format, or when the original has none, it is greyed out; pointing at it says why.
+- The **resolution** (for example the 600 dpi of a scan) is part of the metadata: with **None** the file is saved without it, also when the original has nothing else.
 - The orientation is set to upright, since the saved pixels are already turned, and the sizes written inside are those of the new image.
 - Left out: the small previews that cameras store inside the file, the Lightroom and Camera Raw settings, and the video of a motion photo, which the new file does not have.
-- An **Ultra HDR** phone photo stays HDR when you save it as JPEG with the metadata, also from the editor: its HDR part is turned, cropped and covered together with the photo. In another format, or without the metadata, it loses its HDR, and the page tells you before you save.
+- An **Ultra HDR** phone photo stays HDR when you save it as JPEG with the metadata, also from the editor: its HDR part is turned, cropped and covered together with the photo. Without the place it stays HDR too. In another format, or with **None**, it loses its HDR, and the page tells you before you save.
 
 ## Things to know
 

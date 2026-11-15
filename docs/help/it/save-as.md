@@ -55,13 +55,18 @@ Se l'avevi aperta dal visore, il visore mostra poi il file nuovo, già ruotato o
 
 ## Metadati
 
-**Mantieni i metadati (EXIF, XMP, IPTC, profilo colore)** è acceso all'inizio. Conserva la fotocamera, la data dello scatto, il luogo (GPS), autore, copyright, descrizioni, parole chiave, il profilo colore e la risoluzione (punti per pollice).
+**Metadati** dice cosa tiene il file nuovo dei metadati dell'originale, e parte da **Tutti (EXIF, XMP, IPTC, profilo colore)**: la fotocamera, la data dello scatto, il luogo (GPS), autore, copyright, descrizioni, parole chiave, il profilo colore e la risoluzione (punti per pollice). Le altre due scelte servono per una copia da condividere:
 
-- Solo JPEG, PNG, WebP, AVIF e TIFF possono contenere metadati. BMP contiene solo la risoluzione: con BMP la casella diventa **Mantieni i metadati (solo la risoluzione)** e si può cambiare quando l'originale ha una risoluzione. Con un altro formato, o se l'originale non ne ha, la casella è grigia; passandoci sopra si legge il perché.
-- La **risoluzione** (per esempio i 600 dpi di una scansione) fa parte dei metadati: senza **Mantieni i metadati** il file si salva senza, anche quando l'originale non ha altro.
+- **Tutti tranne il luogo (senza posizione GPS)**: gli stessi senza il luogo dello scatto: la posizione GPS (con altitudine e direzione), e città, regione, paese e località scritti nell'XMP o nell'IPTC.
+- **Nessuno (solo il profilo colore)**: solo il profilo colore, che serve all'immagine per mostrare i colori giusti.
+
+Ogni volta che la pagina si apre, la scelta riparte da **Tutti**.
+
+- Solo JPEG, PNG, WebP, AVIF e TIFF possono contenere metadati. BMP contiene solo la risoluzione: con BMP al posto dell'elenco c'è una casella, **Mantieni i metadati (solo la risoluzione)**, che si può cambiare quando l'originale ha una risoluzione. Con un altro formato, o se l'originale non ne ha, è grigia; passandoci sopra si legge il perché.
+- La **risoluzione** (per esempio i 600 dpi di una scansione) fa parte dei metadati: con **Nessuno** il file si salva senza, anche quando l'originale non ha altro.
 - L'orientamento viene messo dritto, perché i pixel salvati sono già ruotati, e le dimensioni scritte dentro sono quelle dell'immagine nuova.
 - Restano fuori: le piccole anteprime che le fotocamere mettono nel file, le impostazioni di Lightroom e Camera Raw e il video della foto in movimento, che il file nuovo non ha.
-- Una foto **Ultra HDR** del telefono resta HDR se la salvi in JPEG con i metadati, anche dall'editor: la sua parte HDR viene ruotata, ritagliata e coperta insieme alla foto. In un altro formato, o senza i metadati, perde l'HDR, e la pagina te lo dice prima di salvare.
+- Una foto **Ultra HDR** del telefono resta HDR se la salvi in JPEG con i metadati, anche dall'editor: la sua parte HDR viene ruotata, ritagliata e coperta insieme alla foto. Anche senza il luogo resta HDR. In un altro formato, o con **Nessuno**, perde l'HDR, e la pagina te lo dice prima di salvare.
 
 ## Da sapere
 

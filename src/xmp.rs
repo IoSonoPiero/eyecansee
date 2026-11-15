@@ -21,6 +21,9 @@ const XMP_NOTE: &str = "http://ns.adobe.com/xmp/note/";
 const GCAMERA: &str = "http://ns.google.com/photos/1.0/camera/";
 const CONTAINER: &str = "http://ns.google.com/photos/1.0/container/";
 const HDRGM: &str = "http://ns.adobe.com/hdr-gain-map/1.0/";
+const IPTC_CORE: &str = "http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/";
+const IPTC_EXT: &str = "http://iptc.org/std/Iptc4xmpExt/2008-02-29/";
+const DJI: &str = "http://www.dji.com/drone-dji/1.0/";
 
 /// What happens to a property: dropped, or its value replaced.
 enum Fix {
@@ -36,6 +39,21 @@ struct How {
     /// The video of a Motion Photo is written too (a lossless turn of an Ultra HDR one, #54): its
     /// description stays.
     video: bool,
+    /// Without the place (#55): GPS, city, state, country, the IPTC locations (`place`).
+    no_place: bool,
+}
+
+/// A property that says where the photo was taken: the GPS of the EXIF, the place of Photoshop
+/// and of the IPTC Core and Extension, the position of a DJI drone.
+fn place(ns: &str, local: &str) -> bool {
+    match ns {
+        EXIF => local.starts_with("GPS"),
+        PHOTOSHOP => matches!(local, "City" | "State" | "Country"),
+        IPTC_CORE => matches!(local, "Location" | "CountryCode"),
+        IPTC_EXT => matches!(local, "LocationCreated" | "LocationShown"),
+        DJI => local.starts_with("Gps") || local.ends_with("Altitude"),
+        _ => false,
+    }
 }
 
 /// `merged`: the extended XMP is in the packet, the GUID that pointed to it goes. The video of a
@@ -44,6 +62,7 @@ struct How {
 /// the gain map of an Ultra HDR photo either, so its description and the container directory go.
 fn fix(ns: &str, local: &str, w: u32, h: u32, how: How) -> Option<Fix> {
     match (ns, local) {
+        _ if how.no_place && place(ns, local) => Some(Fix::Drop),
         (XMP_NOTE, "HasExtendedXMP") if how.merged => Some(Fix::Drop),
         // Only the lossless turn of an Ultra HDR Motion Photo keeps the video (`how.video`).
         (GCAMERA, l) if !how.video && (l.starts_with("MotionPhoto") || l.starts_with("MicroVideo")) => Some(Fix::Drop),
@@ -77,6 +96,16 @@ pub fn fit(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>) -> Option<Vec
 /// put into the main packet, for a format whose XMP has no size limit; if that cannot be read,
 /// the main packet alone.
 pub fn fit_with(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&[u8]>) -> Option<Vec<u8>> {
+    fit_how(xmp, w, h, iim, ext, How::default())
+}
+
+/// As `fit_with`, without the place (#55): a packet that is not well-formed XML goes whole, since
+/// what it holds cannot be told.
+pub fn fit_without_place(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&[u8]>) -> Option<Vec<u8>> {
+    fit_how(xmp, w, h, iim, ext, How { no_place: true, ..How::default() })
+}
+
+fn fit_how(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&[u8]>, how: How) -> Option<Vec<u8>> {
     let props = iim.map(iim_props).unwrap_or_default();
     let xmp = xmp.map(without_video_item);
     let xmp = match xmp.as_deref() {
@@ -92,10 +121,14 @@ pub fn fit_with(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Opt
         (start <= end).then_some((start, end))
     };
     let merged = ext.zip(inner(xmp)).zip(ext.and_then(inner)).map(|((ext, (_, at)), (s, e))| [&xmp[..at], &ext[s..e], &xmp[at..]].concat());
-    if let Some(out) = merged.and_then(|m| rewrite(&m, w, h, &props, How { merged: true, ..How::default() })) {
+    if let Some(out) = merged.and_then(|m| rewrite(&m, w, h, &props, How { merged: true, ..how })) {
         return Some(out);
     }
-    Some(rewrite(xmp, w, h, &props, How::default()).unwrap_or_else(|| xmp.to_vec()))
+    match rewrite(xmp, w, h, &props, how) {
+        Some(out) => Some(out),
+        None if how.no_place => None,
+        None => Some(xmp.to_vec()),
+    }
 }
 
 /// As `fit`, for a lossless turn that writes the Motion Photo's video again after the picture

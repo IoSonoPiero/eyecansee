@@ -16,7 +16,7 @@ mod folder;
 mod format_ui;
 mod panes;
 
-pub(crate) use format_ui::format_options;
+pub(crate) use format_ui::{format_options, meta_choice};
 use format_ui::{format_choice, meta_options};
 use panes::convert_images;
 
@@ -484,7 +484,7 @@ fn saved_size((w, h): (u32, u32), o: &Options) -> (u32, u32) {
 
 /// Only a JPEG with its metadata holds the gain map and the XMP that describes it.
 fn keeps_hdr(o: &Options) -> bool {
-    o.format == Format::Jpeg && o.keep_meta
+    o.format == Format::Jpeg && o.meta != crate::meta_strip::Keep::Nothing
 }
 
 /// A button of the page clicked.
@@ -590,7 +590,7 @@ mod tests {
         original.hdr = crate::ultrahdr::Source::of(Arc::new(file), Vec::new(), Vec::new()).map(Arc::new);
         let jpeg = Options { format: Format::Jpeg, ..Options::default() };
         assert!(crate::ultrahdr::is(&encoded(&original, &jpeg).unwrap()));
-        let bare = encoded(&original, &Options { keep_meta: false, ..jpeg }).unwrap();
+        let bare = encoded(&original, &Options { meta: crate::meta_strip::Keep::Nothing, ..jpeg }).unwrap();
         assert!(!crate::ultrahdr::is(&bare) && bare.starts_with(&[0xFF, 0xD8]));
         let png = encoded(&original, &Options { format: Format::Png, ..Options::default() }).unwrap();
         assert!(png.starts_with(b"\x89PNG"));

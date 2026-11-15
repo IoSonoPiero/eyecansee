@@ -36,7 +36,7 @@ With a size and a turn, the name says only the size. A picture left at its size 
 ## Format
 
 - **Same as the original**: each image stays in its own format and is written as Save writes it (a JPEG keeps its own quality). Images in a format EyeCanSee cannot write (HEIC, RAW…) are left out.
-- One of the formats of [Save as](save-as.md). Its options are under **JPEG options** (or the name of the format you chose): click the title to open them. **Keep the metadata** is there too.
+- One of the formats of [Save as](save-as.md). Its options are under **JPEG options** (or the name of the format you chose): click the title to open them. **Metadata** is there too: all, all but the place, or none but the colour profile, as in [Save as](save-as.md).
 - **Ultra HDR** phone photos stay HDR only in JPEG. When JPEG photos are among the files and you choose another format, the window warns you.
 
 ## Turn and flip

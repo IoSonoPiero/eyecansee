@@ -36,7 +36,7 @@ Con una misura e una rotazione, il nome dice solo la misura. Un'immagine lasciat
 ## Formato
 
 - **Uguale all'originale**: ogni immagine resta nel suo formato e viene scritta come la scrive Salva (un JPEG tiene la sua qualità). Le immagini in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) restano fuori.
-- Uno dei formati di [Salva come](save-as.md). Le sue opzioni sono sotto **Opzioni JPEG** (o il nome del formato scelto): fai clic sul titolo per aprirle. Lì c'è anche **Mantieni i metadati**.
+- Uno dei formati di [Salva come](save-as.md). Le sue opzioni sono sotto **Opzioni JPEG** (o il nome del formato scelto): fai clic sul titolo per aprirle. Lì c'è anche **Metadati**: tutti, tutti tranne il luogo, o nessuno tranne il profilo colore, come in [Salva come](save-as.md).
 - Le foto **Ultra HDR** dei telefoni restano HDR solo in JPEG. Se tra i file ci sono dei JPEG e scegli un altro formato, la finestra te lo ricorda.
 
 ## Rotazione e ribaltamenti

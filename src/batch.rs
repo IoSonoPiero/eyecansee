@@ -13,6 +13,7 @@ use image::imageops::FilterType;
 use serde::{Deserialize, Serialize};
 
 use crate::encode::{self, Format, Options};
+use crate::meta_strip::Keep;
 use crate::source::{self, Store};
 use crate::transform::Turn;
 
@@ -293,7 +294,7 @@ fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut:
     // An Ultra HDR photo written as JPEG with its metadata stays Ultra HDR, its gain map turned
     // and resized with it (#65); without metadata there is nothing to hold the gain map.
     let to_jpeg = job.format.map_or(Format::of_file(name) == Some(Format::Jpeg), |f| f == Format::Jpeg);
-    if to_jpeg && job.options.keep_meta && crate::ultrahdr::is(bytes) {
+    if to_jpeg && job.options.meta != Keep::Nothing && crate::ultrahdr::is(bytes) {
         let (out, options) = match job.format {
             None => (name.to_string(), crate::encode::jpeg_quality::like(bytes, Options::default())),
             Some(f) => (with_ext(name, f), Options { format: f, turn: Turn::default(), ..job.options }),
@@ -959,7 +960,7 @@ mod tests {
         }
         let (_, png) = convert(&bytes, "a.jpg", &Job { format: Some(Format::Png), ..Default::default() }).unwrap();
         assert!(!crate::ultrahdr::is(&png) && png.starts_with(b"\x89PNG"));
-        let bare = Job { format: Some(Format::Jpeg), options: Options { format: Format::Jpeg, keep_meta: false, ..Options::default() }, ..Default::default() };
+        let bare = Job { format: Some(Format::Jpeg), options: Options { format: Format::Jpeg, meta: Keep::Nothing, ..Options::default() }, ..Default::default() };
         assert!(!crate::ultrahdr::is(&convert(&bytes, "a.jpg", &bare).unwrap().1));
     }
 

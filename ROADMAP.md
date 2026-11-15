@@ -6,7 +6,6 @@ The order is indicative: features arrive when they are ready and tested on real 
 
 ### First
 
-- Saving without the GPS position, or without metadata ([#55](https://github.com/IoSonoPiero/eyecansee/issues/55)).
 - Image editor: an SVG stays an SVG ([#56](https://github.com/IoSonoPiero/eyecansee/issues/56)).
 
 ### Next

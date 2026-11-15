@@ -474,6 +474,11 @@ convert-speed-hint = Più lenta fa un file più piccolo a parità di qualità.
 convert-lossless = Senza perdita: gli stessi pixel dell'originale.
 convert-gif = Al massimo 256 colori.
 convert-keep-meta = Mantieni i metadati (EXIF, XMP, IPTC, profilo colore)
+meta-keep = Metadati
+meta-keep-hint = Cosa tiene il file nuovo dei metadati dell'originale. "Tutti tranne il luogo" toglie la posizione GPS e città, regione e paese, per una foto da condividere; "Nessuno" tiene solo il profilo colore, che serve all'immagine per avere i colori giusti.
+meta-keep-all = Tutti (EXIF, XMP, IPTC, profilo colore)
+meta-keep-no-place = Tutti tranne il luogo (senza posizione GPS)
+meta-keep-nothing = Nessuno (solo il profilo colore)
 convert-keep-density = Mantieni i metadati (solo la risoluzione)
 convert-ultra-hdr-lost = Questa foto è Ultra HDR: resta HDR solo in JPEG con i metadati.
 convert-first-only = Questa immagine è animata o ha più pagine: viene salvata solo l'immagine mostrata.
@@ -809,6 +814,7 @@ edit-save-confirm = Una copia di **{ $name }** viene salvata accanto all'origina
 edit-loss-lossy = La copia viene **ricodificata** e può perdere un po' di qualità.
 edit-loss-8bit = La copia ha **8 bit per colore**, l'originale di più: l'originale resta com'è, per ciò che li richiede.
 edit-loss-hdr = La copia è un PNG a 16 bit: ciò che nell'originale è **più luminoso del bianco** viene tagliato.
+edit-loss-ultra-hdr = Senza metadati la copia non è più **Ultra HDR**: niente tiene la sua parte HDR.
 edit-overwrite-trash = **{ $name }** viene sostituito dall'immagine modificata.
 
     L'originale va **nel cestino**.
@@ -818,6 +824,7 @@ edit-overwrite-folder = **{ $name }** viene sostituito dall'immagine modificata.
 edit-over-loss-lossy = Il file nuovo viene **ricodificato** e può perdere un po' di qualità.
 edit-over-loss-8bit = Il file nuovo ha **8 bit per colore**, l'originale di più.
 edit-over-loss-hdr = Il file nuovo ha 16 bit per colore: ciò che nell'originale è **più luminoso del bianco** viene tagliato.
+edit-over-loss-ultra-hdr = Senza metadati il file nuovo non è più **Ultra HDR**: niente tiene la sua parte HDR.
 edit-leave = Le modifiche a **{ $name }** non sono salvate.
 
     { "**" }Salva** crea una copia accanto all'originale, **Salva come…** un file nuovo dove scegli, **Non salvare** le perde.

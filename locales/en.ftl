@@ -475,6 +475,11 @@ convert-speed-hint = Slower makes a smaller file of the same quality.
 convert-lossless = Lossless: the same pixels as the original.
 convert-gif = At most 256 colours.
 convert-keep-meta = Keep the metadata (EXIF, XMP, IPTC, colour profile)
+meta-keep = Metadata
+meta-keep-hint = What the new file keeps of the original's metadata. "All but the place" leaves out the GPS position and the city, state and country, for a photo to share; "None" keeps only the colour profile, which the picture needs to look right.
+meta-keep-all = All (EXIF, XMP, IPTC, colour profile)
+meta-keep-no-place = All but the place (no GPS position)
+meta-keep-nothing = None (only the colour profile)
 convert-keep-density = Keep the metadata (resolution only)
 convert-ultra-hdr-lost = This photo is Ultra HDR: it keeps its HDR only in JPEG with the metadata.
 convert-first-only = This image is animated or has several pages: only the picture shown is saved.
@@ -810,6 +815,7 @@ edit-save-confirm = A copy of **{ $name }** is saved next to it as **{ $copy }**
 edit-loss-lossy = The copy is **encoded again** and may lose a little quality.
 edit-loss-8bit = The copy has **8 bits per colour**, the original more: the original stays as it is, for what needs them.
 edit-loss-hdr = The copy is a 16-bit PNG: what is **brighter than white** in the original is cut.
+edit-loss-ultra-hdr = Without metadata the copy is no longer **Ultra HDR**: nothing holds its HDR part.
 edit-overwrite-trash = **{ $name }** is replaced by the edited image.
 
     The original goes **to the trash**.
@@ -819,6 +825,7 @@ edit-overwrite-folder = **{ $name }** is replaced by the edited image.
 edit-over-loss-lossy = The new file is **encoded again** and may lose a little quality.
 edit-over-loss-8bit = The new file has **8 bits per colour**, the original more.
 edit-over-loss-hdr = The new file has 16 bits per colour: what is **brighter than white** in the original is cut.
+edit-over-loss-ultra-hdr = Without metadata the new file is no longer **Ultra HDR**: nothing holds its HDR part.
 edit-leave = The changes to **{ $name }** are not saved.
 
     { "**" }Save** makes a copy next to the original, **Save as…** a new file where you choose, **Don't save** loses them.
