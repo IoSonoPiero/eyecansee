@@ -7,7 +7,7 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::{LazyLock, Mutex};
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 
 use image::imageops::FilterType;
 use serde::{Deserialize, Serialize};
@@ -574,6 +574,42 @@ pub struct Progress {
     /// Images left out or failed: Fluent id and detail.
     pub failed: Mutex<Vec<(&'static str, String)>>,
     pub finished: AtomicBool,
+    /// Bytes of the originals of the files saved, and of the new files (the summary at the end).
+    pub bytes_before: AtomicU64,
+    pub bytes_after: AtomicU64,
+    /// A size could not be read: the summary leaves the sizes out.
+    pub bytes_unknown: AtomicBool,
+}
+
+impl Progress {
+    /// The sizes of an original and of what it became, added; one unknown makes all unknown.
+    fn sized(&self, before: Option<u64>, after: Option<u64>) {
+        match (before, after) {
+            (Some(b), Some(a)) => {
+                self.bytes_before.fetch_add(b, Ordering::Relaxed);
+                self.bytes_after.fetch_add(a, Ordering::Relaxed);
+            }
+            _ => self.bytes_unknown.store(true, Ordering::Relaxed),
+        }
+    }
+
+    /// The originals' bytes and the new files', for the summary; `None` when one was not read.
+    pub fn sizes(&self) -> Option<(u64, u64)> {
+        (!self.bytes_unknown.load(Ordering::Relaxed)).then(|| (self.bytes_before.load(Ordering::Relaxed), self.bytes_after.load(Ordering::Relaxed)))
+    }
+}
+
+/// The sizes of the original `path` and of the files `saved` from it (a video, its audio) added
+/// to `p`, read back where they are: what FFmpeg wrote is not in memory.
+async fn add_sizes(p: &Progress, op: &Store, path: &str, out: &Store, saved: &[String]) {
+    let mut after = Some(0);
+    for s in saved {
+        after = match (after, out.size(s).await) {
+            (Some(a), Ok(n)) => Some(a + n),
+            _ => None,
+        };
+    }
+    p.sized(op.size(path).await.ok(), after);
 }
 
 /// Where the new files go: a folder of a source, made first if `create`.
@@ -606,7 +642,10 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
         p.part.store(0, Ordering::Relaxed);
         if let Some(audio) = job.audio {
             match crate::audio_job::run(op, (&job.base, &path), &out, &dest, audio, &mut taken, &p).await {
-                Ok(saved) => p.saved.lock().unwrap().extend(saved),
+                Ok(saved) => {
+                    add_sizes(&p, op, &path, &out, &saved).await;
+                    p.saved.lock().unwrap().extend(saved);
+                }
                 Err(_) if p.cancel.load(Ordering::Relaxed) => break,
                 Err(e) => p.failed.lock().unwrap().push(e),
             }
@@ -621,7 +660,9 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
             };
             match r {
                 Ok(new_name) => {
-                    p.saved.lock().unwrap().push(format!("{dest}{new_name}"));
+                    let to = format!("{dest}{new_name}");
+                    add_sizes(&p, op, &path, &out, std::slice::from_ref(&to)).await;
+                    p.saved.lock().unwrap().push(to);
                     taken.insert(new_name);
                 }
                 // Cancelled: neither saved nor "left out", the summary says where it stopped.
@@ -633,19 +674,22 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
         }
         let r = match op.read(&path).await {
             Ok(bytes) => {
-                let job = job.clone();
+                let (job, before) = (job.clone(), bytes.len() as u64);
                 let sibling = crate::loader::siblings(op.clone(), path.clone());
-                tokio::task::spawn_blocking(move || convert_with(&bytes, &name, &job, &sibling)).await.unwrap_or_else(|e| Err(("batch-failed", e.to_string())))
+                let made = tokio::task::spawn_blocking(move || convert_with(&bytes, &name, &job, &sibling)).await.unwrap_or_else(|e| Err(("batch-failed", e.to_string())));
+                made.map(|(name, data)| (name, data, before))
             }
             Err((id, detail)) => Err((id, detail)),
         };
         match r {
-            Ok((new_name, data)) => {
+            Ok((new_name, data, before)) => {
                 let new_name = source::free_name(&taken, &new_name);
                 let to = format!("{dest}{new_name}");
+                let after = data.len() as u64;
                 match crate::replace::write_whole(&out, &to, data).await {
                     Ok(()) => {
                         taken.insert(new_name);
+                        p.sized(Some(before), Some(after));
                         p.saved.lock().unwrap().push(to);
                     }
                     Err(e) => p.failed.lock().unwrap().push(e),
@@ -820,6 +864,9 @@ mod tests {
         assert_eq!(*p.saved.lock().unwrap(), ["a (2).png", "t (2).tga"]);
         assert_eq!(std::fs::read(dir.join("a (2).png")).unwrap(), png);
         assert!(p.failed.lock().unwrap().is_empty());
+        // The summary's sizes (#134): a copy as it is weighs what its original does.
+        let both = png.len() as u64 + std::fs::metadata(dir.join("t.tga")).unwrap().len();
+        assert_eq!(p.sizes(), Some((both, both)));
         // Cropped in the middle: the left column of the copy comes from x = 50.
         let (saved, _) = resize(Size::Crop(100, 100));
         let back = crate::decode::decode_full(&std::fs::read(dir.join(&saved[0])).unwrap(), "x.png").unwrap().to_rgb8();

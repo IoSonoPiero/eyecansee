@@ -1201,17 +1201,63 @@ batch-start = Convert
 batch-working = Converting
 batch-counts = { $n } of { $total } files
 batch-stopping = Stopping…
-batch-result = { $n ->
-    [0] No file was saved in { $folder }.
-    [one] **1 file** was saved in { $folder }.
-   *[other] **{ $n } files** were saved in { $folder }.
-}
-batch-cancelled = Stopped after { $n } of { $total } files.
-batch-left-out = Left out:
 batch-left-out-kind = { $n ->
     [one] 1 file chosen is left out: this entry does not work on its kind.
    *[other] { $n } files chosen are left out: this entry does not work on their kind.
 }
+summary-saved = { $n ->
+    [one] **1 file** saved in { $folder }.
+   *[other] **{ $n } files** saved in { $folder }.
+}
+summary-left-out = { $n ->
+    [one] **1 file** left out.
+   *[other] **{ $n } files** left out.
+}
+summary-not-done = { $n ->
+    [one] **1 file** not done: the work was stopped.
+   *[other] **{ $n } files** not done: the work was stopped.
+}
+summary-nothing = No file was saved.
+summary-took = It took { $time }.
+summary-sizes = Size: { $before } before, { $after } after ({ $percent }%).
+summary-kind = { $n ->
+    [one] 1 file of a kind this command does not work on:
+   *[other] { $n } files of a kind this command does not work on:
+}
+summary-format = { $n ->
+    [one] 1 file in a format EyeCanSee cannot write; choose another format:
+   *[other] { $n } files in a format EyeCanSee cannot write; choose another format:
+}
+summary-format-preset = { $n ->
+    [one] 1 file in a format EyeCanSee cannot write; Resize > Custom… can save it in another one:
+   *[other] { $n } files in a format EyeCanSee cannot write; Resize > Custom… can save them in another one:
+}
+summary-same-size = { $n ->
+    [one] 1 file already of this size, or smaller and not enlarged:
+   *[other] { $n } files already of this size, or smaller and not enlarged:
+}
+summary-inside = { $n ->
+    [one] 1 file animated or with several pages, which the new file would not hold:
+   *[other] { $n } files animated or with several pages, which the new files would not hold:
+}
+summary-no-ffmpeg = { $n ->
+    [one] 1 video or audio file, and FFmpeg is missing:
+   *[other] { $n } videos or audio files, and FFmpeg is missing:
+}
+summary-not-autocad = { $n ->
+    [one] 1 drawing that is not an AutoCAD drawing (DWG or DXF):
+   *[other] { $n } drawings that are not AutoCAD drawings (DWG or DXF):
+}
+summary-would-lose = { $n ->
+    [one] 1 drawing that would lose a part in the other format:
+   *[other] { $n } drawings that would lose a part in the other format:
+}
+summary-errors = { $n ->
+    [one] 1 error:
+   *[other] { $n } errors:
+}
+summary-open-folder = Open the folder
+summary-open-covered = Close the page in front first: the thumbnails are under it.
 drawing-title = Export drawing
 drawing-start = Export
 drawing-side = Long side

@@ -1200,17 +1200,63 @@ batch-start = Converti
 batch-working = Conversione in corso
 batch-counts = { $n } di { $total } file
 batch-stopping = Mi fermo…
-batch-result = { $n ->
-    [0] Nessun file è stato salvato in { $folder }.
-    [one] **1 file** è stato salvato in { $folder }.
-   *[other] **{ $n } file** sono stati salvati in { $folder }.
-}
-batch-cancelled = Fermato dopo { $n } di { $total } file.
-batch-left-out = Escluse:
 batch-left-out-kind = { $n ->
     [one] 1 file scelto è escluso: questa voce non lavora su quel tipo di file.
    *[other] { $n } file scelti sono esclusi: questa voce non lavora su quei tipi di file.
 }
+summary-saved = { $n ->
+    [one] **1 file** salvato in { $folder }.
+   *[other] **{ $n } file** salvati in { $folder }.
+}
+summary-left-out = { $n ->
+    [one] **1 file** lasciato fuori.
+   *[other] **{ $n } file** lasciati fuori.
+}
+summary-not-done = { $n ->
+    [one] **1 file** non fatto: il lavoro è stato fermato.
+   *[other] **{ $n } file** non fatti: il lavoro è stato fermato.
+}
+summary-nothing = Nessun file è stato salvato.
+summary-took = Ci è voluto { $time }.
+summary-sizes = Dimensione: { $before } prima, { $after } dopo ({ $percent }%).
+summary-kind = { $n ->
+    [one] 1 file di un tipo su cui questo comando non lavora:
+   *[other] { $n } file di un tipo su cui questo comando non lavora:
+}
+summary-format = { $n ->
+    [one] 1 file in un formato che EyeCanSee non sa scrivere; scegli un altro formato:
+   *[other] { $n } file in un formato che EyeCanSee non sa scrivere; scegli un altro formato:
+}
+summary-format-preset = { $n ->
+    [one] 1 file in un formato che EyeCanSee non sa scrivere; Ridimensiona > Personalizzata… può salvarlo in un altro:
+   *[other] { $n } file in un formato che EyeCanSee non sa scrivere; Ridimensiona > Personalizzata… può salvarli in un altro:
+}
+summary-same-size = { $n ->
+    [one] 1 file già di questa dimensione, o più piccolo e non ingrandito:
+   *[other] { $n } file già di questa dimensione, o più piccoli e non ingranditi:
+}
+summary-inside = { $n ->
+    [one] 1 file animato o con più pagine, che il file nuovo non conterrebbe:
+   *[other] { $n } file animati o con più pagine, che i file nuovi non conterrebbero:
+}
+summary-no-ffmpeg = { $n ->
+    [one] 1 video o file audio, e FFmpeg manca:
+   *[other] { $n } video o file audio, e FFmpeg manca:
+}
+summary-not-autocad = { $n ->
+    [one] 1 disegno che non è un disegno AutoCAD (DWG o DXF):
+   *[other] { $n } disegni che non sono disegni AutoCAD (DWG o DXF):
+}
+summary-would-lose = { $n ->
+    [one] 1 disegno che nell'altro formato perderebbe una parte:
+   *[other] { $n } disegni che nell'altro formato perderebbero una parte:
+}
+summary-errors = { $n ->
+    [one] 1 errore:
+   *[other] { $n } errori:
+}
+summary-open-folder = Apri la cartella
+summary-open-covered = Chiudi prima la pagina davanti: le miniature sono sotto.
 drawing-title = Esporta disegno
 drawing-start = Esporta
 drawing-side = Lato lungo

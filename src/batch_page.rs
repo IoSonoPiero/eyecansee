@@ -7,6 +7,7 @@ use std::sync::Arc;
 use eframe::egui;
 
 use crate::audio_job::AudioJob;
+use crate::batch_summary::{Outcome, summary};
 use crate::batch::{Dest, Drawn, Filter, Job, Progress, Size};
 use crate::cad_convert::Target;
 use crate::encode::{Format, Options};
@@ -275,6 +276,8 @@ pub struct Window {
     preset: bool,
     /// The choices before the window opened, given back by Cancel (`Form::cancelled`).
     before: Option<Form>,
+    /// When the work started: the summary says how long it took.
+    started: Option<std::time::Instant>,
 }
 
 /// The Fluent ids of the title of the window (and of the message at the end), of its button that
@@ -345,7 +348,7 @@ impl App {
         if form.other.is_empty() {
             form.other = crate::navigation::shown(&self.base, &self.dir);
         }
-        self.batch = Some(Window { paths, dir: self.dir.clone(), progress: None, dest: Default::default(), left_out, kinds, preset: false, before });
+        self.batch = Some(Window { paths, dir: self.dir.clone(), progress: None, dest: Default::default(), left_out, kinds, preset: false, before, started: None });
         true
     }
 
@@ -413,7 +416,7 @@ impl App {
         }
         let dir = self.dir.clone();
         let to = Dest { op: loader.store(), dir: dir.clone(), create: false };
-        let mut w = Window { paths, dir: dir.clone(), progress: None, dest: (self.display(&dir), Some(dir)), left_out, kinds, preset: true, before: None };
+        let mut w = Window { paths, dir: dir.clone(), progress: None, dest: (self.display(&dir), Some(dir)), left_out, kinds, preset: true, before: None, started: None };
         let job = Job { format: None, size, tag: size.tag(), ..Job::default() };
         self.start_batch(&mut w, job, to, ctx);
         self.batch = Some(w);
@@ -527,6 +530,7 @@ impl App {
         job.base = self.base.clone();
         let p = Arc::new(Progress::default());
         w.progress = Some(p.clone());
+        w.started = Some(std::time::Instant::now());
         log!("batch: {} images to {:?}, {job:?}", w.paths.len(), w.dest.0);
         let (op, paths, ctx) = (loader.store(), w.paths.clone(), ctx.clone());
         self.rt.spawn(async move {
@@ -575,29 +579,21 @@ impl App {
         true
     }
 
-    /// What was saved and where, what was left out and why; the folders shown again.
+    /// What was saved and where, what was left out and why, how long it took (`batch_summary`);
+    /// the folders shown again.
     fn batch_done(&mut self, w: &Window, p: &Progress) {
         let saved = p.saved.lock().unwrap().len();
         // The files of another kind first, then those the work left out.
         let other_kind = w.left_out.iter().map(|path| (left_out_id(w.kinds, path), source::name(path).to_string()));
         let failed: Vec<_> = other_kind.chain(std::mem::take(&mut *p.failed.lock().unwrap())).collect();
-        log!("batch: {saved} saved, {} left out", failed.len());
+        let (done, total) = (p.done.load(Ordering::Relaxed), p.total.load(Ordering::Relaxed));
+        let took = w.started.map(|s| s.elapsed()).unwrap_or_default();
+        log!("batch: {saved} saved, {} left out, {done} of {total} done in {took:?}, sizes {:?}", failed.len(), p.sizes());
         for (id, detail) in &failed {
             log!("batch: left out: {id} {detail}");
         }
-        let mut text = self.i18n.t_args("batch-result", &[("n", &saved.to_string()), ("folder", &md(&w.dest.0))]);
-        let (done, total) = (p.done.load(Ordering::Relaxed), p.total.load(Ordering::Relaxed));
-        if done < total {
-            text = format!("{text}\n\n{}", self.i18n.t_args("batch-cancelled", &[("n", &done.to_string()), ("total", &total.to_string())]));
-        }
-        if !failed.is_empty() {
-            // Resize has no format to choose: its own words for a format not written.
-            let said = |id: &'static str| if w.preset && id == crate::batch::SKIP_FORMAT { "preset-skip-format" } else { id };
-            let lines: String = failed.iter().map(|(id, detail)| format!("\n- {}", self.i18n.error_md(said(id), detail))).collect();
-            text = format!("{text}\n\n{}{lines}", self.i18n.t("batch-left-out"));
-        }
-        let title = self.batch_titles(w).0;
-        self.tell(title, text);
+        let outcome = Outcome { saved, done, total, failed: &failed, preset: w.preset, folder: &w.dest.0, took, sizes: p.sizes() };
+        self.batch_summary = Some(summary(&self.i18n, self.batch_titles(w).0, &outcome, w.dest.0.clone()));
         self.relist(w.dir.clone());
         if let Some(dest) = w.dest.1.clone().filter(|d| *d != w.dir) {
             self.relist(dest);

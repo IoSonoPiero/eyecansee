@@ -50,6 +50,7 @@ impl App {
             // A notice has no page: F1 gives the one of what is under it.
             (self.batch_turn.is_some() || self.save_ready.is_some() || self.after_turn.is_some()).then_some("help:rotate"),
             self.delete_confirm.is_some().then_some("help:delete"),
+            self.batch_summary.is_some().then_some("help:convert"),
             self.batch.as_ref().and(self.batch_form.as_ref()).map(|f| batch_spot(f.videos_only(), f.drawings())),
             self.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking).then_some("help:duplicates"),
             self.options.then_some("help:options"),
