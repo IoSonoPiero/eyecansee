@@ -47,13 +47,14 @@ Everything you draw stays a separate object until you save: you can move it, cha
 
 1. Choose ![Select](icon://mouse-pointer-2) **Select** (V).
 2. Click an object to select it. The properties bar shows its style; change it there.
-3. Drag the object to move it. Drag a corner or an end to resize it; hold Shift to keep the proportions of a box. A pasted piece keeps its proportions without Shift, and Shift frees them; it also has a round handle to rotate it (see [Selecting an area](editor-marquee.md)).
-4. Press **Del**, or click ![Delete](icon://trash) in the properties bar, to remove it.
+3. Drag the object to move it. Drag a corner or an end to resize it; hold Shift to keep the proportions of a box. A pasted piece keeps its proportions without Shift, and Shift frees them (see [Selecting an area](editor-marquee.md)).
+4. Drag the round handle above the selected object to rotate it round its centre; hold **Shift** to turn it 15° at a time. Its angle is also in the properties bar, from -180° to 180°, to type or drag. Rectangles, ellipses, highlights, cover boxes, magnifiers, spotlights, speech bubbles (with their tail), texts, stamps, pasted pieces and the Blur and Pixelate filters rotate; lines and arrows are turned by their ends, and step numbers stay upright.
+5. Press **Del**, or click ![Delete](icon://trash) in the properties bar, to remove it.
 
 Good to know:
 
 - With a drawing tool, a click selects only an object of that tool's kind (an arrow with Arrow, a step with Step numbers). Anywhere else the tool does its own work, even on top of other objects.
-- The corners of the selected object can be dragged with any tool.
+- The corners and the round handle of the selected object can be dragged with any tool. On a rotated object the corners turn with it.
 - A shape, line or bubble drawn all on the dark area around the image is not kept: only what reaches the image stays.
 - A rectangle or an ellipse with no fill is picked by its border, not by its empty inside.
 - Filters, highlighters and spotlights lie under the other objects: a click picks them only where no other object is.

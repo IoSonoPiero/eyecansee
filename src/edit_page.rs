@@ -102,7 +102,7 @@ pub(crate) enum Tool {
 enum Hold {
     Move { index: usize, start: Obj, from: Pt },
     Handle { index: usize, handle: usize, start: Obj },
-    /// A pasted piece turned by the handle above it.
+    /// An object turned by the handle above it (`edit::turn`).
     Turn { index: usize, start: Obj },
     /// The object drawn is at `index` once the drag is long enough.
     Draw { kind: Kind, from: Pt, index: Option<usize> },

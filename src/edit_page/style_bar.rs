@@ -10,6 +10,7 @@ use super::tools::{bar_button, tip};
 use super::{Tool, Window};
 use crate::edit::doc::{Dash, Head, Pt, Shape, Style};
 use crate::edit::geom::Kind;
+use crate::edit::turn;
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
 
@@ -36,6 +37,8 @@ fn filter_bar(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     }
     if filter.hides() {
         ui.label(crate::theme::alert(i18n.t("edit-filter-not-cover")));
+        ui.separator();
+        angle(ui, w, i, i18n);
     }
     ui.separator();
     if bar_button(ui, icons::button(ui, Line::Delete), format!("{} ({})", i18n.t("edit-delete"), i18n.t("key-delete")), None) {
@@ -141,8 +144,11 @@ fn kind_controls(ui: &mut egui::Ui, w: &mut Window, style: &mut Style, (kind, se
         }
         _ => {}
     }
-    if let (Kind::Patch, Some(i)) = (kind, selected) {
-        super::patch::bar(ui, w, i, i18n);
+    // A pasted piece has its angle among its own controls; a text after its curve.
+    match (kind, selected) {
+        (Kind::Patch, Some(i)) => super::patch::bar(ui, w, i, i18n),
+        (Kind::Text, _) | (_, None) => {}
+        (_, Some(i)) => angle(ui, w, i, i18n),
     }
     if matches!(kind, Kind::Text | Kind::Bubble) {
         ui.separator();
@@ -150,7 +156,7 @@ fn kind_controls(ui: &mut egui::Ui, w: &mut Window, style: &mut Style, (kind, se
             font_choice(ui, w, i, i18n);
             if kind == Kind::Text {
                 text_curve(ui, w, i, i18n);
-                text_angle(ui, w, i, i18n);
+                angle(ui, w, i, i18n);
             }
         }
         text_field(ui, w, selected, i18n);
@@ -261,12 +267,6 @@ fn dashed(kind: Kind) -> bool {
     matches!(kind, Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse)
 }
 
-/// The angle of a text on the screen, -180° (included) to 180°: its own angle `rot`, measured on
-/// the image, plus the image's angle (Rotate and crop).
-fn screen_angle(rot: f32, angle: f32) -> f32 {
-    (rot + angle + 180.0).rem_euclid(360.0) - 180.0
-}
-
 /// The line a text is put on by "On a curve": as long as the text and a size more, through its
 /// anchor `at`, along its angle `rot`.
 fn curve_line(at: Pt, text: &str, size: f32, rot: f32) -> (Pt, Pt) {
@@ -366,15 +366,21 @@ fn text_curve(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     };
 }
 
-/// The angle of the selected text on the screen, -180° to 180° (its own angle in the document is
-/// measured on the image, which may be turned by Rotate and crop).
-fn text_angle(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
+/// The angle on the screen of the selected object `i`, if it turns (`edit::turn::turn_box`), with
+/// the hint of its handle: the same for every kind, a pasted piece's too (issue #137).
+pub(super) fn angle(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     let angle = w.doc.angle;
-    let Some(Shape::Text { rot, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
-    let mut shown = screen_angle(*rot, angle);
-    ui.spacing_mut().slider_width = 110.0;
-    if super::props::slider(ui, "rc-rotation", i18n.t("rc-rotation"), egui::Slider::new(&mut shown, -180.0..=180.0).integer().suffix("°")).changed() {
-        *rot = shown - angle;
+    let Some(shape) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
+    let Some(b) = turn::turn_box(shape) else { return };
+    let mut shown = turn::shown(b.rot, angle);
+    // The slider rounds the angle the handle left (61.37°) each time it is drawn and calls that a
+    // change: written back, every Undo made a step of its own and stayed where it was. Only a
+    // whole degree other than the one shown is the user's.
+    let before = shown.round();
+    ui.spacing_mut().slider_width = super::patch::SLIDER;
+    let slider = egui::Slider::new(&mut shown, -180.0..=180.0).integer().suffix("°");
+    if super::props::slider(ui, "rc-rotation", i18n.t("rc-rotation"), slider).on_hover_text(i18n.t("edit-turn-hint")).changed() && shown != before {
+        turn::set_rot(shape, turn::rot_for(shown, angle));
     }
 }
 
@@ -495,12 +501,22 @@ mod tests {
         }
     }
 
-    /// A text's angle on the screen: its own plus the image's, from -180° to just under 180°.
+    /// A text's angle on the screen is shown and set as every other object's (`edit::turn`): its
+    /// own plus the image's, from just over -180° to 180°, 180° and not -180° (the text showed
+    /// -180 and kept its angle as typed, the pasted piece 180 and in -180 to 180: two formulas for
+    /// one angle, 2026-11-15).
     #[test]
     fn text_angle_on_screen() {
-        for (rot, angle, shown) in [(0.0, 0.0, 0.0), (30.0, 15.0, 45.0), (170.0, 20.0, -170.0), (180.0, 0.0, -180.0), (-180.0, 0.0, -180.0), (350.0, 0.0, -10.0), (90.0, -90.0, 0.0), (-200.0, 0.0, 160.0)] {
-            assert!((screen_angle(rot, angle) - shown).abs() < 1e-4, "{rot} + {angle}: {}", screen_angle(rot, angle));
+        for (rot, angle, shown) in [(0.0, 0.0, 0.0), (30.0, 15.0, 45.0), (170.0, 20.0, -170.0), (180.0, 0.0, 180.0), (-180.0, 0.0, 180.0), (350.0, 0.0, -10.0), (90.0, -90.0, 0.0), (-200.0, 0.0, 160.0)] {
+            let text = Shape::Text { at: Pt::new(5.0, 5.0), text: "Ab".into(), size: 20.0, rot, font: None, path: None };
+            let b = turn::turn_box(&text).unwrap();
+            assert!((turn::shown(b.rot, angle) - shown).abs() < 1e-4, "{rot} + {angle}: {}", turn::shown(b.rot, angle));
         }
+        // Typed on the screen as 200 (past the end, as a field can be): kept in -180 to 180.
+        let mut text = Shape::Text { at: Pt::new(5.0, 5.0), text: "Ab".into(), size: 20.0, rot: 0.0, font: None, path: None };
+        turn::set_rot(&mut text, turn::rot_for(200.0, 10.0));
+        let Shape::Text { rot, .. } = text else { unreachable!() };
+        assert!((rot - -170.0).abs() < 1e-4, "{rot}");
     }
 
     /// "On a curve": the line goes through the text's anchor, as long as the text and a size more
