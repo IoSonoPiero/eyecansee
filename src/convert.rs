@@ -116,6 +116,9 @@ impl crate::App {
 
     pub(crate) fn convert_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, ColorImage, u64), String>) {
         let Some(w) = &mut self.convert else { return };
+        if let Err(e) = &r {
+            log!("{}", failed_line("save as: read", &w.path, "", e));
+        }
         // A JPEG: its own quality and subsampling proposed, 90 and 4:2:0 when they cannot be read.
         if let Some((q, chroma)) = r.as_ref().ok().and_then(|(o, ..)| o.jpeg) {
             (w.options.jpeg_quality, w.options.chroma) = (q, chroma);
@@ -139,10 +142,13 @@ impl crate::App {
             return;
         }
         w.busy = false;
+        if let Err(e) = &r {
+            log!("{}", failed_line(&format!("save as: {} encoding", w.options.format.ext()), &w.path, "", e));
+        }
         w.result = Some(r.map(|(bytes, preview)| (bytes, preview.map(|p| ctx.load_texture("convert-result", p, egui::TextureOptions::LINEAR)))));
     }
 
-    pub(crate) fn convert_saved(&mut self, r: Result<String, crate::source::Error>) {
+    pub(crate) fn convert_saved(&mut self, asked: &str, r: Result<String, crate::source::Error>) {
         match r {
             Ok(path) => {
                 log!("saved as {path:?}");
@@ -172,6 +178,7 @@ impl crate::App {
                 }
             }
             Err((id, detail)) => {
+                log!("{}", failed_line("save as: write", asked, id, &detail));
                 if let Some(w) = &mut self.convert {
                     w.saving = false;
                     w.error = Some(self.i18n.error(id, &detail));
@@ -257,7 +264,7 @@ impl crate::App {
         let (tx, ctx) = (self.tx.clone(), ctx.clone());
         self.rt.spawn(async move {
             let r = write_free(&store, &path, data.to_vec()).await;
-            let _ = tx.send(crate::loader::Msg::Saved(r));
+            let _ = tx.send(crate::loader::Msg::Saved(path, r));
             ctx.request_repaint();
         });
         true
@@ -501,6 +508,15 @@ fn name_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, half: f32, final_nam
 }
 
 
+/// The log line of a step of Save as… that failed: what, on which file, and why (the text id,
+/// when there is one, and the detail).
+fn failed_line(what: &str, path: &str, id: &str, detail: &str) -> String {
+    match id {
+        "" => format!("{what} {path:?} failed: {detail}"),
+        _ => format!("{what} {path:?} failed: {id} {detail}"),
+    }
+}
+
 /// Writes `data` as `path` in `store`, or under the first free name beside it; the path written.
 async fn write_free(store: &crate::source::Store, path: &str, data: Vec<u8>) -> Result<String, crate::source::Error> {
     let dir = crate::source::parent(path);
@@ -528,6 +544,24 @@ mod tests {
         assert_eq!(rt.block_on(write_free(&store, "p/a.png", b"new".to_vec())).unwrap(), "p/a (2).png");
         assert_eq!(std::fs::read(dir.join("p/a.png")).unwrap(), b"there before");
         assert_eq!(std::fs::read(dir.join("p/a (2).png")).unwrap(), b"new");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A Save as… that cannot write leaves a line in the log naming the file and the reason.
+    #[test]
+    fn failed_save_said_in_the_log() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-convert-failed-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // A file where the folder should be: nothing can be written under it.
+        std::fs::write(dir.join("p"), b"a file").unwrap();
+        let store = crate::source::Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (id, detail) = rt.block_on(write_free(&store, "p/b.png", b"b".to_vec())).unwrap_err();
+        let line = failed_line("save as: write", "p/b.png", id, &detail);
+        assert!(line.starts_with("save as: write \"p/b.png\" failed: "), "{line}");
+        assert!(line.contains(id) && line.ends_with(&detail) && !detail.is_empty(), "{line}");
+        assert_eq!(failed_line("save as: avif encoding", "a.jpg", "", "too big"), "save as: avif encoding \"a.jpg\" failed: too big");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
