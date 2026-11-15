@@ -81,8 +81,8 @@ pub enum Msg {
     /// The image encoded with the options of `generation`, and the encoded file decoded back
     /// (`None`: no decoder for that format in this build).
     Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
-    /// The converted image written: its path, or an error.
-    Saved(Result<String, source::Error>),
+    /// The converted image written: the path asked for, and the path written or an error.
+    Saved(String, Result<String, source::Error>),
     /// A 3D model saved in another 3D format: its path, or why not.
     Exported(Result<String, String>),
     /// "Save" from the viewer, before the confirmation: the image, the turn, and the file to write
@@ -443,8 +443,8 @@ impl Loader {
     pub fn save(&self, path: String, data: Arc<Vec<u8>>) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = write_whole(&op, &path, data.to_vec()).await.map(|()| path);
-            let _ = tx.send(Msg::Saved(r));
+            let r = write_whole(&op, &path, data.to_vec()).await.map(|()| path.clone());
+            let _ = tx.send(Msg::Saved(path, r));
             ctx.request_repaint();
         });
     }

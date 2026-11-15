@@ -71,7 +71,7 @@ impl App {
                 Msg::EditPrepared(path, r) => self.on_edit_prepared(path, r),
                 Msg::EditWritten(path, mark, over) => self.on_edit_written(path, mark, over),
                 Msg::Encoded(generation, r) => self.convert_encoded(ctx, generation, r),
-                Msg::Saved(r) => self.convert_saved(r),
+                Msg::Saved(asked, r) => self.convert_saved(&asked, r),
                 Msg::Exported(r) => self.on_exported(ctx, r),
                 Msg::Prepared(path, turn, r) => self.on_prepared(path, turn, r),
                 Msg::Replaced(path, r) => self.on_replaced(ctx, path, r),
