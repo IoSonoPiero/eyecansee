@@ -51,8 +51,9 @@ struct Stored {
 
 /// Raised when the panel learns to read something new: 1 = drone positions from the `.SRT`,
 /// 2 = the Image box in one order (`IMAGE_ORDER`), 3 = the Description box from the XMP and the
-/// sidecar of a RAW photo (#24), 4 = its caption from the EXIF and the IPTC too (`mwg`).
-const STORED: u32 = 4;
+/// sidecar of a RAW photo (#24), 4 = its caption from the EXIF and the IPTC too (`mwg`), 5 = the
+/// author, copyright, keywords and date taken too, the texts cameras write shown.
+const STORED: u32 = 5;
 
 impl Meta {
     pub fn to_json(&self) -> String {
@@ -352,22 +353,26 @@ fn with_header(mut meta: Option<Meta>, bytes: &[u8], name: &str) -> Option<Meta>
 
 /// As `read_file`, with the Description box (`xmp_fields`) from the XMP inside the file and its
 /// `sidecar` (#24): a RAW photo's instead of it, as in Lightroom; another photo's added to it,
-/// its values first, as in digiKam (`xmp::with_sidecar`). The caption from the file's EXIF, IPTC
-/// and XMP together (`mwg`), unless the sidecar has one: as its other fields, it counts.
+/// its values first, as in digiKam (`xmp::with_sidecar`). Description, author, copyright,
+/// keywords and date taken from the file's EXIF, IPTC and XMP together (`mwg`), unless the sidecar
+/// has them: as its other fields, they count.
 pub fn read_file_with(bytes: &[u8], name: &str, sidecar: Option<&crate::sidecar::Sidecar>) -> Option<Meta> {
     let exif = parse(bytes);
     let mut meta = if crate::cad_convert::can_convert(name) { crate::cad_meta::meta(bytes, name) } else { with_header(exif.as_ref().map(from_exif), bytes, name) };
     let inside = crate::raw_meta::xmp(bytes);
-    let xmp = match sidecar {
-        Some(s) if crate::decode::is_raw(name) => Some(s.xmp.clone()),
-        Some(s) => Some(crate::xmp::with_sidecar(inside.as_deref(), &s.xmp)),
-        None => inside.clone(),
+    let own = inside.as_deref().map(crate::xmp_fields::read).unwrap_or_default();
+    let found = crate::mwg::reconcile(&crate::mwg::exif_text(exif.as_ref()), crate::mwg::photoshop_block(bytes).as_deref(), &own);
+    let mut fields = match sidecar {
+        Some(s) if crate::decode::is_raw(name) => crate::xmp_fields::read(&s.xmp),
+        Some(s) => crate::xmp_fields::read(&crate::xmp::with_sidecar(inside.as_deref(), &s.xmp)),
+        None => own,
     };
-    let mut fields = xmp.map(|x| crate::xmp_fields::read(&x)).unwrap_or_default();
-    if sidecar.is_none_or(|s| crate::xmp_fields::read(&s.xmp).caption.is_none()) {
-        let own = if sidecar.is_some() { inside.and_then(|x| crate::xmp_fields::read(&x).caption) } else { fields.caption.take() };
-        let exif = exif.as_ref().and_then(image_description);
-        fields.caption = crate::mwg::description(exif.as_deref(), crate::mwg::photoshop_block(bytes).as_deref(), own.as_deref());
+    if let Some(s) = sidecar {
+        crate::mwg::sidecar_only(&mut fields, &crate::xmp_fields::read(&s.xmp));
+    }
+    let taken = crate::mwg::apply(found, &mut fields, sidecar.is_some());
+    if meta.is_some() || taken.is_some() {
+        crate::mwg::set_taken(meta.get_or_insert_default(), taken);
     }
     if !fields.is_empty() || sidecar.is_some() {
         crate::xmp_fields::add_to(meta.get_or_insert_default(), &fields, sidecar.map(|s| s.name.as_str()));
@@ -375,12 +380,11 @@ pub fn read_file_with(bytes: &[u8], name: &str, sidecar: Option<&crate::sidecar:
     meta
 }
 
-/// The bytes of the EXIF ImageDescription, its first text that is not empty.
-fn image_description(exif: &Exif) -> Option<Vec<u8>> {
-    match &exif.get_field(Tag::ImageDescription, In::PRIMARY)?.value {
-        Value::Ascii(parts) => parts.iter().find(|p| !p.is_empty()).cloned(),
-        _ => None,
-    }
+/// When a photo was taken, from its EXIF, IPTC and XMP as the panel reads it (`mwg`), without a
+/// sidecar: for the details under its thumbnail.
+pub fn taken(bytes: &[u8]) -> Option<String> {
+    let own = crate::raw_meta::xmp(bytes).map(|x| crate::xmp_fields::read(&x)).unwrap_or_default();
+    crate::mwg::reconcile(&crate::mwg::exif_text(parse(bytes).as_ref()), crate::mwg::photoshop_block(bytes).as_deref(), &own).taken
 }
 
 /// The rows of the Image box, in this order whatever the format; the others after them as they
@@ -407,7 +411,8 @@ fn color_kind(c: &crate::decode::Color) -> &'static str {
     }
 }
 
-/// `None` if the file has no EXIF (or it cannot be read).
+/// `None` if the file has no EXIF (or it cannot be read). The panel reads `read_file_with`.
+#[cfg(test)]
 pub fn read(bytes: &[u8]) -> Option<Meta> {
     parse(bytes).map(|exif| from_exif(&exif))
 }

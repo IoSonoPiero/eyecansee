@@ -370,7 +370,9 @@ impl App {
             return value.split(", ").map(|v| if v.starts_with("meta-") { self.i18n.t(v) } else { v.to_string() }).collect::<Vec<_>>().join(", ");
         }
         let formatted = match label {
-            "meta-taken" => value.parse::<jiff::civil::DateTime>().ok().map(|d| d.strftime(&self.i18n.t("date-format")).to_string()),
+            "meta-taken" if value.contains(' ') => value.parse::<jiff::civil::DateTime>().ok().map(|d| d.strftime(&self.i18n.t("date-format")).to_string()),
+            // Only the day when the IPTC or the XMP says no time.
+            "meta-taken" => value.parse::<jiff::civil::Date>().ok().map(|d| d.strftime(&self.i18n.t("date-day-format")).to_string()),
             "meta-gps-date" => value.parse::<jiff::civil::Date>().ok().map(|d| d.strftime(&self.i18n.t("date-day-format")).to_string()),
             _ => None,
         };
