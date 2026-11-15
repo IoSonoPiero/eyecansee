@@ -312,9 +312,14 @@ pub(crate) fn step(at: usize, n: usize, to: Go, wrap: bool) -> usize {
 /// An address typed or pasted in the bar: spaces around it go, and so do quotes around all of it,
 /// as Windows' "Copy as path" puts them (`"C:\Photos\"`). On Windows a drive alone (`C:`) is its
 /// root, as in Explorer, not the drive's current folder (the app's working folder, often System32).
+/// `~` at the start is the home folder, as in a terminal and in the file managers' address bars.
 pub(crate) fn typed_address(a: &str) -> String {
     let a = a.trim();
     let a = a.strip_prefix('"').and_then(|a| a.strip_suffix('"')).map_or(a, str::trim);
+    let rest = (a == "~").then_some("").or_else(|| a.strip_prefix("~/")).or_else(|| a.strip_prefix("~\\"));
+    if let (Some(rest), Some(home)) = (rest, std::env::home_dir()) {
+        return home.join(rest).to_string_lossy().into_owned();
+    }
     match a.as_bytes() {
         [d, b':'] if cfg!(windows) && d.is_ascii_alphabetic() => format!("{a}\\"),
         _ => a.to_string(),
@@ -385,6 +390,17 @@ mod tests {
         // A drive alone: its root on Windows.
         assert_eq!(typed_address(r#" "d:" "#), if cfg!(windows) { r"d:\" } else { "d:" });
         assert_eq!(typed_address("C:\\"), "C:\\");
+    }
+
+    #[test]
+    fn typed_address_home() {
+        let home = std::env::home_dir().unwrap();
+        assert_eq!(typed_address(" ~/Pictures/a.jpg "), home.join("Pictures/a.jpg").to_string_lossy());
+        assert_eq!(typed_address("~"), home.join("").to_string_lossy());
+        assert_eq!(typed_address(r#""~/a b""#), home.join("a b").to_string_lossy());
+        // Only at the start, and not another user's home.
+        assert_eq!(typed_address("/tmp/~/a"), "/tmp/~/a");
+        assert_eq!(typed_address("~other/a"), "~other/a");
     }
 
     #[test]
