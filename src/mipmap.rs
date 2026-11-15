@@ -34,7 +34,7 @@ pub(crate) fn half_raw(size: [usize; 2], src: &[u8]) -> ([usize; 2], Vec<u8>) {
         let y0 = (2 * y).min(h - 1);
         let y1 = (y0 + 1).min(h - 1);
         let (r0, r1) = (&src[y0 * w * 4..(y0 + 1) * w * 4], &src[y1 * w * 4..(y1 + 1) * w * 4]);
-        for (x, px) in row.chunks_exact_mut(4).enumerate() {
+        for (x, px) in row.as_chunks_mut::<4>().0.iter_mut().enumerate() {
             let (a, b) = (4 * (2 * x).min(w - 1), 4 * (2 * x + 1).min(w - 1));
             for c in 0..4 {
                 let sum = r0[a + c] as u32 + r0[b + c] as u32 + r1[a + c] as u32 + r1[b + c] as u32;
