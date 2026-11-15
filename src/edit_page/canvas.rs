@@ -89,6 +89,21 @@ pub(super) fn canvas(ui: &mut egui::Ui, w: &mut Window, tex: &Picture, size: Vec
     }
 }
 
+/// The photo's texture as shown and the part of it that holds the photo (0 to 1). Smaller than
+/// its pixels: filtered on the graphics card at the size on the screen (`smooth_gpu`), or, until
+/// the photo is there, its halved copy of that size (`mipmap`). `k` counts the image's pixels,
+/// the texture has fewer beyond 8192.
+fn shown_texture(ui: &egui::Ui, w: &Window, tex: &Picture, view: &View, (iw, ih): (f32, f32)) -> (TextureId, Vec2) {
+    let turned = crate::paint::turned_size(tex, w.doc.turn);
+    let scale = view.k * ui.ctx().pixels_per_point() * iw.max(ih) / turned.x.max(turned.y);
+    let out = tex.size().map(|v| (v as f32 * scale).round() as u32);
+    let whole = Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
+    match (scale < 1.0).then(|| crate::smooth_gpu::resampled(tex, scale, whole, out)).flatten() {
+        Some(filtered) => filtered,
+        None => (tex.id_at(scale), Vec2::splat(1.0)),
+    }
+}
+
 fn paint(ui: &egui::Ui, w: &mut Window, tex: &Picture, view: &View, rect: Rect) {
     let painter = ui.painter_at(rect);
     let stage = crate::theme::stage(ui.visuals());
@@ -103,15 +118,13 @@ fn paint(ui: &egui::Ui, w: &mut Window, tex: &Picture, view: &View, rect: Rect) 
     let (iw, ih) = w.size();
     let (s, c) = (w.doc.angle as f64).to_radians().sin_cos();
     let (s, c) = (s as f32, c as f32);
-    // Smaller than its pixels: from the halved copy of its size (`mipmap`). `k` counts the
-    // image's pixels, the texture has fewer beyond 8192.
-    let turned = crate::paint::turned_size(tex, w.doc.turn);
-    let scale = view.k * ui.ctx().pixels_per_point() * iw.max(ih) / turned.x.max(turned.y);
-    let mut mesh = egui::Mesh::with_texture(tex.id_at(scale));
+    let (id, extent) = shown_texture(ui, w, tex, view, (iw, ih));
+    let mut mesh = egui::Mesh::with_texture(id);
     for (x, y) in [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)] {
         let (qx, qy) = ((x - 0.5) * iw, (y - 0.5) * ih);
         let pos = view.screen(egui::vec2(qx * c - qy * s, qx * s + qy * c));
-        mesh.vertices.push(egui::epaint::Vertex { pos, uv: w.doc.turn.source_uv(egui::pos2(x, y)), color: Color32::WHITE });
+        let uv = (w.doc.turn.source_uv(egui::pos2(x, y)).to_vec2() * extent).to_pos2();
+        mesh.vertices.push(egui::epaint::Vertex { pos, uv, color: Color32::WHITE });
     }
     mesh.add_triangle(0, 1, 2);
     mesh.add_triangle(0, 2, 3);
