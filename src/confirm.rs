@@ -18,10 +18,11 @@ pub(crate) fn choose<T>(
     cancel: String,
     answer: Option<Option<T>>,
 ) -> Option<Option<T>> {
-    choose_with(ctx, id, width, text, choices, cancel, answer, false)
+    choose_with(ctx, id, width, text, choices, cancel, answer, (false, &mut |_| {}))
 }
 
-/// `choose`, with `cancel` focused at first when `cancel_first` (it shows as the default).
+/// `choose`, with `cancel` focused at first when `cancel_first` (it shows as the default), and
+/// what `extra` draws between the text and the buttons.
 #[allow(clippy::too_many_arguments)]
 fn choose_with<T>(
     ctx: &egui::Context,
@@ -31,7 +32,7 @@ fn choose_with<T>(
     choices: Vec<(String, bool, T)>,
     cancel: String,
     mut answer: Option<Option<T>>,
-    cancel_first: bool,
+    (cancel_first, extra): (bool, &mut dyn FnMut(&mut egui::Ui)),
 ) -> Option<Option<T>> {
     // As every message window (`save_dialogs::message`), at its own width.
     egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
@@ -40,6 +41,7 @@ fn choose_with<T>(
         crate::save_dialogs::Head::new(&title).show(ui);
         crate::save_dialogs::notice_text(ui, &text);
         ui.add_space(8.0);
+        extra(ui);
         ui.horizontal(|ui| {
             for (label, enabled, choice) in choices {
                 if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
@@ -56,6 +58,11 @@ fn choose_with<T>(
         });
     });
     answer
+}
+
+/// `yes_no` with what `extra` draws between the text and the buttons (a choice for the yes).
+pub(crate) fn yes_no_with(ctx: &egui::Context, id: &str, width: f32, text: (String, String), (yes, no): (String, String), answer: Option<bool>, extra: &mut dyn FnMut(&mut egui::Ui)) -> Option<bool> {
+    choose_with(ctx, id, width, text, vec![(yes, true, ())], no, answer.map(|yes| yes.then_some(())), (false, extra)).map(|a| a.is_some())
 }
 
 /// `choose` with one choice: `Some(true)` yes, `Some(false)` no, `None` still open.
@@ -85,13 +92,13 @@ pub(crate) fn yes_no_cancel_first(
     no: String,
     answer: Option<bool>,
 ) -> Option<bool> {
-    choose_with(ctx, id, width, text, vec![(yes, yes_enabled, ())], no, answer.map(|yes| yes.then_some(())), true).map(|a| a.is_some())
+    choose_with(ctx, id, width, text, vec![(yes, yes_enabled, ())], no, answer.map(|yes| yes.then_some(())), (true, &mut |_| {})).map(|a| a.is_some())
 }
 
 impl App {
     /// A confirmation is open: deletion, or a name already taken when restoring or pasting.
     pub(crate) fn asking(&self) -> bool {
         let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
-        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.batch_turn.is_some() || self.notice.is_some() || self.update_note.is_some() || self.about || self.kiod_ask || self.host_ask || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking) || self.editor.as_ref().is_some_and(crate::edit_page::Window::asking) || self.after_turn.is_some() || self.batch.as_ref().is_some_and(crate::batch_page::Window::asking) || self.convert.as_ref().is_some_and(crate::convert::Window::asking)
+        self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.batch_turn.is_some() || self.notice.is_some() || self.batch_summary.is_some() || self.update_note.is_some() || self.about || self.kiod_ask || self.host_ask || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking) || self.editor.as_ref().is_some_and(crate::edit_page::Window::asking) || self.after_turn.is_some() || self.batch.as_ref().is_some_and(crate::batch_page::Window::asking) || self.convert.as_ref().is_some_and(crate::convert::Window::asking)
     }
 }

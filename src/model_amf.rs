@@ -26,7 +26,9 @@ pub fn read(bytes: &[u8]) -> Result<Mesh, String> {
             }
         }
     }
-    b.finish(true)
+    let mut mesh = b.finish(true)?;
+    mesh.unit = crate::model::named_unit(root.attribute("unit"));
+    Ok(mesh)
 }
 
 /// Row-major 3×4: rotation and translation.

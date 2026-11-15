@@ -114,7 +114,7 @@ fn motion_photo(img: &DynamicImage, thumb: &[u8]) -> Vec<u8> {
     let exif = [&b"Exif\0\0"[..], tiff.get_ref()].concat();
     let xmp = concat!(
         "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">",
-        "<rdf:Description xmlns:GCamera=\"http://ns.google.com/photos/1.0/camera/\" xmlns:Container=\"http://ns.google.com/photos/1.0/container/\" xmlns:Item=\"http://ns.google.com/photos/1.0/container/item/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmlns:xmpGImg=\"http://ns.adobe.com/xap/1.0/g/img/\" GCamera:MotionPhoto=\"1\" GCamera:MotionPhotoVersion=\"1\" GCamera:MicroVideoOffset=\"40\">",
+        "<rdf:Description xmlns:GCamera=\"http://ns.google.com/photos/1.0/camera/\" xmlns:Container=\"http://ns.google.com/photos/1.0/container/\" xmlns:Item=\"http://ns.google.com/photos/1.0/container/item/\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:xmp=\"http://ns.adobe.com/xap/1.0/\" xmlns:xmpGImg=\"http://ns.adobe.com/xap/1.0/g/img/\" xmlns:photoshop=\"http://ns.adobe.com/photoshop/1.0/\" xmlns:crs=\"http://ns.adobe.com/camera-raw-settings/1.0/\" photoshop:DateCreated=\"2023-02-11T17:16:17.074-04:00\" crs:HasCrop=\"True\" GCamera:MotionPhoto=\"1\" GCamera:MotionPhotoVersion=\"1\" GCamera:MicroVideoOffset=\"40\">",
         "<dc:creator><rdf:Seq><rdf:li>Ann</rdf:li></rdf:Seq></dc:creator>",
         "<xmp:Thumbnails><rdf:Alt><rdf:li rdf:parseType=\"Resource\"><xmpGImg:image>/9j/4AAQ</xmpGImg:image></rdf:li></rdf:Alt></xmp:Thumbnails>",
         "<Container:Directory><rdf:Seq><rdf:li rdf:parseType=\"Resource\"><Container:Item Item:Semantic=\"Primary\" Item:Mime=\"image/jpeg\"/></rdf:li><rdf:li rdf:parseType=\"Resource\"><Container:Item Item:Semantic=\"MotionPhoto\" Item:Mime=\"video/mp4\" Item:Length=\"40\"/></rdf:li></rdf:Seq></Container:Directory>",
@@ -149,6 +149,9 @@ fn copy_is_the_picture_alone() {
         assert!(!text.contains(gone), "{gone} still there");
     }
     assert!(text.contains("<rdf:li>Ann</rdf:li>"), "author kept");
+    // The date the photo was taken stays; the Camera Raw settings too, marked as already applied.
+    assert!(text.contains("photoshop:DateCreated=\"2023-02-11T17:16:17.074-04:00\""), "XMP date");
+    assert!(text.contains("crs:AlreadyApplied=\"True\"") && text.contains("crs:HasCrop=\"True\""), "Camera Raw");
     assert!(!d.windows(thumb.len()).any(|w| w == thumb) && !d.windows(24).any(|w| w == [0x5A; 24]), "a thumbnail is still there");
     let exif = exif::Reader::new().read_from_container(&mut Cursor::new(d)).unwrap();
     let get = |tag| exif.get_field(tag, In::PRIMARY).and_then(|f| f.value.get_uint(0));
@@ -746,7 +749,7 @@ fn patch_doc(area: Area, mirrored: bool, opacity: f32) -> Doc {
 /// pasted, never from a result already resampled.
 #[test]
 fn pasted_piece_from_its_pixels() {
-    use crate::edit::patch;
+    use crate::edit::{patch, turn};
     let original = Original::with_meta(motif(), &[]);
     let area = Area { centre: Pt::new(0.0, 0.0), w: 24.0, h: 12.0, rot: 0.0 };
     let red = |p: &image::Rgba<u8>| p[0] > 200 && p[2] < 60;
@@ -765,9 +768,9 @@ fn pasted_piece_from_its_pixels() {
     for _ in 0..4 {
         b = patch::quarter(&b, false);
     }
-    b.rot = patch::turned_to(&b, Pt::new(30.0, 1.0), 0.0, true);
+    b.rot = turn::turned_to(&b, Pt::new(30.0, 1.0), 0.0, true);
     assert_eq!(b.rot, 90.0);
-    b.rot = patch::turned_to(&b, Pt::new(-1.0, -30.0), 0.0, true);
+    b.rot = turn::turned_to(&b, Pt::new(-1.0, -30.0), 0.0, true);
     b = patch::sized(&patch::sized(&b, 200.0, true, true), 24.0, true, true);
     for horizontal in [true, false, true, false] {
         (b, m) = patch::flipped(&b, m, horizontal, 0.0);
@@ -804,4 +807,84 @@ fn pasted_piece_preview_is_the_file() {
     assert_eq!(after.dimensions(), before.dimensions());
     let off = after.pixels().zip(before.pixels()).filter(|(a, b)| a.0.iter().zip(b.0).any(|(a, b)| a.abs_diff(b) > 40)).count();
     assert!(off < 30, "{off} pixels differ");
+}
+
+/// Issue #137: objects turned by their handle are saved as the screen shows them, on an image
+/// upright or straightened by a free angle: a cover box over the edge of the image, a blur, a
+/// highlighter, a pixelate whose blocks turn with its box, a rectangle. Only the pixels on their
+/// slanted edges, smoothed on another grid, may differ. The blur goes over the edge of the image,
+/// by the empty corners on the straightened one (`filters_by_the_empty_corners`).
+#[test]
+fn turned_objects_preview_is_the_file() {
+    use crate::edit::filter::Filter;
+    let photo = motif();
+    let original = Original::with_meta(photo.clone(), &[]);
+    let at = |x, y, w, h, rot| Area { centre: Pt::new(x, y), w, h, rot };
+    let filter = |area, filter, amount| obj(Shape::Filter { area, filter, amount, preview: Default::default() }, Style::default());
+    for angle in [0.0, 7.0] {
+        let objects = [
+            ("pixelate", filter(at(6.0, -4.0, 24.0, 16.0, 35.0), Filter::Pixelate, 6.0), 10),
+            ("blur", filter(at(28.0, 12.0, 16.0, 12.0, -20.0), Filter::Blur, 2.0), 10),
+            ("highlighter", obj(Shape::Highlight { area: at(-10.0, 12.0, 20.0, 8.0, 25.0), preview: Default::default() }, Style { opacity: 0.6, ..Style::highlighter() }), 10),
+            // The file covers every pixel the box touches even in part (nothing of what is under
+            // it is left), the screen those it mostly covers: a ring round its slanted sides.
+            ("cover", obj(Shape::Cover(at(-30.0, -10.0, 16.0, 10.0, 30.0)), Style { color: BLUE, ..Style::default() }), 40),
+            ("rectangle", obj(Shape::Rect(at(-12.0, -12.0, 14.0, 8.0, -40.0)), Style { width: 2.0, ..Style::default() }), 10),
+        ];
+        for (name, o, most) in objects {
+            let mut doc = Doc::new(64, 48, None);
+            doc.angle = angle;
+            doc.objects = vec![o];
+            crate::edit::photo::refresh_layers(&mut doc, &photo, |_| 8000.0);
+            let mut screen = photo.clone();
+            doc.edit().apply(&mut screen);
+            let (w, h) = (screen.width(), screen.height());
+            let drawn = render::render(&doc, (64, 48), &View { x: 0.0, y: 0.0, w, h, scale: 1.0 }, &options()).unwrap();
+            over(&mut screen, &drawn, 0, 0, false);
+            let file = result(&doc, &original, &options()).to_rgba8();
+            let screen = screen.to_rgba8();
+            assert_eq!(screen.dimensions(), file.dimensions());
+            let off = screen.enumerate_pixels().filter(|(x, y, a)| a.0.iter().zip(file.get_pixel(*x, *y).0).any(|(a, b)| a.abs_diff(b) > 48)).count();
+            assert!(off <= most, "{name} {angle}°: {off} pixels differ");
+        }
+    }
+}
+
+/// Blur, pixelate and sharpen over the empty corners of a straightened photo (no colour for
+/// them), their box upright or turned: the corners stay transparent and the edge of the photo by
+/// them stays as opaque as it was, in the saved file as on the screen. The file blurred the edge
+/// of the photo into the corners, see-through there, and the screen did not (seen on 2026-11-15).
+#[test]
+fn filters_by_the_empty_corners() {
+    use crate::edit::filter::Filter;
+    let photo = motif();
+    let original = Original::with_meta(photo.clone(), &[]);
+    for (filter, amount) in [(Filter::Blur, 2.0), (Filter::Pixelate, 6.0), (Filter::Sharpen, 2.0)] {
+        for rot in [0.0, -20.0] {
+            let mut doc = Doc::new(64, 48, None);
+            doc.angle = 7.0;
+            doc.objects = vec![obj(Shape::Filter { area: Area { centre: Pt::new(28.0, 12.0), w: 16.0, h: 12.0, rot }, filter, amount, preview: Default::default() }, Style::default())];
+            crate::edit::photo::refresh_layers(&mut doc, &photo, |_| 8000.0);
+            let mut screen = photo.clone();
+            doc.edit().apply(&mut screen);
+            let bare = screen.to_rgba8();
+            let (w, h) = bare.dimensions();
+            let drawn = render::render(&doc, (64, 48), &View { x: 0.0, y: 0.0, w, h, scale: 1.0 }, &options()).unwrap();
+            over(&mut screen, &drawn, 0, 0, false);
+            let (screen, file) = (screen.to_rgba8(), result(&doc, &original, &options()).to_rgba8());
+            // A pixel of an empty corner next to the photo: the screen draws the turned preview
+            // smoothed, half a pixel past its edge.
+            let by_photo = |x: u32, y: u32| (x.saturating_sub(1)..=(x + 1).min(w - 1)).any(|i| (y.saturating_sub(1)..=(y + 1).min(h - 1)).any(|j| bare.get_pixel(i, j)[3] > 0));
+            for (x, y, b) in bare.enumerate_pixels() {
+                let (s, f) = (screen.get_pixel(x, y), file.get_pixel(x, y));
+                assert_eq!(f[3], b[3], "{filter:?} {rot}° at {x},{y}: file {f:?}, before {b:?}");
+                assert!(b[3] > 0 || by_photo(x, y) || s[3] < 16, "{filter:?} {rot}° at {x},{y}: screen {s:?} in an empty corner");
+            }
+            // Where the photo is opaque, the screen is the file. On its smoothed edge the file keeps
+            // its alpha, the screen lays the preview over it (a little more opaque there).
+            let opaque = bare.enumerate_pixels().filter(|(.., b)| b[3] == 255);
+            let off = opaque.filter(|(x, y, _)| screen.get_pixel(*x, *y).0.iter().zip(file.get_pixel(*x, *y).0).any(|(a, b)| a.abs_diff(b) > 48)).count();
+            assert!(off <= 10, "{filter:?} {rot}°: {off} pixels differ");
+        }
+    }
 }

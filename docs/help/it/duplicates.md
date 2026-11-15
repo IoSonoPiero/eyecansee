@@ -36,7 +36,7 @@ All'inizio ogni gruppo tiene la prima copia e segna le altre. **Ordine** decide 
 
 ## Eliminare
 
-La riga in fondo dice quanti gruppi ci sono, quante copie verranno eliminate e quanto spazio si libera. **Elimina le copie segnate…** chiede conferma e le elimina come fa **Canc**: nel cestino, nel cestino della cartella o per sempre, come scelto nelle opzioni (vedi [Eliminare e cestino](delete.md)). **Chiudi** o **Esc** chiudono i risultati.
+La riga in fondo dice quanti gruppi ci sono, quante copie verranno eliminate e quanto spazio si libera. **Elimina le copie segnate…** chiede conferma e le elimina come fa **Canc**: nel cestino, nel cestino della cartella o per sempre, come scelto nelle opzioni (vedi [Eliminare e cestino](delete.md)). **Chiudi** o **Esc** chiudono i risultati; **Tasti**, lì accanto, elenca i tasti della pagina.
 
 ## Tasti
 

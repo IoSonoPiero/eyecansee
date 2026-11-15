@@ -21,18 +21,26 @@ mod app_dialogs;
 mod app_new;
 mod batch;
 mod batch_page;
+mod batch_summary;
 mod batch_video;
 mod bookmarks;
 mod browser;
 mod cad;
 mod cad_engine;
 mod cad_geom;
+mod cad_compare;
+mod cad_compare_view;
 mod cad_convert;
 mod cad_hpgl;
 mod cad_image;
+mod cad_layers;
+mod cad_layers_panel;
 mod cad_layout;
+mod cad_meta;
+mod cad_measure;
 mod cad_shape;
 mod cad_shx;
+mod clip_open;
 mod cad_svg;
 mod cad_text;
 mod cad_units;
@@ -53,6 +61,7 @@ mod encoders;
 mod engine;
 mod fault;
 mod ffmpeg;
+mod ffmpeg_files;
 mod file_dialogs;
 mod folder_pick;
 mod fonts;
@@ -76,8 +85,12 @@ mod logging;
 mod menu;
 mod messages;
 mod meta;
+mod measure_model;
+mod measure_view;
 mod meta_panel;
+mod meta_strip;
 mod meta_write;
+mod mwg;
 mod raw_meta;
 mod model;
 mod model_3mf;
@@ -90,7 +103,10 @@ mod model_fbx;
 mod model_gltf;
 mod model_gltf_unpack;
 mod model_ifc;
+mod model_cpu;
 mod model_lines;
+mod model_measure;
+mod model_mtl;
 mod model_off;
 mod model_smooth;
 mod model_text;
@@ -119,10 +135,13 @@ mod rotate;
 mod edit_page;
 mod save_back;
 mod save_dialogs;
+mod section_view;
 mod selection;
 mod server_manager;
 mod servers;
 mod settings;
+mod sidecar;
+mod sidecar_follow;
 #[cfg(feature = "shots")]
 mod shots;
 mod sftp;
@@ -149,6 +168,8 @@ mod vault_page;
 mod video;
 mod video_copy;
 mod video_turn;
+mod video_full;
+mod video_frame;
 mod video_read;
 mod viewer;
 mod watch;
@@ -156,6 +177,7 @@ mod window_close;
 #[cfg(any(windows, test))]
 mod window_place;
 mod xmp;
+mod xmp_fields;
 mod zoom;
 #[cfg(test)]
 mod help_check;
@@ -362,6 +384,8 @@ struct App {
     open_address: Option<AddressForm>,
     /// A transform on images of the grid: the images and the operation, to confirm.
     batch_turn: Option<(Vec<String>, transform::Op)>,
+    /// The window at the end of Convert… and the commands that share its work (`batch_summary`).
+    batch_summary: Option<batch_summary::Summary>,
     pan: egui::Vec2,
     /// Zoom shown, for the status bar.
     zoom_shown: f32,
@@ -528,14 +552,16 @@ impl eframe::App for App {
             return;
         }
         let act = &mut self.act;
-        let clip = self.clip.as_ref();
+        let copied = self.clip.as_ref().map(|c| c.text.as_str());
+        let viewing = self.viewing.is_some();
         raw_input.events.retain(|e| {
             *act = match e {
                 egui::Event::Copy => Some(Act::Copy(None)),
                 egui::Event::Cut if shift_del => Some(Act::Delete(None, true)),
                 egui::Event::Cut => Some(Act::Cut(None)),
-                egui::Event::Paste(text) if clip.is_some_and(|c| transfer::on_clipboard(&c.text, text)) => Some(Act::PasteNow(paste_to.clone())),
-                // Something copied in another program since: not the old files.
+                egui::Event::Paste(text) if transfer::pastes_items(viewing, copied, text) => Some(Act::PasteNow(paste_to.clone())),
+                // In the viewer (Edit > Paste is greyed out there), or something copied in another
+                // program since: not the old files.
                 egui::Event::Paste(_) => return false,
                 _ => return true,
             };

@@ -36,7 +36,7 @@ At the start every group keeps its first copy and marks the others. **Order** de
 
 ## Deleting
 
-The line at the bottom says how many groups there are, how many copies will be deleted and how much space is freed. **Delete the marked copies…** asks for confirmation and deletes them as **Del** does: to the trash, to the folder's own trash, or for good, as set in the options (see [Deleting and the trash](delete.md)). **Close** or **Esc** closes the results.
+The line at the bottom says how many groups there are, how many copies will be deleted and how much space is freed. **Delete the marked copies…** asks for confirmation and deletes them as **Del** does: to the trash, to the folder's own trash, or for good, as set in the options (see [Deleting and the trash](delete.md)). **Close** or **Esc** closes the results; **Keys**, beside them, lists the keys of the page.
 
 ## Keys
 

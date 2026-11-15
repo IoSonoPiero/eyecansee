@@ -40,8 +40,12 @@ impl App {
                 let version_shown = !crate::shots::active();
                 #[cfg(not(feature = "shots"))]
                 let version_shown = true;
-                if version_shown {
-                    ui.weak(format!("EyeCanSee {}", version()));
+                // Only where it fits: in a narrow window it was drawn over the Help menu.
+                let text = format!("EyeCanSee {}", version());
+                let font = egui::TextStyle::Body.resolve(ui.style());
+                let width = ui.painter().layout_no_wrap(text.clone(), font, ui.visuals().weak_text_color()).size().x;
+                if version_shown && ui.available_width() >= width + ui.spacing().item_spacing.x {
+                    ui.weak(text);
                 }
                 if let Some(r) = &self.update {
                     // Red: as a plain button it went unnoticed.
@@ -64,6 +68,7 @@ impl App {
         entry(ui, act, None, item(t("menu-servers"), String::new()), Act::Servers);
         entry(ui, act, self.new_folder_off(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder(None));
         entry(ui, act, self.new_image_off(), item(t("menu-new-image"), t("key-new-image")), Act::NewImage);
+        entry(ui, act, self.new_image_off(), item(t("menu-open-clipboard"), String::new()), Act::OpenClipboard);
         ui.separator();
         // Also when it cannot overwrite (FTP, gvfs, format): `ask_save` then says why and offers Save as….
         entry(ui, act, self.save_off(), item(t("menu-save"), t("key-save")), Act::Save);
@@ -73,7 +78,7 @@ impl App {
         // Ctrl+Shift+S works in the viewer only.
         let keys = if self.viewing.is_some() { t("key-save-copy") } else { String::new() };
         let saved = if self.viewing.is_some() { Some(true) } else { fits(&files, SAVED_AS) };
-        entry(ui, act, self.save_as_off(), item(starred(t("menu-save-copy"), saved != Some(false)), keys), Act::Convert(None));
+        entry(ui, act, self.save_as_off(), item(starred(t(self.save_as_label()), saved != Some(false)), keys), Act::Convert(None));
         // As in the right-click menus: the 3D models and the CAD drawings among the files chosen,
         // each with its window (issue #128).
         let model = fits(&files, &[Kind::Model]);
@@ -82,6 +87,7 @@ impl App {
         let drawing = fits(&files, &[Kind::Drawing]);
         let drawing_off = self.drawings_off(drawing);
         entry(ui, act, drawing_off, item(starred(t("menu-export-drawings"), drawing != Some(false)), String::new()), Act::ExportDrawings(None));
+        entry(ui, act, self.compare_off(&files), item(t("menu-compare"), String::new()), Act::Compare);
         partial_note(ui, [model, drawing, saved].contains(&Some(false)), &self.i18n);
         ui.separator();
         self.restore_item(ui, act);
@@ -162,6 +168,11 @@ impl App {
                 pick(act, ui.radio(self.settings.show == show, t(show.label())), Act::Show(show));
             }
         });
+        // A CAD drawing in the viewer: its layers panel.
+        let tick = if self.cad_layers_shown() { "✔ " } else { "" };
+        entry(ui, act, self.cad_layers_off(), item(format!("{tick}{}", t("menu-layers")), t("key-layers")), Act::Layers);
+        let tick = if self.model.measure.on && self.measure_off().is_none() { "✔ " } else { "" };
+        entry(ui, act, self.measure_off(), item(format!("{tick}{}", t("menu-measure")), "M".into()), Act::Measure);
         ui.add_enabled_ui(!viewing, |ui| {
             let r = ui.menu_button((icons::menu_icon(ui, None), t("menu-meta")), |ui| {
                 for g in meta::Group::ALL {

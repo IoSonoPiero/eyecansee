@@ -18,14 +18,18 @@ use crate::render3d::{self, View};
 const SAMPLES: u32 = 4;
 /// Not sRGB: egui reads textures as gamma-encoded values, which is what `render3d` computes too.
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
-const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+/// With a stencil for the section's fill (`Pass`).
+const DEPTH: wgpu::TextureFormat = wgpu::TextureFormat::Depth24PlusStencil8;
 /// Bytes of one vertex: position (3 × f32), colour (4 × u8), place on the pictures (2 × f32),
 /// normal (3 × f32, zero for the face's own), metal, roughness, occlusion and what applies (4 ×
 /// u8: 1 = the surface, 2 = bumps), glow (4 × u8).
 const STRIDE: u64 = 44;
+/// Bytes of the camera: two 4×4 matrices, the plane of a section and the colour of its cut.
+const CAMERA: u64 = 160;
 
 const SHADER: &str = r"
-struct Camera { clip: mat4x4<f32>, eye: mat4x4<f32> };
+// `plane` and `cap` for a section (`render3d::Cut`): cap.w 1 when there is one.
+struct Camera { clip: mat4x4<f32>, eye: mat4x4<f32>, plane: vec4<f32>, cap: vec4<f32> };
 @group(0) @binding(0) var<uniform> cam: Camera;
 
 @group(1) @binding(0) var picture: texture_2d<f32>;
@@ -43,6 +47,7 @@ struct Out {
     @location(3) normal: vec3<f32>,
     @location(4) pbr: vec4<f32>,
     @location(5) glow: vec3<f32>,
+    @location(6) world: vec3<f32>,
 };
 
 @vertex fn vs(@location(0) p: vec3<f32>, @location(1) c: vec4<f32>, @location(2) uv: vec2<f32>, @location(3) n: vec3<f32>, @location(4) pbr: vec4<f32>, @location(5) glow: vec4<f32>) -> Out {
@@ -54,6 +59,7 @@ struct Out {
     o.normal = (cam.eye * vec4(n, 0.0)).xyz;
     o.pbr = pbr;
     o.glow = glow.rgb;
+    o.world = p;
     return o;
 }
 
@@ -65,6 +71,11 @@ fn unit(v: vec3<f32>) -> vec3<f32> {
 // Flat shading (the triangle's normal from the derivatives, both faces lit) as render3d; with a
 // surface the same light as render_shine: change both together.
 @fragment fn fs(i: Out) -> @location(0) vec4<f32> {
+    // A section as render3d draws it: nothing beyond the plane, but the cut's own face (4).
+    let what = u32(round(i.pbr.w * 255.0));
+    if (cam.cap.w > 0.5 && (what & 4u) == 0u && dot(cam.plane.xyz, i.world) > cam.plane.w) {
+        discard;
+    }
     let dp1 = dpdx(i.eye);
     let dp2 = dpdy(i.eye);
     let duv1 = dpdx(i.uv);
@@ -77,7 +88,10 @@ fn unit(v: vec3<f32>) -> vec3<f32> {
     let glow = i.glow * textureSample(glow_map, linear, i.uv).rgb;
     let l = unit(vec3(-0.3, 0.45, 0.84));
     var face = unit(cross(dp1, dp2));
-    let what = u32(round(i.pbr.w * 255.0));
+    // The face of a section (4): lighter than the model's faces, so it stands out.
+    if ((what & 4u) != 0u) {
+        return vec4(color * (0.65 + 0.35 * abs(dot(face, l))), 1.0);
+    }
     if ((what & 1u) == 0u) {
         return vec4(color * (0.28 + 0.72 * abs(dot(face, l))), 1.0);
     }
@@ -168,11 +182,16 @@ struct Model {
     mesh: Arc<Mesh>,
     pieces: Vec<Piece>,
     pictures: Vec<wgpu::BindGroup>,
+    /// White pictures, for the face of a section.
+    plain: wgpu::BindGroup,
 }
 
 pub struct Gpu {
     rs: RenderState,
     pipeline: wgpu::RenderPipeline,
+    /// For a section (#145): the inside counted in the stencil, then the cut filled where it is.
+    stencil: wgpu::RenderPipeline,
+    cap: wgpu::RenderPipeline,
     camera: wgpu::Buffer,
     bind: wgpu::BindGroup,
     picture_layout: wgpu::BindGroupLayout,
@@ -185,12 +204,12 @@ impl Gpu {
     pub fn new(rs: RenderState) -> Self {
         let device = &rs.device;
         let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("model"), source: wgpu::ShaderSource::Wgsl(SHADER.into()) });
-        let camera = device.create_buffer(&wgpu::BufferDescriptor { label: Some("camera"), size: 128, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
+        let camera = device.create_buffer(&wgpu::BufferDescriptor { label: Some("camera"), size: CAMERA, usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST, mapped_at_creation: false });
         let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: None,
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
-                visibility: wgpu::ShaderStages::VERTEX,
+                visibility: wgpu::ShaderStages::VERTEX | wgpu::ShaderStages::FRAGMENT,
                 ty: wgpu::BindingType::Buffer { ty: wgpu::BufferBindingType::Uniform, has_dynamic_offset: false, min_binding_size: None },
                 count: None,
             }],
@@ -213,29 +232,10 @@ impl Gpu {
             ..Default::default()
         });
         let pipeline_layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor { label: None, bind_group_layouts: &[Some(&layout), Some(&picture_layout)], immediate_size: 0 });
-        let attributes = wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x2, 3 => Float32x3, 4 => Unorm8x4, 5 => Unorm8x4];
-        let pipeline = device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some("model"),
-            layout: Some(&pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &module,
-                entry_point: Some("vs"),
-                compilation_options: Default::default(),
-                buffers: &[Some(wgpu::VertexBufferLayout { array_stride: STRIDE, step_mode: wgpu::VertexStepMode::Vertex, attributes: &attributes })],
-            },
-            primitive: wgpu::PrimitiveState::default(),
-            depth_stencil: Some(wgpu::DepthStencilState { format: DEPTH, depth_write_enabled: Some(true), depth_compare: Some(wgpu::CompareFunction::Less), stencil: Default::default(), bias: Default::default() }),
-            multisample: wgpu::MultisampleState { count: SAMPLES, ..Default::default() },
-            fragment: Some(wgpu::FragmentState {
-                module: &module,
-                entry_point: Some("fs"),
-                compilation_options: Default::default(),
-                targets: &[Some(wgpu::ColorTargetState { format: FORMAT, blend: None, write_mask: wgpu::ColorWrites::ALL })],
-            }),
-            multiview_mask: None,
-            cache: None,
-        });
-        Gpu { rs, pipeline, camera, bind, picture_layout, sampler, model: None, target: None }
+        let pipeline = make_pipeline(device, &pipeline_layout, &module, Pass::Model);
+        let stencil = make_pipeline(device, &pipeline_layout, &module, Pass::Inside);
+        let cap = make_pipeline(device, &pipeline_layout, &module, Pass::Cap);
+        Gpu { rs, pipeline, stencil, cap, camera, bind, picture_layout, sampler, model: None, target: None }
     }
 
     /// `mesh` from `view` at `size` pixels: the texture to paint.
@@ -251,10 +251,18 @@ impl Gpu {
         }
         let (Some(model), Some(t)) = (&self.model, &self.target) else { unreachable!() };
         let (clip, eye) = render3d::camera(mesh, view, size[0], size[1]);
-        let mut bytes = Vec::with_capacity(128);
+        let mut bytes = Vec::with_capacity(CAMERA as usize);
         for m in [clip, eye] {
             bytes.extend(m.iter().flatten().flat_map(|v| v.to_le_bytes()));
         }
+        let (plane, on) = view.cut.map_or(([0.0; 4], 0.0), |c| (c.plane(mesh), 1.0));
+        let cap = render3d::CAP.map(|c| f32::from(c) / 255.0);
+        bytes.extend(plane.into_iter().chain([cap[0], cap[1], cap[2], on]).flat_map(|v: f32| v.to_le_bytes()));
+        let cap = view.cut.filter(|c| c.fill).map(|c| {
+            let mut bytes = Vec::with_capacity(6 * STRIDE as usize);
+            cap_vertices(mesh, &c, &mut bytes);
+            self.rs.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("cut"), contents: &bytes, usage: wgpu::BufferUsages::VERTEX })
+        });
         self.rs.queue.write_buffer(&self.camera, 0, &bytes);
         let mut encoder = self.rs.device.create_command_encoder(&Default::default());
         {
@@ -270,19 +278,32 @@ impl Gpu {
                 depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
                     view: &t.depth,
                     depth_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(1.0), store: wgpu::StoreOp::Discard }),
-                    stencil_ops: None,
+                    stencil_ops: Some(wgpu::Operations { load: wgpu::LoadOp::Clear(0), store: wgpu::StoreOp::Discard }),
                 }),
                 timestamp_writes: None,
                 occlusion_query_set: None,
                 multiview_mask: None,
             });
-            pass.set_pipeline(&self.pipeline);
             pass.set_bind_group(0, &self.bind, &[]);
-            for (buffer, vertices, picture) in &model.pieces {
-                pass.set_bind_group(1, &model.pictures[*picture], &[]);
-                pass.set_vertex_buffer(0, buffer.slice(..));
-                pass.draw(0..*vertices, 0..1);
+            let pieces = |pass: &mut wgpu::RenderPass| {
+                for (buffer, vertices, picture) in &model.pieces {
+                    pass.set_bind_group(1, &model.pictures[*picture], &[]);
+                    pass.set_vertex_buffer(0, buffer.slice(..));
+                    pass.draw(0..*vertices, 0..1);
+                }
+            };
+            // A section: where the cut crosses the inside, counted in the stencil, its face.
+            if let Some(cap) = &cap {
+                pass.set_pipeline(&self.stencil);
+                pieces(&mut pass);
+                pass.set_pipeline(&self.cap);
+                pass.set_stencil_reference(0);
+                pass.set_bind_group(1, &model.plain, &[]);
+                pass.set_vertex_buffer(0, cap.slice(..));
+                pass.draw(0..6, 0..1);
             }
+            pass.set_pipeline(&self.pipeline);
+            pieces(&mut pass);
         }
         self.rs.queue.submit([encoder.finish()]);
         t.id
@@ -314,7 +335,7 @@ impl Gpu {
                 pieces.push((buffer, tris.len() as u32 * 3, at));
             }
         }
-        Model { mesh: mesh.clone(), pieces, pictures }
+        Model { mesh: mesh.clone(), pieces, pictures, plain: self.bind(&views, [0; 5]) }
     }
 
     /// The pictures of one group (`key`), white where there is none.
@@ -372,6 +393,57 @@ impl Gpu {
     }
 }
 
+/// The three passes of the model: drawn; counted in the stencil (every face, front or back,
+/// flips it: odd where the ray crosses the inside of a closed model, whichever way its triangles
+/// turn); the cut's face, drawn only there.
+#[derive(Clone, Copy, PartialEq)]
+enum Pass {
+    Model,
+    Inside,
+    Cap,
+}
+
+fn make_pipeline(device: &wgpu::Device, layout: &wgpu::PipelineLayout, module: &wgpu::ShaderModule, pass: Pass) -> wgpu::RenderPipeline {
+    let attributes = wgpu::vertex_attr_array![0 => Float32x3, 1 => Unorm8x4, 2 => Float32x2, 3 => Float32x3, 4 => Unorm8x4, 5 => Unorm8x4];
+    let face = |compare, pass_op| wgpu::StencilFaceState { compare, fail_op: wgpu::StencilOperation::Keep, depth_fail_op: wgpu::StencilOperation::Keep, pass_op };
+    let stencil = match pass {
+        Pass::Model => wgpu::StencilState::default(),
+        Pass::Inside => {
+            let f = face(wgpu::CompareFunction::Always, wgpu::StencilOperation::Invert);
+            wgpu::StencilState { front: f, back: f, read_mask: 1, write_mask: 1 }
+        }
+        Pass::Cap => {
+            let f = face(wgpu::CompareFunction::NotEqual, wgpu::StencilOperation::Keep);
+            wgpu::StencilState { front: f, back: f, read_mask: 1, write_mask: 0 }
+        }
+    };
+    let counting = pass == Pass::Inside;
+    let depth = wgpu::DepthStencilState {
+        format: DEPTH,
+        depth_write_enabled: Some(!counting),
+        depth_compare: Some(if counting { wgpu::CompareFunction::Always } else { wgpu::CompareFunction::Less }),
+        stencil,
+        bias: Default::default(),
+    };
+    let writes = if counting { wgpu::ColorWrites::empty() } else { wgpu::ColorWrites::ALL };
+    device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+        label: Some("model"),
+        layout: Some(layout),
+        vertex: wgpu::VertexState {
+            module,
+            entry_point: Some("vs"),
+            compilation_options: Default::default(),
+            buffers: &[Some(wgpu::VertexBufferLayout { array_stride: STRIDE, step_mode: wgpu::VertexStepMode::Vertex, attributes: &attributes })],
+        },
+        primitive: wgpu::PrimitiveState::default(),
+        depth_stencil: Some(depth),
+        multisample: wgpu::MultisampleState { count: SAMPLES, ..Default::default() },
+        fragment: Some(wgpu::FragmentState { module, entry_point: Some("fs"), compilation_options: Default::default(), targets: &[Some(wgpu::ColorTargetState { format: FORMAT, blend: None, write_mask: writes })] }),
+        multiview_mask: None,
+        cache: None,
+    })
+}
+
 /// Half the size, each pixel the average of the 2×2 under it (the last row or column repeated
 /// when odd): ~5 ms for 2048² where a filtered resize took ~60.
 fn half(img: &image::RgbaImage) -> image::RgbaImage {
@@ -393,6 +465,29 @@ fn surface(mesh: &Mesh, i: usize) -> Option<&Surface> {
 fn key(mesh: &Mesh, i: usize) -> [u16; 5] {
     let tex = mesh.tex.get(i).copied().unwrap_or(0);
     surface(mesh, i).map_or([tex, 0, 0, 0, 0], |s| [tex, s.bumps, s.rough_metal, s.occlusion_map, s.glow_map])
+}
+
+/// The face of a section: a square on the plane, larger than the model, in the cut's colour and
+/// marked (4) as not cut itself; two triangles (`STRIDE` bytes a vertex).
+fn cap_vertices(mesh: &Mesh, cut: &render3d::Cut, out: &mut Vec<u8>) {
+    let plane = cut.plane(mesh);
+    let axis = cut.axis.min(2);
+    let (u, v) = ((axis + 1) % 3, (axis + 2) % 3);
+    let r = mesh.radius * 2.0;
+    let corner = |a: f32, b: f32| {
+        let mut p = mesh.center;
+        p[axis] = plane[3] * plane[axis];
+        p[u] += a * r;
+        p[v] += b * r;
+        p
+    };
+    let [cr, cg, cb] = render3d::CAP;
+    for p in [corner(-1.0, -1.0), corner(1.0, -1.0), corner(1.0, 1.0), corner(-1.0, -1.0), corner(1.0, 1.0), corner(-1.0, 1.0)] {
+        out.extend(p.iter().flat_map(|f| f.to_le_bytes()));
+        out.extend([cr, cg, cb, 255]);
+        out.extend([0.0f32; 5].iter().flat_map(|f| f.to_le_bytes()));
+        out.extend([0, 255, 0, 4, 0, 0, 0, 255]);
+    }
 }
 
 /// The three vertices of triangle `i` (`STRIDE` bytes each).

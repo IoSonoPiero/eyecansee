@@ -7,6 +7,7 @@ use super::{Window, keeps_hdr};
 use crate::batch::with_ext;
 use crate::encode::{Chroma, Format, Options, Original, PngFilter, TiffCompression};
 use crate::i18n::I18n;
+use crate::meta_strip::Keep;
 
 /// The output format; the name takes its extension.
 pub(super) fn format_choice(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
@@ -139,6 +140,19 @@ fn tiff_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
 }
 
 /// Whether the format loses quality, and the metadata kept when both the original and the format have some.
+/// What the new file keeps of the original's metadata (#55), as a list: in Save as, Convert and
+/// the editor's confirmation.
+pub(crate) fn meta_choice(ui: &mut egui::Ui, keep: &mut Keep, i18n: &I18n) {
+    ui.horizontal(|ui| {
+        egui::ComboBox::from_id_salt("meta-keep").selected_text(i18n.t(keep.label())).show_ui(ui, |ui| {
+            for k in Keep::ALL {
+                ui.selectable_value(keep, k, i18n.t(k.label()));
+            }
+        });
+        ui.label(i18n.t("meta-keep")).on_hover_text(i18n.t("meta-keep-hint"));
+    });
+}
+
 pub(super) fn meta_options(ui: &mut egui::Ui, o: &mut Options, original: &Original, i18n: &I18n) {
     let t = |id| i18n.t(id);
     let lossless = match o.format {
@@ -154,7 +168,18 @@ pub(super) fn meta_options(ui: &mut egui::Ui, o: &mut Options, original: &Origin
         ui.weak(t("convert-gif"));
     }
     let (can_meta, hint) = original.meta_box(o.format);
-    let r = ui.add_enabled(can_meta, egui::Checkbox::new(&mut o.keep_meta, t(o.format.meta_label())));
+    // A format with metadata: all, all but the place, or only the colour profile (#55). A BMP
+    // holds only the resolution: kept or not.
+    let r = if o.format.holds_meta() {
+        ui.add_enabled_ui(can_meta, |ui| meta_choice(ui, &mut o.meta, i18n)).response
+    } else {
+        let mut keep = o.meta != Keep::Nothing;
+        let r = ui.add_enabled(can_meta, egui::Checkbox::new(&mut keep, t(o.format.meta_label())));
+        if r.changed() {
+            o.meta = if keep { Keep::All } else { Keep::Nothing };
+        }
+        r
+    };
     if let Some(hint) = hint {
         r.on_hover_text(t(hint)).on_disabled_hover_text(t(hint));
     }

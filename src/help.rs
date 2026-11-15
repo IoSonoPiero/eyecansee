@@ -216,8 +216,16 @@ impl Guide {
         let id = viewer_id();
         *self.cache.search_options_mut(&id) = SearchOptions::REGEX;
         *self.cache.search_query_mut(&id) = help_search::pattern(&self.query);
-        self.cache.update_search_matches(&id, page_text(self.lang, self.page));
+        let text = page_text(self.lang, self.page);
+        self.cache.update_search_matches(&id, text);
         let found = self.cache.search_cache_mut(&id);
+        // What egui_commonmark finds in the description of a picture or an icon is not in the
+        // page: not counted in "n of N", nor gone to.
+        let active = found.active_match.and_then(|i| found.search_ranges.get(i)).map(|r| r.start);
+        let pictures = help_search::images(text);
+        found.search_ranges.retain(|r| !pictures.iter().any(|p| p.start <= r.start && r.end <= p.end));
+        found.active_match = active.map(|a| found.search_ranges.iter().position(|r| r.start >= a).unwrap_or(0)).filter(|_| !found.search_ranges.is_empty());
+        found.sync_active_search_range();
         if found.search_ranges.is_empty() {
             // With no words egui_commonmark keeps the old active match: dropped here.
             found.active_match = None;
@@ -635,6 +643,25 @@ mod tests {
         g.query = "   ".into();
         g.search();
         assert!(ranges(&g).is_empty(), "spaces are no search");
+    }
+
+    /// The names of the icons are not counted among the matches of the page: on "Ritaglia e
+    /// ruota" the icon's description is left out, the text after it stays.
+    #[test]
+    fn icons_not_counted() {
+        let mut g = Guide::default();
+        g.language("it");
+        g.go("editor-crop");
+        g.query = "ritaglia e ruota".into();
+        g.search();
+        let text = page_text("it", "editor-crop");
+        let pictures = help_search::images(text);
+        let ranges = g.cache.search_ranges(&viewer_id()).to_vec();
+        assert!(!ranges.is_empty());
+        assert!(ranges.iter().all(|r| !pictures.iter().any(|p| p.contains(&r.start))), "{ranges:?}");
+        assert!(g.cache.active_match(&viewer_id()).is_some_and(|i| i < ranges.len()));
+        let excerpt = &g.hits.iter().find(|h| h.id == "editor-crop" && h.kind == Kind::Text).unwrap().excerpt;
+        assert!(!excerpt.contains("Ritaglia e ruota Ritaglia e ruota"), "{excerpt}");
     }
 
     /// Two presses of Esc close the guide only when close together; a third starts again.

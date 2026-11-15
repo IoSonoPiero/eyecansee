@@ -1,6 +1,6 @@
 # Keyboard shortcuts
 
-Every key of EyeCanSee, by place. The menus show the key next to each item, and pointing at a toolbar button shows its name and key. In the viewer and in the editor the **Keys** button on the right of the status bar lists the keys of what you are looking at.
+Every key of EyeCanSee, by place. The menus show the key next to each item, and pointing at a toolbar button shows its name and key. In the grid, in the viewer, in the editor and in Find duplicates the **Keys** button at the bottom right lists the keys of what you are looking at.
 
 ## Everywhere
 
@@ -75,7 +75,7 @@ In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device e
 | Ctrl+S | Save the turned image over the original |
 | Ctrl+Shift+S | Save as (see [Save as](save-as.md)) |
 | Ctrl+E | Edit image |
-| Ctrl+C, Ctrl+X | Copy or cut the image shown, to paste it in a folder |
+| Ctrl+C, Ctrl+X | Copy or cut the image shown, to paste it in a folder from the grid (Ctrl+V does nothing in the viewer) |
 | F2, Del, Shift+Del | Rename and delete, as in the grid |
 
 The mouse wheel zooms around the pointer, + and − around the middle of the window; Ctrl and the wheel always zoom, also when the wheel is set to change image (see [Options](options.md)).
@@ -88,6 +88,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | Ctrl+←, Ctrl+→ | 5 seconds back, forward |
 | ↑, ↓ (or the mouse wheel on the video) | Volume up, down |
 | M | Audio off and on |
+| Ctrl+Shift+S | Pause and save the frame shown as a picture (see [Playing videos](video.md)) |
 | →, Page Down | Next item |
 | ←, Backspace, Page Up | Previous item |
 | Home, End | First, last item |
@@ -101,6 +102,8 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | Shift and drag, or drag with the middle button | Move the model in the window |
 | + and − (or the mouse wheel) | Zoom in and out |
 | 0 | Back to the starting view |
+| M | Measure: size, surface, volume, and the distance between two points clicked |
+| S | Section: cut the model with a plane (X, Y, Z its axis; Alt+wheel, comma and full stop move it; F the other side) |
 | Page Down, Space | Next item |
 | Page Up, Backspace | Previous item |
 | Ctrl+Shift+S | Save the model as it is shown, as an image (Ctrl+S, which saves over the original, is greyed out on a model) |
@@ -114,6 +117,9 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | 0 | The whole drawing |
 | ←, → | Previous, next file |
 | L, Shift+L | Next, previous layout |
+| Ctrl+L | Layers panel |
+| M | Measure (then D distance, A area, G angle; Enter closes an area, Backspace takes back a point, Esc clears) |
+| N, Shift+N | Next, previous change, when comparing two drawings |
 | Ctrl+Shift+S | Save the drawing as an image |
 | Esc | Back to the grid |
 

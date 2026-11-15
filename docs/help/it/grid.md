@@ -67,4 +67,4 @@ Una voce segnata con **\*** funziona solo su una parte dei file scelti (per esem
 
 ## La barra di stato
 
-In fondo alla finestra: quante cartelle, immagini, video e file audio ci sono nella cartella, e nome, peso e data del file selezionato (di una cartella, il nome). Con più elementi selezionati dice quanti sono e quanto pesano i loro file. Dopo Copia o Taglia ricorda di premere Ctrl+V.
+In fondo alla finestra: quante cartelle, immagini, video e file audio ci sono nella cartella, e nome, peso e data del file selezionato (di una cartella, il nome). Con più elementi selezionati dice quanti sono e quanto pesano i loro file. Dopo Copia o Taglia ricorda di premere Ctrl+V. A destra, **Tasti** elenca i tasti della griglia mentre ci passi sopra, o finché non lo clicchi di nuovo (tutti i tasti sono in [Scorciatoie da tastiera](keyboard.md)).

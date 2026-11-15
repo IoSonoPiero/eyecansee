@@ -16,10 +16,14 @@ pub enum Group {
     Shot,
     Image,
     Gps,
+    /// What a person wrote about the photo in its XMP (`xmp_fields`), or its sidecar's (#24).
+    Info,
+    /// A CAD drawing's properties and title block (`cad_meta`), shown only for drawings.
+    Drawing,
 }
 
 impl Group {
-    pub const ALL: [Group; 5] = [Group::File, Group::Camera, Group::Shot, Group::Image, Group::Gps];
+    pub const ALL: [Group; 7] = [Group::File, Group::Camera, Group::Shot, Group::Image, Group::Gps, Group::Info, Group::Drawing];
 
     /// Name in the settings and, with `meta-` in front, Fluent id of the title.
     pub fn key(self) -> &'static str {
@@ -29,6 +33,8 @@ impl Group {
             Group::Shot => "shot",
             Group::Image => "image",
             Group::Gps => "gps",
+            Group::Info => "info",
+            Group::Drawing => "drawing",
         }
     }
 }
@@ -44,8 +50,10 @@ struct Stored {
 }
 
 /// Raised when the panel learns to read something new: 1 = drone positions from the `.SRT`,
-/// 2 = the Image box in one order (`IMAGE_ORDER`).
-const STORED: u32 = 2;
+/// 2 = the Image box in one order (`IMAGE_ORDER`), 3 = the Description box from the XMP and the
+/// sidecar of a RAW photo (#24), 4 = its caption from the EXIF and the IPTC too (`mwg`), 5 = the
+/// author, copyright, keywords and date taken too, the texts cameras write shown.
+const STORED: u32 = 5;
 
 impl Meta {
     pub fn to_json(&self) -> String {
@@ -65,8 +73,9 @@ impl Meta {
     }
 }
 
-/// The labels are Fluent ids, a few dozen in all: each kept once for the whole session.
-fn intern(s: &str) -> &'static str {
+/// The labels are Fluent ids, a few dozen in all, and the names a drawing gives its own (`=` in
+/// front, `cad_meta`): each kept once for the whole session.
+pub(crate) fn intern(s: &str) -> &'static str {
     static SEEN: std::sync::Mutex<std::collections::BTreeSet<&'static str>> = std::sync::Mutex::new(std::collections::BTreeSet::new());
     let mut seen = SEEN.lock().unwrap();
     match seen.get(s) {
@@ -108,10 +117,38 @@ const FIELDS: &[(Group, Tag, &str)] = &[
 ];
 
 /// The EXIF of any file the panel reads, rewritten as a standalone TIFF block for a converted copy:
-/// the camera, shot and GPS fields (`exif_fields`). `None` without EXIF.
+/// the camera, shot and GPS fields (`exif_fields`), and the maker note when it can move
+/// (`movable_maker_note`; never that of a RAW file, which `raw_meta` reads with `exif_fields`).
+/// Without it if it would make the block too big for a JPEG. `None` without EXIF.
 pub fn exif_chunk(bytes: &[u8]) -> Option<Vec<u8>> {
-    let (fields, little) = exif_fields(bytes)?;
-    write_exif(&fields, little)
+    let exif = lenient(|r| r.read_from_container(&mut Cursor::new(bytes)))?;
+    with_maker_note(&exif)
+}
+
+/// The fields `keep_field` keeps and a maker note that can move, written as a TIFF block; without
+/// the maker note when the block would not fit in a JPEG segment (64 KB).
+fn with_maker_note(exif: &Exif) -> Option<Vec<u8>> {
+    let fields: Vec<_> = exif.fields().filter(|f| keep_field(f) || movable_maker_note(f)).cloned().collect();
+    let all = write_exif(&fields, exif.little_endian());
+    if all.as_ref().is_none_or(|b| b.len() <= JPEG_EXIF_MAX) || !fields.iter().any(movable_maker_note) {
+        return all;
+    }
+    let fields: Vec<_> = fields.into_iter().filter(|f| !movable_maker_note(f)).collect();
+    write_exif(&fields, exif.little_endian())
+}
+
+/// The largest EXIF block a JPEG holds: one segment, less its length and "Exif\0\0".
+const JPEG_EXIF_MAX: usize = 65533 - 6;
+
+/// A maker note (the camera maker's own data) that stays right written at another place of a new
+/// EXIF: its offsets count from its own start, or it has none. Recognised by how it begins, as
+/// ExifTool does (`MakerNotes.pm`, those read with a base inside the maker note or as a block
+/// without directory): Apple, Google (HDR+), Fujifilm, Nikon from the D1X on, Olympus and OM
+/// System, Motorola, Sony Ericsson. The others (Canon, Sony, Samsung, Xiaomi, Panasonic, Pentax…)
+/// count from the start of the original EXIF and would point at the wrong bytes: they stay out.
+pub fn movable_maker_note(f: &exif::Field) -> bool {
+    const STARTS: [&[u8]; 10] = [b"Apple iOS\0", b"HDRP\x02", b"HDRP\x03", b"FUJIFILM", b"Nikon\0\x02", b"OLYMPUS\0", b"OM SYSTEM\0", b"MOT\0", b"SEMC MS\0", b"GENERALE"];
+    f.tag == Tag::MakerNote && f.ifd_num == In::PRIMARY && matches!(&f.value, Value::Undefined(v, _) if STARTS.iter().any(|s| v.starts_with(s)))
 }
 
 /// The EXIF of a JPEG XL file, from its "Exif" box (a 4-byte offset, then TIFF data), as
@@ -135,8 +172,7 @@ pub fn jxl_exif(bytes: &[u8]) -> Option<Vec<u8>> {
             let data = bytes.get(start..i.checked_add(len)?)?;
             let tiff = data.get(4usize.checked_add(be32(data.get(..4)?))?..)?;
             let exif = lenient(|r| r.read_raw(tiff.to_vec()))?;
-            let fields: Vec<_> = exif.fields().filter(|f| keep_field(f)).cloned().collect();
-            return write_exif(&fields, exif.little_endian());
+            return with_maker_note(&exif);
         }
         i = i.checked_add(len)?;
     }
@@ -145,7 +181,8 @@ pub fn jxl_exif(bytes: &[u8]) -> Option<Vec<u8>> {
 
 /// The EXIF fields of a file worth keeping in a converted copy, and the byte order. Left out: the
 /// tags that describe the original's own image data (strips, sensor layout, DNG tags of a RAW) and
-/// the maker note, whose offsets point into the original file.
+/// the maker note, whose offsets may point into the original file (RAW files go without it, as
+/// Adobe's converters do; `exif_chunk` adds one that can move, for the other files).
 pub fn exif_fields(bytes: &[u8]) -> Option<(Vec<exif::Field>, bool)> {
     let exif = lenient(|r| r.read_from_container(&mut Cursor::new(bytes)))?;
     Some((exif.fields().filter(|f| keep_field(f)).cloned().collect(), exif.little_endian()))
@@ -278,10 +315,19 @@ pub fn fit_exif(t: &mut [u8], w: u32, h: u32) {
 }
 
 /// The panel for an image: its EXIF if any, and always what the header says (format, size,
-/// colour). `None` only when neither can be read.
+/// colour). `None` only when neither can be read. For a DWG or DXF drawing its properties and
+/// title block (`cad_meta`). The panel itself reads `read_file_with`.
+#[cfg(test)]
 pub fn read_file(bytes: &[u8], name: &str) -> Option<Meta> {
+    if crate::cad_convert::can_convert(name) {
+        return crate::cad_meta::meta(bytes, name);
+    }
+    with_header(read(bytes), bytes, name)
+}
+
+/// `meta` (the EXIF's) with what the header of the file says.
+fn with_header(mut meta: Option<Meta>, bytes: &[u8], name: &str) -> Option<Meta> {
     let header = crate::decode::header(bytes, name);
-    let mut meta = read(bytes);
     if meta.is_none() && header.is_none() {
         return None;
     }
@@ -303,6 +349,42 @@ pub fn read_file(bytes: &[u8], name: &str) -> Option<Meta> {
         order_image(&mut m.fields);
     }
     meta
+}
+
+/// As `read_file`, with the Description box (`xmp_fields`) from the XMP inside the file and its
+/// `sidecar` (#24): a RAW photo's instead of it, as in Lightroom; another photo's added to it,
+/// its values first, as in digiKam (`xmp::with_sidecar`). Description, author, copyright,
+/// keywords and date taken from the file's EXIF, IPTC and XMP together (`mwg`), unless the sidecar
+/// has them: as its other fields, they count.
+pub fn read_file_with(bytes: &[u8], name: &str, sidecar: Option<&crate::sidecar::Sidecar>) -> Option<Meta> {
+    let exif = parse(bytes);
+    let mut meta = if crate::cad_convert::can_convert(name) { crate::cad_meta::meta(bytes, name) } else { with_header(exif.as_ref().map(from_exif), bytes, name) };
+    let inside = crate::raw_meta::xmp(bytes);
+    let own = inside.as_deref().map(crate::xmp_fields::read).unwrap_or_default();
+    let found = crate::mwg::reconcile(&crate::mwg::exif_text(exif.as_ref()), crate::mwg::photoshop_block(bytes).as_deref(), &own);
+    let mut fields = match sidecar {
+        Some(s) if crate::decode::is_raw(name) => crate::xmp_fields::read(&s.xmp),
+        Some(s) => crate::xmp_fields::read(&crate::xmp::with_sidecar(inside.as_deref(), &s.xmp)),
+        None => own,
+    };
+    if let Some(s) = sidecar {
+        crate::mwg::sidecar_only(&mut fields, &crate::xmp_fields::read(&s.xmp));
+    }
+    let taken = crate::mwg::apply(found, &mut fields, sidecar.is_some());
+    if meta.is_some() || taken.is_some() {
+        crate::mwg::set_taken(meta.get_or_insert_default(), taken);
+    }
+    if !fields.is_empty() || sidecar.is_some() {
+        crate::xmp_fields::add_to(meta.get_or_insert_default(), &fields, sidecar.map(|s| s.name.as_str()));
+    }
+    meta
+}
+
+/// When a photo was taken, from its EXIF, IPTC and XMP as the panel reads it (`mwg`), without a
+/// sidecar: for the details under its thumbnail.
+pub fn taken(bytes: &[u8]) -> Option<String> {
+    let own = crate::raw_meta::xmp(bytes).map(|x| crate::xmp_fields::read(&x)).unwrap_or_default();
+    crate::mwg::reconcile(&crate::mwg::exif_text(parse(bytes).as_ref()), crate::mwg::photoshop_block(bytes).as_deref(), &own).taken
 }
 
 /// The rows of the Image box, in this order whatever the format; the others after them as they
@@ -329,29 +411,39 @@ fn color_kind(c: &crate::decode::Color) -> &'static str {
     }
 }
 
-/// `None` if the file has no EXIF (or it cannot be read).
+/// `None` if the file has no EXIF (or it cannot be read). The panel reads `read_file_with`.
+#[cfg(test)]
 pub fn read(bytes: &[u8]) -> Option<Meta> {
-    let exif = match lenient(|r| r.read_from_container(&mut Cursor::new(bytes))) {
-        Some(exif) => exif,
+    parse(bytes).map(|exif| from_exif(&exif))
+}
+
+/// The EXIF of a file; `None` if it has none (or it cannot be read).
+fn parse(bytes: &[u8]) -> Option<Exif> {
+    match lenient(|r| r.read_from_container(&mut Cursor::new(bytes))) {
+        Some(exif) => Some(exif),
         // RAW files not built on TIFF: their EXIF as Convert reads it.
         None => {
             let raw = crate::raw_meta::exif(bytes)?;
-            lenient(|r| r.read_raw(raw))?
+            lenient(|r| r.read_raw(raw))
         }
-    };
+    }
+}
+
+/// The panel's fields of an EXIF.
+fn from_exif(exif: &Exif) -> Meta {
     let mut meta = Meta::default();
     for &(group, tag, label) in FIELDS {
         if let Some(f) = exif.get_field(tag, In::PRIMARY) {
-            let value = value(&exif, f);
+            let value = value(exif, f);
             if !value.is_empty() {
                 meta.fields.push((group, label, value));
             }
         }
     }
-    let lat = coord(&exif, Tag::GPSLatitude, Tag::GPSLatitudeRef, 'S');
-    let lon = coord(&exif, Tag::GPSLongitude, Tag::GPSLongitudeRef, 'W');
+    let lat = coord(exif, Tag::GPSLatitude, Tag::GPSLatitudeRef, 'S');
+    let lon = coord(exif, Tag::GPSLongitude, Tag::GPSLongitudeRef, 'W');
     meta.gps = lat.zip(lon);
-    Some(meta)
+    meta
 }
 
 /// Readable value. Texts: only the non-empty parts, without quotes (the POCO X7 Pro writes
@@ -501,7 +593,7 @@ pub fn first(t: &str) -> &str {
 }
 
 /// ISO 6709 as phones write it: "+45.4641+009.1919/", with the altitude "+45.4641+009.1919+123.5/".
-fn iso6709(s: &str) -> Option<(f64, f64, Option<f64>)> {
+pub(crate) fn iso6709(s: &str) -> Option<(f64, f64, Option<f64>)> {
     let s = s.trim().trim_end_matches('/');
     let mut parts = Vec::new();
     let mut start = 0;
@@ -644,6 +736,43 @@ mod tests {
         assert!(exif::Reader::new().read_raw(written).unwrap().get_field(Tag::Make, In::PRIMARY).is_some());
     }
 
+    /// A TIFF block with Make and the maker note `note`.
+    fn with_note(note: &[u8]) -> Vec<u8> {
+        let mut writer = Writer::new();
+        let (make, note) = (field(Tag::Make, Value::Ascii(vec![b"Apple".to_vec()])), field(Tag::MakerNote, Value::Undefined(note.to_vec(), 0)));
+        writer.push_field(&make);
+        writer.push_field(&note);
+        let mut tiff = std::io::Cursor::new(Vec::new());
+        writer.write(&mut tiff, false).unwrap();
+        tiff.into_inner()
+    }
+
+    fn note_of(chunk: Vec<u8>) -> Option<Vec<u8>> {
+        let exif = exif::Reader::new().read_raw(chunk).unwrap();
+        assert!(exif.get_field(Tag::Make, In::PRIMARY).is_some());
+        exif.get_field(Tag::MakerNote, In::PRIMARY).and_then(|f| match &f.value {
+            Value::Undefined(v, _) => Some(v.clone()),
+            _ => None,
+        })
+    }
+
+    /// A maker note whose offsets count from its own start (Apple, Fujifilm…) goes into the EXIF
+    /// of a converted copy as it was; one counting from the start of the original EXIF (Canon,
+    /// Samsung…) stays out, and so does every maker note of a RAW file (`exif_fields`), and one
+    /// too big for a JPEG.
+    #[test]
+    fn maker_note_that_can_move() {
+        let apple = [&b"Apple iOS\0\0\x01MM"[..], &[0, 1, 0, 1, 0, 9, 0, 0, 0, 1, 0, 0, 0, 15, 0, 0, 0, 0]].concat();
+        let canon = b"\0\x01\0\x03\0\x01\0\0\0\x26\0\0\x01\x2c".to_vec();
+        let fuji = [&b"FUJIFILM\x0c\0\0\0"[..], &[0x30, 0x30, 0x31, 0x30]].concat();
+        assert_eq!(note_of(super::exif_chunk(&with_note(&apple)).unwrap()), Some(apple.clone()));
+        assert_eq!(note_of(super::exif_chunk(&with_note(&fuji)).unwrap()), Some(fuji));
+        assert_eq!(note_of(super::exif_chunk(&with_note(&canon)).unwrap()), None);
+        assert!(super::exif_fields(&with_note(&apple)).unwrap().0.iter().all(|f| f.tag != Tag::MakerNote), "RAW files go without it");
+        let huge = [&apple[..], &vec![0; 70_000]].concat();
+        assert_eq!(note_of(super::exif_chunk(&with_note(&huge)).unwrap()), None, "too big for a JPEG");
+    }
+
     #[test]
     fn video_fields() {
         assert_eq!(iso6709("+45.4641+009.1919/"), Some((45.4641, 9.1919, None)));
@@ -689,6 +818,43 @@ mod tests {
         assert_eq!((get("meta-width"), get("meta-height")), (Some("30 px"), Some("20 px")));
         assert_eq!((get("meta-color"), get("meta-depth")), (Some("meta-color-rgba"), Some("8 bit")));
         assert!(read_file(b"not an image", "a.txt").is_none());
+    }
+
+    /// The caption of a JPEG from its EXIF, IPTC and XMP as the MWG guidelines say (`mwg`), and
+    /// from its sidecar when that has one; a sidecar without a caption leaves the rules as they are.
+    #[test]
+    fn caption_from_three_places() {
+        use crate::meta_write::{JPEG_PHOTOSHOP, JPEG_XMP, irb_of_iim, resource};
+        let mut writer = Writer::new();
+        let description = field(Tag::ImageDescription, Value::Ascii(vec![b"From EXIF".to_vec()]));
+        writer.push_field(&description);
+        let mut tiff = std::io::Cursor::new(Vec::new());
+        writer.write(&mut tiff, false).unwrap();
+        let xmp = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:dc="http://purl.org/dc/elements/1.1/"><dc:description><rdf:Alt><rdf:li xml:lang="x-default">From XMP</rdf:li></rdf:Alt></dc:description></rdf:Description></rdf:RDF></x:xmpmeta>"#;
+        let iim = crate::xmp::tests::iim(&[(120, "From IPTC")]);
+        let seg = |marker: u8, parts: &[&[u8]]| {
+            let body = parts.concat();
+            [&[0xFF, marker][..], &((body.len() + 2) as u16).to_be_bytes(), &body].concat()
+        };
+        let jpeg = |exif: bool, digest: &[u8]| {
+            let irb = [irb_of_iim(&iim), resource(1061, digest)].concat();
+            let exif = if exif { seg(0xE1, &[b"Exif\0\0", tiff.get_ref()]) } else { Vec::new() };
+            [&[0xFF, 0xD8][..], &exif, &seg(0xE1, &[JPEG_XMP, xmp.as_bytes()]), &seg(0xED, &[JPEG_PHOTOSHOP, &irb]), &[0xFF, 0xD9]].concat()
+        };
+        let caption = |bytes: &[u8], sidecar: Option<&crate::sidecar::Sidecar>| {
+            let m = super::read_file_with(bytes, "a.jpg", sidecar).unwrap();
+            m.fields.into_iter().find(|(_, l, _)| *l == "meta-xmp-caption").map(|(_, _, v)| v)
+        };
+        let current = md5::compute(&iim).0;
+        assert_eq!(caption(&jpeg(true, &current), None).as_deref(), Some("From EXIF"));
+        assert_eq!(caption(&jpeg(false, &current), None).as_deref(), Some("From XMP"));
+        assert_eq!(caption(&jpeg(false, &[0; 16]), None).as_deref(), Some("From IPTC"));
+        let sidecar = |xmp: &str| crate::sidecar::Sidecar { name: "a.xmp".into(), xmp: xmp.as_bytes().to_vec() };
+        let other = xmp.replace("From XMP", "From the sidecar");
+        assert_eq!(caption(&jpeg(true, &current), Some(&sidecar(&other))).as_deref(), Some("From the sidecar"));
+        let without = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmp:Rating="3"/></rdf:RDF></x:xmpmeta>"#;
+        assert_eq!(caption(&jpeg(false, &current), Some(&sidecar(without))).as_deref(), Some("From XMP"));
+        assert_eq!(caption(&jpeg(true, &current), Some(&sidecar(without))).as_deref(), Some("From EXIF"));
     }
 
     #[test]

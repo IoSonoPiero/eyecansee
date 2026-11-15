@@ -171,10 +171,12 @@ pub(crate) async fn track_tags(op: &Store, path: &str) -> Vec<(String, String)> 
 /// (its size) and the dashcam's `gps.sqlite` (size and date). Without them, a `.SRT` copied after
 /// the folder was first opened was never read: the metadata saved before stayed (15/11; with the
 /// details under the thumbnails, #139, they are saved as soon as the folder is open). Keys saved
-/// before this did not have the files beside: such metadata are read again, once.
+/// before this did not have the files beside: such metadata are read again, once. A RAW photo's
+/// key has its sidecar too (`sidecar::key`, #24).
 pub(crate) async fn meta_key(op: &Store, file: &File) -> File {
     if !decode::is_played(&file.path) {
-        return file.clone();
+        let beside = crate::sidecar::key(op, &file.path).await;
+        return if beside.is_empty() { file.clone() } else { File { modified: format!("{}|{beside}", file.modified), ..file.clone() } };
     }
     let mut beside = String::new();
     if let Some((stem, _)) = file.path.rsplit_once('.') {
@@ -196,7 +198,7 @@ pub(crate) async fn meta_key(op: &Store, file: &File) -> File {
 
 /// A drone's position when the video started, from the first frame of the `.SRT` with the same
 /// name (`gps_track::srt_start`); any source, only its first 2 KB read.
-async fn drone_start(op: &Store, path: &str) -> Option<(f64, f64)> {
+pub(crate) async fn drone_start(op: &Store, path: &str) -> Option<(f64, f64)> {
     let stem = path.rsplit_once('.')?.0;
     for ext in ["SRT", "srt"] {
         let srt = format!("{stem}.{ext}");

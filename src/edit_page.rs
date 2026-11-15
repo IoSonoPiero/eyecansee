@@ -102,7 +102,7 @@ pub(crate) enum Tool {
 enum Hold {
     Move { index: usize, start: Obj, from: Pt },
     Handle { index: usize, handle: usize, start: Obj },
-    /// A pasted piece turned by the handle above it.
+    /// An object turned by the handle above it (`edit::turn`).
     Turn { index: usize, start: Obj },
     /// The object drawn is at `index` once the drag is long enough.
     Draw { kind: Kind, from: Pt, index: Option<usize> },
@@ -193,6 +193,8 @@ pub struct Window {
     keys_open: bool,
     /// The text (or bubble) being typed on the image itself (`typing`).
     editing: Option<usize>,
+    /// The object whose letters the text fields have their undo of (`typing::fresh_fields`).
+    letters_of: Option<usize>,
     /// The original's bytes, read at the first save: every save starts from them.
     bytes: Option<Arc<Vec<u8>>>,
     /// The copy written last and the one being sent: the next Save updates it while it is that file.
@@ -222,6 +224,9 @@ pub struct Window {
     /// Where the line being drawn ends.
     line_end: Option<Pos2>,
     preparing: bool,
+    /// What the saves of this page keep of the original's metadata, chosen in the confirmation
+    /// (#55); all of it at first.
+    pub(crate) keep: crate::meta_strip::Keep,
     /// The copy (or the image for an overwrite) made: its confirmation is open.
     pub ready: Option<save::Ready>,
     /// On a phone or a server: the image is edited in a copy on this computer (a line at the top).
@@ -280,6 +285,7 @@ impl Window {
             hiders: 0,
             keys_open: false,
             editing: None,
+            letters_of: None,
             bytes: None,
             copy: save::Marks::default(),
             overwritten: save::Marks::default(),
@@ -297,6 +303,7 @@ impl Window {
             straighten: false,
             line_end: None,
             preparing: false,
+            keep: crate::meta_strip::Keep::All,
             ready: None,
             remote: None,
             leaving: false,
@@ -495,7 +502,8 @@ impl Window {
 }
 
 /// Where each kind of object starts the first time: red lines a 250th of the long side (at least
-/// 2 pixels), letters a 25th, the highlighter yellow at 40%, the cover box black.
+/// 2 pixels), letters a 25th, the highlighter yellow multiplied in full (`Style::highlighter`),
+/// the cover box black.
 fn default_style(kind: Kind, long: f32) -> Style {
     let width = (long / 250.0).round().max(2.0);
     match kind {
@@ -512,6 +520,7 @@ fn default_style(kind: Kind, long: f32) -> Style {
 }
 
 /// What the buttons of the bars (or their keys) asked for.
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Ask {
     Save,
     SaveAs,

@@ -7,12 +7,13 @@ use std::collections::HashSet;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::{LazyLock, Mutex};
-use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, AtomicU64, AtomicUsize, Ordering};
 
 use image::imageops::FilterType;
 use serde::{Deserialize, Serialize};
 
 use crate::encode::{self, Format, Options};
+use crate::meta_strip::Keep;
 use crate::source::{self, Store};
 use crate::transform::Turn;
 
@@ -145,6 +146,10 @@ pub struct Job {
     pub base: String,
     /// "Export drawing": CAD drawings drawn again (`drawing`), nothing else done.
     pub drawing: Option<Drawn>,
+    /// The layers chosen in the viewer's panel, by drawing; and those of the drawing being done
+    /// (`cad_layers`). The others as their file has them.
+    pub layers: Arc<std::collections::HashMap<String, Vec<bool>>>,
+    pub shown: Option<Vec<bool>>,
     /// Added to the names of the pictures really resized, before the extension (Resize:
     /// `Size::tag`); a picture left at its size keeps its name (`Job::named`).
     pub tag: String,
@@ -164,7 +169,7 @@ pub enum Drawn {
 
 impl Default for Job {
     fn default() -> Self {
-        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None, audio: None, sound: None, base: String::new(), drawing: None, tag: String::new(), tag_turned: String::new() }
+        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None, audio: None, sound: None, base: String::new(), drawing: None, layers: Default::default(), shown: None, tag: String::new(), tag_turned: String::new() }
     }
 }
 
@@ -237,11 +242,12 @@ pub const SKIP_WOULD_LOSE: &str = "drawing-skip-would-lose";
 /// content. `Err((id, detail))`: a Fluent id with the name or the error.
 #[cfg(test)]
 pub fn convert(bytes: &[u8], name: &str, job: &Job) -> Result<(String, Vec<u8>), (&'static str, String)> {
-    convert_with(bytes, name, job, &|_| None)
+    convert_with(bytes, name, job, &|_| None, None)
 }
 
-/// Like `convert`, reading the files next to a 3D model or a CAD drawing through `sibling`.
-pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::Sibling) -> Result<(String, Vec<u8>), (&'static str, String)> {
+/// Like `convert`, reading the files next to a 3D model or a CAD drawing through `sibling`; a RAW
+/// photo's copy has the XMP of its `sidecar` (#24).
+pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::Sibling, sidecar: Option<&[u8]>) -> Result<(String, Vec<u8>), (&'static str, String)> {
     if let Some(drawn) = job.drawing {
         return drawing(bytes, name, job, drawn, sibling);
     }
@@ -283,17 +289,17 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     if (w, h) != (image.width(), image.height()) {
         image = image.resize_exact(w, h, job.filter.kind());
     }
-    encoded(bytes, name, job, image, cut).map(|(out, data)| (job.named(out, resized), data))
+    encoded(bytes, name, job, image, cut, sidecar).map(|(out, data)| (job.named(out, resized), data))
 }
 
-/// The picture `image` made from `bytes` (named `name`, cut by `cut`) written as `job` asks:
-/// the new name, without its tag, and the content.
-fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut: Option<(u32, u32, u32, u32)>) -> Result<(String, Vec<u8>), (&'static str, String)> {
+/// The picture `image` made from `bytes` (named `name`, cut by `cut`, with the XMP of the RAW
+/// photo's `sidecar`) written as `job` asks: the new name, without its tag, and the content.
+fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut: Option<(u32, u32, u32, u32)>, sidecar: Option<&[u8]>) -> Result<(String, Vec<u8>), (&'static str, String)> {
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
     // An Ultra HDR photo written as JPEG with its metadata stays Ultra HDR, its gain map turned
     // and resized with it (#65); without metadata there is nothing to hold the gain map.
     let to_jpeg = job.format.map_or(Format::of_file(name) == Some(Format::Jpeg), |f| f == Format::Jpeg);
-    if to_jpeg && job.options.keep_meta && crate::ultrahdr::is(bytes) {
+    if to_jpeg && job.options.meta != Keep::Nothing && crate::ultrahdr::is(bytes) {
         let (out, options) = match job.format {
             None => (name.to_string(), crate::encode::jpeg_quality::like(bytes, Options::default())),
             Some(f) => (with_ext(name, f), Options { format: f, turn: Turn::default(), ..job.options }),
@@ -307,12 +313,12 @@ fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut:
         // writes over the original).
         None if Format::of_file(name) == Some(Format::Jpeg) => {
             let options = crate::encode::jpeg_quality::like(bytes, Options::default());
-            Ok((name.to_string(), encode::Original::with_meta_of(image, bytes, name).alone().turned(job.turn).encode(&options).map_err(failed)?))
+            Ok((name.to_string(), encode::Original::with_meta_beside(image, bytes, name, sidecar).alone().turned(job.turn).encode(&options).map_err(failed)?))
         }
-        None => crate::save_back::encoded_back(bytes, name, image).map(|(data, _)| (name.to_string(), data)).map_err(|_| (SKIP_INSIDE, name.to_string())),
+        None => crate::save_back::encoded_beside(bytes, name, image, sidecar).map(|(data, _)| (name.to_string(), data)).map_err(|_| (SKIP_INSIDE, name.to_string())),
         Some(format) => {
             let options = Options { format, turn: Turn::default(), ..job.options };
-            let data = encode::Original::with_meta_of(image, bytes, name).alone().turned(job.turn).encode(&options).map_err(failed)?;
+            let data = encode::Original::with_meta_beside(image, bytes, name, sidecar).alone().turned(job.turn).encode(&options).map_err(failed)?;
             Ok((with_ext(name, format), data))
         }
     }
@@ -331,16 +337,24 @@ fn drawing(bytes: &[u8], name: &str, job: &Job, drawn: Drawn, sibling: crate::mo
             };
         }
         Drawn::Svg => {
-            let d = crate::cad::read_with(bytes, name, sibling).map_err(failed)?;
+            let d = shown(crate::cad::read_with(bytes, name, sibling).map_err(failed)?, job);
             return Ok((ext(name, "svg"), d.svg(crate::decode::CAD_SIDE, 1.0).map_err(failed)?.into_bytes()));
         }
         Drawn::Side(side) => side,
     };
-    let d = crate::cad::read_with(bytes, name, sibling).map_err(failed)?;
+    let d = shown(crate::cad::read_with(bytes, name, sibling).map_err(failed)?, job);
     let image = image::DynamicImage::ImageRgba8(crate::decode::cad_render(&d, side, None).map_err(failed)?);
     let format = job.format.unwrap_or(Format::Png);
     let options = Options { format, turn: Turn::default(), ..job.options };
     Ok((with_ext(name, format), encode::Original::with_meta(image, &[]).encode(&options).map_err(failed)?))
+}
+
+/// The drawing with the layers chosen in the viewer, if any.
+fn shown(mut d: crate::cad::Drawing, job: &Job) -> crate::cad::Drawing {
+    if let Some(on) = &job.shown {
+        d.set_layers(on);
+    }
+    d
 }
 
 /// `name` with the extension of `format` in place of its own.
@@ -410,65 +424,32 @@ impl Drop for Writing {
 /// returned. ffmpeg reads and writes files of this computer: a video on a phone or a server is
 /// copied into a temporary file first, a destination there gets the temporary result at the end.
 async fn video(op: &Store, path: &str, (out, dest, taken): (&Store, &str, &HashSet<String>), job: &Job, p: &Arc<Progress>) -> Result<String, source::Error> {
+    use crate::ffmpeg_files::{Input, Output, deliver};
     let name = source::name(path).to_string();
-    let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
+    let failed = |e: String| crate::ffmpeg_files::failed(&name, e);
     // Copied streams: an FFmpeg without the phones' decoders does it too (`ffmpeg::copier`).
     let probe = job.video.as_ref().and_then(|v| if v.encoder == "copy" { crate::ffmpeg::copy_probed() } else { crate::ffmpeg::probed() });
     let (Some(mut v), Some(probe)) = (job.video.clone(), probe) else { return Err((SKIP_VIDEO, name)) };
-    let temp = |what: &str| std::env::temp_dir().join(format!("eyecansee-{what}-{}-{name}", std::process::id()));
-    // Download, ffmpeg and upload share the video's bar in equal parts.
-    // ponytail: equal parts, not by time: a "copy" conversion jumps through its third.
-    let (remote_in, remote_out) = (op.local_file(path).is_none(), out.local_file(&format!("{dest}{name}")).is_none());
-    let phases = Phases { p: p.clone(), count: 1 + remote_in as u32 + remote_out as u32 };
-    let input = match op.local_file(path) {
-        Some(file) => (file, false),
-        None => {
-            let file = temp("in");
-            download(op, path, &file, || phases.p.cancel.load(Ordering::Relaxed), |f| phases.set(0, f)).await.map_err(|e| failed(e.to_string()))?;
-            (file, true)
-        }
-    };
+    let input = Input::fetch(op, path, (out, dest), p).await?;
     // Copied as it is: into a container that holds its streams (`video_copy`), MKV otherwise.
     if v.encoder == "copy" {
-        v.container = crate::video_copy::for_file(v.container, &name, &probe.program, &input.0);
+        v.container = crate::video_copy::for_file(v.container, &name, &probe.program, &input.file);
     }
     let new_name = source::free_name(taken, &ext(&name, crate::ffmpeg::CONTAINERS[v.container].ext));
-    let to = &format!("{dest}{new_name}");
-    let output = out.local_file(to).map_or_else(|| (temp("out"), true), |f| (f, false));
-    let _writing = Writing::start(output.0.clone());
+    let output = Output::new(out, format!("{dest}{new_name}"), &name);
     let tags = if v.meta { crate::video_read::track_tags(op, path).await } else { Vec::new() };
-    let args = |on_card| crate::ffmpeg::args(&v, job.size, job.enlarge, job.turn, on_card, (&input.0.to_string_lossy(), &output.0.to_string_lossy()), &probe.audio, &tags);
-    let ffmpeg = |args: Vec<String>| {
-        log!("ffmpeg {args:?}");
-        let (program, ph, first) = (probe.program.clone(), phases.clone(), remote_in as u32);
-        tokio::task::spawn_blocking(move || crate::ffmpeg::run(&program, &args, |f| ph.set(first, f), &ph.p.cancel))
-    };
+    let args = |on_card| crate::ffmpeg::args(&v, job.size, job.enlarge, job.turn, on_card, (&input.file.to_string_lossy(), &output.file.to_string_lossy()), &probe.audio, &tags);
     let on_card = probe.card.contains(&v.encoder);
-    let mut r = ffmpeg(args(on_card)).await.unwrap_or_else(|e| Err(e.to_string()));
+    let mut r = input.ffmpeg(&probe.program, args(on_card)).await;
     // A video the card cannot read (a codec or a format it lacks): again as before, on the processor.
-    if on_card && r.is_err() && !p.cancel.load(Ordering::Relaxed) {
+    if on_card && r.is_err() && !input.cancelled() {
         log!("ffmpeg on the card failed ({}), again on the processor", r.as_ref().unwrap_err());
-        r = ffmpeg(args(false)).await.unwrap_or_else(|e| Err(e.to_string()));
+        r = input.ffmpeg(&probe.program, args(false)).await;
     }
-    if input.1 {
-        let _ = std::fs::remove_file(&input.0);
-    }
-    if r.is_ok() {
-        keep_thumbnail(to, &output.0).await;
-    }
-    let r = match r {
-        Ok(()) if output.1 => {
-            let (ph, last) = (phases.clone(), phases.count - 1);
-            let p = phases.p.clone();
-            upload(out, to, &output.0, move || p.cancel.load(Ordering::Relaxed), move |f| ph.set(last, f)).await.map_err(|e| failed(e.to_string()))
-        }
-        Ok(()) => Ok(()),
-        Err(e) => Err(failed(e)),
-    };
-    if output.1 || r.is_err() {
-        let _ = std::fs::remove_file(&output.0);
-    }
-    r.map(|()| new_name)
+    let phases = input.phases.clone();
+    drop(input);
+    deliver(out, &output, &phases, r.map_err(failed), failed).await?;
+    Ok(new_name)
 }
 
 /// The parts of a video's conversion on the bar: `set(phase, 0 to 1)`.
@@ -574,6 +555,42 @@ pub struct Progress {
     /// Images left out or failed: Fluent id and detail.
     pub failed: Mutex<Vec<(&'static str, String)>>,
     pub finished: AtomicBool,
+    /// Bytes of the originals of the files saved, and of the new files (the summary at the end).
+    pub bytes_before: AtomicU64,
+    pub bytes_after: AtomicU64,
+    /// A size could not be read: the summary leaves the sizes out.
+    pub bytes_unknown: AtomicBool,
+}
+
+impl Progress {
+    /// The sizes of an original and of what it became, added; one unknown makes all unknown.
+    fn sized(&self, before: Option<u64>, after: Option<u64>) {
+        match (before, after) {
+            (Some(b), Some(a)) => {
+                self.bytes_before.fetch_add(b, Ordering::Relaxed);
+                self.bytes_after.fetch_add(a, Ordering::Relaxed);
+            }
+            _ => self.bytes_unknown.store(true, Ordering::Relaxed),
+        }
+    }
+
+    /// The originals' bytes and the new files', for the summary; `None` when one was not read.
+    pub fn sizes(&self) -> Option<(u64, u64)> {
+        (!self.bytes_unknown.load(Ordering::Relaxed)).then(|| (self.bytes_before.load(Ordering::Relaxed), self.bytes_after.load(Ordering::Relaxed)))
+    }
+}
+
+/// The sizes of the original `path` and of the files `saved` from it (a video, its audio) added
+/// to `p`, read back where they are: what FFmpeg wrote is not in memory.
+async fn add_sizes(p: &Progress, op: &Store, path: &str, out: &Store, saved: &[String]) {
+    let mut after = Some(0);
+    for s in saved {
+        after = match (after, out.size(s).await) {
+            (Some(a), Ok(n)) => Some(a + n),
+            _ => None,
+        };
+    }
+    p.sized(op.size(path).await.ok(), after);
 }
 
 /// Where the new files go: a folder of a source, made first if `create`.
@@ -606,7 +623,10 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
         p.part.store(0, Ordering::Relaxed);
         if let Some(audio) = job.audio {
             match crate::audio_job::run(op, (&job.base, &path), &out, &dest, audio, &mut taken, &p).await {
-                Ok(saved) => p.saved.lock().unwrap().extend(saved),
+                Ok(saved) => {
+                    add_sizes(&p, op, &path, &out, &saved).await;
+                    p.saved.lock().unwrap().extend(saved);
+                }
                 Err(_) if p.cancel.load(Ordering::Relaxed) => break,
                 Err(e) => p.failed.lock().unwrap().push(e),
             }
@@ -621,7 +641,9 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
             };
             match r {
                 Ok(new_name) => {
-                    p.saved.lock().unwrap().push(format!("{dest}{new_name}"));
+                    let to = format!("{dest}{new_name}");
+                    add_sizes(&p, op, &path, &out, std::slice::from_ref(&to)).await;
+                    p.saved.lock().unwrap().push(to);
                     taken.insert(new_name);
                 }
                 // Cancelled: neither saved nor "left out", the summary says where it stopped.
@@ -631,21 +653,15 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
             p.done.fetch_add(1, Ordering::Relaxed);
             continue;
         }
-        let r = match op.read(&path).await {
-            Ok(bytes) => {
-                let job = job.clone();
-                let sibling = crate::loader::siblings(op.clone(), path.clone());
-                tokio::task::spawn_blocking(move || convert_with(&bytes, &name, &job, &sibling)).await.unwrap_or_else(|e| Err(("batch-failed", e.to_string())))
-            }
-            Err((id, detail)) => Err((id, detail)),
-        };
-        match r {
-            Ok((new_name, data)) => {
+        match picture(op, &path, name, &job).await {
+            Ok((new_name, data, before)) => {
                 let new_name = source::free_name(&taken, &new_name);
                 let to = format!("{dest}{new_name}");
+                let after = data.len() as u64;
                 match crate::replace::write_whole(&out, &to, data).await {
                     Ok(()) => {
                         taken.insert(new_name);
+                        p.sized(Some(before), Some(after));
                         p.saved.lock().unwrap().push(to);
                     }
                     Err(e) => p.failed.lock().unwrap().push(e),
@@ -658,6 +674,18 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
     p.finished.store(true, Ordering::Relaxed);
 }
 
+/// The picture at `path` (named `name`) after `job`, with its photo's sidecar (#24) and the
+/// layers shown of a drawing: the new name, the content and the size of the original.
+async fn picture(op: &Store, path: &str, name: String, job: &Job) -> Result<(String, Vec<u8>, u64), (&'static str, String)> {
+    let bytes = op.read(path).await?;
+    let (mut job, before) = (job.clone(), bytes.len() as u64);
+    job.shown = job.layers.get(path).cloned();
+    let sibling = crate::loader::siblings(op.clone(), path.to_string());
+    let sidecar = crate::sidecar::read(op, path).await.map(|s| s.xmp);
+    let made = tokio::task::spawn_blocking(move || convert_with(&bytes, &name, &job, &sibling, sidecar.as_deref())).await.unwrap_or_else(|e| Err(("batch-failed", e.to_string())));
+    made.map(|(name, data)| (name, data, before))
+}
+
 #[cfg(test)]
 mod tests {
     use image::DynamicImage;
@@ -665,7 +693,8 @@ mod tests {
     /// Every file of `EYECANSEE_META_IN` converted to JPEG, PNG, WebP, TIFF and AVIF into
     /// `EYECANSEE_META_OUT`, as Convert and resize writes them, to compare the metadata with exiftool:
     /// `EYECANSEE_META_IN=<dir> EYECANSEE_META_OUT=<dir> cargo test --release meta_files_live -- --ignored --nocapture`
-    /// (`EYECANSEE_META_FORMATS=jpg,tif` for only some of them).
+    /// (`EYECANSEE_META_FORMATS=jpg,tif` for only some of them). A RAW photo's sidecar is read as
+    /// the app reads it (#24).
     #[test]
     #[ignore]
     fn meta_files_live() {
@@ -678,7 +707,9 @@ mod tests {
                 if !only.is_empty() && !only.split(',').any(|e| e == format.ext()) {
                     continue;
                 }
-                match super::convert(&bytes, &name, &super::Job { format: Some(format), ..Default::default() }) {
+                let path = entry.path().to_string_lossy().to_string();
+                let sidecar = crate::sidecar::names(&path).into_iter().find_map(|p| std::fs::read(&p).ok().filter(|x| crate::sidecar::belongs(&path, &p, crate::sidecar::sidecar_for(x).as_deref(), false)));
+                match super::convert_with(&bytes, &name, &super::Job { format: Some(format), ..Default::default() }, &|_| None, sidecar.as_deref()) {
                     // The original's extension kept in the name: a.miff and a.psb do not overwrite each other.
                     Ok((new, data)) => std::fs::write(format!("{out}/{name}.{}", new.rsplit_once('.').unwrap().1), data).unwrap(),
                     Err(e) => println!("{name} -> {format:?}: {e:?}"),
@@ -820,6 +851,9 @@ mod tests {
         assert_eq!(*p.saved.lock().unwrap(), ["a (2).png", "t (2).tga"]);
         assert_eq!(std::fs::read(dir.join("a (2).png")).unwrap(), png);
         assert!(p.failed.lock().unwrap().is_empty());
+        // The summary's sizes (#134): a copy as it is weighs what its original does.
+        let both = png.len() as u64 + std::fs::metadata(dir.join("t.tga")).unwrap().len();
+        assert_eq!(p.sizes(), Some((both, both)));
         // Cropped in the middle: the left column of the copy comes from x = 50.
         let (saved, _) = resize(Size::Crop(100, 100));
         let back = crate::decode::decode_full(&std::fs::read(dir.join(&saved[0])).unwrap(), "x.png").unwrap().to_rgb8();
@@ -912,7 +946,7 @@ mod tests {
         }
         let (_, png) = convert(&bytes, "a.jpg", &Job { format: Some(Format::Png), ..Default::default() }).unwrap();
         assert!(!crate::ultrahdr::is(&png) && png.starts_with(b"\x89PNG"));
-        let bare = Job { format: Some(Format::Jpeg), options: Options { format: Format::Jpeg, keep_meta: false, ..Options::default() }, ..Default::default() };
+        let bare = Job { format: Some(Format::Jpeg), options: Options { format: Format::Jpeg, meta: Keep::Nothing, ..Options::default() }, ..Default::default() };
         assert!(!crate::ultrahdr::is(&convert(&bytes, "a.jpg", &bare).unwrap().1));
     }
 
@@ -983,7 +1017,7 @@ mod tests {
             let img = crate::decode::decode_full(data, "x.png").unwrap().to_rgb8();
             img.pixels().filter(|p| p[0] > 120 && p[1] < 60 && p[2] < 60).count()
         };
-        assert!(red(&convert_with(obj, "q.obj", &job, &next).unwrap().1) > 1000);
+        assert!(red(&convert_with(obj, "q.obj", &job, &next, None).unwrap().1) > 1000);
         assert_eq!(red(&convert(obj, "q.obj", &job).unwrap().1), 0);
     }
 
@@ -1002,5 +1036,20 @@ mod tests {
         let (name, data) = convert(dxf, "plan.dxf", &job).unwrap();
         assert_eq!((name.as_str(), crate::cad::read(&data, "x.dwg").unwrap().items.len()), ("plan.dwg", 1));
         assert_eq!(convert(b"IN;PU0,0;PD100,100;", "p.plt", &job).unwrap_err().0, SKIP_NOT_AUTOCAD);
+    }
+
+    #[test]
+    fn a_drawing_exported_with_the_layers_chosen() {
+        // Layer A red and shown, B green and off in the file: as the file has them, then A
+        // hidden and B shown, as chosen in the viewer.
+        let dxf = crate::cad_layers::tests::DXF.as_bytes();
+        let job = Job { drawing: Some(Drawn::Svg), ..Default::default() };
+        let svg = String::from_utf8(convert(dxf, "l.dxf", &job).unwrap().1).unwrap();
+        assert!(svg.contains("#ff0000") && !svg.contains("#00ff00"));
+        let d = crate::cad::read(dxf, "l.dxf").unwrap();
+        let shown = d.layers.iter().map(|l| l.name != "A").collect();
+        let job = Job { shown: Some(shown), ..job };
+        let svg = String::from_utf8(convert(dxf, "l.dxf", &job).unwrap().1).unwrap();
+        assert!(!svg.contains("#ff0000") && svg.contains("#00ff00"));
     }
 }

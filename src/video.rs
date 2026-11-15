@@ -26,6 +26,8 @@ pub(crate) struct Playing {
     copying: Option<(Arc<AtomicU64>, u64)>,
     /// The turn shown and not saved yet, clockwise degrees (#125).
     rotate: u32,
+    /// At full screen, the bar hidden while the mouse stays still (#43).
+    hide: crate::video_full::Hide,
 }
 
 /// Where the video engine is, for the card shown in its place.
@@ -80,6 +82,13 @@ impl App {
     /// view, a turn would only show in what is saved) or a CAD drawing (turned, it lost its sharpness).
     pub(crate) fn viewing_photo(&self) -> bool {
         self.viewing.and_then(|i| self.files().get(i)).is_some_and(|f| crate::decode::is_image(&f.path))
+    }
+
+    /// The player of the video `path` open in the viewer, once it opened and has a picture (not an
+    /// audio file): its frame can be saved (#16).
+    pub(crate) fn player_of(&self, path: &str) -> Option<&mpv::Player> {
+        let v = self.video.as_ref().filter(|v| v.path == path && !decode::is_audio(path))?;
+        v.player.as_ref().ok().filter(|p| p.video_size().is_some())
     }
 
     /// Size of the video playing, for the status bar.
@@ -158,7 +167,8 @@ impl App {
             v.rotate = rotate;
         }
         let sound = (&mut self.settings.video_volume, &mut self.settings.video_mute);
-        let Some(response) = draw(ui, v, sound, &self.i18n, wait) else { return };
+        let bare = crate::viewer::full_screen(ui.ctx());
+        let Some(response) = draw(ui, v, sound, &self.i18n, wait, bare) else { return };
         if response.hovered() {
             v.wheel += ui.input(|i| i.events.iter().map(|e| if let egui::Event::MouseWheel { unit, delta, .. } = e { crate::viewer::notches(*unit, *delta) } else { 0.0 }).sum::<f32>());
         }
@@ -386,7 +396,7 @@ impl App {
         if let Err(e) = &player {
             log!("motion photo {path:?}: ERROR {e}");
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None, rotate: 0 }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None, rotate: 0, hide: Default::default() }
     }
 
     /// The video open for `path` has not reached its end (it plays, it is paused, or it could
@@ -411,17 +421,19 @@ impl App {
         if let Err(e) = &player {
             log!("video {path:?}: ERROR {e}");
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying, rotate: 0 }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying, rotate: 0, hide: Default::default() }
     }
 }
 
 /// The video fitted to the area (frames drawn at that size by mpv) and its bar. Click: play or
 /// pause. The response of the area, for the double click, the menu and the wheel, as for images.
 /// `wait`: the share and the text of the copy that comes before playing, while it lasts.
-fn draw(ui: &mut egui::Ui, v: &mut Playing, sound: (&mut u32, &mut bool), i18n: &I18n, wait: Option<(f32, String)>) -> Option<egui::Response> {
+/// `bare`: at full screen, the video on the whole screen and the bar over it, shown while the
+/// mouse moves (#43).
+fn draw(ui: &mut egui::Ui, v: &mut Playing, sound: (&mut u32, &mut bool), i18n: &I18n, wait: Option<(f32, String)>, bare: bool) -> Option<egui::Response> {
     let Ok(player) = &v.player else { return None };
     let rect = ui.available_rect_before_wrap();
-    let area = Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y - BAR));
+    let area = if bare { rect } else { Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y - BAR)) };
     let response = ui.allocate_rect(area, egui::Sense::click());
     if !paint_fitted(ui.painter(), area, player, &mut v.texture) && player.video_size().is_none() {
         if decode::is_audio(&v.path) {
@@ -443,8 +455,40 @@ fn draw(ui: &mut egui::Ui, v: &mut Playing, sound: (&mut u32, &mut bool), i18n: 
     if response.clicked() {
         player.toggle();
     }
-    controls(ui, Rect::from_min_max(pos2(rect.min.x, area.max.y), rect.max), player, sound, i18n);
+    let bar = Rect::from_min_max(pos2(rect.min.x, rect.max.y - BAR), rect.max);
+    if !bare {
+        v.hide.reset();
+        controls(ui, bar, player, sound, i18n);
+    } else if let Some(opacity) = bar_shown(ui, &mut v.hide, bar) {
+        // Over the picture: on a dark band, fading in and out.
+        ui.painter().rect_filled(bar, 0.0, Color32::from_black_alpha((170.0 * opacity) as u8));
+        ui.scope(|ui| {
+            ui.set_opacity(opacity);
+            controls(ui, bar, player, sound, i18n);
+        });
+    }
     Some(response)
+}
+
+/// At full screen, the bar's opacity, `None` once hidden, when the pointer is hidden too. Shown
+/// for `HIDE_AFTER` seconds after the mouse moves, and as long as it is on the bar, a slider is
+/// dragged or a menu is open.
+fn bar_shown(ui: &egui::Ui, hide: &mut crate::video_full::Hide, bar: Rect) -> Option<f32> {
+    let ctx = ui.ctx();
+    let (now, moved, over) = ctx.input(|i| {
+        let moved = i.pointer.delta() != egui::Vec2::ZERO || i.pointer.any_pressed() || i.events.iter().any(|e| matches!(e, egui::Event::MouseWheel { .. }));
+        (i.time, moved, i.pointer.hover_pos().is_some_and(|p| bar.contains(p)))
+    });
+    let keep = over || ctx.dragged_id().is_some() || egui::Popup::is_any_open(ctx);
+    let left = hide.shown(now, moved, keep);
+    if let Some(left) = left {
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(left));
+    }
+    let opacity = ctx.animate_bool_with_time(egui::Id::unique("video-bar"), left.is_some(), crate::video_full::FADE);
+    if left.is_none() {
+        ctx.set_cursor_icon(egui::CursorIcon::None);
+    }
+    (opacity > 0.0).then_some(opacity)
 }
 
 /// The latest frame into `texture`, painted fitted to `area`; the frames are asked at that size.

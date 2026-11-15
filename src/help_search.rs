@@ -80,7 +80,8 @@ pub fn pattern(typed: &str) -> String {
 }
 
 /// The text of a markdown line as it is read: no block markers, emphasis, link targets or tags;
-/// the text of links and the description of images stay.
+/// the text of links stays. Pictures and icons go with their description: the page shows it only
+/// on hover, so it is not text to find (an icon's name read twice, "Crop Crop and rotate").
 pub fn plain(line: &str) -> String {
     let mut s = line.trim_start();
     s = s.trim_start_matches('#').trim_start();
@@ -97,7 +98,8 @@ pub fn plain(line: &str) -> String {
     while let Some(c) = chars.next() {
         match c {
             '\\' => out.extend(chars.next()),
-            '*' | '`' | '!' if c != '!' || chars.peek() == Some(&'[') => {}
+            '!' if chars.peek() == Some(&'[') => skip_image(&mut chars),
+            '*' | '`' => {}
             '|' => out.push(' '),
             '[' => {}
             ']' => {
@@ -121,6 +123,45 @@ pub fn plain(line: &str) -> String {
         }
     }
     out.split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
+/// Past a picture or an icon, after its `!`: `[description](target)`.
+fn skip_image(chars: &mut std::iter::Peekable<std::str::Chars>) {
+    let mut depth = 0;
+    for c in chars.by_ref() {
+        match c {
+            '[' => depth += 1,
+            ']' if depth <= 1 => break,
+            ']' => depth -= 1,
+            _ => {}
+        }
+    }
+    if chars.peek() == Some(&'(') {
+        for c in chars.by_ref() {
+            if c == ')' {
+                break;
+            }
+        }
+    }
+}
+
+/// The bytes of `page` taken by pictures and icons (`![description](target)`): what egui_commonmark
+/// finds in their description is not shown in the page, so it is not counted as found.
+pub fn images(page: &str) -> Vec<std::ops::Range<usize>> {
+    let mut out = vec![];
+    let mut from = 0;
+    while let Some(i) = page[from..].find("![").map(|i| from + i) {
+        let close = page[i..].find("](").map(|j| i + j);
+        let end = close.and_then(|c| page[c..].find(')').map(|k| c + k + 1));
+        match end {
+            Some(end) if !page[i..close.unwrap_or(end)].contains('\n') => {
+                out.push(i..end);
+                from = end;
+            }
+            _ => from = i + 2,
+        }
+    }
+    out
 }
 
 /// The text after the number of a numbered list item (`3. `).
@@ -169,6 +210,11 @@ pub fn blocks(page: &str) -> Vec<Block> {
         let heading = line.starts_with('#');
         let new_item = heading || ["- ", "* ", "|", ">"].iter().any(|m| line.starts_with(m)) || numbered(line).is_some();
         let text = plain(line);
+        // A picture alone on its line: nothing to read.
+        if text.is_empty() {
+            open = false;
+            continue;
+        }
         match out.last_mut() {
             Some(last) if open && !new_item => {
                 last.text.push(' ');
@@ -282,7 +328,7 @@ mod tests {
 
     #[test]
     fn plain_text_of_a_line() {
-        assert_eq!(plain("- Click ![Crop](icon://crop) to **crop** the [image](viewer.md)."), "Click Crop to crop the image.");
+        assert_eq!(plain("- Click ![Crop](icon://crop) to **crop** the [image](viewer.md)."), "Click to crop the image.");
         assert_eq!(plain("## Crop and rotate"), "Crop and rotate");
         assert_eq!(plain("3. Press `Ctrl+E` <kbd>now</kbd>!"), "Press Ctrl+E now!");
         assert_eq!(plain("| Ctrl+E | Edit |"), "Ctrl+E Edit");
@@ -299,7 +345,7 @@ mod tests {
                 (Kind::Title, "Editing an image"),
                 (Kind::Text, "Open the editor from the viewer. Then choose a tool. It keeps the colours."),
                 (Kind::Heading, "Crop and rotate"),
-                (Kind::Text, "Click Crop to crop the image."),
+                (Kind::Text, "Click to crop the image."),
                 (Kind::Text, "Key Action"),
                 (Kind::Text, "Ctrl+E Edit"),
             ]
@@ -323,6 +369,21 @@ mod tests {
         assert_eq!(search(&[("it", "# Città\n")], "citta")[0].excerpt, "Città");
         assert!(search(&[("editor", PAGE)], "   ").is_empty());
         assert!(search(&[("editor", PAGE)], "shot").is_empty(), "comments are not searched");
+    }
+
+    /// The name of an icon, or the description of a picture, is not found: the page shows it only
+    /// on hover. Before, "Crop and rotate" after its icon was read "Crop and rotate Crop and rotate".
+    #[test]
+    fn icons_and_pictures_are_not_text() {
+        let page = "# Crop\n\n![Crop and rotate](icon://crop) **Crop and rotate** (C) turns it.\n\n![Crop and rotate](../img/editor-crop.webp)\nThe [link](a.md) stays.\n";
+        let hits = search(&[("crop", page)], "crop and rotate");
+        assert_eq!(hits.len(), 1);
+        assert_eq!(hits[0].excerpt, "Crop and rotate (C) turns it.");
+        assert_eq!(blocks(page).iter().map(|b| b.text.as_str()).collect::<Vec<_>>(), ["Crop", "Crop and rotate (C) turns it.", "The link stays."]);
+        let pics: Vec<_> = images(page).into_iter().map(|r| &page[r]).collect();
+        assert_eq!(pics, ["![Crop and rotate](icon://crop)", "![Crop and rotate](../img/editor-crop.webp)"]);
+        assert!(images("Wow! [not](a.md) ![half").is_empty());
+        assert_eq!(plain("| ![Pen](icon://pen) Pen | P |"), "Pen P");
     }
 
     #[test]

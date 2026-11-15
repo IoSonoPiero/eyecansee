@@ -1,6 +1,6 @@
 # Scorciatoie da tastiera
 
-Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto a ogni voce, e passando sopra un pulsante della barra strumenti compaiono il nome e il tasto. Nel visore e nell'editor il pulsante **Tasti** a destra nella barra di stato elenca i tasti di ciò che stai guardando.
+Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto a ogni voce, e passando sopra un pulsante della barra strumenti compaiono il nome e il tasto. Nella griglia, nel visore, nell'editor e in Trova duplicati il pulsante **Tasti** in basso a destra elenca i tasti di ciò che stai guardando.
 
 ## Ovunque
 
@@ -75,7 +75,7 @@ Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositiv
 | Ctrl+S | Salva l'immagine ruotata sopra l'originale |
 | Ctrl+Maiusc+S | Salva come (vedi [Salva come](save-as.md)) |
 | Ctrl+E | Modifica immagine |
-| Ctrl+C, Ctrl+X | Copia o taglia l'immagine mostrata, per incollarla in una cartella |
+| Ctrl+C, Ctrl+X | Copia o taglia l'immagine mostrata, per incollarla in una cartella dalla griglia (nel visore Ctrl+V non fa niente) |
 | F2, Canc, Maiusc+Canc | Rinomina ed elimina, come nella griglia |
 
 La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della finestra; Ctrl con la rotellina ingrandisce sempre, anche quando la rotellina è impostata per cambiare immagine (vedi [Opzioni](options.md)).
@@ -88,6 +88,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | Ctrl+←, Ctrl+→ | 5 secondi indietro, avanti |
 | ↑, ↓ (o la rotellina sul video) | Alza, abbassa il volume |
 | M | Toglie e rimette l'audio |
+| Ctrl+Maiusc+S | Mette in pausa e salva come immagine il fotogramma mostrato (vedi [Riprodurre i video](video.md)) |
 | →, Pagina giù | Elemento successivo |
 | ←, Backspace, Pagina su | Elemento precedente |
 | Inizio, Fine | Primo, ultimo elemento |
@@ -101,6 +102,8 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | Maiusc e trascinare, o trascinare col tasto centrale | Sposta il modello nella finestra |
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |
 | 0 | Torna alla vista iniziale |
+| M | Misura: ingombro, superficie, volume e la distanza tra due punti cliccati |
+| S | Sezione: taglia il modello con un piano (X, Y, Z l'asse; Alt+rotellina, virgola e punto lo spostano; F l'altro lato) |
 | Pagina giù, Spazio | Elemento successivo |
 | Pagina su, Backspace | Elemento precedente |
 | Ctrl+Maiusc+S | Salva il modello come si vede, come immagine (Ctrl+S, che salva sopra l'originale, su un modello è grigio) |
@@ -114,6 +117,9 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | 0 | Tutto il disegno |
 | ←, → | File precedente, successivo |
 | L, Maiusc+L | Layout successivo, precedente |
+| Ctrl+L | Riquadro dei livelli |
+| M | Misura (poi D distanza, A area, G angolo; Invio chiude un'area, Backspace toglie l'ultimo punto, Esc cancella) |
+| N, Maiusc+N | Modifica successiva, precedente, confrontando due disegni |
 | Ctrl+Maiusc+S | Salva il disegno come immagine |
 | Esc | Torna alla griglia |
 

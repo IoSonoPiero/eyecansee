@@ -240,6 +240,16 @@ meta-camera = Camera
 meta-shot = Shot
 meta-image = Image
 meta-gps = Location
+meta-drawing = Drawing
+cad-props-none = No properties or title block in this drawing
+cad-prop-title = Title
+cad-prop-subject = Subject
+cad-prop-author = Author
+cad-prop-keywords = Keywords
+cad-prop-comments = Comments
+cad-prop-revision = Revision number
+cad-prop-saved-by = Last saved by
+cad-title-block = Title block
 meta-make = Make
 meta-model = Model
 meta-lens = Lens
@@ -273,6 +283,21 @@ meta-gps-date = GPS date
 meta-speed-avg = Average speed
 meta-speed-max = Top speed
 meta-coords = Coordinates
+meta-info = Description
+meta-xmp-title = Title
+meta-xmp-caption = Caption
+meta-xmp-keywords = Keywords
+meta-xmp-rating = Rating
+meta-xmp-rejected = Rejected
+meta-xmp-label = Label
+meta-xmp-creator = Author
+meta-xmp-rights = Copyright
+meta-xmp-sidecar = XMP file
+meta-label-red = Red
+meta-label-yellow = Yellow
+meta-label-green = Green
+meta-label-blue = Blue
+meta-label-purple = Purple
 meta-map = Open on the map
 meta-close = Close (reopen it from View or with the ℹ button)
 meta-none-selected = Select an image
@@ -366,6 +391,8 @@ opt-under-date = Date
 opt-under-date-hint = When the photo was taken, if the file says so; otherwise when the file was modified. With the mouse over the date, a tip says which one it is.
 opt-under-duration = Duration
 opt-under-duration-hint = Of videos and audio files, beside the date. Read once from each file and kept with its thumbnail.
+opt-under-drawing = Drawing number and revision
+opt-under-drawing-hint = Of DWG and DXF drawings, before the size: from the title block (attributes such as DWG_NO or NUMBER, and REV), otherwise from the drawing's title and revision number. Read once from each drawing and kept with its thumbnail.
 thumb-pixels = { $w } × { $h }
 thumb-taken-on = Taken on { $date }
 thumb-recorded-on = Recorded on { $date }
@@ -415,6 +442,7 @@ convert-calculating = Working out the size…
 convert-error = Cannot convert: { $detail }
 convert-actual = 100% (drag the images to move around)
 convert-pixels = { $w } × { $h } pixels
+convert-frame-at = frame at { $time }
 convert-turned = { $turn ->
     [cw] rotated 90° clockwise in the viewer
     [half] rotated 180° in the viewer
@@ -426,8 +454,53 @@ convert-turned = { $turn ->
 }
 model-triangles = { $n } triangles
 # The keys of the viewer, under the status bar.
-hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | ← →: previous, next | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
-hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift+L: next, previous layout | ← →: previous, next file | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
+hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | Ctrl+L: layers | M: measure | N, Shift+N: next, previous change of a comparison | ← →: previous, next | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
+hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift+L: next, previous layout | Ctrl+L: layers | M: measure | N, Shift+N: next, previous change of a comparison | ← →: previous, next file | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
+menu-layers = Layers of the drawing
+key-layers = Ctrl+L
+cad-layers-title = Layers
+cad-layers-close = Close the layers panel (Ctrl+L)
+cad-layers-off = Only for a DWG or DXF drawing open in the viewer, with something drawn on its layers
+cad-layers-count = { $shown } of { $total } shown
+cad-layers-search = Search
+cad-layers-all-on = All on
+cad-layers-all-off = All off
+cad-layers-all-hint = The layers listed: all of them, or those found by the search
+cad-layers-none = No layer with this name
+menu-measure = Measure
+menu-compare = Compare drawings
+compare-off = Choose two CAD drawings in the grid to compare them
+compare-reading = Comparing the drawings…
+compare-failed = The drawings could not be compared: { $error }
+compare-both = In both
+compare-only = Only in { $name }
+compare-status = Compared with { $name }: { $n ->
+    [one] 1 change
+   *[other] { $n } changes
+} (N: next)
+compare-units = ⚠ Different units: { $first } in { $a }, { $second } in { $b }. Compared as they are, not converted.
+compare-no-unit = no unit
+measure-off = Only for a CAD drawing or a 3D model in the viewer
+measure-title = Measure
+measure-distance = Distance
+measure-area = Area
+measure-angle = Angle
+measure-perimeter = Perimeter
+measure-hint-distance = click two points; they snap to ends, middles, centres and crossings · D, A, G: distance, area, angle · Esc: clear
+measure-hint-area = click the corners; Enter or a double click closes the shape · D, A, G: distance, area, angle · Esc: clear
+measure-hint-angle = click a point, the corner, then a point on the other side · D, A, G: distance, area, angle · Esc: clear
+measure-hint-3d = click two points on the model for their distance · Esc: clear
+measure-measuring = Measuring the model…
+measure-size = Size (X × Y × Z)
+measure-surface = Surface
+measure-volume = Volume
+measure-open = none: the model is not closed ({ $n } open edges)
+measure-no-unit = the file does not say its unit
+measure-copy = Copy
+section-title = Section
+section-flip = Other side
+section-keys = Alt+wheel, comma, full stop: move · X, Y, Z: axis · F: other side · S: off
+section-open = not filled: the model is not closed
 cad-model = Model
 cad-units = units
 keys-button = Keys
@@ -442,24 +515,26 @@ model-export-count = { $n ->
 model-export-format = Format:
 model-export-where = Each copy goes next to its model, with the same name; a name already taken gets " (2)".
 model-export-ok = Export
-hint-model = Arrows or drag: turn | Shift+drag: move | Wheel, + and −: zoom | 0: starting view | Page Up, Page Down: previous, next | Ctrl+S: save as an image | F11: full screen | Esc: back
-hint-edit-select = Click: select an object | Drag: move it | Drag a corner or an end: resize (Shift: a box keeps its proportions; a pasted piece keeps them, Shift frees them) | Drag the round handle above a pasted piece: rotate it (Shift: 15° at a time) | Double click on a text or bubble: change its letters | Del: delete | Ctrl+C: copy the result | Esc: let go of the object
+hint-model = Arrows or drag: turn | Shift+drag: move | Wheel, + and −: zoom | 0: starting view | M: measure | S: section | Page Up, Page Down: previous, next | Ctrl+S: save as an image | F11: full screen | Esc: back
+hint-edit-select = Click: select an object | Drag: move it | Drag a corner or an end: resize (Shift: a box keeps its proportions; a pasted piece keeps them, Shift frees them) | Drag the round handle above the object: rotate it (Shift: 15° at a time) | Double click on a text or bubble: change its letters | Del: delete | Ctrl+C: copy the result | Esc: let go of the object
 hint-edit-marquee = Drag: choose a part | Shift+drag: a square | Ctrl+C: copy the part | Ctrl+X: cut it | Ctrl+V: paste as an object | Click or Esc: let go of the part
 hint-edit-arrow = Drag: draw | Drag the middle point: bend | Drag an end: move it | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
 hint-edit-line = Drag: draw | Drag the middle point: bend | Drag an end: move it | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
 hint-edit-pen = Drag: draw | Drag a corner: stretch | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-rect = Drag: draw | Shift+drag: a square | Drag a corner: resize (Shift: same proportions) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-ellipse = Drag: draw | Shift+drag: a circle | Drag a corner: resize (Shift: same proportions) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-highlight = Drag: highlight | Shift+drag: a square | Drag a corner: resize (Shift: same proportions) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-spotlight = Drag: light a part | Shift+drag: a square or a circle | Drag a corner: resize (Shift: same proportions) | Del: delete | Esc: let go
-hint-edit-text = Click: put a text, then type it | Enter: new line | Double click on a text: change it | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete (outside the field) | Esc: end the text
-hint-edit-bubble = Drag: draw a bubble, then type its text | Enter: new line | Drag the end of the tail: point it | Drag a corner: resize (Shift: same proportions) | Double click: change the text | Del: delete | Esc: end the text
+hint-edit-rect = Drag: draw | Shift+drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
+hint-edit-ellipse = Drag: draw | Shift+drag: a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
+hint-edit-highlight = Drag: highlight | Shift+drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
+hint-edit-spotlight = Drag: light a part | Shift+drag: a square or a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | Del: delete | Esc: let go
+hint-edit-text = Click: put a text, then type it | Enter: new line | Double click on a text: change it | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete (outside the field) | Esc: end the text
+hint-edit-bubble = Drag: draw a bubble, then type its text | Enter: new line | Drag the end of the tail: point it | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | Double click: change the text | Del: delete | Esc: end the text
 hint-edit-step = Click: next number | Drag a corner: resize (Shift: same proportions) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-stamp = Click: put the stamp | Drag a corner: resize (Shift: same proportions) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
-hint-edit-lens = Drag: draw a magnifier | Shift+drag: a square or a circle | Drag a corner: resize (Shift: same proportions) | Del: delete | Esc: let go
-hint-edit-cover = Drag: cover | Shift+drag: a square | Drag a corner: resize (Shift: same proportions) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
+hint-edit-stamp = Click: put the stamp | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
+hint-edit-lens = Drag: draw a magnifier | Shift+drag: a square or a circle | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | Del: delete | Esc: let go
+hint-edit-cover = Drag: cover | Shift+drag: a square | Drag a corner: resize (Shift: same proportions) | Drag the round handle: rotate (Shift: 15° at a time) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
 hint-edit-crop = Drag a side or corner: crop | Drag inside: move the crop | Shift+wheel: turn by 0.1° | Ctrl+R, Ctrl+Shift+R: turn right, left | Enter: apply | Esc: close
 hint-image = →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Space on an animation: pause and play | Space on a motion photo: play its video | Page Down, Page Up on a TIFF with pages: next, previous page | Wheel, + and −: zoom | Drag: move a zoomed image | 0: fit the window | 1: 100% | Ctrl+R, Ctrl+Shift+R: turn right, left | Ctrl+E: edit image | Ctrl+S, Ctrl+Shift+S: save, save as | F2: rename | Del: delete | F11: full screen | Esc: back
+hint-grid = Arrows: move | Shift+arrows: extend the selection | Home, End: first, last | Enter: open | Backspace: parent folder | Ctrl+A: select all | Tab, Shift+Tab: next, previous item | Ctrl+C, Ctrl+X, Ctrl+V: copy, cut, paste | F2: rename | Ctrl+Shift+N: new folder | Del: delete | Shift+Del: delete for good | Ctrl+R, Ctrl+Shift+R: turn right, left | Ctrl+E: edit image | Ctrl+B: convert | Ctrl+D: find duplicates | Ctrl+N: new image | Ctrl+Shift+D: bookmarks | F5: read the folder again | Shift+F5: thumbnails again | F11: full screen | F1: guide
+hint-dup = ↑ ↓: move between the copies | Space: tick or untick the copy | Click on a picture: open it in the viewer | Esc: close (Enter does not delete)
 hint-video = Space: pause and play | Ctrl+← →: 5 seconds back, forward | ↑ ↓, wheel: volume | M: audio off and on | →, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | F2: rename | Del: delete | F11: full screen | Esc: back
 cad-engine-title = CAD engine
 cad-engine-ask = To open STEP, IGES and BREP models of CAD programs EyeCanSee needs the CAD engine (Open CASCADE), downloaded once: { $size }.
@@ -475,6 +550,11 @@ convert-speed-hint = Slower makes a smaller file of the same quality.
 convert-lossless = Lossless: the same pixels as the original.
 convert-gif = At most 256 colours.
 convert-keep-meta = Keep the metadata (EXIF, XMP, IPTC, colour profile)
+meta-keep = Metadata
+meta-keep-hint = What the new file keeps of the original's metadata. "All but the place" leaves out the GPS position and the city, state and country, for a photo to share; "None" keeps only the colour profile, which the picture needs to look right.
+meta-keep-all = All (EXIF, XMP, IPTC, colour profile)
+meta-keep-no-place = All but the place (no GPS position)
+meta-keep-nothing = None (only the colour profile)
 convert-keep-density = Keep the metadata (resolution only)
 convert-ultra-hdr-lost = This photo is Ultra HDR: it keeps its HDR only in JPEG with the metadata.
 convert-first-only = This image is animated or has several pages: only the picture shown is saved.
@@ -484,6 +564,7 @@ convert-meta-density-only = This format keeps only the resolution (dpi), when th
 convert-folder = Folder
 convert-name = File name
 convert-save = Save
+convert-cancel = Cancel
 convert-exists = An item with this name already exists: it will be saved as { $name }.
 convert-saved-elsewhere-title = Image saved
 convert-saved-elsewhere = Saved as **{ $path }**.
@@ -740,6 +821,10 @@ edit-margin = Margin
 edit-corners = Corners
 menu-new-image = New image…
 key-new-image = Ctrl+N
+menu-open-clipboard = Open from clipboard
+clip-open-name = Pasted image
+clip-open-title = Open from clipboard
+clip-open-none = The clipboard has no image. Copy one in another program first (a screenshot, a picture from a web page), then choose Open from clipboard again.
 new-title = New image
 new-name = New image
 new-size = Size
@@ -787,7 +872,7 @@ edit-solid = Solid
 edit-dashed = Dashed
 edit-dotted = Dotted
 edit-delete = Delete
-edit-patch-turn-hint = Its angle on the screen. You can also drag the round handle above the piece; hold Shift to turn it 15° at a time.
+edit-turn-hint = Its angle on the screen. You can also drag the round handle above it; hold Shift to turn it 15° at a time.
 edit-patch-ccw = Rotate the piece 90° anticlockwise
 edit-patch-cw = Rotate the piece 90° clockwise
 edit-patch-flip-h = Flip the piece horizontally
@@ -809,6 +894,7 @@ edit-save-confirm = A copy of **{ $name }** is saved next to it as **{ $copy }**
 edit-loss-lossy = The copy is **encoded again** and may lose a little quality.
 edit-loss-8bit = The copy has **8 bits per colour**, the original more: the original stays as it is, for what needs them.
 edit-loss-hdr = The copy is a 16-bit PNG: what is **brighter than white** in the original is cut.
+edit-loss-ultra-hdr = Without metadata the copy is no longer **Ultra HDR**: nothing holds its HDR part.
 edit-overwrite-trash = **{ $name }** is replaced by the edited image.
 
     The original goes **to the trash**.
@@ -818,6 +904,7 @@ edit-overwrite-folder = **{ $name }** is replaced by the edited image.
 edit-over-loss-lossy = The new file is **encoded again** and may lose a little quality.
 edit-over-loss-8bit = The new file has **8 bits per colour**, the original more.
 edit-over-loss-hdr = The new file has 16 bits per colour: what is **brighter than white** in the original is cut.
+edit-over-loss-ultra-hdr = Without metadata the new file is no longer **Ultra HDR**: nothing holds its HDR part.
 edit-leave = The changes to **{ $name }** are not saved.
 
     { "**" }Save** makes a copy next to the original, **Save as…** a new file where you choose, **Don't save** loses them.
@@ -836,6 +923,7 @@ key-rotate-ccw = Ctrl+Shift+R
 menu-save = Save
 key-save = Ctrl+S
 menu-save-copy = Save as…
+menu-save-frame = Save frame as…
 key-save-copy = Ctrl+Shift+S
 save-confirm-trash = Save the changes over **{ $name }**?
 
@@ -1200,17 +1288,63 @@ batch-start = Convert
 batch-working = Converting
 batch-counts = { $n } of { $total } files
 batch-stopping = Stopping…
-batch-result = { $n ->
-    [0] No file was saved in { $folder }.
-    [one] **1 file** was saved in { $folder }.
-   *[other] **{ $n } files** were saved in { $folder }.
-}
-batch-cancelled = Stopped after { $n } of { $total } files.
-batch-left-out = Left out:
 batch-left-out-kind = { $n ->
     [one] 1 file chosen is left out: this entry does not work on its kind.
    *[other] { $n } files chosen are left out: this entry does not work on their kind.
 }
+summary-saved = { $n ->
+    [one] **1 file** saved in { $folder }.
+   *[other] **{ $n } files** saved in { $folder }.
+}
+summary-left-out = { $n ->
+    [one] **1 file** left out.
+   *[other] **{ $n } files** left out.
+}
+summary-not-done = { $n ->
+    [one] **1 file** not done: the work was stopped.
+   *[other] **{ $n } files** not done: the work was stopped.
+}
+summary-nothing = No file was saved.
+summary-took = It took { $time }.
+summary-sizes = Size: { $before } before, { $after } after ({ $percent }%).
+summary-kind = { $n ->
+    [one] 1 file of a kind this command does not work on:
+   *[other] { $n } files of a kind this command does not work on:
+}
+summary-format = { $n ->
+    [one] 1 file in a format EyeCanSee cannot write; choose another format:
+   *[other] { $n } files in a format EyeCanSee cannot write; choose another format:
+}
+summary-format-preset = { $n ->
+    [one] 1 file in a format EyeCanSee cannot write; Resize > Custom… can save it in another one:
+   *[other] { $n } files in a format EyeCanSee cannot write; Resize > Custom… can save them in another one:
+}
+summary-same-size = { $n ->
+    [one] 1 file already of this size, or smaller and not enlarged:
+   *[other] { $n } files already of this size, or smaller and not enlarged:
+}
+summary-inside = { $n ->
+    [one] 1 file animated or with several pages, which the new file would not hold:
+   *[other] { $n } files animated or with several pages, which the new files would not hold:
+}
+summary-no-ffmpeg = { $n ->
+    [one] 1 video or audio file, and FFmpeg is missing:
+   *[other] { $n } videos or audio files, and FFmpeg is missing:
+}
+summary-not-autocad = { $n ->
+    [one] 1 drawing that is not an AutoCAD drawing (DWG or DXF):
+   *[other] { $n } drawings that are not AutoCAD drawings (DWG or DXF):
+}
+summary-would-lose = { $n ->
+    [one] 1 drawing that would lose a part in the other format:
+   *[other] { $n } drawings that would lose a part in the other format:
+}
+summary-errors = { $n ->
+    [one] 1 error:
+   *[other] { $n } errors:
+}
+summary-open-folder = Open the folder
+summary-open-covered = Close the page in front first: the thumbnails are under it.
 drawing-title = Export drawing
 drawing-start = Export
 drawing-side = Long side
@@ -1356,7 +1490,8 @@ off-no-file = Select one or more files first.
 off-save-model = A 3D model is not saved over its file: Save as… makes a picture of it, Export as a 3D model a copy in another 3D format.
 off-save-drawing = A CAD drawing is not saved over its file: Save as… makes a picture of the layout shown, Export drawing… a copy as a picture, SVG, DWG or DXF.
 off-save-played = Nothing to save: rotate the video first; audio files are not changed in the viewer.
-off-save-as-played = Save as… is for pictures: videos and audio files are converted with Convert… in the grid.
+off-save-as-played = Save as… is for pictures and for the frames of videos: audio files are converted with Convert… in the grid.
+off-save-frame-wait = The frame can be saved once the video has opened in the viewer.
 off-trash-clip = Items in the trash cannot be cut or copied: restore them first.
 off-trash-rename = Items in the trash cannot be renamed: restore them first.
 off-trash-change = A file in the trash cannot be changed or saved: restore it first.
@@ -1502,7 +1637,7 @@ tip-models-title = 3D models and CAD drawings
 tip-models-text =
     3D models (STL, OBJ, glTF, FBX, IFC, STEP and more) and CAD drawings (DWG, DXF) appear in the grid with a picture of them, and open in the viewer.
 
-    Drag or use the arrows to turn a model, the mouse wheel to zoom; a drawing moves with a drag.
+    Drag or use the arrows to turn a model, the mouse wheel to zoom; a drawing moves with a drag, and **Ctrl+L** turns its layers on and off. **M** measures both.
 tip-duplicates-title = Find duplicates
 tip-duplicates-text = **Tools > Find duplicates…** (**Ctrl+D**) finds the files that are exactly the same, also under another name or in another folder, on the computer, a disk, a phone or a server. You choose the copies to delete; one always stays.
 tip-trash-title = Deleted by mistake?

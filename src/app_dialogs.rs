@@ -307,6 +307,7 @@ fn thumbnails_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, confirm: &mu
     ui.checkbox(&mut d.size, t("opt-under-size"));
     ui.checkbox(&mut d.date, t("opt-under-date")).on_hover_text(t("opt-under-date-hint"));
     ui.checkbox(&mut d.duration, t("opt-under-duration")).on_hover_text(t("opt-under-duration-hint"));
+    ui.checkbox(&mut d.drawing, t("opt-under-drawing")).on_hover_text(t("opt-under-drawing-hint"));
     ui.add_space(6.0);
     ui.separator();
     ui.checkbox(&mut s.thumb_maintenance, t("opt-cache-maintenance")).on_hover_text(t("opt-cache-maintenance-hint"));

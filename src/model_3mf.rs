@@ -54,7 +54,9 @@ pub fn read(bytes: &[u8]) -> Result<Mesh, String> {
         let path = item.attribute_local("path").unwrap_or(&main).to_string();
         place(&mut b, &mut files, &main, &model, &path, id, &transform(item), 0)?;
     }
-    b.finish(true)
+    let mut mesh = b.finish(true)?;
+    mesh.unit = crate::model::named_unit(doc.root_element().attribute("unit"));
+    Ok(mesh)
 }
 
 /// The text files of the zip, read once.

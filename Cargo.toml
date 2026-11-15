@@ -23,6 +23,9 @@ test-copy = []
 rpm = []
 
 [dependencies]
+# File > Open from clipboard (clip_open.rs): the image another program copied, read when the menu
+# asks; already built for eframe (egui-winit's Ctrl+V), with the same features.
+arboard = { version = "3.7.0", default-features = false, features = ["image-data"] }
 bytes = "1.12.1"
 eframe = "0.37.0"
 # 🗀 and 🖴 icons from the bundled fonts: without it egui looks for them in system fonts (Windows lacks them).
@@ -120,6 +123,10 @@ ifc-lite-processing = "27.1.0"
 ufbx = "0.11.5"
 # Texts of VRML and X3D models turned into triangles (model_text.rs); already built for ifc-lite.
 earcutr = "0.5.0"
+
+[dev-dependencies]
+# A store that is not on this computer, like a phone or a server, in the tests (ffmpeg_files.rs).
+opendal = { version = "0.59.5", default-features = false, features = ["services-memory"] }
 
 [target."cfg(windows)".dependencies]
 # Drives (C:, D:, …): type, label and bus (USB/SD = external) for "This computer" and Devices.

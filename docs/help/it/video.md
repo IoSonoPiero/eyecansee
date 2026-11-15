@@ -13,6 +13,12 @@ Fai doppio clic su un video, oppure selezionalo e premi **Invio**: si apre nel v
 - **Ctrl+←** e **Ctrl+→** vanno indietro e avanti di 5 secondi.
 - Alla fine resta l'ultimo fotogramma; facendo ripartire il video, riparte dall'inizio.
 
+## Salvare un fotogramma come immagine
+
+**Ctrl+Maiusc+S**, ![Salva il fotogramma come…](icon://file-output) **Salva il fotogramma come…** nella barra strumenti, o la stessa voce nel menù File e nel menù del clic destro, mettono in pausa il video e aprono [Salva come](save-as.md) con il fotogramma mostrato, alle dimensioni del video e ruotato come lo vedi. Lì scegli formato, opzioni e nome; il nome proposto è quello del video con il tempo del fotogramma (per esempio `clip 1m02s345.jpg`). Dopo il salvataggio il visore resta sul video, in pausa.
+
+Con **Mantieni i metadati** l'immagine tiene ciò che il video dice di sé: la fotocamera, la data e l'ora di quel fotogramma e il luogo: la traccia della dashcam in quel momento, la posizione scritta nel video o il punto di partenza di un drone.
+
 ## Audio
 
 I comandi dell'audio sono a destra della barra: ![Silenzia](icon://volume-2) toglie l'audio e ![Riattiva l'audio](icon://volume-x) lo rimette, e il cursore regola il volume da 0 a 100.
@@ -30,7 +36,7 @@ Volume e audio spento restano per i video successivi e alla prossima apertura di
 | ←, Backspace, Pag↑ | File precedente |
 | Inizio, Fine | Primo, ultimo file |
 | Esc, doppio clic | Torna alla griglia |
-| F11 | Schermo intero: solo il video |
+| F11 | Schermo intero: solo il video, con la sua barra sopra l'immagine finché si muove il mouse |
 
 **F2** rinomina il video e **Canc** lo elimina, come per le foto. Il pulsante **Tasti** nella barra di stato elenca questi tasti.
 
@@ -47,6 +53,6 @@ Fino ad allora la miniatura di un video è l'anteprima salvata dalla videocamera
 ## Da sapere
 
 - I video su un telefono o su un server si leggono un pezzo alla volta mentre scorrono, anche da un telefono su Windows. Solo un telefono che non permette di saltare in mezzo a un file (Windows se ne accorge alla prima lettura lenta) ha i video copiati tutti prima, con una barra che mostra quanto ne è stato letto.
-- Ruotare, salvare e modificare nel visore valgono per le foto. Per ruotare, rimpicciolire o convertire un video usa [Convertire i video](convert-video.md).
+- Modificare nel visore vale per le foto; di un video, Salva come… salva il fotogramma mostrato. Per ruotare, rimpicciolire o convertire un video usa [Convertire i video](convert-video.md).
 - Il pannello dei metadati mostra i dati di un video selezionato: vedi [Informazioni sul file](metadata.md).
 - Quali formati si riproducono: vedi [Formati supportati](formats.md).

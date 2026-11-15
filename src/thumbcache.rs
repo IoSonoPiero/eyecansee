@@ -386,7 +386,7 @@ mod tests {
         use crate::thumb_details::Info;
         let source = format!("test-info-{}://", std::process::id());
         let file = File { path: "b.jpg".into(), size: 20, modified: "yesterday".into() };
-        let info = Info { pixels: Some([3000, 4000]), taken: Some("2026-11-14 21:00:00".into()), duration: None };
+        let info = Info { pixels: Some([3000, 4000]), taken: Some("2026-11-14 21:00:00".into()), duration: None, drawing: None };
         save_info(&source, &file, &info);
         let mut back = None;
         for _ in 0..100 {

@@ -2,7 +2,7 @@
 //! is an object over a part of the photo (or all of it), under the objects drawn: the preview is
 //! made from the photo at a smaller size, the saved file at full size (`edit::save`).
 
-use image::{DynamicImage, GenericImageView, Rgba};
+use image::{DynamicImage, GenericImageView, ImageBuffer, Rgba};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum Filter {
@@ -61,14 +61,14 @@ impl Filter {
 pub fn apply(img: &DynamicImage, f: Filter, amount: f32, scale: f32) -> DynamicImage {
     let px = if f.in_pixels() { (amount * scale).max(0.5) } else { amount };
     match f {
-        Filter::Blur => img.blur(px),
-        Filter::Pixelate => {
-            let (w, h) = img.dimensions();
+        Filter::Blur => mixing(img, |i| i.blur(px)),
+        Filter::Pixelate => mixing(img, |i| {
+            let (w, h) = i.dimensions();
             let block = px.max(1.0);
-            let small = img.resize_exact(((w as f32 / block).ceil() as u32).max(1), ((h as f32 / block).ceil() as u32).max(1), image::imageops::FilterType::Triangle);
+            let small = i.resize_exact(((w as f32 / block).ceil() as u32).max(1), ((h as f32 / block).ceil() as u32).max(1), image::imageops::FilterType::Triangle);
             small.resize_exact(w, h, image::imageops::FilterType::Nearest)
-        }
-        Filter::Sharpen => img.unsharpen(px, 2),
+        }),
+        Filter::Sharpen => mixing(img, |i| i.unsharpen(px, 2)),
         Filter::Gray => like(img.grayscale(), img),
         Filter::Sepia => {
             let mut rgba = img.to_rgba8();
@@ -82,6 +82,60 @@ pub fn apply(img: &DynamicImage, f: Filter, amount: f32, scale: f32) -> DynamicI
         Filter::Brightness => img.brighten((amount * 2.55).round() as i32),
         Filter::Contrast => img.adjust_contrast(amount),
     }
+}
+
+/// Blur, Pixelate and Sharpen mix each pixel with its neighbours. Where some are transparent (the
+/// empty corners of a straightened photo, a transparent PNG) each counts as much as its alpha, so
+/// a transparent one brings in no colour (its black did), and the alpha stays as it was: a filter
+/// changes the colours, never what is transparent. The empty corners stay empty and the edge of
+/// the photo by them opaque, on the screen as in the saved file (the file blurred the edge of the
+/// photo into the corners, see-through there).
+fn mixing(img: &DynamicImage, f: impl Fn(&DynamicImage) -> DynamicImage) -> DynamicImage {
+    fn sized<P: image::Pixel>((w, h): (u32, u32), raw: Vec<P::Subpixel>) -> ImageBuffer<P, Vec<P::Subpixel>> {
+        ImageBuffer::from_raw(w, h, raw).expect("buffer of the right size")
+    }
+    let opaque = match img {
+        DynamicImage::ImageRgba8(b) => b.pixels().all(|p| p[3] == u8::MAX),
+        DynamicImage::ImageRgba16(b) => b.pixels().all(|p| p[3] == u16::MAX),
+        DynamicImage::ImageRgba32F(b) => b.pixels().all(|p| p[3] >= 1.0),
+        _ => true,
+    };
+    if opaque {
+        return f(img);
+    }
+    let (w, h) = img.dimensions();
+    match img {
+        DynamicImage::ImageRgba8(b) => DynamicImage::ImageRgba8(sized((w, h), weighted(b.as_raw(), 255.0, |v| v.round() as u8, |raw| f(&DynamicImage::ImageRgba8(sized((w, h), raw))).to_rgba8().into_raw()))),
+        DynamicImage::ImageRgba16(b) => DynamicImage::ImageRgba16(sized((w, h), weighted(b.as_raw(), 65535.0, |v| v.round() as u16, |raw| f(&DynamicImage::ImageRgba16(sized((w, h), raw))).to_rgba16().into_raw()))),
+        DynamicImage::ImageRgba32F(b) => DynamicImage::ImageRgba32F(sized((w, h), weighted(b.as_raw(), 1.0, |v| v, |raw| f(&DynamicImage::ImageRgba32F(sized((w, h), raw))).to_rgba32f().into_raw()))),
+        _ => f(img),
+    }
+}
+
+/// `f` on the RGBA samples with the colours times their alpha (`max` the largest value, `back`
+/// from a value to a sample), divided again by the alpha it gives back; the alpha of `samples`
+/// kept.
+fn weighted<S: Copy + Into<f32>>(samples: &[S], max: f32, back: fn(f32) -> S, f: impl Fn(Vec<S>) -> Vec<S>) -> Vec<S> {
+    let mut times = samples.to_vec();
+    for p in times.as_chunks_mut::<4>().0 {
+        let a = p[3].into() / max;
+        for v in &mut p[..3] {
+            *v = back((*v).into() * a);
+        }
+    }
+    let out = f(times);
+    let mut kept = samples.to_vec();
+    let top = if max > 1.0 { max } else { f32::MAX };
+    for (p, o) in kept.as_chunks_mut::<4>().0.iter_mut().zip(out.as_chunks::<4>().0) {
+        // A transparent pixel stays as it was, its colour too.
+        let a = o[3].into() / max;
+        if a > 0.0 && p[3].into() > 0.0 {
+            for (v, c) in p[..3].iter_mut().zip(&o[..3]) {
+                *v = back(((*c).into() / a).min(top));
+            }
+        }
+    }
+    kept
 }
 
 /// `out` in the colour type of `like` (grey becomes RGB again; the alpha kept or dropped).

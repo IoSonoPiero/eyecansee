@@ -72,6 +72,8 @@ pub enum Msg {
     EditCopy(ColorImage),
     /// The colour the editor's eyedropper took from the screen (`eyedropper::pick`).
     EditPicked(Result<[u8; 3], String>),
+    /// File > Open from clipboard: the image read, or why there is none (`clip_open`).
+    ClipImage(Result<image::RgbaImage, String>),
     /// An image read by the viewer is animated or has several pages: the editor is off for it.
     Animated(String),
     /// The frames or pages of such an image, to play or turn in the viewer (`frames::read`).
@@ -81,10 +83,12 @@ pub enum Msg {
     /// The image encoded with the options of `generation`, and the encoded file decoded back
     /// (`None`: no decoder for that format in this build).
     Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
-    /// The converted image written: its path, or an error.
-    Saved(Result<String, source::Error>),
+    /// The converted image written: the path asked for, and the path written or an error.
+    Saved(String, Result<String, source::Error>),
     /// A 3D model saved in another 3D format: its path, or why not.
     Exported(Result<String, String>),
+    /// Two CAD drawings compared (`Loader::compare_drawings`).
+    Compared(Result<crate::cad_compare::Compared, String>),
     /// "Save" from the viewer, before the confirmation: the image, the turn, and the file to write
     /// with whether it lost quality (encoded again), or an error (`SKIPPED`: not saveable over itself).
     Prepared(String, crate::transform::Turn, Result<(Arc<Vec<u8>>, bool), source::Error>),
@@ -281,6 +285,7 @@ impl Loader {
     pub fn delete(&self, paths: Vec<String>, how: source::Deletion) {
         let (op, base, tx, ctx) = (self.op.clone(), self.base.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
+            let mut folders = crate::sidecar_follow::Folders::new();
             'all: for path in paths {
                 // Emptying a trash: the folder (if it is there at all), then Android's trashed
                 // files of its folder. The view leaves the trash at the folder's message.
@@ -291,7 +296,7 @@ impl Loader {
                     (false, vec![path])
                 };
                 for (i, path) in items.into_iter().enumerate() {
-                    let r = if i == 0 && missing { Ok(()) } else { op.delete(&path, how).await };
+                    let r = if i == 0 && missing { Ok(()) } else { crate::sidecar_follow::delete(&op, &path, how, &mut folders).await };
                     let failed = r.is_err();
                     if !failed {
                         thumbcache::delete(&base, &path);
@@ -313,7 +318,7 @@ impl Loader {
     pub fn restore(&self, path: String, conflict: source::Conflict) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = op.restore(&path, conflict).await;
+            let r = crate::sidecar_follow::restore(&op, &path, conflict).await;
             let ok = r.is_ok();
             let trash = source::trash_of(&path);
             let _ = tx.send(Msg::Restored(path, r));
@@ -342,7 +347,7 @@ impl Loader {
     pub fn rename(&self, path: String, new_name: String) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = op.rename(&path, &new_name).await;
+            let r = crate::sidecar_follow::rename(&op, &path, &new_name).await;
             let _ = tx.send(Msg::Renamed(path, r));
             ctx.request_repaint();
         });
@@ -364,12 +369,14 @@ impl Loader {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
             let sibling = siblings(op.clone(), path.clone());
+            let sidecar = crate::sidecar::read(&op, &path).await.map(|s| s.xmp);
             let r = match op.read(&path).await {
                 Ok(bytes) => tokio::task::spawn_blocking(move || {
                     if edit && crate::edit::save::animated(&bytes, &path) {
                         return Err(crate::edit_page::ANIMATED.to_string());
                     }
-                    let original = crate::encode::Original::with_meta_of(decode::decode_full_with(&bytes, &path, &sibling)?, &bytes, &path);
+                    let image = decode::decode_full_with(&bytes, &path, &sibling)?;
+                    let original = crate::encode::Original::with_meta_beside(image, &bytes, &path, sidecar.as_deref());
                     // Save in another format writes the picture alone (`Original::alone`); the
                     // editor needs the whole XMP to save a phone photo as it was.
                     let mut original = if edit { original } else { original.alone() };
@@ -416,6 +423,20 @@ impl Loader {
         });
     }
 
+    /// The frame of a paused video (#16), sent by the player to `image`, as the original of
+    /// Save as…, with the video's metadata (`video_frame::original`).
+    pub fn frame_original(&self, path: String, at: f64, image: std::sync::mpsc::Receiver<image::RgbaImage>) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let r = crate::video_frame::original(&op, &path, at, image).await;
+            if let Err(e) = &r {
+                log!("frame of {path:?}: ERROR {e}");
+            }
+            let _ = tx.send(Msg::Original(r));
+            ctx.request_repaint();
+        });
+    }
+
     /// Each model `path` read (with the files next to it) and written to `to` as `kind`, one after
     /// the other (a phone reads one file at a time, and a model can take much memory).
     pub fn export_models(&self, jobs: Vec<(String, String)>, kind: crate::model_export::Kind) {
@@ -439,12 +460,48 @@ impl Loader {
         });
     }
 
+    /// Two CAD drawings read and compared (#143, `cad_compare`), for the viewer; `names` of the
+    /// comparison's three layers.
+    pub fn compare_drawings(&self, paths: [String; 2], names: [String; 3]) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let mut read = Vec::new();
+            for path in &paths {
+                let sibling = siblings(op.clone(), path.clone());
+                let r = match op.read(path).await {
+                    Ok(bytes) => {
+                        let path = path.clone();
+                        tokio::task::spawn_blocking(move || crate::cad::read_with(&bytes, &path, &sibling)).await.unwrap_or_else(|e| Err(e.to_string()))
+                    }
+                    Err((_, detail)) => Err(detail),
+                };
+                match r {
+                    Ok(d) => read.push(Arc::new(d)),
+                    Err(e) => {
+                        let _ = tx.send(Msg::Compared(Err(format!("{}: {e}", crate::source::name(path)))));
+                        ctx.request_repaint();
+                        return;
+                    }
+                }
+            }
+            let (first, second) = (read[0].clone(), read[1].clone());
+            let r = tokio::task::spawn_blocking(move || {
+                let drawing = Arc::new(crate::cad_compare::compare(&first, &second, names));
+                crate::cad_compare::Compared { changes: crate::cad_compare::changes(&drawing), drawing, first, second, paths }
+            })
+            .await
+            .map_err(|e| e.to_string());
+            let _ = tx.send(Msg::Compared(r));
+            ctx.request_repaint();
+        });
+    }
+
     /// A file written whole (an image saved in another format).
     pub fn save(&self, path: String, data: Arc<Vec<u8>>) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = write_whole(&op, &path, data.to_vec()).await.map(|()| path);
-            let _ = tx.send(Msg::Saved(r));
+            let r = write_whole(&op, &path, data.to_vec()).await.map(|()| path.clone());
+            let _ = tx.send(Msg::Saved(path, r));
             ctx.request_repaint();
         });
     }
@@ -575,8 +632,9 @@ impl Loader {
             let meta = if decode::is_played(&path) {
                 video_meta(&op, &path).await
             } else {
+                let sidecar = crate::sidecar::read(&op, &path).await;
                 match op.read(&path).await {
-                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::meta::read_file(&bytes, &path)).await.map_err(|e| e.to_string()),
+                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::meta::read_file_with(&bytes, &path, sidecar.as_ref())).await.map_err(|e| e.to_string()),
                     Err((_, detail)) => Err(detail),
                 }
             };

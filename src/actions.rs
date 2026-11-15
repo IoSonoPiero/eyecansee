@@ -36,6 +36,8 @@ pub(crate) enum Act {
     Rename(Option<String>),
     /// File > New image…: the window of its size and background.
     NewImage,
+    /// File > Open from clipboard: an image copied in another program, in the editor.
+    OpenClipboard,
     /// A new folder in the folder open.
     /// In that folder, or in the folder open.
     NewFolder(Option<String>),
@@ -111,6 +113,12 @@ pub(crate) enum Act {
     Sort(settings::SortBy),
     SortDesc,
     Show(settings::Show),
+    /// View > Layers (Ctrl+L): the layers panel of a CAD drawing, open and closed.
+    Layers,
+    /// View > Measure (M): the Measure tool on a drawing or a model, on and off.
+    Measure,
+    /// Compare drawings: the two CAD drawings chosen in the grid, one over the other (#143).
+    Compare,
 }
 
 /// Image > Transform, as GIMP orders it: flips, then turns. Label and keys (Fluent ids).
@@ -138,6 +146,7 @@ impl Act {
             Act::Rename(_) => Line::Rename,
             Act::NewFolder(_) => Line::NewFolder,
             Act::NewImage => Line::NewImage,
+            Act::OpenClipboard => Line::Paste,
             Act::Convert(_) | Act::ExportModel(..) | Act::ExportDrawings(_) => Line::SaveAs,
             Act::Batch(_) => Line::Batch,
             Act::Duplicates(_) => Line::Duplicates,
@@ -208,7 +217,7 @@ impl App {
         // Full screen in and out. Also smoother on a monitor of the other graphics card of a hybrid
         // laptop: the desktop sends the window to it without composing (measured 2026-11-01).
         if ctx.input(|i| i.key_pressed(Key::F11)) && self.show.is_none() {
-            let full = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+            let full = crate::viewer::full_screen(ctx);
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!full));
         }
         if refresh && shift {
@@ -283,6 +292,7 @@ impl App {
             Act::Rename(path) => self.ask_rename(path),
             Act::NewFolder(dir) => self.ask_new_folder(dir),
             Act::NewImage => self.new_image = Some(crate::new_image::Form::new()),
+            Act::OpenClipboard => self.open_clipboard(ctx),
             Act::Convert(path) => self.open_convert(self.save_as_target(path)),
             Act::ExportModel(path) => self.open_model_export(path),
             Act::Duplicates(dir) => self.open_duplicates(dir),
@@ -327,6 +337,9 @@ impl App {
             Act::Sort(by) => self.set_sort(by, self.settings.sort_desc),
             Act::SortDesc => self.set_sort(self.settings.sort_by, !self.settings.sort_desc),
             Act::Show(show) => self.set_show(show),
+            Act::Layers => self.model.cad.panel = !self.model.cad.panel,
+            Act::Measure => self.toggle_measure(),
+            Act::Compare => self.start_compare(ctx),
         }
     }
 

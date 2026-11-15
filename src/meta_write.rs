@@ -71,17 +71,43 @@ fn data(r: &[u8]) -> Option<&[u8]> {
 pub fn tiff_iptc(irb: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
     let old = iim(irb)?;
     let padded = [old, &[0; 3][..(4 - old.len() % 4) % 4]].concat();
-    let unpadded = (0..4).filter(|&k| old.len() >= k && old[old.len() - k..].iter().all(|&b| b == 0)).map(|k| &old[..old.len() - k]);
-    let current: Vec<[u8; 16]> = unpadded.map(|i| md5::compute(i).0).collect();
     let block = resources(irb)
         .into_iter()
         .flat_map(|(id, r)| match id {
             IPTC => resource(IPTC, &padded),
-            IPTC_DIGEST if data(r).is_some_and(|d| current.iter().any(|c| c[..] == *d)) => resource(IPTC_DIGEST, &md5::compute(&padded).0),
+            IPTC_DIGEST if data(r).is_some_and(|d| digest_current(old, d)) => resource(IPTC_DIGEST, &md5::compute(&padded).0),
             _ => r.to_vec(),
         })
         .collect();
     Some((padded, block))
+}
+
+/// The Photoshop block without the place in its IPTC (#55), the other resources as they were;
+/// the IPTC digest goes with a change (it would say the IPTC was changed by another program).
+/// `None` if nothing is left.
+pub fn irb_without_place(irb: &[u8]) -> Option<Vec<u8>> {
+    let Some(old) = iim(irb) else { return Some(irb.to_vec()) };
+    let new = crate::meta_strip::iim_without_place(old);
+    if new == old {
+        return Some(irb.to_vec());
+    }
+    let kept: Vec<u8> = resources(irb)
+        .into_iter()
+        .flat_map(|(id, r)| match id {
+            IPTC if new.is_empty() => Vec::new(),
+            IPTC => resource(IPTC, &new),
+            IPTC_DIGEST => Vec::new(),
+            _ => r.to_vec(),
+        })
+        .collect();
+    (!kept.is_empty()).then_some(kept)
+}
+
+/// Whether `digest` (the Photoshop resource 1061) is the MD5 of `iim` as it is, or of `iim`
+/// without the up to 3 zeros that pad it in a TIFF (exiftool computes it before padding).
+pub(crate) fn digest_current(iim: &[u8], digest: &[u8]) -> bool {
+    let unpadded = (0..4).filter(|&k| iim.len() >= k && iim[iim.len() - k..].iter().all(|&b| b == 0)).map(|k| &iim[..iim.len() - k]);
+    unpadded.map(|i| md5::compute(i).0).any(|c| c[..] == *digest)
 }
 
 /// A Photoshop block holding only `iim`.
@@ -304,7 +330,7 @@ fn xcf_icc(bytes: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// Photoshop block of a TIFF (34377) with its IPTC (33723), which is often only in the tag.
-fn tiff_irb(bytes: &[u8]) -> Option<Vec<u8>> {
+pub(crate) fn tiff_irb(bytes: &[u8]) -> Option<Vec<u8>> {
     use tiff::tags::Tag;
     let mut d = tiff::decoder::Decoder::new(Cursor::new(bytes)).ok()?;
     let irb = d.get_tag_u8_vec(Tag::Unknown(34377)).ok();
@@ -354,8 +380,8 @@ pub enum Dir {
 
 /// The fields of an EXIF block (as `meta::exif_chunk` writes it) for a TIFF written by the `tiff`
 /// crate: directory, tag, type and value in this machine's byte order. Left out: the tags of the
-/// image data (the encoder writes its own), the directory links (written again) and the maker note,
-/// whose offsets point into the original file.
+/// image data (the encoder writes its own), the directory links (written again) and a maker note
+/// whose offsets point into the original file (`meta::movable_maker_note`).
 pub fn tiff_fields(exif: &[u8]) -> Vec<(Dir, u16, tiff::tags::Type, Vec<u8>)> {
     use exif::{Context, Tag, Value};
     use tiff::tags::Type;
@@ -370,7 +396,7 @@ pub fn tiff_fields(exif: &[u8]) -> Vec<(Dir, u16, tiff::tags::Type, Vec<u8>)> {
         .filter_map(|f| {
             let dir = match f.tag.context() {
                 Context::Tiff if MAIN.contains(&f.tag) => Dir::Main,
-                Context::Exif if ![Tag::MakerNote, Tag::InteropIFDPointer].contains(&f.tag) => Dir::Exif,
+                Context::Exif if f.tag != Tag::InteropIFDPointer && (f.tag != Tag::MakerNote || crate::meta::movable_maker_note(f)) => Dir::Exif,
                 Context::Gps => Dir::Gps,
                 _ => return None,
             };

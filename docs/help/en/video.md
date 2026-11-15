@@ -13,6 +13,12 @@ Double-click a video, or select it and press **Enter**: it opens in the viewer, 
 - **Ctrl+←** and **Ctrl+→** go 5 seconds back and forward.
 - At the end the last frame stays; playing again starts from the beginning.
 
+## Saving a frame as a picture
+
+**Ctrl+Shift+S**, ![Save frame as…](icon://file-output) **Save frame as…** in the toolbar, or the same item in the File menu and in the right-click menu, pause the video and open [Save as](save-as.md) with the frame shown, at the video's own size and turned as you see it. Choose the format, the options and the name there; the name proposed is the video's with the time of the frame (for example `clip 1m02s345.jpg`). Once saved, the viewer stays on the video, paused.
+
+With **Keep the metadata**, the picture keeps what the video says of it: the camera, the date and time of that frame, and the place: a dashcam's track at that moment, the video's own position, or a drone's starting point.
+
 ## Audio
 
 The audio controls are at the right of the bar: ![Audio off](icon://volume-2) turns the audio off and ![Audio on](icon://volume-x) on again, and the slider sets the volume from 0 to 100.
@@ -30,7 +36,7 @@ The volume and the audio off stay for the next videos and the next time EyeCanSe
 | ←, Backspace, Page Up | Previous file |
 | Home, End | First, last file |
 | Esc, double click | Back to the grid |
-| F11 | Full screen: the video alone |
+| F11 | Full screen: the video alone, its bar over the picture while the mouse moves |
 
 **F2** renames the video and **Del** deletes it, as for pictures. The **Keys** button in the status bar lists these keys.
 
@@ -47,6 +53,6 @@ Until then the thumbnail of a video is the preview stored by the camera, when th
 ## Good to know
 
 - Videos on a phone or a server are read a piece at a time while they play, also from a phone on Windows. Only a phone that cannot jump into the middle of a file (Windows notices on the first slow read) has its videos copied whole first, with a bar that shows how much has been read.
-- Turning, saving and editing in the viewer are for pictures. To turn, shrink or convert a video use [Converting videos](convert-video.md).
+- Editing in the viewer is for pictures; of a video, Save as… saves the frame shown. To turn, shrink or convert a video use [Converting videos](convert-video.md).
 - The metadata panel shows the details of a selected video: see [Image information](metadata.md).
 - Which formats play: see [Supported formats](formats.md).
