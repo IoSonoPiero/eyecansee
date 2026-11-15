@@ -140,11 +140,11 @@ mod tests {
         set(&mut file, d);
         assert_eq!(read(&file), Some(d));
         let image = crate::decode::decode_full(&file, "a.jpg").unwrap().resize_exact(32, 24, image::imageops::FilterType::Triangle);
-        let out = crate::ultrahdr::resized(&file, image, Turn::default(), None, &jpeg_options()).unwrap();
+        let out = crate::ultrahdr::resized(&file, image, Turn::default(), None, &jpeg_options(), None).unwrap();
         assert!(crate::ultrahdr::is(&out));
         assert_eq!(read(crate::ultrahdr::split(&out).unwrap().0), Some(d));
         let image = crate::decode::decode_full(&file, "a.jpg").unwrap();
-        let edited = crate::ultrahdr::edited(&file, image, &[], &[], None, crate::meta_strip::Keep::All).unwrap();
+        let edited = crate::ultrahdr::edited(&file, image, &[], &[], None, crate::meta_strip::Keep::All, None).unwrap();
         assert_eq!(read(crate::ultrahdr::split(&edited).unwrap().0), Some(d));
     }
 }

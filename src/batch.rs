@@ -263,7 +263,7 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     if job.format.is_none()
         && job.size == Size::Same
         && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes))
-        && let Ok((data, _)) = crate::save_back::turned_file(bytes, name, job.turn)
+        && let Ok((data, _)) = crate::save_back::turned_file_beside(bytes, name, job.turn, sidecar)
     {
         return Ok((job.named(name.to_string(), false), data));
     }
@@ -304,7 +304,7 @@ fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut:
             None => (name.to_string(), crate::encode::jpeg_quality::like(bytes, Options::default())),
             Some(f) => (with_ext(name, f), Options { format: f, turn: Turn::default(), ..job.options }),
         };
-        return Ok((out, crate::ultrahdr::resized(bytes, image, job.turn, cut, &options).map_err(failed)?));
+        return Ok((out, crate::ultrahdr::resized(bytes, image, job.turn, cut, &options, sidecar).map_err(failed)?));
     }
     // Encoded again, the file is the picture alone: the XMP of a gain map or a motion photo
     // video it no longer has goes (`Original::alone`).

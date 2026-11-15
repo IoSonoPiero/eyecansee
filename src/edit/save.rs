@@ -68,7 +68,7 @@ pub fn plan_keeping(doc: &Doc, original: &Original, bytes: &[u8], name: &str, wo
     let same = Format::of_file(name);
     let size = photo_size(doc, original);
     if keep == Keep::All && same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes)) {
-        let (data, lossy) = crate::save_back::turned_file(bytes, name, doc.turn)?;
+        let (data, lossy) = crate::save_back::turned_file_beside(bytes, name, doc.turn, original.sidecar.as_deref())?;
         return Ok(Plan { name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept, data: Some(data), hdr_lost: false });
     }
     let hdr = same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes);
@@ -119,7 +119,7 @@ pub fn save_keeping(doc: &Doc, original: &Original, bytes: &[u8], name: &str, (w
     // Flips and quarter turns alone: as the viewer's Save, a JPEG without re-encoding when its
     // size allows it, an Ultra HDR photo still HDR, a Motion Photo with its video.
     if keep == Keep::All && same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes)) {
-        let (data, lossy) = crate::save_back::turned_file(bytes, name, doc.turn)?;
+        let (data, lossy) = crate::save_back::turned_file_beside(bytes, name, doc.turn, original.sidecar.as_deref())?;
         return Ok(Saved { data, name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept });
     }
     let original = super::resize::at_size(original, doc.scale);
@@ -127,7 +127,7 @@ pub fn save_keeping(doc: &Doc, original: &Original, bytes: &[u8], name: &str, (w
     let (float, deep) = (is_float(&o.image), is_deep(&o.image));
     let holes = edited(doc, &original.image, &mut o.image, options);
     if same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes) && keep != Keep::Nothing {
-        let data = crate::ultrahdr::edited(bytes, o.image, &[doc.edit()], &holes, doc.scale.map(|s| (s.w, s.h)), keep)?;
+        let data = crate::ultrahdr::edited(bytes, o.image, &[doc.edit()], &holes, doc.scale.map(|s| (s.w, s.h)), keep, original.sidecar.as_deref())?;
         return Ok(Saved { data, name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept });
     }
     // As `plan` chose it (the confirmation said it before the file was made).

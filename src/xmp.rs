@@ -20,6 +20,7 @@ const PHOTOSHOP: &str = "http://ns.adobe.com/photoshop/1.0/";
 const XMP_NOTE: &str = "http://ns.adobe.com/xmp/note/";
 const GCAMERA: &str = "http://ns.google.com/photos/1.0/camera/";
 const CONTAINER: &str = "http://ns.google.com/photos/1.0/container/";
+const ITEM: &str = "http://ns.google.com/photos/1.0/container/item/";
 const HDRGM: &str = "http://ns.adobe.com/hdr-gain-map/1.0/";
 const IPTC_CORE: &str = "http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/";
 const IPTC_EXT: &str = "http://iptc.org/std/Iptc4xmpExt/2008-02-29/";
@@ -177,6 +178,20 @@ pub fn without_camera_raw(xmp: &[u8], w: u32, h: u32) -> Vec<u8> {
     rewrite(xmp, w, h, &[], How { raw: true, ..How::default() }).unwrap_or_else(|| xmp.to_vec())
 }
 
+/// The XMP of a photo's sidecar (#24) as it joins a copy's: without its Camera Raw settings and
+/// darktable's history (as `without_camera_raw`), and without what describes the parts of a file
+/// (Ultra HDR gain map and container directory, Motion Photo video, as `alone`): the copy's own
+/// XMP says those, never the sidecar.
+pub fn of_sidecar(xmp: &[u8], w: u32, h: u32) -> Vec<u8> {
+    rewrite(xmp, w, h, &[], How { raw: true, alone: true, ..How::default() }).unwrap_or_else(|| xmp.to_vec())
+}
+
+/// The XMP of a photo that is not RAW (`inside`, its own) with its `sidecar` joined as
+/// `with_sidecar` does it, the sidecar's part made as `of_sidecar` says for `w` × `h` pixels.
+pub fn joined(inside: Option<&[u8]>, sidecar: &[u8], w: u32, h: u32) -> Vec<u8> {
+    with_sidecar(inside, &of_sidecar(sidecar, w, h))
+}
+
 /// The XMP of a photo that is not RAW with what its sidecar (#24) says: the sidecar's packet, with
 /// the properties only `inside` (the file's own XMP) has added after it, as digiKam merges them
 /// (the sidecar's values count first). Either one not well-formed: the sidecar as it is.
@@ -287,7 +302,9 @@ fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, how: 
         let value = a.normalized_value(quick_xml::XmlVersion::Implicit1_0).ok()?.into_owned();
         let key = a.key.as_ref().to_string();
         if let Some(binding) = a.key.as_namespace_binding() {
-            if value == CRS && how.raw {
+            // Their declarations go with what they named: a reader of Ultra HDR (Skia) takes the
+            // first description declaring the container's namespaces as the one describing it.
+            if (value == CRS && how.raw) || (how.alone && [CONTAINER, ITEM, HDRGM].contains(&value.as_str())) {
                 changed = true;
                 continue;
             }

@@ -63,7 +63,7 @@ fn jpeg_meta(file: Vec<u8>, b: &Blocks) -> Vec<u8> {
     if let Some(exif) = b.exif.as_deref().filter(|e| e.len() <= 65533 - 6) {
         segment(0xE1, &[b"Exif\0\0", exif]);
     }
-    if let Some(xmp) = b.xmp.as_deref().filter(|x| x.len() <= 65533 - JPEG_XMP.len()) {
+    if let Some(xmp) = b.xmp.as_deref().filter(|x| x.len() <= crate::meta_write::JPEG_XMP_MAX) {
         segment(0xE1, &[JPEG_XMP, xmp]);
         for piece in &b.xmp_ext {
             segment(0xE1, &[JPEG_XMP_EXT, piece]);
