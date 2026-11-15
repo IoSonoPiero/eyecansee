@@ -200,7 +200,7 @@ impl Form {
         let video = v.encoder.filter(|_| self.videos).map(|encoder| Video { container: v.container, encoder, quality: v.quality, audio: v.audio, meta: v.meta });
         let drawing = self.drawing.then_some(self.kept.unwrap_or(Drawn::Side(self.side)));
         let sound = (self.audios && self.sound.ready).then_some(Sound { format: self.sound.format, quality: self.sound.quality });
-        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio, sound, base: String::new(), drawing, tag: String::new(), tag_turned: String::new() }
+        Job { format: self.format, options: self.options, size, filter: self.filter, turn: self.turn(), enlarge: self.enlarge, video, audio: self.audio, sound, base: String::new(), drawing, layers: Default::default(), shown: None, tag: String::new(), tag_turned: String::new() }
     }
 
     /// The job with what the names of the copies of Custom… say (`Job::named`): the size of the
@@ -540,6 +540,7 @@ impl App {
     fn start_batch(&self, w: &mut Window, mut job: Job, to: Dest, ctx: &egui::Context) {
         let Some(loader) = &self.loader else { return };
         job.base = self.base.clone();
+        job.layers = Arc::new(self.cad_layer_choices());
         let p = Arc::new(Progress::default());
         w.progress = Some(p.clone());
         log!("batch: {} images to {:?}, {job:?}", w.paths.len(), w.dest.0);

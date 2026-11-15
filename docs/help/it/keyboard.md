@@ -114,6 +114,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | 0 | Tutto il disegno |
 | ←, → | File precedente, successivo |
 | L, Maiusc+L | Layout successivo, precedente |
+| Ctrl+L | Riquadro dei livelli |
 | Ctrl+Maiusc+S | Salva il disegno come immagine |
 | Esc | Torna alla griglia |
 

@@ -425,8 +425,19 @@ convert-turned = { $turn ->
 }
 model-triangles = { $n } triangoli
 # The keys of the viewer, under the status bar.
-hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | ← →: precedente, successivo | Ctrl+Maiusc+S: salva come immagine | F11: schermo intero | Esc: indietro
-hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | L, Maiusc+L: layout successivo, precedente | ← →: file precedente, successivo | Ctrl+Maiusc+S: salva come immagine | F11: schermo intero | Esc: indietro
+hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | Ctrl+L: livelli | ← →: precedente, successivo | Ctrl+Maiusc+S: salva come immagine | F11: schermo intero | Esc: indietro
+hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | L, Maiusc+L: layout successivo, precedente | Ctrl+L: livelli | ← →: file precedente, successivo | Ctrl+Maiusc+S: salva come immagine | F11: schermo intero | Esc: indietro
+menu-layers = Livelli del disegno
+key-layers = Ctrl+L
+cad-layers-title = Livelli
+cad-layers-close = Chiudi il riquadro dei livelli (Ctrl+L)
+cad-layers-off = Solo per un disegno DWG o DXF aperto nel visore, con qualcosa disegnato sui suoi livelli
+cad-layers-count = { $shown } di { $total } visibili
+cad-layers-search = Cerca
+cad-layers-all-on = Tutti accesi
+cad-layers-all-off = Tutti spenti
+cad-layers-all-hint = I livelli elencati: tutti, o quelli trovati dalla ricerca
+cad-layers-none = Nessun livello con questo nome
 cad-model = Modello
 cad-units = unità
 keys-button = Tasti
@@ -1501,7 +1512,7 @@ tip-models-title = Modelli 3D e disegni CAD
 tip-models-text =
     I modelli 3D (STL, OBJ, glTF, FBX, IFC, STEP e altri) e i disegni CAD (DWG, DXF) compaiono nella griglia con la loro immagine e si aprono nel visore.
 
-    Trascina o usa le frecce per girare un modello, la rotella per ingrandire; un disegno si sposta trascinandolo.
+    Trascina o usa le frecce per girare un modello, la rotella per ingrandire; un disegno si sposta trascinandolo, e **Ctrl+L** ne accende e spegne i livelli.
 tip-duplicates-title = Trovare i duplicati
 tip-duplicates-text = **Strumenti > Trova duplicati…** (**Ctrl+D**) trova i file identici, anche con un altro nome o in un'altra cartella, sul computer, su un disco, su un telefono o su un server. Scegli tu le copie da eliminare; una resta sempre.
 tip-trash-title = Eliminato per sbaglio?

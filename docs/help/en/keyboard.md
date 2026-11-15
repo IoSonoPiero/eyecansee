@@ -114,6 +114,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | 0 | The whole drawing |
 | ←, → | Previous, next file |
 | L, Shift+L | Next, previous layout |
+| Ctrl+L | Layers panel |
 | Ctrl+Shift+S | Save the drawing as an image |
 | Esc | Back to the grid |
 

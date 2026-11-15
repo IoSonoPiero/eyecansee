@@ -2,6 +2,7 @@
 //! the visible part drawn again from the drawing at the screen's size (`decode::cad_render`), in
 //! the background, and laid over the picture: thin lines and small texts stay sharp at any zoom.
 //! L and Shift+L go through the model and the layouts (paper space), drawn when first shown.
+//! With layers turned on or off in the panel (`cad_layers_panel`), the model too is drawn again.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -22,12 +23,16 @@ struct Key {
     sheet: usize,
     region: [i32; 4],
     out: [u32; 2],
+    /// The layers chosen (`State::layers`), by their count of changes.
+    layers: u64,
 }
 
 /// A view drawn in the background: `None` if it could not be.
 type Drawn = (Key, Option<egui::ColorImage>);
-/// A layout drawn in the background (path, sheet): `None` if it could not be.
-type SheetDrawn = ((String, usize), Option<egui::ColorImage>);
+/// A whole sheet: path, sheet (0 the model), layers' count of changes.
+type SheetKey = (String, usize, u64);
+/// A sheet drawn in the background: `None` if it could not be.
+type SheetDrawn = (SheetKey, Option<egui::ColorImage>);
 
 #[derive(Default)]
 pub(crate) struct State {
@@ -42,11 +47,21 @@ pub(crate) struct State {
     done: Arc<Mutex<Option<Drawn>>>,
     /// A view that could not be drawn: not asked for again.
     failed: Option<Key>,
-    /// The sheet shown of the open drawing (0 the model), and the layouts' pictures, drawn when
-    /// first shown (`None` while being drawn).
+    /// The sheet shown of the open drawing (0 the model), and the pictures of the layouts and of
+    /// the model with other layers, drawn when first shown (`None` while being drawn), and the
+    /// one that could not be.
     sheet: (String, usize),
-    sheets: HashMap<(String, usize), Option<TextureHandle>>,
+    sheets: HashMap<SheetKey, Option<TextureHandle>>,
     sheet_done: Arc<Mutex<Option<SheetDrawn>>>,
+    sheet_failed: Option<SheetKey>,
+    /// The layers shown, by drawing, as chosen in the panel during the session, with a count of
+    /// the changes; drawings not here are shown as their file has them.
+    pub(crate) layers: HashMap<String, (u64, Vec<bool>)>,
+    /// The layers panel is open, and what it searches.
+    pub(crate) panel: bool,
+    pub(crate) search: String,
+    /// The sheet shown with the layers chosen, kept while they stay so.
+    chosen: Option<(SheetKey, Arc<Drawing>)>,
 }
 
 impl App {
@@ -54,15 +69,16 @@ impl App {
     /// it once the view stops. Nothing for a turned picture (Image > Transform).
     pub(crate) fn cad_sharpen(&mut self, ui: &egui::Ui, current: usize, tex_size: egui::Vec2, dest: egui::Rect, uv: egui::Rect) {
         let Some(path) = self.files().get(current).map(|f| f.path.clone()) else { return };
-        let Some(drawing) = self.cad_shown(&path) else { return };
         if !self.turn.is_none() {
             return;
         }
+        let Some(drawing) = self.cad_drawn(&path) else { return };
         let sheet = self.cad_sheet(&path);
         let ppp = ui.ctx().pixels_per_point();
         let out = [(dest.width() * ppp).round() as u32, (dest.height() * ppp).round() as u32];
         let r = [uv.min.x * tex_size.x, uv.min.y * tex_size.y, uv.width() * tex_size.x, uv.height() * tex_size.y];
-        let key = Key { path, sheet, region: r.map(|v| v.round() as i32), out };
+        let layers = self.cad_change(&path);
+        let key = Key { path, sheet, region: r.map(|v| v.round() as i32), out, layers };
         let s = &mut self.model.cad;
         if let Some((k, img)) = s.done.lock().unwrap().take() {
             s.job = None;
@@ -92,7 +108,7 @@ impl App {
         };
         // The first view of a drawing or layout at once: its picture, 4096 pixels shown much smaller,
         // has thin lines faded or dotted, and the wait made them noticed.
-        let first = s.sharp.as_ref().is_none_or(|(k, _)| k.path != key.path || k.sheet != key.sheet);
+        let first = s.sharp.as_ref().is_none_or(|(k, _)| k.path != key.path || k.sheet != key.sheet || k.layers != key.layers);
         if (now - since < SETTLE && !first) || s.job.is_some() || out[0] == 0 || out[1] == 0 {
             ui.ctx().request_repaint_after(std::time::Duration::from_secs_f64(SETTLE));
             return;
@@ -115,12 +131,33 @@ impl App {
         if p == path { *i } else { 0 }
     }
 
-    /// The drawing of the sheet shown.
+    /// The drawing of the sheet shown, with the layers of the file.
     fn cad_shown(&self, path: &str) -> Option<Arc<Drawing>> {
         let d = self.model.cad.drawings.get(path)?;
         match self.cad_sheet(path) {
             0 => Some(d.clone()),
             i => d.sheets.get(i - 1).map(|(_, s)| s.clone()),
+        }
+    }
+
+    /// How many times the layers of the drawing were changed in the panel: 0 as in the file.
+    pub(crate) fn cad_change(&self, path: &str) -> u64 {
+        self.model.cad.layers.get(path).map_or(0, |(n, _)| *n)
+    }
+
+    /// The drawing of the sheet shown, with the layers chosen in the panel.
+    fn cad_drawn(&mut self, path: &str) -> Option<Arc<Drawing>> {
+        let shown = self.cad_shown(path)?;
+        let Some((n, on)) = self.model.cad.layers.get(path).map(|(n, on)| (*n, on.clone())) else { return Some(shown) };
+        let key = (path.to_string(), self.cad_sheet(path), n);
+        let s = &mut self.model.cad;
+        match &s.chosen {
+            Some((k, d)) if *k == key => Some(d.clone()),
+            _ => {
+                let d = Arc::new(shown.with_layers(&on));
+                s.chosen = Some((key, d.clone()));
+                Some(d)
+            }
         }
     }
 
@@ -150,8 +187,12 @@ impl App {
         self.files().get(current).and_then(|f| self.model.cad.drawings.get(&f.path)).is_some_and(|d| !d.sheets.is_empty())
     }
 
-    /// L the next sheet, Shift+L the one before; the view starts fitted.
+    /// L the next sheet, Shift+L the one before; the view starts fitted. Ctrl+L the layers.
     pub(crate) fn cad_keys(&mut self, ctx: &egui::Context, current: usize) {
+        // Ctrl+L the layers panel, open and closed.
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::L)) && self.cad_layers_off().is_none() {
+            self.model.cad.panel = !self.model.cad.panel;
+        }
         let Some(path) = self.files().get(current).map(|f| f.path.clone()) else { return };
         let Some(count) = self.model.cad.drawings.get(&path).map(|d| d.sheets.len() + 1).filter(|&n| n > 1) else { return };
         let (next, back) = ctx.input(|i| (i.key_pressed(egui::Key::L) && !i.modifiers.command && !i.modifiers.shift, i.key_pressed(egui::Key::L) && i.modifiers.shift));
@@ -162,43 +203,59 @@ impl App {
         }
     }
 
-    /// A layout is chosen and its picture is still being drawn.
+    /// A layout is chosen and no picture of it is drawn yet.
     pub(crate) fn cad_sheet_waiting(&self, current: usize) -> bool {
         let Some(path) = self.files().get(current).map(|f| f.path.clone()) else { return false };
         let sheet = self.cad_sheet(&path);
-        sheet > 0 && self.model.cad.sheets.get(&(path, sheet)).is_some_and(Option::is_none)
+        sheet > 0 && self.cad_earlier(&(path, sheet, 0)).is_none()
     }
 
-    /// The picture of the sheet shown in place of the model's, drawn in the background the first
-    /// time; `None` for the model, or while it is being drawn.
+    /// The picture of the sheet, with any choice of layers, drawn last: shown while the one with
+    /// the layers chosen now is drawn.
+    fn cad_earlier(&self, key: &SheetKey) -> Option<TextureHandle> {
+        let s = &self.model.cad;
+        s.sheets.iter().filter(|(k, t)| k.0 == key.0 && k.1 == key.1 && t.is_some()).max_by_key(|(k, _)| k.2).and_then(|(_, t)| t.clone())
+    }
+
+    /// The picture of the sheet shown in place of the one the loader read: a layout, or the model
+    /// with the layers chosen in the panel; drawn in the background the first time. `None` for
+    /// the model as in the file, or while the first picture of a layout is being drawn.
     pub(crate) fn cad_sheet_texture(&mut self, ctx: &egui::Context, current: usize) -> Option<TextureHandle> {
         let path = self.files().get(current)?.path.clone();
-        let sheet = self.cad_sheet(&path);
-        if sheet == 0 {
+        let key = (path.clone(), self.cad_sheet(&path), self.cad_change(&path));
+        if (key.1, key.2) == (0, 0) || self.model.cad.sheet_failed.as_ref() == Some(&key) {
             return None;
         }
         let s = &mut self.model.cad;
-        if let Some((key, img)) = s.sheet_done.lock().unwrap().take() {
+        if let Some((done, img)) = s.sheet_done.lock().unwrap().take() {
             match img {
                 Some(img) => {
-                    s.sheets.insert(key.clone(), Some(ctx.load_texture(format!("cad-sheet-{}", key.1), img, egui::TextureOptions::LINEAR)));
+                    let tex = ctx.load_texture(format!("cad-sheet-{}", done.1), img, egui::TextureOptions::LINEAR);
+                    // The pictures with the layers chosen before are no longer needed.
+                    s.sheets.retain(|k, _| k.0 != done.0 || k.1 != done.1 || k.2 >= done.2);
+                    s.sheets.insert(done, Some(tex));
                 }
-                // Not drawn: back to the model.
+                // Not drawn: a layout goes back to the model, the model stays as the file has it.
                 None => {
-                    s.sheets.remove(&key);
-                    s.sheet = (key.0, 0);
+                    s.sheets.remove(&done);
+                    if done.1 > 0 {
+                        s.sheet = (done.0.clone(), 0);
+                    }
+                    s.sheet_failed = Some(done);
                     return None;
                 }
             }
         }
-        let key = (path, sheet);
-        if let Some(tex) = s.sheets.get(&key) {
-            return tex.clone();
+        match s.sheets.get(&key) {
+            Some(Some(tex)) => return Some(tex.clone()),
+            Some(None) => return self.cad_earlier(&key),
+            None => {}
         }
-        let drawing = self.cad_shown(&key.0)?;
+        let drawing = self.cad_drawn(&path)?;
         let s = &mut self.model.cad;
         s.sheets.insert(key.clone(), None);
         let (done, ctx) = (s.sheet_done.clone(), ctx.clone());
+        let earlier = self.cad_earlier(&key);
         std::thread::spawn(move || {
             let img = crate::decode::cad_render(&drawing, crate::decode::CAD_SIDE, None)
                 .ok()
@@ -206,18 +263,19 @@ impl App {
             *done.lock().unwrap() = Some((key, img));
             ctx.request_repaint();
         });
-        None
+        earlier
     }
 }
 
 impl App {
-    /// "Save in another format" from the viewer on a layout: the layout, not the model. `false`
-    /// if the model is shown.
+    /// "Save in another format" from the viewer on a layout, or on a drawing with layers chosen in
+    /// the panel: what is shown. `false` for the model as the file has it.
     pub(crate) fn convert_sheet(&mut self, path: &str) -> bool {
-        if self.viewing.is_none() || self.cad_sheet(path) == 0 {
+        if self.viewing.is_none() || (self.cad_sheet(path) == 0 && self.cad_change(path) == 0) {
             return false;
         }
-        let (Some(drawing), Some(loader)) = (self.cad_shown(path), &self.loader) else { return false };
+        let Some(drawing) = self.cad_drawn(path) else { return false };
+        let Some(loader) = &self.loader else { return false };
         let size = self.files().iter().find(|f| f.path == path).map_or(0, |f| f.size);
         loader.drawing_original(drawing, size);
         true

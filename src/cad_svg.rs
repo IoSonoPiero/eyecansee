@@ -27,13 +27,18 @@ pub(crate) fn text_box(at: P, h: f64, angle: f64, text: &str, anchor: (Anchor, B
 }
 
 impl Drawing {
-    /// Box around what is drawn: lines, and the text positions with an estimate of their size.
+    /// Box around what is shown, or the frame kept while layers are turned on and off.
     pub(crate) fn bounds(&self) -> Option<[f64; 4]> {
+        self.frame.or_else(|| self.bounds_of_shown())
+    }
+
+    /// Box around what is shown: lines, and the text positions with an estimate of their size.
+    pub(crate) fn bounds_of_shown(&self) -> Option<[f64; 4]> {
         let mut b = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
         let mut add = |p: P| {
             b = [b[0].min(p[0]), b[1].min(p[1]), b[2].max(p[0]), b[3].max(p[1])];
         };
-        for item in &self.items {
+        for item in self.shown_items() {
             match item {
                 Item::Line { pts, .. } => pts.iter().filter(|p| !p[0].is_nan()).for_each(|&p| add(p)),
                 Item::Text { at, height, angle, text, anchor, .. } => text_box(*at, *height, *angle, text, *anchor).into_iter().for_each(&mut add),
@@ -58,7 +63,7 @@ impl Drawing {
         let rgb = |c: [u8; 3]| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]);
         let [br, bg, bb] = BACKGROUND;
         let mut out = format!(r##"<svg xmlns="http://www.w3.org/2000/svg" width="{pw}" height="{ph}" viewBox="0 0 {pw} {ph}"><rect width="100%" height="100%" fill="#{br:02x}{bg:02x}{bb:02x}"/><g fill="none" stroke-width="{stroke}" stroke-linejoin="round" stroke-linecap="round" font-family="sans-serif">"##);
-        for item in &self.items {
+        for item in self.shown_items() {
             match item {
                 Item::Line { pts, color, fill, stroke: line } => {
                     let c = rgb(*color);

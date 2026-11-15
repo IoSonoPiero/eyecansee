@@ -109,6 +109,8 @@ pub(crate) enum Act {
     Sort(settings::SortBy),
     SortDesc,
     Show(settings::Show),
+    /// View > Layers (Ctrl+L): the layers panel of a CAD drawing, open and closed.
+    Layers,
 }
 
 /// Image > Transform, as GIMP orders it: flips, then turns. Label and keys (Fluent ids).
@@ -324,6 +326,7 @@ impl App {
             Act::Sort(by) => self.set_sort(by, self.settings.sort_desc),
             Act::SortDesc => self.set_sort(self.settings.sort_by, !self.settings.sort_desc),
             Act::Show(show) => self.set_show(show),
+            Act::Layers => self.model.cad.panel = !self.model.cad.panel,
         }
     }
 

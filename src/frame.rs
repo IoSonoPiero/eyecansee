@@ -119,13 +119,20 @@ impl App {
                     let status = egui::Panel::bottom("viewer-status").frame(bar).show(ui, |ui| self.viewer_status(ui, current));
                     // The keys of the viewer: listed while the button is pointed at, or until it is
                     // clicked again.
-                    if let (Some(button), Some(id)) = (status.inner, self.keys_hint(current)) {
+                    let [keys, layers] = status.inner;
+                    if layers.is_some_and(|b| b.clicked()) {
+                        self.model.cad.panel = !self.model.cad.panel;
+                    }
+                    if let (Some(button), Some(id)) = (keys, self.keys_hint(current)) {
                         if button.clicked() {
                             self.keys_open = !self.keys_open;
                         }
                         if self.keys_open || button.hovered() {
                             self.keys_window(ctx, id, status.response.rect.height());
                         }
+                    }
+                    if self.cad_layers_shown() {
+                        self.cad_layers_panel(ui);
                     }
                     egui::CentralPanel::default()
                         .frame(egui::Frame::central_panel(ui.style()).fill(Color32::from_gray(18)))

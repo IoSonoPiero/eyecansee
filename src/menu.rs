@@ -162,6 +162,9 @@ impl App {
                 pick(act, ui.radio(self.settings.show == show, t(show.label())), Act::Show(show));
             }
         });
+        // A CAD drawing in the viewer: its layers panel.
+        let tick = if self.cad_layers_shown() { "✔ " } else { "" };
+        entry(ui, act, self.cad_layers_off(), item(format!("{tick}{}", t("menu-layers")), t("key-layers")), Act::Layers);
         ui.add_enabled_ui(!viewing, |ui| {
             let r = ui.menu_button((icons::menu_icon(ui, None), t("menu-meta")), |ui| {
                 for g in meta::Group::ALL {
