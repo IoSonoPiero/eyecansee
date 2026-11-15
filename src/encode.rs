@@ -671,6 +671,25 @@ pub(crate) mod tests {
         assert!(text.contains("crs:AlreadyApplied"), "{o:?}: {text}");
     }
 
+    /// A photo's sidecar (#24) follows the metadata choice (#55): its title kept without the
+    /// place, its position and city gone; with nothing, no XMP at all.
+    #[test]
+    fn sidecar_without_the_place() {
+        let side = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:exif="http://ns.adobe.com/exif/1.0/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/"
+ exif:GPSLatitude="40,21.5N" exif:GPSLongitude="18,10.2E" photoshop:City="Lecce">
+<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Sea</rdf:li></rdf:Alt></dc:title></rdf:Description></rdf:RDF></x:xmpmeta>"#;
+        let img = DynamicImage::new_rgb8(8, 8);
+        let jpeg = Original::with_meta(img.clone(), &[]).encode(&Options::default()).unwrap();
+        let original = Original::with_meta_beside(img.clone(), &jpeg, "a.jpg", Some(side.as_bytes()));
+        let xmp = |keep: Keep| Original::with_meta(img.clone(), &original.encode(&Options { meta: keep, ..Options::default() }).unwrap()).xmp.map(|x| String::from_utf8(x).unwrap());
+        let all = xmp(Keep::All).unwrap();
+        assert!(all.contains("GPSLatitude") && all.contains("Lecce") && all.contains("Sea"), "{all}");
+        let shared = xmp(Keep::NoPlace).unwrap();
+        assert!(!shared.contains("GPS") && !shared.contains("Lecce") && shared.contains("Sea"), "{shared}");
+        assert_eq!(xmp(Keep::Nothing), None);
+    }
+
     /// XMP and IPTC of a file written from `every_format`'s original, read back as the program
     /// reads them: sizes of the pixels, no Camera Raw, the author kept; the IPTC without the
     /// thumbnail, or in the XMP where the format has no IPTC (WebP, AVIF).
