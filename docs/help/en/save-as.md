@@ -60,7 +60,7 @@ Opened from the viewer, the viewer then shows the new file, already turned or fl
 - Only JPEG, PNG, WebP, AVIF and TIFF can hold metadata. BMP holds only the resolution: with BMP the box reads **Keep the metadata (resolution only)** and can be changed when the original has a resolution. With another format, or when the original has none, the box is greyed out; pointing at it says why.
 - The **resolution** (for example the 600 dpi of a scan) is part of the metadata: without **Keep the metadata** the file is saved without it, also when the original has nothing else.
 - The orientation is set to upright, since the saved pixels are already turned, and the sizes written inside are those of the new image.
-- Left out: the small previews that cameras store inside the file, the Lightroom and Camera Raw settings, and the video of a motion photo, which the new file does not have.
+- Left out: the small previews that cameras store inside the file and the video of a motion photo, which the new file does not have; the Lightroom and Camera Raw settings of a RAW file, which EyeCanSee does not use when it develops it. Those of other photos stay, marked as already applied.
 - An **Ultra HDR** phone photo stays HDR when you save it as JPEG with the metadata, also from the editor: its HDR part is turned, cropped and covered together with the photo. In another format, or without the metadata, it loses its HDR, and the page tells you before you save.
 
 ## Things to know

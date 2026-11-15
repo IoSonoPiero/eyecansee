@@ -112,10 +112,38 @@ const FIELDS: &[(Group, Tag, &str)] = &[
 ];
 
 /// The EXIF of any file the panel reads, rewritten as a standalone TIFF block for a converted copy:
-/// the camera, shot and GPS fields (`exif_fields`). `None` without EXIF.
+/// the camera, shot and GPS fields (`exif_fields`), and the maker note when it can move
+/// (`movable_maker_note`; never that of a RAW file, which `raw_meta` reads with `exif_fields`).
+/// Without it if it would make the block too big for a JPEG. `None` without EXIF.
 pub fn exif_chunk(bytes: &[u8]) -> Option<Vec<u8>> {
-    let (fields, little) = exif_fields(bytes)?;
-    write_exif(&fields, little)
+    let exif = lenient(|r| r.read_from_container(&mut Cursor::new(bytes)))?;
+    with_maker_note(&exif)
+}
+
+/// The fields `keep_field` keeps and a maker note that can move, written as a TIFF block; without
+/// the maker note when the block would not fit in a JPEG segment (64 KB).
+fn with_maker_note(exif: &Exif) -> Option<Vec<u8>> {
+    let fields: Vec<_> = exif.fields().filter(|f| keep_field(f) || movable_maker_note(f)).cloned().collect();
+    let all = write_exif(&fields, exif.little_endian());
+    if all.as_ref().is_none_or(|b| b.len() <= JPEG_EXIF_MAX) || !fields.iter().any(movable_maker_note) {
+        return all;
+    }
+    let fields: Vec<_> = fields.into_iter().filter(|f| !movable_maker_note(f)).collect();
+    write_exif(&fields, exif.little_endian())
+}
+
+/// The largest EXIF block a JPEG holds: one segment, less its length and "Exif\0\0".
+const JPEG_EXIF_MAX: usize = 65533 - 6;
+
+/// A maker note (the camera maker's own data) that stays right written at another place of a new
+/// EXIF: its offsets count from its own start, or it has none. Recognised by how it begins, as
+/// ExifTool does (`MakerNotes.pm`, those read with a base inside the maker note or as a block
+/// without directory): Apple, Google (HDR+), Fujifilm, Nikon from the D1X on, Olympus and OM
+/// System, Motorola, Sony Ericsson. The others (Canon, Sony, Samsung, Xiaomi, Panasonic, Pentax…)
+/// count from the start of the original EXIF and would point at the wrong bytes: they stay out.
+pub fn movable_maker_note(f: &exif::Field) -> bool {
+    const STARTS: [&[u8]; 10] = [b"Apple iOS\0", b"HDRP\x02", b"HDRP\x03", b"FUJIFILM", b"Nikon\0\x02", b"OLYMPUS\0", b"OM SYSTEM\0", b"MOT\0", b"SEMC MS\0", b"GENERALE"];
+    f.tag == Tag::MakerNote && f.ifd_num == In::PRIMARY && matches!(&f.value, Value::Undefined(v, _) if STARTS.iter().any(|s| v.starts_with(s)))
 }
 
 /// The EXIF of a JPEG XL file, from its "Exif" box (a 4-byte offset, then TIFF data), as
@@ -139,8 +167,7 @@ pub fn jxl_exif(bytes: &[u8]) -> Option<Vec<u8>> {
             let data = bytes.get(start..i.checked_add(len)?)?;
             let tiff = data.get(4usize.checked_add(be32(data.get(..4)?))?..)?;
             let exif = lenient(|r| r.read_raw(tiff.to_vec()))?;
-            let fields: Vec<_> = exif.fields().filter(|f| keep_field(f)).cloned().collect();
-            return write_exif(&fields, exif.little_endian());
+            return with_maker_note(&exif);
         }
         i = i.checked_add(len)?;
     }
@@ -149,7 +176,8 @@ pub fn jxl_exif(bytes: &[u8]) -> Option<Vec<u8>> {
 
 /// The EXIF fields of a file worth keeping in a converted copy, and the byte order. Left out: the
 /// tags that describe the original's own image data (strips, sensor layout, DNG tags of a RAW) and
-/// the maker note, whose offsets point into the original file.
+/// the maker note, whose offsets may point into the original file (RAW files go without it, as
+/// Adobe's converters do; `exif_chunk` adds one that can move, for the other files).
 pub fn exif_fields(bytes: &[u8]) -> Option<(Vec<exif::Field>, bool)> {
     let exif = lenient(|r| r.read_from_container(&mut Cursor::new(bytes)))?;
     Some((exif.fields().filter(|f| keep_field(f)).cloned().collect(), exif.little_endian()))
@@ -650,6 +678,43 @@ mod tests {
         let make = field(Tag::Make, Value::Ascii(vec![b"SAMSUNG".to_vec()]));
         let written = super::write_exif(&[make, broken], true).unwrap();
         assert!(exif::Reader::new().read_raw(written).unwrap().get_field(Tag::Make, In::PRIMARY).is_some());
+    }
+
+    /// A TIFF block with Make and the maker note `note`.
+    fn with_note(note: &[u8]) -> Vec<u8> {
+        let mut writer = Writer::new();
+        let (make, note) = (field(Tag::Make, Value::Ascii(vec![b"Apple".to_vec()])), field(Tag::MakerNote, Value::Undefined(note.to_vec(), 0)));
+        writer.push_field(&make);
+        writer.push_field(&note);
+        let mut tiff = std::io::Cursor::new(Vec::new());
+        writer.write(&mut tiff, false).unwrap();
+        tiff.into_inner()
+    }
+
+    fn note_of(chunk: Vec<u8>) -> Option<Vec<u8>> {
+        let exif = exif::Reader::new().read_raw(chunk).unwrap();
+        assert!(exif.get_field(Tag::Make, In::PRIMARY).is_some());
+        exif.get_field(Tag::MakerNote, In::PRIMARY).and_then(|f| match &f.value {
+            Value::Undefined(v, _) => Some(v.clone()),
+            _ => None,
+        })
+    }
+
+    /// A maker note whose offsets count from its own start (Apple, Fujifilm…) goes into the EXIF
+    /// of a converted copy as it was; one counting from the start of the original EXIF (Canon,
+    /// Samsung…) stays out, and so does every maker note of a RAW file (`exif_fields`), and one
+    /// too big for a JPEG.
+    #[test]
+    fn maker_note_that_can_move() {
+        let apple = [&b"Apple iOS\0\0\x01MM"[..], &[0, 1, 0, 1, 0, 9, 0, 0, 0, 1, 0, 0, 0, 15, 0, 0, 0, 0]].concat();
+        let canon = b"\0\x01\0\x03\0\x01\0\0\0\x26\0\0\x01\x2c".to_vec();
+        let fuji = [&b"FUJIFILM\x0c\0\0\0"[..], &[0x30, 0x30, 0x31, 0x30]].concat();
+        assert_eq!(note_of(super::exif_chunk(&with_note(&apple)).unwrap()), Some(apple.clone()));
+        assert_eq!(note_of(super::exif_chunk(&with_note(&fuji)).unwrap()), Some(fuji));
+        assert_eq!(note_of(super::exif_chunk(&with_note(&canon)).unwrap()), None);
+        assert!(super::exif_fields(&with_note(&apple)).unwrap().0.iter().all(|f| f.tag != Tag::MakerNote), "RAW files go without it");
+        let huge = [&apple[..], &vec![0; 70_000]].concat();
+        assert_eq!(note_of(super::exif_chunk(&with_note(&huge)).unwrap()), None, "too big for a JPEG");
     }
 
     #[test]

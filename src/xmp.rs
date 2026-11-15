@@ -1,13 +1,13 @@
 //! The XMP of an image being written again (Rotate and crop, Save, Convert and resize, Save in
 //! another format), with `quick-xml`: sizes and orientation made true for the pixels written, the
-//! XMP thumbnail, the Camera Raw / Lightroom settings (`crs:`, crop and adjustments already in
-//! the pixels) and the description of a Motion Photo's video (never written again) taken out, everything else (author, copyright, licence, descriptions, keywords…)
-//! kept as it was. For WebP and AVIF, which have no place for IPTC, the IPTC fields go into the
+//! XMP thumbnail and the description of a Motion Photo's video (never written again) taken out,
+//! the Camera Raw / Lightroom settings (`crs:`) marked as already in the pixels (`fix`),
+//! everything else (author, copyright, licence, descriptions, keywords…) kept as it was. For WebP and AVIF, which have no place for IPTC, the IPTC fields go into the
 //! XMP as Adobe and the IPTC Core map them, when the XMP does not have them already.
 
 use quick_xml::Writer;
 use quick_xml::events::{BytesStart, BytesText, Event};
-use quick_xml::name::ResolveResult;
+use quick_xml::name::{PrefixDeclaration, ResolveResult};
 use quick_xml::reader::NsReader;
 
 const CRS: &str = "http://ns.adobe.com/camera-raw-settings/1.0/";
@@ -36,19 +36,31 @@ struct How {
     /// The video of a Motion Photo is written too (a lossless turn of an Ultra HDR one, #54): its
     /// description stays.
     video: bool,
+    /// The XMP of a RAW file: its Camera Raw settings go (`without_camera_raw`).
+    raw: bool,
 }
 
 /// `merged`: the extended XMP is in the packet, the GUID that pointed to it goes. The video of a
 /// Motion Photo is written again only by a lossless turn (`video`), so what describes it goes (also when the original
 /// says so without having one, as a Pixel 8 photo seen). `alone`: the picture is written without
 /// the gain map of an Ultra HDR photo either, so its description and the container directory go.
+///
+/// Camera Raw / Lightroom settings (`crs:`, the crop too): in a photo that is not RAW they describe
+/// how it was developed and stay, with `crs:AlreadyApplied` "True" (added by `rewrite` when
+/// missing), as Lightroom writes them when it exports with "All Metadata": with "False" Camera Raw
+/// and Lightroom would apply them again to pixels that already have them (DxO forum, "Remove
+/// xmp-crs data in EXIF when exporting to DNG"). The tag is Adobe's use, not a standard: exiv2
+/// lists it as "Not in XMP Specification. Found in sample files". In a RAW file they are settings
+/// EyeCanSee does not apply when it develops it: they go (`raw`).
 fn fix(ns: &str, local: &str, w: u32, h: u32, how: How) -> Option<Fix> {
     match (ns, local) {
         (XMP_NOTE, "HasExtendedXMP") if how.merged => Some(Fix::Drop),
         // Only the lossless turn of an Ultra HDR Motion Photo keeps the video (`how.video`).
         (GCAMERA, l) if !how.video && (l.starts_with("MotionPhoto") || l.starts_with("MicroVideo")) => Some(Fix::Drop),
         (CONTAINER, "Directory") | (HDRGM, _) if how.alone => Some(Fix::Drop),
-        (CRS, _) | (XAP, "Thumbnails") => Some(Fix::Drop),
+        (CRS, _) if how.raw => Some(Fix::Drop),
+        (CRS, "AlreadyApplied") => Some(Fix::Set("True".into())),
+        (XAP, "Thumbnails") => Some(Fix::Drop),
         (TIFF, "ImageWidth") | (EXIF, "PixelXDimension") => Some(Fix::Set(w.to_string())),
         (TIFF, "ImageLength") | (EXIF, "PixelYDimension") => Some(Fix::Set(h.to_string())),
         (TIFF, "Orientation") => Some(Fix::Set("1".into())),
@@ -119,6 +131,13 @@ fn without_video_item(xmp: &[u8]) -> std::borrow::Cow<'_, [u8]> {
     [&xmp[..start], &xmp[at + close + b"</rdf:li>".len()..]].concat().into()
 }
 
+/// The XMP of a RAW file without its Camera Raw settings (`fix`), for a copy of what EyeCanSee
+/// develops from it; sizes set to `w` × `h` as `fit` does. A packet that is not well-formed XML is
+/// returned as it was.
+pub fn without_camera_raw(xmp: &[u8], w: u32, h: u32) -> Vec<u8> {
+    rewrite(xmp, w, h, &[], How { raw: true, ..How::default() }).unwrap_or_else(|| xmp.to_vec())
+}
+
 /// `xmp` without what describes the parts after the picture in the file (Motion Photo video,
 /// Ultra HDR gain map and its container directory), for a picture written alone; sizes set to
 /// `w` × `h` as `fit` does. A packet that is not well-formed XML is returned as it was.
@@ -132,6 +151,10 @@ fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], how: How) -> Option<Vec<u
     // Depth inside a dropped element; the new value for the text of the element being read, and
     // whether its old text is being replaced.
     let (mut skip, mut set, mut replacing) = (0usize, None::<String>, false);
+    // Camera Raw settings kept without `crs:AlreadyApplied`: it goes on the first description that
+    // declares their namespace.
+    let has = |s: &[u8]| xmp.windows(s.len()).any(|w| w == s);
+    let mut applied = how.raw || !has(CRS.as_bytes()) || has(b"AlreadyApplied");
     let mut seen: Vec<(String, String)> = Vec::new();
     loop {
         let (ns, event) = r.read_resolved_event().ok()?;
@@ -150,7 +173,7 @@ fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], how: How) -> Option<Vec<u
                 {
                     (set, replacing) = (Some(v), true);
                 }
-                let e = attributes(&r, e, w, h, how, &mut seen)?;
+                let e = attributes(&r, e, w, h, how, &mut seen, &mut applied)?;
                 out.write_event(if matches!(event, Event::Start(_)) { Event::Start(e) } else { Event::Empty(e) }).ok()?;
             }
             Event::Text(_) | Event::GeneralRef(_) if replacing => {
@@ -176,20 +199,32 @@ fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], how: How) -> Option<Vec<u
     Some(out.into_inner())
 }
 
-/// The attributes of an element, without those of Camera Raw (and its namespace) and with the
-/// sizes and orientation set; the element as it was when nothing changes.
-fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, how: How, seen: &mut Vec<(String, String)>) -> Option<BytesStart<'a>> {
+/// The attributes of an element, with the sizes and orientation set, `crs:AlreadyApplied` added
+/// when `applied` says it is still missing and this is a description declaring the Camera Raw
+/// namespace, without Camera Raw (and its namespace) for a RAW file; the element as it was when
+/// nothing changes.
+fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, how: How, seen: &mut Vec<(String, String)>, applied: &mut bool) -> Option<BytesStart<'a>> {
     let mut kept: Vec<(String, String)> = Vec::new();
     let mut changed = false;
+    let description = e.local_name().as_ref() == "Description";
     for a in e.attributes() {
         let a = a.ok()?;
         let value = a.normalized_value(quick_xml::XmlVersion::Implicit1_0).ok()?.into_owned();
         let key = a.key.as_ref().to_string();
-        if a.key.as_namespace_binding().is_some() {
-            if value == CRS {
+        if let Some(binding) = a.key.as_namespace_binding() {
+            if value == CRS && how.raw {
                 changed = true;
-            } else {
-                kept.push((key, value));
+                continue;
+            }
+            kept.push((key, value.clone()));
+            if let PrefixDeclaration::Named(prefix) = binding
+                && value == CRS
+                && description
+                && !*applied
+            {
+                *applied = true;
+                changed = true;
+                kept.push((format!("{prefix}:AlreadyApplied"), "True".into()));
             }
             continue;
         }
@@ -328,12 +363,12 @@ pub(crate) mod tests {
         fields.iter().flat_map(|(d, t)| [&[0x1C, 2, *d][..], &(t.len() as u16).to_be_bytes(), t.as_bytes()].concat()).collect()
     }
 
-    /// Sizes and orientation set in attributes and elements; Camera Raw, its namespace and the
-    /// thumbnail gone; author, rights, the Ultra HDR item and the packet wrapper as they were.
+    /// Sizes and orientation set in attributes and elements; the thumbnail gone; Camera Raw kept
+    /// and marked as applied; author, rights, the Ultra HDR item and the packet wrapper as they were.
     #[test]
     fn fitted() {
         let out = String::from_utf8(fit(Some(SAMPLE.as_bytes()), 300, 200, None).unwrap()).unwrap();
-        for gone in ["crs", "Thumbnails", "/9j/", "4000", "3000", "\"6\""] {
+        for gone in ["Thumbnails", "/9j/", "4000", "3000", "\"6\""] {
             assert!(!out.contains(gone), "{gone} in {out}");
         }
         for kept in [
@@ -346,6 +381,9 @@ pub(crate) mod tests {
             "CC BY-SA 4.0",
             "Item:Semantic=\"GainMap\" Item:Length=\"1234\"",
             "<?xpacket end=\"w\"?>",
+            "xmlns:crs=\"http://ns.adobe.com/camera-raw-settings/1.0/\" crs:AlreadyApplied=\"True\"",
+            "crs:CropTop=\"0.1\" crs:HasCrop=\"True\"",
+            "<crs:ToneCurve><rdf:Seq><rdf:li>0, 0</rdf:li></rdf:Seq></crs:ToneCurve>",
         ] {
             assert!(out.contains(kept), "{kept} not in {out}");
         }
@@ -355,6 +393,25 @@ pub(crate) mod tests {
         assert_eq!(fit(Some(plain), 1, 1, None).unwrap(), plain);
         assert_eq!(fit(Some(b"<a><b></a>"), 1, 1, None).unwrap(), b"<a><b></a>");
         assert_eq!(fit(None, 1, 1, None), None);
+    }
+
+    /// Camera Raw settings: in a RAW file's XMP they go with their namespace; elsewhere an
+    /// `AlreadyApplied` there already is set to "True" and none is added twice.
+    #[test]
+    fn camera_raw() {
+        let raw = String::from_utf8(without_camera_raw(SAMPLE.as_bytes(), 300, 200)).unwrap();
+        assert!(!raw.contains("crs") && raw.contains("CC BY-SA 4.0") && raw.contains("exif:PixelXDimension=\"300\""), "{raw}");
+        assert!(roxmltree::Document::parse(raw.trim_start_matches(|c| c != '<')).is_ok());
+        let two = SAMPLE.replace("<crs:Exposure2012/>", "<crs:AlreadyApplied>False</crs:AlreadyApplied>").replace(
+            "</rdf:Description></rdf:RDF>",
+            "</rdf:Description><rdf:Description rdf:about=\"\" xmlns:crs=\"http://ns.adobe.com/camera-raw-settings/1.0/\" crs:Tint=\"5\"/></rdf:RDF>",
+        );
+        let out = String::from_utf8(fit(Some(two.as_bytes()), 1, 1, None).unwrap()).unwrap();
+        assert!(out.contains("<crs:AlreadyApplied>True</crs:AlreadyApplied>") && out.matches("AlreadyApplied").count() == 2 && out.contains("crs:Tint=\"5\""), "{out}");
+        let one = SAMPLE.replace("</rdf:Description></rdf:RDF>", "</rdf:Description><rdf:Description rdf:about=\"\" xmlns:crs=\"http://ns.adobe.com/camera-raw-settings/1.0/\" crs:Tint=\"5\"/></rdf:RDF>");
+        let out = String::from_utf8(fit(Some(one.as_bytes()), 1, 1, None).unwrap()).unwrap();
+        assert_eq!(out.matches("crs:AlreadyApplied=\"True\"").count(), 1, "{out}");
+        assert!(roxmltree::Document::parse(out.trim_start_matches(|c| c != '<')).is_ok());
     }
 
     /// IPTC fields go into the XMP when it lacks them, into a new packet when there is none.

@@ -149,8 +149,9 @@ fn copy_is_the_picture_alone() {
         assert!(!text.contains(gone), "{gone} still there");
     }
     assert!(text.contains("<rdf:li>Ann</rdf:li>"), "author kept");
-    // The date the photo was taken stays; the Camera Raw settings (a crop already in the pixels) go.
-    assert!(text.contains("photoshop:DateCreated=\"2023-02-11T17:16:17.074-04:00\"") && !text.contains("crs:"), "XMP dates and Camera Raw");
+    // The date the photo was taken stays; the Camera Raw settings too, marked as already applied.
+    assert!(text.contains("photoshop:DateCreated=\"2023-02-11T17:16:17.074-04:00\""), "XMP date");
+    assert!(text.contains("crs:AlreadyApplied=\"True\"") && text.contains("crs:HasCrop=\"True\""), "Camera Raw");
     assert!(!d.windows(thumb.len()).any(|w| w == thumb) && !d.windows(24).any(|w| w == [0x5A; 24]), "a thumbnail is still there");
     let exif = exif::Reader::new().read_from_container(&mut Cursor::new(d)).unwrap();
     let get = |tag| exif.get_field(tag, In::PRIMARY).and_then(|f| f.value.get_uint(0));
