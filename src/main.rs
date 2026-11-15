@@ -23,6 +23,7 @@ mod batch;
 mod batch_page;
 mod batch_summary;
 mod batch_video;
+mod bar_rows;
 mod bookmarks;
 mod browser;
 mod cad;

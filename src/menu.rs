@@ -22,7 +22,8 @@ impl App {
         let act = Cell::new(None);
         // As in most programs: XnView MP (Edit, Tools with the settings), Explorer and Dolphin
         // (Rename and Delete in File); no Go menu, as image viewers; Bookmarks as the browsers.
-        egui::MenuBar::new().ui(ui, |ui| {
+        // On more rows in a narrow window (`bar_rows`): Help was cut at 400 px.
+        egui::MenuBar::new().ui(ui, |ui| crate::bar_rows::rows(ui, |ui| {
             ui.menu_button(self.i18n.t("menu-file"), |ui| self.file_menu(ui, &act));
             ui.menu_button(self.i18n.t("menu-edit"), |ui| self.edit_menu(ui, &act));
             ui.menu_button(self.i18n.t("menu-image"), |ui| self.image_menu(ui, &act));
@@ -34,7 +35,7 @@ impl App {
             });
             ui.menu_button(self.i18n.t("menu-tools"), |ui| self.tools_menu(ui, &act));
             ui.menu_button(self.i18n.t("menu-help"), |ui| self.help_menu(ui, &act));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            crate::bar_rows::right_end(ui, "menu", |ui| {
                 // Left out of the guide's pictures, which it would date.
                 #[cfg(feature = "shots")]
                 let version_shown = !crate::shots::active();
@@ -44,8 +45,10 @@ impl App {
                 let text = format!("EyeCanSee {}", version());
                 let font = egui::TextStyle::Body.resolve(ui.style());
                 let width = ui.painter().layout_no_wrap(text.clone(), font, ui.visuals().weak_text_color()).size().x;
+                // Not counted in what the right end needs: shown only where it fits.
+                let mut version_width = 0.0;
                 if version_shown && ui.available_width() >= width + ui.spacing().item_spacing.x {
-                    ui.weak(text);
+                    version_width = ui.weak(text).rect.width() + ui.spacing().item_spacing.x;
                 }
                 if let Some(r) = &self.update {
                     // Red: as a plain button it went unnoticed.
@@ -55,8 +58,9 @@ impl App {
                 }
                 self.engine_bar(ui);
                 self.cad_engine_bar(ui);
+                ((), (ui.min_rect().width() - version_width).max(0.0))
             });
-        });
+        }));
         if let Some(a) = act.take() {
             self.run(ui.ctx(), a);
         }

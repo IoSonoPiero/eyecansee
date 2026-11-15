@@ -234,7 +234,8 @@ impl App {
         let files = self.files();
         let Some(f) = files.get(current) else { return [None, None, None] };
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
-        ui.horizontal(|ui| {
+        // On more rows in a narrow window (`bar_rows`): the date went under Keys at 520 px.
+        crate::bar_rows::rows(ui, |ui| {
             self.phone_waiting(ui);
             // The same note as the grid's bar: a file gone from the device, say.
             if let Some(note) = &self.status_note {
@@ -306,7 +307,6 @@ impl App {
             }
             self.status_buttons(ui, current)
         })
-        .inner
     }
 
     /// The right of the viewer's status bar: Keys, Layers on a drawing with layers, and while
@@ -318,18 +318,19 @@ impl App {
         let (layers, copy) = (button("cad-layers-title"), button("measure-copy"));
         let layers_on = self.cad_layers_off().is_none();
         let measure = self.measure_status();
-        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+        crate::bar_rows::right_end(ui, "viewer-status", |ui| {
             let keys = self.keys_hint(current).map(|_| self.keys_button(ui));
             let layers = layers_on.then(|| ui.add(layers).on_hover_text(self.i18n.t("key-layers")));
             // While measuring: the results (or how to go on) take the room left, Copy beside.
             let copy = measure.as_ref().and_then(|(_, results)| results.then(|| ui.add(copy).on_hover_text("Ctrl+C")));
+            // The buttons need their room; the results are cut to what is left.
+            let need = ui.min_rect().width();
             if let Some((text, _)) = measure {
                 ui.separator();
                 ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| ui.add(egui::Label::new(egui::RichText::new(&text).strong()).truncate()).on_hover_text(&text));
             }
-            [keys, layers, copy]
+            ([keys, layers, copy], need)
         })
-        .inner
     }
 
     /// The Keys button of a status bar (viewer, grid). Blue on white: the bar makes every text
