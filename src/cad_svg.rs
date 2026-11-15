@@ -26,6 +26,15 @@ pub(crate) fn text_box(at: P, h: f64, angle: f64, text: &str, anchor: (Anchor, B
     [[x0, bottom], [x0 + w, bottom], [x0 + w, top], [x0, top]].map(|[x, y]| [at[0] + x * c - y * s, at[1] + x * s + y * c])
 }
 
+/// A drawing in its picture: the drawing's point at the top left corner, pixels per drawing
+/// unit, and the picture's width and height in pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Placement {
+    pub origin: P,
+    pub scale: f64,
+    pub size: [f64; 2],
+}
+
 impl Drawing {
     /// Box around what is shown, or the frame kept while layers are turned on and off.
     pub(crate) fn bounds(&self) -> Option<[f64; 4]> {
@@ -48,17 +57,21 @@ impl Drawing {
         (b[0] <= b[2] && b[1] <= b[3]).then_some(b)
     }
 
+    /// Where the drawing goes in a picture whose long side is `side` pixels: a margin of 2%
+    /// around; a drawing that is one point or one line still gets a size.
+    pub(crate) fn placement(&self, side: u32) -> Option<Placement> {
+        let [x0, y0, x1, y1] = self.bounds()?;
+        let (w, h) = ((x1 - x0).max(f64::MIN_POSITIVE), (y1 - y0).max(f64::MIN_POSITIVE));
+        let span = w.max(h) * 1.04;
+        let s = f64::from(side) / span;
+        let (pw, ph) = (((w * 1.04).max(span * 0.01) * s).ceil().max(1.0), ((h * 1.04).max(span * 0.01) * s).ceil().max(1.0));
+        Some(Placement { origin: [x0 - w * 0.02, y1 + h * 0.02], scale: s, size: [pw, ph] })
+    }
+
     /// The drawing as an SVG whose long side is `side` pixels, lines `stroke` pixels wide (less
     /// than 1 when the SVG will be drawn larger, so that they stay 1 pixel on the screen).
     pub fn svg(&self, side: u32, stroke: f32) -> Result<String, String> {
-        let [x0, y0, x1, y1] = self.bounds().ok_or("nothing to draw")?;
-        let side = side as f64;
-        // A margin of 2% around; a drawing that is one point or one line still gets a size.
-        let (w, h) = ((x1 - x0).max(f64::MIN_POSITIVE), (y1 - y0).max(f64::MIN_POSITIVE));
-        let span = w.max(h) * 1.04;
-        let s = side / span;
-        let (pw, ph) = (((w * 1.04).max(span * 0.01) * s).ceil().max(1.0), ((h * 1.04).max(span * 0.01) * s).ceil().max(1.0));
-        let (ox, oy) = (x0 - w * 0.02, y1 + h * 0.02);
+        let Placement { origin: [ox, oy], scale: s, size: [pw, ph] } = self.placement(side).ok_or("nothing to draw")?;
         let px = |p: P| ((p[0] - ox) * s, (oy - p[1]) * s);
         let rgb = |c: [u8; 3]| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]);
         let [br, bg, bb] = BACKGROUND;
