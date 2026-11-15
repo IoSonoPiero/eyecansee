@@ -91,6 +91,7 @@ impl App {
             stall_notice: None,
             open_address: None,
             batch_turn: None,
+            batch_summary: None,
             pan: egui::Vec2::ZERO,
             zoom_shown: 1.0,
             wheel_notches: 0.0,

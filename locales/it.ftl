@@ -534,6 +534,11 @@ convert-speed-hint = Più lenta fa un file più piccolo a parità di qualità.
 convert-lossless = Senza perdita: gli stessi pixel dell'originale.
 convert-gif = Al massimo 256 colori.
 convert-keep-meta = Mantieni i metadati (EXIF, XMP, IPTC, profilo colore)
+meta-keep = Metadati
+meta-keep-hint = Cosa tiene il file nuovo dei metadati dell'originale. "Tutti tranne il luogo" toglie la posizione GPS e città, regione e paese, per una foto da condividere; "Nessuno" tiene solo il profilo colore, che serve all'immagine per avere i colori giusti.
+meta-keep-all = Tutti (EXIF, XMP, IPTC, profilo colore)
+meta-keep-no-place = Tutti tranne il luogo (senza posizione GPS)
+meta-keep-nothing = Nessuno (solo il profilo colore)
 convert-keep-density = Mantieni i metadati (solo la risoluzione)
 convert-ultra-hdr-lost = Questa foto è Ultra HDR: resta HDR solo in JPEG con i metadati.
 convert-first-only = Questa immagine è animata o ha più pagine: viene salvata solo l'immagine mostrata.
@@ -543,6 +548,7 @@ convert-meta-density-only = Questo formato mantiene solo la risoluzione (dpi), s
 convert-folder = Cartella
 convert-name = Nome del file
 convert-save = Salva
+convert-cancel = Annulla
 convert-exists = Esiste già un elemento con questo nome: verrà salvato come { $name }.
 convert-saved-elsewhere-title = Immagine salvata
 convert-saved-elsewhere = Salvata come **{ $path }**.
@@ -872,6 +878,7 @@ edit-save-confirm = Una copia di **{ $name }** viene salvata accanto all'origina
 edit-loss-lossy = La copia viene **ricodificata** e può perdere un po' di qualità.
 edit-loss-8bit = La copia ha **8 bit per colore**, l'originale di più: l'originale resta com'è, per ciò che li richiede.
 edit-loss-hdr = La copia è un PNG a 16 bit: ciò che nell'originale è **più luminoso del bianco** viene tagliato.
+edit-loss-ultra-hdr = Senza metadati la copia non è più **Ultra HDR**: niente tiene la sua parte HDR.
 edit-overwrite-trash = **{ $name }** viene sostituito dall'immagine modificata.
 
     L'originale va **nel cestino**.
@@ -881,6 +888,7 @@ edit-overwrite-folder = **{ $name }** viene sostituito dall'immagine modificata.
 edit-over-loss-lossy = Il file nuovo viene **ricodificato** e può perdere un po' di qualità.
 edit-over-loss-8bit = Il file nuovo ha **8 bit per colore**, l'originale di più.
 edit-over-loss-hdr = Il file nuovo ha 16 bit per colore: ciò che nell'originale è **più luminoso del bianco** viene tagliato.
+edit-over-loss-ultra-hdr = Senza metadati il file nuovo non è più **Ultra HDR**: niente tiene la sua parte HDR.
 edit-leave = Le modifiche a **{ $name }** non sono salvate.
 
     { "**" }Salva** crea una copia accanto all'originale, **Salva come…** un file nuovo dove scegli, **Non salvare** le perde.
@@ -1264,17 +1272,63 @@ batch-start = Converti
 batch-working = Conversione in corso
 batch-counts = { $n } di { $total } file
 batch-stopping = Mi fermo…
-batch-result = { $n ->
-    [0] Nessun file è stato salvato in { $folder }.
-    [one] **1 file** è stato salvato in { $folder }.
-   *[other] **{ $n } file** sono stati salvati in { $folder }.
-}
-batch-cancelled = Fermato dopo { $n } di { $total } file.
-batch-left-out = Escluse:
 batch-left-out-kind = { $n ->
     [one] 1 file scelto è escluso: questa voce non lavora su quel tipo di file.
    *[other] { $n } file scelti sono esclusi: questa voce non lavora su quei tipi di file.
 }
+summary-saved = { $n ->
+    [one] **1 file** salvato in { $folder }.
+   *[other] **{ $n } file** salvati in { $folder }.
+}
+summary-left-out = { $n ->
+    [one] **1 file** lasciato fuori.
+   *[other] **{ $n } file** lasciati fuori.
+}
+summary-not-done = { $n ->
+    [one] **1 file** non fatto: il lavoro è stato fermato.
+   *[other] **{ $n } file** non fatti: il lavoro è stato fermato.
+}
+summary-nothing = Nessun file è stato salvato.
+summary-took = Ci è voluto { $time }.
+summary-sizes = Dimensione: { $before } prima, { $after } dopo ({ $percent }%).
+summary-kind = { $n ->
+    [one] 1 file di un tipo su cui questo comando non lavora:
+   *[other] { $n } file di un tipo su cui questo comando non lavora:
+}
+summary-format = { $n ->
+    [one] 1 file in un formato che EyeCanSee non sa scrivere; scegli un altro formato:
+   *[other] { $n } file in un formato che EyeCanSee non sa scrivere; scegli un altro formato:
+}
+summary-format-preset = { $n ->
+    [one] 1 file in un formato che EyeCanSee non sa scrivere; Ridimensiona > Personalizzata… può salvarlo in un altro:
+   *[other] { $n } file in un formato che EyeCanSee non sa scrivere; Ridimensiona > Personalizzata… può salvarli in un altro:
+}
+summary-same-size = { $n ->
+    [one] 1 file già di questa dimensione, o più piccolo e non ingrandito:
+   *[other] { $n } file già di questa dimensione, o più piccoli e non ingranditi:
+}
+summary-inside = { $n ->
+    [one] 1 file animato o con più pagine, che il file nuovo non conterrebbe:
+   *[other] { $n } file animati o con più pagine, che i file nuovi non conterrebbero:
+}
+summary-no-ffmpeg = { $n ->
+    [one] 1 video o file audio, e FFmpeg manca:
+   *[other] { $n } video o file audio, e FFmpeg manca:
+}
+summary-not-autocad = { $n ->
+    [one] 1 disegno che non è un disegno AutoCAD (DWG o DXF):
+   *[other] { $n } disegni che non sono disegni AutoCAD (DWG o DXF):
+}
+summary-would-lose = { $n ->
+    [one] 1 disegno che nell'altro formato perderebbe una parte:
+   *[other] { $n } disegni che nell'altro formato perderebbero una parte:
+}
+summary-errors = { $n ->
+    [one] 1 errore:
+   *[other] { $n } errori:
+}
+summary-open-folder = Apri la cartella
+summary-open-covered = Chiudi prima la pagina davanti: le miniature sono sotto.
 drawing-title = Esporta disegno
 drawing-start = Esporta
 drawing-side = Lato lungo

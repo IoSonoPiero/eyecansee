@@ -16,7 +16,7 @@ mod folder;
 mod format_ui;
 mod panes;
 
-pub(crate) use format_ui::format_options;
+pub(crate) use format_ui::{format_options, meta_choice};
 use format_ui::{format_choice, meta_options};
 use panes::convert_images;
 
@@ -232,10 +232,14 @@ impl crate::App {
         self.start_encoding(&mut w, ctx);
         let dir = w.dest_dir();
         let final_name = crate::source::free_name(&self.convert_taken(&w, &dir), w.name.trim());
-        let open = page_header(ui, &self.i18n.t("convert-title"));
+        let mut open = page_header(ui, &self.i18n.t("convert-title"));
         let shown = crate::navigation::shown(w.dest_base(&self.base), &dir);
-        let save = self.convert_body(ui, &mut w, &final_name, &shown);
-        if save && let Some(Ok((bytes, _))) = &w.result {
+        let press = self.convert_body(ui, &mut w, &final_name, &shown);
+        // Cancel does what Esc does: from the editor, back to the drawing (issue #106).
+        if press == Some(Press::Cancel) {
+            open = false;
+        }
+        if press == Some(Press::Save) && let Some(Ok((bytes, _))) = &w.result {
             let (path, bytes) = (format!("{dir}{final_name}"), bytes.clone());
             let sent = match (w.dest_store(), &self.loader) {
                 (Some(store), _) => self.save_in_place(ctx, store.clone(), path, bytes),
@@ -311,11 +315,11 @@ impl crate::App {
     }
 
     /// Everything under the title: the two images, then what each one is, with the options and
-    /// the name on the side of the new one. `true`: Save clicked.
-    fn convert_body(&self, ui: &mut egui::Ui, w: &mut Window, final_name: &str, folder: &str) -> bool {
+    /// the name on the side of the new one, and the button pressed.
+    fn convert_body(&self, ui: &mut egui::Ui, w: &mut Window, final_name: &str, folder: &str) -> Option<Press> {
         let i18n = &self.i18n;
         let t = |id| i18n.t(id);
-        let mut save = false;
+        let mut save = None;
         let original = match &w.original {
             None => {
                 ui.centered_and_justified(|ui| ui.spinner());
@@ -501,19 +505,31 @@ fn saved_size((w, h): (u32, u32), o: &Options) -> (u32, u32) {
 
 /// Only a JPEG with its metadata holds the gain map and the XMP that describes it.
 fn keeps_hdr(o: &Options) -> bool {
-    o.format == Format::Jpeg && o.keep_meta
+    o.format == Format::Jpeg && o.meta != crate::meta_strip::Keep::Nothing
 }
 
-/// Name of the new file and Save (`true` when clicked); the name it will really get if taken.
-fn name_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, half: f32, final_name: &str) -> bool {
+/// A button of the page clicked.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Press {
+    Save,
+    /// Closes the page without saving, as Esc and the window's ✕ (issue #106).
+    Cancel,
+}
+
+/// Name of the new file, Save and Cancel (the one clicked); the name it will really get if taken.
+fn name_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, half: f32, final_name: &str) -> Option<Press> {
     let t = |id| i18n.t(id);
-    let mut save = false;
+    let mut press = None;
     ui.horizontal(|ui| {
         ui.label(t("convert-name"));
         ui.add(egui::TextEdit::singleline(&mut w.name).desired_width((half - 200.0).clamp(160.0, 420.0)));
         let ready = matches!(w.result, Some(Ok(_))) && !w.busy && !w.saving && !w.name.trim().is_empty() && !w.name.contains(['/', '\\']);
         if ui.add_enabled(ready, egui::Button::new(t("convert-save"))).clicked() {
-            save = true;
+            press = Some(Press::Save);
+        }
+        // Not while the file is being written: it would be written all the same.
+        if ui.add_enabled(!w.saving, egui::Button::new(t("convert-cancel"))).clicked() {
+            press = Some(Press::Cancel);
         }
         if w.saving {
             ui.spinner();
@@ -525,7 +541,7 @@ fn name_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, half: f32, final_nam
     if let Some(e) = &w.error {
         ui.label(crate::browser::error_text(ui, e.as_str()));
     }
-    save
+    press
 }
 
 
@@ -595,7 +611,7 @@ mod tests {
         original.hdr = crate::ultrahdr::Source::of(Arc::new(file), Vec::new(), Vec::new()).map(Arc::new);
         let jpeg = Options { format: Format::Jpeg, ..Options::default() };
         assert!(crate::ultrahdr::is(&encoded(&original, &jpeg).unwrap()));
-        let bare = encoded(&original, &Options { keep_meta: false, ..jpeg }).unwrap();
+        let bare = encoded(&original, &Options { meta: crate::meta_strip::Keep::Nothing, ..jpeg }).unwrap();
         assert!(!crate::ultrahdr::is(&bare) && bare.starts_with(&[0xFF, 0xD8]));
         let png = encoded(&original, &Options { format: Format::Png, ..Options::default() }).unwrap();
         assert!(png.starts_with(b"\x89PNG"));

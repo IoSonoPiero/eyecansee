@@ -535,6 +535,11 @@ convert-speed-hint = Slower makes a smaller file of the same quality.
 convert-lossless = Lossless: the same pixels as the original.
 convert-gif = At most 256 colours.
 convert-keep-meta = Keep the metadata (EXIF, XMP, IPTC, colour profile)
+meta-keep = Metadata
+meta-keep-hint = What the new file keeps of the original's metadata. "All but the place" leaves out the GPS position and the city, state and country, for a photo to share; "None" keeps only the colour profile, which the picture needs to look right.
+meta-keep-all = All (EXIF, XMP, IPTC, colour profile)
+meta-keep-no-place = All but the place (no GPS position)
+meta-keep-nothing = None (only the colour profile)
 convert-keep-density = Keep the metadata (resolution only)
 convert-ultra-hdr-lost = This photo is Ultra HDR: it keeps its HDR only in JPEG with the metadata.
 convert-first-only = This image is animated or has several pages: only the picture shown is saved.
@@ -544,6 +549,7 @@ convert-meta-density-only = This format keeps only the resolution (dpi), when th
 convert-folder = Folder
 convert-name = File name
 convert-save = Save
+convert-cancel = Cancel
 convert-exists = An item with this name already exists: it will be saved as { $name }.
 convert-saved-elsewhere-title = Image saved
 convert-saved-elsewhere = Saved as **{ $path }**.
@@ -873,6 +879,7 @@ edit-save-confirm = A copy of **{ $name }** is saved next to it as **{ $copy }**
 edit-loss-lossy = The copy is **encoded again** and may lose a little quality.
 edit-loss-8bit = The copy has **8 bits per colour**, the original more: the original stays as it is, for what needs them.
 edit-loss-hdr = The copy is a 16-bit PNG: what is **brighter than white** in the original is cut.
+edit-loss-ultra-hdr = Without metadata the copy is no longer **Ultra HDR**: nothing holds its HDR part.
 edit-overwrite-trash = **{ $name }** is replaced by the edited image.
 
     The original goes **to the trash**.
@@ -882,6 +889,7 @@ edit-overwrite-folder = **{ $name }** is replaced by the edited image.
 edit-over-loss-lossy = The new file is **encoded again** and may lose a little quality.
 edit-over-loss-8bit = The new file has **8 bits per colour**, the original more.
 edit-over-loss-hdr = The new file has 16 bits per colour: what is **brighter than white** in the original is cut.
+edit-over-loss-ultra-hdr = Without metadata the new file is no longer **Ultra HDR**: nothing holds its HDR part.
 edit-leave = The changes to **{ $name }** are not saved.
 
     { "**" }Save** makes a copy next to the original, **Save as…** a new file where you choose, **Don't save** loses them.
@@ -1265,17 +1273,63 @@ batch-start = Convert
 batch-working = Converting
 batch-counts = { $n } of { $total } files
 batch-stopping = Stopping…
-batch-result = { $n ->
-    [0] No file was saved in { $folder }.
-    [one] **1 file** was saved in { $folder }.
-   *[other] **{ $n } files** were saved in { $folder }.
-}
-batch-cancelled = Stopped after { $n } of { $total } files.
-batch-left-out = Left out:
 batch-left-out-kind = { $n ->
     [one] 1 file chosen is left out: this entry does not work on its kind.
    *[other] { $n } files chosen are left out: this entry does not work on their kind.
 }
+summary-saved = { $n ->
+    [one] **1 file** saved in { $folder }.
+   *[other] **{ $n } files** saved in { $folder }.
+}
+summary-left-out = { $n ->
+    [one] **1 file** left out.
+   *[other] **{ $n } files** left out.
+}
+summary-not-done = { $n ->
+    [one] **1 file** not done: the work was stopped.
+   *[other] **{ $n } files** not done: the work was stopped.
+}
+summary-nothing = No file was saved.
+summary-took = It took { $time }.
+summary-sizes = Size: { $before } before, { $after } after ({ $percent }%).
+summary-kind = { $n ->
+    [one] 1 file of a kind this command does not work on:
+   *[other] { $n } files of a kind this command does not work on:
+}
+summary-format = { $n ->
+    [one] 1 file in a format EyeCanSee cannot write; choose another format:
+   *[other] { $n } files in a format EyeCanSee cannot write; choose another format:
+}
+summary-format-preset = { $n ->
+    [one] 1 file in a format EyeCanSee cannot write; Resize > Custom… can save it in another one:
+   *[other] { $n } files in a format EyeCanSee cannot write; Resize > Custom… can save them in another one:
+}
+summary-same-size = { $n ->
+    [one] 1 file already of this size, or smaller and not enlarged:
+   *[other] { $n } files already of this size, or smaller and not enlarged:
+}
+summary-inside = { $n ->
+    [one] 1 file animated or with several pages, which the new file would not hold:
+   *[other] { $n } files animated or with several pages, which the new files would not hold:
+}
+summary-no-ffmpeg = { $n ->
+    [one] 1 video or audio file, and FFmpeg is missing:
+   *[other] { $n } videos or audio files, and FFmpeg is missing:
+}
+summary-not-autocad = { $n ->
+    [one] 1 drawing that is not an AutoCAD drawing (DWG or DXF):
+   *[other] { $n } drawings that are not AutoCAD drawings (DWG or DXF):
+}
+summary-would-lose = { $n ->
+    [one] 1 drawing that would lose a part in the other format:
+   *[other] { $n } drawings that would lose a part in the other format:
+}
+summary-errors = { $n ->
+    [one] 1 error:
+   *[other] { $n } errors:
+}
+summary-open-folder = Open the folder
+summary-open-covered = Close the page in front first: the thumbnails are under it.
 drawing-title = Export drawing
 drawing-start = Export
 drawing-side = Long side

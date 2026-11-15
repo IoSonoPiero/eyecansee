@@ -21,6 +21,7 @@ mod app_dialogs;
 mod app_new;
 mod batch;
 mod batch_page;
+mod batch_summary;
 mod batch_video;
 mod bookmarks;
 mod browser;
@@ -87,6 +88,7 @@ mod meta;
 mod measure_model;
 mod measure_view;
 mod meta_panel;
+mod meta_strip;
 mod meta_write;
 mod raw_meta;
 mod model;
@@ -376,6 +378,8 @@ struct App {
     open_address: Option<AddressForm>,
     /// A transform on images of the grid: the images and the operation, to confirm.
     batch_turn: Option<(Vec<String>, transform::Op)>,
+    /// The window at the end of Convert… and the commands that share its work (`batch_summary`).
+    batch_summary: Option<batch_summary::Summary>,
     pan: egui::Vec2,
     /// Zoom shown, for the status bar.
     zoom_shown: f32,

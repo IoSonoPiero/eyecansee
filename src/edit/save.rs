@@ -14,6 +14,7 @@ use resvg::{tiny_skia, usvg};
 use super::doc::{Area, Doc, Obj, Pixels, Preview, Shape};
 use super::render::{self, View};
 use crate::encode::{Format, Options, Original};
+use crate::meta_strip::Keep;
 
 /// What the copy keeps of the original's depth, for a line in the Save window.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -46,28 +47,39 @@ pub struct Plan {
     pub lossy: bool,
     pub depth: Depth,
     pub data: Option<Vec<u8>>,
+    /// An Ultra HDR photo saved without its metadata: nothing holds its HDR part any more (#55).
+    pub hdr_lost: bool,
 }
 
 /// `save`'s choices without making the file: the confirmation shows at once, the file is made
 /// once confirmed (it took a second and a half on a large photo).
+#[cfg(test)]
 pub fn plan(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str, taken: &[String]) -> Result<Plan, String> {
+    plan_keeping(doc, original, bytes, name, word, taken, Keep::All)
+}
+
+/// `plan` with the metadata kept as `keep` says (#55): only with all of it are flips and quarter
+/// turns written without encoding again (the file's own blocks, the place in them, are copied);
+/// without any, an Ultra HDR photo is written as a plain picture.
+pub fn plan_keeping(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str, taken: &[String], keep: Keep) -> Result<Plan, String> {
     if animated(bytes, name) {
         return Err(format!("{name}: animated or with several pages"));
     }
     let same = Format::of_file(name);
     let size = photo_size(doc, original);
-    if same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes)) {
+    if keep == Keep::All && same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes)) {
         let (data, lossy) = crate::save_back::turned_file(bytes, name, doc.turn)?;
-        return Ok(Plan { name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept, data: Some(data) });
+        return Ok(Plan { name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept, data: Some(data), hdr_lost: false });
     }
-    if same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes) {
-        return Ok(Plan { name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept, data: None });
+    let hdr = same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes);
+    if hdr && keep != Keep::Nothing {
+        return Ok(Plan { name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept, data: None, hdr_lost: false });
     }
     let (float, deep) = (is_float(&original.image), is_deep(&original.image));
     let format = target(name, float, will_be_transparent(doc, &original.image, size));
     let lossy = matches!(format, Format::Jpeg | Format::Avif | Format::Gif) || (format == Format::Webp && !bytes.windows(4).any(|w| w == b"VP8L"));
     let ext = if same.is_some() { None } else { Some(format.ext()) };
-    Ok(Plan { name: copy_name(name, ext, word, taken), lossy, depth: depth(float, deep, format), data: None })
+    Ok(Plan { name: copy_name(name, ext, word, taken), lossy, depth: depth(float, deep, format), data: None, hdr_lost: hdr })
 }
 
 /// The edited image will have transparent pixels: the original has some, or the empty corners
@@ -92,7 +104,13 @@ fn will_be_transparent(doc: &Doc, img: &DynamicImage, (w, h): (u32, u32)) -> boo
 /// document's size: `resize::at_size`) with `doc` done to it. `word` is "edited" in the language
 /// of the interface (`edit-copy-word`), `taken` the names in the folder; `options` gives the
 /// fonts (`decode::usvg_options`).
+#[cfg(test)]
 pub fn save(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str, taken: &[String], options: &usvg::Options) -> Result<Saved, String> {
+    save_keeping(doc, original, bytes, name, (word, taken), options, Keep::All)
+}
+
+/// `save` with the metadata kept as `keep` says (#55), as `plan_keeping` planned it.
+pub fn save_keeping(doc: &Doc, original: &Original, bytes: &[u8], name: &str, (word, taken): (&str, &[String]), options: &usvg::Options, keep: Keep) -> Result<Saved, String> {
     if animated(bytes, name) {
         return Err(format!("{name}: animated or with several pages"));
     }
@@ -100,7 +118,7 @@ pub fn save(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str
     let size = photo_size(doc, original);
     // Flips and quarter turns alone: as the viewer's Save, a JPEG without re-encoding when its
     // size allows it, an Ultra HDR photo still HDR, a Motion Photo with its video.
-    if same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes)) {
+    if keep == Keep::All && same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes)) {
         let (data, lossy) = crate::save_back::turned_file(bytes, name, doc.turn)?;
         return Ok(Saved { data, name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept });
     }
@@ -108,8 +126,8 @@ pub fn save(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str
     let mut o = Original::clone(&original).turned(doc.turn);
     let (float, deep) = (is_float(&o.image), is_deep(&o.image));
     let holes = edited(doc, &original.image, &mut o.image, options);
-    if same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes) {
-        let data = crate::ultrahdr::edited(bytes, o.image, &[doc.edit()], &holes, doc.scale.map(|s| (s.w, s.h)))?;
+    if same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes) && keep != Keep::Nothing {
+        let data = crate::ultrahdr::edited(bytes, o.image, &[doc.edit()], &holes, doc.scale.map(|s| (s.w, s.h)), keep)?;
         return Ok(Saved { data, name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept });
     }
     // As `plan` chose it (the confirmation said it before the file was made).
@@ -118,7 +136,7 @@ pub fn save(doc: &Doc, original: &Original, bytes: &[u8], name: &str, word: &str
         o.image = if o.image.color().has_alpha() { DynamicImage::ImageRgba16(o.image.to_rgba16()) } else { DynamicImage::ImageRgb16(o.image.to_rgb16()) };
     }
     let webp_lossless = format == Format::Webp && bytes.windows(4).any(|w| w == b"VP8L");
-    let opts = Options { format, jpeg_quality: 95, webp_lossless, ..Options::default() };
+    let opts = Options { format, jpeg_quality: 95, webp_lossless, meta: keep, ..Options::default() };
     // A JPEG saved again as JPEG at its own quality and subsampling (not compressed harder a
     // second time); from another format at 95.
     let opts = if same == Some(Format::Jpeg) { crate::encode::jpeg_quality::like(bytes, opts) } else { opts };

@@ -124,10 +124,10 @@ fn keep_video_xmp(photo: &mut Vec<u8>, old: &[u8]) -> Result<(), String> {
 /// opaque objects) get the lowest gain on every pixel of the gain map they touch even in part.
 /// `size`: the photo resized in the editor (#114) to this size, upright, before the edits: the
 /// gain map is resized as Convert and resize does it (`resized`).
-pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]], size: Option<(u32, u32)>) -> Result<Vec<u8>, String> {
+pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]], size: Option<(u32, u32)>, meta: crate::meta_strip::Keep) -> Result<Vec<u8>, String> {
     let (photo, _) = split(b).ok_or("not Ultra HDR")?;
     // At its own quality and subsampling: not compressed harder a second time.
-    let o = crate::encode::jpeg_quality::like(photo, Options { format: Format::Jpeg, ..Options::default() });
+    let o = crate::encode::jpeg_quality::like(photo, Options { format: Format::Jpeg, meta, ..Options::default() });
     edited_with(b, image, edits, holes, &o, size)
 }
 
@@ -228,8 +228,8 @@ fn rebuilt(photo: &[u8], image: DynamicImage, o: &Options, gain: &[u8], mut g: D
         g = DynamicImage::ImageLuma8(g.to_luma8());
     }
     let like = crate::encode::jpeg_quality::like(gain, Options { format: Format::Jpeg, ..Options::default() });
-    let new_photo = keep_segments(photo, Original::with_meta(image, photo).encode(o)?);
-    let new_gain = keep_segments(gain, Original::with_meta(g, gain).encode(&like)?);
+    let new_photo = keep_segments(photo, Original::with_meta(image, photo).encode(o)?, o.meta == crate::meta_strip::Keep::All);
+    let new_gain = keep_segments(gain, Original::with_meta(g, gain).encode(&like)?, true);
     assemble(new_photo, &new_gain)
 }
 
@@ -284,19 +284,20 @@ fn one(jpeg: &[u8], turn: Turn, lossless: impl FnOnce(&[u8]) -> Option<Vec<u8>>)
             (Original::with_meta(img, jpeg).encode(&o)?, true)
         }
     };
-    Ok((keep_segments(jpeg, out), lossy))
+    Ok((keep_segments(jpeg, out, true), lossy))
 }
 
 /// `out` with the APP segments of `from` it does not have, after its own: the encoder writes
 /// only JFIF, EXIF and the colour profile.
-fn keep_segments(from: &[u8], mut out: Vec<u8>) -> Vec<u8> {
+/// `all` false: the metadata was chosen (#55), the EXIF, XMP and IPTC of `from` are not copied.
+fn keep_segments(from: &[u8], mut out: Vec<u8>, all: bool) -> Vec<u8> {
     // A segment is known by its marker and signature ("Exif", "MPF", the XMP namespace…), up to
     // the first zero byte: the EXIF of the turned photo has another orientation.
     let key = |b: &[u8], (m, s, e): (u8, usize, usize)| (m, b[s + 4..e].iter().take(40).take_while(|&&c| c != 0).copied().collect::<Vec<u8>>());
     let have: Vec<_> = segments(&out).into_iter().map(|s| key(&out, s)).collect();
     let missing: Vec<u8> = segments(from)
         .into_iter()
-        .filter(|&(m, ..)| (0xE0..=0xEF).contains(&m))
+        .filter(|&(m, ..)| (0xE0..=0xEF).contains(&m) && (all || !matches!(m, 0xE1 | 0xED)))
         .filter(|&s| !have.contains(&key(from, s)))
         .flat_map(|(_, s, e)| from[s..e].to_vec())
         .collect();
@@ -483,7 +484,7 @@ pub(crate) mod tests {
         let mut img = crate::decode::decode_full(&file, "a.jpg").unwrap();
         let e = Edit { turn: Turn::default().then(transform::Op::Cw), angle: 10.0, crop: Crop::centred(20.0, 40.0), fill: Some([255; 3]) };
         e.apply(&mut img);
-        let out = edited(&file, img, &[e], &[], None).unwrap();
+        let out = edited(&file, img, &[e], &[], None, crate::meta_strip::Keep::All).unwrap();
         let p = parts(&out).expect("still Ultra HDR");
         let photo = image::load_from_memory(&out[..p.gain]).unwrap();
         let gain = image::load_from_memory(&out[p.gain..]).unwrap();
@@ -505,7 +506,7 @@ pub(crate) mod tests {
         assert!(is(&motion) && split(&motion) == split(&file));
         assert!(!is(&[file.as_slice(), &[7; 40]].concat()));
         let img = crate::decode::decode_full(&motion, "a.jpg").unwrap();
-        let out = edited(&motion, img, &[Edit { turn: Turn::default(), angle: 0.0, crop: Crop::centred(64.0, 32.0), fill: None }], &[], None).unwrap();
+        let out = edited(&motion, img, &[Edit { turn: Turn::default(), angle: 0.0, crop: Crop::centred(64.0, 32.0), fill: None }], &[], None, crate::meta_strip::Keep::All).unwrap();
         assert!(is(&out) && !out.windows(4).any(|w| w == b"ftyp"));
         let cw = Turn::default().then(transform::Op::Cw);
         let (out, _) = turned(&motion, cw).unwrap().unwrap();
@@ -624,7 +625,7 @@ pub(crate) mod tests {
             let (w, h) = (img.width() as f32, img.height() as f32);
             let e = Edit { turn: Turn::default(), angle: 7.5, crop: crate::rotate::inside(w, h, 7.5, w / h), fill: Some([255; 3]) };
             e.apply(&mut img);
-            let out = edited(&b, img, &[e], &[], None).unwrap();
+            let out = edited(&b, img, &[e], &[], None, crate::meta_strip::Keep::All).unwrap();
             assert!(is(&out), "{}", path.display());
             std::fs::write(std::path::Path::new(&out_dir).join(path.file_name().unwrap()), &out).unwrap();
         }

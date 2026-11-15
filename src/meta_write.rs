@@ -84,6 +84,27 @@ pub fn tiff_iptc(irb: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
     Some((padded, block))
 }
 
+/// The Photoshop block without the place in its IPTC (#55), the other resources as they were;
+/// the IPTC digest goes with a change (it would say the IPTC was changed by another program).
+/// `None` if nothing is left.
+pub fn irb_without_place(irb: &[u8]) -> Option<Vec<u8>> {
+    let Some(old) = iim(irb) else { return Some(irb.to_vec()) };
+    let new = crate::meta_strip::iim_without_place(old);
+    if new == old {
+        return Some(irb.to_vec());
+    }
+    let kept: Vec<u8> = resources(irb)
+        .into_iter()
+        .flat_map(|(id, r)| match id {
+            IPTC if new.is_empty() => Vec::new(),
+            IPTC => resource(IPTC, &new),
+            IPTC_DIGEST => Vec::new(),
+            _ => r.to_vec(),
+        })
+        .collect();
+    (!kept.is_empty()).then_some(kept)
+}
+
 /// A Photoshop block holding only `iim`.
 pub fn irb_of_iim(iim: &[u8]) -> Vec<u8> {
     resource(IPTC, iim)

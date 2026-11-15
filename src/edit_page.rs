@@ -222,6 +222,9 @@ pub struct Window {
     /// Where the line being drawn ends.
     line_end: Option<Pos2>,
     preparing: bool,
+    /// What the saves of this page keep of the original's metadata, chosen in the confirmation
+    /// (#55); all of it at first.
+    pub(crate) keep: crate::meta_strip::Keep,
     /// The copy (or the image for an overwrite) made: its confirmation is open.
     pub ready: Option<save::Ready>,
     /// On a phone or a server: the image is edited in a copy on this computer (a line at the top).
@@ -297,6 +300,7 @@ impl Window {
             straighten: false,
             line_end: None,
             preparing: false,
+            keep: crate::meta_strip::Keep::All,
             ready: None,
             remote: None,
             leaving: false,

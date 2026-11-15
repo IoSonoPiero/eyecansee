@@ -13,6 +13,7 @@ use image::metadata::Orientation;
 use image::{DynamicImage, ImageDecoder, ImageEncoder, ImageReader};
 
 use crate::encoders;
+use crate::meta_strip::Keep;
 use crate::transform::Turn;
 
 /// Output formats, all with encoders in the program. No HEIC (patents) and no JPEG XL (no
@@ -163,7 +164,8 @@ pub enum TiffCompression {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Options {
     pub format: Format,
-    pub keep_meta: bool,
+    /// What the new file keeps of the original's metadata (#55).
+    pub meta: Keep,
     pub jpeg_quality: u8,
     pub chroma: Chroma,
     pub progressive: bool,
@@ -201,7 +203,7 @@ impl Default for Options {
     fn default() -> Self {
         Self {
             format: Format::Jpeg,
-            keep_meta: true,
+            meta: Keep::All,
             jpeg_quality: 90,
             chroma: Chroma::Quarter,
             progressive: false,
@@ -359,23 +361,35 @@ impl Original {
 
     /// The metadata for a `format` file of `w` × `h` pixels: sizes set, the old thumbnails out
     /// (they showed the original), the Camera Raw settings of the XMP marked as already in the
-    /// pixels (`xmp::fix`).
-    fn blocks(&self, format: Format, w: u32, h: u32, sideways: bool) -> Blocks {
+    /// pixels (`xmp::fix`). As `keep` says (#55): without the place, the GPS of the EXIF and the
+    /// place in the XMP and the IPTC go (an XMP that cannot be read goes whole); with nothing, only
+    /// the colour profile stays, which the picture needs to look right.
+    fn blocks(&self, format: Format, w: u32, h: u32, sideways: bool, keep: Keep) -> Blocks {
+        if keep == Keep::Nothing {
+            return Blocks { icc: self.icc.clone(), ..Blocks::default() };
+        }
+        let no_place = keep == Keep::NoPlace;
         let mut exif = self.exif.clone();
         if let Some(e) = &mut exif {
             crate::meta::fit_exif(e, w, h);
+            if no_place {
+                crate::meta_strip::exif_without_gps(e);
+            }
         }
         let density = self.density.map(|d| if sideways { d.swapped() } else { d });
         if let Some(d) = density {
             exif = density::set_exif(exif, d, matches!(format, Format::Webp | Format::Avif));
         }
         let irb = self.irb.as_deref().and_then(crate::meta_write::fit_irb);
+        let irb = if no_place { irb.and_then(|i| crate::meta_write::irb_without_place(&i)) } else { irb };
         // WebP and AVIF have no place for IPTC: its fields go into the XMP.
         let iim = if matches!(format, Format::Webp | Format::Avif) { irb.as_deref().and_then(crate::meta_write::iim) } else { None };
         // A JPEG keeps the extended XMP in segments of its own, as they were (the GUID is the
         // digest of their content); the other formats hold an XMP of any size: it joins the main one.
         let (ext, xmp_ext) = if format == Format::Jpeg { (None, self.xmp_ext.clone()) } else { (crate::meta_write::xmp_ext_packet(&self.xmp_ext), Vec::new()) };
-        let xmp = crate::xmp::fit_with(self.xmp.as_deref(), w, h, iim, ext.as_deref());
+        let xmp = if no_place { crate::xmp::fit_without_place(self.xmp.as_deref(), w, h, iim, ext.as_deref()) } else { crate::xmp::fit_with(self.xmp.as_deref(), w, h, iim, ext.as_deref()) };
+        // The extended XMP of a JPEG (depth maps, large data) is not read: without the place, it goes.
+        let xmp_ext = if no_place { Vec::new() } else { xmp_ext };
         Blocks { exif, icc: self.icc.clone(), xmp, irb, xmp_ext, density }
     }
 
@@ -391,7 +405,7 @@ impl Original {
             &turned
         };
         let img = pixels(image, o.format);
-        let b = if o.keep_meta { self.blocks(o.format, img.width(), img.height(), o.turn.sideways()) } else { Blocks::default() };
+        let b = self.blocks(o.format, img.width(), img.height(), o.turn.sideways(), o.meta);
         let mut out = Cursor::new(Vec::new());
         match o.format {
             Format::Jpeg => return encoders::jpeg(&img, o, &b),
@@ -618,13 +632,30 @@ pub(crate) mod tests {
                 assert_eq!(i.as_ref(), Some(&icc), "{o:?}");
                 kept_xmp_and_iptc(&bytes, format, &iim);
             }
-            let bare = original.encode(&Options { keep_meta: false, ..o }).unwrap();
+            place_left_out(&original, o);
+            // Nothing (#55): only the colour profile, which the picture needs.
+            let bare = original.encode(&Options { meta: Keep::Nothing, ..o }).unwrap();
             if format != Format::Gif {
-                assert_eq!(read_meta(&bare), (None, None), "{o:?}");
+                assert_eq!(read_meta(&bare), (None, matches!(format, Format::Jpeg | Format::Png | Format::Webp | Format::Tiff).then(|| icc.clone())), "{o:?}");
                 let back = Original::with_meta(original.image.clone(), &bare);
                 assert!(back.xmp.is_none() && back.irb.is_none(), "{o:?}");
             }
         }
+    }
+
+    /// Without the place (#55), in a format with metadata: the city of the IPTC gone from the IPTC
+    /// and the XMP, the author kept.
+    fn place_left_out(original: &Original, o: Options) {
+        if !o.format.holds_meta() {
+            return;
+        }
+        let shared = original.encode(&Options { meta: Keep::NoPlace, ..o }).unwrap();
+        let back = Original::with_meta(original.image.clone(), &shared);
+        let text = format!("{:?} {:?}", back.xmp.as_deref().map(String::from_utf8_lossy), back.irb.as_deref().map(String::from_utf8_lossy));
+        assert!(!text.contains("bec") && !text.contains("City"), "{o:?}: {text}");
+        assert!(text.contains("Ann"), "{o:?}: {text}");
+        // The Camera Raw settings of a photo stay, marked as applied (they go only with None).
+        assert!(text.contains("crs:AlreadyApplied"), "{o:?}: {text}");
     }
 
     /// XMP and IPTC of a file written from `every_format`'s original, read back as the program
