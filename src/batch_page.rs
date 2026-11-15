@@ -279,6 +279,20 @@ pub struct Window {
 
 /// The Fluent ids of the title of the window (and of the message at the end), of its button that
 /// starts the work, and of the box that shows how the work is going.
+/// For the diagnosis of issue #136 (the window narrow the first time on Windows, while FFmpeg
+/// tries the encoders): its size in the log whenever it changes, with the screen, the scale and
+/// whether the encoders are tried yet.
+fn log_size(ctx: &egui::Context, rect: egui::Rect) {
+    let id = egui::Id::unique("batch-ask-size");
+    let size = rect.size().round();
+    if ctx.data(|d| d.get_temp::<egui::Vec2>(id)) != Some(size) {
+        ctx.data_mut(|d| d.insert_temp(id, size));
+        let screen = ctx.content_rect().size();
+        let tried = (crate::ffmpeg::probed().is_some(), crate::ffmpeg::copy_probed().is_some());
+        log!("batch: window {}×{} points, screen {}×{}, scale {}, encoders tried {tried:?}", size.x, size.y, screen.x, screen.y, ctx.pixels_per_point());
+    }
+}
+
 fn titles(audio: Option<AudioJob>, drawing: bool, part: Part) -> (&'static str, &'static str, &'static str) {
     match audio {
         Some(AudioJob::Strip) => ("batch-title-strip", "batch-start-copy", "batch-working-copy"),
@@ -451,7 +465,7 @@ impl App {
         let keys = self.delete_answer.take();
         let (places, rt) = (self.pick_places(), self.rt.handle().clone());
         let (mut answer, mut picked) = (None, None);
-        egui::Modal::new(egui::Id::unique("batch-ask")).show(ctx, |ui| {
+        let shown = egui::Modal::new(egui::Id::unique("batch-ask")).show(ctx, |ui| {
             ui.set_width(680.0);
             if let Some(p) = &mut form.picker {
                 picked = pick_ui(ui, p, &places, &self.i18n, &rt, keys);
@@ -462,6 +476,7 @@ impl App {
             notice_text(ui, &intro);
             answer = form_ui(ui, &mut form, &self.i18n);
         });
+        log_size(ctx, shown.response.rect);
         if form.picker.is_some() {
             if let Some(choice) = picked {
                 form.other = choice.unwrap_or(form.other);
