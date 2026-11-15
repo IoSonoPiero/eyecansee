@@ -30,7 +30,7 @@ Volume e audio spento restano per i video successivi e alla prossima apertura di
 | ←, Backspace, Pag↑ | File precedente |
 | Inizio, Fine | Primo, ultimo file |
 | Esc, doppio clic | Torna alla griglia |
-| F11 | Schermo intero: solo il video |
+| F11 | Schermo intero: solo il video, con la sua barra sopra l'immagine finché si muove il mouse |
 
 **F2** rinomina il video e **Canc** lo elimina, come per le foto. Il pulsante **Tasti** nella barra di stato elenca questi tasti.
 

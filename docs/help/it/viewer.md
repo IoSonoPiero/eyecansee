@@ -54,6 +54,8 @@ La barra strumenti tiene solo ciò che lavora sulla foto mostrata: ![Rinomina…
 
 **F11** mostra la foto da sola, senza menù né barre, su fondo nero. **Esc** prima esce dallo schermo intero, poi torna alla griglia.
 
+Un video a schermo intero riempie lo schermo: la sua barra compare sopra il fondo dell'immagine quando si muove il mouse e sparisce col puntatore dopo 2 secondi di mouse fermo (resta finché il puntatore è sopra).
+
 ## Cos'altro puoi fare
 
 - Ruotare e riflettere la foto: vedi [Ruotare e riflettere](rotate.md).
