@@ -45,7 +45,7 @@ La scelta vale per tutte le cartelle finché non la cambi. La barra di stato con
 
 Il cursore in fondo a destra nella barra strumenti, accanto a ![Dimensione miniature](icon://image), ingrandisce o rimpicciolisce le miniature. Le celle si allargano su tutta la larghezza della griglia.
 
-Sotto ogni miniatura c'è il suo nome; in **Opzioni > Miniature > Sotto le miniature** puoi aggiungere le dimensioni in pixel, il peso e la data (vedi [Opzioni](options.md)). Con le miniature piccole resta solo il nome.
+Sotto ogni miniatura ci sono il nome, le dimensioni in pixel e il peso, e la data, con la durata di video e file audio; in **Opzioni > Miniature > Sotto le miniature** scegli quali vedere, tutte spuntate all'inizio (vedi [Opzioni](options.md)). Con le miniature piccole resta solo il nome.
 
 ## Miniature
 
