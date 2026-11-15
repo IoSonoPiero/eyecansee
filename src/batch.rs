@@ -654,9 +654,8 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
         }
         let r = match op.read(&path).await {
             Ok(bytes) => {
-                let mut job = Job::clone(&job);
+                let (mut job, before) = (Job::clone(&job), bytes.len() as u64);
                 job.shown = job.layers.get(&path).cloned();
-                let before = bytes.len() as u64;
                 let sibling = crate::loader::siblings(op.clone(), path.clone());
                 let made = tokio::task::spawn_blocking(move || convert_with(&bytes, &name, &job, &sibling)).await.unwrap_or_else(|e| Err(("batch-failed", e.to_string())));
                 made.map(|(name, data)| (name, data, before))
