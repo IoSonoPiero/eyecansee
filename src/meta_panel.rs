@@ -278,12 +278,17 @@ impl App {
                 ui.separator();
                 ui.label(date);
             }
-            // On the right, out of the way: the keys, listed when asked. Blue on
-            // white: the bar makes every text white, and the button was white on white.
-            let keys = egui::Button::new(egui::RichText::new(self.i18n.t("keys-button")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
-            self.keys_hint(current).map(|_| ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.add(keys)).inner)
+            // On the right, out of the way: the keys, listed when asked.
+            self.keys_hint(current).map(|_| ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| self.keys_button(ui)).inner)
         })
         .inner
+    }
+
+    /// The Keys button of a status bar (viewer, grid). Blue on white: the bar makes every text
+    /// white, and the button was white on white.
+    pub(crate) fn keys_button(&self, ui: &mut Ui) -> egui::Response {
+        let keys = egui::Button::new(egui::RichText::new(self.i18n.t("keys-button")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
+        ui.add(keys)
     }
 
     /// The keys of the viewer, one a row, over its bottom right corner above the status bar

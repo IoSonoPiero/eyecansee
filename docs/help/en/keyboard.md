@@ -1,6 +1,6 @@
 # Keyboard shortcuts
 
-Every key of EyeCanSee, by place. The menus show the key next to each item, and pointing at a toolbar button shows its name and key. In the viewer and in the editor the **Keys** button on the right of the status bar lists the keys of what you are looking at.
+Every key of EyeCanSee, by place. The menus show the key next to each item, and pointing at a toolbar button shows its name and key. In the grid, in the viewer and in the editor the **Keys** button on the right of the status bar lists the keys of what you are looking at.
 
 ## Everywhere
 
