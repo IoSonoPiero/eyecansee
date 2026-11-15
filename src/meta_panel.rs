@@ -240,10 +240,7 @@ impl App {
                 }
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
-                if let Some(section) = self.section_status() {
-                    ui.separator();
-                    ui.label(section);
-                }
+                self.section_bar(ui);
             } else if crate::cad::is_cad(&f.path) {
                 // A drawing has no pixels: its own size, in its unit.
                 for text in [self.cad_size_text(current), self.cad_sheet_name(current), self.compare_text(current)].into_iter().flatten() {

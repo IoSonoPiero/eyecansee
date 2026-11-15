@@ -500,6 +500,7 @@ measure-copy = Copy
 section-title = Section
 section-flip = Other side
 section-keys = Alt+wheel, comma, full stop: move · X, Y, Z: axis · F: other side · S: off
+section-open = not filled: the model is not closed
 cad-model = Model
 cad-units = units
 keys-button = Keys

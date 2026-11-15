@@ -258,7 +258,7 @@ impl Gpu {
         let (plane, on) = view.cut.map_or(([0.0; 4], 0.0), |c| (c.plane(mesh), 1.0));
         let cap = render3d::CAP.map(|c| f32::from(c) / 255.0);
         bytes.extend(plane.into_iter().chain([cap[0], cap[1], cap[2], on]).flat_map(|v: f32| v.to_le_bytes()));
-        let cap = view.cut.map(|c| {
+        let cap = view.cut.filter(|c| c.fill).map(|c| {
             let mut bytes = Vec::with_capacity(6 * STRIDE as usize);
             cap_vertices(mesh, &c, &mut bytes);
             self.rs.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("cut"), contents: &bytes, usage: wgpu::BufferUsages::VERTEX })

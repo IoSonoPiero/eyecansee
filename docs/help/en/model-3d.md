@@ -41,14 +41,14 @@ In the top right corner the axes of the file (X red, Y green, Z blue) turn with 
 
 ## Section
 
-**S** cuts the model with a plane, to see inside it: what is beyond the plane is left out, and where the plane crosses the solid it is filled in red, so walls and thicknesses stand out. The plane starts through the middle of the model, across Z for a model with Z up (for a building in IFC, a plan of the floor it crosses), otherwise across Y. The status bar says the axis, where the plane is and the keys:
+**S** cuts the model with a plane, to see inside it: what is beyond the plane is left out, and where the plane crosses the solid it is filled in red, so walls and thicknesses stand out. The plane starts through the middle of the model, across Z for a model with Z up (for a building in IFC, a plan of the floor it crosses), otherwise across Y. The status bar says the axis and where the plane is, with a slider that moves it; or with the keys:
 
 - **X**, **Y**, **Z**: the axis the plane goes across;
-- **Alt** and the mouse wheel, **,** and **.**: move the plane;
+- **Alt** and the mouse wheel, **,** and **.**, or the slider in the status bar: move the plane;
 - **F**: keep the other side;
 - **S** again: the whole model.
 
-**Save as…** saves the model with its section, as it is shown. The red fill is right for closed models (as a model for 3D printing must be), whichever way their triangles face; where a model has holes in its surface the fill can be missing or spill over.
+**Save as…** saves the model with its section, as it is shown. The red fill is shown only for closed models (every edge shared by two triangles, as a model for 3D printing must be), whichever way their triangles face: a model with holes in its surface has no known inside, so its cut stays empty and the status bar says so.
 
 ## What is shown
 

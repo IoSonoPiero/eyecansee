@@ -69,7 +69,7 @@ impl App {
     }
 
     /// The sizes of the model, asked once and worked out in the background: `None` meanwhile.
-    fn model_sizes(&mut self, ctx: &egui::Context, path: &str, mesh: &Arc<Mesh>) -> Option<Sizes> {
+    pub(crate) fn model_sizes(&mut self, ctx: &egui::Context, path: &str, mesh: &Arc<Mesh>) -> Option<Sizes> {
         let m = &mut self.model.measure;
         for (p, s) in m.sizes_done.lock().unwrap().drain(..) {
             m.sizes.insert(p, Some(s));
