@@ -102,6 +102,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |
 | 0 | Torna alla vista iniziale |
 | M | Misura: ingombro, superficie, volume e la distanza tra due punti cliccati |
+| S | Sezione: taglia il modello con un piano (X, Y, Z l'asse; Alt+rotellina, virgola e punto lo spostano; F l'altro lato) |
 | Pagina giù, Spazio | Elemento successivo |
 | Pagina su, Backspace | Elemento precedente |
 | Ctrl+Maiusc+S | Salva il modello come si vede, come immagine (Ctrl+S, che salva sopra l'originale, su un modello è grigio) |

@@ -24,6 +24,7 @@ Double-click a model, or select it and press **Enter**.
 | Mouse wheel, + and − | Zoom in and out |
 | 0 | Back to the starting view |
 | M | Measure |
+| S | Section |
 | Page Down, Space | Next file |
 | Page Up, Backspace | Previous file |
 | Home, End | First, last file |
@@ -37,6 +38,17 @@ In the top right corner the axes of the file (X red, Y green, Z blue) turn with 
 ## Measuring
 
 **M**, or **View > Measure**, turns on the Measure tool: a box at the top left shows the overall size of the model along X, Y and Z, its surface and its volume. The volume is given only for a closed model (every edge shared by two triangles, as a model for 3D printing must be); otherwise the box says how many edges are open. Click two points on the model for their distance; a third click starts again. Measures are in the file's unit when the format or the file says it (glTF, IFC, X3D and VRML in metres, STEP and IGES in millimetres, 3MF and AMF as they say); STL, OBJ, PLY and others have no unit, and the box says so. **Copy** puts the results on the clipboard; **Esc** clears the points, **Esc** again or **M** closes the tool. Dragging still turns the model.
+
+## Section
+
+**S** cuts the model with a plane, to see inside it: what is beyond the plane is left out, and the inside seen through the cut is in red, so walls and thicknesses stand out. The plane starts through the middle of the model, across Z for a model with Z up (for a building in IFC, a plan of the floor it crosses), otherwise across Y. In the box at the bottom left, or with the keys:
+
+- **X**, **Y**, **Z**: the axis the plane goes across;
+- **Alt** and the mouse wheel, **,** and **.**, or the slider: move the plane;
+- **F**, or **Other side**: keep the other side;
+- **S** again: the whole model.
+
+**Save as…** saves the model with its section, as it is shown. The red of the cut is right for closed models whose triangles face outwards, as most are; on others some faces may show red. Without a graphics card EyeCanSee can use there is no section.
 
 ## What is shown
 

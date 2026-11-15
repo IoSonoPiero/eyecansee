@@ -126,6 +126,7 @@ mod rotate;
 mod edit_page;
 mod save_back;
 mod save_dialogs;
+mod section_view;
 mod selection;
 mod server_manager;
 mod servers;

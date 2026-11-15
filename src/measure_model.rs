@@ -41,7 +41,7 @@ impl App {
         let lines = self.model_lines(sizes.as_ref(), mesh.unit);
         let hint = self.i18n.t("measure-hint-3d");
         let measuring = sizes.is_none().then(|| self.i18n.t("measure-measuring"));
-        result_box(ui.ctx(), rect, false, &self.i18n.t("measure-title"), |ui| {
+        result_box(ui.ctx(), rect, egui::Align2::LEFT_TOP, &self.i18n.t("measure-title"), |ui| {
             ui.weak(&hint);
             if let Some(text) = &measuring {
                 ui.weak(text);

@@ -152,7 +152,7 @@ impl App {
         });
         let modes = [(Mode::Distance, "measure-distance", "D"), (Mode::Area, "measure-area", "A"), (Mode::Angle, "measure-angle", "G")];
         let mut chosen = m.mode;
-        result_box(ctx, rect, true, &t("measure-title"), |ui| {
+        result_box(ctx, rect, egui::Align2::RIGHT_TOP, &t("measure-title"), |ui| {
             ui.horizontal(|ui| {
                 for (mode, label, key) in modes {
                     ui.selectable_value(&mut chosen, mode, t(label)).on_hover_text(key);
@@ -184,11 +184,11 @@ fn cad_lines(i18n: &crate::i18n::I18n, r: Option<Measured>, unit: Option<&str>) 
     }
 }
 
-/// A box of results over a top corner of `rect` (the right one on a drawing, whose corner on
-/// the left is often its title; on a model the axes are there), which can be moved.
-pub(crate) fn result_box(ctx: &egui::Context, rect: egui::Rect, right: bool, title: &str, add: impl FnOnce(&mut egui::Ui)) {
-    let (pivot, at) = if right { (egui::Align2::RIGHT_TOP, rect.right_top() + egui::vec2(-12.0, 12.0)) } else { (egui::Align2::LEFT_TOP, rect.left_top() + egui::vec2(12.0, 12.0)) };
-    egui::Area::new(egui::Id::unique(if right { "measure-box-drawing" } else { "measure-box-model" })).order(egui::Order::Foreground).pivot(pivot).default_pos(at).movable(true).constrain_to(rect).show(ctx, |ui| {
+/// A box over the `corner` of `rect` (for a measure the top right one on a drawing, whose left is
+/// often its title; on a model the top left, the axes being on the right), which can be moved.
+pub(crate) fn result_box(ctx: &egui::Context, rect: egui::Rect, corner: egui::Align2, title: &str, add: impl FnOnce(&mut egui::Ui)) {
+    let at = corner.pos_in_rect(&rect.shrink(12.0));
+    egui::Area::new(egui::Id::unique("viewer-box").with(corner.0)).order(egui::Order::Foreground).pivot(corner).default_pos(at).movable(true).constrain_to(rect).show(ctx, |ui| {
         egui::Frame::popup(ui.style()).show(ui, |ui| {
             ui.set_max_width(320.0);
             ui.strong(title);

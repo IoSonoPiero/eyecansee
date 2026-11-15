@@ -102,6 +102,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | + and − (or the mouse wheel) | Zoom in and out |
 | 0 | Back to the starting view |
 | M | Measure: size, surface, volume, and the distance between two points clicked |
+| S | Section: cut the model with a plane (X, Y, Z its axis; Alt+wheel, comma and full stop move it; F the other side) |
 | Page Down, Space | Next item |
 | Page Up, Backspace | Previous item |
 | Ctrl+Shift+S | Save the model as it is shown, as an image (Ctrl+S, which saves over the original, is greyed out on a model) |

@@ -21,6 +21,46 @@ pub struct View {
     pub turned: [[f32; 3]; 3],
     pub zoom: f32,
     pub pan: [f32; 2],
+    /// A section (#145): what is beyond its plane is cut away.
+    pub cut: Option<Cut>,
+}
+
+/// A cutting plane across an axis of the file (0 X, 1 Y, 2 Z), at `at` from one side of the
+/// model's sphere (0) to the other (1); `flip` keeps the other side.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Cut {
+    pub axis: usize,
+    pub at: f32,
+    pub flip: bool,
+}
+
+impl Cut {
+    /// Through the middle of the model, across Z for a model with Z up (a plan, for a building),
+    /// otherwise across Y.
+    pub fn middle(z_up: bool) -> Cut {
+        Cut { axis: if z_up { 2 } else { 1 }, at: 0.5, flip: false }
+    }
+
+    /// The plane in the model's coordinates: its normal and distance; a point `p` with
+    /// `n · p > d` is cut away.
+    pub fn plane(&self, mesh: &Mesh) -> [f32; 4] {
+        let axis = self.axis.min(2);
+        let sign = if self.flip { -1.0 } else { 1.0 };
+        let at = mesh.center[axis] + (self.at.clamp(0.0, 1.0) * 2.0 - 1.0) * mesh.radius;
+        let mut p = [0.0; 4];
+        p[axis] = sign;
+        p[3] = sign * at;
+        p
+    }
+}
+
+/// The colour of the cut faces: the inside of the model seen through the cut, as the section
+/// fill of CAD programs.
+pub const CAP: [u8; 3] = [214, 96, 74];
+
+/// Whether the model's point `p` is cut away by `plane`.
+pub(crate) fn cut_away(plane: &[f32; 4], p: [f32; 3]) -> bool {
+    plane[0] * p[0] + plane[1] * p[1] + plane[2] * p[2] > plane[3]
 }
 
 impl Default for View {
@@ -46,7 +86,7 @@ fn screen_turn(dx: f32, dy: f32) -> M3 {
 impl View {
     /// Turned sideways by `yaw`, then up or down by `pitch` (radians), not zoomed or moved.
     pub fn angles(yaw: f32, pitch: f32) -> View {
-        View { turned: screen_turn(yaw, pitch), zoom: 1.0, pan: [0.0; 2] }
+        View { turned: screen_turn(yaw, pitch), zoom: 1.0, pan: [0.0; 2], cut: None }
     }
 
     /// Turned by `dx`, `dy` radians about the axes of the screen, like a trackball: the same way
@@ -176,9 +216,14 @@ fn draw(mesh: &Mesh, view: &View, w: u32, h: u32) -> RgbaImage {
     let origin = apply(&m, [0.0; 3]);
     let turn = |v: [f32; 3]| -> [f32; 3] { std::array::from_fn(|k| apply(&m, v)[k] - origin[k]) };
 
+    let plane = view.cut.map(|c| c.plane(mesh));
     let bands = (h as usize).div_ceil(BAND);
     let mut binned: Vec<Vec<u32>> = vec![Vec::new(); bands];
     for (i, t) in mesh.tris.iter().enumerate() {
+        // Wholly beyond the cutting plane: not drawn.
+        if plane.is_some_and(|p| t.iter().all(|&v| cut_away(&p, mesh.pos[v as usize]))) {
+            continue;
+        }
         let ys = t.map(|v| screen[v as usize][1]);
         let (lo, hi) = (ys[0].min(ys[1]).min(ys[2]), ys[0].max(ys[1]).max(ys[2]));
         if hi < 0.0 || lo >= hf || !lo.is_finite() || !hi.is_finite() {
@@ -200,19 +245,27 @@ fn draw(mesh: &Mesh, view: &View, w: u32, h: u32) -> RgbaImage {
         for &i in tris {
             let i = i as usize;
             let t = mesh.tris[i].map(|v| screen[v as usize]);
+            // With a section, the parts beyond the plane left out pixel by pixel, and the inside
+            // seen through the cut (the faces turned away) in the colour of the cut.
+            let corners = mesh.tris[i].map(|v| mesh.pos[v as usize]);
+            let keep = |k: [f32; 3]| plane.is_none_or(|p| !cut_away(&p, std::array::from_fn(|j| k[0] * corners[0][j] + k[1] * corners[1][j] + k[2] * corners[2][j])));
+            if plane.is_some() && turned_away(t) {
+                fill(pixels, &mut depth, w as usize, y0, rows, t, |k| keep(k).then_some(CAP));
+                continue;
+            }
             let at = |k: [f32; 3], uv: &[[f32; 2]; 3]| [0, 1].map(|j| k[0] * uv[0][j] + k[1] * uv[1][j] + k[2] * uv[2][j]);
             let texture = mesh.tex.get(i).filter(|&&k| k > 0).and_then(|&k| mesh.textures.get(k as usize - 1)).map(|img| (img.as_ref(), mesh.uv[i]));
             if let Some(s) = crate::render_shine::Shiny::new(mesh, &eye, &turn, i) {
-                fill(pixels, &mut depth, w as usize, y0, rows, t, |k| s.pixel(k));
+                fill(pixels, &mut depth, w as usize, y0, rows, t, |k| keep(k).then(|| s.pixel(k)));
             } else if let Some((img, uv)) = texture {
                 // The base colour lit, tinted by the picture (both sRGB, as everywhere here).
                 let c = shade[i];
                 fill(pixels, &mut depth, w as usize, y0, rows, t, |k| {
                     let tx = texel(img, at(k, &uv));
-                    std::array::from_fn(|j| (c[j] as f32 * tx[j] as f32 / 255.0).min(255.0) as u8)
+                    keep(k).then(|| std::array::from_fn(|j| (c[j] as f32 * tx[j] as f32 / 255.0).min(255.0) as u8))
                 });
             } else {
-                fill(pixels, &mut depth, w as usize, y0, rows, t, |_| shade[i]);
+                fill(pixels, &mut depth, w as usize, y0, rows, t, |k| keep(k).then_some(shade[i]));
             }
         }
     });
@@ -255,11 +308,18 @@ fn background(pixels: &mut [u8], row: usize, y0: usize, h: usize) {
     }
 }
 
+/// A triangle on the screen whose corners go clockwise (the screen's Y down): its back is seen,
+/// for a model whose triangles turn counter-clockwise seen from outside, as formats ask.
+fn turned_away([a, b, c]: [Screen; 3]) -> bool {
+    (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) > 0.0
+}
+
 /// One triangle into a band starting at row `y0`, with `rows` rows: pixel centres inside the
 /// three edges, kept where closer than what is already there, in the colour `paint` gives for
-/// the corners' weights there (counting the perspective, so pictures follow it).
+/// the corners' weights there (counting the perspective, so pictures follow it); `None` leaves
+/// the pixel as it is (cut away by a section).
 #[allow(clippy::too_many_arguments)]
-fn fill(pixels: &mut [u8], depth: &mut [f32], w: usize, y0: usize, rows: usize, t: [Screen; 3], paint: impl Fn([f32; 3]) -> [u8; 3]) {
+fn fill(pixels: &mut [u8], depth: &mut [f32], w: usize, y0: usize, rows: usize, t: [Screen; 3], paint: impl Fn([f32; 3]) -> Option<[u8; 3]>) {
     let [a, b, c] = t;
     let area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
     if area == 0.0 || !area.is_finite() {
@@ -282,9 +342,9 @@ fn fill(pixels: &mut [u8], depth: &mut [f32], w: usize, y0: usize, rows: usize, 
             let z = wa * a[2] + wb * b[2] + wc * c[2];
             let at = line + x;
             if z > depth[at] {
-                depth[at] = z;
                 // Interpolated over 1/depth.
-                let c = paint([wa * a[2] / z, wb * b[2] / z, wc * c[2] / z]);
+                let Some(c) = paint([wa * a[2] / z, wb * b[2] / z, wc * c[2] / z]) else { continue };
+                depth[at] = z;
                 pixels[at * 4..at * 4 + 3].copy_from_slice(&c);
             }
         }
@@ -380,6 +440,27 @@ mod tests {
             assert!(((x + 1.0) * w / 2.0 - sx).abs() < 1e-2 && ((1.0 - y) * h / 2.0 - sy).abs() < 1e-2);
             assert!((0.0..=1.0).contains(&z));
         }
+    }
+
+    #[test]
+    fn a_section_shows_the_inside_in_the_colour_of_the_cut() {
+        // A cube with its faces turned outwards, seen from above as the viewer starts.
+        let obj = "v -1 -1 -1\nv 1 -1 -1\nv 1 1 -1\nv -1 1 -1\nv -1 -1 1\nv 1 -1 1\nv 1 1 1\nv -1 1 1\nf 1 4 3 2\nf 5 6 7 8\nf 1 2 6 5\nf 3 4 8 7\nf 2 3 7 6\nf 4 1 5 8\n";
+        let m = model::parse(obj.as_bytes(), "c.obj").unwrap();
+        let centre = |view: &View| *render(&m, view, 200, 200, 1).get_pixel(100, 100);
+        let whole = centre(&View::default());
+        assert_ne!([whole[0], whole[1], whole[2]], CAP);
+        // The top half cut away: through the cut, the inside.
+        let cut = View { cut: Some(Cut::middle(false)), ..View::default() };
+        let c = centre(&cut);
+        assert_eq!([c[0], c[1], c[2]], CAP);
+        // The other side kept: the top of the cube, as before.
+        let flipped = View { cut: Some(Cut { flip: true, ..Cut::middle(false) }), ..View::default() };
+        assert_eq!(centre(&flipped), whole);
+        // Cut away whole: the background only.
+        let none = View { cut: Some(Cut { at: 0.0, ..Cut::middle(false) }), ..View::default() };
+        assert_eq!(lit_pixels(&render(&m, &none, 200, 200, 1)), 0);
+        assert!(cut_away(&Cut::middle(false).plane(&m), [0.0, 0.5, 0.0]) && !cut_away(&Cut::middle(false).plane(&m), [0.0, -0.5, 0.0]));
     }
 
     #[test]
