@@ -24,6 +24,8 @@ pub(crate) fn failed(name: &str, e: String) -> source::Error {
 
 /// The original as a local file for FFmpeg; a temporary copy is removed when this is dropped.
 pub(crate) struct Input {
+    /// The original's name.
+    pub(crate) name: String,
     pub(crate) file: PathBuf,
     /// `file` is a temporary copy of a file of a phone or a server.
     copy: bool,
@@ -48,7 +50,7 @@ impl Input {
                 (file, true)
             }
         };
-        Ok(Input { file, copy, phases })
+        Ok(Input { name, file, copy, phases })
     }
 
     /// Cancel was pressed.
@@ -156,7 +158,7 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let input = Input::fetch(&op, "a.mp4", (&op, "out/"), &progress()).await.unwrap();
-            assert_eq!(input.phases.count, 1);
+            assert_eq!((input.name.as_str(), input.phases.count), ("a.mp4", 1));
             assert_eq!(input.file.canonicalize().unwrap(), dir.join("a.mp4").canonicalize().unwrap());
             let output = Output::new(&op, "out/a.mkv".into(), "a.mp4");
             assert!(!output.remote && crate::batch::writing(&dir.join("out").join("a.mkv")));

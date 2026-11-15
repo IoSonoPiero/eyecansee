@@ -131,7 +131,8 @@ pub async fn run(op: &Store, (base, path): (&str, &str), out: &Store, dest: &str
 /// The work of `run` once the video is a local file. `Err(Ok)`: an error with its Fluent id,
 /// `Err(Err)`: what ffmpeg or the copy said.
 async fn write(program: &Path, input: &Input, (out, dest): (&Store, &str), job: AudioJob, taken: &mut HashSet<String>, thumb: Option<(u64, Vec<u8>)>) -> Result<Vec<String>, Result<source::Error, String>> {
-    let name = input.file.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    // The original's name: a temporary copy has another one.
+    let name = input.name.clone();
     let (p, file) = (program.to_path_buf(), input.file.clone());
     let codecs = tokio::task::spawn_blocking(move || tracks(&p, &file)).await.unwrap_or_else(|e| Err(e.to_string())).map_err(Err)?;
     if codecs.is_empty() {
@@ -211,6 +212,32 @@ mod tests {
         assert!(a.ends_with("-map 0 -map -0:a -map -0:d -c copy -map_metadata 0 out.mkv"), "{a}");
         let a = extract_args("in.mkv", &["a.m4a".into(), "b.opus".into()]).join(" ");
         assert!(a.ends_with("-i in.mkv -vn -map 0:a:0 -c:a copy -map_metadata 0 -movflags +use_metadata_tags a.m4a -vn -map 0:a:1 -c:a copy -map_metadata 0 b.opus"), "{a}");
+    }
+
+    /// A video of a phone or a server: the new files named after it, not after its temporary
+    /// copy ("eyecansee-in-<process>-v.m4a" before). A script stands for FFmpeg: it lists one
+    /// audio track, and copies the input into the last file it is given.
+    #[cfg(unix)]
+    #[test]
+    fn named_after_a_remote_original() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("eyecansee-audio-job-name-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let script = dir.join("ffmpeg");
+        let text = "#!/bin/sh\nprev=\nfor a; do [ \"$prev\" = -i ] && input=$a; prev=$a; last=$a; done\nif [ $# -le 3 ]; then echo '  Stream #0:1: Audio: aac (LC)' >&2; exit 1; fi\ncp \"$input\" \"$last\"\n";
+        std::fs::write(&script, text).unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Memory::default()).unwrap());
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let Store::Dal(o) = &op else { unreachable!() };
+            o.write("trip/v-name.mp4", b"the video".to_vec()).await.unwrap();
+            let input = Input::fetch(&op, "trip/v-name.mp4", (&op, "out/"), &Arc::new(Progress::default())).await.unwrap();
+            let mut taken = HashSet::new();
+            let saved = write(&script, &input, (&op, "out/"), AudioJob::Extract, &mut taken, None).await.unwrap();
+            assert_eq!(saved, ["out/v-name.m4a"]);
+            assert_eq!(op.read("out/v-name.m4a").await.unwrap(), b"the video");
+        });
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     /// The jobs that copy the streams (both audio jobs and "Same as the original") on
