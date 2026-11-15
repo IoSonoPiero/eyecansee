@@ -33,7 +33,7 @@ fn filter_bar(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     ui.strong(i18n.t(filter.label()));
     if let Some((lo, hi, _)) = filter.amount(long) {
         ui.spacing_mut().slider_width = 160.0;
-        super::props::slider(ui, "edit-filter-amount", i18n.t("edit-filter-amount"), egui::Slider::new(amount, lo..=hi).integer());
+        super::props::slider(ui, "edit-filter-amount", i18n.t("edit-filter-amount"), egui::Slider::new(amount, lo..=hi).integer(), &crate::ticked::Marks::whole(&(lo..=hi)));
     }
     if filter.hides() {
         ui.label(crate::theme::alert(i18n.t("edit-filter-not-cover")));
@@ -199,7 +199,8 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
     let t = |id| i18n.t(id);
     let slider = |ui: &mut egui::Ui, id: &'static str, value: &mut f32, range, suffix| {
         ui.separator();
-        super::props::slider(ui, id, t(id), egui::Slider::new(value, range).integer().suffix(suffix));
+        let marks = crate::ticked::Marks::whole(&range);
+        super::props::slider(ui, id, t(id), egui::Slider::new(value, range).integer().suffix(suffix), &marks);
     };
     ui.spacing_mut().slider_width = if kind == Kind::Patch { super::patch::SLIDER } else { 110.0 };
     if let Some((id, range)) = width_slider(kind, long) {
@@ -379,7 +380,7 @@ pub(super) fn angle(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     let before = shown.round();
     ui.spacing_mut().slider_width = super::patch::SLIDER;
     let slider = egui::Slider::new(&mut shown, -180.0..=180.0).integer().suffix("°");
-    if super::props::slider(ui, "rc-rotation", i18n.t("rc-rotation"), slider).on_hover_text(i18n.t("edit-turn-hint")).changed() && shown != before {
+    if super::props::slider(ui, "rc-rotation", i18n.t("rc-rotation"), slider, &crate::ticked::Marks::whole(&(-180.0..=180.0)).every(45.0)).on_hover_text(i18n.t("edit-turn-hint")).changed() && shown != before {
         turn::set_rot(shape, turn::rot_for(shown, angle));
     }
 }

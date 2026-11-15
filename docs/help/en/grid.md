@@ -43,7 +43,7 @@ The choice stays for every folder until you change it. The status bar counts ima
 
 ## Size of the thumbnails
 
-The slider at the right end of the toolbar, next to ![Thumbnail size](icon://image), makes the thumbnails larger or smaller. The cells spread over the whole width of the grid.
+The slider at the right end of the toolbar, next to ![Thumbnail size](icon://image), makes the thumbnails larger or smaller, in seven sizes from 64 to 256 pixels: it stops on each, marked under it, and the size is written next to it. The cells spread over the whole width of the grid.
 
 Under each thumbnail there are its name, its dimensions in pixels and size, and its date, with the duration of videos and audio files; in **Options > Thumbnails > Under the thumbnails** you choose which of them to see, all ticked at first (see [Options](options.md)). With small thumbnails only the name stays.
 

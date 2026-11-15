@@ -8,7 +8,7 @@ With this tool the whole image is shown, with the crop frame over it and the par
 
 ## Rotating
 
-- **Rotation**: the slider, or type the degrees in the number next to it, from -180° to 180° by tenths of a degree. A dot or a comma both work.
+- **Rotation**: the slider, or type the degrees in the number next to it, from -180° to 180° by tenths of a degree, with a mark every 45°. A dot or a comma both work.
 - Hold Shift and turn the mouse wheel over the image: 0.1° a notch. Handy to line up a horizon with the thirds lines.
 - **Back to 0°** sets the angle back.
 - ![Rotate 90° anticlockwise](icon://rotate-ccw-square) and ![Rotate 90° clockwise](icon://rotate-cw-square) in the toolbar (Ctrl+Shift+R, Ctrl+R) turn the image by a quarter, together with what is drawn on it and the crop.

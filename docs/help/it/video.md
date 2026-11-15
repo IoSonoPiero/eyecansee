@@ -21,7 +21,7 @@ Con **Mantieni i metadati** l'immagine tiene ciò che il video dice di sé: la f
 
 ## Audio
 
-I comandi dell'audio sono a destra della barra: ![Silenzia](icon://volume-2) toglie l'audio e ![Riattiva l'audio](icon://volume-x) lo rimette, e il cursore regola il volume da 0 a 100.
+I comandi dell'audio sono a destra della barra: ![Silenzia](icon://volume-2) toglie l'audio e ![Riattiva l'audio](icon://volume-x) lo rimette, e il cursore regola il volume da 0 a 100, di cinque in cinque, con una tacca ogni 10 e il volume scritto accanto.
 
 - **↑** e **↓**, o la rotellina del mouse sul video, alzano e abbassano il volume di 5.
 - **M** toglie e rimette l'audio.

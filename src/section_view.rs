@@ -66,7 +66,9 @@ impl App {
         ui.label(format!("{}: {axis} {:.0}%{side}", t("section-title"), cut.at * 100.0));
         let mut at = cut.at;
         ui.spacing_mut().slider_width = 120.0;
-        if ui.add(egui::Slider::new(&mut at, 0.0..=1.0).show_value(false)).on_hover_text(t("section-keys")).changed() {
+        // Where the plane is, in tenths of the model: the label before says the percentage.
+        let slider = egui::Slider::new(&mut at, 0.0..=1.0).show_value(false);
+        if crate::ticked::add(ui, slider, &crate::ticked::Marks::new(&(0.0..=1.0), None)).on_hover_text(t("section-keys")).changed() {
             ui.ctx().data_mut(|d| d.insert_temp(slider_id(), at));
         }
         // A model that is not closed has no known inside: the cut is left empty, and said so.

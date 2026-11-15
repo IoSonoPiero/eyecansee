@@ -21,7 +21,7 @@ With **Keep the metadata**, the picture keeps what the video says of it: the cam
 
 ## Audio
 
-The audio controls are at the right of the bar: ![Audio off](icon://volume-2) turns the audio off and ![Audio on](icon://volume-x) on again, and the slider sets the volume from 0 to 100.
+The audio controls are at the right of the bar: ![Audio off](icon://volume-2) turns the audio off and ![Audio on](icon://volume-x) on again, and the slider sets the volume from 0 to 100, by fives, with a mark every 10 and the volume written next to it.
 
 - **↑** and **↓**, or the mouse wheel over the video, raise and lower the volume by 5.
 - **M** turns the audio off and on.

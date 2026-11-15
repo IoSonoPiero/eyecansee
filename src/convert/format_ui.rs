@@ -23,8 +23,14 @@ pub(super) fn format_choice(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     }
 }
 
+/// A slider of whole numbers with its name, its marks and its value.
+fn whole<T: egui::emath::Numeric>(ui: &mut egui::Ui, v: &mut T, range: std::ops::RangeInclusive<T>, label: String) -> egui::Response {
+    let marks = crate::ticked::Marks::whole(&range);
+    crate::ticked::add(ui, egui::Slider::new(v, range).text(label), &marks)
+}
+
 fn quality(ui: &mut egui::Ui, v: &mut u8, label: String) {
-    ui.add(egui::Slider::new(v, 1..=100).text(label));
+    whole(ui, v, 1..=100, label);
 }
 
 /// The options of the chosen format's encoder, for an image with transparency (`alpha`) or larger
@@ -43,13 +49,13 @@ pub(crate) fn format_options(ui: &mut egui::Ui, o: &mut Options, alpha: bool, bi
             if alpha {
                 quality(ui, &mut o.avif_alpha_quality, t("convert-alpha-quality"));
             }
-            ui.add(egui::Slider::new(&mut o.avif_speed, 1..=10).text(t("convert-speed"))).on_hover_text(t("convert-speed-hint"));
+            whole(ui, &mut o.avif_speed, 1..=10, t("convert-speed")).on_hover_text(t("convert-speed-hint"));
             ui.checkbox(&mut o.avif_ten_bit, t("convert-ten-bit"));
             ui.checkbox(&mut o.avif_rgb, t("convert-avif-rgb"));
         }
         Format::Tiff => tiff_options(ui, o, i18n),
         Format::Gif => {
-            ui.add(egui::Slider::new(&mut o.gif_quality, 1..=30).text(t("convert-gif-quality")));
+            whole(ui, &mut o.gif_quality, 1..=30, t("convert-gif-quality"));
         }
         Format::Tga => {
             ui.checkbox(&mut o.tga_rle, t("convert-tga-rle"));
@@ -87,7 +93,7 @@ fn jpeg_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
 
 fn png_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
     let t = |id| i18n.t(id);
-    ui.add(egui::Slider::new(&mut o.png_level, 0..=9).text(t("convert-png-level")));
+    whole(ui, &mut o.png_level, 0..=9, t("convert-png-level"));
     let filters = [
         (PngFilter::Adaptive, t("convert-filter-adaptive")),
         (PngFilter::None, t("convert-none")),
@@ -111,12 +117,12 @@ fn webp_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
         ui.radio_value(&mut o.webp_lossless, true, t("convert-lossless-mode"));
     });
     if o.webp_lossless {
-        ui.add(egui::Slider::new(&mut o.near_lossless, 0..=100).text(t("convert-near-lossless")));
+        whole(ui, &mut o.near_lossless, 0..=100, t("convert-near-lossless"));
     } else {
         quality(ui, &mut o.webp_quality, t("convert-quality"));
         ui.checkbox(&mut o.sharp_yuv, t("convert-sharp-yuv"));
     }
-    ui.add(egui::Slider::new(&mut o.webp_effort, 0..=6).text(t("convert-effort"))).on_hover_text(t("convert-speed-hint"));
+    whole(ui, &mut o.webp_effort, 0..=6, t("convert-effort")).on_hover_text(t("convert-speed-hint"));
 }
 
 fn tiff_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {

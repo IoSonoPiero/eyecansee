@@ -41,7 +41,7 @@ In alto a destra gli assi del file (X rosso, Y verde, Z blu) girano col modello,
 
 ## Sezione
 
-**S** taglia il modello con un piano, per vederci dentro: ciò che sta oltre il piano non si vede, e dove il piano attraversa il solido è riempito di rosso, così pareti e spessori risaltano. Il piano parte dal centro del modello, attraverso Z per un modello con Z in alto (per un edificio IFC, la pianta del piano che attraversa), altrimenti attraverso Y. La barra di stato dice l'asse e dove sta il piano, con un cursore che lo sposta; oppure coi tasti:
+**S** taglia il modello con un piano, per vederci dentro: ciò che sta oltre il piano non si vede, e dove il piano attraversa il solido è riempito di rosso, così pareti e spessori risaltano. Il piano parte dal centro del modello, attraverso Z per un modello con Z in alto (per un edificio IFC, la pianta del piano che attraversa), altrimenti attraverso Y. La barra di stato dice l'asse e dove sta il piano, con un cursore che lo sposta, con una tacca ogni decimo del modello; oppure coi tasti:
 
 - **X**, **Y**, **Z**: l'asse che il piano attraversa;
 - **Alt** e la rotellina del mouse, **,** e **.**, o il cursore nella barra di stato: spostano il piano;
