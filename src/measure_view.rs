@@ -65,11 +65,10 @@ impl State {
 }
 
 impl App {
-    /// Why Measure cannot be used: only on a CAD drawing or a 3D model in the viewer (a model
-    /// drawn by the graphics card: without one it is a still picture).
+    /// Why Measure cannot be used: only on a CAD drawing or a 3D model in the viewer.
     pub(crate) fn measure_off(&self) -> Option<String> {
         let path = self.viewing.and_then(|i| self.files().get(i)).map(|f| f.path.as_str());
-        let ok = (self.viewed_mesh().is_some() && self.model.gpu.is_some()) || path.is_some_and(|p| crate::cad::is_cad(p) && self.model.cad.drawings.contains_key(p));
+        let ok = self.viewed_mesh().is_some() || path.is_some_and(|p| crate::cad::is_cad(p) && self.model.cad.drawings.contains_key(p));
         (!ok).then(|| self.i18n.t("measure-off"))
     }
 
@@ -225,19 +224,6 @@ fn cad_lines(i18n: &crate::i18n::I18n, r: Option<Measured>, unit: Option<&str>) 
         Some(Measured::Area { area, perimeter }) => vec![(i18n.t("measure-area"), with(area, "²")), (i18n.t("measure-perimeter"), with(perimeter, ""))],
         Some(Measured::Angle(a)) => vec![(i18n.t("measure-angle"), format!("{}°", number(a, &dec)))],
     }
-}
-
-/// A box over the `corner` of `rect` (for a measure the top right one on a drawing, whose left is
-/// often its title; on a model the top left, the axes being on the right), which can be moved.
-pub(crate) fn result_box(ctx: &egui::Context, rect: egui::Rect, corner: egui::Align2, title: &str, add: impl FnOnce(&mut egui::Ui)) {
-    let at = corner.pos_in_rect(&rect.shrink(12.0));
-    egui::Area::new(egui::Id::unique("viewer-box").with(corner.0)).order(egui::Order::Foreground).pivot(corner).default_pos(at).movable(true).constrain_to(rect).show(ctx, |ui| {
-        egui::Frame::popup(ui.style()).show(ui, |ui| {
-            ui.set_max_width(320.0);
-            ui.strong(title);
-            add(ui);
-        });
-    });
 }
 
 /// The points clicked and the lines between them, closed for an area.

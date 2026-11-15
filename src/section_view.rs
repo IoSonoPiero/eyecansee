@@ -1,7 +1,8 @@
 //! The section of a 3D model in the viewer (#145): S cuts the model with a plane across X, Y or
-//! Z (`render3d::Cut`, drawn by the graphics card and by `render3d` for Save as…), moved with Alt
-//! and the wheel, the keys , and . or the slider of its box; F keeps the other side. The inside
-//! seen through the cut takes the colour of the cut, so walls and thicknesses show.
+//! Z (`render3d::Cut`, drawn by the graphics card and by `render3d` for Save as… and without a
+//! card), moved with Alt and the wheel or the keys , and .; F keeps the other side. The face of
+//! the cut is filled where it crosses the inside of the model, so walls and thicknesses show; the
+//! status bar says where the plane is.
 
 use eframe::egui::{self, Key, Modifiers};
 
@@ -54,20 +55,13 @@ impl App {
         ui.input(|i| i.modifiers.alt)
     }
 
-    /// The box of the section, bottom left: the axis, where the plane is, the side kept.
-    pub(crate) fn section_box(&mut self, ctx: &egui::Context, rect: egui::Rect) {
-        let Some(mut cut) = self.model.view.cut else { return };
-        let t = |id: &str| self.i18n.t(id);
-        crate::measure_view::result_box(ctx, rect, egui::Align2::LEFT_BOTTOM, &t("section-title"), |ui| {
-            ui.horizontal(|ui| {
-                for (axis, name) in ["X", "Y", "Z"].into_iter().enumerate() {
-                    ui.selectable_value(&mut cut.axis, axis, name).on_hover_text(name);
-                }
-                ui.checkbox(&mut cut.flip, t("section-flip")).on_hover_text("F");
-            });
-            ui.add(egui::Slider::new(&mut cut.at, 0.0..=1.0).show_value(false).text(t("section-where")));
-            ui.weak(t("section-keys"));
-        });
-        self.model.view.cut = Some(cut);
+    /// For the status bar while a section is on: its axis, where the plane is, the side kept,
+    /// and the keys. Nothing covers the model.
+    pub(crate) fn section_status(&self) -> Option<String> {
+        let cut = self.viewed_mesh().and(self.model.view.cut)?;
+        let axis = ["X", "Y", "Z"][cut.axis.min(2)];
+        let side = if cut.flip { format!(" · {}", self.i18n.t("section-flip")) } else { String::new() };
+        let at = format!("{:.0}%", cut.at * 100.0);
+        Some(format!("{}: {axis} {at}{side} · {}", self.i18n.t("section-title"), self.i18n.t("section-keys")))
     }
 }

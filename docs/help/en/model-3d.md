@@ -41,20 +41,20 @@ In the top right corner the axes of the file (X red, Y green, Z blue) turn with 
 
 ## Section
 
-**S** cuts the model with a plane, to see inside it: what is beyond the plane is left out, and the inside seen through the cut is in red, so walls and thicknesses stand out. The plane starts through the middle of the model, across Z for a model with Z up (for a building in IFC, a plan of the floor it crosses), otherwise across Y. In the box at the bottom left, or with the keys:
+**S** cuts the model with a plane, to see inside it: what is beyond the plane is left out, and where the plane crosses the solid it is filled in red, so walls and thicknesses stand out. The plane starts through the middle of the model, across Z for a model with Z up (for a building in IFC, a plan of the floor it crosses), otherwise across Y. The status bar says the axis, where the plane is and the keys:
 
 - **X**, **Y**, **Z**: the axis the plane goes across;
-- **Alt** and the mouse wheel, **,** and **.**, or the slider: move the plane;
-- **F**, or **Other side**: keep the other side;
+- **Alt** and the mouse wheel, **,** and **.**: move the plane;
+- **F**: keep the other side;
 - **S** again: the whole model.
 
-**Save as…** saves the model with its section, as it is shown. The red of the cut is right for closed models whose triangles face outwards, as most are; on others some faces may show red. Without a graphics card EyeCanSee can use there is no section.
+**Save as…** saves the model with its section, as it is shown. The red fill is right for closed models (as a model for 3D printing must be), whichever way their triangles face; where a model has holes in its surface the fill can be missing or spill over.
 
 ## What is shown
 
 The colours stored in the file are shown, and in many formats also the pictures on the surfaces (textures). A model without colours is light grey. The materials of glTF and FBX models, and of OBJ models (their `.mtl` file), also show how shiny or metallic a surface is, the light it gives (a lamp), and the small bumps of a normal map. Curved surfaces look smooth and edges stay sharp, also in models that do not store this information.
 
-Without a graphics card EyeCanSee can use, the viewer shows the still picture of the model.
+Without a graphics card EyeCanSee can use, the processor draws the model, more slowly: it turns, zooms, is measured and cut the same way, and each new view comes after a moment.
 
 ## Saving
 

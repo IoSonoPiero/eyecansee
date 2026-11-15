@@ -217,6 +217,7 @@ fn draw(mesh: &Mesh, view: &View, w: u32, h: u32) -> RgbaImage {
     let turn = |v: [f32; 3]| -> [f32; 3] { std::array::from_fn(|k| apply(&m, v)[k] - origin[k]) };
 
     let plane = view.cut.map(|c| c.plane(mesh));
+    let face = plane.map(|p| Face::new(p, &turn, origin, [cx, cy, focal]));
     let bands = (h as usize).div_ceil(BAND);
     let mut binned: Vec<Vec<u32>> = vec![Vec::new(); bands];
     for (i, t) in mesh.tris.iter().enumerate() {
@@ -242,16 +243,16 @@ fn draw(mesh: &Mesh, view: &View, w: u32, h: u32) -> RgbaImage {
         let rows = pixels.len() / row;
         background(pixels, row, y0, h as usize);
         let mut depth = vec![0.0f32; rows * w as usize];
+        // With a section, which pixels see the inside of the model through the cut (`Face`).
+        let mut inside = if plane.is_some() { vec![false; rows * w as usize] } else { Vec::new() };
         for &i in tris {
             let i = i as usize;
             let t = mesh.tris[i].map(|v| screen[v as usize]);
-            // With a section, the parts beyond the plane left out pixel by pixel, and the inside
-            // seen through the cut (the faces turned away) in the colour of the cut.
+            // With a section, the parts beyond the plane left out pixel by pixel.
             let corners = mesh.tris[i].map(|v| mesh.pos[v as usize]);
             let keep = |k: [f32; 3]| plane.is_none_or(|p| !cut_away(&p, std::array::from_fn(|j| k[0] * corners[0][j] + k[1] * corners[1][j] + k[2] * corners[2][j])));
-            if plane.is_some() && turned_away(t) {
-                fill(pixels, &mut depth, w as usize, y0, rows, t, |k| keep(k).then_some(CAP));
-                continue;
+            if plane.is_some() {
+                cover(&mut inside, w as usize, y0, rows, t, &keep);
             }
             let at = |k: [f32; 3], uv: &[[f32; 2]; 3]| [0, 1].map(|j| k[0] * uv[0][j] + k[1] * uv[1][j] + k[2] * uv[2][j]);
             let texture = mesh.tex.get(i).filter(|&&k| k > 0).and_then(|&k| mesh.textures.get(k as usize - 1)).map(|img| (img.as_ref(), mesh.uv[i]));
@@ -268,8 +269,78 @@ fn draw(mesh: &Mesh, view: &View, w: u32, h: u32) -> RgbaImage {
                 fill(pixels, &mut depth, w as usize, y0, rows, t, |k| keep(k).then_some(shade[i]));
             }
         }
+        if let Some(face) = &face {
+            face.fill(pixels, &depth, &inside, w as usize, y0);
+        }
     });
     img
+}
+
+/// The face of a section on the screen: the plane in the camera's space, and the camera.
+struct Face {
+    normal: [f32; 3],
+    distance: f32,
+    /// Centre x, y and focal length of the picture.
+    camera: [f32; 3],
+    color: [u8; 3],
+}
+
+impl Face {
+    /// The model's `plane` seen by the camera that turns directions with `turn` and puts the
+    /// model's origin at `origin`.
+    fn new(plane: [f32; 4], turn: &impl Fn([f32; 3]) -> [f32; 3], origin: [f32; 3], camera: [f32; 3]) -> Face {
+        let normal = turn([plane[0], plane[1], plane[2]]);
+        let distance = plane[3] + normal[0] * origin[0] + normal[1] * origin[1] + normal[2] * origin[2];
+        // Lit as the graphics card lights it: lighter than the model's faces.
+        let l = crate::render_shine::LIGHT;
+        let lit = 0.65 + 0.35 * (normal[0] * l[0] + normal[1] * l[1] + normal[2] * l[2]).abs();
+        Face { normal, distance, camera, color: CAP.map(|c| (f32::from(c) * lit).min(255.0) as u8) }
+    }
+
+    /// Where the pixels that see the inside (`inside`) meet the plane, if nothing is closer: the
+    /// cut's colour. `depth` as `fill` keeps it, 1/distance.
+    fn fill(&self, pixels: &mut [u8], depth: &[f32], inside: &[bool], w: usize, y0: usize) {
+        let [cx, cy, f] = self.camera;
+        for (at, _) in inside.iter().enumerate().filter(|(_, i)| **i) {
+            let (x, y) = ((at % w) as f32 + 0.5, (y0 + at / w) as f32 + 0.5);
+            let dir = [(x - cx) / f, -(y - cy) / f, -1.0];
+            let along = self.normal[0] * dir[0] + self.normal[1] * dir[1] + self.normal[2] * dir[2];
+            let s = self.distance / along;
+            if s > 0.0 && s.is_finite() && 1.0 / s > depth[at] {
+                pixels[at * 4..at * 4 + 3].copy_from_slice(&self.color);
+            }
+        }
+    }
+}
+
+/// Each pixel the triangle covers (where `keep` keeps it), flipped in `inside`, whatever is in
+/// front: odd where the ray from the camera crosses the model's inside, so the cut there shows
+/// it, whichever way the triangles turn (as the stencil of `render_gpu`).
+fn cover(inside: &mut [bool], w: usize, y0: usize, rows: usize, t: [Screen; 3], keep: &impl Fn([f32; 3]) -> bool) {
+    let [a, b, c] = t;
+    let area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+    if area == 0.0 || !area.is_finite() {
+        return;
+    }
+    let x_lo = a[0].min(b[0]).min(c[0]).max(0.0).floor() as usize;
+    let x_hi = (a[0].max(b[0]).max(c[0]).ceil().max(0.0) as usize).min(w);
+    let y_lo = (a[1].min(b[1]).min(c[1]).floor().max(y0 as f32) as usize).max(y0);
+    let y_hi = (a[1].max(b[1]).max(c[1]).ceil().max(0.0) as usize).min(y0 + rows);
+    let edge = |p: Screen, q: Screen, x: f32, y: f32| ((q[0] - p[0]) * (y - p[1]) - (q[1] - p[1]) * (x - p[0])) / area;
+    for y in y_lo..y_hi {
+        for x in x_lo..x_hi {
+            let (px, py) = (x as f32 + 0.5, y as f32 + 0.5);
+            let (wa, wb, wc) = (edge(b, c, px, py), edge(c, a, px, py), edge(a, b, px, py));
+            if wa < 0.0 || wb < 0.0 || wc < 0.0 {
+                continue;
+            }
+            let z = wa * a[2] + wb * b[2] + wc * c[2];
+            if keep([wa * a[2] / z, wb * b[2] / z, wc * c[2] / z]) {
+                let at = (y - y0) * w + x;
+                inside[at] = !inside[at];
+            }
+        }
+    }
 }
 
 /// Colour of a triangle: a soft ambient part plus light from the viewer's side, upper left;
@@ -306,12 +377,6 @@ fn background(pixels: &mut [u8], row: usize, y0: usize, h: usize) {
             p.copy_from_slice(&[c[0], c[1], c[2], 255]);
         }
     }
-}
-
-/// A triangle on the screen whose corners go clockwise (the screen's Y down): its back is seen,
-/// for a model whose triangles turn counter-clockwise seen from outside, as formats ask.
-fn turned_away([a, b, c]: [Screen; 3]) -> bool {
-    (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]) > 0.0
 }
 
 /// One triangle into a band starting at row `y0`, with `rows` rows: pixel centres inside the
@@ -452,8 +517,8 @@ mod tests {
         assert_ne!([whole[0], whole[1], whole[2]], CAP);
         // The top half cut away: through the cut, the inside.
         let cut = View { cut: Some(Cut::middle(false)), ..View::default() };
-        let c = centre(&cut);
-        assert_eq!([c[0], c[1], c[2]], CAP);
+        let red = |c: image::Rgba<u8>| c[0] > c[1].saturating_add(60) && c[0] > c[2].saturating_add(60);
+        assert!(red(centre(&cut)), "{:?}", centre(&cut));
         // The other side kept: the top of the cube, as before.
         let flipped = View { cut: Some(Cut { flip: true, ..Cut::middle(false) }), ..View::default() };
         assert_eq!(centre(&flipped), whole);
@@ -461,6 +526,13 @@ mod tests {
         let none = View { cut: Some(Cut { at: 0.0, ..Cut::middle(false) }), ..View::default() };
         assert_eq!(lit_pixels(&render(&m, &none, 200, 200, 1)), 0);
         assert!(cut_away(&Cut::middle(false).plane(&m), [0.0, 0.5, 0.0]) && !cut_away(&Cut::middle(false).plane(&m), [0.0, -0.5, 0.0]));
+        // Its faces turned inwards (a file written the wrong way round): the same pictures, the
+        // outside never red.
+        let inward = model::parse(obj.replace("f 1 4 3 2", "f 2 3 4 1").replace("f 5 6 7 8", "f 8 7 6 5").replace("f 1 2 6 5", "f 5 6 2 1").replace("f 3 4 8 7", "f 7 8 4 3").replace("f 2 3 7 6", "f 6 7 3 2").replace("f 4 1 5 8", "f 8 5 1 4").as_bytes(), "c.obj").unwrap();
+        let on = |m: &Mesh, view: &View| *render(m, view, 200, 200, 1).get_pixel(100, 100);
+        assert_eq!(on(&inward, &cut), centre(&cut));
+        assert_eq!(on(&inward, &flipped), whole);
+        assert!(!red(on(&inward, &View::default())));
     }
 
     #[test]
