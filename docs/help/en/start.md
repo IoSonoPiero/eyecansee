@@ -40,6 +40,19 @@ Press **F1** at any time: this guide opens on the page about what you are doing.
 
 The field at the top left searches every page, ready for typing as soon as the guide opens: a result opens its page with the words found highlighted. The highlight follows the field, and ![Clear the search](icon://x) empties it.
 
+## Tips at startup
+
+At the first start of the day a window shows a tip: one thing EyeCanSee can do, with a picture or the steps to follow.
+
+![Tips at startup](../img/tips.webp)
+
+- **Next** and **Back** (or the → and ← keys) show the other tips; the next start shows the one after the last you saw.
+- **Read more in the guide** opens the page about that tip.
+- **Close** (or **Esc**) closes the window.
+- **Don't show at startup** stops the tips. To have them back, tick **Show a tip at startup** in **Tools > Options… > General** (see [Options](options.md)).
+
+The tips do not appear when EyeCanSee starts to open a picture or a folder from another program.
+
 ## Where to go next
 
 - [The thumbnail grid](grid.md) and [Selecting files](selection.md), to move around and choose files.

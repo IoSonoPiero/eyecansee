@@ -1,0 +1,10 @@
+# Tip "F1 opens the guide where you are" (docs/tips/): the guide over the grid, as site/guide.
+# Coordinates for a 1200 x 800 window.
+open /home/demo/Pictures/Holiday
+width 1000
+3 act manual
+4.5 click 87 528
+5.5 drag 452 33 535 85 0.6
+7 drag 993 682 1100 768 0.6
+9.5 shot
+10 end

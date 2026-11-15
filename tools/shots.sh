@@ -19,6 +19,9 @@
 # when no scene is named: tools/shots.sh site/guide site/guide-search site/bookmarks
 # site/open-location site/servers, with EYECANSEE_SHOTS_TO=<folder> for the pictures (default
 # docs/help/img).
+# The tips at startup (src/tips.rs) have their own pictures, docs/tips/<name>.webp, from the scenes of
+# tools/shots/tips/, also left out when no scene is named: EYECANSEE_SHOTS_TO=docs/tips tools/shots.sh
+# tips/help tips/right-click tips/cover tips/details tips/metadata tips/slideshow.
 # Each is the whole window, 1200 x 800 (for those of 0.76.0 src/shots.rs wrote a lossless WebP,
 # `encode_lossless()` in place of `encode(QUALITY)`, changed for that run only); then, with
 # ImageMagick, for site/img/<name>.png and .webp and docs/screenshots/<name>.webp:

@@ -1,0 +1,8 @@
+# The tip at startup (issue #113), the first one, over the grid of the Holiday folder. stage.sh turns
+# the tips off for the other scenes: here they are on, as at the very first start.
+set tips true
+set tip_next 0
+set tips_day null
+open /home/demo/Pictures/Holiday
+5 shot
+5.5 end
