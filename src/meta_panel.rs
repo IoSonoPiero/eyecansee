@@ -22,6 +22,19 @@ impl App {
         self.settings.save();
     }
 
+    /// Whether a metadata box is open: the ℹ button is on then.
+    pub(crate) fn any_meta_shown(&self) -> bool {
+        meta::Group::ALL.into_iter().any(|g| self.meta_shown(g))
+    }
+
+    /// The ℹ button: closes all the boxes if one is open, otherwise reopens them all.
+    pub(crate) fn toggle_all_meta(&mut self) {
+        let any = self.any_meta_shown();
+        for g in meta::Group::ALL {
+            self.show_meta(g, !any);
+        }
+    }
+
     /// Metadata boxes of the selected image, side by side below the grid; each one closes with
     /// its X and reopens from the View menu or the ℹ button.
     pub(crate) fn meta_panel(&mut self, ui: &mut Ui) {
@@ -48,10 +61,12 @@ impl App {
             _ => None,
         };
         let t = |id: &str| self.i18n.t(id);
+        let drawing = file.as_ref().is_some_and(|(_, f)| crate::cad_convert::can_convert(&f.path));
         let note = match (&file, &meta) {
             (None, _) => t("meta-none-selected"),
             (Some(_), None) => t("meta-loading"),
             (_, Some(Err(e))) => e.clone(),
+            (_, Some(Ok(None))) if drawing => t("cad-props-none"),
             (_, Some(Ok(None))) => t("meta-no-exif"),
             _ => String::new(),
         };
@@ -69,7 +84,7 @@ impl App {
         let boxes = ScrollArea::horizontal().show(ui, |ui| {
             ui.set_min_height(min_height);
             ui.horizontal_top(|ui| {
-                for g in boxes(alone, |g| self.meta_shown(g)) {
+                for g in boxes(alone, drawing, |g| self.meta_shown(g)) {
                     egui::Frame::group(ui.style()).show(ui, |ui| ui.vertical(|ui| {
                         self.meta_box(ui, g, file.as_ref().map(|(_, f)| f), meta.as_ref(), &note, &mut close);
                     }));
@@ -140,7 +155,12 @@ impl App {
                 ui.end_row();
             }
             for (_, label, value) in fields {
-                ui.weak(t(label));
+                // A name the drawing gives (`cad_meta`) as it is; a heading in bold.
+                match label.strip_prefix('=') {
+                    Some(own) => ui.weak(own),
+                    None if value.is_empty() => ui.strong(t(label)),
+                    None => ui.weak(t(label)),
+                };
                 ui.label(self.meta_value(label, value));
                 ui.end_row();
             }
@@ -208,12 +228,14 @@ impl App {
 
     /// Status bar of the viewer, like the grid's: name, position, pixels, size on disk, date
     /// taken (or modified, without EXIF or with the metadata boxes closed).
-    /// `Some`: the Keys button (`keys_window`).
-    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) -> Option<egui::Response> {
+    /// The Keys button (`keys_window`), on a CAD drawing with layers the Layers button, and while
+    /// measuring with results Copy.
+    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) -> [Option<egui::Response>; 3] {
         let files = self.files();
-        let f = files.get(current)?;
+        let Some(f) = files.get(current) else { return [None, None, None] };
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
-        ui.horizontal(|ui| {
+        // On more rows in a narrow window (`bar_rows`): the date went under Keys at 520 px.
+        crate::bar_rows::rows(ui, |ui| {
             self.phone_waiting(ui);
             // The same note as the grid's bar: a file gone from the device, say.
             if let Some(note) = &self.status_note {
@@ -232,11 +254,16 @@ impl App {
                 }
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
+                self.section_bar(ui);
             } else if crate::cad::is_cad(&f.path) {
                 // A drawing has no pixels: its own size, in its unit.
-                for text in [self.cad_size_text(current), self.cad_sheet_name(current)].into_iter().flatten() {
+                for text in [self.cad_size_text(current), self.cad_sheet_name(current), self.compare_text(current)].into_iter().flatten() {
                     ui.separator();
                     ui.label(text);
+                }
+                if let Some(warning) = self.compare_units(current) {
+                    ui.separator();
+                    ui.label(crate::theme::alert(warning));
                 }
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
@@ -278,12 +305,39 @@ impl App {
                 ui.separator();
                 ui.label(date);
             }
-            // On the right, out of the way: the keys, listed when asked. Blue on
-            // white: the bar makes every text white, and the button was white on white.
-            let keys = egui::Button::new(egui::RichText::new(self.i18n.t("keys-button")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
-            self.keys_hint(current).map(|_| ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.add(keys)).inner)
+            self.status_buttons(ui, current)
         })
-        .inner
+    }
+
+    /// The right of the viewer's status bar: Keys, Layers on a drawing with layers, and while
+    /// measuring the results (or how to go on) with Copy.
+    fn status_buttons(&self, ui: &mut Ui, current: usize) -> [Option<egui::Response>; 3] {
+        // On the right, out of the way: the keys, listed when asked. Blue on
+        // white: the bar makes every text white, and the button was white on white.
+        let button = |id: &str| egui::Button::new(egui::RichText::new(self.i18n.t(id)).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
+        let (layers, copy) = (button("cad-layers-title"), button("measure-copy"));
+        let layers_on = self.cad_layers_off().is_none();
+        let measure = self.measure_status();
+        crate::bar_rows::right_end(ui, "viewer-status", |ui| {
+            let keys = self.keys_hint(current).map(|_| self.keys_button(ui));
+            let layers = layers_on.then(|| ui.add(layers).on_hover_text(self.i18n.t("key-layers")));
+            // While measuring: the results (or how to go on) take the room left, Copy beside.
+            let copy = measure.as_ref().and_then(|(_, results)| results.then(|| ui.add(copy).on_hover_text("Ctrl+C")));
+            // The buttons need their room; the results are cut to what is left.
+            let need = ui.min_rect().width();
+            if let Some((text, _)) = measure {
+                ui.separator();
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| ui.add(egui::Label::new(egui::RichText::new(&text).strong()).truncate()).on_hover_text(&text));
+            }
+            ([keys, layers, copy], need)
+        })
+    }
+
+    /// The Keys button of a status bar (viewer, grid). Blue on white: the bar makes every text
+    /// white, and the button was white on white.
+    pub(crate) fn keys_button(&self, ui: &mut Ui) -> egui::Response {
+        let keys = egui::Button::new(egui::RichText::new(self.i18n.t("keys-button")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
+        ui.add(keys)
     }
 
     /// The keys of the viewer, one a row, over its bottom right corner above the status bar
@@ -325,11 +379,14 @@ impl App {
 
     /// Value of a metadata field as shown: Fluent ids translated, dates in the language's format.
     pub(crate) fn meta_value(&self, label: &str, value: &str) -> String {
-        if value.starts_with("meta-") {
-            return self.i18n.t(value);
+        if value.starts_with("meta-") || label == "meta-xmp-label" {
+            // Colour labels: one id each ("meta-label-red, meta-label-blue"), or Lightroom's own names.
+            return value.split(", ").map(|v| if v.starts_with("meta-") { self.i18n.t(v) } else { v.to_string() }).collect::<Vec<_>>().join(", ");
         }
         let formatted = match label {
-            "meta-taken" => value.parse::<jiff::civil::DateTime>().ok().map(|d| d.strftime(&self.i18n.t("date-format")).to_string()),
+            "meta-taken" if value.contains(' ') => value.parse::<jiff::civil::DateTime>().ok().map(|d| d.strftime(&self.i18n.t("date-format")).to_string()),
+            // Only the day when the IPTC or the XMP says no time.
+            "meta-taken" => value.parse::<jiff::civil::Date>().ok().map(|d| d.strftime(&self.i18n.t("date-day-format")).to_string()),
             "meta-gps-date" => value.parse::<jiff::civil::Date>().ok().map(|d| d.strftime(&self.i18n.t("date-day-format")).to_string()),
             _ => None,
         };
@@ -342,8 +399,16 @@ const NOTE_WIDTH: f32 = 512.0;
 
 /// The boxes drawn, those not closed (`shown`); `alone`: only File, the others have nothing to
 /// show and one note says why (the video engine missing).
-fn boxes(alone: bool, shown: impl Fn(Group) -> bool) -> Vec<Group> {
-    Group::ALL.into_iter().filter(|&g| shown(g) && (!alone || g == Group::File)).collect()
+/// The boxes for a file: with `alone` only File; a CAD `drawing` has File and Drawing, the
+/// others have every box but Drawing.
+fn boxes(alone: bool, drawing: bool, shown: impl Fn(Group) -> bool) -> Vec<Group> {
+    let fits = |g: Group| match g {
+        Group::File => true,
+        _ if alone => false,
+        Group::Drawing => drawing,
+        _ => !drawing,
+    };
+    Group::ALL.into_iter().filter(|&g| shown(g) && fits(g)).collect()
 }
 
 /// "Wheel: zoom | Drag: move" → ("Wheel", "zoom"), ("Drag", "move"): the keys and what they do,
@@ -425,10 +490,12 @@ mod tests {
     #[test]
     fn engine_note_once() {
         use crate::meta::Group;
-        assert_eq!(super::boxes(false, |_| true), Group::ALL);
-        assert_eq!(super::boxes(true, |_| true), [Group::File]);
-        assert!(super::boxes(true, |g| g != Group::File).is_empty());
-        assert_eq!(super::boxes(false, |g| g != Group::Camera).len(), Group::ALL.len() - 1);
+        assert_eq!(super::boxes(false, false, |_| true), [Group::File, Group::Camera, Group::Shot, Group::Image, Group::Gps, Group::Info]);
+        assert_eq!(super::boxes(true, false, |_| true), [Group::File]);
+        assert!(super::boxes(true, false, |g| g != Group::File).is_empty());
+        assert_eq!(super::boxes(false, false, |g| g != Group::Camera).len(), 5);
+        // A drawing: its properties beside the File box, nothing of a photo.
+        assert_eq!(super::boxes(false, true, |_| true), [Group::File, Group::Drawing]);
     }
 
     #[test]

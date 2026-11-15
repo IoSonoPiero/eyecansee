@@ -55,6 +55,8 @@ The toolbar keeps only what works on the picture shown: ![Rename…](icon://text
 
 **F11** shows the picture alone, without menus and bars, on black. **Esc** first leaves full screen, then goes back to the grid.
 
+A video at full screen fills the screen: its bar appears over the bottom of the picture when the mouse moves, and hides with the pointer after 2 seconds with the mouse still (it stays while the pointer is on it).
+
 ## What else you can do
 
 - Turn and flip the picture: see [Rotating and flipping](rotate.md).

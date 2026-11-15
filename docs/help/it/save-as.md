@@ -9,7 +9,8 @@ Per convertire o ridimensionare tante immagini insieme usa [Convertire e ridimen
 - Nella griglia seleziona un'immagine e fai clic su ![Salva come…](icon://file-output) nella barra strumenti, oppure scegli **File > Salva come…**, oppure fai clic destro sull'immagine e scegli **Salva come…**.
 - Nel visore premi **Ctrl+Maiusc+S**, o usa le stesse voci di menù. Se nel visore hai ruotato o riflesso l'immagine, viene salvata ruotata.
 - Anche un modello 3D o un disegno CAD si possono salvare come immagine. Nel visore così come si vedono: un modello di almeno 1920 pixel sul lato lungo, un disegno con il layout che stai guardando. Dalla griglia un modello dalla sua vista iniziale, 1920 × 1440 pixel, e un disegno intero. Se sono selezionati anche altri file, **Salva come…** è segnato con **\*** e lavora sull'unica immagine, modello o disegno tra questi. **Ctrl+S** e **File > Salva** salvano sopra l'originale, cosa che un modello o un disegno non permettono: lì sono grigi, e passando col mouse su **Salva** compare cosa usare invece.
-- Nell'editor, **Salva come…** apre questa pagina con l'immagine modificata (vedi [Salvare un'immagine modificata](editor-save.md)). Chiudendola senza salvare torni all'editor, con le modifiche.
+- Nel visore di un video, **Salva il fotogramma come…** (anche **Ctrl+Maiusc+S**) lo mette in pausa e apre questa pagina con il fotogramma mostrato: vedi [Riprodurre i video](video.md). Il fotogramma non ha un file suo, quindi il peso su disco e la percentuale non compaiono.
+- Nell'editor, **Salva come…** apre questa pagina con l'immagine modificata (vedi [Salvare un'immagine modificata](editor-save.md)). Chiudendola senza salvare (**Annulla**, **Esc** o la ✕ della finestra) torni all'editor, con le modifiche.
 
 ![Salva come](../img/save-as.webp)
 
@@ -34,7 +35,7 @@ Se il nome è già preso in quella cartella, viene aggiunto " (2)" e la pagina l
 
 Se l'avevi aperta dal visore, il visore mostra poi il file nuovo, già ruotato o riflesso come l'avevi lasciato. L'originale resta com'è sul disco: non è più segnato come modificato e la chiusura non chiede niente. Se hai salvato in un'altra cartella, il visore resta sull'originale e un messaggio dice dov'è il file nuovo. Se chiudi la pagina senza salvare, o il salvataggio non riesce, il visore resta com'era, rotazioni comprese. Lo stesso vale se la apri dall'editor aperto dal visore: appena il file è salvato l'editor si chiude, e il visore fa come qui sopra.
 
-**Esc** o la X della finestra chiudono la pagina senza salvare.
+**Annulla**, accanto a **Salva**, chiude la pagina senza salvare, come **Esc** o la ✕ della finestra: dall'editor torni all'editor, altrimenti dove l'avevi aperta. Mentre il file viene scritto è grigio.
 
 ## Formati e opzioni
 
@@ -55,13 +56,18 @@ Se l'avevi aperta dal visore, il visore mostra poi il file nuovo, già ruotato o
 
 ## Metadati
 
-**Mantieni i metadati (EXIF, XMP, IPTC, profilo colore)** è acceso all'inizio. Conserva la fotocamera, la data dello scatto, il luogo (GPS), autore, copyright, descrizioni, parole chiave, il profilo colore e la risoluzione (punti per pollice).
+**Metadati** dice cosa tiene il file nuovo dei metadati dell'originale, e parte da **Tutti (EXIF, XMP, IPTC, profilo colore)**: la fotocamera, la data dello scatto, il luogo (GPS), autore, copyright, descrizioni, parole chiave, il profilo colore e la risoluzione (punti per pollice). Le altre due scelte servono per una copia da condividere:
 
-- Solo JPEG, PNG, WebP, AVIF e TIFF possono contenere metadati. BMP contiene solo la risoluzione: con BMP la casella diventa **Mantieni i metadati (solo la risoluzione)** e si può cambiare quando l'originale ha una risoluzione. Con un altro formato, o se l'originale non ne ha, la casella è grigia; passandoci sopra si legge il perché.
-- La **risoluzione** (per esempio i 600 dpi di una scansione) fa parte dei metadati: senza **Mantieni i metadati** il file si salva senza, anche quando l'originale non ha altro.
+- **Tutti tranne il luogo (senza posizione GPS)**: gli stessi senza il luogo dello scatto: la posizione GPS (con altitudine e direzione), e città, regione, paese e località scritti nell'XMP o nell'IPTC.
+- **Nessuno (solo il profilo colore)**: solo il profilo colore, che serve all'immagine per mostrare i colori giusti.
+
+Ogni volta che la pagina si apre, la scelta riparte da **Tutti**.
+
+- Solo JPEG, PNG, WebP, AVIF e TIFF possono contenere metadati. BMP contiene solo la risoluzione: con BMP al posto dell'elenco c'è una casella, **Mantieni i metadati (solo la risoluzione)**, che si può cambiare quando l'originale ha una risoluzione. Con un altro formato, o se l'originale non ne ha, è grigia; passandoci sopra si legge il perché.
+- La **risoluzione** (per esempio i 600 dpi di una scansione) fa parte dei metadati: con **Nessuno** il file si salva senza, anche quando l'originale non ha altro.
 - L'orientamento viene messo dritto, perché i pixel salvati sono già ruotati, e le dimensioni scritte dentro sono quelle dell'immagine nuova.
-- Restano fuori: le piccole anteprime che le fotocamere mettono nel file, le impostazioni di Lightroom e Camera Raw e il video della foto in movimento, che il file nuovo non ha.
-- Una foto **Ultra HDR** del telefono resta HDR se la salvi in JPEG con i metadati, anche dall'editor: la sua parte HDR viene ruotata, ritagliata e coperta insieme alla foto. In un altro formato, o senza i metadati, perde l'HDR, e la pagina te lo dice prima di salvare.
+- Restano fuori: le piccole anteprime che le fotocamere mettono nel file e il video della foto in movimento, che il file nuovo non ha; le impostazioni di Lightroom e Camera Raw di un RAW, che EyeCanSee non usa quando lo sviluppa. Quelle delle altre foto restano, segnate come già applicate, anche con **Tutti tranne il luogo**; con **Nessuno** vanno via, come la maker note.
+- Una foto **Ultra HDR** del telefono resta HDR se la salvi in JPEG con i metadati, anche dall'editor: la sua parte HDR viene ruotata, ritagliata e coperta insieme alla foto. Anche senza il luogo resta HDR. In un altro formato, o con **Nessuno**, perde l'HDR, e la pagina te lo dice prima di salvare.
 
 ## Da sapere
 

@@ -23,6 +23,8 @@ Fai doppio clic su un modello, oppure selezionalo e premi **Invio**.
 | Maiusc+trascinare, o trascinare col tasto centrale | Spostano il modello nella finestra |
 | Rotellina, + e − | Ingrandiscono e rimpiccioliscono |
 | 0 | Torna alla vista di partenza |
+| M | Misura |
+| S | Sezione |
 | Pag↓, Spazio | File successivo |
 | Pag↑, Backspace | File precedente |
 | Inizio, Fine | Primo, ultimo file |
@@ -33,11 +35,26 @@ Qui le frecce girano il modello, quindi non cambiano file. Il pulsante **Tasti**
 
 In alto a destra gli assi del file (X rosso, Y verde, Z blu) girano col modello, come nei programmi CAD. La barra di stato mostra quanti triangoli ha il modello, l'ingrandimento e, mentre si muove, quanti fotogrammi al secondo vengono disegnati.
 
+## Misurare
+
+**M**, o **Visualizza > Misura**, accende lo strumento Misura: la barra di stato mostra l'ingombro del modello lungo X, Y e Z, la sua superficie e il suo volume. Il volume c'è solo per un modello chiuso (ogni spigolo condiviso da due triangoli, come deve essere un modello per la stampa 3D); altrimenti la barra di stato dice quanti spigoli sono aperti. Fai clic su due punti del modello per la loro distanza, scritta accanto al puntatore e nella barra di stato; un terzo clic ricomincia. Le misure sono nell'unità del file quando il formato o il file la dice (glTF, IFC, X3D e VRML in metri, STEP e IGES in millimetri, 3MF e AMF come dicono); STL, OBJ, PLY e altri non hanno unità, e la barra di stato lo dice. **Copia** nella barra di stato, o **Ctrl+C**, mette i risultati negli appunti; **Esc** cancella i punti, **Esc** di nuovo o **M** chiudono lo strumento. Trascinare gira ancora il modello.
+
+## Sezione
+
+**S** taglia il modello con un piano, per vederci dentro: ciò che sta oltre il piano non si vede, e dove il piano attraversa il solido è riempito di rosso, così pareti e spessori risaltano. Il piano parte dal centro del modello, attraverso Z per un modello con Z in alto (per un edificio IFC, la pianta del piano che attraversa), altrimenti attraverso Y. La barra di stato dice l'asse e dove sta il piano, con un cursore che lo sposta, con una tacca ogni decimo del modello; oppure coi tasti:
+
+- **X**, **Y**, **Z**: l'asse che il piano attraversa;
+- **Alt** e la rotellina del mouse, **,** e **.**, o il cursore nella barra di stato: spostano il piano;
+- **F**: tiene l'altro lato;
+- **S** di nuovo: il modello intero.
+
+**Salva come…** salva il modello con la sua sezione, come si vede. Il riempimento rosso c'è solo per i modelli chiusi (ogni spigolo condiviso da due triangoli, come deve essere un modello per la stampa 3D), in qualunque verso siano girati i loro triangoli: un modello con dei buchi nella superficie non ha un interno noto, quindi il suo taglio resta vuoto e la barra di stato lo dice.
+
 ## Cosa si vede
 
-Si vedono i colori scritti nel file e, in molti formati, anche le immagini sulle superfici (texture). Un modello senza colori è grigio chiaro. Le superfici curve sono morbide e gli spigoli restano netti, anche nei modelli che non salvano queste informazioni.
+Si vedono i colori scritti nel file e, in molti formati, anche le immagini sulle superfici (texture). Un modello senza colori è grigio chiaro. I materiali dei modelli glTF e FBX, e dei modelli OBJ (il loro file `.mtl`), mostrano anche quanto una superficie è lucida o metallica, la luce che emette (una lampada) e i piccoli rilievi di una normal map. Le superfici curve sono morbide e gli spigoli restano netti, anche nei modelli che non salvano queste informazioni.
 
-Senza una scheda video che EyeCanSee possa usare, il visore mostra l'immagine ferma del modello.
+Senza una scheda video che EyeCanSee possa usare, il modello lo disegna il processore, più lentamente: si gira, si ingrandisce, si misura e si taglia allo stesso modo, e ogni vista nuova arriva dopo un momento.
 
 ## Salvare
 

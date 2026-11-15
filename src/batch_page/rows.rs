@@ -110,8 +110,13 @@ fn format_options(ui: &mut egui::Ui, f: &mut Form, format: Format, i18n: &I18n) 
     egui::CollapsingHeader::new(title).id_salt("batch-format-options").show(ui, |ui| {
         // Several images: the options shown as for one with transparency and larger than an icon.
         crate::convert::format_options(ui, &mut f.options, true, true, i18n);
-        if format.holds_meta() || format.holds_density_only() {
-            ui.checkbox(&mut f.options.keep_meta, i18n.t(format.meta_label()));
+        if format.holds_meta() {
+            crate::convert::meta_choice(ui, &mut f.options.meta, i18n);
+        } else if format.holds_density_only() {
+            let mut keep = f.options.meta != crate::meta_strip::Keep::Nothing;
+            if ui.checkbox(&mut keep, i18n.t(format.meta_label())).changed() {
+                f.options.meta = if keep { crate::meta_strip::Keep::All } else { crate::meta_strip::Keep::Nothing };
+            }
         }
     });
 }

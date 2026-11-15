@@ -33,7 +33,8 @@ impl App {
                     }
                 }
                 Msg::Drawing { generation, index, drawing } if generation == self.generation => {
-                    if let Some(f) = self.files().get(index) {
+                    // The first of two drawings compared shows the comparison (`cad_compare_view`).
+                    if let Some(f) = self.files().get(index).filter(|f| !self.comparing(&f.path)) {
                         self.model.cad.drawings.insert(f.path.clone(), drawing);
                     }
                 }
@@ -59,6 +60,7 @@ impl App {
                 Msg::Original(r) if self.editor.is_some() && self.convert.is_none() => self.editor_original(ctx, r),
                 Msg::EditCopy(img) => self.on_edit_copy(ctx, img),
                 Msg::EditPicked(r) => self.on_edit_picked(ctx, r),
+                Msg::ClipImage(r) => self.on_clip_image(ctx, r),
                 Msg::Animated(path) => {
                     self.animated.insert(path);
                 }
@@ -72,8 +74,9 @@ impl App {
                 Msg::EditPrepared(path, r) => self.on_edit_prepared(path, r),
                 Msg::EditWritten(path, mark, over) => self.on_edit_written(path, mark, over),
                 Msg::Encoded(generation, r) => self.convert_encoded(ctx, generation, r),
-                Msg::Saved(r) => self.convert_saved(r),
+                Msg::Saved(asked, r) => self.convert_saved(&asked, r),
                 Msg::Exported(r) => self.on_exported(ctx, r),
+                Msg::Compared(r) => self.on_compared(ctx, r),
                 Msg::Prepared(path, turn, r) => self.on_prepared(path, turn, r),
                 Msg::Replaced(path, r) => self.on_replaced(ctx, path, r),
                 Msg::NotReplaced(kept) => self.on_not_replaced(ctx, kept),
@@ -275,6 +278,8 @@ impl App {
     }
 
     fn on_trash_items(&mut self, paths: Vec<String>) {
+        // A RAW photo's sidecars go back with it (`sidecar_follow::restore`).
+        let paths = crate::sidecar_follow::without_sidecars(paths);
         log!("restore all: {} items", paths.len());
         self.restore_queue.extend(paths);
     }

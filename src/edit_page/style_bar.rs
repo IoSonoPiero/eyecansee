@@ -2,12 +2,15 @@
 //! the next one the tool draws (colours, width, opacity, dashes, the font and the letters of a
 //! text), the eyedroppers, a filter's amount. Moved from `tools.rs` on 2026-11-14.
 
+use std::ops::RangeInclusive;
+
 use eframe::egui::{self, Color32};
 
 use super::tools::{bar_button, tip};
 use super::{Tool, Window};
 use crate::edit::doc::{Dash, Head, Pt, Shape, Style};
 use crate::edit::geom::Kind;
+use crate::edit::turn;
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
 
@@ -30,10 +33,12 @@ fn filter_bar(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     ui.strong(i18n.t(filter.label()));
     if let Some((lo, hi, _)) = filter.amount(long) {
         ui.spacing_mut().slider_width = 160.0;
-        super::props::slider(ui, "edit-filter-amount", i18n.t("edit-filter-amount"), egui::Slider::new(amount, lo..=hi).integer());
+        super::props::slider(ui, "edit-filter-amount", i18n.t("edit-filter-amount"), egui::Slider::new(amount, lo..=hi).integer(), &crate::ticked::Marks::whole(&(lo..=hi)));
     }
     if filter.hides() {
         ui.label(crate::theme::alert(i18n.t("edit-filter-not-cover")));
+        ui.separator();
+        angle(ui, w, i, i18n);
     }
     ui.separator();
     if bar_button(ui, icons::button(ui, Line::Delete), format!("{} ({})", i18n.t("edit-delete"), i18n.t("key-delete")), None) {
@@ -81,12 +86,11 @@ pub(super) fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool 
     // ("what is the opacity for, if nothing is selected?").
     let whose = if selected.is_some() { ("edit-props-selected", "edit-props-selected-hint") } else { ("edit-props-next", "edit-props-next-hint") };
     ui.weak(i18n.t(whose.0)).on_hover_text(i18n.t(whose.1));
-    let boxed = matches!(kind, Kind::Rect | Kind::Ellipse | Kind::Bubble);
+    let boxed = boxed(kind);
     if boxed {
         ui.label(i18n.t("edit-border"));
     }
-    // A piece of image has its own colours, a spotlight none.
-    let screen = !matches!(kind, Kind::Patch | Kind::Spotlight) && {
+    let screen = coloured(kind) && {
         colours(ui, &mut style.color, i18n);
         let screen = eyedroppers(ui, w, i18n);
         if w.picking {
@@ -140,8 +144,11 @@ fn kind_controls(ui: &mut egui::Ui, w: &mut Window, style: &mut Style, (kind, se
         }
         _ => {}
     }
-    if let (Kind::Patch, Some(i)) = (kind, selected) {
-        super::patch::bar(ui, w, i, i18n);
+    // A pasted piece has its angle among its own controls; a text after its curve.
+    match (kind, selected) {
+        (Kind::Patch, Some(i)) => super::patch::bar(ui, w, i, i18n),
+        (Kind::Text, _) | (_, None) => {}
+        (_, Some(i)) => angle(ui, w, i, i18n),
     }
     if matches!(kind, Kind::Text | Kind::Bubble) {
         ui.separator();
@@ -149,7 +156,7 @@ fn kind_controls(ui: &mut egui::Ui, w: &mut Window, style: &mut Style, (kind, se
             font_choice(ui, w, i, i18n);
             if kind == Kind::Text {
                 text_curve(ui, w, i, i18n);
-                text_angle(ui, w, i, i18n);
+                angle(ui, w, i, i18n);
             }
         }
         text_field(ui, w, selected, i18n);
@@ -190,23 +197,18 @@ fn pick_sizes(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
 /// Colours, width (size of a text), opacity, dashes, as each kind has them.
 fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i18n: &I18n) {
     let t = |id| i18n.t(id);
-    let max = (long / 10.0).max(50.0);
     let slider = |ui: &mut egui::Ui, id: &'static str, value: &mut f32, range, suffix| {
         ui.separator();
-        super::props::slider(ui, id, t(id), egui::Slider::new(value, range).integer().suffix(suffix));
+        let marks = crate::ticked::Marks::whole(&range);
+        super::props::slider(ui, id, t(id), egui::Slider::new(value, range).integer().suffix(suffix), &marks);
     };
     ui.spacing_mut().slider_width = if kind == Kind::Patch { super::patch::SLIDER } else { 110.0 };
-    match kind {
-        Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse | Kind::Bubble => slider(ui, "edit-width", &mut style.width, 1.0..=max, " px"),
-        // A lens may have no border.
-        Kind::Lens => slider(ui, "edit-width", &mut style.width, 0.0..=max, " px"),
-        Kind::Text | Kind::Step | Kind::Stamp => slider(ui, "edit-size", &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
-        Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter | Kind::Spotlight => {}
+    if let Some((id, range)) = width_slider(kind, long) {
+        slider(ui, id, &mut style.width, range, " px");
     }
-    if kind != Kind::Cover {
+    if let Some(id) = opacity_slider(kind) {
         let mut pct = style.opacity * 100.0;
-        // A spotlight's opacity is how dark the rest gets.
-        slider(ui, if kind == Kind::Spotlight { "edit-intensity" } else { "edit-opacity" }, &mut pct, 5.0..=100.0, " %");
+        slider(ui, id, &mut pct, 5.0..=100.0, " %");
         style.opacity = (pct / 100.0).clamp(0.05, 1.0);
     }
     if kind == Kind::Arrow {
@@ -217,7 +219,7 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
             }
         }
     }
-    if matches!(kind, Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse) {
+    if dashed(kind) {
         ui.separator();
         for (dash, icon, id) in [(Dash::Solid, Line::Solid, "edit-solid"), (Dash::Dashed, Line::Dashed, "edit-dashed"), (Dash::Dotted, Line::Dotted, "edit-dotted")] {
             if ui.add(icons::toggle(ui, style.dash == dash, icon)).on_hover_text(t(id)).clicked() {
@@ -225,6 +227,53 @@ fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i
             }
         }
     }
+}
+
+/// A border and a fill, each with its colours: rectangles, ellipses, bubbles.
+fn boxed(kind: Kind) -> bool {
+    matches!(kind, Kind::Rect | Kind::Ellipse | Kind::Bubble)
+}
+
+/// Colours and the eyedropper: not for a piece of image, which has its own colours, nor for a
+/// spotlight, which has none.
+fn coloured(kind: Kind) -> bool {
+    !matches!(kind, Kind::Patch | Kind::Spotlight)
+}
+
+/// The slider of the width (the size of a text, a step, a stamp): its Fluent id and its range, on
+/// an image whose long side is `long` pixels.
+fn width_slider(kind: Kind, long: f32) -> Option<(&'static str, RangeInclusive<f32>)> {
+    let max = (long / 10.0).max(50.0);
+    match kind {
+        Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse | Kind::Bubble => Some(("edit-width", 1.0..=max)),
+        // A lens may have no border.
+        Kind::Lens => Some(("edit-width", 0.0..=max)),
+        Kind::Text | Kind::Step | Kind::Stamp => Some(("edit-size", 4.0..=(long / 4.0).max(100.0))),
+        Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter | Kind::Spotlight => None,
+    }
+}
+
+/// The slider of the opacity, its Fluent id: none for a cover box; a spotlight's opacity is how
+/// dark the rest gets.
+fn opacity_slider(kind: Kind) -> Option<&'static str> {
+    match kind {
+        Kind::Cover => None,
+        Kind::Spotlight => Some("edit-intensity"),
+        _ => Some("edit-opacity"),
+    }
+}
+
+/// Solid, dashed or dotted.
+fn dashed(kind: Kind) -> bool {
+    matches!(kind, Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse)
+}
+
+/// The line a text is put on by "On a curve": as long as the text and a size more, through its
+/// anchor `at`, along its angle `rot`.
+fn curve_line(at: Pt, text: &str, size: f32, rot: f32) -> (Pt, Pt) {
+    let half = crate::edit::geom::text_area(at, text, size, rot).w / 2.0 + size;
+    let (s, c) = rot.to_radians().sin_cos();
+    (Pt::new(at.x - c * half, at.y - s * half), Pt::new(at.x + c * half, at.y + s * half))
 }
 
 /// The ready-made colours as swatches, the one in use ringed, then any other colour; `true` when
@@ -312,22 +361,27 @@ fn text_curve(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
             None
         }
         None => {
-            let half = crate::edit::geom::text_area(*at, text, *size, *rot).w / 2.0 + *size;
-            let (s, c) = rot.to_radians().sin_cos();
-            Some((Pt::new(at.x - c * half, at.y - s * half), Pt::new(at.x + c * half, at.y + s * half), None))
+            let (a, b) = curve_line(*at, text, *size, *rot);
+            Some((a, b, None))
         }
     };
 }
 
-/// The angle of the selected text on the screen, -180° to 180° (its own angle in the document is
-/// measured on the image, which may be turned by Rotate and crop).
-fn text_angle(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
+/// The angle on the screen of the selected object `i`, if it turns (`edit::turn::turn_box`), with
+/// the hint of its handle: the same for every kind, a pasted piece's too (issue #137).
+pub(super) fn angle(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
     let angle = w.doc.angle;
-    let Some(Shape::Text { rot, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
-    let mut shown = (*rot + angle + 180.0).rem_euclid(360.0) - 180.0;
-    ui.spacing_mut().slider_width = 110.0;
-    if super::props::slider(ui, "rc-rotation", i18n.t("rc-rotation"), egui::Slider::new(&mut shown, -180.0..=180.0).integer().suffix("°")).changed() {
-        *rot = shown - angle;
+    let Some(shape) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
+    let Some(b) = turn::turn_box(shape) else { return };
+    let mut shown = turn::shown(b.rot, angle);
+    // The slider rounds the angle the handle left (61.37°) each time it is drawn and calls that a
+    // change: written back, every Undo made a step of its own and stayed where it was. Only a
+    // whole degree other than the one shown is the user's.
+    let before = shown.round();
+    ui.spacing_mut().slider_width = super::patch::SLIDER;
+    let slider = egui::Slider::new(&mut shown, -180.0..=180.0).integer().suffix("°");
+    if super::props::slider(ui, "rc-rotation", i18n.t("rc-rotation"), slider, &crate::ticked::Marks::whole(&(-180.0..=180.0)).every(45.0)).on_hover_text(i18n.t("edit-turn-hint")).changed() && shown != before {
+        turn::set_rot(shape, turn::rot_for(shown, angle));
     }
 }
 
@@ -368,6 +422,7 @@ fn fill_colours(ui: &mut egui::Ui, fill: &mut Option<[u8; 3]>, i18n: &I18n) {
 
 /// The letters of the selected text, typed here; a text just placed takes the keys at once.
 fn text_field(ui: &mut egui::Ui, w: &mut Window, selected: Option<usize>, i18n: &I18n) {
+    super::typing::fresh_fields(ui.ctx(), w);
     let Some(text) = selected.and_then(|i| w.doc.objects[i].shape.text_mut()) else {
         w.focus_text = false;
         crate::theme::bar_hint(ui, i18n.t("edit-text-hint"));
@@ -375,7 +430,7 @@ fn text_field(ui: &mut egui::Ui, w: &mut Window, selected: Option<usize>, i18n: 
     };
     // As wide as the hint, so the empty box shows it on one line.
     let hint = i18n.t("edit-text-hint");
-    let r = ui.add(egui::TextEdit::multiline(text).desired_rows(1).desired_width(crate::theme::hint_width(ui, &hint).max(280.0)).hint_text(hint));
+    let r = ui.add(egui::TextEdit::multiline(text).id(egui::Id::unique(super::typing::IN_BAR)).desired_rows(1).desired_width(crate::theme::hint_width(ui, &hint).max(280.0)).hint_text(hint));
     // A text typed on the image takes the keys there (`typing`).
     if w.editing.is_none() && std::mem::take(&mut w.focus_text) {
         r.request_focus();
@@ -384,6 +439,105 @@ fn text_field(ui: &mut egui::Ui, w: &mut Window, selected: Option<usize>, i18n: 
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    /// Every kind of object.
+    const KINDS: [Kind; 15] = [
+        Kind::Line,
+        Kind::Arrow,
+        Kind::Pen,
+        Kind::Rect,
+        Kind::Ellipse,
+        Kind::Step,
+        Kind::Bubble,
+        Kind::Lens,
+        Kind::Spotlight,
+        Kind::Stamp,
+        Kind::Highlight,
+        Kind::Text,
+        Kind::Cover,
+        Kind::Patch,
+        Kind::Filter,
+    ];
+
+    /// Which kinds have which controls: border and fill, colours, dashes.
+    #[test]
+    fn controls_by_kind() {
+        let with = |f: fn(Kind) -> bool| KINDS.into_iter().filter(|&k| f(k)).collect::<Vec<_>>();
+        assert_eq!(with(boxed), [Kind::Rect, Kind::Ellipse, Kind::Bubble]);
+        assert_eq!(with(dashed), [Kind::Line, Kind::Arrow, Kind::Pen, Kind::Rect, Kind::Ellipse]);
+        assert_eq!(KINDS.into_iter().filter(|&k| !coloured(k)).collect::<Vec<_>>(), [Kind::Spotlight, Kind::Patch]);
+    }
+
+    /// The width slider: from 1 pixel (a lens's from 0, it may have no border) to a tenth of the
+    /// long side, at least 50; the size of a text, a step or a stamp from 4 to a quarter of the
+    /// long side, at least 100; none for the kinds without a line.
+    #[test]
+    fn width_ranges() {
+        for k in KINDS {
+            let (big, small) = (width_slider(k, 2000.0), width_slider(k, 100.0));
+            match k {
+                Kind::Lens => assert_eq!((big, small), (Some(("edit-width", 0.0..=200.0)), Some(("edit-width", 0.0..=50.0)))),
+                Kind::Text | Kind::Step | Kind::Stamp => assert_eq!((big, small), (Some(("edit-size", 4.0..=500.0)), Some(("edit-size", 4.0..=100.0)))),
+                Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter | Kind::Spotlight => assert_eq!((big, small), (None, None), "{k:?}"),
+                _ => assert_eq!((big, small), (Some(("edit-width", 1.0..=200.0)), Some(("edit-width", 1.0..=50.0))), "{k:?}"),
+            }
+        }
+    }
+
+    /// Opacity for all but a cover box; a spotlight's is its intensity. The ids in both languages.
+    #[test]
+    fn opacity_names() {
+        for k in KINDS {
+            let want = match k {
+                Kind::Cover => None,
+                Kind::Spotlight => Some("edit-intensity"),
+                _ => Some("edit-opacity"),
+            };
+            assert_eq!(opacity_slider(k), want, "{k:?}");
+        }
+        for ftl in [include_str!("../../locales/en.ftl"), include_str!("../../locales/it.ftl")] {
+            for id in ["edit-width", "edit-size", "edit-opacity", "edit-intensity", "edit-border", "edit-fill"] {
+                assert!(ftl.lines().any(|l| l.starts_with(&format!("{id} = "))), "{id}");
+            }
+        }
+    }
+
+    /// A text's angle on the screen is shown and set as every other object's (`edit::turn`): its
+    /// own plus the image's, from just over -180° to 180°, 180° and not -180° (the text showed
+    /// -180 and kept its angle as typed, the pasted piece 180 and in -180 to 180: two formulas for
+    /// one angle, 2026-11-15).
+    #[test]
+    fn text_angle_on_screen() {
+        for (rot, angle, shown) in [(0.0, 0.0, 0.0), (30.0, 15.0, 45.0), (170.0, 20.0, -170.0), (180.0, 0.0, 180.0), (-180.0, 0.0, 180.0), (350.0, 0.0, -10.0), (90.0, -90.0, 0.0), (-200.0, 0.0, 160.0)] {
+            let text = Shape::Text { at: Pt::new(5.0, 5.0), text: "Ab".into(), size: 20.0, rot, font: None, path: None };
+            let b = turn::turn_box(&text).unwrap();
+            assert!((turn::shown(b.rot, angle) - shown).abs() < 1e-4, "{rot} + {angle}: {}", turn::shown(b.rot, angle));
+        }
+        // Typed on the screen as 200 (past the end, as a field can be): kept in -180 to 180.
+        let mut text = Shape::Text { at: Pt::new(5.0, 5.0), text: "Ab".into(), size: 20.0, rot: 0.0, font: None, path: None };
+        turn::set_rot(&mut text, turn::rot_for(200.0, 10.0));
+        let Shape::Text { rot, .. } = text else { unreachable!() };
+        assert!((rot - -170.0).abs() < 1e-4, "{rot}");
+    }
+
+    /// "On a curve": the line goes through the text's anchor, as long as the text and a size more
+    /// on each side, along its angle; its middle handle is the anchor, where "off" puts it back.
+    #[test]
+    fn curve_through_the_text() {
+        let close = |a: Pt, b: Pt| (a.x - b.x).abs() < 1e-3 && (a.y - b.y).abs() < 1e-3;
+        let at = Pt::new(100.0, 50.0);
+        // "abcd" at size 10: 24 wide, so 12 + 10 on each side.
+        let (a, b) = curve_line(at, "abcd", 10.0, 0.0);
+        assert!(close(a, Pt::new(78.0, 50.0)) && close(b, Pt::new(122.0, 50.0)), "{a:?} {b:?}");
+        let (a, b) = curve_line(at, "abcd", 10.0, 90.0);
+        assert!(close(a, Pt::new(100.0, 28.0)) && close(b, Pt::new(100.0, 72.0)), "{a:?} {b:?}");
+        for rot in [0.0, 37.0, -120.0] {
+            let (a, b) = curve_line(at, "two\nlines", 24.0, rot);
+            assert!(close(crate::edit::geom::bend_handle(a, b, None), at), "{rot}");
+        }
+    }
+
     /// The properties bar of a text, nothing selected and selected with its outline and box on,
     /// in every language: nothing past the right edge of the window down to 700 px (a slider at
     /// the end of a row was cut: "Opacity 100 %" in a 900 px window).

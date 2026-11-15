@@ -1,6 +1,7 @@
 //! The image editor (issue #53), without the interface: the document being edited (`doc`) and its
 //! undo history (`history`), the objects under the mouse (`geom`), the objects drawn (`render`), what they take from the photo (`photo`),
 //! the copy saved (`save`), the size changed (`resize`), a pasted piece turned and sized (`patch`),
+//! the angle of an object and its turn handle (`turn`),
 //! how large a copy other programs can paste (`clip_limit`). The image itself is changed only when saving.
 
 pub mod animated;
@@ -15,3 +16,4 @@ pub mod photo;
 pub mod render;
 pub mod resize;
 pub mod save;
+pub mod turn;

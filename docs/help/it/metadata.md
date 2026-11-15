@@ -8,9 +8,23 @@ Sotto la griglia, il pannello dei metadati mostra quello che si sa del file sele
 
 - **File**: nome, peso (anche in byte), data del file e dimensioni in pixel. C'è per ogni file, anche senza metadati. Gli stessi dettagli compaiono tenendo il mouse fermo su un file nella griglia (vedi [La griglia delle miniature](grid.md)).
 - **Fotocamera**: marca, modello, obiettivo e software.
-- **Scatto**: data dello scatto, esposizione, diaframma, ISO, lunghezza focale e flash.
+- **Scatto**: data dello scatto, esposizione, diaframma, ISO, lunghezza focale e flash. La data dello scatto si legge come la didascalia (vedi Descrizione qui sotto): anche una foto senza EXIF la mostra, se c'è nel suo IPTC o XMP, solo il giorno se non dicono l'ora.
 - **Immagine**: formato, larghezza e altezza, colore e bit per canale, spazio colore. Per una foto RAW sono quelli dell'immagine che EyeCanSee ne sviluppa (ritagliata come dice la fotocamera); un disegno SVG ha le sue dimensioni e niente colore né bit.
 - **Posizione**: coordinate GPS e altitudine, con **Apri sulla mappa**, che apre il posto su OpenStreetMap nel browser.
+- **Descrizione**: quello che è stato scritto sulla foto: titolo, didascalia, parole chiave, valutazione (da 1 a 5, o scartata), etichetta colore, autore e copyright. I programmi possono scrivere didascalia, autore, copyright e parole chiave in più posti, EXIF, IPTC e XMP: EyeCanSee li legge tutti e, se sono diversi, sceglie come dicono le linee guida del Metadata Working Group: prima l'EXIF, poi l'XMP, poi l'IPTC, ma prima l'IPTC quando dopo l'ha cambiato un programma che conosce solo l'IPTC. Titolo, valutazione ed etichetta colore vengono dall'XMP. Quello che una fotocamera scrive da sola compare così com'è, per esempio "OLYMPUS DIGITAL CAMERA" come didascalia.
+- **Disegno**: solo per i disegni DWG e DXF, che hanno il riquadro File e questo. Le proprietà del disegno scritte nel file (titolo, oggetto, autore, parole chiave, commenti, numero di revisione, proprietà personalizzate, come le scrive il comando DWGPROPS di AutoCAD), poi sotto **Cartiglio** gli attributi del cartiglio coi loro nomi (per esempio DWG_NO, REV, DATA, SCALA): quelli del blocco con più attributi compilati nel primo layout che ne ha uno, o nello spazio modello per un disegno senza layout.
+
+## Le foto e i loro file .xmp
+
+Lightroom, Camera Raw, darktable e digiKam tengono quello che imposti su una foto (valutazione, etichetta, parole chiave, titolo, posizione) in un piccolo file accanto, con lo stesso nome e l'estensione `.xmp`, un "sidecar": sempre per una foto RAW, dentro la quale non scrivono, e per qualunque foto con darktable, o con digiKam se impostato così. EyeCanSee lo legge per ogni foto: i riquadri Descrizione e Posizione mostrano quello che contiene, e il riquadro dice da quale file arriva.
+
+- **I nomi**: `IMG_0001.CR2.xmp` (darktable, digiKam) e `IMG_0001.xmp` (Lightroom, Camera Raw, digiKam "compatibile con i programmi commerciali"). Se ci sono tutti e due vale il primo, che non può essere di un altro file.
+- **Di chi è `IMG_0001.xmp`**: del file di cui nomina l'estensione, se la nomina (Lightroom lo fa); altrimenti della foto RAW con quel nome, se c'è (Lightroom considera un JPEG scattato insieme a un RAW parte del RAW); altrimenti della foto con quel nome.
+- **Con l'XMP dentro la foto**: il file .xmp di una foto RAW vale al posto suo, come in Lightroom; per le altre foto i due si sommano, e dove dicono tutti e due qualcosa vale il file .xmp, come in digiKam. La sua didascalia, l'autore, il copyright, le parole chiave e la data dello scatto valgono al posto di quelli della foto (EXIF, IPTC o XMP), e la sua posizione al posto di quella della fotocamera.
+
+Quando converti una foto o la salvi in un altro formato, quello che il file .xmp contiene va nel file nuovo, così la copia lo tiene da sola (per una foto RAW la posizione va anche nel suo EXIF). Lo stesso per una copia soltanto girata, senza perdere qualità, e per una foto del telefono con HDR, che resta HDR. Le impostazioni di sviluppo di Lightroom, Camera Raw e darktable nel file .xmp restano fuori: non sono nei pixel che EyeCanSee scrive. Con **Metadati** su **Tutti tranne il luogo** restano fuori anche la sua posizione e i luoghi, e con **Nessuno** non ne va niente (vedi [Salva come](save-as.md)).
+
+I file .xmp non compaiono nella griglia e seguono la loro foto: quando la copi, la sposti, la rinomini o la elimini, e quando la ripristini dal cestino di EyeCanSee. Vedi [Copiare e spostare](copy-move.md).
 
 Un riquadro dice "Nessun dato" quando il file non ha niente per lui, e "Questo file non contiene metadati" quando il file non ha nessun metadato.
 

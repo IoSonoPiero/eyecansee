@@ -24,13 +24,16 @@ pub(crate) struct State {
     pub(crate) meshes: HashMap<String, Arc<Mesh>>,
     /// The model shown and its camera; a new model starts from the default view.
     of: Option<String>,
-    view: View,
-    /// The graphics card, from eframe; without it the viewer shows the still picture.
+    pub(crate) view: View,
+    /// The graphics card, from eframe; without it the processor draws the model (`model_cpu`).
     pub(crate) gpu: Option<Gpu>,
+    pub(crate) cpu: crate::model_cpu::CpuView,
     /// Size of the picture on screen, in pixels, for the screenshot's proportions.
     size: [u32; 2],
     /// CAD drawings, which the viewer also draws itself (`cad_view`).
     pub(crate) cad: crate::cad_view::State,
+    /// The Measure tool, on drawings and models (`measure_view`).
+    pub(crate) measure: crate::measure_view::State,
     /// The CAD engine being downloaded (`cad_engine`).
     pub(crate) engine: Option<Arc<crate::component::Download>>,
     /// When the last frames were drawn (seconds), for the frame rate in the status bar.
@@ -51,6 +54,11 @@ impl App {
             log!("graphics card: {} ({:?}, {:?}, driver {} {})", i.name, i.device_type, i.backend, i.driver, i.driver_info);
         }
         self.model.gpu = cc.wgpu_render_state.clone().map(Gpu::new);
+        // To try the viewer of a computer without a usable graphics card.
+        if std::env::var_os("EYECANSEE_NO_GPU_3D").is_some() {
+            log!("graphics card: not used for 3D (EYECANSEE_NO_GPU_3D)");
+            self.model.gpu = None;
+        }
         self
     }
 
@@ -98,6 +106,9 @@ impl App {
     /// Keys of the viewer on a model: arrows turn it (held: it keeps turning), + − and 0 zoom,
     /// Ctrl+Shift+S saves the picture. The other keys move among the files as for images.
     pub(crate) fn model_keys(&mut self, ctx: &egui::Context) {
+        if let Some((_, mesh)) = self.viewed_mesh() {
+            self.section_keys(ctx, mesh.z_up);
+        }
         let (dx, dy, zoom, reset) = ctx.input(|i| {
             let held = |k| if i.key_down(k) && !i.modifiers.command { 1.0 } else { 0.0 };
             // The real time since the last frame: a frame the system skips makes a longer step, not a slower turn.
@@ -117,7 +128,8 @@ impl App {
         }
         self.model.view.zoom_by(zoom);
         if reset {
-            self.model.view = View::default();
+            // The starting view, the section kept.
+            self.model.view = View { cut: self.model.view.cut, ..View::default() };
         }
         if save {
             self.act = Some(crate::actions::Act::Convert(None));
@@ -140,9 +152,9 @@ impl App {
     /// `None` until it is read or without a card (the viewer shows its still picture).
     pub(crate) fn model_view(&mut self, ui: &mut egui::Ui) -> Option<egui::Response> {
         let (path, mesh) = self.viewed_mesh()?;
-        self.model.gpu.as_ref()?;
         if self.model.of.as_ref() != Some(&path) {
-            (self.model.of, self.model.view) = (Some(path), View::default());
+            (self.model.of, self.model.view) = (Some(path.clone()), View::default());
+            self.model.measure.pts3.clear();
         }
         let rect = ui.available_rect_before_wrap();
         let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
@@ -150,8 +162,19 @@ impl App {
         let ppp = ui.ctx().pixels_per_point();
         let size = [(rect.width() * ppp) as u32, (rect.height() * ppp) as u32];
         self.model.size = size;
+        // The cut filled only on a closed model, as the measure of its volume finds it.
+        if self.model.view.cut.is_some() {
+            let closed = self.model_sizes(ui.ctx(), &path, &mesh).is_some_and(|s| s.open_edges == 0);
+            if let Some(c) = &mut self.model.view.cut {
+                c.fill = closed;
+            }
+        }
         let view = self.model.view;
-        let id = self.model.gpu.as_mut()?.draw(&mesh, &view, size);
+        // Without a graphics card, drawn on the processor (`model_cpu`).
+        let id = match self.model.gpu.as_mut() {
+            Some(gpu) => Some(gpu.draw(&mesh, &view, size)),
+            None => self.model_cpu_picture(ui.ctx(), &path, &mesh, view, size),
+        };
         let painter = ui.painter_at(rect);
         let [top, bottom] = render3d::BACKGROUND.map(|[r, g, b]| egui::Color32::from_rgb(r, g, b));
         let mut sky = egui::Mesh::default();
@@ -162,8 +185,11 @@ impl App {
         sky.add_triangle(0, 1, 2);
         sky.add_triangle(0, 2, 3);
         painter.add(sky);
-        painter.image(id, rect, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+        if let Some(id) = id {
+            painter.image(id, rect, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+        }
         axes_corner(&painter, rect, render3d::axes(&view, mesh.z_up));
+        self.model_measure(ui, &response, &path, &mesh);
         self.zoom_shown = view.zoom;
         self.count_frame(ui.input(|i| i.time));
         Some(response)
@@ -209,7 +235,8 @@ impl App {
         if response.dragged() {
             ui.ctx().set_cursor_icon(egui::CursorIcon::Grabbing);
         }
-        if response.hovered() {
+        // Alt and the wheel move a section's plane instead.
+        if !self.section_wheel(ui, response.hovered()) && response.hovered() {
             let f = ui.input(|i| {
                 i.events.iter().fold(1.0, |f, e| match e {
                     egui::Event::MouseWheel { unit, delta, .. } => f * 1.15f32.powf(crate::viewer::notches(*unit, *delta)),

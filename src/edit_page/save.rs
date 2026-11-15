@@ -12,7 +12,8 @@ use eframe::egui;
 use super::Window;
 use crate::actions::Act;
 use crate::edit::save::{Depth, Plan};
-use crate::encode::Original;
+use crate::encode::{Format, Original};
+use crate::meta_strip::Keep;
 use crate::kept::Send;
 use crate::source::{self, Deletion};
 use crate::{App, confirm};
@@ -98,6 +99,23 @@ pub struct Prepared {
     /// The copy saved before is gone or was changed by another program: a new one is made.
     gone: bool,
     bytes: Arc<Vec<u8>>,
+    /// What the file keeps of the original's metadata, chosen in the confirmation (#55).
+    keep: Keep,
+}
+
+impl Prepared {
+    /// The same save planned again with the metadata kept as `keep` says, the target the same.
+    fn keeping(&self, keep: Keep, name: &str) -> Result<Prepared, String> {
+        let mut plan = crate::edit::save::plan_keeping(&self.doc, &self.original, &self.bytes, name, &self.word, &self.taken, keep)?;
+        plan.name = self.plan.name.clone();
+        let (doc, original, word, taken, target, bytes) = (self.doc.clone(), self.original.clone(), self.word.clone(), self.taken.clone(), self.target.clone(), self.bytes.clone());
+        Ok(Prepared { plan, doc, original, word, taken, target, send: self.send, over: self.over, gone: self.gone, bytes, keep })
+    }
+
+    /// The choice of the metadata is offered: the original has some, and the file's format holds it.
+    fn offers_keep(&self) -> bool {
+        self.original.has_meta() && Format::of_file(&self.plan.name).is_some_and(Format::holds_meta)
+    }
 }
 
 /// The save of `doc` on `original` (its file `path`, its bytes if already read): a copy (`over`
@@ -105,7 +123,7 @@ pub struct Prepared {
 /// still that file, otherwise is a new one with the first free name; over the original, the first
 /// time the original goes to a trash, the next times what was written before is replaced (while
 /// it is still that), only the true original in the trash.
-pub(crate) async fn prepare(store: &crate::source::Store, path: &str, (doc, original): (&crate::edit::doc::Doc, Arc<Original>), bytes: Option<Arc<Vec<u8>>>, (word, over, written): (String, bool, Option<Written>)) -> Result<Prepared, source::Error> {
+pub(crate) async fn prepare(store: &crate::source::Store, path: &str, (doc, original): (&crate::edit::doc::Doc, Arc<Original>), bytes: Option<Arc<Vec<u8>>>, (word, over, written, keep): (String, bool, Option<Written>, Keep)) -> Result<Prepared, source::Error> {
     let bytes = match bytes {
         Some(b) => b,
         None => Arc::new(store.read(path).await?),
@@ -116,7 +134,7 @@ pub(crate) async fn prepare(store: &crate::source::Store, path: &str, (doc, orig
     };
     let taken: Vec<String> = store.names(&source::parent(path)).await?.into_iter().collect();
     let (d, o, b, name, (w2, t2)) = (doc.clone(), original.clone(), bytes.clone(), source::name(path).to_string(), (word.clone(), taken.clone()));
-    let mut plan = tokio::task::spawn_blocking(move || crate::edit::save::plan(&d, &o, &b, &name, &w2, &t2).map_err(|e| ("error-detail", e)))
+    let mut plan = tokio::task::spawn_blocking(move || crate::edit::save::plan_keeping(&d, &o, &b, &name, &w2, &t2, keep).map_err(|e| ("error-detail", e)))
         .await
         .map_err(|e| ("error-detail", e.to_string()))??;
     let (target, send, gone) = match (over, written) {
@@ -127,7 +145,7 @@ pub(crate) async fn prepare(store: &crate::source::Store, path: &str, (doc, orig
     if !over {
         plan.name = source::name(&target).to_string();
     }
-    Ok(Prepared { plan, doc: doc.clone(), original, word, taken, target, send, over, gone, bytes })
+    Ok(Prepared { plan, doc: doc.clone(), original, word, taken, target, send, over, gone, bytes, keep })
 }
 
 /// The file of a confirmed save: made now (the slow part), or already made by `plan`.
@@ -135,7 +153,7 @@ pub(crate) fn make(p: &Prepared, name: &str) -> Result<Vec<u8>, String> {
     if let Some(data) = &p.plan.data {
         return Ok(data.clone());
     }
-    crate::edit::save::save(&p.doc, &p.original, &p.bytes, name, &p.word, &p.taken, &crate::decode::usvg_options()).map(|s| s.data)
+    crate::edit::save::save_keeping(&p.doc, &p.original, &p.bytes, name, (&p.word, &p.taken), &crate::decode::usvg_options(), p.keep).map(|s| s.data)
 }
 
 /// How a save ended: with the image kept on this computer if it could not be sent (`kept`).
@@ -255,6 +273,9 @@ impl App {
             Depth::HdrCut => ids.push(if over { "edit-over-loss-hdr" } else { "edit-loss-hdr" }),
             Depth::Kept => {}
         }
+        if s.hdr_lost {
+            ids.push(if over { "edit-over-loss-ultra-hdr" } else { "edit-loss-ultra-hdr" });
+        }
         ids.iter().map(|id| format!("\n\n{}", self.i18n.t(id))).collect()
     }
 
@@ -279,7 +300,29 @@ impl App {
         let text = format!("{text}{}", self.losses(&p.plan, p.over));
         let no = self.i18n.t("delete-no");
         let title = self.i18n.t(if p.over { "edit-overwrite-title" } else { "edit-save-copy" });
-        match confirm::yes_no(ctx, "edit-save", 460.0, (title, text), yes, true, no, self.delete_answer.take()) {
+        // What the file keeps of the metadata (#55): chosen here, planned again when changed.
+        let mut keep = p.keep;
+        let offers = p.offers_keep();
+        let i18n = &self.i18n;
+        let mut extra = |ui: &mut egui::Ui| {
+            if offers {
+                crate::convert::meta_choice(ui, &mut keep, i18n);
+            }
+        };
+        let answer = confirm::yes_no_with(ctx, "edit-save", 460.0, (title, text), (yes, no), self.delete_answer.take(), &mut extra);
+        if keep != p.keep {
+            match p.keeping(keep, source::name(&w.path)) {
+                Ok(again) => {
+                    log!("edit: metadata {keep:?}");
+                    // Kept for the next saves of this page: an Update copy must not put the place back.
+                    w.keep = keep;
+                    w.ready = Some(Ready(Arc::new(again)));
+                }
+                Err(e) => self.save_failed(("error-detail", e), Some(Act::RotateSaveAs)),
+            }
+            return;
+        }
+        match answer {
             Some(true) => {
                 let target = p.target.clone();
                 log!("edit: {:?} {target:?}", p.send);
@@ -344,7 +387,7 @@ impl App {
                 let mut o = Original::clone(&original);
                 o.image = image;
                 let mut o = o.alone();
-                o.hdr = file.and_then(|f| crate::ultrahdr::Source::of(f, vec![doc.edit()], holes)).map(|s| Arc::new(s.sized(doc.scale.map(|s| (s.w, s.h)))));
+                o.hdr = file.and_then(|f| crate::ultrahdr::Source::of(f, vec![doc.edit()], holes)).map(|s| Arc::new(s.sized(doc.scale.map(|s| (s.w, s.h))).beside(o.sidecar.clone())));
                 let preview = crate::decode::preview(&o.image);
                 (o, preview)
             });
@@ -414,7 +457,8 @@ impl Window {
         let (store, path, doc, original) = (place.store.clone(), self.path.clone(), self.doc.clone(), original.clone());
         let (bytes, written) = (self.bytes.clone(), if over { &self.overwritten } else { &self.copy }.done.clone());
         log!("edit: prepare {path:?}, over {over}, after {written:?}");
-        Some(async move { prepare(&store, &path, (&doc, original), bytes, (word, over, written)).await })
+        let keep = self.keep;
+        Some(async move { prepare(&store, &path, (&doc, original), bytes, (word, over, written, keep)).await })
     }
 
     /// The confirmed save `p` made and sent where the image is (`Place`): on a phone or a server
@@ -510,7 +554,7 @@ mod tests {
     fn save(rt: &tokio::runtime::Runtime, store: &Store, doc: &Doc, over: bool, bytes: Option<Arc<Vec<u8>>>, written: Option<Written>) -> (Arc<Prepared>, Written) {
         let original = Arc::new(Original::with_meta_of(crate::decode::decode_full(&std::fs::read(store.local_file("p/a.jpg").unwrap()).unwrap(), "a.jpg").unwrap(), &[], "a.jpg"));
         let original = bytes.as_ref().map_or(original, |b| Arc::new(Original::with_meta_of(crate::decode::decode_full(b, "a.jpg").unwrap(), b, "a.jpg")));
-        let p = Arc::new(rt.block_on(prepare(store, "p/a.jpg", (doc, original), bytes, ("edited".into(), over, written))).unwrap());
+        let p = Arc::new(rt.block_on(prepare(store, "p/a.jpg", (doc, original), bytes, ("edited".into(), over, written, Keep::All))).unwrap());
         let data = make(&p, "a.jpg").unwrap();
         rt.block_on(crate::kept::send(store, "file:///x/", &p.target, data.clone(), Deletion::TrashFolder, p.send)).unwrap_or_else(|e| panic!("{:?}", e.0));
         let mark = Written::of(p.target.clone(), &data);

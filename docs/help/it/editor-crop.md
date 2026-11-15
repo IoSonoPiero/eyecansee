@@ -8,7 +8,7 @@ Con questo strumento si vede tutta l'immagine, con sopra la cornice del ritaglio
 
 ## Ruotare
 
-- **Rotazione**: il cursore, o scrivi i gradi nel numero accanto, da -180° a 180° a decimi di grado. Vanno bene sia il punto sia la virgola.
+- **Rotazione**: il cursore, o scrivi i gradi nel numero accanto, da -180° a 180° a decimi di grado, con una tacca ogni 45°. Vanno bene sia il punto sia la virgola.
 - Tieni premuto Maiusc e gira la rotellina sopra l'immagine: 0,1° a scatto. Comodo per allineare l'orizzonte alle linee dei terzi.
 - **Torna a 0°** rimette l'angolo a zero.
 - ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square) nella barra degli strumenti (Ctrl+Maiusc+R, Ctrl+R) girano l'immagine di un quarto, insieme a ciò che ci è disegnato sopra e al ritaglio.

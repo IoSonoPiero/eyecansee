@@ -15,8 +15,12 @@ const PAPER: [u8; 3] = [46, 54, 64];
 /// The viewport of the sheet itself: not a window on the model.
 const SHEET_VIEWPORT: i16 = 1;
 
+type Fonts = std::rc::Rc<std::collections::HashMap<String, crate::cad_text::Font>>;
+/// The drawing's layers and their numbers by name (`cad_layers::table`).
+pub(crate) type Layers<'a> = (&'a [crate::cad_layers::Layer], &'a std::rc::Rc<std::collections::HashMap<String, u32>>);
+
 /// Every layout with something on it, in tab order; a layout that cannot be drawn is left out.
-pub(crate) fn sheets(doc: &CadDocument, sibling: crate::model::Sibling, fonts: &std::rc::Rc<std::collections::HashMap<String, crate::cad_text::Font>>) -> Vec<(String, std::sync::Arc<Drawing>)> {
+pub(crate) fn sheets(doc: &CadDocument, sibling: crate::model::Sibling, fonts: &Fonts, layers: Layers) -> Vec<(String, std::sync::Arc<Drawing>)> {
     let mut layouts: Vec<&Layout> = doc
         .objects
         .values()
@@ -26,7 +30,7 @@ pub(crate) fn sheets(doc: &CadDocument, sibling: crate::model::Sibling, fonts: &
         })
         .collect();
     layouts.sort_by_key(|l| l.tab_order);
-    layouts.into_iter().filter_map(|l| Some((l.name.clone(), std::sync::Arc::new(sheet(doc, l, sibling, fonts)?)))).collect()
+    layouts.into_iter().filter_map(|l| Some((l.name.clone(), std::sync::Arc::new(sheet(doc, l, sibling, fonts, layers)?)))).collect()
 }
 
 fn viewport(e: &EntityType) -> Option<&Viewport> {
@@ -36,23 +40,24 @@ fn viewport(e: &EntityType) -> Option<&Viewport> {
     }
 }
 
-fn sheet(doc: &CadDocument, l: &Layout, sibling: crate::model::Sibling, fonts: &std::rc::Rc<std::collections::HashMap<String, crate::cad_text::Font>>) -> Option<Drawing> {
+fn sheet(doc: &CadDocument, l: &Layout, sibling: crate::model::Sibling, fonts: &Fonts, layers: Layers) -> Option<Drawing> {
     let name = &doc.block_records.iter().find(|b| b.handle == l.block_record)?.name;
     let entities: Vec<&EntityType> = doc.entities_in_block(name).collect();
     // A layout with only its own viewport is empty (Layout1 and Layout2 of most drawings).
     if entities.iter().all(|e| viewport(e).is_some_and(|v| v.id == SHEET_VIEWPORT)) {
         return None;
     }
-    let mut d = Drawing::default();
+    let mut d = Drawing { layers: layers.0.to_vec(), ..Default::default() };
     let mut walk = Walk::new(doc, &mut d);
     walk.sibling = sibling;
     walk.fonts = fonts.clone();
+    walk.index = layers.1.clone();
     let (lo, hi) = (l.min_limits, l.max_limits);
     if hi.0 > lo.0 && hi.1 > lo.1 {
         let paper = vec![[lo.0, lo.1], [hi.0, lo.1], [hi.0, hi.1], [lo.0, hi.1], [lo.0, lo.1]];
         walk.line(paper, &Affine::IDENTITY, PAPER, Some(1.0), Stroke::default()).ok()?;
     }
-    let top = Context { t: Affine::IDENTITY, layer: None, color: WHITE, style: CONTINUOUS, depth: 0 };
+    let top = Context { t: Affine::IDENTITY, layer: None, color: WHITE, style: CONTINUOUS, depth: 0, set: 0 };
     for e in &entities {
         match viewport(e) {
             Some(v) if v.id != SHEET_VIEWPORT => window(doc, &mut walk, v).ok()?,
@@ -79,7 +84,7 @@ fn window(doc: &CadDocument, walk: &mut Walk, v: &Viewport) -> Result<(), String
         .then_inner(&Affine::translate(-(v.view_center.x + v.view_target.x), -(v.view_center.y + v.view_target.y)));
     walk.clip = Some([c[0] - half[0], c[1] - half[1], c[0] + half[0], c[1] + half[1]]);
     walk.frozen = doc.layers.iter().filter(|l| v.frozen_layers.contains(&l.handle)).map(|l| l.name.to_lowercase()).collect();
-    let ctx = Context { t, layer: None, color: WHITE, style: CONTINUOUS, depth: 0 };
+    let ctx = Context { t, layer: None, color: WHITE, style: CONTINUOUS, depth: 0, set: 0 };
     let r = doc.model_space_entities().try_for_each(|e| walk.entity(e, &ctx));
     (walk.clip, walk.frozen) = (None, Vec::new());
     r

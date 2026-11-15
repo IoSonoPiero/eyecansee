@@ -43,7 +43,7 @@ The choice stays for every folder until you change it. The status bar counts ima
 
 ## Size of the thumbnails
 
-The slider at the right end of the toolbar, next to ![Thumbnail size](icon://image), makes the thumbnails larger or smaller. The cells spread over the whole width of the grid.
+The slider at the right end of the toolbar, next to ![Thumbnail size](icon://image), makes the thumbnails larger or smaller, in seven sizes from 64 to 256 pixels: it stops on each, marked under it, and the size is written next to it. The cells spread over the whole width of the grid.
 
 Under each thumbnail there are its name, its dimensions in pixels and size, and its date, with the duration of videos and audio files; in **Options > Thumbnails > Under the thumbnails** you choose which of them to see, all ticked at first (see [Options](options.md)). With small thumbnails only the name stays.
 
@@ -67,4 +67,4 @@ An entry marked with **\*** works only on some of the files chosen (for example 
 
 ## The status bar
 
-At the bottom of the window: how many folders, images, videos and audio files the folder has, and the name, size and date of the selected file (of a folder, its name). With several items selected it shows how many they are and how much their files weigh. After Copy or Cut it reminds you to press Ctrl+V.
+At the bottom of the window: how many folders, images, videos and audio files the folder has, and the name, size and date of the selected file (of a folder, its name). With several items selected it shows how many they are and how much their files weigh. After Copy or Cut it reminds you to press Ctrl+V. On its right, **Keys** lists the keys of the grid while you point at it, or until you click it again (all the keys are in [Keyboard shortcuts](keyboard.md)).

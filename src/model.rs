@@ -44,6 +44,9 @@ pub struct Mesh {
     pub surface: Vec<u16>,
     pub surfaces: Vec<Surface>,
     pub normals: Vec<[[f32; 3]; 3]>,
+    /// The unit of its coordinates when the format or the file says it (`unit_of`), for the
+    /// measures; `None` for the formats without one (STL, OBJ, PLY…).
+    pub unit: Option<&'static str>,
 }
 
 /// How a surface takes the light beyond its colour, as glTF describes it (metallic-roughness).
@@ -215,7 +218,7 @@ impl Builder {
         let shiny = matte > 0 || shine.iter().any(|s| s.0 > 0);
         let (surface, normals) = if shiny { tris.iter().enumerate().map(|(k, &(i, _))| pick(k, i)).unzip() } else { (Vec::new(), Vec::new()) };
         let surfaces = if shiny { surfaces } else { Vec::new() };
-        Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, uv, tex, textures, surface, surfaces, normals })
+        Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, uv, tex, textures, surface, surfaces, normals, unit: None })
     }
 }
 
@@ -233,6 +236,37 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<Mesh, String> {
 
 /// Like `parse`, reading the files next to the model through `sibling`.
 pub fn parse_with(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, String> {
+    let mut mesh = read_as(bytes, name, sibling)?;
+    if mesh.unit.is_none() {
+        mesh.unit = unit_of(name);
+    }
+    Ok(mesh)
+}
+
+/// The unit a format fixes: glTF, IFC (as `ifc-lite` gives it), X3D and VRML in metres; STEP and
+/// IGES in millimetres, as the CAD engine reads them. 3MF and AMF say it in the file (their readers).
+fn unit_of(name: &str) -> Option<&'static str> {
+    match ext(name)?.as_str() {
+        "glb" | "gltf" | "ifc" | "wrl" | "wrz" | "x3d" | "x3dv" | "x3dz" | "x3dvz" => Some("m"),
+        "step" | "stp" | "iges" | "igs" => Some("mm"),
+        _ => None,
+    }
+}
+
+/// A unit as 3MF and AMF name it, millimetres when not said.
+pub(crate) fn named_unit(name: Option<&str>) -> Option<&'static str> {
+    Some(match name.unwrap_or("millimeter").to_ascii_lowercase().as_str() {
+        "micron" | "micrometer" => "µm",
+        "millimeter" | "millimetre" => "mm",
+        "centimeter" | "centimetre" => "cm",
+        "meter" | "metre" => "m",
+        "inch" => "in",
+        "foot" | "feet" => "ft",
+        _ => return None,
+    })
+}
+
+fn read_as(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, String> {
     match ext(name).as_deref() {
         Some("stl") => stl(bytes),
         Some("obj") => obj(bytes, sibling),
@@ -324,8 +358,8 @@ pub(crate) fn percent_decoded(s: &str) -> Option<String> {
     String::from_utf8(out).ok()
 }
 
-/// With the colours of its materials (`Kd` of the `.mtl` files it names) or of its vertices, and
-/// their pictures (`map_Kd`).
+/// With the colours of its materials (`Kd` of the `.mtl` files it names) or of its vertices,
+/// their pictures (`map_Kd`) and the rest of the material (`model_mtl`: highlight, glow, normal map).
 fn obj(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     let options = tobj::LoadOptions { triangulate: true, single_index: true, ignore_points: true, ignore_lines: true };
     let mtl = |p: &std::path::Path| match p.to_str().and_then(sibling) {
@@ -335,7 +369,10 @@ fn obj(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     let (models, materials) = tobj::load_obj_buf(&mut Cursor::new(utf8(bytes).as_bytes()), &options, mtl).map_err(|e| e.to_string())?;
     let materials = materials.unwrap_or_default();
     let mut b = Builder::default();
+    let mut surfaces: std::collections::HashMap<usize, u16> = std::collections::HashMap::new();
     for m in models {
+        let id = m.mesh.material_id;
+        let surface = id.and_then(|i| Some((i, materials.get(i)?))).map_or(0, |(i, mat)| *surfaces.entry(i).or_insert_with(|| crate::model_mtl::surface(mat, &mut b, sibling).map_or(0, |s| b.surface(s))));
         let m = m.mesh;
         let pos = m.positions.as_chunks::<3>().0.to_vec();
         let tris: Vec<[u32; 3]> = m.indices.as_chunks::<3>().0.to_vec();
@@ -353,7 +390,13 @@ fn obj(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
             let c = tris[i].map(|v| uv.get(v as usize).copied());
             c.iter().all(Option::is_some).then(|| (c.map(Option::unwrap_or_default), tex))
         };
-        b.add_textured(pos, tris.clone(), colors, corners)?;
+        // The file's normals with a material that has a surface; matte, as before, worked out.
+        let normals: Vec<[f32; 3]> = if surface > 0 { m.normals.as_chunks::<3>().0.to_vec() } else { Vec::new() };
+        let shine = |i: usize| {
+            let n = tris[i].map(|v| normals.get(v as usize).copied());
+            (corners(i), surface, n.iter().all(Option::is_some).then(|| n.map(Option::unwrap_or_default)))
+        };
+        b.add_shiny(pos, tris.clone(), colors, shine)?;
     }
     b.finish(false)
 }

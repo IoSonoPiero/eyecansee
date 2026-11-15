@@ -26,14 +26,40 @@ pub(crate) fn text_box(at: P, h: f64, angle: f64, text: &str, anchor: (Anchor, B
     [[x0, bottom], [x0 + w, bottom], [x0 + w, top], [x0, top]].map(|[x, y]| [at[0] + x * c - y * s, at[1] + x * s + y * c])
 }
 
+/// A drawing in its picture: the drawing's point at the top left corner, pixels per drawing
+/// unit, and the picture's width and height in pixels.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct Placement {
+    pub origin: P,
+    pub scale: f64,
+    pub size: [f64; 2],
+}
+
+impl Placement {
+    /// The drawing's point at `uv` (0 to 1 across the picture, down from the top).
+    pub(crate) fn point(&self, uv: [f64; 2]) -> P {
+        [self.origin[0] + uv[0] * self.size[0] / self.scale, self.origin[1] - uv[1] * self.size[1] / self.scale]
+    }
+
+    /// Where the drawing's point `p` is in the picture, 0 to 1 (`point` backwards).
+    pub(crate) fn uv(&self, p: P) -> [f64; 2] {
+        [(p[0] - self.origin[0]) * self.scale / self.size[0], (self.origin[1] - p[1]) * self.scale / self.size[1]]
+    }
+}
+
 impl Drawing {
-    /// Box around what is drawn: lines, and the text positions with an estimate of their size.
+    /// Box around what is shown, or the frame kept while layers are turned on and off.
     pub(crate) fn bounds(&self) -> Option<[f64; 4]> {
+        self.frame.or_else(|| self.bounds_of_shown())
+    }
+
+    /// Box around what is shown: lines, and the text positions with an estimate of their size.
+    pub(crate) fn bounds_of_shown(&self) -> Option<[f64; 4]> {
         let mut b = [f64::MAX, f64::MAX, f64::MIN, f64::MIN];
         let mut add = |p: P| {
             b = [b[0].min(p[0]), b[1].min(p[1]), b[2].max(p[0]), b[3].max(p[1])];
         };
-        for item in &self.items {
+        for item in self.shown_items() {
             match item {
                 Item::Line { pts, .. } => pts.iter().filter(|p| !p[0].is_nan()).for_each(|&p| add(p)),
                 Item::Text { at, height, angle, text, anchor, .. } => text_box(*at, *height, *angle, text, *anchor).into_iter().for_each(&mut add),
@@ -43,22 +69,26 @@ impl Drawing {
         (b[0] <= b[2] && b[1] <= b[3]).then_some(b)
     }
 
+    /// Where the drawing goes in a picture whose long side is `side` pixels: a margin of 2%
+    /// around; a drawing that is one point or one line still gets a size.
+    pub(crate) fn placement(&self, side: u32) -> Option<Placement> {
+        let [x0, y0, x1, y1] = self.bounds()?;
+        let (w, h) = ((x1 - x0).max(f64::MIN_POSITIVE), (y1 - y0).max(f64::MIN_POSITIVE));
+        let span = w.max(h) * 1.04;
+        let s = f64::from(side) / span;
+        let (pw, ph) = (((w * 1.04).max(span * 0.01) * s).ceil().max(1.0), ((h * 1.04).max(span * 0.01) * s).ceil().max(1.0));
+        Some(Placement { origin: [x0 - w * 0.02, y1 + h * 0.02], scale: s, size: [pw, ph] })
+    }
+
     /// The drawing as an SVG whose long side is `side` pixels, lines `stroke` pixels wide (less
     /// than 1 when the SVG will be drawn larger, so that they stay 1 pixel on the screen).
     pub fn svg(&self, side: u32, stroke: f32) -> Result<String, String> {
-        let [x0, y0, x1, y1] = self.bounds().ok_or("nothing to draw")?;
-        let side = side as f64;
-        // A margin of 2% around; a drawing that is one point or one line still gets a size.
-        let (w, h) = ((x1 - x0).max(f64::MIN_POSITIVE), (y1 - y0).max(f64::MIN_POSITIVE));
-        let span = w.max(h) * 1.04;
-        let s = side / span;
-        let (pw, ph) = (((w * 1.04).max(span * 0.01) * s).ceil().max(1.0), ((h * 1.04).max(span * 0.01) * s).ceil().max(1.0));
-        let (ox, oy) = (x0 - w * 0.02, y1 + h * 0.02);
+        let Placement { origin: [ox, oy], scale: s, size: [pw, ph] } = self.placement(side).ok_or("nothing to draw")?;
         let px = |p: P| ((p[0] - ox) * s, (oy - p[1]) * s);
         let rgb = |c: [u8; 3]| format!("#{:02x}{:02x}{:02x}", c[0], c[1], c[2]);
         let [br, bg, bb] = BACKGROUND;
         let mut out = format!(r##"<svg xmlns="http://www.w3.org/2000/svg" width="{pw}" height="{ph}" viewBox="0 0 {pw} {ph}"><rect width="100%" height="100%" fill="#{br:02x}{bg:02x}{bb:02x}"/><g fill="none" stroke-width="{stroke}" stroke-linejoin="round" stroke-linecap="round" font-family="sans-serif">"##);
-        for item in &self.items {
+        for item in self.shown_items() {
             match item {
                 Item::Line { pts, color, fill, stroke: line } => {
                     let c = rgb(*color);

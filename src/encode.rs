@@ -13,6 +13,7 @@ use image::metadata::Orientation;
 use image::{DynamicImage, ImageDecoder, ImageEncoder, ImageReader};
 
 use crate::encoders;
+use crate::meta_strip::Keep;
 use crate::transform::Turn;
 
 /// Output formats, all with encoders in the program. No HEIC (patents) and no JPEG XL (no
@@ -163,7 +164,8 @@ pub enum TiffCompression {
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Options {
     pub format: Format,
-    pub keep_meta: bool,
+    /// What the new file keeps of the original's metadata (#55).
+    pub meta: Keep,
     pub jpeg_quality: u8,
     pub chroma: Chroma,
     pub progressive: bool,
@@ -201,7 +203,7 @@ impl Default for Options {
     fn default() -> Self {
         Self {
             format: Format::Jpeg,
-            keep_meta: true,
+            meta: Keep::All,
             jpeg_quality: 90,
             chroma: Chroma::Quarter,
             progressive: false,
@@ -250,6 +252,10 @@ pub struct Original {
     /// An Ultra HDR photo opened in Save in another format: what writes it as JPEG still Ultra
     /// HDR (#66). Not used by `encode`, which writes the picture alone.
     pub hdr: Option<std::sync::Arc<crate::ultrahdr::Source>>,
+    /// The XMP of the sidecar of a photo that is not RAW (#24), as read: for the copies written
+    /// from the file itself rather than from these blocks (an Ultra HDR photo, a lossless turn),
+    /// which join it to the file's XMP (`xmp::joined`).
+    pub sidecar: Option<Vec<u8>>,
 }
 
 /// The metadata of a file being written, made to fit its pixels (`Original::blocks`).
@@ -259,8 +265,6 @@ pub(crate) struct Blocks {
     pub icc: Option<Vec<u8>>,
     pub xmp: Option<Vec<u8>>,
     pub irb: Option<Vec<u8>>,
-    /// A JPEG's extended XMP, as `Original::xmp_ext`; only for a JPEG.
-    pub xmp_ext: Vec<Vec<u8>>,
     /// The original's pixel density, turned with the pixels; each encoder writes it where its
     /// format keeps it (the EXIF already has it).
     pub density: Option<density::Density>,
@@ -276,12 +280,23 @@ impl Original {
     /// As `with_meta`; the file's `name` tells the formats ImageMagick reads, whose metadata only
     /// ImageMagick gives.
     pub fn with_meta_of(image: DynamicImage, bytes: &[u8], name: &str) -> Original {
+        Original::with_meta_beside(image, bytes, name, None)
+    }
+
+    /// As `with_meta_of`, with the XMP of the photo's `sidecar` (#24): for a RAW photo in place of
+    /// the file's own, as Lightroom reads it, and its position in the EXIF; for another photo
+    /// added to the file's own, its values first, as digiKam reads it (`xmp::with_sidecar`).
+    pub fn with_meta_beside(image: DynamicImage, bytes: &[u8], name: &str, sidecar: Option<&[u8]>) -> Original {
         // RAW: the EXIF of every maker (`raw_meta`), the profile of the decoded pixels, the XMP,
         // the IPTC where it is in a TIFF tag.
-        if let Some(raw) = crate::raw_meta::read(bytes) {
+        let place = sidecar.map(crate::xmp_fields::read).and_then(|f| Some((f.gps?, f.altitude)));
+        if let Some(raw) = crate::raw_meta::read_placed(bytes, place) {
             let x = crate::meta_write::read(bytes, None);
             let density = density::read(bytes, raw.exif.as_deref(), x.irb.as_deref());
-            return Original { density, ..Original::upright(image, raw.exif, raw.icc, raw.xmp.or(x.xmp), x.irb) };
+            // Its Camera Raw settings (and darktable's history) are not in the pixels EyeCanSee
+            // develops: they go.
+            let xmp = sidecar.map(<[u8]>::to_vec).or(raw.xmp).or(x.xmp).map(|m| crate::xmp::without_camera_raw(&m, image.width(), image.height()));
+            return Original { density, ..Original::upright(image, raw.exif, raw.icc, xmp, x.irb) };
         }
         // As found in the formats `image` reads (JPEG, PNG, WebP, TIFF), then in the file itself
         // (`meta_write::read`), then from ImageMagick for the formats it reads.
@@ -294,8 +309,18 @@ impl Original {
         }
         let exif = exif.or(x.exif).or_else(|| crate::meta::exif_chunk(bytes)).or_else(|| crate::meta::jxl_exif(bytes));
         let xmp_ext = x.xmp.as_deref().map_or_else(Vec::new, |m| crate::meta_write::jpeg_xmp_ext(bytes, m));
+        // The sidecar's development settings (darktable's history) are not in these pixels either.
+        if let Some(side) = sidecar {
+            x.xmp = Some(crate::xmp::joined(x.xmp.as_deref(), side, image.width(), image.height()));
+        }
         let density = density::read(bytes, exif.as_deref(), x.irb.as_deref());
-        Original { xmp_ext, jpeg: jpeg_quality::of(bytes), density, ..Original::upright(image, exif, icc.or(x.icc), x.xmp, x.irb) }
+        let sidecar = sidecar.map(<[u8]>::to_vec);
+        Original { xmp_ext, jpeg: jpeg_quality::of(bytes), density, sidecar, ..Original::upright(image, exif, icc.or(x.icc), x.xmp, x.irb) }
+    }
+
+    /// A picture made here (a video's frame, #16) with the EXIF made for it.
+    pub fn with_exif(image: DynamicImage, exif: Option<Vec<u8>>) -> Original {
+        Original::upright(image, exif, None, None, None)
     }
 
     /// The pixels are already turned upright: the EXIF orientation is set back to "upright".
@@ -303,7 +328,7 @@ impl Original {
         if let Some(chunk) = &mut exif {
             let _ = Orientation::remove_from_exif_chunk(chunk);
         }
-        Original { image, exif, icc, xmp, irb, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None }
+        Original { image, exif, icc, xmp, irb, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None }
     }
 
     /// For a picture written without what followed it in the file (Motion Photo video, Ultra HDR
@@ -317,7 +342,7 @@ impl Original {
     /// `image` with this one's metadata, without copying these pixels (the editor's Resize).
     pub fn with_image(&self, image: DynamicImage) -> Original {
         let (exif, icc, xmp, irb, xmp_ext) = (self.exif.clone(), self.icc.clone(), self.xmp.clone(), self.irb.clone(), self.xmp_ext.clone());
-        Original { image, exif, icc, xmp, irb, xmp_ext, jpeg: self.jpeg, density: self.density, hdr: self.hdr.clone() }
+        Original { image, exif, icc, xmp, irb, xmp_ext, jpeg: self.jpeg, density: self.density, hdr: self.hdr.clone(), sidecar: self.sidecar.clone() }
     }
 
     /// The pixels were turned by `turn` after this was made (the editor, Convert and resize):
@@ -351,24 +376,35 @@ impl Original {
     }
 
     /// The metadata for a `format` file of `w` × `h` pixels: sizes set, the old thumbnails out
-    /// (they showed the original), the Camera Raw settings out of the XMP (already in the pixels).
-    fn blocks(&self, format: Format, w: u32, h: u32, sideways: bool) -> Blocks {
+    /// (they showed the original), the Camera Raw settings of the XMP marked as already in the
+    /// pixels (`xmp::fix`). As `keep` says (#55): without the place, the GPS of the EXIF and the
+    /// place in the XMP and the IPTC go (an XMP that cannot be read goes whole); with nothing, only
+    /// the colour profile stays, which the picture needs to look right.
+    fn blocks(&self, format: Format, w: u32, h: u32, sideways: bool, keep: Keep) -> Blocks {
+        if keep == Keep::Nothing {
+            return Blocks { icc: self.icc.clone(), ..Blocks::default() };
+        }
+        let no_place = keep == Keep::NoPlace;
         let mut exif = self.exif.clone();
         if let Some(e) = &mut exif {
             crate::meta::fit_exif(e, w, h);
+            if no_place {
+                crate::meta_strip::exif_without_gps(e);
+            }
         }
         let density = self.density.map(|d| if sideways { d.swapped() } else { d });
         if let Some(d) = density {
             exif = density::set_exif(exif, d, matches!(format, Format::Webp | Format::Avif));
         }
         let irb = self.irb.as_deref().and_then(crate::meta_write::fit_irb);
+        let irb = if no_place { irb.and_then(|i| crate::meta_write::irb_without_place(&i)) } else { irb };
         // WebP and AVIF have no place for IPTC: its fields go into the XMP.
         let iim = if matches!(format, Format::Webp | Format::Avif) { irb.as_deref().and_then(crate::meta_write::iim) } else { None };
-        // A JPEG keeps the extended XMP in segments of its own, as they were (the GUID is the
-        // digest of their content); the other formats hold an XMP of any size: it joins the main one.
-        let (ext, xmp_ext) = if format == Format::Jpeg { (None, self.xmp_ext.clone()) } else { (crate::meta_write::xmp_ext_packet(&self.xmp_ext), Vec::new()) };
-        let xmp = crate::xmp::fit_with(self.xmp.as_deref(), w, h, iim, ext.as_deref());
-        Blocks { exif, icc: self.icc.clone(), xmp, irb, xmp_ext, density }
+        // The extended XMP of a JPEG joins the main packet, fitted and without the place as it; a
+        // JPEG written splits it again when it is too large for one segment (`xmp_ext::split`).
+        let ext = crate::meta_write::xmp_ext_packet(&self.xmp_ext);
+        let xmp = if no_place { crate::xmp::fit_without_place(self.xmp.as_deref(), w, h, iim, ext.as_deref()) } else { crate::xmp::fit_with(self.xmp.as_deref(), w, h, iim, ext.as_deref()) };
+        Blocks { exif, icc: self.icc.clone(), xmp, irb, density }
     }
 
     /// The file as it would be saved.
@@ -383,7 +419,7 @@ impl Original {
             &turned
         };
         let img = pixels(image, o.format);
-        let b = if o.keep_meta { self.blocks(o.format, img.width(), img.height(), o.turn.sideways()) } else { Blocks::default() };
+        let b = self.blocks(o.format, img.width(), img.height(), o.turn.sideways(), o.meta);
         let mut out = Cursor::new(Vec::new());
         match o.format {
             Format::Jpeg => return encoders::jpeg(&img, o, &b),
@@ -545,7 +581,7 @@ pub(crate) mod tests {
         let xmp = crate::xmp::tests::SAMPLE.as_bytes().to_vec();
         let iim = crate::xmp::tests::iim(&[(80, "Ann"), (90, "Québec")]);
         let irb = [crate::meta_write::resource(1036, &[1; 9]), crate::meta_write::irb_of_iim(&iim)].concat();
-        let original = Original { image: DynamicImage::ImageRgba8(img), exif: Some(exif.clone()), icc: Some(icc.clone()), xmp: Some(xmp), irb: Some(irb), xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None };
+        let original = Original { image: DynamicImage::ImageRgba8(img), exif: Some(exif.clone()), icc: Some(icc.clone()), xmp: Some(xmp), irb: Some(irb), xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None };
         let d = Options::default();
         let variants = [
             Options { format: Format::Jpeg, ..d },
@@ -610,13 +646,49 @@ pub(crate) mod tests {
                 assert_eq!(i.as_ref(), Some(&icc), "{o:?}");
                 kept_xmp_and_iptc(&bytes, format, &iim);
             }
-            let bare = original.encode(&Options { keep_meta: false, ..o }).unwrap();
+            place_left_out(&original, o);
+            // Nothing (#55): only the colour profile, which the picture needs.
+            let bare = original.encode(&Options { meta: Keep::Nothing, ..o }).unwrap();
             if format != Format::Gif {
-                assert_eq!(read_meta(&bare), (None, None), "{o:?}");
+                assert_eq!(read_meta(&bare), (None, matches!(format, Format::Jpeg | Format::Png | Format::Webp | Format::Tiff).then(|| icc.clone())), "{o:?}");
                 let back = Original::with_meta(original.image.clone(), &bare);
                 assert!(back.xmp.is_none() && back.irb.is_none(), "{o:?}");
             }
         }
+    }
+
+    /// Without the place (#55), in a format with metadata: the city of the IPTC gone from the IPTC
+    /// and the XMP, the author kept.
+    fn place_left_out(original: &Original, o: Options) {
+        if !o.format.holds_meta() {
+            return;
+        }
+        let shared = original.encode(&Options { meta: Keep::NoPlace, ..o }).unwrap();
+        let back = Original::with_meta(original.image.clone(), &shared);
+        let text = format!("{:?} {:?}", back.xmp.as_deref().map(String::from_utf8_lossy), back.irb.as_deref().map(String::from_utf8_lossy));
+        assert!(!text.contains("bec") && !text.contains("City"), "{o:?}: {text}");
+        assert!(text.contains("Ann"), "{o:?}: {text}");
+        // The Camera Raw settings of a photo stay, marked as applied (they go only with None).
+        assert!(text.contains("crs:AlreadyApplied"), "{o:?}: {text}");
+    }
+
+    /// A photo's sidecar (#24) follows the metadata choice (#55): its title kept without the
+    /// place, its position and city gone; with nothing, no XMP at all.
+    #[test]
+    fn sidecar_without_the_place() {
+        let side = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:exif="http://ns.adobe.com/exif/1.0/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/"
+ exif:GPSLatitude="40,21.5N" exif:GPSLongitude="18,10.2E" photoshop:City="Lecce">
+<dc:title><rdf:Alt><rdf:li xml:lang="x-default">Sea</rdf:li></rdf:Alt></dc:title></rdf:Description></rdf:RDF></x:xmpmeta>"#;
+        let img = DynamicImage::new_rgb8(8, 8);
+        let jpeg = Original::with_meta(img.clone(), &[]).encode(&Options::default()).unwrap();
+        let original = Original::with_meta_beside(img.clone(), &jpeg, "a.jpg", Some(side.as_bytes()));
+        let xmp = |keep: Keep| Original::with_meta(img.clone(), &original.encode(&Options { meta: keep, ..Options::default() }).unwrap()).xmp.map(|x| String::from_utf8(x).unwrap());
+        let all = xmp(Keep::All).unwrap();
+        assert!(all.contains("GPSLatitude") && all.contains("Lecce") && all.contains("Sea"), "{all}");
+        let shared = xmp(Keep::NoPlace).unwrap();
+        assert!(!shared.contains("GPS") && !shared.contains("Lecce") && shared.contains("Sea"), "{shared}");
+        assert_eq!(xmp(Keep::Nothing), None);
     }
 
     /// XMP and IPTC of a file written from `every_format`'s original, read back as the program
@@ -633,20 +705,20 @@ pub(crate) mod tests {
         }
     }
 
-    /// The XMP of `xmp::tests::SAMPLE` in a written file: sizes `w` × `h`, upright, no Camera Raw
-    /// nor thumbnail, the author kept.
+    /// The XMP of `xmp::tests::SAMPLE` in a written file: sizes `w` × `h`, upright, no thumbnail,
+    /// the author kept, the Camera Raw settings kept and marked as already applied.
     pub(crate) fn kept_xmp_like(bytes: &[u8], w: u32, h: u32) -> String {
         let back = Original::with_meta(DynamicImage::new_rgb8(1, 1), bytes);
         let xmp = String::from_utf8(back.xmp.clone().expect("no XMP")).unwrap();
         for kept in [format!("exif:PixelXDimension=\"{w}\""), format!("<exif:PixelYDimension>{h}</exif:PixelYDimension>"), "tiff:Orientation=\"1\"".into(), "Ann &lt;Author&gt;".into()] {
             assert!(xmp.contains(&kept), "{kept} not in {xmp}");
         }
-        assert!(!xmp.contains("crs:") && !xmp.contains("Thumbnails"), "{xmp}");
+        assert!(xmp.contains("crs:HasCrop=\"True\"") && xmp.contains("crs:AlreadyApplied=\"True\"") && !xmp.contains("Thumbnails"), "{xmp}");
         xmp
     }
 
-    /// The extended XMP of a JPEG: written again as its segments in a JPEG, put into the main
-    /// packet in the other formats (without the GUID, which would point to nothing).
+    /// The extended XMP of a JPEG: put into the main packet (without the GUID, which would point
+    /// to nothing), in a JPEG too when it fits in one segment.
     #[test]
     fn extended_xmp() {
         let guid = "0123456789ABCDEF0123456789ABCDEF";
@@ -659,10 +731,12 @@ pub(crate) mod tests {
         let original = Original { xmp: Some(main.into_bytes()), xmp_ext: segments.clone(), ..Original::upright(DynamicImage::new_rgb8(8, 6), None, None, None, None) };
         let jpeg = original.encode(&Options { format: Format::Jpeg, ..Default::default() }).unwrap();
         let back = Original::with_meta(DynamicImage::new_rgb8(8, 6), &jpeg);
-        assert_eq!(back.xmp_ext, segments);
+        assert!(back.xmp_ext.is_empty());
         let png = back.encode(&Options { format: Format::Png, ..Default::default() }).unwrap();
-        let xmp = String::from_utf8(Original::with_meta(DynamicImage::new_rgb8(1, 1), &png).xmp.unwrap()).unwrap();
-        assert!(xmp.contains(&format!("<dc:source>{}</dc:source>", "a".repeat(100))) && !xmp.contains(guid), "{xmp}");
+        for file in [jpeg, png] {
+            let xmp = String::from_utf8(Original::with_meta(DynamicImage::new_rgb8(1, 1), &file).xmp.unwrap()).unwrap();
+            assert!(xmp.contains(&format!("<dc:source>{}</dc:source>", "a".repeat(100))) && !xmp.contains(guid), "{xmp}");
+        }
         // Pieces that do not make up the length they declare are not put together.
         assert!(crate::meta_write::xmp_ext_packet(&segments[..1]).is_none());
     }
@@ -682,15 +756,20 @@ pub(crate) mod tests {
         for f in &fields {
             w.push_field(f);
         }
+        // A maker note that can move (`meta::movable_maker_note`) goes in too.
+        let note = b"Apple iOS\0\0\x01MM\0\0".to_vec();
+        let maker = Field { tag: Tag::MakerNote, ifd_num: In::PRIMARY, value: Value::Undefined(note.clone(), 0) };
+        w.push_field(&maker);
         for little in [false, true] {
             let mut exif = Cursor::new(Vec::new());
             w.write(&mut exif, little).unwrap();
-            let original = Original { image: DynamicImage::new_rgb8(8, 6), exif: Some(exif.into_inner()), icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None };
+            let original = Original { image: DynamicImage::new_rgb8(8, 6), exif: Some(exif.into_inner()), icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None };
             let bytes = original.encode(&Options { format: Format::Tiff, ..Default::default() }).unwrap();
             let back = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes)).unwrap();
             for f in &fields {
                 assert_eq!(back.get_field(f.tag, In::PRIMARY).map(|b| format!("{:?}", b.value)), Some(format!("{:?}", f.value)), "{:?}", f.tag);
             }
+            assert!(matches!(back.get_field(Tag::MakerNote, In::PRIMARY).map(|f| &f.value), Some(Value::Undefined(v, _)) if *v == note), "maker note");
             assert_eq!(crate::decode::decode_full(&bytes, "x.tif").unwrap().width(), 8);
         }
     }
@@ -699,7 +778,7 @@ pub(crate) mod tests {
     /// formats only "Save as…" writes are not saved back over an original.
     #[test]
     fn ico_and_save_back() {
-        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None };
+        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None };
         let bytes = original.encode(&Options { format: Format::Ico, ..Default::default() }).unwrap();
         let back = crate::decode::decode_full(&bytes, "x.ico").unwrap();
         assert_eq!((back.width(), back.height()), (256, 128));

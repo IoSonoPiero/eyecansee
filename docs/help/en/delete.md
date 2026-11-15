@@ -48,6 +48,7 @@ On Android phones, the trash of a folder also shows the photos and videos the ph
 
 ## Things to know
 
+- A photo's `.xmp` file (see [Image information](metadata.md)) is deleted with it, into the same trash. In EyeCanSee's trash it takes the photo's name there ("IMG_0001 (2).CR2" with "IMG_0001 (2).CR2.xmp"), and **Restore** puts it back with the photo. In the system trash they are two items: restore both with your file manager.
 - The top folder of a disk, phone or server and the storages of a phone cannot be deleted.
 - A folder moved to another device, or merged into a folder with the same name, takes its trash along; a copy leaves it out.
 - On Linux, on an **NTFS** disk (for example an external disk also used with Windows), the Files app cannot restore from the trash. The files are there all the same: the confirmation reminds you, and [Known limits](limits.md) says how to restore them from a terminal.

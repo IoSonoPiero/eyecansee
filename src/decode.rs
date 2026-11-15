@@ -96,6 +96,11 @@ pub fn is_image(name: &str) -> bool {
     kind(name).is_some()
 }
 
+/// A camera's RAW photo, by its extension.
+pub fn is_raw(name: &str) -> bool {
+    kind(name) == Some(Kind::Raw)
+}
+
 /// Played with libmpv (`mpv.rs`). Not "ts": in a folder of code it is TypeScript.
 const VIDEO: &[&str] = &["mp4", "m4v", "mov", "mkv", "webm", "avi", "wmv", "mpg", "mpeg", "mts", "m2ts", "3gp", "flv", "ogv", "insv", "lrv"];
 
