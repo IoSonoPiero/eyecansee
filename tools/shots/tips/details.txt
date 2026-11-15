@@ -1,0 +1,6 @@
+# Tip "More under the thumbnails" (docs/tips/): the grid of the Holiday folder with name,
+# dimensions, size and date under each thumbnail (all on, as at first).
+open /home/demo/Pictures/Holiday
+width 1000
+4 shot details 248 66 944 630
+4.5 end
