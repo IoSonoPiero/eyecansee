@@ -69,7 +69,7 @@ impl App {
     /// a row of their own when there is no room there (`bar_fit`).
     pub(super) fn edit_toolbar(&mut self, ui: &mut egui::Ui, w: &mut Window) -> Option<Ask> {
         let (mut ask, mut copy) = (None, false);
-        let parts = BarParts::measure(ui, self.i18n.t(bar_label(self.main_save_text(w).0)), w.copying);
+        let parts = BarParts::measure(ui, self.i18n.t(bar_label(self.main_save_of(w).1)), w.copying);
         ui.horizontal_wrapped(|ui| {
             tools_row(ui, w, &self.i18n);
             bar_fit::right_end(ui, parts, |ui| (ask, copy) = self.right_row(ui, w));
@@ -100,17 +100,9 @@ impl App {
         let i18n = &self.i18n;
         let mut ask = None;
         // While the last save is still being sent (a phone, a server): the next one waits for it.
-        let sending = self.edit_sending(w);
-        let off = match () {
-            _ if w.preparing => Some(i18n.t("edit-off-preparing")),
-            _ if sending => Some(i18n.t("edit-off-sending")),
-            _ if !w.changed() => Some(i18n.t("edit-off-unchanged")),
-            _ => None,
-        };
+        let off = save_off(w.preparing, self.edit_sending(w), w.changed()).map(|id| i18n.t(id));
         let over_main = self.main_overwrites(w);
-        // A new image has no file yet: its main button is Save as….
-        // After a first copy the button updates it.
-        let copy = copy_text(w);
+        let copy = copy_text(w.copy.done.is_some());
         let solid = crate::theme::solid(ui.visuals());
         ui.spacing_mut().item_spacing.x = SAVE_GAP;
         let arrow = egui::Button::image(icons::line_in(ui.ctx(), Line::Down, ARROW_ICON, Color32::WHITE)).fill(solid).min_size(egui::vec2(ARROW_MIN, icons::BUTTON.y));
@@ -142,11 +134,11 @@ impl App {
             }
         });
         r.on_hover_text(i18n.t("edit-save-more"));
-        let (label, hint) = self.main_save_text(w);
-        let (main_ask, off) = match () {
-            _ if w.new => (Ask::SaveAs, w.preparing.then(|| i18n.t("edit-off-preparing"))),
-            _ if over_main => (Ask::Overwrite, off.or_else(|| self.why_not_overwrite(w))),
-            _ => (Ask::Save, off),
+        let (main_ask, label, hint) = self.main_save_of(w);
+        let off = match main_ask {
+            Ask::SaveAs => w.preparing.then(|| i18n.t("edit-off-preparing")),
+            Ask::Overwrite => off.or_else(|| self.why_not_overwrite(w)),
+            _ => off,
         };
         // The tip has the whole name: on the bar Overwrite the original… is only Overwrite….
         let mut tip = format!("{} (Ctrl+S)\n{}", i18n.t(label), i18n.t(hint));
@@ -162,14 +154,9 @@ impl App {
         ask
     }
 
-    /// The label and hint of the main save button: Save as… for a new image, Overwrite when
-    /// chosen as the main save, Save copy or Update copy.
-    fn main_save_text(&self, w: &Window) -> (&'static str, &'static str) {
-        match () {
-            _ if w.new => ("menu-save-copy", "rc-save-as-hint"),
-            _ if self.main_overwrites(w) => ("edit-overwrite", "edit-overwrite-hint"),
-            _ => copy_text(w),
-        }
+    /// What the main save button asks, its label and its hint, for this page (`main_save`).
+    fn main_save_of(&self, w: &Window) -> (Ask, &'static str, &'static str) {
+        main_save(w.new, self.main_overwrites(w), w.copy.done.is_some())
     }
 
     /// The bar under the tools: Rotate and crop's controls, or the style of the object.
@@ -220,8 +207,7 @@ impl App {
             && let Some(n) = w.too_big.as_ref().and_then(|r| r.try_recv().ok())
         {
             w.too_big = None;
-            let size = format!("{:.1}", n as f64 / 1_048_576.0);
-            w.note = Some((i18n.t_args("edit-copy-too-large", &[("size", &size)]), ui.input(|i| i.time) + 12.0));
+            w.note = Some((i18n.t_args("edit-copy-too-large", &[("size", &mib(n))]), ui.input(|i| i.time) + 12.0));
         }
         ui.horizontal(|ui| {
             ui.label(crate::source::name(&w.path));
@@ -253,7 +239,7 @@ impl App {
                 if ui.add(white(Line::ZoomIn)).on_hover_text(tip(i18n, "edit-zoom-in", "+")).clicked() {
                     w.zoom(1.25);
                 }
-                let pct = format!("{:.0}%", w.shown.1 * ui.ctx().pixels_per_point() * 100.0);
+                let pct = zoom_label(w.shown.1, ui.ctx().pixels_per_point());
                 if ui.add(egui::Button::new(pct).frame(false)).on_hover_text(tip(i18n, "edit-zoom-fit", "0")).clicked() {
                     w.view = None;
                 }
@@ -261,8 +247,7 @@ impl App {
                     w.zoom(0.8);
                 }
                 ui.separator();
-                let hint = if w.picking { "edit-tip-pick" } else { hint_id(w.tool) };
-                ui.add(egui::Label::new(i18n.t(hint)).truncate());
+                ui.add(egui::Label::new(i18n.t(status_hint(w.picking, w.tool))).truncate());
                 keys
             })
             .inner
@@ -271,9 +256,66 @@ impl App {
     }
 }
 
-/// Save copy's label and hint; Update copy after a first copy.
-fn copy_text(w: &Window) -> (&'static str, &'static str) {
-    if w.copy.done.is_some() { ("edit-update-copy", "edit-update-hint") } else { ("edit-save-copy", "rc-save-hint") }
+/// Save copy's label and hint; Update copy after a first copy (`copied`).
+fn copy_text(copied: bool) -> (&'static str, &'static str) {
+    if copied { ("edit-update-copy", "edit-update-hint") } else { ("edit-save-copy", "rc-save-hint") }
+}
+
+/// The main save button: what it asks, its label and its hint. A new image has no file yet: Save
+/// as…; Overwrite when chosen as the main save in the Options and possible here (`over_main`);
+/// else Save copy, or Update copy after a first copy (`copied`).
+fn main_save(new: bool, over_main: bool, copied: bool) -> (Ask, &'static str, &'static str) {
+    match () {
+        _ if new => (Ask::SaveAs, "menu-save-copy", "rc-save-as-hint"),
+        _ if over_main => (Ask::Overwrite, "edit-overwrite", "edit-overwrite-hint"),
+        _ => {
+            let (label, hint) = copy_text(copied);
+            (Ask::Save, label, hint)
+        }
+    }
+}
+
+/// Why Save copy (and Overwrite in the menu) is off, as a Fluent id: a save being prepared, the
+/// last one still being sent (a phone, a server: the next one waits for it), nothing changed.
+fn save_off(preparing: bool, sending: bool, changed: bool) -> Option<&'static str> {
+    match () {
+        _ if preparing => Some("edit-off-preparing"),
+        _ if sending => Some("edit-off-sending"),
+        _ if !changed => Some("edit-off-unchanged"),
+        _ => None,
+    }
+}
+
+/// Undo and Redo on: a step to go back to (or changes not yet a step), a step to go forward to.
+fn undo_redo(w: &Window) -> (bool, bool) {
+    w.history.as_ref().map_or((false, false), |h| (h.can_undo() || w.doc != *h.doc(), h.can_redo()))
+}
+
+/// Why Selection's Copy and Cut are off, and why its Paste is off, as Fluent ids: no part chosen,
+/// nothing copied.
+fn marquee_off(marquee: bool, clip: bool) -> (Option<&'static str>, Option<&'static str>) {
+    ((!marquee).then_some("edit-off-no-marquee"), (!clip).then_some("edit-off-no-clip"))
+}
+
+/// The heading of the Filters menu: where the filter goes, the part chosen or the whole image.
+fn filters_heading(marquee: bool) -> &'static str {
+    if marquee { "edit-filters-part" } else { "edit-filters-whole" }
+}
+
+/// The zoom in the status bar, in pixels of the screen per pixel of the image: `scale` points per
+/// pixel at `ppp` pixels per point.
+fn zoom_label(scale: f32, ppp: f32) -> String {
+    format!("{:.0}%", scale * ppp * 100.0)
+}
+
+/// Bytes in MiB, one decimal.
+fn mib(bytes: usize) -> String {
+    format!("{:.1}", bytes as f64 / 1_048_576.0)
+}
+
+/// The hint of the status bar: the eyedropper's while picking, else the tool's.
+fn status_hint(picking: bool, tool: Tool) -> &'static str {
+    if picking { "edit-tip-pick" } else { hint_id(tool) }
 }
 
 /// The tools, the quarter turns, Resize, Filters, Undo and Redo.
@@ -296,7 +338,7 @@ pub(super) fn tools_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     }
     filters_menu(ui, w, i18n);
     ui.add(egui::Separator::default().spacing(SEPARATOR));
-    let (can_undo, can_redo) = w.history.as_ref().map_or((false, false), |h| (h.can_undo() || w.doc != *h.doc(), h.can_redo()));
+    let (can_undo, can_redo) = undo_redo(w);
     if bar_button(ui, icons::button(ui, Line::Undo), tip(i18n, "edit-undo", "Ctrl+Z"), (!can_undo).then(|| i18n.t("edit-off-undo"))) {
         w.undo();
     }
@@ -310,7 +352,7 @@ fn filters_menu(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     let (r, _) = egui::containers::menu::MenuButton::from_button(icons::button(ui, Line::Filters)).ui(ui, |ui| {
         // Readable at once: where the filter goes (the faint line was not read).
         ui.set_max_width(300.0);
-        ui.label(egui::RichText::new(i18n.t(if w.marquee.is_some() { "edit-filters-part" } else { "edit-filters-whole" })).strong());
+        ui.label(egui::RichText::new(i18n.t(filters_heading(w.marquee.is_some()))).strong());
         ui.separator();
         for f in crate::edit::filter::Filter::ALL {
             let r = ui.add(icons::menu_item(ui, Some(Line::Filter(f)), i18n.t(f.label()), String::new()));
@@ -326,15 +368,15 @@ fn filters_menu(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
 
 /// Selection's bar: copy, cut, paste, with their keys and why they are off.
 fn marquee_bar(ui: &mut egui::Ui, w: &Window, i18n: &I18n) -> Option<Act> {
-    let none = w.marquee.is_none().then(|| i18n.t("edit-off-no-marquee"));
+    let (none, empty) = marquee_off(w.marquee.is_some(), w.clip.is_some());
     let mut act = None;
-    if bar_button(ui, icons::button(ui, Line::Copy), tip(i18n, "edit-copy-part", "Ctrl+C"), none.clone()) {
+    if bar_button(ui, icons::button(ui, Line::Copy), tip(i18n, "edit-copy-part", "Ctrl+C"), none.map(|id| i18n.t(id))) {
         act = Some(Act::EditCopy);
     }
-    if bar_button(ui, icons::button(ui, Line::Cut), tip(i18n, "edit-cut-part", "Ctrl+X"), none) {
+    if bar_button(ui, icons::button(ui, Line::Cut), tip(i18n, "edit-cut-part", "Ctrl+X"), none.map(|id| i18n.t(id))) {
         act = Some(Act::EditCut);
     }
-    if bar_button(ui, icons::button(ui, Line::Paste), tip(i18n, "edit-paste-part", "Ctrl+V"), w.clip.is_none().then(|| i18n.t("edit-off-no-clip"))) {
+    if bar_button(ui, icons::button(ui, Line::Paste), tip(i18n, "edit-paste-part", "Ctrl+V"), empty.map(|id| i18n.t(id))) {
         act = Some(Act::EditPaste(None));
     }
     act
