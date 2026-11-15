@@ -36,13 +36,13 @@ A block on a hidden layer is hidden whole, also its parts on other layers. The c
 
 ## Measuring
 
-**M**, or **View > Measure**, turns on the Measure tool; a box at the top right (it can be dragged elsewhere) shows what is measured and the results. Choose **Distance** (D), **Area** (A) or **Angle** (G), then click on the drawing:
+**M**, or **View > Measure**, turns on the Measure tool. Nothing covers the drawing: while you click, the value is written next to the pointer, and the results go to the status bar, which also says how to go on. Press **D** (distance), **A** (area) or **G** (angle), then click on the drawing:
 
 - **Distance**: two points. The box shows the distance and how far apart the points are along X and Y.
 - **Area**: the corners of a shape, one after the other; **Enter** or a double click closes it. The box shows the area and the perimeter, also while you click.
 - **Angle**: a point, the corner, then a point on the other side.
 
-A click snaps to what is under the pointer, as in CAD programs: the end of a line (a square), its middle (a triangle), the centre of a circle or arc (a circle), where two lines cross (a cross); with nothing near, the point clicked (a small cross). Hidden layers are left out. Results are in the drawing's unit (as in the status bar; when the drawing does not say its unit, the box says so). On a layout they are measured on the sheet. **Copy** puts them on the clipboard. **Backspace** takes back the last point, **Esc** clears the points, and **Esc** again or **M** closes the tool. Dragging still moves the drawing.
+A click snaps to what is under the pointer, as in CAD programs: the end of a line (a square), its middle (a triangle), the centre of a circle or arc (a circle), where two lines cross (a cross); with nothing near, the point clicked (a small cross). Hidden layers are left out. Results are in the drawing's unit (as its size in the status bar; when the drawing does not say its unit, the status bar says so). On a layout they are measured on the sheet. **Copy** in the status bar, or **Ctrl+C**, puts them on the clipboard. **Backspace** takes back the last point, **Esc** clears the points, and **Esc** again or **M** closes the tool. Dragging still moves the drawing.
 
 ## Comparing two versions of a drawing
 
@@ -50,7 +50,7 @@ Select two drawings in the grid (Ctrl+click), then **Compare drawings** in the r
 
 The layers panel opens with three layers, **In both**, **Only in** the first and **Only in** the second, with their colours: it is the legend, and unticking one shows the first drawing alone, the second alone or only the changes. Zoom, Measure and **Save as…** work as on any drawing, so the comparison can be saved as a picture.
 
-Things match when they are of the same kind at the same place (lines whichever way they go, texts with the same words): a block that moved shows as removed and added, and a change of colour or layer alone is not shown. Layers hidden in the files are left out; the model space is compared, not the layouts. When the two drawings have different units the status bar says so, and they are compared as they are. Moving to another file or leaving the viewer ends the comparison.
+Things match when they are of the same kind at the same place (lines whichever way they go, texts with the same words): a block that moved shows as removed and added, and a change of colour or layer alone is not shown. Layers hidden in the files are left out; the model space is compared, not the layouts. When the two drawings have different units (or one has none), a warning in the status bar names both: they are compared as they are, not converted. Moving to another file or leaving the viewer ends the comparison.
 
 ## Drawing number and title block
 

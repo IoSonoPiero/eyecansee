@@ -215,10 +215,11 @@ impl App {
 
     /// Status bar of the viewer, like the grid's: name, position, pixels, size on disk, date
     /// taken (or modified, without EXIF or with the metadata boxes closed).
-    /// The Keys button (`keys_window`) and, on a CAD drawing with layers, the Layers button.
-    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) -> [Option<egui::Response>; 2] {
+    /// The Keys button (`keys_window`), on a CAD drawing with layers the Layers button, and while
+    /// measuring with results Copy.
+    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) -> [Option<egui::Response>; 3] {
         let files = self.files();
-        let Some(f) = files.get(current) else { return [None, None] };
+        let Some(f) = files.get(current) else { return [None, None, None] };
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
         ui.horizontal(|ui| {
             self.phone_waiting(ui);
@@ -239,11 +240,19 @@ impl App {
                 }
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
+                if let Some(section) = self.section_status() {
+                    ui.separator();
+                    ui.label(section);
+                }
             } else if crate::cad::is_cad(&f.path) {
                 // A drawing has no pixels: its own size, in its unit.
                 for text in [self.cad_size_text(current), self.cad_sheet_name(current), self.compare_text(current)].into_iter().flatten() {
                     ui.separator();
                     ui.label(text);
+                }
+                if let Some(warning) = self.compare_units(current) {
+                    ui.separator();
+                    ui.label(crate::theme::alert(warning));
                 }
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
@@ -285,15 +294,30 @@ impl App {
                 ui.separator();
                 ui.label(date);
             }
-            // On the right, out of the way: the keys, listed when asked, and the drawing's layers.
-            let layers = egui::Button::new(egui::RichText::new(self.i18n.t("cad-layers-title")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
-            let layers_on = self.cad_layers_off().is_none();
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let keys = self.keys_hint(current).map(|_| self.keys_button(ui));
-                let layers = layers_on.then(|| ui.add(layers).on_hover_text(self.i18n.t("key-layers")));
-                [keys, layers]
-            })
-            .inner
+            self.status_buttons(ui, current)
+        })
+        .inner
+    }
+
+    /// The right of the viewer's status bar: Keys, Layers on a drawing with layers, and while
+    /// measuring the results (or how to go on) with Copy.
+    fn status_buttons(&self, ui: &mut Ui, current: usize) -> [Option<egui::Response>; 3] {
+        // On the right, out of the way: the keys, listed when asked. Blue on
+        // white: the bar makes every text white, and the button was white on white.
+        let button = |id: &str| egui::Button::new(egui::RichText::new(self.i18n.t(id)).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
+        let (layers, copy) = (button("cad-layers-title"), button("measure-copy"));
+        let layers_on = self.cad_layers_off().is_none();
+        let measure = self.measure_status();
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            let keys = self.keys_hint(current).map(|_| self.keys_button(ui));
+            let layers = layers_on.then(|| ui.add(layers).on_hover_text(self.i18n.t("key-layers")));
+            // While measuring: the results (or how to go on) take the room left, Copy beside.
+            let copy = measure.as_ref().and_then(|(_, results)| results.then(|| ui.add(copy).on_hover_text("Ctrl+C")));
+            if let Some((text, _)) = measure {
+                ui.separator();
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| ui.add(egui::Label::new(egui::RichText::new(&text).strong()).truncate()).on_hover_text(&text));
+            }
+            [keys, layers, copy]
         })
         .inner
     }

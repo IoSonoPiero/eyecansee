@@ -25,8 +25,9 @@ pub(crate) struct State {
     /// The model shown and its camera; a new model starts from the default view.
     of: Option<String>,
     pub(crate) view: View,
-    /// The graphics card, from eframe; without it the viewer shows the still picture.
+    /// The graphics card, from eframe; without it the processor draws the model (`model_cpu`).
     pub(crate) gpu: Option<Gpu>,
+    pub(crate) cpu: crate::model_cpu::CpuView,
     /// Size of the picture on screen, in pixels, for the screenshot's proportions.
     size: [u32; 2],
     /// CAD drawings, which the viewer also draws itself (`cad_view`).
@@ -53,6 +54,11 @@ impl App {
             log!("graphics card: {} ({:?}, {:?}, driver {} {})", i.name, i.device_type, i.backend, i.driver, i.driver_info);
         }
         self.model.gpu = cc.wgpu_render_state.clone().map(Gpu::new);
+        // To try the viewer of a computer without a usable graphics card.
+        if std::env::var_os("EYECANSEE_NO_GPU_3D").is_some() {
+            log!("graphics card: not used for 3D (EYECANSEE_NO_GPU_3D)");
+            self.model.gpu = None;
+        }
         self
     }
 
@@ -100,8 +106,7 @@ impl App {
     /// Keys of the viewer on a model: arrows turn it (held: it keeps turning), + − and 0 zoom,
     /// Ctrl+Shift+S saves the picture. The other keys move among the files as for images.
     pub(crate) fn model_keys(&mut self, ctx: &egui::Context) {
-        // The section's keys, where the card draws the model (without it, a still picture).
-        if let Some((_, mesh)) = self.viewed_mesh().filter(|_| self.model.gpu.is_some()) {
+        if let Some((_, mesh)) = self.viewed_mesh() {
             self.section_keys(ctx, mesh.z_up);
         }
         let (dx, dy, zoom, reset) = ctx.input(|i| {
@@ -147,7 +152,6 @@ impl App {
     /// `None` until it is read or without a card (the viewer shows its still picture).
     pub(crate) fn model_view(&mut self, ui: &mut egui::Ui) -> Option<egui::Response> {
         let (path, mesh) = self.viewed_mesh()?;
-        self.model.gpu.as_ref()?;
         if self.model.of.as_ref() != Some(&path) {
             (self.model.of, self.model.view) = (Some(path.clone()), View::default());
             self.model.measure.pts3.clear();
@@ -159,7 +163,11 @@ impl App {
         let size = [(rect.width() * ppp) as u32, (rect.height() * ppp) as u32];
         self.model.size = size;
         let view = self.model.view;
-        let id = self.model.gpu.as_mut()?.draw(&mesh, &view, size);
+        // Without a graphics card, drawn on the processor (`model_cpu`).
+        let id = match self.model.gpu.as_mut() {
+            Some(gpu) => Some(gpu.draw(&mesh, &view, size)),
+            None => self.model_cpu_picture(ui.ctx(), &path, &mesh, view, size),
+        };
         let painter = ui.painter_at(rect);
         let [top, bottom] = render3d::BACKGROUND.map(|[r, g, b]| egui::Color32::from_rgb(r, g, b));
         let mut sky = egui::Mesh::default();
@@ -170,10 +178,11 @@ impl App {
         sky.add_triangle(0, 1, 2);
         sky.add_triangle(0, 2, 3);
         painter.add(sky);
-        painter.image(id, rect, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+        if let Some(id) = id {
+            painter.image(id, rect, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+        }
         axes_corner(&painter, rect, render3d::axes(&view, mesh.z_up));
         self.model_measure(ui, &response, &path, &mesh);
-        self.section_box(ui.ctx(), rect);
         self.zoom_shown = view.zoom;
         self.count_frame(ui.input(|i| i.time));
         Some(response)

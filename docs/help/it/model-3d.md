@@ -37,24 +37,24 @@ In alto a destra gli assi del file (X rosso, Y verde, Z blu) girano col modello,
 
 ## Misurare
 
-**M**, o **Visualizza > Misura**, accende lo strumento Misura: un riquadro in alto a sinistra mostra l'ingombro del modello lungo X, Y e Z, la sua superficie e il suo volume. Il volume c'è solo per un modello chiuso (ogni spigolo condiviso da due triangoli, come deve essere un modello per la stampa 3D); altrimenti il riquadro dice quanti spigoli sono aperti. Fai clic su due punti del modello per la loro distanza; un terzo clic ricomincia. Le misure sono nell'unità del file quando il formato o il file la dice (glTF, IFC, X3D e VRML in metri, STEP e IGES in millimetri, 3MF e AMF come dicono); STL, OBJ, PLY e altri non hanno unità, e il riquadro lo dice. **Copia** mette i risultati negli appunti; **Esc** cancella i punti, **Esc** di nuovo o **M** chiudono lo strumento. Trascinare gira ancora il modello.
+**M**, o **Visualizza > Misura**, accende lo strumento Misura: la barra di stato mostra l'ingombro del modello lungo X, Y e Z, la sua superficie e il suo volume. Il volume c'è solo per un modello chiuso (ogni spigolo condiviso da due triangoli, come deve essere un modello per la stampa 3D); altrimenti la barra di stato dice quanti spigoli sono aperti. Fai clic su due punti del modello per la loro distanza, scritta accanto al puntatore e nella barra di stato; un terzo clic ricomincia. Le misure sono nell'unità del file quando il formato o il file la dice (glTF, IFC, X3D e VRML in metri, STEP e IGES in millimetri, 3MF e AMF come dicono); STL, OBJ, PLY e altri non hanno unità, e la barra di stato lo dice. **Copia** nella barra di stato, o **Ctrl+C**, mette i risultati negli appunti; **Esc** cancella i punti, **Esc** di nuovo o **M** chiudono lo strumento. Trascinare gira ancora il modello.
 
 ## Sezione
 
-**S** taglia il modello con un piano, per vederci dentro: ciò che sta oltre il piano non si vede, e l'interno visto attraverso il taglio è rosso, così pareti e spessori risaltano. Il piano parte dal centro del modello, attraverso Z per un modello con Z in alto (per un edificio IFC, la pianta del piano che attraversa), altrimenti attraverso Y. Nel riquadro in basso a sinistra, o coi tasti:
+**S** taglia il modello con un piano, per vederci dentro: ciò che sta oltre il piano non si vede, e dove il piano attraversa il solido è riempito di rosso, così pareti e spessori risaltano. Il piano parte dal centro del modello, attraverso Z per un modello con Z in alto (per un edificio IFC, la pianta del piano che attraversa), altrimenti attraverso Y. La barra di stato dice l'asse, dove sta il piano e i tasti:
 
 - **X**, **Y**, **Z**: l'asse che il piano attraversa;
-- **Alt** e la rotellina del mouse, **,** e **.**, o il cursore: spostano il piano;
-- **F**, o **Altro lato**: tiene l'altro lato;
+- **Alt** e la rotellina del mouse, **,** e **.**: spostano il piano;
+- **F**: tiene l'altro lato;
 - **S** di nuovo: il modello intero.
 
-**Salva come…** salva il modello con la sua sezione, come si vede. Il rosso del taglio è giusto per i modelli chiusi coi triangoli rivolti verso l'esterno, come sono quasi tutti; su altri alcune facce possono apparire rosse. Senza una scheda grafica che EyeCanSee possa usare la sezione non c'è.
+**Salva come…** salva il modello con la sua sezione, come si vede. Il riempimento rosso è giusto per i modelli chiusi (come deve essere un modello per la stampa 3D), in qualunque verso siano girati i loro triangoli; dove la superficie di un modello ha dei buchi il riempimento può mancare o uscire dai bordi.
 
 ## Cosa si vede
 
 Si vedono i colori scritti nel file e, in molti formati, anche le immagini sulle superfici (texture). Un modello senza colori è grigio chiaro. I materiali dei modelli glTF e FBX, e dei modelli OBJ (il loro file `.mtl`), mostrano anche quanto una superficie è lucida o metallica, la luce che emette (una lampada) e i piccoli rilievi di una normal map. Le superfici curve sono morbide e gli spigoli restano netti, anche nei modelli che non salvano queste informazioni.
 
-Senza una scheda video che EyeCanSee possa usare, il visore mostra l'immagine ferma del modello.
+Senza una scheda video che EyeCanSee possa usare, il modello lo disegna il processore, più lentamente: si gira, si ingrandisce, si misura e si taglia allo stesso modo, e ogni vista nuova arriva dopo un momento.
 
 ## Salvare
 

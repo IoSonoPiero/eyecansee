@@ -134,20 +134,27 @@ impl App {
         Some((zoom, (lo + hi) / 2.0))
     }
 
-    /// For the status bar: what the drawing is compared with, its changes, and different units.
+    /// For the status bar: what the drawing is compared with and its changes.
     pub(crate) fn compare_text(&self, current: usize) -> Option<String> {
-        let c = self.model.cad.compare.as_ref()?;
-        if self.files().get(current)?.path != c.paths[0] {
-            return None;
-        }
+        let c = self.compared(current)?;
         let name = crate::source::name(&c.paths[1]);
         let at = c.at.map_or(String::new(), |i| format!(" {}/{}", i + 1, c.changes.len()));
-        let mut text = self.i18n.t_args("compare-status", &[("name", name), ("n", &c.changes.len().to_string())]) + &at;
-        if c.units[0] != c.units[1] {
-            let unit = |u: Option<&str>| u.map_or_else(|| self.i18n.t("cad-units"), str::to_string);
-            text += &format!(" · {}", self.i18n.t_args("compare-units", &[("a", &unit(c.units[0])), ("b", &unit(c.units[1]))]));
-        }
-        Some(text)
+        Some(self.i18n.t_args("compare-status", &[("name", name), ("n", &c.changes.len().to_string())]) + &at)
+    }
+
+    /// For the status bar, as a warning: the two drawings have different units (or one has
+    /// none), and are compared as they are, not converted.
+    pub(crate) fn compare_units(&self, current: usize) -> Option<String> {
+        let c = self.compared(current).filter(|c| c.units[0] != c.units[1])?;
+        let unit = |u: Option<&str>| u.map_or_else(|| self.i18n.t("compare-no-unit"), str::to_string);
+        let name = |i: usize| crate::source::name(&c.paths[i]).to_string();
+        Some(self.i18n.t_args("compare-units", &[("first", &name(0)), ("a", &unit(c.units[0])), ("second", &name(1)), ("b", &unit(c.units[1]))]))
+    }
+
+    /// The comparison shown on `current`.
+    fn compared(&self, current: usize) -> Option<&Comparison> {
+        let c = self.model.cad.compare.as_ref()?;
+        (self.files().get(current)?.path == c.paths[0]).then_some(c)
     }
 
     /// The pictures of `path` drawn with other layers or another drawing, forgotten.

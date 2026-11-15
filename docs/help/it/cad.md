@@ -36,13 +36,13 @@ Un blocco su un livello nascosto si nasconde tutto, anche le sue parti su altri 
 
 ## Misurare
 
-**M**, o **Visualizza > Misura**, accende lo strumento Misura; un riquadro in alto a destra (si può trascinare altrove) mostra cosa si misura e i risultati. Scegli **Distanza** (D), **Area** (A) o **Angolo** (G), poi fai clic sul disegno:
+**M**, o **Visualizza > Misura**, accende lo strumento Misura. Niente copre il disegno: mentre fai clic il valore è scritto accanto al puntatore, e i risultati vanno nella barra di stato, che dice anche come andare avanti. Premi **D** (distanza), **A** (area) o **G** (angolo), poi fai clic sul disegno:
 
 - **Distanza**: due punti. Il riquadro mostra la distanza e quanto distano i punti lungo X e Y.
 - **Area**: gli angoli di una forma, uno dopo l'altro; **Invio** o un doppio clic la chiudono. Il riquadro mostra l'area e il perimetro, anche mentre fai clic.
 - **Angolo**: un punto, il vertice, poi un punto dell'altro lato.
 
-Un clic si aggancia a ciò che c'è sotto il puntatore, come nei programmi CAD: l'estremo di una linea (un quadrato), il suo punto medio (un triangolo), il centro di un cerchio o di un arco (un cerchio), dove due linee si incrociano (una croce); senza niente vicino, il punto cliccato (una crocetta). I livelli nascosti non contano. I risultati sono nell'unità del disegno (come nella barra di stato; quando il disegno non dice la sua unità, il riquadro lo dice). Su un layout si misura sul foglio. **Copia** li mette negli appunti. **Backspace** toglie l'ultimo punto, **Esc** cancella i punti, e **Esc** di nuovo o **M** chiudono lo strumento. Trascinare sposta ancora il disegno.
+Un clic si aggancia a ciò che c'è sotto il puntatore, come nei programmi CAD: l'estremo di una linea (un quadrato), il suo punto medio (un triangolo), il centro di un cerchio o di un arco (un cerchio), dove due linee si incrociano (una croce); senza niente vicino, il punto cliccato (una crocetta). I livelli nascosti non contano. I risultati sono nell'unità del disegno (come la sua misura nella barra di stato; quando il disegno non dice la sua unità, la barra di stato lo dice). Su un layout si misura sul foglio. **Copia** nella barra di stato, o **Ctrl+C**, li mette negli appunti. **Backspace** toglie l'ultimo punto, **Esc** cancella i punti, e **Esc** di nuovo o **M** chiudono lo strumento. Trascinare sposta ancora il disegno.
 
 ## Confrontare due versioni di un disegno
 
@@ -50,7 +50,7 @@ Seleziona due disegni nella griglia (Ctrl+clic), poi **Confronta disegni** nel m
 
 Il riquadro dei livelli si apre con tre livelli, **In tutti e due**, **Solo in** il primo e **Solo in** il secondo, coi loro colori: è la legenda, e togliendo una spunta si vede solo il primo disegno, solo il secondo o solo le modifiche. Ingrandimento, Misura e **Salva come…** funzionano come su ogni disegno, così il confronto si può salvare come immagine.
 
-Le cose coincidono quando sono dello stesso tipo nello stesso posto (le linee in qualunque verso, i testi con le stesse parole): un blocco spostato risulta tolto e aggiunto, e un cambio solo di colore o di livello non si vede. I livelli nascosti nei file non contano; si confronta lo spazio modello, non i layout. Quando i due disegni hanno unità diverse la barra di stato lo dice, e si confrontano così come sono. Passare a un altro file o uscire dal visore chiude il confronto.
+Le cose coincidono quando sono dello stesso tipo nello stesso posto (le linee in qualunque verso, i testi con le stesse parole): un blocco spostato risulta tolto e aggiunto, e un cambio solo di colore o di livello non si vede. I livelli nascosti nei file non contano; si confronta lo spazio modello, non i layout. Quando i due disegni hanno unità diverse (o uno non ne ha), un avviso nella barra di stato le nomina tutte e due: si confrontano così come sono, senza conversione. Passare a un altro file o uscire dal visore chiude il confronto.
 
 ## Numero del disegno e cartiglio
 

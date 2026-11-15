@@ -462,29 +462,28 @@ compare-status = Confrontato con { $name }: { $n ->
     [one] 1 modifica
    *[other] { $n } modifiche
 } (N: la successiva)
-compare-units = unità diverse: { $a } e { $b }
+compare-units = ⚠ Unità diverse: { $first } in { $a }, { $second } in { $b }. Confrontati così come sono, senza conversione.
+compare-no-unit = nessuna unità
 measure-off = Solo per un disegno CAD o un modello 3D nel visore
 measure-title = Misura
 measure-distance = Distanza
 measure-area = Area
 measure-angle = Angolo
 measure-perimeter = Perimetro
-measure-hint-distance = Fai clic su due punti: si agganciano a estremi, punti medi, centri e incroci.
-measure-hint-area = Fai clic sugli angoli; Invio o un doppio clic chiudono la forma.
-measure-hint-angle = Fai clic su un punto, sul vertice, poi su un punto dell'altro lato.
-measure-hint-3d = Fai clic su due punti del modello per la loro distanza.
+measure-hint-distance = fai clic su due punti; si agganciano a estremi, punti medi, centri e incroci · D, A, G: distanza, area, angolo · Esc: cancella
+measure-hint-area = fai clic sugli angoli; Invio o un doppio clic chiudono la forma · D, A, G: distanza, area, angolo · Esc: cancella
+measure-hint-angle = fai clic su un punto, sul vertice, poi su un punto dell'altro lato · D, A, G: distanza, area, angolo · Esc: cancella
+measure-hint-3d = fai clic su due punti del modello per la loro distanza · Esc: cancella
 measure-measuring = Misuro il modello…
 measure-size = Ingombro (X × Y × Z)
 measure-surface = Superficie
 measure-volume = Volume
 measure-open = nessuno: il modello non è chiuso ({ $n } spigoli aperti)
-measure-no-unit = Il file non dice la sua unità.
+measure-no-unit = il file non dice la sua unità
 measure-copy = Copia
-measure-keys = Esc: cancella · M: chiudi
 section-title = Sezione
 section-flip = Altro lato
-section-where = Dove
-section-keys = S: togli · X, Y, Z: asse · F: altro lato · Alt+rotellina, virgola e punto: sposta
+section-keys = Alt+rotellina, virgola, punto: sposta · X, Y, Z: asse · F: altro lato · S: togli
 cad-model = Modello
 cad-units = unità
 keys-button = Tasti
