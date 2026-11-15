@@ -97,6 +97,7 @@ mod model_text;
 mod model_vrml;
 mod model_x3d;
 mod model_view;
+mod mipmap;
 mod motion;
 mod motion_view;
 mod mp4;
