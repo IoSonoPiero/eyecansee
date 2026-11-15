@@ -49,6 +49,15 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Viewer: show HDR photos in HDR on screens that support it ([#124](https://github.com/IoSonoPiero/eyecansee/issues/124)).
 - Viewer: play animated AVIF ([#131](https://github.com/IoSonoPiero/eyecansee/issues/131)).
 
+### CAD drawings and 3D models
+
+- Measure distances, areas and sizes in CAD drawings and 3D models ([#141](https://github.com/IoSonoPiero/eyecansee/issues/141)).
+- CAD drawings: turn layers on and off ([#142](https://github.com/IoSonoPiero/eyecansee/issues/142)).
+- CAD drawings: export the sheets (layouts) to PDF, to scale ([#140](https://github.com/IoSonoPiero/eyecansee/issues/140)).
+- CAD drawings: compare two versions of a drawing ([#143](https://github.com/IoSonoPiero/eyecansee/issues/143)).
+- CAD drawings: title block details in the details panel and under the thumbnails ([#144](https://github.com/IoSonoPiero/eyecansee/issues/144)).
+- 3D models: section view with a cutting plane ([#145](https://github.com/IoSonoPiero/eyecansee/issues/145)).
+
 ### Browsing and editing
 
 - Image editor: rotate, flip, size and arrange a pasted piece of image ([#132](https://github.com/IoSonoPiero/eyecansee/issues/132)).
