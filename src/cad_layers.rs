@@ -9,6 +9,7 @@ use std::collections::HashMap;
 use acadrust::CadDocument;
 
 use crate::cad::{Drawing, Item, visible};
+use crate::cad_geom::P;
 
 /// A layer of the drawing: its name, colour and whether it is shown.
 #[derive(Clone, Debug, PartialEq)]
@@ -81,6 +82,12 @@ impl Drawing {
     pub(crate) fn shown_items(&self) -> impl Iterator<Item = &Item> {
         let shown = self.sets_shown();
         self.items.iter().enumerate().filter(move |(i, _)| self.on.get(*i).is_none_or(|&s| shown.get(s as usize).copied().unwrap_or(true))).map(|(_, item)| item)
+    }
+
+    /// The centres of the circles and arcs on layers that are shown.
+    pub(crate) fn shown_centres(&self) -> impl Iterator<Item = P> + '_ {
+        let shown = self.sets_shown();
+        self.centres.iter().filter(move |(_, s)| shown.get(*s as usize).copied().unwrap_or(true)).map(|(p, _)| *p)
     }
 
     /// The layers shown as `shown` says (one for each of `layers`; another length is ignored).

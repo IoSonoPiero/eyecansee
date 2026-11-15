@@ -23,6 +23,7 @@ Double-click a model, or select it and press **Enter**.
 | Shift+drag, or drag with the middle button | Move the model in the window |
 | Mouse wheel, + and − | Zoom in and out |
 | 0 | Back to the starting view |
+| M | Measure |
 | Page Down, Space | Next file |
 | Page Up, Backspace | Previous file |
 | Home, End | First, last file |
@@ -32,6 +33,10 @@ Double-click a model, or select it and press **Enter**.
 The arrows turn the model, so they do not change file here. The **Keys** button in the status bar lists these keys.
 
 In the top right corner the axes of the file (X red, Y green, Z blue) turn with the model, as in CAD programs. The status bar shows how many triangles the model has, the zoom and, while it moves, how many frames a second are drawn.
+
+## Measuring
+
+**M**, or **View > Measure**, turns on the Measure tool: a box at the top left shows the overall size of the model along X, Y and Z, its surface and its volume. The volume is given only for a closed model (every edge shared by two triangles, as a model for 3D printing must be); otherwise the box says how many edges are open. Click two points on the model for their distance; a third click starts again. Measures are in the file's unit when the format or the file says it (glTF, IFC, X3D and VRML in metres, STEP and IGES in millimetres, 3MF and AMF as they say); STL, OBJ, PLY and others have no unit, and the box says so. **Copy** puts the results on the clipboard; **Esc** clears the points, **Esc** again or **M** closes the tool. Dragging still turns the model.
 
 ## What is shown
 

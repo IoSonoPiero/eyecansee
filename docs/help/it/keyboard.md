@@ -101,6 +101,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | Maiusc e trascinare, o trascinare col tasto centrale | Sposta il modello nella finestra |
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |
 | 0 | Torna alla vista iniziale |
+| M | Misura: ingombro, superficie, volume e la distanza tra due punti cliccati |
 | Pagina giù, Spazio | Elemento successivo |
 | Pagina su, Backspace | Elemento precedente |
 | Ctrl+Maiusc+S | Salva il modello come si vede, come immagine (Ctrl+S, che salva sopra l'originale, su un modello è grigio) |
@@ -115,6 +116,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | ←, → | File precedente, successivo |
 | L, Maiusc+L | Layout successivo, precedente |
 | Ctrl+L | Riquadro dei livelli |
+| M | Misura (poi D distanza, A area, G angolo; Invio chiude un'area, Backspace toglie l'ultimo punto, Esc cancella) |
 | Ctrl+Maiusc+S | Salva il disegno come immagine |
 | Esc | Torna alla griglia |
 

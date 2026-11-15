@@ -16,6 +16,7 @@ Double-click a drawing, or select it and press **Enter**. The drawing is seen fr
 | →, ← | Next, previous file |
 | L, Shift+L | Next, previous layout |
 | Ctrl+L | Layers panel |
+| M | Measure |
 | Ctrl+Shift+S | Save as a picture |
 | F11 | Full screen |
 | Esc, double click | Back to the grid |
@@ -31,6 +32,16 @@ A drawing with layouts (paper space) shows **Model** or the name of the layout i
 **Ctrl+L**, the **Layers** button in the status bar or **View > Layers of the drawing** open the layers panel on the right of a DWG or DXF drawing. It lists the layers with something drawn on them, each with its colour and a box: untick a layer to hide it, tick it to show it again, also a layer that is off or frozen in the file. **All on** and **All off** act on the layers listed; with many layers, type part of a name in **Search** to list only those. The panel says how many layers are shown.
 
 A block on a hidden layer is hidden whole, also its parts on other layers. The choice applies to the model and the layouts (layers frozen in one viewport of a layout stay hidden there), and changes only what is shown: the file is not changed. Each drawing keeps its choice until EyeCanSee is closed, also while moving to other files and back. **Save as…** and **Export drawing…** (pictures and SVG) save the drawings with the layers as they are shown; drawings whose layers were not touched are saved as their file has them.
+
+## Measuring
+
+**M**, or **View > Measure**, turns on the Measure tool; a box at the top right (it can be dragged elsewhere) shows what is measured and the results. Choose **Distance** (D), **Area** (A) or **Angle** (G), then click on the drawing:
+
+- **Distance**: two points. The box shows the distance and how far apart the points are along X and Y.
+- **Area**: the corners of a shape, one after the other; **Enter** or a double click closes it. The box shows the area and the perimeter, also while you click.
+- **Angle**: a point, the corner, then a point on the other side.
+
+A click snaps to what is under the pointer, as in CAD programs: the end of a line (a square), its middle (a triangle), the centre of a circle or arc (a circle), where two lines cross (a cross); with nothing near, the point clicked (a small cross). Hidden layers are left out. Results are in the drawing's unit (as in the status bar; when the drawing does not say its unit, the box says so). On a layout they are measured on the sheet. **Copy** puts them on the clipboard. **Backspace** takes back the last point, **Esc** clears the points, and **Esc** again or **M** closes the tool. Dragging still moves the drawing.
 
 ## Drawing number and title block
 

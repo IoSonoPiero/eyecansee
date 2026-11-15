@@ -24,13 +24,15 @@ pub(crate) struct State {
     pub(crate) meshes: HashMap<String, Arc<Mesh>>,
     /// The model shown and its camera; a new model starts from the default view.
     of: Option<String>,
-    view: View,
+    pub(crate) view: View,
     /// The graphics card, from eframe; without it the viewer shows the still picture.
     pub(crate) gpu: Option<Gpu>,
     /// Size of the picture on screen, in pixels, for the screenshot's proportions.
     size: [u32; 2],
     /// CAD drawings, which the viewer also draws itself (`cad_view`).
     pub(crate) cad: crate::cad_view::State,
+    /// The Measure tool, on drawings and models (`measure_view`).
+    pub(crate) measure: crate::measure_view::State,
     /// The CAD engine being downloaded (`cad_engine`).
     pub(crate) engine: Option<Arc<crate::component::Download>>,
     /// When the last frames were drawn (seconds), for the frame rate in the status bar.
@@ -142,7 +144,8 @@ impl App {
         let (path, mesh) = self.viewed_mesh()?;
         self.model.gpu.as_ref()?;
         if self.model.of.as_ref() != Some(&path) {
-            (self.model.of, self.model.view) = (Some(path), View::default());
+            (self.model.of, self.model.view) = (Some(path.clone()), View::default());
+            self.model.measure.pts3.clear();
         }
         let rect = ui.available_rect_before_wrap();
         let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
@@ -164,6 +167,7 @@ impl App {
         painter.add(sky);
         painter.image(id, rect, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
         axes_corner(&painter, rect, render3d::axes(&view, mesh.z_up));
+        self.model_measure(ui, &response, &path, &mesh);
         self.zoom_shown = view.zoom;
         self.count_frame(ui.input(|i| i.time));
         Some(response)

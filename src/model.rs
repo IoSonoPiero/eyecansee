@@ -44,6 +44,9 @@ pub struct Mesh {
     pub surface: Vec<u16>,
     pub surfaces: Vec<Surface>,
     pub normals: Vec<[[f32; 3]; 3]>,
+    /// The unit of its coordinates when the format or the file says it (`unit_of`), for the
+    /// measures; `None` for the formats without one (STL, OBJ, PLY…).
+    pub unit: Option<&'static str>,
 }
 
 /// How a surface takes the light beyond its colour, as glTF describes it (metallic-roughness).
@@ -215,7 +218,7 @@ impl Builder {
         let shiny = matte > 0 || shine.iter().any(|s| s.0 > 0);
         let (surface, normals) = if shiny { tris.iter().enumerate().map(|(k, &(i, _))| pick(k, i)).unzip() } else { (Vec::new(), Vec::new()) };
         let surfaces = if shiny { surfaces } else { Vec::new() };
-        Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, uv, tex, textures, surface, surfaces, normals })
+        Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, uv, tex, textures, surface, surfaces, normals, unit: None })
     }
 }
 
@@ -233,6 +236,37 @@ pub fn parse(bytes: &[u8], name: &str) -> Result<Mesh, String> {
 
 /// Like `parse`, reading the files next to the model through `sibling`.
 pub fn parse_with(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, String> {
+    let mut mesh = read_as(bytes, name, sibling)?;
+    if mesh.unit.is_none() {
+        mesh.unit = unit_of(name);
+    }
+    Ok(mesh)
+}
+
+/// The unit a format fixes: glTF, IFC (as `ifc-lite` gives it), X3D and VRML in metres; STEP and
+/// IGES in millimetres, as the CAD engine reads them. 3MF and AMF say it in the file (their readers).
+fn unit_of(name: &str) -> Option<&'static str> {
+    match ext(name)?.as_str() {
+        "glb" | "gltf" | "ifc" | "wrl" | "wrz" | "x3d" | "x3dv" | "x3dz" | "x3dvz" => Some("m"),
+        "step" | "stp" | "iges" | "igs" => Some("mm"),
+        _ => None,
+    }
+}
+
+/// A unit as 3MF and AMF name it, millimetres when not said.
+pub(crate) fn named_unit(name: Option<&str>) -> Option<&'static str> {
+    Some(match name.unwrap_or("millimeter").to_ascii_lowercase().as_str() {
+        "micron" | "micrometer" => "µm",
+        "millimeter" | "millimetre" => "mm",
+        "centimeter" | "centimetre" => "cm",
+        "meter" | "metre" => "m",
+        "inch" => "in",
+        "foot" | "feet" => "ft",
+        _ => return None,
+    })
+}
+
+fn read_as(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, String> {
     match ext(name).as_deref() {
         Some("stl") => stl(bytes),
         Some("obj") => obj(bytes, sibling),

@@ -126,7 +126,7 @@ impl App {
     }
 
     /// The sheet shown of a drawing: 0 the model, then the layouts.
-    fn cad_sheet(&self, path: &str) -> usize {
+    pub(crate) fn cad_sheet(&self, path: &str) -> usize {
         let (p, i) = &self.model.cad.sheet;
         if p == path { *i } else { 0 }
     }
@@ -146,7 +146,7 @@ impl App {
     }
 
     /// The drawing of the sheet shown, with the layers chosen in the panel.
-    fn cad_drawn(&mut self, path: &str) -> Option<Arc<Drawing>> {
+    pub(crate) fn cad_drawn(&mut self, path: &str) -> Option<Arc<Drawing>> {
         let shown = self.cad_shown(path)?;
         let Some((n, on)) = self.model.cad.layers.get(path).map(|(n, on)| (*n, on.clone())) else { return Some(shown) };
         let key = (path.to_string(), self.cad_sheet(path), n);

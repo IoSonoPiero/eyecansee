@@ -141,6 +141,28 @@ pub fn camera(mesh: &Mesh, view: &View, w: u32, h: u32) -> (M4, M4) {
     (transposed(&mul(&projection, &eye)), transposed(&eye))
 }
 
+/// The ray through the point (`x`, `y`) of a picture `w` × `h` of the model in `view`, in the
+/// model's coordinates: where the camera is, and the direction (for the measures, #141).
+pub fn ray(mesh: &Mesh, view: &View, [w, h]: [f32; 2], [x, y]: [f32; 2]) -> ([f32; 3], [f32; 3]) {
+    let short = w.min(h);
+    let f = focal(view, short);
+    let (cx, cy) = (w / 2.0 + view.pan[0] * short, h / 2.0 + view.pan[1] * short);
+    let m = eye_matrix(mesh, view);
+    // The eye matrix only turns and moves: its inverse turns back with the transpose.
+    let back = |v: [f32; 3]| -> [f32; 3] { std::array::from_fn(|c| (0..3).map(|r| m[r][c] * v[r]).sum()) };
+    let origin = back([m[0][3], m[1][3], m[2][3]]).map(|v| -v);
+    (origin, back([(x - cx) / f, -(y - cy) / f, -1.0]))
+}
+
+/// Where the model's point `p` is in a picture `w` × `h` in `view`; `None` behind the camera.
+pub fn to_screen(mesh: &Mesh, view: &View, [w, h]: [f32; 2], p: [f32; 3]) -> Option<[f32; 2]> {
+    let short = w.min(h);
+    let f = focal(view, short);
+    let (cx, cy) = (w / 2.0 + view.pan[0] * short, h / 2.0 + view.pan[1] * short);
+    let [x, y, z] = apply(&eye_matrix(mesh, view), p);
+    (z < 0.0).then(|| [cx + f * x / -z, cy - f * y / -z])
+}
+
 fn draw(mesh: &Mesh, view: &View, w: u32, h: u32) -> RgbaImage {
     let (wf, hf) = (w as f32, h as f32);
     let short = wf.min(hf);

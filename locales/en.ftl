@@ -438,8 +438,8 @@ convert-turned = { $turn ->
 }
 model-triangles = { $n } triangles
 # The keys of the viewer, under the status bar.
-hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | Ctrl+L: layers | ← →: previous, next | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
-hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift+L: next, previous layout | Ctrl+L: layers | ← →: previous, next file | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
+hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | Ctrl+L: layers | M: measure | ← →: previous, next | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
+hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift+L: next, previous layout | Ctrl+L: layers | M: measure | ← →: previous, next file | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
 menu-layers = Layers of the drawing
 key-layers = Ctrl+L
 cad-layers-title = Layers
@@ -451,6 +451,25 @@ cad-layers-all-on = All on
 cad-layers-all-off = All off
 cad-layers-all-hint = The layers listed: all of them, or those found by the search
 cad-layers-none = No layer with this name
+menu-measure = Measure
+measure-off = Only for a CAD drawing or a 3D model in the viewer
+measure-title = Measure
+measure-distance = Distance
+measure-area = Area
+measure-angle = Angle
+measure-perimeter = Perimeter
+measure-hint-distance = Click two points: they snap to ends, middles, centres and crossings.
+measure-hint-area = Click the corners; Enter or a double click closes the shape.
+measure-hint-angle = Click a point, the corner, then a point on the other side.
+measure-hint-3d = Click two points on the model for their distance.
+measure-measuring = Measuring the model…
+measure-size = Size (X × Y × Z)
+measure-surface = Surface
+measure-volume = Volume
+measure-open = none: the model is not closed ({ $n } open edges)
+measure-no-unit = The file does not say its unit.
+measure-copy = Copy
+measure-keys = Esc: clear · M: close
 cad-model = Model
 cad-units = units
 keys-button = Keys
@@ -465,7 +484,7 @@ model-export-count = { $n ->
 model-export-format = Format:
 model-export-where = Each copy goes next to its model, with the same name; a name already taken gets " (2)".
 model-export-ok = Export
-hint-model = Arrows or drag: turn | Shift+drag: move | Wheel, + and −: zoom | 0: starting view | Page Up, Page Down: previous, next | Ctrl+S: save as an image | F11: full screen | Esc: back
+hint-model = Arrows or drag: turn | Shift+drag: move | Wheel, + and −: zoom | 0: starting view | M: measure | Page Up, Page Down: previous, next | Ctrl+S: save as an image | F11: full screen | Esc: back
 hint-edit-select = Click: select an object | Drag: move it | Drag a corner or an end: resize (Shift: a box keeps its proportions; a pasted piece keeps them, Shift frees them) | Drag the round handle above a pasted piece: rotate it (Shift: 15° at a time) | Double click on a text or bubble: change its letters | Del: delete | Ctrl+C: copy the result | Esc: let go of the object
 hint-edit-marquee = Drag: choose a part | Shift+drag: a square | Ctrl+C: copy the part | Ctrl+X: cut it | Ctrl+V: paste as an object | Click or Esc: let go of the part
 hint-edit-arrow = Drag: draw | Drag the middle point: bend | Drag an end: move it | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
@@ -1525,7 +1544,7 @@ tip-models-title = 3D models and CAD drawings
 tip-models-text =
     3D models (STL, OBJ, glTF, FBX, IFC, STEP and more) and CAD drawings (DWG, DXF) appear in the grid with a picture of them, and open in the viewer.
 
-    Drag or use the arrows to turn a model, the mouse wheel to zoom; a drawing moves with a drag, and **Ctrl+L** turns its layers on and off.
+    Drag or use the arrows to turn a model, the mouse wheel to zoom; a drawing moves with a drag, and **Ctrl+L** turns its layers on and off. **M** measures both.
 tip-duplicates-title = Find duplicates
 tip-duplicates-text = **Tools > Find duplicates…** (**Ctrl+D**) finds the files that are exactly the same, also under another name or in another folder, on the computer, a disk, a phone or a server. You choose the copies to delete; one always stays.
 tip-trash-title = Deleted by mistake?

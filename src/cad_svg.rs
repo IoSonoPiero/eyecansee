@@ -35,6 +35,18 @@ pub(crate) struct Placement {
     pub size: [f64; 2],
 }
 
+impl Placement {
+    /// The drawing's point at `uv` (0 to 1 across the picture, down from the top).
+    pub(crate) fn point(&self, uv: [f64; 2]) -> P {
+        [self.origin[0] + uv[0] * self.size[0] / self.scale, self.origin[1] - uv[1] * self.size[1] / self.scale]
+    }
+
+    /// Where the drawing's point `p` is in the picture, 0 to 1 (`point` backwards).
+    pub(crate) fn uv(&self, p: P) -> [f64; 2] {
+        [(p[0] - self.origin[0]) * self.scale / self.size[0], (self.origin[1] - p[1]) * self.scale / self.size[1]]
+    }
+}
+
 impl Drawing {
     /// Box around what is shown, or the frame kept while layers are turned on and off.
     pub(crate) fn bounds(&self) -> Option<[f64; 4]> {
