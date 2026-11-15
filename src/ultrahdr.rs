@@ -250,13 +250,7 @@ fn rebuilt(photo: &[u8], image: DynamicImage, o: &Options, gain: &[u8], mut g: D
         g = DynamicImage::ImageLuma8(g.to_luma8());
     }
     let like = crate::encode::jpeg_quality::like(gain, Options { format: Format::Jpeg, ..Options::default() });
-    let mut original = Original::with_meta_beside(image, photo, "", sidecar);
-    // Joined, too large for the photo's XMP segment (exiftool's copy of a Pixel photo's XMP, with
-    // its extended part, is about 100 KB): the photo's own, as `meta_write::jpeg_with_sidecar`.
-    if sidecar.is_some() && original.xmp().is_some_and(|x| x.len() > crate::meta_write::JPEG_XMP_MAX) {
-        original = Original::with_meta(original.image, photo);
-    }
-    let new_photo = keep_segments(photo, original.encode(o)?, o.meta == crate::meta_strip::Keep::All);
+    let new_photo = keep_segments(photo, Original::with_meta_beside(image, photo, "", sidecar).encode(o)?, o.meta == crate::meta_strip::Keep::All);
     let new_gain = keep_segments(gain, Original::with_meta(g, gain).encode(&like)?, true);
     assemble(new_photo, &new_gain)
 }
@@ -326,6 +320,8 @@ fn keep_segments(from: &[u8], mut out: Vec<u8>, all: bool) -> Vec<u8> {
     let missing: Vec<u8> = segments(from)
         .into_iter()
         .filter(|&(m, ..)| (0xE0..=0xEF).contains(&m) && (all || !matches!(m, 0xE1 | 0xED)))
+        // The extended XMP is in the main packet of `out`, or in segments of its own there.
+        .filter(|&(m, s, e)| !(m == 0xE1 && from[s + 4..e].starts_with(crate::meta_write::JPEG_XMP_EXT)))
         .filter(|&s| !have.contains(&key(from, s)))
         .flat_map(|(_, s, e)| from[s..e].to_vec())
         .collect();
@@ -525,13 +521,17 @@ pub(crate) mod tests {
             // Only the description of the gain map declares its namespaces (Skia reads the first that does).
             assert_eq!(xmp.matches("xmlns:Container=").count(), 1, "{name}: {xmp}");
         }
-        // A sidecar too large for a JPEG's XMP segment: the copy as without it.
-        let big = phone_xmp(1, &format!("<dc:title><rdf:Alt><rdf:li xml:lang=\"x-default\">{}</rdf:li></rdf:Alt></dc:title>", "x".repeat(70_000)));
+        // A sidecar too large for a JPEG's XMP segment: its title in the extended XMP, the gain map
+        // still described in the main packet (`xmp_ext`).
+        let long = "x".repeat(70_000);
+        let big = phone_xmp(1, &format!("<dc:title><rdf:Alt><rdf:li xml:lang=\"x-default\">{long}</rdf:li></rdf:Alt></dc:title>"));
         for j in [job(Some(Format::Jpeg), Turn::default(), Keep::All), job(None, cw, Keep::All)] {
             let out = crate::batch::convert_with(&file, "a.jpg", &j, &|_| None, Some(big.as_bytes())).unwrap().1;
             let (photo, gain) = split(&out).expect("still Ultra HDR");
             let xmp = xmp_of(photo);
-            assert!(xmp.contains("<rdf:li>Ann</rdf:li>") && !xmp.contains("xxx") && xmp.contains(&format!("Item:Length=\"{}\"", gain.len())), "{xmp}");
+            assert!(xmp.contains("<rdf:li>Ann</rdf:li>") && xmp.contains("HasExtendedXMP") && xmp.contains(&format!("Item:Length=\"{}\"", gain.len())), "{xmp}");
+            let whole = crate::meta_write::jpeg_xmp_whole(photo).unwrap();
+            assert_eq!(crate::xmp_fields::read(&whole).title.as_deref(), Some(long.as_str()));
         }
         let bare = batch(job(Some(Format::Jpeg), Turn::default(), Keep::Nothing));
         assert!(!is(&bare) && !String::from_utf8_lossy(&bare).contains("From the sidecar"), "nothing kept");

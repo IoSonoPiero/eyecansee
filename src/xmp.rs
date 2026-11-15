@@ -10,18 +10,18 @@ use quick_xml::events::{BytesStart, BytesText, Event};
 use quick_xml::name::{PrefixDeclaration, ResolveResult};
 use quick_xml::reader::NsReader;
 
-const CRS: &str = "http://ns.adobe.com/camera-raw-settings/1.0/";
+pub(crate) const CRS: &str = "http://ns.adobe.com/camera-raw-settings/1.0/";
 const XAP: &str = "http://ns.adobe.com/xap/1.0/";
 const TIFF: &str = "http://ns.adobe.com/tiff/1.0/";
 const EXIF: &str = "http://ns.adobe.com/exif/1.0/";
-const RDF: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+pub(crate) const RDF: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 const DC: &str = "http://purl.org/dc/elements/1.1/";
-const PHOTOSHOP: &str = "http://ns.adobe.com/photoshop/1.0/";
-const XMP_NOTE: &str = "http://ns.adobe.com/xmp/note/";
-const GCAMERA: &str = "http://ns.google.com/photos/1.0/camera/";
-const CONTAINER: &str = "http://ns.google.com/photos/1.0/container/";
-const ITEM: &str = "http://ns.google.com/photos/1.0/container/item/";
-const HDRGM: &str = "http://ns.adobe.com/hdr-gain-map/1.0/";
+pub(crate) const PHOTOSHOP: &str = "http://ns.adobe.com/photoshop/1.0/";
+pub(crate) const XMP_NOTE: &str = "http://ns.adobe.com/xmp/note/";
+pub(crate) const GCAMERA: &str = "http://ns.google.com/photos/1.0/camera/";
+pub(crate) const CONTAINER: &str = "http://ns.google.com/photos/1.0/container/";
+pub(crate) const ITEM: &str = "http://ns.google.com/photos/1.0/container/item/";
+pub(crate) const HDRGM: &str = "http://ns.adobe.com/hdr-gain-map/1.0/";
 const IPTC_CORE: &str = "http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/";
 const IPTC_EXT: &str = "http://iptc.org/std/Iptc4xmpExt/2008-02-29/";
 const DJI: &str = "http://www.dji.com/drone-dji/1.0/";
@@ -112,8 +112,8 @@ pub fn fit(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>) -> Option<Vec
 }
 
 /// As `fit`, with the descriptions of the extended XMP `ext` of a JPEG (`meta_write::xmp_ext_packet`)
-/// put into the main packet, for a format whose XMP has no size limit; if that cannot be read,
-/// the main packet alone.
+/// put into the main packet (a JPEG splits it again when it is too large: `xmp_ext::split`); if
+/// that cannot be read, the main packet alone.
 pub fn fit_with(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&[u8]>) -> Option<Vec<u8>> {
     fit_how(xmp, w, h, iim, ext, How::default())
 }
@@ -132,14 +132,8 @@ fn fit_how(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&
         None if props.is_empty() => return None,
         None => EMPTY.as_bytes(),
     };
-    // ponytail: by text, with the "rdf" prefix every writer uses; a packet using another one keeps only its main part.
-    let inner = |x: &[u8]| {
-        let start = x.windows(8).position(|w| w == b"<rdf:RDF")?;
-        let start = start + x[start..].iter().position(|&b| b == b'>')? + 1;
-        let end = x.windows(10).rposition(|w| w == b"</rdf:RDF>")?;
-        (start <= end).then_some((start, end))
-    };
-    let merged = ext.zip(inner(xmp)).zip(ext.and_then(inner)).map(|((ext, (_, at)), (s, e))| [&xmp[..at], &ext[s..e], &xmp[at..]].concat());
+    // Each property once, the main packet's first (`xmp_ext::with_extended`).
+    let merged = ext.and_then(|e| crate::xmp_ext::with_extended(xmp, e));
     if let Some(out) = merged.and_then(|m| rewrite(&m, w, h, &props, How { merged: true, ..how })) {
         return Some(out);
     }

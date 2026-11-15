@@ -215,22 +215,61 @@ pub fn fit_jpeg_segments(jpeg: &[u8], w: u32, h: u32) -> Vec<u8> {
 }
 
 /// A JPEG written from its original's own segments (a lossless turn, an Ultra HDR photo's picture)
-/// with the XMP of the photo's `sidecar` (#24) joined to its own (`xmp::joined`), in place of it
-/// or after the other APP segments. Too long for one segment, the JPEG as it was.
-pub fn jpeg_with_sidecar(mut jpeg: Vec<u8>, sidecar: &[u8]) -> Vec<u8> {
+/// with the XMP of the photo's `sidecar` (#24) joined to its own, extended part included
+/// (`xmp::joined`), in place of its XMP segments or after the other APP segments; split again
+/// when too large for one (`jpeg_xmp_segments`).
+pub fn jpeg_with_sidecar(jpeg: Vec<u8>, sidecar: &[u8]) -> Vec<u8> {
     let Ok((w, h)) = image::ImageReader::new(Cursor::new(&jpeg[..])).with_guessed_format().map_err(|_| ()).and_then(|r| r.into_dimensions().map_err(|_| ())) else { return jpeg };
-    let segments = crate::ultrahdr::segments(&jpeg);
-    let own = segments.iter().copied().find(|&(m, s, e)| m == 0xE1 && jpeg[s + 4..e].starts_with(JPEG_XMP));
-    let xmp = crate::xmp::joined(own.map(|(_, s, e)| &jpeg[s + 4 + JPEG_XMP.len()..e]), sidecar, w, h);
-    if xmp.len() > JPEG_XMP_MAX {
+    let xmp = crate::xmp::joined(jpeg_xmp_whole(&jpeg).as_deref(), sidecar, w, h);
+    let new: Vec<u8> = jpeg_xmp_segments(&xmp).iter().flat_map(|b| app1(b)).collect();
+    if new.is_empty() {
         return jpeg;
     }
-    let body = [JPEG_XMP, &xmp].concat();
-    let len = (body.len() + 2) as u16;
+    let segments = crate::ultrahdr::segments(&jpeg);
+    let is_xmp = |&(m, s, e): &(u8, usize, usize)| m == 0xE1 && (jpeg[s + 4..e].starts_with(JPEG_XMP) || jpeg[s + 4..e].starts_with(JPEG_XMP_EXT));
     let after_app = segments.iter().take_while(|&&(m, ..)| (0xE0..=0xEF).contains(&m)).last().map_or(2, |&(_, _, e)| e);
-    let (s, e) = own.map_or((after_app, after_app), |(_, s, e)| (s, e));
-    jpeg.splice(s..e, [&[0xFF, 0xE1][..], &len.to_be_bytes(), &body].concat());
-    jpeg
+    let at = segments.iter().find(|x| is_xmp(x)).map_or(after_app, |&(_, s, _)| s);
+    let mut out = [&jpeg[..at], &new[..]].concat();
+    let mut rest = at;
+    for &(_, s, e) in segments.iter().filter(|x| x.1 >= at && is_xmp(x)) {
+        out.extend_from_slice(&jpeg[rest..s]);
+        rest = e;
+    }
+    out.extend_from_slice(&jpeg[rest..]);
+    out
+}
+
+fn app1(body: &[u8]) -> Vec<u8> {
+    [&[0xFF, 0xE1][..], &((body.len() + 2) as u16).to_be_bytes(), body].concat()
+}
+
+/// Each piece of an extended XMP, well under the 65458 bytes a segment leaves after its name,
+/// GUID, length and offset.
+const EXT_PIECE: usize = 65400;
+
+/// The bodies of the APP1 segments holding `xmp` in a JPEG: the packet, or when it is too large
+/// the main packet and the pieces of its extended part (`xmp_ext::split`); none when it cannot be
+/// split.
+pub fn jpeg_xmp_segments(xmp: &[u8]) -> Vec<Vec<u8>> {
+    if xmp.len() <= JPEG_XMP_MAX {
+        return vec![[JPEG_XMP, xmp].concat()];
+    }
+    let Some((main, ext)) = crate::xmp_ext::split(xmp, JPEG_XMP_MAX) else { return Vec::new() };
+    let Some(guid) = ext_guid(&main).map(<[u8]>::to_vec) else { return Vec::new() };
+    let full = (ext.len() as u32).to_be_bytes();
+    let pieces = ext.chunks(EXT_PIECE).enumerate().map(|(k, piece)| [JPEG_XMP_EXT, &guid, &full, &((k * EXT_PIECE) as u32).to_be_bytes(), piece].concat());
+    std::iter::once([JPEG_XMP, &main].concat()).chain(pieces).collect()
+}
+
+/// The XMP of a JPEG with its extended part put back into it (`xmp_ext::with_extended`); the main
+/// packet alone when there is none or it cannot be read.
+pub fn jpeg_xmp_whole(jpeg: &[u8]) -> Option<Vec<u8>> {
+    if !jpeg.starts_with(&[0xFF, 0xD8]) {
+        return None;
+    }
+    let main = crate::ultrahdr::segments(jpeg).into_iter().find_map(|(m, s, e)| if m == 0xE1 { jpeg[s + 4..e].strip_prefix(JPEG_XMP) } else { None })?;
+    let ext = xmp_ext_packet(&jpeg_xmp_ext(jpeg, main));
+    Some(ext.and_then(|e| crate::xmp_ext::with_extended(main, &e)).unwrap_or_else(|| main.to_vec()))
 }
 
 /// The extended XMP of a JPEG whose main packet is `xmp`: the segments after their name (GUID,

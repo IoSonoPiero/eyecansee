@@ -7,7 +7,7 @@ use std::io::Cursor;
 use image::DynamicImage;
 
 use crate::encode::{Blocks, Chroma, Options, TiffCompression};
-use crate::meta_write::{Dir, JPEG_PHOTOSHOP, JPEG_XMP, JPEG_XMP_EXT};
+use crate::meta_write::{Dir, JPEG_PHOTOSHOP};
 use tiff::tags::Type;
 
 /// libjpeg-turbo; the metadata go in as APP segments, which it does not write.
@@ -63,11 +63,9 @@ fn jpeg_meta(file: Vec<u8>, b: &Blocks) -> Vec<u8> {
     if let Some(exif) = b.exif.as_deref().filter(|e| e.len() <= 65533 - 6) {
         segment(0xE1, &[b"Exif\0\0", exif]);
     }
-    if let Some(xmp) = b.xmp.as_deref().filter(|x| x.len() <= crate::meta_write::JPEG_XMP_MAX) {
-        segment(0xE1, &[JPEG_XMP, xmp]);
-        for piece in &b.xmp_ext {
-            segment(0xE1, &[JPEG_XMP_EXT, piece]);
-        }
+    // Too large for one segment: the main packet and its extended part (`xmp_ext`).
+    for body in b.xmp.as_deref().map(crate::meta_write::jpeg_xmp_segments).unwrap_or_default() {
+        segment(0xE1, &[&body]);
     }
     if let Some(icc) = &b.icc {
         let pieces: Vec<&[u8]> = icc.chunks(65519).collect();

@@ -265,8 +265,6 @@ pub(crate) struct Blocks {
     pub icc: Option<Vec<u8>>,
     pub xmp: Option<Vec<u8>>,
     pub irb: Option<Vec<u8>>,
-    /// A JPEG's extended XMP, as `Original::xmp_ext`; only for a JPEG.
-    pub xmp_ext: Vec<Vec<u8>>,
     /// The original's pixel density, turned with the pixels; each encoder writes it where its
     /// format keeps it (the EXIF already has it).
     pub density: Option<density::Density>,
@@ -331,11 +329,6 @@ impl Original {
             let _ = Orientation::remove_from_exif_chunk(chunk);
         }
         Original { image, exif, icc, xmp, irb, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None }
-    }
-
-    /// The XMP packet, as read (with the sidecar's, `with_meta_beside`).
-    pub fn xmp(&self) -> Option<&[u8]> {
-        self.xmp.as_deref()
     }
 
     /// For a picture written without what followed it in the file (Motion Photo video, Ultra HDR
@@ -407,13 +400,11 @@ impl Original {
         let irb = if no_place { irb.and_then(|i| crate::meta_write::irb_without_place(&i)) } else { irb };
         // WebP and AVIF have no place for IPTC: its fields go into the XMP.
         let iim = if matches!(format, Format::Webp | Format::Avif) { irb.as_deref().and_then(crate::meta_write::iim) } else { None };
-        // A JPEG keeps the extended XMP in segments of its own, as they were (the GUID is the
-        // digest of their content); the other formats hold an XMP of any size: it joins the main one.
-        let (ext, xmp_ext) = if format == Format::Jpeg { (None, self.xmp_ext.clone()) } else { (crate::meta_write::xmp_ext_packet(&self.xmp_ext), Vec::new()) };
+        // The extended XMP of a JPEG joins the main packet, fitted and without the place as it; a
+        // JPEG written splits it again when it is too large for one segment (`xmp_ext::split`).
+        let ext = crate::meta_write::xmp_ext_packet(&self.xmp_ext);
         let xmp = if no_place { crate::xmp::fit_without_place(self.xmp.as_deref(), w, h, iim, ext.as_deref()) } else { crate::xmp::fit_with(self.xmp.as_deref(), w, h, iim, ext.as_deref()) };
-        // The extended XMP of a JPEG (depth maps, large data) is not read: without the place, it goes.
-        let xmp_ext = if no_place { Vec::new() } else { xmp_ext };
-        Blocks { exif, icc: self.icc.clone(), xmp, irb, xmp_ext, density }
+        Blocks { exif, icc: self.icc.clone(), xmp, irb, density }
     }
 
     /// The file as it would be saved.
@@ -726,8 +717,8 @@ pub(crate) mod tests {
         xmp
     }
 
-    /// The extended XMP of a JPEG: written again as its segments in a JPEG, put into the main
-    /// packet in the other formats (without the GUID, which would point to nothing).
+    /// The extended XMP of a JPEG: put into the main packet (without the GUID, which would point
+    /// to nothing), in a JPEG too when it fits in one segment.
     #[test]
     fn extended_xmp() {
         let guid = "0123456789ABCDEF0123456789ABCDEF";
@@ -740,10 +731,12 @@ pub(crate) mod tests {
         let original = Original { xmp: Some(main.into_bytes()), xmp_ext: segments.clone(), ..Original::upright(DynamicImage::new_rgb8(8, 6), None, None, None, None) };
         let jpeg = original.encode(&Options { format: Format::Jpeg, ..Default::default() }).unwrap();
         let back = Original::with_meta(DynamicImage::new_rgb8(8, 6), &jpeg);
-        assert_eq!(back.xmp_ext, segments);
+        assert!(back.xmp_ext.is_empty());
         let png = back.encode(&Options { format: Format::Png, ..Default::default() }).unwrap();
-        let xmp = String::from_utf8(Original::with_meta(DynamicImage::new_rgb8(1, 1), &png).xmp.unwrap()).unwrap();
-        assert!(xmp.contains(&format!("<dc:source>{}</dc:source>", "a".repeat(100))) && !xmp.contains(guid), "{xmp}");
+        for file in [jpeg, png] {
+            let xmp = String::from_utf8(Original::with_meta(DynamicImage::new_rgb8(1, 1), &file).xmp.unwrap()).unwrap();
+            assert!(xmp.contains(&format!("<dc:source>{}</dc:source>", "a".repeat(100))) && !xmp.contains(guid), "{xmp}");
+        }
         // Pieces that do not make up the length they declare are not put together.
         assert!(crate::meta_write::xmp_ext_packet(&segments[..1]).is_none());
     }
