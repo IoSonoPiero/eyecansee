@@ -383,7 +383,7 @@ impl Loader {
                     let size = bytes.len() as u64;
                     // An Ultra HDR photo saved as JPEG stays one (#66).
                     if !edit {
-                        original.hdr = crate::ultrahdr::Source::of(Arc::new(bytes), Vec::new(), Vec::new()).map(Arc::new);
+                        original.hdr = crate::ultrahdr::Source::of(Arc::new(bytes), Vec::new(), Vec::new()).map(|s| Arc::new(s.beside(original.sidecar.clone())));
                     }
                     let preview = decode::preview(&original.image);
                     Ok((Arc::new(original), preview, size))

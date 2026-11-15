@@ -14,6 +14,8 @@ const IPTC: u16 = 1028;
 /// MD5 of the IPTC-IIM, kept by Photoshop to know whether the XMP still matches it.
 const IPTC_DIGEST: u16 = 1061;
 pub const JPEG_XMP: &[u8] = b"http://ns.adobe.com/xap/1.0/\0";
+/// The largest XMP packet a JPEG segment holds after `JPEG_XMP`.
+pub const JPEG_XMP_MAX: usize = 65533 - JPEG_XMP.len();
 pub const JPEG_PHOTOSHOP: &[u8] = b"Photoshop 3.0\0";
 /// Name of the segments of a JPEG's extended XMP (XMP specification, part 3): the part of an XMP
 /// too large for one segment, named in the main packet by its GUID (`xmpNote:HasExtendedXMP`).
@@ -210,6 +212,25 @@ pub fn fit_jpeg_segments(jpeg: &[u8], w: u32, h: u32) -> Vec<u8> {
     }
     out.extend_from_slice(&jpeg[rest..]);
     out
+}
+
+/// A JPEG written from its original's own segments (a lossless turn, an Ultra HDR photo's picture)
+/// with the XMP of the photo's `sidecar` (#24) joined to its own (`xmp::joined`), in place of it
+/// or after the other APP segments. Too long for one segment, the JPEG as it was.
+pub fn jpeg_with_sidecar(mut jpeg: Vec<u8>, sidecar: &[u8]) -> Vec<u8> {
+    let Ok((w, h)) = image::ImageReader::new(Cursor::new(&jpeg[..])).with_guessed_format().map_err(|_| ()).and_then(|r| r.into_dimensions().map_err(|_| ())) else { return jpeg };
+    let segments = crate::ultrahdr::segments(&jpeg);
+    let own = segments.iter().copied().find(|&(m, s, e)| m == 0xE1 && jpeg[s + 4..e].starts_with(JPEG_XMP));
+    let xmp = crate::xmp::joined(own.map(|(_, s, e)| &jpeg[s + 4 + JPEG_XMP.len()..e]), sidecar, w, h);
+    if xmp.len() > JPEG_XMP_MAX {
+        return jpeg;
+    }
+    let body = [JPEG_XMP, &xmp].concat();
+    let len = (body.len() + 2) as u16;
+    let after_app = segments.iter().take_while(|&&(m, ..)| (0xE0..=0xEF).contains(&m)).last().map_or(2, |&(_, _, e)| e);
+    let (s, e) = own.map_or((after_app, after_app), |(_, s, e)| (s, e));
+    jpeg.splice(s..e, [&[0xFF, 0xE1][..], &len.to_be_bytes(), &body].concat());
+    jpeg
 }
 
 /// The extended XMP of a JPEG whose main packet is `xmp`: the segments after their name (GUID,
