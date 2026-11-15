@@ -118,6 +118,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | L, Maiusc+L | Layout successivo, precedente |
 | Ctrl+L | Riquadro dei livelli |
 | M | Misura (poi D distanza, A area, G angolo; Invio chiude un'area, Backspace toglie l'ultimo punto, Esc cancella) |
+| N, Maiusc+N | Modifica successiva, precedente, confrontando due disegni |
 | Ctrl+Maiusc+S | Salva il disegno come immagine |
 | Esc | Torna alla griglia |
 

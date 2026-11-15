@@ -218,6 +218,10 @@ impl App {
         items.push(entry(&[Kind::Model], "menu-export-3d", String::new(), Act::ExportModel(path.clone())));
         let drawings = self.drawings_off(Some(true)).map_or(Act::ExportDrawings(path.clone()), Act::Off);
         items.push(entry(&[Kind::Drawing], "menu-export-drawings", String::new(), drawings));
+        // Two drawings chosen: one over the other (#143).
+        if !in_viewer && files.iter().any(|p| crate::cad::is_cad(p)) {
+            items.push(Some((t("menu-compare"), String::new(), self.compare_off(&files).map_or(Act::Compare, Act::Off))));
+        }
         if !in_viewer {
             items.extend(self.tool_items(path.clone(), self.tools_off(), &partial));
         }

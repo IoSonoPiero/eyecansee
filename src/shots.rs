@@ -178,6 +178,7 @@ fn act(name: &str) -> Act {
         "new-image" => Act::NewImage,
         "rotate-crop" => Act::RotateCrop(None),
         "drawings" => Act::ExportDrawings(None),
+        "compare" => Act::Compare,
         "manual" => Act::Manual,
         "about" => Act::About,
         x => panic!("shots: unknown action {x}"),

@@ -85,6 +85,8 @@ pub enum Msg {
     Saved(Result<String, source::Error>),
     /// A 3D model saved in another 3D format: its path, or why not.
     Exported(Result<String, String>),
+    /// Two CAD drawings compared (`Loader::compare_drawings`).
+    Compared(Result<crate::cad_compare::Compared, String>),
     /// "Save" from the viewer, before the confirmation: the image, the turn, and the file to write
     /// with whether it lost quality (encoded again), or an error (`SKIPPED`: not saveable over itself).
     Prepared(String, crate::transform::Turn, Result<(Arc<Vec<u8>>, bool), source::Error>),
@@ -436,6 +438,42 @@ impl Loader {
                 let _ = tx.send(Msg::Exported(r));
                 ctx.request_repaint();
             }
+        });
+    }
+
+    /// Two CAD drawings read and compared (#143, `cad_compare`), for the viewer; `names` of the
+    /// comparison's three layers.
+    pub fn compare_drawings(&self, paths: [String; 2], names: [String; 3]) {
+        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        self.rt.spawn(async move {
+            let mut read = Vec::new();
+            for path in &paths {
+                let sibling = siblings(op.clone(), path.clone());
+                let r = match op.read(path).await {
+                    Ok(bytes) => {
+                        let path = path.clone();
+                        tokio::task::spawn_blocking(move || crate::cad::read_with(&bytes, &path, &sibling)).await.unwrap_or_else(|e| Err(e.to_string()))
+                    }
+                    Err((_, detail)) => Err(detail),
+                };
+                match r {
+                    Ok(d) => read.push(Arc::new(d)),
+                    Err(e) => {
+                        let _ = tx.send(Msg::Compared(Err(format!("{}: {e}", crate::source::name(path)))));
+                        ctx.request_repaint();
+                        return;
+                    }
+                }
+            }
+            let (first, second) = (read[0].clone(), read[1].clone());
+            let r = tokio::task::spawn_blocking(move || {
+                let drawing = Arc::new(crate::cad_compare::compare(&first, &second, names));
+                crate::cad_compare::Compared { changes: crate::cad_compare::changes(&drawing), drawing, first, second, paths }
+            })
+            .await
+            .map_err(|e| e.to_string());
+            let _ = tx.send(Msg::Compared(r));
+            ctx.request_repaint();
         });
     }
 
