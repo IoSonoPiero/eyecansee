@@ -15,6 +15,26 @@ pub(super) fn can(doc: &Doc, i: usize) -> bool {
     matches!(doc.objects.get(i).map(|o| &o.shape), Some(Shape::Text { path: None, .. } | Shape::Bubble { .. }))
 }
 
+/// The fields where a text's letters are typed: on the image, in the properties bar.
+pub(super) const ON_IMAGE: &str = "edit-letters-on-image";
+pub(super) const IN_BAR: &str = "edit-letters-in-bar";
+
+/// A field's own undo (Ctrl+Z while typing) is egui's, kept by the field's id: when the text in
+/// them changes (another one selected, or one starting to be typed), both fields start without
+/// it, so Ctrl+Z never brings back the letters of another text (a bubble's "Ciao" came back in a
+/// text just placed, seen on 2026-11-15). The document's own undo is not touched (`edit_keys`
+/// leaves the keys to a field that has them).
+pub(super) fn fresh_fields(ctx: &egui::Context, w: &mut Window) {
+    if w.selected != w.letters_of || w.focus_text {
+        ctx.data_mut(|d| {
+            for id in [ON_IMAGE, IN_BAR] {
+                d.remove::<egui::text_edit::TextEditState>(egui::Id::unique(id));
+            }
+        });
+        w.letters_of = w.selected;
+    }
+}
+
 /// The document as drawn under the field: the letters being typed hidden.
 pub(super) fn hidden(doc: &Doc, editing: Option<usize>) -> Doc {
     let mut doc = doc.clone();
@@ -54,8 +74,10 @@ pub(super) fn overlay(ui: &mut egui::Ui, w: &mut Window, i: usize, centre: Pos2,
             area.h = needed;
         }
     }
-    let Some(text) = o.shape.text_mut() else { return };
+    fresh_fields(ui.ctx(), w);
+    let Some(text) = w.doc.objects[i].shape.text_mut() else { return };
     let field = egui::TextEdit::multiline(text)
+        .id(egui::Id::unique(ON_IMAGE))
         .font(font)
         .text_color(Color32::from_rgb(r, g, b))
         .align(egui::Align2::CENTER_CENTER)
@@ -89,5 +111,39 @@ mod tests {
         let letters = |d: &Doc, i: usize| d.objects[i].shape.clone().text_mut().cloned();
         assert_eq!((letters(&shown, 0), letters(&shown, 2)), (Some("Ab".into()), Some(String::new())));
         assert_eq!(hidden(&doc, None), doc);
+    }
+
+    /// Ctrl+Z in the field of a text just placed undoes only its own letters: egui keeps a
+    /// field's undo by its id, and the letters of the text typed before ("Ciao", a bubble's)
+    /// came back in the new one (seen on 2026-11-15).
+    #[test]
+    fn undo_in_the_field_is_its_own() {
+        let ctx = egui::Context::default();
+        let text = Obj { shape: Shape::Text { at: Pt::new(0.0, 0.0), text: String::new(), size: 10.0, rot: 0.0, font: None, path: None }, style: Style::default() };
+        let mut w = Window::new("p/a.png".into(), Default::default(), super::super::Tool::Select);
+        w.doc = Doc { objects: vec![text.clone()], ..Doc::new(64, 48, None) };
+        let mut time = 0.0;
+        let mut frame = |w: &mut Window, events: Vec<egui::Event>| {
+            time += 2.0;
+            let input = egui::RawInput { time: Some(time), events, screen_rect: Some(egui::Rect::from_min_size(Pos2::ZERO, egui::vec2(400.0, 300.0))), ..Default::default() };
+            let i = w.selected.unwrap();
+            w.editing = Some(i);
+            ctx.run_ui(input, |ui| overlay(ui, w, i, Pos2::new(200.0, 150.0), 1.0)).textures_delta.clear();
+        };
+        let typed = |s: &str| vec![egui::Event::Text(s.into())];
+        let undo = vec![egui::Event::Key { key: egui::Key::Z, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::COMMAND }];
+        // The first text, typed and left.
+        (w.selected, w.focus_text) = (Some(0), true);
+        for e in [vec![], typed("Ciao"), vec![], vec![]] {
+            frame(&mut w, e);
+        }
+        // A second one placed, typed, Ctrl+Z.
+        w.doc.objects.push(text);
+        (w.selected, w.focus_text) = (Some(1), true);
+        for e in [vec![], typed("Te"), vec![], vec![], undo.clone(), vec![], undo, vec![]] {
+            frame(&mut w, e);
+        }
+        let letters = |w: &mut Window, i: usize| w.doc.objects[i].shape.text_mut().cloned().unwrap();
+        assert_eq!((letters(&mut w, 0), letters(&mut w, 1)), ("Ciao".to_string(), String::new()));
     }
 }

@@ -193,6 +193,8 @@ pub struct Window {
     keys_open: bool,
     /// The text (or bubble) being typed on the image itself (`typing`).
     editing: Option<usize>,
+    /// The object whose letters the text fields have their undo of (`typing::fresh_fields`).
+    letters_of: Option<usize>,
     /// The original's bytes, read at the first save: every save starts from them.
     bytes: Option<Arc<Vec<u8>>>,
     /// The copy written last and the one being sent: the next Save updates it while it is that file.
@@ -283,6 +285,7 @@ impl Window {
             hiders: 0,
             keys_open: false,
             editing: None,
+            letters_of: None,
             bytes: None,
             copy: save::Marks::default(),
             overwritten: save::Marks::default(),

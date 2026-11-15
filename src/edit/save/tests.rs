@@ -812,9 +812,8 @@ fn pasted_piece_preview_is_the_file() {
 /// Issue #137: objects turned by their handle are saved as the screen shows them, on an image
 /// upright or straightened by a free angle: a cover box over the edge of the image, a blur, a
 /// highlighter, a pixelate whose blocks turn with its box, a rectangle. Only the pixels on their
-/// slanted edges, smoothed on another grid, may differ. The blur goes over the edge of the upright
-/// image; on the straightened one it stays inside: by the empty corners the file blurs the edge of
-/// the photo into them and the screen does not, turned or not (seen on 2026-11-15, not of #137).
+/// slanted edges, smoothed on another grid, may differ. The blur goes over the edge of the image,
+/// by the empty corners on the straightened one (`filters_by_the_empty_corners`).
 #[test]
 fn turned_objects_preview_is_the_file() {
     use crate::edit::filter::Filter;
@@ -823,10 +822,9 @@ fn turned_objects_preview_is_the_file() {
     let at = |x, y, w, h, rot| Area { centre: Pt::new(x, y), w, h, rot };
     let filter = |area, filter, amount| obj(Shape::Filter { area, filter, amount, preview: Default::default() }, Style::default());
     for angle in [0.0, 7.0] {
-        let blur_x = if angle == 0.0 { 28.0 } else { 18.0 };
         let objects = [
             ("pixelate", filter(at(6.0, -4.0, 24.0, 16.0, 35.0), Filter::Pixelate, 6.0), 10),
-            ("blur", filter(at(blur_x, 12.0, 16.0, 12.0, -20.0), Filter::Blur, 2.0), 10),
+            ("blur", filter(at(28.0, 12.0, 16.0, 12.0, -20.0), Filter::Blur, 2.0), 10),
             ("highlighter", obj(Shape::Highlight { area: at(-10.0, 12.0, 20.0, 8.0, 25.0), preview: Default::default() }, Style { opacity: 0.6, ..Style::highlighter() }), 10),
             // The file covers every pixel the box touches even in part (nothing of what is under
             // it is left), the screen those it mostly covers: a ring round its slanted sides.
@@ -848,6 +846,45 @@ fn turned_objects_preview_is_the_file() {
             assert_eq!(screen.dimensions(), file.dimensions());
             let off = screen.enumerate_pixels().filter(|(x, y, a)| a.0.iter().zip(file.get_pixel(*x, *y).0).any(|(a, b)| a.abs_diff(b) > 48)).count();
             assert!(off <= most, "{name} {angle}°: {off} pixels differ");
+        }
+    }
+}
+
+/// Blur, pixelate and sharpen over the empty corners of a straightened photo (no colour for
+/// them), their box upright or turned: the corners stay transparent and the edge of the photo by
+/// them stays as opaque as it was, in the saved file as on the screen. The file blurred the edge
+/// of the photo into the corners, see-through there, and the screen did not (seen on 2026-11-15).
+#[test]
+fn filters_by_the_empty_corners() {
+    use crate::edit::filter::Filter;
+    let photo = motif();
+    let original = Original::with_meta(photo.clone(), &[]);
+    for (filter, amount) in [(Filter::Blur, 2.0), (Filter::Pixelate, 6.0), (Filter::Sharpen, 2.0)] {
+        for rot in [0.0, -20.0] {
+            let mut doc = Doc::new(64, 48, None);
+            doc.angle = 7.0;
+            doc.objects = vec![obj(Shape::Filter { area: Area { centre: Pt::new(28.0, 12.0), w: 16.0, h: 12.0, rot }, filter, amount, preview: Default::default() }, Style::default())];
+            crate::edit::photo::refresh_layers(&mut doc, &photo, |_| 8000.0);
+            let mut screen = photo.clone();
+            doc.edit().apply(&mut screen);
+            let bare = screen.to_rgba8();
+            let (w, h) = bare.dimensions();
+            let drawn = render::render(&doc, (64, 48), &View { x: 0.0, y: 0.0, w, h, scale: 1.0 }, &options()).unwrap();
+            over(&mut screen, &drawn, 0, 0, false);
+            let (screen, file) = (screen.to_rgba8(), result(&doc, &original, &options()).to_rgba8());
+            // A pixel of an empty corner next to the photo: the screen draws the turned preview
+            // smoothed, half a pixel past its edge.
+            let by_photo = |x: u32, y: u32| (x.saturating_sub(1)..=(x + 1).min(w - 1)).any(|i| (y.saturating_sub(1)..=(y + 1).min(h - 1)).any(|j| bare.get_pixel(i, j)[3] > 0));
+            for (x, y, b) in bare.enumerate_pixels() {
+                let (s, f) = (screen.get_pixel(x, y), file.get_pixel(x, y));
+                assert_eq!(f[3], b[3], "{filter:?} {rot}° at {x},{y}: file {f:?}, before {b:?}");
+                assert!(b[3] > 0 || by_photo(x, y) || s[3] < 16, "{filter:?} {rot}° at {x},{y}: screen {s:?} in an empty corner");
+            }
+            // Where the photo is opaque, the screen is the file. On its smoothed edge the file keeps
+            // its alpha, the screen lays the preview over it (a little more opaque there).
+            let opaque = bare.enumerate_pixels().filter(|(.., b)| b[3] == 255);
+            let off = opaque.filter(|(x, y, _)| screen.get_pixel(*x, *y).0.iter().zip(file.get_pixel(*x, *y).0).any(|(a, b)| a.abs_diff(b) > 48)).count();
+            assert!(off <= 10, "{filter:?} {rot}°: {off} pixels differ");
         }
     }
 }
