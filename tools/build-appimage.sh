@@ -83,6 +83,11 @@ install -Dm644 assets/io.github.IoSonoPiero.EyeCanSee.metainfo.xml "$APPDIR/usr/
 # ponytail: the appimage.github.io catalog reads only *appdata.xml (its PR #3874 would fix that);
 # the link gives our entry its metainfo data. AppImage only, never in the Flatpak or the RPM.
 ln -s io.github.IoSonoPiero.EyeCanSee.metainfo.xml "$APPDIR/usr/share/metainfo/io.github.IoSonoPiero.EyeCanSee.appdata.xml"
+# linuxdeploy copies the Ubuntu copyright file of every library it bundles, but misses these two
+# (it looks for /lib/..., dpkg knows them as /usr/lib/...): their licences go in by hand.
+for pkg in liblzma5 libbz2-1.0; do
+    install -Dm644 "/usr/share/doc/$pkg/copyright" "$APPDIR/usr/share/doc/$pkg/copyright"
+done
 LICENSES=$APPDIR/usr/share/doc/eyecansee/THIRD-PARTY-LICENSES.txt
 tools/third-party-licenses.sh "$LICENSES" "${FEATURES[@]}"
 for lib in "libde265 $DE265 https://github.com/strukturag/libde265/archive/refs/tags/v$DE265.tar.gz" \
