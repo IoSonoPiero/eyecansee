@@ -48,6 +48,12 @@ pub fn fill(ctx: &egui::Context, raw_input: &mut egui::RawInput) {
     }
 }
 
+/// Windows: the system's theme as dark or light, for the title bar at start.
+#[cfg(windows)]
+pub fn read_dark() -> Option<bool> {
+    read().map(|t| t == Theme::Dark)
+}
+
 fn read() -> Option<Theme> {
     match READ.load(Ordering::SeqCst) {
         1 => Some(Theme::Dark),
