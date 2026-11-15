@@ -15,6 +15,8 @@ use eframe::egui::{self, Theme};
 #[cfg(target_os = "linux")]
 mod portal;
 #[cfg(windows)]
+pub mod caption;
+#[cfg(windows)]
 mod registry;
 
 /// 0 while not read yet, then 1 dark, 2 light.
@@ -25,6 +27,9 @@ static CTX: OnceLock<egui::Context> = OnceLock::new();
 /// winit sees it.
 #[cfg(any(target_os = "linux", windows))]
 static SENT: AtomicU8 = AtomicU8::new(0);
+/// Windows: the theme sent in the last frame (1 dark, 2 light), for `caption` in this one.
+#[cfg(windows)]
+static PAINT: AtomicU8 = AtomicU8::new(0);
 
 /// Starts reading and following the preference, in the background.
 pub fn start() {
@@ -59,6 +64,11 @@ fn read() -> Option<Theme> {
 /// (KDE on Wayland), winit only keeps the value.
 #[cfg(any(target_os = "linux", windows))]
 pub fn sync_window(ctx: &egui::Context) {
+    #[cfg(windows)]
+    match PAINT.swap(0, Ordering::SeqCst) {
+        0 => {}
+        code => caption::paint(code == 1),
+    }
     let theme = window_theme(ctx.options(|o| o.theme_preference), read());
     let code = match theme {
         egui::SystemTheme::Dark => 1,
@@ -69,6 +79,16 @@ pub fn sync_window(ctx: &egui::Context) {
         log!("system theme: title bar {theme:?}");
         ctx.options_mut(|o| o.sync_window_theme = false);
         ctx.send_viewport_cmd(egui::ViewportCommand::SetTheme(theme));
+        // After winit has set it (the command runs at the end of this frame), painted at once.
+        #[cfg(windows)]
+        if let Some(dark) = match theme {
+            egui::SystemTheme::Dark => Some(true),
+            egui::SystemTheme::Light => Some(false),
+            egui::SystemTheme::SystemDefault => read().map(|t| t == Theme::Dark),
+        } {
+            PAINT.store(if dark { 1 } else { 2 }, Ordering::SeqCst);
+            ctx.request_repaint();
+        }
     }
 }
 

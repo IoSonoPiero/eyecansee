@@ -641,6 +641,8 @@ fn main() -> eframe::Result {
         options,
         Box::new(move |cc| {
             #[cfg(windows)]
+            system_theme::caption::remember(cc);
+            #[cfg(windows)]
             if fit_window {
                 window_place::place(cc);
             }
