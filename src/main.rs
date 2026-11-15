@@ -33,6 +33,7 @@ mod cad_image;
 mod cad_layout;
 mod cad_shape;
 mod cad_shx;
+mod clip_open;
 mod cad_svg;
 mod cad_text;
 mod cad_units;

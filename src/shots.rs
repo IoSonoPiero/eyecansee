@@ -176,6 +176,7 @@ fn act(name: &str) -> Act {
         "select-all" => Act::SelectAll,
         "address" => Act::Address,
         "new-image" => Act::NewImage,
+        "open-clipboard" => Act::OpenClipboard,
         "rotate-crop" => Act::RotateCrop(None),
         "drawings" => Act::ExportDrawings(None),
         "manual" => Act::Manual,

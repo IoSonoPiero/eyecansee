@@ -64,6 +64,7 @@ impl App {
         entry(ui, act, None, item(t("menu-servers"), String::new()), Act::Servers);
         entry(ui, act, self.new_folder_off(), item(t("menu-new-folder"), t("key-new-folder")), Act::NewFolder(None));
         entry(ui, act, self.new_image_off(), item(t("menu-new-image"), t("key-new-image")), Act::NewImage);
+        entry(ui, act, self.new_image_off(), item(t("menu-open-clipboard"), String::new()), Act::OpenClipboard);
         ui.separator();
         // Also when it cannot overwrite (FTP, gvfs, format): `ask_save` then says why and offers Save as….
         entry(ui, act, self.save_off(), item(t("menu-save"), t("key-save")), Act::Save);
