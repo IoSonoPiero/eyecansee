@@ -364,12 +364,14 @@ impl Loader {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
             let sibling = siblings(op.clone(), path.clone());
+            let sidecar = crate::sidecar::read(&op, &path).await.map(|s| s.xmp);
             let r = match op.read(&path).await {
                 Ok(bytes) => tokio::task::spawn_blocking(move || {
                     if edit && crate::edit::save::animated(&bytes, &path) {
                         return Err(crate::edit_page::ANIMATED.to_string());
                     }
-                    let original = crate::encode::Original::with_meta_of(decode::decode_full_with(&bytes, &path, &sibling)?, &bytes, &path);
+                    let image = decode::decode_full_with(&bytes, &path, &sibling)?;
+                    let original = crate::encode::Original::with_meta_beside(image, &bytes, &path, sidecar.as_deref());
                     // Save in another format writes the picture alone (`Original::alone`); the
                     // editor needs the whole XMP to save a phone photo as it was.
                     let mut original = if edit { original } else { original.alone() };
@@ -575,8 +577,9 @@ impl Loader {
             let meta = if decode::is_played(&path) {
                 video_meta(&op, &path).await
             } else {
+                let sidecar = crate::sidecar::read(&op, &path).await;
                 match op.read(&path).await {
-                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::meta::read_file(&bytes, &path)).await.map_err(|e| e.to_string()),
+                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::meta::read_file_with(&bytes, &path, sidecar.as_ref())).await.map_err(|e| e.to_string()),
                     Err((_, detail)) => Err(detail),
                 }
             };

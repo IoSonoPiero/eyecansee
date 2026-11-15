@@ -16,10 +16,12 @@ pub enum Group {
     Shot,
     Image,
     Gps,
+    /// What a person wrote about the photo in its XMP (`xmp_fields`), or its sidecar's (#24).
+    Info,
 }
 
 impl Group {
-    pub const ALL: [Group; 5] = [Group::File, Group::Camera, Group::Shot, Group::Image, Group::Gps];
+    pub const ALL: [Group; 6] = [Group::File, Group::Camera, Group::Shot, Group::Image, Group::Gps, Group::Info];
 
     /// Name in the settings and, with `meta-` in front, Fluent id of the title.
     pub fn key(self) -> &'static str {
@@ -29,6 +31,7 @@ impl Group {
             Group::Shot => "shot",
             Group::Image => "image",
             Group::Gps => "gps",
+            Group::Info => "info",
         }
     }
 }
@@ -44,8 +47,9 @@ struct Stored {
 }
 
 /// Raised when the panel learns to read something new: 1 = drone positions from the `.SRT`,
-/// 2 = the Image box in one order (`IMAGE_ORDER`).
-const STORED: u32 = 2;
+/// 2 = the Image box in one order (`IMAGE_ORDER`), 3 = the Description box from the XMP and the
+/// sidecar of a RAW photo (#24).
+const STORED: u32 = 3;
 
 impl Meta {
     pub fn to_json(&self) -> String {
@@ -329,6 +333,17 @@ pub fn read_file(bytes: &[u8], name: &str) -> Option<Meta> {
     }
     if let Some(m) = &mut meta {
         order_image(&mut m.fields);
+    }
+    meta
+}
+
+/// As `read_file`, with the Description box (`xmp_fields`) from the sidecar of a RAW photo
+/// (`sidecar`, #24) or else from the XMP inside the file.
+pub fn read_file_with(bytes: &[u8], name: &str, sidecar: Option<&crate::sidecar::Sidecar>) -> Option<Meta> {
+    let mut meta = read_file(bytes, name);
+    let fields = sidecar.map(|s| s.xmp.clone()).or_else(|| crate::raw_meta::xmp(bytes)).map(|x| crate::xmp_fields::read(&x)).unwrap_or_default();
+    if !fields.is_empty() || sidecar.is_some() {
+        crate::xmp_fields::add_to(meta.get_or_insert_default(), &fields, sidecar.map(|s| s.name.as_str()));
     }
     meta
 }

@@ -276,13 +276,21 @@ impl Original {
     /// As `with_meta`; the file's `name` tells the formats ImageMagick reads, whose metadata only
     /// ImageMagick gives.
     pub fn with_meta_of(image: DynamicImage, bytes: &[u8], name: &str) -> Original {
+        Original::with_meta_beside(image, bytes, name, None)
+    }
+
+    /// As `with_meta_of`, for a RAW photo with the XMP of its `sidecar` (#24) in place of the
+    /// file's own, as Lightroom reads it, and the sidecar's position in the EXIF.
+    pub fn with_meta_beside(image: DynamicImage, bytes: &[u8], name: &str, sidecar: Option<&[u8]>) -> Original {
         // RAW: the EXIF of every maker (`raw_meta`), the profile of the decoded pixels, the XMP,
         // the IPTC where it is in a TIFF tag.
-        if let Some(raw) = crate::raw_meta::read(bytes) {
+        let place = sidecar.map(crate::xmp_fields::read).and_then(|f| Some((f.gps?, f.altitude)));
+        if let Some(raw) = crate::raw_meta::read_placed(bytes, place) {
             let x = crate::meta_write::read(bytes, None);
             let density = density::read(bytes, raw.exif.as_deref(), x.irb.as_deref());
-            // Its Camera Raw settings are not in the pixels EyeCanSee develops: they go.
-            let xmp = raw.xmp.or(x.xmp).map(|m| crate::xmp::without_camera_raw(&m, image.width(), image.height()));
+            // Its Camera Raw settings (and darktable's history) are not in the pixels EyeCanSee
+            // develops: they go.
+            let xmp = sidecar.map(<[u8]>::to_vec).or(raw.xmp).or(x.xmp).map(|m| crate::xmp::without_camera_raw(&m, image.width(), image.height()));
             return Original { density, ..Original::upright(image, raw.exif, raw.icc, xmp, x.irb) };
         }
         // As found in the formats `image` reads (JPEG, PNG, WebP, TIFF), then in the file itself

@@ -36,7 +36,8 @@ struct How {
     /// The video of a Motion Photo is written too (a lossless turn of an Ultra HDR one, #54): its
     /// description stays.
     video: bool,
-    /// The XMP of a RAW file: its Camera Raw settings go (`without_camera_raw`).
+    /// The XMP of a RAW file or of its sidecar (#24): its Camera Raw settings and darktable's
+    /// history go (`without_camera_raw`).
     raw: bool,
 }
 
@@ -51,7 +52,8 @@ struct How {
 /// and Lightroom would apply them again to pixels that already have them (DxO forum, "Remove
 /// xmp-crs data in EXIF when exporting to DNG"). The tag is Adobe's use, not a standard: exiv2
 /// lists it as "Not in XMP Specification. Found in sample files". In a RAW file they are settings
-/// EyeCanSee does not apply when it develops it: they go (`raw`).
+/// EyeCanSee does not apply when it develops it: they go (`raw`), as darktable's history in a
+/// sidecar (#24).
 fn fix(ns: &str, local: &str, w: u32, h: u32, how: How) -> Option<Fix> {
     match (ns, local) {
         (XMP_NOTE, "HasExtendedXMP") if how.merged => Some(Fix::Drop),
@@ -59,6 +61,10 @@ fn fix(ns: &str, local: &str, w: u32, h: u32, how: How) -> Option<Fix> {
         (GCAMERA, l) if !how.video && (l.starts_with("MotionPhoto") || l.starts_with("MicroVideo")) => Some(Fix::Drop),
         (CONTAINER, "Directory") | (HDRGM, _) if how.alone => Some(Fix::Drop),
         (CRS, _) if how.raw => Some(Fix::Drop),
+        // darktable's history, as Camera Raw's settings; its colour labels are the person's.
+        (crate::xmp_fields::DARKTABLE, l) if how.raw && l != "colorlabels" => Some(Fix::Drop),
+        // A sidecar's (#24): the copy has its XMP inside.
+        (PHOTOSHOP, "SidecarForExtension") if how.raw => Some(Fix::Drop),
         (CRS, "AlreadyApplied") => Some(Fix::Set("True".into())),
         (XAP, "Thumbnails") => Some(Fix::Drop),
         (TIFF, "ImageWidth") | (EXIF, "PixelXDimension") => Some(Fix::Set(w.to_string())),
@@ -131,8 +137,8 @@ fn without_video_item(xmp: &[u8]) -> std::borrow::Cow<'_, [u8]> {
     [&xmp[..start], &xmp[at + close + b"</rdf:li>".len()..]].concat().into()
 }
 
-/// The XMP of a RAW file without its Camera Raw settings (`fix`), for a copy of what EyeCanSee
-/// develops from it; sizes set to `w` × `h` as `fit` does. A packet that is not well-formed XML is
+/// The XMP of a RAW file (or of its sidecar, #24) without its Camera Raw settings and darktable's
+/// history (`fix`), for a copy of what EyeCanSee develops from it; sizes set to `w` × `h` as `fit` does. A packet that is not well-formed XML is
 /// returned as it was.
 pub fn without_camera_raw(xmp: &[u8], w: u32, h: u32) -> Vec<u8> {
     rewrite(xmp, w, h, &[], How { raw: true, ..How::default() }).unwrap_or_else(|| xmp.to_vec())
@@ -412,6 +418,24 @@ pub(crate) mod tests {
         let out = String::from_utf8(fit(Some(one.as_bytes()), 1, 1, None).unwrap()).unwrap();
         assert_eq!(out.matches("crs:AlreadyApplied=\"True\"").count(), 1, "{out}");
         assert!(roxmltree::Document::parse(out.trim_start_matches(|c| c != '<')).is_ok());
+    }
+
+    /// A sidecar (#24) in a RAW photo's copy: Camera Raw settings, darktable's history and the
+    /// extension it was for go; what the person wrote, darktable's colour labels too, stays.
+    #[test]
+    fn sidecar_in_a_copy() {
+        let xmp = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:darktable="http://darktable.sf.net/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" xmlns:xmp="http://ns.adobe.com/xap/1.0/"
+ darktable:history_end="2" darktable:xmp_version="5" photoshop:SidecarForExtension="NEF" xmp:Rating="3">
+<darktable:history><rdf:Seq><rdf:li darktable:operation="exposure" darktable:params="0000"/></rdf:Seq></darktable:history>
+<darktable:colorlabels><rdf:Seq><rdf:li>2</rdf:li></rdf:Seq></darktable:colorlabels>
+</rdf:Description></rdf:RDF></x:xmpmeta>"#;
+        let out = String::from_utf8(without_camera_raw(xmp.as_bytes(), 10, 10)).unwrap();
+        for gone in ["history", "xmp_version", "SidecarForExtension", "exposure"] {
+            assert!(!out.contains(gone), "{gone} in {out}");
+        }
+        assert!(out.contains("xmp:Rating=\"3\"") && out.contains("<darktable:colorlabels><rdf:Seq><rdf:li>2</rdf:li></rdf:Seq></darktable:colorlabels>"), "{out}");
+        assert_eq!(crate::xmp_fields::read(out.as_bytes()).labels, ["Green"]);
     }
 
     /// IPTC fields go into the XMP when it lacks them, into a new packet when there is none.

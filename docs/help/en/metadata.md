@@ -11,6 +11,15 @@ Under the grid, the metadata panel shows what is known about the selected file: 
 - **Shot**: date taken, exposure, aperture, ISO, focal length and flash.
 - **Image**: format, width and height, colour and bits per channel, colour space. For a Camera RAW photo they are those of the picture EyeCanSee develops from it (cut as the camera says); an SVG drawing has its own size and no colour or bits.
 - **Location**: GPS coordinates and altitude, with **Open on the map**, which opens the place on OpenStreetMap in your browser.
+- **Description**: what was written about the photo in its XMP: title, caption, keywords, rating (from 1 to 5, or rejected), colour label, author and copyright.
+
+## RAW photos and their .xmp files
+
+Lightroom, Camera Raw, darktable and digiKam do not write into a RAW photo: they keep what you set (rating, label, keywords, title, position) in a small file beside it, with the same name and the `.xmp` extension, a "sidecar". EyeCanSee reads it: the Description box and the Location box show what it holds, and the box says which file it came from. Both names are found: `IMG_0001.CR2.xmp` (darktable, digiKam) and `IMG_0001.xmp` (Lightroom, Camera Raw); with both, the first counts, since it cannot belong to another file. An `IMG_0001.xmp` that says it belongs to another file with the same name (the JPEG of a RAW + JPEG pair) is not used for the RAW photo. As in Lightroom, the .xmp file counts instead of the XMP inside the RAW photo, and its position instead of the camera's.
+
+When you convert a RAW photo or save it in another format, what the .xmp file holds goes into the new file, the position into its EXIF too, so the copy keeps them on its own. The development settings of Lightroom, Camera Raw and darktable are left out: EyeCanSee develops the photo without them.
+
+The .xmp files are not shown in the grid, and they stay where they are when you copy, move, rename or delete the RAW photo: copy them with a file manager if you need them beside the copy.
 
 A box shows "No data" when the file has nothing for it, and "This file contains no metadata" when the file has no metadata at all.
 

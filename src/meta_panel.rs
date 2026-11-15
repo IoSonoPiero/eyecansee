@@ -325,8 +325,9 @@ impl App {
 
     /// Value of a metadata field as shown: Fluent ids translated, dates in the language's format.
     pub(crate) fn meta_value(&self, label: &str, value: &str) -> String {
-        if value.starts_with("meta-") {
-            return self.i18n.t(value);
+        if value.starts_with("meta-") || label == "meta-xmp-label" {
+            // Colour labels: one id each ("meta-label-red, meta-label-blue"), or Lightroom's own names.
+            return value.split(", ").map(|v| if v.starts_with("meta-") { self.i18n.t(v) } else { v.to_string() }).collect::<Vec<_>>().join(", ");
         }
         let formatted = match label {
             "meta-taken" => value.parse::<jiff::civil::DateTime>().ok().map(|d| d.strftime(&self.i18n.t("date-format")).to_string()),

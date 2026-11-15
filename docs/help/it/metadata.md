@@ -11,6 +11,15 @@ Sotto la griglia, il pannello dei metadati mostra quello che si sa del file sele
 - **Scatto**: data dello scatto, esposizione, diaframma, ISO, lunghezza focale e flash.
 - **Immagine**: formato, larghezza e altezza, colore e bit per canale, spazio colore. Per una foto RAW sono quelli dell'immagine che EyeCanSee ne sviluppa (ritagliata come dice la fotocamera); un disegno SVG ha le sue dimensioni e niente colore né bit.
 - **Posizione**: coordinate GPS e altitudine, con **Apri sulla mappa**, che apre il posto su OpenStreetMap nel browser.
+- **Descrizione**: quello che è stato scritto sulla foto nel suo XMP: titolo, didascalia, parole chiave, valutazione (da 1 a 5, o scartata), etichetta colore, autore e copyright.
+
+## Le foto RAW e i loro file .xmp
+
+Lightroom, Camera Raw, darktable e digiKam non scrivono dentro una foto RAW: tengono quello che imposti (valutazione, etichetta, parole chiave, titolo, posizione) in un piccolo file accanto, con lo stesso nome e l'estensione `.xmp`, un "sidecar". EyeCanSee lo legge: i riquadri Descrizione e Posizione mostrano quello che contiene, e il riquadro dice da quale file arriva. Si trovano tutti e due i nomi: `IMG_0001.CR2.xmp` (darktable, digiKam) e `IMG_0001.xmp` (Lightroom, Camera Raw); se ci sono tutti e due vale il primo, che non può essere di un altro file. Un `IMG_0001.xmp` che dice di essere di un altro file con lo stesso nome (il JPEG di una coppia RAW + JPEG) non si usa per la foto RAW. Come in Lightroom, il file .xmp vale al posto dell'XMP dentro la foto RAW, e la sua posizione al posto di quella della fotocamera.
+
+Quando converti una foto RAW o la salvi in un altro formato, quello che il file .xmp contiene va nel file nuovo, la posizione anche nel suo EXIF, così la copia lo tiene da sola. Le impostazioni di sviluppo di Lightroom, Camera Raw e darktable restano fuori: EyeCanSee sviluppa la foto senza di esse.
+
+I file .xmp non compaiono nella griglia e restano dove sono quando copi, sposti, rinomini o elimini la foto RAW: copiali con un gestore di file se ti servono accanto alla copia.
 
 Un riquadro dice "Nessun dato" quando il file non ha niente per lui, e "Questo file non contiene metadati" quando il file non ha nessun metadato.
 
