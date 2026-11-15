@@ -1427,3 +1427,90 @@ frames-page-prev = Previous page (Page Up)
 frames-page-next = Next page (Page Down)
 frames-too-large = Too large to play here: only the first picture is shown
 motion-play = Play motion (Space)
+
+## Tips at startup (issue #113)
+opt-tips = Show a tip at startup
+opt-tips-hint = Once a day, when EyeCanSee starts, a window shows one thing it can do, with Back and Next to see the others.
+tip-off = Don't show at startup
+tip-off-hint = The tips will not appear again. To have them back: Tools > Options > General > Show a tip at startup.
+tip-back = Back
+tip-next = Next
+tip-count = Tip { $n } of { $of }
+tip-guide = Read more in the guide
+tip-welcome-title = Welcome to EyeCanSee
+tip-welcome-text =
+    EyeCanSee shows the pictures, videos, 3D models and CAD drawings of a folder as thumbnails, and opens them one at a time. It works the same way on this computer, on disks and USB sticks, on Android phones and on servers.
+
+    On the left, the side panel with your disks, phones and servers; in the middle, the folder as thumbnails; under it, the information about the selected file. **Next** shows the other tips.
+tip-help-title = F1 opens the guide where you are
+tip-help-text =
+    Press **F1** at any time: the guide opens on the page about what you are doing, the editor, a video, a phone, a window. Press **F1** again to close it.
+
+    The field at the top left of the guide searches every page.
+tip-right-click-title = Right-click anything
+tip-right-click-text =
+    A right click on a thumbnail, a folder, an empty space of the grid or the picture in the viewer opens a menu with what you can do with it.
+
+    An entry that is greyed out says why when you point at it, as do the toolbar buttons.
+tip-phone-title = Photos on an Android phone
+tip-phone-text =
+    1. Connect the phone with its USB cable and unlock it.
+    2. In the phone's USB notification choose **File transfer**.
+    3. The phone appears at the top left, under Devices: click it.
+
+    You can view, copy, convert and delete its photos and videos without another program.
+tip-servers-title = A NAS or a server
+tip-servers-text = EyeCanSee opens folders on FTP, FTPS and SFTP servers like the folders of the computer. Type the address in the address bar, for example `sftp://anna@nas.lan/Photos`, or save the server once in **File > Server manager…**: it then opens with one click from the panel on the left.
+tip-viewer-title = Looking at pictures
+tip-viewer-text =
+    Double-click a thumbnail, or press **Enter**: the picture fills the window.
+    - **→** and **←** go to the next and the previous one.
+    - The mouse wheel zooms in and out.
+    - **Esc** or a double click goes back to the grid.
+    - **F11** shows only the picture, at full screen.
+tip-video-title = Videos and audio
+tip-video-text =
+    Videos and audio files play in the viewer.
+    - **Space** plays and pauses.
+    - **Ctrl+←** and **Ctrl+→** go 5 seconds back and forward.
+    - **↑** and **↓** change the volume, **M** turns the audio off and on.
+tip-editor-title = Draw on a picture
+tip-editor-text =
+    { "**" }Image > Edit image…** (**Ctrl+E**) opens the editor: arrows, text, shapes, highlighter, stamps, filters, crop and rotate. Every addition stays movable until you save.
+
+    { "**" }Save copy** writes a new file beside the original, which stays as it was.
+tip-cover-title = Hide a number plate or an address
+tip-cover-text =
+    In the editor, choose **Cover** (key **B**) and drag over what must be hidden. In the saved file nothing of what was under the box is left.
+
+    Blur and Pixelate are not enough for private text or numbers: they can still be read or worked back.
+tip-resize-title = Smaller copies in one click
+tip-resize-text =
+    Select the photos, right-click them and choose **Resize**: Small, Medium, Large or Half. The copies go beside the originals, with their metadata, the size in their names.
+
+    { "**" }Convert…** (**Ctrl+B**) changes the format of many pictures at once.
+tip-convert-video-title = Convert videos
+tip-convert-video-text = Videos go through the same **Convert…** window as pictures: another format, a smaller size, turned, or a short clip as a GIF. The right-click menu also has **Copy without audio** and **Save the audio to a file**. The work is done by FFmpeg: if the computer does not have it, the window offers to download it.
+tip-bookmarks-title = Bookmarks
+tip-bookmarks-text = The **star** next to the address bar turns the folder open into a bookmark: a folder of the computer, of a phone or of a server. The **Bookmarks** drop-down beside it, or **Ctrl+Shift+D**, takes you back there with one click.
+tip-metadata-title = Where and when a photo was taken
+tip-metadata-text =
+    Under the grid, the metadata panel shows the camera, the date the photo was taken, the exposure and the place. **Open on the map** shows the place on OpenStreetMap.
+
+    Each box closes with its ✕ and comes back from **View > Metadata boxes**.
+tip-models-title = 3D models and CAD drawings
+tip-models-text =
+    3D models (STL, OBJ, glTF, FBX, IFC, STEP and more) and CAD drawings (DWG, DXF) appear in the grid with a picture of them, and open in the viewer.
+
+    Drag or use the arrows to turn a model, the mouse wheel to zoom; a drawing moves with a drag.
+tip-duplicates-title = Find duplicates
+tip-duplicates-text = **Tools > Find duplicates…** (**Ctrl+D**) finds the files that are exactly the same, also under another name or in another folder, on the computer, a disk, a phone or a server. You choose the copies to delete; one always stays.
+tip-trash-title = Deleted by mistake?
+tip-trash-text = Files of this computer go to the system trash. Phones and servers have no trash EyeCanSee can reach, so EyeCanSee keeps one of its own in each folder: a strip at the top of the folder says so, with **Open the trash**, where you can restore them.
+tip-details-title = More under the thumbnails
+tip-details-text = Under each thumbnail EyeCanSee writes the name, the size in pixels, the weight of the file, the date and, for videos, the duration. Choose what to see in **Tools > Options… > Thumbnails > Under the thumbnails**.
+tip-slideshow-title = Slideshow
+tip-slideshow-text =
+    { "**" }View > Slideshow** shows the pictures and videos of the folder one after the other at full screen; with several files selected, only those.
+
+    { "**" }Space** pauses, the arrows move at once, **Esc** ends it. The time and the passage between pictures are in **Tools > Options… > Slideshow**.

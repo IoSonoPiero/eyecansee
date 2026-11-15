@@ -1426,3 +1426,90 @@ frames-page-prev = Pagina precedente (Pag↑)
 frames-page-next = Pagina successiva (Pag↓)
 frames-too-large = Troppo grande da riprodurre qui: si vede solo la prima immagine
 motion-play = Riproduci il movimento (Spazio)
+
+## Suggerimenti all'avvio (issue #113)
+opt-tips = Mostra un suggerimento all'avvio
+opt-tips-hint = Una volta al giorno, all'avvio di EyeCanSee, una finestra mostra una cosa che sa fare, con Indietro e Avanti per vedere le altre.
+tip-off = Non mostrare più all'avvio
+tip-off-hint = I suggerimenti non compariranno più. Per riaverli: Strumenti > Opzioni > Generale > Mostra un suggerimento all'avvio.
+tip-back = Indietro
+tip-next = Avanti
+tip-count = Suggerimento { $n } di { $of }
+tip-guide = Leggi di più nella guida
+tip-welcome-title = Ti diamo il benvenuto in EyeCanSee
+tip-welcome-text =
+    EyeCanSee mostra le foto, i video, i modelli 3D e i disegni CAD di una cartella come miniature, e li apre uno alla volta. Funziona allo stesso modo su questo computer, su dischi e chiavette USB, sui telefoni Android e sui server.
+
+    A sinistra il pannello con dischi, telefoni e server; al centro la cartella in miniature; sotto, le informazioni sul file scelto. **Avanti** mostra gli altri suggerimenti.
+tip-help-title = F1 apre la guida dove sei
+tip-help-text =
+    Premi **F1** in qualunque momento: la guida si apre sulla pagina di quello che stai facendo, l'editor, un video, un telefono, una finestra. Premi di nuovo **F1** per chiuderla.
+
+    Il campo in alto a sinistra della guida cerca in tutte le pagine.
+tip-right-click-title = Clic destro su qualunque cosa
+tip-right-click-text =
+    Un clic destro su una miniatura, una cartella, uno spazio vuoto della griglia o l'immagine nel visore apre un menu con quello che puoi farci.
+
+    Una voce grigia dice perché, se ci passi sopra col puntatore, come i pulsanti della barra.
+tip-phone-title = Le foto di un telefono Android
+tip-phone-text =
+    1. Collega il telefono col cavo USB e sbloccalo.
+    2. Nella notifica USB del telefono scegli **Trasferimento file**.
+    3. Il telefono compare in alto a sinistra, sotto Dispositivi: fai clic.
+
+    Puoi guardare, copiare, convertire ed eliminare foto e video senza altri programmi.
+tip-servers-title = Un NAS o un server
+tip-servers-text = EyeCanSee apre le cartelle dei server FTP, FTPS e SFTP come quelle del computer. Scrivi l'indirizzo nella barra degli indirizzi, per esempio `sftp://anna@nas.lan/Foto`, oppure salva il server una volta in **File > Gestione server…**: poi si apre con un clic dal pannello a sinistra.
+tip-viewer-title = Guardare le foto
+tip-viewer-text =
+    Doppio clic su una miniatura, oppure **Invio**: la foto riempie la finestra.
+    - **→** e **←** passano alla successiva e alla precedente.
+    - La rotella del mouse ingrandisce e rimpicciolisce.
+    - **Esc** o un doppio clic tornano alla griglia.
+    - **F11** mostra solo la foto, a tutto schermo.
+tip-video-title = Video e audio
+tip-video-text =
+    I video e i file audio si riproducono nel visore.
+    - **Spazio** avvia e mette in pausa.
+    - **Ctrl+←** e **Ctrl+→** vanno indietro e avanti di 5 secondi.
+    - **↑** e **↓** cambiano il volume, **M** toglie e rimette l'audio.
+tip-editor-title = Disegnare su una foto
+tip-editor-text =
+    { "**" }Immagine > Modifica immagine…** (**Ctrl+E**) apre l'editor: frecce, testo, forme, evidenziatore, timbri, filtri, ritaglio e rotazione. Ogni aggiunta resta spostabile finché non salvi.
+
+    { "**" }Salva copia** scrive un file nuovo accanto all'originale, che resta com'era.
+tip-cover-title = Nascondere una targa o un indirizzo
+tip-cover-text =
+    Nell'editor scegli **Copertura** (tasto **B**) e trascina sopra ciò che va nascosto. Nel file salvato non resta niente di quello che c'era sotto il riquadro.
+
+    Sfoca e Pixel grossi non bastano per testi o numeri privati: si possono ancora leggere o ricostruire.
+tip-resize-title = Copie più piccole con un clic
+tip-resize-text =
+    Seleziona le foto, fai clic destro e scegli **Ridimensiona**: Piccola, Media, Grande o Metà. Le copie vanno accanto agli originali, con i loro metadati e la misura nel nome.
+
+    { "**" }Converti…** (**Ctrl+B**) cambia il formato di molte immagini insieme.
+tip-convert-video-title = Convertire i video
+tip-convert-video-text = I video passano dalla stessa finestra **Converti…** delle foto: un altro formato, una misura più piccola, ruotati, o un pezzo breve come GIF. Nel clic destro ci sono anche **Copia senza audio** e **Salva l'audio in un file**. Il lavoro lo fa FFmpeg: se il computer non ce l'ha, la finestra propone di scaricarlo.
+tip-bookmarks-title = Segnalibri
+tip-bookmarks-text = La **stella** accanto alla barra degli indirizzi fa della cartella aperta un segnalibro: una cartella del computer, di un telefono o di un server. Il menu a tendina **Segnalibri** lì accanto, o **Ctrl+Maiusc+D**, ti riporta lì con un clic.
+tip-metadata-title = Dove e quando è stata scattata una foto
+tip-metadata-text =
+    Sotto la griglia, il pannello dei metadati mostra la fotocamera, la data dello scatto, l'esposizione e il luogo. **Apri sulla mappa** mostra il luogo su OpenStreetMap.
+
+    Ogni riquadro si chiude con la sua ✕ e torna da **Visualizza > Riquadri dei metadati**.
+tip-models-title = Modelli 3D e disegni CAD
+tip-models-text =
+    I modelli 3D (STL, OBJ, glTF, FBX, IFC, STEP e altri) e i disegni CAD (DWG, DXF) compaiono nella griglia con la loro immagine e si aprono nel visore.
+
+    Trascina o usa le frecce per girare un modello, la rotella per ingrandire; un disegno si sposta trascinandolo.
+tip-duplicates-title = Trovare i duplicati
+tip-duplicates-text = **Strumenti > Trova duplicati…** (**Ctrl+D**) trova i file identici, anche con un altro nome o in un'altra cartella, sul computer, su un disco, su un telefono o su un server. Scegli tu le copie da eliminare; una resta sempre.
+tip-trash-title = Eliminato per sbaglio?
+tip-trash-text = I file di questo computer vanno nel cestino di sistema. Telefoni e server non hanno un cestino che EyeCanSee possa usare, quindi EyeCanSee ne tiene uno suo in ogni cartella: una striscia in cima alla cartella lo dice, con **Apri il cestino**, da dove puoi ripristinarli.
+tip-details-title = Più dati sotto le miniature
+tip-details-text = Sotto ogni miniatura EyeCanSee scrive il nome, le dimensioni in pixel, il peso del file, la data e, per i video, la durata. Scegli cosa vedere in **Strumenti > Opzioni… > Miniature > Sotto le miniature**.
+tip-slideshow-title = Carosello
+tip-slideshow-text =
+    { "**" }Visualizza > Carosello** mostra le foto e i video della cartella uno dopo l'altro a tutto schermo; con più file selezionati, solo quelli.
+
+    { "**" }Spazio** mette in pausa, le frecce passano subito alla successiva o alla precedente, **Esc** finisce. Il tempo e il passaggio tra le foto sono in **Strumenti > Opzioni… > Carosello**.

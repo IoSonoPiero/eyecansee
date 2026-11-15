@@ -37,7 +37,7 @@ cp "$FILES/formati/RAW/Google - Pixel 6 Pro - 16bit (4-3).dng" "$H/Lake Garda.dn
 find "$D" "$WORK/disks" -type f -exec touch -d "2025-07-14 18:30" {} +
 find "$D/Pictures/Phone backup" -type f -exec touch -d "2025-07-15 09:12" {} +
 cat > "$WORK/settings.json" <<'JSON'
-{"check_updates": false, "theme": "dark", "remember_location": false, "window_start": "normal", "meta_collapsed": true,
+{"check_updates": false, "tips": false, "theme": "dark", "remember_location": false, "window_start": "normal", "meta_collapsed": true,
  "bookmarks": [{"name": "Holiday", "address": "/home/demo/Pictures/Holiday"},
                {"name": "3D models", "address": "/home/demo/Documents/3D models"},
                {"name": "Photo archive", "address": "sftp://demo@photos.example.com/Pictures/"}]}

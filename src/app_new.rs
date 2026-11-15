@@ -101,6 +101,7 @@ impl App {
             kept: Vec::new(),
             title: String::new(),
             help: help::Guide::default(),
+            tip: None,
             about: false,
             clip: None,
             paste_to: None,
@@ -161,6 +162,7 @@ impl App {
         }
         let home = std::env::home_dir().map_or(".".into(), |h| h.to_string_lossy().into_owned());
         let last = app.settings.last_location.clone().filter(|_| app.settings.remember_location);
+        app.tip_at_start(arg.is_some());
         match (arg, last) {
             (Some(arg), _) => {
                 app.open_outside(ctx, &arg);

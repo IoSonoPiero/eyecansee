@@ -226,6 +226,7 @@ fn general_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, languages: &[(&
     let t = |id| i18n.t(id);
     ui.checkbox(&mut s.remember_location, t("opt-remember-location")).on_hover_text(t("opt-remember-location-hint"));
     ui.checkbox(&mut s.remember_scroll, t("opt-remember-scroll")).on_hover_text(t("opt-remember-scroll-hint"));
+    ui.checkbox(&mut s.tips, t("opt-tips")).on_hover_text(t("opt-tips-hint"));
     ui.add_space(6.0);
     ui.label(t("opt-window"));
     ui.radio_value(&mut s.window_start, WindowStart::Normal, t("opt-window-normal"));

@@ -77,6 +77,11 @@ pub struct Settings {
     pub bookmarks: Vec<crate::bookmarks::Bookmark>,
     /// The sizes of Resize (`presets`); `None`: the first ones, named in the language shown.
     pub resize_presets: Option<Vec<crate::presets::Preset>>,
+    /// A tip at the first start of the day (`tips`, issue #113); off from its box or Options.
+    pub tips: bool,
+    /// The tip the next start shows, and the day (since 1970, UTC) one was last shown.
+    pub tip_next: usize,
+    pub tips_day: Option<u64>,
 }
 
 /// After Save copy, Update copy or Overwrite in the editor (issue #95): the page stays open (as
@@ -238,6 +243,10 @@ impl Default for Settings {
             edit_main_overwrite: false,
             bookmarks: Vec::new(),
             resize_presets: None,
+            // On at the very first start, and for who updates (the key missing): issue #113.
+            tips: true,
+            tip_next: 0,
+            tips_day: None,
         }
     }
 }
@@ -320,7 +329,7 @@ mod tests {
         // Every key 0.76.0 wrote, none of those added after it.
         let mut old = serde_json::to_value(Settings::default()).unwrap();
         let keys = old.as_object_mut().unwrap();
-        keys.retain(|k, _| !["edit_after_save", "edit_main_overwrite", "resize_presets", "thumb_details"].contains(&k.as_str()));
+        keys.retain(|k, _| !["edit_after_save", "edit_main_overwrite", "resize_presets", "thumb_details", "tips", "tip_next", "tips_day"].contains(&k.as_str()));
         assert_eq!(keys.len(), 32, "the keys of 0.76.0's settings.json");
         let s: Settings = serde_json::from_value(old).unwrap();
         assert_eq!(s.edit_after_save, AfterSave::Stay, "the page stays open unless chosen");

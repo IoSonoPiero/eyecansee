@@ -136,6 +136,7 @@ mod thumb_details;
 mod thumb_queue;
 mod test_copy;
 mod thumbcache;
+mod tips;
 mod toolbar;
 mod toolbar_end;
 mod transfer;
@@ -400,6 +401,8 @@ struct App {
     title: String,
     /// The guide (F1, Help > Guide).
     help: help::Guide,
+    /// The tip at startup shown, by its place in `tips::TIPS` (issue #113).
+    tip: Option<tips::Open>,
     about: bool,
     /// App icon for the About window, made the first time it opens.
     about_icon: Option<TextureHandle>,

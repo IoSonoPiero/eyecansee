@@ -223,6 +223,7 @@ impl App {
         self.about_window(ctx);
         self.update_window(ctx);
         self.options_window(ctx);
+        self.tip_window(ctx);
         if let Some(a) = self.act.take() {
             self.run(ctx, a);
         }
