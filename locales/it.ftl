@@ -483,6 +483,7 @@ measure-copy = Copia
 section-title = Sezione
 section-flip = Altro lato
 section-keys = Alt+rotellina, virgola, punto: sposta · X, Y, Z: asse · F: altro lato · S: togli
+section-open = non riempito: il modello non è chiuso
 cad-model = Modello
 cad-units = unità
 keys-button = Tasti

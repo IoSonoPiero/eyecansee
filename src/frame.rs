@@ -120,6 +120,7 @@ impl App {
                     // The keys of the viewer: listed while the button is pointed at, or until it is
                     // clicked again.
                     let [keys, layers, copy] = status.inner;
+                    self.section_slider(ctx);
                     if copy.is_some_and(|b| b.clicked()) {
                         self.copy_measure(ctx);
                     }

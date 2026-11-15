@@ -32,13 +32,16 @@ pub struct Cut {
     pub axis: usize,
     pub at: f32,
     pub flip: bool,
+    /// The cut's face filled where it crosses the solid: only for a closed model (the viewer
+    /// knows it from the measure of its volume), where the inside is known.
+    pub fill: bool,
 }
 
 impl Cut {
     /// Through the middle of the model, across Z for a model with Z up (a plan, for a building),
     /// otherwise across Y.
     pub fn middle(z_up: bool) -> Cut {
-        Cut { axis: if z_up { 2 } else { 1 }, at: 0.5, flip: false }
+        Cut { axis: if z_up { 2 } else { 1 }, at: 0.5, flip: false, fill: true }
     }
 
     /// The plane in the model's coordinates: its normal and distance; a point `p` with
@@ -217,7 +220,7 @@ fn draw(mesh: &Mesh, view: &View, w: u32, h: u32) -> RgbaImage {
     let turn = |v: [f32; 3]| -> [f32; 3] { std::array::from_fn(|k| apply(&m, v)[k] - origin[k]) };
 
     let plane = view.cut.map(|c| c.plane(mesh));
-    let face = plane.map(|p| Face::new(p, &turn, origin, [cx, cy, focal]));
+    let face = plane.filter(|_| view.cut.is_some_and(|c| c.fill)).map(|p| Face::new(p, &turn, origin, [cx, cy, focal]));
     let bands = (h as usize).div_ceil(BAND);
     let mut binned: Vec<Vec<u32>> = vec![Vec::new(); bands];
     for (i, t) in mesh.tris.iter().enumerate() {
@@ -244,14 +247,14 @@ fn draw(mesh: &Mesh, view: &View, w: u32, h: u32) -> RgbaImage {
         background(pixels, row, y0, h as usize);
         let mut depth = vec![0.0f32; rows * w as usize];
         // With a section, which pixels see the inside of the model through the cut (`Face`).
-        let mut inside = if plane.is_some() { vec![false; rows * w as usize] } else { Vec::new() };
+        let mut inside = if face.is_some() { vec![false; rows * w as usize] } else { Vec::new() };
         for &i in tris {
             let i = i as usize;
             let t = mesh.tris[i].map(|v| screen[v as usize]);
             // With a section, the parts beyond the plane left out pixel by pixel.
             let corners = mesh.tris[i].map(|v| mesh.pos[v as usize]);
             let keep = |k: [f32; 3]| plane.is_none_or(|p| !cut_away(&p, std::array::from_fn(|j| k[0] * corners[0][j] + k[1] * corners[1][j] + k[2] * corners[2][j])));
-            if plane.is_some() {
+            if face.is_some() {
                 cover(&mut inside, w as usize, y0, rows, t, &keep);
             }
             let at = |k: [f32; 3], uv: &[[f32; 2]; 3]| [0, 1].map(|j| k[0] * uv[0][j] + k[1] * uv[1][j] + k[2] * uv[2][j]);
@@ -526,6 +529,9 @@ mod tests {
         let none = View { cut: Some(Cut { at: 0.0, ..Cut::middle(false) }), ..View::default() };
         assert_eq!(lit_pixels(&render(&m, &none, 200, 200, 1)), 0);
         assert!(cut_away(&Cut::middle(false).plane(&m), [0.0, 0.5, 0.0]) && !cut_away(&Cut::middle(false).plane(&m), [0.0, -0.5, 0.0]));
+        // Not filled (a model that is not closed): the inside as it is, without the red.
+        let open = View { cut: Some(Cut { fill: false, ..Cut::middle(false) }), ..View::default() };
+        assert!(!red(centre(&open)));
         // Its faces turned inwards (a file written the wrong way round): the same pictures, the
         // outside never red.
         let inward = model::parse(obj.replace("f 1 4 3 2", "f 2 3 4 1").replace("f 5 6 7 8", "f 8 7 6 5").replace("f 1 2 6 5", "f 5 6 2 1").replace("f 3 4 8 7", "f 7 8 4 3").replace("f 2 3 7 6", "f 6 7 3 2").replace("f 4 1 5 8", "f 8 5 1 4").as_bytes(), "c.obj").unwrap();

@@ -162,6 +162,13 @@ impl App {
         let ppp = ui.ctx().pixels_per_point();
         let size = [(rect.width() * ppp) as u32, (rect.height() * ppp) as u32];
         self.model.size = size;
+        // The cut filled only on a closed model, as the measure of its volume finds it.
+        if self.model.view.cut.is_some() {
+            let closed = self.model_sizes(ui.ctx(), &path, &mesh).is_some_and(|s| s.open_edges == 0);
+            if let Some(c) = &mut self.model.view.cut {
+                c.fill = closed;
+            }
+        }
         let view = self.model.view;
         // Without a graphics card, drawn on the processor (`model_cpu`).
         let id = match self.model.gpu.as_mut() {

@@ -41,14 +41,14 @@ In alto a destra gli assi del file (X rosso, Y verde, Z blu) girano col modello,
 
 ## Sezione
 
-**S** taglia il modello con un piano, per vederci dentro: ciò che sta oltre il piano non si vede, e dove il piano attraversa il solido è riempito di rosso, così pareti e spessori risaltano. Il piano parte dal centro del modello, attraverso Z per un modello con Z in alto (per un edificio IFC, la pianta del piano che attraversa), altrimenti attraverso Y. La barra di stato dice l'asse, dove sta il piano e i tasti:
+**S** taglia il modello con un piano, per vederci dentro: ciò che sta oltre il piano non si vede, e dove il piano attraversa il solido è riempito di rosso, così pareti e spessori risaltano. Il piano parte dal centro del modello, attraverso Z per un modello con Z in alto (per un edificio IFC, la pianta del piano che attraversa), altrimenti attraverso Y. La barra di stato dice l'asse e dove sta il piano, con un cursore che lo sposta; oppure coi tasti:
 
 - **X**, **Y**, **Z**: l'asse che il piano attraversa;
-- **Alt** e la rotellina del mouse, **,** e **.**: spostano il piano;
+- **Alt** e la rotellina del mouse, **,** e **.**, o il cursore nella barra di stato: spostano il piano;
 - **F**: tiene l'altro lato;
 - **S** di nuovo: il modello intero.
 
-**Salva come…** salva il modello con la sua sezione, come si vede. Il riempimento rosso è giusto per i modelli chiusi (come deve essere un modello per la stampa 3D), in qualunque verso siano girati i loro triangoli; dove la superficie di un modello ha dei buchi il riempimento può mancare o uscire dai bordi.
+**Salva come…** salva il modello con la sua sezione, come si vede. Il riempimento rosso c'è solo per i modelli chiusi (ogni spigolo condiviso da due triangoli, come deve essere un modello per la stampa 3D), in qualunque verso siano girati i loro triangoli: un modello con dei buchi nella superficie non ha un interno noto, quindi il suo taglio resta vuoto e la barra di stato lo dice.
 
 ## Cosa si vede
 
