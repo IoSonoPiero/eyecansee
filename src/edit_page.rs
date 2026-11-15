@@ -513,6 +513,7 @@ fn default_style(kind: Kind, long: f32) -> Style {
 }
 
 /// What the buttons of the bars (or their keys) asked for.
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Ask {
     Save,
     SaveAs,
