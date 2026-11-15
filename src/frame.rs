@@ -141,7 +141,22 @@ impl App {
                 None => {
                     self.video = None;
                     let bar = egui::Frame::side_top_panel(ui.style()).fill(theme::solid(ui.visuals()));
-                    egui::Panel::bottom("status").frame(bar).show(ui, |ui| self.status_bar(ui));
+                    // The grid's keys too (issue #150): the button on the right, the rest of the bar
+                    // on its left.
+                    let status = egui::Panel::bottom("status").frame(bar).show(ui, |ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let button = self.keys_button(ui);
+                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| self.status_bar(ui));
+                            button
+                        })
+                        .inner
+                    });
+                    if status.inner.clicked() {
+                        self.keys_open = !self.keys_open;
+                    }
+                    if self.keys_open || status.inner.hovered() {
+                        self.keys_window(ctx, "hint-grid", status.response.rect.height());
+                    }
                     if meta::Group::ALL.into_iter().any(|g| self.meta_shown(g)) {
                         egui::Panel::bottom("meta").show(ui, |ui| self.meta_panel(ui));
                     }

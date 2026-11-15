@@ -278,19 +278,24 @@ impl App {
                 ui.separator();
                 ui.label(date);
             }
-            // On the right, out of the way: the keys, listed when asked. Blue on
-            // white: the bar makes every text white, and the button was white on white.
-            let button = |id: &str| egui::Button::new(egui::RichText::new(self.i18n.t(id)).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
-            let (keys, layers) = (button("keys-button"), button("cad-layers-title"));
+            // On the right, out of the way: the keys, listed when asked, and the drawing's layers.
+            let layers = egui::Button::new(egui::RichText::new(self.i18n.t("cad-layers-title")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
             let layers_on = self.cad_layers_off().is_none();
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                let keys = self.keys_hint(current).map(|_| ui.add(keys));
+                let keys = self.keys_hint(current).map(|_| self.keys_button(ui));
                 let layers = layers_on.then(|| ui.add(layers).on_hover_text(self.i18n.t("key-layers")));
                 [keys, layers]
             })
             .inner
         })
         .inner
+    }
+
+    /// The Keys button of a status bar (viewer, grid). Blue on white: the bar makes every text
+    /// white, and the button was white on white.
+    pub(crate) fn keys_button(&self, ui: &mut Ui) -> egui::Response {
+        let keys = egui::Button::new(egui::RichText::new(self.i18n.t("keys-button")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
+        ui.add(keys)
     }
 
     /// The keys of the viewer, one a row, over its bottom right corner above the status bar

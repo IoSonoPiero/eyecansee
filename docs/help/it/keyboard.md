@@ -1,6 +1,6 @@
 # Scorciatoie da tastiera
 
-Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto a ogni voce, e passando sopra un pulsante della barra strumenti compaiono il nome e il tasto. Nel visore e nell'editor il pulsante **Tasti** a destra nella barra di stato elenca i tasti di ciò che stai guardando.
+Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto a ogni voce, e passando sopra un pulsante della barra strumenti compaiono il nome e il tasto. Nella griglia, nel visore e nell'editor il pulsante **Tasti** a destra nella barra di stato elenca i tasti di ciò che stai guardando.
 
 ## Ovunque
 

@@ -67,4 +67,4 @@ An entry marked with **\*** works only on some of the files chosen (for example 
 
 ## The status bar
 
-At the bottom of the window: how many folders, images, videos and audio files the folder has, and the name, size and date of the selected file (of a folder, its name). With several items selected it shows how many they are and how much their files weigh. After Copy or Cut it reminds you to press Ctrl+V.
+At the bottom of the window: how many folders, images, videos and audio files the folder has, and the name, size and date of the selected file (of a folder, its name). With several items selected it shows how many they are and how much their files weigh. After Copy or Cut it reminds you to press Ctrl+V. On its right, **Keys** lists the keys of the grid while you point at it, or until you click it again (all the keys are in [Keyboard shortcuts](keyboard.md)).
