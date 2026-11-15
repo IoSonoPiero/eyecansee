@@ -78,6 +78,7 @@ mod messages;
 mod meta;
 mod meta_panel;
 mod meta_write;
+mod mwg;
 mod raw_meta;
 mod model;
 mod model_3mf;
