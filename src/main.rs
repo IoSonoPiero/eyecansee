@@ -30,6 +30,8 @@ mod cad_geom;
 mod cad_convert;
 mod cad_hpgl;
 mod cad_image;
+mod cad_layers;
+mod cad_layers_panel;
 mod cad_layout;
 mod cad_shape;
 mod cad_shx;

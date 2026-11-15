@@ -426,8 +426,19 @@ convert-turned = { $turn ->
 }
 model-triangles = { $n } triangles
 # The keys of the viewer, under the status bar.
-hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | ← →: previous, next | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
-hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift+L: next, previous layout | ← →: previous, next file | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
+hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | Ctrl+L: layers | ← →: previous, next | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
+hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift+L: next, previous layout | Ctrl+L: layers | ← →: previous, next file | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
+menu-layers = Layers of the drawing
+key-layers = Ctrl+L
+cad-layers-title = Layers
+cad-layers-close = Close the layers panel (Ctrl+L)
+cad-layers-off = Only for a DWG or DXF drawing open in the viewer, with something drawn on its layers
+cad-layers-count = { $shown } of { $total } shown
+cad-layers-search = Search
+cad-layers-all-on = All on
+cad-layers-all-off = All off
+cad-layers-all-hint = The layers listed: all of them, or those found by the search
+cad-layers-none = No layer with this name
 cad-model = Model
 cad-units = units
 keys-button = Keys
@@ -1502,7 +1513,7 @@ tip-models-title = 3D models and CAD drawings
 tip-models-text =
     3D models (STL, OBJ, glTF, FBX, IFC, STEP and more) and CAD drawings (DWG, DXF) appear in the grid with a picture of them, and open in the viewer.
 
-    Drag or use the arrows to turn a model, the mouse wheel to zoom; a drawing moves with a drag.
+    Drag or use the arrows to turn a model, the mouse wheel to zoom; a drawing moves with a drag, and **Ctrl+L** turns its layers on and off.
 tip-duplicates-title = Find duplicates
 tip-duplicates-text = **Tools > Find duplicates…** (**Ctrl+D**) finds the files that are exactly the same, also under another name or in another folder, on the computer, a disk, a phone or a server. You choose the copies to delete; one always stays.
 tip-trash-title = Deleted by mistake?

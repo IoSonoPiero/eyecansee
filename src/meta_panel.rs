@@ -208,10 +208,10 @@ impl App {
 
     /// Status bar of the viewer, like the grid's: name, position, pixels, size on disk, date
     /// taken (or modified, without EXIF or with the metadata boxes closed).
-    /// `Some`: the Keys button (`keys_window`).
-    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) -> Option<egui::Response> {
+    /// The Keys button (`keys_window`) and, on a CAD drawing with layers, the Layers button.
+    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) -> [Option<egui::Response>; 2] {
         let files = self.files();
-        let f = files.get(current)?;
+        let Some(f) = files.get(current) else { return [None, None] };
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
         ui.horizontal(|ui| {
             self.phone_waiting(ui);
@@ -280,8 +280,15 @@ impl App {
             }
             // On the right, out of the way: the keys, listed when asked. Blue on
             // white: the bar makes every text white, and the button was white on white.
-            let keys = egui::Button::new(egui::RichText::new(self.i18n.t("keys-button")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
-            self.keys_hint(current).map(|_| ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.add(keys)).inner)
+            let button = |id: &str| egui::Button::new(egui::RichText::new(self.i18n.t(id)).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
+            let (keys, layers) = (button("keys-button"), button("cad-layers-title"));
+            let layers_on = self.cad_layers_off().is_none();
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let keys = self.keys_hint(current).map(|_| ui.add(keys));
+                let layers = layers_on.then(|| ui.add(layers).on_hover_text(self.i18n.t("key-layers")));
+                [keys, layers]
+            })
+            .inner
         })
         .inner
     }

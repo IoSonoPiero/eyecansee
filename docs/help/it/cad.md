@@ -6,7 +6,7 @@ I disegni di AutoCAD (**DWG** e **DXF**) e i file per plotter (**HP-GL** e **HP-
 
 ## Guardare un disegno
 
-Fai doppio clic su un disegno, oppure selezionalo e premi **Invio**. Il disegno si vede dall'alto, come nello spazio modello di un programma CAD, sul suo sfondo scuro, con i suoi colori, tipi di linea e spessori. I layer spenti e congelati non si vedono.
+Fai doppio clic su un disegno, oppure selezionalo e premi **Invio**. Il disegno si vede dall'alto, come nello spazio modello di un programma CAD, sul suo sfondo scuro, con i suoi colori, tipi di linea e spessori. I livelli spenti o congelati nel file all'inizio non si vedono (vedi Livelli più sotto).
 
 | Tasto o mouse | Cosa fa |
 |---|---|
@@ -15,6 +15,7 @@ Fai doppio clic su un disegno, oppure selezionalo e premi **Invio**. Il disegno 
 | 0 | Tutto il disegno |
 | →, ← | File successivo, precedente |
 | L, Maiusc+L | Layout successivo, precedente |
+| Ctrl+L | Riquadro dei livelli |
 | Ctrl+Maiusc+S | Salva come immagine |
 | F11 | Schermo intero |
 | Esc, doppio clic | Torna alla griglia |
@@ -24,6 +25,12 @@ Quando la vista si ferma, la parte sullo schermo viene ridisegnata dal disegno, 
 ## Layout
 
 Un disegno con layout (spazio carta) mostra nella barra di stato **Modello** o il nome del layout. **L** passa al layout successivo e **Maiusc+L** a quello prima, ciascuno col suo foglio, il cartiglio e le finestre sul modello.
+
+## Livelli
+
+**Ctrl+L**, il pulsante **Livelli** nella barra di stato o **Visualizza > Livelli del disegno** aprono il riquadro dei livelli a destra di un disegno DWG o DXF. Elenca i livelli su cui c'è qualcosa, ciascuno col suo colore e una casella: togli la spunta a un livello per nasconderlo, rimettila per mostrarlo di nuovo, anche un livello spento o congelato nel file. **Tutti accesi** e **Tutti spenti** valgono per i livelli elencati; con molti livelli scrivi parte di un nome in **Cerca** per elencare solo quelli. Il riquadro dice quanti livelli si vedono.
+
+Un blocco su un livello nascosto si nasconde tutto, anche le sue parti su altri livelli. La scelta vale per il modello e per i layout (i livelli congelati in una finestra di un layout restano nascosti lì) e cambia solo ciò che si vede: il file non cambia. Ogni disegno tiene la sua scelta finché EyeCanSee resta aperto, anche passando ad altri file e tornando. **Salva come…** ed **Esporta disegno…** (immagini e SVG) salvano i disegni con i livelli come si vedono; i disegni di cui non hai toccato i livelli si salvano come li ha il file.
 
 ## La barra di stato
 
@@ -35,7 +42,7 @@ I testi si scrivono con i font SHX del disegno quando i file dei font sono accan
 
 ## Salvare un disegno come immagine o nell'altro formato AutoCAD
 
-- **Ctrl+Maiusc+S** o **Salva come…** (nel menù File o nel menù del clic destro) salva il disegno come immagine: nel visore quello che vedi (il layout mostrato), nella griglia il disegno intero. Vedi [Salva come](save-as.md).
+- **Ctrl+Maiusc+S** o **Salva come…** (nel menù File o nel menù del clic destro) salva il disegno come immagine: nel visore quello che vedi (il layout mostrato, con i livelli visibili), nella griglia il disegno intero. Vedi [Salva come](save-as.md).
 - **File > Esporta disegno…** (anche nel menù del clic destro, nella griglia e nel visore) salva i disegni selezionati nella griglia, o quello nel visore, tutti insieme. Scegli il **formato**: un formato di immagine, **SVG** (nitido a ogni ingrandimento, senza livelli né blocchi), oppure **DWG** / **DXF** (tutto il disegno nell'altro formato AutoCAD, con livelli, blocchi, layout e stili). Per le immagini scegli il **Lato lungo** in pixel: il disegno viene ridisegnato a quella misura, quindi resta nitido anche grande. Poi scegli dove vanno i file, come in [Convertire e ridimensionare le immagini](convert.md), e premi **Esporta**.
 
 Immagini e SVG mostrano lo spazio modello, non i layout. Un disegno salvato come DWG o DXF viene riletto e confrontato con l'originale: se qualcosa andrebbe perso non viene salvato, e il riepilogo alla fine lo dice.

@@ -1,6 +1,6 @@
 //! CAD drawings (DXF, DWG) read with `acadrust` and seen from above as an SVG picture, which
-//! `decode` draws with resvg: the model space with its blocks, layers (hidden ones left out) and
-//! colours, line types and weights, hatch patterns, on the dark background of CAD programs.
+//! `decode` draws with resvg: the model space with its blocks, layers (`cad_layers`: the hidden
+//! ones not drawn) and colours, line types and weights, hatch patterns, on the dark background of CAD programs.
 //! The entities' points are in `cad_shape`, units and sizes in `cad_units`.
 // ponytail: one picture of the whole drawing; zooming in shows its pixels, not new detail
 
@@ -33,7 +33,7 @@ pub fn is_cad(name: &str) -> bool {
 }
 
 /// What is drawn, in drawing units, Y up.
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub enum Item {
     Line { pts: Vec<P>, color: [u8; 3], fill: Option<f32>, stroke: Stroke },
     Text { at: P, height: f64, angle: f64, text: String, color: [u8; 3], anchor: (Anchor, Baseline) },
@@ -77,7 +77,7 @@ pub enum Baseline {
     Hanging,
 }
 
-#[derive(Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct Drawing {
     pub items: Vec<Item>,
     /// The layouts (paper space) with something on them, by name, in their tab order.
@@ -88,6 +88,14 @@ pub struct Drawing {
     /// Width and height AutoCAD stored ($EXTMIN, $EXTMAX), when valid: its own measure, where
     /// ours estimates the texts' width (14% too tall on a plan, 2026-11-02).
     pub(crate) extents: Option<(f64, f64)>,
+    /// The layers of a DWG or DXF (none for a plot), the same list in the model and the layouts.
+    pub layers: Vec<crate::cad_layers::Layer>,
+    /// The sets of layers (`cad_layers::Sets`) and, for each item, the one it is on: its own layer
+    /// and those of the blocks around it. An item without one is always shown.
+    pub(crate) sets: Vec<Vec<u32>>,
+    pub(crate) on: Vec<u32>,
+    /// The box shown when some layers are (`Drawing::with_layers`), in place of what is drawn.
+    pub(crate) frame: Option<[f64; 4]>,
 }
 
 pub fn read(bytes: &[u8], name: &str) -> Result<Drawing, String> {
@@ -105,14 +113,17 @@ pub fn read_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Re
     } else {
         DxfReader::from_reader(Cursor::new(bytes.to_vec())).and_then(|r| r.read()).map_err(|e| e.to_string())?
     };
-    let mut d = Drawing { unit: insunits(doc.header.insertion_units), extents: extents(&doc), ..Default::default() };
+    let (layers, index) = crate::cad_layers::table(&doc);
+    let index = std::rc::Rc::new(index);
+    let mut d = Drawing { unit: insunits(doc.header.insertion_units), extents: extents(&doc), layers: layers.clone(), ..Default::default() };
     let fonts = std::rc::Rc::new(crate::cad_text::fonts(&doc, sibling));
     let mut walk = Walk::new(&doc, &mut d);
     walk.sibling = sibling;
     walk.fonts = fonts.clone();
+    walk.index = index.clone();
     let model: Vec<&EntityType> = doc.model_space_entities().collect();
     let model = if model.is_empty() { unplaced(&doc) } else { model };
-    let top = Context { t: Affine::IDENTITY, layer: None, color: WHITE, style: CONTINUOUS, depth: 0 };
+    let top = Context { t: Affine::IDENTITY, layer: None, color: WHITE, style: CONTINUOUS, depth: 0, set: 0 };
     for e in model {
         walk.entity(e, &top)?;
     }
@@ -120,7 +131,7 @@ pub fn read_with(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> Re
     if d.items.is_empty() {
         return Err("nothing to draw in the model space".into());
     }
-    d.sheets = crate::cad_layout::sheets(&doc, sibling, &fonts);
+    d.sheets = crate::cad_layout::sheets(&doc, sibling, &fonts, (&layers[..], &index));
     Ok(d)
 }
 
@@ -158,6 +169,8 @@ pub(crate) struct Context<'a> {
     pub(crate) color: [u8; 3],
     pub(crate) style: Style<'a>,
     pub(crate) depth: u32,
+    /// The set of layers of the blocks around (`cad_layers::Sets`).
+    pub(crate) set: u32,
 }
 
 /// A line type by name, its scale, and a weight in millimetres.
@@ -182,6 +195,11 @@ pub(crate) struct Walk<'a> {
     infinite: Vec<Infinite>,
     /// The SHX fonts of the text styles (`cad_text::fonts`).
     pub(crate) fonts: std::rc::Rc<std::collections::HashMap<String, crate::cad_text::Font>>,
+    /// The layers by lower-case name (`cad_layers::table`), the sets met so far, and the set of
+    /// the entity being drawn, given to each item it makes.
+    pub(crate) index: std::rc::Rc<std::collections::HashMap<String, u32>>,
+    sets: crate::cad_layers::Sets,
+    set: u32,
 }
 
 /// Where an XLINE or RAY passes, in drawing units, and how it is drawn.
@@ -191,6 +209,7 @@ struct Infinite {
     ray: bool,
     color: [u8; 3],
     stroke: Stroke,
+    set: u32,
 }
 
 pub(crate) fn xy(v: &Vector3) -> P {
@@ -203,21 +222,24 @@ pub(crate) fn n3(v: &Vector3) -> [f64; 3] {
 
 impl<'a> Walk<'a> {
     pub(crate) fn new(doc: &'a CadDocument, out: &'a mut Drawing) -> Self {
-        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default() }
+        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0 }
     }
 
-    /// The layer an entity is drawn on, if visible: layer 0 inside a block takes the insert's.
+    /// An item drawn, on the layers of the entity being drawn.
+    fn put(&mut self, item: Item) {
+        self.out.items.push(item);
+        self.out.on.push(self.set);
+    }
+
+    /// The layer an entity is drawn on, unless frozen in the viewport: layer 0 inside a block
+    /// takes the insert's. Layers off or frozen in the file are drawn and hidden (`cad_layers`).
     fn layer<'b>(&self, e: &'b EntityType, ctx: &Context<'b>) -> Option<&'b str>
     where
         'a: 'b,
     {
         let own = e.common().layer.as_str();
         let name = if own == "0" { ctx.layer.unwrap_or(own) } else { own };
-        match self.doc.layers.get(name) {
-            Some(l) if l.is_frozen() || l.is_off() => None,
-            _ if self.frozen.iter().any(|f| f.eq_ignore_ascii_case(name)) => None,
-            _ => Some(name),
-        }
+        (!self.frozen.iter().any(|f| f.eq_ignore_ascii_case(name))).then_some(name)
     }
 
     fn color(&self, c: &Color, layer: &str, ctx: &Context) -> [u8; 3] {
@@ -278,7 +300,7 @@ impl<'a> Walk<'a> {
             (Some(b), None) => cad_geom::clip_polyline(&pts, b),
         };
         for pts in pieces.into_iter().filter(|p| p.len() >= 2) {
-            self.out.items.push(Item::Line { pts, color, fill, stroke: stroke.clone() });
+            self.put(Item::Line { pts, color, fill, stroke: stroke.clone() });
         }
         Ok(())
     }
@@ -301,15 +323,28 @@ impl<'a> Walk<'a> {
             }
             return;
         }
-        self.out.items.push(Item::Text { at, height, angle, text, color, anchor: l.anchor });
+        self.put(Item::Text { at, height, angle, text, color, anchor: l.anchor });
     }
 
     pub(crate) fn entity(&mut self, e: &EntityType, ctx: &Context) -> Result<(), String> {
-        let common = e.common();
-        if common.invisible {
+        if e.common().invisible {
             return Ok(());
         }
         let Some(layer) = self.layer(e, ctx) else { return Ok(()) };
+        let number = self.index.get(&layer.to_lowercase()).copied();
+        let set = match number {
+            Some(n) => self.sets.with(self.out, ctx.set, n),
+            None => ctx.set,
+        };
+        let outer = std::mem::replace(&mut self.set, set);
+        let r = self.entity_on(e, layer, ctx);
+        self.set = outer;
+        r
+    }
+
+    /// An entity on its `layer`, with `self.set` its layers.
+    fn entity_on(&mut self, e: &EntityType, layer: &str, ctx: &Context) -> Result<(), String> {
+        let common = e.common();
         let color = self.color(&common.color, layer, ctx);
         let style = self.style(common, layer, ctx);
         let t = &ctx.t;
@@ -327,7 +362,7 @@ impl<'a> Walk<'a> {
                 if self.doc.block_records.get(&tb.block_name).is_none() {
                     return self.table_grid(tb, &t.then_inner(&local), color);
                 }
-                let inner = Context { t: t.then_inner(&local), layer: Some(layer), color, style, depth: ctx.depth + 1 };
+                let inner = Context { t: t.then_inner(&local), layer: Some(layer), color, style, depth: ctx.depth + 1, set: self.set };
                 self.block(&tb.block_name, &inner)
             }
             EntityType::Hatch(h) => self.hatch(h, t, color, style.weight),
@@ -347,7 +382,7 @@ impl<'a> Walk<'a> {
                 };
                 let stroke = self.stroke(style, t);
                 let (b, d) = (t.apply(base), t.apply([base[0] + dir[0], base[1] + dir[1]]));
-                let inf = Infinite { base: b, dir: [d[0] - b[0], d[1] - b[1]], ray, color, stroke };
+                let inf = Infinite { base: b, dir: [d[0] - b[0], d[1] - b[1]], ray, color, stroke, set: self.set };
                 // In a viewport its frame is the limit; elsewhere the drawing's size, at the end.
                 match self.clip {
                     Some(c) => self.draw_infinite(&inf, c),
@@ -361,7 +396,7 @@ impl<'a> Walk<'a> {
             EntityType::RasterImage(r) if self.clip.is_none() && let Some(png) = crate::cad_image::picture(self.doc, r, self.sibling) => {
                 let corners = crate::cad_image::corners(r).map(|p| t.apply(p));
                 self.out.points += 4;
-                self.out.items.push(Item::Image { corners, png });
+                self.put(Item::Image { corners, png });
                 Ok(())
             }
             e => match shape(e) {
@@ -389,13 +424,13 @@ impl<'a> Walk<'a> {
                     .then_inner(&Affine::rotate(i.rotation))
                     .then_inner(&Affine::scale(i.x_scale(), i.y_scale()))
                     .then_inner(&Affine::translate(-base[0], -base[1]));
-                let inner = Context { t: ctx.t.then_inner(&ocs).then_inner(&local), layer: Some(layer), color, style, depth: ctx.depth + 1 };
+                let inner = Context { t: ctx.t.then_inner(&ocs).then_inner(&local), layer: Some(layer), color, style, depth: ctx.depth + 1, set: self.set };
                 self.block(&i.block_name, &inner)?;
             }
         }
         // Attributes are already placed in the drawing (only the block's own transform applies).
         for a in i.attributes.iter().filter(|a| !a.flags.invisible && !a.common.invisible) {
-            let color = self.color(&a.common.color, layer, &Context { t: ctx.t, layer: Some(layer), color, style, depth: ctx.depth });
+            let color = self.color(&a.common.color, layer, &Context { t: ctx.t, layer: Some(layer), color, style, depth: ctx.depth, set: self.set });
             let o = ctx.t.then_inner(&Affine::ocs(n3(&a.normal)));
             let l = Label { at: xy(&a.insertion_point), height: a.height, angle: a.rotation, text: a.value.clone(), anchor: (Anchor::Start, Baseline::Alphabetic), style: a.text_style.clone() };
             self.text(&o, l, color);
@@ -423,7 +458,7 @@ impl<'a> Walk<'a> {
     fn dimension(&mut self, d: &Dimension, layer: &str, color: [u8; 3], ctx: &Context) -> Result<(), String> {
         let base = d.base();
         if !base.block_name.is_empty() && self.doc.block_records.get(&base.block_name).is_some() && ctx.depth < MAX_DEPTH {
-            let inner = Context { t: ctx.t, layer: Some(layer), color, style: ctx.style, depth: ctx.depth + 1 };
+            let inner = Context { t: ctx.t, layer: Some(layer), color, style: ctx.style, depth: ctx.depth + 1, set: self.set };
             return self.block(&base.block_name, &inner);
         }
         let text = base.user_text.clone().filter(|t| !t.is_empty() && t != "<>").unwrap_or_else(|| format!("{:.2}", base.actual_measurement));
@@ -529,9 +564,11 @@ impl<'a> Walk<'a> {
         let reach = (b[2] - b[0]).hypot(b[3] - b[1]) + (l.base[0] - (b[0] + b[2]) / 2.0).hypot(l.base[1] - (b[1] + b[3]) / 2.0);
         let from = if l.ray { 0.0 } else { -reach };
         let pts = vec![[l.base[0] + d[0] * from, l.base[1] + d[1] * from], [l.base[0] + d[0] * reach, l.base[1] + d[1] * reach]];
+        let outer = std::mem::replace(&mut self.set, l.set);
         for piece in cad_geom::clip_polyline(&pts, b).into_iter().filter(|p| p.len() >= 2) {
-            self.out.items.push(Item::Line { pts: piece, color: l.color, fill: None, stroke: l.stroke.clone() });
+            self.put(Item::Line { pts: piece, color: l.color, fill: None, stroke: l.stroke.clone() });
         }
+        self.set = outer;
         Ok(())
     }
 
@@ -575,7 +612,7 @@ impl<'a> Walk<'a> {
             return Err(format!("more than {MAX_POINTS} points"));
         }
         if !pts.is_empty() {
-            self.out.items.push(Item::Line { pts, color, fill, stroke });
+            self.put(Item::Line { pts, color, fill, stroke });
         }
         Ok(())
     }

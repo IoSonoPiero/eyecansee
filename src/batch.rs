@@ -145,6 +145,10 @@ pub struct Job {
     pub base: String,
     /// "Export drawing": CAD drawings drawn again (`drawing`), nothing else done.
     pub drawing: Option<Drawn>,
+    /// The layers chosen in the viewer's panel, by drawing; and those of the drawing being done
+    /// (`cad_layers`). The others as their file has them.
+    pub layers: Arc<std::collections::HashMap<String, Vec<bool>>>,
+    pub shown: Option<Vec<bool>>,
     /// Added to the names of the pictures really resized, before the extension (Resize:
     /// `Size::tag`); a picture left at its size keeps its name (`Job::named`).
     pub tag: String,
@@ -164,7 +168,7 @@ pub enum Drawn {
 
 impl Default for Job {
     fn default() -> Self {
-        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None, audio: None, sound: None, base: String::new(), drawing: None, tag: String::new(), tag_turned: String::new() }
+        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None, audio: None, sound: None, base: String::new(), drawing: None, layers: Default::default(), shown: None, tag: String::new(), tag_turned: String::new() }
     }
 }
 
@@ -331,16 +335,24 @@ fn drawing(bytes: &[u8], name: &str, job: &Job, drawn: Drawn, sibling: crate::mo
             };
         }
         Drawn::Svg => {
-            let d = crate::cad::read_with(bytes, name, sibling).map_err(failed)?;
+            let d = shown(crate::cad::read_with(bytes, name, sibling).map_err(failed)?, job);
             return Ok((ext(name, "svg"), d.svg(crate::decode::CAD_SIDE, 1.0).map_err(failed)?.into_bytes()));
         }
         Drawn::Side(side) => side,
     };
-    let d = crate::cad::read_with(bytes, name, sibling).map_err(failed)?;
+    let d = shown(crate::cad::read_with(bytes, name, sibling).map_err(failed)?, job);
     let image = image::DynamicImage::ImageRgba8(crate::decode::cad_render(&d, side, None).map_err(failed)?);
     let format = job.format.unwrap_or(Format::Png);
     let options = Options { format, turn: Turn::default(), ..job.options };
     Ok((with_ext(name, format), encode::Original::with_meta(image, &[]).encode(&options).map_err(failed)?))
+}
+
+/// The drawing with the layers chosen in the viewer, if any.
+fn shown(mut d: crate::cad::Drawing, job: &Job) -> crate::cad::Drawing {
+    if let Some(on) = &job.shown {
+        d.set_layers(on);
+    }
+    d
 }
 
 /// `name` with the extension of `format` in place of its own.
@@ -633,7 +645,8 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
         }
         let r = match op.read(&path).await {
             Ok(bytes) => {
-                let job = job.clone();
+                let mut job = Job::clone(&job);
+                job.shown = job.layers.get(&path).cloned();
                 let sibling = crate::loader::siblings(op.clone(), path.clone());
                 tokio::task::spawn_blocking(move || convert_with(&bytes, &name, &job, &sibling)).await.unwrap_or_else(|e| Err(("batch-failed", e.to_string())))
             }
@@ -1002,5 +1015,20 @@ mod tests {
         let (name, data) = convert(dxf, "plan.dxf", &job).unwrap();
         assert_eq!((name.as_str(), crate::cad::read(&data, "x.dwg").unwrap().items.len()), ("plan.dwg", 1));
         assert_eq!(convert(b"IN;PU0,0;PD100,100;", "p.plt", &job).unwrap_err().0, SKIP_NOT_AUTOCAD);
+    }
+
+    #[test]
+    fn a_drawing_exported_with_the_layers_chosen() {
+        // Layer A red and shown, B green and off in the file: as the file has them, then A
+        // hidden and B shown, as chosen in the viewer.
+        let dxf = crate::cad_layers::tests::DXF.as_bytes();
+        let job = Job { drawing: Some(Drawn::Svg), ..Default::default() };
+        let svg = String::from_utf8(convert(dxf, "l.dxf", &job).unwrap().1).unwrap();
+        assert!(svg.contains("#ff0000") && !svg.contains("#00ff00"));
+        let d = crate::cad::read(dxf, "l.dxf").unwrap();
+        let shown = d.layers.iter().map(|l| l.name != "A").collect();
+        let job = Job { shown: Some(shown), ..job };
+        let svg = String::from_utf8(convert(dxf, "l.dxf", &job).unwrap().1).unwrap();
+        assert!(!svg.contains("#ff0000") && svg.contains("#00ff00"));
     }
 }
