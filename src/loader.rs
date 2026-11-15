@@ -72,6 +72,8 @@ pub enum Msg {
     EditCopy(ColorImage),
     /// The colour the editor's eyedropper took from the screen (`eyedropper::pick`).
     EditPicked(Result<[u8; 3], String>),
+    /// File > Open from clipboard: the image read, or why there is none (`clip_open`).
+    ClipImage(Result<image::RgbaImage, String>),
     /// An image read by the viewer is animated or has several pages: the editor is off for it.
     Animated(String),
     /// The frames or pages of such an image, to play or turn in the viewer (`frames::read`).

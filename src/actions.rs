@@ -36,6 +36,8 @@ pub(crate) enum Act {
     Rename(Option<String>),
     /// File > New image…: the window of its size and background.
     NewImage,
+    /// File > Open from clipboard: an image copied in another program, in the editor.
+    OpenClipboard,
     /// A new folder in the folder open.
     /// In that folder, or in the folder open.
     NewFolder(Option<String>),
@@ -142,6 +144,7 @@ impl Act {
             Act::Rename(_) => Line::Rename,
             Act::NewFolder(_) => Line::NewFolder,
             Act::NewImage => Line::NewImage,
+            Act::OpenClipboard => Line::Paste,
             Act::Convert(_) | Act::ExportModel(..) | Act::ExportDrawings(_) => Line::SaveAs,
             Act::Batch(_) => Line::Batch,
             Act::Duplicates(_) => Line::Duplicates,
@@ -287,6 +290,7 @@ impl App {
             Act::Rename(path) => self.ask_rename(path),
             Act::NewFolder(dir) => self.ask_new_folder(dir),
             Act::NewImage => self.new_image = Some(crate::new_image::Form::new()),
+            Act::OpenClipboard => self.open_clipboard(ctx),
             Act::Convert(path) => self.open_convert(self.save_as_target(path)),
             Act::ExportModel(path) => self.open_model_export(path),
             Act::Duplicates(dir) => self.open_duplicates(dir),

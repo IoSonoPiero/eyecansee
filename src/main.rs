@@ -39,6 +39,7 @@ mod cad_meta;
 mod cad_measure;
 mod cad_shape;
 mod cad_shx;
+mod clip_open;
 mod cad_svg;
 mod cad_text;
 mod cad_units;

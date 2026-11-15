@@ -59,6 +59,7 @@ impl App {
                 Msg::Original(r) if self.editor.is_some() && self.convert.is_none() => self.editor_original(ctx, r),
                 Msg::EditCopy(img) => self.on_edit_copy(ctx, img),
                 Msg::EditPicked(r) => self.on_edit_picked(ctx, r),
+                Msg::ClipImage(r) => self.on_clip_image(ctx, r),
                 Msg::Animated(path) => {
                     self.animated.insert(path);
                 }

@@ -2218,6 +2218,7 @@ name = "eyecansee"
 version = "0.77.0"
 dependencies = [
  "acadrust",
+ "arboard",
  "argon2 0.5.3",
  "base64",
  "bytes",
