@@ -357,7 +357,8 @@ fn with_header(mut meta: Option<Meta>, bytes: &[u8], name: &str) -> Option<Meta>
 pub fn read_file_with(bytes: &[u8], name: &str, sidecar: Option<&crate::sidecar::Sidecar>) -> Option<Meta> {
     let exif = parse(bytes);
     let mut meta = if crate::cad_convert::can_convert(name) { crate::cad_meta::meta(bytes, name) } else { with_header(exif.as_ref().map(from_exif), bytes, name) };
-    let inside = crate::raw_meta::xmp(bytes);
+    // A JPEG's with its extended part (packet scanning would find only one of the two).
+    let inside = crate::meta_write::jpeg_xmp_whole(bytes).or_else(|| crate::raw_meta::xmp(bytes));
     let xmp = match sidecar {
         Some(s) if crate::decode::is_raw(name) => Some(s.xmp.clone()),
         Some(s) => Some(crate::xmp::with_sidecar(inside.as_deref(), &s.xmp)),
