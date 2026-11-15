@@ -312,8 +312,12 @@ pub fn fit_exif(t: &mut [u8], w: u32, h: u32) {
 /// The panel for an image: its EXIF if any, and always what the header says (format, size,
 /// colour). `None` only when neither can be read.
 pub fn read_file(bytes: &[u8], name: &str) -> Option<Meta> {
+    with_header(read(bytes), bytes, name)
+}
+
+/// `meta` (the EXIF's) with what the header of the file says.
+fn with_header(mut meta: Option<Meta>, bytes: &[u8], name: &str) -> Option<Meta> {
     let header = crate::decode::header(bytes, name);
-    let mut meta = read(bytes);
     if meta.is_none() && header.is_none() {
         return None;
     }
@@ -374,27 +378,36 @@ fn color_kind(c: &crate::decode::Color) -> &'static str {
 
 /// `None` if the file has no EXIF (or it cannot be read).
 pub fn read(bytes: &[u8]) -> Option<Meta> {
-    let exif = match lenient(|r| r.read_from_container(&mut Cursor::new(bytes))) {
-        Some(exif) => exif,
+    parse(bytes).map(|exif| from_exif(&exif))
+}
+
+/// The EXIF of a file; `None` if it has none (or it cannot be read).
+fn parse(bytes: &[u8]) -> Option<Exif> {
+    match lenient(|r| r.read_from_container(&mut Cursor::new(bytes))) {
+        Some(exif) => Some(exif),
         // RAW files not built on TIFF: their EXIF as Convert reads it.
         None => {
             let raw = crate::raw_meta::exif(bytes)?;
-            lenient(|r| r.read_raw(raw))?
+            lenient(|r| r.read_raw(raw))
         }
-    };
+    }
+}
+
+/// The panel's fields of an EXIF.
+fn from_exif(exif: &Exif) -> Meta {
     let mut meta = Meta::default();
     for &(group, tag, label) in FIELDS {
         if let Some(f) = exif.get_field(tag, In::PRIMARY) {
-            let value = value(&exif, f);
+            let value = value(exif, f);
             if !value.is_empty() {
                 meta.fields.push((group, label, value));
             }
         }
     }
-    let lat = coord(&exif, Tag::GPSLatitude, Tag::GPSLatitudeRef, 'S');
-    let lon = coord(&exif, Tag::GPSLongitude, Tag::GPSLongitudeRef, 'W');
+    let lat = coord(exif, Tag::GPSLatitude, Tag::GPSLatitudeRef, 'S');
+    let lon = coord(exif, Tag::GPSLongitude, Tag::GPSLongitudeRef, 'W');
     meta.gps = lat.zip(lon);
-    Some(meta)
+    meta
 }
 
 /// Readable value. Texts: only the non-empty parts, without quotes (the POCO X7 Pro writes
