@@ -816,7 +816,7 @@ mod tests {
     }
 
     /// The caption of a JPEG from its EXIF, IPTC and XMP as the MWG guidelines say (`mwg`), and
-    /// from the sidecar of a RAW photo when it has one.
+    /// from its sidecar when that has one; a sidecar without a caption leaves the rules as they are.
     #[test]
     fn caption_from_three_places() {
         use crate::meta_write::{JPEG_PHOTOSHOP, JPEG_XMP, irb_of_iim, resource};
@@ -849,6 +849,7 @@ mod tests {
         assert_eq!(caption(&jpeg(true, &current), Some(&sidecar(&other))).as_deref(), Some("From the sidecar"));
         let without = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmp:Rating="3"/></rdf:RDF></x:xmpmeta>"#;
         assert_eq!(caption(&jpeg(false, &current), Some(&sidecar(without))).as_deref(), Some("From XMP"));
+        assert_eq!(caption(&jpeg(true, &current), Some(&sidecar(without))).as_deref(), Some("From EXIF"));
     }
 
     #[test]

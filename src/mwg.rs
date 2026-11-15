@@ -287,13 +287,14 @@ mod tests {
         let dir = std::env::var("EYECANSEE_MWG").unwrap();
         let mut files: Vec<_> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()).filter(|p| !p.extension().is_some_and(|e| e.eq_ignore_ascii_case("xmp"))).collect();
         files.sort();
-        for p in files {
+        for p in &files {
             let path = p.to_string_lossy().to_string();
+            let raw_beside = files.iter().any(|q| q != p && q.file_stem() == p.file_stem() && crate::decode::is_raw(&q.to_string_lossy()));
             let sidecar = crate::sidecar::names(&path).into_iter().find_map(|name| {
                 let xmp = std::fs::read(&name).ok()?;
-                crate::sidecar::belongs(&path, &name, &xmp).then_some(crate::sidecar::Sidecar { name, xmp })
+                crate::sidecar::belongs(&path, &name, crate::sidecar::sidecar_for(&xmp).as_deref(), raw_beside).then_some(crate::sidecar::Sidecar { name, xmp })
             });
-            let meta = crate::meta::read_file_with(&std::fs::read(&p).unwrap(), &path, sidecar.as_ref());
+            let meta = crate::meta::read_file_with(&std::fs::read(p).unwrap(), &path, sidecar.as_ref());
             let caption = meta.and_then(|m| m.fields.into_iter().find(|(_, l, _)| *l == "meta-xmp-caption").map(|(_, _, v)| v));
             println!("{} | {}", p.file_name().unwrap().to_string_lossy(), caption.unwrap_or_default());
         }
