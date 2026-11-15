@@ -437,10 +437,11 @@ pub(crate) mod tests {
         crate::xmp::tests::iim(&[(80, "Ann")])
     }
 
-    /// The photo's XMP and IPTC fit it: its width, no Camera Raw, the IPTC without thumbnail.
+    /// The photo's XMP and IPTC fit it: its width, Camera Raw marked as applied, the IPTC without
+    /// thumbnail.
     fn fitted(photo: &[u8], w: u32) {
         let xmp = String::from_utf8_lossy(photo).into_owned();
-        assert!(xmp.contains(&format!("exif:PixelXDimension=\"{w}\"")) && !xmp.contains("crs:"), "{xmp}");
+        assert!(xmp.contains(&format!("exif:PixelXDimension=\"{w}\"")) && xmp.contains("crs:AlreadyApplied=\"True\""), "{xmp}");
         let (_, s, e) = segments(photo).into_iter().find(|&(m, ..)| m == 0xED).expect("IPTC kept");
         assert_eq!(&photo[s + 4..e], [crate::meta_write::JPEG_PHOTOSHOP, &crate::meta_write::irb_of_iim(&iim())].concat());
     }
