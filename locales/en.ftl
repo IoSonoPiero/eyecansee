@@ -213,6 +213,8 @@ opt-theme = Colors
 opt-theme-system = Same as the system
 opt-theme-light = Light
 opt-theme-dark = Dark
+opt-smooth = Smooth pictures shown below 100%
+opt-smooth-hint = A picture shown smaller than its own pixels is filtered: edges stay smooth, and fine details (grass, hair, thin lines) do not turn into grain or stripes. In the viewer, the slideshow, the editor and the thumbnails. Off: shown as up to version 0.76, a little sharper but with jagged edges and grain. Above 100% nothing changes.
 
 devices = Devices
 servers = Servers

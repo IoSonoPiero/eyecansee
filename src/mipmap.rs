@@ -8,6 +8,7 @@
 
 use std::ops::Deref;
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 use eframe::egui::{self, ColorImage, TextureHandle, TextureId, TextureOptions};
 use rayon::prelude::*;
@@ -65,6 +66,19 @@ pub(crate) fn picture_halves(img: &ColorImage) -> Vec<ColorImage> {
     halves(img, SMALLEST_PICTURE)
 }
 
+/// Options > Look > Smooth pictures shown below 100% (#151), set at every frame (`set_smooth`):
+/// off, every picture is drawn from itself by the card's linear filter, as up to 0.76.2. The
+/// copies are still made, so that turning it on shows them at once.
+static SMOOTH: AtomicBool = AtomicBool::new(true);
+
+pub(crate) fn set_smooth(on: bool) {
+    SMOOTH.store(on, Ordering::Relaxed);
+}
+
+pub(crate) fn smooth() -> bool {
+    SMOOTH.load(Ordering::Relaxed)
+}
+
 /// Which copy to draw at `scale` screen pixels per pixel of the picture (0 the picture itself,
 /// `copies` at most): the smallest one still at least as large as on the screen.
 pub(crate) fn level(scale: f32, copies: usize) -> usize {
@@ -101,6 +115,9 @@ impl Picture {
 
     /// The copy for `scale` screen pixels per pixel of the picture.
     pub(crate) fn texture_at(&self, scale: f32) -> &TextureHandle {
+        if !smooth() {
+            return &self.tex;
+        }
         match level(scale, self.halves.len()) {
             0 => &self.tex,
             l => &self.halves[l - 1],

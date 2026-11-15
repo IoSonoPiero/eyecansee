@@ -252,6 +252,8 @@ fn look_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
     ui.radio_value(&mut s.theme, ThemeChoice::System, t("opt-theme-system"));
     ui.radio_value(&mut s.theme, ThemeChoice::Light, t("opt-theme-light"));
     ui.radio_value(&mut s.theme, ThemeChoice::Dark, t("opt-theme-dark"));
+    ui.add_space(6.0);
+    ui.checkbox(&mut s.smooth, t("opt-smooth")).on_hover_text(t("opt-smooth-hint"));
 }
 
 fn viewer_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {

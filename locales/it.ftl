@@ -212,6 +212,8 @@ opt-theme = Colori
 opt-theme-system = Come il sistema
 opt-theme-light = Chiari
 opt-theme-dark = Scuri
+opt-smooth = Ammorbidisci le immagini mostrate sotto il 100%
+opt-smooth-hint = Un'immagine mostrata più piccola dei suoi pixel viene filtrata: i bordi restano lisci e i dettagli fini (erba, capelli, righe sottili) non diventano grana o strisce. Nel visore, nel carosello, nell'editor e nelle miniature. Spenta: come fino alla versione 0.76, un po' più nitida ma con scalini e grana. Sopra il 100% non cambia nulla.
 
 devices = Dispositivi
 servers = Server

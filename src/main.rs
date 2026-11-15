@@ -604,6 +604,8 @@ impl eframe::App for App {
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.pace(frame);
         smooth_gpu::new_frame();
+        // Options > Look: applied at once, wherever pictures are drawn.
+        mipmap::set_smooth(self.settings.smooth);
         let ctx = ui.ctx().clone();
         #[cfg(feature = "shots")]
         self.shots_tick(&ctx);

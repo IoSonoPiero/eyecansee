@@ -22,6 +22,7 @@ Ogni modifica viene salvata subito in `settings.json`: in `~/.config/eyecansee` 
 ## Aspetto
 
 - **Colori**: **Come il sistema** (chiari o scuri come il sistema, e lo seguono quando cambia), **Chiari** o **Scuri**. La modifica vale subito.
+- **Ammorbidisci le immagini mostrate sotto il 100%** (accesa): un'immagine mostrata più piccola dei suoi pixel viene filtrata, così i bordi restano lisci e i dettagli fini (erba, capelli, righe sottili) non diventano grana o strisce; nel visore, nel carosello, nell'editor e nelle miniature. Spenta, le immagini si vedono come fino alla versione 0.76, un po' più nitide ma con scalini e grana. Sopra il 100% non cambia nulla. La modifica vale subito.
 
 ## Visore
 

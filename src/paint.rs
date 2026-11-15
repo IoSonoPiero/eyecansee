@@ -43,6 +43,7 @@ pub fn paint_tinted(painter: &egui::Painter, tex: &Picture, dest: egui::Rect, uv
     let corners = [(dest.left_top(), uv.left_top()), (dest.right_top(), uv.right_top()), (dest.right_bottom(), uv.right_bottom()), (dest.left_bottom(), uv.left_bottom())];
     let corners = corners.map(|(pos, shown)| (pos, turn.source_uv(shown)));
     if scale < 1.0
+        && crate::mipmap::smooth()
         && let Some((id, corners)) = filtered(tex, scale, ppp, dest, corners, turn)
     {
         quad(painter, id, corners, tint);
