@@ -1,0 +1,7 @@
+# Tip "Slideshow" (docs/tips/): the slideshow of the Holiday folder, from Sunset.
+open /home/demo/Pictures/Holiday
+width 1000
+2 select Sunset.jpg
+3 act slideshow
+6 shot
+6.5 end

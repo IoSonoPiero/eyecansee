@@ -1,4 +1,4 @@
-What the pictures of the illustrated manual (docs/help/img/*.webp) show. They are taken by
+What the pictures of the illustrated guide (docs/help/img/*.webp) show. They are taken by
 EyeCanSee itself (tools/shots.sh, the scenes in this folder) in a home folder made for them
 (/home/demo), 1200 x 800 points, dark theme, English. Made up for the pictures: the servers
 (example.com), the USB stick "USB STICK" and the external disk "BACKUP" (folders in memory that

@@ -1,13 +1,45 @@
 //! The controls of the properties bar for the kinds of object with more than colour, width and
 //! opacity: the bubble's shape and letters, the lens's shape and zoom, the stamp's icon, the
-//! outline and the box of a text.
+//! outline and the box of a text. And how a label with its slider stays whole on the bar.
 
 use eframe::egui;
 
-use super::tools::colours;
+use super::style_bar::colours;
 use crate::edit::doc::{Back, Stamp, Style};
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
+
+/// A label and its slider on a wrapped bar, kept together on one row: a slider is a group of its
+/// own, which the row does not move to the next line, so at the end of a narrow row it was cut at
+/// the right edge ("Opacity 100 %" of a text in a 900 px window). The group goes to the next row
+/// when the width it had in the last pass does not fit; measured for the first time, the pass is
+/// drawn again, so it is never shown cut. `salt`: which slider of the bar it is; `label` may be
+/// empty.
+pub(super) fn slider(ui: &mut egui::Ui, salt: &str, label: String, slider: egui::Slider) -> egui::Response {
+    let id = ui.scope_id().with(("bar-slider", salt));
+    let last = ui.data(|d| d.get_temp::<f32>(id));
+    let row_start = ui.cursor().min.x <= ui.max_rect().min.x + 0.5;
+    if let Some(width) = last
+        && !row_start
+        && ui.available_size_before_wrap().x < width
+    {
+        ui.end_row();
+    }
+    let r = ui.horizontal(|ui| {
+        if !label.is_empty() {
+            ui.label(label);
+        }
+        // Clamped only when the user changes it: by default egui rounds and clamps the value
+        // each time it is drawn, so a width or angle with a fraction changed by itself.
+        ui.add(slider.clamping(egui::SliderClamping::Edits))
+    });
+    let width = r.response.rect.width();
+    ui.data_mut(|d| d.insert_temp(id, width));
+    if last.is_none() {
+        ui.ctx().request_discard("a slider of the bar measured");
+    }
+    r.inner
+}
 
 /// A lens: round or square, how many times it magnifies.
 pub(super) fn lens(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
@@ -31,10 +63,9 @@ pub(super) fn lens(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
 /// (`style.width` for a text), so they grow with them.
 pub(super) fn text_look(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
     let size = style.width.max(1.0);
-    let px = |ui: &mut egui::Ui, label: String, frac: &mut f32, lo: f32, hi: f32| {
-        ui.label(label);
+    let px = |ui: &mut egui::Ui, (salt, label): (&str, &str), frac: &mut f32, lo: f32, hi: f32| {
         let mut v = *frac * size;
-        ui.add(egui::Slider::new(&mut v, lo..=hi.max(lo + 1.0)).integer().suffix(" px"));
+        slider(ui, salt, i18n.t(label), egui::Slider::new(&mut v, lo..=hi.max(lo + 1.0)).integer().suffix(" px"));
         *frac = v / size;
     };
     ui.separator();
@@ -43,7 +74,7 @@ pub(super) fn text_look(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
     }
     if let Some((colour, width)) = &mut style.outline {
         colours(ui, colour, i18n);
-        px(ui, i18n.t("edit-width"), width, 1.0, size / 3.0);
+        px(ui, ("edit-outline", "edit-width"), width, 1.0, size / 3.0);
     }
     ui.separator();
     if ui.add(egui::Button::new(i18n.t("edit-text-back")).selected(style.back.is_some())).on_hover_text(i18n.t("edit-text-back-hint")).clicked() {
@@ -51,12 +82,11 @@ pub(super) fn text_look(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
     }
     if let Some(back) = &mut style.back {
         colours(ui, &mut back.color, i18n);
-        ui.label(i18n.t("edit-opacity"));
         let mut pct = back.opacity * 100.0;
-        ui.add(egui::Slider::new(&mut pct, 5.0..=100.0).integer().suffix(" %"));
+        slider(ui, "edit-text-back", i18n.t("edit-opacity"), egui::Slider::new(&mut pct, 5.0..=100.0).integer().suffix(" %"));
         back.opacity = pct / 100.0;
-        px(ui, i18n.t("edit-margin"), &mut back.margin, 0.0, size);
-        px(ui, i18n.t("edit-corners"), &mut back.radius, 0.0, size);
+        px(ui, ("edit-margin", "edit-margin"), &mut back.margin, 0.0, size);
+        px(ui, ("edit-corners", "edit-corners"), &mut back.radius, 0.0, size);
     }
 }
 
@@ -109,5 +139,27 @@ pub(super) fn bubble(ui: &mut egui::Ui, style: &mut Style, long: f32, i18n: &I18
     ui.separator();
     ui.label(i18n.t("edit-letters"));
     colours(ui, &mut style.ink, i18n);
-    ui.add(egui::Slider::new(&mut style.letters, 4.0..=(long / 4.0).max(100.0)).integer().suffix(" px"));
+    slider(ui, "edit-letters", String::new(), egui::Slider::new(&mut style.letters, 4.0..=(long / 4.0).max(100.0)).integer().suffix(" px"));
+}
+
+#[cfg(test)]
+mod tests {
+    use eframe::egui;
+
+    /// A value with a fraction (a width from the remembered styles, an angle on a straightened
+    /// image) stays as it is when its whole-number slider is drawn: rounded and written back, the
+    /// object changed by itself and each Undo made a step of its own (the pasted piece, 2026-11-14).
+    #[test]
+    fn drawing_keeps_a_fraction() {
+        let ctx = egui::Context::default();
+        let mut v = 2.37_f32;
+        for _ in 0..3 {
+            ctx.run_ui(Default::default(), |ui| {
+                super::slider(ui, "t", String::new(), egui::Slider::new(&mut v, 0.0..=10.0).integer());
+            })
+            .textures_delta
+            .clear();
+        }
+        assert_eq!(v, 2.37);
+    }
 }

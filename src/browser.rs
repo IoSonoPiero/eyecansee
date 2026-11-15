@@ -1,12 +1,14 @@
 //! Browse mode, the parts shared by the tree (`tree`), the grid (`grid`) and the metadata panel
 //! (`meta_panel`): right-click menus, error text, selection colour and focus frame.
 
-use crate::audio_job::AudioJob;
+use std::cell::Cell;
+
 use eframe::egui::{self, Color32, Ui};
 
+use crate::audio_job::AudioJob;
 use crate::actions::Act;
 use crate::App;
-use crate::selection::{Kind, PLAYED, THUMBED, fits, starred};
+use crate::selection::{CONVERTED, Kind, META_COPIED, PLAYED, SAVED_AS, THUMBED, fits, starred, why_none};
 use crate::source;
 
 /// Selection colour: full in the part receiving the keyboard, faint in the other, so the two
@@ -70,7 +72,11 @@ impl App {
             // The root of a drive, in the tree: it cannot be cut or renamed, but a folder can be
             // made in it (not in the storages of a phone).
             if path.as_deref() == Some("") && self.can_make_folder_in("") {
-                items.push(Some((self.i18n.t("menu-new-folder-in"), String::new(), Act::NewFolder(path))));
+                items.push(Some((self.i18n.t("menu-new-folder-in"), String::new(), Act::NewFolder(path.clone()))));
+            }
+            // It, or a storage of a phone, can be a bookmark all the same.
+            if let Some(dir) = path.filter(|p| p.is_empty() || p.ends_with('/')) {
+                items.extend([None, self.bookmark_entry(&dir, false)]);
             }
             return items;
         };
@@ -107,19 +113,26 @@ impl App {
         if !copied && self.can_paste(target) {
             items.push(Some((t("menu-paste-into"), String::new(), Act::Paste(Some(target.to_string())))));
         }
+        // Bookmarks, then Tools, as in the menu bar.
         items.push(None);
+        items.push(self.bookmark_entry(target, self.chosen(path.clone()).len() > 1));
         items.push(Some((t("menu-duplicates"), String::new(), Act::Duplicates(Some(target.to_string())))));
         items.extend(self.rename_delete(path));
         items
     }
 
     /// Transform: flips and turns (in the viewer shown until saved, in the grid saved straight
-    /// away), then Rotate and crop; "*" when `all` the files chosen are not pictures.
-    fn turn_menu(&self, path: Option<String>, in_viewer: bool, all: bool) -> MenuItem {
+    /// away), then Rotate and crop.
+    fn turn_items(&self, path: Option<String>) -> Vec<MenuItem> {
         let t = |id| self.i18n.t(id);
         let mut turns = Vec::new();
         for (op, label, keys) in crate::actions::transform_items() {
-            turns.push(Some((t(label), if in_viewer { keys.map(t).unwrap_or_default() } else { String::new() }, Act::Transform(op, path.clone()))));
+            // Ctrl+R and Ctrl+Shift+R work in the grid too (`turn_keys`).
+            let act = match self.turn_op_off(op) {
+                Some(why) if path.as_deref().is_none_or(|p| !crate::decode::is_image(p)) => Act::Off(why),
+                _ => Act::Transform(op, path.clone()),
+            };
+            turns.push(Some((t(label), keys.map(t).unwrap_or_default(), act)));
             if op == crate::transform::Op::FlipV {
                 turns.push(None);
             }
@@ -128,62 +141,85 @@ impl App {
         // One image at a time: with several marked it would open on one and leave the others.
         let rotate = match self.edit_off(path.clone()) {
             Some(why) => Act::Off(why),
-            None => Act::RotateCrop(path.clone()),
+            None => Act::RotateCrop(path),
         };
         turns.push(Some((t("menu-rotate-crop"), String::new(), rotate)));
-        Some((crate::selection::starred(t("menu-transform"), all), String::new(), Act::Submenu(turns)))
+        turns
+    }
+
+    /// An entry that works on some kinds of file, always in its place: greyed out with why when
+    /// `act` is (`Act::Off`) or when none of the `files` is of its `kinds` (`why_none`); "*" when only some
+    /// are, which sets `partial` for the line at the bottom of the menu.
+    pub(crate) fn kind_entry(&self, files: &[String], partial: &Cell<bool>, kinds: &[Kind], label: &str, keys: String, act: Act) -> MenuItem {
+        let why = why_none(label, kinds);
+        let label = self.i18n.t(label);
+        Some(match (fits(files, kinds), act) {
+            (_, off @ Act::Off(_)) => (label, keys, off),
+            (None, _) => (label, keys, Act::Off(self.i18n.t(why))),
+            (Some(all), act) => {
+                partial.set(partial.get() | !all);
+                (starred(label, all), keys, act)
+            }
+        })
+    }
+
+    /// The entries of Tools that work on files of some kinds, in the Tools menu and in the
+    /// right-click menu of a file of the grid. `off`: why none of them can start now (in the
+    /// viewer, or a conversion already under way).
+    pub(crate) fn tool_items(&self, path: Option<String>, off: Option<String>, partial: &Cell<bool>) -> Vec<MenuItem> {
+        let files = self.grid_chosen(path.clone());
+        let entry = |kinds: &[Kind], label: &str, keys: String, act: Act| self.kind_entry(&files, partial, kinds, label, keys, off.clone().map_or(act, Act::Off));
+        vec![
+            entry(CONVERTED, "menu-batch", self.i18n.t("key-batch"), Act::Batch(path.clone())),
+            entry(&[Kind::Picture], "menu-resize", String::new(), Act::Submenu(self.resize_items(path.clone()))),
+            entry(META_COPIED, "menu-copy-meta", String::new(), Act::CopyMeta(path.clone())),
+            entry(&[Kind::Video], "menu-strip-audio", String::new(), Act::Audio(AudioJob::Strip, path.clone())),
+            entry(&[Kind::Video], "menu-extract-audio", String::new(), Act::Audio(AudioJob::Extract, path)),
+        ]
     }
 
     /// After Open (or Back to the grid), in the order of the menu bar: View (slideshow,
-    /// thumbnails), Image and saving, Tools, Edit, then rename and the deletions apart. Each entry
-    /// shown when some of the files chosen are of a kind it works on (`selection::Kind`), with
-    /// "*" when not all of them are, and a line at the bottom that says what "*" means.
+    /// thumbnails), Image and saving, Tools, Edit, then rename and the deletions apart. The entries
+    /// for some kinds of file (`selection::Kind`) are always there (`kind_entry`), with a line at
+    /// the bottom that says what "*" means.
     fn file_items(&self, path: Option<String>, in_viewer: bool) -> Vec<MenuItem> {
         let t = |id| self.i18n.t(id);
         let files = self.files_chosen(path.clone());
-        let one = files.len() <= 1;
-        let partial = std::cell::Cell::new(false);
-        let mut items = Vec::new();
-        let add = |items: &mut Vec<MenuItem>, kinds: &[Kind], label: &str, keys: String, act: Act| {
-            if let Some(all) = fits(&files, kinds) {
-                partial.set(partial.get() | !all);
-                items.push(Some((starred(self.i18n.t(label), all), keys, act)));
-            }
-        };
+        let partial = Cell::new(false);
+        let entry = |kinds: &[Kind], label: &str, keys: String, act: Act| self.kind_entry(&files, &partial, kinds, label, keys, act);
         // A 3D model or a CAD drawing: no slideshow (looked at closely, not in passing); the
         // slideshow stays in View for the whole folder.
-        add(&mut items, PLAYED, "menu-slideshow", String::new(), Act::Slideshow(path.clone()));
-        add(&mut items, THUMBED, "menu-redo-thumbs", String::new(), Act::RedoThumbs(path.clone()));
-        items.push(None);
-        if let Some(all) = fits(&files, &[Kind::Picture]) {
-            partial.set(partial.get() | !all);
-            let edit = match self.edit_off(path.clone()) {
-                Some(why) => Act::Off(why),
-                None => Act::Edit(path.clone()),
-            };
-            items.push(Some((starred(t("menu-edit-image"), all), if in_viewer { t("key-edit") } else { String::new() }, edit)));
-            items.push(self.turn_menu(path.clone(), in_viewer, all));
+        let mut items = vec![
+            entry(PLAYED, "menu-slideshow", String::new(), Act::Slideshow(path.clone())),
+            entry(THUMBED, "menu-redo-thumbs", String::new(), Act::RedoThumbs(path.clone())),
+            None,
+        ];
+        let edit = match self.edit_off(path.clone()) {
+            Some(why) => Act::Off(why),
+            None => Act::Edit(path.clone()),
+        };
+        // Ctrl+E works in the grid too (`global_keys`).
+        items.push(entry(&[Kind::Picture], "menu-edit-image", t("key-edit"), edit));
+        // With every entry inside greyed out (an AVI), Transform is greyed out itself, with their reason.
+        let turns = self.turn_items(path.clone());
+        items.push(entry(&[Kind::Picture, Kind::Video], "menu-transform", String::new(), all_off(&turns).map_or(Act::Submenu(turns), Act::Off)));
+        // In the viewer always there, as in File: greyed out with why when there is nothing to save.
+        if in_viewer {
+            items.push(Some((t("menu-save"), t("key-save"), self.save_off().map_or(Act::Save, Act::Off))));
         }
-        if in_viewer && self.can_save() {
-            items.push(Some((t("menu-save"), t("key-save"), Act::Save)));
-        }
-        // One file: a picture, or in the viewer what is shown (a 3D model from its side, the
-        // layout of a drawing open). In the grid a drawing is exported, a model saved as a model.
-        let save_as: &[Kind] = if in_viewer { &[Kind::Picture, Kind::Model, Kind::Drawing] } else { &[Kind::Picture] };
-        if one {
-            add(&mut items, save_as, "menu-save-copy", String::new(), Act::Convert(path.clone()));
-        }
-        if let Some(all) = fits(&files, &[Kind::Model]) {
-            partial.set(partial.get() | !all);
-            let kinds = crate::model_export::Kind::ALL.iter().map(|&k| Some((k.label().to_string(), String::new(), Act::ExportModel(path.clone(), k)))).collect();
-            items.push(Some((starred(t("menu-export-3d"), all), String::new(), Act::Submenu(kinds))));
-        }
-        if !in_viewer && self.batch.is_none() {
-            add(&mut items, PLAYED, "menu-batch", String::new(), Act::Batch(path.clone()));
-            add(&mut items, &[Kind::Drawing], "menu-export-drawings", String::new(), Act::ExportDrawings(path.clone()));
-            add(&mut items, &[Kind::Video], "menu-copy-meta", String::new(), Act::CopyMeta(path.clone()));
-            add(&mut items, &[Kind::Video], "menu-strip-audio", String::new(), Act::Audio(AudioJob::Strip, path.clone()));
-            add(&mut items, &[Kind::Video], "menu-extract-audio", String::new(), Act::Audio(AudioJob::Extract, path.clone()));
+        // One file: a picture, or a picture of a 3D model (in the viewer from the side shown) or of
+        // a CAD drawing (in the viewer the layout open).
+        let save_as = SAVED_AS;
+        // One of them: with more the entry is off (with none, `kind_entry` says why).
+        let saved = files.iter().filter(|p| save_as.contains(&crate::selection::kind(p))).count();
+        let convert = if saved > 1 { Act::Off(t("tb-off-one-picture")) } else { Act::Convert(path.clone()) };
+        items.push(entry(save_as, "menu-save-copy", if in_viewer { t("key-save-copy") } else { String::new() }, convert));
+        // The two exports, each with its window, in the grid and in the viewer (issue #128).
+        items.push(entry(&[Kind::Model], "menu-export-3d", String::new(), Act::ExportModel(path.clone())));
+        let drawings = self.drawings_off(Some(true)).map_or(Act::ExportDrawings(path.clone()), Act::Off);
+        items.push(entry(&[Kind::Drawing], "menu-export-drawings", String::new(), drawings));
+        if !in_viewer {
+            items.extend(self.tool_items(path.clone(), self.tools_off(), &partial));
         }
         items.push(None);
         items.push(Some((t("menu-cut"), t("key-cut"), Act::Cut(path.clone()))));
@@ -192,8 +228,6 @@ impl App {
         if partial.get() {
             items.extend([None, Some((t("menu-partial"), String::new(), Act::Off(t("menu-partial-hint"))))]);
         }
-        // A separator after nothing (an audio file: no slideshow, no thumbnail) shown once.
-        items.dedup_by(|a, b| a.is_none() && b.is_none());
         items
     }
 
@@ -215,6 +249,33 @@ impl App {
     }
 }
 
+/// Why a submenu is greyed out: all its entries are, and the first says why; `None` when one is on.
+pub(crate) fn all_off(items: &[MenuItem]) -> Option<String> {
+    let mut acts = items.iter().flatten().map(|(_, _, act)| act);
+    let why = match acts.next()? {
+        Act::Off(why) => why.clone(),
+        _ => return None,
+    };
+    acts.all(|a| matches!(a, Act::Off(_))).then_some(why)
+}
+
 pub(crate) fn error_text(ui: &Ui, text: impl Into<String>) -> egui::RichText {
     egui::RichText::new(text).color(ui.visuals().error_fg_color)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Transform on an AVI: every entry greyed out, so the submenu too, with the first reason.
+    #[test]
+    fn a_submenu_all_greyed_out_is_greyed_out() {
+        let off = |why: &str| Some((String::new(), String::new(), Act::Off(why.into())));
+        let on = Some((String::new(), String::new(), Act::Back));
+        assert_eq!(all_off(&[off("a"), None, off("b")]), Some("a".to_string()));
+        assert_eq!(all_off(&[off("a"), None, on.clone()]), None);
+        assert_eq!(all_off(&[on, off("a")]), None);
+        assert_eq!(all_off(&[None]), None);
+        assert_eq!(all_off(&[]), None);
+    }
 }

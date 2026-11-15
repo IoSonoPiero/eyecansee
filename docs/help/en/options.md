@@ -4,7 +4,7 @@ The options change how EyeCanSee starts, looks, moves between images, deletes, s
 
 ## Opening the options
 
-Choose **Tools > Options…** (![Options…](icon://settings)). The window is divided into tabs: **General**, **Look**, **Browsing**, **Thumbnails**, **Deleting**, **Slideshow**, **Video** and **Editor**. Pointing at many options shows a short explanation.
+Choose **Tools > Options…** (![Options…](icon://settings)). The window is divided into tabs: **General**, **Look**, **Viewer**, **Slideshow**, **Video**, **Editor**, **Resize**, **Deleting** and **Thumbnails**, in a column on the left. Pointing at many options shows a short explanation.
 
 Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Linux and in `%APPDATA%\eyecansee` on Windows. It is a text file you can also edit by hand.
 
@@ -13,33 +13,22 @@ Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Li
 ## General
 
 - **Reopen the last folder at startup** (on): when EyeCanSee starts without a folder, for example from the applications menu, it opens the folder you were looking at when you closed it. If that folder no longer exists, or its disk or phone is not connected, it opens your home folder. A saved server opens with its saved password; an FTP server with a user that is not saved opens **File > Open location…** with everything filled in except the password.
-- **Window at startup**: **Normal size**, **Maximized** (fills the screen, leaving the system bars visible) or **Size it had when closed** (if it was maximized, it reopens maximized).
+- **Remember the scroll position of each folder** (off): going back to a folder you already viewed, the grid starts where you left it. It lasts until EyeCanSee is closed.
+- **Show a tip at startup** (on): once a day, when EyeCanSee starts, a window shows one thing it can do (see [Getting started](start.md)). It turns off also from **Don't show at startup** in that window.
+- **Window at startup**: **Normal size**, **Maximized** (fills the screen, leaving the system bars visible) or **Size it had when closed** (if it was maximized, it reopens maximized). On Windows a window that is not maximized opens centred in the free area of its screen, above the taskbar, and smaller if it would not fit.
 - **Language**: **Same as the system** (English if the system's language is not available) or one of the languages listed, each shown by its own name. The change applies at once, this guide included.
-- **Check for updates at startup** (on): see [Updates](updates.md). Not shown in the Flatpak, which is updated by its own; in the copy from the Microsoft Store it asks the Store.
+- **Check for updates at startup** (on): see [Updates](updates.md). Not shown in the Flatpak and in the Fedora package, which the system updates; in the copy from the Microsoft Store it asks the Store.
 
 ## Look
 
 - **Colors**: **Same as the system** (light or dark as the system, and it follows it when it changes), **Light** or **Dark**. The change applies at once.
 
-## Browsing
+## Viewer
 
-- **Remember the scroll position of each folder** (off): going back to a folder you already viewed, the grid starts where you left it. It lasts until EyeCanSee is closed.
-- **In the viewer, after the last image start again from the first** (off): and from the first image, going back shows the last one. When off, the viewer stops at the first and the last image.
-- **In the viewer, the window's ✕ goes back to the grid** (on): the ✕ at the top right does as Esc. When off, the ✕ closes EyeCanSee from the viewer too.
+- **After the last image start again from the first** (off): and from the first image, going back shows the last one. When off, the viewer stops at the first and the last image.
+- **The window's ✕ goes back to the grid** (on): the ✕ at the top right does as Esc, one step at a time: first it closes the editor, then the viewer, then EyeCanSee. When off, the ✕ closes EyeCanSee also from the viewer and the editor; with changes not saved it asks once whether to save them.
 - **Mouse wheel in the viewer**: **Zooms in and out** (the default) or **Shows the next or previous image**. Holding Ctrl, the wheel always zooms.
-- **Largest zoom in the viewer** (2000% at first): how far the wheel and **+** can enlarge an image.
-
-## Thumbnails
-
-- **Clean up the thumbnail cache** (off): once per session, for each location you open, removes the thumbnails of deleted images and makes again those of changed images; then removes the least recently used thumbnails until the cache is within **Cache limit** (1024 MB at first). Folders that cannot be found or reached are skipped, so a disconnected disk or a switched-off NAS keeps its thumbnails.
-- **Empty the thumbnail cache…**: deletes all the saved thumbnails, after a confirmation saying how many and how much space is freed. Your images are not touched: the thumbnails of the open folder are made again at once, the others when you open their folder.
-
-## Deleting
-
-- **Delete files on this computer for good, without the trash (dangerous)** (off): deleted files cannot be recovered.
-- **Deleting on phones and servers (they have no trash)**: **Move to the hidden .EyeCanSee-trash folder next to the image** (the default) or **Delete for good**.
-
-See [Deleting and the trash](delete.md).
+- **Largest zoom in the viewer** (2000% at first): how far the wheel and **+** can enlarge an image, in percent of its pixels (for an SVG drawing smaller than 2048 pixels, of the 2048 pixels it is drawn at).
 
 ## Slideshow
 
@@ -65,3 +54,22 @@ The tab also shows which ones are in use now, with their versions. A change appl
 - **After saving**: what happens after **Save copy**, **Update copy** or **Overwrite the original…**. **Stay in the editor** (the default): the editor stays open to go on editing. **Go back to where you were (thumbnails or viewer)**: the editor closes as soon as the file is written; opened from the grid, the grid selects the saved image, opened from the viewer, the viewer shows it. **Go back to the thumbnails**: the editor closes and you are always back in the thumbnails with the saved image selected, also when you opened it from the viewer.
 
 See [Saving an edited image](editor-save.md).
+
+## Resize
+
+The sizes of **Resize**, in the right-click menu of the thumbnails and in **Tools** (see [Converting and resizing images](convert.md)). At first **Small** (long side 1280 px), **Medium** (long side 1920 px), **Large** (long side 2560 px) and **Half** (50%).
+
+Each row is one size: its **Name** (it can stay empty: the menu then shows only the size), the kind (**Percent of the original**, **Inside**, **Long side**, **Short side**, **Width**, **Height**, **Exactly, cropped in the middle**, **Exactly, stretched**) and the pixels or the percent. ![Remove](icon://x) removes it, **Add** adds one, **Back to the first ones** puts back the four sizes you started with. Until you change them, their names follow the language of EyeCanSee.
+
+## Deleting
+
+- **Delete files on this computer for good, without the trash (dangerous)** (off): deleted files cannot be recovered.
+- **Deleting on phones and servers (they have no trash)**: **Move to the hidden .EyeCanSee-trash folder next to the image** (the default) or **Delete for good**.
+
+See [Deleting and the trash](delete.md).
+
+## Thumbnails
+
+- **Under the thumbnails**: what is written under each thumbnail. **Name**, **Dimensions in pixels**, **Size**, **Date** and **Duration**, all ticked at first. Dimensions and size go on one row ("1920 × 1080 · 350 KB"), the date and the duration of videos and audio files on the row below; with small thumbnails only the name stays. The date is when the photo was taken, if the file says so, otherwise when the file was modified: with the mouse over it, a tip says which one ("Taken on…" or "Modified on…"). Dimensions and date taken are read from each photo with its thumbnail and kept with it, so they come at once the next time, also from phones and servers. The dimensions, date recorded and duration of a video or an audio file are read once, as the File box reads them, and kept the same way; the tip over its date says "Recorded on…".
+- **Clean up the thumbnail cache** (off): once per session, for each location you open, removes the thumbnails of deleted images and makes again those of changed images; then removes the least recently used thumbnails until the cache is within **Cache limit** (1024 MB at first). Folders that cannot be found or reached are skipped, so a disconnected disk or a switched-off NAS keeps its thumbnails.
+- **Empty the thumbnail cache…**: deletes all the saved thumbnails, after a confirmation saying how many and how much space is freed. Your images are not touched: the thumbnails of the open folder are made again at once, the others when you open their folder.

@@ -95,8 +95,9 @@ pub enum Shape {
     /// Solid box over private data: nothing under it is left in the saved file.
     Cover(Area),
     /// A piece of image (copied or cut with Selection, or pasted from another program) stretched
-    /// over `area`.
-    Patch { area: Area, pixels: Pixels },
+    /// over `area`, its pixels mirrored left to right in the box's own axes when `mirrored`. The
+    /// pixels stay those pasted: turns, flips and sizes change only the box (`edit::patch`).
+    Patch { area: Area, pixels: Pixels, mirrored: bool },
     /// A filter on the part of the photo under `area` (all of it for the whole image), under the
     /// objects drawn; `amount` as `Filter::amount` says.
     Filter { area: Area, filter: crate::edit::filter::Filter, amount: f32, preview: Preview },
@@ -275,7 +276,7 @@ stamps! {
 }
 
 impl Stamp {
-    /// How many are on the bar (user, 2026-11-06: the seven of the start stay in view, the
+    /// How many are on the bar (the seven of the start stay in view, the
     /// others are a click away).
     pub const SHOWN: usize = 7;
 }
@@ -455,14 +456,24 @@ impl Obj {
             *a = a.turned(op);
         }
         match &mut shape {
-            // The picture in the box turns (or flips) as the image did.
-            Shape::Patch { pixels, .. } => *pixels = pixels.turned(op),
+            // The picture in the box turns (or flips) as the image did; seen through its mirror a
+            // quarter turn goes the other way.
+            Shape::Patch { pixels, mirrored, .. } => *pixels = pixels.turned(if *mirrored { through_mirror(op) } else { op }),
             // Made again for the photo under it.
             Shape::Filter { preview, .. } | Shape::Lens { preview, .. } | Shape::Highlight { preview, .. } => *preview = Preview::default(),
             Shape::Text { rot, .. } => *rot = text_turned(*rot, op),
             _ => {}
         }
         Obj { shape, style: self.style }
+    }
+}
+
+/// What `op` does to pixels seen through a mirror (left to right): quarter turns the other way.
+fn through_mirror(op: Op) -> Op {
+    match op {
+        Op::Cw => Op::Ccw,
+        Op::Ccw => Op::Cw,
+        op => op,
     }
 }
 
@@ -474,12 +485,15 @@ pub struct Doc {
     pub crop: Crop,
     pub fill: Option<[u8; 3]>,
     pub objects: Vec<Obj>,
+    /// Resize (#114): the photo resampled to this size; `None`: the original's pixels. Everything
+    /// above is in pixels of that photo.
+    pub scale: Option<super::resize::Scale>,
 }
 
 impl Doc {
     /// Nothing changed yet on an upright image of `w` × `h` pixels: the crop is all of it.
     pub fn new(w: u32, h: u32, fill: Option<[u8; 3]>) -> Doc {
-        Doc { turn: Turn::default(), angle: 0.0, crop: Crop::centred(w as f32, h as f32), fill, objects: Vec::new() }
+        Doc { turn: Turn::default(), angle: 0.0, crop: Crop::centred(w as f32, h as f32), fill, objects: Vec::new(), scale: None }
     }
 
     /// The flips, quarter turns, angle and crop, as "Rotate and crop" applies them to the pixels.
@@ -515,13 +529,29 @@ impl Doc {
             let q = self.source(Pt::new(a.centre.x + x * c - y * s, a.centre.y + x * s + y * c));
             let (px, py) = (q.x + iw / 2.0, q.y + ih / 2.0);
             // Blended from the four pixels around (bilinear): taken one by one, the letters of a
-            // text under a highlighter came out jagged (user, 2026-11-06).
+            // text under a highlighter came out jagged.
             if px >= 0.0 && py >= 0.0 && px < iw && py < ih {
                 image::imageops::interpolate_bilinear(img, (px - 0.5).clamp(0.0, iw - 1.0), (py - 0.5).clamp(0.0, ih - 1.0)).unwrap_or_else(|| img.get_pixel(px as u32, py as u32))
             } else {
                 image::Rgba([0; 4])
             }
         })
+    }
+
+    /// The box `a` on whole pixels of a photo of `w` × `h`: its sides on the pixels' edges, so the
+    /// part a Selection copies is the photo's pixels as they are (a drag ends between pixels, and
+    /// the part came out resampled, a little soft). An upright box only: a tilted one has no
+    /// whole pixels to keep.
+    pub fn on_pixels(&self, a: Area, (w, h): (u32, u32)) -> Area {
+        if a.rot != 0.0 {
+            return a;
+        }
+        // The box is on the image after the quarter turns: one of them swaps its sides.
+        let (fw, fh) = if self.turn.parts().1 % 2 == 1 { (h as f32, w as f32) } else { (w as f32, h as f32) };
+        let (aw, ah) = (a.w.round().max(1.0), a.h.round().max(1.0));
+        let left = (a.centre.x - a.w / 2.0 + fw / 2.0).round();
+        let top = (a.centre.y - a.h / 2.0 + fh / 2.0).round();
+        Area { centre: Pt::new(left + aw / 2.0 - fw / 2.0, top + ah / 2.0 - fh / 2.0), w: aw, h: ah, rot: 0.0 }
     }
 
     /// The number of the next step: one more than the highest there is.

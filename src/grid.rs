@@ -13,6 +13,8 @@ use crate::source;
 
 /// Thumbnail rows loaded right after the visible ones, above and below.
 const MARGIN_ROWS: usize = 3;
+/// The height of a row of text under the thumbnails (the name, the line of details).
+const LINE: f32 = 18.0;
 
 /// Thumbnails kept in memory, in a window around the visible ones: beyond it, when scrolling, the
 /// distant ones are reloaded from disk and disappear for a moment. At most 256×256 RGBA, so
@@ -65,7 +67,10 @@ impl App {
         let mut scroll = egui::style::ScrollStyle::solid();
         scroll.bar_width = 10.0;
         let side = self.thumb_size;
-        let cell = vec2(side + 16.0, side + 32.0);
+        // A row more when both the name and the line of details are shown (#139): always, so the
+        // grid does not move when the details arrive.
+        let rows_under = self.detail_rows().count();
+        let cell = vec2(side + 16.0, side + 32.0 + rows_under.saturating_sub(1) as f32 * LINE);
         let cols = (((ui.available_width() - scroll.allocated_width()) / cell.x).floor() as usize).max(1);
         let rows = total.div_ceil(cols);
 
@@ -363,12 +368,24 @@ impl App {
         let mut response = ui.interact(rect, ui.scope_id().with(("cell", i)), Sense::click());
         // Not under a confirmation: the name popping up next to it looked like a highlighted item.
         // A file shows its details (the name under it is often cut, issue #89), a folder its name.
+        let rows = self.detail_rows();
+        let side = self.thumb_size;
+        let label_top = rect.min.y + 6.0 + side + 7.0;
+        // Each row in its place in every cell (#139): the name, dimensions and size, the date.
+        let row_rect = |k: usize| Rect::from_min_size(pos2(rect.min.x + 4.0, label_top + k as f32 * LINE), vec2(rect.width() - 8.0, 18.0));
+        let measures_rect = row_rect(usize::from(rows.name));
+        let date_rect = row_rect(usize::from(rows.name) + usize::from(rows.measures));
+        let (measures, date) = match i.checked_sub(ndirs).and_then(|f| self.files().get(f)) {
+            Some(file) if rows.measures || rows.date => self.details_of(file),
+            _ => (None, None),
+        };
         if !self.asking() {
-            response = match i.checked_sub(ndirs) {
-                Some(file) => response.on_hover_ui(|ui| {
-                    ui.label(self.file_tooltip(file));
-                }),
-                None => response.on_hover_text(&name),
+            // Over the date: which date it is (#139), instead of the file's details.
+            let date_tip = date.as_ref().filter(|_| rows.date && ui.rect_contains_pointer(date_rect)).and_then(|(_, tip)| tip.clone());
+            response = match (i.checked_sub(ndirs), date_tip) {
+                (_, Some(tip)) => response.on_hover_text(tip),
+                (Some(file), None) => response.on_hover_ui(|ui| self.file_tooltip(ui, file)),
+                (None, None) => response.on_hover_text(&name),
             };
         }
         let painter = ui.painter_at(rect);
@@ -386,7 +403,6 @@ impl App {
         } else if response.hovered() {
             painter.rect_filled(rect.shrink(2.0), 6.0, visuals.widgets.hovered.weak_bg_fill);
         }
-        let side = self.thumb_size;
         // Centred: cells widen to fill the row.
         let thumb_rect = Rect::from_min_size(pos2(rect.center().x - side / 2.0, rect.min.y + 6.0), vec2(side, side));
         let accent = crate::theme::accent(visuals);
@@ -396,14 +412,23 @@ impl App {
             self.image_tile(&painter, visuals, thumb_rect, i - ndirs, selected, active);
         }
         self.clip_badge(&painter, visuals, thumb_rect, &path);
-        let label_rect = Rect::from_min_size(pos2(rect.min.x + 4.0, thumb_rect.max.y + 7.0), vec2(rect.width() - 8.0, 18.0));
+        let label_rect = row_rect(0);
         // Image names brighter than folder names (they used to be all grey on grey).
         let color = if i < ndirs { visuals.text_color() } else { visuals.text_color().lerp_to_gamma(visuals.strong_text_color(), 0.6) };
+        let weak = visuals.weak_text_color();
         let mut text = egui::RichText::new(name).color(color);
         if selected && i >= ndirs {
             text = text.color(accent).strong();
         }
-        ui.put(label_rect, Label::new(text).truncate().selectable(false));
+        // Folders keep their name even with the name off: they have no details.
+        if rows.name || i < ndirs {
+            ui.put(label_rect, Label::new(text).truncate().selectable(false));
+        }
+        for (shown, text, at) in [(rows.measures, measures, measures_rect), (rows.date, date.map(|(t, _)| t), date_rect)] {
+            if let Some(text) = text.filter(|_| shown) {
+                ui.put(at, Label::new(egui::RichText::new(text).color(weak)).truncate().selectable(false));
+            }
+        }
 
         self.cell_clicks(ui, &response, i, &path);
         response.double_clicked()
@@ -447,16 +472,17 @@ impl App {
                     _ => {}
                 }
             }
+            // Waiting for an engine to download (#71): the file's sign with the download badge
+            // beside it, for an audio file too. The warning is kept for files that are damaged or
+            // not supported (2026-11-08).
+            Some(Err(e)) if let Some(icon) = engine_sign(e, self.files().get(file).map_or("", |f| f.path.as_str())) => {
+                let sign = Rect::from_center_size(thumb_rect.center(), vec2(side * 0.45, side * 0.45));
+                icons::paint(painter, icon, sign);
+                icons::paint(painter, Icon::Download, Rect::from_min_size(sign.right_bottom() - vec2(side * 0.08, side * 0.14), vec2(side * 0.18, side * 0.18)));
+            }
             // An audio file without a cover has no picture: a note in place of the warning.
             Some(Err(_)) if self.files().get(file).is_some_and(|f| crate::decode::is_audio(&f.path)) => {
                 icons::paint(painter, Icon::Audio, Rect::from_center_size(thumb_rect.center(), vec2(side * 0.45, side * 0.45)));
-            }
-            // Waiting for an engine to download (#71): the file's sign with the download badge
-            // beside it. The warning is kept for files that are damaged or not supported (2026-11-08).
-            Some(Err(e)) if e == crate::video_read::NO_ENGINE || e == crate::occt::MISSING => {
-                let sign = Rect::from_center_size(thumb_rect.center(), vec2(side * 0.45, side * 0.45));
-                icons::paint(painter, if e == crate::occt::MISSING { Icon::Model } else { Icon::Video }, sign);
-                icons::paint(painter, Icon::Download, Rect::from_min_size(sign.right_bottom() - vec2(side * 0.08, side * 0.14), vec2(side * 0.18, side * 0.18)));
             }
             Some(Err(_)) => {
                 painter.text(thumb_rect.center(), Align2::CENTER_CENTER, "⚠", FontId::proportional(side * 0.3), dim);
@@ -622,10 +648,14 @@ impl App {
     /// rows, then all the others in the folder from top to bottom (saved to disk only).
     /// `up`: 1 if the grid starts with the ".." cell.
     pub(crate) fn prefetch_thumbs(&mut self, rows: std::ops::Range<usize>, cols: usize, up: usize, ndirs: usize, nfiles: usize) {
-        let (Some(loader), Some(Ok(listing))) = (&self.loader, self.listings.get(&self.dir)) else { return };
+        if self.loader.is_none() || !matches!(self.listings.get(&self.dir), Some(Ok(_))) {
+            return;
+        }
         let to_file = |cell: usize| cell.saturating_sub(up + ndirs).min(nfiles);
         let visible = to_file(rows.start * cols)..to_file(rows.end * cols);
         let near = to_file(rows.start.saturating_sub(MARGIN_ROWS) * cols)..to_file((rows.end + MARGIN_ROWS) * cols);
+        self.ask_infos(visible.clone());
+        let (Some(loader), Some(Ok(listing))) = (&self.loader, self.listings.get(&self.dir)) else { return };
         let end = (visible.start.saturating_sub(MAX_THUMBS / 2) + MAX_THUMBS).min(nfiles);
         let keep = end.saturating_sub(MAX_THUMBS)..end;
         self.thumbs.retain(|i, _| keep.contains(i));
@@ -641,6 +671,20 @@ impl App {
         });
         loader.set_thumb_queue(self.generation, order.into_iter().map(|i| (i, listing.files[i].clone())).collect());
         self.thumb_queue_key = Some(key);
+    }
+}
+
+/// The sign of a file whose thumbnail waits for an engine to download: the model for the CAD
+/// engine, the note for an audio file and the film for a video without the video engine.
+fn engine_sign(error: &str, path: &str) -> Option<Icon> {
+    if error == crate::occt::MISSING {
+        Some(Icon::Model)
+    } else if error != crate::video_read::NO_ENGINE {
+        None
+    } else if crate::decode::is_audio(path) {
+        Some(Icon::Audio)
+    } else {
+        Some(Icon::Video)
     }
 }
 
@@ -665,7 +709,17 @@ fn thumb_order(
 
 #[cfg(test)]
 mod tests {
-    use super::thumb_order;
+    use super::{engine_sign, thumb_order};
+    use crate::icons::Icon;
+
+    #[test]
+    fn engine_sign_audio() {
+        // An audio file without the video engine: the note with the download arrow, as a video.
+        assert_eq!(engine_sign(crate::video_read::NO_ENGINE, "a/song.mp3"), Some(Icon::Audio));
+        assert_eq!(engine_sign(crate::video_read::NO_ENGINE, "a/clip.mp4"), Some(Icon::Video));
+        assert_eq!(engine_sign(crate::occt::MISSING, "a/part.step"), Some(Icon::Model));
+        assert_eq!(engine_sign("damaged", "a/song.mp3"), None);
+    }
 
     #[test]
     pub(crate) fn order() {

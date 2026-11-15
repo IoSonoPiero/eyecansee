@@ -66,11 +66,7 @@ pub fn extract_args(input: &str, files: &[String]) -> Vec<String> {
 /// The codecs of the audio tracks, in their order, from what `ffmpeg -i` writes
 /// ("Stream #0:1(und): Audio: aac (LC) (mp4a / 0x6134706D), …").
 pub fn audio_codecs(text: &str) -> Vec<String> {
-    text.lines()
-        .filter(|l| l.trim_start().starts_with("Stream #0:"))
-        .filter_map(|l| l.split_once(": Audio: "))
-        .map(|(_, rest)| rest.split(|c: char| !(c.is_ascii_alphanumeric() || c == '_')).next().unwrap_or_default().to_string())
-        .collect()
+    crate::video_copy::codecs(text, "Audio")
 }
 
 /// The extension of a file holding one track of `codec` as it is.

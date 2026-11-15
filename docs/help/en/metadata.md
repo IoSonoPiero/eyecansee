@@ -16,7 +16,7 @@ A box shows "No data" when the file has nothing for it, and "This file contains 
 
 ## Videos
 
-For a video the panel shows, when the file has them: make and model of the phone or camera (and the Android version), date and time of recording, length, frame rate, size, video and audio format, bit rate, and the place where the video was taken. Some dashcams keep their GPS track in a file beside the videos: then the panel shows where the video starts, the altitude, and the average and top speed during the video. See [Playing videos](video.md).
+For a video the panel shows, when the file has them: make and model of the phone or camera (and the Android version), date and time of recording, length, frame rate, size, video and audio format, bit rate, and the place where the video was taken. Some dashcams keep their GPS track in a file beside the videos: then the panel shows where the video starts, the altitude, and the average and top speed during the video. See [Playing videos](video.md). These details are read by the video engine, for audio files too: without it the panel shows only the File box and, beside it, a note that says so and how to download it, see [Add-on components](components.md).
 
 ## Showing and hiding the boxes
 
@@ -30,4 +30,4 @@ EyeCanSee remembers which boxes are open and whether the panel is collapsed.
 
 - The panel follows the selected file in the grid; it is not shown in the viewer. The viewer's status bar shows the date taken once the metadata have been read in the grid (see [Viewing images](viewer.md)).
 - To read the metadata EyeCanSee reads the file again, so on a phone or a server it takes a moment. Once read, it is kept with the thumbnails and shows at once the next time, until the file changes.
-- When you convert or save a picture, its metadata is kept in the new file where the format allows it. See [Saving in another format](save-as.md).
+- When you convert or save a picture, its metadata, the resolution (dpi) included, is kept in the new file where the format allows it. See [Save as](save-as.md).

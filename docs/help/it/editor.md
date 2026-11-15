@@ -10,11 +10,11 @@ L'editor è una pagina a sé dove disegni su un'immagine, copri i dati privati, 
 - **Immagine > Ruota e ritaglia…** apre la stessa pagina con lo strumento del ritaglio già scelto. Vedi [Ritagliare e ruotare](editor-crop.md).
 - **File > Nuova immagine…** (Ctrl+N) apre un'immagine vuota nell'editor. Vedi [Nuova immagine](new-image.md).
 
-L'editor lavora su un'immagine alla volta. Con più immagini selezionate queste voci sono spente; per girare più immagini insieme usa [Ruotare e riflettere](rotate.md) o [Convertire e ridimensionare le immagini](convert.md). Sono spente anche per un'immagine animata o con più pagine, perché si salverebbe solo la prima.
+L'editor lavora su un'immagine alla volta. Con più immagini selezionate queste voci sono spente; per girare più immagini insieme usa [Ruotare e riflettere](rotate.md) o [Convertire e ridimensionare le immagini](convert.md). Sono spente anche per un'immagine animata o con più pagine, nella griglia come nel visore, perché si salverebbe solo la prima.
 
 ## La pagina
 
-- **Barra degli strumenti** (in alto): un pulsante per strumento, poi ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square), ![Filtri](icon://wand-sparkles), ![Annulla](icon://undo-2) e ![Ripeti](icon://redo-2). A destra: ![Copia](icon://copy), ![Chiudi](icon://x) e **Salva copia** (o **Sovrascrivi l'originale…**, se scelto nelle [Opzioni](options.md)) con la sua freccia ![Altri modi di salvare](icon://chevron-down). Lo strumento in uso è evidenziato. Passando sopra un pulsante vedi il nome e il tasto; su un pulsante spento anche il perché.
+- **Barra degli strumenti** (in alto): un pulsante per strumento, poi ![Ruota di 90° in senso antiorario](icon://rotate-ccw-square) e ![Ruota di 90° in senso orario](icon://rotate-cw-square), ![Ridimensiona](icon://scaling), ![Filtri](icon://wand-sparkles), ![Annulla](icon://undo-2) e ![Ripeti](icon://redo-2). A destra: ![Copia](icon://copy), ![Chiudi](icon://x) e **Salva copia** (o **Sovrascrivi…**, cioè Sovrascrivi l'originale…, se scelto nelle [Opzioni](options.md)) con la sua freccia ![Altri modi di salvare](icon://chevron-down). Lo strumento in uso è evidenziato. Passando sopra un pulsante vedi il nome e il tasto; su un pulsante spento anche il perché.
 - **Barra delle proprietà** (sotto gli strumenti): lo stile dell'oggetto selezionato, o del prossimo che lo strumento disegnerà. Con lo strumento del ritaglio contiene i comandi del ritaglio. Vedi [Colori, linee e contagocce](editor-colors.md).
 - **Barra di stato** (in basso): il nome del file, la misura del risultato in pixel, un breve suggerimento sullo strumento, l'ingrandimento e il pulsante **Tasti**.
 
@@ -47,7 +47,7 @@ Tutto ciò che disegni resta un oggetto a sé fino al salvataggio: puoi spostarl
 
 1. Scegli ![Seleziona](icon://mouse-pointer-2) **Seleziona** (V).
 2. Fai clic su un oggetto per selezionarlo. La barra delle proprietà mostra il suo stile: cambialo lì.
-3. Trascina l'oggetto per spostarlo. Trascina un angolo o un capo per ridimensionarlo; tieni premuto Maiusc per mantenere le proporzioni di un riquadro.
+3. Trascina l'oggetto per spostarlo. Trascina un angolo o un capo per ridimensionarlo; tieni premuto Maiusc per mantenere le proporzioni di un riquadro. Un pezzo incollato mantiene le proporzioni senza Maiusc, e Maiusc le libera; ha anche una maniglia tonda per ruotarlo (vedi [Selezionare un'area](editor-marquee.md)).
 4. Premi **Canc**, o fai clic su ![Elimina](icon://trash) nella barra delle proprietà, per toglierlo.
 
 Da sapere:
@@ -57,12 +57,30 @@ Da sapere:
 - Una forma, una linea o un fumetto disegnati tutti sulla zona scura intorno all'immagine non restano: resta solo ciò che arriva sull'immagine.
 - Un rettangolo o un'ellisse senza riempimento si prende dal bordo, non dall'interno vuoto.
 - Filtri, evidenziatori e riflettori stanno sotto gli altri oggetti: un clic li prende solo dove non c'è nient'altro.
-- Gli oggetti stanno uno sopra l'altro nell'ordine in cui li disegni.
+- Gli oggetti stanno uno sopra l'altro nell'ordine in cui li disegni. Un pezzo incollato si può portare in primo piano o dietro.
 - Cambiare strumento deseleziona l'oggetto (tranne quando scegli Seleziona).
 
 ## Annullare e ripetere
 
 ![Annulla](icon://undo-2) **Annulla** (Ctrl+Z) e ![Ripeti](icon://redo-2) **Ripeti** (Ctrl+Y o Ctrl+Maiusc+Z) vanno avanti e indietro tra tutte le modifiche, rotazione e ritaglio compresi. Mentre scrivi in un campo di testo, Ctrl+Z annulla ciò che hai scritto in quel campo.
+
+## Ridimensionare l'immagine
+
+![Ridimensiona](icon://scaling) **Ridimensiona** (Ctrl+Alt+I) cambia la dimensione dell'immagine, per esempio per rimpicciolire una schermata annotata da mettere in un documento.
+
+1. Fai clic su ![Ridimensiona](icon://scaling) **Ridimensiona**. La finestra mostra la dimensione attuale del risultato.
+2. Scrivi la nuova larghezza o altezza, in **pixel** o **per cento** della dimensione attuale. Con **Mantieni le proporzioni** acceso (come all'inizio), l'altro lato segue.
+3. Scegli il **Filtro**, se vuoi: Lanczos (il più nitido) per rimpicciolire, Catmull-Rom per ingrandire, a meno che tu ne scelga un altro. **Pixel più vicino** tiene i bordi netti della pixel art.
+4. Fai clic su **Ridimensiona** (o Invio).
+
+Ciò che hai disegnato segue l'immagine: frecce, riquadri, testi e gli spessori delle linee crescono o calano con lei, e così il ritaglio. Poi gli strumenti lavorano in pixel della nuova dimensione.
+
+Buono a sapersi:
+
+- **Annulla** (Ctrl+Z) riporta l'immagine alla dimensione che aveva, in un passo. Ridimensionare di nuovo riparte sempre dall'originale, così l'immagine non perde qualità due volte.
+- Con l'immagine ruotata di un angolo (vedi [Ritagliare e ruotare](editor-crop.md)) le proporzioni restano quelle: con altre verrebbe storta.
+- La nuova dimensione va nei metadati del file salvato; il resto dei metadati resta. Una foto Ultra HDR resta HDR.
+- Al massimo 20000 pixel per lato. Per ridimensionare molte immagini insieme usa [Convertire e ridimensionare le immagini](convert.md).
 
 ## Muoversi nell'immagine
 
@@ -77,11 +95,12 @@ Il pulsante **Tasti** nella barra di stato elenca i tasti e i movimenti del mous
 
 - **Ctrl+C** (o ![Copia](icon://copy) **Copia**) mette negli appunti tutto il risultato, a piena grandezza, da incollare in un altro programma. Con Selezione copia solo la zona scelta.
 - **Ctrl+R** e **Ctrl+Maiusc+R** girano l'immagine di un quarto a destra o a sinistra.
+- **Ctrl+Alt+I** apre Ridimensiona.
 - **Esc** fa una cosa alla volta: ferma il contagocce o un trascinamento, finisce il testo che stai scrivendo, lascia la zona o l'oggetto selezionati. Quando non c'è più niente da fermare, chiude la pagina.
 
 ## Chiudere
 
-![Chiudi](icon://x) **Chiudi**, la ✕ della finestra o Esc chiudono la pagina. Con modifiche non salvate EyeCanSee chiede prima se **Salva…** (il salvataggio principale: una copia, come Salva copia, a meno che nelle Opzioni sia scelto Sovrascrivi; la pagina si chiude appena il file è scritto), **Salva come…** o **Non salvare**; **Annulla** torna alla pagina. Vedi [Salvare un'immagine modificata](editor-save.md).
+![Chiudi](icon://x) **Chiudi**, la ✕ della finestra o Esc chiudono la pagina. Con modifiche non salvate EyeCanSee chiede prima se **Salva…** (il salvataggio principale: una copia, come Salva copia, a meno che nelle Opzioni sia scelto Sovrascrivi; la pagina si chiude appena il file è scritto), **Salva come…** o **Non salvare**; **Annulla** torna alla pagina. Vedi [Salvare un'immagine modificata](editor-save.md). Con **La X della finestra torna alla griglia** spenta nelle [Opzioni](options.md), la ✕ della finestra chiude anche EyeCanSee, dopo la stessa domanda.
 
 ## Telefoni e server
 

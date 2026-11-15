@@ -60,8 +60,11 @@ impl App {
             thumbs: HashMap::new(),
             thumb_keep: 0..0,
             generated: HashSet::new(),
+            thumb_infos: HashMap::new(),
+            info_asked: HashSet::new(),
             thumb_queue_key: None,
             full: HashMap::new(),
+            own_sizes: HashMap::new(),
             model: Default::default(),
             zoom: None,
             zoom_of: None,
@@ -83,6 +86,7 @@ impl App {
             saved_servers: servers::load(),
             last_dirs: HashMap::new(),
             status_note: None,
+            held_open: None,
             note_until: None,
             stall_notice: None,
             open_address: None,
@@ -97,6 +101,7 @@ impl App {
             kept: Vec::new(),
             title: String::new(),
             help: help::Guide::default(),
+            tip: None,
             about: false,
             clip: None,
             paste_to: None,
@@ -104,6 +109,7 @@ impl App {
             transfer: None,
             touched_at: 0.0,
             quit_after_transfer: false,
+            quit_after_editor: None,
             deleting: 0,
             about_icon: None,
             settings,
@@ -116,8 +122,11 @@ impl App {
             update: None,
             update_note: None,
             convert: None,
+            save_as_format: None,
             editor: None,
             animated: Default::default(),
+            frames: Default::default(),
+            motion: Default::default(),
             duplicates: None,
             batch: None,
             batch_form: None,
@@ -129,6 +138,8 @@ impl App {
             rename: None,
             new_folder: None,
             new_image: None,
+            model_export: None,
+            model_export_kind: crate::model_export::Kind::Stl,
             select_after: None,
             restore_queue: Default::default(),
             restore_busy: false,
@@ -151,6 +162,7 @@ impl App {
         }
         let home = std::env::home_dir().map_or(".".into(), |h| h.to_string_lossy().into_owned());
         let last = app.settings.last_location.clone().filter(|_| app.settings.remember_location);
+        app.tip_at_start(arg.is_some());
         match (arg, last) {
             (Some(arg), _) => {
                 app.open_outside(ctx, &arg);

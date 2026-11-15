@@ -1,7 +1,7 @@
 //! A connection that stopped answering, told from a slow one (#75): a request fails with
 //! `Timeout` only when nothing at all has come back on its connection for `SILENCE`. A long queue
 //! of reads on a slow link goes on as long as answers keep coming; a link whose data stopped
-//! arriving (Windows to a Synology through Tailscale) is left after `SILENCE`, not after
+//! arriving (Windows to a NAS through a VPN) is left after `SILENCE`, not after
 //! russh-sftp's 60 s per request, and the request is tried again on a new connection.
 
 use std::sync::OnceLock;

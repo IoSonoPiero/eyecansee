@@ -9,15 +9,16 @@ with no disks.
 
 devices.png: the 13 photos below in the folder Photos of a test FTP server on the same computer,
 saved as "NAS" (nas.example, user "demo"); in the left panel a POCO X7 Pro and a second
-saved server "Storage Box" (storage.example), not opened. servers.png: the server manager with
-these two example servers and a master password. rotate.png: Wilderness.jpg. Server names, hosts
-and users are made up for the screenshots. video-convert.png (1600 x 800): 9 of the photos and the 4
-videos below in a folder on disk, sorted by date, the videos selected.
+saved server "Storage Box" (storage.example), not opened. rotate.png: Wilderness.jpg. Server
+names, hosts and users are made up for the screenshots. video-convert.png (1600 x 800): 9 of the
+photos and the 4 videos below in a folder on disk, sorted by date, the videos selected.
 
-guide.webp, bookmarks.webp (1200 x 800) and the site's guide, guide-search, bookmarks and
-open-location (.png 1200 x 800, .webp 800 x 533): made with tools/shots.sh, scenes in
-tools/shots/site/. Dark theme, English. The home folder (/home/demo), the disks BACKUP and USB STICK
-and the servers (photos.example.com, media.example.com, user "demo") are made up for the pictures.
+guide.webp, bookmarks.webp, servers.png (1200 x 800) and the site's guide, guide-search,
+bookmarks and open-location (.png 1200 x 800, .webp 800 x 533): made with tools/shots.sh, scenes in
+tools/shots/site/; servers.png is the server manager with the two made-up servers and a master
+password, converted to PNG with ImageMagick. Dark theme, English. The home folder (/home/demo), the
+disks BACKUP and USB STICK and the servers (photos.example.com, nas.example.com, media.example.com,
+user "demo") are made up for the pictures.
 
 browse.gif (800 x 533, 10 fps, 31 s) and the site's browse.mp4 (800 x 534) and browse-poster.jpg:
 a folder Sample photos on disk with the 13 photos below, Bees on flowers.webm, Earth from space.webm,

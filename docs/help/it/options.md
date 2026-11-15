@@ -4,7 +4,7 @@ Le opzioni cambiano come EyeCanSee si avvia, il suo aspetto, come passa da un'im
 
 ## Aprire le opzioni
 
-Scegli **Strumenti > Opzioni…** (![Opzioni…](icon://settings)). La finestra è divisa in schede: **Generale**, **Aspetto**, **Navigazione**, **Miniature**, **Eliminazione**, **Carosello**, **Video** e **Editor**. Passando sopra molte opzioni compare una breve spiegazione.
+Scegli **Strumenti > Opzioni…** (![Opzioni…](icon://settings)). La finestra è divisa in schede: **Generale**, **Aspetto**, **Visore**, **Carosello**, **Video**, **Editor**, **Ridimensiona**, **Eliminazione** e **Miniature**, in colonna a sinistra. Passando sopra molte opzioni compare una breve spiegazione.
 
 Ogni modifica viene salvata subito in `settings.json`: in `~/.config/eyecansee` su Linux e in `%APPDATA%\eyecansee` su Windows. È un file di testo che puoi anche modificare a mano.
 
@@ -13,33 +13,22 @@ Ogni modifica viene salvata subito in `settings.json`: in `~/.config/eyecansee` 
 ## Generale
 
 - **Riapri l'ultima cartella all'avvio** (accesa): quando EyeCanSee parte senza una cartella, per esempio dal menù delle applicazioni, apre la cartella che stavi guardando alla chiusura. Se quella cartella non esiste più, o il suo disco o telefono non è collegato, apre la tua cartella home. Un server salvato si apre con la sua password salvata; un server FTP con utente che non è salvato apre **File > Apri indirizzo…** con tutto compilato tranne la password.
-- **Finestra all'avvio**: **Dimensione normale**, **Massimizzata** (riempie lo schermo lasciando visibili le barre del sistema) o **Dimensione che aveva alla chiusura** (se era massimizzata, si riapre massimizzata).
+- **Ricorda la posizione di scorrimento di ogni cartella** (spenta): tornando in una cartella già vista, la griglia riparte da dove l'avevi lasciata. Vale finché EyeCanSee resta aperto.
+- **Mostra un suggerimento all'avvio** (accesa): una volta al giorno, all'avvio di EyeCanSee, una finestra mostra una cosa che sa fare (vedi [Per cominciare](start.md)). Si spegne anche da **Non mostrare più all'avvio** in quella finestra.
+- **Finestra all'avvio**: **Dimensione normale**, **Massimizzata** (riempie lo schermo lasciando visibili le barre del sistema) o **Dimensione che aveva alla chiusura** (se era massimizzata, si riapre massimizzata). Su Windows la finestra non massimizzata si apre al centro dell'area libera del suo schermo, sopra la barra delle applicazioni, e più piccola se non ci sta.
 - **Lingua**: **Come il sistema** (inglese se la lingua del sistema non c'è) o una delle lingue elencate, ognuna scritta nella sua lingua. La modifica vale subito, anche per questa guida.
-- **Controlla gli aggiornamenti all'avvio** (accesa): vedi [Aggiornamenti](updates.md). Non compare nel Flatpak, che si aggiorna da sé; nella copia del Microsoft Store chiede allo Store.
+- **Controlla gli aggiornamenti all'avvio** (accesa): vedi [Aggiornamenti](updates.md). Non compare nel Flatpak e nel pacchetto Fedora, aggiornati dal sistema; nella copia del Microsoft Store chiede allo Store.
 
 ## Aspetto
 
 - **Colori**: **Come il sistema** (chiari o scuri come il sistema, e lo seguono quando cambia), **Chiari** o **Scuri**. La modifica vale subito.
 
-## Navigazione
+## Visore
 
-- **Ricorda la posizione di scorrimento di ogni cartella** (spenta): tornando in una cartella già vista, la griglia riparte da dove l'avevi lasciata. Vale finché EyeCanSee resta aperto.
-- **Nel visore, dopo l'ultima immagine ricomincia dalla prima** (spenta): e dalla prima immagine, tornando indietro, mostra l'ultima. Spenta, il visore si ferma alla prima e all'ultima immagine.
-- **Nel visore, la X della finestra torna alla griglia** (accesa): la X in alto a destra fa come Esc. Spenta, la X chiude EyeCanSee anche dal visore.
+- **Dopo l'ultima immagine ricomincia dalla prima** (spenta): e dalla prima immagine, tornando indietro, mostra l'ultima. Spenta, il visore si ferma alla prima e all'ultima immagine.
+- **La X della finestra torna alla griglia** (accesa): la X in alto a destra fa come Esc, un passo alla volta: prima chiude l'editor, poi il visore, poi EyeCanSee. Spenta, la X chiude EyeCanSee anche dal visore e dall'editor; con modifiche non salvate chiede una volta sola se salvarle.
 - **Rotellina del mouse nel visore**: **Ingrandisce e rimpicciolisce** (predefinita) oppure **Mostra l'immagine successiva o precedente**. Tenendo premuto Ctrl, la rotellina ingrandisce sempre.
-- **Ingrandimento massimo nel visore** (2000% all'inizio): fin dove la rotellina e **+** possono ingrandire un'immagine.
-
-## Miniature
-
-- **Pulizia della cache miniature** (spenta): una volta per sessione, per ogni posto che apri, toglie le miniature delle immagini eliminate e rifà quelle delle immagini cambiate; poi toglie le miniature usate meno di recente finché la cache sta entro il **Limite della cache** (1024 MB all'inizio). Le cartelle che non si trovano o non si raggiungono vengono saltate, così un disco scollegato o un NAS spento non perdono le loro miniature.
-- **Svuota la cache miniature…**: elimina tutte le miniature salvate, dopo una conferma che dice quante sono e quanto spazio si libera. Le tue immagini non vengono toccate: le miniature della cartella aperta vengono rifatte subito, le altre quando apri la loro cartella.
-
-## Eliminazione
-
-- **Elimina i file del computer definitivamente, senza cestino (pericoloso)** (spenta): i file eliminati non si possono recuperare.
-- **Eliminare su telefoni e server (non hanno un cestino)**: **Sposta nella cartella nascosta .EyeCanSee-trash accanto all'immagine** (predefinita) oppure **Elimina definitivamente**.
-
-Vedi [Eliminare e cestino](delete.md).
+- **Ingrandimento massimo nel visore** (2000% all'inizio): fin dove la rotellina e **+** possono ingrandire un'immagine, in percentuale dei suoi pixel (per un disegno SVG più piccolo di 2048 pixel, dei 2048 pixel a cui viene disegnato).
 
 ## Carosello
 
@@ -65,3 +54,22 @@ La scheda mostra anche quali sono in uso adesso, con le loro versioni. Una modif
 - **Dopo il salvataggio**: cosa succede dopo **Salva copia**, **Aggiorna copia** o **Sovrascrivi l'originale…**. **Resta nell'editor** (predefinito): l'editor resta aperto per continuare a modificare. **Torna da dove eri (miniature o visore)**: l'editor si chiude appena il file è scritto; se era aperto dalla griglia, la griglia seleziona l'immagine salvata, se era aperto dal visore, il visore la mostra. **Torna alle miniature**: l'editor si chiude e torni sempre alle miniature con l'immagine salvata selezionata, anche se l'avevi aperto dal visore.
 
 Vedi [Salvare un'immagine modificata](editor-save.md).
+
+## Ridimensiona
+
+Le misure di **Ridimensiona**, nel menù del clic destro sulle miniature e in **Strumenti** (vedi [Convertire e ridimensionare le immagini](convert.md)). All'inizio **Piccola** (lato lungo 1280 px), **Media** (lato lungo 1920 px), **Grande** (lato lungo 2560 px) e **Metà** (50 %).
+
+Ogni riga è una misura: il suo **Nome** (può restare vuoto: il menù mostra allora solo la misura), il tipo (**Percentuale dell'originale**, **Entro**, **Lato lungo**, **Lato corto**, **Larghezza**, **Altezza**, **Misura esatta, tagliata al centro**, **Misura esatta, deformata**) e i pixel o la percentuale. ![Togli](icon://x) la toglie, **Aggiungi** ne aggiunge una, **Rimetti quelle di partenza** rimette le quattro misure iniziali. Finché non le cambi, i loro nomi seguono la lingua di EyeCanSee.
+
+## Eliminazione
+
+- **Elimina i file del computer definitivamente, senza cestino (pericoloso)** (spenta): i file eliminati non si possono recuperare.
+- **Eliminare su telefoni e server (non hanno un cestino)**: **Sposta nella cartella nascosta .EyeCanSee-trash accanto all'immagine** (predefinita) oppure **Elimina definitivamente**.
+
+Vedi [Eliminare e cestino](delete.md).
+
+## Miniature
+
+- **Sotto le miniature**: cosa viene scritto sotto ogni miniatura. **Nome**, **Dimensioni in pixel**, **Peso**, **Data** e **Durata**, tutte spuntate all'inizio. Dimensioni e peso stanno su una riga ("1920 × 1080 · 350 KB"), la data e la durata di video e audio sulla riga sotto; con le miniature piccole resta solo il nome. La data è quella dello scatto, se il file la dice, altrimenti quella di modifica del file: passandoci sopra col mouse, un suggerimento dice quale delle due ("Scattata il…" o "Modificata il…"). Dimensioni e data di scatto vengono lette da ogni foto insieme alla sua miniatura e conservate con lei, così la volta dopo arrivano subito, anche da telefoni e server. Di un video o di un audio dimensioni, data di registrazione e durata vengono lette una volta, come le legge la scheda File, e conservate allo stesso modo; il suggerimento sulla sua data dice "Registrato il…".
+- **Pulizia della cache miniature** (spenta): una volta per sessione, per ogni posto che apri, toglie le miniature delle immagini eliminate e rifà quelle delle immagini cambiate; poi toglie le miniature usate meno di recente finché la cache sta entro il **Limite della cache** (1024 MB all'inizio). Le cartelle che non si trovano o non si raggiungono vengono saltate, così un disco scollegato o un NAS spento non perdono le loro miniature.
+- **Svuota la cache miniature…**: elimina tutte le miniature salvate, dopo una conferma che dice quante sono e quanto spazio si libera. Le tue immagini non vengono toccate: le miniature della cartella aperta vengono rifatte subito, le altre quando apri la loro cartella.

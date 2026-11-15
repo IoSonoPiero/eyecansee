@@ -4,24 +4,34 @@ use eframe::egui::{self, Key, TextureHandle};
 
 use crate::navigation::Go;
 use crate::actions::Act;
-use crate::{AROUND, App, browser, paint, source};
+use crate::{AROUND, App, browser, paint, source, zoom};
 
 impl App {
     pub(crate) fn viewer_keys(&mut self, ctx: &egui::Context) {
         if ctx.egui_wants_keyboard_input() {
             return;
         }
+        // Space on an animation, Page Up and Down on pages: theirs, taken before the keys below.
+        self.frames_keys(ctx);
+        // Space on a Motion Photo plays its video, which then has the keys of a video.
+        self.motion_keys(ctx);
         // On a video Space plays and pauses, as in a player.
-        let video = self.viewing_video();
+        let video = self.viewing_video() || self.playing_motion();
         // On a 3D model the arrows turn it.
         let model = self.viewed_mesh().is_some();
-        // On a video Ctrl and the arrows jump back and forward (issue #10), not to another file.
-        let jump = video && ctx.input(|i| i.modifiers.command);
+        // On a video Ctrl and the arrows jump back and forward (issue #10), not to another file: taken
+        // first, so the arrows left below are those without Ctrl.
+        if video {
+            let jumps = ctx.input_mut(take_jumps);
+            if jumps != 0 {
+                self.video_jump(jumps as f64 * crate::video::JUMP);
+            }
+        }
         let (next, prev, first, last, close, space) = ctx.input(|i| {
             let any = |keys: &[Key]| keys.iter().any(|k| i.key_pressed(*k));
             (
-                (i.key_pressed(Key::ArrowRight) && !model && !jump) || i.key_pressed(Key::PageDown) || (i.key_pressed(Key::Space) && !video),
-                (i.key_pressed(Key::ArrowLeft) && !model && !jump) || any(&[Key::Backspace, Key::PageUp]),
+                (i.key_pressed(Key::ArrowRight) && !model) || i.key_pressed(Key::PageDown) || (i.key_pressed(Key::Space) && !video),
+                (i.key_pressed(Key::ArrowLeft) && !model) || any(&[Key::Backspace, Key::PageUp]),
                 i.key_pressed(Key::Home),
                 i.key_pressed(Key::End),
                 i.key_pressed(Key::Escape),
@@ -42,14 +52,11 @@ impl App {
         } else if close {
             self.close_viewer();
         }
-        if jump {
-            let (back, on) = ctx.input(|i| (i.key_pressed(Key::ArrowLeft), i.key_pressed(Key::ArrowRight)));
-            if back || on {
-                self.video_jump(if on { crate::video::JUMP } else { -crate::video::JUMP });
-            }
-        }
         if video {
-            // Up and down the volume, M sound off and on, as in the players; turning and saving are for images.
+            // A turned video is saved as an image (issue #125): Ctrl+S and Ctrl+Shift+S before
+            // the return below, which left them unread on a video.
+            self.save_keys(ctx);
+            // Up and down the volume, M sound off and on, as in the players.
             let (up, down, mute) = ctx.input(|i| (i.key_pressed(Key::ArrowUp), i.key_pressed(Key::ArrowDown), i.key_pressed(Key::M) && !i.modifiers.command));
             if up || down {
                 self.video_volume(if up { 1 } else { -1 });
@@ -66,15 +73,16 @@ impl App {
             self.cad_keys(ctx, current);
         }
         // Ctrl+R and Ctrl+Shift+R: in `global_keys`, for the grid too.
-        let (save, save_copy) = ctx.input_mut(|i| {
-            // With Shift first: Ctrl+S would match Ctrl+Shift+S too.
-            let save_copy = i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::S);
-            (i.consume_key(egui::Modifiers::COMMAND, Key::S), save_copy)
-        });
-        if save {
-            self.act = Some(Act::Save);
-        } else if save_copy {
-            self.act = Some(Act::Convert(None));
+        self.save_keys(ctx);
+    }
+
+    /// Ctrl+S and Ctrl+Shift+S: Ctrl+Shift+S only where Save as… is on (not on a video or an audio
+    /// file, which it would read as a picture); Ctrl+S says itself why it cannot save.
+    fn save_keys(&mut self, ctx: &egui::Context) {
+        match ctx.input_mut(take_save) {
+            Some(Act::Convert(_)) if self.save_as_off().is_some() => {}
+            Some(act) => self.act = Some(act),
+            None => {}
         }
     }
 
@@ -89,6 +97,8 @@ impl App {
             self.scroll_to_selected = true;
         }
         self.full.clear();
+        self.frames.read.clear();
+        self.motion.read.clear();
         self.model.meshes.clear();
         self.model.cad.drawings.clear();
         self.zoom_of = None;
@@ -139,12 +149,15 @@ impl App {
         let paths: Vec<&String> = keep.iter().filter_map(|&i| listing.files.get(i)).map(|f| &f.path).collect();
         self.model.meshes.retain(|p, _| paths.contains(&p));
         self.model.cad.drawings.retain(|p, _| paths.contains(&p));
+        self.frames.read.retain(|p, _| paths.contains(&p));
+        self.motion.read.retain(|p, _| paths.contains(&p));
     }
 
     pub(crate) fn viewer(&mut self, ui: &mut egui::Ui, current: usize) {
-        if self.viewing_video() {
+        if self.viewing_video() || self.playing_motion() {
             return self.video_view(ui, current);
         }
+        self.motion_done();
         self.video = None;
         let mut chosen = None;
         if let Some(response) = self.model_view(ui) {
@@ -159,11 +172,14 @@ impl App {
             }
             return;
         }
+        self.frames_tick(ui.ctx(), current);
         if let Some(Ok(tex)) = self.full.get(&current) {
             let tex = tex.clone();
             let rect = ui.available_rect_before_wrap();
             let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
             self.zoom_view(ui, &response, &tex, current);
+            self.frames_bar(ui, rect);
+            self.motion_bar(ui, rect);
             if response.double_clicked() {
                 self.close_viewer();
             }
@@ -194,7 +210,8 @@ impl App {
     /// The open image, fitted to the window or zoomed (as GNOME's viewer, Loupe): the wheel ×1.3 a
     /// notch around the pointer (or the next image, see `wheel_zoom`; Ctrl and the wheel always
     /// zoom), + and − ×1.5 around the centre, 0 fitted, 1 at 100%, dragging moves the zoomed image.
-    /// Never smaller than fitted, never larger than `max_zoom`.
+    /// Never smaller than fitted (or than 100%, when smaller), never larger than `max_zoom`;
+    /// percentages count the file's own pixels (`zoom`).
     #[allow(clippy::too_many_lines)] // to be split
     fn zoom_view(&mut self, ui: &egui::Ui, response: &egui::Response, tex: &TextureHandle, current: usize) {
         let rect = response.rect;
@@ -215,9 +232,12 @@ impl App {
             (self.zoom, self.zoom_of, self.turn) = (None, Some(current), Default::default());
         }
         let t = paint::turned_size(tex, self.turn);
-        let fit = (rect.width() * ppp / t.x).min(rect.height() * ppp / t.y).min(1.0);
-        let max = (self.settings.max_zoom as f32 / 100.0).max(fit);
-        let scale = self.zoom.unwrap_or(fit).clamp(fit, max);
+        // A layout of a drawing has no file pixels: its percentages stay the texture's.
+        let own = if sheet.is_some() { None } else { self.files().get(current).and_then(|f| self.own_sizes.get(&f.path).copied()) };
+        let per = zoom::file_per_texture(own, tex.size());
+        let bounds = zoom::bounds((rect.width() * ppp / t.x).min(rect.height() * ppp / t.y), per, self.settings.max_zoom);
+        let fit = bounds.fit;
+        let scale = self.zoom.unwrap_or(fit).clamp(bounds.low, bounds.max);
 
         let (mut wheel, mut next) = (0.0, 0.0);
         let mut pinch = 1.0;
@@ -262,10 +282,10 @@ impl App {
             anchor = rect.center();
         }
         if actual {
-            target = 1.0;
+            target = bounds.actual;
         }
-        let target = target.clamp(fit, max);
-        if fitted || target <= fit {
+        let target = zoom::settle(scale, target, bounds);
+        if fitted || target == fit {
             (self.zoom, self.pan) = (None, t / 2.0);
         } else if target != scale {
             // The image point under the anchor stays under it.
@@ -298,7 +318,7 @@ impl App {
         if self.files().get(current).is_some_and(|f| crate::cad::is_cad(&f.path)) && self.turn.is_none() {
             crate::cad_view::ucs_corner(&painter, rect);
         }
-        self.zoom_shown = self.zoom.unwrap_or(fit);
+        self.zoom_shown = zoom::of_file(self.zoom.unwrap_or(fit), per);
     }
 }
 
@@ -308,5 +328,85 @@ pub(crate) fn notches(unit: egui::MouseWheelUnit, delta: egui::Vec2) -> f32 {
         egui::MouseWheelUnit::Line => delta.y,
         egui::MouseWheelUnit::Point => delta.y / 50.0,
         egui::MouseWheelUnit::Page => delta.y * 3.0,
+    }
+}
+
+/// Ctrl+S (Save) or Ctrl+Shift+S (Save copy) pressed this pass, taken from the input: the same
+/// acts as the toolbar's buttons, for an image and for a video.
+fn take_save(i: &mut egui::InputState) -> Option<Act> {
+    // With Shift first: Ctrl+S would match Ctrl+Shift+S too.
+    let save_copy = i.consume_key(egui::Modifiers::COMMAND | egui::Modifiers::SHIFT, Key::S);
+    let save = i.consume_key(egui::Modifiers::COMMAND, Key::S);
+    match (save, save_copy) {
+        (true, _) => Some(Act::Save),
+        (false, true) => Some(Act::Convert(None)),
+        _ => None,
+    }
+}
+
+/// Ctrl+arrows pressed this pass, taken from the input: right forward, left back. Each press by
+/// its own modifiers, not by those at the end of the pass: Ctrl let go in the same pass as the
+/// arrow made Ctrl+right a move to the next file (seen with keys in quick succession, 2026-11-13).
+fn take_jumps(i: &mut egui::InputState) -> i32 {
+    let on = i.count_and_consume_key(egui::Modifiers::COMMAND, Key::ArrowRight);
+    let back = i.count_and_consume_key(egui::Modifiers::COMMAND, Key::ArrowLeft);
+    on as i32 - back as i32
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use egui::{Event, Modifiers};
+
+    fn key(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
+        Event::Key { key, physical_key: None, pressed, repeat: false, modifiers }
+    }
+
+    #[test]
+    fn jump_with_ctrl_let_go_in_the_same_pass() {
+        // Ctrl+right, then Ctrl let go before the pass ends: a jump, and no arrow left to change file.
+        let mut i = egui::InputState::default();
+        i.events = vec![
+            key(Key::ArrowRight, true, Modifiers::COMMAND),
+            key(Key::ArrowRight, false, Modifiers::COMMAND),
+            Event::ModifiersChanged(Modifiers::NONE),
+        ];
+        assert_eq!(take_jumps(&mut i), 1);
+        assert!(!i.key_pressed(Key::ArrowRight));
+    }
+
+    #[test]
+    fn arrow_without_ctrl_stays_for_the_next_file() {
+        // The arrow before Ctrl pressed in the same pass: no jump, the arrow changes file.
+        let mut i = egui::InputState::default();
+        i.modifiers = Modifiers::COMMAND;
+        i.events = vec![key(Key::ArrowRight, true, Modifiers::NONE), Event::ModifiersChanged(Modifiers::COMMAND)];
+        assert_eq!(take_jumps(&mut i), 0);
+        assert!(i.key_pressed(Key::ArrowRight));
+    }
+
+    #[test]
+    fn jumps_count_each_press() {
+        let mut i = egui::InputState::default();
+        i.events = vec![
+            key(Key::ArrowRight, true, Modifiers::COMMAND),
+            key(Key::ArrowRight, true, Modifiers::COMMAND),
+            key(Key::ArrowLeft, true, Modifiers::COMMAND),
+            key(Key::ArrowLeft, true, Modifiers::COMMAND | Modifiers::SHIFT),
+            key(Key::ArrowLeft, true, Modifiers::COMMAND),
+        ];
+        assert_eq!(take_jumps(&mut i), -1);
+    }
+
+    #[test]
+    fn ctrl_s_saves_and_ctrl_shift_s_saves_a_copy() {
+        let take = |modifiers| {
+            let mut i = egui::InputState::default();
+            i.events = vec![key(Key::S, true, modifiers)];
+            take_save(&mut i).map(|a| format!("{a:?}"))
+        };
+        assert_eq!(take(Modifiers::COMMAND).as_deref(), Some("Save"));
+        assert_eq!(take(Modifiers::COMMAND | Modifiers::SHIFT).as_deref(), Some("Convert(None)"));
+        assert_eq!(take(Modifiers::NONE), None);
     }
 }

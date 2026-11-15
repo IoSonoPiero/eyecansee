@@ -24,6 +24,8 @@ pub(crate) struct Playing {
     wheel: f32,
     /// Bytes copied and the size, while the file is copied whole before playing (a phone on Windows).
     copying: Option<(Arc<AtomicU64>, u64)>,
+    /// The turn shown and not saved yet, clockwise degrees (#125).
+    rotate: u32,
 }
 
 /// Where the video engine is, for the card shown in its place.
@@ -46,6 +48,18 @@ enum Click {
     Restart,
 }
 
+/// The Fluent id of the metadata panel's note for a video or an audio file without the engine:
+/// never the library's own error.
+fn note_id(state: &Engine) -> &'static str {
+    match state {
+        Engine::Ready(_) => "video-component-restart-needed",
+        Engine::SystemOnly => "video-engine-system-only",
+        Engine::TooOld { .. } => "video-engine-old",
+        Engine::Lacks { .. } => "video-engine-lacks",
+        Engine::Missing | Engine::Downloading(_) | Engine::Failed(_) => "meta-video-engine",
+    }
+}
+
 /// Seconds a jump with Ctrl and an arrow moves a video (issue #10).
 pub(crate) const JUMP: f64 = 5.0;
 
@@ -60,11 +74,6 @@ impl App {
     /// The viewer shows a video.
     pub(crate) fn viewing_video(&self) -> bool {
         self.viewing.and_then(|i| self.files().get(i)).is_some_and(|f| decode::is_played(&f.path))
-    }
-
-    /// The viewer shows an image.
-    pub(crate) fn viewing_image(&self) -> bool {
-        self.viewing.is_some() && !self.viewing_video()
     }
 
     /// A picture open in the viewer, which turns and flips: not a video, a 3D model (its own
@@ -142,6 +151,12 @@ impl App {
             (done as f32 / size.max(1) as f32, text)
         });
         let Some(v) = &mut self.video else { return };
+        // A turn not saved yet, shown as it will be saved (#125).
+        let rotate = 90 * self.turn.parts().1 as u32;
+        if let (Ok(p), true) = (&v.player, v.rotate != rotate) {
+            p.set_rotate(rotate);
+            v.rotate = rotate;
+        }
         let sound = (&mut self.settings.video_volume, &mut self.settings.video_mute);
         let Some(response) = draw(ui, v, sound, &self.i18n, wait) else { return };
         if response.hovered() {
@@ -175,7 +190,7 @@ impl App {
     }
 
     /// libmpv can play videos: also the engine just downloaded, at once, as FFmpeg and the CAD
-    /// engine (user, 2026-11-02; the restart asked for on 2026-10-27 seemed slow). A restart is
+    /// engine (the restart asked for on 2026-10-27 seemed slow). A restart is
     /// offered only when it cannot be loaded (`Engine::Ready`: the first load right after the
     /// download failed once on Windows, 2026-10-27).
     fn engine(&self) -> bool {
@@ -205,10 +220,19 @@ impl App {
     }
 
     fn engine_state(&self, ctx: &egui::Context, c: crate::component::Component) -> Engine {
+        let state = self.engine_now(c);
+        if matches!(state, Engine::Downloading(_)) {
+            ctx.request_repaint_after(std::time::Duration::from_millis(300));
+        }
+        state
+    }
+
+    /// Where the engine is now (`engine_state` also asks for repaints while it downloads).
+    fn engine_now(&self, c: crate::component::Component) -> Engine {
         let result = self.download.as_ref().map(|d| (d.done.load(std::sync::atomic::Ordering::Relaxed), d.result.lock().unwrap().clone()));
         let on_disk = crate::component::path(&c).is_some_and(|p| p.is_file());
         // Downloaded, or on disk but not loadable: a restart activates it (`engine`).
-        let state = match &result {
+        match &result {
             Some((done, None)) => Engine::Downloading(*done),
             Some((_, Some(Err(e)))) => Engine::Failed(e.clone()),
             _ if on_disk => Engine::Ready(self.restart_error.clone()),
@@ -218,11 +242,18 @@ impl App {
                 crate::engine::Status::SystemOnly => Engine::SystemOnly,
                 _ => Engine::Missing,
             },
-        };
-        if matches!(state, Engine::Downloading(_)) {
-            ctx.request_repaint_after(std::time::Duration::from_millis(300));
         }
-        state
+    }
+
+    /// The metadata panel of a video or an audio file when the engine is missing: why, in words,
+    /// with how to get it, in place of libmpv's raw "libmpv-2.dll not found".
+    pub(crate) fn engine_note(&self) -> String {
+        let Some(c) = crate::component::VIDEO else { return self.i18n.t("video-no-mpv") };
+        let state = self.engine_now(c);
+        match note_id(&state) {
+            "video-engine-old" | "video-engine-lacks" => self.engine_ask(&state, c),
+            id => self.i18n.t_args(id, &[("size", &self.human_size(c.size))]),
+        }
     }
 
     fn engine_click(&mut self, ctx: &egui::Context, c: crate::component::Component, click: Click) {
@@ -342,6 +373,28 @@ impl App {
         click
     }
 
+    /// The video of a Motion Photo (`motion.rs`), played from memory under the photo's path.
+    pub(crate) fn open_motion(&self, ctx: &egui::Context, path: String, video: Arc<Vec<u8>>) -> Playing {
+        let ctx = ctx.clone();
+        let input = mpv::Input::Stream(Arc::new(crate::motion::Video(video)));
+        let player = if self.engine() {
+            mpv::Player::open(input, self.settings.video_volume, self.settings.video_mute, move || ctx.request_repaint())
+                .map_err(|e| self.i18n.t_args("cannot-load", &[("file", crate::source::name(&path)), ("error", &e)]))
+        } else {
+            Err(self.i18n.t("video-no-mpv"))
+        };
+        if let Err(e) = &player {
+            log!("motion photo {path:?}: ERROR {e}");
+        }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None, rotate: 0 }
+    }
+
+    /// The video open for `path` has not reached its end (it plays, it is paused, or it could
+    /// not open: its card stays until another image).
+    pub(crate) fn video_playing(&self, path: &str) -> bool {
+        self.video.as_ref().is_some_and(|v| v.path == path && !v.player.as_ref().is_ok_and(|p| p.ended()))
+    }
+
     fn open_video(&self, ctx: &egui::Context, path: String, size: u64) -> Playing {
         let ctx = ctx.clone();
         let mut copying = None;
@@ -358,7 +411,7 @@ impl App {
         if let Err(e) = &player {
             log!("video {path:?}: ERROR {e}");
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying, rotate: 0 }
     }
 }
 
@@ -488,5 +541,34 @@ mod tests {
         assert_eq!(super::frame_sizes([1920, 1080], [2560.0, 1400.0]), ([1920, 1080], [2489, 1400]));
         assert_eq!(super::frame_sizes([1920, 1080], [960.0, 1000.0]), ([960, 540], [960, 540]));
         assert_eq!(super::frame_sizes([1080, 1920], [2560.0, 1400.0]), ([788, 1400], [788, 1400]));
+    }
+
+    /// Without the engine the metadata panel says why in the user's language, never the
+    /// library's error ("libmpv-2.dll not found"); every state has its message in both languages.
+    #[test]
+    fn engine_note_in_words() {
+        use super::{Engine, note_id};
+        let states = [
+            Engine::Missing,
+            Engine::Downloading(10),
+            Engine::Failed("x".into()),
+            Engine::Ready(None),
+            Engine::TooOld { found: "mpv 0.32".into(), required: "1.109" },
+            Engine::Lacks { found: "mpv 0.36".into(), missing: "HEVC".into() },
+            Engine::SystemOnly,
+        ];
+        assert_eq!(note_id(&Engine::Missing), "meta-video-engine");
+        assert_eq!(note_id(&Engine::SystemOnly), "video-engine-system-only");
+        assert_eq!(note_id(&Engine::Ready(None)), "video-component-restart-needed");
+        for lang in ["en", "it"] {
+            let i18n = crate::i18n::I18n::new(lang);
+            for state in &states {
+                let id = note_id(state);
+                let text = i18n.t_args(id, &[("size", "10 MB"), ("found", "f"), ("required", "r"), ("missing", "m")]);
+                assert!(text != id && !text.contains("not found") && !text.contains("libmpv-2.dll"), "{lang} {id}: {text}");
+            }
+        }
+        let it = crate::i18n::I18n::new("it").t_args("meta-video-engine", &[("size", "10 MB")]);
+        assert!(it.contains("motore video") && it.contains("10 MB"), "{it}");
     }
 }

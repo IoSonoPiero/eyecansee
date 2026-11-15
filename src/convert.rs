@@ -1,6 +1,7 @@
-//! "Save in another format": the image decoded in full, encoded again with the chosen format and
-//! options (`encode`). The encoded bytes are both what gets saved and, decoded back, the preview: what the
-//! window shows is what the file will contain.
+//! Save as…: the image decoded in full, encoded again with the chosen format and options
+//! (`encode`), saved in the original's folder or another one (`folder`). The encoded bytes are
+//! both what gets saved and, decoded back, the preview: what the window shows is what the file
+//! will contain.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -9,16 +10,22 @@ use eframe::egui::{self, ColorImage, TextureHandle};
 
 use crate::i18n::I18n;
 use crate::batch::with_ext;
-use crate::encode::{Chroma, Format, Options, Original, PngFilter, TiffCompression};
-use crate::paint::{paint_turned, paint_zoomed};
-use crate::transform::Turn;
+use crate::encode::{Format, Options, Original};
+
+mod folder;
+mod format_ui;
+mod panes;
+
+pub(crate) use format_ui::format_options;
+use format_ui::{format_choice, meta_options};
+use panes::convert_images;
 
 /// The original decoded, its texture and file size.
 type Loaded = Result<(Arc<Original>, TextureHandle, u64), String>;
 /// The encoded file and, decoded back, its texture.
 type Encoded = Result<(Arc<Vec<u8>>, Option<TextureHandle>), String>;
 
-/// The open "Save in another format" window.
+/// The open Save as… page.
 pub struct Window {
     /// The original, relative to the source.
     pub path: String,
@@ -39,6 +46,18 @@ pub struct Window {
     error: Option<String>,
     /// A new image from the editor: no file yet, so no size on disk to show or compare with.
     unsaved: bool,
+    /// Opened from the editor: where its image is, and so where this file goes, whatever the grid
+    /// shows (`edit_page::Place`).
+    pub(crate) place: Option<crate::edit_page::Place>,
+    /// Another folder chosen for the new file (issue #127); `None`: the original's.
+    folder: Option<folder::Folder>,
+    /// Browse… was pressed: the folder chooser opens after drawing.
+    browse: bool,
+    /// The folder chooser, open over the page.
+    picker: Option<crate::folder_pick::Picker>,
+    /// Opened from the viewer, or from the editor opened from it: once saved, the viewer shows
+    /// the new file, or stays and says where it is (`viewer_after`).
+    pub(crate) from_viewer: bool,
 }
 
 impl Window {
@@ -69,6 +88,11 @@ impl Window {
             bottom_h: 300.0,
             error: None,
             unsaved: false,
+            place: None,
+            folder: None,
+            browse: false,
+            picker: None,
+            from_viewer: false,
         }
     }
 }
@@ -85,6 +109,7 @@ impl crate::App {
         // From the viewer: saved as it is shown there.
         if self.viewing.is_some() {
             w.options.turn = self.turn;
+            w.from_viewer = true;
         }
         self.convert = Some(w);
     }
@@ -94,6 +119,13 @@ impl crate::App {
         // A JPEG: its own quality and subsampling proposed, 90 and 4:2:0 when they cannot be read.
         if let Some((q, chroma)) = r.as_ref().ok().and_then(|(o, ..)| o.jpeg) {
             (w.options.jpeg_quality, w.options.chroma) = (q, chroma);
+        }
+        // The format of the last Save as…, once the image's size is known (nothing can be chosen
+        // before it arrives); a new image keeps the PNG it is named with (issue #104).
+        let last = self.save_as_format.filter(|_| !w.unsaved);
+        if let (None, Ok((o, ..))) = (&w.original, &r) {
+            w.options.format = proposed(last, w.options.format, o.image.width().max(o.image.height()));
+            w.name = with_ext(&w.name, w.options.format);
         }
         w.original = Some(r.map(|(original, preview, size)| {
             w.pan = egui::vec2(preview.size[0] as f32, preview.size[1] as f32) / 2.0;
@@ -114,18 +146,30 @@ impl crate::App {
         match r {
             Ok(path) => {
                 log!("saved as {path:?}");
-                self.convert = None;
-                // Opened from the editor: the page under it closes now that the file is written.
+                // From the editor, on a place the grid no longer shows, or into a folder of another
+                // device: nothing there to select or list again.
+                let here = self.convert.as_ref().is_none_or(|w| w.dest_base(&self.base) == self.base);
+                let w = self.convert.take();
+                let from_viewer = w.as_ref().is_some_and(|w| w.from_viewer);
+                let shown = w.as_ref().map_or_else(|| path.clone(), |w| crate::navigation::shown(w.dest_base(&self.base), &path));
+                self.save_as_format = w.map(|w| w.options.format).or(self.save_as_format);
+                // Opened from the editor: the page under it closes now that the file is written,
+                // before the viewer under it changes and says where the file went.
                 if self.editor.as_mut().is_some_and(|w| w.save_as_ended(true)) {
                     self.editor = None;
                     log!("edit: page closed after Save as…, viewing {:?}", self.viewing);
-                    // The file just saved is selected, or shown by the viewer, as after Save copy
-                    // (user, 2026-11-11): only in the open folder, the only one listed for it.
+                    // The file just saved is selected, or shown by the viewer, as after Save copy:
+                    // only in the open folder, the only one listed for it.
                     // Saved elsewhere, a copy saved before it is not selected either (issue #98):
                     // the viewer stays on the image edited.
-                    self.select_after = (crate::source::parent(&path) == self.dir).then(|| path.clone());
+                    self.select_after = (here && crate::source::parent(&path) == self.dir).then(|| path.clone());
                 }
-                self.relist(crate::source::parent(&path));
+                if let Some(after) = viewer_after(from_viewer, Some(&path), here, &self.dir) {
+                    self.viewer_saved_as(after, &path, &shown);
+                }
+                if here {
+                    self.relist(crate::source::parent(&path));
+                }
             }
             Err((id, detail)) => {
                 if let Some(w) = &mut self.convert {
@@ -136,32 +180,87 @@ impl crate::App {
         }
     }
 
+    /// Save as… from the viewer went well: the original is as it was on disk, so its flips and
+    /// turns not saved are dropped (no "Changed, not saved", no question on closing). The new
+    /// file, which has them in its pixels, is shown once listed (`select_saved` if it already
+    /// is, `swap_listing` otherwise); saved elsewhere, a message says where.
+    fn viewer_saved_as(&mut self, after: ViewerAfter, path: &str, shown: &str) {
+        self.turn = Default::default();
+        log!("save as: viewer {after:?}");
+        match after {
+            ViewerAfter::Show => {
+                self.select_after = Some(path.to_string());
+                self.select_saved();
+            }
+            ViewerAfter::Stay => {
+                let shown = crate::address::without_password(shown);
+                self.tell("convert-saved-elsewhere-title", self.i18n.t_args("convert-saved-elsewhere", &[("path", &crate::save_dialogs::md(&shown))]));
+            }
+        }
+    }
+
     /// Drawn in place of the whole interface, as a page of its own: a window could not cover the
     /// menu, tool and status bars, and the two images need all the room there is.
     pub(crate) fn convert_page(&mut self, ui: &mut egui::Ui) {
         let ctx = &ui.ctx().clone();
         let Some(mut w) = self.convert.take() else { return };
-        self.start_encoding(&mut w, ctx);
-        let dir = crate::source::parent(&w.path);
-        // What the grid does not show is taken too: a hidden "e (2).jpg" was overwritten.
-        let taken: HashSet<String> = match self.listings.get(&dir) {
-            Some(Ok(l)) => l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).chain(l.unseen.iter().cloned()).collect(),
-            _ => HashSet::new(),
-        };
-        let final_name = crate::source::free_name(&taken, w.name.trim());
-        let open = page_header(ui, &self.i18n.t("convert-title"));
-        let save = self.convert_body(ui, &mut w, &final_name);
-        if save
-            && let (Some(Ok((bytes, _))), Some(loader)) = (&w.result, &self.loader)
-        {
-            w.saving = true;
-            w.error = None;
-            loader.save(format!("{dir}{final_name}"), bytes.clone());
+        // A file of the grid or the viewer, not the editor's result: animated or with pages?
+        if w.place.is_none() {
+            self.probe_animated(ctx, &w.path, true);
         }
+        self.start_encoding(&mut w, ctx);
+        let dir = w.dest_dir();
+        let final_name = crate::source::free_name(&self.convert_taken(&w, &dir), w.name.trim());
+        let open = page_header(ui, &self.i18n.t("convert-title"));
+        let shown = crate::navigation::shown(w.dest_base(&self.base), &dir);
+        let save = self.convert_body(ui, &mut w, &final_name, &shown);
+        if save && let Some(Ok((bytes, _))) = &w.result {
+            let (path, bytes) = (format!("{dir}{final_name}"), bytes.clone());
+            let sent = match (w.dest_store(), &self.loader) {
+                (Some(store), _) => self.save_in_place(ctx, store.clone(), path, bytes),
+                (None, Some(loader)) => {
+                    loader.save(path, bytes);
+                    true
+                }
+                (None, None) => false,
+            };
+            if sent {
+                w.saving = true;
+                w.error = None;
+            }
+        }
+        self.convert_pick(ctx, &mut w);
         // Taken out while drawn (it needs the rest of the app), put back unless closed.
         if open {
             self.convert = Some(w);
         }
+    }
+
+    /// The names taken in `dir`, where the file goes: the grid's for its own place (`save_in_place`
+    /// checks them again elsewhere), those read in a folder chosen (`folder`).
+    fn convert_taken(&self, w: &Window, dir: &str) -> HashSet<String> {
+        if let Some(f) = &w.folder {
+            return f.taken();
+        }
+        let here = w.dest_base(&self.base) == self.base;
+        // What the grid does not show is taken too: a hidden "e (2).jpg" was overwritten.
+        match self.listings.get(dir).filter(|_| here) {
+            Some(Ok(l)) => l.dirs.iter().chain(l.files.iter().map(|f| &f.path)).map(|p| crate::source::name(p).trim_end_matches('/').to_string()).chain(l.unseen.iter().cloned()).collect(),
+            _ => HashSet::new(),
+        }
+    }
+
+    /// Save as… from the editor, or into a folder chosen: written there (`place`, `folder`),
+    /// under a name free there: the grid may show another place, whose names say nothing of that
+    /// folder. `true`: sent.
+    fn save_in_place(&self, ctx: &egui::Context, store: crate::source::Store, path: String, data: Arc<Vec<u8>>) -> bool {
+        let (tx, ctx) = (self.tx.clone(), ctx.clone());
+        self.rt.spawn(async move {
+            let r = write_free(&store, &path, data.to_vec()).await;
+            let _ = tx.send(crate::loader::Msg::Saved(r));
+            ctx.request_repaint();
+        });
+        true
     }
 
     /// One encoding at a time (AVIF takes seconds): a change made meanwhile starts when it ends.
@@ -192,7 +291,7 @@ impl crate::App {
 
     /// Everything under the title: the two images, then what each one is, with the options and
     /// the name on the side of the new one. `true`: Save clicked.
-    fn convert_body(&self, ui: &mut egui::Ui, w: &mut Window, final_name: &str) -> bool {
+    fn convert_body(&self, ui: &mut egui::Ui, w: &mut Window, final_name: &str, folder: &str) -> bool {
         let i18n = &self.i18n;
         let t = |id| i18n.t(id);
         let mut save = false;
@@ -214,13 +313,20 @@ impl crate::App {
         let pane = egui::vec2(half, (ui.available_height() - 22.0 - 16.0 - w.bottom_h).max(120.0));
         convert_images(ui, w, i18n, tex, half, pane);
         ui.add_space(4.0);
-        let pixels = i18n.t_args("convert-pixels", &[("w", &image.width().to_string()), ("h", &image.height().to_string())]);
+        let size_text = |(w, h): (u32, u32)| i18n.t_args("convert-pixels", &[("w", &w.to_string()), ("h", &h.to_string())]);
+        let pixels = size_text((image.width(), image.height()));
+        // The new file's own: swapped by a quarter turn made in the viewer, reduced for an ICO.
+        let saved = size_text(saved_size((image.width(), image.height()), &w.options));
         let bottom = ui.horizontal_top(|ui| {
             ui.spacing_mut().item_spacing.x = GAP;
             ui.vertical(|ui| {
                 ui.set_width(half);
                 let ext = crate::source::name(&w.path).rsplit_once('.').map_or(String::new(), |(_, e)| e.to_uppercase());
-                ui.label(format!("{ext} · {pixels}"));
+                // The file as it is on disk, and what the viewer did to it (the image above is shown so).
+                match panes::turn_note(w.options.turn) {
+                    Some(turn) => ui.label(format!("{ext} · {pixels} · {}", i18n.t_args("convert-turned", &[("turn", turn)]))),
+                    None => ui.label(format!("{ext} · {pixels}")),
+                };
                 if let Some(size) = size {
                     ui.label(i18n.t_args("convert-file-size", &[("size", &self.human_size(size))]));
                 }
@@ -230,14 +336,19 @@ impl crate::App {
             ui.vertical(|ui| {
                 ui.spacing_mut().item_spacing.x = 8.0;
                 ui.set_width(half);
-                self.result_info(ui, w, &pixels, size);
+                self.result_info(ui, w, &saved, size);
                 ui.add_space(6.0);
                 format_choice(ui, w, i18n);
                 let image = &original.0.image;
                 format_options(ui, &mut w.options, image.color().has_alpha(), image.width().max(image.height()) > crate::encode::ICO_SIDE, i18n);
                 meta_options(ui, &mut w.options, &original.0, i18n);
-                // The name belongs to the new image, so it sits on its side.
+                // The other frames or pages are not in the new file (as Convert… says, leaving them out).
+                if w.place.is_none() && self.animated.contains(&w.path) {
+                    ui.label(crate::theme::alert(t("convert-first-only")));
+                }
+                // The folder and the name belong to the new image, so they sit on its side.
                 ui.add_space(6.0);
+                folder::folder_row(ui, w, i18n, folder);
                 save = name_row(ui, w, i18n, half, final_name);
             });
         })
@@ -283,10 +394,44 @@ impl crate::App {
     }
 }
 
+/// What the viewer does after Save as… opened from it.
+#[derive(Debug, PartialEq)]
+enum ViewerAfter {
+    /// The new file is in the open folder: the viewer goes to it.
+    Show,
+    /// It is in another folder or place: the viewer stays on the original, and says where.
+    Stay,
+}
+
+/// The viewer after Save as…, opened from it or from the editor opened from it (`from_viewer`):
+/// `None` when opened elsewhere (the grid, the editor opened from the grid) or nothing was saved
+/// (`saved` none: cancelled or failed), which leaves it as it was.
+fn viewer_after(from_viewer: bool, saved: Option<&str>, here: bool, open_dir: &str) -> Option<ViewerAfter> {
+    let path = saved.filter(|_| from_viewer)?;
+    Some(if here && crate::source::parent(path) == open_dir { ViewerAfter::Show } else { ViewerAfter::Stay })
+}
+
 /// The new file's size in percent of the original's; none without an original file (a new image,
 /// issue #99).
 fn ratio(new: u64, original: Option<u64>) -> Option<u64> {
     original.filter(|&s| s > 0).map(|s| new * 100 / s)
+}
+
+/// The format Save as… opens on: that of the last one, unless this image is larger than it can
+/// hold; then `default`, as before (JPEG, PNG for a new image from the editor).
+fn proposed(last: Option<Format>, default: Format, side: u32) -> Format {
+    last.filter(|&f| max_side(f).is_none_or(|max| side <= max)).unwrap_or(default)
+}
+
+/// The longest side the format's encoder writes: libwebp 16383, libjpeg-turbo 65500, GIF and TGA
+/// 65535 (sizes in 16 bits); the others have no limit an image reaches (ICO is reduced).
+fn max_side(f: Format) -> Option<u32> {
+    match f {
+        Format::Webp => Some(16_383),
+        Format::Jpeg => Some(65_500),
+        Format::Gif | Format::Tga => Some(65_535),
+        _ => None,
+    }
 }
 
 /// Space between the two halves of the page.
@@ -302,201 +447,6 @@ pub(crate) fn page_header(ui: &mut egui::Ui, title: &str) -> bool {
     open
 }
 
-/// The original and the new image side by side, each under its title.
-fn convert_images(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, tex: &TextureHandle, half: f32, pane: egui::Vec2) {
-    let t = |id| i18n.t(id);
-    let result_tex = match &w.result {
-        Some(Ok((_, Some(tex)))) => Some(tex),
-        _ => None,
-    };
-    // Titles in rows of the same height (the spinner is taller than the text), so the
-    // two images start at the same height.
-    let title = |ui: &mut egui::Ui, text: String, busy: bool| {
-        ui.allocate_ui_with_layout(egui::vec2(half, 22.0), egui::Layout::left_to_right(egui::Align::Center), |ui| {
-            ui.set_min_size(egui::vec2(half, 22.0));
-            ui.strong(text);
-            if busy {
-                ui.spinner();
-                ui.weak(t("convert-working"));
-            }
-        });
-    };
-    ui.horizontal_top(|ui| {
-        ui.spacing_mut().item_spacing.x = GAP;
-        ui.vertical(|ui| {
-            title(ui, t("convert-original"), false);
-            let r = preview(ui, pane, Some(tex), None, w.actual, &mut w.pan);
-            drag(&r, w.actual, &mut w.pan);
-        });
-        ui.vertical(|ui| {
-            title(ui, t("convert-result"), w.busy);
-            let note = match &w.result {
-                _ if w.busy && result_tex.is_none() => Some(t("convert-working")),
-                Some(Ok((_, None))) => Some(t("convert-no-preview")),
-                _ => None,
-            };
-            let r = preview(ui, pane, result_tex, note.as_deref(), w.actual, &mut w.pan);
-            drag(&r, w.actual, &mut w.pan);
-        });
-    });
-}
-
-/// The output format; the name takes its extension.
-fn format_choice(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
-    let o = &mut w.options;
-    let before = o.format;
-    egui::ComboBox::from_label(i18n.t("convert-format")).selected_text(o.format.label()).show_ui(ui, |ui| {
-        for f in Format::ALL {
-            ui.selectable_value(&mut o.format, f, f.label());
-        }
-    });
-    if o.format != before {
-        w.name = with_ext(&w.name, o.format);
-    }
-}
-
-fn quality(ui: &mut egui::Ui, v: &mut u8, label: String) {
-    ui.add(egui::Slider::new(v, 1..=100).text(label));
-}
-
-/// The options of the chosen format's encoder, for an image with transparency (`alpha`) or larger
-/// than an icon (`big`); with several images, as if they all were.
-pub(crate) fn format_options(ui: &mut egui::Ui, o: &mut Options, alpha: bool, big: bool, i18n: &I18n) {
-    let t = |id| i18n.t(id);
-    if alpha && matches!(o.format, Format::Jpeg | Format::Hdr) {
-        ui.weak(t("convert-on-white"));
-    }
-    match o.format {
-        Format::Jpeg => jpeg_options(ui, o, i18n),
-        Format::Png => png_options(ui, o, i18n),
-        Format::Webp => webp_options(ui, o, i18n),
-        Format::Avif => {
-            quality(ui, &mut o.avif_quality, t("convert-quality"));
-            if alpha {
-                quality(ui, &mut o.avif_alpha_quality, t("convert-alpha-quality"));
-            }
-            ui.add(egui::Slider::new(&mut o.avif_speed, 1..=10).text(t("convert-speed"))).on_hover_text(t("convert-speed-hint"));
-            ui.checkbox(&mut o.avif_ten_bit, t("convert-ten-bit"));
-            ui.checkbox(&mut o.avif_rgb, t("convert-avif-rgb"));
-        }
-        Format::Tiff => tiff_options(ui, o, i18n),
-        Format::Gif => {
-            ui.add(egui::Slider::new(&mut o.gif_quality, 1..=30).text(t("convert-gif-quality")));
-        }
-        Format::Tga => {
-            ui.checkbox(&mut o.tga_rle, t("convert-tga-rle"));
-        }
-        Format::Ico if big => {
-            ui.weak(t("convert-ico-reduced"));
-        }
-        Format::Bmp | Format::Qoi | Format::Ico | Format::Pnm | Format::Exr | Format::Hdr | Format::Farbfeld => {}
-    }
-}
-
-fn jpeg_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
-    let t = |id| i18n.t(id);
-    ui.add_enabled_ui(!o.jpeg_lossless, |ui| {
-        quality(ui, &mut o.jpeg_quality, t("convert-quality"));
-        egui::ComboBox::from_label(t("convert-chroma"))
-            .selected_text(t(match o.chroma {
-                Chroma::Full => "convert-chroma-full",
-                Chroma::Half => "convert-chroma-half",
-                Chroma::Quarter => "convert-chroma-quarter",
-                Chroma::Grey => "convert-chroma-grey",
-            }))
-            .show_ui(ui, |ui| {
-                ui.selectable_value(&mut o.chroma, Chroma::Full, t("convert-chroma-full"));
-                ui.selectable_value(&mut o.chroma, Chroma::Half, t("convert-chroma-half"));
-                ui.selectable_value(&mut o.chroma, Chroma::Quarter, t("convert-chroma-quarter"));
-                ui.selectable_value(&mut o.chroma, Chroma::Grey, t("convert-chroma-grey"));
-            });
-    });
-    ui.checkbox(&mut o.progressive, t("convert-progressive"));
-    ui.checkbox(&mut o.optimize, t("convert-optimize"));
-    ui.checkbox(&mut o.arithmetic, t("convert-arithmetic"));
-    ui.checkbox(&mut o.jpeg_lossless, t("convert-jpeg-lossless"));
-}
-
-fn png_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
-    let t = |id| i18n.t(id);
-    ui.add(egui::Slider::new(&mut o.png_level, 0..=9).text(t("convert-png-level")));
-    let filters = [
-        (PngFilter::Adaptive, t("convert-filter-adaptive")),
-        (PngFilter::None, t("convert-none")),
-        (PngFilter::Sub, "Sub".to_string()),
-        (PngFilter::Up, "Up".to_string()),
-        (PngFilter::Avg, "Average".to_string()),
-        (PngFilter::Paeth, "Paeth".to_string()),
-    ];
-    let shown = filters.iter().find(|(f, _)| *f == o.png_filter).map(|(_, l)| l.clone()).unwrap_or_default();
-    egui::ComboBox::from_label(t("convert-png-filter")).selected_text(shown).show_ui(ui, |ui| {
-        for (f, label) in filters {
-            ui.selectable_value(&mut o.png_filter, f, label);
-        }
-    });
-}
-
-fn webp_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
-    let t = |id| i18n.t(id);
-    ui.horizontal(|ui| {
-        ui.radio_value(&mut o.webp_lossless, false, t("convert-lossy"));
-        ui.radio_value(&mut o.webp_lossless, true, t("convert-lossless-mode"));
-    });
-    if o.webp_lossless {
-        ui.add(egui::Slider::new(&mut o.near_lossless, 0..=100).text(t("convert-near-lossless")));
-    } else {
-        quality(ui, &mut o.webp_quality, t("convert-quality"));
-        ui.checkbox(&mut o.sharp_yuv, t("convert-sharp-yuv"));
-    }
-    ui.add(egui::Slider::new(&mut o.webp_effort, 0..=6).text(t("convert-effort"))).on_hover_text(t("convert-speed-hint"));
-}
-
-fn tiff_options(ui: &mut egui::Ui, o: &mut Options, i18n: &I18n) {
-    let t = |id| i18n.t(id);
-    let kinds = [
-        (TiffCompression::None, t("convert-none")),
-        (TiffCompression::Lzw, "LZW".to_string()),
-        (TiffCompression::DeflateFast, t("convert-deflate-fast")),
-        (TiffCompression::Deflate, "Deflate".to_string()),
-        (TiffCompression::DeflateBest, t("convert-deflate-best")),
-        (TiffCompression::PackBits, "PackBits".to_string()),
-    ];
-    let shown = kinds.iter().find(|(k, _)| *k == o.tiff).map(|(_, l)| l.clone()).unwrap_or_default();
-    egui::ComboBox::from_label(t("convert-compression")).selected_text(shown).show_ui(ui, |ui| {
-        for (k, label) in kinds {
-            ui.selectable_value(&mut o.tiff, k, label);
-        }
-    });
-    let predictor = matches!(o.tiff, TiffCompression::Lzw | TiffCompression::DeflateFast | TiffCompression::Deflate | TiffCompression::DeflateBest);
-    ui.add_enabled(predictor, egui::Checkbox::new(&mut o.tiff_predictor, t("convert-predictor")));
-}
-
-/// Whether the format loses quality, and the metadata kept when both the original and the format have some.
-fn meta_options(ui: &mut egui::Ui, o: &mut Options, original: &Original, i18n: &I18n) {
-    let t = |id| i18n.t(id);
-    let lossless = match o.format {
-        Format::Png | Format::Tiff | Format::Bmp | Format::Qoi | Format::Tga | Format::Pnm | Format::Exr | Format::Farbfeld => true,
-        Format::Ico => original.image.width().max(original.image.height()) <= crate::encode::ICO_SIDE,
-        Format::Webp => o.webp_lossless && o.near_lossless == 100,
-        Format::Jpeg => o.jpeg_lossless,
-        _ => false,
-    };
-    if lossless {
-        ui.weak(t("convert-lossless"));
-    } else if o.format == Format::Gif {
-        ui.weak(t("convert-gif"));
-    }
-    let can_meta = original.has_meta() && o.format.holds_meta();
-    let hint = if !original.has_meta() { t("convert-no-meta") } else if !o.format.holds_meta() { t("convert-meta-unsupported") } else { String::new() };
-    let r = ui.add_enabled(can_meta, egui::Checkbox::new(&mut o.keep_meta, t("convert-keep-meta")));
-    if !hint.is_empty() {
-        r.on_disabled_hover_text(hint);
-    }
-    if original.hdr.is_some() && !keeps_hdr(o) {
-        ui.label(crate::theme::alert(t("convert-ultra-hdr-lost")));
-    }
-}
-
 /// The file Save writes: an Ultra HDR photo saved as JPEG with its metadata stays Ultra HDR, as
 /// in Convert and resize (#66); otherwise the picture alone.
 fn encoded(original: &Original, o: &Options) -> Result<Vec<u8>, String> {
@@ -504,6 +454,21 @@ fn encoded(original: &Original, o: &Options) -> Result<Vec<u8>, String> {
         Some(hdr) if keeps_hdr(o) => hdr.write(&original.image, o),
         _ => original.encode(o),
     }
+}
+
+/// Width and height of the file Save writes, from the original's: a quarter turn made in the
+/// viewer swaps them, an ICO is reduced into 256 × 256 as `encode` does (with
+/// `image::DynamicImage::resize`). Nothing else in Save as… changes them: the editor hands over
+/// its result already cropped and resized.
+fn saved_size((w, h): (u32, u32), o: &Options) -> (u32, u32) {
+    let (w, h) = if o.turn.sideways() { (h, w) } else { (w, h) };
+    let side = f64::from(crate::encode::ICO_SIDE);
+    if o.format != Format::Ico || w.max(h) <= crate::encode::ICO_SIDE {
+        return (w, h);
+    }
+    let ratio = f64::min(side / f64::from(w), side / f64::from(h));
+    let fit = |s: u32| ((f64::from(s) * ratio).round() as u32).max(1);
+    (fit(w), fit(h))
 }
 
 /// Only a JPEG with its metadata holds the gain map and the XMP that describes it.
@@ -535,45 +500,36 @@ fn name_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, half: f32, final_nam
     save
 }
 
-/// The image fitted into `size` (never enlarged), or at 100% around `pan`; grey when none.
-/// `note` is written in the middle when there is no image (converting, no preview for the format).
-fn preview(ui: &mut egui::Ui, size: egui::Vec2, tex: Option<&TextureHandle>, note: Option<&str>, actual: bool, pan: &mut egui::Vec2) -> egui::Response {
-    let (rect, response) = ui.allocate_exact_size(size, egui::Sense::drag());
-    let painter = ui.painter_at(rect);
-    // Grey ground and a border: on the window's own colour the two images ran into each other.
-    let ground = if ui.visuals().dark_mode { egui::Color32::from_gray(24) } else { egui::Color32::from_gray(200) };
-    painter.rect_filled(rect, 2.0, ground);
-    painter.rect_stroke(rect, 2.0, egui::Stroke::new(1.0, ui.visuals().weak_text_color()), egui::StrokeKind::Inside);
-    let Some(tex) = tex else {
-        if let Some(note) = note {
-            let font = egui::TextStyle::Body.resolve(ui.style());
-            painter.text(rect.center(), egui::Align2::CENTER_CENTER, note, font, ui.visuals().text_color());
-        }
-        return response;
-    };
-    let ppp = ui.ctx().pixels_per_point();
-    let t = tex.size_vec2();
-    if actual {
-        paint_zoomed(&painter, rect, tex, 1.0, pan, Turn::default());
-    } else {
-        let scale = (rect.width() / t.x).min(rect.height() / t.y).min(1.0 / ppp);
-        let dest = egui::Rect::from_center_size(rect.center(), t * scale);
-        paint_turned(&painter, tex, dest, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), Turn::default());
-    }
-    response
-}
 
-
-/// Dragging either preview moves both, at 100%.
-fn drag(response: &egui::Response, actual: bool, pan: &mut egui::Vec2) {
-    if actual && response.dragged() {
-        *pan -= response.drag_delta() * response.ctx.pixels_per_point();
-    }
+/// Writes `data` as `path` in `store`, or under the first free name beside it; the path written.
+async fn write_free(store: &crate::source::Store, path: &str, data: Vec<u8>) -> Result<String, crate::source::Error> {
+    let dir = crate::source::parent(path);
+    let taken = store.names(&dir).await?;
+    let path = format!("{dir}{}", crate::source::free_name(&taken, crate::source::name(path)));
+    crate::replace::write_whole(store, &path, data).await.map(|()| path)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::transform::Turn;
+
+    /// Save as… from the editor writes in the editor's place under a name free there, checked in
+    /// that folder (the grid may list another place): a file already there is never replaced.
+    #[test]
+    fn saved_as_under_a_free_name_of_its_place() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-convert-free-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("p")).unwrap();
+        std::fs::write(dir.join("p/a.png"), b"there before").unwrap();
+        let store = crate::source::Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        assert_eq!(rt.block_on(write_free(&store, "p/b.png", b"b".to_vec())).unwrap(), "p/b.png");
+        assert_eq!(rt.block_on(write_free(&store, "p/a.png", b"new".to_vec())).unwrap(), "p/a (2).png");
+        assert_eq!(std::fs::read(dir.join("p/a.png")).unwrap(), b"there before");
+        assert_eq!(std::fs::read(dir.join("p/a (2).png")).unwrap(), b"new");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     /// Save in another format keeps an Ultra HDR photo Ultra HDR in JPEG with its metadata (#66);
     /// in another format, or without the metadata, the picture alone.
@@ -621,6 +577,49 @@ mod tests {
         assert!(seen > 0, "no Ultra HDR photo in {}", dir.display());
     }
 
+    /// A photo turned by a quarter in the viewer: Save as… says the size of the file it writes (a
+    /// 1920 × 613 photo said 1920 × 613 under the new image), and the file has its pixels turned
+    /// once, clockwise, with no EXIF orientation left to turn it again.
+    #[test]
+    fn turned_photo_saved_with_its_size() {
+        use image::{GenericImageView, ImageDecoder};
+        let cw = Turn::default().then(crate::transform::Op::Cw);
+        let half = Turn::default().then(crate::transform::Op::Half);
+        let jpeg = Options::default();
+        assert_eq!(saved_size((1920, 613), &jpeg), (1920, 613));
+        assert_eq!(saved_size((1920, 613), &Options { turn: cw, ..jpeg }), (613, 1920));
+        assert_eq!(saved_size((1920, 613), &Options { turn: half, ..jpeg }), (1920, 613));
+        // An ICO is reduced into 256 × 256, after the turn.
+        let ico = Options { format: Format::Ico, ..jpeg };
+        assert_eq!(saved_size((1920, 613), &ico), (256, 82));
+        assert_eq!(saved_size((1920, 613), &Options { turn: cw, ..ico }), (82, 256));
+        assert_eq!(saved_size((200, 100), &Options { turn: cw, ..ico }), (100, 200));
+        // A JPEG whose EXIF says "turn by a quarter" (done when decoded), red at the top left, in
+        // blocks of 16 pixels so that the JPEG keeps it red.
+        let red = |p: image::Rgba<u8>| p[0] > 200 && p[1] < 80 && p[2] < 80;
+        let img = image::RgbImage::from_fn(64, 32, |x, y| image::Rgb(if x < 16 && y < 16 { [255, 0, 0] } else { [255, 255, 255] }));
+        let mut file = Vec::new();
+        image::DynamicImage::ImageRgb8(img.clone()).write_to(&mut std::io::Cursor::new(&mut file), image::ImageFormat::Jpeg).unwrap();
+        let exif = b"Exif\0\0II*\x00\x08\x00\x00\x00\x01\x00\x12\x01\x03\x00\x01\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00";
+        let app1 = [&[0xFF, 0xE1][..], &(exif.len() as u16 + 2).to_be_bytes(), exif].concat();
+        file.splice(2..2, app1);
+        let original = Original::with_meta(image::DynamicImage::ImageRgb8(img), &file);
+        for format in [Format::Jpeg, Format::Png, Format::Ico] {
+            for turn in [Turn::default(), cw, half] {
+                let o = Options { format, turn, ..Options::default() };
+                let bytes = encoded(&original, &o).unwrap();
+                let mut d = image::ImageReader::new(std::io::Cursor::new(&bytes)).with_guessed_format().unwrap().into_decoder().unwrap();
+                assert_eq!(d.orientation().unwrap(), image::metadata::Orientation::NoTransforms, "{format:?} {turn:?}");
+                let back = image::DynamicImage::from_decoder(d).unwrap();
+                assert_eq!(back.dimensions(), saved_size((64, 32), &o), "{format:?} {turn:?}");
+                if turn == cw && format != Format::Ico {
+                    // Turned clockwise: the top left corner is now at the top right.
+                    assert!(red(back.get_pixel(24, 8)) && !red(back.get_pixel(8, 8)) && !red(back.get_pixel(8, 56)), "{format:?}");
+                }
+            }
+        }
+    }
+
     /// Issue #104: a new image is proposed as the PNG the editor names; a photo as a JPEG.
     #[test]
     fn new_image_proposed_as_png() {
@@ -628,6 +627,46 @@ mod tests {
         assert_eq!((w.options.format, w.name.as_str()), (Format::Png, "New image.png"));
         let w = Window::new("p/beach.webp".into());
         assert_eq!((w.options.format, w.name.as_str()), (Format::Jpeg, "beach.jpg"));
+    }
+
+    /// Save as… opens on the format of the last one; an image larger than that format holds, on
+    /// the format proposed before (JPEG, or PNG for a new image).
+    #[test]
+    fn save_as_proposes_the_last_format() {
+        assert_eq!(proposed(None, Format::Jpeg, 4000), Format::Jpeg);
+        assert_eq!(proposed(None, Format::Png, 800), Format::Png);
+        assert_eq!(proposed(Some(Format::Avif), Format::Jpeg, 4000), Format::Avif);
+        assert_eq!(proposed(Some(Format::Webp), Format::Png, 800), Format::Webp);
+        assert_eq!(proposed(Some(Format::Webp), Format::Jpeg, 16_383), Format::Webp);
+        assert_eq!(proposed(Some(Format::Webp), Format::Jpeg, 16_384), Format::Jpeg);
+        assert_eq!(proposed(Some(Format::Gif), Format::Jpeg, 70_000), Format::Jpeg);
+        assert_eq!(proposed(Some(Format::Png), Format::Jpeg, 70_000), Format::Png);
+    }
+
+    /// The limits of `max_side` are those of the encoders: one pixel more fails, the limit itself
+    /// is written.
+    #[test]
+    fn max_side_is_the_encoders() {
+        for f in Format::ALL {
+            let Some(max) = max_side(f) else { continue };
+            let o = Options { format: f, ..Options::default() };
+            let at = |w| Original::with_meta(image::DynamicImage::new_rgb8(w, 1), &[]).alone().encode(&o);
+            assert!(at(max).is_ok(), "{f:?} at {max}");
+            assert!(at(max + 1).is_err(), "{f:?} at {}", max + 1);
+        }
+    }
+
+    /// Save as… from the viewer, or from the editor opened from it: beside the original the viewer
+    /// goes to the new file; in another folder or place it stays, and says where; cancelled or
+    /// failed, or opened from the grid or the editor opened from the grid, nothing changes.
+    #[test]
+    fn viewer_after_save_as() {
+        assert_eq!(viewer_after(true, Some("p/a.jpg"), true, "p/"), Some(ViewerAfter::Show));
+        assert_eq!(viewer_after(true, Some("p/q/a.jpg"), true, "p/"), Some(ViewerAfter::Stay));
+        assert_eq!(viewer_after(true, Some("a.jpg"), true, "p/"), Some(ViewerAfter::Stay));
+        assert_eq!(viewer_after(true, Some("p/a.jpg"), false, "p/"), Some(ViewerAfter::Stay));
+        assert_eq!(viewer_after(true, None, true, "p/"), None);
+        assert_eq!(viewer_after(false, Some("p/a.jpg"), true, "p/"), None);
     }
 
     /// Issue #99: a new image has no file, so no size on disk and no percentage of it.

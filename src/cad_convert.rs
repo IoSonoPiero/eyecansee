@@ -1,6 +1,6 @@
 //! An AutoCAD drawing saved in the other AutoCAD format, DWG ↔ DXF, with `acadrust`: the whole
 //! document as read is written again, so its layers, blocks, layouts, styles and objects stay
-//! (user, 2026-11-02: as many of the original's attributes as possible).
+//! (as many of the original's attributes as possible).
 
 use std::io::Cursor;
 

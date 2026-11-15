@@ -8,6 +8,8 @@ Click the ![Add this folder to the bookmarks](icon://star) **star** next to the 
 
 You can also use **Bookmarks > + Add current folder** in the menu bar (in the viewer **+ Add this image**).
 
+To bookmark a folder without opening it, right-click it, in the grid or in the folder tree on the left, and choose **Add this folder to the bookmarks**. It works on one folder at a time: with several items selected the entry is greyed out.
+
 A new bookmark takes the name of the folder or the picture; for the top of a disk or a phone, the name of the device. A place that is already a bookmark is not added twice: the star is lit, and the menu item is greyed out.
 
 ## Opening a bookmark
@@ -22,7 +24,9 @@ A bookmark opens exactly as if you typed its address in the address bar: a serve
 
 ## Removing a bookmark
 
-When the place open is a bookmark, the star is lit: click it to remove the bookmark. The status bar says so.
+When the place open is a bookmark, the star is lit and filled, ![Remove from the bookmarks](icon://star-filled): click it to remove the bookmark. The status bar says so.
+
+On a folder that is already a bookmark, the right-click menu offers ![Remove from the bookmarks](icon://star-filled) **Remove from the bookmarks**, with the filled star, in place of Add, which has the empty one.
 
 ## Configure
 

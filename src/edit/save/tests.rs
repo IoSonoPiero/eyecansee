@@ -386,33 +386,36 @@ fn phone_samples() {
     println!("gain map {}×{}, checked {}..{} × {}..{}", gain.width(), gain.height(), x0, x1, y0, y1);
 }
 
-/// libmphoto's Motion Photo turned without loss: no save keeps the video after the picture, so
-/// none keeps what describes it. The viewer's Save leaves the file alone (the original keeps
-/// both); the lossless turn itself writes the picture alone (libjpeg-turbo stops at its end);
-/// the editor's copy of a turn is the picture alone too. The lossless turn keeps
-/// `Container:Directory` (an Ultra HDR photo needs it): only the GCamera tags go there. If a
-/// save ever keeps the video, the description must stay (`xmp::fix`).
+/// Motion Photos without a gain map from real phones (Google's MotionPhoto and MicroVideo, a
+/// Samsung with its own data around the video): only turned, the viewer's Save and the editor's
+/// copy keep the video, shown turned, after the photo turned without re-encoding, and the XMP
+/// that describes it. With another edit the editor's copy is the picture alone.
 #[test]
 #[ignore]
 fn motion_photo_turned() {
     let dir = std::env::var_os("EYECANSEE_PHONE_SAMPLES").map_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("notes/test-files/online/telefono"), std::path::PathBuf::from);
-    let bytes = std::fs::read(dir.join("motion_photo.jpeg")).unwrap_or_else(|e| panic!("motion_photo.jpeg in {}: {e} (test-files/scarica.sh online-telefono)", dir.display()));
     let video = |d: &[u8]| d.windows(4).any(|w| w == b"ftyp");
     // The GCamera namespace, whatever its prefix (here "Camera:").
     let tagged = |d: &[u8]| [":MotionPhoto", ":MicroVideo"].iter().any(|t| String::from_utf8_lossy(d).contains(t));
-    let described = |d: &[u8]| String::from_utf8_lossy(d).contains("MotionPhoto");
-    assert!(video(&bytes) && tagged(&bytes));
     let cw = crate::transform::Turn::default().then(Op::Cw);
-    // The viewer's Save (`replace::rewritten`) and Batch's lossless path skip it.
-    assert!(!crate::save_back::can_turn_in_place(&bytes, "motion_photo.jpeg") && !crate::ultrahdr::is(&bytes));
-    assert!(crate::save_back::turned_file(&bytes, "motion_photo.jpeg", cw).is_err());
-    let turned = crate::transform::jpeg_lossless(&bytes, cw).unwrap();
-    assert!(turned.ends_with(&[0xFF, 0xD9]) && !video(&turned) && !tagged(&turned), "lossless turn: the picture alone");
-    let mut doc = Doc::new(1024, 768, None);
-    doc.turned(Op::Cw);
-    let out = saved(&bytes, "motion_photo.jpeg", &doc);
-    assert!(!video(&out.data) && !described(&out.data), "editor's copy: the picture alone");
-    assert_eq!(crate::decode::decode_full(&out.data, "x.jpg").unwrap().dimensions(), (768, 1024));
+    for name in ["motion_photo.jpeg", "microvideo.jpeg", "MVIMG_20230506_130332.jpg"] {
+        let bytes = std::fs::read(dir.join(name)).unwrap_or_else(|e| panic!("{name} in {}: {e} (test-files/scarica.sh online-telefono)", dir.display()));
+        assert!(video(&bytes) && tagged(&bytes), "{name}");
+        assert!(!crate::save_back::can_turn_in_place(&bytes, name) && !crate::ultrahdr::is(&bytes) && crate::ultrahdr::turns_whole(&bytes), "{name}");
+        let (w, h) = crate::decode::decode_full(&bytes, name).unwrap().dimensions();
+        let (out, lossy) = crate::save_back::turned_file(&bytes, name, cw).unwrap();
+        let (end, _) = crate::save_back::jpeg_end(&out).unwrap();
+        let (old_end, _) = crate::save_back::jpeg_end(&bytes).unwrap();
+        assert!(video(&out[end..]) && tagged(&out[..end]) && !lossy, "{name}: the video kept, the photo not encoded again");
+        assert_eq!(out.len() - end, bytes.len() - old_end, "{name}: what follows the photo, of the same length");
+        assert_eq!(crate::decode::decode_full(&out, name).unwrap().dimensions(), (h, w), "{name}");
+        let mut doc = Doc::new(w, h, None);
+        doc.turned(Op::Cw);
+        assert_eq!(saved(&bytes, name, &doc).data, out, "{name}: the editor's copy, only turned");
+        doc.angle = 1.0;
+        let alone = saved(&bytes, name, &doc).data;
+        assert!(!video(&alone) && !tagged(&alone), "{name}: the editor's copy, edited: the picture alone");
+    }
 }
 
 /// Layers: a cover box hides the line drawn before it, and a line drawn after it stays on top.
@@ -670,4 +673,135 @@ fn preview_is_the_file() {
     let alone = |c: u8, k: usize| (c as f32 * crate::edit::photo::highlight_factor([255, 230, 0], 0.6)[k]).round() as u8;
     let (p, f) = (photo.get_pixel(30, 24), file.get_pixel(30, 24));
     assert!((0..3).any(|k| alone(p[k], k).abs_diff(f[k]) > 20), "{p:?} {f:?}");
+}
+
+/// Resize (#114): a phone JPEG halved with a cover box on it is saved at half its size, the box
+/// halved with it, the EXIF with the new size and the rest kept; a plain JPEG turned and resized
+/// is not the quick lossless turn (it would keep the old size).
+#[test]
+fn resized_with_the_objects() {
+    use crate::batch::Filter;
+    use crate::edit::resize::resized;
+    let img = motif();
+    let thumb = file(&DynamicImage::ImageRgb8(RgbImage::from_fn(16, 12, |x, y| Rgb([(x * 15) as u8, (y * 20) as u8, 7]))), Format::Jpeg, false);
+    let bytes = motion_photo(&img, &thumb);
+    let mut doc = Doc::new(64, 48, None);
+    doc.objects.push(cover_at(0.0, 0.0, 32.0, 24.0));
+    let doc = resized(&doc, (64, 48), (64, 48), (32, 24), Filter::Lanczos3);
+    let out = saved(&bytes, "a.jpg", &doc);
+    let back = crate::decode::decode_full(&out.data, "x.jpg").unwrap();
+    assert_eq!(back.dimensions(), (32, 24));
+    // The box now 8..24 × 6..18.
+    for (x, y) in [(10, 8), (16, 12), (22, 16)] {
+        let p = back.get_pixel(x, y);
+        assert!(p[0] < 40 && p[1] < 40 && p[2] > 200, "at {x},{y}: {p:?}");
+    }
+    let exif = exif::Reader::new().read_from_container(&mut Cursor::new(&out.data)).unwrap();
+    let get = |tag| exif.get_field(tag, In::PRIMARY).and_then(|f| f.value.get_uint(0));
+    assert_eq!((get(Tag::PixelXDimension), get(Tag::PixelYDimension)), (Some(32), Some(24)));
+    assert!(exif.get_field(Tag::Make, In::PRIMARY).is_some());
+    assert!(String::from_utf8_lossy(&out.data).contains("<rdf:li>Ann</rdf:li>"), "author kept");
+    let plain = file(&img, Format::Jpeg, false);
+    assert!(crate::save_back::can_turn_in_place(&plain, "a.jpg"));
+    let mut doc = Doc::new(64, 48, None);
+    doc.turned(Op::Cw);
+    let doc = resized(&doc, (64, 48), (64, 48), (24, 32), Filter::Bilinear);
+    let out = saved(&plain, "a.jpg", &doc);
+    assert!(out.lossy);
+    assert_eq!(crate::decode::decode_full(&out.data, "x.jpg").unwrap().dimensions(), (24, 32));
+}
+
+/// Resize (#114) of an Ultra HDR photo: still HDR, the gain map resized with it (half the photo,
+/// as it was), also in Save in another format (`ultrahdr::Source`).
+#[test]
+fn resized_ultra_hdr() {
+    use crate::edit::resize::resized;
+    let bytes = crate::ultrahdr::tests::sample(64, 32);
+    let doc = resized(&Doc::new(64, 32, None), (64, 32), (64, 32), (32, 16), crate::batch::Filter::Lanczos3);
+    let out = saved(&bytes, "a.jpg", &doc);
+    let (photo, gain) = crate::ultrahdr::split(&out.data).expect("still Ultra HDR");
+    let dims = |b: &[u8]| image::load_from_memory(b).unwrap().dimensions();
+    assert_eq!((dims(photo), dims(gain)), ((32, 16), (16, 8)));
+    let original = Original::with_meta(crate::decode::decode_full(&bytes, "a.jpg").unwrap(), &bytes);
+    let (image, holes) = result_with_holes(&doc, &original, &options());
+    let source = crate::ultrahdr::Source::of(std::sync::Arc::new(bytes), vec![doc.edit()], holes).unwrap().sized(doc.scale.map(|s| (s.w, s.h)));
+    let out = source.write(&image, &Options::default()).unwrap();
+    let (photo, gain) = crate::ultrahdr::split(&out).expect("still Ultra HDR");
+    assert_eq!((dims(photo), dims(gain)), ((32, 16), (16, 8)));
+}
+
+/// A pasted piece (`edit::patch`) half red on the left, half blue on the right.
+fn piece() -> crate::edit::doc::Pixels {
+    crate::edit::doc::Pixels::new(image::RgbaImage::from_fn(8, 4, |x, _| if x < 4 { image::Rgba([255, 0, 0, 255]) } else { image::Rgba([0, 0, 255, 255]) }))
+}
+
+fn patch_doc(area: Area, mirrored: bool, opacity: f32) -> Doc {
+    let mut doc = Doc::new(64, 48, None);
+    doc.objects = vec![obj(Shape::Patch { area, pixels: piece(), mirrored }, Style { opacity, ..Style::default() })];
+    doc
+}
+
+/// A pasted piece mirrored shows its right half on the left; turned, mirrored, sized and back
+/// many times it is saved as at the start, pixel for pixel: drawn each time from the pixels
+/// pasted, never from a result already resampled.
+#[test]
+fn pasted_piece_from_its_pixels() {
+    use crate::edit::patch;
+    let original = Original::with_meta(motif(), &[]);
+    let area = Area { centre: Pt::new(0.0, 0.0), w: 24.0, h: 12.0, rot: 0.0 };
+    let red = |p: &image::Rgba<u8>| p[0] > 200 && p[2] < 60;
+    let blue = |p: &image::Rgba<u8>| p[2] > 200 && p[0] < 60;
+    let plain = result(&patch_doc(area, false, 1.0), &original, &options()).to_rgba8();
+    assert!(red(plain.get_pixel(24, 24)) && blue(plain.get_pixel(40, 24)));
+    let (a, m) = patch::flipped(&area, false, true, 0.0);
+    let mirrored = result(&patch_doc(a, m, 1.0), &original, &options()).to_rgba8();
+    assert!(blue(mirrored.get_pixel(24, 24)) && red(mirrored.get_pixel(40, 24)));
+    // Top to bottom, the halves stay where they were (left red, right blue).
+    let (a, m) = patch::flipped(&area, false, false, 0.0);
+    let upside = result(&patch_doc(a, m, 1.0), &original, &options()).to_rgba8();
+    assert!(red(upside.get_pixel(24, 24)) && blue(upside.get_pixel(40, 24)));
+    // Four quarter turns, the handle to 90° and back to 0° with Shift, larger and back, four flips.
+    let (mut b, mut m) = (area, false);
+    for _ in 0..4 {
+        b = patch::quarter(&b, false);
+    }
+    b.rot = patch::turned_to(&b, Pt::new(30.0, 1.0), 0.0, true);
+    assert_eq!(b.rot, 90.0);
+    b.rot = patch::turned_to(&b, Pt::new(-1.0, -30.0), 0.0, true);
+    b = patch::sized(&patch::sized(&b, 200.0, true, true), 24.0, true, true);
+    for horizontal in [true, false, true, false] {
+        (b, m) = patch::flipped(&b, m, horizontal, 0.0);
+    }
+    assert!(!m && b.rot.rem_euclid(360.0) == 0.0 && (b.w, b.h) == (24.0, 12.0), "{b:?}");
+    assert_eq!(result(&patch_doc(b, m, 1.0), &original, &options()).to_rgba8(), plain);
+}
+
+/// The screen is the saved file for a piece turned by 30°, a quarter, mirrored and at 70%; and
+/// the image turned a quarter with it shows the same piece turned with the image.
+#[test]
+fn pasted_piece_preview_is_the_file() {
+    use crate::edit::patch;
+    let photo = motif();
+    let original = Original::with_meta(photo.clone(), &[]);
+    let area = Area { centre: Pt::new(-6.0, 3.0), w: 24.0, h: 12.0, rot: 30.0 };
+    let (a, m) = patch::flipped(&patch::quarter(&area, true), false, false, 0.0);
+    let doc = patch_doc(a, m, 0.7);
+    let mut screen = photo.clone();
+    doc.edit().apply(&mut screen);
+    let drawn = render::render(&doc, (64, 48), &View { x: 0.0, y: 0.0, w: 64, h: 48, scale: 1.0 }, &options()).unwrap();
+    over(&mut screen, &drawn, 0, 0, false);
+    let file = result(&doc, &original, &options()).to_rgba8();
+    for (x, y, a) in screen.to_rgba8().enumerate_pixels() {
+        let b = file.get_pixel(x, y);
+        assert!(a.0.iter().zip(b.0).all(|(a, b)| a.abs_diff(b) <= 2), "at {x},{y}: screen {a:?}, file {b:?}");
+    }
+    // The whole image turned clockwise: the file is the one before, turned (but a few pixels on
+    // the slanted edges of the piece, smoothed on another grid).
+    let mut turned = doc.clone();
+    turned.turned(Op::Cw);
+    let after = result(&turned, &original, &options()).to_rgba8();
+    let before = image::imageops::rotate90(&file);
+    assert_eq!(after.dimensions(), before.dimensions());
+    let off = after.pixels().zip(before.pixels()).filter(|(a, b)| a.0.iter().zip(b.0).any(|(a, b)| a.abs_diff(b) > 40)).count();
+    assert!(off < 30, "{off} pixels differ");
 }

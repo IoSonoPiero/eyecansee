@@ -6,7 +6,7 @@ EyeCanSee mostra le foto, i video, i modelli 3D e i disegni CAD di una cartella 
 
 ![Per cominciare](../img/start.webp)
 
-- **Barra dei menù** in alto: File, Modifica, Immagine, Visualizza, Segnalibri, Strumenti e Aiuto.
+- **Barra dei menù** in alto: File, Modifica, Immagine, Visualizza, Segnalibri, Strumenti e Aiuto. Passando col mouse su una voce grigia compare il motivo per cui ora non si può usare.
 - **Barra strumenti** subito sotto: i pulsanti delle operazioni più comuni, i segnalibri e la barra degli indirizzi. Passando col mouse su un pulsante compaiono il suo nome e il suo tasto; su un pulsante grigio, anche il motivo per cui ora non si può usare.
 - **Pannello laterale** a sinistra: i tuoi dischi, i telefoni, i server salvati e le cartelle di questo computer. Vedi [Cartelle e pannello laterale](folders.md).
 - **Griglia** al centro: le sottocartelle e i file della cartella aperta, come miniature. Vedi [La griglia delle miniature](grid.md).
@@ -36,9 +36,22 @@ Fai doppio clic su una miniatura, oppure selezionala e premi **Invio**: la foto 
 
 ## Aiuto
 
-Premi **F1** in qualunque momento: questa guida si apre sulla pagina di ciò che stai facendo. Premi di nuovo **F1** per chiuderla, oppure premi **Esc** due volte di seguito col puntatore sopra la guida. **Aiuto > Manuale** apre l'elenco di tutte le pagine.
+Premi **F1** in qualunque momento: questa guida si apre sulla pagina di ciò che stai facendo. Premi di nuovo **F1** per chiuderla, oppure premi **Esc** due volte di seguito col puntatore sopra la guida. **Aiuto > Guida** apre l'elenco di tutte le pagine.
 
 Il campo in alto a sinistra cerca in tutte le pagine ed è già pronto quando la guida si apre: un risultato apre la sua pagina con le parole trovate evidenziate. L'evidenziazione segue il campo, e ![Svuota la ricerca](icon://x) lo svuota.
+
+## Suggerimenti all'avvio
+
+Al primo avvio del giorno una finestra mostra un suggerimento: una cosa che EyeCanSee sa fare, con un'immagine o i passi da seguire.
+
+![Suggerimenti all'avvio](../img/tips.webp)
+
+- **Avanti** e **Indietro** (o i tasti → e ←) mostrano gli altri suggerimenti; l'avvio successivo mostra quello dopo l'ultimo che hai visto.
+- **Leggi di più nella guida** apre la pagina di quel suggerimento.
+- **Chiudi** (o **Esc**) chiude la finestra.
+- **Non mostrare più all'avvio** ferma i suggerimenti. Per riaverli, spunta **Mostra un suggerimento all'avvio** in **Strumenti > Opzioni… > Generale** (vedi [Opzioni](options.md)).
+
+I suggerimenti non compaiono quando EyeCanSee parte per aprire un'immagine o una cartella da un altro programma.
 
 ## Da dove continuare
 

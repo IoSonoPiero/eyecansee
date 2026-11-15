@@ -69,7 +69,7 @@ pub fn solid(v: &Visuals) -> Color32 {
     palette(v).solid
 }
 
-/// The title of a window drawn in its content, centered (user, 2026-10-27: every window's title
+/// The title of a window drawn in its content, centered (every window's title
 /// in the middle, as egui's title bars have it).
 pub fn title(ui: &mut egui::Ui, text: impl Into<egui::RichText>) {
     ui.vertical_centered(|ui| ui.heading(text));
@@ -77,7 +77,7 @@ pub fn title(ui: &mut egui::Ui, text: impl Into<egui::RichText>) {
 
 /// The title of a page covering the window, centered, cut with "…" when too long. `true` when
 /// the window's ✕ is clicked: it closes the page, not the app. The page had a ✕ of its own,
-/// unseen and then a double ✕ under the window's (user, 2026-11-02).
+/// unseen and then a double ✕ under the window's.
 pub fn page_title(ui: &mut egui::Ui, text: &str) -> bool {
     let close = close_asked(ui);
     ui.vertical_centered(|ui| ui.add(egui::Label::new(egui::RichText::new(text).heading()).truncate()));
@@ -106,7 +106,7 @@ pub fn main_button(ui: &egui::Ui, text: String) -> egui::Button<'static> {
 }
 
 /// Dark red behind `alert_button`'s white text: 7.5:1. The red before (#C62828) was 5.6:1 on
-/// paper, but its thin letters, blended into the red at their edges, read pink (user, 2026-10-31).
+/// paper, but its thin letters, blended into the red at their edges, read pink.
 const ALERT_RED: Color32 = Color32::from_rgb(0xA5, 0x1C, 0x1C);
 
 /// Something to do now, in the menu bar (an update, the video engine): white bold on dark red.
@@ -115,7 +115,7 @@ pub fn alert_button(text: String) -> egui::Button<'static> {
 }
 
 /// Something under way or not saved, in the status bars: a yellow label with dark bold text
-/// (contrast about 13:1). White on the blue bar went unnoticed (user, 2026-10-26).
+/// (contrast about 13:1). White on the blue bar went unnoticed.
 pub fn alert(text: String) -> egui::RichText {
     egui::RichText::new(format!(" {text} ")).strong().color(Color32::from_gray(26)).background_color(ALERT_YELLOW)
 }
@@ -127,7 +127,7 @@ const ALERT_INK: Color32 = Color32::from_rgb(0x4A, 0x32, 0x00);
 /// Something that went wrong or needs reading: the error bar, the warning about servers saved in
 /// plain text. A band of pale amber with a darker edge and dark text (light theme, text 13:1 on
 /// the fill, edge 3.5:1), dark amber with pale text (dark theme, 12:1 and 6:1). Red text on the
-/// dark bar was hard to read (user, 2026-11-10).
+/// dark bar was hard to read.
 pub fn warning_frame(v: &Visuals) -> egui::Frame {
     let (fill, edge) = if v.dark_mode { (rgb(60, 44, 8), rgb(230, 170, 40)) } else { (rgb(255, 243, 205), rgb(176, 120, 0)) };
     egui::Frame::new().fill(fill).stroke(Stroke::new(1.5, edge)).corner_radius(4).inner_margin(egui::Margin::symmetric(10, 8))
@@ -292,6 +292,57 @@ pub fn loading(ui: &mut egui::Ui, text: String, colour: Option<Color32>) {
     });
 }
 
+/// Where a hint at the end of a wrapping bar goes, `width` wide with `left` free on this row and
+/// `full` in a whole row.
+#[derive(Debug, PartialEq)]
+enum HintPlace {
+    /// On this row, after the controls.
+    Here,
+    /// Whole on the row below.
+    NextRow,
+    /// Wider than a row: from the start of the row below, wrapped at the spaces.
+    Wrapped,
+}
+
+fn hint_place(width: f32, left: f32, full: f32) -> HintPlace {
+    if width <= left {
+        HintPlace::Here
+    } else if width <= full {
+        HintPlace::NextRow
+    } else {
+        HintPlace::Wrapped
+    }
+}
+
+/// A faint hint in a bar that wraps (`horizontal_wrapped`), in one piece. egui starts a long
+/// label after the last control and goes on at the left edge of the row below: half a sentence
+/// sat after the controls and half under them (the editor's Text tool, 2026-11-14).
+pub fn bar_hint(ui: &mut egui::Ui, text: String) {
+    let one_line = egui::WidgetText::from(egui::RichText::new(&text).weak()).into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::TextStyle::Body);
+    let (left, full) = (ui.available_size_before_wrap().x, ui.available_width());
+    match hint_place(one_line.size().x, left, full) {
+        HintPlace::Here => {
+            ui.label(one_line);
+        }
+        HintPlace::NextRow => {
+            ui.end_row();
+            ui.label(one_line);
+        }
+        HintPlace::Wrapped => {
+            if left < full {
+                ui.end_row();
+            }
+            ui.add(egui::Label::new(egui::RichText::new(text).weak()).wrap());
+        }
+    }
+}
+
+/// The width a text box needs to show `hint` on one line (its margins included).
+pub fn hint_width(ui: &egui::Ui, hint: &str) -> f32 {
+    let galley = egui::WidgetText::from(hint).into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::TextStyle::Body);
+    galley.size().x + 2.0 * ui.spacing().button_padding.x + 4.0
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -313,5 +364,15 @@ mod tests {
     #[test]
     fn alert_button_contrast() {
         assert!(contrast(Color32::WHITE, ALERT_RED) >= 7.0, "{}", contrast(Color32::WHITE, ALERT_RED));
+    }
+
+    /// A hint goes after the controls when it fits, whole on the row below when a row holds it,
+    /// wrapped from the start of a row only when no row does.
+    #[test]
+    fn bar_hint_in_one_piece() {
+        assert_eq!(hint_place(300.0, 320.0, 900.0), HintPlace::Here);
+        assert_eq!(hint_place(300.0, 120.0, 900.0), HintPlace::NextRow);
+        assert_eq!(hint_place(300.0, 0.0, 300.0), HintPlace::NextRow);
+        assert_eq!(hint_place(300.0, 120.0, 250.0), HintPlace::Wrapped);
     }
 }

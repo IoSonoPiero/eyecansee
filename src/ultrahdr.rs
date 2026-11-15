@@ -2,7 +2,8 @@
 //! gain map, after its end. The MPF segment of the photo says where the gain map starts and how
 //! long it is, the XMP container directory says its length again. Turned as a whole: both
 //! pictures the same way, then lengths and offsets written again, so the photo stays HDR. The
-//! same for Rotate and crop (`edited`), the gain map edited at its own scale.
+//! same for Rotate and crop (`edited`), the gain map edited at its own scale. A Motion Photo
+//! without a gain map is turned whole too: the photo, and its video shown turned (`motion_turned`).
 
 use image::DynamicImage;
 
@@ -39,12 +40,52 @@ pub fn is(b: &[u8]) -> bool {
     parts(b).is_some()
 }
 
+/// Can `turned` turn this phone photo keeping all of it: an Ultra HDR JPEG, or a Motion Photo
+/// without a gain map? (`save_back::can_turn_in_place` refuses both: a plain turn would lose
+/// what comes after the photo.)
+pub fn turns_whole(b: &[u8]) -> bool {
+    is(b) || motion_parts(b).is_some()
+}
+
+/// A Motion Photo without a gain map (Pixel and Samsung phones, the "MVIMG" files): the photo,
+/// then after its end the video (an MP4 or MOV: a `ftyp` box, and a video track that
+/// `mp4::turned` can turn), maybe with the maker's data around it (Samsung). Where the photo
+/// ends and where the video starts. Not with an MPF segment: the pictures it lists after the
+/// photo would move.
+fn motion_parts(b: &[u8]) -> Option<(usize, usize)> {
+    let (end, mpf) = crate::save_back::jpeg_end(b)?;
+    if mpf {
+        return None;
+    }
+    let video = end + b.get(end..)?.windows(8).position(|w| &w[4..] == b"ftyp")?;
+    crate::mp4::turned(&b[video..], Turn::default())?;
+    Some((end, video))
+}
+
+/// A Motion Photo without a gain map turned: the photo as `one` turns it, with the XMP that
+/// describes the video, then all that followed it as it was, the video shown turned the same
+/// way (its display matrix changed, nothing encoded again). The lengths and offsets the XMP and
+/// the maker's data give count from the end of the file, which does not change.
+fn motion_turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
+    let (end, video) = motion_parts(b)?;
+    let photo = &b[..end];
+    Some((|| {
+        let turned_video = crate::mp4::turned(&b[video..], turn).ok_or("Motion Photo: its video could not be turned")?;
+        let (mut out, lossy) = one(photo, turn, |j| transform::jpeg_lossless(j, turn))?;
+        keep_video_xmp(&mut out, photo)?;
+        out.extend_from_slice(&b[end..video]);
+        out.extend(turned_video);
+        Ok((out, lossy))
+    })())
+}
+
 /// The file turned, photo and gain map, and the video of a Motion Photo after them shown turned
-/// the same way (Piero, 2026-11-07: nothing is lost, #54); `None` if it is not an Ultra HDR file.
+/// the same way (nothing is lost, #54); a Motion Photo without a gain map as `motion_turned`
+/// does it; `None` if it is neither (`turns_whole`).
 /// Also says whether it lost quality (a picture whose size is not a multiple of the JPEG blocks
 /// is encoded again at quality 95).
 pub fn turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
-    let p = parts(b)?;
+    let Some(p) = parts(b) else { return motion_turned(b, turn) };
     let (photo, gain) = split(b)?;
     Some((|| {
         // The gain map has the photo's pixels in the photo's orientation: it turns as they do.
@@ -66,7 +107,9 @@ pub fn turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
 /// of the video that is written after the gain map (`xmp::fit_keeping_video`).
 fn keep_video_xmp(photo: &mut Vec<u8>, old: &[u8]) -> Result<(), String> {
     let xmp = |b: &[u8]| segments(b).into_iter().find(|&(m, s, e)| m == 0xE1 && b[s + 4..e].starts_with(crate::meta_write::JPEG_XMP));
-    let (Some((_, os, oe)), Some((_, s, e))) = (xmp(old), xmp(photo)) else { return Err("Motion Photo: XMP lost".into()) };
+    // Without an XMP of its own (older Samsung phones) the video is described only by the maker's data.
+    let Some((_, os, oe)) = xmp(old) else { return Ok(()) };
+    let Some((_, s, e)) = xmp(photo) else { return Err("Motion Photo: XMP lost".into()) };
     let (w, h) = image::ImageReader::new(std::io::Cursor::new(&photo[..])).with_guessed_format().map_err(|e| e.to_string())?.into_dimensions().map_err(|e| e.to_string())?;
     let packet = crate::xmp::fit_keeping_video(&old[os + 4 + crate::meta_write::JPEG_XMP.len()..oe], w, h);
     let body = [crate::meta_write::JPEG_XMP, &packet].concat();
@@ -79,15 +122,17 @@ fn keep_video_xmp(photo: &mut Vec<u8>, old: &[u8]) -> Result<(), String> {
 /// as Ultra HDR: the gain map gets the same edits, scaled to its size, so the photo stays HDR.
 /// `holes` (left, top, right, bottom in pixels of the edited photo: the editor's cover boxes and
 /// opaque objects) get the lowest gain on every pixel of the gain map they touch even in part.
-pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]]) -> Result<Vec<u8>, String> {
+/// `size`: the photo resized in the editor (#114) to this size, upright, before the edits: the
+/// gain map is resized as Convert and resize does it (`resized`).
+pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]], size: Option<(u32, u32)>) -> Result<Vec<u8>, String> {
     let (photo, _) = split(b).ok_or("not Ultra HDR")?;
     // At its own quality and subsampling: not compressed harder a second time.
     let o = crate::encode::jpeg_quality::like(photo, Options { format: Format::Jpeg, ..Options::default() });
-    edited_with(b, image, edits, holes, &o)
+    edited_with(b, image, edits, holes, &o, size)
 }
 
 /// As `edited`, the photo encoded with `o` (Save in another format, #66).
-fn edited_with(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]], o: &Options) -> Result<Vec<u8>, String> {
+fn edited_with(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]], o: &Options, size: Option<(u32, u32)>) -> Result<Vec<u8>, String> {
     let (photo, gain) = split(b).ok_or("not Ultra HDR")?;
     // The gain map upright as the photo shown, then the edits at its scale.
     let turn = transform::exif_turn(photo);
@@ -96,7 +141,13 @@ fn edited_with(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]]
     let gray = !g.color().has_color();
     turn.apply(&mut g);
     // Long side to long side: the same whatever the orientation.
-    let k = g.width().max(g.height()) as f32 / w.max(h) as f32;
+    let mut k = g.width().max(g.height()) as f32 / w.max(h) as f32;
+    if let Some((w, h)) = size {
+        // Its share of the photo kept, smooth as in `resized`.
+        let side = |v: u32| ((v as f32 * k).round() as u32).max(1);
+        g = g.resize_exact(side(w), side(h), image::imageops::FilterType::Triangle);
+        k = g.width().max(g.height()) as f32 / w.max(h) as f32;
+    }
     for e in edits {
         let crop = Crop { cx: e.crop.cx * k, cy: e.crop.cy * k, w: e.crop.w * k, h: e.crop.h * k };
         // ponytail: corners outside the photo take the lowest gain (0), no boost when GainMapMin
@@ -108,11 +159,12 @@ fn edited_with(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]]
     rebuilt(photo, image, o, gain, g, gray)
 }
 
-/// The photo after Convert and resize (`image`: decoded upright, turned by `turn`, maybe resized)
-/// written as JPEG with `o` and still Ultra HDR (#65): the gain map turned the same way and
-/// resized by the same factor (bilinear: a smooth picture, no halos), at its own quality. The
-/// video of a Motion Photo is not written: the copy is a new, smaller file (Piero, 2026-11-07).
-pub fn resized(b: &[u8], image: DynamicImage, turn: Turn, o: &Options) -> Result<Vec<u8>, String> {
+/// The photo after Convert and resize (`image`: decoded upright, turned by `turn`, maybe cut to
+/// `cut` (left, top, width, height of the turned photo) and resized) written as JPEG with `o`
+/// and still Ultra HDR (#65): the gain map turned and cut the same way and resized by the same
+/// factor (bilinear: a smooth picture, no halos), at its own quality. The video of a Motion Photo
+/// is not written: the copy is a new, smaller file.
+pub fn resized(b: &[u8], image: DynamicImage, turn: Turn, cut: Option<(u32, u32, u32, u32)>, o: &Options) -> Result<Vec<u8>, String> {
     let (photo, gain) = split(b).ok_or("not Ultra HDR")?;
     let (w, h) = image::ImageReader::new(std::io::Cursor::new(photo)).with_guessed_format().map_err(|e| e.to_string())?.into_dimensions().map_err(|e| e.to_string())?;
     let mut g = crate::decode::decode_full(gain, "x.jpg")?;
@@ -121,6 +173,11 @@ pub fn resized(b: &[u8], image: DynamicImage, turn: Turn, o: &Options) -> Result
     // The gain map's share of the photo, long side to long side, kept.
     let k = g.width().max(g.height()) as f32 / w.max(h) as f32;
     let size = |side: u32| ((side as f32 * k).round() as u32).max(1);
+    if let Some((x, y, cw, ch)) = cut {
+        let at = |v: u32| (v as f32 * k).round() as u32;
+        let (gx, gy) = (at(x).min(g.width() - 1), at(y).min(g.height() - 1));
+        g = g.crop_imm(gx, gy, size(cw).min(g.width() - gx), size(ch).min(g.height() - gy));
+    }
     let (gw, gh) = (size(image.width()), size(image.height()));
     if (gw, gh) != (g.width(), g.height()) {
         g = g.resize_exact(gw, gh, image::imageops::FilterType::Triangle);
@@ -135,12 +192,18 @@ pub struct Source {
     file: std::sync::Arc<Vec<u8>>,
     edits: Vec<Edit>,
     holes: Vec<[f32; 4]>,
+    size: Option<(u32, u32)>,
 }
 
 impl Source {
     /// `None` if `file` is not an Ultra HDR JPEG. `edits` and `holes` as `edited` takes them.
     pub fn of(file: std::sync::Arc<Vec<u8>>, edits: Vec<Edit>, holes: Vec<[f32; 4]>) -> Option<Source> {
-        is(&file).then_some(Source { file, edits, holes })
+        is(&file).then_some(Source { file, edits, holes, size: None })
+    }
+
+    /// The photo resized in the editor before the edits, as `edited` takes it.
+    pub fn sized(self, size: Option<(u32, u32)>) -> Source {
+        Source { size, ..self }
     }
 
     /// `image` (the original decoded upright, or the editor's result) written as JPEG with `o`,
@@ -151,9 +214,9 @@ impl Source {
         o.turn.apply(&mut image);
         let plain = Options { turn: Turn::default(), ..*o };
         if self.edits.is_empty() {
-            resized(&self.file, image, o.turn, &plain)
+            resized(&self.file, image, o.turn, None, &plain)
         } else {
-            edited_with(&self.file, image, &self.edits, &self.holes, &plain)
+            edited_with(&self.file, image, &self.edits, &self.holes, &plain, self.size)
         }
     }
 }
@@ -419,7 +482,7 @@ pub(crate) mod tests {
         let mut img = crate::decode::decode_full(&file, "a.jpg").unwrap();
         let e = Edit { turn: Turn::default().then(transform::Op::Cw), angle: 10.0, crop: Crop::centred(20.0, 40.0), fill: Some([255; 3]) };
         e.apply(&mut img);
-        let out = edited(&file, img, &[e], &[]).unwrap();
+        let out = edited(&file, img, &[e], &[], None).unwrap();
         let p = parts(&out).expect("still Ultra HDR");
         let photo = image::load_from_memory(&out[..p.gain]).unwrap();
         let gain = image::load_from_memory(&out[p.gain..]).unwrap();
@@ -441,13 +504,47 @@ pub(crate) mod tests {
         assert!(is(&motion) && split(&motion) == split(&file));
         assert!(!is(&[file.as_slice(), &[7; 40]].concat()));
         let img = crate::decode::decode_full(&motion, "a.jpg").unwrap();
-        let out = edited(&motion, img, &[Edit { turn: Turn::default(), angle: 0.0, crop: Crop::centred(64.0, 32.0), fill: None }], &[]).unwrap();
+        let out = edited(&motion, img, &[Edit { turn: Turn::default(), angle: 0.0, crop: Crop::centred(64.0, 32.0), fill: None }], &[], None).unwrap();
         assert!(is(&out) && !out.windows(4).any(|w| w == b"ftyp"));
         let cw = Turn::default().then(transform::Op::Cw);
         let (out, _) = turned(&motion, cw).unwrap().unwrap();
         let p = parts(&out).expect("still Ultra HDR");
         assert!(p.video && out.len() - p.end == video.len());
         assert_eq!(&out[p.end..], crate::mp4::turned(&video, cw).unwrap());
+    }
+
+    /// A Motion Photo without a gain map (older Pixels, Samsung with its own data before the
+    /// video): turned whole, the photo without re-encoding, the XMP still describing the video,
+    /// what follows the photo of the same length, the video shown turned. Not with an MPF segment
+    /// (its pictures would move), not with zeros or random bytes after the photo. Convert, only
+    /// turned, writes the same file.
+    #[test]
+    fn motion_photo_without_gain_map() {
+        let xmp = "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta><rdf:Description GCamera:MotionPhoto=\"1\"/><rdf:Seq><rdf:li><Container:Item Item:Semantic=\"Primary\" Item:Mime=\"image/jpeg\"/></rdf:li><rdf:li><Container:Item Item:Semantic=\"MotionPhoto\" Item:Mime=\"video/mp4\" Item:Length=\"999\"/></rdf:li></rdf:Seq></x:xmpmeta>";
+        let plain = jpeg(32, 16);
+        let photo = [&plain[..2], &segment(0xE1, xmp.as_bytes()), &plain[2..]].concat();
+        let video = crate::mp4::tests::video(160, 90);
+        let cw = Turn::default().then(transform::Op::Cw);
+        for maker in [&b""[..], &b"\0\0\x01\x0aMotionPhoto_Data"[..]] {
+            let file = [photo.as_slice(), maker, &video].concat();
+            assert!(turns_whole(&file) && !is(&file) && !crate::save_back::can_turn_in_place(&file, "a.jpg"));
+            let (out, lossy) = turned(&file, cw).unwrap().unwrap();
+            assert!(!lossy);
+            let (end, at) = motion_parts(&out).expect("still a Motion Photo");
+            assert_eq!(image::load_from_memory(&out[..end]).unwrap().dimensions(), (16, 32));
+            assert!(String::from_utf8_lossy(&out[..end]).contains("Item:Semantic=\"MotionPhoto\""), "the XMP still describes the video");
+            assert_eq!((&out[end..at], out.len() - end), (maker, file.len() - photo.len()));
+            assert_eq!(&out[at..], crate::mp4::turned(&video, cw).unwrap());
+            // The viewer's Save and Convert (only turned, same format) take the same path.
+            assert_eq!(crate::save_back::turned_file(&file, "a.jpg", cw).unwrap().0, out);
+            let job = crate::batch::Job { format: None, turn: cw, ..Default::default() };
+            assert_eq!(crate::batch::convert(&file, "a.jpg", &job).unwrap().1, out);
+        }
+        assert!(!turns_whole(&photo) && !turns_whole(&[photo.as_slice(), &[0; 16]].concat()) && !turns_whole(&[photo.as_slice(), &[7; 40]].concat()));
+        let mpf = [&photo[..2], &segment(0xE2, b"MPF\0II*\0"), &photo[2..], &video].concat();
+        assert!(!turns_whole(&mpf));
+        // A `ftyp` box without a video to turn after it: skipped as before, not an error.
+        assert!(!turns_whole(&[photo.as_slice(), b"\0\0\0\x18ftypmp42\0\0\0\0isommp42", &[7; 64]].concat()));
     }
 
     /// Convert and resize (#65): turned and halved, the gain map turned and halved with it (its
@@ -459,7 +556,7 @@ pub(crate) mod tests {
         let mut img = crate::decode::decode_full(&file, "a.jpg").unwrap();
         cw.apply(&mut img);
         let img = img.resize_exact(16, 32, image::imageops::FilterType::Triangle);
-        let out = resized(&file, img, cw, &Options::default()).unwrap();
+        let out = resized(&file, img, cw, None, &Options::default()).unwrap();
         let p = parts(&out).expect("still Ultra HDR");
         let photo = image::load_from_memory(&out[..p.gain]).unwrap();
         let gain = image::load_from_memory(&out[p.gain..p.end]).unwrap();
@@ -526,7 +623,7 @@ pub(crate) mod tests {
             let (w, h) = (img.width() as f32, img.height() as f32);
             let e = Edit { turn: Turn::default(), angle: 7.5, crop: crate::rotate::inside(w, h, 7.5, w / h), fill: Some([255; 3]) };
             e.apply(&mut img);
-            let out = edited(&b, img, &[e], &[]).unwrap();
+            let out = edited(&b, img, &[e], &[], None).unwrap();
             assert!(is(&out), "{}", path.display());
             std::fs::write(std::path::Path::new(&out_dir).join(path.file_name().unwrap()), &out).unwrap();
         }

@@ -1,8 +1,10 @@
-# Builds a release when a tag v<version> is pushed: the Windows zip and installer, the Linux AppImage and the source
-# RPM for COPR. The files go into a draft GitHub release, published by hand once checked.
+# Builds a release when a tag v<version> is pushed: the Windows zip, installer and MSIX (for the Microsoft Store,
+# kept as a workflow artifact), the Linux AppImage, the Flatpak commit and the source RPM for COPR. The zip, the
+# installer, the AppImage and the Flatpak commit go into a draft GitHub release, published by hand once checked.
 # Tags with a suffix (v0.21.0-test) are trial runs: prerelease draft, and the RPM is not sent to COPR.
-# On main (when this file, the Windows libraries action or the AppImage script change, or by hand) it only builds the zip and the
-# AppImage: GitHub ties caches to the ref that made them, and tags can read only their own and main's.
+# On main (when this file, the Windows libraries action or the AppImage script change, or by hand) it builds and tests
+# the Windows packages, the AppImage and the Flatpak, with no draft and no COPR: GitHub ties caches to the ref that
+# made them, and tags can read only their own and main's.
 name: Release
 
 on:
@@ -257,8 +259,9 @@ jobs:
             tools/copr-build.sh
           fi
 
-  # The draft as soon as the zip, the installer and the AppImage are ready: notes and signatures go on
-  # while COPR builds (20-28 minutes). It is published by hand only once COPR has succeeded.
+  # The draft as soon as the Windows packages, the AppImage and the Flatpak are ready, at the same time as
+  # COPR starts. It is published by hand once the signatures and the SHA-256 are checked, without waiting
+  # for COPR (20-28 minutes), which is checked afterwards.
   release:
     permissions:
       contents: write

@@ -10,7 +10,7 @@ The grid shows what is in the open folder: first the ![..](icon://color-up) **..
 - **Audio files**, with their cover and the ![Audio](icon://color-audio) sign, or a note when they have no cover.
 - **3D models** and **CAD drawings**, with a picture of the model or the drawing. See [3D models](model-3d.md) and [CAD drawings](cad.md).
 
-Rest the mouse on a file to see its details: the full name with its extension (the name under the thumbnail may be cut), the size, the file date and, once its metadata have been read, the size in pixels. On a folder you see its name.
+Rest the mouse on a file to see its details, in two columns: the full name with its extension (the name under the thumbnail may be cut), the size, the file date and, once its metadata have been read, the size in pixels. On a folder you see its name.
 
 A turning circle means the thumbnail is still being made. The ![Download](icon://color-download) sign means that a component must be downloaded first to show that file (see [Add-on components](components.md)). Hidden files and folders are not shown. An empty folder says "This folder contains no images or subfolders".
 
@@ -45,11 +45,13 @@ The choice stays for every folder until you change it. The status bar counts ima
 
 The slider at the right end of the toolbar, next to ![Thumbnail size](icon://image), makes the thumbnails larger or smaller. The cells spread over the whole width of the grid.
 
+Under each thumbnail there are its name, its dimensions in pixels and size, and its date, with the duration of videos and audio files; in **Options > Thumbnails > Under the thumbnails** you choose which of them to see, all ticked at first (see [Options](options.md)). With small thumbnails only the name stays.
+
 ## Thumbnails
 
 EyeCanSee makes the thumbnail of the selected file first, then those visible in the window, then the others of the folder. Thumbnails are saved on disk, so the next time the folder opens at once; a thumbnail is made again when its file changes.
 
-If a thumbnail looks wrong, right-click the file (or several selected files) and choose **Redo thumbnails**. **View > Redo all thumbnails in the folder** (**Shift+F5**) makes them all again. The space the thumbnails take on disk is set in [Options](options.md).
+If a thumbnail looks wrong, right-click the file (or several selected files) and choose **Redo thumbnails**: it works on every kind of file, also on an audio file, whose thumbnail is its cover. **View > Redo all thumbnails in the folder** (**Shift+F5**) makes them all again. The space the thumbnails take on disk is set in [Options](options.md).
 
 ## Refreshing
 
@@ -57,11 +59,11 @@ If a thumbnail looks wrong, right-click the file (or several selected files) and
 
 ## The right-click menu
 
-- On a **file**: the actions that work on it, such as Open, Slideshow, Edit image…, Convert and resize…, Cut, Copy, Rename… and Delete…. With several files selected, the menu works on all of them (see [Selecting files](selection.md)).
-- On a **folder**: Open, New folder inside…, Cut, Copy, Paste into this folder, Find duplicates…, Rename…, Delete…, Delete for good….
+- On a **file**: the actions that work on it, such as Open, Slideshow, Edit image…, Convert…, Resize, Cut, Copy, Rename… and Delete…. With several files selected, the menu works on all of them (see [Selecting files](selection.md)).
+- On a **folder**: Open, New folder inside…, Cut, Copy, Paste into this folder, Add this folder to the bookmarks (see [Bookmarks](bookmarks.md)), Find duplicates…, Rename…, Delete…, Delete for good….
 - On an **empty space**: Paste (when you have copied something), Select all, New folder…, Parent folder, Refresh, Show and Find duplicates….
 
-An entry marked with **\*** works only on some of the files chosen (for example Convert and resize on the pictures and videos among them); a line at the bottom of the menu says so.
+An entry marked with **\*** works only on some of the files chosen (for example Convert… on the pictures and videos among them, Resize on the pictures; folders selected with the files are left out too); a line at the bottom of the menu says so. An entry that works on none of them stays in its place, greyed out: hold the mouse over it to read why (for example "No picture among the files chosen").
 
 ## The status bar
 

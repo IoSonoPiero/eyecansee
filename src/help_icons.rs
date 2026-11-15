@@ -1,4 +1,4 @@
-//! The icons inside the text of the illustrated manual: `![Save](icon://save)` in a page draws,
+//! The icons inside the text of the illustrated guide: `![Save](icon://save)` in a page draws,
 //! in the line of text, the same icon as the button. A texture loader for the `icon://` scheme,
 //! installed at start: the names are the Lucide files of `assets/icons/lucide/` (all of them,
 //! also those only used by stamps, filters and bubbles), our own line icons and the coloured ones
@@ -52,8 +52,9 @@ const LUCIDE: &[(&str, &str)] = lucide_table![
     "x", "zap", "zoom-in", "zoom-out",
 ];
 
-/// Our line icons (`icons::line_svg`): the heads and kinds of line, the bubbles not from Lucide.
-const OWN: [(&str, Line); 10] = [
+/// Our line icons (`icons::line_svg`): the heads and kinds of line, the bubbles not from Lucide,
+/// the lit star of a bookmark.
+const OWN: [(&str, Line); 13] = [
     ("head-filled", Line::HeadFilled),
     ("head-open", Line::HeadOpen),
     ("head-double", Line::HeadDouble),
@@ -64,6 +65,9 @@ const OWN: [(&str, Line); 10] = [
     ("balloon-square", Line::Balloon(Balloon::Square)),
     ("balloon-cloud", Line::Balloon(Balloon::Cloud)),
     ("balloon-shout", Line::Balloon(Balloon::Shout)),
+    ("star-filled", Line::StarFilled),
+    ("to-front", Line::ToFront),
+    ("to-back", Line::ToBack),
 ];
 
 /// The coloured icons, with the `color-` prefix.

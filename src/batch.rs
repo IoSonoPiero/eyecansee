@@ -10,19 +10,81 @@ use std::sync::{LazyLock, Mutex};
 use std::sync::atomic::{AtomicBool, AtomicU32, AtomicUsize, Ordering};
 
 use image::imageops::FilterType;
+use serde::{Deserialize, Serialize};
 
 use crate::encode::{self, Format, Options};
 use crate::source::{self, Store};
 use crate::transform::Turn;
 
-/// New size of the images.
-#[derive(Clone, Copy, PartialEq, Debug)]
+/// New size of the images. Kept in the settings by the presets of Resize (`presets`).
+#[derive(Clone, Copy, PartialEq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Size {
     Same,
     /// Percent of the original sides.
     Percent(u32),
     /// Inside this box, keeping the proportions.
     Fit(u32, u32),
+    /// The long side, the short side, the width or the height this many pixels, keeping the
+    /// proportions.
+    Long(u32),
+    Short(u32),
+    Width(u32),
+    Height(u32),
+    /// Exactly this size: the middle of the image, cut to these proportions (`crop`).
+    Crop(u32, u32),
+    /// Exactly this size, stretched.
+    Stretch(u32, u32),
+}
+
+impl Size {
+    /// Every kind with its first measures, in the order the windows show them.
+    pub const KINDS: [Size; 9] = [
+        Size::Same,
+        Size::Percent(50),
+        Size::Fit(1920, 1080),
+        Size::Long(1920),
+        Size::Short(1080),
+        Size::Width(1920),
+        Size::Height(1080),
+        Size::Crop(1920, 1080),
+        Size::Stretch(1920, 1080),
+    ];
+
+    /// Fluent id of the kind; without its "batch-size-", the key of the kind (`presets::describe`).
+    pub fn label(self) -> &'static str {
+        match self {
+            Size::Same => "batch-size-same",
+            Size::Percent(_) => "batch-size-percent",
+            Size::Fit(..) => "batch-size-fit",
+            Size::Long(_) => "batch-size-long",
+            Size::Short(_) => "batch-size-short",
+            Size::Width(_) => "batch-size-width",
+            Size::Height(_) => "batch-size-height",
+            Size::Crop(..) => "batch-size-crop",
+            Size::Stretch(..) => "batch-size-stretch",
+        }
+    }
+
+    /// The same kind, whatever the measures.
+    pub fn same_kind(self, other: Size) -> bool {
+        std::mem::discriminant(&self) == std::mem::discriminant(&other)
+    }
+
+    /// The kinds ffmpeg resizes videos to (`ffmpeg::scale`); the others are for pictures only.
+    pub fn for_videos(self) -> bool {
+        matches!(self, Size::Same | Size::Percent(_) | Size::Fit(..))
+    }
+
+    /// What the name of a copy says of its size, as "photo (1920 px).jpg" (`tagged`).
+    pub fn tag(self) -> String {
+        match self {
+            Size::Same => String::new(),
+            Size::Percent(p) => format!(" ({p}%)"),
+            Size::Long(n) | Size::Short(n) | Size::Width(n) | Size::Height(n) => format!(" ({n} px)"),
+            Size::Fit(w, h) | Size::Crop(w, h) | Size::Stretch(w, h) => format!(" ({w}x{h})"),
+        }
+    }
 }
 
 /// How the pixels are worked out when the size changes, from the sharpest to the plainest.
@@ -50,7 +112,7 @@ impl Filter {
         }
     }
 
-    fn kind(self) -> FilterType {
+    pub(crate) fn kind(self) -> FilterType {
         match self {
             Filter::Lanczos3 => FilterType::Lanczos3,
             Filter::CatmullRom => FilterType::CatmullRom,
@@ -77,10 +139,17 @@ pub struct Job {
     pub video: Option<crate::ffmpeg::Video>,
     /// Only the audio of the videos taken out or extracted, nothing else done (`audio_job`).
     pub audio: Option<crate::audio_job::AudioJob>,
+    /// What the audio files become (#120); `None`: they are left out.
+    pub sound: Option<crate::audio_convert::Sound>,
     /// The originals' source in the thumbnail cache: a video without its audio takes its thumbnail.
     pub base: String,
     /// "Export drawing": CAD drawings drawn again (`drawing`), nothing else done.
     pub drawing: Option<Drawn>,
+    /// Added to the names of the pictures really resized, before the extension (Resize:
+    /// `Size::tag`); a picture left at its size keeps its name (`Job::named`).
+    pub tag: String,
+    /// Added instead to the names of the pictures turned or flipped but not resized (Custom…).
+    pub tag_turned: String,
 }
 
 /// What a CAD drawing becomes: an SVG, or a picture in `Job::format` drawn at this many pixels
@@ -95,7 +164,7 @@ pub enum Drawn {
 
 impl Default for Job {
     fn default() -> Self {
-        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None, audio: None, base: String::new(), drawing: None }
+        Job { format: Some(Format::Jpeg), options: Options::default(), size: Size::Same, filter: Filter::Lanczos3, turn: Turn::default(), enlarge: false, video: None, audio: None, sound: None, base: String::new(), drawing: None, tag: String::new(), tag_turned: String::new() }
     }
 }
 
@@ -104,23 +173,62 @@ impl Job {
     pub fn does_nothing(&self) -> bool {
         self.format.is_none() && self.size == Size::Same && self.turn.is_none()
     }
+
+    /// The name of the copy of a picture: with `tag` when it was `resized`, with `tag_turned`
+    /// when it was only turned, its own name when it was left at its size (#119).
+    pub fn named(&self, name: String, resized: bool) -> String {
+        let tag = if resized { &self.tag } else if self.turn.is_none() { "" } else { &self.tag_turned };
+        if tag.is_empty() { name } else { tagged(&name, tag) }
+    }
 }
 
-/// Size of an image of `w` × `h` pixels after the job; never below 1 pixel.
+/// Size of an image of `w` × `h` pixels after the job; never below 1 pixel. Without `enlarge`
+/// no side grows: a box larger than the image is cut down to it.
 pub fn target(w: u32, h: u32, size: Size, enlarge: bool) -> (u32, u32) {
+    let ratio = |to: u32, from: u32| to as f64 / from as f64;
     let scale = match size {
         Size::Same => return (w, h),
         Size::Percent(p) => p as f64 / 100.0,
-        Size::Fit(bw, bh) => (bw as f64 / w as f64).min(bh as f64 / h as f64),
+        Size::Fit(bw, bh) => ratio(bw, w).min(ratio(bh, h)),
+        Size::Long(n) => ratio(n, w.max(h)),
+        Size::Short(n) => ratio(n, w.min(h)),
+        Size::Width(n) => ratio(n, w),
+        Size::Height(n) => ratio(n, h),
+        Size::Crop(bw, bh) => ratio(bw, w).max(ratio(bh, h)),
+        Size::Stretch(bw, bh) if enlarge => return (bw.max(1), bh.max(1)),
+        Size::Stretch(bw, bh) => return (bw.min(w).max(1), bh.min(h).max(1)),
     };
     let scale = if enlarge { scale } else { scale.min(1.0) };
     let side = |v: u32| ((v as f64 * scale).round() as u32).max(1);
-    (side(w), side(h))
+    match size {
+        Size::Crop(bw, bh) => (side(w).min(bw.max(1)), side(h).min(bh.max(1))),
+        _ => (side(w), side(h)),
+    }
+}
+
+/// The part of an image of `w` × `h` pixels that `Size::Crop` keeps, in the middle: left, top,
+/// width, height. `None` for the other sizes, or when nothing is cut.
+pub fn crop(w: u32, h: u32, size: Size, enlarge: bool) -> Option<(u32, u32, u32, u32)> {
+    let Size::Crop(..) = size else { return None };
+    let (tw, th) = target(w, h, size, enlarge);
+    // The side that fills the box sets the scale; the other side is cut.
+    let scale = (tw as f64 / w as f64).max(th as f64 / h as f64);
+    let (cw, ch) = (((tw as f64 / scale).round() as u32).clamp(1, w), ((th as f64 / scale).round() as u32).clamp(1, h));
+    ((cw, ch) != (w, h)).then_some(((w - cw) / 2, (h - ch) / 2, cw, ch))
+}
+
+/// `name` with `tag` before its extension: "photo.jpg" and " (50%)" make "photo (50%).jpg".
+pub fn tagged(name: &str, tag: &str) -> String {
+    match name.rsplit_once('.') {
+        Some((stem, ext)) if !stem.is_empty() => format!("{stem}{tag}.{ext}"),
+        _ => format!("{name}{tag}"),
+    }
 }
 
 /// Why an image was left out (Fluent ids), with its name.
 pub const SKIP_FORMAT: &str = "batch-skip-format";
 pub const SKIP_INSIDE: &str = "batch-skip-inside";
+pub const SKIP_SAME_SIZE: &str = "batch-skip-same-size";
 pub const SKIP_VIDEO: &str = "batch-skip-video";
 pub const SKIP_NOT_AUTOCAD: &str = "drawing-skip-not-autocad";
 pub const SKIP_WOULD_LOSE: &str = "drawing-skip-would-lose";
@@ -137,6 +245,10 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     if let Some(drawn) = job.drawing {
         return drawing(bytes, name, job, drawn, sibling);
     }
+    // Copy with the metadata: the picture as it is, everything in it kept.
+    if job.does_nothing() {
+        return Ok((name.to_string(), bytes.to_vec()));
+    }
     if job.format.is_none() && !encode::saves_back(name) {
         return Err((SKIP_FORMAT, name.to_string()));
     }
@@ -144,10 +256,10 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     // its size allows it.
     if job.format.is_none()
         && job.size == Size::Same
-        && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::is(bytes))
+        && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes))
         && let Ok((data, _)) = crate::save_back::turned_file(bytes, name, job.turn)
     {
-        return Ok((name.to_string(), data));
+        return Ok((job.named(name.to_string(), false), data));
     }
     let mut image = crate::decode::decode_full_with(bytes, name, sibling).map_err(|e| ("batch-failed", format!("{name}: {e}")))?;
     // The other frames of an animation, the other pages would be lost. After decoding, so that
@@ -158,9 +270,25 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     }
     job.turn.apply(&mut image);
     let (w, h) = target(image.width(), image.height(), job.size, job.enlarge);
+    let cut = crop(image.width(), image.height(), job.size, job.enlarge);
+    let resized = cut.is_some() || (w, h) != (image.width(), image.height());
+    // Already of the size asked in its own format (or smaller, not enlarged): a copy would be
+    // the original again, under a longer name at each Resize. None is made.
+    if job.format.is_none() && job.turn.is_none() && !resized {
+        return Err((SKIP_SAME_SIZE, name.to_string()));
+    }
+    if let Some((x, y, cw, ch)) = cut {
+        image = image.crop_imm(x, y, cw, ch);
+    }
     if (w, h) != (image.width(), image.height()) {
         image = image.resize_exact(w, h, job.filter.kind());
     }
+    encoded(bytes, name, job, image, cut).map(|(out, data)| (job.named(out, resized), data))
+}
+
+/// The picture `image` made from `bytes` (named `name`, cut by `cut`) written as `job` asks:
+/// the new name, without its tag, and the content.
+fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut: Option<(u32, u32, u32, u32)>) -> Result<(String, Vec<u8>), (&'static str, String)> {
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
     // An Ultra HDR photo written as JPEG with its metadata stays Ultra HDR, its gain map turned
     // and resized with it (#65); without metadata there is nothing to hold the gain map.
@@ -170,7 +298,7 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
             None => (name.to_string(), crate::encode::jpeg_quality::like(bytes, Options::default())),
             Some(f) => (with_ext(name, f), Options { format: f, turn: Turn::default(), ..job.options }),
         };
-        return Ok((out, crate::ultrahdr::resized(bytes, image, job.turn, &options).map_err(failed)?));
+        return Ok((out, crate::ultrahdr::resized(bytes, image, job.turn, cut, &options).map_err(failed)?));
     }
     // Encoded again, the file is the picture alone: the XMP of a gain map or a motion photo
     // video it no longer has goes (`Original::alone`).
@@ -179,12 +307,12 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
         // writes over the original).
         None if Format::of_file(name) == Some(Format::Jpeg) => {
             let options = crate::encode::jpeg_quality::like(bytes, Options::default());
-            Ok((name.to_string(), encode::Original::with_meta_of(image, bytes, name).alone().encode(&options).map_err(failed)?))
+            Ok((name.to_string(), encode::Original::with_meta_of(image, bytes, name).alone().turned(job.turn).encode(&options).map_err(failed)?))
         }
         None => crate::save_back::encoded_back(bytes, name, image).map(|(data, _)| (name.to_string(), data)).map_err(|_| (SKIP_INSIDE, name.to_string())),
         Some(format) => {
             let options = Options { format, turn: Turn::default(), ..job.options };
-            let data = encode::Original::with_meta_of(image, bytes, name).alone().encode(&options).map_err(failed)?;
+            let data = encode::Original::with_meta_of(image, bytes, name).alone().turned(job.turn).encode(&options).map_err(failed)?;
             Ok((with_ext(name, format), data))
         }
     }
@@ -278,19 +406,19 @@ impl Drop for Writing {
     }
 }
 
-/// A video converted by ffmpeg into `to` of `out`. ffmpeg reads and writes files of this
-/// computer: a video on a phone or a server is copied into a temporary file first, a destination
-/// there gets the temporary result at the end.
-async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc<Progress>) -> Result<(), source::Error> {
+/// A video converted by ffmpeg into the folder `dest` of `out`, with a name free in `taken`,
+/// returned. ffmpeg reads and writes files of this computer: a video on a phone or a server is
+/// copied into a temporary file first, a destination there gets the temporary result at the end.
+async fn video(op: &Store, path: &str, (out, dest, taken): (&Store, &str, &HashSet<String>), job: &Job, p: &Arc<Progress>) -> Result<String, source::Error> {
     let name = source::name(path).to_string();
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
     // Copied streams: an FFmpeg without the phones' decoders does it too (`ffmpeg::copier`).
     let probe = job.video.as_ref().and_then(|v| if v.encoder == "copy" { crate::ffmpeg::copy_probed() } else { crate::ffmpeg::probed() });
-    let (Some(v), Some(probe)) = (job.video.clone(), probe) else { return Err((SKIP_VIDEO, name)) };
-    let temp = |what: &str| std::env::temp_dir().join(format!("eyecansee-{what}-{}-{}", std::process::id(), source::name(to)));
+    let (Some(mut v), Some(probe)) = (job.video.clone(), probe) else { return Err((SKIP_VIDEO, name)) };
+    let temp = |what: &str| std::env::temp_dir().join(format!("eyecansee-{what}-{}-{name}", std::process::id()));
     // Download, ffmpeg and upload share the video's bar in equal parts.
     // ponytail: equal parts, not by time: a "copy" conversion jumps through its third.
-    let (remote_in, remote_out) = (op.local_file(path).is_none(), out.local_file(to).is_none());
+    let (remote_in, remote_out) = (op.local_file(path).is_none(), out.local_file(&format!("{dest}{name}")).is_none());
     let phases = Phases { p: p.clone(), count: 1 + remote_in as u32 + remote_out as u32 };
     let input = match op.local_file(path) {
         Some(file) => (file, false),
@@ -300,6 +428,12 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
             (file, true)
         }
     };
+    // Copied as it is: into a container that holds its streams (`video_copy`), MKV otherwise.
+    if v.encoder == "copy" {
+        v.container = crate::video_copy::for_file(v.container, &name, &probe.program, &input.0);
+    }
+    let new_name = source::free_name(taken, &ext(&name, crate::ffmpeg::CONTAINERS[v.container].ext));
+    let to = &format!("{dest}{new_name}");
     let output = out.local_file(to).map_or_else(|| (temp("out"), true), |f| (f, false));
     let _writing = Writing::start(output.0.clone());
     let tags = if v.meta { crate::video_read::track_tags(op, path).await } else { Vec::new() };
@@ -334,7 +468,7 @@ async fn video(op: &Store, path: &str, out: &Store, to: &str, job: &Job, p: &Arc
     if output.1 || r.is_err() {
         let _ = std::fs::remove_file(&output.0);
     }
-    r
+    r.map(|()| new_name)
 }
 
 /// The parts of a video's conversion on the bar: `set(phase, 0 to 1)`.
@@ -479,20 +613,16 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
             p.done.fetch_add(1, Ordering::Relaxed);
             continue;
         }
-        if crate::decode::is_video(&path) {
-            let new_name = match &job.video {
-                Some(v) => source::free_name(&taken, &ext(&name, crate::ffmpeg::CONTAINERS[v.container].ext)),
-                None => {
-                    p.failed.lock().unwrap().push((SKIP_VIDEO, name));
-                    p.done.fetch_add(1, Ordering::Relaxed);
-                    continue;
-                }
+        if crate::decode::is_played(&path) {
+            let r = match job.sound {
+                _ if crate::decode::is_video(&path) => video(op, &path, (&out, &dest, &taken), &job, &p).await,
+                Some(s) => crate::audio_convert::run(op, &path, (&out, &dest, &taken), s, &p).await,
+                None => Err((crate::audio_convert::SKIP_AUDIO, name.clone())),
             };
-            let to = format!("{dest}{new_name}");
-            match video(op, &path, &out, &to, &job, &p).await {
-                Ok(()) => {
+            match r {
+                Ok(new_name) => {
+                    p.saved.lock().unwrap().push(format!("{dest}{new_name}"));
                     taken.insert(new_name);
-                    p.saved.lock().unwrap().push(to);
                 }
                 // Cancelled: neither saved nor "left out", the summary says where it stopped.
                 Err(_) if p.cancel.load(Ordering::Relaxed) => break,
@@ -588,6 +718,117 @@ mod tests {
         assert_eq!(with_ext("noext", Format::Webp), "noext.webp");
     }
 
+    /// The sizes of Resize on a landscape and a portrait photo, smaller ones left as they are.
+    #[test]
+    fn sizes_of_each_kind() {
+        for (w, h, size, out) in [
+            (4000, 3000, Size::Long(1920), (1920, 1440)),
+            (3000, 4000, Size::Long(1920), (1440, 1920)),
+            (4000, 3000, Size::Short(1080), (1440, 1080)),
+            (3000, 4000, Size::Short(1080), (1080, 1440)),
+            (4000, 3000, Size::Width(1000), (1000, 750)),
+            (3000, 4000, Size::Height(600), (450, 600)),
+            (800, 600, Size::Long(1920), (800, 600)),
+            (4000, 3000, Size::Stretch(500, 500), (500, 500)),
+            // Not enlarged: each side at most the original's.
+            (400, 300, Size::Stretch(500, 200), (400, 200)),
+            (4000, 3000, Size::Crop(1920, 1920), (1920, 1920)),
+            (3000, 4000, Size::Crop(1920, 1080), (1920, 1080)),
+            (800, 600, Size::Crop(1920, 1080), (800, 600)),
+            (3000, 500, Size::Crop(1920, 1080), (1920, 500)),
+        ] {
+            assert_eq!(target(w, h, size, false), out, "{w}x{h} {size:?}");
+        }
+        assert_eq!(target(800, 600, Size::Long(1920), true), (1920, 1440));
+        assert_eq!(target(400, 300, Size::Stretch(500, 200), true), (500, 200));
+        assert_eq!(target(800, 600, Size::Crop(1920, 1080), true), (1920, 1080));
+        // The middle kept, cut on the side that is too long for the box.
+        assert_eq!(crop(4000, 3000, Size::Crop(1920, 1920), false), Some((500, 0, 3000, 3000)));
+        assert_eq!(crop(3000, 4000, Size::Crop(1920, 1080), false), Some((0, 1156, 3000, 1688)));
+        assert_eq!(crop(3000, 500, Size::Crop(1920, 1080), false), Some((540, 0, 1920, 500)));
+        assert_eq!(crop(800, 600, Size::Crop(1920, 1080), true), Some((0, 75, 800, 450)));
+        assert_eq!(crop(800, 600, Size::Crop(1920, 1080), false), None);
+        assert_eq!(crop(4000, 3000, Size::Fit(100, 100), false), None);
+        // The names of the copies.
+        assert_eq!(tagged("photo.jpg", &Size::Long(1920).tag()), "photo (1920 px).jpg");
+        assert_eq!(tagged("a.b.png", &Size::Percent(50).tag()), "a.b (50%).png");
+        assert_eq!(tagged("noext", &Size::Crop(800, 600).tag()), "noext (800x600)");
+        assert_eq!(tagged(".hidden", " (1 px)"), ".hidden (1 px)");
+        assert!(Size::KINDS.iter().all(|k| k.same_kind(*k) && k.for_videos() == matches!(k, Size::Same | Size::Percent(_) | Size::Fit(..))));
+    }
+
+    /// Resize with a preset: copies next to the originals with the size in their names, a name
+    /// taken gets " (2)", an image already of that size (or smaller) and a format not written are
+    /// left out.
+    #[test]
+    fn resized_next_to_the_originals() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-resize-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_fn(400, 300, |x, y| image::Rgb([x as u8, y as u8, 9])));
+        let png = file(&img, image::ImageFormat::Png);
+        std::fs::write(dir.join("a.png"), &png).unwrap();
+        std::fs::write(dir.join("a (200 px).png"), b"taken").unwrap();
+        std::fs::write(dir.join("t.tga"), file(&img, image::ImageFormat::Tga)).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let resize = |size: Size| {
+            let p = Arc::new(Progress::default());
+            let to = Dest { op: op.clone(), dir: String::new(), create: false };
+            let job = Job { format: None, size, tag: size.tag(), ..Default::default() };
+            rt.block_on(run(&op, vec!["a.png".into(), "t.tga".into()], to, job, p.clone()));
+            let failed = p.failed.lock().unwrap().clone();
+            (p.saved.lock().unwrap().clone(), failed)
+        };
+        let (saved, failed) = resize(Size::Long(200));
+        assert_eq!(saved, ["a (200 px) (2).png"]);
+        assert_eq!(failed, [(SKIP_FORMAT, "t.tga".to_string())]);
+        let back = crate::decode::decode_full(&std::fs::read(dir.join(&saved[0])).unwrap(), "x.png").unwrap();
+        assert_eq!((back.width(), back.height()), (200, 150));
+        // Larger than the image, or its size: no copy, said by name (#119).
+        for size in [Size::Long(1920), Size::Long(400), Size::Fit(400, 400), Size::Stretch(400, 300), Size::Crop(400, 300), Size::Percent(100)] {
+            let (saved, failed) = resize(size);
+            assert!(saved.is_empty(), "{size:?}: {saved:?}");
+            assert_eq!(failed[0], (SKIP_SAME_SIZE, "a.png".to_string()), "{size:?}");
+        }
+        assert!(!dir.join("a (1920 px).png").exists());
+        // Custom… (#119): the size in the name only when the picture was resized; left at its
+        // size in another format it keeps its name, and a name taken gets " (2)"; only turned,
+        // what was done.
+        let custom = |format: Option<Format>, size: Size, turn: Turn| {
+            let p = Arc::new(Progress::default());
+            let to = Dest { op: op.clone(), dir: String::new(), create: false };
+            let job = Job { format, size, turn, tag: size.tag(), tag_turned: " (rotated)".into(), ..Default::default() };
+            rt.block_on(run(&op, vec!["a.png".into()], to, job, p.clone()));
+            assert!(p.failed.lock().unwrap().is_empty(), "{size:?}");
+            p.saved.lock().unwrap().clone()
+        };
+        let none = Turn::default();
+        assert_eq!(custom(Some(Format::Jpeg), Size::Long(1920), none), ["a.jpg"]);
+        assert_eq!(custom(Some(Format::Jpeg), Size::Long(1920), none), ["a (2).jpg"]);
+        assert_eq!(custom(Some(Format::Jpeg), Size::Long(200), none), ["a (200 px).jpg"]);
+        let cw = none.then(crate::transform::Op::Cw);
+        assert_eq!(custom(None, Size::Long(1920), cw), ["a (rotated).png"]);
+        assert_eq!(custom(None, Size::Long(200), cw), ["a (200 px) (3).png"]);
+        for f in ["a.jpg", "a (2).jpg", "a (200 px).jpg", "a (rotated).png", "a (200 px) (3).png"] {
+            std::fs::remove_file(dir.join(f)).unwrap();
+        }
+        // Copy with the metadata: the file as it is, also in a format not written (TGA).
+        let p = Arc::new(Progress::default());
+        let job = Job { format: None, ..Default::default() };
+        rt.block_on(run(&op, vec!["a.png".into(), "t.tga".into()], Dest { op: op.clone(), dir: String::new(), create: false }, job, p.clone()));
+        assert_eq!(*p.saved.lock().unwrap(), ["a (2).png", "t (2).tga"]);
+        assert_eq!(std::fs::read(dir.join("a (2).png")).unwrap(), png);
+        assert!(p.failed.lock().unwrap().is_empty());
+        // Cropped in the middle: the left column of the copy comes from x = 50.
+        let (saved, _) = resize(Size::Crop(100, 100));
+        let back = crate::decode::decode_full(&std::fs::read(dir.join(&saved[0])).unwrap(), "x.png").unwrap().to_rgb8();
+        assert_eq!((saved[0].as_str(), back.dimensions()), ("a (100x100).png", (100, 100)));
+        assert!((48..=56).contains(&back.get_pixel(0, 50)[0]), "{:?}", back.get_pixel(0, 50));
+        assert_eq!(std::fs::read(dir.join("a.png")).unwrap(), png, "the original untouched");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
     fn file(img: &DynamicImage, format: image::ImageFormat) -> Vec<u8> {
         let mut v = Vec::new();
         img.write_to(&mut std::io::Cursor::new(&mut v), format).unwrap();
@@ -653,10 +894,16 @@ mod tests {
     }
 
     /// An Ultra HDR photo resized as JPEG, or converted to JPEG, stays Ultra HDR (#65); in PNG, or
-    /// without its metadata, it is the picture alone.
+    /// without its metadata, it is the picture alone. Cropped, its gain map is cropped too.
     #[test]
     fn ultra_hdr_kept_in_jpeg() {
         let bytes = crate::ultrahdr::tests::sample(64, 32);
+        let (_, cropped) = convert(&bytes, "a.jpg", &Job { format: None, size: Size::Crop(16, 16), ..Default::default() }).unwrap();
+        let (photo, gain) = crate::ultrahdr::split(&cropped).expect("still Ultra HDR");
+        let side = |b: &[u8]| image::load_from_memory(b).map(|i| (i.width(), i.height())).unwrap();
+        assert_eq!(side(photo), (16, 16));
+        let g = side(gain);
+        assert_eq!(g.0, g.1, "the gain map square as the photo: {g:?}");
         let fit = Job { format: None, size: Size::Fit(32, 32), ..Default::default() };
         let jpeg = Job { format: Some(Format::Jpeg), options: Options { format: Format::Jpeg, jpeg_quality: 70, ..Options::default() }, ..Default::default() };
         for job in [fit, jpeg] {

@@ -1,8 +1,7 @@
-//! Coloured icons (style "B", chosen by the user on 2026-10-22) for folders, devices and badges,
-//! and line icons for every button (`Line`, from Lucide, chosen by the user on 2026-11-05), the
-//! same on Windows and Linux. Drawn from SVG with resvg, like SVG images, and kept as textures,
-//! one per icon, size in pixels (and colour): sharp at every size. The font glyphs used before had
-//! one colour only.
+//! Coloured icons (style "B") for folders, devices and badges, and line icons for every button
+//! (`Line`, from Lucide), the same on Windows and Linux. Drawn from SVG with resvg, like SVG
+//! images, and kept as textures, one per icon, size in pixels (and colour): sharp at every size.
+//! The font glyphs used before had one colour only.
 
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -197,10 +196,15 @@ pub enum Line {
     Dashed,
     Dotted,
     Star,
+    /// The star lit: the place is a bookmark, a click takes it away.
+    StarFilled,
     Bookmark,
     /// Back and forward in the guide's history (Lucide's arrow-left and arrow-right).
     Back,
     Forward,
+    /// A pasted piece over all the others, or under them (ours, as Lucide's arrows).
+    ToFront,
+    ToBack,
 }
 
 macro_rules! lucide {
@@ -218,7 +222,7 @@ pub(crate) fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Refresh => lucide!("refresh-cw").into(),
         Line::Info => lucide!("info").into(),
         Line::Grid => lucide!("layout-grid").into(),
-        // With a square: the image turns; the bare arrows looked like Undo and Redo (user, 2026-11-05).
+        // With a square: the image turns; the bare arrows looked like Undo and Redo.
         Line::RotateCcw => lucide!("rotate-ccw-square").into(),
         Line::RotateCw => lucide!("rotate-cw-square").into(),
         Line::NewFolder => lucide!("folder-plus").into(),
@@ -281,9 +285,9 @@ pub(crate) fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Filters => lucide!("wand-sparkles").into(),
         Line::NewImage => lucide!("image-plus").into(),
         Line::Star => lucide!("star").into(),
+        Line::StarFilled => lucide!("star").replacen("fill=\"none\"", "fill=\"currentColor\"", 1).into(),
         Line::Bookmark => lucide!("bookmark").into(),
-        Line::Back => own("m12 19-7-7 7-7M19 12H5"),
-        Line::Forward => own("M5 12h14M12 5l7 7-7 7"),
+        Line::Back | Line::Forward | Line::ToFront | Line::ToBack => own(arrow(icon)),
         Line::HeadFilled => format!(r#"{LINE}<path d="M3 12h11"/><path d="M13 7l8 5-8 5z" fill="currentColor"/></svg>"#).into(),
         Line::HeadOpen => own("M3 12h17M15 7l5 5-5 5"),
         Line::HeadDouble => format!(r#"{LINE}<path d="M9 12h6"/><path d="M10 7l-7 5 7 5zM14 7l7 5-7 5z" fill="currentColor"/></svg>"#).into(),
@@ -292,6 +296,17 @@ pub(crate) fn line_svg(icon: Line) -> std::borrow::Cow<'static, str> {
         Line::Dashed => own("M3 12h4M10 12h4M17 12h4"),
         // Dots wider than the line, or they look like specks.
         Line::Dotted => format!("{}<path d=\"M4.5 12h.01M9.5 12h.01M14.5 12h.01M19.5 12h.01\"/></svg>", LINE.replace("stroke-width=\"2\"", "stroke-width=\"3.5\"")).into(),
+    }
+}
+
+/// The path of an arrow: back and forward (Lucide's arrow-left and arrow-right), to the front and
+/// to the back (ours, an arrow to a line).
+fn arrow(icon: Line) -> &'static str {
+    match icon {
+        Line::Back => "m12 19-7-7 7-7M19 12H5",
+        Line::Forward => "M5 12h14M12 5l7 7-7 7",
+        Line::ToFront => "M5 3h14M12 21V8M7 13l5-5 5 5",
+        _ => "M5 21h14M12 3v13M7 11l5 5 5-5",
     }
 }
 
@@ -345,14 +360,17 @@ pub fn line(ui: &egui::Ui, icon: Line, side: f32) -> egui::Image<'static> {
 /// Size of the square icon buttons of the bars.
 pub const BUTTON: egui::Vec2 = vec2(32.0, 28.0);
 
+/// Side of the icon in those buttons.
+pub const ICON: f32 = 18.0;
+
 /// A square button of a bar with a line icon.
 pub fn button(ui: &egui::Ui, icon: Line) -> egui::Button<'static> {
-    egui::Button::image(line(ui, icon, 18.0)).min_size(BUTTON)
+    egui::Button::image(line(ui, icon, ICON)).min_size(BUTTON)
 }
 
 /// The same, shown on or off (the tool chosen, a box shown); framed also when off, as the others.
 pub fn toggle(ui: &egui::Ui, on: bool, icon: Line) -> egui::Button<'static> {
-    egui::Button::image(line(ui, icon, 18.0)).selected(on).min_size(BUTTON)
+    egui::Button::image(line(ui, icon, ICON)).selected(on).min_size(BUTTON)
 }
 
 /// The icon of a menu item, or room as wide as one (the labels stay in line).
@@ -360,7 +378,7 @@ pub fn menu_icon(ui: &egui::Ui, icon: Option<Line>) -> egui::Image<'static> {
     match icon {
         Some(icon) => line(ui, icon, 16.0),
         // ponytail: an icon tinted fully transparent as the blank, one texture. Drawn in
-        // TRANSPARENT it was a dark ✕: the SVG's colour has no alpha (user, 2026-11-06).
+        // TRANSPARENT it was a dark ✕: the SVG's colour has no alpha.
         None => line_in(ui.ctx(), Line::Close, 16.0, egui::Color32::WHITE).tint(egui::Color32::TRANSPARENT),
     }
 }
@@ -370,9 +388,12 @@ pub fn menu_item(ui: &egui::Ui, icon: Option<Line>, label: String, keys: String)
     egui::Button::image_and_text(menu_icon(ui, icon), label).shortcut_text(keys)
 }
 
+/// Side of the icon in a small button.
+pub const SMALL_ICON: f32 = 13.0;
+
 /// A small button with a line icon, inside a row of text (close a box, fold a panel).
 pub fn small(ui: &egui::Ui, icon: Line) -> egui::Button<'static> {
-    egui::Button::image(line(ui, icon, 13.0)).small()
+    egui::Button::image(line(ui, icon, SMALL_ICON)).small()
 }
 
 #[cfg(test)]
@@ -383,7 +404,7 @@ mod tests {
     #[test]
     fn line_icons_draw() {
         use Line::*;
-        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Pen, Rect, Ellipse, Highlight, Spotlight, Text, Bubble, Step, Lens, Circle, Stamp, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Settings, Manual, Quit, Server, Address, Slideshow, FlipH, FlipV, Updates, Pipette, Marquee, Filters, NewImage, HeadFilled, HeadOpen, HeadDouble, HeadDot, Solid, Dashed, Dotted, Star, Bookmark] {
+        for icon in [Up, Refresh, Info, Grid, RotateCcw, RotateCw, NewFolder, Copy, Cut, Paste, Rename, Delete, Save, SaveAs, Batch, Duplicates, More, Edit, Select, Arrow, Stroke, Pen, Rect, Ellipse, Highlight, Spotlight, Text, Bubble, Step, Lens, Circle, Stamp, Cover, Crop, Undo, Redo, Close, Down, ZoomIn, ZoomOut, Swap, ChevronUp, SortAsc, SortDesc, Image, Play, Pause, Volume, Mute, Settings, Manual, Quit, Server, Address, Slideshow, FlipH, FlipV, Updates, Pipette, Marquee, Filters, NewImage, HeadFilled, HeadOpen, HeadDouble, HeadDot, Solid, Dashed, Dotted, Star, StarFilled, Bookmark, ToFront, ToBack] {
             let img = render(&line_svg(icon).replace("currentColor", "#ff0000"), 24);
             let red = img.pixels.iter().filter(|p| p.a() > 128 && p.r() > 200 && p.g() < 60).count();
             assert!(red > 10, "{icon:?}: {red} pixels");
@@ -400,5 +421,13 @@ mod tests {
             let img = render(&line_svg(Mark(stamp)).replace("currentColor", "#ff0000"), 24);
             assert!(img.pixels.iter().filter(|p| p.a() > 128 && p.r() > 200).count() > 10, "{stamp:?}");
         }
+    }
+
+    /// The lit star of a bookmark is the empty one filled: the same outline, far more ink.
+    #[test]
+    fn star_filled_is_filled() {
+        let ink = |icon| render(&line_svg(icon).replace("currentColor", "#ff0000"), 24).pixels.iter().filter(|p| p.a() > 128).count();
+        let (empty, filled) = (ink(Line::Star), ink(Line::StarFilled));
+        assert!(filled > empty * 3 / 2, "empty {empty}, filled {filled}");
     }
 }

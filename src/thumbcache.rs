@@ -67,6 +67,14 @@ fn create(conn: &Connection) -> rusqlite::Result<()> {
             modified TEXT NOT NULL,
             data TEXT NOT NULL,
             PRIMARY KEY (source, path)
+        );
+        CREATE TABLE IF NOT EXISTS info (
+            source TEXT NOT NULL,
+            path TEXT NOT NULL,
+            size INTEGER NOT NULL,
+            modified TEXT NOT NULL,
+            data TEXT NOT NULL,
+            PRIMARY KEY (source, path)
         );",
     )
 }
@@ -92,6 +100,10 @@ enum Write {
     Save { source: String, file: File, data: Vec<u8> },
     /// The metadata panel of a file (`meta::Meta::to_json`), with the same key as its thumbnail.
     SaveMeta { source: String, file: File, json: String },
+    /// What the file says of itself for the line under its thumbnail (`thumb_details::Info`),
+    /// with the same key as its thumbnail. A cache made before has no such rows: they are read
+    /// from the file when wanted.
+    SaveInfo { source: String, file: File, json: String },
     Touch { source: String, path: String },
     Delete { source: String, path: String },
     Trim { limit: u64 },
@@ -129,6 +141,10 @@ fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
                     "INSERT OR REPLACE INTO meta (source, path, size, modified, data) VALUES (?1, ?2, ?3, ?4, ?5)",
                     params![source, file.path, file.size as i64, file.modified, json],
                 ),
+                Write::SaveInfo { source, file, json } => tx.execute(
+                    "INSERT OR REPLACE INTO info (source, path, size, modified, data) VALUES (?1, ?2, ?3, ?4, ?5)",
+                    params![source, file.path, file.size as i64, file.modified, json],
+                ),
                 // At most one write a day per thumbnail: enough to evict the oldest ones.
                 Write::Touch { source, path } => tx.execute(
                     "UPDATE thumbs SET accessed = ?3 WHERE source = ?1 AND path = ?2 AND accessed < ?3 - 86400",
@@ -137,7 +153,7 @@ fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
                 Write::Delete { source, path } => forget_row(&tx, &source, &path),
                 // Emptying the cache empties the metadata too.
                 Write::Trim { limit } => trim_rows(&tx, limit)
-                    .and_then(|n| if limit == 0 { tx.execute("DELETE FROM meta", []).map(|m| n + m) } else { Ok(n) })
+                    .and_then(|n| if limit == 0 { tx.execute_batch("DELETE FROM meta; DELETE FROM info").map(|()| n) } else { Ok(n) })
                     .inspect(|n| trimmed += n),
                 Write::Forget { source, paths, done: d } => {
                     done.push(d);
@@ -154,10 +170,11 @@ fn write_loop(mut conn: Connection, rx: Receiver<Write>) {
     }
 }
 
-/// A file's thumbnail and metadata go together.
+/// A file's thumbnail, metadata and details go together.
 fn forget_row(conn: &Connection, source: &str, path: &str) -> rusqlite::Result<usize> {
     let n = conn.execute("DELETE FROM thumbs WHERE source = ?1 AND path = ?2", params![source, path])?;
-    Ok(n + conn.execute("DELETE FROM meta WHERE source = ?1 AND path = ?2", params![source, path])?)
+    let m = conn.execute("DELETE FROM meta WHERE source = ?1 AND path = ?2", params![source, path])?;
+    Ok(n + m + conn.execute("DELETE FROM info WHERE source = ?1 AND path = ?2", params![source, path])?)
 }
 
 fn send(w: Write) {
@@ -235,6 +252,26 @@ pub fn load_meta(source: &str, file: &File) -> Option<String> {
             )
             .ok()
     })
+}
+
+/// The details saved for this version of the file (`thumb_details::Info`); `None` for a file
+/// changed since, or never read (a cache made before them).
+pub fn load_info(source: &str, file: &File) -> Option<crate::thumb_details::Info> {
+    READ.with(|conn| {
+        conn.as_ref()?
+            .query_row(
+                "SELECT data FROM info WHERE source = ?1 AND path = ?2 AND size = ?3 AND modified = ?4",
+                params![source, file.path, file.size as i64, file.modified],
+                |r| r.get::<_, String>(0),
+            )
+            .ok()
+    })
+    .as_deref()
+    .and_then(crate::thumb_details::Info::from_json)
+}
+
+pub fn save_info(source: &str, file: &File, info: &crate::thumb_details::Info) {
+    send(Write::SaveInfo { source: source.to_string(), file: file.clone(), json: info.to_json() });
 }
 
 pub fn save_meta(source: &str, file: &File, json: String) {
@@ -320,6 +357,52 @@ pub fn encode(img: &DynamicImage) -> Result<Vec<u8>, image::ImageError> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A cache made before #139 (thumbnails and metadata only) opens as it is: its rows stay, the
+    /// table of details is added empty, and they are read from the files when wanted.
+    #[test]
+    fn cache_from_before_the_details() {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch(
+            "CREATE TABLE thumbs (source TEXT NOT NULL, path TEXT NOT NULL, size INTEGER NOT NULL, modified TEXT NOT NULL,
+                accessed INTEGER NOT NULL, data BLOB NOT NULL, PRIMARY KEY (source, path));
+             CREATE TABLE meta (source TEXT NOT NULL, path TEXT NOT NULL, size INTEGER NOT NULL, modified TEXT NOT NULL,
+                data TEXT NOT NULL, PRIMARY KEY (source, path));
+             INSERT INTO thumbs VALUES ('s', 'a.jpg', 10, 'm', 0, x'00');",
+        )
+        .unwrap();
+        create(&conn).unwrap();
+        let count = |table: &str| conn.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get::<_, i64>(0)).unwrap();
+        assert_eq!((count("thumbs"), count("info")), (1, 0));
+        // And again: nothing changes.
+        create(&conn).unwrap();
+        assert_eq!((count("thumbs"), count("info")), (1, 0));
+    }
+
+    /// The details of a file kept with its thumbnail: read back for that version of the file only,
+    /// and gone with it.
+    #[test]
+    fn details_roundtrip() {
+        use crate::thumb_details::Info;
+        let source = format!("test-info-{}://", std::process::id());
+        let file = File { path: "b.jpg".into(), size: 20, modified: "yesterday".into() };
+        let info = Info { pixels: Some([3000, 4000]), taken: Some("2026-11-14 21:00:00".into()), duration: None };
+        save_info(&source, &file, &info);
+        let mut back = None;
+        for _ in 0..100 {
+            back = load_info(&source, &file);
+            if back.is_some() {
+                break;
+            }
+            std::thread::sleep(Duration::from_millis(20));
+        }
+        assert_eq!(back, Some(info));
+        assert!(load_info(&source, &File { size: 21, ..file.clone() }).is_none(), "changed file: read again");
+        let (tx, rx) = channel();
+        forget(&source, vec!["b.jpg".into()], move || tx.send(()).unwrap());
+        rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        assert!(load_info(&source, &file).is_none(), "forgotten with its thumbnail");
+    }
 
     #[test]
     fn roundtrip() {

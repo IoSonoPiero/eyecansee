@@ -21,6 +21,11 @@ impl App {
                 Msg::Listed(dir, r) => self.on_listed(ctx, dir, r),
                 Msg::Loaded { generation, index, thumb, image } if generation == self.generation => self.on_loaded(ctx, index, thumb, image),
                 Msg::Meta { generation, index, meta } if generation == self.generation => self.on_meta(index, meta),
+                Msg::Info { generation, path, info } if generation == self.generation => {
+                    if let Some(info) = info {
+                        self.thumb_infos.insert(path, info);
+                    }
+                }
                 Msg::Mesh { generation, index, mesh } if generation == self.generation => {
                     if let Some(f) = self.files().get(index) {
                         self.model.meshes.insert(f.path.clone(), mesh);
@@ -31,7 +36,7 @@ impl App {
                         self.model.cad.drawings.insert(f.path.clone(), drawing);
                     }
                 }
-                Msg::Loaded { .. } | Msg::Meta { .. } | Msg::Mesh { .. } | Msg::Drawing { .. } => {} // folder has changed in the meantime
+                Msg::Loaded { .. } | Msg::Meta { .. } | Msg::Info { .. } | Msg::Mesh { .. } | Msg::Drawing { .. } => {} // folder has changed in the meantime
                 // Counted from the first event, not the last: a copy into a subfolder sends one for
                 // every file, and the folder was read again only when the copy ended.
                 Msg::Changed if self.changed_at.is_none() => self.changed_at = Some(ctx.input(|i| i.time) + 0.3),
@@ -55,6 +60,12 @@ impl App {
                 Msg::EditPicked(r) => self.on_edit_picked(ctx, r),
                 Msg::Animated(path) => {
                     self.animated.insert(path);
+                }
+                Msg::Frames(path, seq) => {
+                    self.frames.read.insert(path, seq);
+                }
+                Msg::Motion(path, video) => {
+                    self.motion.read.insert(path, video);
                 }
                 Msg::Original(r) => self.convert_original(ctx, r),
                 Msg::EditPrepared(path, r) => self.on_edit_prepared(path, r),
@@ -163,6 +174,8 @@ impl App {
                 self.pending.clear();
                 self.thumbs.clear();
                 self.generated.clear();
+                self.thumb_infos.clear();
+                self.info_asked.clear();
                 self.thumb_queue_key = None;
             }
             self.viewing = found.map(|(_, i)| i);
@@ -203,6 +216,10 @@ impl App {
         }
         if thumb {
             self.generated.insert(index);
+            // Its details are saved with it: asked again if they were not there before.
+            if !self.thumb_infos.contains_key(&name) {
+                self.info_asked.remove(&name);
+            }
             // Generated in the background far from the screen: it stays on disk only.
             if self.thumb_keep.contains(&index) {
                 let tex = image.map(|img| ctx.load_texture(name, img, TextureOptions::LINEAR));
@@ -210,6 +227,10 @@ impl App {
             }
         } else {
             self.pending.remove(&index);
+            match image.as_ref().ok().and_then(crate::decode::own_size) {
+                Some(size) => self.own_sizes.insert(name.clone(), size),
+                None => self.own_sizes.remove(&name),
+            };
             let tex = image.map(|img| ctx.load_texture(name, img, TextureOptions::LINEAR));
             self.full.insert(index, tex);
         }
@@ -219,6 +240,12 @@ impl App {
         if let Err(e) = &meta {
             log!("metadata {index}: ERROR {e}");
         }
+        // A video or an audio file without the engine: why, in words, not libmpv's error.
+        let played = self.files().get(index).is_some_and(|f| crate::decode::is_played(&f.path));
+        let meta = match meta {
+            Err(_) if played && !crate::mpv::available() => Err(self.engine_note()),
+            m => m,
+        };
         self.meta = Some((index, meta));
     }
 
@@ -365,7 +392,9 @@ impl App {
 
     fn on_open(&mut self, ctx: &egui::Context, address: String) {
         log!("handed over: {:?}", without_password(&address));
-        if !address.is_empty() {
+        if let Some(address) = crate::navigation::hold(self.editor.is_some(), &mut self.held_open, address)
+            && !address.is_empty()
+        {
             self.open_outside(ctx, &address);
         }
         ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
@@ -413,13 +442,18 @@ impl App {
     }
 
     pub(crate) fn on_replaced(&mut self, ctx: &egui::Context, path: String, r: Result<(), source::Error>) {
+        // The editor's file on its place, which the grid no longer shows: a file of the same
+        // path here is another one.
+        let elsewhere = self.editor.as_ref().is_some_and(|w| w.saves_elsewhere(&self.base, &path));
         self.saving.remove(&path);
         self.edit_saved(&path, r.is_ok());
         match r {
+            Ok(()) if elsewhere => log!("saved {path:?}, in the editor's place"),
             Ok(()) => {
                 log!("saved {path:?}");
-                if let Some((_, n)) = &mut self.batch_saved {
+                if let Some((_, n, videos)) = &mut self.batch_saved {
                     *n += 1;
+                    *videos += crate::decode::is_video(&path) as usize;
                 }
                 // Same name, maybe the same size: what is in memory is the old image.
                 if let Some(i) = self.files().iter().position(|f| f.path == path) {
@@ -430,6 +464,10 @@ impl App {
                 }
                 if self.viewed(&path) {
                     self.turn = Default::default();
+                    // A video saved turned: opened again, with its new rotation (#125).
+                    if crate::decode::is_video(&path) {
+                        self.video = None;
+                    }
                 }
                 self.relist(source::parent(&path));
                 self.redo_thumbs(ctx, vec![path]);
@@ -444,13 +482,14 @@ impl App {
             }
         }
         if self.saving.is_empty()
-            && let Some((op, n)) = self.batch_saved.take()
+            && let Some((op, n, videos)) = self.batch_saved.take()
             // Nothing saved and every failure in its own window (`kept.rs`): "saved: 0" said nothing more.
             && !(n == 0 && self.skipped.is_empty() && !self.kept.is_empty())
         {
-            // What was done, in the title and in the text (user, 2026-11-10: "Images saved: 2." alone
+            // What was done, in the title and in the text ("Images saved: 2." alone
             // did not say what had happened).
-            let args = [("n", n.to_string()), ("op", crate::save_dialogs::op_id(op).to_string())];
+            let what = crate::save_dialogs::saved_what(n, videos);
+            let args = [("n", n.to_string()), ("op", crate::save_dialogs::op_id(op).to_string()), ("what", what.to_string())];
             let args = args.each_ref().map(|(k, v)| (*k, v.as_str()));
             let title = self.i18n.t_args("batch-done-title", &args);
             let mut text = self.i18n.t_args("batch-done", &args);

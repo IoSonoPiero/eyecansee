@@ -20,8 +20,10 @@ pub(crate) enum Act {
     Servers,
     /// A bookmark opened, by its place in the list.
     Bookmark(usize),
-    /// "+ Add current folder" (in the viewer, the image).
-    AddBookmark,
+    /// "+ Add current folder" (in the viewer, the image), or a folder of a right-click menu.
+    AddBookmark(Option<String>),
+    /// The lit star, or a folder of a right-click menu that is a bookmark already.
+    RemoveBookmark(Option<String>),
     /// Bookmarks > Configure….
     Bookmarks,
     Options,
@@ -39,11 +41,18 @@ pub(crate) enum Act {
     NewFolder(Option<String>),
     /// "Save in another format" for an image (`None` = the selected one or the one in the viewer).
     Convert(Option<String>),
-    /// A 3D model saved in another 3D format, next to it (`None` = the selected one or the one in the viewer).
-    ExportModel(Option<String>, crate::model_export::Kind),
-    /// Convert and resize images of the grid (`None` = the marked ones or the selected one).
+    /// Export as a 3D model…: the window that saves the 3D models chosen in another 3D format,
+    /// next to them (`None` = the marked ones, the selected one or the one in the viewer).
+    ExportModel(Option<String>),
+    /// Convert…: the window of Convert and resize on the pictures and videos of the grid, on the
+    /// part of the format (`None` = the marked ones or the selected one).
     Batch(Option<String>),
-    /// CAD drawings of the grid as pictures or SVG, drawn again (same `None`).
+    /// Resize > a preset: the pictures of the grid resized at once, next to them (same `None`).
+    Resize(crate::batch::Size, Option<String>),
+    /// Resize > Custom…: the same window on the pictures, on the part of the size, in their own
+    /// format (same `None`).
+    ResizeCustom(Option<String>),
+    /// CAD drawings of the grid, or the one in the viewer, as pictures or SVG, drawn again (same `None`).
     ExportDrawings(Option<String>),
     /// Converti e ridimensiona preset on copied streams: the video rewritten with its metadata.
     CopyMeta(Option<String>),
@@ -130,6 +139,8 @@ impl Act {
             Act::Convert(_) | Act::ExportModel(..) | Act::ExportDrawings(_) => Line::SaveAs,
             Act::Batch(_) => Line::Batch,
             Act::Duplicates(_) => Line::Duplicates,
+            Act::AddBookmark(_) => Line::Star,
+            Act::RemoveBookmark(_) => Line::StarFilled,
             Act::Slideshow(_) => Line::Slideshow,
             Act::RedoThumbs(_) | Act::RedoAllThumbs | Act::Refresh => Line::Refresh,
             Act::Transform(Op::Cw, _) => Line::RotateCw,
@@ -169,12 +180,12 @@ impl App {
             self.new_image = Some(crate::new_image::Form::new());
         }
         // Ctrl+E, as Photos on Windows: Edit image.
-        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::E)) && !ctx.egui_wants_keyboard_input() && self.can_edit(None) {
+        if ctx.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, Key::E)) && !ctx.egui_wants_keyboard_input() && self.can_edit(None) && !self.chosen_in_trash() {
             self.open_editor(None, crate::edit_page::Tool::Select);
         }
         self.bookmark_keys(ctx);
         self.turn_keys(ctx);
-        // Ctrl+B and Ctrl+D: Convert and resize, Find duplicates (as their toolbar buttons).
+        // Ctrl+B and Ctrl+D: Convert…, Find duplicates (as their toolbar buttons).
         let (batch, duplicates) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::COMMAND, Key::B), i.consume_key(egui::Modifiers::COMMAND, Key::D)));
         if !ctx.egui_wants_keyboard_input() {
             if batch && self.batch_off().is_none() {
@@ -214,7 +225,7 @@ impl App {
             (ccw, i.consume_key(egui::Modifiers::COMMAND, Key::R))
         });
         let op = if ccw { transform::Op::Ccw } else { transform::Op::Cw };
-        if (cw || ccw) && !ctx.egui_wants_keyboard_input() && self.turns_fit().is_some() {
+        if (cw || ccw) && !ctx.egui_wants_keyboard_input() && self.turn_fits(op).is_some() {
             self.act = Some(Act::Transform(op, None));
         }
     }
@@ -239,12 +250,12 @@ impl App {
     /// A flip or a turn: shown in the viewer until saved, saved straight away in the grid.
     fn transform(&mut self, op: crate::transform::Op, path: Option<String>) {
         if self.viewing.is_some() {
-            // Also from the keys: only pictures turn (`viewing_photo`).
-            if self.viewing_photo() {
+            // Also from the keys: only pictures turn, not in a trash (`turns_fit`).
+            if self.turn_fits(op).is_some() {
                 self.turn = self.turn.then(op);
             }
         } else {
-            let paths = self.grid_images(path);
+            let paths = self.grid_turned(path, op);
             if !paths.is_empty() {
                 self.batch_turn = Some((paths, op));
             }
@@ -259,7 +270,7 @@ impl App {
             Act::Servers if crate::servers::locked() => self.ask_master(crate::vault_page::Then::Manager),
             Act::Servers => self.server_manager = Some(AddressForm::manager()),
             Act::Options => self.options = true,
-            Act::Bookmark(_) | Act::AddBookmark | Act::Bookmarks => self.bookmark_act(ctx, act),
+            Act::Bookmark(_) | Act::AddBookmark(_) | Act::RemoveBookmark(_) | Act::Bookmarks => self.bookmark_act(ctx, act),
             Act::SelectAll => self.select_all(),
             Act::RotateSaveAs => {
                 if let Some(w) = &mut self.editor {
@@ -270,10 +281,12 @@ impl App {
             Act::Rename(path) => self.ask_rename(path),
             Act::NewFolder(dir) => self.ask_new_folder(dir),
             Act::NewImage => self.new_image = Some(crate::new_image::Form::new()),
-            Act::Convert(path) => self.open_convert(path),
-            Act::ExportModel(path, kind) => self.export_model(path, kind),
+            Act::Convert(path) => self.open_convert(self.save_as_target(path)),
+            Act::ExportModel(path) => self.open_model_export(path),
             Act::Duplicates(dir) => self.open_duplicates(dir),
             Act::Batch(path) => self.open_batch(path),
+            Act::Resize(size, path) => self.resize_now(ctx, size, path),
+            Act::ResizeCustom(path) => self.open_resize(path),
             Act::ExportDrawings(path) => self.open_drawings(path),
             Act::CopyMeta(path) => self.open_copy_meta(path),
             Act::Audio(job, path) => self.open_audio(job, path),
@@ -285,7 +298,7 @@ impl App {
             Act::Edit(path) => self.open_editor(path, crate::edit_page::Tool::Select),
             Act::EditCopy => self.edit_copy(ctx),
             Act::EditCut => self.edit_cut(ctx),
-            Act::EditPaste(img) => self.edit_paste(img),
+            Act::EditPaste(img) => self.edit_paste(ctx, img),
             Act::Save => self.ask_save(),
             Act::Submenu(_) | Act::Off(_) => {}
             Act::Restore(path) => self.ask_restore(path),
@@ -343,10 +356,8 @@ impl App {
             return;
         } else if self.check_updates(ctx) {
             "update-checking"
-        } else if crate::update::packaged() {
-            "update-flatpak"
         } else {
-            "update-unavailable"
+            crate::update::not_updated_note()
         };
         self.update_note = Some(self.i18n.t(id));
     }

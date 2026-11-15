@@ -9,8 +9,8 @@
 #   EYECANSEE_SAVE_DIR=<folder on a stick> tools/test-save.sh     also on the stick (exFAT)
 #   EYECANSEE_MTP=<serial> tools/test-save.sh                     also on a phone (EyeCanSee closed)
 #
-# The files stay in a new folder in the home (same disk as the home trash), printed at the end with
-# the log of each test.
+# The files go in a new folder in the home (same disk as the home trash), with the log of each test.
+# It is removed when every test passes; when one fails it stays, and its path is printed at the end.
 set -u
 cd "$(dirname "$0")/.."
 
@@ -18,7 +18,7 @@ out=$(mktemp -d "$HOME/eyecansee-test-save.XXXXXX")
 tmp=$(mktemp -d)
 # Never the real settings and thumbnails.
 export EYECANSEE_SAVE_OUT="$out" XDG_CONFIG_HOME="$tmp/config" XDG_CACHE_HOME="$tmp/cache"
-build=(--release --no-default-features --features heif,magick)
+build=(--profile prova --no-default-features --features heif,magick)
 
 if (($#)); then
     tests=("$@")
@@ -48,5 +48,8 @@ echo "Summary:"
 for t in "${tests[@]}"; do
     printf '  %-20s %s\n' "$t" "${result[$t]}"
 done
-echo "Files and logs: $out"
-[[ ! " ${result[*]} " =~ " FAILED " ]]
+if [[ " ${result[*]} " =~ " FAILED " ]]; then
+    echo "Files and logs: $out"
+    exit 1
+fi
+rm -rf "$out"

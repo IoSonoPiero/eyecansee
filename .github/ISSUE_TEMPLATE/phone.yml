@@ -33,7 +33,7 @@ body:
     id: version
     attributes:
       label: EyeCanSee version
-      description: Shown at the right end of the menu bar, and in Help > About. Say whether it is the AppImage, the RPM, the Windows installer or the zip.
+      description: Shown at the right end of the menu bar, and in Help > About. Say whether it is the AppImage, the Flatpak, the RPM, the Windows installer, the zip or the Microsoft Store app.
       placeholder: "e.g. 0.64.0, AppImage"
     validations:
       required: true

@@ -34,7 +34,7 @@ Every folder where you deleted something on a phone or a server (and on a USB st
 
 - A strip at the top of the grid says **This folder has a trash**, with the **Open the trash** button.
 - Inside, the strip says whose trash it is and has **Restore all** and **Empty the trash…**.
-- Inside the trash you can look at the images, restore them (right click > **Restore**: they go back to the folder that holds the trash) or delete them for good. There **Del** always deletes forever, and there is no Rename.
+- Inside the trash you can look at the images, restore them (right click, **File** or **Edit** > **Restore**: they go back to the folder that holds the trash) or delete them for good. There **Del** always deletes forever. Cut, Copy, Rename, the turns, the editor, Save and Save as… are greyed out: restore the item first.
 - Right click on an empty spot inside the trash: **Restore all** and **Empty the trash…** (everything deleted forever, after a confirmation).
 - A trash left empty goes away together with its strip.
 

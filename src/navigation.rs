@@ -31,6 +31,8 @@ impl App {
                 self.loader = Some(Loader::new(handle, s.op, s.base.clone(), self.tx.clone(), ctx.clone()));
                 self.base = s.base;
                 self.listings.clear();
+                // A file to select belongs to the place before.
+                self.select_after = None;
                 self.listing_pending.clear();
                 self.relist_again.clear();
                 self.error = None;
@@ -66,6 +68,14 @@ impl App {
         self.open_source(ctx, &address);
         if source::windows_temp_copy(&address) {
             self.status_note = Some(self.i18n.t("status-temp-copy"));
+        }
+    }
+
+    /// The address from outside held while the editor was open (`hold`), once it is closed.
+    pub(crate) fn open_held(&mut self, ctx: &egui::Context) {
+        if let Some(address) = release(self.editor.is_some(), &mut self.held_open) {
+            log!("editor closed: opening {:?}", without_password(&address));
+            self.open_outside(ctx, &address);
         }
     }
 
@@ -110,9 +120,15 @@ impl App {
             self.generation = loader.next_generation();
         }
         self.address = self.display(&dir);
+        // A file to select belongs to the folder before (the same one sorted again keeps it).
+        if dir != self.dir {
+            self.select_after = None;
+        }
         self.dir = dir;
         self.thumbs.clear();
         self.generated.clear();
+        self.thumb_infos.clear();
+        self.info_asked.clear();
         self.thumb_queue_key = None;
         self.full.clear();
         self.pending.clear();
@@ -322,9 +338,41 @@ pub(crate) fn shown(base: &str, dir: &str) -> String {
     format!("{base}{}", dir.replace('/', sep))
 }
 
+/// An address from outside (`""`: just come forward): `Some` to open now; kept in `held` while
+/// the editor is open (the last one if more arrive), so the grid does not change place under the
+/// page. Until 0.77.0 it opened at once, and the page's saves went to the new place.
+pub(crate) fn hold(editing: bool, held: &mut Option<String>, address: String) -> Option<String> {
+    if editing && !address.is_empty() {
+        *held = Some(address);
+        None
+    } else {
+        Some(address)
+    }
+}
+
+/// The address held by `hold`, to open now that the editor is closed.
+fn release(editing: bool, held: &mut Option<String>) -> Option<String> {
+    if editing { None } else { held.take() }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// An address from outside while the editor is open is kept (the last one) and opened once it
+    /// is closed; without the editor it opens at once, and "" (just come forward) is never kept.
+    #[test]
+    fn address_held_while_editing() {
+        let mut held = None;
+        assert_eq!(hold(true, &mut held, "/home/u/a.jpg".into()), None);
+        assert_eq!(hold(true, &mut held, "/home/u/b.jpg".into()), None);
+        assert_eq!(hold(true, &mut held, String::new()), Some(String::new()));
+        assert_eq!(release(true, &mut held), None, "still editing");
+        assert_eq!(release(false, &mut held).as_deref(), Some("/home/u/b.jpg"));
+        assert_eq!(release(false, &mut held), None, "once");
+        assert_eq!(hold(false, &mut held, "/home/u/c.jpg".into()).as_deref(), Some("/home/u/c.jpg"));
+        assert_eq!(held, None);
+    }
 
     #[test]
     fn typed_address_without_quotes() {

@@ -4,7 +4,7 @@
 //! the colour (its button and Shift+I; I picks on the image inside EyeCanSee, with a live box);
 //! the same works under X11 with a portal. On Windows the pixels of the screen around
 //! the pointer are read (`around_cursor`): what is drawn on the image too, and anywhere on the screen
-//! when the pointer is pressed on the image and let go elsewhere (user, 2026-11-06).
+//! when the pointer is pressed on the image and let go elsewhere.
 
 /// The colour the user picked on the screen, 0-255; `Err` with why not (cancelled, no portal).
 #[cfg(target_os = "linux")]

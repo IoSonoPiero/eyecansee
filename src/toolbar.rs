@@ -1,14 +1,15 @@
 //! The operations of the toolbar: File, Image and Tools, each a group of line icons with the
 //! name and the shortcut on hover and, when off, why. On as their menu items are. When the address
-//! would be left narrower than `ADDRESS` points, Image and Tools go into the "More" menu.
+//! (the field with Copy and Paste) would be left narrower than `ADDRESS` points, Image and Tools go
+//! into the "More" menu.
 
 use eframe::egui;
 
 use crate::actions::Act;
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
-use crate::selection::{Kind, PLAYED, fits};
-use crate::{App, source, transform};
+use crate::selection::{CONVERTED, fits};
+use crate::{App, source, toolbar_end, transform};
 
 /// The address is never narrower than this because of the icons: Image and Tools go into the
 /// "More" menu first (at 1400 points the address was 290 wide, user 2026-11-05).
@@ -27,37 +28,21 @@ struct Op {
 impl App {
     fn file_ops(&self) -> Vec<Op> {
         let t = |id| self.i18n.t(id);
-        let viewing = self.viewing.is_some();
-        let chosen = self.chosen(None);
-        let nothing = || t("tb-off-nothing");
-        let some = (!chosen.is_empty()).then_some(()).ok_or_else(nothing);
-        let can_change = self.target().is_some();
-        let paste = match () {
-            _ if viewing => Some(t("tb-off-viewer")),
-            _ if self.clip.is_none() => Some(t("tb-off-paste")),
-            _ if !self.can_paste(&self.dir) => Some(t("tb-off-paste-here")),
-            _ => None,
-        };
-        let rename = match () {
-            _ if chosen.len() > 1 => Some(t("rename-one-only")),
-            _ if !can_change => Some(nothing()),
-            _ => None,
-        };
         let (rename, delete) = (
-            Op { icon: Line::Rename, label: "menu-rename", keys: "F2".into(), act: Act::Rename(None), off: rename },
-            Op { icon: Line::Delete, label: "menu-delete", keys: t("key-delete"), act: Act::Delete(None, false), off: off(can_change, nothing) },
+            Op { icon: Line::Rename, label: "menu-rename", keys: "F2".into(), act: Act::Rename(None), off: self.rename_off() },
+            Op { icon: Line::Delete, label: "menu-delete", keys: t("key-delete"), act: Act::Delete(None, false), off: self.delete_off() },
         );
         // In the viewer only what works on the image shown: making folders, cutting, copying and
-        // pasting files are for the grid (user, 2026-11-06); they stay in the menus.
-        if viewing {
+        // pasting files are for the grid; they stay in the menus.
+        if self.viewing.is_some() {
             return vec![rename, delete];
         }
         vec![
-            Op { icon: Line::NewFolder, label: "menu-new-folder", keys: t("key-new-folder"), act: Act::NewFolder(None), off: off(self.can_make_folder(), || t("tb-off-folder")) },
+            Op { icon: Line::NewFolder, label: "menu-new-folder", keys: t("key-new-folder"), act: Act::NewFolder(None), off: self.new_folder_off() },
             // Cut before Copy, as Explorer and the Edit menu.
-            Op { icon: Line::Cut, label: "menu-cut", keys: t("key-cut"), act: Act::Cut(None), off: some.clone().err() },
-            Op { icon: Line::Copy, label: "menu-copy", keys: t("key-copy"), act: Act::Copy(None), off: some.err() },
-            Op { icon: Line::Paste, label: "menu-paste", keys: t("key-paste"), act: Act::Paste(None), off: paste },
+            Op { icon: Line::Cut, label: "menu-cut", keys: t("key-cut"), act: Act::Cut(None), off: self.clip_off() },
+            Op { icon: Line::Copy, label: "menu-copy", keys: t("key-copy"), act: Act::Copy(None), off: self.clip_off() },
+            Op { icon: Line::Paste, label: "menu-paste", keys: t("key-paste"), act: Act::Paste(None), off: self.paste_off() },
             rename,
             delete,
         ]
@@ -67,21 +52,14 @@ impl App {
         let t = |id| self.i18n.t(id);
         let viewing = self.viewing.is_some();
         // As the Image menu: in the viewer the picture shown, in the grid the pictures chosen.
-        let fit = self.turns_fit();
-        let no_picture = || t(if viewing { "tb-off-not-picture" } else { "tb-off-no-picture" });
-        let turn = off(fit.is_some(), no_picture);
-        let edit = turn.clone().or_else(|| self.edit_off(None));
-        let changed = viewing && !self.turn.is_none() && self.save_ready.is_none();
-        let files = self.files_chosen(None);
-        let one_picture = !viewing && files.len() == 1 && fits(&files, &[Kind::Picture]).is_some();
-        let rotate = |op, icon, label, keys| Op { icon, label, keys: t(keys), act: Act::Transform(op, None), off: turn.clone() };
+        let rotate = |op, icon, label, keys| Op { icon, label, keys: t(keys), act: Act::Transform(op, None), off: self.turn_op_off(op) };
         vec![
             rotate(transform::Op::Ccw, Line::RotateCcw, "tf-rotate-ccw", "key-rotate-ccw"),
             rotate(transform::Op::Cw, Line::RotateCw, "tf-rotate-cw", "key-rotate-cw"),
-            Op { icon: Line::Edit, label: "menu-edit-image", keys: t("key-edit"), act: Act::Edit(None), off: edit },
-            Op { icon: Line::Save, label: "menu-save", keys: t("key-save"), act: Act::Save, off: off(self.can_save() || changed, || t("tb-off-save")) },
+            Op { icon: Line::Edit, label: "menu-edit-image", keys: t("key-edit"), act: Act::Edit(None), off: self.editor_off() },
+            Op { icon: Line::Save, label: "menu-save", keys: t("key-save"), act: Act::Save, off: self.save_off() },
             // Ctrl+Shift+S works in the viewer only.
-            Op { icon: Line::SaveAs, label: "menu-save-copy", keys: if viewing { t("key-save-copy") } else { String::new() }, act: Act::Convert(None), off: off(self.viewing_image() || one_picture, || t("tb-off-one-picture")) },
+            Op { icon: Line::SaveAs, label: "menu-save-copy", keys: if viewing { t("key-save-copy") } else { String::new() }, act: Act::Convert(None), off: self.save_as_off() },
         ]
     }
 
@@ -97,13 +75,20 @@ impl App {
         ]
     }
 
-    /// Why Convert and resize cannot start (also for Ctrl+B): as the Tools menu.
+    /// Why Convert… cannot start (also for Ctrl+B): as the Tools menu.
     pub(crate) fn batch_off(&self) -> Option<String> {
+        self.tools_off().or_else(|| fits(&self.grid_chosen(None), CONVERTED).is_none().then(|| self.i18n.t("tb-off-batch")))
+    }
+
+    /// Why no entry of Tools on the files chosen can start now: in the viewer, one conversion
+    /// at a time (the entries wait for the one running), or in a trash.
+    pub(crate) fn tools_off(&self) -> Option<String> {
         let t = |id| self.i18n.t(id);
         match () {
             _ if self.viewing.is_some() => Some(t("tb-off-viewer")),
             _ if self.batch.is_some() => Some(t("tb-off-busy")),
-            _ if fits(&self.grid_items(None), PLAYED).is_none() => Some(t("tb-off-batch")),
+            // The files in a trash are left out of every work (`grid_items`).
+            _ if self.chosen_in_trash() => Some(t("tb-off-trash")),
             _ => None,
         }
     }
@@ -125,10 +110,11 @@ impl App {
         group(ui, &self.file_ops(), &self.i18n, &mut chosen);
         let (image, tools) = (self.image_ops(), self.tool_ops());
         // What follows the groups: the metadata and bookmarks buttons, then in the grid sorting and
-        // the slider (the 370 points `toolbar` keeps for them).
+        // the slider, as wide as `toolbar_end` draws them.
         let step = icons::BUTTON.x + ui.spacing().item_spacing.x;
         let groups = (image.len() + tools.len()) as f32 * step + 2.0 * (1.0 + 2.0 * ui.spacing().item_spacing.x);
-        let after = 2.0 * step + if self.viewing.is_none() { 370.0 } else { 0.0 };
+        let sort = if self.viewing.is_none() { toolbar_end::sort_width(toolbar_end::TailParts::measure(ui)) } else { 0.0 };
+        let after = 2.0 * step + sort;
         let wide = ui.available_width() - groups - after >= ADDRESS;
         if wide {
             group(ui, &image, &self.i18n, &mut chosen);
@@ -144,10 +130,6 @@ impl App {
             self.act = chosen;
         }
     }
-}
-
-fn off(on: bool, why: impl FnOnce() -> String) -> Option<String> {
-    (!on).then(why)
 }
 
 /// "Name (keys)".

@@ -1,4 +1,5 @@
-//! The editor's keys: undo and redo, Del, the tools' letters, the quarter turns, zoom and the saves.
+//! The editor's keys: undo and redo, Del, the tools' letters, the quarter turns, Resize, zoom and
+//! the saves.
 
 use eframe::egui;
 
@@ -7,8 +8,8 @@ use crate::App;
 
 impl App {
     /// Without a field taking the keys (text has its own undo there): undo and redo, Del, the
-    /// tools' letters, the quarter turns, zoom, Ctrl+S (the main save: Save copy, or Overwrite as
-    /// chosen in the Options) and Ctrl+Shift+S (Save as…).
+    /// tools' letters, the quarter turns, Ctrl+Alt+I (Resize), zoom, Ctrl+S (the main save: Save
+    /// copy, or Overwrite as chosen in the Options) and Ctrl+Shift+S (Save as…).
     pub(super) fn edit_keys(&self, ctx: &egui::Context, w: &mut Window) -> Option<Ask> {
         if ctx.egui_wants_keyboard_input() || w.hold.is_some() || w.drag.is_some() {
             return None;
@@ -29,6 +30,10 @@ impl App {
         }
         if w.tool == Tool::Crop && ctx.input_mut(|i| i.consume_key(M::NONE, Key::Enter)) {
             w.apply_crop();
+        }
+        // Ctrl+Alt+I, as Image Size in Photoshop: Resize.
+        if ctx.input_mut(|i| i.consume_key(M::COMMAND | M::ALT, Key::I)) {
+            w.ask_resize();
         }
         if w.tool != Tool::Crop {
             let (screen, here) = ctx.input_mut(|i| (i.consume_key(M::SHIFT, Key::I), i.consume_key(M::NONE, Key::I)));

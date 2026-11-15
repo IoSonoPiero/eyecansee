@@ -22,12 +22,13 @@ video-component-error = The download failed: { $error }
 video-engine-old = The video engine on this computer is too old: { $found }, while EyeCanSee needs at least libmpv { $required }. EyeCanSee can download its own, once ({ $size }).
 video-engine-lacks = The video engine on this computer ({ $found }) cannot play { $missing }, the formats phones record in. EyeCanSee can download its own, which plays them, once ({ $size }).
 video-engine-system-only = The video engine (libmpv) is not on this computer, and the Options say to use the system's only. Install it (the mpv package), or change the choice under Tools > Options > Video.
+meta-video-engine = The details of videos and audio files are read by the video engine, which is not installed. Download it once ({ $size }) with the Download the video engine button in the menu bar, or open the file.
 video-play = Play (Space)
 video-pause = Pause (Space)
-video-mute = Sound off (M)
-video-unmute = Sound on (M)
+video-mute = Audio off (M)
+video-unmute = Audio on (M)
 video-volume = Volume { $volume } (up and down arrows, mouse wheel on the video)
-video-no-audio = This video has no sound
+video-no-audio = This video has no audio
 error-unsupported = Unsupported protocol: { $detail }
 error-no-host = The address has no host: { $detail }
 error-path = Cannot open { $detail }
@@ -98,11 +99,11 @@ menu-view = View
 menu-refresh = Refresh
 menu-back-to-grid = Back to the grid
 menu-help = Help
-menu-manual = Manual
+menu-manual = Guide
 help-back = Back
 help-forward = Forward
 help-contents = Contents
-help-search = Search the manual
+help-search = Search the guide
 help-clear-search = Clear the search
 help-nothing-found = Nothing found.
 help-previous-match = Previous match
@@ -188,10 +189,10 @@ options-title = Options
 opt-remember-location = Reopen the last folder at startup
 opt-remember-scroll = Remember the scroll position of each folder
 opt-remember-scroll-hint = When you go back to a folder you already viewed, the grid starts where you left it instead of from the first thumbnail. It lasts until EyeCanSee is closed.
-opt-wrap-around = In the viewer, after the last image start again from the first
+opt-wrap-around = After the last image start again from the first
 opt-wrap-around-hint = And from the first image, going back shows the last one. When off, the viewer stops at the first and the last image.
-opt-close-to-grid = In the viewer, the window's ✕ goes back to the grid
-opt-close-to-grid-hint = As Esc. When off, the ✕ closes EyeCanSee from the viewer too.
+opt-close-to-grid = The window's ✕ goes back to the grid
+opt-close-to-grid-hint = As Esc: first the editor closes, then the viewer, then EyeCanSee. When off, the ✕ closes EyeCanSee from the viewer and the editor too, asking first about changes not saved.
 opt-wheel = Mouse wheel in the viewer:
 opt-wheel-zoom = Zooms in and out
 opt-wheel-next = Shows the next or previous image
@@ -352,9 +353,25 @@ opt-remote-delete-folder = Move to the hidden .EyeCanSee-trash folder next to th
 opt-remote-delete-permanent = Delete for good
 opt-tab-general = General
 opt-tab-look = Look
-opt-tab-browsing = Browsing
+opt-tab-viewer = Viewer
 opt-tab-deleting = Deleting
 opt-tab-thumbnails = Thumbnails
+opt-under-thumbs = Under the thumbnails
+opt-under-thumbs-hint = The details chosen go on one line under the name. With small thumbnails only the name stays.
+opt-under-name = Name
+opt-under-pixels = Dimensions in pixels
+opt-under-pixels-hint = Read from each photo with its thumbnail, and kept with it: the next time they come at once.
+opt-under-size = Size
+opt-under-date = Date
+opt-under-date-hint = When the photo was taken, if the file says so; otherwise when the file was modified. With the mouse over the date, a tip says which one it is.
+opt-under-duration = Duration
+opt-under-duration-hint = Of videos and audio files, beside the date. Read once from each file and kept with its thumbnail.
+thumb-pixels = { $w } × { $h }
+thumb-taken-on = Taken on { $date }
+thumb-recorded-on = Recorded on { $date }
+tip-taken = Taken
+tip-recorded = Recorded
+thumb-modified-on = Modified on { $date }
 trash = Trash
 menu-restore = Restore
 menu-restore-all = Restore all
@@ -369,25 +386,27 @@ restore-taken = In **"{ $folder }"** there is already an item named **"{ $name }
 restore-replace = Replace
 restore-keep-both = Keep both
 restore-merge = Merge
-delete-ntfs = This is an **NTFS disk**: the Files app (Nautilus) cannot restore from its trash. The file can still be restored from a terminal with "gio trash --restore" (see the manual, Known limits).
+delete-ntfs = This is an **NTFS disk**: the Files app (Nautilus) cannot restore from its trash. The file can still be restored from a terminal with "gio trash --restore" (see the guide, Known limits).
 
 opt-check-updates = Check for updates at startup
-opt-check-updates-hint = When EyeCanSee starts, it asks GitHub for the latest release. A newer version is downloaded in the background and checked; it is installed only when you click "Install … and restart". Windows (installer and zip) and the AppImage; the copy from the Microsoft Store asks the Store instead, and the button opens its page; on Fedora updates come with dnf.
+opt-check-updates-hint = When EyeCanSee starts, it asks GitHub for the latest release. A newer version is downloaded in the background and checked; it is installed only when you click "Install … and restart". Windows (installer and zip) and the AppImage; the copy from the Microsoft Store asks the Store instead, and the button opens its page.
 update-install = Install { $version } and restart
 update-failed = Cannot install the update: { $detail }
 menu-check-updates = Check for updates
 update-checking = Checking for updates…
 update-latest = EyeCanSee { $version } is the latest version.
 update-found = EyeCanSee { $version } is ready: click the red button at the top right to install it.
-update-found-store = EyeCanSee { $version } is in the Microsoft Store: click the red button at the top right to open its page and update.
-update-in-store = Update to { $version } in the Microsoft Store
+update-found-store = A newer EyeCanSee is in the Microsoft Store: click the red button at the top right to open its page and update.
+update-in-store = Update in the Microsoft Store
 update-flatpak = This copy is a Flatpak: it is updated through flatpak update or your software center.
-update-unavailable = This copy is not updated by EyeCanSee: on Fedora updates come with dnf, and development builds are never updated.
+update-rpm = This copy is the Fedora package: it is updated with the rest of the system, by sudo dnf upgrade or by your software center (GNOME Software, Discover).
+update-rpm-ostree = This copy is the Fedora package, layered with rpm-ostree on Fedora Atomic (Silverblue, Kinoite): it is updated with the system, by rpm-ostree upgrade and a restart, or by your software center (GNOME Software, Discover).
+update-unavailable = This copy is not updated by EyeCanSee: development builds and copies built from the sources are never updated.
 update-check-failed = Cannot check for updates: { $detail }
 menu-redo-thumbs = Redo thumbnails
 menu-redo-all-thumbs = Redo all thumbnails in the folder
 key-shift-f5 = Shift+F5
-convert-title = Save in another format
+convert-title = Save as
 convert-original = Original
 convert-result = Converted
 convert-working = Converting…
@@ -396,6 +415,15 @@ convert-calculating = Working out the size…
 convert-error = Cannot convert: { $detail }
 convert-actual = 100% (drag the images to move around)
 convert-pixels = { $w } × { $h } pixels
+convert-turned = { $turn ->
+    [cw] rotated 90° clockwise in the viewer
+    [half] rotated 180° in the viewer
+    [ccw] rotated 90° counter-clockwise in the viewer
+    [flip-h] flipped horizontally in the viewer
+    [flip-v] flipped vertically in the viewer
+    [flip-h-cw] flipped horizontally and rotated 90° clockwise in the viewer
+   *[flip-h-ccw] flipped horizontally and rotated 90° counter-clockwise in the viewer
+}
 model-triangles = { $n } triangles
 # The keys of the viewer, under the status bar.
 hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | ← →: previous, next | Ctrl+Shift+S: save as an image | F11: full screen | Esc: back
@@ -403,11 +431,19 @@ hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, S
 cad-model = Model
 cad-units = units
 keys-button = Keys
-menu-export-3d = Export as a 3D model
+menu-export-3d = Export as a 3D model…
 status-exported = Saved as { $name }
 export-failed = Export failed: { $error }
+model-export-title = Export as a 3D model
+model-export-count = { $n ->
+    [one] 1 3D model chosen.
+   *[other] { $n } 3D models chosen.
+}
+model-export-format = Format:
+model-export-where = Each copy goes next to its model, with the same name; a name already taken gets " (2)".
+model-export-ok = Export
 hint-model = Arrows or drag: turn | Shift+drag: move | Wheel, + and −: zoom | 0: starting view | Page Up, Page Down: previous, next | Ctrl+S: save as an image | F11: full screen | Esc: back
-hint-edit-select = Click: select an object | Drag: move it | Drag a corner or an end: resize | Double click on a text or bubble: change its letters | Del: delete | Ctrl+C: copy the result | Esc: let go of the object
+hint-edit-select = Click: select an object | Drag: move it | Drag a corner or an end: resize (Shift: a box keeps its proportions; a pasted piece keeps them, Shift frees them) | Drag the round handle above a pasted piece: rotate it (Shift: 15° at a time) | Double click on a text or bubble: change its letters | Del: delete | Ctrl+C: copy the result | Esc: let go of the object
 hint-edit-marquee = Drag: choose a part | Shift+drag: a square | Ctrl+C: copy the part | Ctrl+X: cut it | Ctrl+V: paste as an object | Click or Esc: let go of the part
 hint-edit-arrow = Drag: draw | Drag the middle point: bend | Drag an end: move it | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
 hint-edit-line = Drag: draw | Drag the middle point: bend | Drag an end: move it | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
@@ -423,8 +459,8 @@ hint-edit-stamp = Click: put the stamp | Drag a corner: resize (Shift: same prop
 hint-edit-lens = Drag: draw a magnifier | Shift+drag: a square or a circle | Drag a corner: resize (Shift: same proportions) | Del: delete | Esc: let go
 hint-edit-cover = Drag: cover | Shift+drag: a square | Drag a corner: resize (Shift: same proportions) | I: eyedropper | Alt+click: take a colour, the tool stays | Del: delete | Esc: let go
 hint-edit-crop = Drag a side or corner: crop | Drag inside: move the crop | Shift+wheel: turn by 0.1° | Ctrl+R, Ctrl+Shift+R: turn right, left | Enter: apply | Esc: close
-hint-image = →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Wheel, + and −: zoom | Drag: move a zoomed image | 0: fit the window | 1: 100% | Ctrl+R, Ctrl+Shift+R: turn right, left | Ctrl+E: edit image | Ctrl+S, Ctrl+Shift+S: save, save as | F2: rename | Del: delete | F11: full screen | Esc: back
-hint-video = Space: pause and play | Ctrl+← →: 5 seconds back, forward | ↑ ↓, wheel: volume | M: sound off and on | →, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | F2: rename | Del: delete | F11: full screen | Esc: back
+hint-image = →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Space on an animation: pause and play | Space on a motion photo: play its video | Page Down, Page Up on a TIFF with pages: next, previous page | Wheel, + and −: zoom | Drag: move a zoomed image | 0: fit the window | 1: 100% | Ctrl+R, Ctrl+Shift+R: turn right, left | Ctrl+E: edit image | Ctrl+S, Ctrl+Shift+S: save, save as | F2: rename | Del: delete | F11: full screen | Esc: back
+hint-video = Space: pause and play | Ctrl+← →: 5 seconds back, forward | ↑ ↓, wheel: volume | M: audio off and on | →, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | F2: rename | Del: delete | F11: full screen | Esc: back
 cad-engine-title = CAD engine
 cad-engine-ask = To open STEP, IGES and BREP models of CAD programs EyeCanSee needs the CAD engine (Open CASCADE), downloaded once: { $size }.
 cad-engine-download = Download the CAD engine
@@ -439,12 +475,20 @@ convert-speed-hint = Slower makes a smaller file of the same quality.
 convert-lossless = Lossless: the same pixels as the original.
 convert-gif = At most 256 colours.
 convert-keep-meta = Keep the metadata (EXIF, XMP, IPTC, colour profile)
+convert-keep-density = Keep the metadata (resolution only)
 convert-ultra-hdr-lost = This photo is Ultra HDR: it keeps its HDR only in JPEG with the metadata.
+convert-first-only = This image is animated or has several pages: only the picture shown is saved.
 convert-no-meta = The original has no metadata.
 convert-meta-unsupported = This format cannot keep metadata.
+convert-meta-density-only = This format keeps only the resolution (dpi), when the original has one.
+convert-folder = Folder
 convert-name = File name
 convert-save = Save
 convert-exists = An item with this name already exists: it will be saved as { $name }.
+convert-saved-elsewhere-title = Image saved
+convert-saved-elsewhere = Saved as **{ $path }**.
+
+    The image shown is the original, as it is on disk.
 convert-chroma = Colour detail
 convert-chroma-full = Full (4:4:4)
 convert-chroma-half = Half (4:2:2)
@@ -489,7 +533,7 @@ rc-rotation = Rotation
 rc-reset = Back to 0°
 rc-straighten = Straighten
 rc-straighten-hint = Draw a line along the horizon, or along something upright: the image turns to make it level.
-rc-one-only = Edit image and Rotate and crop work on one image at a time. To turn several images together use the items above or Convert and resize.
+rc-one-only = Edit image and Rotate and crop work on one image at a time. To turn several images together use the items above or Convert…
 rename-one-only = Rename works on one file at a time.
 rc-rotation-hint = Shift + mouse wheel on the image: 0.1° at a time.
 rc-crop = Crop
@@ -669,6 +713,8 @@ edit-cut-part = Cut the part
 edit-paste-part = Paste
 edit-off-no-marquee = Choose a part first, dragging on the image.
 edit-off-no-clip = Nothing to paste: copy or cut a part first.
+edit-paste-none = No image in the clipboard.
+edit-copy-too-large = Too large for other programs: { $size } MB, the limit is 16 MB. Ctrl+V pastes it here.
 edit-part-copied = Part copied: Ctrl+V pastes it as an object, also in another program.
 edit-filters = Filters
 edit-filters-part = On the part chosen:
@@ -715,6 +761,21 @@ new-story = Upright, for stories
 edit-new-off = It is a new image: there is no file yet to write over. Use Save as….
 edit-undo = Undo
 edit-redo = Redo
+edit-resize = Resize
+edit-resize-hint = Changes the size of the image in pixels; what you drew follows it. Ctrl+Z undoes it.
+key-edit-resize = Ctrl+Alt+I
+resize-title = Resize the image
+resize-now = Now
+resize-size = New size
+resize-pixels = { $w } × { $h } pixels
+resize-unit-pixels = pixels
+resize-percent = percent
+resize-keep = Keep the proportions
+resize-keep-off = The image is turned by an angle: with other proportions it would come out slanted.
+resize-result = The result will be
+resize-same = It is the size the image has now.
+resize-too-big = Too large: at most { $max } pixels a side.
+resize-apply = Resize
 edit-copy = Copy
 edit-copied = The result is on the clipboard.
 edit-color = Colour
@@ -726,11 +787,22 @@ edit-solid = Solid
 edit-dashed = Dashed
 edit-dotted = Dotted
 edit-delete = Delete
+edit-patch-turn-hint = Its angle on the screen. You can also drag the round handle above the piece; hold Shift to turn it 15° at a time.
+edit-patch-ccw = Rotate the piece 90° anticlockwise
+edit-patch-cw = Rotate the piece 90° clockwise
+edit-patch-flip-h = Flip the piece horizontally
+edit-patch-flip-v = Flip the piece vertically
+edit-patch-width = Width
+edit-patch-height = Height
+edit-patch-keep-hint = Width and height change together, here and when you drag a corner. Hold Shift while dragging a corner to change them apart.
+edit-patch-front = Bring to front
+edit-patch-back = Send to back
 edit-select-hint = Select an object to change it, or choose a tool.
 edit-text-hint = Click on the image where the text goes, then type it here.
 edit-animated = **{ $name }** cannot be edited: it is animated or has several pages, and only the first picture would be saved.
 edit-animated-off = This image is animated or has several pages: only the first picture would be saved.
 edit-overwrite = Overwrite the original…
+edit-overwrite-short = Overwrite…
 edit-overwrite-hint = Writes the edited image over the original, after asking; the original goes to the trash, also when deleting for good is chosen in the Options.
 edit-overwrite-yes = Overwrite
 edit-save-confirm = A copy of **{ $name }** is saved next to it as **{ $copy }**. The original stays as it is.
@@ -758,6 +830,7 @@ edit-leave-new = The new image **{ $name }** is not saved yet.
 edit-temp-copy = This image is a temporary copy Windows made of a file of a phone or another device: a copy next to it could be deleted by Windows. Choose where to save it.
 edit-remote-phone = The image is edited in a copy on this computer: Save sends the result to the phone.
 edit-remote-server = The image is edited in a copy on this computer: Save sends the result to the server.
+edit-open-later = { $name } opens when you close the editor.
 key-rotate-cw = Ctrl+R
 key-rotate-ccw = Ctrl+Shift+R
 menu-save = Save
@@ -877,39 +950,68 @@ save-extra = The changes cannot be saved over **{ $detail }**: it also carries t
 save-temp-copy = This image **cannot be saved over itself**: it is a temporary copy that Windows made when it opened the file from a phone or another device, not the file there. Saving over it would change only the copy, which Windows can delete. Use **Save as…** to keep the changes.
 save-gvfs = Images **cannot be saved over themselves** here: this folder was opened through the file manager (gvfs), where replacing a file can lose the original.
 save-no-rename = Images **cannot be saved over themselves** here: this source cannot rename files.
+save-video-no-rotation = { $detail }: only MP4, MOV, MKV and WebM videos keep a rotation. To turn it, use Convert….
+batch-turn-videos = **Videos** are not encoded again: only the rotation that players read changes, in seconds and without loss.
+off-video-flip = A video can only be rotated here: to flip it, use Convert….
 batch-animated = **Animated** and **multi-page** images, **motion photos** and photos with a **depth map** (the portrait photos of some phones) are skipped: saving over them would lose those parts. Ultra HDR photos are turned with their HDR map, and with their video when they are motion photos too.
 batch-skipped-names = Left out, because they are animated, have several pages, are motion photos or carry a depth map:
 # $op is the id of the menu item of the change (tf-…).
-batch-done-title = { $op ->
-    [tf-flip-h] { $n ->
-        [one] Image flipped
-       *[other] Images flipped
+batch-done-title = { $what ->
+    [videos] { $n ->
+        [one] Video rotated
+       *[other] Videos rotated
     }
-    [tf-flip-v] { $n ->
-        [one] Image flipped
-       *[other] Images flipped
-    }
-   *[other] { $n ->
-        [one] Image rotated
-       *[other] Images rotated
+    [mixed] Pictures and videos rotated
+   *[other] { $op ->
+        [tf-flip-h] { $n ->
+            [one] Image flipped
+           *[other] Images flipped
+        }
+        [tf-flip-v] { $n ->
+            [one] Image flipped
+           *[other] Images flipped
+        }
+       *[other] { $n ->
+            [one] Image rotated
+           *[other] Images rotated
+        }
     }
 }
-batch-done = { $n ->
-    [0] No image was saved.
-    [one] **1 image** was { $op ->
-        [tf-flip-h] flipped horizontally
-        [tf-flip-v] flipped vertically
-        [tf-rotate-cw] rotated 90° clockwise
-        [tf-rotate-ccw] rotated 90° anticlockwise
-       *[other] rotated 180°
-    } and saved over its original.
-   *[other] **{ $n } images** were { $op ->
-        [tf-flip-h] flipped horizontally
-        [tf-flip-v] flipped vertically
+batch-done = { $what ->
+    [videos] { $n ->
+        [one] **1 video** was { $op ->
+            [tf-rotate-cw] rotated 90° clockwise
+            [tf-rotate-ccw] rotated 90° anticlockwise
+           *[other] rotated 180°
+        } and saved over its original.
+       *[other] **{ $n } videos** were { $op ->
+            [tf-rotate-cw] rotated 90° clockwise
+            [tf-rotate-ccw] rotated 90° anticlockwise
+           *[other] rotated 180°
+        } and saved over their originals.
+    }
+    [mixed] **{ $n } files** (pictures and videos) were { $op ->
         [tf-rotate-cw] rotated 90° clockwise
         [tf-rotate-ccw] rotated 90° anticlockwise
        *[other] rotated 180°
     } and saved over their originals.
+   *[other] { $n ->
+        [0] No image was saved.
+        [one] **1 image** was { $op ->
+            [tf-flip-h] flipped horizontally
+            [tf-flip-v] flipped vertically
+            [tf-rotate-cw] rotated 90° clockwise
+            [tf-rotate-ccw] rotated 90° anticlockwise
+           *[other] rotated 180°
+        } and saved over its original.
+       *[other] **{ $n } images** were { $op ->
+            [tf-flip-h] flipped horizontally
+            [tf-flip-v] flipped vertically
+            [tf-rotate-cw] rotated 90° clockwise
+            [tf-rotate-ccw] rotated 90° anticlockwise
+           *[other] rotated 180°
+        } and saved over their originals.
+    }
 }
 save-psd-flatten = **This PSD will be flattened**: layers, text, effects and masks are lost, only the image as it looks remains. To keep them use **Save as…** or edit it in Photoshop.
 batch-psd-flatten = PSD files with several layers, text or effects are **flattened**: only the image as it looks remains.
@@ -969,7 +1071,7 @@ vault-save = Save the master password
 vault-plain-warning =
     The passwords and passphrases of your servers are written **as they are** in the file of the servers.
 
-    { "**" }Anyone who can read your files can read them.**
+    { "**" }Anyone who can read your files can read these passwords too.**
 
     To protect them, set a **master password** at the top of File > Server manager.
 
@@ -1024,18 +1126,41 @@ dup-view = Open in the viewer
 dup-summary = Groups: { $groups }. Copies to delete: { $n }, freeing { $size }.
 dup-delete = Delete the marked copies…
 dup-none = No duplicates in this folder.
-menu-batch = Convert and resize…
+menu-batch = Convert…
+menu-resize = Resize
+menu-resize-custom = Custom…
+batch-title-resize = Resize
+batch-working-resize = Resizing
+batch-start-resize = Resize
+batch-title-copy-meta = Copy with the metadata
+batch-start-copy = Copy
+batch-working-copy = Copying
+batch-tag-rotated = rotated
+batch-tag-flipped = flipped
+preset-small = Small
+preset-medium = Medium
+preset-large = Large
+preset-half = Half
+preset-desc-percent = { $a }%
+preset-desc-fit = inside { $a } × { $b } px
+preset-desc-long = long side { $a } px
+preset-desc-short = short side { $a } px
+preset-desc-width = width { $a } px
+preset-desc-height = height { $a } px
+preset-desc-crop = exactly { $a } × { $b } px, cropped
+preset-desc-stretch = exactly { $a } × { $b } px, stretched
+preset-skip-format = { $detail }: EyeCanSee cannot write its format; Resize > Custom… can save it in another one.
 menu-export-drawings = Export drawing…
 menu-partial = * Only on some of the files chosen
-menu-partial-hint = The entries marked with * work only on the files of the kinds they are for (for example Convert and resize on pictures and videos); the other files chosen are left out.
+menu-partial-hint = The entries marked with * work only on the files of the kinds they are for (for example Convert… on pictures and videos); the other files chosen are left out.
 menu-copy-meta = Copy with the metadata…
-menu-strip-audio = Copy without sound…
-menu-extract-audio = Save the sound as a file…
-batch-title = Convert and resize
-batch-title-strip = Copy without sound
-batch-title-extract = Save the sound as a file
-batch-strip-hint = Makes a new video, the same as the original but without sound. The original is not touched. The video and its other tracks (subtitles, chapters) are copied as they are, without the audio: no re-encoding, no loss, the metadata kept. The new file has the format of the original.
-batch-extract-hint = Saves the sound of the video in a separate file (for example .m4a). The video is not touched. Every audio track is copied as it is into a file of its own, in the format of its codec (AAC as .m4a, Opus as .opus, MP3 as .mp3, FLAC as .flac): no re-encoding, no loss, the metadata kept. For another format, use Convert and resize.
+menu-strip-audio = Copy without audio…
+menu-extract-audio = Save the audio to a file…
+batch-title = Convert
+batch-title-strip = Copy without audio
+batch-title-extract = Save the audio to a file
+batch-strip-hint = Makes a new video, the same as the original but without audio. The original is not touched. The video and its other tracks (subtitles, chapters) are copied as they are, without the audio: no re-encoding, no loss, the metadata kept. The new file has the format of the original.
+batch-extract-hint = Saves the audio of the video in a separate file (for example .m4a). The video is not touched. Every audio track is copied as it is into a file of its own, in the format of its codec (AAC as .m4a, Opus as .opus, MP3 as .mp3, FLAC as .flac): no re-encoding, no loss, the metadata kept. For another format, use Convert…
 batch-audio-not-ready = FFmpeg is not ready yet.
 batch-images = { $n ->
     [one] **1 file** in { $folder }.
@@ -1049,6 +1174,14 @@ batch-size-same = Unchanged
 batch-size-percent = Percent of the original
 batch-size-fit = Inside
 batch-pixels = pixels (proportions kept)
+batch-px = pixels
+batch-size-long = Long side
+batch-size-short = Short side
+batch-size-width = Width
+batch-size-height = Height
+batch-size-crop = Exactly, cropped in the middle
+batch-size-stretch = Exactly, stretched
+batch-size-images-only = Pictures only: off while videos are among the files chosen.
 batch-enlarge = Enlarge smaller files too
 batch-filter = Filter
 batch-filter-lanczos = Lanczos (sharpest)
@@ -1086,6 +1219,7 @@ drawing-side-hint = The drawing is drawn again at this size, so it stays sharp e
 drawing-svg-hint = A drawing that stays sharp at any zoom, which browsers and graphics programs open. Layers and blocks are not kept.
 drawing-cad-hint = The whole drawing in the other AutoCAD format, in the version it was saved with: layers, blocks, layouts and styles. Each file is read back and compared with the original: if anything would be lost, it is not saved and the summary says so.
 batch-skip-format = { $detail }: EyeCanSee cannot write its format; choose another format.
+batch-skip-same-size = { $detail }: already of this size, or smaller and not enlarged; no copy made.
 batch-skip-inside = { $detail }: animated or with several pages; the new file would have only the first one.
 batch-failed = { $detail }
 batch-turn = Turn and flip
@@ -1109,6 +1243,12 @@ menu-slideshow = Slideshow
 opt-tab-slideshow = Slideshow
 opt-tab-video = Video
 opt-tab-editor = Editor
+opt-tab-resize = Resize
+opt-resize-intro = The sizes of Resize, in the right-click menu of the thumbnails and in Tools. Each one makes copies next to the originals, in their format and with their metadata, the size in the name ("photo (1920 px).jpg").
+opt-resize-name = Name
+opt-resize-remove = Remove
+opt-resize-add = Add
+opt-resize-reset = Back to the first ones
 opt-edit-after = After saving:
 opt-edit-after-stay = Stay in the editor
 opt-edit-after-back = Go back to where you were (thumbnails or viewer)
@@ -1154,6 +1294,7 @@ bm-empty-configure = No bookmarks yet: open a folder and click the star next to 
 bm-add-folder = + Add current folder
 bm-add-image = + Add this image
 bm-already = Already among the bookmarks.
+bm-one-only = Bookmarks are added one folder at a time.
 bm-star-folder = Add this folder to the bookmarks
 bm-star-image = Add this image to the bookmarks
 bm-configure = Configure…
@@ -1180,13 +1321,46 @@ tb-off-paste = Nothing to paste: Copy or Cut first.
 tb-off-paste-here = Nothing can be pasted here (a trash, the list of a phone's storages, or a copy already under way).
 tb-off-folder = No folder can be made here (a trash, the list of a phone's storages).
 tb-off-no-picture = Select one or more pictures first.
-tb-off-not-picture = Only pictures turn and can be edited.
 tb-off-save = Nothing to save: turn the image in the viewer first.
 tb-off-one-picture = Select one picture first.
 tb-off-busy = A conversion is already under way.
-tb-off-batch = Select pictures or videos first.
+tb-off-batch = Select pictures, videos or audio files first.
 tb-off-no-folder = Open a folder first.
+off-no-picture = No picture among the files chosen.
+off-no-video = No video among the files chosen.
+off-no-model = No 3D model among the files chosen.
+off-no-drawing = No CAD drawing among the files chosen.
+off-no-played = No picture or video among the files chosen.
+off-no-converted = No picture, video or audio file among the files chosen.
+off-copy-meta-no-video = This is for videos: photos already have their metadata inside the file.
+off-no-kind = None of the files chosen is of a kind this entry works on.
+off-edit-picture = Edit image and Rotate and crop work on pictures only.
+off-edit-video = Videos are turned with Rotate 90° and Rotate 180°, not in the editor: Edit image and Rotate and crop work on pictures only.
+off-video-no-rotation = Only MP4, MOV, MKV and WebM videos keep a rotation without being encoded again: turn the others with Convert…
+off-video-convert = AVI, MPEG and the other videos that keep no rotation are flipped and turned with Convert…
+off-no-turned = Select one or more pictures or videos first.
+off-turn-kind = Only pictures and videos can be turned.
+off-flip-kind = Only pictures can be flipped.
+skip-not-picture = { $detail }: not a picture.
+skip-not-video = { $detail }: not a video.
+skip-not-drawing = { $detail }: not a CAD drawing.
+skip-not-played = { $detail }: neither a picture nor a video.
+skip-not-converted = { $detail }: not a picture, a video or an audio file.
+skip-folder = { $detail }: a folder.
 tb-off-trash = Not in the trash.
+off-empty = This folder is empty.
+off-top = This is the top folder already.
+off-not-viewer = Only in the viewer.
+off-no-show = No picture or video in this folder.
+off-no-file = Select one or more files first.
+off-save-model = A 3D model is not saved over its file: Save as… makes a picture of it, Export as a 3D model a copy in another 3D format.
+off-save-drawing = A CAD drawing is not saved over its file: Save as… makes a picture of the layout shown, Export drawing… a copy as a picture, SVG, DWG or DXF.
+off-save-played = Nothing to save: rotate the video first; audio files are not changed in the viewer.
+off-save-as-played = Save as… is for pictures: videos and audio files are converted with Convert… in the grid.
+off-trash-clip = Items in the trash cannot be cut or copied: restore them first.
+off-trash-rename = Items in the trash cannot be renamed: restore them first.
+off-trash-change = A file in the trash cannot be changed or saved: restore it first.
+off-restore = Select an item of the trash first.
 new-folder-title = New folder
 new-folder-ok = Create
 new-folder-name = New folder
@@ -1203,7 +1377,7 @@ batch-video-quality = Quality:
 batch-video-high = High
 batch-video-medium = Medium
 batch-video-small = Small file
-batch-video-audio = Keep the sound
+batch-video-audio = Keep the audio
 batch-video-meta = Keep the metadata (date, place, camera)
 batch-video-checking = Checking which encoders work on this computer…
 batch-video-need-ffmpeg = Videos are converted by FFmpeg, which is not on this computer. It is downloaded once ({ $size }) into the app's data folder.
@@ -1215,6 +1389,12 @@ batch-video-lacks-ffmpeg = The FFmpeg on this computer ({ $found }) cannot read 
 batch-video-system-only = FFmpeg is not on this computer, and the Options say to use the system's only. Install it, or change the choice under Tools > Options > Video.
 batch-video-not-ready = Choose how to convert the videos.
 batch-skip-video = { $detail }: a video, and FFmpeg is missing.
+batch-skip-audio = { $detail }: an audio file, and FFmpeg is missing.
+batch-sound = Audio files
+batch-sound-format = Format
+batch-sound-keeps-cover = The tags (title, artist, album…) and the cover are kept.
+batch-sound-keeps-tags = The tags (title, artist, album…) are kept; this format has no room for the cover.
+batch-sound-not-ready = Choose how to convert the audio files.
 drawing-skip-not-autocad = { $detail }: not an AutoCAD drawing (DWG or DXF), so it cannot be saved as one.
 drawing-skip-would-lose = { $detail }: in the other format part of the drawing would be lost, so it was not saved.
 batch-no-audio = { $detail }: the video has no audio.
@@ -1226,8 +1406,8 @@ video-codec-vp9 = Free of royalties, for the web (YouTube uses it); smaller than
 video-codec-vp8 = Older web format: only for compatibility with old browsers.
 video-codec-mpeg4 = Old format (DivX, Xvid era): for old players only. Large files.
 video-codec-prores = For editing programs (Final Cut, DaVinci Resolve): best quality, very large files.
-video-codec-copy = Video and sound copied as they are, in seconds and without losing quality; the metadata are written (a dashcam's position too). The turn and the size do not apply.
-video-codec-gif = Animated image: no sound, 256 colours, very large files. Only for short clips.
+video-codec-copy = Video and audio copied as they are, in seconds and without losing quality; the metadata are written (a dashcam's position too). The turn and the size do not apply.
+video-codec-gif = Animated image: no audio, 256 colours, very large files. Only for short clips.
 video-enc-nvenc = NVIDIA graphics card: very fast and light on the computer; files a little larger than with the processor at the same quality.
 video-enc-qsv = Intel graphics (Quick Sync): fast and light on the computer; files a little larger than with the processor.
 video-enc-amf = AMD graphics card: fast and light on the computer; files a little larger than with the processor.
@@ -1241,3 +1421,96 @@ video-enc-rav1e = Processor (rav1e): AV1 written in Rust; slower than SVT-AV1.
 video-enc-vpx = Processor (libvpx): good quality, slow.
 video-enc-openh264 = Processor (OpenH264, Cisco): simple H.264, larger files than x264. Often the only H.264 of distributions without patented codecs.
 video-enc-plain = Processor (FFmpeg's own encoder).
+frames-frame = Frame { $n } / { $total }
+frames-page = Page { $n } / { $total }
+frames-page-prev = Previous page (Page Up)
+frames-page-next = Next page (Page Down)
+frames-too-large = Too large to play here: only the first picture is shown
+motion-play = Play motion (Space)
+
+## Tips at startup (issue #113)
+opt-tips = Show a tip at startup
+opt-tips-hint = Once a day, when EyeCanSee starts, a window shows one thing it can do, with Back and Next to see the others.
+tip-off = Don't show at startup
+tip-off-hint = The tips will not appear again. To have them back: Tools > Options > General > Show a tip at startup.
+tip-back = Back
+tip-next = Next
+tip-count = Tip { $n } of { $of }
+tip-guide = Read more in the guide
+tip-welcome-title = Welcome to EyeCanSee
+tip-welcome-text =
+    EyeCanSee shows the pictures, videos, 3D models and CAD drawings of a folder as thumbnails, and opens them one at a time. It works the same way on this computer, on disks and USB sticks, on Android phones and on servers.
+
+    On the left, the side panel with your disks, phones and servers; in the middle, the folder as thumbnails; under it, the information about the selected file. **Next** shows the other tips.
+tip-help-title = F1 opens the guide where you are
+tip-help-text =
+    Press **F1** at any time: the guide opens on the page about what you are doing, the editor, a video, a phone, a window. Press **F1** again to close it.
+
+    The field at the top left of the guide searches every page.
+tip-right-click-title = Right-click anything
+tip-right-click-text =
+    A right click on a thumbnail, a folder, an empty space of the grid or the picture in the viewer opens a menu with what you can do with it.
+
+    An entry that is greyed out says why when you point at it, as do the toolbar buttons.
+tip-phone-title = Photos on an Android phone
+tip-phone-text =
+    1. Connect the phone with its USB cable and unlock it.
+    2. In the phone's USB notification choose **File transfer**.
+    3. The phone appears at the top left, under Devices: click it.
+
+    You can view, copy, convert and delete its photos and videos without another program.
+tip-servers-title = A NAS or a server
+tip-servers-text = EyeCanSee opens folders on FTP, FTPS and SFTP servers like the folders of the computer. Type the address in the address bar, for example `sftp://anna@nas.lan/Photos`, or save the server once in **File > Server manager…**: it then opens with one click from the panel on the left.
+tip-viewer-title = Looking at pictures
+tip-viewer-text =
+    Double-click a thumbnail, or press **Enter**: the picture fills the window.
+    - **→** and **←** go to the next and the previous one.
+    - The mouse wheel zooms in and out.
+    - **Esc** or a double click goes back to the grid.
+    - **F11** shows only the picture, at full screen.
+tip-video-title = Videos and audio
+tip-video-text =
+    Videos and audio files play in the viewer.
+    - **Space** plays and pauses.
+    - **Ctrl+←** and **Ctrl+→** go 5 seconds back and forward.
+    - **↑** and **↓** change the volume, **M** turns the audio off and on.
+tip-editor-title = Draw on a picture
+tip-editor-text =
+    { "**" }Image > Edit image…** (**Ctrl+E**) opens the editor: arrows, text, shapes, highlighter, stamps, filters, crop and rotate. Every addition stays movable until you save.
+
+    { "**" }Save copy** writes a new file beside the original, which stays as it was.
+tip-cover-title = Hide a number plate or an address
+tip-cover-text =
+    In the editor, choose **Cover** (key **B**) and drag over what must be hidden. In the saved file nothing of what was under the box is left.
+
+    Blur and Pixelate are not enough for private text or numbers: they can still be read or worked back.
+tip-resize-title = Smaller copies in one click
+tip-resize-text =
+    Select the photos, right-click them and choose **Resize**: Small, Medium, Large or Half. The copies go beside the originals, with their metadata, the size in their names.
+
+    { "**" }Convert…** (**Ctrl+B**) changes the format of many pictures at once.
+tip-convert-video-title = Convert videos
+tip-convert-video-text = Videos go through the same **Convert…** window as pictures: another format, a smaller size, turned, or a short clip as a GIF. The right-click menu also has **Copy without audio** and **Save the audio to a file**. The work is done by FFmpeg: if the computer does not have it, the window offers to download it.
+tip-bookmarks-title = Bookmarks
+tip-bookmarks-text = The **star** next to the address bar turns the folder open into a bookmark: a folder of the computer, of a phone or of a server. The **Bookmarks** drop-down beside it, or **Ctrl+Shift+D**, takes you back there with one click.
+tip-metadata-title = Where and when a photo was taken
+tip-metadata-text =
+    Under the grid, the metadata panel shows the camera, the date the photo was taken, the exposure and the place. **Open on the map** shows the place on OpenStreetMap.
+
+    Each box closes with its ✕ and comes back from **View > Metadata boxes**.
+tip-models-title = 3D models and CAD drawings
+tip-models-text =
+    3D models (STL, OBJ, glTF, FBX, IFC, STEP and more) and CAD drawings (DWG, DXF) appear in the grid with a picture of them, and open in the viewer.
+
+    Drag or use the arrows to turn a model, the mouse wheel to zoom; a drawing moves with a drag.
+tip-duplicates-title = Find duplicates
+tip-duplicates-text = **Tools > Find duplicates…** (**Ctrl+D**) finds the files that are exactly the same, also under another name or in another folder, on the computer, a disk, a phone or a server. You choose the copies to delete; one always stays.
+tip-trash-title = Deleted by mistake?
+tip-trash-text = Files of this computer go to the system trash. Phones and servers have no trash EyeCanSee can reach, so EyeCanSee keeps one of its own in each folder: a strip at the top of the folder says so, with **Open the trash**, where you can restore them.
+tip-details-title = More under the thumbnails
+tip-details-text = Under each thumbnail EyeCanSee writes the name, the size in pixels, the weight of the file, the date and, for videos, the duration. Choose what to see in **Tools > Options… > Thumbnails > Under the thumbnails**.
+tip-slideshow-title = Slideshow
+tip-slideshow-text =
+    { "**" }View > Slideshow** shows the pictures and videos of the folder one after the other at full screen; with several files selected, only those.
+
+    { "**" }Space** pauses, the arrows move at once, **Esc** ends it. The time and the passage between pictures are in **Tools > Options… > Slideshow**.

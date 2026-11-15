@@ -6,7 +6,7 @@ EyeCanSee shows the pictures, videos, 3D models and CAD drawings of a folder as 
 
 ![Getting started](../img/start.webp)
 
-- **Menu bar** at the top: File, Edit, Image, View, Bookmarks, Tools and Help.
+- **Menu bar** at the top: File, Edit, Image, View, Bookmarks, Tools and Help. A greyed-out entry says why it cannot be used now when you point at it.
 - **Toolbar** under it: the buttons for the most common operations, the bookmarks and the address bar. Pointing at a button shows its name and its key; on a greyed-out button it also says why it cannot be used now.
 - **Side panel** on the left: your disks, phones and saved servers, and the folders of this computer. See [Folders and the side panel](folders.md).
 - **Grid** in the middle: the subfolders and the files of the open folder, as thumbnails. See [The thumbnail grid](grid.md).
@@ -36,9 +36,22 @@ Double-click a thumbnail, or select it and press **Enter**: the picture fills th
 
 ## Help
 
-Press **F1** at any time: this guide opens on the page about what you are doing. Press **F1** again to close it, or press **Esc** twice quickly with the pointer on the guide. **Help > Manual** opens the list of all the pages.
+Press **F1** at any time: this guide opens on the page about what you are doing. Press **F1** again to close it, or press **Esc** twice quickly with the pointer on the guide. **Help > Guide** opens the list of all the pages.
 
 The field at the top left searches every page, ready for typing as soon as the guide opens: a result opens its page with the words found highlighted. The highlight follows the field, and ![Clear the search](icon://x) empties it.
+
+## Tips at startup
+
+At the first start of the day a window shows a tip: one thing EyeCanSee can do, with a picture or the steps to follow.
+
+![Tips at startup](../img/tips.webp)
+
+- **Next** and **Back** (or the → and ← keys) show the other tips; the next start shows the one after the last you saw.
+- **Read more in the guide** opens the page about that tip.
+- **Close** (or **Esc**) closes the window.
+- **Don't show at startup** stops the tips. To have them back, tick **Show a tip at startup** in **Tools > Options… > General** (see [Options](options.md)).
+
+The tips do not appear when EyeCanSee starts to open a picture or a folder from another program.
 
 ## Where to go next
 

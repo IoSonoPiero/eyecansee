@@ -10,7 +10,7 @@ La griglia mostra cosa c'è nella cartella aperta: prima la cella ![..](icon://c
 - I **file audio**, con la loro copertina e il simbolo ![Audio](icon://color-audio), oppure con una nota se non hanno copertina.
 - I **modelli 3D** e i **disegni CAD**, con un'immagine del modello o del disegno. Vedi [Modelli 3D](model-3d.md) e [Disegni CAD](cad.md).
 
-Tieni il mouse fermo su un file per vederne i dettagli: il nome intero con l'estensione (quello sotto la miniatura può essere tagliato), il peso, la data del file e, quando i suoi metadati sono già stati letti, le dimensioni in pixel. Su una cartella compare il suo nome.
+Tieni il mouse fermo su un file per vederne i dettagli, in due colonne: il nome intero con l'estensione (quello sotto la miniatura può essere tagliato), il peso, la data del file e, quando i suoi metadati sono già stati letti, le dimensioni in pixel. Su una cartella compare il suo nome.
 
 Un cerchio che gira vuol dire che la miniatura è ancora in preparazione. Il simbolo ![Download](icon://color-download) vuol dire che per mostrare quel file bisogna prima scaricare un componente (vedi [Componenti aggiuntivi](components.md)). I file e le cartelle nascosti non si vedono. Una cartella vuota dice "Questa cartella non contiene immagini né sottocartelle".
 
@@ -45,11 +45,13 @@ La scelta vale per tutte le cartelle finché non la cambi. La barra di stato con
 
 Il cursore in fondo a destra nella barra strumenti, accanto a ![Dimensione miniature](icon://image), ingrandisce o rimpicciolisce le miniature. Le celle si allargano su tutta la larghezza della griglia.
 
+Sotto ogni miniatura ci sono il nome, le dimensioni in pixel e il peso, e la data, con la durata di video e file audio; in **Opzioni > Miniature > Sotto le miniature** scegli quali vedere, tutte spuntate all'inizio (vedi [Opzioni](options.md)). Con le miniature piccole resta solo il nome.
+
 ## Miniature
 
 EyeCanSee prepara prima la miniatura del file selezionato, poi quelle visibili nella finestra, poi le altre della cartella. Le miniature restano salvate su disco, così la volta dopo la cartella si apre subito; una miniatura viene rifatta quando il suo file cambia.
 
-Se una miniatura sembra sbagliata, fai clic destro sul file (o su più file selezionati) e scegli **Aggiorna miniature**. **Visualizza > Aggiorna tutte le miniature della cartella** (**Maiusc+F5**) le rifà tutte. Lo spazio che le miniature occupano su disco si regola nelle [Opzioni](options.md).
+Se una miniatura sembra sbagliata, fai clic destro sul file (o su più file selezionati) e scegli **Aggiorna miniature**: vale per ogni tipo di file, anche per un file audio, la cui miniatura è la sua copertina. **Visualizza > Aggiorna tutte le miniature della cartella** (**Maiusc+F5**) le rifà tutte. Lo spazio che le miniature occupano su disco si regola nelle [Opzioni](options.md).
 
 ## Aggiornare
 
@@ -57,11 +59,11 @@ Se una miniatura sembra sbagliata, fai clic destro sul file (o su più file sele
 
 ## Il menù del clic destro
 
-- Su un **file**: le azioni che funzionano su di lui, come Apri, Carosello, Modifica immagine…, Converti e ridimensiona…, Taglia, Copia, Rinomina… ed Elimina…. Con più file selezionati, il menù agisce su tutti (vedi [Selezionare i file](selection.md)).
-- Su una **cartella**: Apri, Nuova cartella qui dentro…, Taglia, Copia, Incolla in questa cartella, Trova duplicati…, Rinomina…, Elimina…, Elimina definitivamente….
+- Su un **file**: le azioni che funzionano su di lui, come Apri, Carosello, Modifica immagine…, Converti…, Ridimensiona, Taglia, Copia, Rinomina… ed Elimina…. Con più file selezionati, il menù agisce su tutti (vedi [Selezionare i file](selection.md)).
+- Su una **cartella**: Apri, Nuova cartella qui dentro…, Taglia, Copia, Incolla in questa cartella, Aggiungi questa cartella ai segnalibri (vedi [Segnalibri](bookmarks.md)), Trova duplicati…, Rinomina…, Elimina…, Elimina definitivamente….
 - Su uno **spazio vuoto**: Incolla (quando hai copiato qualcosa), Seleziona tutto, Nuova cartella…, Cartella superiore, Aggiorna, Mostra e Trova duplicati….
 
-Una voce segnata con **\*** funziona solo su una parte dei file scelti (per esempio Converti e ridimensiona sulle foto e sui video che ci sono in mezzo); una riga in fondo al menù lo dice.
+Una voce segnata con **\*** funziona solo su una parte dei file scelti (per esempio Converti… sulle foto e sui video che ci sono in mezzo, Ridimensiona sulle foto; anche le cartelle selezionate insieme ai file restano fuori); una riga in fondo al menù lo dice. Una voce che non funziona su nessuno resta al suo posto, grigia: tieni il mouse sopra per leggere il perché (per esempio "Nessuna immagine tra i file scelti").
 
 ## La barra di stato
 

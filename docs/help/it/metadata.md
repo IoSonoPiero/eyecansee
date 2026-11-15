@@ -16,7 +16,7 @@ Un riquadro dice "Nessun dato" quando il file non ha niente per lui, e "Questo f
 
 ## Video
 
-Per un video il pannello mostra, quando il file li contiene: marca e modello del telefono o della videocamera (e la versione di Android), data e ora della ripresa, durata, fotogrammi al secondo, dimensioni, formato video e audio, bit rate, e il posto in cui è stato girato. Alcune dashcam tengono la traccia GPS in un file accanto ai video: allora il pannello mostra dove parte il video, l'altitudine e la velocità media e massima durante il video. Vedi [Riprodurre i video](video.md).
+Per un video il pannello mostra, quando il file li contiene: marca e modello del telefono o della videocamera (e la versione di Android), data e ora della ripresa, durata, fotogrammi al secondo, dimensioni, formato video e audio, bit rate, e il posto in cui è stato girato. Alcune dashcam tengono la traccia GPS in un file accanto ai video: allora il pannello mostra dove parte il video, l'altitudine e la velocità media e massima durante il video. Vedi [Riprodurre i video](video.md). Questi dati li legge il motore video, anche per i file audio: senza, il pannello mostra solo il riquadro File e, accanto, una nota che lo dice e spiega come scaricarlo, vedi [Componenti aggiuntivi](components.md).
 
 ## Mostrare e nascondere i riquadri
 
@@ -30,4 +30,4 @@ EyeCanSee si ricorda quali riquadri sono aperti e se il pannello è compresso.
 
 - Il pannello segue il file selezionato nella griglia; nel visore non c'è. La barra di stato del visore mostra la data dello scatto se i metadati sono già stati letti nella griglia (vedi [Guardare le immagini](viewer.md)).
 - Per leggere i metadati EyeCanSee rilegge il file, quindi su un telefono o su un server ci vuole un attimo. Una volta letti restano salvati con le miniature e la volta dopo compaiono subito, finché il file non cambia.
-- Quando converti o salvi una foto, i suoi metadati restano nel file nuovo, se il formato li sa contenere. Vedi [Salvare in un altro formato](save-as.md).
+- Quando converti o salvi una foto, i suoi metadati, risoluzione (dpi) compresa, restano nel file nuovo, se il formato li sa contenere. Vedi [Salva come](save-as.md).

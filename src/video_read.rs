@@ -166,6 +166,34 @@ pub(crate) async fn track_tags(op: &Store, path: &str) -> Vec<(String, String)> 
     tags
 }
 
+/// The key under which a video's metadata are kept in the thumbnail cache: the video's own
+/// (size and date), plus the files beside it that its metadata come from, the drone's `.SRT`
+/// (its size) and the dashcam's `gps.sqlite` (size and date). Without them, a `.SRT` copied after
+/// the folder was first opened was never read: the metadata saved before stayed (15/11; with the
+/// details under the thumbnails, #139, they are saved as soon as the folder is open). Keys saved
+/// before this did not have the files beside: such metadata are read again, once.
+pub(crate) async fn meta_key(op: &Store, file: &File) -> File {
+    if !decode::is_played(&file.path) {
+        return file.clone();
+    }
+    let mut beside = String::new();
+    if let Some((stem, _)) = file.path.rsplit_once('.') {
+        for ext in ["SRT", "srt"] {
+            if let Ok(size) = op.size(&format!("{stem}.{ext}")).await {
+                beside += &format!(" srt {size}");
+                break;
+            }
+        }
+    }
+    if let Some(db) = op.local_file(&file.path).and_then(|f| crate::gps_track::db_of(&f))
+        && let Ok(m) = std::fs::metadata(&db)
+    {
+        let secs = m.modified().ok().and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map_or(0, |d| d.as_secs());
+        beside += &format!(" gps {} {secs}", m.len());
+    }
+    File { modified: format!("{}|{}", file.modified, beside.trim()), ..file.clone() }
+}
+
 /// A drone's position when the video started, from the first frame of the `.SRT` with the same
 /// name (`gps_track::srt_start`); any source, only its first 2 KB read.
 async fn drone_start(op: &Store, path: &str) -> Option<(f64, f64)> {
@@ -191,7 +219,7 @@ async fn phone_thumbnail(op: &Store, path: &str) -> Option<Vec<u8>> {
 /// partial reads WPD reads the file from the start up to the offset, and the Samsung A57 dropped
 /// the connection after minutes of that (2026-10-27). Such a file is read whole, in order, once.
 /// With partial reads (mtp-rs 0.38.1) a phone on Windows is read as on Linux (#71).
-fn whole_only(op: &Store) -> bool {
+pub(crate) fn whole_only(op: &Store) -> bool {
     cfg!(windows) && matches!(op, Store::Mtp(phone) if phone.ranges_slow())
 }
 
@@ -579,6 +607,30 @@ async fn still_from_copy(op: &Store, path: &str, size: u64, side: u32) -> Result
 
 #[cfg(test)]
 mod tests {
+    /// A video's metadata are kept under a key that changes when a `.SRT` or a `gps.sqlite` comes
+    /// beside it later: they are read again instead of staying without the position (15/11).
+    #[test]
+    fn meta_key_counts_the_files_beside() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-beside-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("card/DCIM")).unwrap();
+        std::fs::write(dir.join("card/DCIM/DJI_0001.MP4"), b"video").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let file = File { path: "card/DCIM/DJI_0001.MP4".into(), size: 5, modified: "m".into() };
+        let key = |f: &File| rt.block_on(meta_key(&op, f)).modified;
+        let alone = key(&file);
+        std::fs::write(dir.join("card/DCIM/DJI_0001.SRT"), b"[latitude: 40.3] [longitude: 18.4]").unwrap();
+        let with_srt = key(&file);
+        std::fs::write(dir.join("card/gps.sqlite"), b"track").unwrap();
+        let with_gps = key(&file);
+        assert!(alone != with_srt && with_srt != with_gps && alone != with_gps, "{alone:?} {with_srt:?} {with_gps:?}");
+        assert_eq!(key(&file), with_gps, "the same files beside: the same key");
+        // Pictures keep their own key.
+        let photo = File { path: "card/DCIM/a.jpg".into(), ..file.clone() };
+        assert_eq!(key(&photo), "m");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
     use super::*;
     use crate::mpv::Reader;
 

@@ -39,7 +39,7 @@ Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le ch
 | Maiusc+Canc | Elimina definitivamente |
 | Ctrl+N | Nuova immagine (vedi [Nuova immagine](new-image.md)) |
 | Ctrl+E | Modifica immagine (vedi [Modificare un'immagine](editor.md)) |
-| Ctrl+B | Converti e ridimensiona (vedi [Convertire e ridimensionare le immagini](convert.md)) |
+| Ctrl+B | Converti… (vedi [Convertire e ridimensionare le immagini](convert.md)) |
 | Ctrl+D | Trova duplicati (vedi [Trovare i duplicati](duplicates.md)) |
 | Maiusc+F5 | Rifà tutte le miniature della cartella |
 
@@ -65,12 +65,15 @@ Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositiv
 | →, Spazio, Pagina giù | Immagine successiva |
 | ←, Backspace, Pagina su | Immagine precedente |
 | Inizio, Fine | Prima, ultima immagine |
+| Spazio (su un'animazione) | La mette in pausa e la fa ripartire |
+| Spazio (su una foto in movimento) | Riproduce il suo video |
+| Pagina giù, Pagina su (su un TIFF con più pagine) | Pagina successiva, precedente |
 | Esc | Torna alla griglia (a schermo intero prima esce dallo schermo intero) |
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |
 | 0 | Adatta l'immagine alla finestra |
 | 1 | 100%: un pixel dell'immagine per pixel dello schermo |
 | Ctrl+S | Salva l'immagine ruotata sopra l'originale |
-| Ctrl+Maiusc+S | Salva come (vedi [Salvare in un altro formato](save-as.md)) |
+| Ctrl+Maiusc+S | Salva come (vedi [Salva come](save-as.md)) |
 | Ctrl+E | Modifica immagine |
 | Ctrl+C, Ctrl+X | Copia o taglia l'immagine mostrata, per incollarla in una cartella |
 | F2, Canc, Maiusc+Canc | Rinomina ed elimina, come nella griglia |
@@ -100,7 +103,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | 0 | Torna alla vista iniziale |
 | Pagina giù, Spazio | Elemento successivo |
 | Pagina su, Backspace | Elemento precedente |
-| Ctrl+S, Ctrl+Maiusc+S | Salva il modello come si vede, come immagine |
+| Ctrl+Maiusc+S | Salva il modello come si vede, come immagine (Ctrl+S, che salva sopra l'originale, su un modello è grigio) |
 | Esc | Torna alla griglia |
 
 ## Nel visore: disegni CAD
@@ -145,6 +148,7 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 | Ctrl+C | Copia il risultato (con Selezione, la parte scelta) |
 | Ctrl+X, Ctrl+V | Con Selezione: taglia la parte, la incolla come oggetto |
 | Ctrl+R, Ctrl+Maiusc+R | Ruota a destra, a sinistra |
+| Ctrl+Alt+I | Ridimensiona l'immagine (vedi [Modificare un'immagine](editor.md)) |
 | Maiusc+rotellina | Con Ritaglia e ruota: ruota di 0,1° |
 | Invio | Con Ritaglia e ruota: applica il ritaglio |
 | + e −, 0 | Ingrandisce e rimpicciolisce, tutto in vista |
@@ -156,5 +160,5 @@ Vedi [Modificare un'immagine](editor.md).
 
 ## In altre pagine
 
-- **Salva in un altro formato**: **Esc** chiude la pagina senza salvare.
+- **Salva come**: **Esc** chiude la pagina senza salvare.
 - **Trova duplicati**: **↑** e **↓** passano tra le copie, **Spazio** spunta o toglie, **Esc** chiude. Invio non elimina.

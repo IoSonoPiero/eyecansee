@@ -3,9 +3,10 @@
 //! objects over it from a texture of their own (`edit::render`), redrawn only when the document or
 //! the view change. Every change goes into the document (`edit::doc`); once an operation is over
 //! (no button held, no field being typed in) it becomes a step of the history (`edit::history`).
-//! The bars (tools, properties, status) are in `tools`, Rotate and crop's controls in `crop`, the
-//! canvas in `canvas`, the questions before saving or closing in `save`, the page opened in `open`,
-//! its keys in `keys`, the previews of the filters in `previews`.
+//! The bars (tools, properties, status) are in `tools`, the style of the objects in the properties
+//! bar in `style_bar`, Rotate and crop's controls in `crop`, the canvas in `canvas`, the questions
+//! before saving or closing in `save`, the page opened in `open`, its keys in `keys`, the previews
+//! of the filters in `previews`, Resize in `resize`.
 
 use std::sync::Arc;
 
@@ -19,21 +20,37 @@ use crate::rotate::{self, Crop};
 use crate::transform::Turn;
 use crate::{App, source};
 
+mod bar_fit;
 mod canvas;
 mod clip;
 mod crop;
 mod keys;
 mod open;
+mod patch;
 mod pick;
 mod previews;
 mod props;
+mod resize;
 mod save;
+mod style_bar;
 mod tools;
 mod typing;
 use canvas::canvas;
 pub(crate) use save::{Prepared, Written};
+pub(crate) use open::Animated;
 
 type Loaded = Result<(Arc<Original>, TextureHandle, u64), String>;
+
+/// Where the image being edited is: the store and the address of the place open when the page
+/// was opened. Every save of the page goes there, also once the grid under it shows another
+/// place (until 0.77.0 a save went to the place open at that moment: a second launch with a local
+/// file under the editor of a server's photo wrote the copy on the computer, or sent a local file
+/// of the same path to the trash).
+#[derive(Clone)]
+pub(crate) struct Place {
+    pub store: source::Store,
+    pub base: String,
+}
 
 /// Distance in points at which a side or corner (of the crop or of an object) can be grabbed.
 const GRAB: f32 = 12.0;
@@ -85,6 +102,8 @@ pub(crate) enum Tool {
 enum Hold {
     Move { index: usize, start: Obj, from: Pt },
     Handle { index: usize, handle: usize, start: Obj },
+    /// A pasted piece turned by the handle above it.
+    Turn { index: usize, start: Obj },
     /// The object drawn is at `index` once the drag is long enough.
     Draw { kind: Kind, from: Pt, index: Option<usize> },
     Pan { at: Vec2, k: f32, from: Pos2 },
@@ -106,7 +125,16 @@ struct Drawn {
 
 pub struct Window {
     pub path: String,
+    /// Where `path` is (`Place`); `None` only in the tests.
+    place: Option<Place>,
+    /// The photo at the document's size (`follow_size`), its texture, the file's size.
     original: Option<Loaded>,
+    /// The photo as read: Resize resamples it.
+    full: Option<Arc<Original>>,
+    /// The size `original` was made for (`Doc::scale`).
+    scaled: Option<crate::edit::resize::Scale>,
+    /// The Resize window is open.
+    resizing: Option<crate::edit::resize::Form>,
     /// The document shown, changed by the controls and the mouse.
     doc: Doc,
     /// The operations done; `None` until the image is read.
@@ -122,6 +150,9 @@ pub struct Window {
     /// The last style of each kind of object, the widths in pixels of this image.
     styles: Vec<(Kind, Style)>,
     styles_changed: bool,
+    /// A pasted piece keeps its proportions, by its corners (Shift frees them) and by its sizes
+    /// in the properties bar.
+    keep_patch: bool,
     /// The text field takes the keys in the next frame (a text just placed).
     focus_text: bool,
     /// The font of the next text: the last one chosen.
@@ -149,6 +180,11 @@ pub struct Window {
     marquee: Option<crate::edit::doc::Area>,
     /// A part copied or cut: Paste puts it back as a patch where it was (a little aside).
     clip: Option<(crate::edit::doc::Area, crate::edit::doc::Pixels)>,
+    /// The clipboard gave something since the last Ctrl+V let go (`clip::edit_clip_events`).
+    pasted: bool,
+    /// On X11, the size of the copy just made when it is too large for other programs, worked
+    /// out aside (`clip::watch_size`); the status bar says it.
+    too_big: Option<std::sync::mpsc::Receiver<usize>>,
     /// How many times the previews of the filters were made: the objects are drawn again then.
     filters_made: u64,
     /// What the lenses' previews were made with (`photo::hiders_key`).
@@ -210,7 +246,11 @@ impl Window {
         let transparent = Format::of_file(&path) != Some(Format::Jpeg);
         Window {
             path,
+            place: None,
             original: None,
+            full: None,
+            scaled: None,
+            resizing: None,
             doc: Doc::new(1, 1, None),
             history: None,
             start_turn: turn,
@@ -221,6 +261,7 @@ impl Window {
             objects: None,
             styles: Vec::new(),
             styles_changed: false,
+            keep_patch: true,
             focus_text: false,
             text_font: None,
             font_preview: None,
@@ -233,6 +274,8 @@ impl Window {
             ask_pick: None,
             marquee: None,
             clip: None,
+            pasted: false,
+            too_big: None,
             filters_made: 0,
             hiders: 0,
             keys_open: false,
@@ -313,6 +356,22 @@ impl Window {
         };
     }
 
+    /// A question or a window over the page takes Enter and Esc (`confirm::asking`).
+    pub(crate) fn asking(&self) -> bool {
+        self.ready.is_some() || self.leaving || self.resizing.is_some()
+    }
+
+    /// Closing, or on the way to: the question on closing open, or the save chosen there (made,
+    /// confirmed, written, or in Save in another format over the page).
+    pub(crate) fn on_the_way_out(&self) -> bool {
+        self.leaving || self.closing || self.preparing || self.ready.is_some() || self.saving_as
+    }
+
+    /// The Resize window is open: it has fields to type in.
+    pub(crate) fn resizing(&self) -> bool {
+        self.resizing.is_some()
+    }
+
     /// Anything not saved yet.
     fn changed(&self) -> bool {
         self.history.as_ref().is_some_and(|h| h.changed() || self.doc != *h.doc())
@@ -343,7 +402,7 @@ impl Window {
         }
     }
 
-    /// Esc, one thing at a time (user, 2026-11-05: Esc after placing a text closed the page): the
+    /// Esc, one thing at a time (Esc after placing a text closed the page): the
     /// eyedropper or a drag stops, a text being typed or just placed is done (and goes if empty),
     /// the selection goes. `false` when there was nothing of it: Esc closes the page then.
     fn escape(&mut self) -> bool {
@@ -475,12 +534,20 @@ impl App {
         if !open && busy {
             open = true;
             w.escape();
+        } else if !open {
+            // With "goes back to the grid" off EyeCanSee closes too, once the page has
+            // (`quit_after_editor`), after the question below if something is not saved.
+            use crate::window_close::{Page, Step, on_close};
+            let close = on_close(self.settings.close_to_grid, Page::Editor, w.changed());
+            if close.step == Step::Quit {
+                self.quit_after_editor = Some(close.ask);
+            }
         }
-        // With a question open (save, leave) Esc is its Cancel, not the page's.
-        let asking = w.ready.is_some() || w.leaving;
-        if !asking && ui.input(|i| i.key_pressed(egui::Key::Escape)) && !w.escape() {
+        // With a question open (save, leave, Resize) Esc is its Cancel, not the page's.
+        if !w.asking() && ui.input(|i| i.key_pressed(egui::Key::Escape)) && !w.escape() {
             open = false;
         }
+        w.follow_size(ui.ctx());
         let tex = match &w.original {
             Some(Ok((_, tex, _))) => Some(tex.clone()),
             _ => None,
@@ -492,7 +559,7 @@ impl App {
             egui::Panel::top("edit-props").show(ui, |ui| self.props_bar(ui, &mut w));
             // I where the bar has no eyedropper (Select with nothing selected, a filter, Crop):
             // dropped, or it turned the eyedropper on later with a drawing tool, and a second I off
-            // again (user, 2026-11-06: "only the +").
+            // again ("only the +").
             w.ask_pick = None;
             let bar = egui::Frame::side_top_panel(ui.style()).fill(crate::theme::solid(ui.visuals()));
             let status = egui::Panel::bottom("edit-status").frame(bar).show(ui, |ui| self.edit_status(ui, &mut w));
@@ -504,8 +571,15 @@ impl App {
             if w.keys_open || status.inner.hovered() {
                 self.keys_window(ui.ctx(), tools::keys_id(w.tool), status.response.rect.height());
             }
+            // Undo, Redo from the keys or the bars: the photo at the size they take it back to.
+            w.follow_size(ui.ctx());
+            let tex = match &w.original {
+                Some(Ok((_, tex, _))) => tex.clone(),
+                _ => tex,
+            };
             let stage = egui::Frame::NONE.fill(crate::theme::stage(ui.visuals()));
             egui::CentralPanel::default().frame(stage).show(ui, |ui| canvas(ui, &mut w, &tex, ui.available_size()));
+            self.resize_window(ui.ctx(), &mut w);
             match if std::mem::take(&mut w.save_as) { Some(Ask::SaveAs) } else { ask } {
                 Some(Ask::Save) => self.edit_prepare(ui.ctx(), &mut w, false),
                 Some(Ask::Overwrite) => self.edit_prepare(ui.ctx(), &mut w, true),
@@ -544,7 +618,7 @@ impl App {
 
     fn not_ready_inside(&self, ui: &mut egui::Ui, w: &Window) -> bool {
         // The whole page: the frame was only as tall as its lines, the rest of it left bare
-        // (half the window white, half black, while loading: user, 2026-11-06).
+        // (half the window white, half black, while loading).
         ui.set_min_size(ui.available_size());
         let mut open = true;
         ui.horizontal(|ui| {

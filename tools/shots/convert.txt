@@ -6,6 +6,6 @@ width 1000
 3 mark Sunset.jpg
 3 mark Wilderness.jpg
 4 act batch
-8 click 286 420
+8 click 286 378
 9 shot
 9.5 end

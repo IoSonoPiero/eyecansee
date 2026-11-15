@@ -39,7 +39,7 @@ In the windows that tell how an operation went, **Enter** or **Esc** closes them
 | Shift+Del | Delete for good |
 | Ctrl+N | New image (see [New image](new-image.md)) |
 | Ctrl+E | Edit image (see [Editing an image](editor.md)) |
-| Ctrl+B | Convert and resize (see [Converting and resizing images](convert.md)) |
+| Ctrl+B | Convert… (see [Converting and resizing images](convert.md)) |
 | Ctrl+D | Find duplicates (see [Finding duplicates](duplicates.md)) |
 | Shift+F5 | Make all the thumbnails of the folder again |
 
@@ -65,12 +65,15 @@ In the **Devices** block: ↓ and ↑ change device (↓ on an expanded device e
 | →, Space, Page Down | Next image |
 | ←, Backspace, Page Up | Previous image |
 | Home, End | First, last image |
+| Space (on an animation) | Pause and play it |
+| Space (on a motion photo) | Play its video |
+| Page Down, Page Up (on a TIFF with pages) | Next, previous page |
 | Esc | Back to the grid (in full screen it first leaves full screen) |
 | + and − (or the mouse wheel) | Zoom in and out |
 | 0 | Fit the image to the window |
 | 1 | 100%: one image pixel per screen pixel |
 | Ctrl+S | Save the turned image over the original |
-| Ctrl+Shift+S | Save as (see [Saving in another format](save-as.md)) |
+| Ctrl+Shift+S | Save as (see [Save as](save-as.md)) |
 | Ctrl+E | Edit image |
 | Ctrl+C, Ctrl+X | Copy or cut the image shown, to paste it in a folder |
 | F2, Del, Shift+Del | Rename and delete, as in the grid |
@@ -84,7 +87,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | Space | Play and pause |
 | Ctrl+←, Ctrl+→ | 5 seconds back, forward |
 | ↑, ↓ (or the mouse wheel on the video) | Volume up, down |
-| M | Sound off and on |
+| M | Audio off and on |
 | →, Page Down | Next item |
 | ←, Backspace, Page Up | Previous item |
 | Home, End | First, last item |
@@ -100,7 +103,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | 0 | Back to the starting view |
 | Page Down, Space | Next item |
 | Page Up, Backspace | Previous item |
-| Ctrl+S, Ctrl+Shift+S | Save the model as it is shown, as an image |
+| Ctrl+Shift+S | Save the model as it is shown, as an image (Ctrl+S, which saves over the original, is greyed out on a model) |
 | Esc | Back to the grid |
 
 ## In the viewer: CAD drawings
@@ -145,6 +148,7 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 | Ctrl+C | Copy the result (with Selection, the part chosen) |
 | Ctrl+X, Ctrl+V | With Selection: cut the part, paste it as an object |
 | Ctrl+R, Ctrl+Shift+R | Turn right, left |
+| Ctrl+Alt+I | Resize the image (see [Editing an image](editor.md)) |
 | Shift+wheel | With Crop and rotate: turn by 0.1° |
 | Enter | With Crop and rotate: apply the crop |
 | + and −, 0 | Zoom in and out, everything in view |
@@ -156,5 +160,5 @@ See [Editing an image](editor.md).
 
 ## In other pages
 
-- **Save in another format**: **Esc** closes the page without saving.
+- **Save as**: **Esc** closes the page without saving.
 - **Find duplicates**: **↑** and **↓** move between the copies, **Space** ticks or unticks, **Esc** closes. Enter does not delete.

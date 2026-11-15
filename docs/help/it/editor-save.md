@@ -28,7 +28,7 @@ Il pulsante è spento quando non c'è niente di nuovo da salvare.
 
 La freccia ![Altri modi di salvare](icon://chevron-down) accanto a Salva copia ne ha altri due (con Sovrascrivi come pulsante principale, vedi sotto, ha **Salva copia** e **Salva come…**):
 
-- ![Salva come…](icon://file-output) **Salva come…** (Ctrl+Maiusc+S): apre [Salvare in un altro formato](save-as.md) con il risultato, per scegliere nome, formato e cartella. L'editor aspetta sotto: appena il file è salvato, si chiude. Se chiudi Salva in un altro formato senza salvare (Esc o la ✕ della finestra), anche dopo un salvataggio non riuscito, torni all'editor con le modifiche, ancora da salvare.
+- ![Salva come…](icon://file-output) **Salva come…** (Ctrl+Maiusc+S): apre [Salva come](save-as.md) con il risultato, per scegliere nome, formato e cartella. L'editor aspetta sotto: appena il file è salvato, si chiude. Se l'avevi aperto dal visore, il visore passa poi al file nuovo; se hai salvato in un'altra cartella, resta sull'originale, non più segnato come modificato, e un messaggio dice dov'è il file nuovo. Se chiudi Salva come senza salvare (Esc o la ✕ della finestra), anche dopo un salvataggio non riuscito, torni all'editor con le modifiche, ancora da salvare.
 - ![Sovrascrivi l'originale…](icon://save) **Sovrascrivi l'originale…**: scrive l'immagine modificata sopra l'originale, dopo una domanda. L'originale va nel cestino, anche quando nelle [Opzioni](options.md) è scelta l'eliminazione definitiva. Se non può andare in un cestino, non viene sovrascritto niente. La pagina resta aperta (a meno che nelle Opzioni **Dopo il salvataggio** dica di tornare indietro: allora si chiude, e le miniature lasciano selezionata l'immagine, o il visore la mostra, secondo la scelta); un secondo Sovrascrivi riparte dall'originale com'era all'apertura e sostituisce ciò che era stato scritto prima, così nel cestino c'è solo il vero originale. Vedi [Eliminare e cestino](delete.md).
 
 Sovrascrivi è spento, e passandoci sopra dice perché, per un'immagine nuova, per un formato che EyeCanSee non riscrive (HEIC, RAW…) e nei posti dove EyeCanSee non scrive mai sopra un file (una cartella aperta tramite il collegamento gvfs del file manager, una copia temporanea fatta da Windows).
@@ -37,7 +37,7 @@ Sovrascrivi è spento, e passandoci sopra dice perché, per un'immagine nuova, p
 
 In **Strumenti > Opzioni…**, scheda **Editor**, **Pulsante principale di salvataggio (anche Ctrl+S)** è **Salva copia** (predefinito) o **Sovrascrivi l'originale**. Con Sovrascrivi l'originale:
 
-- il pulsante principale è **Sovrascrivi l'originale…**, e Ctrl+S sovrascrive, dopo la stessa domanda;
+- il pulsante principale è **Sovrascrivi…** (passandoci sopra si vede il nome intero, Sovrascrivi l'originale…), e Ctrl+S sovrascrive, dopo la stessa domanda;
 - **Salva copia** (o **Aggiorna copia**) sta nel menu della freccia, con Salva come…;
 - anche **Salva…** nella domanda alla chiusura sovrascrive.
 
@@ -46,7 +46,7 @@ Dove l'originale non si può sovrascrivere (un formato che EyeCanSee non riscriv
 ## Cosa conserva il file salvato
 
 - Un JPEG salvato come JPEG mantiene la qualità con cui era stato salvato, così non viene compresso di più. Un'immagine di un altro formato salvata come JPEG viene scritta con qualità 95.
-- I metadati (EXIF, XMP, IPTC, profilo colore) restano, con la misura nuova, senza le piccole anteprime dell'originale.
+- I metadati (EXIF, XMP, IPTC, profilo colore, risoluzione) restano, con la misura nuova, senza le piccole anteprime dell'originale.
 - Una foto Ultra HDR del telefono resta HDR. Il video di una foto in movimento non viene conservato, a meno che tu l'abbia solo girata o riflessa.
 - Ogni oggetto, filtro e ritaglio viene applicato a piena grandezza.
 
@@ -55,13 +55,17 @@ Dove l'originale non si può sovrascrivere (un formato che EyeCanSee non riscriv
 Chiudi, la ✕ della finestra o Esc chiedono prima cosa fare:
 
 - **Salva…**: il salvataggio principale: una copia, come Salva copia, o sopra l'originale quando è quello il pulsante principale (Salva come… per un'immagine nuova). Dopo la conferma, la pagina si chiude appena il file è scritto. Se il salvataggio non riesce, la pagina resta aperta con le modifiche.
-- **Salva come…**: apre Salvare in un altro formato. La pagina si chiude appena il file è salvato; se chiudi Salva in un altro formato senza salvare, torni alla pagina con le modifiche.
+- **Salva come…**: apre la pagina Salva come. La pagina si chiude appena il file è salvato; se chiudi Salva come senza salvare, torni alla pagina con le modifiche.
 - **Non salvare**: chiude e dimentica le modifiche.
 - **Annulla**: torna alla pagina.
 
 ## Copiare negli appunti
 
 ![Copia](icon://copy) **Copia** (Ctrl+C) mette negli appunti tutto il risultato, a piena grandezza, da incollare in un altro programma. Sul disco non viene scritto niente.
+
+Su Linux con Plasma o Cinnamon (X11), tieni aperta la finestra di EyeCanSee finché non hai incollato: chiusa la finestra, l'immagine sparisce dagli appunti.
+
+Su X11 gli altri programmi non ricevono una copia oltre circa 16 MB, e nemmeno su GNOME, dove gli appunti passano da Xwayland; la barra di stato lo dice. Su Windows questo limite non c'è.
 
 ## Telefoni e server
 

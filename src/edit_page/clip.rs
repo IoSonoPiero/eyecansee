@@ -6,6 +6,7 @@ use eframe::egui::{self, ColorImage};
 
 use super::Tool;
 use crate::App;
+use crate::actions::Act;
 use crate::edit::doc::{Obj, Pt, Shape, Style};
 
 impl App {
@@ -22,8 +23,15 @@ impl App {
         }
         w.copying = true;
         let (doc, original, tx, ctx) = (w.doc.clone(), original.clone(), self.tx.clone(), ctx.clone());
+        let size = watch_size(w);
         std::thread::spawn(move || {
             let img = crate::edit::save::result(&doc, &original, &crate::decode::usvg_options());
+            if let Some(size) = size {
+                let too_large = |i: &image::RgbaImage| crate::edit::clip_limit::too_large(i.as_raw(), i.width(), i.height());
+                if let Some(n) = img.as_rgba8().map_or_else(|| too_large(&img.to_rgba8()), too_large) {
+                    let _ = size.send(n);
+                }
+            }
             if tx.send(crate::loader::Msg::EditCopy(crate::decode::to_color_image(img))).is_ok() {
                 ctx.request_repaint();
             }
@@ -52,11 +60,23 @@ impl App {
         use crate::edit::doc::{Pixels, Preview};
         let Some(w) = &mut self.editor else { return false };
         let (Some(area), Some(Ok((original, ..)))) = (w.marquee, &w.original) else { return false };
+        let area = w.doc.on_pixels(area, (original.image.width(), original.image.height()));
         let filtered: Vec<crate::edit::photo::Filtered> = w.doc.objects.iter().filter_map(|f| if let Shape::Filter { preview: Preview(Some((a, _, p))), .. } = &f.shape { Some((*a, p.image())) } else { None }).collect();
         let fonts = crate::decode::usvg_options();
         let pixels = Pixels::new(crate::edit::photo::lens(&w.doc, &original.image, &area, (1.0, 8000), &filtered, Some((&w.doc.objects, &fonts))));
         let img = pixels.image();
         ctx.copy_image(ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()));
+        if let Some(size) = watch_size(w) {
+            let (part, ctx) = (pixels.clone(), ctx.clone());
+            std::thread::spawn(move || {
+                let img = part.image();
+                if let Some(n) = crate::edit::clip_limit::too_large(img.as_raw(), img.width(), img.height())
+                    && size.send(n).is_ok()
+                {
+                    ctx.request_repaint();
+                }
+            });
+        }
         w.clip = Some((area, pixels));
         w.note = Some((self.i18n.t("edit-part-copied"), ctx.input(|i| i.time) + 4.0));
         true
@@ -74,10 +94,25 @@ impl App {
         w.doc.objects.push(Obj { shape: Shape::Cover(area), style: Style { color, ..Style::default() } });
     }
 
+    /// The editor's copy, cut and paste among the window's events (Ctrl+C, X, V and the system's
+    /// keys), taken out of them. A Ctrl+V that brought nothing is a paste too, so it says why: with
+    /// an empty clipboard, or one that could not be read, egui sends no paste, only the key let go.
+    pub(crate) fn edit_clip_events(&mut self, events: &mut Vec<egui::Event>) -> Option<Act> {
+        let w = self.editor.as_mut()?;
+        let mut act = None;
+        events.retain(|e| {
+            let (a, keep) = clip_event(e, &mut w.pasted);
+            act = a.or(act.take());
+            keep
+        });
+        act
+    }
+
     /// Ctrl+V or Paste: the part copied, as a patch a little aside of where it was; without one,
     /// an image from the clipboard of another program, in the middle of the result, at most 80% of
-    /// it. Selected, with Select chosen to move it.
-    pub(crate) fn edit_paste(&mut self, img: Option<std::sync::Arc<ColorImage>>) {
+    /// it. Selected, with Select chosen to move it. Nothing to paste: a note says so (it was
+    /// silent, as when the clipboard holds text).
+    pub(crate) fn edit_paste(&mut self, ctx: &egui::Context, img: Option<std::sync::Arc<ColorImage>>) {
         let Some(w) = &mut self.editor else { return };
         // An image of another size in the clipboard was copied elsewhere after the part: it wins.
         let clip = w.clip.as_ref().filter(|(_, p)| img.as_ref().is_none_or(|i| i.size == [p.image().width() as usize, p.image().height() as usize]));
@@ -95,9 +130,12 @@ impl App {
                 let centre = crate::edit::geom::turned(Pt::new(c.cx, c.cy), -w.doc.angle);
                 (crate::edit::doc::Area { centre, w: image.width() as f32 * k, h: image.height() as f32 * k, rot: -w.doc.angle }, crate::edit::doc::Pixels::new(image))
             }
-            (None, None) => return,
+            (None, None) => {
+                w.note = Some((self.i18n.t("edit-paste-none"), ctx.input(|i| i.time) + 4.0));
+                return;
+            }
         };
-        w.doc.objects.push(Obj { shape: Shape::Patch { area, pixels }, style: Style::default() });
+        w.doc.objects.push(Obj { shape: Shape::Patch { area, pixels, mirrored: false }, style: Style::default() });
         w.selected = Some(w.doc.objects.len() - 1);
         w.choose(Tool::Select);
         w.marquee = None;
@@ -108,5 +146,62 @@ impl App {
         w.copying = false;
         ctx.copy_image(img);
         w.note = Some((self.i18n.t("edit-copied"), ctx.input(|i| i.time) + 4.0));
+    }
+}
+
+/// On X11, where other programs get at most about 16 MB of a copy (`clip_limit`), where to send its
+/// size when it is over: the status bar says it.
+fn watch_size(w: &mut super::Window) -> Option<std::sync::mpsc::Sender<usize>> {
+    w.too_big = None;
+    if !crate::edit::clip_limit::through_x11() {
+        return None;
+    }
+    let (tx, rx) = std::sync::mpsc::channel();
+    w.too_big = Some(rx);
+    Some(tx)
+}
+
+/// What one event of the window does in the editor, and whether it stays for the others. `pasted`:
+/// the clipboard gave something since the last Ctrl+V let go.
+fn clip_event(e: &egui::Event, pasted: &mut bool) -> (Option<Act>, bool) {
+    match e {
+        egui::Event::Copy => (Some(Act::EditCopy), false),
+        egui::Event::Cut => (Some(Act::EditCut), false),
+        egui::Event::Paste(_) => {
+            *pasted = true;
+            (Some(Act::EditPaste(None)), false)
+        }
+        egui::Event::PasteImage(img) => {
+            *pasted = true;
+            (Some(Act::EditPaste(Some(img.clone()))), false)
+        }
+        egui::Event::Key { key: egui::Key::V, pressed: false, modifiers, .. } if modifiers.command => (if std::mem::take(pasted) { None } else { Some(Act::EditPaste(None)) }, true),
+        _ => (None, true),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use eframe::egui::{Event, Key, Modifiers};
+
+    use super::*;
+
+    fn v_up(modifiers: Modifiers) -> Event {
+        Event::Key { key: Key::V, physical_key: None, pressed: false, repeat: false, modifiers }
+    }
+
+    /// Ctrl+V with an image pastes it once; with nothing on the clipboard (no paste event, only the
+    /// key let go) it is a paste of nothing, which says so; V alone is not.
+    #[test]
+    fn paste_of_nothing_is_seen() {
+        let img = std::sync::Arc::new(ColorImage::filled([1, 1], egui::Color32::RED));
+        let mut pasted = false;
+        let (a, keep) = clip_event(&Event::PasteImage(img), &mut pasted);
+        assert!(matches!(a, Some(Act::EditPaste(Some(_)))) && !keep);
+        assert!(matches!(clip_event(&v_up(Modifiers::COMMAND), &mut pasted), (None, true)));
+        assert!(matches!(clip_event(&v_up(Modifiers::COMMAND), &mut pasted), (Some(Act::EditPaste(None)), true)));
+        assert!(matches!(clip_event(&v_up(Modifiers::NONE), &mut pasted), (None, true)));
+        assert!(matches!(clip_event(&Event::Paste("text".into()), &mut pasted), (Some(Act::EditPaste(None)), false)));
+        assert!(matches!(clip_event(&v_up(Modifiers::COMMAND), &mut pasted), (None, true)));
     }
 }

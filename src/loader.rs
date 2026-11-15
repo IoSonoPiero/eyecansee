@@ -74,6 +74,10 @@ pub enum Msg {
     EditPicked(Result<[u8; 3], String>),
     /// An image read by the viewer is animated or has several pages: the editor is off for it.
     Animated(String),
+    /// The frames or pages of such an image, to play or turn in the viewer (`frames::read`).
+    Frames(String, Arc<crate::frames::Sequence>),
+    /// The video of a Motion Photo read by the viewer (`motion::video_start`), to play it there.
+    Motion(String, Arc<Vec<u8>>),
     /// The image encoded with the options of `generation`, and the encoded file decoded back
     /// (`None`: no decoder for that format in this build).
     Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
@@ -100,6 +104,9 @@ pub enum Msg {
     Forgotten(Vec<String>),
     /// Metadata of an image: `None` = no EXIF.
     Meta { generation: u64, index: usize, meta: Result<Option<crate::meta::Meta>, String> },
+    /// The details of a file for the line under its thumbnail (#139); `None`: not known yet (its
+    /// thumbnail is still to be made, and with it they are saved).
+    Info { generation: u64, path: String, info: Option<crate::thumb_details::Info> },
 }
 
 /// The message at the end of a save over the original: `NotReplaced` when it failed with the new
@@ -450,15 +457,7 @@ impl Loader {
 
     /// Why "Save" cannot overwrite `path`: the text id, or `None` when it can.
     pub fn no_overwrite(&self, path: &str) -> Option<&'static str> {
-        if !self.op.can_rename() {
-            Some("save-no-rename")
-        } else if self.op.gvfs(path) {
-            Some("save-gvfs")
-        } else if self.op.temp_copy(path) {
-            Some("save-temp-copy")
-        } else {
-            None
-        }
+        self.op.no_overwrite(path)
     }
 
     /// "Save" from the viewer, first half: the image turned in memory. The confirmation shows
@@ -466,7 +465,8 @@ impl Loader {
     pub fn prepare(&self, path: String, turn: crate::transform::Turn) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let r = turned(&op, &path, turn).await.map(|(data, lossy)| (Arc::new(data), lossy));
+            // A video is turned when it is saved (`replace`), by its rotation only: nothing to make before.
+            let r = if decode::is_video(&path) { Ok((Arc::new(Vec::new()), false)) } else { turned(&op, &path, turn).await.map(|(data, lossy)| (Arc::new(data), lossy)) };
             let _ = tx.send(Msg::Prepared(path, turn, r));
             ctx.request_repaint();
         });
@@ -512,6 +512,13 @@ impl Loader {
         let (op, tx, ctx, base) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), self.base.clone());
         self.rt.spawn(async move {
             for path in paths {
+                // A video: only its rotation changes, the streams copied, never read here whole (#125).
+                if decode::is_video(&path) {
+                    let r = crate::video_turn::replace(&op, &path, turn.parts().1, how).await.map_err(|e| (e, None));
+                    let _ = tx.send(replaced(path, r));
+                    ctx.request_repaint();
+                    continue;
+                }
                 let r = match turned(&op, &path, turn).await {
                     Ok((data, _)) => crate::kept::replace(&op, &base, &path, data, how).await,
                     Err(e) => Err((e, None)),
@@ -525,15 +532,34 @@ impl Loader {
     /// Metadata for the panel: saved in the cache with the thumbnails, otherwise read from the file
     /// (the thumbnail may come from the cache, without having read it); on the phone it goes
     /// through the same queue as the viewer images.
+    /// The details of `files` (the thumbnails on screen) for the lines under them, one after the
+    /// other: from the cache, or read from the file once (`thumb_queue::file_info`).
+    pub fn load_infos(&self, generation: u64, files: Vec<File>) {
+        let (op, tx, ctx, base) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), self.base.clone());
+        let current = self.generation.clone();
+        self.rt.spawn(async move {
+            for file in files {
+                if current.load(Ordering::Relaxed) != generation {
+                    return;
+                }
+                let info = crate::thumb_queue::file_info(&op, &base, &file).await;
+                let _ = tx.send(Msg::Info { generation, path: file.path, info });
+                ctx.request_repaint();
+            }
+        });
+    }
+
     pub fn load_meta(&self, generation: u64, index: usize, file: File) {
         let (op, tx, ctx, base) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), self.base.clone());
         let current = self.generation.clone();
         let permits = self.full.clone();
         self.rt.spawn(async move {
             // From the cache first, without waiting for a place: what was read once comes at once.
+            // A video's key counts the files beside it too (`video_read::meta_key`).
+            let key = crate::video_read::meta_key(&op, &file).await;
             let saved = {
-                let (base, file) = (base.clone(), file.clone());
-                tokio::task::spawn_blocking(move || thumbcache::load_meta(&base, &file)).await.ok().flatten()
+                let (base, key) = (base.clone(), key.clone());
+                tokio::task::spawn_blocking(move || thumbcache::load_meta(&base, &key)).await.ok().flatten()
             };
             if let Some(meta) = saved.as_deref().and_then(crate::meta::Meta::from_json) {
                 let _ = tx.send(Msg::Meta { generation, index, meta: Ok(Some(meta)) });
@@ -555,7 +581,7 @@ impl Loader {
                 }
             };
             if let Ok(Some(m)) = &meta {
-                thumbcache::save_meta(&base, &file, m.to_json());
+                thumbcache::save_meta(&base, &key, m.to_json());
             }
             let _ = tx.send(Msg::Meta { generation, index, meta });
             ctx.request_repaint();
@@ -594,6 +620,10 @@ impl Loader {
                         if !crate::model::is_model(&path) {
                             if crate::edit::save::animated(&bytes, &path) {
                                 let _ = tx.send(Msg::Animated(path.clone()));
+                                frames(bytes.clone(), path.clone(), tx.clone(), ctx.clone());
+                            }
+                            if let Some(start) = crate::motion::video_start(&bytes) {
+                                let _ = tx.send(Msg::Motion(path.clone(), Arc::new(bytes[start..].to_vec())));
                             }
                             return decode::decode(&bytes, &path);
                         }
@@ -614,6 +644,17 @@ impl Loader {
             ctx.request_repaint();
         });
     }
+}
+
+/// The frames or pages of an animated or multi-page image, read apart: the first picture is
+/// shown meanwhile.
+fn frames(bytes: Vec<u8>, path: String, tx: Sender<Msg>, ctx: Context) {
+    tokio::task::spawn_blocking(move || {
+        if let Some(seq) = crate::frames::read(&bytes, &path) {
+            let _ = tx.send(Msg::Frames(path, Arc::new(seq)));
+            ctx.request_repaint();
+        }
+    });
 }
 
 /// The files next to a 3D model (`model::Sibling`), read from its source. Called from a blocking

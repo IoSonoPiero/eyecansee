@@ -22,23 +22,33 @@ With several files selected, Enter opens the first of them, and the viewer moves
 
 The same items are in the **View** menu (Next, Previous, First, Last). After the last picture the viewer stops; in [Options](options.md) you can make it start again from the first. The pictures around the one shown are read in advance, so moving between them is quick even on a phone or a server.
 
+## Animations and pages
+
+Animated GIF, WebP and PNG (APNG) pictures play in the viewer, over and over. **Space** pauses and plays them again, as does the button in the small bar at the bottom of the picture, which also shows the frame (for example Frame 3 / 20, also in the status bar). The animation stops when you move to another picture and starts again from the first frame when you come back. A very long or very large animation (more than 256 MB once decoded) is not played: the viewer shows its first frame and says why.
+
+A TIFF with several pages (a scanned document, a fax) opens on its first page. **Page Down** and **Page Up** turn the pages, as do the arrows in the bar at the bottom, which shows the page (for example Page 2 / 5, also in the status bar); past the last page Page Down goes to the next file, and before the first Page Up to the previous one. Each page is fitted to the window.
+
+## Motion photos
+
+A motion photo (Google Pixel, Samsung, Xiaomi and other phones) carries a short video recorded with the photo. The viewer shows the photo with a **Play motion** button at the bottom; the button or **Space** plays the video once, with the bar of a [video](video.md), then the photo comes back. The video needs the video engine, as all videos do.
+
 ## Zooming
 
 - The **mouse wheel** zooms in and out around the pointer; **+** and **−** around the middle of the window. On a touchpad, pinch.
-- **0** fits the picture to the window again; **1** shows it at 100%, one pixel of the picture for each pixel of the screen.
+- **0** fits the picture to the window again; **1** shows it at 100%, one pixel of the picture for each pixel of the screen. The percentages count the pixels of the file, also for a very large photo shown reduced and for an SVG drawing (at the size it declares).
 - Drag a zoomed picture to move it.
 
-A picture is never shown smaller than fitted to the window, and a small picture is shown at its real size, not enlarged. The largest zoom (2000% at first) is set in [Options](options.md), where you can also make the wheel change picture instead of zooming: then **Ctrl** and the wheel still zoom. The next picture starts fitted again.
+A picture is never shown smaller than fitted to the window, and a small picture is shown at its real size, not enlarged. An SVG drawing is enlarged to fit the window; when it is smaller than the window, you can zoom out down to 100%. The largest zoom (2000% at first) is set in [Options](options.md); for an SVG drawing smaller than 2048 pixels it counts on the 2048 pixels it is drawn at, so its percentage can go much higher. In Options you can also make the wheel change picture instead of zooming: then **Ctrl** and the wheel still zoom. The next picture starts fitted again.
 
 ## The status bar of the viewer
 
-At the bottom: the file name, its position in the folder (for example 12 / 51), its size in pixels, the zoom, its size on disk, and its date: the date taken when its metadata were already read in the grid, otherwise the date the file was modified. After a turn not yet saved it also says **Changed, not saved**.
+At the bottom: the file name, its position in the folder (for example 12 / 51), its size in pixels (its own, as in the metadata panel, also when it is shown reduced, and for an SVG drawing the size it declares), the zoom, its size on disk, and its date: the date taken when its metadata were already read in the grid, otherwise the date the file was modified. After a turn not yet saved it also says **Changed, not saved**.
 
 The **Keys** button on the right lists the keys of what you are looking at (a picture, a video, a 3D model or a CAD drawing): while the mouse is on it, or until you click it again.
 
 ## The toolbar in the viewer
 
-The toolbar keeps only what works on the picture shown: ![Rename…](icon://text-cursor-input) **Rename…**, ![Delete…](icon://trash) **Delete…**, ![Rotate 90° anticlockwise](icon://rotate-ccw-square) and ![Rotate 90° clockwise](icon://rotate-cw-square) to turn it, ![Edit image…](icon://square-pen) **Edit image…**, ![Save](icon://save) **Save** and ![Save as…](icon://file-output) **Save as…**, then the bookmarks and the address bar. New folder, cut, copy, paste and the tools are for the grid; they stay in the menus.
+The toolbar keeps only what works on the picture shown: ![Rename…](icon://text-cursor-input) **Rename…**, ![Delete…](icon://trash) **Delete…**, ![Rotate 90° anticlockwise](icon://rotate-ccw-square) and ![Rotate 90° clockwise](icon://rotate-cw-square) to turn it, ![Edit image…](icon://square-pen) **Edit image…**, ![Save](icon://save) **Save** and ![Save as…](icon://file-output) **Save as…**, then the bookmarks and the address bar. New folder, cut, copy, paste and the tools are for the grid; they stay in the menus. On a video or an audio file the buttons for pictures stay in their place, greyed out: pointing at one says why.
 
 ## Full screen
 
@@ -48,6 +58,6 @@ The toolbar keeps only what works on the picture shown: ![Rename…](icon://text
 
 - Turn and flip the picture: see [Rotating and flipping](rotate.md).
 - Draw on it, crop it, hide parts of it: see [Editing an image](editor.md) (**Ctrl+E**).
-- Save a copy in another format: see [Saving in another format](save-as.md) (**Ctrl+Shift+S**).
+- Save a copy in another format: see [Save as](save-as.md) (**Ctrl+Shift+S**).
 - **F2** renames the picture and **Del** deletes it, as in the grid; after a deletion the next picture appears.
 - A right click on the picture opens a menu with these actions and more.

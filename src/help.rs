@@ -1,4 +1,4 @@
-//! The guide (F1, Help > Manual): pages embedded in the executable (`docs/help/<lang>/<id>.md`,
+//! The guide (F1, Help > Guide): pages embedded in the executable (`docs/help/<lang>/<id>.md`,
 //! pictures in `docs/help/img/`), a table of contents read from `index.md`, Back and Forward as in
 //! a browser, and a search over every page. The search itself is in `help_search`, without egui.
 
@@ -58,14 +58,26 @@ images![
     "server-manager",
     "side-panel",
     "start",
+    "tips",
     "video",
     "viewer",
 ];
 
 /// The address of a picture as the pages write it (`../img/<name>.webp`) with the prefix the
 /// viewer gives to addresses without a scheme.
-fn image_uri(name: &str) -> String {
+pub(crate) fn image_uri(name: &str) -> String {
     format!("bytes://help/../img/{name}.webp")
+}
+
+/// The pictures given to egui, once (the guide and the tips at startup show them).
+pub(crate) fn load_images(ctx: &egui::Context) {
+    let done = egui::Id::unique("help-images");
+    if !ctx.data(|d| d.get_temp::<bool>(done).unwrap_or(false)) {
+        for (name, bytes) in IMAGES {
+            ctx.include_bytes(image_uri(name), *bytes);
+        }
+        ctx.data_mut(|d| d.insert_temp(done, true));
+    }
 }
 
 /// The id of a page from a point of F1 (`"help:<id>"`) or from an id.
@@ -113,8 +125,6 @@ pub(crate) struct Guide {
     cache: CommonMarkCache,
     query: String,
     hits: Vec<Hit>,
-    /// The pictures are given to egui once, the first time the guide opens.
-    images: bool,
     /// After a result is opened, the match is brought into view again until then (time of
     /// egui): the pictures above it are decoded in the background and push it down.
     settle: Option<f64>,
@@ -137,7 +147,6 @@ impl Default for Guide {
             cache: fresh_cache(),
             query: String::new(),
             hits: vec![],
-            images: false,
             settle: None,
             last_esc: None,
             typing: false,
@@ -312,7 +321,7 @@ impl App {
         }
     }
 
-    /// Opens the guide on a page (Help > Manual: the table of contents).
+    /// Opens the guide on a page (Help > Guide: the table of contents).
     pub(crate) fn open_help(&mut self, id: &'static str) {
         self.help.open = true;
         self.help.typing = false;
@@ -348,12 +357,7 @@ impl App {
         if !self.help.open {
             return;
         }
-        if !self.help.images {
-            for (name, bytes) in IMAGES {
-                ctx.include_bytes(image_uri(name), *bytes);
-            }
-            self.help.images = true;
-        }
+        load_images(ctx);
         if self.help.lang != pages_lang(self.i18n.code) {
             self.help.language(self.i18n.code);
         }

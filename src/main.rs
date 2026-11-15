@@ -15,6 +15,7 @@ macro_rules! log {
 
 mod actions;
 mod address;
+mod audio_convert;
 mod audio_job;
 mod app_dialogs;
 mod app_new;
@@ -56,6 +57,8 @@ mod file_dialogs;
 mod folder_pick;
 mod fonts;
 mod frame;
+mod frames;
+mod frames_view;
 mod help_spot;
 mod ftp;
 mod gps_track;
@@ -82,6 +85,7 @@ mod model_3ds;
 mod model_amf;
 mod model_dae;
 mod model_export;
+mod model_export_page;
 mod model_fbx;
 mod model_gltf;
 mod model_gltf_unpack;
@@ -93,6 +97,8 @@ mod model_text;
 mod model_vrml;
 mod model_x3d;
 mod model_view;
+mod motion;
+mod motion_view;
 mod mp4;
 mod mpv;
 mod mpv_load;
@@ -101,7 +107,9 @@ mod navigation;
 mod occt;
 mod new_folder;
 mod new_image;
+mod off;
 mod paint;
+mod presets;
 mod psd;
 mod render3d;
 mod render_gpu;
@@ -124,10 +132,13 @@ mod source;
 mod theme;
 #[cfg(any(target_os = "linux", windows))]
 mod system_theme;
+mod thumb_details;
 mod thumb_queue;
 mod test_copy;
 mod thumbcache;
+mod tips;
 mod toolbar;
+mod toolbar_end;
 mod transfer;
 mod transform;
 mod trash;
@@ -136,10 +147,16 @@ mod ultrahdr;
 mod update;
 mod vault_page;
 mod video;
+mod video_copy;
+mod video_turn;
 mod video_read;
 mod viewer;
 mod watch;
+mod window_close;
+#[cfg(any(windows, test))]
+mod window_place;
 mod xmp;
+mod zoom;
 #[cfg(test)]
 mod help_check;
 
@@ -194,12 +211,13 @@ enum OptTab {
     #[default]
     General,
     Look,
-    Browsing,
-    Thumbnails,
-    Deleting,
+    Viewer,
     Slideshow,
     Video,
     Editor,
+    Resize,
+    Deleting,
+    Thumbnails,
 }
 
 /// Images kept in memory around the one open in the viewer, on each side.
@@ -281,9 +299,14 @@ struct App {
     thumb_keep: std::ops::Range<usize>,
     /// Thumbnails already done (on disk), not to be queued again for background generation.
     generated: HashSet<usize>,
+    /// The details under the thumbnails (#139) that came, by path, and those asked meanwhile.
+    thumb_infos: HashMap<String, thumb_details::Info>,
+    info_asked: HashSet<String>,
     /// Last queue sent to the loader: (visible images, selected, generation).
     thumb_queue_key: Option<(std::ops::Range<usize>, Option<usize>, u64)>,
     full: HashMap<usize, Result<TextureHandle, String>>,
+    /// Own size of the pictures shown at another one (beyond 8192 px, SVGs), by path: the status bar's.
+    own_sizes: HashMap<String, [u32; 2]>,
     model: model_view::State,
     /// Zoom of the viewer in screen pixels per image pixel (`None` = fitted to the window), for the
     /// image `zoom_of`; `pan` = centre of the view in image pixels. A new image starts fitted.
@@ -301,8 +324,8 @@ struct App {
     preparing: Option<String>,
     /// Names left out of a "Save" on the grid (animated…), shown once every save is done.
     skipped: Vec<String>,
-    /// Images saved by a transform on the grid, and which, for the summary once every save is done.
-    batch_saved: Option<(transform::Op, usize)>,
+    /// Images and videos saved by a transform on the grid (how many, how many videos), for the summary once every save is done.
+    batch_saved: Option<(transform::Op, usize, usize)>,
     /// An image just saved from Rotate and crop, as the viewer shows it: kept in the viewer when
     /// the file and the folder listing change, instead of the old one until it is read again.
     fresh: Option<(String, TextureHandle)>,
@@ -318,6 +341,9 @@ struct App {
     host_ask: bool,
     /// In the status bar until the next source: the phone is open through the desktop's mount.
     status_note: Option<String>,
+    /// An address from outside that arrived while the editor was open: opened once it closes
+    /// (`navigation::hold`).
+    held_open: Option<String>,
     /// When a passing `status_note` goes away by itself (`egui` time), such as a file removed.
     note_until: Option<f64>,
     /// The message of a stalled phone, while it lasts (`App::phone_stall`).
@@ -354,10 +380,16 @@ struct App {
     update_note: Option<String>,
     /// "Save in another format" window.
     convert: Option<convert::Window>,
+    /// The format of the last Save as…, proposed by the next one while the program is open.
+    save_as_format: Option<encode::Format>,
     /// Rotate and crop, a page of its own.
     editor: Option<edit_page::Window>,
-    /// Images read by the viewer that are animated or have several pages: the editor is off for them.
-    animated: std::collections::HashSet<String>,
+    /// Images found animated or with several pages, by the viewer or from their start (`edit_page::Animated`): the editor is off for them.
+    animated: crate::edit_page::Animated,
+    /// Frames of animated images and pages of TIFFs, played and turned in the viewer.
+    frames: frames_view::State,
+    /// Videos of Motion Photos, played in the viewer.
+    motion: motion_view::State,
     /// Find duplicates: the search and its results page.
     duplicates: Option<dup_page::Window>,
     /// Convert and resize several images: the choices, then the work.
@@ -367,8 +399,10 @@ struct App {
     /// The slideshow under way, at full screen.
     show: Option<slideshow::Show>,
     title: String,
-    /// The guide (F1, Help > Manual).
+    /// The guide (F1, Help > Guide).
     help: help::Guide,
+    /// The tip at startup shown, by its place in `tips::TIPS` (issue #113).
+    tip: Option<tips::Open>,
     about: bool,
     /// App icon for the About window, made the first time it opens.
     about_icon: Option<TextureHandle>,
@@ -407,12 +441,19 @@ struct App {
     deleting: usize,
     /// Window closed during a copy: it closes when the copy has stopped.
     quit_after_transfer: bool,
+    /// The window's ✕ over the editor with "goes back to the grid" off: EyeCanSee closes once the
+    /// editor has (`window_close`); `Some(true)`: the editor asked about its changes.
+    quit_after_editor: Option<bool>,
     /// Rename in progress: name being written, path, first frame (focus and selection to set).
     rename: Option<(String, String, bool)>,
     /// New folder: name, the folder it goes in, first frame (the name gets selected).
     new_folder: Option<(String, String, bool)>,
     /// File > New image…: its window is open.
     new_image: Option<new_image::Form>,
+    /// Export as a 3D model…: its window is open.
+    model_export: Option<model_export_page::Form>,
+    /// The format of the last export of a 3D model, proposed again.
+    model_export_kind: model_export::Kind,
     /// A folder just made, or the editor's copy just saved: selected (and shown in the viewer)
     /// once its folder is read again.
     select_after: Option<String>,
@@ -450,8 +491,10 @@ impl eframe::App for App {
         let paste_to = if raw_input.events.iter().any(|e| matches!(e, egui::Event::Paste(_))) { self.paste_to.take().map(|(dir, _)| dir) } else { None };
         // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer);
         // F1 still opens the guide.
-        // Open location and Convert and resize have fields to type in: there the keys go to the field.
-        if self.asking() && !((self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some()) && ctx.egui_wants_keyboard_input()) {
+        // Open location, Convert and resize and the editor's Resize have fields to type in: there
+        // the keys go to the field.
+        let fields = self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some() || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing);
+        if self.asking() && !(fields && ctx.egui_wants_keyboard_input()) {
             let answer = &mut self.delete_answer;
             raw_input.events.retain(|e| match e {
                 egui::Event::Key { key: Key::F1, .. } => true,
@@ -475,23 +518,16 @@ impl eframe::App for App {
         // for egui: here it is the deletion for good, as everywhere else in EyeCanSee.
         let mods = ctx.input(|i| i.modifiers);
         let shift_del = cfg!(windows) && mods.shift && !mods.command;
-        let act = &mut self.act;
         // In the editor Ctrl+C copies the result (with Selection, that part), Ctrl+X cuts the part,
         // Ctrl+V pastes it, or an image copied in another program; no files are cut or pasted there.
         // Not with Save in another format open over it: its name field takes them.
         if self.editor.is_some() && self.convert.is_none() {
-            raw_input.events.retain(|e| {
-                *act = match e {
-                    egui::Event::Copy => Some(Act::EditCopy),
-                    egui::Event::Cut => Some(Act::EditCut),
-                    egui::Event::Paste(_) => Some(Act::EditPaste(None)),
-                    egui::Event::PasteImage(img) => Some(Act::EditPaste(Some(img.clone()))),
-                    _ => return true,
-                };
-                false
-            });
+            if let Some(a) = self.edit_clip_events(&mut raw_input.events) {
+                self.act = Some(a);
+            }
             return;
         }
+        let act = &mut self.act;
         let clip = self.clip.as_ref();
         raw_input.events.retain(|e| {
             *act = match e {
@@ -537,7 +573,7 @@ impl eframe::App for App {
         #[cfg(feature = "shots")]
         self.shots_tick(&ctx);
         self.before_frame(&ctx);
-        #[cfg(windows)]
+        #[cfg(any(target_os = "linux", windows))]
         system_theme::sync_window(&ctx);
         self.panels(ui, &ctx);
         self.windows(&ctx);
@@ -575,6 +611,13 @@ fn main() -> eframe::Result {
     if let Some(icon) = decode::app_icon(256) {
         viewport = viewport.with_icon(egui::IconData { rgba: icon.into_raw(), width: 256, height: 256 });
     }
+    // Not maximized: on Windows moved inside the screen's free area once made (#109).
+    #[cfg(windows)]
+    let fit_window = match settings.window_start {
+        WindowStart::Normal => true,
+        WindowStart::Maximized => false,
+        WindowStart::Remember => !settings.window_maximized,
+    };
     match settings.window_start {
         WindowStart::Normal => {}
         WindowStart::Maximized => viewport = viewport.with_maximized(true),
@@ -591,8 +634,25 @@ fn main() -> eframe::Result {
     };
     if let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_options.wgpu_setup {
         setup.native_adapter_selector = Some(render_gpu::adapter_selector());
+        setup.device_descriptor = render_gpu::frugal(setup.device_descriptor.clone());
     }
-    eframe::run_native("EyeCanSee", options, Box::new(move |cc| Ok(Box::new(App::new(&cc.egui_ctx, settings, arg).with_gpu(cc)))))
+    eframe::run_native(
+        "EyeCanSee",
+        options,
+        Box::new(move |cc| {
+            #[cfg(windows)]
+            system_theme::caption::remember(cc, match settings.theme {
+                settings::ThemeChoice::Dark => Some(true),
+                settings::ThemeChoice::Light => Some(false),
+                settings::ThemeChoice::System => system_theme::read_dark(),
+            });
+            #[cfg(windows)]
+            if fit_window {
+                window_place::place(cc);
+            }
+            Ok(Box::new(App::new(&cc.egui_ctx, settings, arg).with_gpu(cc)))
+        }),
+    )
 }
 
 /// The address given on the command line. A local path is made absolute: the instance it is

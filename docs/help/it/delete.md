@@ -34,7 +34,7 @@ Ogni cartella in cui hai eliminato qualcosa su un telefono o su un server (e su 
 
 - Una striscia in cima alla griglia dice **Questa cartella ha un cestino**, con il pulsante **Apri il cestino**.
 - Dentro, la striscia dice di quale cartella è il cestino e ha **Ripristina tutto** e **Svuota il cestino…**.
-- Nel cestino puoi guardare le immagini, ripristinarle (clic destro > **Ripristina**: tornano nella cartella che contiene il cestino) o eliminarle per sempre. Lì **Canc** elimina sempre per sempre, e Rinomina non c'è.
+- Nel cestino puoi guardare le immagini, ripristinarle (clic destro, **File** o **Modifica** > **Ripristina**: tornano nella cartella che contiene il cestino) o eliminarle per sempre. Lì **Canc** elimina sempre per sempre. Taglia, Copia, Rinomina, le rotazioni, l'editor, Salva e Salva come… sono grigi: prima ripristina l'elemento.
 - Clic destro su uno spazio vuoto del cestino: **Ripristina tutto** e **Svuota il cestino…** (tutto eliminato per sempre, dopo una conferma).
 - Un cestino rimasto vuoto sparisce insieme alla sua striscia.
 

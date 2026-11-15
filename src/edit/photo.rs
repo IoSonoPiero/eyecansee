@@ -285,6 +285,31 @@ mod tests {
         assert_eq!(highlight_factor([255, 0, 128], 0.5), [1.0, 0.5, 0.5 + 0.5 * 128.0 / 255.0]);
     }
 
+    /// A part chosen between pixels is copied as the photo's pixels, byte for byte: the box goes
+    /// on whole pixels first (it came out resampled, a little soft), also after a quarter turn.
+    #[test]
+    fn part_copied_exactly() {
+        use crate::transform::Op;
+        let src = RgbaImage::from_fn(37, 23, |x, y| image::Rgba([(x * 7) as u8, (y * 11) as u8, ((x * y) % 251) as u8, 255]));
+        let photo = DynamicImage::ImageRgba8(src.clone());
+        let mut doc = Doc::new(37, 23, None);
+        // Left 5.3, top 4.6 from the corner, 10.4 × 7.7: pixels 5..15 and 5..13.
+        let drag = Area { centre: Pt::new(5.3 + 5.2 - 18.5, 4.6 + 3.85 - 11.5), w: 10.4, h: 7.7, rot: 0.0 };
+        let a = doc.on_pixels(drag, (37, 23));
+        let part = lens(&doc, &photo, &a, (1.0, 8000), &[], Some((&[], &crate::decode::usvg_options())));
+        assert_eq!(part, imageops::crop_imm(&src, 5, 5, 10, 8).to_image());
+        // A quarter turn: the box is on the turned image, 23 wide.
+        doc.turned(Op::Cw);
+        let turned = DynamicImage::ImageRgba8(imageops::rotate90(&src));
+        let drag = Area { centre: Pt::new(2.6 + 3.1 - 11.5, 7.4 + 4.15 - 18.5), w: 6.2, h: 8.3, rot: 0.0 };
+        let a = doc.on_pixels(drag, (37, 23));
+        let part = lens(&doc, &photo, &a, (1.0, 8000), &[], None);
+        assert_eq!(part, imageops::crop_imm(turned.as_rgba8().unwrap(), 3, 7, 6, 8).to_image());
+        // A tilted box stays as it is.
+        let tilted = Area { rot: 3.0, ..drag };
+        assert_eq!(doc.on_pixels(tilted, (37, 23)), tilted);
+    }
+
     /// A filter or highlighter's preview is made again when what is under it changes (a filter
     /// before it moved), and only then: one away from the others stays as it was.
     #[test]

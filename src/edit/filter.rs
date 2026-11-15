@@ -45,7 +45,7 @@ impl Filter {
     }
 
     /// Is the amount a size in pixels (it shrinks with the preview)?
-    fn in_pixels(self) -> bool {
+    pub(crate) fn in_pixels(self) -> bool {
         matches!(self, Filter::Blur | Filter::Pixelate | Filter::Sharpen)
     }
 

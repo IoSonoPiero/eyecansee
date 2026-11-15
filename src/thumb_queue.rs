@@ -127,6 +127,81 @@ pub(crate) async fn thumbnail(op: &Store, base: &str, file: File) -> Result<Colo
     }
 }
 
+/// The details of `file` for the line under its thumbnail (#139): from the cache; else, for a
+/// picture whose thumbnail is already made (a cache from before #139), read from the file once and
+/// saved. `None` while its thumbnail is still to be made: `generate` saves them with it. Videos,
+/// sounds, models and drawings: nothing read, nothing to show.
+pub(crate) async fn file_info(op: &Store, base: &str, file: &File) -> Option<crate::thumb_details::Info> {
+    let (b, f) = (base.to_string(), file.clone());
+    let (info, thumb) = tokio::task::spawn_blocking(move || match thumbcache::load_info(&b, &f) {
+        Some(info) => (Some(info), None),
+        None => (None, thumbcache::load(&b, &f).map(|t| (t.width(), t.height()))),
+    })
+    .await
+    .ok()?;
+    if info.is_some() {
+        return info;
+    }
+    let path = &file.path;
+    if crate::model::is_model(path) || crate::cad::is_cad(path) || crate::occt::needs_engine(path) {
+        return Some(Default::default());
+    }
+    if decode::is_played(path) {
+        return video_info(op, base, file).await;
+    }
+    let thumb = thumb?;
+    // The start of the file first: the size and the EXIF of a photo are in it. The whole file
+    // only when they are not there (a TIFF or a RAW whose blocks are further on).
+    let head = op.read_range(path, 0, HEAD.min(file.size)).await.ok();
+    let full = file.size;
+    let of = |bytes: Vec<u8>| {
+        let name = file.path.clone();
+        tokio::task::spawn_blocking(move || {
+            let info = crate::thumb_details::Info::of(&bytes, &name, thumb, None);
+            match info.pixels {
+                Some(_) => info,
+                // A rare format whose header is not read: decoded, as for its thumbnail.
+                None if bytes.len() as u64 >= full => crate::thumb_details::Info { pixels: decode::thumbnail_sized(&bytes, &name, 1).ok().and_then(|(_, own)| own), ..info },
+                None => info,
+            }
+        })
+    };
+    let mut info = match head {
+        Some(bytes) => of(bytes).await.ok()?,
+        None => crate::thumb_details::Info::default(),
+    };
+    if info.pixels.is_none() && file.size > HEAD {
+        info = of(op.read(path).await.ok()?).await.ok()?;
+    }
+    thumbcache::save_info(base, file, &info);
+    Some(info)
+}
+
+/// How much of a photo is read for its details when its thumbnail is already made.
+const HEAD: u64 = 256 * 1024;
+
+/// A video's or a sound's details: from the metadata the panel read already, else read as the
+/// panel does (container and tracks, not the whole file) and kept for both. A phone on Windows
+/// without partial reads would copy the whole video first: nothing then (the viewer reads it
+/// when the video is opened). Without the video engine nothing is read either.
+async fn video_info(op: &Store, base: &str, file: &File) -> Option<crate::thumb_details::Info> {
+    let key = crate::video_read::meta_key(op, file).await;
+    let (b, k) = (base.to_string(), key.clone());
+    let saved = tokio::task::spawn_blocking(move || thumbcache::load_meta(&b, &k)).await.ok().flatten();
+    let meta = match saved.as_deref().and_then(crate::meta::Meta::from_json) {
+        Some(meta) => meta,
+        None if crate::video_read::whole_only(op) || !crate::mpv_load::available() => return Some(Default::default()),
+        None => {
+            let meta = crate::video_read::video_meta(op, &file.path).await.ok().flatten()?;
+            thumbcache::save_meta(base, &key, meta.to_json());
+            meta
+        }
+    };
+    let info = crate::thumb_details::Info::of_video(&meta);
+    thumbcache::save_info(base, file, &info);
+    Some(info)
+}
+
 /// From the disk cache, or the one a conversion just made for this file (saved to the cache now).
 async fn cached(base: &str, file: &File) -> Option<ColorImage> {
     let (base, file) = (base.to_string(), file.clone());
@@ -170,7 +245,11 @@ async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, Stri
         } else if crate::cad::is_cad(&file.path) {
             image::DynamicImage::ImageRgba8(decode::cad_render(&crate::cad::read_with(&bytes, &file.path, &sibling)?, THUMB_SIDE, None)?)
         } else {
-            decode::thumbnail(&bytes, &file.path, THUMB_SIDE)?
+            let (img, own) = decode::thumbnail_sized(&bytes, &file.path, THUMB_SIDE)?;
+            // The file is read now anyway: its details are kept with its thumbnail, for the line
+            // under it (#139), so they never cost a read of their own.
+            thumbcache::save_info(&base, &file, &crate::thumb_details::Info::of(&bytes, &file.path, (img.width(), img.height()), own));
+            img
         };
         thumbcache::save(&base, &file, &img);
         Ok(decode::to_color_image(img))

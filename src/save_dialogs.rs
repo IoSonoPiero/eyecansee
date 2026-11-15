@@ -95,7 +95,7 @@ impl App {
         let paths: Vec<String> = paths.collect();
         // One folder: the reason, if any, is the same for all.
         let refused = paths.first().and_then(|p| loader.no_overwrite(p));
-        let (ok, skipped): (Vec<String>, Vec<String>) = paths.into_iter().partition(|p| refused.is_none() && encode::saves_back(p));
+        let (ok, skipped): (Vec<String>, Vec<String>) = paths.into_iter().partition(|p| refused.is_none() && (encode::saves_back(p) || crate::video_turn::turned_by(p, op)));
         if ok.is_empty() {
             self.batch_turn_none(ctx, &skipped, refused, op);
             return;
@@ -118,6 +118,9 @@ impl App {
         if !ok.is_empty() {
             text = format!("{text}\n\n{}", self.i18n.t("batch-animated"));
         }
+        if ok.iter().any(|p| crate::decode::is_video(p)) {
+            text = format!("{text}\n\n{}", self.i18n.t("batch-turn-videos"));
+        }
         if let Some(id) = refused {
             text = format!("{text}\n\n{}", self.i18n.t(id));
         } else if !skipped.is_empty() {
@@ -131,7 +134,7 @@ impl App {
                 log!("transform {op:?} on {} images, {how:?}", ok.len());
                 self.saving.extend(ok.iter().cloned());
                 loader.replace(ok, transform::Turn::default().then(op), how);
-                self.batch_saved.get_or_insert((op, 0));
+                self.batch_saved.get_or_insert((op, 0, 0));
                 self.batch_turn = None;
             }
             Some(false) => self.batch_turn = None,
@@ -175,7 +178,7 @@ impl App {
     }
 
     /// "Save" overwrites only what changed and what can be written back in its own format, where
-    /// renaming is possible, and not while that image is being saved already. What is inside the
+    /// renaming is possible, not in a trash, and not while that image is being saved already. What is inside the
     /// file (animated, several pages…) is looked at by `Loader::prepare`.
     pub(crate) fn can_save(&self) -> bool {
         let Some(current) = self.viewing else { return false };
@@ -185,7 +188,8 @@ impl App {
                 self.loader.as_ref().is_some_and(|l| l.can_overwrite(&f.path))
                     && self.can_change(&f.path)
                     && !self.saving.contains(&f.path)
-                    && encode::saves_back(&f.path)
+                    && (encode::saves_back(&f.path) || crate::video_turn::turned_by(&f.path, transform::Op::Cw))
+                    && !source::in_trash(&f.path)
             })
     }
 
@@ -236,7 +240,12 @@ impl App {
         match confirm::yes_no(ctx, "save", 420.0, (self.i18n.t("save-title"), text), yes, true, no, self.delete_answer.take()) {
             Some(true) => {
                 log!("save {path:?} {turn:?} {how:?}");
-                loader.replace_with(path.clone(), data, how);
+                // A video: its rotation written when it is saved, nothing prepared (#125).
+                if crate::decode::is_video(&path) {
+                    loader.replace(vec![path.clone()], turn, how);
+                } else {
+                    loader.replace_with(path.clone(), data, how);
+                }
                 self.saving.insert(path);
                 self.save_ready = None;
                 // Saved on the way out of the image: now what was asked.
@@ -306,6 +315,16 @@ impl App {
     /// A message window titled with the Fluent id `title`.
     pub(crate) fn tell(&mut self, title: &str, text: String) {
         self.notice = Some(Notice::new(self.i18n.t(title), text));
+    }
+}
+
+/// What the grid's flip or turn saved, for the message at the end (`$what` of "batch-done"):
+/// `n` files, `videos` of them videos (#125).
+pub(crate) fn saved_what(n: usize, videos: usize) -> &'static str {
+    match videos {
+        0 => "images",
+        v if v == n => "videos",
+        _ => "mixed",
     }
 }
 
@@ -450,6 +469,27 @@ pub(crate) fn md(s: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    /// The message at the end says what was turned (#125): pictures, videos or both, in every
+    /// language and number.
+    #[test]
+    fn rotated_videos_said_as_videos() {
+        assert_eq!((super::saved_what(2, 0), super::saved_what(1, 1), super::saved_what(3, 1)), ("images", "videos", "mixed"));
+        let say = |lang: &str, n: usize, videos: usize, op: &str| {
+            let args = [("n", n.to_string()), ("op", op.to_string()), ("what", super::saved_what(n, videos).to_string())];
+            let i18n = crate::i18n::I18n::new(lang);
+            let args = args.each_ref().map(|(k, v)| (*k, v.as_str()));
+            (i18n.t_args("batch-done-title", &args), i18n.t_args("batch-done", &args))
+        };
+        assert_eq!(say("en", 1, 1, "tf-rotate-cw"), ("Video rotated".into(), "**1 video** was rotated 90° clockwise and saved over its original.".into()));
+        assert_eq!(say("en", 2, 2, "tf-rotate-180").1, "**2 videos** were rotated 180° and saved over their originals.");
+        assert_eq!(say("en", 3, 1, "tf-rotate-ccw"), ("Pictures and videos rotated".into(), "**3 files** (pictures and videos) were rotated 90° anticlockwise and saved over their originals.".into()));
+        assert_eq!(say("en", 1, 0, "tf-flip-h"), ("Image flipped".into(), "**1 image** was flipped horizontally and saved over its original.".into()));
+        assert_eq!(say("it", 1, 1, "tf-rotate-cw"), ("Video ruotato".into(), "**1 video** è stato ruotato di 90° in senso orario e salvato sopra l'originale.".into()));
+        assert_eq!(say("it", 2, 2, "tf-rotate-cw").1, "**2 video** sono stati ruotati di 90° in senso orario e salvati sopra gli originali.");
+        assert_eq!(say("it", 3, 1, "tf-rotate-cw").0, "Immagini e video ruotati");
+        assert_eq!(say("it", 0, 0, "tf-rotate-cw").1, "Nessuna immagine è stata salvata.");
+    }
+
     /// Bold, code (a fingerprint, its stars and backslashes as they are) and escaped marks.
     #[test]
     fn message_runs() {

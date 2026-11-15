@@ -1,6 +1,6 @@
-# Saving in another format
+# Save as
 
-Saves one image as a new file in another format, for example a phone's HEIC photo as a JPEG, or a PNG as a smaller WebP. Before saving you see exactly how the new file will look and how large it will be. The original is never changed.
+Saves one image as a new file, in the format and the folder you choose, for example a phone's HEIC photo as a JPEG, or a PNG as a smaller WebP. Before saving you see exactly how the new file will look and how large it will be. The original is never changed.
 
 To convert or resize many images at once, use [Converting and resizing images](convert.md).
 
@@ -8,26 +8,31 @@ To convert or resize many images at once, use [Converting and resizing images](c
 
 - In the grid, select one image and click ![Save as…](icon://file-output) in the toolbar, or choose **File > Save as…**, or right-click the image and choose **Save as…**.
 - In the viewer, press **Ctrl+Shift+S**, or use the same menu items. If you turned or flipped the image in the viewer, it is saved turned.
-- In the viewer, a 3D model or a CAD drawing can be saved as a picture too, as it is shown on screen: a model at least 1920 pixels on its long side, a drawing with the layout you are looking at. On a 3D model **Ctrl+S** does the same.
+- A 3D model or a CAD drawing can be saved as a picture too. In the viewer as it is shown on screen: a model at least 1920 pixels on its long side, a drawing with the layout you are looking at. From the grid a model from its starting view, 1920 × 1440 pixels, and a drawing whole. With other files selected too, **Save as…** is marked with **\*** and works on the one picture, model or drawing among them. **Ctrl+S** and **File > Save** save over the original, which a model or a drawing cannot be: there they are greyed out, and pointing at **Save** says what to use instead.
 - In the editor, **Save as…** opens this page with the edited image (see [Saving an edited image](editor-save.md)). Closing it without saving goes back to the editor, with the changes.
 
-![Saving in another format](../img/save-as.webp)
+![Save as](../img/save-as.webp)
 
 ## What the page shows
 
-The page takes the whole window. On the left is the original, on the right the converted image, each with its format, its size in pixels and its size on disk; for the converted one also as a percentage of the original. A new image from the editor has no file yet, so its size on disk and the percentage are not shown.
+The page takes the whole window. On the left is the original, on the right the converted image, each with its format, its size in pixels and its size on disk; for the converted one also as a percentage of the original. The converted image's size in pixels is that of the file that will be written: swapped after a quarter turn in the viewer, reduced for an icon. A new image from the editor has no file yet, so its size on disk and the percentage are not shown.
 
 The image on the right is the real file: every time you change an option, EyeCanSee makes the file again and shows it. While it works, the size says "Working out the size…" and **Save** waits, so the size you see is always the size of the file you will get.
+
+An image flipped or rotated in the viewer is shown so on both sides, so the two match; under the original its size on disk stays, with what the viewer did, for example "rotated 90° clockwise in the viewer".
 
 Tick **100%** to see the real pixels. Then drag either image to move both, so you compare the same spot.
 
 ## Saving
 
-1. Choose the **Format**.
+1. Choose the **Format**. The page opens on the format of the last image saved from it while EyeCanSee is open; the first time on JPEG. A new image from the editor always opens on PNG. An image too large for that format (WebP holds at most 16383 pixels on a side, JPEG 65500, GIF and TGA 65535) opens on JPEG or PNG as the first time. The options of the format start as described below.
 2. Change its options if you want (see below).
-3. Check the name in **File name**, then click **Save**.
+3. Check the folder in **Folder**: at first it is the original's. To save somewhere else click **Browse…** and choose another folder, also on another device: a phone, a disk or a saved server, as in [Converting and resizing images](convert.md). **Enter** or **Use this folder** chooses it, **Esc** or **Cancel** keeps the folder you had.
+4. Check the name in **File name**, then click **Save**.
 
-The new file goes into the same folder as the original. If the name is already taken, " (2)" is added, and the page tells you before you save. Once saved, the page closes.
+If the name is already taken in that folder, " (2)" is added, and the page tells you before you save. Once saved, the page closes.
+
+Opened from the viewer, the viewer then shows the new file, already turned or flipped as you left it. The original stays as it is on disk: it is no longer marked as modified, and closing asks nothing. If you saved into another folder, the viewer stays on the original and a message says where the new file is. If you close the page without saving, or saving fails, the viewer stays as it was, turns included. The same holds when you open it from the editor started in the viewer: once the file is saved the editor closes, and the viewer does as above.
 
 **Esc** or the ✕ of the window closes the page without saving.
 
@@ -50,9 +55,10 @@ The new file goes into the same folder as the original. If the name is already t
 
 ## Metadata
 
-**Keep the metadata (EXIF, XMP, IPTC, colour profile)** is on at first. It keeps the camera, the date the photo was taken, the place (GPS), author, copyright, descriptions, keywords and the colour profile.
+**Keep the metadata (EXIF, XMP, IPTC, colour profile)** is on at first. It keeps the camera, the date the photo was taken, the place (GPS), author, copyright, descriptions, keywords, the colour profile and the resolution (dots per inch).
 
-- Only JPEG, PNG, WebP, AVIF and TIFF can hold metadata. With another format, or when the original has none, the box is greyed out; pointing at it says why.
+- Only JPEG, PNG, WebP, AVIF and TIFF can hold metadata. BMP holds only the resolution: with BMP the box reads **Keep the metadata (resolution only)** and can be changed when the original has a resolution. With another format, or when the original has none, the box is greyed out; pointing at it says why.
+- The **resolution** (for example the 600 dpi of a scan) is part of the metadata: without **Keep the metadata** the file is saved without it, also when the original has nothing else.
 - The orientation is set to upright, since the saved pixels are already turned, and the sizes written inside are those of the new image.
 - Left out: the small previews that cameras store inside the file, the Lightroom and Camera Raw settings, and the video of a motion photo, which the new file does not have.
 - An **Ultra HDR** phone photo stays HDR when you save it as JPEG with the metadata, also from the editor: its HDR part is turned, cropped and covered together with the photo. In another format, or without the metadata, it loses its HDR, and the page tells you before you save.
@@ -61,6 +67,7 @@ The new file goes into the same folder as the original. If the name is already t
 
 - JPEG and Radiance HDR have no transparency: transparent parts become white. The page says so.
 - An icon (ICO) holds at most 256 × 256 pixels: a larger image is reduced. The page says so.
+- An animated image (GIF, WebP, APNG, AVIF) or one with several pages (TIFF) is saved as the picture shown, its first frame or page: the new file has only that one. The page says so.
 - EyeCanSee cannot write HEIC or JPEG XL: see [Supported formats](formats.md).
 - Only JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI and PSD files (flattened) can also be written back over the original after a turn (see [Rotating and flipping](rotate.md)); the other formats only through this page.
 - The table of every format and its options is in [Supported formats](formats.md).

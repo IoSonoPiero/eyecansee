@@ -5,6 +5,7 @@ use std::sync::atomic::Ordering;
 
 use eframe::egui::{self, Color32};
 
+use crate::window_close::Step;
 use crate::{App, meta, save_dialogs, theme};
 
 impl App {
@@ -24,19 +25,26 @@ impl App {
             self.quit_after_transfer = true;
             ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
         }
-        // The ✕ in the viewer goes back to the grid, as Esc, when chosen in the Options (on at
-        // first: user, 2026-11-06); a turned image not saved is asked about as when leaving it.
-        if self.transfer.is_none() && self.settings.close_to_grid && self.viewing.is_some() && self.editor.is_none() && ctx.input(|i| i.viewport().close_requested()) {
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
-            self.close_viewer();
-        } else if self.transfer.is_none()
-            && ctx.input(|i| i.viewport().close_requested())
-            && self.hold_for_turn(save_dialogs::After::Quit)
-        {
-            // Closing with an image turned and not saved: asked first, as when leaving the image.
-            ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+        // The editor closed after the ✕ with the option off: EyeCanSee now.
+        self.quit_after_editor(ctx);
+        // The ✕ (`window_close`): over the editor the page takes it (`edit_page`); in the viewer
+        // back to the grid, as Esc, when chosen in the Options (on at first), or EyeCanSee; a
+        // turned image not saved is asked about first, as when leaving it.
+        if self.transfer.is_none() && self.editor.is_none() && ctx.input(|i| i.viewport().close_requested()) {
+            let close = self.on_close(self.turn_unsaved());
+            match close.step {
+                Step::Viewer => {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                    self.close_viewer();
+                }
+                Step::Quit if close.ask && self.hold_for_turn(save_dialogs::After::Quit) => {
+                    ctx.send_viewport_cmd(egui::ViewportCommand::CancelClose);
+                }
+                _ => {}
+            }
         }
         self.receive(ctx);
+        self.open_held(ctx);
         self.phone_events(ctx);
         self.phone_stall();
         self.notice_gone(ctx);
@@ -52,6 +60,11 @@ impl App {
         }
         // Esc over the guide is the guide's: taken here, before the pages under it read it.
         self.help_esc(ctx);
+        // Esc with a menu open closes the menu only: left in the input, the page under it read it
+        // too and closed the viewer or the editor with the menu.
+        if egui::Popup::is_any_open(ctx) && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+            egui::Popup::close_all(ctx);
+        }
         // "Save in another format" and the duplicates cover the window: the keys must not reach the grid under them.
         if self.convert.is_none() && self.editor.is_none() && self.show.is_none() && !self.dup_page_shown() {
             self.global_keys(ctx);
@@ -62,6 +75,7 @@ impl App {
         if let Some(current) = self.viewing {
             self.prefetch_full(current);
         }
+        self.probe_chosen(ctx);
         self.update_title(ctx);
         // Size to remember: that of the non-maximised window.
         let (size, maximized) = ctx.input(|i| (i.viewport_rect().size(), i.viewport().maximized));
@@ -87,7 +101,7 @@ impl App {
             self.dup_page(ui);
         } else {
             // Full screen in the viewer: the picture (or video, model, drawing) alone, no bars
-            // (user, 2026-11-06; issue #43 asked it for videos).
+            // (issue #43 asked it for videos).
             let bare = self.viewing.is_some() && ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
             if !bare {
                 egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
@@ -98,6 +112,9 @@ impl App {
                     egui::CentralPanel::default().frame(egui::Frame::NONE.fill(Color32::BLACK)).show(ui, |ui| self.viewer(ui, current));
                 }
                 Some(current) => {
+                    // The frame of an animation moves before the status bar says which it is (the
+                    // viewer calls it again: a second call in the same frame changes nothing).
+                    self.frames_tick(ctx, current);
                     let bar = egui::Frame::side_top_panel(ui.style()).fill(theme::solid(ui.visuals()));
                     let status = egui::Panel::bottom("viewer-status").frame(bar).show(ui, |ui| self.viewer_status(ui, current));
                     // The keys of the viewer: listed while the button is pointed at, or until it is
@@ -135,7 +152,7 @@ impl App {
     }
 
     /// The error goes away with the page it was shown on: the editor, Save in another format, the
-    /// duplicates, the slideshow, the viewer, or the folder of the grid (user, 2026-11-10: it
+    /// duplicates, the slideshow, the viewer, or the folder of the grid (it
     /// stayed until its ✕). The page it was first shown on is kept in egui's memory.
     fn error_leaves_with_page(&mut self, ctx: &egui::Context) {
         let id = egui::Id::unique("page-of-the-error");
@@ -180,7 +197,7 @@ impl App {
     /// in the grid and the viewer, a save that failed in the editor was told once it was closed.
     /// The slideshow goes on above it: the error is seen, and its ✕ closes it.
     /// A band in the warning colours with the triangle and the text on as many lines as it needs:
-    /// red text on one long line, on the dark bar, was hard to read (user, 2026-11-10). It stays
+    /// red text on one long line, on the dark bar, was hard to read. It stays
     /// at the bottom, where the status bar is: at the top it would push the toolbar and the
     /// address bar down every time an error comes and goes.
     fn error_bar(&mut self, ui: &mut egui::Ui) {
@@ -206,6 +223,7 @@ impl App {
         self.about_window(ctx);
         self.update_window(ctx);
         self.options_window(ctx);
+        self.tip_window(ctx);
         if let Some(a) = self.act.take() {
             self.run(ctx, a);
         }
@@ -228,6 +246,7 @@ impl App {
         self.rename_window(ctx);
         self.new_folder_window(ctx);
         self.new_image_window(ctx);
+        self.model_export_window(ctx);
         self.restore_window(ctx);
         self.next_restore();
     }
@@ -236,7 +255,7 @@ impl App {
 /// Closing EyeCanSee: a save under way is waited for; anything else in the background (the
 /// decoding of a large image, the neighbours read ahead, thumbnails) gets half a second, then is
 /// left: the runtime waited for every one of them, and the window stayed frozen for seconds on
-/// Windows after a 45-megapixel HEIC (user, 2026-11-06).
+/// Windows after a 45-megapixel HEIC.
 impl Drop for crate::App {
     fn drop(&mut self) {
         log!("quitting");

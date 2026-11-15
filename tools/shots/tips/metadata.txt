@@ -1,0 +1,8 @@
+# Tip "Where and when a photo was taken" (docs/tips/): Lake Garda selected, the metadata panel open
+# under the grid, its lower part with the last row of thumbnails.
+open /home/demo/Pictures/Holiday
+set meta_collapsed false
+width 1000
+3 select Lake Garda.dng
+9 shot metadata 0 260 1200 540
+9.5 end

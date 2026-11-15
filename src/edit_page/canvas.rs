@@ -7,6 +7,7 @@ use eframe::egui::{self, Color32, CursorIcon, Pos2, Rect, TextureHandle, Texture
 use super::{Drawn, Follow, GRAB, Grab, Hold, Tool, Window};
 use crate::edit::doc::{Obj, Pt, Shape};
 use crate::edit::geom::{self, Kind};
+use crate::edit::patch;
 use crate::edit::render;
 use crate::rotate::{self, Crop};
 
@@ -124,11 +125,15 @@ fn paint(ui: &egui::Ui, w: &mut Window, tex: &TextureHandle, view: &View, rect: 
         if let Some(o) = w.selected.and_then(|i| w.doc.objects.get(i)) {
             selection(&painter, o, view, w.doc.angle);
         }
+        if let Some((_, at, top)) = turn_handle(w, view) {
+            painter.line_segment([top, at], egui::Stroke::new(1.5, Color32::from_rgb(0x4F, 0xC3, 0xF7)));
+            painter.circle(at, 5.5, Color32::WHITE, egui::Stroke::new(1.0, Color32::from_gray(40)));
+        }
         if let Some(a) = w.marquee {
             ants(&painter, a, view, w.doc.angle);
         }
         // A highlighter or a spotlight being drawn shows its box: on a dark photo the tint alone
-        // hardly shows where it goes (user, 2026-11-06).
+        // hardly shows where it goes.
         if let Some(Hold::Draw { index: Some(i), .. }) = &w.hold
             && let Some(o) = w.doc.objects.get(*i)
             && matches!(o.shape, Shape::Highlight { .. } | Shape::Spotlight(_))
@@ -344,7 +349,8 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
         let p = view.doc(s, angle);
         let on_handle = handle_at(w, view, s);
         let icon = match (&w.hold, w.tool) {
-            (Some(Hold::Pan { .. }), _) => CursorIcon::Grabbing,
+            (Some(Hold::Pan { .. } | Hold::Turn { .. }), _) => CursorIcon::Grabbing,
+            (None, _) if turn_at(w, view, s).is_some() => CursorIcon::Grab,
             (Some(Hold::Move { .. }), _) => CursorIcon::Move,
             (Some(Hold::Handle { index, handle, .. }), _) => resize_cursor(w, view, *index, *handle),
             (Some(_), _) => CursorIcon::Crosshair,
@@ -368,6 +374,8 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
         let on_handle = handle_at(w, view, s);
         w.hold = Some(match w.tool {
             _ if pan => Hold::Pan { at: view.at, k: view.k, from: s },
+            // The round handle above a pasted piece turns it, with any tool.
+            _ if let Some(index) = turn_at(w, view, s) => Hold::Turn { index, start: w.doc.objects[index].clone() },
             // Resizing the selected object needs no change of tool.
             Tool::Draw(_) if let Some((index, handle)) = on_handle => Hold::Handle { index, handle, start: w.doc.objects[index].clone() },
             // Placed with a click: a drag moves the view.
@@ -383,8 +391,14 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
             // From the object as the drag started, with the preview made since (the one it started
             // with showed the part it came from).
             Hold::Move { index, start, from } => w.doc.objects[*index] = geom::redrawn(&mut w.doc.objects[*index], geom::moved(start, Pt::new(p.x - from.x, p.y - from.y))),
-            // Shift keeps the proportions the box had.
-            Hold::Handle { index, handle, start } => w.doc.objects[*index] = geom::redrawn(&mut w.doc.objects[*index], geom::with_handle_kept(start, *handle, p, square)),
+            // Shift keeps the proportions the box had; a pasted piece keeps them (with "Keep the
+            // proportions" on, as it starts) and Shift frees them, as pixel layers in photo editors.
+            Hold::Handle { index, handle, start } => {
+                let keep = if matches!(start.shape, Shape::Patch { .. }) { w.keep_patch != square } else { square };
+                w.doc.objects[*index] = geom::redrawn(&mut w.doc.objects[*index], geom::with_handle_kept(start, *handle, p, keep));
+            }
+            // Shift: by 15° on the screen.
+            Hold::Turn { index, start } => w.doc.objects[*index] = turned_piece(start, p, angle, square),
             Hold::Pan { at, k, from } => w.view = Some((*at - (s - *from) / *k, *k)),
             Hold::Marquee { .. } => {}
             // By hand: a point more where the pointer went (one every point and a half of the screen).
@@ -409,6 +423,7 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
     }
     if response.clicked()
         && let Some(s) = response.interact_pointer_pos()
+        && turn_at(w, view, s).is_none()
     {
         clicked(w, view.doc(s, angle), tol);
     }
@@ -418,7 +433,7 @@ fn objects_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
 }
 
 /// The end of a drag: what a drawing tool drew is selected, but where nothing of it is in the
-/// result (the saved file) it goes, with no step in the history (user, 2026-11-12: a rectangle
+/// result (the saved file) it goes, with no step in the history (a rectangle
 /// drawn on the dark area around the image).
 fn draw_ended(w: &mut Window) {
     if let Some(Hold::Draw { kind, index: Some(i), .. }) = w.hold.take() {
@@ -497,7 +512,10 @@ fn marquee_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
             Some(Hold::Marquee { from }) => {
                 let square = ui.input(|i| i.modifiers.shift);
                 let drawn = geom::drawn(Kind::Rect, *from, view.doc(s, w.doc.angle), w.doc.angle, crate::edit::doc::Style::default(), square);
-                w.marquee = drawn.and_then(|o| if let Shape::Rect(a) = o.shape { Some(a) } else { None });
+                // On whole pixels, as Copy takes it.
+                let size = if let Some(Ok((o, ..))) = &w.original { Some((o.image.width(), o.image.height())) } else { None };
+                let a = drawn.and_then(|o| if let Shape::Rect(a) = o.shape { Some(a) } else { None });
+                w.marquee = a.map(|a| size.map_or(a, |s| w.doc.on_pixels(a, s)));
             }
             Some(Hold::Pan { at, k, from }) => w.view = Some((*at - (s - *from) / *k, *k)),
             _ => {}
@@ -512,6 +530,28 @@ fn marquee_mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view:
     if response.hovered() {
         wheel(ui, w, view, rect, false);
     }
+}
+
+/// The selected pasted piece, its turn handle on the screen and the middle of its top side.
+fn turn_handle(w: &Window, view: &View) -> Option<(usize, Pos2, Pos2)> {
+    let i = w.selected?;
+    let Shape::Patch { area, .. } = &w.doc.objects.get(i)?.shape else { return None };
+    let at = |reach| view.of(patch::turn_handle(area, reach), w.doc.angle);
+    Some((i, at(super::patch::REACH / view.k), at(0.0)))
+}
+
+/// The selected pasted piece when its turn handle is within reach of `s`.
+fn turn_at(w: &Window, view: &View, s: Pos2) -> Option<usize> {
+    turn_handle(w, view).filter(|(_, at, _)| at.distance(s) <= GRAB).map(|(i, ..)| i)
+}
+
+/// The piece as the turn started, its handle dragged to `p` (`edit::patch::turned_to`).
+fn turned_piece(start: &Obj, p: Pt, angle: f32, snap: bool) -> Obj {
+    let mut o = start.clone();
+    if let Some(a) = o.shape.area_mut() {
+        a.rot = patch::turned_to(a, p, angle, snap);
+    }
+    o
 }
 
 /// The selected object and its corner or end within reach of `s`, if any.
@@ -542,7 +582,7 @@ fn clicked(w: &mut Window, p: Pt, tol: f32) {
     w.drop_empty_texts();
     // With a drawing tool a click selects only an object of its own kind (its style in the bar);
     // anywhere else it places what the tool places (a text, a step, a stamp). Picking any object,
-    // of any kind, is Select's (user, 2026-11-06: the second step, clicked where a line drawn
+    // of any kind, is Select's (the second step, clicked where a line drawn
     // by hand passed, selected the line; it chose any object's tool before).
     let under = match w.tool {
         Tool::Draw(kind) => geom::under_of(&w.doc.objects, p, tol, kind),

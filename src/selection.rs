@@ -4,7 +4,7 @@
 use crate::{App, Focus, source};
 
 /// What a file is, for the menus: each entry works on some kinds, and only on those files of a
-/// mixed selection (user, 2026-11-02).
+/// mixed selection.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub(crate) enum Kind {
     Picture,
@@ -12,10 +12,15 @@ pub(crate) enum Kind {
     Audio,
     Model,
     Drawing,
+    /// Chosen together with files: no entry for files works on it, it is left out as the other
+    /// kinds are ("*", and named in the message at the end).
+    Folder,
 }
 
 pub(crate) fn kind(path: &str) -> Kind {
-    if crate::decode::is_video(path) {
+    if path.ends_with('/') {
+        Kind::Folder
+    } else if crate::decode::is_video(path) {
         Kind::Video
     } else if crate::decode::is_audio(path) {
         Kind::Audio
@@ -30,13 +35,62 @@ pub(crate) fn kind(path: &str) -> Kind {
 
 /// The kinds each entry works on.
 pub(crate) const PLAYED: &[Kind] = &[Kind::Picture, Kind::Video];
-pub(crate) const THUMBED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Model, Kind::Drawing];
+/// Convert…: audio files too (#120).
+pub(crate) const CONVERTED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Audio];
+/// Every kind has a thumbnail: an audio file its cover (or the note).
+pub(crate) const THUMBED: &[Kind] = &[Kind::Picture, Kind::Video, Kind::Audio, Kind::Model, Kind::Drawing];
+
+/// Copy with the metadata…: videos only, a picture already keeps its metadata in its own file.
+pub(crate) const META_COPIED: &[Kind] = &[Kind::Video];
+
+/// What Save as… saves from the grid (in the viewer also what a 3D model or a drawing shows).
+pub(crate) const SAVED_AS: &[Kind] = &[Kind::Picture, Kind::Model, Kind::Drawing];
 
 /// How an entry fits the files chosen: on none of them (`None`: not shown), on all, or on some
 /// (`Some(false)`: marked with "*").
 pub(crate) fn fits(files: &[String], kinds: &[Kind]) -> Option<bool> {
     let n = files.iter().filter(|p| kinds.contains(&kind(p))).count();
     (n > 0).then_some(n == files.len())
+}
+
+/// The `files` of `kinds`, and the others.
+pub(crate) fn split(files: Vec<String>, kinds: &[Kind]) -> (Vec<String>, Vec<String>) {
+    files.into_iter().partition(|p| kinds.contains(&kind(p)))
+}
+
+/// Why an entry is greyed out when none of the files chosen is of its kinds (Fluent id).
+pub(crate) fn none_of(kinds: &[Kind]) -> &'static str {
+    match kinds {
+        [Kind::Picture] => "off-no-picture",
+        [Kind::Video] => "off-no-video",
+        [Kind::Model] => "off-no-model",
+        [Kind::Drawing] => "off-no-drawing",
+        [Kind::Picture, Kind::Video] => "off-no-played",
+        [Kind::Picture, Kind::Video, Kind::Audio] => "off-no-converted",
+        _ => "off-no-kind",
+    }
+}
+
+/// Why the entry `label` (Fluent id) is greyed out when none of the files chosen is of its
+/// `kinds`: its own reason when it has one, otherwise `none_of`.
+pub(crate) fn why_none(label: &str, kinds: &[Kind]) -> &'static str {
+    match label {
+        "menu-copy-meta" => "off-copy-meta-no-video",
+        _ => none_of(kinds),
+    }
+}
+
+/// A file (or folder) left out of a work on `kinds`, in the message at the end (Fluent id,
+/// `$detail` = its name).
+pub(crate) fn left_out_id(kinds: &[Kind], path: &str) -> &'static str {
+    match kinds {
+        _ if kind(path) == Kind::Folder => "skip-folder",
+        [Kind::Picture] => "skip-not-picture",
+        [Kind::Video] => "skip-not-video",
+        [Kind::Drawing] => "skip-not-drawing",
+        [Kind::Picture, Kind::Video, Kind::Audio] => "skip-not-converted",
+        _ => "skip-not-played",
+    }
 }
 
 /// How the flips and turns of the Image menu (and their keys and toolbar buttons) fit: in the
@@ -49,18 +103,41 @@ pub(crate) fn turn_fit(viewing_photo: Option<bool>, grid: &[String]) -> Option<b
     }
 }
 
+/// What a quarter turn (`op`) works on: a picture, or a video whose container keeps a rotation.
+pub(crate) fn turned(path: &str, op: crate::transform::Op) -> bool {
+    crate::decode::is_image(path) || crate::video_turn::turned_by(path, op)
+}
+
+/// How a quarter turn fits the files chosen in the grid, as `fits`: only on what it turns, so an
+/// AVI alone greys it out instead of leaving it on with nothing to do.
+pub(crate) fn turned_fit(files: &[String], op: crate::transform::Op) -> Option<bool> {
+    let n = files.iter().filter(|p| turned(p, op)).count();
+    (n > 0).then_some(n == files.len())
+}
+
 /// The label of an entry, with "*" when it works on only some of the files chosen.
 pub(crate) fn starred(label: String, all: bool) -> String {
     if all { label } else { format!("{label} *") }
 }
 
 impl App {
-    /// The files an action works on: the one in the viewer, or `grid_items`.
+    /// The files an action works on: the one in the viewer, or `grid_chosen` (with the folders,
+    /// which the entries count as left out).
     pub(crate) fn files_chosen(&self, path: Option<String>) -> Vec<String> {
         if self.viewing.is_some() {
             return path.or_else(|| self.target()).into_iter().collect();
         }
-        self.grid_items(path)
+        self.grid_chosen(path)
+    }
+
+    /// What Save as… works on: in the viewer the file shown (`path`), in the grid the one file
+    /// of `SAVED_AS` among those chosen (a folder or a video next to it is left out, "*").
+    pub(crate) fn save_as_target(&self, path: Option<String>) -> Option<String> {
+        if self.viewing.is_some() {
+            return path;
+        }
+        let mut files = self.grid_of(path.clone(), SAVED_AS);
+        if files.len() == 1 { files.pop() } else { path }
     }
 
     /// The files of `grid_items` of these kinds.
@@ -68,17 +145,42 @@ impl App {
         self.grid_items(path).into_iter().filter(|p| kinds.contains(&kind(p))).collect()
     }
 
-    /// `turn_fit` for what is in front: the Image menu, the toolbar and Ctrl+R agree.
-    pub(crate) fn turns_fit(&self) -> Option<bool> {
-        turn_fit(self.viewing.map(|_| self.viewing_photo()), &self.grid_items(None))
+    /// As `turns_fit`, for one flip or turn: the quarter turns work on videos too (#125).
+    pub(crate) fn turn_fits(&self, op: crate::transform::Op) -> Option<bool> {
+        if !crate::video_turn::turns_videos(op) {
+            return self.turns_fit();
+        }
+        let shown = self.target().filter(|p| !source::in_trash(p));
+        match self.viewing {
+            Some(_) => shown.filter(|p| turned(p, op)).map(|_| true),
+            None => turned_fit(&self.grid_chosen(None), op),
+        }
     }
 
-    /// The images and videos (not folders) an action on `path` in the grid works on, as `chosen`.
+    /// The files a flip or a turn in the grid works on: pictures, and videos for the quarter turns.
+    pub(crate) fn grid_turned(&self, path: Option<String>, op: crate::transform::Op) -> Vec<String> {
+        self.grid_items(path).into_iter().filter(|p| turned(p, op)).collect()
+    }
+
+    /// `turn_fit` for what is in front: the Image menu, the toolbar and Ctrl+R agree.
+    /// Not a file in a trash (a turn there would be saved over it).
+    pub(crate) fn turns_fit(&self) -> Option<bool> {
+        let photo = || self.viewing_photo() && !self.target().is_some_and(|p| source::in_trash(&p));
+        turn_fit(self.viewing.map(|_| photo()), &self.grid_chosen(None))
+    }
+
+    /// The files (not folders) an action on `path` in the grid works on, as `chosen`.
     pub(crate) fn grid_items(&self, path: Option<String>) -> Vec<String> {
+        self.grid_chosen(path).into_iter().filter(|p| !p.ends_with('/')).collect()
+    }
+
+    /// As `grid_items`, with the folders chosen: an entry for some kinds of file counts them among
+    /// the items left out ("*"), and a work names them in its message.
+    pub(crate) fn grid_chosen(&self, path: Option<String>) -> Vec<String> {
         if self.viewing.is_some() {
             return Vec::new();
         }
-        self.chosen(path).into_iter().filter(|p| !p.ends_with('/') && !source::in_trash(p)).collect()
+        self.chosen(path).into_iter().filter(|p| !source::in_trash(p)).collect()
     }
 
     /// As `grid_items`, pictures only (no videos, audio, 3D models or CAD drawings): for the image edits.
@@ -102,7 +204,7 @@ impl App {
 
     /// Never the root of the source, nor the storages of a phone.
     pub(crate) fn can_change(&self, path: &str) -> bool {
-        !path.is_empty() && !(self.base.starts_with("mtp://") && path.ends_with('/') && source::parent(path).is_empty())
+        can_change_in(&self.base, path)
     }
 
     /// Path of a grid item (folders first, then images).
@@ -144,6 +246,11 @@ impl App {
     }
 }
 
+/// `App::can_change` for the place `base` (the editor's, which may no longer be the grid's).
+pub(crate) fn can_change_in(base: &str, path: &str) -> bool {
+    !path.is_empty() && !(base.starts_with("mtp://") && path.ends_with('/') && source::parent(path).is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -157,8 +264,61 @@ mod tests {
         assert_eq!(fits(&mixed, PLAYED), Some(false));
         assert_eq!(fits(&mixed, &[Kind::Drawing]), None);
         assert_eq!(fits(&files[..2], PLAYED), Some(true));
-        assert_eq!(fits(&files[4..], THUMBED), None);
+        // Redo thumbnails also on an audio file, whose cover is its thumbnail.
+        assert_eq!(fits(&files[4..], THUMBED), Some(true));
+        assert_eq!(fits(&files, THUMBED), Some(true));
         assert_eq!(starred("Copy".into(), false), "Copy *");
+        // Why an entry is off, and why a file was left out, said in both languages.
+        for code in ["en", "it"] {
+            let i18n = crate::i18n::I18n::new(code);
+            for kinds in [&[Kind::Picture][..], &[Kind::Video], &[Kind::Model], &[Kind::Drawing], PLAYED, CONVERTED, THUMBED] {
+                for id in [none_of(kinds), left_out_id(kinds, "a.wav"), left_out_id(kinds, "dir/")] {
+                    assert_ne!(i18n.t(id), id, "{code}: {id}");
+                }
+            }
+        }
+        assert_eq!(none_of(PLAYED), "off-no-played");
+    }
+
+    /// Copy with the metadata: greyed out with its own reason on pictures only (also a motion
+    /// photo, a JPEG) and on audio files, "*" with a picture next to a video.
+    #[test]
+    fn copy_meta_fits_the_videos() {
+        let files: Vec<String> = ["a.jpg", "b.MP4", "c.mov", "d.mp3", "e/", "f.MP.jpg"].map(String::from).to_vec();
+        assert_eq!(fits(&files[..1], META_COPIED), None);
+        assert_eq!(fits(&files[5..], META_COPIED), None);
+        assert_eq!(fits(&files[3..4], META_COPIED), None);
+        assert_eq!(fits(&files[1..3], META_COPIED), Some(true));
+        assert_eq!(fits(&files[..2], META_COPIED), Some(false));
+        assert_eq!(fits(&files[2..5], META_COPIED), Some(false));
+        assert_eq!(why_none("menu-copy-meta", META_COPIED), "off-copy-meta-no-video");
+        // The other video entries keep the common reason.
+        assert_eq!(why_none("menu-strip-audio", &[Kind::Video]), "off-no-video");
+        assert_eq!(why_none("menu-batch", CONVERTED), "off-no-converted");
+        // The pictures and the audio files chosen with videos are left out, and named so.
+        let (videos, out) = split(files.clone(), META_COPIED);
+        assert_eq!((videos.len(), out.len()), (2, 4));
+        assert_eq!(left_out_id(META_COPIED, "a.jpg"), "skip-not-video");
+        for code in ["en", "it"] {
+            let i18n = crate::i18n::I18n::new(code);
+            assert_ne!(i18n.t("off-copy-meta-no-video"), "off-copy-meta-no-video", "{code}");
+        }
+    }
+
+    #[test]
+    fn folders_chosen_with_files_are_left_out() {
+        let chosen: Vec<String> = ["photos/", "a.jpg", "b.mp4"].map(String::from).to_vec();
+        assert_eq!(kind("photos/"), Kind::Folder);
+        // A folder is of no kind an entry works on: "*" with the files, greyed out alone.
+        assert_eq!(fits(&chosen, PLAYED), Some(false));
+        assert_eq!(fits(&chosen[1..], PLAYED), Some(true));
+        assert_eq!(fits(&chosen[..1], THUMBED), None);
+        assert_eq!(turn_fit(None, &chosen[..2]), Some(false));
+        // Left out of a work, and named so in its message.
+        let (files, out) = split(chosen, PLAYED);
+        assert_eq!((files.len(), out), (2, vec!["photos/".to_string()]));
+        assert_eq!(left_out_id(PLAYED, "photos/"), "skip-folder");
+        assert_eq!(left_out_id(PLAYED, "c.stl"), "skip-not-played");
     }
 
     #[test]
@@ -172,5 +332,13 @@ mod tests {
         assert_eq!(turn_fit(None, &grid[..1]), Some(true));
         assert_eq!(turn_fit(None, &grid[1..]), None);
         assert_eq!(turn_fit(None, &[]), None);
+        // A quarter turn: on the videos that keep a rotation, not on an AVI (#125).
+        let cw = crate::transform::Op::Cw;
+        let files: Vec<String> = ["a.jpg", "b.mp4", "c.avi", "d/"].map(String::from).to_vec();
+        assert_eq!(turned_fit(&files[1..2], cw), Some(true));
+        assert_eq!(turned_fit(&files[..2], cw), Some(true));
+        assert_eq!(turned_fit(&files[..3], cw), Some(false));
+        assert_eq!(turned_fit(&files[2..3], cw), None);
+        assert_eq!(turned_fit(&files[2..], cw), None);
     }
 }

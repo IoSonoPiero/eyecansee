@@ -13,11 +13,14 @@ repository = "https://github.com/IoSonoPiero/eyecansee"
 default = ["heif", "magick"]
 heif = ["dep:libheif-rs"]
 magick = ["dep:magick_rust"]
-# The pictures of the illustrated manual, taken by the app itself (src/shots.rs, tools/shots.sh).
+# The pictures of the illustrated guide, taken by the app itself (src/shots.rs, tools/shots.sh).
 shots = []
 # The private test copy: red icon, its own folders, no updates (src/test_copy.rs). Never in a
 # public package: build.rs refuses it on GitHub Actions.
 test-copy = []
+# The Fedora package (eyecansee.spec): updated by the system, so the app neither checks for
+# updates nor shows that option, and says how dnf or rpm-ostree updates it (src/update.rs).
+rpm = []
 
 [dependencies]
 bytes = "1.12.1"
@@ -120,7 +123,7 @@ earcutr = "0.5.0"
 
 [target."cfg(windows)".dependencies]
 # Drives (C:, D:, …): type, label and bus (USB/SD = external) for "This computer" and Devices.
-windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Graphics_Gdi", "Win32_Security", "Win32_Storage_FileSystem", "Win32_Storage_Packaging_Appx", "Win32_System_IO", "Win32_System_Ioctl", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_UI_WindowsAndMessaging"] }
+windows-sys = { version = "0.61.2", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_Security", "Win32_Storage_FileSystem", "Win32_Storage_Packaging_Appx", "Win32_System_IO", "Win32_System_Ioctl", "Win32_System_LibraryLoader", "Win32_System_Registry", "Win32_UI_WindowsAndMessaging"] }
 # The Microsoft Store copy asks the Store for a newer version (StoreContext); already built by eframe's accesskit.
 windows = { version = "0.62.2", features = ["ApplicationModel", "Foundation_Collections", "Services_Store"] }
 
@@ -135,6 +138,9 @@ libc = "0.2"
 # The editor's eyedropper on the whole screen, through the desktop's portal (eyedropper.rs);
 # already built for the accessibility of egui (accesskit), with the same features.
 zbus = { version = "5.19.0", default-features = false, features = ["async-io"] }
+# Whether the clipboard goes through X11, as arboard decides it (edit/clip_limit.rs); already built
+# for arboard, with the same (no) features.
+wl-clipboard-rs = "0.9.4"
 
 # Functions longer than the limit in clippy.toml fail the check (check.yml runs clippy with -D warnings).
 [lints.clippy]
@@ -159,7 +165,8 @@ incremental = true
 
 # magick_rust 2.1.1 imports ResourceType only on Linux and macOS, so it does not build on Windows.
 # avif-serialize 0.8.9 and ravif 0.13.0 write no colour profile and no XMP: the copies in vendor/ add
-# them (`colr` of type `prof`, a `mime` item), proposed to their author (notes/bozze/avif-serialize-pr.md).
+# them (`colr` of type `prof`, a `mime` item); upstream: https://github.com/kornelski/cavif-rs/issues/15.
+# Once the published versions have both, these two copies and their lines below can go.
 [patch.crates-io]
 magick_rust = { path = "vendor/magick_rust" }
 avif-serialize = { path = "vendor/avif-serialize" }

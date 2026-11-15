@@ -371,10 +371,15 @@ mod tests {
         assert_eq!(owner("d/", &new, &HashSet::from([long.clone()])), Some(long.clone()));
         assert_eq!(owner("d/", &new, &HashSet::new()), None);
 
-        let dir = std::env::temp_dir().join(format!("eyecansee-hidden-names-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
+        // In a folder of its own, as `recover_leftovers`: `SAVING` is shared by the tests running in
+        // parallel and holds paths without their store, and `long_name_replaced` saves the same
+        // long name at the root of its own folder: listed at the root, the cut new file was left
+        // alone whenever that save was running (failed once in a full run, 2026-11-14).
+        let root = std::env::temp_dir().join(format!("eyecansee-hidden-names-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&root);
+        let dir = root.join("hidden-names");
         std::fs::create_dir_all(&dir).unwrap();
-        let w =|n: &str, b: &[u8]| std::fs::write(dir.join(n), b).unwrap();
+        let w = |n: &str, b: &[u8]| std::fs::write(dir.join(n), b).unwrap();
         w(&long, b"image");
         w(&new, b"half");
         w(&old, b"original");
@@ -384,8 +389,8 @@ mod tests {
         w(".d.jpg.eyecansee-old", b"d");
         w(".e.jpg.eyecansee-new", b"half");
         w(".e.jpg.eyecansee-old", b"e");
-        let op = Store::Dal(Operator::new(services::Fs::default().root(&dir.to_string_lossy())).unwrap());
-        rt_list(&op);
+        let op = Store::Dal(Operator::new(services::Fs::default().root(&root.to_string_lossy())).unwrap());
+        rt_list(&op, "hidden-names/");
         let mut left: Vec<String> = std::fs::read_dir(&dir).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
         left.sort();
         let mut want = vec![old.clone(), "b.jpg".into(), "c.jpg".into(), "d.jpg".into(), "e.jpg".into(), long.clone()];
@@ -393,11 +398,11 @@ mod tests {
         assert_eq!(left, want);
         assert_eq!(std::fs::read(dir.join("b.jpg")).unwrap(), b"whole");
         assert_eq!(std::fs::read(dir.join("e.jpg")).unwrap(), b"e");
-        std::fs::remove_dir_all(&dir).unwrap();
+        std::fs::remove_dir_all(&root).unwrap();
     }
 
-    fn rt_list(op: &Store) {
-        tokio::runtime::Runtime::new().unwrap().block_on(op.list("")).unwrap();
+    fn rt_list(op: &Store, dir: &str) {
+        tokio::runtime::Runtime::new().unwrap().block_on(op.list(dir)).unwrap();
     }
 
     /// Android's trash: hidden ".trashed-<seconds>-<name>" files, shown in the folder's trash

@@ -18,7 +18,8 @@ type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 // ponytail: 8192 is supported by any recent GPU; viewing larger photos at 100% needs tiling
 const MAX_SIDE: u32 = 8192;
 
-/// Vector images without a useful size (24 px icons) are rasterised at this long side.
+/// Every vector image (SVG) is rasterised at this long side, whatever size it declares: a 24 px
+/// icon and a 10000 px poster alike (the file's own size is in `svg_header`).
 const SVG_SIDE: f32 = 2048.0;
 
 const HEIF: &[&str] = &["heic", "heif", "hif", "avif"];
@@ -33,11 +34,12 @@ const EXTRA: &[&str] = &[
 const JPEG2000: &[&str] = &["jp2", "j2k", "j2c", "jpf", "jpx"];
 
 /// Extensions of formats that `image` reads under another name: cursors are icons, MPO
-/// (multi-picture) and JPS (stereo) start with an ordinary JPEG, which is the one shown.
+/// (multi-picture) and JPS (stereo) start with an ordinary JPEG, which is the one shown, and
+/// `.jpe` is a JPEG (`.jfif` `image` knows already).
 fn image_alias(ext: &str) -> &str {
     match ext {
         "cur" => "ico",
-        "mpo" | "jps" => "jpg",
+        "mpo" | "jps" | "jpe" => "jpg",
         e => e,
     }
 }
@@ -175,17 +177,29 @@ fn run(kind: Kind, bytes: &[u8], name: &str) -> Result<DynamicImage> {
 
 /// Image for the viewer, scaled down only beyond the texture limit.
 /// JPEGs go through libjpeg-turbo, ~18% faster than `image` (measured on UHD photos); the formats
-/// it does not decode to RGB (CMYK) fall back to `image`.
+/// it does not decode to RGB (CMYK) fall back to `image`. Its `source_size` is the picture's own
+/// size, upright: before it was reduced, and for an SVG the size it declares (`own_size`).
 pub fn decode(bytes: &[u8], name: &str) -> std::result::Result<ColorImage, String> {
     let turbo = bytes.starts_with(&[0xFF, 0xD8, 0xFF]).then(|| jpeg_scaled(bytes, u32::MAX).ok()).flatten();
     let mut img = match turbo {
         Some(img) => img,
         None => decode_any(bytes, name)?,
     };
+    let svg = (kind(name) == Some(Kind::Svg)).then(|| svg_header(bytes)).flatten();
+    let [w, h] = svg.map_or([img.width(), img.height()], |h| h.size);
     if img.width().max(img.height()) > MAX_SIDE {
         img = img.resize(MAX_SIDE, MAX_SIDE, FilterType::Triangle);
     }
-    Ok(to_color_image(img))
+    let mut image = to_color_image(img);
+    image.source_size = eframe::egui::vec2(w as f32, h as f32);
+    Ok(image)
+}
+
+/// The own size of a picture `decode` made, when it is not the size it is shown at (a picture
+/// larger than the texture limit, an SVG): what the status bar says, as the metadata panel.
+pub fn own_size(image: &ColorImage) -> Option<[u32; 2]> {
+    let own = [image.source_size.x.round() as u32, image.source_size.y.round() as u32];
+    (own != [image.size[0] as u32, image.size[1] as u32]).then_some(own)
 }
 
 /// Thumbnail for the grid, long side at most `side`.
@@ -193,22 +207,29 @@ pub fn decode(bytes: &[u8], name: &str) -> std::result::Result<ColorImage, Strin
 /// was 80% of the time.
 // ponytail: other formats are decoded in full; embedded previews of RAW and HEIC when needed
 pub fn thumbnail(bytes: &[u8], name: &str, side: u32) -> std::result::Result<DynamicImage, String> {
+    thumbnail_sized(bytes, name, side).map(|(img, _)| img)
+}
+
+/// As `thumbnail`, with the picture's own size (upright) when it was decoded whole to make it: a
+/// rare format whose header `header` cannot read (an SGI, a PCX…) has it only from there (#139).
+pub fn thumbnail_sized(bytes: &[u8], name: &str, side: u32) -> std::result::Result<(DynamicImage, Option<[u32; 2]>), String> {
     if crate::model::is_model(name) {
-        return model_picture(bytes, name, side, side * 3 / 4);
+        return model_picture(bytes, name, side, side * 3 / 4).map(|img| (img, None));
     }
     if crate::cad::is_cad(name) {
-        return cad_picture(bytes, name, side);
+        return cad_picture(bytes, name, side).map(|img| (img, None));
     }
     // Lossless JPEGs cannot be scaled while decoded: at full size instead.
     let small = bytes.starts_with(&[0xFF, 0xD8, 0xFF]).then(|| jpeg_scaled(bytes, side).or_else(|_| jpeg_scaled(bytes, u32::MAX)).ok()).flatten();
-    let mut img = match small {
-        Some(img) => img,
-        None => decode_any(bytes, name)?,
+    let (mut img, whole) = match small {
+        Some(img) => (img, false),
+        None => (decode_any(bytes, name)?, true),
     };
+    let own = whole.then(|| [img.width(), img.height()]);
     if img.width().max(img.height()) > side {
         img = img.thumbnail(side, side);
     }
-    Ok(img)
+    Ok((img, own))
 }
 
 /// For showing an image already decoded: scaled down only beyond the texture limit, as `decode`.
@@ -725,12 +746,47 @@ mod tests {
         assert_eq!(decode_any(&psd(16), "x.psd").unwrap().to_rgba8().get_pixel(1, 1), &image::Rgba([10, 20, 30, 255]));
     }
 
+    /// A picture beyond the texture limit is shown reduced and says its own size (the status bar
+    /// showed the reduced one). A small one is shown as it is.
+    #[test]
+    fn own_size_of_reduced() {
+        let png = |w, h| {
+            let mut v = Vec::new();
+            image::DynamicImage::ImageRgb8(image::RgbImage::new(w, h)).write_to(&mut std::io::Cursor::new(&mut v), image::ImageFormat::Png).unwrap();
+            v
+        };
+        let big = decode(&png(8200, 4), "big.png").unwrap();
+        assert_eq!(big.size[0], 8192);
+        assert_eq!(own_size(&big), Some([8200, 4]));
+        assert_eq!(own_size(&decode(&png(30, 20), "small.png").unwrap()), None);
+    }
+
+    /// What the guide's known limits say: of an animation and of a TIFF with more pages the
+    /// viewer shows only the first frame or page.
+    #[test]
+    fn first_frame_only() {
+        use eframe::egui::Color32;
+        let (red, blue) = (image::Rgba([255, 0, 0, 255]), image::Rgba([0, 0, 255, 255]));
+        let mut gif = Vec::new();
+        let frame = |c| image::Frame::new(image::RgbaImage::from_pixel(4, 4, c));
+        image::codecs::gif::GifEncoder::new(&mut gif).encode_frames([frame(red), frame(blue)]).unwrap();
+        let first = decode(&gif, "a.gif").unwrap().pixels[0];
+        assert!(first.r() > 200 && first.b() < 50, "{first:?}");
+        let mut tiff = Vec::new();
+        let mut enc = tiff::encoder::TiffEncoder::new(std::io::Cursor::new(&mut tiff)).unwrap();
+        for c in [[255u8, 0, 0], [0, 0, 255]] {
+            enc.write_image::<tiff::encoder::colortype::RGB8>(4, 4, &c.repeat(16)).unwrap();
+        }
+        assert_eq!(decode(&tiff, "a.tif").unwrap().pixels[0], Color32::RED);
+    }
+
     #[test]
     fn decoders() {
         assert!(is_image("a.JXL") && is_image("c.CR3"));
         assert!(kind("a.SRF") == Some(Kind::Raw) && kind("b.sr2") == Some(Kind::Raw) && kind("c.x3f") == Some(Kind::Raw));
         assert_eq!(is_image("b.heic"), cfg!(feature = "heif"));
         assert!(is_image("d.psd") && is_image("g.pcx") && is_image("h.jp2") && is_image("i.cur"));
+        assert!(is_image("j.jfif") && is_image("k.JPE"));
         assert_eq!(is_image("d.xcf"), cfg!(feature = "magick"));
         assert!(!is_image("e.txt") && !is_image("f.pdf") && !is_image("no_extension"));
         assert!(is_video("a.MP4") && is_media("b.mov") && !is_image("c.mkv") && !is_video("d.ts") && !is_video("e.jpg"));
@@ -739,6 +795,8 @@ mod tests {
         let svg_src = br#"<svg xmlns="http://www.w3.org/2000/svg" width="20" height="10"><rect width="20" height="10" fill="red"/></svg>"#;
         let img = decode(svg_src, "x.svg").unwrap();
         assert_eq!(img.size, [2048, 1024]);
+        // The status bar says the SVG's own size, as the metadata panel.
+        assert_eq!(own_size(&img), Some([20, 10]));
         assert_eq!(img.pixels[0], eframe::egui::Color32::RED);
         // Its own size in the metadata panel, not the one it is drawn at; no colour model.
         let h = header(svg_src, "x.svg").unwrap();

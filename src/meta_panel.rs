@@ -59,15 +59,25 @@ impl App {
         // one line), it shrank and grew back at every click and the grid above jumped.
         // It starts again from its content when a box is opened or closed (`show_meta`).
         // Only the boxes are measured: the whole panel includes the title bar and grew at every frame.
+        // A video or an audio file without the video engine: no box but File has anything, so
+        // the note once beside it, not repeated in every box.
+        let played = file.as_ref().is_some_and(|(_, f)| crate::decode::is_played(&f.path));
+        let alone = matches!(meta, Some(Err(_))) && played && !crate::mpv::available();
         let meta = meta.and_then(|m| m.ok().flatten());
         let mut close = None;
         let min_height = self.meta_height;
         let boxes = ScrollArea::horizontal().show(ui, |ui| {
             ui.set_min_height(min_height);
             ui.horizontal_top(|ui| {
-                for g in Group::ALL.into_iter().filter(|&g| self.meta_shown(g)) {
+                for g in boxes(alone, |g| self.meta_shown(g)) {
                     egui::Frame::group(ui.style()).show(ui, |ui| ui.vertical(|ui| {
                         self.meta_box(ui, g, file.as_ref().map(|(_, f)| f), meta.as_ref(), &note, &mut close);
+                    }));
+                }
+                if alone {
+                    egui::Frame::group(ui.style()).show(ui, |ui| ui.vertical(|ui| {
+                        ui.set_width(NOTE_WIDTH);
+                        ui.add(egui::Label::new(&note).wrap());
                     }));
                 }
             });
@@ -159,14 +169,41 @@ impl App {
     }
 
     /// Tooltip of a file of the grid (`file`: index among the images): the File box's lines, the
-    /// pixels only if its metadata were already read (no file is read for a tooltip).
-    pub(crate) fn file_tooltip(&self, file: usize) -> String {
-        let Some(f) = self.files().get(file) else { return String::new() };
+    /// pixels only if its metadata were already read (no file is read for a tooltip). Two columns
+    /// (#118): the labels in bold and right-aligned, so every value starts at the same place.
+    pub(crate) fn file_tooltip(&self, ui: &mut Ui, file: usize) {
+        let Some(f) = self.files().get(file) else { return };
         let meta = match &self.meta {
             Some((i, Ok(Some(m)))) if *i == file => Some(m),
             _ => None,
         };
-        file_hint(&self.i18n, f, meta)
+        let mut rows = file_hint(&self.i18n, f, meta);
+        // What the grid read for the line under the thumbnail (#139): the size in pixels if the
+        // metadata are not read yet, and the date inside the file beside the file's own date.
+        if let Some(info) = self.thumb_infos.get(&f.path) {
+            let pixels = self.i18n.t("meta-pixels");
+            if let Some([w, h]) = info.pixels.filter(|_| !rows.iter().any(|(l, _)| *l == pixels)) {
+                rows.push((pixels, format!("{w} × {h}")));
+            }
+            if let Some(taken) = &info.taken {
+                let label = if crate::decode::is_played(&f.path) { "tip-recorded" } else { "tip-taken" };
+                let at = rows.iter().position(|(l, _)| *l == self.i18n.t("meta-file-date")).map_or(rows.len(), |i| i + 1);
+                rows.insert(at, (self.i18n.t(label), self.meta_value("meta-taken", taken)));
+            }
+        }
+        let font = egui::FontId::new(egui::TextStyle::Body.resolve(ui.style()).size, egui::FontFamily::Name(crate::fonts::BOLD.into()));
+        let color = ui.visuals().text_color();
+        // The labels' column as wide as the longest label, each one right-aligned in it.
+        let size = rows.iter().map(|(label, _)| ui.painter().layout_no_wrap(label.clone(), font.clone(), color).size()).fold(egui::Vec2::ZERO, egui::Vec2::max);
+        egui::Grid::new("file-tooltip").num_columns(2).show(ui, |ui| {
+            for (label, value) in rows {
+                ui.allocate_ui_with_layout(size, egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                    ui.label(egui::RichText::new(label).font(font.clone()));
+                });
+                ui.label(value);
+                ui.end_row();
+            }
+        });
     }
 
     /// Status bar of the viewer, like the grid's: name, position, pixels, size on disk, date
@@ -186,7 +223,6 @@ impl App {
             ui.label(source::shown(&f.path));
             ui.separator();
             ui.label(format!("{} / {}", current + 1, files.len()));
-            // shortcut: images beyond 8192 px show the size of their scaled-down texture; the decoder would have to report the real one.
             if let Some((_, mesh)) = self.viewed_mesh() {
                 ui.separator();
                 ui.label(self.i18n.t_args("model-triangles", &[("n", &mesh.tris.len().to_string())]));
@@ -197,7 +233,7 @@ impl App {
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
             } else if crate::cad::is_cad(&f.path) {
-                // A drawing has no pixels: its own size, in its unit (user, 2026-11-02).
+                // A drawing has no pixels: its own size, in its unit.
                 for text in [self.cad_size_text(current), self.cad_sheet_name(current)].into_iter().flatten() {
                     ui.separator();
                     ui.label(text);
@@ -205,12 +241,18 @@ impl App {
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
             } else if let Some(Ok(tex)) = self.full.get(&current) {
-                let [w, h] = tex.size();
+                // Its own size, as the metadata panel: not the reduced one beyond 8192 px, nor the
+                // 2048 px an SVG is drawn at.
+                let [w, h] = self.own_sizes.get(&f.path).copied().unwrap_or_else(|| tex.size().map(|n| n as u32));
                 let (w, h) = if self.turn.sideways() { (h, w) } else { (w, h) };
                 ui.separator();
                 ui.label(self.i18n.t_args("convert-pixels", &[("w", &w.to_string()), ("h", &h.to_string())]));
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
+                if let Some(page) = self.frames_status(&f.path) {
+                    ui.separator();
+                    ui.label(page);
+                }
             }
             if let Some([w, h]) = self.video_size() {
                 ui.separator();
@@ -236,7 +278,7 @@ impl App {
                 ui.separator();
                 ui.label(date);
             }
-            // On the right, out of the way: the keys, listed when asked (user, 2026-11-02). Blue on
+            // On the right, out of the way: the keys, listed when asked. Blue on
             // white: the bar makes every text white, and the button was white on white.
             let keys = egui::Button::new(egui::RichText::new(self.i18n.t("keys-button")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
             self.keys_hint(current).map(|_| ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.add(keys)).inner)
@@ -245,7 +287,7 @@ impl App {
     }
 
     /// The keys of the viewer, one a row, over its bottom right corner above the status bar
-    /// (`bar`: its height): in place of a band whose letters got smaller to fit (user, 2026-11-02).
+    /// (`bar`: its height): in place of a band whose letters got smaller to fit.
     pub(crate) fn keys_window(&self, ctx: &egui::Context, id: &str, bar: f32) {
         let text = self.i18n.t(id);
         egui::Area::new(egui::Id::unique("viewer-keys")).order(egui::Order::Foreground).anchor(Align2::RIGHT_BOTTOM, vec2(-8.0, -bar - 8.0)).show(ctx, |ui| {
@@ -253,7 +295,7 @@ impl App {
                 ui.label(egui::RichText::new(self.i18n.t("keys-button")).strong().size(16.0));
                 ui.separator();
                 // A row for each key, in alternating stripes, so a key stays with what it does. The
-                // dark theme's stripe was the popup's own grey, the light one too faint (user, 2026-11-02).
+                // dark theme's stripe was the popup's own grey, the light one too faint.
                 ui.visuals_mut().faint_bg_color = if ui.visuals().dark_mode { Color32::from_gray(60) } else { Color32::from_gray(228) };
                 egui::Grid::new("viewer-keys-grid").num_columns(2).spacing([18.0, 6.0]).striped(true).show(ui, |ui| {
                     for (keys, what) in key_rows(&text) {
@@ -267,7 +309,7 @@ impl App {
     }
 
     /// The keys of the file shown (a 3D model, a CAD drawing, a video or sound, an image): the
-    /// Fluent id of their list (`keys_window`). Images too (user, 2026-11-06: only the 3D and CAD
+    /// Fluent id of their list (`keys_window`). Images too (only the 3D and CAD
     /// viewers had the button).
     pub(crate) fn keys_hint(&self, current: usize) -> Option<&'static str> {
         if self.viewed_mesh().is_some() {
@@ -295,6 +337,15 @@ impl App {
     }
 }
 
+/// Width of the note that stands for the boxes without data (two boxes and the gap between).
+const NOTE_WIDTH: f32 = 512.0;
+
+/// The boxes drawn, those not closed (`shown`); `alone`: only File, the others have nothing to
+/// show and one note says why (the video engine missing).
+fn boxes(alone: bool, shown: impl Fn(Group) -> bool) -> Vec<Group> {
+    Group::ALL.into_iter().filter(|&g| shown(g) && (!alone || g == Group::File)).collect()
+}
+
 /// "Wheel: zoom | Drag: move" → ("Wheel", "zoom"), ("Drag", "move"): the keys and what they do,
 /// as the `hint-*` texts write them.
 fn key_rows(text: &str) -> Vec<(&str, &str)> {
@@ -317,10 +368,9 @@ fn file_rows(i18n: &I18n, f: &source::File, meta: Option<&meta::Meta>) -> Vec<(&
     rows.into_iter().filter_map(|(label, value)| value.map(|v| (label, v))).collect()
 }
 
-/// The grid's tooltip on a file: the File box's lines, one "label: value" a line.
-fn file_hint(i18n: &I18n, f: &source::File, meta: Option<&meta::Meta>) -> String {
-    let lines: Vec<_> = file_rows(i18n, f, meta).into_iter().map(|(label, v)| format!("{}: {v}", i18n.t(label))).collect();
-    lines.join("\n")
+/// The grid's tooltip on a file: the File box's lines, as (label, value) in the interface's language.
+fn file_hint(i18n: &I18n, f: &source::File, meta: Option<&meta::Meta>) -> Vec<(String, String)> {
+    file_rows(i18n, f, meta).into_iter().map(|(label, v)| (i18n.t(label), v)).collect()
 }
 
 /// 245464190 → "245.464.190" with `sep` between the groups of three digits.
@@ -357,16 +407,28 @@ mod tests {
         use crate::meta::{Group, Meta};
         let f = crate::source::File { path: "DCIM/Camera/a rather long holiday name.jpg".into(), size: 4_089_123, modified: String::new() };
         let en = I18n::new("en");
-        assert_eq!(super::file_hint(&en, &f, None), "Name: a rather long holiday name.jpg\nSize: 3.9 MB (4,089,123 bytes)");
+        let row = |label: &str, value: &str| (label.to_string(), value.to_string());
+        assert_eq!(super::file_hint(&en, &f, None), [row("Name", "a rather long holiday name.jpg"), row("Size", "3.9 MB (4,089,123 bytes)")]);
         let meta = Meta { fields: vec![(Group::Image, "meta-width", "4000 px".into()), (Group::Image, "meta-height", "3000 px".into())], gps: None };
         let it = I18n::new("it");
         let dated = crate::source::File { modified: "1776333600".into(), ..f };
-        let lines: Vec<_> = super::file_hint(&it, &dated, Some(&meta)).lines().map(str::to_string).collect();
-        assert_eq!(lines.len(), 4, "{lines:?}");
-        assert_eq!(lines[0], "Nome: a rather long holiday name.jpg");
-        assert_eq!(lines[1], "Dimensione: 3,9 MB (4.089.123 byte)");
-        assert!(lines[2].starts_with("Data del file: ") && lines[2].contains("/2026 "), "{}", lines[2]);
-        assert_eq!(lines[3], "Pixel: 4000 × 3000 px");
+        let rows = super::file_hint(&it, &dated, Some(&meta));
+        assert_eq!(rows.len(), 4, "{rows:?}");
+        assert_eq!(rows[0], row("Nome", "a rather long holiday name.jpg"));
+        assert_eq!(rows[1], row("Dimensione", "3,9 MB (4.089.123 byte)"));
+        assert!(rows[2].0 == "Data del file" && rows[2].1.contains("/2026 "), "{:?}", rows[2]);
+        assert_eq!(rows[3], row("Pixel", "4000 × 3000 px"));
+    }
+
+    /// Without the video engine only the File box stays, if not closed: the note is said once,
+    /// not in every box.
+    #[test]
+    fn engine_note_once() {
+        use crate::meta::Group;
+        assert_eq!(super::boxes(false, |_| true), Group::ALL);
+        assert_eq!(super::boxes(true, |_| true), [Group::File]);
+        assert!(super::boxes(true, |g| g != Group::File).is_empty());
+        assert_eq!(super::boxes(false, |g| g != Group::Camera).len(), Group::ALL.len() - 1);
     }
 
     #[test]

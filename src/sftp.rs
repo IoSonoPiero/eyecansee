@@ -105,8 +105,8 @@ impl Drop for Opened {
 
 /// Tries of a request that changes nothing on the server (reads, listings, the opening of a
 /// file): the first, then on a new connection each time the one before dropped. On the link of
-/// #75 a new connection sometimes stopped again within seconds (Windows to the DS725+ through
-/// Tailscale, 2026-11-09); three tries give up after about 3 × `SILENCE`, about the 60 s of a
+/// #75 a new connection sometimes stopped again within seconds (Windows to a NAS through a VPN);
+/// three tries give up after about 3 × `SILENCE`, about the 60 s of a
 /// single wait before.
 const READ_TRIES: u32 = 3;
 
@@ -466,7 +466,7 @@ async fn open(t: &Target) -> Result<Conn, Error> {
 async fn start(handle: Handle<connect::Client>, t: &Target) -> Result<Conn, Error> {
     let detail = |e: &dyn std::fmt::Display| ("error-detail", format!("{}: {e}", t.host));
     let channel = handle.channel_open_session().await.map_err(|e| detail(&e))?;
-    // A server with SSH but no SFTP (a Synology with SFTP off) refuses here.
+    // A server with SSH but no SFTP (a NAS with SFTP off) refuses here.
     channel.request_subsystem(true, "sftp").await.map_err(|e| ("error-no-sftp", format!("{}: {e}", t.host)))?;
     let mut raw = RawSftpSession::new(channel.into_stream());
     let version = raw.init().await.map_err(|e| ("error-no-sftp", format!("{}: {e}", t.host)))?;

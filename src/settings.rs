@@ -24,6 +24,8 @@ pub struct Settings {
     pub wrap_around: bool,
     /// In the viewer the window's ✕ goes back to the grid, as Esc; otherwise it closes the app.
     pub close_to_grid: bool,
+    /// What goes under each thumbnail (#139): at first only the name.
+    pub thumb_details: crate::thumb_details::Details,
     /// The mouse wheel zooms the viewer; otherwise it changes image (Ctrl and the wheel always zoom).
     pub wheel_zoom: bool,
     /// Largest zoom in the viewer, in percent of the image's pixels.
@@ -73,6 +75,13 @@ pub struct Settings {
     pub edit_main_overwrite: bool,
     /// Bookmarks > places to go back to (`bookmarks.rs`), in the menu's order.
     pub bookmarks: Vec<crate::bookmarks::Bookmark>,
+    /// The sizes of Resize (`presets`); `None`: the first ones, named in the language shown.
+    pub resize_presets: Option<Vec<crate::presets::Preset>>,
+    /// A tip at the first start of the day (`tips`, issue #113); off from its box or Options.
+    pub tips: bool,
+    /// The tip the next start shows, and the day (since 1970, UTC) one was last shown.
+    pub tip_next: usize,
+    pub tips_day: Option<u64>,
 }
 
 /// After Save copy, Update copy or Overwrite in the editor (issue #95): the page stays open (as
@@ -200,6 +209,7 @@ impl Default for Settings {
             servers_plain_warned: false,
             wrap_around: false,
             close_to_grid: true,
+            thumb_details: Default::default(),
             wheel_zoom: true,
             // As GNOME's image viewer (Loupe).
             max_zoom: 2000,
@@ -226,13 +236,17 @@ impl Default for Settings {
             slideshow_loop: true,
             edit_styles: Vec::new(),
             edit_multiply: false,
-            // Off: Save copy and Overwrite leave the page open, as up to 0.76.0 (user, 2026-11-05
-            // and 2026-11-06); who updates does not find the editor closing without choosing it
-            // (user, 2026-11-11).
+            // Off: Save copy and Overwrite leave the page open, as up to 0.76.0; who updates
+            // does not find the editor closing without choosing it.
             edit_after_save: AfterSave::Stay,
             // Overwriting an original is the risky choice: a copy unless asked.
             edit_main_overwrite: false,
             bookmarks: Vec::new(),
+            resize_presets: None,
+            // On at the very first start, and for who updates (the key missing): issue #113.
+            tips: true,
+            tip_next: 0,
+            tips_day: None,
         }
     }
 }
@@ -312,10 +326,10 @@ mod tests {
     /// page open after saving and Save copy as the main save (issues #95, #96).
     #[test]
     fn settings_of_0_76_0_keep_the_editor_as_it_was() {
-        // Every key 0.76.0 wrote, none of the two added after it.
+        // Every key 0.76.0 wrote, none of those added after it.
         let mut old = serde_json::to_value(Settings::default()).unwrap();
         let keys = old.as_object_mut().unwrap();
-        keys.retain(|k, _| k != "edit_after_save" && k != "edit_main_overwrite");
+        keys.retain(|k, _| !["edit_after_save", "edit_main_overwrite", "resize_presets", "thumb_details", "tips", "tip_next", "tips_day"].contains(&k.as_str()));
         assert_eq!(keys.len(), 32, "the keys of 0.76.0's settings.json");
         let s: Settings = serde_json::from_value(old).unwrap();
         assert_eq!(s.edit_after_save, AfterSave::Stay, "the page stays open unless chosen");

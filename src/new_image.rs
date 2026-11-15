@@ -55,7 +55,7 @@ const PRESETS: [(&str, f32, f32, Unit); 10] = [
 ];
 
 /// No side longer, as Selection and the decoders allow.
-const MAX_SIDE: u32 = 20_000;
+pub(crate) const MAX_SIDE: u32 = 20_000;
 
 /// The size in pixels of `w` × `h` in `unit`, at `dpi` dots per inch for the units of length; at
 /// least a pixel, at most `MAX_SIDE`.

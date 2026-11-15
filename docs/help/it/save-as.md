@@ -1,6 +1,6 @@
-# Salvare in un altro formato
+# Salva come
 
-Salva un'immagine come file nuovo in un altro formato: per esempio una foto HEIC del telefono come JPEG, o un PNG come WebP più leggero. Prima di salvare vedi esattamente come sarà il file nuovo e quanto pesa. L'originale non viene mai toccato.
+Salva un'immagine come file nuovo, nel formato e nella cartella che scegli: per esempio una foto HEIC del telefono come JPEG, o un PNG come WebP più leggero. Prima di salvare vedi esattamente come sarà il file nuovo e quanto pesa. L'originale non viene mai toccato.
 
 Per convertire o ridimensionare tante immagini insieme usa [Convertire e ridimensionare le immagini](convert.md).
 
@@ -8,26 +8,31 @@ Per convertire o ridimensionare tante immagini insieme usa [Convertire e ridimen
 
 - Nella griglia seleziona un'immagine e fai clic su ![Salva come…](icon://file-output) nella barra strumenti, oppure scegli **File > Salva come…**, oppure fai clic destro sull'immagine e scegli **Salva come…**.
 - Nel visore premi **Ctrl+Maiusc+S**, o usa le stesse voci di menù. Se nel visore hai ruotato o riflesso l'immagine, viene salvata ruotata.
-- Nel visore anche un modello 3D o un disegno CAD si possono salvare come immagine, così come si vedono: un modello di almeno 1920 pixel sul lato lungo, un disegno con il layout che stai guardando. Su un modello 3D fa lo stesso anche **Ctrl+S**.
+- Anche un modello 3D o un disegno CAD si possono salvare come immagine. Nel visore così come si vedono: un modello di almeno 1920 pixel sul lato lungo, un disegno con il layout che stai guardando. Dalla griglia un modello dalla sua vista iniziale, 1920 × 1440 pixel, e un disegno intero. Se sono selezionati anche altri file, **Salva come…** è segnato con **\*** e lavora sull'unica immagine, modello o disegno tra questi. **Ctrl+S** e **File > Salva** salvano sopra l'originale, cosa che un modello o un disegno non permettono: lì sono grigi, e passando col mouse su **Salva** compare cosa usare invece.
 - Nell'editor, **Salva come…** apre questa pagina con l'immagine modificata (vedi [Salvare un'immagine modificata](editor-save.md)). Chiudendola senza salvare torni all'editor, con le modifiche.
 
-![Salvare in un altro formato](../img/save-as.webp)
+![Salva come](../img/save-as.webp)
 
 ## Che cosa mostra la pagina
 
-La pagina occupa tutta la finestra. A sinistra c'è l'originale, a destra l'immagine convertita, ciascuna con il formato, le dimensioni in pixel e il peso su disco; per quella convertita anche in percentuale dell'originale. Un'immagine nuova dell'editor non ha ancora un file, quindi il suo peso su disco e la percentuale non compaiono.
+La pagina occupa tutta la finestra. A sinistra c'è l'originale, a destra l'immagine convertita, ciascuna con il formato, le dimensioni in pixel e il peso su disco; per quella convertita anche in percentuale dell'originale. Le dimensioni in pixel dell'immagine convertita sono quelle del file che verrà scritto: scambiate dopo un quarto di giro nel visore, ridotte per un'icona. Un'immagine nuova dell'editor non ha ancora un file, quindi il suo peso su disco e la percentuale non compaiono.
 
 L'immagine a destra è il file vero: ogni volta che cambi un'opzione, EyeCanSee rifà il file e lo mostra. Mentre lavora, il peso dice "Calcolo della dimensione in corso…" e **Salva** aspetta: così il peso che vedi è sempre quello del file che otterrai.
+
+Un'immagine riflessa o ruotata nel visore si vede così da tutte e due le parti, perché le due corrispondano; sotto l'originale restano le sue dimensioni sul disco, con quello che ha fatto il visore, per esempio "ruotata di 90° in senso orario nel visore".
 
 Spunta **100%** per vedere i pixel veri. Poi trascina una delle due immagini per spostarle entrambe e confrontare lo stesso punto.
 
 ## Salvare
 
-1. Scegli il **Formato**.
+1. Scegli il **Formato**. La pagina si apre sul formato dell'ultima immagine salvata da qui finché EyeCanSee resta aperto; la prima volta su JPEG. Un'immagine nuova dell'editor si apre sempre su PNG. Un'immagine troppo grande per quel formato (WebP tiene al massimo 16383 pixel per lato, JPEG 65500, GIF e TGA 65535) si apre su JPEG o PNG come la prima volta. Le opzioni del formato partono come descritto qui sotto.
 2. Se vuoi, cambia le sue opzioni (vedi sotto).
-3. Controlla il nome in **Nome del file** e fai clic su **Salva**.
+3. Controlla la cartella in **Cartella**: all'inizio è quella dell'originale. Per salvare altrove fai clic su **Sfoglia…** e scegli un'altra cartella, anche su un altro dispositivo: un telefono, un disco o un server salvato, come in [Convertire e ridimensionare le immagini](convert.md). **Invio** o **Usa questa cartella** la sceglie, **Esc** o **Annulla** tiene la cartella che avevi.
+4. Controlla il nome in **Nome del file** e fai clic su **Salva**.
 
-Il file nuovo va nella stessa cartella dell'originale. Se il nome è già preso, viene aggiunto " (2)" e la pagina lo dice prima che tu salvi. Dopo il salvataggio la pagina si chiude.
+Se il nome è già preso in quella cartella, viene aggiunto " (2)" e la pagina lo dice prima che tu salvi. Dopo il salvataggio la pagina si chiude.
+
+Se l'avevi aperta dal visore, il visore mostra poi il file nuovo, già ruotato o riflesso come l'avevi lasciato. L'originale resta com'è sul disco: non è più segnato come modificato e la chiusura non chiede niente. Se hai salvato in un'altra cartella, il visore resta sull'originale e un messaggio dice dov'è il file nuovo. Se chiudi la pagina senza salvare, o il salvataggio non riesce, il visore resta com'era, rotazioni comprese. Lo stesso vale se la apri dall'editor aperto dal visore: appena il file è salvato l'editor si chiude, e il visore fa come qui sopra.
 
 **Esc** o la X della finestra chiudono la pagina senza salvare.
 
@@ -50,9 +55,10 @@ Il file nuovo va nella stessa cartella dell'originale. Se il nome è già preso,
 
 ## Metadati
 
-**Mantieni i metadati (EXIF, XMP, IPTC, profilo colore)** è acceso all'inizio. Conserva la fotocamera, la data dello scatto, il luogo (GPS), autore, copyright, descrizioni, parole chiave e il profilo colore.
+**Mantieni i metadati (EXIF, XMP, IPTC, profilo colore)** è acceso all'inizio. Conserva la fotocamera, la data dello scatto, il luogo (GPS), autore, copyright, descrizioni, parole chiave, il profilo colore e la risoluzione (punti per pollice).
 
-- Solo JPEG, PNG, WebP, AVIF e TIFF possono contenere metadati. Con un altro formato, o se l'originale non ne ha, la casella è grigia; passandoci sopra si legge il perché.
+- Solo JPEG, PNG, WebP, AVIF e TIFF possono contenere metadati. BMP contiene solo la risoluzione: con BMP la casella diventa **Mantieni i metadati (solo la risoluzione)** e si può cambiare quando l'originale ha una risoluzione. Con un altro formato, o se l'originale non ne ha, la casella è grigia; passandoci sopra si legge il perché.
+- La **risoluzione** (per esempio i 600 dpi di una scansione) fa parte dei metadati: senza **Mantieni i metadati** il file si salva senza, anche quando l'originale non ha altro.
 - L'orientamento viene messo dritto, perché i pixel salvati sono già ruotati, e le dimensioni scritte dentro sono quelle dell'immagine nuova.
 - Restano fuori: le piccole anteprime che le fotocamere mettono nel file, le impostazioni di Lightroom e Camera Raw e il video della foto in movimento, che il file nuovo non ha.
 - Una foto **Ultra HDR** del telefono resta HDR se la salvi in JPEG con i metadati, anche dall'editor: la sua parte HDR viene ruotata, ritagliata e coperta insieme alla foto. In un altro formato, o senza i metadati, perde l'HDR, e la pagina te lo dice prima di salvare.
@@ -61,6 +67,7 @@ Il file nuovo va nella stessa cartella dell'originale. Se il nome è già preso,
 
 - JPEG e Radiance HDR non hanno la trasparenza: le parti trasparenti diventano bianche. La pagina lo dice.
 - Un'icona (ICO) contiene al massimo 256 × 256 pixel: un'immagine più grande viene ridotta. La pagina lo dice.
+- Un'immagine animata (GIF, WebP, APNG, AVIF) o con più pagine (TIFF) viene salvata come l'immagine mostrata, il suo primo fotogramma o la prima pagina: il file nuovo ha solo quella. La pagina lo dice.
 - EyeCanSee non sa scrivere HEIC né JPEG XL: vedi [Formati supportati](formats.md).
 - Solo JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI e i file PSD (appiattiti) si possono anche riscrivere sopra l'originale dopo una rotazione (vedi [Ruotare e riflettere](rotate.md)); gli altri formati solo da questa pagina.
 - La tabella di ogni formato con le sue opzioni è in [Formati supportati](formats.md).

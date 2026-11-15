@@ -1,10 +1,10 @@
 # Convertire i video
 
-Converte i video in un altro formato o in un'altra misura, li ruota, li fa più leggeri o trasforma una clip breve in GIF. Altri tre strumenti lavorano sui video senza convertirli: **Copia con i metadati**, **Copia senza audio** e **Salva l'audio in un file**. Gli originali non vengono mai toccati.
+Converte i video in un altro formato o in un'altra misura, li ruota, li fa più leggeri o trasforma una clip breve in GIF; anche i file audio, in un altro formato audio. Altri tre strumenti lavorano sui video senza convertirli: **Copia con i metadati**, **Copia senza audio** e **Salva l'audio in un file**. Gli originali non vengono mai toccati.
 
 ## Avviare la conversione
 
-Seleziona i video nella griglia (si possono selezionare anche immagini) e scegli ![Converti e ridimensiona…](icon://scaling) **Converti e ridimensiona…** dalla barra strumenti, dal menù **Strumenti** (**Ctrl+B**) o dal clic destro. Se tra i file ci sono video, la finestra ha una parte **Video**. Rotazione, dimensioni e destinazione funzionano come per le immagini: vedi [Convertire e ridimensionare le immagini](convert.md).
+Seleziona i video nella griglia (si possono selezionare anche immagini) e scegli ![Converti…](icon://scaling) **Converti…** dalla barra strumenti, dal menù **Strumenti** (**Ctrl+B**) o dal clic destro. Se tra i file ci sono video, la finestra ha una parte **Video**. Rotazione, dimensioni e destinazione funzionano come per le immagini: vedi [Convertire e ridimensionare le immagini](convert.md).
 
 ## FFmpeg
 
@@ -21,7 +21,7 @@ I video li converte FFmpeg.
 
 - **Contenitore**: MP4 (quello predefinito), MKV, WebM, MOV, AVI o GIF.
 - **Codifica**: quelle che il contenitore accetta, tra H.264 (quella predefinita), HEVC, AV1, VP9, VP8, MPEG-4, ProRes e GIF. Una riga dice a che cosa serve la codifica scelta. Una codifica senza codificatori funzionanti su questo computer è grigia.
-- **Uguale all'originale (senza ricodifica)**, in MP4, MKV e MOV: video e audio vengono copiati così come sono, in pochi secondi e senza nessuna perdita, con i metadati. Rotazione e dimensioni non si applicano.
+- **Uguale all'originale (senza ricodifica)**: video e audio vengono copiati così come sono, in pochi secondi e senza nessuna perdita, con i metadati. Rotazione e dimensioni non si applicano. Il contenitore parte da quello degli originali (un WebM resta WebM) ed elenca solo quelli che possono contenerne le tracce; video di formati diversi scelti insieme vengono copiati in MKV, che li contiene tutti. Un video le cui tracce il contenitore scelto non può comunque contenere viene copiato in MKV, così la copia non fallisce per questo.
 - **Codificatore**: prima quelli della scheda video, in verde (NVIDIA, Intel Quick Sync, AMD, VA-API su Linux), poi quello di Windows e quelli del processore. La scheda video è molto più veloce e lascia libero il computer; il processore fa file un po' più piccoli a parità di qualità. Una riga dice a che cosa serve il codificatore scelto.
 - **Qualità**: **Alta**, **Media** (quella predefinita) o **File piccolo**.
 - **Mantieni l'audio** e **Mantieni i metadati (data, posizione, fotocamera)**, accese all'inizio.
@@ -38,16 +38,24 @@ Il riquadro in basso a destra mostra a che punto è; la barra avanza anche duran
 
 ## Copia con i metadati
 
-**Strumenti > Copia con i metadati…** (anche nel clic destro, quando tra i file scelti ci sono video) apre la stessa finestra già impostata su **Uguale all'originale**. Di solito scegli solo dove mettere la copia. Il video viene riscritto in pochi secondi, con i suoi metadati dentro: per dashcam e droni anche la posizione presa dai file accanto.
+**Strumenti > Copia con i metadati…** (anche nel clic destro) apre la stessa finestra, che si chiama **Copia con i metadati** e ha il pulsante **Copia**, sui video scelti, già impostata su **Uguale all'originale**, nel contenitore degli originali (MKV per video di formati diversi), senza rotazione né riflessione. Di solito scegli solo dove mettere la copia. Il video viene riscritto in pochi secondi, con i suoi metadati dentro: per dashcam e droni anche la posizione presa dai file accanto.
+
+Serve solo per i video: una foto ha già i suoi metadati dentro il file, quindi una copia normale (**Modifica > Copia** e **Incolla**) li conserva. Con foto, file audio o altri file scelti insieme ai video, la voce ha l'**\***: quei file restano fuori, e alla fine vengono nominati. Senza nessun video, la voce è grigia e, se ci passi sopra col mouse, dice perché.
 
 ## Copia senza audio e Salva l'audio in un file
 
-**Strumenti > Copia senza audio…** e **Strumenti > Salva l'audio in un file…** (anche nel clic destro) aprono una finestra breve sui video scelti, in cui scegli solo la destinazione. All'inizio è accanto agli originali.
+**Strumenti > Copia senza audio…** e **Strumenti > Salva l'audio in un file…** (anche nel clic destro) aprono una finestra breve sui video scelti, in cui scegli solo la destinazione, poi fai clic su **Copia** (o **Salva** per l'audio). All'inizio è accanto agli originali.
 
 - **Copia senza audio** crea un video nuovo, uguale all'originale ma senza audio. L'immagine e le altre tracce (sottotitoli, capitoli) vengono copiate così come sono, con i metadati. Il file nuovo prende un nome libero, per esempio `video (2).mp4`.
-- **Salva l'audio in un file** scrive ogni traccia audio in un file suo, copiata così com'è: AAC come `.m4a`, Opus come `.opus`, MP3 come `.mp3`, FLAC come `.flac`, Vorbis come `.ogg`, AC-3 come `.ac3`, E-AC-3 come `.eac3`, AMR come `.amr`, l'audio non compresso per lo più come `.wav`, i formati più rari come `.mka`. Un video con due tracce dà `video.m4a` e `video-2.m4a`. Per un altro formato (per esempio MP3 da AAC) usa Converti e ridimensiona.
+- **Salva l'audio in un file** scrive ogni traccia audio in un file suo, copiata così com'è: AAC come `.m4a`, Opus come `.opus`, MP3 come `.mp3`, FLAC come `.flac`, Vorbis come `.ogg`, AC-3 come `.ac3`, E-AC-3 come `.eac3`, AMR come `.amr`, l'audio non compresso per lo più come `.wav`, i formati più rari come `.mka`. Un video con due tracce dà `video.m4a` e `video-2.m4a`. Per un altro formato (per esempio MP3 da AAC) usa Converti… sul file nuovo (vedi sotto).
 
 Un video senza audio resta fuori, e alla fine viene nominato.
+
+## Convertire i file audio
+
+**Converti…** lavora anche sui file audio, anche su molti insieme: se tra i file scelti ci sono file audio, la finestra ha una parte **File audio**. Scegli il **Formato** (MP3, AAC (M4A), Opus, FLAC, WAV od Ogg Vorbis; compaiono solo quelli che l'FFmpeg in uso sa scrivere) e, tranne per FLAC e WAV che non perdono niente, la **Qualità**. Poi la destinazione, come per le immagini, e **Converti**. Gli originali non vengono toccati: ogni file nuovo ha il nome dell'originale con la nuova estensione, per esempio `canzone.mp3` da `canzone.flac`.
+
+I tag (titolo, artista, album, traccia…) restano. Resta anche la copertina in MP3, M4A e FLAC; Opus, Ogg Vorbis e WAV non hanno posto per lei. Come per i video serve un FFmpeg: dove non c'è, la finestra propone di scaricarlo.
 
 ## Da sapere
 

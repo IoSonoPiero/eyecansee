@@ -1,5 +1,6 @@
-//! The videos' part of the Convert and resize window: container, codec, encoder, quality, sound
-//! and metadata, FFmpeg downloaded first where there is none, and the audio jobs. Split from
+//! The videos' part of the Convert window: container, codec, encoder, quality, audio and
+//! metadata, FFmpeg downloaded first where there is none, the audio jobs, and the audio files'
+//! part (#120). Split from
 //! `batch_page.rs` on 2026-11-02.
 
 use std::sync::atomic::Ordering;
@@ -13,6 +14,7 @@ use crate::i18n::I18n;
 
 
 /// The choices for the videos.
+#[derive(Clone)]
 pub(crate) struct VideoForm {
     /// Index in `CONTAINERS`.
     pub(crate) container: usize,
@@ -24,6 +26,26 @@ pub(crate) struct VideoForm {
     pub(crate) meta: bool,
     /// FFmpeg being downloaded (`component::FFMPEG`).
     pub(crate) download: Option<Arc<crate::component::Download>>,
+    /// Copied as it is (`Codec::Copy`): the containers offered for the videos chosen, and the one
+    /// it starts on (`video_copy::targets`, `default`), set when the window opens.
+    pub(crate) copy_into: Vec<usize>,
+    pub(crate) copy_own: usize,
+}
+
+impl VideoForm {
+    /// The videos chosen (`names`), for the containers of a copy.
+    pub(crate) fn files<'a>(&mut self, names: impl IntoIterator<Item = &'a str> + Clone) {
+        self.copy_into = crate::video_copy::targets(names.clone());
+        self.copy_own = crate::video_copy::default(names);
+    }
+
+    /// "Same as the original (no re-encoding)" chosen: the copy starts on the originals'
+    /// container, unless the one chosen is offered for them too.
+    pub(crate) fn copy_container(&mut self) {
+        if self.codec == Codec::Copy && !self.copy_into.contains(&self.container) {
+            self.container = self.copy_own;
+        }
+    }
 }
 
 /// The audio jobs: FFmpeg ready, and what the job does; nothing else to choose. They copy the
@@ -38,6 +60,61 @@ pub(crate) fn audio_rows(ui: &mut egui::Ui, v: &mut VideoForm, job: AudioJob, i1
         AudioJob::Strip => "batch-strip-hint",
         AudioJob::Extract => "batch-extract-hint",
     }));
+}
+
+/// The choices for the audio files (#120).
+#[derive(Clone)]
+pub(crate) struct SoundForm {
+    /// Index in `audio_convert::FORMATS`.
+    pub(crate) format: usize,
+    pub(crate) quality: Quality,
+    /// FFmpeg found and the format's encoder there (`sound_rows`).
+    pub(crate) ready: bool,
+}
+
+/// The format of the audio files (only those whose encoder this FFmpeg has) and its quality;
+/// FFmpeg downloaded first where there is none. No video decoder is needed: an FFmpeg without
+/// the phones' decoders does it too (`ffmpeg::copier`).
+pub(crate) fn sound_rows(ui: &mut egui::Ui, s: &mut SoundForm, v: &mut VideoForm, i18n: &I18n) {
+    use crate::audio_convert::{FORMATS, available, hint};
+    let t = |id| i18n.t(id);
+    s.ready = false;
+    if crate::ffmpeg::copier().is_none() {
+        ffmpeg_download(ui, v, i18n);
+        return;
+    }
+    let ctx = ui.ctx().clone();
+    crate::ffmpeg::start_copy_probe(move || ctx.request_repaint());
+    let Some(probe) = crate::ffmpeg::copy_probed() else {
+        ui.horizontal(|ui| {
+            ui.spinner();
+            ui.label(t("batch-video-checking"));
+        });
+        return;
+    };
+    let formats = available(&probe.audio);
+    let Some(&first) = formats.first() else {
+        ui.label(crate::browser::error_text(ui, t("batch-video-none")));
+        return;
+    };
+    if !formats.contains(&s.format) {
+        s.format = first;
+    }
+    egui::ComboBox::from_label(t("batch-sound-format")).selected_text(FORMATS[s.format].name).show_ui(ui, |ui| {
+        for &i in &formats {
+            ui.selectable_value(&mut s.format, i, FORMATS[i].name);
+        }
+    });
+    if !FORMATS[s.format].lossless {
+        ui.horizontal(|ui| {
+            ui.label(t("batch-video-quality"));
+            for (q, id) in [(Quality::High, "batch-video-high"), (Quality::Medium, "batch-video-medium"), (Quality::Small, "batch-video-small")] {
+                ui.radio_value(&mut s.quality, q, t(id));
+            }
+        });
+    }
+    ui.weak(t(hint(s.format)));
+    s.ready = true;
 }
 
 /// FFmpeg found and its encoders tried: downloaded first where there is none, a spinner while
@@ -72,26 +149,8 @@ pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     if crate::ffmpeg::download_better(v.download.is_some()) {
         better_download(ui, v, i18n);
     }
-    egui::ComboBox::from_label(t("batch-video-container")).selected_text(CONTAINERS[v.container].name).show_ui(ui, |ui| {
-        for (i, c) in CONTAINERS.iter().enumerate() {
-            ui.selectable_value(&mut v.container, i, c.name);
-        }
-    });
+    container_codec_rows(ui, v, probe, copy_only, i18n);
     let c = &CONTAINERS[v.container];
-    // With only a copier the codecs that encode stay open: choosing one offers the download.
-    let usable = |k: Codec| copy_only || !probe.of(k).is_empty();
-    if !c.codecs.contains(&v.codec) || !usable(v.codec) {
-        v.codec = c.codecs.iter().copied().find(|k| usable(*k)).unwrap_or(c.codecs[0]);
-    }
-    let label = |k: Codec| if k == Codec::Copy { t("batch-video-copy") } else { k.label().to_string() };
-    egui::ComboBox::from_label(t("batch-video-codec")).selected_text(label(v.codec)).show_ui(ui, |ui| {
-        for &k in c.codecs {
-            let usable = usable(k);
-            let label = if usable { label(k) } else { i18n.t_args("batch-video-unavailable", &[("codec", k.label())]) };
-            ui.add_enabled_ui(usable, |ui| ui.selectable_value(&mut v.codec, k, label));
-        }
-    });
-    ui.weak(t(v.codec.hint()));
     let encoders = probe.of(v.codec);
     if encoders.is_empty() {
         v.encoder = None;
@@ -107,7 +166,7 @@ pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     }
     // Copied streams: nothing to choose about the encoder or the quality.
     if v.codec != Codec::Copy {
-        // The graphics card's encoders in green (user, 2026-10-29), with a line that says so.
+        // The graphics card's encoders in green, with a line that says so.
         let good = crate::theme::good(ui.visuals());
         let name = |e: &str| {
             let text = egui::RichText::new(format!("{} ({e})", crate::ffmpeg::maker(e)));
@@ -140,6 +199,34 @@ pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
         }
         ui.checkbox(&mut v.meta, t("batch-video-meta"));
     });
+}
+
+/// The container and the codec. Copied as it is, only the containers that hold the originals'
+/// streams (`video_copy`); choosing the copy from another one moves to the originals' own.
+fn container_codec_rows(ui: &mut egui::Ui, v: &mut VideoForm, probe: &crate::ffmpeg::Probe, copy_only: bool, i18n: &I18n) {
+    let t = |id| i18n.t(id);
+    let copy = v.codec == Codec::Copy;
+    egui::ComboBox::from_label(t("batch-video-container")).selected_text(CONTAINERS[v.container].name).show_ui(ui, |ui| {
+        for (i, c) in CONTAINERS.iter().enumerate().filter(|(i, _)| !copy || v.copy_into.contains(i)) {
+            ui.selectable_value(&mut v.container, i, c.name);
+        }
+    });
+    let c = &CONTAINERS[v.container];
+    // With only a copier the codecs that encode stay open: choosing one offers the download.
+    let usable = |k: Codec| copy_only || !probe.of(k).is_empty();
+    if !c.codecs.contains(&v.codec) || !usable(v.codec) {
+        v.codec = c.codecs.iter().copied().find(|k| usable(*k)).unwrap_or(c.codecs[0]);
+    }
+    let label = |k: Codec| if k == Codec::Copy { t("batch-video-copy") } else { k.label().to_string() };
+    egui::ComboBox::from_label(t("batch-video-codec")).selected_text(label(v.codec)).show_ui(ui, |ui| {
+        for &k in c.codecs {
+            let usable = usable(k);
+            let label = if usable { label(k) } else { i18n.t_args("batch-video-unavailable", &[("codec", k.label())]) };
+            ui.add_enabled_ui(usable, |ui| ui.selectable_value(&mut v.codec, k, label));
+        }
+    });
+    v.copy_container();
+    ui.weak(t(v.codec.hint()));
 }
 
 /// No usable FFmpeg on this computer (none, too old, or without the phones' decoders): what it is, its size and the button;

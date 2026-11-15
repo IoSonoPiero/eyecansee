@@ -15,6 +15,7 @@ Bug reports and suggestions go in the [issues](https://github.com/IoSonoPiero/ey
      ```rust
      $(("<code>", $id, include_str!(concat!("../docs/help/<code>/", $id, ".md"))),)*
      ```
+   - The tips at startup (`src/tips.rs`) need nothing more: their texts are the `tip-…` messages of `locales/<code>.ftl`, their pictures stay in English.
    - `src/help_check.rs`: the language and the title of its contents page in `LANGS`, and the translated name of each area in `CONTRACT` (`names` gets one more entry).
 4. Run `cargo test`. It checks that every language has the same message ids as English, and that the guide is consistent: every language has exactly the same pages, each page starts with its title and has the same headings as the English one, with nothing deeper than `###`; the contents page lists every page once, in the right areas and order, under its real title; links lead to existing pages (`<page>.md`, without `#` anchors), pictures to files in `docs/help/img/`, icons to icons the program has, and other links are `https://`; every page shows the same pictures and placeholders as the English one; every picture is shown by some page; the pages and pictures embedded in the program are exactly the files of the guide; and every F1 spot in the code (`"help:<page>"`) has its page in every language.
 5. Try it: `EYECANSEE_LANG=<code> cargo run -- ~/Pictures`, and press F1.

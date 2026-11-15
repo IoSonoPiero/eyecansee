@@ -22,11 +22,13 @@ pub(super) fn controls(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
 /// The angle and back to zero, Straighten. `true` if it changed.
 fn angle_controls(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
     let before = w.doc.angle;
-    ui.label(i18n.t("rc-rotation"));
     ui.spacing_mut().slider_width = 160.0;
     // The language's decimal separator, both shown and typed (a dot works too).
     let sep = i18n.t("decimal-separator");
-    ui.add(
+    super::props::slider(
+        ui,
+        "rc-rotation",
+        i18n.t("rc-rotation"),
         egui::Slider::new(&mut w.doc.angle, -180.0..=180.0)
             .step_by(0.1)
             .suffix("°")

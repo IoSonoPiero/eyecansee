@@ -1,4 +1,4 @@
-//! The editor's bars: the tools at the top (drawing tools, Crop and the quarter turns, Undo and
+//! The editor's bars: the tools at the top (drawing tools, Crop, the quarter turns, Resize, Undo and
 //! Redo; on the right Copy, Close and Save copy with its menu), the properties under them (the
 //! style of the object being drawn or selected, or Rotate and crop's controls) and the status bar
 //! at the bottom (name, size, the tool's hint, zoom). Laid out as Snagit, ShareX and Satty (user,
@@ -6,10 +6,10 @@
 
 use eframe::egui::{self, Color32, Key};
 
+use super::bar_fit::{self, ARROW_ICON, ARROW_MIN, BarParts, SAVE_GAP, SEPARATOR};
 use super::{Ask, Tool, Window};
 use crate::App;
 use crate::actions::Act;
-use crate::edit::doc::{Dash, Head, Pt, Shape, Style};
 use crate::edit::geom::Kind;
 use crate::i18n::I18n;
 use crate::icons::{self, Line};
@@ -35,18 +35,6 @@ pub(super) const TOOLS: [(Tool, Line, &str, Key); 16] = [
     (Tool::Crop, Line::Crop, "edit-tool-crop", Key::C),
 ];
 
-/// Ready-made colours: red, orange, yellow, green, blue, purple, black, white.
-const COLOURS: [([u8; 3], &str); 8] = [
-    ([255, 0, 0], "edit-col-red"),
-    ([255, 140, 0], "edit-col-orange"),
-    ([255, 230, 0], "edit-col-yellow"),
-    ([46, 160, 67], "edit-col-green"),
-    ([30, 110, 230], "edit-col-blue"),
-    ([142, 36, 170], "edit-col-purple"),
-    ([0, 0, 0], "edit-col-black"),
-    ([255, 255, 255], "edit-col-white"),
-];
-
 impl Window {
     /// What F1 needs to choose the editor's page of the guide.
     pub(crate) fn help_view(&self) -> crate::help_spot::EditView {
@@ -56,12 +44,18 @@ impl Window {
 }
 
 /// "Name (key)".
-fn tip(i18n: &I18n, id: &str, key: &str) -> String {
+pub(super) fn tip(i18n: &I18n, id: &str, key: &str) -> String {
     format!("{} ({key})", i18n.t(id))
 }
 
+/// The label of the main save button on the bar: Overwrite the original… is shortened to
+/// Overwrite…, so the bar keeps one row in a 1200 px window; its tip has the whole name.
+pub(super) fn bar_label(id: &'static str) -> &'static str {
+    if id == "edit-overwrite" { "edit-overwrite-short" } else { id }
+}
+
 /// A button of a bar: on hover its name and key, when off also why.
-fn bar_button(ui: &mut egui::Ui, button: egui::Button, tip: String, off: Option<String>) -> bool {
+pub(super) fn bar_button(ui: &mut egui::Ui, button: egui::Button, tip: String, off: Option<String>) -> bool {
     let r = ui.add_enabled(off.is_none(), button).on_hover_text(&tip);
     match off {
         Some(why) => r.on_disabled_hover_text(format!("{tip}\n{why}")).clicked(),
@@ -71,22 +65,15 @@ fn bar_button(ui: &mut egui::Ui, button: egui::Button, tip: String, off: Option<
 
 impl App {
     /// The bar at the top; what its buttons ask for. When the window is too narrow for one row
-    /// the tools go to a new line and Copy, Close and Save copy get a row of their own, on the
-    /// right (they were cut off: user, 2026-11-06).
+    /// the tools wrap, and Copy, Close and Save copy go at the right end of their last row, or of
+    /// a row of their own when there is no room there (`bar_fit`).
     pub(super) fn edit_toolbar(&mut self, ui: &mut egui::Ui, w: &mut Window) -> Option<Ask> {
         let (mut ask, mut copy) = (None, false);
-        let step = icons::BUTTON.x + ui.spacing().item_spacing.x;
-        // The tools, the turns, Filters, Undo and Redo, three separators; Copy, Close, Save copy.
-        let need = (TOOLS.len() + 5) as f32 * step + 3.0 * 12.0 + 2.0 * step + 200.0;
-        if ui.available_width() >= need {
-            ui.horizontal(|ui| {
-                tools_row(ui, w, &self.i18n);
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| (ask, copy) = self.right_row(ui, w));
-            });
-        } else {
-            ui.horizontal_wrapped(|ui| tools_row(ui, w, &self.i18n));
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| (ask, copy) = self.right_row(ui, w));
-        }
+        let parts = BarParts::measure(ui, self.i18n.t(bar_label(self.main_save_text(w).0)), w.copying);
+        ui.horizontal_wrapped(|ui| {
+            tools_row(ui, w, &self.i18n);
+            bar_fit::right_end(ui, parts, |ui| (ask, copy) = self.right_row(ui, w));
+        });
         if copy {
             self.act = Some(Act::EditCopy);
         }
@@ -122,11 +109,11 @@ impl App {
         };
         let over_main = self.main_overwrites(w);
         // A new image has no file yet: its main button is Save as….
-        // After a first copy the button updates it (user, 2026-11-06).
-        let copy = if w.copy.done.is_some() { ("edit-update-copy", "edit-update-hint") } else { ("edit-save-copy", "rc-save-hint") };
+        // After a first copy the button updates it.
+        let copy = copy_text(w);
         let solid = crate::theme::solid(ui.visuals());
-        ui.spacing_mut().item_spacing.x = 1.0;
-        let arrow = egui::Button::image(icons::line_in(ui.ctx(), Line::Down, 16.0, Color32::WHITE)).fill(solid).min_size(egui::vec2(24.0, icons::BUTTON.y));
+        ui.spacing_mut().item_spacing.x = SAVE_GAP;
+        let arrow = egui::Button::image(icons::line_in(ui.ctx(), Line::Down, ARROW_ICON, Color32::WHITE)).fill(solid).min_size(egui::vec2(ARROW_MIN, icons::BUTTON.y));
         let (r, _) = egui::containers::menu::MenuButton::from_button(arrow).ui(ui, |ui| {
             if over_main {
                 let r = ui.add_enabled(off.is_none(), egui::Button::image_and_text(icons::line(ui, Line::Save, 16.0), i18n.t(copy.0))).on_hover_text(i18n.t(copy.1));
@@ -155,22 +142,34 @@ impl App {
             }
         });
         r.on_hover_text(i18n.t("edit-save-more"));
-        let (label, hint, main_ask, off) = match () {
-            _ if w.new => ("menu-save-copy", "rc-save-as-hint", Ask::SaveAs, w.preparing.then(|| i18n.t("edit-off-preparing"))),
-            _ if over_main => ("edit-overwrite", "edit-overwrite-hint", Ask::Overwrite, off.or_else(|| self.why_not_overwrite(w))),
-            _ => (copy.0, copy.1, Ask::Save, off),
+        let (label, hint) = self.main_save_text(w);
+        let (main_ask, off) = match () {
+            _ if w.new => (Ask::SaveAs, w.preparing.then(|| i18n.t("edit-off-preparing"))),
+            _ if over_main => (Ask::Overwrite, off.or_else(|| self.why_not_overwrite(w))),
+            _ => (Ask::Save, off),
         };
+        // The tip has the whole name: on the bar Overwrite the original… is only Overwrite….
         let mut tip = format!("{} (Ctrl+S)\n{}", i18n.t(label), i18n.t(hint));
         // Overwrite chosen as the main save but not possible here: why it is Save copy.
         if self.settings.edit_main_overwrite && !w.new && let Some(why) = self.why_never_overwrite(w) {
             tip = format!("{tip}\n\n{}", crate::help_search::plain(&why));
         }
-        let main = crate::theme::main_button(ui, i18n.t(label)).min_size(egui::vec2(0.0, icons::BUTTON.y));
+        let main = crate::theme::main_button(ui, i18n.t(bar_label(label))).min_size(egui::vec2(0.0, icons::BUTTON.y));
         if bar_button(ui, main, tip, off) {
             ask = Some(main_ask);
         }
         ui.spacing_mut().item_spacing.x = 8.0;
         ask
+    }
+
+    /// The label and hint of the main save button: Save as… for a new image, Overwrite when
+    /// chosen as the main save, Save copy or Update copy.
+    fn main_save_text(&self, w: &Window) -> (&'static str, &'static str) {
+        match () {
+            _ if w.new => ("menu-save-copy", "rc-save-as-hint"),
+            _ if self.main_overwrites(w) => ("edit-overwrite", "edit-overwrite-hint"),
+            _ => copy_text(w),
+        }
     }
 
     /// The bar under the tools: Rotate and crop's controls, or the style of the object.
@@ -193,7 +192,7 @@ impl App {
                 if let Some(act) = marquee_bar(ui, w, i18n) {
                     self.act = Some(act);
                 }
-            } else if style_bar(ui, w, i18n) && !w.screen_picking {
+            } else if super::style_bar::style_bar(ui, w, i18n) && !w.screen_picking {
                 // The desktop's picker, in the background: its answer comes as `Msg::EditPicked`.
                 w.screen_picking = true;
                 let (tx, ctx) = (self.tx.clone(), ui.ctx().clone());
@@ -216,12 +215,23 @@ impl App {
         if let Some(c) = w.just_picked.take() {
             w.note = Some((i18n.t_args("edit-picked", &[("codes", &crate::eyedropper::codes(c).replace('\n', " · "))]), ui.input(|i| i.time) + 8.0));
         }
+        // A copy too large for other programs (X11), once "Copied" is shown.
+        if !w.copying
+            && let Some(n) = w.too_big.as_ref().and_then(|r| r.try_recv().ok())
+        {
+            w.too_big = None;
+            let size = format!("{:.1}", n as f64 / 1_048_576.0);
+            w.note = Some((i18n.t_args("edit-copy-too-large", &[("size", &size)]), ui.input(|i| i.time) + 12.0));
+        }
         ui.horizontal(|ui| {
             ui.label(crate::source::name(&w.path));
             let (pw, ph) = w.doc.crop.pixels();
             ui.label(format!("{pw} × {ph}"));
             if let Some(id) = w.remote {
                 ui.label(crate::theme::alert(i18n.t(id)));
+            }
+            if let Some(address) = &self.held_open {
+                ui.label(crate::theme::alert(i18n.t_args("edit-open-later", &[("name", crate::source::name(&crate::address::without_password(address)))])));
             }
             if w.preparing {
                 ui.add(egui::Spinner::new().color(Color32::WHITE));
@@ -261,11 +271,16 @@ impl App {
     }
 }
 
-/// The tools, the quarter turns, Filters, Undo and Redo.
-fn tools_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
+/// Save copy's label and hint; Update copy after a first copy.
+fn copy_text(w: &Window) -> (&'static str, &'static str) {
+    if w.copy.done.is_some() { ("edit-update-copy", "edit-update-hint") } else { ("edit-save-copy", "rc-save-hint") }
+}
+
+/// The tools, the quarter turns, Resize, Filters, Undo and Redo.
+pub(super) fn tools_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     for (n, &(tool, icon, id, key)) in TOOLS.iter().enumerate() {
         if n == TOOLS.len() - 1 {
-            ui.separator();
+            ui.add(egui::Separator::default().spacing(SEPARATOR));
         }
         if bar_button(ui, icons::toggle(ui, w.tool == tool, icon), tip(i18n, id, key.name()), None) {
             w.choose(tool);
@@ -276,8 +291,11 @@ fn tools_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
             w.turn(op);
         }
     }
+    if bar_button(ui, icons::button(ui, Line::Batch), format!("{}\n{}", tip(i18n, "edit-resize", &i18n.t("key-edit-resize")), i18n.t("edit-resize-hint")), None) {
+        w.ask_resize();
+    }
     filters_menu(ui, w, i18n);
-    ui.separator();
+    ui.add(egui::Separator::default().spacing(SEPARATOR));
     let (can_undo, can_redo) = w.history.as_ref().map_or((false, false), |h| (h.can_undo() || w.doc != *h.doc(), h.can_redo()));
     if bar_button(ui, icons::button(ui, Line::Undo), tip(i18n, "edit-undo", "Ctrl+Z"), (!can_undo).then(|| i18n.t("edit-off-undo"))) {
         w.undo();
@@ -290,7 +308,7 @@ fn tools_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
 /// The Filters menu: on the part chosen with Selection, or on the whole image.
 fn filters_menu(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
     let (r, _) = egui::containers::menu::MenuButton::from_button(icons::button(ui, Line::Filters)).ui(ui, |ui| {
-        // Readable at once: where the filter goes (user, 2026-11-06: the faint line was not read).
+        // Readable at once: where the filter goes (the faint line was not read).
         ui.set_max_width(300.0);
         ui.label(egui::RichText::new(i18n.t(if w.marquee.is_some() { "edit-filters-part" } else { "edit-filters-whole" })).strong());
         ui.separator();
@@ -304,32 +322,6 @@ fn filters_menu(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
         }
     });
     r.on_hover_text(i18n.t("edit-filters"));
-}
-
-/// A filter selected: its name, its amount, delete.
-fn filter_bar(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
-    let long = w.long();
-    let Some(Shape::Filter { filter, amount, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
-    ui.strong(i18n.t(filter.label()));
-    if let Some((lo, hi, _)) = filter.amount(long) {
-        ui.label(i18n.t("edit-filter-amount"));
-        ui.spacing_mut().slider_width = 160.0;
-        ui.add(egui::Slider::new(amount, lo..=hi).integer());
-    }
-    if filter.hides() {
-        ui.label(crate::theme::alert(i18n.t("edit-filter-not-cover")));
-    }
-    ui.separator();
-    if bar_button(ui, icons::button(ui, Line::Delete), format!("{} ({})", i18n.t("edit-delete"), i18n.t("key-delete")), None) {
-        w.doc.objects.remove(i);
-        w.selected = None;
-        return;
-    }
-    // Done: as Esc, the filter let go of as it is; it was not clear it is already applied (user,
-    // 2026-11-06, as Paint.NET's and Photoshop's OK).
-    if bar_button(ui, crate::theme::main_button(ui, i18n.t("edit-filter-done")), format!("{} (Esc)\n{}", i18n.t("edit-filter-done"), i18n.t("edit-filter-done-hint")), None) {
-        w.escape();
-    }
 }
 
 /// Selection's bar: copy, cut, paste, with their keys and why they are off.
@@ -362,336 +354,6 @@ fn hint_id(tool: Tool) -> &'static str {
         Tool::Draw(Kind::Lens) => "edit-tip-lens",
         Tool::Draw(Kind::Spotlight) => "edit-tip-spotlight",
         Tool::Draw(_) => "edit-tip-draw",
-    }
-}
-
-/// The style of the selected object, or of the next one the tool draws; the last one used for
-/// each kind is kept. `true` when the screen's eyedropper is asked for.
-fn style_bar(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
-    let selected = w.selected.filter(|&i| i < w.doc.objects.len());
-    let kind = match (selected, w.tool) {
-        (Some(i), _) => Kind::of(&w.doc.objects[i]),
-        (None, Tool::Draw(kind)) => kind,
-        _ => {
-            ui.weak(i18n.t("edit-select-hint"));
-            return false;
-        }
-    };
-    if let (Kind::Filter, Some(i)) = (kind, selected) {
-        filter_bar(ui, w, i, i18n);
-        return false;
-    }
-    let mut style = match selected {
-        Some(i) => w.doc.objects[i].style,
-        None => w.style(kind),
-    };
-    // A text's size lives in the text, a step's in its box; the style keeps it for the next one.
-    match selected.map(|i| &w.doc.objects[i].shape) {
-        Some(Shape::Text { size, .. }) => style.width = *size,
-        Some(Shape::Step { area, .. } | Shape::Stamp(area)) => style.width = area.w,
-        _ => {}
-    }
-    if let Some(c) = w.picked.take() {
-        style.color = c;
-    }
-    // What the controls change: the object selected, or the next one drawn (user, 2026-11-05:
-    // "what is the opacity for, if nothing is selected?").
-    let whose = if selected.is_some() { ("edit-props-selected", "edit-props-selected-hint") } else { ("edit-props-next", "edit-props-next-hint") };
-    ui.weak(i18n.t(whose.0)).on_hover_text(i18n.t(whose.1));
-    let boxed = matches!(kind, Kind::Rect | Kind::Ellipse | Kind::Bubble);
-    if boxed {
-        ui.label(i18n.t("edit-border"));
-    }
-    // A piece of image has its own colours, a spotlight none.
-    let screen = !matches!(kind, Kind::Patch | Kind::Spotlight) && {
-        colours(ui, &mut style.color, i18n);
-        let screen = eyedroppers(ui, w, i18n);
-        if w.picking {
-            pick_sizes(ui, w, i18n);
-        }
-        screen
-    };
-    if boxed {
-        ui.separator();
-        ui.label(i18n.t("edit-fill"));
-        fill_colours(ui, &mut style.fill, i18n);
-    }
-    style_controls(ui, &mut style, kind, w.long(), i18n);
-    kind_controls(ui, w, &mut style, (kind, selected), i18n);
-    if let Some(i) = selected {
-        let o = &mut w.doc.objects[i];
-        o.style = style;
-        match &mut o.shape {
-            Shape::Text { size, .. } => *size = style.width,
-            Shape::Stamp(area) => (area.w, area.h) = (style.width, style.width),
-            Shape::Step { area, n } => {
-                (area.w, area.h) = (style.width, style.width);
-                ui.separator();
-                ui.label(i18n.t("edit-step-number"));
-                ui.add(egui::DragValue::new(n).range(0..=999));
-            }
-            _ => {}
-        }
-        ui.separator();
-        if bar_button(ui, icons::button(ui, Line::Delete), format!("{} ({})", i18n.t("edit-delete"), i18n.t("key-delete")), None) {
-            w.doc.objects.remove(i);
-            w.selected = None;
-        }
-    }
-    w.remember(kind, style);
-    screen
-}
-
-/// What only some kinds have: the shape and letters of a bubble, a lens's zoom, a spotlight's
-/// shape, the font and the letters of a text or a bubble.
-fn kind_controls(ui: &mut egui::Ui, w: &mut Window, style: &mut Style, (kind, selected): (Kind, Option<usize>), i18n: &I18n) {
-    match kind {
-        Kind::Bubble => super::props::bubble(ui, style, w.long(), i18n),
-        Kind::Lens => super::props::lens(ui, style, i18n),
-        Kind::Stamp => super::props::stamp(ui, style, i18n),
-        Kind::Text => super::props::text_look(ui, style, i18n),
-        Kind::Spotlight => {
-            ui.separator();
-            super::props::round_or_square(ui, style, i18n);
-        }
-        _ => {}
-    }
-    if matches!(kind, Kind::Text | Kind::Bubble) {
-        ui.separator();
-        if let Some(i) = selected {
-            font_choice(ui, w, i, i18n);
-            if kind == Kind::Text {
-                text_curve(ui, w, i, i18n);
-                text_angle(ui, w, i, i18n);
-            }
-        }
-        text_field(ui, w, selected, i18n);
-    }
-}
-
-/// One eyedropper (user, 2026-11-05: "only the one that takes any colour"), its button or I:
-/// anywhere on the screen where the system allows it, `true` then; elsewhere a click on the image.
-/// I picks on the image (what is drawn on it too, with a live box of the colour); the button,
-/// and Shift+I, the desktop's picker on the whole screen where there is one (Linux: user,
-/// 2026-11-06, the picker shows no codes).
-fn eyedroppers(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
-    let screen = crate::eyedropper::on_screen();
-    let (id, keys) = if screen { ("edit-pick", "I, Shift+I") } else { ("edit-pick-image", "I") };
-    let off = w.screen_picking.then(|| i18n.t("edit-pick-screen-busy"));
-    let clicked = bar_button(ui, icons::toggle(ui, w.picking || w.screen_picking, Line::Pipette), tip(i18n, id, keys), off);
-    let whole = match (clicked, w.ask_pick.take()) {
-        (true, _) => true,
-        (false, Some(whole)) => whole,
-        (false, None) => return false,
-    };
-    if whole && screen {
-        return true;
-    }
-    w.picking = !w.picking;
-    false
-}
-
-/// While picking: one pixel, or the average of 3 × 3 or 5 × 5 (as in the photo editors).
-fn pick_sizes(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) {
-    for (size, label) in [(1, "1 px"), (3, "3×3"), (5, "5×5")] {
-        if ui.add(egui::Button::new(label).selected(w.pick_size == size)).on_hover_text(i18n.t("edit-pick-size")).clicked() {
-            w.pick_size = size;
-        }
-    }
-}
-
-/// Colours, width (size of a text), opacity, dashes, as each kind has them.
-fn style_controls(ui: &mut egui::Ui, style: &mut Style, kind: Kind, long: f32, i18n: &I18n) {
-    let t = |id| i18n.t(id);
-    let max = (long / 10.0).max(50.0);
-    let slider = |ui: &mut egui::Ui, label: String, value: &mut f32, range, suffix| {
-        ui.separator();
-        ui.label(label);
-        ui.add(egui::Slider::new(value, range).integer().suffix(suffix));
-    };
-    ui.spacing_mut().slider_width = 110.0;
-    match kind {
-        Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse | Kind::Bubble => slider(ui, t("edit-width"), &mut style.width, 1.0..=max, " px"),
-        // A lens may have no border.
-        Kind::Lens => slider(ui, t("edit-width"), &mut style.width, 0.0..=max, " px"),
-        Kind::Text | Kind::Step | Kind::Stamp => slider(ui, t("edit-size"), &mut style.width, 4.0..=(long / 4.0).max(100.0), " px"),
-        Kind::Highlight | Kind::Cover | Kind::Patch | Kind::Filter | Kind::Spotlight => {}
-    }
-    if kind != Kind::Cover {
-        let mut pct = style.opacity * 100.0;
-        // A spotlight's opacity is how dark the rest gets.
-        slider(ui, t(if kind == Kind::Spotlight { "edit-intensity" } else { "edit-opacity" }), &mut pct, 5.0..=100.0, " %");
-        style.opacity = (pct / 100.0).clamp(0.05, 1.0);
-    }
-    if kind == Kind::Arrow {
-        ui.separator();
-        for (head, icon, id) in [(Head::Filled, Line::HeadFilled, "edit-head-filled"), (Head::Open, Line::HeadOpen, "edit-head-open"), (Head::Double, Line::HeadDouble, "edit-head-double"), (Head::Dot, Line::HeadDot, "edit-head-dot")] {
-            if ui.add(icons::toggle(ui, style.head == head, icon)).on_hover_text(t(id)).clicked() {
-                style.head = head;
-            }
-        }
-    }
-    if matches!(kind, Kind::Line | Kind::Arrow | Kind::Pen | Kind::Rect | Kind::Ellipse) {
-        ui.separator();
-        for (dash, icon, id) in [(Dash::Solid, Line::Solid, "edit-solid"), (Dash::Dashed, Line::Dashed, "edit-dashed"), (Dash::Dotted, Line::Dotted, "edit-dotted")] {
-            if ui.add(icons::toggle(ui, style.dash == dash, icon)).on_hover_text(t(id)).clicked() {
-                style.dash = dash;
-            }
-        }
-    }
-}
-
-/// The ready-made colours as swatches, the one in use ringed, then any other colour; `true` when
-/// one is chosen.
-pub(super) fn colours(ui: &mut egui::Ui, color: &mut [u8; 3], i18n: &I18n) -> bool {
-    let mut chosen = false;
-    ui.spacing_mut().item_spacing.x = 4.0;
-    let ring = ui.visuals().selection.stroke.color;
-    for (c, id) in COLOURS {
-        let (rect, r) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::click());
-        let fill = Color32::from_rgb(c[0], c[1], c[2]);
-        let p = ui.painter();
-        p.rect_filled(rect.shrink(2.0), 3.0, fill);
-        p.rect_stroke(rect.shrink(2.0), 3.0, egui::Stroke::new(1.0, Color32::from_gray(120)), egui::StrokeKind::Inside);
-        if *color == c {
-            p.rect_stroke(rect, 4.0, egui::Stroke::new(2.0, ring), egui::StrokeKind::Inside);
-        }
-        if r.on_hover_text(i18n.t(id)).clicked() {
-            *color = c;
-            chosen = true;
-        }
-    }
-    chosen |= egui::color_picker::color_edit_button_srgb(ui, color).on_hover_text(i18n.t("edit-col-other")).changed();
-    ui.spacing_mut().item_spacing.x = 8.0;
-    chosen
-}
-
-/// The font of the selected text: pointing at one in the list shows the text in it, choosing one
-/// keeps it, closing the list without choosing puts the text's own back.
-fn font_choice(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
-    let Some(font) = w.doc.objects[i].shape.font_mut() else { return };
-    let own = w.font_preview.as_ref().filter(|(j, _)| *j == i).map_or_else(|| font.clone(), |(_, f)| f.clone());
-    let default = i18n.t("edit-font-default");
-    let (mut pointed, mut chosen) = (None, None);
-    let families = crate::decode::font_families();
-    let r = egui::ComboBox::from_id_salt("edit-font").width(180.0).height(420.0).selected_text(own.clone().unwrap_or_else(|| default.clone())).show_ui(ui, |ui| {
-        for f in std::iter::once(None).chain(families.iter().cloned().map(Some)) {
-            let r = ui.selectable_label(own == f, f.clone().unwrap_or_else(|| default.clone()));
-            if r.hovered() {
-                pointed = Some(f.clone());
-            }
-            if r.clicked() {
-                chosen = Some(f);
-            }
-        }
-    });
-    r.response.on_hover_text(i18n.t("edit-font-hint"));
-    let set = |w: &mut Window, f: Option<String>| {
-        if let Some(font) = w.doc.objects.get_mut(i).and_then(|o| o.shape.font_mut()) {
-            *font = f;
-        }
-    };
-    match (chosen, r.inner.is_some()) {
-        (Some(f), _) => {
-            w.font_preview = None;
-            w.text_font.clone_from(&f);
-            set(w, f);
-        }
-        (None, true) => {
-            w.font_preview.get_or_insert((i, own));
-            if let Some(f) = pointed {
-                set(w, f);
-            }
-        }
-        (None, false) => {
-            if let Some((j, f)) = w.font_preview.take()
-                && j == i
-            {
-                set(w, f);
-            }
-        }
-    }
-}
-
-/// On a curve or not: on, the text gets a line as long as it is, along its angle, to bend by its
-/// middle handle; off, it is upright again where the middle of the line was.
-fn text_curve(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
-    let Some(Shape::Text { at, text, size, rot, path, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
-    if !ui.add(egui::Button::new(i18n.t("edit-text-curve")).selected(path.is_some())).on_hover_text(i18n.t("edit-text-curve-hint")).clicked() {
-        return;
-    }
-    *path = match path.take() {
-        Some((a, b, c)) => {
-            *at = crate::edit::geom::bend_handle(a, b, c);
-            None
-        }
-        None => {
-            let half = crate::edit::geom::text_area(*at, text, *size, *rot).w / 2.0 + *size;
-            let (s, c) = rot.to_radians().sin_cos();
-            Some((Pt::new(at.x - c * half, at.y - s * half), Pt::new(at.x + c * half, at.y + s * half), None))
-        }
-    };
-}
-
-/// The angle of the selected text on the screen, -180° to 180° (its own angle in the document is
-/// measured on the image, which may be turned by Rotate and crop).
-fn text_angle(ui: &mut egui::Ui, w: &mut Window, i: usize, i18n: &I18n) {
-    let angle = w.doc.angle;
-    let Some(Shape::Text { rot, .. }) = w.doc.objects.get_mut(i).map(|o| &mut o.shape) else { return };
-    let mut shown = (*rot + angle + 180.0).rem_euclid(360.0) - 180.0;
-    ui.label(i18n.t("rc-rotation"));
-    ui.spacing_mut().slider_width = 110.0;
-    if ui.add(egui::Slider::new(&mut shown, -180.0..=180.0).integer().suffix("°")).changed() {
-        *rot = shown - angle;
-    }
-}
-
-/// `colours` with none ringed (a colour no swatch has).
-fn colours_unringed(ui: &mut egui::Ui, colour: &mut [u8; 3], i18n: &I18n) -> bool {
-    // ponytail: almost white, no swatch has it, and the button of any other colour looks empty.
-    let mut probe = [254, 254, 254];
-    let chosen = colours(ui, &mut probe, i18n);
-    if chosen {
-        *colour = probe;
-    }
-    chosen
-}
-
-/// The inside of a rectangle: none (a white square crossed in red), the ready-made colours, any
-/// other colour.
-fn fill_colours(ui: &mut egui::Ui, fill: &mut Option<[u8; 3]>, i18n: &I18n) {
-    let (rect, r) = ui.allocate_exact_size(egui::vec2(20.0, 20.0), egui::Sense::click());
-    let p = ui.painter();
-    let inner = rect.shrink(2.0);
-    p.rect_filled(inner, 3.0, Color32::WHITE);
-    p.rect_stroke(inner, 3.0, egui::Stroke::new(1.0, Color32::from_gray(120)), egui::StrokeKind::Inside);
-    p.line_segment([inner.left_bottom(), inner.right_top()], egui::Stroke::new(2.0, Color32::from_rgb(220, 30, 30)));
-    if fill.is_none() {
-        p.rect_stroke(rect, 4.0, egui::Stroke::new(2.0, ui.visuals().selection.stroke.color), egui::StrokeKind::Inside);
-    }
-    if r.on_hover_text(i18n.t("edit-fill-none")).clicked() {
-        *fill = None;
-    }
-    // With no fill no swatch is ringed: the colours only show what a click would give.
-    let mut colour = fill.unwrap_or([255, 255, 255]);
-    let none = fill.is_none();
-    let chosen = if none { colours_unringed(ui, &mut colour, i18n) } else { colours(ui, &mut colour, i18n) };
-    if chosen || !none {
-        *fill = Some(colour);
-    }
-}
-
-/// The letters of the selected text, typed here; a text just placed takes the keys at once.
-fn text_field(ui: &mut egui::Ui, w: &mut Window, selected: Option<usize>, i18n: &I18n) {
-    let Some(text) = selected.and_then(|i| w.doc.objects[i].shape.text_mut()) else {
-        w.focus_text = false;
-        ui.weak(i18n.t("edit-text-hint"));
-        return;
-    };
-    let r = ui.add(egui::TextEdit::multiline(text).desired_rows(1).desired_width(280.0).hint_text(i18n.t("edit-text-hint")));
-    // A text typed on the image takes the keys there (`typing`).
-    if w.editing.is_none() && std::mem::take(&mut w.focus_text) {
-        r.request_focus();
     }
 }
 

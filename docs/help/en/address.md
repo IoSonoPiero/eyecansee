@@ -13,7 +13,7 @@ Click in the address bar, type an address and press **Enter**. You can type:
 
 Quotes around the whole address, as Windows' **Copy as path** adds them, and spaces before or after it are left out. On Windows a drive letter alone, such as `C:`, opens the drive's main folder (`C:\`).
 
-When you change folder, the bar shows the new one. When there is room, at its end ![Copy the address](icon://copy) copies the address and ![Paste an address](icon://clipboard-paste) puts the copied one in its place, ready for **Enter**. A password is never shown in the bar, even when you typed it there. If the address cannot be opened, a yellow band with a warning triangle at the bottom of the window says why (it goes away when you change folder, or earlier with its ✕), and the bar goes back to the folder you were in.
+When you change folder, the bar shows the new one. At its end ![Copy the address](icon://copy) copies the address and ![Paste an address](icon://clipboard-paste) puts the copied one in its place, ready for **Enter**; in a narrow window these two buttons go on a row under the bar, with the sorting and the size of the thumbnails. A password is never shown in the bar, even when you typed it there. If the address cannot be opened, a yellow band with a warning triangle at the bottom of the window says why (it goes away when you change folder, or earlier with its ✕), and the bar goes back to the folder you were in.
 
 ## Open location
 
@@ -41,4 +41,4 @@ To avoid typing the password every time, click **Save and open**, or save the se
 
 ## Starting EyeCanSee on an address
 
-EyeCanSee can be started with a folder, a picture or a server address, for example from another program with "Open with": it opens that place instead of the last folder. If EyeCanSee is already open, the place is shown in the window already open.
+EyeCanSee can be started with a folder, a picture or a server address, for example from another program with "Open with": it opens that place instead of the last folder. If EyeCanSee is already open, the place is shown in the window already open. If that window has the image editor open, the place opens when you close the editor (its status bar says so): the image being edited is saved where it is.

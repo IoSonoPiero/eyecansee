@@ -35,10 +35,10 @@ pub(crate) struct AddressForm {
     /// Why the servers could not be saved.
     pub(crate) error: Option<String>,
     /// Opened because the server refused the login: why, shown at the top of the window (behind
-    /// it, in the grid and the side panel, it could not be read: user, 2026-11-10).
+    /// it, in the grid and the side panel, it could not be read).
     pub(crate) refused: Option<String>,
-    /// The refused server is a saved one: Enter is "Save and open", so its new password stays
-    /// (user, 2026-11-10); otherwise Enter is "Open".
+    /// The refused server is a saved one: Enter is "Save and open", so its new password stays;
+    /// otherwise Enter is "Open".
     pub(crate) enter_saves: bool,
     /// Opened because the saved key of this server (index) did not open: the message, shown
     /// above its fields until it is saved again.

@@ -34,7 +34,7 @@ pub(crate) fn insunits(code: i16) -> Option<Unit> {
 }
 
 /// A metric size of 10000 or more in a larger unit, so that it reads at a glance: a plan of
-/// 3540706 mm is 3541 m (user, 2026-11-02). Other units stay as they are.
+/// 3540706 mm is 3541 m. Other units stay as they are.
 pub fn readable(mut w: f64, mut h: f64, mut unit: &str) -> (f64, f64, &str) {
     while w.max(h) >= 10_000.0 {
         let (k, larger) = match unit {

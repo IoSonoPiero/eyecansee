@@ -14,7 +14,7 @@ use crate::transform::Turn;
 /// otherwise at quality 95; the others encoded again, a lossless WebP still lossless. Also says
 /// whether it was encoded again with loss (the confirmation warns about it).
 pub fn turned_file(bytes: &[u8], name: &str, turn: Turn) -> Result<(Vec<u8>, bool), String> {
-    // A phone photo with an HDR gain map: both pictures turned, the HDR kept.
+    // A phone photo with an HDR gain map, or a Motion Photo: all of it turned, HDR and video kept.
     if Format::of_file(name) == Some(Format::Jpeg)
         && let Some(r) = crate::ultrahdr::turned(bytes, turn)
     {
@@ -79,13 +79,19 @@ pub fn can_turn_in_place(bytes: &[u8], name: &str) -> bool {
 /// A JPEG that ends at its EOI marker (zeros after it are padding) and has no MPF segment.
 /// libjpeg-turbo drops what follows EOI (tried: 27 bytes after it, gone after a turn).
 fn plain_jpeg(b: &[u8]) -> bool {
+    jpeg_end(b).is_some_and(|(end, mpf)| !mpf && b[end..].iter().all(|&x| x == 0))
+}
+
+/// Where the picture of a JPEG ends (just after its EOI marker), and whether it has an MPF
+/// segment (more pictures after it). `None` if it is not a JPEG that ends.
+pub(crate) fn jpeg_end(b: &[u8]) -> Option<(usize, bool)> {
     if !b.starts_with(&[0xFF, 0xD8]) {
-        return false;
+        return None;
     }
-    let mut i = 2;
+    let (mut i, mut mpf) = (2, false);
     while i + 1 < b.len() {
         if b[i] != 0xFF {
-            return false;
+            return None;
         }
         let marker = b[i + 1];
         match marker {
@@ -93,17 +99,15 @@ fn plain_jpeg(b: &[u8]) -> bool {
                 i += 1; // fill byte
                 continue;
             }
-            0xD9 => return b[i + 2..].iter().all(|&x| x == 0),
+            0xD9 => return Some((i + 2, mpf)),
             0x01 | 0xD0..=0xD7 => {
                 i += 2;
                 continue;
             }
             _ => {}
         }
-        let Some(len) = b.get(i + 2..i + 4).map(|l| u16::from_be_bytes([l[0], l[1]]) as usize).filter(|l| *l >= 2) else { return false };
-        if marker == 0xE2 && b.get(i + 4..i + 2 + len).is_some_and(|body| body.starts_with(b"MPF\0")) {
-            return false;
-        }
+        let len = b.get(i + 2..i + 4).map(|l| u16::from_be_bytes([l[0], l[1]]) as usize).filter(|l| *l >= 2)?;
+        mpf |= marker == 0xE2 && b.get(i + 4..i + 2 + len).is_some_and(|body| body.starts_with(b"MPF\0"));
         i += 2 + len;
         if marker == 0xDA {
             // Coded data, up to the next marker: not a stuffed 0xFF00, not a restart.
@@ -112,7 +116,7 @@ fn plain_jpeg(b: &[u8]) -> bool {
             }
         }
     }
-    false
+    None
 }
 
 /// AVIF image sequence: brand "avis" in the ftyp box.
@@ -176,5 +180,21 @@ mod tests {
         gif::GifEncoder::new(&mut animated_gif).encode_frames([frame(), frame()]).unwrap();
         assert!(!can_turn_in_place(&animated_gif, "a.gif"));
         assert!(!can_turn_in_place(&jpeg, "a.heic"));
+    }
+
+    /// A JPEG named `.jfif` or `.jpe` is saved back as a JPEG: turned without re-encoding, still
+    /// a JPEG (before, Save refused it: only `.jpg` and `.jpeg` were known).
+    #[test]
+    fn other_jpeg_names() {
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_fn(32, 16, |x, y| image::Rgb([x as u8 * 8, y as u8 * 16, 0])));
+        let mut jpeg = Vec::new();
+        img.write_to(&mut Cursor::new(&mut jpeg), image::ImageFormat::Jpeg).unwrap();
+        for name in ["a.jfif", "a.JPE"] {
+            assert!(can_turn_in_place(&jpeg, name), "{name}");
+            let (out, lossy) = super::turned_file(&jpeg, name, crate::transform::Turn::default().then(crate::transform::Op::Cw)).unwrap();
+            assert!(!lossy, "{name}");
+            assert_eq!(image::guess_format(&out).unwrap(), image::ImageFormat::Jpeg, "{name}");
+            assert_eq!(crate::decode::decode_full(&out, name).unwrap().width(), 16, "{name}");
+        }
     }
 }
