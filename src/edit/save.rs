@@ -360,7 +360,10 @@ fn pixelate_turned(img: &mut DynamicImage, area: &Area, (cx, cy, rot): (f32, f32
         let (u, v) = (dx * rc + dy * rs, -dx * rs + dy * rc);
         if u.abs() < hw && v.abs() < hh {
             let (pu, pv) = ((((u + hw) * w as f32 / area.w) as u32).min(w - 1), (((v + hh) * h as f32 / area.h) as u32).min(h - 1));
-            img.put_pixel(x, y, *part.get_pixel(pu, pv));
+            // The block's colour, the pixel's own alpha (an empty corner stays empty).
+            let mut px = *part.get_pixel(pu, pv);
+            px[3] = img.get_pixel(x, y)[3];
+            img.put_pixel(x, y, px);
         }
     }
 }
