@@ -12,6 +12,8 @@ const BAR: f32 = 40.0;
 /// Width of the volume slider, and the volume a key or a wheel notch adds or takes away.
 const VOLUME_WIDTH: f32 = 90.0;
 const VOLUME_STEP: i32 = 5;
+/// Width of the volume written after its slider ("100 %").
+const VOLUME_VALUE: f32 = 44.0;
 
 /// The video open in the viewer; dropped (and so stopped) when the viewer shows something else.
 pub(crate) struct Playing {
@@ -533,8 +535,9 @@ fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u3
         }
         let (pos, length) = (player.position(), player.duration());
         ui.label(egui::RichText::new(format!("{} / {}", mpv::clock(pos), mpv::clock(length))).color(light).monospace());
-        // Room on the right for the sound: the button (as wide as the play one) and the slider.
-        let sound_width = VOLUME_WIDTH + 3.0 * ui.spacing().item_spacing.x + 34.0;
+        // Room on the right for the sound: the button (as wide as the play one), the slider and
+        // the volume.
+        let sound_width = VOLUME_WIDTH + VOLUME_VALUE + 4.0 * ui.spacing().item_spacing.x + 34.0;
         ui.spacing_mut().slider_width = (ui.available_width() - sound_width).max(40.0);
         let mut at = pos;
         let r = ui.add(egui::Slider::new(&mut at, 0.0..=length.max(0.001)).show_value(false));
@@ -560,7 +563,18 @@ fn sound_controls(ui: &mut egui::Ui, player: &mpv::Player, (volume, mute): (&mut
         player.set_mute(*mute);
     }
     ui.spacing_mut().slider_width = VOLUME_WIDTH;
-    let r = ui.add_enabled(audio, egui::Slider::new(volume, 0..=100).show_value(false));
+    // A mark every 10, the volume after it; in the light grey of the bar, in both themes.
+    let light = Color32::from_gray(225);
+    let r = ui
+        .add_enabled_ui(audio, |ui| {
+            ui.visuals_mut().override_text_color = Some(light);
+            let marks = crate::ticked::Marks::new(&(0..=100), Some(f64::from(VOLUME_STEP)));
+            let r = crate::ticked::add(ui, egui::Slider::new(volume, 0..=100).show_value(false), &marks);
+            let shown = egui::Label::new(egui::RichText::new(format!("{volume} %")).color(light).monospace());
+            ui.add_sized([VOLUME_VALUE, ui.spacing().interact_size.y], shown);
+            r
+        })
+        .inner;
     let r = r.on_hover_text(i18n.t_args("video-volume", &[("volume", &volume.to_string())])).on_disabled_hover_text(&tip);
     if r.changed() {
         player.set_volume(*volume);

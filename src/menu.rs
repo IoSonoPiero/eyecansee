@@ -209,6 +209,8 @@ impl App {
         // Line icons in square buttons with a border (Lucide).
         let mut below = None;
         ui.horizontal(|ui| {
+            // What does not fit goes into the "More" menu (`toolbar::fit`).
+            let fit = self.toolbar_fit(ui);
             if self.viewing.is_some() {
                 if ui.add(icons::button(ui, icons::Line::Grid)).on_hover_text(self.i18n.t("menu-back-to-grid")).clicked() {
                     self.close_viewer();
@@ -221,20 +223,15 @@ impl App {
                 self.go_up();
             }
             // Not in the viewer: the image shown is read again by itself when it changes (F5 too).
-            if self.viewing.is_none() && ui.add(icons::button(ui, icons::Line::Refresh)).on_hover_text(self.i18n.t("menu-refresh")).clicked() {
+            if fit.refresh() && ui.add(icons::button(ui, icons::Line::Refresh)).on_hover_text(self.i18n.t("menu-refresh")).clicked() {
                 self.refresh();
             }
-            self.toolbar_ops(ui);
+            self.toolbar_ops(ui, fit);
             // Metadata: closes all the boxes if one is open, otherwise reopens them all.
-            if self.viewing.is_none() {
-                let any = meta::Group::ALL.into_iter().any(|g| self.meta_shown(g));
-                if ui.add(icons::toggle(ui, any, icons::Line::Info)).on_hover_text(self.i18n.t("tb-meta")).clicked() {
-                    for g in meta::Group::ALL {
-                        self.show_meta(g, !any);
-                    }
-                }
+            if fit.meta() && ui.add(icons::toggle(ui, self.any_meta_shown(), icons::Line::Info)).on_hover_text(self.i18n.t("tb-meta")).clicked() {
+                self.toggle_all_meta();
             }
-            self.bookmark_button(ui);
+            self.bookmark_button(ui, fit.star());
             below = self.address_field(ui, ctx);
         });
         if let Some(tail) = below {

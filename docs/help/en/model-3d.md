@@ -41,7 +41,7 @@ In the top right corner the axes of the file (X red, Y green, Z blue) turn with 
 
 ## Section
 
-**S** cuts the model with a plane, to see inside it: what is beyond the plane is left out, and where the plane crosses the solid it is filled in red, so walls and thicknesses stand out. The plane starts through the middle of the model, across Z for a model with Z up (for a building in IFC, a plan of the floor it crosses), otherwise across Y. The status bar says the axis and where the plane is, with a slider that moves it; or with the keys:
+**S** cuts the model with a plane, to see inside it: what is beyond the plane is left out, and where the plane crosses the solid it is filled in red, so walls and thicknesses stand out. The plane starts through the middle of the model, across Z for a model with Z up (for a building in IFC, a plan of the floor it crosses), otherwise across Y. The status bar says the axis and where the plane is, with a slider that moves it, marked every tenth of the model; or with the keys:
 
 - **X**, **Y**, **Z**: the axis the plane goes across;
 - **Alt** and the mouse wheel, **,** and **.**, or the slider in the status bar: move the plane;

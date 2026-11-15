@@ -108,6 +108,8 @@ pub(crate) enum Act {
     CheckUpdates,
     About,
     Meta(meta::Group),
+    /// The ℹ button: all the metadata boxes closed, or all opened.
+    MetaAll,
     Sort(settings::SortBy),
     SortDesc,
     Show(settings::Show),
@@ -170,7 +172,7 @@ impl Act {
             Act::Up => Line::Up,
             Act::Manual => Line::Manual,
             Act::CheckUpdates | Act::Update => Line::Updates,
-            Act::About => Line::Info,
+            Act::About | Act::MetaAll => Line::Info,
             _ => return None,
         })
     }
@@ -331,6 +333,7 @@ impl App {
             Act::About => self.about = true,
             Act::CheckUpdates => self.check_updates_now(ctx),
             Act::Meta(g) => self.show_meta(g, !self.meta_shown(g)),
+            Act::MetaAll => self.toggle_all_meta(),
             Act::Sort(by) => self.set_sort(by, self.settings.sort_desc),
             Act::SortDesc => self.set_sort(self.settings.sort_by, !self.settings.sort_desc),
             Act::Show(show) => self.set_show(show),

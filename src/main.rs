@@ -155,6 +155,7 @@ mod thumb_details;
 mod thumb_queue;
 mod test_copy;
 mod thumbcache;
+mod ticked;
 mod tips;
 mod toolbar;
 mod toolbar_end;

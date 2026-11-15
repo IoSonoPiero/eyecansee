@@ -22,6 +22,19 @@ impl App {
         self.settings.save();
     }
 
+    /// Whether a metadata box is open: the ℹ button is on then.
+    pub(crate) fn any_meta_shown(&self) -> bool {
+        meta::Group::ALL.into_iter().any(|g| self.meta_shown(g))
+    }
+
+    /// The ℹ button: closes all the boxes if one is open, otherwise reopens them all.
+    pub(crate) fn toggle_all_meta(&mut self) {
+        let any = self.any_meta_shown();
+        for g in meta::Group::ALL {
+            self.show_meta(g, !any);
+        }
+    }
+
     /// Metadata boxes of the selected image, side by side below the grid; each one closes with
     /// its X and reopens from the View menu or the ℹ button.
     pub(crate) fn meta_panel(&mut self, ui: &mut Ui) {

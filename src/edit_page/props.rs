@@ -14,8 +14,8 @@ use crate::icons::{self, Line};
 /// the right edge ("Opacity 100 %" of a text in a 900 px window). The group goes to the next row
 /// when the width it had in the last pass does not fit; measured for the first time, the pass is
 /// drawn again, so it is never shown cut. `salt`: which slider of the bar it is; `label` may be
-/// empty.
-pub(super) fn slider(ui: &mut egui::Ui, salt: &str, label: String, slider: egui::Slider) -> egui::Response {
+/// empty. With its `marks` under the rail (`ticked`).
+pub(super) fn slider(ui: &mut egui::Ui, salt: &str, label: String, slider: egui::Slider, marks: &crate::ticked::Marks) -> egui::Response {
     let id = ui.scope_id().with(("bar-slider", salt));
     let last = ui.data(|d| d.get_temp::<f32>(id));
     let row_start = ui.cursor().min.x <= ui.max_rect().min.x + 0.5;
@@ -31,7 +31,7 @@ pub(super) fn slider(ui: &mut egui::Ui, salt: &str, label: String, slider: egui:
         }
         // Clamped only when the user changes it: by default egui rounds and clamps the value
         // each time it is drawn, so a width or angle with a fraction changed by itself.
-        ui.add(slider.clamping(egui::SliderClamping::Edits))
+        crate::ticked::add(ui, slider.clamping(egui::SliderClamping::Edits), marks)
     });
     let width = r.response.rect.width();
     ui.data_mut(|d| d.insert_temp(id, width));
@@ -65,7 +65,8 @@ pub(super) fn text_look(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
     let size = style.width.max(1.0);
     let px = |ui: &mut egui::Ui, (salt, label): (&str, &str), frac: &mut f32, lo: f32, hi: f32| {
         let mut v = *frac * size;
-        slider(ui, salt, i18n.t(label), egui::Slider::new(&mut v, lo..=hi.max(lo + 1.0)).integer().suffix(" px"));
+        let range = lo..=hi.max(lo + 1.0);
+        slider(ui, salt, i18n.t(label), egui::Slider::new(&mut v, range.clone()).integer().suffix(" px"), &crate::ticked::Marks::whole(&range));
         *frac = v / size;
     };
     ui.separator();
@@ -83,7 +84,7 @@ pub(super) fn text_look(ui: &mut egui::Ui, style: &mut Style, i18n: &I18n) {
     if let Some(back) = &mut style.back {
         colours(ui, &mut back.color, i18n);
         let mut pct = back.opacity * 100.0;
-        slider(ui, "edit-text-back", i18n.t("edit-opacity"), egui::Slider::new(&mut pct, 5.0..=100.0).integer().suffix(" %"));
+        slider(ui, "edit-text-back", i18n.t("edit-opacity"), egui::Slider::new(&mut pct, 5.0..=100.0).integer().suffix(" %"), &crate::ticked::Marks::whole(&(5.0..=100.0)));
         back.opacity = pct / 100.0;
         px(ui, ("edit-margin", "edit-margin"), &mut back.margin, 0.0, size);
         px(ui, ("edit-corners", "edit-corners"), &mut back.radius, 0.0, size);
@@ -139,7 +140,8 @@ pub(super) fn bubble(ui: &mut egui::Ui, style: &mut Style, long: f32, i18n: &I18
     ui.separator();
     ui.label(i18n.t("edit-letters"));
     colours(ui, &mut style.ink, i18n);
-    slider(ui, "edit-letters", String::new(), egui::Slider::new(&mut style.letters, 4.0..=(long / 4.0).max(100.0)).integer().suffix(" px"));
+    let range = 4.0..=(long / 4.0).max(100.0);
+    slider(ui, "edit-letters", String::new(), egui::Slider::new(&mut style.letters, range.clone()).integer().suffix(" px"), &crate::ticked::Marks::whole(&range));
 }
 
 #[cfg(test)]
@@ -155,7 +157,7 @@ mod tests {
         let mut v = 2.37_f32;
         for _ in 0..3 {
             ctx.run_ui(Default::default(), |ui| {
-                super::slider(ui, "t", String::new(), egui::Slider::new(&mut v, 0.0..=10.0).integer());
+                super::slider(ui, "t", String::new(), egui::Slider::new(&mut v, 0.0..=10.0).integer(), &crate::ticked::Marks::whole(&(0.0..=10.0)));
             })
             .textures_delta
             .clear();
