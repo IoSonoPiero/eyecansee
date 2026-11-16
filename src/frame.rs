@@ -6,7 +6,7 @@ use std::sync::atomic::Ordering;
 use eframe::egui::{self, Color32};
 
 use crate::window_close::Step;
-use crate::{App, meta, save_dialogs, theme};
+use crate::{App, save_dialogs, theme};
 
 impl App {
     /// Every frame, before drawing: messages, retries, keys, title and window size.
@@ -164,9 +164,7 @@ impl App {
                     if self.keys_open || status.inner.hovered() {
                         self.keys_window(ctx, "hint-grid", status.response.rect.height());
                     }
-                    if meta::Group::ALL.into_iter().any(|g| self.meta_shown(g)) {
-                        egui::Panel::bottom("meta").show(ui, |ui| self.meta_panel(ui));
-                    }
+                    self.meta_bottom(ui, ctx);
                     egui::Panel::left("tree").resizable(true).default_size(240.0).show(ui, |ui| self.tree(ui));
                     let canvas = theme::canvas(ui.visuals());
                     egui::CentralPanel::default()

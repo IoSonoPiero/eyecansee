@@ -37,8 +37,9 @@ Per un video il pannello mostra, quando il file li contiene: marca e modello del
 - Ogni riquadro si chiude con la sua ![Chiudi](icon://x) e si riapre da **Visualizza > Riquadri dei metadati**.
 - ![Metadati: mostra o nascondi i riquadri](icon://info) nella barra strumenti chiude tutti i riquadri se ce n'è almeno uno aperto, altrimenti li riapre tutti.
 - ![Comprimi il pannello](icon://chevron-down) a destra della barra del titolo del pannello, o un clic sulla barra stessa, riduce il pannello alla sola barra e lo riapre. Finché il pannello è compresso, i metadati non vengono letti.
+- Il pannello parte alto un quarto della finestra e resta così da un file all'altro: quello che non ci sta scorre con la rotellina. Trascinandone il bordo superiore diventa più alto o più basso, fino a metà finestra; quando la finestra cambia dimensione resta la stessa parte della finestra.
 
-EyeCanSee si ricorda quali riquadri sono aperti e se il pannello è compresso.
+EyeCanSee si ricorda quali riquadri sono aperti, se il pannello è compresso e la sua altezza.
 
 ## Da sapere
 

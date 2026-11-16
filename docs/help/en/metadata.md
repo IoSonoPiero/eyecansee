@@ -37,8 +37,9 @@ For a video the panel shows, when the file has them: make and model of the phone
 - Each box closes with its ![Close](icon://x) and reopens from **View > Metadata boxes**.
 - ![Metadata: show or hide the boxes](icon://info) in the toolbar closes all the boxes when one is open, and opens them all again otherwise.
 - ![Collapse the panel](icon://chevron-down) at the right of the panel's title bar, or a click on the title bar, collapses the panel to just its bar and opens it again. While the panel is collapsed, the metadata is not read.
+- The panel starts at a quarter of the window's height and keeps it from one file to the next: what does not fit scrolls with the mouse wheel. Drag its top edge to make it taller or shorter, up to half the window; it stays that part of the window when the window changes size.
 
-EyeCanSee remembers which boxes are open and whether the panel is collapsed.
+EyeCanSee remembers which boxes are open, whether the panel is collapsed and its height.
 
 ## Good to know
 

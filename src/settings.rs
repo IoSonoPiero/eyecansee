@@ -37,6 +37,8 @@ pub struct Settings {
     pub meta_hidden: Vec<String>,
     /// Metadata panel collapsed: only its bar remains.
     pub meta_collapsed: bool,
+    /// Height of the open metadata panel, as a part of the window's height (dragged by its top edge).
+    pub meta_size: f32,
     pub sort_by: SortBy,
     pub sort_desc: bool,
     /// Which files the grid shows.
@@ -219,6 +221,7 @@ impl Default for Settings {
             smooth: true,
             meta_hidden: Vec::new(),
             meta_collapsed: false,
+            meta_size: 0.25,
             sort_by: SortBy::Name,
             sort_desc: false,
             show: Show::All,
@@ -333,7 +336,7 @@ mod tests {
         // Every key 0.76.0 wrote, none of those added after it.
         let mut old = serde_json::to_value(Settings::default()).unwrap();
         let keys = old.as_object_mut().unwrap();
-        keys.retain(|k, _| !["edit_after_save", "edit_main_overwrite", "resize_presets", "thumb_details", "tips", "tip_next", "tips_day", "smooth"].contains(&k.as_str()));
+        keys.retain(|k, _| !["edit_after_save", "edit_main_overwrite", "resize_presets", "thumb_details", "tips", "tip_next", "tips_day", "smooth", "meta_size"].contains(&k.as_str()));
         assert_eq!(keys.len(), 32, "the keys of 0.76.0's settings.json");
         let s: Settings = serde_json::from_value(old).unwrap();
         assert_eq!(s.edit_after_save, AfterSave::Stay, "the page stays open unless chosen");

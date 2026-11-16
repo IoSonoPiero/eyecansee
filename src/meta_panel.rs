@@ -18,7 +18,6 @@ impl App {
         if !show {
             self.settings.meta_hidden.push(g.key().to_string());
         }
-        self.meta_height = 0.0;
         self.settings.save();
     }
 
@@ -70,19 +69,15 @@ impl App {
             (_, Some(Ok(None))) => t("meta-no-exif"),
             _ => String::new(),
         };
-        // The panel never shrinks: with a photo without EXIF, or while the data arrives (only
-        // one line), it shrank and grew back at every click and the grid above jumped.
-        // It starts again from its content when a box is opened or closed (`show_meta`).
-        // Only the boxes are measured: the whole panel includes the title bar and grew at every frame.
         // A video or an audio file without the video engine: no box but File has anything, so
         // the note once beside it, not repeated in every box.
         let played = file.as_ref().is_some_and(|(_, f)| crate::decode::is_played(&f.path));
         let alone = matches!(meta, Some(Err(_))) && played && !crate::mpv::available();
         let meta = meta.and_then(|m| m.ok().flatten());
         let mut close = None;
-        let min_height = self.meta_height;
-        let boxes = ScrollArea::horizontal().show(ui, |ui| {
-            ui.set_min_height(min_height);
+        // A fixed height (`meta_size`): a taller box scrolls, a shorter one leaves room below,
+        // and the grid above never jumps from one file to the next.
+        ScrollArea::both().auto_shrink(false).show(ui, |ui| {
             ui.horizontal_top(|ui| {
                 for g in boxes(alone, drawing, |g| self.meta_shown(g)) {
                     egui::Frame::group(ui.style()).show(ui, |ui| ui.vertical(|ui| {
@@ -97,16 +92,51 @@ impl App {
                 }
             });
         });
-        self.meta_height = self.meta_height.max(boxes.content_size.y);
         if let Some(g) = close {
             self.show_meta(g, false);
+        }
+    }
+
+    /// The metadata panel under the grid, when a box is open.
+    pub(crate) fn meta_bottom(&mut self, ui: &mut Ui, ctx: &egui::Context) {
+        if !self.any_meta_shown() {
+            return;
+        }
+        // Collapsed, its own id: the open panel's remembered height does not hold the bar.
+        let panel = if self.settings.meta_collapsed {
+            egui::Panel::bottom("meta-bar")
+        } else {
+            egui::Panel::bottom("meta").exact_size(self.meta_size(ctx))
+        };
+        panel.show(ui, |ui| self.meta_panel(ui));
+    }
+
+    /// Height of the open metadata panel: its part of the window, between the title bar with
+    /// two lines and half the window.
+    pub(crate) fn meta_size(&self, ctx: &egui::Context) -> f32 {
+        let window = ctx.content_rect().height();
+        (self.settings.meta_size * window).clamp(META_MIN.min(window / 2.0), window / 2.0)
+    }
+
+    /// The top edge of the open panel, dragged up or down: its height, kept as a part of the window.
+    fn meta_resize(&mut self, ui: &Ui) {
+        let top = ui.max_rect().top() - ui.spacing().item_spacing.y;
+        let edge = Rect::from_x_y_ranges(ui.max_rect().x_range(), top - 4.0..=top + 4.0);
+        let drag = ui.interact(edge, egui::Id::unique("meta-resize"), Sense::drag()).on_hover_cursor(egui::CursorIcon::ResizeVertical);
+        if drag.dragged() {
+            let window = ui.ctx().content_rect().height();
+            let size = self.meta_size(ui.ctx()) - drag.drag_delta().y;
+            self.settings.meta_size = size.clamp(META_MIN.min(window / 2.0), window / 2.0) / window;
+        }
+        if drag.drag_stopped() {
+            self.settings.save();
         }
     }
 
     /// Title bar of the metadata panel.
     pub(crate) fn meta_title_bar(&mut self, ui: &mut Ui) {
         // Title bar: a click anywhere, or on the button on the right, collapses and reopens the
-        // panel. Dragging its edge was useless: it always went back to the content's height.
+        // panel; dragging its top edge changes the panel's height (`meta_resize`).
         let collapsed = self.settings.meta_collapsed;
         let (rect, bar) = ui.allocate_exact_size(vec2(ui.available_width(), ui.spacing().interact_size.y), Sense::click());
         let font = egui::TextStyle::Body.resolve(ui.style());
@@ -115,6 +145,9 @@ impl App {
         let hint = self.i18n.t(if collapsed { "meta-expand" } else { "meta-collapse" });
         let button = ui.put(button_rect, crate::icons::small(ui, if collapsed { crate::icons::Line::ChevronUp } else { crate::icons::Line::Down })).on_hover_text(&hint);
         let bar = bar.on_hover_text(hint).on_hover_cursor(egui::CursorIcon::PointingHand);
+        if !collapsed {
+            self.meta_resize(ui);
+        }
         if bar.clicked() || button.clicked() {
             self.settings.meta_collapsed = !collapsed;
             log!("metadata collapsed: {}", !collapsed);
@@ -402,6 +435,8 @@ impl App {
 
 /// Width of the note that stands for the boxes without data (two boxes and the gap between).
 const NOTE_WIDTH: f32 = 512.0;
+/// Smallest height of the open metadata panel: the title bar and two lines of a box.
+const META_MIN: f32 = 110.0;
 
 /// The boxes drawn, those not closed (`shown`); `alone`: only File, the others have nothing to
 /// show and one note says why (the video engine missing).
