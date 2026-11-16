@@ -33,6 +33,8 @@ pub struct Mesh {
     pub z_up: bool,
     pub center: [f32; 3],
     pub radius: f32,
+    /// Half the size of its box along X, Y and Z: how far a section's plane goes from the centre.
+    pub half: [f32; 3],
     /// Per triangle, or empty without textures: where its corners are on its picture (u to the
     /// right, v down from the top, repeating outside 0-1), and which picture (0 = none, else
     /// the index in `textures` plus one).
@@ -200,6 +202,7 @@ impl Builder {
             }
         }
         let center = [0, 1, 2].map(|k| (lo[k] + hi[k]) / 2.0);
+        let half = [0, 1, 2].map(|k| (hi[k] - lo[k]) / 2.0);
         let radius = ((0..3).map(|k| (hi[k] - lo[k]).powi(2)).sum::<f32>().sqrt() / 2.0).max(f32::MIN_POSITIVE);
         let colors = if colors.iter().any(Option::is_some) { tris.iter().map(|&(i, _)| colors[i].unwrap_or(DEFAULT)).collect() } else { Vec::new() };
         let textured = uv.iter().any(Option::is_some);
@@ -218,7 +221,7 @@ impl Builder {
         let shiny = matte > 0 || shine.iter().any(|s| s.0 > 0);
         let (surface, normals) = if shiny { tris.iter().enumerate().map(|(k, &(i, _))| pick(k, i)).unzip() } else { (Vec::new(), Vec::new()) };
         let surfaces = if shiny { surfaces } else { Vec::new() };
-        Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, uv, tex, textures, surface, surfaces, normals, unit: None })
+        Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, half, uv, tex, textures, surface, surfaces, normals, unit: None })
     }
 }
 

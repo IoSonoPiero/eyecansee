@@ -107,6 +107,8 @@ impl App {
         self.frames.read.clear();
         self.motion.read.clear();
         self.model.meshes.clear();
+        // Opened again, a model starts from the default view, without the section left on.
+        self.model.of = None;
         self.end_compare();
         self.model.cad.drawings.clear();
         self.zoom_of = None;

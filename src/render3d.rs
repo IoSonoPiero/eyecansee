@@ -26,7 +26,7 @@ pub struct View {
 }
 
 /// A cutting plane across an axis of the file (0 X, 1 Y, 2 Z), at `at` from one side of the
-/// model's sphere (0) to the other (1); `flip` keeps the other side.
+/// model's box (0) to the other (1); `flip` keeps the other side.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct Cut {
     pub axis: usize,
@@ -49,7 +49,10 @@ impl Cut {
     pub fn plane(&self, mesh: &Mesh) -> [f32; 4] {
         let axis = self.axis.min(2);
         let sign = if self.flip { -1.0 } else { 1.0 };
-        let at = mesh.center[axis] + (self.at.clamp(0.0, 1.0) * 2.0 - 1.0) * mesh.radius;
+        // From one face of the model's box to the other: across the sphere around it, the ends
+        // of the slider cut nothing (a long boat was whole from 93%). A hair beyond the faces, so
+        // at 0% a face lying on the plane goes too.
+        let at = mesh.center[axis] + (self.at.clamp(0.0, 1.0) * 2.0 - 1.0) * (mesh.half[axis] + mesh.radius * 1e-4);
         let mut p = [0.0; 4];
         p[axis] = sign;
         p[3] = sign * at;
@@ -529,6 +532,8 @@ mod tests {
         let none = View { cut: Some(Cut { at: 0.0, ..Cut::middle(false) }), ..View::default() };
         assert_eq!(lit_pixels(&render(&m, &none, 200, 200, 1)), 0);
         assert!(cut_away(&Cut::middle(false).plane(&m), [0.0, 0.5, 0.0]) && !cut_away(&Cut::middle(false).plane(&m), [0.0, -0.5, 0.0]));
+        // The plane goes from one face of the box to the other: at 95% the top 5% is cut away.
+        assert!(cut_away(&Cut { at: 0.95, ..Cut::middle(false) }.plane(&m), [0.0, 0.95, 0.0]));
         // Not filled (a model that is not closed): the inside as it is, without the red.
         let open = View { cut: Some(Cut { fill: false, ..Cut::middle(false) }), ..View::default() };
         assert!(!red(centre(&open)));

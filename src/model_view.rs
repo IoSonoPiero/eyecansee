@@ -23,7 +23,7 @@ pub(crate) struct State {
     /// Models read by the loader for the viewer, by path (`Msg::Mesh`).
     pub(crate) meshes: HashMap<String, Arc<Mesh>>,
     /// The model shown and its camera; a new model starts from the default view.
-    of: Option<String>,
+    pub(crate) of: Option<String>,
     pub(crate) view: View,
     /// The graphics card, from eframe; without it the processor draws the model (`model_cpu`).
     pub(crate) gpu: Option<Gpu>,
@@ -38,6 +38,8 @@ pub(crate) struct State {
     pub(crate) engine: Option<Arc<crate::component::Download>>,
     /// When the last frames were drawn (seconds), for the frame rate in the status bar.
     frames: std::collections::VecDeque<f64>,
+    /// When a section's plane was last moved (egui time): it is drawn for a moment after.
+    pub(crate) section_moved: f64,
     /// The presentation was chosen (`pace`), and is mailbox; when the last frame began.
     presented: bool,
     mailbox: bool,
@@ -193,6 +195,7 @@ impl App {
             painter.image(id, rect, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
         }
         axes_corner(&painter, rect, render3d::axes(&view, mesh.z_up));
+        self.section_plane(&painter, rect, &mesh, &view);
         self.model_measure(ui, &response, &path, &mesh);
         self.zoom_shown = view.zoom;
         self.count_frame(ui.input(|i| i.time));

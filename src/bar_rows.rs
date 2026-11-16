@@ -40,6 +40,19 @@ pub(crate) fn right_end<R>(ui: &mut egui::Ui, salt: &str, add: impl FnOnce(&mut 
     inner
 }
 
+/// A text that changes as it goes (a number moving) kept as wide as `widest` with any digits, so
+/// what comes after it on the bar stays still instead of shaking.
+pub(crate) fn steady(ui: &mut egui::Ui, text: &str, widest: &str) {
+    let font = egui::TextStyle::Body.resolve(ui.style());
+    let width = |s: String| ui.painter().layout_no_wrap(s, font.clone(), egui::Color32::WHITE).size().x;
+    let digits = ('0'..='9').map(|d| width(widest.chars().map(|c| if c.is_ascii_digit() { d } else { c }).collect()));
+    let wide = digits.fold(width(text.to_string()), f32::max);
+    ui.allocate_ui_with_layout(egui::vec2(wide, ui.spacing().interact_size.y), egui::Layout::left_to_right(egui::Align::Center), |ui| {
+        ui.set_min_width(wide);
+        ui.label(text);
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

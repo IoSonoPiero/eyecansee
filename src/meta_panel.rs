@@ -286,10 +286,10 @@ impl App {
                 ui.label(self.i18n.t_args("model-triangles", &[("n", &mesh.tris.len().to_string())]));
                 if let Some(fps) = self.model_fps() {
                     ui.separator();
-                    ui.label(format!("{fps} fps"));
+                    crate::bar_rows::steady(ui, &format!("{fps} fps"), "000 fps");
                 }
                 ui.separator();
-                ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
+                crate::bar_rows::steady(ui, &format!("{:.0}%", self.zoom_shown * 100.0), "0000%");
                 self.section_bar(ui);
             } else if crate::cad::is_cad(&f.path) {
                 // A drawing has no pixels: its own size, in its unit.
