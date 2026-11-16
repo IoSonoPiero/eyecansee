@@ -1,7 +1,7 @@
 //! The window at the end of Convert… and of the commands that share its work (Resize, Copy with
 //! the metadata, Copy without audio, Save the audio, Export drawing): one line per outcome with
 //! its count, the time it took and the size before and after, the files left out grouped by
-//! reason, then Open the folder and Close (issue #134).
+//! reason, then Close and Open the folder, the latter only when saved in another folder (issue #134).
 
 use std::time::Duration;
 
@@ -138,14 +138,14 @@ impl App {
             }
             ui.add_space(8.0);
             ui.horizontal(|ui| {
+                if ui.button(&close_label).clicked() {
+                    close = true;
+                }
                 if let Some(address) = &s.open {
                     let b = ui.add_enabled(!covered, egui::Button::new(&open_label)).on_disabled_hover_text(&covered_hint);
                     if b.clicked() {
                         go = Some(address.clone());
                     }
-                }
-                if ui.button(&close_label).clicked() {
-                    close = true;
                 }
             });
         });

@@ -79,7 +79,7 @@ At the end a summary, titled with the command, says:
 - how long it took and, when files were saved, their size on disk before and after, with the percentage;
 - the files left out, grouped by reason (another kind of file, a format EyeCanSee cannot write, already of that size, animated or with several pages, FFmpeg missing, an error), each group with its file names. A group of more than five files is folded: click its line to open it. The list scrolls when it is long.
 
-**Open the folder** shows the thumbnails of the folder where the files went, on this computer, a phone or a server; it is there only when something was saved, and it is greyed out while a page (the editor, Save as, the slideshow or the duplicates) covers the thumbnails. **Close**, **Enter** or **Esc** close the summary.
+**Open the folder** shows the thumbnails of the folder where the files went, on this computer, a phone or a server; it is there only when something was saved in another folder than the one on screen, and it is greyed out while a page (the editor, Save as, the slideshow or the duplicates) covers the thumbnails. **Close**, **Enter** or **Esc** close the summary.
 
 ## Things to know
 

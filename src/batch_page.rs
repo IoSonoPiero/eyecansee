@@ -609,7 +609,12 @@ impl App {
             log!("batch: left out: {id} {detail}");
         }
         let outcome = Outcome { saved, done, total, failed: &failed, preset: w.preset, folder: &w.dest.0, took, sizes: p.sizes() };
-        self.batch_summary = Some(summary(&self.i18n, self.batch_titles(w).0, &outcome, w.dest.0.clone()));
+        let mut s = summary(&self.i18n, self.batch_titles(w).0, &outcome, w.dest.0.clone());
+        // Saved in the folder on screen: Open the folder would open it again.
+        if w.dest.1.as_ref() == Some(&self.dir) {
+            s.open = None;
+        }
+        self.batch_summary = Some(s);
         self.relist(w.dir.clone());
         if let Some(dest) = w.dest.1.clone().filter(|d| *d != w.dir) {
             self.relist(dest);
