@@ -360,13 +360,14 @@ impl App {
                 self.zoom_group(ui)
             });
             let layers = layers_on.then(|| ui.add(layers).on_hover_text(self.i18n.t("key-layers")));
-            // While measuring: the results (or how to go on) take the room left, Copy beside.
+            // While measuring: the results (or how to go on) take the room left, Copy beside. In
+            // the bold font: `strong` only changes the colour, and the bar makes every text white.
             let copy = measure.as_ref().and_then(|(_, results)| results.then(|| ui.add(copy).on_hover_text("Ctrl+C")));
             // The buttons need their room; the results are cut to what is left.
             let need = ui.min_rect().width();
             if let Some((text, _)) = measure {
                 ui.separator();
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| ui.add(egui::Label::new(egui::RichText::new(&text).strong()).truncate()).on_hover_text(&text));
+                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| ui.add(egui::Label::new(egui::RichText::new(&text).family(egui::FontFamily::Name(crate::BOLD.into()))).truncate()).on_hover_text(&text));
             }
             (([keys, layers, copy], zoom.flatten()), need)
         })
