@@ -269,8 +269,9 @@ impl App {
         let Some(f) = files.get(current) else { return ([None, None, None], None) };
         let mut zoom_on = false;
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
+        let top_copy = self.measure_row(ui);
         // On more rows in a narrow window (`bar_rows`): the date went under Keys at 520 px.
-        crate::bar_rows::rows(ui, |ui| {
+        let (mut buttons, zoom) = crate::bar_rows::rows(ui, |ui| {
             self.phone_waiting(ui);
             // The same note as the grid's bar: a file gone from the device, say.
             if let Some(note) = &self.status_note {
@@ -340,7 +341,31 @@ impl App {
                 ui.label(date);
             }
             self.status_buttons(ui, current, zoom_on)
-        })
+        });
+        if top_copy.is_some() {
+            buttons[2] = top_copy;
+        }
+        (buttons, zoom)
+    }
+
+    /// While measuring, when the results do not fit beside the file's details: on a row of their
+    /// own above them, on more lines if needed, with Copy; before, they were cut short with "…".
+    fn measure_row(&self, ui: &mut Ui) -> Option<egui::Response> {
+        let (text, results) = self.measure_status()?;
+        if ui.data(|d| d.get_temp::<bool>(measure_fits_id())).unwrap_or(true) {
+            return None;
+        }
+        let copy = ui.horizontal_top(|ui| {
+            let button = egui::Button::new(egui::RichText::new(self.i18n.t("measure-copy")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
+            let width = ui.available_width() - if results { 80.0 } else { 0.0 };
+            ui.scope(|ui| {
+                ui.set_max_width(width);
+                ui.add(egui::Label::new(measure_text(&text)).wrap());
+            });
+            results.then(|| ui.add(button).on_hover_text("Ctrl+C"))
+        });
+        ui.separator();
+        copy.inner
     }
 
     /// The right of the viewer's status bar: Keys, on a picture (`zoom_on`) the zoom group beside
@@ -362,12 +387,25 @@ impl App {
             let layers = layers_on.then(|| ui.add(layers).on_hover_text(self.i18n.t("key-layers")));
             // While measuring: the results (or how to go on) take the room left, Copy beside. In
             // the bold font: `strong` only changes the colour, and the bar makes every text white.
-            let copy = measure.as_ref().and_then(|(_, results)| results.then(|| ui.add(copy).on_hover_text("Ctrl+C")));
+            // The results on a row of their own (`measure_row`) when they did not fit here last time.
+            let fits = ui.data(|d| d.get_temp::<bool>(measure_fits_id())).unwrap_or(true);
+            let copy = measure.as_ref().filter(|_| fits).and_then(|(_, results)| results.then(|| ui.add(copy).on_hover_text("Ctrl+C")));
             // The buttons need their room; the results are cut to what is left.
             let need = ui.min_rect().width();
             if let Some((text, _)) = measure {
-                ui.separator();
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| ui.add(egui::Label::new(egui::RichText::new(&text).family(egui::FontFamily::Name(crate::BOLD.into()))).truncate()).on_hover_text(&text));
+                // Measured the same way wherever the results are, so the choice does not swing.
+                let font = egui::FontId::new(egui::TextStyle::Body.resolve(ui.style()).size, egui::FontFamily::Name(crate::BOLD.into()));
+                let wide = ui.painter().layout_no_wrap(text.clone(), font, Color32::WHITE).size().x;
+                let room = ui.available_width() - if fits { 0.0 } else { ui.spacing().interact_size.x + 30.0 };
+                let now = wide + 16.0 <= room;
+                if now != fits {
+                    ui.data_mut(|d| d.insert_temp(measure_fits_id(), now));
+                    ui.ctx().request_discard("the measure's row chosen");
+                }
+                if fits {
+                    ui.separator();
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| ui.add(egui::Label::new(measure_text(&text)).truncate()).on_hover_text(&text));
+                }
             }
             (([keys, layers, copy], zoom.flatten()), need)
         })
@@ -432,6 +470,17 @@ impl App {
         };
         formatted.unwrap_or_else(|| value.to_string())
     }
+}
+
+/// Whether the measure's results fit on the status bar's row (`measure_row`).
+fn measure_fits_id() -> egui::Id {
+    egui::Id::unique("measure-fits")
+}
+
+/// The measure's text in the bold font: `strong` only changes the colour, and the bar makes every
+/// text white.
+fn measure_text(text: &str) -> egui::RichText {
+    egui::RichText::new(text).family(egui::FontFamily::Name(crate::BOLD.into()))
 }
 
 /// Width of the note that stands for the boxes without data (two boxes and the gap between).
