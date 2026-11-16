@@ -111,12 +111,16 @@ impl App {
         if s.failed.as_ref() == Some(&key) {
             return;
         }
+        // Same view with other layers: the old sharp drawing stays until the new one is ready,
+        // otherwise the faded picture underneath flashed for a moment.
         if let Some((k, tex)) = &s.sharp
-            && *k == key
+            && (Key { layers: key.layers, ..k.clone() }) == key
         {
             let full = egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0));
             ui.painter_at(dest).image(tex.id(), dest, full, egui::Color32::WHITE);
-            return;
+            if *k == key {
+                return;
+            }
         }
         let now = ui.input(|i| i.time);
         let since = match &s.waiting {
