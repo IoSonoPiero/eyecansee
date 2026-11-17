@@ -448,8 +448,9 @@ impl App {
         header.body(|ui| match self.listings.get(&dir) {
             Some(Ok(listing)) => {
                 for child in listing.dirs.clone() {
+                    // Only in the tree of "This computer": a phone's or a server's root is "" too.
                     #[cfg(feature = "shots")]
-                    if crate::shots::tree_hides(&dir, &child) {
+                    if self.base == "/" && crate::shots::tree_hides(&dir, &child) {
                         continue;
                     }
                     let label = self.item_name(&child);
