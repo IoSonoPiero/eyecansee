@@ -18,7 +18,10 @@
 # The site's pictures (site/img, docs/screenshots) have their scenes in tools/shots/site/, left out
 # when no scene is named: tools/shots.sh site/guide site/guide-search site/bookmarks
 # site/open-location site/servers, with EYECANSEE_SHOTS_TO=<folder> for the pictures (default
-# docs/help/img).
+# docs/help/img). site/grid, site/viewer, site/devices and site/video-convert are those of the
+# README too (docs/screenshots/<name>.png, the first command below only); grid and viewer want a
+# real phone with the folder DCIM/EyeCanSee-demo (docs/screenshots/SOURCES.txt), devices the FTP
+# server below.
 # The tips at startup (src/tips.rs) have their own pictures, docs/tips/<name>.webp, from the scenes of
 # tools/shots/tips/, also left out when no scene is named: EYECANSEE_SHOTS_TO=docs/tips tools/shots.sh
 # tips/help tips/right-click tips/cover tips/details tips/metadata tips/slideshow.
@@ -29,6 +32,13 @@
 #   magick <name>.png -resize x533 -strip -quality 82 -define webp:method=6 site/img/<name>.webp
 #   magick <name>.png -strip -quality 82 -define webp:method=6 docs/screenshots/<name>.webp
 # (docs/screenshots/servers.png stays a PNG, as the README shows it: the first command only.)
+#
+# A scene with the line `ftp-server` has a real FTP server behind the made-up "Home NAS"
+# (nas.example.com, user demo, the 13 photos in Photos), started in the namespace for that scene
+# only: it needs pyftpdlib, taken from the Python of EYECANSEE_SHOTS_PYTHON (default python3), for
+# example from a venv made for it:
+#   python3 -m venv /tmp/shots-ftp && /tmp/shots-ftp/bin/pip install pyftpdlib
+#   EYECANSEE_SHOTS_PYTHON=/tmp/shots-ftp/bin/python tools/shots.sh site/devices
 set -euo pipefail
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 
@@ -37,6 +47,9 @@ if [[ ${1:-} == --inside ]]; then
     WORK=$2; shift 2
     ip link set lo up 2>/dev/null || true
     mount --bind "$WORK/home" /home
+    # Of the made-up servers only nas.example.com has an address, for the FTP server of `ftp-server`.
+    printf '127.0.0.1 localhost nas.example.com\n' > "$WORK/hosts"
+    mount --bind "$WORK/hosts" /etc/hosts
     for d in /sys/class/block /dev/disk/by-label /run/media /mnt "/run/user/$SHOTS_UID/gvfs"; do
         if [[ -d $d ]]; then mount -t tmpfs tmpfs "$d"; fi
     done
@@ -70,12 +83,22 @@ if [[ ${1:-} == --inside ]]; then
         done < <(grep -E '^set ' "$scene" || true)
         echo "$settings" > "$conf/settings.json"
         install -m 600 "$WORK/servers.json" "$conf/servers.json"
+        ftp=
+        if grep -q '^ftp-server' "$scene"; then
+            # The saved FTP server with its password, so that it opens without asking.
+            jq '(.[] | select(.scheme == "ftp")).password = "demo"' "$WORK/servers.json" > "$conf/servers.json"
+            "${EYECANSEE_SHOTS_PYTHON:-python3}" -m pyftpdlib -i 127.0.0.1 -p 21 -d "$WORK/ftp" -u demo -P demo \
+                2>"$WORK/log/$name-ftp.log" &
+            ftp=$!
+            sleep 1
+        fi
         open=$(sed -n 's/^open  *//p' "$scene" | head -1)
         echo "$name: ${open:-/home/demo/Pictures}" >&2
         (cd /home/demo && env HOME=/home/demo XDG_CONFIG_HOME=/home/demo/.config XDG_CACHE_HOME=/home/demo/.cache \
             XDG_DATA_HOME=/home/demo/.local/share EYECANSEE_LANG=en EYECANSEE_LOG="$WORK/log/$name.log" \
             EYECANSEE_SHOTS_SCENE="$scene" EYECANSEE_SHOTS_OUT="$WORK/out" \
             timeout 180 "$WORK/eyecansee" "${open:-/home/demo/Pictures}") || echo "$name: exit $?" >&2
+        if [[ -n $ftp ]]; then kill "$ftp"; wait "$ftp" 2>/dev/null || true; fi
     done
     exit 0
 fi
@@ -94,6 +117,11 @@ if (( ${#SCENES[@]} == 0 )); then
     done
 fi
 [[ -d $FILES/foto-video ]] || { echo "test files not found in $FILES (EYECANSEE_SHOTS_FILES)" >&2; exit 1; }
+for n in "${SCENES[@]}"; do
+    if grep -q '^ftp-server' "$ROOT/tools/shots/$n.txt" && ! "${EYECANSEE_SHOTS_PYTHON:-python3}" -c 'import pyftpdlib' 2>/dev/null; then
+        echo "$n needs pyftpdlib: see the top of this script (EYECANSEE_SHOTS_PYTHON)" >&2; exit 1
+    fi
+done
 if [[ $(gdbus call --session --dest org.gnome.ScreenSaver --object-path /org/gnome/ScreenSaver \
         --method org.gnome.ScreenSaver.GetActive 2>/dev/null) == "(true,)" ]]; then
     echo "the screen is locked or off: the pictures would come out empty" >&2; exit 1
