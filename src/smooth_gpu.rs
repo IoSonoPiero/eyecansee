@@ -204,6 +204,17 @@ fn resample_with(grey: &[f32], size: [usize; 2], out: [usize; 2], mitchell: bool
     v
 }
 
+/// The rows of a picture `height` high that the columns pass reads, for a part that starts at
+/// `y0` and is `span` high, with the filter reaching `reach` rows beyond: the first and how
+/// many. Only rows of the picture: beyond its edges the columns pass repeats the first and the
+/// last, as the rows pass would have (counted too, a picture as high as the card allows had
+/// more rows than a texture can be, and was left to the halved copies).
+fn rows_read(y0: f32, span: f32, reach: f32, height: u32) -> (i32, u32) {
+    let first = ((y0 - reach).floor() as i32).max(0);
+    let end = ((y0 + span + reach).ceil() as i32).min(height as i32);
+    (first, (end - first).max(1) as u32)
+}
+
 /// The two passes' pictures of one picture drawn this frame, kept from frame to frame and grown
 /// when needed.
 struct Slot {
@@ -224,8 +235,9 @@ type Key = (TextureId, u64, [u32; 4], [u32; 2], bool);
 struct Memo {
     /// What the result was made from, when it can be kept.
     key: Option<Key>,
-    /// The texture and the change of the picture filtered last.
-    seen: Option<(TextureId, u64)>,
+    /// The texture and the change of the picture filtered last, and the frame it was first
+    /// filtered at.
+    seen: Option<(TextureId, u64, u64)>,
 }
 
 /// What to do with a slot's result.
@@ -243,14 +255,18 @@ impl Memo {
     /// For a result that depends on `key`. A picture put in the place of another (`Picture::set`:
     /// the next frame of an animation, another page) reaches the card only at the end of the
     /// frame, after this is asked: what is filtered in that frame is still the picture before, so
-    /// it is not kept and the frame is drawn again.
-    fn ask(&mut self, key: Key) -> Ask {
+    /// it is not kept and the frame is drawn again. `frame`: the number of the frame being drawn;
+    /// egui may draw one in two passes, and the second is still before the picture reaches the card.
+    fn ask(&mut self, key: Key, frame: u64) -> Ask {
         if self.key == Some(key) {
             return Ask::Kept;
         }
-        let seen = Some((key.0, key.1));
-        let settled = self.seen == seen;
-        self.seen = seen;
+        let first = match self.seen {
+            Some((id, version, first)) if (id, version) == (key.0, key.1) => first,
+            _ => frame,
+        };
+        let settled = frame > first;
+        self.seen = Some((key.0, key.1, first));
         self.key = settled.then_some(key);
         if settled { Ask::Make } else { Ask::Again }
     }
@@ -348,15 +364,15 @@ pub(crate) fn resampled(pic: &Picture, scale: f32, uv: egui::Rect, out: [u32; 2]
     let (sx, sy) = (uv.width() * w / out[0] as f32, uv.height() * h / out[1] as f32);
     // The rows the columns pass reads: the footprint and the filter's reach.
     let reach = LOBES * width(sy);
-    let first = (y0 - reach).floor() as i32;
-    let rows = ((y0 + uv.height() * h + reach).ceil() as i32 - first).max(1) as u32;
+    let (first, rows) = rows_read(y0, uv.height() * h, reach, texture.height());
     if rows > max {
         return None;
     }
     let slot = s.slot([out[0], rows], out);
     let key: Key = (source.id(), pic.version(), [uv.min.x, uv.min.y, uv.max.x, uv.max.y].map(f32::to_bits), out, mitchell);
     let extent = |o: &wgpu::Texture| egui::vec2(out[0] as f32 / o.width() as f32, out[1] as f32 / o.height() as f32);
-    match s.slots[slot].memo.ask(key) {
+    let frame = s.ctx.cumulative_frame_nr();
+    match s.slots[slot].memo.ask(key, frame) {
         Ask::Kept => return Some((s.slots[slot].id, extent(&s.slots[slot].out.0))),
         Ask::Again => s.ctx.request_repaint(),
         Ask::Make => {}
@@ -587,11 +603,23 @@ mod tests {
         let key = |version: u64, zoom: u32| -> Key { (TextureId::Managed(7), version, [0, 0, zoom, zoom], [100, 80], false) };
         let mut memo = Memo::default();
         // A picture never seen: made twice (the first may be of what the texture held before).
-        assert_eq!([memo.ask(key(0, 1)), memo.ask(key(0, 1)), memo.ask(key(0, 1))], [Ask::Again, Ask::Make, Ask::Kept]);
+        assert_eq!([memo.ask(key(0, 1), 10), memo.ask(key(0, 1), 11), memo.ask(key(0, 1), 12)], [Ask::Again, Ask::Make, Ask::Kept]);
         // Another zoom of the same picture: made once.
-        assert_eq!([memo.ask(key(0, 2)), memo.ask(key(0, 2))], [Ask::Make, Ask::Kept]);
+        assert_eq!([memo.ask(key(0, 2), 13), memo.ask(key(0, 2), 14)], [Ask::Make, Ask::Kept]);
         // The next frame of an animation: not kept at once.
-        assert_eq!([memo.ask(key(1, 2)), memo.ask(key(1, 2)), memo.ask(key(1, 2))], [Ask::Again, Ask::Make, Ask::Kept]);
+        assert_eq!([memo.ask(key(1, 2), 15), memo.ask(key(1, 2), 16), memo.ask(key(1, 2), 17)], [Ask::Again, Ask::Make, Ask::Kept]);
+        // A frame drawn in two passes: the second is not "the next frame", the picture is not on the
+        // card yet.
+        assert_eq!([memo.ask(key(2, 2), 20), memo.ask(key(2, 2), 20), memo.ask(key(2, 2), 21), memo.ask(key(2, 2), 22)], [Ask::Again, Ask::Again, Ask::Make, Ask::Kept]);
+    }
+
+    /// The rows read are rows of the picture: one as high as a texture can be, shown whole, has
+    /// that many and not more; a part in the middle has its own and the filter's reach.
+    #[test]
+    fn the_rows_read_are_inside_the_picture() {
+        assert_eq!(rows_read(0.0, 8192.0, 12.6, 8192), (0, 8192));
+        assert_eq!(rows_read(100.0, 50.0, 4.5, 8192), (95, 60));
+        assert_eq!(rows_read(8100.0, 92.0, 30.0, 8192), (8070, 122));
     }
 
     /// A flat grey stays the same grey (the weights add up to one).
