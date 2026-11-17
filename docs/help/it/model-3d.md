@@ -31,7 +31,7 @@ Fai doppio clic su un modello, oppure selezionalo e premi **Invio**.
 | Esc, doppio clic | Torna alla griglia |
 | F11 | Schermo intero: solo il modello |
 
-Qui le frecce girano il modello, quindi non cambiano file. Il pulsante **Tasti** nella barra di stato elenca questi tasti.
+Qui le frecce girano il modello, quindi non cambiano file. Il pulsante **Tasti** nella barra di stato elenca questi tasti; con la Misura accesa, i tasti della Misura.
 
 In alto a destra gli assi del file (X rosso, Y verde, Z blu) girano col modello, come nei programmi CAD. La barra di stato mostra quanti triangoli ha il modello, l'ingrandimento e, mentre si muove, quanti fotogrammi al secondo vengono disegnati.
 

@@ -31,7 +31,7 @@ Double-click a model, or select it and press **Enter**.
 | Esc, double click | Back to the grid |
 | F11 | Full screen: the model alone |
 
-The arrows turn the model, so they do not change file here. The **Keys** button in the status bar lists these keys.
+The arrows turn the model, so they do not change file here. The **Keys** button in the status bar lists these keys; while Measure is on, the keys of Measure.
 
 In the top right corner the axes of the file (X red, Y green, Z blue) turn with the model, as in CAD programs. The status bar shows how many triangles the model has, the zoom and, while it moves, how many frames a second are drawn.
 

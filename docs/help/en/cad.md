@@ -22,7 +22,7 @@ Double-click a drawing, or select it and press **Enter**. The drawing is seen fr
 | F11 | Full screen |
 | Esc, double click | Back to the grid |
 
-When the view stops moving, the part on the screen is drawn again from the drawing, so thin lines and small texts stay sharp at any zoom. The **Keys** button in the status bar lists the keys.
+When the view stops moving, the part on the screen is drawn again from the drawing, so thin lines and small texts stay sharp at any zoom. The **Keys** button in the status bar lists the keys; while Measure is on, the keys of Measure.
 
 ## Layouts
 

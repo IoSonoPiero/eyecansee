@@ -444,6 +444,10 @@ impl App {
     /// Fluent id of their list (`keys_window`). Images too (only the 3D and CAD
     /// viewers had the button).
     pub(crate) fn keys_hint(&self, current: usize) -> Option<&'static str> {
+        // While measuring, the keys of Measure: the status bar says only what to click.
+        if self.model.measure.on && self.measure_off().is_none() {
+            return Some(if self.viewed_mesh().is_some() { "hint-measure-3d" } else { "hint-measure-cad" });
+        }
         if self.viewed_mesh().is_some() {
             return Some("hint-model");
         }

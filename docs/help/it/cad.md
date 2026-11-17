@@ -22,7 +22,7 @@ Fai doppio clic su un disegno, oppure selezionalo e premi **Invio**. Il disegno 
 | F11 | Schermo intero |
 | Esc, doppio clic | Torna alla griglia |
 
-Quando la vista si ferma, la parte sullo schermo viene ridisegnata dal disegno, così linee sottili e testi piccoli restano nitidi a ogni ingrandimento. Il pulsante **Tasti** nella barra di stato elenca i tasti.
+Quando la vista si ferma, la parte sullo schermo viene ridisegnata dal disegno, così linee sottili e testi piccoli restano nitidi a ogni ingrandimento. Il pulsante **Tasti** nella barra di stato elenca i tasti; con la Misura accesa, i tasti della Misura.
 
 ## Layout
 
