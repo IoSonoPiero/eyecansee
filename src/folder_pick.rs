@@ -31,6 +31,11 @@ pub struct Picker {
     first: Option<String>,
     /// The folder a server starts in, once it answers (`go_home`).
     found: Arc<Mutex<Option<String>>>,
+    /// New folder: the name being typed.
+    naming: Option<String>,
+    /// The folder made (gone into once it answers), or why not.
+    made: Arc<Mutex<Option<Result<String, source::Error>>>>,
+    made_error: Option<source::Error>,
 }
 
 /// Where the chooser can jump to: home, the computer, each device, each saved server.
@@ -45,7 +50,7 @@ impl Picker {
     /// at the home folder (`settle`). An error is shown in place of the folders only for a place
     /// chosen in the window, or if the home folder fails too.
     pub fn open(address: &str, rt: &Handle, ctx: &egui::Context) -> Picker {
-        let mut p = Picker { base: String::new(), store: None, dir: String::new(), dirs: Arc::default(), first: None, found: Arc::default() };
+        let mut p = Picker { base: String::new(), store: None, dir: String::new(), dirs: Arc::default(), first: None, found: Arc::default(), naming: None, made: Arc::default(), made_error: None };
         p.place(address, rt, ctx);
         p.first = Some(p.address());
         p
@@ -56,6 +61,12 @@ impl Picker {
     fn settle(&mut self, home: Option<std::path::PathBuf>, rt: &Handle, ctx: &egui::Context) {
         if let Some(dir) = self.found.lock().unwrap().take() {
             self.dir = dir;
+        }
+        let made = self.made.lock().unwrap().take();
+        match made {
+            Some(Ok(dir)) => self.go(dir, rt, ctx),
+            Some(Err(e)) => self.made_error = Some(e),
+            None => {}
         }
         let failed = match &*self.dirs.lock().unwrap() {
             None => return,
@@ -87,7 +98,7 @@ impl Picker {
     fn go(&mut self, dir: String, rt: &Handle, ctx: &egui::Context) {
         let dirs: Dirs = Arc::default();
         self.dirs = dirs.clone();
-        self.found = Arc::default();
+        (self.found, self.naming, self.made_error) = (Arc::default(), None, None);
         self.dir = dir.clone();
         let Some(store) = self.store.clone() else { return };
         let ctx = ctx.clone();
@@ -99,11 +110,38 @@ impl Picker {
         });
     }
 
+    /// What is wrong with `name` for a new folder here, as for New folder in the grid (the files
+    /// of the folder are not listed here: the server says so if one has that name).
+    fn name_problem(&self, name: &str, i18n: &I18n) -> Option<String> {
+        let taken = self.dirs.lock().unwrap().as_ref().and_then(|r| r.as_ref().ok()).is_some_and(|d| d.iter().any(|p| source::name(p) == name));
+        if name.is_empty() || name == "." || name == ".." || name.contains(['/', '\\']) {
+            Some(i18n.t("rename-bad"))
+        } else if taken {
+            Some(i18n.t("rename-taken"))
+        } else {
+            None
+        }
+    }
+
+    /// The folder `name` made in the folder looked at, in the background (`settle` goes into it).
+    fn make(&mut self, name: &str, rt: &Handle, ctx: &egui::Context) {
+        let Some(store) = self.store.clone() else { return };
+        let (made, ctx, path) = (self.made.clone(), ctx.clone(), format!("{}{name}/", self.dir));
+        (self.naming, self.made_error) = (None, None);
+        rt.spawn(async move {
+            let r = store.create_dir(&path).await.map(|()| path.clone());
+            log!("pick: new folder {path:?}: {:?}", r.as_ref().err());
+            *made.lock().unwrap() = Some(r);
+            ctx.request_repaint();
+        });
+    }
+
     /// A server opened without a folder: into the folder it starts in, as the grid does
     /// (`loader.home`). Its root may not be readable: a Hetzner Storage Box refuses "/" over SFTP.
     fn go_home(&mut self, rt: &Handle, ctx: &egui::Context) {
         let (dirs, found): (Dirs, Arc<Mutex<Option<String>>>) = (Arc::default(), Arc::default());
         (self.dirs, self.found, self.dir) = (dirs.clone(), found.clone(), String::new());
+        (self.naming, self.made_error) = (None, None);
         let Some(store) = self.store.clone() else { return };
         let ctx = ctx.clone();
         rt.spawn(async move {
@@ -185,6 +223,8 @@ pub fn pick_ui(ui: &mut egui::Ui, p: &mut Picker, places: &[Place], i18n: &I18n,
     ui.add_space(4.0);
     // Not before the folder answers: a server's starting folder is known only then.
     let answered = p.dirs.lock().unwrap().is_some();
+    // While a new folder's name is typed, Enter and Esc are its own.
+    let keys = keys.filter(|_| p.naming.is_none());
     let mut answer = keys.filter(|&yes| answered || !yes).map(|yes| yes.then(|| p.address()));
     ui.horizontal(|ui| {
         let ok = crate::theme::main_button(ui, i18n.t("pick-use"));
@@ -218,8 +258,16 @@ fn folders_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
         if ui.add_enabled(!p.dir.is_empty(), up).on_hover_text(i18n.t("pick-up")).clicked() {
             p.go(source::parent(&p.dir), rt, &ctx);
         }
+        // Not among the storages of a phone opened directly, as New folder in the grid.
+        let listed = matches!(&*p.dirs.lock().unwrap(), Some(Ok(_)));
+        let can = listed && p.naming.is_none() && !(p.base.starts_with("mtp://") && p.dir.is_empty());
+        let new = egui::Button::image(icons::line(ui, icons::Line::NewFolder, 16.0));
+        if ui.add_enabled(can, new).on_hover_text(i18n.t("menu-new-folder")).clicked() {
+            p.naming = Some(String::new());
+        }
         ui.add(egui::Label::new(egui::RichText::new(p.address()).strong()).truncate());
     });
+    naming_ui(ui, p, i18n, rt);
     ui.add_space(2.0);
     ui.separator();
     let dirs = p.dirs.lock().unwrap().clone();
@@ -241,6 +289,40 @@ fn folders_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
             }
         }
     });
+}
+
+/// The name of the new folder, under the address: Enter or Create makes it, Esc or Cancel leaves
+/// it; what is wrong with the name below, as in the grid's New folder.
+fn naming_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
+    let ctx = ui.ctx().clone();
+    if let Some(e) = &p.made_error {
+        ui.label(error_text(ui, i18n.error(e.0, &e.1)));
+    }
+    let Some(mut name) = p.naming.clone() else { return };
+    let problem = p.name_problem(name.trim(), i18n);
+    let (mut make, mut cancel) = (false, false);
+    ui.horizontal(|ui| {
+        let edit = ui.add(egui::TextEdit::singleline(&mut name).desired_width(200.0));
+        if !edit.has_focus() && !edit.lost_focus() {
+            edit.request_focus();
+        }
+        let (enter, esc) = ui.input(|i| (i.key_pressed(egui::Key::Enter), i.key_pressed(egui::Key::Escape)));
+        make = edit.lost_focus() && enter;
+        cancel = esc;
+        make |= ui.add_enabled(problem.is_none(), egui::Button::new(i18n.t("new-folder-ok"))).clicked();
+        cancel |= ui.button(i18n.t("delete-no")).clicked();
+    });
+    // Nothing said while nothing is typed yet: Create is grey.
+    if let Some(problem) = problem.as_ref().filter(|_| !name.trim().is_empty()) {
+        ui.label(error_text(ui, problem.clone()));
+    }
+    if cancel {
+        p.naming = None;
+    } else if make && problem.is_none() {
+        p.make(name.trim(), rt, &ctx);
+    } else {
+        p.naming = Some(name);
+    }
 }
 
 #[cfg(test)]
@@ -270,13 +352,26 @@ mod tests {
         assert_eq!(std::path::Path::new(&p.address()).canonicalize().unwrap(), root.canonicalize().unwrap().join("a"));
         p.go(source::parent(&p.dir), rt.handle(), &ctx);
         assert_eq!(wait(&p).len(), 2);
+        // New folder: a name taken or not valid is refused; a new one is made and gone into.
+        let i18n = I18n::new("en");
+        assert!(p.name_problem("a", &i18n).is_some() && p.name_problem("..", &i18n).is_some() && p.name_problem("x/y", &i18n).is_some());
+        assert!(p.name_problem("c", &i18n).is_none());
+        p.make("c", rt.handle(), &ctx);
+        while p.made.lock().unwrap().is_none() {
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        p.settle(None, rt.handle(), &ctx);
+        assert!(wait(&p).is_empty() && root.join("c").is_dir());
+        assert_eq!(source::name(&p.dir), "c");
+        p.go(source::parent(&p.dir), rt.handle(), &ctx);
+        assert_eq!(wait(&p).len(), 3);
         // A place that does not exist: the error in place of the folders, no panic.
         p.place("/does/not/exist", rt.handle(), &ctx);
         assert!(p.dirs.lock().unwrap().as_ref().unwrap().is_err());
         // Opened there (a phone unplugged since): the home folder instead.
         let mut p = Picker::open("/does/not/exist", rt.handle(), &ctx);
         p.settle(Some(root.clone()), rt.handle(), &ctx);
-        assert_eq!(wait(&p).len(), 2);
+        assert_eq!(wait(&p).len(), 3, "a, b and the new c");
         assert_eq!(std::path::Path::new(&p.address()).canonicalize().unwrap(), root.canonicalize().unwrap());
         std::fs::remove_dir_all(root).unwrap();
     }
