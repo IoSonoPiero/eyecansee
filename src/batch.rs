@@ -823,23 +823,29 @@ mod tests {
     }
 
     /// A destination whose names cannot be read stops the work: with no names every name would
-    /// look free, and a file that is there would be written over.
+    /// look free, and the file that is there would be written over. A folder that lets files in
+    /// but does not let itself be listed (as a write-only folder of a server).
+    #[cfg(unix)]
     #[test]
     fn a_destination_that_cannot_be_listed_stops_the_work() {
+        use std::os::unix::fs::PermissionsExt;
         let dir = std::env::temp_dir().join(format!("eyecansee-unlisted-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::create_dir_all(dir.join("out")).unwrap();
         let img = DynamicImage::ImageRgb8(image::RgbImage::from_fn(40, 30, |x, y| image::Rgb([x as u8, y as u8, 9])));
         std::fs::write(dir.join("a.png"), file(&img, image::ImageFormat::Png)).unwrap();
+        std::fs::write(dir.join("out/a.png"), b"the one that is there").unwrap();
+        std::fs::set_permissions(dir.join("out"), std::fs::Permissions::from_mode(0o300)).unwrap();
         let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
         let p = Arc::new(Progress::default());
-        // A file where a folder is expected: its names cannot be read.
-        let to = Dest { op: op.clone(), dir: "a.png/".into(), create: false, home: false };
+        let to = Dest { op: op.clone(), dir: "out/".into(), create: false, home: false };
         let job = Job { format: None, ..Default::default() };
         tokio::runtime::Runtime::new().unwrap().block_on(run(&op, vec!["a.png".into()], to, job, p.clone()));
+        std::fs::set_permissions(dir.join("out"), std::fs::Permissions::from_mode(0o700)).unwrap();
         assert!(p.finished.load(Ordering::Relaxed));
         assert_eq!(p.failed.lock().unwrap().len(), 1);
         assert!(p.saved.lock().unwrap().is_empty());
+        assert_eq!(std::fs::read(dir.join("out/a.png")).unwrap(), b"the one that is there");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
