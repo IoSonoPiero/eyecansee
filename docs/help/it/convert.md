@@ -2,6 +2,8 @@
 
 Converte tante immagini insieme: in un altro formato, più piccole o più grandi, ruotate o riflesse, nella stessa cartella, in una sottocartella o in un'altra cartella, anche su un altro dispositivo. Gli originali non vengono mai toccati: i file nuovi vanno accanto a loro o dove scegli tu.
 
+Converti lavora sui file selezionati nella griglia, così come sono sul disco, tutti con le stesse regolazioni. Per una sola immagine, così come la vedi nel visore o nell'editor, col nome che scegli, c'è [Salva come](save-as.md).
+
 Per una sola immagine con l'anteprima dal vivo usa [Salva come](save-as.md). I video passano dalla stessa finestra: vedi [Convertire i video](convert-video.md).
 
 ## Avviare la conversione

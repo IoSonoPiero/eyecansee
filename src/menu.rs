@@ -348,7 +348,7 @@ fn entry(ui: &mut egui::Ui, act: &Cell<Option<Act>>, off: Option<String>, (label
     let r = ui.add_enabled(off.is_none(), button);
     pick(act, match off {
         Some(why) => r.on_disabled_hover_text(why),
-        None => r,
+        None => crate::browser::with_about(ui, r, &a),
     }, a);
 }
 

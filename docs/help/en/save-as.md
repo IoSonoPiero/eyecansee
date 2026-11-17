@@ -2,6 +2,8 @@
 
 Saves one image as a new file, in the format and the folder you choose, for example a phone's HEIC photo as a JPEG, or a PNG as a smaller WebP. Before saving you see exactly how the new file will look and how large it will be. The original is never changed.
 
+Save as works on **one** image, as you see it, with the changes not saved yet. For many images at once, as they are on disk, there is [Converting and resizing](convert.md).
+
 To convert or resize many images at once, use [Converting and resizing images](convert.md).
 
 ## Opening the page

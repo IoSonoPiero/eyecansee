@@ -29,6 +29,15 @@ pub(crate) fn focus_frame(ui: &Ui) {
 pub(crate) type MenuItem = Option<(String, String, Act)>;
 
 /// Right-click menu; returns the chosen item, which the caller runs at the end of the frame (`App::act`).
+/// Save as… and Convert… look alike: each says, on hover, what it works on (`Act::about`; the
+/// texts are put in the context's memory each frame, translated, by `App::ui`).
+pub(crate) fn with_about(ui: &Ui, r: egui::Response, act: &Act) -> egui::Response {
+    match act.about().and_then(|id| ui.ctx().data(|d| d.get_temp::<String>(egui::Id::unique(id)))) {
+        Some(text) => r.on_hover_text(text),
+        None => r,
+    }
+}
+
 pub(crate) fn context_menu(ui: &mut Ui, items: Vec<MenuItem>) -> Option<Act> {
     let mut chosen = None;
     for item in items {
@@ -44,7 +53,8 @@ pub(crate) fn context_menu(ui: &mut Ui, items: Vec<MenuItem>) -> Option<Act> {
                 ui.add_enabled(false, crate::icons::menu_item(ui, None, label, keys)).on_disabled_hover_text(why);
             }
             Some((label, keys, act)) => {
-                if ui.add(crate::icons::menu_item(ui, act.icon(), label, keys)).clicked() {
+                let r = ui.add(crate::icons::menu_item(ui, act.icon(), label, keys));
+                if with_about(ui, r, &act).clicked() {
                     chosen = Some(act);
                 }
             }

@@ -295,7 +295,7 @@ fn group(ui: &mut egui::Ui, ops: &[Op], i18n: &I18n, chosen: &mut Option<Act>) {
         let r = ui.add_enabled(op.off.is_none(), icons::button(ui, op.icon)).on_hover_text(&tip);
         let r = match &op.off {
             Some(why) => r.on_disabled_hover_text(format!("{tip}\n{why}")),
-            None => r,
+            None => crate::browser::with_about(ui, r, &op.act),
         };
         if r.clicked() {
             *chosen = Some(op.act.clone());

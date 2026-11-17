@@ -609,6 +609,9 @@ impl eframe::App for App {
         // Options > Look: applied at once, wherever pictures are drawn.
         mipmap::set_smooth(self.settings.smooth);
         mipmap::set_filter(self.settings.smooth_filter);
+        for id in actions::ABOUT {
+            ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(id), self.i18n.t(id)));
+        }
         let ctx = ui.ctx().clone();
         #[cfg(feature = "shots")]
         self.shots_tick(&ctx);

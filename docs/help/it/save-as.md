@@ -2,6 +2,8 @@
 
 Salva un'immagine come file nuovo, nel formato e nella cartella che scegli: per esempio una foto HEIC del telefono come JPEG, o un PNG come WebP più leggero. Prima di salvare vedi esattamente come sarà il file nuovo e quanto pesa. L'originale non viene mai toccato.
 
+Salva come lavora su **una** immagine, così come la vedi, con le modifiche non ancora salvate. Per tante immagini insieme, così come sono sul disco, c'è [Convertire e ridimensionare](convert.md).
+
 Per convertire o ridimensionare tante immagini insieme usa [Convertire e ridimensionare le immagini](convert.md).
 
 ## Aprire la pagina

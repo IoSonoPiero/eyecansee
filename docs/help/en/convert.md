@@ -2,6 +2,8 @@
 
 Converts many pictures at once: into another format, smaller or larger, turned or flipped, into the same folder, a subfolder or another folder, also on another device. The originals are never touched: the new files are written beside them or where you choose.
 
+Convert works on the files selected in the grid, as they are on disk, all with the same settings. For one image, as you see it in the viewer or the editor, with the name you choose, there is [Save as](save-as.md).
+
 For one image with a live preview use [Save as](save-as.md). Videos go through the same window: see [Converting videos](convert-video.md).
 
 ## Starting

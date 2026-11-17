@@ -176,7 +176,19 @@ impl Act {
             _ => return None,
         })
     }
+
+    /// What it works on, said on hover where it could be taken for another (`browser::with_about`).
+    pub(crate) fn about(&self) -> Option<&'static str> {
+        match self {
+            Act::Convert(_) => Some("menu-save-copy-about"),
+            Act::Batch(_) => Some("menu-batch-about"),
+            _ => None,
+        }
+    }
 }
+
+/// The texts `Act::about` names, translated, for the menus drawn this frame.
+pub(crate) const ABOUT: [&str; 2] = ["menu-save-copy-about", "menu-batch-about"];
 
 impl App {
     pub(crate) fn global_keys(&mut self, ctx: &egui::Context) {
