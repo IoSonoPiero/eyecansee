@@ -48,16 +48,20 @@ pub fn paint_tinted(painter: &egui::Painter, tex: &Picture, dest: egui::Rect, uv
         quad(painter, id, corners, tint);
         return;
     }
-    // On whole pixels of the screen: half a pixel off, each screen pixel takes the mean of two of
-    // the picture, and lines one pixel wide at 100% came out grey (P68, IronManL, 17/11).
-    let shift = on_pixels(dest, ppp).min - dest.min;
+    // The picture's pixels on whole pixels of the screen: half a pixel off, each screen pixel takes
+    // the mean of two of the picture, and lines one pixel wide at 100% came out grey (P68, IronManL,
+    // 17/11; at 167% too, where the view's edge falls inside a pixel).
+    let shift = onto_pixels(dest.min, uv.min.to_vec2() * turned_size(tex, turn), scale, ppp);
     quad(painter, tex.id_at(scale), corners.map(|(pos, uv)| (pos + shift, uv)), tint);
 }
 
-/// `dest` moved by less than half a pixel so that its corner is on a pixel of the screen.
-fn on_pixels(dest: egui::Rect, ppp: f32) -> egui::Rect {
-    let min = (dest.min.to_vec2() * ppp).round().to_pos2() / ppp;
-    dest.translate(min - dest.min)
+/// How far (in points, less than half a pixel) to move a picture whose pixel `first` (in pixels of
+/// the picture, maybe a fraction) is drawn at `at`, `scale` screen pixels per pixel, so that the
+/// edges of its pixels fall on the edges of the screen's.
+fn onto_pixels(at: egui::Pos2, first: egui::Vec2, scale: f32, ppp: f32) -> egui::Vec2 {
+    // Where the picture's pixel 0 starts, in pixels of the screen.
+    let zero = at.to_vec2() * ppp - first * scale;
+    (zero.round() - zero) / ppp
 }
 
 /// The corners of `dest` on the pixels of the screen, with the points of the picture filtered
@@ -97,11 +101,17 @@ mod tests {
     use super::*;
 
     #[test]
-    fn moved_onto_whole_pixels() {
-        let r = on_pixels(egui::Rect::from_min_size(egui::pos2(7.54, 3.2), egui::vec2(100.0, 50.0)), 1.0);
-        assert_eq!((r.min, r.size()), (egui::pos2(8.0, 3.0), egui::vec2(100.0, 50.0)));
-        // At 167%: 4.5 points are 7.515 pixels, moved to 8 pixels, 4.8 points.
-        let r = on_pixels(egui::Rect::from_min_size(egui::pos2(4.5, 0.0), egui::vec2(10.0, 10.0)), 1.67);
-        assert!((r.min.x * 1.67 - 8.0).abs() < 1e-4);
+    fn its_pixels_onto_the_screen_pixels() {
+        let zero = |at: egui::Pos2, first: egui::Vec2, scale: f32, ppp: f32| {
+            let shift = onto_pixels(at, first, scale, ppp);
+            assert!(shift.x.abs() * ppp <= 0.5 && shift.y.abs() * ppp <= 0.5);
+            (at + shift).to_vec2() * ppp - first * scale
+        };
+        let whole = |v: egui::Vec2| (v - v.round()).length() < 1e-3;
+        // The view's edge at 7.54 showing from pixel 228.46 (P68 on the Samsung, 100%).
+        assert!(whole(zero(egui::pos2(7.54, 3.2), egui::vec2(228.46, 0.0), 1.0, 1.0)));
+        // At 167%, the edge 4.5 points in and the picture from pixel 300.2, at 100% and 200%.
+        assert!(whole(zero(egui::pos2(4.5, 60.3), egui::vec2(300.2, 10.7), 1.0, 5.0 / 3.0)));
+        assert!(whole(zero(egui::pos2(4.5, 60.3), egui::vec2(300.2, 10.7), 2.0, 5.0 / 3.0)));
     }
 }
