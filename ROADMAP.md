@@ -99,6 +99,7 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Sliders: a handle that stands out and evenly spaced tick marks ([#158](https://github.com/IoSonoPiero/eyecansee/issues/158)).
 - Copies of a photo with a sidecar: the sidecar's position in the EXIF too ([#159](https://github.com/IoSonoPiero/eyecansee/issues/159)).
 - Find duplicates: Esc from the viewer comes back to the results, with the ticks ([#160](https://github.com/IoSonoPiero/eyecansee/issues/160)).
+- Save as and Convert: each says on hover what it works on ([#161](https://github.com/IoSonoPiero/eyecansee/issues/161)).
 
 ## Later, if requested
 
