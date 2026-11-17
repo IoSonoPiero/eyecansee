@@ -336,8 +336,11 @@ pub(crate) fn segments(b: &[u8]) -> Vec<(u8, usize, usize)> {
     let mut i = 2;
     while i + 4 <= b.len() && b[i] == 0xFF {
         let marker = b[i + 1];
-        let end = i + 2 + u16::from_be_bytes([b[i + 2], b[i + 3]]) as usize;
-        if marker == 0xDA || end > b.len() {
+        // The length counts its own two bytes: less is not a segment, and who reads its content
+        // from the fourth byte on would find the end before the start.
+        let length = u16::from_be_bytes([b[i + 2], b[i + 3]]) as usize;
+        let end = i + 2 + length;
+        if marker == 0xDA || length < 2 || end > b.len() {
             break;
         }
         v.push((marker, i, end));
@@ -416,6 +419,18 @@ fn write_u32(b: &mut [u8], at: usize, v: u32, little: bool) {
 pub(crate) mod tests {
     use super::*;
     use image::{DynamicImage, GenericImageView};
+
+    /// A segment that says it is shorter than its own length field ends the list: its content
+    /// cannot be read.
+    #[test]
+    fn a_segment_shorter_than_its_length_ends_the_list() {
+        let good = [0xFF, 0xD8, 0xFF, 0xE1, 0, 4, 1, 2, 0xFF, 0xE2, 0, 2, 0xFF, 0xDA];
+        assert_eq!(segments(&good), [(0xE1, 2, 8), (0xE2, 8, 12)]);
+        for length in [0u8, 1] {
+            let bad = [0xFF, 0xD8, 0xFF, 0xE1, 0, 4, 1, 2, 0xFF, 0xE1, 0, length, 9, 9, 9, 9];
+            assert_eq!(segments(&bad), [(0xE1, 2, 8)]);
+        }
+    }
 
     fn jpeg(w: u32, h: u32) -> Vec<u8> {
         let img = DynamicImage::ImageRgb8(image::RgbImage::from_fn(w, h, |x, y| image::Rgb([(x * 4) as u8, (y * 4) as u8, 50])));

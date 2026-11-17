@@ -111,8 +111,9 @@ fn items(p: Node) -> Vec<String> {
 /// An XMP GPS coordinate, "DDD,MM,SSk" or "DDD,MM.mmk" (k: N, S, E or W), in decimal degrees.
 fn coord(v: &str) -> Option<f64> {
     let v = v.trim();
-    let dir = v.chars().last()?.to_ascii_uppercase();
-    let parts: Vec<f64> = v[..v.len() - 1].split(',').map(|p| p.trim().parse::<f64>()).collect::<Result<_, _>>().ok()?;
+    let last = v.chars().last()?;
+    let dir = last.to_ascii_uppercase();
+    let parts: Vec<f64> = v[..v.len() - last.len_utf8()].split(',').map(|p| p.trim().parse::<f64>()).collect::<Result<_, _>>().ok()?;
     let (&d, rest) = parts.split_first()?;
     let deg = d + rest.first().unwrap_or(&0.0) / 60.0 + rest.get(1).unwrap_or(&0.0) / 3600.0;
     match dir {
@@ -263,6 +264,9 @@ pub(crate) mod tests {
         assert!(read(b"<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"/>").is_empty());
         assert_eq!(coord("40,21,4.07N").map(|c| (c * 1e6).round()), Some(40351131.0));
         assert_eq!(coord("12,30.5X"), None);
+        // A last character of more than one byte: not a coordinate, and no cut in the middle of it.
+        assert_eq!(coord("12,30.5É"), None);
+        assert_eq!(coord("°"), None);
         assert_eq!(rational("7/0"), None);
     }
 }

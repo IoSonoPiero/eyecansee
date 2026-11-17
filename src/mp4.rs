@@ -110,10 +110,13 @@ fn find_in_file(f: &mut std::fs::File, len: u64, kind: &[u8; 4]) -> std::io::Res
         let n = f.read(&mut header)?;
         let Some((k, size)) = box_header(&header[..n]) else { return Ok(None) };
         let size = if size == 0 { len - at } else { size };
+        // A size that goes past what a file can hold (it would wrap and start again from the
+        // top, without end): not a file to read.
+        let Some(next) = at.checked_add(size) else { return Ok(None) };
         if &k == kind {
-            return Ok((at + size <= len).then_some((at, size)));
+            return Ok((next <= len).then_some((at, size)));
         }
-        at += size;
+        at = next;
     }
     Ok(None)
 }
@@ -262,6 +265,22 @@ pub(crate) mod tests {
         let big = [&1u32.to_be_bytes()[..], b"mdat", &(5u64 << 32).to_be_bytes()].concat();
         assert_eq!(super::box_header(&big), Some((*b"mdat", 5 << 32)));
         assert_eq!(super::box_header(&[0, 0, 0, 3, b'x', b'x', b'x', b'x']), None);
+    }
+
+    /// A box whose size goes round past the end of the numbers is the end of the search, not a
+    /// search that starts again from the top for ever.
+    #[test]
+    fn a_size_that_wraps_ends_the_search() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-mp4-wrap-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("w.mp4");
+        let wrapping = [&1u32.to_be_bytes()[..], b"skip", &(u64::MAX - 15).to_be_bytes()].concat();
+        std::fs::write(&path, [mp4_box(b"free", &[0; 8]), wrapping, mp4_box(b"moov", &[0; 8])].concat()).unwrap();
+        let mut f = std::fs::File::open(&path).unwrap();
+        let len = f.metadata().unwrap().len();
+        assert_eq!(super::find_in_file(&mut f, len, b"moov").unwrap(), None);
+        assert_eq!(super::find_in_file(&mut f, len, b"free").unwrap(), Some((0, 16)));
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]
