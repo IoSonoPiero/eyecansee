@@ -449,7 +449,7 @@ impl App {
             Some(Ok(listing)) => {
                 for child in listing.dirs.clone() {
                     #[cfg(feature = "shots")]
-                    if crate::shots::tree_hides(&dir, &child) {
+                    if !self.base.contains("://") && crate::shots::tree_hides(&dir, &child) {
                         continue;
                     }
                     let label = self.item_name(&child);
