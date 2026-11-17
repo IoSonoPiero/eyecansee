@@ -53,6 +53,11 @@ impl App {
                 self.go(to);
             }
         }
+        // Taken: the page under the viewer (Find duplicates' results) read the same Esc in the same
+        // pass and closed too (Piero, 17/11).
+        if close {
+            ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape));
+        }
         // Esc in full screen leaves it first, with the bars back; then the viewer.
         if close && full_screen(ctx) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
