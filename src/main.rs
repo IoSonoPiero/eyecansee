@@ -115,6 +115,7 @@ mod model_vrml;
 mod model_x3d;
 mod model_view;
 mod mipmap;
+mod exif_place;
 mod smooth_gpu;
 mod turn_undo;
 mod motion;

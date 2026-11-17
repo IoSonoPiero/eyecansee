@@ -236,7 +236,20 @@ pub fn jpeg_with_sidecar(jpeg: Vec<u8>, sidecar: &[u8]) -> Vec<u8> {
         rest = e;
     }
     out.extend_from_slice(&jpeg[rest..]);
-    out
+    match crate::exif_place::of_sidecar(sidecar) {
+        Some(place) => jpeg_exif_placed(out, place),
+        None => out,
+    }
+}
+
+/// `jpeg` with `place` in its EXIF segment (`exif_place::placed`), as in the copies encoded again;
+/// unchanged without one, or when it would not fit in a segment.
+fn jpeg_exif_placed(jpeg: Vec<u8>, place: crate::raw_meta::Place) -> Vec<u8> {
+    const EXIF: &[u8] = b"Exif\0\0";
+    let found = crate::ultrahdr::segments(&jpeg).into_iter().find(|&(m, s, e)| m == 0xE1 && jpeg[s + 4..e].starts_with(EXIF));
+    let Some((_, s, e)) = found else { return jpeg };
+    let Some(t) = crate::exif_place::placed(&jpeg[s + 4 + EXIF.len()..e], place).filter(|t| t.len() + EXIF.len() <= 65533) else { return jpeg };
+    [&jpeg[..s], &app1(&[EXIF, &t].concat()), &jpeg[e..]].concat()
 }
 
 fn app1(body: &[u8]) -> Vec<u8> {

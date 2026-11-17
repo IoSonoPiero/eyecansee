@@ -308,6 +308,11 @@ impl Original {
             x = crate::meta_write::Extra { xmp: x.xmp.or(m.xmp), irb: x.irb.or(m.irb), icc: x.icc.or(m.icc), exif: x.exif.or(m.exif) };
         }
         let exif = exif.or(x.exif).or_else(|| crate::meta::exif_chunk(bytes)).or_else(|| crate::meta::jxl_exif(bytes));
+        // The sidecar's position in the EXIF too, as for a RAW photo: one place in the copy.
+        let exif = match (exif, place) {
+            (Some(e), Some(p)) => Some(crate::exif_place::placed(&e, p).unwrap_or(e)),
+            (e, _) => e,
+        };
         let xmp_ext = x.xmp.as_deref().map_or_else(Vec::new, |m| crate::meta_write::jpeg_xmp_ext(bytes, m));
         // The sidecar's development settings (darktable's history) are not in these pixels either.
         if let Some(side) = sidecar {
