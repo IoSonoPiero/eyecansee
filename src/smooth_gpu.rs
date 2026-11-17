@@ -35,7 +35,8 @@ struct Pass {
     axis: u32,
     // Added to the other coordinate (the first row read by the rows pass).
     offset: i32,
-    pad: i32,
+    // 0: Lanczos-3, 1: Mitchell (B = C = 1/3).
+    kernel: i32,
     // The input's last pixel.
     last: vec2<i32>,
 };
@@ -64,6 +65,24 @@ fn lanczos(t: f32) -> f32 {
     return sinc(t) * sinc(t / 3.0);
 }
 
+fn mitchell(t: f32) -> f32 {
+    let x = abs(t);
+    if x < 1.0 {
+        return (7.0 * x * x * x - 12.0 * x * x + 16.0 / 3.0) / 6.0;
+    }
+    if x < 2.0 {
+        return (-7.0 / 3.0 * x * x * x + 12.0 * x * x - 20.0 * x + 32.0 / 3.0) / 6.0;
+    }
+    return 0.0;
+}
+
+fn kernel(t: f32) -> f32 {
+    if p.kernel == 1 {
+        return mitchell(t);
+    }
+    return lanczos(t);
+}
+
 fn filtered(at: vec4<f32>) -> vec4<f32> {
     let px = vec2<i32>(at.xy);
     var along = px.x;
@@ -80,7 +99,7 @@ fn filtered(at: vec4<f32>) -> vec4<f32> {
     var sum = vec4(0.0);
     var total = 0.0;
     for (var j = first; j <= end; j = j + 1) {
-        let w = lanczos((f32(j) + 0.5 - centre) / p.width);
+        let w = kernel((f32(j) + 0.5 - centre) / p.width);
         var c = vec2(j, across);
         if p.axis == 1u {
             c = vec2(across, j);
@@ -109,6 +128,19 @@ fn lanczos(t: f32) -> f32 {
     if t.abs() >= LOBES { 0.0 } else { sinc(t) * sinc(t / LOBES) }
 }
 
+/// The Mitchell filter (B = C = 1/3): the shader's `mitchell`, for the tests.
+#[cfg(test)]
+fn mitchell_at(t: f32) -> f32 {
+    let x = t.abs();
+    if x < 1.0 {
+        (7.0 * x * x * x - 12.0 * x * x + 16.0 / 3.0) / 6.0
+    } else if x < 2.0 {
+        (-7.0 / 3.0 * x * x * x + 12.0 * x * x - 20.0 * x + 32.0 / 3.0) / 6.0
+    } else {
+        0.0
+    }
+}
+
 /// The filter's width, in input pixels, for `step` input pixels per output pixel.
 pub(crate) fn width(step: f32) -> f32 {
     step.max(1.0) * BLUR
@@ -117,12 +149,14 @@ pub(crate) fn width(step: f32) -> f32 {
 /// One output pixel along an axis, as the shader makes it: `get(j)` the input pixel `j` (the
 /// edges repeated), the footprint starting at `origin` and `step` wide per pixel.
 #[cfg(test)]
-fn filtered(get: impl Fn(i64) -> f32, last: i64, origin: f32, step: f32, at: usize) -> f32 {
-    let (centre, w) = (origin + (at as f32 + 0.5) * step, width(step));
+fn filtered(get: impl Fn(i64) -> f32, last: i64, origin: f32, step: f32, at: usize, mitchell: bool) -> f32 {
+    let w = if mitchell { step.max(1.0) } else { width(step) };
+    let centre = origin + (at as f32 + 0.5) * step;
     let reach = LOBES * w;
     let (mut sum, mut total) = (0.0, 0.0);
     for j in (centre - reach).floor() as i64..=(centre + reach).ceil() as i64 {
-        let k = lanczos((j as f32 + 0.5 - centre) / w);
+        let t = (j as f32 + 0.5 - centre) / w;
+        let k = if mitchell { mitchell_at(t) } else { lanczos(t) };
         sum += get(j.clamp(0, last)) * k;
         total += k;
     }
@@ -133,18 +167,24 @@ fn filtered(get: impl Fn(i64) -> f32, last: i64, origin: f32, step: f32, at: usi
 /// the graphics card (the result clamped to 0-255).
 #[cfg(test)]
 fn resample(grey: &[f32], size: [usize; 2], out: [usize; 2]) -> Vec<f32> {
+    resample_with(grey, size, out, false)
+}
+
+/// `resample` with Lanczos or Mitchell.
+#[cfg(test)]
+fn resample_with(grey: &[f32], size: [usize; 2], out: [usize; 2], mitchell: bool) -> Vec<f32> {
     let [w, h] = size;
     let (sx, sy) = (w as f32 / out[0] as f32, h as f32 / out[1] as f32);
     let mut mid = vec![0.0; out[0] * h];
     for y in 0..h {
         for x in 0..out[0] {
-            mid[y * out[0] + x] = filtered(|j| grey[y * w + j as usize], w as i64 - 1, 0.0, sx, x);
+            mid[y * out[0] + x] = filtered(|j| grey[y * w + j as usize], w as i64 - 1, 0.0, sx, x, mitchell);
         }
     }
     let mut v = vec![0.0; out[0] * out[1]];
     for y in 0..out[1] {
         for x in 0..out[0] {
-            v[y * out[0] + x] = filtered(|j| mid[j as usize * out[0] + x], h as i64 - 1, 0.0, sy, y).clamp(0.0, 255.0);
+            v[y * out[0] + x] = filtered(|j| mid[j as usize * out[0] + x], h as i64 - 1, 0.0, sy, y, mitchell).clamp(0.0, 255.0);
         }
     }
     v
@@ -239,7 +279,11 @@ pub(crate) fn resampled(pic: &Picture, scale: f32, uv: egui::Rect, out: [u32; 2]
     if out[0] == 0 || out[1] == 0 || out[0] > max || out[1] > max {
         return None;
     }
-    let source = pic.texture_at(scale);
+    let filter = crate::mipmap::filter();
+    let mitchell = filter == crate::settings::SmoothFilter::Mitchell;
+    let source: &egui::TextureHandle = if filter == crate::settings::SmoothFilter::Halves { pic.texture_at(scale) } else { pic };
+    // Mitchell at its own width: the 1.35 of `BLUR` is Lanczos' (see the module's comment).
+    let width = |step: f32| if mitchell { step.max(1.0) } else { width(step) };
     let texture = s.rs.renderer.read().texture(&source.id())?.texture.clone()?;
     let (w, h) = (texture.width() as f32, texture.height() as f32);
     let (x0, y0) = (uv.min.x * w, uv.min.y * h);
@@ -257,7 +301,7 @@ pub(crate) fn resampled(pic: &Picture, scale: f32, uv: egui::Rect, out: [u32; 2]
         for v in [origin, step, width(step)] {
             b.extend(v.to_le_bytes());
         }
-        for v in [axis as i32, offset, 0, last[0], last[1]] {
+        for v in [axis as i32, offset, mitchell as i32, last[0], last[1]] {
             b.extend(v.to_le_bytes());
         }
         b
@@ -410,6 +454,44 @@ mod tests {
                 assert!(s <= 6.0, "{name} at {percent}%: grey from one point to the next differs by {s}");
             }
         }
+    }
+
+    /// Rings closer and closer from the centre (a zone plate, as `anelli.png`) shown at 25%, with the
+    /// three filters of Options > Look. Where the rings are finer than the screen's pixels the right
+    /// result is an even grey: what is left there are false rings. From the whole picture they are
+    /// fewer than from the halved copies; the real rings near the centre stay with all three.
+    #[test]
+    fn zone_plate_at_a_quarter_with_the_three_filters() {
+        let (size, out) = ([1200, 800], [300, 200]);
+        // Local frequency k·r/π cycles a pixel: 0.45 at the corners, under the picture's own limit.
+        let rmax = ((600.0f32).powi(2) + 400.0f32.powi(2)).sqrt();
+        let k = 0.45 * std::f32::consts::PI / rmax;
+        let grey: Vec<f32> = (0..size[0] * size[1])
+            .map(|i| {
+                let (x, y) = ((i % size[0]) as f32 + 0.5 - 600.0, (i / size[0]) as f32 + 0.5 - 400.0);
+                127.5 + 127.5 * (k * (x * x + y * y)).cos()
+            })
+            .collect();
+        // Beyond r = 300 the rings are finer than 0.19 cycles a pixel, over the 0.125 a quarter shows.
+        let rms = |v: &[f32], far: bool| {
+            let pick: Vec<f32> = (0..v.len())
+                .filter(|i| {
+                    let (x, y) = ((i % out[0]) as f32 * 4.0 + 2.0 - 600.0, (i / out[0]) as f32 * 4.0 + 2.0 - 400.0);
+                    let r = (x * x + y * y).sqrt();
+                    if far { r > 300.0 && (8..out[0] - 8).contains(&(i % out[0])) && (8..out[1] - 8).contains(&(i / out[0])) } else { r < 60.0 }
+                })
+                .map(|i| v[i] - 127.5)
+                .collect();
+            (pick.iter().map(|d| d * d).sum::<f32>() / pick.len() as f32).sqrt()
+        };
+        let halves = shown(&grey, size, out);
+        let whole = resample_with(&grey, size, out, false);
+        let mitchell = resample_with(&grey, size, out, true);
+        let (fh, fw, fm) = (rms(&halves, true), rms(&whole, true), rms(&mitchell, true));
+        let (ch, cw, cm) = (rms(&halves, false), rms(&whole, false), rms(&mitchell, false));
+        eprintln!("false rings (rms grey levels): halves {fh:.2}, whole {fw:.2}, Mitchell {fm:.2}; real rings at the centre: {ch:.1}, {cw:.1}, {cm:.1}");
+        assert!(fw < fh && fm < fh, "from the whole picture fewer false rings: {fh} {fw} {fm}");
+        assert!(ch > 40.0 && cw > 40.0 && cm > 40.0, "the real rings stay: {ch} {cw} {cm}");
     }
 
     /// A flat grey stays the same grey (the weights add up to one).

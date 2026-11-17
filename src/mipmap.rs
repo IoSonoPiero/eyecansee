@@ -8,7 +8,7 @@
 
 use std::ops::Deref;
 use std::sync::Arc;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU8, Ordering};
 
 use eframe::egui::{self, ColorImage, TextureHandle, TextureId, TextureOptions};
 use rayon::prelude::*;
@@ -77,6 +77,19 @@ pub(crate) fn set_smooth(on: bool) {
 
 pub(crate) fn smooth() -> bool {
     SMOOTH.load(Ordering::Relaxed)
+}
+
+/// Options > Look > the filter (`settings::SmoothFilter`, `smooth_gpu`): from the whole picture it
+/// is slower on the card, without the faint false patterns the halved copies let through.
+static FILTER: AtomicU8 = AtomicU8::new(0);
+
+pub(crate) fn set_filter(f: crate::settings::SmoothFilter) {
+    FILTER.store(f as u8, Ordering::Relaxed);
+}
+
+pub(crate) fn filter() -> crate::settings::SmoothFilter {
+    use crate::settings::SmoothFilter::*;
+    [Halves, Whole, Mitchell][FILTER.load(Ordering::Relaxed) as usize]
 }
 
 /// Which copy to draw at `scale` screen pixels per pixel of the picture (0 the picture itself,

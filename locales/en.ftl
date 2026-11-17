@@ -215,6 +215,12 @@ opt-theme-light = Light
 opt-theme-dark = Dark
 opt-smooth = Smooth pictures shown below 100%
 opt-smooth-hint = A picture shown smaller than its own pixels is filtered: edges stay smooth, and fine details (grass, hair, thin lines) do not turn into grain or stripes. In the viewer, the slideshow, the editor and the thumbnails. Off: shown as up to version 0.76, a little sharper but with jagged edges and grain. Above 100% nothing changes.
+opt-smooth-halves = Fast: from the halved copies
+opt-smooth-halves-hint = The filter starts from a copy of the picture already reduced to a half, a quarter…: light for the graphics card. On very fine patterns some faint false patterns may stay.
+opt-smooth-whole = Exact: from the whole picture
+opt-smooth-whole-hint = The filter always starts from the whole picture: no false patterns, but more work for the graphics card, the more so the smaller the picture is shown.
+opt-smooth-mitchell = Soft: Mitchell from the whole picture
+opt-smooth-mitchell-hint = A softer filter than the other two (Lanczos), from the whole picture: less halo around edges, a little less sharp.
 
 devices = Devices
 servers = Servers

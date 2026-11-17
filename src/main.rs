@@ -604,6 +604,7 @@ impl eframe::App for App {
         smooth_gpu::new_frame();
         // Options > Look: applied at once, wherever pictures are drawn.
         mipmap::set_smooth(self.settings.smooth);
+        mipmap::set_filter(self.settings.smooth_filter);
         let ctx = ui.ctx().clone();
         #[cfg(feature = "shots")]
         self.shots_tick(&ctx);

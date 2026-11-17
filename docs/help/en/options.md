@@ -22,7 +22,7 @@ Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Li
 ## Look
 
 - **Colors**: **Same as the system** (light or dark as the system, and it follows it when it changes), **Light** or **Dark**. The change applies at once.
-- **Smooth pictures shown below 100%** (on): a picture shown smaller than its own pixels is filtered, so edges stay smooth and fine details (grass, hair, thin lines) do not turn into grain or stripes; in the viewer, the slideshow, the editor and the thumbnails. When off, pictures are shown as up to version 0.76, a little sharper but with jagged edges and grain. Above 100% nothing changes. The change applies at once.
+- **Smooth pictures shown below 100%** (on): a picture shown smaller than its own pixels is filtered, so edges stay smooth and fine details (grass, hair, thin lines) do not turn into grain or stripes; in the viewer, the slideshow, the editor and the thumbnails. When off, pictures are shown as up to version 0.76, a little sharper but with jagged edges and grain. Above 100% nothing changes. The change applies at once. Under it, the filter: **Exact: from the whole picture** (at first), with no false patterns on very fine details; **Fast: from the halved copies**, lighter for the graphics card, where some faint false patterns may stay; **Soft: Mitchell from the whole picture**, with less halo around edges and a little less sharp.
 
 ## Viewer
 
