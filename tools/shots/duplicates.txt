@@ -2,6 +2,6 @@
 open /home/demo/Pictures
 width 1000
 3 act duplicates
-5 click 472 440
+5 click 407 456   # Search, in the window that asks where to look
 9 shot
 9.5 end

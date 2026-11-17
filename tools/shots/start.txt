@@ -4,7 +4,7 @@ open /home/demo/Pictures/Holiday
 set meta_collapsed false
 set meta_hidden ["image"]
 3 select Lake Garda.dng
-9 shot side-panel 0 56 240 500
+9 shot side-panel 0 87 240 488
 width 1000
 9.3 shot
 9.8 end

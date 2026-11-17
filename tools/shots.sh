@@ -48,7 +48,8 @@ if [[ ${1:-} == --inside ]]; then
         mkdir -p "/sys/class/block/devices/usb1/1-1/$dev" "/run/media/demo/$label"
         ln -s "devices/usb1/1-1/$dev" "/sys/class/block/$dev"
         mount -t tmpfs "/dev/$dev" "/run/media/demo/$label"
-        cp -r "$WORK/disks/$label/." "/run/media/demo/$label/"
+        # With their dates (stage.sh): a plain copy would date the files today.
+        cp -r --preserve=timestamps "$WORK/disks/$label/." "/run/media/demo/$label/"
     done
     for scene in "$@"; do
         name=$(basename "$scene" .txt)

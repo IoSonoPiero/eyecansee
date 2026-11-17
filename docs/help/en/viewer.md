@@ -60,7 +60,7 @@ A video at full screen fills the screen: its bar appears over the bottom of the 
 
 ## What else you can do
 
-- Turn and flip the picture: see [Rotating and flipping](rotate.md).
+- Rotate and flip the picture: see [Rotating and flipping](rotate.md).
 - Draw on it, crop it, hide parts of it: see [Editing an image](editor.md) (**Ctrl+E**).
 - Save a copy in another format: see [Save as](save-as.md) (**Ctrl+Shift+S**).
 - **F2** renames the picture and **Del** deletes it, as in the grid; after a deletion the next picture appears.

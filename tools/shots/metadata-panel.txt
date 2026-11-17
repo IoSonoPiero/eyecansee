@@ -1,9 +1,12 @@
 # Crop: the metadata panel of Lake Garda (camera data and its place), in a window wide enough
-# for its five boxes.
+# for its five boxes (Description, empty for this photo, hidden) and a panel tall enough for the
+# whole Shot box.
 open /home/demo/Pictures/Holiday
 set meta_collapsed false
+set meta_hidden ["info"]
+set meta_size 0.3
 set window_start "remember"
 set window_size [1500, 800]
 3 select Lake Garda.dng
-9 shot metadata-panel 0 566 1380 208
+9 shot metadata-panel 0 535 1380 217
 9.5 end
