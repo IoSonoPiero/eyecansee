@@ -161,6 +161,9 @@ impl Packed {
         if count.saturating_mul(stride) > MAX_DECODED || stride == 0 {
             return Err("meshopt data too large".into());
         }
+        if !meshopt_shape(e["mode"].as_str(), e["filter"].as_str(), count, stride) {
+            return Err("meshopt data with a size the format does not allow".into());
+        }
         let mut out = vec![0u8; count * stride];
         let code = unsafe {
             match e["mode"].as_str() {
@@ -275,6 +278,29 @@ impl Packed {
     }
 }
 
+/// Whether `count` elements of `stride` bytes are what the meshopt decoder of `mode` and its
+/// `filter` expect, as the glTF extension allows. The decoders are C code that trusts these
+/// numbers (its own checks are compiled out of a release build): with others they write past
+/// the buffer made for them, so a file that names others is refused.
+fn meshopt_shape(mode: Option<&str>, filter: Option<&str>, count: usize, stride: usize) -> bool {
+    let mode_ok = match mode {
+        Some("ATTRIBUTES") => stride.is_multiple_of(4) && stride <= 256,
+        Some("TRIANGLES") => count.is_multiple_of(3) && (stride == 2 || stride == 4),
+        Some("INDICES") => stride == 2 || stride == 4,
+        _ => false,
+    };
+    let filter_ok = match filter {
+        None | Some("NONE") => true,
+        // The filters are for vertices only.
+        Some(_) if mode != Some("ATTRIBUTES") => false,
+        Some("OCTAHEDRAL") | Some("COLOR") => stride == 4 || stride == 8,
+        Some("QUATERNION") => stride == 8,
+        Some("EXPONENTIAL") => stride.is_multiple_of(4),
+        Some(_) => false,
+    };
+    mode_ok && filter_ok
+}
+
 /// A Draco attribute's values at each point, as floats.
 fn draco_values(att: &draco_oxide_core::attribute::Attribute, points: usize, normalized: bool) -> Vec<f32> {
     use draco_oxide_core::attribute::ComponentDataType as T;
@@ -309,6 +335,35 @@ fn draco_values(att: &draco_oxide_core::attribute::Attribute, points: usize, nor
 
 #[cfg(test)]
 mod tests {
+    use super::meshopt_shape;
+    /// Only the sizes the format allows reach the C decoders: a file that names others (a stride
+    /// of 1 for triangles, vertices wider than 256 bytes, a filter on indices) is refused.
+    #[test]
+    fn meshopt_sizes_the_format_does_not_allow_are_refused() {
+        assert!(meshopt_shape(Some("ATTRIBUTES"), None, 100, 12));
+        assert!(meshopt_shape(Some("ATTRIBUTES"), Some("OCTAHEDRAL"), 100, 4));
+        assert!(meshopt_shape(Some("ATTRIBUTES"), Some("QUATERNION"), 100, 8));
+        assert!(meshopt_shape(Some("ATTRIBUTES"), Some("EXPONENTIAL"), 100, 12));
+        assert!(meshopt_shape(Some("TRIANGLES"), Some("NONE"), 300, 2));
+        assert!(meshopt_shape(Some("INDICES"), None, 7, 4));
+        for (mode, filter, count, stride) in [
+            (Some("ATTRIBUTES"), None, 100, 6),
+            (Some("ATTRIBUTES"), None, 100, 260),
+            (Some("ATTRIBUTES"), Some("OCTAHEDRAL"), 100, 12),
+            (Some("ATTRIBUTES"), Some("QUATERNION"), 100, 4),
+            (Some("ATTRIBUTES"), Some("EXPONENTIAL"), 100, 6),
+            (Some("ATTRIBUTES"), Some("SOMETHING"), 100, 8),
+            (Some("TRIANGLES"), None, 300, 1),
+            (Some("TRIANGLES"), None, 301, 2),
+            (Some("TRIANGLES"), Some("OCTAHEDRAL"), 300, 4),
+            (Some("INDICES"), None, 7, 8),
+            (None, None, 3, 4),
+            (Some("OTHER"), None, 3, 4),
+        ] {
+            assert!(!meshopt_shape(mode, filter, count, stride), "{mode:?} {filter:?} {count} {stride}");
+        }
+    }
+
     /// A triangle with its positions as unnormalized 16-bit integers (KHR_mesh_quantization).
     #[test]
     fn quantized_positions_become_floats() {
