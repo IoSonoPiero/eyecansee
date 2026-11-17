@@ -29,6 +29,8 @@ pub struct Picker {
     /// The address it opened at, until its first listing answers: if that fails, the home
     /// folder instead (a phone unplugged since it was chosen opens, then fails to list).
     first: Option<String>,
+    /// The folder a server starts in, once it answers (`go_home`).
+    found: Arc<Mutex<Option<String>>>,
 }
 
 /// Where the chooser can jump to: home, the computer, each device, each saved server.
@@ -43,7 +45,7 @@ impl Picker {
     /// at the home folder (`settle`). An error is shown in place of the folders only for a place
     /// chosen in the window, or if the home folder fails too.
     pub fn open(address: &str, rt: &Handle, ctx: &egui::Context) -> Picker {
-        let mut p = Picker { base: String::new(), store: None, dir: String::new(), dirs: Arc::default(), first: None };
+        let mut p = Picker { base: String::new(), store: None, dir: String::new(), dirs: Arc::default(), first: None, found: Arc::default() };
         p.place(address, rt, ctx);
         p.first = Some(p.address());
         p
@@ -52,6 +54,9 @@ impl Picker {
     /// Once the first listing answers: if it failed and the window is still there, `home` (the
     /// home folder; a folder of its own in the test, whose runner never finished listing its home).
     fn settle(&mut self, home: Option<std::path::PathBuf>, rt: &Handle, ctx: &egui::Context) {
+        if let Some(dir) = self.found.lock().unwrap().take() {
+            self.dir = dir;
+        }
         let failed = match &*self.dirs.lock().unwrap() {
             None => return,
             Some(r) => r.is_err(),
@@ -71,7 +76,7 @@ impl Picker {
         match source::open(address) {
             Ok(s) => {
                 (self.base, self.store) = (s.base, Some(s.op));
-                self.go(s.dir, rt, ctx);
+                if s.home { self.go_home(rt, ctx) } else { self.go(s.dir, rt, ctx) }
             }
             Err(e) => self.dirs = Arc::new(Mutex::new(Some(Err(e)))),
         }
@@ -82,12 +87,40 @@ impl Picker {
     fn go(&mut self, dir: String, rt: &Handle, ctx: &egui::Context) {
         let dirs: Dirs = Arc::default();
         self.dirs = dirs.clone();
+        self.found = Arc::default();
         self.dir = dir.clone();
         let Some(store) = self.store.clone() else { return };
         let ctx = ctx.clone();
         rt.spawn(async move {
             let r = store.list(&dir).await.map(|l| l.dirs);
             log!("pick {dir:?}: {:?}", r.as_ref().map(Vec::len));
+            *dirs.lock().unwrap() = Some(r);
+            ctx.request_repaint();
+        });
+    }
+
+    /// A server opened without a folder: into the folder it starts in, as the grid does
+    /// (`loader.home`). Its root may not be readable: a Hetzner Storage Box refuses "/" over SFTP.
+    fn go_home(&mut self, rt: &Handle, ctx: &egui::Context) {
+        let (dirs, found): (Dirs, Arc<Mutex<Option<String>>>) = (Arc::default(), Arc::default());
+        (self.dirs, self.found, self.dir) = (dirs.clone(), found.clone(), String::new());
+        let Some(store) = self.store.clone() else { return };
+        let ctx = ctx.clone();
+        rt.spawn(async move {
+            let home = match &store {
+                Store::Sftp(server) => server.home().await,
+                Store::Ftp(server) => server.home().await,
+                _ => Ok(String::new()),
+            };
+            let r = match home {
+                Ok(home) => {
+                    let r = store.list(&home).await.map(|l| l.dirs);
+                    log!("pick home {home:?}: {:?}", r.as_ref().map(Vec::len));
+                    *found.lock().unwrap() = Some(home);
+                    r
+                }
+                Err(e) => Err(e),
+            };
             *dirs.lock().unwrap() = Some(r);
             ctx.request_repaint();
         });
@@ -150,10 +183,12 @@ pub fn pick_ui(ui: &mut egui::Ui, p: &mut Picker, places: &[Place], i18n: &I18n,
     ui.add_space(8.0);
     ui.separator();
     ui.add_space(4.0);
-    let mut answer = keys.map(|yes| yes.then(|| p.address()));
+    // Not before the folder answers: a server's starting folder is known only then.
+    let answered = p.dirs.lock().unwrap().is_some();
+    let mut answer = keys.filter(|&yes| answered || !yes).map(|yes| yes.then(|| p.address()));
     ui.horizontal(|ui| {
         let ok = crate::theme::main_button(ui, i18n.t("pick-use"));
-        if ui.add(ok).clicked() {
+        if ui.add_enabled(answered, ok).clicked() {
             answer = Some(Some(p.address()));
         }
         if ui.button(i18n.t("delete-no")).clicked() {

@@ -429,7 +429,7 @@ impl App {
             return;
         }
         let dir = self.dir.clone();
-        let to = Dest { op: loader.store(), dir: dir.clone(), create: false };
+        let to = Dest { op: loader.store(), dir: dir.clone(), create: false, home: false };
         let mut w = Window { paths, dir: dir.clone(), progress: None, dest: (self.display(&dir), Some(dir)), left_out, kinds, preset: true, before: None, started: None };
         let job = Job { format: None, size, tag: size.tag(), ..Job::default() };
         self.start_batch(&mut w, job, to, ctx);
@@ -524,7 +524,7 @@ impl App {
     /// the end when it is on the source open.
     fn batch_dest(&self, f: &Form, dir: &str) -> Result<(Dest, (String, Option<String>)), source::Error> {
         let Some(loader) = &self.loader else { return Err(("error-source", String::new())) };
-        let here = |dir: String, create: bool| (Dest { op: loader.store(), dir: dir.clone(), create }, (self.display(&dir), Some(dir)));
+        let here = |dir: String, create: bool| (Dest { op: loader.store(), dir: dir.clone(), create, home: false }, (self.display(&dir), Some(dir)));
         match f.place {
             Place::Next => Ok(here(dir.to_string(), false)),
             Place::Sub => Ok(here(format!("{dir}{}/", f.sub_name.trim()), true)),
@@ -535,7 +535,7 @@ impl App {
                     return Err(("batch-not-folder", address.to_string()));
                 }
                 let again = (s.base == self.base).then(|| s.dir.clone());
-                Ok((Dest { op: s.op, dir: s.dir.clone(), create: false }, (crate::navigation::shown(&s.base, &s.dir), again)))
+                Ok((Dest { op: s.op, dir: s.dir.clone(), create: false, home: s.home }, (crate::navigation::shown(&s.base, &s.dir), again)))
             }
         }
     }

@@ -268,7 +268,7 @@ mod tests {
         ];
         for (sub, job) in jobs {
             let p = Arc::new(Progress::default());
-            let dest = crate::batch::Dest { op: op.clone(), dir: sub.into(), create: true };
+            let dest = crate::batch::Dest { op: op.clone(), dir: sub.into(), create: true, home: false };
             rt.block_on(crate::batch::run(&op, vec!["v.mp4".into()], dest, job, p.clone()));
             println!("{sub}: saved {:?}, failed {:?}", p.saved.lock().unwrap(), p.failed.lock().unwrap());
             assert!(p.failed.lock().unwrap().is_empty() && !p.saved.lock().unwrap().is_empty(), "{sub}");
@@ -325,7 +325,7 @@ mod tests {
         let paths: Vec<String> = ["a.mp4", "b.mkv", "c.mov", "d.avi"].map(String::from).into();
         for (job, sub) in [(AudioJob::Strip, "strip/"), (AudioJob::Extract, "extract/")] {
             let p = Arc::new(Progress::default());
-            let dest = crate::batch::Dest { op: op.clone(), dir: sub.into(), create: true };
+            let dest = crate::batch::Dest { op: op.clone(), dir: sub.into(), create: true, home: false };
             rt.block_on(crate::batch::run(&op, paths.clone(), dest, crate::batch::Job { audio: Some(job), ..Default::default() }, p.clone()));
             println!("{job:?}: saved {:?}, failed {:?}", p.saved.lock().unwrap(), p.failed.lock().unwrap());
             assert!(p.failed.lock().unwrap().is_empty());
@@ -355,7 +355,7 @@ mod tests {
             let original = std::fs::read(&video).unwrap();
             std::fs::write(dir.join("cam.mp4"), &original).unwrap();
             let p = Arc::new(Progress::default());
-            let dest = crate::batch::Dest { op: op.clone(), dir: "cam/".into(), create: true };
+            let dest = crate::batch::Dest { op: op.clone(), dir: "cam/".into(), create: true, home: false };
             rt.block_on(crate::batch::run(&op, vec!["cam.mp4".into()], dest, crate::batch::Job { audio: Some(AudioJob::Strip), ..Default::default() }, p.clone()));
             let copy = std::fs::read(dir.join("cam").join("cam.mp4")).unwrap();
             let preview = crate::mp4::thumbnail(&original[..original.len().min(crate::mp4::HEAD as usize)]).expect("the original has a preview");

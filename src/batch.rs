@@ -593,25 +593,41 @@ async fn add_sizes(p: &Progress, op: &Store, path: &str, out: &Store, saved: &[S
     p.sized(op.size(path).await.ok(), after);
 }
 
-/// Where the new files go: a folder of a source, made first if `create`.
+/// Where the new files go: a folder of a source, made first if `create`. `home`: a server address
+/// without a folder, whose files go into the folder the server starts in (its root may refuse them).
 pub struct Dest {
     pub op: Store,
     pub dir: String,
     pub create: bool,
+    pub home: bool,
+}
+
+/// The folder the files go into: a server's starting folder for `home`, made first if `create`.
+async fn dest_dir(out: &Store, dest: String, create: bool, home: bool) -> Result<String, source::Error> {
+    let dest = match (out, home) {
+        (Store::Sftp(server), true) => server.home().await?,
+        (Store::Ftp(server), true) => server.home().await?,
+        _ => dest,
+    };
+    if create {
+        out.create_dir(&dest).await?;
+    }
+    Ok(dest)
 }
 
 /// Every image of `paths` (read from `op`) after `job`, written into `to` with a free name;
 /// never over a file.
 pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Progress>) {
     p.total.store(paths.len(), Ordering::Relaxed);
-    let Dest { op: out, dir: dest, create } = to;
-    if create
-        && let Err((id, detail)) = out.create_dir(&dest).await
-    {
-        p.failed.lock().unwrap().push((id, detail));
-        p.finished.store(true, Ordering::Relaxed);
-        return;
-    }
+    let Dest { op: out, dir: dest, create, home } = to;
+    let dest = match dest_dir(&out, dest, create, home).await {
+        Ok(d) => d,
+        Err(e) => {
+            p.failed.lock().unwrap().push(e);
+            p.finished.store(true, Ordering::Relaxed);
+            return;
+        }
+    };
     let mut taken: HashSet<String> = out.names(&dest).await.unwrap_or_default();
     let job = std::sync::Arc::new(job);
     for path in paths {
@@ -805,7 +821,7 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let resize = |size: Size| {
             let p = Arc::new(Progress::default());
-            let to = Dest { op: op.clone(), dir: String::new(), create: false };
+            let to = Dest { op: op.clone(), dir: String::new(), create: false, home: false };
             let job = Job { format: None, size, tag: size.tag(), ..Default::default() };
             rt.block_on(run(&op, vec!["a.png".into(), "t.tga".into()], to, job, p.clone()));
             let failed = p.failed.lock().unwrap().clone();
@@ -828,7 +844,7 @@ mod tests {
         // what was done.
         let custom = |format: Option<Format>, size: Size, turn: Turn| {
             let p = Arc::new(Progress::default());
-            let to = Dest { op: op.clone(), dir: String::new(), create: false };
+            let to = Dest { op: op.clone(), dir: String::new(), create: false, home: false };
             let job = Job { format, size, turn, tag: size.tag(), tag_turned: " (rotated)".into(), ..Default::default() };
             rt.block_on(run(&op, vec!["a.png".into()], to, job, p.clone()));
             assert!(p.failed.lock().unwrap().is_empty(), "{size:?}");
@@ -847,7 +863,7 @@ mod tests {
         // Copy with the metadata: the file as it is, also in a format not written (TGA).
         let p = Arc::new(Progress::default());
         let job = Job { format: None, ..Default::default() };
-        rt.block_on(run(&op, vec!["a.png".into(), "t.tga".into()], Dest { op: op.clone(), dir: String::new(), create: false }, job, p.clone()));
+        rt.block_on(run(&op, vec!["a.png".into(), "t.tga".into()], Dest { op: op.clone(), dir: String::new(), create: false, home: false }, job, p.clone()));
         assert_eq!(*p.saved.lock().unwrap(), ["a (2).png", "t (2).tga"]);
         assert_eq!(std::fs::read(dir.join("a (2).png")).unwrap(), png);
         assert!(p.failed.lock().unwrap().is_empty());
