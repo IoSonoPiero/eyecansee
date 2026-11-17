@@ -126,7 +126,7 @@ fn slider(ui: &mut egui::Ui, i18n: &I18n, zoom: f32, range: [f32; 2]) -> Option<
     // Room for the marks under the rail: in a row of the bar as tall as the text they were cut.
     let thick = ui.text_style_height(&egui::TextStyle::Body).max(ui.spacing().interact_size.y);
     let slider = egui::Slider::new(&mut at, 0.0..=1.0).show_value(false);
-    let r = ui.add_sized([SLIDER, thick + 6.0], slider).on_hover_text(i18n.t("zoom-slider-hint"));
+    let r = crate::ticked::styled(ui, |ui| ui.add_sized([SLIDER, thick + 6.0], slider)).on_hover_text(i18n.t("zoom-slider-hint"));
     let marks: Vec<f64> = zoom::slider_marks(range).into_iter().map(|z| f64::from(zoom::to_slider(z, range))).collect();
     crate::ticked::paint(ui, &r, 0.0..=1.0, &marks);
     // The arrows change the image (or move what is selected): a focused slider would move as well.

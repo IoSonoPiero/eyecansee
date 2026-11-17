@@ -135,10 +135,36 @@ pub(crate) fn add(ui: &mut egui::Ui, slider: egui::Slider, marks: &Marks) -> egu
         Some(step) => slider.step_by(step),
         None => slider,
     };
-    let response = ui.add(slider);
+    let response = styled(ui, |ui| ui.add(slider));
     let most = room(ui.spacing().slider_width);
     paint(ui, &response, marks.range.clone(), &marks.values(most));
     response
+}
+
+/// A slider added by `add`, with its handle in the accent colour (white on the blue bars, where
+/// the text is made white) and its rail grey as before. egui fills the handle and the rail with
+/// the same colour: its rail is made 0 high and the rail is drawn here, under the slider.
+pub(crate) fn styled(ui: &mut egui::Ui, add: impl FnOnce(&mut egui::Ui) -> egui::Response) -> egui::Response {
+    let rail = ui.painter().add(egui::Shape::Noop);
+    let (height, fill, corner) = (ui.spacing().slider_rail_height, ui.visuals().widgets.inactive.bg_fill, ui.visuals().widgets.inactive.corner_radius);
+    // White only on the blue bars, whose text is made white: the video's bar makes it light grey
+    // and keeps the accent, as its position slider (the volume was white beside it, 17/11).
+    let blue_bar = ui.visuals().override_text_color == Some(egui::Color32::WHITE);
+    let handle = if blue_bar { egui::Color32::WHITE } else { crate::theme::accent(ui.visuals()) };
+    let r = ui
+        .scope(|ui| {
+            ui.spacing_mut().slider_rail_height = 0.0;
+            let w = &mut ui.visuals_mut().widgets;
+            for v in [&mut w.inactive, &mut w.hovered, &mut w.active] {
+                v.bg_fill = handle;
+            }
+            add(ui)
+        })
+        .inner;
+    let width = ui.spacing().slider_width.min(r.rect.width());
+    let rect = egui::Rect::from_min_size(egui::pos2(r.rect.left(), r.rect.center().y - height / 2.0), egui::vec2(width, height));
+    ui.painter().set(rail, egui::Shape::rect_filled(rect, corner, fill));
+    r
 }
 
 /// The marks under the rail of a horizontal slider drawn as `response`, in the text's colour:
@@ -158,16 +184,56 @@ pub(crate) fn paint(ui: &egui::Ui, response: &egui::Response, range: RangeInclus
     let bottom = (y + thick / 2.0 + 1.0).max(top + 4.0);
     let colour = ui.visuals().text_color().gamma_multiply(if response.enabled() { 1.0 } else { 0.5 });
     let stroke = egui::Stroke::new(1.0, colour);
-    for &m in marks {
-        let x = egui::emath::remap(m, lo..=hi, f64::from(left)..=f64::from(right)) as f32;
-        let x = ui.painter().round_to_pixel_center(x);
-        ui.painter().vline(x, top..=bottom, stroke);
+    let ppp = ui.ctx().pixels_per_point();
+    for x in mark_pixels(marks, lo..=hi, (left * ppp, right * ppp)) {
+        ui.painter().vline(x / ppp, top..=bottom, stroke);
     }
+}
+
+/// Where the marks go, in physical pixels (centres) from `ends`. Marks evenly spaced in value
+/// between the two ends (the first and last gap of a round spacing may be shorter: the marks
+/// have no numbers, so they are spread evenly) are evenly spaced on the screen, the same whole
+/// number of pixels apart: rounded one by one, at 125 % some gaps were a pixel shorter than the
+/// others, and the marks looked uneven (Piero, 16/11).
+fn mark_pixels(marks: &[f64], range: RangeInclusive<f64>, ends: (f32, f32)) -> Vec<f32> {
+    let (lo, hi) = (*range.start(), *range.end());
+    let (l, r) = (ends.0.round(), ends.1.round());
+    let at = |m: f64| egui::emath::remap(m, lo..=hi, f64::from(l)..=f64::from(r)) as f32;
+    let all: Vec<f64> = marks.windows(2).map(|w| w[1] - w[0]).collect();
+    let gaps = if all.len() > 2 { &all[1..all.len() - 1] } else { &all[..] };
+    let even = all.len() > 1 && {
+        let (least, most) = gaps.iter().fold((f64::MAX, f64::MIN), |(a, b), g| (a.min(*g), b.max(*g)));
+        most - least <= most / 10.0
+    };
+    if !even {
+        return marks.iter().map(|&m| at(m).floor() + 0.5).collect();
+    }
+    let n = all.len() as f32;
+    // Down: the marks stay on the rail, the few pixels left shared at the two ends.
+    let gap = ((r - l) / n).floor().max(1.0);
+    let start = (l + ((r - l) - gap * n) / 2.0).round();
+    (0..marks.len()).map(|i| start + i as f32 * gap + 0.5).collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The same number of pixels between all the marks, at 100 % and at 125 %, and the ends within
+    /// half the marks' count of the rail's ends; uneven marks keep their places.
+    #[test]
+    fn marks_evenly_on_the_pixels() {
+        for (ppp, width) in [(1.0f32, 104.0f32), (1.25, 104.0), (1.25, 37.6), (1.5, 160.0)] {
+            for marks in [marks(-180.0..=180.0, Some(1.0), 21), marks(0.0..=100.0, Some(5.0), 21), marks(1.0..=200.0, Some(1.0), 11)] {
+                let px = mark_pixels(&marks, *marks.first().unwrap()..=*marks.last().unwrap(), (0.0, width * ppp));
+                let gaps: Vec<f32> = px.windows(2).map(|w| w[1] - w[0]).collect();
+                assert!(gaps.iter().all(|g| *g == gaps[0]), "{ppp} {width}: {gaps:?}");
+                assert!(px[0] >= 0.0 && (px[0] - 0.5) <= marks.len() as f32 / 2.0, "{ppp} {width}: starts at {}", px[0]);
+            }
+        }
+        let uneven = mark_pixels(&[0.0, 1.0, 5.0, 6.0, 10.0], 0.0..=10.0, (0.0, 100.0));
+        assert_eq!(uneven, [0.5, 10.5, 50.5, 60.5, 100.5]);
+    }
 
     #[test]
     fn nearest_step() {

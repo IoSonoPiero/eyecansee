@@ -540,7 +540,7 @@ fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u3
         let sound_width = VOLUME_WIDTH + VOLUME_VALUE + 4.0 * ui.spacing().item_spacing.x + 34.0;
         ui.spacing_mut().slider_width = (ui.available_width() - sound_width).max(40.0);
         let mut at = pos;
-        let r = ui.add(egui::Slider::new(&mut at, 0.0..=length.max(0.001)).show_value(false));
+        let r = crate::ticked::styled(ui, |ui| ui.add(egui::Slider::new(&mut at, 0.0..=length.max(0.001)).show_value(false)));
         // While dragging, to the nearest keyframe (fast); exact when released or clicked.
         if r.changed() {
             player.seek(at, !r.dragged());
