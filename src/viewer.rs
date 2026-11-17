@@ -13,7 +13,10 @@ pub(crate) fn full_screen(ctx: &egui::Context) -> bool {
 
 impl App {
     pub(crate) fn viewer_keys(&mut self, ctx: &egui::Context) {
-        if ctx.egui_wants_keyboard_input() {
+        // A modal window (Rename, Delete…) has the keys: its Esc closed the viewer and was taken,
+        // the window stayed open over the grid (Piero, 17/11). Egui drops the text field's focus
+        // on Esc before we read it, so the focus alone does not say it.
+        if ctx.egui_wants_keyboard_input() || ctx.memory(|m| m.top_modal_layer().is_some()) {
             return;
         }
         // M, and while measuring Esc, Enter, Backspace and D, A, G: taken before the keys below.
