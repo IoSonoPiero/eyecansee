@@ -458,7 +458,6 @@ pub enum Dir {
 pub fn tiff_fields(exif: &[u8]) -> Vec<(Dir, u16, tiff::tags::Type, Vec<u8>)> {
     use exif::{Context, Tag, Value};
     use tiff::tags::Type;
-    const MAIN: [Tag; 11] = [Tag::Make, Tag::Model, Tag::Software, Tag::DateTime, Tag::Artist, Tag::Copyright, Tag::ImageDescription, Tag::Orientation, Tag::XResolution, Tag::YResolution, Tag::ResolutionUnit];
     // Directories with a "next" link where none is expected (seen in a Lightroom JPEG) are read
     // all the same.
     let mut r = exif::Reader::new();
@@ -468,7 +467,7 @@ pub fn tiff_fields(exif: &[u8]) -> Vec<(Dir, u16, tiff::tags::Type, Vec<u8>)> {
         .filter(|f| f.ifd_num == exif::In::PRIMARY)
         .filter_map(|f| {
             let dir = match f.tag.context() {
-                Context::Tiff if MAIN.contains(&f.tag) => Dir::Main,
+                Context::Tiff if crate::meta::keep_field(f) => Dir::Main,
                 Context::Exif if f.tag != Tag::InteropIFDPointer && (f.tag != Tag::MakerNote || crate::meta::movable_maker_note(f)) => Dir::Exif,
                 Context::Gps => Dir::Gps,
                 _ => return None,

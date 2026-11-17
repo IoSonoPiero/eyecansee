@@ -212,6 +212,8 @@ pub fn keep_field(f: &exif::Field) -> bool {
         Tag::XResolution,
         Tag::YResolution,
         Tag::ResolutionUnit,
+        // HostComputer: the phone or computer that made the photo ("iPhone 13 mini").
+        Tag(exif::Context::Tiff, 0x013C),
         // Rating and RatingPercent (Microsoft): the stars given to the photo.
         Tag(exif::Context::Tiff, 0x4746),
         Tag(exif::Context::Tiff, 0x4749),
@@ -732,6 +734,11 @@ mod tests {
         // A broken entry and a TIFF tag in the EXIF directory stay out; the rest is written.
         let broken = field(Tag(exif::Context::Exif, 0), Value::Unknown(0, 0, 0));
         assert!(!super::keep_field(&broken) && !super::keep_field(&field(Tag(exif::Context::Exif, 0xFE), Value::Long(vec![0]))));
+        // HostComputer ("iPhone 13 mini") stays, in every rewritten EXIF and in a TIFF copy.
+        let host = field(Tag(exif::Context::Tiff, 0x013C), Value::Ascii(vec![b"iPhone 13 mini".to_vec()]));
+        assert!(super::keep_field(&host));
+        let written = super::write_exif(&[host], true).unwrap();
+        assert!(crate::meta_write::tiff_fields(&written).iter().any(|f| f.0 == crate::meta_write::Dir::Main && f.1 == 0x013C));
         let make = field(Tag::Make, Value::Ascii(vec![b"SAMSUNG".to_vec()]));
         let written = super::write_exif(&[make, broken], true).unwrap();
         assert!(exif::Reader::new().read_raw(written).unwrap().get_field(Tag::Make, In::PRIMARY).is_some());
