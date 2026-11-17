@@ -130,11 +130,11 @@ error-paste-inside = Una cartella non può andare dentro sé stessa: { $detail }
 error-cancelled = Annullato.
 menu-about = Informazioni su EyeCanSee
 menu-meta = Riquadri dei metadati
-about-tagline = Visualizzatore e gestore di immagini e video per Linux e Windows
+about-tagline = Visualizzatore, gestore ed editor di foto, video, modelli 3D e disegni CAD per Linux e Windows
 about-license = Software libero con licenza GNU General Public License, versione 3 o successiva.
 about-license-link = Testo della licenza
 about-source = Codice sorgente su GitHub
-about-third-party = Realizzato con librerie open source: le loro licenze sono incluse nello zip per Windows e nell'AppImage.
+about-third-party = Realizzato con librerie open source: le loro licenze sono incluse in ogni pacchetto di EyeCanSee.
 menu-open-selected = Apri
 menu-next = Avanti
 menu-prev = Indietro
@@ -212,6 +212,14 @@ opt-theme = Colori
 opt-theme-system = Come il sistema
 opt-theme-light = Chiari
 opt-theme-dark = Scuri
+opt-smooth = Ammorbidisci le immagini mostrate sotto il 100%
+opt-smooth-hint = Un'immagine mostrata più piccola dei suoi pixel viene filtrata: i bordi restano lisci e i dettagli fini (erba, capelli, righe sottili) non diventano grana o strisce. Nel visore, nel carosello, nell'editor e nelle miniature. Spenta: come fino alla versione 0.76, un po' più nitida ma con scalini e grana. Sopra il 100% non cambia nulla.
+opt-smooth-halves = Veloce: dalle copie dimezzate
+opt-smooth-halves-hint = Il filtro parte da una copia dell'immagine già ridotta a metà, a un quarto…: leggero per la scheda video. Su motivi molto fitti può restare qualche falso disegno debole.
+opt-smooth-whole = Preciso: dall'immagine intera
+opt-smooth-whole-hint = Il filtro parte sempre dall'immagine intera: niente falsi disegni, ma più lavoro per la scheda video, tanto più quanto più l'immagine è rimpicciolita.
+opt-smooth-mitchell = Morbido: Mitchell dall'immagine intera
+opt-smooth-mitchell-hint = Un filtro più morbido di quello degli altri due (Lanczos), dall'immagine intera: meno aloni attorno ai bordi, un po' meno nitido.
 
 devices = Dispositivi
 servers = Server
@@ -239,6 +247,16 @@ meta-camera = Fotocamera
 meta-shot = Scatto
 meta-image = Immagine
 meta-gps = Posizione
+meta-drawing = Disegno
+cad-props-none = Nessuna proprietà né cartiglio in questo disegno
+cad-prop-title = Titolo
+cad-prop-subject = Oggetto
+cad-prop-author = Autore
+cad-prop-keywords = Parole chiave
+cad-prop-comments = Commenti
+cad-prop-revision = Numero di revisione
+cad-prop-saved-by = Salvato l'ultima volta da
+cad-title-block = Cartiglio
 meta-make = Marca
 meta-model = Modello
 meta-lens = Obiettivo
@@ -272,6 +290,21 @@ meta-gps-date = Data GPS
 meta-speed-avg = Velocità media
 meta-speed-max = Velocità massima
 meta-coords = Coordinate
+meta-info = Descrizione
+meta-xmp-title = Titolo
+meta-xmp-caption = Didascalia
+meta-xmp-keywords = Parole chiave
+meta-xmp-rating = Valutazione
+meta-xmp-rejected = Scartata
+meta-xmp-label = Etichetta
+meta-xmp-creator = Autore
+meta-xmp-rights = Copyright
+meta-xmp-sidecar = File XMP
+meta-label-red = Rosso
+meta-label-yellow = Giallo
+meta-label-green = Verde
+meta-label-blue = Blu
+meta-label-purple = Viola
 meta-map = Apri sulla mappa
 meta-close = Chiudi (si riapre da Visualizza o col pulsante ℹ)
 meta-none-selected = Seleziona un'immagine
@@ -365,6 +398,8 @@ opt-under-date = Data
 opt-under-date-hint = Quando la foto è stata scattata, se il file lo dice; altrimenti quando il file è stato modificato. Passando il mouse sulla data, un suggerimento dice quale delle due è.
 opt-under-duration = Durata
 opt-under-duration-hint = Di video e audio, accanto alla data. Letta una volta da ogni file e conservata con la sua miniatura.
+opt-under-drawing = Numero e revisione del disegno
+opt-under-drawing-hint = Dei disegni DWG e DXF, prima della dimensione: dal cartiglio (attributi come DWG_NO o NUMERO, e REV), altrimenti dal titolo e dal numero di revisione del disegno. Letti una volta da ogni disegno e conservati con la sua miniatura.
 thumb-pixels = { $w } × { $h }
 thumb-taken-on = Scattata il { $date }
 thumb-recorded-on = Registrato il { $date }
@@ -414,6 +449,7 @@ convert-calculating = Calcolo della dimensione in corso…
 convert-error = Impossibile convertire: { $detail }
 convert-actual = 100% (trascina le immagini per spostarti)
 convert-pixels = { $w } × { $h } pixel
+convert-frame-at = fotogramma a { $time }
 convert-turned = { $turn ->
     [cw] ruotata di 90° in senso orario nel visore
     [half] ruotata di 180° nel visore
@@ -425,8 +461,55 @@ convert-turned = { $turn ->
 }
 model-triangles = { $n } triangoli
 # The keys of the viewer, under the status bar.
-hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | ← →: precedente, successivo | Ctrl+Maiusc+S: salva come immagine | F11: schermo intero | Esc: indietro
-hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | L, Maiusc+L: layout successivo, precedente | ← →: file precedente, successivo | Ctrl+Maiusc+S: salva come immagine | F11: schermo intero | Esc: indietro
+hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | Ctrl+L: livelli | M: misura | N, Maiusc+N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: successivo | ←, Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl+Maiusc+S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
+hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | L, Maiusc+L: layout successivo, precedente | Ctrl+L: livelli | M: misura | N, Maiusc+N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: file successivo | ←, Backspace, Pag↑: file precedente | Inizio, Fine: primo, ultimo file | Ctrl+Maiusc+S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
+menu-layers = Livelli del disegno
+key-layers = Ctrl+L
+cad-layers-title = Livelli
+cad-layers-close = Chiudi il riquadro dei livelli (Ctrl+L)
+cad-layers-off = Solo per un disegno DWG o DXF aperto nel visore, con qualcosa disegnato sui suoi livelli
+cad-layers-count = { $shown } di { $total } visibili
+cad-layers-search = Cerca
+cad-layers-all-on = Tutti accesi
+cad-layers-all-off = Tutti spenti
+cad-layers-all-hint = I livelli elencati: tutti, o quelli trovati dalla ricerca
+cad-layers-none = Nessun livello con questo nome
+menu-measure = Misura
+menu-compare = Confronta disegni
+compare-off = Scegli due disegni CAD nella griglia per confrontarli
+compare-reading = Confronto i disegni…
+compare-failed = Non è stato possibile confrontare i disegni: { $error }
+compare-both = In tutti e due
+compare-only = Solo in { $name }
+compare-status = Confrontato con { $name }: { $n ->
+    [one] 1 modifica
+   *[other] { $n } modifiche
+} (N: la successiva)
+compare-units = ⚠ Unità diverse: { $first } in { $a }, { $second } in { $b }. Confrontati così come sono, senza conversione.
+compare-no-unit = nessuna unità
+measure-off = Solo per un disegno CAD o un modello 3D nel visore
+measure-title = Misura
+measure-distance = Distanza
+measure-area = Area
+measure-angle = Angolo
+measure-perimeter = Perimetro
+measure-hint-distance = fai clic su due punti; si agganciano a estremi, punti medi, centri e incroci
+measure-hint-area = fai clic sugli angoli; Invio o un doppio clic chiudono la forma
+measure-hint-angle = fai clic su un punto, sul vertice, poi su un punto dell'altro lato
+measure-hint-3d = fai clic su due punti del modello per la loro distanza
+hint-measure-cad = Clic: un punto, agganciato a estremi, punti medi, centri e incroci | D: distanza | A: area | G: angolo | Invio, doppio clic: chiude un'area | Backspace: toglie l'ultimo punto | Ctrl+C: copia i risultati | Esc: cancella i punti, poi chiude la misura | M: chiude la misura | Rotellina, + e −: zoom | Trascinare: spostare
+hint-measure-3d = Clic su due punti: la loro distanza | Backspace: toglie l'ultimo punto | Ctrl+C: copia i risultati | Esc: cancella i punti, poi chiude la misura | M: chiude la misura | Rotellina, + e −: zoom | Trascinare: ruotare
+measure-measuring = Misuro il modello…
+measure-size = Ingombro (X × Y × Z)
+measure-surface = Superficie
+measure-volume = Volume
+measure-open = nessuno: il modello non è chiuso ({ $n } spigoli aperti)
+measure-no-unit = il file non dice la sua unità
+measure-copy = Copia
+section-title = Sezione
+section-flip = Altro lato
+section-keys = Alt+rotellina, virgola, punto: sposta · X, Y, Z: asse · F: altro lato · S: togli
+section-open = non riempito: il modello non è chiuso
 cad-model = Modello
 cad-units = unità
 keys-button = Tasti
@@ -441,24 +524,26 @@ model-export-count = { $n ->
 model-export-format = Formato:
 model-export-where = Ogni copia va accanto al suo modello, con lo stesso nome; un nome già preso riceve " (2)".
 model-export-ok = Esporta
-hint-model = Frecce o trascinare: ruotare | Maiusc+trascinare: spostare | Rotellina, + e −: zoom | 0: vista di partenza | Pag↑, Pag↓: precedente, successivo | Ctrl+S: salva come immagine | F11: schermo intero | Esc: indietro
-hint-edit-select = Clic: seleziona un oggetto | Trascinare: lo sposta | Trascinare un angolo o un capo: ridimensiona (Maiusc: un riquadro mantiene le proporzioni; un pezzo incollato le mantiene, Maiusc le libera) | Trascinare la maniglia tonda sopra un pezzo incollato: lo ruota (Maiusc: a scatti di 15°) | Doppio clic su un testo o un fumetto: cambia le lettere | Canc: elimina | Ctrl+C: copia il risultato | Esc: lascia l'oggetto
+hint-model = Frecce o trascinare: ruotare | Maiusc+trascinare: spostare | Rotellina, + e −: zoom | 0: vista di partenza | M: misura | S: sezione | Spazio, Pag↓: successivo | Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl+Maiusc+S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
+hint-edit-select = Clic: seleziona un oggetto | Trascinare: lo sposta | Trascinare un angolo o un capo: ridimensiona (Maiusc: un riquadro mantiene le proporzioni; un pezzo incollato le mantiene, Maiusc le libera) | Trascinare la maniglia tonda sopra l'oggetto: lo ruota (Maiusc: a scatti di 15°) | Doppio clic su un testo o un fumetto: cambia le lettere | Canc: elimina | Ctrl+C: copia il risultato | Esc: lascia l'oggetto
 hint-edit-marquee = Trascinare: sceglie una zona | Maiusc+trascinare: un quadrato | Ctrl+C: copia la zona | Ctrl+X: la taglia | Ctrl+V: incolla come oggetto | Clic o Esc: lascia la zona
 hint-edit-arrow = Trascinare: disegna | Trascinare il punto di mezzo: curva | Trascinare un capo: lo sposta | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
 hint-edit-line = Trascinare: disegna | Trascinare il punto di mezzo: curva | Trascinare un capo: lo sposta | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
 hint-edit-pen = Trascinare: disegna | Trascinare un angolo: allarga | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
-hint-edit-rect = Trascinare: disegna | Maiusc+trascinare: un quadrato | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
-hint-edit-ellipse = Trascinare: disegna | Maiusc+trascinare: un cerchio | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
-hint-edit-highlight = Trascinare: evidenzia | Maiusc+trascinare: un quadrato | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
-hint-edit-spotlight = Trascinare: illumina una zona | Maiusc+trascinare: un quadrato o un cerchio | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Canc: elimina | Esc: lascia
-hint-edit-text = Clic: mette un testo, poi lo scrivi | Invio: a capo | Doppio clic su un testo: lo cambia | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina (fuori dal campo) | Esc: finisce il testo
-hint-edit-bubble = Trascinare: disegna un fumetto, poi scrivi il testo | Invio: a capo | Trascinare la punta della coda: la orienta | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Doppio clic: cambia il testo | Canc: elimina | Esc: finisce il testo
+hint-edit-rect = Trascinare: disegna | Maiusc+trascinare: un quadrato | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
+hint-edit-ellipse = Trascinare: disegna | Maiusc+trascinare: un cerchio | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
+hint-edit-highlight = Trascinare: evidenzia | Maiusc+trascinare: un quadrato | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
+hint-edit-spotlight = Trascinare: illumina una zona | Maiusc+trascinare: un quadrato o un cerchio | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | Canc: elimina | Esc: lascia
+hint-edit-text = Clic: mette un testo, poi lo scrivi | Invio: a capo | Doppio clic su un testo: lo cambia | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina (fuori dal campo) | Esc: finisce il testo
+hint-edit-bubble = Trascinare: disegna un fumetto, poi scrivi il testo | Invio: a capo | Trascinare la punta della coda: la orienta | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | Doppio clic: cambia il testo | Canc: elimina | Esc: finisce il testo
 hint-edit-step = Clic: numero seguente | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
-hint-edit-stamp = Clic: mette il timbro | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
-hint-edit-lens = Trascinare: disegna una lente | Maiusc+trascinare: un quadrato o un cerchio | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Canc: elimina | Esc: lascia
-hint-edit-cover = Trascinare: copre | Maiusc+trascinare: un quadrato | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
+hint-edit-stamp = Clic: mette il timbro | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
+hint-edit-lens = Trascinare: disegna una lente | Maiusc+trascinare: un quadrato o un cerchio | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | Canc: elimina | Esc: lascia
+hint-edit-cover = Trascinare: copre | Maiusc+trascinare: un quadrato | Trascinare un angolo: ridimensiona (Maiusc: stesse proporzioni) | Trascinare la maniglia tonda: ruota (Maiusc: a scatti di 15°) | I: contagocce | Alt+clic: prende un colore, lo strumento resta | Canc: elimina | Esc: lascia
 hint-edit-crop = Trascinare un lato o un angolo: ritaglia | Trascinare dentro: sposta il ritaglio | Maiusc+rotellina: ruota di 0,1° | Ctrl+R, Ctrl+Maiusc+R: ruota a destra, a sinistra | Invio: applica | Esc: chiude
-hint-image = →, Spazio, Pag↓: successiva | ←, Backspace, Pag↑: precedente | Inizio, Fine: prima, ultima | Spazio su un'animazione: pausa e riprendi | Spazio su una foto in movimento: riproduce il video | Pag↓, Pag↑ su un TIFF con più pagine: pagina successiva, precedente | Rotellina, + e −: zoom | Trascinare: spostare un'immagine ingrandita | 0: adatta alla finestra | 1: 100% | Ctrl+R, Ctrl+Maiusc+R: ruota a destra, a sinistra | Ctrl+E: modifica immagine | Ctrl+S, Ctrl+Maiusc+S: salva, salva come | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
+hint-image = →, Spazio, Pag↓: successiva | ←, Backspace, Pag↑: precedente | Inizio, Fine: prima, ultima | Spazio su un'animazione: pausa e riprendi | Spazio su una foto in movimento: riproduce il video | Pag↓, Pag↑ su un TIFF con più pagine: pagina successiva, precedente | Rotellina, + e −: zoom | Trascinare: spostare un'immagine ingrandita | 0: adatta alla finestra | 1: 100% | Ctrl+R, Ctrl+Maiusc+R: ruota a destra, a sinistra | Ctrl+Z, Ctrl+Y: annulla, ripeti una rotazione non salvata | Ctrl+E: modifica immagine | Ctrl+S, Ctrl+Maiusc+S: salva, salva come | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
+hint-grid = Frecce: sposta | Maiusc+frecce: allarga la selezione | Inizio, Fine: primo, ultimo | Invio: apre | Backspace: cartella superiore | Ctrl+A: seleziona tutto | Tab, Maiusc+Tab: elemento successivo, precedente | Ctrl+C, Ctrl+X, Ctrl+V: copia, taglia, incolla | F2: rinomina | Ctrl+Maiusc+N: nuova cartella | Canc: elimina | Maiusc+Canc: elimina definitivamente | Ctrl+R, Ctrl+Maiusc+R: ruota a destra, a sinistra | Ctrl+E: modifica immagine | Ctrl+B: converti | Ctrl+D: trova duplicati | Ctrl+N: nuova immagine | Ctrl+Maiusc+D: segnalibri | F5: rileggi la cartella | Maiusc+F5: rifai le miniature | F11: schermo intero | F1: guida
+hint-dup = ↑ ↓: passa da una copia all'altra | Spazio: spunta o toglie la spunta | Clic su un'immagine: la apre nel visore (Esc torna qui, con le spunte) | Esc: chiude (Invio non elimina)
 hint-video = Spazio: pausa e riprendi | Ctrl+← →: 5 secondi indietro, avanti | ↑ ↓, rotellina: volume | M: audio sì e no | →, Pag↓: successivo | ←, Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
 cad-engine-title = Motore CAD
 cad-engine-ask = Per aprire i modelli STEP, IGES e BREP dei programmi CAD EyeCanSee ha bisogno del motore CAD (Open CASCADE), da scaricare una volta sola: { $size }.
@@ -474,6 +559,11 @@ convert-speed-hint = Più lenta fa un file più piccolo a parità di qualità.
 convert-lossless = Senza perdita: gli stessi pixel dell'originale.
 convert-gif = Al massimo 256 colori.
 convert-keep-meta = Mantieni i metadati (EXIF, XMP, IPTC, profilo colore)
+meta-keep = Metadati
+meta-keep-hint = Cosa tiene il file nuovo dei metadati dell'originale. "Tutti tranne il luogo" toglie la posizione GPS e città, regione e paese, per una foto da condividere; "Nessuno" tiene solo il profilo colore, che serve all'immagine per avere i colori giusti.
+meta-keep-all = Tutti (EXIF, XMP, IPTC, profilo colore)
+meta-keep-no-place = Tutti tranne il luogo (senza posizione GPS)
+meta-keep-nothing = Nessuno (solo il profilo colore)
 convert-keep-density = Mantieni i metadati (solo la risoluzione)
 convert-ultra-hdr-lost = Questa foto è Ultra HDR: resta HDR solo in JPEG con i metadati.
 convert-first-only = Questa immagine è animata o ha più pagine: viene salvata solo l'immagine mostrata.
@@ -483,6 +573,7 @@ convert-meta-density-only = Questo formato mantiene solo la risoluzione (dpi), s
 convert-folder = Cartella
 convert-name = Nome del file
 convert-save = Salva
+convert-cancel = Annulla
 convert-exists = Esiste già un elemento con questo nome: verrà salvato come { $name }.
 convert-saved-elsewhere-title = Immagine salvata
 convert-saved-elsewhere = Salvata come **{ $path }**.
@@ -589,7 +680,6 @@ edit-off-redo = Niente da ripetere.
 edit-off-copying = La copia negli appunti è in corso.
 edit-zoom-in = Ingrandisci
 edit-zoom-out = Riduci
-edit-zoom-fit = Tutto in vista (anche doppio clic)
 edit-col-red = Rosso
 edit-col-orange = Arancione
 edit-col-yellow = Giallo
@@ -739,6 +829,10 @@ edit-margin = Margine
 edit-corners = Angoli
 menu-new-image = Nuova immagine…
 key-new-image = Ctrl+N
+menu-open-clipboard = Apri dagli appunti
+clip-open-name = Immagine incollata
+clip-open-title = Apri dagli appunti
+clip-open-none = Negli appunti non c'è un'immagine. Copiane prima una in un altro programma (una schermata, un'immagine da una pagina web), poi scegli di nuovo Apri dagli appunti.
 new-title = Nuova immagine
 new-name = Nuova immagine
 new-size = Misura
@@ -786,7 +880,7 @@ edit-solid = Continuo
 edit-dashed = Tratteggiato
 edit-dotted = Puntinato
 edit-delete = Elimina
-edit-patch-turn-hint = Il suo angolo sullo schermo. Puoi anche trascinare la maniglia tonda sopra il pezzo; con Maiusc gira a scatti di 15°.
+edit-turn-hint = Il suo angolo sullo schermo. Puoi anche trascinare la maniglia tonda sopra l'oggetto; con Maiusc gira a scatti di 15°.
 edit-patch-ccw = Ruota il pezzo di 90° in senso antiorario
 edit-patch-cw = Ruota il pezzo di 90° in senso orario
 edit-patch-flip-h = Rifletti il pezzo orizzontalmente
@@ -808,6 +902,7 @@ edit-save-confirm = Una copia di **{ $name }** viene salvata accanto all'origina
 edit-loss-lossy = La copia viene **ricodificata** e può perdere un po' di qualità.
 edit-loss-8bit = La copia ha **8 bit per colore**, l'originale di più: l'originale resta com'è, per ciò che li richiede.
 edit-loss-hdr = La copia è un PNG a 16 bit: ciò che nell'originale è **più luminoso del bianco** viene tagliato.
+edit-loss-ultra-hdr = Senza metadati la copia non è più **Ultra HDR**: niente tiene la sua parte HDR.
 edit-overwrite-trash = **{ $name }** viene sostituito dall'immagine modificata.
 
     L'originale va **nel cestino**.
@@ -817,6 +912,7 @@ edit-overwrite-folder = **{ $name }** viene sostituito dall'immagine modificata.
 edit-over-loss-lossy = Il file nuovo viene **ricodificato** e può perdere un po' di qualità.
 edit-over-loss-8bit = Il file nuovo ha **8 bit per colore**, l'originale di più.
 edit-over-loss-hdr = Il file nuovo ha 16 bit per colore: ciò che nell'originale è **più luminoso del bianco** viene tagliato.
+edit-over-loss-ultra-hdr = Senza metadati il file nuovo non è più **Ultra HDR**: niente tiene la sua parte HDR.
 edit-leave = Le modifiche a **{ $name }** non sono salvate.
 
     { "**" }Salva** crea una copia accanto all'originale, **Salva come…** un file nuovo dove scegli, **Non salvare** le perde.
@@ -835,6 +931,7 @@ key-rotate-ccw = Ctrl+Maiusc+R
 menu-save = Salva
 key-save = Ctrl+S
 menu-save-copy = Salva come…
+menu-save-frame = Salva il fotogramma come…
 key-save-copy = Ctrl+Maiusc+S
 save-confirm-trash = Salvare le modifiche sopra **{ $name }**?
 
@@ -926,6 +1023,8 @@ kept-saved = Salvata come **{ $path }**.
 status-modified = Modificata, non salvata
 status-saving = Salvataggio in corso…
 status-preparing = Preparo il salvataggio…
+zoom-field-hint = Zoom: clic per scrivere una percentuale, poi Invio (Esc: come prima)
+zoom-slider-hint = Zoom: trascina per ingrandire o rimpicciolire la foto
 batch-turn-confirm = { $n ->
     [one] **1 immagine** verrà modificata e salvata sopra l'originale.
    *[other] Fino a **{ $n } immagini** verranno modificate e salvate sopra gli originali.
@@ -1126,6 +1225,8 @@ dup-summary = Gruppi: { $groups }. Copie da eliminare: { $n }, spazio liberato {
 dup-delete = Elimina le copie segnate…
 dup-none = Nessun duplicato in questa cartella.
 menu-batch = Converti…
+menu-batch-about = Tutti i file selezionati nella griglia insieme, così come sono sul disco: stesso formato e stesse regolazioni per tutti (anche ridimensionare, video e disegni), ognuno col suo nome.
+menu-save-copy-about = Una sola immagine, quella aperta o selezionata, così come la vedi (con le rotazioni non salvate, il lavoro dell'editor, di un video il fotogramma mostrato): scegli tu nome, formato e cartella, con l'anteprima.
 menu-resize = Ridimensiona
 menu-resize-custom = Personalizzata…
 batch-title-resize = Ridimensiona
@@ -1199,17 +1300,63 @@ batch-start = Converti
 batch-working = Conversione in corso
 batch-counts = { $n } di { $total } file
 batch-stopping = Mi fermo…
-batch-result = { $n ->
-    [0] Nessun file è stato salvato in { $folder }.
-    [one] **1 file** è stato salvato in { $folder }.
-   *[other] **{ $n } file** sono stati salvati in { $folder }.
-}
-batch-cancelled = Fermato dopo { $n } di { $total } file.
-batch-left-out = Escluse:
 batch-left-out-kind = { $n ->
     [one] 1 file scelto è escluso: questa voce non lavora su quel tipo di file.
    *[other] { $n } file scelti sono esclusi: questa voce non lavora su quei tipi di file.
 }
+summary-saved = { $n ->
+    [one] **1 file** salvato in { $folder }.
+   *[other] **{ $n } file** salvati in { $folder }.
+}
+summary-left-out = { $n ->
+    [one] **1 file** lasciato fuori.
+   *[other] **{ $n } file** lasciati fuori.
+}
+summary-not-done = { $n ->
+    [one] **1 file** non fatto: il lavoro è stato fermato.
+   *[other] **{ $n } file** non fatti: il lavoro è stato fermato.
+}
+summary-nothing = Nessun file è stato salvato.
+summary-took = Ci è voluto { $time }.
+summary-sizes = Dimensione: { $before } prima, { $after } dopo ({ $percent }%).
+summary-kind = { $n ->
+    [one] 1 file di un tipo su cui questo comando non lavora:
+   *[other] { $n } file di un tipo su cui questo comando non lavora:
+}
+summary-format = { $n ->
+    [one] 1 file in un formato che EyeCanSee non sa scrivere; scegli un altro formato:
+   *[other] { $n } file in un formato che EyeCanSee non sa scrivere; scegli un altro formato:
+}
+summary-format-preset = { $n ->
+    [one] 1 file in un formato che EyeCanSee non sa scrivere; Ridimensiona > Personalizzata… può salvarlo in un altro:
+   *[other] { $n } file in un formato che EyeCanSee non sa scrivere; Ridimensiona > Personalizzata… può salvarli in un altro:
+}
+summary-same-size = { $n ->
+    [one] 1 file già di questa dimensione, o più piccolo e non ingrandito:
+   *[other] { $n } file già di questa dimensione, o più piccoli e non ingranditi:
+}
+summary-inside = { $n ->
+    [one] 1 file animato o con più pagine, che il file nuovo non conterrebbe:
+   *[other] { $n } file animati o con più pagine, che i file nuovi non conterrebbero:
+}
+summary-no-ffmpeg = { $n ->
+    [one] 1 video o file audio, e FFmpeg manca:
+   *[other] { $n } video o file audio, e FFmpeg manca:
+}
+summary-not-autocad = { $n ->
+    [one] 1 disegno che non è un disegno AutoCAD (DWG o DXF):
+   *[other] { $n } disegni che non sono disegni AutoCAD (DWG o DXF):
+}
+summary-would-lose = { $n ->
+    [one] 1 disegno che nell'altro formato perderebbe una parte:
+   *[other] { $n } disegni che nell'altro formato perderebbero una parte:
+}
+summary-errors = { $n ->
+    [one] 1 errore:
+   *[other] { $n } errori:
+}
+summary-open-folder = Apri la cartella
+summary-open-covered = Chiudi prima la pagina davanti: le miniature sono sotto.
 drawing-title = Esporta disegno
 drawing-start = Esporta
 drawing-side = Lato lungo
@@ -1355,7 +1502,8 @@ off-no-file = Seleziona prima uno o più file.
 off-save-model = Un modello 3D non si salva sopra il suo file: Salva come… ne fa un'immagine, Esporta come modello 3D una copia in un altro formato 3D.
 off-save-drawing = Un disegno CAD non si salva sopra il suo file: Salva come… fa un'immagine del layout mostrato, Esporta disegno… una copia come immagine, SVG, DWG o DXF.
 off-save-played = Niente da salvare: prima ruota il video; i file audio non si modificano nel visore.
-off-save-as-played = Salva come… è per le immagini: video e file audio si convertono con Converti… nella griglia.
+off-save-as-played = Salva come… è per le immagini e per i fotogrammi dei video: i file audio si convertono con Converti… nella griglia.
+off-save-frame-wait = Il fotogramma si può salvare quando il video si è aperto nel visore.
 off-trash-clip = Gli elementi del cestino non si tagliano né si copiano: prima ripristinali.
 off-trash-rename = Gli elementi del cestino non si rinominano: prima ripristinali.
 off-trash-change = Un file del cestino non si modifica né si salva: prima ripristinalo.
@@ -1501,7 +1649,7 @@ tip-models-title = Modelli 3D e disegni CAD
 tip-models-text =
     I modelli 3D (STL, OBJ, glTF, FBX, IFC, STEP e altri) e i disegni CAD (DWG, DXF) compaiono nella griglia con la loro immagine e si aprono nel visore.
 
-    Trascina o usa le frecce per girare un modello, la rotella per ingrandire; un disegno si sposta trascinandolo.
+    Trascina o usa le frecce per girare un modello, la rotella per ingrandire; un disegno si sposta trascinandolo, e **Ctrl+L** ne accende e spegne i livelli. **M** li misura tutti e due.
 tip-duplicates-title = Trovare i duplicati
 tip-duplicates-text = **Strumenti > Trova duplicati…** (**Ctrl+D**) trova i file identici, anche con un altro nome o in un'altra cartella, sul computer, su un disco, su un telefono o su un server. Scegli tu le copie da eliminare; una resta sempre.
 tip-trash-title = Eliminato per sbaglio?

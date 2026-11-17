@@ -5,7 +5,7 @@ use eframe::egui::{self, TextureOptions};
 use crate::{App, OptTab, confirm, decode, mtp, theme, thumbcache, update, version};
 use crate::i18n::I18n;
 use crate::loader::Msg;
-use crate::settings::{AfterSave, RemoteDelete, Settings, ThemeChoice, WindowStart};
+use crate::settings::{AfterSave, RemoteDelete, Settings, SmoothFilter, ThemeChoice, WindowStart};
 
 impl App {
     /// Every change is saved immediately.
@@ -252,6 +252,15 @@ fn look_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
     ui.radio_value(&mut s.theme, ThemeChoice::System, t("opt-theme-system"));
     ui.radio_value(&mut s.theme, ThemeChoice::Light, t("opt-theme-light"));
     ui.radio_value(&mut s.theme, ThemeChoice::Dark, t("opt-theme-dark"));
+    ui.add_space(6.0);
+    ui.checkbox(&mut s.smooth, t("opt-smooth")).on_hover_text(t("opt-smooth-hint"));
+    ui.add_enabled_ui(s.smooth, |ui| {
+        ui.indent("smooth-filter", |ui| {
+            for (f, id) in [(SmoothFilter::Halves, "opt-smooth-halves"), (SmoothFilter::Whole, "opt-smooth-whole"), (SmoothFilter::Mitchell, "opt-smooth-mitchell")] {
+                ui.radio_value(&mut s.smooth_filter, f, t(id)).on_hover_text(i18n.t(&format!("{id}-hint")));
+            }
+        });
+    });
 }
 
 fn viewer_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
@@ -307,6 +316,7 @@ fn thumbnails_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, confirm: &mu
     ui.checkbox(&mut d.size, t("opt-under-size"));
     ui.checkbox(&mut d.date, t("opt-under-date")).on_hover_text(t("opt-under-date-hint"));
     ui.checkbox(&mut d.duration, t("opt-under-duration")).on_hover_text(t("opt-under-duration-hint"));
+    ui.checkbox(&mut d.drawing, t("opt-under-drawing")).on_hover_text(t("opt-under-drawing-hint"));
     ui.add_space(6.0);
     ui.separator();
     ui.checkbox(&mut s.thumb_maintenance, t("opt-cache-maintenance")).on_hover_text(t("opt-cache-maintenance-hint"));

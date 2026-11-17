@@ -36,6 +36,8 @@ pub(crate) enum Act {
     Rename(Option<String>),
     /// File > New image…: the window of its size and background.
     NewImage,
+    /// File > Open from clipboard: an image copied in another program, in the editor.
+    OpenClipboard,
     /// A new folder in the folder open.
     /// In that folder, or in the folder open.
     NewFolder(Option<String>),
@@ -106,9 +108,17 @@ pub(crate) enum Act {
     CheckUpdates,
     About,
     Meta(meta::Group),
+    /// The ℹ button: all the metadata boxes closed, or all opened.
+    MetaAll,
     Sort(settings::SortBy),
     SortDesc,
     Show(settings::Show),
+    /// View > Layers (Ctrl+L): the layers panel of a CAD drawing, open and closed.
+    Layers,
+    /// View > Measure (M): the Measure tool on a drawing or a model, on and off.
+    Measure,
+    /// Compare drawings: the two CAD drawings chosen in the grid, one over the other (#143).
+    Compare,
 }
 
 /// Image > Transform, as GIMP orders it: flips, then turns. Label and keys (Fluent ids).
@@ -136,6 +146,7 @@ impl Act {
             Act::Rename(_) => Line::Rename,
             Act::NewFolder(_) => Line::NewFolder,
             Act::NewImage => Line::NewImage,
+            Act::OpenClipboard => Line::Paste,
             Act::Convert(_) | Act::ExportModel(..) | Act::ExportDrawings(_) => Line::SaveAs,
             Act::Batch(_) => Line::Batch,
             Act::Duplicates(_) => Line::Duplicates,
@@ -161,11 +172,23 @@ impl Act {
             Act::Up => Line::Up,
             Act::Manual => Line::Manual,
             Act::CheckUpdates | Act::Update => Line::Updates,
-            Act::About => Line::Info,
+            Act::About | Act::MetaAll => Line::Info,
             _ => return None,
         })
     }
+
+    /// What it works on, said on hover where it could be taken for another (`browser::with_about`).
+    pub(crate) fn about(&self) -> Option<&'static str> {
+        match self {
+            Act::Convert(_) => Some("menu-save-copy-about"),
+            Act::Batch(_) => Some("menu-batch-about"),
+            _ => None,
+        }
+    }
 }
+
+/// The texts `Act::about` names, translated, for the menus drawn this frame.
+pub(crate) const ABOUT: [&str; 2] = ["menu-save-copy-about", "menu-batch-about"];
 
 impl App {
     pub(crate) fn global_keys(&mut self, ctx: &egui::Context) {
@@ -206,7 +229,7 @@ impl App {
         // Full screen in and out. Also smoother on a monitor of the other graphics card of a hybrid
         // laptop: the desktop sends the window to it without composing (measured 2026-11-01).
         if ctx.input(|i| i.key_pressed(Key::F11)) && self.show.is_none() {
-            let full = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+            let full = crate::viewer::full_screen(ctx);
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(!full));
         }
         if refresh && shift {
@@ -252,7 +275,11 @@ impl App {
         if self.viewing.is_some() {
             // Also from the keys: only pictures turn, not in a trash (`turns_fit`).
             if self.turn_fits(op).is_some() {
+                let before = self.turn;
                 self.turn = self.turn.then(op);
+                if let Some(path) = self.target() {
+                    self.turn_steps.done(&path, before, self.turn);
+                }
             }
         } else {
             let paths = self.grid_turned(path, op);
@@ -281,6 +308,7 @@ impl App {
             Act::Rename(path) => self.ask_rename(path),
             Act::NewFolder(dir) => self.ask_new_folder(dir),
             Act::NewImage => self.new_image = Some(crate::new_image::Form::new()),
+            Act::OpenClipboard => self.open_clipboard(ctx),
             Act::Convert(path) => self.open_convert(self.save_as_target(path)),
             Act::ExportModel(path) => self.open_model_export(path),
             Act::Duplicates(dir) => self.open_duplicates(dir),
@@ -321,9 +349,13 @@ impl App {
             Act::About => self.about = true,
             Act::CheckUpdates => self.check_updates_now(ctx),
             Act::Meta(g) => self.show_meta(g, !self.meta_shown(g)),
+            Act::MetaAll => self.toggle_all_meta(),
             Act::Sort(by) => self.set_sort(by, self.settings.sort_desc),
             Act::SortDesc => self.set_sort(self.settings.sort_by, !self.settings.sort_desc),
             Act::Show(show) => self.set_show(show),
+            Act::Layers => self.model.cad.panel = !self.model.cad.panel,
+            Act::Measure => self.toggle_measure(),
+            Act::Compare => self.start_compare(ctx),
         }
     }
 

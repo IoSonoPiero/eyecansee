@@ -30,10 +30,17 @@ pub struct Settings {
     pub wheel_zoom: bool,
     /// Largest zoom in the viewer, in percent of the image's pixels.
     pub max_zoom: u32,
+    /// Pictures shown smaller than 100% are filtered (`mipmap`, `smooth_gpu`, #151); off: the
+    /// graphics card's linear filter alone, as up to 0.76.2.
+    pub smooth: bool,
+    /// Which filter, and from where (`smooth_gpu`).
+    pub smooth_filter: SmoothFilter,
     /// Metadata boxes closed with the X (`meta::Group::key`); empty = all open.
     pub meta_hidden: Vec<String>,
     /// Metadata panel collapsed: only its bar remains.
     pub meta_collapsed: bool,
+    /// Height of the open metadata panel, as a part of the window's height (dragged by its top edge).
+    pub meta_size: f32,
     pub sort_by: SortBy,
     pub sort_desc: bool,
     /// Which files the grid shows.
@@ -119,6 +126,18 @@ pub enum EngineChoice {
     System,
     /// Always the downloaded one, even with a recent one on the system.
     Downloaded,
+}
+
+/// The filter of pictures shown below 100% (`smooth_gpu`): Lanczos from the halved copy just larger
+/// than the screen, Lanczos from the whole picture, or Mitchell (softer) from the whole picture.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Debug, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SmoothFilter {
+    Halves,
+    // The fewest false patterns (`smooth_gpu`'s zone plate test).
+    #[default]
+    Whole,
+    Mitchell,
 }
 
 /// Light colours, dark ones or like the system (changes by itself when the system's changes).
@@ -213,8 +232,11 @@ impl Default for Settings {
             wheel_zoom: true,
             // As GNOME's image viewer (Loupe).
             max_zoom: 2000,
+            smooth: true,
+            smooth_filter: SmoothFilter::default(),
             meta_hidden: Vec::new(),
             meta_collapsed: false,
+            meta_size: 0.25,
             sort_by: SortBy::Name,
             sort_desc: false,
             show: Show::All,
@@ -329,7 +351,7 @@ mod tests {
         // Every key 0.76.0 wrote, none of those added after it.
         let mut old = serde_json::to_value(Settings::default()).unwrap();
         let keys = old.as_object_mut().unwrap();
-        keys.retain(|k, _| !["edit_after_save", "edit_main_overwrite", "resize_presets", "thumb_details", "tips", "tip_next", "tips_day"].contains(&k.as_str()));
+        keys.retain(|k, _| !["edit_after_save", "edit_main_overwrite", "resize_presets", "thumb_details", "tips", "tip_next", "tips_day", "smooth", "smooth_filter", "meta_size"].contains(&k.as_str()));
         assert_eq!(keys.len(), 32, "the keys of 0.76.0's settings.json");
         let s: Settings = serde_json::from_value(old).unwrap();
         assert_eq!(s.edit_after_save, AfterSave::Stay, "the page stays open unless chosen");
@@ -350,5 +372,15 @@ mod tests {
         assert_eq!(s.window_start, WindowStart::Maximized);
         let back: Settings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert_eq!(back, s);
+    }
+
+    /// A settings file from before #151 has no `smooth`: the pictures are smoothed.
+    #[test]
+    fn smooth_is_on_in_an_old_file() {
+        let s: Settings = serde_json::from_str(r#"{"thumb_cache_mb": 50, "wheel_zoom": false}"#).unwrap();
+        assert!(s.smooth);
+        assert!(Settings::default().smooth);
+        let off: Settings = serde_json::from_str(r#"{"smooth": false}"#).unwrap();
+        assert!(!off.smooth);
     }
 }

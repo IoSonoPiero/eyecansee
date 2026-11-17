@@ -62,11 +62,14 @@ pub(crate) fn save_id(shown: Option<Kind>, changed: bool) -> Option<&'static str
     }
 }
 
-/// Why Save as… is off (Fluent id): in the viewer on a video or an audio file, in the grid
-/// unless one picture is among the files chosen (`saved`: how many of `SAVED_AS`).
-pub(crate) fn save_as_id(shown: Option<Kind>, saved: usize) -> Option<&'static str> {
+/// Why Save as… is off (Fluent id): in the viewer on an audio file, or on a video whose frame
+/// cannot be taken (`frame`: it is open in the player, #16), in the grid unless one picture is
+/// among the files chosen (`saved`: how many of `SAVED_AS`).
+pub(crate) fn save_as_id(shown: Option<Kind>, saved: usize, frame: bool) -> Option<&'static str> {
     match shown {
-        Some(Kind::Video | Kind::Audio) => Some("off-save-as-played"),
+        Some(Kind::Video) if frame => None,
+        Some(Kind::Video) => Some("off-save-frame-wait"),
+        Some(Kind::Audio) => Some("off-save-as-played"),
         Some(_) => None,
         None if saved == 1 => None,
         None => Some("tb-off-one-picture"),
@@ -150,11 +153,17 @@ impl App {
         self.trash_off().or_else(|| self.off(save_id(self.shown(), changed)))
     }
 
-    /// Save as…: in the grid one picture, in the viewer what is shown.
+    /// The name of Save as…: on a video in the viewer it saves its frame (#16).
+    pub(crate) fn save_as_label(&self) -> &'static str {
+        if self.viewing_video() { "menu-save-frame" } else { "menu-save-copy" }
+    }
+
+    /// Save as…: in the grid one picture, in the viewer what is shown (of a video, its frame).
     pub(crate) fn save_as_off(&self) -> Option<String> {
         let files = self.files_chosen(None);
         let saved = files.iter().filter(|p| SAVED_AS.contains(&kind(p))).count();
-        self.trash_off().or_else(|| self.off(save_as_id(self.shown(), saved)))
+        let frame = self.viewing.and_then(|i| self.files().get(i)).is_some_and(|f| self.player_of(&f.path).is_some());
+        self.trash_off().or_else(|| self.off(save_as_id(self.shown(), saved, frame)))
     }
 
     /// Export drawing…, on how the CAD drawings fit the files chosen (`selection::fits`): one
@@ -289,12 +298,15 @@ mod tests {
         assert_eq!(save_id(Some(Kind::Video), true), None);
         assert_eq!(save_id(Some(Kind::Audio), true), Some("off-save-played"));
         assert_eq!(save_id(None, false), Some("tb-off-save"));
-        // Save as…: what the viewer shows, but not a video or an audio file; one picture in the grid.
-        assert_eq!(save_as_id(Some(Kind::Model), 0), None);
-        assert_eq!(save_as_id(Some(Kind::Audio), 0), Some("off-save-as-played"));
-        assert_eq!(save_as_id(None, 1), None);
-        assert_eq!(save_as_id(None, 0), Some("tb-off-one-picture"));
-        assert_eq!(save_as_id(None, 2), Some("tb-off-one-picture"));
+        // Save as…: what the viewer shows, of a video its frame once it plays, not an audio file;
+        // one picture in the grid.
+        assert_eq!(save_as_id(Some(Kind::Model), 0, false), None);
+        assert_eq!(save_as_id(Some(Kind::Audio), 0, true), Some("off-save-as-played"));
+        assert_eq!(save_as_id(Some(Kind::Video), 0, true), None);
+        assert_eq!(save_as_id(Some(Kind::Video), 0, false), Some("off-save-frame-wait"));
+        assert_eq!(save_as_id(None, 1, false), None);
+        assert_eq!(save_as_id(None, 0, false), Some("tb-off-one-picture"));
+        assert_eq!(save_as_id(None, 2, false), Some("tb-off-one-picture"));
         // The turns and flips by the kind of the files (#125): a video turns, if its container keeps a rotation.
         assert_eq!(turn_id(true, true, Some(Kind::Video), Some(true)), None);
         assert_eq!(turn_id(false, false, Some(Kind::Video), Some(true)), Some("off-video-flip"));
@@ -315,7 +327,7 @@ mod tests {
         assert_eq!(editor_id(2, 2, false, false), Some("rc-one-only"));
         assert_eq!(editor_id(1, 1, false, true), Some("edit-animated-off"));
         // Each reason said in both languages.
-        let ids = ["off-trash-clip", "off-trash-rename", "off-trash-change", "off-restore", "off-save-model", "off-save-drawing", "off-save-played", "off-save-as-played", "tb-off-nothing", "tb-off-viewer", "off-empty", "tb-off-paste", "tb-off-paste-here", "rename-one-only", "off-top", "off-not-viewer", "off-no-show", "off-no-file", "tb-off-save", "tb-off-folder", "tb-off-no-folder", "tb-off-no-picture", "tb-off-one-picture", "off-video-no-rotation", "off-video-convert", "off-video-flip", "off-turn-kind", "off-flip-kind", "off-no-turned", "off-edit-video", "off-edit-picture", "rc-one-only", "edit-animated-off"];
+        let ids = ["off-trash-clip", "off-trash-rename", "off-trash-change", "off-restore", "off-save-model", "off-save-drawing", "off-save-played", "off-save-as-played", "off-save-frame-wait", "tb-off-nothing", "tb-off-viewer", "off-empty", "tb-off-paste", "tb-off-paste-here", "rename-one-only", "off-top", "off-not-viewer", "off-no-show", "off-no-file", "tb-off-save", "tb-off-folder", "tb-off-no-folder", "tb-off-no-picture", "tb-off-one-picture", "off-video-no-rotation", "off-video-convert", "off-video-flip", "off-turn-kind", "off-flip-kind", "off-no-turned", "off-edit-video", "off-edit-picture", "rc-one-only", "edit-animated-off"];
         for code in ["en", "it"] {
             let i18n = crate::i18n::I18n::new(code);
             for id in ids {

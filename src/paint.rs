@@ -2,13 +2,14 @@
 
 use eframe::egui::{self, TextureHandle};
 
+use crate::mipmap::Picture;
 use crate::transform::Turn;
 
 /// `tex` drawn in `rect` at `scale` screen pixels per image pixel, around `pan` (the centre of the
 /// view, in image pixels). `pan` is kept inside the image; a side smaller than the view stays centred.
 /// `turn`: flipped and turned as in the viewer (sizes and `pan` are those of the turned image).
 /// Returns where the image went and which part of it (0 to 1).
-pub fn paint_zoomed(painter: &egui::Painter, rect: egui::Rect, tex: &TextureHandle, scale: f32, pan: &mut egui::Vec2, turn: Turn) -> (egui::Rect, egui::Rect) {
+pub fn paint_zoomed(painter: &egui::Painter, rect: egui::Rect, tex: &Picture, scale: f32, pan: &mut egui::Vec2, turn: Turn) -> (egui::Rect, egui::Rect) {
     let ppp = painter.ctx().pixels_per_point();
     let t = turned_size(tex, turn);
     let half = rect.size() * ppp / scale / 2.0;
@@ -29,12 +30,88 @@ pub fn turned_size(tex: &TextureHandle, turn: Turn) -> egui::Vec2 {
 
 /// The part `uv` of the turned image (0 to 1 on each side) in `dest`: each corner takes the
 /// texture point it comes from, so the GPU turns it.
-pub fn paint_turned(painter: &egui::Painter, tex: &TextureHandle, dest: egui::Rect, uv: egui::Rect, turn: Turn) {
-    let mut mesh = egui::Mesh::with_texture(tex.id());
-    for (pos, shown) in [(dest.left_top(), uv.left_top()), (dest.right_top(), uv.right_top()), (dest.right_bottom(), uv.right_bottom()), (dest.left_bottom(), uv.left_bottom())] {
-        mesh.vertices.push(egui::epaint::Vertex { pos, uv: turn.source_uv(shown), color: egui::Color32::WHITE });
+pub fn paint_turned(painter: &egui::Painter, tex: &Picture, dest: egui::Rect, uv: egui::Rect, turn: Turn) {
+    paint_tinted(painter, tex, dest, uv, turn, egui::Color32::WHITE);
+}
+
+/// As `paint_turned`, multiplied by `tint` (a picture fading). Smaller than its pixels: filtered
+/// on the graphics card at the size on the screen (`smooth_gpu`), or, until the picture is there,
+/// from its halved copy of that size (`mipmap`).
+pub fn paint_tinted(painter: &egui::Painter, tex: &Picture, dest: egui::Rect, uv: egui::Rect, turn: Turn, tint: egui::Color32) {
+    let ppp = painter.ctx().pixels_per_point();
+    let scale = dest.width() * ppp / (uv.width() * turned_size(tex, turn).x);
+    let corners = [(dest.left_top(), uv.left_top()), (dest.right_top(), uv.right_top()), (dest.right_bottom(), uv.right_bottom()), (dest.left_bottom(), uv.left_bottom())];
+    let corners = corners.map(|(pos, shown)| (pos, turn.source_uv(shown)));
+    if crate::mipmap::smoothed(scale)
+        && let Some((id, corners)) = filtered(tex, scale, ppp, dest, corners, turn)
+    {
+        quad(painter, id, corners, tint);
+        return;
+    }
+    // The picture's pixels on whole pixels of the screen: half a pixel off, each screen pixel takes
+    // the mean of two of the picture, and lines one pixel wide at 100% came out grey (P68, IronManL,
+    // 17/11; at 167% too, where the view's edge falls inside a pixel).
+    let shift = onto_pixels(dest.min, uv.min.to_vec2() * turned_size(tex, turn), scale, ppp);
+    quad(painter, tex.id_at(scale), corners.map(|(pos, uv)| (pos + shift, uv)), tint);
+}
+
+/// How far (in points, less than half a pixel) to move a picture whose pixel `first` (in pixels of
+/// the picture, maybe a fraction) is drawn at `at`, `scale` screen pixels per pixel, so that the
+/// edges of its pixels fall on the edges of the screen's.
+fn onto_pixels(at: egui::Pos2, first: egui::Vec2, scale: f32, ppp: f32) -> egui::Vec2 {
+    // Where the picture's pixel 0 starts, in pixels of the screen.
+    let zero = at.to_vec2() * ppp - first * scale;
+    (zero.round() - zero) / ppp
+}
+
+/// The corners of `dest` on the pixels of the screen, with the points of the picture filtered
+/// at that size: the texture and its corners.
+fn filtered(tex: &Picture, scale: f32, ppp: f32, dest: egui::Rect, corners: [(egui::Pos2, egui::Pos2); 4], turn: Turn) -> Option<(egui::TextureId, [(egui::Pos2, egui::Pos2); 4])> {
+    let snap = |p: egui::Pos2| (p.to_vec2() * ppp).round().to_pos2() / ppp;
+    let dest = egui::Rect::from_min_max(snap(dest.min), snap(dest.max));
+    let px = [(dest.width() * ppp).round() as u32, (dest.height() * ppp).round() as u32];
+    let out = if turn.sideways() { [px[1], px[0]] } else { px };
+    let part = egui::Rect::from_points(&corners.map(|(_, s)| s));
+    let (id, extent) = crate::smooth_gpu::resampled(tex, scale, part, out)?;
+    let shown = [dest.left_top(), dest.right_top(), dest.right_bottom(), dest.left_bottom()];
+    let mut i = 0;
+    Some((
+        id,
+        corners.map(|(_, s)| {
+            let at = ((s - part.min) / part.size() * extent).to_pos2();
+            i += 1;
+            (shown[i - 1], at)
+        }),
+    ))
+}
+
+/// A picture on the four corners (position, point of the texture), clockwise from the top left.
+fn quad(painter: &egui::Painter, id: egui::TextureId, corners: [(egui::Pos2, egui::Pos2); 4], tint: egui::Color32) {
+    let mut mesh = egui::Mesh::with_texture(id);
+    for (pos, uv) in corners {
+        mesh.vertices.push(egui::epaint::Vertex { pos, uv, color: tint });
     }
     mesh.add_triangle(0, 1, 2);
     mesh.add_triangle(0, 2, 3);
     painter.add(mesh);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn its_pixels_onto_the_screen_pixels() {
+        let zero = |at: egui::Pos2, first: egui::Vec2, scale: f32, ppp: f32| {
+            let shift = onto_pixels(at, first, scale, ppp);
+            assert!(shift.x.abs() * ppp <= 0.5 && shift.y.abs() * ppp <= 0.5);
+            (at + shift).to_vec2() * ppp - first * scale
+        };
+        let whole = |v: egui::Vec2| (v - v.round()).length() < 1e-3;
+        // The view's edge at 7.54 showing from pixel 228.46 (P68 on the Samsung, 100%).
+        assert!(whole(zero(egui::pos2(7.54, 3.2), egui::vec2(228.46, 0.0), 1.0, 1.0)));
+        // At 167%, the edge 4.5 points in and the picture from pixel 300.2, at 100% and 200%.
+        assert!(whole(zero(egui::pos2(4.5, 60.3), egui::vec2(300.2, 10.7), 1.0, 5.0 / 3.0)));
+        assert!(whole(zero(egui::pos2(4.5, 60.3), egui::vec2(300.2, 10.7), 2.0, 5.0 / 3.0)));
+    }
 }

@@ -1,15 +1,16 @@
 //! The two images of Save as…: the original and, decoded back, the file it will write; fitted, or
 //! both at 100% around the same point, moved together by dragging either.
 
-use eframe::egui::{self, TextureHandle};
+use eframe::egui;
 
 use super::{GAP, Window};
 use crate::i18n::I18n;
+use crate::mipmap::Picture;
 use crate::paint::{paint_turned, paint_zoomed, turned_size};
 use crate::transform::Turn;
 
 /// The original and the new image side by side, each under its title.
-pub(super) fn convert_images(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, tex: &TextureHandle, half: f32, pane: egui::Vec2) {
+pub(super) fn convert_images(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, tex: &Picture, half: f32, pane: egui::Vec2) {
     let t = |id| i18n.t(id);
     let result_tex = match &w.result {
         Some(Ok((_, Some(tex)))) => Some(tex),
@@ -52,7 +53,7 @@ pub(super) fn convert_images(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, tex
 /// The image turned by `turn`, fitted into `size` (never enlarged), or at 100% around `pan`, a point
 /// of the turned image (the same for both images); grey when none.
 /// `note` is written in the middle when there is no image (converting, no preview for the format).
-fn preview(ui: &mut egui::Ui, size: egui::Vec2, tex: Option<&TextureHandle>, note: Option<&str>, turn: Turn, actual: bool, pan: &mut egui::Vec2) -> egui::Response {
+fn preview(ui: &mut egui::Ui, size: egui::Vec2, tex: Option<&Picture>, note: Option<&str>, turn: Turn, actual: bool, pan: &mut egui::Vec2) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(size, egui::Sense::drag());
     let painter = ui.painter_at(rect);
     // Grey ground and a border: on the window's own colour the two images ran into each other.

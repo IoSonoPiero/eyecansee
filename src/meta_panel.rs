@@ -18,8 +18,20 @@ impl App {
         if !show {
             self.settings.meta_hidden.push(g.key().to_string());
         }
-        self.meta_height = 0.0;
         self.settings.save();
+    }
+
+    /// Whether a metadata box is open: the ℹ button is on then.
+    pub(crate) fn any_meta_shown(&self) -> bool {
+        meta::Group::ALL.into_iter().any(|g| self.meta_shown(g))
+    }
+
+    /// The ℹ button: closes all the boxes if one is open, otherwise reopens them all.
+    pub(crate) fn toggle_all_meta(&mut self) {
+        let any = self.any_meta_shown();
+        for g in meta::Group::ALL {
+            self.show_meta(g, !any);
+        }
     }
 
     /// Metadata boxes of the selected image, side by side below the grid; each one closes with
@@ -48,28 +60,26 @@ impl App {
             _ => None,
         };
         let t = |id: &str| self.i18n.t(id);
+        let drawing = file.as_ref().is_some_and(|(_, f)| crate::cad_convert::can_convert(&f.path));
         let note = match (&file, &meta) {
             (None, _) => t("meta-none-selected"),
             (Some(_), None) => t("meta-loading"),
             (_, Some(Err(e))) => e.clone(),
+            (_, Some(Ok(None))) if drawing => t("cad-props-none"),
             (_, Some(Ok(None))) => t("meta-no-exif"),
             _ => String::new(),
         };
-        // The panel never shrinks: with a photo without EXIF, or while the data arrives (only
-        // one line), it shrank and grew back at every click and the grid above jumped.
-        // It starts again from its content when a box is opened or closed (`show_meta`).
-        // Only the boxes are measured: the whole panel includes the title bar and grew at every frame.
         // A video or an audio file without the video engine: no box but File has anything, so
         // the note once beside it, not repeated in every box.
         let played = file.as_ref().is_some_and(|(_, f)| crate::decode::is_played(&f.path));
         let alone = matches!(meta, Some(Err(_))) && played && !crate::mpv::available();
         let meta = meta.and_then(|m| m.ok().flatten());
         let mut close = None;
-        let min_height = self.meta_height;
-        let boxes = ScrollArea::horizontal().show(ui, |ui| {
-            ui.set_min_height(min_height);
+        // A fixed height (`meta_size`): a taller box scrolls, a shorter one leaves room below,
+        // and the grid above never jumps from one file to the next.
+        ScrollArea::both().auto_shrink(false).show(ui, |ui| {
             ui.horizontal_top(|ui| {
-                for g in boxes(alone, |g| self.meta_shown(g)) {
+                for g in boxes(alone, drawing, |g| self.meta_shown(g)) {
                     egui::Frame::group(ui.style()).show(ui, |ui| ui.vertical(|ui| {
                         self.meta_box(ui, g, file.as_ref().map(|(_, f)| f), meta.as_ref(), &note, &mut close);
                     }));
@@ -82,16 +92,51 @@ impl App {
                 }
             });
         });
-        self.meta_height = self.meta_height.max(boxes.content_size.y);
         if let Some(g) = close {
             self.show_meta(g, false);
+        }
+    }
+
+    /// The metadata panel under the grid, when a box is open.
+    pub(crate) fn meta_bottom(&mut self, ui: &mut Ui, ctx: &egui::Context) {
+        if !self.any_meta_shown() {
+            return;
+        }
+        // Collapsed, its own id: the open panel's remembered height does not hold the bar.
+        let panel = if self.settings.meta_collapsed {
+            egui::Panel::bottom("meta-bar")
+        } else {
+            egui::Panel::bottom("meta").exact_size(self.meta_size(ctx))
+        };
+        panel.show(ui, |ui| self.meta_panel(ui));
+    }
+
+    /// Height of the open metadata panel: its part of the window, between the title bar with
+    /// two lines and half the window.
+    pub(crate) fn meta_size(&self, ctx: &egui::Context) -> f32 {
+        let window = ctx.content_rect().height();
+        (self.settings.meta_size * window).clamp(META_MIN.min(window / 2.0), window / 2.0)
+    }
+
+    /// The top edge of the open panel, dragged up or down: its height, kept as a part of the window.
+    fn meta_resize(&mut self, ui: &Ui) {
+        let top = ui.max_rect().top() - ui.spacing().item_spacing.y;
+        let edge = Rect::from_x_y_ranges(ui.max_rect().x_range(), top - 4.0..=top + 4.0);
+        let drag = ui.interact(edge, egui::Id::unique("meta-resize"), Sense::drag()).on_hover_cursor(egui::CursorIcon::ResizeVertical);
+        if drag.dragged() {
+            let window = ui.ctx().content_rect().height();
+            let size = self.meta_size(ui.ctx()) - drag.drag_delta().y;
+            self.settings.meta_size = size.clamp(META_MIN.min(window / 2.0), window / 2.0) / window;
+        }
+        if drag.drag_stopped() {
+            self.settings.save();
         }
     }
 
     /// Title bar of the metadata panel.
     pub(crate) fn meta_title_bar(&mut self, ui: &mut Ui) {
         // Title bar: a click anywhere, or on the button on the right, collapses and reopens the
-        // panel. Dragging its edge was useless: it always went back to the content's height.
+        // panel; dragging its top edge changes the panel's height (`meta_resize`).
         let collapsed = self.settings.meta_collapsed;
         let (rect, bar) = ui.allocate_exact_size(vec2(ui.available_width(), ui.spacing().interact_size.y), Sense::click());
         let font = egui::TextStyle::Body.resolve(ui.style());
@@ -100,6 +145,9 @@ impl App {
         let hint = self.i18n.t(if collapsed { "meta-expand" } else { "meta-collapse" });
         let button = ui.put(button_rect, crate::icons::small(ui, if collapsed { crate::icons::Line::ChevronUp } else { crate::icons::Line::Down })).on_hover_text(&hint);
         let bar = bar.on_hover_text(hint).on_hover_cursor(egui::CursorIcon::PointingHand);
+        if !collapsed {
+            self.meta_resize(ui);
+        }
         if bar.clicked() || button.clicked() {
             self.settings.meta_collapsed = !collapsed;
             log!("metadata collapsed: {}", !collapsed);
@@ -140,7 +188,12 @@ impl App {
                 ui.end_row();
             }
             for (_, label, value) in fields {
-                ui.weak(t(label));
+                // A name the drawing gives (`cad_meta`) as it is; a heading in bold.
+                match label.strip_prefix('=') {
+                    Some(own) => ui.weak(own),
+                    None if value.is_empty() => ui.strong(t(label)),
+                    None => ui.weak(t(label)),
+                };
                 ui.label(self.meta_value(label, value));
                 ui.end_row();
             }
@@ -208,12 +261,17 @@ impl App {
 
     /// Status bar of the viewer, like the grid's: name, position, pixels, size on disk, date
     /// taken (or modified, without EXIF or with the metadata boxes closed).
-    /// `Some`: the Keys button (`keys_window`).
-    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) -> Option<egui::Response> {
+    /// The Keys button (`keys_window`), on a CAD drawing with layers the Layers button, and while
+    /// measuring with results Copy; on a picture the zoom group beside Keys (`zoom_bar`), with
+    /// what it asks for.
+    pub(crate) fn viewer_status(&self, ui: &mut Ui, current: usize) -> ([Option<egui::Response>; 3], Option<crate::zoom::Ask>) {
         let files = self.files();
-        let f = files.get(current)?;
+        let Some(f) = files.get(current) else { return ([None, None, None], None) };
+        let mut zoom_on = false;
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
-        ui.horizontal(|ui| {
+        let top_copy = self.measure_row(ui);
+        // On more rows in a narrow window (`bar_rows`): the date went under Keys at 520 px.
+        let (mut buttons, zoom) = crate::bar_rows::rows(ui, |ui| {
             self.phone_waiting(ui);
             // The same note as the grid's bar: a file gone from the device, say.
             if let Some(note) = &self.status_note {
@@ -228,15 +286,20 @@ impl App {
                 ui.label(self.i18n.t_args("model-triangles", &[("n", &mesh.tris.len().to_string())]));
                 if let Some(fps) = self.model_fps() {
                     ui.separator();
-                    ui.label(format!("{fps} fps"));
+                    crate::bar_rows::steady(ui, &format!("{fps} fps"), "000 fps");
                 }
                 ui.separator();
-                ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
+                crate::bar_rows::steady(ui, &format!("{:.0}%", self.zoom_shown * 100.0), "0000%");
+                self.section_bar(ui);
             } else if crate::cad::is_cad(&f.path) {
                 // A drawing has no pixels: its own size, in its unit.
-                for text in [self.cad_size_text(current), self.cad_sheet_name(current)].into_iter().flatten() {
+                for text in [self.cad_size_text(current), self.cad_sheet_name(current), self.compare_text(current)].into_iter().flatten() {
                     ui.separator();
                     ui.label(text);
+                }
+                if let Some(warning) = self.compare_units(current) {
+                    ui.separator();
+                    ui.label(crate::theme::alert(warning));
                 }
                 ui.separator();
                 ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
@@ -247,8 +310,7 @@ impl App {
                 let (w, h) = if self.turn.sideways() { (h, w) } else { (w, h) };
                 ui.separator();
                 ui.label(self.i18n.t_args("convert-pixels", &[("w", &w.to_string()), ("h", &h.to_string())]));
-                ui.separator();
-                ui.label(format!("{:.0}%", self.zoom_shown * 100.0));
+                zoom_on = true;
                 if let Some(page) = self.frames_status(&f.path) {
                     ui.separator();
                     ui.label(page);
@@ -278,12 +340,82 @@ impl App {
                 ui.separator();
                 ui.label(date);
             }
-            // On the right, out of the way: the keys, listed when asked. Blue on
-            // white: the bar makes every text white, and the button was white on white.
-            let keys = egui::Button::new(egui::RichText::new(self.i18n.t("keys-button")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
-            self.keys_hint(current).map(|_| ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| ui.add(keys)).inner)
+            self.status_buttons(ui, current, zoom_on)
+        });
+        if top_copy.is_some() {
+            buttons[2] = top_copy;
+        }
+        (buttons, zoom)
+    }
+
+    /// While measuring, when the results do not fit beside the file's details: on a row of their
+    /// own above them, on more lines if needed, with Copy; before, they were cut short with "…".
+    fn measure_row(&self, ui: &mut Ui) -> Option<egui::Response> {
+        let (text, results) = self.measure_status()?;
+        if ui.data(|d| d.get_temp::<bool>(measure_fits_id())).unwrap_or(true) {
+            return None;
+        }
+        let copy = ui.horizontal_top(|ui| {
+            let button = egui::Button::new(egui::RichText::new(self.i18n.t("measure-copy")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
+            let width = ui.available_width() - if results { 80.0 } else { 0.0 };
+            ui.scope(|ui| {
+                ui.set_max_width(width);
+                ui.add(egui::Label::new(measure_text(&text)).wrap());
+            });
+            results.then(|| ui.add(button).on_hover_text("Ctrl+C"))
+        });
+        ui.separator();
+        copy.inner
+    }
+
+    /// The right of the viewer's status bar: Keys, on a picture (`zoom_on`) the zoom group beside
+    /// it (#152), Layers on a drawing with layers, and while measuring the results (or how to go
+    /// on) with Copy. Together they go on a row of their own when they do not fit (`bar_rows`).
+    fn status_buttons(&self, ui: &mut Ui, current: usize, zoom_on: bool) -> ([Option<egui::Response>; 3], Option<crate::zoom::Ask>) {
+        // On the right, out of the way: the keys, listed when asked. Blue on
+        // white: the bar makes every text white, and the button was white on white.
+        let button = |id: &str| egui::Button::new(egui::RichText::new(self.i18n.t(id)).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
+        let (layers, copy) = (button("cad-layers-title"), button("measure-copy"));
+        let layers_on = self.cad_layers_off().is_none();
+        let measure = self.measure_status();
+        crate::bar_rows::right_end(ui, "viewer-status", |ui| {
+            let keys = self.keys_hint(current).map(|_| self.keys_button(ui));
+            let zoom = zoom_on.then(|| {
+                ui.separator();
+                self.zoom_group(ui)
+            });
+            let layers = layers_on.then(|| ui.add(layers).on_hover_text(self.i18n.t("key-layers")));
+            // While measuring: the results (or how to go on) take the room left, Copy beside. In
+            // the bold font: `strong` only changes the colour, and the bar makes every text white.
+            // The results on a row of their own (`measure_row`) when they did not fit here last time.
+            let fits = ui.data(|d| d.get_temp::<bool>(measure_fits_id())).unwrap_or(true);
+            let copy = measure.as_ref().filter(|_| fits).and_then(|(_, results)| results.then(|| ui.add(copy).on_hover_text("Ctrl+C")));
+            // The buttons need their room; the results are cut to what is left.
+            let need = ui.min_rect().width();
+            if let Some((text, _)) = measure {
+                // Measured the same way wherever the results are, so the choice does not swing.
+                let font = egui::FontId::new(egui::TextStyle::Body.resolve(ui.style()).size, egui::FontFamily::Name(crate::BOLD.into()));
+                let wide = ui.painter().layout_no_wrap(text.clone(), font, Color32::WHITE).size().x;
+                let room = ui.available_width() - if fits { 0.0 } else { ui.spacing().interact_size.x + 30.0 };
+                let now = wide + 16.0 <= room;
+                if now != fits {
+                    ui.data_mut(|d| d.insert_temp(measure_fits_id(), now));
+                    ui.ctx().request_discard("the measure's row chosen");
+                }
+                if fits {
+                    ui.separator();
+                    ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| ui.add(egui::Label::new(measure_text(&text)).truncate()).on_hover_text(&text));
+                }
+            }
+            (([keys, layers, copy], zoom.flatten()), need)
         })
-        .inner
+    }
+
+    /// The Keys button of a status bar (viewer, grid). Blue on white: the bar makes every text
+    /// white, and the button was white on white.
+    pub(crate) fn keys_button(&self, ui: &mut Ui) -> egui::Response {
+        let keys = egui::Button::new(egui::RichText::new(self.i18n.t("keys-button")).color(crate::theme::solid(ui.visuals()))).fill(Color32::WHITE);
+        ui.add(keys)
     }
 
     /// The keys of the viewer, one a row, over its bottom right corner above the status bar
@@ -312,6 +444,10 @@ impl App {
     /// Fluent id of their list (`keys_window`). Images too (only the 3D and CAD
     /// viewers had the button).
     pub(crate) fn keys_hint(&self, current: usize) -> Option<&'static str> {
+        // While measuring, the keys of Measure: the status bar says only what to click.
+        if self.model.measure.on && self.measure_off().is_none() {
+            return Some(if self.viewed_mesh().is_some() { "hint-measure-3d" } else { "hint-measure-cad" });
+        }
         if self.viewed_mesh().is_some() {
             return Some("hint-model");
         }
@@ -325,11 +461,14 @@ impl App {
 
     /// Value of a metadata field as shown: Fluent ids translated, dates in the language's format.
     pub(crate) fn meta_value(&self, label: &str, value: &str) -> String {
-        if value.starts_with("meta-") {
-            return self.i18n.t(value);
+        if value.starts_with("meta-") || label == "meta-xmp-label" {
+            // Colour labels: one id each ("meta-label-red, meta-label-blue"), or Lightroom's own names.
+            return value.split(", ").map(|v| if v.starts_with("meta-") { self.i18n.t(v) } else { v.to_string() }).collect::<Vec<_>>().join(", ");
         }
         let formatted = match label {
-            "meta-taken" => value.parse::<jiff::civil::DateTime>().ok().map(|d| d.strftime(&self.i18n.t("date-format")).to_string()),
+            "meta-taken" if value.contains(' ') => value.parse::<jiff::civil::DateTime>().ok().map(|d| d.strftime(&self.i18n.t("date-format")).to_string()),
+            // Only the day when the IPTC or the XMP says no time.
+            "meta-taken" => value.parse::<jiff::civil::Date>().ok().map(|d| d.strftime(&self.i18n.t("date-day-format")).to_string()),
             "meta-gps-date" => value.parse::<jiff::civil::Date>().ok().map(|d| d.strftime(&self.i18n.t("date-day-format")).to_string()),
             _ => None,
         };
@@ -337,13 +476,34 @@ impl App {
     }
 }
 
+/// Whether the measure's results fit on the status bar's row (`measure_row`).
+fn measure_fits_id() -> egui::Id {
+    egui::Id::unique("measure-fits")
+}
+
+/// The measure's text in the bold font: `strong` only changes the colour, and the bar makes every
+/// text white.
+fn measure_text(text: &str) -> egui::RichText {
+    egui::RichText::new(text).family(egui::FontFamily::Name(crate::BOLD.into()))
+}
+
 /// Width of the note that stands for the boxes without data (two boxes and the gap between).
 const NOTE_WIDTH: f32 = 512.0;
+/// Smallest height of the open metadata panel: the title bar and two lines of a box.
+const META_MIN: f32 = 110.0;
 
 /// The boxes drawn, those not closed (`shown`); `alone`: only File, the others have nothing to
 /// show and one note says why (the video engine missing).
-fn boxes(alone: bool, shown: impl Fn(Group) -> bool) -> Vec<Group> {
-    Group::ALL.into_iter().filter(|&g| shown(g) && (!alone || g == Group::File)).collect()
+/// The boxes for a file: with `alone` only File; a CAD `drawing` has File and Drawing, the
+/// others have every box but Drawing.
+fn boxes(alone: bool, drawing: bool, shown: impl Fn(Group) -> bool) -> Vec<Group> {
+    let fits = |g: Group| match g {
+        Group::File => true,
+        _ if alone => false,
+        Group::Drawing => drawing,
+        _ => !drawing,
+    };
+    Group::ALL.into_iter().filter(|&g| shown(g) && fits(g)).collect()
 }
 
 /// "Wheel: zoom | Drag: move" → ("Wheel", "zoom"), ("Drag", "move"): the keys and what they do,
@@ -425,10 +585,12 @@ mod tests {
     #[test]
     fn engine_note_once() {
         use crate::meta::Group;
-        assert_eq!(super::boxes(false, |_| true), Group::ALL);
-        assert_eq!(super::boxes(true, |_| true), [Group::File]);
-        assert!(super::boxes(true, |g| g != Group::File).is_empty());
-        assert_eq!(super::boxes(false, |g| g != Group::Camera).len(), Group::ALL.len() - 1);
+        assert_eq!(super::boxes(false, false, |_| true), [Group::File, Group::Camera, Group::Shot, Group::Image, Group::Gps, Group::Info]);
+        assert_eq!(super::boxes(true, false, |_| true), [Group::File]);
+        assert!(super::boxes(true, false, |g| g != Group::File).is_empty());
+        assert_eq!(super::boxes(false, false, |g| g != Group::Camera).len(), 5);
+        // A drawing: its properties beside the File box, nothing of a photo.
+        assert_eq!(super::boxes(false, true, |_| true), [Group::File, Group::Drawing]);
     }
 
     #[test]

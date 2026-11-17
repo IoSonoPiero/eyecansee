@@ -23,6 +23,8 @@ Il menù ![Filtri](icon://wand-sparkles) **Filtri** nella barra degli strumenti 
 
 Un filtro è un oggetto come gli altri. Fai clic su di lui per riaprirlo: cambia l'intensità, spostalo, ridimensionalo dagli angoli, o eliminalo con ![Elimina](icon://trash) o Canc. Resta modificabile fino al salvataggio.
 
+Sfoca e Pixel grossi hanno anche la maniglia tonda sopra di sé, e il loro angolo nella barra delle proprietà, per ruotarli: i pixel grossi girano con il riquadro.
+
 Un filtro sta sotto gli oggetti che disegni, quindi un clic lo prende solo dove non c'è nient'altro.
 
 ## Da sapere

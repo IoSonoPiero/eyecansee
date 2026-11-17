@@ -18,6 +18,8 @@ Funzionano sulle foto, e le tre rotazioni anche sui video (vedi sotto); su model
 1. Apri la foto e ruotala o rifletti: vedi subito il risultato, e la barra di stato dice **Modificata, non salvata**.
 2. **File > Salva** (**Ctrl+S**) la salva sopra l'originale, dopo aver chiesto. **File > Salva come…** (**Ctrl+Maiusc+S**) salva un file nuovo nel formato che scegli, e lascia l'originale com'è (vedi [Salva come](save-as.md)).
 
+**Ctrl+Z** annulla l'ultima rotazione o riflessione non ancora salvata, **Ctrl+Y** (o **Ctrl+Maiusc+Z**) la rifà. Tornata com'è sul disco, la foto non è più segnata come modificata.
+
 Se lasci la foto senza salvare (un'altra foto, ritorno alla griglia, un segnalibro, chiusura di EyeCanSee), EyeCanSee chiede prima: **Salva…**, **Salva come…**, **Non salvare**, oppure **Annulla** per restare sulla foto.
 
 ## Nella griglia

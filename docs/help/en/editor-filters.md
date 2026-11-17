@@ -23,6 +23,8 @@ The ![Filters](icon://wand-sparkles) **Filters** menu in the toolbar changes the
 
 A filter is an object like the others. Click it to open it again: change its amount, move it, resize it by its corners, or delete it with ![Delete](icon://trash) or Del. It stays changeable until you save.
 
+Blur and Pixelate also have the round handle above them, and their angle in the properties bar, to rotate them: Pixelate's big pixels turn with the box.
+
 A filter lies under the objects you draw, so a click picks it only where no other object is.
 
 ## Good to know

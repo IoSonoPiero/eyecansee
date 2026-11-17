@@ -38,7 +38,7 @@ pub(crate) async fn thumb_worker(
 ) {
     let send = |generation, index, image| {
         ctx.request_repaint();
-        tx.send(Msg::Loaded { generation, index, thumb: true, image }).is_ok()
+        tx.send(Msg::Loaded { generation, index, thumb: true, image, halves: Vec::new() }).is_ok()
     };
     loop {
         // Register before looking at the queue: a new queue arriving in the meantime must not be lost.
@@ -143,6 +143,14 @@ pub(crate) async fn file_info(op: &Store, base: &str, file: &File) -> Option<cra
         return info;
     }
     let path = &file.path;
+    // A DWG or DXF whose thumbnail was made before its number was kept with it: read once.
+    if crate::cad_convert::can_convert(path) {
+        let (bytes, name) = (op.read(path).await.ok()?, path.clone());
+        let drawing = tokio::task::spawn_blocking(move || crate::cad_meta::summary_of(&bytes, &name)).await.ok()?;
+        let info = crate::thumb_details::Info { drawing, ..Default::default() };
+        thumbcache::save_info(base, file, &info);
+        return Some(info);
+    }
     if crate::model::is_model(path) || crate::cad::is_cad(path) || crate::occt::needs_engine(path) {
         return Some(Default::default());
     }
@@ -243,7 +251,10 @@ async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, Stri
         let img = if crate::model::is_model(&file.path) {
             decode::model_picture_with(&bytes, &file.path, THUMB_SIDE, THUMB_SIDE * 3 / 4, &sibling)?
         } else if crate::cad::is_cad(&file.path) {
-            image::DynamicImage::ImageRgba8(decode::cad_render(&crate::cad::read_with(&bytes, &file.path, &sibling)?, THUMB_SIDE, None)?)
+            let d = crate::cad::read_with(&bytes, &file.path, &sibling)?;
+            // Its number and revision kept with it, for the line under it (#144).
+            thumbcache::save_info(&base, &file, &crate::thumb_details::Info { drawing: d.summary.clone(), ..Default::default() });
+            image::DynamicImage::ImageRgba8(decode::cad_render(&d, THUMB_SIDE, None)?)
         } else {
             let (img, own) = decode::thumbnail_sized(&bytes, &file.path, THUMB_SIDE)?;
             // The file is read now anyway: its details are kept with its thumbnail, for the line

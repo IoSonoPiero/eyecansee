@@ -66,13 +66,14 @@ fn motion_parts(b: &[u8]) -> Option<(usize, usize)> {
 /// describes the video, then all that followed it as it was, the video shown turned the same
 /// way (its display matrix changed, nothing encoded again). The lengths and offsets the XMP and
 /// the maker's data give count from the end of the file, which does not change.
-fn motion_turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
+fn motion_turned(b: &[u8], turn: Turn, sidecar: Option<&[u8]>) -> Option<Result<(Vec<u8>, bool), String>> {
     let (end, video) = motion_parts(b)?;
     let photo = &b[..end];
     Some((|| {
         let turned_video = crate::mp4::turned(&b[video..], turn).ok_or("Motion Photo: its video could not be turned")?;
         let (mut out, lossy) = one(photo, turn, |j| transform::jpeg_lossless(j, turn))?;
         keep_video_xmp(&mut out, photo)?;
+        let mut out = beside(out, sidecar);
         out.extend_from_slice(&b[end..video]);
         out.extend(turned_video);
         Ok((out, lossy))
@@ -84,8 +85,11 @@ fn motion_turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>
 /// does it; `None` if it is neither (`turns_whole`).
 /// Also says whether it lost quality (a picture whose size is not a multiple of the JPEG blocks
 /// is encoded again at quality 95).
-pub fn turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
-    let Some(p) = parts(b) else { return motion_turned(b, turn) };
+/// `sidecar`: the XMP of the photo's sidecar (#24), joined to the photo's own for a copy
+/// (`meta_write::jpeg_with_sidecar`); the description of the gain map and of the video stays the
+/// file's.
+pub fn turned(b: &[u8], turn: Turn, sidecar: Option<&[u8]>) -> Option<Result<(Vec<u8>, bool), String>> {
+    let Some(p) = parts(b) else { return motion_turned(b, turn, sidecar) };
     let (photo, gain) = split(b)?;
     Some((|| {
         // The gain map has the photo's pixels in the photo's orientation: it turns as they do.
@@ -95,12 +99,20 @@ pub fn turned(b: &[u8], turn: Turn) -> Option<Result<(Vec<u8>, bool), String>> {
         if p.video {
             keep_video_xmp(&mut new_photo, photo)?;
         }
-        let mut out = assemble(new_photo, &gain)?;
+        let mut out = assemble(beside(new_photo, sidecar), &gain)?;
         if p.video {
             out.extend(crate::mp4::turned(&b[p.end..], turn).ok_or("Motion Photo: its video could not be turned")?);
         }
         Ok((out, lossy_photo || lossy_gain))
     })())
+}
+
+/// The picture `photo` with the XMP of the `sidecar`, if there is one, joined to its own.
+fn beside(photo: Vec<u8>, sidecar: Option<&[u8]>) -> Vec<u8> {
+    match sidecar {
+        Some(side) => crate::meta_write::jpeg_with_sidecar(photo, side),
+        None => photo,
+    }
 }
 
 /// The XMP of the turned `photo` made again from the original's `old`, keeping the description
@@ -123,16 +135,16 @@ fn keep_video_xmp(photo: &mut Vec<u8>, old: &[u8]) -> Result<(), String> {
 /// `holes` (left, top, right, bottom in pixels of the edited photo: the editor's cover boxes and
 /// opaque objects) get the lowest gain on every pixel of the gain map they touch even in part.
 /// `size`: the photo resized in the editor (#114) to this size, upright, before the edits: the
-/// gain map is resized as Convert and resize does it (`resized`).
-pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]], size: Option<(u32, u32)>) -> Result<Vec<u8>, String> {
+/// gain map is resized as Convert and resize does it (`resized`). `sidecar` as `rebuilt` takes it.
+pub fn edited(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]], size: Option<(u32, u32)>, meta: crate::meta_strip::Keep, sidecar: Option<&[u8]>) -> Result<Vec<u8>, String> {
     let (photo, _) = split(b).ok_or("not Ultra HDR")?;
     // At its own quality and subsampling: not compressed harder a second time.
-    let o = crate::encode::jpeg_quality::like(photo, Options { format: Format::Jpeg, ..Options::default() });
-    edited_with(b, image, edits, holes, &o, size)
+    let o = crate::encode::jpeg_quality::like(photo, Options { format: Format::Jpeg, meta, ..Options::default() });
+    edited_with(b, image, edits, holes, &o, size, sidecar)
 }
 
 /// As `edited`, the photo encoded with `o` (Save in another format, #66).
-fn edited_with(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]], o: &Options, size: Option<(u32, u32)>) -> Result<Vec<u8>, String> {
+fn edited_with(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]], o: &Options, size: Option<(u32, u32)>, sidecar: Option<&[u8]>) -> Result<Vec<u8>, String> {
     let (photo, gain) = split(b).ok_or("not Ultra HDR")?;
     // The gain map upright as the photo shown, then the edits at its scale.
     let turn = transform::exif_turn(photo);
@@ -156,15 +168,15 @@ fn edited_with(b: &[u8], image: DynamicImage, edits: &[Edit], holes: &[[f32; 4]]
     }
     let (kx, ky) = (g.width() as f32 / image.width() as f32, g.height() as f32 / image.height() as f32);
     lowest_gain(&mut g, holes, kx, ky);
-    rebuilt(photo, image, o, gain, g, gray)
+    rebuilt(photo, image, o, gain, g, gray, sidecar)
 }
 
 /// The photo after Convert and resize (`image`: decoded upright, turned by `turn`, maybe cut to
 /// `cut` (left, top, width, height of the turned photo) and resized) written as JPEG with `o`
 /// and still Ultra HDR (#65): the gain map turned and cut the same way and resized by the same
 /// factor (bilinear: a smooth picture, no halos), at its own quality. The video of a Motion Photo
-/// is not written: the copy is a new, smaller file.
-pub fn resized(b: &[u8], image: DynamicImage, turn: Turn, cut: Option<(u32, u32, u32, u32)>, o: &Options) -> Result<Vec<u8>, String> {
+/// is not written: the copy is a new, smaller file. `sidecar` as `rebuilt` takes it.
+pub fn resized(b: &[u8], image: DynamicImage, turn: Turn, cut: Option<(u32, u32, u32, u32)>, o: &Options, sidecar: Option<&[u8]>) -> Result<Vec<u8>, String> {
     let (photo, gain) = split(b).ok_or("not Ultra HDR")?;
     let (w, h) = image::ImageReader::new(std::io::Cursor::new(photo)).with_guessed_format().map_err(|e| e.to_string())?.into_dimensions().map_err(|e| e.to_string())?;
     let mut g = crate::decode::decode_full(gain, "x.jpg")?;
@@ -182,7 +194,7 @@ pub fn resized(b: &[u8], image: DynamicImage, turn: Turn, cut: Option<(u32, u32,
     if (gw, gh) != (g.width(), g.height()) {
         g = g.resize_exact(gw, gh, image::imageops::FilterType::Triangle);
     }
-    rebuilt(photo, image, o, gain, g, gray)
+    rebuilt(photo, image, o, gain, g, gray, sidecar)
 }
 
 /// An Ultra HDR original as "Save in another format" needs it to write a JPEG still Ultra HDR
@@ -193,17 +205,24 @@ pub struct Source {
     edits: Vec<Edit>,
     holes: Vec<[f32; 4]>,
     size: Option<(u32, u32)>,
+    sidecar: Option<Vec<u8>>,
 }
 
 impl Source {
     /// `None` if `file` is not an Ultra HDR JPEG. `edits` and `holes` as `edited` takes them.
     pub fn of(file: std::sync::Arc<Vec<u8>>, edits: Vec<Edit>, holes: Vec<[f32; 4]>) -> Option<Source> {
-        is(&file).then_some(Source { file, edits, holes, size: None })
+        is(&file).then_some(Source { file, edits, holes, size: None, sidecar: None })
     }
 
     /// The photo resized in the editor before the edits, as `edited` takes it.
     pub fn sized(self, size: Option<(u32, u32)>) -> Source {
         Source { size, ..self }
+    }
+
+    /// The XMP of the photo's sidecar (#24), joined to the file's in what `write` writes
+    /// (`Original::sidecar`).
+    pub fn beside(self, sidecar: Option<Vec<u8>>) -> Source {
+        Source { sidecar, ..self }
     }
 
     /// `image` (the original decoded upright, or the editor's result) written as JPEG with `o`,
@@ -213,23 +232,26 @@ impl Source {
         let mut image = image.clone();
         o.turn.apply(&mut image);
         let plain = Options { turn: Turn::default(), ..*o };
+        let sidecar = self.sidecar.as_deref();
         if self.edits.is_empty() {
-            resized(&self.file, image, o.turn, None, &plain)
+            resized(&self.file, image, o.turn, None, &plain, sidecar)
         } else {
-            edited_with(&self.file, image, &self.edits, &self.holes, &plain, self.size)
+            edited_with(&self.file, image, &self.edits, &self.holes, &plain, self.size, sidecar)
         }
     }
 }
 
 /// The new photo `image` (encoded with `o`) and gain map `g` (at the old one's quality, grey if
-/// it was) in one Ultra HDR file, each with the segments of the old `photo` and `gain`.
-fn rebuilt(photo: &[u8], image: DynamicImage, o: &Options, gain: &[u8], mut g: DynamicImage, gray: bool) -> Result<Vec<u8>, String> {
+/// it was) in one Ultra HDR file, each with the segments of the old `photo` and `gain`. The XMP
+/// of the photo's `sidecar` (#24) joins the photo's own (`xmp::joined`): what describes the gain
+/// map stays the photo's, the choice of `o.meta` applies to both.
+fn rebuilt(photo: &[u8], image: DynamicImage, o: &Options, gain: &[u8], mut g: DynamicImage, gray: bool, sidecar: Option<&[u8]>) -> Result<Vec<u8>, String> {
     if gray {
         g = DynamicImage::ImageLuma8(g.to_luma8());
     }
     let like = crate::encode::jpeg_quality::like(gain, Options { format: Format::Jpeg, ..Options::default() });
-    let new_photo = keep_segments(photo, Original::with_meta(image, photo).encode(o)?);
-    let new_gain = keep_segments(gain, Original::with_meta(g, gain).encode(&like)?);
+    let new_photo = keep_segments(photo, Original::with_meta_beside(image, photo, "", sidecar).encode(o)?, o.meta == crate::meta_strip::Keep::All);
+    let new_gain = keep_segments(gain, Original::with_meta(g, gain).encode(&like)?, true);
     assemble(new_photo, &new_gain)
 }
 
@@ -284,19 +306,22 @@ fn one(jpeg: &[u8], turn: Turn, lossless: impl FnOnce(&[u8]) -> Option<Vec<u8>>)
             (Original::with_meta(img, jpeg).encode(&o)?, true)
         }
     };
-    Ok((keep_segments(jpeg, out), lossy))
+    Ok((keep_segments(jpeg, out, true), lossy))
 }
 
 /// `out` with the APP segments of `from` it does not have, after its own: the encoder writes
 /// only JFIF, EXIF and the colour profile.
-fn keep_segments(from: &[u8], mut out: Vec<u8>) -> Vec<u8> {
+/// `all` false: the metadata was chosen (#55), the EXIF, XMP and IPTC of `from` are not copied.
+fn keep_segments(from: &[u8], mut out: Vec<u8>, all: bool) -> Vec<u8> {
     // A segment is known by its marker and signature ("Exif", "MPF", the XMP namespace…), up to
     // the first zero byte: the EXIF of the turned photo has another orientation.
     let key = |b: &[u8], (m, s, e): (u8, usize, usize)| (m, b[s + 4..e].iter().take(40).take_while(|&&c| c != 0).copied().collect::<Vec<u8>>());
     let have: Vec<_> = segments(&out).into_iter().map(|s| key(&out, s)).collect();
     let missing: Vec<u8> = segments(from)
         .into_iter()
-        .filter(|&(m, ..)| (0xE0..=0xEF).contains(&m))
+        .filter(|&(m, ..)| (0xE0..=0xEF).contains(&m) && (all || !matches!(m, 0xE1 | 0xED)))
+        // The extended XMP is in the main packet of `out`, or in segments of its own there.
+        .filter(|&(m, s, e)| !(m == 0xE1 && from[s + 4..e].starts_with(crate::meta_write::JPEG_XMP_EXT)))
         .filter(|&s| !have.contains(&key(from, s)))
         .flat_map(|(_, s, e)| from[s..e].to_vec())
         .collect();
@@ -406,11 +431,15 @@ pub(crate) mod tests {
     /// An Ultra HDR file as phones write it: XMP with the container directory and MPF in the
     /// photo, the gain map after it.
     pub(crate) fn sample(w: u32, h: u32) -> Vec<u8> {
+        sample_with(w, h, |len| format!(
+            "<x:xmpmeta><rdf:Description xmlns:exif=\"http://ns.adobe.com/exif/1.0/\" xmlns:crs=\"http://ns.adobe.com/camera-raw-settings/1.0/\" exif:PixelXDimension=\"{w}\" crs:HasCrop=\"True\"/><rdf:Seq><rdf:li><Container:Item Item:Semantic=\"Primary\" Item:Mime=\"image/jpeg\"/></rdf:li><rdf:li><Container:Item Item:Semantic=\"GainMap\" Item:Mime=\"image/jpeg\" Item:Length=\"{len}\"/></rdf:li></rdf:Seq><hdrgm:Version>1.0</hdrgm:Version></x:xmpmeta>"
+        ))
+    }
+
+    /// As `sample`, the photo's XMP packet made by `xmp` from the gain map's length.
+    fn sample_with(w: u32, h: u32, xmp: impl FnOnce(usize) -> String) -> Vec<u8> {
         let gain = jpeg(w / 2, h / 2);
-        let xmp = format!(
-            "http://ns.adobe.com/xap/1.0/\0<x:xmpmeta><rdf:Description xmlns:exif=\"http://ns.adobe.com/exif/1.0/\" xmlns:crs=\"http://ns.adobe.com/camera-raw-settings/1.0/\" exif:PixelXDimension=\"{w}\" crs:HasCrop=\"True\"/><rdf:Seq><rdf:li><Container:Item Item:Semantic=\"Primary\" Item:Mime=\"image/jpeg\"/></rdf:li><rdf:li><Container:Item Item:Semantic=\"GainMap\" Item:Mime=\"image/jpeg\" Item:Length=\"{}\"/></rdf:li></rdf:Seq><hdrgm:Version>1.0</hdrgm:Version></x:xmpmeta>",
-            gain.len()
-        );
+        let xmp = [crate::meta_write::JPEG_XMP, xmp(gain.len()).as_bytes()].concat();
         // MPF: TIFF header, one IFD entry (MPEntry, 32 bytes at offset 26), then the table.
         let mut mpf = b"MPF\0II*\0".to_vec();
         mpf.extend_from_slice(&8u32.to_le_bytes());
@@ -423,7 +452,7 @@ pub(crate) mod tests {
         let photo = jpeg(w, h);
         // IPTC and a Photoshop thumbnail of the photo, as Photoshop or Lightroom would leave.
         let irb = [crate::meta_write::JPEG_PHOTOSHOP, &crate::meta_write::resource(1036, &[7; 9]), &crate::meta_write::irb_of_iim(&iim())].concat();
-        let mut photo = [&photo[..2], &segment(0xE1, xmp.as_bytes()), &segment(0xE2, &mpf), &segment(0xED, &irb), &photo[2..]].concat();
+        let mut photo = [&photo[..2], &segment(0xE1, &xmp), &segment(0xE2, &mpf), &segment(0xED, &irb), &photo[2..]].concat();
         let m = mpf_at(&photo);
         let len = photo.len();
         write_u32(&mut photo, m.table + 4, len as u32, true);
@@ -433,14 +462,94 @@ pub(crate) mod tests {
         photo
     }
 
+    /// The XMP of a phone's Ultra HDR photo (the gain map described as a Pixel does it), with
+    /// the person's name and `extra` in its description.
+    fn phone_xmp(len: usize, extra: &str) -> String {
+        format!(
+            concat!(
+                "<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><rdf:RDF xmlns:rdf=\"http://www.w3.org/1999/02/22-rdf-syntax-ns#\">",
+                "<rdf:Description rdf:about=\"\" xmlns:dc=\"http://purl.org/dc/elements/1.1/\" xmlns:exif=\"http://ns.adobe.com/exif/1.0/\" ",
+                "xmlns:hdrgm=\"http://ns.adobe.com/hdr-gain-map/1.0/\" xmlns:Container=\"http://ns.google.com/photos/1.0/container/\" ",
+                "xmlns:Item=\"http://ns.google.com/photos/1.0/container/item/\" hdrgm:Version=\"1.0\">{}",
+                "<Container:Directory><rdf:Seq><rdf:li rdf:parseType=\"Resource\"><Container:Item Item:Semantic=\"Primary\" Item:Mime=\"image/jpeg\"/></rdf:li>",
+                "<rdf:li rdf:parseType=\"Resource\"><Container:Item Item:Semantic=\"GainMap\" Item:Mime=\"image/jpeg\" Item:Length=\"{}\"/></rdf:li></rdf:Seq></Container:Directory>",
+                "</rdf:Description></rdf:RDF></x:xmpmeta>"
+            ),
+            extra, len
+        )
+    }
+
+    /// The text of the XMP of a JPEG's picture.
+    fn xmp_of(jpeg: &[u8]) -> String {
+        let (_, s, e) = segments(jpeg).into_iter().find(|&(m, s, e)| m == 0xE1 && jpeg[s + 4..e].starts_with(crate::meta_write::JPEG_XMP)).expect("an XMP");
+        String::from_utf8_lossy(&jpeg[s + 4 + crate::meta_write::JPEG_XMP.len()..e]).into_owned()
+    }
+
+    /// The copy of an Ultra HDR photo with a sidecar (#24) has what the sidecar says, as every
+    /// other copy: Convert and resize, a lossless turn, Save in another format, the editor. The
+    /// gain map is described once, by the copy's own XMP (the sidecar's description of the
+    /// original's, as exiftool copies it, goes); "All but the place" leaves out the sidecar's place
+    /// too. A plain JPEG turned without loss gets the sidecar's XMP too.
+    #[test]
+    fn sidecar_in_the_copies() {
+        use crate::meta_strip::Keep;
+        let file = sample_with(64, 32, |len| phone_xmp(len, "<dc:creator><rdf:Seq><rdf:li>Ann</rdf:li></rdf:Seq></dc:creator>"));
+        let side = phone_xmp(999_999, "<dc:title><rdf:Alt><rdf:li xml:lang=\"x-default\">From the sidecar</rdf:li></rdf:Alt></dc:title><exif:GPSLatitude>40,21.0N</exif:GPSLatitude><exif:GPSLongitude>18,10.0E</exif:GPSLongitude>");
+        let side = Some(side.as_bytes());
+        let cw = Turn::default().then(transform::Op::Cw);
+        let image = crate::decode::decode_full(&file, "a.jpg").unwrap();
+        let opts = |meta| Options { format: Format::Jpeg, meta, ..Options::default() };
+        let job = |format, turn, meta| crate::batch::Job { format, turn, options: opts(meta), ..Default::default() };
+        let batch = |j: crate::batch::Job| crate::batch::convert_with(&file, "a.jpg", &j, &|_| None, side).unwrap().1;
+        let edit = Edit { turn: Turn::default(), angle: 0.0, crop: Crop::centred(64.0, 32.0), fill: None };
+        let copies = [
+            ("resized", batch(job(Some(Format::Jpeg), Turn::default(), Keep::All)), true),
+            ("resized, no place", batch(job(Some(Format::Jpeg), Turn::default(), Keep::NoPlace)), false),
+            ("turned", batch(job(None, cw, Keep::All)), true),
+            ("save as", Source::of(std::sync::Arc::new(file.clone()), Vec::new(), Vec::new()).unwrap().beside(side.map(<[u8]>::to_vec)).write(&image, &opts(Keep::All)).unwrap(), true),
+            ("editor", edited(&file, image.clone(), &[edit], &[], None, Keep::All, side).unwrap(), true),
+            ("editor, no place", edited(&file, image.clone(), &[edit], &[], None, Keep::NoPlace, side).unwrap(), false),
+        ];
+        for (name, out, place) in copies {
+            let (photo, gain) = split(&out).unwrap_or_else(|| panic!("{name}: no longer Ultra HDR"));
+            let xmp = xmp_of(photo);
+            let f = crate::xmp_fields::read(xmp.as_bytes());
+            assert_eq!((f.title.as_deref(), f.creators), (Some("From the sidecar"), vec!["Ann".to_string()]), "{name}: {xmp}");
+            assert_eq!(f.gps.is_some(), place, "{name}: {xmp}");
+            assert_eq!((xmp.matches("Item:Semantic=\"GainMap\"").count(), xmp.matches("hdrgm:Version").count()), (1, 1), "{name}: {xmp}");
+            assert!(xmp.contains(&format!("Item:Length=\"{}\"", gain.len())) && !xmp.contains("999999"), "{name}: {xmp}");
+            // Only the description of the gain map declares its namespaces (Skia reads the first that does).
+            assert_eq!(xmp.matches("xmlns:Container=").count(), 1, "{name}: {xmp}");
+        }
+        // A sidecar too large for a JPEG's XMP segment: its title in the extended XMP, the gain map
+        // still described in the main packet (`xmp_ext`).
+        let long = "x".repeat(70_000);
+        let big = phone_xmp(1, &format!("<dc:title><rdf:Alt><rdf:li xml:lang=\"x-default\">{long}</rdf:li></rdf:Alt></dc:title>"));
+        for j in [job(Some(Format::Jpeg), Turn::default(), Keep::All), job(None, cw, Keep::All)] {
+            let out = crate::batch::convert_with(&file, "a.jpg", &j, &|_| None, Some(big.as_bytes())).unwrap().1;
+            let (photo, gain) = split(&out).expect("still Ultra HDR");
+            let xmp = xmp_of(photo);
+            assert!(xmp.contains("<rdf:li>Ann</rdf:li>") && xmp.contains("HasExtendedXMP") && xmp.contains(&format!("Item:Length=\"{}\"", gain.len())), "{xmp}");
+            let whole = crate::meta_write::jpeg_xmp_whole(photo).unwrap();
+            assert_eq!(crate::xmp_fields::read(&whole).title.as_deref(), Some(long.as_str()));
+        }
+        let bare = batch(job(Some(Format::Jpeg), Turn::default(), Keep::Nothing));
+        assert!(!is(&bare) && !String::from_utf8_lossy(&bare).contains("From the sidecar"), "nothing kept");
+        let plain = jpeg(64, 32);
+        let (turned, lossy) = crate::save_back::turned_file_beside(&plain, "a.jpg", cw, side).unwrap();
+        let f = crate::xmp_fields::read(xmp_of(&turned).as_bytes());
+        assert!(!lossy && f.title.as_deref() == Some("From the sidecar") && !xmp_of(&turned).contains("GainMap"), "plain JPEG: {}", xmp_of(&turned));
+    }
+
     fn iim() -> Vec<u8> {
         crate::xmp::tests::iim(&[(80, "Ann")])
     }
 
-    /// The photo's XMP and IPTC fit it: its width, no Camera Raw, the IPTC without thumbnail.
+    /// The photo's XMP and IPTC fit it: its width, Camera Raw marked as applied, the IPTC without
+    /// thumbnail.
     fn fitted(photo: &[u8], w: u32) {
         let xmp = String::from_utf8_lossy(photo).into_owned();
-        assert!(xmp.contains(&format!("exif:PixelXDimension=\"{w}\"")) && !xmp.contains("crs:"), "{xmp}");
+        assert!(xmp.contains(&format!("exif:PixelXDimension=\"{w}\"")) && xmp.contains("crs:AlreadyApplied=\"True\""), "{xmp}");
         let (_, s, e) = segments(photo).into_iter().find(|&(m, ..)| m == 0xED).expect("IPTC kept");
         assert_eq!(&photo[s + 4..e], [crate::meta_write::JPEG_PHOTOSHOP, &crate::meta_write::irb_of_iim(&iim())].concat());
     }
@@ -457,7 +566,7 @@ pub(crate) mod tests {
         let file = sample(64, 32);
         assert!(is(&file) && is(&[file.as_slice(), &[0; 8]].concat()));
         assert!(!is(&jpeg(64, 32)));
-        let (out, lossy) = turned(&file, Turn::default().then(transform::Op::Cw)).unwrap().unwrap();
+        let (out, lossy) = turned(&file, Turn::default().then(transform::Op::Cw), None).unwrap().unwrap();
         assert!(!lossy);
         let p = parts(&out).expect("still Ultra HDR");
         let photo = image::load_from_memory(&out[..p.gain]).unwrap();
@@ -470,7 +579,7 @@ pub(crate) mod tests {
         let (saved, _) = crate::save_back::turned_file(&file, "a.jpg", Turn::default().then(transform::Op::Cw)).unwrap();
         assert_eq!(saved, out);
         // A size that is not a multiple of the blocks: encoded again, still Ultra HDR.
-        let (out, lossy) = turned(&sample(72, 40), Turn::default().then(transform::Op::FlipH)).unwrap().unwrap();
+        let (out, lossy) = turned(&sample(72, 40), Turn::default().then(transform::Op::FlipH), None).unwrap().unwrap();
         assert!(lossy && is(&out));
         fitted(&out[..parts(&out).unwrap().gain], 72);
     }
@@ -482,7 +591,7 @@ pub(crate) mod tests {
         let mut img = crate::decode::decode_full(&file, "a.jpg").unwrap();
         let e = Edit { turn: Turn::default().then(transform::Op::Cw), angle: 10.0, crop: Crop::centred(20.0, 40.0), fill: Some([255; 3]) };
         e.apply(&mut img);
-        let out = edited(&file, img, &[e], &[], None).unwrap();
+        let out = edited(&file, img, &[e], &[], None, crate::meta_strip::Keep::All, None).unwrap();
         let p = parts(&out).expect("still Ultra HDR");
         let photo = image::load_from_memory(&out[..p.gain]).unwrap();
         let gain = image::load_from_memory(&out[p.gain..]).unwrap();
@@ -504,10 +613,10 @@ pub(crate) mod tests {
         assert!(is(&motion) && split(&motion) == split(&file));
         assert!(!is(&[file.as_slice(), &[7; 40]].concat()));
         let img = crate::decode::decode_full(&motion, "a.jpg").unwrap();
-        let out = edited(&motion, img, &[Edit { turn: Turn::default(), angle: 0.0, crop: Crop::centred(64.0, 32.0), fill: None }], &[], None).unwrap();
+        let out = edited(&motion, img, &[Edit { turn: Turn::default(), angle: 0.0, crop: Crop::centred(64.0, 32.0), fill: None }], &[], None, crate::meta_strip::Keep::All, None).unwrap();
         assert!(is(&out) && !out.windows(4).any(|w| w == b"ftyp"));
         let cw = Turn::default().then(transform::Op::Cw);
-        let (out, _) = turned(&motion, cw).unwrap().unwrap();
+        let (out, _) = turned(&motion, cw, None).unwrap().unwrap();
         let p = parts(&out).expect("still Ultra HDR");
         assert!(p.video && out.len() - p.end == video.len());
         assert_eq!(&out[p.end..], crate::mp4::turned(&video, cw).unwrap());
@@ -528,7 +637,7 @@ pub(crate) mod tests {
         for maker in [&b""[..], &b"\0\0\x01\x0aMotionPhoto_Data"[..]] {
             let file = [photo.as_slice(), maker, &video].concat();
             assert!(turns_whole(&file) && !is(&file) && !crate::save_back::can_turn_in_place(&file, "a.jpg"));
-            let (out, lossy) = turned(&file, cw).unwrap().unwrap();
+            let (out, lossy) = turned(&file, cw, None).unwrap().unwrap();
             assert!(!lossy);
             let (end, at) = motion_parts(&out).expect("still a Motion Photo");
             assert_eq!(image::load_from_memory(&out[..end]).unwrap().dimensions(), (16, 32));
@@ -556,7 +665,7 @@ pub(crate) mod tests {
         let mut img = crate::decode::decode_full(&file, "a.jpg").unwrap();
         cw.apply(&mut img);
         let img = img.resize_exact(16, 32, image::imageops::FilterType::Triangle);
-        let out = resized(&file, img, cw, None, &Options::default()).unwrap();
+        let out = resized(&file, img, cw, None, &Options::default(), None).unwrap();
         let p = parts(&out).expect("still Ultra HDR");
         let photo = image::load_from_memory(&out[..p.gain]).unwrap();
         let gain = image::load_from_memory(&out[p.gain..p.end]).unwrap();
@@ -623,7 +732,7 @@ pub(crate) mod tests {
             let (w, h) = (img.width() as f32, img.height() as f32);
             let e = Edit { turn: Turn::default(), angle: 7.5, crop: crate::rotate::inside(w, h, 7.5, w / h), fill: Some([255; 3]) };
             e.apply(&mut img);
-            let out = edited(&b, img, &[e], &[], None).unwrap();
+            let out = edited(&b, img, &[e], &[], None, crate::meta_strip::Keep::All, None).unwrap();
             assert!(is(&out), "{}", path.display());
             std::fs::write(std::path::Path::new(&out_dir).join(path.file_name().unwrap()), &out).unwrap();
         }
@@ -646,7 +755,7 @@ pub(crate) mod tests {
             }
             let p = parts(&b).unwrap();
             let before = (image::load_from_memory(&b[..p.gain]).unwrap().dimensions(), image::load_from_memory(&b[p.gain..]).unwrap().dimensions());
-            let (out, lossy) = turned(&b, Turn::default().then(transform::Op::Cw)).unwrap().unwrap();
+            let (out, lossy) = turned(&b, Turn::default().then(transform::Op::Cw), None).unwrap().unwrap();
             let q = parts(&out).expect("still Ultra HDR");
             let photo = crate::decode::decode_full(&out[..q.gain], "x.jpg").unwrap().dimensions();
             let gain = image::load_from_memory(&out[q.gain..]).unwrap().dimensions();

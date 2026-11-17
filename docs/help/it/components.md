@@ -26,7 +26,7 @@ Ogni componente viene dalle release di EyeCanSee su GitHub. La sua impronta SHA-
 
 - Linux: `~/.local/share/eyecansee/components`
 - Flatpak: `~/.var/app/<id dell'applicazione>/data/eyecansee/components`
-- Windows: `%LOCALAPPDATA%\eyecansee\components`
+- Windows: `%LOCALAPPDATA%\eyecansee\components` (la copia del Microsoft Store: `components-store`, sua)
 
 ## Da sapere
 

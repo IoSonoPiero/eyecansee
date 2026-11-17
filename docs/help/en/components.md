@@ -26,7 +26,7 @@ Each component comes from EyeCanSee's own releases on GitHub. Its SHA-256 finger
 
 - Linux: `~/.local/share/eyecansee/components`
 - Flatpak: `~/.var/app/<application id>/data/eyecansee/components`
-- Windows: `%LOCALAPPDATA%\eyecansee\components`
+- Windows: `%LOCALAPPDATA%\eyecansee\components` (the Microsoft Store copy: `components-store`, its own)
 
 ## Things to know
 

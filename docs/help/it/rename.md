@@ -14,6 +14,7 @@ EyeCanSee controlla il nome mentre scrivi: non può essere vuoto, contenere `/` 
 ## Da sapere per rinominare
 
 - Rinomina lavora su un elemento alla volta: con più elementi selezionati è spento, e passando sopra il pulsante si legge il perché.
+- Il file `.xmp` di una foto (vedi [Informazioni sul file](metadata.md)) si rinomina con lei, con lo stesso schema: "IMG_0001.CR2.xmp" o "IMG_0001.xmp" diventano "Mare.CR2.xmp" o "Mare.xmp". Se un altro file ha già il nome che prenderebbe il file `.xmp`, non si rinomina niente e il messaggio dice quale file.
 - Non si possono rinominare la cartella principale di un disco, di un telefono o di un server, le memorie di un telefono e gli elementi dentro un cestino.
 - Su un server l'elemento lo rinomina il server stesso, anche una cartella, quindi è veloce.
 

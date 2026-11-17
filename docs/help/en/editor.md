@@ -9,6 +9,7 @@ The editor is a page of its own where you draw on one image, cover private detai
 - **Image > Edit image…** (Ctrl+E), the ![Edit image](icon://square-pen) button on the toolbar, or **Edit image…** in the right-click menu.
 - **Image > Rotate and crop…** opens the same page with the crop tool already chosen. See [Crop and rotate](editor-crop.md).
 - **File > New image…** (Ctrl+N) opens an empty image in the editor. See [New image](new-image.md).
+- **File > Open from clipboard** opens in the editor an image copied in another program. See [New image](new-image.md).
 
 The editor works on one image at a time. With several images selected, these items are off; to turn several images at once use [Rotating and flipping](rotate.md) or [Converting and resizing images](convert.md). They are also off for an animated image or one with several pages, in the grid as in the viewer, because only the first picture would be saved.
 
@@ -16,7 +17,7 @@ The editor works on one image at a time. With several images selected, these ite
 
 - **Toolbar** (top): one button per tool, then ![Rotate 90° anticlockwise](icon://rotate-ccw-square) and ![Rotate 90° clockwise](icon://rotate-cw-square), ![Resize](icon://scaling), ![Filters](icon://wand-sparkles), ![Undo](icon://undo-2) and ![Redo](icon://redo-2). On the right: ![Copy](icon://copy), ![Close](icon://x) and **Save copy** (or **Overwrite…**, short for Overwrite the original…, if chosen in the [Options](options.md)) with its arrow ![More ways to save](icon://chevron-down). The tool in use is highlighted. Point at a button to see its name and key; on a button that is off you also see why.
 - **Properties bar** (under the toolbar): the style of the selected object, or of the next one the tool will draw. With the crop tool it holds the crop controls. See [Colours, lines and the eyedropper](editor-colors.md).
-- **Status bar** (bottom): the file name, the size of the result in pixels, a short hint for the tool, the zoom, and the **Keys** button.
+- **Status bar** (bottom): the file name, the size of the result in pixels, a short hint for the tool, the zoom with its slider, and the **Keys** button.
 
 ## The tools
 
@@ -47,13 +48,14 @@ Everything you draw stays a separate object until you save: you can move it, cha
 
 1. Choose ![Select](icon://mouse-pointer-2) **Select** (V).
 2. Click an object to select it. The properties bar shows its style; change it there.
-3. Drag the object to move it. Drag a corner or an end to resize it; hold Shift to keep the proportions of a box. A pasted piece keeps its proportions without Shift, and Shift frees them; it also has a round handle to rotate it (see [Selecting an area](editor-marquee.md)).
-4. Press **Del**, or click ![Delete](icon://trash) in the properties bar, to remove it.
+3. Drag the object to move it. Drag a corner or an end to resize it; hold Shift to keep the proportions of a box. A pasted piece keeps its proportions without Shift, and Shift frees them (see [Selecting an area](editor-marquee.md)).
+4. Drag the round handle above the selected object to rotate it round its centre; hold **Shift** to turn it 15° at a time. Its angle is also in the properties bar, from -180° to 180°, to type or drag. Rectangles, ellipses, highlights, cover boxes, magnifiers, spotlights, speech bubbles (with their tail), texts, stamps, pasted pieces and the Blur and Pixelate filters rotate; lines and arrows are turned by their ends, and step numbers stay upright.
+5. Press **Del**, or click ![Delete](icon://trash) in the properties bar, to remove it.
 
 Good to know:
 
 - With a drawing tool, a click selects only an object of that tool's kind (an arrow with Arrow, a step with Step numbers). Anywhere else the tool does its own work, even on top of other objects.
-- The corners of the selected object can be dragged with any tool.
+- The corners and the round handle of the selected object can be dragged with any tool. On a rotated object the corners turn with it.
 - A shape, line or bubble drawn all on the dark area around the image is not kept: only what reaches the image stays.
 - A rectangle or an ellipse with no fill is picked by its border, not by its empty inside.
 - Filters, highlighters and spotlights lie under the other objects: a click picks them only where no other object is.
@@ -85,7 +87,8 @@ Good to know:
 ## Moving around the image
 
 - Mouse wheel (or Ctrl+wheel, or a pinch): zoom around the pointer.
-- **+** and **−**: zoom around the middle. **0**, a click on the percentage, or a double click: everything in view.
+- **+** and **−**: zoom around the middle. **0** or a double click: everything in view.
+- In the status bar, click the percentage and type another (for example **37** and **Enter**; **Esc** leaves it as it was), or drag the slider beside it, with marks on round zooms (10%, 25%, 50%, 100%, 200%…), as in the [viewer](viewer.md).
 - Drag with the right or middle button to move the view. With Select, dragging on an empty spot moves the view too.
 - The zoom buttons ![Zoom in](icon://zoom-in) and ![Zoom out](icon://zoom-out) are in the status bar.
 

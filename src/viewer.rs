@@ -1,16 +1,26 @@
 //! Viewer: the image at full window, zoom and pan, its keys, the images read ahead.
 
-use eframe::egui::{self, Key, TextureHandle};
+use eframe::egui::{self, Key};
 
 use crate::navigation::Go;
 use crate::actions::Act;
 use crate::{AROUND, App, browser, paint, source, zoom};
 
+/// The window is at full screen (F11).
+pub(crate) fn full_screen(ctx: &egui::Context) -> bool {
+    ctx.input(|i| i.viewport().fullscreen.unwrap_or(false))
+}
+
 impl App {
     pub(crate) fn viewer_keys(&mut self, ctx: &egui::Context) {
-        if ctx.egui_wants_keyboard_input() {
+        // A modal window (Rename, Delete…) has the keys: its Esc closed the viewer and was taken,
+        // the window stayed open over the grid (Piero, 17/11). Egui drops the text field's focus
+        // on Esc before we read it, so the focus alone does not say it.
+        if ctx.egui_wants_keyboard_input() || ctx.memory(|m| m.top_modal_layer().is_some()) {
             return;
         }
+        // M, and while measuring Esc, Enter, Backspace and D, A, G: taken before the keys below.
+        self.measure_keys(ctx);
         // Space on an animation, Page Up and Down on pages: theirs, taken before the keys below.
         self.frames_keys(ctx);
         // Space on a Motion Photo plays its video, which then has the keys of a video.
@@ -46,8 +56,13 @@ impl App {
                 self.go(to);
             }
         }
+        // Taken: the page under the viewer (Find duplicates' results) read the same Esc in the same
+        // pass and closed too (Piero, 17/11).
+        if close {
+            ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape));
+        }
         // Esc in full screen leaves it first, with the bars back; then the viewer.
-        if close && ctx.input(|i| i.viewport().fullscreen.unwrap_or(false)) {
+        if close && full_screen(ctx) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(false));
         } else if close {
             self.close_viewer();
@@ -71,6 +86,7 @@ impl App {
         }
         if let Some(current) = self.viewing {
             self.cad_keys(ctx, current);
+            self.turn_undo_keys(ctx, current);
         }
         // Ctrl+R and Ctrl+Shift+R: in `global_keys`, for the grid too.
         self.save_keys(ctx);
@@ -100,6 +116,9 @@ impl App {
         self.frames.read.clear();
         self.motion.read.clear();
         self.model.meshes.clear();
+        // Opened again, a model starts from the default view, without the section left on.
+        self.model.of = None;
+        self.end_compare();
         self.model.cad.drawings.clear();
         self.zoom_of = None;
     }
@@ -159,9 +178,10 @@ impl App {
         }
         self.motion_done();
         self.video = None;
+        self.compare_left(current);
         let mut chosen = None;
         if let Some(response) = self.model_view(ui) {
-            if response.double_clicked() {
+            if response.double_clicked() && !self.model.measure.on {
                 self.close_viewer();
             }
             response.context_menu(|ui| {
@@ -180,7 +200,8 @@ impl App {
             self.zoom_view(ui, &response, &tex, current);
             self.frames_bar(ui, rect);
             self.motion_bar(ui, rect);
-            if response.double_clicked() {
+            // While measuring a double click closes an area.
+            if response.double_clicked() && !self.model.measure.on {
                 self.close_viewer();
             }
             response.context_menu(|ui| {
@@ -209,11 +230,12 @@ impl App {
 
     /// The open image, fitted to the window or zoomed (as GNOME's viewer, Loupe): the wheel ×1.3 a
     /// notch around the pointer (or the next image, see `wheel_zoom`; Ctrl and the wheel always
-    /// zoom), + and − ×1.5 around the centre, 0 fitted, 1 at 100%, dragging moves the zoomed image.
-    /// Never smaller than fitted (or than 100%, when smaller), never larger than `max_zoom`;
-    /// percentages count the file's own pixels (`zoom`).
+    /// zoom), + and − ×1.5 around the centre, 0 fitted, 1 at 100%, dragging moves the zoomed image;
+    /// the zoom typed, set with the slider or with − and + in the status bar (`zoom_bar`, #152). A picture
+    /// goes below fitted, centred, down to `zoom::below_fit` (a drawing stops at fitted); never
+    /// larger than `max_zoom`; percentages count the file's own pixels (`zoom`).
     #[allow(clippy::too_many_lines)] // to be split
-    fn zoom_view(&mut self, ui: &egui::Ui, response: &egui::Response, tex: &TextureHandle, current: usize) {
+    fn zoom_view(&mut self, ui: &egui::Ui, response: &egui::Response, tex: &crate::mipmap::Picture, current: usize) {
         let rect = response.rect;
         // A layout of a CAD drawing in place of its model, once drawn.
         let sheet = self.cad_sheet_texture(ui.ctx(), current);
@@ -231,11 +253,19 @@ impl App {
             // Reached only once the turns were saved or dropped: leaving the image asks first (`hold_for_turn`).
             (self.zoom, self.zoom_of, self.turn) = (None, Some(current), Default::default());
         }
+        // Two drawings compared: N and Shift+N zoom to a change.
+        if let Some((zoom, pan)) = self.compare_jump(tex.size_vec2(), rect, ppp) {
+            (self.zoom, self.pan) = (Some(zoom), pan);
+        }
         let t = paint::turned_size(tex, self.turn);
         // A layout of a drawing has no file pixels: its percentages stay the texture's.
         let own = if sheet.is_some() { None } else { self.files().get(current).and_then(|f| self.own_sizes.get(&f.path).copied()) };
         let per = zoom::file_per_texture(own, tex.size());
-        let bounds = zoom::bounds((rect.width() * ppp / t.x).min(rect.height() * ppp / t.y), per, self.settings.max_zoom);
+        let cad = self.files().get(current).is_some_and(|f| crate::cad::is_cad(&f.path));
+        let mut bounds = zoom::bounds((rect.width() * ppp / t.x).min(rect.height() * ppp / t.y), per, self.settings.max_zoom);
+        if !cad {
+            bounds = zoom::below_fit(bounds, per, t.x.min(t.y));
+        }
         let fit = bounds.fit;
         let scale = self.zoom.unwrap_or(fit).clamp(bounds.low, bounds.max);
 
@@ -266,6 +296,7 @@ impl App {
             self.wheel_notches -= self.wheel_notches.signum();
             self.go(if forward { Go::Next } else { Go::Prev });
         }
+        let asked = self.zoom_bar.ask.take();
         let (zoom_in, zoom_out, fitted, actual) = if ui.ctx().egui_wants_keyboard_input() {
             (false, false, false, false)
         } else {
@@ -274,6 +305,8 @@ impl App {
                 (key(Key::Plus) || key(Key::Equals), key(Key::Minus), key(Key::Num0), key(Key::Num1))
             })
         };
+        // The − and + of the status bar do as the keys.
+        let (zoom_in, zoom_out) = (zoom_in || asked == Some(zoom::Ask::In), zoom_out || asked == Some(zoom::Ask::Out));
 
         let mut target = scale * 1.3f32.powf(wheel) * pinch;
         let mut anchor = response.hover_pos().filter(|_| wheel != 0.0 || pinch != 1.0).unwrap_or(rect.center());
@@ -284,7 +317,13 @@ impl App {
         if actual {
             target = bounds.actual;
         }
-        let target = zoom::settle(scale, target, bounds);
+        let target = match asked {
+            Some(zoom::Ask::To(asked)) => {
+                anchor = rect.center();
+                zoom::reach(asked * per, bounds)
+            }
+            _ => zoom::settle(scale, target, bounds),
+        };
         if fitted || target == fit {
             (self.zoom, self.pan) = (None, t / 2.0);
         } else if target != scale {
@@ -301,7 +340,9 @@ impl App {
         let painter = ui.painter_at(rect);
         let (dest, uv) = match self.zoom {
             Some(scale) => {
-                if response.hovered() {
+                // The hand only where there is something to move: not on a picture smaller than the window.
+                let larger = t * scale / ppp;
+                if response.hovered() && (larger.x > rect.width() + 0.5 || larger.y > rect.height() + 0.5) {
                     ui.ctx().set_cursor_icon(if response.dragged() { egui::CursorIcon::Grabbing } else { egui::CursorIcon::Grab });
                 }
                 paint::paint_zoomed(&painter, rect, tex, scale, &mut self.pan, self.turn)
@@ -315,10 +356,12 @@ impl App {
         };
         // A CAD drawing: drawn again sharp once the view stops.
         self.cad_sharpen(ui, current, tex.size_vec2(), dest, uv);
-        if self.files().get(current).is_some_and(|f| crate::cad::is_cad(&f.path)) && self.turn.is_none() {
+        self.cad_measure(ui, response, current, dest, uv);
+        if cad && self.turn.is_none() {
             crate::cad_view::ucs_corner(&painter, rect);
         }
         self.zoom_shown = zoom::of_file(self.zoom.unwrap_or(fit), per);
+        self.zoom_bar.range = [zoom::of_file(bounds.low, per), zoom::of_file(bounds.max, per)];
     }
 }
 

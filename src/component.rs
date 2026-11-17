@@ -113,7 +113,16 @@ pub fn dir() -> Option<PathBuf> {
         Some(id) => std::env::home_dir().map(|h| h.join(".var/app").join(id).join("data")),
         None => std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).or_else(|| std::env::home_dir().map(|h| h.join(".local/share"))),
     };
-    Some(base?.join(crate::test_copy::NAME).join("components"))
+    Some(base?.join(crate::test_copy::NAME).join(folder_name(cfg!(windows) && crate::update::packaged())))
+}
+
+/// The components' folder: its own for the Microsoft Store copy. A packaged app reads and writes
+/// the real `%LOCALAPPDATA%\eyecansee\components` when the installer or the zip made it first (seen
+/// on a PC with both), and the installer's uninstaller deletes that folder: the Store copy lost
+/// its components with it. A folder of its own, made by the Store copy, goes to the package's
+/// private place and away with the Store copy (decision of 15/11).
+fn folder_name(store: bool) -> &'static str {
+    if store { "components-store" } else { "components" }
 }
 
 fn folder(c: &Component) -> String {
@@ -249,6 +258,13 @@ impl<R: Read> Read for Hashed<'_, R> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The Store copy has a folder of its own, which the installer's uninstaller does not delete.
+    #[test]
+    fn store_copy_folder_apart() {
+        assert_eq!(folder_name(false), "components");
+        assert_eq!(folder_name(true), "components-store");
+    }
 
     #[test]
     fn old_versions_removed() {

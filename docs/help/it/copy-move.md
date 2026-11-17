@@ -9,7 +9,7 @@ Copia o sposta file e cartelle, con tutto quello che contengono, in un'altra car
 3. Apri la cartella dove devono andare: sul computer, su un disco, su un telefono o su un server (vedi [Cartelle e pannello laterale](folders.md)).
 4. Premi **Ctrl+V**, oppure fai clic su ![Incolla](icon://clipboard-paste), oppure scegli **Modifica > Incolla**.
 
-Per incollare direttamente in una cartella senza aprirla, fai clic destro su di essa (nella griglia o nell'albero) e scegli **Incolla in questa cartella**. Nel visore **Ctrl+C** e **Ctrl+X** prendono l'immagine mostrata.
+Per incollare direttamente in una cartella senza aprirla, fai clic destro su di essa (nella griglia o nell'albero) e scegli **Incolla in questa cartella**. Nel visore **Ctrl+C** e **Ctrl+X** prendono l'immagine mostrata; **Ctrl+V** lì non fa niente, come **Modifica > Incolla**: per incollare si torna alla griglia.
 
 ## Che cosa vedi
 
@@ -36,6 +36,7 @@ Su Linux, in una cartella aperta tramite il collegamento del gestore dei file (g
 
 ## Da sapere
 
+- Il file `.xmp` di una foto (il suo "sidecar", vedi [Informazioni sul file](metadata.md)) va con lei, anche da un dispositivo all'altro: con **Tieni entrambi** prende il nome nuovo della foto ("IMG_0001 (2).CR2" con "IMG_0001 (2).CR2.xmp"), con **Sostituisci** sostituisce quello che c'è. Un nome occupato nella destinazione solo da un file `.xmp` conta come un nome che c'è già. Annullando a metà, una foto non resta mai senza il suo file `.xmp` nella cartella da cui partiva.
 - Ogni copia o taglio si incolla una volta sola: per incollare di nuovo, copia di nuovo.
 - Se nel frattempo copi qualcos'altro in un altro programma, Ctrl+V e Incolla non incollano più gli elementi copiati in EyeCanSee.
 - Incollate nella cartella da cui vengono, le copie diventano "nome (2)"; uno spostamento non fa niente.

@@ -30,6 +30,13 @@ pub fn on_clipboard(copied: &str, clipboard: &str) -> bool {
     copied.lines().eq(clipboard.trim_end_matches(['\r', '\n']).lines())
 }
 
+/// Whether a paste given by egui (Ctrl+V, or Paste chosen in a menu) pastes the items copied
+/// (`copied`: the text of their copy): not in the viewer, where Edit > Paste is greyed out too,
+/// and only while the clipboard still holds that copy.
+pub fn pastes_items(viewing: bool, copied: Option<&str>, clipboard: &str) -> bool {
+    !viewing && copied.is_some_and(|c| on_clipboard(c, clipboard))
+}
+
 /// Answer for an item whose name is already in the destination.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Choice {
@@ -92,20 +99,46 @@ impl Recent {
 
 /// Items whose name is already in `to_dir`, to ask about. A folder pasted inside itself is an error.
 /// Items pasted into their own folder are not conflicts: a copy becomes "name (2)", a move does nothing.
+/// A photo whose sidecar (`sidecar_follow`) would land on a file with that name is one too: the
+/// sidecar follows the answer for the photo.
 pub async fn conflicts(clip: &Clip, to: &Store, to_base: &str, to_dir: &str) -> Result<Vec<String>, Error> {
     let same = clip.base == to_base;
     let taken = to.names(to_dir).await?;
+    let sides = sidecars(clip).await;
     let mut found = Vec::new();
     for p in &clip.paths {
         if same && p.ends_with('/') && to_dir.starts_with(p.as_str()) {
             return Err(("error-paste-inside", name(p).to_string()));
         }
-        if !(same && parent(p) == to_dir) && taken.contains(name(p)) {
+        let side_taken = sides.get(p).is_some_and(|s| s.iter().any(|s| taken.contains(name(s))));
+        if !(same && parent(p) == to_dir) && (taken.contains(name(p)) || side_taken) {
             found.push(p.clone());
         }
     }
     Ok(found)
 }
+
+/// The sidecars of the photos of the clip (`sidecar_follow::following`), by photo; each folder
+/// read once.
+async fn sidecars(clip: &Clip) -> HashMap<String, Vec<String>> {
+    let mut folders = crate::sidecar_follow::Folders::new();
+    let mut out = HashMap::new();
+    for src in clip.paths.iter().filter(|p| !crate::sidecar::names(p).is_empty()) {
+        let dir = parent(src);
+        if !folders.contains_key(&dir) {
+            folders.insert(dir.clone(), clip.op.names(&dir).await.unwrap_or_default());
+        }
+        let found = crate::sidecar_follow::following(&clip.op, src, &folders[&dir]).await;
+        if !found.is_empty() {
+            out.insert(src.clone(), found);
+        }
+    }
+    out
+}
+
+/// What goes where: source, destination, whether there is already an item with that name, and
+/// the same for the photo's sidecars.
+type Planned = (String, String, bool, Vec<(String, String, bool)>);
 
 /// The original's thumbnail (`thumb`: size and image, if it had one) waits for the listing of
 /// its copy or its new name `dest`: the same content, nothing is read back from a phone or a
@@ -129,70 +162,53 @@ pub async fn run(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: 
 async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress, gone: &mut Vec<String>) -> Result<(), Error> {
     let same = clip.base == to_base;
     let present = to.names(to_dir).await?;
-    let mut taken = present.clone();
-    // (source, destination, there is already an item with that name)
-    let mut plan = Vec::new();
-    for src in &clip.paths {
-        let own = name(src);
-        let choice = match (same && parent(src) == to_dir, clip.cut) {
-            (true, true) => continue,
-            (true, false) => Choice::KeepBoth,
-            _ => choices.get(src).copied().unwrap_or(Choice::Replace),
-        };
-        // Under gvfs nothing is replaced, not even an item that came after the question: both stay.
-        let choice = if choice == Choice::Replace && taken.contains(own) && !can_replace(to, to_dir) { Choice::KeepBoth } else { choice };
-        let dest_name = match choice {
-            Choice::Skip => continue,
-            Choice::KeepBoth => free_name(&taken, own),
-            Choice::Replace => own.to_string(),
-        };
-        taken.insert(dest_name.clone());
-        plan.push((src.clone(), format!("{to_dir}{dest_name}{}", if src.ends_with('/') { "/" } else { "" }), present.contains(&dest_name)));
-    }
+    let plan = planned(clip, to, to_dir, same, choices, &present, &sidecars(clip).await);
 
     // On the same device a move is a rename, unless a folder has to merge into an existing one;
     // if the rename fails (another disk: different file system) the files are copied. On this
     // computer the rename itself replaces a file: one that is there stays until then, and still
     // there if the copy fails (#90). Phones, servers and gvfs rename only onto a free name.
     let mut copies = Vec::new();
-    for (src, dest, mut exists) in plan {
+    for (src, dest, exists, sides) in plan {
         if clip.cut && same && !(exists && dest.ends_with('/')) {
-            if exists && (to.local_file(&dest).is_none() || to.gvfs(&dest)) {
-                to.delete(&dest, Deletion::Permanent).await?;
-                exists = false;
+            if let Some(entry) = renamed_on_device(clip, to, to_dir, (src, dest, exists, sides), gone).await? {
+                copies.push(entry);
             }
-            let thumb = (!src.ends_with('/')).then(|| thumbcache::stored(&clip.base, &src)).flatten();
-            if clip.op.move_into(&src, to_dir, name(&dest)).await.is_ok() {
-                keep_thumbnail(thumb, &dest, None);
-                gone.push(src);
-                continue;
-            }
+            continue;
         }
-        copies.push((src, dest, exists));
+        copies.push((src, dest, exists, sides));
     }
 
-    // Everything to copy, with sizes for the progress bar.
+    // Everything to copy, with sizes for the progress bar; a photo's sidecars after it.
     let start = Instant::now();
     let mut lists = Vec::new();
-    for (src, dest, _) in &copies {
-        let list = if src.ends_with('/') {
+    for (src, dest, _, sides) in &copies {
+        // No photo: sidecars whose photo moved already (`renamed_on_device`).
+        let mut list = if src.is_empty() {
+            Vec::new()
+        } else if src.ends_with('/') {
             folder_items(clip, to, src, dest, p).await?
         } else {
             vec![(src.clone(), dest.clone(), clip.op.size(src).await?)]
         };
+        for (s, d, _) in sides {
+            list.push((s.clone(), d.clone(), clip.op.size(s).await?));
+        }
         lists.push(list);
     }
-    let files = lists.iter().flatten().filter(|(s, _, _)| !s.ends_with('/'));
-    p.files_total.store(files.clone().count(), Ordering::Relaxed);
-    p.total.store(files.map(|(_, _, size)| size).sum(), Ordering::Relaxed);
+    // Counted as the files chosen: a photo with its sidecars is one.
+    let files = || lists.iter().zip(&copies).flat_map(|(l, c)| &l[..l.len() - c.3.len()]).filter(|(s, _, _)| !s.ends_with('/'));
+    p.files_total.store(files().count(), Ordering::Relaxed);
+    p.total.store(lists.iter().flatten().filter(|(s, _, _)| !s.ends_with('/')).map(|(_, _, size)| size).sum(), Ordering::Relaxed);
     *p.looked.lock().unwrap() = start.elapsed().as_secs_f64();
     let _ = p.started.set(Instant::now());
 
     // The names in each destination folder of a merge, read once (`Present`).
     let mut there = Present::new(to_dir, present);
-    for ((src, _, exists), list) in copies.iter().zip(lists) {
+    for ((src, _, exists, sides), list) in copies.iter().zip(lists) {
         let merging = src.ends_with('/') && *exists;
-        for (from, dest, size) in list {
+        let photos = list.len() - sides.len();
+        for (i, (from, dest, size)) in list.into_iter().enumerate() {
             if from.ends_with('/') {
                 if merging {
                     there.made(to, &dest).await;
@@ -205,20 +221,99 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
                 *p.current.lock().unwrap() = name(&from).to_string();
                 // Whether a file is already where it goes: a file pasted over one, or one of a
                 // folder that merges into another; in a new folder nothing is there.
-                let existed = if merging { there.has(to, &dest).await } else { Some(*exists) };
+                let existed = match i.checked_sub(photos) {
+                    Some(side) => Some(sides[side].2),
+                    None if merging => there.has(to, &dest).await,
+                    None => Some(*exists),
+                };
                 copy_file(&clip.op, &from, (to, &dest, existed), size, p).await?;
                 keep_thumbnail(thumbcache::stored(&clip.base, &from), &dest, Some(size));
-                p.files.fetch_add(1, Ordering::Relaxed);
+                if i < photos {
+                    p.files.fetch_add(1, Ordering::Relaxed);
+                }
             }
             p.touched.lock().unwrap().push(parent(&dest));
         }
-        // Moved between devices: the original goes only once all of it has been copied.
+        // Moved between devices: the original goes only once all of it has been copied, its
+        // sidecars before it (stopped between the two, the photo stays with no sidecar of its
+        // own left behind).
         if clip.cut {
-            clip.op.delete(src, Deletion::Permanent).await?;
-            gone.push(src.clone());
+            for (s, _, _) in sides {
+                clip.op.delete(s, Deletion::Permanent).await?;
+            }
+            if !src.is_empty() {
+                clip.op.delete(src, Deletion::Permanent).await?;
+                gone.push(src.clone());
+            }
         }
     }
     Ok(())
+}
+
+/// What goes where (`Planned`), as the answers to the conflicts (`choices`) say; `present`: the
+/// names in `to_dir`; `sidecars`: those of the photos, which follow them under their new name
+/// ("a (2).CR2" with "a (2).CR2.xmp"; `sidecar::free_pair`).
+fn planned(clip: &Clip, to: &Store, to_dir: &str, same: bool, choices: &HashMap<String, Choice>, present: &HashSet<String>, sidecars: &HashMap<String, Vec<String>>) -> Vec<Planned> {
+    let mut taken = present.clone();
+    let mut plan = Vec::new();
+    for src in &clip.paths {
+        let own = name(src);
+        let sides: Vec<String> = sidecars.get(src).map_or_else(Vec::new, |s| s.iter().map(|s| name(s).to_string()).collect());
+        let choice = match (same && parent(src) == to_dir, clip.cut) {
+            (true, true) => continue,
+            (true, false) => Choice::KeepBoth,
+            _ => choices.get(src).copied().unwrap_or(Choice::Replace),
+        };
+        // Under gvfs nothing is replaced, not even an item that came after the question: both stay.
+        let busy = crate::sidecar::free_pair(&taken, own, &sides) != own;
+        let choice = if choice == Choice::Replace && busy && !can_replace(to, to_dir) { Choice::KeepBoth } else { choice };
+        let dest_name = match choice {
+            Choice::Skip => continue,
+            Choice::KeepBoth => crate::sidecar::free_pair(&taken, own, &sides),
+            Choice::Replace => own.to_string(),
+        };
+        let side_plan: Vec<(String, String, bool)> = sides
+            .iter()
+            .map(|s| {
+                let n = crate::sidecar::renamed(own, s, &dest_name);
+                taken.insert(n.clone());
+                (format!("{}{s}", parent(src)), format!("{to_dir}{n}"), present.contains(&n))
+            })
+            .collect();
+        taken.insert(dest_name.clone());
+        plan.push((src.clone(), format!("{to_dir}{dest_name}{}", if src.ends_with('/') { "/" } else { "" }), present.contains(&dest_name), side_plan));
+    }
+    plan
+}
+
+/// A move on the same device, as a rename, the photo's sidecars after it (`paste`). What a rename
+/// cannot move is returned to be copied and deleted: the photo with its sidecars, or the sidecars
+/// alone once the photo moved.
+async fn renamed_on_device(clip: &Clip, to: &Store, to_dir: &str, (src, dest, mut exists, sides): Planned, gone: &mut Vec<String>) -> Result<Option<Planned>, Error> {
+    // Phones, servers and gvfs rename only onto a free name: what is there goes first.
+    let overwrites = |d: &str| to.local_file(d).is_none() || to.gvfs(d);
+    if exists && overwrites(&dest) {
+        to.delete(&dest, Deletion::Permanent).await?;
+        exists = false;
+    }
+    let thumb = (!src.ends_with('/')).then(|| thumbcache::stored(&clip.base, &src)).flatten();
+    if clip.op.move_into(&src, to_dir, name(&dest)).await.is_err() {
+        return Ok(Some((src, dest, exists, sides)));
+    }
+    keep_thumbnail(thumb, &dest, None);
+    gone.push(src.clone());
+    let mut left = Vec::new();
+    for (s, d, mut there) in sides {
+        if there && overwrites(&d) {
+            to.delete(&d, Deletion::Permanent).await?;
+            there = false;
+        }
+        if clip.op.move_into(&s, to_dir, name(&d)).await.is_err() {
+            left.push((s, d, there));
+        }
+    }
+    // The photo moved already: its sidecars are copied alone, as files of no photo, after it.
+    Ok((!left.is_empty()).then(|| (String::new(), String::new(), false, left)))
 }
 
 /// The names already in the destination folders of a merge, each folder read once, when its first
@@ -363,6 +458,16 @@ mod tests {
         assert!(!on_clipboard(copied, ""));
     }
 
+    /// Ctrl+V in the viewer pastes nothing, as Edit > Paste is greyed out there; in the grid the items.
+    #[test]
+    fn no_paste_in_the_viewer() {
+        let copied = "/home/a/x.jpg";
+        assert!(pastes_items(false, Some(copied), copied));
+        assert!(!pastes_items(true, Some(copied), copied));
+        assert!(!pastes_items(false, None, copied));
+        assert!(!pastes_items(false, Some(copied), "some text copied elsewhere"));
+    }
+
     /// The speed of the last 4 seconds, not of the whole copy.
     #[test]
     fn recent_speed() {
@@ -441,6 +546,67 @@ mod tests {
             let (_, r) = run(&clip(&["b/x.jpg"], false), &op, &base, "a/", &HashMap::new(), &p).await;
             assert_eq!(r.unwrap_err().0, "error-cancelled");
             assert!(!dir.join("a/x.jpg").exists());
+        });
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A photo's sidecars (#24) follow it: a conflict of a sidecar's name is one of the photo, Keep
+    /// both gives them the same new name, in its own folder too; moved to another device (copied
+    /// and deleted) or on the same one (renamed), replacing a stale sidecar there.
+    #[test]
+    fn sidecars_follow() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let dir = std::env::temp_dir().join(format!("eyecansee-transfer-xmp-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        for d in ["a", "b", "c", "d"] {
+            std::fs::create_dir_all(dir.join(d)).unwrap();
+        }
+        let w = |p: &str, t: &str| std::fs::write(dir.join(p), t).unwrap();
+        w("a/p.CR2", "raw");
+        w("a/p.CR2.xmp", "dt");
+        w("a/p.xmp", "lr");
+        w("a/q.jpg", "jpg");
+        w("a/q.jpg.xmp", "dk");
+        w("b/p.CR2", "old raw");
+        w("b/q.jpg.xmp", "stray");
+        w("d/p.CR2.xmp", "stale");
+        let files = |d: &str| {
+            let mut v: Vec<(String, String)> = std::fs::read_dir(dir.join(d)).unwrap().flatten().map(|e| (e.file_name().to_string_lossy().into_owned(), std::fs::read_to_string(e.path()).unwrap())).collect();
+            v.sort();
+            v
+        };
+        let pairs = |v: &[(&str, &str)]| v.iter().map(|(a, b)| (a.to_string(), b.to_string())).collect::<Vec<_>>();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let base = format!("test-xmp-{}://", std::process::id());
+        let clip = |paths: &[&str], cut, base: &str| Clip { op: op.clone(), base: base.to_string(), paths: paths.iter().map(|s| s.to_string()).collect(), cut, text: String::new() };
+        rt.block_on(async {
+            let c = clip(&["a/p.CR2", "a/q.jpg"], false, &base);
+            assert_eq!(conflicts(&c, &op, &base, "b/").await.unwrap(), vec!["a/p.CR2", "a/q.jpg"]);
+            let both = HashMap::from([("a/p.CR2".to_string(), Choice::KeepBoth), ("a/q.jpg".to_string(), Choice::KeepBoth)]);
+            let p = Progress::default();
+            run(&c, &op, &base, "b/", &both, &p).await.1.unwrap();
+            assert_eq!(files("b"), pairs(&[("p (2).CR2", "raw"), ("p (2).CR2.xmp", "dt"), ("p (2).xmp", "lr"), ("p.CR2", "old raw"), ("q (2).jpg", "jpg"), ("q (2).jpg.xmp", "dk"), ("q.jpg.xmp", "stray")]));
+            assert_eq!((p.files.load(Ordering::Relaxed), p.files_total.load(Ordering::Relaxed)), (2, 2), "a photo with its sidecars counts once");
+            // In its own folder.
+            run(&clip(&["a/q.jpg"], false, &base), &op, &base, "a/", &HashMap::new(), &Progress::default()).await.1.unwrap();
+            assert!(files("a").contains(&("q (2).jpg.xmp".to_string(), "dk".to_string())));
+            // Moved to another device: copied, then the originals deleted.
+            let (gone, r) = run(&clip(&["a/p.CR2"], true, "elsewhere://"), &op, &base, "c/", &HashMap::new(), &Progress::default()).await;
+            r.unwrap();
+            assert_eq!(gone, vec!["a/p.CR2"]);
+            assert_eq!(files("c"), pairs(&[("p.CR2", "raw"), ("p.CR2.xmp", "dt"), ("p.xmp", "lr")]));
+            assert!(!files("a").iter().any(|(n, _)| n.starts_with("p.")), "{:?}", files("a"));
+            // Moved on the same device over a stale sidecar: replaced.
+            let c = clip(&["c/p.CR2"], true, &base);
+            assert_eq!(conflicts(&c, &op, &base, "d/").await.unwrap(), vec!["c/p.CR2"]);
+            run(&c, &op, &base, "d/", &HashMap::new(), &Progress::default()).await.1.unwrap();
+            assert_eq!(files("d"), pairs(&[("p.CR2", "raw"), ("p.CR2.xmp", "dt"), ("p.xmp", "lr")]));
+            assert!(files("c").is_empty());
+            // Cancelled: nothing of the pair arrives.
+            let p = Progress::default();
+            p.cancel.store(true, Ordering::Relaxed);
+            assert_eq!(run(&clip(&["d/p.CR2"], false, "elsewhere://"), &op, &base, "c/", &HashMap::new(), &p).await.1.unwrap_err().0, "error-cancelled");
+            assert!(files("c").is_empty());
         });
         std::fs::remove_dir_all(&dir).unwrap();
     }

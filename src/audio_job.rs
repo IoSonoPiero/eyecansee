@@ -4,11 +4,11 @@
 //! one video's job for `batch::run`.
 
 use std::collections::HashSet;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::sync::Arc;
-use std::sync::atomic::Ordering;
 
-use crate::batch::{Phases, Progress, SKIP_VIDEO, Writing, download, keep_thumbnail, upload};
+use crate::batch::{Progress, SKIP_VIDEO, keep_thumbnail};
+use crate::ffmpeg_files::{Input, Output, failed, send};
 use crate::source::{self, Store};
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -116,104 +116,65 @@ fn tracks(program: &Path, input: &Path) -> Result<Vec<String>, String> {
 
 /// One video of `batch::run`: the new files written into the folder `dest` of `out` with free
 /// names (added to `taken`), their paths returned. As `batch::video`, a video on a phone or a
-/// server is copied into a temporary file first, and the new files go there at the end.
+/// server is copied into a temporary file first, and the new files go there at the end
+/// (`ffmpeg_files`).
 pub async fn run(op: &Store, (base, path): (&str, &str), out: &Store, dest: &str, job: AudioJob, taken: &mut HashSet<String>, p: &Arc<Progress>) -> Result<Vec<String>, source::Error> {
     let name = source::name(path).to_string();
-    let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
     // Copied streams: an FFmpeg without the phones' decoders does it too (`ffmpeg::copier`).
     let Some(program) = crate::ffmpeg::copier() else { return Err((SKIP_VIDEO, name)) };
-    let temp = |what: &str, n: &str| std::env::temp_dir().join(format!("eyecansee-{what}-{}-{n}", std::process::id()));
-    let remote_in = op.local_file(path).is_none();
-    let remote_out = out.local_file(&format!("{dest}{name}")).is_none();
-    let phases = Phases { p: p.clone(), count: 1 + remote_in as u32 + remote_out as u32 };
-    let input = match op.local_file(path) {
-        Some(file) => (file, false),
-        None => {
-            let file = temp("in", &name);
-            download(op, path, &file, || phases.p.cancel.load(std::sync::atomic::Ordering::Relaxed), |f| phases.set(0, f)).await.map_err(|e| failed(e.to_string()))?;
-            (file, true)
-        }
-    };
+    let input = Input::fetch(op, path, (out, dest), p).await?;
     // The same pictures without the audio: the original's thumbnail, not a frame made again.
     let thumb = (job == AudioJob::Strip).then(|| crate::thumbcache::stored(base, path)).flatten();
-    let r = write((&program, &input.0), out, dest, job, taken, &phases, (remote_in as u32, temp, thumb)).await.map_err(|e| e.unwrap_or_else(failed));
-    if input.1 {
-        let _ = std::fs::remove_file(&input.0);
-    }
-    r
+    write(&program, &input, (out, dest), job, taken, thumb).await.map_err(|e| e.unwrap_or_else(|e| failed(&name, e)))
 }
 
 /// The work of `run` once the video is a local file. `Err(Ok)`: an error with its Fluent id,
 /// `Err(Err)`: what ffmpeg or the copy said.
-async fn write(
-    (program, input): (&Path, &Path),
-    out: &Store,
-    dest: &str,
-    job: AudioJob,
-    taken: &mut HashSet<String>,
-    phases: &Phases,
-    (first, temp, thumb): (u32, impl Fn(&str, &str) -> PathBuf, Option<(u64, Vec<u8>)>),
-) -> Result<Vec<String>, Result<source::Error, String>> {
-    let name = input.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    let (program, file) = (program.to_path_buf(), input.to_path_buf());
-    let p = program.clone();
+async fn write(program: &Path, input: &Input, (out, dest): (&Store, &str), job: AudioJob, taken: &mut HashSet<String>, thumb: Option<(u64, Vec<u8>)>) -> Result<Vec<String>, Result<source::Error, String>> {
+    // The original's name: a temporary copy has another one.
+    let name = input.name.clone();
+    let (p, file) = (program.to_path_buf(), input.file.clone());
     let codecs = tokio::task::spawn_blocking(move || tracks(&p, &file)).await.unwrap_or_else(|e| Err(e.to_string())).map_err(Err)?;
     if codecs.is_empty() {
         return Err(Ok((NO_AUDIO, name)));
     }
     let names = new_names(job, &name, &codecs, taken);
-    let tos: Vec<String> = names.iter().map(|n| format!("{dest}{n}")).collect();
-    let files: Vec<(PathBuf, bool)> = tos.iter().zip(&names).map(|(to, n)| out.local_file(to).map_or_else(|| (temp("out", n), true), |f| (f, false))).collect();
-    let _writing: Vec<Writing> = files.iter().map(|f| Writing::start(f.0.clone())).collect();
-    let paths: Vec<String> = files.iter().map(|f| f.0.to_string_lossy().into_owned()).collect();
-    let original = input.to_path_buf();
-    let input = input.to_string_lossy().into_owned();
-    let attempt = |args: Vec<String>| {
-        log!("ffmpeg {args:?}");
-        let (program, ph) = (program.clone(), phases.clone());
-        async move { tokio::task::spawn_blocking(move || crate::ffmpeg::run(&program, &args, |f| ph.set(first, f), &ph.p.cancel)).await.unwrap_or_else(|e| Err(e.to_string())) }
-    };
+    let outputs: Vec<Output> = names.iter().map(|n| Output::new(out, format!("{dest}{n}"), n)).collect();
+    let paths: Vec<String> = outputs.iter().map(|o| o.file.to_string_lossy().into_owned()).collect();
+    let source = input.file.to_string_lossy().into_owned();
     let mut r = match job {
-        AudioJob::Strip => attempt(strip_args(&input, &paths[0], true)).await,
-        AudioJob::Extract => attempt(extract_args(&input, &paths)).await,
+        AudioJob::Strip => input.ffmpeg(program, strip_args(&source, &paths[0], true)).await,
+        AudioJob::Extract => input.ffmpeg(program, extract_args(&source, &paths)).await,
     };
-    if job == AudioJob::Strip && r.is_err() && !phases.p.cancel.load(Ordering::Relaxed) {
+    if job == AudioJob::Strip && r.is_err() && !input.cancelled() {
         log!("ffmpeg: again without the data tracks");
-        r = attempt(strip_args(&input, &paths[0], false)).await;
+        r = input.ffmpeg(program, strip_args(&source, &paths[0], false)).await;
     }
-    let mut r = r.map_err(Err);
     if r.is_ok() && job == AudioJob::Strip {
-        // The camera's preview, which FFmpeg leaves out: with it the thumbnail is the same picture
-        // as the original's, read from the file; without it, a frame of the video.
-        let to = files[0].0.clone();
-        let copied = tokio::task::spawn_blocking(move || crate::mp4::copy_preview(&original, &to)).await;
-        match &copied {
-            Ok(Ok(true)) => log!("ffmpeg: the camera's preview copied into {}", tos[0]),
-            Ok(Err(e)) => log!("ffmpeg: the camera's preview not copied: {e}"),
-            _ => {}
-        }
-        let size = std::fs::metadata(&files[0].0).map(|m| m.len());
-        match (thumb, size) {
-            (Some((_, data)), Ok(size)) => crate::thumbcache::keep(&tos[0], size, data),
-            _ if !matches!(copied, Ok(Ok(true))) => keep_thumbnail(&tos[0], &files[0].0).await,
-            _ => {}
-        }
+        preview(&input.file, &outputs[0], thumb).await;
     }
-    for (to, (file, remote)) in tos.iter().zip(&files) {
-        if r.is_ok() && *remote {
-            let (ph, last) = (phases.clone(), phases.count - 1);
-            let p = phases.p.clone();
-            r = upload(out, to, file, move || p.cancel.load(std::sync::atomic::Ordering::Relaxed), move |f| ph.set(last, f)).await.map_err(|e| Err(e.to_string()));
-        }
-    }
-    for (file, remote) in &files {
-        if *remote || r.is_err() {
-            let _ = std::fs::remove_file(file);
-        }
-    }
-    r?;
+    send(out, &outputs, &input.phases, r.map_err(Err), Err).await?;
     taken.extend(names);
-    Ok(tos)
+    Ok(outputs.iter().map(|o| o.to.clone()).collect())
+}
+
+/// The video without its audio: the camera's preview, which FFmpeg leaves out, copied from the
+/// original. With it the thumbnail is the same picture as the original's, read from the file;
+/// without it, a frame of the video.
+async fn preview(original: &Path, output: &Output, thumb: Option<(u64, Vec<u8>)>) {
+    let (original, to) = (original.to_path_buf(), output.file.clone());
+    let copied = tokio::task::spawn_blocking(move || crate::mp4::copy_preview(&original, &to)).await;
+    match &copied {
+        Ok(Ok(true)) => log!("ffmpeg: the camera's preview copied into {}", output.to),
+        Ok(Err(e)) => log!("ffmpeg: the camera's preview not copied: {e}"),
+        _ => {}
+    }
+    let size = std::fs::metadata(&output.file).map(|m| m.len());
+    match (thumb, size) {
+        (Some((_, data)), Ok(size)) => crate::thumbcache::keep(&output.to, size, data),
+        _ if !matches!(copied, Ok(Ok(true))) => keep_thumbnail(&output.to, &output.file).await,
+        _ => {}
+    }
 }
 
 #[cfg(test)]
@@ -253,6 +214,32 @@ mod tests {
         assert!(a.ends_with("-i in.mkv -vn -map 0:a:0 -c:a copy -map_metadata 0 -movflags +use_metadata_tags a.m4a -vn -map 0:a:1 -c:a copy -map_metadata 0 b.opus"), "{a}");
     }
 
+    /// A video of a phone or a server: the new files named after it, not after its temporary
+    /// copy ("eyecansee-in-<process>-v.m4a" before). A script stands for FFmpeg: it lists one
+    /// audio track, and copies the input into the last file it is given.
+    #[cfg(unix)]
+    #[test]
+    fn named_after_a_remote_original() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("eyecansee-audio-job-name-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let script = dir.join("ffmpeg");
+        let text = "#!/bin/sh\nprev=\nfor a; do [ \"$prev\" = -i ] && input=$a; prev=$a; last=$a; done\nif [ $# -le 3 ]; then echo '  Stream #0:1: Audio: aac (LC)' >&2; exit 1; fi\ncp \"$input\" \"$last\"\n";
+        std::fs::write(&script, text).unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Memory::default()).unwrap());
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let Store::Dal(o) = &op else { unreachable!() };
+            o.write("trip/v-name.mp4", b"the video".to_vec()).await.unwrap();
+            let input = Input::fetch(&op, "trip/v-name.mp4", (&op, "out/"), &Arc::new(Progress::default())).await.unwrap();
+            let mut taken = HashSet::new();
+            let saved = write(&script, &input, (&op, "out/"), AudioJob::Extract, &mut taken, None).await.unwrap();
+            assert_eq!(saved, ["out/v-name.m4a"]);
+            assert_eq!(op.read("out/v-name.m4a").await.unwrap(), b"the video");
+        });
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
     /// The jobs that copy the streams (both audio jobs and "Same as the original") on
     /// `EYECANSEE_VIDEO`, a phone's H.264 or HEVC video with sound, with the FFmpeg of `copier`
     /// and no probe of the encoders. Where the system's FFmpeg has no H.264 and HEVC decoders
@@ -281,7 +268,7 @@ mod tests {
         ];
         for (sub, job) in jobs {
             let p = Arc::new(Progress::default());
-            let dest = crate::batch::Dest { op: op.clone(), dir: sub.into(), create: true };
+            let dest = crate::batch::Dest { op: op.clone(), dir: sub.into(), create: true, home: false };
             rt.block_on(crate::batch::run(&op, vec!["v.mp4".into()], dest, job, p.clone()));
             println!("{sub}: saved {:?}, failed {:?}", p.saved.lock().unwrap(), p.failed.lock().unwrap());
             assert!(p.failed.lock().unwrap().is_empty() && !p.saved.lock().unwrap().is_empty(), "{sub}");
@@ -338,7 +325,7 @@ mod tests {
         let paths: Vec<String> = ["a.mp4", "b.mkv", "c.mov", "d.avi"].map(String::from).into();
         for (job, sub) in [(AudioJob::Strip, "strip/"), (AudioJob::Extract, "extract/")] {
             let p = Arc::new(Progress::default());
-            let dest = crate::batch::Dest { op: op.clone(), dir: sub.into(), create: true };
+            let dest = crate::batch::Dest { op: op.clone(), dir: sub.into(), create: true, home: false };
             rt.block_on(crate::batch::run(&op, paths.clone(), dest, crate::batch::Job { audio: Some(job), ..Default::default() }, p.clone()));
             println!("{job:?}: saved {:?}, failed {:?}", p.saved.lock().unwrap(), p.failed.lock().unwrap());
             assert!(p.failed.lock().unwrap().is_empty());
@@ -368,7 +355,7 @@ mod tests {
             let original = std::fs::read(&video).unwrap();
             std::fs::write(dir.join("cam.mp4"), &original).unwrap();
             let p = Arc::new(Progress::default());
-            let dest = crate::batch::Dest { op: op.clone(), dir: "cam/".into(), create: true };
+            let dest = crate::batch::Dest { op: op.clone(), dir: "cam/".into(), create: true, home: false };
             rt.block_on(crate::batch::run(&op, vec!["cam.mp4".into()], dest, crate::batch::Job { audio: Some(AudioJob::Strip), ..Default::default() }, p.clone()));
             let copy = std::fs::read(dir.join("cam").join("cam.mp4")).unwrap();
             let preview = crate::mp4::thumbnail(&original[..original.len().min(crate::mp4::HEAD as usize)]).expect("the original has a preview");

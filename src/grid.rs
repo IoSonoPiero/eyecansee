@@ -326,11 +326,19 @@ impl App {
         }
     }
 
+    /// Whether a cell shows its tooltip: not under a confirmation, and only with the pointer on
+    /// the cell itself. egui keeps an open tooltip while the pointer stays inside the widget's
+    /// rectangle, also with a window come over it: the guide opened with F1 stayed under the
+    /// tooltip of the cell beneath (Windows, 2026-11-10).
+    fn cell_tip(&self, response: &egui::Response) -> bool {
+        !self.asking() && response.hovered()
+    }
+
     /// Draws the ".." cell, which goes up one level; returns `true` if it was double-clicked.
     pub(crate) fn up_cell(&mut self, ui: &mut Ui, rect: Rect) -> bool {
         let name = self.i18n.t("menu-parent");
         let mut response = ui.interact(rect, ui.scope_id().with("cell-up"), Sense::click());
-        if !self.asking() {
+        if self.cell_tip(&response) {
             response = response.on_hover_text(&name);
         }
         let painter = ui.painter_at(rect);
@@ -379,7 +387,7 @@ impl App {
             Some(file) if rows.measures || rows.date => self.details_of(file),
             _ => (None, None),
         };
-        if !self.asking() {
+        if self.cell_tip(&response) {
             // Over the date: which date it is (#139), instead of the file's details.
             let date_tip = date.as_ref().filter(|_| rows.date && ui.rect_contains_pointer(date_rect)).and_then(|(_, tip)| tip.clone());
             response = match (i.checked_sub(ndirs), date_tip) {
@@ -463,7 +471,8 @@ impl App {
                 let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
                 // In the centre of the tile: the tile keeps the photo together with its name.
                 let image = Rect::from_center_size(thumb_rect.center(), size * scale);
-                painter.image(tex.id(), image, uv, Color32::WHITE);
+                // Smaller than its pixels: from the halved copy of its size (`mipmap`).
+                painter.image(tex.id_at(image.width() * painter.ctx().pixels_per_point() / size.x), image, uv, Color32::WHITE);
                 let badge = Rect::from_min_size(image.left_bottom() + vec2(4.0, -28.0), vec2(24.0, 24.0));
                 match self.files().get(file).map(|f| f.path.as_str()) {
                     Some(p) if crate::decode::is_video(p) => icons::paint(painter, Icon::Video, badge),
@@ -614,6 +623,9 @@ impl App {
             self.cursor = p >= up;
             self.selected = p.saturating_sub(up);
             self.scroll_to_selected = true;
+            // The scroll happens in the next frame: asked now, or it waited for the mouse to move
+            // (seen on Windows: arrows took the selection out of sight).
+            ctx.request_repaint();
             match shift && self.cursor {
                 true => self.mark_range(self.selected),
                 false => {
@@ -719,6 +731,48 @@ mod tests {
         assert_eq!(engine_sign(crate::video_read::NO_ENGINE, "a/clip.mp4"), Some(Icon::Video));
         assert_eq!(engine_sign(crate::occt::MISSING, "a/part.step"), Some(Icon::Model));
         assert_eq!(engine_sign("damaged", "a/song.mp3"), None);
+    }
+
+    /// egui keeps a tooltip already open while the pointer stays inside the widget's rectangle,
+    /// also when a window has come over it: the guide opened with F1 over a cell stayed under the
+    /// cell's tooltip (Windows, 2026-11-10). Asking `hovered` first closes it.
+    #[test]
+    fn tooltip_not_over_a_window() {
+        use eframe::egui::{self, Event, Pos2, RawInput, Rect, Sense, vec2};
+        let shown_over_window = |gated: bool| {
+            let ctx = egui::Context::default();
+            let cell = Rect::from_min_size(Pos2::new(100.0, 100.0), vec2(120.0, 140.0));
+            let mut shown = false;
+            for frame in 0..40 {
+                let window = frame >= 20;
+                let time = f64::from(frame) * 0.1;
+                let events = if frame == 0 { vec![Event::PointerMoved(cell.center())] } else { vec![] };
+                let input = RawInput { time: Some(time), events, screen_rect: Some(Rect::from_min_size(Pos2::ZERO, vec2(800.0, 600.0))), ..Default::default() };
+                shown = false;
+                ctx.run_ui(input, |ui| {
+                    egui::CentralPanel::default().show(ui, |ui| {
+                        let r = ui.interact(cell, ui.scope_id().with("cell"), Sense::click());
+                        if !gated || r.hovered() {
+                            r.on_hover_ui(|ui| {
+                                shown = true;
+                                ui.label("tip");
+                            });
+                        }
+                    });
+                    if window {
+                        egui::Window::new("guide").order(egui::Order::Foreground).fixed_pos(Pos2::new(10.0, 10.0)).show(ui.ctx(), |ui| ui.allocate_space(vec2(600.0, 400.0)));
+                    }
+                })
+                .textures_delta
+                .clear();
+                if frame == 19 {
+                    assert!(shown, "the tooltip opens on the cell first");
+                }
+            }
+            shown
+        };
+        assert!(shown_over_window(false), "egui keeps it: if this changes, the check in the cells can go");
+        assert!(!shown_over_window(true));
     }
 
     #[test]
