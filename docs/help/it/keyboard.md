@@ -16,6 +16,7 @@ Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto 
 | F5 | Rilegge le cartelle (nel visore resta sull'immagine aperta) |
 | F11 | Schermo intero e ritorno; nel visore si vede solo l'immagine, senza menù né barre |
 | Ctrl+R, Ctrl+Maiusc+R | Ruota la foto di 90° in senso orario, antiorario: nel visore la vedi prima di salvarla, nella griglia le foto selezionate vengono salvate dopo la conferma (vedi [Ruotare e riflettere](rotate.md)) |
+| Ctrl+Z, Ctrl+Y | Nel visore: annulla, ripete una rotazione o riflessione non salvata |
 | Ctrl+Maiusc+D | Segnalibri: si apre l'elenco; ↓ ci entra, Invio apre il segnalibro scelto (vedi [Segnalibri](bookmarks.md)) |
 
 Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le chiudono; in quelle che chiedono una scelta, **Invio** conferma ed **Esc** annulla. Fanno eccezione un'eliminazione che comprende una cartella (lì anche Invio annulla) e la rotazione o il ribaltamento di foto nella griglia (Invio non conferma).

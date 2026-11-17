@@ -18,6 +18,8 @@ They work on pictures, and the three rotations on videos too (see below); on 3D 
 1. Open the picture and turn or flip it: you see the result at once, and the status bar says **Changed, not saved**.
 2. **File > Save** (**Ctrl+S**) saves it over the original, after asking. **File > Save as…** (**Ctrl+Shift+S**) saves a new file in the format you choose, and leaves the original as it is (see [Save as](save-as.md)).
 
+**Ctrl+Z** takes back the last turn or flip not saved yet, **Ctrl+Y** (or **Ctrl+Shift+Z**) does it again. Back as it is on disk, the picture is no longer marked as changed.
+
 If you leave the picture without saving (another picture, back to the grid, a bookmark, closing EyeCanSee), EyeCanSee asks first: **Save…**, **Save as…**, **Don't save**, or **Cancel** to stay on the picture.
 
 ## In the grid

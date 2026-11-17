@@ -68,6 +68,7 @@ impl App {
             zoom: None,
             zoom_of: None,
             turn: Default::default(),
+            turn_steps: Default::default(),
             save_ready: None,
             saving: HashSet::new(),
             preparing: None,

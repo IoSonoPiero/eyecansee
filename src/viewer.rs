@@ -78,6 +78,7 @@ impl App {
         }
         if let Some(current) = self.viewing {
             self.cad_keys(ctx, current);
+            self.turn_undo_keys(ctx, current);
         }
         // Ctrl+R and Ctrl+Shift+R: in `global_keys`, for the grid too.
         self.save_keys(ctx);

@@ -263,7 +263,11 @@ impl App {
         if self.viewing.is_some() {
             // Also from the keys: only pictures turn, not in a trash (`turns_fit`).
             if self.turn_fits(op).is_some() {
+                let before = self.turn;
                 self.turn = self.turn.then(op);
+                if let Some(path) = self.target() {
+                    self.turn_steps.done(&path, before, self.turn);
+                }
             }
         } else {
             let paths = self.grid_turned(path, op);

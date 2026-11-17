@@ -116,6 +116,7 @@ mod model_x3d;
 mod model_view;
 mod mipmap;
 mod smooth_gpu;
+mod turn_undo;
 mod motion;
 mod motion_view;
 mod mp4;
@@ -341,6 +342,8 @@ struct App {
     /// Flips and quarter turns of the open image, not saved yet (Image > Transform); they go
     /// with the zoom when another image opens.
     turn: transform::Turn,
+    /// Ctrl+Z and Ctrl+Y on `turn` (#157).
+    turn_steps: turn_undo::Steps,
     /// "Save" asked and prepared: the image, its turn, the file to write and whether it lost
     /// quality, for the confirmation of the overwrite.
     save_ready: Option<(String, transform::Turn, Arc<Vec<u8>>, bool)>,
