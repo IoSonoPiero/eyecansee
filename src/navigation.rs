@@ -110,6 +110,9 @@ impl App {
     }
 
     pub(crate) fn display(&self, dir: &str) -> String {
+        #[cfg(feature = "shots")]
+        return crate::shots::made_up_serial(shown(&self.base, dir));
+        #[cfg(not(feature = "shots"))]
         shown(&self.base, dir)
     }
 
