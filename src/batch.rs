@@ -638,7 +638,15 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
             return;
         }
     };
-    let mut taken: HashSet<String> = out.names(&dest).await.unwrap_or_default();
+    // Without the names that are there nothing can be written "never over a file": the work stops.
+    let mut taken: HashSet<String> = match out.names(&dest).await {
+        Ok(names) => names,
+        Err(e) => {
+            p.failed.lock().unwrap().push(e);
+            p.finished.store(true, Ordering::Relaxed);
+            return;
+        }
+    };
     let job = std::sync::Arc::new(job);
     for path in paths {
         if p.cancel.load(Ordering::Relaxed) {
@@ -812,6 +820,27 @@ mod tests {
         assert_eq!(tagged("noext", &Size::Crop(800, 600).tag()), "noext (800x600)");
         assert_eq!(tagged(".hidden", " (1 px)"), ".hidden (1 px)");
         assert!(Size::KINDS.iter().all(|k| k.same_kind(*k) && k.for_videos() == matches!(k, Size::Same | Size::Percent(_) | Size::Fit(..))));
+    }
+
+    /// A destination whose names cannot be read stops the work: with no names every name would
+    /// look free, and a file that is there would be written over.
+    #[test]
+    fn a_destination_that_cannot_be_listed_stops_the_work() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-unlisted-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_fn(40, 30, |x, y| image::Rgb([x as u8, y as u8, 9])));
+        std::fs::write(dir.join("a.png"), file(&img, image::ImageFormat::Png)).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let p = Arc::new(Progress::default());
+        // A file where a folder is expected: its names cannot be read.
+        let to = Dest { op: op.clone(), dir: "a.png/".into(), create: false, home: false };
+        let job = Job { format: None, ..Default::default() };
+        tokio::runtime::Runtime::new().unwrap().block_on(run(&op, vec!["a.png".into()], to, job, p.clone()));
+        assert!(p.finished.load(Ordering::Relaxed));
+        assert_eq!(p.failed.lock().unwrap().len(), 1);
+        assert!(p.saved.lock().unwrap().is_empty());
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     /// Resize with a preset: copies next to the originals with the size in their names, a name
