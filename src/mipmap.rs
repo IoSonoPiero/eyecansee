@@ -79,6 +79,18 @@ pub(crate) fn smooth() -> bool {
     SMOOTH.load(Ordering::Relaxed)
 }
 
+/// Whether a picture shown at `scale` screen pixels per pixel is filtered: on, and below 100%. A
+/// zoom that is 100% but for the rounding of the sums (key 1 gave 99.99…%) is not: the filter blurs
+/// more than needed on purpose (`smooth_gpu::BLUR`), and lines one pixel thin came out grey (P68,
+/// 17/11).
+pub(crate) fn smoothed(scale: f32) -> bool {
+    below_100(scale) && smooth()
+}
+
+fn below_100(scale: f32) -> bool {
+    scale < 1.0 - 1e-3
+}
+
 /// Options > Look > the filter (`settings::SmoothFilter`, `smooth_gpu`): from the whole picture it
 /// is slower on the card, without the faint false patterns the halved copies let through.
 static FILTER: AtomicU8 = AtomicU8::new(0);
@@ -169,6 +181,12 @@ impl Deref for Picture {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn a_hundred_percent_with_the_rounding_is_not_filtered() {
+        assert!(!below_100(1.0) && !below_100(0.99999) && !below_100(1.5));
+        assert!(below_100(0.99) && below_100(0.5));
+    }
     use super::*;
 
     /// `size` pixels, white where `white(x, y)`, black elsewhere.

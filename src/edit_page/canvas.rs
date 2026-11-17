@@ -98,7 +98,7 @@ fn shown_texture(ui: &egui::Ui, w: &Window, tex: &Picture, view: &View, (iw, ih)
     let scale = view.k * ui.ctx().pixels_per_point() * iw.max(ih) / turned.x.max(turned.y);
     let out = tex.size().map(|v| (v as f32 * scale).round() as u32);
     let whole = Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
-    match (scale < 1.0 && crate::mipmap::smooth()).then(|| crate::smooth_gpu::resampled(tex, scale, whole, out)).flatten() {
+    match crate::mipmap::smoothed(scale).then(|| crate::smooth_gpu::resampled(tex, scale, whole, out)).flatten() {
         Some(filtered) => filtered,
         None => (tex.id_at(scale), Vec2::splat(1.0)),
     }
