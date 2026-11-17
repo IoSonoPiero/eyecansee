@@ -836,6 +836,12 @@ mod tests {
         std::fs::write(dir.join("a.png"), file(&img, image::ImageFormat::Png)).unwrap();
         std::fs::write(dir.join("out/a.png"), b"the one that is there").unwrap();
         std::fs::set_permissions(dir.join("out"), std::fs::Permissions::from_mode(0o300)).unwrap();
+        // Who may read every folder whatever its permissions (root, as in a container) cannot
+        // make this one unreadable: nothing to try there.
+        if std::fs::read_dir(dir.join("out")).is_ok() {
+            std::fs::remove_dir_all(&dir).unwrap();
+            return;
+        }
         let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
         let p = Arc::new(Progress::default());
         let to = Dest { op: op.clone(), dir: "out/".into(), create: false, home: false };
