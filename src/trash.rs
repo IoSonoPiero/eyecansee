@@ -160,16 +160,27 @@ pub fn restore_place(path: &str) -> (String, &str) {
     }
 }
 
-/// `name` if free, otherwise "name (2).ext", "name (3).ext"… as file managers do.
+/// `name` if free, otherwise "name (2).ext", "name (3).ext"… as file managers do. A name that
+/// differs from one of `taken` only by upper and lower case is not free: on Windows, on FAT and
+/// exFAT and on phones "A.JPG" and "a.jpg" are one file, and the new one would take its place.
 pub fn free_name(taken: &HashSet<String>, name: &str) -> String {
-    if !taken.contains(name) {
+    if !is_taken(taken, name) {
         return name.to_string();
     }
     let (stem, ext) = match name.rsplit_once('.') {
         Some((s, e)) if !s.is_empty() => (s, format!(".{e}")),
         _ => (name, String::new()),
     };
-    (2..).map(|n| format!("{stem} ({n}){ext}")).find(|n| !taken.contains(n)).unwrap_or_default()
+    (2..).map(|n| format!("{stem} ({n}){ext}")).find(|n| !is_taken(taken, n)).unwrap_or_default()
+}
+
+/// Whether `name` is among `taken`, upper and lower case being the same.
+fn is_taken(taken: &HashSet<String>, name: &str) -> bool {
+    let lower = |s: &str| s.chars().flat_map(char::to_lowercase).collect::<Vec<char>>();
+    taken.contains(name) || {
+        let wanted = lower(name);
+        taken.iter().any(|t| t.chars().flat_map(char::to_lowercase).eq(wanted.iter().copied()))
+    }
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -456,6 +467,11 @@ mod tests {
         assert_eq!(free_name(&taken, "a.jpg"), "a (3).jpg");
         assert_eq!(free_name(&taken, "dir"), "dir (2)");
         assert_eq!(free_name(&taken, ".hidden"), ".hidden (2)");
+        // Upper and lower case are the same name (Windows, FAT, phones): never over the original.
+        let camera: HashSet<String> = ["DSC_0001.JPG", "dsc_0001 (2).jpg", "Àbc.png"].into_iter().map(String::from).collect();
+        assert_eq!(free_name(&camera, "DSC_0001.jpg"), "DSC_0001 (3).jpg");
+        assert_eq!(free_name(&camera, "àBC.PNG"), "àBC (2).PNG");
+        assert_eq!(free_name(&camera, "DSC_0002.jpg"), "DSC_0002.jpg");
     }
 
     /// What an interrupted "Save" left is tidied up when the folder is read: an original alone
