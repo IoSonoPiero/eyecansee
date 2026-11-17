@@ -49,7 +49,16 @@ pub fn paint_tinted(painter: &egui::Painter, tex: &Picture, dest: egui::Rect, uv
         quad(painter, id, corners, tint);
         return;
     }
-    quad(painter, tex.id_at(scale), corners, tint);
+    // On whole pixels of the screen: half a pixel off, each screen pixel takes the mean of two of
+    // the picture, and lines one pixel wide at 100% came out grey (P68, IronManL, 17/11).
+    let shift = on_pixels(dest, ppp).min - dest.min;
+    quad(painter, tex.id_at(scale), corners.map(|(pos, uv)| (pos + shift, uv)), tint);
+}
+
+/// `dest` moved by less than half a pixel so that its corner is on a pixel of the screen.
+fn on_pixels(dest: egui::Rect, ppp: f32) -> egui::Rect {
+    let min = (dest.min.to_vec2() * ppp).round().to_pos2() / ppp;
+    dest.translate(min - dest.min)
 }
 
 /// The corners of `dest` on the pixels of the screen, with the points of the picture filtered
@@ -82,4 +91,18 @@ fn quad(painter: &egui::Painter, id: egui::TextureId, corners: [(egui::Pos2, egu
     mesh.add_triangle(0, 1, 2);
     mesh.add_triangle(0, 2, 3);
     painter.add(mesh);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn moved_onto_whole_pixels() {
+        let r = on_pixels(egui::Rect::from_min_size(egui::pos2(7.54, 3.2), egui::vec2(100.0, 50.0)), 1.0);
+        assert_eq!((r.min, r.size()), (egui::pos2(8.0, 3.0), egui::vec2(100.0, 50.0)));
+        // At 167%: 4.5 points are 7.515 pixels, moved to 8 pixels, 4.8 points.
+        let r = on_pixels(egui::Rect::from_min_size(egui::pos2(4.5, 0.0), egui::vec2(10.0, 10.0)), 1.67);
+        assert!((r.min.x * 1.67 - 8.0).abs() < 1e-4);
+    }
 }
