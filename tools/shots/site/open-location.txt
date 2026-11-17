@@ -1,6 +1,9 @@
 # File > Open location with a made-up SFTP server filled in, the password hidden, and "Save and
 # open" ready. Coordinates for a 1200 x 800 window.
 open /home/demo/Pictures/Holiday
+# The grid scrolled to the end: its last row of names whole, the cut on the pictures of the first.
+2 move 700 400
+2.2 wheel -300
 3 act address
 4 click 483 360
 4.6 click 462 433

@@ -2,6 +2,9 @@
 # Coordinates for a 1200 x 800 window.
 set bookmarks [{"name": "Holiday", "address": "/home/demo/Pictures/Holiday"}, {"name": "Mountains", "address": "/home/demo/Pictures/Holiday/Mountains"}, {"name": "3D models", "address": "/home/demo/Documents/3D models"}, {"name": "USB STICK", "address": "/run/media/demo/USB STICK/"}, {"name": "Photo archive", "address": "sftp://demo@photos.example.com/Pictures/"}, {"name": "Home NAS", "address": "ftp://demo@nas.example.com/"}]
 open /home/demo/Pictures/Holiday
+# The grid scrolled to the end: its last row of names whole, the cut on the pictures of the first.
+2 move 700 400
+2.2 wheel -300
 3 click 197 12
 3.8 move 231 131 0.3
 5 shot
