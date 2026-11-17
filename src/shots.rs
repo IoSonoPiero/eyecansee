@@ -349,6 +349,19 @@ pub(crate) fn phone_folders(dirs: &mut Vec<String>) {
     }
 }
 
+/// A phone's address as the address bar shows it in the pictures: its serial number made up
+/// (`ABCD1234EFGH`), so that no picture shows the real one.
+pub(crate) fn made_up_serial(address: String) -> String {
+    if active() { made_up(address) } else { address }
+}
+
+fn made_up(address: String) -> String {
+    match address.strip_prefix("mtp://").and_then(|rest| rest.split_once('/')) {
+        Some((_, path)) => format!("mtp://ABCD1234EFGH/{path}"),
+        None => address,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -372,5 +385,11 @@ mod tests {
         assert!(matches!(&steps[3].1, Step::Key(Key::E, m) if m.command));
         assert!(matches!(&steps[6].1, Step::Shot(n, None, Some(1000)) if n == "grid"));
         assert!(matches!(&steps[7].1, Step::Shot(n, Some(r), _) if n == "part" && r.width() == 30.0));
+    }
+
+    #[test]
+    fn serial_made_up() {
+        assert_eq!(made_up("mtp://R5CT21ABC/Internal storage/DCIM/".into()), "mtp://ABCD1234EFGH/Internal storage/DCIM/");
+        assert_eq!(made_up("/home/demo/".into()), "/home/demo/");
     }
 }
