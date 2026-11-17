@@ -33,11 +33,15 @@ impl App {
         self.swap_listing(&dir, new);
     }
 
-    /// Item renamed: its folder is read again (its place in the order may change); if the current
-    /// folder was inside a renamed one, it follows the new name.
+    /// Item renamed: its folder is read again (its place in the order may change) and the item is
+    /// selected under its new name, not what took its old place; if the current folder was inside
+    /// a renamed one, it follows the new name.
     pub(crate) fn renamed(&mut self, old: &str, new: &str) {
         self.marked.remove(old);
         let dir = source::parent(old);
+        if dir == self.dir {
+            self.select_after = Some(new.to_string());
+        }
         if old.ends_with('/') {
             self.listings.retain(|k, _| !k.starts_with(old));
             if self.dir.starts_with(old) {
