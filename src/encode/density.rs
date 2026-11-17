@@ -544,7 +544,7 @@ mod tests {
         assert!(original.has_meta());
         assert!(!open(&source(Format::Png, None), Format::Png).has_meta());
         for t in WRITTEN {
-            let out = original.encode(&Options { keep_meta: false, ..opts(t) }).unwrap();
+            let out = original.encode(&Options { meta: crate::meta_strip::Keep::Nothing, ..opts(t) }).unwrap();
             assert_eq!(of(&out, t), None, "{t:?}");
         }
     }
@@ -558,7 +558,7 @@ mod tests {
             let with = open(&source(s, Some(DPI72)), s);
             assert_eq!(with.meta_box(Format::Bmp), (true, Some("convert-meta-density-only")), "{s:?}");
             for keep in [true, false] {
-                let out = with.encode(&Options { keep_meta: keep, ..opts(Format::Bmp) }).unwrap();
+                let out = with.encode(&Options { meta: if keep { crate::meta_strip::Keep::All } else { crate::meta_strip::Keep::Nothing }, ..opts(Format::Bmp) }).unwrap();
                 assert_eq!(of(&out, Format::Bmp), keep.then_some(DPI72), "{s:?} {keep}");
             }
             let without = open(&source(s, None), s);

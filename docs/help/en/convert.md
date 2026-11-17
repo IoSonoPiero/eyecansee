@@ -2,6 +2,8 @@
 
 Converts many pictures at once: into another format, smaller or larger, turned or flipped, into the same folder, a subfolder or another folder, also on another device. The originals are never touched: the new files are written beside them or where you choose.
 
+Convert works on the files selected in the grid, as they are on disk, all with the same settings. For one image, as you see it in the viewer or the editor, with the name you choose, there is [Save as](save-as.md).
+
 For one image with a live preview use [Save as](save-as.md). Videos go through the same window: see [Converting videos](convert-video.md).
 
 ## Starting
@@ -10,7 +12,7 @@ For one image with a live preview use [Save as](save-as.md). Videos go through t
 2. Click ![Convert…](icon://scaling) in the toolbar, or choose **Tools > Convert…** (**Ctrl+B**), or right-click one of the selected files and choose **Convert…**. The window opens on its format, with the size **Unchanged** and no turn or flip; **Resize > Custom…** opens it on its size (see below).
 3. Make your choices in the window and click **Convert**.
 
-The window works on pictures, videos and audio files (see [Converting videos](convert-video.md)). Other files you selected (3D models, CAD drawings) are left out: the window says how many, the message at the end which ones. It does not work from the viewer, and only one conversion runs at a time.
+The window works on pictures, videos and audio files (see [Converting videos](convert-video.md)). Other files you selected (3D models, CAD drawings) are left out: the window says how many, the summary at the end which ones. It does not work from the viewer, and only one conversion runs at a time.
 
 ![Converting and resizing images](../img/convert.webp)
 
@@ -18,7 +20,7 @@ The window works on pictures, videos and audio files (see [Converting videos](co
 
 To only make smaller copies of photos, without the window: right-click the selected files, or open **Tools**, and choose **Resize** and one of its sizes: **Small (long side 1280 px)**, **Medium (long side 1920 px)**, **Large (long side 2560 px)** or **Half (50%)**. The sizes are yours to change in [Options](options.md), on the **Resize** tab.
 
-The work starts at once on every picture chosen, with the same box and **Cancel** as below and the message at the end. The copies go next to the originals, in their format and with their metadata (an **Ultra HDR** photo stays Ultra HDR), the size in their names: `photo (1920 px).jpg`, `photo (50%).jpg`. A name already taken gets " (2)". Pictures already of that size, or smaller (they are never enlarged), get no copy, and the message names them: so resizing a copy again does not make `photo (1920 px) (1920 px).jpg`. Pictures in a format EyeCanSee cannot write (HEIC, RAW…) are left out, and the message says why. Videos, 3D models, CAD drawings and audio files are left out too, and the message names them: with some of them among the files chosen, **Resize** is marked with **\***; with no picture at all, it is greyed out.
+The work starts at once on every picture chosen, with the same box and **Cancel** as below and the summary at the end. The copies go next to the originals, in their format and with their metadata (an **Ultra HDR** photo stays Ultra HDR), the size in their names: `photo (1920 px).jpg`, `photo (50%).jpg`. A name already taken gets " (2)". Pictures already of that size, or smaller (they are never enlarged), get no copy, and the message names them: so resizing a copy again does not make `photo (1920 px) (1920 px).jpg`. Pictures in a format EyeCanSee cannot write (HEIC, RAW…) are left out, and the message says why. Videos, 3D models, CAD drawings and audio files are left out too, and the message names them: with some of them among the files chosen, **Resize** is marked with **\***; with no picture at all, it is greyed out.
 
 **Resize > Custom…** opens this window, called **Resize** and with its button **Resize**, on the pictures, on the turn and the size, with the format **Same as the original** and the copies next to the originals. It starts from the size and the turn of the last Custom… (at first **Long side** 1920 px, not turned); **Convert…** instead always starts from **Unchanged**, not turned nor flipped. As with the sizes above, the copies of the pictures really resized have the size in their names (those only turned, what was done), in whatever format and wherever they go:
 
@@ -36,7 +38,7 @@ With a size and a turn, the name says only the size. A picture left at its size 
 ## Format
 
 - **Same as the original**: each image stays in its own format and is written as Save writes it (a JPEG keeps its own quality). Images in a format EyeCanSee cannot write (HEIC, RAW…) are left out.
-- One of the formats of [Save as](save-as.md). Its options are under **JPEG options** (or the name of the format you chose): click the title to open them. **Keep the metadata** is there too.
+- One of the formats of [Save as](save-as.md). Its options are under **JPEG options** (or the name of the format you chose): click the title to open them. **Metadata** is there too: all, all but the place, or none but the colour profile, as in [Save as](save-as.md).
 - **Ultra HDR** phone photos stay HDR only in JPEG. When JPEG photos are among the files and you choose another format, the window warns you.
 
 ## Turn and flip
@@ -63,7 +65,7 @@ If nothing would change (same format, same size, no turn), **Convert** (or **Res
 
 - **Next to the originals**.
 - **In the subfolder**, with the name you write ("converted" at first). It is created if missing.
-- **In another folder, also on another device**: type a folder or an address as in the address bar (`mtp://…` for a phone, `sftp://…` for a server), or click **Browse…**. The chooser shows your home folder, the disks, the connected phones and the saved servers on the left: click a folder to go into it, then **Use this folder**. The folder must already exist.
+- **In another folder, also on another device**: type a folder or an address as in the address bar (`mtp://…` for a phone, `sftp://…` for a server), or click **Browse…**. The chooser shows your home folder, the disks, the connected phones and the saved servers on the left: click a folder to go into it, then **Use this folder**. A saved server opens in the folder it starts in, as in the grid. ![New folder](icon://folder-plus) next to the address makes a new folder there: type its name, then **Enter** or **Create**.
 
 A name already taken gets " (2)": nothing is ever written over a file. So you can, for example, convert the photos of a phone straight into a folder of the computer.
 
@@ -73,7 +75,13 @@ The window remembers the choices you confirm until EyeCanSee is closed. **Cancel
 
 A box at the bottom right shows how many files are done, a bar and the file under way, with **Cancel**. You can go on using EyeCanSee meanwhile. Cancel stops after the image under way.
 
-At the end a message says how many files were saved and where, and which were left out and why.
+At the end a summary, titled with the command, says:
+
+- how many files were saved, and where; how many were left out; how many were not done, when you stopped the work (a count of zero is not shown);
+- how long it took and, when files were saved, their size on disk before and after, with the percentage;
+- the files left out, grouped by reason (another kind of file, a format EyeCanSee cannot write, already of that size, animated or with several pages, FFmpeg missing, an error), each group with its file names. A group of more than five files is folded: click its line to open it. The list scrolls when it is long.
+
+**Open the folder** shows the thumbnails of the folder where the files went, on this computer, a phone or a server; it is there only when something was saved in another folder than the one on screen, and it is greyed out while a page (the editor, Save as, the slideshow or the duplicates) covers the thumbnails. **Close**, **Enter** or **Esc** close the summary.
 
 ## Things to know
 

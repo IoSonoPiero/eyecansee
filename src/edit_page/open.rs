@@ -142,7 +142,7 @@ impl App {
         // The photo as read; at the document's size from the next frame (`follow_size`).
         w.full = r.as_ref().ok().map(|(original, ..)| original.clone());
         w.scaled = None;
-        w.original = Some(r.map(|(original, preview, size)| (original, ctx.load_texture("edit-original", preview, egui::TextureOptions::LINEAR), size)));
+        w.original = Some(r.map(|(original, preview, size)| (original, crate::mipmap::Picture::now(ctx, "edit-original", preview, crate::mipmap::SMALLEST_PICTURE), size)));
         if w.history.is_some() {
             return;
         }

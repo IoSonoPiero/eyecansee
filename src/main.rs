@@ -21,18 +21,27 @@ mod app_dialogs;
 mod app_new;
 mod batch;
 mod batch_page;
+mod batch_summary;
 mod batch_video;
+mod bar_rows;
 mod bookmarks;
 mod browser;
 mod cad;
 mod cad_engine;
 mod cad_geom;
+mod cad_compare;
+mod cad_compare_view;
 mod cad_convert;
 mod cad_hpgl;
 mod cad_image;
+mod cad_layers;
+mod cad_layers_panel;
 mod cad_layout;
+mod cad_meta;
+mod cad_measure;
 mod cad_shape;
 mod cad_shx;
+mod clip_open;
 mod cad_svg;
 mod cad_text;
 mod cad_units;
@@ -53,6 +62,7 @@ mod encoders;
 mod engine;
 mod fault;
 mod ffmpeg;
+mod ffmpeg_files;
 mod file_dialogs;
 mod folder_pick;
 mod fonts;
@@ -76,8 +86,12 @@ mod logging;
 mod menu;
 mod messages;
 mod meta;
+mod measure_model;
+mod measure_view;
 mod meta_panel;
+mod meta_strip;
 mod meta_write;
+mod mwg;
 mod raw_meta;
 mod model;
 mod model_3mf;
@@ -90,13 +104,20 @@ mod model_fbx;
 mod model_gltf;
 mod model_gltf_unpack;
 mod model_ifc;
+mod model_cpu;
 mod model_lines;
+mod model_measure;
+mod model_mtl;
 mod model_off;
 mod model_smooth;
 mod model_text;
 mod model_vrml;
 mod model_x3d;
 mod model_view;
+mod mipmap;
+mod exif_place;
+mod smooth_gpu;
+mod turn_undo;
 mod motion;
 mod motion_view;
 mod mp4;
@@ -119,10 +140,13 @@ mod rotate;
 mod edit_page;
 mod save_back;
 mod save_dialogs;
+mod section_view;
 mod selection;
 mod server_manager;
 mod servers;
 mod settings;
+mod sidecar;
+mod sidecar_follow;
 #[cfg(feature = "shots")]
 mod shots;
 mod sftp;
@@ -136,6 +160,7 @@ mod thumb_details;
 mod thumb_queue;
 mod test_copy;
 mod thumbcache;
+mod ticked;
 mod tips;
 mod toolbar;
 mod toolbar_end;
@@ -149,6 +174,8 @@ mod vault_page;
 mod video;
 mod video_copy;
 mod video_turn;
+mod video_full;
+mod video_frame;
 mod video_read;
 mod viewer;
 mod watch;
@@ -156,7 +183,10 @@ mod window_close;
 #[cfg(any(windows, test))]
 mod window_place;
 mod xmp;
+mod xmp_ext;
+mod xmp_fields;
 mod zoom;
+mod zoom_bar;
 #[cfg(test)]
 mod help_check;
 
@@ -268,8 +298,6 @@ struct App {
     /// Metadata of the selected image (index among the images) and last request made.
     meta: Option<(usize, Result<Option<meta::Meta>, String>)>,
     meta_asked: Option<(u64, usize)>,
-    /// Tallest height of the metadata panel so far: it never shrinks (see `meta_panel`).
-    meta_height: f32,
     /// Phone without storage in the open folder: when to read it again (egui time).
     retry_at: Option<f64>,
     /// The framed device was changed from the keyboard: it must be scrolled into view.
@@ -295,7 +323,7 @@ struct App {
     /// Image to open as soon as the folder's listing arrives.
     start: Option<String>,
     /// Thumbnails in memory: only those in the window around the visible rows (`thumb_keep`).
-    thumbs: HashMap<usize, Result<TextureHandle, String>>,
+    thumbs: HashMap<usize, Result<mipmap::Picture, String>>,
     thumb_keep: std::ops::Range<usize>,
     /// Thumbnails already done (on disk), not to be queued again for background generation.
     generated: HashSet<usize>,
@@ -304,7 +332,7 @@ struct App {
     info_asked: HashSet<String>,
     /// Last queue sent to the loader: (visible images, selected, generation).
     thumb_queue_key: Option<(std::ops::Range<usize>, Option<usize>, u64)>,
-    full: HashMap<usize, Result<TextureHandle, String>>,
+    full: HashMap<usize, Result<mipmap::Picture, String>>,
     /// Own size of the pictures shown at another one (beyond 8192 px, SVGs), by path: the status bar's.
     own_sizes: HashMap<String, [u32; 2]>,
     model: model_view::State,
@@ -315,6 +343,8 @@ struct App {
     /// Flips and quarter turns of the open image, not saved yet (Image > Transform); they go
     /// with the zoom when another image opens.
     turn: transform::Turn,
+    /// Ctrl+Z and Ctrl+Y on `turn` (#157).
+    turn_steps: turn_undo::Steps,
     /// "Save" asked and prepared: the image, its turn, the file to write and whether it lost
     /// quality, for the confirmation of the overwrite.
     save_ready: Option<(String, transform::Turn, Arc<Vec<u8>>, bool)>,
@@ -328,7 +358,7 @@ struct App {
     batch_saved: Option<(transform::Op, usize, usize)>,
     /// An image just saved from Rotate and crop, as the viewer shows it: kept in the viewer when
     /// the file and the folder listing change, instead of the old one until it is read again.
-    fresh: Option<(String, TextureHandle)>,
+    fresh: Option<(String, mipmap::Picture)>,
     /// Leaving an image with changes not saved: what was asked, while the question is open.
     after_turn: Option<save_dialogs::After>,
     /// The same, after Save was chosen: done once the save is confirmed.
@@ -362,9 +392,13 @@ struct App {
     open_address: Option<AddressForm>,
     /// A transform on images of the grid: the images and the operation, to confirm.
     batch_turn: Option<(Vec<String>, transform::Op)>,
+    /// The window at the end of Convert… and the commands that share its work (`batch_summary`).
+    batch_summary: Option<batch_summary::Summary>,
     pan: egui::Vec2,
     /// Zoom shown, for the status bar.
     zoom_shown: f32,
+    /// The zoom's limits for the status bar, and the zoom it asks for (`zoom_bar`).
+    zoom_bar: zoom::Bar,
     /// Wheel turned towards the next image, in notches, when the wheel changes image.
     wheel_notches: f32,
     /// Viewer images already requested from the loader.
@@ -528,14 +562,16 @@ impl eframe::App for App {
             return;
         }
         let act = &mut self.act;
-        let clip = self.clip.as_ref();
+        let copied = self.clip.as_ref().map(|c| c.text.as_str());
+        let viewing = self.viewing.is_some();
         raw_input.events.retain(|e| {
             *act = match e {
                 egui::Event::Copy => Some(Act::Copy(None)),
                 egui::Event::Cut if shift_del => Some(Act::Delete(None, true)),
                 egui::Event::Cut => Some(Act::Cut(None)),
-                egui::Event::Paste(text) if clip.is_some_and(|c| transfer::on_clipboard(&c.text, text)) => Some(Act::PasteNow(paste_to.clone())),
-                // Something copied in another program since: not the old files.
+                egui::Event::Paste(text) if transfer::pastes_items(viewing, copied, text) => Some(Act::PasteNow(paste_to.clone())),
+                // In the viewer (Edit > Paste is greyed out there), or something copied in another
+                // program since: not the old files.
                 egui::Event::Paste(_) => return false,
                 _ => return true,
             };
@@ -569,6 +605,13 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.pace(frame);
+        smooth_gpu::new_frame();
+        // Options > Look: applied at once, wherever pictures are drawn.
+        mipmap::set_smooth(self.settings.smooth);
+        mipmap::set_filter(self.settings.smooth_filter);
+        for id in actions::ABOUT {
+            ui.ctx().data_mut(|d| d.insert_temp(egui::Id::unique(id), self.i18n.t(id)));
+        }
         let ctx = ui.ctx().clone();
         #[cfg(feature = "shots")]
         self.shots_tick(&ctx);

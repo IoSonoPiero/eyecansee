@@ -5,9 +5,10 @@ use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
-use eframe::egui::{self, ColorImage, Key, TextureHandle};
+use eframe::egui::{self, ColorImage, Key};
 
 use crate::duplicates::{Group, Keep, Order, Progress};
+use crate::mipmap::{self, Picture};
 use crate::{App, BOLD, browser, icons, source, theme};
 
 /// Side of the thumbnail of each group.
@@ -28,7 +29,7 @@ pub struct Window {
     /// The focused copy moved from the keyboard: scrolled into view.
     scroll: bool,
     /// One per group, by the path of its first copy; `None` while it comes.
-    thumbs: HashMap<String, Option<Result<TextureHandle, String>>>,
+    thumbs: HashMap<String, Option<Result<Picture, String>>>,
     incoming: Incoming,
 }
 
@@ -195,15 +196,23 @@ impl App {
         let ctx = ui.ctx().clone();
         let Some(mut w) = self.duplicates.take() else { return };
         for (path, image) in w.incoming.lock().unwrap().drain(..) {
-            let tex = image.map(|i| ctx.load_texture(format!("dup-{path}"), i, egui::TextureOptions::LINEAR));
+            let tex = image.map(|i| Picture::now(&ctx, &format!("dup-{path}"), i, mipmap::SMALLEST_THUMB));
             w.thumbs.insert(path, Some(tex));
         }
         let (mut close, mut delete) = (dup_keys(&ctx, &mut w), false);
         egui::Panel::top("dup-head").show(ui, |ui| close |= !self.dup_header(ui, &mut w));
-        egui::Panel::bottom("dup-foot").show(ui, |ui| {
-            let (c, d) = self.dup_footer(ui, &w);
+        let foot = egui::Panel::bottom("dup-foot").show(ui, |ui| {
+            let (c, d, keys) = self.dup_footer(ui, &w);
             (close, delete) = (close | c, delete | d);
+            keys
         });
+        // The keys of the page, as in the viewer and the grid (issue #150).
+        if foot.inner.clicked() {
+            self.keys_open = !self.keys_open;
+        }
+        if self.keys_open || foot.inner.hovered() {
+            self.keys_window(&ctx, "hint-dup", foot.response.rect.height());
+        }
         let mut view = None;
         egui::CentralPanel::default()
             .frame(egui::Frame::central_panel(ui.style()).fill(theme::canvas(ui.visuals())))
@@ -256,13 +265,14 @@ impl App {
     }
 
     /// What deleting will do, Close and Delete: (close, delete) clicked.
-    fn dup_footer(&self, ui: &mut egui::Ui, w: &Window) -> (bool, bool) {
+    /// Close and Delete asked, and the Keys button.
+    fn dup_footer(&self, ui: &mut egui::Ui, w: &Window) -> (bool, bool, egui::Response) {
         let groups = w.groups.as_deref().unwrap_or_default();
         let marked = groups.iter().flat_map(|g| g.files.iter().zip(&g.delete)).filter(|(_, d)| **d);
         let (n, size) = marked.fold((0, 0), |(n, s), (f, _)| (n + 1, s + f.size));
         let (mut close, mut delete) = (false, false);
         ui.add_space(4.0);
-        ui.horizontal(|ui| {
+        let keys = ui.horizontal(|ui| {
             if !groups.is_empty() {
                 let args = [("groups", groups.len().to_string()), ("n", n.to_string()), ("size", self.human_size(size))];
                 ui.label(self.i18n.t_args("dup-summary", &args.each_ref().map(|(k, v)| (*k, v.as_str()))));
@@ -271,10 +281,13 @@ impl App {
                 let label = egui::RichText::new(self.i18n.t("dup-delete")).family(egui::FontFamily::Name(BOLD.into()));
                 delete = ui.add_enabled(n > 0 && self.deleting == 0, egui::Button::new(label)).clicked();
                 close = ui.button(self.i18n.t("notice-close")).on_hover_text("Esc").clicked();
-            });
-        });
+                ui.button(self.i18n.t("keys-button"))
+            })
+            .inner
+        })
+        .inner;
         ui.add_space(2.0);
-        (close, delete)
+        (close, delete, keys)
     }
 
     /// Every group in a frame of its own; the image clicked to open in the viewer.
@@ -340,7 +353,9 @@ impl App {
         match w.thumbs.get(&file.path) {
             Some(Some(Ok(tex))) => {
                 let fit = egui::Rect::from_center_size(rect.center(), tex.size_vec2() * (THUMB / tex.size_vec2().max_elem()));
-                egui::Image::new(tex).paint_at(ui, fit);
+                // Smaller than its pixels: from the halved copy of its size (`mipmap`).
+                let id = tex.id_at(fit.width() * ui.ctx().pixels_per_point() / tex.size_vec2().x);
+                egui::Image::new(egui::load::SizedTexture::new(id, fit.size())).paint_at(ui, fit);
             }
             Some(Some(Err(e))) => {
                 ui.painter().rect_stroke(rect, 4.0, egui::Stroke::new(1.0, theme::tile(ui.visuals()).1), egui::StrokeKind::Inside);

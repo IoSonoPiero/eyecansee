@@ -568,12 +568,15 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let _ = take_gone();
         assert!(rt.block_on(op.read("a.jpg")).is_ok());
-        assert_eq!(rt.block_on(op.read("b.jpg")).unwrap_err().0, NOT_FOUND);
-        assert!(rt.block_on(op.read_range("b.jpg", 0, 1)).is_err());
-        assert!(rt.block_on(op.size("b.jpg")).is_err());
+        // A name no other test reads: a read of a "b.jpg" missing in another test's folder would
+        // put one more in the list and make four.
+        let gone = "gone-noticed.jpg";
+        assert_eq!(rt.block_on(op.read(gone)).unwrap_err().0, NOT_FOUND);
+        assert!(rt.block_on(op.read_range(gone, 0, 1)).is_err());
+        assert!(rt.block_on(op.size(gone)).is_err());
         // Only this test's names: other tests running at the same time (the editor's saves) put
         // theirs in the same list, and on Windows one came between (2026-11-14, winvm).
-        let mine = || take_gone().into_iter().filter(|p| p == "b.jpg").count();
+        let mine = || take_gone().into_iter().filter(|p| p == gone).count();
         assert_eq!(mine(), 3);
         assert_eq!(mine(), 0, "taken once");
         std::fs::remove_dir_all(&dir).unwrap();

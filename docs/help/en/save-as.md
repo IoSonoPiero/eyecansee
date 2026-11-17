@@ -2,6 +2,8 @@
 
 Saves one image as a new file, in the format and the folder you choose, for example a phone's HEIC photo as a JPEG, or a PNG as a smaller WebP. Before saving you see exactly how the new file will look and how large it will be. The original is never changed.
 
+Save as works on **one** image, as you see it, with the changes not saved yet. For many images at once, as they are on disk, there is [Converting and resizing](convert.md).
+
 To convert or resize many images at once, use [Converting and resizing images](convert.md).
 
 ## Opening the page
@@ -9,7 +11,8 @@ To convert or resize many images at once, use [Converting and resizing images](c
 - In the grid, select one image and click ![Save as…](icon://file-output) in the toolbar, or choose **File > Save as…**, or right-click the image and choose **Save as…**.
 - In the viewer, press **Ctrl+Shift+S**, or use the same menu items. If you turned or flipped the image in the viewer, it is saved turned.
 - A 3D model or a CAD drawing can be saved as a picture too. In the viewer as it is shown on screen: a model at least 1920 pixels on its long side, a drawing with the layout you are looking at. From the grid a model from its starting view, 1920 × 1440 pixels, and a drawing whole. With other files selected too, **Save as…** is marked with **\*** and works on the one picture, model or drawing among them. **Ctrl+S** and **File > Save** save over the original, which a model or a drawing cannot be: there they are greyed out, and pointing at **Save** says what to use instead.
-- In the editor, **Save as…** opens this page with the edited image (see [Saving an edited image](editor-save.md)). Closing it without saving goes back to the editor, with the changes.
+- In the viewer of a video, **Save frame as…** (also **Ctrl+Shift+S**) pauses it and opens this page with the frame shown: see [Playing videos](video.md). The frame has no file of its own, so its size on disk and the percentage are not shown.
+- In the editor, **Save as…** opens this page with the edited image (see [Saving an edited image](editor-save.md)). Closing it without saving (**Cancel**, **Esc** or the window's ✕) goes back to the editor, with the changes.
 
 ![Save as](../img/save-as.webp)
 
@@ -34,7 +37,7 @@ If the name is already taken in that folder, " (2)" is added, and the page tells
 
 Opened from the viewer, the viewer then shows the new file, already turned or flipped as you left it. The original stays as it is on disk: it is no longer marked as modified, and closing asks nothing. If you saved into another folder, the viewer stays on the original and a message says where the new file is. If you close the page without saving, or saving fails, the viewer stays as it was, turns included. The same holds when you open it from the editor started in the viewer: once the file is saved the editor closes, and the viewer does as above.
 
-**Esc** or the ✕ of the window closes the page without saving.
+**Cancel**, next to **Save**, closes the page without saving, as **Esc** or the ✕ of the window do: from the editor you are back in the editor, otherwise where you opened it. While the file is being written it is greyed out.
 
 ## Formats and options
 
@@ -55,13 +58,18 @@ Opened from the viewer, the viewer then shows the new file, already turned or fl
 
 ## Metadata
 
-**Keep the metadata (EXIF, XMP, IPTC, colour profile)** is on at first. It keeps the camera, the date the photo was taken, the place (GPS), author, copyright, descriptions, keywords, the colour profile and the resolution (dots per inch).
+**Metadata** says what the new file keeps of the original's, and starts on **All (EXIF, XMP, IPTC, colour profile)**: the camera, the date the photo was taken, the place (GPS), author, copyright, descriptions, keywords, the colour profile and the resolution (dots per inch). The other two choices are for a copy to share:
 
-- Only JPEG, PNG, WebP, AVIF and TIFF can hold metadata. BMP holds only the resolution: with BMP the box reads **Keep the metadata (resolution only)** and can be changed when the original has a resolution. With another format, or when the original has none, the box is greyed out; pointing at it says why.
-- The **resolution** (for example the 600 dpi of a scan) is part of the metadata: without **Keep the metadata** the file is saved without it, also when the original has nothing else.
+- **All but the place (no GPS position)**: the same without where the photo was taken: the GPS position (with its altitude and direction), and the city, state, country and location written in the XMP or the IPTC.
+- **None (only the colour profile)**: nothing but the colour profile, which the picture needs to show its colours right.
+
+The choice starts again on **All** each time the page opens.
+
+- Only JPEG, PNG, WebP, AVIF and TIFF can hold metadata. BMP holds only the resolution: with BMP a box, **Keep the metadata (resolution only)**, takes the place of the list, and can be changed when the original has a resolution. With another format, or when the original has none, it is greyed out; pointing at it says why.
+- The **resolution** (for example the 600 dpi of a scan) is part of the metadata: with **None** the file is saved without it, also when the original has nothing else.
 - The orientation is set to upright, since the saved pixels are already turned, and the sizes written inside are those of the new image.
-- Left out: the small previews that cameras store inside the file, the Lightroom and Camera Raw settings, and the video of a motion photo, which the new file does not have.
-- An **Ultra HDR** phone photo stays HDR when you save it as JPEG with the metadata, also from the editor: its HDR part is turned, cropped and covered together with the photo. In another format, or without the metadata, it loses its HDR, and the page tells you before you save.
+- Left out: the small previews that cameras store inside the file and the video of a motion photo, which the new file does not have; the Lightroom and Camera Raw settings of a RAW file, which EyeCanSee does not use when it develops it. Those of other photos stay, marked as already applied, also with **All but the place**; with **None** they go, as the maker note does.
+- An **Ultra HDR** phone photo stays HDR when you save it as JPEG with the metadata, also from the editor: its HDR part is turned, cropped and covered together with the photo. Without the place it stays HDR too. In another format, or with **None**, it loses its HDR, and the page tells you before you save.
 
 ## Things to know
 

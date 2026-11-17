@@ -14,6 +14,8 @@ const IPTC: u16 = 1028;
 /// MD5 of the IPTC-IIM, kept by Photoshop to know whether the XMP still matches it.
 const IPTC_DIGEST: u16 = 1061;
 pub const JPEG_XMP: &[u8] = b"http://ns.adobe.com/xap/1.0/\0";
+/// The largest XMP packet a JPEG segment holds after `JPEG_XMP`.
+pub const JPEG_XMP_MAX: usize = 65533 - JPEG_XMP.len();
 pub const JPEG_PHOTOSHOP: &[u8] = b"Photoshop 3.0\0";
 /// Name of the segments of a JPEG's extended XMP (XMP specification, part 3): the part of an XMP
 /// too large for one segment, named in the main packet by its GUID (`xmpNote:HasExtendedXMP`).
@@ -71,17 +73,43 @@ fn data(r: &[u8]) -> Option<&[u8]> {
 pub fn tiff_iptc(irb: &[u8]) -> Option<(Vec<u8>, Vec<u8>)> {
     let old = iim(irb)?;
     let padded = [old, &[0; 3][..(4 - old.len() % 4) % 4]].concat();
-    let unpadded = (0..4).filter(|&k| old.len() >= k && old[old.len() - k..].iter().all(|&b| b == 0)).map(|k| &old[..old.len() - k]);
-    let current: Vec<[u8; 16]> = unpadded.map(|i| md5::compute(i).0).collect();
     let block = resources(irb)
         .into_iter()
         .flat_map(|(id, r)| match id {
             IPTC => resource(IPTC, &padded),
-            IPTC_DIGEST if data(r).is_some_and(|d| current.iter().any(|c| c[..] == *d)) => resource(IPTC_DIGEST, &md5::compute(&padded).0),
+            IPTC_DIGEST if data(r).is_some_and(|d| digest_current(old, d)) => resource(IPTC_DIGEST, &md5::compute(&padded).0),
             _ => r.to_vec(),
         })
         .collect();
     Some((padded, block))
+}
+
+/// The Photoshop block without the place in its IPTC (#55), the other resources as they were;
+/// the IPTC digest goes with a change (it would say the IPTC was changed by another program).
+/// `None` if nothing is left.
+pub fn irb_without_place(irb: &[u8]) -> Option<Vec<u8>> {
+    let Some(old) = iim(irb) else { return Some(irb.to_vec()) };
+    let new = crate::meta_strip::iim_without_place(old);
+    if new == old {
+        return Some(irb.to_vec());
+    }
+    let kept: Vec<u8> = resources(irb)
+        .into_iter()
+        .flat_map(|(id, r)| match id {
+            IPTC if new.is_empty() => Vec::new(),
+            IPTC => resource(IPTC, &new),
+            IPTC_DIGEST => Vec::new(),
+            _ => r.to_vec(),
+        })
+        .collect();
+    (!kept.is_empty()).then_some(kept)
+}
+
+/// Whether `digest` (the Photoshop resource 1061) is the MD5 of `iim` as it is, or of `iim`
+/// without the up to 3 zeros that pad it in a TIFF (exiftool computes it before padding).
+pub(crate) fn digest_current(iim: &[u8], digest: &[u8]) -> bool {
+    let unpadded = (0..4).filter(|&k| iim.len() >= k && iim[iim.len() - k..].iter().all(|&b| b == 0)).map(|k| &iim[..iim.len() - k]);
+    unpadded.map(|i| md5::compute(i).0).any(|c| c[..] == *digest)
 }
 
 /// A Photoshop block holding only `iim`.
@@ -184,6 +212,77 @@ pub fn fit_jpeg_segments(jpeg: &[u8], w: u32, h: u32) -> Vec<u8> {
     }
     out.extend_from_slice(&jpeg[rest..]);
     out
+}
+
+/// A JPEG written from its original's own segments (a lossless turn, an Ultra HDR photo's picture)
+/// with the XMP of the photo's `sidecar` (#24) joined to its own, extended part included
+/// (`xmp::joined`), in place of its XMP segments or after the other APP segments; split again
+/// when too large for one (`jpeg_xmp_segments`).
+pub fn jpeg_with_sidecar(jpeg: Vec<u8>, sidecar: &[u8]) -> Vec<u8> {
+    let Ok((w, h)) = image::ImageReader::new(Cursor::new(&jpeg[..])).with_guessed_format().map_err(|_| ()).and_then(|r| r.into_dimensions().map_err(|_| ())) else { return jpeg };
+    let xmp = crate::xmp::joined(jpeg_xmp_whole(&jpeg).as_deref(), sidecar, w, h);
+    let new: Vec<u8> = jpeg_xmp_segments(&xmp).iter().flat_map(|b| app1(b)).collect();
+    if new.is_empty() {
+        return jpeg;
+    }
+    let segments = crate::ultrahdr::segments(&jpeg);
+    let is_xmp = |&(m, s, e): &(u8, usize, usize)| m == 0xE1 && (jpeg[s + 4..e].starts_with(JPEG_XMP) || jpeg[s + 4..e].starts_with(JPEG_XMP_EXT));
+    let after_app = segments.iter().take_while(|&&(m, ..)| (0xE0..=0xEF).contains(&m)).last().map_or(2, |&(_, _, e)| e);
+    let at = segments.iter().find(|x| is_xmp(x)).map_or(after_app, |&(_, s, _)| s);
+    let mut out = [&jpeg[..at], &new[..]].concat();
+    let mut rest = at;
+    for &(_, s, e) in segments.iter().filter(|x| x.1 >= at && is_xmp(x)) {
+        out.extend_from_slice(&jpeg[rest..s]);
+        rest = e;
+    }
+    out.extend_from_slice(&jpeg[rest..]);
+    match crate::exif_place::of_sidecar(sidecar) {
+        Some(place) => jpeg_exif_placed(out, place),
+        None => out,
+    }
+}
+
+/// `jpeg` with `place` in its EXIF segment (`exif_place::placed`), as in the copies encoded again;
+/// unchanged without one, or when it would not fit in a segment.
+fn jpeg_exif_placed(jpeg: Vec<u8>, place: crate::raw_meta::Place) -> Vec<u8> {
+    const EXIF: &[u8] = b"Exif\0\0";
+    let found = crate::ultrahdr::segments(&jpeg).into_iter().find(|&(m, s, e)| m == 0xE1 && jpeg[s + 4..e].starts_with(EXIF));
+    let Some((_, s, e)) = found else { return jpeg };
+    let Some(t) = crate::exif_place::placed(&jpeg[s + 4 + EXIF.len()..e], place).filter(|t| t.len() + EXIF.len() <= 65533) else { return jpeg };
+    [&jpeg[..s], &app1(&[EXIF, &t].concat()), &jpeg[e..]].concat()
+}
+
+fn app1(body: &[u8]) -> Vec<u8> {
+    [&[0xFF, 0xE1][..], &((body.len() + 2) as u16).to_be_bytes(), body].concat()
+}
+
+/// Each piece of an extended XMP, well under the 65458 bytes a segment leaves after its name,
+/// GUID, length and offset.
+const EXT_PIECE: usize = 65400;
+
+/// The bodies of the APP1 segments holding `xmp` in a JPEG: the packet, or when it is too large
+/// the main packet and the pieces of its extended part (`xmp_ext::split`); none when it cannot be
+/// split.
+pub fn jpeg_xmp_segments(xmp: &[u8]) -> Vec<Vec<u8>> {
+    if xmp.len() <= JPEG_XMP_MAX {
+        return vec![[JPEG_XMP, xmp].concat()];
+    }
+    let Some((main, ext)) = crate::xmp_ext::split(xmp, JPEG_XMP_MAX) else { return Vec::new() };
+    let Some(guid) = ext_guid(&main).map(<[u8]>::to_vec) else { return Vec::new() };
+    let full = (ext.len() as u32).to_be_bytes();
+    let pieces = ext.chunks(EXT_PIECE).enumerate().map(|(k, piece)| [JPEG_XMP_EXT, &guid, &full, &((k * EXT_PIECE) as u32).to_be_bytes(), piece].concat());
+    std::iter::once([JPEG_XMP, &main].concat()).chain(pieces).collect()
+}
+
+/// The XMP of a JPEG with its extended part put back into it (`xmp_ext::with_extended`); the main
+/// packet alone when there is none or it cannot be read.
+pub fn jpeg_xmp_whole(jpeg: &[u8]) -> Option<Vec<u8>> {
+    if !jpeg.starts_with(&[0xFF, 0xD8]) {
+        return None;
+    }
+    let main = crate::ultrahdr::segments(jpeg).into_iter().find_map(|(m, s, e)| if m == 0xE1 { jpeg[s + 4..e].strip_prefix(JPEG_XMP) } else { None })?;
+    let ext = xmp_ext_packet(&jpeg_xmp_ext(jpeg, main));
+    Some(ext.and_then(|e| crate::xmp_ext::with_extended(main, &e)).unwrap_or_else(|| main.to_vec()))
 }
 
 /// The extended XMP of a JPEG whose main packet is `xmp`: the segments after their name (GUID,
@@ -304,7 +403,7 @@ fn xcf_icc(bytes: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// Photoshop block of a TIFF (34377) with its IPTC (33723), which is often only in the tag.
-fn tiff_irb(bytes: &[u8]) -> Option<Vec<u8>> {
+pub(crate) fn tiff_irb(bytes: &[u8]) -> Option<Vec<u8>> {
     use tiff::tags::Tag;
     let mut d = tiff::decoder::Decoder::new(Cursor::new(bytes)).ok()?;
     let irb = d.get_tag_u8_vec(Tag::Unknown(34377)).ok();
@@ -354,8 +453,8 @@ pub enum Dir {
 
 /// The fields of an EXIF block (as `meta::exif_chunk` writes it) for a TIFF written by the `tiff`
 /// crate: directory, tag, type and value in this machine's byte order. Left out: the tags of the
-/// image data (the encoder writes its own), the directory links (written again) and the maker note,
-/// whose offsets point into the original file.
+/// image data (the encoder writes its own), the directory links (written again) and a maker note
+/// whose offsets point into the original file (`meta::movable_maker_note`).
 pub fn tiff_fields(exif: &[u8]) -> Vec<(Dir, u16, tiff::tags::Type, Vec<u8>)> {
     use exif::{Context, Tag, Value};
     use tiff::tags::Type;
@@ -370,7 +469,7 @@ pub fn tiff_fields(exif: &[u8]) -> Vec<(Dir, u16, tiff::tags::Type, Vec<u8>)> {
         .filter_map(|f| {
             let dir = match f.tag.context() {
                 Context::Tiff if MAIN.contains(&f.tag) => Dir::Main,
-                Context::Exif if ![Tag::MakerNote, Tag::InteropIFDPointer].contains(&f.tag) => Dir::Exif,
+                Context::Exif if f.tag != Tag::InteropIFDPointer && (f.tag != Tag::MakerNote || crate::meta::movable_maker_note(f)) => Dir::Exif,
                 Context::Gps => Dir::Gps,
                 _ => return None,
             };

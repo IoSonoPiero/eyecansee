@@ -34,6 +34,7 @@ fn angle_controls(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n) -> bool {
             .suffix("°")
             .custom_formatter(move |v, _| format!("{v:.1}").replace('.', &sep))
             .custom_parser(|s| s.trim().replace(',', ".").parse().ok()),
+        &crate::ticked::Marks::new(&(-180.0..=180.0), Some(0.1)).every(45.0),
     )
     .on_hover_text(i18n.t("rc-rotation-hint"));
     let reset = ui.add_enabled(w.doc.angle != 0.0, egui::Button::new(i18n.t("rc-reset"))).on_disabled_hover_text(i18n.t("rc-reset-off"));

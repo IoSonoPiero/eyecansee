@@ -29,6 +29,15 @@ pub(crate) fn focus_frame(ui: &Ui) {
 pub(crate) type MenuItem = Option<(String, String, Act)>;
 
 /// Right-click menu; returns the chosen item, which the caller runs at the end of the frame (`App::act`).
+/// Save as… and Convert… look alike: each says, on hover, what it works on (`Act::about`; the
+/// texts are put in the context's memory each frame, translated, by `App::ui`).
+pub(crate) fn with_about(ui: &Ui, r: egui::Response, act: &Act) -> egui::Response {
+    match act.about().and_then(|id| ui.ctx().data(|d| d.get_temp::<String>(egui::Id::unique(id)))) {
+        Some(text) => r.on_hover_text(text),
+        None => r,
+    }
+}
+
 pub(crate) fn context_menu(ui: &mut Ui, items: Vec<MenuItem>) -> Option<Act> {
     let mut chosen = None;
     for item in items {
@@ -44,7 +53,8 @@ pub(crate) fn context_menu(ui: &mut Ui, items: Vec<MenuItem>) -> Option<Act> {
                 ui.add_enabled(false, crate::icons::menu_item(ui, None, label, keys)).on_disabled_hover_text(why);
             }
             Some((label, keys, act)) => {
-                if ui.add(crate::icons::menu_item(ui, act.icon(), label, keys)).clicked() {
+                let r = ui.add(crate::icons::menu_item(ui, act.icon(), label, keys));
+                if with_about(ui, r, &act).clicked() {
                     chosen = Some(act);
                 }
             }
@@ -213,11 +223,20 @@ impl App {
         // One of them: with more the entry is off (with none, `kind_entry` says why).
         let saved = files.iter().filter(|p| save_as.contains(&crate::selection::kind(p))).count();
         let convert = if saved > 1 { Act::Off(t("tb-off-one-picture")) } else { Act::Convert(path.clone()) };
-        items.push(entry(save_as, "menu-save-copy", if in_viewer { t("key-save-copy") } else { String::new() }, convert));
+        if in_viewer && self.viewing_video() {
+            // The frame shown (#16), on its own: a video is not among `SAVED_AS` in the grid.
+            items.push(Some((t("menu-save-frame"), t("key-save-copy"), self.save_as_off().map_or(convert, Act::Off))));
+        } else {
+            items.push(entry(save_as, "menu-save-copy", if in_viewer { t("key-save-copy") } else { String::new() }, convert));
+        }
         // The two exports, each with its window, in the grid and in the viewer (issue #128).
         items.push(entry(&[Kind::Model], "menu-export-3d", String::new(), Act::ExportModel(path.clone())));
         let drawings = self.drawings_off(Some(true)).map_or(Act::ExportDrawings(path.clone()), Act::Off);
         items.push(entry(&[Kind::Drawing], "menu-export-drawings", String::new(), drawings));
+        // Two drawings chosen: one over the other (#143).
+        if !in_viewer && files.iter().any(|p| crate::cad::is_cad(p)) {
+            items.push(Some((t("menu-compare"), String::new(), self.compare_off(&files).map_or(Act::Compare, Act::Off))));
+        }
         if !in_viewer {
             items.extend(self.tool_items(path.clone(), self.tools_off(), &partial));
         }

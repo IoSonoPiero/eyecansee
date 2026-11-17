@@ -6,9 +6,10 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
-use eframe::egui::{self, ColorImage, TextureHandle};
+use eframe::egui::{self, ColorImage};
 
 use crate::i18n::I18n;
+use crate::mipmap::Picture;
 use crate::batch::with_ext;
 use crate::encode::{Format, Options, Original};
 
@@ -16,14 +17,14 @@ mod folder;
 mod format_ui;
 mod panes;
 
-pub(crate) use format_ui::format_options;
+pub(crate) use format_ui::{format_options, meta_choice};
 use format_ui::{format_choice, meta_options};
 use panes::convert_images;
 
 /// The original decoded, its texture and file size.
-type Loaded = Result<(Arc<Original>, TextureHandle, u64), String>;
+type Loaded = Result<(Arc<Original>, Picture, u64), String>;
 /// The encoded file and, decoded back, its texture.
-type Encoded = Result<(Arc<Vec<u8>>, Option<TextureHandle>), String>;
+type Encoded = Result<(Arc<Vec<u8>>, Option<Picture>), String>;
 
 /// The open Save as… page.
 pub struct Window {
@@ -58,6 +59,9 @@ pub struct Window {
     /// Opened from the viewer, or from the editor opened from it: once saved, the viewer shows
     /// the new file, or stays and says where it is (`viewer_after`).
     pub(crate) from_viewer: bool,
+    /// The frame of a video (#16): its time in seconds. Like a new image, no file of its own to
+    /// compare sizes with; the viewer stays on the video once it is saved.
+    frame: Option<f64>,
 }
 
 impl Window {
@@ -93,6 +97,7 @@ impl Window {
             browse: false,
             picker: None,
             from_viewer: false,
+            frame: None,
         }
     }
 }
@@ -100,14 +105,24 @@ impl Window {
 impl crate::App {
     pub(crate) fn open_convert(&mut self, path: Option<String>) {
         let Some(path) = path.or_else(|| self.target()).filter(|p| !p.ends_with('/')) else { return };
+        // A video in the viewer: its frame, paused (already turned as shown).
+        let frame = if crate::decode::is_played(&path) {
+            let Some(at) = self.convert_frame(&path) else { return };
+            Some(at)
+        } else {
+            None
+        };
         // A 3D model in the viewer: its picture as shown.
-        if !self.convert_model(&path) && !self.convert_sheet(&path) {
+        if frame.is_none() && !self.convert_model(&path) && !self.convert_sheet(&path) {
             let Some(loader) = &self.loader else { return };
             loader.load_original(path.clone(), false);
         }
         let mut w = Window::new(path);
-        // From the viewer: saved as it is shown there.
-        if self.viewing.is_some() {
+        if let Some(at) = frame {
+            w.frame = Some(at);
+            w.name = crate::video_frame::frame_name(crate::source::name(&w.path), at, w.options.format);
+        } else if self.viewing.is_some() {
+            // From the viewer: saved as it is shown there.
             w.options.turn = self.turn;
             w.from_viewer = true;
         }
@@ -116,6 +131,9 @@ impl crate::App {
 
     pub(crate) fn convert_original(&mut self, ctx: &egui::Context, r: Result<(Arc<Original>, ColorImage, u64), String>) {
         let Some(w) = &mut self.convert else { return };
+        if let Err(e) = &r {
+            log!("{}", failed_line("save as: read", &w.path, "", e));
+        }
         // A JPEG: its own quality and subsampling proposed, 90 and 4:2:0 when they cannot be read.
         if let Some((q, chroma)) = r.as_ref().ok().and_then(|(o, ..)| o.jpeg) {
             (w.options.jpeg_quality, w.options.chroma) = (q, chroma);
@@ -129,7 +147,9 @@ impl crate::App {
         }
         w.original = Some(r.map(|(original, preview, size)| {
             w.pan = egui::vec2(preview.size[0] as f32, preview.size[1] as f32) / 2.0;
-            (original, ctx.load_texture("convert-original", preview, egui::TextureOptions::LINEAR), size)
+            // Its halves here, once: shown fitted, smaller than its pixels (`mipmap`).
+            let halves = crate::mipmap::picture_halves(&preview);
+            (original, Picture::new(ctx, "convert-original", preview, halves), size)
         }));
     }
 
@@ -139,10 +159,16 @@ impl crate::App {
             return;
         }
         w.busy = false;
-        w.result = Some(r.map(|(bytes, preview)| (bytes, preview.map(|p| ctx.load_texture("convert-result", p, egui::TextureOptions::LINEAR)))));
+        if let Err(e) = &r {
+            log!("{}", failed_line(&format!("save as: {} encoding", w.options.format.ext()), &w.path, "", e));
+        }
+        w.result = Some(r.map(|(bytes, preview)| (bytes, preview.map(|p| {
+            let halves = crate::mipmap::picture_halves(&p);
+            Picture::new(ctx, "convert-result", p, halves)
+        }))));
     }
 
-    pub(crate) fn convert_saved(&mut self, r: Result<String, crate::source::Error>) {
+    pub(crate) fn convert_saved(&mut self, asked: &str, r: Result<String, crate::source::Error>) {
         match r {
             Ok(path) => {
                 log!("saved as {path:?}");
@@ -172,6 +198,7 @@ impl crate::App {
                 }
             }
             Err((id, detail)) => {
+                log!("{}", failed_line("save as: write", asked, id, &detail));
                 if let Some(w) = &mut self.convert {
                     w.saving = false;
                     w.error = Some(self.i18n.error(id, &detail));
@@ -211,10 +238,14 @@ impl crate::App {
         self.start_encoding(&mut w, ctx);
         let dir = w.dest_dir();
         let final_name = crate::source::free_name(&self.convert_taken(&w, &dir), w.name.trim());
-        let open = page_header(ui, &self.i18n.t("convert-title"));
+        let mut open = page_header(ui, &self.i18n.t("convert-title"));
         let shown = crate::navigation::shown(w.dest_base(&self.base), &dir);
-        let save = self.convert_body(ui, &mut w, &final_name, &shown);
-        if save && let Some(Ok((bytes, _))) = &w.result {
+        let press = self.convert_body(ui, &mut w, &final_name, &shown);
+        // Cancel does what Esc does: from the editor, back to the drawing (issue #106).
+        if press == Some(Press::Cancel) {
+            open = false;
+        }
+        if press == Some(Press::Save) && let Some(Ok((bytes, _))) = &w.result {
             let (path, bytes) = (format!("{dir}{final_name}"), bytes.clone());
             let sent = match (w.dest_store(), &self.loader) {
                 (Some(store), _) => self.save_in_place(ctx, store.clone(), path, bytes),
@@ -257,7 +288,7 @@ impl crate::App {
         let (tx, ctx) = (self.tx.clone(), ctx.clone());
         self.rt.spawn(async move {
             let r = write_free(&store, &path, data.to_vec()).await;
-            let _ = tx.send(crate::loader::Msg::Saved(r));
+            let _ = tx.send(crate::loader::Msg::Saved(path, r));
             ctx.request_repaint();
         });
         true
@@ -290,11 +321,11 @@ impl crate::App {
     }
 
     /// Everything under the title: the two images, then what each one is, with the options and
-    /// the name on the side of the new one. `true`: Save clicked.
-    fn convert_body(&self, ui: &mut egui::Ui, w: &mut Window, final_name: &str, folder: &str) -> bool {
+    /// the name on the side of the new one, and the button pressed.
+    fn convert_body(&self, ui: &mut egui::Ui, w: &mut Window, final_name: &str, folder: &str) -> Option<Press> {
         let i18n = &self.i18n;
         let t = |id| i18n.t(id);
-        let mut save = false;
+        let mut save = None;
         let original = match &w.original {
             None => {
                 ui.centered_and_justified(|ui| ui.spinner());
@@ -307,7 +338,7 @@ impl crate::App {
             Some(Ok(o)) => o.clone(),
         };
         // A new image has no file: no size on disk, no percentage of it (issue #99).
-        let (image, tex, size) = (&original.0.image, &original.1, (!w.unsaved).then_some(original.2));
+        let (image, tex, size) = (&original.0.image, &original.1, (!w.unsaved && w.frame.is_none()).then_some(original.2));
         let half = (ui.available_width() - GAP) / 2.0;
         // The images get what the options below leave (their height measured at the last frame).
         let pane = egui::vec2(half, (ui.available_height() - 22.0 - 16.0 - w.bottom_h).max(120.0));
@@ -323,9 +354,10 @@ impl crate::App {
                 ui.set_width(half);
                 let ext = crate::source::name(&w.path).rsplit_once('.').map_or(String::new(), |(_, e)| e.to_uppercase());
                 // The file as it is on disk, and what the viewer did to it (the image above is shown so).
-                match panes::turn_note(w.options.turn) {
-                    Some(turn) => ui.label(format!("{ext} · {pixels} · {}", i18n.t_args("convert-turned", &[("turn", turn)]))),
-                    None => ui.label(format!("{ext} · {pixels}")),
+                match (panes::turn_note(w.options.turn), w.frame) {
+                    (Some(turn), _) => ui.label(format!("{ext} · {pixels} · {}", i18n.t_args("convert-turned", &[("turn", turn)]))),
+                    (None, Some(at)) => ui.label(format!("{ext} · {pixels} · {}", i18n.t_args("convert-frame-at", &[("time", &frame_clock(at))]))),
+                    (None, None) => ui.label(format!("{ext} · {pixels}")),
                 };
                 if let Some(size) = size {
                     ui.label(i18n.t_args("convert-file-size", &[("size", &self.human_size(size))]));
@@ -411,6 +443,12 @@ fn viewer_after(from_viewer: bool, saved: Option<&str>, here: bool, open_dir: &s
     Some(if here && crate::source::parent(path) == open_dir { ViewerAfter::Show } else { ViewerAfter::Stay })
 }
 
+/// The time of a frame with its thousandths: "1:02.345".
+fn frame_clock(at: f64) -> String {
+    let ms = (at.max(0.0) * 1000.0).round() as u64;
+    format!("{}.{:03}", crate::mpv::clock((ms / 1000) as f64), ms % 1000)
+}
+
 /// The new file's size in percent of the original's; none without an original file (a new image,
 /// issue #99).
 fn ratio(new: u64, original: Option<u64>) -> Option<u64> {
@@ -473,19 +511,31 @@ fn saved_size((w, h): (u32, u32), o: &Options) -> (u32, u32) {
 
 /// Only a JPEG with its metadata holds the gain map and the XMP that describes it.
 fn keeps_hdr(o: &Options) -> bool {
-    o.format == Format::Jpeg && o.keep_meta
+    o.format == Format::Jpeg && o.meta != crate::meta_strip::Keep::Nothing
 }
 
-/// Name of the new file and Save (`true` when clicked); the name it will really get if taken.
-fn name_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, half: f32, final_name: &str) -> bool {
+/// A button of the page clicked.
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Press {
+    Save,
+    /// Closes the page without saving, as Esc and the window's ✕ (issue #106).
+    Cancel,
+}
+
+/// Name of the new file, Save and Cancel (the one clicked); the name it will really get if taken.
+fn name_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, half: f32, final_name: &str) -> Option<Press> {
     let t = |id| i18n.t(id);
-    let mut save = false;
+    let mut press = None;
     ui.horizontal(|ui| {
         ui.label(t("convert-name"));
         ui.add(egui::TextEdit::singleline(&mut w.name).desired_width((half - 200.0).clamp(160.0, 420.0)));
         let ready = matches!(w.result, Some(Ok(_))) && !w.busy && !w.saving && !w.name.trim().is_empty() && !w.name.contains(['/', '\\']);
         if ui.add_enabled(ready, egui::Button::new(t("convert-save"))).clicked() {
-            save = true;
+            press = Some(Press::Save);
+        }
+        // Not while the file is being written: it would be written all the same.
+        if ui.add_enabled(!w.saving, egui::Button::new(t("convert-cancel"))).clicked() {
+            press = Some(Press::Cancel);
         }
         if w.saving {
             ui.spinner();
@@ -497,9 +547,18 @@ fn name_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, half: f32, final_nam
     if let Some(e) = &w.error {
         ui.label(crate::browser::error_text(ui, e.as_str()));
     }
-    save
+    press
 }
 
+
+/// The log line of a step of Save as… that failed: what, on which file, and why (the text id,
+/// when there is one, and the detail).
+fn failed_line(what: &str, path: &str, id: &str, detail: &str) -> String {
+    match id {
+        "" => format!("{what} {path:?} failed: {detail}"),
+        _ => format!("{what} {path:?} failed: {id} {detail}"),
+    }
+}
 
 /// Writes `data` as `path` in `store`, or under the first free name beside it; the path written.
 async fn write_free(store: &crate::source::Store, path: &str, data: Vec<u8>) -> Result<String, crate::source::Error> {
@@ -531,6 +590,24 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    /// A Save as… that cannot write leaves a line in the log naming the file and the reason.
+    #[test]
+    fn failed_save_said_in_the_log() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-convert-failed-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        // A file where the folder should be: nothing can be written under it.
+        std::fs::write(dir.join("p"), b"a file").unwrap();
+        let store = crate::source::Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (id, detail) = rt.block_on(write_free(&store, "p/b.png", b"b".to_vec())).unwrap_err();
+        let line = failed_line("save as: write", "p/b.png", id, &detail);
+        assert!(line.starts_with("save as: write \"p/b.png\" failed: "), "{line}");
+        assert!(line.contains(id) && line.ends_with(&detail) && !detail.is_empty(), "{line}");
+        assert_eq!(failed_line("save as: avif encoding", "a.jpg", "", "too big"), "save as: avif encoding \"a.jpg\" failed: too big");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
     /// Save in another format keeps an Ultra HDR photo Ultra HDR in JPEG with its metadata (#66);
     /// in another format, or without the metadata, the picture alone.
     #[test]
@@ -540,7 +617,7 @@ mod tests {
         original.hdr = crate::ultrahdr::Source::of(Arc::new(file), Vec::new(), Vec::new()).map(Arc::new);
         let jpeg = Options { format: Format::Jpeg, ..Options::default() };
         assert!(crate::ultrahdr::is(&encoded(&original, &jpeg).unwrap()));
-        let bare = encoded(&original, &Options { keep_meta: false, ..jpeg }).unwrap();
+        let bare = encoded(&original, &Options { meta: crate::meta_strip::Keep::Nothing, ..jpeg }).unwrap();
         assert!(!crate::ultrahdr::is(&bare) && bare.starts_with(&[0xFF, 0xD8]));
         let png = encoded(&original, &Options { format: Format::Png, ..Options::default() }).unwrap();
         assert!(png.starts_with(b"\x89PNG"));

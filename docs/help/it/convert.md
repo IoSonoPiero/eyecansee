@@ -2,6 +2,8 @@
 
 Converte tante immagini insieme: in un altro formato, più piccole o più grandi, ruotate o riflesse, nella stessa cartella, in una sottocartella o in un'altra cartella, anche su un altro dispositivo. Gli originali non vengono mai toccati: i file nuovi vanno accanto a loro o dove scegli tu.
 
+Converti lavora sui file selezionati nella griglia, così come sono sul disco, tutti con le stesse regolazioni. Per una sola immagine, così come la vedi nel visore o nell'editor, col nome che scegli, c'è [Salva come](save-as.md).
+
 Per una sola immagine con l'anteprima dal vivo usa [Salva come](save-as.md). I video passano dalla stessa finestra: vedi [Convertire i video](convert-video.md).
 
 ## Avviare la conversione
@@ -10,7 +12,7 @@ Per una sola immagine con l'anteprima dal vivo usa [Salva come](save-as.md). I v
 2. Fai clic su ![Converti…](icon://scaling) nella barra strumenti, oppure scegli **Strumenti > Converti…** (**Ctrl+B**), oppure fai clic destro su uno dei file selezionati e scegli **Converti…**. La finestra si apre sul formato, con le dimensioni **Invariate** e senza rotazione né riflessione; **Ridimensiona > Personalizzata…** la apre sulle dimensioni (vedi più sotto).
 3. Fai le tue scelte nella finestra e premi **Converti**.
 
-La finestra lavora su foto, video e file audio (vedi [Convertire i video](convert-video.md)). Gli altri file selezionati (modelli 3D, disegni CAD) restano fuori: la finestra dice quanti sono, il messaggio finale quali. Non funziona dal visore, e si fa una conversione alla volta.
+La finestra lavora su foto, video e file audio (vedi [Convertire i video](convert-video.md)). Gli altri file selezionati (modelli 3D, disegni CAD) restano fuori: la finestra dice quanti sono, il riepilogo finale quali. Non funziona dal visore, e si fa una conversione alla volta.
 
 ![Convertire e ridimensionare le immagini](../img/convert.webp)
 
@@ -18,7 +20,7 @@ La finestra lavora su foto, video e file audio (vedi [Convertire i video](conver
 
 Per fare solo delle copie più piccole delle foto, senza la finestra: fai clic destro sui file selezionati, oppure apri **Strumenti**, e scegli **Ridimensiona** e una delle sue misure: **Piccola (lato lungo 1280 px)**, **Media (lato lungo 1920 px)**, **Grande (lato lungo 2560 px)** o **Metà (50 %)**. Le misure le puoi cambiare nelle [Opzioni](options.md), nella scheda **Ridimensiona**.
 
-Il lavoro parte subito su tutte le immagini scelte, con lo stesso riquadro e **Annulla** descritti più sotto e il messaggio finale. Le copie vanno accanto agli originali, nel loro formato e con i loro metadati (una foto **Ultra HDR** resta Ultra HDR), con la misura nel nome: `foto (1920 px).jpg`, `foto (50%).jpg`. Un nome già preso riceve " (2)". Per le immagini che hanno già quella misura, o sono più piccole (non vengono mai ingrandite), non si fa nessuna copia, e il messaggio le elenca: così ridimensionare di nuovo una copia non crea `foto (1920 px) (1920 px).jpg`. Quelle in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) restano fuori, e il messaggio dice perché. Restano fuori anche video, modelli 3D, disegni CAD e file audio, e il messaggio li elenca: se tra i file scelti ce ne sono, **Ridimensiona** è segnata con **\***; se non c'è nessuna immagine, è grigia.
+Il lavoro parte subito su tutte le immagini scelte, con lo stesso riquadro e **Annulla** descritti più sotto e il riepilogo finale. Le copie vanno accanto agli originali, nel loro formato e con i loro metadati (una foto **Ultra HDR** resta Ultra HDR), con la misura nel nome: `foto (1920 px).jpg`, `foto (50%).jpg`. Un nome già preso riceve " (2)". Per le immagini che hanno già quella misura, o sono più piccole (non vengono mai ingrandite), non si fa nessuna copia, e il messaggio le elenca: così ridimensionare di nuovo una copia non crea `foto (1920 px) (1920 px).jpg`. Quelle in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) restano fuori, e il messaggio dice perché. Restano fuori anche video, modelli 3D, disegni CAD e file audio, e il messaggio li elenca: se tra i file scelti ce ne sono, **Ridimensiona** è segnata con **\***; se non c'è nessuna immagine, è grigia.
 
 **Ridimensiona > Personalizzata…** apre questa finestra, che si chiama **Ridimensiona** e ha il pulsante **Ridimensiona**, sulle immagini, sulla rotazione e sulle dimensioni, con il formato **Uguale all'originale** e le copie accanto agli originali. Riparte dalla misura e dalla rotazione dell'ultima Personalizzata… (all'inizio **Lato lungo** 1920 px, non ruotata); **Converti…** invece riparte sempre da **Invariate**, senza rotazione né riflessione. Come con le misure qui sopra, le copie delle immagini davvero ridimensionate hanno la misura nel nome (quelle solo ruotate, ciò che è cambiato), in qualunque formato e dovunque vadano:
 
@@ -36,7 +38,7 @@ Con una misura e una rotazione, il nome dice solo la misura. Un'immagine lasciat
 ## Formato
 
 - **Uguale all'originale**: ogni immagine resta nel suo formato e viene scritta come la scrive Salva (un JPEG tiene la sua qualità). Le immagini in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) restano fuori.
-- Uno dei formati di [Salva come](save-as.md). Le sue opzioni sono sotto **Opzioni JPEG** (o il nome del formato scelto): fai clic sul titolo per aprirle. Lì c'è anche **Mantieni i metadati**.
+- Uno dei formati di [Salva come](save-as.md). Le sue opzioni sono sotto **Opzioni JPEG** (o il nome del formato scelto): fai clic sul titolo per aprirle. Lì c'è anche **Metadati**: tutti, tutti tranne il luogo, o nessuno tranne il profilo colore, come in [Salva come](save-as.md).
 - Le foto **Ultra HDR** dei telefoni restano HDR solo in JPEG. Se tra i file ci sono dei JPEG e scegli un altro formato, la finestra te lo ricorda.
 
 ## Rotazione e ribaltamenti
@@ -63,7 +65,7 @@ Se non cambierebbe niente (stesso formato, stesse dimensioni, nessuna rotazione)
 
 - **Accanto agli originali**.
 - **Nella sottocartella**, col nome che scrivi ("convertite" all'inizio). Se non c'è, viene creata.
-- **In un'altra cartella, anche su un altro dispositivo**: scrivi una cartella o un indirizzo come nella barra degli indirizzi (`mtp://…` per un telefono, `sftp://…` per un server), oppure premi **Sfoglia…**. La finestra di scelta mostra a sinistra la cartella home, i dischi, i telefoni collegati e i server salvati: fai clic su una cartella per entrarci, poi **Usa questa cartella**. La cartella deve già esistere.
+- **In un'altra cartella, anche su un altro dispositivo**: scrivi una cartella o un indirizzo come nella barra degli indirizzi (`mtp://…` per un telefono, `sftp://…` per un server), oppure premi **Sfoglia…**. La finestra di scelta mostra a sinistra la cartella home, i dischi, i telefoni collegati e i server salvati: fai clic su una cartella per entrarci, poi **Usa questa cartella**. Un server salvato si apre nella cartella da cui parte, come nella griglia. ![Nuova cartella](icon://folder-plus) accanto all'indirizzo crea lì una cartella nuova: scrivi il nome, poi **Invio** o **Crea**.
 
 Un nome già preso riceve " (2)": nessun file viene mai sovrascritto. Così puoi, per esempio, convertire le foto del telefono direttamente in una cartella del computer.
 
@@ -73,7 +75,13 @@ La finestra ricorda le scelte che confermi finché EyeCanSee resta aperto. **Ann
 
 Un riquadro in basso a destra mostra quanti file sono pronti, una barra e il file in lavorazione, con **Annulla**. Intanto puoi continuare a usare EyeCanSee. Annulla si ferma dopo l'immagine in corso.
 
-Alla fine un messaggio dice quanti file sono stati salvati e dove, e quali sono rimasti fuori e perché.
+Alla fine un riepilogo, con il nome del comando come titolo, dice:
+
+- quanti file sono stati salvati e dove; quanti sono rimasti fuori; quanti non sono stati fatti, se hai fermato il lavoro (un numero zero non compare);
+- quanto tempo ci è voluto e, se sono stati salvati dei file, il loro peso su disco prima e dopo, con la percentuale;
+- i file rimasti fuori, divisi per motivo (un altro tipo di file, un formato che EyeCanSee non sa scrivere, già di quella misura, animati o con più pagine, FFmpeg mancante, un errore), ogni gruppo con i nomi dei suoi file. Un gruppo di più di cinque file è chiuso: fai clic sulla sua riga per aprirlo. Se l'elenco è lungo, scorre.
+
+**Apri la cartella** mostra le miniature della cartella in cui sono andati i file, su questo computer, su un telefono o su un server; c'è solo se qualcosa è stato salvato in un'altra cartella, non in quella che stai guardando, ed è grigio mentre una pagina (l'editor, Salva come, la presentazione o i duplicati) copre le miniature. **Chiudi**, **Invio** o **Esc** chiudono il riepilogo.
 
 ## Da sapere
 

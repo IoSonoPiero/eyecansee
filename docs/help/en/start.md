@@ -31,7 +31,8 @@ Double-click a thumbnail, or select it and press **Enter**: the picture fills th
 
 - A **right click** on anything (a thumbnail, a folder, an empty space of the grid, the picture in the viewer) opens a menu with what you can do with it.
 - Every action has a menu item, with its key written next to it. The list of all the keys is in [Keyboard shortcuts](keyboard.md).
-- When the window is narrow, some toolbar buttons move into the ![More operations](icon://ellipsis) **More operations** menu.
+- When the window is narrow, the toolbar buttons that do not fit move into the ![More operations](icon://ellipsis) **More operations** menu: first those of the image and the tools, then the file operations, the metadata button, the star of the bookmarks and Refresh. The address bar always stays in sight, and the menus and the status bar go on more rows rather than being cut.
+- Every slider has marks under it, one for each step it stops on, or on round values, and its measure is written next to it or before it.
 - **F11** shows the window at full screen, and back.
 
 ## Help

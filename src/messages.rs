@@ -5,11 +5,12 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
-use eframe::egui::{self, ColorImage, TextureOptions};
+use eframe::egui::{self, ColorImage};
 
 use crate::address::{AddressForm, without_password};
 use crate::save_dialogs::{Notice, md};
 use crate::actions::Act;
+use crate::mipmap::{self, Picture};
 use crate::{App, RETRY_SECS, devices, encode, loader, meta, source, transform, update, version};
 use crate::loader::Msg;
 use crate::source::Listing;
@@ -19,7 +20,7 @@ impl App {
         while let Ok(msg) = self.rx.try_recv() {
             match msg {
                 Msg::Listed(dir, r) => self.on_listed(ctx, dir, r),
-                Msg::Loaded { generation, index, thumb, image } if generation == self.generation => self.on_loaded(ctx, index, thumb, image),
+                Msg::Loaded { generation, index, thumb, image, halves } if generation == self.generation => self.on_loaded(ctx, index, thumb, image, halves),
                 Msg::Meta { generation, index, meta } if generation == self.generation => self.on_meta(index, meta),
                 Msg::Info { generation, path, info } if generation == self.generation => {
                     if let Some(info) = info {
@@ -32,7 +33,8 @@ impl App {
                     }
                 }
                 Msg::Drawing { generation, index, drawing } if generation == self.generation => {
-                    if let Some(f) = self.files().get(index) {
+                    // The first of two drawings compared shows the comparison (`cad_compare_view`).
+                    if let Some(f) = self.files().get(index).filter(|f| !self.comparing(&f.path)) {
                         self.model.cad.drawings.insert(f.path.clone(), drawing);
                     }
                 }
@@ -58,6 +60,7 @@ impl App {
                 Msg::Original(r) if self.editor.is_some() && self.convert.is_none() => self.editor_original(ctx, r),
                 Msg::EditCopy(img) => self.on_edit_copy(ctx, img),
                 Msg::EditPicked(r) => self.on_edit_picked(ctx, r),
+                Msg::ClipImage(r) => self.on_clip_image(ctx, r),
                 Msg::Animated(path) => {
                     self.animated.insert(path);
                 }
@@ -71,8 +74,9 @@ impl App {
                 Msg::EditPrepared(path, r) => self.on_edit_prepared(path, r),
                 Msg::EditWritten(path, mark, over) => self.on_edit_written(path, mark, over),
                 Msg::Encoded(generation, r) => self.convert_encoded(ctx, generation, r),
-                Msg::Saved(r) => self.convert_saved(r),
+                Msg::Saved(asked, r) => self.convert_saved(&asked, r),
                 Msg::Exported(r) => self.on_exported(ctx, r),
+                Msg::Compared(r) => self.on_compared(ctx, r),
                 Msg::Prepared(path, turn, r) => self.on_prepared(path, turn, r),
                 Msg::Replaced(path, r) => self.on_replaced(ctx, path, r),
                 Msg::NotReplaced(kept) => self.on_not_replaced(ctx, kept),
@@ -202,7 +206,7 @@ impl App {
         }
     }
 
-    fn on_loaded(&mut self, ctx: &egui::Context, index: usize, thumb: bool, image: Result<ColorImage, String>) {
+    fn on_loaded(&mut self, ctx: &egui::Context, index: usize, thumb: bool, image: Result<ColorImage, String>, halves: Vec<ColorImage>) {
         // `loader::with_id`: translated here, where the language is.
         let image = image.map_err(|e| match e.split_once('\u{1}') {
             Some((id, detail)) => self.i18n.error(id, detail),
@@ -222,7 +226,8 @@ impl App {
             }
             // Generated in the background far from the screen: it stays on disk only.
             if self.thumb_keep.contains(&index) {
-                let tex = image.map(|img| ctx.load_texture(name, img, TextureOptions::LINEAR));
+                // Its halves here: small, and drawn down to 64 points (`mipmap`).
+                let tex = image.map(|img| Picture::now(ctx, &name, img, mipmap::SMALLEST_THUMB));
                 self.thumbs.insert(index, tex);
             }
         } else {
@@ -231,7 +236,7 @@ impl App {
                 Some(size) => self.own_sizes.insert(name.clone(), size),
                 None => self.own_sizes.remove(&name),
             };
-            let tex = image.map(|img| ctx.load_texture(name, img, TextureOptions::LINEAR));
+            let tex = image.map(|img| Picture::new(ctx, &name, img, halves));
             self.full.insert(index, tex);
         }
     }
@@ -273,6 +278,8 @@ impl App {
     }
 
     fn on_trash_items(&mut self, paths: Vec<String>) {
+        // A RAW photo's sidecars go back with it (`sidecar_follow::restore`).
+        let paths = crate::sidecar_follow::without_sidecars(paths);
         log!("restore all: {} items", paths.len());
         self.restore_queue.extend(paths);
     }

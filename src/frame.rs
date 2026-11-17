@@ -6,7 +6,7 @@ use std::sync::atomic::Ordering;
 use eframe::egui::{self, Color32};
 
 use crate::window_close::Step;
-use crate::{App, meta, save_dialogs, theme};
+use crate::{App, save_dialogs, theme};
 
 impl App {
     /// Every frame, before drawing: messages, retries, keys, title and window size.
@@ -102,7 +102,7 @@ impl App {
         } else {
             // Full screen in the viewer: the picture (or video, model, drawing) alone, no bars
             // (issue #43 asked it for videos).
-            let bare = self.viewing.is_some() && ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+            let bare = self.viewing.is_some() && crate::viewer::full_screen(ctx);
             if !bare {
                 egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
                 egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui, ctx));
@@ -119,13 +119,27 @@ impl App {
                     let status = egui::Panel::bottom("viewer-status").frame(bar).show(ui, |ui| self.viewer_status(ui, current));
                     // The keys of the viewer: listed while the button is pointed at, or until it is
                     // clicked again.
-                    if let (Some(button), Some(id)) = (status.inner, self.keys_hint(current)) {
+                    let ([keys, layers, copy], zoom_asked) = status.inner;
+                    if zoom_asked.is_some() {
+                        self.zoom_bar.ask = zoom_asked;
+                    }
+                    self.section_slider(ctx);
+                    if copy.is_some_and(|b| b.clicked()) {
+                        self.copy_measure(ctx);
+                    }
+                    if layers.is_some_and(|b| b.clicked()) {
+                        self.model.cad.panel = !self.model.cad.panel;
+                    }
+                    if let (Some(button), Some(id)) = (keys, self.keys_hint(current)) {
                         if button.clicked() {
                             self.keys_open = !self.keys_open;
                         }
                         if self.keys_open || button.hovered() {
                             self.keys_window(ctx, id, status.response.rect.height());
                         }
+                    }
+                    if self.cad_layers_shown() {
+                        self.cad_layers_panel(ui);
                     }
                     egui::CentralPanel::default()
                         .frame(egui::Frame::central_panel(ui.style()).fill(Color32::from_gray(18)))
@@ -134,10 +148,23 @@ impl App {
                 None => {
                     self.video = None;
                     let bar = egui::Frame::side_top_panel(ui.style()).fill(theme::solid(ui.visuals()));
-                    egui::Panel::bottom("status").frame(bar).show(ui, |ui| self.status_bar(ui));
-                    if meta::Group::ALL.into_iter().any(|g| self.meta_shown(g)) {
-                        egui::Panel::bottom("meta").show(ui, |ui| self.meta_panel(ui));
+                    // The grid's keys too (issue #150): the button on the right, the rest of the bar
+                    // on its left.
+                    let status = egui::Panel::bottom("status").frame(bar).show(ui, |ui| {
+                        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                            let button = self.keys_button(ui);
+                            ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| self.status_bar(ui));
+                            button
+                        })
+                        .inner
+                    });
+                    if status.inner.clicked() {
+                        self.keys_open = !self.keys_open;
                     }
+                    if self.keys_open || status.inner.hovered() {
+                        self.keys_window(ctx, "hint-grid", status.response.rect.height());
+                    }
+                    self.meta_bottom(ui, ctx);
                     egui::Panel::left("tree").resizable(true).default_size(240.0).show(ui, |ui| self.tree(ui));
                     let canvas = theme::canvas(ui.visuals());
                     egui::CentralPanel::default()
@@ -234,6 +261,7 @@ impl App {
         self.save_window(ctx);
         self.batch_turn_window(ctx);
         self.notice_window(ctx);
+        self.batch_summary_window(ctx);
         self.kept_window(ctx);
         self.kiod_window(ctx);
         self.host_window(ctx);

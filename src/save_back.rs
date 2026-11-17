@@ -14,9 +14,15 @@ use crate::transform::Turn;
 /// otherwise at quality 95; the others encoded again, a lossless WebP still lossless. Also says
 /// whether it was encoded again with loss (the confirmation warns about it).
 pub fn turned_file(bytes: &[u8], name: &str, turn: Turn) -> Result<(Vec<u8>, bool), String> {
+    turned_file_beside(bytes, name, turn, None)
+}
+
+/// As `turned_file`, for a copy (Convert and resize, the editor's copy): with the XMP of the
+/// photo's `sidecar` (#24) joined to the file's own, as in the copies encoded again.
+pub fn turned_file_beside(bytes: &[u8], name: &str, turn: Turn, sidecar: Option<&[u8]>) -> Result<(Vec<u8>, bool), String> {
     // A phone photo with an HDR gain map, or a Motion Photo: all of it turned, HDR and video kept.
     if Format::of_file(name) == Some(Format::Jpeg)
-        && let Some(r) = crate::ultrahdr::turned(bytes, turn)
+        && let Some(r) = crate::ultrahdr::turned(bytes, turn, sidecar)
     {
         return r;
     }
@@ -24,13 +30,20 @@ pub fn turned_file(bytes: &[u8], name: &str, turn: Turn) -> Result<(Vec<u8>, boo
         && can_turn_in_place(bytes, name)
         && let Some(out) = crate::transform::jpeg_lossless(bytes, turn)
     {
+        let out = match sidecar {
+            Some(side) => crate::meta_write::jpeg_with_sidecar(out, side),
+            None => out,
+        };
         return Ok((out, false));
     }
-    edited_file(bytes, name, |img| turn.apply(img))
+    let mut img = crate::decode::decode_full(bytes, name)?;
+    turn.apply(&mut img);
+    encoded_beside(bytes, name, img, sidecar)
 }
 
 /// The file decoded, changed by `edit` and encoded again in its own format: a JPEG at its own
 /// quality and subsampling (`encode::jpeg_quality`), a lossless WebP still lossless. Also says whether it lost quality (the confirmation warns about it).
+#[cfg(test)]
 pub fn edited_file(bytes: &[u8], name: &str, edit: impl FnOnce(&mut DynamicImage)) -> Result<(Vec<u8>, bool), String> {
     let mut img = crate::decode::decode_full(bytes, name)?;
     edit(&mut img);
@@ -39,7 +52,14 @@ pub fn edited_file(bytes: &[u8], name: &str, edit: impl FnOnce(&mut DynamicImage
 
 /// `image` (the file `bytes`, already decoded and changed) encoded again in the file's format,
 /// with its metadata, as `edited_file`; the file itself is not decoded again.
+#[cfg(test)]
 pub fn encoded_back(bytes: &[u8], name: &str, image: DynamicImage) -> Result<(Vec<u8>, bool), String> {
+    encoded_beside(bytes, name, image, None)
+}
+
+/// As `encoded_back`, with the XMP of the photo's `sidecar` added (#24): for a copy in the same
+/// format (Convert and resize), not for the file itself, which keeps its sidecar beside it.
+pub fn encoded_beside(bytes: &[u8], name: &str, image: DynamicImage, sidecar: Option<&[u8]>) -> Result<(Vec<u8>, bool), String> {
     // A PSD comes back flattened: "lossy" when there was more than one plain layer.
     if crate::psd::is_psd(name) {
         return Ok((crate::psd::encode(&image, bytes)?, !crate::psd::simple(bytes)));
@@ -51,7 +71,7 @@ pub fn encoded_back(bytes: &[u8], name: &str, image: DynamicImage) -> Result<(Ve
     let o = if format == Format::Jpeg { crate::encode::jpeg_quality::like(bytes, o) } else { o };
     // GIF too: its colours are chosen again (at most 256).
     let lossy = matches!(format, Format::Jpeg | Format::Avif | Format::Gif) || (format == Format::Webp && !webp_lossless);
-    Ok((Original::with_meta(image, bytes).encode(&o)?, lossy))
+    Ok((Original::with_meta_beside(image, bytes, name, sidecar).encode(&o)?, lossy))
 }
 
 /// Can the file be turned and written back over itself, losing at most a little quality? Its

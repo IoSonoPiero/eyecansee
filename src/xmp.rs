@@ -1,26 +1,30 @@
 //! The XMP of an image being written again (Rotate and crop, Save, Convert and resize, Save in
 //! another format), with `quick-xml`: sizes and orientation made true for the pixels written, the
-//! XMP thumbnail, the Camera Raw / Lightroom settings (`crs:`, crop and adjustments already in
-//! the pixels) and the description of a Motion Photo's video (never written again) taken out, everything else (author, copyright, licence, descriptions, keywords…)
-//! kept as it was. For WebP and AVIF, which have no place for IPTC, the IPTC fields go into the
+//! XMP thumbnail and the description of a Motion Photo's video (never written again) taken out,
+//! the Camera Raw / Lightroom settings (`crs:`) marked as already in the pixels (`fix`),
+//! everything else (author, copyright, licence, descriptions, keywords…) kept as it was. For WebP and AVIF, which have no place for IPTC, the IPTC fields go into the
 //! XMP as Adobe and the IPTC Core map them, when the XMP does not have them already.
 
 use quick_xml::Writer;
 use quick_xml::events::{BytesStart, BytesText, Event};
-use quick_xml::name::ResolveResult;
+use quick_xml::name::{PrefixDeclaration, ResolveResult};
 use quick_xml::reader::NsReader;
 
-const CRS: &str = "http://ns.adobe.com/camera-raw-settings/1.0/";
+pub(crate) const CRS: &str = "http://ns.adobe.com/camera-raw-settings/1.0/";
 const XAP: &str = "http://ns.adobe.com/xap/1.0/";
 const TIFF: &str = "http://ns.adobe.com/tiff/1.0/";
 const EXIF: &str = "http://ns.adobe.com/exif/1.0/";
-const RDF: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+pub(crate) const RDF: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
 const DC: &str = "http://purl.org/dc/elements/1.1/";
-const PHOTOSHOP: &str = "http://ns.adobe.com/photoshop/1.0/";
-const XMP_NOTE: &str = "http://ns.adobe.com/xmp/note/";
-const GCAMERA: &str = "http://ns.google.com/photos/1.0/camera/";
-const CONTAINER: &str = "http://ns.google.com/photos/1.0/container/";
-const HDRGM: &str = "http://ns.adobe.com/hdr-gain-map/1.0/";
+pub(crate) const PHOTOSHOP: &str = "http://ns.adobe.com/photoshop/1.0/";
+pub(crate) const XMP_NOTE: &str = "http://ns.adobe.com/xmp/note/";
+pub(crate) const GCAMERA: &str = "http://ns.google.com/photos/1.0/camera/";
+pub(crate) const CONTAINER: &str = "http://ns.google.com/photos/1.0/container/";
+pub(crate) const ITEM: &str = "http://ns.google.com/photos/1.0/container/item/";
+pub(crate) const HDRGM: &str = "http://ns.adobe.com/hdr-gain-map/1.0/";
+const IPTC_CORE: &str = "http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/";
+const IPTC_EXT: &str = "http://iptc.org/std/Iptc4xmpExt/2008-02-29/";
+const DJI: &str = "http://www.dji.com/drone-dji/1.0/";
 
 /// What happens to a property: dropped, or its value replaced.
 enum Fix {
@@ -36,19 +40,53 @@ struct How {
     /// The video of a Motion Photo is written too (a lossless turn of an Ultra HDR one, #54): its
     /// description stays.
     video: bool,
+    /// Without the place (#55): GPS, city, state, country, the IPTC locations (`place`).
+    no_place: bool,
+    /// The XMP of a RAW file or of its sidecar (#24): its Camera Raw settings and darktable's
+    /// history go (`without_camera_raw`).
+    raw: bool,
+}
+
+/// A property that says where the photo was taken: the GPS of the EXIF, the place of Photoshop
+/// and of the IPTC Core and Extension, the position of a DJI drone.
+fn place(ns: &str, local: &str) -> bool {
+    match ns {
+        EXIF => local.starts_with("GPS"),
+        PHOTOSHOP => matches!(local, "City" | "State" | "Country"),
+        IPTC_CORE => matches!(local, "Location" | "CountryCode"),
+        IPTC_EXT => matches!(local, "LocationCreated" | "LocationShown"),
+        DJI => local.starts_with("Gps") || local.ends_with("Altitude"),
+        _ => false,
+    }
 }
 
 /// `merged`: the extended XMP is in the packet, the GUID that pointed to it goes. The video of a
 /// Motion Photo is written again only by a lossless turn (`video`), so what describes it goes (also when the original
 /// says so without having one, as a Pixel 8 photo seen). `alone`: the picture is written without
 /// the gain map of an Ultra HDR photo either, so its description and the container directory go.
+///
+/// Camera Raw / Lightroom settings (`crs:`, the crop too): in a photo that is not RAW they describe
+/// how it was developed and stay, with `crs:AlreadyApplied` "True" (added by `rewrite` when
+/// missing), as Lightroom writes them when it exports with "All Metadata": with "False" Camera Raw
+/// and Lightroom would apply them again to pixels that already have them (DxO forum, "Remove
+/// xmp-crs data in EXIF when exporting to DNG"). The tag is Adobe's use, not a standard: exiv2
+/// lists it as "Not in XMP Specification. Found in sample files". In a RAW file they are settings
+/// EyeCanSee does not apply when it develops it: they go (`raw`), as darktable's history in a
+/// sidecar (#24).
 fn fix(ns: &str, local: &str, w: u32, h: u32, how: How) -> Option<Fix> {
     match (ns, local) {
+        _ if how.no_place && place(ns, local) => Some(Fix::Drop),
         (XMP_NOTE, "HasExtendedXMP") if how.merged => Some(Fix::Drop),
         // Only the lossless turn of an Ultra HDR Motion Photo keeps the video (`how.video`).
         (GCAMERA, l) if !how.video && (l.starts_with("MotionPhoto") || l.starts_with("MicroVideo")) => Some(Fix::Drop),
         (CONTAINER, "Directory") | (HDRGM, _) if how.alone => Some(Fix::Drop),
-        (CRS, _) | (XAP, "Thumbnails") => Some(Fix::Drop),
+        (CRS, _) if how.raw => Some(Fix::Drop),
+        // darktable's history, as Camera Raw's settings; its colour labels are the person's.
+        (crate::xmp_fields::DARKTABLE, l) if how.raw && l != "colorlabels" => Some(Fix::Drop),
+        // A sidecar's (#24): the copy has its XMP inside.
+        (PHOTOSHOP, "SidecarForExtension") if how.raw => Some(Fix::Drop),
+        (CRS, "AlreadyApplied") => Some(Fix::Set("True".into())),
+        (XAP, "Thumbnails") => Some(Fix::Drop),
         (TIFF, "ImageWidth") | (EXIF, "PixelXDimension") => Some(Fix::Set(w.to_string())),
         (TIFF, "ImageLength") | (EXIF, "PixelYDimension") => Some(Fix::Set(h.to_string())),
         (TIFF, "Orientation") => Some(Fix::Set("1".into())),
@@ -74,9 +112,19 @@ pub fn fit(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>) -> Option<Vec
 }
 
 /// As `fit`, with the descriptions of the extended XMP `ext` of a JPEG (`meta_write::xmp_ext_packet`)
-/// put into the main packet, for a format whose XMP has no size limit; if that cannot be read,
-/// the main packet alone.
+/// put into the main packet (a JPEG splits it again when it is too large: `xmp_ext::split`); if
+/// that cannot be read, the main packet alone.
 pub fn fit_with(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&[u8]>) -> Option<Vec<u8>> {
+    fit_how(xmp, w, h, iim, ext, How::default())
+}
+
+/// As `fit_with`, without the place (#55): a packet that is not well-formed XML goes whole, since
+/// what it holds cannot be told.
+pub fn fit_without_place(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&[u8]>) -> Option<Vec<u8>> {
+    fit_how(xmp, w, h, iim, ext, How { no_place: true, ..How::default() })
+}
+
+fn fit_how(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&[u8]>, how: How) -> Option<Vec<u8>> {
     let props = iim.map(iim_props).unwrap_or_default();
     let xmp = xmp.map(without_video_item);
     let xmp = match xmp.as_deref() {
@@ -84,18 +132,16 @@ pub fn fit_with(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Opt
         None if props.is_empty() => return None,
         None => EMPTY.as_bytes(),
     };
-    // ponytail: by text, with the "rdf" prefix every writer uses; a packet using another one keeps only its main part.
-    let inner = |x: &[u8]| {
-        let start = x.windows(8).position(|w| w == b"<rdf:RDF")?;
-        let start = start + x[start..].iter().position(|&b| b == b'>')? + 1;
-        let end = x.windows(10).rposition(|w| w == b"</rdf:RDF>")?;
-        (start <= end).then_some((start, end))
-    };
-    let merged = ext.zip(inner(xmp)).zip(ext.and_then(inner)).map(|((ext, (_, at)), (s, e))| [&xmp[..at], &ext[s..e], &xmp[at..]].concat());
-    if let Some(out) = merged.and_then(|m| rewrite(&m, w, h, &props, How { merged: true, ..How::default() })) {
+    // Each property once, the main packet's first (`xmp_ext::with_extended`).
+    let merged = ext.and_then(|e| crate::xmp_ext::with_extended(xmp, e));
+    if let Some(out) = merged.and_then(|m| rewrite(&m, w, h, &props, How { merged: true, ..how })) {
         return Some(out);
     }
-    Some(rewrite(xmp, w, h, &props, How::default()).unwrap_or_else(|| xmp.to_vec()))
+    match rewrite(xmp, w, h, &props, how) {
+        Some(out) => Some(out),
+        None if how.no_place => None,
+        None => Some(xmp.to_vec()),
+    }
 }
 
 /// As `fit`, for a lossless turn that writes the Motion Photo's video again after the picture
@@ -119,6 +165,63 @@ fn without_video_item(xmp: &[u8]) -> std::borrow::Cow<'_, [u8]> {
     [&xmp[..start], &xmp[at + close + b"</rdf:li>".len()..]].concat().into()
 }
 
+/// The XMP of a RAW file (or of its sidecar, #24) without its Camera Raw settings and darktable's
+/// history (`fix`), for a copy of what EyeCanSee develops from it; sizes set to `w` × `h` as `fit` does. A packet that is not well-formed XML is
+/// returned as it was.
+pub fn without_camera_raw(xmp: &[u8], w: u32, h: u32) -> Vec<u8> {
+    rewrite(xmp, w, h, &[], How { raw: true, ..How::default() }).unwrap_or_else(|| xmp.to_vec())
+}
+
+/// The XMP of a photo's sidecar (#24) as it joins a copy's: without its Camera Raw settings and
+/// darktable's history (as `without_camera_raw`), and without what describes the parts of a file
+/// (Ultra HDR gain map and container directory, Motion Photo video, as `alone`): the copy's own
+/// XMP says those, never the sidecar.
+pub fn of_sidecar(xmp: &[u8], w: u32, h: u32) -> Vec<u8> {
+    rewrite(xmp, w, h, &[], How { raw: true, alone: true, ..How::default() }).unwrap_or_else(|| xmp.to_vec())
+}
+
+/// The XMP of a photo that is not RAW (`inside`, its own) with its `sidecar` joined as
+/// `with_sidecar` does it, the sidecar's part made as `of_sidecar` says for `w` × `h` pixels.
+pub fn joined(inside: Option<&[u8]>, sidecar: &[u8], w: u32, h: u32) -> Vec<u8> {
+    with_sidecar(inside, &of_sidecar(sidecar, w, h))
+}
+
+/// The XMP of a photo that is not RAW with what its sidecar (#24) says: the sidecar's packet, with
+/// the properties only `inside` (the file's own XMP) has added after it, as digiKam merges them
+/// (the sidecar's values count first). Either one not well-formed: the sidecar as it is.
+pub fn with_sidecar(inside: Option<&[u8]>, sidecar: &[u8]) -> Vec<u8> {
+    let text = |x: &[u8]| String::from_utf8_lossy(x).trim_start_matches(|c| c != '<').trim_end_matches(|c| c != '>').to_string();
+    let (outer, own) = (text(sidecar), inside.map(text).unwrap_or_default());
+    let (Ok(side), Ok(doc)) = (roxmltree::Document::parse(&outer), roxmltree::Document::parse(&own)) else { return sidecar.to_vec() };
+    let Some(end) = sidecar.windows(10).rposition(|w| w == b"</rdf:RDF>") else { return sidecar.to_vec() };
+    let key = |ns: Option<&str>, local: &str| (ns.unwrap_or("").to_string(), local.to_string());
+    fn descriptions<'a, 'i>(d: &'a roxmltree::Document<'i>) -> impl Iterator<Item = roxmltree::Node<'a, 'i>> {
+        d.descendants().filter(|n| n.has_tag_name((RDF, "Description")))
+    }
+    let mut seen = std::collections::HashSet::new();
+    for d in descriptions(&side) {
+        seen.extend(d.attributes().map(|a| key(a.namespace(), a.name())));
+        seen.extend(d.children().filter(|n| n.is_element()).map(|n| key(n.tag_name().namespace(), n.tag_name().name())));
+    }
+    let esc = |v: &str| quick_xml::escape::escape(v).into_owned();
+    let mut added = String::new();
+    for d in descriptions(&doc) {
+        let prefix = |uri: &str| d.namespaces().find(|n| n.uri() == uri).and_then(|n| n.name());
+        let attrs: Vec<String> = d
+            .attributes()
+            .filter(|a| a.namespace().is_some_and(|ns| ns != RDF) && !seen.contains(&key(a.namespace(), a.name())))
+            .filter_map(|a| Some(format!(" {}:{}=\"{}\"", prefix(a.namespace()?)?, a.name(), esc(a.value()))))
+            .collect();
+        let elements: Vec<&str> = d.children().filter(|n| n.is_element() && !seen.contains(&key(n.tag_name().namespace(), n.tag_name().name()))).map(|n| &own[n.range()]).collect();
+        if attrs.is_empty() && elements.is_empty() {
+            continue;
+        }
+        let decls: String = d.namespaces().filter_map(|n| Some(format!(" xmlns:{}=\"{}\"", n.name()?, esc(n.uri())))).filter(|x| !x.starts_with(" xmlns:xml=")).collect();
+        added += &format!("<rdf:Description rdf:about=\"\"{decls}{}>{}</rdf:Description>", attrs.concat(), elements.concat());
+    }
+    [&sidecar[..end], added.as_bytes(), &sidecar[end..]].concat()
+}
+
 /// `xmp` without what describes the parts after the picture in the file (Motion Photo video,
 /// Ultra HDR gain map and its container directory), for a picture written alone; sizes set to
 /// `w` × `h` as `fit` does. A packet that is not well-formed XML is returned as it was.
@@ -132,6 +235,10 @@ fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], how: How) -> Option<Vec<u
     // Depth inside a dropped element; the new value for the text of the element being read, and
     // whether its old text is being replaced.
     let (mut skip, mut set, mut replacing) = (0usize, None::<String>, false);
+    // Camera Raw settings kept without `crs:AlreadyApplied`: it goes on the first description that
+    // declares their namespace.
+    let has = |s: &[u8]| xmp.windows(s.len()).any(|w| w == s);
+    let mut applied = how.raw || !has(CRS.as_bytes()) || has(b"AlreadyApplied");
     let mut seen: Vec<(String, String)> = Vec::new();
     loop {
         let (ns, event) = r.read_resolved_event().ok()?;
@@ -150,7 +257,7 @@ fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], how: How) -> Option<Vec<u
                 {
                     (set, replacing) = (Some(v), true);
                 }
-                let e = attributes(&r, e, w, h, how, &mut seen)?;
+                let e = attributes(&r, e, w, h, how, &mut seen, &mut applied)?;
                 out.write_event(if matches!(event, Event::Start(_)) { Event::Start(e) } else { Event::Empty(e) }).ok()?;
             }
             Event::Text(_) | Event::GeneralRef(_) if replacing => {
@@ -176,20 +283,34 @@ fn rewrite(xmp: &[u8], w: u32, h: u32, props: &[Prop], how: How) -> Option<Vec<u
     Some(out.into_inner())
 }
 
-/// The attributes of an element, without those of Camera Raw (and its namespace) and with the
-/// sizes and orientation set; the element as it was when nothing changes.
-fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, how: How, seen: &mut Vec<(String, String)>) -> Option<BytesStart<'a>> {
+/// The attributes of an element, with the sizes and orientation set, `crs:AlreadyApplied` added
+/// when `applied` says it is still missing and this is a description declaring the Camera Raw
+/// namespace, without Camera Raw (and its namespace) for a RAW file; the element as it was when
+/// nothing changes.
+fn attributes<'a>(r: &NsReader<&[u8]>, e: &BytesStart<'a>, w: u32, h: u32, how: How, seen: &mut Vec<(String, String)>, applied: &mut bool) -> Option<BytesStart<'a>> {
     let mut kept: Vec<(String, String)> = Vec::new();
     let mut changed = false;
+    let description = e.local_name().as_ref() == "Description";
     for a in e.attributes() {
         let a = a.ok()?;
         let value = a.normalized_value(quick_xml::XmlVersion::Implicit1_0).ok()?.into_owned();
         let key = a.key.as_ref().to_string();
-        if a.key.as_namespace_binding().is_some() {
-            if value == CRS {
+        if let Some(binding) = a.key.as_namespace_binding() {
+            // Their declarations go with what they named: a reader of Ultra HDR (Skia) takes the
+            // first description declaring the container's namespaces as the one describing it.
+            if (value == CRS && how.raw) || (how.alone && [CONTAINER, ITEM, HDRGM].contains(&value.as_str())) {
                 changed = true;
-            } else {
-                kept.push((key, value));
+                continue;
+            }
+            kept.push((key, value.clone()));
+            if let PrefixDeclaration::Named(prefix) = binding
+                && value == CRS
+                && description
+                && !*applied
+            {
+                *applied = true;
+                changed = true;
+                kept.push((format!("{prefix}:AlreadyApplied"), "True".into()));
             }
             continue;
         }
@@ -328,12 +449,12 @@ pub(crate) mod tests {
         fields.iter().flat_map(|(d, t)| [&[0x1C, 2, *d][..], &(t.len() as u16).to_be_bytes(), t.as_bytes()].concat()).collect()
     }
 
-    /// Sizes and orientation set in attributes and elements; Camera Raw, its namespace and the
-    /// thumbnail gone; author, rights, the Ultra HDR item and the packet wrapper as they were.
+    /// Sizes and orientation set in attributes and elements; the thumbnail gone; Camera Raw kept
+    /// and marked as applied; author, rights, the Ultra HDR item and the packet wrapper as they were.
     #[test]
     fn fitted() {
         let out = String::from_utf8(fit(Some(SAMPLE.as_bytes()), 300, 200, None).unwrap()).unwrap();
-        for gone in ["crs", "Thumbnails", "/9j/", "4000", "3000", "\"6\""] {
+        for gone in ["Thumbnails", "/9j/", "4000", "3000", "\"6\""] {
             assert!(!out.contains(gone), "{gone} in {out}");
         }
         for kept in [
@@ -346,6 +467,9 @@ pub(crate) mod tests {
             "CC BY-SA 4.0",
             "Item:Semantic=\"GainMap\" Item:Length=\"1234\"",
             "<?xpacket end=\"w\"?>",
+            "xmlns:crs=\"http://ns.adobe.com/camera-raw-settings/1.0/\" crs:AlreadyApplied=\"True\"",
+            "crs:CropTop=\"0.1\" crs:HasCrop=\"True\"",
+            "<crs:ToneCurve><rdf:Seq><rdf:li>0, 0</rdf:li></rdf:Seq></crs:ToneCurve>",
         ] {
             assert!(out.contains(kept), "{kept} not in {out}");
         }
@@ -355,6 +479,64 @@ pub(crate) mod tests {
         assert_eq!(fit(Some(plain), 1, 1, None).unwrap(), plain);
         assert_eq!(fit(Some(b"<a><b></a>"), 1, 1, None).unwrap(), b"<a><b></a>");
         assert_eq!(fit(None, 1, 1, None), None);
+    }
+
+    /// Camera Raw settings: in a RAW file's XMP they go with their namespace; elsewhere an
+    /// `AlreadyApplied` there already is set to "True" and none is added twice.
+    #[test]
+    fn camera_raw() {
+        let raw = String::from_utf8(without_camera_raw(SAMPLE.as_bytes(), 300, 200)).unwrap();
+        assert!(!raw.contains("crs") && raw.contains("CC BY-SA 4.0") && raw.contains("exif:PixelXDimension=\"300\""), "{raw}");
+        assert!(roxmltree::Document::parse(raw.trim_start_matches(|c| c != '<')).is_ok());
+        let two = SAMPLE.replace("<crs:Exposure2012/>", "<crs:AlreadyApplied>False</crs:AlreadyApplied>").replace(
+            "</rdf:Description></rdf:RDF>",
+            "</rdf:Description><rdf:Description rdf:about=\"\" xmlns:crs=\"http://ns.adobe.com/camera-raw-settings/1.0/\" crs:Tint=\"5\"/></rdf:RDF>",
+        );
+        let out = String::from_utf8(fit(Some(two.as_bytes()), 1, 1, None).unwrap()).unwrap();
+        assert!(out.contains("<crs:AlreadyApplied>True</crs:AlreadyApplied>") && out.matches("AlreadyApplied").count() == 2 && out.contains("crs:Tint=\"5\""), "{out}");
+        let one = SAMPLE.replace("</rdf:Description></rdf:RDF>", "</rdf:Description><rdf:Description rdf:about=\"\" xmlns:crs=\"http://ns.adobe.com/camera-raw-settings/1.0/\" crs:Tint=\"5\"/></rdf:RDF>");
+        let out = String::from_utf8(fit(Some(one.as_bytes()), 1, 1, None).unwrap()).unwrap();
+        assert_eq!(out.matches("crs:AlreadyApplied=\"True\"").count(), 1, "{out}");
+        assert!(roxmltree::Document::parse(out.trim_start_matches(|c| c != '<')).is_ok());
+    }
+
+    /// A sidecar (#24) in a RAW photo's copy: Camera Raw settings, darktable's history and the
+    /// extension it was for go; what the person wrote, darktable's colour labels too, stays.
+    #[test]
+    fn sidecar_in_a_copy() {
+        let xmp = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:darktable="http://darktable.sf.net/" xmlns:photoshop="http://ns.adobe.com/photoshop/1.0/" xmlns:xmp="http://ns.adobe.com/xap/1.0/"
+ darktable:history_end="2" darktable:xmp_version="5" photoshop:SidecarForExtension="NEF" xmp:Rating="3">
+<darktable:history><rdf:Seq><rdf:li darktable:operation="exposure" darktable:params="0000"/></rdf:Seq></darktable:history>
+<darktable:colorlabels><rdf:Seq><rdf:li>2</rdf:li></rdf:Seq></darktable:colorlabels>
+</rdf:Description></rdf:RDF></x:xmpmeta>"#;
+        let out = String::from_utf8(without_camera_raw(xmp.as_bytes(), 10, 10)).unwrap();
+        for gone in ["history", "xmp_version", "SidecarForExtension", "exposure"] {
+            assert!(!out.contains(gone), "{gone} in {out}");
+        }
+        assert!(out.contains("xmp:Rating=\"3\"") && out.contains("<darktable:colorlabels><rdf:Seq><rdf:li>2</rdf:li></rdf:Seq></darktable:colorlabels>"), "{out}");
+        assert_eq!(crate::xmp_fields::read(out.as_bytes()).labels, ["Green"]);
+    }
+
+    /// A JPEG's sidecar with its own XMP: the sidecar's values first, what only the file has added,
+    /// its namespaces declared; still XML.
+    #[test]
+    fn sidecar_with_the_file() {
+        let side = r#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:xmp="http://ns.adobe.com/xap/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmp:Rating="5">
+<dc:title><rdf:Alt><rdf:li xml:lang="x-default">From the sidecar</rdf:li></rdf:Alt></dc:title></rdf:Description></rdf:RDF></x:xmpmeta>"#;
+        let inside = r#"<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?><x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+<rdf:Description rdf:about="" xmlns:xap="http://ns.adobe.com/xap/1.0/" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:Iptc4xmpCore="http://iptc.org/std/Iptc4xmpCore/1.0/xmlns/"
+ xap:Rating="1" xap:Label="Blue &amp; co" Iptc4xmpCore:Location="Lecce">
+<dc:title><rdf:Alt><rdf:li xml:lang="x-default">From the file</rdf:li></rdf:Alt></dc:title>
+<dc:creator><rdf:Seq><rdf:li>Ann</rdf:li></rdf:Seq></dc:creator></rdf:Description></rdf:RDF></x:xmpmeta><?xpacket end="w"?>"#;
+        let out = String::from_utf8(with_sidecar(Some(inside.as_bytes()), side.as_bytes())).unwrap();
+        let f = crate::xmp_fields::read(out.as_bytes());
+        assert_eq!((f.title.as_deref(), f.rating), (Some("From the sidecar"), Some(5)), "{out}");
+        assert_eq!((f.labels, f.creators), (vec!["Blue & co".to_string()], vec!["Ann".to_string()]), "{out}");
+        assert!(out.contains("Iptc4xmpCore:Location=\"Lecce\"") && !out.contains("From the file") && !out.contains("\"1\""), "{out}");
+        assert_eq!(with_sidecar(None, side.as_bytes()), side.as_bytes());
+        assert_eq!(with_sidecar(Some(b"<broken"), side.as_bytes()), side.as_bytes());
     }
 
     /// IPTC fields go into the XMP when it lacks them, into a new packet when there is none.

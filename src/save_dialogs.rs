@@ -8,7 +8,7 @@ use crate::{App, BOLD, confirm, encode, source, transform};
 
 /// What was asked while the image in the viewer had flips or turns not saved: done once the
 /// question is answered (`turn_leave_window`).
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Debug)]
 pub(crate) enum After {
     Go(Go),
     Close,
@@ -16,6 +16,8 @@ pub(crate) enum After {
     Quit,
     /// A bookmark, by its place in the list (`App::open_bookmark`).
     Bookmark(usize),
+    /// Open the folder of the summary at the end of a conversion (`batch_summary`): its address.
+    Open(String),
 }
 
 /// Answers to "save the changes?" before leaving the image.
@@ -52,13 +54,14 @@ impl App {
             After::Up => self.go_up(),
             After::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
             After::Bookmark(i) => self.open_bookmark(ctx, i),
+            After::Open(address) => self.open_source(ctx, &address),
         }
     }
 
     /// Save, Save as…, Don't save, or Cancel (stays on the image). Save goes through the usual
     /// confirmation (`save_window`), which then does what was asked.
     pub(crate) fn turn_leave_window(&mut self, ctx: &egui::Context) {
-        let Some(after) = self.after_turn else { return };
+        let Some(after) = self.after_turn.clone() else { return };
         let Some(path) = self.viewing.and_then(|i| self.files().get(i)).map(|f| f.path.clone()) else {
             self.after_turn = None;
             return;
@@ -69,6 +72,8 @@ impl App {
             (self.i18n.t("menu-save-copy"), true, Leave::SaveAs),
             (self.i18n.t("rc-discard"), true, Leave::Discard),
         ];
+        // A video turned: Save as… would save its frame (#16), not the video.
+        let choices: Vec<_> = choices.into_iter().filter(|c| !(self.viewing_video() && matches!(c.2, Leave::SaveAs))).collect();
         // Esc: back to the image; Enter does nothing here (no choice is safe to guess).
         let keys = self.delete_answer.take().filter(|yes| !yes).map(|_| None);
         let Some(answer) = confirm::choose(ctx, "turn-leave", 440.0, (self.i18n.t("leave-title"), text), choices, self.i18n.t("delete-no"), keys) else { return };
@@ -213,7 +218,9 @@ impl App {
                     .map(|f| self.i18n.t_args("save-format", &[("name", &md(source::name(&f.path)))]))
             };
             if let Some(text) = text {
-                self.notice = Some(Notice { save_as: Some(Act::Convert(None)), ..Notice::new(self.i18n.t("save-not-possible"), text) });
+                // Not on a video, whose Save as… saves its frame (#16).
+                let save_as = (!self.viewing_video()).then_some(Act::Convert(None));
+                self.notice = Some(Notice { save_as, ..Notice::new(self.i18n.t("save-not-possible"), text) });
             }
             return;
         }

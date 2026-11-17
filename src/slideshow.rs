@@ -6,6 +6,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::App;
 use crate::i18n::I18n;
+use crate::mipmap::Picture;
 use crate::selection::{PLAYED, kind};
 use crate::settings::Settings;
 
@@ -109,7 +110,7 @@ impl App {
             return;
         }
         log!("slideshow: {} images from {at}", paths.len());
-        let was_full = ctx.input(|i| i.viewport().fullscreen.unwrap_or(false));
+        let was_full = crate::viewer::full_screen(ctx);
         ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
         let now = ctx.input(|i| i.time);
         self.show = Some(Show { paths, at, since: now, from: None, back: false, paused: false, was_full, from_viewer: self.viewing.is_some(), started: now });
@@ -268,11 +269,12 @@ fn fitted(rect: Rect, tex: &TextureHandle, ppp: f32, scale: f32, dx: f32) -> Rec
 }
 
 /// The passage at `t` (0 to 1) from `from` to `to`; `back`: going to the previous image.
-fn paint_passage(p: &egui::Painter, rect: Rect, from: Option<&TextureHandle>, to: &TextureHandle, (fade, back): (Fade, bool), t: f32) {
+fn paint_passage(p: &egui::Painter, rect: Rect, from: Option<&Picture>, to: &Picture, (fade, back): (Fade, bool), t: f32) {
     let ppp = p.ctx().pixels_per_point();
     let uv = Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
-    let draw = |tex: &TextureHandle, scale: f32, dx: f32, alpha: f32| {
-        p.image(tex.id(), fitted(rect, tex, ppp, scale, dx), uv, Color32::WHITE.gamma_multiply(alpha.clamp(0.0, 1.0)));
+    let draw = |tex: &Picture, scale: f32, dx: f32, alpha: f32| {
+        // Smaller than its pixels: filtered as in the viewer (`paint`).
+        crate::paint::paint_tinted(p, tex, fitted(rect, tex, ppp, scale, dx), uv, Default::default(), Color32::WHITE.gamma_multiply(alpha.clamp(0.0, 1.0)));
     };
     let Some(from) = from.filter(|_| t < 1.0 && fade != Fade::None) else {
         draw(to, 1.0, 0.0, 1.0);

@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
-use eframe::egui::{self, Color32, Key, Modifiers, TextureOptions};
+use eframe::egui::{self, Color32, Key, Modifiers};
 
 use crate::App;
 use crate::frames::Sequence;
@@ -71,7 +71,7 @@ impl App {
             && let Some(Ok(tex)) = self.full.get_mut(&current)
             && let Some(image) = seq.image(shown.at)
         {
-            tex.set(image, TextureOptions::LINEAR);
+            tex.set(ctx, image);
             shown.drawn = Some(shown.at);
         }
     }

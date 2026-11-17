@@ -108,7 +108,7 @@ mod tests {
     #[test]
     fn not_without_metadata() {
         let bytes = jpeg_with(Density { unit: 1, x: 600, y: 600 });
-        assert_eq!(read(&again(&bytes, &Options { keep_meta: false, ..jpeg_options() })), Some(PLAIN));
+        assert_eq!(read(&again(&bytes, &Options { meta: crate::meta_strip::Keep::Nothing, ..jpeg_options() })), Some(PLAIN));
     }
 
     /// A source without JFIF segment (as phones write their photos), a PNG, a damaged density:
@@ -140,11 +140,11 @@ mod tests {
         set(&mut file, d);
         assert_eq!(read(&file), Some(d));
         let image = crate::decode::decode_full(&file, "a.jpg").unwrap().resize_exact(32, 24, image::imageops::FilterType::Triangle);
-        let out = crate::ultrahdr::resized(&file, image, Turn::default(), None, &jpeg_options()).unwrap();
+        let out = crate::ultrahdr::resized(&file, image, Turn::default(), None, &jpeg_options(), None).unwrap();
         assert!(crate::ultrahdr::is(&out));
         assert_eq!(read(crate::ultrahdr::split(&out).unwrap().0), Some(d));
         let image = crate::decode::decode_full(&file, "a.jpg").unwrap();
-        let edited = crate::ultrahdr::edited(&file, image, &[], &[], None).unwrap();
+        let edited = crate::ultrahdr::edited(&file, image, &[], &[], None, crate::meta_strip::Keep::All, None).unwrap();
         assert_eq!(read(crate::ultrahdr::split(&edited).unwrap().0), Some(d));
     }
 }

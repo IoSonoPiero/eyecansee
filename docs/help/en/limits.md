@@ -11,7 +11,7 @@ What EyeCanSee does not do yet, or does only in part. The up-to-date list of kno
 - Ultra HDR photos are shown as normal photos, also on a screen that supports HDR ([#124](https://github.com/IoSonoPiero/eyecansee/issues/124)).
 - EyeCanSee cannot save HEIC or JPEG XL files: see [Supported formats](formats.md).
 - Converted Camera RAW photos do not keep the maker note, the camera maker's own data.
-- On Windows, JNG files do not open: the ImageMagick security policy that comes with the program blocks them.
+- On Windows, JNG files with transparency do not open: a check inside ImageMagick stops them.
 - Sigma X3F files (Foveon sensors) do not open.
 - Phase One P40+ files open at full size only where ImageMagick can read them (the Fedora package); in the AppImage and the Flatpak they show their small preview.
 - Sony DSC-F828 files (SRF) open with a strong cyan cast: the camera has a four-colour sensor.
