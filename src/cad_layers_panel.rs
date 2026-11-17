@@ -17,6 +17,16 @@ struct Rows {
     shown: Vec<bool>,
 }
 
+/// The layers shown of a drawing: the ones chosen (`saved`), if they are still as many as its
+/// layers (`all`, as the file says). A drawing saved again with other layers since the choice was
+/// made starts again from its own: the old choice would point past the list.
+fn chosen(saved: Option<&Vec<bool>>, all: Vec<bool>) -> Vec<bool> {
+    match saved {
+        Some(on) if on.len() == all.len() => on.clone(),
+        _ => all,
+    }
+}
+
 impl App {
     /// Why the layers panel cannot open: no DWG or DXF drawing in the viewer, or nothing drawn on
     /// its layers.
@@ -36,7 +46,7 @@ impl App {
         if d.layers.is_empty() {
             return None;
         }
-        let shown = self.model.cad.layers.get(&path).map_or_else(|| d.layers_shown(), |(_, on)| on.clone());
+        let shown = chosen(self.model.cad.layers.get(&path).map(|(_, on)| on), d.layers_shown());
         Some(Rows { used: d.used_layers(), layers: d.layers.clone(), shown, path })
     }
 
@@ -110,5 +120,21 @@ impl App {
             }
         });
         close
+    }
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::chosen;
+
+    /// A choice made for a drawing that now has other layers is not used.
+    #[test]
+    fn a_choice_for_other_layers_is_left() {
+        let all = vec![true, false, true];
+        assert_eq!(chosen(None, all.clone()), all);
+        assert_eq!(chosen(Some(&vec![false, false, false]), all.clone()), [false, false, false]);
+        assert_eq!(chosen(Some(&vec![false, false]), all.clone()), all);
+        assert_eq!(chosen(Some(&vec![false; 5]), all.clone()), all);
     }
 }
