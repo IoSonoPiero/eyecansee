@@ -237,7 +237,7 @@ impl crate::App {
         }
         self.start_encoding(&mut w, ctx);
         let dir = w.dest_dir();
-        let final_name = crate::source::free_name(&self.convert_taken(&w, &dir), w.name.trim());
+        let final_name = crate::source::free_name(&self.convert_taken(&w, &dir), &crate::batch::typed_name(&w.name, w.options.format));
         let mut open = page_header(ui, &self.i18n.t("convert-title"));
         let shown = crate::navigation::shown(w.dest_base(&self.base), &dir);
         let press = self.convert_body(ui, &mut w, &final_name, &shown);
@@ -541,7 +541,7 @@ fn name_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, half: f32, final_nam
             ui.spinner();
         }
     });
-    if final_name != w.name.trim() && !w.name.trim().is_empty() {
+    if final_name != crate::batch::typed_name(&w.name, w.options.format) && !w.name.trim().is_empty() {
         ui.weak(i18n.t_args("convert-exists", &[("name", final_name)]));
     }
     if let Some(e) = &w.error {

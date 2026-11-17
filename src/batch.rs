@@ -362,6 +362,16 @@ pub fn with_ext(name: &str, format: Format) -> String {
     ext(name, format.ext())
 }
 
+/// The name typed in Save as…, with the extension of `format` added when it has none ("photo"
+/// → "photo.jpg"): a file without one is not known as a picture. One typed is kept.
+pub fn typed_name(name: &str, format: Format) -> String {
+    let name = name.trim().trim_end_matches('.');
+    match name.rsplit_once('.') {
+        Some((stem, _)) if !stem.is_empty() => name.to_string(),
+        _ => format!("{name}.{}", format.ext()),
+    }
+}
+
 fn ext(name: &str, ext: &str) -> String {
     let stem = name.rsplit_once('.').map_or(name, |(s, _)| s);
     format!("{stem}.{ext}")
@@ -1067,5 +1077,16 @@ mod tests {
         let job = Job { shown: Some(shown), ..job };
         let svg = String::from_utf8(convert(dxf, "l.dxf", &job).unwrap().1).unwrap();
         assert!(!svg.contains("#ff0000") && svg.contains("#00ff00"));
+    }
+
+    /// A name typed without extension gets the format's; one typed is kept.
+    #[test]
+    fn typed_name_gets_the_extension() {
+        use super::{Format, typed_name};
+        assert_eq!(typed_name("salva-come", Format::Jpeg), "salva-come.jpg");
+        assert_eq!(typed_name(" salva-come. ", Format::Png), "salva-come.png");
+        assert_eq!(typed_name(".hidden", Format::Png), ".hidden.png");
+        assert_eq!(typed_name("foto.JPEG", Format::Jpeg), "foto.JPEG");
+        assert_eq!(typed_name("v1.2", Format::Webp), "v1.2");
     }
 }
