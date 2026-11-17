@@ -80,6 +80,22 @@
   </provides>
 
   <releases>
+    <release version="0.77.0" date="2026-11-23">
+      <description>
+        <ul>
+          <li>Viewer: animated GIF, WebP and APNG images play, multi-page TIFF files can be paged through, and the video of motion photos plays</li>
+          <li>Viewer: photos shown below 100% are drawn smoothly; zoom out further than the window, by typing a percentage or with a slider; Ctrl+Z undoes an unsaved rotation</li>
+          <li>Videos can be rotated without being encoded again; Save frame as… saves the current frame; in full screen the controls hide until the mouse moves</li>
+          <li>Convert… also converts audio files, to MP3, AAC, Opus, FLAC, WAV or Ogg Vorbis, keeping their tags and cover art; Resize in the right-click menu, with ready-made sizes</li>
+          <li>Save as… lets you choose the folder; Save as, Convert and the editor can leave out the GPS position, or all the metadata</li>
+          <li>The .xmp file of Lightroom or darktable next to a photo is read, kept in copies and goes with the photo</li>
+          <li>Image editor: resize the image, rotate objects with a handle, rotate and flip a pasted piece, and File &gt; Open from clipboard</li>
+          <li>CAD drawings and 3D models: Measure, a Layers panel, Compare drawings, the title block in the details, and a section view of models</li>
+          <li>Thumbnails: size, dimensions, date or duration under each one; a Keys button lists the keys of the grid and of Find duplicates; Add this folder to the bookmarks in the right-click menu of folders</li>
+          <li>A tip at startup, once a day</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.76.2" date="2026-11-12">
       <description>
         <ul>
