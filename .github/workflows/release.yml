@@ -75,11 +75,19 @@ jobs:
           $bar = "=" * 78
           Add-Content pkg\THIRD-PARTY-LICENSES.txt "`n$bar`nImageMagick $env:IM_VERSION (DLLs and modules\ next to eyecansee.exe, official Windows build)`nSource: https://github.com/ImageMagick/ImageMagick`n$bar`n"
           Get-Content -Raw "$env:IMAGE_MAGICK_DIR\NOTICE.txt" | Add-Content pkg\THIRD-PARTY-LICENSES.txt
+          # The Microsoft Visual C++ runtime that ImageMagick's build brings next to it: redistributable files.
+          $msvc = (Get-ChildItem "$env:IMAGE_MAGICK_DIR\*.dll" | Where-Object { $_.Name -match '^(vcruntime|msvcp|vcomp|mfc|concrt)\d' } | ForEach-Object Name) -join ', '
+          Add-Content pkg\THIRD-PARTY-LICENSES.txt "`n$bar`nMicrosoft Visual C++ runtime ($msvc, next to eyecansee.exe, from the ImageMagick Windows build)`nCopyright (c) Microsoft Corporation. Redistributable files of Microsoft Visual Studio, distributed under its licence terms: https://learn.microsoft.com/visualstudio/releases/2022/redistribution`n$bar`n"
           Copy-Item "$env:IMAGE_MAGICK_DIR\*.dll", "$env:IMAGE_MAGICK_DIR\*.xml", "$env:IMAGE_MAGICK_DIR\sRGB.icc" pkg\
           Copy-Item "$env:IMAGE_MAGICK_DIR\modules" pkg\ -Recurse
           Copy-Item target\dist\eyecansee.exe pkg\
           Copy-Item LICENSE pkg\LICENSE.txt
-          Compress-Archive -Path pkg\* -DestinationPath "EyeCanSee-$env:VER-windows-x64.zip"
+          # Deflate at its strongest with 7-Zip (on the runners): about 4 MB less than Compress-Archive,
+          # still a plain ZIP that File Explorer and Expand-Archive open (the startup test below does).
+          Push-Location pkg
+          & "$env:ProgramFiles\7-Zip\7z.exe" a -tzip -mm=Deflate -mx=9 -mpass=15 -mfb=258 "..\EyeCanSee-$env:VER-windows-x64.zip" * | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "7z failed with $LASTEXITCODE" }
+          Pop-Location
       - name: Startup test
         run: |
           Expand-Archive "EyeCanSee-$env:VER-windows-x64.zip" -DestinationPath test\app

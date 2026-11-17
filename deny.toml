@@ -8,14 +8,18 @@ all-features = true
 [advisories]
 # Vulnerabilities fail; unmaintained crates are reported only for direct dependencies.
 unmaintained = "workspace"
-# zip 5 (from image-extras, for OpenRaster; also ours for 3MF, AMF, ZAE): the four flaws are in ZipArchive::extract, which
-# neither image-extras nor we call (files are read by name). Fixed in zip 9:
-# drop these when image-extras moves to it.
+# zip 5 (from image-extras, for OpenRaster; also ours for 3MF, AMF, ZAE): the seven flaws are in code
+# neither image-extras nor we reach: ZipArchive::extract (files are read by name), the aes-crypto and
+# legacy-zip features (only deflate is on), ZipStreamReader. Fixed in zip 9: drop all seven when
+# image-extras moves to it.
 ignore = [
     { id = "RUSTSEC-2026-0367", reason = "zip extract() only, not used by image-extras" },
     { id = "RUSTSEC-2026-0368", reason = "zip extract() only, not used by image-extras" },
     { id = "RUSTSEC-2026-0369", reason = "zip extract() only, not used by image-extras" },
     { id = "RUSTSEC-2026-0429", reason = "zip extract() only, not used by image-extras nor by our 3MF, AMF and ZAE readers" },
+    { id = "RUSTSEC-2026-0545", reason = "zip AES-encrypted entries only, with the aes-crypto feature, which is not on" },
+    { id = "RUSTSEC-2026-0547", reason = "zip Shrink, Reduce and Implode only, with the legacy-zip feature, which is not on" },
+    { id = "RUSTSEC-2026-0548", reason = "zip ZipStreamReader and read_zipfile_from_stream only, used neither by us nor by image-extras; the fix (zip 9.0.5) must be turned on by hand" },
     # rsa (from russh, for RSA keys, still common on servers): no fixed version exists. Kept on the
     # user's decision (2026-10-30); the app warns once per server after a login with an RSA key.
     { id = "RUSTSEC-2023-0071", reason = "no fix in rsa; RSA keys kept, the app warns when one is used" },

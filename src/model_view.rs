@@ -58,7 +58,7 @@ impl App {
         self.model.gpu = cc.wgpu_render_state.clone().map(Gpu::new);
         // Pictures shown smaller than their pixels, filtered on the card.
         if let Some(rs) = &cc.wgpu_render_state {
-            crate::smooth_gpu::init(rs);
+            crate::smooth_gpu::init(rs, &cc.egui_ctx);
         }
         // To try the viewer of a computer without a usable graphics card.
         if std::env::var_os("EYECANSEE_NO_GPU_3D").is_some() {

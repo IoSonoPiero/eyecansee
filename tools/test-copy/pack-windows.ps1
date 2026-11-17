@@ -37,6 +37,9 @@ $im = $env:IM_VERSION
 if (-not $im) { $im = ((& "$env:IMAGE_MAGICK_DIR\magick.exe" -version | Select-Object -First 1) -split '\s+')[2] }
 Add-Content $licences "`n$bar`nImageMagick $im (DLLs and modules\ next to eyecansee.exe, official Windows build)`nSource: https://github.com/ImageMagick/ImageMagick`n$bar`n"
 Get-Content -Raw "$env:IMAGE_MAGICK_DIR\NOTICE.txt" | Add-Content $licences
+# The Microsoft Visual C++ runtime that ImageMagick's build brings next to it: redistributable files.
+$msvc = (Get-ChildItem "$env:IMAGE_MAGICK_DIR\*.dll" | Where-Object { $_.Name -match '^(vcruntime|msvcp|vcomp|mfc|concrt)\d' } | ForEach-Object Name) -join ', '
+Add-Content $licences "`n$bar`nMicrosoft Visual C++ runtime ($msvc, next to eyecansee.exe, from the ImageMagick Windows build)`nCopyright (c) Microsoft Corporation. Redistributable files of Microsoft Visual Studio, distributed under its licence terms: https://learn.microsoft.com/visualstudio/releases/2022/redistribution`n$bar`n"
 Copy-Item "$env:IMAGE_MAGICK_DIR\*.dll", "$env:IMAGE_MAGICK_DIR\*.xml", "$env:IMAGE_MAGICK_DIR\sRGB.icc" $pkg
 Copy-Item "$env:IMAGE_MAGICK_DIR\modules" $pkg -Recurse
 Copy-Item target\prova\eyecansee.exe $pkg

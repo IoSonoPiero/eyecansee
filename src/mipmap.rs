@@ -81,7 +81,7 @@ pub(crate) fn smooth() -> bool {
 
 /// Whether a picture shown at `scale` screen pixels per pixel is filtered: on, and below 100%. A
 /// zoom that is 100% but for the rounding of the sums (key 1 gave 99.99…%) is not: the filter blurs
-/// more than needed on purpose (`smooth_gpu::BLUR`), and lines one pixel thin came out grey (P68,
+/// a little on purpose (`smooth_gpu::BLUR`), and lines one pixel thin came out grey (P68,
 /// 17/11).
 pub(crate) fn smoothed(scale: f32) -> bool {
     below_100(scale) && smooth()
@@ -119,12 +119,14 @@ pub(crate) fn level(scale: f32, copies: usize) -> usize {
 pub(crate) struct Picture {
     tex: TextureHandle,
     halves: Vec<TextureHandle>,
+    /// How many times another picture took its place (`set`).
+    version: u64,
 }
 
 impl Picture {
     pub(crate) fn new(ctx: &egui::Context, name: &str, image: ColorImage, halves: Vec<ColorImage>) -> Self {
         let halves = halves.into_iter().enumerate().map(|(i, h)| ctx.load_texture(format!("{name} 1/{}", 2 << i), h, TextureOptions::LINEAR)).collect();
-        Self { tex: ctx.load_texture(name, image, TextureOptions::LINEAR), halves }
+        Self { tex: ctx.load_texture(name, image, TextureOptions::LINEAR), halves, version: 0 }
     }
 
     /// With its copies made here: small pictures, or a picture opened once (the editor).
@@ -161,13 +163,19 @@ impl Picture {
             }
         }
         self.tex.set(image, TextureOptions::LINEAR);
+        self.version += 1;
+    }
+
+    /// How many times another picture took its place: what was made from it is of the same one.
+    pub(crate) fn version(&self) -> u64 {
+        self.version
     }
 }
 
 /// A picture without copies, drawn as before.
 impl From<TextureHandle> for Picture {
     fn from(tex: TextureHandle) -> Self {
-        Self { tex, halves: Vec::new() }
+        Self { tex, halves: Vec::new(), version: 0 }
     }
 }
 

@@ -533,7 +533,8 @@ fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u3
         if ui.add(egui::Button::image(crate::icons::line_in(ui.ctx(), icon, 18.0, light))).on_hover_text(i18n.t(tip)).clicked() {
             player.toggle();
         }
-        let (pos, length) = (player.position(), player.duration());
+        let length = player.duration();
+        let pos = shown_position(player.position(), length, player.ended());
         ui.label(egui::RichText::new(format!("{} / {}", mpv::clock(pos), mpv::clock(length))).color(light).monospace());
         // Room on the right for the sound: the button (as wide as the play one), the slider and
         // the volume.
@@ -550,6 +551,13 @@ fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u3
         }
         sound_controls(ui, player, sound, i18n);
     });
+}
+
+/// Where the time and the bar stand: at the end of a video played to its end. mpv keeps the last
+/// frame there, whose own time is one frame before the length: the time read 0:09 / 0:10 and the
+/// bar stopped short of its end.
+fn shown_position(pos: f64, length: f64, ended: bool) -> f64 {
+    if ended && length > 0.0 { length } else { pos }
 }
 
 /// Sound off and volume; off, not hidden, for a video without sound (and while it loads).
@@ -587,6 +595,15 @@ fn sound_controls(ui: &mut egui::Ui, player: &mpv::Player, (volume, mute): (&mut
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn at_the_end_the_time_and_the_bar_reach_the_length() {
+        use super::shown_position;
+        assert_eq!(shown_position(9.958, 10.0, true), 10.0);
+        assert_eq!(shown_position(4.2, 10.0, false), 4.2);
+        assert_eq!(shown_position(0.0, 0.0, true), 0.0);
+    }
+
     /// A jump of 5 seconds back from 3 lands at 0, forward near the end stops just before it.
     #[test]
     fn jumps_stay_in_the_video() {
