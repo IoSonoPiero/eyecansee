@@ -5,11 +5,19 @@
 //! pixels: lines one pixel thin shown at 62% came out as stripes (moiré). The filter starts from
 //! the halved copy just larger than the screen, so it never takes more than 17 pixels a pass.
 //!
-//! The cut-off is 1.35 times lower than a plain Lanczos-3: measured with ImageMagick on lines one
-//! pixel thin, a plain one still leaves stripes 156 grey levels apart at 90% (it lets through a
-//! part of what the screen cannot show), 1.35 lower 5 at 90% and 1 at 62%, and the photo stays
-//! sharper than with a Gaussian that removes the stripes as well (PSNR against a plain Lanczos:
-//! 34-38 dB against 25-29).
+//! Under two thirds of the picture's size the filter is a plain Lanczos-3, as ImageMagick's: a
+//! photo fitted to the window keeps all the detail the screen can show. From there to 100% its
+//! cut-off goes lower, up to 1.35 times (`width`): the filter is never narrower than 1.5 pixels
+//! of the picture, so lines one pixel thin (a screenshot, a drawing) come out an even grey, where
+//! a plain one leaves stripes (ImageMagick: a spread of 56 grey levels at 90%, 2 with this). A
+//! cut-off 1.35 times lower at every zoom removed the stripes of coarser lines too, but a photo
+//! at 24% kept only 75% of its fine detail and looked blurred (17/11). More lobes (5, 8) keep
+//! the detail and the even grey, but leave echoes beside the edges of text and cost the card up
+//! to twice the time. What is left: lines two pixels thin between 40% and 48% (and coarser ones
+//! lower) show stripes, as with any plain Lanczos-3.
+//!
+//! A picture that has not changed, drawn again at the same place and size, is not filtered
+//! again: the result of the last frame is still there (`Memo`).
 
 use std::sync::Mutex;
 
@@ -19,9 +27,12 @@ use eframe::wgpu::{self, util::DeviceExt};
 
 use crate::mipmap::Picture;
 
-/// How much lower than a plain Lanczos-3 the cut-off is (see the module's comment).
+/// How much lower than a plain Lanczos-3 the cut-off is at most, close to 100% (see the module's
+/// comment).
 pub(crate) const BLUR: f32 = 1.35;
-/// Lobes of the Lanczos filter.
+/// The filter is never narrower than this, in pixels of the picture.
+const NARROWEST: f32 = 1.5;
+/// Lobes of the Lanczos filter (the shader has the same number).
 const LOBES: f32 = 3.0;
 
 const SHADER: &str = r#"
@@ -35,7 +46,7 @@ struct Pass {
     axis: u32,
     // Added to the other coordinate (the first row read by the rows pass).
     offset: i32,
-    // 0: Lanczos-3, 1: Mitchell (B = C = 1/3).
+    // 0: Lanczos, 1: Mitchell (B = C = 1/3).
     kernel: i32,
     // The input's last pixel.
     last: vec2<i32>,
@@ -93,7 +104,8 @@ fn filtered(at: vec4<f32>) -> vec4<f32> {
     }
     across = across + p.offset;
     let centre = p.origin + (f32(along) + 0.5) * p.step;
-    let reach = 3.0 * p.width;
+    // As far as the filter is not zero: Lanczos' three lobes, Mitchell's two.
+    let reach = select(3.0, 2.0, p.kernel == 1) * p.width;
     let first = i32(floor(centre - reach));
     let end = i32(ceil(centre + reach));
     var sum = vec4(0.0);
@@ -121,7 +133,7 @@ fn filtered(at: vec4<f32>) -> vec4<f32> {
 }
 "#;
 
-/// The Lanczos-3 filter at `t` filter widths from the centre: the shader's `lanczos`, for the tests.
+/// The Lanczos filter at `t` filter widths from the centre: the shader's `lanczos`, for the tests.
 #[cfg(test)]
 fn lanczos(t: f32) -> f32 {
     let sinc = |x: f32| if x.abs() < 1e-5 { 1.0 } else { (std::f32::consts::PI * x).sin() / (std::f32::consts::PI * x) };
@@ -141,9 +153,11 @@ fn mitchell_at(t: f32) -> f32 {
     }
 }
 
-/// The filter's width, in input pixels, for `step` input pixels per output pixel.
+/// The filter's width, in input pixels, for `step` input pixels per output pixel: the step, but
+/// never under `NARROWEST` (nor over `BLUR` steps).
 pub(crate) fn width(step: f32) -> f32 {
-    step.max(1.0) * BLUR
+    let step = step.max(1.0);
+    step.max(NARROWEST.min(step * BLUR))
 }
 
 /// One output pixel along an axis, as the shader makes it: `get(j)` the input pixel `j` (the
@@ -198,10 +212,54 @@ struct Slot {
     id: TextureId,
     uniforms: [wgpu::Buffer; 2],
     used: bool,
+    memo: Memo,
+}
+
+/// What a result depends on: the texture read and how many times the picture changed, the part
+/// (its bits), the size, the filter.
+type Key = (TextureId, u64, [u32; 4], [u32; 2], bool);
+
+/// What a slot's result holds, to tell whether it must be made again.
+#[derive(Default)]
+struct Memo {
+    /// What the result was made from, when it can be kept.
+    key: Option<Key>,
+    /// The texture and the change of the picture filtered last.
+    seen: Option<(TextureId, u64)>,
+}
+
+/// What to do with a slot's result.
+#[derive(Debug, PartialEq)]
+enum Ask {
+    /// Still good: nothing to filter.
+    Kept,
+    /// To make, and to keep.
+    Make,
+    /// To make now and again at the next frame: the picture has just changed.
+    Again,
+}
+
+impl Memo {
+    /// For a result that depends on `key`. A picture put in the place of another (`Picture::set`:
+    /// the next frame of an animation, another page) reaches the card only at the end of the
+    /// frame, after this is asked: what is filtered in that frame is still the picture before, so
+    /// it is not kept and the frame is drawn again.
+    fn ask(&mut self, key: Key) -> Ask {
+        if self.key == Some(key) {
+            return Ask::Kept;
+        }
+        let seen = Some((key.0, key.1));
+        let settled = self.seen == seen;
+        self.seen = seen;
+        self.key = settled.then_some(key);
+        if settled { Ask::Make } else { Ask::Again }
+    }
 }
 
 struct Smoother {
     rs: RenderState,
+    /// To ask for another frame.
+    ctx: egui::Context,
     layout: wgpu::BindGroupLayout,
     rows: wgpu::RenderPipeline,
     columns: wgpu::RenderPipeline,
@@ -218,7 +276,7 @@ const OUT: wgpu::TextureFormat = wgpu::TextureFormat::Rgba8Unorm;
 const GRAIN: u32 = 256;
 
 /// With eframe's graphics card, at the start.
-pub(crate) fn init(rs: &RenderState) {
+pub(crate) fn init(rs: &RenderState, ctx: &egui::Context) {
     let device = &rs.device;
     let module = device.create_shader_module(wgpu::ShaderModuleDescriptor { label: Some("smooth"), source: wgpu::ShaderSource::Wgsl(SHADER.into()) });
     let layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -253,7 +311,7 @@ pub(crate) fn init(rs: &RenderState) {
         })
     };
     let (rows, columns) = (pipeline("rows", MID), pipeline("columns", OUT));
-    *SMOOTHER.lock().unwrap() = Some(Smoother { rs: rs.clone(), layout, rows, columns, slots: Vec::new(), next: 0 });
+    *SMOOTHER.lock().unwrap() = Some(Smoother { rs: rs.clone(), ctx: ctx.clone(), layout, rows, columns, slots: Vec::new(), next: 0 });
 }
 
 /// At the start of each frame: the pictures of the frame before not drawn again are let go.
@@ -282,7 +340,7 @@ pub(crate) fn resampled(pic: &Picture, scale: f32, uv: egui::Rect, out: [u32; 2]
     let filter = crate::mipmap::filter();
     let mitchell = filter == crate::settings::SmoothFilter::Mitchell;
     let source: &egui::TextureHandle = if filter == crate::settings::SmoothFilter::Halves { pic.texture_at(scale) } else { pic };
-    // Mitchell at its own width: the 1.35 of `BLUR` is Lanczos' (see the module's comment).
+    // Mitchell at its own width: the wider one is Lanczos' (see the module's comment).
     let width = |step: f32| if mitchell { step.max(1.0) } else { width(step) };
     let texture = s.rs.renderer.read().texture(&source.id())?.texture.clone()?;
     let (w, h) = (texture.width() as f32, texture.height() as f32);
@@ -296,6 +354,13 @@ pub(crate) fn resampled(pic: &Picture, scale: f32, uv: egui::Rect, out: [u32; 2]
         return None;
     }
     let slot = s.slot([out[0], rows], out);
+    let key: Key = (source.id(), pic.version(), [uv.min.x, uv.min.y, uv.max.x, uv.max.y].map(f32::to_bits), out, mitchell);
+    let extent = |o: &wgpu::Texture| egui::vec2(out[0] as f32 / o.width() as f32, out[1] as f32 / o.height() as f32);
+    match s.slots[slot].memo.ask(key) {
+        Ask::Kept => return Some((s.slots[slot].id, extent(&s.slots[slot].out.0))),
+        Ask::Again => s.ctx.request_repaint(),
+        Ask::Make => {}
+    }
     let pass = |origin: f32, step: f32, axis: u32, offset: i32, last: [i32; 2]| {
         let mut b = Vec::with_capacity(32);
         for v in [origin, step, width(step)] {
@@ -342,8 +407,7 @@ pub(crate) fn resampled(pic: &Picture, scale: f32, uv: egui::Rect, out: [u32; 2]
         pass.draw(0..3, 0..1);
     }
     queue.submit([encoder.finish()]);
-    let o = &slot.out.0;
-    Some((slot.id, egui::vec2(out[0] as f32 / o.width() as f32, out[1] as f32 / o.height() as f32)))
+    Some((slot.id, extent(&slot.out.0)))
 }
 
 impl Smoother {
@@ -387,7 +451,7 @@ impl Smoother {
                 };
                 drop(renderer);
                 let uniform = || self.rs.device.create_buffer_init(&wgpu::util::BufferInitDescriptor { label: Some("smooth"), contents: &[0; 32], usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST });
-                let slot = Slot { mid, out, id, uniforms: [uniform(), uniform()], used: true };
+                let slot = Slot { mid, out, id, uniforms: [uniform(), uniform()], used: true, memo: Memo::default() };
                 if i < self.slots.len() {
                     self.slots[i] = slot;
                 } else {
@@ -492,6 +556,42 @@ mod tests {
         eprintln!("false rings (rms grey levels): halves {fh:.2}, whole {fw:.2}, Mitchell {fm:.2}; real rings at the centre: {ch:.1}, {cw:.1}, {cm:.1}");
         assert!(fw < fh && fm < fh, "from the whole picture fewer false rings: {fh} {fw} {fm}");
         assert!(ch > 40.0 && cw > 40.0 && cm > 40.0, "the real rings stay: {ch} {cw} {cm}");
+    }
+
+    /// The width: a plain Lanczos-3 under two thirds, 1.35 times wider close to 100%, never under
+    /// 1.5 pixels of the picture in between.
+    #[test]
+    fn plain_under_two_thirds_wider_towards_100() {
+        for step in [1.5, 2.0, 4.2, 12.0] {
+            assert_eq!(width(step), step);
+        }
+        assert_eq!(width(1.25), 1.5);
+        assert!((width(1.0 / 0.9) - 1.5).abs() < 1e-6 && (width(1.01) - 1.01 * BLUR).abs() < 1e-6);
+    }
+
+    /// A photo's fine detail stays: waves 14 pixels long shown at 25% (0.57 of the finest the
+    /// screen can show) keep nearly all their height; a cut-off 1.35 times lower kept 82%.
+    #[test]
+    fn fine_detail_that_the_screen_can_show_stays() {
+        let (size, out) = ([1600, 160], [400, 40]);
+        let grey: Vec<f32> = (0..size[0] * size[1]).map(|i| 127.5 + 100.0 * (std::f32::consts::TAU * (i % size[0]) as f32 / 14.0).sin()).collect();
+        let kept = spread(&resample(&grey, size, out), out) / 200.0;
+        eprintln!("waves 14 pixels long at 25%: {:.0}% of their height", kept * 100.0);
+        assert!(kept > 0.9, "{kept}");
+    }
+
+    /// A result is kept while what it was made from is the same; a picture that has just changed
+    /// is filtered at that frame and at the next, and only then kept.
+    #[test]
+    fn a_result_is_kept_but_not_of_a_picture_just_changed() {
+        let key = |version: u64, zoom: u32| -> Key { (TextureId::Managed(7), version, [0, 0, zoom, zoom], [100, 80], false) };
+        let mut memo = Memo::default();
+        // A picture never seen: made twice (the first may be of what the texture held before).
+        assert_eq!([memo.ask(key(0, 1)), memo.ask(key(0, 1)), memo.ask(key(0, 1))], [Ask::Again, Ask::Make, Ask::Kept]);
+        // Another zoom of the same picture: made once.
+        assert_eq!([memo.ask(key(0, 2)), memo.ask(key(0, 2))], [Ask::Make, Ask::Kept]);
+        // The next frame of an animation: not kept at once.
+        assert_eq!([memo.ask(key(1, 2)), memo.ask(key(1, 2)), memo.ask(key(1, 2))], [Ask::Again, Ask::Make, Ask::Kept]);
     }
 
     /// A flat grey stays the same grey (the weights add up to one).
