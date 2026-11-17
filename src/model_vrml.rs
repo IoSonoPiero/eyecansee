@@ -211,7 +211,7 @@ impl<'t> Classic<'t> {
             "USE" => Ok(self.next().and_then(|n| self.defs.get(n)).cloned()),
             "DEF" => {
                 let name = self.next().ok_or("unexpected end of file")?;
-                let n = self.node(depth)?;
+                let n = self.node(depth + 1)?;
                 if let Some(n) = &n {
                     self.defs.insert(name, n.clone());
                 }
@@ -253,6 +253,9 @@ impl<'t> Classic<'t> {
     }
 
     fn value(&mut self, depth: u32) -> Result<Value, String> {
+        if depth > MAX_DEPTH {
+            return Err("nodes nested too deep".into());
+        }
         let t = self.peek().ok_or("unexpected end of file")?;
         if t == "[" {
             self.at += 1;
@@ -261,7 +264,7 @@ impl<'t> Classic<'t> {
                 if self.peek().is_none() {
                     return Err("unexpected end of file".into());
                 }
-                items.push(self.value(depth)?);
+                items.push(self.value(depth + 1)?);
             }
             self.at += 1;
             return Ok(join(items));
@@ -358,6 +361,16 @@ fn attribute(v: &str) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Names given one after the other and lists inside lists without end are an error, not a
+    /// stack that runs out (a file of a few KB closed the program).
+    #[test]
+    fn names_and_lists_nested_without_end_are_refused() {
+        let names = format!("#VRML V2.0 utf8\n{}Group {{}}", "DEF a ".repeat(100_000));
+        assert!(parse(names.as_bytes()).is_err());
+        let lists = format!("#VRML V2.0 utf8\nGroup {{ children {}", "[ ".repeat(100_000));
+        assert!(parse(lists.as_bytes()).is_err());
+    }
 
     #[test]
     fn vrml_and_x3d_give_the_same_scene() {
