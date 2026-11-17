@@ -820,7 +820,7 @@ edit-filter-done-hint = Il filtro è già applicato: resta così e finisce nel f
 edit-filter-amount = Intensità
 edit-filter-not-cover = Sfoca e Pixel grossi non bastano per nascondere testi o numeri sensibili: con poca intensità si leggono, o si possono ricostruire. Per quelli usa Copertura (B).
 edit-text-curve = Su una curva
-edit-text-curve-hint = Il testo segue una linea: trascina il punto di mezzo per curvarla, i capi per allungarla o girarla.
+edit-text-curve-hint = Il testo segue una linea: trascina il punto di mezzo per curvarla, i capi per allungarla o ruotarla.
 edit-outline = Contorno
 edit-outline-hint = Una linea intorno alle lettere, per leggerle su qualsiasi foto.
 edit-text-back = Sfondo
@@ -880,7 +880,7 @@ edit-solid = Continuo
 edit-dashed = Tratteggiato
 edit-dotted = Puntinato
 edit-delete = Elimina
-edit-turn-hint = Il suo angolo sullo schermo. Puoi anche trascinare la maniglia tonda sopra l'oggetto; con Maiusc gira a scatti di 15°.
+edit-turn-hint = Il suo angolo sullo schermo. Puoi anche trascinare la maniglia tonda sopra l'oggetto; con Maiusc ruota a scatti di 15°.
 edit-patch-ccw = Ruota il pezzo di 90° in senso antiorario
 edit-patch-cw = Ruota il pezzo di 90° in senso orario
 edit-patch-flip-h = Rifletti il pezzo orizzontalmente
@@ -1649,7 +1649,7 @@ tip-models-title = Modelli 3D e disegni CAD
 tip-models-text =
     I modelli 3D (STL, OBJ, glTF, FBX, IFC, STEP e altri) e i disegni CAD (DWG, DXF) compaiono nella griglia con la loro immagine e si aprono nel visore.
 
-    Trascina o usa le frecce per girare un modello, la rotella per ingrandire; un disegno si sposta trascinandolo, e **Ctrl+L** ne accende e spegne i livelli. **M** li misura tutti e due.
+    Trascina o usa le frecce per ruotare un modello, la rotella per ingrandire; un disegno si sposta trascinandolo, e **Ctrl+L** ne accende e spegne i livelli. **M** li misura tutti e due.
 tip-duplicates-title = Trovare i duplicati
 tip-duplicates-text = **Strumenti > Trova duplicati…** (**Ctrl+D**) trova i file identici, anche con un altro nome o in un'altra cartella, sul computer, su un disco, su un telefono o su un server. Scegli tu le copie da eliminare; una resta sempre.
 tip-trash-title = Eliminato per sbaglio?

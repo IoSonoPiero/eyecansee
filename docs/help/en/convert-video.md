@@ -4,7 +4,7 @@ Converts videos into another format or size, turns them, makes them smaller or t
 
 ## Starting
 
-Select the videos in the grid (pictures can be selected too) and choose ![Convert…](icon://scaling) **Convert…** from the toolbar, the **Tools** menu (**Ctrl+B**) or the right-click menu. With videos among the files, the window has a **Videos** part. Turn and flip, size and destination work as for pictures: see [Converting and resizing images](convert.md).
+Select the videos in the grid (pictures can be selected too) and choose ![Convert…](icon://scaling) **Convert…** from the toolbar, the **Tools** menu (**Ctrl+B**) or the right-click menu. With videos among the files, the window has a **Videos** part. Rotate and flip, size and destination work as for pictures: see [Converting and resizing images](convert.md).
 
 ## FFmpeg
 
@@ -21,7 +21,7 @@ Videos are converted by FFmpeg.
 
 - **Container**: MP4 (the default), MKV, WebM, MOV, AVI or GIF.
 - **Codec**: the ones the container can hold, among H.264 (the default), HEVC, AV1, VP9, VP8, MPEG-4, ProRes and GIF. A line says what the codec chosen is good for. A codec with no working encoder on this computer is greyed out.
-- **Same as the original (no re-encoding)**: video and audio are copied as they are, in seconds and without any loss, with the metadata. Turn and size do not apply. The container starts on the originals' own (a WebM stays WebM) and lists only those that can hold their streams; videos of different formats chosen together are copied as MKV, which holds them all. A video whose streams the chosen container cannot take after all is copied as MKV, so the copy does not fail for that.
+- **Same as the original (no re-encoding)**: video and audio are copied as they are, in seconds and without any loss, with the metadata. The rotation and the size do not apply. The container starts on the originals' own (a WebM stays WebM) and lists only those that can hold their streams; videos of different formats chosen together are copied as MKV, which holds them all. A video whose streams the chosen container cannot take after all is copied as MKV, so the copy does not fail for that.
 - **Encoder**: the graphics card's first, in green (NVIDIA, Intel Quick Sync, AMD, VA-API on Linux), then Windows' own and the processor's. The graphics card is much faster and leaves the computer free; the processor makes slightly smaller files at the same quality. A line says what the encoder chosen is good for.
 - **Quality**: **High**, **Medium** (the default) or **Small file**.
 - **Keep the audio** and **Keep the metadata (date, place, camera)**, both on at first.
