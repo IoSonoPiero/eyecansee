@@ -217,7 +217,7 @@ opt-smooth-hint = Un'immagine mostrata più piccola dei suoi pixel viene filtrat
 opt-smooth-halves = Veloce: dalle copie dimezzate
 opt-smooth-halves-hint = Il filtro parte da una copia dell'immagine già ridotta a metà, a un quarto…: leggero per la scheda video. Su motivi molto fitti può restare qualche falso disegno debole.
 opt-smooth-whole = Preciso: dall'immagine intera
-opt-smooth-whole-hint = Il filtro parte sempre dall'immagine intera: niente falsi disegni, ma più lavoro per la scheda video, tanto più quanto più l'immagine è rimpicciolita.
+opt-smooth-whole-hint = Il filtro parte sempre dall'immagine intera: quasi nessun falso disegno, ma più lavoro per la scheda video, tanto più quanto più l'immagine è rimpicciolita.
 opt-smooth-mitchell = Morbido: Mitchell dall'immagine intera
 opt-smooth-mitchell-hint = Un filtro più morbido di quello degli altri due (Lanczos), dall'immagine intera: meno aloni attorno ai bordi, un po' meno nitido.
 
