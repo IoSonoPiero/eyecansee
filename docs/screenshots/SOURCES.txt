@@ -1,11 +1,5 @@
-What the screenshots and the GIF show (grid.png, viewer.png, mtp-open.gif and the site's mtp-open.mp4
-and mtp-open-poster.jpg: a POCO X7 Pro's folder DCIM/EyeCanSee-demo, made of the files below;
+What the screenshots show (grid.png, viewer.png: a phone's folder DCIM/EyeCanSee-demo, made of the files below;
 convert.png, rotate.png: the same photos on disk).
-
-mtp-open.gif (800 x 533, 10 fps, 10 s) and the site's mtp-open.mp4 (800 x 534): the phone's DCIM
-folder, then a double click on EyeCanSee-demo and its thumbnails. Dark theme, 1200 x 800, recorded
-by EyeCanSee itself, the pointer drawn afterwards. The home folder shown (/home/demo) is a test one,
-with no disks.
 
 devices.png: the 13 photos below in the folder Photos of a test FTP server on the same computer,
 saved as "NAS" (nas.example, user "demo"); in the left panel a POCO X7 Pro and a second
