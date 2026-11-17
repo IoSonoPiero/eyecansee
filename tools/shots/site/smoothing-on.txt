@@ -1,0 +1,10 @@
+# Lake Garda.dng (4064 x 3056) in the viewer, fitted to the window (below 50 %), with the smoothing
+# of pictures shown below 100 % on, with the default filter: smoothing-off and smoothing-on
+# side by side show the difference. Coordinates for a 1200 x 800 window.
+open /home/demo/Pictures/Holiday
+set smooth true
+set smooth_filter "whole"
+3 open Lake Garda.dng
+8 move 1199 400
+12 shot
+12.5 end

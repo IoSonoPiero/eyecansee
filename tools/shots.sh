@@ -18,7 +18,7 @@
 # The site's pictures (site/img, docs/screenshots) have their scenes in tools/shots/site/, left out
 # when no scene is named: tools/shots.sh site/guide site/guide-search site/bookmarks
 # site/open-location site/servers, with EYECANSEE_SHOTS_TO=<folder> for the pictures (default
-# docs/help/img). site/grid, site/viewer, site/devices and site/video-convert are those of the
+# docs/help/img). site/grid, site/viewer, site/devices, site/video-convert and site/model-3d are those of the
 # README too (docs/screenshots/<name>.png, the first command below only); grid and viewer want a
 # real phone with the folder DCIM/EyeCanSee-demo (docs/screenshots/SOURCES.txt), devices the FTP
 # server below.

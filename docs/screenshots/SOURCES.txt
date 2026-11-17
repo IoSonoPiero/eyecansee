@@ -44,8 +44,7 @@ walls, doors, windows, furniture, dimensions and texts; linear dimensions) and s
 EyeCanSee's Export drawing: free to use for any purpose.
 
 Both taken in a home folder made for the screenshots (/home/demo), 1200 x 800, dark theme;
-model-3d.png on a screen at 167 % (2000 x 1333) and reduced to 1200 x 800, to show the viewer at
-the screen's refresh rate.
+model-3d.png by EyeCanSee itself (tools/shots/site/model-3d.txt), without the frame rate.
 
 editor.png: Wilderness.jpg (below) in the image editor, with a speech bubble, an ellipse, two
 numbered steps joined by a dashed line, a text and a stamp; 1200 x 800, dark theme, taken by
