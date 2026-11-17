@@ -37,6 +37,8 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Side panel: the folders of the open server, down to the one open, as for This computer ([#110](https://github.com/IoSonoPiero/eyecansee/issues/110)).
 - Saved servers: log in through the SSH agent ([#133](https://github.com/IoSonoPiero/eyecansee/issues/133)).
 - Merging a folder with many replaced files on phones and SFTP servers as fast as before the safe replace of 0.76.0 ([#94](https://github.com/IoSonoPiero/eyecansee/issues/94)).
+- Choose a folder: a saved server opens in the folder it starts in, not at its root, which some servers refuse ([#153](https://github.com/IoSonoPiero/eyecansee/issues/153)).
+- Choose a folder: make a new folder from the same window ([#154](https://github.com/IoSonoPiero/eyecansee/issues/154)).
 
 ### Formats
 
@@ -91,6 +93,12 @@ The order is indicative: features arrive when they are ready and tested on real 
 - Copy files from the grid to other file managers ([#64](https://github.com/IoSonoPiero/eyecansee/issues/64)).
 - Tips the first time EyeCanSee is opened ([#113](https://github.com/IoSonoPiero/eyecansee/issues/113)).
 - Options: download the add-on engines (video engine, FFmpeg, CAD engine) in advance, and remove them ([#50](https://github.com/IoSonoPiero/eyecansee/issues/50)).
+- Viewer: a choice of the filter for pictures shown below 100% ([#155](https://github.com/IoSonoPiero/eyecansee/issues/155)).
+- Viewer: the complete Keys list of CAD drawings, 3D models and Measure ([#156](https://github.com/IoSonoPiero/eyecansee/issues/156)).
+- Viewer: Ctrl+Z and Ctrl+Y for a turn or flip not saved yet ([#157](https://github.com/IoSonoPiero/eyecansee/issues/157)).
+- Sliders: a handle that stands out and evenly spaced tick marks ([#158](https://github.com/IoSonoPiero/eyecansee/issues/158)).
+- Copies of a photo with a sidecar: the sidecar's position in the EXIF too ([#159](https://github.com/IoSonoPiero/eyecansee/issues/159)).
+- Find duplicates: Esc from the viewer comes back to the results, with the ticks ([#160](https://github.com/IoSonoPiero/eyecansee/issues/160)).
 
 ## Later, if requested
 
