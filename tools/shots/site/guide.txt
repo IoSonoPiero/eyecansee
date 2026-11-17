@@ -3,7 +3,7 @@
 open /home/demo/Pictures/Holiday
 3 act manual
 4.5 click 87 528
-5.5 drag 452 33 535 85 0.6
-7 drag 993 682 1100 768 0.6
+5.5 drag 452 33 535 105 0.6
+7 drag 993 702 1100 768 0.6
 9.5 shot
 10 end
