@@ -350,12 +350,30 @@ fn zeroed_pixels(n: usize) -> Vec<Color32> {
 
 impl Drop for Mpv {
     fn drop(&mut self) {
-        // SAFETY: the render context goes before the core (render.h), each freed once.
-        unsafe {
-            if !self.render.is_null() {
-                (self.api.render_free)(self.render);
+        let this = &*self;
+        let end = move || {
+            // SAFETY: the render context goes before the core (render.h), each freed once.
+            unsafe {
+                if !this.render.is_null() {
+                    (this.api.render_free)(this.render);
+                }
+                (this.api.terminate_destroy)(this.handle);
             }
-            (self.api.terminate_destroy)(self.handle);
+        };
+        // On Windows, on a thread of its own. The last handle destroys mpv's core on the thread
+        // that frees it, audio output included, and WASAPI's `uninit` (ao_wasapi.c) calls
+        // `CoUninitialize` there, though its `CoInitializeEx` was on mpv's own thread. On the
+        // window's thread each video with sound closed undid one of the window's own COM
+        // initializations: after two or three, the taskbar object winit keeps for full screen was
+        // gone, and the next F11 or slideshow crashed in `MarkFullscreenWindow` (access
+        // violation; Piero on warmachinew, 2026-11-18: F11 twice, a video opened and closed three
+        // times, F11).
+        if cfg!(windows) {
+            std::thread::scope(|s| {
+                s.spawn(end);
+            });
+        } else {
+            end();
         }
     }
 }
