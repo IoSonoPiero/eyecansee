@@ -223,6 +223,9 @@ pub struct Window {
     view: Option<(Vec2, f32)>,
     /// The view drawn last (that of `view`, or everything in view): for the zoom buttons.
     shown: (Vec2, f32),
+    /// The properties bar: the window width it was measured at and its tallest height there
+    /// (`props_floor`).
+    props_tallest: (f32, f32),
     /// Rotate and crop: the drag under way: what, the crop and the view when it started, where the pointer was.
     drag: Option<(Grab, Crop, (Vec2, f32), Pos2)>,
     /// Straighten is on: a drag draws a line, which becomes level when let go.
@@ -305,6 +308,7 @@ impl Window {
             color: Color32::WHITE,
             view: None,
             shown: (Vec2::ZERO, 1.0),
+            props_tallest: (0.0, 0.0),
             drag: None,
             straighten: false,
             line_end: None,
@@ -367,6 +371,22 @@ impl Window {
             }
             Follow::Manual => self.ratio().map_or(self.doc.crop, |r| self.doc.crop.fit(r)),
         };
+    }
+
+    /// The height the properties bar keeps: the tallest it has been at this window width, so a
+    /// tool whose controls wrap onto one more row does not move and shrink the picture, and the
+    /// next tool does not move it back (#164). `height`: the bar as just drawn. A new width
+    /// starts again from nothing.
+    // ponytail: the bar grows once, the first time a taller tool is chosen at this width;
+    // measuring every tool's controls beforehand would avoid that one move.
+    fn props_floor(&mut self, width: f32, height: Option<f32>) -> f32 {
+        if self.props_tallest.0 != width {
+            self.props_tallest = (width, 0.0);
+        }
+        if let Some(h) = height {
+            self.props_tallest.1 = self.props_tallest.1.max(h);
+        }
+        self.props_tallest.1
     }
 
     /// A question or a window over the page takes Enter and Esc (`confirm::asking`).
@@ -579,7 +599,9 @@ impl App {
             w.refresh_previews();
             let mut ask = self.edit_keys(ui.ctx(), &mut w);
             egui::Panel::top("edit-tools").show(ui, |ui| ask = self.edit_toolbar(ui, &mut w).or(ask.take()));
-            egui::Panel::top("edit-props").show(ui, |ui| self.props_bar(ui, &mut w));
+            let floor = w.props_floor(ui.available_width(), None);
+            let props = egui::Panel::top("edit-props").min_size(floor).show(ui, |ui| self.props_bar(ui, &mut w));
+            w.props_floor(ui.available_width(), Some(props.response.rect.height()));
             // I where the bar has no eyedropper (Select with nothing selected, a filter, Crop):
             // dropped, or it turned the eyedropper on later with a drawing tool, and a second I off
             // again ("only the +").
@@ -680,5 +702,24 @@ impl App {
             self.settings.edit_styles = w.styles.iter().map(|(k, s)| (*k, Style { width: s.width / long, letters: s.letters / long, ..*s })).collect();
             self.settings.save();
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The properties bar keeps its tallest height while the window keeps its width (#164): a
+    /// tool with fewer rows after a taller one does not move the picture back up; a new width
+    /// measures again.
+    #[test]
+    fn props_bar_keeps_its_height() {
+        let mut w = Window::new("p/a.png".into(), Default::default(), Tool::Select);
+        assert_eq!(w.props_floor(1280.0, Some(60.0)), 60.0);
+        assert_eq!(w.props_floor(1280.0, Some(90.0)), 90.0);
+        assert_eq!(w.props_floor(1280.0, Some(60.0)), 90.0);
+        assert_eq!(w.props_floor(1280.0, None), 90.0);
+        assert_eq!(w.props_floor(1600.0, None), 0.0);
+        assert_eq!(w.props_floor(1600.0, Some(60.0)), 60.0);
     }
 }
