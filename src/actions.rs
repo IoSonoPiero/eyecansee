@@ -284,7 +284,7 @@ impl App {
         } else {
             let paths = self.grid_turned(path, op);
             // Videos among them are saved by FFmpeg: without one, offered first (#169).
-            if paths.iter().any(|p| crate::decode::is_video(p)) && self.ffmpeg_missing(false) {
+            if paths.iter().any(|p| crate::decode::is_video(p)) && self.ffmpeg_missing(crate::ffmpeg_ask::Then::Turn(paths.clone(), op)) {
                 return;
             }
             if !paths.is_empty() {

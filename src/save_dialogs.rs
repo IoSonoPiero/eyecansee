@@ -113,17 +113,21 @@ impl App {
             source::Deletion::TrashFolder => "batch-originals-folder",
             source::Deletion::Permanent => "batch-originals-permanent",
         };
-        let mut text = format!("{}\n\n{}", self.i18n.t_args("batch-turn-confirm", &[("n", &n)]), self.i18n.t(where_id));
+        // Videos are named as videos: "1 image will be changed" on a video (Piero, 2026-11-18).
+        let videos = ok.iter().filter(|p| crate::decode::is_video(p)).count();
+        let what = saved_what(ok.len(), videos);
+        let mut text = format!("{}\n\n{}", self.i18n.t_args("batch-turn-confirm", &[("n", &n), ("what", what)]), self.i18n.t(where_id));
         if ok.iter().any(|p| matches!(encode::Format::of_file(p), Some(encode::Format::Jpeg | encode::Format::Webp | encode::Format::Avif | encode::Format::Gif))) {
             text = format!("{text}\n\n{}", self.i18n.t("batch-lossy"));
         }
         if ok.iter().any(|p| crate::psd::is_psd(p)) {
             text = format!("{text}\n\n{}", self.i18n.t("batch-psd-flatten"));
         }
-        if !ok.is_empty() {
+        // What is skipped among pictures: said only when there are pictures.
+        if ok.len() > videos {
             text = format!("{text}\n\n{}", self.i18n.t("batch-animated"));
         }
-        if ok.iter().any(|p| crate::decode::is_video(p)) {
+        if videos > 0 {
             text = format!("{text}\n\n{}", self.i18n.t("batch-turn-videos"));
         }
         if let Some(id) = refused {
@@ -226,7 +230,7 @@ impl App {
         }
         let Some(path) = self.viewing.and_then(|i| self.files().get(i)).map(|f| f.path.clone()) else { return };
         // A turned video is saved by FFmpeg: without one, offered first (#169).
-        if crate::decode::is_video(&path) && self.ffmpeg_missing(true) {
+        if crate::decode::is_video(&path) && self.ffmpeg_missing(crate::ffmpeg_ask::Then::Save) {
             return;
         }
         let Some(loader) = &self.loader else { return };
@@ -508,6 +512,19 @@ mod tests {
         use super::Look::*;
         let runs = super::spans(r"**First** key `SHA256:a*b\c` is \*ok\*");
         assert_eq!(runs, [("First".into(), Bold), (" key ".into(), Plain), (r"SHA256:a*b\c".into(), Code), (" is *ok*".into(), Plain)]);
+    }
+
+    /// The question before a turn in the grid names videos as videos ("1 image will be changed"
+    /// on a video, Piero, 2026-11-18), in both languages.
+    #[test]
+    fn turn_question_names_videos() {
+        for (lang, video, image, mixed) in [("en", "**1 video** will be turned", "**1 image** will be changed", "images and videos"), ("it", "**1 video** verrà ruotato", "**1 immagine** verrà modificata", "immagini e video")] {
+            let i18n = crate::i18n::I18n::detect(Some(lang));
+            let text = |n: usize, videos: usize| i18n.t_args("batch-turn-confirm", &[("n", &n.to_string()), ("what", super::saved_what(n, videos))]);
+            assert!(text(1, 1).starts_with(video), "{}", text(1, 1));
+            assert!(text(1, 0).starts_with(image), "{}", text(1, 0));
+            assert!(text(3, 1).contains(mixed), "{}", text(3, 1));
+        }
     }
 
     #[test]

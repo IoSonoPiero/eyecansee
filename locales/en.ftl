@@ -1026,9 +1026,16 @@ status-saving = Saving…
 status-preparing = Preparing to save…
 zoom-field-hint = Zoom: click to type a percentage, then Enter (Esc: as it was)
 zoom-slider-hint = Zoom: drag to make the picture larger or smaller
-batch-turn-confirm = { $n ->
-    [one] **1 image** will be changed and saved over its original.
-   *[other] Up to **{ $n } images** will be changed and saved over their originals.
+batch-turn-confirm = { $what ->
+    [videos] { $n ->
+        [one] **1 video** will be turned and saved over its original.
+       *[other] Up to **{ $n } videos** will be turned and saved over their originals.
+    }
+    [mixed] Up to **{ $n } images and videos** will be changed and saved over their originals.
+   *[other] { $n ->
+        [one] **1 image** will be changed and saved over its original.
+       *[other] Up to **{ $n } images** will be changed and saved over their originals.
+    }
 }
 batch-originals-trash = The originals go **to the trash**.
 batch-originals-folder = The originals go to **this folder's Trash**, where **Open the trash** restores them.
@@ -1535,7 +1542,7 @@ batch-video-download-failed = Download failed: { $detail }
 batch-video-old-ffmpeg = The FFmpeg on this computer is too old: { $found }, while EyeCanSee needs at least { $required }. EyeCanSee can download its own, once ({ $size }), into the app's data folder.
 batch-video-lacks-ffmpeg = The FFmpeg on this computer ({ $found }) cannot read { $missing }, the formats phones record in. EyeCanSee can download its own, which reads them, once ({ $size }), into the app's data folder.
 ffmpeg-ask-title = FFmpeg needed
-turn-video-need-ffmpeg = A turned video is saved by FFmpeg, which EyeCanSee has not got here yet. It is downloaded once ({ $size }) into the app's data folder.
+turn-video-need-ffmpeg = A turned video is saved by FFmpeg, which EyeCanSee has not got here yet. It is downloaded once ({ $size }) into the app's data folder; then the saving goes on.
 batch-video-system-only = FFmpeg is not on this computer, and the Options say to use the system's only. Install it, or change the choice under Tools > Options > Video.
 batch-video-not-ready = Choose how to convert the videos.
 batch-skip-video = { $detail }: a video, and FFmpeg is missing.

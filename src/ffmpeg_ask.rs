@@ -12,10 +12,18 @@ use crate::App;
 use crate::engine::Status;
 use crate::save_dialogs::{Head, message};
 
-/// The window open: the download under way, and whether the viewer's Save follows it.
+/// The window open: the download under way, and what goes on once FFmpeg is there.
 pub struct Ask {
     download: Option<Arc<crate::component::Download>>,
-    then_save: bool,
+    then: Then,
+}
+
+/// What was asked when FFmpeg was found missing.
+pub enum Then {
+    /// The viewer's Save, with its question.
+    Save,
+    /// The turn of these files in the grid, with its question.
+    Turn(Vec<String>, crate::transform::Op),
 }
 
 /// The text of the window and whether the download is offered, by what `ffmpeg::status` says:
@@ -29,13 +37,14 @@ fn text_of(status: &Status) -> (&'static str, bool) {
 
 impl App {
     /// No FFmpeg that can save a turned video: true, and the window that offers it opens.
-    /// `then_save`: the viewer's Save goes on once FFmpeg is there.
-    pub(crate) fn ffmpeg_missing(&mut self, then_save: bool) -> bool {
+    /// `then` goes on once FFmpeg is there: left to the user to repeat, nothing seemed to have
+    /// happened after the download (Piero, 2026-11-18).
+    pub(crate) fn ffmpeg_missing(&mut self, then: Then) -> bool {
         if crate::ffmpeg::copier().is_some() {
             return false;
         }
         log!("ffmpeg asked for: {:?}", crate::ffmpeg::status());
-        self.ffmpeg_ask = Some(Ask { download: None, then_save });
+        self.ffmpeg_ask = Some(Ask { download: None, then });
         true
     }
 
@@ -66,10 +75,10 @@ impl App {
         });
         if done {
             log!("ffmpeg asked for: downloaded");
-            let save = ask.then_save;
-            self.ffmpeg_ask = None;
-            if save {
-                self.ask_save();
+            match self.ffmpeg_ask.take().map(|a| a.then) {
+                Some(Then::Save) => self.ask_save(),
+                Some(Then::Turn(paths, op)) => self.batch_turn = Some((paths, op)),
+                None => {}
             }
         } else if close {
             log!("ffmpeg asked for: closed");

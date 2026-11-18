@@ -1025,9 +1025,16 @@ status-saving = Salvataggio in corso…
 status-preparing = Preparo il salvataggio…
 zoom-field-hint = Zoom: clic per scrivere una percentuale, poi Invio (Esc: come prima)
 zoom-slider-hint = Zoom: trascina per ingrandire o rimpicciolire la foto
-batch-turn-confirm = { $n ->
-    [one] **1 immagine** verrà modificata e salvata sopra l'originale.
-   *[other] Fino a **{ $n } immagini** verranno modificate e salvate sopra gli originali.
+batch-turn-confirm = { $what ->
+    [videos] { $n ->
+        [one] **1 video** verrà ruotato e salvato sopra l'originale.
+       *[other] Fino a **{ $n } video** verranno ruotati e salvati sopra gli originali.
+    }
+    [mixed] Fino a **{ $n } immagini e video** verranno modificati e salvati sopra gli originali.
+   *[other] { $n ->
+        [one] **1 immagine** verrà modificata e salvata sopra l'originale.
+       *[other] Fino a **{ $n } immagini** verranno modificate e salvate sopra gli originali.
+    }
 }
 batch-originals-trash = Gli originali vanno **nel cestino**.
 batch-originals-folder = Gli originali vanno nel **Cestino di questa cartella**, da cui si ripristinano con **Apri il cestino**.
@@ -1534,7 +1541,7 @@ batch-video-download-failed = Scaricamento non riuscito: { $detail }
 batch-video-old-ffmpeg = L'FFmpeg di questo computer è troppo vecchio: { $found }, mentre a EyeCanSee serve almeno { $required }. EyeCanSee può scaricare il suo, una volta sola ({ $size }), nella cartella dei dati dell'app.
 batch-video-lacks-ffmpeg = L'FFmpeg di questo computer ({ $found }) non sa leggere { $missing }, i formati in cui registrano i telefoni. EyeCanSee può scaricare il suo, che li legge, una volta sola ({ $size }), nella cartella dei dati dell'app.
 ffmpeg-ask-title = Serve FFmpeg
-turn-video-need-ffmpeg = Un video ruotato lo salva FFmpeg, che EyeCanSee qui non ha ancora. Si scarica una volta sola ({ $size }) nella cartella dei dati dell'app.
+turn-video-need-ffmpeg = Un video ruotato lo salva FFmpeg, che EyeCanSee qui non ha ancora. Si scarica una volta sola ({ $size }) nella cartella dei dati dell'app; poi il salvataggio prosegue.
 batch-video-system-only = FFmpeg su questo computer non c'è, e nelle Opzioni è scelto di usare solo quello di sistema. Installalo, oppure cambia la scelta in Strumenti > Opzioni > Video.
 batch-video-not-ready = Scegli come convertire i video.
 batch-skip-video = { $detail }: è un video e manca FFmpeg.
