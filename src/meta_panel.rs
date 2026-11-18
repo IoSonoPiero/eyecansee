@@ -311,9 +311,9 @@ impl App {
                 ui.separator();
                 ui.label(self.i18n.t_args("convert-pixels", &[("w", &w.to_string()), ("h", &h.to_string())]));
                 zoom_on = true;
-                if let Some(page) = self.frames_status(&f.path) {
+                if let Some((id, place)) = self.frames_status(&f.path) {
                     ui.separator();
-                    ui.label(page);
+                    crate::frames_view::counter(ui, &self.i18n, id, place, egui::RichText::new);
                 }
             }
             if let Some([w, h]) = self.video_size() {

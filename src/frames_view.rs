@@ -128,18 +128,17 @@ impl App {
                         ui.horizontal(|ui| {
                             let button = |ui: &mut egui::Ui, icon, tip: &str, on: bool| ui.add_enabled(on, egui::Button::image(crate::icons::line_in(ui.ctx(), icon, 18.0, light)).fill(Color32::TRANSPARENT)).on_hover_text(i18n.t(tip)).clicked();
                             let text = |s: String| egui::RichText::new(s).color(light).monospace();
-                            let n = |v: usize| (v + 1).to_string();
-                            let total = seq.len().to_string();
+                            let place = (at + 1, seq.len());
                             match &*seq {
                                 Sequence::Animation(_) => {
                                     let (icon, tip) = if playing { (Line::Pause, "video-pause") } else { (Line::Play, "video-play") };
                                     let toggle = button(ui, icon, tip, true);
-                                    ui.label(text(i18n.t_args("frames-frame", &[("n", &n(at)), ("total", &total)])));
+                                    counter(ui, i18n, "frames-frame", place, text);
                                     toggle.then_some(Click::Toggle)
                                 }
                                 Sequence::Pages(p) => {
                                     let back = button(ui, Line::Back, "frames-page-prev", at > 0);
-                                    ui.label(text(i18n.t_args("frames-page", &[("n", &n(at)), ("total", &total)])));
+                                    counter(ui, i18n, "frames-page", place, text);
                                     let on = button(ui, Line::Forward, "frames-page-next", at + 1 < p.len());
                                     if back { Some(Click::Page(at - 1)) } else { on.then_some(Click::Page(at + 1)) }
                                 }
@@ -160,7 +159,9 @@ impl App {
     }
 
     /// "Page 2 / 5" or "Frame 3 / 20" for the status bar, when `path` is the open image.
-    pub(crate) fn frames_status(&self, path: &str) -> Option<String> {
+    /// For the status bar: the text ("frames-frame" or "frames-page"), the frame or page shown
+    /// (from 1) and how many there are, to draw with `counter`.
+    pub(crate) fn frames_status(&self, path: &str) -> Option<(&'static str, (usize, usize))> {
         let (open, seq) = self.sequence()?;
         let shown = self.frames.shown.as_ref().filter(|s| s.path == path && open == path)?;
         let id = match &*seq {
@@ -168,13 +169,53 @@ impl App {
             Sequence::Pages(_) => "frames-page",
             Sequence::TooLarge => return None,
         };
-        Some(self.i18n.t_args(id, &[("n", &(shown.at + 1).to_string()), ("total", &seq.len().to_string())]))
+        Some((id, (shown.at + 1, seq.len())))
     }
+}
+
+/// "Frame n / total" (the text `id`), in a place as wide as its widest value: the bar over the
+/// picture and what follows in the status bar moved every time `n` gained a digit, at frame 10 of
+/// 20 (Piero, 2026-11-18). The widest value: `n` with as many digits as `total`, all the widest one.
+pub(crate) fn counter(ui: &mut egui::Ui, i18n: &crate::i18n::I18n, id: &str, (n, total): (usize, usize), look: impl Fn(String) -> egui::RichText) {
+    let total = total.to_string();
+    let text = |n: &str| look(i18n.t_args(id, &[("n", n), ("total", &total)]));
+    let width = |t: egui::RichText| egui::WidgetText::from(t).into_galley(ui, Some(egui::TextWrapMode::Extend), f32::INFINITY, egui::TextStyle::Body).size().x;
+    let widest = (0..=9).map(|d| width(text(&d.to_string().repeat(total.len())))).fold(0.0, f32::max);
+    ui.horizontal(|ui| {
+        ui.set_min_width(widest);
+        ui.label(text(&n.to_string()));
+    });
 }
 
 fn delay(seq: &Sequence, at: usize) -> f64 {
     match seq {
         Sequence::Animation(f) => f.get(at).map_or(0.1, |f| f.1.as_secs_f64()),
         _ => 0.0,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The counter takes the same room at frame 9 and at frame 10 of 20, and at 1 and 111 of 111,
+    /// in the font of the status bar and in the monospace one of the bar over the picture.
+    #[test]
+    fn counter_keeps_its_width() {
+        let i18n = crate::i18n::I18n::detect(Some("en"));
+        for mono in [false, true] {
+            let look = move |s: String| if mono { egui::RichText::new(s).monospace() } else { egui::RichText::new(s) };
+            let mut widths = Vec::new();
+            egui::__run_test_ui(|ui| {
+                for place in [(9, 20), (10, 20), (20, 20), (1, 111), (111, 111)] {
+                    let r = ui.horizontal(|ui| counter(ui, &i18n, "frames-frame", place, look)).response;
+                    widths.push(r.rect.width());
+                }
+            });
+            assert_eq!(widths[0], widths[1], "9 and 10 of 20, monospace {mono}");
+            assert_eq!(widths[1], widths[2], "10 and 20 of 20, monospace {mono}");
+            assert_eq!(widths[3], widths[4], "1 and 111 of 111, monospace {mono}");
+            assert!(widths[3] > widths[0], "three digits take more room than two");
+        }
     }
 }
