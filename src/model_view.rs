@@ -192,7 +192,7 @@ impl App {
         sky.add_triangle(0, 2, 3);
         painter.add(sky);
         if let Some(id) = id {
-            painter.image(id, rect, egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0)), egui::Color32::WHITE);
+            crate::paint::paint_frame(&painter, id, rect, Default::default());
         }
         axes_corner(&painter, rect, render3d::axes(&view, mesh.z_up));
         self.section_plane(&painter, rect, &mesh, &view);

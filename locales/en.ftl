@@ -221,6 +221,10 @@ opt-smooth-whole = Exact: from the whole picture
 opt-smooth-whole-hint = The filter always starts from the whole picture: almost no false patterns, but more work for the graphics card, the more so the smaller the picture is shown.
 opt-smooth-mitchell = Soft: Mitchell from the whole picture
 opt-smooth-mitchell-hint = A softer filter than the other two (Lanczos), from the whole picture: less halo around edges, a little less sharp.
+opt-graphics = Graphics: draw with
+opt-graphics-hint = What EyeCanSee draws on the graphics card with. DirectX 12: the screen does not flash when entering full screen (F11, the slideshow). Vulkan: as up to version 0.76; choose it if pictures or videos are not drawn well with DirectX 12.
+opt-graphics-directx12 = DirectX 12
+opt-graphics-vulkan = Vulkan
 
 devices = Devices
 servers = Servers

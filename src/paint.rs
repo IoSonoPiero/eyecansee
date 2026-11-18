@@ -91,11 +91,30 @@ pub fn paint_frame(painter: &egui::Painter, id: egui::TextureId, dest: egui::Rec
     quad(painter, id, corners.map(|(pos, shown)| (pos, turn.source_uv(shown))), egui::Color32::WHITE);
 }
 
+/// While set, the pictures are drawn squeezed by `by` towards the window's top left corner: the
+/// viewer laid out for the whole monitor, shown in the window before it goes to full screen
+/// (`viewer::ahead`).
+pub fn set_squeeze(ctx: &egui::Context, by: Option<egui::Vec2>) {
+    let id = egui::Id::unique("squeeze");
+    ctx.data_mut(|d| match by {
+        Some(by) => {
+            d.insert_temp(id, by);
+        }
+        None => d.remove::<egui::Vec2>(id),
+    });
+}
+
+/// `window` over `monitor`, side by side: what the monitor's picture is squeezed by to fill the window.
+pub fn squeeze(window: egui::Vec2, monitor: egui::Vec2) -> egui::Vec2 {
+    egui::vec2(window.x / monitor.x.max(1.0), window.y / monitor.y.max(1.0))
+}
+
 /// A picture on the four corners (position, point of the texture), clockwise from the top left.
 fn quad(painter: &egui::Painter, id: egui::TextureId, corners: [(egui::Pos2, egui::Pos2); 4], tint: egui::Color32) {
+    let by = painter.ctx().data(|d| d.get_temp::<egui::Vec2>(egui::Id::unique("squeeze"))).unwrap_or(egui::Vec2::splat(1.0));
     let mut mesh = egui::Mesh::with_texture(id);
     for (pos, uv) in corners {
-        mesh.vertices.push(egui::epaint::Vertex { pos, uv, color: tint });
+        mesh.vertices.push(egui::epaint::Vertex { pos: (pos.to_vec2() * by).to_pos2(), uv, color: tint });
     }
     mesh.add_triangle(0, 1, 2);
     mesh.add_triangle(0, 2, 3);

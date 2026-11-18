@@ -116,8 +116,7 @@ impl App {
         if let Some((k, tex)) = &s.sharp
             && (Key { layers: key.layers, ..k.clone() }) == key
         {
-            let full = egui::Rect::from_min_max(egui::Pos2::ZERO, egui::pos2(1.0, 1.0));
-            ui.painter_at(dest).image(tex.id(), dest, full, egui::Color32::WHITE);
+            crate::paint::paint_frame(&ui.painter_at(dest), tex.id(), dest, Default::default());
             if *k == key {
                 return;
             }

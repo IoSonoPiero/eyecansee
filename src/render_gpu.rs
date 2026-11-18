@@ -14,6 +14,7 @@ use std::collections::HashMap;
 
 use crate::model::{DEFAULT, Mesh, Surface};
 use crate::render3d::{self, View};
+use crate::settings::Graphics;
 
 const SAMPLES: u32 = 4;
 /// Not sRGB: egui reads textures as gamma-encoded values, which is what `render3d` computes too.
@@ -124,19 +125,40 @@ fn unit(v: vec3<f32>) -> vec3<f32> {
 /// The graphics card chosen offers "mailbox" presentation for the window (`adapter_selector`).
 static MAILBOX: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
+/// The window is drawn with DirectX 12 (`adapter_selector`).
+static STRETCHES: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
+/// While the window changes size, the last picture drawn is shown stretched over the new size
+/// (DirectX 12, `DXGI_SCALING_STRETCH` in wgpu), and not left in a corner or as the card likes.
+pub fn stretches() -> bool {
+    STRETCHES.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Picks the graphics card as eframe would (the fast one, or the saving one with
 /// `WGPU_POWER_PREF=low`), and notes whether it can present in "mailbox" mode for this window:
 /// the app then never waits for the desktop to show a frame. Measured on a hybrid laptop with the
 /// monitor on the NVIDIA card and the desktop composed on the Intel one: windows stalled up to
 /// 0.9 s with the default (FIFO), mailbox was clearly smoother (2026-11-01, `present_mode`).
-pub fn adapter_selector() -> eframe::egui_wgpu::NativeAdapterSelectorMethod {
-    Arc::new(|adapters: &[wgpu::Adapter], surface: Option<&wgpu::Surface<'_>>| {
+pub fn adapter_selector(graphics: Graphics) -> eframe::egui_wgpu::NativeAdapterSelectorMethod {
+    Arc::new(move |adapters: &[wgpu::Adapter], surface: Option<&wgpu::Surface<'_>>| {
         let saving = std::env::var("WGPU_POWER_PREF").is_ok_and(|v| v.eq_ignore_ascii_case("low"));
         let wanted = if saving { wgpu::DeviceType::IntegratedGpu } else { wgpu::DeviceType::DiscreteGpu };
-        let usable: Vec<&wgpu::Adapter> = adapters.iter().filter(|a| surface.is_none_or(|s| a.is_surface_supported(s))).collect();
+        let mut usable: Vec<&wgpu::Adapter> = adapters.iter().filter(|a| surface.is_none_or(|s| a.is_surface_supported(s))).collect();
+        // On Windows the one chosen in the Options first, DirectX 12 unless changed: while the
+        // window changes size it stretches the last picture drawn over the new size, on every
+        // card, which entering full screen counts on (`viewer::enter_full`); with Vulkan an NVIDIA
+        // card left it in the top left corner (#171).
+        if cfg!(windows) {
+            let first = match graphics {
+                Graphics::Directx12 => wgpu::Backend::Dx12,
+                Graphics::Vulkan => wgpu::Backend::Vulkan,
+            };
+            usable.sort_by_key(|a| a.get_info().backend != first);
+        }
         let chosen = usable.iter().find(|a| a.get_info().device_type == wanted).or_else(|| usable.first()).ok_or("no graphics card can draw this window")?;
         let mailbox = surface.is_some_and(|s| s.get_capabilities(chosen).present_modes.contains(&wgpu::PresentMode::Mailbox));
         MAILBOX.store(mailbox, std::sync::atomic::Ordering::Relaxed);
+        STRETCHES.store(chosen.get_info().backend == wgpu::Backend::Dx12, std::sync::atomic::Ordering::Relaxed);
         Ok((*chosen).clone())
     })
 }

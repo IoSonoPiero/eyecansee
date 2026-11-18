@@ -11,6 +11,73 @@ pub(crate) fn full_screen(ctx: &egui::Context) -> bool {
     ctx.input(|i| i.viewport().fullscreen.unwrap_or(false))
 }
 
+/// Asks for full screen (#171). On Windows the window is as large as the monitor a moment before
+/// its first picture of that size is ready (33 ms on a fast card, 50 to 130 on a laptop's), and
+/// until then Windows shows the last picture drawn, stretched over the new size (DirectX 12, chosen
+/// for this in `render_gpu::adapter_selector`): the small window with its bars over the whole
+/// screen, which flashed. So two frames are drawn first as the full screen will be, squeezed into
+/// the window (`ahead`), and stretched they are the full screen's picture, only less sharp. Two, a
+/// refresh apart (`pace`): one alone was not always shown before the window changed size (a
+/// playing video). Recorded on 18/11. With Vulkan (chosen in the Options, or no DirectX 12) the
+/// last picture is not always stretched: at once, as up to 0.76.2. On Linux too, where the
+/// desktop waits for the picture of the new size.
+pub(crate) fn enter_full(ctx: &egui::Context) {
+    ask_full(ctx, crate::render_gpu::stretches());
+}
+
+/// `enter_full`: through the frames drawn `ahead`, or at once.
+fn ask_full(ctx: &egui::Context, ahead: bool) {
+    if ahead {
+        ctx.data_mut(|d| d.insert_temp(egui::Id::unique("enter-full"), 2u8));
+        ctx.request_repaint();
+    } else {
+        ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
+    }
+}
+
+/// Once a frame: the frames left before full screen (`enter_full`); with the last one the window
+/// is told to change (eframe runs the commands after presenting the frame).
+pub(crate) fn full_step(ctx: &egui::Context) {
+    let id = egui::Id::unique("enter-full");
+    match ctx.data_mut(|d| d.remove_temp::<u8>(id)) {
+        Some(left) if left > 1 => {
+            ctx.data_mut(|d| d.insert_temp(id, left - 1));
+            ctx.request_repaint();
+        }
+        // Kept, at 0, for this frame's `bare` and `ahead`; gone at the next.
+        Some(1) => {
+            ctx.data_mut(|d| d.insert_temp(id, 0u8));
+            ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
+        }
+        _ => {}
+    }
+}
+
+/// In the frames before full screen (`enter_full`).
+fn entering(ctx: &egui::Context) -> bool {
+    ctx.data(|d| d.get_temp::<u8>(egui::Id::unique("enter-full"))).is_some()
+}
+
+/// The viewer without its bars: at full screen, and in the frames before it.
+pub(crate) fn bare(ctx: &egui::Context) -> bool {
+    full_screen(ctx) || entering(ctx)
+}
+
+/// `draw` in `ui`; in the frames before full screen, laid out for the whole monitor and its
+/// pictures squeezed into the window (`paint::set_squeeze`).
+pub(crate) fn ahead<R>(ui: &mut egui::Ui, draw: impl FnOnce(&mut egui::Ui) -> R) -> R {
+    let ctx = ui.ctx().clone();
+    let monitor = ctx.input(|i| i.viewport().monitor_size).filter(|_| entering(&ctx) && !full_screen(&ctx));
+    let Some(monitor) = monitor else { return draw(ui) };
+    let whole = egui::Rect::from_min_size(egui::Pos2::ZERO, monitor);
+    paint::set_squeeze(&ctx, Some(paint::squeeze(ctx.content_rect().size(), monitor)));
+    let mut child = ui.new_child(egui::UiBuilder::new().max_rect(whole));
+    child.set_clip_rect(whole);
+    let drawn = draw(&mut child);
+    paint::set_squeeze(&ctx, None);
+    drawn
+}
+
 impl App {
     pub(crate) fn viewer_keys(&mut self, ctx: &egui::Context) {
         // A modal window (Rename, Delete…) has the keys: its Esc closed the viewer and was taken,
@@ -404,6 +471,21 @@ fn take_jumps(i: &mut egui::InputState) -> i32 {
 mod tests {
     use super::*;
     use egui::{Event, Modifiers};
+
+    #[test]
+    fn full_screen_after_two_frames_drawn_ahead() {
+        // With DirectX 12 two frames without bars first; otherwise the command goes at once.
+        for (ahead, frames) in [(true, 2), (false, 0)] {
+            let ctx = egui::Context::default();
+            assert!(!bare(&ctx));
+            ask_full(&ctx, ahead);
+            let drawn = (0..5).filter(|_| {
+                full_step(&ctx);
+                bare(&ctx)
+            });
+            assert_eq!(drawn.count(), frames);
+        }
+    }
 
     fn key(key: Key, pressed: bool, modifiers: Modifiers) -> Event {
         Event::Key { key, physical_key: None, pressed, repeat: false, modifiers }

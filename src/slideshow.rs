@@ -111,7 +111,9 @@ impl App {
         }
         log!("slideshow: {} images from {at}", paths.len());
         let was_full = crate::viewer::full_screen(ctx);
-        ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(true));
+        if !was_full {
+            crate::viewer::enter_full(ctx);
+        }
         let now = ctx.input(|i| i.time);
         self.show = Some(Show { paths, at, since: now, from: None, back: false, paused: false, was_full, from_viewer: self.viewing.is_some(), started: now });
         self.viewing = None;

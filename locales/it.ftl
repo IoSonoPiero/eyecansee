@@ -220,6 +220,10 @@ opt-smooth-whole = Preciso: dall'immagine intera
 opt-smooth-whole-hint = Il filtro parte sempre dall'immagine intera: quasi nessun falso disegno, ma più lavoro per la scheda video, tanto più quanto più l'immagine è rimpicciolita.
 opt-smooth-mitchell = Morbido: Mitchell dall'immagine intera
 opt-smooth-mitchell-hint = Un filtro più morbido di quello degli altri due (Lanczos), dall'immagine intera: meno aloni attorno ai bordi, un po' meno nitido.
+opt-graphics = Grafica: disegna con
+opt-graphics-hint = Con che cosa EyeCanSee disegna sulla scheda video. DirectX 12: la schermata non lampeggia entrando a schermo intero (F11, carosello). Vulkan: come fino alla versione 0.76; da scegliere se con DirectX 12 immagini o video non si vedono bene.
+opt-graphics-directx12 = DirectX 12
+opt-graphics-vulkan = Vulkan
 
 devices = Dispositivi
 servers = Server

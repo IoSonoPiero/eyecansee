@@ -5,7 +5,7 @@ use eframe::egui::{self, TextureOptions};
 use crate::{App, OptTab, confirm, decode, mtp, theme, thumbcache, update, version};
 use crate::i18n::I18n;
 use crate::loader::Msg;
-use crate::settings::{AfterSave, RemoteDelete, Settings, SmoothFilter, ThemeChoice, WindowStart};
+use crate::settings::{AfterSave, Graphics, RemoteDelete, Settings, SmoothFilter, ThemeChoice, WindowStart};
 
 impl App {
     /// Every change is saved immediately.
@@ -274,6 +274,15 @@ fn look_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
             }
         });
     });
+    // DirectX 12 or Vulkan: a choice only on Windows (#171).
+    if cfg!(windows) {
+        ui.add_space(6.0);
+        let hint = t("opt-graphics-hint");
+        ui.label(t("opt-graphics")).on_hover_text(&hint);
+        ui.radio_value(&mut s.graphics, Graphics::Directx12, t("opt-graphics-directx12")).on_hover_text(&hint);
+        ui.radio_value(&mut s.graphics, Graphics::Vulkan, t("opt-graphics-vulkan")).on_hover_text(&hint);
+        ui.weak(t("opt-engine-restart"));
+    }
 }
 
 fn viewer_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {

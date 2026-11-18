@@ -679,7 +679,7 @@ fn main() -> eframe::Result {
         ..Default::default()
     };
     if let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_options.wgpu_setup {
-        setup.native_adapter_selector = Some(render_gpu::adapter_selector());
+        setup.native_adapter_selector = Some(render_gpu::adapter_selector(settings.graphics));
         setup.device_descriptor = render_gpu::frugal(setup.device_descriptor.clone());
     }
     eframe::run_native(

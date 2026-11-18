@@ -164,7 +164,7 @@ impl App {
         // A turn not saved yet, shown as it will be saved (#125): given to the frames as they are drawn.
         let turn = self.turn.turns_only();
         let sound = (&mut self.settings.video_volume, &mut self.settings.video_mute);
-        let bare = crate::viewer::full_screen(ui.ctx());
+        let bare = crate::viewer::bare(ui.ctx());
         let Some(response) = draw(ui, v, (sound, turn), &self.i18n, wait, bare) else { return };
         if response.hovered() {
             v.wheel += ui.input(|i| i.events.iter().map(|e| if let egui::Event::MouseWheel { unit, delta, .. } = e { crate::viewer::notches(*unit, *delta) } else { 0.0 }).sum::<f32>());

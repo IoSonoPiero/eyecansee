@@ -89,10 +89,12 @@ impl App {
     /// The panels of the window: the "Save in another format" page, or the bars with the viewer
     /// or with the tree, the metadata and the grid.
     pub(crate) fn panels(&mut self, ui: &mut egui::Ui, ctx: &egui::Context) {
+        // On Windows, one black frame before the window goes to full screen (#171).
+        crate::viewer::full_step(ctx);
         // First, so that it is at the very bottom on every page, under their own bars (issue #85).
         self.error_bar(ui);
         if self.show.is_some() {
-            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(egui::Color32::BLACK)).show(ui, |ui| self.show_page(ui));
+            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(egui::Color32::BLACK)).show(ui, |ui| crate::viewer::ahead(ui, |ui| self.show_page(ui)));
         } else if self.convert.is_some() {
             egui::CentralPanel::default().show(ui, |ui| self.convert_page(ui));
         } else if self.editor.is_some() {
@@ -103,14 +105,14 @@ impl App {
         } else {
             // Full screen in the viewer: the picture (or video, model, drawing) alone, no bars
             // (issue #43 asked it for videos).
-            let bare = self.viewing.is_some() && crate::viewer::full_screen(ctx);
+            let bare = self.viewing.is_some() && crate::viewer::bare(ctx);
             if !bare {
                 egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
                 egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui, ctx));
             }
             match self.viewing {
                 Some(current) if bare => {
-                    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(Color32::BLACK)).show(ui, |ui| self.viewer(ui, current));
+                    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(Color32::BLACK)).show(ui, |ui| crate::viewer::ahead(ui, |ui| self.viewer(ui, current)));
                 }
                 Some(current) => {
                     // The frame of an animation moves before the status bar says which it is (the
