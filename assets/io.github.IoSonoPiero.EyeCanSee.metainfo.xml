@@ -166,7 +166,6 @@
           <li>The short description mentions the image editor</li>
         </ul>
       </description>
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.74.2</url>
     </release>
     <release version="0.74.1" date="2026-11-08">
       <description>
@@ -179,7 +178,6 @@
           <li>Server manager: a clearer warning when no master password is set</li>
         </ul>
       </description>
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.74.1</url>
     </release>
     <release version="0.74.0" date="2026-11-06">
       <description>
@@ -190,7 +188,6 @@
           <li>Ctrl+Left and Ctrl+Right jump 5 seconds in a video; Enter and Esc close the result windows; a server's key or certificate fingerprint is shown apart, to compare</li>
         </ul>
       </description>
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.74.0</url>
     </release>
     <release version="0.73.3" date="2026-11-05">
       <description>
@@ -198,7 +195,6 @@
           <li>Windows: a phone photo opened from File Explorer arrives as a temporary copy made by Windows; EyeCanSee says so and never saves over it, offering Save as…, so a change can no longer stay in the copy while the photo on the phone is left as it was</li>
         </ul>
       </description>
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.73.3</url>
     </release>
     <release version="0.73.2" date="2026-11-05">
       <description>
@@ -209,7 +205,6 @@
           <li>Photos in the Android trash are shown by their own name in the status bar, the metadata panel and the Delete and Restore windows</li>
         </ul>
       </description>
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.73.2</url>
     </release>
     <release version="0.73.1" date="2026-11-04">
       <description>
@@ -220,7 +215,6 @@
           <li>Copying inside a phone with "Keep both" no longer damages the file already there</li>
         </ul>
       </description>
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.73.1</url>
     </release>
     <release version="0.73.0" date="2026-11-03">
       <description>
@@ -233,61 +227,42 @@
           <li>Deleting a folder warns when it contains files or folders that EyeCanSee does not show</li>
         </ul>
       </description>
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.73.0</url>
     </release>
     <release version="0.72.1" date="2026-11-01">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.72.1</url>
     </release>
     <release version="0.72.0" date="2026-10-31">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.72.0</url>
     </release>
     <release version="0.71.0" date="2026-10-30">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.71.0</url>
     </release>
     <release version="0.70.0" date="2026-10-30">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.70.0</url>
     </release>
     <release version="0.68.0" date="2026-10-29">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.68.0</url>
     </release>
     <release version="0.67.1" date="2026-10-29">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.67.1</url>
     </release>
     <release version="0.66.0" date="2026-10-29">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.66.0</url>
     </release>
     <release version="0.65.0" date="2026-10-28">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.65.0</url>
     </release>
     <release version="0.64.1" date="2026-10-28">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.64.1</url>
     </release>
     <release version="0.64.0" date="2026-10-28">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.64.0</url>
     </release>
     <release version="0.63.0" date="2026-10-28">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.63.0</url>
     </release>
     <release version="0.62.0" date="2026-10-27">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.62.0</url>
     </release>
     <release version="0.61.0" date="2026-10-27">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.61.0</url>
     </release>
     <release version="0.60.0" date="2026-10-27">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.60.0</url>
     </release>
     <release version="0.59.3" date="2026-10-27">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.59.3</url>
     </release>
     <release version="0.59.0" date="2026-10-27">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.59.0</url>
     </release>
     <release version="0.47.3" date="2026-10-26">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.47.3</url>
     </release>
     <release version="0.47.1" date="2026-10-26">
-      <url type="details">https://github.com/IoSonoPiero/eyecansee/releases/tag/v0.47.1</url>
     </release>
   </releases>
 </component>
