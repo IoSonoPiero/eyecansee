@@ -5,6 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use eframe::egui::{self, Color32, Rect, TextureHandle, TextureOptions, pos2, vec2};
 
 use crate::i18n::I18n;
+use crate::transform::Turn;
 use crate::{App, browser, decode, mpv};
 
 /// Height of the bar under the video.
@@ -26,8 +27,6 @@ pub(crate) struct Playing {
     wheel: f32,
     /// Bytes copied and the size, while the file is copied whole before playing (a phone on Windows).
     copying: Option<(Arc<AtomicU64>, u64)>,
-    /// The turn shown and not saved yet, clockwise degrees (#125).
-    rotate: u32,
     /// At full screen, the bar hidden while the mouse stays still (#43).
     hide: crate::video_full::Hide,
 }
@@ -93,9 +92,9 @@ impl App {
         v.player.as_ref().ok().filter(|p| p.video_size().is_some())
     }
 
-    /// Size of the video playing, for the status bar.
+    /// Size of the video playing, turned as it is shown, for the status bar.
     pub(crate) fn video_size(&self) -> Option<[u32; 2]> {
-        self.video.as_ref()?.player.as_ref().ok()?.video_size()
+        self.video.as_ref()?.player.as_ref().ok()?.video_size().map(|size| turned(size, self.turn))
     }
 
     /// Space in the viewer of a video.
@@ -162,15 +161,11 @@ impl App {
             (done as f32 / size.max(1) as f32, text)
         });
         let Some(v) = &mut self.video else { return };
-        // A turn not saved yet, shown as it will be saved (#125).
-        let rotate = 90 * self.turn.parts().1 as u32;
-        if let (Ok(p), true) = (&v.player, v.rotate != rotate) {
-            p.set_rotate(rotate);
-            v.rotate = rotate;
-        }
+        // A turn not saved yet, shown as it will be saved (#125): given to the frames as they are drawn.
+        let turn = self.turn.turns_only();
         let sound = (&mut self.settings.video_volume, &mut self.settings.video_mute);
         let bare = crate::viewer::full_screen(ui.ctx());
-        let Some(response) = draw(ui, v, sound, &self.i18n, wait, bare) else { return };
+        let Some(response) = draw(ui, v, (sound, turn), &self.i18n, wait, bare) else { return };
         if response.hovered() {
             v.wheel += ui.input(|i| i.events.iter().map(|e| if let egui::Event::MouseWheel { unit, delta, .. } = e { crate::viewer::notches(*unit, *delta) } else { 0.0 }).sum::<f32>());
         }
@@ -198,7 +193,7 @@ impl App {
         }
         let Some(v) = &mut self.video else { return (false, true) };
         let Ok(player) = &v.player else { return (false, true) };
-        (paint_fitted(painter, rect, player, &mut v.texture), player.ended())
+        (paint_fitted(painter, rect, player, &mut v.texture, Turn::default()), player.ended())
     }
 
     /// libmpv can play videos: also the engine just downloaded, at once, as FFmpeg and the CAD
@@ -398,7 +393,7 @@ impl App {
         if let Err(e) = &player {
             log!("motion photo {path:?}: ERROR {e}");
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None, rotate: 0, hide: Default::default() }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None, hide: Default::default() }
     }
 
     /// The video open for `path` has not reached its end (it plays, it is paused, or it could
@@ -423,7 +418,7 @@ impl App {
         if let Err(e) = &player {
             log!("video {path:?}: ERROR {e}");
         }
-        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying, rotate: 0, hide: Default::default() }
+        Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying, hide: Default::default() }
     }
 }
 
@@ -432,12 +427,12 @@ impl App {
 /// `wait`: the share and the text of the copy that comes before playing, while it lasts.
 /// `bare`: at full screen, the video on the whole screen and the bar over it, shown while the
 /// mouse moves (#43).
-fn draw(ui: &mut egui::Ui, v: &mut Playing, sound: (&mut u32, &mut bool), i18n: &I18n, wait: Option<(f32, String)>, bare: bool) -> Option<egui::Response> {
+fn draw(ui: &mut egui::Ui, v: &mut Playing, (sound, turn): ((&mut u32, &mut bool), Turn), i18n: &I18n, wait: Option<(f32, String)>, bare: bool) -> Option<egui::Response> {
     let Ok(player) = &v.player else { return None };
     let rect = ui.available_rect_before_wrap();
     let area = if bare { rect } else { Rect::from_min_max(rect.min, pos2(rect.max.x, rect.max.y - BAR)) };
     let response = ui.allocate_rect(area, egui::Sense::click());
-    if !paint_fitted(ui.painter(), area, player, &mut v.texture) && player.video_size().is_none() {
+    if !paint_fitted(ui.painter(), area, player, &mut v.texture, turn) && player.video_size().is_none() {
         if decode::is_audio(&v.path) {
             // An audio file without a cover never gets a picture: a note, not a spinner forever.
             crate::icons::paint(ui.painter(), crate::icons::Icon::Audio, Rect::from_center_size(area.center(), vec2(160.0, 160.0)));
@@ -493,15 +488,18 @@ fn bar_shown(ui: &egui::Ui, hide: &mut crate::video_full::Hide, bar: Rect) -> Op
     (opacity > 0.0).then_some(opacity)
 }
 
-/// The latest frame into `texture`, painted fitted to `area`; the frames are asked at that size.
-/// False until there is a frame.
+/// The latest frame into `texture`, painted fitted to `area` and turned by `turn`, the turn not
+/// saved yet; the frames are asked at that size. False until there is a frame.
 ///
-/// A frame drawn for another shape is not shown: right after a turn of 90° the video's size is
-/// already the new one while the frame at hand was drawn for the old one, and it was stretched
-/// into the new rectangle, a narrow picture between black bars, for a quarter of a second (#162).
-/// The last frame of the right shape stays, with its own proportions, until the first one drawn
-/// for the new size comes.
-fn paint_fitted(painter: &egui::Painter, area: Rect, player: &mpv::Player, texture: &mut Option<TextureHandle>) -> bool {
+/// mpv draws the frames as the file has them, and the turn is given here, on the screen: at once.
+/// As a filter of mpv it came about 0.6 s after "Changed, not saved" (#168).
+///
+/// A frame drawn for another shape is not shown: when the video's size changes (a phone's
+/// portrait video as its rotation is applied on opening) the frame at hand was drawn for the old
+/// one, and it was stretched into the new rectangle, a narrow picture between black bars, for a
+/// quarter of a second (#162). The last frame of the right shape stays, with its own
+/// proportions, until the first one drawn for the new size comes.
+fn paint_fitted(painter: &egui::Painter, area: Rect, player: &mpv::Player, texture: &mut Option<TextureHandle>, turn: Turn) -> bool {
     let video = player.video_size();
     if let Some(image) = player.frame()
         && (texture.is_none() || video.is_none_or(|v| same_shape(image.size, v)))
@@ -511,16 +509,22 @@ fn paint_fitted(painter: &egui::Painter, area: Rect, player: &mpv::Player, textu
             None => *texture = Some(painter.ctx().load_texture("video", image, TextureOptions::LINEAR)),
         }
     }
-    let Some([w, h]) = video else { return false };
+    let Some(video) = video else { return false };
     let ppp = painter.ctx().pixels_per_point();
     let room = [area.width() * ppp, area.height() * ppp];
-    let (drawn, shown) = frame_sizes([w, h], room);
-    player.set_size(drawn);
+    let (drawn, shown) = frame_sizes(turned(video, turn), room);
+    player.set_size(turned(drawn, turn));
     let Some(t) = texture else { return false };
-    let shown = if same_shape(t.size(), [w, h]) { shown } else { frame_sizes(t.size().map(|v| v as u32), room).1 };
+    let shown = if same_shape(t.size(), video) { shown } else { frame_sizes(turned(t.size().map(|v| v as u32), turn), room).1 };
     let shown = Rect::from_center_size(area.center(), vec2(shown[0] as f32, shown[1] as f32) / ppp);
-    painter.image(t.id(), shown, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
+    crate::paint::paint_frame(painter, t.id(), shown, turn);
     true
+}
+
+/// `size` after `turn`: its sides swapped by a quarter turn or three. The other way round too:
+/// the size to ask the frames at, from the size they are shown at.
+fn turned(size: [u32; 2], turn: Turn) -> [u32; 2] {
+    if turn.sideways() { [size[1], size[0]] } else { size }
 }
 
 /// Whether a frame of `frame` pixels was drawn for a video of `video` pixels: the same
@@ -656,6 +660,21 @@ mod tests {
         }
         // A square video turned keeps its shape: nothing to wait for.
         assert!(super::same_shape([500, 500], [800, 800]));
+    }
+
+    /// A video turned a quarter (#168): fitted to the window turned, its frames asked as the file
+    /// has them, that is with the sides the other way round.
+    #[test]
+    fn turned_on_the_screen() {
+        use crate::transform::{Op, Turn};
+        let (quarter, half) = (Turn::default().then(Op::Cw), Turn::default().then(Op::Cw).then(Op::Cw));
+        assert_eq!(super::turned([1280, 720], quarter), [720, 1280]);
+        assert_eq!(super::turned([1280, 720], half), [1280, 720]);
+        assert_eq!(super::turned([1280, 720], Turn::default()), [1280, 720]);
+        // The sizes of the viewer: a 1280x720 video in a 1175x661 room, turned a quarter.
+        let (drawn, shown) = super::frame_sizes(super::turned([1280, 720], quarter), [1175.0, 661.0]);
+        assert_eq!((shown, super::turned(drawn, quarter)), ([372, 661], [661, 372]));
+        assert!(super::same_shape([661, 372], [1280, 720]), "the frame asked has the file's shape");
     }
 
     /// Without the engine the metadata panel says why in the user's language, never the

@@ -132,8 +132,12 @@ impl App {
         player.pause();
         let at = player.position();
         let (tx, rx) = std::sync::mpsc::channel();
+        // The player gives the frame as the file has it: the turn not saved yet is added here.
+        let turn = self.turn.turns_only();
         player.grab(move |image| {
-            let _ = tx.send(image);
+            let mut image = image::DynamicImage::ImageRgba8(image);
+            turn.apply(&mut image);
+            let _ = tx.send(image.into_rgba8());
         });
         self.loader.as_ref()?.frame_original(path.to_string(), at, rx);
         Some(at)

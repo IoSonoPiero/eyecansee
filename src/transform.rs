@@ -28,6 +28,12 @@ impl Turn {
         self == Turn::default()
     }
 
+    /// The quarter turns alone: what a video shows and saves (it cannot be flipped without
+    /// encoding it again).
+    pub fn turns_only(self) -> Turn {
+        Turn { flip: false, quarter: self.quarter }
+    }
+
     /// The same as FFmpeg filters, in order (the flip first, as `apply`).
     pub fn video_filters(self) -> Vec<&'static str> {
         let mut f = if self.flip { vec!["hflip"] } else { Vec::new() };

@@ -511,9 +511,6 @@ struct State {
     size: [u32; 2],
     frame: Option<ColorImage>,
     quit: bool,
-    /// A turn not saved yet, clockwise degrees on top of the file's own (#125); `None` until the
-    /// file is loaded and its rotation known.
-    turn: Option<i64>,
     /// Who asked for the frame shown at the video's own size (`Player::grab`).
     grab: Option<Grab>,
     /// Frames drawn, frames drawn over before the window took them, time spent drawing, the
@@ -630,7 +627,8 @@ impl Player {
         let _ = self.mpv.command(&["set", "pause", "yes"]);
     }
 
-    /// The frame shown, at the video's own size (as shown: aspect ratio and turns applied), to
+    /// The frame shown, at the video's own size (aspect ratio and the file's rotation applied, a
+    /// turn not saved yet not: `video_frame::convert_frame` gives it), to
     /// `done` from the player's thread (#16). The software renderer draws it again from the frame
     /// it keeps; `done` is dropped without a call if there is no picture (an audio file).
     pub fn grab(&self, done: impl FnOnce(RgbaImage) + Send + 'static) {
@@ -667,18 +665,6 @@ impl Player {
         let _ = self.mpv.command(&["set", "mute", if mute { "yes" } else { "no" }]);
     }
 
-    /// A turn not saved yet (#125): clockwise degrees, added by mpv to the file's own rotation.
-    pub fn set_rotate(&self, degrees: u32) {
-        let mut st = self.shared.state.lock().unwrap();
-        // Before the file is loaded the player's thread sets it with the file's rotation.
-        let loaded = st.turn.is_some();
-        st.turn = Some(degrees as i64);
-        drop(st);
-        if loaded {
-            turn_frames(&self.mpv, degrees as i64);
-            self.shared.change(|st| st.dirty = true);
-        }
-    }
 }
 
 impl Drop for Player {
@@ -691,9 +677,10 @@ impl Drop for Player {
     }
 }
 
-/// The frames turned by the file's rotation and `turn` more (clockwise degrees), by a filter.
-fn turn_frames(mpv: &Mpv, turn: i64) {
-    let filter = match (mpv.rotation() + turn).rem_euclid(360) {
+/// The frames turned by the file's rotation, by a filter. A turn not saved yet (#125) is not
+/// mpv's: the window turns the frames it draws (`video::paint_fitted`), at once (#168).
+fn turn_frames(mpv: &Mpv) {
+    let filter = match mpv.rotation() {
         90 => "transpose=clock",
         180 => "hflip,vflip",
         270 => "transpose=cclock",
@@ -717,11 +704,7 @@ fn draw_loop(mpv: &Mpv, shared: &Shared, repaint: impl Fn()) {
             _ => {}
         }
     }
-    let turn = {
-        let mut st = shared.state.lock().unwrap();
-        *st.turn.get_or_insert(0)
-    };
-    turn_frames(mpv, turn);
+    turn_frames(mpv);
     loop {
         let (size, grab) = {
             let mut st = shared.state.lock().unwrap();

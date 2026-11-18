@@ -85,6 +85,12 @@ fn filtered(tex: &Picture, scale: f32, ppp: f32, dest: egui::Rect, corners: [(eg
     ))
 }
 
+/// The whole texture `id` in `dest`, turned: a video's frame, which has no smaller copies.
+pub fn paint_frame(painter: &egui::Painter, id: egui::TextureId, dest: egui::Rect, turn: Turn) {
+    let corners = [(dest.left_top(), egui::pos2(0.0, 0.0)), (dest.right_top(), egui::pos2(1.0, 0.0)), (dest.right_bottom(), egui::pos2(1.0, 1.0)), (dest.left_bottom(), egui::pos2(0.0, 1.0))];
+    quad(painter, id, corners.map(|(pos, shown)| (pos, turn.source_uv(shown))), egui::Color32::WHITE);
+}
+
 /// A picture on the four corners (position, point of the texture), clockwise from the top left.
 fn quad(painter: &egui::Painter, id: egui::TextureId, corners: [(egui::Pos2, egui::Pos2); 4], tint: egui::Color32) {
     let mut mesh = egui::Mesh::with_texture(id);
