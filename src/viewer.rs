@@ -71,6 +71,10 @@ impl App {
             // A turned video is saved as an image (issue #125): Ctrl+S and Ctrl+Shift+S before
             // the return below, which left them unread on a video.
             self.save_keys(ctx);
+            // Its turns not saved yet are taken back and done again as a picture's (#167).
+            if let Some(current) = self.viewing {
+                self.turn_undo_keys(ctx, current);
+            }
             // Up and down the volume, M sound off and on, as in the players.
             let (up, down, mute) = ctx.input(|i| (i.key_pressed(Key::ArrowUp), i.key_pressed(Key::ArrowDown), i.key_pressed(Key::M) && !i.modifiers.command));
             if up || down {

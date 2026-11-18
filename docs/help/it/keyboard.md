@@ -87,6 +87,8 @@ La rotellina ingrandisce attorno al puntatore, + e − attorno al centro della f
 |---|---|
 | Spazio | Riproduce e mette in pausa |
 | Ctrl+←, Ctrl+→ | 5 secondi indietro, avanti |
+| Ctrl+R, Ctrl+Maiusc+R | Ruota il video a destra, a sinistra (vedi [Ruotare e riflettere](rotate.md)) |
+| Ctrl+Z, Ctrl+Y | Annulla, ripeti una rotazione non salvata |
 | ↑, ↓ (o la rotellina sul video) | Alza, abbassa il volume |
 | M | Toglie e rimette l'audio |
 | Ctrl+Maiusc+S | Mette in pausa e salva come immagine il fotogramma mostrato (vedi [Riprodurre i video](video.md)) |

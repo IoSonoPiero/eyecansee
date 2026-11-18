@@ -87,6 +87,8 @@ The mouse wheel zooms around the pointer, + and − around the middle of the win
 |---|---|
 | Space | Play and pause |
 | Ctrl+←, Ctrl+→ | 5 seconds back, forward |
+| Ctrl+R, Ctrl+Shift+R | Turn the video right, left (see [Rotating and flipping](rotate.md)) |
+| Ctrl+Z, Ctrl+Y | Undo, redo a turn not saved |
 | ↑, ↓ (or the mouse wheel on the video) | Volume up, down |
 | M | Audio off and on |
 | Ctrl+Shift+S | Pause and save the frame shown as a picture (see [Playing videos](video.md)) |

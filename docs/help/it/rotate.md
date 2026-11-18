@@ -30,7 +30,7 @@ Le foto in un formato che EyeCanSee non sa scrivere (HEIC, RAW…) vengono esclu
 
 ## Video
 
-Un video si ruota come una foto, nel visore o nella griglia, e si salva sopra l'originale allo stesso modo, con l'originale nel cestino. Non viene ricodificato: cambia solo la rotazione che leggono i lettori, quindi bastano pochi secondi, non si perde niente e i metadati restano. Funziona su MP4, MOV, MKV e WebM, con un FFmpeg (vedi [Convertire i video](convert-video.md)). Un video non si può riflettere così: per rifletterlo usa **Converti…**. Sugli altri video (AVI, MPEG…) rotazioni e riflessi sono grigi, nel menù del clic destro tutto **Trasforma**: si riflettono e si ruotano con **Converti…**. **Ruota e ritaglia…** e **Modifica immagine…** lavorano solo sulle immagini: su un video anche queste due voci sono grigie, e puntandole si legge perché.
+Un video si ruota come una foto, nel visore o nella griglia, e si salva sopra l'originale allo stesso modo, con l'originale nel cestino. Nel visore gira subito, e **Ctrl+Z** e **Ctrl+Y** annullano e rifanno una rotazione non ancora salvata, come per una foto. Non viene ricodificato: cambia solo la rotazione che leggono i lettori, quindi bastano pochi secondi, non si perde niente e i metadati restano. Funziona su MP4, MOV, MKV e WebM, con un FFmpeg (vedi [Convertire i video](convert-video.md)). Un video non si può riflettere così: per rifletterlo usa **Converti…**. Sugli altri video (AVI, MPEG…) rotazioni e riflessi sono grigi, nel menù del clic destro tutto **Trasforma**: si riflettono e si ruotano con **Converti…**. **Ruota e ritaglia…** e **Modifica immagine…** lavorano solo sulle immagini: su un video anche queste due voci sono grigie, e puntandole si legge perché.
 
 ## Salvare sopra l'originale
 
