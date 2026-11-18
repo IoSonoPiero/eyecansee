@@ -185,6 +185,13 @@ pub fn choose(ctx: &egui::Context, choice: ThemeChoice) {
     });
 }
 
+/// The controls over the viewer, which is dark in both themes: drawn with the dark theme's colours.
+/// With the light theme's, the play and mute buttons under a video were white boxes with a light
+/// grey icon, and the transparent buttons of animations turned almost white on hover (#166).
+pub fn on_dark(ui: &mut egui::Ui) {
+    *ui.visuals_mut() = dark();
+}
+
 /// Buttons with the same rounding as windows and tiles.
 fn rounded(v: &mut Visuals) {
     let r = CornerRadius::same(5);

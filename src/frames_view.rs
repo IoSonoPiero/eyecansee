@@ -124,6 +124,7 @@ impl App {
             .show(ui.ctx(), |ui| {
                 frame
                     .show(ui, |ui| {
+                        crate::theme::on_dark(ui);
                         ui.horizontal(|ui| {
                             let button = |ui: &mut egui::Ui, icon, tip: &str, on: bool| ui.add_enabled(on, egui::Button::image(crate::icons::line_in(ui.ctx(), icon, 18.0, light)).fill(Color32::TRANSPARENT)).on_hover_text(i18n.t(tip)).clicked();
                             let text = |s: String| egui::RichText::new(s).color(light).monospace();

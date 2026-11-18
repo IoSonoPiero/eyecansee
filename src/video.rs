@@ -527,6 +527,7 @@ fn frame_sizes(video: [u32; 2], room: [f32; 2]) -> ([u32; 2], [u32; 2]) {
 fn controls(ui: &mut egui::Ui, rect: Rect, player: &mpv::Player, sound: (&mut u32, &mut bool), i18n: &I18n) {
     let builder = egui::UiBuilder::new().max_rect(rect.shrink2(vec2(8.0, 0.0))).layout(egui::Layout::left_to_right(egui::Align::Center));
     ui.scope_builder(builder, |ui| {
+        crate::theme::on_dark(ui);
         let light = Color32::from_gray(225);
         let paused = player.paused();
         let (icon, tip) = if paused { (crate::icons::Line::Play, "video-play") } else { (crate::icons::Line::Pause, "video-pause") };

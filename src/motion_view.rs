@@ -68,7 +68,7 @@ impl App {
         let frame = egui::Frame::new().fill(Color32::from_black_alpha(170)).corner_radius(6.0).inner_margin(6.0);
         let text = egui::RichText::new(self.i18n.t("motion-play")).color(light);
         let icon = crate::icons::line_in(ui.ctx(), crate::icons::Line::Play, 18.0, light);
-        let clicked = area.show(ui.ctx(), |ui| frame.show(ui, |ui| ui.add(egui::Button::image_and_text(icon, text).fill(Color32::TRANSPARENT)).clicked()).inner).inner;
+        let clicked = area.show(ui.ctx(), |ui| frame.show(ui, |ui| { crate::theme::on_dark(ui); ui.add(egui::Button::image_and_text(icon, text).fill(Color32::TRANSPARENT)).clicked() }).inner).inner;
         if clicked {
             self.play_motion(ui.ctx());
         }
