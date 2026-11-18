@@ -92,6 +92,7 @@
           <li>The .xmp file of Lightroom or darktable next to a photo is read, kept in copies and goes with the photo</li>
           <li>Image editor: resize the image, rotate objects with a handle, rotate and flip a pasted piece, and File &gt; Open from clipboard</li>
           <li>CAD drawings and 3D models: Measure, a Layers panel, Compare drawings, the title block in the details, and a section view of models</li>
+          <li>Thumbnails: size, dimensions, date or duration under each one</li>
           <li>Windows: entering full screen no longer makes the screen flash; EyeCanSee now draws with DirectX 12</li>
           <li>A tip at startup, once a day</li>
           <li>Security: a crafted compressed glTF or GLB 3D model is now refused</li>
