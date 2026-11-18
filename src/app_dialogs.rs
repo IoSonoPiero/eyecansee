@@ -80,6 +80,19 @@ impl App {
         self.options_changed(ctx, &before);
     }
 
+    /// Before the pages read the keys: Esc with Options open is the window's, and reaches nothing
+    /// under it (it closed the viewer and left Options open, #163). The question on emptying the
+    /// thumbnail cache is answered No first, as its No button.
+    pub(crate) fn options_esc(&mut self, ctx: &egui::Context) {
+        if !self.options || !ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+            return;
+        }
+        if self.purge_confirm.take().is_none() {
+            log!("options: closed with Esc");
+            self.options = false;
+        }
+    }
+
     /// After the Options window: what a changed setting needs at once, then the settings saved.
     fn options_changed(&mut self, ctx: &egui::Context, before: &Settings) {
         if self.settings.language != before.language {

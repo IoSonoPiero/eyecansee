@@ -4,7 +4,7 @@ The options change how EyeCanSee starts, looks, moves between images, deletes, s
 
 ## Opening the options
 
-Choose **Tools > Options…** (![Options…](icon://settings)). The window is divided into tabs: **General**, **Look**, **Viewer**, **Slideshow**, **Video**, **Editor**, **Resize**, **Deleting** and **Thumbnails**, in a column on the left. Pointing at many options shows a short explanation.
+Choose **Tools > Options…** (![Options…](icon://settings)). The window is divided into tabs: **General**, **Look**, **Viewer**, **Slideshow**, **Video**, **Editor**, **Resize**, **Deleting** and **Thumbnails**, in a column on the left. Pointing at many options shows a short explanation. **Esc** or the window's ✕ closes it.
 
 Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Linux and in `%APPDATA%\eyecansee` on Windows. It is a text file you can also edit by hand.
 
