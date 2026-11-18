@@ -156,6 +156,9 @@ impl App {
         let t = passage(now, since, secs);
         // A video plays whole, after the passage that brought its still in.
         let video = cur.and_then(|i| self.files().get(i)).filter(|f| crate::decode::is_played(&f.path)).map(|f| (f.path.clone(), f.size));
+        // The still of a video fills the screen as the video does: at its own pixels, a 720p one
+        // came in small on a larger screen and jumped to the whole screen as it started to play.
+        let from_video = from.and_then(|i| self.files().get(i)).is_some_and(|f| crate::decode::is_played(&f.path));
         let (mut played, mut ended) = (false, false);
         match &video {
             Some((path, size)) if t >= 1.0 => (played, ended) = self.show_video(ui.painter(), rect, path, *size),
@@ -166,10 +169,10 @@ impl App {
             // the video's frame is on screen
         } else if let Some(cur_tex) = &cur_tex {
             let back = self.show.as_ref().is_some_and(|s| s.back);
-            paint_passage(ui.painter(), rect, from_tex.as_ref(), cur_tex, (self.settings.slideshow_fade, back), t);
+            paint_passage(ui.painter(), rect, from_tex.as_ref().map(|f| (f, from_video)), (cur_tex, video.is_some()), (self.settings.slideshow_fade, back), t);
         } else if let Some(from_tex) = &from_tex {
             // Arrows pressed faster than the images load: the old one stays meanwhile.
-            paint_passage(ui.painter(), rect, None, from_tex, (Fade::None, false), 1.0);
+            paint_passage(ui.painter(), rect, None, (from_tex, from_video), (Fade::None, false), 1.0);
         } else if cur.is_some_and(|i| matches!(self.full.get(&i), Some(Err(_)))) {
             // Cannot be read: the next one comes at its time.
         } else {
@@ -260,21 +263,27 @@ impl App {
     }
 }
 
-/// `tex` fitted into `rect`, never larger than its pixels, scaled by `scale` around the centre
-/// and moved by `dx` points.
-fn fitted(rect: Rect, tex: &TextureHandle, ppp: f32, scale: f32, dx: f32) -> Rect {
-    let size = tex.size_vec2() / ppp;
-    let fit = (rect.width() / size.x).min(rect.height() / size.y).min(1.0) * scale;
-    Rect::from_center_size(rect.center() + Vec2::new(dx, 0.0), size * fit)
+/// How much a picture of `size` is scaled to fit `room`: never larger than its pixels, but for
+/// the still of a video (`enlarge`), which fills the room as the video playing after it does.
+fn fit(room: Vec2, size: Vec2, enlarge: bool) -> f32 {
+    let fit = (room.x / size.x).min(room.y / size.y);
+    if enlarge { fit } else { fit.min(1.0) }
 }
 
-/// The passage at `t` (0 to 1) from `from` to `to`; `back`: going to the previous image.
-fn paint_passage(p: &egui::Painter, rect: Rect, from: Option<&Picture>, to: &Picture, (fade, back): (Fade, bool), t: f32) {
+/// `tex` fitted into `rect` (`fit`), scaled by `scale` around the centre and moved by `dx` points.
+fn fitted(rect: Rect, (tex, enlarge): (&TextureHandle, bool), ppp: f32, scale: f32, dx: f32) -> Rect {
+    let size = tex.size_vec2() / ppp;
+    Rect::from_center_size(rect.center() + Vec2::new(dx, 0.0), size * fit(rect.size(), size, enlarge) * scale)
+}
+
+/// The passage at `t` (0 to 1) from `from` to `to`, each with whether it is the still of a video;
+/// `back`: going to the previous image.
+fn paint_passage(p: &egui::Painter, rect: Rect, from: Option<(&Picture, bool)>, to: (&Picture, bool), (fade, back): (Fade, bool), t: f32) {
     let ppp = p.ctx().pixels_per_point();
     let uv = Rect::from_min_max(egui::pos2(0.0, 0.0), egui::pos2(1.0, 1.0));
-    let draw = |tex: &Picture, scale: f32, dx: f32, alpha: f32| {
+    let draw = |(tex, enlarge): (&Picture, bool), scale: f32, dx: f32, alpha: f32| {
         // Smaller than its pixels: filtered as in the viewer (`paint`).
-        crate::paint::paint_tinted(p, tex, fitted(rect, tex, ppp, scale, dx), uv, Default::default(), Color32::WHITE.gamma_multiply(alpha.clamp(0.0, 1.0)));
+        crate::paint::paint_tinted(p, tex, fitted(rect, (tex, enlarge), ppp, scale, dx), uv, Default::default(), Color32::WHITE.gamma_multiply(alpha.clamp(0.0, 1.0)));
     };
     let Some(from) = from.filter(|_| t < 1.0 && fade != Fade::None) else {
         draw(to, 1.0, 0.0, 1.0);
@@ -326,6 +335,18 @@ pub fn options_ui(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A picture is never shown larger than its pixels; the still of a video fills the screen as
+    /// the video does (Piero, 2026-11-18: small for a moment, then the whole screen).
+    #[test]
+    fn still_of_a_video_fills_the_screen() {
+        let (room, hd) = (Vec2::new(2560.0, 1440.0), Vec2::new(1280.0, 720.0));
+        assert_eq!(fit(room, hd, false), 1.0);
+        assert_eq!(fit(room, hd, true), 2.0);
+        // Larger than the screen, both are reduced the same.
+        let big = Vec2::new(5120.0, 1440.0);
+        assert_eq!((fit(room, big, false), fit(room, big, true)), (0.5, 0.5));
+    }
 
     #[test]
     fn steps_and_passage() {
