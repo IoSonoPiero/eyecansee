@@ -224,7 +224,12 @@ impl App {
             }
             return;
         }
-        let (Some(loader), Some(path)) = (&self.loader, self.viewing.and_then(|i| self.files().get(i)).map(|f| f.path.clone())) else { return };
+        let Some(path) = self.viewing.and_then(|i| self.files().get(i)).map(|f| f.path.clone()) else { return };
+        // A turned video is saved by FFmpeg: without one, offered first (#169).
+        if crate::decode::is_video(&path) && self.ffmpeg_missing(true) {
+            return;
+        }
+        let Some(loader) = &self.loader else { return };
         log!("prepare {path:?} {:?}", self.turn);
         loader.prepare(path.clone(), self.turn);
         self.saving.insert(path.clone());

@@ -62,6 +62,7 @@ mod encoders;
 mod engine;
 mod fault;
 mod ffmpeg;
+mod ffmpeg_ask;
 mod ffmpeg_files;
 mod file_dialogs;
 mod folder_pick;
@@ -348,6 +349,8 @@ struct App {
     /// "Save" asked and prepared: the image, its turn, the file to write and whether it lost
     /// quality, for the confirmation of the overwrite.
     save_ready: Option<(String, transform::Turn, Arc<Vec<u8>>, bool)>,
+    /// FFmpeg offered to save a turned video (`ffmpeg_ask`).
+    ffmpeg_ask: Option<ffmpeg_ask::Ask>,
     /// Images being prepared or saved after a turn: not saved again until done (status bar).
     saving: HashSet<String>,
     /// The image whose "Save" is being prepared, before the confirmation (status bar).

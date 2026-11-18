@@ -70,6 +70,7 @@ impl App {
             turn: Default::default(),
             turn_steps: Default::default(),
             save_ready: None,
+            ffmpeg_ask: None,
             saving: HashSet::new(),
             preparing: None,
             skipped: Vec::new(),

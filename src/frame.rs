@@ -260,6 +260,7 @@ impl App {
         self.delete_window(ctx);
         self.turn_leave_window(ctx);
         self.save_window(ctx);
+        self.ffmpeg_window(ctx);
         self.batch_turn_window(ctx);
         self.notice_window(ctx);
         self.batch_summary_window(ctx);
