@@ -250,7 +250,7 @@ fn ffmpeg_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
         }
     }
     // Done: `ffmpeg::program` finds it at the next frame.
-    if download_row(ui, v, i18n, c) {
+    if download_row(ui, &mut v.download, i18n, c) {
         ui.ctx().request_repaint();
     }
 }
@@ -260,15 +260,15 @@ fn ffmpeg_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
 fn better_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     let Some(c) = crate::component::FFMPEG else { return };
     ui.label(i18n.t_args("batch-video-better-ffmpeg", &[("size", &format!("{} MB", c.size / 1_000_000))]));
-    if download_row(ui, v, i18n, c) {
+    if download_row(ui, &mut v.download, i18n, c) {
         ui.label(i18n.t("opt-engine-restart"));
     }
     ui.add_space(4.0);
 }
 
 /// The progress of the download, or its button (with the error of the last try): true once done.
-fn download_row(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n, c: crate::component::Component) -> bool {
-    let state = v.download.as_ref().map(|d| (d.done.load(Ordering::Relaxed), d.result.lock().unwrap().clone()));
+pub(crate) fn download_row(ui: &mut egui::Ui, download: &mut Option<Arc<crate::component::Download>>, i18n: &I18n, c: crate::component::Component) -> bool {
+    let state = download.as_ref().map(|d| (d.done.load(Ordering::Relaxed), d.result.lock().unwrap().clone()));
     match state {
         Some((done, None)) => {
             ui.add(egui::ProgressBar::new(done as f32 / c.size as f32).show_percentage());
@@ -281,7 +281,7 @@ fn download_row(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n, c: crate::com
             }
             if ui.button(i18n.t("batch-video-download")).clicked() {
                 let ctx = ui.ctx().clone();
-                v.download = Some(crate::component::start(c, move || ctx.request_repaint()));
+                *download = Some(crate::component::start(c, move || ctx.request_repaint()));
             }
         }
     }
