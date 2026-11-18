@@ -495,21 +495,40 @@ fn bar_shown(ui: &egui::Ui, hide: &mut crate::video_full::Hide, bar: Rect) -> Op
 
 /// The latest frame into `texture`, painted fitted to `area`; the frames are asked at that size.
 /// False until there is a frame.
+///
+/// A frame drawn for another shape is not shown: right after a turn of 90° the video's size is
+/// already the new one while the frame at hand was drawn for the old one, and it was stretched
+/// into the new rectangle, a narrow picture between black bars, for a quarter of a second (#162).
+/// The last frame of the right shape stays, with its own proportions, until the first one drawn
+/// for the new size comes.
 fn paint_fitted(painter: &egui::Painter, area: Rect, player: &mpv::Player, texture: &mut Option<TextureHandle>) -> bool {
-    if let Some(image) = player.frame() {
+    let video = player.video_size();
+    if let Some(image) = player.frame()
+        && (texture.is_none() || video.is_none_or(|v| same_shape(image.size, v)))
+    {
         match texture {
             Some(t) => t.set(image, TextureOptions::LINEAR),
             None => *texture = Some(painter.ctx().load_texture("video", image, TextureOptions::LINEAR)),
         }
     }
-    let Some([w, h]) = player.video_size() else { return false };
+    let Some([w, h]) = video else { return false };
     let ppp = painter.ctx().pixels_per_point();
-    let (drawn, shown) = frame_sizes([w, h], [area.width() * ppp, area.height() * ppp]);
+    let room = [area.width() * ppp, area.height() * ppp];
+    let (drawn, shown) = frame_sizes([w, h], room);
     player.set_size(drawn);
     let Some(t) = texture else { return false };
+    let shown = if same_shape(t.size(), [w, h]) { shown } else { frame_sizes(t.size().map(|v| v as u32), room).1 };
     let shown = Rect::from_center_size(area.center(), vec2(shown[0] as f32, shown[1] as f32) / ppp);
     painter.image(t.id(), shown, Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0)), Color32::WHITE);
     true
+}
+
+/// Whether a frame of `frame` pixels was drawn for a video of `video` pixels: the same
+/// proportions, within the rounding of `frame_sizes` (half a pixel a side, taken twice over).
+fn same_shape(frame: [usize; 2], video: [u32; 2]) -> bool {
+    let [fw, fh] = frame.map(|v| v as u64);
+    let [w, h] = video.map(u64::from);
+    (fw * h).abs_diff(fh * w) <= w + h
 }
 
 /// The video of `video` pixels fitted to `room` pixels: the size mpv draws the frames at and the
@@ -617,6 +636,26 @@ mod tests {
         assert_eq!(super::frame_sizes([1920, 1080], [2560.0, 1400.0]), ([1920, 1080], [2489, 1400]));
         assert_eq!(super::frame_sizes([1920, 1080], [960.0, 1000.0]), ([960, 540], [960, 540]));
         assert_eq!(super::frame_sizes([1080, 1920], [2560.0, 1400.0]), ([788, 1400], [788, 1400]));
+    }
+
+    /// A frame drawn before a turn of 90° is not one of the turned video (#162: it was stretched
+    /// into the new rectangle); the frames fitted to the window are, rounding and all.
+    #[test]
+    fn frame_of_another_shape() {
+        // The sizes of the defect: a 1280x720 video in a 1175x661 room, turned to 720x1280.
+        assert!(super::same_shape([1175, 661], [1280, 720]));
+        assert!(!super::same_shape([1175, 661], [720, 1280]));
+        assert!(super::same_shape([372, 661], [720, 1280]));
+        // Every size `frame_sizes` asks for has the shape of its video, down to one pixel.
+        for video in [[1920, 1080], [1080, 1920], [720, 576], [4096, 1716], [320, 240]] {
+            for room in [[2560.0, 1400.0], [960.0, 1000.0], [333.0, 77.0], [3.0, 400.0], [0.2, 0.2]] {
+                let (drawn, shown) = super::frame_sizes(video, room);
+                assert!(super::same_shape(drawn.map(|v| v as usize), video), "{video:?} in {room:?}: {drawn:?}");
+                assert!(super::same_shape(shown.map(|v| v as usize), video), "{video:?} in {room:?}: {shown:?}");
+            }
+        }
+        // A square video turned keeps its shape: nothing to wait for.
+        assert!(super::same_shape([500, 500], [800, 800]));
     }
 
     /// Without the engine the metadata panel says why in the user's language, never the
