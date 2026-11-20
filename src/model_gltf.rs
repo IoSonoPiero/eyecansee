@@ -24,9 +24,9 @@ fn gltf_error(e: String) -> String {
 pub const MISSING_BIN: &str = "error-gltf-bin-missing";
 
 /// The error of a data file `uri` that is not next to the model: its name as the model gives it
-/// (percent-decoded, at most 120 characters).
+/// (percent-decoded, at most 120 characters, without control characters).
 pub(crate) fn missing_file(uri: &str) -> String {
-    let name: String = crate::model::percent_decoded(uri).unwrap_or_else(|| uri.to_string()).chars().take(120).collect();
+    let name: String = crate::model::percent_decoded(uri).unwrap_or_else(|| uri.to_string()).chars().filter(|c| !c.is_control()).take(120).collect();
     format!("{MISSING_BIN}\u{1}{name}")
 }
 
@@ -265,7 +265,13 @@ mod tests {
             assert_eq!(e, format!("{}\u{1}missing model.bin", super::MISSING_BIN), "{packed}");
             assert_eq!(crate::i18n::I18n::new("en").load_error(&e), "The file with the model's data is missing: missing model.bin");
             assert_eq!(crate::i18n::I18n::new("it").load_error(&e), "Manca il file con i dati del modello: missing model.bin");
+            // Convert: the file, and the model it belongs to.
+            let job = crate::batch::Job { format: Some(crate::encode::Format::Png), ..Default::default() };
+            let (id, detail) = crate::batch::convert(gltf.as_bytes(), "a.gltf", &job).unwrap_err();
+            assert_eq!(crate::i18n::I18n::new("en").error(id, &detail), "The file with the model's data is missing: missing model.bin (a.gltf)");
         }
+        // A control character in the name does not reach the message (`\u{1}` separates the id).
+        assert_eq!(super::missing_file("a%01b.bin"), format!("{}\u{1}ab.bin", super::MISSING_BIN));
     }
 
     /// #179: a node with two parents (outside the standard) is placed once, as before, and the

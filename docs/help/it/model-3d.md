@@ -8,9 +8,10 @@ I modelli 3D compaiono nella griglia insieme alle foto, con un'immagine del mode
 
 - **STL**, **3MF** e **AMF** (stampa 3D), **OBJ** (con i colori dei suoi materiali, dal file `.mtl` accanto), **PLY** (anche scansioni 3D; le nuvole di punti si vedono a puntini).
 - **glTF** (`.glb`, e `.gltf` con i suoi file), **FBX**, **Collada** (`.dae`, `.zae`), **3DS**, **OFF**, **VRML** e **X3D**.
-  Un `.gltf` senza accanto il suo file dei dati (di solito `.bin`) non si apre: il visore dice quale file manca.
 - **IFC**: modelli di edifici (muri, solai, finestre, strutture) nei loro colori.
 - **STEP**, **IGES** e **BREP**, i modelli solidi dei programmi CAD meccanici. Hanno bisogno del motore CAD, da scaricare una volta sola: lo propone il primo che apri, e anche il pulsante rosso **Scarica il motore CAD** nella barra dei menù. Fino ad allora la loro miniatura è un cubo ![Modello CAD](icon://color-model) con il simbolo di download. Vedi [Componenti aggiuntivi](components.md).
+
+Un `.gltf` senza accanto il suo file dei dati (di solito `.bin`) non si apre: il visore dice quale file manca.
 
 L'elenco completo è in [Formati supportati](formats.md).
 
