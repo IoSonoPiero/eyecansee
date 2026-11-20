@@ -760,7 +760,7 @@ mod tests {
     /// pasted over one of the same name (Replace: the two merge), was written outside the folder,
     /// over a file of the computer, and the copy said it worked. Names sent by a server are now
     /// checked before they become local paths: the item is left out, the rest copied, the copy
-    /// ends with an error, and a move keeps the folder on the server. Server: `tests/fake.rs`.
+    /// ends with a message naming it, and a move keeps the folder on the server. Server: `tests/fake.rs`.
     #[test]
     fn audit_2_3_a_name_from_a_server_writes_outside_the_folder() {
         use crate::source::Store;
@@ -777,9 +777,10 @@ mod tests {
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             for cut in [false, true] {
                 let clip = Clip { op: server.clone(), base: "ftp://test-names/".into(), paths: vec!["album/".into()], cut, text: String::new() };
-                let (gone, r) = run(&clip, &local, "test-local://", "Pictures/", &choices, &Progress::default()).await;
+                let p = Progress::default();
+                let (gone, r) = run(&clip, &local, "test-local://", "Pictures/", &choices, &p).await;
                 assert_eq!(std::fs::read(dir.join("Pictures/victim.txt")).unwrap(), b"the computer's file", "a file outside the folder pasted was written over");
-                assert_eq!(r, Err(("error-name-refused", "album/../victim.txt".to_string())), "cut: {cut}");
+                assert_eq!((r, p.refused.lock().unwrap().clone()), (Ok(()), vec!["album/../victim.txt".to_string()]), "cut: {cut}");
                 assert_eq!(std::fs::read(dir.join("Pictures/album/a.jpg")).unwrap(), b"not a jpeg", "the rest is copied");
                 assert!(gone.is_empty(), "a folder with an item left out stays: {gone:?}");
                 let names = server.names("album/").await.unwrap().into_iter().collect::<std::collections::BTreeSet<_>>();
@@ -793,7 +794,7 @@ mod tests {
     /// of Windows. On NTFS the colon opened the hidden stream `30.jpg` of an empty file `Mare 12`:
     /// the move said it worked, the folder showed a file of 0 bytes and the server's file was
     /// deleted. On Windows such a name is now left out, alone or in a folder moved, the rest is
-    /// moved and the copy ends with an error; elsewhere the name is copied as it is. Server:
+    /// moved and the copy ends with a message naming it; elsewhere the name is copied as it is. Server:
     /// `tests/fake.rs`.
     #[test]
     fn audit_2_4_windows_colon_in_a_name_from_a_server() {
@@ -812,12 +813,13 @@ mod tests {
                 let (target, _) = fake::start();
                 let server = Store::Ftp(super::Server::shared(target));
                 let clip = Clip { op: server.clone(), base: "ftp://test-colon/".into(), paths: vec![path.into()], cut: true, text: String::new() };
-                let (gone, r) = run(&clip, &local, "test-local://", to, &none, &Progress::default()).await;
+                let p = Progress::default();
+                let (gone, r) = run(&clip, &local, "test-local://", to, &none, &p).await;
                 let on_server = server.names("beach/").await.unwrap_or_default();
                 let copied = shown(&format!("{to}{}", if path.ends_with('/') { "beach/" } else { "" }));
                 let photo = || ("a.jpg".to_string(), 10);
                 if cfg!(windows) {
-                    assert_eq!(r, Err(("error-name-refused", "beach/Mare 12:30.jpg".to_string())), "{path}");
+                    assert_eq!((r, p.refused.lock().unwrap().clone()), (Ok(()), vec!["beach/Mare 12:30.jpg".to_string()]), "{path}");
                     assert!(gone.is_empty(), "{path}: {gone:?}");
                     assert!(on_server.contains("Mare 12:30.jpg") && on_server.contains("a.jpg"), "{path}: the server holds {on_server:?}");
                     let expected: std::collections::BTreeSet<_> = if path.ends_with('/') { [photo()].into() } else { Default::default() };

@@ -9,6 +9,7 @@ use eframe::egui::{self, Key};
 use crate::{App, PasteAsk, browser, confirm, devices, source, theme, transfer};
 use crate::human::human_time;
 use crate::navigation::shown;
+use crate::save_dialogs::{Notice, md};
 
 /// The check of the folders about to be deleted: running (its stop flag), or what it found (the
 /// first name not shown and its folder).
@@ -364,6 +365,15 @@ impl App {
         self.delete_check = None;
     }
 
+    /// The message at the end of a copy that left items out for their name, unless it was
+    /// cancelled (`refused_notice`).
+    pub(crate) fn tell_refused(&mut self, p: &transfer::Progress, cancelled: bool) {
+        let names = p.refused.lock().unwrap();
+        if !names.is_empty() && !cancelled && !self.quit_after_transfer {
+            self.notice = Some(refused_notice(&self.i18n, &names));
+        }
+    }
+
     pub(crate) fn ask_rename(&mut self, path: Option<String>) {
         // One at a time, also from F2: with several marked it renamed only the one under the cursor.
         if self.chosen(path.clone()).len() > 1 {
@@ -503,4 +513,54 @@ pub(crate) fn name_window(ctx: &egui::Context, id: &str, (title, ok): (String, S
         });
     });
     answer
+}
+
+/// The most names `refused_notice` lists; the others are counted.
+const LISTED: usize = 10;
+
+/// The message at the end of a copy that left items out for their name (`transfer::allowed`),
+/// instead of a long error in the bar (Piero, 20/11: "non si capisce niente"): one sentence a
+/// line, then the names as a list, at most `LISTED`, and "and N more". The log has them all.
+pub(crate) fn refused_notice(i18n: &crate::i18n::I18n, names: &[String]) -> Notice {
+    let n = names.len().to_string();
+    let args = [("n", n.as_str())];
+    // A name with a line break in it ("a\nb.jpg") stays on its line of the list.
+    let shown = |s: &String| md(&s.chars().map(|c| if c.is_control() { '\u{FFFD}' } else { c }).collect::<String>());
+    let list: Vec<String> = names.iter().take(LISTED).map(|s| format!("- {}", shown(s))).collect();
+    let mut text = format!("{}\n{}\n\n{}", i18n.t_args("name-refused-why", &args), i18n.t_args("name-refused-stayed", &args), list.join("\n"));
+    if names.len() > LISTED {
+        text = format!("{text}\n\n{}", i18n.t_args("name-refused-more", &[("n", &(names.len() - LISTED).to_string())]));
+    }
+    Notice { title: i18n.t_args("name-refused-title", &args), text, save_as: None, warning: true }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::save_dialogs::md;
+
+    /// The message of the names left out of a copy: singular and plural, one sentence a line, the
+    /// names as a list, cut at ten with "and N more".
+    #[test]
+    fn refused_names_told() {
+        let names = |n: usize| (1..=n).map(|i| format!("album/{i}:a.jpg")).collect::<Vec<_>>();
+        let it = crate::i18n::I18n::new("it");
+        let one = super::refused_notice(&it, &["album/../victim.txt".to_string()]);
+        assert_eq!(one.title, "File non copiato");
+        assert_eq!(one.text, format!("Il suo nome non va bene su questo computer.\nÈ rimasto dove era.\n\n- {}", md("album/../victim.txt")));
+        assert!(one.warning && one.save_as.is_none());
+        let ten = super::refused_notice(&it, &names(10));
+        assert_eq!(ten.title, "File non copiati");
+        assert!(ten.text.starts_with(&format!("Il loro nome non va bene su questo computer.\nSono rimasti dove erano.\n\n- {}\n", md("album/1:a.jpg"))), "{}", ten.text);
+        assert_eq!(ten.text.matches("\n- ").count(), 10);
+        assert!(!ten.text.contains("altri"));
+        let many = super::refused_notice(&it, &names(15));
+        assert_eq!(many.text.matches("\n- ").count(), 10);
+        assert!(many.text.ends_with(&format!("- {}\n\ne altri 5", md("album/10:a.jpg"))), "{}", many.text);
+        let en = super::refused_notice(&crate::i18n::I18n::new("en"), &names(12));
+        assert_eq!(en.title, "Files not copied");
+        assert!(en.text.starts_with("Their name is not valid on this computer.\nThey stayed where they were.\n\n"));
+        assert!(en.text.ends_with("\n\nand 2 more"));
+        let broken = super::refused_notice(&it, &["a\nb.jpg".to_string()]);
+        assert!(broken.text.ends_with(&format!("- a\u{FFFD}b{}", md(".jpg"))), "{}", broken.text);
+    }
 }

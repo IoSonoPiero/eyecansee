@@ -1006,7 +1006,7 @@ mod tests {
     }
     /// Audit 2.3 on SFTP: a name a server lists with a path in it (`album/../victim.txt`), in a
     /// folder pasted over one of the same name, is left out instead of written outside the folder
-    /// over a file of the computer; the rest is copied, the copy ends with an error, and a move
+    /// over a file of the computer; the rest is copied, the copy ends with a message naming it, and a move
     /// keeps the folder on the server. Server: `tests/fake.rs`.
     #[test]
     fn audit_2_3_names_checked() {
@@ -1023,9 +1023,10 @@ mod tests {
             let server = Store::Sftp(server);
             for cut in [false, true] {
                 let clip = Clip { op: server.clone(), base: "sftp://test-names/".into(), paths: vec!["album/".into()], cut, text: String::new() };
-                let (gone, r) = run(&clip, &local, "test-local://", "Pictures/", &choices, &Progress::default()).await;
+                let p = Progress::default();
+                let (gone, r) = run(&clip, &local, "test-local://", "Pictures/", &choices, &p).await;
                 assert_eq!(std::fs::read(dir.join("Pictures/victim.txt")).unwrap(), b"the computer's file", "a file outside the folder pasted was written over");
-                assert_eq!(r, Err(("error-name-refused", "album/../victim.txt".to_string())), "cut: {cut}");
+                assert_eq!((r, p.refused.lock().unwrap().clone()), (Ok(()), vec!["album/../victim.txt".to_string()]), "cut: {cut}");
                 assert_eq!(std::fs::read(dir.join("Pictures/album/a.jpg")).unwrap(), b"not a jpeg", "the rest is copied");
                 assert!(gone.is_empty(), "a folder with an item left out stays: {gone:?}");
                 let names = server.names("album/").await.unwrap().into_iter().collect::<std::collections::BTreeSet<_>>();

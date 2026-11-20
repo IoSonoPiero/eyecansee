@@ -79,8 +79,9 @@ pub struct Progress {
     pub cancel: AtomicBool,
     /// The speed of the last seconds, as the UI shows it.
     pub recent: Mutex<Recent>,
-    /// Items of a phone or a server left out because of their name (`allowed`), as found: an
-    /// error at the end of the copy, and a move keeps the folders that hold them.
+    /// Items of a phone or a server left out because of their name (`allowed`), as found: a
+    /// message at the end of the copy, which is not an error (the rest was copied), and a move
+    /// keeps the folders that hold them.
     pub refused: Mutex<Vec<String>>,
 }
 
@@ -165,13 +166,13 @@ pub fn links_to_say(r: &Result<(), Error>, p: &Progress) -> Option<usize> {
 }
 
 /// Copies (or moves) the clip into `to_dir`. Returns the source items that went away (moved),
-/// also when it stops at an error halfway.
+/// also when it stops at an error halfway. Items left out for their name are in `p.refused`.
 pub async fn run(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress) -> (Vec<String>, Result<(), Error>) {
     let mut gone = Vec::new();
     let mut clip = clip.clone();
     clip.paths.retain(|src| allowed(&clip.op, to_windows(to), src, name(src), p));
     let r = paste(&clip, to, to_base, to_dir, choices, p, &mut gone).await;
-    (gone, r.and_then(|()| refused(p)))
+    (gone, r)
 }
 
 /// Whether the item `path` of `from` may be copied as `rel` (its path below the folder pasted, or
@@ -194,13 +195,6 @@ fn allowed(from: &Store, windows: bool, path: &str, rel: &str, p: &Progress) -> 
 /// (`allowed`); a server or a phone there takes them.
 fn to_windows(to: &Store) -> bool {
     cfg!(windows) && matches!(to, Store::Dal(_))
-}
-
-/// A copy that left items out (`allowed`) is not one that worked: an error naming them, once the
-/// rest has been copied.
-fn refused(p: &Progress) -> Result<(), Error> {
-    let left = p.refused.lock().unwrap();
-    if left.is_empty() { Ok(()) } else { Err(("error-name-refused", left.join(", "))) }
 }
 
 /// Whether something below the folder `src` was left out (`allowed`): its original stays.
@@ -873,8 +867,8 @@ mod tests {
 
     /// Names sent by a phone or a server are checked before they become paths at the destination
     /// (audit 2.3): an item whose path below the folder pasted is not made of names a path can
-    /// hold is left out, the copy ends with an error naming it, and a move keeps the folder that
-    /// holds it. Names of this computer are not checked. (Copies from servers: `ftp.rs`, `sftp.rs`.)
+    /// hold is left out, `Progress::refused` names it for the message at the end, and a move keeps
+    /// the folder that holds it. Names of this computer are not checked. (Copies from servers: `ftp.rs`, `sftp.rs`.)
     #[test]
     fn names_from_devices_checked() {
         let target = crate::ftp::Target { host: "names.invalid".into(), port: 21, user: String::new(), password: String::new(), secure: false };
@@ -883,14 +877,13 @@ mod tests {
         for good in ["a.jpg", "sub/", "sub/b.jpg", "12:30.jpg", ".EyeCanSee-trash/x.jpg"] {
             assert!(allowed(&server, false, &format!("album/{good}"), good, &p), "{good}");
         }
-        assert_eq!(refused(&p), Ok(()));
+        assert!(p.refused.lock().unwrap().is_empty());
         assert!(!left_below("album/", &p));
         for bad in ["../victim.txt", "..", "sub/../../x.jpg", "..\\victim.txt", "C:\\x.jpg", "sub//x", "a\nb.jpg", "/etc/x"] {
             assert!(!allowed(&server, false, &format!("album/{bad}"), bad, &p), "{bad:?}");
         }
         assert_eq!(p.refused.lock().unwrap().len(), 8);
-        assert_eq!(refused(&p).unwrap_err().0, "error-name-refused");
-        assert!(refused(&p).unwrap_err().1.starts_with("album/../victim.txt, album/.., "));
+        assert_eq!(p.refused.lock().unwrap()[..2], ["album/../victim.txt", "album/.."]);
         assert!(left_below("album/", &p) && !left_below("other/", &p) && !left_below("album/a.jpg", &p) && !left_below("", &p));
         let local = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&std::env::temp_dir().to_string_lossy())).unwrap());
         assert!(allowed(&local, false, "a\\b.jpg", "a\\b.jpg", &Progress::default()), "a name of this computer");
@@ -904,7 +897,7 @@ mod tests {
         for bad in ["Mare 12:30.jpg", "12:30/", "12:30/a.jpg", "sub/a.jpg.", "sub /a.jpg", "NUL.jpg", "why?.jpg", "../x.jpg"] {
             assert!(!allowed(&server, true, &format!("album/{bad}"), bad, &p), "{bad:?}");
         }
-        assert_eq!(refused(&p).unwrap_err().1, "album/Mare 12:30.jpg, album/12:30/, album/12:30/a.jpg, album/sub/a.jpg., album/sub /a.jpg, album/NUL.jpg, album/why?.jpg, album/../x.jpg");
+        assert_eq!(p.refused.lock().unwrap().join(", "), "album/Mare 12:30.jpg, album/12:30/, album/12:30/a.jpg, album/sub/a.jpg., album/sub /a.jpg, album/NUL.jpg, album/why?.jpg, album/../x.jpg");
         assert!(left_below("album/", &p));
     }
 }
