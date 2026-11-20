@@ -73,6 +73,7 @@ mod frames_view;
 mod help_spot;
 mod ftp;
 mod gps_track;
+mod gpu_start;
 mod grid;
 mod help;
 mod help_search;
@@ -623,6 +624,7 @@ impl eframe::App for App {
 
     fn ui(&mut self, ui: &mut egui::Ui, frame: &mut eframe::Frame) {
         self.pace(frame);
+        gpu_start::frame_drawn(ui.ctx());
         smooth_gpu::new_frame();
         // Options > Look: applied at once, wherever pictures are drawn.
         mipmap::set_smooth(self.settings.smooth);
@@ -664,7 +666,8 @@ fn main() -> eframe::Result {
     // Read while the window is made, so the first frame already has the desktop's colours.
     #[cfg(any(target_os = "linux", windows))]
     system_theme::start();
-    let settings = Settings::load();
+    let mut settings = Settings::load();
+    gpu_start::before_window(&mut settings);
     engine::set_choice(settings.video_engine);
     // The window is matched to its .desktop file by this id (in Flatpak, the id of the app).
     let app_id = flatpak_id.unwrap_or_else(|| crate::test_copy::NAME.into());

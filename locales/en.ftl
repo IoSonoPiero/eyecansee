@@ -244,6 +244,8 @@ opt-graphics = Graphics: draw with
 opt-graphics-hint = What EyeCanSee draws on the graphics card with. DirectX 12: the screen does not flash when entering full screen (F11, the slideshow). Vulkan: as up to version 0.76; choose it if pictures or videos are not drawn well with DirectX 12.
 opt-graphics-directx12 = DirectX 12
 opt-graphics-vulkan = Vulkan
+vulkan-failed-title = Vulkan did not start
+vulkan-failed-text = The last start with Vulkan did not get as far as showing the window: EyeCanSee now draws with DirectX 12. You can change it in Options > Look.
 
 devices = Devices
 servers = Servers

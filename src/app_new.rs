@@ -168,7 +168,13 @@ impl App {
         }
         let home = std::env::home_dir().map_or(".".into(), |h| h.to_string_lossy().into_owned());
         let last = app.settings.last_location.clone().filter(|_| app.settings.remember_location);
-        app.tip_at_start(arg.is_some());
+        // The last start with Vulkan never drew (`gpu_start`): said instead of the tip of the day.
+        if crate::gpu_start::fell_back() {
+            let (title, text) = (app.i18n.t("vulkan-failed-title"), app.i18n.t("vulkan-failed-text"));
+            app.notice = Some(crate::save_dialogs::Notice { warning: true, ..crate::save_dialogs::Notice::new(title, text) });
+        } else {
+            app.tip_at_start(arg.is_some());
+        }
         match (arg, last) {
             (Some(arg), _) => {
                 app.open_outside(ctx, &arg);

@@ -243,6 +243,8 @@ opt-graphics = Grafica: disegna con
 opt-graphics-hint = Con che cosa EyeCanSee disegna sulla scheda video. DirectX 12: la schermata non lampeggia entrando a schermo intero (F11, carosello). Vulkan: come fino alla versione 0.76; da scegliere se con DirectX 12 immagini o video non si vedono bene.
 opt-graphics-directx12 = DirectX 12
 opt-graphics-vulkan = Vulkan
+vulkan-failed-title = Vulkan non è partito
+vulkan-failed-text = L'ultimo avvio con Vulkan non è arrivato a mostrare la finestra: EyeCanSee ora disegna con DirectX 12. Puoi cambiarlo in Opzioni > Aspetto.
 
 devices = Dispositivi
 servers = Server
