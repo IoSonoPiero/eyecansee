@@ -126,6 +126,19 @@ fn context_path(text: &str) -> Option<String> {
 /// others ("the original could not be moved to the trash: …") the plain sentence becomes the detail.
 const WRAPPERS: [&str; 5] = ["error-detail", NOT_FOUND, "error-path", "error-permission", "error-exists"];
 
+/// Ids whose detail is a name or an address, part of the sentence: never put apart as a detail.
+const NAMED: [&str; 9] = [
+    "error-path",
+    NOT_FOUND,
+    "error-exists",
+    "error-paste-inside",
+    "error-too-deep",
+    "error-unsupported",
+    "error-no-host",
+    crate::model_gltf::MISSING_BIN,
+    crate::model_gltf::OUTSIDE_BIN,
+];
+
 impl I18n {
     /// The text of an error, said plainly when its detail is recognised (`recognise`); its raw
     /// text goes to the log.
@@ -139,7 +152,12 @@ impl I18n {
             let plain = self.t_args(inner, &[("detail", d)]);
             return if WRAPPERS.contains(&id) { plain } else { self.t_args(id, &[("detail", &plain)]) };
         }
-        let Some((kind, name)) = recognise(detail) else { return self.t_args(id, &[("detail", detail)]) };
+        // Not recognised: the library's text under the sentence, in brackets, as the detail
+        // (`error_bar::with_detail`); not a name or an address, which belongs in the sentence.
+        let Some((kind, name)) = recognise(detail) else {
+            let text = self.t_args(id, &[("detail", detail)]);
+            return if NAMED.contains(&id) { text } else { crate::error_bar::with_detail(&text, detail) };
+        };
         log!("error {id}, said as {kind:?}: {detail}");
         let plain = self.fault(kind, name.as_deref());
         if WRAPPERS.contains(&id) { plain } else { self.t_args(id, &[("detail", &plain)]) }

@@ -188,9 +188,10 @@ impl App {
         ui.add(egui::ProgressBar::new((score as f32 + 1.0) / 5.0).fill(color).desired_width(380.0).text(label));
         let same = !first.is_empty() && first == again;
         if score < STRONG {
-            ui.label(egui::RichText::new(t("vault-too-weak")).color(color));
+            // The colour stays on the bar: in it the text read badly (red or orange, low contrast).
+            crate::error_bar::hint(ui, &t("vault-too-weak"));
         } else if !again.is_empty() && !same {
-            crate::error_bar::inline(ui, &t("vault-different"));
+            crate::error_bar::hint(ui, &t("vault-different"));
         }
         ui.label(egui::RichText::new(t("vault-forget")).small());
         ui.horizontal(|ui| {

@@ -416,7 +416,7 @@ pub(crate) fn message(ctx: &egui::Context, id: &str, head: Head, text: &str, tip
 }
 
 /// A message's text as it reads, without the Markdown of `notice_text`: for the clipboard.
-fn plain(text: &str) -> String {
+pub(crate) fn plain(text: &str) -> String {
     let lines = text.lines().map(|l| spans(l).into_iter().map(|(run, _)| run).collect::<String>());
     lines.collect::<Vec<_>>().join("\n")
 }

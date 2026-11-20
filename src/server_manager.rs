@@ -35,7 +35,7 @@ impl App {
             ui.add_space(6.0);
             ui.label(egui::RichText::new(self.i18n.t_args(if crate::servers::encrypted() { "srv-file-vault" } else { "srv-file" }, &[("path", &crate::servers::file())])).weak().small());
             if f.url.is_empty() && !f.port.trim().is_empty() && f.port.trim().parse::<u16>().is_err() {
-                crate::error_bar::inline(ui, &self.i18n.t("addr-bad-port"));
+                crate::error_bar::hint(ui, &self.i18n.t("addr-bad-port"));
             }
             if let Some(e) = &f.error {
                 crate::error_bar::inline(ui, &crate::error_bar::with_detail(&self.i18n.t_args("srv-save-failed", &[("detail", e.as_str())]), e));
