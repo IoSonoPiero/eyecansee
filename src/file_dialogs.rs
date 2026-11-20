@@ -560,6 +560,7 @@ mod tests {
         assert_eq!(en.title, "Files not copied");
         assert!(en.text.starts_with("Their name is not valid on this computer.\nThey stayed where they were.\n\n"));
         assert!(en.text.ends_with("\n\nand 2 more"));
+        assert!(super::refused_notice(&it, &names(11)).text.ends_with("\n\ne un altro"));
         let broken = super::refused_notice(&it, &["a\nb.jpg".to_string()]);
         assert!(broken.text.ends_with(&format!("- a\u{FFFD}b{}", md(".jpg"))), "{}", broken.text);
     }

@@ -155,7 +155,10 @@ name-refused-stayed = { $n ->
     [one] È rimasto dove era.
    *[other] Sono rimasti dove erano.
 }
-name-refused-more = e altri { $n }
+name-refused-more = { $n ->
+    [one] e un altro
+   *[other] e altri { $n }
+}
 error-copy-not-made = Il telefono non ha fatto la copia di { $detail }: l'originale non è stato toccato.
 error-paste-inside = Una cartella non può andare dentro sé stessa: { $detail }
 error-cancelled = Annullato.
