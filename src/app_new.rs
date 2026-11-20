@@ -80,7 +80,6 @@ impl App {
             after_save: None,
             notice: None,
             kiod_ask: false,
-            viewer_before: None,
             host_ask: false,
             server_manager: None,
             bookmarks: Default::default(),

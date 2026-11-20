@@ -377,9 +377,6 @@ struct App {
     notice: Option<save_dialogs::Notice>,
     /// KDE holds the phone: asking whether to terminate kiod (`kiod_window`).
     kiod_ask: bool,
-    /// The picture the viewer showed before one too large for the memory: back to it on Cancel
-    /// (`view_memory`); `None`, the grid.
-    viewer_before: Option<usize>,
     /// An SFTP server never used from this computer: asking whether to trust its key (`host_window`).
     host_ask: bool,
     /// In the status bar until the next source: the phone is open through the desktop's mount.

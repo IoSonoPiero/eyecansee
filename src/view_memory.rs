@@ -2,9 +2,9 @@
 //! picture whole, as its thumbnail (`thumb_memory::estimate`), except a JPEG, read reduced down to
 //! the texture limit; then it keeps the picture shown. Over half the RAM (`thumb_memory::over_half`:
 //! on a PC with 8 GB a HEIC, a 16-bit TIFF, a PSD, a JPEG XL or an OpenEXR near 512 megapixels, 5
-//! to 17 GB) it is not decoded at once: the viewer asks, Cancel first, and opens it only when told
-//! to (Piero, 20/11/2026); Cancel goes back to the picture shown before, or to the grid. A neighbour prepared in advance is never decoded nor asked about: the
-//! question comes when it is the picture shown.
+//! to 17 GB) it is not decoded at once: in its place a card says so and offers Open anyway; the
+//! arrows go on to the next picture as always (Piero, 20/11/2026). A neighbour prepared in advance
+//! is never decoded: the card comes when it is the picture shown.
 
 use eframe::egui;
 
@@ -70,7 +70,7 @@ pub fn guard(bytes: &[u8], name: &str, anyway: bool, ram: u64) -> Result<(), Str
 }
 
 /// The error of a picture not opened because it is `too_large`, with the memory it needs: the
-/// viewer asks about it (`question`) instead of showing an error.
+/// viewer shows a card (`big_picture_card`) instead of an error.
 const TOO_LARGE: &str = "viewer: picture too large for the memory, bytes needed: ";
 
 pub fn error(need: u64) -> String {
@@ -87,72 +87,51 @@ pub fn gigabytes(i18n: &crate::i18n::I18n, bytes: u64) -> String {
     format!("{:.1} GB", bytes as f64 / f64::from(1u32 << 30)).replace('.', &i18n.t("decimal-separator"))
 }
 
-/// The memory the picture shown, `current`, needs, when the viewer asks whether to open it: it
-/// was not opened as too large.
-fn question<T>(loaded: Option<&Result<T, String>>) -> Option<u64> {
-    match loaded {
-        Some(Err(e)) => need_of(e),
-        _ => None,
-    }
-}
-
-/// The picture to go back to on Cancel, at a frame without the question: the one `viewing` once it
-/// is `shown` (not while it loads: it may be the large one itself), the grid when no picture is.
-fn remembered(before: Option<usize>, viewing: Option<usize>, shown: bool) -> Option<usize> {
-    match viewing {
-        None => None,
-        Some(_) if shown => viewing,
-        Some(_) => before,
-    }
-}
-
-/// Where the viewer goes on Cancel: the picture shown `before` the one `asked` about, if there is
-/// still one there; `None`, back to the grid, as after an error.
-fn after_cancel(before: Option<usize>, asked: usize, files: usize) -> Option<usize> {
-    before.filter(|&b| b != asked && b < files)
-}
-
 impl App {
-    /// The picture shown and the memory it needs, while the viewer asks whether to open it.
-    pub(crate) fn big_question(&self) -> Option<(usize, u64)> {
-        let current = self.viewing?;
-        question(self.full.get(&current)).map(|need| (current, need))
+    /// In place of a picture not opened as too large for the memory (`need`): a card that says so,
+    /// with Open anyway (Piero, 20/11/2026: a card, not a window that stops the arrows; the next
+    /// picture comes as always). Open anyway decodes it.
+    pub(crate) fn big_picture_card(&mut self, ui: &mut egui::Ui, index: usize, need: u64) {
+        let light = egui::Color32::from_gray(230);
+        let text = self.i18n.t_args("view-too-large-ask", &[("need", &gigabytes(&self.i18n, need)), ("ram", &gigabytes(&self.i18n, thumb_memory::ram()))]);
+        let (title, yes) = (self.i18n.t("view-too-large-title"), self.i18n.t("view-open-anyway"));
+        let mut open = false;
+        ui.vertical_centered(|ui| {
+            ui.add_space((ui.available_height() / 2.0 - 110.0).max(0.0));
+            let card = egui::Frame::new().fill(egui::Color32::from_gray(34)).stroke(egui::Stroke::new(1.0, egui::Color32::from_gray(60))).corner_radius(10.0).inner_margin(24.0);
+            card.show(ui, |ui| {
+                ui.set_max_width(WIDTH);
+                ui.vertical_centered(|ui| {
+                    let font = egui::FontId::new(20.0, egui::FontFamily::Name(crate::BOLD.into()));
+                    ui.label(egui::RichText::new(title).font(font).color(light));
+                    ui.add_space(10.0);
+                    ui.add(egui::Label::new(egui::RichText::new(text).color(light)).wrap());
+                    ui.add_space(14.0);
+                    let big = egui::Button::new(egui::RichText::new(yes).size(15.0)).min_size(egui::vec2(220.0, 34.0));
+                    open = ui.add(big).clicked();
+                });
+            });
+        });
+        if open {
+            self.open_anyway(index);
+        }
     }
 
-    /// The question: Open anyway, or Cancel (the default, also with Enter and Esc), which goes
-    /// back to the picture shown before, or to the grid. Asked again when the picture is shown again.
-    pub(crate) fn big_picture_window(&mut self, ctx: &egui::Context) {
-        let Some((index, need)) = self.big_question() else {
-            let shown = self.viewing.is_some_and(|v| matches!(self.full.get(&v), Some(Ok(_))));
-            self.viewer_before = remembered(self.viewer_before, self.viewing, shown);
-            return;
-        };
-        let name = self.files().get(index).map(|f| crate::source::shown(&f.path).to_string()).unwrap_or_default();
-        let text = self.i18n.t_args("view-too-large-ask", &[("file", &name), ("need", &gigabytes(&self.i18n, need)), ("ram", &gigabytes(&self.i18n, thumb_memory::ram()))]);
-        let (title, yes, no) = (self.i18n.t("view-too-large-title"), self.i18n.t("view-open-anyway"), self.i18n.t("delete-no"));
-        let keys = self.delete_answer.take().map(|_| false);
-        match crate::confirm::yes_no_cancel_first(ctx, "big-picture", WIDTH, (title, text), yes, true, no, keys) {
-            Some(true) => {
-                log!("viewer: {name} opened anyway, {} MiB", need >> 20);
-                self.full.remove(&index);
-                let path = self.files().get(index).map(|f| f.path.clone());
-                if let (Some(loader), Some(path)) = (&self.loader, path) {
-                    self.pending.insert(index);
-                    loader.load_full(self.generation, index, path, true);
-                }
-            }
-            Some(false) => match after_cancel(self.viewer_before, index, self.files().len()) {
-                Some(before) => self.viewing = Some(before),
-                None => self.close_viewer(),
-            },
-            None => {}
+    /// The picture at `index`, too large for the memory, decoded all the same.
+    fn open_anyway(&mut self, index: usize) {
+        let Some(path) = self.files().get(index).map(|f| f.path.clone()) else { return };
+        log!("viewer: {path} opened anyway");
+        self.full.remove(&index);
+        if let Some(loader) = &self.loader {
+            self.pending.insert(index);
+            loader.load_full(self.generation, index, path, true);
         }
     }
 }
 
-/// The width of the question: each of its two sentences on one line for a short file name, in
-/// English and in Italian (checked on a screenshot).
-const WIDTH: f32 = 540.0;
+/// The width of the card: each of its sentences on one or two lines, in English and in Italian
+/// (checked on a screenshot).
+const WIDTH: f32 = 460.0;
 
 #[cfg(test)]
 mod tests {
@@ -207,32 +186,6 @@ mod tests {
         assert_eq!(guard(&png, "a.png", false, 2 * need - 2), Err(error(need)), "the shown one and the neighbours alike");
         assert_eq!(guard(&png, "a.png", true, 2 * need - 2), Ok(()), "Open anyway");
         assert_eq!(guard(&png, "a.png", false, 2 * need), Ok(()));
-    }
-
-    /// Asked only about the picture shown, when it was not opened as too large (a neighbour not
-    /// opened is only in `full`: `big_question` looks at the picture shown alone).
-    #[test]
-    fn asked_only_when_not_opened() {
-        let big: Result<(), String> = Err(error(5 * GIB));
-        let other: Result<(), String> = Err("damaged".into());
-        assert_eq!(question(Some(&big)), Some(5 * GIB));
-        assert_eq!(question(Some(&other)), None);
-        assert_eq!(question(Some(&Ok(()))), None);
-        assert_eq!(question::<()>(None), None, "still loading");
-    }
-
-    /// Cancel goes back to the picture shown before, else to the grid.
-    #[test]
-    fn cancel_goes_back() {
-        assert_eq!(after_cancel(Some(2), 3, 10), Some(2));
-        assert_eq!(after_cancel(None, 3, 10), None, "opened from the grid");
-        assert_eq!(after_cancel(Some(3), 3, 10), None);
-        assert_eq!(after_cancel(Some(12), 3, 10), None, "no longer in the folder");
-        // Shown 2, then 3 still loading, then 3 is the large one: back to 2.
-        let before = remembered(None, Some(2), true);
-        let before = remembered(before, Some(3), false);
-        assert_eq!(after_cancel(before, 3, 10), Some(2));
-        assert_eq!(remembered(Some(2), None, false), None, "in the grid");
     }
 
     #[test]

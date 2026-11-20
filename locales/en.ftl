@@ -72,7 +72,7 @@ error-bad-name = The name of "{ $detail }" cannot be read (it is not valid UTF-8
 error-image-too-large = The picture is too large: { $detail } pixels, while EyeCanSee opens pictures of up to 512 megapixels.
 view-too-large-title = Picture too large for the memory
 view-too-large-ask =
-    { $file } needs about { $need } of memory, more than half of the { $ram } this computer has.
+    The picture needs about { $need } of memory, more than half of the { $ram } this computer has.
 
     If you open it anyway, the computer may become very slow or EyeCanSee may close.
 view-open-anyway = Open anyway
