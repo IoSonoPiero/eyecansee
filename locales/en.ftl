@@ -139,7 +139,10 @@ name-refused-stayed = { $n ->
     [one] It stayed where it was.
    *[other] They stayed where they were.
 }
-name-refused-more = and { $n } more
+name-refused-more = { $n ->
+    [one] and 1 more
+   *[other] and { $n } more
+}
 error-copy-not-made = The phone did not make the copy of { $detail }: the original was left as it was.
 error-cancelled = Cancelled.
 menu-about = About EyeCanSee
