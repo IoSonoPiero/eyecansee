@@ -233,7 +233,7 @@ impl App {
 
 /// The width of the card and of the question: each of their sentences on one or two lines, in
 /// English and in Italian (checked on a screenshot).
-const WIDTH: f32 = 460.0;
+const WIDTH: f32 = 560.0;
 
 #[cfg(test)]
 mod tests {
