@@ -143,7 +143,7 @@ transfer-links-kept = { $n ->
 }
 transfer-links-why = Un collegamento a una cartella su un server FTP, o uno che riporta dentro le cartelle copiate, resta fuori. Altro nella guida (F1).
 error-name-too-long = Il nome è troppo lungo per il telefono: { $detail } caratteri, mentre un telefono ne accetta al massimo 254 (un'emoji conta per due). Accorcialo e riprova; non è stato copiato niente.
-error-name-refused = Lasciato fuori dalla copia: { $detail }. Il telefono o il server gli dà un nome che qui nessun file può avere (porterebbe fuori dalla cartella, o contiene caratteri come / o \). Il resto è stato copiato; una cartella spostata che lo contiene resta dov'era.
+error-name-refused = Lasciato fuori dalla copia: { $detail }. Il telefono o il server gli dà un nome che qui nessun file può avere (porterebbe fuori dalla cartella, contiene caratteri come / o \, o su Windows un : o un altro carattere che Windows non accetta, un punto o uno spazio in fondo, o un nome come CON o NUL). Il resto è stato copiato; una cartella spostata che lo contiene resta dov'era.
 error-copy-not-made = Il telefono non ha fatto la copia di { $detail }: l'originale non è stato toccato.
 error-paste-inside = Una cartella non può andare dentro sé stessa: { $detail }
 error-cancelled = Annullato.

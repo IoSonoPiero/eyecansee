@@ -19,7 +19,7 @@ mod paths;
 pub use listing::{File, Listing};
 pub(crate) use local::local_path;
 use local::{bad_name, fs_gvfs, gvfs_permit, list, local_items};
-pub use paths::{in_gvfs, name, open, parent, safe_name, windows_temp_copy};
+pub use paths::{in_gvfs, name, open, parent, safe_name, windows_name, windows_temp_copy};
 
 /// Translatable error: Fluent message id and technical detail.
 pub type Error = (&'static str, String);

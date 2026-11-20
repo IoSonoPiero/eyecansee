@@ -60,6 +60,20 @@ pub fn safe_name(name: &str) -> bool {
     !(name.is_empty() || name == "." || name == ".." || drive || name.chars().any(|c| c == '/' || c == '\\' || c.is_control()))
 }
 
+/// Whether Windows can write `name` as the name of a file or a folder (`safe_name` comes first):
+/// none of `<>:"|?*`, no final dot or space, not a name it keeps for a device (Microsoft's "Naming
+/// Files, Paths, and Namespaces"). A server or a phone allows them, Windows does not, and what it
+/// writes instead is another file: "Beach 12:30.jpg" writes into a hidden stream of an empty file
+/// "Beach 12", "a.jpg." becomes "a.jpg", "NUL.jpg" goes nowhere (audit 2.4). Elsewhere these names
+/// are fine.
+pub fn windows_name(name: &str) -> bool {
+    // "NUL.txt" and "NUL.tar.gz" are NUL too.
+    let base = name.split('.').next().unwrap_or_default().trim_end_matches(' ').to_ascii_uppercase();
+    let port = |p: &str| base.strip_prefix(p).is_some_and(|n| n.chars().count() == 1 && n.chars().all(|c| matches!(c, '1'..='9' | '¹' | '²' | '³')));
+    let device = matches!(base.as_str(), "CON" | "PRN" | "AUX" | "NUL") || port("COM") || port("LPT");
+    !(device || name.ends_with(['.', ' ']) || name.contains(['<', '>', ':', '"', '|', '?', '*']))
+}
+
 /// Accepts a local path or `file://`, `ftp://`, `ftps://`, `sftp://`, `mtp://`.
 pub fn open(arg: &str) -> Result<Source, Error> {
     // "C:\photos" would be read as a URL with scheme "c": one-letter schemes are paths.
@@ -162,6 +176,19 @@ mod tests {
         let bad = ["", ".", "..", "../victim.txt", "a/b", "/etc/passwd", "a\\b", "..\\victim.txt", "\\\\server\\share", "C:", "C:x.jpg", "c:\\Windows", "z:", "a\0b", "a\nb", "\u{7f}", "a\u{85}b"];
         for bad in bad {
             assert!(!safe_name(bad), "{bad:?} accepted");
+        }
+    }
+
+    /// Names Windows cannot write as they are (audit 2.4).
+    #[test]
+    fn windows_names() {
+        let good = ["a.jpg", "IMG 0001.JPG", ".hidden", "a..b.jpg", "Ünïcode ✓.png", "CONSOLE.jpg", "con1.jpg", "COM10.jpg", "LPT0.txt", "COM.jpg", "NULL.png", "a.CON", "x CON.jpg", "COM1x.jpg", "AUX_1.jpg"];
+        for good in good {
+            assert!(windows_name(good), "{good:?} refused");
+        }
+        let bad = ["Mare 12:30.jpg", "1:2.png", "a<b.jpg", "a>b.jpg", "say \"hi\".jpg", "a|b.jpg", "why?.jpg", "*.jpg", "a.jpg.", "a.jpg ", "...", "folder.", "CON", "con.jpg", "NUL.tar.gz", "nul .txt", "Aux.png", "PRN", "COM1", "com9.jpg", "LPT1.txt", "COM¹.jpg", "lpt³"];
+        for bad in bad {
+            assert!(!windows_name(bad), "{bad:?} accepted");
         }
     }
 }
