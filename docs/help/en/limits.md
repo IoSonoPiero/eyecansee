@@ -38,7 +38,7 @@ What EyeCanSee does not do yet, or does only in part. The up-to-date list of kno
 - On Windows, network drives and CDs or DVDs do not appear in the panel: open them with **File > Open location…**.
 - FTPS: a server that wants the data connection to resume the TLS session of the control connection may never send the data.
 - SFTP: ProxyJump and ProxyCommand of `~/.ssh/config` are not supported.
-- Copying a folder from a server: on FTP a link to a folder is left out, as FTP does not say where it leads; on SFTP it is copied only when it leads outside the folders already copied, never to the folder itself, to a folder above or to one inside. At the end of the copy its box says how many links were left out (see [Copying and moving](copy-move.md)).
+- Copying a folder from a server: on FTP a link to a folder is left out, as FTP does not say where it leads; on SFTP it is copied only when it leads outside the folders already copied, never to the folder itself, to a folder above or to one inside. In a move a link left out stays where it was, with the folders that hold it. At the end of the copy its box says how many links were left out (see [Copying and moving](copy-move.md)).
 
 ## 3D models and CAD drawings
 

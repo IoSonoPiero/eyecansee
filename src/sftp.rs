@@ -359,16 +359,29 @@ impl Server {
         if !path.ends_with('/') {
             return retry!(self, path, |c| c.ask(c.raw.remove(abs(path))).await).map(|_| ());
         }
+        self.delete_but(path, &[]).await.map(|_| ())
+    }
+
+    /// Deletes a folder with everything inside it but the items `kept` (paths as `walk` gives
+    /// them: the links to folders a move left out, #183) and the folders that hold one; whether
+    /// the folder went.
+    pub async fn delete_but(&self, path: &str, kept: &[String]) -> Result<bool, Error> {
+        let mut emptied = true;
         for (name, a) in self.entries(path).await? {
             let child = format!("{path}{name}");
-            // A symlink is removed, never followed.
-            if a.file_type().is_dir() {
-                Box::pin(self.delete(&format!("{child}/"))).await?;
+            if kept.contains(&child) {
+                emptied = false;
+            } else if a.file_type().is_dir() {
+                // A symlink is removed, never followed.
+                emptied &= Box::pin(self.delete_but(&format!("{child}/"), kept)).await?;
             } else {
                 retry!(self, &child, |c| c.ask(c.raw.remove(abs(&child))).await)?;
             }
         }
-        retry!(self, path, |c| c.ask(c.raw.rmdir(abs(path))).await).map(|_| ())
+        if emptied {
+            retry!(self, path, |c| c.ask(c.raw.rmdir(abs(path))).await)?;
+        }
+        Ok(emptied)
     }
 
     /// Everything below a folder, hidden items and EyeCanSee's trash folders too
@@ -393,7 +406,7 @@ impl Server {
                 if self.entry_is_dir(&path, &a).await {
                     if a.file_type().is_symlink() && !self.new_root(&path, &mut roots).await {
                         log!("sftp: {path:?} left out of the walk: a link to a folder walked anyway");
-                        p.links_skipped.fetch_add(1, Ordering::Relaxed);
+                        p.links_skipped.lock().unwrap().push(path.clone());
                         continue;
                     }
                     found.push((format!("{path}/"), 0));
@@ -952,7 +965,43 @@ mod tests {
             let p = crate::transfer::Progress::default();
             let walked = server.walk("loop/", &p).await.unwrap();
             assert_eq!(walked.iter().map(|(path, _)| path.as_str()).collect::<Vec<_>>(), ["loop/a.jpg"]);
-            assert_eq!(p.links_skipped.load(std::sync::atomic::Ordering::Relaxed), 1);
+            assert_eq!(*p.links_skipped.lock().unwrap(), ["loop/again"]);
         });
+    }
+
+    /// A move of a folder with links to folders left out (#183): only what was copied goes from
+    /// the server; the links stay where they were, with the folders that hold them, and the
+    /// folder is not gone. Server: `tests/fake.rs`: `move/keep/back` → `move/` is left out;
+    /// `move/out` → `loop/` leads outside, so it is copied and, as before, only the link goes
+    /// (`loop/again` inside it is left out, and stays).
+    #[test]
+    fn move_keeps_links_left_out() {
+        use crate::transfer::{Clip, Progress, run};
+        let dir = std::env::temp_dir().join(format!("eyecansee-sftp-move-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("dest")).unwrap();
+        let local = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let (server, _world) = fake::start(&[]).await;
+            let server = Store::Sftp(server);
+            let clip = Clip { op: server.clone(), base: "sftp://test-move/".into(), paths: vec!["move/".into()], cut: true, text: String::new() };
+            let p = Progress::default();
+            let (gone, r) = run(&clip, &local, "test-local://", "dest/", &std::collections::HashMap::new(), &p).await;
+            r.clone().unwrap();
+            assert!(gone.is_empty(), "the folder that holds the links is not gone: {gone:?}");
+            let mut left = p.links_skipped.lock().unwrap().clone();
+            left.sort();
+            assert_eq!(left, ["move/keep/back", "move/out/again"]);
+            assert_eq!(crate::transfer::links_to_say(&r, &p), Some(2));
+            assert_eq!(std::fs::read(dir.join("dest/move/a.jpg")).unwrap(), b"not a jpeg");
+            assert_eq!(std::fs::read(dir.join("dest/move/sub/b.jpg")).unwrap(), b"not a jpeg");
+            assert_eq!(std::fs::read(dir.join("dest/move/out/a.jpg")).unwrap(), b"not a jpeg");
+            assert!(dir.join("dest/move/keep").is_dir());
+            let names = |d: &'static str| async { server.names(d).await.unwrap().into_iter().collect::<std::collections::BTreeSet<_>>() };
+            assert_eq!(names("move/").await, ["keep"].map(String::from).into());
+            assert_eq!(names("move/keep/").await, ["back"].map(String::from).into());
+            assert_eq!(names("loop/").await, ["a.jpg", "again"].map(String::from).into(), "where a link leads is not touched");
+        });
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

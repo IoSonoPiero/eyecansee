@@ -131,6 +131,10 @@ transfer-links-skipped = { $n ->
     [one] 1 collegamento a una cartella saltato: non è stato copiato.
    *[other] { $n } collegamenti a cartelle saltati: non sono stati copiati.
 }
+transfer-links-kept = { $n ->
+    [one] 1 collegamento a una cartella saltato: non è stato spostato e resta dov'era, con la cartella che lo contiene.
+   *[other] { $n } collegamenti a cartelle saltati: non sono stati spostati e restano dov'erano, con le cartelle che li contengono.
+}
 transfer-links-why = Un collegamento a una cartella su un server FTP, o uno che riporta dentro le cartelle copiate, resta fuori. Altro nella guida (F1).
 error-name-too-long = Il nome è troppo lungo per il telefono: { $detail } caratteri, mentre un telefono ne accetta al massimo 254 (un'emoji conta per due). Accorcialo e riprova; non è stato copiato niente.
 error-copy-not-made = Il telefono non ha fatto la copia di { $detail }: l'originale non è stato toccato.

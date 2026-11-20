@@ -132,6 +132,10 @@ transfer-links-skipped = { $n ->
     [one] 1 link to a folder skipped: it was not copied.
    *[other] { $n } links to folders skipped: they were not copied.
 }
+transfer-links-kept = { $n ->
+    [one] 1 link to a folder skipped: it was not moved, and stays where it was with the folder that holds it.
+   *[other] { $n } links to folders skipped: they were not moved, and stay where they were with the folders that hold them.
+}
 transfer-links-why = A link to a folder on an FTP server, or one that leads back into the folders copied, is left out. More in the guide (F1).
 error-paste-inside = A folder cannot go inside itself: { $detail }
 error-name-too-long = The name is too long for the phone: { $detail } characters, while a phone takes at most 254 (an emoji counts as two). Shorten it and try again; nothing was copied.

@@ -1,8 +1,11 @@
 //! A small SFTP server on 127.0.0.1 for the tests of `sftp.rs`, made with the server halves of
-//! `russh` and `russh-sftp` (no dependency added). It only answers what reading needs: listings,
-//! attributes, `realpath`, and reads. What it holds:
+//! `russh` and `russh-sftp` (no dependency added). It answers what reading needs (listings,
+//! attributes, `realpath`, reads) and deletions (`remove`; `rmdir` of an empty folder only, as a
+//! real server). What it holds:
 //! - `/loop/`: the file `a.jpg` and `again`, a link to the folder itself. As on Linux, a path
 //!   through more than 40 links is refused (ELOOP: measured with `stat` on a real folder);
+//! - `/move/`, for a move (#183): `a.jpg`, `sub/b.jpg`, `keep/back` (a link to `/move/`) and
+//!   `out` (a link to `/loop/`);
 //! - the files given to `start`, in "/": a name, the size the server declares for it and its
 //!   real content, which may be much shorter.
 //!
@@ -10,7 +13,7 @@
 //! takes the place of `~/.ssh` (`Server::with_ssh_dir`): `~/.ssh` is never read nor written, and
 //! the environment of the process is not touched, so these tests run with all the others.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::{Arc, Mutex};
 
 use russh::keys::PrivateKey;
@@ -21,16 +24,31 @@ use russh_sftp::protocol::{Attrs, Data, File, FileAttributes, Handle, Name, Open
 
 use crate::sftp::{Server, Target};
 
-/// The link of `/loop/` to itself.
-const LINK: &str = "again";
 /// Links the kernel follows in one path.
 const LINKS: usize = 40;
 const PHOTO: &[u8] = b"not a jpeg";
+
+/// What the server holds besides the files of `start`: real folder (no slash at its ends, "" for
+/// "/"), name, item (a link holds the real path of its folder).
+const ITEMS: &[(&str, &str, Item<'static>)] = &[
+    ("", "loop", Item::Dir),
+    ("loop", "a.jpg", Item::File(PHOTO.len() as u64, PHOTO)),
+    ("loop", "again", Item::Link("loop")),
+    ("", "move", Item::Dir),
+    ("move", "a.jpg", Item::File(PHOTO.len() as u64, PHOTO)),
+    ("move", "keep", Item::Dir),
+    ("move/keep", "back", Item::Link("move")),
+    ("move", "out", Item::Link("loop")),
+    ("move", "sub", Item::Dir),
+    ("move/sub", "b.jpg", Item::File(PHOTO.len() as u64, PHOTO)),
+];
 
 pub struct World {
     files: Vec<(String, u64, Vec<u8>)>,
     /// The folders listed, in order, as the client asked for them.
     pub listed: Mutex<Vec<String>>,
+    /// Real folder and name of each item deleted.
+    removed: Mutex<HashSet<(String, String)>>,
     /// The temporary folder in place of `~/.ssh`, removed with the server.
     ssh: std::path::PathBuf,
 }
@@ -41,40 +59,79 @@ impl Drop for World {
     }
 }
 
+#[derive(Clone, Copy)]
 enum Item<'a> {
     Dir,
     File(u64, &'a [u8]),
+    Link(&'a str),
 }
 
 impl World {
+    /// The items of the real folder `dir` not deleted: name and item.
+    fn items(&self, dir: &str) -> Vec<(&str, Item<'_>)> {
+        let removed = self.removed.lock().unwrap();
+        let root = self.files.iter().filter(|_| dir.is_empty()).map(|(n, declared, content)| (n.as_str(), Item::File(*declared, content)));
+        let items = ITEMS.iter().filter(|(d, _, _)| *d == dir).map(|(_, n, item)| (*n, *item));
+        root.chain(items).filter(|(n, _)| !removed.contains(&(dir.to_string(), n.to_string()))).collect()
+    }
+
+    fn item(&self, dir: &str, name: &str) -> Option<Item<'_>> {
+        self.items(dir).into_iter().find(|(n, _)| *n == name).map(|(_, item)| item)
+    }
+
+    /// The real folder holding the last item of `path` and its name, links followed on the way.
+    fn split<'p>(&self, path: &'p str) -> Result<(String, &'p str), StatusCode> {
+        let (parent, name) = path.trim_end_matches('/').rsplit_once('/').unwrap_or(("", path));
+        match self.at(parent)? {
+            (real, Item::Dir) => Ok((real.trim_start_matches('/').to_string(), name)),
+            _ => Err(StatusCode::NoSuchFile),
+        }
+    }
+
     /// What is at `path`, links followed, and where it really is.
     fn at(&self, path: &str) -> Result<(String, Item<'_>), StatusCode> {
-        let parts: Vec<&str> = path.split('/').filter(|p| !p.is_empty() && *p != ".").collect();
-        let real: Vec<&str> = parts.iter().copied().filter(|p| *p != LINK).collect();
-        if parts.len() - real.len() > LINKS {
+        let (mut real, mut item, mut links) = (String::new(), Item::Dir, 0);
+        for part in path.split('/').filter(|p| !p.is_empty() && *p != ".") {
+            if !matches!(item, Item::Dir) {
+                return Err(StatusCode::NoSuchFile);
+            }
+            item = self.item(&real, part).ok_or(StatusCode::NoSuchFile)?;
+            real = match item {
+                Item::Link(to) => {
+                    links += 1;
+                    item = Item::Dir;
+                    to.to_string()
+                }
+                _ if real.is_empty() => part.to_string(),
+                _ => format!("{real}/{part}"),
+            };
+        }
+        if links > LINKS {
             return Err(StatusCode::Failure); // as OpenSSH answers ELOOP
         }
-        let item = match real.as_slice() {
-            [] | ["loop"] => Item::Dir,
-            ["loop", "a.jpg"] => Item::File(PHOTO.len() as u64, PHOTO),
-            [name] => match self.files.iter().find(|f| f.0 == *name) {
-                Some((_, declared, content)) => Item::File(*declared, content),
-                None => return Err(StatusCode::NoSuchFile),
-            },
-            _ => return Err(StatusCode::NoSuchFile),
-        };
-        // A link is only in `/loop/`.
-        if parts.len() != real.len() && real.first() != Some(&"loop") {
-            return Err(StatusCode::NoSuchFile);
-        }
-        Ok((format!("/{}", real.join("/")), item))
+        Ok((format!("/{real}"), item))
     }
 
     fn attrs(&self, path: &str) -> Result<FileAttributes, StatusCode> {
         Ok(match self.at(path)?.1 {
-            Item::Dir => attrs(0o040_755, 4096),
             Item::File(declared, _) => attrs(0o100_644, declared),
+            _ => attrs(0o040_755, 4096),
         })
+    }
+
+    /// `remove` of a file or a link (`folder` false), `rmdir` of an empty folder.
+    fn delete(&self, path: &str, folder: bool) -> Result<(), StatusCode> {
+        let (dir, name) = self.split(path)?;
+        let inside = if dir.is_empty() { name.to_string() } else { format!("{dir}/{name}") };
+        let deletable = match self.item(&dir, name).ok_or(StatusCode::NoSuchFile)? {
+            Item::Dir => folder && self.items(&inside).is_empty(),
+            _ => !folder,
+        };
+        if !deletable {
+            return Err(StatusCode::Failure);
+        }
+        self.removed.lock().unwrap().insert((dir, name.to_string()));
+        Ok(())
     }
 }
 
@@ -113,7 +170,8 @@ impl russh_sftp::server::Handler for Sftp {
     }
 
     async fn lstat(&mut self, id: u32, path: String) -> Result<Attrs, StatusCode> {
-        let link = path.trim_end_matches('/').ends_with(&format!("/{LINK}"));
+        let (dir, name) = self.world.split(&path)?;
+        let link = matches!(self.world.item(&dir, name), Some(Item::Link(_)));
         let a = self.world.attrs(&path)?;
         Ok(Attrs { id, attrs: if link { attrs(0o120_777, 1) } else { a } })
     }
@@ -131,15 +189,14 @@ impl russh_sftp::server::Handler for Sftp {
     }
 
     async fn readdir(&mut self, id: u32, handle: String) -> Result<Name, StatusCode> {
-        let files = match self.unread.remove(&handle).as_deref() {
-            Some("/loop") => vec![File::new("a.jpg", attrs(0o100_644, PHOTO.len() as u64)), File::new(LINK, attrs(0o120_777, 1))],
-            Some(_) => {
-                let files = self.world.files.iter().map(|(name, declared, _)| File::new(name.as_str(), attrs(0o100_644, *declared)));
-                files.chain([File::new("loop", attrs(0o040_755, 4096))]).collect()
-            }
-            None => return Err(StatusCode::Eof),
-        };
-        Ok(Name { id, files })
+        let Some(real) = self.unread.remove(&handle) else { return Err(StatusCode::Eof) };
+        let items = self.world.items(real.trim_start_matches('/'));
+        let files = items.into_iter().map(|(name, item)| match item {
+            Item::Dir => File::new(name, attrs(0o040_755, 4096)),
+            Item::File(declared, _) => File::new(name, attrs(0o100_644, declared)),
+            Item::Link(_) => File::new(name, attrs(0o120_777, 1)),
+        });
+        Ok(Name { id, files: files.collect() })
     }
 
     async fn open(&mut self, id: u32, filename: String, _flags: OpenFlags, _attrs: FileAttributes) -> Result<Handle, StatusCode> {
@@ -162,6 +219,14 @@ impl russh_sftp::server::Handler for Sftp {
 
     async fn close(&mut self, id: u32, _handle: String) -> Result<Status, StatusCode> {
         Ok(ok(id))
+    }
+
+    async fn remove(&mut self, id: u32, filename: String) -> Result<Status, StatusCode> {
+        self.world.delete(&filename, false).map(|()| ok(id))
+    }
+
+    async fn rmdir(&mut self, id: u32, path: String) -> Result<Status, StatusCode> {
+        self.world.delete(&path, true).map(|()| ok(id))
     }
 }
 
@@ -226,7 +291,7 @@ pub async fn start(files: &[(&str, u64, &[u8])]) -> (Arc<Server>, Arc<World>) {
     let socket = tokio::net::TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
     let port = socket.local_addr().unwrap().port();
     let ssh = ssh_with_known_host(port, &key);
-    let world = Arc::new(World { files, listed: Mutex::new(Vec::new()), ssh: ssh.clone() });
+    let world = Arc::new(World { files, listed: Mutex::new(Vec::new()), removed: Mutex::new(HashSet::new()), ssh: ssh.clone() });
     let config = Arc::new(russh::server::Config { keys: vec![key], ..Default::default() });
     let mut listener = Listener(world.clone());
     tokio::spawn(async move { listener.run_on_socket(config, &socket).await });

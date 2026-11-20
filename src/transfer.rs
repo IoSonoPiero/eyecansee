@@ -65,8 +65,8 @@ pub struct Progress {
     /// Items found while looking inside the folders, before the copy starts.
     pub found: AtomicUsize,
     /// Links to folders the walk of a server left out (`ftp::Server::walk`, `sftp::Server::walk`),
-    /// said at the end of the copy (#183).
-    pub links_skipped: AtomicUsize,
+    /// as walked: said at the end of the copy, and left where they were by a move (#183).
+    pub links_skipped: Mutex<Vec<String>>,
     /// Destination folders that got something new since the UI last looked: it reads them again,
     /// so a copy shows up while it runs.
     pub touched: Mutex<Vec<String>>,
@@ -157,7 +157,7 @@ fn keep_thumbnail(thumb: Option<(u64, Vec<u8>)>, dest: &str, size: Option<u64>) 
 /// Links to folders left out of a copy that worked, to say at its end (#183); `None` when there
 /// are none, or when the copy failed or was cancelled (the log has them then).
 pub fn links_to_say(r: &Result<(), Error>, p: &Progress) -> Option<usize> {
-    let n = p.links_skipped.load(Ordering::Relaxed);
+    let n = p.links_skipped.lock().unwrap().len();
     (r.is_ok() && n > 0).then_some(n)
 }
 
@@ -251,13 +251,27 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
             for (s, _, _) in sides {
                 clip.op.delete(s, Deletion::Permanent).await?;
             }
-            if !src.is_empty() {
-                clip.op.delete(src, Deletion::Permanent).await?;
+            if !src.is_empty() && delete_original(&clip.op, src, p).await? {
                 gone.push(src.clone());
             }
         }
     }
     Ok(())
+}
+
+/// Deletes the original of an item moved between devices; whether it went. Only what was copied
+/// goes: the links to folders left out of the copy below a folder (`Progress::links_skipped`)
+/// stay where they were, with the folders that hold them (#183). Without any, as a deletion.
+async fn delete_original(from: &Store, src: &str, p: &Progress) -> Result<bool, Error> {
+    let kept: Vec<String> = match src.ends_with('/') {
+        true => p.links_skipped.lock().unwrap().iter().filter(|l| l.starts_with(src)).cloned().collect(),
+        false => Vec::new(),
+    };
+    match from {
+        Store::Ftp(server) if !kept.is_empty() => server.delete_but(src, &kept).await,
+        Store::Sftp(server) if !kept.is_empty() => server.delete_but(src, &kept).await,
+        _ => from.delete(src, Deletion::Permanent).await.map(|()| true),
+    }
 }
 
 /// What goes where (`Planned`), as the answers to the conflicts (`choices`) say; `present`: the
@@ -462,7 +476,7 @@ mod tests {
     fn links_said_at_the_end() {
         let p = Progress::default();
         assert_eq!(links_to_say(&Ok(()), &p), None);
-        p.links_skipped.store(3, Ordering::Relaxed);
+        p.links_skipped.lock().unwrap().extend(["a/l1", "a/l2", "a/b/l3"].map(String::from));
         assert_eq!(links_to_say(&Ok(()), &p), Some(3));
         assert_eq!(links_to_say(&Err(("error-cancelled", String::new())), &p), None);
         assert_eq!(links_to_say(&Err(("error-too-deep", "a/".into())), &p), None);

@@ -212,7 +212,7 @@ impl App {
         let Some((cut, base, dest, n)) = &self.transfer_end else { return };
         let title = self.i18n.t(if *cut { "transfer-moved" } else { "transfer-copied" });
         let to = self.i18n.t_args("transfer-to", &[("dir", &shown(base, dest))]);
-        let skipped = self.i18n.t_args("transfer-links-skipped", &[("n", &n.to_string())]);
+        let skipped = self.i18n.t_args(if *cut { "transfer-links-kept" } else { "transfer-links-skipped" }, &[("n", &n.to_string())]);
         let (why, close) = (self.i18n.t("transfer-links-why"), self.i18n.t("notice-close"));
         let mut closed = false;
         egui::Window::new(title)

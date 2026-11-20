@@ -347,7 +347,7 @@ impl App {
             p.files.load(Ordering::Relaxed),
             p.done.load(Ordering::Relaxed),
             p.looked.lock().unwrap(),
-            p.links_skipped.load(Ordering::Relaxed)
+            p.links_skipped.lock().unwrap().len()
         );
         if !self.quit_after_transfer {
             self.transfer_end = crate::transfer::links_to_say(&r, &p).map(|n| (cut, base.clone(), dir.clone(), n));
@@ -360,6 +360,14 @@ impl App {
             // nothing asked for it and its spinner never ended (Downloads during a paste into home).
             let open = self.dir.clone();
             self.listings.retain(|k, _| !(k.starts_with(&dir) && *k != dir && *k != open));
+            // A folder moved with links left out stays, emptied around them (#183): the folders
+            // that hold the links are read again, not shown as cached.
+            let links = if cut { p.links_skipped.lock().unwrap().clone() } else { Vec::new() };
+            self.listings.retain(|k, _| *k == open || !links.iter().any(|l| l.starts_with(k.as_str())));
+            // (The destination, and a folder inside it, are read again just below.)
+            if !open.starts_with(&dir) && links.iter().any(|l| l.starts_with(open.as_str())) {
+                self.relist(open.clone());
+            }
             if open != dir && open.starts_with(&dir) {
                 self.relist(open);
             }

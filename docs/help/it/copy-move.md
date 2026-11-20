@@ -16,7 +16,7 @@ Per incollare direttamente in una cartella senza aprirla, fai clic destro su di 
 - Gli elementi copiati hanno un segno blu ![Copiato](icon://color-copied) nell'angolo della loro casella; quelli tagliati uno arancione con le forbici ![Tagliato](icon://color-cut), e diventano più chiari. La barra di stato dice quanti aspettano Ctrl+V.
 - Durante la copia un riquadro in basso a destra mostra il file che sta copiando, la cartella di arrivo, quanti file e quanti dati sono fatti, la percentuale, la velocità degli ultimi secondi e il tempo che manca. Con tante cartelle, prima dice quanti elementi ha trovato guardandoci dentro.
 - La cartella di arrivo si riempie mentre la copia va avanti.
-- Se su un server sono rimasti fuori dei collegamenti a cartelle (vedi [Limiti noti](limits.md)), alla fine il riquadro resta e dice quanti, finché non fai clic su **Chiudi**. Un collegamento rimasto fuori non viene copiato; in uno spostamento se ne va con la cartella originale, mentre la cartella a cui porta resta com'è.
+- Se su un server sono rimasti fuori dei collegamenti a cartelle (vedi [Limiti noti](limits.md)), alla fine il riquadro resta e dice quanti, finché non fai clic su **Chiudi**. Un collegamento rimasto fuori non viene copiato; in uno spostamento non viene nemmeno cancellato: se ne va solo ciò che è stato copiato, quindi il collegamento resta dov'era, e con lui le cartelle che lo contengono.
 
 ## Quando un nome c'è già
 

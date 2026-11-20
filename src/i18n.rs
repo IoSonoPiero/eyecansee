@@ -104,6 +104,10 @@ mod tests {
         assert!(en.t_args("transfer-links-skipped", &[("n", "3")]).starts_with("3 links to folders skipped"));
         assert!(it.t_args("transfer-links-skipped", &[("n", "1")]).starts_with("1 collegamento a una cartella saltato"));
         assert!(it.t_args("transfer-links-skipped", &[("n", "3")]).starts_with("3 collegamenti a cartelle saltati"));
+        assert!(en.t_args("transfer-links-kept", &[("n", "1")]).contains("it was not moved"));
+        assert!(en.t_args("transfer-links-kept", &[("n", "3")]).starts_with("3 links to folders skipped: they were not moved"));
+        assert!(it.t_args("transfer-links-kept", &[("n", "1")]).contains("non è stato spostato"));
+        assert!(it.t_args("transfer-links-kept", &[("n", "3")]).starts_with("3 collegamenti a cartelle saltati: non sono stati spostati"));
     }
 
     /// Every error id written in the code (`"error-…"`) has its message.
