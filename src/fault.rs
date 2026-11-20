@@ -276,9 +276,9 @@ mod tests {
     fn no_space_to_replace() {
         let t = "write, context: { path: .f.jpg.eyecansee-new } => No space left on device (os error 28)";
         let en = I18n::new("en").error("error-detail", t);
-        assert_eq!(en, "There is not enough space on the disk to replace \"f.jpg\": while it is being replaced, the disk needs room for a second copy of the file. Free some space and try again.");
+        assert_eq!(en, "There is not enough space on the disk to replace \"f.jpg\": while it is being replaced, the disk needs room for a second copy of the file.\nFree some space and try again.");
         let it = I18n::new("it").error("error-detail", t);
-        assert_eq!(it, "Sul disco non c'è abbastanza spazio per sostituire \"f.jpg\": durante la sostituzione serve spazio per una seconda copia del file. Libera un po' di spazio e riprova.");
+        assert_eq!(it, "Sul disco non c'è abbastanza spazio per sostituire \"f.jpg\": durante la sostituzione serve spazio per una seconda copia del file.\nLibera un po' di spazio e riprova.");
         // A full disk while writing the file itself: the plain message.
         let plain = I18n::new("en").error("error-detail", &t.replace(".f.jpg.eyecansee-new", "f.jpg"));
         assert_eq!(plain, I18n::new("en").fault(Kind::NoSpace, Some("f.jpg")));

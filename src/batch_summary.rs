@@ -74,7 +74,8 @@ fn groups(i18n: &I18n, failed: &[(&'static str, String)], preset: bool) -> Vec<G
     let mut out: Vec<(&'static str, Vec<String>)> = Vec::new();
     for (id, detail) in failed {
         let (heading, names) = group_of(id, preset);
-        let item = if names { md(detail) } else { i18n.error_md(id, detail) };
+        // One line each in the list: a reason said on several lines is joined again.
+        let item = if names { md(detail) } else { i18n.error_md(id, detail).replace('\n', " ") };
         match out.iter_mut().find(|(h, _)| *h == heading) {
             Some((_, items)) => items.push(item),
             None => out.push((heading, vec![item])),
@@ -226,6 +227,9 @@ mod tests {
         assert_eq!(headings, ["2 files of a kind this command does not work on:", "1 file already of this size, or smaller and not enlarged:", "1 error:", "1 file in a format EyeCanSee cannot write; choose another format:"]);
         assert_eq!(g[0].items, ["a\\.txt", "c\\_d"]);
         assert_eq!(g[2].items, ["e\\.png\\: broken"]);
+        // A reason said on several lines stays one item of the list.
+        let trash = groups(&i18n, &[("error-trash-failed", "f.jpg: busy".to_string())], false);
+        assert!(!trash[0].items[0].contains('\n') && trash[0].items[0].contains("unchanged. (f"), "{:?}", trash[0].items);
         assert_eq!(groups(&i18n, &failed[4..], true)[0].heading, "1 file in a format EyeCanSee cannot write; Resize > Custom… can save it in another one:");
         let large = [(SKIP_TOO_LARGE, "a.cr3".to_string()), (SKIP_TOO_LARGE, "b.tif".to_string())];
         assert_eq!(groups(&i18n, &large, false)[0].heading, "2 pictures too large for the memory of this computer, left out:");

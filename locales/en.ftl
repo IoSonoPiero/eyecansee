@@ -35,14 +35,21 @@ error-path = Cannot open { $detail }
 error-source = Cannot connect to the source: { $detail }
 error-detail = { $detail }
 error-login = The server refused the login: wrong user name or password.
-error-login-ssh = The server { $detail } refused the login: it accepted none of your SSH keys and no password was given, or the password is wrong.
-error-key-failed = The saved key of { $detail } could not be opened: wrong passphrase, or the file is missing or is not a key. Fix it in File > Server manager.
-error-key-failed-open = The saved key of { $detail } could not be opened: wrong passphrase, or the file is missing or is not a key. Fix it in the Server manager, open on this server.
+error-login-ssh = The server { $detail } refused the login.
+    It accepted none of your SSH keys and no password was given, or the password is wrong.
+error-key-failed = The saved key of { $detail } could not be opened: wrong passphrase, or the file is missing or is not a key.
+    Fix it in File > Server manager.
+error-key-failed-open = The saved key of { $detail } could not be opened: wrong passphrase, or the file is missing or is not a key.
+    Fix it in the Server manager, open on this server.
 error-permission = Permission denied: { $detail }
-error-no-sftp = The server answers over SSH but has no SFTP service ({ $detail }). On a NAS, turn SFTP on in its settings.
+error-no-sftp = The server answers over SSH but has no SFTP service.
+    On a NAS, turn SFTP on in its settings.
+    ({ $detail })
 error-host-unknown = { $detail } has never been used from this computer: confirm its key to connect.
 error-cert-unknown = The certificate of { $detail } is not signed by a known authority: confirm it to connect.
-error-host-changed = The key of { $detail } is not the one recorded in ~/.ssh/known_hosts, so EyeCanSee does not connect: someone may be pretending to be that server. If the server was reinstalled, remove its old line from known_hosts.
+error-host-changed = The key of { $detail } is not the one recorded in ~/.ssh/known_hosts, so EyeCanSee does not connect.
+    Someone may be pretending to be that server.
+    If the server was reinstalled, remove its old line from known_hosts.
 error-server-silent = The server { $detail } does not answer: check that it is on and reachable, then try again.
 host-ask =
     { "**" }First connection to { $host }.**
@@ -55,7 +62,8 @@ host-ask =
 cert-ask =
     { "**" }First connection to { $host } (FTPS).**
 
-    Its certificate is not vouched for by a known authority (common with NAS boxes, which make their own). Its SHA-256 fingerprint, to compare with the one the server shows in its settings:
+    Its certificate is not vouched for by a known authority (common with NAS boxes, which make their own).
+    Its SHA-256 fingerprint, to compare with the one the server shows in its settings:
 
     `{ $fingerprint }`
 
@@ -63,12 +71,15 @@ cert-ask =
 host-ok = Connect
 sftp-rsa-key = **{ $host }** opened with an RSA key.
 
-    It works, but the RSA library EyeCanSee uses has a known flaw with no fix yet (RUSTSEC-2023-0071): in theory whoever controls the server, by timing a great many logins, could work out the key. Better switch to an ed25519 key (ssh-keygen -t ed25519).
+    It works, but the RSA library EyeCanSee uses has a known flaw with no fix yet (RUSTSEC-2023-0071): in theory whoever controls the server, by timing a great many logins, could work out the key.
+    Better switch to an ed25519 key (ssh-keygen -t ed25519).
 
     This warning appears once per server each time EyeCanSee starts.
-error-trash-failed = The original could not be moved to the trash: the original is unchanged. ({ $detail })
+error-trash-failed = The original could not be moved to the trash: the original is unchanged.
+    ({ $detail })
 error-not-found = Not found: { $detail }
-error-bad-name = The name of "{ $detail }" cannot be read (it is not valid UTF-8): rename it in the file manager to open it.
+error-bad-name = The name of "{ $detail }" cannot be read (it is not valid UTF-8).
+    Rename it in the file manager to open it.
 error-image-too-large = The picture is too large: { $detail } pixels, while EyeCanSee opens pictures of up to 512 megapixels.
 view-too-large-title = Picture too large for the memory
 view-too-large-ask =
@@ -80,18 +91,29 @@ error-device-busy =
     EyeCanSee cannot open the device: another program is using it.
     Close the file manager and the other programs using it, then press F5.
     If that is not enough, unplug the device, plug it back in (on a phone choose File transfer) and open it in EyeCanSee first.
-error-device-kde-back = KDE took the phone back: close Dolphin and press Release the phone again. ({ $detail })
-error-device-kde = KDE is using the phone (its kiod service). Press F5 to open it in EyeCanSee anyway. ({ $detail })
-error-no-device = The device was not found: if it is connected, unlock it and choose "File transfer" on it. EyeCanSee retries by itself every 2 seconds. ({ $detail })
+error-device-kde-back = KDE took the phone back: close Dolphin and press Release the phone again.
+    ({ $detail })
+error-device-kde = KDE is using the phone (its kiod service).
+    Press F5 to open it in EyeCanSee anyway.
+    ({ $detail })
+error-no-device = The device was not found: if it is connected, unlock it and choose "File transfer" on it.
+    EyeCanSee retries by itself every 2 seconds.
+    ({ $detail })
 error-phone-disconnected = The phone was disconnected. ({ $detail })
 error-phone-busy =
     The phone is busy with another program, for example a photo import.
     Wait for it to finish or close it, then press F5.
 error-phone-timeout = The phone stopped answering: it may have been disconnected or locked. ({ $detail })
-error-phone-name-taken = The phone refused the copy: the folder already has a file with that name. Nothing was changed. ({ $detail })
-error-not-ready = The phone does not answer: unlock it and choose "File transfer" in its USB notification. EyeCanSee retries by itself every 2 seconds. ({ $detail })
+error-phone-name-taken = The phone refused the copy: the folder already has a file with that name.
+    Nothing was changed.
+    ({ $detail })
+error-not-ready = The phone does not answer: unlock it and choose "File transfer" in its USB notification.
+    EyeCanSee retries by itself every 2 seconds.
+    ({ $detail })
 error-use-mount = Direct access to the device failed. ({ $detail })
-error-no-storage = The device shows no storage: unlock it and choose "File transfer" on it. EyeCanSee retries by itself every 2 seconds. ({ $detail })
+error-no-storage = The device shows no storage: unlock it and choose "File transfer" on it.
+    EyeCanSee retries by itself every 2 seconds.
+    ({ $detail })
 
 menu-file = File
 menu-open-location = Open location…
@@ -125,7 +147,8 @@ key-paste = Ctrl+V
 paste-taken = **"{ $name }"** is already in this folder.
 paste-skip = Skip
 paste-all = Do the same for all the other items with a name already there
-paste-gvfs = Here a file **cannot be replaced**, nor a folder merged: this folder was opened through the file manager (gvfs), where replacing a file can lose the original. Choose **Keep both** or **Skip**.
+paste-gvfs = Here a file **cannot be replaced**, nor a folder merged: this folder was opened through the file manager (gvfs), where replacing a file can lose the original.
+    Choose **Keep both** or **Skip**.
 transfer-copying = Copying
 transfer-moving = Moving
 transfer-looking = Looking inside the folders: { $n } items found
@@ -142,9 +165,11 @@ transfer-links-kept = { $n ->
     [one] 1 link to a folder skipped: it was not moved, and stays where it was with the folder that holds it.
    *[other] { $n } links to folders skipped: they were not moved, and stay where they were with the folders that hold them.
 }
-transfer-links-why = A link to a folder on an FTP server, or one that leads back into the folders copied, is left out. More in the guide (F1).
+transfer-links-why = A link to a folder on an FTP server, or one that leads back into the folders copied, is left out.
+    More in the guide (F1).
 error-paste-inside = A folder cannot go inside itself: { $detail }
-error-name-too-long = The name is too long for the phone: { $detail } characters, while a phone takes at most 254 (an emoji counts as two). Shorten it and try again; nothing was copied.
+error-name-too-long = The name is too long for the phone: { $detail } characters, while a phone takes at most 254 (an emoji counts as two).
+    Shorten it and try again; nothing was copied.
 name-refused-title = { $n ->
     [one] File not copied
    *[other] Files not copied
@@ -201,11 +226,13 @@ status-phone-stalled = Windows has not talked to the phone for { $s } s
 phone-stalled =
     { "**" }Windows has lost the connection with the phone.**
 
-    Unplug the cable and plug it in again (then File transfer), or wait a few minutes: it recovers by itself. The phone and its files are fine.
+    Unplug the cable and plug it in again (then File transfer), or wait a few minutes: it recovers by itself.
+    The phone and its files are fine.
 phone-stalled-upload =
     { "**" }Windows has lost the connection with the phone.**
 
-    Unplug the cable and plug it in again (then File transfer), or wait a few minutes: it recovers by itself. The phone and its files are fine.
+    Unplug the cable and plug it in again (then File transfer), or wait a few minutes: it recovers by itself.
+    The phone and its files are fine.
 
     { $name } will need copying again.
 phone-stalled-why = Why does this happen?
@@ -261,10 +288,15 @@ opt-graphics-hint = What EyeCanSee draws on the graphics card with. DirectX 12: 
 opt-graphics-directx12 = DirectX 12
 opt-graphics-vulkan = Vulkan
 vulkan-failed-title = Vulkan did not start
-vulkan-failed-text = The last start with Vulkan did not get as far as showing the window: EyeCanSee now draws with DirectX 12. You can change it in Options > Look.
+vulkan-failed-text = The last start with Vulkan did not get as far as showing the window: EyeCanSee now draws with DirectX 12.
+    You can change it in Options > Look.
 graphics-broken-title = The graphics card's driver does not work
-graphics-broken-text = At the last start the graphics card's driver closed EyeCanSee, and the card cannot draw with DirectX 12: EyeCanSee now draws without the graphics card, more slowly. Update the driver from the website of the computer's maker or of the graphics card's maker; then, to try the card again, choose Vulkan in Options > Look.
-graphics-no-window = EyeCanSee could not open its window: the graphics card's driver does not work. Update it from the website of the computer's maker or of the graphics card's maker, then start EyeCanSee again.
+graphics-broken-text = At the last start the graphics card's driver closed EyeCanSee, and the card cannot draw with DirectX 12.
+    EyeCanSee now draws without the graphics card, more slowly.
+    Update the driver from the website of the computer's maker or of the graphics card's maker.
+    Then, to try the card again, choose Vulkan in Options > Look.
+graphics-no-window = EyeCanSee could not open its window: the graphics card's driver does not work.
+    Update it from the website of the computer's maker or of the graphics card's maker, then start EyeCanSee again.
 
 devices = Devices
 servers = Servers
@@ -381,8 +413,10 @@ rename-ok = Rename
 rename-bad = Not a valid name
 rename-taken = There is already an item with this name in the folder
 error-exists = There is already an item with this name: { $detail }
-error-save-temp-copy = Not saved over itself: this file is a temporary copy made by Windows, not the original (for example the photo on the phone). ({ $detail })
-error-save-gvfs = Not saved over itself: this folder was opened through the file manager (gvfs), where replacing a file can lose the original. ({ $detail })
+error-save-temp-copy = Not saved over itself: this file is a temporary copy made by Windows, not the original (for example the photo on the phone).
+    ({ $detail })
+error-save-gvfs = Not saved over itself: this folder was opened through the file manager (gvfs), where replacing a file can lose the original.
+    ({ $detail })
 error-rename-unsupported = This source cannot rename this item. ({ $detail })
 delete-confirm-dir-trash = Move the folder **"{ $name }"**, with everything inside it, **to the trash**?
 delete-confirm-dir-folder = Move the folder **"{ $name }"**, with everything inside it, to **this folder's Trash** (the hidden folder .EyeCanSee-trash)?
@@ -409,20 +443,23 @@ delete-confirm-many-folder = Move **{ $n } items** to **the Trash of their folde
     You can **restore** them in EyeCanSee with **Open the trash**, at the top of the grid.
 delete-confirm-many-permanent = Delete **{ $n } items for good**?
 
-    Images: { $size }.{ $folders } **It cannot be undone.**
+    Images: { $size }.{ $folders }
+    { "**" }It cannot be undone.**
 delete-many-folders = Folders go with everything inside them.
 delete-unseen-found = { $n ->
     [one] This folder contains
    *[other] The folder **{ $folder }** contains
-} files or folders that EyeCanSee does not show, for example **{ $name }**. { $how ->
-    [permanent] They will be deleted too
-   *[trash] They will be moved to the trash too
-}: check it with your file manager if you are not sure.
+} files or folders that EyeCanSee does not show, for example **{ $name }**.
+    { $how ->
+        [permanent] They will be deleted too
+       *[trash] They will be moved to the trash too
+    }: check it with your file manager if you are not sure.
 delete-unseen-failed = The folder could not be checked: it may contain files or folders that EyeCanSee does not show.
 delete-move-to-trash = Move to trash
 delete-yes = Delete
 delete-no = Cancel
-error-no-trash-folder = This source cannot move files into the trash folder: choose "Delete for good" in the Options. ({ $detail })
+error-no-trash-folder = This source cannot move files into the trash folder: choose "Delete for good" in the Options.
+    ({ $detail })
 opt-local-permanent = Delete files on this computer for good, without the trash (dangerous)
 opt-local-permanent-hint = Deleted images cannot be recovered. Off: they go to the system trash.
 opt-remote-delete = Deleting on phones and servers (they have no trash):
@@ -461,12 +498,14 @@ trash-open = Open the trash
 trash-bar-inside = Trash of the folder { $folder }
 delete-confirm-empty-trash = **Empty this trash?**
 
-    Everything inside it is deleted **for good**. **It cannot be undone.**
+    Everything inside it is deleted **for good**.
+    { "**" }It cannot be undone.**
 restore-taken = In **"{ $folder }"** there is already an item named **"{ $name }"**.
 restore-replace = Replace
 restore-keep-both = Keep both
 restore-merge = Merge
-delete-ntfs = This is an **NTFS disk**: the Files app (Nautilus) cannot restore from its trash. The file can still be restored from a terminal with "gio trash --restore" (see the guide, Known limits).
+delete-ntfs = This is an **NTFS disk**: the Files app (Nautilus) cannot restore from its trash.
+    The file can still be restored from a terminal with "gio trash --restore" (see the guide, Known limits).
 
 opt-check-updates = Check for updates at startup
 opt-check-updates-hint = When EyeCanSee starts, it asks GitHub for the latest release. A newer version is downloaded in the background and checked; it is installed only when you click "Install … and restart". Windows (installer and zip) and the AppImage; the copy from the Microsoft Store asks the Store instead, and the button opens its page.
@@ -476,12 +515,17 @@ menu-check-updates = Check for updates
 update-checking = Checking for updates…
 update-latest = EyeCanSee { $version } is the latest version.
 update-found = EyeCanSee { $version } is ready: click the red button at the top right to install it.
-update-found-store = A newer EyeCanSee is in the Microsoft Store: click the red button at the top right to open its page and update.
+update-found-store = A newer EyeCanSee is in the Microsoft Store.
+    Click the red button at the top right to open its page and update.
 update-in-store = Update in the Microsoft Store
-update-flatpak = This copy is a Flatpak: it is updated through flatpak update or your software center.
-update-rpm = This copy is the Fedora package: it is updated with the rest of the system, by sudo dnf upgrade or by your software center (GNOME Software, Discover).
-update-rpm-ostree = This copy is the Fedora package, layered with rpm-ostree on Fedora Atomic (Silverblue, Kinoite): it is updated with the system, by rpm-ostree upgrade and a restart, or by your software center (GNOME Software, Discover).
-update-unavailable = This copy is not updated by EyeCanSee: development builds and copies built from the sources are never updated.
+update-flatpak = This copy is a Flatpak.
+    It is updated through flatpak update or your software center.
+update-rpm = This copy is the Fedora package.
+    It is updated with the rest of the system, by sudo dnf upgrade or by your software center (GNOME Software, Discover).
+update-rpm-ostree = This copy is the Fedora package, layered with rpm-ostree on Fedora Atomic (Silverblue, Kinoite).
+    It is updated with the system, by rpm-ostree upgrade and a restart, or by your software center (GNOME Software, Discover).
+update-unavailable = This copy is not updated by EyeCanSee.
+    Development builds and copies built from the sources are never updated.
 update-check-failed = Cannot check for updates: { $detail }
 # After "The download failed:" or "Cannot check for updates:".
 download-stalled = nothing has arrived from the server for a minute. Try again later.
@@ -511,13 +555,15 @@ model-triangles = { $n } triangles
 model-node-again = A part of the model is placed more than once in its hierarchy, which glTF does not allow: shown once
 model-node-again-saved = { $name }: a part of the model appeared more than once in its hierarchy; the new file has it only once
 error-gltf-bin-missing = The file with the model's data is missing: { $detail }
-error-gltf-bin-outside = The file with the model's data is not read, because EyeCanSee does not read files outside the model's folder or from the internet: { $detail }
+error-gltf-bin-outside = The file with the model's data is not read, because EyeCanSee does not read files outside the model's folder or from the internet:
+    { $detail }
 # { $detail }: empty, or the model's name in brackets (Convert).
 error-gltf-data-damaged = The model's data written inside the file is damaged{ $detail }
 error-glb-incomplete = The file is incomplete: the block with the model's data is missing{ $detail }
 error-glb-cut = The file is incomplete{ $detail }
 # { $expected }, { $actual }: sizes ("12.4 MB"), the one the file's header gives and the file's.
-error-glb-cut-sizes = The file is incomplete{ $detail }: it should be { $expected } but it is { $actual }. Perhaps the download or the copy stopped: try downloading or copying it again.
+error-glb-cut-sizes = The file is incomplete{ $detail }: it should be { $expected } but it is { $actual }.
+    Perhaps the download or the copy stopped: try downloading or copying it again.
 # The keys of the viewer, under the status bar.
 hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | Ctrl+L: layers | M: measure | N, Shift+N: next, previous change of a comparison | →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Ctrl+Shift+S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
 hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift+L: next, previous layout | Ctrl+L: layers | M: measure | N, Shift+N: next, previous change of a comparison | →, Space, Page Down: next file | ←, Backspace, Page Up: previous file | Home, End: first, last file | Ctrl+Shift+S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
@@ -705,7 +751,9 @@ rc-close = Close
 rc-discard = Don't save
 rc-leave = The changes to **{ $name }** are not saved.
 
-    { "**" }Save** writes them over the original, **Save as…** makes a new file, **Don't save** loses them.
+    { "**" }Save** writes them over the original.
+    { "**" }Save as…** makes a new file.
+    { "**" }Don't save** loses them.
 menu-edit-image = Edit image…
 key-edit = Ctrl+E
 edit-tool-select = Select
@@ -726,8 +774,10 @@ edit-tool-crop = Crop and rotate
 edit-save-copy = Save copy
 edit-update-copy = Update copy
 edit-update-hint = Writes the copy saved before again, from the original with all the changes; if it is gone or another program changed it, a new copy is made.
-edit-update-confirm = **{ $copy }** is written again with the changes. The original stays as it is.
-edit-overwrite-again = **{ $name }**, already overwritten, is written again with the changes, from the original as it was opened. The original is already in the trash: what was written before is replaced.
+edit-update-confirm = **{ $copy }** is written again with the changes.
+    The original stays as it is.
+edit-overwrite-again = **{ $name }**, already overwritten, is written again with the changes, from the original as it was opened.
+    The original is already in the trash: what was written before is replaced.
 edit-copy-gone = The copy saved before is gone or was changed by another program: a new copy was made.
 edit-off-sending = The last save is still being sent.
 edit-save-more = More ways to save
@@ -890,7 +940,8 @@ key-new-image = Ctrl+N
 menu-open-clipboard = Open from clipboard
 clip-open-name = Pasted image
 clip-open-title = Open from clipboard
-clip-open-none = The clipboard has no image. Copy one in another program first (a screenshot, a picture from a web page), then choose Open from clipboard again.
+clip-open-none = The clipboard has no image.
+    Copy one in another program first (a screenshot, a picture from a web page), then choose Open from clipboard again.
 new-title = New image
 new-name = New image
 new-size = Size
@@ -956,7 +1007,8 @@ edit-overwrite = Overwrite the original…
 edit-overwrite-short = Overwrite…
 edit-overwrite-hint = Writes the edited image over the original, after asking; the original goes to the trash, also when deleting for good is chosen in the Options.
 edit-overwrite-yes = Overwrite
-edit-save-confirm = A copy of **{ $name }** is saved next to it as **{ $copy }**. The original stays as it is.
+edit-save-confirm = A copy of **{ $name }** is saved next to it as **{ $copy }**.
+    The original stays as it is.
 edit-loss-lossy = The copy is **encoded again** and may lose a little quality.
 edit-loss-8bit = The copy has **8 bits per colour**, the original more: the original stays as it is, for what needs them.
 edit-loss-hdr = The copy is a 16-bit PNG: what is **brighter than white** in the original is cut.
@@ -973,13 +1025,18 @@ edit-over-loss-hdr = The new file has 16 bits per colour: what is **brighter tha
 edit-over-loss-ultra-hdr = Without metadata the new file is no longer **Ultra HDR**: nothing holds its HDR part.
 edit-leave = The changes to **{ $name }** are not saved.
 
-    { "**" }Save** makes a copy next to the original, **Save as…** a new file where you choose, **Don't save** loses them.
+    { "**" }Save** makes a copy next to the original.
+    { "**" }Save as…** makes a new file where you choose.
+    { "**" }Don't save** loses them.
 edit-leave-over = The changes to **{ $name }** are not saved.
 
-    { "**" }Save** writes them over the original, which goes to the trash; **Save as…** a new file where you choose, **Don't save** loses them.
+    { "**" }Save** writes them over the original, which goes to the trash.
+    { "**" }Save as…** makes a new file where you choose.
+    { "**" }Don't save** loses them.
 edit-leave-new = The new image **{ $name }** is not saved yet.
 
-    { "**" }Save** and **Save as…** choose where to save it and in which format, **Don't save** loses it.
+    { "**" }Save** and **Save as…** choose where to save it and in which format.
+    { "**" }Don't save** loses it.
 edit-temp-copy = This image is a temporary copy Windows made of a file of a phone or another device: a copy next to it could be deleted by Windows. Choose where to save it.
 edit-remote-phone = The image is edited in a copy on this computer: Save sends the result to the phone.
 edit-remote-server = The image is edited in a copy on this computer: Save sends the result to the server.
@@ -1016,8 +1073,10 @@ fault-no-space = { $known ->
    *[no] There is no space left on the disk: free some space and try again.
 }
 fault-no-space-replace = { $known ->
-    [yes] There is not enough space on the disk to replace "{ $name }": while it is being replaced, the disk needs room for a second copy of the file. Free some space and try again.
-   *[no] There is not enough space on the disk to replace the file: while it is being replaced, the disk needs room for a second copy of it. Free some space and try again.
+    [yes] There is not enough space on the disk to replace "{ $name }": while it is being replaced, the disk needs room for a second copy of the file.
+        Free some space and try again.
+   *[no] There is not enough space on the disk to replace the file: while it is being replaced, the disk needs room for a second copy of it.
+        Free some space and try again.
 }
 fault-too-large = { $known ->
     [yes] "{ $name }" is too large for this disk: FAT32 disks take files of at most 4 GB.
@@ -1097,26 +1156,38 @@ batch-turn-confirm = { $what ->
 batch-originals-trash = The originals go **to the trash**.
 batch-originals-folder = The originals go to **this folder's Trash**, where **Open the trash** restores them.
 batch-originals-permanent = The originals are deleted **for good**.
-batch-lossy = JPEG files are rotated without losing quality when their sides are multiples of 16 pixels; the others, and WebP, AVIF and GIF, are encoded again and may lose a little quality.
+batch-lossy = JPEG files are rotated without losing quality when their sides are multiples of 16 pixels.
+    The others, and WebP, AVIF and GIF, are encoded again and may lose a little quality.
 batch-skipped = { $n ->
     [one] **1 image** is left out: its format cannot be saved back (HEIC, RAW…).
    *[other] **{ $n } images** are left out: their format cannot be saved back (HEIC, RAW…).
 }
-batch-none = None of these **{ $n } images** can be saved back: their format cannot be written (HEIC, RAW…). Open them one at a time and use **Save as…**.
+batch-none = None of these **{ $n } images** can be saved back: their format cannot be written (HEIC, RAW…).
+    Open them one at a time and use **Save as…**.
 batch-save-as-hint = **Save as…** saves it already rotated to a new file, in the format you choose. The original stays as it is.
 status-saving-n = Saving: { $n }…
-save-lossy = This image is **encoded again** and may lose a little quality: a JPEG is rotated without loss only when its sides are multiples of 16 pixels, lossy WebP, AVIF and GIF are always encoded again.
-save-skipped = The changes cannot be saved over **{ $detail }**: it is animated, has several pages or carries more than one picture (the video of a motion photo, a depth map), and those parts would be lost.
-save-animated = The changes cannot be saved over **{ $detail }**: it is animated, and saving over it would keep only the first frame.
-save-pages = The changes cannot be saved over **{ $detail }**: it has several pages, and saving over it would keep only the first one.
-save-extra = The changes cannot be saved over **{ $detail }**: it also carries the video of a motion photo or a depth map, which would be lost.
-save-temp-copy = This image **cannot be saved over itself**: it is a temporary copy that Windows made when it opened the file from a phone or another device, not the file there. Saving over it would change only the copy, which Windows can delete. Use **Save as…** to keep the changes.
-save-gvfs = Images **cannot be saved over themselves** here: this folder was opened through the file manager (gvfs), where replacing a file can lose the original.
-save-no-rename = Images **cannot be saved over themselves** here: this source cannot rename files.
+save-lossy = This image is **encoded again** and may lose a little quality.
+    A JPEG is rotated without loss only when its sides are multiples of 16 pixels; lossy WebP, AVIF and GIF are always encoded again.
+save-skipped = The changes cannot be saved over **{ $detail }**.
+    It is animated, has several pages or carries more than one picture (the video of a motion photo, a depth map): those parts would be lost.
+save-animated = The changes cannot be saved over **{ $detail }**.
+    It is animated: saving over it would keep only the first frame.
+save-pages = The changes cannot be saved over **{ $detail }**.
+    It has several pages: saving over it would keep only the first one.
+save-extra = The changes cannot be saved over **{ $detail }**.
+    It also carries the video of a motion photo or a depth map, which would be lost.
+save-temp-copy = This image **cannot be saved over itself**: it is a temporary copy that Windows made when it opened the file from a phone or another device, not the file there.
+    Saving over it would change only the copy, which Windows can delete.
+    Use **Save as…** to keep the changes.
+save-gvfs = Images **cannot be saved over themselves** here.
+    This folder was opened through the file manager (gvfs), where replacing a file can lose the original.
+save-no-rename = Images **cannot be saved over themselves** here.
+    This source cannot rename files.
 save-video-no-rotation = { $detail }: only MP4, MOV, MKV and WebM videos keep a rotation. To rotate it, use Convert….
 batch-turn-videos = **Videos** are not encoded again: only the rotation that players read changes, in seconds and without loss.
 off-video-flip = A video can only be rotated here: to flip it, use Convert….
-batch-animated = **Animated** and **multi-page** images, **motion photos** and photos with a **depth map** (the portrait photos of some phones) are skipped: saving over them would lose those parts. Ultra HDR photos are rotated with their HDR map, and with their video when they are motion photos too.
+batch-animated = **Animated** and **multi-page** images, **motion photos** and photos with a **depth map** (the portrait photos of some phones) are skipped: saving over them would lose those parts.
+    Ultra HDR photos are rotated with their HDR map, and with their video when they are motion photos too.
 batch-skipped-names = Left out, because they are animated, have several pages, are motion photos or carry a depth map:
 # $op is the id of the menu item of the change (tf-…).
 batch-done-title = { $what ->
@@ -1176,10 +1247,13 @@ batch-done = { $what ->
         } and saved over their originals.
     }
 }
-save-psd-flatten = **This PSD will be flattened**: layers, text, effects and masks are lost, only the image as it looks remains. To keep them use **Save as…** or edit it in Photoshop.
+save-psd-flatten = **This PSD will be flattened**: layers, text, effects and masks are lost, only the image as it looks remains.
+    To keep them use **Save as…** or edit it in Photoshop.
 batch-psd-flatten = PSD files with several layers, text or effects are **flattened**: only the image as it looks remains.
-save-format = The changes cannot be saved over **{ $name }**: EyeCanSee cannot write this format (HEIC, RAW…).
-save-as-hint = **Save as…** saves it to a new file, in the format you choose. The original stays as it is.
+save-format = The changes cannot be saved over **{ $name }**.
+    EyeCanSee cannot write this format (HEIC, RAW…).
+save-as-hint = **Save as…** saves it to a new file, in the format you choose.
+    The original stays as it is.
 notice-close = Close
 
 ## File > Open location
@@ -1250,7 +1324,9 @@ srv-file = Saved in { $path }, passwords in plain text.
 srv-file-vault = Saved encrypted in { $path }.
 srv-delete-ask = Delete "{ $name }" from the saved servers?
 srv-save-failed = The servers could not be saved: { $detail }
-kiod-ask = KDE is holding the phone through its kiod service, the one Dolphin uses for phones. To open it, EyeCanSee has to close that service. KDE restarts it by itself, but it **forgets the passwords of network folders** (Samba, SFTP…) opened in Dolphin, and will ask for them again next time.
+kiod-ask = KDE is holding the phone through its kiod service, the one Dolphin uses for phones.
+    To open it, EyeCanSee has to close that service.
+    KDE restarts it by itself, but it **forgets the passwords of network folders** (Samba, SFTP…) opened in Dolphin, and will ask for them again next time.
 
     This **does not depend on EyeCanSee**: KDE keeps phones and those passwords in the same service, and lets nobody release only the phone.
 kiod-ok = OK
@@ -1604,8 +1680,10 @@ batch-video-download-failed = Download failed: { $detail }
 batch-video-old-ffmpeg = The FFmpeg on this computer is too old: { $found }, while EyeCanSee needs at least { $required }. EyeCanSee can download its own, once ({ $size }), into the app's data folder.
 batch-video-lacks-ffmpeg = The FFmpeg on this computer ({ $found }) cannot read { $missing }, the formats phones record in. EyeCanSee can download its own, which reads them, once ({ $size }), into the app's data folder.
 ffmpeg-ask-title = FFmpeg needed
-turn-video-need-ffmpeg = A turned video is saved by FFmpeg, which EyeCanSee has not got here yet. It is downloaded once ({ $size }) into the app's data folder; then the saving goes on.
-batch-video-system-only = FFmpeg is not on this computer, and the Options say to use the system's only. Install it, or change the choice under Tools > Options > Video.
+turn-video-need-ffmpeg = A turned video is saved by FFmpeg, which EyeCanSee has not got here yet.
+    It is downloaded once ({ $size }) into the app's data folder; then the saving goes on.
+batch-video-system-only = FFmpeg is not on this computer, and the Options say to use the system's only.
+    Install it, or change the choice under Tools > Options > Video.
 batch-video-not-ready = Choose how to convert the videos.
 batch-skip-video = { $detail }: a video, and FFmpeg is missing.
 batch-skip-audio = { $detail }: an audio file, and FFmpeg is missing.

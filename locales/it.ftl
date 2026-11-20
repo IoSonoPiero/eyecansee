@@ -34,14 +34,21 @@ error-path = Impossibile aprire { $detail }
 error-source = Impossibile collegarsi alla sorgente: { $detail }
 error-detail = { $detail }
 error-login = Il server ha rifiutato l'accesso: nome utente o password sbagliati.
-error-login-ssh = Il server { $detail } ha rifiutato l'accesso: non ha accettato nessuna delle tue chiavi SSH e non c'è una password, oppure la password è sbagliata.
-error-key-failed = La chiave salvata per { $detail } non si apre: la passphrase è sbagliata, oppure il file manca o non è una chiave. Correggila in File > Gestione server.
-error-key-failed-open = La chiave salvata per { $detail } non si apre: la passphrase è sbagliata, oppure il file manca o non è una chiave. Correggila nella Gestione server, aperta su questo server.
+error-login-ssh = Il server { $detail } ha rifiutato l'accesso.
+    Non ha accettato nessuna delle tue chiavi SSH e non c'è una password, oppure la password è sbagliata.
+error-key-failed = La chiave salvata per { $detail } non si apre: la passphrase è sbagliata, oppure il file manca o non è una chiave.
+    Correggila in File > Gestione server.
+error-key-failed-open = La chiave salvata per { $detail } non si apre: la passphrase è sbagliata, oppure il file manca o non è una chiave.
+    Correggila nella Gestione server, aperta su questo server.
 error-permission = Permesso negato: { $detail }
-error-no-sftp = Il server risponde in SSH ma non ha il servizio SFTP ({ $detail }). Su un NAS, attiva SFTP nelle sue impostazioni.
+error-no-sftp = Il server risponde in SSH ma non ha il servizio SFTP.
+    Su un NAS, attiva SFTP nelle sue impostazioni.
+    ({ $detail })
 error-host-unknown = { $detail } non è mai stato usato da questo computer: conferma la sua chiave per collegarti.
 error-cert-unknown = Il certificato di { $detail } non è firmato da un'autorità riconosciuta: confermalo per collegarti.
-error-host-changed = La chiave di { $detail } non è quella registrata in ~/.ssh/known_hosts, quindi EyeCanSee non si collega: qualcuno potrebbe fingersi quel server. Se il server è stato reinstallato, togli la sua riga vecchia da known_hosts.
+error-host-changed = La chiave di { $detail } non è quella registrata in ~/.ssh/known_hosts, quindi EyeCanSee non si collega.
+    Qualcuno potrebbe fingersi quel server.
+    Se il server è stato reinstallato, togli la sua riga vecchia da known_hosts.
 error-server-silent = Il server { $detail } non risponde: controlla che sia acceso e raggiungibile, poi riprova.
 host-ask =
     { "**" }Primo collegamento a { $host }.**
@@ -54,7 +61,8 @@ host-ask =
 cert-ask =
     { "**" }Primo collegamento a { $host } (FTPS).**
 
-    Il suo certificato non è garantito da un'autorità riconosciuta (succede con i NAS, che se lo creano da soli). L'impronta SHA-256, da confrontare con quella che mostra il server nelle sue impostazioni:
+    Il suo certificato non è garantito da un'autorità riconosciuta (succede con i NAS, che se lo creano da soli).
+    L'impronta SHA-256, da confrontare con quella che mostra il server nelle sue impostazioni:
 
     `{ $fingerprint }`
 
@@ -62,12 +70,15 @@ cert-ask =
 host-ok = Collegati
 sftp-rsa-key = **{ $host }** aperto con una chiave RSA.
 
-    Funziona, ma la libreria RSA usata da EyeCanSee ha un difetto noto non ancora corretto (RUSTSEC-2023-0071): in teoria chi controlla il server, misurando i tempi di moltissimi accessi, potrebbe ricavare la chiave. Meglio passare a una chiave ed25519 (ssh-keygen -t ed25519).
+    Funziona, ma la libreria RSA usata da EyeCanSee ha un difetto noto non ancora corretto (RUSTSEC-2023-0071): in teoria chi controlla il server, misurando i tempi di moltissimi accessi, potrebbe ricavare la chiave.
+    Meglio passare a una chiave ed25519 (ssh-keygen -t ed25519).
 
     Questo avviso compare una volta per server a ogni avvio di EyeCanSee.
-error-trash-failed = Non è stato possibile spostare l'originale nel cestino: l'originale è intatto. ({ $detail })
+error-trash-failed = Non è stato possibile spostare l'originale nel cestino: l'originale è intatto.
+    ({ $detail })
 error-not-found = Non trovato: { $detail }
-error-bad-name = Il nome di "{ $detail }" non si può leggere (non è UTF-8 valido): rinominalo nel gestore dei file per aprirlo.
+error-bad-name = Il nome di "{ $detail }" non si può leggere (non è UTF-8 valido).
+    Rinominalo nel gestore dei file per aprirlo.
 error-image-too-large = L'immagine è troppo grande: { $detail } pixel, mentre EyeCanSee apre immagini fino a 512 megapixel.
 view-too-large-title = Immagine troppo grande per la memoria
 view-too-large-ask =
@@ -79,18 +90,29 @@ error-device-busy =
     EyeCanSee non riesce ad aprire il dispositivo: lo sta usando un altro programma.
     Chiudi il file manager e gli altri programmi che lo usano, poi premi F5.
     Se non basta, scollega il dispositivo, ricollegalo (sul telefono scegli Trasferimento file) e aprilo prima in EyeCanSee.
-error-device-kde-back = KDE ha ripreso il telefono: chiudi Dolphin e premi di nuovo Libera il telefono. ({ $detail })
-error-device-kde = Il telefono è in uso da KDE (il suo servizio kiod). Premi F5 per aprirlo comunque in EyeCanSee. ({ $detail })
-error-no-device = Il dispositivo non è stato trovato: se è collegato, sbloccalo e scegli "Trasferimento file". EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })
+error-device-kde-back = KDE ha ripreso il telefono: chiudi Dolphin e premi di nuovo Libera il telefono.
+    ({ $detail })
+error-device-kde = Il telefono è in uso da KDE (il suo servizio kiod).
+    Premi F5 per aprirlo comunque in EyeCanSee.
+    ({ $detail })
+error-no-device = Il dispositivo non è stato trovato: se è collegato, sbloccalo e scegli "Trasferimento file".
+    EyeCanSee riprova da solo ogni 2 secondi.
+    ({ $detail })
 error-phone-disconnected = Il telefono è stato scollegato. ({ $detail })
 error-phone-busy =
     Il telefono è occupato con un altro programma, per esempio un'importazione di foto.
     Aspetta che finisca o chiudilo, poi premi F5.
 error-phone-timeout = Il telefono ha smesso di rispondere: forse è stato scollegato o bloccato. ({ $detail })
-error-phone-name-taken = Il telefono ha rifiutato la copia: nella cartella c'è già un file con quel nome. Non è cambiato niente. ({ $detail })
-error-not-ready = Il telefono non risponde: sbloccalo e scegli "Trasferimento file" nella sua notifica USB. EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })
+error-phone-name-taken = Il telefono ha rifiutato la copia: nella cartella c'è già un file con quel nome.
+    Non è cambiato niente.
+    ({ $detail })
+error-not-ready = Il telefono non risponde: sbloccalo e scegli "Trasferimento file" nella sua notifica USB.
+    EyeCanSee riprova da solo ogni 2 secondi.
+    ({ $detail })
 error-use-mount = L'accesso diretto al dispositivo non è riuscito. ({ $detail })
-error-no-storage = Il dispositivo non mostra nessuna memoria: sbloccalo e scegli "Trasferimento file". EyeCanSee riprova da solo ogni 2 secondi. ({ $detail })
+error-no-storage = Il dispositivo non mostra nessuna memoria: sbloccalo e scegli "Trasferimento file".
+    EyeCanSee riprova da solo ogni 2 secondi.
+    ({ $detail })
 
 menu-file = File
 menu-open-location = Apri indirizzo…
@@ -124,7 +146,8 @@ key-paste = Ctrl+V
 paste-taken = **"{ $name }"** è già in questa cartella.
 paste-skip = Salta
 paste-all = Fai lo stesso per tutti gli altri elementi con un nome già presente
-paste-gvfs = Qui **non si può sostituire** un file né unire una cartella: questa cartella è aperta tramite il file manager (gvfs), dove sostituire un file può far perdere l'originale. Scegli **Tieni entrambi** o **Salta**.
+paste-gvfs = Qui **non si può sostituire** un file né unire una cartella: questa cartella è aperta tramite il file manager (gvfs), dove sostituire un file può far perdere l'originale.
+    Scegli **Tieni entrambi** o **Salta**.
 transfer-copying = Copia in corso
 transfer-moving = Spostamento in corso
 transfer-looking = Esamino le cartelle: { $n } elementi trovati
@@ -141,8 +164,10 @@ transfer-links-kept = { $n ->
     [one] 1 collegamento a una cartella saltato: non è stato spostato e resta dov'era, con la cartella che lo contiene.
    *[other] { $n } collegamenti a cartelle saltati: non sono stati spostati e restano dov'erano, con le cartelle che li contengono.
 }
-transfer-links-why = Un collegamento a una cartella su un server FTP, o uno che riporta dentro le cartelle copiate, resta fuori. Altro nella guida (F1).
-error-name-too-long = Il nome è troppo lungo per il telefono: { $detail } caratteri, mentre un telefono ne accetta al massimo 254 (un'emoji conta per due). Accorcialo e riprova; non è stato copiato niente.
+transfer-links-why = Un collegamento a una cartella su un server FTP, o uno che riporta dentro le cartelle copiate, resta fuori.
+    Altro nella guida (F1).
+error-name-too-long = Il nome è troppo lungo per il telefono: { $detail } caratteri, mentre un telefono ne accetta al massimo 254 (un'emoji conta per due).
+    Accorcialo e riprova; non è stato copiato niente.
 name-refused-title = { $n ->
     [one] File non copiato
    *[other] File non copiati
@@ -200,11 +225,13 @@ status-phone-stalled = Windows non comunica col telefono da { $s } s
 phone-stalled =
     { "**" }Windows ha perso il collegamento con il telefono.**
 
-    Stacca e ricollega il cavo (poi Trasferimento file), oppure aspetta qualche minuto: si sblocca da solo. Telefono e file sono a posto.
+    Stacca e ricollega il cavo (poi Trasferimento file), oppure aspetta qualche minuto: si sblocca da solo.
+    Telefono e file sono a posto.
 phone-stalled-upload =
     { "**" }Windows ha perso il collegamento con il telefono.**
 
-    Stacca e ricollega il cavo (poi Trasferimento file), oppure aspetta qualche minuto: si sblocca da solo. Telefono e file sono a posto.
+    Stacca e ricollega il cavo (poi Trasferimento file), oppure aspetta qualche minuto: si sblocca da solo.
+    Telefono e file sono a posto.
 
     { $name } andrà ricopiato.
 phone-stalled-why = Perché succede?
@@ -260,10 +287,15 @@ opt-graphics-hint = Con che cosa EyeCanSee disegna sulla scheda video. DirectX 1
 opt-graphics-directx12 = DirectX 12
 opt-graphics-vulkan = Vulkan
 vulkan-failed-title = Vulkan non è partito
-vulkan-failed-text = L'ultimo avvio con Vulkan non è arrivato a mostrare la finestra: EyeCanSee ora disegna con DirectX 12. Puoi cambiarlo in Opzioni > Aspetto.
+vulkan-failed-text = L'ultimo avvio con Vulkan non è arrivato a mostrare la finestra: EyeCanSee ora disegna con DirectX 12.
+    Puoi cambiarlo in Opzioni > Aspetto.
 graphics-broken-title = Il driver della scheda video non funziona
-graphics-broken-text = All'ultimo avvio il driver della scheda video ha chiuso EyeCanSee, e la scheda non sa disegnare con DirectX 12: EyeCanSee ora disegna senza la scheda video, più lentamente. Aggiorna il driver dal sito del produttore del PC o della scheda video; poi, per riprovare la scheda, scegli Vulkan in Opzioni > Aspetto.
-graphics-no-window = EyeCanSee non è riuscito ad aprire la sua finestra: il driver della scheda video non funziona. Aggiornalo dal sito del produttore del PC o della scheda video, poi avvia di nuovo EyeCanSee.
+graphics-broken-text = All'ultimo avvio il driver della scheda video ha chiuso EyeCanSee, e la scheda non sa disegnare con DirectX 12.
+    EyeCanSee ora disegna senza la scheda video, più lentamente.
+    Aggiorna il driver dal sito del produttore del PC o della scheda video.
+    Poi, per riprovare la scheda, scegli Vulkan in Opzioni > Aspetto.
+graphics-no-window = EyeCanSee non è riuscito ad aprire la sua finestra: il driver della scheda video non funziona.
+    Aggiornalo dal sito del produttore del PC o della scheda video, poi avvia di nuovo EyeCanSee.
 
 devices = Dispositivi
 servers = Server
@@ -380,8 +412,10 @@ rename-ok = Rinomina
 rename-bad = Nome non valido
 rename-taken = Nella cartella c'è già un elemento con questo nome
 error-exists = Esiste già un elemento con questo nome: { $detail }
-error-save-temp-copy = Non salvata sopra se stessa: questo file è una copia temporanea fatta da Windows, non l'originale (per esempio la foto sul telefono). ({ $detail })
-error-save-gvfs = Non salvata sopra se stessa: questa cartella è aperta tramite il file manager (gvfs), dove sostituire un file può far perdere l'originale. ({ $detail })
+error-save-temp-copy = Non salvata sopra se stessa: questo file è una copia temporanea fatta da Windows, non l'originale (per esempio la foto sul telefono).
+    ({ $detail })
+error-save-gvfs = Non salvata sopra se stessa: questa cartella è aperta tramite il file manager (gvfs), dove sostituire un file può far perdere l'originale.
+    ({ $detail })
 error-rename-unsupported = Questa sorgente non può rinominare questo elemento. ({ $detail })
 delete-confirm-dir-trash = Spostare la cartella **"{ $name }"**, con tutto quello che contiene, **nel cestino**?
 delete-confirm-dir-folder = Spostare la cartella **"{ $name }"**, con tutto quello che contiene, nel **Cestino di questa cartella** (la cartella nascosta .EyeCanSee-trash)?
@@ -408,20 +442,23 @@ delete-confirm-many-folder = Spostare **{ $n } elementi** nel **Cestino della lo
     Potrai **ripristinarli** da EyeCanSee con **Apri il cestino**, in cima alla griglia.
 delete-confirm-many-permanent = Eliminare **definitivamente { $n } elementi**?
 
-    Immagini: { $size }.{ $folders } **Non si può annullare.**
+    Immagini: { $size }.{ $folders }
+    { "**" }Non si può annullare.**
 delete-many-folders = Le cartelle vanno con tutto il loro contenuto.
 delete-unseen-found = { $n ->
     [one] Questa cartella contiene
    *[other] La cartella **{ $folder }** contiene
-} file o cartelle che EyeCanSee non mostra, per esempio **{ $name }**. { $how ->
-    [permanent] Verranno eliminati anche quelli
-   *[trash] Finiranno nel cestino anche quelli
-}: controllala con il file manager se non sei sicuro.
+} file o cartelle che EyeCanSee non mostra, per esempio **{ $name }**.
+    { $how ->
+        [permanent] Verranno eliminati anche quelli
+       *[trash] Finiranno nel cestino anche quelli
+    }: controllala con il file manager se non sei sicuro.
 delete-unseen-failed = Non è stato possibile controllare la cartella: potrebbe contenere file o cartelle che EyeCanSee non mostra.
 delete-move-to-trash = Sposta nel cestino
 delete-yes = Elimina
 delete-no = Annulla
-error-no-trash-folder = Questa sorgente non può spostare i file nella cartella cestino: scegli "Elimina definitivamente" nelle Opzioni. ({ $detail })
+error-no-trash-folder = Questa sorgente non può spostare i file nella cartella cestino: scegli "Elimina definitivamente" nelle Opzioni.
+    ({ $detail })
 opt-local-permanent = Elimina i file del computer definitivamente, senza cestino (pericoloso)
 opt-local-permanent-hint = Le immagini eliminate non si possono recuperare. Spenta: vanno nel cestino di sistema.
 opt-remote-delete = Eliminare su telefoni e server (non hanno un cestino):
@@ -460,12 +497,14 @@ trash-open = Apri il cestino
 trash-bar-inside = Cestino della cartella { $folder }
 delete-confirm-empty-trash = **Svuotare questo cestino?**
 
-    Tutto quello che contiene viene eliminato **definitivamente**. **Non si può annullare.**
+    Tutto quello che contiene viene eliminato **definitivamente**.
+    { "**" }Non si può annullare.**
 restore-taken = In **"{ $folder }"** c'è già un elemento chiamato **"{ $name }"**.
 restore-replace = Sostituisci
 restore-keep-both = Tieni entrambi
 restore-merge = Unisci
-delete-ntfs = Questo è un **disco NTFS**: l'app File (Nautilus) non riesce a ripristinare dal suo cestino. Il file si può comunque ripristinare dal terminale con "gio trash --restore" (vedi la guida, Limiti noti).
+delete-ntfs = Questo è un **disco NTFS**: l'app File (Nautilus) non riesce a ripristinare dal suo cestino.
+    Il file si può comunque ripristinare dal terminale con "gio trash --restore" (vedi la guida, Limiti noti).
 
 opt-check-updates = Controlla gli aggiornamenti all'avvio
 opt-check-updates-hint = All'avvio EyeCanSee chiede a GitHub l'ultima versione pubblicata. Se è più nuova la scarica in background e la controlla; la installa solo quando fai clic su "Installa … e riavvia". Windows (installer e zip) e AppImage; la copia del Microsoft Store chiede invece allo Store, e il pulsante apre la sua pagina.
@@ -475,12 +514,17 @@ menu-check-updates = Verifica aggiornamenti
 update-checking = Controllo degli aggiornamenti…
 update-latest = EyeCanSee { $version } è l'ultima versione.
 update-found = EyeCanSee { $version } è pronto: per installarlo fai clic sul pulsante rosso in alto a destra.
-update-found-store = Nel Microsoft Store c'è un EyeCanSee più nuovo: fai clic sul pulsante rosso in alto a destra per aprire la sua pagina e aggiornare.
+update-found-store = Nel Microsoft Store c'è un EyeCanSee più nuovo.
+    Fai clic sul pulsante rosso in alto a destra per aprire la sua pagina e aggiornare.
 update-in-store = Aggiorna nel Microsoft Store
-update-flatpak = Questa copia è un Flatpak: si aggiorna con flatpak update o con il centro software del sistema.
-update-rpm = Questa copia è il pacchetto Fedora: si aggiorna insieme al resto del sistema, con sudo dnf upgrade o con il centro software (GNOME Software, Discover).
-update-rpm-ostree = Questa copia è il pacchetto Fedora, sovrapposto con rpm-ostree su Fedora Atomic (Silverblue, Kinoite): si aggiorna insieme al sistema, con rpm-ostree upgrade e un riavvio, o con il centro software (GNOME Software, Discover).
-update-unavailable = Questa copia non viene aggiornata da EyeCanSee: le versioni di sviluppo e le copie compilate dai sorgenti non si aggiornano mai.
+update-flatpak = Questa copia è un Flatpak.
+    Si aggiorna con flatpak update o con il centro software del sistema.
+update-rpm = Questa copia è il pacchetto Fedora.
+    Si aggiorna insieme al resto del sistema, con sudo dnf upgrade o con il centro software (GNOME Software, Discover).
+update-rpm-ostree = Questa copia è il pacchetto Fedora, sovrapposto con rpm-ostree su Fedora Atomic (Silverblue, Kinoite).
+    Si aggiorna insieme al sistema, con rpm-ostree upgrade e un riavvio, o con il centro software (GNOME Software, Discover).
+update-unavailable = Questa copia non viene aggiornata da EyeCanSee.
+    Le versioni di sviluppo e le copie compilate dai sorgenti non si aggiornano mai.
 update-check-failed = Impossibile controllare gli aggiornamenti: { $detail }
 # Dopo "Scaricamento non riuscito:" o "Impossibile controllare gli aggiornamenti:".
 download-stalled = dal server non arriva più nulla da un minuto. Riprova più tardi.
@@ -510,13 +554,15 @@ model-triangles = { $n } triangoli
 model-node-again = Una parte del modello compare più volte nella sua gerarchia, cosa che glTF non permette: mostrata una volta sola
 model-node-again-saved = { $name }: una parte del modello compariva più volte nella sua gerarchia; il file nuovo la contiene una volta sola
 error-gltf-bin-missing = Manca il file con i dati del modello: { $detail }
-error-gltf-bin-outside = Il file con i dati del modello non viene letto, perché EyeCanSee non legge file fuori dalla cartella del modello né da internet: { $detail }
+error-gltf-bin-outside = Il file con i dati del modello non viene letto, perché EyeCanSee non legge file fuori dalla cartella del modello né da internet:
+    { $detail }
 # { $detail }: empty, or the model's name in brackets (Convert).
 error-gltf-data-damaged = I dati del modello scritti dentro il file sono rovinati{ $detail }
 error-glb-incomplete = Il file è incompleto: manca il blocco con i dati del modello{ $detail }
 error-glb-cut = Il file è incompleto{ $detail }
 # { $expected }, { $actual }: sizes ("12.4 MB"), the one the file's header gives and the file's.
-error-glb-cut-sizes = Il file è incompleto{ $detail }: dovrebbe essere di { $expected } ma è di { $actual }. Forse lo scaricamento o la copia si è interrotta: prova a scaricarlo o copiarlo di nuovo.
+error-glb-cut-sizes = Il file è incompleto{ $detail }: dovrebbe essere di { $expected } ma è di { $actual }.
+    Forse lo scaricamento o la copia si è interrotta: prova a scaricarlo o copiarlo di nuovo.
 # The keys of the viewer, under the status bar.
 hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | Ctrl+L: livelli | M: misura | N, Maiusc+N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: successivo | ←, Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl+Maiusc+S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
 hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | L, Maiusc+L: layout successivo, precedente | Ctrl+L: livelli | M: misura | N, Maiusc+N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: file successivo | ←, Backspace, Pag↑: file precedente | Inizio, Fine: primo, ultimo file | Ctrl+Maiusc+S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
@@ -704,7 +750,9 @@ rc-close = Chiudi
 rc-discard = Non salvare
 rc-leave = Le modifiche a **{ $name }** non sono salvate.
 
-    { "**" }Salva** le scrive sopra l'originale, **Salva come…** crea un file nuovo, **Non salvare** le perde.
+    { "**" }Salva** le scrive sopra l'originale.
+    { "**" }Salva come…** crea un file nuovo.
+    { "**" }Non salvare** le perde.
 menu-edit-image = Modifica immagine…
 key-edit = Ctrl+E
 edit-tool-select = Seleziona
@@ -725,8 +773,10 @@ edit-tool-crop = Ritaglia e ruota
 edit-save-copy = Salva copia
 edit-update-copy = Aggiorna copia
 edit-update-hint = Riscrive la copia salvata prima, dall'originale con tutte le modifiche; se non c'è più o un altro programma l'ha cambiata, ne fa una nuova.
-edit-update-confirm = **{ $copy }** viene riscritta con le modifiche. L'originale resta com'è.
-edit-overwrite-again = **{ $name }**, già sovrascritto, viene riscritto con le modifiche, partendo dall'originale com'era all'apertura. L'originale è già nel cestino: ciò che era stato scritto prima viene sostituito.
+edit-update-confirm = **{ $copy }** viene riscritta con le modifiche.
+    L'originale resta com'è.
+edit-overwrite-again = **{ $name }**, già sovrascritto, viene riscritto con le modifiche, partendo dall'originale com'era all'apertura.
+    L'originale è già nel cestino: ciò che era stato scritto prima viene sostituito.
 edit-copy-gone = La copia salvata prima non c'è più o è stata cambiata da un altro programma: ne è stata fatta una nuova.
 edit-off-sending = Il salvataggio di prima è ancora in invio.
 edit-save-more = Altri modi di salvare
@@ -889,7 +939,8 @@ key-new-image = Ctrl+N
 menu-open-clipboard = Apri dagli appunti
 clip-open-name = Immagine incollata
 clip-open-title = Apri dagli appunti
-clip-open-none = Negli appunti non c'è un'immagine. Copiane prima una in un altro programma (una schermata, un'immagine da una pagina web), poi scegli di nuovo Apri dagli appunti.
+clip-open-none = Negli appunti non c'è un'immagine.
+    Copiane prima una in un altro programma (una schermata, un'immagine da una pagina web), poi scegli di nuovo Apri dagli appunti.
 new-title = Nuova immagine
 new-name = Nuova immagine
 new-size = Misura
@@ -955,7 +1006,8 @@ edit-overwrite = Sovrascrivi l'originale…
 edit-overwrite-short = Sovrascrivi…
 edit-overwrite-hint = Scrive l'immagine modificata sopra l'originale, dopo aver chiesto; l'originale va nel cestino, anche quando nelle Opzioni è scelta l'eliminazione definitiva.
 edit-overwrite-yes = Sovrascrivi
-edit-save-confirm = Una copia di **{ $name }** viene salvata accanto all'originale come **{ $copy }**. L'originale resta com'è.
+edit-save-confirm = Una copia di **{ $name }** viene salvata accanto all'originale come **{ $copy }**.
+    L'originale resta com'è.
 edit-loss-lossy = La copia viene **ricodificata** e può perdere un po' di qualità.
 edit-loss-8bit = La copia ha **8 bit per colore**, l'originale di più: l'originale resta com'è, per ciò che li richiede.
 edit-loss-hdr = La copia è un PNG a 16 bit: ciò che nell'originale è **più luminoso del bianco** viene tagliato.
@@ -972,13 +1024,18 @@ edit-over-loss-hdr = Il file nuovo ha 16 bit per colore: ciò che nell'originale
 edit-over-loss-ultra-hdr = Senza metadati il file nuovo non è più **Ultra HDR**: niente tiene la sua parte HDR.
 edit-leave = Le modifiche a **{ $name }** non sono salvate.
 
-    { "**" }Salva** crea una copia accanto all'originale, **Salva come…** un file nuovo dove scegli, **Non salvare** le perde.
+    { "**" }Salva** crea una copia accanto all'originale.
+    { "**" }Salva come…** crea un file nuovo dove scegli.
+    { "**" }Non salvare** le perde.
 edit-leave-over = Le modifiche a **{ $name }** non sono salvate.
 
-    { "**" }Salva** le scrive sopra l'originale, che va nel cestino; **Salva come…** un file nuovo dove scegli, **Non salvare** le perde.
+    { "**" }Salva** le scrive sopra l'originale, che va nel cestino.
+    { "**" }Salva come…** crea un file nuovo dove scegli.
+    { "**" }Non salvare** le perde.
 edit-leave-new = L'immagine nuova **{ $name }** non è ancora salvata.
 
-    { "**" }Salva** e **Salva come…** scelgono dove salvarla e in quale formato, **Non salvare** la perde.
+    { "**" }Salva** e **Salva come…** scelgono dove salvarla e in quale formato.
+    { "**" }Non salvare** la perde.
 edit-temp-copy = Questa immagine è una copia temporanea che Windows ha fatto di un file del telefono o di un altro dispositivo: una copia accanto a lei potrebbe essere cancellata da Windows. Scegli dove salvarla.
 edit-remote-phone = L'immagine si modifica in una copia su questo computer: Salva manda il risultato al telefono.
 edit-remote-server = L'immagine si modifica in una copia su questo computer: Salva manda il risultato al server.
@@ -1015,8 +1072,10 @@ fault-no-space = { $known ->
    *[no] Sul disco non c'è più spazio: libera un po' di spazio e riprova.
 }
 fault-no-space-replace = { $known ->
-    [yes] Sul disco non c'è abbastanza spazio per sostituire "{ $name }": durante la sostituzione serve spazio per una seconda copia del file. Libera un po' di spazio e riprova.
-   *[no] Sul disco non c'è abbastanza spazio per sostituire il file: durante la sostituzione serve spazio per una sua seconda copia. Libera un po' di spazio e riprova.
+    [yes] Sul disco non c'è abbastanza spazio per sostituire "{ $name }": durante la sostituzione serve spazio per una seconda copia del file.
+        Libera un po' di spazio e riprova.
+   *[no] Sul disco non c'è abbastanza spazio per sostituire il file: durante la sostituzione serve spazio per una sua seconda copia.
+        Libera un po' di spazio e riprova.
 }
 fault-too-large = { $known ->
     [yes] "{ $name }" è troppo grande per questo disco: i dischi FAT32 accettano file fino a 4 GB.
@@ -1096,26 +1155,38 @@ batch-turn-confirm = { $what ->
 batch-originals-trash = Gli originali vanno **nel cestino**.
 batch-originals-folder = Gli originali vanno nel **Cestino di questa cartella**, da cui si ripristinano con **Apri il cestino**.
 batch-originals-permanent = Gli originali vengono eliminati **definitivamente**.
-batch-lossy = I JPEG vengono ruotati senza perdere qualità quando i lati sono multipli di 16 pixel; gli altri, e i WebP, gli AVIF e i GIF, vengono ricodificati e possono perdere un po' di qualità.
+batch-lossy = I JPEG vengono ruotati senza perdere qualità quando i lati sono multipli di 16 pixel.
+    Gli altri, e i WebP, gli AVIF e i GIF, vengono ricodificati e possono perdere un po' di qualità.
 batch-skipped = { $n ->
     [one] **1 immagine** viene esclusa: il suo formato non si può risalvare (HEIC, RAW…).
    *[other] **{ $n } immagini** vengono escluse: il loro formato non si può risalvare (HEIC, RAW…).
 }
-batch-none = Nessuna di queste **{ $n } immagini** si può risalvare: il loro formato non si può scrivere (HEIC, RAW…). Aprile una alla volta e usa **Salva come…**.
+batch-none = Nessuna di queste **{ $n } immagini** si può risalvare: il loro formato non si può scrivere (HEIC, RAW…).
+    Aprile una alla volta e usa **Salva come…**.
 batch-save-as-hint = Con **Salva come…** la salvi già ruotata in un file nuovo, nel formato che scegli. L'originale resta com'è.
 status-saving-n = Salvataggio in corso: { $n }…
-save-lossy = Questa immagine viene **ricodificata** e può perdere un po' di qualità: un JPEG viene ruotato senza perdita solo quando i lati sono multipli di 16 pixel, i WebP con perdita, gli AVIF e i GIF vengono sempre ricodificati.
-save-skipped = Le modifiche non si possono salvare sopra **{ $detail }**: è animata, ha più pagine o contiene più di un'immagine (il video di una foto in movimento, una mappa di profondità), e queste parti andrebbero perse.
-save-animated = Le modifiche non si possono salvare sopra **{ $detail }**: è un'immagine animata, e salvandoci sopra resterebbe solo il primo fotogramma.
-save-pages = Le modifiche non si possono salvare sopra **{ $detail }**: ha più pagine, e salvandoci sopra resterebbe solo la prima.
-save-extra = Le modifiche non si possono salvare sopra **{ $detail }**: contiene anche il video di una foto in movimento o una mappa di profondità, che andrebbero persi.
-save-temp-copy = Questa immagine **non si può salvare sopra se stessa**: è una copia temporanea che Windows ha fatto aprendo il file da un telefono o da un altro dispositivo, non il file che sta lì. Salvarci sopra cambierebbe solo la copia, che Windows può cancellare. Usa **Salva come…** per tenere le modifiche.
-save-gvfs = Qui le immagini **non si possono salvare sopra se stesse**: questa cartella è aperta tramite il file manager (gvfs), dove sostituire un file può far perdere l'originale.
-save-no-rename = Qui le immagini **non si possono salvare sopra se stesse**: questa sorgente non sa rinominare i file.
+save-lossy = Questa immagine viene **ricodificata** e può perdere un po' di qualità.
+    Un JPEG viene ruotato senza perdita solo quando i lati sono multipli di 16 pixel; i WebP con perdita, gli AVIF e i GIF vengono sempre ricodificati.
+save-skipped = Le modifiche non si possono salvare sopra **{ $detail }**.
+    È animata, ha più pagine o contiene più di un'immagine (il video di una foto in movimento, una mappa di profondità): queste parti andrebbero perse.
+save-animated = Le modifiche non si possono salvare sopra **{ $detail }**.
+    È un'immagine animata: salvandoci sopra resterebbe solo il primo fotogramma.
+save-pages = Le modifiche non si possono salvare sopra **{ $detail }**.
+    Ha più pagine: salvandoci sopra resterebbe solo la prima.
+save-extra = Le modifiche non si possono salvare sopra **{ $detail }**.
+    Contiene anche il video di una foto in movimento o una mappa di profondità, che andrebbero persi.
+save-temp-copy = Questa immagine **non si può salvare sopra se stessa**: è una copia temporanea che Windows ha fatto aprendo il file da un telefono o da un altro dispositivo, non il file che sta lì.
+    Salvarci sopra cambierebbe solo la copia, che Windows può cancellare.
+    Usa **Salva come…** per tenere le modifiche.
+save-gvfs = Qui le immagini **non si possono salvare sopra se stesse**.
+    Questa cartella è aperta tramite il file manager (gvfs), dove sostituire un file può far perdere l'originale.
+save-no-rename = Qui le immagini **non si possono salvare sopra se stesse**.
+    Questa sorgente non sa rinominare i file.
 save-video-no-rotation = { $detail }: solo i video MP4, MOV, MKV e WebM tengono una rotazione. Per ruotarlo usa Converti….
 batch-turn-videos = I **video** non vengono ricodificati: cambia solo la rotazione che leggono i lettori, in pochi secondi e senza perdite.
 off-video-flip = Un video qui si può solo ruotare: per rifletterlo usa Converti….
-batch-animated = I file **animati**, **multipagina**, le **foto in movimento** e le foto con una **mappa di profondità** (i ritratti di alcuni telefoni) vengono saltati: salvandoci sopra quelle parti andrebbero perse. Le foto Ultra HDR vengono ruotate insieme alla loro mappa HDR, e al loro video se sono anche foto in movimento.
+batch-animated = I file **animati**, **multipagina**, le **foto in movimento** e le foto con una **mappa di profondità** (i ritratti di alcuni telefoni) vengono saltati: salvandoci sopra quelle parti andrebbero perse.
+    Le foto Ultra HDR vengono ruotate insieme alla loro mappa HDR, e al loro video se sono anche foto in movimento.
 batch-skipped-names = Saltate perché animate, multipagina, foto in movimento o con una mappa di profondità:
 # $op is the id of the menu item of the change (tf-…).
 batch-done-title = { $what ->
@@ -1175,10 +1246,13 @@ batch-done = { $what ->
         } e salvate sopra gli originali.
     }
 }
-save-psd-flatten = **Questo PSD verrà appiattito**: livelli, testi, effetti e maschere si perdono, resta solo l'immagine come si vede. Per tenerli usa **Salva come…** o modificalo con Photoshop.
+save-psd-flatten = **Questo PSD verrà appiattito**: livelli, testi, effetti e maschere si perdono, resta solo l'immagine come si vede.
+    Per tenerli usa **Salva come…** o modificalo con Photoshop.
 batch-psd-flatten = I PSD con più livelli, testi o effetti vengono **appiattiti**: resta solo l'immagine come si vede.
-save-format = Le modifiche non si possono salvare sopra **{ $name }**: EyeCanSee non sa scrivere questo formato (HEIC, RAW…).
-save-as-hint = Con **Salva come…** la salvi in un file nuovo, nel formato che scegli. L'originale resta com'è.
+save-format = Le modifiche non si possono salvare sopra **{ $name }**.
+    EyeCanSee non sa scrivere questo formato (HEIC, RAW…).
+save-as-hint = Con **Salva come…** la salvi in un file nuovo, nel formato che scegli.
+    L'originale resta com'è.
 notice-close = Chiudi
 
 ## File > Apri indirizzo
@@ -1249,7 +1323,9 @@ srv-file = Salvati in { $path }, password in chiaro.
 srv-file-vault = Salvati cifrati in { $path }.
 srv-delete-ask = Eliminare "{ $name }" dai server salvati?
 srv-save-failed = Impossibile salvare i server: { $detail }
-kiod-ask = KDE tiene il telefono con il suo servizio kiod, quello che Dolphin usa per i telefoni. Per aprirlo, EyeCanSee deve chiudere quel servizio. KDE lo riavvia da solo, ma **dimentica le password delle cartelle di rete** (Samba, SFTP…) aperte in Dolphin e le chiederà di nuovo al prossimo accesso.
+kiod-ask = KDE tiene il telefono con il suo servizio kiod, quello che Dolphin usa per i telefoni.
+    Per aprirlo, EyeCanSee deve chiudere quel servizio.
+    KDE lo riavvia da solo, ma **dimentica le password delle cartelle di rete** (Samba, SFTP…) aperte in Dolphin e le chiederà di nuovo al prossimo accesso.
 
     Questo **non dipende da EyeCanSee**: KDE tiene i telefoni e quelle password nello stesso servizio, e non permette di liberare solo il telefono.
 kiod-ok = OK
@@ -1603,8 +1679,10 @@ batch-video-download-failed = Scaricamento non riuscito: { $detail }
 batch-video-old-ffmpeg = L'FFmpeg di questo computer è troppo vecchio: { $found }, mentre a EyeCanSee serve almeno { $required }. EyeCanSee può scaricare il suo, una volta sola ({ $size }), nella cartella dei dati dell'app.
 batch-video-lacks-ffmpeg = L'FFmpeg di questo computer ({ $found }) non sa leggere { $missing }, i formati in cui registrano i telefoni. EyeCanSee può scaricare il suo, che li legge, una volta sola ({ $size }), nella cartella dei dati dell'app.
 ffmpeg-ask-title = Serve FFmpeg
-turn-video-need-ffmpeg = Un video ruotato lo salva FFmpeg, che EyeCanSee qui non ha ancora. Si scarica una volta sola ({ $size }) nella cartella dei dati dell'app; poi il salvataggio prosegue.
-batch-video-system-only = FFmpeg su questo computer non c'è, e nelle Opzioni è scelto di usare solo quello di sistema. Installalo, oppure cambia la scelta in Strumenti > Opzioni > Video.
+turn-video-need-ffmpeg = Un video ruotato lo salva FFmpeg, che EyeCanSee qui non ha ancora.
+    Si scarica una volta sola ({ $size }) nella cartella dei dati dell'app; poi il salvataggio prosegue.
+batch-video-system-only = FFmpeg su questo computer non c'è, e nelle Opzioni è scelto di usare solo quello di sistema.
+    Installalo, oppure cambia la scelta in Strumenti > Opzioni > Video.
 batch-video-not-ready = Scegli come convertire i video.
 batch-skip-video = { $detail }: è un video e manca FFmpeg.
 batch-skip-audio = { $detail }: è un file audio e manca FFmpeg.
