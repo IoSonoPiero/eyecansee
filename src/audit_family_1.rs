@@ -24,7 +24,7 @@ pub(crate) fn guard() -> PathBuf {
         assert!(env(v).starts_with(&run), "{v} not in the folder of this run: {:?}", env(v));
     }
     assert_eq!(env("EYECANSEE_MULTI"), "1", "the single instance would reach the user's copy");
-    PathBuf::from(run)
+    PathBuf::from(run).canonicalize().unwrap()
 }
 
 /// A folder of this run with small images in it, `names` (PNG data, whatever the name says).
@@ -48,10 +48,15 @@ pub(crate) struct Harness {
 
 impl Harness {
     pub fn new(dir: &Path) -> Self {
+        Self::open(&format!("{}/", dir.display()))
+    }
+
+    /// Started on `address`, a folder.
+    pub fn open(address: &str) -> Self {
         guard();
         let ctx = egui::Context::default();
-        let settings = Settings { check_updates: false, tips: false, local_permanent: true, ..Settings::default() };
-        let app = App::new(&ctx, settings, Some(format!("{}/", dir.display())));
+        let settings = Settings { check_updates: false, tips: false, local_permanent: true, servers_plain_warned: true, ..Settings::default() };
+        let app = App::new(&ctx, settings, Some(address.to_string()));
         let mut h = Harness { ctx, app, frame: eframe::Frame::_new_kittest() };
         h.until(|app| !app.files().is_empty(), "the folder listed");
         h
@@ -71,7 +76,8 @@ impl Harness {
     pub fn until(&mut self, done: impl Fn(&App) -> bool, what: &str) {
         let start = std::time::Instant::now();
         while !done(&self.app) {
-            assert!(start.elapsed().as_secs() < 10, "not reached in 10 s: {what}");
+            let a = &self.app;
+            assert!(start.elapsed().as_secs() < 10, "not reached in 10 s: {what} (base {:?}, folder {:?}, error {:?}, address form {})", a.base, a.dir, a.error, a.open_address.is_some());
             self.frame(Vec::new());
             std::thread::sleep(std::time::Duration::from_millis(20));
         }
@@ -227,4 +233,38 @@ fn audit_2_3_a_name_from_a_server_writes_outside_the_folder() {
     eprintln!("paste: {r:?}; Pictures/album/a.jpg: {:?}; Pictures/victim.txt: {after:?}", std::fs::read_to_string(dir.join("Pictures/album/a.jpg")));
     eprintln!("server saw: {:?}", tree.lock().unwrap().log);
     assert_eq!(after, "the computer's file", "a file outside the folder pasted was written over");
+}
+
+/// Audit 1.4: a deletion asked on one source and confirmed after an address from outside (a
+/// double click in the file manager while EyeCanSee is open) opened another one. The confirmation
+/// keeps the paths, relative to the source; it stays open, and the deletion goes to the source
+/// open now. Here a server whose folder has the same path as one of the computer (a disk of
+/// copies has the same folders): the computer's file goes.
+#[test]
+#[ignore = "audit 1.4: not fixed yet"]
+fn audit_1_4_deletion_goes_to_the_source_opened_meanwhile() {
+    let local = folder("one-four", &["a.png"]);
+    let png = std::fs::read(local.join("a.png")).unwrap();
+    let abs = local.display().to_string();
+    let mut tree = fake_ftp::Tree::default();
+    tree.folder(&abs, &[("a.png", &png)]);
+    let (target, tree) = fake_ftp::start(tree);
+    let opened = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| Harness::open(&format!("ftp://tester:x@127.0.0.1:{}{abs}/", target.port))));
+    let Ok(mut h) = opened else { panic!("server saw {:?}", tree.lock().unwrap().log) };
+    assert!(h.app.base.starts_with("ftp://"), "on the server: {}", h.app.base);
+    let a = h.app.files()[0].path.clone();
+    h.app.ask_delete_paths(vec![a.clone()], false, None);
+    h.frame(Vec::new());
+    h.app.tx.send(crate::loader::Msg::Open(format!("{abs}/"))).unwrap();
+    h.until(|app| app.base == "/", "the computer's folder opened");
+    eprintln!("deletion of {a:?} still asked on {:?}: {}", h.app.base, h.app.delete_confirm.is_some());
+    h.key(enter());
+    for _ in 0..20 {
+        h.frame(Vec::new());
+        std::thread::sleep(std::time::Duration::from_millis(30));
+    }
+    let gone = !local.join("a.png").exists();
+    let server_deleted = tree.lock().unwrap().log.iter().any(|l| l.starts_with("DELE") || l.starts_with("RNFR"));
+    eprintln!("after Enter: the computer's a.png gone {gone}; the server asked to delete or move {server_deleted}; {:?}", std::fs::read_dir(&local).unwrap().flatten().map(|e| e.file_name()).collect::<Vec<_>>());
+    assert!(!gone, "the computer's a.png went: the deletion was asked for the server's");
 }

@@ -105,7 +105,10 @@ fn session(control: TcpStream, tree: &Mutex<Tree>) -> std::io::Result<()> {
                         drop(to);
                         say("226 sent")?;
                     }
-                    _ => say("550 no such file or folder")?,
+                    (b, d) => {
+                        eprintln!("fake ftp: {command} {path}: content {}, data connection {}", b.is_some(), d.is_some());
+                        say("550 no such file or folder")?
+                    }
                 }
             }
             _ => say("500 unknown command")?,
