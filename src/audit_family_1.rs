@@ -117,3 +117,82 @@ fn audit_1_6_enter_on_a_message_confirms_the_deletion_under_it() {
     assert!(!deleted, "Enter on the message deleted a.jpg");
     assert!(h.app.notice.is_none() && h.app.delete_confirm.is_some(), "Enter should close the message and leave the deletion asked");
 }
+
+/// Audit 1.5: how the viewer was left with a.png turned and not saved. `leave` leaves it as the
+/// user would; then the first image of what is shown opens, as a double click would.
+/// Prints and returns: asked before leaving, the turn lost, the turn carried to another image.
+fn audit_1_5_leave(name: &str, leave: impl FnOnce(&mut Harness, &Path)) -> (bool, bool, Option<String>) {
+    audit_1_5_leave_then(name, leave, |_, _| {})
+}
+
+/// `audit_1_5_leave`, then `after` with the folder of a.png when the turn was carried.
+fn audit_1_5_leave_then(name: &str, leave: impl FnOnce(&mut Harness, &Path), after: impl FnOnce(&mut Harness, &Path)) -> (bool, bool, Option<String>) {
+    let a = folder(&format!("{name}-a"), &["a.png", "b.png"]);
+    let b = folder(&format!("{name}-b"), &["c.png", "d.png"]);
+    let mut h = Harness::new(&a);
+    h.app.activate(0);
+    h.until(|app| app.zoom_of == Some(0), "a.png shown");
+    h.app.act = Some(crate::actions::Act::Transform(crate::transform::Op::Cw, None));
+    h.frame(Vec::new());
+    assert!(h.app.turn_unsaved(), "a.png turned, not saved");
+    leave(&mut h, &b);
+    for _ in 0..5 {
+        h.frame(Vec::new());
+    }
+    let asked = h.app.after_turn.is_some();
+    let lost = !asked && h.app.viewing.is_none() && h.app.turn.is_none();
+    let mut carried = None;
+    if !asked {
+        h.until(|app| !app.files().is_empty(), "a listing");
+        h.app.activate(0);
+        h.until(|app| app.zoom_of == Some(0), "the first image shown");
+        let shown = h.app.files()[0].path.clone();
+        if !shown.ends_with("a.png") && h.app.turn_unsaved() {
+            carried = Some(shown);
+            after(&mut h, &a);
+        }
+    }
+    eprintln!("{name}: asked {asked}, turn lost {lost}, turn carried to {carried:?}");
+    (asked, lost, carried)
+}
+
+/// Audit 1.5 (a): an address typed in the address bar with the viewer open (what Enter in the
+/// bar does, `toolbar_end.rs`).
+#[test]
+#[ignore = "audit 1.5: not fixed yet"]
+fn audit_1_5_a_typed_address_drops_the_turn() {
+    let (asked, _, carried) = audit_1_5_leave("one-five-typed", |h, b| {
+        let address = crate::navigation::typed_address(&format!("{}/", b.display()));
+        h.app.open_source(&h.ctx.clone(), &address);
+    });
+    assert!(asked && carried.is_none(), "turn not asked about (carried to {carried:?})");
+}
+
+/// Audit 1.5 (b): View > Sort by from the viewer (here: name, descending).
+#[test]
+#[ignore = "audit 1.5: not fixed yet"]
+fn audit_1_5_b_sort_from_the_viewer_moves_the_turn() {
+    let mut saved = None;
+    let (asked, _, carried) = audit_1_5_leave_then("one-five-sort", |h, _| h.app.set_sort(crate::settings::SortBy::Name, true), |h, dir| {
+        // Save, confirmed with Enter: b.png, never turned, is written turned.
+        h.app.act = Some(crate::actions::Act::Save);
+        h.until(|app| app.save_ready.is_some(), "the confirmation of Save");
+        h.key(enter());
+        let file = dir.join("b.png");
+        h.until(|app| app.saving.is_empty() && image::image_dimensions(&file).is_ok_and(|d| d != (8, 6)), "b.png written turned");
+        saved = image::image_dimensions(&file).ok();
+    });
+    eprintln!("b.png after Save: {saved:?} (it was 8 x 6)");
+    assert!(asked && carried.is_none(), "turn not asked about (carried to {carried:?}, saved as {saved:?})");
+}
+
+/// Audit 1.5 (c): an address handed over by another start of EyeCanSee (a double click in the
+/// file manager), as `single::listen` sends it.
+#[test]
+#[ignore = "audit 1.5: not fixed yet"]
+fn audit_1_5_c_address_from_outside_drops_the_turn() {
+    let (asked, _, carried) = audit_1_5_leave("one-five-outside", |h, b| {
+        h.app.tx.send(crate::loader::Msg::Open(format!("{}/", b.display()))).unwrap();
+    });
+    assert!(asked && carried.is_none(), "turn not asked about (carried to {carried:?})");
+}
