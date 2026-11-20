@@ -705,7 +705,8 @@ fn main() -> eframe::Result {
             setup.instance_descriptor.backends = backends;
         }
     }
-    eframe::run_native(
+    let language = settings.language.clone();
+    let result = eframe::run_native(
         "EyeCanSee",
         options,
         Box::new(move |cc| {
@@ -721,7 +722,11 @@ fn main() -> eframe::Result {
             }
             Ok(Box::new(App::new(&cc.egui_ctx, settings, arg).with_gpu(cc)))
         }),
-    )
+    );
+    if let Err(e) = &result {
+        gpu_start::no_window(language.as_deref(), e);
+    }
+    result
 }
 
 /// The address given on the command line. A local path is made absolute: the instance it is

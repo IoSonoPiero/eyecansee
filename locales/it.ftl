@@ -246,6 +246,9 @@ opt-graphics-directx12 = DirectX 12
 opt-graphics-vulkan = Vulkan
 vulkan-failed-title = Vulkan non è partito
 vulkan-failed-text = L'ultimo avvio con Vulkan non è arrivato a mostrare la finestra: EyeCanSee ora disegna con DirectX 12. Puoi cambiarlo in Opzioni > Aspetto.
+graphics-broken-title = Il driver della scheda video non funziona
+graphics-broken-text = All'ultimo avvio il driver della scheda video ha chiuso EyeCanSee, e la scheda non sa disegnare con DirectX 12: EyeCanSee ora disegna senza la scheda video, più lentamente. Aggiorna il driver dal sito del produttore del PC o della scheda video; poi, per riprovare la scheda, scegli Vulkan in Opzioni > Aspetto.
+graphics-no-window = EyeCanSee non è riuscito ad aprire la sua finestra: il driver della scheda video non funziona. Aggiornalo dal sito del produttore del PC o della scheda video, poi avvia di nuovo EyeCanSee.
 
 devices = Dispositivi
 servers = Server

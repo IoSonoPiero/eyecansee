@@ -9,6 +9,13 @@
 //! With DirectX 12 wgpu is asked for DirectX 12 alone, so a broken Vulkan driver is not even
 //! loaded; every kind (Vulkan first, as `render_gpu::adapter_selector` sorts them) only where no
 //! graphics card draws with DirectX 12. `WGPU_BACKEND` (`dx12`, `vulkan`) still wins over both.
+//! Where no graphics card draws with DirectX 12 and Vulkan never drew, the driver does not work:
+//! that is remembered (`driver-broken`), and every start draws with DirectX 12 alone, which is
+//! then Windows' own software renderer (WARP, "Microsoft Basic Render Driver", in every Windows
+//! 10 and 11), and says to update the driver, in place of the tip of the day. No start goes back
+//! to Vulkan by itself, so starts never alternate between a crash and a window. Choosing Vulkan in
+//! the Options tries the card again; a card that draws with DirectX 12 (after an update) ends it
+//! by itself. A window that cannot be made at all is told with a message of Windows (`no_window`).
 
 use std::path::Path;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -19,11 +26,15 @@ use crate::settings::{Graphics, Settings};
 
 /// The mark's file, beside `settings.json` (the test copy has its own folder).
 const MARK: &str = "vulkan-start";
+/// The file that says the driver does not work, beside the mark.
+const BROKEN: &str = "driver-broken";
 
 /// This start wrote the mark: taken away after the first frame (`frame_drawn`).
 static MARKED: AtomicBool = AtomicBool::new(false);
 /// This start went back to DirectX 12 after a start with Vulkan that never drew.
 static FELL_BACK: AtomicBool = AtomicBool::new(false);
+/// The driver does not work: this start draws without the graphics card.
+static BROKEN_NOW: AtomicBool = AtomicBool::new(false);
 
 /// What this start does with the graphics card.
 #[derive(Debug, Default, PartialEq, Eq)]
@@ -34,22 +45,34 @@ pub(crate) struct Plan {
     pub(crate) mark: bool,
     /// The last start with Vulkan ended before its first frame: back to DirectX 12.
     pub(crate) fell_back: bool,
+    /// No card draws with DirectX 12 and Vulkan never drew: DirectX 12 alone (Windows' software
+    /// renderer) at every start, until Vulkan is chosen again or a card draws with DirectX 12.
+    pub(crate) broken: bool,
 }
 
 /// The plan for a start: on Windows only, where the choice exists. `env`: what `WGPU_BACKEND`
-/// asks for; `marked_before`: the mark of an earlier start is still there; `real_dx12`: a
-/// graphics card (not the software one) draws with DirectX 12, asked only when it matters.
+/// asks for; `marked_before`: the mark of an earlier start is still there; `broken_before`: the
+/// driver was found not to work; `real_dx12`: a graphics card (not the software one) draws with
+/// DirectX 12, asked only when it matters, at most once.
 /// A mark found means DirectX 12 alone, also when the Options already say DirectX 12 and Vulkan
-/// came in because no card drew with it: otherwise that computer would stop at every start.
-pub(crate) fn plan(windows: bool, graphics: Graphics, env: Option<wgpu::Backends>, marked_before: bool, real_dx12: impl FnOnce() -> bool) -> Plan {
+/// came in because no card drew with it: otherwise that computer would stop at every start. With
+/// no card that draws with DirectX 12 that is the software renderer, and it stays (`broken`)
+/// until Vulkan is chosen again (Vulkan in the Options with no mark: chosen after the fall back).
+/// `WGPU_BACKEND` leaves the state as it is.
+pub(crate) fn plan(windows: bool, graphics: Graphics, env: Option<wgpu::Backends>, marked_before: bool, broken_before: bool, real_dx12: impl FnOnce() -> bool) -> Plan {
     if !windows {
         return Plan::default();
     }
+    let mut ask = Some(real_dx12);
+    let mut known = None;
+    let mut real = || *known.get_or_insert_with(|| ask.take().is_some_and(|f| f()));
     let fell_back = marked_before && graphics == Graphics::Vulkan;
-    let dx12_only = env.is_none() && (marked_before || (graphics == Graphics::Directx12 && real_dx12()));
+    let retry = graphics == Graphics::Vulkan && !marked_before;
+    let broken = if env.is_some() { broken_before } else { !retry && (marked_before || broken_before) && !real() };
+    let dx12_only = env.is_none() && (marked_before || broken || (graphics == Graphics::Directx12 && real()));
     let backends = dx12_only.then_some(wgpu::Backends::DX12);
     let asked = backends.or(env).unwrap_or(wgpu::Backends::all());
-    Plan { backends, mark: asked.contains(wgpu::Backends::VULKAN), fell_back }
+    Plan { backends, mark: asked.contains(wgpu::Backends::VULKAN), fell_back, broken }
 }
 
 /// A graphics card draws with DirectX 12: the software one (Microsoft Basic Render Driver, which
@@ -66,19 +89,25 @@ fn real_dx12() -> bool {
     adapters.iter().any(|a| a.get_info().device_type != wgpu::DeviceType::Cpu)
 }
 
-/// Carries out the plan on the mark at `path` and on the settings (saved by the caller): an old
-/// mark is always taken away, a new one written when Vulkan may be used.
-pub(crate) fn apply(path: &Path, plan: &Plan, settings: &mut Settings) {
+/// Carries out the plan on the files in the configuration folder `dir` and on the settings
+/// (saved by the caller): an old mark is always taken away, a new one written when Vulkan may be
+/// used; the file of the broken driver there exactly when the plan says so.
+pub(crate) fn apply(dir: &Path, plan: &Plan, settings: &mut Settings) {
     if plan.fell_back {
         settings.graphics = Graphics::Directx12;
     }
+    if plan.mark || plan.broken {
+        let _ = std::fs::create_dir_all(dir);
+    }
     if plan.mark {
-        if let Some(dir) = path.parent() {
-            let _ = std::fs::create_dir_all(dir);
-        }
-        let _ = std::fs::write(path, format!("EyeCanSee {} starting with Vulkan\n", crate::version()));
+        let _ = std::fs::write(dir.join(MARK), format!("EyeCanSee {} starting with Vulkan\n", crate::version()));
     } else {
-        let _ = std::fs::remove_file(path);
+        let _ = std::fs::remove_file(dir.join(MARK));
+    }
+    if plan.broken {
+        let _ = std::fs::write(dir.join(BROKEN), "No graphics card drew: DirectX 12 alone (software) until Vulkan is chosen again\n");
+    } else {
+        let _ = std::fs::remove_file(dir.join(BROKEN));
     }
 }
 
@@ -90,20 +119,53 @@ pub(crate) fn before_window(settings: &mut Settings) -> Option<wgpu::Backends> {
         return None;
     }
     let path = crate::settings::config_path(MARK)?;
-    let plan = plan(true, settings.graphics, wgpu::Backends::from_env(), path.exists(), real_dx12);
-    apply(&path, &plan, settings);
+    let dir = path.parent()?;
+    let plan = plan(true, settings.graphics, wgpu::Backends::from_env(), path.exists(), dir.join(BROKEN).exists(), real_dx12);
+    apply(dir, &plan, settings);
     if plan.fell_back {
         settings.save();
     }
-    log!("graphics: {:?}, asked {:?}, mark {}, back to DirectX 12 {}", settings.graphics, plan.backends, plan.mark, plan.fell_back);
+    log!("graphics: {:?}, asked {:?}, mark {}, back to DirectX 12 {}, driver broken {}", settings.graphics, plan.backends, plan.mark, plan.fell_back, plan.broken);
     MARKED.store(plan.mark, Ordering::Relaxed);
     FELL_BACK.store(plan.fell_back, Ordering::Relaxed);
+    BROKEN_NOW.store(plan.broken, Ordering::Relaxed);
     plan.backends
 }
 
-/// This start went back to DirectX 12: the user is told why (`App::new`).
-pub(crate) fn fell_back() -> bool {
-    FELL_BACK.load(Ordering::Relaxed)
+/// What the user is told at this start in place of the tip of the day, as Fluent ids of the title
+/// and the text (`App::new`): the broken driver, at every start while it lasts, before the fall
+/// back to DirectX 12, which a broken driver also is.
+pub(crate) fn notice() -> Option<(&'static str, &'static str)> {
+    notice_for(BROKEN_NOW.load(Ordering::Relaxed), FELL_BACK.load(Ordering::Relaxed))
+}
+
+fn notice_for(broken: bool, fell_back: bool) -> Option<(&'static str, &'static str)> {
+    if broken {
+        Some(("graphics-broken-title", "graphics-broken-text"))
+    } else if fell_back {
+        Some(("vulkan-failed-title", "vulkan-failed-text"))
+    } else {
+        None
+    }
+}
+
+/// The window could not be made at all (`eframe::run_native` gave an error, which would otherwise
+/// close the program without a word): on Windows a message of the system says to update the
+/// graphics card's driver, with the error under it. `language`: the one in the Options.
+pub(crate) fn no_window(language: Option<&str>, error: &eframe::Error) {
+    log!("graphics: no window: {error}");
+    #[cfg(windows)]
+    {
+        use windows_sys::Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MB_OK, MessageBoxW};
+        let i18n = crate::i18n::I18n::detect(language);
+        let text = format!("{}\n\n{error}", i18n.t("graphics-no-window"));
+        let wide = |s: &str| s.encode_utf16().chain(std::iter::once(0)).collect::<Vec<u16>>();
+        let (text, title) = (wide(&text), wide("EyeCanSee"));
+        // SAFETY: two strings ending with a zero, alive for the call; no owner window.
+        unsafe { MessageBoxW(std::ptr::null_mut(), text.as_ptr(), title.as_ptr(), MB_OK | MB_ICONERROR) };
+    }
+    #[cfg(not(windows))]
+    let _ = language;
 }
 
 /// At every frame: the mark goes away once the first frame has been drawn and shown (`frames`
@@ -137,14 +199,20 @@ mod tests {
 
     const DX12: Option<wgpu::Backends> = Some(wgpu::Backends::DX12);
 
+    /// An empty configuration folder of its own.
     fn temp(name: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join(format!("eyecansee-gpu-start-{name}-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
-        dir.join("eyecansee").join(MARK)
+        dir.join("eyecansee")
     }
 
-    fn clean(path: &Path) {
-        let _ = std::fs::remove_dir_all(path.parent().unwrap().parent().unwrap());
+    fn clean(dir: &Path) {
+        let _ = std::fs::remove_dir_all(dir.parent().unwrap());
+    }
+
+    /// The plan for the files in `dir` as they are.
+    fn plan_in(dir: &Path, graphics: Graphics, real_dx12: impl FnOnce() -> bool) -> Plan {
+        plan(true, graphics, None, dir.join(MARK).exists(), dir.join(BROKEN).exists(), real_dx12)
     }
 
     /// The question about the cards, when it must not be asked.
@@ -152,36 +220,41 @@ mod tests {
         panic!("the DirectX 12 cards asked for nothing")
     }
 
+    const fn p(backends: Option<wgpu::Backends>, mark: bool, fell_back: bool, broken: bool) -> Plan {
+        Plan { backends, mark, fell_back, broken }
+    }
+
     #[test]
     fn only_on_windows() {
         for g in [Graphics::Directx12, Graphics::Vulkan] {
             for m in [false, true] {
-                assert_eq!(plan(false, g, None, m, unasked), Plan::default());
+                assert_eq!(plan(false, g, None, m, m, unasked), Plan::default());
             }
         }
     }
 
     #[test]
     fn mark_written_with_vulkan() {
-        let path = temp("written");
+        let dir = temp("written");
         let mut s = Settings { graphics: Graphics::Vulkan, ..Settings::default() };
-        let p = plan(true, s.graphics, None, path.exists(), unasked);
-        assert_eq!(p, Plan { backends: None, mark: true, fell_back: false }, "every kind, Vulkan first");
-        apply(&path, &p, &mut s);
-        assert!(path.exists(), "the mark before the window");
+        let plan = plan_in(&dir, s.graphics, unasked);
+        assert_eq!(plan, p(None, true, false, false), "every kind, Vulkan first");
+        apply(&dir, &plan, &mut s);
+        assert!(dir.join(MARK).exists(), "the mark before the window");
         assert_eq!(s.graphics, Graphics::Vulkan);
-        clean(&path);
+        clean(&dir);
     }
 
     /// DirectX 12 with a card that draws with it: DirectX 12 alone, Vulkan's driver not loaded.
     #[test]
     fn directx12_alone_and_no_mark() {
-        let path = temp("dx12");
+        let dir = temp("dx12");
         let mut s = Settings::default();
-        let p = plan(true, s.graphics, None, false, || true);
-        assert_eq!(p, Plan { backends: DX12, mark: false, fell_back: false });
-        apply(&path, &p, &mut s);
-        assert!(!path.exists());
+        let plan = plan_in(&dir, s.graphics, || true);
+        assert_eq!(plan, p(DX12, false, false, false));
+        apply(&dir, &plan, &mut s);
+        assert!(!dir.join(MARK).exists());
+        assert!(!dir.join(BROKEN).exists());
         assert_eq!(s.graphics, Graphics::Directx12);
     }
 
@@ -189,60 +262,146 @@ mod tests {
     /// 0.77.0, and the mark, since Vulkan may be used.
     #[test]
     fn directx12_without_a_card_asks_every_kind() {
-        assert_eq!(plan(true, Graphics::Directx12, None, false, || false), Plan { backends: None, mark: true, fell_back: false });
+        assert_eq!(plan(true, Graphics::Directx12, None, false, false, || false), p(None, true, false, false));
     }
 
+    /// Vulkan chosen, it never drew, and a card draws with DirectX 12: back to it, said once.
     #[test]
     fn mark_found_goes_back_to_directx12() {
-        let path = temp("found");
+        let dir = temp("found");
         let mut s = Settings { graphics: Graphics::Vulkan, ..Settings::default() };
-        apply(&path, &plan(true, s.graphics, None, false, unasked), &mut s);
+        apply(&dir, &plan_in(&dir, s.graphics, unasked), &mut s);
         // The start with Vulkan ended before its first frame: the mark is still there.
-        let p = plan(true, s.graphics, None, path.exists(), unasked);
-        assert_eq!(p, Plan { backends: DX12, mark: false, fell_back: true });
-        apply(&path, &p, &mut s);
+        let plan = plan_in(&dir, s.graphics, || true);
+        assert_eq!(plan, p(DX12, false, true, false));
+        apply(&dir, &plan, &mut s);
         assert_eq!(s.graphics, Graphics::Directx12, "DirectX 12 back in the Options");
-        assert!(!path.exists(), "the old mark taken away");
+        assert!(!dir.join(MARK).exists(), "the old mark taken away");
+        assert!(!dir.join(BROKEN).exists());
         // The start after: DirectX 12, nothing to say.
-        assert_eq!(plan(true, s.graphics, None, path.exists(), || true), Plan { backends: DX12, mark: false, fell_back: false });
-        clean(&path);
+        assert_eq!(plan_in(&dir, s.graphics, || true), p(DX12, false, false, false));
+        clean(&dir);
     }
 
-    /// DirectX 12 in the Options and the mark there (chosen by hand after a start with Vulkan
-    /// that never drew, or Vulkan used because no card drew with DirectX 12): DirectX 12 alone,
-    /// whatever the cards, and nothing said.
+    /// DirectX 12 in the Options and the mark there, with a card that draws with DirectX 12
+    /// (chosen by hand after a start with Vulkan that never drew): DirectX 12 alone, nothing said.
     #[test]
     fn mark_found_with_directx12_chosen() {
-        let path = temp("chosen");
-        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
-        std::fs::write(&path, "x").unwrap();
+        let dir = temp("chosen");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(MARK), "x").unwrap();
         let mut s = Settings::default();
-        let p = plan(true, s.graphics, None, path.exists(), unasked);
-        assert_eq!(p, Plan { backends: DX12, mark: false, fell_back: false });
-        apply(&path, &p, &mut s);
-        assert!(!path.exists());
-        clean(&path);
+        let plan = plan_in(&dir, s.graphics, || true);
+        assert_eq!(plan, p(DX12, false, false, false));
+        apply(&dir, &plan, &mut s);
+        assert!(!dir.join(MARK).exists());
+        assert!(!dir.join(BROKEN).exists());
+        clean(&dir);
     }
 
-    /// `WGPU_BACKEND` wins: eframe asks for what it says, and the mark follows it.
+    /// No card draws with DirectX 12 and Vulkan never drew, whatever the Options said: the driver
+    /// does not work. Every start after draws with DirectX 12 alone (the software renderer) and
+    /// says so, and none goes back to Vulkan by itself: no crash, window, crash, window.
+    #[test]
+    fn no_card_that_works_stays_on_the_software_renderer() {
+        for chosen in [Graphics::Vulkan, Graphics::Directx12] {
+            let dir = temp("broken");
+            let mut s = Settings { graphics: chosen, ..Settings::default() };
+            let first = plan_in(&dir, s.graphics, || false);
+            assert!(first.mark, "Vulkan may be used: {first:?}");
+            apply(&dir, &first, &mut s);
+            // Vulkan closed the program: the mark is still there.
+            let plan = plan_in(&dir, s.graphics, || false);
+            assert_eq!(plan, p(DX12, false, chosen == Graphics::Vulkan, true));
+            apply(&dir, &plan, &mut s);
+            assert_eq!(s.graphics, Graphics::Directx12);
+            assert!(!dir.join(MARK).exists());
+            assert!(dir.join(BROKEN).exists(), "remembered");
+            assert_eq!(notice_for(plan.broken, plan.fell_back), Some(("graphics-broken-title", "graphics-broken-text")));
+            // The starts after: the same, with no mark, so Vulkan is never loaded again.
+            for _ in 0..3 {
+                let again = plan_in(&dir, s.graphics, || false);
+                assert_eq!(again, p(DX12, false, false, true));
+                apply(&dir, &again, &mut s);
+                assert_eq!(notice_for(again.broken, again.fell_back), Some(("graphics-broken-title", "graphics-broken-text")), "said at every start");
+            }
+            clean(&dir);
+        }
+    }
+
+    /// Vulkan chosen in the Options while the driver does not work: the card tried again.
+    #[test]
+    fn vulkan_chosen_tries_the_card_again() {
+        let dir = temp("retry");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(BROKEN), "x").unwrap();
+        let mut s = Settings { graphics: Graphics::Vulkan, ..Settings::default() };
+        let plan = plan_in(&dir, s.graphics, unasked);
+        assert_eq!(plan, p(None, true, false, false));
+        apply(&dir, &plan, &mut s);
+        assert!(!dir.join(BROKEN).exists());
+        assert!(dir.join(MARK).exists());
+        // It closed the program again: back to the software renderer, not to an alternation.
+        assert_eq!(plan_in(&dir, s.graphics, || false), p(DX12, false, true, true));
+        clean(&dir);
+    }
+
+    /// A card that draws with DirectX 12 appears (after a driver update): the state ends by itself.
+    #[test]
+    fn a_card_for_directx12_ends_it() {
+        let dir = temp("updated");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(BROKEN), "x").unwrap();
+        let mut s = Settings::default();
+        let plan = plan_in(&dir, s.graphics, || true);
+        assert_eq!(plan, p(DX12, false, false, false));
+        apply(&dir, &plan, &mut s);
+        assert!(!dir.join(BROKEN).exists());
+        assert_eq!(notice_for(plan.broken, plan.fell_back), None, "the tip of the day again");
+        clean(&dir);
+    }
+
+    #[test]
+    fn notices() {
+        assert_eq!(notice_for(false, false), None);
+        assert_eq!(notice_for(false, true), Some(("vulkan-failed-title", "vulkan-failed-text")));
+        assert_eq!(notice_for(true, true), Some(("graphics-broken-title", "graphics-broken-text")));
+    }
+
+    /// The cards are asked about once at most, also when two answers need them.
+    #[test]
+    fn cards_asked_once() {
+        let mut asked = 0;
+        let plan = plan(true, Graphics::Directx12, None, false, true, || {
+            asked += 1;
+            true
+        });
+        assert_eq!(plan, p(DX12, false, false, false));
+        assert_eq!(asked, 1);
+    }
+
+    /// `WGPU_BACKEND` wins: eframe asks for what it says, the mark follows it, and the state of
+    /// the driver stays as it is.
     #[test]
     fn wgpu_backend_wins() {
-        assert_eq!(plan(true, Graphics::Vulkan, DX12, false, unasked), Plan::default());
-        assert_eq!(plan(true, Graphics::Directx12, Some(wgpu::Backends::VULKAN), false, unasked), Plan { backends: None, mark: true, fell_back: false });
-        assert_eq!(plan(true, Graphics::Vulkan, DX12, true, unasked), Plan { backends: None, mark: false, fell_back: true });
+        assert_eq!(plan(true, Graphics::Vulkan, DX12, false, false, unasked), Plan::default());
+        assert_eq!(plan(true, Graphics::Directx12, Some(wgpu::Backends::VULKAN), false, false, unasked), p(None, true, false, false));
+        assert_eq!(plan(true, Graphics::Vulkan, DX12, true, false, unasked), p(None, false, true, false));
+        assert_eq!(plan(true, Graphics::Directx12, DX12, false, true, unasked), p(None, false, false, true));
     }
 
     #[test]
     fn mark_taken_away_after_first_frame() {
-        let path = temp("frame");
+        let dir = temp("frame");
+        let path = dir.join(MARK);
         let mut s = Settings { graphics: Graphics::Vulkan, ..Settings::default() };
-        apply(&path, &plan(true, s.graphics, None, false, unasked), &mut s);
+        apply(&dir, &plan_in(&dir, s.graphics, unasked), &mut s);
         assert!(!take_after_first(&path, 0), "not before a frame is drawn");
         assert!(path.exists());
         assert!(take_after_first(&path, 1));
         assert!(!path.exists());
         // The next start with Vulkan: no fall back.
-        assert_eq!(plan(true, s.graphics, None, path.exists(), unasked), Plan { backends: None, mark: true, fell_back: false });
-        clean(&path);
+        assert_eq!(plan_in(&dir, s.graphics, unasked), p(None, true, false, false));
+        clean(&dir);
     }
 }
