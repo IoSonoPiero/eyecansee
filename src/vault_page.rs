@@ -5,7 +5,7 @@
 use eframe::egui::{self, Color32, Key};
 
 use crate::address::AddressForm;
-use crate::{App, browser, servers};
+use crate::{App, servers};
 
 /// What waits for the master password.
 #[derive(Clone)]
@@ -81,7 +81,7 @@ impl App {
                 field.request_focus();
             }
             if let Some(e) = &u.wrong {
-                ui.label(browser::error_text(ui, e.clone()));
+                crate::error_bar::inline(ui, e);
             }
             ui.add_space(8.0);
             let enter = keys == Some(true) || ui.input(|i| i.key_pressed(Key::Enter));
@@ -154,7 +154,7 @@ impl App {
                 }
                 Change::New { .. } => self.new_master(ui, f),
                 Change::Remove => {
-                    ui.label(browser::error_text(ui, t("vault-remove-warning")));
+                    crate::error_bar::inline(ui, &t("vault-remove-warning"));
                     ui.horizontal(|ui| {
                         if ui.button(t("vault-remove-yes")).clicked() {
                             f.error = servers::remove_password().err().map(|e| e.to_string());
@@ -190,7 +190,7 @@ impl App {
         if score < STRONG {
             ui.label(egui::RichText::new(t("vault-too-weak")).color(color));
         } else if !again.is_empty() && !same {
-            ui.label(browser::error_text(ui, t("vault-different")));
+            crate::error_bar::inline(ui, &t("vault-different"));
         }
         ui.label(egui::RichText::new(t("vault-forget")).small());
         ui.horizontal(|ui| {

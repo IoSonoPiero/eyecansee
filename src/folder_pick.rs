@@ -8,7 +8,6 @@ use eframe::egui;
 use tokio::runtime::Handle;
 
 use crate::App;
-use crate::browser::error_text;
 use crate::i18n::I18n;
 use crate::icons::{self, Icon};
 use crate::source::{self, Store};
@@ -276,7 +275,7 @@ fn folders_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
             ui.spinner();
         }
         Some(Err((id, detail))) => {
-            ui.label(error_text(ui, i18n.error(id, &detail)));
+            crate::error_bar::inline(ui, &i18n.error(id, &detail));
         }
         Some(Ok(dirs)) if dirs.is_empty() => {
             ui.weak(i18n.t("pick-empty"));
@@ -296,7 +295,7 @@ fn folders_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
 fn naming_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
     let ctx = ui.ctx().clone();
     if let Some(e) = &p.made_error {
-        ui.label(error_text(ui, i18n.error(e.0, &e.1)));
+        crate::error_bar::inline(ui, &i18n.error(e.0, &e.1));
     }
     let Some(mut name) = p.naming.clone() else { return };
     let problem = p.name_problem(name.trim(), i18n);
@@ -314,7 +313,7 @@ fn naming_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
     });
     // Nothing said while nothing is typed yet: Create is grey.
     if let Some(problem) = problem.as_ref().filter(|_| !name.trim().is_empty()) {
-        ui.label(error_text(ui, problem.clone()));
+        crate::error_bar::inline(ui, problem);
     }
     if cancel {
         p.naming = None;

@@ -102,6 +102,7 @@ impl App {
             thumb_size: 160.0,
             address: String::new(),
             error: None,
+            lasting_closed: None,
             kept: Vec::new(),
             title: String::new(),
             help: help::Guide::default(),

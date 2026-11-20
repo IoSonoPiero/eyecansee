@@ -638,6 +638,10 @@ impl App {
                 crate::edit::bubble::fit(o, &fonts);
             }
             self.settle(ui.ctx(), &mut w);
+        } else if let Some(e) = self.edit_unreadable(&w) {
+            // As Close at once, the message in the bar (a whole page for one line, Piero 20/11).
+            self.error = Some(e);
+            open = false;
         } else {
             open &= self.edit_not_ready(ui, &w);
             open &= self.big_picture_page(ui.ctx(), &mut w.original, &w.path, true);
@@ -655,6 +659,16 @@ impl App {
             log!("edit: page closed, viewing {:?}", self.viewing);
             self.select_saved();
         }
+    }
+
+    /// Why the picture cannot be edited, when it could not be read and nothing was changed: the
+    /// page closes and says it in the bar. Not when it is too large (`big_picture_page` asks).
+    fn edit_unreadable(&self, w: &Window) -> Option<String> {
+        let Some(Err(e)) = &w.original else { return None };
+        if w.changed() || crate::view_memory::need_of(e).is_some() {
+            return None;
+        }
+        Some(if e == ANIMATED { self.i18n.t_args("edit-animated", &[("name", source::name(&w.path))]) } else { self.i18n.cannot_load(source::name(&w.path), e) })
     }
 
     /// The image being read, or why it cannot be edited, with Close; `false` once Close is clicked.
@@ -676,10 +690,10 @@ impl App {
             // Too large for the memory: the question is over the page (`edit_page`).
             Some(Err(e)) if crate::view_memory::need_of(e).is_some() => {}
             Some(Err(e)) if e == ANIMATED => {
-                ui.label(crate::browser::error_text(ui, self.i18n.t_args("edit-animated", &[("name", source::name(&w.path))])));
+                crate::error_bar::inline(ui, &self.i18n.t_args("edit-animated", &[("name", source::name(&w.path))]));
             }
             Some(Err(e)) => {
-                ui.label(crate::browser::error_text(ui, self.i18n.t_args("cannot-load", &[("file", source::name(&w.path)), ("error", &self.i18n.load_error(e))])));
+                crate::error_bar::inline(ui, &self.i18n.cannot_load(source::name(&w.path), e));
             }
             _ => {
                 crate::theme::loading(ui, self.i18n.t("loading-file"), None);

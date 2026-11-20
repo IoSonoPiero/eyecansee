@@ -94,7 +94,7 @@ pub(crate) fn sound_rows(ui: &mut egui::Ui, s: &mut SoundForm, v: &mut VideoForm
     };
     let formats = available(&probe.audio);
     let Some(&first) = formats.first() else {
-        ui.label(crate::browser::error_text(ui, t("batch-video-none")));
+        crate::error_bar::inline(ui, &t("batch-video-none"));
         return;
     };
     if !formats.contains(&s.format) {
@@ -157,7 +157,7 @@ pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
         if copy_only {
             ffmpeg_download(ui, v, i18n);
         } else {
-            ui.label(crate::browser::error_text(ui, t("batch-video-none")));
+            crate::error_bar::inline(ui, &t("batch-video-none"));
         }
         return;
     }
@@ -236,7 +236,7 @@ fn ffmpeg_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     let size = format!("{} MB", c.size / 1_000_000);
     match crate::ffmpeg::status() {
         crate::engine::Status::SystemOnly => {
-            ui.label(crate::browser::error_text(ui, i18n.t("batch-video-system-only")));
+            crate::error_bar::inline(ui, &i18n.t("batch-video-system-only"));
             return;
         }
         crate::engine::Status::TooOld { found, required } => {
@@ -277,7 +277,7 @@ pub(crate) fn download_row(ui: &mut egui::Ui, download: &mut Option<Arc<crate::c
         Some((_, Some(Ok(())))) => return true,
         failed => {
             if let Some((_, Some(Err(e)))) = failed {
-                ui.label(crate::browser::error_text(ui, i18n.t_args("batch-video-download-failed", &[("detail", &crate::update::error_detail(i18n, &e))])));
+                crate::error_bar::inline(ui, &i18n.t_args("batch-video-download-failed", &[("detail", &crate::update::error_detail(i18n, &e))]));
             }
             if ui.button(i18n.t("batch-video-download")).clicked() {
                 let ctx = ui.ctx().clone();

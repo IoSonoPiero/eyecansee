@@ -8,7 +8,7 @@ use eframe::egui::{self, Key};
 use percent_encoding::percent_decode_str;
 
 use crate::servers::{self, Saved};
-use crate::{App, browser};
+use crate::App;
 
 /// Protocols of File > Open location.
 const SCHEMES: &[&str] = &["ftp", "ftps", "sftp"];
@@ -218,7 +218,7 @@ impl App {
             crate::theme::title(ui, t("addr-title"));
             ui.add_space(4.0);
             if let Some(why) = &f.refused {
-                ui.label(browser::error_text(ui, why.clone()));
+                crate::error_bar::inline(ui, why);
                 ui.add_space(6.0);
             }
             let url = ui.add(egui::TextEdit::singleline(&mut f.url).hint_text(t("tb-address-hint")).desired_width(f32::INFINITY));
@@ -233,11 +233,11 @@ impl App {
                 egui::Grid::new("addr-parts").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| self.address_grid(ui, &mut f, false));
             });
             if bad_port {
-                ui.label(browser::error_text(ui, t("addr-bad-port")));
+                crate::error_bar::inline(ui, &t("addr-bad-port"));
             }
             ui.add_space(8.0);
             if let Some(e) = &f.error {
-                ui.label(browser::error_text(ui, self.i18n.t_args("srv-save-failed", &[("detail", e.as_str())])));
+                crate::error_bar::inline(ui, &crate::error_bar::with_detail(&self.i18n.t_args("srv-save-failed", &[("detail", e.as_str())]), e));
             }
             // Enter: Open, without saving.
             let enter = keys == Some(true) || ui.input(|i| i.key_pressed(Key::Enter));

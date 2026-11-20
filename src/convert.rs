@@ -231,6 +231,14 @@ impl crate::App {
     pub(crate) fn convert_page(&mut self, ui: &mut egui::Ui) {
         let ctx = &ui.ctx().clone();
         let Some(mut w) = self.convert.take() else { return };
+        // A picture that cannot be read: no page, the message in the bar, as in the viewer (a
+        // whole page for one line, Piero 20/11). Nothing is lost: nothing was done on it.
+        if let Some(Err(e)) = &w.original
+            && crate::view_memory::need_of(e).is_none()
+        {
+            self.error = Some(self.i18n.cannot_load(crate::source::name(&w.path), e));
+            return;
+        }
         // A file of the grid or the viewer, not the editor's result: animated or with pages?
         if w.place.is_none() {
             self.probe_animated(ctx, &w.path, true);
@@ -335,7 +343,7 @@ impl crate::App {
             // Too large for the memory: the question is over the page (`convert_page`).
             Some(Err(e)) if crate::view_memory::need_of(e).is_some() => return save,
             Some(Err(e)) => {
-                ui.label(crate::browser::error_text(ui, i18n.t_args("cannot-load", &[("file", crate::source::name(&w.path)), ("error", &i18n.load_error(e))])));
+                crate::error_bar::inline(ui, &i18n.cannot_load(crate::source::name(&w.path), e));
                 return save;
             }
             Some(Ok(o)) => o.clone(),
@@ -423,7 +431,7 @@ impl crate::App {
                 };
             }
             Some(Err(e)) => {
-                ui.label(crate::browser::error_text(ui, i18n.t_args("convert-error", &[("detail", e)])));
+                crate::error_bar::inline(ui, &crate::error_bar::with_detail(&i18n.t_args("convert-error", &[("detail", e)]), e));
             }
             None => {
                 ui.label(" ");
@@ -552,7 +560,7 @@ fn name_row(ui: &mut egui::Ui, w: &mut Window, i18n: &I18n, half: f32, final_nam
         ui.weak(i18n.t_args("convert-exists", &[("name", final_name)]));
     }
     if let Some(e) = &w.error {
-        ui.label(crate::browser::error_text(ui, e.as_str()));
+        crate::error_bar::inline(ui, e.as_str());
     }
     press
 }

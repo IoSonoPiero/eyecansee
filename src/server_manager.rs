@@ -4,7 +4,7 @@
 use eframe::egui;
 
 use crate::address::AddressForm;
-use crate::{App, browser};
+use crate::App;
 
 impl App {
     pub(crate) fn server_manager_window(&mut self, ctx: &egui::Context) {
@@ -26,7 +26,7 @@ impl App {
                 ui.add_space(12.0);
                 ui.vertical(|ui| {
                     if let Some((_, problem)) = f.key_problem.as_ref().filter(|(i, _)| f.chosen == Some(*i)) {
-                        ui.label(browser::error_text(ui, problem.clone()));
+                        crate::error_bar::inline(ui, problem);
                         ui.add_space(6.0);
                     }
                     egui::Grid::new("srv-fields").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| self.address_grid(ui, &mut f, true));
@@ -35,10 +35,10 @@ impl App {
             ui.add_space(6.0);
             ui.label(egui::RichText::new(self.i18n.t_args(if crate::servers::encrypted() { "srv-file-vault" } else { "srv-file" }, &[("path", &crate::servers::file())])).weak().small());
             if f.url.is_empty() && !f.port.trim().is_empty() && f.port.trim().parse::<u16>().is_err() {
-                ui.label(browser::error_text(ui, self.i18n.t("addr-bad-port")));
+                crate::error_bar::inline(ui, &self.i18n.t("addr-bad-port"));
             }
             if let Some(e) = &f.error {
-                ui.label(browser::error_text(ui, self.i18n.t_args("srv-save-failed", &[("detail", e.as_str())])));
+                crate::error_bar::inline(ui, &crate::error_bar::with_detail(&self.i18n.t_args("srv-save-failed", &[("detail", e.as_str())]), e));
             }
             ui.add_space(8.0);
             if f.deleting {

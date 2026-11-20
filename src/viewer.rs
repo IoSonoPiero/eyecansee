@@ -4,7 +4,7 @@ use eframe::egui::{self, Key};
 
 use crate::navigation::Go;
 use crate::actions::Act;
-use crate::{AROUND, App, browser, paint, source, zoom};
+use crate::{AROUND, App, browser, paint, zoom};
 
 /// The window is at full screen (F11).
 pub(crate) fn full_screen(ctx: &egui::Context) -> bool {
@@ -288,12 +288,8 @@ impl App {
             Some(Err(_)) if self.files().get(current).is_some_and(|f| crate::occt::needs_engine(&f.path)) => self.cad_engine_card(ui),
             // Too large for the memory: a card with Open anyway (`view_memory`).
             Some(Err(e)) if let Some(need) = crate::view_memory::need_of(e) => self.big_picture_card(ui, current, need),
-            Some(Err(e)) => {
-                let name = self.files().get(current).map_or("", |f| source::shown(&f.path));
-                // The viewer is always dark: the theme's red was dark and small on it (2026-11-08).
-                let text = egui::RichText::new(self.i18n.t_args("cannot-load", &[("file", name), ("error", &self.i18n.load_error(e))]));
-                ui.add(egui::Label::new(text.size(18.0).color(egui::Color32::from_rgb(255, 140, 130))).wrap());
-            }
+            // The message is in the bar (`viewer_error`): here only its start, grey, on one line.
+            Some(Err(_)) => crate::error_bar::short_on_dark(ui, &self.viewer_error().unwrap_or_default()),
             None => crate::theme::loading(ui, self.i18n.t("loading-file"), Some(egui::Color32::from_gray(220))),
         });
         if chosen.is_some() {

@@ -5,7 +5,7 @@
 
 use eframe::egui::{self, Color32};
 
-use crate::{App, browser};
+use crate::App;
 
 /// Where the download is.
 enum State {
@@ -71,7 +71,7 @@ impl App {
                         State::Missing | State::Failed(_) => {
                             if let State::Failed(e) = &state {
                                 ui.add_space(6.0);
-                                ui.add(egui::Label::new(browser::error_text(ui, t("video-component-error", &[("error", &crate::update::error_detail(&self.i18n, e))]))).wrap());
+                                crate::error_bar::inline_on_dark(ui, &t("video-component-error", &[("error", &crate::update::error_detail(&self.i18n, e))]));
                             }
                             ui.add_space(14.0);
                             let big = egui::Button::new(egui::RichText::new(t("cad-engine-download", &[])).size(15.0)).min_size(egui::vec2(220.0, 34.0));

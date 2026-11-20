@@ -150,9 +150,8 @@ impl App {
             let e = e.clone();
             match crate::component::VIDEO {
                 Some(c) if !engine => self.component_ui(ui, c),
-                _ => {
-                    ui.centered_and_justified(|ui| ui.label(browser::error_text(ui, e)));
-                }
+                // The message is in the bar (`viewer_error`): here only its start.
+                _ => crate::error_bar::short_on_dark(ui, &e),
             }
             return;
         }
@@ -349,7 +348,7 @@ impl App {
                             wrap(ui, egui::RichText::new(self.engine_ask(state, c)).color(light));
                             if let Engine::Failed(e) = state {
                                 ui.add_space(6.0);
-                                wrap(ui, browser::error_text(ui, t("video-component-error", &[("error", &crate::update::error_detail(&self.i18n, e))])));
+                                crate::error_bar::inline_on_dark(ui, &t("video-component-error", &[("error", &crate::update::error_detail(&self.i18n, e))]));
                             }
                             ui.add_space(14.0);
                             if ui.add(big(t("video-component-download", &[]))).clicked() {
@@ -366,7 +365,7 @@ impl App {
                             wrap(ui, egui::RichText::new(t("video-component-restart-needed", &[])).color(light));
                             if let Some(e) = error {
                                 ui.add_space(6.0);
-                                wrap(ui, browser::error_text(ui, e.clone()));
+                                crate::error_bar::inline_on_dark(ui, e);
                             }
                             ui.add_space(14.0);
                             if ui.add(big(t("video-component-restart", &[]))).clicked() {
@@ -386,7 +385,7 @@ impl App {
         let input = mpv::Input::Stream(Arc::new(crate::motion::Video(video)));
         let player = if self.engine() {
             mpv::Player::open(input, self.settings.video_volume, self.settings.video_mute, move || ctx.request_repaint())
-                .map_err(|e| self.i18n.t_args("cannot-load", &[("file", crate::source::name(&path)), ("error", &e)]))
+                .map_err(|e| self.i18n.cannot_load(crate::source::name(&path), &e))
         } else {
             Err(self.i18n.t("video-no-mpv"))
         };
@@ -394,6 +393,14 @@ impl App {
             log!("motion photo {path:?}: ERROR {e}");
         }
         Playing { path, no_engine: !self.engine(), player, texture: None, wheel: 0.0, copying: None, hide: Default::default() }
+    }
+
+    /// Why the video open for `path` does not play, when no card says it (the engine to
+    /// download): for the bar (`viewer_error`). `None` when no video is open for it.
+    pub(crate) fn video_error(&self, path: &str) -> Option<Option<String>> {
+        let v = self.video.as_ref().filter(|v| v.path == path)?;
+        let card = crate::component::VIDEO.is_some() && !self.engine();
+        Some(v.player.as_ref().err().filter(|_| !card).cloned())
     }
 
     /// The video open for `path` has not reached its end (it plays, it is paused, or it could
@@ -412,7 +419,7 @@ impl App {
                 let (input, copied) = loader.video_input(&path, size);
                 copying = copied.map(|c| (c, size));
                 mpv::Player::open(input, self.settings.video_volume, self.settings.video_mute, move || ctx.request_repaint())
-                    .map_err(|e| self.i18n.t_args("cannot-load", &[("file", crate::source::name(&path)), ("error", &e)]))
+                    .map_err(|e| self.i18n.cannot_load(crate::source::name(&path), &e))
             }
         };
         if let Err(e) = &player {

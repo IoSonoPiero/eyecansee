@@ -4,7 +4,7 @@
 use eframe::egui::{self, Color32, Key, Rect, ScrollArea, Ui, collapsing_header::CollapsingState};
 
 use crate::actions::Act;
-use crate::browser::{context_menu, error_text, focus_frame, selection_fill};
+use crate::browser::{context_menu, focus_frame, selection_fill};
 use crate::devices::Device;
 use crate::icons::{self, Icon};
 use crate::navigation::Go;
@@ -463,8 +463,10 @@ impl App {
                 let label = self.item_name(&child);
                 self.tree_node(ui, salt, child, Icon::Folder, &label, may_reveal);
             }
+            // Only the start of the message, on one line: the whole one is in the grid (the red
+            // paragraph under a phone that is not there filled the column, Piero 20/11).
             Some(Err(e)) => {
-                ui.label(error_text(ui, e.as_str()));
+                ui.add(egui::Label::new(crate::error_bar::short_text(ui, e)).truncate()).on_hover_text(e.as_str());
             }
             None => {
                 self.request_listing(&dir);
