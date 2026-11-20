@@ -70,7 +70,9 @@ impl App {
                     ui.set_max_width(width);
                     bar_text(ui, &e, &c);
                 });
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                // At the right, level with the first line of the text (3 points under the top).
+                ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| {
+                    ui.add_space(3.0);
                     ui.add(crate::icons::small(ui, crate::icons::Line::Close)).on_hover_text(close).clicked()
                 })
                 .inner
