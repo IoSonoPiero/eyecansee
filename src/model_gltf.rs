@@ -101,7 +101,7 @@ fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
         }
     }
     if extra.4 > 0 {
-        log!("glTF: {} times a node already placed was met again, left out", extra.4);
+        log!("glTF: nodes already placed and met again, left out: {}", extra.4);
     }
     crate::model_lines::add(&mut b, &extra.0, &extra.1)?;
     b.finish(false)
