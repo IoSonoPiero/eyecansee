@@ -444,6 +444,8 @@ update-rpm = This copy is the Fedora package: it is updated with the rest of the
 update-rpm-ostree = This copy is the Fedora package, layered with rpm-ostree on Fedora Atomic (Silverblue, Kinoite): it is updated with the system, by rpm-ostree upgrade and a restart, or by your software center (GNOME Software, Discover).
 update-unavailable = This copy is not updated by EyeCanSee: development builds and copies built from the sources are never updated.
 update-check-failed = Cannot check for updates: { $detail }
+# After "The download failed:" or "Cannot check for updates:".
+download-stalled = nothing has arrived from the server for a minute. Try again later.
 menu-redo-thumbs = Redo thumbnails
 menu-redo-all-thumbs = Redo all thumbnails in the folder
 key-shift-f5 = Shift+F5

@@ -161,10 +161,26 @@ fn parse(version: &str) -> Option<(u32, u32, u32)> {
     parts.next().is_none().then_some(v)
 }
 
+/// No byte for this long while a file arrives: the download stops with an error. The time runs
+/// from one piece to the next, never for the whole file (a component of 60 MB on a slow line takes
+/// minutes); a working connection, however slow, delivers something every few seconds. 60 s is
+/// twice the time allowed for the headers; the words of `download-stalled` say "a minute".
+const STALL: Duration = Duration::from_secs(60);
+
+/// The largest update accepted: about five times the largest file of a release today (the Windows
+/// zip, 53 MB in 0.76.2). Beyond it the download stops instead of filling the disk.
+const MAX_UPDATE: u64 = 256 << 20;
+
 pub(crate) fn agent() -> ureq::Agent {
+    agent_with(STALL)
+}
+
+/// `agent` that gives up after `stall` without a byte (`STALL`; the tests use a short one).
+pub(crate) fn agent_with(stall: Duration) -> ureq::Agent {
     ureq::Agent::config_builder()
         .timeout_connect(Some(Duration::from_secs(15)))
         .timeout_recv_response(Some(Duration::from_secs(30)))
+        .timeout_per_read(Some(stall))
         .user_agent(concat!("EyeCanSee/", env!("CARGO_PKG_VERSION")))
         .build()
         .into()
@@ -215,8 +231,10 @@ pub fn check(kind: Kind, current: &str) -> Result<Option<Ready>, String> {
     // Downloaded at an earlier start and never installed: no need to fetch it again, but it is
     // checked like a new download.
     let cached = std::fs::File::open(&file).ok().and_then(|mut f| sha256_of(&mut f).ok());
+    // The size GitHub gives for the file, if any, and never beyond `MAX_UPDATE`.
+    let max = asset["size"].as_u64().unwrap_or(MAX_UPDATE).min(MAX_UPDATE);
     if cached.as_deref() != Some(sha) || signed(&file).is_err() {
-        download(&agent, url, &file, sha, signed)?;
+        download(&agent, url, &file, sha, max, signed)?;
     }
     #[cfg(unix)]
     {
@@ -300,13 +318,28 @@ fn sha256_of(reader: &mut impl Read) -> Result<String, String> {
     Ok(ctx.finish().as_ref().iter().map(|b| format!("{b:02x}")).collect())
 }
 
+/// The error of a download that stalled (`STALL`): the Fluent id of its words (`error_detail`).
+pub(crate) const STALLED: &str = "download-stalled";
+
+/// What a failed read of a download says: `STALLED` for a stall, anything else as it is.
+pub(crate) fn read_error(e: std::io::Error) -> String {
+    let timeout = e.get_ref().and_then(|x| x.downcast_ref::<ureq::Error>()).is_some_and(|x| matches!(x, ureq::Error::Timeout(_)));
+    if timeout || e.kind() == std::io::ErrorKind::TimedOut { STALLED.into() } else { e.to_string() }
+}
+
+/// The error of a download (update or component) as the windows show it: a stall in words.
+pub(crate) fn error_detail(i18n: &crate::i18n::I18n, e: &str) -> String {
+    if e == STALLED { i18n.t(STALLED) } else { e.to_string() }
+}
+
 /// Into a temporary name, renamed only once its SHA-256 matches and `signed` accepts it: a broken
-/// or altered download never sits where it would be installed.
+/// or altered download never sits where it would be installed. More than `max` bytes is an error.
 fn download(
     agent: &ureq::Agent,
     url: &str,
     file: &Path,
     sha: &str,
+    max: u64,
     signed: impl Fn(&Path) -> Result<(), String>,
 ) -> Result<(), String> {
     let part = file.with_extension("part");
@@ -315,10 +348,15 @@ fn download(
         let mut out = std::fs::File::create(&part).map_err(|e| e.to_string())?;
         let mut ctx = ring::digest::Context::new(&ring::digest::SHA256);
         let mut buf = vec![0; 1 << 16];
+        let mut total = 0u64;
         loop {
-            let n = body.read(&mut buf).map_err(|e| e.to_string())?;
+            let n = body.read(&mut buf).map_err(read_error)?;
             if n == 0 {
                 break;
+            }
+            total += n as u64;
+            if total > max {
+                return Err(format!("larger than expected: more than {max} bytes"));
             }
             ctx.update(&buf[..n]);
             out.write_all(&buf[..n]).map_err(|e| e.to_string())?;
@@ -446,7 +484,7 @@ fn powershell(script: &str) -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     #[test]
@@ -535,5 +573,88 @@ ZNx9ootxLvzxqaW3Js8GQuuaRfw38173uezh9m7748ttQQ1wAqg5dxcDI9Q+3YopKvqk/hWD2HljErLO
         let assets = assets.as_array().unwrap();
         assert!(signature_url(assets, NAME, "v9.9.9").unwrap_err().contains(".AppImage.minisig"));
         assert_eq!(signature_url(assets, "EyeCanSee-9.9.9-windows-x64.zip", "v9.9.9"), Ok("https://example.org/b"));
+    }
+
+    /// A server on 127.0.0.1 for one download: it answers the first request with the headers of a
+    /// file of `body.len()` bytes and the first `sent` of them, then stays silent with the
+    /// connection open for `hold`. Its address.
+    pub(crate) fn serve_once(body: Vec<u8>, sent: usize, hold: Duration) -> String {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/file.bin", listener.local_addr().unwrap());
+        std::thread::spawn(move || {
+            let (mut s, _) = listener.accept().unwrap();
+            let _ = s.read(&mut [0; 4096]);
+            let head = format!("HTTP/1.1 200 OK\r\nContent-Type: application/octet-stream\r\nContent-Length: {}\r\n\r\n", body.len());
+            // The client may close first (an error found early): not this thread's business.
+            let _ = s.write_all(head.as_bytes()).and_then(|()| s.write_all(&body[..sent.min(body.len())]));
+            std::thread::sleep(hold);
+        });
+        url
+    }
+
+    /// A folder of its own for one test.
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("eyecansee-update-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// Audit 2.15 (a): a download whose body stops arriving, with the connection left open (a
+    /// network that drops without closing it), ends with an error once no byte has come for the
+    /// stall time (`STALL`, here 1 s). The server sends the headers of a file of 1 MB, 1000
+    /// bytes of it, then nothing more.
+    #[test]
+    fn audit_2_15_stalled_body() {
+        let url = serve_once(vec![7; 1_000_000], 1000, Duration::from_secs(3600));
+        let dir = scratch("stalled");
+        let file = dir.join("file.bin");
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (to, started) = (file.clone(), std::time::Instant::now());
+        std::thread::spawn(move || tx.send(download(&agent_with(Duration::from_secs(1)), &url, &to, "00", MAX_UPDATE, |_| Ok(()))));
+        let r = rx.recv_timeout(Duration::from_secs(10));
+        let elapsed = started.elapsed();
+        let left = file.with_extension("part").exists() || file.exists();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(r, Ok(Err(crate::update::STALLED.into())), "after {elapsed:.1?}");
+        assert!(elapsed < Duration::from_secs(5), "{elapsed:.1?}");
+        assert!(!left, "a stalled download left a file");
+    }
+
+    /// A download larger than `max` stops there, and nothing is left; one within it is put in place.
+    #[test]
+    fn download_size_ceiling() {
+        let body = vec![5u8; 3000];
+        let sha = sha256_of(&mut &body[..]).unwrap();
+        let dir = scratch("ceiling");
+        let file = dir.join("file.bin");
+        let url = serve_once(body.clone(), body.len(), Duration::ZERO);
+        let r = download(&agent_with(Duration::from_secs(5)), &url, &file, &sha, 1000, |_| Ok(()));
+        let left = file.with_extension("part").exists() || file.exists();
+        let url = serve_once(body.clone(), body.len(), Duration::ZERO);
+        let ok = download(&agent_with(Duration::from_secs(5)), &url, &file, &sha, 3000, |_| Ok(()));
+        let got = std::fs::read(&file).ok();
+        let part = file.with_extension("part").exists();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(r, Err("larger than expected: more than 1000 bytes".into()));
+        assert!(!left, "a download beyond the ceiling left a file");
+        assert_eq!(ok, Ok(()));
+        assert_eq!(got.as_deref(), Some(&body[..]));
+        assert!(!part);
+    }
+
+    /// `cargo test update_live -- --ignored --nocapture`: the whole check against the real latest
+    /// release, as an AppImage would do it (download, size, SHA-256, signature), in a temporary folder.
+    #[test]
+    #[ignore]
+    fn update_live() {
+        let dir = scratch("live");
+        let r = check(Kind::AppImage(dir.join("x.AppImage")), "0.0.1");
+        let got = std::fs::metadata(dir.join("x.AppImage.new")).map(|m| m.len());
+        let left = std::fs::read_dir(&dir).unwrap().count();
+        let _ = std::fs::remove_dir_all(&dir);
+        println!("{r:?}, {got:?} bytes");
+        assert!(r.unwrap().is_some());
+        assert_eq!(left, 1);
     }
 }

@@ -88,8 +88,9 @@ notify = "8.2.0"
 image-extras = "0.1.1"
 psd = "0.3.5"
 hayro-jpeg2000 = "0.4.1"
-# Updates from the GitHub releases: download over HTTPS (on rustls, already built for FTPS) and SHA-256 check.
-ureq = { version = "3", default-features = false, features = ["rustls"] }
+# Updates from the GitHub releases: download over HTTPS (on rustls, already built for FTPS) and SHA-256 check;
+# 3.5 for the time limit between two pieces of a download (`timeout_per_read`).
+ureq = { version = "3.5", default-features = false, features = ["rustls"] }
 ring = "0.17.14"
 # Updates install only files signed with the project's minisign key (Ed25519), so that whoever can upload
 # release assets cannot ship an update. Pure Rust, no dependencies.

@@ -537,7 +537,7 @@ impl App {
                 self.i18n.t_args(found, &[("version", &ready.version)])
             }
             Ok(None) => self.i18n.t_args("update-latest", &[("version", version())]),
-            Err(e) => self.i18n.t_args("update-check-failed", &[("detail", e)]),
+            Err(e) => self.i18n.t_args("update-check-failed", &[("detail", &update::error_detail(&self.i18n, e))]),
         };
         if self.update_note.is_some() {
             self.update_note = Some(note);

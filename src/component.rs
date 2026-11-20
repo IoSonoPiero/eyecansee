@@ -3,8 +3,8 @@
 //! The file comes from a release of ours ("components"); its SHA-256 is written here, in the
 //! signed executable, so a different file is refused.
 
-use std::io::Read;
-use std::path::PathBuf;
+use std::io::{Read, Write};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 #[derive(Clone, Copy)]
@@ -136,55 +136,86 @@ pub fn path(c: &Component) -> Option<PathBuf> {
 /// Downloads, checks and unpacks `c`; `done` counts the bytes downloaded. Nothing is left in place
 /// of the file unless it is complete and its SHA-256 matches.
 pub fn install(c: &Component, done: &AtomicU64) -> Result<(), String> {
-    let dir = dir().ok_or("no data folder")?;
-    // Unpacked aside, moved in only once complete and matching its SHA-256.
-    let staging = staging(&dir, c);
+    install_in(c, &dir().ok_or("no data folder")?, &crate::update::agent(), done)
+}
+
+/// `install` into the components' folder `dir`, downloading with `agent` (the tests pass their own).
+fn install_in(c: &Component, dir: &Path, agent: &ureq::Agent, done: &AtomicU64) -> Result<(), String> {
+    // Downloaded and unpacked aside, moved in only once complete and matching its SHA-256.
+    let staging = staging(dir, c);
+    let gz = staging.with_extension("gz");
     let _ = std::fs::remove_dir_all(&staging);
     std::fs::create_dir_all(&staging).map_err(|e| e.to_string())?;
-    let r = (|| {
-        let body = crate::update::agent().get(c.url).call().map_err(|e| e.to_string())?.into_body().into_reader();
-        let mut hashed = Hashed { inner: body, ctx: ring::digest::Context::new(&ring::digest::SHA256), done };
-        let mut gz = flate2::read::GzDecoder::new(&mut hashed);
-        if c.archive {
-            untar(&mut gz, &staging)?;
-        } else {
-            let mut out = std::fs::File::create(staging.join(c.file)).map_err(|e| e.to_string())?;
-            std::io::copy(&mut gz, &mut out).map_err(|e| e.to_string())?;
-        }
-        drop(gz);
-        // Whatever follows the gzip stream counts for the hash too.
-        std::io::copy(&mut hashed, &mut std::io::sink()).map_err(|e| e.to_string())?;
-        let got: String = hashed.ctx.finish().as_ref().iter().map(|b| format!("{b:02x}")).collect();
-        if got != c.sha256 {
-            return Err(format!("SHA-256 mismatch: {got}, expected {}", c.sha256));
-        }
-        if !staging.join(c.file).is_file() {
-            return Err(format!("{} missing from the download", c.file));
-        }
-        // A program (FFmpeg) must be executable; tar's modes are not kept by `untar`.
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(staging.join(c.file), std::fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
-        }
+    let r = fetch(c, agent, &gz, done).and_then(|()| unpack(c, &gz, &staging)).and_then(|()| {
         let target = dir.join(folder(c));
         let _ = std::fs::remove_dir_all(&target);
         std::fs::rename(&staging, &target).map_err(|e| e.to_string())?;
-        remove_old(&dir, c);
+        remove_old(dir, c);
         Ok(())
-    })();
+    });
+    let _ = std::fs::remove_file(&gz);
     let _ = std::fs::remove_dir_all(&staging);
     r
 }
 
+/// The download of `c` into the file `to`, hashed and counted as it arrives. More bytes than
+/// `c.size` or another SHA-256 is an error, before anything is unpacked: a file that is not ours
+/// never expands on the disk.
+fn fetch(c: &Component, agent: &ureq::Agent, to: &Path, done: &AtomicU64) -> Result<(), String> {
+    let body = agent.get(c.url).call().map_err(|e| e.to_string())?.into_body().into_reader();
+    // One byte more than expected is enough to know it is too large.
+    let mut hashed = Hashed { inner: body.take(c.size + 1), ctx: ring::digest::Context::new(&ring::digest::SHA256), done };
+    let mut out = std::fs::File::create(to).map_err(|e| e.to_string())?;
+    let mut buf = vec![0; 1 << 16];
+    let mut total = 0;
+    loop {
+        let n = hashed.read(&mut buf).map_err(crate::update::read_error)?;
+        if n == 0 {
+            break;
+        }
+        total += n as u64;
+        if total > c.size {
+            return Err(format!("larger than expected: more than {} bytes", c.size));
+        }
+        out.write_all(&buf[..n]).map_err(|e| e.to_string())?;
+    }
+    let got: String = hashed.ctx.finish().as_ref().iter().map(|b| format!("{b:02x}")).collect();
+    if got != c.sha256 {
+        return Err(format!("SHA-256 mismatch: {got}, expected {}", c.sha256));
+    }
+    Ok(())
+}
+
+/// The checked download `gz` unpacked into `staging`.
+fn unpack(c: &Component, gz: &Path, staging: &Path) -> Result<(), String> {
+    let file = std::fs::File::open(gz).map_err(|e| e.to_string())?;
+    let mut gz = flate2::read::GzDecoder::new(std::io::BufReader::new(file));
+    if c.archive {
+        untar(&mut gz, staging)?;
+    } else {
+        let mut out = std::fs::File::create(staging.join(c.file)).map_err(|e| e.to_string())?;
+        std::io::copy(&mut gz, &mut out).map_err(|e| e.to_string())?;
+    }
+    if !staging.join(c.file).is_file() {
+        return Err(format!("{} missing from the download", c.file));
+    }
+    // A program (FFmpeg) must be executable; tar's modes are not kept by `untar`.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(staging.join(c.file), std::fs::Permissions::from_mode(0o755)).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
+
 /// Where `c` is unpacked before being moved in, one folder per component: with a single `.part`
 /// the video engine and FFmpeg downloaded together emptied each other's folder (2026-10-29).
-fn staging(dir: &std::path::Path, c: &Component) -> PathBuf {
+fn staging(dir: &Path, c: &Component) -> PathBuf {
     dir.join(format!(".part-{}", c.kind))
 }
 
 /// The other versions of `c` in `dir`, and what 0.59.0 left loose there (`libmpv-2.dll`).
-fn remove_old(dir: &std::path::Path, c: &Component) {
+fn remove_old(dir: &Path, c: &Component) {
     let keep = folder(c);
     for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
         let name = entry.file_name().to_string_lossy().into_owned();
@@ -198,7 +229,7 @@ fn remove_old(dir: &std::path::Path, c: &Component) {
 /// The plain files of a tar into `into`, by their bare name: no folders, no links, nothing
 /// outside `into`.
 // ponytail: ustar names up to 100 bytes, no GNU long names; enough for our own archives
-fn untar(tar: &mut impl Read, into: &std::path::Path) -> Result<(), String> {
+fn untar(tar: &mut impl Read, into: &Path) -> Result<(), String> {
     let mut header = [0u8; 512];
     loop {
         tar.read_exact(&mut header).map_err(|e| e.to_string())?;
@@ -356,5 +387,139 @@ mod tests {
             let m = crate::occt::read(&std::fs::read(&f).unwrap(), &f).unwrap();
             println!("{f}: {} triangles", m.tris.len());
         }
+    }
+
+    /// A components' folder of its own for one test, in the temporary folder: never the real one.
+    fn scratch(name: &str) -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("eyecansee-component-{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    /// A component served once from 127.0.0.1 (`update::tests::serve_once`).
+    fn served(kind: &'static str, file: &'static str, archive: bool, body: Vec<u8>, sent: usize, hold: std::time::Duration) -> Component {
+        let sha256: String = ring::digest::digest(&ring::digest::SHA256, &body).as_ref().iter().map(|b| format!("{b:02x}")).collect();
+        let size = body.len() as u64;
+        let url = crate::update::tests::serve_once(body, sent, hold).leak();
+        Component { kind, version: "1", file, url, archive, sha256: sha256.leak(), size }
+    }
+
+    fn gzip(fill: impl FnOnce(&mut dyn std::io::Write)) -> Vec<u8> {
+        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        fill(&mut gz);
+        gz.finish().unwrap()
+    }
+
+    fn quick() -> ureq::Agent {
+        crate::update::agent_with(std::time::Duration::from_secs(5))
+    }
+
+    /// What is in `dir`, sorted.
+    fn listing(dir: &Path) -> Vec<String> {
+        let mut v: Vec<_> = std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().file_name().into_string().unwrap()).collect();
+        v.sort();
+        v
+    }
+
+    /// A good download, a plain file and an archive: unpacked in its folder, nothing else left.
+    #[test]
+    fn installed_when_good() {
+        let dir = scratch("good");
+        let c = served("plain", "lib.bin", false, gzip(|gz| gz.write_all(&[3; 5000]).unwrap()), usize::MAX, std::time::Duration::ZERO);
+        let done = AtomicU64::new(0);
+        install_in(&c, &dir, &quick(), &done).unwrap();
+        assert_eq!(done.load(Ordering::Relaxed), c.size);
+        assert_eq!(std::fs::read(dir.join("plain-1/lib.bin")).unwrap(), vec![3; 5000]);
+        std::fs::create_dir_all(dir.join("src")).unwrap();
+        std::fs::write(dir.join("src/prog"), b"program").unwrap();
+        std::fs::write(dir.join("src/libx.so"), b"library").unwrap();
+        let tar = std::process::Command::new("tar").args(["-C", "src", "-cf", "-", "prog", "libx.so"]).current_dir(&dir).output().unwrap().stdout;
+        std::fs::remove_dir_all(dir.join("src")).unwrap();
+        let c = served("tarred", "prog", true, gzip(|gz| gz.write_all(&tar).unwrap()), usize::MAX, std::time::Duration::ZERO);
+        install_in(&c, &dir, &quick(), &AtomicU64::new(0)).unwrap();
+        assert_eq!(listing(&dir), ["plain-1", "tarred-1"]);
+        assert_eq!(listing(&dir.join("tarred-1")), ["libx.so", "prog"]);
+        assert_eq!(std::fs::read(dir.join("tarred-1/prog")).unwrap(), b"program");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(dir.join("tarred-1/prog")).unwrap().permissions().mode() & 0o111, 0o111);
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// A download longer than the size written for the component stops there, and nothing is left.
+    #[test]
+    fn larger_than_expected() {
+        let dir = scratch("larger");
+        let mut c = served("larger", "lib.bin", false, gzip(|gz| gz.write_all(&[3; 5000]).unwrap()), usize::MAX, std::time::Duration::ZERO);
+        c.size -= 1;
+        let r = install_in(&c, &dir, &quick(), &AtomicU64::new(0));
+        assert_eq!(r, Err(format!("larger than expected: more than {} bytes", c.size)));
+        assert!(listing(&dir).is_empty(), "{:?}", listing(&dir));
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    /// Audit 2.15 (b): as `update::tests::audit_2_15_stalled_body`, for a component: the server
+    /// sends the headers and the first 100 kB of a gzip of 1 MB, then nothing more, with the
+    /// connection open. `install` ends with an error once no byte has come for the stall time
+    /// (here 1 s), and leaves nothing.
+    #[test]
+    fn audit_2_15_stalled_component() {
+        use std::time::Duration;
+        let dir = scratch("stalled");
+        // Bytes that do not compress, so that the gzip is about as long as they are.
+        let mut x = 1u32;
+        let noise: Vec<u8> = std::iter::repeat_with(|| {
+            x = x.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+            (x >> 24) as u8
+        })
+        .take(1 << 20)
+        .collect();
+        let c = served("audit-stalled", "noise.bin", false, gzip(|gz| gz.write_all(&noise).unwrap()), 100_000, Duration::from_secs(3600));
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (to, started) = (dir.clone(), std::time::Instant::now());
+        std::thread::spawn(move || tx.send(install_in(&c, &to, &crate::update::agent_with(Duration::from_secs(1)), &AtomicU64::new(0))));
+        let r = rx.recv_timeout(Duration::from_secs(10));
+        let elapsed = started.elapsed();
+        let left = listing(&dir);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(r, Ok(Err(crate::update::STALLED.into())), "after {elapsed:.1?}");
+        assert!(elapsed < Duration::from_secs(5), "{elapsed:.1?}");
+        assert!(left.is_empty(), "{left:?}");
+    }
+
+    /// Audit 2.15 (c): a download that is not the file expected (its SHA-256 differs) is refused
+    /// before it is unpacked. Here 64 kB of gzip that hold 64 MB of zeros, with the right size and a
+    /// wrong SHA-256: nothing may be unpacked. A thread watches the unpacked file meanwhile.
+    #[test]
+    fn audit_2_15_unpacked_before_sha() {
+        use std::sync::atomic::AtomicBool;
+        const UNPACKED: u64 = 64 << 20;
+        let dir = scratch("bomb");
+        let zeros = vec![0u8; 1 << 20];
+        let body = gzip(|gz| (0..UNPACKED >> 20).for_each(|_| gz.write_all(&zeros).unwrap()));
+        let c = Component { sha256: "00", ..served("audit-bomb", "zeros.bin", false, body, usize::MAX, std::time::Duration::ZERO) };
+        let unpacked = staging(&dir, &c).join(c.file);
+        let (stop, peak) = (std::sync::Arc::new(AtomicBool::new(false)), std::sync::Arc::new(AtomicU64::new(0)));
+        let watch = {
+            let (stop, peak) = (stop.clone(), peak.clone());
+            std::thread::spawn(move || {
+                while !stop.load(Ordering::Relaxed) {
+                    peak.fetch_max(std::fs::metadata(&unpacked).map_or(0, |m| m.len()), Ordering::Relaxed);
+                    std::thread::sleep(std::time::Duration::from_millis(1));
+                }
+            })
+        };
+        let r = install_in(&c, &dir, &quick(), &AtomicU64::new(0));
+        stop.store(true, Ordering::Relaxed);
+        watch.join().unwrap();
+        let peak = peak.load(Ordering::Relaxed);
+        let left = listing(&dir);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(r.as_ref().is_err_and(|e| e.starts_with("SHA-256 mismatch")), "{r:?}");
+        assert_eq!(peak, 0, "bytes unpacked before the SHA-256 was compared");
+        assert!(left.is_empty(), "{left:?}");
     }
 }

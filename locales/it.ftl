@@ -443,6 +443,8 @@ update-rpm = Questa copia è il pacchetto Fedora: si aggiorna insieme al resto d
 update-rpm-ostree = Questa copia è il pacchetto Fedora, sovrapposto con rpm-ostree su Fedora Atomic (Silverblue, Kinoite): si aggiorna insieme al sistema, con rpm-ostree upgrade e un riavvio, o con il centro software (GNOME Software, Discover).
 update-unavailable = Questa copia non viene aggiornata da EyeCanSee: le versioni di sviluppo e le copie compilate dai sorgenti non si aggiornano mai.
 update-check-failed = Impossibile controllare gli aggiornamenti: { $detail }
+# Dopo "Scaricamento non riuscito:" o "Impossibile controllare gli aggiornamenti:".
+download-stalled = dal server non arriva più nulla da un minuto. Riprova più tardi.
 menu-redo-thumbs = Aggiorna miniature
 menu-redo-all-thumbs = Aggiorna tutte le miniature della cartella
 key-shift-f5 = Maiusc+F5

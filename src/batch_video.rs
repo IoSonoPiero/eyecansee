@@ -277,7 +277,7 @@ pub(crate) fn download_row(ui: &mut egui::Ui, download: &mut Option<Arc<crate::c
         Some((_, Some(Ok(())))) => return true,
         failed => {
             if let Some((_, Some(Err(e)))) = failed {
-                ui.label(crate::browser::error_text(ui, i18n.t_args("batch-video-download-failed", &[("detail", &e)])));
+                ui.label(crate::browser::error_text(ui, i18n.t_args("batch-video-download-failed", &[("detail", &crate::update::error_detail(i18n, &e))])));
             }
             if ui.button(i18n.t("batch-video-download")).clicked() {
                 let ctx = ui.ctx().clone();

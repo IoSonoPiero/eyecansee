@@ -349,7 +349,7 @@ impl App {
                             wrap(ui, egui::RichText::new(self.engine_ask(state, c)).color(light));
                             if let Engine::Failed(e) = state {
                                 ui.add_space(6.0);
-                                wrap(ui, browser::error_text(ui, t("video-component-error", &[("error", e)])));
+                                wrap(ui, browser::error_text(ui, t("video-component-error", &[("error", &crate::update::error_detail(&self.i18n, e))])));
                             }
                             ui.add_space(14.0);
                             if ui.add(big(t("video-component-download", &[]))).clicked() {
