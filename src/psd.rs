@@ -97,6 +97,48 @@ impl<'a> Cur<'a> {
     }
 }
 
+/// How many layers a PSD or PSB holds besides its composite image, from the lengths of its
+/// sections and nothing decoded (`thumb_memory`: each one is decoded too). `None` if it is not one.
+pub fn layers(bytes: &[u8]) -> Option<u32> {
+    let mut c = Cur { b: bytes, i: 0 };
+    let head = c.take(26)?;
+    if &head[..4] != b"8BPS" {
+        return None;
+    }
+    let big = u16::from_be_bytes([head[4], head[5]]) == 2;
+    for _ in 0..2 {
+        let n = c.u32()?;
+        c.take(n)?;
+    }
+    // In a PSB the lengths of the layer sections, and of some blocks, take 8 bytes.
+    let long = |c: &mut Cur| if big { c.u32().zip(c.u32()).and_then(|(hi, lo)| usize::try_from(((hi as u64) << 32) | lo as u64).ok()) } else { c.u32() };
+    let count = |c: &mut Cur| c.u16().map(|n| u32::from(n.cast_signed().unsigned_abs()));
+    let section = long(&mut c)?;
+    let end = c.i.saturating_add(section);
+    if section == 0 {
+        return Some(0);
+    }
+    if long(&mut c)? > 0 {
+        return count(&mut c);
+    }
+    // Photoshop keeps the layers of a 16- or 32-bit file in a block after the global mask.
+    let mask = c.u32()?;
+    c.take(mask)?;
+    while c.i + 12 <= end {
+        let (sign, key) = (c.take(4)?, c.take(4)?);
+        if sign != b"8BIM" && sign != b"8B64" {
+            break;
+        }
+        if matches!(key, b"Lr16" | b"Lr32" | b"Layr") {
+            long(&mut c)?;
+            return count(&mut c);
+        }
+        let n = if big && matches!(key, b"LMsk" | b"Mt16" | b"Mt32" | b"Mtrn" | b"Alph" | b"FMsk" | b"lnk2" | b"FEid" | b"FXid" | b"PxSD") { long(&mut c)? } else { c.u32()? };
+        c.take(n)?;
+    }
+    Some(0)
+}
+
 /// Header, image resources, layers and the blocks after them (Adobe's PSD specification).
 fn read(bytes: &[u8]) -> Option<Info> {
     let mut c = Cur { b: bytes, i: 0 };

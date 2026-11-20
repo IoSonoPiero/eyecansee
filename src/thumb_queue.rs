@@ -11,6 +11,7 @@ use tokio::sync::Notify;
 
 use crate::loader::{Msg, THUMB_SIDE, siblings};
 use crate::source::{self, File, Store};
+use crate::thumb_memory::{self, Budget, Reservation};
 use crate::video_read::{SLOW, preview, slow_video, video_still};
 use crate::{decode, thumbcache};
 
@@ -83,7 +84,7 @@ pub(crate) async fn thumb_worker(
                 };
                 pictures_left || make_slow(&op, &base, &queue, &send).await
             }
-            None => send(generation, index, generate(&op, &base, file).await),
+            None => send(generation, index, generate(&op, &base, file, || wanted(&queue, generation)).await),
         };
         if !sent {
             return; // window closed
@@ -109,7 +110,7 @@ async fn make_slow(op: &Store, base: &str, queue: &Mutex<ThumbQueue>, send: &imp
             }
             continue;
         };
-        if !send(generation, index, generate(op, base, file).await) {
+        if !send(generation, index, generate(op, base, file, || true).await) {
             return false;
         }
     }
@@ -121,9 +122,9 @@ pub(crate) async fn thumbnail(op: &Store, base: &str, file: File) -> Result<Colo
         Some(img) => Ok(img),
         None if decode::is_played(&file.path) => match preview(op, base, &file).await {
             Some(img) => Ok(img),
-            None => generate(op, base, file).await,
+            None => generate(op, base, file, || true).await,
         },
-        None => generate(op, base, file).await,
+        None => generate(op, base, file, || true).await,
     }
 }
 
@@ -169,7 +170,10 @@ pub(crate) async fn file_info(op: &Store, base: &str, file: &File) -> Option<cra
             match info.pixels {
                 Some(_) => info,
                 // A rare format whose header is not read: decoded, as for its thumbnail.
-                None if bytes.len() as u64 >= full => crate::thumb_details::Info { pixels: decode::thumbnail_sized(&bytes, &name, 1).ok().and_then(|(_, own)| own), ..info },
+                None if bytes.len() as u64 >= full => {
+                    let _memory = thumb_memory::wait_for(&bytes, &name);
+                    crate::thumb_details::Info { pixels: decode::thumbnail_sized(&bytes, &name, 1).ok().and_then(|(_, own)| own), ..info }
+                }
                 None => info,
             }
         })
@@ -226,9 +230,16 @@ async fn cached(base: &str, file: &File) -> Option<ColorImage> {
     .map(decode::to_color_image)
 }
 
+/// Is the queue still the one of `generation` (same folder, source open)?
+fn wanted(queue: &Mutex<ThumbQueue>, generation: u64) -> bool {
+    let q = queue.lock().unwrap();
+    q.generation == generation && !q.closed
+}
+
 /// Made from the file and saved in the cache. For a video `preview` was tried before (the
-/// queue, `thumbnail`): tried again here it read the end of the file twice.
-async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, String> {
+/// queue, `thumbnail`): tried again here it read the end of the file twice. `wanted` says, after
+/// a wait for memory, whether the thumbnail is still wanted (the folder may have changed).
+async fn generate(op: &Store, base: &str, file: File, wanted: impl Fn() -> bool) -> Result<ColorImage, String> {
     if decode::is_played(&file.path) {
         let img = video_still(op, &file.path, file.size, THUMB_SIDE).await?;
         let base = base.to_string();
@@ -245,9 +256,13 @@ async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, Stri
         return Err(crate::occt::MISSING.into());
     }
     let bytes = op.read(&file.path).await.map_err(|(_, detail)| detail)?;
+    let picture = !crate::model::is_model(&file.path) && !crate::cad::is_cad(&file.path);
+    let (bytes, memory) = if picture { reserved(op, &file.path, bytes, thumb_memory::budget(), wanted).await? } else { (bytes, None) };
     let base = base.to_string();
     let (sibling, local) = (siblings(op.clone(), file.path.clone()), crate::occt::local(op, &file.path));
     tokio::task::spawn_blocking(move || {
+        // Given back when the thumbnail is made, or the decoder fails or panics.
+        let _memory = memory;
         let img = if crate::model::is_model(&file.path) {
             crate::occt::from_file(local, || decode::model_picture_with(&bytes, &file.path, THUMB_SIDE, THUMB_SIDE * 3 / 4, &sibling))?
         } else if crate::cad::is_cad(&file.path) {
@@ -268,6 +283,39 @@ async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, Stri
     .await
     .unwrap_or_else(|e| Err(e.to_string()))
 }
+
+/// A picture's bytes with the memory of its thumbnail reserved (`thumb_memory`), waiting while
+/// there is no room. From a local disk the bytes are not kept while waiting, but read again once
+/// there is room; from a phone or a server (2 to 4 workers) they are kept, not asked for twice.
+/// After a wait, a thumbnail no longer `wanted` is not made: the new folder's would wait for it.
+async fn reserved(op: &Store, path: &str, bytes: Vec<u8>, budget: &Budget, wanted: impl Fn() -> bool) -> Result<(Vec<u8>, Option<Reservation>), String> {
+    let name = path.to_string();
+    let (bytes, need) = tokio::task::spawn_blocking(move || {
+        let need = thumb_memory::estimate(&bytes, &name);
+        (bytes, need)
+    })
+    .await
+    .map_err(|e| e.to_string())?;
+    if let Some(memory) = budget.try_reserve(need) {
+        return Ok((bytes, Some(memory)));
+    }
+    log!("thumbnail of {path}: waits for {} MiB of memory", need >> 20);
+    let local = matches!(op, Store::Dal(_));
+    let kept = (!local).then_some(bytes);
+    let memory = budget.reserve(need).await;
+    if !wanted() {
+        return Err(NOT_WANTED.into());
+    }
+    let bytes = match kept {
+        Some(bytes) => bytes,
+        None => op.read(path).await.map_err(|(_, detail)| detail)?,
+    };
+    Ok((bytes, memory))
+}
+
+/// A thumbnail of a folder no longer open, given up after its wait for memory (never shown: its
+/// generation is an old one).
+const NOT_WANTED: &str = "thumbnail no longer wanted";
 
 /// Compares the saved thumbnails with the current folders, read again with the same listing that
 /// created them (so size and date have the same format). File gone: thumbnail deleted. File
@@ -305,5 +353,55 @@ pub(crate) async fn maintain(op: &Store, base: &str) {
                 Some(_) => {}
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Polls `fut` for about half a second: it must still be waiting.
+    async fn still_waiting<F: std::future::Future + Unpin>(fut: &mut F) {
+        for _ in 0..50 {
+            assert!(futures_util::poll!(&mut *fut).is_pending());
+            std::thread::sleep(std::time::Duration::from_millis(10));
+            tokio::task::yield_now().await;
+        }
+    }
+
+    /// With room, the bytes read are used at once. Without, the thumbnail waits; from a local
+    /// disk its bytes are read again once there is room (the file changed meanwhile: the new
+    /// ones), and a thumbnail no longer wanted after its wait is given up.
+    #[test]
+    fn memory_reserved_before_decoding() {
+        let dir = std::env::temp_dir().join(format!("thumb-memory-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        std::fs::write(dir.join("a.png"), b"first").unwrap();
+        let budget = Budget::new(1 << 30);
+        let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        rt.block_on(async {
+            let (bytes, memory) = reserved(&op, "a.png", b"first".to_vec(), &budget, || true).await.unwrap();
+            assert_eq!(bytes, b"first");
+            drop(memory.unwrap());
+
+            let all = budget.try_reserve(u64::MAX).unwrap();
+            let mut waiting = Box::pin(reserved(&op, "a.png", b"first".to_vec(), &budget, || true));
+            still_waiting(&mut waiting).await;
+            std::fs::write(dir.join("a.png"), b"second").unwrap();
+            drop(all);
+            let (bytes, memory) = waiting.await.unwrap();
+            assert_eq!(bytes, b"second");
+            drop(memory);
+
+            let all = budget.try_reserve(u64::MAX).unwrap();
+            let mut stale = Box::pin(reserved(&op, "a.png", b"first".to_vec(), &budget, || false));
+            still_waiting(&mut stale).await;
+            drop(all);
+            assert_eq!(stale.await.unwrap_err(), NOT_WANTED);
+            assert!(budget.try_reserve(u64::MAX).is_some(), "given back");
+        });
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

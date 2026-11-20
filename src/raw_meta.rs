@@ -208,6 +208,21 @@ pub fn header(bytes: &[u8]) -> Option<crate::decode::Header> {
     Some(crate::decode::Header { format, size: size.map(|s| s as u32), color: Some(color) })
 }
 
+/// The pixels of a DNG's sensor from its tags, nothing decompressed (`thumb_memory`). `None` for
+/// the other RAW formats: rawler gives their size only with the sensor data (`dummy` or not, it
+/// sets aside the memory of the declared size first).
+pub fn dng_pixels(bytes: &[u8]) -> Option<u64> {
+    use rawler::tags::TiffCommonTag;
+    let src = RawSource::new_from_slice(bytes);
+    let decoder = rawler::get_decoder(&src).ok()?;
+    if decoder.format_hint() != rawler::decoders::FormatHint::DNG {
+        return None;
+    }
+    let ifd = decoder.ifd(rawler::decoders::WellKnownIFD::Raw).ok()??;
+    let get = |tag| ifd.get_entry(tag).map(|e| e.force_usize(0) as u64);
+    Some(get(TiffCommonTag::ImageWidth)?.saturating_mul(get(TiffCommonTag::ImageLength)?))
+}
+
 /// Size and colour (`true`) of the picture `RawDevelop::develop_intermediate` makes with its
 /// default steps: the default crop, else the active area, else the whole sensor, which old
 /// Fujifilm sensors turn by 45°. A colour filter or several components per pixel give colour.

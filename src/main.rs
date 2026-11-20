@@ -159,6 +159,7 @@ mod theme;
 #[cfg(any(target_os = "linux", windows))]
 mod system_theme;
 mod thumb_details;
+mod thumb_memory;
 mod thumb_queue;
 mod test_copy;
 #[cfg(test)]

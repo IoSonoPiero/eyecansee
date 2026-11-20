@@ -20,7 +20,7 @@ const MAX_SIDE: u32 = 8192;
 
 /// Every vector image (SVG) is rasterised at this long side, whatever size it declares: a 24 px
 /// icon and a 10000 px poster alike (the file's own size is in `svg_header`).
-const SVG_SIDE: f32 = 2048.0;
+pub(crate) const SVG_SIDE: f32 = 2048.0;
 
 const HEIF: &[&str] = &["heic", "heif", "hif", "avif"];
 const SVG: &[&str] = &["svg", "svgz"];
@@ -94,6 +94,11 @@ fn kind(name: &str) -> Option<Kind> {
 
 pub fn is_image(name: &str) -> bool {
     kind(name).is_some()
+}
+
+/// A vector image, rasterised at `SVG_SIDE`, by its extension.
+pub fn is_svg(name: &str) -> bool {
+    kind(name) == Some(Kind::Svg)
 }
 
 /// A camera's RAW photo, by its extension.
