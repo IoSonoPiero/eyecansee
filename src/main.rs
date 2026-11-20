@@ -667,7 +667,7 @@ fn main() -> eframe::Result {
     #[cfg(any(target_os = "linux", windows))]
     system_theme::start();
     let mut settings = Settings::load();
-    gpu_start::before_window(&mut settings);
+    let backends = gpu_start::before_window(&mut settings);
     engine::set_choice(settings.video_engine);
     // The window is matched to its .desktop file by this id (in Flatpak, the id of the app).
     let app_id = flatpak_id.unwrap_or_else(|| crate::test_copy::NAME.into());
@@ -701,6 +701,9 @@ fn main() -> eframe::Result {
     if let eframe::egui_wgpu::WgpuSetup::CreateNew(setup) = &mut options.wgpu_options.wgpu_setup {
         setup.native_adapter_selector = Some(render_gpu::adapter_selector(settings.graphics));
         setup.device_descriptor = render_gpu::frugal(setup.device_descriptor.clone());
+        if let Some(backends) = backends {
+            setup.instance_descriptor.backends = backends;
+        }
     }
     eframe::run_native(
         "EyeCanSee",
