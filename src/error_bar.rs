@@ -73,22 +73,30 @@ impl App {
         let Some(e) = self.error.clone().or(lasting) else { return };
         let c = theme::error_bar(ui.visuals());
         let frame = egui::Frame::new().fill(c.fill).inner_margin(egui::Margin { left: 20, right: 12, top: 10, bottom: 10 });
-        let close = self.i18n.t("notice-close");
+        let (close, copy) = (self.i18n.t("notice-close"), self.i18n.t("notice-copy"));
         let panel = egui::Panel::bottom("error").frame(frame).resizable(false).show_separator_line(false).show(ui, |ui| {
             ui.horizontal_top(|ui| {
                 theme::warning_icon(ui, 28.0);
                 ui.add_space(12.0);
-                // All the width but the ✕: a cap of 720 points broke sentences in the middle on a wide
-                // window ("…known_hosts, / quindi…", Piero 20/11); the lines break where the message does.
-                let width = ui.available_width() - 44.0;
+                // All the width but Copy and the ✕: a cap of 720 points broke sentences in the middle on
+                // a wide window ("…known_hosts, / quindi…", Piero 20/11); the lines break where the message does.
+                let width = ui.available_width() - 76.0;
                 ui.vertical(|ui| {
                     ui.set_max_width(width);
                     bar_text(ui, &e, &c, BAR);
                 });
-                // At the right, level with the first line of the text (3 points under the top).
+                // At the right, level with the first line of the text (3 points under the top): the ✕,
+                // and Copy before it, the whole text with the detail (it could not be copied, Piero 20/11).
                 ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| {
                     ui.add_space(3.0);
-                    ui.add(crate::icons::small(ui, crate::icons::Line::Close)).on_hover_text(close).clicked()
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), |ui| {
+                        let closed = ui.add(crate::icons::small(ui, crate::icons::Line::Close)).on_hover_text(close).clicked();
+                        if ui.add(crate::icons::small(ui, crate::icons::Line::Copy)).on_hover_text(copy).clicked() {
+                            ui.ctx().copy_text(e.clone());
+                        }
+                        closed
+                    })
+                    .inner
                 })
                 .inner
             })

@@ -130,7 +130,8 @@ impl App {
         let Some(text) = &self.update_note else { return };
         let title = self.i18n.t("menu-check-updates");
         let mut open = self.notice.is_some() || self.delete_answer.take().is_none();
-        crate::save_dialogs::message(ctx, "update", crate::save_dialogs::Head::new(&title), text, |ui| {
+        let tip = self.i18n.t("notice-copy");
+        crate::save_dialogs::message(ctx, "update", crate::save_dialogs::Head::new(&title), text, &tip, |ui| {
             if ui.button(self.i18n.t("notice-close")).clicked() {
                 open = false;
             }

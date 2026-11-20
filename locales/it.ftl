@@ -1143,6 +1143,7 @@ batch-psd-flatten = I PSD con più livelli, testi o effetti vengono **appiattiti
 save-format = Le modifiche non si possono salvare sopra **{ $name }**: EyeCanSee non sa scrivere questo formato (HEIC, RAW…).
 save-as-hint = Con **Salva come…** la salvi in un file nuovo, nel formato che scegli. L'originale resta com'è.
 notice-close = Chiudi
+notice-copy = Copia il messaggio
 
 ## File > Apri indirizzo
 addr-title = Apri indirizzo

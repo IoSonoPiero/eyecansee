@@ -66,7 +66,7 @@ impl App {
             (Some(_), _) => true,
         };
         let mut done = false;
-        message(ctx, "ffmpeg-ask", Head::new(&i18n.t("ffmpeg-ask-title")), &i18n.t_args(id, &[("size", &size)]), |ui| {
+        message(ctx, "ffmpeg-ask", Head::new(&i18n.t("ffmpeg-ask-title")), &i18n.t_args(id, &[("size", &size)]), &i18n.t("notice-copy"), |ui| {
             if let Some(c) = component {
                 done = crate::batch_video::download_row(ui, &mut ask.download, i18n, c);
             }

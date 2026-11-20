@@ -568,11 +568,15 @@ impl eframe::App for App {
             }
             return;
         }
+        // Text selected with the mouse (a message in the error bar): Ctrl+C copies it, not the
+        // files of the grid. egui drops the selection at a click elsewhere.
+        let selected = ctx.plugin::<egui::text_selection::LabelSelectionState>().lock().has_selection();
         let act = &mut self.act;
         let copied = self.clip.as_ref().map(|c| c.text.as_str());
         let viewing = self.viewing.is_some();
         raw_input.events.retain(|e| {
             *act = match e {
+                egui::Event::Copy if selected => return true,
                 egui::Event::Copy => Some(Act::Copy(None)),
                 egui::Event::Cut if shift_del => Some(Act::Delete(None, true)),
                 egui::Event::Cut => Some(Act::Cut(None)),
