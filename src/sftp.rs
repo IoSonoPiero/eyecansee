@@ -28,6 +28,8 @@ const IN_FLIGHT: usize = 16;
 
 pub struct Server {
     target: Target,
+    /// The folder of `config`, `known_hosts` and the keys; `None` = `~/.ssh`.
+    ssh: Option<std::path::PathBuf>,
     conn: tokio::sync::Mutex<Option<Arc<Conn>>>,
 }
 
@@ -144,9 +146,15 @@ impl Server {
         if let Some(s) = servers.iter().filter_map(Weak::upgrade).find(|s| s.target == target) {
             return s;
         }
-        let s = Arc::new(Server { target, conn: tokio::sync::Mutex::const_new(None) });
+        let s = Arc::new(Server { target, ssh: None, conn: tokio::sync::Mutex::const_new(None) });
         servers.push(Arc::downgrade(&s));
         s
+    }
+
+    /// A server of the tests, with its own folder in place of `~/.ssh`, not shared.
+    #[cfg(test)]
+    fn with_ssh_dir(target: Target, ssh: std::path::PathBuf) -> Arc<Server> {
+        Arc::new(Server { target, ssh: Some(ssh), conn: tokio::sync::Mutex::const_new(None) })
     }
 
     /// The servers in use at this host, port and user, whatever their key or password.
@@ -162,7 +170,7 @@ impl Server {
             return Ok(c.clone());
         }
         let t = std::time::Instant::now();
-        let c = Arc::new(open(&self.target).await?);
+        let c = Arc::new(open(&self.target, self.ssh.as_deref()).await?);
         log!("sftp {}: connected in {:.2} s", self.target.host, t.elapsed().as_secs_f32());
         *conn = Some(c.clone());
         Ok(c)
@@ -454,8 +462,8 @@ where
 
 /// Connected, logged in, with the SFTP subsystem started. The steps after the login within
 /// `SILENCE`: the lock of the connection is held meanwhile, and every request waits for it (#75).
-async fn open(t: &Target) -> Result<Conn, Error> {
-    let handle = connect::connect(t).await?;
+async fn open(t: &Target, ssh: Option<&std::path::Path>) -> Result<Conn, Error> {
+    let handle = connect::connect(t, ssh).await?;
     match tokio::time::timeout(SILENCE, start(handle, t)).await {
         Ok(r) => r,
         Err(_) => Err((SILENT, t.host.clone())),
@@ -546,24 +554,35 @@ async fn read_from(c: &Arc<Conn>, path: &str, offset: u64, len: u64) -> Result<V
     read_at(&open_file(c, path, OpenFlags::READ).await?, offset, len).await
 }
 
-/// `len` bytes from `offset`, fewer at the end of the file: pieces fetched together.
+/// `len` bytes from `offset`, fewer at the end of the file: pieces fetched together, `IN_FLIGHT`
+/// at a time. `len` may be the size the server declares, which is not trusted (#184): the memory
+/// reserved at the start is one batch at most, the buffer grows with the bytes that arrive, and
+/// the end stops at the largest offset.
 async fn read_at(f: &Opened, offset: u64, len: u64) -> Result<Vec<u8>, SftpError> {
     let piece = u64::from(f.conn.read_len);
-    let pieces: Vec<(u64, u32)> = (offset..offset + len).step_by(piece as usize).map(|at| (at, piece.min(offset + len - at) as u32)).collect();
-    let mut data = Vec::with_capacity(len as usize);
-    for batch in pieces.chunks(IN_FLIGHT) {
-        let mut reads = Vec::with_capacity(batch.len());
-        for &(at, n) in batch {
-            reads.push(read_piece(&f.conn, &f.handle, at, n));
+    let end = offset.saturating_add(len);
+    let mut data = Vec::with_capacity(len.min(piece * IN_FLIGHT as u64) as usize);
+    let mut at = offset;
+    while at < end {
+        let mut reads = Vec::with_capacity(IN_FLIGHT);
+        while reads.len() < IN_FLIGHT && at < end {
+            let n = piece.min(end - at);
+            reads.push(read_piece(&f.conn, &f.handle, at, n as u32));
+            at += n;
         }
         for part in futures_util::future::try_join_all(reads).await? {
             let short = part.len() < piece as usize;
             data.extend(part);
             if short {
-                return Ok(data); // end of the file
+                break; // end of the file
             }
         }
+        if data.len() as u64 != at - offset {
+            break;
+        }
     }
+    // Not the room grown for a file that came out shorter, or doubled while it arrived.
+    data.shrink_to_fit();
     Ok(data)
 }
 
@@ -655,6 +674,8 @@ async fn write_part(f: &Opened, at: u64, part: Bytes) -> (u64, Result<(), SftpEr
 mod tests {
     use crate::source::{self, Deletion, Store};
     use bytes::Bytes;
+
+    mod fake;
 
     /// The pieces a dropped connection did not confirm, sent again at their places over what got
     /// through, give the whole file; a new connection only after some progress.
@@ -814,6 +835,54 @@ mod tests {
             assert_eq!(op.read(&format!("{dir}nothing.jpg")).await.unwrap_err().0, source::NOT_FOUND);
             op.delete(&dir, Deletion::Permanent).await.unwrap();
             assert_eq!(op.check_dir(&dir).await.unwrap_err().0, source::NOT_FOUND);
+        });
+    }
+
+    /// Audit 2.17 (a): a file of 10 bytes for which the server declares 2^50 must be read (or
+    /// refused) without asking for memory by the declared size. `read_at` made the list of all
+    /// the pieces first: 2^35 of them, 512 GiB, and the program was closed by the failed
+    /// allocation. Server: `tests/fake.rs`.
+    #[test]
+    fn audit_2_17_declared_size_huge() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let content = b"0123456789";
+            let (server, _world) = fake::start(&[("huge.bin", 1 << 50, content)]).await;
+            assert_eq!(server.size("huge.bin").await.unwrap(), 1 << 50);
+            println!("reading 10 bytes declared as 2^50");
+            let r = server.read("huge.bin").await;
+            println!("read: {:?}", r.as_ref().map(|d| d.len()));
+            assert!(r.is_ok_and(|d| d == content));
+        });
+    }
+
+    /// Audit 2.17 (b): the same with 256 MiB declared, which the list of the pieces survives: the
+    /// 10 bytes came back in a buffer that reserved the whole declared size
+    /// (`Vec::with_capacity(len)`). More than 64 MiB reserved before a byte arrives is too much.
+    /// (With 1 GiB declared and 3 GB of address space allowed, the reservation itself failed and
+    /// closed the test: "memory allocation of 1073741824 bytes failed".)
+    #[test]
+    fn audit_2_17_capacity_as_declared() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let content = b"0123456789";
+            let (server, _world) = fake::start(&[("large.bin", 256 << 20, content)]).await;
+            let data = server.read("large.bin").await.unwrap();
+            println!("read {} bytes, capacity reserved {} bytes", data.len(), data.capacity());
+            assert_eq!(data, content);
+            assert!(data.capacity() <= 64 << 20, "{} bytes reserved for {} read", data.capacity(), data.len());
+        });
+    }
+
+    /// Audit 2.17 (c): a range that ends beyond the largest offset (`offset + len` overflows)
+    /// must give an error or what is there (nothing), not a panic. The offsets of a range come
+    /// from the file itself (the atoms of an MP4, `video_read.rs`).
+    #[test]
+    fn audit_2_17_range_overflow() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let (server, _world) = fake::start(&[("ten.bin", 10, b"0123456789")]).await;
+            assert_eq!(server.read_range("ten.bin", 2, 100).await.unwrap(), b"23456789");
+            let r = server.read_range("ten.bin", u64::MAX - 4, 10).await;
+            println!("range beyond the largest offset: {r:?}");
+            assert!(r.is_ok_and(|d| d.is_empty()));
         });
     }
 }

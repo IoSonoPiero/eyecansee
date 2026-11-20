@@ -4,7 +4,7 @@
 //! key files without a passphrase or the password. Never the system's SSH agent (user's rule).
 //! Not supported: ProxyJump and ProxyCommand.
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -57,6 +57,8 @@ pub(super) struct Client {
     label: String,
     host: String,
     port: u16,
+    /// The known_hosts file read; `None` = russh's own (`~/.ssh/known_hosts`).
+    known_hosts: Option<PathBuf>,
     /// Why the key was refused, read after `connect` fails.
     refused: Arc<Mutex<Option<Error>>>,
 }
@@ -69,7 +71,11 @@ impl client::Handler for Client {
             *self.refused.lock().unwrap() = Some(("error-detail", format!("{}: host certificates are not supported", self.label)));
             return Ok(false);
         };
-        let refused = match keys::check_known_hosts(&self.host, self.port, key) {
+        let known = match &self.known_hosts {
+            Some(file) => keys::check_known_hosts_path(&self.host, self.port, key, file),
+            None => keys::check_known_hosts(&self.host, self.port, key),
+        };
+        let refused = match known {
             Ok(true) => return Ok(true),
             Err(keys::Error::KeyChanged { line }) => ("error-host-changed", format!("{} (known_hosts, line {line})", self.label)),
             // Not there, or no known_hosts yet.
@@ -94,11 +100,16 @@ struct Resolved {
     saved: bool,
 }
 
-fn resolve(t: &Target) -> Resolved {
-    let cfg = russh_config::parse_home(&t.host).unwrap_or_else(|_| russh_config::Config::default(&t.host));
+/// `ssh`: the folder of `config` and of the keys; `None` = `~/.ssh`.
+fn resolve(t: &Target, ssh: Option<&Path>) -> Resolved {
+    let cfg = match ssh {
+        Some(dir) => russh_config::parse_path(dir.join("config"), &t.host),
+        None => russh_config::parse_home(&t.host),
+    };
+    let cfg = cfg.unwrap_or_else(|_| russh_config::Config::default(&t.host));
     let user = if t.user.is_empty() { cfg.user() } else { t.user.clone() };
     let mut files = cfg.host_config.identity_file.clone().unwrap_or_default();
-    if let Some(ssh) = std::env::home_dir().map(|h| h.join(".ssh")) {
+    if let Some(ssh) = ssh.map(Path::to_path_buf).or_else(|| std::env::home_dir().map(|h| h.join(".ssh"))) {
         files.extend(["id_ed25519", "id_ecdsa", "id_rsa"].map(|f| ssh.join(f)));
     }
     Resolved { host: cfg.host().to_string(), port: t.port.unwrap_or_else(|| cfg.port()), user, files, key: t.key.clone(), saved: t.saved }
@@ -135,9 +146,10 @@ const KEX: &[russh::kex::Name] = &[
 /// its pause for a refused password (2-3 s in OpenSSH [Inference]).
 const LOGIN: Duration = Duration::from_secs(30);
 
-/// Connected and logged in.
-pub(super) async fn connect(t: &Target) -> Result<Handle<Client>, Error> {
-    let r = resolve(t);
+/// Connected and logged in. `ssh`: the folder of `config`, `known_hosts` and the keys, instead of
+/// `~/.ssh` (the tests' own).
+pub(super) async fn connect(t: &Target, ssh: Option<&Path>) -> Result<Handle<Client>, Error> {
+    let r = resolve(t, ssh);
     let label = label(t, &r);
     // A saved key that does not open (wrong passphrase, missing file): no login another way.
     let key = match &r.key {
@@ -151,13 +163,14 @@ pub(super) async fn connect(t: &Target) -> Result<Handle<Client>, Error> {
         None => None,
     };
     let refused = Arc::new(Mutex::new(None));
-    let handler = Client { label: label.clone(), host: r.host.clone(), port: r.port, refused: refused.clone() };
+    let known_hosts = ssh.map(|dir| dir.join("known_hosts"));
+    let handler = Client { label: label.clone(), host: r.host.clone(), port: r.port, known_hosts: known_hosts.clone(), refused: refused.clone() };
     let config = Arc::new(client::Config {
         keepalive_interval: Some(Duration::from_secs(30)),
         // russh's 2 MiB (asked again at half) held downloads from a Storage Box (50 ms ping) to
         // 10 MB/s; 8 MiB gave 22-31, like FileZilla.
         window_size: 8 << 20,
-        preferred: russh::Preferred { key: known_first(&r.host, r.port).into(), kex: KEX.into(), ..Default::default() },
+        preferred: russh::Preferred { key: known_first(&r.host, r.port, known_hosts.as_deref()).into(), kex: KEX.into(), ..Default::default() },
         ..Default::default()
     });
     let connecting = client::connect(config, (r.host.as_str(), r.port), handler);
@@ -185,8 +198,12 @@ pub(super) async fn connect(t: &Target) -> Result<Handle<Client>, Error> {
 
 /// The key types known_hosts has for this server first, as ssh does: otherwise a server with an
 /// ECDSA line would offer its Ed25519 key and look unknown.
-fn known_first(host: &str, port: u16) -> Vec<keys::Algorithm> {
-    let mut algs: Vec<_> = keys::known_hosts::known_host_keys(host, port).unwrap_or_default().into_iter().map(|(_, k)| k.algorithm()).collect();
+fn known_first(host: &str, port: u16, known_hosts: Option<&Path>) -> Vec<keys::Algorithm> {
+    let known = match known_hosts {
+        Some(file) => keys::known_hosts::known_host_keys_path(host, port, file),
+        None => keys::known_hosts::known_host_keys(host, port),
+    };
+    let mut algs: Vec<_> = known.unwrap_or_default().into_iter().map(|(_, k)| k.algorithm()).collect();
     for a in russh::Preferred::default().key.iter() {
         if !algs.contains(a) {
             algs.push(a.clone());
@@ -256,10 +273,10 @@ mod tests {
     #[test]
     fn resolve_without_config() {
         let t = super::Target { user: "me".into(), host: "server.invalid".into(), port: None, password: None, key: None, saved: false };
-        let r = super::resolve(&t);
+        let r = super::resolve(&t, None);
         assert_eq!((r.host.as_str(), r.port, r.user.as_str()), ("server.invalid", 22, "me"));
         let t = super::Target { port: Some(2222), ..t };
-        assert_eq!(super::resolve(&t).port, 2222);
+        assert_eq!(super::resolve(&t, None).port, 2222);
     }
 
     /// An alias shows the address it stands for; an address is shown once.
