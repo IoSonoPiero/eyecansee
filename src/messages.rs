@@ -361,6 +361,7 @@ impl App {
             }
             self.relist(dir);
         }
+        self.tell_refused(&p, r.as_ref().is_err_and(|(id, _)| *id == "error-cancelled"));
         if let Err((id, detail)) = r
             && id != "error-cancelled"
         {

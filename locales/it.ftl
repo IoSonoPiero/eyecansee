@@ -125,7 +125,19 @@ transfer-counts = { $n } di { $total } file, { $done } di { $size }
 transfer-to = In { $dir }
 transfer-left = { $percent } %, { $speed }/s, circa { $time } alla fine
 error-name-too-long = Il nome è troppo lungo per il telefono: { $detail } caratteri, mentre un telefono ne accetta al massimo 254 (un'emoji conta per due). Accorcialo e riprova; non è stato copiato niente.
-error-name-refused = Lasciato fuori dalla copia: { $detail }. Il telefono o il server gli dà un nome che qui nessun file può avere (porterebbe fuori dalla cartella, contiene caratteri come / o \, o su Windows un : o un altro carattere che Windows non accetta, un punto o uno spazio in fondo, o un nome come CON o NUL). Il resto è stato copiato; una cartella spostata che lo contiene resta dov'era.
+name-refused-title = { $n ->
+    [one] File non copiato
+   *[other] File non copiati
+}
+name-refused-why = { $n ->
+    [one] Il suo nome non va bene su questo computer.
+   *[other] Il loro nome non va bene su questo computer.
+}
+name-refused-stayed = { $n ->
+    [one] È rimasto dove era.
+   *[other] Sono rimasti dove erano.
+}
+name-refused-more = e altri { $n }
 error-copy-not-made = Il telefono non ha fatto la copia di { $detail }: l'originale non è stato toccato.
 error-paste-inside = Una cartella non può andare dentro sé stessa: { $detail }
 error-cancelled = Annullato.
