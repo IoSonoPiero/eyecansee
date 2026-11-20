@@ -530,6 +530,10 @@ fn trash_id(how: Deletion) -> &'static str {
 }
 
 #[cfg(test)]
+#[path = "audit.rs"]
+mod audit;
+
+#[cfg(test)]
 mod tests {
     use super::*;
     use crate::edit::doc::{Area, Doc, Obj, Pt, Shape, Style};

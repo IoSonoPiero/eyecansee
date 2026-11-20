@@ -64,7 +64,7 @@ impl Harness {
 
     /// One frame, with `events` (keys) as the window would give them.
     pub fn frame(&mut self, events: Vec<egui::Event>) {
-        let mut raw = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, ..Default::default() };
+        let mut raw = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), events, max_texture_side: Some(16384), ..Default::default() };
         eframe::App::raw_input_hook(&mut self.app, &self.ctx, &mut raw);
         let (app, frame) = (&mut self.app, &mut self.frame);
         let mut out = self.ctx.run_ui(raw, |ui| eframe::App::ui(app, ui, frame));
@@ -84,7 +84,11 @@ impl Harness {
     }
 
     pub fn key(&mut self, key: egui::Key) {
-        let ev = |pressed| egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::NONE };
+        self.key_with(key, egui::Modifiers::NONE);
+    }
+
+    pub fn key_with(&mut self, key: egui::Key, modifiers: egui::Modifiers) {
+        let ev = |pressed| egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers };
         self.frame(vec![ev(true), ev(false)]);
     }
 }

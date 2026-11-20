@@ -100,7 +100,7 @@ fn field(tag: Tag, value: Value) -> Field {
 /// A phone photo with everything that must not survive an edit: an EXIF thumbnail, an XMP
 /// thumbnail and Motion Photo description, a Photoshop thumbnail, an MPF segment and a video after
 /// the end of the picture. Also an author, which stays.
-fn motion_photo(img: &DynamicImage, thumb: &[u8]) -> Vec<u8> {
+pub(crate) fn motion_photo(img: &DynamicImage, thumb: &[u8]) -> Vec<u8> {
     let mut w = Writer::new();
     let fields = [
         field(Tag::Make, Value::Ascii(vec![b"TestPhone".to_vec()])),

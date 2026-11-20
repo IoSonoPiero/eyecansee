@@ -522,4 +522,4 @@ fn transparent(img: &DynamicImage) -> bool {
 }
 
 #[cfg(test)]
-mod tests;
+pub(crate) mod tests;
