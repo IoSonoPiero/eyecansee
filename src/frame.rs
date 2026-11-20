@@ -154,6 +154,8 @@ impl App {
                     // The grid's keys too (issue #150): the button on the right, the rest of the bar
                     // on its left.
                     let status = egui::Panel::bottom("status").frame(bar).show(ui, |ui| {
+                        // Rows of their own above the bar's: its row is left to right.
+                        self.export_said_rows(ui);
                         ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                             let button = self.keys_button(ui);
                             ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| self.status_bar(ui));
