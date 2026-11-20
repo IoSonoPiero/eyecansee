@@ -172,6 +172,14 @@ unsafe extern "C" fn stream_close(cookie: *mut c_void) {
     drop(unsafe { Box::from_raw(cookie as *mut Cursor) });
 }
 
+/// Every file is untrusted: a file named as a video can be a playlist that names web addresses
+/// or other files (audit 4.6, #185). access-references=no: mpv expands no playlist and FFmpeg
+/// opens nothing a file names (HLS segments, MOV references, ordered chapters, archives); the
+/// file itself still opens, and EyeCanSee gives mpv only local paths and "eyecansee://" streams.
+/// ytdl=no: no yt-dlp run on an address. load-scripts=no: no user scripts (libmpv already reads
+/// no configuration). All in mpv's manual since 0.34 (the oldest we take, see `MIN_API`).
+const UNTRUSTED: &[(&str, &str)] = &[("access-references", "no"), ("ytdl", "no"), ("load-scripts", "no")];
+
 /// An mpv core with its software renderer. `update` is called (from an mpv thread) when there is
 /// a frame to draw: it must only wake someone up, never call mpv.
 struct Mpv {
@@ -202,7 +210,7 @@ impl Mpv {
             // video-rotate=no: the software renderer crops with the rotated rectangle but scales the
             // unrotated frame (libmpv_sw.c, mpv 0.41): a phone's portrait video (rotation 90 in
             // the file) aborted on an assertion. The rotation is applied by us: see `rotation`.
-            for (k, v) in [("vo", "libmpv"), ("terminal", "no"), ("video-rotate", "no")].iter().chain(options) {
+            for (k, v) in [("vo", "libmpv"), ("terminal", "no"), ("video-rotate", "no")].iter().chain(UNTRUSTED).chain(options) {
                 (api.set_option_string)(handle, cstr(k)?.as_ptr(), cstr(v)?.as_ptr());
             }
             if (api.initialize)(handle) < 0 {
@@ -419,9 +427,10 @@ pub fn still(input: Input, side: u32) -> Result<RgbaImage, String> {
     let s = signal.clone();
     // One decoding thread: stills are made many at a time, one per core. A small read buffer:
     // opening a fragmented MP4 (dashcam) reads every fragment header, each with a whole buffer
-    // (26 MB read with the default 128k, 8.7 MB with 4k, same frame).
+    // (26 MB read with the default 128k, 8.7 MB with 4k, same frame). autoload-files=no: the
+    // folder is not listed for subtitles, audio and covers beside the video.
     let start = if side == 0 { "0%" } else { "10%" };
-    let options = [("pause", "yes"), ("start", start), ("aid", "no"), ("sid", "no"), ("hwdec", "no"), ("vd-lavc-threads", "1"), ("stream-buffer-size", "4k")];
+    let options = [("pause", "yes"), ("start", start), ("aid", "no"), ("sid", "no"), ("hwdec", "no"), ("vd-lavc-threads", "1"), ("stream-buffer-size", "4k"), ("autoload-files", "no")];
     let mut mpv = Mpv::new(&options, move || s.raise())?;
     mpv.load(input)?;
     let deadline = Instant::now() + Duration::from_secs(20);
@@ -486,7 +495,8 @@ pub const TAGS: &[&str] = &[
 /// The tags and tracks of a video; no frame is decoded.
 pub fn info(input: Input) -> Result<Info, String> {
     // Silent, not without audio: an audio file with "aid=no" has nothing to open (2026-10-30).
-    let options = [("pause", "yes"), ("ao", "null"), ("sid", "no"), ("stream-buffer-size", "4k")];
+    // autoload-files=no: as in `still`.
+    let options = [("pause", "yes"), ("ao", "null"), ("sid", "no"), ("stream-buffer-size", "4k"), ("autoload-files", "no")];
     let mut mpv = Mpv::new(&options, || {})?;
     mpv.load(input)?;
     let deadline = Instant::now() + Duration::from_secs(20);
@@ -945,6 +955,85 @@ mod tests {
 
 #[cfg(test)]
 mod info_tests {
+    use std::sync::Arc;
+    use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+    use std::time::Duration;
+
+    /// Audit 4.6: a file named as a video whose content points at a web address: an M3U playlist
+    /// and an mpv EDL (both read by mpv itself; FFmpeg does not take HLS from a ".mp4" name).
+    /// Making its thumbnail, reading what it says about itself, or playing it must not call that
+    /// address. Skipped without libmpv (the CI, Linux and Windows).
+    #[test]
+    fn audit_4_6_playlist_reference() {
+        if !super::available() {
+            println!("skipped: no libmpv");
+            return;
+        }
+        let server = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = server.local_addr().unwrap().port();
+        server.set_nonblocking(true).unwrap();
+        let (calls, stop) = (Arc::new(AtomicUsize::new(0)), Arc::new(AtomicBool::new(false)));
+        let (c, s) = (calls.clone(), stop.clone());
+        // Every call is counted and closed at once: mpv does not wait for an answer.
+        let listener = std::thread::spawn(move || {
+            while !s.load(Ordering::Relaxed) {
+                let Ok((mut socket, _)) = server.accept() else {
+                    std::thread::sleep(Duration::from_millis(20));
+                    continue;
+                };
+                use std::io::Read;
+                let mut request = [0u8; 200];
+                socket.set_nonblocking(false).unwrap();
+                socket.set_read_timeout(Some(Duration::from_secs(1))).unwrap();
+                let n = socket.read(&mut request).unwrap_or(0);
+                println!("request: {:?}", String::from_utf8_lossy(&request[..n]));
+                c.fetch_add(1, Ordering::Relaxed);
+            }
+        });
+        // A call, if any, comes while the file opens; a moment more for the last one to arrive.
+        let new_calls = |wait: Duration| {
+            std::thread::sleep(wait);
+            calls.swap(0, Ordering::Relaxed)
+        };
+        let dir = std::env::temp_dir().join(format!("eyecansee-audit-4-6-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let url = format!("http://127.0.0.1:{port}/clip.mp4");
+        let files = [
+            ("holiday.mp4", format!("#EXTM3U\n{url}\n")),
+            ("trip.mp4", format!("# mpv EDL v0\n{url}\n")),
+        ]
+        .map(|(name, text)| {
+            let file = dir.join(name);
+            std::fs::write(&file, text).unwrap();
+            file
+        });
+        // The thumbnail and the facts of the file, five times each (mpv is closed as soon as the
+        // playlist ends: whether the address is reached could depend on who is faster).
+        let (mut by_still, mut by_info) = (0, 0);
+        for file in &files {
+            for _ in 0..5 {
+                let still = super::still(super::Input::File(file.clone()), 256).map(|i| i.dimensions());
+                println!("still: {still:?}");
+            }
+            by_still += new_calls(Duration::from_millis(300));
+            for _ in 0..5 {
+                let info = super::info(super::Input::File(file.clone())).map(|i| i.duration);
+                println!("info: {info:?}");
+            }
+            by_info += new_calls(Duration::from_millis(300));
+        }
+        // The viewer: the files opened as videos to play.
+        let players: Vec<_> = files.iter().map(|f| super::Player::open(super::Input::File(f.clone()), 0, true, || {})).collect();
+        let by_player = new_calls(Duration::from_secs(2));
+        println!("players open: {:?}", players.iter().map(Result::is_ok).collect::<Vec<_>>());
+        drop(players);
+        stop.store(true, Ordering::Relaxed);
+        listener.join().unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        println!("address called: {by_still} times by the thumbnail, {by_info} by the facts, {by_player} by the player");
+        assert_eq!((by_still, by_info, by_player), (0, 0, 0));
+    }
+
     /// `EYECANSEE_VIDEO=<file> cargo test info_tags_live -- --ignored --nocapture`: the tags libmpv reports.
     #[test]
     #[ignore]
