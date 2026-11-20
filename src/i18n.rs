@@ -153,15 +153,18 @@ mod tests {
     #[test]
     fn lines_alike() {
         let (en, it) = (I18n::new("en"), I18n::new("it"));
-        let args = [("n", "2"), ("detail", "D"), ("name", "N"), ("known", "yes"), ("how", "trash"), ("what", "images")];
         let mut different = Vec::new();
         for id in ids(LANGS[0].1) {
-            let (a, b) = (en.t_args(&id, &args), it.t_args(&id, &args));
-            for line in a.lines().chain(b.lines()) {
-                assert_eq!(line, line.trim(), "{id}: a line with spaces around it");
-            }
-            if a.lines().count() != b.lines().count() {
-                different.push(id);
+            // Each variant of the messages that choose one.
+            for (n, known, how, what) in [("2", "yes", "trash", "images"), ("1", "no", "permanent", "videos"), ("0", "no", "trash", "mixed")] {
+                let args = [("n", n), ("detail", "D"), ("name", "N"), ("known", known), ("how", how), ("what", what)];
+                let (a, b) = (en.t_args(&id, &args), it.t_args(&id, &args));
+                for line in a.lines().chain(b.lines()) {
+                    assert_eq!(line, line.trim(), "{id}: a line with spaces around it");
+                }
+                if a.lines().count() != b.lines().count() {
+                    different.push(format!("{id} {n} {known} {how} {what}"));
+                }
             }
         }
         assert!(different.is_empty(), "not the same lines in English and Italian: {different:?}");

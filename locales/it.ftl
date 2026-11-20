@@ -1163,7 +1163,8 @@ batch-skipped = { $n ->
 }
 batch-none = Nessuna di queste **{ $n } immagini** si può risalvare: il loro formato non si può scrivere (HEIC, RAW…).
     Aprile una alla volta e usa **Salva come…**.
-batch-save-as-hint = Con **Salva come…** la salvi già ruotata in un file nuovo, nel formato che scegli. L'originale resta com'è.
+batch-save-as-hint = Con **Salva come…** la salvi già ruotata in un file nuovo, nel formato che scegli.
+    L'originale resta com'è.
 status-saving-n = Salvataggio in corso: { $n }…
 save-lossy = Questa immagine viene **ricodificata** e può perdere un po' di qualità.
     Un JPEG viene ruotato senza perdita solo quando i lati sono multipli di 16 pixel; i WebP con perdita, gli AVIF e i GIF vengono sempre ricodificati.

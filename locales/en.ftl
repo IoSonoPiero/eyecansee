@@ -1164,7 +1164,8 @@ batch-skipped = { $n ->
 }
 batch-none = None of these **{ $n } images** can be saved back: their format cannot be written (HEIC, RAW…).
     Open them one at a time and use **Save as…**.
-batch-save-as-hint = **Save as…** saves it already rotated to a new file, in the format you choose. The original stays as it is.
+batch-save-as-hint = **Save as…** saves it already rotated to a new file, in the format you choose.
+    The original stays as it is.
 status-saving-n = Saving: { $n }…
 save-lossy = This image is **encoded again** and may lose a little quality.
     A JPEG is rotated without loss only when its sides are multiples of 16 pixels; lossy WebP, AVIF and GIF are always encoded again.
