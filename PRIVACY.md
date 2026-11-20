@@ -1,6 +1,6 @@
 # Privacy policy
 
-The EyeCanSee app does not collect, store or send any personal data. It has no accounts, no analytics, no telemetry and no advertising.
+The EyeCanSee app collects no personal data and sends none to the developer. It connects only to the services listed below, which see what any connection carries, such as your IP address. What it keeps (settings, saved servers, thumbnails) stays on your computer. It has no accounts, no analytics, no telemetry and no advertising.
 
 ## What it connects to
 
@@ -19,9 +19,11 @@ Settings, saved servers, the thumbnail cache and downloaded components, in the a
 
 ## This website
 
-The website (eyecansee.montinaro.info) counts its visits with [Umami](https://umami.is) 3.4.1, running on a server of the developer, to know how many people see the site and which pages they come from. For each page opened it records the time, the page's address and title, the address of the page the visitor came from, the browser, the operating system, the kind of device (desktop, laptop, tablet or phone), the screen size, the browser's language, and the country, region and city found from the IP address. Umami does not store the IP address, sets no cookies and writes nothing on the visitor's device; the counts are not shared with anyone. The counts are kept only as long as they are useful for these statistics, and are deleted when they no longer are.
+The website (eyecansee.montinaro.info) counts its visits with [Umami](https://umami.is) 3.4.1, running on a server of the developer, to know how many people see the site and which pages they come from. For each page opened it records the time, the page's address and title, the address of the page the visitor came from, the browser, the operating system, the kind of device (desktop, laptop, tablet or phone), the screen size, the browser's language, and the country, region and city found from the IP address. Umami does not store the IP address, sets no cookies and writes nothing on the visitor's device; the counts are not shared with anyone. The counts are kept for 24 months and then deleted.
 
 The requests to umami.montinaro.info go through Cloudflare, which sees the IP address of each request.
+
+The website and the Flatpak repository (flatpak.montinaro.info) are served by GitHub Pages: GitHub receives the IP address of whoever opens them or installs and updates the Flatpak, under [its own privacy statement](https://docs.github.com/en/site-policy/privacy-policies/github-general-privacy-statement). The Fedora package comes from Fedora COPR, under [Fedora's](https://docs.fedoraproject.org/en-US/legal/privacy/).
 
 The app itself sends no data about you or about how you use it.
 
