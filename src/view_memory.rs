@@ -10,38 +10,53 @@ use eframe::egui;
 
 use crate::App;
 use crate::decode::MAX_SIDE;
-use crate::thumb_memory::{self, FIXED, JPEG_PROGRESSIVE, JPEG_WHOLE, times};
+use crate::source::Store;
+use crate::thumb_memory::{self, Estimate, FIXED, JPEG_PROGRESSIVE, JPEG_WHOLE, times};
 
 /// Bytes per pixel shown, besides the decoding: the picture reduced to the texture limit, or made
 /// RGBA (4), and the egui copy made from it (4), at the same time; its halves (a third) come after
 /// the first is dropped.
 const SHOWN: f64 = 8.0;
 
-/// The memory the viewer takes to open `bytes`, file included.
-pub fn estimate(bytes: &[u8], name: &str) -> u64 {
-    let file = bytes.len() as u64;
-    if bytes.starts_with(&[0xFF, 0xD8, 0xFF])
-        && let Some((decoding, shown_px)) = jpeg(bytes)
-    {
-        return file.saturating_add(decoding).saturating_add(shown(Some(shown_px))).saturating_add(FIXED);
-    }
-    let px = crate::decode::header(bytes, name).map(|h| u64::from(h.size[0]) * u64::from(h.size[1]));
-    thumb_memory::estimate(bytes, name).saturating_add(shown(px))
+/// What a picture is opened for: the viewer, which reads a JPEG reduced to the texture limit, or
+/// a decoding at full resolution (`decode::decode_full`: the editor, Save as, Convert, Resize).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Use {
+    View,
+    Whole,
 }
 
-/// A JPEG as `decode::decode` reads it: the memory of its decoding and the pixels it gives.
-/// Reduced while read (not below the texture limit) when it can be: the progressive ones keep the
-/// coefficients of the whole picture meanwhile; lossless and CMYK ones are decoded whole.
-fn jpeg(bytes: &[u8]) -> Option<(u64, u64)> {
+/// The memory `bytes` (the start of a file of `size` bytes, or all of it) take opened for `what`,
+/// file included: the decoding, as the thumbnail's (`thumb_memory::estimate_sized`, which decodes
+/// whole every picture but a JPEG), and the picture shown or its preview, at most a texture.
+/// What comes after the decoding (the editor's copies, the encoding of a new file) is not counted.
+pub fn estimate(bytes: &[u8], size: u64, name: &str, what: Use) -> Estimate {
+    if bytes.starts_with(&[0xFF, 0xD8, 0xFF])
+        && let Some((decoding, shown_px)) = jpeg(bytes, what)
+    {
+        return Estimate::from_header(size.saturating_add(decoding).saturating_add(shown(Some(shown_px))).saturating_add(FIXED));
+    }
+    let px = crate::decode::header(bytes, name).map(|h| u64::from(h.size[0]) * u64::from(h.size[1]));
+    thumb_memory::estimate_sized(bytes, size, name).plus(shown(px))
+}
+
+/// A JPEG as `decode::decode` reads it for the viewer, or whole: the memory of its decoding and
+/// the pixels it gives. Reduced while read (not below the texture limit) when it can be: the
+/// progressive ones keep the coefficients of the whole picture meanwhile; lossless and CMYK ones
+/// are decoded whole.
+fn jpeg(bytes: &[u8], what: Use) -> Option<(u64, u64)> {
     use turbojpeg::Colorspace;
     let h = turbojpeg::Decompressor::new().ok()?.read_header(bytes).ok()?;
     let px = (h.width as u64).saturating_mul(h.height as u64);
+    let coefficients = if h.is_progressive { times(px, JPEG_PROGRESSIVE) } else { 0 };
+    if what == Use::Whole {
+        return Some((times(px * 3, JPEG_WHOLE).saturating_add(coefficients), px));
+    }
     if h.is_lossless || matches!(h.colorspace, Colorspace::CMYK | Colorspace::YCCK) {
         return Some((times(px * 3, JPEG_WHOLE), px));
     }
     let factor = crate::decode::jpeg_factor(h.width.max(h.height), MAX_SIDE, false);
     let read = factor.scale(h.width) as u64 * factor.scale(h.height) as u64;
-    let coefficients = if h.is_progressive { times(px, JPEG_PROGRESSIVE) } else { 0 };
     Some((times(read * 3, JPEG_WHOLE).saturating_add(coefficients), read))
 }
 
@@ -51,22 +66,65 @@ fn shown(px: Option<u64>) -> u64 {
     times(px.map_or(most, |px| px.min(most)), SHOWN)
 }
 
-/// The memory `bytes` needs in the viewer, when that is over half of `ram`.
-pub fn too_large(bytes: &[u8], name: &str, ram: u64) -> Option<u64> {
-    let need = estimate(bytes, name);
-    thumb_memory::over_half(need, ram).then_some(need)
+/// How much of a file is read first, to tell from its header whether it is too large for the
+/// memory: the size of a JPEG, a HEIC, a PNG or a PSD is in it.
+pub const HEAD: u64 = 256 * 1024;
+
+/// Why `read_unless_too_large` gave no bytes.
+#[derive(Debug, PartialEq)]
+pub enum NotRead {
+    /// Too large for the memory: what it needs.
+    TooLarge(u64),
+    Failed(crate::source::Error),
 }
 
-/// Before the viewer decodes `bytes`: the error of a picture `too_large` for `ram`, unless it is
-/// opened `anyway`. Checked for the neighbours prepared in advance too: they are not decoded.
-pub fn guard(bytes: &[u8], name: &str, anyway: bool, ram: u64) -> Result<(), String> {
-    match too_large(bytes, name, ram) {
-        Some(need) if !anyway => {
-            log!("viewer: {name} not opened, {} MiB is over half the RAM", need >> 20);
-            Err(error(need))
-        }
-        _ => Ok(()),
+/// The bytes of `path` (`size` bytes, if known), unless `too_large` finds them too large for the
+/// memory: from the start of the file (`HEAD` bytes) when that is enough
+/// (`thumb_memory::Estimate::sure`), without reading the rest (Piero, 20/11/2026), else once read
+/// whole. `too_large(bytes, size)`: what they need, when too much.
+pub async fn read_unless_too_large(op: &Store, path: &str, size: Option<u64>, too_large: impl Fn(&[u8], u64) -> Option<u64>) -> Result<Vec<u8>, NotRead> {
+    // A range past the end is an error (OpenDAL's "RangeNotSatisfied"): the size first.
+    let size = match size {
+        Some(s) => s,
+        None => op.size(path).await.map_err(NotRead::Failed)?,
+    };
+    // A start that cannot be read (the file shorter now than listed): the whole file says.
+    if size > HEAD
+        && let Ok(head) = op.read_range(path, 0, HEAD).await
+        && let Some(need) = too_large(&head, size)
+    {
+        log!("{path}: {} MiB, over half the RAM, told by its first {} bytes: not read further", need >> 20, head.len());
+        return Err(NotRead::TooLarge(need));
     }
+    let bytes = op.read(path).await.map_err(NotRead::Failed)?;
+    match too_large(&bytes, bytes.len() as u64) {
+        Some(need) => {
+            log!("{path}: {} MiB, over half the RAM, read whole", need >> 20);
+            Err(NotRead::TooLarge(need))
+        }
+        None => Ok(bytes),
+    }
+}
+
+impl NotRead {
+    /// As an error: `error` for a picture too large, `failed` of the error of a read.
+    pub fn message(self, failed: impl FnOnce(crate::source::Error) -> String) -> String {
+        match self {
+            NotRead::TooLarge(need) => error(need),
+            NotRead::Failed(e) => failed(e),
+        }
+    }
+}
+
+/// The bytes of the picture `path` (`size` bytes, if known) to open for `what`, unless it is too
+/// large for the memory and not opened `anyway`: the viewer shows a card for it, the pages ask
+/// about it. 3D models, drawings and videos are read as they are: they have limits of their own.
+pub async fn read(op: &Store, path: &str, size: Option<u64>, what: Use, anyway: bool) -> Result<Vec<u8>, NotRead> {
+    if anyway || crate::model::is_model(path) || crate::cad::is_cad(path) || crate::decode::is_played(path) {
+        return op.read(path).await.map_err(NotRead::Failed);
+    }
+    let ram = thumb_memory::ram();
+    read_unless_too_large(op, path, size, |bytes, size| estimate(bytes, size, path, what).over_half(bytes.len(), size, path, ram)).await
 }
 
 /// The error of a picture not opened because it is `too_large`, with the memory it needs: the
@@ -124,7 +182,7 @@ impl App {
         self.full.remove(&index);
         if let Some(loader) = &self.loader {
             self.pending.insert(index);
-            loader.load_full(self.generation, index, path, true);
+            loader.load_full(self.generation, index, path, None, true);
         }
     }
 }
@@ -145,47 +203,125 @@ mod tests {
         turbojpeg::Compressor::new().unwrap().compress_to_vec(pixels).unwrap()
     }
 
+    fn need(bytes: &[u8], name: &str, what: Use) -> u64 {
+        estimate(bytes, bytes.len() as u64, name, what).need
+    }
+
+    /// The memory a whole file `bytes` needs opened for `what`, when that is over half of `ram`.
+    fn too_large(bytes: &[u8], name: &str, ram: u64, what: Use) -> Option<u64> {
+        estimate(bytes, bytes.len() as u64, name, what).over_half(bytes.len(), bytes.len() as u64, name, ram)
+    }
+
+    fn png_bytes(w: u32, h: u32) -> Vec<u8> {
+        let mut out = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgb8(w, h).write_to(&mut out, image::ImageFormat::Png).unwrap();
+        out.into_inner()
+    }
+
     /// A JPEG larger than a texture is counted as read reduced (to 9000 × 6000 here, 6/8), one
-    /// within it whole; and either, besides, what is shown.
+    /// within it whole; and either, besides, what is shown. Decoded at full resolution (editor,
+    /// Save as, Convert, Resize), always whole.
     #[test]
     fn jpeg_read_reduced() {
         let big = jpeg_bytes(12000, 8000);
         let read = 9000 * 6000;
         let shown_px = read;
-        assert_eq!(estimate(&big, "a.jpg"), big.len() as u64 + times(read * 3, JPEG_WHOLE) + times(shown_px, SHOWN) + FIXED);
+        assert_eq!(need(&big, "a.jpg", Use::View), big.len() as u64 + times(read * 3, JPEG_WHOLE) + times(shown_px, SHOWN) + FIXED);
         let small = jpeg_bytes(1200, 800);
-        assert_eq!(estimate(&small, "a.jpg"), small.len() as u64 + times(960_000 * 3, JPEG_WHOLE) + times(960_000, SHOWN) + FIXED);
+        assert_eq!(need(&small, "a.jpg", Use::View), small.len() as u64 + times(960_000 * 3, JPEG_WHOLE) + times(960_000, SHOWN) + FIXED);
+        let whole = 12000 * 8000;
+        assert_eq!(need(&big, "a.jpg", Use::Whole), big.len() as u64 + times(whole * 3, JPEG_WHOLE) + times(8192 * 8192, SHOWN) + FIXED);
     }
 
-    /// Any other picture as its thumbnail, decoded whole, and what is shown, at most a texture's.
+    /// Any other picture as its thumbnail, decoded whole, and what is shown, at most a texture's;
+    /// the same at full resolution.
     #[test]
     fn others_as_their_thumbnail() {
         let mut png = std::io::Cursor::new(Vec::new());
         image::DynamicImage::new_rgb16(1000, 500).write_to(&mut png, image::ImageFormat::Png).unwrap();
         let png = png.into_inner();
-        assert_eq!(estimate(&png, "a.png"), thumb_memory::estimate(&png, "a.png") + times(500_000, SHOWN));
+        assert_eq!(need(&png, "a.png", Use::View), thumb_memory::estimate(&png, "a.png") + times(500_000, SHOWN));
+        assert_eq!(need(&png, "a.png", Use::Whole), need(&png, "a.png", Use::View));
         let unknown = vec![0u8; 1000];
-        assert_eq!(estimate(&unknown, "a.xcf"), thumb_memory::estimate(&unknown, "a.xcf") + times(8192 * 8192, SHOWN));
+        assert_eq!(need(&unknown, "a.xcf", Use::View), thumb_memory::estimate(&unknown, "a.xcf") + times(8192 * 8192, SHOWN));
     }
 
     /// Over half the RAM it is not opened at once, and the error says how much it needs.
     #[test]
     fn threshold_and_error() {
-        let png = {
-            let mut out = std::io::Cursor::new(Vec::new());
-            image::DynamicImage::new_rgb8(100, 100).write_to(&mut out, image::ImageFormat::Png).unwrap();
-            out.into_inner()
-        };
-        let need = estimate(&png, "a.png");
-        assert_eq!(too_large(&png, "a.png", 2 * need), None, "exactly half");
-        assert_eq!(too_large(&png, "a.png", 2 * need - 2), Some(need));
-        assert_eq!(too_large(&png, "a.png", 8 * GIB), None);
+        let png = png_bytes(100, 100);
+        let need = need(&png, "a.png", Use::View);
+        assert_eq!(too_large(&png, "a.png", 2 * need, Use::View), None, "exactly half");
+        assert_eq!(too_large(&png, "a.png", 2 * need - 2, Use::View), Some(need));
+        assert_eq!(too_large(&png, "a.png", 8 * GIB, Use::View), None);
         assert_eq!(need_of(&error(need)), Some(need));
         assert_eq!(need_of("cannot read"), None);
         assert_eq!(need_of(crate::thumb_memory::TOO_LARGE), None);
-        assert_eq!(guard(&png, "a.png", false, 2 * need - 2), Err(error(need)), "the shown one and the neighbours alike");
-        assert_eq!(guard(&png, "a.png", true, 2 * need - 2), Ok(()), "Open anyway");
-        assert_eq!(guard(&png, "a.png", false, 2 * need), Ok(()));
+        assert_eq!(NotRead::TooLarge(need).message(|_| String::new()), error(need));
+        assert_eq!(NotRead::Failed(("error-detail", "gone".into())).message(|(_, d)| d), "gone");
+    }
+
+    /// How many bytes `read_unless_too_large` reads of `name` in `dir`, for a computer with `ram`,
+    /// and what it gives back (the length of the bytes, or the memory needed).
+    fn bytes_read(dir: &std::path::Path, name: &str, size: Option<u64>, ram: u64) -> (u64, Result<usize, u64>) {
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        crate::source::BYTES_READ.with(|n| n.set(0));
+        let too_large = |bytes: &[u8], size| estimate(bytes, size, name, Use::View).over_half(bytes.len(), size, name, ram);
+        let r = rt.block_on(read_unless_too_large(&op, name, size, too_large));
+        let r = r.map(|b| b.len()).map_err(|e| match e {
+            NotRead::TooLarge(need) => need,
+            NotRead::Failed(e) => panic!("{e:?}"),
+        });
+        (crate::source::BYTES_READ.with(std::cell::Cell::get), r)
+    }
+
+    /// A picture too large is told from the first `HEAD` bytes when they hold its header, or when
+    /// its estimate goes by the size alone (a RAW of 230 MB, of bytes at random, as `huge.cr3`):
+    /// the rest is not read, with or without the size from the listing. A TIFF whose tags come
+    /// after the pixels is read whole first; a picture not too large is read whole, after its start.
+    #[test]
+    fn only_the_header_of_one_too_large() {
+        let dir = std::env::temp_dir().join(format!("view-memory-head-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let raw = std::fs::File::create(dir.join("huge.cr3")).unwrap();
+        raw.set_len(230 << 20).unwrap();
+        drop(raw);
+        let ram = 8 * GIB;
+        for size in [Some(230 << 20), None] {
+            let (read, r) = bytes_read(&dir, "huge.cr3", size, ram);
+            assert_eq!(read, HEAD, "{size:?}");
+            assert!(r.is_err_and(|need| need > (230 * 72) << 20), "{size:?}");
+        }
+        // A PNG of noise, larger than `HEAD` (its header in the first bytes), on a computer
+        // with less than twice what it needs.
+        let noise = image::RgbImage::from_fn(400, 400, |x, y| image::Rgb(((x * 400 + y).wrapping_mul(2654435761) >> 8).to_le_bytes()[..3].try_into().unwrap()));
+        let mut png = std::io::Cursor::new(Vec::new());
+        noise.write_to(&mut png, image::ImageFormat::Png).unwrap();
+        let png = png.into_inner();
+        assert!(png.len() as u64 > HEAD, "{}", png.len());
+        std::fs::write(dir.join("big.png"), &png).unwrap();
+        let (read, r) = bytes_read(&dir, "big.png", Some(png.len() as u64), 2 * need(&png, "a.png", Use::View) - 2);
+        assert_eq!((read, r.is_err()), (HEAD, true));
+        // The same with plenty of memory: its start, then all of it.
+        let (read, r) = bytes_read(&dir, "big.png", Some(png.len() as u64), 64 * GIB);
+        assert_eq!((read, r), (HEAD + png.len() as u64, Ok(png.len())));
+        // A TIFF of 1000 × 1000 whose tags come after its pixels: its start does not say.
+        let mut tif = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgb8(1000, 1000).write_to(&mut tif, image::ImageFormat::Tiff).unwrap();
+        let tif = tif.into_inner();
+        let offset = u32::from_le_bytes(tif[4..8].try_into().unwrap());
+        assert!(u64::from(offset) > HEAD, "the tags at {offset}");
+        std::fs::write(dir.join("a.tif"), &tif).unwrap();
+        let tiny = 2 * need(&tif, "a.tif", Use::View) - 2;
+        let (read, r) = bytes_read(&dir, "a.tif", Some(tif.len() as u64), tiny);
+        assert_eq!((read, r.is_err()), (HEAD + tif.len() as u64, true), "read whole, then refused");
+        // A small file is read once, whole.
+        std::fs::write(dir.join("small.png"), png_bytes(10, 10)).unwrap();
+        let (read, r) = bytes_read(&dir, "small.png", None, 2 * GIB);
+        assert_eq!(Ok(read as usize), r);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     #[test]

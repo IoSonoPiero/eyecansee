@@ -651,9 +651,10 @@ impl Loader {
         });
     }
 
-    /// Full-resolution image for the viewer. A picture too large for the memory is not decoded
-    /// (`view_memory`), unless `anyway`: the viewer asks first.
-    pub fn load_full(&self, generation: u64, index: usize, path: String, anyway: bool) {
+    /// Full-resolution image for the viewer. A picture too large for the memory is not read
+    /// further than its header that tells so, nor decoded (`view_memory`), unless `anyway`: the
+    /// viewer shows a card with Open anyway. `size`: the file's, from the listing.
+    pub fn load_full(&self, generation: u64, index: usize, path: String, size: Option<u64>, anyway: bool) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         let current = self.generation.clone();
         let permits = self.full.clone();
@@ -672,7 +673,7 @@ impl Loader {
             } else {
                 let (tx, ctx) = (tx.clone(), ctx.clone());
                 let (sibling, local) = (siblings(op.clone(), path.clone()), crate::occt::local(&op, &path));
-                match op.read(&path).await {
+                match crate::view_memory::read(&op, &path, size, crate::view_memory::Use::View, anyway).await {
                     Ok(bytes) => tokio::task::spawn_blocking(move || {
                         if crate::cad::is_cad(&path) {
                             let drawing = Arc::new(crate::cad::read_with(&bytes, &path, &sibling)?);
@@ -682,7 +683,6 @@ impl Loader {
                             return Ok(decode::to_color_image(image::DynamicImage::ImageRgba8(image)));
                         }
                         if !crate::model::is_model(&path) {
-                            crate::view_memory::guard(&bytes, &path, anyway, crate::thumb_memory::ram())?;
                             if crate::edit::save::animated(&bytes, &path) {
                                 let _ = tx.send(Msg::Animated(path.clone()));
                                 frames(bytes.clone(), path.clone(), tx.clone(), ctx.clone());
@@ -702,7 +702,7 @@ impl Loader {
                     })
                     .await
                     .unwrap_or_else(|e| Err(e.to_string())),
-                    Err(e) => Err(with_id(e)),
+                    Err(e) => Err(e.message(with_id)),
                 }
             };
             // Its halved copies made here, not on the window's thread (`mipmap`).

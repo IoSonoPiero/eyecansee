@@ -187,6 +187,11 @@ impl Budget {
         Budget { shared: Arc::new(Shared { ledger: Mutex::new(ledger), wake: Notify::new() }), total, ram }
     }
 
+    /// The RAM it is a quarter of.
+    pub fn ram(&self) -> u64 {
+        self.ram
+    }
+
     /// No thumbnail for a picture that needs `need`: `over_half` the RAM.
     pub fn too_large(&self, need: u64) -> bool {
         over_half(need, self.ram)
@@ -359,26 +364,88 @@ const UNKNOWN_FLOOR: u64 = 512 * MIB;
 /// The memory the thumbnail of `bytes` takes, file included, from its header. Never refused, never
 /// zero; more than the whole budget only means alone (`Budget::places`).
 pub fn estimate(bytes: &[u8], name: &str) -> u64 {
-    let file = bytes.len() as u64;
-    let picture = if bytes.starts_with(&[0xFF, 0xD8, 0xFF])
+    estimate_sized(bytes, bytes.len() as u64, name).need
+}
+
+/// An estimate, and what it went by: whether the bytes it was made from were enough (`sure`).
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct Estimate {
+    pub need: u64,
+    basis: Basis,
+}
+
+/// What an estimate went by.
+#[derive(Clone, Copy, Debug, PartialEq)]
+enum Basis {
+    /// The size of the picture, read in its header.
+    Header,
+    /// The size of the file alone, by design (a RAW other than DNG, an SVG, a format whose header
+    /// EyeCanSee never reads).
+    Size,
+    /// The size of the file, because the header was not found: it may be further on.
+    Unread,
+}
+
+impl Estimate {
+    /// Made from the first `read` bytes of a file of `size`, it is the file's own: they were the
+    /// whole file, or held its header, or it goes by the size alone. Not so for a header that may
+    /// be further on: a TIFF whose block of tags comes after the pixels, a DNG's raw image, a
+    /// HEIC or a JPEG with a long start.
+    pub fn sure(&self, read: usize, size: u64, name: &str) -> bool {
+        read as u64 >= size || self.basis != Basis::Unread || !header_may_follow(name)
+    }
+
+    /// `need`, when it is over half of `ram` (`over_half`) and `sure`.
+    pub fn over_half(&self, read: usize, size: u64, name: &str, ram: u64) -> Option<u64> {
+        (over_half(self.need, ram) && self.sure(read, size, name)).then_some(self.need)
+    }
+
+    /// `need`, from a picture's header (a JPEG's, read by its own decoder).
+    pub(crate) fn from_header(need: u64) -> Self {
+        Estimate { need, basis: Basis::Header }
+    }
+
+    pub(crate) fn plus(self, more: u64) -> Self {
+        Estimate { need: self.need.saturating_add(more), ..self }
+    }
+}
+
+/// A format whose header `decode::header` reads, so that it may be further on in the file than
+/// the bytes read: the formats of `image`, HEIC and AVIF, JPEG XL, PSD and DNG.
+fn header_may_follow(name: &str) -> bool {
+    let ext = std::path::Path::new(name).extension().and_then(|e| e.to_str()).unwrap_or_default().to_lowercase();
+    matches!(ext.as_str(), "heic" | "heif" | "hif" | "avif" | "jxl" | "psd" | "psb" | "dng") || image::ImageFormat::from_extension(&ext).is_some()
+}
+
+/// `estimate` from `bytes`, the start of a file of `file` bytes (or all of it).
+pub fn estimate_sized(bytes: &[u8], file: u64, name: &str) -> Estimate {
+    let (picture, basis) = if bytes.starts_with(&[0xFF, 0xD8, 0xFF])
         && let Some(jpeg) = jpeg(bytes)
     {
-        jpeg
-    } else if crate::decode::is_raw(name) {
+        (jpeg, Basis::Header)
+    } else {
+        picture(bytes, file, name)
+    };
+    Estimate { need: file.saturating_add(picture).saturating_add(FIXED), basis }
+}
+
+/// The memory of the decoding of a picture that is not a JPEG (decoded whole), and what it went by.
+fn picture(bytes: &[u8], file: u64, name: &str) -> (u64, Basis) {
+    if crate::decode::is_raw(name) {
         match crate::raw_meta::dng_pixels(bytes) {
-            Some(px) => times(px, DNG),
-            None => file.saturating_mul(RAW_PER_BYTE),
+            Some(px) => (times(px, DNG), Basis::Header),
+            None if header_may_follow(name) => (file.saturating_mul(RAW_PER_BYTE), Basis::Unread),
+            None => (file.saturating_mul(RAW_PER_BYTE), Basis::Size),
         }
     } else if crate::decode::is_svg(name) {
         let side = crate::decode::SVG_SIDE as u64;
-        times(side * side * 4, SVG).saturating_add(file.saturating_mul(SVG_PER_BYTE))
+        (times(side * side * 4, SVG).saturating_add(file.saturating_mul(SVG_PER_BYTE)), Basis::Size)
     } else {
         match crate::decode::header(bytes, name) {
-            Some(h) => decoded(&h, bytes),
-            None => file.saturating_mul(UNKNOWN_PER_BYTE).max(UNKNOWN_FLOOR),
+            Some(h) => (decoded(&h, bytes), Basis::Header),
+            None => (file.saturating_mul(UNKNOWN_PER_BYTE).max(UNKNOWN_FLOOR), Basis::Unread),
         }
-    };
-    file.saturating_add(picture).saturating_add(FIXED)
+    }
 }
 
 /// A JPEG: reduced while decoded, or whole (lossless, CMYK: `decode::jpeg_scaled` fails on them).
@@ -692,6 +759,36 @@ mod tests {
         assert_eq!(estimate(&raw, "a.cr3"), 1000 + 1000 * RAW_PER_BYTE + FIXED);
         assert_eq!(estimate(&raw, "a.xcf"), 1000 + UNKNOWN_FLOOR + FIXED);
         assert_eq!(estimate(&[], "a.heic"), UNKNOWN_FLOOR + FIXED);
+    }
+
+    /// From the start of a file and its size: the size counts as the file's, and the estimate is
+    /// sure when the start holds the header or the estimate goes by the size alone; not for a
+    /// header that may be further on (a TIFF, a DNG), unless the start is the whole file.
+    #[test]
+    fn sure_from_the_start() {
+        let size = 230 << 20;
+        let head = vec![0x5Au8; 1000];
+        let raw = estimate_sized(&head, size, "huge.cr3");
+        assert_eq!(raw.need, size + size * RAW_PER_BYTE + FIXED);
+        assert!(raw.sure(head.len(), size, "huge.cr3"));
+        assert_eq!(raw.over_half(head.len(), size, "huge.cr3", 8 * GIB), Some(raw.need));
+        assert_eq!(raw.over_half(head.len(), size, "huge.cr3", 64 * GIB), None);
+        let xcf = estimate_sized(&head, size, "a.xcf");
+        assert_eq!(xcf.need, size + size * UNKNOWN_PER_BYTE + FIXED);
+        assert!(xcf.sure(head.len(), size, "a.xcf"), "a rare format: by the size alone");
+        for name in ["a.tif", "a.dng", "a.heic", "a.psd", "a.jpg"] {
+            let e = estimate_sized(&head, size, name);
+            assert!(!e.sure(head.len(), size, name), "{name}");
+            assert_eq!(e.over_half(head.len(), size, name, 8 * GIB), None, "{name}");
+            assert!(e.sure(1000, 1000, name), "{name}: the whole file");
+        }
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgb8(1000, 500).write_to(&mut png, image::ImageFormat::Png).unwrap();
+        let png = png.into_inner();
+        let start = &png[..png.len().min(64)];
+        let e = estimate_sized(start, size, "a.png");
+        assert_eq!(e.need, size + times(500_000 * 3, IMAGE) + FIXED);
+        assert!(e.sure(start.len(), size, "a.png"), "its header in the start");
     }
 
     /// Peak memory of ONE thumbnail made as `thumb_queue::generate` makes it, for the factors

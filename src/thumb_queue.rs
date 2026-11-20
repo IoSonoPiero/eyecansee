@@ -13,6 +13,7 @@ use crate::loader::{Msg, THUMB_SIDE, siblings};
 use crate::source::{self, File, Store};
 use crate::thumb_memory::{self, Budget, Reservation};
 use crate::video_read::{SLOW, preview, slow_video, video_still};
+use crate::view_memory::NotRead;
 use crate::{decode, thumbcache};
 
 #[derive(Default)]
@@ -256,8 +257,8 @@ async fn generate(op: &Store, base: &str, file: File, wanted: impl Fn() -> bool)
     if crate::occt::needs_engine(&file.path) {
         return Err(crate::occt::MISSING.into());
     }
-    let bytes = op.read(&file.path).await.map_err(|(_, detail)| detail)?;
     let picture = !crate::model::is_model(&file.path) && !crate::cad::is_cad(&file.path);
+    let bytes = if picture { read_picture(op, &file, thumb_memory::budget()).await? } else { op.read(&file.path).await.map_err(|(_, detail)| detail)? };
     let (bytes, memory) = if picture { reserved(op, &file.path, bytes, thumb_memory::budget(), wanted).await? } else { (bytes, None) };
     let base = base.to_string();
     let (sibling, local) = (siblings(op.clone(), file.path.clone()), crate::occt::local(op, &file.path));
@@ -283,6 +284,18 @@ async fn generate(op: &Store, base: &str, file: File, wanted: impl Fn() -> bool)
     })
     .await
     .unwrap_or_else(|e| Err(e.to_string()))
+}
+
+/// A picture's bytes, unless it is too large for the memory (`thumb_memory::TOO_LARGE`): told
+/// from its start when that holds its header, without reading the rest (Piero, 20/11/2026).
+async fn read_picture(op: &Store, file: &File, budget: &Budget) -> Result<Vec<u8>, String> {
+    let path = &file.path;
+    let too_large = |bytes: &[u8], size| thumb_memory::estimate_sized(bytes, size, path).over_half(bytes.len(), size, path, budget.ram());
+    match crate::view_memory::read_unless_too_large(op, path, Some(file.size), too_large).await {
+        Ok(bytes) => Ok(bytes),
+        Err(NotRead::TooLarge(_)) => Err(thumb_memory::TOO_LARGE.into()),
+        Err(NotRead::Failed((_, detail))) => Err(detail),
+    }
 }
 
 /// A picture's bytes with the memory of its thumbnail reserved (`thumb_memory`), waiting while
@@ -415,6 +428,26 @@ mod tests {
             assert_eq!(reserved(&op, "a.png", b"first".to_vec(), &small, || true).await.unwrap_err(), thumb_memory::TOO_LARGE);
             assert!(small.try_reserve(100 << 20).is_some());
         });
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// The thumbnail of a RAW of 230 MB too large for the memory (bytes at random, as `huge.cr3`):
+    /// refused from the start of the file, the rest never read (Piero, 20/11/2026).
+    #[test]
+    fn too_large_told_from_the_start() {
+        let dir = std::env::temp_dir().join(format!("thumb-head-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let size = 230 << 20;
+        std::fs::File::create(dir.join("huge.cr3")).unwrap().set_len(size).unwrap();
+        let file = File { path: "huge.cr3".into(), size, modified: String::new() };
+        let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        source::BYTES_READ.with(|n| n.set(0));
+        // 2 GiB to share, out of 8 GiB of RAM: 16.6 GB needed.
+        let r = rt.block_on(read_picture(&op, &file, &Budget::new(2 << 30)));
+        assert_eq!(r.unwrap_err(), thumb_memory::TOO_LARGE);
+        assert_eq!(source::BYTES_READ.with(std::cell::Cell::get), crate::view_memory::HEAD);
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

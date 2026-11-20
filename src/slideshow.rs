@@ -198,7 +198,7 @@ impl App {
         let (Some(loader), Some(Ok(listing))) = (&self.loader, self.listings.get(&self.dir)) else { return };
         for &i in &keep {
             if !self.full.contains_key(&i) && self.pending.insert(i) {
-                loader.load_full(self.generation, i, listing.files[i].path.clone(), false);
+                loader.load_full(self.generation, i, listing.files[i].path.clone(), Some(listing.files[i].size), false);
             }
         }
         self.full.retain(|i, _| keep.contains(i));

@@ -55,6 +55,17 @@ pub use crate::trash::{android_trashed, aside_name, free_name, in_trash, is_tras
 thread_local! {
     /// Folders read by `Store::names` on this thread: a paste must not read one per file (#90).
     pub static FOLDERS_READ: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// Bytes `Store::read` and `Store::read_range` gave on this thread: a picture too large for the
+    /// memory is told from its start, not read whole (#177).
+    pub static BYTES_READ: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+}
+
+/// The bytes of a read, added to `BYTES_READ`.
+#[cfg(test)]
+fn counted(r: &Result<Vec<u8>, Error>) {
+    if let Ok(bytes) = r {
+        BYTES_READ.with(|n| n.set(n.get() + bytes.len() as u64));
+    }
 }
 
 /// The operations the app needs, the same for all sources.
@@ -231,6 +242,8 @@ impl Store {
             Store::Sftp(server) => server.read(path).await,
             Store::Ftp(server) => server.read(path).await,
         };
+        #[cfg(test)]
+        counted(&r);
         self.noticed(r, path)
     }
 
@@ -245,6 +258,8 @@ impl Store {
             Store::Sftp(server) => server.read_range(path, offset, len).await,
             Store::Ftp(server) => server.read_range(path, offset, len).await,
         };
+        #[cfg(test)]
+        counted(&r);
         self.noticed(r, path)
     }
 
