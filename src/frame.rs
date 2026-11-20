@@ -270,6 +270,7 @@ impl App {
         self.batch_summary_window(ctx);
         self.kept_window(ctx);
         self.kiod_window(ctx);
+        self.big_picture_window(ctx);
         self.host_window(ctx);
         self.address_window(ctx);
         self.server_manager_window(ctx);

@@ -22,6 +22,10 @@ With several files selected, Enter opens the first of them, and the viewer moves
 
 The same items are in the **View** menu (Next, Previous, First, Last). After the last picture the viewer stops; in [Options](options.md) you can make it start again from the first. The pictures around the one shown are read in advance, so moving between them is quick even on a phone or a server.
 
+## Very large pictures
+
+A picture larger than 8192 pixels on its long side is shown reduced to 8192 pixels; a JPEG is read already reduced, so it takes less memory. A picture that would need more than half of the computer's memory to open (for example a HEIC, a 16-bit TIFF, a Photoshop file or a JPEG XL of hundreds of megapixels, on a computer with 8 GB) is not opened at once: a window says how much memory it needs and offers **Open anyway**. Opened anyway, the computer may become very slow, or the system may close EyeCanSee. **Cancel** is the default (also with **Enter** and **Esc**): the picture stays closed and the viewer goes back to the picture shown before, or to the grid; it asks again when you go to that picture again. A picture that large is never read in advance as a neighbour, and the slideshow does not show it. In the grid it has no thumbnail (see [The thumbnail grid](grid.md)).
+
 ## Animations and pages
 
 Animated GIF, WebP and PNG (APNG) pictures play in the viewer, over and over. **Space** pauses and plays them again, as does the button in the small bar at the bottom of the picture, which also shows the frame (for example Frame 3 / 20, also in the status bar). The animation stops when you move to another picture and starts again from the first frame when you come back. A very long or very large animation (more than 256 MB once decoded) is not played: the viewer shows its first frame and says why.

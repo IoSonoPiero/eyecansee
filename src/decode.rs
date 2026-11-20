@@ -7,7 +7,7 @@ use std::sync::{Arc, OnceLock};
 
 use eframe::egui::ColorImage;
 use image::metadata::Orientation;
-use image::{DynamicImage, ImageDecoder, ImageReader, RgbaImage, imageops::FilterType};
+use image::{DynamicImage, ImageDecoder, ImageReader, RgbaImage};
 use rawler::decoders::RawDecodeParams;
 use rawler::imgop::develop::RawDevelop;
 use rawler::rawsource::RawSource;
@@ -16,7 +16,7 @@ use resvg::{tiny_skia, usvg};
 type Result<T> = std::result::Result<T, Box<dyn Error + Send + Sync>>;
 
 // ponytail: 8192 is supported by any recent GPU; viewing larger photos at 100% needs tiling
-const MAX_SIDE: u32 = 8192;
+pub(crate) const MAX_SIDE: u32 = 8192;
 
 /// Every vector image (SVG) is rasterised at this long side, whatever size it declares: a 24 px
 /// icon and a 10000 px poster alike (the file's own size is in `svg_header`).
@@ -204,20 +204,25 @@ fn run(kind: Kind, bytes: &[u8], name: &str) -> Result<DynamicImage> {
 /// JPEGs go through libjpeg-turbo, ~18% faster than `image` (measured on UHD photos); the formats
 /// it does not decode to RGB (CMYK) fall back to `image`. Its `source_size` is the picture's own
 /// size, upright: before it was reduced, and for an SVG the size it declares (`own_size`).
+/// A JPEG larger than that is read already reduced, down to the texture limit and not below it
+/// (#177): the viewer showed it at that size anyway, and whole a JPEG of 512 megapixels took 1.5
+/// GB; a lossless one, which cannot be reduced while read, is read whole.
 pub fn decode(bytes: &[u8], name: &str) -> std::result::Result<ColorImage, String> {
-    let turbo = bytes.starts_with(&[0xFF, 0xD8, 0xFF]).then(|| jpeg_scaled(bytes, u32::MAX).ok()).flatten();
-    let mut img = match turbo {
-        Some(img) => img,
-        None => decode_any(bytes, name)?,
+    let turbo = bytes.starts_with(&[0xFF, 0xD8, 0xFF]).then(|| jpeg_scaled_sized(bytes, MAX_SIDE, false).or_else(|_| jpeg_scaled_sized(bytes, u32::MAX, false)).ok()).flatten();
+    let (img, own) = match turbo {
+        Some((img, own)) => (img, Some(own)),
+        None => (decode_any(bytes, name)?, None),
     };
     let svg = (kind(name) == Some(Kind::Svg)).then(|| svg_header(bytes)).flatten();
-    let [w, h] = svg.map_or([img.width(), img.height()], |h| h.size);
-    if img.width().max(img.height()) > MAX_SIDE {
-        img = img.resize(MAX_SIDE, MAX_SIDE, FilterType::Triangle);
-    }
-    let mut image = to_color_image(img);
+    let [w, h] = svg.map(|h| h.size).or(own).unwrap_or([img.width(), img.height()]);
+    let mut image = to_color_image(fit_texture(img));
     image.source_size = eframe::egui::vec2(w as f32, h as f32);
     Ok(image)
+}
+
+/// `img`, reduced when it is larger than a texture, without a copy of it in floats (`reduce`).
+fn fit_texture(img: DynamicImage) -> DynamicImage {
+    if img.width().max(img.height()) > MAX_SIDE { DynamicImage::ImageRgba8(crate::reduce::fit(&img, MAX_SIDE)) } else { img }
 }
 
 /// The own size of a picture `decode` made, when it is not the size it is shown at (a picture
@@ -259,11 +264,7 @@ pub fn thumbnail_sized(bytes: &[u8], name: &str, side: u32) -> std::result::Resu
 
 /// For showing an image already decoded: scaled down only beyond the texture limit, as `decode`.
 pub fn preview(img: &DynamicImage) -> ColorImage {
-    if img.width().max(img.height()) > MAX_SIDE {
-        to_color_image(img.resize(MAX_SIDE, MAX_SIDE, FilterType::Triangle))
-    } else {
-        to_color_image(img.clone())
-    }
+    if img.width().max(img.height()) > MAX_SIDE { to_color_image(DynamicImage::ImageRgba8(crate::reduce::fit(img, MAX_SIDE))) } else { to_color_image(img.clone()) }
 }
 
 /// Whole image, at full size and upright: for saving in another format.
@@ -337,18 +338,18 @@ fn with_image(bytes: &[u8], name: &str) -> Result<DynamicImage> {
 /// JPEG decoded with libjpeg-turbo at the smallest scale (from 1/8 up) whose long side is
 /// still ≥ `side`. CMYK and the like fail and fall back to normal decoding.
 fn jpeg_scaled(bytes: &[u8], side: u32) -> Result<DynamicImage> {
+    jpeg_scaled_sized(bytes, side, true).map(|(img, _)| img)
+}
+
+/// `jpeg_scaled`, with the picture's own size, upright. Not `enlarge`d: at most its own size.
+fn jpeg_scaled_sized(bytes: &[u8], side: u32, enlarge: bool) -> Result<(DynamicImage, [u32; 2])> {
     let mut dec = turbojpeg::Decompressor::new()?;
     // Defence against progressive JPEGs crafted to stall the decoder (files from FTP, phones, cloud).
     dec.set_scan_limit(500)?;
     let header = dec.read_header(bytes)?;
     // The declared size, also when decoded smaller: libjpeg-turbo still reads every block.
     crate::pixel_limit::check(header.width as u64, header.height as u64)?;
-    let mut factors = turbojpeg::Decompressor::supported_scaling_factors();
-    factors.sort_by_key(|f| f.num() * 1000 / f.denom());
-    let factor = factors
-        .into_iter()
-        .find(|f| f.scale(header.width.max(header.height)) >= side as usize)
-        .unwrap_or(turbojpeg::ScalingFactor::ONE);
+    let factor = jpeg_factor(header.width.max(header.height), side, enlarge);
     dec.set_scaling_factor(factor)?;
     let size = header.scaled(factor);
     let mut out = turbojpeg::Image {
@@ -362,10 +363,24 @@ fn jpeg_scaled(bytes: &[u8], side: u32) -> Result<DynamicImage> {
     let rgb = image::RgbImage::from_raw(size.width as u32, size.height as u32, out.pixels).ok_or("JPEG: buffer")?;
     let mut img = DynamicImage::ImageRgb8(rgb);
     // libjpeg-turbo does not read EXIF: the orientation comes from `image`, which parses only the headers.
+    let mut own = [header.width as u32, header.height as u32];
     if let Ok(o) = image::codecs::jpeg::JpegDecoder::new(Cursor::new(bytes)).and_then(|mut d| d.orientation()) {
         img.apply_orientation(o);
+        use image::metadata::Orientation::{Rotate90, Rotate90FlipH, Rotate270, Rotate270FlipH};
+        if matches!(o, Rotate90 | Rotate90FlipH | Rotate270 | Rotate270FlipH) {
+            own.reverse();
+        }
     }
-    Ok(img)
+    Ok((img, own))
+}
+
+/// The smallest scale libjpeg-turbo reads a JPEG whose long side is `long` at (from 1/8 up) for
+/// a long side still ≥ `side`; above 1 (up to 2) only when `enlarge`.
+pub(crate) fn jpeg_factor(long: usize, side: u32, enlarge: bool) -> turbojpeg::ScalingFactor {
+    let mut factors = turbojpeg::Decompressor::supported_scaling_factors();
+    factors.retain(|f| enlarge || f.num() <= f.denom());
+    factors.sort_by_key(|f| f.num() * 1000 / f.denom());
+    factors.into_iter().find(|f| f.scale(long) >= side as usize).unwrap_or(turbojpeg::ScalingFactor::ONE)
 }
 
 fn jxl(bytes: &[u8]) -> Result<DynamicImage> {
@@ -836,6 +851,42 @@ mod tests {
         assert_eq!(big.size[0], 8192);
         assert_eq!(own_size(&big), Some([8200, 4]));
         assert_eq!(own_size(&decode(&png(30, 20), "small.png").unwrap()), None);
+    }
+
+    /// A JPEG beyond the texture limit is read reduced, not below the limit (#177): the viewer
+    /// shows the same pixels as when it was read whole and reduced after, to a level or two, and
+    /// says its own size, upright when the EXIF turns it. A lossless one, which libjpeg-turbo
+    /// cannot read reduced, is read whole.
+    #[test]
+    fn viewer_jpeg_read_reduced() {
+        let (w, h) = (12000, 800);
+        let img = image::RgbImage::from_fn(w, h, |x, y| image::Rgb([(x / 47 % 256) as u8, (y % 256) as u8, if (x / 300 + y / 100) % 2 == 0 { 230 } else { 20 }]));
+        let pixels = turbojpeg::Image { pixels: img.as_raw().as_slice(), width: w as usize, pitch: w as usize * 3, height: h as usize, format: turbojpeg::PixelFormat::RGB };
+        let mut c = turbojpeg::Compressor::new().unwrap();
+        c.set_quality(95).unwrap();
+        let bytes = c.compress_to_vec(pixels).unwrap();
+        let shown = decode(&bytes, "a.jpg").unwrap();
+        let before = to_color_image(jpeg_scaled(&bytes, u32::MAX).unwrap().resize(MAX_SIDE, MAX_SIDE, image::imageops::FilterType::Triangle));
+        assert_eq!(shown.size, before.size);
+        assert_eq!(own_size(&shown), Some([w, h]));
+        let diff: Vec<u8> = shown.pixels.iter().zip(&before.pixels).flat_map(|(a, b)| [a.r().abs_diff(b.r()), a.g().abs_diff(b.g()), a.b().abs_diff(b.b())]).collect();
+        let mean = diff.iter().map(|&d| f64::from(d)).sum::<f64>() / diff.len() as f64;
+        assert!(mean < 2.0, "mean difference {mean}");
+        // EXIF orientation 6 (turned 90°), in an APP1 segment after SOI.
+        let mut app1 = vec![0xFF, 0xE1, 0, 34];
+        app1.extend(b"Exif\0\0II*\0");
+        app1.extend(8u32.to_le_bytes());
+        app1.extend(1u16.to_le_bytes());
+        app1.extend([0x12, 0x01, 3, 0, 1, 0, 0, 0, 6, 0, 0, 0]);
+        app1.extend(0u32.to_le_bytes());
+        let turned = [&bytes[..2], &app1, &bytes[2..]].concat();
+        let shown = decode(&turned, "a.jpg").unwrap();
+        assert_eq!(shown.size, [before.size[1], before.size[0]]);
+        assert_eq!(own_size(&shown), Some([h, w]));
+        let o = crate::encode::Options { format: crate::encode::Format::Jpeg, jpeg_lossless: true, ..Default::default() };
+        let lossless = crate::encode::Original::with_meta(DynamicImage::ImageRgb8(image::RgbImage::new(8200, 4)), &[]).encode(&o).unwrap();
+        let shown = decode(&lossless, "a.jpg").unwrap();
+        assert_eq!((shown.size, own_size(&shown)), ([8192, 4], Some([8200, 4])));
     }
 
     /// What the guide's known limits say: of an animation and of a TIFF with more pages the

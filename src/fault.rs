@@ -152,6 +152,7 @@ impl I18n {
     pub(crate) fn load_error(&self, e: &str) -> String {
         match e.split_once('\u{1}') {
             _ if e == crate::occt::MISSING => self.t("cad-engine-missing"),
+            _ if crate::view_memory::need_of(e).is_some() => self.t("view-too-large-note"),
             Some((id, detail)) => self.error(id, detail),
             None => e.to_string(),
         }

@@ -319,16 +319,16 @@ pub fn wait_for(bytes: &[u8], name: &str) -> Result<Option<Reservation>, &'stati
 
 /// Besides the pixels, every thumbnail: decoder, its threads, the small copies (24-50 MB measured
 /// for pictures under 2 megapixels, part of which is the process's own, once only).
-const FIXED: u64 = 32 * MIB;
+pub(crate) const FIXED: u64 = 32 * MIB;
 
 /// A JPEG decoded already reduced (`decode::jpeg_scaled`), per pixel of the whole picture:
 /// 0.29-0.39 measured from 96 megapixels up, at most 1.9 at 24 (with `FIXED`, 0.6 covers them).
 const JPEG_SCALED: f64 = 0.6;
 /// A progressive JPEG reduced the same: libjpeg-turbo keeps the coefficients of the whole picture
 /// (6.0 a pixel measured, 4:4:4).
-const JPEG_PROGRESSIVE: f64 = 7.0;
+pub(crate) const JPEG_PROGRESSIVE: f64 = 7.0;
 /// A JPEG decoded whole (lossless, CMYK), RGB: 1.2 and 1.7 times the picture.
-const JPEG_WHOLE: f64 = 2.0;
+pub(crate) const JPEG_WHOLE: f64 = 2.0;
 /// HEIC and AVIF, always decoded to RGBA at 8 bits (4 bytes): 2.3-2.8 times.
 const HEIF: f64 = 3.25;
 /// A PSD at 8 bits, RGBA (4 bytes): 3.0-3.3 times; every layer is decoded too, 4 bytes a pixel.
@@ -418,7 +418,7 @@ fn decoded(h: &crate::decode::Header, bytes: &[u8]) -> u64 {
     }
 }
 
-fn times(bytes: u64, factor: f64) -> u64 {
+pub(crate) fn times(bytes: u64, factor: f64) -> u64 {
     (bytes as f64 * factor).min(u64::MAX as f64) as u64
 }
 

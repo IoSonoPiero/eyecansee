@@ -69,6 +69,13 @@ error-trash-failed = Non è stato possibile spostare l'originale nel cestino: l'
 error-not-found = Non trovato: { $detail }
 error-bad-name = Il nome di "{ $detail }" non si può leggere (non è UTF-8 valido): rinominalo nel gestore dei file per aprirlo.
 error-image-too-large = L'immagine è troppo grande: { $detail } pixel, mentre EyeCanSee apre immagini fino a 512 megapixel.
+view-too-large-title = Immagine troppo grande per la memoria
+view-too-large-ask =
+    { $file } ha bisogno di circa { $need } di memoria, più di metà dei { $ram } di questo computer.
+
+    Se la apri comunque, il computer può rallentare molto o EyeCanSee può chiudersi.
+view-open-anyway = Apri comunque
+view-too-large-note = Ha bisogno di più di metà della memoria di questo computer.
 error-device-busy =
     EyeCanSee non riesce ad aprire il dispositivo: lo sta usando un altro programma.
     Chiudi il file manager e gli altri programmi che lo usano, poi premi F5.

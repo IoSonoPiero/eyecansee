@@ -70,6 +70,13 @@ error-trash-failed = The original could not be moved to the trash: the original 
 error-not-found = Not found: { $detail }
 error-bad-name = The name of "{ $detail }" cannot be read (it is not valid UTF-8): rename it in the file manager to open it.
 error-image-too-large = The picture is too large: { $detail } pixels, while EyeCanSee opens pictures of up to 512 megapixels.
+view-too-large-title = Picture too large for the memory
+view-too-large-ask =
+    { $file } needs about { $need } of memory, more than half of the { $ram } this computer has.
+
+    If you open it anyway, the computer may become very slow or EyeCanSee may close.
+view-open-anyway = Open anyway
+view-too-large-note = It needs more than half of the memory of this computer.
 error-device-busy =
     EyeCanSee cannot open the device: another program is using it.
     Close the file manager and the other programs using it, then press F5.

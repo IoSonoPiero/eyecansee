@@ -651,8 +651,9 @@ impl Loader {
         });
     }
 
-    /// Full-resolution image for the viewer.
-    pub fn load_full(&self, generation: u64, index: usize, path: String) {
+    /// Full-resolution image for the viewer. A picture too large for the memory is not decoded
+    /// (`view_memory`), unless `anyway`: the viewer asks first.
+    pub fn load_full(&self, generation: u64, index: usize, path: String, anyway: bool) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         let current = self.generation.clone();
         let permits = self.full.clone();
@@ -681,6 +682,7 @@ impl Loader {
                             return Ok(decode::to_color_image(image::DynamicImage::ImageRgba8(image)));
                         }
                         if !crate::model::is_model(&path) {
+                            crate::view_memory::guard(&bytes, &path, anyway, crate::thumb_memory::ram())?;
                             if crate::edit::save::animated(&bytes, &path) {
                                 let _ = tx.send(Msg::Animated(path.clone()));
                                 frames(bytes.clone(), path.clone(), tx.clone(), ctx.clone());

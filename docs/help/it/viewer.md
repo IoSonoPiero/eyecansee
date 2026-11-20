@@ -22,6 +22,10 @@ Con più file selezionati, Invio apre il primo, e il visore si muove solo tra qu
 
 Le stesse voci sono nel menù **Visualizza** (Avanti, Indietro, Primo, Ultimo). Dopo l'ultima foto il visore si ferma; nelle [Opzioni](options.md) puoi farlo ricominciare dalla prima. Le foto vicine a quella mostrata vengono lette in anticipo, così si passa dall'una all'altra in fretta anche su un telefono o su un server.
 
+## Immagini molto grandi
+
+Un'immagine più grande di 8192 pixel sul lato lungo viene mostrata ridotta a 8192 pixel; un JPEG viene letto già ridotto, così occupa meno memoria. Un'immagine che per aprirsi chiederebbe più di metà della memoria del computer (per esempio un HEIC, un TIFF a 16 bit, un file di Photoshop o un JPEG XL di centinaia di megapixel, su un computer da 8 GB) non si apre subito: una finestra dice quanta memoria le serve e propone **Apri comunque**. Se la apri comunque, il computer può rallentare molto, oppure il sistema può chiudere EyeCanSee. **Annulla** è la scelta predefinita (anche con **Invio** ed **Esc**): l'immagine resta chiusa e il visore torna all'immagine di prima, o alla griglia; lo chiede di nuovo quando torni su quell'immagine. Un'immagine così grande non viene mai letta in anticipo come vicina, e la presentazione non la mostra. Nella griglia non ha la miniatura (vedi [La griglia delle miniature](grid.md)).
+
 ## Animazioni e pagine
 
 Le immagini animate GIF, WebP e PNG (APNG) si muovono nel visore, ripetendosi. **Spazio** le mette in pausa e le fa ripartire, come il pulsante nella piccola barra in fondo all'immagine, che mostra anche il fotogramma (per esempio Fotogramma 3 / 20, anche nella barra di stato). L'animazione si ferma quando passi a un'altra immagine e riparte dal primo fotogramma quando torni. Un'animazione molto lunga o molto grande (più di 256 MB una volta decodificata) non viene riprodotta: il visore mostra il primo fotogramma e dice perché.

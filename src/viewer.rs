@@ -231,7 +231,7 @@ impl App {
                 continue;
             }
             if !self.full.contains_key(&i) && self.pending.insert(i) {
-                loader.load_full(self.generation, i, listing.files[i].path.clone());
+                loader.load_full(self.generation, i, listing.files[i].path.clone(), false);
             }
         }
         let keep = near(AROUND + 1);
@@ -286,6 +286,8 @@ impl App {
         ui.centered_and_justified(|ui| match self.full.get(&current) {
             Some(Ok(_)) => {}
             Some(Err(_)) if self.files().get(current).is_some_and(|f| crate::occt::needs_engine(&f.path)) => self.cad_engine_card(ui),
+            // Too large for the memory: the question is asked over it (`view_memory`).
+            Some(Err(e)) if crate::view_memory::need_of(e).is_some() => {}
             Some(Err(e)) => {
                 let name = self.files().get(current).map_or("", |f| source::shown(&f.path));
                 // The viewer is always dark: the theme's red was dark and small on it (2026-11-08).
