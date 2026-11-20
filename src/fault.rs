@@ -142,6 +142,14 @@ impl I18n {
         if e == crate::occt::MISSING { self.t("cad-engine-missing") } else { e.to_string() }
     }
 
+    /// "Cannot open x": why said plainly under it when it is known, otherwise the library's text
+    /// as the detail, in brackets on its own line (`error_bar::with_detail`).
+    pub(crate) fn cannot_load(&self, file: &str, e: &str) -> String {
+        let said = self.load_error(e);
+        let text = self.t_args("cannot-load", &[("file", file), ("error", &said)]);
+        if said == e { crate::error_bar::with_detail(&text, e) } else { text }
+    }
+
     /// `error`, to go in a message window's Markdown (`save_dialogs::notice_text`).
     pub(crate) fn error_md(&self, id: &str, detail: &str) -> String {
         match recognise(detail) {

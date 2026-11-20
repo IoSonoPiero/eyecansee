@@ -6,7 +6,7 @@ use std::sync::atomic::Ordering;
 
 use eframe::egui::{self, Key};
 
-use crate::{App, PasteAsk, browser, confirm, devices, source, theme, transfer};
+use crate::{App, PasteAsk, confirm, devices, source, theme, transfer};
 use crate::human::human_time;
 use crate::navigation::shown;
 use crate::save_dialogs::{Notice, md};
@@ -473,7 +473,7 @@ pub(crate) fn name_window(ctx: &egui::Context, id: &str, (title, ok): (String, S
             out.state.store(ui.ctx(), out.response.id);
         }
         if let Some(p) = &problem {
-            ui.label(browser::error_text(ui, p.as_str()));
+            crate::error_bar::inline(ui, p.as_str());
         }
         ui.add_space(8.0);
         let enter = out.response.lost_focus() && ui.input(|i| i.key_pressed(Key::Enter));

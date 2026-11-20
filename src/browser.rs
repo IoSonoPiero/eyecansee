@@ -278,10 +278,6 @@ pub(crate) fn all_off(items: &[MenuItem]) -> Option<String> {
     acts.all(|a| matches!(a, Act::Off(_))).then_some(why)
 }
 
-pub(crate) fn error_text(ui: &Ui, text: impl Into<String>) -> egui::RichText {
-    egui::RichText::new(text).color(ui.visuals().error_fg_color)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

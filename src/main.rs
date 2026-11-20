@@ -410,6 +410,9 @@ struct App {
     thumb_size: f32,
     address: String,
     error: Option<String>,
+    /// The folder's or the viewer's error closed with the bar's ✕ (`folder_error`,
+    /// `viewer_error`): it stays closed while the same text comes back.
+    lasting_closed: Option<String>,
     /// Images changed on a phone or server whose saving failed, kept on the computer (`kept.rs`).
     kept: Vec<kept::Kept>,
     /// New version downloaded at startup, waiting for "Install and restart".

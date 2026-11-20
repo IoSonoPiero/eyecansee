@@ -7,7 +7,7 @@ language-name = English
 counter = { $n } of { $total }
 folder-empty = This folder contains no images or subfolders
 cannot-load =
-    Cannot open { $file }:
+    Cannot open { $file }
     { $error }
 video-no-mpv = Videos need libmpv, which was not found. Install the package with libmpv: mpv-libs on Fedora, libmpv2 on Debian, Ubuntu and openSUSE (libmpv1 on Ubuntu 22.04), mpv on Arch.
 video-component-title = Video engine

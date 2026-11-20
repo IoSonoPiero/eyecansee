@@ -45,9 +45,16 @@ pub(crate) fn bar_parts(text: &str) -> BarParts<'_> {
     BarParts { lead, rest, lines: others.to_vec(), detail: detail.to_vec() }
 }
 
-/// The text's size and line height, and the detail's.
-const TEXT: (f32, f32) = (15.0, 20.0);
-const DETAIL: (f32, f32) = (14.0, 19.0);
+/// The text's size and line height, the detail's, and the space above the text.
+#[derive(Clone, Copy)]
+struct Look {
+    text: (f32, f32),
+    detail: (f32, f32),
+    top: f32,
+}
+
+/// The bar's: the text level with the 28-point triangle.
+const BAR: Look = Look { text: (15.0, 20.0), detail: (14.0, 19.0), top: 3.0 };
 
 impl App {
     /// The last error, at the bottom of the window with a ✕ to close it. Over the pages that
@@ -57,7 +64,13 @@ impl App {
     /// It stays at the bottom, where the status bar is: at the top it would push the toolbar and
     /// the address bar down every time an error comes and goes.
     pub(crate) fn error_bar(&mut self, ui: &mut egui::Ui) {
-        let Some(e) = self.error.clone() else { return };
+        // What the folder or the viewer shows instead of pictures: in the bar while it lasts.
+        let lasting = self.folder_error().or_else(|| self.viewer_error()).filter(|e| !e.is_empty());
+        if lasting.is_none() {
+            self.lasting_closed = None;
+        }
+        let lasting = lasting.filter(|e| self.lasting_closed.as_ref() != Some(e));
+        let Some(e) = self.error.clone().or(lasting) else { return };
         let c = theme::error_bar(ui.visuals());
         let frame = egui::Frame::new().fill(c.fill).inner_margin(egui::Margin { left: 20, right: 12, top: 10, bottom: 10 });
         let close = self.i18n.t("notice-close");
@@ -70,7 +83,7 @@ impl App {
                 let width = ui.available_width() - 44.0;
                 ui.vertical(|ui| {
                     ui.set_max_width(width);
-                    bar_text(ui, &e, &c);
+                    bar_text(ui, &e, &c, BAR);
                 });
                 // At the right, level with the first line of the text (3 points under the top).
                 ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| {
@@ -81,8 +94,8 @@ impl App {
             })
             .inner
         });
-        if panel.inner {
-            self.error = None;
+        if panel.inner && self.error.take().is_none() {
+            self.lasting_closed = Some(e);
         }
         // The band at the left and the line along the top, over the panel's whole rectangle.
         let r = panel.response.rect;
@@ -90,27 +103,119 @@ impl App {
         p.rect_filled(egui::Rect::from_min_max(r.min, egui::pos2(r.min.x + 6.0, r.max.y)), 0.0, c.band);
         p.hline(r.x_range(), r.min.y + 0.5, egui::Stroke::new(1.0, c.line));
     }
+
+    /// Why the open folder shows nothing (a phone or a server that does not open, a folder that
+    /// cannot be read, a phone without storage), for the bar: the grid has only its start
+    /// (`tree_line`). It was red, on one long line, in the middle of the grid (Piero, 20/11). It
+    /// goes when the folder opens. Closed with the ✕ it stays closed while the text is the same:
+    /// a phone that is not there is tried again every 2 seconds, with the same message.
+    pub(crate) fn folder_error(&self) -> Option<String> {
+        let text = match self.listings.get(&self.dir)? {
+            Err(e) => e.clone(),
+            Ok(l) if l.dirs.is_empty() && l.files.is_empty() && self.dir.is_empty() => {
+                self.i18n.t_args("error-no-storage", &[("detail", &self.phone_root(&self.dir)?.name)])
+            }
+            Ok(_) => return None,
+        };
+        Some(text)
+    }
+
+    /// Why the viewer shows no picture: one that cannot be read, a video that does not play
+    /// (not when a card says it: the engine to download, a drawing that needs the CAD engine). In the bar as the folder's (`folder_error`); it was red in the middle.
+    pub(crate) fn viewer_error(&self) -> Option<String> {
+        let current = self.viewing?;
+        let path = &self.files().get(current)?.path;
+        if let Some(video) = self.video_error(path) {
+            return video;
+        }
+        match self.full.get(&current)? {
+            Err(e) if !crate::occt::needs_engine(path) => Some(self.i18n.cannot_load(crate::source::shown(path), e)),
+            _ => None,
+        }
+    }
+}
+
+/// `message` with `raw`, the library's own text at its end, taken out and put under it as the
+/// detail, in brackets on its own line: the bar and `inline` draw it fainter and smaller. The ":"
+/// left hanging goes. Unchanged when `raw` is not at the end, is empty or already in brackets.
+pub(crate) fn with_detail(message: &str, raw: &str) -> String {
+    let raw = raw.trim();
+    if raw.is_empty() || raw.starts_with('(') {
+        return message.to_string();
+    }
+    match message.trim_end().strip_suffix(raw).map(|head| head.trim_end().trim_end_matches(':').trim_end()) {
+        Some(head) if !head.is_empty() => format!("{head}\n({raw})"),
+        _ => message.to_string(),
+    }
+}
+
+/// A message inside a window or a page (an address refused, a picture that does not open, a
+/// choice that cannot be made): the bar's small triangle and text, without its background, where
+/// the message was red (Piero, 20/11: no red text anywhere).
+pub(crate) fn inline(ui: &mut egui::Ui, text: &str) -> egui::Response {
+    let c = theme::error_bar(ui.visuals());
+    // The bar's sizes (the detail at 14, Piero 20/11), with the smaller triangle level with the
+    // first line.
+    ui.horizontal_top(|ui| {
+        ui.vertical(|ui| {
+            ui.add_space(1.0);
+            theme::warning_icon(ui, 18.0);
+        });
+        ui.add_space(8.0);
+        ui.vertical(|ui| bar_text(ui, text, &c, Look { top: 0.0, ..BAR }));
+    })
+    .response
+}
+
+/// `inline` on the viewer's dark cards, in both themes.
+pub(crate) fn inline_on_dark(ui: &mut egui::Ui, text: &str) -> egui::Response {
+    ui.scope(|ui| {
+        theme::on_dark(ui);
+        inline(ui, text)
+    })
+    .inner
+}
+
+/// The error under a phone or a server in the tree, and in the middle of the grid: the start of
+/// the message only (`bar_parts`), on one line; the whole message is in the bar. The first line
+/// when its start is too long to be one.
+pub(crate) fn tree_line(text: &str) -> &str {
+    let parts = bar_parts(text);
+    if parts.lead.is_empty() { parts.rest } else { parts.lead }
+}
+
+/// `tree_line` in the bar's fainter colour, for a label on one line.
+pub(crate) fn short_text(ui: &egui::Ui, text: &str) -> egui::RichText {
+    egui::RichText::new(tree_line(text)).color(theme::error_bar(ui.visuals()).detail)
+}
+
+/// `short_text` in the middle of the viewer, dark in both themes: the message is in the bar.
+pub(crate) fn short_on_dark(ui: &mut egui::Ui, text: &str) {
+    ui.scope(|ui| {
+        theme::on_dark(ui);
+        ui.centered_and_justified(|ui| ui.add(egui::Label::new(short_text(ui, text).size(18.0)).truncate().selectable(false)));
+    });
 }
 
 /// The text of the bar (`bar_parts`): the first line with its start in bold, the next lines one a
 /// line, the detail fainter and smaller.
-fn bar_text(ui: &mut egui::Ui, text: &str, c: &theme::BarColours) {
+fn bar_text(ui: &mut egui::Ui, text: &str, c: &theme::BarColours, look: Look) {
     let parts = bar_parts(text);
     let format = |(size, height): (f32, f32), family: FontFamily, color| egui::TextFormat { font_id: FontId::new(size, family), color, line_height: Some(height), ..Default::default() };
     let line = |ui: &mut egui::Ui, job: LayoutJob| ui.add(egui::Label::new(job).wrap());
     let single = |text: &str, size, color| LayoutJob::single_section(text.to_string(), format(size, FontFamily::Proportional, color));
     ui.spacing_mut().item_spacing.y = 3.0;
-    ui.add_space(3.0);
+    ui.add_space(look.top);
     let mut first = LayoutJob::default();
-    first.append(parts.lead, 0.0, format(TEXT, FontFamily::Name(BOLD.into()), c.lead));
-    first.append(parts.rest, 0.0, format(TEXT, FontFamily::Proportional, c.text));
+    first.append(parts.lead, 0.0, format(look.text, FontFamily::Name(BOLD.into()), c.lead));
+    first.append(parts.rest, 0.0, format(look.text, FontFamily::Proportional, c.text));
     line(ui, first);
     for l in parts.lines {
-        line(ui, single(l, TEXT, c.text));
+        line(ui, single(l, look.text, c.text));
     }
     if !parts.detail.is_empty() {
         ui.add_space(3.0);
-        line(ui, single(&parts.detail.join("\n"), DETAIL, c.detail));
+        line(ui, single(&parts.detail.join("\n"), look.detail, c.detail));
     }
 }
 
@@ -163,6 +268,37 @@ mod tests {
         assert_eq!(bar_parts("(a): b\nc)"), parts("(a)", ": b", &["c)"], &[]));
         // A line starting with "(" before the end, with the last not ending with ")".
         assert_eq!(bar_parts("A: b.\n(c)\nd"), parts("A", ": b.", &["(c)", "d"], &[]));
+    }
+
+    /// The tree's line: the bold start, the first line when there is none, nothing for no text.
+    #[test]
+    fn tree_lines() {
+        assert_eq!(tree_line("Cannot save: the disk is full.\n(busy)"), "Cannot save");
+        assert_eq!(tree_line("The folder is empty."), "The folder is empty.");
+        let long = format!("{}: rest\nmore", "è".repeat(91));
+        assert_eq!(tree_line(&long), format!("{}: rest", "è".repeat(91)));
+        assert_eq!(tree_line(""), "");
+        let it = I18n::new("it");
+        let device = it.t_args("error-no-device", &[("detail", "USB 3-2: no MTP device")]);
+        assert_eq!(tree_line(&device), "Il dispositivo non è stato trovato");
+    }
+
+    /// The library's text at the end goes under as the detail, without the ":" left hanging.
+    #[test]
+    fn details_apart() {
+        assert_eq!(with_detail("Cannot open a.jpg\nFormat error: x", "Format error: x"), "Cannot open a.jpg\n(Format error: x)");
+        assert_eq!(with_detail("Cannot convert: timeout", "timeout"), "Cannot convert\n(timeout)");
+        assert_eq!(with_detail("Cannot convert: timeout", "other"), "Cannot convert: timeout");
+        assert_eq!(with_detail("timeout", "timeout"), "timeout");
+        assert_eq!(with_detail("Cannot convert: (busy)", "(busy)"), "Cannot convert: (busy)");
+        assert_eq!(with_detail("Cannot convert: ", ""), "Cannot convert: ");
+        let it = I18n::new("it");
+        let text = it.cannot_load("rotta.jpg", "Format error decoding Jpeg: I/O errors");
+        let p = bar_parts(&text);
+        assert_eq!((p.lead, p.detail), ("Impossibile aprire rotta.jpg", vec!["(Format error decoding Jpeg: I/O errors)"]));
+        // Said plainly: under the start, not in brackets.
+        let said = it.cannot_load("a.step", crate::occt::MISSING);
+        assert_eq!(bar_parts(&said).detail.len(), 0, "{said}");
     }
 
     /// The real messages of 0.77.0, in Italian, still on one line each (they go to a new line between

@@ -6,9 +6,9 @@ use eframe::egui::{self, Align2, Color32, FontId, Key, Label, Rect, ScrollArea, 
 use std::collections::HashSet;
 
 use crate::actions::Act;
-use crate::browser::{context_menu, error_text, focus_frame, selection_fill};
+use crate::browser::{context_menu, focus_frame, selection_fill};
 use crate::icons::{self, Icon};
-use crate::{App, Focus};
+use crate::{App, Focus, error_bar};
 use crate::source;
 
 /// Thumbnail rows loaded right after the visible ones, above and below.
@@ -191,10 +191,10 @@ impl App {
     /// out: the folder still being read, an error, or empty at the root (the message drawn instead).
     pub(crate) fn grid_counts(&self, ui: &mut Ui) -> Option<(usize, usize)> {
         let Some(Ok(listing)) = self.listings.get(&self.dir) else {
-            ui.centered_and_justified(|ui| match self.listings.get(&self.dir) {
-                // Wrapped: a long message (several lines on what to do) ran off both sides.
-                Some(Err(e)) => ui.add(egui::Label::new(error_text(ui, e.as_str()).size(16.0)).wrap()),
-                _ => ui.spinner(),
+            // The message is in the bar (`folder_error`): here only its start, faint, on one line.
+            ui.centered_and_justified(|ui| match self.folder_error() {
+                Some(e) => ui.add(egui::Label::new(error_bar::short_text(ui, &e).size(16.0)).truncate().selectable(false)),
+                None => ui.spinner(),
             });
             return None;
         };
@@ -203,13 +203,14 @@ impl App {
         // First cell "..", to go up with the mouse too; not at the root, where there is no up.
         let up = usize::from(!self.dir.is_empty());
         if n == 0 && up == 0 {
-            let text = match self.phone_root(&self.dir) {
-                Some(d) => error_text(ui, self.i18n.t_args("error-no-storage", &[("detail", &d.name)])).size(16.0),
-                None => egui::RichText::new(self.i18n.t("folder-empty")),
-            };
             // Not selectable: a selectable label filling the grid took the right click from the
             // background, so an empty drive offered no Paste.
-            ui.centered_and_justified(|ui| ui.add(egui::Label::new(text).selectable(false)));
+            // A phone without storage: as an error above.
+            let text = match self.folder_error() {
+                Some(e) => error_bar::short_text(ui, &e).size(16.0),
+                None => egui::RichText::new(self.i18n.t("folder-empty")),
+            };
+            ui.centered_and_justified(|ui| ui.add(egui::Label::new(text).truncate().selectable(false)));
             return None;
         }
         Some((ndirs, nfiles))
