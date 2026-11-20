@@ -69,6 +69,7 @@ sftp-rsa-key = **{ $host }** opened with an RSA key.
 error-trash-failed = The original could not be moved to the trash: the original is unchanged. ({ $detail })
 error-not-found = Not found: { $detail }
 error-bad-name = The name of "{ $detail }" cannot be read (it is not valid UTF-8): rename it in the file manager to open it.
+error-image-too-large = The picture is too large: { $detail } pixels, while EyeCanSee opens pictures of up to 512 megapixels.
 error-device-busy =
     EyeCanSee cannot open the device: another program is using it.
     Close the file manager and the other programs using it, then press F5.

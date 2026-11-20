@@ -174,7 +174,7 @@ fn run(kind: Kind, bytes: &[u8], name: &str) -> Result<DynamicImage> {
         // A RAW rawler cannot read (a camera missing from its list, such as the Phase One P40+):
         // ImageMagick, told the format, develops it at full size where it has LibRaw. Read by its
         // content instead, as below, it gave only the small TIFF thumbnail inside (304×220, #7).
-        Kind::Raw => raw(bytes).or_else(|e| magick(bytes, ext(name).as_deref()).map_err(|_| e)),
+        Kind::Raw => raw(bytes).or_else(|e| if too_large(&*e) { Err(e) } else { magick(bytes, ext(name).as_deref()).map_err(|_| e) }),
         Kind::Extra => extra(bytes, name),
         Kind::Magick => magick(bytes, ext(name).as_deref()),
     }
@@ -262,16 +262,22 @@ fn decode_any(bytes: &[u8], name: &str) -> std::result::Result<DynamicImage, Str
     let kind = kind(name).unwrap_or(Kind::Image);
     // Wrong extension (e.g. an iPhone HEIC saved as .jpg): look at the content, then try
     // ImageMagick. The error shown is still the one from the decoder chosen by the extension.
+    // A picture too large is not handed to the next decoder (`pixel_limit`).
     let img = run(kind, bytes, name)
         // Neither HEIF nor JPEG XL inside: `image` recognises the rest from the content (a PNG named
         // .heic failed on Windows, where there is no ImageMagick to fall back on).
         .or_else(|e| match sniff(bytes).unwrap_or(Kind::Image) {
+            _ if too_large(&*e) => Err(e),
             k if k != kind => run(k, bytes, name).map_err(|_| e),
             _ => Err(e),
         })
-        .or_else(|e| magick(bytes, None).map_err(|_| e))
+        .or_else(|e| if too_large(&*e) { Err(e) } else { magick(bytes, None).map_err(|_| e) })
         .map_err(|e| e.to_string())?;
     Ok(img)
+}
+
+fn too_large(e: &(dyn Error + Send + Sync)) -> bool {
+    crate::pixel_limit::is_too_large(&e.to_string())
 }
 
 /// Without an RGBA copy in between: on a UHD photo the copy took as long as a third of the decoding.
@@ -286,9 +292,15 @@ pub fn to_color_image(img: DynamicImage) -> ColorImage {
 /// Decodes applying the EXIF orientation, shared by `image` and `jxl-oxide`.
 fn oriented(mut decoder: impl ImageDecoder) -> Result<DynamicImage> {
     let orientation = decoder.orientation()?;
-    let mut img = DynamicImage::from_decoder(decoder)?;
+    let mut img = whole(decoder)?;
     img.apply_orientation(orientation);
     Ok(img)
+}
+
+/// The picture of a decoder, once its declared size is within the ceiling (`pixel_limit`).
+fn whole(mut decoder: impl ImageDecoder) -> Result<DynamicImage> {
+    crate::pixel_limit::checked(&mut decoder)?;
+    Ok(DynamicImage::from_decoder(decoder)?)
 }
 
 fn with_image(bytes: &[u8], name: &str) -> Result<DynamicImage> {
@@ -309,6 +321,8 @@ fn jpeg_scaled(bytes: &[u8], side: u32) -> Result<DynamicImage> {
     // Defence against progressive JPEGs crafted to stall the decoder (files from FTP, phones, cloud).
     dec.set_scan_limit(500)?;
     let header = dec.read_header(bytes)?;
+    // The declared size, also when decoded smaller: libjpeg-turbo still reads every block.
+    crate::pixel_limit::check(header.width as u64, header.height as u64)?;
     let mut factors = turbojpeg::Decompressor::supported_scaling_factors();
     factors.sort_by_key(|f| f.num() * 1000 / f.denom());
     let factor = factors
@@ -414,6 +428,7 @@ fn heif(bytes: &[u8]) -> Result<DynamicImage> {
     use libheif_rs::{ColorSpace, HeifContext, LibHeif, RgbChroma};
     let ctx = HeifContext::read_from_bytes(bytes)?;
     let handle = ctx.primary_image_handle()?;
+    crate::pixel_limit::check(handle.width().into(), handle.height().into())?;
     let image = LibHeif::new().decode(&handle, ColorSpace::Rgb(RgbChroma::Rgba), None)?;
     let plane = image.planes().interleaved.ok_or("HEIF without an RGBA plane")?;
     let (w, h, stride) = (plane.width, plane.height, plane.stride);
@@ -518,6 +533,7 @@ fn raw(bytes: &[u8]) -> Result<DynamicImage> {
     let mut img = match decoder.full_image(&src, &params) {
         Ok(Some(img)) => img,
         _ => {
+            dng_size(decoder.as_ref())?;
             let raw = decoder.raw_image(&src, &params, false)?;
             let img = RawDevelop::default().develop_intermediate(&raw)?.to_dynamic_image().ok_or("RAW: development failed")?;
             // rawler 0.8.0 develops the DNGs of Samsung Galaxy phones (linear DNG with restart markers and
@@ -538,6 +554,15 @@ fn raw(bytes: &[u8]) -> Result<DynamicImage> {
     Ok(img)
 }
 
+/// The sensor's size as a DNG's tags declare it, checked before rawler asks for its memory. The
+/// other RAW formats have no such tags that rawler shows (`ifd` is DNG's only).
+fn dng_size(decoder: &dyn rawler::decoders::Decoder) -> Result<()> {
+    use rawler::tags::TiffCommonTag;
+    let Ok(Some(ifd)) = decoder.ifd(rawler::decoders::WellKnownIFD::Raw) else { return Ok(()) };
+    let get = |tag| ifd.get_entry(tag).map_or(0, |e| e.force_usize(0) as u64);
+    Ok(crate::pixel_limit::check(get(TiffCommonTag::ImageWidth), get(TiffCommonTag::ImageLength))?)
+}
+
 fn extra(bytes: &[u8], name: &str) -> Result<DynamicImage> {
     use image_extras::*;
     let e = ext(name).unwrap_or_default();
@@ -552,6 +577,9 @@ fn extra(bytes: &[u8], name: &str) -> Result<DynamicImage> {
             // channel layouts): an error instead, and on Linux ImageMagick takes over. 16-bit
             // files are refused up front: `psd` halves only the red channel and overflows its
             // buffer with the others (issue #1; psd #57, fixed only in the open PR #67).
+            if let Some(h) = crate::psd::header(bytes) {
+                crate::pixel_limit::check(h.size[0].into(), h.size[1].into())?;
+            }
             let (w, h, rgba) = std::panic::catch_unwind(|| -> Result<_> {
                 let p = psd::Psd::from_bytes(bytes)?;
                 if p.depth() != psd::PsdDepth::Eight {
@@ -570,17 +598,18 @@ fn extra(bytes: &[u8], name: &str) -> Result<DynamicImage> {
             DynamicImage::ImageRgba8(RgbaImage::from_raw(w, h, rgba).ok_or("PSD: buffer")?)
         }
         e if JPEG2000.contains(&e) => {
-            DynamicImage::from_decoder(hayro_jpeg2000::Image::new(bytes, &Default::default())?)?
+            whole(hayro_jpeg2000::Image::new(bytes, &Default::default())?)?
         }
-        "ora" => DynamicImage::from_decoder(ora::OpenRasterDecoder::with_limits(r, image::Limits::default())?)?,
-        "pcx" => DynamicImage::from_decoder(pcx::PCXDecoder::new(r)?)?,
-        "sgi" | "rgb" | "rgba" | "bw" => DynamicImage::from_decoder(sgi::SgiDecoder::new(r)?)?,
-        "wbmp" => DynamicImage::from_decoder(wbmp::WbmpDecoder::new(r)?)?,
-        "xbm" => DynamicImage::from_decoder(xbm::XbmDecoder::new(r)?)?,
-        "xpm" => DynamicImage::from_decoder(xpm::XpmDecoder::new(r)?)?,
-        "otb" => DynamicImage::from_decoder(otb::OtbDecoder::new(r)?)?,
-        "dds" => DynamicImage::from_decoder(dds::DdsDecoder::new(r)?)?,
-        "icns" => DynamicImage::from_decoder(icns::IcnsDecoder::new(r)?)?,
+        // These limits bound only the PNG's own buffers, a row at a time: the picture is `whole`'s.
+        "ora" => whole(ora::OpenRasterDecoder::with_limits(r, image::Limits::default())?)?,
+        "pcx" => whole(pcx::PCXDecoder::new(r)?)?,
+        "sgi" | "rgb" | "rgba" | "bw" => whole(sgi::SgiDecoder::new(r)?)?,
+        "wbmp" => whole(wbmp::WbmpDecoder::new(r)?)?,
+        "xbm" => whole(xbm::XbmDecoder::new(r)?)?,
+        "xpm" => whole(xpm::XpmDecoder::new(r)?)?,
+        "otb" => whole(otb::OtbDecoder::new(r)?)?,
+        "dds" => whole(dds::DdsDecoder::new(r)?)?,
+        "icns" => whole(icns::IcnsDecoder::new(r)?)?,
         _ => return Err(format!("{e}: no decoder").into()),
     })
 }
@@ -620,6 +649,7 @@ fn magick(bytes: &[u8], format: Option<&str>) -> Result<DynamicImage> {
     if let Some(f) = format {
         wand.set_format(f)?;
     }
+    magick_size(bytes, format)?;
     wand.read_image_blob(bytes)?;
     // Files with several images (GIF, MNG, layered PSD): the first is shown. An XCF gives one
     // image per layer and no merged one: its layers are flattened, keeping the transparency.
@@ -634,6 +664,28 @@ fn magick(bytes: &[u8], format: Option<&str>) -> Result<DynamicImage> {
     let (w, h) = (wand.get_image_width(), wand.get_image_height());
     let data = wand.export_image_pixels(0, 0, w, h, "RGBA").ok_or("ImageMagick: pixel export failed")?;
     Ok(DynamicImage::ImageRgba8(RgbaImage::from_raw(w as u32, h as u32, data).ok_or("ImageMagick: buffer")?))
+}
+
+/// The size of every picture in the file (and of its canvas), from the headers only, checked
+/// before ImageMagick reads the pixels. A file it cannot ping is left to `read_image_blob`.
+#[cfg(feature = "magick")]
+fn magick_size(bytes: &[u8], format: Option<&str>) -> Result<()> {
+    let mut ping = magick_rust::MagickWand::new();
+    if let Some(f) = format {
+        ping.set_format(f)?;
+    }
+    if ping.ping_image_blob(bytes).is_err() {
+        return Ok(());
+    }
+    ping.set_first_iterator();
+    loop {
+        let (pw, ph, ..) = ping.get_image_page();
+        crate::pixel_limit::check(ping.get_image_width() as u64, ping.get_image_height() as u64)?;
+        crate::pixel_limit::check(pw as u64, ph as u64)?;
+        if !ping.next_image() {
+            return Ok(());
+        }
+    }
 }
 
 /// Is `name` one of the formats handed to ImageMagick (`MAGICK`)?
@@ -958,5 +1010,65 @@ mod tests {
                 Err(e) => println!("ERR  {name:28} {e}"),
             }
         }
+    }
+
+    /// Audit 3.4 (#177): a PNG of a few bytes whose header declares `w` × `h` pixels.
+    fn audit_png(w: u32, h: u32) -> Vec<u8> {
+        use std::io::Write;
+        let chunk = |kind: &[u8; 4], data: &[u8]| {
+            let mut c = flate2::Crc::new();
+            c.update(kind);
+            c.update(data);
+            [&(data.len() as u32).to_be_bytes()[..], kind, data, &c.sum().to_be_bytes()].concat()
+        };
+        let mut ihdr = [w.to_be_bytes(), h.to_be_bytes()].concat();
+        ihdr.extend([8, 2, 0, 0, 0]);
+        let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::fast());
+        z.write_all(&[0; 64]).unwrap();
+        [&b"\x89PNG\r\n\x1a\n"[..], &chunk(b"IHDR", &ihdr), &chunk(b"IDAT", &z.finish().unwrap()), &chunk(b"IEND", &[])].concat()
+    }
+
+    /// The error of a picture too large, not one from a decoder that tried and failed.
+    fn too_large<T>(r: std::result::Result<T, String>) -> bool {
+        r.is_err_and(|e| crate::pixel_limit::is_too_large(&e))
+    }
+
+    /// Audit 3.4: a file of 68 bytes that declares 60000 x 60000 pixels is refused before the
+    /// picture's memory (10.8 GB) is asked for, for the thumbnail and for the whole picture.
+    #[test]
+    fn audit_3_4_png_thumbnail() {
+        assert!(too_large(thumbnail(&audit_png(60000, 60000), "x.png", 256)));
+    }
+
+    #[test]
+    fn audit_3_4_png_full() {
+        assert!(too_large(decode_full(&audit_png(60000, 60000), "x.png")));
+    }
+
+    /// The same for a JPEG whose header says 65535 x 65535: the viewer decodes it at full size
+    /// (more than 60 s of work before).
+    #[test]
+    fn audit_3_4_jpeg_viewer() {
+        let mut jpeg = Vec::new();
+        image::codecs::jpeg::JpegEncoder::new(&mut jpeg).encode(&[90; 16 * 16 * 3], 16, 16, image::ExtendedColorType::Rgb8).unwrap();
+        // SOF0: marker, length, precision, height, width.
+        let sof = jpeg.windows(2).position(|w| w == [0xFF, 0xC0]).unwrap();
+        jpeg[sof + 5..sof + 9].copy_from_slice(&[0xFF; 4]);
+        assert!(too_large(decode(&jpeg, "x.jpg")));
+        assert!(too_large(thumbnail(&jpeg, "x.jpg", 256)));
+    }
+
+    /// Audit 3.4: a PSD whose header says 30000 x 30000 (the most the format allows, 900
+    /// megapixels: 3.6 GB before), with little else.
+    #[test]
+    fn audit_3_4_psd_header() {
+        let mut psd = b"8BPS\x00\x01\x00\x00\x00\x00\x00\x00\x00\x03".to_vec();
+        psd.extend([30000u32.to_be_bytes(), 30000u32.to_be_bytes()].concat());
+        psd.extend([0, 8, 0, 3]);
+        // No colour data, no resources, no layers; then the picture, not compressed, cut short.
+        psd.extend([0u8; 12]);
+        psd.extend([0, 0]);
+        psd.extend([0u8; 64]);
+        assert!(too_large(decode_full(&psd, "x.psd")));
     }
 }

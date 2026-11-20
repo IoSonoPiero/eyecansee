@@ -20,6 +20,12 @@ pub fn turned_file(bytes: &[u8], name: &str, turn: Turn) -> Result<(Vec<u8>, boo
 /// As `turned_file`, for a copy (Convert and resize, the editor's copy): with the XMP of the
 /// photo's `sidecar` (#24) joined to the file's own, as in the copies encoded again.
 pub fn turned_file_beside(bytes: &[u8], name: &str, turn: Turn, sidecar: Option<&[u8]>) -> Result<(Vec<u8>, bool), String> {
+    // A JPEG too large to open is not turned either: libjpeg-turbo would ask for its memory.
+    if Format::of_file(name) == Some(Format::Jpeg)
+        && let Some(h) = crate::decode::header(bytes, name)
+    {
+        crate::pixel_limit::check(h.size[0].into(), h.size[1].into())?;
+    }
     // A phone photo with an HDR gain map, or a Motion Photo: all of it turned, HDR and video kept.
     if Format::of_file(name) == Some(Format::Jpeg)
         && let Some(r) = crate::ultrahdr::turned(bytes, turn, sidecar)
@@ -90,7 +96,8 @@ pub fn can_turn_in_place(bytes: &[u8], name: &str) -> bool {
         Some(Format::Tiff) => tiff::decoder::Decoder::new(cursor()).is_ok_and(|d| !d.more_images()),
         Some(Format::Avif) => !avif_sequence(bytes),
         // Only the first frame is decoded: an animated GIF would lose the others.
-        Some(Format::Gif) => gif::GifDecoder::new(cursor()).is_ok_and(|d| image::AnimationDecoder::into_frames(d).take(2).count() == 1),
+        // A screen beyond the ceiling is not made (`pixel_limit`): such a file does not even open.
+        Some(Format::Gif) => gif::GifDecoder::new(cursor()).is_ok_and(|mut d| crate::pixel_limit::checked(&mut d).is_ok() && image::AnimationDecoder::into_frames(d).take(2).count() == 1),
         Some(_) => true,
         None => false,
     }
@@ -216,5 +223,19 @@ mod tests {
             assert_eq!(image::guess_format(&out).unwrap(), image::ImageFormat::Jpeg, "{name}");
             assert_eq!(crate::decode::decode_full(&out, name).unwrap().width(), 16, "{name}");
         }
+    }
+
+    /// Audit 3.4: the check made at every opening ("can this file be turned in place?") decodes
+    /// the first frames of a GIF: one whose screen is 65535 x 65535 is answered "no" without
+    /// asking for its 17 GB.
+    #[test]
+    fn audit_3_4_gif_turn_check() {
+        let mut bytes = Vec::new();
+        {
+            let frame = || image::Frame::new(image::RgbaImage::from_pixel(8, 6, image::Rgba([255, 0, 0, 255])));
+            image::codecs::gif::GifEncoder::new(&mut bytes).encode_frames(vec![frame(), frame()]).unwrap();
+        }
+        bytes[6..10].copy_from_slice(&[0xFF; 4]);
+        assert!(!can_turn_in_place(&bytes, "a.gif"));
     }
 }

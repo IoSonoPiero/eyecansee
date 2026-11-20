@@ -267,7 +267,10 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     {
         return Ok((job.named(name.to_string(), false), data));
     }
-    let mut image = crate::decode::decode_full_with(bytes, name, sibling).map_err(|e| ("batch-failed", format!("{name}: {e}")))?;
+    let mut image = crate::decode::decode_full_with(bytes, name, sibling).map_err(|e| match e.split_once('\u{1}') {
+        Some((_, size)) if crate::pixel_limit::is_too_large(&e) => (crate::pixel_limit::TOO_LARGE, format!("{name}, {size}")),
+        _ => ("batch-failed", format!("{name}: {e}")),
+    })?;
     // The other frames of an animation, the other pages would be lost. After decoding, so that
     // a file that is not an image says so. A phone JPEG (HDR gain map, motion photo video) is
     // not left out: the new file is the picture, the original keeps the rest.

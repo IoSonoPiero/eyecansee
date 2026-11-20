@@ -93,6 +93,7 @@ mod meta_panel;
 mod meta_strip;
 mod meta_write;
 mod mwg;
+mod pixel_limit;
 mod raw_meta;
 mod model;
 mod model_3mf;

@@ -52,9 +52,9 @@ impl Sequence {
 pub fn read(bytes: &[u8], name: &str) -> Option<Sequence> {
     let cursor = || Cursor::new(bytes);
     let read = match Format::of_file(name)? {
-        Format::Gif => image::codecs::gif::GifDecoder::new(cursor()).ok().map(|d| animation(d.into_frames())),
-        Format::Webp => image::codecs::webp::WebPDecoder::new(cursor()).ok().filter(|d| d.has_animation()).map(|d| animation(d.into_frames())),
-        Format::Png => image::codecs::png::PngDecoder::new(cursor()).ok().filter(|d| d.is_apng().unwrap_or(false)).and_then(|d| d.apng().ok()).map(|d| animation(d.into_frames())),
+        Format::Gif => image::codecs::gif::GifDecoder::new(cursor()).ok().and_then(sized).map(|d| animation(d.into_frames())),
+        Format::Webp => image::codecs::webp::WebPDecoder::new(cursor()).ok().filter(|d| d.has_animation()).and_then(sized).map(|d| animation(d.into_frames())),
+        Format::Png => image::codecs::png::PngDecoder::new(cursor()).ok().filter(|d| d.is_apng().unwrap_or(false)).and_then(sized).and_then(|d| d.apng().ok()).map(|d| animation(d.into_frames())),
         Format::Tiff => Some(pages(bytes, name)),
         _ => None,
     };
@@ -67,6 +67,13 @@ pub fn read(bytes: &[u8], name: &str) -> Option<Sequence> {
             None
         }
     }
+}
+
+/// The decoder, when its canvas is within the ceiling (`pixel_limit`): the canvas is made before
+/// the first frame.
+fn sized<D: image::ImageDecoder>(mut decoder: D) -> Option<D> {
+    crate::pixel_limit::checked(&mut decoder).inspect_err(|e| log!("frames: {e}")).ok()?;
+    Some(decoder)
 }
 
 fn animation(frames: image::Frames<'_>) -> Result<Sequence, String> {
@@ -229,5 +236,15 @@ mod tests {
         b.extend([0; 8]);
         assert_eq!(&at_page(&b, 0x0102_0304).unwrap()[4..8], &[1, 2, 3, 4]);
         assert!(at_page(b"XX\0\0", 8).is_none());
+    }
+
+    /// Audit 3.4: a GIF of 86 bytes whose screen is 65535 x 65535 does not have its first canvas
+    /// (17 GB) made before the size is looked at.
+    #[test]
+    fn audit_3_4_gif_screen() {
+        let mut bytes = gif(vec![frame([255, 0, 0, 255], 100), frame([0, 255, 0, 255], 100)]);
+        // Logical screen: width and height, little endian, after "GIF89a".
+        bytes[6..10].copy_from_slice(&[0xFF; 4]);
+        assert!(matches!(read(&bytes, "a.gif"), None | Some(Sequence::TooLarge)));
     }
 }

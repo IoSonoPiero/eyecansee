@@ -138,8 +138,14 @@ impl I18n {
 
     /// A failed load as shown. The fixed sentences the grid recognises (`occt::MISSING`) stay
     /// untranslated where they are kept and are translated here (#102).
+    /// An error sent with its Fluent id (`id\u{1}detail`: a picture too large, `pixel_limit`) is
+    /// translated too.
     pub(crate) fn load_error(&self, e: &str) -> String {
-        if e == crate::occt::MISSING { self.t("cad-engine-missing") } else { e.to_string() }
+        match e.split_once('\u{1}') {
+            _ if e == crate::occt::MISSING => self.t("cad-engine-missing"),
+            Some((id, detail)) => self.error(id, detail),
+            None => e.to_string(),
+        }
     }
 
     /// `error`, to go in a message window's Markdown (`save_dialogs::notice_text`).
@@ -245,6 +251,9 @@ mod tests {
         assert_eq!(I18n::new("en").load_error(crate::occt::MISSING), "The CAD engine is missing.");
         assert_eq!(I18n::new("it").load_error(crate::occt::MISSING), "Manca il motore CAD.");
         assert_eq!(I18n::new("it").load_error("timeout"), "timeout");
+        // A picture too large (`pixel_limit`), with its size.
+        let e = crate::pixel_limit::check(60000, 60000).unwrap_err();
+        assert_eq!(I18n::new("en").load_error(&e), "The picture is too large: 60000 × 60000 pixels, while EyeCanSee opens pictures of up to 512 megapixels.");
     }
 
     /// The message of a replace refused for want of room for the second copy (#90), in both
