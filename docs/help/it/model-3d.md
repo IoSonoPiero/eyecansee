@@ -56,6 +56,8 @@ Mentre il piano si sposta, un rettangolo azzurro trasparente mostra per un attim
 
 Si vedono i colori scritti nel file e, in molti formati, anche le immagini sulle superfici (texture). Un modello senza colori è grigio chiaro. I materiali dei modelli glTF e FBX, e dei modelli OBJ (il loro file `.mtl`), mostrano anche quanto una superficie è lucida o metallica, la luce che emette (una lampada) e i piccoli rilievi di una normal map. Le superfici curve sono morbide e gli spigoli restano netti, anche nei modelli che non salvano queste informazioni.
 
+Un modello glTF che mette una sua parte in più punti della gerarchia, cosa che il formato non permette, mostra quella parte una volta sola, e la barra di stato lo dice.
+
 Senza una scheda video che EyeCanSee possa usare, il modello lo disegna il processore, più lentamente: si gira, si ingrandisce, si misura e si taglia allo stesso modo, e ogni vista nuova arriva dopo un momento.
 
 ## Salvare

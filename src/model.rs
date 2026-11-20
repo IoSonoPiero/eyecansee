@@ -59,6 +59,9 @@ pub struct Mesh {
     /// The unit of its coordinates when the format or the file says it (`unit_of`), for the
     /// measures; `None` for the formats without one (STL, OBJ, PLY…).
     pub unit: Option<&'static str>,
+    /// What was read differently from the file, for the viewer's status bar: Fluent ids, each once
+    /// (`Builder::warn`).
+    pub warnings: Vec<&'static str>,
 }
 
 /// How a surface takes the light beyond its colour, as glTF describes it (metallic-roughness).
@@ -112,9 +115,17 @@ pub(crate) struct Builder {
     /// Nodes and instances placed so far (`visit`), points and triangles brought (`MAX_OFFERED`).
     visits: usize,
     offered: usize,
+    warnings: Vec<&'static str>,
 }
 
 impl Builder {
+    /// Something read differently from the file, said once in the viewer (`Mesh::warnings`).
+    pub(crate) fn warn(&mut self, id: &'static str) {
+        if !self.warnings.contains(&id) {
+            self.warnings.push(id);
+        }
+    }
+
     /// Adds a part; its triangles index its own `pos`. Triangles outside `pos` are dropped
     /// (files are not trusted). `colors`: one per triangle, or `None` for the default.
     pub(crate) fn add(&mut self, pos: Vec<[f32; 3]>, tris: impl IntoIterator<Item = [u32; 3]>, color: impl FnMut(usize) -> Option<[u8; 3]>) -> Result<(), String> {
@@ -215,7 +226,7 @@ impl Builder {
     }
 
     pub(crate) fn finish(self, z_up: bool) -> Result<Mesh, String> {
-        let Builder { pos, tris, colors, uv, textures, surfaces, shine, .. } = self;
+        let Builder { pos, tris, colors, uv, textures, surfaces, shine, warnings, .. } = self;
         let finite = |p: &[f32; 3]| p.iter().all(|c| c.is_finite());
         let tris: Vec<(usize, [u32; 3])> = tris.into_iter().enumerate().filter(|(_, t)| t.iter().all(|&v| finite(&pos[v as usize]))).collect();
         if tris.is_empty() {
@@ -251,7 +262,7 @@ impl Builder {
         let shiny = matte > 0 || shine.iter().any(|s| s.0 > 0);
         let (surface, normals) = if shiny { tris.iter().enumerate().map(|(k, &(i, _))| pick(k, i)).unzip() } else { (Vec::new(), Vec::new()) };
         let surfaces = if shiny { surfaces } else { Vec::new() };
-        Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, half, uv, tex, textures, surface, surfaces, normals, unit: None })
+        Ok(Mesh { pos, tris: tris.into_iter().map(|(_, t)| t).collect(), colors, z_up, center, radius, half, uv, tex, textures, surface, surfaces, normals, unit: None, warnings })
     }
 }
 

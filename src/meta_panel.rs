@@ -284,6 +284,7 @@ impl App {
             if let Some((_, mesh)) = self.viewed_mesh() {
                 ui.separator();
                 ui.label(self.i18n.t_args("model-triangles", &[("n", &mesh.tris.len().to_string())]));
+                self.model_warnings(ui, &mesh);
                 if let Some(fps) = self.model_fps() {
                     ui.separator();
                     crate::bar_rows::steady(ui, &format!("{fps} fps"), "000 fps");
@@ -346,6 +347,15 @@ impl App {
             buttons[2] = top_copy;
         }
         (buttons, zoom)
+    }
+
+    /// What the model's reader did differently from the file (a glTF node with two parents,
+    /// #179), in the status bar.
+    fn model_warnings(&self, ui: &mut Ui, mesh: &crate::model::Mesh) {
+        for id in &mesh.warnings {
+            ui.separator();
+            ui.label(crate::theme::alert(self.i18n.t(id)));
+        }
     }
 
     /// While measuring, when the results do not fit beside the file's details: on a row of their

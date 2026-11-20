@@ -47,7 +47,7 @@ fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
         return Err("the model's data file (.bin) is missing".into());
     }
     let mut b = Builder::default();
-    let mut extra: Extra = (Vec::new(), Vec::new(), HashMap::new(), HashSet::new());
+    let mut extra: Extra = (Vec::new(), Vec::new(), HashMap::new(), HashSet::new(), 0);
     // The materials' pictures, read once: in the file, in base64, or next to it; decoded in
     // parallel (a 2048² picture takes ~30 ms).
     let mut wanted: Vec<gltf::Image> = Vec::new();
@@ -86,22 +86,34 @@ fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
             }
         }
     }
+    if extra.4 > 0 {
+        log!("glTF: {} times a node already placed was met again, left out", extra.4);
+    }
     crate::model_lines::add(&mut b, &extra.0, &extra.1)?;
     b.finish(false)
 }
 
 /// Line segments and points of a glTF, made solid at the end (`model_lines`), the number of
-/// each image's picture in the model (`Builder::texture`, 0 when it could not be read), and the
-/// nodes already placed.
-type Extra = (Vec<crate::model_lines::Segment>, Vec<crate::model_lines::Point>, HashMap<usize, u16>, HashSet<usize>);
+/// each image's picture in the model (`Builder::texture`, 0 when it could not be read), the
+/// nodes already placed, and how many times one of them was met again.
+type Extra = (Vec<crate::model_lines::Segment>, Vec<crate::model_lines::Point>, HashMap<usize, u16>, HashSet<usize>, usize);
+
+/// Fluent id of the warning for a node met again in the hierarchy (#179).
+pub const NODE_AGAIN: &str = "model-node-again";
 
 fn gltf_node<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>>(b: &mut Builder, extra: &mut Extra, node: &gltf::Node<'a>, parent: &Mat4, data: &F, depth: u32) -> Result<(), String> {
     if depth > 64 {
         return Err("nodes nested too deep".into());
     }
     // The nodes are trees, each node with one parent at most (glTF 2.0, "Nodes and Hierarchy"):
-    // a node met again is placed once, so that a file cannot place its nodes over and over.
+    // a node met again (two parents, listed twice, a loop) is placed once, so that a file cannot
+    // place its nodes over and over; said in the log (the first ten) and in the viewer (#179).
     if !extra.3.insert(node.index()) {
+        if extra.4 < 10 {
+            log!("glTF: node {} met again in the hierarchy (glTF allows one parent): placed once", node.index());
+        }
+        extra.4 += 1;
+        b.warn(NODE_AGAIN);
         return Ok(());
     }
     let m = mul(parent, &node.transform().matrix());
@@ -216,6 +228,33 @@ fn texture_coords<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s 
 
 #[cfg(test)]
 mod tests {
+    use base64::Engine;
+
+    /// A glTF with one triangle in node 2, its data inside, child of nodes 0 and 1; `scene`: the
+    /// scene's nodes.
+    fn triangle(scene: &str) -> String {
+        let floats: Vec<u8> = [0f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0].iter().flat_map(|f| f.to_le_bytes()).collect();
+        let data = base64::engine::general_purpose::STANDARD.encode(floats);
+        format!(
+            r#"{{"asset":{{"version":"2.0"}},"buffers":[{{"uri":"data:application/octet-stream;base64,{data}","byteLength":36}}],"bufferViews":[{{"buffer":0,"byteLength":36}}],"accessors":[{{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","max":[1,1,0],"min":[0,0,0]}}],"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0}}}}]}}],"nodes":[{{"children":[2]}},{{"children":[2]}},{{"mesh":0}}],"scenes":[{{"nodes":[{scene}]}}],"scene":0}}"#
+        )
+    }
+
+    /// #179: a node with two parents (outside the standard) is placed once, as before, and the
+    /// model says so for the viewer, once; reached through one parent only, nothing is said.
+    #[test]
+    fn node_with_two_parents_warns() {
+        let twice = crate::model::parse(triangle("0,1").as_bytes(), "a.gltf").unwrap();
+        assert_eq!(twice.tris.len(), 1);
+        assert_eq!(twice.warnings, vec![super::NODE_AGAIN]);
+        let once = crate::model::parse(triangle("0").as_bytes(), "a.gltf").unwrap();
+        assert_eq!(once.tris.len(), 1);
+        assert!(once.warnings.is_empty());
+        for lang in ["en", "it"] {
+            assert_ne!(crate::i18n::I18n::new(lang).t(super::NODE_AGAIN), super::NODE_AGAIN);
+        }
+    }
+
     /// Audit 6.6: a chain of 60 nodes, each one with the next as its child twice, none with a
     /// mesh: 2^60 visits in a .gltf of a few hundred bytes (`gltf` accepts a node with more than
     /// one parent). It must end (refused, or found empty) without visiting them all.
