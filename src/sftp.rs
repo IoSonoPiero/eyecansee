@@ -393,6 +393,7 @@ impl Server {
                 if self.entry_is_dir(&path, &a).await {
                     if a.file_type().is_symlink() && !self.new_root(&path, &mut roots).await {
                         log!("sftp: {path:?} left out of the walk: a link to a folder walked anyway");
+                        p.links_skipped.fetch_add(1, Ordering::Relaxed);
                         continue;
                     }
                     found.push((format!("{path}/"), 0));
@@ -939,6 +940,19 @@ mod tests {
             let listed = world.listed.lock().unwrap().len();
             println!("walk of loop/ in {:.2?}: {} items, a.jpg {copies} times, {listed} folders listed, longest path {longest} characters", t.elapsed(), walked.len());
             assert_eq!(copies, 1, "the only file of the folder found {copies} times");
+        });
+    }
+
+    /// A link to a folder already walked, left out, is counted for the end of the copy (#183).
+    /// Server: `tests/fake.rs` (`loop/again` → `loop/`).
+    #[test]
+    fn walk_counts_links_left_out() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let (server, _) = fake::start(&[]).await;
+            let p = crate::transfer::Progress::default();
+            let walked = server.walk("loop/", &p).await.unwrap();
+            assert_eq!(walked.iter().map(|(path, _)| path.as_str()).collect::<Vec<_>>(), ["loop/a.jpg"]);
+            assert_eq!(p.links_skipped.load(std::sync::atomic::Ordering::Relaxed), 1);
         });
     }
 }

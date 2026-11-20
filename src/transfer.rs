@@ -64,6 +64,9 @@ pub struct Progress {
     pub files_total: AtomicUsize,
     /// Items found while looking inside the folders, before the copy starts.
     pub found: AtomicUsize,
+    /// Links to folders the walk of a server left out (`ftp::Server::walk`, `sftp::Server::walk`),
+    /// said at the end of the copy (#183).
+    pub links_skipped: AtomicUsize,
     /// Destination folders that got something new since the UI last looked: it reads them again,
     /// so a copy shows up while it runs.
     pub touched: Mutex<Vec<String>>,
@@ -149,6 +152,13 @@ fn keep_thumbnail(thumb: Option<(u64, Vec<u8>)>, dest: &str, size: Option<u64>) 
     {
         thumbcache::keep(dest, s, data);
     }
+}
+
+/// Links to folders left out of a copy that worked, to say at its end (#183); `None` when there
+/// are none, or when the copy failed or was cancelled (the log has them then).
+pub fn links_to_say(r: &Result<(), Error>, p: &Progress) -> Option<usize> {
+    let n = p.links_skipped.load(Ordering::Relaxed);
+    (r.is_ok() && n > 0).then_some(n)
 }
 
 /// Copies (or moves) the clip into `to_dir`. Returns the source items that went away (moved),
@@ -446,6 +456,17 @@ async fn copy_file(from: &Store, src: &str, (to, dest, existed): (&Store, &str, 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Links left out are said at the end of a copy that worked, not of one stopped (#183).
+    #[test]
+    fn links_said_at_the_end() {
+        let p = Progress::default();
+        assert_eq!(links_to_say(&Ok(()), &p), None);
+        p.links_skipped.store(3, Ordering::Relaxed);
+        assert_eq!(links_to_say(&Ok(()), &p), Some(3));
+        assert_eq!(links_to_say(&Err(("error-cancelled", String::new())), &p), None);
+        assert_eq!(links_to_say(&Err(("error-too-deep", "a/".into())), &p), None);
+    }
 
     /// The paste of the files only with the text of their copy still on the clipboard.
     #[test]

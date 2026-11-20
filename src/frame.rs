@@ -275,6 +275,7 @@ impl App {
         self.unlock_window(ctx);
         self.paste_window(ctx);
         self.transfer_window(ctx);
+        self.transfer_end_window(ctx);
         self.rename_window(ctx);
         self.new_folder_window(ctx);
         self.new_image_window(ctx);

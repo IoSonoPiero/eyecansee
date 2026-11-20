@@ -100,6 +100,10 @@ mod tests {
         let en = I18n::new("en");
         assert!(en.t_args("batch-turn-confirm", &[("op", "X"), ("n", "1")]).contains("**1 image** will be"));
         assert!(en.t_args("save-format", &[("name", "007")]).contains("**007**"));
+        assert!(en.t_args("transfer-links-skipped", &[("n", "1")]).starts_with("1 link to a folder skipped"));
+        assert!(en.t_args("transfer-links-skipped", &[("n", "3")]).starts_with("3 links to folders skipped"));
+        assert!(it.t_args("transfer-links-skipped", &[("n", "1")]).starts_with("1 collegamento a una cartella saltato"));
+        assert!(it.t_args("transfer-links-skipped", &[("n", "3")]).starts_with("3 collegamenti a cartelle saltati"));
     }
 
     /// Every error id written in the code (`"error-…"`) has its message.

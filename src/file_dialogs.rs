@@ -68,6 +68,7 @@ impl App {
         let progress = Arc::new(transfer::Progress::default());
         loader.paste(clip.clone(), dir.clone(), choices, progress.clone());
         self.transfer = Some((progress, clip.cut, self.base.clone(), dir));
+        self.transfer_end = None;
         // One paste per copy (chosen by the user): the clip, and its badges, go.
         self.clip = None;
     }
@@ -203,6 +204,31 @@ impl App {
                     p.cancel.store(true, Ordering::Relaxed);
                 }
             });
+    }
+
+    /// The copy box once the copy has ended with links to folders left out (#183): how many, in
+    /// the same place, until Close.
+    pub(crate) fn transfer_end_window(&mut self, ctx: &egui::Context) {
+        let Some((cut, base, dest, n)) = &self.transfer_end else { return };
+        let title = self.i18n.t(if *cut { "transfer-moved" } else { "transfer-copied" });
+        let to = self.i18n.t_args("transfer-to", &[("dir", &shown(base, dest))]);
+        let skipped = self.i18n.t_args("transfer-links-skipped", &[("n", &n.to_string())]);
+        let (why, close) = (self.i18n.t("transfer-links-why"), self.i18n.t("notice-close"));
+        let mut closed = false;
+        egui::Window::new(title)
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-16.0, -40.0))
+            .show(ctx, |ui| {
+                ui.set_width(360.0);
+                ui.add(egui::Label::new(to).truncate());
+                ui.label(egui::RichText::new(skipped).strong());
+                ui.label(why);
+                closed = ui.button(close).clicked();
+            });
+        if closed {
+            self.transfer_end = None;
+        }
     }
 
     pub(crate) fn ask_delete(&mut self, path: Option<String>, permanent: bool) {

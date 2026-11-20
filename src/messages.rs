@@ -340,14 +340,18 @@ impl App {
         if self.quit_after_transfer {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
         }
-        let Some((p, _, base, dir)) = self.transfer.take() else { return };
+        let Some((p, cut, base, dir)) = self.transfer.take() else { return };
         log!(
-            "pasted: {} moved away, {r:?}; {} files, {} bytes, {:.1} s looking inside folders",
+            "pasted: {} moved away, {r:?}; {} files, {} bytes, {:.1} s looking inside folders, {} links to folders left out",
             gone.len(),
             p.files.load(Ordering::Relaxed),
             p.done.load(Ordering::Relaxed),
-            p.looked.lock().unwrap()
+            p.looked.lock().unwrap(),
+            p.links_skipped.load(Ordering::Relaxed)
         );
+        if !self.quit_after_transfer {
+            self.transfer_end = crate::transfer::links_to_say(&r, &p).map(|n| (cut, base.clone(), dir.clone(), n));
+        }
         if base == self.base {
             for path in &gone {
                 self.remove_item(path, false);

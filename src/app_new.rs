@@ -110,6 +110,7 @@ impl App {
             paste_to: None,
             paste_ask: None,
             transfer: None,
+            transfer_end: None,
             touched_at: 0.0,
             quit_after_transfer: false,
             quit_after_editor: None,

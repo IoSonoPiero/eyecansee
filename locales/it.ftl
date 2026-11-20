@@ -125,6 +125,13 @@ transfer-looking = Esamino le cartelle: { $n } elementi trovati
 transfer-counts = { $n } di { $total } file, { $done } di { $size }
 transfer-to = In { $dir }
 transfer-left = { $percent } %, { $speed }/s, circa { $time } alla fine
+transfer-copied = Copia finita
+transfer-moved = Spostamento finito
+transfer-links-skipped = { $n ->
+    [one] 1 collegamento a una cartella saltato: non è stato copiato.
+   *[other] { $n } collegamenti a cartelle saltati: non sono stati copiati.
+}
+transfer-links-why = Un collegamento a una cartella su un server FTP, o uno che riporta dentro le cartelle copiate, resta fuori. Altro nella guida (F1).
 error-name-too-long = Il nome è troppo lungo per il telefono: { $detail } caratteri, mentre un telefono ne accetta al massimo 254 (un'emoji conta per due). Accorcialo e riprova; non è stato copiato niente.
 error-copy-not-made = Il telefono non ha fatto la copia di { $detail }: l'originale non è stato toccato.
 error-paste-inside = Una cartella non può andare dentro sé stessa: { $detail }

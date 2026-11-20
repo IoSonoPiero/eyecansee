@@ -126,6 +126,13 @@ transfer-looking = Looking inside the folders: { $n } items found
 transfer-counts = { $n } of { $total } files, { $done } of { $size }
 transfer-to = To { $dir }
 transfer-left = { $percent }%, { $speed }/s, about { $time } left
+transfer-copied = Copy finished
+transfer-moved = Move finished
+transfer-links-skipped = { $n ->
+    [one] 1 link to a folder skipped: it was not copied.
+   *[other] { $n } links to folders skipped: they were not copied.
+}
+transfer-links-why = A link to a folder on an FTP server, or one that leads back into the folders copied, is left out. More in the guide (F1).
 error-paste-inside = A folder cannot go inside itself: { $detail }
 error-name-too-long = The name is too long for the phone: { $detail } characters, while a phone takes at most 254 (an emoji counts as two). Shorten it and try again; nothing was copied.
 error-copy-not-made = The phone did not make the copy of { $detail }: the original was left as it was.
