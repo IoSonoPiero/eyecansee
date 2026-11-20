@@ -325,9 +325,9 @@ fn audit_2_1_phone_move_deletes_a_photo_taken_meanwhile() {
     });
 }
 
-/// A folder for the Windows tests (2.4, 2.5), which need no app: under the system's temporary
-/// folder, new for every run.
-#[cfg(windows)]
+/// A folder for the tests of 2.4 and 2.5, which need no app: under the system's temporary
+/// folder, new for every run. The two tests fail on Windows (NTFS) and pass elsewhere: on Linux
+/// they check the rest of the path (the fake server, the names, the paste).
 fn windows_folder(name: &str) -> PathBuf {
     let dir = std::env::temp_dir().join(format!("eyecansee-audit-{name}-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -336,7 +336,6 @@ fn windows_folder(name: &str) -> PathBuf {
 }
 
 /// The names in `dir` with their sizes, as Explorer shows them.
-#[cfg(windows)]
 fn shown(dir: &Path) -> Vec<(String, u64)> {
     let mut v: Vec<(String, u64)> = std::fs::read_dir(dir).unwrap().flatten().map(|e| (e.file_name().to_string_lossy().into_owned(), e.metadata().map(|m| m.len()).unwrap_or(0))).collect();
     v.sort();
@@ -347,7 +346,6 @@ fn shown(dir: &Path) -> Vec<(String, u64)> {
 /// from a server to a folder of Windows. On NTFS the colon opens the hidden stream `30.jpg` of an
 /// empty file `Mare 12`: the copy "succeeds", the folder shows a file of 0 bytes, and the move
 /// deletes the original on the server.
-#[cfg(windows)]
 #[test]
 #[ignore = "audit 2.4: not fixed yet"]
 fn audit_2_4_windows_colon_in_a_name_from_a_server() {
@@ -373,7 +371,6 @@ fn audit_2_4_windows_colon_in_a_name_from_a_server() {
 /// Audit 2.5 (Windows): a file pasted into a folder that has the same name with other capitals
 /// (`IMG_001.JPG` over `img_001.jpg`). For EyeCanSee the name is free, so it asks nothing; for
 /// Windows it is the same file, written over.
-#[cfg(windows)]
 #[test]
 #[ignore = "audit 2.5: not fixed yet"]
 fn audit_2_5_windows_capitals_overwrite_without_asking() {
