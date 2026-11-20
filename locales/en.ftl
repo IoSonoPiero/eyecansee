@@ -1260,6 +1260,7 @@ save-format = The changes cannot be saved over **{ $name }**.
 save-as-hint = **Save as…** saves it to a new file, in the format you choose.
     The original stays as it is.
 notice-close = Close
+notice-copy = Copy the message
 
 ## File > Open location
 addr-title = Open location

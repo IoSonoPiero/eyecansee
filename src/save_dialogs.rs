@@ -305,7 +305,8 @@ impl App {
         }
         let stalled = self.stall_notice.as_ref() == Some(&text);
         let (why, url) = (self.i18n.t("phone-stalled-why"), self.i18n.t("phone-stalled-url"));
-        message(ctx, "notice", Head { title: &title, warning }, &text, |ui| {
+        let tip = self.i18n.t("notice-copy");
+        message(ctx, "notice", Head { title: &title, warning }, &text, &tip, |ui| {
             // A stalled phone (`phone_stall`): our page on why, in the app's language.
             if stalled {
                 ui.hyperlink_to(why, url);
@@ -394,7 +395,10 @@ impl<'a> Head<'a> {
 
 /// A message window, as all of them look (issue #11): modal, 320 to 460 points wide, the title
 /// (`Head`), the text (`notice_text`), then what `below` adds (its buttons).
-pub(crate) fn message(ctx: &egui::Context, id: &str, head: Head, text: &str, below: impl FnOnce(&mut egui::Ui)) {
+/// At the right of the last row of buttons, a small Copy: the text without its Markdown (it could
+/// not be copied, Piero 20/11).
+/// `tip`: Copy's tooltip ("notice-copy").
+pub(crate) fn message(ctx: &egui::Context, id: &str, head: Head, text: &str, tip: &str, below: impl FnOnce(&mut egui::Ui)) {
     egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
         ui.set_max_width(460.0);
         // A short message ("Images saved: 1.") made a box so small it went unnoticed.
@@ -403,7 +407,18 @@ pub(crate) fn message(ctx: &egui::Context, id: &str, head: Head, text: &str, bel
         notice_text(ui, text);
         ui.add_space(8.0);
         below(ui);
+        let r = ui.min_rect();
+        let at = egui::Rect::from_min_max(egui::pos2(r.right() - 22.0, r.bottom() - 22.0), r.right_bottom());
+        if ui.put(at, crate::icons::small(ui, crate::icons::Line::Copy)).on_hover_text(tip).clicked() {
+            ui.ctx().copy_text(plain(text));
+        }
     });
+}
+
+/// A message's text as it reads, without the Markdown of `notice_text`: for the clipboard.
+fn plain(text: &str) -> String {
+    let lines = text.lines().map(|l| spans(l).into_iter().map(|(run, _)| run).collect::<String>());
+    lines.collect::<Vec<_>>().join("\n")
 }
 
 /// Text of a message window: paragraphs apart, `**bold**`, lines starting with "- " as a list,
@@ -531,5 +546,11 @@ mod tests {
     fn markdown_escape() {
         assert_eq!(super::md("a_b*c.jpg"), r"a\_b\*c\.jpg");
         assert_eq!(super::md("foto è"), "foto è");
+    }
+
+    /// Copy takes the text as it reads: no `**`, no `\` before a punctuation mark.
+    #[test]
+    fn plain_text() {
+        assert_eq!(super::plain("**a.jpg** was not saved\\.\n- b"), "a.jpg was not saved.\n- b");
     }
 }
