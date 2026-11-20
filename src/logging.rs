@@ -52,17 +52,16 @@ where
     std::thread::Builder::new().name(name.into()).spawn(f).expect("spawn")
 }
 
-/// Message, thread, place in the source and, when `RUST_BACKTRACE` asks for it, the backtrace.
+/// Message, thread, place in the source and the backtrace, always: a report sent with the log
+/// must say where the panic came from, also when nobody set `RUST_BACKTRACE` (Piero, 20/11/2026).
+/// The hook runs only with the log on, so the cost of the capture is paid only then.
 fn panic_text(info: &std::panic::PanicHookInfo) -> String {
     let message = info.payload_as_str().unwrap_or("(no message)");
     let thread = std::thread::current();
     let name = thread.name().unwrap_or("<unnamed>");
     let place = info.location().map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column())).unwrap_or_default();
     let mut text = format!("panic in thread '{name}' at {place}: {message}");
-    let backtrace = std::backtrace::Backtrace::capture();
-    if backtrace.status() == std::backtrace::BacktraceStatus::Captured {
-        text.push_str(&format!("\n{backtrace}"));
-    }
+    text.push_str(&format!("\n{}", std::backtrace::Backtrace::force_capture()));
     text
 }
 
@@ -93,6 +92,8 @@ mod tests {
             .args([name.as_str(), "--exact", "--nocapture", "--test-threads=1"])
             .env(CHILD, "1")
             .env("EYECANSEE_LOG", &file)
+            .env_remove("RUST_BACKTRACE")
+            .env_remove("RUST_LIB_BACKTRACE")
             .output()
             .unwrap();
         let log = std::fs::read_to_string(&file).unwrap_or_default();
@@ -102,5 +103,7 @@ mod tests {
         assert!(log.contains("before") && log.contains("after"), "the log was not written:\n{log}");
         assert!(log.contains("the picture broke"), "the panic is not in the log:\n{log}");
         assert!(log.contains("'worker'") && log.contains("logging.rs:"), "thread or place missing:\n{log}");
+        // The backtrace also without RUST_BACKTRACE: its frames are numbered "  0: ".
+        assert!(log.contains("  0: "), "no backtrace in the log:\n{log}");
     }
 }
