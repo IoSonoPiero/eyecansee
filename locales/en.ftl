@@ -76,7 +76,6 @@ view-too-large-ask =
 
     If you open it anyway, the computer may become very slow or EyeCanSee may close.
 view-open-anyway = Open anyway
-view-too-large-note = It needs more than half of the memory of this computer.
 error-device-busy =
     EyeCanSee cannot open the device: another program is using it.
     Close the file manager and the other programs using it, then press F5.
