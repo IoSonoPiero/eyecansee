@@ -35,3 +35,5 @@ In **Tools > Options… > Slideshow**:
 ## Good to know
 
 The next picture is read in advance. If it is not ready yet (a large file, a phone, a server), the current one stays until it is.
+
+A picture that cannot be opened (a damaged file) is skipped: for a few seconds a small notice with a warning triangle in the top left corner names it, without covering the pictures that follow. If none of the pictures can be opened, the slideshow stops and a message at the bottom of the window says so.

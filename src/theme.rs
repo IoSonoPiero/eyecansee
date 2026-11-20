@@ -168,13 +168,18 @@ pub fn error_bar(v: &Visuals) -> BarColours {
 /// The warning triangle: yellow with a dark edge and "!", the same in both themes, as road signs.
 pub fn warning_icon(ui: &mut egui::Ui, size: f32) -> egui::Response {
     let (rect, response) = ui.allocate_exact_size(egui::vec2(size, size), egui::Sense::hover());
-    let (s, p) = (size, ui.painter());
+    paint_warning(ui.painter(), rect);
+    response
+}
+
+/// The warning triangle in `rect` (square), with a painter: over the slideshow's pictures.
+pub fn paint_warning(p: &egui::Painter, rect: egui::Rect) {
+    let s = rect.width();
     let at = |x: f32, y: f32| rect.min + egui::vec2(x * s, y * s);
     let edge = Stroke::new((s * 0.06).max(1.0), ALERT_INK);
     p.add(egui::Shape::convex_polygon(vec![at(0.5, 0.06), at(0.97, 0.9), at(0.03, 0.9)], ALERT_YELLOW, edge));
     p.line_segment([at(0.5, 0.35), at(0.5, 0.62)], Stroke::new(s * 0.1, ALERT_INK));
     p.circle_filled(at(0.5, 0.75), s * 0.055, ALERT_INK);
-    response
 }
 
 pub fn canvas(v: &Visuals) -> Color32 {

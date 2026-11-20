@@ -1,6 +1,8 @@
 //! Slideshow: the chosen images one after the other at full screen, on black, with a passage
 //! between them chosen in the options. Esc ends it, Space pauses, the arrows change image.
 
+use std::collections::HashSet;
+
 use eframe::egui::{self, Color32, Key, Rect, TextureHandle, Vec2};
 use serde::{Deserialize, Serialize};
 
@@ -44,6 +46,9 @@ impl Fade {
 /// Seconds a passage lasts (never more than half the time of an image).
 const FADE_SECS: f64 = 0.8;
 
+/// Seconds the notice of a picture passed over stays in its corner.
+const SKIPPED_SECS: f64 = 4.0;
+
 /// The slideshow under way. Images by path: a folder read again meanwhile changes the positions.
 pub struct Show {
     paths: Vec<String>,
@@ -61,6 +66,13 @@ pub struct Show {
     from_viewer: bool,
     /// When it started: the keys are shown for the first seconds.
     started: f64,
+    /// The pictures that cannot be read: passed over, also by the look-ahead (`next_shown`).
+    unreadable: HashSet<String>,
+    /// A picture or a video was shown: with none, the end is "none of them opens".
+    shown: bool,
+    /// The last picture passed over, and when: said small in a corner for a few seconds
+    /// (`SKIPPED_SECS`). The error bar over the pictures covered them (Piero, 20/11).
+    skipped: Option<(String, f64)>,
 }
 
 /// The next position after `at` among `n` (backwards when `!forward`); `None` past the end
@@ -72,6 +84,47 @@ pub fn step(at: usize, n: usize, forward: bool, again: bool) -> Option<usize> {
         _ if !again || n == 0 => None,
         (true, _) => Some(0),
         (false, _) => Some(n - 1),
+    }
+}
+
+/// The next position after `at` that is not known to be unreadable (`bad`), as `step` goes;
+/// `None` past the end without `again`, or when every one is.
+pub fn next_shown(at: usize, n: usize, forward: bool, again: bool, bad: impl Fn(usize) -> bool) -> Option<usize> {
+    let mut i = at;
+    for _ in 0..n {
+        i = step(i, n, forward, again)?;
+        if !bad(i) {
+            return Some(i);
+        }
+    }
+    None
+}
+
+/// Where the slideshow goes from a picture that cannot be read.
+#[derive(Debug, PartialEq)]
+pub enum Skip {
+    /// To this position, going forward (`true`) or back.
+    To(usize, bool),
+    /// Past the last one without "start again": it ends, as after a picture shown.
+    End,
+    /// None of them can be read: it stops, and says so.
+    NoneReadable,
+}
+
+/// From the unreadable picture at `at` (`bad`: those known not to open) to the next one the same
+/// way; going back past the first without `again`, forward instead (the one it came from). Every
+/// one unreadable, or the end without any shown (`shown`): `NoneReadable`, never round and round.
+pub fn past_unreadable(at: usize, n: usize, forward: bool, again: bool, bad: impl Fn(usize) -> bool, shown: bool) -> Skip {
+    if (0..n).all(&bad) {
+        return Skip::NoneReadable;
+    }
+    if let Some(i) = next_shown(at, n, forward, again, &bad) {
+        return Skip::To(i, forward);
+    }
+    match (forward, next_shown(at, n, true, again, &bad)) {
+        (false, Some(i)) => Skip::To(i, true),
+        _ if shown => Skip::End,
+        _ => Skip::NoneReadable,
     }
 }
 
@@ -115,7 +168,8 @@ impl App {
             crate::viewer::enter_full(ctx);
         }
         let now = ctx.input(|i| i.time);
-        self.show = Some(Show { paths, at, since: now, from: None, back: false, paused: false, was_full, from_viewer: self.viewing.is_some(), started: now });
+        let from_viewer = self.viewing.is_some();
+        self.show = Some(Show { paths, at, since: now, from: None, back: false, paused: false, was_full, from_viewer, started: now, unreadable: HashSet::new(), shown: false, skipped: None });
         self.viewing = None;
     }
 
@@ -142,11 +196,13 @@ impl App {
         let ctx = ui.ctx().clone();
         let now = ctx.input(|i| i.time);
         self.show_keys(&ctx, now);
+        self.show_pass_unreadable(&ctx, now);
         let Some(s) = &self.show else { return };
         let secs = f64::from(self.settings.slideshow_secs.max(1.0));
         let index = |p: &String| self.files().iter().position(|f| f.path == *p);
         let (cur, from) = (index(&s.paths[s.at]), s.from.as_ref().and_then(index));
-        let near = |forward| step(s.at, s.paths.len(), forward, self.settings.slideshow_loop).and_then(|n| index(&s.paths[n]));
+        let bad = |i: usize| s.unreadable.contains(&s.paths[i]);
+        let near = |forward| next_shown(s.at, s.paths.len(), forward, self.settings.slideshow_loop, bad).and_then(|n| index(&s.paths[n]));
         // The previous one too: going back with the arrows found it not loaded, a black flash.
         let (next, prev) = (near(true), near(false));
         let since = s.since;
@@ -176,14 +232,17 @@ impl App {
             // Arrows pressed faster than the images load: the old one stays meanwhile.
             paint_passage(ui.painter(), rect, None, (from_tex, from_video), (Fade::None, false), 1.0);
         } else if cur.is_some_and(|i| matches!(self.full.get(&i), Some(Err(_)))) {
-            // Cannot be read: the next one comes at its time.
+            // The still of a video that cannot be read: the video comes after the passage.
         } else {
             ui.put(rect, egui::Spinner::new().color(Color32::WHITE));
         }
         self.show_hints(ui, rect, now);
+        self.show_skipped(ui, rect, now);
         let next_ready = next.is_some_and(|i| self.full.contains_key(&i));
         let s = self.show.as_mut().unwrap();
-        if t >= 1.0 {
+        s.shown |= played || cur_tex.is_some();
+        // Until the new one is there the old one stays (after a picture passed over too).
+        if t >= 1.0 && (played || cur_tex.is_some()) {
             s.from = None;
         }
         let over = if video.is_some() { ended } else { now - s.since >= secs };
@@ -191,6 +250,34 @@ impl App {
             self.show_go(&ctx, true, now);
         }
         ctx.request_repaint_after(std::time::Duration::from_millis(if t < 1.0 { 16 } else { 100 }));
+    }
+
+    /// The pictures found unreadable (among those loaded: the current one and its neighbours) are
+    /// remembered; the current one, if it is one, is passed over at once, with a notice in a corner
+    /// (`show_skipped`). A video whose still cannot be read is left to play (or not) as before.
+    fn show_pass_unreadable(&mut self, ctx: &egui::Context, now: f64) {
+        let failed: Vec<String> = self.full.iter().filter(|(_, r)| r.is_err()).filter_map(|(i, _)| self.files().get(*i)).filter(|f| !crate::decode::is_played(&f.path)).map(|f| f.path.clone()).collect();
+        let again = self.settings.slideshow_loop;
+        let Some(s) = &mut self.show else { return };
+        s.unreadable.extend(failed);
+        if !s.unreadable.contains(&s.paths[s.at]) {
+            return;
+        }
+        let skip = past_unreadable(s.at, s.paths.len(), !s.back, again, |i| s.unreadable.contains(&s.paths[i]), s.shown);
+        log!("slideshow: {:?} cannot be read: {skip:?}", s.paths[s.at]);
+        match skip {
+            Skip::To(at, forward) => {
+                s.skipped = Some((crate::source::name(&s.paths[s.at]).to_string(), now));
+                s.at = at;
+                s.back = !forward;
+                s.since = now;
+            }
+            Skip::End => self.end_show(ctx),
+            Skip::NoneReadable => {
+                self.end_show(ctx);
+                self.error = Some(self.i18n.t("show-none-readable"));
+            }
+        }
     }
 
     /// The images needed now are asked for; the others are let go.
@@ -230,13 +317,18 @@ impl App {
         }
     }
 
-    /// To the next image (or the previous one), with the passage; past the last one without
-    /// "start again" the slideshow ends.
+    /// To the next image (or the previous one), with the passage, over those that cannot be read;
+    /// past the last one without "start again" the slideshow ends.
     fn show_go(&mut self, ctx: &egui::Context, forward: bool, now: f64) {
         let again = self.settings.slideshow_loop;
         let Some(s) = &mut self.show else { return };
-        match step(s.at, s.paths.len(), forward, again) {
+        let n = s.paths.len();
+        match next_shown(s.at, n, forward, again, |i| s.unreadable.contains(&s.paths[i])) {
             Some(at) => {
+                // Unreadable ones passed over on the way (found by the look-ahead): the first said.
+                if let Some(over) = step(s.at, n, forward, again).filter(|&p| p != at) {
+                    s.skipped = Some((crate::source::name(&s.paths[over]).to_string(), now));
+                }
                 s.from = Some(s.paths[s.at].clone());
                 s.back = !forward;
                 s.at = at;
@@ -262,6 +354,25 @@ impl App {
             ui.painter().rect_filled(back, 6.0, Color32::from_black_alpha(170));
             ui.painter().galley(back.min + Vec2::new(12.0, 6.0), galley, Color32::WHITE);
         }
+    }
+}
+
+impl App {
+    /// The picture just passed over, in the top left corner for a few seconds: small, with the
+    /// warning triangle, on the hints' dark background; the pictures after it stay in view.
+    fn show_skipped(&self, ui: &egui::Ui, rect: Rect, now: f64) {
+        let Some((name, since)) = self.show.as_ref().and_then(|s| s.skipped.as_ref()) else { return };
+        if now - since >= SKIPPED_SECS {
+            return;
+        }
+        let text = self.i18n.t_args("show-skipped", &[("name", name)]);
+        let galley = ui.painter().layout(text, egui::FontId::proportional(15.0), Color32::WHITE, rect.width() * 0.4);
+        let icon = 18.0;
+        let back = Rect::from_min_size(rect.min + Vec2::splat(24.0), Vec2::new(icon + 8.0 + galley.size().x + 24.0, galley.size().y.max(icon) + 12.0));
+        ui.painter().rect_filled(back, 6.0, Color32::from_black_alpha(170));
+        let top = back.min + Vec2::new(12.0, 6.0);
+        crate::theme::paint_warning(ui.painter(), Rect::from_min_size(top, Vec2::splat(icon)));
+        ui.painter().galley(top + Vec2::new(icon + 8.0, 0.0), galley, Color32::WHITE);
     }
 }
 
@@ -365,6 +476,36 @@ mod tests {
         assert_eq!(passage(12.0, 10.0, 5.0), 1.0);
         // A short time per image: the passage takes half of it at most.
         assert_eq!(passage(10.5, 10.0, 1.0), 1.0);
+    }
+
+    /// Unreadable pictures passed over the way it goes, in the look-ahead too; back past the first
+    /// one without "start again", forward; none readable or none shown at the end: it stops.
+    #[test]
+    fn unreadable_passed_over() {
+        let bad = |list: &'static [usize]| move |i: usize| list.contains(&i);
+        // Look-ahead: the next one that opens, the bad ones in a row passed over.
+        assert_eq!(next_shown(0, 5, true, false, bad(&[1, 2])), Some(3));
+        assert_eq!(next_shown(4, 5, false, false, bad(&[3])), Some(2));
+        assert_eq!(next_shown(3, 5, true, false, bad(&[4])), None);
+        assert_eq!(next_shown(3, 5, true, true, bad(&[4, 0])), Some(1));
+        assert_eq!(next_shown(0, 3, true, true, bad(&[0, 1, 2])), None);
+        // On a bad one: on the same way.
+        assert_eq!(past_unreadable(1, 4, true, false, bad(&[1, 2]), true), Skip::To(3, true));
+        assert_eq!(past_unreadable(2, 4, false, false, bad(&[1, 2]), true), Skip::To(0, false));
+        // The first one, going back without "start again": forward, to the one it came from.
+        assert_eq!(past_unreadable(0, 3, false, false, bad(&[0]), true), Skip::To(1, true));
+        // A bad first one at the start.
+        assert_eq!(past_unreadable(0, 3, true, false, bad(&[0]), false), Skip::To(1, true));
+        // A bad last one without "start again": the end, as after a picture shown; round with it.
+        assert_eq!(past_unreadable(3, 4, true, false, bad(&[3]), true), Skip::End);
+        assert_eq!(past_unreadable(3, 4, true, true, bad(&[3]), true), Skip::To(0, true));
+        // From a bad one to the end without any shown (started from one near the end).
+        assert_eq!(past_unreadable(3, 4, true, false, bad(&[2, 3]), false), Skip::NoneReadable);
+        // All bad: it stops, with and without "start again", one picture alone too.
+        assert_eq!(past_unreadable(1, 3, true, true, bad(&[0, 1, 2]), false), Skip::NoneReadable);
+        assert_eq!(past_unreadable(0, 3, true, false, bad(&[0, 1, 2]), false), Skip::NoneReadable);
+        assert_eq!(past_unreadable(0, 1, true, true, bad(&[0]), false), Skip::NoneReadable);
+        assert_eq!(past_unreadable(0, 1, false, false, bad(&[0]), false), Skip::NoneReadable);
     }
 
     #[test]
