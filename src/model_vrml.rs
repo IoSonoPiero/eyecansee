@@ -400,13 +400,15 @@ mod tests {
     /// 912 MB): every word went into a list, 16 bytes each, before the scene was made. The words
     /// are now read one at a time; what stays is the text and the numbers, 4 bytes for every 2 of
     /// text. Measured on this thread (`test_alloc`: the memory of the process is shared with the
-    /// tests beside), with 1 MB of text. A `.wrz` that unpacks to more than the limit is refused.
+    /// tests beside), with 1 MB of text and one number more, so that the list of numbers has just
+    /// doubled. A `.wrz` that unpacks to more than the limit, or to more than `MAX_RATIO` times its
+    /// size, is refused.
     #[test]
     fn audit_6_19_wrz_tokens() {
         use std::io::Write;
         let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
         gz.write_all(b"#VRML V2.0 utf8\nShape { geometry IndexedFaceSet { coord Coordinate { point [\n").unwrap();
-        gz.write_all("0 ".repeat(1 << 19).as_bytes()).unwrap();
+        gz.write_all("0 ".repeat((1 << 19) + 1).as_bytes()).unwrap();
         gz.write_all(b"] } } }\n").unwrap();
         let wrz = gz.finish().unwrap();
         let text = 1 << 20;
@@ -414,9 +416,12 @@ mod tests {
         let (model, peak) = crate::test_alloc::peak(|| crate::model::parse(&wrz, "a.wrz").map(|m| m.tris.len()));
         println!("{scene_peak} bytes for the scene, {peak} in all, for {text} of text: {model:?}");
         assert!(scene.is_ok() && model.is_err_and(|e| e.contains("no triangles")));
-        // The scene: the text and its numbers (3 times the text; it was 12). The model then copies
-        // the points twice more, as for a .wrl (8 times; 9 leaves room).
-        assert!(scene_peak <= 3 * text + (64 << 10) && peak <= 9 * text, "{scene_peak} and {peak} bytes for {text} of text");
+        // The scene: the text and its numbers, 4 bytes for 2 of text in a list that grows by
+        // doubling (5 times the text; it was 19). The model then copies the points twice more, as
+        // for a .wrl (10 times; it was 19 too).
+        assert!(scene_peak <= 5 * text + (64 << 10) && peak <= 11 * text, "{scene_peak} and {peak} bytes for {text} of text");
         assert!(parse(&wrz, &Unpacked::new(text as u64 / 2)).is_err_and(|e| e.contains("unpacks")));
+        // Its text packs some 300 times: past what any file may unpack (64 KB here), refused.
+        assert!(parse(&wrz, &Unpacked::with(wrz.len(), crate::model_3mf::MAX_UNPACKED, 64 << 10)).is_err_and(|e| e.contains("times its size")));
     }
 }

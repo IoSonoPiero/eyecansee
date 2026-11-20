@@ -13,17 +13,31 @@ use roxmltree::{Document, Node};
 use crate::model::{Builder, Mesh};
 
 /// What one model file may unpack in all: the files of its zip, its gzip, the meshopt and Draco
-/// data of a glTF and its numbers made floats. As much as one file of a zip could unpack to
-/// before, so whatever opened then still opens (~10 M triangles take ~1 GB of XML); a file of a
-/// few KB made on purpose unpacked 1.6 GB from 12 files of 128 MB, or 2 GB from 8 meshopt views.
+/// data of a glTF and its numbers made floats. As much as one file of a zip could unpack to before
+/// (~10 M triangles take ~1 GB of XML); a safety net, as files made on purpose stop at `MAX_RATIO`.
 pub(crate) const MAX_UNPACKED: u64 = 2 << 30;
+/// Beyond `RATIO_FREE`, a file may unpack to this many times its size (and the files next to it
+/// that it reads), as zip bombs are told apart elsewhere (Apache POI: 0.01). XML and VRML text
+/// pack 5 to 10 times, Draco and meshopt data some 10 times; the files made on purpose pack a
+/// thousand times (a 3MF of 1.5 MB unpacked 1.6 GB, a GLB of 134 KB 2 GB).
+const MAX_RATIO: u64 = 100;
+/// What any file may unpack before `MAX_RATIO` is asked: a small file that packs well opens.
+const RATIO_FREE: u64 = 16 << 20;
 
-/// The count of `MAX_UNPACKED` for one file being opened, shared by the formats it holds.
+/// What one file being opened has unpacked, against `MAX_UNPACKED` and `MAX_RATIO`, shared by the
+/// formats it holds. Counted in bytes that come out, against bytes really read: the sizes a zip
+/// declares are not trusted.
 pub(crate) struct Unpacked {
-    left: Cell<u64>,
+    /// Bytes of the file and of the files next to it read for it.
+    read: Cell<u64>,
+    made: Cell<u64>,
+    limit: u64,
+    /// Up to here `MAX_RATIO` is not asked (`u64::MAX`: never).
+    free: u64,
     over: Cell<bool>,
 }
 
+#[cfg(test)]
 impl Default for Unpacked {
     fn default() -> Self {
         Unpacked::new(MAX_UNPACKED)
@@ -31,28 +45,50 @@ impl Default for Unpacked {
 }
 
 impl Unpacked {
+    /// For a file of `size` bytes.
+    pub(crate) fn for_file(size: usize) -> Self {
+        Unpacked::with(size, MAX_UNPACKED, RATIO_FREE)
+    }
+
+    pub(crate) fn with(size: usize, limit: u64, free: u64) -> Self {
+        Unpacked { read: Cell::new(size as u64), made: Cell::new(0), limit, free, over: Cell::new(false) }
+    }
+
+    /// Only a limit in all, without `MAX_RATIO`.
+    #[cfg(test)]
     pub(crate) fn new(limit: u64) -> Self {
-        Unpacked { left: Cell::new(limit), over: Cell::new(false) }
+        Unpacked::with(0, limit, u64::MAX)
+    }
+
+    /// A file next to this one, read for it (an inlined file, a glTF buffer).
+    pub(crate) fn read_too(&self, n: usize) {
+        self.read.set(self.read.get().saturating_add(n as u64));
+    }
+
+    /// How much more may be made: what is left of the limit and of `MAX_RATIO`.
+    fn allowed(&self) -> u64 {
+        let ratio = if self.free == u64::MAX { u64::MAX } else { self.free.max(self.read.get().saturating_mul(MAX_RATIO)) };
+        self.limit.min(ratio).saturating_sub(self.made.get())
     }
 
     /// `n` more bytes made from the file; an error once they pass the limit.
     pub(crate) fn spend(&self, n: u64) -> Result<(), String> {
-        match self.left.get().checked_sub(n) {
-            Some(left) if !self.over.get() => {
-                self.left.set(left);
-                Ok(())
-            }
-            _ => {
-                self.over.set(true);
-                Err(format!("the file unpacks to more than {} MB", MAX_UNPACKED >> 20))
-            }
+        if n <= self.allowed() && !self.over.get() {
+            self.made.set(self.made.get() + n);
+            return Ok(());
+        }
+        self.over.set(true);
+        if self.made.get().saturating_add(n) > self.limit {
+            Err(format!("the file unpacks to more than {} MB", self.limit >> 20))
+        } else {
+            Err(format!("the file unpacks to more than {MAX_RATIO} times its size"))
         }
     }
 
-    /// All that `r` unpacks, counted as it comes out: the sizes a zip declares are not trusted.
+    /// All that `r` unpacks, counted as it comes out: never more than is allowed is read.
     pub(crate) fn read(&self, r: impl Read) -> Result<Vec<u8>, String> {
         let mut out = Vec::new();
-        r.take(self.left.get().saturating_add(1)).read_to_end(&mut out).map_err(|e| e.to_string())?;
+        r.take(self.allowed().saturating_add(1)).read_to_end(&mut out).map_err(|e| e.to_string())?;
         self.spend(out.len() as u64)?;
         // Without the room it grew by (up to as much again).
         out.shrink_to_fit();
@@ -381,14 +417,14 @@ mod tests {
     }
 
     /// A 3MF whose build places object 1 of each model file in `paths` (named as given), each
-    /// file a triangle and a comment of `size` bytes, written once for each name in the zip.
-    fn parts(paths: &[String], size: usize) -> Vec<u8> {
+    /// file a triangle and the comment `filler`, written once for each name in the zip.
+    fn parts(paths: &[String], filler: &str) -> Vec<u8> {
         let items: String = paths.iter().map(|p| format!(r#"<item objectid="1" p:path="{p}"/>"#)).collect();
         let mut w = zip::ZipWriter::new(Cursor::new(Vec::new()));
         w.start_file("3D/3dmodel.model", zip::write::SimpleFileOptions::default()).unwrap();
         w.write_all(format!(r#"<model xmlns:p="p"><resources/><build>{items}</build></model>"#).as_bytes()).unwrap();
         let triangle = r#"<vertices><vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/></vertices><triangles><triangle v1="0" v2="1" v3="2"/></triangles>"#;
-        let part = format!(r#"<model><resources><object id="1"><mesh>{triangle}</mesh></object></resources><!--{}--></model>"#, "A".repeat(size));
+        let part = format!(r#"<model><resources><object id="1"><mesh>{triangle}</mesh></object></resources><!--{filler}--></model>"#);
         let mut names: Vec<&str> = paths.iter().map(|p| p.trim_start_matches('/')).collect();
         names.sort_unstable();
         names.dedup();
@@ -407,8 +443,8 @@ mod tests {
     fn audit_6_19_3mf_total() {
         let paths = |n: usize| (0..n).map(|k| format!("/3D/part{k}.model")).collect::<Vec<_>>();
         let limit = 512 << 10;
-        assert_eq!(read(&parts(&paths(4), 64 << 10), &Unpacked::new(limit)).unwrap().tris.len(), 4);
-        let r = read(&parts(&paths(12), 64 << 10), &Unpacked::new(limit));
+        assert_eq!(read(&parts(&paths(4), &"A".repeat(64 << 10)), &Unpacked::new(limit)).unwrap().tris.len(), 4);
+        let r = read(&parts(&paths(12), &"A".repeat(64 << 10)), &Unpacked::new(limit));
         assert!(r.as_ref().is_err_and(|e| e.contains("unpacks")), "{:?}", r.map(|m| m.tris.len()));
     }
 
@@ -418,7 +454,28 @@ mod tests {
     #[test]
     fn a_file_named_in_several_spellings_is_read_once() {
         let spellings = ["/3D/a.model", "//3D/a.model", "3D/a.model", "///3D/a.model"].map(String::from);
-        let m = read(&parts(&spellings, 64 << 10), &Unpacked::new(128 << 10)).unwrap();
+        let m = read(&parts(&spellings, &"A".repeat(64 << 10)), &Unpacked::new(128 << 10)).unwrap();
         assert_eq!(m.tris.len(), 4);
+    }
+
+    /// Audit 6.19 (a), the ratio: past what any file may unpack (64 KB here instead of
+    /// `RATIO_FREE`), a 3MF that unpacks to more than `MAX_RATIO` times its size is refused, as the
+    /// files made on purpose pack a thousand times; one whose XML holds numbers, which pack a few
+    /// times as in a real model, opens.
+    #[test]
+    fn a_3mf_that_unpacks_to_100_times_its_size_is_refused() {
+        let paths: Vec<String> = (0..4).map(|k| format!("/3D/part{k}.model")).collect();
+        let ratio = |bytes: &[u8]| Unpacked::with(bytes.len(), MAX_UNPACKED, 64 << 10);
+        let packed = parts(&paths, &"A".repeat(64 << 10));
+        assert!(read(&packed, &ratio(&packed)).is_err_and(|e| e.contains("times its size")));
+        let mut seed = 1u32;
+        let numbers: String = (0..8000)
+            .map(|_| {
+                seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                format!("{:.4} ", f64::from(seed >> 8) / 1e4)
+            })
+            .collect();
+        let real = parts(&paths, &numbers);
+        assert_eq!(read(&real, &ratio(&real)).unwrap().tris.len(), 4);
     }
 }

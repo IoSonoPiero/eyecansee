@@ -47,7 +47,7 @@ pub fn plain(bytes: &[u8], sibling: Sibling, unpacked: &Unpacked) -> Result<Opti
         let bytes = match buf["uri"].as_str() {
             None => bin.filter(|_| i == 0).map(<[u8]>::to_vec),
             Some(u) if u.starts_with("data:") => u.split_once(";base64,").and_then(|(_, d)| base64::engine::general_purpose::STANDARD.decode(d).ok()),
-            Some(u) => sibling(u),
+            Some(u) => sibling(u).inspect(|b| unpacked.read_too(b.len())),
         };
         let bytes = bytes.unwrap_or_default();
         unpacked.spend(bytes.len() as u64)?;
@@ -98,7 +98,8 @@ fn glb(json: &[u8], mut bin: Vec<u8>) -> Vec<u8> {
     while !bin.len().is_multiple_of(4) {
         bin.push(0);
     }
-    let mut out = b"glTF".to_vec();
+    let mut out = Vec::with_capacity(28 + json.len() + bin.len());
+    out.extend(b"glTF");
     out.extend(2u32.to_le_bytes());
     out.extend((28 + json.len() as u32 + bin.len() as u32).to_le_bytes());
     out.extend((json.len() as u32).to_le_bytes());
@@ -478,7 +479,7 @@ mod tests {
     /// Audit 6.19 (c): what meshopt decodes is limited for the whole file, not only for each view:
     /// 8 views of 128 MB took 2 GB from a GLB of 134 KB, each far under its own limit. The same at
     /// a smaller scale, with a limit of 256 KB instead of `MAX_UNPACKED`: two views of 64 KB are
-    /// decoded, eight are refused.
+    /// decoded, eight are refused. Long before the limit, such a file passes `MAX_RATIO`.
     #[test]
     fn audit_6_19_meshopt_total() {
         let limit = 256 << 10;
@@ -486,6 +487,11 @@ mod tests {
         assert_eq!(crate::model::parse(&two, "m.glb").unwrap().tris.len(), 1);
         let r = super::plain(&meshopt_views(8, 36), &|_| None, &Unpacked::new(limit));
         assert!(r.as_ref().is_err_and(|e| e.contains("unpacks")), "{:?}", r.map(|g| g.map(|g| g.len())));
+        // And by the ratio, past what any file may unpack (64 KB here instead of `RATIO_FREE`):
+        // 128 KB from a GLB of 1 KB.
+        let two = meshopt_views(2, 36);
+        let r = super::plain(&two, &|_| None, &Unpacked::with(two.len(), crate::model_3mf::MAX_UNPACKED, 64 << 10));
+        assert!(r.as_ref().is_err_and(|e| e.contains("times its size")), "{:?}", r.map(|g| g.map(|g| g.len())));
     }
 
     /// Offsets and parts that are not what the format says are refused, without a panic: a meshopt

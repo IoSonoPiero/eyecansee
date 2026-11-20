@@ -301,7 +301,7 @@ pub(crate) fn named_unit(name: Option<&str>) -> Option<&'static str> {
 
 fn read_as(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, String> {
     // What the file unpacks (zips, gzip, compressed glTF data), in all.
-    let unpacked = &crate::model_3mf::Unpacked::default();
+    let unpacked = &crate::model_3mf::Unpacked::for_file(bytes.len());
     match ext(name).as_deref() {
         Some("stl") => stl(bytes),
         Some("obj") => obj(bytes, sibling),

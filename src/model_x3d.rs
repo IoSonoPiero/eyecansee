@@ -90,6 +90,8 @@ impl Walk<'_, '_> {
                 if self.reads > MAX_INLINE_READS {
                     return Err(format!("more than {MAX_INLINE_READS} inlined files"));
                 }
+                // An inlined file counts in what the model's file may unpack.
+                bytes.iter().for_each(|b| self.unpacked.read_too(b.len()));
                 let scene = bytes.map(|b| crate::model_vrml::parse(&b, self.unpacked)).transpose()?.map(Rc::new);
                 self.inlined.insert(urls, scene.clone());
                 scene
