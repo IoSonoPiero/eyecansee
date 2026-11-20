@@ -430,4 +430,33 @@ mod tests {
         }
         std::fs::remove_dir_all(&dir).unwrap();
     }
+
+    /// Audit 2.11: Save over a file whose original goes to the system trash, when the trash
+    /// refuses it (here: the trash of this run's data folder cannot be made). The save fails, and
+    /// the original stays, as it should; but the second name made for it is taken for the leftover
+    /// of an older save and shown as "a (2).jpg", one more at every try.
+    #[test]
+    #[ignore = "audit 2.11: not fixed yet"]
+    fn audit_2_11_trash_refused_leaves_a_copy() {
+        let run = crate::audit_family_1::guard();
+        let data = std::path::PathBuf::from(std::env::var("XDG_DATA_HOME").unwrap());
+        // The system trash of this run, never the user's: a file where its folder should be.
+        std::fs::create_dir_all(&data).unwrap();
+        std::fs::write(data.join("Trash"), b"not a folder").unwrap();
+        let dir = run.join("two-eleven");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.jpg"), b"original").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let mut tries = Vec::new();
+        for _ in 0..2 {
+            tries.push(rt.block_on(replace(&op, "a.jpg", b"new".to_vec(), Deletion::SystemTrash)));
+        }
+        let mut names: Vec<String> = std::fs::read_dir(&dir).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+        names.sort();
+        eprintln!("saves: {tries:?}; folder: {names:?}; a.jpg: {:?}", std::fs::read_to_string(dir.join("a.jpg")));
+        assert!(tries.iter().all(Result::is_err), "the trash was expected to refuse");
+        assert_eq!(std::fs::read(dir.join("a.jpg")).unwrap(), b"original", "the original stays");
+        assert_eq!(names, ["a.jpg"], "copies of the original left in the folder");
+    }
 }
