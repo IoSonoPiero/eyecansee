@@ -201,6 +201,8 @@ mod zoom;
 mod zoom_bar;
 #[cfg(test)]
 mod help_check;
+#[cfg(test)]
+mod audit_family_1;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
