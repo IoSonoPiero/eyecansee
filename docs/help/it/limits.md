@@ -35,6 +35,7 @@ Che cosa EyeCanSee non fa ancora, o fa solo in parte. L'elenco aggiornato dei pr
 
 - Su Linux, sui dischi **NTFS** (per esempio un disco esterno usato anche con Windows) l'app File (Nautilus) non riesce a ripristinare dal cestino, nemmeno i file che ha eliminato lei. I file sono comunque nel cestino e si ripristinano dal terminale: `gio trash --list` mostra che cosa c'è, `gio trash --restore "<indirizzo trash:/// di quella riga>"` lo rimette a posto.
 - Su Windows le unità di rete e i CD o DVD non compaiono nel pannello: aprili con **File > Apri indirizzo…**.
+- Copia da un telefono o da un server: un elemento con un nome che qui nessun file può avere (un nome con `/`, `\`, `..`, un'unità come `C:` o caratteri di controllo, che porterebbe fuori dalla cartella incollata) viene lasciato fuori, e la copia finisce con un messaggio che lo nomina. Una cartella spostata che ne contiene uno resta dov'era.
 - FTPS: un server che vuole che la connessione dei dati riprenda la sessione TLS di quella di controllo può non mandare mai i dati.
 - SFTP: ProxyJump e ProxyCommand di `~/.ssh/config` non sono supportati.
 

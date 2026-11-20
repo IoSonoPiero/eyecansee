@@ -51,6 +51,15 @@ pub fn parent(dir: &str) -> String {
     }
 }
 
+/// Whether a name sent by a phone or a server can become one item of a path at the destination
+/// of a copy: a single item, not "." nor "..", with no "/" or "\" (a separator on Windows), no
+/// drive ("C:") and no control characters. A server can send any text: "../x" written as it is
+/// would land outside the folder pasted (audit 2.3).
+pub fn safe_name(name: &str) -> bool {
+    let drive = matches!(name.as_bytes(), [l, b':', ..] if l.is_ascii_alphabetic());
+    !(name.is_empty() || name == "." || name == ".." || drive || name.chars().any(|c| c == '/' || c == '\\' || c.is_control()))
+}
+
 /// Accepts a local path or `file://`, `ftp://`, `ftps://`, `sftp://`, `mtp://`.
 pub fn open(arg: &str) -> Result<Source, Error> {
     // "C:\photos" would be read as a URL with scheme "c": one-letter schemes are paths.
@@ -141,6 +150,18 @@ mod tests {
         assert!(windows_temp_copy("C:\\/Users/Ann/AppData/Local/Microsoft/Windows/INetCache/IE/OC6EAUQ4/photo-47[1].jpg"));
         for normal in [r"C:\Users\Ann\Pictures\IMG_0001.jpg", r"D:\Photos\Microsoft\Windows\a.jpg", r"C:\Users\Ann\INetCache\a.jpg", "/home/me/Microsoft/a.jpg"] {
             assert!(!windows_temp_copy(normal), "{normal}");
+        }
+    }
+
+    /// Names a phone or a server may send: only one item of a path is kept (audit 2.3).
+    #[test]
+    fn safe_names() {
+        for good in ["a.jpg", "IMG 0001.JPG", ".hidden", "...", "a..b.jpg", "12:30.jpg", "1:2.png", "Ünïcode ✓.png", ".EyeCanSee-trash"] {
+            assert!(safe_name(good), "{good:?} refused");
+        }
+        let bad = ["", ".", "..", "../victim.txt", "a/b", "/etc/passwd", "a\\b", "..\\victim.txt", "\\\\server\\share", "C:", "C:x.jpg", "c:\\Windows", "z:", "a\0b", "a\nb", "\u{7f}", "a\u{85}b"];
+        for bad in bad {
+            assert!(!safe_name(bad), "{bad:?} accepted");
         }
     }
 }
