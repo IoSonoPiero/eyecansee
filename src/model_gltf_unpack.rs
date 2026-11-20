@@ -15,8 +15,9 @@ const PACKED: [&str; 4] = ["KHR_draco_mesh_compression", "EXT_meshopt_compressio
 /// A decoded part larger than this is refused (a small file could ask for gigabytes).
 const MAX_DECODED: usize = 1 << 30;
 
-/// The JSON and the binary chunk of a GLB, or the JSON of a .gltf.
-fn split(bytes: &[u8]) -> Option<(&[u8], Option<&[u8]>)> {
+/// The JSON and the binary chunk of a GLB, or the JSON of a .gltf; `None` when the JSON of a GLB
+/// is cut, a binary chunk cut or missing is `None`.
+pub(crate) fn split(bytes: &[u8]) -> Option<(&[u8], Option<&[u8]>)> {
     if !bytes.starts_with(b"glTF") {
         return Some((bytes, None));
     }

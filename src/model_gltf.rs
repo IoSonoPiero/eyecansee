@@ -72,8 +72,19 @@ pub fn read(bytes: &[u8], sibling: Sibling, unpacked: &crate::model_3mf::Unpacke
     }
 }
 
+/// The error of a file the glTF reader refuses: a GLB whose block of data is cut is said as one
+/// without it (#178), when its JSON is whole and its block of data is not (`model_gltf_unpack::split`);
+/// in a slice, `Io` is only a header that ends too soon.
+fn refused(bytes: &[u8], e: gltf::Error) -> String {
+    use gltf::binary::{ChunkType, Error as Glb};
+    match e {
+        gltf::Error::Binary(Glb::Io(_) | Glb::Length { .. } | Glb::ChunkLength { ty: ChunkType::Bin, .. }) if matches!(crate::model_gltf_unpack::split(bytes), Some((_, None))) => format!("{INCOMPLETE}\u{1}"),
+        e => gltf_error(e.to_string()),
+    }
+}
+
 fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
-    let g = gltf::Gltf::from_slice(bytes).map_err(|e| gltf_error(e.to_string()))?;
+    let g = gltf::Gltf::from_slice(bytes).map_err(|e| refused(bytes, e))?;
     let inside: Vec<Option<Vec<u8>>> = g
         .document
         .buffers()
@@ -362,6 +373,54 @@ mod tests {
             assert_eq!(en, "The file is incomplete: the block with the model's data is missing");
             assert_eq!(it, "Il file è incompleto: manca il blocco con i dati del modello");
             assert_eq!(converted(&glb, "a.glb"), "The file is incomplete: the block with the model's data is missing (a.glb)");
+        }
+    }
+
+    /// A GLB with one triangle, its block of data whole; `packed` as in `with_buffer`.
+    fn whole_glb(packed: bool) -> Vec<u8> {
+        let mut json = with_buffer(r#"{"byteLength":36}"#, packed).into_bytes();
+        while !json.len().is_multiple_of(4) {
+            json.push(b' ');
+        }
+        let floats: Vec<u8> = [0f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0].iter().flat_map(|f| f.to_le_bytes()).collect();
+        let mut glb = b"glTF".to_vec();
+        glb.extend(2u32.to_le_bytes());
+        glb.extend((28 + json.len() as u32 + 36).to_le_bytes());
+        glb.extend((json.len() as u32).to_le_bytes());
+        glb.extend(b"JSON");
+        glb.extend(&json);
+        glb.extend(36u32.to_le_bytes());
+        glb.extend(b"BIN\0");
+        glb.extend(floats);
+        glb
+    }
+
+    /// #178: a GLB whose block of data is cut (a download that stopped) is said as one without
+    /// it, plain or packed, whether its header gives the whole length or the cut one, and in
+    /// Convert; the library said "could not completely read the object".
+    #[test]
+    fn glb_data_cut() {
+        for packed in [false, true] {
+            let glb = whole_glb(packed);
+            assert_eq!(crate::model::parse(&glb, "a.glb").unwrap().tris.len(), 1, "packed {packed}");
+            let json_end = glb.len() - 36 - 8;
+            // Cut in the middle of the data, and in the middle of the block's header.
+            for cut in [glb.len() - 18, json_end + 4] {
+                let mut short = glb[..cut].to_vec();
+                for header_says_cut in [false, true] {
+                    if header_says_cut {
+                        short[8..12].copy_from_slice(&(cut as u32).to_le_bytes());
+                    }
+                    let e = crate::model::parse(&short, "a.glb").unwrap_err();
+                    assert_eq!(e, format!("{}\u{1}", super::INCOMPLETE), "packed {packed} cut {cut} header {header_says_cut}");
+                    let [en, it] = said(&e);
+                    assert_eq!(en, "The file is incomplete: the block with the model's data is missing");
+                    assert_eq!(it, "Il file è incompleto: manca il blocco con i dati del modello");
+                    assert_eq!(converted(&short, "a.glb"), "The file is incomplete: the block with the model's data is missing (a.glb)");
+                }
+            }
+            // Cut in its JSON: not this sentence, the model's description is not whole.
+            assert_ne!(crate::model::parse(&glb[..json_end - 10], "a.glb").unwrap_err(), format!("{}\u{1}", super::INCOMPLETE));
         }
     }
 

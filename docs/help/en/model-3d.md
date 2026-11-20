@@ -11,7 +11,7 @@
 - **IFC**: building models (walls, slabs, windows, structures) in their colours.
 - **STEP**, **IGES** and **BREP**, the solid models of mechanical CAD programs. They need the CAD engine, downloaded once: the first one you open offers it, and so does the red **Download the CAD engine** button in the menu bar. Until then their thumbnail is a cube ![CAD model](icon://color-model) with a download sign. See [Add-on components](components.md).
 
-A `.gltf` whose data file (usually `.bin`) is not next to it does not open: the viewer names the file that is missing. EyeCanSee reads that file only from the model's folder or from a folder inside it: when the model points to a folder above, to a whole path or to the internet, the viewer says so and names the file. A model whose data inside the file is damaged, or a `.glb` without its block of data, does not open either, and the viewer says which of the two it is.
+A `.gltf` whose data file (usually `.bin`) is not next to it does not open: the viewer names the file that is missing. EyeCanSee reads that file only from the model's folder or from a folder inside it: when the model points to a folder above, to a whole path or to the internet, the viewer says so and names the file. A model whose data inside the file is damaged, or a `.glb` whose block of data is missing or cut off (a download that stopped), does not open either, and the viewer says which of the two it is.
 
 The full list is in [Supported formats](formats.md).
 
