@@ -36,8 +36,20 @@ pub fn estimate(bytes: &[u8], size: u64, name: &str, what: Use) -> Estimate {
     {
         return Estimate::from_header(size.saturating_add(decoding).saturating_add(shown(Some(shown_px))).saturating_add(FIXED));
     }
-    let px = crate::decode::header(bytes, name).map(|h| u64::from(h.size[0]) * u64::from(h.size[1]));
-    thumb_memory::estimate_sized(bytes, size, name).plus(shown(px))
+    thumb_memory::estimate_sized(bytes, size, name).plus(shown(shown_pixels(bytes, name)))
+}
+
+/// The pixels of the picture shown, when its header tells them the same from the start of its
+/// file as from all of it: a RAW other than DNG says them only with its sensor data (and rawler
+/// sets aside its memory first: not read for this), an SVG is shown at `SVG_SIDE`.
+fn shown_pixels(bytes: &[u8], name: &str) -> Option<u64> {
+    if crate::decode::is_raw(name) {
+        crate::raw_meta::dng_pixels(bytes)
+    } else if crate::decode::is_svg(name) {
+        Some((crate::decode::SVG_SIDE as u64).pow(2))
+    } else {
+        crate::decode::header(bytes, name).map(|h| u64::from(h.size[0]) * u64::from(h.size[1]))
+    }
 }
 
 /// A JPEG as `decode::decode` reads it for the viewer, or whole: the memory of its decoding and
@@ -120,10 +132,14 @@ impl NotRead {
 /// large for the memory and not opened `anyway`: the viewer shows a card for it, the pages ask
 /// about it. 3D models, drawings and videos are read as they are: they have limits of their own.
 pub async fn read(op: &Store, path: &str, size: Option<u64>, what: Use, anyway: bool) -> Result<Vec<u8>, NotRead> {
+    read_for(op, path, size, (what, anyway), thumb_memory::ram()).await
+}
+
+/// `read` on a computer with `ram`.
+async fn read_for(op: &Store, path: &str, size: Option<u64>, (what, anyway): (Use, bool), ram: u64) -> Result<Vec<u8>, NotRead> {
     if anyway || crate::model::is_model(path) || crate::cad::is_cad(path) || crate::decode::is_played(path) {
         return op.read(path).await.map_err(NotRead::Failed);
     }
-    let ram = thumb_memory::ram();
     read_unless_too_large(op, path, size, |bytes, size| estimate(bytes, size, path, what).over_half(bytes.len(), size, path, ram)).await
 }
 
@@ -366,6 +382,52 @@ mod tests {
         let (read, r) = bytes_read(&dir, "small.png", None, 2 * GIB);
         assert_eq!(Ok(read as usize), r);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// The viewer (the picture shown and its neighbours alike), the editor, Save as, Convert and
+    /// Resize: a picture too large is refused from the start of its file, unless opened anyway;
+    /// a 3D model or a drawing is never refused here (limits of their own).
+    #[test]
+    fn read_refuses_unless_anyway() {
+        let dir = std::env::temp_dir().join(format!("view-memory-read-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let size = 1 << 20;
+        for name in ["a.cr3", "a.glb", "a.dxf"] {
+            std::fs::File::create(dir.join(name)).unwrap().set_len(size).unwrap();
+        }
+        let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        // 72 MiB and more needed for a RAW of 1 MiB: over half of 64 MiB.
+        let ram = 64 << 20;
+        let read = |name: &str, what, anyway| {
+            crate::source::BYTES_READ.with(|n| n.set(0));
+            let r = rt.block_on(read_for(&op, name, None, (what, anyway), ram)).map(|b| b.len() as u64);
+            (r, crate::source::BYTES_READ.with(std::cell::Cell::get))
+        };
+        for what in [Use::View, Use::Whole] {
+            let (r, bytes) = read("a.cr3", what, false);
+            assert!(matches!(r, Err(NotRead::TooLarge(_))) && bytes == HEAD, "{what:?}: {r:?}, {bytes}");
+            assert_eq!(read("a.cr3", what, true), (Ok(size), size), "{what:?}: Open anyway");
+            for other in ["a.glb", "a.dxf"] {
+                assert_eq!(read(other, what, false), (Ok(size), size), "{other}");
+            }
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// From the start of a file or from all of it, the same estimate when it is sure: a RAW
+    /// whose size goes by the file, an SVG shown at its own side.
+    #[test]
+    fn same_from_the_start_and_whole() {
+        let size = 50 << 20;
+        let head = vec![0x33u8; HEAD as usize];
+        let whole = vec![0x33u8; 2 * HEAD as usize];
+        for name in ["a.cr3", "a.nef", "a.svg"] {
+            for what in [Use::View, Use::Whole] {
+                assert_eq!(estimate(&head, size, name, what).need, estimate(&whole, size, name, what).need, "{name} {what:?}");
+            }
+        }
     }
 
     /// The editor and Save as ask only about a picture not read as too large (not while it is
