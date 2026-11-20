@@ -145,6 +145,7 @@ transfer-links-kept = { $n ->
 transfer-links-why = A link to a folder on an FTP server, or one that leads back into the folders copied, is left out. More in the guide (F1).
 error-paste-inside = A folder cannot go inside itself: { $detail }
 error-name-too-long = The name is too long for the phone: { $detail } characters, while a phone takes at most 254 (an emoji counts as two). Shorten it and try again; nothing was copied.
+error-name-refused = Left out of the copy: { $detail }. The phone or the server gives it a name no file can have here (it would lead out of the folder, or it holds characters such as / or \). The rest was copied; a moved folder that holds it stays where it was.
 error-copy-not-made = The phone did not make the copy of { $detail }: the original was left as it was.
 error-cancelled = Cancelled.
 error-too-deep = Too many folders one inside another, so the copy stopped: { $detail }

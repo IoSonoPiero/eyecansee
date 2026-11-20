@@ -79,6 +79,9 @@ pub struct Progress {
     pub cancel: AtomicBool,
     /// The speed of the last seconds, as the UI shows it.
     pub recent: Mutex<Recent>,
+    /// Items of a phone or a server left out because of their name (`allowed`), as found: an
+    /// error at the end of the copy, and a move keeps the folders that hold them.
+    pub refused: Mutex<Vec<String>>,
 }
 
 /// Bytes copied over the last `SPAN` seconds: the speed of the moment, as a system network meter
@@ -165,8 +168,35 @@ pub fn links_to_say(r: &Result<(), Error>, p: &Progress) -> Option<usize> {
 /// also when it stops at an error halfway.
 pub async fn run(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress) -> (Vec<String>, Result<(), Error>) {
     let mut gone = Vec::new();
-    let r = paste(clip, to, to_base, to_dir, choices, p, &mut gone).await;
-    (gone, r)
+    let mut clip = clip.clone();
+    clip.paths.retain(|src| allowed(&clip.op, src, name(src), p));
+    let r = paste(&clip, to, to_base, to_dir, choices, p, &mut gone).await;
+    (gone, r.and_then(|()| refused(p)))
+}
+
+/// Whether the item `path` of `from` may be copied as `rel` (its path below the folder pasted, or
+/// its own name). A name sent by a phone or a server that is not one item of a path at the
+/// destination (`source::safe_name`: "../x" would land outside the folder) is left out, with a
+/// line in the log, in `Progress::refused`. Names of this computer are what its disks hold.
+fn allowed(from: &Store, path: &str, rel: &str, p: &Progress) -> bool {
+    if matches!(from, Store::Dal(_)) || rel.trim_end_matches('/').split('/').all(crate::source::safe_name) {
+        return true;
+    }
+    log!("paste: {path:?} left out: a name sent by the device that is not one a path can hold");
+    p.refused.lock().unwrap().push(path.to_string());
+    false
+}
+
+/// A copy that left items out (`allowed`) is not one that worked: an error naming them, once the
+/// rest has been copied.
+fn refused(p: &Progress) -> Result<(), Error> {
+    let left = p.refused.lock().unwrap();
+    if left.is_empty() { Ok(()) } else { Err(("error-name-refused", left.join(", "))) }
+}
+
+/// Whether something below the folder `src` was left out (`allowed`): its original stays.
+fn left_below(src: &str, p: &Progress) -> bool {
+    src.ends_with('/') && p.refused.lock().unwrap().iter().any(|r| r.starts_with(src))
 }
 
 async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress, gone: &mut Vec<String>) -> Result<(), Error> {
@@ -246,8 +276,8 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
         }
         // Moved between devices: the original goes only once all of it has been copied, its
         // sidecars before it (stopped between the two, the photo stays with no sidecar of its
-        // own left behind).
-        if clip.cut {
+        // own left behind). A folder with an item left out because of its name stays whole.
+        if clip.cut && !left_below(src, p) {
             for (s, _, _) in sides {
                 clip.op.delete(s, Deletion::Permanent).await?;
             }
@@ -377,6 +407,9 @@ async fn folder_items(clip: &Clip, to: &Store, src: &str, dest: &str, p: &Progre
     let mut list = vec![(src.to_string(), dest.to_string(), 0)];
     let mut trashes = HashMap::new();
     for (path, size) in below {
+        if !allowed(&clip.op, &path, &path[src.len()..], p) {
+            continue;
+        }
         if let Some(rel) = place(to, dest, &path[src.len()..], clip.cut, &mut trashes).await {
             list.push((path, format!("{dest}{rel}"), size));
         }
@@ -827,5 +860,30 @@ mod tests {
             assert!(!dir.join("src/a (2).jpg").exists());
         });
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Names sent by a phone or a server are checked before they become paths at the destination
+    /// (audit 2.3): an item whose path below the folder pasted is not made of names a path can
+    /// hold is left out, the copy ends with an error naming it, and a move keeps the folder that
+    /// holds it. Names of this computer are not checked. (Copies from servers: `ftp.rs`, `sftp.rs`.)
+    #[test]
+    fn names_from_devices_checked() {
+        let target = crate::ftp::Target { host: "names.invalid".into(), port: 21, user: String::new(), password: String::new(), secure: false };
+        let server = Store::Ftp(crate::ftp::Server::shared(target));
+        let p = Progress::default();
+        for good in ["a.jpg", "sub/", "sub/b.jpg", "12:30.jpg", ".EyeCanSee-trash/x.jpg"] {
+            assert!(allowed(&server, &format!("album/{good}"), good, &p), "{good}");
+        }
+        assert_eq!(refused(&p), Ok(()));
+        assert!(!left_below("album/", &p));
+        for bad in ["../victim.txt", "..", "sub/../../x.jpg", "..\\victim.txt", "C:\\x.jpg", "sub//x", "a\nb.jpg", "/etc/x"] {
+            assert!(!allowed(&server, &format!("album/{bad}"), bad, &p), "{bad:?}");
+        }
+        assert_eq!(p.refused.lock().unwrap().len(), 8);
+        assert_eq!(refused(&p).unwrap_err().0, "error-name-refused");
+        assert!(refused(&p).unwrap_err().1.starts_with("album/../victim.txt, album/.., "));
+        assert!(left_below("album/", &p) && !left_below("other/", &p) && !left_below("album/a.jpg", &p) && !left_below("", &p));
+        let local = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&std::env::temp_dir().to_string_lossy())).unwrap());
+        assert!(allowed(&local, "a\\b.jpg", "a\\b.jpg", &Progress::default()), "a name of this computer");
     }
 }
