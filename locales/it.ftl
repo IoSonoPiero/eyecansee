@@ -129,6 +129,7 @@ error-name-too-long = Il nome è troppo lungo per il telefono: { $detail } carat
 error-copy-not-made = Il telefono non ha fatto la copia di { $detail }: l'originale non è stato toccato.
 error-paste-inside = Una cartella non può andare dentro sé stessa: { $detail }
 error-cancelled = Annullato.
+error-too-deep = Troppe cartelle una dentro l'altra, quindi la copia si è fermata: { $detail }
 menu-about = Informazioni su EyeCanSee
 menu-meta = Riquadri dei metadati
 about-tagline = Visualizzatore, gestore ed editor di foto, video, modelli 3D e disegni CAD per Linux e Windows

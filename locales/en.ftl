@@ -130,6 +130,7 @@ error-paste-inside = A folder cannot go inside itself: { $detail }
 error-name-too-long = The name is too long for the phone: { $detail } characters, while a phone takes at most 254 (an emoji counts as two). Shorten it and try again; nothing was copied.
 error-copy-not-made = The phone did not make the copy of { $detail }: the original was left as it was.
 error-cancelled = Cancelled.
+error-too-deep = Too many folders one inside another, so the copy stopped: { $detail }
 menu-about = About EyeCanSee
 menu-meta = Metadata boxes
 about-tagline = Viewer, manager and editor for photos, videos, 3D models and CAD drawings, for Linux and Windows

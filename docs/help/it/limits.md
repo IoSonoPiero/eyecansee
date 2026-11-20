@@ -38,6 +38,7 @@ Che cosa EyeCanSee non fa ancora, o fa solo in parte. L'elenco aggiornato dei pr
 - Su Windows le unità di rete e i CD o DVD non compaiono nel pannello: aprili con **File > Apri indirizzo…**.
 - FTPS: un server che vuole che la connessione dei dati riprenda la sessione TLS di quella di controllo può non mandare mai i dati.
 - SFTP: ProxyJump e ProxyCommand di `~/.ssh/config` non sono supportati.
+- Copia di una cartella da un server: su FTP un collegamento a una cartella resta fuori, perché FTP non dice dove porta; su SFTP si copia solo se porta fuori dalle cartelle già copiate, mai alla cartella stessa o a una cartella sopra.
 
 ## Modelli 3D e disegni CAD
 

@@ -540,6 +540,9 @@ impl Server {
     /// Everything below a folder, hidden items and EyeCanSee's trash folders too
     /// (`transfer::place`), folders before what they contain: path and size (folders end in "/",
     /// size 0).
+    /// A link to a folder is left out, not gone down (nor do `cp -r` and rsync): FTP cannot tell
+    /// where it leads, and one to the folder itself or to a folder above brought the same files
+    /// again and again (#183).
     pub async fn walk(&self, dir: &str, p: &crate::transfer::Progress) -> Result<Vec<(String, u64)>, Error> {
         let mut found = Vec::new();
         let mut todo = vec![dir.to_string()];
@@ -547,10 +550,15 @@ impl Server {
             if p.cancel.load(Ordering::Relaxed) {
                 return Err(("error-cancelled", String::new()));
             }
+            crate::source::too_deep(dir, &d)?;
             *p.current.lock().unwrap() = d.clone();
             for f in self.entries(&d).await? {
                 let path = format!("{d}{}", f.name());
                 if self.entry_is_dir(&path, &f).await {
+                    if f.is_symlink() {
+                        log!("ftp: {path:?} left out of the walk: a link to a folder");
+                        continue;
+                    }
                     found.push((format!("{path}/"), 0));
                     todo.push(format!("{path}/"));
                 } else {
@@ -614,6 +622,8 @@ impl Server {
 
 #[cfg(test)]
 mod tests {
+    mod fake;
+
     #[test]
     fn listed_items() {
         let unix = super::parse("-rw-r--r--    1 me       users     1234 Oct 30 09:10 a b.jpg", false).unwrap();
@@ -663,5 +673,25 @@ mod tests {
         let lost: Error = ("error-detail", "a: connection lost".to_string());
         assert_eq!(rt.block_on(over(&memo, "a", attempt(Err(lost.clone())))), Some(Err(lost)));
         assert_eq!(memo.load(Ordering::Relaxed), UNKNOWN);
+    }
+
+    /// Audit 2.16 (FTP): a folder with a link to itself (`loop/again` → `loop/`) must be walked
+    /// once. `walk` took a link the server lets it enter (CWD) for a folder and had no memory of
+    /// the folders seen, so it went down `again/again/…` until the server refused the path (Linux:
+    /// more than 40 links), and a copy of the folder held the same file once per level.
+    /// Server: `tests/fake.rs`.
+    #[test]
+    fn audit_2_16_walk_link_to_itself() {
+        let (target, seen) = fake::start();
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let server = super::Server::shared(target);
+            let t = std::time::Instant::now();
+            let walked = server.walk("loop/", &crate::transfer::Progress::default()).await.unwrap();
+            let copies = walked.iter().filter(|(p, _)| p.ends_with("/a.jpg")).count();
+            let longest = walked.iter().map(|(p, _)| p.len()).max().unwrap_or(0);
+            let listed = seen.listed.lock().unwrap().len();
+            println!("walk of loop/ in {:.2?}: {} items, a.jpg {copies} times, {listed} folders listed, longest path {longest} characters", t.elapsed(), walked.len());
+            assert_eq!(copies, 1, "the only file of the folder found {copies} times");
+        });
     }
 }

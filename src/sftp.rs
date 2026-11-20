@@ -374,17 +374,27 @@ impl Server {
     /// Everything below a folder, hidden items and EyeCanSee's trash folders too
     /// (`transfer::place`), folders before what they contain: path and size (folders end in "/",
     /// size 0).
+    /// A link to a folder is followed only when it leads out of every folder walked so far: one to
+    /// the folder itself, to a folder above or to a folder inside is left out, so the same files
+    /// do not come again and again (#183).
     pub async fn walk(&self, dir: &str, p: &crate::transfer::Progress) -> Result<Vec<(String, u64)>, Error> {
         let mut found = Vec::new();
         let mut todo = vec![dir.to_string()];
+        // The real paths of the folders walked from the top: the first one and each link followed.
+        let mut roots = vec![self.real_path(dir).await?];
         while let Some(d) = todo.pop() {
             if p.cancel.load(Ordering::Relaxed) {
                 return Err(("error-cancelled", String::new()));
             }
+            crate::source::too_deep(dir, &d)?;
             *p.current.lock().unwrap() = d.clone();
             for (name, a) in self.entries(&d).await? {
                 let path = format!("{d}{name}");
                 if self.entry_is_dir(&path, &a).await {
+                    if a.file_type().is_symlink() && !self.new_root(&path, &mut roots).await {
+                        log!("sftp: {path:?} left out of the walk: a link to a folder walked anyway");
+                        continue;
+                    }
                     found.push((format!("{path}/"), 0));
                     todo.push(format!("{path}/"));
                 } else {
@@ -395,6 +405,17 @@ impl Server {
         }
         found.sort_by(|a, b| a.0.cmp(&b.0));
         Ok(found)
+    }
+
+    /// Whether the link `path` leads out of every folder in `roots` and around none of them; if
+    /// so, its real path joins them. A link that cannot be resolved is not followed.
+    async fn new_root(&self, path: &str, roots: &mut Vec<String>) -> bool {
+        let Ok(real) = self.real_path(path).await else { return false };
+        if roots.iter().any(|r| within(&real, r) || within(r, &real)) {
+            return false;
+        }
+        roots.push(real);
+        true
     }
 
     /// Reads a file of `size` bytes from `from` in chunks of `chunk` bytes, handing each to `push`.
@@ -665,6 +686,12 @@ async fn write_all(f: &Opened, chunks: &mut tokio::sync::mpsc::Receiver<std::io:
     Ok(())
 }
 
+/// Whether the absolute path `path` is `folder` or lies below it.
+fn within(path: &str, folder: &str) -> bool {
+    let (path, folder) = (path.trim_end_matches('/'), folder.trim_end_matches('/'));
+    path == folder || path.strip_prefix(folder).is_some_and(|rest| rest.starts_with('/'))
+}
+
 /// One piece at its place, and the place back with the answer.
 async fn write_part(f: &Opened, at: u64, part: Bytes) -> (u64, Result<(), SftpError>) {
     (at, f.conn.ask(f.conn.raw.write(f.handle.as_str(), at, part.to_vec())).await.map(|_| ()))
@@ -883,6 +910,35 @@ mod tests {
             let r = server.read_range("ten.bin", u64::MAX - 4, 10).await;
             println!("range beyond the largest offset: {r:?}");
             assert!(r.is_ok_and(|d| d.is_empty()));
+        });
+    }
+
+    /// A path is within a folder when it is the folder or lies below it, the root holding all.
+    #[test]
+    fn path_within_folder() {
+        assert!(super::within("/a/b", "/a"));
+        assert!(super::within("/a/", "/a"));
+        assert!(super::within("/a", "/"));
+        assert!(super::within("/", "/"));
+        assert!(!super::within("/ab", "/a"));
+        assert!(!super::within("/a", "/a/b"));
+    }
+
+    /// Audit 2.16 (SFTP): a folder with a link to itself (`loop/again` → `loop/`) must be walked
+    /// once. `walk` followed the link with `stat` and had no memory of the folders seen, so it went
+    /// down `again/again/…` until the server refused the path (Linux: more than 40 links), and a
+    /// copy of the folder held the same file once per level. Server: `tests/fake.rs`.
+    #[test]
+    fn audit_2_16_walk_link_to_itself() {
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let (server, world) = fake::start(&[]).await;
+            let t = std::time::Instant::now();
+            let walked = server.walk("loop/", &crate::transfer::Progress::default()).await.unwrap();
+            let copies = walked.iter().filter(|(p, _)| p.ends_with("/a.jpg")).count();
+            let longest = walked.iter().map(|(p, _)| p.len()).max().unwrap_or(0);
+            let listed = world.listed.lock().unwrap().len();
+            println!("walk of loop/ in {:.2?}: {} items, a.jpg {copies} times, {listed} folders listed, longest path {longest} characters", t.elapsed(), walked.len());
+            assert_eq!(copies, 1, "the only file of the folder found {copies} times");
         });
     }
 }

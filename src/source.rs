@@ -33,6 +33,16 @@ pub const BAD_NAME: &str = "error-bad-name";
 /// the server as detail (#75).
 pub const SILENT: &str = "error-server-silent";
 
+/// Folders below the one walked or searched, at most: deeper than real trees, and an end to a
+/// server that lists folders without end, such as links it does not show as links (#183).
+pub const MAX_DEPTH: usize = 64;
+
+/// An error when `dir` lies more than `MAX_DEPTH` folders below `top`: a copy stops rather than
+/// leave out what is deeper, which a move would then delete with the original.
+pub fn too_deep(top: &str, dir: &str) -> Result<(), Error> {
+    if dir[top.len()..].matches('/').count() > MAX_DEPTH { Err(("error-too-deep", dir.to_string())) } else { Ok(()) }
+}
+
 /// Chunks of a file being copied, from the reader to the writer (`Store::send_chunks`).
 pub type Chunks = tokio::sync::mpsc::Sender<std::io::Result<Bytes>>;
 
@@ -550,6 +560,15 @@ pub struct Source {
 mod tests {
     use super::*;
     use opendal::services;
+
+    /// A walk stops past `MAX_DEPTH` folders below where it started, not at it (#183).
+    #[test]
+    fn walk_depth_limit() {
+        let deep = |n: usize| format!("top/{}", "d/".repeat(n));
+        assert!(too_deep("top/", "top/").is_ok());
+        assert!(too_deep("top/", &deep(MAX_DEPTH)).is_ok());
+        assert_eq!(too_deep("top/", &deep(MAX_DEPTH + 1)), Err(("error-too-deep", deep(MAX_DEPTH + 1))));
+    }
 
     /// The tests that take what `GONE` holds, one at a time.
     static GONE_TESTS: Mutex<()> = Mutex::new(());

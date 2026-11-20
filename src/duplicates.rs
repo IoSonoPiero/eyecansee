@@ -151,7 +151,7 @@ pub async fn find(op: &Store, dir: &str, sub: bool, p: &Progress) -> Result<Vec<
 /// Every image of `dir`, and below it with `sub` (trash folders and hidden folders stay out,
 /// as in the listings). Only an error on `dir` itself stops the search.
 /// A folder reached again through a link (to a folder above or beside) is searched once; where
-/// links cannot be resolved (FTP), the search goes no deeper than `MAX_DEPTH` (issue #87).
+/// links cannot be resolved (FTP), the search goes no deeper than `source::MAX_DEPTH` (issue #87).
 async fn collect(op: &Store, dir: &str, sub: bool, p: &Progress) -> Result<Vec<File>, Error> {
     let (mut dirs, mut files, mut seen) = (vec![dir.to_string()], Vec::new(), HashSet::new());
     while let Some(d) = dirs.pop() {
@@ -163,7 +163,7 @@ async fn collect(op: &Store, dir: &str, sub: bool, p: &Progress) -> Result<Vec<F
         {
             continue;
         }
-        if d[dir.len()..].matches('/').count() > MAX_DEPTH {
+        if d[dir.len()..].matches('/').count() > crate::source::MAX_DEPTH {
             log!("duplicates: {d:?} too deep, not searched");
             continue;
         }
@@ -184,9 +184,6 @@ async fn collect(op: &Store, dir: &str, sub: bool, p: &Progress) -> Result<Vec<F
     }
     Ok(files)
 }
-
-/// Folders below the one searched, at most.
-const MAX_DEPTH: usize = 64;
 
 /// The same file reached by two paths (a link to it, or to a folder of it) is one file, not two
 /// copies: deleting the "copy" would delete it. The path that goes through no link stays, or else
