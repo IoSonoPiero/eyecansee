@@ -20,7 +20,7 @@ The last one is an alias of `~/.ssh/config`. Without a user, FTP logs in as `ano
 
 ## The first connection
 
-- **SFTP**: the first time, EyeCanSee shows the server's key fingerprint in a highlighted box. Compare it letter by letter with the one the server shows, then click **Connect**. Once trusted, it goes into `~/.ssh/known_hosts`, as ssh does. A server whose key has changed is refused: someone could be pretending to be that server.
+- **SFTP**: the first time, EyeCanSee shows the server's key fingerprint in a highlighted box. Compare it letter by letter with the one the server shows, then click **Connect**; with **Cancel** you stay on the server without connecting, and **F5** asks again. Once trusted, it goes into `~/.ssh/known_hosts`, as ssh does. A server whose key has changed is refused: someone could be pretending to be that server.
 - **FTPS**: the server's certificate is checked as a browser does. One that no known authority vouches for (common with NAS boxes, which make their own) is shown with its fingerprint the first time; once confirmed, EyeCanSee remembers it.
 
 ## Logging in with SFTP
@@ -28,7 +28,7 @@ The last one is an alias of `~/.ssh/config`. Without a user, FTP logs in as `ano
 - EyeCanSee reads `~/.ssh/config` as ssh does (aliases, HostName, User, Port, IdentityFile; not ProxyJump), on Linux and on Windows.
 - It logs in with key files without a passphrase, or with the password. It never uses the system's SSH agent. For a key with a passphrase, save the server in the server manager.
 - A password typed in the address is tried first.
-- If the server refuses, **File > Open location…** opens with everything filled in, ready for the password; **Save and open** also keeps it among the saved servers.
+- If the server refuses, **File > Open location…** opens with everything filled in, ready for the password; **Save and open** also keeps it among the saved servers. Why the server refused is written at the top of that window, and only there. With **Cancel** you stay on the server, which shows the start of the message in grey in the middle, and **F5** asks for the password again.
 - RSA keys work, but after a login with one EyeCanSee warns once per server: the library it uses has a known flaw with no fix yet. An ed25519 key is the better choice.
 
 ## Working on a server

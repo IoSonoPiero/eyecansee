@@ -20,7 +20,7 @@ L'ultimo è un alias di `~/.ssh/config`. Senza utente, FTP entra come `anonymous
 
 ## La prima connessione
 
-- **SFTP**: la prima volta EyeCanSee mostra l'impronta della chiave del server in un riquadro evidenziato. Confrontala lettera per lettera con quella che mostra il server, poi fai clic su **Collegati**. Una volta accettata va in `~/.ssh/known_hosts`, come fa ssh. Un server la cui chiave è cambiata viene rifiutato: qualcuno potrebbe fingersi quel server.
+- **SFTP**: la prima volta EyeCanSee mostra l'impronta della chiave del server in un riquadro evidenziato. Confrontala lettera per lettera con quella che mostra il server, poi fai clic su **Collegati**; con **Annulla** resti sul server senza collegarti, e **F5** chiede di nuovo. Una volta accettata va in `~/.ssh/known_hosts`, come fa ssh. Un server la cui chiave è cambiata viene rifiutato: qualcuno potrebbe fingersi quel server.
 - **FTPS**: il certificato del server viene controllato come fa un browser. Uno che nessuna autorità conosciuta garantisce (capita spesso con i NAS, che se lo fanno da soli) viene mostrato con la sua impronta la prima volta; una volta confermato, EyeCanSee lo ricorda.
 
 ## Accedere con SFTP
@@ -28,7 +28,7 @@ L'ultimo è un alias di `~/.ssh/config`. Senza utente, FTP entra come `anonymous
 - EyeCanSee legge `~/.ssh/config` come fa ssh (alias, HostName, User, Port, IdentityFile; non ProxyJump), su Linux e su Windows.
 - Entra con i file di chiave senza passphrase, oppure con la password. Non usa mai l'agente SSH del sistema. Per una chiave con passphrase, salva il server nella gestione server.
 - Una password scritta nell'indirizzo viene provata per prima.
-- Se il server rifiuta, si apre **File > Apri indirizzo…** con tutto compilato, pronto per la password; **Salva e apri** la conserva anche tra i server salvati.
+- Se il server rifiuta, si apre **File > Apri indirizzo…** con tutto compilato, pronto per la password; **Salva e apri** la conserva anche tra i server salvati. Il motivo del rifiuto è scritto in alto in quella finestra, e solo lì. Con **Annulla** resti sul server, che mostra in grigio al centro l'inizio del messaggio, e **F5** chiede di nuovo la password.
 - Le chiavi RSA funzionano, ma dopo un accesso con una di esse EyeCanSee avvisa una volta per server: la libreria che usa ha un difetto noto ancora senza correzione. Una chiave ed25519 è la scelta migliore.
 
 ## Lavorare su un server

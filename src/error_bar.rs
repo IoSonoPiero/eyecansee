@@ -151,6 +151,20 @@ fn bar_choice(error: Option<String>, lasting: Option<String>, closed: Option<Str
     (error.or(lasting), closed)
 }
 
+/// Whether a window says the open folder's error `id`, and asks what to do: KDE holding the phone,
+/// a server's key or certificate to confirm (when its fingerprint is there to show: otherwise no
+/// window comes), a login refused (unless File > Open location is open already: then it is not
+/// opened again). The bar is silent on it then, and after Cancel too, while the same error lasts
+/// (`bar_choice`, as closed with the ✕): it said it twice (Piero, 20/11). The grid keeps its start.
+pub(crate) fn said_in_window(id: &str, fingerprint: bool, address_open: bool) -> bool {
+    match id {
+        "error-device-kde" | "error-device-kde-back" => true,
+        "error-host-unknown" | "error-cert-unknown" => fingerprint,
+        "error-login" | "error-login-ssh" => !address_open,
+        _ => false,
+    }
+}
+
 /// `message` with `raw`, the library's own text at its end, taken out and put under it as the
 /// detail, in brackets on its own line: the bar and `inline` draw it fainter and smaller. The ":"
 /// left hanging goes. Unchanged when `raw` is not at the end, is empty or already in brackets.
@@ -316,6 +330,23 @@ mod tests {
         assert_eq!(bar_choice(None, None, s("no phone")), (None, None));
         assert_eq!(bar_choice(None, s("no phone"), None), (s("no phone"), None));
         assert_eq!(bar_choice(s("not saved"), s("no phone"), s("no phone")), (s("not saved"), s("no phone")));
+    }
+
+    /// A refused login, a key to confirm, KDE holding the phone: in their window only, also
+    /// after Cancel; the bar speaks again for another error. No window, no silence.
+    #[test]
+    fn said_in_its_window_only() {
+        assert!(said_in_window("error-login", false, false) && said_in_window("error-login-ssh", true, false));
+        assert!(said_in_window("error-device-kde", false, true) && said_in_window("error-device-kde-back", false, false));
+        assert!(said_in_window("error-host-unknown", true, false) && said_in_window("error-cert-unknown", true, true));
+        // Open location already open does not open again; a key without its fingerprint asks nothing.
+        assert!(!said_in_window("error-login", false, true) && !said_in_window("error-host-unknown", false, false));
+        assert!(!said_in_window("error-no-device", true, false) && !said_in_window("error-key-failed", true, false));
+        // Marked as closed when the window opens: silent while it lasts, after Cancel too.
+        let s = |t: &str| Some(t.to_string());
+        let refused = I18n::new("it").error("error-login-ssh", "nas.local");
+        assert_eq!(bar_choice(None, s(&refused), s(&refused)), (None, s(&refused)));
+        assert_eq!(bar_choice(None, s("no phone"), s(&refused)), (s("no phone"), s(&refused)));
     }
 
     /// The library's text at the end goes under as the detail, without the ":" left hanging.

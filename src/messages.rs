@@ -91,6 +91,13 @@ impl App {
     /// What an error of the listing of `dir` asks for: a confirmation, a password, another
     /// folder. `true`: the listing is dropped (another folder opens instead).
     fn listing_error(&mut self, dir: &str, r: &mut Result<Listing, source::Error>) -> bool {
+        // Said in the window that asks about it: not in the bar too, nor after Cancel (Piero, 20/11).
+        if let Err((id, detail)) = r
+            && dir == self.dir
+            && crate::error_bar::said_in_window(id, crate::ftp::unknown().is_some() || crate::sftp::unknown().is_some(), self.open_address.is_some())
+        {
+            self.lasting_closed = Some(self.i18n.error(id, detail));
+        }
         match r {
             Err(("error-device-kde" | "error-device-kde-back", _)) => self.kiod_ask = true,
             Err(("error-host-unknown" | "error-cert-unknown", _)) => self.host_ask = true,
