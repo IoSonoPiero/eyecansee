@@ -324,3 +324,76 @@ fn audit_2_1_phone_move_deletes_a_photo_taken_meanwhile() {
         assert!(on_phone.contains("IMG_late.jpg") || copied.iter().any(|n| n == "IMG_late.jpg"), "the photo taken during the move is gone");
     });
 }
+
+/// A folder for the Windows tests (2.4, 2.5), which need no app: under the system's temporary
+/// folder, new for every run.
+#[cfg(windows)]
+fn windows_folder(name: &str) -> PathBuf {
+    let dir = std::env::temp_dir().join(format!("eyecansee-audit-{name}-{}", std::process::id()));
+    let _ = std::fs::remove_dir_all(&dir);
+    std::fs::create_dir_all(&dir).unwrap();
+    dir
+}
+
+/// The names in `dir` with their sizes, as Explorer shows them.
+#[cfg(windows)]
+fn shown(dir: &Path) -> Vec<(String, u64)> {
+    let mut v: Vec<(String, u64)> = std::fs::read_dir(dir).unwrap().flatten().map(|e| (e.file_name().to_string_lossy().into_owned(), e.metadata().map(|m| m.len()).unwrap_or(0))).collect();
+    v.sort();
+    v
+}
+
+/// Audit 2.4 (Windows): a file named `Mare 12:30.jpg`, a valid name on a server or a phone, moved
+/// from a server to a folder of Windows. On NTFS the colon opens the hidden stream `30.jpg` of an
+/// empty file `Mare 12`: the copy "succeeds", the folder shows a file of 0 bytes, and the move
+/// deletes the original on the server.
+#[cfg(windows)]
+#[test]
+#[ignore = "audit 2.4: not fixed yet"]
+fn audit_2_4_windows_colon_in_a_name_from_a_server() {
+    use crate::source::Store;
+    use crate::transfer::{Clip, Progress, run};
+    let dir = windows_folder("2-4");
+    let content = vec![7u8; 1000];
+    let mut tree = fake_ftp::Tree::default();
+    tree.folder("/album", &[("Mare 12:30.jpg", &content)]);
+    let (target, tree) = fake_ftp::start(tree);
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let from = Store::Ftp(crate::ftp::Server::shared(target));
+    let to = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+    let clip = Clip { op: from, base: "ftp://tester@127.0.0.1/".into(), paths: vec!["album/Mare 12:30.jpg".into()], cut: true, text: String::new() };
+    let (gone, r) = rt.block_on(run(&clip, &to, "C:\\", "", &HashMap::new(), &Progress::default()));
+    let on_server = tree.lock().unwrap().files.contains_key("/album/Mare 12:30.jpg");
+    let visible = shown(&dir);
+    eprintln!("move: {r:?}, gone from the server {gone:?} (still there: {on_server}); the folder shows {visible:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(on_server || visible.iter().any(|(_, size)| *size == content.len() as u64), "the photo is neither on the server nor visible in the folder");
+}
+
+/// Audit 2.5 (Windows): a file pasted into a folder that has the same name with other capitals
+/// (`IMG_001.JPG` over `img_001.jpg`). For EyeCanSee the name is free, so it asks nothing; for
+/// Windows it is the same file, written over.
+#[cfg(windows)]
+#[test]
+#[ignore = "audit 2.5: not fixed yet"]
+fn audit_2_5_windows_capitals_overwrite_without_asking() {
+    use crate::source::Store;
+    use crate::transfer::{Clip, Progress, conflicts, run};
+    let dir = windows_folder("2-5");
+    std::fs::create_dir_all(dir.join("camera")).unwrap();
+    std::fs::create_dir_all(dir.join("photos")).unwrap();
+    std::fs::write(dir.join("camera/IMG_001.JPG"), b"the new photo").unwrap();
+    std::fs::write(dir.join("photos/img_001.jpg"), b"the photo already there").unwrap();
+    let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+    let base = "C:\\";
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let clip = Clip { op: op.clone(), base: base.into(), paths: vec!["camera/IMG_001.JPG".into()], cut: false, text: String::new() };
+    let asked = rt.block_on(conflicts(&clip, &op, base, "photos/")).unwrap();
+    // As the app: nothing asked, nothing answered.
+    let (_, r) = rt.block_on(run(&clip, &op, base, "photos/", &HashMap::new(), &Progress::default()));
+    let visible = shown(&dir.join("photos"));
+    let there = std::fs::read_to_string(dir.join("photos/img_001.jpg")).unwrap_or_default();
+    eprintln!("asked about {asked:?}; paste {r:?}; photos shows {visible:?}; img_001.jpg holds {there:?}");
+    let _ = std::fs::remove_dir_all(&dir);
+    assert!(!asked.is_empty() || there == "the photo already there", "the photo already there was written over without a question");
+}

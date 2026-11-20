@@ -72,7 +72,7 @@ fn session(control: TcpStream, tree: &Mutex<Tree>) -> std::io::Result<()> {
         if !path.is_empty() && !matches!(command.as_str(), "USER" | "PASS" | "TYPE") {
             tree.lock().unwrap().log.push(format!("{command} {path}"));
         }
-        let t = tree.lock().unwrap();
+        let mut t = tree.lock().unwrap();
         match command.as_str() {
             "USER" => say("331 password, please")?,
             "PASS" => say("230 logged in")?,
@@ -90,6 +90,16 @@ fn session(control: TcpStream, tree: &Mutex<Tree>) -> std::io::Result<()> {
                 say("350 restarting")?;
             }
             "CWD" => say(if t.folders.contains_key(&key(path)) { "250 fine" } else { "550 no such folder" })?,
+            "DELE" => match t.files.remove(&key(path)) {
+                Some(_) => {
+                    let (dir, own) = key(path).rsplit_once('/').map(|(d, n)| (d.to_string(), n.to_string())).unwrap_or_default();
+                    if let Some(entries) = t.folders.get_mut(&dir) {
+                        entries.retain(|(n, _)| *n != own);
+                    }
+                    say("250 deleted")?
+                }
+                None => say("550 no such file")?,
+            },
             "SIZE" => match t.files.get(&key(path)) {
                 Some(f) => say(&format!("213 {}", f.len()))?,
                 None => say("550 no such file")?,
