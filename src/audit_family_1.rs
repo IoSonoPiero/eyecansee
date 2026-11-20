@@ -272,3 +272,55 @@ fn audit_1_4_deletion_goes_to_the_source_opened_meanwhile() {
     eprintln!("after Enter: the computer's a.png gone {gone}; the server asked to delete or move {server_deleted}; {:?}", std::fs::read_dir(&local).unwrap().flatten().map(|e| e.file_name()).collect::<Vec<_>>());
     assert!(!gone, "the computer's a.png went: the deletion was asked for the server's");
 }
+
+/// Audit 2.1 on a real phone (`EYECANSEE_MTP=<serial>`): a folder of our own, made by the test in
+/// `Pictures/` (`EyeCanSee-audit-f1`, four files of 4 MB), moved to this computer; once the move
+/// has looked through it, a photo arrives in it (written through the same connection, as the
+/// camera would). The folder must not be deleted with that photo in it. The test makes and
+/// removes only its own folder; it stops if the folder is already there.
+#[test]
+#[ignore = "audit 2.1: not fixed yet, needs the phone"]
+fn audit_2_1_phone_move_deletes_a_photo_taken_meanwhile() {
+    use crate::source::Store;
+    use crate::transfer::{Clip, Progress, run};
+    let run_dir = guard();
+    let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let phone = Store::Mtp(crate::mtp::Phone::shared(&serial));
+    let pc_dir = run_dir.join("pc");
+    std::fs::create_dir_all(&pc_dir).unwrap();
+    let pc = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(pc_dir.to_str().unwrap())).unwrap());
+    rt.block_on(async {
+        let storage = phone.list("").await.unwrap().dirs[0].clone();
+        let pictures = format!("{storage}Pictures/");
+        assert!(!phone.names(&pictures).await.unwrap().contains("EyeCanSee-audit-f1"), "the test folder is already on the phone: left as it is");
+        let folder = format!("{pictures}EyeCanSee-audit-f1/");
+        phone.create_dir(&folder).await.unwrap();
+        for i in 0..4u8 {
+            crate::replace::write_whole(&phone, &format!("{folder}IMG_{i}.jpg"), vec![i; 4 << 20]).await.unwrap();
+        }
+        let clip = Clip { op: phone.clone(), base: format!("mtp://{serial}/"), paths: vec![folder.clone()], cut: true, text: String::new() };
+        let p = Progress::default();
+        let late = async {
+            while p.started.get().is_none() {
+                tokio::time::sleep(std::time::Duration::from_millis(5)).await;
+            }
+            let at = std::time::Instant::now();
+            let r = crate::replace::write_whole(&phone, &format!("{folder}IMG_late.jpg"), b"taken while moving".to_vec()).await;
+            (r, at.elapsed())
+        };
+        let t = std::time::Instant::now();
+        let none = std::collections::HashMap::new();
+        let ((_, moved), (written, waited)) = tokio::join!(run(&clip, &pc, "/", "", &none, &p), late);
+        let still = phone.names(&pictures).await.unwrap().contains("EyeCanSee-audit-f1");
+        let on_phone = if still { phone.names(&folder).await.unwrap_or_default() } else { Default::default() };
+        let copied: Vec<String> = std::fs::read_dir(pc_dir.join("EyeCanSee-audit-f1")).map(|d| d.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect()).unwrap_or_default();
+        eprintln!("move in {:.1?}: {moved:?}; late photo written {written:?} after {waited:.1?}; folder on the phone {still} {on_phone:?}; copied {copied:?}", t.elapsed());
+        // Our folder goes in any case.
+        if still {
+            let _ = phone.delete(&folder, crate::source::Deletion::Permanent).await;
+        }
+        assert!(written.is_ok(), "race lost: the late photo was not written (run again)");
+        assert!(on_phone.contains("IMG_late.jpg") || copied.iter().any(|n| n == "IMG_late.jpg"), "the photo taken during the move is gone");
+    });
+}
