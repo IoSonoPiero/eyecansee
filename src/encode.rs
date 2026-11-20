@@ -256,6 +256,9 @@ pub struct Original {
     /// from the file itself rather than from these blocks (an Ultra HDR photo, a lossless turn),
     /// which join it to the file's XMP (`xmp::joined`).
     pub sidecar: Option<Vec<u8>>,
+    /// What was read differently from a 3D model's file (`Mesh::warnings`): Save as… says the
+    /// new file has it so (#179). Not written into the file.
+    pub notes: Vec<&'static str>,
 }
 
 /// The metadata of a file being written, made to fit its pixels (`Original::blocks`).
@@ -333,7 +336,7 @@ impl Original {
         if let Some(chunk) = &mut exif {
             let _ = Orientation::remove_from_exif_chunk(chunk);
         }
-        Original { image, exif, icc, xmp, irb, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None }
+        Original { image, exif, icc, xmp, irb, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None, notes: Vec::new() }
     }
 
     /// For a picture written without what followed it in the file (Motion Photo video, Ultra HDR
@@ -347,7 +350,7 @@ impl Original {
     /// `image` with this one's metadata, without copying these pixels (the editor's Resize).
     pub fn with_image(&self, image: DynamicImage) -> Original {
         let (exif, icc, xmp, irb, xmp_ext) = (self.exif.clone(), self.icc.clone(), self.xmp.clone(), self.irb.clone(), self.xmp_ext.clone());
-        Original { image, exif, icc, xmp, irb, xmp_ext, jpeg: self.jpeg, density: self.density, hdr: self.hdr.clone(), sidecar: self.sidecar.clone() }
+        Original { image, exif, icc, xmp, irb, xmp_ext, jpeg: self.jpeg, density: self.density, hdr: self.hdr.clone(), sidecar: self.sidecar.clone(), notes: self.notes.clone() }
     }
 
     /// The pixels were turned by `turn` after this was made (the editor, Convert and resize):
@@ -586,7 +589,7 @@ pub(crate) mod tests {
         let xmp = crate::xmp::tests::SAMPLE.as_bytes().to_vec();
         let iim = crate::xmp::tests::iim(&[(80, "Ann"), (90, "Québec")]);
         let irb = [crate::meta_write::resource(1036, &[1; 9]), crate::meta_write::irb_of_iim(&iim)].concat();
-        let original = Original { image: DynamicImage::ImageRgba8(img), exif: Some(exif.clone()), icc: Some(icc.clone()), xmp: Some(xmp), irb: Some(irb), xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None };
+        let original = Original { image: DynamicImage::ImageRgba8(img), exif: Some(exif.clone()), icc: Some(icc.clone()), xmp: Some(xmp), irb: Some(irb), xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None, notes: Vec::new() };
         let d = Options::default();
         let variants = [
             Options { format: Format::Jpeg, ..d },
@@ -768,7 +771,7 @@ pub(crate) mod tests {
         for little in [false, true] {
             let mut exif = Cursor::new(Vec::new());
             w.write(&mut exif, little).unwrap();
-            let original = Original { image: DynamicImage::new_rgb8(8, 6), exif: Some(exif.into_inner()), icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None };
+            let original = Original { image: DynamicImage::new_rgb8(8, 6), exif: Some(exif.into_inner()), icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None, notes: Vec::new() };
             let bytes = original.encode(&Options { format: Format::Tiff, ..Default::default() }).unwrap();
             let back = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes)).unwrap();
             for f in &fields {
@@ -783,7 +786,7 @@ pub(crate) mod tests {
     /// formats only "Save as…" writes are not saved back over an original.
     #[test]
     fn ico_and_save_back() {
-        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None };
+        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None, notes: Vec::new() };
         let bytes = original.encode(&Options { format: Format::Ico, ..Default::default() }).unwrap();
         let back = crate::decode::decode_full(&bytes, "x.ico").unwrap();
         assert_eq!((back.width(), back.height()), (256, 128));

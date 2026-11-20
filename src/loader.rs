@@ -86,8 +86,9 @@ pub enum Msg {
     Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
     /// The converted image written: the path asked for, and the path written or an error.
     Saved(String, Result<String, source::Error>),
-    /// A 3D model saved in another 3D format: its path, or why not.
-    Exported(Result<String, String>),
+    /// A 3D model saved in another 3D format: the new file's path, the model's, and what was
+    /// read differently from the model (`Mesh::warnings`, #179); or why not.
+    Exported(Result<(String, String, Vec<&'static str>), String>),
     /// Two CAD drawings compared (`Loader::compare_drawings`).
     Compared(Result<crate::cad_compare::Compared, String>),
     /// "Save" from the viewer, before the confirmation: the image, the turn, and the file to write
@@ -376,8 +377,9 @@ impl Loader {
                     if edit && crate::edit::save::animated(&bytes, &path) {
                         return Err(crate::edit_page::ANIMATED.to_string());
                     }
-                    let image = crate::occt::from_file(local, || decode::decode_full_with(&bytes, &path, &sibling))?;
-                    let original = crate::encode::Original::with_meta_beside(image, &bytes, &path, sidecar.as_deref());
+                    let (image, notes) = crate::occt::from_file(local, || decode::decode_full_noted(&bytes, &path, &sibling))?;
+                    let mut original = crate::encode::Original::with_meta_beside(image, &bytes, &path, sidecar.as_deref());
+                    original.notes = notes;
                     // Save in another format writes the picture alone (`Original::alone`); the
                     // editor needs the whole XMP to save a phone photo as it was.
                     let mut original = if edit { original } else { original.alone() };
@@ -419,7 +421,9 @@ impl Loader {
             // Opaque: no note about transparency in the window.
             let image = image::DynamicImage::ImageRgb8(image::DynamicImage::ImageRgba8(crate::render3d::render(&mesh, &view, size[0], size[1], 2)).into_rgb8());
             let preview = decode::preview(&image);
-            let _ = tx.send(Msg::Original(Ok((Arc::new(crate::encode::Original::with_meta(image, &[])), preview, file_size))));
+            let mut original = crate::encode::Original::with_meta(image, &[]);
+            original.notes = mesh.warnings.clone();
+            let _ = tx.send(Msg::Original(Ok((Arc::new(original), preview, file_size))));
             ctx.request_repaint();
         });
     }
@@ -444,15 +448,15 @@ impl Loader {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
             for (path, to) in jobs {
-                let (sibling, local) = (siblings(op.clone(), path.clone()), crate::occt::local(&op, &path));
+                let (sibling, local, from) = (siblings(op.clone(), path.clone()), crate::occt::local(&op, &path), path.clone());
                 let r = match op.read(&path).await {
-                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::occt::from_file(local, || crate::model::parse_with(&bytes, &path, &sibling)).map(|m| crate::model_export::export(&m, kind)))
+                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::occt::from_file(local, || crate::model_export::export_file(&bytes, &path, &sibling, kind)))
                         .await
                         .unwrap_or_else(|e| Err(e.to_string())),
                     Err((_, detail)) => Err(detail),
                 };
                 let r = match r {
-                    Ok(data) => write_whole(&op, &to, data).await.map(|()| to).map_err(|(_, detail)| detail),
+                    Ok((data, notes)) => write_whole(&op, &to, data).await.map(|()| (to, from, notes)).map_err(|(_, detail)| detail),
                     Err(e) => Err(e),
                 };
                 let _ = tx.send(Msg::Exported(r));

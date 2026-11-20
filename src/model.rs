@@ -266,6 +266,20 @@ impl Builder {
     }
 }
 
+/// The Fluent id that says warning `id` (`Mesh::warnings`) of a file made from the model, with its
+/// `$name` (#179): Save as… and Export as a 3D model… say it, the thumbnails do not.
+pub fn saved_warning(id: &'static str) -> &'static str {
+    match id {
+        crate::model_gltf::NODE_AGAIN => crate::model_gltf::NODE_AGAIN_SAVED,
+        other => other,
+    }
+}
+
+/// The lines that say the `warnings` of the model `name` of a file made from it (`saved_warning`).
+pub fn saved_lines(i18n: &crate::i18n::I18n, name: &str, warnings: &[&'static str]) -> Vec<String> {
+    warnings.iter().map(|&id| i18n.t_args(saved_warning(id), &[("name", name)])).collect()
+}
+
 /// Light grey with a touch of blue, as in CAD viewers.
 pub const DEFAULT: [u8; 3] = [200, 205, 214];
 

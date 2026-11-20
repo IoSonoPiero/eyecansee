@@ -114,6 +114,8 @@ type Extra = (Vec<crate::model_lines::Segment>, Vec<crate::model_lines::Point>, 
 
 /// Fluent id of the warning for a node met again in the hierarchy (#179).
 pub const NODE_AGAIN: &str = "model-node-again";
+/// The same said of a file made from the model (Save as…, Export as a 3D model…): it has that part once.
+pub const NODE_AGAIN_SAVED: &str = "model-node-again-saved";
 
 fn gltf_node<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>>(b: &mut Builder, extra: &mut Extra, node: &gltf::Node<'a>, parent: &Mat4, data: &F, depth: u32) -> Result<(), String> {
     if depth > 64 {
@@ -287,6 +289,34 @@ mod tests {
         for lang in ["en", "it"] {
             assert_ne!(crate::i18n::I18n::new(lang).t(super::NODE_AGAIN), super::NODE_AGAIN);
         }
+    }
+
+    /// #179: Save as… (the picture of the model, `decode_full_noted`) and Export as a 3D model…
+    /// (`export_file`) carry the warning of a node with two parents, said of the new file in both
+    /// languages; nothing for a model reached through one parent. The exported file has the
+    /// part once, as the line says.
+    #[test]
+    fn node_with_two_parents_said_of_the_new_file() {
+        use crate::model_export::{Kind, export_file};
+        let none = &|_: &str| None;
+        let (twice, once) = (triangle("0,1"), triangle("0"));
+        let (picture, notes) = crate::decode::decode_full_noted(twice.as_bytes(), "a.gltf", none).unwrap();
+        assert_eq!((picture.width(), &notes), (1920, &vec![super::NODE_AGAIN]));
+        assert!(crate::decode::decode_full_noted(once.as_bytes(), "a.gltf", none).unwrap().1.is_empty());
+        // What the Save as page reads: the original as `load_original` makes it.
+        let mut original = crate::encode::Original::with_meta(picture, &[]);
+        original.notes = notes;
+        assert_eq!(original.alone().turned(Default::default()).notes, vec![super::NODE_AGAIN]);
+        for kind in Kind::ALL {
+            let (data, notes) = export_file(twice.as_bytes(), "a.gltf", none, kind).unwrap();
+            assert_eq!(notes, vec![super::NODE_AGAIN], "{kind:?}");
+            let back = crate::model::parse(&data, &format!("b.{}", kind.ext())).unwrap();
+            assert_eq!((back.tris.len(), back.warnings.len()), (1, 0), "{kind:?}");
+            assert!(export_file(once.as_bytes(), "a.gltf", none, kind).unwrap().1.is_empty(), "{kind:?}");
+        }
+        let line = |lang| crate::model::saved_lines(&crate::i18n::I18n::new(lang), "a.gltf", &[super::NODE_AGAIN]);
+        assert_eq!(line("en"), ["a.gltf: a part of the model appeared more than once in its hierarchy; the new file has it only once"]);
+        assert_eq!(line("it"), ["a.gltf: una parte del modello compariva più volte nella sua gerarchia; il file nuovo la contiene una volta sola"]);
     }
 
     /// Audit 6.6: a chain of 60 nodes, each one with the next as its child twice, none with a

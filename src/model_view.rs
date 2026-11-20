@@ -282,16 +282,33 @@ impl App {
     }
 
     /// The exported model: said in the status bar for a while, the folder read again.
-    pub(crate) fn on_exported(&mut self, ctx: &egui::Context, r: Result<String, String>) {
+    pub(crate) fn on_exported(&mut self, ctx: &egui::Context, r: Result<(String, String, Vec<&'static str>), String>) {
         let text = match &r {
-            Ok(to) => {
+            Ok((to, from, notes)) => {
                 self.relist(crate::source::parent(to));
+                self.export_notes(from, notes);
                 self.i18n.t_args("status-exported", &[("name", crate::source::name(to))])
             }
             Err(e) => self.i18n.t_args("export-failed", &[("error", &self.i18n.load_error(e))]),
         };
         self.status_note = Some(text);
         self.note_until = Some(ctx.input(|i| i.time) + 6.0);
+    }
+
+    /// What the model `from` had that its new file has otherwise (#179), in a message that stays
+    /// until closed: a status note would be gone at the next model exported. The models of one
+    /// export add their lines to the same message.
+    fn export_notes(&mut self, from: &str, notes: &[&'static str]) {
+        if notes.is_empty() {
+            return;
+        }
+        log!("export {from:?}: said of the new file {notes:?}");
+        let lines = crate::model::saved_lines(&self.i18n, &crate::save_dialogs::md(crate::source::name(from)), notes).join("\n");
+        let title = self.i18n.t("model-export-title");
+        match &mut self.notice {
+            Some(n) if n.title == title => n.text = format!("{}\n{lines}", n.text),
+            _ => self.notice = Some(crate::save_dialogs::Notice { warning: true, ..crate::save_dialogs::Notice::new(title, lines) }),
+        }
     }
 }
 

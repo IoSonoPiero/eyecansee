@@ -58,7 +58,7 @@ While the plane moves, a see-through blue rectangle shows for a moment where it 
 
 The colours stored in the file are shown, and in many formats also the pictures on the surfaces (textures). A model without colours is light grey. The materials of glTF and FBX models, and of OBJ models (their `.mtl` file), also show how shiny or metallic a surface is, the light it gives (a lamp), and the small bumps of a normal map. Curved surfaces look smooth and edges stay sharp, also in models that do not store this information.
 
-A glTF model that places one of its parts in more than one spot of its hierarchy, which the format does not allow, shows that part once, and the status bar says so.
+A glTF model that places one of its parts in more than one spot of its hierarchy, which the format does not allow, shows that part once, and the status bar says so. **Save as…** and **Export as a 3D model…** say it too: the new file has that part once.
 
 Without a graphics card EyeCanSee can use, the processor draws the model, more slowly: it turns, zooms, is measured and cut the same way, and each new view comes after a moment.
 

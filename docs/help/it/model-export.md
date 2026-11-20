@@ -8,7 +8,7 @@ EyeCanSee sa salvare un modello 3D in un altro formato 3D, per esempio per aprir
 2. Fai clic destro e scegli **Esporta come modello 3D…**, oppure usa **File > Esporta come modello 3D…**.
 3. Nella finestra scegli il **formato**: **STL**, **OBJ**, **PLY** o **glTF (GLB)** (viene proposto l'ultimo usato), poi fai clic su **Esporta**.
 
-Ogni file nuovo viene salvato accanto al suo originale, con lo stesso nome e la nuova estensione. Se quel nome è già preso si aggiunge " (2)", per esempio `staffa (2).stl`. La barra di stato dice il nome che ha preso; se qualcosa va storto, dice perché.
+Ogni file nuovo viene salvato accanto al suo originale, con lo stesso nome e la nuova estensione. Se quel nome è già preso si aggiunge " (2)", per esempio `staffa (2).stl`. La barra di stato dice il nome che ha preso; se qualcosa va storto, dice perché. Se il file nuovo non è proprio come l'originale (un glTF che mette una sua parte più volte nella gerarchia, cosa che il formato non permette: il file nuovo la contiene una volta sola), un messaggio lo dice.
 
 Se sono selezionati anche file di altro tipo, la voce è segnata con **\*** e lavora solo sui modelli. I disegni CAD si esportano allo stesso modo, con **File > Esporta disegno…**: vedi [Disegni CAD](cad.md).
 

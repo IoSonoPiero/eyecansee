@@ -138,7 +138,22 @@ pub fn model_picture(bytes: &[u8], name: &str, w: u32, h: u32) -> std::result::R
 /// The same, reading the files next to the model (`model::Sibling`).
 pub fn model_picture_with(bytes: &[u8], name: &str, w: u32, h: u32, sibling: crate::model::Sibling) -> std::result::Result<DynamicImage, String> {
     let mesh = crate::model::parse_with(bytes, name, sibling)?;
-    Ok(DynamicImage::ImageRgb8(DynamicImage::ImageRgba8(crate::render3d::render(&mesh, &Default::default(), w, h, 2)).into_rgb8()))
+    Ok(mesh_picture(&mesh, w, h))
+}
+
+/// The model `mesh` drawn from the default view, `w`×`h`, opaque.
+fn mesh_picture(mesh: &crate::model::Mesh, w: u32, h: u32) -> DynamicImage {
+    DynamicImage::ImageRgb8(DynamicImage::ImageRgba8(crate::render3d::render(mesh, &Default::default(), w, h, 2)).into_rgb8())
+}
+
+/// As `decode_full_with`, with what was read differently from a 3D model's file
+/// (`Mesh::warnings`, none for the other files), for Save as… (#179); the thumbnails say nothing.
+pub fn decode_full_noted(bytes: &[u8], name: &str, sibling: crate::model::Sibling) -> std::result::Result<(DynamicImage, Vec<&'static str>), String> {
+    if crate::model::is_model(name) {
+        let mesh = crate::model::parse_with(bytes, name, sibling)?;
+        return Ok((mesh_picture(&mesh, 1920, 1440), mesh.warnings));
+    }
+    decode_full_with(bytes, name, sibling).map(|image| (image, Vec::new()))
 }
 
 /// As `decode_full`, reading through `sibling` the files next to a 3D model (a glTF's `.bin`,

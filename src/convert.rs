@@ -378,6 +378,10 @@ impl crate::App {
                 if w.place.is_none() && self.animated.contains(&w.path) {
                     ui.label(crate::theme::alert(t("convert-first-only")));
                 }
+                // A 3D model read otherwise than its file says (#179): the new file has it so.
+                for line in crate::model::saved_lines(i18n, crate::source::name(&w.path), &original.0.notes) {
+                    ui.label(crate::theme::alert(line));
+                }
                 // The folder and the name belong to the new image, so they sit on its side.
                 ui.add_space(6.0);
                 folder::folder_row(ui, w, i18n, folder);
