@@ -667,7 +667,9 @@ impl App {
         if w.changed() {
             return None;
         }
-        Some(if e == ANIMATED { self.i18n.t_args("edit-animated", &[("name", source::name(&w.path))]) } else { self.i18n.cannot_load(source::name(&w.path), e) })
+        // Without the Markdown of the message windows: the bar showed its asterisks.
+        let animated = || crate::save_dialogs::plain(&self.i18n.t_args("edit-animated", &[("name", source::name(&w.path))]));
+        Some(if e == ANIMATED { animated() } else { self.i18n.cannot_load(source::name(&w.path), e) })
     }
 
     /// The image being read, or why it cannot be edited, with Close; `false` once Close is clicked.
@@ -687,7 +689,7 @@ impl App {
         });
         match &w.original {
             Some(Err(e)) if e == ANIMATED => {
-                crate::error_bar::inline(ui, &self.i18n.t_args("edit-animated", &[("name", source::name(&w.path))]));
+                crate::error_bar::inline(ui, &crate::save_dialogs::plain(&self.i18n.t_args("edit-animated", &[("name", source::name(&w.path))])));
             }
             Some(Err(e)) => {
                 crate::error_bar::inline(ui, &self.i18n.cannot_load(source::name(&w.path), e));

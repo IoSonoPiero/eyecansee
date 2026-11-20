@@ -313,7 +313,7 @@ fn naming_ui(ui: &mut egui::Ui, p: &mut Picker, i18n: &I18n, rt: &Handle) {
     });
     // Nothing said while nothing is typed yet: Create is grey.
     if let Some(problem) = problem.as_ref().filter(|_| !name.trim().is_empty()) {
-        crate::error_bar::inline(ui, problem);
+        crate::error_bar::hint(ui, problem);
     }
     if cancel {
         p.naming = None;

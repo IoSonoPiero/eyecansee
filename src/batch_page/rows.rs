@@ -56,7 +56,7 @@ pub(super) fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bo
     ui.add_space(14.0);
     let why_not = f.why_not();
     if let Some(id) = why_not {
-        crate::error_bar::inline(ui, &t(id));
+        crate::error_bar::hint(ui, &t(id));
         ui.add_space(4.0);
     }
     let mut answer = None;

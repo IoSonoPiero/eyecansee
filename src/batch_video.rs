@@ -94,7 +94,7 @@ pub(crate) fn sound_rows(ui: &mut egui::Ui, s: &mut SoundForm, v: &mut VideoForm
     };
     let formats = available(&probe.audio);
     let Some(&first) = formats.first() else {
-        crate::error_bar::inline(ui, &t("batch-video-none"));
+        crate::error_bar::hint(ui, &t("batch-video-none"));
         return;
     };
     if !formats.contains(&s.format) {
@@ -157,7 +157,7 @@ pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
         if copy_only {
             ffmpeg_download(ui, v, i18n);
         } else {
-            crate::error_bar::inline(ui, &t("batch-video-none"));
+            crate::error_bar::hint(ui, &t("batch-video-none"));
         }
         return;
     }
@@ -236,7 +236,7 @@ fn ffmpeg_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     let size = format!("{} MB", c.size / 1_000_000);
     match crate::ffmpeg::status() {
         crate::engine::Status::SystemOnly => {
-            crate::error_bar::inline(ui, &i18n.t("batch-video-system-only"));
+            crate::error_bar::hint(ui, &i18n.t("batch-video-system-only"));
             return;
         }
         crate::engine::Status::TooOld { found, required } => {

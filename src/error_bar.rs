@@ -175,6 +175,12 @@ pub(crate) fn inline(ui: &mut egui::Ui, text: &str) -> egui::Response {
     .response
 }
 
+/// A hint while something is typed or chosen (a port that is not a number, an empty name, a
+/// size too large): no triangle, the theme's text, wrapped. Not an error, so not red either.
+pub(crate) fn hint(ui: &mut egui::Ui, text: &str) -> egui::Response {
+    ui.add(egui::Label::new(egui::RichText::new(text).color(ui.visuals().text_color())).wrap())
+}
+
 /// `inline` on the viewer's dark cards, in both themes.
 pub(crate) fn inline_on_dark(ui: &mut egui::Ui, text: &str) -> egui::Response {
     ui.scope(|ui| {
@@ -304,6 +310,10 @@ mod tests {
         let text = it.cannot_load("rotta.jpg", "Format error decoding Jpeg: I/O errors");
         let p = bar_parts(&text);
         assert_eq!((p.lead, p.detail), ("Impossibile aprire rotta.jpg", vec!["(Format error decoding Jpeg: I/O errors)"]));
+        // A detail not recognised by `I18n::error`: apart; a name or an address stays in the sentence.
+        let source = it.error("error-source", "boom 42");
+        assert_eq!((bar_parts(&source).lead, bar_parts(&source).detail), ("Impossibile collegarsi alla sorgente", vec!["(boom 42)"]));
+        assert_eq!(it.error("error-path", "x/y.jpg"), "Impossibile aprire x/y.jpg");
         // Said plainly: under the start, not in brackets.
         let said = it.cannot_load("a.step", crate::occt::MISSING);
         assert_eq!(bar_parts(&said).detail.len(), 0, "{said}");

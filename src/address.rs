@@ -233,7 +233,7 @@ impl App {
                 egui::Grid::new("addr-parts").num_columns(2).spacing([8.0, 6.0]).show(ui, |ui| self.address_grid(ui, &mut f, false));
             });
             if bad_port {
-                crate::error_bar::inline(ui, &t("addr-bad-port"));
+                crate::error_bar::hint(ui, &t("addr-bad-port"));
             }
             ui.add_space(8.0);
             if let Some(e) = &f.error {

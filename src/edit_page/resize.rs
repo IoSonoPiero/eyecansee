@@ -86,7 +86,7 @@ fn resize_form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n, keys: Option<bool>)
     let why = f.why_not();
     let pixels = |(w, h): (u32, u32)| i18n.t_args("resize-pixels", &[("w", &w.to_string()), ("h", &h.to_string())]);
     match why {
-        Some("resize-too-big") => crate::error_bar::inline(ui, &i18n.t_args("resize-too-big", &[("max", &MAX_SIDE.to_string())])),
+        Some("resize-too-big") => crate::error_bar::hint(ui, &i18n.t_args("resize-too-big", &[("max", &MAX_SIDE.to_string())])),
         Some(id) => ui.weak(t(id)),
         None => ui.weak(format!("{} {}", t("resize-result"), pixels(f.size))),
     };
