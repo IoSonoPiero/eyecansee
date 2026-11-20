@@ -159,7 +159,7 @@ fn keep_thumbnail(thumb: Option<(u64, Vec<u8>)>, dest: &str, size: Option<u64>) 
 pub async fn run(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress) -> (Vec<String>, Result<(), Error>) {
     let mut gone = Vec::new();
     let mut clip = clip.clone();
-    clip.paths.retain(|src| allowed(&clip.op, src, name(src), p));
+    clip.paths.retain(|src| allowed(&clip.op, to_windows(to), src, name(src), p));
     let r = paste(&clip, to, to_base, to_dir, choices, p, &mut gone).await;
     (gone, r.and_then(|()| refused(p)))
 }
@@ -167,14 +167,23 @@ pub async fn run(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: 
 /// Whether the item `path` of `from` may be copied as `rel` (its path below the folder pasted, or
 /// its own name). A name sent by a phone or a server that is not one item of a path at the
 /// destination (`source::safe_name`: "../x" would land outside the folder) is left out, with a
-/// line in the log, in `Progress::refused`. Names of this computer are what its disks hold.
-fn allowed(from: &Store, path: &str, rel: &str, p: &Progress) -> bool {
-    if matches!(from, Store::Dal(_)) || rel.trim_end_matches('/').split('/').all(crate::source::safe_name) {
+/// line in the log, in `Progress::refused`; so is one Windows cannot write, when the destination
+/// is a folder of Windows (`windows`; `source::windows_name`: "12:30.jpg" would write into a
+/// hidden stream of an empty file "12"). Names of this computer are what its disks hold.
+fn allowed(from: &Store, windows: bool, path: &str, rel: &str, p: &Progress) -> bool {
+    let fits = |n: &str| crate::source::safe_name(n) && (!windows || crate::source::windows_name(n));
+    if matches!(from, Store::Dal(_)) || rel.trim_end_matches('/').split('/').all(fits) {
         return true;
     }
-    log!("paste: {path:?} left out: a name sent by the device that is not one a path can hold");
+    log!("paste: {path:?} left out: a name sent by the device that is not one a path can hold here");
     p.refused.lock().unwrap().push(path.to_string());
     false
+}
+
+/// Whether `to` is a folder of Windows, where some names of a phone or a server cannot be written
+/// (`allowed`); a server or a phone there takes them.
+fn to_windows(to: &Store) -> bool {
+    cfg!(windows) && matches!(to, Store::Dal(_))
 }
 
 /// A copy that left items out (`allowed`) is not one that worked: an error naming them, once the
@@ -383,7 +392,7 @@ async fn folder_items(clip: &Clip, to: &Store, src: &str, dest: &str, p: &Progre
     let mut list = vec![(src.to_string(), dest.to_string(), 0)];
     let mut trashes = HashMap::new();
     for (path, size) in below {
-        if !allowed(&clip.op, &path, &path[src.len()..], p) {
+        if !allowed(&clip.op, to_windows(to), &path, &path[src.len()..], p) {
             continue;
         }
         if let Some(rel) = place(to, dest, &path[src.len()..], clip.cut, &mut trashes).await {
@@ -837,18 +846,30 @@ mod tests {
         let server = Store::Ftp(crate::ftp::Server::shared(target));
         let p = Progress::default();
         for good in ["a.jpg", "sub/", "sub/b.jpg", "12:30.jpg", ".EyeCanSee-trash/x.jpg"] {
-            assert!(allowed(&server, &format!("album/{good}"), good, &p), "{good}");
+            assert!(allowed(&server, false, &format!("album/{good}"), good, &p), "{good}");
         }
         assert_eq!(refused(&p), Ok(()));
         assert!(!left_below("album/", &p));
         for bad in ["../victim.txt", "..", "sub/../../x.jpg", "..\\victim.txt", "C:\\x.jpg", "sub//x", "a\nb.jpg", "/etc/x"] {
-            assert!(!allowed(&server, &format!("album/{bad}"), bad, &p), "{bad:?}");
+            assert!(!allowed(&server, false, &format!("album/{bad}"), bad, &p), "{bad:?}");
         }
         assert_eq!(p.refused.lock().unwrap().len(), 8);
         assert_eq!(refused(&p).unwrap_err().0, "error-name-refused");
         assert!(refused(&p).unwrap_err().1.starts_with("album/../victim.txt, album/.., "));
         assert!(left_below("album/", &p) && !left_below("other/", &p) && !left_below("album/a.jpg", &p) && !left_below("", &p));
         let local = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&std::env::temp_dir().to_string_lossy())).unwrap());
-        assert!(allowed(&local, "a\\b.jpg", "a\\b.jpg", &Progress::default()), "a name of this computer");
+        assert!(allowed(&local, false, "a\\b.jpg", "a\\b.jpg", &Progress::default()), "a name of this computer");
+        assert!(allowed(&local, true, "a:b.jpg", "a:b.jpg", &Progress::default()), "a name of this computer");
+
+        // A folder of Windows as the destination (audit 2.4): also the names Windows cannot write.
+        let p = Progress::default();
+        for good in ["a.jpg", "sub/", "sub/b.jpg", "CONSOLE.jpg"] {
+            assert!(allowed(&server, true, &format!("album/{good}"), good, &p), "{good}");
+        }
+        for bad in ["Mare 12:30.jpg", "12:30/", "12:30/a.jpg", "sub/a.jpg.", "sub /a.jpg", "NUL.jpg", "why?.jpg", "../x.jpg"] {
+            assert!(!allowed(&server, true, &format!("album/{bad}"), bad, &p), "{bad:?}");
+        }
+        assert_eq!(refused(&p).unwrap_err().1, "album/Mare 12:30.jpg, album/12:30/, album/12:30/a.jpg, album/sub/a.jpg., album/sub /a.jpg, album/NUL.jpg, album/why?.jpg, album/../x.jpg");
+        assert!(left_below("album/", &p));
     }
 }

@@ -35,7 +35,7 @@ What EyeCanSee does not do yet, or does only in part. The up-to-date list of kno
 
 - On Linux, on **NTFS** disks (for example an external disk also used with Windows) the Files app cannot restore from the trash, not even files it deleted itself. The files are in the trash all the same and can be restored from a terminal: `gio trash --list` shows what is there, `gio trash --restore "<trash:/// address from that line>"` puts it back.
 - On Windows, network drives and CDs or DVDs do not appear in the panel: open them with **File > Open location…**.
-- Copying from a phone or a server: an item whose name no file can have here (a name with `/`, `\`, `..`, a drive such as `C:` or control characters, which would lead out of the folder pasted) is left out, and the copy ends with a message that names it. A moved folder that holds one stays where it was.
+- Copying from a phone or a server: an item whose name no file can have here (a name with `/`, `\`, `..`, a drive such as `C:` or control characters, which would lead out of the folder pasted) is left out, and the copy ends with a message that names it. A moved folder that holds one stays where it was. On Windows the same happens to a name Windows cannot write, which a phone or a server allows: one with `:` or one of `< > " | ? *`, one ending in a dot or a space, or a name Windows keeps for its devices, such as `CON`, `NUL` or `COM1`, also with an extension (`NUL.jpg`).
 - FTPS: a server that wants the data connection to resume the TLS session of the control connection may never send the data.
 - SFTP: ProxyJump and ProxyCommand of `~/.ssh/config` are not supported.
 
