@@ -127,7 +127,7 @@ fn context_path(text: &str) -> Option<String> {
 const WRAPPERS: [&str; 5] = ["error-detail", NOT_FOUND, "error-path", "error-permission", "error-exists"];
 
 /// Ids whose detail is a name or an address, part of the sentence: never put apart as a detail.
-const NAMED: [&str; 7] = ["error-path", NOT_FOUND, "error-exists", "error-paste-inside", "error-too-deep", "error-unsupported", "error-no-host"];
+const NAMED: [&str; 6] = ["error-path", NOT_FOUND, "error-exists", "error-paste-inside", "error-unsupported", "error-no-host"];
 
 impl I18n {
     /// The text of an error, said plainly when its detail is recognised (`recognise`); its raw
