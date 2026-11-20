@@ -12,10 +12,10 @@ use crate::cad_geom::P;
 const MAX_DEPTH: u32 = 8;
 /// Commands of one character drawn at most (a broken file could loop through subshapes).
 const MAX_STEPS: usize = 20_000;
-/// Moves of the pen in one character. A real letter takes tens or hundreds, but one command 9
-/// or 13 draws up to thousands and subshapes repeat them: a font made on purpose asked for 321
-/// million. The letter stops there.
-const MAX_LETTER_POINTS: usize = 100_000;
+/// Steps of the pen in one character (`Pen::left`). A real letter takes tens or hundreds, but
+/// one command 9 or 13 draws up to thousands and subshapes repeat them: a font made on purpose
+/// asked for 321 million points. The letter stops there.
+const MAX_LETTER_WORK: usize = 100_000;
 
 pub struct Shx {
     /// Height of the capitals, in the font's units.
@@ -136,7 +136,7 @@ pub fn parse(bytes: &[u8]) -> Option<Shx> {
     if kind == Kind::Bigfont && extended {
         let mut codes: Vec<u16> = font.shapes.keys().copied().filter(|&c| c >= 0x8000).collect();
         codes.sort_unstable();
-        let tall = codes.iter().step_by((codes.len() / 40).max(1)).map(|&c| font.glyph(c, MAX_LETTER_POINTS).0.iter().flatten().map(|p| p[1]).fold(f64::MIN, f64::max)).fold(0.0, f64::max);
+        let tall = codes.iter().step_by((codes.len() / 40).max(1)).map(|&c| font.glyph(c, &mut { MAX_LETTER_WORK }).0.iter().flatten().map(|p| p[1]).fold(f64::MIN, f64::max)).fold(0.0, f64::max);
         if tall > 0.0 {
             font.above = tall;
         }
@@ -154,7 +154,8 @@ struct Pen {
     stack: Vec<P>,
     strokes: Vec<Vec<P>>,
     steps: usize,
-    /// Points the pen may still add (pen-up moves count too): then it stops.
+    /// Steps the pen may still take, then it stops: each command, each move (pen up or down) and
+    /// each stroke started.
     left: usize,
 }
 
@@ -217,18 +218,19 @@ impl Shx {
         code != 0 && self.shapes.contains_key(&code)
     }
 
-    /// The strokes of shape `code` from (0, 0) in font units, at most `left` points (and
-    /// `MAX_LETTER_POINTS`), and where the next one starts.
-    pub fn glyph(&self, code: u16, left: usize) -> (Vec<Vec<P>>, f64) {
-        let left = left.min(MAX_LETTER_POINTS);
-        let mut pen = Pen { at: [0.0; 2], down: true, scale: 1.0, squash: 1.0, stack: Vec::new(), strokes: Vec::new(), steps: 0, left };
+    /// The strokes of shape `code` from (0, 0) in font units, and where the next one starts. At
+    /// most `left` steps of the pen (and `MAX_LETTER_WORK`), taken from it.
+    pub fn glyph(&self, code: u16, left: &mut usize) -> (Vec<Vec<P>>, f64) {
+        let start = (*left).min(MAX_LETTER_WORK);
+        let mut pen = Pen { at: [0.0; 2], down: true, scale: 1.0, squash: 1.0, stack: Vec::new(), strokes: Vec::new(), steps: 0, left: start };
         match self.shapes.get(&code) {
             Some(def) => self.draw(def, &mut pen, 0),
             // Not in the font: a space as wide as two thirds of the height.
             None => pen.at[0] += self.above * 2.0 / 3.0,
         }
-        if pen.left == 0 && left == MAX_LETTER_POINTS {
-            log!("drawing: shape {code} of an SHX font stopped at {MAX_LETTER_POINTS} points");
+        *left -= start - pen.left;
+        if pen.left == 0 && start == MAX_LETTER_WORK {
+            log!("drawing: shape {code} of an SHX font stopped after {MAX_LETTER_WORK} steps");
         }
         (pen.strokes, pen.at[0])
     }
@@ -240,7 +242,7 @@ impl Shx {
         let mut out = Vec::new();
         let mut x = 0.0;
         for c in text.chars() {
-            let (lines, advance) = self.glyph(self.code(c).unwrap_or(u16::from(b'?')), MAX_LETTER_POINTS);
+            let (lines, advance) = self.glyph(self.code(c).unwrap_or(u16::from(b'?')), &mut { usize::MAX });
             out.extend(lines.into_iter().map(|l| l.into_iter().map(|p| [p[0] + x, p[1]]).collect()));
             x += advance;
         }
@@ -253,6 +255,7 @@ impl Shx {
         let mut i = 0;
         while i < def.len() && pen.steps < MAX_STEPS && pen.left > 0 {
             pen.steps += 1;
+            pen.left -= 1;
             let b = byte(i);
             if b > 0x0F {
                 let d = DIRECTIONS[(b & 0x0F) as usize];
@@ -439,8 +442,8 @@ mod tests {
         let (strokes, len) = f.strokes("A");
         assert_eq!(strokes, vec![vec![[0.0, 0.0], [5.0, 10.0], [10.0, 0.0]]]);
         assert_eq!(len, 12.0);
-        // Two points left: the letter stops after its first stroke.
-        assert_eq!(f.glyph(u16::from(b'A'), 2).0, vec![vec![[0.0, 0.0], [5.0, 10.0]]]);
+        // Five steps: pen down, move, the stroke started, the next command; then the pen stops.
+        assert_eq!(f.glyph(u16::from(b'A'), &mut 5).0, vec![vec![[0.0, 0.0], [5.0, 10.0]]]);
         // The subshape draws the bar 8 long, from (0, 5) after a pen-up move.
         let (strokes, _) = f.strokes("-");
         assert_eq!(strokes, vec![vec![[0.0, 5.0], [8.0, 5.0]]]);
@@ -460,6 +463,17 @@ mod tests {
         // A half circle as a bulge of 127: its top 5 above the chord.
         let top = f.strokes("B").0[0].iter().map(|p| p[1].abs()).fold(0.0, f64::max);
         assert!((top - 5.0).abs() < 0.2, "{top}");
+    }
+
+    /// A letter that only moves with the pen up draws nothing, but its steps are taken from the
+    /// text's: pen up and command 9 (two commands), then three moves.
+    #[test]
+    fn steps_with_the_pen_up_are_counted() {
+        let f = Shx { above: 1.0, kind: Kind::Shapes, shapes: HashMap::from([(65, vec![2, 9, 1, 0, 1, 0, 1, 0, 0, 0])]), ranges: Vec::new(), dos: false };
+        let mut left = 100;
+        let (strokes, advance) = f.glyph(65, &mut left);
+        assert!(strokes.is_empty() && advance == 3.0);
+        assert_eq!(left, 95);
     }
 
     /// Audit 6.18 (c): `MAX_STEPS` counts the commands, but one command 9 draws up to 32 766

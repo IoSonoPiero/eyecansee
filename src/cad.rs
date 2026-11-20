@@ -214,6 +214,8 @@ pub(crate) struct Walk<'a> {
     met: usize,
     /// What is left of `MAX_HATCH_WORK`.
     hatch_work: usize,
+    /// What the pens of the SHX texts may still do (`cad_text::strokes`), for the whole drawing.
+    pen_work: usize,
 }
 
 /// Where an XLINE or RAY passes, in drawing units, and how it is drawn.
@@ -236,7 +238,7 @@ pub(crate) fn n3(v: &Vector3) -> [f64; 3] {
 
 impl<'a> Walk<'a> {
     pub(crate) fn new(doc: &'a CadDocument, out: &'a mut Drawing) -> Self {
-        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0, placed: 0, met: 0, hatch_work: MAX_HATCH_WORK }
+        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0, placed: 0, met: 0, hatch_work: MAX_HATCH_WORK, pen_work: MAX_POINTS }
     }
 
     /// An item drawn, on the layers of the entity being drawn.
@@ -332,8 +334,12 @@ impl<'a> Walk<'a> {
         let style = if l.style.is_empty() { "standard".to_string() } else { l.style.to_ascii_lowercase() };
         if let Some(font) = self.fonts.get(&style) {
             let stroke = Stroke { dash: Vec::new(), weight: THIN };
-            let left = MAX_POINTS.saturating_sub(self.out.points);
-            for pts in crate::cad_text::strokes(font, at, height, angle, &text, l.anchor, left) {
+            // A letter can draw nothing and still work: counted for the whole drawing.
+            let mut left = self.pen_work.min(MAX_POINTS.saturating_sub(self.out.points));
+            let before = left;
+            let lines = crate::cad_text::strokes(font, at, height, angle, &text, l.anchor, &mut left);
+            self.pen_work -= before - left;
+            for pts in lines {
                 let _ = self.line(pts, &Affine::IDENTITY, color, None, stroke.clone());
             }
             return;
@@ -533,6 +539,7 @@ impl<'a> Walk<'a> {
                 }
                 return Ok(());
             }
+            log!("drawing: a hatch filled lightly, its pattern too dense ({} steps of the patterns left)", self.hatch_work);
         }
         // One area with every boundary, filled even-odd: the islands stay empty.
         let fill = Some(if h.is_solid { 1.0 } else { 0.25 });
