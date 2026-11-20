@@ -8,6 +8,7 @@
 
 - **STL**, **3MF** and **AMF** (3D printing), **OBJ** (with the colours of its materials, from the `.mtl` file next to it), **PLY** (also 3D scans; point clouds show as dots).
 - **glTF** (`.glb`, and `.gltf` with its files), **FBX**, **Collada** (`.dae`, `.zae`), **3DS**, **OFF**, **VRML** and **X3D**.
+  A `.gltf` whose data file (usually `.bin`) is not next to it does not open: the viewer names the file that is missing.
 - **IFC**: building models (walls, slabs, windows, structures) in their colours.
 - **STEP**, **IGES** and **BREP**, the solid models of mechanical CAD programs. They need the CAD engine, downloaded once: the first one you open offers it, and so does the red **Download the CAD engine** button in the menu bar. Until then their thumbnail is a cube ![CAD model](icon://color-model) with a download sign. See [Add-on components](components.md).
 

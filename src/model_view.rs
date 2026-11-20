@@ -288,7 +288,7 @@ impl App {
                 self.relist(crate::source::parent(to));
                 self.i18n.t_args("status-exported", &[("name", crate::source::name(to))])
             }
-            Err(e) => self.i18n.t_args("export-failed", &[("error", e)]),
+            Err(e) => self.i18n.t_args("export-failed", &[("error", &self.i18n.load_error(e))]),
         };
         self.status_note = Some(text);
         self.note_until = Some(ctx.input(|i| i.time) + 6.0);

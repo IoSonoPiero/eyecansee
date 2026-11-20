@@ -19,6 +19,17 @@ fn gltf_error(e: String) -> String {
     }
 }
 
+/// Fluent id of a .gltf whose data file next to it cannot be read (#178), sent as
+/// `id\u{1}name` (`I18n::load_error`).
+pub const MISSING_BIN: &str = "error-gltf-bin-missing";
+
+/// The error of a data file `uri` that is not next to the model: its name as the model gives it
+/// (percent-decoded, at most 120 characters).
+pub(crate) fn missing_file(uri: &str) -> String {
+    let name: String = crate::model::percent_decoded(uri).unwrap_or_else(|| uri.to_string()).chars().take(120).collect();
+    format!("{MISSING_BIN}\u{1}{name}")
+}
+
 /// GLB, and .gltf with its data inside or in the files next to it (`sibling`); compressed ones
 /// (Draco, meshopt, quantized) first made plain (`model_gltf_unpack`).
 pub fn read(bytes: &[u8], sibling: Sibling, unpacked: &crate::model_3mf::Unpacked) -> Result<Mesh, String> {
@@ -43,8 +54,11 @@ fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
         gltf::buffer::Source::Bin => g.blob.as_deref(),
         gltf::buffer::Source::Uri(_) => inside[b.index()].as_deref(),
     };
-    if g.document.buffers().any(|b| data(b).is_none()) {
-        return Err("the model's data file (.bin) is missing".into());
+    if let Some(b) = g.document.buffers().find(|b| data(b.clone()).is_none()) {
+        return Err(match b.source() {
+            gltf::buffer::Source::Uri(uri) if !uri.starts_with("data:") => missing_file(uri),
+            _ => "the model's data file (.bin) is missing".into(),
+        });
     }
     let mut b = Builder::default();
     let mut extra: Extra = (Vec::new(), Vec::new(), HashMap::new(), HashSet::new(), 0);
@@ -238,6 +252,20 @@ mod tests {
         format!(
             r#"{{"asset":{{"version":"2.0"}},"buffers":[{{"uri":"data:application/octet-stream;base64,{data}","byteLength":36}}],"bufferViews":[{{"buffer":0,"byteLength":36}}],"accessors":[{{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","max":[1,1,0],"min":[0,0,0]}}],"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0}}}}]}}],"nodes":[{{"children":[2]}},{{"children":[2]}},{{"mesh":0}}],"scenes":[{{"nodes":[{scene}]}}],"scene":0}}"#
         )
+    }
+
+    /// #178: a .gltf whose .bin is not next to it is refused naming that file, plain or packed
+    /// (which said "no triangles in the file"), in the user's language.
+    #[test]
+    fn missing_bin_named() {
+        let body = r#""buffers":[{"uri":"missing%20model.bin","byteLength":36}],"bufferViews":[{"buffer":0,"byteLength":36}],"accessors":[{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","max":[1,1,0],"min":[0,0,0]}],"meshes":[{"primitives":[{"attributes":{"POSITION":0}}]}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0"#;
+        for packed in ["", r#""extensionsUsed":["KHR_mesh_quantization"],"#] {
+            let gltf = format!(r#"{{"asset":{{"version":"2.0"}},{packed}{body}}}"#);
+            let e = crate::model::parse(gltf.as_bytes(), "a.gltf").unwrap_err();
+            assert_eq!(e, format!("{}\u{1}missing model.bin", super::MISSING_BIN), "{packed}");
+            assert_eq!(crate::i18n::I18n::new("en").load_error(&e), "The file with the model's data is missing: missing model.bin");
+            assert_eq!(crate::i18n::I18n::new("it").load_error(&e), "Manca il file con i dati del modello: missing model.bin");
+        }
     }
 
     /// #179: a node with two parents (outside the standard) is placed once, as before, and the

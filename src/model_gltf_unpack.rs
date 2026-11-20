@@ -47,7 +47,12 @@ pub fn plain(bytes: &[u8], sibling: Sibling, unpacked: &Unpacked) -> Result<Opti
         let bytes = match buf["uri"].as_str() {
             None => bin.filter(|_| i == 0).map(<[u8]>::to_vec),
             Some(u) if u.starts_with("data:") => u.split_once(";base64,").and_then(|(_, d)| base64::engine::general_purpose::STANDARD.decode(d).ok()),
-            Some(u) => sibling(u).inspect(|b| unpacked.read_too(b.len())),
+            // Missing: refused here as by the glTF reader, naming it (#178).
+            Some(u) => {
+                let b = sibling(u).ok_or_else(|| crate::model_gltf::missing_file(u))?;
+                unpacked.read_too(b.len());
+                Some(b)
+            }
         };
         let bytes = bytes.unwrap_or_default();
         unpacked.spend(bytes.len() as u64)?;

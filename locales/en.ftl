@@ -470,6 +470,7 @@ convert-turned = { $turn ->
 }
 model-triangles = { $n } triangles
 model-node-again = A part of the model is placed more than once in its hierarchy, which glTF does not allow: shown once
+error-gltf-bin-missing = The file with the model's data is missing: { $detail }
 # The keys of the viewer, under the status bar.
 hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | Ctrl+L: layers | M: measure | N, Shift+N: next, previous change of a comparison | →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Ctrl+Shift+S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
 hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift+L: next, previous layout | Ctrl+L: layers | M: measure | N, Shift+N: next, previous change of a comparison | →, Space, Page Down: next file | ←, Backspace, Page Up: previous file | Home, End: first, last file | Ctrl+Shift+S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
