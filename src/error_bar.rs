@@ -65,7 +65,9 @@ impl App {
             ui.horizontal_top(|ui| {
                 theme::warning_icon(ui, 28.0);
                 ui.add_space(12.0);
-                let width = (ui.available_width() - 44.0).min(720.0);
+                // All the width but the ✕: a cap of 720 points broke sentences in the middle on a wide
+                // window ("…known_hosts, / quindi…", Piero 20/11); the lines break where the message does.
+                let width = ui.available_width() - 44.0;
                 ui.vertical(|ui| {
                     ui.set_max_width(width);
                     bar_text(ui, &e, &c);
