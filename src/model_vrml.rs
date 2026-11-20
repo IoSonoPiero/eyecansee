@@ -2,14 +2,14 @@
 //! classic encoding, `.x3dv`) and X3D's XML both become `SceneNode`s, with DEF and USE resolved
 //! (shared, not copied).
 
+use std::borrow::Cow;
 use std::collections::HashMap;
-use std::io::Read;
 use std::rc::Rc;
+
+use crate::model_3mf::Unpacked;
 
 /// Nodes inside nodes; deeper is a damaged file.
 const MAX_DEPTH: u32 = 256;
-/// Unzipped size of a `.wrz` or `.x3dz`.
-const MAX_TEXT: u64 = 2 << 30;
 
 #[derive(Debug, Default)]
 pub struct SceneNode {
@@ -73,53 +73,52 @@ impl SceneNode {
     }
 }
 
-/// The scene of a file: a root holding the top nodes.
-pub fn parse(bytes: &[u8]) -> Result<SceneNode, String> {
-    let unzipped;
-    let bytes = if bytes.starts_with(&[0x1f, 0x8b]) {
-        let mut v = Vec::new();
-        flate2::read::GzDecoder::new(bytes).take(MAX_TEXT).read_to_end(&mut v).map_err(|e| e.to_string())?;
-        unzipped = v;
-        &unzipped[..]
+/// The scene of a file: a root holding the top nodes. A gzipped file is unpacked within what
+/// `unpacked` still allows.
+pub fn parse(bytes: &[u8], unpacked: &Unpacked) -> Result<SceneNode, String> {
+    // The text as it is, without a copy, when it is UTF-8 without its mark (nearly always).
+    let text: Cow<str> = if bytes.starts_with(&[0x1f, 0x8b]) {
+        let v = unpacked.read(flate2::read::GzDecoder::new(bytes))?;
+        match v.as_slice() {
+            [0xFF, 0xFE, ..] | [0xFE, 0xFF, ..] | [0xEF, 0xBB, 0xBF, ..] => Cow::Owned(crate::model_3mf::text(&v)),
+            _ => Cow::Owned(String::from_utf8(v).unwrap_or_else(|e| crate::model_3mf::text(e.as_bytes()))),
+        }
     } else {
-        bytes
+        match std::str::from_utf8(bytes) {
+            Ok(s) if !s.starts_with('\u{FEFF}') => Cow::Borrowed(s),
+            _ => Cow::Owned(crate::model_3mf::text(bytes)),
+        }
     };
-    let text = crate::model_3mf::text(bytes);
     let head = text.trim_start();
     if head.starts_with("#VRML V1.0") {
         return Err("VRML 1.0 is not supported (only VRML 97 and X3D)".into());
     }
-    if head.starts_with('<') { xml(&text) } else { Classic { tokens: tokens(&text), at: 0, defs: HashMap::new() }.scene() }
+    if head.starts_with('<') { xml(&text) } else { Classic { text: &text, at: 0, ahead: None, defs: HashMap::new() }.scene() }
 }
 
-fn tokens(text: &str) -> Vec<&str> {
-    let mut out = Vec::new();
+/// The word of `text` from `i` on, after spaces, commas and comments, and where it ends. Read one
+/// at a time: a list of all of them took 16 bytes for each, 8 times a text of one-digit numbers.
+fn token(text: &str, mut i: usize) -> (Option<&str>, usize) {
     let b = text.as_bytes();
-    let mut i = 0;
     while i < b.len() {
         match b[i] {
             b'#' => i += b[i..].iter().position(|&c| c == b'\n').unwrap_or(b.len() - i),
             c if c.is_ascii_whitespace() || c == b',' => i += 1,
-            b'{' | b'}' | b'[' | b']' => {
-                out.push(&text[i..i + 1]);
-                i += 1;
-            }
+            b'{' | b'}' | b'[' | b']' => return (Some(&text[i..i + 1]), i + 1),
             b'"' => {
                 let mut j = i + 1;
                 while j < b.len() && b[j] != b'"' {
                     j += if b[j] == b'\\' { 2 } else { 1 };
                 }
-                out.push(&text[i..j.min(b.len())]);
-                i = j + 1;
+                return (Some(&text[i..j.min(b.len())]), j + 1);
             }
             _ => {
                 let j = b[i..].iter().position(|&c| c.is_ascii_whitespace() || b",{}[]\"#".contains(&c)).map_or(b.len(), |p| i + p);
-                out.push(&text[i..j]);
-                i = j;
+                return (Some(&text[i..j]), j);
             }
         }
     }
-    out
+    (None, i)
 }
 
 fn number(t: &str) -> Option<f32> {
@@ -135,20 +134,28 @@ fn unquoted(t: &str) -> String {
 }
 
 struct Classic<'t> {
-    tokens: Vec<&'t str>,
+    text: &'t str,
+    /// Where the next word starts to be looked for, and that word once `peek` has found it.
     at: usize,
+    ahead: Option<(Option<&'t str>, usize)>,
     defs: HashMap<&'t str, Rc<SceneNode>>,
 }
 
 impl<'t> Classic<'t> {
     fn next(&mut self) -> Option<&'t str> {
-        let t = self.tokens.get(self.at).copied();
-        self.at += 1;
+        let (t, end) = self.ahead.take().unwrap_or_else(|| token(self.text, self.at));
+        self.at = end;
         t
     }
 
-    fn peek(&self) -> Option<&'t str> {
-        self.tokens.get(self.at).copied()
+    fn peek(&mut self) -> Option<&'t str> {
+        self.ahead.get_or_insert_with(|| token(self.text, self.at)).0
+    }
+
+    fn skip(&mut self, n: usize) {
+        for _ in 0..n {
+            self.next();
+        }
     }
 
     fn scene(mut self) -> Result<SceneNode, String> {
@@ -169,20 +176,20 @@ impl<'t> Classic<'t> {
             // ROUTE a.b TO c.d, IMPORT a.b AS c, EXPORT a AS b, UNIT kind name factor.
             Some("ROUTE" | "IMPORT" | "EXPORT" | "UNIT") => 4,
             Some("PROTO") => {
-                self.at += 2;
+                self.skip(2);
                 self.skip_block()?;
                 self.skip_block()?;
                 return Ok(true);
             }
             Some("EXTERNPROTO") => {
-                self.at += 2;
+                self.skip(2);
                 self.skip_block()?;
-                if self.peek() == Some("[") { self.skip_block()? } else { self.at += 1 }
+                if self.peek() == Some("[") { self.skip_block()? } else { self.skip(1) }
                 return Ok(true);
             }
             _ => return Ok(false),
         };
-        self.at += skip;
+        self.skip(skip);
         Ok(true)
     }
 
@@ -233,11 +240,11 @@ impl<'t> Classic<'t> {
                     // Fields declared by a Script: kind, type and name, then a value for some.
                     match name {
                         "eventIn" | "eventOut" | "inputOnly" | "outputOnly" => {
-                            self.at += 2;
+                            self.skip(2);
                             continue;
                         }
                         "field" | "exposedField" | "initializeOnly" | "inputOutput" => {
-                            self.at += 2;
+                            self.skip(2);
                             self.value(depth)?;
                             continue;
                         }
@@ -246,7 +253,7 @@ impl<'t> Classic<'t> {
                     let value = self.value(depth)?;
                     node.fields.push((name.to_string(), value));
                 }
-                self.at += 1;
+                self.next();
                 Ok(Some(Rc::new(node)))
             }
         }
@@ -258,55 +265,52 @@ impl<'t> Classic<'t> {
         }
         let t = self.peek().ok_or("unexpected end of file")?;
         if t == "[" {
-            self.at += 1;
-            let mut items = Vec::new();
+            self.next();
+            let (mut nums, mut strs, mut nodes) = (Vec::new(), Vec::new(), Vec::new());
             while self.peek() != Some("]") {
                 if self.peek().is_none() {
                     return Err("unexpected end of file".into());
                 }
-                items.push(self.value(depth + 1)?);
+                match self.value(depth + 1)? {
+                    // The numbers of a list come as one run: taken, not copied.
+                    Value::Nums(n) if nums.is_empty() => nums = n,
+                    Value::Nums(n) => nums.extend(n),
+                    Value::Strs(s) => strs.extend(s),
+                    Value::Nodes(n) => nodes.extend(n),
+                    Value::Bool(_) => {}
+                }
             }
-            self.at += 1;
-            return Ok(join(items));
+            self.next();
+            return Ok(join(nums, strs, nodes));
         }
         if number(t).is_some() {
             let mut v = Vec::new();
             while let Some(n) = self.peek().and_then(number) {
                 v.push(n);
-                self.at += 1;
+                self.next();
             }
             return Ok(Value::Nums(v));
         }
-        self.at += 1;
         Ok(match t {
-            "TRUE" => Value::Bool(true),
-            "FALSE" => Value::Bool(false),
+            "TRUE" | "FALSE" => {
+                self.next();
+                Value::Bool(t == "TRUE")
+            }
             "IS" => {
-                self.at += 1;
+                self.skip(2);
                 Value::Nodes(Vec::new())
             }
-            _ if t.starts_with('"') => Value::Strs(vec![unquoted(t)]),
-            _ => {
-                self.at -= 1;
-                Value::Nodes(self.node(depth + 1)?.into_iter().collect())
+            _ if t.starts_with('"') => {
+                self.next();
+                Value::Strs(vec![unquoted(t)])
             }
+            _ => Value::Nodes(self.node(depth + 1)?.into_iter().collect()),
         })
     }
 }
 
 /// The items of a `[...]`, all of one kind.
-fn join(items: Vec<Value>) -> Value {
-    let mut nums = Vec::new();
-    let mut strs = Vec::new();
-    let mut nodes = Vec::new();
-    for v in items {
-        match v {
-            Value::Nums(n) => nums.extend(n),
-            Value::Strs(s) => strs.extend(s),
-            Value::Nodes(n) => nodes.extend(n),
-            Value::Bool(_) => {}
-        }
-    }
+fn join(nums: Vec<f32>, strs: Vec<String>, nodes: Vec<Rc<SceneNode>>) -> Value {
     if !nodes.is_empty() {
         Value::Nodes(nodes)
     } else if !strs.is_empty() {
@@ -346,8 +350,9 @@ fn xml_children(e: roxmltree::Node, defs: &mut HashMap<String, Rc<SceneNode>>, d
 
 /// An X3D attribute: numbers, a boolean or strings (`"a" "b"`, or the text as it is).
 fn attribute(v: &str) -> Value {
-    let words: Vec<&str> = v.split(|c: char| c.is_whitespace() || c == ',').filter(|w| !w.is_empty()).collect();
-    if let Some(nums) = words.iter().map(|w| number(w)).collect::<Option<Vec<f32>>>() {
+    // The words one at a time, not in a list: 16 bytes each.
+    let words = v.split(|c: char| c.is_whitespace() || c == ',').filter(|w| !w.is_empty());
+    if let Some(nums) = words.map(number).collect::<Option<Vec<f32>>>() {
         return Value::Nums(nums);
     }
     match v.trim() {
@@ -367,27 +372,51 @@ mod tests {
     #[test]
     fn names_and_lists_nested_without_end_are_refused() {
         let names = format!("#VRML V2.0 utf8\n{}Group {{}}", "DEF a ".repeat(100_000));
-        assert!(parse(names.as_bytes()).is_err());
+        assert!(parse(names.as_bytes(), &Unpacked::default()).is_err());
         let lists = format!("#VRML V2.0 utf8\nGroup {{ children {}", "[ ".repeat(100_000));
-        assert!(parse(lists.as_bytes()).is_err());
+        assert!(parse(lists.as_bytes(), &Unpacked::default()).is_err());
     }
 
     #[test]
     fn vrml_and_x3d_give_the_same_scene() {
         let wrl = "#VRML V2.0 utf8\nPROTO P [ field SFFloat a 1 ] { Group {} }\nDEF T Transform { translation 1 2 3 children [ Shape { geometry Box { size 1 1 1 } } ] }\nUSE T\nROUTE A.b TO C.d\n";
-        let s = parse(wrl.as_bytes()).unwrap();
+        let s = parse(wrl.as_bytes(), &Unpacked::default()).unwrap();
         let top: Vec<_> = s.children().collect();
         assert_eq!(top.len(), 2);
         assert!(Rc::ptr_eq(top[0], top[1]));
         assert_eq!(top[0].nums("translation"), &[1.0, 2.0, 3.0]);
         let x3d = "<X3D><Scene><Transform DEF='T' translation='1 2 3'><Shape><Box size='1 1 1'/></Shape></Transform><Transform USE='T'/></Scene></X3D>";
-        let s = parse(x3d.as_bytes()).unwrap();
+        let s = parse(x3d.as_bytes(), &Unpacked::default()).unwrap();
         let top: Vec<_> = s.children().collect();
         assert_eq!(top.len(), 2);
         assert_eq!(top[0].children().next().unwrap().children().next().unwrap().nums("size"), &[1.0, 1.0, 1.0]);
-        assert!(parse(b"#VRML V1.0 ascii\nSeparator {}").is_err());
+        assert!(parse(b"#VRML V1.0 ascii\nSeparator {}", &Unpacked::default()).is_err());
         let script = b"#X3D V3.0 utf8\nPROFILE Immersive\nDEF S Script { inputOnly SFTime touchTime initializeOnly SFFloat speed 2 url \"ecmascript:\" }\nShape { geometry Box {} }\n";
-        assert_eq!(parse(script).unwrap().children().count(), 2);
-        assert!(parse(b"#VRML V2.0 utf8\nShape {").is_err());
+        assert_eq!(parse(script, &Unpacked::default()).unwrap().children().count(), 2);
+        assert!(parse(b"#VRML V2.0 utf8\nShape {", &Unpacked::default()).is_err());
+    }
+
+    /// Audit 6.19 (b): a `.wrz` of one-digit numbers took 14 times its text to read (64 MB of text,
+    /// 912 MB): every word went into a list, 16 bytes each, before the scene was made. The words
+    /// are now read one at a time; what stays is the text and the numbers, 4 bytes for every 2 of
+    /// text. Measured on this thread (`test_alloc`: the memory of the process is shared with the
+    /// tests beside), with 1 MB of text. A `.wrz` that unpacks to more than the limit is refused.
+    #[test]
+    fn audit_6_19_wrz_tokens() {
+        use std::io::Write;
+        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        gz.write_all(b"#VRML V2.0 utf8\nShape { geometry IndexedFaceSet { coord Coordinate { point [\n").unwrap();
+        gz.write_all("0 ".repeat(1 << 19).as_bytes()).unwrap();
+        gz.write_all(b"] } } }\n").unwrap();
+        let wrz = gz.finish().unwrap();
+        let text = 1 << 20;
+        let (scene, scene_peak) = crate::test_alloc::peak(|| parse(&wrz, &Unpacked::default()).map(|_| ()));
+        let (model, peak) = crate::test_alloc::peak(|| crate::model::parse(&wrz, "a.wrz").map(|m| m.tris.len()));
+        println!("{scene_peak} bytes for the scene, {peak} in all, for {text} of text: {model:?}");
+        assert!(scene.is_ok() && model.is_err_and(|e| e.contains("no triangles")));
+        // The scene: the text and its numbers (3 times the text; it was 12). The model then copies
+        // the points twice more, as for a .wrl (8 times; 9 leaves room).
+        assert!(scene_peak <= 3 * text + (64 << 10) && peak <= 9 * text, "{scene_peak} and {peak} bytes for {text} of text");
+        assert!(parse(&wrz, &Unpacked::new(text as u64 / 2)).is_err_and(|e| e.contains("unpacks")));
     }
 }

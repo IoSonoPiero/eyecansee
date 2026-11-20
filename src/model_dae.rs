@@ -19,8 +19,8 @@ const MAX_PICTURE: u64 = 256 << 20;
 /// What a material shows: its colour, or its picture (`Builder::texture`) with white.
 type Look = (Option<[u8; 3]>, u16);
 
-pub fn read(bytes: &[u8], zipped: bool, sibling: Sibling) -> Result<Mesh, String> {
-    let text = if zipped { crate::model_3mf::unzipped(bytes, ".dae")? } else { crate::model_3mf::text(bytes) };
+pub fn read(bytes: &[u8], zipped: bool, sibling: Sibling, unpacked: &crate::model_3mf::Unpacked) -> Result<Mesh, String> {
+    let text = if zipped { crate::model_3mf::unzipped(bytes, ".dae", unpacked)? } else { crate::model_3mf::text(bytes) };
     let doc = Document::parse_with_options(&text, crate::model_3mf::xml_options()).map_err(|e| e.to_string())?;
     // Several elements may share an id (an effect named as its geometry): all kept, by kind.
     let mut ids: HashMap<&str, Vec<Node>> = HashMap::new();
@@ -38,9 +38,7 @@ pub fn read(bytes: &[u8], zipped: bool, sibling: Sibling) -> Result<Mesh, String
         let name = name.trim_start_matches("./");
         let mut zip = zip::ZipArchive::new(std::io::Cursor::new(bytes)).ok()?;
         let entry = zip.file_names().find(|f| *f == name || f.ends_with(&format!("/{name}")))?.to_string();
-        let mut out = Vec::new();
-        zip.by_name(&entry).ok()?.take(MAX_PICTURE).read_to_end(&mut out).ok()?;
-        Some(out)
+        unpacked.read(zip.by_name(&entry).ok()?.take(MAX_PICTURE)).ok()
     };
     let next: Sibling = if zipped { &in_zip } else { sibling };
     let mut dae = Dae { b: &mut b, ids: &ids, sibling: next };
@@ -58,6 +56,7 @@ pub fn read(bytes: &[u8], zipped: bool, sibling: Sibling) -> Result<Mesh, String
             }
         }
     }
+    unpacked.check()?;
     b.finish(z_up)
 }
 
@@ -271,7 +270,7 @@ mod tests {
               <instance_geometry url="#g"><bind_material><technique_common><instance_material symbol="sym" target="#m"/></technique_common></bind_material></instance_geometry>
             </node></visual_scene></library_visual_scenes>
             <scene><instance_visual_scene url="#s"/></scene></COLLADA>"##;
-        let m = read(dae.as_bytes(), false, &|_| None).unwrap();
+        let m = read(dae.as_bytes(), false, &|_| None, &Default::default()).unwrap();
         assert_eq!((m.tris.len(), m.colors[0], m.z_up), (2, [255, 0, 0], true));
         assert_eq!(m.pos[1], [6.0, 0.0, 0.0]);
         // The same quad with a picture: effect → sampler → surface → image → file next to it.
@@ -284,7 +283,7 @@ mod tests {
         let mut png = Vec::new();
         image::RgbaImage::new(2, 2).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
         let next = |name: &str| (name == "./my%20pic.png").then(|| png.clone());
-        let m = read(textured.as_bytes(), false, &next).unwrap();
+        let m = read(textured.as_bytes(), false, &next, &Default::default()).unwrap();
         assert_eq!((m.tex.clone(), m.colors[0]), (vec![1, 1], [255; 3]));
         assert_eq!(m.uv[0][1], [1.0, 1.0]);
     }

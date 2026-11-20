@@ -10,8 +10,8 @@ use crate::model::{Builder, Mesh};
 /// Constellations inside constellations; deeper is a loop.
 const MAX_DEPTH: u32 = 32;
 
-pub fn read(bytes: &[u8]) -> Result<Mesh, String> {
-    let text = if bytes.starts_with(b"PK") { crate::model_3mf::unzipped(bytes, ".amf")? } else { crate::model_3mf::text(bytes) };
+pub fn read(bytes: &[u8], unpacked: &crate::model_3mf::Unpacked) -> Result<Mesh, String> {
+    let text = if bytes.starts_with(b"PK") { crate::model_3mf::unzipped(bytes, ".amf", unpacked)? } else { crate::model_3mf::text(bytes) };
     let doc = Document::parse_with_options(&text, crate::model_3mf::xml_options()).map_err(|e| e.to_string())?;
     let root = doc.root_element();
     let ids = |tag: &str| -> HashMap<&str, Node> { root.children().filter(|n| n.has_tag_name(tag)).filter_map(|n| Some((n.attribute("id")?, n))).collect() };
@@ -126,7 +126,7 @@ mod tests {
             <volume materialid="2"><triangle><v1>0</v1><v2>1</v2><v3>2</v3></triangle></volume></mesh></object>
             <material id="2"><color><r>1</r><g>0</g><b>0</b></color></material>
             <constellation id="3"><instance objectid="1"/><instance objectid="1"><deltax>10</deltax><rz>90</rz></instance></constellation></amf>"#;
-        let m = read(amf.as_bytes()).unwrap();
+        let m = read(amf.as_bytes(), &Default::default()).unwrap();
         assert_eq!(m.tris.len(), 2);
         assert_eq!(m.colors[1], [255, 0, 0]);
         // Turned by 90° about Z and moved: (1, 0, 0) lands on (10, 1, 0).

@@ -161,6 +161,8 @@ mod system_theme;
 mod thumb_details;
 mod thumb_queue;
 mod test_copy;
+#[cfg(test)]
+mod test_alloc;
 mod thumbcache;
 mod ticked;
 mod tips;

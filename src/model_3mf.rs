@@ -3,15 +3,68 @@
 //! their transforms; colours from base materials and colour groups, pictures from texture groups
 //! (Materials extension).
 
+use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
+use std::rc::Rc;
 
 use roxmltree::{Document, Node};
 
 use crate::model::{Builder, Mesh};
 
-/// Model files larger than this are refused (zip bombs): ~10 M triangles take ~1 GB of XML.
-pub(crate) const MAX_XML: u64 = 2 << 30;
+/// What one model file may unpack in all: the files of its zip, its gzip, the meshopt and Draco
+/// data of a glTF and its numbers made floats. As much as one file of a zip could unpack to
+/// before, so whatever opened then still opens (~10 M triangles take ~1 GB of XML); a file of a
+/// few KB made on purpose unpacked 1.6 GB from 12 files of 128 MB, or 2 GB from 8 meshopt views.
+pub(crate) const MAX_UNPACKED: u64 = 2 << 30;
+
+/// The count of `MAX_UNPACKED` for one file being opened, shared by the formats it holds.
+pub(crate) struct Unpacked {
+    left: Cell<u64>,
+    over: Cell<bool>,
+}
+
+impl Default for Unpacked {
+    fn default() -> Self {
+        Unpacked::new(MAX_UNPACKED)
+    }
+}
+
+impl Unpacked {
+    pub(crate) fn new(limit: u64) -> Self {
+        Unpacked { left: Cell::new(limit), over: Cell::new(false) }
+    }
+
+    /// `n` more bytes made from the file; an error once they pass the limit.
+    pub(crate) fn spend(&self, n: u64) -> Result<(), String> {
+        match self.left.get().checked_sub(n) {
+            Some(left) if !self.over.get() => {
+                self.left.set(left);
+                Ok(())
+            }
+            _ => {
+                self.over.set(true);
+                Err(format!("the file unpacks to more than {} MB", MAX_UNPACKED >> 20))
+            }
+        }
+    }
+
+    /// All that `r` unpacks, counted as it comes out: the sizes a zip declares are not trusted.
+    pub(crate) fn read(&self, r: impl Read) -> Result<Vec<u8>, String> {
+        let mut out = Vec::new();
+        r.take(self.left.get().saturating_add(1)).read_to_end(&mut out).map_err(|e| e.to_string())?;
+        self.spend(out.len() as u64)?;
+        // Without the room it grew by (up to as much again).
+        out.shrink_to_fit();
+        Ok(out)
+    }
+
+    /// An error when something read on the way (a picture, which is left out when unreadable)
+    /// passed the limit.
+    pub(crate) fn check(&self) -> Result<(), String> {
+        if self.over.get() { self.spend(1) } else { Ok(()) }
+    }
+}
 
 /// Row-major 4×3, as 3MF writes it: a point is `[x y z 1] × M`.
 type Transform = [f32; 12];
@@ -37,14 +90,14 @@ fn transform(node: Node) -> Transform {
     v.try_into().unwrap_or(IDENTITY)
 }
 
-pub fn read(bytes: &[u8]) -> Result<Mesh, String> {
+pub fn read(bytes: &[u8], unpacked: &Unpacked) -> Result<Mesh, String> {
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
-    let rels = entry(&mut zip, "_rels/.rels").unwrap_or_default();
+    let rels = entry(&mut zip, "_rels/.rels", unpacked).unwrap_or_default();
     let main = Document::parse(&rels)
         .ok()
         .and_then(|d| d.descendants().find(|n| n.attribute("Type").is_some_and(|t| t.ends_with("/3dmodel"))).and_then(|n| n.attribute("Target")).map(str::to_string))
         .unwrap_or_else(|| "/3D/3dmodel.model".into());
-    let mut files = Files { zip, texts: HashMap::new() };
+    let mut files = Files { zip, unpacked, texts: HashMap::new(), pictures: HashMap::new() };
     let text = files.text(&main)?;
     let doc = Document::parse(&text).map_err(|e| e.to_string())?;
     let mut b = Builder::default();
@@ -54,39 +107,58 @@ pub fn read(bytes: &[u8]) -> Result<Mesh, String> {
         let path = item.attribute_local("path").unwrap_or(&main).to_string();
         place(&mut b, &mut files, &main, &model, &path, id, &transform(item), 0)?;
     }
+    files.unpacked.check()?;
     let mut mesh = b.finish(true)?;
     mesh.unit = crate::model::named_unit(doc.root_element().attribute("unit"));
     Ok(mesh)
 }
 
-/// The text files of the zip, read once.
-struct Files<'b> {
+/// The files of the zip, each read once however it is spelled (`/3D/a.model`, `//3D/a.model`).
+struct Files<'b, 'u> {
     zip: zip::ZipArchive<Cursor<&'b [u8]>>,
-    texts: HashMap<String, String>,
+    unpacked: &'u Unpacked,
+    /// Texts and pictures by their place in the zip.
+    texts: HashMap<usize, Rc<String>>,
+    pictures: HashMap<usize, u16>,
 }
 
-impl Files<'_> {
-    fn text(&mut self, path: &str) -> Result<String, String> {
-        if let Some(t) = self.texts.get(path) {
+impl Files<'_, '_> {
+    /// Where a path of the model is in the zip.
+    fn index(&self, path: &str) -> Option<usize> {
+        self.zip.index_for_name(path.trim_start_matches('/'))
+    }
+
+    fn text(&mut self, path: &str) -> Result<Rc<String>, String> {
+        let i = self.index(path).ok_or_else(|| format!("{path} missing in the file"))?;
+        if let Some(t) = self.texts.get(&i) {
             return Ok(t.clone());
         }
-        let t = entry(&mut self.zip, path.trim_start_matches('/')).ok_or_else(|| format!("{path} missing in the file"))?;
-        self.texts.insert(path.to_string(), t.clone());
+        let t = Rc::new(utf8(self.unpacked.read(self.zip.by_index(i).map_err(|e| e.to_string())?)?, path)?);
+        self.texts.insert(i, t.clone());
         Ok(t)
     }
 
     /// A picture of the zip, into the model once (`Builder::texture_file`).
     fn picture(&mut self, b: &mut Builder, path: &str) -> u16 {
-        let mut data = Vec::new();
-        let read = self.zip.by_name(path.trim_start_matches('/')).ok().and_then(|f| f.take(MAX_XML).read_to_end(&mut data).ok());
-        b.texture_file(path, &|_| read.map(|_| data.clone()))
+        let Some(i) = self.index(path) else { return 0 };
+        if let Some(&k) = self.pictures.get(&i) {
+            return k;
+        }
+        let data = RefCell::new(self.zip.by_index(i).ok().and_then(|f| self.unpacked.read(f).ok()));
+        let k = b.texture_file(path, &|_| data.borrow_mut().take());
+        self.pictures.insert(i, k);
+        k
     }
 }
 
-pub(crate) fn entry<R: Read + std::io::Seek>(zip: &mut zip::ZipArchive<R>, name: &str) -> Option<String> {
-    let mut s = String::new();
-    zip.by_name(name).ok()?.take(MAX_XML).read_to_string(&mut s).ok()?;
-    Some(s)
+fn utf8(bytes: Vec<u8>, name: &str) -> Result<String, String> {
+    String::from_utf8(bytes).map_err(|_| format!("{name} unreadable"))
+}
+
+/// The text of the zip's file `name`, counted by `unpacked`.
+pub(crate) fn entry<R: Read + std::io::Seek>(zip: &mut zip::ZipArchive<R>, name: &str, unpacked: &Unpacked) -> Result<String, String> {
+    let file = zip.by_name(name).map_err(|_| format!("{name} missing in the file"))?;
+    utf8(unpacked.read(file)?, name)
 }
 
 /// Objects and colours of one model file, by id.
@@ -160,7 +232,7 @@ fn place(b: &mut Builder, files: &mut Files, main: &str, model: &Model, path: &s
         return Err("components nested too deep".into());
     }
     b.visit()?;
-    if path != main {
+    if files.index(path).is_none() || files.index(path) != files.index(main) {
         let text = files.text(path)?;
         let doc = Document::parse(&text).map_err(|e| e.to_string())?;
         let other = Model::new(&doc);
@@ -216,10 +288,10 @@ pub(crate) fn xml_options<'a>() -> roxmltree::ParsingOptions<'a> {
 }
 
 /// The first file of the zip whose name ends with `ext` (AMF, Collada's ZAE).
-pub(crate) fn unzipped(bytes: &[u8], ext: &str) -> Result<String, String> {
+pub(crate) fn unzipped(bytes: &[u8], ext: &str, unpacked: &Unpacked) -> Result<String, String> {
     let mut zip = zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| e.to_string())?;
     let name = zip.file_names().find(|n| n.to_lowercase().ends_with(ext)).map(str::to_string).ok_or_else(|| format!("no {ext} file in the zip"))?;
-    crate::model_3mf::entry(&mut zip, &name).ok_or_else(|| format!("{name} unreadable"))
+    entry(&mut zip, &name, unpacked)
 }
 
 /// The text of an XML file: UTF-8 (with or without its mark) or UTF-16 with its mark.
@@ -252,7 +324,7 @@ mod tests {
             <triangles><triangle v1="0" v2="1" v3="2"/><triangle v1="0" v2="1" v3="2" p1="0"/><triangle v1="0" v2="1" v3="9"/></triangles></mesh></object>
             <object id="2"><components><component objectid="1" transform="1 0 0 0 1 0 0 0 1 10 0 0"/></components></object>
             </resources><build><item objectid="2" transform="2 0 0 0 2 0 0 0 2 0 0 5"/></build></model>"##;
-        let m = read(&zip(model)).unwrap();
+        let m = read(&zip(model), &Unpacked::default()).unwrap();
         // The triangle with vertex 9 is dropped; component moved by 10 then everything scaled by 2 and raised by 5.
         assert_eq!(m.tris.len(), 2);
         assert_eq!(m.pos[1], [22.0, 0.0, 5.0]);
@@ -274,7 +346,7 @@ mod tests {
         let mut png = Vec::new();
         image::RgbaImage::new(2, 2).write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
         w.write_all(&png).unwrap();
-        let m = read(&w.finish().unwrap().into_inner()).unwrap();
+        let m = read(&w.finish().unwrap().into_inner(), &Unpacked::default()).unwrap();
         assert_eq!((m.tex.clone(), m.colors.clone(), m.uv[0]), (vec![1], vec![[255; 3]], [[0.0, 1.0], [1.0, 1.0], [0.0, 0.0]]));
     }
 
@@ -284,7 +356,7 @@ mod tests {
         let shift: Transform = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 1.0, 0.0, 0.0];
         assert_eq!(apply(&then(&shift, &scale), [1.0, 0.0, 0.0]), [4.0, 0.0, 0.0]);
         assert_eq!(apply(&then(&scale, &shift), [1.0, 0.0, 0.0]), [3.0, 0.0, 0.0]);
-        assert!(read(b"not a zip").is_err());
+        assert!(read(b"not a zip", &Unpacked::default()).is_err());
     }
 
     /// Audit 6.6: objects made of ten components each, the next object ten times, 32 deep, down
@@ -306,5 +378,47 @@ mod tests {
         let r = crate::model::parse(&bytes, "a.3mf");
         println!("ended in {:.2?}: {:?}", t.elapsed(), r.as_ref().map(|m| m.tris.len()));
         assert!(r.is_err());
+    }
+
+    /// A 3MF whose build places object 1 of each model file in `paths` (named as given), each
+    /// file a triangle and a comment of `size` bytes, written once for each name in the zip.
+    fn parts(paths: &[String], size: usize) -> Vec<u8> {
+        let items: String = paths.iter().map(|p| format!(r#"<item objectid="1" p:path="{p}"/>"#)).collect();
+        let mut w = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        w.start_file("3D/3dmodel.model", zip::write::SimpleFileOptions::default()).unwrap();
+        w.write_all(format!(r#"<model xmlns:p="p"><resources/><build>{items}</build></model>"#).as_bytes()).unwrap();
+        let triangle = r#"<vertices><vertex x="0" y="0" z="0"/><vertex x="1" y="0" z="0"/><vertex x="0" y="1" z="0"/></vertices><triangles><triangle v1="0" v2="1" v3="2"/></triangles>"#;
+        let part = format!(r#"<model><resources><object id="1"><mesh>{triangle}</mesh></object></resources><!--{}--></model>"#, "A".repeat(size));
+        let mut names: Vec<&str> = paths.iter().map(|p| p.trim_start_matches('/')).collect();
+        names.sort_unstable();
+        names.dedup();
+        for name in names {
+            w.start_file(name, zip::write::SimpleFileOptions::default()).unwrap();
+            w.write_all(part.as_bytes()).unwrap();
+        }
+        w.finish().unwrap().into_inner()
+    }
+
+    /// Audit 6.19 (a): what a 3MF unpacks is limited in all, counted as it comes out, not for
+    /// each file of its zip: 12 model files of 128 MB took 1.6 GB from a zip of 1.5 MB, each far
+    /// under the 2 GB it was allowed. The same at a smaller scale, with a limit of 512 KB instead
+    /// of `MAX_UNPACKED`: four files of 64 KB are read, twelve are refused.
+    #[test]
+    fn audit_6_19_3mf_total() {
+        let paths = |n: usize| (0..n).map(|k| format!("/3D/part{k}.model")).collect::<Vec<_>>();
+        let limit = 512 << 10;
+        assert_eq!(read(&parts(&paths(4), 64 << 10), &Unpacked::new(limit)).unwrap().tris.len(), 4);
+        let r = read(&parts(&paths(12), 64 << 10), &Unpacked::new(limit));
+        assert!(r.as_ref().is_err_and(|e| e.contains("unpacks")), "{:?}", r.map(|m| m.tris.len()));
+    }
+
+    /// One model file named in four spellings (`/3D/a.model`, `//3D/a.model`...) is one file of
+    /// the zip: read and kept once, not once for each spelling (8 spellings of a file of 128 MB
+    /// held 1.1 GB). With a limit of twice the file, its four placements are read.
+    #[test]
+    fn a_file_named_in_several_spellings_is_read_once() {
+        let spellings = ["/3D/a.model", "//3D/a.model", "3D/a.model", "///3D/a.model"].map(String::from);
+        let m = read(&parts(&spellings, 64 << 10), &Unpacked::new(128 << 10)).unwrap();
+        assert_eq!(m.tris.len(), 4);
     }
 }

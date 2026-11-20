@@ -300,19 +300,21 @@ pub(crate) fn named_unit(name: Option<&str>) -> Option<&'static str> {
 }
 
 fn read_as(bytes: &[u8], name: &str, sibling: Sibling) -> Result<Mesh, String> {
+    // What the file unpacks (zips, gzip, compressed glTF data), in all.
+    let unpacked = &crate::model_3mf::Unpacked::default();
     match ext(name).as_deref() {
         Some("stl") => stl(bytes),
         Some("obj") => obj(bytes, sibling),
         Some("ply") => ply(bytes),
-        Some("glb" | "gltf") => crate::model_gltf::read(bytes, sibling),
-        Some("3mf") => crate::model_3mf::read(bytes),
+        Some("glb" | "gltf") => crate::model_gltf::read(bytes, sibling, unpacked),
+        Some("3mf") => crate::model_3mf::read(bytes, unpacked),
         Some("ifc") => crate::model_ifc::read(bytes),
         Some("fbx") => crate::model_fbx::read(bytes, sibling),
         Some("3ds") => crate::model_3ds::read(bytes, sibling),
         Some("off") => crate::model_off::read(bytes),
-        Some("amf") => crate::model_amf::read(bytes),
-        Some(e @ ("dae" | "zae")) => crate::model_dae::read(bytes, e == "zae", sibling),
-        Some("wrl" | "wrz" | "x3d" | "x3dv" | "x3dz" | "x3dvz") => crate::model_x3d::read(bytes, sibling),
+        Some("amf") => crate::model_amf::read(bytes, unpacked),
+        Some(e @ ("dae" | "zae")) => crate::model_dae::read(bytes, e == "zae", sibling, unpacked),
+        Some("wrl" | "wrz" | "x3d" | "x3dv" | "x3dz" | "x3dvz") => crate::model_x3d::read(bytes, sibling, unpacked),
         _ if crate::occt::is_occt(name) => crate::occt::read(bytes, name),
         _ => Err("not a 3D model".into()),
     }

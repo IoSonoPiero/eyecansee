@@ -3,10 +3,13 @@
 //! decoded after them, the vertices' numbers as floats.
 // ponytail: sparse accessors and morph targets are not unpacked
 
+use std::collections::HashMap;
+
 use base64::Engine;
 use serde_json::{Map, Value, json};
 
 use crate::model::Sibling;
+use crate::model_3mf::Unpacked;
 
 const PACKED: [&str; 4] = ["KHR_draco_mesh_compression", "EXT_meshopt_compression", "KHR_meshopt_compression", "KHR_mesh_quantization"];
 /// A decoded part larger than this is refused (a small file could ask for gigabytes).
@@ -28,15 +31,16 @@ fn num(v: &Value) -> usize {
     v.as_u64().unwrap_or(0) as usize
 }
 
-/// A plain GLB, or `None` when the file uses none of the packings.
-pub fn plain(bytes: &[u8], sibling: Sibling) -> Result<Option<Vec<u8>>, String> {
+/// A plain GLB, or `None` when the file uses none of the packings. What it gathers and decodes
+/// counts in `unpacked`.
+pub fn plain(bytes: &[u8], sibling: Sibling, unpacked: &Unpacked) -> Result<Option<Vec<u8>>, String> {
     let Some((json, bin)) = split(bytes) else { return Ok(None) };
     let Ok(mut j) = serde_json::from_slice::<Value>(json) else { return Ok(None) };
     let used = j["extensionsUsed"].as_array().is_some_and(|a| a.iter().any(|e| PACKED.contains(&e.as_str().unwrap_or(""))));
     if !used {
         return Ok(None);
     }
-    let mut p = Packed { data: Vec::new(), read_end: 0, views: j["bufferViews"].as_array().cloned().unwrap_or_default(), accessors: j["accessors"].as_array().cloned().unwrap_or_default() };
+    let mut p = Packed { unpacked, converted: HashMap::new(), data: Vec::new(), read_end: 0, views: j["bufferViews"].as_array().cloned().unwrap_or_default(), accessors: j["accessors"].as_array().cloned().unwrap_or_default() };
     // Every buffer into one, each view moved to where its buffer landed.
     let mut base = Vec::new();
     for (i, buf) in j["buffers"].as_array().cloned().unwrap_or_default().iter().enumerate() {
@@ -45,13 +49,16 @@ pub fn plain(bytes: &[u8], sibling: Sibling) -> Result<Option<Vec<u8>>, String> 
             Some(u) if u.starts_with("data:") => u.split_once(";base64,").and_then(|(_, d)| base64::engine::general_purpose::STANDARD.decode(d).ok()),
             Some(u) => sibling(u),
         };
+        let bytes = bytes.unwrap_or_default();
+        unpacked.spend(bytes.len() as u64)?;
         p.align();
         base.push(p.data.len());
-        p.data.extend(bytes.unwrap_or_default());
+        p.data.extend(bytes);
     }
-    for v in &mut p.views {
+    // A view that is not an object is left for the glTF reader to refuse.
+    for v in p.views.iter_mut().filter(|v| v.is_object()) {
         let at = base.get(num(&v["buffer"])).copied().unwrap_or(0);
-        v["byteOffset"] = json!(num(&v["byteOffset"]) + at);
+        v["byteOffset"] = json!(num(&v["byteOffset"]).saturating_add(at));
         v["buffer"] = json!(0);
     }
     for k in 0..p.views.len() {
@@ -59,8 +66,8 @@ pub fn plain(bytes: &[u8], sibling: Sibling) -> Result<Option<Vec<u8>>, String> 
     }
     p.read_end = p.data.len();
     let mut meshes = j["meshes"].as_array().cloned().unwrap_or_default();
-    for mesh in &mut meshes {
-        for prim in mesh["primitives"].as_array_mut().into_iter().flatten() {
+    for mesh in meshes.iter_mut().filter(|m| m.is_object()) {
+        for prim in mesh["primitives"].as_array_mut().into_iter().flatten().filter(|p| p["attributes"].is_object()) {
             p.draco(prim)?;
             p.floats(prim)?;
         }
@@ -69,12 +76,18 @@ pub fn plain(bytes: &[u8], sibling: Sibling) -> Result<Option<Vec<u8>>, String> 
     j["bufferViews"] = json!(p.views);
     j["accessors"] = json!(p.accessors);
     j["buffers"] = json!([{ "byteLength": p.data.len() }]);
+    // `get_mut`: `j[list]` would add a missing list as `null`, which the glTF reader refuses.
     for list in ["extensionsUsed", "extensionsRequired"] {
-        if let Some(a) = j[list].as_array_mut() {
+        if let Some(a) = j.get_mut(list).and_then(Value::as_array_mut) {
             a.retain(|e| !PACKED.contains(&e.as_str().unwrap_or("")));
         }
     }
-    Ok(Some(glb(&serde_json::to_vec(&j).map_err(|e| e.to_string())?, p.data)))
+    let json = serde_json::to_vec(&j).map_err(|e| e.to_string())?;
+    // A GLB gives its sizes in 32 bits.
+    if json.len().saturating_add(p.data.len()) > u32::MAX as usize - 64 {
+        return Err("glTF too large once unpacked".into());
+    }
+    Ok(Some(glb(&json, p.data)))
 }
 
 fn glb(json: &[u8], mut bin: Vec<u8>) -> Vec<u8> {
@@ -98,7 +111,12 @@ fn glb(json: &[u8], mut bin: Vec<u8>) -> Vec<u8> {
 }
 
 /// The one buffer being made, with the views and accessors that point into it.
-struct Packed {
+struct Packed<'u> {
+    /// What is gathered and decoded, counted for the whole file.
+    unpacked: &'u Unpacked,
+    /// The accessors of integers already made floats, by their number: each once, however many
+    /// primitives name it.
+    converted: HashMap<usize, usize>,
     data: Vec<u8>,
     /// The end of the file's buffers and of the meshopt data: integers are read only up to here,
     /// never from the floats appended after.
@@ -107,7 +125,7 @@ struct Packed {
     accessors: Vec<Value>,
 }
 
-impl Packed {
+impl Packed<'_> {
     fn align(&mut self) {
         while !self.data.len().is_multiple_of(4) {
             self.data.push(0);
@@ -159,8 +177,9 @@ impl Packed {
     fn meshopt(&mut self, k: usize, base: &[usize]) -> Result<(), String> {
         let ext = &self.views[k]["extensions"];
         let Some(e) = ext.get("EXT_meshopt_compression").or_else(|| ext.get("KHR_meshopt_compression")).cloned() else { return Ok(()) };
-        let at = base.get(num(&e["buffer"])).copied().unwrap_or(0) + num(&e["byteOffset"]);
-        let src = self.data.get(at..at + num(&e["byteLength"])).ok_or("meshopt data outside the buffer")?.to_vec();
+        let at = base.get(num(&e["buffer"])).copied().unwrap_or(0).checked_add(num(&e["byteOffset"]));
+        let range = at.and_then(|at| Some(at..at.checked_add(num(&e["byteLength"]))?));
+        let src = range.and_then(|r| self.data.get(r)).ok_or("meshopt data outside the buffer")?.to_vec();
         let (count, stride) = (num(&e["count"]), num(&e["byteStride"]));
         if count.saturating_mul(stride) > MAX_DECODED || stride == 0 {
             return Err("meshopt data too large".into());
@@ -168,6 +187,7 @@ impl Packed {
         if !meshopt_shape(e["mode"].as_str(), e["filter"].as_str(), count, stride) {
             return Err("meshopt data with a size the format does not allow".into());
         }
+        self.unpacked.spend((count * stride) as u64)?;
         let mut out = vec![0u8; count * stride];
         let code = unsafe {
             match e["mode"].as_str() {
@@ -207,10 +227,11 @@ impl Packed {
         let Some(e) = prim["extensions"].get("KHR_draco_mesh_compression").cloned() else { return Ok(()) };
         let v = self.views.get(num(&e["bufferView"])).cloned().unwrap_or_default();
         let at = num(&v["byteOffset"]);
-        let src = self.data.get(at..at + num(&v["byteLength"])).ok_or("Draco data outside the buffer")?;
+        let src = at.checked_add(num(&v["byteLength"])).and_then(|end| self.data.get(at..end)).ok_or("Draco data outside the buffer")?;
         let mesh = draco_oxide_decoder::decode_mesh(src).map_err(|e| format!("Draco: {e}"))?;
         let indices: Vec<u32> = mesh.faces.iter().flat_map(|f| f.map(|p| usize::from(p) as u32)).collect();
         let points = mesh.faces.iter().flatten().map(|&p| usize::from(p) + 1).max().unwrap_or(0);
+        self.unpacked.spend(indices.len() as u64 * 4)?;
         let slot = prim["indices"].as_u64().map(|i| i as usize);
         prim["indices"] = json!(self.accessor(slot, &[], 0, &indices));
         for (semantic, id) in e["attributes"].as_object().cloned().unwrap_or_default() {
@@ -221,6 +242,7 @@ impl Packed {
             if points.checked_mul(n * 4).is_none_or(|b| b > MAX_DECODED) {
                 return Err("Draco data too large".into());
             }
+            self.unpacked.spend((points * n * 4) as u64)?;
             let values = draco_values(att, points, normalized);
             let slot = prim["attributes"][&semantic].as_u64().map(|i| i as usize);
             prim["attributes"][&semantic] = json!(self.accessor(slot, &values, n, &[]));
@@ -235,13 +257,20 @@ impl Packed {
     fn floats(&mut self, prim: &mut Value) -> Result<(), String> {
         let names: Vec<String> = prim["attributes"].as_object().map(Map::keys).into_iter().flatten().filter(|s| ["POSITION", "NORMAL", "TANGENT"].contains(&s.as_str()) || s.starts_with("TEXCOORD_")).cloned().collect();
         for name in names {
-            let a = self.accessors.get(num(&prim["attributes"][&name])).cloned().unwrap_or_default();
+            let source = num(&prim["attributes"][&name]);
+            if let Some(&k) = self.converted.get(&source) {
+                prim["attributes"][&name] = json!(k);
+                continue;
+            }
+            let a = self.accessors.get(source).cloned().unwrap_or_default();
             if a["componentType"].as_u64() == Some(5126) || a.get("sparse").is_some() {
                 continue;
             }
             let Some(read) = self.read(&a) else { continue };
             let (values, n) = read?;
-            prim["attributes"][&name] = json!(self.accessor(None, &values, n, &[]));
+            let k = self.accessor(None, &values, n, &[]);
+            self.converted.insert(source, k);
+            prim["attributes"][&name] = json!(k);
         }
         Ok(())
     }
@@ -275,6 +304,9 @@ impl Packed {
         let end = count.checked_sub(1).map_or(Some(0), |last| last.checked_mul(stride)?.checked_add(start)?.checked_add(n * size));
         if end.is_none_or(|end| end > self.read_end) {
             return Some(Err("accessor data outside the buffer".into()));
+        }
+        if let Err(e) = self.unpacked.spend((count * n * 4) as u64) {
+            return Some(Err(e));
         }
         let mut out = Vec::with_capacity(count * n);
         for e in 0..count {
@@ -353,6 +385,7 @@ fn draco_values(att: &draco_oxide_core::attribute::Attribute, points: usize, nor
 #[cfg(test)]
 mod tests {
     use super::meshopt_shape;
+    use crate::model_3mf::Unpacked;
     /// Only the sizes the format allows reach the C decoders: a file that names others (a stride
     /// of 1 for triangles, vertices wider than 256 bytes, a filter on indices) is refused.
     #[test]
@@ -391,12 +424,12 @@ mod tests {
             bin.len()
         );
         let glb = super::glb(json.as_bytes(), bin);
-        let plain = super::plain(&glb, &|_| None).unwrap().unwrap();
+        let plain = super::plain(&glb, &|_| None, &Unpacked::default()).unwrap().unwrap();
         let m = crate::model::parse(&plain, "q.glb").unwrap();
         assert_eq!(m.tris.len(), 1);
         assert!((m.radius - 2f32.sqrt() / 2.0).abs() < 1e-4, "{}", m.radius);
         // A plain file is left alone.
-        assert!(super::plain(b"{}", &|_| None).unwrap().is_none());
+        assert!(super::plain(b"{}", &|_| None, &Unpacked::default()).unwrap().is_none());
     }
 
     /// Audit 6.4 (a): an accessor that declares a million million elements over a buffer of 24
@@ -419,6 +452,72 @@ mod tests {
         // 6 elements of 4 bytes fill the 24; after them 96 bytes of floats are appended, and 30
         // elements would fill the 120 bytes there are then.
         let json = r#"{"asset":{"version":"2.0"},"extensionsUsed":["KHR_mesh_quantization"],"buffers":[{"byteLength":24}],"bufferViews":[{"buffer":0,"byteLength":24}],"accessors":[{"bufferView":0,"componentType":5121,"count":6,"type":"VEC4"},{"bufferView":0,"componentType":5121,"count":30,"type":"VEC4"}],"meshes":[{"primitives":[{"attributes":{"TEXCOORD_0":0,"TEXCOORD_1":1}}]}]}"#;
-        assert!(super::plain(&super::glb(json.as_bytes(), bin), &|_| None).is_err());
+        assert!(super::plain(&super::glb(json.as_bytes(), bin), &|_| None, &Unpacked::default()).is_err());
+    }
+
+    /// A GLB with a triangle and `views` views of 64 KB compressed with meshopt (4096 vertices of
+    /// 16 bytes), all decoded from the same few bytes of the file at `offset`.
+    fn meshopt_views(views: usize, offset: u64) -> Vec<u8> {
+        let (count, stride) = (4096usize, 16usize);
+        let zeros = vec![0u8; count * stride];
+        let mut packed = vec![0u8; unsafe { meshopt::ffi::meshopt_encodeVertexBufferBound(count, stride) }];
+        let n = unsafe { meshopt::ffi::meshopt_encodeVertexBuffer(packed.as_mut_ptr(), packed.len(), zeros.as_ptr().cast(), count, stride) };
+        // A triangle in plain floats, then the packed zeros.
+        let mut bin: Vec<u8> = [[0f32, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]].iter().flatten().flat_map(|v| v.to_le_bytes()).collect();
+        bin.extend(&packed[..n]);
+        let size = count * stride;
+        let view = format!(r#",{{"buffer":1,"byteLength":{size},"byteStride":{stride},"extensions":{{"EXT_meshopt_compression":{{"buffer":0,"byteOffset":{offset},"byteLength":{n},"byteStride":{stride},"count":{count},"mode":"ATTRIBUTES"}}}}}}"#);
+        let json = format!(
+            r#"{{"asset":{{"version":"2.0"}},"extensionsUsed":["EXT_meshopt_compression"],"extensionsRequired":["EXT_meshopt_compression"],"buffers":[{{"byteLength":{}}},{{"byteLength":{size},"extensions":{{"EXT_meshopt_compression":{{"fallback":true}}}}}}],"bufferViews":[{{"buffer":0,"byteLength":36}}{}],"accessors":[{{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","min":[0,0,0],"max":[1,1,0]}}],"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0}}}}]}}],"nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}],"scene":0}}"#,
+            bin.len(),
+            view.repeat(views)
+        );
+        super::glb(json.as_bytes(), bin)
+    }
+
+    /// Audit 6.19 (c): what meshopt decodes is limited for the whole file, not only for each view:
+    /// 8 views of 128 MB took 2 GB from a GLB of 134 KB, each far under its own limit. The same at
+    /// a smaller scale, with a limit of 256 KB instead of `MAX_UNPACKED`: two views of 64 KB are
+    /// decoded, eight are refused.
+    #[test]
+    fn audit_6_19_meshopt_total() {
+        let limit = 256 << 10;
+        let two = super::plain(&meshopt_views(2, 36), &|_| None, &Unpacked::new(limit)).unwrap().unwrap();
+        assert_eq!(crate::model::parse(&two, "m.glb").unwrap().tris.len(), 1);
+        let r = super::plain(&meshopt_views(8, 36), &|_| None, &Unpacked::new(limit));
+        assert!(r.as_ref().is_err_and(|e| e.contains("unpacks")), "{:?}", r.map(|g| g.map(|g| g.len())));
+    }
+
+    /// Offsets and parts that are not what the format says are refused, without a panic: a meshopt
+    /// view at the end of the numbers, a view and a mesh that are numbers and not objects.
+    #[test]
+    fn offsets_and_parts_out_of_shape_are_refused() {
+        assert!(super::plain(&meshopt_views(1, u64::MAX), &|_| None, &Unpacked::default()).is_err());
+        let json = r#"{"asset":{"version":"2.0"},"extensionsUsed":["KHR_mesh_quantization"],"buffers":[{"byteLength":4,"byteOffset":18446744073709551615}],"bufferViews":[1,{"buffer":0,"byteOffset":18446744073709551615,"byteLength":4}],"meshes":[5,{"primitives":[7,{"attributes":3}]}]}"#;
+        let plain = super::plain(&super::glb(json.as_bytes(), vec![0; 4]), &|_| None, &Unpacked::default());
+        assert!(plain.is_ok_and(|g| crate::model::parse(&g.unwrap(), "q.glb").is_err()));
+    }
+
+    /// A packed glTF that does not list its packing as required (only as used) is read: the list
+    /// left out came back as `null`, refused as "glTF 1.0 is not supported".
+    #[test]
+    fn packing_used_but_not_required_is_read() {
+        let bin: Vec<u8> = [[0i16, 0, 0], [100, 0, 0], [0, 100, 0]].iter().flat_map(|p| p.iter().chain(&[0i16]).flat_map(|v| v.to_le_bytes())).collect();
+        let json = r#"{"asset":{"version":"2.0"},"extensionsUsed":["KHR_mesh_quantization"],"buffers":[{"byteLength":24}],"bufferViews":[{"buffer":0,"byteLength":24,"byteStride":8}],"accessors":[{"bufferView":0,"componentType":5122,"count":3,"type":"VEC3","min":[0,0,0],"max":[100,100,0]}],"meshes":[{"primitives":[{"attributes":{"POSITION":0}}]}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0}"#;
+        assert_eq!(crate::model::parse(&super::glb(json.as_bytes(), bin), "q.glb").map(|m| m.tris.len()), Ok(1));
+    }
+
+    /// An accessor of integers named by many primitives is made floats once (it was once for each
+    /// time it is named: a total too).
+    #[test]
+    fn an_accessor_named_many_times_is_made_floats_once() {
+        let bin: Vec<u8> = [[0i16, 0, 0], [100, 0, 0], [0, 100, 0]].iter().flat_map(|p| p.iter().chain(&[0i16]).flat_map(|v| v.to_le_bytes())).collect();
+        let prims = vec![r#"{"attributes":{"POSITION":0}}"#; 50].join(",");
+        let json = format!(
+            r#"{{"asset":{{"version":"2.0"}},"extensionsUsed":["KHR_mesh_quantization"],"buffers":[{{"byteLength":24}}],"bufferViews":[{{"buffer":0,"byteLength":24,"byteStride":8}}],"accessors":[{{"bufferView":0,"componentType":5122,"count":3,"type":"VEC3","min":[0,0,0],"max":[100,100,0]}}],"meshes":[{{"primitives":[{prims}]}}],"nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}],"scene":0}}"#
+        );
+        // 24 bytes of the file and 36 of floats: 50 times the floats would not fit.
+        let plain = super::plain(&super::glb(json.as_bytes(), bin), &|_| None, &Unpacked::new(24 + 36 * 2)).unwrap().unwrap();
+        assert_eq!(crate::model::parse(&plain, "q.glb").unwrap().tris.len(), 50);
     }
 }

@@ -8,6 +8,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::model::{Builder, IDENTITY, Mat4, Mesh, Sibling, apply, mul, rotation};
+use crate::model_3mf::Unpacked;
 use crate::model_vrml::SceneNode;
 
 /// Nodes visited, so that a file using its groups again and again cannot take forever.
@@ -20,10 +21,10 @@ const MAX_INLINE_READS: usize = 1000;
 const SEGMENTS: usize = 32;
 const RINGS: usize = 16;
 
-pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
-    let scene = crate::model_vrml::parse(bytes)?;
+pub fn read(bytes: &[u8], sibling: Sibling, unpacked: &Unpacked) -> Result<Mesh, String> {
+    let scene = crate::model_vrml::parse(bytes, unpacked)?;
     let mut b = Builder::default();
-    let mut w = Walk { b: &mut b, sibling, visits: 0, inlined: HashMap::new(), reads: 0, lines: Vec::new(), points: Vec::new() };
+    let mut w = Walk { b: &mut b, sibling, unpacked, visits: 0, inlined: HashMap::new(), reads: 0, lines: Vec::new(), points: Vec::new() };
     w.node(&scene, &IDENTITY, 0)?;
     let (lines, points) = (std::mem::take(&mut w.lines), std::mem::take(&mut w.points));
     crate::model_lines::add(&mut b, &lines, &points)?;
@@ -33,6 +34,8 @@ pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
 struct Walk<'a, 's> {
     b: &'a mut Builder,
     sibling: Sibling<'s>,
+    /// Shared with the inlined files: a gzipped one is unpacked within the same total.
+    unpacked: &'s Unpacked,
     visits: usize,
     /// The scenes of the inlined files, by their `url`, read and parsed once however many times
     /// they are placed (`None`: not found); `reads` counts the files asked for.
@@ -87,7 +90,7 @@ impl Walk<'_, '_> {
                 if self.reads > MAX_INLINE_READS {
                     return Err(format!("more than {MAX_INLINE_READS} inlined files"));
                 }
-                let scene = bytes.map(|b| crate::model_vrml::parse(&b)).transpose()?.map(Rc::new);
+                let scene = bytes.map(|b| crate::model_vrml::parse(&b, self.unpacked)).transpose()?.map(Rc::new);
                 self.inlined.insert(urls, scene.clone());
                 scene
             }
@@ -439,23 +442,23 @@ mod tests {
     #[test]
     fn face_sets_primitives_and_transforms() {
         let wrl = "#VRML V2.0 utf8\nTransform { translation 10 0 0 children [\n Shape { appearance Appearance { material Material { diffuseColor 1 0 0 } }\n  geometry IndexedFaceSet { coord Coordinate { point [ 0 0 0, 1 0 0, 1 1 0, 0 1 0 ] } coordIndex [ 0 1 2 3 -1 ] } }\n Shape { geometry Box { size 2 2 2 } } ] }\n";
-        let m = read(wrl.as_bytes(), &|_| None).unwrap();
+        let m = read(wrl.as_bytes(), &|_| None, &Default::default()).unwrap();
         assert_eq!(m.tris.len(), 2 + 12);
         assert_eq!(m.colors[0], [255, 0, 0]);
         assert_eq!(m.pos[1], [11.0, 0.0, 0.0]);
         let x3d = "<X3D><Scene><Shape><IndexedFaceSet coordIndex='0 1 2 -1' colorPerVertex='false'><Coordinate point='0 0 0 1 0 0 0 1 0'/><Color color='0 0 1'/></IndexedFaceSet></Shape><Shape><Sphere/></Shape></Scene></X3D>";
-        let m = read(x3d.as_bytes(), &|_| None).unwrap();
+        let m = read(x3d.as_bytes(), &|_| None, &Default::default()).unwrap();
         assert_eq!(m.colors[0], [0, 0, 255]);
         // A picture on a triangle by its own index, and on a sphere.
         let x3d = "<X3D><Scene><Shape><Appearance><ImageTexture url='\"http://x/a.png\" \"a.png\"'/></Appearance><IndexedFaceSet coordIndex='0 1 2 -1' texCoordIndex='2 1 0 -1'><Coordinate point='0 0 0 1 0 0 0 1 0'/><TextureCoordinate point='0 0 1 0 0 1'/></IndexedFaceSet></Shape><Shape><Appearance><ImageTexture url='a.png'/></Appearance><Sphere/></Shape></Scene></X3D>";
         let mut png = Vec::new();
         image::RgbaImage::new(2, 2).write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
-        let m = read(x3d.as_bytes(), &|n| (n == "a.png").then(|| png.clone())).unwrap();
+        let m = read(x3d.as_bytes(), &|n| (n == "a.png").then(|| png.clone()), &Default::default()).unwrap();
         assert_eq!((m.textures.len(), m.colors[0], m.uv[0]), (1, [255; 3], [[0.0, 0.0], [1.0, 1.0], [0.0, 1.0]]));
         assert!(m.tex.iter().all(|&k| k == 1));
         assert_eq!(m.tris.len(), 1 + RINGS * SEGMENTS * 2);
         // The default square along the default spine: a cube of side 2 and height 1.
-        let m = read(b"#VRML V2.0 utf8\nShape { geometry Extrusion { } }", &|_| None).unwrap();
+        let m = read(b"#VRML V2.0 utf8\nShape { geometry Extrusion { } }", &|_| None, &Default::default()).unwrap();
         assert_eq!((m.tris.len(), m.center, m.radius), (4 * 2 + 2 * 3, [0.0, 0.5, 0.0], 1.5));
     }
 
@@ -464,7 +467,7 @@ mod tests {
     fn audit_6_4_lineset_count() {
         let x3d = "<X3D><Scene><Shape><LineSet vertexCount='1000000000000'><Coordinate point='0 0 0 1 0 0 0 1 0'/></LineSet></Shape></Scene></X3D>";
         println!("X3D of {} bytes", x3d.len());
-        let _ = read(x3d.as_bytes(), &|_| None);
+        let _ = read(x3d.as_bytes(), &|_| None, &Default::default());
     }
 
     /// Audit 6.4 (c): an Extrusion of `n` section points along `n` spine points makes n x n
@@ -476,14 +479,14 @@ mod tests {
         let spine: String = (0..n).map(|i| format!("0 {i} 0 ")).collect();
         let wrl = format!("#VRML V2.0 utf8\nShape {{ geometry Extrusion {{ crossSection [ {section} ] spine [ {spine} ] }} }}");
         println!("VRML of {} bytes", wrl.len());
-        assert!(read(wrl.as_bytes(), &|_| None).is_err());
+        assert!(read(wrl.as_bytes(), &|_| None, &Default::default()).is_err());
     }
 
     /// Audit 6.4 (d): an ElevationGrid whose two sizes multiply past the 64 bits.
     #[test]
     fn audit_6_4_elevation_overflow() {
         let wrl = "#VRML V2.0 utf8\nShape { geometry ElevationGrid { xDimension 4294967296 zDimension 4294967296 height [ 0 0 0 0 ] } }";
-        let r = std::panic::catch_unwind(|| read(wrl.as_bytes(), &|_| None).map(|m| m.tris.len()));
+        let r = std::panic::catch_unwind(|| read(wrl.as_bytes(), &|_| None, &Default::default()).map(|m| m.tris.len()));
         println!("{r:?}");
         assert!(matches!(r, Ok(Err(_)) | Ok(Ok(0))), "it panicked");
     }
@@ -511,5 +514,20 @@ mod tests {
         let r = crate::model::parse_with(x3d.as_bytes(), "a.x3d", &next);
         println!("ended in {:.2?}: {:?}, the file next to it read {} times", t.elapsed(), r.as_ref().map(|m| m.tris.len()), reads.get());
         assert!(reads.get() <= 1, "read {} times", reads.get());
+    }
+
+    /// Audit 6.19: the gzipped files an X3D inlines unpack within the same limit as the file
+    /// opened. Two of 64 KB each under a limit of 96 KB: one is read, both are refused.
+    #[test]
+    fn inlined_files_share_the_limit() {
+        use std::io::Write;
+        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
+        gz.write_all(format!("#VRML V2.0 utf8\n#{}\nShape {{ geometry Box {{}} }}", "A".repeat(64 << 10)).as_bytes()).unwrap();
+        let wrz = gz.finish().unwrap();
+        let next = |_: &str| Some(wrz.clone());
+        let one = "#VRML V2.0 utf8\nInline { url \"a.wrz\" }";
+        assert!(read(one.as_bytes(), &next, &Unpacked::new(96 << 10)).is_ok());
+        let two = "#VRML V2.0 utf8\nInline { url \"a.wrz\" } Inline { url \"b.wrz\" }";
+        assert!(read(two.as_bytes(), &next, &Unpacked::new(96 << 10)).is_err_and(|e| e.contains("unpacks")));
     }
 }

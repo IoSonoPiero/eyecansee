@@ -21,8 +21,8 @@ fn gltf_error(e: String) -> String {
 
 /// GLB, and .gltf with its data inside or in the files next to it (`sibling`); compressed ones
 /// (Draco, meshopt, quantized) first made plain (`model_gltf_unpack`).
-pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
-    match crate::model_gltf_unpack::plain(bytes, sibling)? {
+pub fn read(bytes: &[u8], sibling: Sibling, unpacked: &crate::model_3mf::Unpacked) -> Result<Mesh, String> {
+    match crate::model_gltf_unpack::plain(bytes, sibling, unpacked)? {
         Some(glb) => read_plain(&glb, sibling),
         None => read_plain(bytes, sibling),
     }
