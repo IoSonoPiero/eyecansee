@@ -246,10 +246,10 @@ async fn generate(op: &Store, base: &str, file: File) -> Result<ColorImage, Stri
     }
     let bytes = op.read(&file.path).await.map_err(|(_, detail)| detail)?;
     let base = base.to_string();
-    let sibling = siblings(op.clone(), file.path.clone());
+    let (sibling, local) = (siblings(op.clone(), file.path.clone()), crate::occt::local(op, &file.path));
     tokio::task::spawn_blocking(move || {
         let img = if crate::model::is_model(&file.path) {
-            decode::model_picture_with(&bytes, &file.path, THUMB_SIDE, THUMB_SIDE * 3 / 4, &sibling)?
+            crate::occt::from_file(local, || decode::model_picture_with(&bytes, &file.path, THUMB_SIDE, THUMB_SIDE * 3 / 4, &sibling))?
         } else if crate::cad::is_cad(&file.path) {
             let d = crate::cad::read_with(&bytes, &file.path, &sibling)?;
             // Its number and revision kept with it, for the line under it (#144).

@@ -717,9 +717,9 @@ async fn picture(op: &Store, path: &str, name: String, job: &Job) -> Result<(Str
     let bytes = op.read(path).await?;
     let (mut job, before) = (job.clone(), bytes.len() as u64);
     job.shown = job.layers.get(path).cloned();
-    let sibling = crate::loader::siblings(op.clone(), path.to_string());
+    let (sibling, local) = (crate::loader::siblings(op.clone(), path.to_string()), crate::occt::local(op, path));
     let sidecar = crate::sidecar::read(op, path).await.map(|s| s.xmp);
-    let made = tokio::task::spawn_blocking(move || convert_with(&bytes, &name, &job, &sibling, sidecar.as_deref())).await.unwrap_or_else(|e| Err(("batch-failed", e.to_string())));
+    let made = tokio::task::spawn_blocking(move || crate::occt::from_file(local, || convert_with(&bytes, &name, &job, &sibling, sidecar.as_deref()))).await.unwrap_or_else(|e| Err(("batch-failed", e.to_string())));
     made.map(|(name, data)| (name, data, before))
 }
 

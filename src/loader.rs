@@ -369,14 +369,14 @@ impl Loader {
     pub fn load_original(&self, path: String, edit: bool) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
-            let sibling = siblings(op.clone(), path.clone());
+            let (sibling, local) = (siblings(op.clone(), path.clone()), crate::occt::local(&op, &path));
             let sidecar = crate::sidecar::read(&op, &path).await.map(|s| s.xmp);
             let r = match op.read(&path).await {
                 Ok(bytes) => tokio::task::spawn_blocking(move || {
                     if edit && crate::edit::save::animated(&bytes, &path) {
                         return Err(crate::edit_page::ANIMATED.to_string());
                     }
-                    let image = decode::decode_full_with(&bytes, &path, &sibling)?;
+                    let image = crate::occt::from_file(local, || decode::decode_full_with(&bytes, &path, &sibling))?;
                     let original = crate::encode::Original::with_meta_beside(image, &bytes, &path, sidecar.as_deref());
                     // Save in another format writes the picture alone (`Original::alone`); the
                     // editor needs the whole XMP to save a phone photo as it was.
@@ -444,9 +444,9 @@ impl Loader {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
             for (path, to) in jobs {
-                let sibling = siblings(op.clone(), path.clone());
+                let (sibling, local) = (siblings(op.clone(), path.clone()), crate::occt::local(&op, &path));
                 let r = match op.read(&path).await {
-                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::model::parse_with(&bytes, &path, &sibling).map(|m| crate::model_export::export(&m, kind)))
+                    Ok(bytes) => tokio::task::spawn_blocking(move || crate::occt::from_file(local, || crate::model::parse_with(&bytes, &path, &sibling)).map(|m| crate::model_export::export(&m, kind)))
                         .await
                         .unwrap_or_else(|e| Err(e.to_string())),
                     Err((_, detail)) => Err(detail),
@@ -666,7 +666,7 @@ impl Loader {
                 }
             } else {
                 let (tx, ctx) = (tx.clone(), ctx.clone());
-                let sibling = siblings(op.clone(), path.clone());
+                let (sibling, local) = (siblings(op.clone(), path.clone()), crate::occt::local(&op, &path));
                 match op.read(&path).await {
                     Ok(bytes) => tokio::task::spawn_blocking(move || {
                         if crate::cad::is_cad(&path) {
@@ -686,7 +686,7 @@ impl Loader {
                             }
                             return decode::decode(&bytes, &path);
                         }
-                        let mesh = Arc::new(crate::model::parse_with(&bytes, &path, &sibling)?);
+                        let mesh = Arc::new(crate::occt::from_file(local, || crate::model::parse_with(&bytes, &path, &sibling))?);
                         // Shown only until the viewer's graphics card takes over (and in the slideshow):
                         // small, so that preparing the neighbours does not take every core while turning.
                         let image = crate::render3d::render(&mesh, &Default::default(), 960, 720, 2);

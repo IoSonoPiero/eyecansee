@@ -642,6 +642,7 @@ fn main() -> eframe::Result {
         return Ok(());
     }
     video_read::remove_old_copies();
+    occt::remove_old_copies();
     // Flatpak points XDG_DATA_HOME into the sandbox: files would go to a trash no file manager sees.
     let flatpak_id = std::env::var("FLATPAK_ID").ok();
     if let (Some(_), Some(home)) = (&flatpak_id, std::env::var_os("HOME")) {
