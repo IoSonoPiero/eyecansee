@@ -900,4 +900,111 @@ mod tests {
         assert_eq!(p.refused.lock().unwrap().join(", "), "album/Mare 12:30.jpg, album/12:30/, album/12:30/a.jpg, album/sub/a.jpg., album/sub /a.jpg, album/NUL.jpg, album/why?.jpg, album/../x.jpg");
         assert!(left_below("album/", &p));
     }
+
+    /// Every file under `dir` with the name `n`, at any depth.
+    fn audit_find(dir: &std::path::Path, n: &str) -> Vec<std::path::PathBuf> {
+        let mut found = Vec::new();
+        let Ok(entries) = std::fs::read_dir(dir) else { return found };
+        for e in entries.flatten() {
+            let path = e.path();
+            if e.file_type().is_ok_and(|t| t.is_dir()) {
+                found.extend(audit_find(&path, n));
+            } else if e.file_name() == n {
+                found.push(path);
+            }
+        }
+        found
+    }
+
+    /// Audit 2.1: a folder moved to another device (here: another `base`, as from a phone to the
+    /// computer). A file that arrives in the folder after it was looked through (a photo taken
+    /// while `DCIM/Camera/` moves) is not in the list, so it is not copied; it must not be deleted
+    /// with the folder either. Today the folder is deleted whole at the end, and the file with it.
+    #[test]
+    #[ignore = "audit 2.1: not fixed yet"]
+    fn audit_2_1_move_deletes_a_file_that_arrived_meanwhile() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let dir = std::env::temp_dir().join(format!("eyecansee-audit-2-1-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("phone/DCIM/Camera")).unwrap();
+        std::fs::create_dir_all(dir.join("pc")).unwrap();
+        // Large enough that the copy is still running when the late photo arrives.
+        std::fs::write(dir.join("phone/DCIM/Camera/a.jpg"), vec![1u8; 32 << 20]).unwrap();
+        std::fs::write(dir.join("phone/DCIM/Camera/b.jpg"), b"b").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let clip = Clip { op: op.clone(), base: "test-phone://".into(), paths: vec!["phone/DCIM/Camera/".into()], cut: true, text: String::new() };
+        let p = Progress::default();
+        let late = dir.join("phone/DCIM/Camera/late.jpg");
+        let (written, r) = std::thread::scope(|s| {
+            // `started` is set once the folder has been looked through, before the first file.
+            let writer = s.spawn(|| {
+                while p.started.get().is_none() {
+                    std::thread::yield_now();
+                }
+                std::fs::write(&late, b"taken while moving").is_ok()
+            });
+            let (_, r) = rt.block_on(run(&clip, &op, "test-pc://", "pc/", &HashMap::new(), &p));
+            (writer.join().unwrap(), r)
+        });
+        assert!(written, "the late photo was written before the folder went (race lost: run again)");
+        r.unwrap();
+        assert!(dir.join("pc/Camera/a.jpg").exists() && dir.join("pc/Camera/b.jpg").exists(), "the files listed were copied");
+        let left = audit_find(&dir, "late.jpg");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(!left.is_empty(), "the photo that arrived during the move is gone: neither copied nor left in the source");
+    }
+
+    /// Audit 2.2, scenario A: a folder cut and pasted into a folder reached through a link that
+    /// leads inside it (`shortcut` → `Photos/album/sub`). The paste is not refused (the check
+    /// compares the text of the paths), the rename fails, the files are copied into
+    /// `album/sub/album/`, then `album/` is deleted whole, the copy with it.
+    #[cfg(unix)]
+    #[test]
+    #[ignore = "audit 2.2: not fixed yet"]
+    fn audit_2_2_a_move_into_itself_through_a_link() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let dir = std::env::temp_dir().join(format!("eyecansee-audit-2-2a-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("Photos/album/sub")).unwrap();
+        std::fs::write(dir.join("Photos/album/x.jpg"), b"the only copy").unwrap();
+        std::os::unix::fs::symlink(dir.join("Photos/album/sub"), dir.join("shortcut")).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let base = "test-link://";
+        let clip = Clip { op: op.clone(), base: base.into(), paths: vec!["Photos/album/".into()], cut: true, text: String::new() };
+        let (refused, r) = rt.block_on(async {
+            match conflicts(&clip, &op, base, "shortcut/").await {
+                Err(e) => (Some(e.0), None),
+                Ok(_) => (None, Some(run(&clip, &op, base, "shortcut/", &HashMap::new(), &Progress::default()).await.1)),
+            }
+        });
+        let left = audit_find(&dir, "x.jpg");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(!left.is_empty(), "x.jpg is gone (refused: {refused:?}, paste: {r:?})");
+    }
+
+    /// Audit 2.2, scenario B: the same folder reached as two sources (the same server opened by
+    /// SFTP and by FTP, or a NAS through gvfs and through SFTP): two `base`s, so the check for a
+    /// folder pasted inside itself is not made. Moving `album/` into `album/sub/` copies it into
+    /// itself, then deletes `album/` whole, the copy with it.
+    #[test]
+    #[ignore = "audit 2.2: not fixed yet"]
+    fn audit_2_2_b_move_into_itself_from_another_source() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let dir = std::env::temp_dir().join(format!("eyecansee-audit-2-2b-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("Photos/album/sub")).unwrap();
+        std::fs::write(dir.join("Photos/album/x.jpg"), b"the only copy").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let clip = Clip { op: op.clone(), base: "test-sftp://box/".into(), paths: vec!["Photos/album/".into()], cut: true, text: String::new() };
+        let to_base = "test-ftp://box/";
+        let (refused, r) = rt.block_on(async {
+            match conflicts(&clip, &op, to_base, "Photos/album/sub/").await {
+                Err(e) => (Some(e.0), None),
+                Ok(_) => (None, Some(run(&clip, &op, to_base, "Photos/album/sub/", &HashMap::new(), &Progress::default()).await.1)),
+            }
+        });
+        let left = audit_find(&dir, "x.jpg");
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(!left.is_empty(), "x.jpg is gone (refused: {refused:?}, paste: {r:?})");
+    }
 }
