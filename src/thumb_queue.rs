@@ -170,10 +170,11 @@ pub(crate) async fn file_info(op: &Store, base: &str, file: &File) -> Option<cra
             match info.pixels {
                 Some(_) => info,
                 // A rare format whose header is not read: decoded, as for its thumbnail.
-                None if bytes.len() as u64 >= full => {
-                    let _memory = thumb_memory::wait_for(&bytes, &name);
-                    crate::thumb_details::Info { pixels: decode::thumbnail_sized(&bytes, &name, 1).ok().and_then(|(_, own)| own), ..info }
-                }
+                // Not one too large for the memory (`thumb_memory::over_half`).
+                None if bytes.len() as u64 >= full => match thumb_memory::wait_for(&bytes, &name) {
+                    Ok(_memory) => crate::thumb_details::Info { pixels: decode::thumbnail_sized(&bytes, &name, 1).ok().and_then(|(_, own)| own), ..info },
+                    Err(_) => info,
+                },
                 None => info,
             }
         })
@@ -288,6 +289,7 @@ async fn generate(op: &Store, base: &str, file: File, wanted: impl Fn() -> bool)
 /// there is no room. From a local disk the bytes are not kept while waiting, but read again once
 /// there is room; from a phone or a server (2 to 4 workers) they are kept, not asked for twice.
 /// After a wait, a thumbnail no longer `wanted` is not made: the new folder's would wait for it.
+/// One `over_half` the RAM is not made at all (`thumb_memory::TOO_LARGE`).
 async fn reserved(op: &Store, path: &str, bytes: Vec<u8>, budget: &Budget, wanted: impl Fn() -> bool) -> Result<(Vec<u8>, Option<Reservation>), String> {
     let name = path.to_string();
     let (bytes, need) = tokio::task::spawn_blocking(move || {
@@ -296,6 +298,10 @@ async fn reserved(op: &Store, path: &str, bytes: Vec<u8>, budget: &Budget, wante
     })
     .await
     .map_err(|e| e.to_string())?;
+    if budget.too_large(need) {
+        log!("thumbnail of {path}: not made, {} MiB is over half the RAM", need >> 20);
+        return Err(thumb_memory::TOO_LARGE.into());
+    }
     if let Some(memory) = budget.try_reserve(need) {
         return Ok((bytes, Some(memory)));
     }
@@ -371,7 +377,8 @@ mod tests {
 
     /// With room, the bytes read are used at once. Without, the thumbnail waits; from a local
     /// disk its bytes are read again once there is room (the file changed meanwhile: the new
-    /// ones), and a thumbnail no longer wanted after its wait is given up.
+    /// ones), and a thumbnail no longer wanted after its wait is given up. One over half the RAM
+    /// is not made.
     #[test]
     fn memory_reserved_before_decoding() {
         let dir = std::env::temp_dir().join(format!("thumb-memory-{}", std::process::id()));
@@ -401,6 +408,12 @@ mod tests {
             drop(all);
             assert_eq!(stale.await.unwrap_err(), NOT_WANTED);
             assert!(budget.try_reserve(u64::MAX).is_some(), "given back");
+
+            // Over half the RAM (here 400 MiB; the file, unread, is estimated at 512 MiB and more):
+            // not made, nothing reserved.
+            let small = Budget::new(100 << 20);
+            assert_eq!(reserved(&op, "a.png", b"first".to_vec(), &small, || true).await.unwrap_err(), thumb_memory::TOO_LARGE);
+            assert!(small.try_reserve(100 << 20).is_some());
         });
         std::fs::remove_dir_all(&dir).unwrap();
     }

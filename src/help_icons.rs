@@ -71,7 +71,7 @@ const OWN: [(&str, Line); 13] = [
 ];
 
 /// The coloured icons, with the `color-` prefix.
-const COLOR: [(&str, Icon); 14] = [
+const COLOR: [(&str, Icon); 15] = [
     ("color-folder", Icon::Folder),
     ("color-up", Icon::Up),
     ("color-phone", Icon::Phone),
@@ -86,6 +86,7 @@ const COLOR: [(&str, Icon); 14] = [
     ("color-server", Icon::Server),
     ("color-model", Icon::Model),
     ("color-download", Icon::Download),
+    ("color-picture", Icon::Picture),
 ];
 
 /// Every name valid after `icon://` (for the checks of the pages, `help_check`).

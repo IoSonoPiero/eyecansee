@@ -489,6 +489,8 @@ impl App {
                 icons::paint(painter, icon, sign);
                 icons::paint(painter, Icon::Download, Rect::from_min_size(sign.right_bottom() - vec2(side * 0.08, side * 0.14), vec2(side * 0.18, side * 0.18)));
             }
+            // Too large for the computer's memory (#177): a picture and why, in place of the warning.
+            Some(Err(e)) if e == crate::thumb_memory::TOO_LARGE => self.paint_too_large(painter, thumb_rect, side, dim),
             // An audio file without a cover has no picture: a note in place of the warning.
             Some(Err(_)) if self.files().get(file).is_some_and(|f| crate::decode::is_audio(&f.path)) => {
                 icons::paint(painter, Icon::Audio, Rect::from_center_size(thumb_rect.center(), vec2(side * 0.45, side * 0.45)));
@@ -514,6 +516,16 @@ impl App {
                 }
             }
         }
+    }
+
+    /// The thumbnail of a picture too large for the memory (`thumb_memory::TOO_LARGE`): a picture
+    /// sign and, under it, the words.
+    fn paint_too_large(&self, painter: &egui::Painter, thumb_rect: Rect, side: f32, dim: Color32) {
+        let sign = Rect::from_center_size(thumb_rect.center() - vec2(0.0, side * 0.12), vec2(side * 0.4, side * 0.4));
+        icons::paint(painter, Icon::Picture, sign);
+        let mut job = egui::text::LayoutJob::simple(self.i18n.t("thumb-too-large"), FontId::proportional(12.0), dim, side - 8.0);
+        job.halign = egui::Align::Center;
+        painter.galley(pos2(thumb_rect.center().x, sign.max.y + 4.0), painter.layout_job(job), dim);
     }
 
     /// Copied or cut, waiting for Ctrl+V: a badge in the corner; cut items also fade.

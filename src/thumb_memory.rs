@@ -128,6 +128,8 @@ impl Ledger {
 pub struct Budget {
     shared: Arc<Shared>,
     total: u32,
+    /// The RAM it is a quarter of: a picture `over_half` of it gets no thumbnail.
+    ram: u64,
 }
 
 #[derive(Debug)]
@@ -173,10 +175,21 @@ impl Drop for Ticket<'_> {
 }
 
 impl Budget {
+    /// `bytes` to share, out of four times as much RAM.
+    #[cfg(test)]
     pub fn new(bytes: u64) -> Self {
+        Self::of(bytes, bytes.saturating_mul(4))
+    }
+
+    fn of(bytes: u64, ram: u64) -> Self {
         let total = u32::try_from(bytes / MIB).unwrap_or(u32::MAX).max(1);
         let ledger = Ledger { free: total, next: 0, queue: VecDeque::new() };
-        Budget { shared: Arc::new(Shared { ledger: Mutex::new(ledger), wake: Notify::new() }), total }
+        Budget { shared: Arc::new(Shared { ledger: Mutex::new(ledger), wake: Notify::new() }), total, ram }
+    }
+
+    /// No thumbnail for a picture that needs `need`: `over_half` the RAM.
+    pub fn too_large(&self, need: u64) -> bool {
+        over_half(need, self.ram)
     }
 
     /// The places for `bytes`: at least one, at most all (a picture larger than the budget).
@@ -224,27 +237,44 @@ impl Budget {
 
 /// The budget of all the thumbnails: a quarter of the RAM.
 pub fn budget() -> &'static Budget {
-    static BUDGET: LazyLock<Budget> = LazyLock::new(|| Budget::new(quarter(ram())));
+    static BUDGET: LazyLock<Budget> = LazyLock::new(|| Budget::of(quarter(ram()), ram()));
     &BUDGET
 }
 
-/// A quarter of `ram`, or of `FALLBACK_RAM` when it could not be read (written in the log).
-fn quarter(ram: Option<u64>) -> u64 {
-    match ram {
-        Some(ram) => {
-            log!("thumbnails: at most {} MiB of memory at the same time (RAM {} MiB)", ram / 4 / MIB, ram / MIB);
-            ram / 4
-        }
-        None => {
-            log!("thumbnails: RAM not read, {} MiB assumed: at most {} MiB of memory at the same time", FALLBACK_RAM / MIB, FALLBACK_RAM / 4 / MIB);
-            FALLBACK_RAM / 4
-        }
-    }
+/// A quarter of `ram` (written in the log).
+fn quarter(ram: u64) -> u64 {
+    log!("thumbnails: at most {} MiB of memory at the same time (RAM {} MiB)", ram / 4 / MIB, ram / MIB);
+    ram / 4
 }
+
+/// The computer's RAM, read once; `FALLBACK_RAM` when it cannot be read.
+pub fn ram() -> u64 {
+    static RAM: LazyLock<u64> = LazyLock::new(|| known(read_ram()));
+    *RAM
+}
+
+/// `ram`, or `FALLBACK_RAM` when it could not be read (written in the log).
+fn known(ram: Option<u64>) -> u64 {
+    ram.unwrap_or_else(|| {
+        log!("RAM not read: {} MiB assumed", FALLBACK_RAM / MIB);
+        FALLBACK_RAM
+    })
+}
+
+/// A picture that needs more than half of `ram` (Piero, 20/11/2026): no thumbnail, which on a PC
+/// with 8 GB would take as much as the whole computer has (HEIC, 16-bit TIFF, PSD, JPEG XL or
+/// OpenEXR near 512 megapixels: 5 to 17 GB), and the viewer asks before opening it.
+pub fn over_half(need: u64, ram: u64) -> bool {
+    need > ram / 2
+}
+
+/// The error of a thumbnail not made because its picture is `over_half` the RAM: the grid shows a
+/// sign and a line in its place (`grid::paint_thumb`).
+pub const TOO_LARGE: &str = "thumbnail: picture too large for the memory";
 
 /// The computer's physical memory.
 #[cfg(target_os = "linux")]
-fn ram() -> Option<u64> {
+fn read_ram() -> Option<u64> {
     let info = std::fs::read_to_string("/proc/meminfo").ok()?;
     meminfo_total(&info)
 }
@@ -257,7 +287,7 @@ fn meminfo_total(info: &str) -> Option<u64> {
 }
 
 #[cfg(windows)]
-fn ram() -> Option<u64> {
+fn read_ram() -> Option<u64> {
     use windows_sys::Win32::System::SystemInformation::{GlobalMemoryStatusEx, MEMORYSTATUSEX};
     let mut status = MEMORYSTATUSEX { dwLength: std::mem::size_of::<MEMORYSTATUSEX>() as u32, ..Default::default() };
     // SAFETY: `status` is valid and writable for the whole call.
@@ -266,15 +296,20 @@ fn ram() -> Option<u64> {
 }
 
 #[cfg(not(any(target_os = "linux", windows)))]
-fn ram() -> Option<u64> {
+fn read_ram() -> Option<u64> {
     None
 }
 
 /// The memory of the thumbnail of `bytes`, waited for on a thread that may block (inside
 /// `spawn_blocking`): for a picture decoded outside the workers (`thumb_queue::file_info`).
-pub fn wait_for(bytes: &[u8], name: &str) -> Option<Reservation> {
+/// `Err(TOO_LARGE)` for a picture `over_half` the RAM, not to be decoded; `Ok(None)` outside the
+/// runtime, where it cannot wait.
+pub fn wait_for(bytes: &[u8], name: &str) -> Result<Option<Reservation>, &'static str> {
     let need = estimate(bytes, name);
-    budget().try_reserve(need).or_else(|| Some(tokio::runtime::Handle::try_current().ok()?.block_on(budget().reserve(need))))
+    if budget().too_large(need) {
+        return Err(TOO_LARGE);
+    }
+    Ok(budget().try_reserve(need).or_else(|| Some(tokio::runtime::Handle::try_current().ok()?.block_on(budget().reserve(need)))))
 }
 
 // The factors below: the peak of one thumbnail (VmHWM, build --release, one file per process)
@@ -548,14 +583,31 @@ mod tests {
     /// A quarter of the RAM; when it is not read, a quarter of 8 GiB.
     #[test]
     fn budget_from_ram() {
-        assert_eq!(quarter(Some(16 * GIB)), 4 * GIB);
-        assert_eq!(quarter(None), 2 * GIB);
+        assert_eq!(quarter(known(Some(16 * GIB))), 4 * GIB);
+        assert_eq!(quarter(known(None)), 2 * GIB);
         assert_eq!(meminfo_total("MemTotal:       32529440 kB\nMemFree: 1 kB\n"), Some(32529440 * 1024));
         assert_eq!(meminfo_total("MemFree: 1 kB\n"), None);
         assert_eq!(meminfo_total("MemTotal: x kB\n"), None);
         assert_eq!(Budget::new(0).total, 1);
+        assert_eq!(budget().ram, ram());
         #[cfg(target_os = "linux")]
-        assert!(ram().is_some_and(|r| r > GIB));
+        assert!(read_ram().is_some_and(|r| r > GIB));
+        assert!(ram() > GIB);
+    }
+
+    /// Over half the RAM, not at half: on 8 GiB a picture of 4 GiB still gets its thumbnail, one
+    /// byte more does not; the RAM not read counts as 8 GiB.
+    #[test]
+    fn too_large_over_half_the_ram() {
+        assert!(!over_half(4 * GIB, 8 * GIB));
+        assert!(over_half(4 * GIB + 1, 8 * GIB));
+        assert!(!over_half(4 * GIB + 1, 16 * GIB));
+        assert!(over_half(4 * GIB + 1, known(None)));
+        // A 512-megapixel TIFF at 16 bits (32768 × 16384, RGB): about 6.4 GB, over half of 8 GiB
+        // and of 12, under half of 16; a JPEG as large, read reduced, under half of 8.
+        let tiff = times(32768 * 16384 * 6, IMAGE) + FIXED;
+        assert!(over_half(tiff, 8 * GIB) && over_half(tiff, 12 * GIB) && !over_half(tiff, 16 * GIB));
+        assert!(!over_half(times(32768 * 16384, JPEG_SCALED) + FIXED, 8 * GIB));
     }
 
     fn jpeg_bytes(w: u32, h: u32, lossless: bool) -> Vec<u8> {

@@ -35,11 +35,14 @@ pub enum Icon {
     Model,
     /// Badge of a thumbnail that waits for an engine to download (video, CAD): not an error.
     Download,
+    /// A picture whose thumbnail is not made: too large for the computer's memory (#177).
+    Picture,
 }
 
 const VIDEO: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#000000" fill-opacity="0.6"/><path d="M9.5 7.2v9.6l7.6-4.8z" fill="#ffffff"/></svg>"##;
 const MODEL: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2.5l8.5 4.8v9.4L12 21.5l-8.5-4.8V7.3z" fill="#3d8bd9"/><path d="M12 2.5l8.5 4.8L12 12 3.5 7.3z" fill="#8fc0ef"/><path d="M12 12v9.5l8.5-4.8V7.3z" fill="#2a6db3"/></svg>"##;
 const DOWNLOAD: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#6b7280"/><path d="M12 5.5v9.5M7.8 11l4.2 4.2 4.2-4.2M7 18.5h10" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"##;
+const PICTURE: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2" fill="#3d8bd9"/><rect x="3.6" y="5.6" width="16.8" height="12.8" rx="1" fill="#e3edfb"/><circle cx="16.5" cy="9" r="1.8" fill="#f4b63f"/><path d="M3.6 18.4 9 11.5l3.8 4.6 2.6-2.8 5 5.1z" fill="#2a6db3"/></svg>"##;
 const AUDIO: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#7b5cc4"/><path d="M10 16.5V7.5l7-1.5v8.5" fill="none" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round"/><circle cx="8.3" cy="16.5" r="2.1" fill="#ffffff"/><circle cx="15.3" cy="14.5" r="2.1" fill="#ffffff"/></svg>"##;
 const FOLDER: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M2.5 6A1.5 1.5 0 0 1 4 4.5h5.2l2 2H20A1.5 1.5 0 0 1 21.5 8v10A1.5 1.5 0 0 1 20 19.5H4A1.5 1.5 0 0 1 2.5 18z" fill="#d99a1e"/><path d="M2.5 9A1.5 1.5 0 0 1 4 7.5h16A1.5 1.5 0 0 1 21.5 9v9a1.5 1.5 0 0 1-1.5 1.5H4A1.5 1.5 0 0 1 2.5 18z" fill="#f4b63f"/></svg>"##;
 const UP: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" fill="#e3edfb"/><path d="M12 17V7.5M7.5 11.5l4.5-4.5 4.5 4.5" fill="none" stroke="#1a62c9" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>"##;
@@ -70,6 +73,7 @@ pub(crate) fn svg(icon: Icon) -> &'static str {
         Icon::Server => SERVER,
         Icon::Model => MODEL,
         Icon::Download => DOWNLOAD,
+        Icon::Picture => PICTURE,
     }
 }
 

@@ -424,6 +424,7 @@ thumb-recorded-on = Recorded on { $date }
 tip-taken = Taken
 tip-recorded = Recorded
 thumb-modified-on = Modified on { $date }
+thumb-too-large = Too large for a thumbnail
 trash = Trash
 menu-restore = Restore
 menu-restore-all = Restore all

@@ -423,6 +423,7 @@ thumb-recorded-on = Registrato il { $date }
 tip-taken = Scattata
 tip-recorded = Registrato
 thumb-modified-on = Modificata il { $date }
+thumb-too-large = Troppo grande per la miniatura
 trash = Cestino
 menu-restore = Ripristina
 menu-restore-all = Ripristina tutto
