@@ -497,6 +497,10 @@ mod tests {
         glb.resize(actual, 0);
         let (e, [en, it]) = refused(&glb);
         assert_eq!(e, format!("{}\u{1}{declared} {actual}", super::CUT_SIZES));
+        // Save as… and Export as a 3D model… read it the same way, and say it with `load_error`.
+        let none: crate::model::Sibling = &|_| None;
+        assert_eq!(crate::decode::decode_full_noted(&glb, "a.glb", none).unwrap_err(), e);
+        assert_eq!(crate::model_export::export_file(&glb, "a.glb", none, crate::model_export::Kind::Stl).unwrap_err(), e);
         assert_eq!(en, "The file is incomplete: it should be 12.4 MB but it is 3.1 MB. Perhaps the download or the copy stopped: try downloading or copying it again.");
         assert_eq!(it, "Il file è incompleto: dovrebbe essere di 12,4 MB ma è di 3,1 MB. Forse lo scaricamento o la copia si è interrotta: prova a scaricarlo o copiarlo di nuovo.");
         assert_eq!(converted(&glb, "a b.glb"), "The file is incomplete (a b.glb): it should be 12.4 MB but it is 3.1 MB. Perhaps the download or the copy stopped: try downloading or copying it again.");
