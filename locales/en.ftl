@@ -1401,6 +1401,10 @@ summary-would-lose = { $n ->
     [one] 1 drawing that would lose a part in the other format:
    *[other] { $n } drawings that would lose a part in the other format:
 }
+summary-too-large = { $n ->
+    [one] 1 picture too large for the memory of this computer, left out:
+   *[other] { $n } pictures too large for the memory of this computer, left out:
+}
 summary-errors = { $n ->
     [one] 1 error:
    *[other] { $n } errors:
@@ -1416,6 +1420,7 @@ drawing-svg-hint = A drawing that stays sharp at any zoom, which browsers and gr
 drawing-cad-hint = The whole drawing in the other AutoCAD format, in the version it was saved with: layers, blocks, layouts and styles. Each file is read back and compared with the original: if anything would be lost, it is not saved and the summary says so.
 batch-skip-format = { $detail }: EyeCanSee cannot write its format; choose another format.
 batch-skip-same-size = { $detail }: already of this size, or smaller and not enlarged; no copy made.
+batch-skip-too-large = { $detail }: it would need more than half of the memory of this computer; left out.
 batch-skip-inside = { $detail }: animated or with several pages; the new file would have only the first one.
 batch-failed = { $detail }
 batch-turn = Rotate and flip

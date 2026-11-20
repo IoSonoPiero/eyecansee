@@ -1400,6 +1400,10 @@ summary-would-lose = { $n ->
     [one] 1 disegno che nell'altro formato perderebbe una parte:
    *[other] { $n } disegni che nell'altro formato perderebbero una parte:
 }
+summary-too-large = { $n ->
+    [one] 1 immagine troppo grande per la memoria di questo computer, lasciata fuori:
+   *[other] { $n } immagini troppo grandi per la memoria di questo computer, lasciate fuori:
+}
 summary-errors = { $n ->
     [one] 1 errore:
    *[other] { $n } errori:
@@ -1415,6 +1419,7 @@ drawing-svg-hint = Un disegno che resta nitido a ogni ingrandimento, che si apre
 drawing-cad-hint = Tutto il disegno nell'altro formato AutoCAD, nella versione in cui era salvato: livelli, blocchi, layout e stili. Ogni file viene riletto e confrontato con l'originale: se qualcosa andrebbe perso non viene salvato, e il riepilogo lo dice.
 batch-skip-format = { $detail }: EyeCanSee non sa scrivere il suo formato; scegli un altro formato.
 batch-skip-same-size = { $detail }: ha già questa misura, o è più piccola e non viene ingrandita; nessuna copia.
+batch-skip-too-large = { $detail }: chiederebbe più di metà della memoria di questo computer; lasciata fuori.
 batch-skip-inside = { $detail }: animata o con più pagine; il file nuovo avrebbe solo la prima.
 batch-failed = { $detail }
 batch-turn = Rotazione e ribaltamenti

@@ -79,13 +79,14 @@ At the end a summary, titled with the command, says:
 
 - how many files were saved, and where; how many were left out; how many were not done, when you stopped the work (a count of zero is not shown);
 - how long it took and, when files were saved, their size on disk before and after, with the percentage;
-- the files left out, grouped by reason (another kind of file, a format EyeCanSee cannot write, already of that size, animated or with several pages, FFmpeg missing, an error), each group with its file names. A group of more than five files is folded: click its line to open it. The list scrolls when it is long.
+- the files left out, grouped by reason (another kind of file, a format EyeCanSee cannot write, already of that size, animated or with several pages, too large for the memory of this computer, FFmpeg missing, an error), each group with its file names. A group of more than five files is folded: click its line to open it. The list scrolls when it is long.
 
 **Open the folder** shows the thumbnails of the folder where the files went, on this computer, a phone or a server; it is there only when something was saved in another folder than the one on screen, and it is greyed out while a page (the editor, Save as, the slideshow or the duplicates) covers the thumbnails. **Close**, **Enter** or **Esc** close the summary.
 
 ## Things to know
 
 - Animated images and images with several pages are left out: the new file would keep only the first picture.
+- A picture that would need more than half of the computer's memory once read whole (for example a HEIC, a 16-bit TIFF or a JPEG XL of hundreds of megapixels, on a computer with 8 GB) is left out, without asking: the summary lists it. Of its file only the start is read, when the size of the picture is there.
 - A phone's motion photo keeps its video only when it is just rotated and stays a JPEG; otherwise the new file is the picture alone, and the video stays in the original.
 - It works on every source: the computer, disks, phones and servers.
 - In the window **Enter** starts the conversion (when no field is being typed in) and **Esc** cancels.

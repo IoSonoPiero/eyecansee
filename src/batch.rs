@@ -237,6 +237,8 @@ pub const SKIP_SAME_SIZE: &str = "batch-skip-same-size";
 pub const SKIP_VIDEO: &str = "batch-skip-video";
 pub const SKIP_NOT_AUTOCAD: &str = "drawing-skip-not-autocad";
 pub const SKIP_WOULD_LOSE: &str = "drawing-skip-would-lose";
+/// Over half the RAM once decoded (`view_memory`): left out, not asked about (Piero, 20/11/2026).
+pub const SKIP_TOO_LARGE: &str = "batch-skip-too-large";
 
 /// The file `bytes` (named `name`) after the job: the new name, without the folder, and its
 /// content. `Err((id, detail))`: a Fluent id with the name or the error.
@@ -712,10 +714,23 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
     p.finished.store(true, Ordering::Relaxed);
 }
 
+/// The job decodes its pictures at full resolution: not Copy with the metadata, nor Export
+/// drawing (drawings have limits of their own). A picture too large for the memory is then left
+/// out, told from the start of its file when it can be (`view_memory::read`).
+fn decodes(job: &Job) -> bool {
+    !job.does_nothing() && job.drawing.is_none()
+}
+
 /// The picture at `path` (named `name`) after `job`, with its photo's sidecar (#24) and the
 /// layers shown of a drawing: the new name, the content and the size of the original.
 async fn picture(op: &Store, path: &str, name: String, job: &Job) -> Result<(String, Vec<u8>, u64), (&'static str, String)> {
-    let bytes = op.read(path).await?;
+    let bytes = match decodes(job) {
+        true => crate::view_memory::read(op, path, None, crate::view_memory::Use::Whole, false).await.map_err(|e| match e {
+            crate::view_memory::NotRead::TooLarge(_) => (SKIP_TOO_LARGE, name.clone()),
+            crate::view_memory::NotRead::Failed(e) => e,
+        })?,
+        false => op.read(path).await?,
+    };
     let (mut job, before) = (job.clone(), bytes.len() as u64);
     job.shown = job.layers.get(path).cloned();
     let (sibling, local) = (crate::loader::siblings(op.clone(), path.to_string()), crate::occt::local(op, path));
@@ -856,6 +871,35 @@ mod tests {
         assert_eq!(p.failed.lock().unwrap().len(), 1);
         assert!(p.saved.lock().unwrap().is_empty());
         assert_eq!(std::fs::read(dir.join("out/a.png")).unwrap(), b"the one that is there");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Convert and Resize leave out a picture too large for the memory of this computer, told from
+    /// the start of its file (a RAW, of bytes at random, whose estimate goes by its size: 64 bytes
+    /// for every 72 of RAM it needs), and go on with the others; Copy with the metadata, which
+    /// decodes nothing, copies it.
+    #[test]
+    fn too_large_left_out() {
+        let dir = std::env::temp_dir().join(format!("eyecansee-batch-large-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let size = crate::thumb_memory::ram() / 64;
+        std::fs::File::create(dir.join("huge.cr3")).unwrap().set_len(size).unwrap();
+        let img = DynamicImage::ImageRgb8(image::RgbImage::from_fn(40, 30, |x, y| image::Rgb([x as u8, y as u8, 9])));
+        std::fs::write(dir.join("a.png"), file(&img, image::ImageFormat::Png)).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        let paths = vec!["huge.cr3".to_string(), "a.png".to_string()];
+        let p = Arc::new(Progress::default());
+        let to = Dest { op: op.clone(), dir: "out/".into(), create: true, home: false };
+        crate::source::BYTES_READ.with(|n| n.set(0));
+        rt.block_on(run(&op, paths, to, Job { format: Some(Format::Jpeg), ..Default::default() }, p.clone()));
+        assert_eq!(*p.failed.lock().unwrap(), [(SKIP_TOO_LARGE, "huge.cr3".to_string())]);
+        assert_eq!(*p.saved.lock().unwrap(), ["out/a.jpg"]);
+        let read = crate::source::BYTES_READ.with(std::cell::Cell::get);
+        assert!(read < 2 * crate::view_memory::HEAD, "{read} bytes read");
+        let copy = Job { format: None, ..Default::default() };
+        assert!(copy.does_nothing() && !decodes(&copy));
         std::fs::remove_dir_all(&dir).unwrap();
     }
 

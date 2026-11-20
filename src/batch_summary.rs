@@ -9,7 +9,7 @@ use eframe::egui;
 
 use crate::App;
 use crate::audio_convert::SKIP_AUDIO;
-use crate::batch::{SKIP_FORMAT, SKIP_INSIDE, SKIP_NOT_AUTOCAD, SKIP_SAME_SIZE, SKIP_VIDEO, SKIP_WOULD_LOSE};
+use crate::batch::{SKIP_FORMAT, SKIP_INSIDE, SKIP_NOT_AUTOCAD, SKIP_SAME_SIZE, SKIP_TOO_LARGE, SKIP_VIDEO, SKIP_WOULD_LOSE};
 use crate::i18n::I18n;
 use crate::save_dialogs::{Head, md, notice_text};
 
@@ -64,6 +64,7 @@ fn group_of(id: &str, preset: bool) -> (&'static str, bool) {
         SKIP_VIDEO | SKIP_AUDIO => ("summary-no-ffmpeg", true),
         SKIP_NOT_AUTOCAD => ("summary-not-autocad", true),
         SKIP_WOULD_LOSE => ("summary-would-lose", true),
+        SKIP_TOO_LARGE => ("summary-too-large", true),
         _ => ("summary-errors", false),
     }
 }
@@ -226,7 +227,10 @@ mod tests {
         assert_eq!(g[0].items, ["a\\.txt", "c\\_d"]);
         assert_eq!(g[2].items, ["e\\.png\\: broken"]);
         assert_eq!(groups(&i18n, &failed[4..], true)[0].heading, "1 file in a format EyeCanSee cannot write; Resize > Custom… can save it in another one:");
-        for (id, _) in failed.iter().chain(&[(SKIP_INSIDE, String::new()), (SKIP_VIDEO, String::new()), (SKIP_AUDIO, String::new()), (SKIP_NOT_AUTOCAD, String::new()), (SKIP_WOULD_LOSE, String::new())]) {
+        let large = [(SKIP_TOO_LARGE, "a.cr3".to_string()), (SKIP_TOO_LARGE, "b.tif".to_string())];
+        assert_eq!(groups(&i18n, &large, false)[0].heading, "2 pictures too large for the memory of this computer, left out:");
+        assert_eq!(groups(&I18n::new("it"), &large[..1], true)[0].heading, "1 immagine troppo grande per la memoria di questo computer, lasciata fuori:");
+        for (id, _) in failed.iter().chain(&[(SKIP_INSIDE, String::new()), (SKIP_VIDEO, String::new()), (SKIP_AUDIO, String::new()), (SKIP_NOT_AUTOCAD, String::new()), (SKIP_WOULD_LOSE, String::new()), (SKIP_TOO_LARGE, String::new())]) {
             for lang in ["en", "it"] {
                 let g = groups(&I18n::new(lang), &[(id, "x".into())], false);
                 assert!(!g[0].heading.contains("summary-"), "{lang} {id}: {}", g[0].heading);
