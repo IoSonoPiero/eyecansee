@@ -5,11 +5,12 @@
 //! - `/move/`, for a move (#183): `a.jpg`, `sub/b.jpg`, `keep/back` (a link to `/move/`) and
 //!   `out` (a link to `/loop/`);
 //! - `/album/`, as a hostile server could list it (audit 2.3): `a.jpg` and `../victim.txt`, read
-//!   at the path the client makes with that name.
+//!   at the path the client makes with that name;
+//! - `/beach/`, with a name Windows cannot write (audit 2.4): `a.jpg` and `Mare 12:30.jpg`.
 //!
-//! Files are read (RETR) and deleted (DELE), folders deleted only when empty (RMD), as a real
-//! server does. It has no MLSD (as vsftpd): the client falls back to LIST, whose Unix lines
-//! describe the links.
+//! Files are measured (SIZE), read (RETR) and deleted (DELE), folders deleted only when empty
+//! (RMD), as a real server does. It has no MLSD (as vsftpd): the client falls back to LIST, whose
+//! Unix lines describe the links.
 
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader, Write};
@@ -45,6 +46,9 @@ const ITEMS: &[(&str, &str, Kind)] = &[
     ("", "album", Kind::Dir),
     ("album", "a.jpg", Kind::File(PHOTO)),
     ("album", "../victim.txt", Kind::File(HOSTILE)),
+    ("", "beach", Kind::Dir),
+    ("beach", "a.jpg", Kind::File(PHOTO)),
+    ("beach", "Mare 12:30.jpg", Kind::File(PHOTO)),
 ];
 
 /// What the client did: the folders listed, in order, and the items deleted.
@@ -155,6 +159,10 @@ fn session(control: TcpStream, seen: &Seen) -> std::io::Result<()> {
             },
             "RETR" => match (seen.split(path).and_then(|(dir, name)| seen.item(&dir, name)).or_else(|| seen.verbatim(path)), data.take()) {
                 (Some(Kind::File(content)), Some(listener)) => send(&mut say, listener, content)?,
+                _ => say("550 no such file")?,
+            },
+            "SIZE" => match seen.split(path).and_then(|(dir, name)| seen.item(&dir, name)) {
+                Some(Kind::File(content)) => say(&format!("213 {}", content.len()))?,
                 _ => say("550 no such file")?,
             },
             "DELE" | "RMD" => say(if seen.delete(path, command.eq_ignore_ascii_case("RMD")) { "250 deleted" } else { "550 not deleted" })?,

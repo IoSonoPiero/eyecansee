@@ -788,4 +788,48 @@ mod tests {
         });
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    /// Audit 2.4: a name a server takes and Windows does not (`Mare 12:30.jpg`), moved to a folder
+    /// of Windows. On NTFS the colon opened the hidden stream `30.jpg` of an empty file `Mare 12`:
+    /// the move said it worked, the folder showed a file of 0 bytes and the server's file was
+    /// deleted. On Windows such a name is now left out, alone or in a folder moved, the rest is
+    /// moved and the copy ends with an error; elsewhere the name is copied as it is. Server:
+    /// `tests/fake.rs`.
+    #[test]
+    fn audit_2_4_windows_colon_in_a_name_from_a_server() {
+        use crate::source::Store;
+        use crate::transfer::{Clip, Progress, run};
+        let dir = std::env::temp_dir().join(format!("eyecansee-ftp-colon-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let local = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let shown = |d: &str| std::fs::read_dir(dir.join(d)).map(|e| e.flatten().map(|e| (e.file_name().to_string_lossy().into_owned(), e.metadata().unwrap().len())).collect::<std::collections::BTreeSet<_>>()).unwrap_or_default();
+        let none = std::collections::HashMap::new();
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            // The file alone, then its folder: a server each, as found at the start.
+            for (path, to) in [("beach/Mare 12:30.jpg", "alone/"), ("beach/", "folder/")] {
+                std::fs::create_dir_all(dir.join(to)).unwrap();
+                let (target, _) = fake::start();
+                let server = Store::Ftp(super::Server::shared(target));
+                let clip = Clip { op: server.clone(), base: "ftp://test-colon/".into(), paths: vec![path.into()], cut: true, text: String::new() };
+                let (gone, r) = run(&clip, &local, "test-local://", to, &none, &Progress::default()).await;
+                let on_server = server.names("beach/").await.unwrap_or_default();
+                let copied = shown(&format!("{to}{}", if path.ends_with('/') { "beach/" } else { "" }));
+                let photo = || ("a.jpg".to_string(), 10);
+                if cfg!(windows) {
+                    assert_eq!(r, Err(("error-name-refused", "beach/Mare 12:30.jpg".to_string())), "{path}");
+                    assert!(gone.is_empty(), "{path}: {gone:?}");
+                    assert!(on_server.contains("Mare 12:30.jpg") && on_server.contains("a.jpg"), "{path}: the server holds {on_server:?}");
+                    let expected: std::collections::BTreeSet<_> = if path.ends_with('/') { [photo()].into() } else { Default::default() };
+                    assert_eq!(copied, expected, "{path}: no empty \"Mare 12\"");
+                } else {
+                    assert_eq!(r, Ok(()), "{path}");
+                    assert_eq!(gone, [path], "{path}");
+                    assert!(!on_server.contains("Mare 12:30.jpg"), "{path}: moved");
+                    assert!(copied.contains(&("Mare 12:30.jpg".to_string(), 10)), "{path}: copied as it is: {copied:?}");
+                }
+            }
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
