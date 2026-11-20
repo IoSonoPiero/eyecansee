@@ -1058,6 +1058,14 @@ mod tests {
         assert!(too_large(thumbnail(&jpeg, "x.jpg", 256)));
     }
 
+    /// ImageMagick, the last decoder tried, refuses too, from the size it pings (`magick_size`).
+    #[cfg(feature = "magick")]
+    #[test]
+    fn audit_3_4_magick() {
+        let e = magick(&audit_png(60000, 60000), None).unwrap_err().to_string();
+        assert!(crate::pixel_limit::is_too_large(&e), "{e}");
+    }
+
     /// Audit 3.4: a PSD whose header says 30000 x 30000 (the most the format allows, 900
     /// megapixels: 3.6 GB before), with little else.
     #[test]

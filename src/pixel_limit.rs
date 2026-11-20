@@ -23,7 +23,8 @@ pub fn is_too_large(error: &str) -> bool {
 
 /// A decoder of `image`, checked on its declared size before its picture is made, and allowed to
 /// ask for that picture and, besides it, as much as image-rs allows by default (512 MiB, for a
-/// TIFF's strips or a GIF's frame). The default alone refused TIFFs larger than 512 MiB.
+/// TIFF's strips or a GIF's frame). With the default alone image-rs refused a TIFF larger than
+/// 512 MiB (measured: 15000 × 12000 RGB), which went on to ImageMagick.
 pub fn checked(decoder: &mut impl ImageDecoder) -> Result<(), String> {
     let (w, h) = decoder.dimensions();
     check(w.into(), h.into())?;

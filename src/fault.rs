@@ -130,6 +130,11 @@ impl I18n {
     /// The text of an error, said plainly when its detail is recognised (`recognise`); its raw
     /// text goes to the log.
     pub(crate) fn error(&self, id: &str, detail: &str) -> String {
+        // A detail sent with its own id (`id\u{1}detail`): a picture too large (`pixel_limit`).
+        if let Some((inner, d)) = detail.split_once('\u{1}').filter(|(i, _)| crate::pixel_limit::is_too_large(i)) {
+            let plain = self.t_args(inner, &[("detail", d)]);
+            return if WRAPPERS.contains(&id) { plain } else { self.t_args(id, &[("detail", &plain)]) };
+        }
         let Some((kind, name)) = recognise(detail) else { return self.t_args(id, &[("detail", detail)]) };
         log!("error {id}, said as {kind:?}: {detail}");
         let plain = self.fault(kind, name.as_deref());
@@ -152,6 +157,7 @@ impl I18n {
     pub(crate) fn error_md(&self, id: &str, detail: &str) -> String {
         match recognise(detail) {
             Some(_) => md(&self.error(id, detail)),
+            None if detail.contains('\u{1}') => md(&self.error(id, detail)),
             None => self.t_args(id, &[("detail", &md(detail))]),
         }
     }
@@ -254,6 +260,9 @@ mod tests {
         // A picture too large (`pixel_limit`), with its size.
         let e = crate::pixel_limit::check(60000, 60000).unwrap_err();
         assert_eq!(I18n::new("en").load_error(&e), "The picture is too large: 60000 × 60000 pixels, while EyeCanSee opens pictures of up to 512 megapixels.");
+        // Also as the detail of another error (a turn saved over the original, `replace::rewritten`).
+        assert_eq!(I18n::new("en").error("error-detail", &e), I18n::new("en").load_error(&e));
+        assert!(!I18n::new("it").error_md("batch-failed", &e).contains('\u{1}'));
     }
 
     /// The message of a replace refused for want of room for the second copy (#90), in both
