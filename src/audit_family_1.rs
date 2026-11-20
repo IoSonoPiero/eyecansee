@@ -4,6 +4,9 @@
 //! `notes/lavori/audit-famiglia-1/script/run.sh`, which gives every run its own settings, cache,
 //! data folder (trash) and `EYECANSEE_MULTI=1` (never the instance the user has open).
 
+mod fake_ftp;
+
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use eframe::egui;
@@ -195,4 +198,33 @@ fn audit_1_5_c_address_from_outside_drops_the_turn() {
         h.app.tx.send(crate::loader::Msg::Open(format!("{}/", b.display()))).unwrap();
     });
     assert!(asked && carried.is_none(), "turn not asked about (carried to {carried:?})");
+}
+
+/// Audit 2.3: names that come from a server or a phone are not checked. A server lists, in a
+/// folder that is pasted over a folder of the same name (Replace: the two merge), a file named
+/// `../victim.txt`. Its destination is outside the folder pasted, and since a merge replaces the
+/// files already there, the file of the computer with that name is written over with the
+/// server's content. (For a file not there yet OpenDAL refuses the `..`.)
+#[test]
+#[ignore = "audit 2.3: not fixed yet"]
+fn audit_2_3_a_name_from_a_server_writes_outside_the_folder() {
+    use crate::source::Store;
+    use crate::transfer::{Choice, Clip, Progress, run};
+    let dir = guard().join("two-three");
+    std::fs::create_dir_all(dir.join("Pictures/album")).unwrap();
+    std::fs::write(dir.join("Pictures/album/a.jpg"), b"the computer's a.jpg").unwrap();
+    std::fs::write(dir.join("Pictures/victim.txt"), b"the computer's file").unwrap();
+    let mut tree = fake_ftp::Tree::default();
+    tree.folder("/album", &[("a.jpg", b"the server's a.jpg"), ("../victim.txt", b"written by the server")]);
+    let (target, tree) = fake_ftp::start(tree);
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let from = Store::Ftp(crate::ftp::Server::shared(target));
+    let to = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+    let clip = Clip { op: from, base: "ftp://tester@127.0.0.1/".into(), paths: vec!["album/".into()], cut: false, text: String::new() };
+    let choices = HashMap::from([("album/".to_string(), Choice::Replace)]);
+    let (_, r) = rt.block_on(run(&clip, &to, "/", "Pictures/", &choices, &Progress::default()));
+    let after = std::fs::read_to_string(dir.join("Pictures/victim.txt")).unwrap();
+    eprintln!("paste: {r:?}; Pictures/album/a.jpg: {:?}; Pictures/victim.txt: {after:?}", std::fs::read_to_string(dir.join("Pictures/album/a.jpg")));
+    eprintln!("server saw: {:?}", tree.lock().unwrap().log);
+    assert_eq!(after, "the computer's file", "a file outside the folder pasted was written over");
 }
