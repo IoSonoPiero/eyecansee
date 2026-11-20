@@ -29,8 +29,17 @@ pub const OUTSIDE_BIN: &str = "error-gltf-bin-outside";
 pub const DAMAGED_INSIDE: &str = "error-gltf-data-damaged";
 /// Fluent id of a GLB without its block of data (chunk BIN), sent as `id\u{1}`.
 pub const INCOMPLETE: &str = "error-glb-incomplete";
+/// Fluent id of a GLB cut short whose whole length cannot be told (`cut`), sent as `id\u{1}`.
+pub const CUT: &str = "error-glb-cut";
+/// Fluent id of a GLB cut short with the length its header gives and the file's, in bytes, sent
+/// as `id\u{1}declared actual` (`cut`) and said as sizes by `cut_text`.
+pub const CUT_SIZES: &str = "error-glb-cut-sizes";
 /// The ids above: the ones with a name first.
-const ERRORS: [&str; 4] = [MISSING_BIN, OUTSIDE_BIN, DAMAGED_INSIDE, INCOMPLETE];
+const ERRORS: [&str; 6] = [MISSING_BIN, OUTSIDE_BIN, DAMAGED_INSIDE, INCOMPLETE, CUT, CUT_SIZES];
+/// A length above this in a GLB's header is not believed: what EyeCanSee reads of a model in all
+/// (`model_3mf::MAX_UNPACKED`, 2 GB), under the 4 GB its 32 bits allow; a cut file whose header
+/// gives more says only that it is incomplete.
+const MAX_DECLARED: u64 = crate::model_3mf::MAX_UNPACKED;
 
 /// Whether `id` is one of the errors of a glTF whose data cannot be read.
 pub fn is_error(id: &str) -> bool {
@@ -64,27 +73,62 @@ fn unread_buffer(source: gltf::buffer::Source) -> String {
 }
 
 /// GLB, and .gltf with its data inside or in the files next to it (`sibling`); compressed ones
-/// (Draco, meshopt, quantized) first made plain (`model_gltf_unpack`).
+/// (Draco, meshopt, quantized) first made plain (`model_gltf_unpack`). A GLB cut short is
+/// refused first (`cut`).
 pub fn read(bytes: &[u8], sibling: Sibling, unpacked: &crate::model_3mf::Unpacked) -> Result<Mesh, String> {
+    if let Some(e) = cut(bytes) {
+        return Err(e);
+    }
     match crate::model_gltf_unpack::plain(bytes, sibling, unpacked)? {
         Some(glb) => read_plain(&glb, sibling),
         None => read_plain(bytes, sibling),
     }
 }
 
-/// The error of a file the glTF reader refuses: a GLB whose block of data is cut is said as one
-/// without it (#178), when its JSON is whole and its block of data is not (`model_gltf_unpack::split`);
-/// in a slice, `Io` is only a header that ends too soon.
-fn refused(bytes: &[u8], e: gltf::Error) -> String {
-    use gltf::binary::{ChunkType, Error as Glb};
-    match e {
-        gltf::Error::Binary(Glb::Io(_) | Glb::Length { .. } | Glb::ChunkLength { ty: ChunkType::Bin, .. }) if matches!(crate::model_gltf_unpack::split(bytes), Some((_, None))) => format!("{INCOMPLETE}\u{1}"),
-        e => gltf_error(e.to_string()),
+/// The error of a GLB cut short, as after a download or a copy that stopped (#178): its header
+/// (12 bytes), its JSON or its block of data ends after the file, or the header gives a length
+/// larger than the file (which the glTF reader refuses). With the two lengths when the header's
+/// is believable: larger than the file and at most `MAX_DECLARED`. A header that gives less than
+/// its own 12 bytes is not believed either (the glTF reader would subtract them from it). A whole
+/// GLB is left to the reader, whatever its header gives.
+fn cut(bytes: &[u8]) -> Option<String> {
+    let len = bytes.len() as u64;
+    if len < 12 {
+        // The first bytes of a GLB's header, or nothing at all.
+        return (bytes.starts_with(b"glTF") || b"glTF".starts_with(bytes)).then(|| format!("{CUT}\u{1}"));
     }
+    if !bytes.starts_with(b"glTF") {
+        return None;
+    }
+    let u32_at = |at: u64| Some(u64::from(u32::from_le_bytes(bytes.get(at as usize..at as usize + 4)?.try_into().ok()?)));
+    let declared = u32_at(8)?;
+    // The JSON chunk (8 bytes of header, then the JSON), then the block of data if there is one.
+    let parts_cut = match u32_at(12).map(|n| 20 + n) {
+        Some(end) if end <= len => len > end && u32_at(end).is_none_or(|n| end + 8 + n > len),
+        _ => true,
+    };
+    if !parts_cut && (12..=len).contains(&declared) {
+        return None;
+    }
+    Some(if declared > len && declared <= MAX_DECLARED { format!("{CUT_SIZES}\u{1}{declared} {len}") } else { format!("{CUT}\u{1}") })
+}
+
+/// The sentence of a GLB cut short with its two lengths (`CUT_SIZES`, its detail `declared
+/// actual` and then Convert's name), the sizes as the program writes them (`human::size`); the
+/// sentence without them when the two read the same ("1 KB").
+pub(crate) fn cut_text(i18n: &crate::i18n::I18n, id: &str, detail: &str) -> Option<String> {
+    if id != CUT_SIZES {
+        return None;
+    }
+    let (declared, rest) = detail.split_once(' ')?;
+    let (actual, rest) = rest.split_at(rest.find(' ').unwrap_or(rest.len()));
+    let [expected, actual] = [declared, actual].map(|n| n.parse().ok().map(|n| crate::human::size(i18n, n)));
+    let (expected, actual) = (expected?, actual?);
+    Some(if expected == actual { i18n.t_args(CUT, &[("detail", rest)]) } else { i18n.t_args(CUT_SIZES, &[("expected", &expected), ("actual", &actual), ("detail", rest)]) })
 }
 
 fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
-    let g = gltf::Gltf::from_slice(bytes).map_err(|e| refused(bytes, e))?;
+    let g = gltf::Gltf::from_slice(bytes).map_err(|e| gltf_error(e.to_string()))?;
     let inside: Vec<Option<Vec<u8>>> = g
         .document
         .buffers()
@@ -395,32 +439,99 @@ mod tests {
         glb
     }
 
-    /// #178: a GLB whose block of data is cut (a download that stopped) is said as one without
-    /// it, plain or packed, whether its header gives the whole length or the cut one, and in
-    /// Convert; the library said "could not completely read the object".
+    /// The error of `bytes` read as a GLB, and its text in English and Italian.
+    fn refused(bytes: &[u8]) -> (String, [String; 2]) {
+        let e = crate::model::parse(bytes, "a.glb").unwrap_err();
+        let said = said(&e);
+        (e, said)
+    }
+
+    const CUT_EN: &str = "The file is incomplete";
+    const CUT_IT: &str = "Il file è incompleto";
+
+    /// #178: a GLB cut short (a download that stopped), in its block of data or in its JSON, plain
+    /// or packed: when its header gives the whole length, the two sizes are said; when it gives the
+    /// cut one, only that it is incomplete. The library said "could not completely read the object"
+    /// (data) or "chunk length (…) exceeds data length" (JSON).
     #[test]
-    fn glb_data_cut() {
+    fn glb_cut() {
         for packed in [false, true] {
             let glb = whole_glb(packed);
             assert_eq!(crate::model::parse(&glb, "a.glb").unwrap().tris.len(), 1, "packed {packed}");
             let json_end = glb.len() - 36 - 8;
-            // Cut in the middle of the data, and in the middle of the block's header.
-            for cut in [glb.len() - 18, json_end + 4] {
-                let mut short = glb[..cut].to_vec();
-                for header_says_cut in [false, true] {
-                    if header_says_cut {
-                        short[8..12].copy_from_slice(&(cut as u32).to_le_bytes());
-                    }
-                    let e = crate::model::parse(&short, "a.glb").unwrap_err();
-                    assert_eq!(e, format!("{}\u{1}", super::INCOMPLETE), "packed {packed} cut {cut} header {header_says_cut}");
-                    let [en, it] = said(&e);
-                    assert_eq!(en, "The file is incomplete: the block with the model's data is missing");
-                    assert_eq!(it, "Il file è incompleto: manca il blocco con i dati del modello");
-                    assert_eq!(converted(&short, "a.glb"), "The file is incomplete: the block with the model's data is missing (a.glb)");
+            // In the middle of the data, of the block's header, of the JSON, of the JSON's header.
+            for cut in [glb.len() - 18, json_end + 4, json_end, json_end - 10, 16] {
+                let short = &glb[..cut];
+                let (e, _) = refused(short);
+                assert_eq!(e, format!("{}\u{1}{} {cut}", super::CUT_SIZES, glb.len()), "packed {packed} cut {cut}");
+                // Sizes of less than a KB read the same ("1 KB"): the sentence without them.
+                assert_eq!(said(&e), [CUT_EN, CUT_IT], "packed {packed} cut {cut}");
+                assert_eq!(converted(short, "a.glb"), "The file is incomplete (a.glb)");
+                // The header gives the cut length: nothing to compare. Cut right after its JSON,
+                // it is a whole GLB without its block of data.
+                let mut lying = short.to_vec();
+                lying[8..12].copy_from_slice(&(cut as u32).to_le_bytes());
+                let id = if cut == json_end { super::INCOMPLETE } else { super::CUT };
+                assert_eq!(refused(&lying).0, format!("{id}\u{1}"), "packed {packed} cut {cut}");
+                if id == super::CUT {
+                    assert_eq!(refused(&lying).1, [CUT_EN, CUT_IT], "packed {packed} cut {cut}");
                 }
             }
-            // Cut in its JSON: not this sentence, the model's description is not whole.
-            assert_ne!(crate::model::parse(&glb[..json_end - 10], "a.glb").unwrap_err(), format!("{}\u{1}", super::INCOMPLETE));
+            // Every length short of the whole: never a sentence of the library.
+            for cut in 0..glb.len() {
+                let e = crate::model::parse(&glb[..cut], "a.glb").unwrap_err();
+                assert!(e.starts_with("error-glb-cut"), "packed {packed} cut {cut}: {e}");
+            }
+        }
+    }
+
+    /// #178: the two sizes in the user's language, in the viewer and in Convert (also in the
+    /// summary's Markdown): a GLB of 12.4 MB cut at 3.1 MB.
+    #[test]
+    fn glb_cut_sizes() {
+        let (declared, actual) = (13_002_342_u32, 3_250_586_usize);
+        let mut glb = whole_glb(false);
+        let json_end = glb.len() - 36 - 8;
+        glb[8..12].copy_from_slice(&declared.to_le_bytes());
+        glb[json_end..json_end + 4].copy_from_slice(&(declared - json_end as u32 - 8).to_le_bytes());
+        glb.resize(actual, 0);
+        let (e, [en, it]) = refused(&glb);
+        assert_eq!(e, format!("{}\u{1}{declared} {actual}", super::CUT_SIZES));
+        assert_eq!(en, "The file is incomplete: it should be 12.4 MB but it is 3.1 MB. Perhaps the download or the copy stopped: try downloading or copying it again.");
+        assert_eq!(it, "Il file è incompleto: dovrebbe essere di 12,4 MB ma è di 3,1 MB. Forse lo scaricamento o la copia si è interrotta: prova a scaricarlo o copiarlo di nuovo.");
+        assert_eq!(converted(&glb, "a b.glb"), "The file is incomplete (a b.glb): it should be 12.4 MB but it is 3.1 MB. Perhaps the download or the copy stopped: try downloading or copying it again.");
+        let job = crate::batch::Job { format: Some(crate::encode::Format::Png), ..Default::default() };
+        let (id, detail) = crate::batch::convert(&glb, "a.glb", &job).unwrap_err();
+        let sizes = crate::save_dialogs::md("it should be 12.4 MB but it is 3.1 MB");
+        assert!(crate::i18n::I18n::new("en").error_md(id, &detail).contains(&sizes));
+    }
+
+    /// #178: a header cut itself (less than 12 bytes), or one that gives a length that cannot be
+    /// right (less than its own 12 bytes, or more than `MAX_DECLARED`), says only that the file is
+    /// incomplete; a GLB whose parts are whole opens whatever its header gives, if it is believable.
+    #[test]
+    fn glb_cut_header() {
+        let plain = (format!("{}\u{1}", super::CUT), [CUT_EN.to_string(), CUT_IT.to_string()]);
+        for header in [&b""[..], b"g", b"glT", b"glTF", b"glTF\x02\0\0\0\x10\0\0"] {
+            assert_eq!(refused(header), plain, "{header:?}");
+        }
+        for packed in [false, true] {
+            let glb = whole_glb(packed);
+            for declared in [super::MAX_DECLARED as u32 + 1, u32::MAX] {
+                let mut short = glb[..glb.len() - 18].to_vec();
+                short[8..12].copy_from_slice(&declared.to_le_bytes());
+                assert_eq!(refused(&short), plain, "packed {packed} declared {declared}");
+            }
+            // Less than the header: the library would subtract the header from it.
+            for declared in [0u32, 11] {
+                let mut whole = glb.clone();
+                whole[8..12].copy_from_slice(&declared.to_le_bytes());
+                assert_eq!(refused(&whole), plain, "packed {packed} declared {declared}");
+            }
+            // Whole parts and a header that gives less than the file (bytes after the model): read.
+            let mut longer = glb.clone();
+            longer.extend([0; 8]);
+            assert_eq!(crate::model::parse(&longer, "a.glb").unwrap().tris.len(), 1, "packed {packed}");
         }
     }
 

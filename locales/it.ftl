@@ -487,6 +487,9 @@ error-gltf-bin-outside = Il file con i dati del modello non viene letto, perché
 # { $detail }: empty, or the model's name in brackets (Convert).
 error-gltf-data-damaged = I dati del modello scritti dentro il file sono rovinati{ $detail }
 error-glb-incomplete = Il file è incompleto: manca il blocco con i dati del modello{ $detail }
+error-glb-cut = Il file è incompleto{ $detail }
+# { $expected }, { $actual }: sizes ("12.4 MB"), the one the file's header gives and the file's.
+error-glb-cut-sizes = Il file è incompleto{ $detail }: dovrebbe essere di { $expected } ma è di { $actual }. Forse lo scaricamento o la copia si è interrotta: prova a scaricarlo o copiarlo di nuovo.
 # The keys of the viewer, under the status bar.
 hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | Ctrl+L: livelli | M: misura | N, Maiusc+N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: successivo | ←, Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl+Maiusc+S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
 hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | L, Maiusc+L: layout successivo, precedente | Ctrl+L: livelli | M: misura | N, Maiusc+N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: file successivo | ←, Backspace, Pag↑: file precedente | Inizio, Fine: primo, ultimo file | Ctrl+Maiusc+S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro

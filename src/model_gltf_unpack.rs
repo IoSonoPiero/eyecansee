@@ -17,7 +17,7 @@ const MAX_DECODED: usize = 1 << 30;
 
 /// The JSON and the binary chunk of a GLB, or the JSON of a .gltf; `None` when the JSON of a GLB
 /// is cut, a binary chunk cut or missing is `None`.
-pub(crate) fn split(bytes: &[u8]) -> Option<(&[u8], Option<&[u8]>)> {
+fn split(bytes: &[u8]) -> Option<(&[u8], Option<&[u8]>)> {
     if !bytes.starts_with(b"glTF") {
         return Some((bytes, None));
     }

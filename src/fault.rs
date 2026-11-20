@@ -130,6 +130,10 @@ impl I18n {
     /// The text of an error, said plainly when its detail is recognised (`recognise`); its raw
     /// text goes to the log.
     pub(crate) fn error(&self, id: &str, detail: &str) -> String {
+        // A GLB cut short, with the two sizes written as the program writes them (#178).
+        if let Some(text) = crate::model_gltf::cut_text(self, id, detail) {
+            return text;
+        }
         // A detail sent with its own id (`id\u{1}detail`): a picture too large (`pixel_limit`).
         if let Some((inner, d)) = detail.split_once('\u{1}').filter(|(i, _)| crate::pixel_limit::is_too_large(i)) {
             let plain = self.t_args(inner, &[("detail", d)]);
@@ -157,7 +161,7 @@ impl I18n {
     pub(crate) fn error_md(&self, id: &str, detail: &str) -> String {
         match recognise(detail) {
             Some(_) => md(&self.error(id, detail)),
-            None if detail.contains('\u{1}') => md(&self.error(id, detail)),
+            None if detail.contains('\u{1}') || id == crate::model_gltf::CUT_SIZES => md(&self.error(id, detail)),
             None => self.t_args(id, &[("detail", &md(detail))]),
         }
     }
