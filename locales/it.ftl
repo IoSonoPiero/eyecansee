@@ -46,7 +46,7 @@ error-no-sftp = Il server risponde in SSH ma non ha il servizio SFTP.
     ({ $detail })
 error-host-unknown = { $detail } non è mai stato usato da questo computer: conferma la sua chiave per collegarti.
 error-cert-unknown = Il certificato di { $detail } non è firmato da un'autorità riconosciuta: confermalo per collegarti.
-error-host-changed = La chiave di { $detail } non è quella registrata in ~/.ssh/known_hosts, quindi EyeCanSee non si collega.
+error-host-changed = La chiave di { $detail } è cambiata: non è quella registrata in ~/.ssh/known_hosts, quindi EyeCanSee non si collega.
     Qualcuno potrebbe fingersi quel server.
     Se il server è stato reinstallato, togli la sua riga vecchia da known_hosts.
 error-server-silent = Il server { $detail } non risponde: controlla che sia acceso e raggiungibile, poi riprova.
@@ -98,18 +98,21 @@ error-device-kde = Il telefono è in uso da KDE (il suo servizio kiod).
 error-no-device = Il dispositivo non è stato trovato: se è collegato, sbloccalo e scegli "Trasferimento file".
     EyeCanSee riprova da solo ogni 2 secondi.
     ({ $detail })
-error-phone-disconnected = Il telefono è stato scollegato. ({ $detail })
+error-phone-disconnected = Il telefono è stato scollegato.
+    ({ $detail })
 error-phone-busy =
     Il telefono è occupato con un altro programma, per esempio un'importazione di foto.
     Aspetta che finisca o chiudilo, poi premi F5.
-error-phone-timeout = Il telefono ha smesso di rispondere: forse è stato scollegato o bloccato. ({ $detail })
+error-phone-timeout = Il telefono ha smesso di rispondere: forse è stato scollegato o bloccato.
+    ({ $detail })
 error-phone-name-taken = Il telefono ha rifiutato la copia: nella cartella c'è già un file con quel nome.
     Non è cambiato niente.
     ({ $detail })
 error-not-ready = Il telefono non risponde: sbloccalo e scegli "Trasferimento file" nella sua notifica USB.
     EyeCanSee riprova da solo ogni 2 secondi.
     ({ $detail })
-error-use-mount = L'accesso diretto al dispositivo non è riuscito. ({ $detail })
+error-use-mount = L'accesso diretto al dispositivo non è riuscito.
+    ({ $detail })
 error-no-storage = Il dispositivo non mostra nessuna memoria: sbloccalo e scegli "Trasferimento file".
     EyeCanSee riprova da solo ogni 2 secondi.
     ({ $detail })
@@ -416,7 +419,8 @@ error-save-temp-copy = Non salvata sopra se stessa: questo file è una copia tem
     ({ $detail })
 error-save-gvfs = Non salvata sopra se stessa: questa cartella è aperta tramite il file manager (gvfs), dove sostituire un file può far perdere l'originale.
     ({ $detail })
-error-rename-unsupported = Questa sorgente non può rinominare questo elemento. ({ $detail })
+error-rename-unsupported = Questa sorgente non può rinominare questo elemento.
+    ({ $detail })
 delete-confirm-dir-trash = Spostare la cartella **"{ $name }"**, con tutto quello che contiene, **nel cestino**?
 delete-confirm-dir-folder = Spostare la cartella **"{ $name }"**, con tutto quello che contiene, nel **Cestino di questa cartella** (la cartella nascosta .EyeCanSee-trash)?
 
@@ -554,7 +558,7 @@ model-triangles = { $n } triangoli
 model-node-again = Una parte del modello compare più volte nella sua gerarchia, cosa che glTF non permette: mostrata una volta sola
 model-node-again-saved = { $name }: una parte del modello compariva più volte nella sua gerarchia; il file nuovo la contiene una volta sola
 error-gltf-bin-missing = Manca il file con i dati del modello: { $detail }
-error-gltf-bin-outside = Il file con i dati del modello non viene letto, perché EyeCanSee non legge file fuori dalla cartella del modello né da internet:
+error-gltf-bin-outside = Il file con i dati del modello non viene letto: EyeCanSee non legge file fuori dalla cartella del modello né da internet.
     { $detail }
 # { $detail }: empty, or the model's name in brackets (Convert).
 error-gltf-data-damaged = I dati del modello scritti dentro il file sono rovinati{ $detail }

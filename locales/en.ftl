@@ -47,7 +47,7 @@ error-no-sftp = The server answers over SSH but has no SFTP service.
     ({ $detail })
 error-host-unknown = { $detail } has never been used from this computer: confirm its key to connect.
 error-cert-unknown = The certificate of { $detail } is not signed by a known authority: confirm it to connect.
-error-host-changed = The key of { $detail } is not the one recorded in ~/.ssh/known_hosts, so EyeCanSee does not connect.
+error-host-changed = The key of { $detail } has changed: it is not the one recorded in ~/.ssh/known_hosts, so EyeCanSee does not connect.
     Someone may be pretending to be that server.
     If the server was reinstalled, remove its old line from known_hosts.
 error-server-silent = The server { $detail } does not answer: check that it is on and reachable, then try again.
@@ -99,18 +99,21 @@ error-device-kde = KDE is using the phone (its kiod service).
 error-no-device = The device was not found: if it is connected, unlock it and choose "File transfer" on it.
     EyeCanSee retries by itself every 2 seconds.
     ({ $detail })
-error-phone-disconnected = The phone was disconnected. ({ $detail })
+error-phone-disconnected = The phone was disconnected.
+    ({ $detail })
 error-phone-busy =
     The phone is busy with another program, for example a photo import.
     Wait for it to finish or close it, then press F5.
-error-phone-timeout = The phone stopped answering: it may have been disconnected or locked. ({ $detail })
+error-phone-timeout = The phone stopped answering: it may have been disconnected or locked.
+    ({ $detail })
 error-phone-name-taken = The phone refused the copy: the folder already has a file with that name.
     Nothing was changed.
     ({ $detail })
 error-not-ready = The phone does not answer: unlock it and choose "File transfer" in its USB notification.
     EyeCanSee retries by itself every 2 seconds.
     ({ $detail })
-error-use-mount = Direct access to the device failed. ({ $detail })
+error-use-mount = Direct access to the device failed.
+    ({ $detail })
 error-no-storage = The device shows no storage: unlock it and choose "File transfer" on it.
     EyeCanSee retries by itself every 2 seconds.
     ({ $detail })
@@ -417,7 +420,8 @@ error-save-temp-copy = Not saved over itself: this file is a temporary copy made
     ({ $detail })
 error-save-gvfs = Not saved over itself: this folder was opened through the file manager (gvfs), where replacing a file can lose the original.
     ({ $detail })
-error-rename-unsupported = This source cannot rename this item. ({ $detail })
+error-rename-unsupported = This source cannot rename this item.
+    ({ $detail })
 delete-confirm-dir-trash = Move the folder **"{ $name }"**, with everything inside it, **to the trash**?
 delete-confirm-dir-folder = Move the folder **"{ $name }"**, with everything inside it, to **this folder's Trash** (the hidden folder .EyeCanSee-trash)?
 
@@ -555,7 +559,7 @@ model-triangles = { $n } triangles
 model-node-again = A part of the model is placed more than once in its hierarchy, which glTF does not allow: shown once
 model-node-again-saved = { $name }: a part of the model appeared more than once in its hierarchy; the new file has it only once
 error-gltf-bin-missing = The file with the model's data is missing: { $detail }
-error-gltf-bin-outside = The file with the model's data is not read, because EyeCanSee does not read files outside the model's folder or from the internet:
+error-gltf-bin-outside = The file with the model's data is not read: EyeCanSee does not read files outside the model's folder or from the internet.
     { $detail }
 # { $detail }: empty, or the model's name in brackets (Convert).
 error-gltf-data-damaged = The model's data written inside the file is damaged{ $detail }

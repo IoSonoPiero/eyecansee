@@ -124,10 +124,10 @@ const ALERT_YELLOW: Color32 = Color32::from_rgb(0xFF, 0xD5, 0x4F);
 /// The edge and the "!" of the warning triangle: dark on its yellow in both themes.
 const ALERT_INK: Color32 = Color32::from_rgb(0x4A, 0x32, 0x00);
 
-/// Something that went wrong or needs reading: the error bar, the warning about servers saved in
-/// plain text. Dark theme: dark amber with pale text (12:1) and an amber edge. Light theme: white
-/// with black text (18:1) and a dark amber edge (4.5:1): brown text on pale amber, though 13:1 on
-/// paper, was hard to read on screen (Piero, 20/11). Red text on the dark bar was hard to read.
+/// A warning boxed inside a page: the one about servers saved in plain text (`vault_page`). Dark
+/// theme: dark amber with pale text (12:1) and an amber edge. Light theme: white with black text
+/// (18:1) and a dark amber edge (4.5:1). The error bar at the bottom of the window has its own
+/// colours (`error_bar`).
 pub fn warning_frame(v: &Visuals) -> egui::Frame {
     let (fill, edge, width) =
         if v.dark_mode { (rgb(60, 44, 8), rgb(230, 170, 40), 1.5) } else { (rgb(255, 255, 255), rgb(176, 112, 0), 2.0) };
@@ -137,6 +137,32 @@ pub fn warning_frame(v: &Visuals) -> egui::Frame {
 /// The text in `warning_frame`.
 pub fn warning_text(v: &Visuals) -> Color32 {
     if v.dark_mode { rgb(255, 232, 170) } else { rgb(17, 17, 17) }
+}
+
+/// The colours of the error bar at the bottom of the window (`error_bar.rs`).
+pub struct BarColours {
+    /// The bar's background: that of the windows, as the message windows.
+    pub fill: Color32,
+    /// The start of the first sentence, in bold.
+    pub lead: Color32,
+    /// The rest of the text: the theme's text colour.
+    pub text: Color32,
+    /// The technical detail in brackets, fainter.
+    pub detail: Color32,
+    /// The amber band at the left edge, that says it is a warning with the triangle.
+    pub band: Color32,
+    /// The line along the top edge, between the bar and what is above it.
+    pub line: Color32,
+}
+
+/// The error bar speaks as the message windows: neutral background, the theme's text, the start in
+/// bold, the detail fainter; the triangle and an amber band at the left say it is a warning. A
+/// coloured fill with a border around was hard to read (Piero, 20/11: "brutto da leggere").
+/// Not `weak_text_color` for the detail: 4.65:1 in the dark theme.
+pub fn error_bar(v: &Visuals) -> BarColours {
+    let (lead, detail, band) =
+        if v.dark_mode { (rgb(255, 255, 255), rgb(170, 176, 184), rgb(245, 180, 50)) } else { (rgb(17, 20, 24), rgb(75, 83, 93), rgb(204, 122, 0)) };
+    BarColours { fill: v.window_fill, lead, text: v.text_color(), detail, band, line: tile(v).1 }
 }
 
 /// The warning triangle: yellow with a dark edge and "!", the same in both themes, as road signs.
@@ -372,6 +398,19 @@ mod tests {
     #[test]
     fn alert_button_contrast() {
         assert!(contrast(Color32::WHITE, ALERT_RED) >= 7.0, "{}", contrast(Color32::WHITE, ALERT_RED));
+    }
+
+    /// The error bar's text on its background, in both themes: the detail too well above 4.5:1.
+    #[test]
+    fn error_bar_contrast() {
+        for v in [light(), dark()] {
+            let c = error_bar(&v);
+            for (what, ink, least) in [("lead", c.lead, 12.0), ("text", c.text, 10.0), ("detail", c.detail, 6.5)] {
+                let ratio = contrast(ink, c.fill);
+                assert!(ratio >= least, "{what} dark {}: {ratio}", v.dark_mode);
+            }
+            assert!(contrast(c.band, c.fill) >= 3.0, "band dark {}", v.dark_mode);
+        }
     }
 
     /// A hint goes after the controls when it fits, whole on the row below when a row holds it,

@@ -15,7 +15,7 @@ The original stays as it is. The page stays open, so you can go on; meanwhile th
 
 In the Options, **After saving** can close the page as soon as the file is written (at first **Stay in the editor**). With **Go back to where you were** the grid selects the copy if you opened the editor from the grid, the viewer shows it if you opened it from the viewer; with **Go back to the thumbnails** you are always back in the thumbnails with the copy selected. This goes for **Update copy** and **Overwrite the original…** too. A save that fails leaves the page open, as below.
 
-If a save fails, a yellow band with a warning triangle at the bottom of the window says why in plain words (for example that the folder is read-only or the disk is full), and the page stays open with your changes. Nothing half-written is left in the folder: a new copy that does not fit is removed, and a copy being updated stays as it was. The band goes away when you close the page, or earlier with its ✕.
+If a save fails, a message with a warning triangle at the bottom of the window says why in plain words (for example that the folder is read-only or the disk is full), and the page stays open with your changes. Nothing half-written is left in the folder: a new copy that does not fit is removed, and a copy being updated stays as it was. The message goes away when you close the page, or earlier with its ✕.
 
 ## Update copy
 

@@ -552,10 +552,10 @@ mod tests {
         }
         let e = super::unread_file("https://h/x.bin");
         let [en, it] = said(&e);
-        assert_eq!(en, "The file with the model's data is not read, because EyeCanSee does not read files outside the model's folder or from the internet:\nhttps://h/x.bin");
-        assert_eq!(it, "Il file con i dati del modello non viene letto, perché EyeCanSee non legge file fuori dalla cartella del modello né da internet:\nhttps://h/x.bin");
+        assert_eq!(en, "The file with the model's data is not read: EyeCanSee does not read files outside the model's folder or from the internet.\nhttps://h/x.bin");
+        assert_eq!(it, "Il file con i dati del modello non viene letto: EyeCanSee non legge file fuori dalla cartella del modello né da internet.\nhttps://h/x.bin");
         let gltf = with_buffer(r#"{"uri":"../x.bin","byteLength":36}"#, false);
-        assert_eq!(converted(gltf.as_bytes(), "a.gltf"), "The file with the model's data is not read, because EyeCanSee does not read files outside the model's folder or from the internet:\n../x.bin (a.gltf)");
+        assert_eq!(converted(gltf.as_bytes(), "a.gltf"), "The file with the model's data is not read: EyeCanSee does not read files outside the model's folder or from the internet.\n../x.bin (a.gltf)");
         // A name that is not out of the folder, even one that cannot be decoded, is missing.
         assert_eq!(super::unread_file("%2"), format!("{}\u{1}%2", super::MISSING_BIN));
     }
