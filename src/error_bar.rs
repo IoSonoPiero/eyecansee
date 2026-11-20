@@ -66,11 +66,9 @@ impl App {
     pub(crate) fn error_bar(&mut self, ui: &mut egui::Ui) {
         // What the folder or the viewer shows instead of pictures: in the bar while it lasts.
         let lasting = self.folder_error().or_else(|| self.viewer_error()).filter(|e| !e.is_empty());
-        if lasting.is_none() {
-            self.lasting_closed = None;
-        }
-        let lasting = lasting.filter(|e| self.lasting_closed.as_ref() != Some(e));
-        let Some(e) = self.error.clone().or(lasting) else { return };
+        let (shown, closed) = bar_choice(self.error.clone(), lasting, self.lasting_closed.take());
+        self.lasting_closed = closed;
+        let Some(e) = shown else { return };
         let c = theme::error_bar(ui.visuals());
         let frame = egui::Frame::new().fill(c.fill).inner_margin(egui::Margin { left: 20, right: 12, top: 10, bottom: 10 });
         let (close, copy) = (self.i18n.t("notice-close"), self.i18n.t("notice-copy"));
@@ -143,12 +141,22 @@ impl App {
     }
 }
 
+/// What the bar shows: the last error, otherwise the folder's or the viewer's (`lasting`) unless
+/// it was closed with the ✕; and what stays closed: the text closed, while that error lasts (the
+/// phone tried again every 2 seconds gives the same text back), forgotten once it is gone.
+fn bar_choice(error: Option<String>, lasting: Option<String>, closed: Option<String>) -> (Option<String>, Option<String>) {
+    let closed = closed.filter(|_| lasting.is_some());
+    let lasting = lasting.filter(|l| closed.as_ref() != Some(l));
+    (error.or(lasting), closed)
+}
+
 /// `message` with `raw`, the library's own text at its end, taken out and put under it as the
 /// detail, in brackets on its own line: the bar and `inline` draw it fainter and smaller. The ":"
 /// left hanging goes. Unchanged when `raw` is not at the end, is empty or already in brackets.
 pub(crate) fn with_detail(message: &str, raw: &str) -> String {
     let raw = raw.trim();
-    if raw.is_empty() || raw.starts_with('(') {
+    // On more lines it is a sentence already said, with its own detail.
+    if raw.is_empty() || raw.starts_with('(') || raw.contains('\n') {
         return message.to_string();
     }
     match message.trim_end().strip_suffix(raw).map(|head| head.trim_end().trim_end_matches(':').trim_end()) {
@@ -297,6 +305,18 @@ mod tests {
         assert_eq!(tree_line(&device), "Il dispositivo non è stato trovato");
     }
 
+    /// The ✕ closes the folder's error while the same text comes back; a new text, or the same
+    /// one after the folder opened, shows again; an error of now goes first.
+    #[test]
+    fn closed_while_it_lasts() {
+        let s = |t: &str| Some(t.to_string());
+        assert_eq!(bar_choice(None, s("no phone"), s("no phone")), (None, s("no phone")));
+        assert_eq!(bar_choice(None, s("no storage"), s("no phone")), (s("no storage"), s("no phone")));
+        assert_eq!(bar_choice(None, None, s("no phone")), (None, None));
+        assert_eq!(bar_choice(None, s("no phone"), None), (s("no phone"), None));
+        assert_eq!(bar_choice(s("not saved"), s("no phone"), s("no phone")), (s("not saved"), s("no phone")));
+    }
+
     /// The library's text at the end goes under as the detail, without the ":" left hanging.
     #[test]
     fn details_apart() {
@@ -306,6 +326,8 @@ mod tests {
         assert_eq!(with_detail("timeout", "timeout"), "timeout");
         assert_eq!(with_detail("Cannot convert: (busy)", "(busy)"), "Cannot convert: (busy)");
         assert_eq!(with_detail("Cannot convert: ", ""), "Cannot convert: ");
+        // A sentence already said, on more lines, is not put in brackets again.
+        assert_eq!(with_detail("Cannot open a.jpg\nToo large: x\n(y)", "Too large: x\n(y)"), "Cannot open a.jpg\nToo large: x\n(y)");
         let it = I18n::new("it");
         let text = it.cannot_load("rotta.jpg", "Format error decoding Jpeg: I/O errors");
         let p = bar_parts(&text);
