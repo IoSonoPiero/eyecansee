@@ -6,6 +6,8 @@
 //!   through more than 40 links is refused (ELOOP: measured with `stat` on a real folder);
 //! - `/move/`, for a move (#183): `a.jpg`, `sub/b.jpg`, `keep/back` (a link to `/move/`) and
 //!   `out` (a link to `/loop/`);
+//! - `/album/`, as a hostile server could list it (audit 2.3): `a.jpg` and `../victim.txt`, read
+//!   at the path the client makes with that name;
 //! - the files given to `start`, in "/": a name, the size the server declares for it and its
 //!   real content, which may be much shorter.
 //!
@@ -27,6 +29,7 @@ use crate::sftp::{Server, Target};
 /// Links the kernel follows in one path.
 const LINKS: usize = 40;
 const PHOTO: &[u8] = b"not a jpeg";
+const HOSTILE: &[u8] = b"written by the server";
 
 /// What the server holds besides the files of `start`: real folder (no slash at its ends, "" for
 /// "/"), name, item (a link holds the real path of its folder).
@@ -41,6 +44,9 @@ const ITEMS: &[(&str, &str, Item<'static>)] = &[
     ("move", "out", Item::Link("loop")),
     ("move", "sub", Item::Dir),
     ("move/sub", "b.jpg", Item::File(PHOTO.len() as u64, PHOTO)),
+    ("", "album", Item::Dir),
+    ("album", "a.jpg", Item::File(PHOTO.len() as u64, PHOTO)),
+    ("album", "../victim.txt", Item::File(HOSTILE.len() as u64, HOSTILE)),
 ];
 
 pub struct World {
@@ -88,8 +94,12 @@ impl World {
         }
     }
 
-    /// What is at `path`, links followed, and where it really is.
+    /// What is at `path`, links followed, and where it really is. An item listed with a name that
+    /// holds a path (audit 2.3) is at the path the client makes with it ("/album/../victim.txt").
     fn at(&self, path: &str) -> Result<(String, Item<'_>), StatusCode> {
+        if let Some((_, _, item)) = ITEMS.iter().find(|(d, n, _)| n.contains('/') && format!("/{d}/{n}") == path) {
+            return Ok((path.to_string(), *item));
+        }
         let (mut real, mut item, mut links) = (String::new(), Item::Dir, 0);
         for part in path.split('/').filter(|p| !p.is_empty() && *p != ".") {
             if !matches!(item, Item::Dir) {

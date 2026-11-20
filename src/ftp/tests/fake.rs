@@ -3,7 +3,9 @@
 //! - `/loop/`: the file `a.jpg` and `again`, a link to the folder itself; as on Linux, a path
 //!   through more than 40 links is refused;
 //! - `/move/`, for a move (#183): `a.jpg`, `sub/b.jpg`, `keep/back` (a link to `/move/`) and
-//!   `out` (a link to `/loop/`).
+//!   `out` (a link to `/loop/`);
+//! - `/album/`, as a hostile server could list it (audit 2.3): `a.jpg` and `../victim.txt`, read
+//!   at the path the client makes with that name.
 //!
 //! Files are read (RETR) and deleted (DELE), folders deleted only when empty (RMD), as a real
 //! server does. It has no MLSD (as vsftpd): the client falls back to LIST, whose Unix lines
@@ -19,6 +21,7 @@ use crate::ftp::Target;
 /// Links the kernel follows in one path.
 const LINKS: usize = 40;
 const PHOTO: &[u8] = b"not a jpeg";
+const HOSTILE: &[u8] = b"written by the server";
 
 enum Kind {
     Dir,
@@ -39,6 +42,9 @@ const ITEMS: &[(&str, &str, Kind)] = &[
     ("move", "out", Kind::Link("loop")),
     ("move", "sub", Kind::Dir),
     ("move/sub", "b.jpg", Kind::File(PHOTO)),
+    ("", "album", Kind::Dir),
+    ("album", "a.jpg", Kind::File(PHOTO)),
+    ("album", "../victim.txt", Kind::File(HOSTILE)),
 ];
 
 /// What the client did: the folders listed, in order, and the items deleted.
@@ -54,6 +60,12 @@ impl Seen {
     fn item(&self, dir: &str, name: &str) -> Option<&'static Kind> {
         let gone = self.removed.lock().unwrap().contains(&(dir.to_string(), name.to_string()));
         ITEMS.iter().find(|(d, n, _)| *d == dir && *n == name && !gone).map(|(_, _, k)| k)
+    }
+
+    /// An item listed with a name that holds a path (audit 2.3), at the path the client makes
+    /// with it ("/album/../victim.txt").
+    fn verbatim(&self, path: &str) -> Option<&'static Kind> {
+        ITEMS.iter().find(|(d, n, _)| n.contains('/') && format!("/{d}/{n}") == path).map(|(_, _, k)| k)
     }
 
     /// The real path of the folder `path`, links followed; `None`: not a folder, or through too
@@ -141,7 +153,7 @@ fn session(control: TcpStream, seen: &Seen) -> std::io::Result<()> {
                 }
                 _ => say("550 no such folder")?,
             },
-            "RETR" => match (seen.split(path).and_then(|(dir, name)| seen.item(&dir, name)), data.take()) {
+            "RETR" => match (seen.split(path).and_then(|(dir, name)| seen.item(&dir, name)).or_else(|| seen.verbatim(path)), data.take()) {
                 (Some(Kind::File(content)), Some(listener)) => send(&mut say, listener, content)?,
                 _ => say("550 no such file")?,
             },

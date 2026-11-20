@@ -756,4 +756,36 @@ mod tests {
         });
         let _ = std::fs::remove_dir_all(&dir);
     }
+    /// Audit 2.3: a name a server lists with a path in it (`album/../victim.txt`), in a folder
+    /// pasted over one of the same name (Replace: the two merge), was written outside the folder,
+    /// over a file of the computer, and the copy said it worked. Names sent by a server are now
+    /// checked before they become local paths: the item is left out, the rest copied, the copy
+    /// ends with an error, and a move keeps the folder on the server. Server: `tests/fake.rs`.
+    #[test]
+    fn audit_2_3_a_name_from_a_server_writes_outside_the_folder() {
+        use crate::source::Store;
+        use crate::transfer::{Choice, Clip, Progress, run};
+        let (target, _) = fake::start();
+        let dir = std::env::temp_dir().join(format!("eyecansee-ftp-names-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("Pictures/album")).unwrap();
+        std::fs::write(dir.join("Pictures/album/a.jpg"), b"the computer's a.jpg").unwrap();
+        std::fs::write(dir.join("Pictures/victim.txt"), b"the computer's file").unwrap();
+        let local = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let server = Store::Ftp(super::Server::shared(target));
+        let choices = std::collections::HashMap::from([("album/".to_string(), Choice::Replace)]);
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            for cut in [false, true] {
+                let clip = Clip { op: server.clone(), base: "ftp://test-names/".into(), paths: vec!["album/".into()], cut, text: String::new() };
+                let (gone, r) = run(&clip, &local, "test-local://", "Pictures/", &choices, &Progress::default()).await;
+                assert_eq!(std::fs::read(dir.join("Pictures/victim.txt")).unwrap(), b"the computer's file", "a file outside the folder pasted was written over");
+                assert_eq!(r, Err(("error-name-refused", "album/../victim.txt".to_string())), "cut: {cut}");
+                assert_eq!(std::fs::read(dir.join("Pictures/album/a.jpg")).unwrap(), b"not a jpeg", "the rest is copied");
+                assert!(gone.is_empty(), "a folder with an item left out stays: {gone:?}");
+                let names = server.names("album/").await.unwrap().into_iter().collect::<std::collections::BTreeSet<_>>();
+                assert_eq!(names, ["../victim.txt", "a.jpg"].map(String::from).into());
+            }
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }
