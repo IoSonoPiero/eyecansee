@@ -308,7 +308,7 @@ impl crate::App {
             }
             w.encoded_with = Some(w.options);
             let (original, options, generation, tx, ctx2) = (original.clone(), w.options, w.generation, self.tx.clone(), ctx.clone());
-            std::thread::spawn(move || {
+            crate::logging::spawn_named("convert-preview", move || {
                 let r = encoded(&original, &options).map(|bytes| {
                     let preview = crate::decode::decode(&bytes, &format!("x.{}", options.format.ext())).ok();
                     (Arc::new(bytes), preview)

@@ -138,7 +138,7 @@ impl App {
         }
         s.job = Some(key.clone());
         let (done, ctx) = (s.done.clone(), ui.ctx().clone());
-        std::thread::spawn(move || {
+        crate::logging::spawn_named("cad-render", move || {
             // Not drawn: the picture stays.
             let img = crate::decode::cad_render(&drawing, crate::decode::CAD_SIDE, Some((r, out)))
                 .ok()
@@ -280,7 +280,7 @@ impl App {
         s.sheets.insert(key.clone(), None);
         let (done, ctx) = (s.sheet_done.clone(), ctx.clone());
         let earlier = self.cad_earlier(&key);
-        std::thread::spawn(move || {
+        crate::logging::spawn_named("cad-sheet", move || {
             let img = crate::decode::cad_render(&drawing, crate::decode::CAD_SIDE, None)
                 .ok()
                 .map(|img| egui::ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()))

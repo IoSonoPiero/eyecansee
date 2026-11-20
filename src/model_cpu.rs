@@ -34,7 +34,7 @@ impl App {
         if !current && c.job.is_none() && size[0] > 0 && size[1] > 0 {
             c.job = Some(key.clone());
             let (done, ctx, mesh) = (c.done.clone(), ctx.clone(), mesh.clone());
-            std::thread::spawn(move || {
+            crate::logging::spawn_named("model-render", move || {
                 let img = crate::render3d::render(&mesh, &key.1, key.2[0], key.2[1], 1);
                 let img = ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw());
                 *done.lock().unwrap() = Some((key, img));

@@ -633,6 +633,7 @@ impl eframe::App for App {
 }
 
 fn main() -> eframe::Result {
+    logging::install_panic_hook();
     // Each start marked, also in a log file shared with an earlier instance.
     log!("EyeCanSee {} started, process {}", version(), std::process::id());
     let arg = std::env::args_os().nth(1).map(|a| argument(&a.to_string_lossy()));

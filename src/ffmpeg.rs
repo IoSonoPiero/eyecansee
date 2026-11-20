@@ -521,7 +521,7 @@ pub fn start_copy_probe(done: impl Fn() + Send + 'static) {
         COPY_PROBING.store(false, Ordering::Relaxed);
         return;
     };
-    std::thread::spawn(move || {
+    crate::logging::spawn_named("ffmpeg-copy-probe", move || {
         let _ = COPY_PROBE.set(Probe { audio: audio_encoders(&program), program, ..Default::default() });
         done();
     });
@@ -537,7 +537,7 @@ pub fn start_probe(done: impl Fn() + Send + 'static) {
         PROBING.store(false, Ordering::Relaxed);
         return;
     };
-    std::thread::spawn(move || {
+    crate::logging::spawn_named("ffmpeg-probe", move || {
         let mut p = probe(program);
         // "Automatic": the downloaded one too, when the system's leaves work to the processor
         // that the card could do; the one that does more on the card is kept.
@@ -658,7 +658,7 @@ pub fn run(program: &Path, args: &[String], progress: impl Fn(f32), cancel: &Ato
     let length = Arc::new(Mutex::new(None::<f64>));
     let tail = Arc::new(Mutex::new(Vec::<String>::new()));
     let (l, t, err) = (length.clone(), tail.clone(), child.stderr.take().expect("piped"));
-    let reader = std::thread::spawn(move || {
+    let reader = crate::logging::spawn_named("ffmpeg-stderr", move || {
         for line in BufReader::new(err).lines().map_while(Result::ok) {
             if let Some(d) = line.trim().strip_prefix("Duration: ").and_then(|d| clock(d.split(',').next()?)) {
                 l.lock().unwrap().get_or_insert(d);

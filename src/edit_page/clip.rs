@@ -24,7 +24,7 @@ impl App {
         w.copying = true;
         let (doc, original, tx, ctx) = (w.doc.clone(), original.clone(), self.tx.clone(), ctx.clone());
         let size = watch_size(w);
-        std::thread::spawn(move || {
+        crate::logging::spawn_named("edit-copy", move || {
             let img = crate::edit::save::result(&doc, &original, &crate::decode::usvg_options());
             if let Some(size) = size {
                 let too_large = |i: &image::RgbaImage| crate::edit::clip_limit::too_large(i.as_raw(), i.width(), i.height());
@@ -68,7 +68,7 @@ impl App {
         ctx.copy_image(ColorImage::from_rgba_unmultiplied([img.width() as usize, img.height() as usize], img.as_raw()));
         if let Some(size) = watch_size(w) {
             let (part, ctx) = (pixels.clone(), ctx.clone());
-            std::thread::spawn(move || {
+            crate::logging::spawn_named("edit-copy-check", move || {
                 let img = part.image();
                 if let Some(n) = crate::edit::clip_limit::too_large(img.as_raw(), img.width(), img.height())
                     && size.send(n).is_ok()

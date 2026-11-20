@@ -65,7 +65,7 @@ pub fn listen(tx: Sender<Msg>, ctx: Context) {
         }
         None => return,
     };
-    std::thread::spawn(move || {
+    crate::logging::spawn_named("single-listen", move || {
         for conn in listener.incoming().flatten() {
             let mut line = String::new();
             if BufReader::new(conn).read_line(&mut line).is_ok() {

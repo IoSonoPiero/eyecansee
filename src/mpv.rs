@@ -593,7 +593,7 @@ impl Player {
         mpv.load(input)?;
         let mpv = Arc::new(mpv);
         let (m, s) = (mpv.clone(), shared.clone());
-        let thread = std::thread::spawn(move || draw_loop(&m, &s, repaint));
+        let thread = crate::logging::spawn_named("mpv-draw", move || draw_loop(&m, &s, repaint));
         Ok(Player { mpv, shared, thread: Some(thread) })
     }
 

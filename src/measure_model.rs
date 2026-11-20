@@ -79,7 +79,7 @@ impl App {
         }
         m.sizes.insert(path.to_string(), None);
         let (done, ctx, path, mesh) = (m.sizes_done.clone(), ctx.clone(), path.to_string(), mesh.clone());
-        std::thread::spawn(move || {
+        crate::logging::spawn_named("model-measure", move || {
             let s = crate::model_measure::sizes(&mesh);
             done.lock().unwrap().push((path, s));
             ctx.request_repaint();

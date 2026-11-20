@@ -43,7 +43,7 @@ impl App {
             return;
         }
         let (tx, ctx) = (self.tx.clone(), ctx.clone());
-        std::thread::spawn(move || {
+        crate::logging::spawn_named("clipboard-open", move || {
             let r = read();
             if let Err(e) = &r {
                 log!("open from clipboard: {e}");

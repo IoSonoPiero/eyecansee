@@ -115,7 +115,7 @@ impl App {
     pub(crate) fn check_updates(&self, ctx: &egui::Context) -> bool {
         let Some(kind) = update::Kind::detect() else { return false };
         let (tx, ctx) = (self.tx.clone(), ctx.clone());
-        std::thread::spawn(move || {
+        crate::logging::spawn_named("update-check", move || {
             if tx.send(Msg::Update(update::check(kind, version()))).is_ok() {
                 ctx.request_repaint();
             }

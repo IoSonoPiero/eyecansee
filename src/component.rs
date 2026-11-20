@@ -262,7 +262,7 @@ pub struct Download {
 pub fn start(c: Component, repaint: impl Fn() + Send + 'static) -> std::sync::Arc<Download> {
     let d = std::sync::Arc::new(Download::default());
     let d2 = d.clone();
-    std::thread::spawn(move || {
+    crate::logging::spawn_named("component-download", move || {
         let r = install(&c, &d2.done);
         *d2.result.lock().unwrap() = Some(r);
         repaint();
