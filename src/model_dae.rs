@@ -111,6 +111,7 @@ impl<'d> Dae<'_, 'd> {
         if depth > MAX_DEPTH {
             return Err("nodes nested too deep".into());
         }
+        self.b.visit()?;
         let m = n.children().filter_map(transform).fold(*parent, |acc, t| mul(&acc, &t));
         for c in n.children() {
             match c.tag_name().name() {
@@ -228,7 +229,8 @@ fn polygons(prim: Node, step: usize) -> Vec<(Vec<[usize; 3]>, Vec<u32>)> {
                 "polylist" => {
                     let counts = tagged(prim, "vcount").next().map(ints).unwrap_or_default();
                     let mut first = 0;
-                    counts.iter().flat_map(|&c| { let f = fan(c as usize, first); first += c as usize; f }).filter(|t| t[2] < n).collect()
+                    // Each polygon only over the corners that are there: the counts are the file's word.
+                    counts.iter().flat_map(|&c| { let f = fan((c as usize).min(n.saturating_sub(first)), first); first = first.saturating_add(c as usize); f }).collect()
                 }
                 "tristrips" => (0..n.saturating_sub(2)).map(|k| if k % 2 == 0 { [k, k + 1, k + 2] } else { [k + 1, k, k + 2] }).collect(),
                 // A polygon or a fan per <p>.
@@ -285,5 +287,42 @@ mod tests {
         let m = read(textured.as_bytes(), false, &next).unwrap();
         assert_eq!((m.tex.clone(), m.colors[0]), (vec![1, 1], [255; 3]));
         assert_eq!(m.uv[0][1], [1.0, 1.0]);
+    }
+
+    /// Audit 6.6: a chain of 60 nodes, each one instancing the next twice, the last one empty:
+    /// 2^60 visits in a file of a few KB (a node instancing itself is stopped at once by the
+    /// depth; a chain is not). It must end (refused, or found empty) without visiting them all.
+    /// `AUDIT_N` = fewer levels, to measure how the time grows. Run alone, with a time limit.
+    #[test]
+    fn audit_6_6_dae_node() {
+        let levels: u32 = std::env::var("AUDIT_N").ok().and_then(|v| v.parse().ok()).unwrap_or(60);
+        let twice = |k: u32| if k < levels { format!(r##"<instance_node url="#n{k}"/>"##).repeat(2) } else { String::new() };
+        let library: String = (1..levels).map(|k| format!(r#"<node id="n{k}">{}</node>"#, twice(k + 1))).collect();
+        let dae = format!(r#"<COLLADA><library_nodes>{library}</library_nodes><library_visual_scenes><visual_scene><node id="n0">{}</node></visual_scene></library_visual_scenes></COLLADA>"#, twice(1));
+        println!("DAE of {} bytes, 2^{} visits", dae.len(), levels - 1);
+        let t = std::time::Instant::now();
+        let r = crate::model::parse(dae.as_bytes(), "a.dae");
+        println!("ended in {:.2?}: {:?}", t.elapsed(), r.as_ref().map(|m| m.tris.len()));
+        assert!(r.is_err());
+    }
+
+    /// Audit 6.6: a polylist of one real triangle and a thousand polygons that say they have
+    /// 4 294 967 295 corners each (a number that cannot be read counts as that too): the fan of
+    /// each one is walked corner by corner, 4 thousand million turns per number, to find that no
+    /// triangle is inside the three indices of `<p>`. It must end, with the triangle or refused.
+    /// `AUDIT_N` = a smaller number of corners, to measure how the time grows. Run alone, with a
+    /// time limit.
+    #[test]
+    fn audit_6_6_dae_polylist() {
+        let corners: u64 = std::env::var("AUDIT_N").ok().and_then(|v| v.parse().ok()).unwrap_or(u32::MAX as u64);
+        let vcount = format!("3{}", format!(" {corners}").repeat(1000));
+        let dae = format!(
+            r##"<COLLADA><library_geometries><geometry id="g"><mesh><source id="p"><float_array>0 0 0 1 0 0 0 1 0</float_array></source><vertices id="v"><input semantic="POSITION" source="#p"/></vertices><polylist><input semantic="VERTEX" source="#v"/><vcount>{vcount}</vcount><p>0 1 2</p></polylist></mesh></geometry></library_geometries></COLLADA>"##
+        );
+        println!("DAE of {} bytes, 1000 polygons of {corners} corners", dae.len());
+        let t = std::time::Instant::now();
+        let r = crate::model::parse(dae.as_bytes(), "a.dae");
+        println!("ended in {:.2?}: {:?}", t.elapsed(), r.as_ref().map(|m| m.tris.len()));
+        assert_eq!(r.map(|m| m.tris.len()), Ok(1));
     }
 }

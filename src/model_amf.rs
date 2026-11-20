@@ -83,6 +83,7 @@ impl Amf<'_, '_> {
             return Err("constellations nested too deep".into());
         }
         for i in c.children().filter(|n| n.has_tag_name("instance")) {
+            self.b.visit()?;
             let id = i.attribute("objectid").unwrap_or("");
             let m = then(m, &placement(i));
             if let Some(&o) = self.objects.get(id) {
@@ -131,5 +132,26 @@ mod tests {
         // Turned by 90° about Z and moved: (1, 0, 0) lands on (10, 1, 0).
         let p = m.pos[4];
         assert!((p[0] - 10.0).abs() < 1e-5 && (p[1] - 1.0).abs() < 1e-5);
+    }
+
+    /// Audit 6.6: constellations that place the next one ten times, 32 deep, down to an object
+    /// without a mesh: 10^32 instances to visit in a file of a few KB. The depth is limited, the
+    /// number of visits is not. It must end (refused, or found empty) without visiting them all.
+    /// `AUDIT_N` = fewer levels, to measure how the time grows. Run alone, with a time limit.
+    #[test]
+    fn audit_6_6_amf() {
+        let levels: u32 = std::env::var("AUDIT_N").ok().and_then(|v| v.parse().ok()).unwrap_or(32);
+        let mut amf = String::from(r#"<amf><object id="o"/>"#);
+        for k in 0..levels {
+            let next = if k + 1 == levels { "o".to_string() } else { format!("c{}", k + 1) };
+            let instances = format!(r#"<instance objectid="{next}"/>"#).repeat(10);
+            amf += &format!(r#"<constellation id="c{k}">{instances}</constellation>"#);
+        }
+        amf += "</amf>";
+        println!("AMF of {} bytes, 10^{levels} instances", amf.len());
+        let t = std::time::Instant::now();
+        let r = crate::model::parse(amf.as_bytes(), "a.amf");
+        println!("ended in {:.2?}: {:?}", t.elapsed(), r.as_ref().map(|m| m.tris.len()));
+        assert!(r.is_err());
     }
 }

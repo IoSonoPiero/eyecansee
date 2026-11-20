@@ -10,6 +10,13 @@ const MODEL: &[&str] = &["stl", "obj", "ply", "glb", "gltf", "3mf", "ifc", "fbx"
 
 /// Beyond this the file is refused instead of filling the memory (a 3D scan of a statue is ~10 M).
 pub(crate) const MAX_TRIANGLES: usize = 50_000_000;
+/// Points of one model: three per triangle, as STL gives them (1.8 GB).
+const MAX_POINTS: usize = 3 * MAX_TRIANGLES;
+/// Nodes, instances and blocks placed while reading one model or drawing (`Builder::visit`,
+/// `cad::Walk::block`). A part can be placed by many parents, each placed by many more: a file of
+/// a few KB can ask for 10^32 placements. A real scene has far fewer (a 3MF plate hundreds, a big
+/// Collada scene some 10^5); a million takes about a second (3 s in a debug build).
+pub(crate) const MAX_VISITS: usize = 1_000_000;
 /// Normals are worked out (`model_smooth`) up to this many triangles: 36 bytes each.
 const SMOOTH_MAX: usize = 20_000_000;
 
@@ -99,6 +106,8 @@ pub(crate) struct Builder {
     surfaces: Vec<Surface>,
     /// Per triangle: surface and normals (`Shine`).
     shine: Vec<(u16, Option<[[f32; 3]; 3]>)>,
+    /// Nodes and instances placed so far (`visit`).
+    visits: usize,
 }
 
 impl Builder {
@@ -115,6 +124,10 @@ impl Builder {
 
     /// As `add`, with texture, surface and normals of each triangle.
     pub(crate) fn add_shiny(&mut self, pos: Vec<[f32; 3]>, tris: impl IntoIterator<Item = [u32; 3]>, mut color: impl FnMut(usize) -> Option<[u8; 3]>, mut shine: impl FnMut(usize) -> Shine) -> Result<(), String> {
+        // Before taking them: points that no triangle uses are not counted by `MAX_TRIANGLES`.
+        if self.pos.len().saturating_add(pos.len()) > MAX_POINTS {
+            return Err(format!("more than {MAX_POINTS} points"));
+        }
         let base = self.pos.len() as u32;
         let n = pos.len() as u32;
         for (i, t) in tris.into_iter().enumerate() {
@@ -130,6 +143,15 @@ impl Builder {
             }
         }
         self.pos.extend(pos);
+        Ok(())
+    }
+
+    /// One more node or instance placed, counted before walking into it (`MAX_VISITS`).
+    pub(crate) fn visit(&mut self) -> Result<(), String> {
+        self.visits += 1;
+        if self.visits > MAX_VISITS {
+            return Err(format!("more than {MAX_VISITS} parts placed"));
+        }
         Ok(())
     }
 
@@ -689,5 +711,27 @@ mod tests {
         let s: Mat4 = [[2.0, 0.0, 0.0, 0.0], [0.0, 2.0, 0.0, 0.0], [0.0, 0.0, 2.0, 0.0], [0.0, 0.0, 0.0, 1.0]];
         // Scaled first, then moved.
         assert_eq!(apply(&mul(&t, &s), [1.0, 1.0, 1.0]), [7.0, 2.0, 2.0]);
+    }
+
+    /// Audit 6.6: `Builder` limits the triangles, not the points. A .gltf of 2 KB with a mesh of
+    /// 100 points and one triangle that points outside them (dropped), placed 10^7 times by seven
+    /// levels of nodes with the next one as child ten times: 12 GB of points and no triangle.
+    /// It must be refused before the memory is full. `AUDIT_N` = fewer levels, to measure how the
+    /// memory grows. Run alone, with a ceiling on the memory.
+    #[test]
+    fn audit_6_6_builder_points() {
+        let levels: u32 = std::env::var("AUDIT_N").ok().and_then(|v| v.parse().ok()).unwrap_or(7);
+        // 1200 bytes of zeros (100 points) and 12 of 0xFF (three indices of 4 294 967 295), in base64.
+        let data = format!("{}{}", "A".repeat(1600), "/".repeat(16));
+        let nodes: Vec<String> = (1..=levels).map(|k| format!(r#"{{"children":[{}]}}"#, vec![k.to_string(); 10].join(","))).collect();
+        let gltf = format!(
+            r#"{{"asset":{{"version":"2.0"}},"buffers":[{{"byteLength":1212,"uri":"data:application/octet-stream;base64,{data}"}}],"bufferViews":[{{"buffer":0,"byteLength":1200}},{{"buffer":0,"byteOffset":1200,"byteLength":12}}],"accessors":[{{"bufferView":0,"componentType":5126,"count":100,"type":"VEC3","min":[0,0,0],"max":[0,0,0]}},{{"bufferView":1,"componentType":5125,"count":3,"type":"SCALAR"}}],"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0}},"indices":1}}]}}],"nodes":[{},{{"mesh":0}}],"scenes":[{{"nodes":[0]}}],"scene":0}}"#,
+            nodes.join(",")
+        );
+        println!("glTF of {} bytes, 10^{levels} placements of 100 points", gltf.len());
+        let t = std::time::Instant::now();
+        let r = parse(gltf.as_bytes(), "a.gltf");
+        println!("ended in {:.2?}: {:?}", t.elapsed(), r.as_ref().map(|m| (m.pos.len(), m.tris.len())));
+        assert!(r.is_err());
     }
 }

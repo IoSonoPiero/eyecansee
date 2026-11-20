@@ -3,7 +3,7 @@
 //! as thin solids), base colours, vertex colours, the pictures of the base colours and the
 //! rest of the material (metal, roughness, bumps, occlusion, glow) with the vertices' normals.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use base64::Engine;
 
@@ -47,7 +47,7 @@ fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
         return Err("the model's data file (.bin) is missing".into());
     }
     let mut b = Builder::default();
-    let mut extra: Extra = (Vec::new(), Vec::new(), HashMap::new());
+    let mut extra: Extra = (Vec::new(), Vec::new(), HashMap::new(), HashSet::new());
     // The materials' pictures, read once: in the file, in base64, or next to it; decoded in
     // parallel (a 2048² picture takes ~30 ms).
     let mut wanted: Vec<gltf::Image> = Vec::new();
@@ -90,17 +90,25 @@ fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     b.finish(false)
 }
 
-/// Line segments and points of a glTF, made solid at the end (`model_lines`), and the number
-/// of each image's picture in the model (`Builder::texture`, 0 when it could not be read).
-type Extra = (Vec<crate::model_lines::Segment>, Vec<crate::model_lines::Point>, HashMap<usize, u16>);
+/// Line segments and points of a glTF, made solid at the end (`model_lines`), the number of
+/// each image's picture in the model (`Builder::texture`, 0 when it could not be read), and the
+/// nodes already placed.
+type Extra = (Vec<crate::model_lines::Segment>, Vec<crate::model_lines::Point>, HashMap<usize, u16>, HashSet<usize>);
 
 fn gltf_node<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>>(b: &mut Builder, extra: &mut Extra, node: &gltf::Node<'a>, parent: &Mat4, data: &F, depth: u32) -> Result<(), String> {
     if depth > 64 {
         return Err("nodes nested too deep".into());
     }
+    // The nodes are trees, each node with one parent at most (glTF 2.0, "Nodes and Hierarchy"):
+    // a node met again is placed once, so that a file cannot place its nodes over and over.
+    if !extra.3.insert(node.index()) {
+        return Ok(());
+    }
+    b.visit()?;
     let m = mul(parent, &node.transform().matrix());
     if let Some(mesh) = node.mesh() {
         gltf_mesh(b, extra, &mesh, &m, data)?;
+        crate::model_lines::fits(extra.0.len() + extra.1.len())?;
     }
     for child in node.children() {
         gltf_node(b, extra, &child, &m, data, depth + 1)?;
@@ -205,4 +213,23 @@ fn texture_coords<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s 
         None => uv,
     };
     (k, coords.into_f32().map(fix).collect(), set)
+}
+
+#[cfg(test)]
+mod tests {
+    /// Audit 6.6: a chain of 60 nodes, each one with the next as its child twice, none with a
+    /// mesh: 2^60 visits in a .gltf of a few hundred bytes (`gltf` accepts a node with more than
+    /// one parent). It must end (refused, or found empty) without visiting them all.
+    /// `AUDIT_N` = fewer levels, to measure how the time grows. Run alone, with a time limit.
+    #[test]
+    fn audit_6_6_gltf_node() {
+        let levels: u32 = std::env::var("AUDIT_N").ok().and_then(|v| v.parse().ok()).unwrap_or(60);
+        let nodes: Vec<String> = (1..=levels).map(|k| if k < levels { format!(r#"{{"children":[{k},{k}]}}"#) } else { "{}".into() }).collect();
+        let gltf = format!(r#"{{"asset":{{"version":"2.0"}},"scenes":[{{"nodes":[0]}}],"scene":0,"nodes":[{}]}}"#, nodes.join(","));
+        println!("glTF of {} bytes, 2^{} visits", gltf.len(), levels - 1);
+        let t = std::time::Instant::now();
+        let r = crate::model::parse(gltf.as_bytes(), "a.gltf");
+        println!("ended in {:.2?}: {:?}", t.elapsed(), r.as_ref().map(|m| m.tris.len()));
+        assert!(r.is_err());
+    }
 }

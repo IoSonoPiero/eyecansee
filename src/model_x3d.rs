@@ -4,15 +4,16 @@
 //! cone) in the colour of their material or of their vertices and faces, or with their picture
 //! (ImageTexture, on face and triangle sets with texture coordinates).
 
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::model::{Builder, IDENTITY, Mat4, Mesh, Sibling, apply, mul, rotation};
 use crate::model_vrml::SceneNode;
 
-/// Nodes visited, so that a file using its groups again and again cannot take forever.
-const MAX_VISITS: usize = 10_000_000;
 /// Inlined files inside inlined files.
 const MAX_INLINE: u32 = 8;
+/// Files asked for by the Inlines, each name once: from a phone each one is a transfer.
+const MAX_INLINE_READS: usize = 1000;
 /// Segments around a sphere, a cylinder or a cone, and rings of a sphere.
 const SEGMENTS: usize = 32;
 const RINGS: usize = 16;
@@ -20,7 +21,7 @@ const RINGS: usize = 16;
 pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     let scene = crate::model_vrml::parse(bytes)?;
     let mut b = Builder::default();
-    let mut w = Walk { b: &mut b, sibling, visits: 0, lines: Vec::new(), points: Vec::new() };
+    let mut w = Walk { b: &mut b, sibling, inlined: HashMap::new(), reads: 0, lines: Vec::new(), points: Vec::new() };
     w.node(&scene, &IDENTITY, 0)?;
     let (lines, points) = (std::mem::take(&mut w.lines), std::mem::take(&mut w.points));
     crate::model_lines::add(&mut b, &lines, &points)?;
@@ -30,7 +31,10 @@ pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
 struct Walk<'a, 's> {
     b: &'a mut Builder,
     sibling: Sibling<'s>,
-    visits: usize,
+    /// The scenes of the inlined files, by their `url`, read and parsed once however many times
+    /// they are placed (`None`: not found); `reads` counts the files asked for.
+    inlined: HashMap<Vec<String>, Option<Rc<SceneNode>>>,
+    reads: usize,
     /// Line and point sets, made solid at the end (`model_lines`), when the model's size is known.
     lines: Vec<crate::model_lines::Segment>,
     points: Vec<crate::model_lines::Point>,
@@ -38,10 +42,8 @@ struct Walk<'a, 's> {
 
 impl Walk<'_, '_> {
     fn node(&mut self, n: &SceneNode, m: &Mat4, inline: u32) -> Result<(), String> {
-        self.visits += 1;
-        if self.visits > MAX_VISITS {
-            return Err("too many nodes in the scene".into());
-        }
+        // Groups used again and again (DEF and USE) must not take forever.
+        self.b.visit()?;
         match n.kind.as_str() {
             "Transform" => {
                 let m = mul(m, &transform(n));
@@ -68,9 +70,24 @@ impl Walk<'_, '_> {
     }
 
     fn inline(&mut self, n: &SceneNode, m: &Mat4, inline: u32) -> Result<(), String> {
-        let Some(bytes) = n.strs("url").iter().filter(|u| !u.contains("://")).find_map(|u| (self.sibling)(u)) else { return Ok(()) };
-        let scene = crate::model_vrml::parse(&bytes)?;
-        self.node(&scene, m, inline + 1)
+        let urls = n.strs("url").to_vec();
+        let scene = match self.inlined.get(&urls) {
+            Some(scene) => scene.clone(),
+            None => {
+                let mut read = |u: &String| {
+                    self.reads += 1;
+                    if self.reads > MAX_INLINE_READS { None } else { (self.sibling)(u) }
+                };
+                let bytes = urls.iter().filter(|u| !u.contains("://")).find_map(&mut read);
+                if self.reads > MAX_INLINE_READS {
+                    return Err(format!("more than {MAX_INLINE_READS} inlined files"));
+                }
+                let scene = bytes.map(|b| crate::model_vrml::parse(&b)).transpose()?.map(Rc::new);
+                self.inlined.insert(urls, scene.clone());
+                scene
+            }
+        };
+        scene.map_or(Ok(()), |scene| self.node(&scene, m, inline + 1))
     }
 
     fn shape(&mut self, n: &SceneNode, m: &Mat4) -> Result<(), String> {
@@ -82,7 +99,7 @@ impl Walk<'_, '_> {
         });
         if let Some(g) = n.children().find(|g| matches!(g.kind.as_str(), "IndexedLineSet" | "LineSet" | "PointSet")) {
             self.line_set(g, m, color);
-            return Ok(());
+            return crate::model_lines::fits(self.lines.len() + self.points.len());
         }
         let Some(part) = n.children().find_map(geometry) else { return Ok(()) };
         let part = part?;
@@ -464,5 +481,30 @@ mod tests {
         let r = std::panic::catch_unwind(|| read(wrl.as_bytes(), &|_| None).map(|m| m.tris.len()));
         println!("{r:?}");
         assert!(matches!(r, Ok(Err(_)) | Ok(Ok(0))), "it panicked");
+    }
+
+    /// Audit 6.6: an Inline is read from the source and parsed again at every visit. Here ten
+    /// Inlines of the same file in a group, used ten times by the next group, seven deep: the
+    /// file next to the model is asked for millions of times (until `MAX_VISITS` stops the
+    /// walk), and from a phone each one is a transfer. It must be read once.
+    /// `AUDIT_N` = fewer levels, to measure how the reads grow.
+    #[test]
+    fn audit_6_6_x3d_inline() {
+        let levels: u32 = std::env::var("AUDIT_N").ok().and_then(|v| v.parse().ok()).unwrap_or(7);
+        let mut x3d = format!("<X3D><Scene><Group DEF='g0'>{}</Group>", "<Inline url='b.x3d'/>".repeat(10));
+        for k in 1..levels {
+            x3d += &format!("<Group DEF='g{k}'>{}</Group>", format!("<Group USE='g{}'/>", k - 1).repeat(10));
+        }
+        x3d += "</Scene></X3D>";
+        let reads = std::cell::Cell::new(0usize);
+        let next = |name: &str| {
+            reads.set(reads.get() + 1);
+            (name == "b.x3d").then(|| b"<X3D><Scene/></X3D>".to_vec())
+        };
+        println!("X3D of {} bytes", x3d.len());
+        let t = std::time::Instant::now();
+        let r = crate::model::parse_with(x3d.as_bytes(), "a.x3d", &next);
+        println!("ended in {:.2?}: {:?}, the file next to it read {} times", t.elapsed(), r.as_ref().map(|m| m.tris.len()), reads.get());
+        assert!(reads.get() <= 1, "read {} times", reads.get());
     }
 }

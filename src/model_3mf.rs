@@ -159,6 +159,7 @@ fn place(b: &mut Builder, files: &mut Files, main: &str, model: &Model, path: &s
     if depth > 32 {
         return Err("components nested too deep".into());
     }
+    b.visit()?;
     if path != main {
         let text = files.text(path)?;
         let doc = Document::parse(&text).map_err(|e| e.to_string())?;
@@ -284,5 +285,26 @@ mod tests {
         assert_eq!(apply(&then(&shift, &scale), [1.0, 0.0, 0.0]), [4.0, 0.0, 0.0]);
         assert_eq!(apply(&then(&scale, &shift), [1.0, 0.0, 0.0]), [3.0, 0.0, 0.0]);
         assert!(read(b"not a zip").is_err());
+    }
+
+    /// Audit 6.6: objects made of ten components each, the next object ten times, 32 deep, down
+    /// to an object without a mesh: 10^32 placements in a zip of a few hundred bytes. It must end
+    /// (refused, or found empty) without visiting them all. `AUDIT_N` = fewer levels, to measure
+    /// how the time grows. Run alone, with a time limit.
+    #[test]
+    fn audit_6_6_3mf() {
+        let levels: u32 = std::env::var("AUDIT_N").ok().and_then(|v| v.parse().ok()).unwrap_or(32);
+        let mut model = String::from("<model><resources>");
+        for k in 0..levels {
+            let components = format!(r#"<component objectid="{}"/>"#, k + 1).repeat(10);
+            model += &format!(r#"<object id="{k}"><components>{components}</components></object>"#);
+        }
+        model += &format!(r#"<object id="{levels}"/></resources><build><item objectid="0"/></build></model>"#);
+        let bytes = zip(&model);
+        println!("3MF of {} bytes ({} of XML), 10^{levels} placements", bytes.len(), model.len());
+        let t = std::time::Instant::now();
+        let r = crate::model::parse(&bytes, "a.3mf");
+        println!("ended in {:.2?}: {:?}", t.elapsed(), r.as_ref().map(|m| m.tris.len()));
+        assert!(r.is_err());
     }
 }

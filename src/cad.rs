@@ -205,6 +205,8 @@ pub(crate) struct Walk<'a> {
     pub(crate) index: std::rc::Rc<std::collections::HashMap<String, u32>>,
     sets: crate::cad_layers::Sets,
     set: u32,
+    /// Blocks placed so far (`block`, `model::MAX_VISITS`).
+    placed: usize,
 }
 
 /// Where an XLINE or RAY passes, in drawing units, and how it is drawn.
@@ -227,7 +229,7 @@ pub(crate) fn n3(v: &Vector3) -> [f64; 3] {
 
 impl<'a> Walk<'a> {
     pub(crate) fn new(doc: &'a CadDocument, out: &'a mut Drawing) -> Self {
-        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0 }
+        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0, placed: 0 }
     }
 
     /// An item drawn, on the layers of the entity being drawn.
@@ -328,12 +330,18 @@ impl<'a> Walk<'a> {
             }
             return;
         }
+        // A text takes the memory of a short line: counted as its two points (`entity` checks).
+        self.out.points += 2;
         self.put(Item::Text { at, height, angle, text, color, anchor: l.anchor });
     }
 
     pub(crate) fn entity(&mut self, e: &EntityType, ctx: &Context) -> Result<(), String> {
         if e.common().invisible {
             return Ok(());
+        }
+        // Texts and pictures add their points without the check of `line`.
+        if self.out.points > MAX_POINTS {
+            return Err(format!("more than {MAX_POINTS} points"));
         }
         let Some(layer) = self.layer(e, ctx) else { return Ok(()) };
         let number = self.index.get(&layer.to_lowercase()).copied();
@@ -433,6 +441,10 @@ impl<'a> Walk<'a> {
         let base = self.base_point(&i.block_name);
         let ocs = Affine::ocs(n3(&i.normal));
         let (cols, rows) = (i.column_count.max(1), i.row_count.max(1));
+        // An array of up to 65535 × 65535 copies: refused before placing them one by one.
+        if cols as usize * rows as usize > crate::model::MAX_VISITS {
+            return Err(format!("more than {} blocks placed", crate::model::MAX_VISITS));
+        }
         for r in 0..rows {
             for c in 0..cols {
                 // Array of inserts: steps along the insert's own axes, before the rotation.
@@ -456,6 +468,11 @@ impl<'a> Walk<'a> {
     }
 
     fn block(&mut self, name: &str, ctx: &Context) -> Result<(), String> {
+        // Blocks inside blocks, each placed many times, must not take forever.
+        self.placed += 1;
+        if self.placed > crate::model::MAX_VISITS {
+            return Err(format!("more than {} blocks placed", crate::model::MAX_VISITS));
+        }
         let doc = self.doc;
         for e in doc.entities_in_block(name) {
             self.entity(e, ctx)?;
@@ -733,5 +750,22 @@ mod tests {
         assert!(read(b"0\nSECTION\n2\nENTITIES\n0\nENDSEC\n0\nEOF\n", "e.dxf").is_err());
         assert!(read(b"AC1032 not really", "x.dwg").is_err());
         assert!(read(&[0u8; 64], "x.dxf").is_err());
+    }
+
+    /// Audit 6.6: one INSERT that repeats a block of one TEXT in 32767 rows and 32767 columns (the
+    /// most a DXF can say; 65535 in a DWG): a thousand million texts, which `MAX_POINTS` does not
+    /// count (only the points of the lines). It must be refused before the memory is full.
+    /// `AUDIT_N` = fewer rows and columns, to measure how time and memory grow. Run alone, with a
+    /// ceiling on the memory.
+    #[test]
+    fn audit_6_6_dxf_insert() {
+        let n: u32 = std::env::var("AUDIT_N").ok().and_then(|v| v.parse().ok()).unwrap_or(32767);
+        let block = "0\nSECTION\n2\nBLOCKS\n0\nBLOCK\n8\n0\n2\nK\n70\n0\n10\n0\n20\n0\n30\n0\n3\nK\n0\nTEXT\n8\n0\n10\n0\n20\n0\n30\n0\n40\n1\n1\nA\n0\nENDBLK\n8\n0\n0\nENDSEC\n";
+        let dxf = format!("{block}0\nSECTION\n2\nENTITIES\n0\nINSERT\n8\n0\n2\nK\n10\n0\n20\n0\n30\n0\n70\n{n}\n71\n{n}\n44\n2\n45\n2\n0\nENDSEC\n0\nEOF\n");
+        println!("DXF of {} bytes, {n} x {n} texts", dxf.len());
+        let t = std::time::Instant::now();
+        let r = read(dxf.as_bytes(), "a.dxf");
+        println!("ended in {:.2?}: {:?}", t.elapsed(), r.as_ref().map(|d| d.items.len()));
+        assert!(r.is_err());
     }
 }
