@@ -79,7 +79,7 @@ Alla fine un riepilogo, con il nome del comando come titolo, dice:
 
 - quanti file sono stati salvati e dove; quanti sono rimasti fuori; quanti non sono stati fatti, se hai fermato il lavoro (un numero zero non compare);
 - quanto tempo ci è voluto e, se sono stati salvati dei file, il loro peso su disco prima e dopo, con la percentuale;
-- i file rimasti fuori, divisi per motivo (un altro tipo di file, un formato che EyeCanSee non sa scrivere, già di quella misura, animati o con più pagine, troppo grandi per la memoria di questo computer, FFmpeg mancante, un errore), ogni gruppo con i nomi dei suoi file. Un gruppo di più di cinque file è chiuso: fai clic sulla sua riga per aprirlo. Se l'elenco è lungo, scorre.
+- i file rimasti fuori, divisi per motivo (un altro tipo di file, un formato che EyeCanSee non sa scrivere, già di quella misura, animati o con più pagine, troppo grandi per la memoria di questo computer, FFmpeg mancante, un errore), ogni gruppo con i nomi dei suoi file. Un gruppo di più di cinque file è chiuso: fai clic sulla sua riga per aprirlo. Se l'elenco è lungo, scorre. ![Copia il messaggio](icon://copy) a destra dei pulsanti copia il riepilogo con tutti i file rimasti fuori, anche quelli dei gruppi chiusi.
 
 **Apri la cartella** mostra le miniature della cartella in cui sono andati i file, su questo computer, su un telefono o su un server; c'è solo se qualcosa è stato salvato in un'altra cartella, non in quella che stai guardando, ed è grigio mentre una pagina (l'editor, Salva come, la presentazione o i duplicati) copre le miniature. **Chiudi**, **Invio** o **Esc** chiudono il riepilogo.
 

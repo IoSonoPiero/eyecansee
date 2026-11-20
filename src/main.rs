@@ -88,6 +88,7 @@ mod loader;
 mod logging;
 mod menu;
 mod messages;
+mod notice_list;
 mod meta;
 mod measure_model;
 mod measure_view;

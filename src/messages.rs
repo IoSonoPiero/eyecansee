@@ -519,12 +519,12 @@ impl App {
             let args = [("n", n.to_string()), ("op", crate::save_dialogs::op_id(op).to_string()), ("what", what.to_string())];
             let args = args.each_ref().map(|(k, v)| (*k, v.as_str()));
             let title = self.i18n.t_args("batch-done-title", &args);
-            let mut text = self.i18n.t_args("batch-done", &args);
-            if !self.skipped.is_empty() {
-                let names: String = std::mem::take(&mut self.skipped).iter().map(|n| format!("\n- {}", md(n))).collect();
-                text = format!("{text}\n\n{}\n{names}", self.i18n.t("batch-skipped-names"));
-            }
-            self.notice = Some(Notice::new(title, text));
+            let text = self.i18n.t_args("batch-done", &args);
+            self.notice = Some(match std::mem::take(&mut self.skipped) {
+                skipped if skipped.is_empty() => Notice::new(title, text),
+                // At most ten names, all of them in Copy (`notice_list`).
+                skipped => crate::notice_list::notice(&self.i18n, title, &format!("{text}\n\n{}", self.i18n.t("batch-skipped-names")), &skipped, false),
+            });
         }
     }
 

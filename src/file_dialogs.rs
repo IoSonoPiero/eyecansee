@@ -9,7 +9,7 @@ use eframe::egui::{self, Key};
 use crate::{App, PasteAsk, confirm, devices, source, theme, transfer};
 use crate::human::human_time;
 use crate::navigation::shown;
-use crate::save_dialogs::{Notice, md};
+use crate::save_dialogs::Notice;
 
 /// The check of the folders about to be deleted: running (its stop flag), or what it found (the
 /// first name not shown and its folder).
@@ -515,23 +515,14 @@ pub(crate) fn name_window(ctx: &egui::Context, id: &str, (title, ok): (String, S
     answer
 }
 
-/// The most names `refused_notice` lists; the others are counted.
-const LISTED: usize = 10;
-
 /// The message at the end of a copy that left items out for their name (`transfer::allowed`),
 /// instead of a long error in the bar (Piero, 20/11: "non si capisce niente"): one sentence a
-/// line, then the names as a list, at most `LISTED`, and "and N more". The log has them all.
+/// line, then the names as a list (`notice_list`). The log has them all.
 pub(crate) fn refused_notice(i18n: &crate::i18n::I18n, names: &[String]) -> Notice {
     let n = names.len().to_string();
     let args = [("n", n.as_str())];
-    // A name with a line break in it ("a\nb.jpg") stays on its line of the list.
-    let shown = |s: &String| md(&s.chars().map(|c| if c.is_control() { '\u{FFFD}' } else { c }).collect::<String>());
-    let list: Vec<String> = names.iter().take(LISTED).map(|s| format!("- {}", shown(s))).collect();
-    let mut text = format!("{}\n{}\n\n{}", i18n.t_args("name-refused-why", &args), i18n.t_args("name-refused-stayed", &args), list.join("\n"));
-    if names.len() > LISTED {
-        text = format!("{text}\n\n{}", i18n.t_args("name-refused-more", &[("n", &(names.len() - LISTED).to_string())]));
-    }
-    Notice { title: i18n.t_args("name-refused-title", &args), text, save_as: None, warning: true }
+    let intro = format!("{}\n{}", i18n.t_args("name-refused-why", &args), i18n.t_args("name-refused-stayed", &args));
+    crate::notice_list::notice(i18n, i18n.t_args("name-refused-title", &args), &intro, names, true)
 }
 
 #[cfg(test)]
@@ -539,7 +530,7 @@ mod tests {
     use crate::save_dialogs::md;
 
     /// The message of the names left out of a copy: singular and plural, one sentence a line, the
-    /// names as a list, cut at ten with "and N more".
+    /// names as a list, cut at ten with "and N more"; Copy with every name.
     #[test]
     fn refused_names_told() {
         let names = |n: usize| (1..=n).map(|i| format!("album/{i}:a.jpg")).collect::<Vec<_>>();
@@ -556,6 +547,10 @@ mod tests {
         let many = super::refused_notice(&it, &names(15));
         assert_eq!(many.text.matches("\n- ").count(), 10);
         assert!(many.text.ends_with(&format!("- {}\n\ne altri 5", md("album/10:a.jpg"))), "{}", many.text);
+        // Copy takes all fifteen names, as they are.
+        let copy = many.copy.unwrap();
+        assert!(copy.starts_with("Il loro nome non va bene su questo computer.\nSono rimasti dove erano.\n\n- album/1:a.jpg\n"), "{copy}");
+        assert!(copy.ends_with("\n- album/15:a.jpg") && copy.matches("\n- ").count() == 15 && !copy.contains("altri"), "{copy}");
         let en = super::refused_notice(&crate::i18n::I18n::new("en"), &names(12));
         assert_eq!(en.title, "Files not copied");
         assert!(en.text.starts_with("Their name is not valid on this computer.\nThey stayed where they were.\n\n"));

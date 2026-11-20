@@ -183,7 +183,7 @@ name-refused-stayed = { $n ->
     [one] È rimasto dove era.
    *[other] Sono rimasti dove erano.
 }
-name-refused-more = { $n ->
+list-more = { $n ->
     [one] e un altro
    *[other] e altri { $n }
 }

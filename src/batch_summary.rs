@@ -1,7 +1,8 @@
 //! The window at the end of Convert… and of the commands that share its work (Resize, Copy with
 //! the metadata, Copy without audio, Save the audio, Export drawing): one line per outcome with
 //! its count, the time it took and the size before and after, the files left out grouped by
-//! reason, then Close and Open the folder, the latter only when saved in another folder (issue #134).
+//! reason, then Close and Open the folder, the latter only when saved in another folder (issue #134),
+//! and Copy, with every file left out, also those of the groups folded (`notice_list`).
 
 use std::time::Duration;
 
@@ -11,7 +12,7 @@ use crate::App;
 use crate::audio_convert::SKIP_AUDIO;
 use crate::batch::{SKIP_FORMAT, SKIP_INSIDE, SKIP_NOT_AUTOCAD, SKIP_SAME_SIZE, SKIP_TOO_LARGE, SKIP_VIDEO, SKIP_WOULD_LOSE};
 use crate::i18n::I18n;
-use crate::save_dialogs::{Head, md, notice_text};
+use crate::save_dialogs::{Head, copy_button, md, notice_text};
 
 /// What the work did, as it ends.
 pub(crate) struct Outcome<'a> {
@@ -39,6 +40,8 @@ pub(crate) struct Summary {
     pub(crate) groups: Vec<Group>,
     /// Where Open the folder goes (an address); `None` when nothing was saved.
     pub(crate) open: Option<String>,
+    /// What Copy takes: the text, then every group with all its files.
+    pub(crate) copy: String,
 }
 
 /// Files left out for the same reason.
@@ -107,12 +110,11 @@ pub(crate) fn summary(i18n: &I18n, title: &str, o: &Outcome, open: String) -> Su
         let percent = (now as f64 * 100.0 / before as f64).round().to_string();
         after.push(i18n.t_args("summary-sizes", &[("before", &size(before)), ("after", &size(now)), ("percent", &percent)]));
     }
-    Summary {
-        title: i18n.t(title),
-        text: format!("{}\n\n{}", lines.join("\n"), after.join("\n")),
-        groups: groups(i18n, o.failed, o.preset),
-        open: (o.saved > 0).then_some(open),
-    }
+    let text = format!("{}\n\n{}", lines.join("\n"), after.join("\n"));
+    let groups = groups(i18n, o.failed, o.preset);
+    let lists: Vec<(&str, &[String])> = groups.iter().map(|g| (g.heading.as_str(), g.items.as_slice())).collect();
+    let copy = crate::notice_list::copied(&text, &lists);
+    Summary { title: i18n.t(title), text, groups, open: (o.saved > 0).then_some(open), copy }
 }
 
 impl App {
@@ -126,6 +128,7 @@ impl App {
         // A page covers the thumbnails (editor, Save as, slideshow, duplicates): it would hide them.
         let covered = self.show.is_some() || self.convert.is_some() || self.editor.is_some() || self.dup_page_shown();
         let (open_label, covered_hint, close_label) = (t("summary-open-folder"), t("summary-open-covered"), t("notice-close"));
+        let tip = t("notice-copy");
         egui::Modal::new(egui::Id::unique("batch-summary")).show(ctx, |ui| {
             // As every message window (`save_dialogs::message`).
             ui.set_max_width(460.0);
@@ -150,6 +153,7 @@ impl App {
                     }
                 }
             });
+            copy_button(ui, &tip, || s.copy.clone());
         });
         if let Some(address) = go {
             log!("batch summary: Open the folder {:?}", crate::address::without_password(&address));
@@ -206,8 +210,24 @@ mod tests {
         assert_eq!((s.open, s.text.as_str()), (None, "**1 file** left out.\n\nIt took 1 min 15 s."));
         let s = summary(&i18n, "batch-title", &outcome(&[], 0, 0, 0), String::new());
         assert!(s.text.starts_with("No file was saved.\n\n"), "{}", s.text);
+        // Nothing left out: Copy takes the text as it reads.
+        assert_eq!(summary(&i18n, "batch-title", &outcome(&[], 3, 3, 3), String::new()).copy, "3 files saved in /p/converted.\n\nIt took 1 min 15 s.\nSize: 4.0 MB before, 1.0 MB after (25%).");
         let it = summary(&I18n::new("it"), "batch-title", &outcome(&[], 2, 2, 2), String::new());
         assert!(it.text.starts_with("**2 file** salvati in \\/p\\/converted.\n\nCi è voluto 1 min 15 s.\nDimensione: 4,0 MB prima, 1,0 MB dopo (25%)."), "{}", it.text);
+    }
+
+    /// Copy takes every file left out, also those of a group shown folded, under their headings.
+    #[test]
+    fn copy_takes_every_file() {
+        let i18n = I18n::new("it");
+        let mut failed: Vec<(&'static str, String)> = (1..=15).map(|i| (SKIP_FORMAT, format!("foto_{i}.heic"))).collect();
+        failed.push(("skip-not-picture", "nota.txt".into()));
+        let s = summary(&i18n, "batch-title", &outcome(&failed, 2, 18, 18), String::new());
+        assert!(s.groups[0].items.len() > FOLD);
+        let files: Vec<String> = (1..=15).map(|i| format!("- foto_{i}.heic")).collect();
+        let want = format!("\n\n15 file in un formato che EyeCanSee non sa scrivere; scegli un altro formato:\n{}\n\n1 file di un tipo su cui questo comando non lavora:\n- nota.txt", files.join("\n"));
+        assert!(s.copy.starts_with("2 file salvati in /p/converted.\n16 file lasciati fuori.\n\nCi è voluto 1 min 15 s."), "{}", s.copy);
+        assert!(s.copy.ends_with(&want), "{}", s.copy);
     }
 
     /// The files left out by reason, in the order the reasons came; errors said whole; Resize

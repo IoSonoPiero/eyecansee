@@ -185,7 +185,7 @@ name-refused-stayed = { $n ->
     [one] It stayed where it was.
    *[other] They stayed where they were.
 }
-name-refused-more = { $n ->
+list-more = { $n ->
     [one] and 1 more
    *[other] and { $n } more
 }

@@ -293,10 +293,12 @@ impl App {
     /// A message that needs reading (Markdown: names in bold, lists), with "Save as…" for the
     /// open image when it helps.
     pub(crate) fn notice_window(&mut self, ctx: &egui::Context) {
-        let Some(Notice { title, mut text, save_as, warning }) = self.notice.clone() else { return };
+        let Some(Notice { title, mut text, save_as, warning, copy: mut whole }) = self.notice.clone() else { return };
         let (copy, close_label) = (self.i18n.t("menu-save-copy"), self.i18n.t("notice-close"));
         if save_as.is_some() {
-            text = format!("{text}\n\n{}", self.i18n.t("save-as-hint"));
+            let hint = self.i18n.t("save-as-hint");
+            text = format!("{text}\n\n{hint}");
+            whole = whole.map(|w| format!("{w}\n\n{}", plain(&hint)));
         }
         // Enter and Esc arrive as `delete_answer` (`raw_input_hook`).
         let mut close = self.delete_answer.take().is_some();
@@ -306,7 +308,7 @@ impl App {
         let stalled = self.stall_notice.as_ref() == Some(&text);
         let (why, url) = (self.i18n.t("phone-stalled-why"), self.i18n.t("phone-stalled-url"));
         let tip = self.i18n.t("notice-copy");
-        message(ctx, "notice", Head { title: &title, warning }, &text, &tip, |ui| {
+        message_copying(ctx, "notice", Head { title: &title, warning }, &text, whole.as_deref(), &tip, |ui| {
             // A stalled phone (`phone_stall`): our page on why, in the app's language.
             if stalled {
                 ui.hyperlink_to(why, url);
@@ -360,11 +362,14 @@ pub(crate) struct Notice {
     pub(crate) save_as: Option<Act>,
     /// A warning to take in: the yellow triangle over the title (`theme::warning_icon`).
     pub(crate) warning: bool,
+    /// What Copy takes when it is more than the text shows (every name of a list cut short,
+    /// `notice_list`); `None`: the text.
+    pub(crate) copy: Option<String>,
 }
 
 impl Notice {
     pub(crate) fn new(title: String, text: String) -> Self {
-        Notice { title, text, save_as: None, warning: false }
+        Notice { title, text, save_as: None, warning: false, copy: None }
     }
 }
 
@@ -399,6 +404,11 @@ impl<'a> Head<'a> {
 /// not be copied, Piero 20/11).
 /// `tip`: Copy's tooltip ("notice-copy").
 pub(crate) fn message(ctx: &egui::Context, id: &str, head: Head, text: &str, tip: &str, below: impl FnOnce(&mut egui::Ui)) {
+    message_copying(ctx, id, head, text, None, tip, below);
+}
+
+/// `message`, with Copy taking `whole` instead of the text, when it is given (a list cut short).
+pub(crate) fn message_copying(ctx: &egui::Context, id: &str, head: Head, text: &str, whole: Option<&str>, tip: &str, below: impl FnOnce(&mut egui::Ui)) {
     egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
         ui.set_max_width(460.0);
         // A short message ("Images saved: 1.") made a box so small it went unnoticed.
@@ -407,12 +417,18 @@ pub(crate) fn message(ctx: &egui::Context, id: &str, head: Head, text: &str, tip
         notice_text(ui, text);
         ui.add_space(8.0);
         below(ui);
-        let r = ui.min_rect();
-        let at = egui::Rect::from_min_max(egui::pos2(r.right() - 22.0, r.bottom() - 22.0), r.right_bottom());
-        if ui.put(at, crate::icons::small(ui, crate::icons::Line::Copy)).on_hover_text(tip).clicked() {
-            ui.ctx().copy_text(plain(text));
-        }
+        copy_button(ui, tip, || whole.map_or_else(|| plain(text), str::to_string));
     });
+}
+
+/// The small Copy at the right of the last row of a message window's buttons: puts `text()` on
+/// the clipboard.
+pub(crate) fn copy_button(ui: &mut egui::Ui, tip: &str, text: impl FnOnce() -> String) {
+    let r = ui.min_rect();
+    let at = egui::Rect::from_min_max(egui::pos2(r.right() - 22.0, r.bottom() - 22.0), r.right_bottom());
+    if ui.put(at, crate::icons::small(ui, crate::icons::Line::Copy)).on_hover_text(tip).clicked() {
+        ui.ctx().copy_text(text());
+    }
 }
 
 /// A message's text as it reads, without the Markdown of `notice_text`: for the clipboard.
