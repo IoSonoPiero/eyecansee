@@ -22,12 +22,45 @@ fn gltf_error(e: String) -> String {
 /// Fluent id of a .gltf whose data file next to it cannot be read (#178), sent as
 /// `id\u{1}name` (`I18n::load_error`).
 pub const MISSING_BIN: &str = "error-gltf-bin-missing";
+/// Fluent id of a .gltf whose data file is out of its folder or on the internet, which is
+/// never read (`model::sibling_path`), sent as `id\u{1}name`.
+pub const OUTSIDE_BIN: &str = "error-gltf-bin-outside";
+/// Fluent id of a glTF whose data written inside it (base64) cannot be decoded, sent as `id\u{1}`.
+pub const DAMAGED_INSIDE: &str = "error-gltf-data-damaged";
+/// Fluent id of a GLB without its block of data (chunk BIN), sent as `id\u{1}`.
+pub const INCOMPLETE: &str = "error-glb-incomplete";
+/// The ids above: the ones with a name first.
+const ERRORS: [&str; 4] = [MISSING_BIN, OUTSIDE_BIN, DAMAGED_INSIDE, INCOMPLETE];
 
-/// The error of a data file `uri` that is not next to the model: its name as the model gives it
-/// (percent-decoded, at most 120 characters, without control characters).
-pub(crate) fn missing_file(uri: &str) -> String {
+/// Whether `id` is one of the errors of a glTF whose data cannot be read.
+pub fn is_error(id: &str) -> bool {
+    ERRORS.contains(&id)
+}
+
+/// Convert's form of those errors (`is_error`): the file the model names and the model, or only
+/// the model in brackets after the sentence.
+pub fn convert_error(id: &str, file: &str, name: &str) -> (&'static str, String) {
+    let id = ERRORS.into_iter().find(|e| *e == id).unwrap_or(MISSING_BIN);
+    (id, if file.is_empty() { format!(" ({name})") } else { format!("{file} ({name})") })
+}
+
+/// The error of a data file `uri` that could not be read next to the model: refused because it
+/// is out of the model's folder or on the internet, else missing; with its name as the model
+/// gives it (percent-decoded, at most 120 characters, without control characters).
+pub(crate) fn unread_file(uri: &str) -> String {
+    let id = if crate::model::leaves_folder(uri) { OUTSIDE_BIN } else { MISSING_BIN };
     let name: String = crate::model::percent_decoded(uri).unwrap_or_else(|| uri.to_string()).chars().filter(|c| !c.is_control()).take(120).collect();
-    format!("{MISSING_BIN}\u{1}{name}")
+    format!("{id}\u{1}{name}")
+}
+
+/// The error of a buffer whose data is not there: a file next to the model, data inside the
+/// .gltf that cannot be decoded, or a GLB without its block of data.
+fn unread_buffer(source: gltf::buffer::Source) -> String {
+    match source {
+        gltf::buffer::Source::Uri(uri) if uri.starts_with("data:") => format!("{DAMAGED_INSIDE}\u{1}"),
+        gltf::buffer::Source::Uri(uri) => unread_file(uri),
+        gltf::buffer::Source::Bin => format!("{INCOMPLETE}\u{1}"),
+    }
 }
 
 /// GLB, and .gltf with its data inside or in the files next to it (`sibling`); compressed ones
@@ -55,10 +88,7 @@ fn read_plain(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
         gltf::buffer::Source::Uri(_) => inside[b.index()].as_deref(),
     };
     if let Some(b) = g.document.buffers().find(|b| data(b.clone()).is_none()) {
-        return Err(match b.source() {
-            gltf::buffer::Source::Uri(uri) if !uri.starts_with("data:") => missing_file(uri),
-            _ => "the model's data file (.bin) is missing".into(),
-        });
+        return Err(unread_buffer(b.source()));
     }
     let mut b = Builder::default();
     let mut extra: Extra = (Vec::new(), Vec::new(), HashMap::new(), HashSet::new(), 0);
@@ -273,7 +303,106 @@ mod tests {
             assert_eq!(crate::i18n::I18n::new("en").error(id, &detail), "The file with the model's data is missing: missing model.bin (a.gltf)");
         }
         // A control character in the name does not reach the message (`\u{1}` separates the id).
-        assert_eq!(super::missing_file("a%01b.bin"), format!("{}\u{1}ab.bin", super::MISSING_BIN));
+        assert_eq!(super::unread_file("a%01b.bin"), format!("{}\u{1}ab.bin", super::MISSING_BIN));
+    }
+
+    /// A glTF with one triangle whose data is in `buffer` (the buffer's JSON object), plain or
+    /// packed (`KHR_mesh_quantization`, read through `model_gltf_unpack`).
+    fn with_buffer(buffer: &str, packed: bool) -> String {
+        let packed = if packed { r#""extensionsUsed":["KHR_mesh_quantization"],"# } else { "" };
+        format!(
+            r#"{{"asset":{{"version":"2.0"}},{packed}"buffers":[{buffer}],"bufferViews":[{{"buffer":0,"byteLength":36}}],"accessors":[{{"bufferView":0,"componentType":5126,"count":3,"type":"VEC3","max":[1,1,0],"min":[0,0,0]}}],"meshes":[{{"primitives":[{{"attributes":{{"POSITION":0}}}}]}}],"nodes":[{{"mesh":0}}],"scenes":[{{"nodes":[0]}}],"scene":0}}"#
+        )
+    }
+
+    /// The text of `e` in English and Italian.
+    fn said(e: &str) -> [String; 2] {
+        ["en", "it"].map(|lang| crate::i18n::I18n::new(lang).load_error(e))
+    }
+
+    /// Convert's text (English) of the glTF `bytes` named `name`.
+    fn converted(bytes: &[u8], name: &str) -> String {
+        let job = crate::batch::Job { format: Some(crate::encode::Format::Png), ..Default::default() };
+        let (id, detail) = crate::batch::convert(bytes, name, &job).unwrap_err();
+        crate::i18n::I18n::new("en").error(id, &detail)
+    }
+
+    /// #178: data written inside the .gltf (base64) that cannot be decoded is said to be damaged,
+    /// not a missing file, plain or packed, in the user's language and in Convert.
+    #[test]
+    fn damaged_data_inside() {
+        for packed in [false, true] {
+            let gltf = with_buffer(r#"{"uri":"data:application/octet-stream;base64,@@@@","byteLength":36}"#, packed);
+            let e = crate::model::parse(gltf.as_bytes(), "a.gltf").unwrap_err();
+            assert_eq!(e, format!("{}\u{1}", super::DAMAGED_INSIDE), "packed {packed}");
+            let [en, it] = said(&e);
+            assert_eq!(en, "The model's data written inside the file is damaged");
+            assert_eq!(it, "I dati del modello scritti dentro il file sono rovinati");
+            assert_eq!(converted(gltf.as_bytes(), "a.gltf"), "The model's data written inside the file is damaged (a.gltf)");
+        }
+    }
+
+    /// #178: a GLB without its block of data (chunk BIN) is said to be incomplete, plain or packed.
+    #[test]
+    fn glb_without_its_data() {
+        for packed in [false, true] {
+            let mut json = with_buffer(r#"{"byteLength":36}"#, packed).into_bytes();
+            while !json.len().is_multiple_of(4) {
+                json.push(b' ');
+            }
+            let mut glb = b"glTF".to_vec();
+            glb.extend(2u32.to_le_bytes());
+            glb.extend((20 + json.len() as u32).to_le_bytes());
+            glb.extend((json.len() as u32).to_le_bytes());
+            glb.extend(b"JSON");
+            glb.extend(&json);
+            let e = crate::model::parse(&glb, "a.glb").unwrap_err();
+            assert_eq!(e, format!("{}\u{1}", super::INCOMPLETE), "packed {packed}");
+            let [en, it] = said(&e);
+            assert_eq!(en, "The file is incomplete: the block with the model's data is missing");
+            assert_eq!(it, "Il file è incompleto: manca il blocco con i dati del modello");
+            assert_eq!(converted(&glb, "a.glb"), "The file is incomplete: the block with the model's data is missing (a.glb)");
+        }
+    }
+
+    /// #178: a .gltf whose data file is in a folder above, at a whole path or on the internet is
+    /// not said missing: EyeCanSee does not read there (`model::sibling_path` refuses it).
+    #[test]
+    fn data_file_outside_the_folder() {
+        for (uri, name) in [("../x.bin", "../x.bin"), ("%2E%2E/x.bin", "../x.bin"), ("/x.bin", "/x.bin"), ("C:/x.bin", "C:/x.bin"), (r"C:\\x.bin", r"C:\x.bin"), ("http://h/x.bin", "http://h/x.bin"), ("https://h/x.bin", "https://h/x.bin")] {
+            for packed in [false, true] {
+                let gltf = with_buffer(&format!(r#"{{"uri":"{uri}","byteLength":36}}"#), packed);
+                let e = crate::model::parse(gltf.as_bytes(), "a.gltf").unwrap_err();
+                assert_eq!(e, format!("{}\u{1}{name}", super::OUTSIDE_BIN), "{uri} packed {packed}");
+            }
+        }
+        let e = super::unread_file("https://h/x.bin");
+        let [en, it] = said(&e);
+        assert_eq!(en, "The file with the model's data is not read, because EyeCanSee does not read files outside the model's folder or from the internet: https://h/x.bin");
+        assert_eq!(it, "Il file con i dati del modello non viene letto, perché EyeCanSee non legge file fuori dalla cartella del modello né da internet: https://h/x.bin");
+        let gltf = with_buffer(r#"{"uri":"../x.bin","byteLength":36}"#, false);
+        assert_eq!(converted(gltf.as_bytes(), "a.gltf"), "The file with the model's data is not read, because EyeCanSee does not read files outside the model's folder or from the internet: ../x.bin (a.gltf)");
+        // A name that is not out of the folder, even one that cannot be decoded, is missing.
+        assert_eq!(super::unread_file("%2"), format!("{}\u{1}%2", super::MISSING_BIN));
+    }
+
+    /// #178: the data file in the folder above, there for real, is not read; next to the model it is.
+    #[test]
+    fn data_file_above_not_read() {
+        let dir = std::env::temp_dir().join(format!("ecs-gltf-above-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        let floats: Vec<u8> = [0f32, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0, 0.0].iter().flat_map(|f| f.to_le_bytes()).collect();
+        std::fs::write(dir.join("x.bin"), &floats).unwrap();
+        std::fs::write(dir.join("sub/x.bin"), &floats).unwrap();
+        let model = dir.join("sub/a.gltf").to_string_lossy().to_string();
+        let next = |rel: &str| crate::model::sibling_path(&model, rel).and_then(|p| std::fs::read(p).ok());
+        for packed in [false, true] {
+            let above = with_buffer(r#"{"uri":"../x.bin","byteLength":36}"#, packed);
+            assert_eq!(crate::model::parse_with(above.as_bytes(), &model, &next).unwrap_err(), format!("{}\u{1}../x.bin", super::OUTSIDE_BIN));
+            let beside = with_buffer(r#"{"uri":"x.bin","byteLength":36}"#, packed);
+            assert_eq!(crate::model::parse_with(beside.as_bytes(), &model, &next).unwrap().tris.len(), 1);
+        }
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 
     /// #179: a node with two parents (outside the standard) is placed once, as before, and the

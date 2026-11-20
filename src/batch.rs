@@ -269,7 +269,7 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     }
     let mut image = crate::decode::decode_full_with(bytes, name, sibling).map_err(|e| match e.split_once('\u{1}') {
         Some((_, size)) if crate::pixel_limit::is_too_large(&e) => (crate::pixel_limit::TOO_LARGE, format!("{name}, {size}")),
-        Some((id, file)) if id == crate::model_gltf::MISSING_BIN => (crate::model_gltf::MISSING_BIN, format!("{file} ({name})")),
+        Some((id, file)) if crate::model_gltf::is_error(id) => crate::model_gltf::convert_error(id, file, name),
         _ => ("batch-failed", format!("{name}: {e}")),
     })?;
     // The other frames of an animation, the other pages would be lost. After decoding, so that

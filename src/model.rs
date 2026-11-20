@@ -400,8 +400,19 @@ fn stl_binary(bytes: &[u8], n: usize) -> Result<Mesh, String> {
 pub fn sibling_path(model: &str, rel: &str) -> Option<String> {
     let rel = percent_decoded(rel)?.replace('\\', "/");
     let parts: Vec<&str> = rel.split('/').filter(|p| !p.is_empty() && *p != ".").collect();
-    let refused = rel.starts_with('/') || rel.contains(':') || parts.is_empty() || parts.contains(&"..");
+    let refused = outside(&rel) || parts.is_empty();
     (!refused).then(|| format!("{}{}", crate::source::parent(model), parts.join("/")))
+}
+
+/// Whether a name a model gives for a file next to it points out of the model's folder, which
+/// `sibling_path` refuses: a folder above (`..`), a whole path, or an address (`http:`, `C:`).
+pub(crate) fn leaves_folder(rel: &str) -> bool {
+    percent_decoded(rel).is_some_and(|r| outside(&r.replace('\\', "/")))
+}
+
+/// `leaves_folder` for a name already decoded, with `/` between its folders.
+fn outside(rel: &str) -> bool {
+    rel.starts_with('/') || rel.contains(':') || rel.split('/').any(|p| p == "..")
 }
 
 pub(crate) fn percent_decoded(s: &str) -> Option<String> {

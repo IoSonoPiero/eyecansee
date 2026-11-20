@@ -43,13 +43,17 @@ pub fn plain(bytes: &[u8], sibling: Sibling, unpacked: &Unpacked) -> Result<Opti
     let mut p = Packed { unpacked, converted: HashMap::new(), data: Vec::new(), read_end: 0, views: j["bufferViews"].as_array().cloned().unwrap_or_default(), accessors: j["accessors"].as_array().cloned().unwrap_or_default() };
     // Every buffer into one, each view moved to where its buffer landed.
     let mut base = Vec::new();
+    let is_glb = bytes.starts_with(b"glTF");
     for (i, buf) in j["buffers"].as_array().cloned().unwrap_or_default().iter().enumerate() {
+        // Damaged, missing, out of the folder, a GLB without its data: refused here as by the
+        // glTF reader (#178). A buffer without data that meshopt has a fallback for stays empty.
+        let fallback = ["EXT_meshopt_compression", "KHR_meshopt_compression"].iter().any(|e| buf["extensions"][e]["fallback"].as_bool() == Some(true));
         let bytes = match buf["uri"].as_str() {
+            None if i == 0 && is_glb && bin.is_none() && !fallback => return Err(format!("{}\u{1}", crate::model_gltf::INCOMPLETE)),
             None => bin.filter(|_| i == 0).map(<[u8]>::to_vec),
-            Some(u) if u.starts_with("data:") => u.split_once(";base64,").and_then(|(_, d)| base64::engine::general_purpose::STANDARD.decode(d).ok()),
-            // Missing: refused here as by the glTF reader, naming it (#178).
+            Some(u) if u.starts_with("data:") => Some(u.split_once(";base64,").and_then(|(_, d)| base64::engine::general_purpose::STANDARD.decode(d).ok()).ok_or_else(|| format!("{}\u{1}", crate::model_gltf::DAMAGED_INSIDE))?),
             Some(u) => {
-                let b = sibling(u).ok_or_else(|| crate::model_gltf::missing_file(u))?;
+                let b = sibling(u).ok_or_else(|| crate::model_gltf::unread_file(u))?;
                 unpacked.read_too(b.len());
                 Some(b)
             }
