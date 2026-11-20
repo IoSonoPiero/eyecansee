@@ -15,7 +15,7 @@ L'originale resta com'è. La pagina resta aperta, così puoi continuare; intanto
 
 Nelle Opzioni, **Dopo il salvataggio** può chiudere la pagina appena il file è scritto (all'inizio **Resta nell'editor**). Con **Torna da dove eri** la griglia seleziona la copia se avevi aperto l'editor dalla griglia, il visore la mostra se l'avevi aperto dal visore; con **Torna alle miniature** torni sempre alle miniature con la copia selezionata. Vale anche per **Sovrascrivi l'originale…** e **Aggiorna copia**. Un salvataggio che non riesce lascia la pagina aperta, come sotto.
 
-Se un salvataggio non riesce, una fascia gialla con il triangolo di avviso in fondo alla finestra dice perché in parole semplici (per esempio che la cartella è in sola lettura o il disco è pieno), e la pagina resta aperta con le modifiche. Nella cartella non resta niente scritto a metà: una copia nuova che non ci sta viene tolta, e una copia che si stava aggiornando resta com'era. La fascia sparisce quando chiudi la pagina, o prima con la sua ✕.
+Se un salvataggio non riesce, un messaggio con il triangolo di avviso in fondo alla finestra dice perché in parole semplici (per esempio che la cartella è in sola lettura o il disco è pieno), e la pagina resta aperta con le modifiche. Nella cartella non resta niente scritto a metà: una copia nuova che non ci sta viene tolta, e una copia che si stava aggiornando resta com'era. Il messaggio sparisce quando chiudi la pagina, o prima con la sua ✕.
 
 ## Aggiorna copia
 

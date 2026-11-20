@@ -67,6 +67,7 @@ mod ffmpeg_files;
 mod file_dialogs;
 mod folder_pick;
 mod fonts;
+mod error_bar;
 mod frame;
 mod frames;
 mod frames_view;

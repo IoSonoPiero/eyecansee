@@ -222,31 +222,6 @@ impl App {
         }
     }
 
-    /// The last error, at the bottom of the window with a ✕ to close it. Over the pages that
-    /// cover the window too (editor, Save in another format, duplicates, slideshow): drawn only
-    /// in the grid and the viewer, a save that failed in the editor was told once it was closed.
-    /// The slideshow goes on above it: the error is seen, and its ✕ closes it.
-    /// A band in the warning colours with the triangle and the text on as many lines as it needs:
-    /// red text on one long line, on the dark bar, was hard to read. It stays
-    /// at the bottom, where the status bar is: at the top it would push the toolbar and the
-    /// address bar down every time an error comes and goes.
-    fn error_bar(&mut self, ui: &mut egui::Ui) {
-        let Some(e) = self.error.clone() else { return };
-        let (frame, ink) = (theme::warning_frame(ui.visuals()), theme::warning_text(ui.visuals()));
-        egui::Panel::bottom("error").frame(frame).show(ui, |ui| {
-            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                if ui.add(crate::icons::small(ui, crate::icons::Line::Close)).on_hover_text(self.i18n.t("notice-close")).clicked() {
-                    self.error = None;
-                }
-                ui.with_layout(egui::Layout::left_to_right(egui::Align::Center), |ui| {
-                    theme::warning_icon(ui, 22.0);
-                    ui.add_space(4.0);
-                    ui.add(egui::Label::new(egui::RichText::new(e).color(ink).size(15.0)).wrap());
-                });
-            });
-        });
-    }
-
     /// The windows over the panels (guide, dialogs, confirmations) and the chosen menu item.
     pub(crate) fn windows(&mut self, ctx: &egui::Context) {
         self.help_window(ctx);
