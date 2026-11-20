@@ -270,6 +270,7 @@ impl App {
         let mut zoom_on = false;
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
         let top_copy = self.measure_row(ui);
+        self.export_said_rows(ui);
         // On more rows in a narrow window (`bar_rows`): the date went under Keys at 520 px.
         let (mut buttons, zoom) = crate::bar_rows::rows(ui, |ui| {
             self.phone_waiting(ui);

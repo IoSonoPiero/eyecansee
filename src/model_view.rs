@@ -261,6 +261,7 @@ impl App {
     /// name and a free one if taken (also by another of them: `a.stl` and `a.obj` to GLB).
     pub(crate) fn export_model(&mut self, path: Option<String>, kind: crate::model_export::Kind) {
         let paths = self.files_chosen(path).into_iter().filter(|p| crate::model::is_model(p));
+        self.export_said.clear();
         let Some(loader) = &self.loader else { return };
         let mut taken: std::collections::HashMap<String, std::collections::HashSet<String>> = Default::default();
         let mut jobs = Vec::new();
@@ -295,19 +296,22 @@ impl App {
         self.note_until = Some(ctx.input(|i| i.time) + 6.0);
     }
 
-    /// What the model `from` had that its new file has otherwise (#179), in a message that stays
-    /// until closed: a status note would be gone at the next model exported. The models of one
-    /// export add their lines to the same message.
+    /// What the model `from` had that its new file has otherwise (#179): a yellow line in the
+    /// status bar, as Save as… has one on its page (the export window is closed by then). The
+    /// lines stay until the next export or another folder: a status note goes after 6 seconds,
+    /// or at the next model exported.
     fn export_notes(&mut self, from: &str, notes: &[&'static str]) {
         if notes.is_empty() {
             return;
         }
         log!("export {from:?}: said of the new file {notes:?}");
-        let lines = crate::model::saved_lines(&self.i18n, &crate::save_dialogs::md(crate::source::name(from)), notes).join("\n");
-        let title = self.i18n.t("model-export-title");
-        match &mut self.notice {
-            Some(n) if n.title == title => n.text = format!("{}\n{lines}", n.text),
-            _ => self.notice = Some(crate::save_dialogs::Notice { warning: true, ..crate::save_dialogs::Notice::new(title, lines) }),
+        self.export_said.extend(crate::model::saved_lines(&self.i18n, crate::source::name(from), notes));
+    }
+
+    /// The lines of `export_notes`, each on its own row above the status bar's own.
+    pub(crate) fn export_said_rows(&self, ui: &mut egui::Ui) {
+        for line in &self.export_said {
+            ui.label(crate::theme::alert(line.clone()));
         }
     }
 }

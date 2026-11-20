@@ -383,6 +383,9 @@ struct App {
     held_open: Option<String>,
     /// When a passing `status_note` goes away by itself (`egui` time), such as a file removed.
     note_until: Option<f64>,
+    /// What the models of the last export had that their new files have otherwise (#179): yellow
+    /// lines in the status bars until the next export or another folder (`App::export_notes`).
+    export_said: Vec<String>,
     /// The message of a stalled phone, while it lasts (`App::phone_stall`).
     stall_notice: Option<String>,
     /// The star menu of the bookmarks, and their Configure window.

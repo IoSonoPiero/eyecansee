@@ -263,6 +263,7 @@ impl App {
     /// On the solid accent colour (style "B"), all in white.
     pub(crate) fn status_bar(&self, ui: &mut egui::Ui) {
         ui.visuals_mut().override_text_color = Some(Color32::WHITE);
+        self.export_said_rows(ui);
         // A stalled phone never sends the listing: the warning is all the bar has then.
         let Some(Ok(l)) = self.listings.get(&self.dir) else {
             ui.horizontal(|ui| self.phone_waiting(ui));

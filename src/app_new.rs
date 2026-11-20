@@ -89,6 +89,7 @@ impl App {
             status_note: None,
             held_open: None,
             note_until: None,
+            export_said: Vec::new(),
             stall_notice: None,
             open_address: None,
             batch_turn: None,
