@@ -302,7 +302,7 @@ async fn reserved(op: &Store, path: &str, bytes: Vec<u8>, budget: &Budget, wante
     log!("thumbnail of {path}: waits for {} MiB of memory", need >> 20);
     let local = matches!(op, Store::Dal(_));
     let kept = (!local).then_some(bytes);
-    let memory = budget.reserve(need).await;
+    let memory = Some(budget.reserve(need).await);
     if !wanted() {
         return Err(NOT_WANTED.into());
     }

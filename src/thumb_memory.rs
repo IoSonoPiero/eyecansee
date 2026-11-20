@@ -6,10 +6,17 @@
 //! of a quarter of the computer's RAM (Piero, 20/11/2026), and waits while there is no room. A
 //! picture larger than the whole budget waits until no other is being made, then is made alone.
 //! No photo is refused: the ceiling on the size of a picture is `pixel_limit`'s.
+//!
+//! The small ones pass a large one that waits, as long as there is room for them (Piero,
+//! 20/11/2026): in a folder of JPEGs and RAWs the JPEGs no longer wait behind every RAW. After
+//! `MAX_WAIT` or `MAX_PASSES`, whichever comes first, nobody passes it any more: it is made as soon
+//! as the memory it needs is free, so it never waits for ever.
 
-use std::sync::{Arc, LazyLock};
+use std::collections::VecDeque;
+use std::sync::{Arc, LazyLock, Mutex};
+use std::time::{Duration, Instant};
 
-use tokio::sync::{OwnedSemaphorePermit, Semaphore};
+use tokio::sync::Notify;
 
 const MIB: u64 = 1024 * 1024;
 
@@ -17,36 +24,201 @@ const MIB: u64 = 1024 * 1024;
 /// budget is never larger than on that PC.
 const FALLBACK_RAM: u64 = 8 * 1024 * MIB;
 
-/// The memory of the thumbnails made at the same time, in MiB: one permit per MiB.
+/// How long a thumbnail may be passed by those that fit when it does not. A large photo's own
+/// thumbnail takes 1-2 s to make (a RAW, a HEIC of 45 MP), so 3 s at most adds about as much
+/// again to it, while the small ones that pass it in the meantime are the screen the user is
+/// looking at: a JPEG takes about 40 ms, so a whole screen of them (24-60 cells) is made well
+/// within it by 16 workers.
+const MAX_WAIT: Duration = Duration::from_secs(3);
+/// How many thumbnails may pass one that waits: a screen of cells and the rows next to it (the
+/// order of the queue, `grid::thumb_order`), so on a slow disk, where 3 s pass before a screen is
+/// made, the large one is not left behind the whole folder.
+const MAX_PASSES: u32 = 64;
+
+/// A thumbnail waiting for its memory, in the order they asked.
+#[derive(Debug)]
+struct Waiter {
+    ticket: u64,
+    places: u32,
+    since: Instant,
+    /// Thumbnails given their memory while this one waited.
+    passed: u32,
+    /// Its memory is set aside for it: it takes it when it wakes up.
+    granted: bool,
+}
+
+impl Waiter {
+    /// Waited long enough: nobody passes it any more.
+    fn held(&self, now: Instant) -> bool {
+        !self.granted && (self.passed >= MAX_PASSES || now.duration_since(self.since) >= MAX_WAIT)
+    }
+}
+
+/// The places (MiB) free and the thumbnails waiting, without the waiting itself: what `Budget`
+/// decides, so that it can be tested with a clock of its own.
+#[derive(Debug)]
+struct Ledger {
+    free: u32,
+    next: u64,
+    queue: VecDeque<Waiter>,
+}
+
+impl Ledger {
+    /// `places` now, if they fit and no thumbnail waiting was passed long enough; every one waiting
+    /// counts it as passing.
+    fn try_take(&mut self, places: u32, now: Instant) -> bool {
+        if places > self.free || self.queue.iter().any(|w| w.held(now)) {
+            return false;
+        }
+        self.free -= places;
+        self.queue.iter_mut().filter(|w| !w.granted).for_each(|w| w.passed += 1);
+        true
+    }
+
+    /// In the queue, after the others.
+    fn wait(&mut self, places: u32, now: Instant) -> u64 {
+        self.next += 1;
+        self.queue.push_back(Waiter { ticket: self.next, places, since: now, passed: 0, granted: false });
+        self.next
+    }
+
+    /// The memory set aside for `ticket`, once it was: it leaves the queue.
+    fn take(&mut self, ticket: u64) -> Option<u32> {
+        let at = self.queue.iter().position(|w| w.ticket == ticket && w.granted)?;
+        self.queue.remove(at).map(|w| w.places)
+    }
+
+    /// `ticket` gives up waiting (its future dropped): out of the queue, and the memory set aside
+    /// for it, if any, back.
+    fn leave(&mut self, ticket: u64, now: Instant) {
+        if let Some(at) = self.queue.iter().position(|w| w.ticket == ticket)
+            && let Some(w) = self.queue.remove(at)
+        {
+            self.free += if w.granted { w.places } else { 0 };
+            self.hand_out(now);
+        }
+    }
+
+    fn give_back(&mut self, places: u32, now: Instant) {
+        self.free += places;
+        self.hand_out(now);
+    }
+
+    /// Sets the free memory aside for the ones waiting, first come first: each one that fits,
+    /// passing those before it that do not, until one that was passed long enough, after which
+    /// nobody behind it is served.
+    fn hand_out(&mut self, now: Instant) {
+        for i in 0..self.queue.len() {
+            let w = &self.queue[i];
+            if w.granted {
+                continue;
+            }
+            if w.places <= self.free {
+                self.free -= w.places;
+                self.queue[i].granted = true;
+                self.queue.iter_mut().take(i).filter(|w| !w.granted).for_each(|w| w.passed += 1);
+            } else if w.held(now) {
+                return;
+            }
+        }
+    }
+}
+
+/// The memory of the thumbnails made at the same time, in MiB: one place per MiB.
 pub struct Budget {
-    places: Arc<Semaphore>,
+    shared: Arc<Shared>,
     total: u32,
 }
 
+#[derive(Debug)]
+struct Shared {
+    ledger: Mutex<Ledger>,
+    /// Woken when memory is set aside for someone waiting.
+    wake: Notify,
+}
+
 /// The memory a thumbnail reserved: given back when dropped, also on an error or a panic.
-pub type Reservation = OwnedSemaphorePermit;
+#[derive(Debug)]
+pub struct Reservation {
+    shared: Arc<Shared>,
+    places: u32,
+}
+
+impl Reservation {
+    #[cfg(test)]
+    fn places(&self) -> u32 {
+        self.places
+    }
+}
+
+impl Drop for Reservation {
+    fn drop(&mut self) {
+        self.shared.ledger.lock().unwrap().give_back(self.places, Instant::now());
+        self.shared.wake.notify_waiters();
+    }
+}
+
+/// A place in the queue: leaves it if the wait is given up (the future dropped), and gives back
+/// the memory set aside for it meanwhile. Once taken, it is no longer in the queue: nothing to do.
+struct Ticket<'a> {
+    shared: &'a Arc<Shared>,
+    ticket: u64,
+}
+
+impl Drop for Ticket<'_> {
+    fn drop(&mut self) {
+        self.shared.ledger.lock().unwrap().leave(self.ticket, Instant::now());
+        self.shared.wake.notify_waiters();
+    }
+}
 
 impl Budget {
     pub fn new(bytes: u64) -> Self {
         let total = u32::try_from(bytes / MIB).unwrap_or(u32::MAX).max(1);
-        Budget { places: Arc::new(Semaphore::new(total as usize)), total }
+        let ledger = Ledger { free: total, next: 0, queue: VecDeque::new() };
+        Budget { shared: Arc::new(Shared { ledger: Mutex::new(ledger), wake: Notify::new() }), total }
     }
 
-    /// The permits for `bytes`: at least one, at most all (a picture larger than the budget).
+    /// The places for `bytes`: at least one, at most all (a picture larger than the budget).
     fn places(&self, bytes: u64) -> u32 {
         u32::try_from(bytes.div_ceil(MIB)).unwrap_or(u32::MAX).clamp(1, self.total)
     }
 
-    /// `bytes` if there is room now and nobody is waiting before.
-    pub fn try_reserve(&self, bytes: u64) -> Option<Reservation> {
-        self.places.clone().try_acquire_many_owned(self.places(bytes)).ok()
+    fn reservation(&self, places: u32) -> Reservation {
+        Reservation { shared: self.shared.clone(), places }
     }
 
-    /// `bytes`, once there is room. The waiting ones are served in order (tokio's semaphore is
-    /// fair), so a large picture is not passed over for ever by small ones. `None` only if the
-    /// semaphore were closed, which it never is.
-    pub async fn reserve(&self, bytes: u64) -> Option<Reservation> {
-        self.places.clone().acquire_many_owned(self.places(bytes)).await.ok()
+    /// `bytes` if there is room now and no thumbnail waiting was passed long enough.
+    pub fn try_reserve(&self, bytes: u64) -> Option<Reservation> {
+        let places = self.places(bytes);
+        let taken = self.shared.ledger.lock().unwrap().try_take(places, Instant::now());
+        taken.then(|| self.reservation(places))
+    }
+
+    /// `bytes`, once there is room: passing the larger ones that wait, until one of them waited
+    /// `MAX_WAIT` or was passed `MAX_PASSES` times.
+    pub async fn reserve(&self, bytes: u64) -> Reservation {
+        let places = self.places(bytes);
+        let ticket = {
+            let mut ledger = self.shared.ledger.lock().unwrap();
+            let now = Instant::now();
+            if ledger.try_take(places, now) {
+                return self.reservation(places);
+            }
+            ledger.wait(places, now)
+        };
+        let ticket = Ticket { shared: &self.shared, ticket };
+        loop {
+            // Registered before looking: memory set aside meanwhile wakes it all the same.
+            let woken = self.shared.wake.notified();
+            tokio::pin!(woken);
+            woken.as_mut().enable();
+            let taken = self.shared.ledger.lock().unwrap().take(ticket.ticket);
+            if let Some(places) = taken {
+                return self.reservation(places);
+            }
+            woken.await;
+        }
     }
 }
 
@@ -102,7 +274,7 @@ fn ram() -> Option<u64> {
 /// `spawn_blocking`): for a picture decoded outside the workers (`thumb_queue::file_info`).
 pub fn wait_for(bytes: &[u8], name: &str) -> Option<Reservation> {
     let need = estimate(bytes, name);
-    budget().try_reserve(need).or_else(|| tokio::runtime::Handle::try_current().ok()?.block_on(budget().reserve(need)))
+    budget().try_reserve(need).or_else(|| Some(tokio::runtime::Handle::try_current().ok()?.block_on(budget().reserve(need))))
 }
 
 // The factors below: the peak of one thumbnail (VmHWM, build --release, one file per process)
@@ -222,25 +394,99 @@ mod tests {
 
     const GIB: u64 = 1024 * MIB;
 
-    /// A reservation that fits is given at once, one that does not waits, nobody passes it, and
-    /// it gets its turn as soon as the first is given back.
+    impl Budget {
+        fn free(&self) -> u32 {
+            self.shared.ledger.lock().unwrap().free
+        }
+    }
+
+    /// A reservation that fits is given at once; one that does not waits, the smaller ones that
+    /// fit pass it, and it gets its turn as soon as there is room for it.
     #[test]
-    fn reserve_and_wait() {
+    fn small_ones_pass_a_waiting_large_one() {
         let b = Budget::new(100 * MIB);
         let first = b.try_reserve(60 * MIB).unwrap();
         assert!(b.try_reserve(50 * MIB).is_none());
-        let mut waiting = Box::pin(b.reserve(50 * MIB));
-        assert!(waiting.as_mut().now_or_never().is_none());
-        assert!(b.try_reserve(40 * MIB).is_none(), "nobody passes the one waiting");
+        let mut large = Box::pin(b.reserve(50 * MIB));
+        assert!(large.as_mut().now_or_never().is_none());
+        let small = b.try_reserve(30 * MIB).expect("a small one passes the large one waiting");
+        let mut also = Box::pin(b.reserve(5 * MIB));
+        let also = also.as_mut().now_or_never().expect("waits for nothing");
         drop(first);
-        let second = waiting.now_or_never().flatten().unwrap();
-        assert_eq!(second.num_permits(), 50);
-        drop(second);
-        assert_eq!(b.places.available_permits(), 100);
+        let large = large.now_or_never().expect("room for it now");
+        assert_eq!(large.places(), 50);
+        assert_eq!(b.free(), 100 - 50 - 30 - 5);
+        drop((large, small, also));
+        assert_eq!(b.free(), 100);
+    }
+
+    /// Passed `MAX_PASSES` times, a large one waiting stops the small ones; it starts as soon as
+    /// its memory is free, and then the small ones pass again.
+    #[test]
+    fn passed_too_often_the_large_one_goes_first() {
+        let b = Budget::new(100 * MIB);
+        let first = b.try_reserve(60 * MIB).unwrap();
+        let mut large = Box::pin(b.reserve(50 * MIB));
+        assert!(large.as_mut().now_or_never().is_none());
+        for _ in 0..MAX_PASSES {
+            drop(b.try_reserve(MIB).expect("passes"));
+        }
+        assert!(b.try_reserve(MIB).is_none(), "passed enough");
+        let mut small = Box::pin(b.reserve(MIB));
+        assert!(small.as_mut().now_or_never().is_none(), "waits behind it");
+        drop(first);
+        let large = large.now_or_never().unwrap();
+        let small = small.now_or_never().expect("served with it, there is room");
+        assert_eq!(b.free(), 100 - 50 - 1);
+        assert!(b.try_reserve(MIB).is_some());
+        drop((large, small));
+        assert_eq!(b.free(), 100);
+    }
+
+    /// `MAX_WAIT` after it asked, a large one waiting is passed no more, however few passed it;
+    /// the ones that were waiting behind it are served after it, in their order.
+    #[test]
+    fn waited_too_long_the_large_one_goes_first() {
+        let t0 = Instant::now();
+        let mut l = Ledger { free: 100, next: 0, queue: VecDeque::new() };
+        assert!(l.try_take(60, t0));
+        let large = l.wait(50, t0);
+        assert!(l.try_take(10, t0 + MAX_WAIT / 2), "passes it");
+        let late = t0 + MAX_WAIT;
+        assert!(!l.try_take(10, late), "waited too long");
+        let small = l.wait(10, late);
+        l.give_back(10, late);
+        assert_eq!((l.take(large), l.take(small)), (None, None), "40 free, not enough for it");
+        l.give_back(60, late);
+        assert_eq!((l.take(large), l.take(small)), (Some(50), Some(10)));
+        assert_eq!(l.free, 40);
+        assert!(l.try_take(10, late));
+    }
+
+    /// A wait given up (its future dropped) leaves the queue: a large one that stopped the small
+    /// ones no longer stops them, and memory set aside for one that went is given back.
+    #[test]
+    fn wait_given_up() {
+        let b = Budget::new(100 * MIB);
+        let first = b.try_reserve(60 * MIB).unwrap();
+        let mut large = Box::pin(b.reserve(50 * MIB));
+        assert!(large.as_mut().now_or_never().is_none());
+        for _ in 0..MAX_PASSES {
+            drop(b.try_reserve(MIB).unwrap());
+        }
+        assert!(b.try_reserve(MIB).is_none());
+        drop(large);
+        assert!(b.try_reserve(MIB).is_some(), "no longer stopped");
+        let mut granted = Box::pin(b.reserve(50 * MIB));
+        assert!(granted.as_mut().now_or_never().is_none());
+        drop(first);
+        assert_eq!(b.free(), 50, "set aside for the one waiting");
+        drop(granted);
+        assert_eq!(b.free(), 100, "given back: it went before taking it");
     }
 
     /// A picture larger than the whole budget waits until nothing else is reserved, then takes
-    /// it all: alone, never refused.
+    /// it all: alone, never refused. Small ones pass it until it was passed enough, then wait.
     #[test]
     fn larger_than_budget_goes_alone() {
         let b = Budget::new(100 * MIB);
@@ -248,12 +494,32 @@ mod tests {
         assert!(b.try_reserve(10 * GIB).is_none());
         let mut big = Box::pin(b.reserve(10 * GIB));
         assert!(big.as_mut().now_or_never().is_none());
-        drop(small);
-        let big = big.now_or_never().flatten().unwrap();
-        assert_eq!(big.num_permits(), 100);
+        let mut passing: Vec<Reservation> = (0..MAX_PASSES).map(|_| b.try_reserve(MIB).expect("passes")).collect();
+        assert!(b.try_reserve(MIB).is_none());
+        passing.pop();
+        assert!(big.as_mut().now_or_never().is_none(), "the others still hold memory");
+        drop((small, passing));
+        let big = big.now_or_never().unwrap();
+        assert_eq!(big.places(), 100);
         assert!(b.try_reserve(1).is_none());
         drop(big);
         assert!(b.try_reserve(u64::MAX).is_some());
+    }
+
+    /// Across threads, as the workers: one woken when the memory is given back by another.
+    #[test]
+    fn woken_by_another_thread() {
+        let b = Arc::new(Budget::new(100 * MIB));
+        let first = b.try_reserve(100 * MIB).unwrap();
+        let rt = tokio::runtime::Builder::new_multi_thread().worker_threads(2).build().unwrap();
+        let waiting = rt.spawn({
+            let b = b.clone();
+            async move { b.reserve(70 * MIB).await.places() }
+        });
+        std::thread::sleep(Duration::from_millis(50));
+        drop(first);
+        assert_eq!(rt.block_on(waiting).unwrap(), 70);
+        assert_eq!(b.free(), 100);
     }
 
     /// The memory reserved is given back when the work fails or panics.
@@ -265,7 +531,7 @@ mod tests {
             Err("broken file".into())
         };
         assert!(failing(b.try_reserve(80 * MIB).unwrap()).is_err());
-        assert_eq!(b.places.available_permits(), 100);
+        assert_eq!(b.free(), 100);
         let r = b.try_reserve(80 * MIB).unwrap();
         let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
         let joined = rt.block_on(async {
@@ -276,7 +542,7 @@ mod tests {
             .await
         });
         assert!(joined.is_err());
-        assert_eq!(b.places.available_permits(), 100);
+        assert_eq!(b.free(), 100);
     }
 
     /// A quarter of the RAM; when it is not read, a quarter of 8 GiB.
