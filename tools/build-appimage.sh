@@ -27,15 +27,26 @@ apt-get update -qq
 apt-get install -y -qq build-essential cmake nasm curl file jq pkg-config meson ninja-build \
     libglib2.0-0 libclang-dev libpng-dev libjpeg-turbo8-dev libtiff-dev libwebp-dev libopenjp2-7-dev \
     liblcms2-dev libfreetype-dev libbz2-dev liblzma-dev zlib1g-dev libxkbcommon-x11-0 >/dev/null
+source tools/fetch.sh
 DE265=1.1.3 DAV1D=1.5.4
+# SHA-256 of the sources (tools/fetch.sh). To update a version: its new SHA-256 here, checked against
+# what the project publishes. libde265: the tag's archive, as in the Flatpak manifest; GitHub publishes
+# no hash for it, its content is the same as the release's libde265-1.1.3.tar.gz (whose SHA-256 GitHub
+# shows). dav1d: VideoLAN's release tarball, with its published .sha256 and signature.
+DE265_URL=https://github.com/strukturag/libde265/archive/refs/tags/v$DE265.tar.gz
+DE265_SHA256=189baa08fd6d2dd34db099de411bd6b2e6bd5eb88e81236a3d0fa3826b9715c4
+DAV1D_URL=https://downloads.videolan.org/pub/videolan/dav1d/$DAV1D/dav1d-$DAV1D.tar.xz
+DAV1D_SHA256=686616b7c69eb88d44459391ab25cac13b6647a3b288835c5784e71c1514a5c5
 DEPS=/cache/deps-de265-$DE265-dav1d-$DAV1D
 if [[ ! -d $DEPS ]]; then
     B=$(mktemp -d -p /cache)  # not /tmp: meson copies its per-container SELinux label
-    curl -sSfL https://github.com/strukturag/libde265/archive/refs/tags/v$DE265.tar.gz | tar xz -C "$B"
+    fetch $DE265_URL $DE265_SHA256 "$B/libde265.tar.gz"
+    tar xzf "$B/libde265.tar.gz" -C "$B"
     cmake -S "$B/libde265-$DE265" -B "$B/de265" -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$DEPS \
         -DCMAKE_INSTALL_LIBDIR=lib -DENABLE_DECODER=OFF -DENABLE_ENCODER=OFF -DENABLE_SDL=OFF
     cmake --build "$B/de265" -j"$(nproc)" --target install
-    curl -sSfL https://code.videolan.org/videolan/dav1d/-/archive/$DAV1D/dav1d-$DAV1D.tar.gz | tar xz -C "$B"
+    fetch $DAV1D_URL $DAV1D_SHA256 "$B/dav1d.tar.xz"
+    tar xJf "$B/dav1d.tar.xz" -C "$B"
     meson setup "$B/dav1d" "$B/dav1d-$DAV1D" --buildtype=release --prefix=$DEPS --libdir=lib \
         -Denable_tools=false -Denable_tests=false
     ninja -C "$B/dav1d" install
@@ -44,10 +55,15 @@ if [[ ! -d $DEPS ]]; then
     rm -rf "$B"
 fi
 IM=7.1.2-34
+# The tag's archive, as in the Flatpak manifest (no published hash; same files as the release's
+# ImageMagick-7.1.2-34.tar.xz, whose SHA-256 GitHub shows, plus the repository's own extras).
+IM_URL=https://github.com/ImageMagick/ImageMagick/archive/refs/tags/$IM.tar.gz
+IM_SHA256=f5163a573a1c1bff16358d0a592b2fb168ad0fd3b9dc5ff57dc7820eebc5cf79
 IMDIR=/cache/imagemagick-$IM
 if [[ ! -d $IMDIR ]]; then
     B=$(mktemp -d -p /cache)
-    curl -sSfL https://github.com/ImageMagick/ImageMagick/archive/refs/tags/$IM.tar.gz | tar xz -C "$B"
+    fetch $IM_URL $IM_SHA256 "$B/imagemagick.tar.gz"
+    tar xzf "$B/imagemagick.tar.gz" -C "$B"
     (cd "$B/ImageMagick-$IM" && ./configure -q --prefix=$IMDIR --enable-shared --disable-static \
         --without-modules --enable-hdri --without-magick-plus-plus --without-perl --without-x --without-xml --disable-docs \
         && make -s -j"$(nproc)" install)
@@ -56,7 +72,16 @@ if [[ ! -d $IMDIR ]]; then
 fi
 export PKG_CONFIG_PATH=$DEPS/lib/pkgconfig:$IMDIR/lib/pkgconfig LD_LIBRARY_PATH=$DEPS/lib:$IMDIR/lib
 export CMAKE_PREFIX_PATH=$DEPS
-[[ -x /cache/cargo/bin/cargo ]] || curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
+# rustup-init of a named rustup release, with the SHA-256 that static.rust-lang.org publishes next to
+# it (rustup-init.sha256); it installs the current stable Rust, as the CI does.
+RUSTUP=1.29.3 RUSTUP_SHA256=b1c8cb14e30889e7e2999e6b69e62d9e9b9ffc0f4df8180564d306d9680e6c55
+if [[ ! -x /cache/cargo/bin/cargo ]]; then
+    fetch https://static.rust-lang.org/rustup/archive/$RUSTUP/x86_64-unknown-linux-gnu/rustup-init \
+        $RUSTUP_SHA256 /cache/rustup-init
+    chmod +x /cache/rustup-init
+    /cache/rustup-init -y --profile minimal
+    rm /cache/rustup-init
+fi
 
 FEATURES=(--no-default-features --features heif,magick,libheif-rs/embedded-libheif)
 if [[ "${2:-}" == "--check" ]]; then
@@ -90,9 +115,7 @@ for pkg in liblzma5 libbz2-1.0; do
 done
 LICENSES=$APPDIR/usr/share/doc/eyecansee/THIRD-PARTY-LICENSES.txt
 tools/third-party-licenses.sh "$LICENSES" "${FEATURES[@]}"
-for lib in "libde265 $DE265 https://github.com/strukturag/libde265/archive/refs/tags/v$DE265.tar.gz" \
-           "dav1d $DAV1D https://code.videolan.org/videolan/dav1d/-/archive/$DAV1D/dav1d-$DAV1D.tar.gz" \
-           "ImageMagick $IM https://github.com/ImageMagick/ImageMagick/archive/refs/tags/$IM.tar.gz"; do
+for lib in "libde265 $DE265 $DE265_URL" "dav1d $DAV1D $DAV1D_URL" "ImageMagick $IM $IM_URL"; do
     set -- $lib
     printf '\n%s\n%s %s (shared library in usr/lib)\nSource: %s\n%s\n\n' "$(printf '=%.0s' {1..78})" "$1" "$2" "$3" \
         "$(printf '=%.0s' {1..78})" >> "$LICENSES"

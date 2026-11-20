@@ -102,7 +102,9 @@ jobs:
       - name: Installer
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
+          # windows-latest ships Inno Setup (6.7.1 in November 2026); if it ever lacks it, that same
+          # version from Chocolatey, which has no 6.7.3 (the one on the developers' PCs).
+          if (-not (Test-Path $iscc)) { choco install innosetup --version 6.7.1 -y --no-progress }
           & $iscc /Qp "/DAppVersion=$env:VER" "/DPkg=$PWD\pkg" "/O$PWD" tools\eyecansee.iss
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
       - name: Installer test

@@ -7,6 +7,9 @@
 # Output: target\occt-windows\occt-windows-x64-<version>-<build>.tar.gz
 $ErrorActionPreference = "Stop"
 $Occt = "8.0.1"; $Tag = "V8.0.1"; $Build = 1
+# SHA-256 of the tag's archive, the same as in build-occt-linux.sh. OCCT publishes no hash of its
+# sources; the commit inside the archive is the tag's. To update: the new one here.
+$OcctSha256 = "6297cc55a1720523a437c54d07dc16b9da8c5f5ab5800da3c6ebded568d53c18"
 $Root = (Get-Location).Path
 $B = Join-Path $env:TEMP "eyecansee-occt-$Occt"
 $P = Join-Path $B "prefix"
@@ -25,6 +28,8 @@ if (-not (Test-Path $tgz)) {
     Invoke-WebRequest "https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/$Tag.tar.gz" -OutFile "$tgz.part"
     Move-Item "$tgz.part" $tgz
 }
+# Checked every time, also when it was downloaded by an earlier run.
+if ((Get-FileHash $tgz -Algorithm SHA256).Hash -ne $OcctSha256) { Remove-Item $tgz; "OCCT sources: SHA-256 mismatch"; exit 1 }
 # A build folder from an earlier run keeps its cached compiler flags: start clean.
 Get-ChildItem $B -Directory | Where-Object { $_.Name -like "OCCT-*" -or $_.Name -in "build", "prefix", "out" } | Remove-Item -Recurse -Force
 tar -xzf $tgz -C $B

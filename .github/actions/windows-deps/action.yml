@@ -28,7 +28,8 @@ runs:
       run: |
         rustup update stable --no-self-update
         rustup default stable
-        choco install nasm -y --no-progress
+        # Fixed version, the one the CI used on 17/11/2026 (NASM 3.02, its installers inside the package).
+        choco install nasm --version 3.2.0 -y --no-progress
         "C:\Program Files\NASM" | Out-File -Append -Encoding utf8 $env:GITHUB_PATH
     - name: vcpkg
       shell: pwsh

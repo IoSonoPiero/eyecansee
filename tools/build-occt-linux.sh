@@ -8,6 +8,9 @@
 # Output: target/occt-linux/occt-linux-x64-<version>-<build>.tar.gz (libecs_occt.so, licences, source).
 set -euo pipefail
 OCCT=8.0.1 TAG=V8.0.1 BUILD=2
+# SHA-256 of the tag's archive (tools/fetch.sh), the same as in build-occt-windows.ps1. OCCT publishes
+# no hash of its sources; the commit inside the archive is the tag's. To update: the new one here.
+OCCT_SHA256=6297cc55a1720523a437c54d07dc16b9da8c5f5ab5800da3c6ebded568d53c18
 
 if [[ ! -f /.dockerenv && ! -f /run/.containerenv ]]; then
     mkdir -p target/occt-linux
@@ -18,10 +21,12 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq build-essential cmake ninja-build curl ca-certificates >/dev/null
+source "$(dirname "$0")/fetch.sh"
 
 B=$(mktemp -d -p /cache)
 P=$B/prefix
-curl -sSfL "https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/$TAG.tar.gz" | tar xz -C "$B"
+fetch "https://github.com/Open-Cascade-SAS/OCCT/archive/refs/tags/$TAG.tar.gz" $OCCT_SHA256 "$B/occt.tar.gz"
+tar xzf "$B/occt.tar.gz" -C "$B"
 SRC=$(echo "$B"/OCCT-*)
 
 # Only what reading needs: no drawing (OpenGL, FreeType, X11, Tk), no other formats' libraries.
