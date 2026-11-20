@@ -27,6 +27,10 @@ const MAX_DEPTH: u32 = 16;
 pub(crate) const MAX_POINTS: usize = 20_000_000;
 /// Pieces of pattern lines in one hatch: beyond, it is too dense to see and is filled lightly.
 const MAX_PATTERN: usize = 200_000;
+/// Steps of the hatch patterns of the whole drawing (`cad_geom::hatch_lines`), counted before
+/// they are taken, so that a file made on purpose ends in seconds: a test drawing with three
+/// dense hatches takes under a million. The hatches beyond are filled lightly.
+const MAX_HATCH_WORK: usize = 1_000_000_000;
 
 pub fn is_cad(name: &str) -> bool {
     name.rsplit_once('.').is_some_and(|(_, e)| CAD.contains(&e.to_lowercase().as_str()))
@@ -207,6 +211,8 @@ pub(crate) struct Walk<'a> {
     set: u32,
     /// Blocks placed so far (`block`, `model::MAX_VISITS`).
     placed: usize,
+    /// What is left of `MAX_HATCH_WORK`.
+    hatch_work: usize,
 }
 
 /// Where an XLINE or RAY passes, in drawing units, and how it is drawn.
@@ -229,7 +235,7 @@ pub(crate) fn n3(v: &Vector3) -> [f64; 3] {
 
 impl<'a> Walk<'a> {
     pub(crate) fn new(doc: &'a CadDocument, out: &'a mut Drawing) -> Self {
-        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0, placed: 0 }
+        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0, placed: 0, hatch_work: MAX_HATCH_WORK }
     }
 
     /// An item drawn, on the layers of the entity being drawn.
@@ -325,7 +331,8 @@ impl<'a> Walk<'a> {
         let style = if l.style.is_empty() { "standard".to_string() } else { l.style.to_ascii_lowercase() };
         if let Some(font) = self.fonts.get(&style) {
             let stroke = Stroke { dash: Vec::new(), weight: THIN };
-            for pts in crate::cad_text::strokes(font, at, height, angle, &text, l.anchor) {
+            let left = MAX_POINTS.saturating_sub(self.out.points);
+            for pts in crate::cad_text::strokes(font, at, height, angle, &text, l.anchor, left) {
                 let _ = self.line(pts, &Affine::IDENTITY, color, None, stroke.clone());
             }
             return;
@@ -511,7 +518,7 @@ impl<'a> Walk<'a> {
             let budget = MAX_PATTERN.min(MAX_POINTS.saturating_sub(self.out.points) / 2);
             let lines: Option<Vec<[P; 2]>> = h.pattern.lines.iter().try_fold(Vec::new(), |mut all, l| {
                 let family = cad_geom::PatternLine { angle: l.angle, base: [l.base_point.x, l.base_point.y], offset: [l.offset.x, l.offset.y], dashes: &l.dash_lengths };
-                all.extend(cad_geom::hatch_lines(&bounds, &family, budget.saturating_sub(all.len()))?);
+                all.extend(cad_geom::hatch_lines(&bounds, &family, budget.saturating_sub(all.len()), &mut self.hatch_work)?);
                 Some(all)
             });
             if let Some(lines) = lines {

@@ -8,6 +8,9 @@ pub type P = [f64; 2];
 
 /// Points for a whole circle: smooth at the size of a 4096-pixel picture.
 const CIRCLE_POINTS: f64 = 128.0;
+/// The highest spline degree, as OCCT's `BSplCLib::MaxDegree()`: real drawings use 2 or 3, and
+/// each of the 4097 samples costs the square of the degree.
+const MAX_DEGREE: usize = 25;
 
 /// `x' = a·x + c·y + e`, `y' = b·x + d·y + f`.
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -135,9 +138,13 @@ pub fn ellipse(c: P, major: P, ratio: f64, t0: f64, t1: f64) -> Vec<P> {
 }
 
 /// A B-spline (NURBS when `weights` are given) of `degree`, sampled along its knots. `None` when
-/// the knots do not match the control points.
+/// the knots do not match the control points, or the degree is over `MAX_DEGREE`.
 pub fn spline(degree: usize, knots: &[f64], control: &[P], weights: &[f64]) -> Option<Vec<P>> {
     let n = control.len();
+    if degree > MAX_DEGREE {
+        log!("drawing: a spline of degree {degree} is drawn by its points (the most is {MAX_DEGREE})");
+        return None;
+    }
     if degree == 0 || n <= degree || knots.len() != n + degree + 1 || knots.windows(2).any(|w| w[1].is_nan() || w[1] < w[0]) {
         return None;
     }
@@ -151,7 +158,8 @@ pub fn spline(degree: usize, knots: &[f64], control: &[P], weights: &[f64]) -> O
     for s in 0..=samples {
         let t = t0 + (t1 - t0) * s as f64 / samples as f64;
         // The span holding t, then de Boor on homogeneous points.
-        let k = (degree..n).rev().find(|&k| knots[k] <= t).unwrap_or(degree);
+        // The knots go up (checked above): a binary search, not a walk along thousands of them.
+        let k = (degree + knots[degree..n].partition_point(|&x| x <= t)).saturating_sub(1).max(degree);
         let mut d: Vec<[f64; 3]> = (0..=degree).map(|j| control[j + k - degree]).enumerate().map(|(j, p)| {
             let wt = w(j + k - degree);
             [p[0] * wt, p[1] * wt, wt]
@@ -182,8 +190,10 @@ pub struct PatternLine<'a> {
 }
 
 /// The pieces of a pattern family inside the boundaries (even-odd, as hatches fill islands), at
-/// most `budget` of them: `None` when there would be more (the hatch is too dense to draw).
-pub fn hatch_lines(boundaries: &[Vec<P>], l: &PatternLine, budget: usize) -> Option<Vec<[P; 2]>> {
+/// most `budget` of them: `None` when there would be more (the hatch is too dense to draw), or
+/// when the work it asks for, counted before it starts (each line against each boundary edge,
+/// each dash of each repeat of the pattern), is more than what is left of `work`.
+pub fn hatch_lines(boundaries: &[Vec<P>], l: &PatternLine, budget: usize, work: &mut usize) -> Option<Vec<[P; 2]>> {
     let (d, n) = ([l.angle.cos(), l.angle.sin()], [-l.angle.sin(), l.angle.cos()]);
     let dot = |a: P, b: P| a[0] * b[0] + a[1] * b[1];
     let spacing = dot(l.offset, n);
@@ -199,6 +209,8 @@ pub fn hatch_lines(boundaries: &[Vec<P>], l: &PatternLine, budget: usize) -> Opt
     if k1 - k0 > budget as f64 {
         return None;
     }
+    let edges: usize = boundaries.iter().map(|b| b.len().saturating_sub(1)).sum();
+    spend(work, (k1 - k0 + 1.0) * edges as f64)?;
     let period: f64 = l.dashes.iter().map(|v| v.abs()).sum();
     let mut out = Vec::new();
     for k in k0 as i64..=k1 as i64 {
@@ -221,8 +233,12 @@ pub fn hatch_lines(boundaries: &[Vec<P>], l: &PatternLine, budget: usize) -> Opt
                 out.push([at(t0), at(t1)]);
             } else {
                 // Dashes start from the base point of the line: the same pattern on every line.
-                let mut s = (t0 / period).floor() * period;
-                while s < t1 {
+                // A pattern made only of gaps adds no piece, so its repeats are counted first.
+                let start = (t0 / period).floor() * period;
+                let repeats = ((t1 - start) / period).ceil().max(0.0);
+                spend(work, repeats * l.dashes.len() as f64)?;
+                for r in 0..repeats as usize {
+                    let mut s = start + r as f64 * period;
                     for &len in l.dashes {
                         let (a, b) = (s.max(t0), (s + len.max(0.0)).min(t1));
                         if len >= 0.0 && a <= b {
@@ -241,6 +257,16 @@ pub fn hatch_lines(boundaries: &[Vec<P>], l: &PatternLine, budget: usize) -> Opt
         }
     }
     Some(out)
+}
+
+/// `cost` taken from `work`; `None` when there is not that much left.
+fn spend(work: &mut usize, cost: f64) -> Option<()> {
+    // A NaN cost is refused too.
+    if cost.is_nan() || cost > *work as f64 {
+        return None;
+    }
+    *work -= cost as usize;
+    Some(())
 }
 
 /// The pieces of a polyline inside the box `[x0, y0, x1, y1]` (Liang-Barsky on each segment).
@@ -343,25 +369,37 @@ mod tests {
         assert!(s.iter().any(|p| close(*p, [1.0, 1.0])));
         assert!(spline(2, &[0.0, 1.0], &c, &[]).is_none());
         assert!(spline(2, &[0.0, 0.0, 0.0, f64::NAN, 1.0, 1.0], &c, &[]).is_none());
+        // A Bézier of the highest degree, and one above it.
+        for (degree, drawn) in [(MAX_DEGREE, true), (MAX_DEGREE + 1, false)] {
+            let c: Vec<P> = (0..=degree).map(|k| [k as f64, (k % 2) as f64]).collect();
+            let knots = [vec![0.0; degree + 1], vec![1.0; degree + 1]].concat();
+            assert_eq!(spline(degree, &knots, &c, &[]).is_some(), drawn);
+        }
     }
 
     #[test]
     fn hatch_lines_cut_by_the_boundary_and_its_island() {
         let square = |s: f64| vec![[-s, -s], [s, -s], [s, s], [-s, s], [-s, -s]];
         let horizontal = PatternLine { angle: 0.0, base: [0.0, 0.0], offset: [0.0, 1.0], dashes: &[] };
-        let lines = hatch_lines(&[square(10.5)], &horizontal, 1000).unwrap();
+        let mut work = usize::MAX;
+        let lines = hatch_lines(&[square(10.5)], &horizontal, 1000, &mut work).unwrap();
         assert_eq!(lines.len(), 21);
         assert!(lines.iter().all(|l| (l[0][0] + 10.5).abs() < 1e-9 && (l[1][0] - 10.5).abs() < 1e-9));
         // An island: the line through the middle is cut in two.
-        let lines = hatch_lines(&[square(10.5), square(5.5)], &horizontal, 1000).unwrap();
+        let lines = hatch_lines(&[square(10.5), square(5.5)], &horizontal, 1000, &mut work).unwrap();
         assert_eq!(lines.iter().filter(|l| l[0][1].abs() < 1e-9).count(), 2);
         // Dashes of 2 and gaps of 1 from the base point, on [-10, 10].
         let dashed = PatternLine { dashes: &[2.0, -1.0], ..horizontal };
-        let lines = hatch_lines(&[square(10.5)], &dashed, 1000).unwrap();
+        let lines = hatch_lines(&[square(10.5)], &dashed, 1000, &mut work).unwrap();
         // The first dash of each line is the end of the one from -12 to -10, cut at -10.5.
         assert!(close(lines[0][0], [-10.5, -10.0]) && close(lines[0][1], [-10.0, -10.0]));
         assert!(close(lines[1][0], [-9.0, -10.0]) && close(lines[1][1], [-7.0, -10.0]));
-        assert!(hatch_lines(&[square(10.5)], &horizontal, 5).is_none());
+        assert!(hatch_lines(&[square(10.5)], &horizontal, 5, &mut work).is_none());
+        // Work counted before it is done: 21 lines against 4 edges, then 21 × 8 repeats of 2 dashes.
+        let mut work = 21 * 4 + 21 * 8 * 2;
+        assert!(hatch_lines(&[square(10.5)], &dashed, 1000, &mut work).is_some() && work == 0);
+        let mut work = 21 * 4;
+        assert!(hatch_lines(&[square(10.5)], &dashed, 1000, &mut work).is_none());
     }
 
     #[test]
@@ -374,5 +412,46 @@ mod tests {
         let square = clip_polygon(&[[-5.0, -5.0], [5.0, -5.0], [5.0, 5.0], [-5.0, 5.0]], b);
         let area: f64 = (0..square.len()).map(|i| { let (p, q) = (square[i], square[(i + 1) % square.len()]); p[0] * q[1] - q[0] * p[1] }).sum::<f64>() / 2.0;
         assert!((area.abs() - 25.0).abs() < 1e-9);
+    }
+
+    /// Audit 6.18 (a): a hatch pattern made only of gaps never adds a piece, so the budget never
+    /// stops it, and every pattern line is walked one period at a time. Here a square of 1000
+    /// with 1001 lines and one gap of 0.000001: a million million turns for a DXF of 300 bytes.
+    /// The drawing must open (the hatch filled lightly, as the ones too dense to draw).
+    /// `AUDIT_N` = fewer turns per line, to measure how the time grows.
+    #[test]
+    fn audit_6_18_hatch_gaps() {
+        let turns: f64 = std::env::var("AUDIT_N").ok().and_then(|v| v.parse().ok()).unwrap_or(1e9);
+        let gap = -1000.0 / turns;
+        let dxf = format!(
+            "0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n30\n0\n11\n1000\n21\n1000\n31\n0\n0\nHATCH\n8\n0\n2\nGAPS\n70\n0\n91\n1\n92\n2\n72\n0\n73\n1\n93\n4\n10\n0\n20\n0\n10\n1000\n20\n0\n10\n1000\n20\n1000\n10\n0\n20\n1000\n75\n0\n76\n1\n52\n0\n41\n1\n77\n0\n78\n1\n53\n0\n43\n0\n44\n0\n45\n0\n46\n1\n79\n1\n49\n{gap}\n0\nENDSEC\n0\nEOF\n"
+        );
+        println!("DXF of {} bytes, 1001 lines of {turns} turns", dxf.len());
+        let t = std::time::Instant::now();
+        let r = crate::cad::read(dxf.as_bytes(), "a.dxf");
+        println!("ended in {:.2?}: {:?}", t.elapsed(), r.as_ref().map(|d| (d.items.len(), d.points)));
+        assert!(r.is_ok());
+    }
+
+    /// Audit 6.18 (b): the degree of a spline is limited only by the number of its control
+    /// points. Degree 10 000 with 10 001 points (a DXF of 300 KB; a DXF can say up to 32 767) is
+    /// 50 million steps for each of the 4097 samples. The drawing must open, with or without the
+    /// spline. `AUDIT_N` = a lower degree, to measure how the time grows.
+    #[test]
+    fn audit_6_18_spline_degree() {
+        let degree: usize = std::env::var("AUDIT_N").ok().and_then(|v| v.parse().ok()).unwrap_or(10_000);
+        let n = degree + 1;
+        let mut dxf = format!("0\nSECTION\n2\nENTITIES\n0\nLINE\n8\n0\n10\n0\n20\n0\n30\n0\n11\n1000\n21\n1000\n31\n0\n0\nSPLINE\n8\n0\n70\n8\n71\n{degree}\n72\n{}\n73\n{n}\n", 2 * n);
+        dxf += &"40\n0\n".repeat(n);
+        dxf += &"40\n1\n".repeat(n);
+        for k in 0..n {
+            dxf += &format!("10\n{k}\n20\n{}\n30\n0\n", k % 7);
+        }
+        dxf += "0\nENDSEC\n0\nEOF\n";
+        println!("DXF of {} bytes, a spline of degree {degree}", dxf.len());
+        let t = std::time::Instant::now();
+        let r = crate::cad::read(dxf.as_bytes(), "a.dxf");
+        println!("ended in {:.2?}: {:?}", t.elapsed(), r.as_ref().map(|d| (d.items.len(), d.points)));
+        assert!(r.is_ok());
     }
 }

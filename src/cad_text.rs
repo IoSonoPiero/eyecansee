@@ -114,8 +114,8 @@ fn autocad_fonts() -> Vec<std::path::PathBuf> {
 
 /// The strokes of one line in the font's units, and its length: each character from the font
 /// (by Unicode, else by its code-page byte), else from the big font at the same height, else a
-/// question mark.
-fn line_strokes(font: &Font, line: &str) -> (Vec<Vec<P>>, f64) {
+/// question mark. At most `left` points, taken from it.
+fn line_strokes(font: &Font, line: &str, left: &mut usize) -> (Vec<Vec<P>>, f64) {
     let mut out = Vec::new();
     let mut x = 0.0;
     for c in line.chars() {
@@ -127,7 +127,8 @@ fn line_strokes(font: &Font, line: &str) -> (Vec<Vec<P>>, f64) {
             _ => (&font.shx, font.shx.code('?').unwrap_or(0)),
         };
         let k = font.shx.above / shx.above;
-        let (lines, advance) = shx.glyph(code);
+        let (lines, advance) = shx.glyph(code, *left);
+        *left = left.saturating_sub(lines.iter().map(Vec::len).sum());
         out.extend(lines.into_iter().map(|l| l.into_iter().map(|p| [x + p[0] * k, p[1] * k]).collect::<Vec<P>>()));
         x += advance * k;
     }
@@ -135,8 +136,9 @@ fn line_strokes(font: &Font, line: &str) -> (Vec<Vec<P>>, f64) {
 }
 
 /// The strokes of a text in `font`: at `at` (drawing units), capitals `height` high, turned by
-/// `angle`, lines 5/3 of the height apart as AutoCAD sets them.
-pub(crate) fn strokes(font: &Font, at: P, height: f64, angle: f64, text: &str, anchor: (Anchor, Baseline)) -> Vec<Vec<P>> {
+/// `angle`, lines 5/3 of the height apart as AutoCAD sets them; at most `left` points (what the
+/// drawing can still hold), as a font made on purpose can ask for millions in each letter.
+pub(crate) fn strokes(font: &Font, at: P, height: f64, angle: f64, text: &str, anchor: (Anchor, Baseline), mut left: usize) -> Vec<Vec<P>> {
     let k = height / font.shx.above;
     let slant = font.oblique.tan();
     let (s, c) = angle.sin_cos();
@@ -147,7 +149,7 @@ pub(crate) fn strokes(font: &Font, at: P, height: f64, angle: f64, text: &str, a
     };
     let mut out = Vec::new();
     for (row, line) in text.lines().enumerate() {
-        let (lines, len) = line_strokes(font, line);
+        let (lines, len) = line_strokes(font, line, &mut left);
         let len = len * k * font.width;
         let x0 = match anchor.0 {
             Anchor::Start => 0.0,
@@ -291,7 +293,7 @@ mod shx_live {
         for (i, (main, big, text, encoding)) in rows.iter().enumerate() {
             let Some(shx) = load(main) else { continue };
             let font = Font { shx, big: big.and_then(load), encoding, width: 1.0, oblique: 0.0 };
-            for pts in strokes(&font, [0.0, -(i as f64) * 20.0], 10.0, 0.0, text, (Anchor::Start, Baseline::Alphabetic)) {
+            for pts in strokes(&font, [0.0, -(i as f64) * 20.0], 10.0, 0.0, text, (Anchor::Start, Baseline::Alphabetic), usize::MAX) {
                 d.items.push(crate::cad::Item::Line { pts, color: [255; 3], fill: None, stroke: crate::cad::Stroke { dash: Vec::new(), weight: crate::cad::THIN } });
             }
         }
