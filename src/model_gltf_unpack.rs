@@ -36,7 +36,7 @@ pub fn plain(bytes: &[u8], sibling: Sibling) -> Result<Option<Vec<u8>>, String> 
     if !used {
         return Ok(None);
     }
-    let mut p = Packed { data: Vec::new(), views: j["bufferViews"].as_array().cloned().unwrap_or_default(), accessors: j["accessors"].as_array().cloned().unwrap_or_default() };
+    let mut p = Packed { data: Vec::new(), read_end: 0, views: j["bufferViews"].as_array().cloned().unwrap_or_default(), accessors: j["accessors"].as_array().cloned().unwrap_or_default() };
     // Every buffer into one, each view moved to where its buffer landed.
     let mut base = Vec::new();
     for (i, buf) in j["buffers"].as_array().cloned().unwrap_or_default().iter().enumerate() {
@@ -57,11 +57,12 @@ pub fn plain(bytes: &[u8], sibling: Sibling) -> Result<Option<Vec<u8>>, String> 
     for k in 0..p.views.len() {
         p.meshopt(k, &base)?;
     }
+    p.read_end = p.data.len();
     let mut meshes = j["meshes"].as_array().cloned().unwrap_or_default();
     for mesh in &mut meshes {
         for prim in mesh["primitives"].as_array_mut().into_iter().flatten() {
             p.draco(prim)?;
-            p.floats(prim);
+            p.floats(prim)?;
         }
     }
     j["meshes"] = json!(meshes);
@@ -99,6 +100,9 @@ fn glb(json: &[u8], mut bin: Vec<u8>) -> Vec<u8> {
 /// The one buffer being made, with the views and accessors that point into it.
 struct Packed {
     data: Vec<u8>,
+    /// The end of the file's buffers and of the meshopt data: integers are read only up to here,
+    /// never from the floats appended after.
+    read_end: usize,
     views: Vec<Value>,
     accessors: Vec<Value>,
 }
@@ -213,6 +217,10 @@ impl Packed {
             let Some(att) = mesh.attributes.iter().find(|a| a.get_id().as_usize() == num(&id)) else { continue };
             let normalized = prim["attributes"][&semantic].as_u64().and_then(|a| self.accessors.get(a as usize)).is_some_and(|a| a["normalized"].as_bool() == Some(true));
             let n = att.get_num_components();
+            // `points` is the largest index in the faces: a made-up one asks for gigabytes.
+            if points.checked_mul(n * 4).is_none_or(|b| b > MAX_DECODED) {
+                return Err("Draco data too large".into());
+            }
             let values = draco_values(att, points, normalized);
             let slot = prim["attributes"][&semantic].as_u64().map(|i| i as usize);
             prim["attributes"][&semantic] = json!(self.accessor(slot, &values, n, &[]));
@@ -224,20 +232,23 @@ impl Packed {
     }
 
     /// Positions, normals, tangents and texture coordinates stored as integers, made floats.
-    fn floats(&mut self, prim: &mut Value) {
+    fn floats(&mut self, prim: &mut Value) -> Result<(), String> {
         let names: Vec<String> = prim["attributes"].as_object().map(Map::keys).into_iter().flatten().filter(|s| ["POSITION", "NORMAL", "TANGENT"].contains(&s.as_str()) || s.starts_with("TEXCOORD_")).cloned().collect();
         for name in names {
             let a = self.accessors.get(num(&prim["attributes"][&name])).cloned().unwrap_or_default();
             if a["componentType"].as_u64() == Some(5126) || a.get("sparse").is_some() {
                 continue;
             }
-            let Some((values, n)) = self.read(&a) else { continue };
+            let Some(read) = self.read(&a) else { continue };
+            let (values, n) = read?;
             prim["attributes"][&name] = json!(self.accessor(None, &values, n, &[]));
         }
+        Ok(())
     }
 
-    /// The numbers of an accessor of integers, as floats (normalized ones to −1..1 or 0..1).
-    fn read(&self, a: &Value) -> Option<(Vec<f32>, usize)> {
+    /// The numbers of an accessor of integers, as floats (normalized ones to −1..1 or 0..1);
+    /// an error when its elements do not fit in the data.
+    fn read(&self, a: &Value) -> Option<Result<(Vec<f32>, usize), String>> {
         let n: usize = match a["type"].as_str()? {
             "SCALAR" => 1,
             "VEC2" => 2,
@@ -257,8 +268,14 @@ impl Packed {
             0 => (n * size).div_ceil(4) * 4,
             s => s,
         };
-        let (start, count, normalized) = (num(&v["byteOffset"]) + num(&a["byteOffset"]), num(&a["count"]), a["normalized"].as_bool() == Some(true));
+        let (start, count, normalized) = (num(&v["byteOffset"]).saturating_add(num(&a["byteOffset"])), num(&a["count"]), a["normalized"].as_bool() == Some(true));
         let component = a["componentType"].as_u64()?;
+        // The count is the file's word: its last element must end inside the data before memory
+        // is asked for by it.
+        let end = count.checked_sub(1).map_or(Some(0), |last| last.checked_mul(stride)?.checked_add(start)?.checked_add(n * size));
+        if end.is_none_or(|end| end > self.read_end) {
+            return Some(Err("accessor data outside the buffer".into()));
+        }
         let mut out = Vec::with_capacity(count * n);
         for e in 0..count {
             for c in 0..n {
@@ -274,7 +291,7 @@ impl Packed {
                 out.push(if normalized { (x / max).max(-1.0) } else { x });
             }
         }
-        Some((out, n))
+        Some(Ok((out, n)))
     }
 }
 
@@ -380,5 +397,28 @@ mod tests {
         assert!((m.radius - 2f32.sqrt() / 2.0).abs() < 1e-4, "{}", m.radius);
         // A plain file is left alone.
         assert!(super::plain(b"{}", &|_| None).unwrap().is_none());
+    }
+
+    /// Audit 6.4 (a): an accessor that declares a million million elements over a buffer of 24
+    /// bytes must be refused before memory is asked for by that count (12 TB).
+    #[test]
+    fn audit_6_4_gltf_count() {
+        let bin = vec![0u8; 24];
+        let json = r#"{"asset":{"version":"2.0"},"extensionsUsed":["KHR_mesh_quantization"],"extensionsRequired":["KHR_mesh_quantization"],"buffers":[{"byteLength":24}],"bufferViews":[{"buffer":0,"byteLength":24,"byteStride":8}],"accessors":[{"bufferView":0,"componentType":5122,"count":1000000000000,"type":"VEC3","min":[0,0,0],"max":[100,100,0]}],"meshes":[{"primitives":[{"attributes":{"POSITION":0}}]}],"nodes":[{"mesh":0}],"scenes":[{"nodes":[0]}],"scene":0}"#;
+        let glb = super::glb(json.as_bytes(), bin);
+        println!("GLB of {} bytes", glb.len());
+        assert!(crate::model::parse(&glb, "q.glb").is_err());
+    }
+
+    /// Audit 6.4 (a), second way: each attribute made floats is appended to the data, so a count
+    /// checked against the data as it grows lets every attribute ask for five times the one
+    /// before. The counts may only reach the file's own data.
+    #[test]
+    fn audit_6_4_gltf_grown_buffer() {
+        let bin = vec![0u8; 24];
+        // 6 elements of 4 bytes fill the 24; after them 96 bytes of floats are appended, and 30
+        // elements would fill the 120 bytes there are then.
+        let json = r#"{"asset":{"version":"2.0"},"extensionsUsed":["KHR_mesh_quantization"],"buffers":[{"byteLength":24}],"bufferViews":[{"buffer":0,"byteLength":24}],"accessors":[{"bufferView":0,"componentType":5121,"count":6,"type":"VEC4"},{"bufferView":0,"componentType":5121,"count":30,"type":"VEC4"}],"meshes":[{"primitives":[{"attributes":{"TEXCOORD_0":0,"TEXCOORD_1":1}}]}]}"#;
+        assert!(super::plain(&super::glb(json.as_bytes(), bin), &|_| None).is_err());
     }
 }

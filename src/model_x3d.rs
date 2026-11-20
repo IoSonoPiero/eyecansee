@@ -85,6 +85,7 @@ impl Walk<'_, '_> {
             return Ok(());
         }
         let Some(part) = n.children().find_map(geometry) else { return Ok(()) };
+        let part = part?;
         let image = appearance.and_then(|a| a.children().find(|c| c.kind == "ImageTexture"));
         let urls = image.map_or(&[][..], |i| i.strs("url"));
         let tex = if part.uv.is_empty() { 0 } else { urls.iter().filter(|u| !u.contains("://")).map(|u| self.b.texture_file(u, self.sibling)).find(|&k| k > 0).unwrap_or(0) };
@@ -104,10 +105,12 @@ impl Walk<'_, '_> {
         let polylines: Vec<Vec<(i64, usize)>> = match g.kind.as_str() {
             "IndexedLineSet" => runs(&g.nums("coordIndex").iter().map(|&v| v as i64).collect::<Vec<_>>()),
             "LineSet" => {
-                let mut at = 0;
+                // Each run only over the points that are there: the counts are the file's word.
+                let mut at = 0usize;
                 g.nums("vertexCount").iter().map(|&n| {
-                    let run = (at..at + n.max(0.0) as usize).map(|i| (i as i64, i)).collect();
-                    at += n.max(0.0) as usize;
+                    let end = at.saturating_add(n.max(0.0) as usize).min(pos.len());
+                    let run = (at..end).map(|i| (i as i64, i)).collect();
+                    at = end;
                     run
                 }).collect()
             }
@@ -165,7 +168,7 @@ struct Tri {
     face: usize,
 }
 
-fn geometry(g: &Rc<SceneNode>) -> Option<Part> {
+fn geometry(g: &Rc<SceneNode>) -> Option<Result<Part, String>> {
     let n = g.as_ref();
     let idx = |name: &str| n.nums(name).iter().map(|&v| v as i64).collect::<Vec<i64>>();
     let tris: Vec<Tri> = match n.kind.as_str() {
@@ -174,16 +177,16 @@ fn geometry(g: &Rc<SceneNode>) -> Option<Part> {
         "IndexedTriangleStripSet" => runs(&idx("index")).into_iter().flat_map(|r| strip(&r)).collect(),
         "IndexedTriangleSet" => triples(&idx("index")),
         "TriangleSet" => triples(&(0..points(n).len() as i64).collect::<Vec<_>>()),
-        "ElevationGrid" => return Some(elevation(n)),
-        "Box" | "Sphere" | "Cylinder" | "Cone" => return Some(primitive(n)),
+        "ElevationGrid" => return Some(Ok(elevation(n))),
+        "Box" | "Sphere" | "Cylinder" | "Cone" => return Some(Ok(primitive(n))),
         "Extrusion" => return Some(extrusion(n)),
-        "Text" => return Some(text(n)),
+        "Text" => return Some(Ok(text(n))),
         _ => return None,
     };
     let pos = points(n);
     let colors = colors(n, &tris);
     let uv = texture_coords(n, &tris);
-    Some(Part { pos, tris: tris.iter().map(|t| t.v).collect(), colors, uv })
+    Some(Ok(Part { pos, tris: tris.iter().map(|t| t.v).collect(), colors, uv }))
 }
 
 fn points(n: &SceneNode) -> Vec<[f32; 3]> {
@@ -263,7 +266,7 @@ fn elevation(n: &SceneNode) -> Part {
     let (nx, nz) = (n.num("xDimension", 0.0).max(0.0) as usize, n.num("zDimension", 0.0).max(0.0) as usize);
     let (sx, sz) = (n.num("xSpacing", 1.0), n.num("zSpacing", 1.0));
     let h = n.nums("height");
-    if nx < 2 || nz < 2 || h.len() < nx * nz {
+    if nx < 2 || nz < 2 || nx.checked_mul(nz).is_none_or(|cells| h.len() < cells) {
         return Part::default();
     }
     let pos = (0..nz).flat_map(|j| (0..nx).map(move |i| (i, j))).map(|(i, j)| [i as f32 * sx, h[j * nx + i], j as f32 * sz]).collect();
@@ -357,7 +360,7 @@ fn unit(a: V3) -> Option<V3> {
 
 /// A cross section (in XZ) carried along a spine, scaled and turned at each of its points, as
 /// VRML defines it; the caps are fans.
-fn extrusion(n: &SceneNode) -> Part {
+fn extrusion(n: &SceneNode) -> Result<Part, String> {
     let pairs = |name: &str, d: &[[f32; 2]]| -> Vec<[f32; 2]> {
         let v: Vec<[f32; 2]> = n.nums(name).as_chunks::<2>().0.to_vec();
         if v.is_empty() { d.to_vec() } else { v }
@@ -367,6 +370,10 @@ fn extrusion(n: &SceneNode) -> Part {
     let mut spine: Vec<V3> = n.nums("spine").as_chunks::<3>().0.to_vec();
     if spine.is_empty() {
         spine = vec![[0.0; 3], [0.0, 1.0, 0.0]];
+    }
+    // Two triangles per section point at each spine point: a small file can name billions.
+    if (cs.len() as u64).saturating_mul(spine.len() as u64).saturating_mul(2) > crate::model::MAX_TRIANGLES as u64 {
+        return Err(format!("more than {} triangles", crate::model::MAX_TRIANGLES));
     }
     let orient = n.nums("orientation").as_chunks::<4>().0;
     let last = spine.len() - 1;
@@ -400,7 +407,7 @@ fn extrusion(n: &SceneNode) -> Part {
             tris.extend((1..m.saturating_sub(1)).map(|k| [ring * m, ring * m + k, ring * m + k + 1]));
         }
     }
-    Part { pos, tris, colors: Vec::new(), uv: Vec::new() }
+    Ok(Part { pos, tris, colors: Vec::new(), uv: Vec::new() })
 }
 
 #[cfg(test)]
@@ -428,5 +435,34 @@ mod tests {
         // The default square along the default spine: a cube of side 2 and height 1.
         let m = read(b"#VRML V2.0 utf8\nShape { geometry Extrusion { } }", &|_| None).unwrap();
         assert_eq!((m.tris.len(), m.center, m.radius), (4 * 2 + 2 * 3, [0.0, 0.5, 0.0], 1.5));
+    }
+
+    /// Audit 6.4 (b): a LineSet that declares a million million points over three real ones.
+    #[test]
+    fn audit_6_4_lineset_count() {
+        let x3d = "<X3D><Scene><Shape><LineSet vertexCount='1000000000000'><Coordinate point='0 0 0 1 0 0 0 1 0'/></LineSet></Shape></Scene></X3D>";
+        println!("X3D of {} bytes", x3d.len());
+        let _ = read(x3d.as_bytes(), &|_| None);
+    }
+
+    /// Audit 6.4 (c): an Extrusion of `n` section points along `n` spine points makes n x n
+    /// points; with 100 000 each (a file of 1.5 MB) they are 120 GB. Here 20 000 each: 4.8 GB.
+    #[test]
+    fn audit_6_4_extrusion_product() {
+        let n = 20_000;
+        let section: String = (0..n).map(|i| format!("{} {} ", i % 7, i % 5)).collect();
+        let spine: String = (0..n).map(|i| format!("0 {i} 0 ")).collect();
+        let wrl = format!("#VRML V2.0 utf8\nShape {{ geometry Extrusion {{ crossSection [ {section} ] spine [ {spine} ] }} }}");
+        println!("VRML of {} bytes", wrl.len());
+        assert!(read(wrl.as_bytes(), &|_| None).is_err());
+    }
+
+    /// Audit 6.4 (d): an ElevationGrid whose two sizes multiply past the 64 bits.
+    #[test]
+    fn audit_6_4_elevation_overflow() {
+        let wrl = "#VRML V2.0 utf8\nShape { geometry ElevationGrid { xDimension 4294967296 zDimension 4294967296 height [ 0 0 0 0 ] } }";
+        let r = std::panic::catch_unwind(|| read(wrl.as_bytes(), &|_| None).map(|m| m.tris.len()));
+        println!("{r:?}");
+        assert!(matches!(r, Ok(Err(_)) | Ok(Ok(0))), "it panicked");
     }
 }

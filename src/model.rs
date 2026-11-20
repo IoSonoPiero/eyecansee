@@ -9,7 +9,7 @@ use ply_rs_bw::{parser::Parser, ply::DefaultElement, ply::Property};
 const MODEL: &[&str] = &["stl", "obj", "ply", "glb", "gltf", "3mf", "ifc", "fbx", "3ds", "off", "amf", "dae", "zae", "wrl", "wrz", "x3d", "x3dv", "x3dz", "x3dvz"];
 
 /// Beyond this the file is refused instead of filling the memory (a 3D scan of a statue is ~10 M).
-const MAX_TRIANGLES: usize = 50_000_000;
+pub(crate) const MAX_TRIANGLES: usize = 50_000_000;
 /// Normals are worked out (`model_smooth`) up to this many triangles: 36 bytes each.
 const SMOOTH_MAX: usize = 20_000_000;
 
