@@ -104,7 +104,6 @@ fn gltf_node<'a, 's, F: Clone + for<'x> Fn(gltf::Buffer<'x>) -> Option<&'s [u8]>
     if !extra.3.insert(node.index()) {
         return Ok(());
     }
-    b.visit()?;
     let m = mul(parent, &node.transform().matrix());
     if let Some(mesh) = node.mesh() {
         gltf_mesh(b, extra, &mesh, &m, data)?;

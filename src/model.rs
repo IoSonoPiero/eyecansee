@@ -10,12 +10,15 @@ const MODEL: &[&str] = &["stl", "obj", "ply", "glb", "gltf", "3mf", "ifc", "fbx"
 
 /// Beyond this the file is refused instead of filling the memory (a 3D scan of a statue is ~10 M).
 pub(crate) const MAX_TRIANGLES: usize = 50_000_000;
-/// Points of one model: three per triangle, as STL gives them (1.8 GB).
-const MAX_POINTS: usize = 3 * MAX_TRIANGLES;
+/// Points and triangles the parts of one model may bring (`Builder::add_shiny`), kept or dropped:
+/// a triangle with its three points, as STL gives them. A part placed again and again counts at
+/// every placement, so that it cannot take forever or fill the memory even when its points are
+/// not used or its triangles are dropped.
+const MAX_OFFERED: usize = 4 * MAX_TRIANGLES;
 /// Nodes, instances and blocks placed while reading one model or drawing (`Builder::visit`,
 /// `cad::Walk::block`). A part can be placed by many parents, each placed by many more: a file of
-/// a few KB can ask for 10^32 placements. A real scene has far fewer (a 3MF plate hundreds, a big
-/// Collada scene some 10^5); a million takes about a second (3 s in a debug build).
+/// a few KB can ask for 10^32 placements. A million is far more than a scene places (a 3MF plate
+/// places hundreds); an AMF reaches it in 3 s in a debug build.
 pub(crate) const MAX_VISITS: usize = 1_000_000;
 /// Normals are worked out (`model_smooth`) up to this many triangles: 36 bytes each.
 const SMOOTH_MAX: usize = 20_000_000;
@@ -106,8 +109,9 @@ pub(crate) struct Builder {
     surfaces: Vec<Surface>,
     /// Per triangle: surface and normals (`Shine`).
     shine: Vec<(u16, Option<[[f32; 3]; 3]>)>,
-    /// Nodes and instances placed so far (`visit`).
+    /// Nodes and instances placed so far (`visit`), points and triangles brought (`MAX_OFFERED`).
     visits: usize,
+    offered: usize,
 }
 
 impl Builder {
@@ -124,9 +128,9 @@ impl Builder {
 
     /// As `add`, with texture, surface and normals of each triangle.
     pub(crate) fn add_shiny(&mut self, pos: Vec<[f32; 3]>, tris: impl IntoIterator<Item = [u32; 3]>, mut color: impl FnMut(usize) -> Option<[u8; 3]>, mut shine: impl FnMut(usize) -> Shine) -> Result<(), String> {
-        // Before taking them: points that no triangle uses are not counted by `MAX_TRIANGLES`.
-        if self.pos.len().saturating_add(pos.len()) > MAX_POINTS {
-            return Err(format!("more than {MAX_POINTS} points"));
+        self.offered = self.offered.saturating_add(pos.len());
+        if self.offered > MAX_OFFERED {
+            return Err(format!("more than {MAX_OFFERED} points and triangles"));
         }
         let base = self.pos.len() as u32;
         let n = pos.len() as u32;
@@ -138,8 +142,12 @@ impl Builder {
                 self.uv.push(uv.filter(|(c, k)| (*k > 0 || surface > 0) && c.iter().flatten().all(|v| v.is_finite())));
                 self.shine.push((surface, normals.filter(|n| n.iter().flatten().all(|v| v.is_finite()))));
             }
+            self.offered += 1;
             if self.tris.len() > MAX_TRIANGLES {
                 return Err(format!("more than {MAX_TRIANGLES} triangles"));
+            }
+            if self.offered > MAX_OFFERED {
+                return Err(format!("more than {MAX_OFFERED} points and triangles"));
             }
         }
         self.pos.extend(pos);

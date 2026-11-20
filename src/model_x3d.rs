@@ -10,6 +10,8 @@ use std::rc::Rc;
 use crate::model::{Builder, IDENTITY, Mat4, Mesh, Sibling, apply, mul, rotation};
 use crate::model_vrml::SceneNode;
 
+/// Nodes visited, so that a file using its groups again and again cannot take forever.
+const MAX_VISITS: usize = 10_000_000;
 /// Inlined files inside inlined files.
 const MAX_INLINE: u32 = 8;
 /// Files asked for by the Inlines, each name once: from a phone each one is a transfer.
@@ -21,7 +23,7 @@ const RINGS: usize = 16;
 pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
     let scene = crate::model_vrml::parse(bytes)?;
     let mut b = Builder::default();
-    let mut w = Walk { b: &mut b, sibling, inlined: HashMap::new(), reads: 0, lines: Vec::new(), points: Vec::new() };
+    let mut w = Walk { b: &mut b, sibling, visits: 0, inlined: HashMap::new(), reads: 0, lines: Vec::new(), points: Vec::new() };
     w.node(&scene, &IDENTITY, 0)?;
     let (lines, points) = (std::mem::take(&mut w.lines), std::mem::take(&mut w.points));
     crate::model_lines::add(&mut b, &lines, &points)?;
@@ -31,6 +33,7 @@ pub fn read(bytes: &[u8], sibling: Sibling) -> Result<Mesh, String> {
 struct Walk<'a, 's> {
     b: &'a mut Builder,
     sibling: Sibling<'s>,
+    visits: usize,
     /// The scenes of the inlined files, by their `url`, read and parsed once however many times
     /// they are placed (`None`: not found); `reads` counts the files asked for.
     inlined: HashMap<Vec<String>, Option<Rc<SceneNode>>>,
@@ -42,8 +45,10 @@ struct Walk<'a, 's> {
 
 impl Walk<'_, '_> {
     fn node(&mut self, n: &SceneNode, m: &Mat4, inline: u32) -> Result<(), String> {
-        // Groups used again and again (DEF and USE) must not take forever.
-        self.b.visit()?;
+        self.visits += 1;
+        if self.visits > MAX_VISITS {
+            return Err("too many nodes in the scene".into());
+        }
         match n.kind.as_str() {
             "Transform" => {
                 let m = mul(m, &transform(n));

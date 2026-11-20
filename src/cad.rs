@@ -209,8 +209,9 @@ pub(crate) struct Walk<'a> {
     pub(crate) index: std::rc::Rc<std::collections::HashMap<String, u32>>,
     sets: crate::cad_layers::Sets,
     set: u32,
-    /// Blocks placed so far (`block`, `model::MAX_VISITS`).
+    /// Blocks placed so far (`block`, `model::MAX_VISITS`) and entities met (`entity`).
     placed: usize,
+    met: usize,
     /// What is left of `MAX_HATCH_WORK`.
     hatch_work: usize,
 }
@@ -235,7 +236,7 @@ pub(crate) fn n3(v: &Vector3) -> [f64; 3] {
 
 impl<'a> Walk<'a> {
     pub(crate) fn new(doc: &'a CadDocument, out: &'a mut Drawing) -> Self {
-        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0, placed: 0, hatch_work: MAX_HATCH_WORK }
+        Walk { doc, out, clip: None, frozen: Vec::new(), sibling: &crate::cad_image::none, infinite: Vec::new(), fonts: Default::default(), index: Default::default(), sets: Default::default(), set: 0, placed: 0, met: 0, hatch_work: MAX_HATCH_WORK }
     }
 
     /// An item drawn, on the layers of the entity being drawn.
@@ -343,6 +344,11 @@ impl<'a> Walk<'a> {
     }
 
     pub(crate) fn entity(&mut self, e: &EntityType, ctx: &Context) -> Result<(), String> {
+        // Also those that draw nothing (empty texts, hidden ones) take time, placed in many blocks.
+        self.met += 1;
+        if self.met > MAX_POINTS {
+            return Err(format!("more than {MAX_POINTS} entities"));
+        }
         if e.common().invisible {
             return Ok(());
         }
