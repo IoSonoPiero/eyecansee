@@ -63,9 +63,10 @@ impl Window {
         self.folder.as_ref().map(|f| &f.store).or(self.place.as_ref().map(|p| &p.store))
     }
 
-    /// The folder chooser is open over the page: Enter and Esc answer it.
+    /// The folder chooser, or the question on a picture too large for the memory, is open over
+    /// the page: Enter and Esc answer it.
     pub fn asking(&self) -> bool {
-        self.picker.is_some()
+        self.picker.is_some() || crate::view_memory::asked(self.original.as_ref()).is_some()
     }
 }
 

@@ -13,6 +13,8 @@ The editor is a page of its own where you draw on one image, cover private detai
 
 The editor works on one image at a time. With several images selected, these items are off; to turn several images at once use [Rotating and flipping](rotate.md) or [Converting and resizing images](convert.md). They are also off for an animated image or one with several pages, in the grid as in the viewer, because only the first picture would be saved.
 
+A picture that would need more than half of the computer's memory once read whole (for example a HEIC, a 16-bit TIFF or a JPEG XL of hundreds of megapixels, on a computer with 8 GB) is not read at once: a window says how much memory it needs and offers **Open anyway**. Opened anyway, the computer may become very slow, or the system may close EyeCanSee. **Cancel** is the default (also with **Enter** and **Esc**) and closes the editor.
+
 ## The page
 
 - **Toolbar** (top): one button per tool, then ![Rotate 90° anticlockwise](icon://rotate-ccw-square) and ![Rotate 90° clockwise](icon://rotate-cw-square), ![Resize](icon://scaling), ![Filters](icon://wand-sparkles), ![Undo](icon://undo-2) and ![Redo](icon://redo-2). On the right: ![Copy](icon://copy), ![Close](icon://x) and **Save copy** (or **Overwrite…**, short for Overwrite the original…, if chosen in the [Options](options.md)) with its arrow ![More ways to save](icon://chevron-down). The tool in use is highlighted. Point at a button to see its name and key; on a button that is off you also see why.

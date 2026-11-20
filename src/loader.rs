@@ -366,13 +366,14 @@ impl Loader {
 
     /// Original for "Save in another format": decoded in full, with a preview no larger than a texture.
     /// `edit`: for the editor, which does not take animations and files of several pages
-    /// (`edit_page::ANIMATED`).
-    pub fn load_original(&self, path: String, edit: bool) {
+    /// (`edit_page::ANIMATED`). A picture too large for the memory is not read further than the
+    /// header that tells so, nor decoded, unless `anyway`: the page asks first (`view_memory`).
+    pub fn load_original(&self, path: String, edit: bool, anyway: bool) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
             let (sibling, local) = (siblings(op.clone(), path.clone()), crate::occt::local(&op, &path));
             let sidecar = crate::sidecar::read(&op, &path).await.map(|s| s.xmp);
-            let r = match op.read(&path).await {
+            let r = match crate::view_memory::read(&op, &path, None, crate::view_memory::Use::Whole, anyway).await {
                 Ok(bytes) => tokio::task::spawn_blocking(move || {
                     if edit && crate::edit::save::animated(&bytes, &path) {
                         return Err(crate::edit_page::ANIMATED.to_string());
@@ -393,7 +394,7 @@ impl Loader {
                 })
                 .await
                 .unwrap_or_else(|e| Err(e.to_string())),
-                Err((_, detail)) => Err(detail),
+                Err(e) => Err(e.message(|(_, detail)| detail)),
             };
             let _ = tx.send(Msg::Original(r));
             ctx.request_repaint();

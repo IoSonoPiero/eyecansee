@@ -6,7 +6,7 @@ Che cosa EyeCanSee non fa ancora, o fa solo in parte. L'elenco aggiornato dei pr
 
 - Le immagini più grandi di 8192 pixel per lato vengono mostrate ridotte; la barra di stato dice comunque le loro dimensioni. I disegni SVG vengono disegnati a 2048 pixel sul lato lungo.
 - Le immagini più grandi di 512 megapixel (larghezza × altezza) non si aprono: il visore dice le loro dimensioni. Una foto vera da 300 megapixel si apre.
-- Un'immagine che chiede più di metà della memoria del computer non ha la miniatura, e il visore la apre solo con **Apri comunque** (vedi [Guardare le immagini](viewer.md)). Converti, Ridimensiona, Salva come e l'editor non chiedono: su un computer con poca memoria lì un'immagine così può rallentare molto il computer, oppure il sistema può chiudere EyeCanSee.
+- Un'immagine che chiede più di metà della memoria del computer non ha la miniatura, e il visore la apre solo con **Apri comunque** (vedi [Guardare le immagini](viewer.md)). Chiedono anche Salva come e l'editor. Converti e Ridimensiona non chiedono: su un computer con poca memoria lì un'immagine così può rallentare molto il computer, oppure il sistema può chiudere EyeCanSee.
 - Le immagini HDR (EXR, HDR, PFM) vengono mostrate senza tone mapping e possono sembrare sovraesposte.
 - Le sequenze AVIF mostrano nel visore solo il primo fotogramma (GIF, PNG e WebP animati vengono riprodotti).
 - Di un file Photoshop il visore mostra solo l'immagine unita, non i livelli ([#122](https://github.com/IoSonoPiero/eyecansee/issues/122)).

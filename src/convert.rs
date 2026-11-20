@@ -115,7 +115,7 @@ impl crate::App {
         // A 3D model in the viewer: its picture as shown.
         if frame.is_none() && !self.convert_model(&path) && !self.convert_sheet(&path) {
             let Some(loader) = &self.loader else { return };
-            loader.load_original(path.clone(), false);
+            loader.load_original(path.clone(), false, false);
         }
         let mut w = Window::new(path);
         if let Some(at) = frame {
@@ -261,6 +261,7 @@ impl crate::App {
             }
         }
         self.convert_pick(ctx, &mut w);
+        open &= self.big_picture_page(ctx, &mut w.original, &w.path, false);
         // Taken out while drawn (it needs the rest of the app), put back unless closed.
         if open {
             self.convert = Some(w);
@@ -331,6 +332,8 @@ impl crate::App {
                 ui.centered_and_justified(|ui| ui.spinner());
                 return save;
             }
+            // Too large for the memory: the question is over the page (`convert_page`).
+            Some(Err(e)) if crate::view_memory::need_of(e).is_some() => return save,
             Some(Err(e)) => {
                 ui.label(crate::browser::error_text(ui, i18n.t_args("cannot-load", &[("file", crate::source::name(&w.path)), ("error", &i18n.load_error(e))])));
                 return save;

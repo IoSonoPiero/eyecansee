@@ -391,7 +391,7 @@ impl Window {
 
     /// A question or a window over the page takes Enter and Esc (`confirm::asking`).
     pub(crate) fn asking(&self) -> bool {
-        self.ready.is_some() || self.leaving || self.resizing.is_some()
+        self.ready.is_some() || self.leaving || self.resizing.is_some() || crate::view_memory::asked(self.original.as_ref()).is_some()
     }
 
     /// Closing, or on the way to: the question on closing open, or the save chosen there (made,
@@ -640,6 +640,7 @@ impl App {
             self.settle(ui.ctx(), &mut w);
         } else {
             open &= self.edit_not_ready(ui, &w);
+            open &= self.big_picture_page(ui.ctx(), &mut w.original, &w.path, true);
         }
         // Closing (Esc, ✕, Close) with changes not saved: asked first.
         if !open && w.changed() && w.ready.is_none() {
@@ -672,6 +673,8 @@ impl App {
             });
         });
         match &w.original {
+            // Too large for the memory: the question is over the page (`edit_page`).
+            Some(Err(e)) if crate::view_memory::need_of(e).is_some() => {}
             Some(Err(e)) if e == ANIMATED => {
                 ui.label(crate::browser::error_text(ui, self.i18n.t_args("edit-animated", &[("name", source::name(&w.path))])));
             }

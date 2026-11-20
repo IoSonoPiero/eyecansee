@@ -106,7 +106,7 @@ impl App {
             return;
         }
         let Some(loader) = &self.loader else { return };
-        loader.load_original(path.clone(), true);
+        loader.load_original(path.clone(), true, false);
         // From the viewer: as it is shown there.
         let turn = if self.viewing.is_some() { self.turn } else { Turn::default() };
         let mut w = Window::new(path, turn, tool);

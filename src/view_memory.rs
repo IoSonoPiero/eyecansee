@@ -187,8 +187,52 @@ impl App {
     }
 }
 
-/// The width of the card: each of its sentences on one or two lines, in English and in Italian
-/// (checked on a screenshot).
+/// The memory a page's picture (the editor's, Save as's) needs, while it was not read as too
+/// large: the page asks whether to open it anyway (`big_picture_ask`).
+pub(crate) fn asked<T>(original: Option<&Result<T, String>>) -> Option<u64> {
+    match original {
+        Some(Err(e)) => need_of(e),
+        _ => None,
+    }
+}
+
+impl App {
+    /// Over a page (the editor with `edit`, Save as…) whose picture was not read as too large for
+    /// the memory, the question: Open anyway reads it again whatever it needs, Cancel closes the
+    /// page (`false`).
+    pub(crate) fn big_picture_page<T>(&mut self, ctx: &egui::Context, original: &mut Option<Result<T, String>>, path: &str, edit: bool) -> bool {
+        let Some(need) = asked(original.as_ref()) else { return true };
+        match self.big_picture_ask(ctx, need) {
+            Some(true) => {
+                *original = None;
+                if let Some(loader) = &self.loader {
+                    loader.load_original(path.to_string(), edit, true);
+                }
+                true
+            }
+            Some(false) => false,
+            None => true,
+        }
+    }
+
+    /// The question of the editor and of Save as… on a picture too large for the memory (`need`):
+    /// `Some(true)` Open anyway, `Some(false)` Cancel, the default (also Enter and Esc), which
+    /// closes the page; `None` while it is open. The user asked for something on that picture:
+    /// a window, unlike the viewer's card (Piero, 20/11/2026).
+    fn big_picture_ask(&mut self, ctx: &egui::Context, need: u64) -> Option<bool> {
+        let text = self.i18n.t_args("view-too-large-ask", &[("need", &gigabytes(&self.i18n, need)), ("ram", &gigabytes(&self.i18n, thumb_memory::ram()))]);
+        let (title, yes, no) = (self.i18n.t("view-too-large-title"), self.i18n.t("view-open-anyway"), self.i18n.t("delete-no"));
+        let keys = self.delete_answer.take().map(|_| false);
+        let answer = crate::confirm::yes_no_cancel_first(ctx, "big-picture", WIDTH, (title, text), yes, true, no, keys);
+        if let Some(open) = answer {
+            log!("picture too large for the memory, {} MiB: {}", need >> 20, if open { "Open anyway" } else { "Cancel" });
+        }
+        answer
+    }
+}
+
+/// The width of the card and of the question: each of their sentences on one or two lines, in
+/// English and in Italian (checked on a screenshot).
 const WIDTH: f32 = 460.0;
 
 #[cfg(test)]
@@ -322,6 +366,18 @@ mod tests {
         let (read, r) = bytes_read(&dir, "small.png", None, 2 * GIB);
         assert_eq!(Ok(read as usize), r);
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// The editor and Save as ask only about a picture not read as too large (not while it is
+    /// read, nor for another error).
+    #[test]
+    fn pages_ask_only_when_too_large() {
+        let big: Result<(), String> = Err(error(5 * GIB));
+        let other: Result<(), String> = Err("damaged".into());
+        assert_eq!(asked(Some(&big)), Some(5 * GIB));
+        assert_eq!(asked(Some(&other)), None);
+        assert_eq!(asked(Some(&Ok(()))), None);
+        assert_eq!(asked::<()>(None), None, "still read");
     }
 
     #[test]
