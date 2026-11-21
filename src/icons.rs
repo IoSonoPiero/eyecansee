@@ -37,6 +37,10 @@ pub enum Icon {
     Download,
     /// A picture whose thumbnail is not made: too large for the computer's memory (#177).
     Picture,
+    /// The video engine's row in the add-ons (#212).
+    EngineVideo,
+    /// FFmpeg's row in the add-ons (#212).
+    Convert,
 }
 
 const VIDEO: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#000000" fill-opacity="0.6"/><path d="M9.5 7.2v9.6l7.6-4.8z" fill="#ffffff"/></svg>"##;
@@ -53,6 +57,10 @@ const TRASH: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 
 const SERVER: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="3" y="3.5" width="18" height="7.5" rx="2" fill="#7b5cc4"/><rect x="3" y="13" width="18" height="7.5" rx="2" fill="#7b5cc4"/><circle cx="7" cy="7.25" r="1.3" fill="#7ee2a8"/><circle cx="7" cy="16.75" r="1.3" fill="#7ee2a8"/><path d="M11 7.25h6M11 16.75h6" stroke="#e4dcf7" stroke-width="1.6" stroke-linecap="round"/></svg>"##;
 const HOME: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 11 12 3.5 21 11v9.5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" fill="#1a62c9"/><rect x="9.5" y="14" width="5" height="7.5" rx="1" fill="#f4b63f"/></svg>"##;
 
+/// The video engine's row (#212): a film frame with the play sign.
+const ENGINE_VIDEO: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2.5" fill="#d9541e"/><path d="M5 4v16M19 4v16" stroke="#f6c3ad" stroke-width="1.2" stroke-dasharray="1.6 1.6"/><path d="M9.8 8.3v7.4l6-3.7z" fill="#ffffff"/></svg>"##;
+/// FFmpeg's row (#212): two arrows turning one file into another.
+const CONVERT: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11" fill="#1f9d55"/><path d="M6.5 10a5.8 5.8 0 0 1 10.3-2.6M17.5 14a5.8 5.8 0 0 1-10.3 2.6" fill="none" stroke="#ffffff" stroke-width="1.9" stroke-linecap="round"/><path d="M17.6 4.6v3.6H14M6.4 19.4v-3.6H10" fill="none" stroke="#ffffff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>"##;
 const COPIED: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11.5" fill="#1a62c9"/><rect x="6" y="5" width="8.5" height="10.5" rx="1.5" fill="none" stroke="#ffffff" stroke-width="1.8"/><rect x="9.5" y="8.5" width="8.5" height="10.5" rx="1.5" fill="#1a62c9" stroke="#ffffff" stroke-width="1.8"/></svg>"##;
 const CUT: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="11.5" fill="#d9541e"/><circle cx="8" cy="16.5" r="2.4" fill="none" stroke="#ffffff" stroke-width="1.8"/><circle cx="16" cy="16.5" r="2.4" fill="none" stroke="#ffffff" stroke-width="1.8"/><path d="M9.6 14.6 16.5 5M14.4 14.6 7.5 5" stroke="#ffffff" stroke-width="1.8" stroke-linecap="round"/></svg>"##;
 
@@ -74,6 +82,8 @@ pub(crate) fn svg(icon: Icon) -> &'static str {
         Icon::Model => MODEL,
         Icon::Download => DOWNLOAD,
         Icon::Picture => PICTURE,
+        Icon::EngineVideo => ENGINE_VIDEO,
+        Icon::Convert => CONVERT,
     }
 }
 

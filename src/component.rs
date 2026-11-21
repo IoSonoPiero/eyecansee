@@ -286,8 +286,134 @@ impl<R: Read> Read for Hashed<'_, R> {
     }
 }
 
+/// What the first-start window and Options > Add-ons show of an add-on (#212). The list is here,
+/// not in the window: a new component appears in both without touching them.
+#[derive(Clone, Copy)]
+pub struct Addon {
+    pub component: Component,
+    /// Fluent ids: its name, and one plain line about what it is for.
+    pub name: &'static str,
+    pub about: &'static str,
+    /// The picture of its row.
+    pub icon: crate::icons::Icon,
+    /// The system's own copy, which stands in for the download when it fits (`engine::Status`, the
+    /// same rule as the red buttons); none where there is no such copy.
+    pub system: Option<fn() -> crate::engine::Status>,
+    /// Versions to choose from, for example two fonts of different size: none uses it yet.
+    pub variants: &'static [Variant],
+}
+
+/// One of the versions of an add-on to choose from (`Addon::variants`).
+#[derive(Clone, Copy)]
+pub struct Variant {
+    /// Fluent id of its name.
+    pub name: &'static str,
+    pub component: Component,
+}
+
+/// The add-ons of this system, in the order they are shown.
+pub fn addons() -> Vec<Addon> {
+    use crate::icons::Icon;
+    let addon = |component, name, about, icon, system| Addon { component, name, about, icon, system, variants: &[] };
+    let (mpv, ffmpeg): (fn() -> _, fn() -> _) = (crate::mpv_load::status, crate::ffmpeg::status);
+    [
+        VIDEO.map(|c| addon(c, "addon-video", "addon-video-about", Icon::EngineVideo, Some(mpv))),
+        FFMPEG.map(|c| addon(c, "addon-ffmpeg", "addon-ffmpeg-about", Icon::Convert, Some(ffmpeg))),
+        OCCT.map(|c| addon(c, "addon-cad", "addon-cad-about", Icon::Model, None)),
+    ]
+    .into_iter()
+    .flatten()
+    .collect()
+}
+
+/// Where an add-on is on this computer.
+#[derive(Clone, PartialEq, Eq, Debug)]
+pub enum Have {
+    /// Neither downloaded nor on the system: Download.
+    Missing,
+    /// An older version downloaded, which this EyeCanSee no longer uses: Update.
+    Older,
+    /// The version this EyeCanSee wants, downloaded.
+    Downloaded,
+    /// The system's copy, which fits: nothing to download (its version).
+    OnSystem(String),
+    /// None that can be used, and the Options say "the system's only": a download would not be
+    /// used (the same text as the red buttons, `batch-video-system-only`).
+    SystemOnly,
+}
+
+/// Where `a` is: downloaded, on the system, or missing.
+pub fn have(a: &Addon) -> Have {
+    let status = a.system.map(|f| f());
+    match dir() {
+        Some(d) => have_in(&d, &a.component, status),
+        None => Have::Missing,
+    }
+}
+
+fn have_in(dir: &Path, c: &Component, status: Option<crate::engine::Status>) -> Have {
+    use crate::engine::{Source, Status};
+    if dir.join(folder(c)).join(c.file).is_file() {
+        return Have::Downloaded;
+    }
+    match status {
+        Some(Status::Ready(Source::System, v)) => Have::OnSystem(v),
+        Some(Status::SystemOnly) => Have::SystemOnly,
+        _ if older_in(dir, c) => Have::Older,
+        _ => Have::Missing,
+    }
+}
+
+/// Another version of `c` in `dir`, which `remove_old` deletes once this one is there.
+fn older_in(dir: &Path, c: &Component) -> bool {
+    let (keep, prefix) = (folder(c), format!("{}-", c.kind));
+    std::fs::read_dir(dir).into_iter().flatten().flatten().any(|e| {
+        let name = e.file_name().to_string_lossy().into_owned();
+        name.starts_with(&prefix) && name != keep && e.path().is_dir()
+    })
+}
+
+
 #[cfg(test)]
 mod tests {
+    /// The rows of the first-start window and of Options > Add-ons: every add-on has a name and a
+    /// line about it in the languages, and the sizes are those of the components.
+    #[test]
+    fn addons_named_and_sized() {
+        let en = include_str!("../locales/en.ftl");
+        for a in addons() {
+            for id in [a.name, a.about] {
+                assert!(en.lines().any(|l| l.starts_with(&format!("{id} ="))), "{id} missing in en.ftl");
+            }
+            assert!(a.component.size > 1_000_000, "{}", a.component.kind);
+        }
+        let kinds: Vec<_> = addons().iter().map(|a| a.component.kind).collect();
+        assert_eq!(kinds, ["libmpv", "ffmpeg", "occt"]);
+    }
+
+    #[test]
+    fn have_by_what_is_on_disk_and_system() {
+        use crate::engine::{Source, Status};
+        let dir = scratch("have");
+        let c = Component { kind: "thing", version: "2", file: "thing.so", url: "", archive: false, sha256: "", size: 1 };
+        assert_eq!(have_in(dir.as_path(), &c, None), Have::Missing);
+        assert_eq!(have_in(dir.as_path(), &c, Some(Status::Missing)), Have::Missing);
+        let lacks = Status::Lacks { found: "8.1".into(), missing: "HEVC".into() };
+        assert_eq!(have_in(dir.as_path(), &c, Some(lacks)), Have::Missing, "a system copy without the phones' codecs");
+        assert_eq!(have_in(dir.as_path(), &c, Some(Status::Ready(Source::System, "8.1".into()))), Have::OnSystem("8.1".into()));
+        assert_eq!(have_in(dir.as_path(), &c, Some(Status::SystemOnly)), Have::SystemOnly);
+        // Another component whose name starts the same does not count, a file neither.
+        std::fs::create_dir(dir.as_path().join("thingy-1")).unwrap();
+        std::fs::write(dir.as_path().join("thing-1.gz"), "").unwrap();
+        assert_eq!(have_in(dir.as_path(), &c, None), Have::Missing);
+        std::fs::create_dir(dir.as_path().join("thing-1")).unwrap();
+        assert_eq!(have_in(dir.as_path(), &c, None), Have::Older);
+        std::fs::create_dir(dir.as_path().join("thing-2")).unwrap();
+        std::fs::write(dir.as_path().join("thing-2/thing.so"), "").unwrap();
+        assert_eq!(have_in(dir.as_path(), &c, Some(Status::Ready(Source::System, "8.1".into()))), Have::Downloaded);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
     use super::*;
 
     /// The Store copy has a folder of its own, which the installer's uninstaller does not delete.
