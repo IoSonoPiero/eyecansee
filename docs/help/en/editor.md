@@ -13,7 +13,7 @@ The editor is a page of its own where you draw on one image, cover private detai
 
 The editor works on one image at a time. With several images selected, these items are off; to turn several images at once use [Rotating and flipping](rotate.md) or [Converting and resizing images](convert.md). They are also off for an animated image or one with several pages, in the grid as in the viewer, because only the first picture would be saved.
 
-A picture that would need more than half of the computer's memory once read whole (for example a HEIC, a 16-bit TIFF or a JPEG XL of hundreds of megapixels, on a computer with 8 GB) is not read at once: a window says how much memory it needs and offers **Open anyway**. Opened anyway, the computer may become very slow, or the system may close EyeCanSee. The choice holds for that file until EyeCanSee is closed (see [Viewing images](viewer.md)). **Cancel** is the default (also with **Enter** and **Esc**) and closes the editor.
+A picture that would need more than half of the computer's memory once read whole (for example a HEIC, a 16-bit TIFF or a JPEG XL of hundreds of megapixels, on a computer with 8 GB) is not opened at once: a window says how much memory it needs and offers **Open anyway**. Opened anyway, the computer may become very slow, or the system may close EyeCanSee. The choice holds for that file until EyeCanSee is closed (see [Viewing images](viewer.md)). **Cancel** is the default (also with **Enter** and **Esc**) and closes the editor.
 
 ## The page
 
