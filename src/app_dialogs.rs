@@ -129,9 +129,10 @@ impl App {
     pub(crate) fn update_window(&mut self, ctx: &egui::Context) {
         let Some(text) = &self.update_note else { return };
         let title = self.i18n.t("menu-check-updates");
-        let mut open = self.notice.is_some() || self.delete_answer.take().is_none();
+        let id = "update";
+        let mut open = crate::confirm::answer(ctx, &mut self.key_answer, id).is_none();
         let tip = self.i18n.t("notice-copy");
-        crate::save_dialogs::message(ctx, "update", crate::save_dialogs::Head::new(&title), text, &tip, |ui| {
+        crate::save_dialogs::message(ctx, id, crate::save_dialogs::Head::new(&title), text, &tip, |ui| {
             if ui.button(self.i18n.t("notice-close")).clicked() {
                 open = false;
             }
@@ -150,7 +151,8 @@ impl App {
         // In the Flatpak the user must close Dolphin first: with the phone open there, KDE takes it back.
         let (ask, ok) = if crate::update::packaged() { ("kiod-ask-flatpak", "kiod-free") } else { ("kiod-ask", "kiod-ok") };
         let (text, ok, cancel) = (self.i18n.t(ask), self.i18n.t(ok), self.i18n.t("delete-no"));
-        match confirm::yes_no(ctx, "kiod", 460.0, (self.i18n.t("kiod-title"), text), ok, true, cancel, self.delete_answer.take()) {
+        let answer = crate::confirm::answer(ctx, &mut self.key_answer, "kiod");
+        match confirm::yes_no(ctx, "kiod", 460.0, (self.i18n.t("kiod-title"), text), ok, true, cancel, answer) {
             Some(true) => {
                 log!("kiod: allowed");
                 mtp::allow_kiod();
@@ -189,7 +191,8 @@ impl App {
         let text = self.i18n.t_args(if cert { "cert-ask" } else { "host-ask" }, &[("host", &host), ("fingerprint", &fingerprint)]);
         let title = self.i18n.t(if cert { "cert-title" } else { "host-title" });
         let (ok, cancel) = (self.i18n.t("host-ok"), self.i18n.t("delete-no"));
-        match confirm::yes_no(ctx, "host", 460.0, (title, text), ok, true, cancel, self.delete_answer.take()) {
+        let answer = crate::confirm::answer(ctx, &mut self.key_answer, "host");
+        match confirm::yes_no(ctx, "host", 460.0, (title, text), ok, true, cancel, answer) {
             Some(true) => {
                 if cert {
                     crate::ftp::trust();
@@ -207,7 +210,8 @@ impl App {
 
     /// Help > About: closes with Enter or Esc too, as the other windows.
     pub(crate) fn about_window(&mut self, ctx: &egui::Context) {
-        let mut open = self.about && (self.notice.is_some() || self.update_note.is_some() || self.delete_answer.take().is_none());
+        // Not a modal: it answers only with no modal over it (`answer`).
+        let mut open = self.about && crate::confirm::answer(ctx, &mut self.key_answer, "about").is_none();
         let icon = self.about_icon.get_or_insert_with(|| {
             let img = decode::app_icon(96).unwrap_or_default();
             ctx.load_texture("about-icon", decode::to_color_image(img.into()), TextureOptions::LINEAR)

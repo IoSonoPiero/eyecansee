@@ -209,11 +209,12 @@ impl App {
         let t = |id| self.i18n.t(id);
         let address = f.address();
         let bad_port = f.url.trim().is_empty() && !f.port.trim().is_empty() && f.port.trim().parse::<u16>().is_err();
-        // In a field Enter and Esc reach the window; elsewhere they arrive as `delete_answer`.
-        let keys = self.delete_answer.take();
+        // In a field Enter and Esc reach the window; elsewhere they arrive as `answer`.
+        let id = "open-address";
+        let keys = crate::confirm::answer(ctx, &mut self.key_answer, id);
         let mut answer = ctx.input(|i| if i.key_pressed(Key::Escape) || keys == Some(false) { Some(false) } else { None });
         let mut save = None;
-        egui::Modal::new(egui::Id::unique("open-address")).show(ctx, |ui| {
+        egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
             ui.set_width(460.0);
             crate::theme::title(ui, t("addr-title"));
             ui.add_space(4.0);

@@ -169,7 +169,8 @@ impl App {
         let t = |id| self.i18n.t(id);
         // Esc closes; Enter does nothing here (it must not choose one of the actions).
         let choices = vec![(t("kept-retry"), self.loader.is_some(), Choice::Retry), (t("menu-save-copy"), true, Choice::SaveAs), (t("kept-open-folder"), true, Choice::Folder)];
-        match crate::confirm::choose(ctx, "kept", 480.0, (t("kept-title"), text), choices, t("notice-close"), self.delete_answer.take().and_then(|enter| (!enter).then_some(None))) {
+        let keys = crate::confirm::answer(ctx, &mut self.key_answer, "kept").and_then(|enter| (!enter).then_some(None));
+        match crate::confirm::choose(ctx, "kept", 480.0, (t("kept-title"), text), choices, t("notice-close"), keys) {
             Some(Some(Choice::Retry)) => {
                 self.kept.remove(0);
                 if let Some(loader) = &self.loader {

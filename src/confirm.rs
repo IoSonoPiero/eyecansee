@@ -1,5 +1,6 @@
 //! Confirmation windows: a title, a text and a row of buttons, the last one cancelling. Enter and Esc
-//! reach them as `App::delete_answer` (`raw_input_hook`), passed in as `answer`.
+//! reach them as `App::key_answer` (`raw_input_hook`), taken by the window on top (`App::answer`)
+//! and passed in as `answer`.
 
 use eframe::egui;
 
@@ -95,10 +96,48 @@ pub(crate) fn yes_no_cancel_first(
     choose_with(ctx, id, width, text, vec![(yes, yes_enabled, ())], no, answer.map(|yes| yes.then_some(())), (true, &mut |_| {})).map(|a| a.is_some())
 }
 
+/// The layer of the modal window `id` (`egui::Modal::new(egui::Id::unique(id))`).
+fn modal_layer(id: &str) -> egui::LayerId {
+    egui::LayerId::new(egui::Order::Foreground, egui::Id::unique(id))
+}
+
+/// `id` may take Enter or Esc, with `top` the modal window on top when the key came: only that
+/// one, or any window when no modal was on top (About is not a modal).
+fn answers(top: Option<egui::LayerId>, id: &str) -> bool {
+    top.is_none_or(|top| top == modal_layer(id))
+}
+
+/// Enter (`Some(true)`) or Esc (`Some(false)`) pressed while a window asks (`App::key_answer`,
+/// from `raw_input_hook`), for the window whose modal is `id`: only the window on top takes it,
+/// the others under it wait. One answer for all of them went to the first one drawn: Enter on a
+/// message confirmed the deletion under it (audit 1.6, #196). Not taken by the end of the frame,
+/// it is forgotten (`App::windows`), so it never answers a window that comes on top later.
+pub(crate) fn answer(ctx: &egui::Context, key: &mut Option<bool>, id: &str) -> Option<bool> {
+    let top = ctx.memory(|m| m.top_modal_layer());
+    if !answers(top, id) {
+        return None;
+    }
+    key.take()
+}
+
 impl App {
     /// A confirmation is open: deletion, or a name already taken when restoring or pasting.
     pub(crate) fn asking(&self) -> bool {
         let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
         self.delete_confirm.is_some() || self.restore_conflict.is_some() || pasting || self.save_ready.is_some() || self.ffmpeg_ask.is_some() || self.batch_turn.is_some() || self.notice.is_some() || self.batch_summary.is_some() || self.update_note.is_some() || self.about || self.kiod_ask || self.host_ask || self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.duplicates.as_ref().is_some_and(crate::dup_page::Window::asking) || self.editor.as_ref().is_some_and(crate::edit_page::Window::asking) || self.after_turn.is_some() || self.batch.as_ref().is_some_and(crate::batch_page::Window::asking) || self.convert.as_ref().is_some_and(crate::convert::Window::asking)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Enter and Esc go to the modal on top only, and to any window when none is on top (#196).
+    #[test]
+    fn answer_only_for_the_window_on_top() {
+        assert!(answers(None, "delete"));
+        assert!(answers(Some(modal_layer("delete")), "delete"));
+        assert!(!answers(Some(modal_layer("notice")), "delete"));
+        assert!(!answers(Some(modal_layer("notice")), "about"));
     }
 }

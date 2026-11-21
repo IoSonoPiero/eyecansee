@@ -122,14 +122,15 @@ impl App {
     pub(crate) fn batch_summary_window(&mut self, ctx: &egui::Context) {
         let Some(s) = self.batch_summary.take() else { return };
         let t = |id| self.i18n.t(id);
-        // Enter and Esc arrive as `delete_answer` (`raw_input_hook`).
-        let mut close = self.delete_answer.take().is_some();
+        // Enter and Esc arrive as `answer` (`raw_input_hook`).
+        let id = "batch-summary";
+        let mut close = crate::confirm::answer(ctx, &mut self.key_answer, id).is_some();
         let mut go = None;
         // A page covers the thumbnails (editor, Save as, slideshow, duplicates): it would hide them.
         let covered = self.show.is_some() || self.convert.is_some() || self.editor.is_some() || self.dup_page_shown();
         let (open_label, covered_hint, close_label) = (t("summary-open-folder"), t("summary-open-covered"), t("notice-close"));
         let tip = t("notice-copy");
-        egui::Modal::new(egui::Id::unique("batch-summary")).show(ctx, |ui| {
+        egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
             // As every message window (`save_dialogs::message`).
             ui.set_max_width(460.0);
             ui.set_min_width(320.0);

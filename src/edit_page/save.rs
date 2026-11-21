@@ -315,7 +315,8 @@ impl App {
                 crate::convert::meta_choice(ui, &mut keep, i18n);
             }
         };
-        let answer = confirm::yes_no_with(ctx, "edit-save", 460.0, (title, text), (yes, no), self.delete_answer.take(), &mut extra);
+        let keys = crate::confirm::answer(ctx, &mut self.key_answer, "edit-save");
+        let answer = confirm::yes_no_with(ctx, "edit-save", 460.0, (title, text), (yes, no), keys, &mut extra);
         if keep != p.keep {
             match p.keeping(keep, source::name(&w.path)) {
                 Ok(again) => {
@@ -452,7 +453,7 @@ impl App {
         let text = i18n.t_args(id, &[("name", &crate::save_dialogs::md(source::name(&w.path)))]);
         let choices = vec![(i18n.t("rc-save"), !w.preparing, Leave::Save), (i18n.t("menu-save-copy"), true, Leave::SaveAs), (i18n.t("rc-discard"), true, Leave::Discard)];
         // Esc: back to the page; Enter does nothing here (no choice is safe to guess).
-        let keys = self.delete_answer.take().filter(|yes| !yes).map(|_| None);
+        let keys = crate::confirm::answer(ctx, &mut self.key_answer, "rotate-leave").filter(|yes| !yes).map(|_| None);
         let answer = confirm::choose(ctx, "rotate-leave", 440.0, (i18n.t("leave-title"), text), choices, i18n.t("delete-no"), keys)?;
         w.leaving = false;
         answer

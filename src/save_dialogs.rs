@@ -75,7 +75,7 @@ impl App {
         // A video turned: Save as… would save its frame (#16), not the video.
         let choices: Vec<_> = choices.into_iter().filter(|c| !(self.viewing_video() && matches!(c.2, Leave::SaveAs))).collect();
         // Esc: back to the image; Enter does nothing here (no choice is safe to guess).
-        let keys = self.delete_answer.take().filter(|yes| !yes).map(|_| None);
+        let keys = crate::confirm::answer(ctx, &mut self.key_answer, "turn-leave").filter(|yes| !yes).map(|_| None);
         let Some(answer) = confirm::choose(ctx, "turn-leave", 440.0, (self.i18n.t("leave-title"), text), choices, self.i18n.t("delete-no"), keys) else { return };
         self.after_turn = None;
         match answer {
@@ -136,8 +136,8 @@ impl App {
             text = format!("{text}\n\n{}", self.i18n.t_args("batch-skipped", &[("n", &skipped.len().to_string())]));
         }
         let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
-        // Only Esc (as `delete_answer`): Enter does not overwrite many images.
-        let keys = self.delete_answer.take().and_then(|yes| (!yes).then_some(false));
+        // Only Esc (as `answer`): Enter does not overwrite many images.
+        let keys = crate::confirm::answer(ctx, &mut self.key_answer, "batch-turn").and_then(|yes| (!yes).then_some(false));
         match confirm::yes_no(ctx, "batch-turn", 460.0, (label.clone(), text), yes, !ok.is_empty(), no, keys) {
             Some(true) => {
                 log!("transform {op:?} on {} images, {how:?}", ok.len());
@@ -172,7 +172,7 @@ impl App {
         }
         let choices = single.iter().map(|p| (self.i18n.t("menu-save-copy"), true, p.clone())).collect();
         // Enter: Save as… (when there is one); Esc: cancel.
-        let keys = self.delete_answer.take().map(|yes| if yes { single.clone() } else { None });
+        let keys = crate::confirm::answer(ctx, &mut self.key_answer, "batch-turn").map(|yes| if yes { single.clone() } else { None });
         match confirm::choose(ctx, "batch-turn", 460.0, (self.op_label(op), text), choices, self.i18n.t("delete-no"), keys) {
             Some(Some(path)) => {
                 self.batch_turn = None;
@@ -252,8 +252,9 @@ impl App {
         let how = loader.deletion(&path, self.settings.local_permanent, self.settings.remote_delete);
         let text = self.save_confirm_text(&path, how, lossy);
         let (yes, no) = (self.i18n.t("save-yes"), self.i18n.t("delete-no"));
-        // Enter and Esc arrive as `delete_answer` (`raw_input_hook`).
-        match confirm::yes_no(ctx, "save", 420.0, (self.i18n.t("save-title"), text), yes, true, no, self.delete_answer.take()) {
+        // Enter and Esc arrive as `answer` (`raw_input_hook`).
+        let answer = crate::confirm::answer(ctx, &mut self.key_answer, "save");
+        match confirm::yes_no(ctx, "save", 420.0, (self.i18n.t("save-title"), text), yes, true, no, answer) {
             Some(true) => {
                 log!("save {path:?} {turn:?} {how:?}");
                 // A video: its rotation written when it is saved, nothing prepared (#125).
@@ -300,15 +301,16 @@ impl App {
             text = format!("{text}\n\n{hint}");
             whole = whole.map(|w| format!("{w}\n\n{}", plain(&hint)));
         }
-        // Enter and Esc arrive as `delete_answer` (`raw_input_hook`).
-        let mut close = self.delete_answer.take().is_some();
+        // Enter and Esc arrive as `answer` (`raw_input_hook`).
+        let id = "notice";
+        let mut close = crate::confirm::answer(ctx, &mut self.key_answer, id).is_some();
         if close {
             log!("notice: closed with Enter or Esc");
         }
         let stalled = self.stall_notice.as_ref() == Some(&text);
         let (why, url) = (self.i18n.t("phone-stalled-why"), self.i18n.t("phone-stalled-url"));
         let tip = self.i18n.t("notice-copy");
-        message_copying(ctx, "notice", Head { title: &title, warning }, &text, whole.as_deref(), &tip, |ui| {
+        message_copying(ctx, id, Head { title: &title, warning }, &text, whole.as_deref(), &tip, |ui| {
             // A stalled phone (`phone_stall`): our page on why, in the app's language.
             if stalled {
                 ui.hyperlink_to(why, url);

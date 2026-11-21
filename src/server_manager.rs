@@ -9,13 +9,14 @@ use crate::App;
 impl App {
     pub(crate) fn server_manager_window(&mut self, ctx: &egui::Context) {
         let Some(mut f) = self.server_manager.clone() else { return };
-        // In a field Esc reaches the window; elsewhere it arrives as `delete_answer`.
-        let esc = self.delete_answer.take() == Some(false) || ctx.input(|i| i.key_pressed(egui::Key::Escape));
+        // In a field Esc reaches the window; elsewhere it arrives as `answer`.
+        let id = "server-manager";
+        let esc = crate::confirm::answer(ctx, &mut self.key_answer, id) == Some(false) || ctx.input(|i| i.key_pressed(egui::Key::Escape));
         let mut close = esc && !f.deleting;
         f.deleting &= !esc;
         let mut connect = None;
         let before = f.servers.clone();
-        egui::Modal::new(egui::Id::unique("server-manager")).show(ctx, |ui| {
+        egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
             ui.set_width(700.0);
             crate::theme::title(ui, self.i18n.t("srv-title"));
             ui.add_space(4.0);

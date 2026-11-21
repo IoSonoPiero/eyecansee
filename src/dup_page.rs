@@ -86,7 +86,9 @@ impl App {
             return;
         }
         let Some(mut w) = self.duplicates.take() else { return };
-        let answer = self.delete_answer.take();
+        // The question, or the search under way: the answer goes to the one shown.
+        let id = if w.progress.is_some() { "dup-progress" } else { "dup-ask" };
+        let answer = crate::confirm::answer(ctx, &mut self.key_answer, id);
         let mut open = true;
         if let Some(p) = w.progress.clone() {
             if let Some(r) = p.result.lock().unwrap().take() {

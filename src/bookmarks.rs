@@ -277,12 +277,13 @@ impl App {
         if !self.bookmarks.configuring {
             return;
         }
-        // In a field Esc reaches the window; elsewhere Enter and Esc arrive as `delete_answer`.
-        let mut close = self.delete_answer.take().is_some() || ctx.input(|i| i.key_pressed(egui::Key::Escape));
+        // In a field Esc reaches the window; elsewhere Enter and Esc arrive as `answer`.
+        let id = "bookmarks";
+        let mut close = crate::confirm::answer(ctx, &mut self.key_answer, id).is_some() || ctx.input(|i| i.key_pressed(egui::Key::Escape));
         let mut list = std::mem::take(&mut self.settings.bookmarks);
         let file = crate::settings::config_path("settings.json").map(|p| p.display().to_string()).unwrap_or_default();
         let mut editing = self.bookmarks.editing;
-        egui::Modal::new(egui::Id::unique("bookmarks")).show(ctx, |ui| {
+        egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
             ui.set_width(640.0);
             crate::theme::title(ui, self.i18n.t("bm-title"));
             ui.add_space(8.0);

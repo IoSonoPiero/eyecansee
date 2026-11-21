@@ -465,10 +465,11 @@ impl App {
         if !w.left_out.is_empty() {
             intro = format!("{intro} {}", self.i18n.t_args("batch-left-out-kind", &[("n", &w.left_out.len().to_string())]));
         }
-        let keys = self.delete_answer.take();
+        let id = "batch-ask";
+        let keys = crate::confirm::answer(ctx, &mut self.key_answer, id);
         let (places, rt) = (self.pick_places(), self.rt.handle().clone());
         let (mut answer, mut picked) = (None, None);
-        let shown = egui::Modal::new(egui::Id::unique("batch-ask")).show(ctx, |ui| {
+        let shown = egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
             ui.set_width(680.0);
             if let Some(p) = &mut form.picker {
                 picked = pick_ui(ui, p, &places, &self.i18n, &rt, keys);

@@ -55,8 +55,9 @@ impl App {
         let component = crate::component::FFMPEG.filter(|_| offered);
         let size = component.map_or(String::new(), |c| format!("{} MB", c.size / 1_000_000));
         let i18n = &self.i18n;
-        // Enter and Esc arrive as `delete_answer` (`raw_input_hook`).
-        let mut close = match (self.delete_answer.take(), component) {
+        // Enter and Esc arrive as `answer` (`raw_input_hook`).
+        let modal = "ffmpeg-ask";
+        let mut close = match (crate::confirm::answer(ctx, &mut self.key_answer, modal), component) {
             (Some(true), Some(c)) if ask.download.is_none() => {
                 let ctx = ctx.clone();
                 ask.download = Some(crate::component::start(c, move || ctx.request_repaint()));
@@ -66,7 +67,7 @@ impl App {
             (Some(_), _) => true,
         };
         let mut done = false;
-        message(ctx, "ffmpeg-ask", Head::new(&i18n.t("ffmpeg-ask-title")), &i18n.t_args(id, &[("size", &size)]), &i18n.t("notice-copy"), |ui| {
+        message(ctx, modal, Head::new(&i18n.t("ffmpeg-ask-title")), &i18n.t_args(id, &[("size", &size)]), &i18n.t("notice-copy"), |ui| {
             if let Some(c) = component {
                 done = crate::batch_video::download_row(ui, &mut ask.download, i18n, c);
             }

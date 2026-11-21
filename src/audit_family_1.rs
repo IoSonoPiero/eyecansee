@@ -128,14 +128,49 @@ pub(crate) fn enter() -> egui::Key {
     egui::Key::Enter
 }
 
-/// Audit 1.6: a message that arrives while a deletion is being confirmed comes on top of it, and
-/// Enter, pressed to close the message, confirms the deletion under it instead. One answer for
-/// all windows (`delete_answer`), taken by the first one drawn (`windows()`: the deletion before
-/// the messages).
+/// Audit 1.6 (#196): a message that arrives while a deletion is being confirmed comes on top of
+/// it, and Enter, pressed to close the message, confirmed the deletion under it instead: one
+/// answer for all windows, taken by the first one drawn (`windows()`: the deletion before the
+/// messages). Now the answer goes to the window on top only (`confirm::answer`).
 #[test]
-#[ignore = "audit 1.6: not fixed yet"]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
 fn audit_1_6_enter_on_a_message_confirms_the_deletion_under_it() {
-    let dir = folder("one-six", &["a.jpg", "b.jpg"]);
+    if own_folder("audit_family_1::audit_1_6_enter_on_a_message_confirms_the_deletion_under_it") {
+        return;
+    }
+    let (dir, mut h) = deletion_under_a_message("one-six");
+    h.key(enter());
+    settle(&mut h);
+    let deleted = !dir.join("a.jpg").exists();
+    eprintln!("after Enter: message open {}, deletion asked {}, a.jpg deleted {deleted}", h.app.notice.is_some(), h.app.delete_confirm.is_some());
+    assert!(!deleted, "Enter on the message deleted a.jpg");
+    assert!(h.app.notice.is_none() && h.app.delete_confirm.is_some(), "Enter should close the message and leave the deletion asked");
+    // The deletion is on top now: the next Enter is its answer.
+    h.key(enter());
+    settle(&mut h);
+    assert!(!dir.join("a.jpg").exists() && h.app.delete_confirm.is_none(), "Enter on the deletion, now on top, did not delete a.jpg");
+}
+
+/// #196: Esc on the message closes the message only; the deletion under it stays asked, and Esc
+/// again cancels it.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn esc_on_a_message_leaves_the_deletion_asked() {
+    if own_folder("audit_family_1::esc_on_a_message_leaves_the_deletion_asked") {
+        return;
+    }
+    let (dir, mut h) = deletion_under_a_message("esc-message");
+    h.key(egui::Key::Escape);
+    settle(&mut h);
+    assert!(h.app.notice.is_none() && h.app.delete_confirm.is_some(), "Esc should close the message and leave the deletion asked");
+    h.key(egui::Key::Escape);
+    settle(&mut h);
+    assert!(h.app.delete_confirm.is_none() && dir.join("a.jpg").exists(), "Esc on the deletion should cancel it");
+}
+
+/// A deletion of a.jpg asked (as Del), then a message on top of it, as from the background.
+fn deletion_under_a_message(name: &str) -> (PathBuf, Harness) {
+    let dir = folder(name, &["a.jpg", "b.jpg"]);
     let mut h = Harness::new(&dir);
     let a = h.app.files().iter().find(|f| f.path.ends_with("a.jpg")).unwrap().path.clone();
     h.app.ask_delete_paths(vec![a], false, None);
@@ -150,16 +185,16 @@ fn audit_1_6_enter_on_a_message_confirms_the_deletion_under_it() {
     let top = h.ctx.memory(|m| m.top_modal_layer());
     let notice = Some(egui::LayerId::new(egui::Order::Foreground, egui::Id::unique("notice")));
     eprintln!("top modal {top:?}, notice layer {notice:?}");
-    assert!(notice.is_some() && top == notice, "the message is not the top window: then Enter answering the deletion would be right");
-    h.key(enter());
+    assert!(top == notice, "the message is not the top window: then Enter answering the deletion would be right");
+    (dir, h)
+}
+
+/// Some frames for what a key started (a deletion in the background).
+fn settle(h: &mut Harness) {
     for _ in 0..10 {
         h.frame(Vec::new());
         std::thread::sleep(std::time::Duration::from_millis(30));
     }
-    let deleted = !dir.join("a.jpg").exists();
-    eprintln!("after Enter: message open {}, deletion asked {}, a.jpg deleted {deleted}", h.app.notice.is_some(), h.app.delete_confirm.is_some());
-    assert!(!deleted, "Enter on the message deleted a.jpg");
-    assert!(h.app.notice.is_none() && h.app.delete_confirm.is_some(), "Enter should close the message and leave the deletion asked");
 }
 
 /// Audit 1.5: how the viewer was left with a.png turned and not saved. `leave` leaves it as the

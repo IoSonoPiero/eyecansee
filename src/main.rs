@@ -521,8 +521,9 @@ struct App {
     /// A folder just made, or the editor's copy just saved: selected (and shown in the viewer)
     /// once its folder is read again.
     select_after: Option<String>,
-    /// Enter (true) or Esc (false) pressed while a confirmation is open (deletion, name taken).
-    delete_answer: Option<bool>,
+    /// Enter (true) or Esc (false) pressed while a confirmation is open (deletion, name taken):
+    /// taken through `answer`, by the window on top only.
+    key_answer: Option<bool>,
     /// The open local folder, watched for changes made outside EyeCanSee.
     watcher: Option<notify::RecommendedWatcher>,
     watched: Option<std::path::PathBuf>,
@@ -559,7 +560,7 @@ impl eframe::App for App {
         // the keys go to the field.
         let fields = self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some() || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing);
         if self.asking() && !(fields && ctx.egui_wants_keyboard_input()) {
-            let answer = &mut self.delete_answer;
+            let answer = &mut self.key_answer;
             raw_input.events.retain(|e| match e {
                 egui::Event::Key { key: Key::F1, .. } => true,
                 egui::Event::Key { key, pressed: true, .. } => {

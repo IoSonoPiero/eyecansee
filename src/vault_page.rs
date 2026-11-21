@@ -69,9 +69,10 @@ impl App {
     pub(crate) fn unlock_window(&mut self, ctx: &egui::Context) {
         let Some(mut u) = self.unlock.clone() else { return };
         let t = |id| self.i18n.t(id);
-        let keys = self.delete_answer.take();
+        let id = "unlock";
+        let keys = crate::confirm::answer(ctx, &mut self.key_answer, id);
         let mut answer = ctx.input(|i| if i.key_pressed(Key::Escape) || keys == Some(false) { Some(false) } else { None });
-        egui::Modal::new(egui::Id::unique("unlock")).show(ctx, |ui| {
+        egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
             ui.set_width(420.0);
             crate::theme::title(ui, t("vault-unlock-title"));
             ui.label(t("vault-unlock-text"));

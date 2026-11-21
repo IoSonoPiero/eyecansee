@@ -102,8 +102,9 @@ impl App {
             buttons.remove(0);
         }
         let (cancel, all_label, title) = (t("delete-no"), t("paste-all"), t("taken-title"));
-        let mut answer = self.delete_answer.take().and_then(|yes| (!yes).then_some(None));
-        egui::Modal::new(egui::Id::unique("paste")).show(ctx, |ui| {
+        let id = "paste";
+        let mut answer = crate::confirm::answer(ctx, &mut self.key_answer, id).and_then(|yes| (!yes).then_some(None));
+        egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
             ui.set_max_width(440.0);
             ui.set_min_width(320.0);
             crate::save_dialogs::Head::new(&title).show(ui);
@@ -286,7 +287,7 @@ impl App {
         // The button says what happens: to the trash, or deleted for good.
         let yes = self.i18n.t(if how == source::Deletion::Permanent { "delete-yes" } else { "delete-move-to-trash" });
         let no = self.i18n.t("delete-no");
-        let keys = self.delete_answer.take().map(|enter| enter && !folders);
+        let keys = crate::confirm::answer(ctx, &mut self.key_answer, "delete").map(|enter| enter && !folders);
         let ask = if folders { confirm::yes_no_cancel_first } else { confirm::yes_no };
         let title = self.i18n.t(if source::is_trash(&paths[0]) && paths.len() == 1 { "delete-title-empty" } else if how == source::Deletion::Permanent { "delete-title-permanent" } else { "delete-title-trash" });
         match ask(ctx, "delete", 420.0, (title, text), yes, !reading, no, keys) {
@@ -464,7 +465,7 @@ impl App {
         };
         let buttons = vec![(first.0, true, first.1), (t("restore-keep-both"), true, source::Conflict::KeepBoth)];
         let cancel = t("delete-no");
-        let keys = self.delete_answer.take().and_then(|yes| (!yes).then_some(None));
+        let keys = crate::confirm::answer(ctx, &mut self.key_answer, "restore").and_then(|yes| (!yes).then_some(None));
         match confirm::choose(ctx, "restore", 420.0, (t("taken-title"), text), buttons, cancel, keys) {
             Some(Some(conflict)) => {
                 if let Some(loader) = &self.loader {

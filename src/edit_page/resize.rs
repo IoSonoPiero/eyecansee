@@ -56,12 +56,13 @@ impl Window {
 
 impl App {
     /// The Resize window over the page, while open: Resize changes the document, Cancel and Esc
-    /// close it. Enter and Esc outside its fields come as `delete_answer` (`confirm::asking`).
+    /// close it. Enter and Esc outside its fields come as `answer` (`confirm::asking`).
     pub(super) fn resize_window(&mut self, ctx: &egui::Context, w: &mut Window) {
         let Some(mut f) = w.resizing.take() else { return };
-        let keys = self.delete_answer.take();
+        let id = "edit-resize";
+        let keys = crate::confirm::answer(ctx, &mut self.key_answer, id);
         let mut answer = None;
-        egui::Modal::new(egui::Id::unique("edit-resize")).show(ctx, |ui| answer = resize_form(ui, &mut f, &self.i18n, keys));
+        egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| answer = resize_form(ui, &mut f, &self.i18n, keys));
         // Closed: none of its fields keeps the keys.
         if answer.is_some() {
             ctx.memory_mut(|m| m.focused().map(|id| m.surrender_focus(id)));

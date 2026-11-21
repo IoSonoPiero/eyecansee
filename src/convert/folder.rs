@@ -79,10 +79,11 @@ impl App {
             w.picker = Some(Picker::open(&shown, &rt, ctx));
         }
         let Some(p) = &mut w.picker else { return };
-        let keys = self.delete_answer.take();
+        let id = "save-as-pick";
+        let keys = crate::confirm::answer(ctx, &mut self.key_answer, id);
         let places = self.pick_places();
         let mut picked = None;
-        egui::Modal::new(egui::Id::unique("save-as-pick")).show(ctx, |ui| {
+        egui::Modal::new(egui::Id::unique(id)).show(ctx, |ui| {
             ui.set_width(680.0);
             picked = pick_ui(ui, p, &places, &self.i18n, &rt, keys);
         });

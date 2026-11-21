@@ -142,7 +142,7 @@ impl App {
             maintained: HashSet::new(),
             delete_confirm: None,
             delete_check: None,
-            delete_answer: None,
+            key_answer: None,
             rename: None,
             new_folder: None,
             new_image: None,
