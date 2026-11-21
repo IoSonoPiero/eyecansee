@@ -206,7 +206,7 @@ impl App {
         // The previous one too: going back with the arrows found it not loaded, a black flash.
         let (next, prev) = (near(true), near(false));
         let since = s.since;
-        self.show_load([cur, next, prev, from].into_iter().flatten().collect());
+        self.show_load(cur, [cur, next, prev, from].into_iter().flatten().collect());
         let tex = |i: Option<usize>| i.and_then(|i| self.full.get(&i)).and_then(|r| r.as_ref().ok()).cloned();
         let (cur_tex, from_tex) = (tex(cur), tex(from));
         let rect = ui.max_rect();
@@ -256,7 +256,8 @@ impl App {
     /// remembered; the current one, if it is one, is passed over at once, with a notice in a corner
     /// (`show_skipped`). A video whose still cannot be read is left to play (or not) as before.
     fn show_pass_unreadable(&mut self, ctx: &egui::Context, now: f64) {
-        let failed: Vec<String> = self.full.iter().filter(|(_, r)| r.is_err()).filter_map(|(i, _)| self.files().get(*i)).filter(|f| !crate::decode::is_played(&f.path)).map(|f| f.path.clone()).collect();
+        // One opened anyway before is not: as a neighbour it is not read (`view_memory::Wanted`).
+        let failed: Vec<String> = self.full.iter().filter(|&(i, r)| r.is_err() && !self.remembered_too_large(*i)).filter_map(|(i, _)| self.files().get(*i)).filter(|f| !crate::decode::is_played(&f.path)).map(|f| f.path.clone()).collect();
         let again = self.settings.slideshow_loop;
         let Some(s) = &mut self.show else { return };
         s.unreadable.extend(failed);
@@ -280,12 +281,16 @@ impl App {
         }
     }
 
-    /// The images needed now are asked for; the others are let go.
-    fn show_load(&mut self, keep: Vec<usize>) {
+    /// The images needed now are asked for; the others are let go. The one shown (`cur`), opened
+    /// anyway before and found too large as a neighbour, is read again, now opened.
+    fn show_load(&mut self, cur: Option<usize>, keep: Vec<usize>) {
+        if let Some(i) = cur.filter(|&i| self.remembered_too_large(i)) {
+            self.full.remove(&i);
+        }
         let (Some(loader), Some(Ok(listing))) = (&self.loader, self.listings.get(&self.dir)) else { return };
         for &i in &keep {
             if !self.full.contains_key(&i) && self.pending.insert(i) {
-                loader.load_full(self.generation, i, listing.files[i].path.clone(), Some(listing.files[i].size), false);
+                loader.load_full(self.generation, i, listing.files[i].path.clone(), Some(listing.files[i].size), crate::view_memory::Wanted::of(Some(i) == cur));
             }
         }
         self.full.retain(|i, _| keep.contains(i));

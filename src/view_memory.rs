@@ -172,6 +172,33 @@ pub fn anyway(base: &str, path: &str, now: bool) -> bool {
     now || opened.contains(&key)
 }
 
+/// Why the viewer reads a picture (`Loader::load_full`): prepared in advance as a neighbour, the
+/// picture shown (the viewer's, the slideshow's), or Open anyway chosen on it now.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Wanted {
+    Ahead,
+    Shown,
+    Anyway,
+}
+
+impl Wanted {
+    /// `Shown` for the picture shown, else `Ahead`.
+    pub fn of(shown: bool) -> Self {
+        if shown { Wanted::Shown } else { Wanted::Ahead }
+    }
+}
+
+/// Whether the viewer opens the picture `path` of the source `base` whatever memory it needs:
+/// with Open anyway now, or when it is shown and was opened anyway before; never as a neighbour,
+/// so that two pictures over half the RAM are not decoded at once (Piero, 20 and 21/11/2026).
+pub fn opens(base: &str, path: &str, wanted: Wanted) -> bool {
+    match wanted {
+        Wanted::Ahead => false,
+        Wanted::Shown => anyway(base, path, false),
+        Wanted::Anyway => anyway(base, path, true),
+    }
+}
+
 /// The error of a picture not opened because it is `too_large`, with the memory it needs: the
 /// viewer shows a card (`big_picture_card`) instead of an error.
 const TOO_LARGE: &str = "viewer: picture too large for the memory, bytes needed: ";
@@ -195,6 +222,10 @@ impl App {
     /// with Open anyway (Piero, 20/11/2026: a card, not a window that stops the arrows; the next
     /// picture comes as always). Open anyway decodes it.
     pub(crate) fn big_picture_card(&mut self, ui: &mut egui::Ui, index: usize, need: u64) {
+        // Opened anyway before, found too large as a neighbour: now that it is shown, opened.
+        if self.remembered_too_large(index) {
+            return self.open_full(index, Wanted::Shown);
+        }
         let light = egui::Color32::from_gray(230);
         let text = self.i18n.t_args("view-too-large-ask", &[("need", &gigabytes(&self.i18n, need)), ("ram", &gigabytes(&self.i18n, thumb_memory::ram()))]);
         let (title, yes) = (self.i18n.t("view-too-large-title"), self.i18n.t("view-open-anyway"));
@@ -216,19 +247,27 @@ impl App {
             });
         });
         if open {
-            self.open_anyway(index);
+            self.open_full(index, Wanted::Anyway);
         }
     }
 
-    /// The picture at `index`, too large for the memory, decoded all the same.
-    fn open_anyway(&mut self, index: usize) {
+    /// The picture at `index`, too large for the memory, decoded all the same: Open anyway chosen
+    /// now, or before (`wanted`).
+    fn open_full(&mut self, index: usize, wanted: Wanted) {
         let Some(path) = self.files().get(index).map(|f| f.path.clone()) else { return };
-        log!("viewer: {path} opened anyway");
+        log!("viewer: {path} opened anyway ({wanted:?})");
         self.full.remove(&index);
         if let Some(loader) = &self.loader {
             self.pending.insert(index);
-            loader.load_full(self.generation, index, path, None, true);
+            loader.load_full(self.generation, index, path, None, wanted);
         }
+    }
+
+    /// Is the picture at `index` one found too large for the memory, though opened anyway before
+    /// (read as a neighbour, not opened)?
+    pub(crate) fn remembered_too_large(&self, index: usize) -> bool {
+        let too_large = matches!(self.full.get(&index), Some(Err(e)) if need_of(e).is_some());
+        too_large && self.files().get(index).is_some_and(|f| anyway(&self.base, &f.path, false))
     }
 }
 
@@ -524,6 +563,19 @@ mod tests {
         assert!(anyway(phone, "DCIM/a.jpg", false), "remembered");
         assert!(!anyway(other, "DCIM/a.jpg", false), "another phone");
         assert!(!anyway(phone, "DCIM/b.jpg", false), "another file");
+    }
+
+    /// The viewer: a picture opened anyway before opens when it is shown, never as a neighbour
+    /// prepared in advance (two pictures over half the RAM at once, Piero, 21/11/2026); Open
+    /// anyway opens it and remembers it.
+    #[test]
+    fn remembered_opens_only_when_shown() {
+        let base = "sftp://test-shown/";
+        assert!(!opens(base, "a.tif", Wanted::Ahead) && !opens(base, "a.tif", Wanted::Shown));
+        assert!(opens(base, "a.tif", Wanted::Anyway));
+        assert!(opens(base, "a.tif", Wanted::Shown), "remembered");
+        assert!(!opens(base, "a.tif", Wanted::Ahead), "not as a neighbour");
+        assert_eq!((Wanted::of(true), Wanted::of(false)), (Wanted::Shown, Wanted::Ahead));
     }
 
     #[test]

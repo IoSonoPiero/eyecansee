@@ -231,7 +231,7 @@ impl App {
                 continue;
             }
             if !self.full.contains_key(&i) && self.pending.insert(i) {
-                loader.load_full(self.generation, i, listing.files[i].path.clone(), Some(listing.files[i].size), false);
+                loader.load_full(self.generation, i, listing.files[i].path.clone(), Some(listing.files[i].size), crate::view_memory::Wanted::of(i == current));
             }
         }
         let keep = near(AROUND + 1);
