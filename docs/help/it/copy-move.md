@@ -40,10 +40,10 @@ Su Linux, in una cartella aperta tramite il collegamento del gestore dei file (g
 - Il file `.xmp` di una foto (il suo "sidecar", vedi [Informazioni sul file](metadata.md)) va con lei, anche da un dispositivo all'altro: con **Tieni entrambi** prende il nome nuovo della foto ("IMG_0001 (2).CR2" con "IMG_0001 (2).CR2.xmp"), con **Sostituisci** sostituisce quello che c'è. Un nome occupato nella destinazione solo da un file `.xmp` conta come un nome che c'è già. Annullando a metà, una foto non resta mai senza il suo file `.xmp` nella cartella da cui partiva.
 - Ogni copia o taglio si incolla una volta sola: per incollare di nuovo, copia di nuovo.
 - Se nel frattempo copi qualcos'altro in un altro programma, Ctrl+V e Incolla non incollano più gli elementi copiati in EyeCanSee.
-- Incollate nella cartella da cui vengono, le copie diventano "nome (2)"; uno spostamento non fa niente.
+- Incollate nella cartella da cui vengono, le copie diventano "nome (2)"; uno spostamento non fa niente. Vale anche quando a quella cartella si arriva da un collegamento, o la si apre come un'altra sorgente: su questo computer, o sullo stesso server SFTP.
 - Una copia che non riesce, per esempio perché il disco è pieno, non lascia niente scritto a metà: il file in corso viene tolto, e un file che stava sostituendo resta com'era. Per questo, mentre un file viene sostituito, sul disco serve spazio per tutte e due le versioni.
 - Su questo computer un file sostituito mantiene permessi, attributi e collegamenti; un file in sola lettura non viene sostituito, e il messaggio lo dice.
 - Uno spostamento sullo stesso disco cambia solo il posto, all'istante. Tra dispositivi diversi EyeCanSee prima copia tutto e cancella gli originali solo quando la copia è riuscita; gli originali non vanno nel cestino.
 - Le copie dentro lo stesso telefono le fa il telefono stesso.
-- Una cartella non si può incollare dentro se stessa. Non si può incollare niente in un cestino o nell'elenco delle memorie di un telefono, e gli elementi dentro un cestino non si possono copiare.
+- Una cartella non si può incollare dentro se stessa, nemmeno passando da un collegamento o da un'altra sorgente su questo computer o sullo stesso server SFTP. Non si può incollare niente in un cestino o nell'elenco delle memorie di un telefono, e gli elementi dentro un cestino non si possono copiare.
 - Una cartella spostata si porta dietro il suo cestino di EyeCanSee (vedi [Eliminare e cestino](delete.md)); una copia lo lascia fuori.

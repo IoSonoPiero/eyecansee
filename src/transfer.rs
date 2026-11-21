@@ -3,6 +3,7 @@
 //! reader to the writer, so a large video never sits whole in memory.
 
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
@@ -109,20 +110,81 @@ impl Recent {
 /// A photo whose sidecar (`sidecar_follow`) would land on a file with that name is one too: the
 /// sidecar follows the answer for the photo.
 pub async fn conflicts(clip: &Clip, to: &Store, to_base: &str, to_dir: &str) -> Result<Vec<String>, Error> {
-    let same = clip.base == to_base;
     let taken = to.names(to_dir).await?;
     let sides = sidecars(clip).await;
-    let mut found = Vec::new();
-    for p in &clip.paths {
-        if same && p.ends_with('/') && to_dir.starts_with(p.as_str()) {
+    let dest = dest_place(clip, to, to_base, to_dir).await;
+    for p in clip.paths.iter().filter(|p| p.ends_with('/')) {
+        if inside(clip, to_base, to_dir, dest.as_ref(), p).await {
             return Err(("error-paste-inside", name(p).to_string()));
         }
+    }
+    let here = in_own_folder(clip, to_base, to_dir, dest.as_ref()).await;
+    let mut found = Vec::new();
+    for p in &clip.paths {
         let side_taken = sides.get(p).is_some_and(|s| s.iter().any(|s| taken.contains(name(s))));
-        if !(same && parent(p) == to_dir) && (taken.contains(name(p)) || side_taken) {
+        if !here.contains(p) && (taken.contains(name(p)) || side_taken) {
             found.push(p.clone());
         }
     }
     Ok(found)
+}
+
+/// Where `path` of `op` really is, links resolved, to tell a folder reached by two paths or from
+/// two sources (#195): on this computer its absolute path, the same for any two local sources; on
+/// an SFTP server its path there. `None` elsewhere (phones, FTP), or when it cannot be read.
+async fn real_place(op: &Store, path: &str) -> Option<PathBuf> {
+    match op {
+        Store::Sftp(_) => op.real_path(path).await.map(|p| PathBuf::from(format!("/{p}"))),
+        _ => op.local_file(path)?.canonicalize().ok(),
+    }
+}
+
+/// The real place of `to_dir` (`real_place`), when it can be compared with those of the clip: both
+/// sources on this computer, or both the same SFTP server. Where it cannot (a server opened by SFTP
+/// and by FTP, a NAS through gvfs and SFTP), a move deletes only what it copied (#194).
+async fn dest_place(clip: &Clip, to: &Store, to_base: &str, to_dir: &str) -> Option<PathBuf> {
+    let comparable = match (&clip.op, to) {
+        (Store::Dal(_), Store::Dal(_)) => true,
+        (Store::Sftp(_), Store::Sftp(_)) => clip.base == to_base,
+        _ => false,
+    };
+    if comparable { real_place(to, to_dir).await } else { None }
+}
+
+/// Whether `to_dir` is the folder `p` of the clip or lies inside it: by the paths on one source,
+/// and by the real places (`dest`: that of `to_dir`), through links and between sources (#195).
+async fn inside(clip: &Clip, to_base: &str, to_dir: &str, dest: Option<&PathBuf>, p: &str) -> bool {
+    if clip.base == to_base && to_dir.starts_with(p) {
+        return true;
+    }
+    match dest {
+        Some(d) => real_place(&clip.op, p).await.is_some_and(|r| d.starts_with(r)),
+        None => false,
+    }
+}
+
+/// The items of the clip whose own folder is `to_dir`: by the paths on one source, and by the real
+/// places (`dest`) through links and between sources (#195). Pasted there, a copy becomes
+/// "name (2)" and a move does nothing: moved onto itself from another source, the file was
+/// written over itself and then deleted as the original.
+async fn in_own_folder(clip: &Clip, to_base: &str, to_dir: &str, dest: Option<&PathBuf>) -> HashSet<String> {
+    let mut folders: HashMap<String, bool> = HashMap::new();
+    let mut here = HashSet::new();
+    for p in &clip.paths {
+        let dir = parent(p);
+        let own = match folders.get(&dir) {
+            Some(own) => *own,
+            None => {
+                let own = (clip.base == to_base && dir == to_dir) || (dest.is_some() && real_place(&clip.op, &dir).await.as_ref() == dest);
+                folders.insert(dir, own);
+                own
+            }
+        };
+        if own {
+            here.insert(p.clone());
+        }
+    }
+    here
 }
 
 /// The sidecars of the photos of the clip (`sidecar_follow::following`), by photo; each folder
@@ -205,7 +267,8 @@ fn left_below(src: &str, p: &Progress) -> bool {
 async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress, gone: &mut Vec<String>) -> Result<(), Error> {
     let same = clip.base == to_base;
     let present = to.names(to_dir).await?;
-    let plan = planned(clip, to, to_dir, same, choices, &present, &sidecars(clip).await);
+    let here = in_own_folder(clip, to_base, to_dir, dest_place(clip, to, to_base, to_dir).await.as_ref()).await;
+    let plan = planned(clip, to, to_dir, &here, choices, &present, &sidecars(clip).await);
 
     // On the same device a move is a rename, unless a folder has to merge into an existing one;
     // if the rename fails (another disk: different file system) the files are copied. On this
@@ -307,16 +370,17 @@ async fn delete_original(from: &Store, src: &str, p: &Progress) -> Result<bool, 
     }
 }
 
-/// What goes where (`Planned`), as the answers to the conflicts (`choices`) say; `present`: the
-/// names in `to_dir`; `sidecars`: those of the photos, which follow them under their new name
-/// ("a (2).CR2" with "a (2).CR2.xmp"; `sidecar::free_pair`).
-fn planned(clip: &Clip, to: &Store, to_dir: &str, same: bool, choices: &HashMap<String, Choice>, present: &HashSet<String>, sidecars: &HashMap<String, Vec<String>>) -> Vec<Planned> {
+/// What goes where (`Planned`), as the answers to the conflicts (`choices`) say; `here`: the items
+/// pasted into their own folder (`in_own_folder`); `present`: the names in `to_dir`; `sidecars`:
+/// those of the photos, which follow them under their new name ("a (2).CR2" with "a (2).CR2.xmp";
+/// `sidecar::free_pair`).
+fn planned(clip: &Clip, to: &Store, to_dir: &str, here: &HashSet<String>, choices: &HashMap<String, Choice>, present: &HashSet<String>, sidecars: &HashMap<String, Vec<String>>) -> Vec<Planned> {
     let mut taken = present.clone();
     let mut plan = Vec::new();
     for src in &clip.paths {
         let own = name(src);
         let sides: Vec<String> = sidecars.get(src).map_or_else(Vec::new, |s| s.iter().map(|s| name(s).to_string()).collect());
-        let choice = match (same && parent(src) == to_dir, clip.cut) {
+        let choice = match (here.contains(src), clip.cut) {
             (true, true) => continue,
             (true, false) => Choice::KeepBoth,
             _ => choices.get(src).copied().unwrap_or(Choice::Replace),
@@ -954,13 +1018,12 @@ mod tests {
         assert!(!left.is_empty(), "the photo that arrived during the move is gone: neither copied nor left in the source");
     }
 
-    /// Audit 2.2, scenario A: a folder cut and pasted into a folder reached through a link that
-    /// leads inside it (`shortcut` → `Photos/album/sub`). The paste is not refused (the check
-    /// compares the text of the paths), the rename fails, the files are copied into
-    /// `album/sub/album/`, then `album/` is deleted whole, the copy with it.
+    /// Audit 2.2, scenario A (#195): a folder cut and pasted into a folder reached through a link
+    /// that leads inside it (`shortcut` → `Photos/album/sub`). Refused, as by the paths: before,
+    /// the check compared only the text of the paths, the rename failed, the files were copied
+    /// into `album/sub/album/`, then `album/` was deleted whole, the copy with it.
     #[cfg(unix)]
     #[test]
-    #[ignore = "audit 2.2: not fixed yet"]
     fn audit_2_2_a_move_into_itself_through_a_link() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let dir = std::env::temp_dir().join(format!("eyecansee-audit-2-2a-{}", std::process::id()));
@@ -980,14 +1043,15 @@ mod tests {
         let left = audit_find(&dir, "x.jpg");
         let _ = std::fs::remove_dir_all(&dir);
         assert!(!left.is_empty(), "x.jpg is gone (refused: {refused:?}, paste: {r:?})");
+        assert_eq!(refused, Some("error-paste-inside"), "paste: {r:?}");
     }
 
-    /// Audit 2.2, scenario B: the same folder reached as two sources (the same server opened by
-    /// SFTP and by FTP, or a NAS through gvfs and through SFTP): two `base`s, so the check for a
-    /// folder pasted inside itself is not made. Moving `album/` into `album/sub/` copies it into
-    /// itself, then deletes `album/` whole, the copy with it.
+    /// Audit 2.2, scenario B (#195): the same folder reached as two sources (here two local ones;
+    /// the same server opened by SFTP and by FTP, or a NAS through gvfs and through SFTP, are
+    /// the same case where the real paths cannot be compared): two `base`s. Moving `album/` into
+    /// `album/sub/` is refused by the real paths; before, it was copied into itself, then
+    /// `album/` was deleted whole, the copy with it.
     #[test]
-    #[ignore = "audit 2.2: not fixed yet"]
     fn audit_2_2_b_move_into_itself_from_another_source() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let dir = std::env::temp_dir().join(format!("eyecansee-audit-2-2b-{}", std::process::id()));
@@ -1006,5 +1070,34 @@ mod tests {
         let left = audit_find(&dir, "x.jpg");
         let _ = std::fs::remove_dir_all(&dir);
         assert!(!left.is_empty(), "x.jpg is gone (refused: {refused:?}, paste: {r:?})");
+        assert_eq!(refused, Some("error-paste-inside"), "paste: {r:?}");
+    }
+
+    /// #195: files pasted into their own folder reached from another source (two `base`s, the
+    /// same real folder): not conflicts; a copy keeps both, a move does nothing. Before, a move
+    /// answered Replace wrote the file over itself and then deleted it as the original.
+    #[test]
+    fn own_folder_from_another_source() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let dir = std::env::temp_dir().join(format!("eyecansee-own-folder-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("Photos/sub")).unwrap();
+        std::fs::write(dir.join("Photos/a.jpg"), b"the only copy").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let clip = |cut| Clip { op: op.clone(), base: "test-one://".into(), paths: vec!["Photos/a.jpg".into(), "Photos/sub/".into()], cut, text: String::new() };
+        let replace = HashMap::from([("Photos/a.jpg".to_string(), Choice::Replace), ("Photos/sub/".to_string(), Choice::Replace)]);
+        rt.block_on(async {
+            for cut in [true, false] {
+                assert!(conflicts(&clip(cut), &op, "test-two://", "Photos/").await.unwrap().is_empty());
+                let (gone, r) = run(&clip(cut), &op, "test-two://", "Photos/", &replace, &Progress::default()).await;
+                r.unwrap();
+                assert!(gone.is_empty());
+                assert_eq!(std::fs::read(dir.join("Photos/a.jpg")).unwrap(), b"the only copy");
+                assert!(dir.join("Photos/sub").is_dir());
+            }
+            assert_eq!(std::fs::read(dir.join("Photos/a (2).jpg")).unwrap(), b"the only copy", "a copy keeps both");
+            assert!(dir.join("Photos/sub (2)").is_dir());
+        });
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }
