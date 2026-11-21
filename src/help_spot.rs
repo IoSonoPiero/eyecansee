@@ -33,7 +33,7 @@ impl App {
 
     /// The window on top, if one is open: the last ones drawn by `windows()` first (the modals
     /// opened from another window come after it, as the unlock from the server manager).
-    pub(crate) fn window_spot(&self) -> Option<&'static str> {
+    fn window_spot(&self) -> Option<&'static str> {
         let pasting = self.paste_ask.as_ref().is_some_and(|a| a.conflicts.as_ref().is_some_and(|c| !c.is_empty()));
         let layers = [
             self.restore_conflict.is_some().then_some("help:delete"),

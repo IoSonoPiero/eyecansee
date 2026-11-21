@@ -348,7 +348,8 @@ impl App {
     /// leaves the field (egui does it); twice within `DOUBLE_ESC` it closes the guide. Over a
     /// window (`under_guide`) the guide is on top: wherever the pointer is, Esc is the guide's
     /// and one closes it; Enter and Esc taken for the window that asks (`key_answer`) are the
-    /// guide's too, so Enter answers nothing under it (it would delete under the guide, #196).
+    /// guide's too, so Enter answers nothing under it (it confirmed a deletion under the guide,
+    /// #196), and so is Enter in the guide's field (Open location under it read it and opened).
     pub(crate) fn help_esc(&mut self, ctx: &egui::Context) {
         if !self.help.open {
             return;
@@ -360,7 +361,13 @@ impl App {
         if !over && !self.help.typing && !under {
             return;
         }
-        let (esc, now) = ctx.input_mut(|i| (i.consume_key(egui::Modifiers::NONE, egui::Key::Escape), i.time));
+        let field = under && self.help.typing;
+        let (esc, now) = ctx.input_mut(|i| {
+            if field {
+                i.consume_key(egui::Modifiers::NONE, egui::Key::Enter);
+            }
+            (i.consume_key(egui::Modifiers::NONE, egui::Key::Escape), i.time)
+        });
         if (esc || answer == Some(false)) && self.help.esc(now, under) {
             log!("help: closed with Esc");
             self.help.open = false;
@@ -368,10 +375,11 @@ impl App {
         }
     }
 
-    /// A window is open under the guide, which goes over every one (`help_window`): a question
-    /// or a message, another modal, or a window of `help_spot`'s (Options, a copy under way).
+    /// A window that reads Esc is open under the guide, which goes over every one
+    /// (`help_window`): a question or a message, another modal (renaming, a tip), Options or
+    /// New image. Not the box of a copy under way: Esc is not its own.
     fn under_guide(&self, ctx: &egui::Context) -> bool {
-        self.asking() || ctx.memory(|m| m.top_modal_layer()).is_some() || self.window_spot().is_some()
+        self.asking() || ctx.memory(|m| m.top_modal_layer()).is_some() || self.options || self.new_image.is_some()
     }
 
     /// The guide's window, when open.
@@ -735,6 +743,12 @@ mod tests {
             app.notice = Some(crate::save_dialogs::Notice { help: Some("help:copy-move"), ..notice });
         });
         assert_eq!(h.app.help.page, "copy-move", "F1 opens the page the message names");
+        h.key(egui::Key::F1);
+        h.frame(Vec::new());
+        assert!(!h.app.help.open && h.app.notice.is_some(), "F1 again closes the guide only");
+        h.key(egui::Key::F1);
+        h.frame(Vec::new());
+        assert!(h.app.help.open, "and opens it again");
         h.key(egui::Key::Escape);
         h.frame(Vec::new());
         assert!(!h.app.help.open && h.app.notice.is_some(), "Esc closes the guide and leaves the message (guide open {}, message {})", h.app.help.open, h.app.notice.is_some());
@@ -755,15 +769,69 @@ mod tests {
             let a = app.files().iter().find(|f| f.path.ends_with("a.jpg")).unwrap().path.clone();
             app.ask_delete_paths(vec![a], false, None);
         });
-        h.key(egui::Key::Enter);
-        settle(&mut h);
-        assert!(dir.join("a.jpg").exists() && h.app.delete_confirm.is_some() && h.app.help.open, "Enter with the guide on top answered the deletion under it");
+        assert_eq!(h.app.help.page, "delete");
+        enter_answers_nothing(&mut h, &dir);
         h.key(egui::Key::Escape);
         h.frame(Vec::new());
         assert!(!h.app.help.open && h.app.delete_confirm.is_some(), "Esc closes the guide and leaves the deletion asked");
         h.key(egui::Key::Escape);
         settle(&mut h);
         assert!(h.app.delete_confirm.is_none() && dir.join("a.jpg").exists(), "the next Esc cancels the deletion");
+    }
+
+    /// Enter with the guide over the deletion of a.jpg: a.jpg stays, asked, under the guide open.
+    fn enter_answers_nothing(h: &mut Harness, dir: &std::path::Path) {
+        h.key(egui::Key::Enter);
+        settle(h);
+        assert!(dir.join("a.jpg").exists(), "Enter with the guide on top deleted a.jpg under it");
+        assert!(h.app.delete_confirm.is_some(), "Enter with the guide on top answered the deletion under it");
+        assert!(h.app.help.open, "Enter closed the guide");
+    }
+
+    /// The guide open first, then a deletion asked: the guide is still on top, and takes Enter
+    /// and Esc before the deletion.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_deletion_asked_under_the_guide_open() {
+        if own_folder("help::tests::a_deletion_asked_under_the_guide_open") {
+            return;
+        }
+        let dir = folder("guide-first", &["a.jpg", "b.jpg"]);
+        let mut h = Harness::new(&dir);
+        h.key(egui::Key::F1);
+        h.frame(Vec::new());
+        let a = h.app.files().iter().find(|f| f.path.ends_with("a.jpg")).unwrap().path.clone();
+        h.app.ask_delete_paths(vec![a], false, None);
+        for _ in 0..3 {
+            h.frame(Vec::new());
+        }
+        let layer = egui::LayerId::new(egui::Order::Foreground, window_id());
+        assert!(h.app.help.open && h.ctx.memory(|m| m.is_above_modal_layer(layer)), "the guide over the deletion");
+        enter_answers_nothing(&mut h, &dir);
+        h.key(egui::Key::Escape);
+        h.frame(Vec::new());
+        assert!(!h.app.help.open && h.app.delete_confirm.is_some(), "Esc closes the guide and leaves the deletion asked");
+    }
+
+    /// Open location under the guide, its address filled in, the guide's search field with the
+    /// keyboard (as F1 leaves it): Enter is the field's, the address is not opened.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn enter_in_the_guide_over_open_location() {
+        if own_folder("help::tests::enter_in_the_guide_over_open_location") {
+            return;
+        }
+        let other = folder("guide-address-other", &["c.jpg"]);
+        let url = format!("{}/", other.display());
+        let (_, mut h) = guide_over("guide-address", |app| app.open_address = Some(crate::address::AddressForm { url, ..crate::address::AddressForm::new() }));
+        let dir = h.app.dir.clone();
+        assert!(h.app.help.typing, "the guide's field has the keyboard");
+        h.key(egui::Key::Enter);
+        settle(&mut h);
+        assert!(h.app.open_address.is_some() && h.app.dir == dir, "Enter in the guide opened the address under it (folder {:?})", h.app.dir);
+        h.key(egui::Key::Escape);
+        h.frame(Vec::new());
+        assert!(!h.app.help.open && h.app.open_address.is_some(), "Esc closes the guide and leaves Open location");
     }
 
     /// About is not a modal: the guide goes over it too, and takes Esc first.
