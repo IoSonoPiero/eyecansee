@@ -139,6 +139,26 @@ pub fn jpeg_lossless(bytes: &[u8], turn: Turn) -> Option<Vec<u8>> {
     jpeg_lossless_total(bytes, turn.after(exif_turn(bytes)))
 }
 
+/// Whether `jpeg_lossless_total` turns the JPEG `bytes` by `total` without decoding it, from its
+/// header: not a lossless JPEG, and the sides the turn moves are made of whole blocks (the check
+/// of libjpeg-turbo's `perfect` transform, `jtransform_perfect_transform`). An unknown
+/// subsampling: not known, so no.
+pub fn jpeg_lossless_fits(bytes: &[u8], total: Turn) -> bool {
+    use turbojpeg::TransformOp::*;
+    let Ok(h) = turbojpeg::read_header(bytes) else { return false };
+    if h.is_lossless || h.subsamp == turbojpeg::Subsamp::Unknown {
+        return false;
+    }
+    let (across, down) = (h.width % h.subsamp.mcu_width() == 0, h.height % h.subsamp.mcu_height() == 0);
+    match total.jpeg_op() {
+        None | Transpose => true,
+        Hflip | Rot270 => across,
+        Vflip | Rot90 => down,
+        // Rot180, Transverse, and any other.
+        _ => across && down,
+    }
+}
+
 /// The turn the EXIF orientation of a JPEG asks for (none without EXIF).
 pub fn exif_turn(bytes: &[u8]) -> Turn {
     use image::ImageDecoder;

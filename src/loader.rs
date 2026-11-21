@@ -525,11 +525,11 @@ impl Loader {
 
     /// "Save" from the viewer, first half: the image turned in memory. The confirmation shows
     /// whether it lost quality, then `replace_with` writes exactly that.
-    pub fn prepare(&self, path: String, turn: crate::transform::Turn) {
-        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+    pub fn prepare(&self, path: String, turn: crate::transform::Turn, anyway: bool) {
+        let (op, tx, ctx, anyway) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), crate::view_memory::anyway(&self.base, &path, anyway));
         self.rt.spawn(async move {
             // A video is turned when it is saved (`replace`), by its rotation only: nothing to make before.
-            let r = if decode::is_video(&path) { Ok((Arc::new(Vec::new()), false)) } else { turned(&op, &path, turn).await.map(|(data, lossy)| (Arc::new(data), lossy)) };
+            let r = if decode::is_video(&path) { Ok((Arc::new(Vec::new()), false)) } else { turned(&op, &path, turn, anyway).await.map(|(data, lossy)| (Arc::new(data), lossy)) };
             let _ = tx.send(Msg::Prepared(path, turn, r));
             ctx.request_repaint();
         });
@@ -582,7 +582,7 @@ impl Loader {
                     ctx.request_repaint();
                     continue;
                 }
-                let r = match turned(&op, &path, turn).await {
+                let r = match turned(&op, &path, turn, crate::view_memory::anyway(&base, &path, false)).await {
                     Ok((data, _)) => crate::kept::replace(&op, &base, &path, data, how).await,
                     Err(e) => Err((e, None)),
                 };
@@ -931,7 +931,7 @@ mod tests {
     /// Saving as the grid does: read, turned (`SKIPPED` if not possible), written over itself.
     fn save(rt: &tokio::runtime::Runtime, op: &Store, path: &str, turn: Turn, how: Deletion) -> Result<(), source::Error> {
         rt.block_on(async {
-            let (data, _) = turned(op, path, turn).await?;
+            let (data, _) = turned(op, path, turn, false).await?;
             replace(op, path, data, how).await
         })
     }

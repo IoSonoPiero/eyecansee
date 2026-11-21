@@ -437,6 +437,9 @@ impl App {
                 self.save_ready = Some((path, turn, data, lossy));
             }
             Ok(_) => {}
+            // Too large for the memory once decoded: asked (`view_memory::save_big_window`).
+            Err((crate::replace::TOO_LARGE, need)) if self.viewed(&path) && turn == self.turn => self.save_big = need.parse().ok().map(|need| (path, turn, need)),
+            Err((crate::replace::TOO_LARGE, _)) => self.after_save = None,
             Err(e) => {
                 let save_as = self.viewed(&path).then_some(Act::Convert(None));
                 self.save_failed(e, save_as);
@@ -500,6 +503,7 @@ impl App {
                 self.redo_thumbs(ctx, vec![path]);
             }
             Err((loader::SKIPPED, name)) => self.skipped.push(name),
+            Err((crate::replace::TOO_LARGE, _)) => self.skipped_large.push(source::name(&path).to_string()),
             Err((id, detail)) => {
                 log!("save: ERROR {id} {detail}");
                 // With the image kept, its own window says what happened.
@@ -511,7 +515,7 @@ impl App {
         if self.saving.is_empty()
             && let Some((op, n, videos)) = self.batch_saved.take()
             // Nothing saved and every failure in its own window (`kept.rs`): "saved: 0" said nothing more.
-            && !(n == 0 && self.skipped.is_empty() && !self.kept.is_empty())
+            && !(n == 0 && self.skipped.is_empty() && self.skipped_large.is_empty() && !self.kept.is_empty())
         {
             // What was done, in the title and in the text ("Images saved: 2." alone
             // did not say what had happened).
@@ -520,10 +524,13 @@ impl App {
             let args = args.each_ref().map(|(k, v)| (*k, v.as_str()));
             let title = self.i18n.t_args("batch-done-title", &args);
             let text = self.i18n.t_args("batch-done", &args);
-            self.notice = Some(match std::mem::take(&mut self.skipped) {
-                skipped if skipped.is_empty() => Notice::new(title, text),
-                // At most ten names, all of them in Copy (`notice_list`).
-                skipped => crate::notice_list::notice(&self.i18n, title, &format!("{text}\n\n{}", self.i18n.t("batch-skipped-names")), &skipped, false),
+            let (skipped, large) = (std::mem::take(&mut self.skipped), std::mem::take(&mut self.skipped_large));
+            self.notice = Some(if skipped.is_empty() && large.is_empty() {
+                Notice::new(title, text)
+            } else {
+                // At most ten names a list, all of them in Copy (`notice_list`).
+                let too_large = self.i18n.t_args("summary-too-large", &[("n", &large.len().to_string())]);
+                crate::notice_list::notice_lists(&self.i18n, title, &text, &[(self.i18n.t("batch-skipped-names"), skipped), (too_large, large)])
             });
         }
     }

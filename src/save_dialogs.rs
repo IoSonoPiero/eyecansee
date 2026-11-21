@@ -235,7 +235,7 @@ impl App {
         }
         let Some(loader) = &self.loader else { return };
         log!("prepare {path:?} {:?}", self.turn);
-        loader.prepare(path.clone(), self.turn);
+        loader.prepare(path.clone(), self.turn, false);
         self.saving.insert(path.clone());
         self.preparing = Some(path);
     }

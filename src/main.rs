@@ -362,6 +362,9 @@ struct App {
     /// "Save" asked and prepared: the image, its turn, the file to write and whether it lost
     /// quality, for the confirmation of the overwrite.
     save_ready: Option<(String, transform::Turn, Arc<Vec<u8>>, bool)>,
+    /// "Save" asked on a picture too large for the memory once decoded: the image, its turn and
+    /// the memory it needs, for the question (`view_memory::save_big_window`).
+    save_big: Option<(String, transform::Turn, u64)>,
     /// FFmpeg offered to save a turned video (`ffmpeg_ask`).
     ffmpeg_ask: Option<ffmpeg_ask::Ask>,
     /// Images being prepared or saved after a turn: not saved again until done (status bar).
@@ -370,6 +373,8 @@ struct App {
     preparing: Option<String>,
     /// Names left out of a "Save" on the grid (animated…), shown once every save is done.
     skipped: Vec<String>,
+    /// Names left out of a "Save" on the grid as too large for the memory, shown with `skipped`.
+    skipped_large: Vec<String>,
     /// Images and videos saved by a transform on the grid (how many, how many videos), for the summary once every save is done.
     batch_saved: Option<(transform::Op, usize, usize)>,
     /// An image just saved from Rotate and crop, as the viewer shows it: kept in the viewer when

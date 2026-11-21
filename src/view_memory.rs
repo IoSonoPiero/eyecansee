@@ -315,6 +315,35 @@ impl App {
     }
 }
 
+impl App {
+    /// "Save" after a turn, on a picture that the turn decodes and that needs more than half of
+    /// the memory (`replace::TOO_LARGE`): the question of the editor and of Save as. Open anyway
+    /// prepares it again, whatever it needs, and is remembered (`anyway`); Cancel leaves it turned
+    /// on screen, not saved (Piero, 21/11/2026).
+    pub(crate) fn save_big_window(&mut self, ctx: &egui::Context) {
+        let Some((path, turn, need)) = self.save_big.clone() else { return };
+        if !self.viewed(&path) || turn != self.turn {
+            self.save_big = None;
+            return;
+        }
+        match self.big_picture_ask(ctx, need) {
+            Some(true) => {
+                self.save_big = None;
+                if let Some(loader) = &self.loader {
+                    loader.prepare(path.clone(), turn, true);
+                    self.saving.insert(path.clone());
+                    self.preparing = Some(path);
+                }
+            }
+            Some(false) => {
+                self.save_big = None;
+                self.after_save = None;
+            }
+            None => {}
+        }
+    }
+}
+
 /// The width of the card and of the question: each of their sentences on one or two lines, in
 /// English and in Italian (checked on a screenshot).
 const WIDTH: f32 = 560.0;

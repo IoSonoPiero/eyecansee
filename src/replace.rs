@@ -124,16 +124,37 @@ async fn raw_rename(op: &Store, from: &str, to: &str) -> Result<(), source::Erro
     }
 }
 
-/// The image read and turned in its own format, and whether it lost quality.
-pub(crate) async fn turned(op: &Store, path: &str, turn: crate::transform::Turn) -> Result<(Vec<u8>, bool), source::Error> {
-    rewritten(op, path, move |bytes, name| crate::save_back::turned_file(bytes, name, turn)).await
+/// "Save" of a picture whose turn would decode it and that would need more than half of the
+/// memory (`save_back::turn_too_large`, Piero, 21/11/2026): the error, with the memory needed
+/// as its detail. The viewer asks whether to save it anyway; the grid leaves it out and names it.
+pub(crate) const TOO_LARGE: &str = "save-too-large";
+
+/// The image read and turned in its own format, and whether it lost quality. Unless `anyway`, one
+/// too large for the memory once decoded is not turned (`TOO_LARGE`); a JPEG turned without
+/// re-encoding never is.
+pub(crate) async fn turned(op: &Store, path: &str, turn: crate::transform::Turn, anyway: bool) -> Result<(Vec<u8>, bool), source::Error> {
+    let bytes = if anyway { op.read(path).await? } else { to_turn(op, path, turn, crate::thumb_memory::ram()).await? };
+    rewritten(bytes, path, move |bytes, name| crate::save_back::turned_file(bytes, name, turn)).await
 }
 
-/// The file read and passed to `make` (in the background), which gives the file to write and
-/// whether it lost quality; `SKIPPED` if it cannot be written back over itself. An Ultra HDR
-/// photo or a Motion Photo passes: flips and quarter turns keep its gain map and its video.
-pub(crate) async fn rewritten<T: Send + 'static>(op: &Store, path: &str, make: impl FnOnce(&[u8], &str) -> Result<T, String> + Send + 'static) -> Result<T, source::Error> {
-    let bytes = op.read(path).await?;
+/// The bytes of `path` to turn, unless the turn decodes them and they need more than half of
+/// `ram` (`TOO_LARGE`); not for a file that is not turned at all (`SKIPPED` after, by `rewritten`).
+async fn to_turn(op: &Store, path: &str, turn: crate::transform::Turn, ram: u64) -> Result<Vec<u8>, source::Error> {
+    let name = source::name(path);
+    let too_large = |bytes: &[u8], size| {
+        let skipped = bytes.len() as u64 >= size && !crate::save_back::can_turn_in_place(bytes, name) && !crate::ultrahdr::turns_whole(bytes);
+        if skipped { None } else { crate::save_back::turn_too_large(bytes, size, name, turn, ram) }
+    };
+    crate::view_memory::read_unless_too_large(op, path, None, too_large).await.map_err(|e| match e {
+        crate::view_memory::NotRead::TooLarge(need) => (TOO_LARGE, need.to_string()),
+        crate::view_memory::NotRead::Failed(e) => e,
+    })
+}
+
+/// The file `bytes` (at `path`) passed to `make` (in the background), which gives the file to
+/// write and whether it lost quality; `SKIPPED` if it cannot be written back over itself. An
+/// Ultra HDR photo or a Motion Photo passes: flips and quarter turns keep its gain map and video.
+pub(crate) async fn rewritten<T: Send + 'static>(bytes: Vec<u8>, path: &str, make: impl FnOnce(&[u8], &str) -> Result<T, String> + Send + 'static) -> Result<T, source::Error> {
     let name = source::name(path).to_string();
     tokio::task::spawn_blocking(move || {
         if !crate::save_back::can_turn_in_place(&bytes, &name) && !crate::ultrahdr::turns_whole(&bytes) {
@@ -458,5 +479,34 @@ mod tests {
         assert!(tries.iter().all(Result::is_err), "the trash was expected to refuse");
         assert_eq!(std::fs::read(dir.join("a.jpg")).unwrap(), b"original", "the original stays");
         assert_eq!(names, ["a.jpg"], "copies of the original left in the folder");
+    }
+
+    /// Save after a turn (#177): a picture the turn decodes is not read for nothing when it needs
+    /// more than half the RAM (`TOO_LARGE`, the memory as detail); a JPEG turned without
+    /// re-encoding is turned whatever the RAM; an animated one is left to `SKIPPED`, not asked about.
+    #[test]
+    fn turned_only_when_it_fits_the_memory() {
+        use crate::transform::{Op, Turn};
+        let dir = std::env::temp_dir().join(format!("eyecansee-turn-memory-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = |format| {
+            let mut v = Vec::new();
+            image::DynamicImage::new_rgb8(64, 48).write_to(&mut std::io::Cursor::new(&mut v), format).unwrap();
+            v
+        };
+        std::fs::write(dir.join("a.png"), file(image::ImageFormat::Png)).unwrap();
+        std::fs::write(dir.join("a.jpg"), file(image::ImageFormat::Jpeg)).unwrap();
+        std::fs::write(dir.join("b.png"), crate::encode::tests::apng(&file(image::ImageFormat::Png))).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
+        let cw = Turn::default().then(Op::Cw);
+        let (id, need) = rt.block_on(to_turn(&op, "a.png", cw, 0)).unwrap_err();
+        assert!(id == TOO_LARGE && need.parse::<u64>().is_ok_and(|n| n > 0), "{id} {need}");
+        assert!(rt.block_on(to_turn(&op, "a.png", cw, 1 << 40)).is_ok());
+        assert!(rt.block_on(to_turn(&op, "a.jpg", cw, 0)).is_ok(), "without decoding");
+        assert!(rt.block_on(to_turn(&op, "b.png", cw, 0)).is_ok(), "skipped after");
+        assert_eq!(rt.block_on(turned(&op, "b.png", cw, false)).unwrap_err().0, SKIPPED);
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

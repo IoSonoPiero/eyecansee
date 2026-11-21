@@ -34,6 +34,7 @@ pub fn turned_file_beside(bytes: &[u8], name: &str, turn: Turn, sidecar: Option<
     }
     if Format::of_file(name) == Some(Format::Jpeg)
         && can_turn_in_place(bytes, name)
+        && !turn_decodes(bytes, name, turn)
         && let Some(out) = crate::transform::jpeg_lossless(bytes, turn)
     {
         let out = match sidecar {
@@ -45,6 +46,27 @@ pub fn turned_file_beside(bytes: &[u8], name: &str, turn: Turn, sidecar: Option<
     let mut img = crate::decode::decode_full(bytes, name)?;
     turn.apply(&mut img);
     encoded_beside(bytes, name, img, sidecar)
+}
+
+/// Whether turning the file `bytes` (all of it) by `turn`, as `turned_file_beside` does it,
+/// decodes its picture, and so needs the memory of a decoding (#177): every format but JPEG, and
+/// a JPEG not turned without re-encoding (its size not whole blocks for that turn, or carrying
+/// more than one picture). A phone photo (Ultra HDR, Motion Photo) by its photo: its gain map,
+/// a sixteenth of it, is not counted. Save over the original and Convert ask the same.
+pub fn turn_decodes(bytes: &[u8], name: &str, turn: Turn) -> bool {
+    let jpeg = Format::of_file(name) == Some(Format::Jpeg);
+    let whole = jpeg && (can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes));
+    !(whole && crate::transform::jpeg_lossless_fits(bytes, turn.after(crate::transform::exif_turn(bytes))))
+}
+
+/// The memory turning `bytes` (the start of a file of `size` bytes, or all of it) needs, when
+/// the turn decodes them (`turn_decodes`) and that is over half of `ram` (`view_memory`, Piero,
+/// 21/11/2026). Of a JPEG only all of it can tell: from its start, nothing yet.
+pub fn turn_too_large(bytes: &[u8], size: u64, name: &str, turn: Turn, ram: u64) -> Option<u64> {
+    if Format::of_file(name) == Some(Format::Jpeg) && (bytes.len() as u64) < size || !turn_decodes(bytes, name, turn) {
+        return None;
+    }
+    crate::view_memory::estimate(bytes, size, name, crate::view_memory::Use::Whole).over_half(bytes.len(), size, name, ram)
 }
 
 /// The file decoded, changed by `edit` and encoded again in its own format: a JPEG at its own
@@ -223,6 +245,80 @@ mod tests {
             assert_eq!(image::guess_format(&out).unwrap(), image::ImageFormat::Jpeg, "{name}");
             assert_eq!(crate::decode::decode_full(&out, name).unwrap().width(), 16, "{name}");
         }
+    }
+
+    /// A JPEG of `w` × `h` with `subsamp`, its EXIF orientation 6 when `exif6`.
+    fn jpeg_of(w: usize, h: usize, subsamp: turbojpeg::Subsamp, exif6: bool) -> Vec<u8> {
+        let rgb: Vec<u8> = (0..w * h * 3).map(|i| (i * 7 % 251) as u8).collect();
+        let mut c = turbojpeg::Compressor::new().unwrap();
+        c.set_subsamp(subsamp).unwrap();
+        let mut jpeg = c.compress_to_vec(turbojpeg::Image { pixels: rgb.as_slice(), width: w, pitch: w * 3, height: h, format: turbojpeg::PixelFormat::RGB }).unwrap();
+        if exif6 {
+            let field = exif::Field { tag: exif::Tag::Orientation, ifd_num: exif::In::PRIMARY, value: exif::Value::Short(vec![6]) };
+            let tiff = crate::meta::write_exif(&[field], true).unwrap();
+            let app1 = [&[0xFF, 0xE1][..], &((2 + 6 + tiff.len()) as u16).to_be_bytes(), b"Exif\0\0", &tiff].concat();
+            jpeg.splice(2..2, app1);
+        }
+        jpeg
+    }
+
+    /// Every turn (with the EXIF orientation done too) × JPEGs of whole blocks or not on each
+    /// side, at 4:4:4, 4:2:2 and 4:2:0, a phone's Ultra HDR photo: `turn_decodes` says what
+    /// `turned_file` does, a turn without re-encoding when it says no (#177: only a decoding asks
+    /// for its memory). Every other format decodes.
+    #[test]
+    fn turn_decodes_as_turned_file() {
+        use crate::transform::{Op, Turn};
+        let t = Turn::default();
+        let turns = [t, t.then(Op::Cw), t.then(Op::Half), t.then(Op::Ccw), t.then(Op::FlipH), t.then(Op::FlipV), t.then(Op::FlipH).then(Op::Cw), t.then(Op::FlipH).then(Op::Ccw)];
+        let (mut lossless, mut decoded) = (0, 0);
+        for subsamp in [turbojpeg::Subsamp::None, turbojpeg::Subsamp::Sub2x1, turbojpeg::Subsamp::Sub2x2] {
+            for (w, h) in [(32, 32), (36, 32), (32, 40), (40, 36)] {
+                for exif6 in [false, true] {
+                    let jpeg = jpeg_of(w, h, subsamp, exif6);
+                    for turn in turns {
+                        let (_, lossy) = super::turned_file(&jpeg, "a.jpg", turn).unwrap();
+                        assert_eq!(super::turn_decodes(&jpeg, "a.jpg", turn), lossy, "{subsamp:?} {w}x{h} exif6 {exif6} {turn:?}");
+                        if lossy { decoded += 1 } else { lossless += 1 }
+                    }
+                }
+            }
+        }
+        assert!(lossless > 0 && decoded > 0, "{lossless} {decoded}");
+        // Photo and gain map (half its sides) both of whole blocks, or neither: the gain map is
+        // not counted (`turn_decodes`), the `lossy` of `turned` is of either.
+        for (w, h) in [(64, 48), (68, 44)] {
+            let hdr = crate::ultrahdr::tests::sample(w, h);
+            for turn in turns {
+                let (_, lossy) = crate::ultrahdr::turned(&hdr, turn, None).unwrap().unwrap();
+                assert_eq!(super::turn_decodes(&hdr, "a.jpg", turn), lossy, "Ultra HDR {w}x{h} {turn:?}");
+            }
+        }
+        let png = {
+            let mut v = Vec::new();
+            DynamicImage::new_rgb8(8, 8).write_to(&mut Cursor::new(&mut v), image::ImageFormat::Png).unwrap();
+            v
+        };
+        assert!(super::turn_decodes(&png, "a.png", t.then(Op::Cw)));
+    }
+
+    /// Save and Convert ask for the memory of a turn only when it decodes, and of a JPEG only from
+    /// all of it: a JPEG turned without re-encoding never; one that is encoded again, a PNG,
+    /// when over half the RAM.
+    #[test]
+    fn turn_too_large_only_when_decoded() {
+        use crate::transform::{Op, Turn};
+        let cw = Turn::default().then(Op::Cw);
+        let (fits, not) = (jpeg_of(32, 32, turbojpeg::Subsamp::Sub2x2, false), jpeg_of(32, 40, turbojpeg::Subsamp::Sub2x2, false));
+        let len = |b: &[u8]| b.len() as u64;
+        let need = |b: &[u8], name| crate::view_memory::estimate(b, len(b), name, crate::view_memory::Use::Whole).need;
+        assert_eq!(super::turn_too_large(&fits, len(&fits), "a.jpg", cw, 0), None, "without decoding");
+        assert_eq!(super::turn_too_large(&not, len(&not), "a.jpg", cw, 0), Some(need(&not, "a.jpg")));
+        assert_eq!(super::turn_too_large(&not, len(&not), "a.jpg", cw, 1 << 40), None, "room enough");
+        assert_eq!(super::turn_too_large(&not, len(&not) + 1, "a.jpg", cw, 0), None, "only its start");
+        let mut png = Vec::new();
+        DynamicImage::new_rgb8(30, 20).write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        assert_eq!(super::turn_too_large(&png, len(&png), "a.png", cw, 0), Some(need(&png, "a.png")));
     }
 
     /// Audit 3.4: the check made at every opening ("can this file be turned in place?") decodes
