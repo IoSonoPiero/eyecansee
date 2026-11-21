@@ -288,9 +288,9 @@ pub(crate) fn menu_bar_at(ctx: &egui::Context, rect: egui::Rect) {
 const MENU_BAR: &str = "menu-bar-rect";
 
 /// With a menu open (right click, the bar of the menus, a list to choose from) a click outside
-/// it only closes it, as in GTK programs (Nautilus) and in Windows inside the program that owns
-/// the menu: it used to reach what was under the pointer too, and a click on a file to close the
-/// menu left that file alone selected (L26 of 2026-11-21). On the raw input, before egui sees
+/// it only closes it, as with the menus of GTK (Nautilus): it used to reach what was under the
+/// pointer too, and a click on a file to close the menu left that file alone selected (L26 of
+/// 2026-11-21). A right click outside it too: it no longer opens the menu of what is under it. On the raw input, before egui sees
 /// it: the press is dropped with its release, and the menus are closed here. Tab is dropped
 /// too: it would have moved the selection between the tree and the grid under the menu.
 pub(crate) fn menu_clicks(ctx: &egui::Context, raw: &mut egui::RawInput) {
