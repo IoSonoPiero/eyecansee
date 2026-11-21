@@ -367,9 +367,9 @@ impl Loader {
     /// Original for "Save in another format": decoded in full, with a preview no larger than a texture.
     /// `edit`: for the editor, which does not take animations and files of several pages
     /// (`edit_page::ANIMATED`). A picture too large for the memory is not decoded (over 32 MB not
-    /// read past the header that tells so), unless `anyway`: the page asks first (`view_memory`).
+    /// read past the header that tells so), unless `anyway` now or before: the page asks first.
     pub fn load_original(&self, path: String, edit: bool, anyway: bool) {
-        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        let (op, tx, ctx, anyway) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), crate::view_memory::anyway(&self.base, &path, anyway));
         self.rt.spawn(async move {
             let (sibling, local) = (siblings(op.clone(), path.clone()), crate::occt::local(&op, &path));
             let sidecar = crate::sidecar::read(&op, &path).await.map(|s| s.xmp);
@@ -653,10 +653,10 @@ impl Loader {
     }
 
     /// Full-resolution image for the viewer. A picture too large for the memory is not decoded
-    /// (over 32 MB not read past the header that tells so, `view_memory`), unless `anyway`: the
-    /// viewer shows a card with Open anyway. `size`: the file's, from the listing.
+    /// (over 32 MB not read past the header that tells so), unless `anyway` now or before
+    /// (`view_memory::anyway`): the viewer shows a card with Open anyway. `size`: from the listing.
     pub fn load_full(&self, generation: u64, index: usize, path: String, size: Option<u64>, anyway: bool) {
-        let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
+        let (op, tx, ctx, anyway) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), crate::view_memory::anyway(&self.base, &path, anyway));
         let current = self.generation.clone();
         let permits = self.full.clone();
         self.rt.spawn(async move {

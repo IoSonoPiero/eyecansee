@@ -13,7 +13,7 @@ L'editor è una pagina a sé dove disegni su un'immagine, copri i dati privati, 
 
 L'editor lavora su un'immagine alla volta. Con più immagini selezionate queste voci sono spente; per girare più immagini insieme usa [Ruotare e riflettere](rotate.md) o [Convertire e ridimensionare le immagini](convert.md). Sono spente anche per un'immagine animata o con più pagine, nella griglia come nel visore, perché si salverebbe solo la prima.
 
-Un'immagine che, letta tutta, chiederebbe più di metà della memoria del computer (per esempio un HEIC, un TIFF a 16 bit o un JPEG XL di centinaia di megapixel, su un computer da 8 GB) non viene letta subito: una finestra dice quanta memoria le serve e propone **Apri comunque**. Se la apri comunque, il computer può rallentare molto, oppure il sistema può chiudere EyeCanSee. **Annulla** è la scelta predefinita (anche con **Invio** ed **Esc**) e chiude l'editor.
+Un'immagine che, letta tutta, chiederebbe più di metà della memoria del computer (per esempio un HEIC, un TIFF a 16 bit o un JPEG XL di centinaia di megapixel, su un computer da 8 GB) non viene letta subito: una finestra dice quanta memoria le serve e propone **Apri comunque**. Se la apri comunque, il computer può rallentare molto, oppure il sistema può chiudere EyeCanSee. La scelta vale per quel file finché EyeCanSee resta aperto (vedi [Guardare le immagini](viewer.md)). **Annulla** è la scelta predefinita (anche con **Invio** ed **Esc**) e chiude l'editor.
 
 ## La pagina
 

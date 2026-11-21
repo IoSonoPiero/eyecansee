@@ -77,7 +77,7 @@ The choice starts again on **All** each time the page opens.
 - An icon (ICO) holds at most 256 × 256 pixels: a larger image is reduced. The page says so.
 - An animated image (GIF, WebP, APNG, AVIF) or one with several pages (TIFF) is saved as the picture shown, its first frame or page: the new file has only that one. The page says so.
 - A glTF model that places one of its parts more than once in its hierarchy, which the format does not allow, shows that part once: the new file has it once, and the page says so.
-- A picture that would need more than half of the computer's memory once read whole is not read at once: a window says how much memory it needs and offers **Open anyway** (the computer may then become very slow, or the system may close EyeCanSee). **Cancel** is the default (also with **Enter** and **Esc**) and closes the page.
+- A picture that would need more than half of the computer's memory once read whole is not read at once: a window says how much memory it needs and offers **Open anyway** (the computer may then become very slow, or the system may close EyeCanSee). The choice holds for that file until EyeCanSee is closed. **Cancel** is the default (also with **Enter** and **Esc**) and closes the page.
 - EyeCanSee cannot write HEIC or JPEG XL: see [Supported formats](formats.md).
 - Only JPEG, PNG, WebP, AVIF, TIFF, BMP, GIF, QOI and PSD files (flattened) can also be written back over the original after a turn (see [Rotating and flipping](rotate.md)); the other formats only through this page.
 - The table of every format and its options is in [Supported formats](formats.md).

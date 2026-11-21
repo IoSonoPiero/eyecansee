@@ -717,7 +717,7 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
 /// The job decodes its pictures at full resolution: not Copy with the metadata, nor Export
 /// drawing (drawings have limits of their own). A picture too large for the memory is then left
 /// out, told before it is decoded (`view_memory::read`: over 32 MB from the start of its file
-/// when it can be).
+/// when it can be), unless opened anyway before (`view_memory::anyway`).
 fn decodes(job: &Job) -> bool {
     !job.does_nothing() && job.drawing.is_none()
 }
@@ -726,7 +726,7 @@ fn decodes(job: &Job) -> bool {
 /// layers shown of a drawing: the new name, the content and the size of the original.
 async fn picture(op: &Store, path: &str, name: String, job: &Job) -> Result<(String, Vec<u8>, u64), (&'static str, String)> {
     let bytes = match decodes(job) {
-        true => crate::view_memory::read(op, path, None, crate::view_memory::Use::Whole, false).await.map_err(|e| match e {
+        true => crate::view_memory::read(op, path, None, crate::view_memory::Use::Whole, crate::view_memory::anyway(&job.base, path, false)).await.map_err(|e| match e {
             crate::view_memory::NotRead::TooLarge(_) => (SKIP_TOO_LARGE, name.clone()),
             crate::view_memory::NotRead::Failed(e) => e,
         })?,

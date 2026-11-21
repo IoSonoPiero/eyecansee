@@ -4,7 +4,8 @@
 //! on a PC with 8 GB a HEIC, a 16-bit TIFF, a PSD, a JPEG XL or an OpenEXR near 512 megapixels, 5
 //! to 17 GB) it is not decoded at once: in its place a card says so and offers Open anyway; the
 //! arrows go on to the next picture as always (Piero, 20/11/2026). A neighbour prepared in advance
-//! is never decoded: the card comes when it is the picture shown.
+//! is never decoded: the card comes when it is the picture shown. Open anyway holds for that file
+//! until EyeCanSee closes (`anyway`), then it is a picture as any other.
 
 use eframe::egui;
 
@@ -152,6 +153,23 @@ async fn read_for(op: &Store, path: &str, size: Option<u64>, (what, anyway): (Us
         return op.read(path).await.map_err(NotRead::Failed);
     }
     read_within(op, path, size, once, |bytes, size| estimate(bytes, size, path, what).over_half(bytes.len(), size, path, ram)).await
+}
+
+/// The pictures opened anyway since EyeCanSee started (Piero, 21/11/2026): the base of their
+/// source (two phones or two servers can have the same path) and their path. Kept only in
+/// memory: when EyeCanSee is opened again, the question comes again.
+static OPENED_ANYWAY: std::sync::Mutex<std::collections::BTreeSet<(String, String)>> = std::sync::Mutex::new(std::collections::BTreeSet::new());
+
+/// Whether the picture `path` of the source `base` is opened whatever memory it needs: Open
+/// anyway chosen `now`, remembered from then on, or before. The viewer (the picture shown, its
+/// neighbours, the slideshow), the editor, Save as, Convert, Resize and Save alike.
+pub fn anyway(base: &str, path: &str, now: bool) -> bool {
+    let mut opened = OPENED_ANYWAY.lock().unwrap();
+    let key = (base.to_string(), path.to_string());
+    if now {
+        opened.insert(key.clone());
+    }
+    now || opened.contains(&key)
 }
 
 /// The error of a picture not opened because it is `too_large`, with the memory it needs: the
@@ -494,6 +512,18 @@ mod tests {
         assert_eq!(asked(Some(&other)), None);
         assert_eq!(asked(Some(&Ok(()))), None);
         assert_eq!(asked::<()>(None), None, "still read");
+    }
+
+    /// Open anyway is remembered for that file of that source until EyeCanSee closes: the same
+    /// path on another phone or server still asks.
+    #[test]
+    fn opened_anyway_remembered() {
+        let (phone, other) = ("mtp://test-anyway-1/", "mtp://test-anyway-2/");
+        assert!(!anyway(phone, "DCIM/a.jpg", false));
+        assert!(anyway(phone, "DCIM/a.jpg", true));
+        assert!(anyway(phone, "DCIM/a.jpg", false), "remembered");
+        assert!(!anyway(other, "DCIM/a.jpg", false), "another phone");
+        assert!(!anyway(phone, "DCIM/b.jpg", false), "another file");
     }
 
     #[test]

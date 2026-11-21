@@ -6,7 +6,7 @@ What EyeCanSee does not do yet, or does only in part. The up-to-date list of kno
 
 - Images larger than 8192 pixels per side are shown reduced; the status bar still says their own size. SVG drawings are drawn at 2048 pixels on their long side.
 - Pictures larger than 512 megapixels (width × height) do not open: the viewer says their size. A real photo of 300 megapixels opens.
-- A picture that needs more than half of the computer's memory gets no thumbnail; the viewer, Save as and the editor open it only with **Open anyway** (see [Viewing images](viewer.md)), and Convert and Resize leave it out, saying so in their summary. Saving a turn over the original (**Save**, see [Rotating and flipping](rotate.md)) does not check it yet: on a computer with little memory such a picture can make the computer very slow there, or the system can close EyeCanSee.
+- A picture that needs more than half of the computer's memory gets no thumbnail; the viewer, Save as and the editor open it only with **Open anyway**, a choice that holds until EyeCanSee is closed (see [Viewing images](viewer.md)), and Convert and Resize leave it out, saying so in their summary. Saving a turn over the original (**Save**, see [Rotating and flipping](rotate.md)) does not check it yet: on a computer with little memory such a picture can make the computer very slow there, or the system can close EyeCanSee.
 - HDR images (EXR, HDR, PFM) are shown without tone mapping and may look overexposed.
 - AVIF sequences show only their first frame in the viewer (animated GIF, PNG and WebP are played).
 - Of a Photoshop file the viewer shows only the merged image, not its layers ([#122](https://github.com/IoSonoPiero/eyecansee/issues/122)).
