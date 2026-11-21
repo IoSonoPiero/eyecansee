@@ -211,7 +211,20 @@ pub fn header(bytes: &[u8]) -> Option<crate::decode::Header> {
 /// The pixels of a DNG's sensor from its tags, nothing decompressed (`thumb_memory`). `None` for
 /// the other RAW formats: rawler gives their size only with the sensor data (`dummy` or not, it
 /// sets aside the memory of the declared size first).
+/// `bytes` may be only the start of the file (`view_memory::HEAD`): a DNG is a TIFF, so nothing
+/// else is given to rawler, whose parsers index the bytes without checking them. A CRW cut short
+/// made it panic (its directory is read from the last bytes, here the middle of the file: index
+/// 2870992761 in 262144 bytes, 21/11/2026), which ended the loader's task. A TIFF that still
+/// makes it panic is not a DNG for this.
 pub fn dng_pixels(bytes: &[u8]) -> Option<u64> {
+    if !(bytes.starts_with(b"II*\0") || bytes.starts_with(b"MM\0*")) {
+        return None;
+    }
+    std::panic::catch_unwind(|| tiff_dng_pixels(bytes)).ok().flatten()
+}
+
+/// `dng_pixels` of a TIFF.
+fn tiff_dng_pixels(bytes: &[u8]) -> Option<u64> {
     use rawler::tags::TiffCommonTag;
     let src = RawSource::new_from_slice(bytes);
     let decoder = rawler::get_decoder(&src).ok()?;
@@ -621,6 +634,21 @@ mod tests {
         // The largest of two packets.
         let two = b"<x:xmpmeta/></x:xmpmeta> <x:xmpmeta><rdf>real</rdf></x:xmpmeta>";
         assert!(super::xmp(two).unwrap().windows(4).any(|w| w == b"real"));
+    }
+
+    /// The start of a CRW (`view_memory::HEAD` bytes of a larger file), whose directory rawler
+    /// reads from its last 4 bytes: the size of a DNG is not asked of it, no panic (the phone's
+    /// reading times stopped on one, 21/11/2026). A TIFF cut short is no DNG either.
+    #[test]
+    fn dng_pixels_of_a_start() {
+        let mut crw = vec![0u8; 1024];
+        crw[..14].copy_from_slice(b"II\x1a\0\0\0HEAPCCDR");
+        crw[1020..].copy_from_slice(&[0xF9; 4]);
+        assert_eq!(dng_pixels(&crw), None);
+        let mut tif = vec![0u8; 1024];
+        tif[..8].copy_from_slice(b"II*\0\xF0\xFF\xFF\x7F");
+        assert_eq!(dng_pixels(&tif), None);
+        assert_eq!(dng_pixels(b"II"), None);
     }
 
     /// The sidecar's position takes the place of the camera's (#24), as EXIF writes it.
