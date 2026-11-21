@@ -12,7 +12,6 @@ use std::sync::{Arc, Mutex, Weak};
 use std::time::Duration;
 
 use bytes::Bytes;
-use suppaftp::list::{File, ListParser};
 use suppaftp::tokio::{AsyncRustlsConnector, AsyncRustlsFtpStream};
 use suppaftp::types::FileType;
 use suppaftp::{FtpError, Mode, Status};
@@ -20,7 +19,9 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 
 use crate::source::{Error, Listing, NOT_FOUND, SILENT};
 
+mod listing;
 mod tls;
+use listing::Item;
 pub use tls::{trust, unknown};
 
 /// Connections per server: the thumbnails are read four at a time, as on SFTP.
@@ -259,9 +260,22 @@ fn pasv_port(answer: &str) -> Option<u16> {
     (n.len() == 6).then(|| n[4] * 256 + n[5])
 }
 
-/// A listed item: a line of MLSD, or of LIST (Unix or DOS).
-fn parse(line: &str, mlsd: bool) -> Option<File> {
-    if mlsd { ListParser::parse_mlsd(line).ok() } else { line.parse().ok() }
+/// A file whose data ended before its size (`Server::send`): the server's answer to the transfer
+/// says why, after a data connection closed early. A Storage Box (SFTPGo) reading a link to a
+/// folder sends nothing, then "550 … is a directory"; the bar said "Connection error: early eof"
+/// (L17 of 2026-11-21). The error said plainly (`fault::SERVER_CUT`), with the server's answer as
+/// the detail; whether the connection can still be used.
+async fn cut_short(s: &mut Stream, data: Data, path: &str) -> (Error, bool) {
+    drop(data);
+    let answer = waited(s.read_response_in(&[Status::ClosingDataConnection, Status::RequestedFileActionOk])).await;
+    log!("ftp: {path:?} ended before its size; the server then said {answer:?}");
+    let (detail, ok) = match answer {
+        Err(FtpError::UnexpectedResponse(r)) => (String::from_utf8_lossy(&r.body).trim().to_string(), r.status != Status::NotAvailable),
+        // "Transfer complete": the file is shorter than listed.
+        Ok(r) => (String::from_utf8_lossy(&r.body).trim().to_string(), true),
+        Err(e) => (e.to_string(), false),
+    };
+    ((crate::fault::SERVER_CUT, format!("{}\u{1}{detail}", crate::source::name(path))), ok)
 }
 
 /// `$op`, an expression using the pooled connection `$c` (`&mut Conn`) and giving a
@@ -371,46 +385,71 @@ impl Server {
         Ok(if home.is_empty() { String::new() } else { format!("{home}/") })
     }
 
+    /// The text of a listing of `dir`: `cmd` is MLSD or LIST.
+    async fn listing(&self, s: &mut Stream, cmd: &str, dir: &str) -> Result<String, FtpError> {
+        let mut d = self.data(s, format!("{cmd} {}", abs(dir)), 0).await?;
+        let bytes = read_up_to(&mut d, u64::MAX).await?;
+        close_data(s, d, false).await?;
+        Ok(String::from_utf8_lossy(&bytes).into_owned())
+    }
+
     /// Everything in a folder but "." and "..": MLSD where the server has it (exact times),
-    /// otherwise LIST.
-    async fn entries(&self, dir: &str) -> Result<Vec<File>, Error> {
+    /// otherwise LIST. A small file of MLSD may be a link: then one LIST of the folder tells the
+    /// links (`listing::mark_links`), never a request for each item.
+    async fn entries(&self, dir: &str) -> Result<Vec<Item>, Error> {
         let (text, mlsd) = with!(self, dir, |c| async {
-            let (d, mlsd) = match self.data(&mut c.s, format!("MLSD {}", abs(dir)), 0).await {
-                Ok(d) => (d, true),
+            match self.listing(&mut c.s, "MLSD", dir).await {
+                Ok(text) => Ok((text, true)),
                 Err(FtpError::UnexpectedResponse(r)) if matches!(r.status, Status::NotImplemented | Status::BadCommand | Status::BadArguments) => {
-                    (self.data(&mut c.s, format!("LIST {}", abs(dir)), 0).await?, false)
+                    Ok((self.listing(&mut c.s, "LIST", dir).await?, false))
                 }
-                Err(e) => return Err(e),
-            };
-            let mut d = d;
-            let bytes = read_up_to(&mut d, u64::MAX).await?;
-            close_data(&mut c.s, d, false).await?;
-            Ok::<_, FtpError>((String::from_utf8_lossy(&bytes).into_owned(), mlsd))
+                Err(e) => Err(e),
+            }
         }
         .await)?;
-        let lines: Vec<&str> = text.lines().map(|l| l.trim_end_matches('\r')).filter(|l| !l.is_empty()).collect();
-        Ok(lines.iter().filter_map(|l| parse(l, mlsd)).filter(|f| f.name() != "." && f.name() != "..").collect())
+        let mut items = listing::items(&text, mlsd);
+        if mlsd && listing::may_hide_links(&items) {
+            match with!(self, dir, |c| self.listing(&mut c.s, "LIST", dir).await) {
+                Ok(list) => listing::mark_links(&mut items, &list),
+                Err(e) => log!("ftp: LIST of {dir:?} for the links failed: {e:?}"),
+            }
+        }
+        Ok(items)
     }
 
     /// Is this entry a folder? A symlink is followed.
-    async fn entry_is_dir(&self, path: &str, f: &File) -> bool {
-        if f.is_symlink() { self.is_dir(path).await } else { f.is_directory() }
+    async fn entry_is_dir(&self, path: &str, f: &Item) -> bool {
+        if f.link { self.is_dir(path).await } else { f.dir }
+    }
+
+    /// The size of a file listed: of a link to a file the size of the file, asked (SIZE), not
+    /// the length of the path the link holds, which the listing gives (a copy would be cut short).
+    async fn file_size(&self, path: &str, f: &Item) -> u64 {
+        if !f.link {
+            return f.size;
+        }
+        self.size(path).await.unwrap_or_else(|e| {
+            log!("ftp: size of the link {path:?} not known: {e:?}");
+            f.size
+        })
     }
 
     pub async fn list(&self, dir: &str) -> Result<Listing, Error> {
         let mut listing = Listing::default();
         for f in self.entries(dir).await? {
-            let is_dir = self.entry_is_dir(&format!("{dir}{}", f.name()), &f).await;
-            let path = format!("{dir}{}{}", f.name(), if is_dir { "/" } else { "" });
-            let modified = f.modified().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs().to_string()).unwrap_or_default();
-            listing.add(path, f.name(), is_dir, f.size() as u64, modified, true);
+            let at = format!("{dir}{}", f.name);
+            let is_dir = self.entry_is_dir(&at, &f).await;
+            let size = if is_dir { f.size } else { self.file_size(&at, &f).await };
+            let path = format!("{at}{}", if is_dir { "/" } else { "" });
+            let modified = f.modified.duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs().to_string()).unwrap_or_default();
+            listing.add(path, &f.name, is_dir, size, modified, true);
         }
         listing.sort();
         Ok(listing)
     }
 
     pub async fn names(&self, dir: &str) -> Result<HashSet<String>, Error> {
-        Ok(self.entries(dir).await?.into_iter().map(|f| f.name().to_string()).collect())
+        Ok(self.entries(dir).await?.into_iter().map(|f| f.name).collect())
     }
 
     pub async fn size(&self, path: &str) -> Result<u64, Error> {
@@ -534,10 +573,10 @@ impl Server {
     pub async fn delete_but(&self, path: &str, kept: &[String]) -> Result<bool, Error> {
         let mut emptied = true;
         for f in self.entries(path).await? {
-            let child = format!("{path}{}", f.name());
+            let child = format!("{path}{}", f.name);
             if kept.contains(&child) {
                 emptied = false;
-            } else if f.is_directory() {
+            } else if f.dir {
                 // A symlink is removed, never followed.
                 emptied &= Box::pin(self.delete_but(&format!("{child}/"), kept)).await?;
             } else {
@@ -571,9 +610,9 @@ impl Server {
             crate::source::too_deep(dir, &d)?;
             *p.current.lock().unwrap() = d.clone();
             for f in self.entries(&d).await? {
-                let path = format!("{d}{}", f.name());
+                let path = format!("{d}{}", f.name);
                 if self.entry_is_dir(&path, &f).await {
-                    if f.is_symlink() {
+                    if f.link {
                         log!("ftp: {path:?} left out of the walk: a link to a folder");
                         p.links_skipped.lock().unwrap().push(path.clone());
                         continue;
@@ -581,7 +620,8 @@ impl Server {
                     found.push((format!("{path}/"), 0));
                     todo.push(format!("{path}/"));
                 } else {
-                    found.push((path, f.size() as u64));
+                    let size = self.file_size(&path, &f).await;
+                    found.push((path, size));
                 }
                 p.found.fetch_add(1, Ordering::Relaxed);
             }
@@ -613,6 +653,12 @@ impl Server {
                     };
                     let failed = match (stop, read) {
                         (Some(e), _) => Some(e),
+                        (None, Err(FtpError::ConnectionError(e))) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
+                            let (e, ok) = cut_short(&mut c.s, r, path).await;
+                            *pushed.lock().unwrap() = Some(e);
+                            c.ok &= ok;
+                            return Ok(());
+                        }
                         (None, Err(e)) => Some(("error-detail", format!("{path}: {e}"))),
                         (None, Ok(())) => {
                             at += data.len() as u64;
@@ -645,12 +691,12 @@ mod tests {
 
     #[test]
     fn listed_items() {
-        let unix = super::parse("-rw-r--r--    1 me       users     1234 Oct 30 09:10 a b.jpg", false).unwrap();
-        assert_eq!((unix.name(), unix.size(), unix.is_directory()), ("a b.jpg", 1234, false));
-        let dir = super::parse("drwxr-xr-x    2 me       users     4096 Jan  1  2025 Foto", false).unwrap();
-        assert!(dir.is_directory());
-        let mlsd = super::parse("type=file;size=42;modify=20261030091000; x.mp4", true).unwrap();
-        assert_eq!((mlsd.name(), mlsd.size()), ("x.mp4", 42));
+        let unix = super::listing::parse("-rw-r--r--    1 me       users     1234 Oct 30 09:10 a b.jpg", false).unwrap();
+        assert_eq!((unix.name.as_str(), unix.size, unix.dir), ("a b.jpg", 1234, false));
+        let dir = super::listing::parse("drwxr-xr-x    2 me       users     4096 Jan  1  2025 Foto", false).unwrap();
+        assert!(dir.dir);
+        let mlsd = super::listing::parse("type=file;size=42;modify=20261030091000; x.mp4", true).unwrap();
+        assert_eq!((mlsd.name.as_str(), mlsd.size), ("x.mp4", 42));
         assert_eq!(super::abs("Foto/2026/"), "/Foto/2026");
         assert_eq!(super::abs(""), "/");
         assert_eq!(super::pasv_port("Entering Passive Mode (127,0,0,1,217,125)."), Some(55677));
@@ -788,6 +834,89 @@ mod tests {
             assert_eq!(*p.links_skipped.lock().unwrap(), ["links/self"]);
             assert_eq!(crate::transfer::links_to_say(&r, &p), Some(1));
             assert_eq!(std::fs::read(dir.join("links/zeta.jpg")).unwrap(), std::fs::read(dir.join("links/uno.jpg")).unwrap());
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// A file the server stops sending before its end, in a folder copied (L17 of 2026-11-21):
+    /// the copy stopped there, and the files after it were never copied. Now it is left out, the
+    /// others are copied, the message at the end names it with the server's answer (not "early
+    /// eof"), and nothing of it is left at the destination. Moved, the files copied go from the
+    /// server, the one not read stays, with its folder. Server: `tests/fake.rs` (`/cut/`).
+    #[test]
+    fn a_file_not_read_is_left_out_and_said() {
+        use crate::source::Store;
+        use crate::transfer::{Clip, Progress, run};
+        let dir = std::env::temp_dir().join(format!("eyecansee-ftp-cut-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let local = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            for cut in [false, true] {
+                let to = if cut { "moved/" } else { "copied/" };
+                std::fs::create_dir_all(dir.join(to)).unwrap();
+                let (target, _) = fake::start();
+                let server = Store::Ftp(super::Server::shared(target));
+                let clip = Clip { op: server.clone(), base: "ftp://test-cut/".into(), paths: vec!["cut/".into()], cut, text: String::new() };
+                let p = Progress::default();
+                let (gone, r) = run(&clip, &local, "test-local://", to, &std::collections::HashMap::new(), &p).await;
+                let copied: std::collections::BTreeSet<String> = std::fs::read_dir(dir.join(to).join("cut")).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+                let failed = p.failed.lock().unwrap().clone();
+                println!("cut: {cut}: {r:?}; copied {copied:?}; not read {failed:?}");
+                assert_eq!(r, Ok(()), "cut: {cut}");
+                assert_eq!(copied, ["a.jpg", "c.jpg"].map(String::from).into(), "cut: {cut}: nothing of b.jpg is left");
+                assert_eq!(failed.len(), 1);
+                assert_eq!(failed[0].0, "cut/b.jpg");
+                let said = crate::i18n::I18n::new("en").error(failed[0].1.0, &failed[0].1.1);
+                assert!(said.starts_with("The server stopped sending \"b.jpg\" before its end.\n(") && !said.contains("eof"), "{said}");
+                let left = server.names("cut/").await.unwrap().into_iter().collect::<std::collections::BTreeSet<_>>();
+                if cut {
+                    assert!(gone.is_empty(), "the folder stays: {gone:?}");
+                    assert_eq!(left, ["b.jpg"].map(String::from).into());
+                    assert!(p.left.lock().unwrap().is_empty(), "b.jpg is said once: {:?}", p.left.lock().unwrap());
+                } else {
+                    assert_eq!(left.len(), 3);
+                }
+            }
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// The copy of L17 (2026-11-21) from a real server, into a folder of this computer that goes
+    /// after: `<dir>collegamenti/` (`due.jpg`, `uno.jpg`, `self` a link to the folder) and
+    /// `<dir>link-file/` (`foto.jpg`, a link to `../collegamenti/uno.jpg`). Nothing is written on
+    /// the server. Plain FTP, the address from the environment:
+    /// `EYECANSEE_FTP_HOST=… EYECANSEE_FTP_USER=… EYECANSEE_FTP_PASSWORD=… EYECANSEE_FTP_DIR=prove-078/
+    /// cargo test ftp_links_live -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn ftp_links_live() {
+        use crate::source::Store;
+        use crate::transfer::{Clip, Progress, run};
+        let var = |k: &str| std::env::var(k).unwrap_or_else(|_| panic!("{k} not set"));
+        let target = super::Target { host: var("EYECANSEE_FTP_HOST"), port: 21, user: var("EYECANSEE_FTP_USER"), password: var("EYECANSEE_FTP_PASSWORD"), secure: false };
+        let top = var("EYECANSEE_FTP_DIR");
+        let dir = std::env::temp_dir().join(format!("eyecansee-ftp-live-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let local = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let server = Store::Ftp(super::Server::shared(target));
+        let paths = vec![format!("{top}collegamenti/"), format!("{top}link-file/")];
+        let clip = Clip { op: server, base: "ftp://live/".into(), paths, cut: false, text: String::new() };
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let p = Progress::default();
+            let t = std::time::Instant::now();
+            let (_, r) = run(&clip, &local, "test-local://", "", &std::collections::HashMap::new(), &p).await;
+            let size = |f: &str| std::fs::metadata(dir.join(f)).map(|m| m.len()).ok();
+            let names = |d: &str| std::fs::read_dir(dir.join(d)).map(|e| e.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect::<std::collections::BTreeSet<_>>()).unwrap_or_default();
+            println!("copy in {:.2?}: {r:?}", t.elapsed());
+            println!("collegamenti: {:?}; link-file: {:?}", names("collegamenti"), names("link-file"));
+            println!("links left out {:?}; not read {:?}", p.links_skipped.lock().unwrap(), p.failed.lock().unwrap());
+            println!("uno.jpg {:?} bytes, foto.jpg {:?} bytes", size("collegamenti/uno.jpg"), size("link-file/foto.jpg"));
+            assert_eq!(r, Ok(()));
+            assert_eq!(names("collegamenti"), ["due.jpg", "uno.jpg"].map(String::from).into());
+            assert_eq!(*p.links_skipped.lock().unwrap(), [format!("{top}collegamenti/self")]);
+            assert!(p.failed.lock().unwrap().is_empty());
+            assert_eq!(std::fs::read(dir.join("link-file/foto.jpg")).unwrap(), std::fs::read(dir.join("collegamenti/uno.jpg")).unwrap());
         });
         let _ = std::fs::remove_dir_all(&dir);
     }

@@ -8,7 +8,8 @@
 //!   at the path the client makes with that name;
 //! - `/beach/`, with a name Windows cannot write (audit 2.4): `a.jpg` and `Mare 12:30.jpg`;
 //! - `/links/`, listed as SFTPGo lists a folder (a Hetzner Storage Box, L17 of 2026-11-21, `GO`):
-//!   `due.jpg`, `self` (a link to the folder itself), `uno.jpg`, and `zeta.jpg`, a link to `uno.jpg`.
+//!   `due.jpg`, `self` (a link to the folder itself), `uno.jpg`, and `zeta.jpg`, a link to `uno.jpg`;
+//! - `/cut/`: `a.jpg`, `b.jpg`, which the server stops sending before its end, and `c.jpg`.
 //!
 //! Files are measured (SIZE), read (RETR) and deleted (DELE), folders deleted only when empty
 //! (RMD), as a real server does. It has no MLSD (as vsftpd) but in `GO`: the client falls back to
@@ -40,6 +41,8 @@ enum Kind {
     Link(&'static str),
     /// A link to this file (its real folder and name), as `GO` lists it: SIZE and RETR follow it.
     FileLink(&'static str, &'static str),
+    /// A file of this size that cannot be read: RETR starts, sends nothing, then refuses.
+    Broken(usize),
 }
 
 /// What the server holds: real folder (no slash at its ends, "" for "/"), name, kind.
@@ -65,6 +68,10 @@ const ITEMS: &[(&str, &str, Kind)] = &[
     ("links", "self", Kind::Link("links")),
     ("links", "due.jpg", Kind::File(PHOTO)),
     ("links", "zeta.jpg", Kind::FileLink("links", "uno.jpg")),
+    ("", "cut", Kind::Dir),
+    ("cut", "a.jpg", Kind::File(PHOTO)),
+    ("cut", "b.jpg", Kind::Broken(10)),
+    ("cut", "c.jpg", Kind::File(PHOTO)),
 ];
 
 /// What the client did: the folders listed, in order, and the items deleted.
@@ -100,7 +107,7 @@ impl Seen {
                     links += 1;
                     to.to_string()
                 }
-                Kind::File(_) | Kind::FileLink(..) => return None,
+                Kind::File(_) | Kind::FileLink(..) | Kind::Broken(_) => return None,
             };
         }
         (links <= LINKS).then_some(real)
@@ -119,6 +126,7 @@ impl Seen {
         let lines = ITEMS.iter().filter(|(d, n, _)| *d == dir && self.item(d, n).is_some()).map(|(_, name, kind)| match kind {
             Kind::Dir => format!("drwxr-xr-x    2 me       users        4096 Oct 30 09:10 {name}\r\n"),
             Kind::File(c) => format!("-rw-r--r--    1 me       users {:>11} Oct 30 09:10 {name}\r\n", c.len()),
+            Kind::Broken(size) => format!("-rw-r--r--    1 me       users {size:>11} Oct 30 09:10 {name}\r\n"),
             Kind::Link(_) | Kind::FileLink(..) if go => format!("Lrwxrwxrwx 1 ftp ftp {:>12} Nov 21 08:25 {name}\r\n", link_size(kind)),
             Kind::Link(to) => format!("lrwxrwxrwx    1 me       users           1 Oct 30 09:10 {name} -> /{to}\r\n"),
             Kind::FileLink(d, n) => format!("lrwxrwxrwx    1 me       users           1 Oct 30 09:10 {name} -> /{d}/{n}\r\n"),
@@ -132,9 +140,18 @@ impl Seen {
         let lines = ITEMS.iter().filter(|(d, n, _)| *d == dir && self.item(d, n).is_some()).map(|(_, name, kind)| match kind {
             Kind::Dir => format!("Type=dir;Size=0;Modify=20261121082501; {name}\r\n"),
             Kind::File(c) => format!("Type=file;Size={};Modify=20261121082501; {name}\r\n", c.len()),
+            Kind::Broken(size) => format!("Type=file;Size={size};Modify=20261121082501; {name}\r\n"),
             Kind::Link(_) | Kind::FileLink(..) => format!("Type=file;Size={};Modify=20261121082504; {name}\r\n", link_size(kind)),
         });
         Some(lines.collect())
+    }
+
+    /// The size of a file that cannot be read (`Kind::Broken`).
+    fn broken(&self, path: &str) -> Option<usize> {
+        match self.split(path).and_then(|(dir, name)| self.item(&dir, name))? {
+            Kind::Broken(size) => Some(*size),
+            _ => None,
+        }
     }
 
     /// The file an item is, a link to a file followed; `None`: not a file.
@@ -224,15 +241,16 @@ fn session(control: TcpStream, seen: &Seen) -> std::io::Result<()> {
             "RETR" => match (seen.content(path), data.take()) {
                 (Some(content), Some(listener)) => send(&mut say, listener, content)?,
                 // SFTPGo: a folder read starts the transfer, sends nothing and then refuses.
-                (None, Some(listener)) if seen.folder(path).is_some() => {
+                (None, Some(listener)) if seen.folder(path).is_some() || seen.broken(path).is_some() => {
                     say("150 Using transfer connection")?;
                     drop(listener.accept()?);
-                    say(&format!("550 Issue during transfer: read {path}: is a directory"))?
+                    let why = if seen.broken(path).is_some() { "input/output error" } else { "is a directory" };
+                    say(&format!("550 Issue during transfer: read {path}: {why}"))?
                 }
                 _ => say("550 no such file")?,
             },
-            "SIZE" => match seen.content(path) {
-                Some(content) => say(&format!("213 {}", content.len()))?,
+            "SIZE" => match seen.content(path).map(<[u8]>::len).or_else(|| seen.broken(path)) {
+                Some(size) => say(&format!("213 {size}"))?,
                 None => say("550 no such file")?,
             },
             "DELE" | "RMD" => say(if seen.delete(path, command.eq_ignore_ascii_case("RMD")) { "250 deleted" } else { "550 not deleted" })?,

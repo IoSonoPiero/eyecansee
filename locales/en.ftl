@@ -51,6 +51,7 @@ error-host-changed = The key of { $detail } has changed: it is not the one recor
     Someone may be pretending to be that server.
     If the server was reinstalled, remove its old line from known_hosts.
 error-server-silent = The server { $detail } does not answer: check that it is on and reachable, then try again.
+error-server-cut = The server stopped sending "{ $name }" before its end.
 host-ask =
     { "**" }First connection to { $host }.**
 
@@ -202,6 +203,22 @@ move-left-why = { $n ->
 move-left-stayed = { $n ->
     [one] It stayed where it was, with its folder.
    *[other] They stayed where they were, with their folders.
+}
+copy-failed-title = { $n ->
+    [one] File not copied
+   *[other] Files not copied
+}
+copy-failed-why = { $n ->
+    [one] It could not be read.
+   *[other] They could not be read.
+}
+copy-failed-first = { $n ->
+    [one] { $why }
+   *[other] The first: { $why }
+}
+copy-failed-stayed = { $n ->
+    [one] It stayed where it was.
+   *[other] They stayed where they were.
 }
 list-more = { $n ->
     [one] and 1 more

@@ -19,6 +19,11 @@ pub(crate) fn not_opened(name: &str, e: impl std::fmt::Display) -> (&'static str
     (NOT_OPENED, format!("{name}\u{1}{e}"))
 }
 
+/// A file a server stopped sending before its end (`ftp::cut_short`), with `name\u{1}answer`:
+/// the sentence with the name, and the server's answer under it as the detail ("Connection
+/// error: early eof" said nothing to the user, L17 of 2026-11-21).
+pub(crate) const SERVER_CUT: &str = "error-server-cut";
+
 /// What went wrong, as the user can act on it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Kind {
@@ -158,6 +163,10 @@ impl I18n {
         }
         if let Some((name, raw)) = detail.split_once('\u{1}').filter(|_| id == NOT_OPENED) {
             return self.not_opened(name, raw).0;
+        }
+        if let Some((name, raw)) = detail.split_once('\u{1}').filter(|_| id == SERVER_CUT) {
+            let text = self.t_args(id, &[("name", name)]);
+            return if raw.is_empty() { text } else { format!("{text}\n({raw})") };
         }
         // A detail sent with its own id (`id\u{1}detail`): a picture too large (`pixel_limit`).
         if let Some((inner, d)) = detail.split_once('\u{1}').filter(|(i, _)| crate::pixel_limit::is_too_large(i)) {
@@ -317,6 +326,19 @@ mod tests {
                 assert!(named.contains("x.jpg") && !unnamed.contains("x.jpg") && named != unnamed, "{lang} {kind:?}");
             }
         }
+    }
+
+    /// A file a server stopped sending (L17 of 2026-11-21): a sentence with the name, the server's
+    /// answer as the detail, in both languages; never "early eof".
+    #[test]
+    fn server_cut_said_plainly() {
+        let detail = "self\u{1}550 Issue during transfer: read /prove/self: is a directory";
+        let en = I18n::new("en").error(SERVER_CUT, detail);
+        assert_eq!(en, "The server stopped sending \"self\" before its end.\n(550 Issue during transfer: read /prove/self: is a directory)");
+        let it = I18n::new("it").error(SERVER_CUT, detail);
+        assert!(it.starts_with("Il server ha smesso di inviare \"self\" prima della fine.\n("), "{it}");
+        assert_eq!(I18n::new("en").error(SERVER_CUT, "a.jpg\u{1}"), "The server stopped sending \"a.jpg\" before its end.");
+        assert!(!I18n::new("it").error_md(SERVER_CUT, detail).contains('\u{1}'));
     }
 
     #[test]

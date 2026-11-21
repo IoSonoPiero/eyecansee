@@ -97,6 +97,11 @@ pub struct Progress {
     /// files are to go, and how many went. 0 when not removing: the copy goes on, or it ended.
     pub removing: AtomicUsize,
     pub removed: AtomicUsize,
+    /// Files whose source could not be read, with why, as found: left out, the rest copied, a
+    /// message at the end names them, and a move keeps them where they were (L17 of 2026-11-21:
+    /// a link a server listed as a file stopped the copy, and the files after it were never
+    /// copied, with only the error to say so).
+    pub failed: Mutex<Vec<(String, Error)>>,
 }
 
 /// What the copy box shows (`Progress::phase`).
@@ -389,8 +394,10 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
         // sidecars before it (stopped between the two, the photo stays with no sidecar of its
         // own left behind); of a folder only what was copied (`originals`). A folder with an item
         // left out because of its name stays whole.
-        if clip.cut && !left_below(src, p) {
-            for (s, _, _) in sides {
+        // A photo not copied (`failed`) stays, with its sidecars.
+        let photo_failed = !src.is_empty() && !src.ends_with('/') && !copied.contains(src);
+        if clip.cut && !left_below(src, p) && !photo_failed {
+            for (s, _, _) in sides.iter().filter(|(s, _, _)| !failed(s, p)) {
                 clip.op.delete(s, Deletion::Permanent).await?;
             }
             if !src.is_empty() && originals::delete(&clip.op, src, &copied, p).await? {
@@ -426,7 +433,18 @@ async fn copy_item(clip: &Clip, to: &Store, (src, _, exists, sides): &Planned, l
                 None if merging => there.has(to, &dest).await,
                 None => Some(*exists),
             };
-            copy_file(&clip.op, &from, (to, &dest, existed), size, p).await?;
+            match copy_file(&clip.op, &from, (to, &dest, existed), size, p).await {
+                Ok(()) => {}
+                Err(Fail::Stop(e)) => return Err(e),
+                Err(Fail::Source(e)) => {
+                    left_out(&clip.op, &from, e, p).await?;
+                    // A photo not copied: its sidecars stay with it, not copied either.
+                    if i < photos && !sides.is_empty() {
+                        break;
+                    }
+                    continue;
+                }
+            }
             keep_thumbnail(thumbcache::stored(&clip.base, &from), &dest, Some(size));
             if i < photos {
                 p.files.fetch_add(1, Ordering::Relaxed);
@@ -623,16 +641,42 @@ fn claim(to: &Store, dest: &str) -> Result<(), Error> {
     }
 }
 
+/// Why a file was not copied (`copy_file`).
+enum Fail {
+    /// Its source could not be read: the copy goes on without it (`left_out`).
+    Source(Error),
+    /// Anything else (the destination, Cancel): the copy stops.
+    Stop(Error),
+}
+
+/// Whether the file `path` of the source was left out of the copy, not read (`Progress::failed`).
+fn failed(path: &str, p: &Progress) -> bool {
+    p.failed.lock().unwrap().iter().any(|(f, _)| f == path)
+}
+
+/// The file `src` that could not be read, `e`: left out, and the copy goes on, unless its folder
+/// cannot be reached either (a server gone, a phone unplugged): then the copy stops with `e`, as
+/// waiting for every file left would take long and copy nothing.
+async fn left_out(from: &Store, src: &str, e: Error, p: &Progress) -> Result<(), Error> {
+    if let Err(gone) = from.check_dir(&parent(src)).await {
+        log!("paste: {src:?} not read ({e:?}), and its folder cannot be reached ({gone:?}): stopping");
+        return Err(e);
+    }
+    log!("paste: {src:?} left out, not read: {e:?}");
+    p.failed.lock().unwrap().push((src.to_string(), e));
+    Ok(())
+}
+
 /// A file of `size` bytes from `src` of `from` to `dest` of `to`; `existed`: whether something is
 /// already there (`replace::write_file`): a copy that fails leaves nothing, and a file it was
 /// replacing as it was (#90).
-async fn copy_file(from: &Store, src: &str, (to, dest, existed): (&Store, &str, Option<bool>), size: u64, p: &Progress) -> Result<(), Error> {
+async fn copy_file(from: &Store, src: &str, (to, dest, existed): (&Store, &str, Option<bool>), size: u64, p: &Progress) -> Result<(), Fail> {
     // Inside the same phone: copied by the phone itself. Through the computer the upload would
     // hold the phone while waiting for the download of the same file from it.
     if let (Store::Mtp(a), Store::Mtp(b)) = (from, to)
         && std::sync::Arc::ptr_eq(a, b)
     {
-        a.copy_inside(src, dest).await?;
+        a.copy_inside(src, dest).await.map_err(Fail::Stop)?;
         p.done.fetch_add(size, Ordering::Relaxed);
         return Ok(());
     }
@@ -645,18 +689,21 @@ async fn copy_file(from: &Store, src: &str, (to, dest, existed): (&Store, &str, 
     let (tx, rx) = tokio::sync::mpsc::channel(4);
     let writing = writing_guard(to, dest);
     if existed == Some(false) {
-        claim(to, dest)?;
+        claim(to, dest).map_err(Fail::Stop)?;
     }
     let (read, write) = futures_util::future::join(from.send_chunks(src, size, tx, &p.done, cancel), crate::replace::write_file(to, dest, size, rx, existed)).await;
     drop(writing);
     if to_phone && read.is_ok() && write.is_ok() && p.cancel.load(Ordering::Relaxed) {
         p.files.fetch_add(1, Ordering::Relaxed);
-        return Err(("error-cancelled", String::new()));
+        return Err(Fail::Stop(("error-cancelled", String::new())));
     }
     match (read, write) {
-        // When the writer stops, the reader sees a closed channel: the writer's error is the real one.
-        (Err(e), _) if p.cancel.load(Ordering::Relaxed) => Err(e),
-        (_, Err(e)) | (Err(e), Ok(())) => Err(e),
+        (Err(e), _) if p.cancel.load(Ordering::Relaxed) => Err(Fail::Stop(e)),
+        // When the writer stops, the reader sees a closed channel ("error-cancelled"): the
+        // writer's error is the real one. Otherwise the reader stopped first, and the writer
+        // only says so: the source could not be read.
+        (Err(e), _) if e.0 != "error-cancelled" => Err(Fail::Source(e)),
+        (_, Err(e)) | (Err(e), Ok(())) => Err(Fail::Stop(e)),
         (Ok(()), Ok(())) => Ok(()),
     }
 }
@@ -1269,7 +1316,7 @@ mod tests {
         std::fs::write(dir.join("b/x.jpg"), b"there").unwrap();
         let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
         rt.block_on(async {
-            let e = copy_file(&op, "a/x.jpg", (&op, "b/x.jpg", Some(false)), 3, &Progress::default()).await.unwrap_err();
+            let Err(Fail::Stop(e)) = copy_file(&op, "a/x.jpg", (&op, "b/x.jpg", Some(false)), 3, &Progress::default()).await else { panic!("the copy must stop") };
             assert_eq!(e.0, "error-exists");
             let clip = Clip { op: op.clone(), base: "test-claim://".into(), paths: vec!["a/x.jpg".into()], cut: true, text: String::new() };
             let planned = ("a/x.jpg".to_string(), "b/x.jpg".to_string(), false, Vec::new());

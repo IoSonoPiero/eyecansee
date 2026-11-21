@@ -50,6 +50,7 @@ error-host-changed = La chiave di { $detail } è cambiata: non è quella registr
     Qualcuno potrebbe fingersi quel server.
     Se il server è stato reinstallato, togli la sua riga vecchia da known_hosts.
 error-server-silent = Il server { $detail } non risponde: controlla che sia acceso e raggiungibile, poi riprova.
+error-server-cut = Il server ha smesso di inviare "{ $name }" prima della fine.
 host-ask =
     { "**" }Primo collegamento a { $host }.**
 
@@ -196,6 +197,22 @@ move-left-why = { $n ->
 move-left-stayed = { $n ->
     [one] È rimasto dove era, con la sua cartella.
    *[other] Sono rimasti dove erano, con le loro cartelle.
+}
+copy-failed-title = { $n ->
+    [one] File non copiato
+   *[other] File non copiati
+}
+copy-failed-why = { $n ->
+    [one] Non è stato possibile leggerlo.
+   *[other] Non è stato possibile leggerli.
+}
+copy-failed-first = { $n ->
+    [one] { $why }
+   *[other] Il primo: { $why }
+}
+copy-failed-stayed = { $n ->
+    [one] È rimasto dove era.
+   *[other] Sono rimasti dove erano.
 }
 list-more = { $n ->
     [one] e un altro

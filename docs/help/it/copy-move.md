@@ -17,6 +17,7 @@ Per incollare direttamente in una cartella senza aprirla, fai clic destro su di 
 - Durante la copia un riquadro in basso a destra mostra il file che sta copiando, la cartella di arrivo, quanti file e quanti dati sono fatti, la percentuale, la velocità degli ultimi secondi e il tempo che manca. Con tante cartelle, prima dice quanti elementi ha trovato guardandoci dentro.
 - La cartella di arrivo si riempie mentre la copia va avanti.
 - Se su un server sono rimasti fuori dei collegamenti a cartelle (vedi [Limiti noti](limits.md)), alla fine il riquadro resta e dice quanti, finché non fai clic su **Chiudi**. Un collegamento rimasto fuori non viene copiato; in uno spostamento non viene nemmeno cancellato: se ne va solo ciò che è stato copiato, quindi il collegamento resta dov'era, e con lui le cartelle che lo contengono.
+- Un file che non si riesce a leggere (un server che smette di inviarlo, un file sparito nel frattempo) resta fuori e la copia continua con gli altri. Alla fine un messaggio nomina i file non copiati e dice perché il primo non è stato letto; in uno spostamento restano dove erano, con le loro cartelle. Se non si raggiunge più la sorgente stessa (un server sparito, un telefono scollegato), la copia si ferma lì.
 
 ## Quando un nome c'è già
 

@@ -373,20 +373,19 @@ impl App {
         self.delete_check = None;
     }
 
-    /// The message at the end of a copy that left items out for their name (`refused_notice`), or
-    /// a move that left in its folders what it did not copy (`left_notice`), unless it was
-    /// cancelled; both in one when both happened.
+    /// The message at the end of a copy that left items out for their name (`refused_notice`),
+    /// a move that left in its folders what it did not copy (`left_notice`), or a copy that could
+    /// not read some files (`failed_notice`), unless it was cancelled; all in one when more happened.
     pub(crate) fn tell_refused(&mut self, p: &transfer::Progress, cancelled: bool) {
         if cancelled || self.quit_after_transfer {
             return;
         }
-        let (names, left) = (p.refused.lock().unwrap(), p.left.lock().unwrap());
+        let (names, left, failed) = (p.refused.lock().unwrap(), p.left.lock().unwrap(), p.failed.lock().unwrap());
         let refused = (!names.is_empty()).then(|| refused_notice(&self.i18n, &names));
         let left = (!left.is_empty()).then(|| left_notice(&self.i18n, &left));
-        self.notice = match (refused, left) {
-            (Some(a), Some(b)) => Some(joined(a, b)),
-            (a, b) => a.or(b).or(self.notice.take()),
-        };
+        let failed = (!failed.is_empty()).then(|| failed_notice(&self.i18n, &failed));
+        let all = [refused, left, failed].into_iter().flatten().reduce(joined);
+        self.notice = all.or(self.notice.take());
     }
 
     pub(crate) fn ask_rename(&mut self, path: Option<String>) {
@@ -549,6 +548,18 @@ pub(crate) fn left_notice(i18n: &crate::i18n::I18n, names: &[String]) -> Notice 
     crate::notice_list::notice(i18n, i18n.t_args("move-left-title", &args), &intro, names, true)
 }
 
+/// The message at the end of a copy that could not read some files (L17 of 2026-11-21): the rest
+/// was copied, these stayed where they were; why the first was not read, said plainly.
+pub(crate) fn failed_notice(i18n: &crate::i18n::I18n, failed: &[(String, source::Error)]) -> Notice {
+    let n = failed.len().to_string();
+    let args = [("n", n.as_str())];
+    let (id, detail) = &failed[0].1;
+    let why = i18n.t_args("copy-failed-first", &[("n", n.as_str()), ("why", &i18n.error_md(id, detail))]);
+    let intro = format!("{}\n{why}\n{}", i18n.t_args("copy-failed-why", &args), i18n.t_args("copy-failed-stayed", &args));
+    let names: Vec<String> = failed.iter().map(|(path, _)| path.clone()).collect();
+    crate::notice_list::notice(i18n, i18n.t_args("copy-failed-title", &args), &intro, &names, true)
+}
+
 /// Two messages of the end of a copy in one window: the second under its title.
 fn joined(a: Notice, b: Notice) -> Notice {
     let copy = format!("{}\n\n{}\n\n{}", a.copy.as_ref().unwrap_or(&a.text), b.title, b.copy.as_ref().unwrap_or(&b.text));
@@ -558,6 +569,22 @@ fn joined(a: Notice, b: Notice) -> Notice {
 #[cfg(test)]
 mod tests {
     use crate::save_dialogs::md;
+
+    /// The message of the files a copy could not read (L17 of 2026-11-21): singular and plural,
+    /// why the first was not read said plainly, with the server's answer; the names as a list.
+    #[test]
+    fn failed_files_told() {
+        let cut = |name: &str| (crate::fault::SERVER_CUT, format!("{name}\u{1}550 read error"));
+        let it = crate::i18n::I18n::new("it");
+        let one = super::failed_notice(&it, &[("album/b.jpg".to_string(), cut("b.jpg"))]);
+        assert_eq!(one.title, "File non copiato");
+        assert_eq!(one.text, format!("Non è stato possibile leggerlo.\n{}\nÈ rimasto dove era.\n\n- {}", md("Il server ha smesso di inviare \"b.jpg\" prima della fine.\n(550 read error)"), md("album/b.jpg")));
+        assert!(one.warning);
+        let two = super::failed_notice(&crate::i18n::I18n::new("en"), &[("a/b.jpg".to_string(), cut("b.jpg")), ("a/c.jpg".to_string(), ("error-detail", "timeout".into()))]);
+        assert_eq!(two.title, "Files not copied");
+        assert!(two.text.starts_with("They could not be read.\nThe first: "), "{}", two.text);
+        assert!(!two.text.contains("early eof") && two.text.matches("\n- ").count() == 2, "{}", two.text);
+    }
 
     /// The message of the names left out of a copy: singular and plural, one sentence a line, the
     /// names as a list, cut at ten with "and N more"; Copy with every name.

@@ -17,6 +17,7 @@ To paste straight into a folder without opening it, right-click it (in the grid 
 - During the copy a box at the bottom right shows the file being copied, the destination folder, how many files and how much data are done, the percentage, the speed of the last seconds and the time left. With many folders it first says how many items it found while looking inside them.
 - The destination folder fills while the copy runs.
 - If links to folders on a server were left out (see [Known limits](limits.md)), at the end the box stays and says how many, until you click **Close**. A link left out is not copied; in a move it is not deleted either: only what was copied goes, so the link stays where it was, and so do the folders that hold it.
+- A file that cannot be read (a server that stops sending it, a file that went away meanwhile) is left out and the copy goes on with the others. At the end a message names the files not copied and says why the first was not read; in a move they stay where they were, with their folders. If the source itself cannot be reached any more (a server gone, a phone unplugged), the copy stops there.
 
 ## When a name is already there
 

@@ -115,7 +115,8 @@ async fn remove_link(from: &Store, dir: &str, p: &Progress) -> bool {
 
 /// Removes the folder `dir` of a move if nothing is left in it; whether it went. What is left in it
 /// and was not copied (it arrived meanwhile) goes into `Progress::left`; not the folders listed
-/// (each says its own), nor the items a message says already (names left out, links skipped). A
+/// (each says its own), nor the items a message says already (names left out, links skipped,
+/// files not read). A
 /// folder that looks empty and still cannot go (it holds what the listing does not show, as a
 /// link that leads nowhere) is named itself.
 async fn remove_if_empty(from: &Store, dir: &str, walked: &HashSet<&str>, p: &Progress) -> Result<bool, Error> {
@@ -135,7 +136,7 @@ async fn remove_if_empty(from: &Store, dir: &str, walked: &HashSet<&str>, p: &Pr
     let said = |path: &str| {
         let folder = format!("{path}/");
         let named = |list: &[String]| list.iter().any(|l| *l == path || *l == folder);
-        walked.contains(folder.as_str()) || named(&p.refused.lock().unwrap()) || named(&p.links_skipped.lock().unwrap())
+        walked.contains(folder.as_str()) || named(&p.refused.lock().unwrap()) || named(&p.links_skipped.lock().unwrap()) || super::failed(path, p)
     };
     let mut left: Vec<String> = names.iter().map(|n| format!("{dir}{n}")).filter(|path| !said(path)).collect();
     left.sort();
