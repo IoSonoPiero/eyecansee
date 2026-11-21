@@ -767,7 +767,7 @@ fn magick(_: &[u8], _: Option<&str>) -> Result<DynamicImage> {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
 
     /// A MIFF written by ImageMagick from a JPEG with EXIF and an sRGB profile: both come back.
     #[cfg(feature = "magick")]
@@ -1084,7 +1084,7 @@ mod tests {
     }
 
     /// Audit 3.4 (#177): a PNG of a few bytes whose header declares `w` × `h` pixels.
-    fn audit_png(w: u32, h: u32) -> Vec<u8> {
+    pub(crate) fn audit_png(w: u32, h: u32) -> Vec<u8> {
         use std::io::Write;
         let chunk = |kind: &[u8; 4], data: &[u8]| {
             let mut c = flate2::Crc::new();

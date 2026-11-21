@@ -366,8 +366,8 @@ impl Loader {
 
     /// Original for "Save in another format": decoded in full, with a preview no larger than a texture.
     /// `edit`: for the editor, which does not take animations and files of several pages
-    /// (`edit_page::ANIMATED`). A picture too large for the memory is not read further than the
-    /// header that tells so, nor decoded, unless `anyway`: the page asks first (`view_memory`).
+    /// (`edit_page::ANIMATED`). A picture too large for the memory is not decoded (over 32 MB not
+    /// read past the header that tells so), unless `anyway`: the page asks first (`view_memory`).
     pub fn load_original(&self, path: String, edit: bool, anyway: bool) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
@@ -652,8 +652,8 @@ impl Loader {
         });
     }
 
-    /// Full-resolution image for the viewer. A picture too large for the memory is not read
-    /// further than its header that tells so, nor decoded (`view_memory`), unless `anyway`: the
+    /// Full-resolution image for the viewer. A picture too large for the memory is not decoded
+    /// (over 32 MB not read past the header that tells so, `view_memory`), unless `anyway`: the
     /// viewer shows a card with Open anyway. `size`: the file's, from the listing.
     pub fn load_full(&self, generation: u64, index: usize, path: String, size: Option<u64>, anyway: bool) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());

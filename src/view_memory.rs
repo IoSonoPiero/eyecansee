@@ -78,9 +78,14 @@ fn shown(px: Option<u64>) -> u64 {
     times(px.map_or(most, |px| px.min(most)), SHOWN)
 }
 
-/// How much of a file is read first, to tell from its header whether it is too large for the
-/// memory: the size of a JPEG, a HEIC, a PNG or a PSD is in it.
+/// How much of a file over `ONCE` is read first, to tell from its header whether it is too large
+/// for the memory: the size of a JPEG, a HEIC, a PNG or a PSD is in it.
 pub const HEAD: u64 = 256 * 1024;
+
+/// Up to this size a file is read once, whole, and its size is told from the bytes in memory
+/// before it is decoded (Piero, 21/11/2026): on a phone or a server a second request for the
+/// start cost more than the bytes it saved. Above it, the start first (`HEAD`).
+pub const ONCE: u64 = 32 << 20;
 
 /// Why `read_unless_too_large` gave no bytes.
 #[derive(Debug, PartialEq)]
@@ -91,17 +96,23 @@ pub enum NotRead {
 }
 
 /// The bytes of `path` (`size` bytes, if known), unless `too_large` finds them too large for the
-/// memory: from the start of the file (`HEAD` bytes) when that is enough
-/// (`thumb_memory::Estimate::sure`), without reading the rest (Piero, 20/11/2026), else once read
-/// whole. `too_large(bytes, size)`: what they need, when too much.
+/// memory, before anything is decoded. A file up to `ONCE` is read once, whole; of a larger one
+/// the start first (`HEAD` bytes), and the rest is not read when that is enough
+/// (`thumb_memory::Estimate::sure`, Piero, 20/11/2026), else it is read whole and looked at again.
+/// `too_large(bytes, size)`: what they need, when too much.
 pub async fn read_unless_too_large(op: &Store, path: &str, size: Option<u64>, too_large: impl Fn(&[u8], u64) -> Option<u64>) -> Result<Vec<u8>, NotRead> {
+    read_within(op, path, size, ONCE, too_large).await
+}
+
+/// `read_unless_too_large`, a file up to `once` bytes read whole at once.
+async fn read_within(op: &Store, path: &str, size: Option<u64>, once: u64, too_large: impl Fn(&[u8], u64) -> Option<u64>) -> Result<Vec<u8>, NotRead> {
     // A range past the end is an error (OpenDAL's "RangeNotSatisfied"): the size first.
     let size = match size {
         Some(s) => s,
         None => op.size(path).await.map_err(NotRead::Failed)?,
     };
     // A start that cannot be read (the file shorter now than listed): the whole file says.
-    if size > HEAD
+    if size > once.max(HEAD)
         && let Ok(head) = op.read_range(path, 0, HEAD).await
         && let Some(need) = too_large(&head, size)
     {
@@ -111,7 +122,7 @@ pub async fn read_unless_too_large(op: &Store, path: &str, size: Option<u64>, to
     let bytes = op.read(path).await.map_err(NotRead::Failed)?;
     match too_large(&bytes, bytes.len() as u64) {
         Some(need) => {
-            log!("{path}: {} MiB, over half the RAM, read whole", need >> 20);
+            log!("{path}: {} MiB, over half the RAM, told by its {} bytes read whole", need >> 20, bytes.len());
             Err(NotRead::TooLarge(need))
         }
         None => Ok(bytes),
@@ -132,15 +143,15 @@ impl NotRead {
 /// large for the memory and not opened `anyway`: the viewer shows a card for it, the pages ask
 /// about it. 3D models, drawings and videos are read as they are: they have limits of their own.
 pub async fn read(op: &Store, path: &str, size: Option<u64>, what: Use, anyway: bool) -> Result<Vec<u8>, NotRead> {
-    read_for(op, path, size, (what, anyway), thumb_memory::ram()).await
+    read_for(op, path, size, (what, anyway), (thumb_memory::ram(), ONCE)).await
 }
 
-/// `read` on a computer with `ram`.
-async fn read_for(op: &Store, path: &str, size: Option<u64>, (what, anyway): (Use, bool), ram: u64) -> Result<Vec<u8>, NotRead> {
+/// `read` on a computer with `ram`, a file up to `once` bytes read whole at once.
+async fn read_for(op: &Store, path: &str, size: Option<u64>, (what, anyway): (Use, bool), (ram, once): (u64, u64)) -> Result<Vec<u8>, NotRead> {
     if anyway || crate::model::is_model(path) || crate::cad::is_cad(path) || crate::decode::is_played(path) {
         return op.read(path).await.map_err(NotRead::Failed);
     }
-    read_unless_too_large(op, path, size, |bytes, size| estimate(bytes, size, path, what).over_half(bytes.len(), size, path, ram)).await
+    read_within(op, path, size, once, |bytes, size| estimate(bytes, size, path, what).over_half(bytes.len(), size, path, ram)).await
 }
 
 /// The error of a picture not opened because it is `too_large`, with the memory it needs: the
@@ -321,14 +332,15 @@ mod tests {
         assert_eq!(NotRead::Failed(("error-detail", "gone".into())).message(|(_, d)| d), "gone");
     }
 
-    /// How many bytes `read_unless_too_large` reads of `name` in `dir`, for a computer with `ram`,
-    /// and what it gives back (the length of the bytes, or the memory needed).
-    fn bytes_read(dir: &std::path::Path, name: &str, size: Option<u64>, ram: u64) -> (u64, Result<usize, u64>) {
+    /// How many bytes `read_within` reads of `name` in `dir`, for a computer with `ram`, a file up
+    /// to `once` bytes read at once, and what it gives back (the length of the bytes, or the
+    /// memory needed).
+    fn bytes_read(dir: &std::path::Path, name: &str, size: Option<u64>, (ram, once): (u64, u64)) -> (u64, Result<usize, u64>) {
         let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
         let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
         crate::source::BYTES_READ.with(|n| n.set(0));
         let too_large = |bytes: &[u8], size| estimate(bytes, size, name, Use::View).over_half(bytes.len(), size, name, ram);
-        let r = rt.block_on(read_unless_too_large(&op, name, size, too_large));
+        let r = rt.block_on(read_within(&op, name, size, once, too_large));
         let r = r.map(|b| b.len()).map_err(|e| match e {
             NotRead::TooLarge(need) => need,
             NotRead::Failed(e) => panic!("{e:?}"),
@@ -336,10 +348,11 @@ mod tests {
         (crate::source::BYTES_READ.with(std::cell::Cell::get), r)
     }
 
-    /// A picture too large is told from the first `HEAD` bytes when they hold its header, or when
-    /// its estimate goes by the size alone (a RAW of 230 MB, of bytes at random, as `huge.cr3`):
-    /// the rest is not read, with or without the size from the listing. A TIFF whose tags come
-    /// after the pixels is read whole first; a picture not too large is read whole, after its start.
+    /// Over `ONCE` (here made small), a picture too large is told from the first `HEAD` bytes
+    /// when they hold its header, or when its estimate goes by the size alone (a RAW of 230 MB, of
+    /// bytes at random, as `huge.cr3`): the rest is not read, with or without the size from the
+    /// listing. A TIFF whose tags come after the pixels is read whole first; a picture not too
+    /// large is read whole, after its start.
     #[test]
     fn only_the_header_of_one_too_large() {
         let dir = std::env::temp_dir().join(format!("view-memory-head-{}", std::process::id()));
@@ -350,42 +363,80 @@ mod tests {
         drop(raw);
         let ram = 8 * GIB;
         for size in [Some(230 << 20), None] {
-            let (read, r) = bytes_read(&dir, "huge.cr3", size, ram);
+            let (read, r) = bytes_read(&dir, "huge.cr3", size, (ram, ONCE));
             assert_eq!(read, HEAD, "{size:?}");
             assert!(r.is_err_and(|need| need > (230 * 72) << 20), "{size:?}");
         }
         // A PNG of noise, larger than `HEAD` (its header in the first bytes), on a computer
         // with less than twice what it needs.
+        let png = noise_png();
+        std::fs::write(dir.join("big.png"), &png).unwrap();
+        let (read, r) = bytes_read(&dir, "big.png", Some(png.len() as u64), (2 * need(&png, "a.png", Use::View) - 2, 0));
+        assert_eq!((read, r.is_err()), (HEAD, true));
+        // The same with plenty of memory: its start, then all of it.
+        let (read, r) = bytes_read(&dir, "big.png", Some(png.len() as u64), (64 * GIB, 0));
+        assert_eq!((read, r), (HEAD + png.len() as u64, Ok(png.len())));
+        // A TIFF of 1000 × 1000 whose tags come after its pixels: its start does not say.
+        let tif = tags_after_pixels();
+        std::fs::write(dir.join("a.tif"), &tif).unwrap();
+        let tiny = 2 * need(&tif, "a.tif", Use::View) - 2;
+        let (read, r) = bytes_read(&dir, "a.tif", Some(tif.len() as u64), (tiny, 0));
+        assert_eq!((read, r.is_err()), (HEAD + tif.len() as u64, true), "read whole, then refused");
+        // A small file is read once, whole.
+        std::fs::write(dir.join("small.png"), png_bytes(10, 10)).unwrap();
+        let (read, r) = bytes_read(&dir, "small.png", None, (2 * GIB, 0));
+        assert_eq!(Ok(read as usize), r);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// A PNG of noise of 400 × 400, larger than `HEAD`, its header in the first bytes.
+    fn noise_png() -> Vec<u8> {
         let noise = image::RgbImage::from_fn(400, 400, |x, y| image::Rgb(((x * 400 + y).wrapping_mul(2654435761) >> 8).to_le_bytes()[..3].try_into().unwrap()));
         let mut png = std::io::Cursor::new(Vec::new());
         noise.write_to(&mut png, image::ImageFormat::Png).unwrap();
         let png = png.into_inner();
         assert!(png.len() as u64 > HEAD, "{}", png.len());
-        std::fs::write(dir.join("big.png"), &png).unwrap();
-        let (read, r) = bytes_read(&dir, "big.png", Some(png.len() as u64), 2 * need(&png, "a.png", Use::View) - 2);
-        assert_eq!((read, r.is_err()), (HEAD, true));
-        // The same with plenty of memory: its start, then all of it.
-        let (read, r) = bytes_read(&dir, "big.png", Some(png.len() as u64), 64 * GIB);
-        assert_eq!((read, r), (HEAD + png.len() as u64, Ok(png.len())));
-        // A TIFF of 1000 × 1000 whose tags come after its pixels: its start does not say.
+        png
+    }
+
+    /// A TIFF of 1000 × 1000 whose tags come after its pixels, past `HEAD`.
+    fn tags_after_pixels() -> Vec<u8> {
         let mut tif = std::io::Cursor::new(Vec::new());
         image::DynamicImage::new_rgb8(1000, 1000).write_to(&mut tif, image::ImageFormat::Tiff).unwrap();
         let tif = tif.into_inner();
         let offset = u32::from_le_bytes(tif[4..8].try_into().unwrap());
         assert!(u64::from(offset) > HEAD, "the tags at {offset}");
-        std::fs::write(dir.join("a.tif"), &tif).unwrap();
-        let tiny = 2 * need(&tif, "a.tif", Use::View) - 2;
-        let (read, r) = bytes_read(&dir, "a.tif", Some(tif.len() as u64), tiny);
-        assert_eq!((read, r.is_err()), (HEAD + tif.len() as u64, true), "read whole, then refused");
-        // A small file is read once, whole.
-        std::fs::write(dir.join("small.png"), png_bytes(10, 10)).unwrap();
-        let (read, r) = bytes_read(&dir, "small.png", None, 2 * GIB);
-        assert_eq!(Ok(read as usize), r);
+        tif
+    }
+
+    /// Up to `ONCE`, a file is read once, whole, refused or not (Piero, 21/11/2026): a PNG or a
+    /// TIFF whose tags come after its pixels alike, larger than `HEAD`. A file of 68 bytes that
+    /// declares 60000 × 60000 pixels is still refused from its bytes in memory, before decoding.
+    #[test]
+    fn read_once_up_to_32_mb() {
+        let dir = std::env::temp_dir().join(format!("view-memory-once-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        for (name, bytes) in [("big.png", noise_png()), ("a.tif", tags_after_pixels())] {
+            std::fs::write(dir.join(name), &bytes).unwrap();
+            let len = bytes.len() as u64;
+            let tiny = 2 * need(&bytes, name, Use::View) - 2;
+            for size in [Some(len), None] {
+                assert_eq!(bytes_read(&dir, name, size, (tiny, ONCE)), (len, Err(need(&bytes, name, Use::View))), "{name} {size:?}");
+                assert_eq!(bytes_read(&dir, name, size, (64 * GIB, ONCE)), (len, Ok(len as usize)), "{name} {size:?}");
+            }
+        }
+        let declared = crate::decode::tests::audit_png(60000, 60000);
+        assert_eq!(declared.len(), 68);
+        std::fs::write(dir.join("declared.png"), &declared).unwrap();
+        let (read, r) = bytes_read(&dir, "declared.png", None, (8 * GIB, ONCE));
+        assert!(read == 68 && r.is_err_and(|need| need > 10 * GIB), "{read} {r:?}");
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
     /// The viewer (the picture shown and its neighbours alike), the editor, Save as, Convert and
-    /// Resize: a picture too large is refused from the start of its file, unless opened anyway;
+    /// Resize: a picture too large is refused before it is decoded (over `ONCE`, from the start of
+    /// its file), unless opened anyway;
     /// a 3D model or a drawing is never refused here (limits of their own).
     #[test]
     fn read_refuses_unless_anyway() {
@@ -400,17 +451,20 @@ mod tests {
         let rt = tokio::runtime::Builder::new_current_thread().build().unwrap();
         // 72 MiB and more needed for a RAW of 1 MiB: over half of 64 MiB.
         let ram = 64 << 20;
-        let read = |name: &str, what, anyway| {
+        let read = |name: &str, what, anyway, once| {
             crate::source::BYTES_READ.with(|n| n.set(0));
-            let r = rt.block_on(read_for(&op, name, None, (what, anyway), ram)).map(|b| b.len() as u64);
+            let r = rt.block_on(read_for(&op, name, None, (what, anyway), (ram, once))).map(|b| b.len() as u64);
             (r, crate::source::BYTES_READ.with(std::cell::Cell::get))
         };
         for what in [Use::View, Use::Whole] {
-            let (r, bytes) = read("a.cr3", what, false);
-            assert!(matches!(r, Err(NotRead::TooLarge(_))) && bytes == HEAD, "{what:?}: {r:?}, {bytes}");
-            assert_eq!(read("a.cr3", what, true), (Ok(size), size), "{what:?}: Open anyway");
-            for other in ["a.glb", "a.dxf"] {
-                assert_eq!(read(other, what, false), (Ok(size), size), "{other}");
+            // Over `ONCE` (here 0), from the start; up to it, from the whole file.
+            for (once, read_first) in [(0, HEAD), (ONCE, size)] {
+                let (r, bytes) = read("a.cr3", what, false, once);
+                assert!(matches!(r, Err(NotRead::TooLarge(_))) && bytes == read_first, "{what:?}: {r:?}, {bytes}");
+                assert_eq!(read("a.cr3", what, true, once), (Ok(size), size), "{what:?}: Open anyway");
+                for other in ["a.glb", "a.dxf"] {
+                    assert_eq!(read(other, what, false, once), (Ok(size), size), "{other}");
+                }
             }
         }
         std::fs::remove_dir_all(&dir).unwrap();

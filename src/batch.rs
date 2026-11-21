@@ -716,7 +716,8 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
 
 /// The job decodes its pictures at full resolution: not Copy with the metadata, nor Export
 /// drawing (drawings have limits of their own). A picture too large for the memory is then left
-/// out, told from the start of its file when it can be (`view_memory::read`).
+/// out, told before it is decoded (`view_memory::read`: over 32 MB from the start of its file
+/// when it can be).
 fn decodes(job: &Job) -> bool {
     !job.does_nothing() && job.drawing.is_none()
 }
@@ -875,15 +876,16 @@ mod tests {
     }
 
     /// Convert and Resize leave out a picture too large for the memory of this computer, told from
-    /// the start of its file (a RAW, of bytes at random, whose estimate goes by its size: 64 bytes
-    /// for every 72 of RAM it needs), and go on with the others; Copy with the metadata, which
-    /// decodes nothing, copies it.
+    /// the start of its file, over `view_memory::ONCE` (a RAW, of bytes at random, whose estimate
+    /// goes by its size: 64 bytes for every 72 of RAM it needs), and go on with the others; Copy
+    /// with the metadata, which decodes nothing, copies it.
     #[test]
     fn too_large_left_out() {
         let dir = std::env::temp_dir().join(format!("eyecansee-batch-large-{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let size = crate::thumb_memory::ram() / 64;
+        assert!(size > crate::view_memory::ONCE, "read from its start");
         std::fs::File::create(dir.join("huge.cr3")).unwrap().set_len(size).unwrap();
         let img = DynamicImage::ImageRgb8(image::RgbImage::from_fn(40, 30, |x, y| image::Rgb([x as u8, y as u8, 9])));
         std::fs::write(dir.join("a.png"), file(&img, image::ImageFormat::Png)).unwrap();

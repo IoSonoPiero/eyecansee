@@ -86,7 +86,7 @@ At the end a summary, titled with the command, says:
 ## Things to know
 
 - Animated images and images with several pages are left out: the new file would keep only the first picture.
-- A picture that would need more than half of the computer's memory once read whole (for example a HEIC, a 16-bit TIFF or a JPEG XL of hundreds of megapixels, on a computer with 8 GB) is left out, without asking: the summary lists it. Of its file only the start is read, when the size of the picture is there.
+- A picture that would need more than half of the computer's memory once read whole (for example a HEIC, a 16-bit TIFF or a JPEG XL of hundreds of megapixels, on a computer with 8 GB) is left out, without asking: the summary lists it. Of a file larger than 32 MB only the start is read, when the size of the picture is there.
 - A phone's motion photo keeps its video only when it is just rotated and stays a JPEG; otherwise the new file is the picture alone, and the video stays in the original.
 - It works on every source: the computer, disks, phones and servers.
 - In the window **Enter** starts the conversion (when no field is being typed in) and **Esc** cancels.

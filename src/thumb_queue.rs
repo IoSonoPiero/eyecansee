@@ -287,7 +287,9 @@ async fn generate(op: &Store, base: &str, file: File, wanted: impl Fn() -> bool)
 }
 
 /// A picture's bytes, unless it is too large for the memory (`thumb_memory::TOO_LARGE`): told
-/// from its start when that holds its header, without reading the rest (Piero, 20/11/2026).
+/// before decoding, from the bytes of a file up to `view_memory::ONCE` read at once, from the
+/// start of a larger one when that holds its header, without reading the rest (Piero, 20 and
+/// 21/11/2026).
 async fn read_picture(op: &Store, file: &File, budget: &Budget) -> Result<Vec<u8>, String> {
     let path = &file.path;
     let too_large = |bytes: &[u8], size| thumb_memory::estimate_sized(bytes, size, path).over_half(bytes.len(), size, path, budget.ram());
@@ -432,7 +434,8 @@ mod tests {
     }
 
     /// The thumbnail of a RAW of 230 MB too large for the memory (bytes at random, as `huge.cr3`):
-    /// refused from the start of the file, the rest never read (Piero, 20/11/2026).
+    /// refused from the start of the file (it is over `view_memory::ONCE`), the rest never read
+    /// (Piero, 20/11/2026).
     #[test]
     fn too_large_told_from_the_start() {
         let dir = std::env::temp_dir().join(format!("thumb-head-{}", std::process::id()));
