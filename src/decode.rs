@@ -747,7 +747,7 @@ pub fn magick_meta(bytes: &[u8]) -> crate::meta_write::Extra {
     x.exif = profile("exif").map(|e| e.strip_prefix(b"Exif\0\0").map(<[u8]>::to_vec).unwrap_or(e));
     x.xmp = profile("xmp");
     x.irb = profile("8bim").or_else(|| profile("iptc").map(|i| crate::meta_write::irb_of_iim(&i)));
-    x.icc = profile("icc").filter(|p| p.get(16..20) == Some(b"RGB "));
+    x.icc = profile("icc").filter(|p| crate::encode::profile_fits(p, false));
     x
 }
 

@@ -428,7 +428,11 @@ impl Original {
             &turned
         };
         let img = pixels(image, o.format);
-        let b = self.blocks(o.format, img.width(), img.height(), o.turn.sideways(), o.meta);
+        let mut b = self.blocks(o.format, img.width(), img.height(), o.turn.sideways(), o.meta);
+        // The profile only with pixels of its colour space (#214): a CMYK JPEG is decoded to RGB,
+        // a grey picture becomes RGB in most formats, a JPEG in greys has one channel.
+        let grey = !img.color().has_color() || (o.format == Format::Jpeg && o.chroma == Chroma::Grey && !o.jpeg_lossless);
+        b.icc = b.icc.filter(|p| profile_fits(p, grey));
         let mut out = Cursor::new(Vec::new());
         match o.format {
             Format::Jpeg => return encoders::jpeg(&img, o, &b),
@@ -478,6 +482,12 @@ impl Original {
         }
         Ok(out.into_inner())
     }
+}
+
+/// Whether the colour profile `icc` describes grey pixels (`grey`) or RGB ones: its colour space,
+/// bytes 16-20 of its header. A CMYK or Lab profile describes neither.
+pub(crate) fn profile_fits(icc: &[u8], grey: bool) -> bool {
+    icc.get(16..20) == Some(if grey { b"GRAY" } else { b"RGB " })
 }
 
 /// Pixels the format can store: JPEG has no transparency (laid on white, not on black), and
@@ -574,7 +584,8 @@ pub(crate) mod tests {
 
     /// Every format, with its main variants, encodes; what is written decodes back to the same
     /// size (and, when lossless, the same pixels); EXIF and colour profile survive where the
-    /// format holds them, and are gone when not kept.
+    /// format holds them, and are gone when not kept. A JPEG in greys has one channel: the RGB
+    /// profile stays out (#214).
     #[test]
     fn every_format() {
         // 1200 different colours: the GIF must bring them down to 256.
@@ -584,7 +595,8 @@ pub(crate) mod tests {
         }
         let mut exif = b"II*\x00\x08\x00\x00\x00\x01\x00\x12\x01\x03\x00\x01\x00\x00\x00\x06\x00\x00\x00\x00\x00\x00\x00".to_vec();
         assert_eq!(Orientation::remove_from_exif_chunk(&mut exif), Some(Orientation::Rotate90));
-        let icc = b"not a real profile, only bytes to carry".to_vec();
+        // Only bytes to carry, with "RGB " where a profile names its colour space (#214).
+        let icc = b"not a real one: RGB bytes to carry".to_vec();
         // XMP with sizes, orientation and Camera Raw settings; a Photoshop block with a thumbnail
         // and IPTC.
         let xmp = crate::xmp::tests::SAMPLE.as_bytes().to_vec();
@@ -647,19 +659,19 @@ pub(crate) mod tests {
             if !format.holds_meta() && format != Format::Gif {
                 continue;
             }
-            let (e, i) = read_meta(&bytes);
+            let ((e, i), icc_kept) = (read_meta(&bytes), (format != Format::Jpeg || o.chroma != Chroma::Grey || o.jpeg_lossless).then(|| icc.clone()));
             if matches!(format, Format::Jpeg | Format::Png | Format::Webp) {
                 assert_eq!(e.as_ref(), Some(&exif), "{o:?}");
             }
             if matches!(format, Format::Jpeg | Format::Png | Format::Webp | Format::Tiff) {
-                assert_eq!(i.as_ref(), Some(&icc), "{o:?}");
+                assert_eq!(i, icc_kept, "{o:?}");
                 kept_xmp_and_iptc(&bytes, format, &iim);
             }
             place_left_out(&original, o);
             // Nothing (#55): only the colour profile, which the picture needs.
             let bare = original.encode(&Options { meta: Keep::Nothing, ..o }).unwrap();
             if format != Format::Gif {
-                assert_eq!(read_meta(&bare), (None, matches!(format, Format::Jpeg | Format::Png | Format::Webp | Format::Tiff).then(|| icc.clone())), "{o:?}");
+                assert_eq!(read_meta(&bare), (None, icc_kept.filter(|_| matches!(format, Format::Jpeg | Format::Png | Format::Webp | Format::Tiff))), "{o:?}");
                 let back = Original::with_meta(original.image.clone(), &bare);
                 assert!(back.xmp.is_none() && back.irb.is_none(), "{o:?}");
             }
@@ -809,7 +821,8 @@ pub(crate) mod tests {
         let exif = crate::meta::write_exif(&fields, false).unwrap();
         let icc = include_bytes!("../assets/icc/AdobeCompat-v2.icc").to_vec();
         let xmp = br#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/" crs:Exposure2012="+0.50"/></rdf:RDF></x:xmpmeta>"#.to_vec();
-        // Large enough that `image` hands out its profile (its memory limit follows the image size).
+        // Large enough that `image` hands out a TIFF's profile: it takes one only up to about a
+        // 32nd of the pixel data.
         let image = DynamicImage::ImageRgb16(image::ImageBuffer::new(64, 48));
         let made = Original { exif: Some(exif), icc: Some(icc.clone()), xmp: Some(xmp), ..Original::with_meta(image.clone(), &[]) };
         let tiff = made.encode(&Options { format: Format::Tiff, ..Default::default() }).unwrap();
@@ -823,5 +836,48 @@ pub(crate) mod tests {
         let saved = Original::with_meta_beside(image, &tiff, "a.tif", None);
         assert_eq!(saved.icc, Some(icc));
         assert_eq!(saved.xmp, Some(own));
+    }
+
+    /// A colour profile goes into a file only when its colour space is that of the pixels written
+    /// (#214): a CMYK JPEG is decoded to RGB, a grey picture becomes RGB in WebP or a colour JPEG.
+    #[test]
+    fn profile_fits_the_pixels() {
+        let space = |name: &[u8; 4]| {
+            let mut icc = include_bytes!("../assets/icc/sRGB-v2-micro.icc").to_vec();
+            icc[16..20].copy_from_slice(name);
+            icc
+        };
+        let (rgb, cmyk, gray) = (space(b"RGB "), space(b"CMYK"), space(b"GRAY"));
+        let back = |file: &[u8]| Original::with_meta(DynamicImage::new_rgb8(1, 1), file).icc;
+        let to = |f: Format| Options { format: f, ..Default::default() };
+        // A CMYK JPEG with its profile in APP2, as Photoshop writes it.
+        let mut c = turbojpeg::Compressor::new().unwrap();
+        c.set_subsamp(turbojpeg::Subsamp::None).unwrap();
+        let ink = vec![40u8; 16 * 16 * 4];
+        let mut jpeg = c.compress_to_vec(turbojpeg::Image { pixels: ink.as_slice(), width: 16, pitch: 16 * 4, height: 16, format: turbojpeg::PixelFormat::CMYK }).unwrap();
+        let body = [&b"ICC_PROFILE\0\x01\x01"[..], &cmyk].concat();
+        jpeg.splice(2..2, [&[0xFF, 0xE2][..], &(body.len() as u16 + 2).to_be_bytes(), &body].concat());
+        let original = Original::with_meta(crate::decode::decode_full(&jpeg, "a.jpg").unwrap(), &jpeg);
+        assert_eq!(original.icc.as_ref(), Some(&cmyk));
+        for f in [Format::Png, Format::Jpeg, Format::Webp, Format::Tiff] {
+            assert_eq!(back(&original.encode(&to(f)).unwrap()), None, "CMYK in {f:?}");
+        }
+        // A grey picture with a grey profile: kept in a grey PNG, TIFF or JPEG, not in an RGB file.
+        // Large enough that `image` hands out a TIFF's profile: it takes one only up to about a
+        // 32nd of the pixel data.
+        let grey = Original { icc: Some(gray.clone()), ..Original::with_meta(DynamicImage::new_luma8(160, 160), &[]) };
+        for f in [Format::Png, Format::Tiff] {
+            assert_eq!(back(&grey.encode(&to(f)).unwrap()).as_ref(), Some(&gray), "grey in {f:?}");
+        }
+        let grey_jpeg = Options { chroma: Chroma::Grey, ..to(Format::Jpeg) };
+        assert_eq!(back(&grey.encode(&grey_jpeg).unwrap()).as_ref(), Some(&gray), "grey JPEG");
+        for f in [Format::Webp, Format::Jpeg] {
+            assert_eq!(back(&grey.encode(&to(f)).unwrap()), None, "grey in {f:?}");
+        }
+        // An RGB profile stays in an RGB file.
+        let colour = Original { icc: Some(rgb.clone()), ..Original::with_meta(DynamicImage::new_rgb8(160, 160), &[]) };
+        for f in [Format::Png, Format::Jpeg, Format::Webp, Format::Tiff] {
+            assert_eq!(back(&colour.encode(&to(f)).unwrap()).as_ref(), Some(&rgb), "RGB in {f:?}");
+        }
     }
 }

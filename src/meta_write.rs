@@ -391,7 +391,7 @@ fn xcf_icc(bytes: &[u8]) -> Option<Vec<u8>> {
                     let size = u32::from_be_bytes(data.get(j + 8 + n..j + 12 + n)?.try_into().ok()?) as usize;
                     let value = data.get(j + 12 + n..j + 12 + n + size)?;
                     if name == b"icc-profile\0" {
-                        return value.get(16..20).filter(|&c| c == b"RGB ").map(|_| value.to_vec());
+                        return crate::encode::profile_fits(value, false).then(|| value.to_vec());
                     }
                     j += 12 + n + size;
                 }
