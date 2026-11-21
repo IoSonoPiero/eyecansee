@@ -76,21 +76,28 @@ fn group_of(id: &str, preset: bool) -> (&'static str, bool) {
     }
 }
 
-/// The files left out by reason, in the order the reasons first came.
+/// A file left out: the name it is ordered by, its line in the list, and the line Copy takes.
+type Left<'a> = (&'a str, String, String);
+
+/// The files left out by reason, in the order the reasons first came; in each group in the
+/// order of their names (`source::natural`, as the grid; an error without a name by its words).
 fn groups(i18n: &I18n, failed: &[(&'static str, String)], preset: bool) -> Vec<Group> {
-    let mut out: Vec<(&'static str, Vec<String>, Vec<String>)> = Vec::new();
+    let mut out: Vec<(&'static str, Vec<Left>)> = Vec::new();
     for (id, detail) in failed {
         let (heading, names) = group_of(id, preset);
         let (item, copied) = item(i18n, id, detail, names);
-        match out.iter_mut().find(|(h, ..)| *h == heading) {
-            Some((_, items, all)) => {
-                items.push(item);
-                all.push(copied);
-            }
-            None => out.push((heading, vec![item], vec![copied])),
+        let file = (detail.split('\u{1}').next().unwrap_or_default(), item, copied);
+        match out.iter_mut().find(|(h, _)| *h == heading) {
+            Some((_, files)) => files.push(file),
+            None => out.push((heading, vec![file])),
         }
     }
-    out.into_iter().map(|(id, items, copied)| Group { heading: i18n.t_args(id, &[("n", &items.len().to_string())]), items, copied }).collect()
+    let group = |(id, mut files): (&str, Vec<Left>)| {
+        files.sort_by(|a, b| crate::source::natural(a.0, b.0));
+        let (items, copied): (Vec<String>, Vec<String>) = files.into_iter().map(|(_, item, copied)| (item, copied)).unzip();
+        Group { heading: i18n.t_args(id, &[("n", &items.len().to_string())]), items, copied }
+    };
+    out.into_iter().map(group).collect()
 }
 
 /// A file left out as a line of its group (`md`), and as Copy takes it: the name, or the error
@@ -206,13 +213,15 @@ impl App {
     }
 }
 
-/// A group: its heading and the files; folded when long.
+/// A group: its heading in bold, as the headings of the other messages (`notice_list`), and the
+/// files; folded when long, its files then in line with those of the other groups.
 fn group_ui(ui: &mut egui::Ui, g: &Group) {
     let items: String = g.items.iter().map(|i| format!("- {i}\n")).collect();
+    let heading = egui::RichText::new(&g.heading).family(egui::FontFamily::Name(crate::BOLD.into()));
     if g.items.len() > FOLD {
-        egui::CollapsingHeader::new(&g.heading).default_open(false).show(ui, |ui| notice_text(ui, &items));
+        egui::CollapsingHeader::new(heading).default_open(false).show_unindented(ui, |ui| notice_text(ui, &items));
     } else {
-        ui.label(egui::RichText::new(&g.heading).strong());
+        ui.add(egui::Label::new(heading).wrap());
         notice_text(ui, &items);
     }
     ui.add_space(4.0);
@@ -248,15 +257,15 @@ mod tests {
         assert!(it.text.starts_with("**2 file** salvati in \\/p\\/converted.\n\nCi è voluto 1 min 15 s.\nDimensione: 4,0 MB prima, 1,0 MB dopo (25%)."), "{}", it.text);
     }
 
-    /// The files that do not decode, as Convert… leaves them out: a RAW photo full of zeros and
-    /// a PNG cut in half, one with a name to escape.
+    /// The files that do not decode, as Convert… leaves them out, in the order of their names: a
+    /// PNG cut in half, with a name to escape, and a RAW photo full of zeros.
     fn not_decoded() -> Vec<(&'static str, String)> {
         let noise = image::RgbImage::from_fn(64, 64, |x, y| image::Rgb([(x * 7 + y * 13) as u8, (x * y) as u8, (x ^ y) as u8]));
         let mut png = Vec::new();
         noise.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
         png.truncate(png.len() / 2);
         let job = crate::batch::Job { format: Some(crate::encode::Format::Jpeg), ..Default::default() };
-        [(vec![0; 4096], "huge.cr3"), (png, "a_b*.png")].iter().map(|(bytes, name)| crate::batch::convert(bytes, name, &job).unwrap_err()).collect()
+        [(png, "a_b*.png"), (vec![0; 4096], "huge.cr3")].iter().map(|(bytes, name)| crate::batch::convert(bytes, name, &job).unwrap_err()).collect()
     }
 
     /// A file that does not decode is said as the viewer says it (`cannot_load`, the same words):
@@ -326,6 +335,12 @@ mod tests {
         let headings: Vec<_> = g.iter().map(|g| g.heading.as_str()).collect();
         assert_eq!(headings, ["2 files of a kind this command does not work on:", "1 file already of this size, or smaller and not enlarged:", "1 error:", "1 file in a format EyeCanSee cannot write; choose another format:"]);
         assert_eq!(g[0].items, ["a\\.txt", "c\\_d"]);
+        // In each group in the order of the names, as the grid has them; Copy too.
+        let mixed = [("skip-not-picture", "img10.txt".to_string()), (SKIP_SAME_SIZE, "z.jpg".to_string()), ("skip-folder", "Img2".to_string()), ("skip-not-picture", "a.txt".to_string()), crate::fault::not_opened("b.png", "cut"), crate::fault::not_opened("A.png", "cut")];
+        let m = groups(&i18n, &mixed, false);
+        assert_eq!(m.iter().map(|g| g.items.len()).collect::<Vec<_>>(), [3, 1, 2]);
+        assert_eq!((&m[0].items, &m[0].copied), (&vec!["a\\.txt".to_string(), "Img2".into(), "img10\\.txt".into()], &m[0].items));
+        assert_eq!(m[2].copied, ["Cannot open A\\.png \\(cut\\)", "Cannot open b\\.png \\(cut\\)"]);
         assert_eq!(g[2].items, ["e\\.png\\: broken"]);
         // A reason said on several lines stays one item of the list.
         let trash = groups(&i18n, &[("error-trash-failed", "f.jpg: busy".to_string())], false);
