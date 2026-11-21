@@ -332,10 +332,7 @@ impl ExportSaid {
 /// The message at the end of an export whose glTF models placed a part more than once: one
 /// sentence a line, then their names (`notice_list`: ten, then "and N more", all in Copy).
 pub(crate) fn export_notice(i18n: &crate::i18n::I18n, names: &[String]) -> crate::save_dialogs::Notice {
-    let n = names.len().to_string();
-    let args = [("n", n.as_str())];
-    let intro = format!("{}\n{}", i18n.t_args("model-export-again-why", &args), i18n.t_args("model-export-again-kept", &args));
-    crate::notice_list::notice(i18n, i18n.t_args("model-export-again-title", &args), &intro, names, true)
+    crate::notice_list::counted(i18n, "model-export-again-title", &["model-export-again-why", "model-export-again-kept"], names)
 }
 
 /// The axes of the file in the top right corner, as CAD programs show them: X red, Y green, Z

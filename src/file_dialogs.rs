@@ -533,19 +533,13 @@ pub(crate) fn name_window(ctx: &egui::Context, id: &str, (title, ok): (String, S
 /// instead of a long error in the bar (Piero, 20/11: "non si capisce niente"): one sentence a
 /// line, then the names as a list (`notice_list`). The log has them all.
 pub(crate) fn refused_notice(i18n: &crate::i18n::I18n, names: &[String]) -> Notice {
-    let n = names.len().to_string();
-    let args = [("n", n.as_str())];
-    let intro = format!("{}\n{}", i18n.t_args("name-refused-why", &args), i18n.t_args("name-refused-stayed", &args));
-    crate::notice_list::notice(i18n, i18n.t_args("name-refused-title", &args), &intro, names, true)
+    crate::notice_list::counted(i18n, "name-refused-title", &["name-refused-why", "name-refused-stayed"], names)
 }
 
 /// The message at the end of a move that left in its folders what it did not copy (#194): what
 /// arrived in them while it ran, which stays there with its folder.
 pub(crate) fn left_notice(i18n: &crate::i18n::I18n, names: &[String]) -> Notice {
-    let n = names.len().to_string();
-    let args = [("n", n.as_str())];
-    let intro = format!("{}\n{}", i18n.t_args("move-left-why", &args), i18n.t_args("move-left-stayed", &args));
-    crate::notice_list::notice(i18n, i18n.t_args("move-left-title", &args), &intro, names, true)
+    crate::notice_list::counted(i18n, "move-left-title", &["move-left-why", "move-left-stayed"], names)
 }
 
 /// The message at the end of a copy that could not read some files (L17 of 2026-11-21): the rest

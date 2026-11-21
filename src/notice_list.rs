@@ -49,6 +49,16 @@ pub(crate) fn notice(i18n: &I18n, title: String, intro: &str, names: &[String], 
     Notice { copy: Some(copied(intro, &[("", &items)])), warning, ..Notice::new(title, text) }
 }
 
+/// A warning about `names` whose words go by how many they are (`$n`): the title `title`, the
+/// sentences `lines` (Fluent ids) one a line, then the names (`notice`). The names a copy left
+/// out, what a move left in its folders, the models exported with a change.
+pub(crate) fn counted(i18n: &I18n, title: &str, lines: &[&str], names: &[String]) -> Notice {
+    let n = names.len().to_string();
+    let args = [("n", n.as_str())];
+    let intro = lines.iter().map(|id| i18n.t_args(id, &args)).collect::<Vec<_>>().join("\n");
+    notice(i18n, i18n.t_args(title, &args), &intro, names, true)
+}
+
 /// As `notice`, with several lists of names, each under its heading, the empty ones left out:
 /// the pictures left out of a Save on the grid, animated or too large for the memory (#177).
 pub(crate) fn notice_lists(i18n: &I18n, title: String, intro: &str, lists: &[(String, Vec<String>)]) -> Notice {
