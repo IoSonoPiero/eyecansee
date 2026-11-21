@@ -206,12 +206,12 @@ impl App {
     /// The engine just downloaded and loaded: the videos' thumbnails that failed without it are
     /// made again, and the download is done with.
     fn engine_arrived(&mut self) {
-        let done = self.download.as_ref().is_some_and(|d| matches!(*d.result.lock().unwrap(), Some(Ok(()))));
+        let done = self.downloads.video.as_ref().is_some_and(|d| matches!(*d.result.lock().unwrap(), Some(Ok(()))));
         if !done || !self.engine() {
             return;
         }
         log!("video engine downloaded: used at once");
-        self.download = None;
+        self.downloads.video = None;
         let videos = self.files().iter().filter(|f| decode::is_played(&f.path)).map(|f| f.path.clone()).collect();
         self.on_forgotten(videos);
     }
@@ -235,7 +235,7 @@ impl App {
 
     /// Where the engine is now (`engine_state` also asks for repaints while it downloads).
     fn engine_now(&self, c: crate::component::Component) -> Engine {
-        let result = self.download.as_ref().map(|d| (d.done.load(std::sync::atomic::Ordering::Relaxed), d.result.lock().unwrap().clone()));
+        let result = self.downloads.video.as_ref().map(|d| (d.done.load(std::sync::atomic::Ordering::Relaxed), d.result.lock().unwrap().clone()));
         let on_disk = crate::component::path(&c).is_some_and(|p| p.is_file());
         // Downloaded, or on disk but not loadable: a restart activates it (`engine`).
         match &result {
@@ -266,7 +266,7 @@ impl App {
         match click {
             Click::Download => {
                 let ctx = ctx.clone();
-                self.download = Some(crate::component::start(c, move || ctx.request_repaint()));
+                self.downloads.video = Some(crate::component::start(c, move || ctx.request_repaint()));
             }
             Click::Restart => match crate::update::restart() {
                 Ok(()) => ctx.send_viewport_cmd(egui::ViewportCommand::Close),

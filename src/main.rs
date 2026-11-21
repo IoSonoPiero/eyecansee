@@ -47,6 +47,7 @@ mod cad_text;
 mod cad_units;
 mod cad_view;
 mod component;
+mod downloads;
 mod confirm;
 mod convert;
 #[cfg(debug_assertions)]
@@ -332,8 +333,8 @@ struct App {
     viewing: Option<usize>,
     /// The video playing in the viewer.
     video: Option<video::Playing>,
-    /// The video engine being downloaded (`component::VIDEO`).
-    download: Option<std::sync::Arc<component::Download>>,
+    /// The add-ons being downloaded (`downloads`).
+    downloads: downloads::Downloads,
     /// Why EyeCanSee could not be started again after the engine download.
     restart_error: Option<String>,
     /// The list of the viewer's keys open (the Keys button of the status bar, 3D and CAD viewers).

@@ -54,7 +54,7 @@ impl App {
             scroll_to_selected: false,
             viewing: None,
             video: None,
-            download: None,
+            downloads: Default::default(),
             restart_error: None,
             keys_open: false,
             start: None,

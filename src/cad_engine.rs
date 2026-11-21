@@ -16,7 +16,7 @@ enum State {
 
 impl App {
     fn cad_engine_state(&mut self, ctx: &egui::Context) -> State {
-        let Some(d) = &self.model.engine else { return State::Missing };
+        let Some(d) = &self.downloads.cad else { return State::Missing };
         let done = d.done.load(std::sync::atomic::Ordering::Relaxed);
         let result = d.result.lock().unwrap().clone();
         match result {
@@ -28,7 +28,7 @@ impl App {
             Some(Ok(())) => {
                 // There now: the thumbnails that failed without it are made again, only those.
                 // Redoing them all read every other file of the folder again (a phone, 2026-11-08).
-                self.model.engine = None;
+                self.downloads.cad = None;
                 let models = self.files().iter().filter(|f| crate::occt::is_occt(&f.path)).map(|f| f.path.clone()).collect();
                 self.on_forgotten(models);
                 // The viewer kept its failed load and showed the old error (#102): read again.
@@ -42,7 +42,7 @@ impl App {
     fn cad_engine_download(&mut self, ctx: &egui::Context) {
         let Some(c) = crate::component::OCCT else { return };
         let ctx = ctx.clone();
-        self.model.engine = Some(crate::component::start(c, move || ctx.request_repaint()));
+        self.downloads.cad = Some(crate::component::start(c, move || ctx.request_repaint()));
     }
 
     /// In the viewer, on a STEP, IGES or BREP file without the engine.
@@ -92,7 +92,7 @@ impl App {
         let Some(c) = crate::component::OCCT else { return };
         // Every frame (the menu bar is always there): the end of the download makes the folder
         // read again, also when nothing on screen asks for the engine any more.
-        if self.model.engine.is_some() {
+        if self.downloads.cad.is_some() {
             self.cad_engine_state(ui.ctx());
         }
         let wanted = self.listings.get(&self.dir).and_then(|l| l.as_ref().ok()).is_some_and(|l| l.files.iter().any(|f| crate::occt::needs_engine(&f.path)));

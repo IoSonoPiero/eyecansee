@@ -4,17 +4,14 @@
 //! "Always the downloaded one" in the Options and FFmpeg not downloaded yet, the turn could not be
 //! saved (Piero, 2026-11-18).
 
-use std::sync::Arc;
-
 use eframe::egui;
 
 use crate::App;
 use crate::engine::Status;
 use crate::save_dialogs::{Head, message};
 
-/// The window open: the download under way, and what goes on once FFmpeg is there.
+/// The window open: what goes on once FFmpeg is there (the download: `App::downloads`).
 pub struct Ask {
-    download: Option<Arc<crate::component::Download>>,
     then: Then,
 }
 
@@ -44,13 +41,17 @@ impl App {
             return false;
         }
         log!("ffmpeg asked for: {:?}", crate::ffmpeg::status());
-        self.ffmpeg_ask = Some(Ask { download: None, then });
+        self.downloads.ask_ffmpeg = None;
+        self.ffmpeg_ask = Some(Ask { then });
         true
     }
 
     /// The window: Esc and Close leave the turn unsaved; Enter starts the download.
     pub(crate) fn ffmpeg_window(&mut self, ctx: &egui::Context) {
-        let Some(ask) = &mut self.ffmpeg_ask else { return };
+        if self.ffmpeg_ask.is_none() {
+            return;
+        }
+        let download = &mut self.downloads.ask_ffmpeg;
         let (id, offered) = text_of(&crate::ffmpeg::status());
         let component = crate::component::FFMPEG.filter(|_| offered);
         let size = component.map_or(String::new(), |c| format!("{} MB", c.size / 1_000_000));
@@ -58,9 +59,9 @@ impl App {
         // Enter and Esc arrive as `answer` (`raw_input_hook`).
         let modal = "ffmpeg-ask";
         let mut close = match (crate::confirm::answer(ctx, &mut self.key_answer, modal), component) {
-            (Some(true), Some(c)) if ask.download.is_none() => {
+            (Some(true), Some(c)) if download.is_none() => {
                 let ctx = ctx.clone();
-                ask.download = Some(crate::component::start(c, move || ctx.request_repaint()));
+                *download = Some(crate::component::start(c, move || ctx.request_repaint()));
                 false
             }
             (Some(true), Some(_)) | (None, _) => false,
@@ -69,7 +70,7 @@ impl App {
         let mut done = false;
         message(ctx, modal, Head::new(&i18n.t("ffmpeg-ask-title")), &i18n.t_args(id, &[("size", &size)]), &i18n.t("notice-copy"), |ui| {
             if let Some(c) = component {
-                done = crate::batch_video::download_row(ui, &mut ask.download, i18n, c);
+                done = crate::batch_video::download_row(ui, download, i18n, c);
             }
             ui.add_space(4.0);
             close |= ui.button(i18n.t("notice-close")).clicked();

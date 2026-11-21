@@ -4,7 +4,7 @@
 use super::*;
 
 /// The choices of the window; `Some(true)` Convert, `Some(false)` Cancel.
-pub(super) fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bool> {
+pub(super) fn form_ui(ui: &mut egui::Ui, f: &mut Form, dl: &mut crate::downloads::Slot, i18n: &I18n) -> Option<bool> {
     let t = |id| i18n.t(id);
     ui.spacing_mut().item_spacing.y = 6.0;
     // On a low screen the choices scroll, the buttons stay in view.
@@ -18,7 +18,7 @@ pub(super) fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bo
     }
     area.show(ui, |ui| {
         if let Some(job) = f.audio {
-            section(ui, t("batch-video"), |ui| audio_rows(ui, &mut f.video, job, i18n));
+            section(ui, t("batch-video"), |ui| audio_rows(ui, dl, job, i18n));
             section(ui, t("batch-where"), |ui| where_rows(ui, f, i18n));
             return;
         }
@@ -31,10 +31,10 @@ pub(super) fn form_ui(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<bo
             section(ui, t("convert-format"), |ui| format_rows(ui, f, i18n));
         }
         if f.videos {
-            section(ui, t("batch-video"), |ui| video_rows(ui, &mut f.video, i18n));
+            section(ui, t("batch-video"), |ui| video_rows(ui, &mut f.video, dl, i18n));
         }
         if f.audios {
-            section(ui, t("batch-sound"), |ui| sound_rows(ui, &mut f.sound, &mut f.video, i18n));
+            section(ui, t("batch-sound"), |ui| sound_rows(ui, &mut f.sound, dl, i18n));
         }
         // Audio files have no picture to turn or resize.
         if !f.images && !f.videos {

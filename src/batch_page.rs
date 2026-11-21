@@ -122,7 +122,7 @@ impl Form {
             images: true,
             jpegs: false,
             videos: false,
-            video: VideoForm { container: 0, codec: Codec::H264, encoder: None, quality: Quality::Medium, audio: true, meta: true, download: None, copy_into: Vec::new(), copy_own: 0 },
+            video: VideoForm { container: 0, codec: Codec::H264, encoder: None, quality: Quality::Medium, audio: true, meta: true, copy_into: Vec::new(), copy_own: 0 },
             audios: false,
             sound: SoundForm { format: 0, quality: Quality::Medium, ready: false },
             drawing: false,
@@ -187,10 +187,10 @@ impl Form {
     }
 
     /// Cancel pressed: the choices as they were `before` the window opened, as if it had never
-    /// been touched; only an FFmpeg download started in it goes on.
+    /// been touched; an FFmpeg download started in it goes on (it is not part of the form:
+    /// `App::downloads`).
     fn cancelled(self, before: Form) -> Form {
         let mut form = before;
-        form.video.download = self.video.download.or(form.video.download);
         form.picker = None;
         form
     }
@@ -478,7 +478,7 @@ impl App {
             crate::theme::title(ui, title);
             ui.add_space(6.0);
             notice_text(ui, &intro);
-            answer = form_ui(ui, &mut form, &self.i18n);
+            answer = form_ui(ui, &mut form, &mut self.downloads.convert_ffmpeg, &self.i18n);
         });
         log_size(ctx, shown.response.rect);
         if form.picker.is_some() {

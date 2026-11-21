@@ -34,8 +34,6 @@ pub(crate) struct State {
     pub(crate) cad: crate::cad_view::State,
     /// The Measure tool, on drawings and models (`measure_view`).
     pub(crate) measure: crate::measure_view::State,
-    /// The CAD engine being downloaded (`cad_engine`).
-    pub(crate) engine: Option<Arc<crate::component::Download>>,
     /// When the last frames were drawn (seconds), for the frame rate in the status bar.
     frames: std::collections::VecDeque<f64>,
     /// When a section's plane was last moved (egui time): it is drawn for a moment after.

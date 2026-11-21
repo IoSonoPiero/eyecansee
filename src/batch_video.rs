@@ -4,11 +4,11 @@
 //! `batch_page.rs` on 2026-11-02.
 
 use std::sync::atomic::Ordering;
-use std::sync::Arc;
 
 use eframe::egui;
 
 use crate::audio_job::AudioJob;
+use crate::downloads::Slot;
 use crate::ffmpeg::{CONTAINERS, Codec, Quality};
 use crate::i18n::I18n;
 
@@ -24,8 +24,6 @@ pub(crate) struct VideoForm {
     pub(crate) quality: Quality,
     pub(crate) audio: bool,
     pub(crate) meta: bool,
-    /// FFmpeg being downloaded (`component::FFMPEG`).
-    pub(crate) download: Option<Arc<crate::component::Download>>,
     /// Copied as it is (`Codec::Copy`): the containers offered for the videos chosen, and the one
     /// it starts on (`video_copy::targets`, `default`), set when the window opens.
     pub(crate) copy_into: Vec<usize>,
@@ -51,9 +49,9 @@ impl VideoForm {
 /// The audio jobs: FFmpeg ready, and what the job does; nothing else to choose. They copy the
 /// streams: an FFmpeg without the phones' decoders does them too (`ffmpeg::copier`), no encoder
 /// to try.
-pub(crate) fn audio_rows(ui: &mut egui::Ui, v: &mut VideoForm, job: AudioJob, i18n: &I18n) {
+pub(crate) fn audio_rows(ui: &mut egui::Ui, dl: &mut Slot, job: AudioJob, i18n: &I18n) {
     if crate::ffmpeg::copier().is_none() {
-        ffmpeg_download(ui, v, i18n);
+        ffmpeg_download(ui, dl, i18n);
         return;
     }
     ui.label(i18n.t(match job {
@@ -75,12 +73,12 @@ pub(crate) struct SoundForm {
 /// The format of the audio files (only those whose encoder this FFmpeg has) and its quality;
 /// FFmpeg downloaded first where there is none. No video decoder is needed: an FFmpeg without
 /// the phones' decoders does it too (`ffmpeg::copier`).
-pub(crate) fn sound_rows(ui: &mut egui::Ui, s: &mut SoundForm, v: &mut VideoForm, i18n: &I18n) {
+pub(crate) fn sound_rows(ui: &mut egui::Ui, s: &mut SoundForm, dl: &mut Slot, i18n: &I18n) {
     use crate::audio_convert::{FORMATS, available, hint};
     let t = |id| i18n.t(id);
     s.ready = false;
     if crate::ffmpeg::copier().is_none() {
-        ffmpeg_download(ui, v, i18n);
+        ffmpeg_download(ui, dl, i18n);
         return;
     }
     let ctx = ui.ctx().clone();
@@ -120,7 +118,7 @@ pub(crate) fn sound_rows(ui: &mut egui::Ui, s: &mut SoundForm, v: &mut VideoForm
 /// FFmpeg found and its encoders tried: downloaded first where there is none, a spinner while
 /// it is tried. With only a `copier` (an FFmpeg without the phones' decoders), the probe for the
 /// copied streams and `true`: the other codecs ask for the download when chosen.
-fn ffmpeg_ready(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) -> Option<(&'static crate::ffmpeg::Probe, bool)> {
+fn ffmpeg_ready(ui: &mut egui::Ui, dl: &mut Slot, i18n: &I18n) -> Option<(&'static crate::ffmpeg::Probe, bool)> {
     let ctx = ui.ctx().clone();
     let (probe, copy_only) = if crate::ffmpeg::program().is_some() {
         crate::ffmpeg::start_probe(move || ctx.request_repaint());
@@ -129,7 +127,7 @@ fn ffmpeg_ready(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) -> Option<(&'
         crate::ffmpeg::start_copy_probe(move || ctx.request_repaint());
         (crate::ffmpeg::copy_probed(), true)
     } else {
-        ffmpeg_download(ui, v, i18n);
+        ffmpeg_download(ui, dl, i18n);
         return None;
     };
     if probe.is_none() {
@@ -143,11 +141,11 @@ fn ffmpeg_ready(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) -> Option<(&'
 
 /// Container, codec, encoder (only those that work here), quality, sound and metadata; FFmpeg
 /// downloaded first where there is none.
-pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
+pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, dl: &mut Slot, i18n: &I18n) {
     let t = |id| i18n.t(id);
-    let Some((probe, copy_only)) = ffmpeg_ready(ui, v, i18n) else { return };
-    if crate::ffmpeg::download_better(v.download.is_some()) {
-        better_download(ui, v, i18n);
+    let Some((probe, copy_only)) = ffmpeg_ready(ui, dl, i18n) else { return };
+    if crate::ffmpeg::download_better(dl.is_some()) {
+        better_download(ui, dl, i18n);
     }
     container_codec_rows(ui, v, probe, copy_only, i18n);
     let c = &CONTAINERS[v.container];
@@ -155,7 +153,7 @@ pub(crate) fn video_rows(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
     if encoders.is_empty() {
         v.encoder = None;
         if copy_only {
-            ffmpeg_download(ui, v, i18n);
+            ffmpeg_download(ui, dl, i18n);
         } else {
             crate::error_bar::hint(ui, &t("batch-video-none"));
         }
@@ -231,7 +229,7 @@ fn container_codec_rows(ui: &mut egui::Ui, v: &mut VideoForm, probe: &crate::ffm
 
 /// No usable FFmpeg on this computer (none, too old, or without the phones' decoders): what it is, its size and the button;
 /// then the progress. With "the system's only" in the Options, just the reason.
-fn ffmpeg_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
+fn ffmpeg_download(ui: &mut egui::Ui, dl: &mut Slot, i18n: &I18n) {
     let Some(c) = crate::component::FFMPEG else { return };
     let size = format!("{} MB", c.size / 1_000_000);
     match crate::ffmpeg::status() {
@@ -250,24 +248,24 @@ fn ffmpeg_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
         }
     }
     // Done: `ffmpeg::program` finds it at the next frame.
-    if download_row(ui, &mut v.download, i18n, c) {
+    if download_row(ui, dl, i18n, c) {
         ui.ctx().request_repaint();
     }
 }
 
 /// The system's FFmpeg works, but the downloaded one would also keep the reading, turning and
 /// resizing on the card ("Automatic", `ffmpeg::download_better`): said, with the button.
-fn better_download(ui: &mut egui::Ui, v: &mut VideoForm, i18n: &I18n) {
+fn better_download(ui: &mut egui::Ui, dl: &mut Slot, i18n: &I18n) {
     let Some(c) = crate::component::FFMPEG else { return };
     ui.label(i18n.t_args("batch-video-better-ffmpeg", &[("size", &format!("{} MB", c.size / 1_000_000))]));
-    if download_row(ui, &mut v.download, i18n, c) {
+    if download_row(ui, dl, i18n, c) {
         ui.label(i18n.t("opt-engine-restart"));
     }
     ui.add_space(4.0);
 }
 
 /// The progress of the download, or its button (with the error of the last try): true once done.
-pub(crate) fn download_row(ui: &mut egui::Ui, download: &mut Option<Arc<crate::component::Download>>, i18n: &I18n, c: crate::component::Component) -> bool {
+pub(crate) fn download_row(ui: &mut egui::Ui, download: &mut Slot, i18n: &I18n, c: crate::component::Component) -> bool {
     let state = download.as_ref().map(|d| (d.done.load(Ordering::Relaxed), d.result.lock().unwrap().clone()));
     match state {
         Some((done, None)) => {
