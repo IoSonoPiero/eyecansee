@@ -58,11 +58,15 @@ thread_local! {
     /// Bytes `Store::read` and `Store::read_range` gave on this thread: a picture too large for the
     /// memory is told from its start, not read whole (#177).
     pub static BYTES_READ: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
+    /// Reads (`Store::read`, `Store::read_range`) on this thread: each is a round trip on a phone or
+    /// a server.
+    pub static READS: std::cell::Cell<u64> = const { std::cell::Cell::new(0) };
 }
 
 /// The bytes of a read, added to `BYTES_READ`.
 #[cfg(test)]
 fn counted(r: &Result<Vec<u8>, Error>) {
+    READS.with(|n| n.set(n.get() + 1));
     if let Ok(bytes) = r {
         BYTES_READ.with(|n| n.set(n.get() + bytes.len() as u64));
     }

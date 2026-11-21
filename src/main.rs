@@ -169,6 +169,8 @@ mod thumb_queue;
 mod test_copy;
 #[cfg(test)]
 mod test_alloc;
+#[cfg(test)]
+mod read_live;
 mod thumbcache;
 mod ticked;
 mod tips;

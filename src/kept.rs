@@ -256,7 +256,7 @@ fn open_folder(folder: &Path) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
 
     /// A kept image: in its own folder under the data folder, with where it was going; the same
@@ -369,7 +369,7 @@ mod tests {
 
     /// The server of EYECANSEE_SFTP or EYECANSEE_FTP, the test folder in its home, its address
     /// without the password.
-    async fn server_dir(secs: u64) -> (Store, String, String) {
+    pub(crate) async fn server_dir(secs: u64) -> (Store, String, String) {
         let url = std::env::var("EYECANSEE_SFTP").or_else(|_| std::env::var("EYECANSEE_FTP")).expect("EYECANSEE_SFTP, EYECANSEE_FTP or EYECANSEE_MTP");
         {
             let mut s = source::open(&url).unwrap();
