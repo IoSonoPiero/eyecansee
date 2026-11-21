@@ -299,7 +299,7 @@ pub(crate) fn split(b: &[u8]) -> Option<(&[u8], &[u8])> {
 /// The new photo (with the old one's XMP and MPF) and the new gain map in one file: lengths
 /// and offsets written again.
 fn assemble(mut photo: Vec<u8>, gain: &[u8]) -> Result<Vec<u8>, String> {
-    set_xmp_length(&mut photo, gain.len());
+    set_xmp_length(&mut photo, gain.len())?;
     let m = mpf(&photo).ok_or("Ultra HDR: MPF lost")?;
     let photo_len = photo.len();
     // First the photo (offset 0), then the gain map right after it.
@@ -394,24 +394,27 @@ fn mpf(b: &[u8]) -> Option<Mpf> {
 }
 
 /// In the XMP of the photo, the length of the gain map (`Item:Length` of the item whose
-/// `Item:Semantic` is "GainMap"); the segment's length follows.
-fn set_xmp_length(b: &mut Vec<u8>, len: usize) {
-    let Some((_, s, e)) = segments(b).into_iter().find(|&(m, s, e)| m == 0xE1 && b[s + 4..e].starts_with(b"http://ns.adobe.com/xap/1.0/\0")) else { return };
+/// `Item:Semantic` is "GainMap"); the segment's length follows. An error, the file as it was, when
+/// the packet no longer fits its segment (#219).
+fn set_xmp_length(b: &mut Vec<u8>, len: usize) -> Result<(), String> {
+    let Some((_, s, e)) = segments(b).into_iter().find(|&(m, s, e)| m == 0xE1 && b[s + 4..e].starts_with(b"http://ns.adobe.com/xap/1.0/\0")) else { return Ok(()) };
     let body = &b[s + 4..e];
-    let Some(at) = find(body, b"Item:Semantic=\"GainMap\"") else { return };
+    let Some(at) = find(body, b"Item:Semantic=\"GainMap\"") else { return Ok(()) };
     // The element around it: from its '<' to its '>'.
     let open = body[..at].iter().rposition(|&c| c == b'<').unwrap_or(0);
     let close = at + find(&body[at..], b">").unwrap_or(body.len() - at);
-    let Some(l) = find(&body[open..close], b"Item:Length=\"") else { return };
+    let Some(l) = find(&body[open..close], b"Item:Length=\"") else { return Ok(()) };
     let start = open + l + b"Item:Length=\"".len();
-    let Some(q) = find(&body[start..], b"\"") else { return };
+    let Some(q) = find(&body[start..], b"\"") else { return Ok(()) };
     let mut new_body = body[..start].to_vec();
     new_body.extend_from_slice(len.to_string().as_bytes());
     new_body.extend_from_slice(&body[start + q..]);
+    let length = u16::try_from(new_body.len() + 2).map_err(|_| "Ultra HDR: XMP too long")?;
     let mut segment = vec![0xFF, 0xE1];
-    segment.extend_from_slice(&((new_body.len() + 2) as u16).to_be_bytes());
+    segment.extend_from_slice(&length.to_be_bytes());
     segment.extend_from_slice(&new_body);
     b.splice(s..e, segment);
+    Ok(())
 }
 
 fn find(hay: &[u8], needle: &[u8]) -> Option<usize> {
@@ -690,6 +693,21 @@ pub(crate) mod tests {
 
     /// Convert and resize (#65): turned and halved, the gain map turned and halved with it (its
     /// share of the photo kept), lengths right, still Ultra HDR, the XMP fitting the new photo.
+    /// A gain map length with more digits in an XMP that fills its segment: the segment's length
+    /// would not hold the packet. The file is left as it was, its segments still readable (#219).
+    #[test]
+    fn xmp_length_too_long_for_its_segment() {
+        let head = "<x:xmpmeta><Container:Item Item:Semantic=\"GainMap\" Item:Length=\"1\"/>";
+        let fill = crate::meta_write::JPEG_XMP_MAX - head.len() - "</x:xmpmeta>".len();
+        let xmp = format!("{head}{}</x:xmpmeta>", " ".repeat(fill));
+        let body = [crate::meta_write::JPEG_XMP, xmp.as_bytes()].concat();
+        assert_eq!(body.len(), 65533);
+        let mut b = [&[0xFF, 0xD8][..], &segment(0xE1, &body), &segment(0xFE, b"note"), &[0xFF, 0xDA, 0, 2]].concat();
+        let _ = set_xmp_length(&mut b, 123_456);
+        let s = segments(&b);
+        assert_eq!(s.iter().map(|x| x.0).collect::<Vec<_>>(), [0xE1, 0xFE], "segments after the XMP lost");
+    }
+
     #[test]
     fn resize_ultra_hdr() {
         let file = sample(64, 32);
