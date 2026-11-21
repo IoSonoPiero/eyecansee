@@ -716,17 +716,37 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
 
 /// The job decodes its pictures at full resolution: not Copy with the metadata, nor Export
 /// drawing (drawings have limits of their own). A picture too large for the memory is then left
-/// out, told before it is decoded (`view_memory::read`: over 32 MB from the start of its file
-/// when it can be), unless opened anyway before (`view_memory::anyway`).
+/// out, told before it is decoded (`read_decoded`), unless opened anyway before.
 fn decodes(job: &Job) -> bool {
     !job.does_nothing() && job.drawing.is_none()
+}
+
+/// The bytes of the picture `path` that `job` decodes, unless too large for the memory
+/// (`view_memory::read_unless_too_large`: over 32 MB from the start of its file when it can be,
+/// `too_large`); all of it when opened anyway before (`view_memory::anyway`).
+async fn read_decoded(op: &Store, path: &str, job: &Job) -> Result<Vec<u8>, crate::view_memory::NotRead> {
+    if crate::view_memory::own_limits(path) || crate::view_memory::anyway(&job.base, path, false) {
+        return op.read(path).await.map_err(crate::view_memory::NotRead::Failed);
+    }
+    let (name, ram) = (source::name(path), crate::thumb_memory::ram());
+    crate::view_memory::read_unless_too_large(op, path, None, |bytes, size| too_large(job, (bytes, size, name), ram)).await
+}
+
+/// The memory the picture `bytes` (the start of a file of `size` bytes, or all of it) needs for
+/// `job`, when it is over half of `ram`: only turned, as `convert_with` turns it, so a JPEG turned
+/// without re-encoding never (`save_back::turn_too_large`, Piero, 21/11/2026); else decoded whole.
+fn too_large(job: &Job, (bytes, size, name): (&[u8], u64, &str), ram: u64) -> Option<u64> {
+    if job.format.is_none() && job.size == Size::Same {
+        return crate::save_back::turn_too_large(bytes, size, name, job.turn, ram);
+    }
+    crate::view_memory::estimate(bytes, size, name, crate::view_memory::Use::Whole).over_half(bytes.len(), size, name, ram)
 }
 
 /// The picture at `path` (named `name`) after `job`, with its photo's sidecar (#24) and the
 /// layers shown of a drawing: the new name, the content and the size of the original.
 async fn picture(op: &Store, path: &str, name: String, job: &Job) -> Result<(String, Vec<u8>, u64), (&'static str, String)> {
     let bytes = match decodes(job) {
-        true => crate::view_memory::read(op, path, None, crate::view_memory::Use::Whole, crate::view_memory::anyway(&job.base, path, false)).await.map_err(|e| match e {
+        true => read_decoded(op, path, job).await.map_err(|e| match e {
             crate::view_memory::NotRead::TooLarge(_) => (SKIP_TOO_LARGE, name.clone()),
             crate::view_memory::NotRead::Failed(e) => e,
         })?,
@@ -903,6 +923,30 @@ mod tests {
         let copy = Job { format: None, ..Default::default() };
         assert!(copy.does_nothing() && !decodes(&copy));
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// Convert with only a turn (#177): a JPEG turned without re-encoding is never left out for
+    /// the memory, and is looked at only whole; one encoded again, a JPEG converted to another
+    /// format, a PNG turned, are when over half the RAM (here none).
+    #[test]
+    fn only_a_decoding_too_large() {
+        let jpeg = |w: usize, h: usize| {
+            let rgb = vec![90u8; w * h * 3];
+            let mut c = turbojpeg::Compressor::new().unwrap();
+            c.set_subsamp(turbojpeg::Subsamp::Sub2x2).unwrap();
+            c.compress_to_vec(turbojpeg::Image { pixels: rgb.as_slice(), width: w, pitch: w * 3, height: h, format: turbojpeg::PixelFormat::RGB }).unwrap()
+        };
+        let turned = Job { format: None, turn: Turn::default().then(crate::transform::Op::Cw), ..Default::default() };
+        let converted = Job { format: Some(Format::Png), ..turned.clone() };
+        let (fits, not) = (jpeg(32, 32), jpeg(32, 40));
+        let len = |b: &[u8]| b.len() as u64;
+        assert_eq!(too_large(&turned, (&fits, len(&fits), "a.jpg"), 0), None);
+        assert!(too_large(&turned, (&not, len(&not), "a.jpg"), 0).is_some());
+        assert_eq!(too_large(&turned, (&not, len(&not) + 1, "a.jpg"), 0), None, "its start only");
+        assert!(too_large(&converted, (&fits, len(&fits), "a.jpg"), 0).is_some());
+        assert_eq!(too_large(&converted, (&fits, len(&fits), "a.jpg"), 1 << 40), None);
+        let png = file(&DynamicImage::new_rgb8(8, 8), image::ImageFormat::Png);
+        assert!(too_large(&turned, (&png, len(&png), "a.png"), 0).is_some());
     }
 
     /// Resize with a preset: copies next to the originals with the size in their names, a name

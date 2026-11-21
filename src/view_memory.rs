@@ -147,9 +147,14 @@ pub async fn read(op: &Store, path: &str, size: Option<u64>, what: Use, anyway: 
     read_for(op, path, size, (what, anyway), (thumb_memory::ram(), ONCE)).await
 }
 
+/// 3D models, drawings and videos: read as they are, with limits of their own.
+pub fn own_limits(path: &str) -> bool {
+    crate::model::is_model(path) || crate::cad::is_cad(path) || crate::decode::is_played(path)
+}
+
 /// `read` on a computer with `ram`, a file up to `once` bytes read whole at once.
 async fn read_for(op: &Store, path: &str, size: Option<u64>, (what, anyway): (Use, bool), (ram, once): (u64, u64)) -> Result<Vec<u8>, NotRead> {
-    if anyway || crate::model::is_model(path) || crate::cad::is_cad(path) || crate::decode::is_played(path) {
+    if anyway || own_limits(path) {
         return op.read(path).await.map_err(NotRead::Failed);
     }
     read_within(op, path, size, once, |bytes, size| estimate(bytes, size, path, what).over_half(bytes.len(), size, path, ram)).await

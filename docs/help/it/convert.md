@@ -86,7 +86,7 @@ Alla fine un riepilogo, con il nome del comando come titolo, dice:
 ## Da sapere
 
 - Le immagini animate e quelle con più pagine restano fuori: il file nuovo terrebbe solo la prima immagine.
-- Un'immagine che, letta tutta, chiederebbe più di metà della memoria del computer (per esempio un HEIC, un TIFF a 16 bit o un JPEG XL di centinaia di megapixel, su un computer da 8 GB) resta fuori, senza domande: il riepilogo la elenca. Una aperta comunque (nel visore, nell'editor o in Salva come) da quando EyeCanSee è partito non resta fuori. Di un file più grande di 32 MB si legge solo l'inizio, quando lì ci sono le dimensioni dell'immagine.
+- Un'immagine che, letta tutta, chiederebbe più di metà della memoria del computer (per esempio un HEIC, un TIFF a 16 bit o un JPEG XL di centinaia di megapixel, su un computer da 8 GB) resta fuori, senza domande: il riepilogo la elenca. Non restano fuori una aperta comunque (nel visore, nell'editor o in Salva come) da quando EyeCanSee è partito, né un JPEG solo ruotato o riflesso senza perdere qualità, che non viene decodificato. Di un file più grande di 32 MB si legge solo l'inizio, quando lì ci sono le dimensioni dell'immagine.
 - Una foto in movimento del telefono tiene il suo video solo se viene soltanto ruotata e resta JPEG; altrimenti il file nuovo è solo la foto, e il video resta nell'originale.
 - Funziona su tutte le sorgenti: computer, dischi, telefoni e server.
 - Nella finestra **Invio** avvia la conversione (quando non stai scrivendo in un campo) ed **Esc** annulla.
