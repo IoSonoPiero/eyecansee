@@ -347,34 +347,35 @@ fn buttons(n: usize, of: usize, ticked: bool) -> Vec<Button> {
     all
 }
 
+/// The band at the bottom of a window of this family, for its buttons: the panels' colour to the
+/// window's edges, a line above it; what `row` draws, on one row.
+fn band(ui: &mut egui::Ui, row: impl FnOnce(&mut egui::Ui)) {
+    let v = ui.visuals().clone();
+    let round = v.window_corner_radius;
+    let frame = egui::Frame::new().fill(v.panel_fill).corner_radius(egui::CornerRadius { nw: 0, ne: 0, ..round }).inner_margin(egui::Margin::symmetric(SIDE, 12));
+    let rect = frame.show(ui, |ui| ui.horizontal(row)).response.rect;
+    ui.painter().hline(rect.x_range(), rect.top(), v.widgets.noninteractive.bg_stroke);
+}
+
 /// The band at the bottom: the page's dots and "1 of 2" on the left, the buttons on the right.
 fn footer(ui: &mut egui::Ui, open: &Open, i18n: &crate::i18n::I18n) -> Option<Press> {
     let (n, of) = (open.page + 1, open.plan.pages.len());
-    let v = ui.visuals().clone();
-    let round = v.window_corner_radius;
-    let band = egui::Frame::new().fill(v.panel_fill).corner_radius(egui::CornerRadius { nw: 0, ne: 0, ..round }).inner_margin(egui::Margin::symmetric(SIDE, 12));
     let mut press = None;
-    let rect = band
-        .show(ui, |ui| {
-            ui.horizontal(|ui| {
-                if of > 1 {
-                    dots(ui, n, of);
-                    ui.weak(i18n.t_args("first-start-count", &[("n", &n.to_string()), ("of", &of.to_string())]));
+    band(ui, |ui| {
+        if of > 1 {
+            dots(ui, n, of);
+            ui.weak(i18n.t_args("first-start-count", &[("n", &n.to_string()), ("of", &of.to_string())]));
+        }
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            for b in buttons(n, of, open.rows.iter().any(|r| r.2)).into_iter().rev() {
+                let text = i18n.t(b.text);
+                let button = if b.main { crate::theme::main_button(ui, text) } else { egui::Button::new(text) };
+                if ui.add_enabled(b.enabled, button.min_size(BUTTON)).clicked() {
+                    press = Some(b.press);
                 }
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    for b in buttons(n, of, open.rows.iter().any(|r| r.2)).into_iter().rev() {
-                        let text = i18n.t(b.text);
-                        let button = if b.main { crate::theme::main_button(ui, text) } else { egui::Button::new(text) };
-                        if ui.add_enabled(b.enabled, button.min_size(BUTTON)).clicked() {
-                            press = Some(b.press);
-                        }
-                    }
-                });
-            });
-        })
-        .response
-        .rect;
-    ui.painter().hline(rect.x_range(), rect.top(), v.widgets.noninteractive.bg_stroke);
+            }
+        });
+    });
     press
 }
 
