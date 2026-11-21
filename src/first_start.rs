@@ -69,7 +69,7 @@ pub(crate) struct Card {
 }
 
 /// The ticked cards left behind when the add-ons page closes: ticked, with something to download
-/// and no download started. With any of them, Done and Esc ask before closing (Piero, 22/11: who
+/// and no download started. With any of them, Done, Skip and Esc ask before closing, from either page (Piero, 22/11: who
 /// ticks add-ons and closes without pressing Download must be told).
 pub(crate) fn waiting(cards: &[Card]) -> Vec<&'static str> {
     cards.iter().filter(|c| c.ticked && c.offers && !c.started).map(|c| c.kind).collect()

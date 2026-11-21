@@ -78,10 +78,11 @@ impl Open {
         crate::first_start::waiting(&self.rows.iter().map(card).collect::<Vec<_>>())
     }
 
-    /// Done, Skip or Esc: true when the window closes now. On the add-ons page with ticked cards
-    /// not downloaded it stays, and the question opens.
+    /// Done, Skip or Esc: true when the window closes now. With ticked cards not downloaded it
+    /// stays, and the question opens, from either page (Piero, 22/11: Skip on the welcome page too,
+    /// after Back); its Back leaves the page as it was.
     fn leave(&mut self, downloads: &Downloads) -> bool {
-        self.asking = self.plan.pages[self.page] == Page::Addons && !self.waiting(downloads).is_empty();
+        self.asking = !self.waiting(downloads).is_empty();
         !self.asking
     }
 }
@@ -606,7 +607,8 @@ mod tests {
         assert!(!open.leave(&downloads) && open.asking(), "a card ticked, not downloaded");
         assert_eq!(open.waiting(&downloads), [kind]);
         open.page = 0;
-        assert!(open.leave(&downloads) && !open.asking(), "the welcome page closes as before");
+        assert!(!open.leave(&downloads) && open.asking(), "Skip on the welcome page asks too");
+        assert_eq!(open.page, 0, "and its Back goes back there");
         open.page = 1;
         open.rows[0].1 = Have::Downloaded;
         assert!(open.leave(&downloads), "already downloaded");
