@@ -47,12 +47,15 @@ impl App {
 
     /// The comparison read: shown in the viewer in place of the first drawing, with the layers
     /// panel open as its legend.
-    pub(crate) fn on_compared(&mut self, ctx: &egui::Context, r: Result<Compared, String>) {
+    pub(crate) fn on_compared(&mut self, r: Result<Compared, String>) {
         let c = match r {
             Ok(c) => c,
+            // In the error bar, to close and to copy, as every error: it was a line in the status
+            // bar that went after eight seconds.
             Err(e) => {
-                self.status_note = Some(self.i18n.t_args("compare-failed", &[("error", &e)]));
-                self.note_until = Some(ctx.input(|i| i.time) + 8.0);
+                log!("compare: ERROR {e}");
+                (self.status_note, self.note_until) = (None, None);
+                self.error = Some(self.i18n.t_args("compare-failed", &[("error", &e)]));
                 return;
             }
         };

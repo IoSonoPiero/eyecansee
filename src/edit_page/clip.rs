@@ -49,7 +49,12 @@ impl App {
                 ctx.copy_text(format!("#{:02X}{:02X}{:02X}", c[0], c[1], c[2]));
             }
             Err(e) if e == "cancelled" => {}
-            Err(e) => w.note = Some((self.i18n.t_args("edit-pick-failed", &[("detail", &e)]), ctx.input(|i| i.time) + 6.0)),
+            // In the error bar, to close and to copy, as every error: it was a note in the status
+            // bar that went after six seconds.
+            Err(e) => {
+                log!("eyedropper: ERROR {e}");
+                self.error = Some(self.i18n.t_args("edit-pick-failed", &[("detail", &e)]));
+            }
         }
     }
 

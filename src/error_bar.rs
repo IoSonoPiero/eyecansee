@@ -388,4 +388,34 @@ mod tests {
         let host = bar_parts(&host);
         assert_eq!((host.lead, host.lines.len(), host.detail.len()), ("La chiave di nas.local (known_hosts, line 12) è cambiata", 2, 0));
     }
+
+    /// In the app (no screen): what failed is said in the error bar, to close and to copy, not in
+    /// a note of the status bar that goes by itself. Two drawings that could not be compared (the
+    /// note "Comparing…" goes too), and the system's eyedropper that gave no colour, in the editor.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn failures_in_the_bar_not_in_a_passing_note() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        use crate::loader::Msg;
+        if own_folder("error_bar::tests::failures_in_the_bar_not_in_a_passing_note") {
+            return;
+        }
+        let mut h = Harness::new(&folder("failures", &["a.png"]));
+        h.app.status_note = Some(h.app.i18n.t("compare-reading"));
+        h.app.note_until = Some(1e9);
+        h.app.tx.send(Msg::Compared(Err("a.dwg: not a drawing".into()))).unwrap();
+        h.frame(Vec::new());
+        assert_eq!(h.app.error, Some(h.app.i18n.t_args("compare-failed", &[("error", "a.dwg: not a drawing")])));
+        assert!(h.app.status_note.is_none() && h.app.note_until.is_none(), "the note of the comparison stays");
+        h.app.error = None;
+        let a = h.app.files()[0].path.clone();
+        h.app.open_editor(Some(a), crate::edit_page::Tool::Select);
+        h.frame(Vec::new());
+        assert!(h.app.editor.is_some(), "the editor did not open");
+        h.app.tx.send(Msg::EditPicked(Err("no portal".into()))).unwrap();
+        h.frame(Vec::new());
+        assert_eq!(h.app.error, Some(h.app.i18n.t_args("edit-pick-failed", &[("detail", "no portal")])));
+        h.frame(Vec::new());
+        assert!(h.app.error.is_some(), "the error left the editor's page with the next frame");
+    }
 }
