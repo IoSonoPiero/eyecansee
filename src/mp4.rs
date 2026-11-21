@@ -101,8 +101,8 @@ fn with_in_udta(moov: &[u8], extra: &[u8]) -> Option<Vec<u8>> {
 }
 
 /// Offset and size of the top-level box `kind` of a file, reading only the headers.
-fn find_in_file(f: &mut std::fs::File, len: u64, kind: &[u8; 4]) -> std::io::Result<Option<(u64, u64)>> {
-    use std::io::{Read, Seek, SeekFrom};
+fn find_in_file(f: &mut (impl std::io::Read + std::io::Seek), len: u64, kind: &[u8; 4]) -> std::io::Result<Option<(u64, u64)>> {
+    use std::io::SeekFrom;
     let mut at = 0;
     while at + 8 <= len {
         let mut header = [0u8; 16];
@@ -122,8 +122,8 @@ fn find_in_file(f: &mut std::fs::File, len: u64, kind: &[u8; 4]) -> std::io::Res
 }
 
 /// The whole box at `at`, of `size` bytes (at most 64 MB: a `moov` of sample tables).
-fn read_at(f: &mut std::fs::File, at: u64, size: u64) -> std::io::Result<Option<Vec<u8>>> {
-    use std::io::{Read, Seek, SeekFrom};
+fn read_at(f: &mut (impl std::io::Read + std::io::Seek), at: u64, size: u64) -> std::io::Result<Option<Vec<u8>>> {
+    use std::io::SeekFrom;
     if size > 64 << 20 {
         return Ok(None);
     }
@@ -133,18 +133,35 @@ fn read_at(f: &mut std::fs::File, at: u64, size: u64) -> std::io::Result<Option<
     Ok(Some(b))
 }
 
+/// What the preview is written into: the copy, read, written over and cut. A file; in the tests
+/// also one whose writes stop half way, as on a full disk.
+pub(crate) trait Rewritten: std::io::Read + std::io::Write + std::io::Seek {
+    fn set_len(&mut self, len: u64) -> std::io::Result<()>;
+}
+
+impl Rewritten for std::fs::File {
+    fn set_len(&mut self, len: u64) -> std::io::Result<()> {
+        std::fs::File::set_len(self, len)
+    }
+}
+
 /// The camera's preview (`moov/udta/thmb`, a dashcam's) of `original` written into `copy`,
 /// which FFmpeg made without it (it does not know the box). Only when the copy's `moov` is the
 /// last box of the file, as FFmpeg writes it without `+faststart`: the sample tables point to the
 /// media data before it, so `moov` can grow. `false` when there was nothing to do.
 pub fn copy_preview(original: &std::path::Path, copy: &std::path::Path) -> std::io::Result<bool> {
-    use std::io::{Seek, SeekFrom, Write};
+    copy_preview_with(original, copy, |path| std::fs::OpenOptions::new().read(true).write(true).open(path))
+}
+
+/// `copy_preview`, with the copy opened by `open`.
+pub(crate) fn copy_preview_with<C: Rewritten>(original: &std::path::Path, copy: &std::path::Path, open: fn(&std::path::Path) -> std::io::Result<C>) -> std::io::Result<bool> {
+    use std::io::SeekFrom;
     let mut o = std::fs::File::open(original)?;
     let len = o.metadata()?.len();
     let Some((at, size)) = find_in_file(&mut o, len, b"moov")? else { return Ok(false) };
     let Some(thmb) = read_at(&mut o, at, size)?.and_then(|m| thmb_box(m.get(8..)?)) else { return Ok(false) };
-    let mut c = std::fs::OpenOptions::new().read(true).write(true).open(copy)?;
-    let len = c.metadata()?.len();
+    let mut c = open(copy)?;
+    let len = c.seek(SeekFrom::End(0))?;
     let Some((at, size)) = find_in_file(&mut c, len, b"moov")?.filter(|(at, size)| at + size == len) else { return Ok(false) };
     let Some(moov) = read_at(&mut c, at, size)?.and_then(|m| with_in_udta(&m, &thmb)) else { return Ok(false) };
     c.seek(SeekFrom::Start(at))?;
@@ -211,7 +228,7 @@ pub fn turned(video: &[u8], turn: crate::transform::Turn) -> Option<Vec<u8>> {
 pub(crate) mod tests {
     use super::thumbnail;
 
-    fn mp4_box(kind: &[u8; 4], content: &[u8]) -> Vec<u8> {
+    pub(crate) fn mp4_box(kind: &[u8; 4], content: &[u8]) -> Vec<u8> {
         let mut b = ((content.len() + 8) as u32).to_be_bytes().to_vec();
         b.extend_from_slice(kind);
         b.extend_from_slice(content);

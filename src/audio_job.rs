@@ -125,12 +125,15 @@ pub async fn run(op: &Store, (base, path): (&str, &str), out: &Store, dest: &str
     let input = Input::fetch(op, path, (out, dest), p).await?;
     // The same pictures without the audio: the original's thumbnail, not a frame made again.
     let thumb = (job == AudioJob::Strip).then(|| crate::thumbcache::stored(base, path)).flatten();
-    write(&program, &input, (out, dest), job, taken, thumb).await.map_err(|e| e.unwrap_or_else(|e| failed(&name, e)))
+    write(&program, &input, (out, dest), job, taken, thumb, crate::mp4::copy_preview).await.map_err(|e| e.unwrap_or_else(|e| failed(&name, e)))
 }
 
-/// The work of `run` once the video is a local file. `Err(Ok)`: an error with its Fluent id,
-/// `Err(Err)`: what ffmpeg or the copy said.
-async fn write(program: &Path, input: &Input, (out, dest): (&Store, &str), job: AudioJob, taken: &mut HashSet<String>, thumb: Option<(u64, Vec<u8>)>) -> Result<Vec<String>, Result<source::Error, String>> {
+/// What writes the camera's preview of a video into its copy (`mp4::copy_preview`).
+type PutPreview = fn(&Path, &Path) -> std::io::Result<bool>;
+
+/// The work of `run` once the video is a local file, the preview written by `put`. `Err(Ok)`: an
+/// error with its Fluent id, `Err(Err)`: what ffmpeg or the copy said.
+async fn write(program: &Path, input: &Input, (out, dest): (&Store, &str), job: AudioJob, taken: &mut HashSet<String>, thumb: Option<(u64, Vec<u8>)>, put: PutPreview) -> Result<Vec<String>, Result<source::Error, String>> {
     // The original's name: a temporary copy has another one.
     let name = input.name.clone();
     let (p, file) = (program.to_path_buf(), input.file.clone());
@@ -151,7 +154,7 @@ async fn write(program: &Path, input: &Input, (out, dest): (&Store, &str), job: 
         r = input.ffmpeg(program, strip_args(&source, &paths[0], false)).await;
     }
     if r.is_ok() && job == AudioJob::Strip {
-        preview(&input.file, &outputs[0], thumb).await;
+        preview(&input.file, &outputs[0], thumb, put).await;
     }
     send(out, &outputs, &input.phases, r.map_err(Err), Err).await?;
     taken.extend(names);
@@ -161,9 +164,9 @@ async fn write(program: &Path, input: &Input, (out, dest): (&Store, &str), job: 
 /// The video without its audio: the camera's preview, which FFmpeg leaves out, copied from the
 /// original. With it the thumbnail is the same picture as the original's, read from the file;
 /// without it, a frame of the video.
-async fn preview(original: &Path, output: &Output, thumb: Option<(u64, Vec<u8>)>) {
+async fn preview(original: &Path, output: &Output, thumb: Option<(u64, Vec<u8>)>, put: PutPreview) {
     let (original, to) = (original.to_path_buf(), output.file.clone());
-    let copied = tokio::task::spawn_blocking(move || crate::mp4::copy_preview(&original, &to)).await;
+    let copied = tokio::task::spawn_blocking(move || put(&original, &to)).await;
     match &copied {
         Ok(Ok(true)) => log!("ffmpeg: the camera's preview copied into {}", output.to),
         Ok(Err(e)) => log!("ffmpeg: the camera's preview not copied: {e}"),
@@ -233,7 +236,7 @@ mod tests {
             o.write("trip/v-name.mp4", b"the video".to_vec()).await.unwrap();
             let input = Input::fetch(&op, "trip/v-name.mp4", (&op, "out/"), &Arc::new(Progress::default())).await.unwrap();
             let mut taken = HashSet::new();
-            let saved = write(&script, &input, (&op, "out/"), AudioJob::Extract, &mut taken, None).await.unwrap();
+            let saved = write(&script, &input, (&op, "out/"), AudioJob::Extract, &mut taken, None, crate::mp4::copy_preview).await.unwrap();
             assert_eq!(saved, ["out/v-name.m4a"]);
             assert_eq!(op.read("out/v-name.m4a").await.unwrap(), b"the video");
         });
