@@ -498,6 +498,8 @@ opt-tab-look = Look
 opt-tab-viewer = Viewer
 opt-tab-deleting = Deleting
 opt-tab-thumbnails = Thumbnails
+opt-tab-addons = Add-ons
+opt-addons-text = Parts of EyeCanSee that are downloaded only if you want them. Each one is also offered the first time it is needed.
 opt-under-thumbs = Under the thumbnails
 opt-under-thumbs-hint = The details chosen go on one line under the name. With small thumbnails only the name stays.
 opt-under-name = Name
@@ -1929,3 +1931,8 @@ tip-slideshow-text =
     { "**" }View > Slideshow** shows the pictures and videos of the folder one after the other at full screen; with several files selected, only those.
 
     { "**" }Space** pauses, the arrows move at once, **Esc** ends it. The time and the passage between pictures are in **Tools > Options… > Slideshow**.
+tip-addons-title = Add-ons
+tip-addons-text =
+    { "**" }Tools > Options… > Add-ons** lists the parts of EyeCanSee that are downloaded only if you want them: the video engine, FFmpeg to convert videos, the CAD engine.
+
+    Each one says what it is for, its size and whether it is already on this computer; **Download** or **Update** gets it.

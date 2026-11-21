@@ -1,0 +1,7 @@
+# Tip "Add-ons" (docs/tips/): Tools > Options… > Add-ons over the grid of the Holiday folder.
+open /home/demo/Pictures/Holiday
+width 1000
+3 act options
+3.5 click 312 508
+5 shot addons 234 206 732 388
+5.5 end

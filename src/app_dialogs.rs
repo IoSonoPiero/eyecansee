@@ -25,12 +25,15 @@ impl App {
             (OptTab::Resize, t("opt-tab-resize")),
             (OptTab::Deleting, t("opt-tab-deleting")),
             (OptTab::Thumbnails, t("opt-tab-thumbnails")),
+            (OptTab::Addons, t("opt-tab-addons")),
         ];
         let mut purged = false;
         let (i18n, languages) = (&self.i18n, &self.languages);
         let tab = &mut self.options_tab;
         let confirm = &mut self.purge_confirm;
         let s = &mut self.settings;
+        let (addons, downloads) = (&mut self.addons_tab, &self.downloads);
+        let mut download = None;
         // Fixed id: changing language changes the title, and the window must not move.
         // One tab per subject, in a column on the left (eight or more tabs do not fit in a row in
         // every language). Fixed size and in the middle, so changing tab does not make it jump.
@@ -65,11 +68,20 @@ impl App {
                         OptTab::Thumbnails => purged = thumbnails_tab(ui, s, i18n, confirm),
                         OptTab::Editor => editor_tab(ui, s, i18n),
                         OptTab::Resize => crate::presets::options_ui(ui, s, i18n),
+                        OptTab::Addons => download = addons.ui(ui, downloads, i18n),
                     });
                 });
             });
         if !open {
             self.purge_confirm = None;
+            // Read again at the next opening: something may have changed meanwhile.
+            self.addons_tab = Default::default();
+        }
+        // The same download the red buttons and the first-start window start (#212).
+        if let Some(c) = download
+            && self.downloads.start(c, ctx)
+        {
+            log!("options: downloading {}", c.kind);
         }
         if purged {
             log!("thumbnail cache emptied");

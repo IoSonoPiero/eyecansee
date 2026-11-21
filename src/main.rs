@@ -268,6 +268,8 @@ enum OptTab {
     Resize,
     Deleting,
     Thumbnails,
+    /// The add-ons, to download or update (#212).
+    Addons,
 }
 
 /// Images kept in memory around the one open in the viewer, on each side.
@@ -484,6 +486,8 @@ struct App {
     /// Options window open, and its tab.
     options: bool,
     options_tab: OptTab,
+    /// Options > Add-ons, while shown.
+    addons_tab: addons_ui::Tab,
     /// Confirmation of emptying the cache in progress: (thumbnails, bytes).
     purge_confirm: Option<(u64, u64)>,
     /// Sources already gone through cache maintenance in this session.

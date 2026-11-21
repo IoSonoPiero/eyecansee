@@ -496,6 +496,8 @@ opt-tab-look = Aspetto
 opt-tab-viewer = Visore
 opt-tab-deleting = Eliminazione
 opt-tab-thumbnails = Miniature
+opt-tab-addons = Componenti aggiuntivi
+opt-addons-text = Parti di EyeCanSee che si scaricano solo se le vuoi. Ognuna viene proposta anche la prima volta che serve.
 opt-under-thumbs = Sotto le miniature
 opt-under-thumbs-hint = I dati scelti vanno su una riga sotto il nome. Con le miniature piccole resta solo il nome.
 opt-under-name = Nome
@@ -1927,3 +1929,8 @@ tip-slideshow-text =
     { "**" }Visualizza > Carosello** mostra le foto e i video della cartella uno dopo l'altro a tutto schermo; con più file selezionati, solo quelli.
 
     { "**" }Spazio** mette in pausa, le frecce passano subito alla successiva o alla precedente, **Esc** finisce. Il tempo e il passaggio tra le foto sono in **Strumenti > Opzioni… > Carosello**.
+tip-addons-title = Componenti aggiuntivi
+tip-addons-text =
+    { "**" }Strumenti > Opzioni… > Componenti aggiuntivi** elenca le parti di EyeCanSee che si scaricano solo se le vuoi: il motore video, FFmpeg per convertire i video, il motore CAD.
+
+    Ognuna dice a cosa serve, quanto pesa e se è già su questo computer; **Scarica** o **Aggiorna** la prende.

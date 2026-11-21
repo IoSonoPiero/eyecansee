@@ -20,6 +20,12 @@ Su Linux EyeCanSee usa libmpv e FFmpeg del sistema quando sono abbastanza recent
 
 Passando sopra un pulsante rosso si legge che cos'è il componente e quanto pesa.
 
+## Al primo avvio e nelle opzioni
+
+La prima volta che EyeCanSee si avvia, dopo la pagina in cui scegli la lingua e i colori, una pagina elenca i componenti, una scheda ciascuno con a cosa serve e quanto pesa. Niente è spuntato: fai clic sulle schede di quelli che vuoi e premi **Scarica**, oppure **Fine** per andare avanti senza. Ogni scaricamento mostra l'avanzamento nella sua scheda e continua anche dopo aver chiuso la finestra. Un componente già presente su questo computer ha un segno verde. La finestra torna da sola solo quando una versione nuova di EyeCanSee porta un componente nuovo, e allora mostra solo quello.
+
+La stessa lista è sempre in **Strumenti > Opzioni… > Componenti aggiuntivi**, con **Scarica** o **Aggiorna** su ogni componente (vedi [Opzioni](options.md)).
+
 ## Dove vanno
 
 Ogni componente viene dalle release di EyeCanSee su GitHub. La sua impronta SHA-256 è scritta dentro il programma, quindi un file diverso viene rifiutato, e non resta niente al suo posto se lo scaricamento non è completo e controllato. I componenti vanno nella cartella dei dati dell'app:
@@ -33,4 +39,4 @@ Ogni componente viene dalle release di EyeCanSee su GitHub. La sua impronta SHA-
 - Quali libmpv e FFmpeg usare, quelli del sistema o quelli scaricati, si sceglie in **Strumenti > Opzioni… > Video** (vedi [Opzioni](options.md)). La modifica vale dal prossimo avvio di EyeCanSee.
 - Quando una versione nuova di EyeCanSee ha bisogno di un componente più nuovo, lo chiede di nuovo, e quello vecchio viene tolto quando il nuovo è arrivato.
 - Su Windows, disinstallando EyeCanSee si tolgono anche i componenti scaricati.
-- Non c'è ancora una finestra per gestire i componenti. Per toglierne uno, chiudi EyeCanSee ed elimina la sua cartella: verrà proposto di nuovo quando serve.
+- Per togliere un componente, chiudi EyeCanSee ed elimina la sua cartella: verrà proposto di nuovo quando serve.

@@ -37,7 +37,7 @@ macro_rules! pictures {
     };
 }
 
-pictures!["help", "right-click", "cover", "details", "metadata", "slideshow"];
+pictures!["help", "right-click", "cover", "details", "metadata", "slideshow", "addons"];
 
 /// The address egui knows a picture by: the tips' own, otherwise the guide's.
 fn picture_uri(name: &str) -> String {
@@ -65,6 +65,7 @@ pub(crate) const TIPS: &[Tip] = &[
     tip("trash", Some("trash-strip"), "delete"),
     tip("details", Some("details"), "options"),
     tip("slideshow", Some("slideshow"), "slideshow"),
+    tip("addons", Some("addons"), "components"),
 ];
 
 /// Today, as days since 1970 in UTC.

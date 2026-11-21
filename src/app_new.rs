@@ -128,6 +128,7 @@ impl App {
             devices: devices::scan(),
             options: false,
             options_tab: OptTab::General,
+            addons_tab: Default::default(),
             purge_confirm: None,
             update: None,
             update_note: None,

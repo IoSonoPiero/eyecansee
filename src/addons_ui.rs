@@ -198,6 +198,41 @@ fn status_line(ui: &mut egui::Ui, have: &Have, state: &State, total: u64, i18n: 
     ui.add(egui::Label::new(egui::RichText::new(text).weak()).wrap());
 }
 
+/// Options > Add-ons: the same rows, each with Download or Update. Where they are is read when
+/// the tab is first shown and again when one of their downloads ends.
+#[derive(Default)]
+pub(crate) struct Tab {
+    rows: Option<Vec<(Addon, Have)>>,
+    /// The kinds downloading at the last frame.
+    running: Vec<&'static str>,
+}
+
+impl Tab {
+    /// The tab; the add-on whose button was pressed.
+    pub(crate) fn ui(&mut self, ui: &mut egui::Ui, downloads: &crate::downloads::Downloads, i18n: &I18n) -> Option<crate::component::Component> {
+        let running: Vec<_> = crate::component::addons().iter().map(|a| a.component.kind).filter(|k| crate::downloads::running(downloads.get(k))).collect();
+        if running.len() < self.running.len() {
+            self.rows = None;
+        }
+        self.running = running;
+        let rows = self.rows.get_or_insert_with(list);
+        ui.add(egui::Label::new(i18n.t("opt-addons-text")).wrap());
+        ui.add_space(8.0);
+        let mut pressed = None;
+        egui::ScrollArea::vertical().auto_shrink([false, true]).show(ui, |ui| {
+            for (i, (a, have)) in rows.iter().enumerate() {
+                if i > 0 {
+                    ui.add_space(8.0);
+                }
+                if row(ui, (a, have), downloads.get(a.component.kind), i18n, Control::Button) {
+                    pressed = Some(a.component);
+                }
+            }
+        });
+        pressed
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

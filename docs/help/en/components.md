@@ -20,6 +20,12 @@ On Linux, EyeCanSee uses the system's libmpv and FFmpeg when they are recent eno
 
 Pointing at a red button says what the component is and how large it is.
 
+## At the first start and in the options
+
+The first time EyeCanSee starts, after the page where you choose the language and the colors, a page lists the components, one card each with what it is for and its size. Nothing is ticked: click the cards of the ones you want and press **Download**, or **Done** to go on without them. Each download shows its progress in its card and goes on after the window is closed. A component already on this computer has a green mark. The window comes back by itself only when a later version of EyeCanSee brings a new component, and then it shows only that one.
+
+The same list is always in **Tools > Options… > Add-ons**, with **Download** or **Update** on each component (see [Options](options.md)).
+
 ## Where they go
 
 Each component comes from EyeCanSee's own releases on GitHub. Its SHA-256 fingerprint is written inside the program, so a different file is refused, and nothing is left in place unless the download is complete and checked. Components go into the app's data folder:
@@ -33,4 +39,4 @@ Each component comes from EyeCanSee's own releases on GitHub. Its SHA-256 finger
 - Which libmpv and FFmpeg to use, the system's or the downloaded ones, is chosen in **Tools > Options… > Video** (see [Options](options.md)). The change applies the next time EyeCanSee starts.
 - When a new version of EyeCanSee needs a newer component, it asks again, and the old one is removed once the new one is there.
 - On Windows, uninstalling EyeCanSee also removes the downloaded components.
-- There is no window to manage the components yet. To remove one, close EyeCanSee and delete its folder: it is offered again when needed.
+- To remove a component, close EyeCanSee and delete its folder: it is offered again when needed.

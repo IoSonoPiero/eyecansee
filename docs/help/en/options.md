@@ -4,7 +4,7 @@ The options change how EyeCanSee starts, looks, moves between images, deletes, s
 
 ## Opening the options
 
-Choose **Tools > Options…** (![Options…](icon://settings)). The window is divided into tabs: **General**, **Look**, **Viewer**, **Slideshow**, **Video**, **Editor**, **Resize**, **Deleting** and **Thumbnails**, in a column on the left. Pointing at many options shows a short explanation. **Esc** or the window's ✕ closes it.
+Choose **Tools > Options…** (![Options…](icon://settings)). The window is divided into tabs: **General**, **Look**, **Viewer**, **Slideshow**, **Video**, **Editor**, **Resize**, **Deleting**, **Thumbnails** and **Add-ons**, in a column on the left. Pointing at many options shows a short explanation. **Esc** or the window's ✕ closes it.
 
 Every change is saved at once in `settings.json`: in `~/.config/eyecansee` on Linux and in `%APPDATA%\eyecansee` on Windows. It is a text file you can also edit by hand.
 
@@ -75,3 +75,7 @@ See [Deleting and the trash](delete.md).
 - **Under the thumbnails**: what is written under each thumbnail. **Name**, **Dimensions in pixels**, **Size**, **Date**, **Duration** and **Drawing number and revision**, all ticked at first. Dimensions and size go on one row ("1920 × 1080 · 350 KB"; for a DWG or DXF drawing its number and revision first, "A-101 rev. C · 350 KB", from the title block or else from the drawing's title and revision number), the date and the duration of videos and audio files on the row below; with small thumbnails only the name stays. The date is when the photo was taken, if the file says so, otherwise when the file was modified: with the mouse over it, a tip says which one ("Taken on…" or "Modified on…"). Dimensions and date taken are read from each photo with its thumbnail and kept with it, so they come at once the next time, also from phones and servers. The dimensions, date recorded and duration of a video or an audio file are read once, as the File box reads them, and kept the same way; the tip over its date says "Recorded on…".
 - **Clean up the thumbnail cache** (off): once per session, for each location you open, removes the thumbnails of deleted images and makes again those of changed images; then removes the least recently used thumbnails until the cache is within **Cache limit** (1024 MB at first). Folders that cannot be found or reached are skipped, so a disconnected disk or a switched-off NAS keeps its thumbnails.
 - **Empty the thumbnail cache…**: deletes all the saved thumbnails, after a confirmation saying how many and how much space is freed. Your images are not touched: the thumbnails of the open folder are made again at once, the others when you open their folder.
+
+## Add-ons
+
+The parts of EyeCanSee that are downloaded only if you want them (the video engine, FFmpeg, the CAD engine), one card each, with what it is for, its size and where it is: **Downloaded**, **Already on this computer** (the system's, when it fits), a newer version available, or the progress while it downloads. **Download** or **Update** starts the same download the red buttons start, and EyeCanSee uses the component as soon as it arrives. See [Add-on components](components.md).
