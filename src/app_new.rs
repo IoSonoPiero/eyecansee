@@ -44,6 +44,7 @@ impl App {
             scroll_top: false,
             meta: None,
             meta_asked: None,
+            meta_wait: Default::default(),
             retry_at: None,
             scroll_to_device: false,
             bar_drag: None,

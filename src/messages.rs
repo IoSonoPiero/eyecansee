@@ -246,9 +246,15 @@ impl App {
         }
     }
 
-    fn on_meta(&mut self, index: usize, meta: Result<Option<meta::Meta>, String>) {
+    pub(crate) fn on_meta(&mut self, index: usize, meta: Result<Option<meta::Meta>, String>) {
         if let Err(e) = &meta {
             log!("metadata {index}: ERROR {e}");
+        }
+        // The answers do not come in the order asked (one from the cache overtakes a slow one):
+        // that of a file selected before would stay in the panel under the file selected now,
+        // which is not asked again. It is in the cache for when its file is selected.
+        if self.meta_asked != Some((self.generation, index)) {
+            return;
         }
         // A video or an audio file without the engine: why, in words, not libmpv's error.
         let played = self.files().get(index).is_some_and(|f| crate::decode::is_played(&f.path));

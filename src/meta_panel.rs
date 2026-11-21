@@ -53,17 +53,16 @@ impl App {
             loader.load_meta(self.generation, *i, f.clone());
             self.meta_asked = Some((self.generation, *i));
         }
-        // While the new data arrives the previous image's stay: the values that do not change
-        // (make, model, lens…) stay still instead of blinking through "Reading…".
-        let meta = match (&file, &self.meta) {
-            (Some(_), Some((_, m))) => Some(m.clone()),
-            _ => None,
-        };
+        // While the new data arrive the previous image's stay for a moment: the values that do
+        // not change (make, model, lens…) stay still instead of blinking through "Reading…",
+        // which comes only when the answer is slow (`meta_wait`).
+        let (meta, reading) = self.meta_for_boxes(file.as_ref().map(|(i, _)| *i), ui.ctx());
         let t = |id: &str| self.i18n.t(id);
         let drawing = file.as_ref().is_some_and(|(_, f)| crate::cad_convert::can_convert(&f.path));
         let note = match (&file, &meta) {
             (None, _) => t("meta-none-selected"),
-            (Some(_), None) => t("meta-loading"),
+            (Some(_), None) if reading => t("meta-loading"),
+            (Some(_), None) => String::new(),
             (_, Some(Err(e))) => e.clone(),
             (_, Some(Ok(None))) if drawing => t("cad-props-none"),
             (_, Some(Ok(None))) => t("meta-no-exif"),

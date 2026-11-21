@@ -91,6 +91,7 @@ mod messages;
 mod notice_list;
 mod meta;
 mod meta_read;
+mod meta_wait;
 mod measure_model;
 mod measure_view;
 mod meta_panel;
@@ -310,9 +311,11 @@ struct App {
     tree_split: usize,
     /// Folder just opened: the grid starts again from the first preview (unless `remember_scroll`).
     scroll_top: bool,
-    /// Metadata of the selected image (index among the images) and last request made.
+    /// Metadata of the selected image (index among the images), last request made, and since
+    /// when the panel waits for its answer.
     meta: Option<(usize, Result<Option<meta::Meta>, String>)>,
     meta_asked: Option<(u64, usize)>,
+    meta_wait: meta_wait::Wait,
     /// Phone without storage in the open folder: when to read it again (egui time).
     retry_at: Option<f64>,
     /// The framed device was changed from the keyboard: it must be scrolled into view.
