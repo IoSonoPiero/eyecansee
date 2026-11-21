@@ -878,14 +878,15 @@ mod tests {
         let (_, mut h) = guide_over("guide-search-message", copy_ended);
         assert!(h.app.help.typing, "the guide's field has the keyboard over the message");
         let chosen = (h.app.selected, h.app.marked.len(), h.app.dir.clone());
-        type_text(&mut h, "copia");
-        assert_eq!(h.app.help.query, "copia", "typed in the field over the message");
+        // "ftp" is in the guide in every language: the CI runs in English.
+        type_text(&mut h, "ftp");
+        assert_eq!(h.app.help.query, "ftp", "typed in the field over the message");
         assert!(!h.app.help.hits.is_empty(), "and searched");
         h.key(egui::Key::ArrowLeft);
         type_text(&mut h, "x");
-        assert_eq!(h.app.help.query, "copixa", "the arrow moves in the field");
+        assert_eq!(h.app.help.query, "ftxp", "the arrow moves in the field");
         h.key(egui::Key::Backspace);
-        assert_eq!(h.app.help.query, "copia");
+        assert_eq!(h.app.help.query, "ftp");
         // Ctrl+A is the field's: all its text, replaced by the next letter; no file is marked.
         h.frame(vec![pressed(egui::Key::A, egui::Modifiers::COMMAND)]);
         type_text(&mut h, "z");
