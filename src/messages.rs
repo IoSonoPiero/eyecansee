@@ -124,9 +124,9 @@ impl App {
                 }
                 return true;
             }
-            // A saved key that does not open: the server manager on that server, to fix it, and a
-            // message that says it is open there.
-            // The window covers the message in the middle: it is said inside it too.
+            // A saved key that does not open: the server manager on that server, to fix it, with
+            // the message inside it, over the fields of that server. Not in the bar too, as a
+            // login refused (Piero, 21/11, the rule of 20/11): closed there while it lasts.
             Err((id, detail)) if *id == "error-key-failed" && dir == self.dir && self.server_manager.is_none() => {
                 let address = format!("{}{}", self.base, self.dir);
                 let mut f = AddressForm::manager();
@@ -134,6 +134,7 @@ impl App {
                 *id = "error-key-failed-open";
                 f.key_problem = f.chosen.map(|i| (i, self.i18n.t_args(id, &[("detail", detail.as_str())])));
                 self.server_manager = Some(f);
+                self.lasting_closed = Some(self.i18n.error(id, detail));
             }
             _ => {}
         }
@@ -593,5 +594,30 @@ impl App {
             let home = std::env::home_dir().map_or(".".into(), |h| h.to_string_lossy().into_owned());
             self.open_source(ctx, &home);
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::audit_family_1::{Harness, folder, own_folder};
+
+    /// A saved key that does not open: the server manager opens on that server with the message
+    /// inside it, and the bar at the bottom is silent while that error lasts, as for a login
+    /// refused (Piero, 21/11, the rule of 20/11).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn key_failed_said_in_its_window_only() {
+        if own_folder("messages::tests::key_failed_said_in_its_window_only") {
+            return;
+        }
+        let dir = folder("key-failed", &["a.jpg"]);
+        let mut h = Harness::new(&dir);
+        let (ctx, here) = (h.ctx.clone(), h.app.dir.clone());
+        h.app.on_listed(&ctx, here, Err(("error-key-failed", "nas.local".into())));
+        h.frame(Vec::new());
+        assert!(h.app.server_manager.is_some(), "the server manager opened");
+        let error = h.app.folder_error();
+        assert!(error.as_deref().is_some_and(|e| e.contains("nas.local")), "the folder's error: {error:?}");
+        assert_eq!(h.app.lasting_closed, error, "the bar is silent on it");
     }
 }

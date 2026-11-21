@@ -24,7 +24,7 @@ Choose **File > Server manager…** (![Server manager…](icon://server)). If th
 
 ## How a saved server logs in
 
-A saved server logs in **only** with the password and key saved here, never with the SSH agent or the system's keys in `~/.ssh`. If the key does not open (wrong passphrase, missing file), there is no login, and the server manager opens on that server so you can fix it; the message says it is open there, and inside the window it is repeated in red above the fields of that server until you save it. If the server manager was already open, the message asks you to fix the key in **File > Server manager**.
+A saved server logs in **only** with the password and key saved here, never with the SSH agent or the system's keys in `~/.ssh`. If the key does not open (wrong passphrase, missing file), there is no login, and the server manager opens on that server so you can fix it: the message is inside the window, above the fields of that server, until you save it, and not in the bar at the bottom too. If the server manager was already open, the message asks you to fix the key in **File > Server manager**.
 
 An address that matches a saved server (same protocol, server, port and user), typed in the address bar or reopened at startup, uses its password and key too.
 
