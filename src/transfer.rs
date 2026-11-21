@@ -157,7 +157,13 @@ async fn dest_place(clip: &Clip, to: &Store, to_base: &str, to_dir: &str) -> Opt
         (Store::Sftp(_), Store::Sftp(_)) => clip.base == to_base,
         _ => false,
     };
-    if comparable { real_place(to, to_dir).await } else { None }
+    if comparable && COMPARE_PLACES.with(|c| c.get()) { real_place(to, to_dir).await } else { None }
+}
+
+thread_local! {
+    /// Off only in tests: as between two sources whose real places cannot be compared (a server
+    /// through SFTP and through FTP), to test what keeps the files then (`originals::not_the_same`).
+    static COMPARE_PLACES: std::cell::Cell<bool> = const { std::cell::Cell::new(true) };
 }
 
 /// Whether `to_dir` is the folder `p` of the clip or lies inside it: by the paths on one source,
@@ -328,6 +334,9 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
         // own left behind); of a folder only what was copied (`originals`). A folder with an item
         // left out because of its name stays whole.
         if clip.cut && !left_below(src, p) {
+            if item.2 && !same {
+                originals::not_the_same(&clip.op, src, to, &item.1).await?;
+            }
             for (s, _, _) in sides {
                 clip.op.delete(s, Deletion::Permanent).await?;
             }
@@ -1212,5 +1221,38 @@ mod tests {
         assert_eq!(plan(Choice::KeepBoth, true), [("p/IMG_001 (2).JPG".to_string(), false), ("p/Album (2)/".to_string(), false)]);
         assert_eq!(plan(Choice::Replace, false), [("p/IMG_001.JPG".to_string(), false), ("p/Album/".to_string(), false)]);
         assert_eq!(plan(Choice::KeepBoth, false), [("p/IMG_001 (2).JPG".to_string(), false), ("p/Album (2)/".to_string(), false)]);
+    }
+
+    /// #195: a move onto itself between two sources whose real places cannot be compared (here two
+    /// local ones with the comparison off, as a server through SFTP and through FTP), answered
+    /// Replace or Merge: the copy goes over itself, and the original must not then be deleted as
+    /// such. The move stops, saying so; everything stays.
+    #[test]
+    fn move_onto_itself_where_places_are_not_known() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let dir = std::env::temp_dir().join(format!("eyecansee-same-item-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("Photos/sub")).unwrap();
+        std::fs::write(dir.join("Photos/a.jpg"), b"the only copy").unwrap();
+        std::fs::write(dir.join("Photos/sub/b.jpg"), b"the only b").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let replace = HashMap::from([("Photos/a.jpg".to_string(), Choice::Replace), ("Photos/sub/".to_string(), Choice::Replace)]);
+        COMPARE_PLACES.with(|c| c.set(false));
+        rt.block_on(async {
+            for item in ["Photos/a.jpg", "Photos/sub/"] {
+                let clip = Clip { op: op.clone(), base: "test-sftp://box/".into(), paths: vec![item.into()], cut: true, text: String::new() };
+                assert_eq!(conflicts(&clip, &op, "test-ftp://box/", "Photos/").await.unwrap(), [item], "asked, as a name there");
+                let (gone, r) = run(&clip, &op, "test-ftp://box/", "Photos/", &replace, &Progress::default()).await;
+                assert_eq!(r.unwrap_err(), ("error-move-same-item", crate::source::name(item).to_string()));
+                assert!(gone.is_empty());
+            }
+        });
+        COMPARE_PLACES.with(|c| c.set(true));
+        assert_eq!(std::fs::read(dir.join("Photos/a.jpg")).unwrap(), b"the only copy");
+        assert_eq!(std::fs::read(dir.join("Photos/sub/b.jpg")).unwrap(), b"the only b");
+        let mut names: Vec<String> = std::fs::read_dir(dir.join("Photos")).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
+        names.sort();
+        assert_eq!(names, ["a.jpg", "sub"], "nothing left aside");
+        std::fs::remove_dir_all(&dir).unwrap();
     }
 }

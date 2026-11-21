@@ -170,6 +170,10 @@ transfer-links-kept = { $n ->
 }
 transfer-links-why = A link to a folder on an FTP server, or one that leads back into the folders copied, is left out.
     More in the guide (F1).
+error-move-same-item = What it would replace is this same item, reached in another way: { $detail }
+    The move stopped, and the item stayed as it was.
+error-move-not-told = It cannot be told whether what it would replace is this same item: { $detail }
+    The move stopped before deleting it: it was copied, and it also stayed where it was.
 error-paste-inside = A folder cannot go inside itself: { $detail }
 error-name-too-long = The name is too long for the phone: { $detail } characters, while a phone takes at most 254 (an emoji counts as two).
     Shorten it and try again; nothing was copied.

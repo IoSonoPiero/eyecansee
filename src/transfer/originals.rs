@@ -6,7 +6,30 @@
 use std::collections::HashSet;
 
 use super::Progress;
-use crate::source::{Deletion, Error, NOT_FOUND, Store, parent};
+use crate::source::{Deletion, Error, NOT_FOUND, Store, name, parent};
+
+/// Before the original `src` of an item that replaced or merged into `dest` of another source is
+/// deleted: whether the two are one and the same, reached in two ways where the real places cannot
+/// be compared (the same server through SFTP and FTP, a NAS through gvfs and SFTP; #195). The
+/// original steps aside under a hidden name for a moment: if `dest` goes with it, they are one,
+/// the original gets its name back and the move stops, saying so; written over itself, it would
+/// have been deleted as the original. A source that cannot rename stops too: it cannot be told.
+pub(super) async fn not_the_same(from: &Store, src: &str, to: &Store, dest: &str) -> Result<(), Error> {
+    let own = name(src);
+    let aside = from.rename(src, &format!(".{own}.eyecansee-moving")).await.map_err(|e| {
+        log!("move: {src:?} not put aside to tell it from {dest:?}: {e:?}");
+        ("error-move-not-told", own.to_string())
+    })?;
+    let still = to.names(&parent(dest)).await.map(|n| n.contains(name(dest)));
+    let back = from.rename(&aside, own).await;
+    log!("move: {src:?} aside, {dest:?} still there: {still:?}; back: {back:?}");
+    back?;
+    match still {
+        Ok(true) => Ok(()),
+        Ok(false) => Err(("error-move-same-item", own.to_string())),
+        Err(e) => Err(e),
+    }
+}
 
 /// Deletes the original `src` of an item moved between devices. `copied`: what of it was copied
 /// (a folder: itself, then the folders and files found below it, as listed before the copy).

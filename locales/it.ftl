@@ -200,6 +200,10 @@ list-more = { $n ->
    *[other] e altri { $n }
 }
 error-copy-not-made = Il telefono non ha fatto la copia di { $detail }: l'originale non è stato toccato.
+error-move-same-item = Quello che sostituirebbe è questo stesso elemento, raggiunto da un'altra strada: { $detail }
+    Lo spostamento si è fermato, e l'elemento è rimasto com'era.
+error-move-not-told = Non si può sapere se quello che sostituirebbe è questo stesso elemento: { $detail }
+    Lo spostamento si è fermato prima di cancellarlo: è stato copiato, ed è rimasto anche dove era.
 error-paste-inside = Una cartella non può andare dentro sé stessa: { $detail }
 error-cancelled = Annullato.
 error-too-deep = Troppe cartelle una dentro l'altra, quindi la copia si è fermata: { $detail }
