@@ -114,6 +114,41 @@ fn window_id() -> egui::Id {
 /// Two presses of Esc within this many seconds close the guide.
 const DOUBLE_ESC: f64 = 0.5;
 
+/// With a window that asks open, what `raw_input_hook` leaves in the input instead of taking it
+/// for that window: F1, and, while the guide's search field has the keyboard (`typing`), the text
+/// and the keys that edit it, with Esc, which leaves it. The hook took them all, and nothing
+/// could be searched with the guide over a message (#196). Not Enter (it stays an answer, which
+/// the guide takes: `help_esc`), nor Tab (it would walk to the buttons of the window under), nor
+/// the keys of the letters: the field needs their text only.
+pub(crate) fn stays(typing: bool, event: &egui::Event) -> bool {
+    use egui::Key;
+    match event {
+        egui::Event::Key { key: Key::F1, .. } => true,
+        egui::Event::Text(_) => typing,
+        egui::Event::Key { key, modifiers, .. } => {
+            let edits = matches!(key, Key::Escape | Key::Backspace | Key::Delete | Key::ArrowLeft | Key::ArrowRight | Key::ArrowUp | Key::ArrowDown | Key::Home | Key::End);
+            typing && (edits || modifiers.command && matches!(key, Key::A | Key::Z | Key::Y))
+        }
+        _ => false,
+    }
+}
+
+/// A key or some text: what `held_back` keeps for the guide's search field.
+fn is_typed(event: &egui::Event) -> bool {
+    matches!(event, egui::Event::Key { .. } | egui::Event::Text(_))
+}
+
+/// The keys and the text of this frame taken out of the input, for the guide's search field
+/// alone with a window under the guide (`search_field` gives them to it while it is drawn):
+/// nothing drawn before or after the field reads them, neither the page (the slideshow reads the
+/// arrows whoever has the keyboard) nor the window under the guide (a tip does too).
+fn held_back(input: &mut egui::InputState) -> Vec<egui::Event> {
+    let (typed, rest) = std::mem::take(&mut input.events).into_iter().partition(is_typed);
+    input.events = rest;
+    input.keys_down.clear();
+    typed
+}
+
 /// The guide's window: open or not, the page shown, the history and the search.
 pub(crate) struct Guide {
     pub(crate) open: bool,
@@ -134,6 +169,9 @@ pub(crate) struct Guide {
     typing: bool,
     /// The search field takes the keyboard at the next frame: the guide has just opened.
     focus: bool,
+    /// The keys and the text of this frame for the search field alone, with a window under the
+    /// guide: out of the input (`held_back`) until the field is drawn.
+    typed: Vec<egui::Event>,
 }
 
 impl Default for Guide {
@@ -151,6 +189,7 @@ impl Default for Guide {
             last_esc: None,
             typing: false,
             focus: false,
+            typed: vec![],
         }
     }
 }
@@ -165,6 +204,11 @@ fn fresh_cache() -> CommonMarkCache {
 }
 
 impl Guide {
+    /// The guide is open and its search field had the keyboard in the frame before.
+    pub(crate) fn in_field(&self) -> bool {
+        self.open && self.typing
+    }
+
     /// Another page; the one left goes in the history.
     fn go(&mut self, id: &'static str) {
         if id != self.page {
@@ -235,14 +279,10 @@ impl Guide {
         self.settle = None;
     }
 
-    /// An Esc for the guide at `now` (seconds): true when it closes the guide. Over a window
-    /// (`App::under_guide`) the guide is the window on top and one Esc closes it, as one closes
-    /// a message (#196); over the pages, the second within `DOUBLE_ESC` (one leaves the field).
-    fn esc(&mut self, now: f64, over_window: bool) -> bool {
-        if over_window {
-            self.last_esc = None;
-            return true;
-        }
+    /// An Esc for the guide at `now` (seconds): true when it closes the guide, the second within
+    /// `DOUBLE_ESC` (one leaves the field). The same everywhere, over a window too
+    /// (`App::under_guide`).
+    fn esc(&mut self, now: f64) -> bool {
         let double = self.last_esc.is_some_and(|t| now - t <= DOUBLE_ESC);
         self.last_esc = if double { None } else { Some(now) };
         double
@@ -346,11 +386,13 @@ impl App {
     /// Before drawing: an Esc over the guide (the pointer on it, or typing in its search field)
     /// is the guide's and reaches nothing under it (viewer, editor, slideshow). Once it only
     /// leaves the field (egui does it); twice within `DOUBLE_ESC` it closes the guide. Over a
-    /// window (`under_guide`) the guide is on top: wherever the pointer is, Esc is the guide's
-    /// and one closes it; Enter and Esc taken for the window that asks (`delete_answer`) are the
-    /// guide's too, so Enter answers nothing under it (it confirmed a deletion under the guide,
-    /// #196), and so is Enter in the guide's field (Open location under it read it and opened).
+    /// window (`under_guide`) the guide is on top: wherever the pointer is, Esc is the guide's,
+    /// and two close it there too; Enter and Esc taken for the window that asks (`delete_answer`)
+    /// are the guide's, so Enter answers nothing under it (it confirmed a deletion under the
+    /// guide, #196), and so is Enter in the guide's field (Open location under it read it and
+    /// opened). What is typed in the field over a window is held back for the field (`held_back`).
     pub(crate) fn help_esc(&mut self, ctx: &egui::Context) {
+        self.help.typed.clear();
         if !self.help.open {
             return;
         }
@@ -363,12 +405,14 @@ impl App {
         }
         let field = under && self.help.typing;
         let (esc, now) = ctx.input_mut(|i| {
+            let esc = i.consume_key(egui::Modifiers::NONE, egui::Key::Escape);
             if field {
                 i.consume_key(egui::Modifiers::NONE, egui::Key::Enter);
+                self.help.typed = held_back(i);
             }
-            (i.consume_key(egui::Modifiers::NONE, egui::Key::Escape), i.time)
+            (esc, i.time)
         });
-        if (esc || answer == Some(false)) && self.help.esc(now, under) {
+        if (esc || answer == Some(false)) && self.help.esc(now) {
             log!("help: closed with Esc");
             self.help.open = false;
             self.help.typing = false;
@@ -553,7 +597,14 @@ fn search_field(ui: &mut egui::Ui, g: &mut Guide, v: &View, todo: &mut Option<Do
             g.query.clear();
             *todo = Some(Do::Search);
         }
+        // What was held back for the field (`held_back`): in the input only while it is drawn.
+        let typed = std::mem::take(&mut g.typed);
+        let held = !typed.is_empty();
+        ui.input_mut(|i| i.events.extend(typed));
         let field = ui.add(egui::TextEdit::singleline(&mut g.query).hint_text(&v.hint).desired_width(f32::INFINITY));
+        if held {
+            ui.input_mut(|i| i.events.retain(|e| !is_typed(e)));
+        }
         if std::mem::take(&mut g.focus) {
             field.request_focus();
         }
@@ -692,21 +743,50 @@ mod tests {
     #[test]
     fn double_esc() {
         let mut g = Guide::default();
-        assert!(!g.esc(10.0, false));
-        assert!(g.esc(10.4, false));
-        assert!(!g.esc(10.5, false), "a third press starts again");
-        assert!(!g.esc(11.2, false), "too late");
-        assert!(g.esc(11.6, false));
+        assert!(!g.esc(10.0));
+        assert!(g.esc(10.4));
+        assert!(!g.esc(10.5), "a third press starts again");
+        assert!(!g.esc(11.2), "too late");
+        assert!(g.esc(11.6));
     }
 
-    /// Over a window the guide is on top: one Esc closes it, and the next one over the pages
-    /// starts a double Esc again.
+    fn pressed(key: egui::Key, modifiers: egui::Modifiers) -> egui::Event {
+        egui::Event::Key { key, physical_key: None, pressed: true, repeat: false, modifiers }
+    }
+
+    /// With a window that asks, F1 always stays in the input; the text and the keys that edit
+    /// only while the guide's search field has the keyboard, and never Enter, Tab, a function
+    /// key or the key of a letter.
     #[test]
-    fn one_esc_over_a_window() {
-        let mut g = Guide::default();
-        assert!(!g.esc(10.0, false));
-        assert!(g.esc(10.1, true));
-        assert!(!g.esc(10.2, false), "a new double Esc");
+    fn what_stays_for_the_search_field() {
+        use egui::{Key, Modifiers as M};
+        let text = egui::Event::Text("c".into());
+        assert!(stays(false, &pressed(Key::F1, M::NONE)) && stays(true, &pressed(Key::F1, M::NONE)));
+        assert!(stays(true, &text) && !stays(false, &text));
+        for key in [Key::Backspace, Key::Delete, Key::ArrowLeft, Key::ArrowRight, Key::Home, Key::End, Key::Escape] {
+            assert!(stays(true, &pressed(key, M::NONE)) && stays(true, &pressed(key, M::SHIFT)), "{key:?} in the field");
+            assert!(!stays(false, &pressed(key, M::NONE)), "{key:?} out of the field");
+        }
+        for key in [Key::A, Key::Z, Key::Y] {
+            assert!(stays(true, &pressed(key, M::COMMAND)) && !stays(true, &pressed(key, M::NONE)) && !stays(false, &pressed(key, M::COMMAND)), "{key:?}");
+        }
+        for key in [Key::Enter, Key::Tab, Key::Space, Key::F5, Key::F11, Key::C] {
+            assert!(!stays(true, &pressed(key, M::NONE)), "{key:?}");
+        }
+        assert!(!stays(true, &egui::Event::Copy), "what is not a key is not this function's");
+    }
+
+    /// What is held back for the field leaves the input, keys held included; the rest stays.
+    #[test]
+    fn keys_held_back_leave_the_input() {
+        let mut i = egui::InputState::default();
+        i.events = vec![pressed(egui::Key::ArrowRight, egui::Modifiers::NONE), egui::Event::Text("a".into()), egui::Event::Copy, egui::Event::PointerGone];
+        i.keys_down.insert(egui::Key::ArrowRight);
+        let typed = held_back(&mut i);
+        assert_eq!(typed.len(), 2);
+        assert!(typed.iter().all(is_typed));
+        assert_eq!(i.events, vec![egui::Event::Copy, egui::Event::PointerGone]);
+        assert!(!i.key_pressed(egui::Key::ArrowRight) && !i.key_down(egui::Key::ArrowRight));
     }
 
     use crate::test_app::{Harness, folder, own_folder};
@@ -729,34 +809,166 @@ mod tests {
         (dir, h)
     }
 
+    /// `text` typed as the window gives it: for every letter its key pressed, its text, its key
+    /// released.
+    fn type_text(h: &mut Harness, text: &str) {
+        for c in text.chars() {
+            let key = egui::Key::from_name(&c.to_uppercase().to_string()).unwrap();
+            let ev = |pressed| egui::Event::Key { key, physical_key: None, pressed, repeat: false, modifiers: egui::Modifiers::NONE };
+            h.frame(vec![ev(true), egui::Event::Text(c.to_string()), ev(false)]);
+        }
+    }
+
+    /// One Esc: the guide stays open. A second at once: closed.
+    fn esc_twice(h: &mut Harness) {
+        h.key(egui::Key::Escape);
+        h.frame(Vec::new());
+        assert!(h.app.help.open, "one Esc closed the guide");
+        h.key(egui::Key::Escape);
+        h.frame(Vec::new());
+        assert!(!h.app.help.open, "two Esc left the guide open");
+    }
+
+    /// The message at the end of a copy.
+    fn copy_ended(app: &mut App) {
+        app.notice = Some(crate::save_dialogs::Notice::new("Copy finished".into(), "Some links left out.".into()));
+    }
+
     /// R10 of 2026-11-21: with the guide opened by F1 over the message at the end of a copy,
     /// Esc closed the message under it and left the guide open. The guide is the window on top:
-    /// Esc closes it, and the next Esc the message (#196).
+    /// Esc is its own, two close it as everywhere, and the next Esc closes the message (#196).
     #[test]
     #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
     fn esc_closes_the_guide_over_a_message() {
         if own_folder("help::tests::esc_closes_the_guide_over_a_message") {
             return;
         }
-        let (_, mut h) = guide_over("guide-message", |app| {
-            app.notice = Some(crate::save_dialogs::Notice::new("Copy finished".into(), "Some links left out.".into()));
-        });
+        let (_, mut h) = guide_over("guide-message", copy_ended);
         h.key(egui::Key::F1);
         h.frame(Vec::new());
         assert!(!h.app.help.open && h.app.notice.is_some(), "F1 again closes the guide only");
         h.key(egui::Key::F1);
         h.frame(Vec::new());
         assert!(h.app.help.open, "and opens it again");
-        h.key(egui::Key::Escape);
-        h.frame(Vec::new());
-        assert!(!h.app.help.open && h.app.notice.is_some(), "Esc closes the guide and leaves the message (guide open {}, message {})", h.app.help.open, h.app.notice.is_some());
+        // Two Esc too far apart: neither closes the guide, neither reaches the message.
+        for _ in 0..2 {
+            h.key(egui::Key::Escape);
+            for _ in 0..40 {
+                h.frame(Vec::new());
+            }
+            assert!(h.app.help.open && h.app.notice.is_some(), "a single Esc (guide open {}, message {})", h.app.help.open, h.app.notice.is_some());
+        }
+        esc_twice(&mut h);
+        assert!(h.app.notice.is_some(), "two Esc close the guide and leave the message");
         h.key(egui::Key::Escape);
         h.frame(Vec::new());
         assert!(h.app.notice.is_none(), "the next Esc closes the message");
     }
 
+    /// With the guide over the message at the end of a copy nothing could be typed in its search
+    /// field: the keys were all taken for the message (Piero, 2026-11-21). Now the text and the
+    /// keys that edit it are the field's, and nothing else reads them: not the grid, not the
+    /// message, which Enter does not close either.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn search_in_the_guide_over_a_message() {
+        if own_folder("help::tests::search_in_the_guide_over_a_message") {
+            return;
+        }
+        let (_, mut h) = guide_over("guide-search-message", copy_ended);
+        assert!(h.app.help.typing, "the guide's field has the keyboard over the message");
+        let chosen = (h.app.selected, h.app.marked.len(), h.app.dir.clone());
+        type_text(&mut h, "copia");
+        assert_eq!(h.app.help.query, "copia", "typed in the field over the message");
+        assert!(!h.app.help.hits.is_empty(), "and searched");
+        h.key(egui::Key::ArrowLeft);
+        type_text(&mut h, "x");
+        assert_eq!(h.app.help.query, "copixa", "the arrow moves in the field");
+        h.key(egui::Key::Backspace);
+        assert_eq!(h.app.help.query, "copia");
+        // Ctrl+A is the field's: all its text, replaced by the next letter; no file is marked.
+        h.frame(vec![pressed(egui::Key::A, egui::Modifiers::COMMAND)]);
+        type_text(&mut h, "z");
+        assert_eq!(h.app.help.query, "z", "Ctrl+A selects the text of the field");
+        for key in [egui::Key::ArrowRight, egui::Key::ArrowDown, egui::Key::End, egui::Key::Home, egui::Key::Delete, egui::Key::F5, egui::Key::Tab] {
+            h.frame(vec![pressed(key, egui::Modifiers::NONE)]);
+            assert!(!h.ctx.input(|i| i.events.iter().any(is_typed)), "{key:?} left in the input for what is under the guide");
+            h.frame(Vec::new());
+            assert_eq!((h.app.selected, h.app.marked.len(), h.app.dir.clone()), chosen, "{key:?} reached the grid");
+            assert!(h.app.notice.is_some() && h.app.delete_confirm.is_none() && h.app.help.typing, "{key:?} reached the message, or left the field");
+        }
+        h.key(egui::Key::Enter);
+        settle(&mut h);
+        assert!(h.app.notice.is_some() && h.app.help.open && h.app.help.typing, "Enter in the guide's field closed the message, or left the field");
+        esc_twice(&mut h);
+        assert!(h.app.notice.is_some(), "two Esc close the guide and leave the message");
+        h.key(egui::Key::Escape);
+        h.frame(Vec::new());
+        assert!(h.app.notice.is_none(), "the third Esc closes the message");
+    }
+
+    /// The same over a deletion asked: the search field takes what is typed, and Enter never
+    /// deletes, neither in the field nor out of it.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn search_in_the_guide_over_a_deletion() {
+        if own_folder("help::tests::search_in_the_guide_over_a_deletion") {
+            return;
+        }
+        let (dir, mut h) = guide_over("guide-search-delete", |app| {
+            let a = app.files().iter().find(|f| f.path.ends_with("a.jpg")).unwrap().path.clone();
+            app.ask_delete_paths(vec![a], false, None);
+        });
+        assert!(h.app.help.typing, "the guide's field has the keyboard over the deletion");
+        type_text(&mut h, "elimina");
+        assert_eq!(h.app.help.query, "elimina", "typed in the field over the deletion");
+        enter_answers_nothing(&mut h, &dir);
+        assert!(h.app.help.typing, "Enter left the field");
+        h.key(egui::Key::Delete);
+        h.key(egui::Key::Backspace);
+        assert_eq!(h.app.help.query, "elimin");
+        h.key(egui::Key::Escape);
+        h.frame(Vec::new());
+        assert!(h.app.help.open && !h.app.help.typing && h.app.delete_confirm.is_some(), "one Esc leaves the field only");
+        // Out of the field the keys are the deletion's again, but Enter and Esc go to the guide.
+        // After more than `DOUBLE_ESC`: the next Esc is a first one again.
+        for _ in 0..40 {
+            h.frame(Vec::new());
+        }
+        type_text(&mut h, "x");
+        assert_eq!(h.app.help.query, "elimin", "typed out of the field");
+        enter_answers_nothing(&mut h, &dir);
+        esc_twice(&mut h);
+        assert!(h.app.delete_confirm.is_some() && dir.join("a.jpg").exists(), "two Esc close the guide and leave the deletion asked");
+        h.key(egui::Key::Escape);
+        settle(&mut h);
+        assert!(h.app.delete_confirm.is_none() && dir.join("a.jpg").exists(), "the third Esc cancels the deletion");
+    }
+
+    /// Over a page, as before: what is typed goes in the field, one Esc leaves it, and with the
+    /// pointer on the guide the second closes the guide.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn two_esc_close_the_guide_over_a_page() {
+        if own_folder("help::tests::two_esc_close_the_guide_over_a_page") {
+            return;
+        }
+        let dir = folder("guide-page", &["a.jpg", "b.jpg"]);
+        let mut h = Harness::new(&dir);
+        let under = (h.app.dir.clone(), h.app.selected, h.app.viewing);
+        h.key(egui::Key::F1);
+        h.frame(Vec::new());
+        assert!(h.app.help.open && h.app.help.typing && h.app.help.page == "grid", "the guide over the grid, its field with the keyboard");
+        type_text(&mut h, "zoom");
+        assert_eq!(h.app.help.query, "zoom");
+        let on_guide = h.ctx.memory(|m| m.area_rect(window_id())).unwrap().center();
+        h.frame(vec![egui::Event::PointerMoved(on_guide)]);
+        esc_twice(&mut h);
+        assert_eq!((h.app.dir.clone(), h.app.selected, h.app.viewing), under, "the grid under the guide");
+    }
+
     /// The guide over a deletion asked: Enter is not the deletion's (it would delete the file
-    /// under the guide), Esc closes the guide, and then the deletion answers again.
+    /// under the guide), two Esc close the guide, and then the deletion answers again.
     #[test]
     #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
     fn enter_and_esc_with_the_guide_over_a_deletion() {
@@ -769,9 +981,8 @@ mod tests {
         });
         assert_eq!(h.app.help.page, "delete");
         enter_answers_nothing(&mut h, &dir);
-        h.key(egui::Key::Escape);
-        h.frame(Vec::new());
-        assert!(!h.app.help.open && h.app.delete_confirm.is_some(), "Esc closes the guide and leaves the deletion asked");
+        esc_twice(&mut h);
+        assert!(h.app.delete_confirm.is_some(), "two Esc close the guide and leave the deletion asked");
         h.key(egui::Key::Escape);
         settle(&mut h);
         assert!(h.app.delete_confirm.is_none() && dir.join("a.jpg").exists(), "the next Esc cancels the deletion");
@@ -806,9 +1017,8 @@ mod tests {
         let layer = egui::LayerId::new(egui::Order::Foreground, window_id());
         assert!(h.app.help.open && h.ctx.memory(|m| m.is_above_modal_layer(layer)), "the guide over the deletion");
         enter_answers_nothing(&mut h, &dir);
-        h.key(egui::Key::Escape);
-        h.frame(Vec::new());
-        assert!(!h.app.help.open && h.app.delete_confirm.is_some(), "Esc closes the guide and leaves the deletion asked");
+        esc_twice(&mut h);
+        assert!(h.app.delete_confirm.is_some(), "two Esc close the guide and leave the deletion asked");
     }
 
     /// Open location under the guide, its address filled in, the guide's search field with the
@@ -821,15 +1031,16 @@ mod tests {
         }
         let other = folder("guide-address-other", &["c.jpg"]);
         let url = format!("{}/", other.display());
-        let (_, mut h) = guide_over("guide-address", |app| app.open_address = Some(crate::address::AddressForm { url, ..crate::address::AddressForm::new() }));
+        let (_, mut h) = guide_over("guide-address", |app| app.open_address = Some(crate::address::AddressForm { url: url.clone(), ..crate::address::AddressForm::new() }));
         let dir = h.app.dir.clone();
         assert!(h.app.help.typing, "the guide's field has the keyboard");
+        type_text(&mut h, "ftp");
+        assert_eq!((h.app.help.query.as_str(), h.app.open_address.as_ref().map(|f| f.url.clone())), ("ftp", Some(url)), "typed in the guide's field, not in the address");
         h.key(egui::Key::Enter);
         settle(&mut h);
         assert!(h.app.open_address.is_some() && h.app.dir == dir, "Enter in the guide opened the address under it (folder {:?})", h.app.dir);
-        h.key(egui::Key::Escape);
-        h.frame(Vec::new());
-        assert!(!h.app.help.open && h.app.open_address.is_some(), "Esc closes the guide and leaves Open location");
+        esc_twice(&mut h);
+        assert!(h.app.open_address.is_some(), "two Esc close the guide and leave Open location");
     }
 
     /// About is not a modal: the guide goes over it too, and takes Esc first.
@@ -842,10 +1053,34 @@ mod tests {
         let (_, mut h) = guide_over("guide-about", |app| app.about = true);
         h.key(egui::Key::Escape);
         h.frame(Vec::new());
-        assert!(!h.app.help.open && h.app.about, "Esc closes the guide and leaves About");
+        assert!(h.app.help.open && h.app.about, "one Esc closes neither the guide nor About");
+        h.key(egui::Key::Escape);
+        h.frame(Vec::new());
+        assert!(!h.app.help.open && h.app.about, "two Esc close the guide and leave About");
         h.key(egui::Key::Escape);
         h.frame(Vec::new());
         assert!(!h.app.about, "the next Esc closes About");
+    }
+
+    /// Options is no question and no modal: over it too the guide takes Esc first, two close it.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn esc_closes_the_guide_over_options() {
+        if own_folder("help::tests::esc_closes_the_guide_over_options") {
+            return;
+        }
+        let (_, mut h) = guide_over("guide-options", |app| app.options = true);
+        type_text(&mut h, "tema");
+        assert_eq!(h.app.help.query, "tema");
+        h.key(egui::Key::Escape);
+        h.frame(Vec::new());
+        assert!(h.app.help.open && h.app.options, "one Esc closes neither the guide nor Options");
+        h.key(egui::Key::Escape);
+        h.frame(Vec::new());
+        assert!(!h.app.help.open && h.app.options, "two Esc close the guide and leave Options");
+        h.key(egui::Key::Escape);
+        h.frame(Vec::new());
+        assert!(!h.app.options, "the next Esc closes Options");
     }
 
     /// The guide over the server manager, a window with fields, once the guide's field has let
@@ -860,9 +1095,8 @@ mod tests {
         h.ctx.memory_mut(|m| m.surrender_focus(m.focused().unwrap_or(egui::Id::NULL)));
         h.frame(Vec::new());
         h.frame(Vec::new());
-        h.key(egui::Key::Escape);
-        h.frame(Vec::new());
-        assert!(!h.app.help.open && h.app.server_manager.is_some(), "Esc closes the guide and leaves the server manager (guide open {})", h.app.help.open);
+        esc_twice(&mut h);
+        assert!(h.app.server_manager.is_some(), "two Esc close the guide and leave the server manager");
         h.key(egui::Key::Escape);
         h.frame(Vec::new());
         assert!(h.app.server_manager.is_none(), "the next Esc closes the server manager");

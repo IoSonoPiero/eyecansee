@@ -7,8 +7,7 @@ Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto 
 | Tasto | Azione |
 |---|---|
 | F1 | Apre questa guida sulla pagina di ciò che stai facendo; di nuovo per chiuderla |
-| Esc due volte, di seguito | Chiude questa guida, col puntatore sopra o mentre scrivi nel suo campo di ricerca (un solo Esc esce dal campo) |
-| Esc | Chiude questa guida quando è sopra una finestra, per esempio un messaggio: la finestra resta aperta |
+| Esc due volte, di seguito | Chiude questa guida, col puntatore sopra o mentre scrivi nel suo campo di ricerca (un solo Esc esce dal campo). Sopra una finestra, per esempio un messaggio, ovunque sia il puntatore: la finestra resta aperta |
 
 ## Nella griglia e nel visore
 
@@ -20,7 +19,7 @@ Tutti i tasti di EyeCanSee, divisi per posto. I menù mostrano il tasto accanto 
 | Ctrl+Z, Ctrl+Y | Nel visore: annulla, ripete una rotazione o riflessione non salvata |
 | Ctrl+Maiusc+D | Segnalibri: si apre l'elenco; ↓ ci entra, Invio apre il segnalibro scelto (vedi [Segnalibri](bookmarks.md)) |
 
-Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le chiudono; in quelle che chiedono una scelta, **Invio** conferma ed **Esc** annulla. Fanno eccezione un'eliminazione che comprende una cartella (lì anche Invio annulla) e la rotazione o il ribaltamento di foto nella griglia (Invio non conferma). Con questa guida aperta sopra la finestra, **Esc** chiude prima la guida e **Invio** non risponde alla finestra.
+Nelle finestre che dicono com'è andata un'operazione, **Invio** o **Esc** le chiudono; in quelle che chiedono una scelta, **Invio** conferma ed **Esc** annulla. Fanno eccezione un'eliminazione che comprende una cartella (lì anche Invio annulla) e la rotazione o il ribaltamento di foto nella griglia (Invio non conferma). Con questa guida aperta sopra la finestra, **Esc** va prima alla guida (due la chiudono, come ovunque), **Invio** non risponde alla finestra, e ciò che scrivi nel campo di ricerca della guida resta lì.
 
 ## Nella griglia
 

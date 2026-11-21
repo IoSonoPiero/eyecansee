@@ -291,4 +291,28 @@ mod tests {
             assert!(crate::help::PAGES.iter().any(|p| p.1 == tip.page), "{}: page", tip.key);
         }
     }
+
+    /// The guide opened by F1 over a tip, its search field with the keyboard: the arrows move in
+    /// the field and do not turn the tips under it (the tip reads them whoever has the keyboard).
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn arrows_in_the_guide_do_not_turn_the_tip_under_it() {
+        use crate::test_app::{Harness, folder, own_folder};
+        if own_folder("tips::tests::arrows_in_the_guide_do_not_turn_the_tip_under_it") {
+            return;
+        }
+        let mut h = Harness::new(&folder("tip-guide", &["a.jpg"]));
+        h.app.tip = Some(Open::new(0));
+        h.frame(Vec::new());
+        h.key(egui::Key::ArrowRight);
+        assert_eq!(h.app.tip.as_ref().map(|t| t.i), Some(1), "without the guide the arrow turns the tip");
+        h.key(egui::Key::F1);
+        h.frame(Vec::new());
+        assert!(h.app.help.in_field(), "the guide open over the tip, its field with the keyboard");
+        for key in [egui::Key::ArrowRight, egui::Key::ArrowLeft, egui::Key::ArrowRight] {
+            h.key(key);
+            h.frame(Vec::new());
+            assert_eq!(h.app.tip.as_ref().map(|t| t.i), Some(1), "{key:?} in the guide's field turned the tip");
+        }
+    }
 }
