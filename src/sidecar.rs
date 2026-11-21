@@ -68,10 +68,10 @@ pub fn renamed(own: &str, side: &str, new: &str) -> String {
 }
 
 /// As `source::free_name` for a photo and its sidecars `sides`: `own` if it and the names its
-/// sidecars would take are all free in `taken`, otherwise "own (2).ext" and so on, the sidecars
-/// renamed with it ("a (2).CR2.xmp").
-pub fn free_pair(taken: &HashSet<String>, own: &str, sides: &[String]) -> String {
-    let free = |n: &str| !taken.contains(n) && sides.iter().all(|s| !taken.contains(&renamed(own, s, n)));
+/// sidecars would take are all free (`taken` says which are not), otherwise "own (2).ext" and so
+/// on, the sidecars renamed with it ("a (2).CR2.xmp").
+pub fn free_pair(taken: impl Fn(&str) -> bool, own: &str, sides: &[String]) -> String {
+    let free = |n: &str| !taken(n) && sides.iter().all(|s| !taken(&renamed(own, s, n)));
     if free(own) {
         return own.to_string();
     }
@@ -197,12 +197,16 @@ mod tests {
         assert_eq!(renamed("a.CR2", "a.CR2.XMP", "sea.cr2"), "sea.cr2.XMP");
         assert_eq!(renamed("a.CR2", "a.XMP", "sea.cr2"), "sea.XMP");
         let sides = ["a.CR2.xmp".to_string(), "a.xmp".to_string()];
-        assert_eq!(free_pair(&set(&["b.CR2"]), "a.CR2", &sides), "a.CR2");
-        assert_eq!(free_pair(&set(&["a.CR2"]), "a.CR2", &sides), "a (2).CR2");
+        let has = |names: &[&str]| {
+            let names = set(names);
+            move |n: &str| names.contains(n)
+        };
+        assert_eq!(free_pair(has(&["b.CR2"]), "a.CR2", &sides), "a.CR2");
+        assert_eq!(free_pair(has(&["a.CR2"]), "a.CR2", &sides), "a (2).CR2");
         // The photo's name is free, its sidecar's is not: both change.
-        assert_eq!(free_pair(&set(&["a.xmp"]), "a.CR2", &sides), "a (2).CR2");
-        assert_eq!(free_pair(&set(&["a.CR2", "a (2).xmp", "a (3).CR2.xmp"]), "a.CR2", &sides), "a (4).CR2");
-        assert_eq!(free_pair(&set(&["raw"]), "raw", &[]), "raw (2)");
+        assert_eq!(free_pair(has(&["a.xmp"]), "a.CR2", &sides), "a (2).CR2");
+        assert_eq!(free_pair(has(&["a.CR2", "a (2).xmp", "a (3).CR2.xmp"]), "a.CR2", &sides), "a (4).CR2");
+        assert_eq!(free_pair(has(&["raw"]), "raw", &[]), "raw (2)");
     }
 
     #[test]

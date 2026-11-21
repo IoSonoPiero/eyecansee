@@ -27,6 +27,8 @@ Se nella destinazione c'è già un elemento con lo stesso nome, EyeCanSee chiede
 - **Tieni entrambi**: quello nuovo diventa "nome (2)".
 - **Annulla**: non viene incollato niente.
 
+Su Windows, sui dischi FAT ed exFAT, sui telefoni e su un server SFTP che non distingue le maiuscole, un nome che cambia solo nelle maiuscole ("IMG_001.JPG" e "img_001.jpg") è lo stesso nome, ed EyeCanSee chiede; **Sostituisci** tiene il nome che c'è già. Altrove i due sono nomi diversi, ma **Tieni entrambi** non dà mai un nome che cambia solo nelle maiuscole da uno che c'è.
+
 Con più elementi in questa situazione, spunta **Fai lo stesso per tutti gli altri elementi con un nome già presente** per rispondere una volta sola.
 
 Su Linux, in una cartella aperta tramite il collegamento del gestore dei file (gvfs, per esempio un telefono o una cartella di rete aperti dall'app File), **Sostituisci** e **Unisci** non ci sono, e la finestra dice perché: lì sostituire un file può far perdere l'originale. Scegli **Tieni entrambi** o **Salta**; anche uno spostamento lì li tiene entrambi.

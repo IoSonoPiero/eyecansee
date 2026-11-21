@@ -11,7 +11,10 @@ use std::time::Instant;
 use crate::source::{Deletion, Error, Store, TRASH_DIR, free_name, name, parent};
 use crate::thumbcache;
 
+mod names;
 mod originals;
+
+use names::Names;
 
 /// What Ctrl+C or Ctrl+X took: the source it came from, which can be different from the one
 /// open when pasting.
@@ -116,7 +119,7 @@ impl Recent {
 /// A photo whose sidecar (`sidecar_follow`) would land on a file with that name is one too: the
 /// sidecar follows the answer for the photo.
 pub async fn conflicts(clip: &Clip, to: &Store, to_base: &str, to_dir: &str) -> Result<Vec<String>, Error> {
-    let taken = to.names(to_dir).await?;
+    let taken = Names::read(to, to_dir).await?;
     let sides = sidecars(clip).await;
     let dest = dest_place(clip, to, to_base, to_dir).await;
     for p in clip.paths.iter().filter(|p| p.ends_with('/')) {
@@ -272,7 +275,7 @@ fn left_below(src: &str, p: &Progress) -> bool {
 
 async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &HashMap<String, Choice>, p: &Progress, gone: &mut Vec<String>) -> Result<(), Error> {
     let same = clip.base == to_base;
-    let present = to.names(to_dir).await?;
+    let present = Names::read(to, to_dir).await?;
     let here = in_own_folder(clip, to_base, to_dir, dest_place(clip, to, to_base, to_dir).await.as_ref()).await;
     let plan = planned(clip, to, to_dir, &here, choices, &present, &sidecars(clip).await);
 
@@ -378,8 +381,9 @@ async fn copy_item(clip: &Clip, to: &Store, (src, _, exists, sides): &Planned, l
 /// What goes where (`Planned`), as the answers to the conflicts (`choices`) say; `here`: the items
 /// pasted into their own folder (`in_own_folder`); `present`: the names in `to_dir`; `sidecars`:
 /// those of the photos, which follow them under their new name ("a (2).CR2" with "a (2).CR2.xmp";
-/// `sidecar::free_pair`).
-fn planned(clip: &Clip, to: &Store, to_dir: &str, here: &HashSet<String>, choices: &HashMap<String, Choice>, present: &HashSet<String>, sidecars: &HashMap<String, Vec<String>>) -> Vec<Planned> {
+/// `sidecar::free_pair`). Replace takes the name of the item there, as it is there: "img_001.jpg"
+/// for "IMG_001.JPG" where capitals do not count (#204).
+fn planned(clip: &Clip, to: &Store, to_dir: &str, here: &HashSet<String>, choices: &HashMap<String, Choice>, present: &Names, sidecars: &HashMap<String, Vec<String>>) -> Vec<Planned> {
     let mut taken = present.clone();
     let mut plan = Vec::new();
     for src in &clip.paths {
@@ -391,12 +395,12 @@ fn planned(clip: &Clip, to: &Store, to_dir: &str, here: &HashSet<String>, choice
             _ => choices.get(src).copied().unwrap_or(Choice::Replace),
         };
         // Under gvfs nothing is replaced, not even an item that came after the question: both stay.
-        let busy = crate::sidecar::free_pair(&taken, own, &sides) != own;
+        let busy = crate::sidecar::free_pair(|n| taken.taken(n), own, &sides) != own;
         let choice = if choice == Choice::Replace && busy && !can_replace(to, to_dir) { Choice::KeepBoth } else { choice };
         let dest_name = match choice {
             Choice::Skip => continue,
-            Choice::KeepBoth => crate::sidecar::free_pair(&taken, own, &sides),
-            Choice::Replace => own.to_string(),
+            Choice::KeepBoth => crate::sidecar::free_pair(|n| taken.taken(n), own, &sides),
+            Choice::Replace => present.get(own).unwrap_or(own).to_string(),
         };
         let side_plan: Vec<(String, String, bool)> = sides
             .iter()
@@ -418,6 +422,12 @@ fn planned(clip: &Clip, to: &Store, to_dir: &str, here: &HashSet<String>, choice
 async fn renamed_on_device(clip: &Clip, to: &Store, to_dir: &str, (src, dest, mut exists, sides): Planned, gone: &mut Vec<String>) -> Result<Option<Planned>, Error> {
     // Phones, servers and gvfs rename only onto a free name: what is there goes first.
     let overwrites = |d: &str| to.local_file(d).is_none() || to.gvfs(d);
+    // On this computer a rename replaces a file: one not seen as there, as one with other capitals
+    // where they do not count, is never renamed over (#204).
+    let unseen = |d: &str, there: bool| !there && to.local_file(d).is_some_and(|f| f.symlink_metadata().is_ok());
+    if unseen(&dest, exists) || sides.iter().any(|(_, d, there)| unseen(d, *there)) {
+        return Err(("error-exists", name(&dest).to_string()));
+    }
     if exists && overwrites(&dest) {
         to.delete(&dest, Deletion::Permanent).await?;
         exists = false;
@@ -445,19 +455,20 @@ async fn renamed_on_device(clip: &Clip, to: &Store, to_dir: &str, (src, dest, mu
 /// The names already in the destination folders of a merge, each folder read once, when its first
 /// file is copied: asking for every file whether it is there cost a request each (#90 follow-up).
 /// A folder the merge makes is empty.
-struct Present(HashMap<String, HashSet<String>>);
+struct Present(HashMap<String, Names>);
 
 impl Present {
     /// Starting with the names of `dir`, read already.
-    fn new(dir: &str, names: HashSet<String>) -> Self {
+    fn new(dir: &str, names: Names) -> Self {
         Present(HashMap::from([(dir.to_string(), names)]))
     }
 
-    /// Is there an item at `path`? `None` if its folder cannot be read (`write_file` asks then).
+    /// Is there an item at `path`, as the destination tells names (`Names`)? `None` if its folder
+    /// cannot be read (`write_file` asks then).
     async fn has(&mut self, to: &Store, path: &str) -> Option<bool> {
         let dir = parent(path);
         if !self.0.contains_key(&dir) {
-            self.0.insert(dir.clone(), to.names(&dir).await.ok()?);
+            self.0.insert(dir.clone(), Names::read(to, &dir).await.ok()?);
         }
         Some(self.0[&dir].contains(name(path)))
     }
@@ -465,7 +476,8 @@ impl Present {
     /// The folder `dir` is about to be made, if it is not there: it starts empty.
     async fn made(&mut self, to: &Store, dir: &str) {
         if self.has(to, dir).await == Some(false) {
-            self.0.insert(dir.to_string(), HashSet::new());
+            let empty = self.0[&parent(dir)].empty();
+            self.0.insert(dir.to_string(), empty);
         }
     }
 }
@@ -537,6 +549,18 @@ fn writing_guard(to: &Store, dest: &str) -> Option<crate::batch::Writing> {
     to.local_file(dest).map(crate::batch::Writing::start)
 }
 
+/// A new file of this computer takes its name only while it is free, as the disk tells names
+/// (`create_new`): a file there that the folder's names did not show, as one with other capitals
+/// where they do not count, is never written over (#204). Not under gvfs.
+fn claim(to: &Store, dest: &str) -> Result<(), Error> {
+    let Some(file) = to.local_file(dest).filter(|_| !to.gvfs(dest)) else { return Ok(()) };
+    match std::fs::OpenOptions::new().write(true).create_new(true).open(&file) {
+        Ok(_) => Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => Err(("error-exists", name(dest).to_string())),
+        Err(e) => Err(("error-detail", e.to_string())),
+    }
+}
+
 /// A file of `size` bytes from `src` of `from` to `dest` of `to`; `existed`: whether something is
 /// already there (`replace::write_file`): a copy that fails leaves nothing, and a file it was
 /// replacing as it was (#90).
@@ -558,6 +582,9 @@ async fn copy_file(from: &Store, src: &str, (to, dest, existed): (&Store, &str, 
     let cancel = if to_phone { &never } else { &p.cancel };
     let (tx, rx) = tokio::sync::mpsc::channel(4);
     let writing = writing_guard(to, dest);
+    if existed == Some(false) {
+        claim(to, dest)?;
+    }
     let (read, write) = futures_util::future::join(from.send_chunks(src, size, tx, &p.done, cancel), crate::replace::write_file(to, dest, size, rx, existed)).await;
     drop(writing);
     if to_phone && read.is_ok() && write.is_ok() && p.cancel.load(Ordering::Relaxed) {
@@ -849,7 +876,8 @@ mod tests {
 
     /// A paste that does not fit (`/dev/full` behind the name written, as a full disk answers)
     /// leaves nothing (#90): a new file is gone; a file it was replacing stays as it was, also in
-    /// a move, whose original stays too.
+    /// a move, whose original stays too. (The new file written by `write_file` itself: a paste
+    /// first claims its name, `claim`, and a link there is a name taken.)
     #[cfg(target_os = "linux")]
     #[test]
     fn failed_paste_leaves_nothing() {
@@ -869,8 +897,10 @@ mod tests {
         rt.block_on(async {
             // A new file.
             std::os::unix::fs::symlink("/dev/full", dir.join("b/new.jpg")).unwrap();
-            let p = Progress::default();
-            copy_file(&op, "a/x.jpg", (&op, "b/new.jpg", Some(false)), 3 << 20, &p).await.unwrap_err();
+            let (tx, rx) = tokio::sync::mpsc::channel(1);
+            tx.try_send(Ok(bytes::Bytes::from(vec![7u8; 3 << 20]))).unwrap();
+            drop(tx);
+            crate::replace::write_file(&op, "b/new.jpg", 3 << 20, rx, Some(false)).await.unwrap_err();
             assert_eq!(names("b"), ["x.jpg"]);
             // Replacing x.jpg, in a copy and in a move (another device: copied, then deleted).
             std::os::unix::fs::symlink("/dev/full", dir.join("b/.x.jpg.eyecansee-new")).unwrap();
@@ -1138,5 +1168,49 @@ mod tests {
         }
         assert!(p.left.lock().unwrap().is_empty());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// #204: a new file of this computer is written only onto a free name: one there that the
+    /// paste did not see (here a file told as not there, as one with other capitals on Windows)
+    /// is not written over, nor renamed over by a move on the same disk.
+    #[test]
+    fn new_file_never_written_over() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let dir = std::env::temp_dir().join(format!("eyecansee-claim-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("a")).unwrap();
+        std::fs::create_dir_all(dir.join("b")).unwrap();
+        std::fs::write(dir.join("a/x.jpg"), b"new").unwrap();
+        std::fs::write(dir.join("b/x.jpg"), b"there").unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        rt.block_on(async {
+            let e = copy_file(&op, "a/x.jpg", (&op, "b/x.jpg", Some(false)), 3, &Progress::default()).await.unwrap_err();
+            assert_eq!(e.0, "error-exists");
+            let clip = Clip { op: op.clone(), base: "test-claim://".into(), paths: vec!["a/x.jpg".into()], cut: true, text: String::new() };
+            let planned = ("a/x.jpg".to_string(), "b/x.jpg".to_string(), false, Vec::new());
+            let e = renamed_on_device(&clip, &op, "b/", planned, &mut Vec::new()).await.unwrap_err();
+            assert_eq!(e.0, "error-exists");
+        });
+        assert_eq!(std::fs::read(dir.join("b/x.jpg")).unwrap(), b"there");
+        assert_eq!(std::fs::read(dir.join("a/x.jpg")).unwrap(), b"new");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// #204: where the destination ignores capitals, a name with other capitals is the item there:
+    /// Replace writes over it under its own name, Keep both takes a free name; a new name is never
+    /// one there with other capitals, also where capitals count.
+    #[test]
+    fn plan_with_other_capitals() {
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&std::env::temp_dir().to_string_lossy())).unwrap());
+        let clip = Clip { op: op.clone(), base: "test-a://".into(), paths: vec!["c/IMG_001.JPG".into(), "c/Album/".into()], cut: false, text: String::new() };
+        let present = |folds| Names::new(["img_001.jpg", "album"].map(String::from).into(), folds);
+        let plan = |choice, folds| {
+            let choices = HashMap::from([("c/IMG_001.JPG".to_string(), choice), ("c/Album/".to_string(), choice)]);
+            planned(&clip, &op, "p/", &HashSet::new(), &choices, &present(folds), &HashMap::new()).into_iter().map(|(_, d, e, _)| (d, e)).collect::<Vec<_>>()
+        };
+        assert_eq!(plan(Choice::Replace, true), [("p/img_001.jpg".to_string(), true), ("p/album/".to_string(), true)]);
+        assert_eq!(plan(Choice::KeepBoth, true), [("p/IMG_001 (2).JPG".to_string(), false), ("p/Album (2)/".to_string(), false)]);
+        assert_eq!(plan(Choice::Replace, false), [("p/IMG_001.JPG".to_string(), false), ("p/Album/".to_string(), false)]);
+        assert_eq!(plan(Choice::KeepBoth, false), [("p/IMG_001 (2).JPG".to_string(), false), ("p/Album (2)/".to_string(), false)]);
     }
 }

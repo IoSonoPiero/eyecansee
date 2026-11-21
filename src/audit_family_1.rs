@@ -545,9 +545,9 @@ fn audit_2_4_windows_colon_in_a_name_from_a_server() {
 
 /// Audit 2.5 (Windows): a file pasted into a folder that has the same name with other capitals
 /// (`IMG_001.JPG` over `img_001.jpg`). For EyeCanSee the name is free, so it asks nothing; for
-/// Windows it is the same file, written over.
+/// Windows it is the same file, written over. Fixed (#204): the name counts as taken where the
+/// destination ignores capitals, and the app asks.
 #[test]
-#[ignore = "audit 2.5: not fixed yet"]
 fn audit_2_5_windows_capitals_overwrite_without_asking() {
     use crate::source::Store;
     use crate::transfer::{Clip, Progress, conflicts, run};

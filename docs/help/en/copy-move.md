@@ -27,6 +27,8 @@ If an item with the same name is already in the destination, EyeCanSee asks what
 - **Keep both**: the new one becomes "name (2)".
 - **Cancel**: nothing is pasted.
 
+On Windows, on FAT and exFAT disks, on phones and on an SFTP server that ignores capitals, a name that differs only in capitals ("IMG_001.JPG" and "img_001.jpg") is the same name, and EyeCanSee asks; **Replace** keeps the name already there. Elsewhere the two are different names, but **Keep both** never gives a name that differs from one there only in capitals.
+
 With several such items, tick **Do the same for all the other items with a name already there** to answer once.
 
 On Linux, in a folder opened through the file manager's connection (gvfs, for example a phone or a network folder opened from the Files app), **Replace** and **Merge** are not offered, and the window says why: there replacing a file can lose the original. Choose **Keep both** or **Skip**; a move there keeps both too.

@@ -86,7 +86,7 @@ async fn delete_with(op: &Store, path: &str, how: Deletion, sides: &[String], na
     if let Store::Mtp(_) = op {
         taken.extend(names.into_iter().filter(|n| n != own && !side_names.contains(n)));
     }
-    let chosen = free_pair(&taken, own, &side_names);
+    let chosen = free_pair(|n| taken.contains(n), own, &side_names);
     op.to_trash_folder(path, &chosen).await?;
     for (s, n) in sides.iter().zip(&side_names) {
         op.to_trash_folder(s, &renamed(own, n, &chosen)).await?;
@@ -108,7 +108,7 @@ pub async fn restore(op: &Store, path: &str, conflict: Conflict) -> Result<Strin
     let (dest, own) = crate::source::restore_place(path);
     let side_names = names_of(&sides);
     let taken = op.names(&dest).await?;
-    let target = match free_pair(&taken, own, &side_names) {
+    let target = match free_pair(|n| taken.contains(n), own, &side_names) {
         free if free == own => own.to_string(),
         _ if conflict == Conflict::Ask => return Err(("error-exists", own.to_string())),
         _ if conflict == Conflict::Replace => {
@@ -122,7 +122,7 @@ pub async fn restore(op: &Store, path: &str, conflict: Conflict) -> Result<Strin
         _ => {
             let mut all = taken;
             all.extend(in_trash.into_iter().filter(|n| n != own && !side_names.contains(n)));
-            free_pair(&all, own, &side_names)
+            free_pair(|n| all.contains(n), own, &side_names)
         }
     };
     let to = op.move_into(path, &dest, &target).await?;
