@@ -366,13 +366,20 @@ impl App {
         self.delete_check = None;
     }
 
-    /// The message at the end of a copy that left items out for their name, unless it was
-    /// cancelled (`refused_notice`).
+    /// The message at the end of a copy that left items out for their name (`refused_notice`), or
+    /// a move that left in its folders what it did not copy (`left_notice`), unless it was
+    /// cancelled; both in one when both happened.
     pub(crate) fn tell_refused(&mut self, p: &transfer::Progress, cancelled: bool) {
-        let names = p.refused.lock().unwrap();
-        if !names.is_empty() && !cancelled && !self.quit_after_transfer {
-            self.notice = Some(refused_notice(&self.i18n, &names));
+        if cancelled || self.quit_after_transfer {
+            return;
         }
+        let (names, left) = (p.refused.lock().unwrap(), p.left.lock().unwrap());
+        let refused = (!names.is_empty()).then(|| refused_notice(&self.i18n, &names));
+        let left = (!left.is_empty()).then(|| left_notice(&self.i18n, &left));
+        self.notice = match (refused, left) {
+            (Some(a), Some(b)) => Some(joined(a, b)),
+            (a, b) => a.or(b).or(self.notice.take()),
+        };
     }
 
     pub(crate) fn ask_rename(&mut self, path: Option<String>) {
@@ -526,6 +533,21 @@ pub(crate) fn refused_notice(i18n: &crate::i18n::I18n, names: &[String]) -> Noti
     crate::notice_list::notice(i18n, i18n.t_args("name-refused-title", &args), &intro, names, true)
 }
 
+/// The message at the end of a move that left in its folders what it did not copy (#194): what
+/// arrived in them while it ran, which stays there with its folder.
+pub(crate) fn left_notice(i18n: &crate::i18n::I18n, names: &[String]) -> Notice {
+    let n = names.len().to_string();
+    let args = [("n", n.as_str())];
+    let intro = format!("{}\n{}", i18n.t_args("move-left-why", &args), i18n.t_args("move-left-stayed", &args));
+    crate::notice_list::notice(i18n, i18n.t_args("move-left-title", &args), &intro, names, true)
+}
+
+/// Two messages of the end of a copy in one window: the second under its title.
+fn joined(a: Notice, b: Notice) -> Notice {
+    let copy = format!("{}\n\n{}\n\n{}", a.copy.as_ref().unwrap_or(&a.text), b.title, b.copy.as_ref().unwrap_or(&b.text));
+    Notice { text: format!("{}\n\n{}\n\n{}", a.text, crate::save_dialogs::md(&b.title), b.text), copy: Some(copy), ..a }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::save_dialogs::md;
@@ -559,5 +581,23 @@ mod tests {
         assert!(super::refused_notice(&it, &names(11)).text.ends_with("\n\ne un altro"));
         let broken = super::refused_notice(&it, &["a\nb.jpg".to_string()]);
         assert!(broken.text.ends_with(&format!("- a\u{FFFD}b{}", md(".jpg"))), "{}", broken.text);
+    }
+
+    /// What a move left in its folders (#194): named as the names left out, in one window with
+    /// them when both happened.
+    #[test]
+    fn left_by_a_move_told() {
+        let it = crate::i18n::I18n::new("it");
+        let one = super::left_notice(&it, &["DCIM/Camera/late.jpg".to_string()]);
+        assert_eq!(one.title, "Elemento non spostato");
+        assert_eq!(one.text, format!("È arrivato durante lo spostamento, o qui non si vede, e non è stato copiato.\nÈ rimasto dove era, con la sua cartella.\n\n- {}", md("DCIM/Camera/late.jpg")));
+        let en = super::left_notice(&crate::i18n::I18n::new("en"), &["a.jpg".into(), "b.jpg".into()]);
+        assert_eq!(en.title, "Items not moved");
+        assert!(en.text.starts_with("They arrived during the move, or they are not shown here, so they were not copied.\nThey stayed where they were, with their folders.\n\n"), "{}", en.text);
+        let both = super::joined(super::refused_notice(&it, &["album/a:b.jpg".to_string()]), one);
+        assert_eq!(both.title, "File non copiato");
+        assert!(both.text.contains("\n\nElemento non spostato\n\nÈ arrivato") && both.text.ends_with(&md("DCIM/Camera/late.jpg")), "{}", both.text);
+        let copy = both.copy.unwrap();
+        assert!(copy.starts_with("Il suo nome") && copy.ends_with("\n\nElemento non spostato\n\nÈ arrivato durante lo spostamento, o qui non si vede, e non è stato copiato.\nÈ rimasto dove era, con la sua cartella.\n\n- DCIM/Camera/late.jpg"), "{copy}");
     }
 }

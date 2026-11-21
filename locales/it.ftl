@@ -183,6 +183,18 @@ name-refused-stayed = { $n ->
     [one] È rimasto dove era.
    *[other] Sono rimasti dove erano.
 }
+move-left-title = { $n ->
+    [one] Elemento non spostato
+   *[other] Elementi non spostati
+}
+move-left-why = { $n ->
+    [one] È arrivato durante lo spostamento, o qui non si vede, e non è stato copiato.
+   *[other] Sono arrivati durante lo spostamento, o qui non si vedono, e non sono stati copiati.
+}
+move-left-stayed = { $n ->
+    [one] È rimasto dove era, con la sua cartella.
+   *[other] Sono rimasti dove erano, con le loro cartelle.
+}
 list-more = { $n ->
     [one] e un altro
    *[other] e altri { $n }

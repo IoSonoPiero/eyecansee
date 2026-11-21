@@ -451,6 +451,52 @@ impl Store {
         }
     }
 
+    /// Removes the folder `dir` if it is empty, never what it holds: a move deletes only what it
+    /// copied (#194). A phone deletes a folder whole: there it is looked into just before, and a
+    /// file that arrives in between goes with it [Unverified: not seen].
+    pub async fn remove_empty_dir(&self, dir: &str) -> Result<(), Error> {
+        match self {
+            Store::Dal(op) if op.info().scheme() == "fs" => {
+                let full = local_path(op, dir);
+                tokio::task::spawn_blocking(move || match std::fs::remove_dir(&full) {
+                    Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(()),
+                    r => r,
+                })
+                .await
+                .map_err(|e| ("error-detail", e.to_string()))?
+                .map_err(|e| ("error-detail", e.to_string()))
+            }
+            Store::Dal(op) => op.delete(dir).await.map_err(dal_error),
+            Store::Mtp(phone) if phone.names(dir).await?.is_empty() => phone.delete(dir).await,
+            Store::Mtp(_) => Err(("error-detail", format!("{dir}: not empty"))),
+            Store::Sftp(server) => server.remove_dir(dir).await,
+            Store::Ftp(server) => server.remove_dir(dir).await,
+        }
+    }
+
+    /// Removes the link to a folder `path` itself, never what it leads to: one a move copied
+    /// through (`walk` follows them on this computer and on SFTP), #194.
+    pub async fn remove_link(&self, path: &str) -> Result<(), Error> {
+        let link = path.trim_end_matches('/');
+        match self {
+            Store::Dal(op) if op.info().scheme() == "fs" => {
+                let full = local_path(op, link);
+                tokio::task::spawn_blocking(move || match full.symlink_metadata() {
+                    // On Windows a link to a folder goes as a folder, the folder it leads to untouched.
+                    Ok(m) if m.file_type().is_symlink() => std::fs::remove_file(&full).or_else(|_| std::fs::remove_dir(&full)),
+                    Ok(_) => Err(std::io::Error::other("not a link")),
+                    Err(e) => Err(e),
+                })
+                .await
+                .map_err(|e| ("error-detail", e.to_string()))?
+                .map_err(|e| ("error-detail", e.to_string()))
+            }
+            // Removing a link on SFTP removes the link.
+            Store::Sftp(server) => server.delete(link).await,
+            _ => Err(("error-detail", format!("{path}: not a link"))),
+        }
+    }
+
     /// Reads a file of `size` bytes in chunks into `out`, adding them to `done`; stops with
     /// `error-cancelled` when `cancel` is set. An error also goes into `out`, so the writer
     /// knows the file is incomplete.

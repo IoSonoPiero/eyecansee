@@ -545,9 +545,14 @@ impl Server {
             }
         }
         if emptied {
-            with!(self, path, |c| c.s.rmdir(abs(path)).await)?;
+            self.remove_dir(path).await?;
         }
         Ok(emptied)
+    }
+
+    /// Removes an empty folder; the server refuses one that is not.
+    pub async fn remove_dir(&self, path: &str) -> Result<(), Error> {
+        with!(self, path, |c| c.s.rmdir(abs(path)).await)
     }
 
     /// Everything below a folder, hidden items and EyeCanSee's trash folders too

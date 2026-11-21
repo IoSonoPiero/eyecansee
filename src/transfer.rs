@@ -11,6 +11,8 @@ use std::time::Instant;
 use crate::source::{Deletion, Error, Store, TRASH_DIR, free_name, name, parent};
 use crate::thumbcache;
 
+mod originals;
+
 /// What Ctrl+C or Ctrl+X took: the source it came from, which can be different from the one
 /// open when pasting.
 #[derive(Clone)]
@@ -84,6 +86,10 @@ pub struct Progress {
     /// message at the end of the copy, which is not an error (the rest was copied), and a move
     /// keeps the folders that hold them.
     pub refused: Mutex<Vec<String>>,
+    /// What a move left in the folders it moved without copying it (`originals`): items that
+    /// arrived while it ran, or a folder holding what cannot be seen. They stay, with their
+    /// folders, and a message at the end of the copy names them (#194).
+    pub left: Mutex<Vec<String>>,
 }
 
 /// Bytes copied over the last `SPAN` seconds: the speed of the moment, as a system network meter
@@ -311,43 +317,18 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
 
     // The names in each destination folder of a merge, read once (`Present`).
     let mut there = Present::new(to_dir, present);
-    for ((src, _, exists, sides), list) in copies.iter().zip(lists) {
-        let merging = src.ends_with('/') && *exists;
-        let photos = list.len() - sides.len();
-        for (i, (from, dest, size)) in list.into_iter().enumerate() {
-            if from.ends_with('/') {
-                if merging {
-                    there.made(to, &dest).await;
-                }
-                to.create_dir(&dest).await?;
-            } else {
-                if p.cancel.load(Ordering::Relaxed) {
-                    return Err(("error-cancelled", String::new()));
-                }
-                *p.current.lock().unwrap() = name(&from).to_string();
-                // Whether a file is already where it goes: a file pasted over one, or one of a
-                // folder that merges into another; in a new folder nothing is there.
-                let existed = match i.checked_sub(photos) {
-                    Some(side) => Some(sides[side].2),
-                    None if merging => there.has(to, &dest).await,
-                    None => Some(*exists),
-                };
-                copy_file(&clip.op, &from, (to, &dest, existed), size, p).await?;
-                keep_thumbnail(thumbcache::stored(&clip.base, &from), &dest, Some(size));
-                if i < photos {
-                    p.files.fetch_add(1, Ordering::Relaxed);
-                }
-            }
-            p.touched.lock().unwrap().push(parent(&dest));
-        }
+    for (item, list) in copies.iter().zip(lists) {
+        let copied = copy_item(clip, to, item, list, &mut there, p).await?;
+        let (src, _, _, sides) = item;
         // Moved between devices: the original goes only once all of it has been copied, its
         // sidecars before it (stopped between the two, the photo stays with no sidecar of its
-        // own left behind). A folder with an item left out because of its name stays whole.
+        // own left behind); of a folder only what was copied (`originals`). A folder with an item
+        // left out because of its name stays whole.
         if clip.cut && !left_below(src, p) {
             for (s, _, _) in sides {
                 clip.op.delete(s, Deletion::Permanent).await?;
             }
-            if !src.is_empty() && delete_original(&clip.op, src, p).await? {
+            if !src.is_empty() && originals::delete(&clip.op, src, &copied, p).await? {
                 gone.push(src.clone());
             }
         }
@@ -355,19 +336,43 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
     Ok(())
 }
 
-/// Deletes the original of an item moved between devices; whether it went. Only what was copied
-/// goes: the links to folders left out of the copy below a folder (`Progress::links_skipped`)
-/// stay where they were, with the folders that hold them (#183). Without any, as a deletion.
-async fn delete_original(from: &Store, src: &str, p: &Progress) -> Result<bool, Error> {
-    let kept: Vec<String> = match src.ends_with('/') {
-        true => p.links_skipped.lock().unwrap().iter().filter(|l| l.starts_with(src)).cloned().collect(),
-        false => Vec::new(),
-    };
-    match from {
-        Store::Ftp(server) if !kept.is_empty() => server.delete_but(src, &kept).await,
-        Store::Sftp(server) if !kept.is_empty() => server.delete_but(src, &kept).await,
-        _ => from.delete(src, Deletion::Permanent).await.map(|()| true),
+/// Copies one item of the plan, `list`: everything of it (`paste`), the photo's sidecars last.
+/// Returns what of it was copied, its sidecars apart: the item, and below a folder each folder and
+/// file found, as `originals::delete` wants them.
+async fn copy_item(clip: &Clip, to: &Store, (src, _, exists, sides): &Planned, list: Vec<(String, String, u64)>, there: &mut Present, p: &Progress) -> Result<Vec<String>, Error> {
+    let merging = src.ends_with('/') && *exists;
+    let photos = list.len() - sides.len();
+    let mut copied = Vec::new();
+    for (i, (from, dest, size)) in list.into_iter().enumerate() {
+        if from.ends_with('/') {
+            if merging {
+                there.made(to, &dest).await;
+            }
+            to.create_dir(&dest).await?;
+        } else {
+            if p.cancel.load(Ordering::Relaxed) {
+                return Err(("error-cancelled", String::new()));
+            }
+            *p.current.lock().unwrap() = name(&from).to_string();
+            // Whether a file is already where it goes: a file pasted over one, or one of a
+            // folder that merges into another; in a new folder nothing is there.
+            let existed = match i.checked_sub(photos) {
+                Some(side) => Some(sides[side].2),
+                None if merging => there.has(to, &dest).await,
+                None => Some(*exists),
+            };
+            copy_file(&clip.op, &from, (to, &dest, existed), size, p).await?;
+            keep_thumbnail(thumbcache::stored(&clip.base, &from), &dest, Some(size));
+            if i < photos {
+                p.files.fetch_add(1, Ordering::Relaxed);
+            }
+        }
+        p.touched.lock().unwrap().push(parent(&dest));
+        if i < photos {
+            copied.push(from);
+        }
     }
+    Ok(copied)
 }
 
 /// What goes where (`Planned`), as the answers to the conflicts (`choices`) say; `here`: the items
@@ -980,12 +985,12 @@ mod tests {
         found
     }
 
-    /// Audit 2.1: a folder moved to another device (here: another `base`, as from a phone to the
-    /// computer). A file that arrives in the folder after it was looked through (a photo taken
-    /// while `DCIM/Camera/` moves) is not in the list, so it is not copied; it must not be deleted
-    /// with the folder either. Today the folder is deleted whole at the end, and the file with it.
+    /// Audit 2.1 (#194): a folder moved to another device (here: another `base`, as from a phone
+    /// to the computer). A file that arrives in the folder after it was looked through (a photo
+    /// taken while `DCIM/Camera/` moves) is not in the list, so it is not copied; it is not deleted
+    /// either: only what was copied goes, and the folder stays with it, named at the end
+    /// (`Progress::left`). Before, the folder was deleted whole, and the file with it.
     #[test]
-    #[ignore = "audit 2.1: not fixed yet"]
     fn audit_2_1_move_deletes_a_file_that_arrived_meanwhile() {
         let rt = tokio::runtime::Runtime::new().unwrap();
         let dir = std::env::temp_dir().join(format!("eyecansee-audit-2-1-{}", std::process::id()));
@@ -1014,8 +1019,11 @@ mod tests {
         r.unwrap();
         assert!(dir.join("pc/Camera/a.jpg").exists() && dir.join("pc/Camera/b.jpg").exists(), "the files listed were copied");
         let left = audit_find(&dir, "late.jpg");
+        let copied_gone = !dir.join("phone/DCIM/Camera/a.jpg").exists() && !dir.join("phone/DCIM/Camera/b.jpg").exists();
         let _ = std::fs::remove_dir_all(&dir);
         assert!(!left.is_empty(), "the photo that arrived during the move is gone: neither copied nor left in the source");
+        assert!(copied_gone, "the files copied went from the source");
+        assert_eq!(*p.left.lock().unwrap(), ["phone/DCIM/Camera/late.jpg"], "named at the end");
     }
 
     /// Audit 2.2, scenario A (#195): a folder cut and pasted into a folder reached through a link
@@ -1098,6 +1106,37 @@ mod tests {
             assert_eq!(std::fs::read(dir.join("Photos/a (2).jpg")).unwrap(), b"the only copy", "a copy keeps both");
             assert!(dir.join("Photos/sub (2)").is_dir());
         });
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// #194: a folder moved to another device that holds a link to a folder outside it (followed by
+    /// the walk on this computer): what the link leads to is copied, the link goes, the folder it
+    /// leads to stays whole. Before, the folder was deleted whole at the end.
+    #[cfg(unix)]
+    #[test]
+    fn move_removes_a_link_not_what_it_leads_to() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let dir = std::env::temp_dir().join(format!("eyecansee-move-link-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        for d in ["album/sub", "elsewhere", "pc"] {
+            std::fs::create_dir_all(dir.join(d)).unwrap();
+        }
+        std::fs::write(dir.join("album/a.jpg"), b"a").unwrap();
+        std::fs::write(dir.join("album/sub/b.jpg"), b"b").unwrap();
+        std::fs::write(dir.join("elsewhere/c.jpg"), b"c").unwrap();
+        std::os::unix::fs::symlink(dir.join("elsewhere"), dir.join("album/link")).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let clip = Clip { op: op.clone(), base: "test-a://".into(), paths: vec!["album/".into()], cut: true, text: String::new() };
+        let p = Progress::default();
+        let (gone, r) = rt.block_on(run(&clip, &op, "test-b://", "pc/", &HashMap::new(), &p));
+        r.unwrap();
+        assert_eq!(gone, ["album/"]);
+        assert!(!dir.join("album").exists());
+        assert_eq!(std::fs::read(dir.join("elsewhere/c.jpg")).unwrap(), b"c", "what the link leads to stays");
+        for f in ["a.jpg", "sub/b.jpg", "link/c.jpg"] {
+            assert!(dir.join("pc/album").join(f).exists(), "{f}");
+        }
+        assert!(p.left.lock().unwrap().is_empty());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 }

@@ -185,6 +185,18 @@ name-refused-stayed = { $n ->
     [one] It stayed where it was.
    *[other] They stayed where they were.
 }
+move-left-title = { $n ->
+    [one] Item not moved
+   *[other] Items not moved
+}
+move-left-why = { $n ->
+    [one] It arrived during the move, or it is not shown here, so it was not copied.
+   *[other] They arrived during the move, or they are not shown here, so they were not copied.
+}
+move-left-stayed = { $n ->
+    [one] It stayed where it was, with its folder.
+   *[other] They stayed where they were, with their folders.
+}
 list-more = { $n ->
     [one] and 1 more
    *[other] and { $n } more
