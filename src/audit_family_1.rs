@@ -2,7 +2,9 @@
 //! reproduce the points that need the whole app (windows, sources, the viewer), run without a
 //! screen. Ignored until each point is fixed; run them one at a time with
 //! `notes/lavori/audit-famiglia-1/script/run.sh`, which gives every run its own settings, cache,
-//! data folder (trash) and `EYECANSEE_MULTI=1` (never the instance the user has open).
+//! data folder (trash) and `EYECANSEE_MULTI=1` (never the instance the user has open). Once a
+//! point is fixed its test runs with the others: `own_folder` runs it again in a child process
+//! with such a folder.
 
 mod fake_ftp;
 
@@ -14,17 +16,46 @@ use eframe::egui;
 use crate::App;
 use crate::settings::Settings;
 
-/// The folder of this run (`AUDIT_ENV`, made by `run.sh`): the test stops at once if settings,
-/// cache or data could be the user's, or if it could talk to the copy of EyeCanSee open.
+/// The variables that `run.sh` and `own_folder` point into the folder of a run: settings, cache,
+/// data (the system trash), temporary files.
+const RUN_VARS: &[(&str, &str)] = &[("XDG_CONFIG_HOME", "config"), ("XDG_CACHE_HOME", "cache"), ("XDG_DATA_HOME", "data"), ("TMPDIR", "tmp"), ("APPDATA", "config"), ("LOCALAPPDATA", "cache"), ("TEMP", "tmp"), ("TMP", "tmp")];
+
+/// The folder of this run (`AUDIT_ENV`, made by `run.sh` or `own_folder`): the test stops at once
+/// if settings, cache or data could be the user's, or if it could talk to the copy of EyeCanSee open.
 pub(crate) fn guard() -> PathBuf {
     let env = |v: &str| std::env::var(v).unwrap_or_default();
     let run = env("AUDIT_ENV");
-    assert!(!run.is_empty() && run.contains("famiglia1-tools"), "run through run.sh: AUDIT_ENV={run:?}");
-    for v in ["XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "TMPDIR"] {
+    assert!(!run.is_empty() && run.contains("famiglia1-tools"), "run through run.sh or own_folder: AUDIT_ENV={run:?}");
+    let vars: &[&str] = if cfg!(windows) { &["APPDATA", "LOCALAPPDATA", "TEMP"] } else { &["XDG_CONFIG_HOME", "XDG_CACHE_HOME", "XDG_DATA_HOME", "TMPDIR"] };
+    for v in vars {
         assert!(env(v).starts_with(&run), "{v} not in the folder of this run: {:?}", env(v));
     }
     assert_eq!(env("EYECANSEE_MULTI"), "1", "the single instance would reach the user's copy");
     PathBuf::from(run).canonicalize().unwrap()
+}
+
+/// For a test fixed and no longer ignored, run by `cargo test` with the others: unless it already
+/// runs in a folder of its own (`run.sh`, or this child), the test `name` (its path, as `cargo test`
+/// lists it) runs again in a child process of this test binary, with settings, cache, data and
+/// temporary files in a new folder deleted at the end, and `EYECANSEE_MULTI=1`. `true` in the
+/// parent once the child passed: the test returns. A child that fails fails the test.
+pub(crate) fn own_folder(name: &str) -> bool {
+    if std::env::var_os("AUDIT_ENV").is_some() {
+        return false;
+    }
+    let run = std::env::temp_dir().join(format!("eyecansee-famiglia1-tools-{}-{}", std::process::id(), name.replace("::", "-")));
+    let mut child = std::process::Command::new(std::env::current_exe().unwrap());
+    child.args(["--exact", name, "--include-ignored", "--nocapture", "--test-threads=1"]).env("AUDIT_ENV", &run).env("EYECANSEE_MULTI", "1");
+    for (var, sub) in RUN_VARS {
+        std::fs::create_dir_all(run.join(sub)).unwrap();
+        child.env(var, run.join(sub));
+    }
+    let out = child.output().unwrap();
+    let _ = std::fs::remove_dir_all(&run);
+    let text = format!("{}{}", String::from_utf8_lossy(&out.stdout), String::from_utf8_lossy(&out.stderr));
+    // `--exact` with a wrong name runs nothing and passes.
+    assert!(out.status.success() && text.contains("1 passed"), "{name} in its own folder:\n{text}");
+    true
 }
 
 /// A folder of this run with small images in it, `names` (PNG data, whatever the name says).
@@ -216,8 +247,10 @@ fn audit_1_5_c_address_from_outside_drops_the_turn() {
 /// files already there, the file of the computer with that name is written over with the
 /// server's content. (For a file not there yet OpenDAL refuses the `..`.)
 #[test]
-#[ignore = "audit 2.3: not fixed yet"]
 fn audit_2_3_a_name_from_a_server_writes_outside_the_folder() {
+    if own_folder("audit_family_1::audit_2_3_a_name_from_a_server_writes_outside_the_folder") {
+        return;
+    }
     use crate::source::Store;
     use crate::transfer::{Choice, Clip, Progress, run};
     let dir = guard().join("two-three");
@@ -347,7 +380,6 @@ fn shown(dir: &Path) -> Vec<(String, u64)> {
 /// empty file `Mare 12`: the copy "succeeds", the folder shows a file of 0 bytes, and the move
 /// deletes the original on the server.
 #[test]
-#[ignore = "audit 2.4: not fixed yet"]
 fn audit_2_4_windows_colon_in_a_name_from_a_server() {
     use crate::source::Store;
     use crate::transfer::{Clip, Progress, run};
