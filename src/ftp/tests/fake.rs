@@ -6,11 +6,13 @@
 //!   `out` (a link to `/loop/`);
 //! - `/album/`, as a hostile server could list it (audit 2.3): `a.jpg` and `../victim.txt`, read
 //!   at the path the client makes with that name;
-//! - `/beach/`, with a name Windows cannot write (audit 2.4): `a.jpg` and `Mare 12:30.jpg`.
+//! - `/beach/`, with a name Windows cannot write (audit 2.4): `a.jpg` and `Mare 12:30.jpg`;
+//! - `/links/`, listed as SFTPGo lists a folder (a Hetzner Storage Box, L17 of 2026-11-21, `GO`):
+//!   `due.jpg`, `self` (a link to the folder itself), `uno.jpg`, and `zeta.jpg`, a link to `uno.jpg`.
 //!
 //! Files are measured (SIZE), read (RETR) and deleted (DELE), folders deleted only when empty
-//! (RMD), as a real server does. It has no MLSD (as vsftpd): the client falls back to LIST, whose
-//! Unix lines describe the links.
+//! (RMD), as a real server does. It has no MLSD (as vsftpd) but in `GO`: the client falls back to
+//! LIST, whose Unix lines describe the links.
 
 use std::collections::HashSet;
 use std::io::{BufRead, BufReader, Write};
@@ -23,12 +25,21 @@ use crate::ftp::Target;
 const LINKS: usize = 40;
 const PHOTO: &[u8] = b"not a jpeg";
 const HOSTILE: &[u8] = b"written by the server";
+const UNO: &[u8] = b"the first photo, longer than the path of a link";
+
+/// The folder listed as SFTPGo does (its MLSD and LIST as seen on a Storage Box, 2026-11-21):
+/// MLSD tells a link as the file it is on the disk ("Type=file;Size=1" for a link to "."), LIST
+/// with Go's letter "L" and no "-> where". A link to a folder read (RETR) starts a transfer with
+/// no bytes, then "550 … is a directory"; SIZE of it is refused.
+const GO: &str = "links";
 
 enum Kind {
     Dir,
     File(&'static [u8]),
     /// A link to this folder (its real path).
     Link(&'static str),
+    /// A link to this file (its real folder and name), as `GO` lists it: SIZE and RETR follow it.
+    FileLink(&'static str, &'static str),
 }
 
 /// What the server holds: real folder (no slash at its ends, "" for "/"), name, kind.
@@ -49,6 +60,11 @@ const ITEMS: &[(&str, &str, Kind)] = &[
     ("", "beach", Kind::Dir),
     ("beach", "a.jpg", Kind::File(PHOTO)),
     ("beach", "Mare 12:30.jpg", Kind::File(PHOTO)),
+    ("", "links", Kind::Dir),
+    ("links", "uno.jpg", Kind::File(UNO)),
+    ("links", "self", Kind::Link("links")),
+    ("links", "due.jpg", Kind::File(PHOTO)),
+    ("links", "zeta.jpg", Kind::FileLink("links", "uno.jpg")),
 ];
 
 /// What the client did: the folders listed, in order, and the items deleted.
@@ -84,7 +100,7 @@ impl Seen {
                     links += 1;
                     to.to_string()
                 }
-                Kind::File(_) => return None,
+                Kind::File(_) | Kind::FileLink(..) => return None,
             };
         }
         (links <= LINKS).then_some(real)
@@ -96,15 +112,42 @@ impl Seen {
         Some((self.folder(parent)?, name))
     }
 
-    /// The lines of LIST for a folder.
+    /// The lines of LIST for a folder; in `GO` as SFTPGo writes them.
     fn listing(&self, path: &str) -> Option<String> {
         let dir = self.folder(path)?;
+        let go = dir == GO;
         let lines = ITEMS.iter().filter(|(d, n, _)| *d == dir && self.item(d, n).is_some()).map(|(_, name, kind)| match kind {
             Kind::Dir => format!("drwxr-xr-x    2 me       users        4096 Oct 30 09:10 {name}\r\n"),
             Kind::File(c) => format!("-rw-r--r--    1 me       users {:>11} Oct 30 09:10 {name}\r\n", c.len()),
+            Kind::Link(_) | Kind::FileLink(..) if go => format!("Lrwxrwxrwx 1 ftp ftp {:>12} Nov 21 08:25 {name}\r\n", link_size(kind)),
             Kind::Link(to) => format!("lrwxrwxrwx    1 me       users           1 Oct 30 09:10 {name} -> /{to}\r\n"),
+            Kind::FileLink(d, n) => format!("lrwxrwxrwx    1 me       users           1 Oct 30 09:10 {name} -> /{d}/{n}\r\n"),
         });
         Some(lines.collect())
+    }
+
+    /// The lines of MLSD for a folder of `GO`; `None` elsewhere (no MLSD there).
+    fn mlsd(&self, path: &str) -> Option<String> {
+        let dir = self.folder(path).filter(|d| d == GO)?;
+        let lines = ITEMS.iter().filter(|(d, n, _)| *d == dir && self.item(d, n).is_some()).map(|(_, name, kind)| match kind {
+            Kind::Dir => format!("Type=dir;Size=0;Modify=20261121082501; {name}\r\n"),
+            Kind::File(c) => format!("Type=file;Size={};Modify=20261121082501; {name}\r\n", c.len()),
+            Kind::Link(_) | Kind::FileLink(..) => format!("Type=file;Size={};Modify=20261121082504; {name}\r\n", link_size(kind)),
+        });
+        Some(lines.collect())
+    }
+
+    /// The file an item is, a link to a file followed; `None`: not a file.
+    fn content(&self, path: &str) -> Option<&'static [u8]> {
+        let kind = self.split(path).and_then(|(dir, name)| self.item(&dir, name)).or_else(|| self.verbatim(path))?;
+        match kind {
+            Kind::File(c) => Some(c),
+            Kind::FileLink(d, n) => match self.item(d, n)? {
+                Kind::File(c) => Some(c),
+                _ => None,
+            },
+            _ => None,
+        }
     }
 
     /// DELE of a file or a link, RMD of an empty folder: whether it went.
@@ -117,6 +160,16 @@ impl Seen {
             None => false,
         };
         deletable && self.removed.lock().unwrap().insert((dir, name.to_string()))
+    }
+}
+
+/// The size a link has on the disk: the length of the path it holds.
+fn link_size(kind: &Kind) -> usize {
+    match kind {
+        Kind::Link(to) if *to == GO => 1,
+        Kind::Link(to) => to.len() + 1,
+        Kind::FileLink(_, n) => n.len(),
+        _ => 0,
     }
 }
 
@@ -157,13 +210,30 @@ fn session(control: TcpStream, seen: &Seen) -> std::io::Result<()> {
                 }
                 _ => say("550 no such folder")?,
             },
-            "RETR" => match (seen.split(path).and_then(|(dir, name)| seen.item(&dir, name)).or_else(|| seen.verbatim(path)), data.take()) {
-                (Some(Kind::File(content)), Some(listener)) => send(&mut say, listener, content)?,
+            "MLSD" => match (seen.mlsd(path), data.take()) {
+                (Some(lines), Some(listener)) => {
+                    seen.listed.lock().unwrap().push(format!("MLSD {path}"));
+                    send(&mut say, listener, lines.as_bytes())?;
+                }
+                (None, listener) => {
+                    data = listener;
+                    say("500 unknown command")?
+                }
+                _ => say("550 no such folder")?,
+            },
+            "RETR" => match (seen.content(path), data.take()) {
+                (Some(content), Some(listener)) => send(&mut say, listener, content)?,
+                // SFTPGo: a folder read starts the transfer, sends nothing and then refuses.
+                (None, Some(listener)) if seen.folder(path).is_some() => {
+                    say("150 Using transfer connection")?;
+                    drop(listener.accept()?);
+                    say(&format!("550 Issue during transfer: read {path}: is a directory"))?
+                }
                 _ => say("550 no such file")?,
             },
-            "SIZE" => match seen.split(path).and_then(|(dir, name)| seen.item(&dir, name)) {
-                Some(Kind::File(content)) => say(&format!("213 {}", content.len()))?,
-                _ => say("550 no such file")?,
+            "SIZE" => match seen.content(path) {
+                Some(content) => say(&format!("213 {}", content.len()))?,
+                None => say("550 no such file")?,
             },
             "DELE" | "RMD" => say(if seen.delete(path, command.eq_ignore_ascii_case("RMD")) { "250 deleted" } else { "550 not deleted" })?,
             _ => say("500 unknown command")?,

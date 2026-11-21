@@ -761,6 +761,37 @@ mod tests {
         });
         let _ = std::fs::remove_dir_all(&dir);
     }
+    /// L17 of 2026-11-21 (#183): a copy of a folder of a Storage Box (SFTPGo) with `self`, a link
+    /// to the folder itself, brought only `due.jpg`. MLSD told the link as a file of 1 byte, LIST
+    /// with Go's "L", which was not read; the copy read it, got no bytes ("Connection error: early
+    /// eof") and stopped there, before `uno.jpg`. Now the link is left out and said, the photos are
+    /// copied, and `zeta.jpg`, a link to `uno.jpg`, comes whole, not cut to the 7 bytes of the link.
+    /// Server: `tests/fake.rs` (`/links/`).
+    #[test]
+    fn copy_of_a_folder_with_a_link_listed_by_sftpgo() {
+        use crate::source::Store;
+        use crate::transfer::{Clip, Progress, run};
+        let (target, _) = fake::start();
+        let dir = std::env::temp_dir().join(format!("eyecansee-ftp-sftpgo-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let local = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
+        let server = Store::Ftp(super::Server::shared(target));
+        let clip = Clip { op: server, base: "ftp://test-sftpgo/".into(), paths: vec!["links/".into()], cut: false, text: String::new() };
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let p = Progress::default();
+            let (_, r) = run(&clip, &local, "test-local://", "", &std::collections::HashMap::new(), &p).await;
+            let copied: std::collections::BTreeSet<String> = std::fs::read_dir(dir.join("links")).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect();
+            println!("copy of links/: {r:?}; copied {copied:?}; links left out {:?}", p.links_skipped.lock().unwrap());
+            assert_eq!(r, Ok(()));
+            assert_eq!(copied, ["due.jpg", "uno.jpg", "zeta.jpg"].map(String::from).into());
+            assert_eq!(*p.links_skipped.lock().unwrap(), ["links/self"]);
+            assert_eq!(crate::transfer::links_to_say(&r, &p), Some(1));
+            assert_eq!(std::fs::read(dir.join("links/zeta.jpg")).unwrap(), std::fs::read(dir.join("links/uno.jpg")).unwrap());
+        });
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
     /// Audit 2.3: a name a server lists with a path in it (`album/../victim.txt`), in a folder
     /// pasted over one of the same name (Replace: the two merge), was written outside the folder,
     /// over a file of the computer, and the copy said it worked. Names sent by a server are now
