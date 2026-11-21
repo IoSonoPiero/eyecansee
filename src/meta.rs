@@ -305,14 +305,14 @@ pub fn fit_exif(t: &mut [u8], w: u32, h: u32) {
     let Some(ifd0) = u32_at(t, 4) else { return };
     let Some((tags, next)) = entries(t, ifd0) else { return };
     // The directories read: a thumbnail's bytes are blanked only outside them.
-    let mut dirs = vec![ifd0..next + 4];
+    let mut dirs = vec![(ifd0, next + 4)];
     for (tag, e) in tags {
         match tag {
             0x0100 => set(t, e, w),
             0x0101 => set(t, e, h),
             0x8769 => {
                 let Some((at, (exif, end))) = u32_at(t, e + 8).and_then(|at| Some((at, entries(t, at)?))) else { continue };
-                dirs.push(at..end + 4);
+                dirs.push((at, end + 4));
                 for (tag, e) in exif {
                     match tag {
                         0xA002 => set(t, e, w),
@@ -327,7 +327,7 @@ pub fn fit_exif(t: &mut [u8], w: u32, h: u32) {
     // IFD1, the thumbnail: its picture (JPEG, or one strip) and the directory zeroed, unlinked.
     let Some(ifd1) = u32_at(t, next).filter(|&at| at != 0) else { return };
     if let Some((tags, end)) = entries(t, ifd1) {
-        dirs.push(ifd1..end + 4);
+        dirs.push((ifd1, end + 4));
         // A single value, SHORT or LONG (strips can be either). With several strips the value is
         // the place of a table, not a strip: nothing is blanked (#219).
         let value = |t: &[u8], tag| {
@@ -339,7 +339,7 @@ pub fn fit_exif(t: &mut [u8], w: u32, h: u32) {
         };
         for (start, len) in [(0x0201, 0x0202), (0x0111, 0x0117)] {
             if let (Some(s), Some(l)) = (value(t, start), value(t, len))
-                && !dirs.iter().any(|d| s < d.end && d.start < s.saturating_add(l))
+                && !dirs.iter().any(|&(start, end)| s < end && start < s.saturating_add(l))
                 && let Some(d) = t.get_mut(s..s.saturating_add(l))
             {
                 d.fill(0);
