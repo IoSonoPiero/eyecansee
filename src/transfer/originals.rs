@@ -82,35 +82,16 @@ impl Drop for Removing<'_> {
     }
 }
 
-/// The folder `dir` of a move and the files copied in it, `here` (its folders below went first):
-/// whether it went. A phone takes it whole in one request when it holds just those files: a
-/// request for each file was a long wait after the copy (300 files of 250 kB on the POCO X6 Pro,
-/// 2026-11-21: copy 6.1 s, then 5.4 s file by file, 1.9 s whole). It is listed just before, as
-/// when it was emptied file by file and then deleted (a phone deletes a folder whole), so a file
-/// arriving between the two is no more at risk than then. Elsewhere, and when anything else is
-/// in it, the files go one by one, then the folder if empty.
+/// The folder `dir` of a move and the files copied in it, `here` (its folders below went first),
+/// one by one, then the folder if nothing else is in it: whether it went. Cancel stops between two
+/// files. Never the folder whole with its files: on a phone that took the files written into it
+/// shortly before the request too (POCO X6 Pro, 2026-11-21: 300 files went in 1.9 s instead of
+/// 5.4 s, but files written in the 0.4 s before went with them). MTP does one request at a time.
 async fn remove_folder(from: &Store, dir: &str, here: &[&str], walked: &HashSet<&str>, p: &Progress) -> Result<bool, Error> {
-    let stop = || if p.cancel.load(Ordering::Relaxed) { Err(("error-cancelled", String::new())) } else { Ok(()) };
-    if let Store::Mtp(phone) = from
-        && !here.is_empty()
-    {
-        let names: HashSet<&str> = here.iter().map(|f| name(f)).collect();
-        let only_these = match phone.objects(dir).await {
-            // One entry per object: two with one name are not one file copied.
-            Ok(objects) => objects.len() <= names.len() && objects.iter().all(|(n, folder)| !folder && names.contains(n.as_str())),
-            Err((NOT_FOUND, _)) => return Ok(true),
-            Err(e) => return Err(e),
-        };
-        if only_these {
-            stop()?;
-            from.delete(dir, Deletion::Permanent).await?;
-            log!("move: {dir:?} went whole, {} files copied in it", here.len());
-            p.removed.fetch_add(here.len(), Ordering::Relaxed);
-            return Ok(true);
-        }
-    }
     for file in here {
-        stop()?;
+        if p.cancel.load(Ordering::Relaxed) {
+            return Err(("error-cancelled", String::new()));
+        }
         match from.delete(file, Deletion::Permanent).await {
             // Gone meanwhile: nothing to keep.
             Ok(()) | Err((NOT_FOUND, _)) => {}
