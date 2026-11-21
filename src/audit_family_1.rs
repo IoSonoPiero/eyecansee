@@ -451,9 +451,11 @@ fn another_place_closes_the_windows_of_the_place_left() {
 /// `Pictures/` (`EyeCanSee-audit-f1`, four files of 4 MB), moved to this computer; once the move
 /// has looked through it, a photo arrives in it (written through the same connection, as the
 /// camera would). The folder must not be deleted with that photo in it. The test makes and
-/// removes only its own folder; it stops if the folder is already there.
+/// removes only its own folder; it stops if the folder is already there. Passed on the POCO X6 Pro
+/// with the fix of #194 (2026-11-21: move 0.69 s, the photo written 18 ms after the copy began
+/// stayed in its folder).
 #[test]
-#[ignore = "audit 2.1: not fixed yet, needs the phone"]
+#[ignore = "audit 2.1 (#194): needs the phone, EYECANSEE_MTP=<serial>"]
 fn audit_2_1_phone_move_deletes_a_photo_taken_meanwhile() {
     use crate::source::Store;
     use crate::transfer::{Clip, Progress, run};
