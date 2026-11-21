@@ -167,7 +167,8 @@ fn read(bytes: &[u8]) -> Option<Info> {
         }
     }
     // A PSB (version 2) has 8-byte lengths in the layers: not read, its resources are enough.
-    let layers_ok = version == 1 && layers_simple(&mut c)?;
+    // Layers that cannot be walked make the file not simple; the resources read stay (#219).
+    let layers_ok = version == 1 && layers_simple(&mut c).unwrap_or(false);
     info.simple = &head[..4] == b"8BPS" && version == 1 && depth == 8 && mode == 3 && layers_ok;
     Some(info)
 }
@@ -415,6 +416,22 @@ mod tests {
         let irb = metadata(&file).unwrap().irb;
         assert_eq!(crate::encode::density::read(&file, None, irb.as_deref()), Density::new(Unit::Inch, (300, 1), (300, 1)));
         assert_eq!(crate::encode::density::read(&psd(1, &[], false), None, metadata(&psd(1, &[], false)).unwrap().irb.as_deref()), None);
+    }
+
+    /// A layer section that cannot be walked (cut short) leaves the resources already read: the
+    /// copy keeps its XMP and IPTC (#219), and the PSD is not taken as simple.
+    #[test]
+    fn resources_kept_when_layers_are_broken() {
+        let iim = crate::xmp::tests::iim(&[(80, "Ann")]);
+        let resources = [crate::meta_write::resource(1060, b"<x:xmpmeta/>"), crate::meta_write::resource(1028, &iim)].concat();
+        let mut file = psd(1, &[], false);
+        file.splice(30..34, [&(resources.len() as u32).to_be_bytes()[..], &resources].concat());
+        // Right after the length of the layer section, and two bytes of its content.
+        file.truncate(34 + resources.len() + 4 + 2);
+        let m = metadata(&file).expect("the resources read before the layers");
+        assert_eq!(m.xmp.as_deref(), Some(&b"<x:xmpmeta/>"[..]));
+        assert_eq!(m.irb.as_deref().and_then(crate::meta_write::iim), Some(iim.as_slice()));
+        assert!(!simple(&file));
     }
 
     /// Manual: every PSD in `EYECANSEE_PSD` turned clockwise as "Save" does, written to
