@@ -54,6 +54,7 @@ mod convert;
 #[cfg(debug_assertions)]
 mod debug_shot;
 mod decode;
+mod desktop_icon;
 mod devices;
 mod dup_page;
 mod duplicates;
