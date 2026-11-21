@@ -267,7 +267,8 @@ impl Builder {
 }
 
 /// The Fluent id that says warning `id` (`Mesh::warnings`) of a file made from the model, with its
-/// `$name` (#179): Save as… and Export as a 3D model… say it, the thumbnails do not.
+/// `$name` (#179): Save as… says it on its page; Export as a 3D model… has its own message
+/// (`model_view::export_notice`), the thumbnails say nothing.
 pub fn saved_warning(id: &'static str) -> &'static str {
     match id {
         crate::model_gltf::NODE_AGAIN => crate::model_gltf::NODE_AGAIN_SAVED,
