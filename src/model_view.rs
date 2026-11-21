@@ -282,36 +282,48 @@ impl App {
         loader.export_models(jobs, kind);
     }
 
-    /// The exported model: said in the status bar for a while, the folder read again. A glTF that
-    /// placed a part more than once is said in one message once the whole export is done (#179):
-    /// a line in the status bar stayed on the other files (Piero, 21/11).
-    pub(crate) fn on_exported(&mut self, ctx: &egui::Context, r: Result<(String, String, Vec<&'static str>), String>) {
-        let mut said = None;
-        let text = match &r {
+    /// The exported model: its new name in the status bar for a while, the folder read again. What
+    /// needs reading is said in one message once the whole export is done (`ExportSaid`): a model
+    /// not exported, with why (it was a line in the status bar that went after six seconds, and
+    /// with several models only the last one's), and a glTF that placed a part more than once
+    /// (#179: a line in the status bar stayed on the other files, Piero, 21/11).
+    pub(crate) fn on_exported(&mut self, ctx: &egui::Context, r: Result<(String, String, Vec<&'static str>), (String, String)>) {
+        let (mut again, mut failed) = (None, None);
+        match &r {
             Ok((to, from, notes)) => {
                 self.relist(crate::source::parent(to));
                 if !notes.is_empty() {
                     log!("export {from:?}: said of the new file {notes:?}");
                 }
-                said = notes.contains(&crate::model_gltf::NODE_AGAIN).then(|| crate::source::name(from).to_string());
-                self.i18n.t_args("status-exported", &[("name", crate::source::name(to))])
+                again = notes.contains(&crate::model_gltf::NODE_AGAIN).then(|| crate::source::name(from).to_string());
+                self.status_note = Some(self.i18n.t_args("status-exported", &[("name", crate::source::name(to))]));
+                self.note_until = Some(ctx.input(|i| i.time) + 6.0);
             }
-            Err(e) => self.i18n.t_args("export-failed", &[("error", &self.i18n.load_error(e))]),
-        };
-        self.status_note = Some(text);
-        self.note_until = Some(ctx.input(|i| i.time) + 6.0);
-        if let Some(names) = self.export_said.done(said) {
-            self.notice = Some(export_notice(&self.i18n, &names));
+            Err((from, e)) => {
+                log!("export {from:?}: ERROR {e}");
+                failed = Some((crate::source::name(from).to_string(), self.i18n.load_error(e)));
+            }
+        }
+        if let Some(said) = self.export_said.done(again, failed) {
+            self.notice = export_notice(&self.i18n, &said).or(self.notice.take());
         }
     }
 }
 
-/// The models of an export still to come, and the names of those whose glTF placed a part more
-/// than once in its hierarchy (#179): said all together when the last one is done.
+/// The models of an export still to come, and what there is to say of those done (`Said`): said
+/// all together when the last one is done.
 #[derive(Default)]
 pub(crate) struct ExportSaid {
     left: usize,
-    names: Vec<String>,
+    said: Said,
+}
+
+/// What the end of an export says: the models not exported, each with why, and the names of
+/// those whose glTF placed a part more than once in its hierarchy (#179).
+#[derive(Default, Debug, PartialEq)]
+pub(crate) struct Said {
+    pub(crate) failed: Vec<(String, String)>,
+    pub(crate) again: Vec<String>,
 }
 
 impl ExportSaid {
@@ -320,19 +332,26 @@ impl ExportSaid {
         self.left += n;
     }
 
-    /// A model exported, or not; the names to say (`said`, the model's if it placed a part more
-    /// than once) once it was the last.
-    pub(crate) fn done(&mut self, said: Option<String>) -> Option<Vec<String>> {
+    /// A model exported (`again`: its name, if it placed a part more than once) or not (`failed`:
+    /// its name and why); what to say once it was the last, if anything.
+    pub(crate) fn done(&mut self, again: Option<String>, failed: Option<(String, String)>) -> Option<Said> {
         self.left = self.left.saturating_sub(1);
-        self.names.extend(said);
-        (self.left == 0 && !self.names.is_empty()).then(|| std::mem::take(&mut self.names))
+        self.said.again.extend(again);
+        self.said.failed.extend(failed);
+        (self.left == 0 && self.said != Said::default()).then(|| std::mem::take(&mut self.said))
     }
 }
 
-/// The message at the end of an export whose glTF models placed a part more than once: one
-/// sentence a line, then their names (`notice_list`: ten, then "and N more", all in Copy).
-pub(crate) fn export_notice(i18n: &crate::i18n::I18n, names: &[String]) -> crate::save_dialogs::Notice {
-    crate::notice_list::counted(i18n, "model-export-again-title", &["model-export-again-why", "model-export-again-kept"], names)
+/// The message at the end of an export with something to say, one sentence a line, then the
+/// names (`notice_list`: ten, then "and N more", all in Copy): the models not exported, with why
+/// the first was not, and the glTF models that placed a part more than once; both in one window.
+pub(crate) fn export_notice(i18n: &crate::i18n::I18n, said: &Said) -> Option<crate::save_dialogs::Notice> {
+    let failed = said.failed.first().map(|(_, why)| {
+        let names: Vec<String> = said.failed.iter().map(|(name, _)| name.clone()).collect();
+        crate::notice_list::counted_why(i18n, "model-export-failed-title", &["model-export-failed-why", "list-first-why"], &crate::save_dialogs::md(why), &names)
+    });
+    let again = (!said.again.is_empty()).then(|| crate::notice_list::counted(i18n, "model-export-again-title", &["model-export-again-why", "model-export-again-kept"], &said.again));
+    [failed, again].into_iter().flatten().reduce(crate::notice_list::joined)
 }
 
 /// The axes of the file in the top right corner, as CAD programs show them: X red, Y green, Z
@@ -360,27 +379,31 @@ mod tests {
     use super::*;
     use crate::i18n::I18n;
 
-    /// Three models, the second failed: the names of the first and the third, in their order, only
-    /// once the last is done; an export without any says nothing; a second export started while
-    /// the first runs is said with it, at the end of both.
+    /// Three models, the second failed: the names of the first and the third, in their order, and
+    /// the second with why, only once the last is done; an export with nothing to say says
+    /// nothing; a second export started while the first runs is said with it, at the end of both.
     #[test]
     fn said_at_the_end() {
+        let again = |names: &[&str]| Some(Said { failed: Vec::new(), again: names.iter().map(|n| n.to_string()).collect() });
         let mut s = ExportSaid::default();
         s.start(3);
-        assert_eq!(s.done(Some("a.gltf".into())), None);
-        assert_eq!(s.done(None), None);
-        assert_eq!(s.done(Some("c.gltf".into())), Some(vec!["a.gltf".to_string(), "c.gltf".to_string()]));
+        assert_eq!(s.done(Some("a.gltf".into()), None), None);
+        assert_eq!(s.done(None, Some(("b.gltf".into(), "cut short".into()))), None);
+        assert_eq!(s.done(Some("c.gltf".into()), None), Some(Said { failed: vec![("b.gltf".into(), "cut short".into())], again: vec!["a.gltf".into(), "c.gltf".into()] }));
         s.start(2);
-        assert_eq!((s.done(None), s.done(None)), (None, None));
+        assert_eq!((s.done(None, None), s.done(None, None)), (None, None));
         s.start(1);
-        assert_eq!(s.done(Some("x.gltf".into())), Some(vec!["x.gltf".to_string()]));
+        assert_eq!(s.done(Some("x.gltf".into()), None), again(&["x.gltf"]));
         s.start(2);
-        assert_eq!(s.done(Some("a.gltf".into())), None);
+        assert_eq!(s.done(Some("a.gltf".into()), None), None);
         s.start(1);
-        assert_eq!(s.done(None), None);
-        assert_eq!(s.done(Some("b.gltf".into())), Some(vec!["a.gltf".to_string(), "b.gltf".to_string()]));
+        assert_eq!(s.done(None, None), None);
+        assert_eq!(s.done(Some("b.gltf".into()), None), again(&["a.gltf", "b.gltf"]));
         // A message more than was waited for leaves nothing behind.
-        assert_eq!(s.done(None), None);
+        assert_eq!(s.done(None, None), None);
+        // The only model, not exported: said at once.
+        s.start(1);
+        assert_eq!(s.done(None, Some(("m.step".into(), "no".into()))), Some(Said { failed: vec![("m.step".into(), "no".into())], again: Vec::new() }));
     }
 
     /// One model: its name, in the singular; twelve: ten names, then "and 2 more", all in Copy;
@@ -388,21 +411,43 @@ mod tests {
     #[test]
     fn one_window_for_all() {
         let (en, it) = (I18n::new("en"), I18n::new("it"));
-        let one = export_notice(&it, &["nodo_doppio.gltf".to_string()]);
+        let again = |names: &[String]| Said { failed: Vec::new(), again: names.to_vec() };
+        let one = export_notice(&it, &again(&["nodo_doppio.gltf".to_string()])).unwrap();
         assert!(one.warning);
         assert_eq!(one.title, "Modello esportato con una modifica");
         let why = "Metteva una sua parte più volte nella gerarchia, cosa che glTF non permette.\nIl file nuovo contiene quella parte una volta sola.";
         assert_eq!(one.text, format!("{why}\n\n- {}", crate::notice_list::item("nodo_doppio.gltf")));
         assert_eq!(one.copy.as_deref(), Some(format!("{why}\n\n- nodo_doppio.gltf").as_str()));
-        assert_eq!(export_notice(&en, &["a.gltf".to_string()]).title, "Model exported with a change");
+        assert_eq!(export_notice(&en, &again(&["a.gltf".to_string()])).unwrap().title, "Model exported with a change");
         let names: Vec<String> = (1..=12).map(|i| format!("m{i}.gltf")).collect();
         for (i18n, title, more) in [(&en, "Models exported with a change", "and 2 more"), (&it, "Modelli esportati con una modifica", "e altri 2")] {
-            let many = export_notice(i18n, &names);
+            let many = export_notice(i18n, &again(&names)).unwrap();
             assert_eq!(many.title, title);
             assert!(many.text.ends_with(&format!("\n\n{more}")) && !many.text.contains("m11"), "{}", many.text);
             let copy = many.copy.unwrap();
             assert!(copy.ends_with("- m11.gltf\n- m12.gltf") && !copy.contains(more), "{copy}");
         }
-        assert!(export_notice(&en, &names).text.starts_with("They placed one of their parts more than once"));
+        assert!(export_notice(&en, &again(&names)).unwrap().text.starts_with("They placed one of their parts more than once"));
+    }
+
+    /// A model not exported is said in the message at the end, to close and to copy, not in a
+    /// line of the status bar that goes by itself: its name and why, as it reads (a `*` in the
+    /// reason stays); several: why the first; with models exported with a change, in one window.
+    #[test]
+    fn not_exported_told() {
+        let (en, it) = (I18n::new("en"), I18n::new("it"));
+        let failed = |n: usize| (1..=n).map(|i| (format!("m{i}.step"), format!("reason *{i}*"))).collect::<Vec<_>>();
+        let one = export_notice(&it, &Said { failed: failed(1), again: Vec::new() }).unwrap();
+        assert!(one.warning);
+        assert_eq!(one.title, "Modello non esportato");
+        assert_eq!(one.text, format!("Non è stato possibile esportarlo.\n{}\n\n- {}", crate::save_dialogs::md("reason *1*"), crate::notice_list::item("m1.step")));
+        assert_eq!(one.copy.as_deref(), Some("Non è stato possibile esportarlo.\nreason *1*\n\n- m1.step"));
+        let many = export_notice(&en, &Said { failed: failed(12), again: vec!["a.gltf".into()] }).unwrap();
+        assert_eq!(many.title, "Models not exported");
+        assert!(many.text.starts_with(&format!("They could not be exported.\nThe first: {}\n\n- ", crate::save_dialogs::md("reason *1*"))), "{}", many.text);
+        assert!(many.text.contains("\n\nand 2 more\n\nModel exported with a change\n\nIt placed one of its parts"), "{}", many.text);
+        let copy = many.copy.unwrap();
+        assert!(copy.contains("\n- m12.step\n\nModel exported with a change\n\n") && copy.ends_with("\n\n- a.gltf") && !copy.contains("reason *2*"), "{copy}");
+        assert_eq!(export_notice(&it, &Said { failed: failed(2), again: Vec::new() }).unwrap().title, "Modelli non esportati");
     }
 }

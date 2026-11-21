@@ -658,7 +658,6 @@ cad-units = units
 keys-button = Keys
 menu-export-3d = Export as a 3D model…
 status-exported = Saved as { $name }
-export-failed = Export failed: { $error }
 model-export-title = Export as a 3D model
 model-export-count = { $n ->
     [one] 1 3D model chosen.
@@ -667,6 +666,14 @@ model-export-count = { $n ->
 model-export-format = Format:
 model-export-where = Each copy goes next to its model, with the same name; a name already taken gets " (2)".
 model-export-ok = Export
+model-export-failed-title = { $n ->
+    [one] Model not exported
+   *[other] Models not exported
+}
+model-export-failed-why = { $n ->
+    [one] It could not be exported.
+   *[other] They could not be exported.
+}
 model-export-again-title = { $n ->
     [one] Model exported with a change
    *[other] Models exported with a change

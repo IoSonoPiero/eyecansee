@@ -88,8 +88,8 @@ pub enum Msg {
     /// The converted image written: the path asked for, and the path written or an error.
     Saved(String, Result<String, source::Error>),
     /// A 3D model saved in another 3D format: the new file's path, the model's, and what was
-    /// read differently from the model (`Mesh::warnings`, #179); or why not.
-    Exported(Result<(String, String, Vec<&'static str>), String>),
+    /// read differently from the model (`Mesh::warnings`, #179); or the model's path and why not.
+    Exported(Result<(String, String, Vec<&'static str>), (String, String)>),
     /// Two CAD drawings compared (`Loader::compare_drawings`).
     Compared(Result<crate::cad_compare::Compared, String>),
     /// "Save" from the viewer, before the confirmation: the image, the turn, and the file to write
@@ -458,8 +458,11 @@ impl Loader {
                     Err((_, detail)) => Err(detail),
                 };
                 let r = match r {
-                    Ok((data, notes)) => write_whole(&op, &to, data).await.map(|()| (to, from, notes)).map_err(|(_, detail)| detail),
-                    Err(e) => Err(e),
+                    Ok((data, notes)) => match write_whole(&op, &to, data).await {
+                        Ok(()) => Ok((to, from, notes)),
+                        Err((_, detail)) => Err((from, detail)),
+                    },
+                    Err(e) => Err((from, e)),
                 };
                 let _ = tx.send(Msg::Exported(r));
                 ctx.request_repaint();
