@@ -191,14 +191,27 @@ pub(crate) fn chunk(out: &mut Vec<u8>, kind: &[u8; 4], data: &[u8]) {
 }
 
 /// A JPEG whose segments were copied from its original (lossless turn): XMP made to fit `w` × `h`
-/// and the Photoshop block without the original's thumbnails.
+/// and the Photoshop block without the original's thumbnails. An XMP that no longer fits its
+/// segment once made to fit is written again whole, split as in every JPEG written (#217).
 pub fn fit_jpeg_segments(jpeg: &[u8], w: u32, h: u32) -> Vec<u8> {
     let mut out = jpeg[..2.min(jpeg.len())].to_vec();
     let mut rest = 2;
-    for (marker, s, e) in crate::ultrahdr::segments(jpeg) {
+    let segments = crate::ultrahdr::segments(jpeg);
+    let main = segments.iter().find_map(|&(m, s, e)| if m == 0xE1 { jpeg[s + 4..e].strip_prefix(JPEG_XMP) } else { None });
+    let fitted = main.and_then(|m| crate::xmp::fit(Some(m), w, h, None));
+    let split = fitted.as_ref().filter(|x| x.len() > JPEG_XMP_MAX).and_then(|_| crate::xmp::fit(Some(&jpeg_xmp_whole(jpeg)?), w, h, None)).map(|x| jpeg_xmp_segments(&x));
+    for (marker, s, e) in segments {
         let body = &jpeg[s + 4..e];
+        if let Some(bodies) = split.as_ref().filter(|_| marker == 0xE1 && (body.starts_with(JPEG_XMP) || body.starts_with(JPEG_XMP_EXT))) {
+            // In place of the main packet, the new segments; the old extended part goes.
+            if body.starts_with(JPEG_XMP) {
+                out.extend(bodies.iter().flat_map(|b| app1(b)));
+            }
+            rest = e;
+            continue;
+        }
         let new = if marker == 0xE1 && body.starts_with(JPEG_XMP) {
-            crate::xmp::fit(Some(&body[JPEG_XMP.len()..]), w, h, None).map(|x| [JPEG_XMP, &x].concat())
+            fitted.as_ref().map(|x| [JPEG_XMP, x].concat())
         } else if marker == 0xED && body.starts_with(JPEG_PHOTOSHOP) {
             fit_irb(&body[JPEG_PHOTOSHOP.len()..]).map(|x| [JPEG_PHOTOSHOP, &x].concat())
         } else {
@@ -620,6 +633,30 @@ mod tests {
         crate::encode::tests::kept_xmp_like(&out, 16, 32);
         let x = read(&out, Some(&mut image::codecs::jpeg::JpegDecoder::new(Cursor::new(&out)).unwrap()));
         assert_eq!(x.irb, Some(irb_of_iim(&iim)));
+    }
+
+    /// An XMP that fills its segment grows when made to fit a lossless turn (Camera Raw settings
+    /// marked as applied): it is split as in every JPEG written, not left out (#217).
+    #[test]
+    fn lossless_turn_with_a_full_xmp() {
+        let mut jpeg = Vec::new();
+        image::DynamicImage::ImageRgb8(image::RgbImage::new(32, 16)).write_to(&mut Cursor::new(&mut jpeg), image::ImageFormat::Jpeg).unwrap();
+        // Without the thumbnail, which would make room when it goes.
+        let sample = crate::xmp::tests::SAMPLE;
+        let (t0, t1) = (sample.find("<xmp:Thumbnails>").unwrap(), sample.find("</xmp:Thumbnails>").unwrap() + "</xmp:Thumbnails>".len());
+        let sample = format!("{}{}", &sample[..t0], &sample[t1..]);
+        let at = sample.find("</rdf:Description>").unwrap();
+        let long = |n: usize| format!("{}<dc:source>{}</dc:source>{}", &sample[..at], "s".repeat(n), &sample[at..]);
+        let xmp = long(JPEG_XMP_MAX - long(0).len() - 4);
+        let body = [JPEG_XMP, xmp.as_bytes()].concat();
+        assert!(body.len() <= 65533);
+        assert!(crate::xmp::fit(Some(xmp.as_bytes()), 16, 32, None).unwrap().len() > JPEG_XMP_MAX, "made to fit, it no longer fits its segment");
+        let file = [&jpeg[..2], &[0xFF, 0xE1], &((body.len() + 2) as u16).to_be_bytes(), &body, &jpeg[2..]].concat();
+        assert!(crate::xmp::fit(Some(xmp.as_bytes()), 16, 32, None).unwrap().len() > JPEG_XMP_MAX, "made to fit, it no longer fits its segment");
+        let (out, lossy) = crate::save_back::turned_file(&file, "a.jpg", crate::transform::Turn::default().then(crate::transform::Op::Cw)).unwrap();
+        assert!(!lossy);
+        let back = String::from_utf8(jpeg_xmp_whole(&out).expect("the XMP is lost")).unwrap();
+        assert!(back.contains("crs:AlreadyApplied=\"True\"") && back.contains(&"s".repeat(1000)), "{back}");
     }
 
     /// XMP and IPTC put in a PNG are read back by `image`, the PNG still decodes.
