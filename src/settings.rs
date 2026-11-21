@@ -227,9 +227,10 @@ impl Show {
 #[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Debug, Default)]
 #[serde(rename_all = "snake_case")]
 pub enum WindowStart {
-    #[default]
     Normal,
     Maximized,
+    /// The default since 0.78.0 (#221): only a settings.json without the key gets it.
+    #[default]
     Remember,
 }
 
@@ -257,7 +258,7 @@ impl Default for Settings {
             show: Show::All,
             thumb_maintenance: false,
             thumb_cache_mb: 1024,
-            window_start: WindowStart::Normal,
+            window_start: WindowStart::Remember,
             window_size: None,
             window_maximized: false,
             theme: ThemeChoice::System,
@@ -373,6 +374,17 @@ mod tests {
         assert!(!s.edit_main_overwrite, "the main save: Save copy unless chosen");
         let back: Settings = serde_json::from_str(&serde_json::to_string(&s).unwrap()).unwrap();
         assert_eq!(back, s);
+    }
+
+    /// "Size it had when closed" is the default (#221), but a settings.json that holds a choice
+    /// keeps it: every file written by a published version has the key.
+    #[test]
+    fn window_start_remember_by_default_saved_choice_kept() {
+        assert_eq!(Settings::default().window_start, WindowStart::Remember);
+        let old: Settings = serde_json::from_str(r#"{"window_start": "normal"}"#).unwrap();
+        assert_eq!(old.window_start, WindowStart::Normal);
+        let without: Settings = serde_json::from_str(r#"{"thumb_cache_mb": 50}"#).unwrap();
+        assert_eq!(without.window_start, WindowStart::Remember);
     }
 
     #[test]
