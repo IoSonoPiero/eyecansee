@@ -374,9 +374,10 @@ impl App {
             let open = self.dir.clone();
             self.listings.retain(|k, _| !(k.starts_with(&dir) && *k != dir && *k != open));
             // A folder moved with links left out stays, emptied around them (#183), and so does one
-            // that got something new while it moved (#194): the folders that hold them are read
-            // again, not shown as cached.
-            let links = if cut { [p.links_skipped.lock().unwrap().clone(), p.left.lock().unwrap().clone()].concat() } else { Vec::new() };
+            // that got something new while it moved (#194), or that holds a file not read (L17 of
+            // 2026-11-21): the folders that hold them are read again, not shown as cached.
+            let failed = p.failed.lock().unwrap().iter().map(|(f, _)| f.clone()).collect::<Vec<_>>();
+            let links = if cut { [p.links_skipped.lock().unwrap().clone(), p.left.lock().unwrap().clone(), failed].concat() } else { Vec::new() };
             self.listings.retain(|k, _| *k == open || !links.iter().any(|l| l.starts_with(k.as_str())));
             // (The destination, and a folder inside it, are read again just below.)
             if !open.starts_with(&dir) && links.iter().any(|l| l.starts_with(open.as_str())) {

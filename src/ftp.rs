@@ -883,8 +883,9 @@ mod tests {
 
     /// The copy of L17 (2026-11-21) from a real server, into a folder of this computer that goes
     /// after: `<dir>collegamenti/` (`due.jpg`, `uno.jpg`, `self` a link to the folder) and
-    /// `<dir>link-file/` (`foto.jpg`, a link to `../collegamenti/uno.jpg`). Nothing is written on
-    /// the server. Plain FTP, the address from the environment:
+    /// `<dir>link-file/` (`foto.jpg`, a link to `../collegamenti/uno.jpg`, made for the test with
+    /// `symlink` of sftp and removed after: on 2026-11-21 it was). Nothing is written on the
+    /// server. Plain FTP, the address from the environment:
     /// `EYECANSEE_FTP_HOST=… EYECANSEE_FTP_USER=… EYECANSEE_FTP_PASSWORD=… EYECANSEE_FTP_DIR=prove-078/
     /// cargo test ftp_links_live -- --ignored --nocapture`
     #[test]
