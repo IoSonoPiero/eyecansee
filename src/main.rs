@@ -558,8 +558,8 @@ impl eframe::App for App {
             self.paste_to = None;
         }
         let paste_to = if raw_input.events.iter().any(|e| matches!(e, egui::Event::Paste(_))) { self.paste_to.take().map(|(dir, _)| dir) } else { None };
-        // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer);
-        // F1 still opens the guide.
+        browser::menu_clicks(ctx, raw_input);
+        // Confirmation open: the keys answer it and reach nothing else (Esc would close the viewer); F1 still opens the guide.
         // Open location, Convert and resize and the editor's Resize have fields to type in: there
         // the keys go to the field.
         let fields = self.open_address.is_some() || self.server_manager.is_some() || self.bookmarks.configuring || self.unlock.is_some() || self.batch.is_some() || self.editor.as_ref().is_some_and(crate::edit_page::Window::resizing);
@@ -580,7 +580,7 @@ impl eframe::App for App {
             });
             return;
         }
-        if ctx.egui_wants_keyboard_input() || self.rename.is_some() || self.new_folder.is_some() {
+        if ctx.egui_wants_keyboard_input() || egui::Popup::is_any_open(ctx) || self.rename.is_some() || self.new_folder.is_some() {
             return;
         }
         // Copy, cut and paste reach the app as events, not keys. On Windows Shift+Del is a cut

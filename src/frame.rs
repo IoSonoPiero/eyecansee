@@ -65,6 +65,7 @@ impl App {
         if egui::Popup::is_any_open(ctx) && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
             egui::Popup::close_all(ctx);
         }
+        crate::browser::menu_keys(ctx);
         self.options_esc(ctx);
         // "Save in another format" and the duplicates cover the window: the keys must not reach the grid under them.
         if self.convert.is_none() && self.editor.is_none() && self.show.is_none() && !self.dup_page_shown() {
@@ -107,7 +108,7 @@ impl App {
             // (issue #43 asked it for videos).
             let bare = self.viewing.is_some() && crate::viewer::bare(ctx);
             if !bare {
-                egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui));
+                crate::browser::menu_bar_at(ctx, egui::Panel::top("menu").show(ui, |ui| self.menu_bar(ui)).response.rect);
                 egui::Panel::top("toolbar").show(ui, |ui| self.toolbar(ui, ctx));
             }
             match self.viewing {

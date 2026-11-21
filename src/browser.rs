@@ -1,5 +1,6 @@
 //! Browse mode, the parts shared by the tree (`tree`), the grid (`grid`) and the metadata panel
-//! (`meta_panel`): right-click menus, error text, selection colour and focus frame.
+//! (`meta_panel`): right-click menus, error text, selection colour and focus frame; and what any
+//! open menu keeps for itself: the keys and the clicks outside it (`menu_keys`, `menu_clicks`).
 
 use std::cell::Cell;
 
@@ -278,6 +279,79 @@ pub(crate) fn all_off(items: &[MenuItem]) -> Option<String> {
     acts.all(|a| matches!(a, Act::Off(_))).then_some(why)
 }
 
+/// Where the bar of the menus is, in the frame just drawn (`App::panels`): a press there still
+/// reaches it while a menu is open, so File, Edit… go on opening and closing one another as before.
+pub(crate) fn menu_bar_at(ctx: &egui::Context, rect: egui::Rect) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique(MENU_BAR), Some(rect)));
+}
+
+const MENU_BAR: &str = "menu-bar-rect";
+
+/// With a menu open (right click, the bar of the menus, a list to choose from) a click outside
+/// it only closes it, as in GTK programs (Nautilus) and in Windows inside the program that owns
+/// the menu: it used to reach what was under the pointer too, and a click on a file to close the
+/// menu left that file alone selected (L26 of 2026-11-21). On the raw input, before egui sees
+/// it: the press is dropped with its release, and the menus are closed here. Tab is dropped
+/// too: it would have moved the selection between the tree and the grid under the menu.
+pub(crate) fn menu_clicks(ctx: &egui::Context, raw: &mut egui::RawInput) {
+    let id = egui::Id::unique("menu-clicks-dropped");
+    let mut dropped: Vec<egui::PointerButton> = ctx.data(|d| d.get_temp(id)).unwrap_or_default();
+    let open = egui::Popup::is_any_open(ctx);
+    // Taken away: the editor and the full screen have no bar.
+    let bar = ctx.data_mut(|d| d.remove_temp::<Option<egui::Rect>>(egui::Id::unique(MENU_BAR))).flatten();
+    let mut close = false;
+    raw.events.retain(|e| match e {
+        egui::Event::PointerButton { pos, button, pressed: true, .. } => {
+            // A press let through: an earlier release lost (outside the window) no longer counts.
+            dropped.retain(|b| b != button);
+            let on_bar = bar.is_some_and(|r| r.contains(*pos));
+            if open && outside_menu(ctx.layer_id_at(*pos).map(|l| l.order), on_bar) {
+                dropped.push(*button);
+                close = true;
+                return false;
+            }
+            true
+        }
+        egui::Event::PointerButton { button, pressed: false, .. } if dropped.contains(button) => {
+            dropped.retain(|b| b != button);
+            false
+        }
+        egui::Event::Key { key: egui::Key::Tab, .. } => !open,
+        _ => true,
+    });
+    if close {
+        egui::Popup::close_all(ctx);
+    }
+    ctx.data_mut(|d| d.insert_temp(id, dropped));
+}
+
+/// A press at a place of this layer order, `None` = no layer, is outside the open menu: menus,
+/// submenus and lists to choose from are all in the foreground, the window and its dialogs under it.
+fn outside_menu(order: Option<egui::Order>, on_bar: bool) -> bool {
+    !on_bar && order.is_none_or(|o| o < egui::Order::Foreground)
+}
+
+/// With a menu open the keys are its own: they used to reach the grid, the tree, the viewer and
+/// the shortcuts under it too, and the first arrow moved the selection of the grid (L26 of
+/// 2026-11-21). egui has already taken the arrows to move through the items
+/// (`Memory::focus_direction`, at the start of the frame) and reads Enter and Space on the item
+/// that has the keyboard: those stay, everything else is taken away here, before the pages read it.
+pub(crate) fn menu_keys(ctx: &egui::Context) {
+    if !egui::Popup::is_any_open(ctx) || ctx.text_edit_focused() {
+        return;
+    }
+    let item = ctx.egui_wants_keyboard_input();
+    let kept = |key: &egui::Key| item && matches!(key, egui::Key::Enter | egui::Key::Space);
+    ctx.input_mut(|i| {
+        i.events.retain(|e| match e {
+            egui::Event::Key { key, .. } => kept(key),
+            egui::Event::Text(_) => false,
+            _ => true,
+        });
+        i.keys_down.retain(|k| kept(k));
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,5 +366,125 @@ mod tests {
         assert_eq!(all_off(&[on, off("a")]), None);
         assert_eq!(all_off(&[None]), None);
         assert_eq!(all_off(&[]), None);
+    }
+
+    use crate::audit_family_1::{Harness, folder, own_folder};
+
+    /// The middle of the thumbnail of cell `p` of the grid (`p` = 0 is ".."): cells are at
+    /// least `thumb_size + 16` wide, at most a quarter wider with four columns or more.
+    fn cell(h: &Harness, p: usize) -> egui::Pos2 {
+        let rect = h.app.grid_rect.expect("the grid drawn");
+        let side = h.app.thumb_size;
+        rect.min + egui::vec2((p as f32 + 0.5) * (side + 16.0), 6.0 + side / 2.0)
+    }
+
+    fn click(h: &mut Harness, at: egui::Pos2, button: egui::PointerButton) {
+        let ev = |pressed| egui::Event::PointerButton { pos: at, button, pressed, modifiers: egui::Modifiers::NONE };
+        h.frame(vec![egui::Event::PointerMoved(at)]);
+        h.frame(vec![ev(true)]);
+        h.frame(vec![ev(false)]);
+        h.frame(Vec::new());
+    }
+
+    /// a.png, b.png, c.png all selected with Ctrl+A, then the right-click menu of b.png open.
+    fn menu_over_all(name: &str) -> Harness {
+        let mut h = Harness::new(&folder(name, &["a.png", "b.png", "c.png"]));
+        // As Ctrl+A (the harness gives the keys without the state of Ctrl).
+        h.app.focus = crate::Focus::Grid;
+        h.app.select_all();
+        let b = cell(&h, 2);
+        click(&mut h, b, egui::PointerButton::Secondary);
+        assert!(egui::Popup::is_any_open(&h.ctx), "the menu of b.png open");
+        assert_eq!((h.app.selected, h.app.marked.len()), (1, 3), "the right click on b.png keeps the selection");
+        h
+    }
+
+    /// L26 of 2026-11-21: with the right-click menu open the arrows moved the selection of the
+    /// grid under it, and the files selected with Ctrl+A were left one.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn keys_with_a_menu_open_do_not_reach_the_grid() {
+        if own_folder("browser::tests::keys_with_a_menu_open_do_not_reach_the_grid") {
+            return;
+        }
+        let mut h = menu_over_all("menu-keys");
+        for key in [egui::Key::ArrowRight, egui::Key::ArrowDown, egui::Key::End, egui::Key::Home] {
+            h.key(key);
+            h.frame(Vec::new());
+            assert_eq!((h.app.selected, h.app.marked.len()), (1, 3), "{key:?} with the menu open");
+        }
+        assert!(egui::Popup::is_any_open(&h.ctx), "the menu still open");
+        h.key(egui::Key::Escape);
+        h.frame(Vec::new());
+        assert!(!egui::Popup::is_any_open(&h.ctx), "Esc closes the menu");
+        assert_eq!(h.app.marked.len(), 3, "Esc keeps the selection");
+    }
+
+    /// The arrows go through the items of the menu, and Enter runs the one reached: Open.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_arrows_and_enter_choose_in_the_menu() {
+        if own_folder("browser::tests::the_arrows_and_enter_choose_in_the_menu") {
+            return;
+        }
+        let mut h = menu_over_all("menu-enter");
+        h.key(egui::Key::ArrowDown);
+        h.frame(Vec::new());
+        assert!(h.ctx.egui_wants_keyboard_input(), "the first item has the keyboard");
+        h.key(egui::Key::Enter);
+        h.frame(Vec::new());
+        assert!(!egui::Popup::is_any_open(&h.ctx), "the menu closed by its item");
+        assert_eq!(h.app.viewing, Some(0), "Open ran on the selection, from a.png");
+    }
+
+    /// L26 of 2026-11-21: a click outside the right-click menu, to close it, also selected the
+    /// file under the pointer and dropped the others.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_click_outside_a_menu_only_closes_it() {
+        if own_folder("browser::tests::a_click_outside_a_menu_only_closes_it") {
+            return;
+        }
+        let mut h = menu_over_all("menu-click");
+        let a = cell(&h, 1);
+        click(&mut h, a, egui::PointerButton::Primary);
+        assert!(!egui::Popup::is_any_open(&h.ctx), "the click closes the menu");
+        assert_eq!((h.app.selected, h.app.marked.len()), (1, 3), "the click outside the menu reached the grid");
+        // The next click is the grid's again.
+        click(&mut h, a, egui::PointerButton::Primary);
+        assert_eq!((h.app.selected, h.app.marked.len()), (0, 0), "a click on a.png with no menu open selects it alone");
+    }
+
+    /// A menu of the bar works as the right-click menu: the arrows and a click on the grid stay
+    /// out of the grid; a press on the bar still reaches it, so File opens from another menu.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn a_menu_of_the_bar_keeps_the_keys_and_the_clicks() {
+        if own_folder("browser::tests::a_menu_of_the_bar_keeps_the_keys_and_the_clicks") {
+            return;
+        }
+        let mut h = menu_over_all("menu-bar");
+        let bar = h.ctx.data(|d| d.get_temp::<Option<egui::Rect>>(egui::Id::unique(MENU_BAR))).flatten().expect("the bar drawn");
+        // File, the first menu: its name starts at the left of the bar.
+        click(&mut h, bar.left_center() + egui::vec2(16.0, 0.0), egui::PointerButton::Primary);
+        assert!(egui::Popup::is_any_open(&h.ctx), "File open, the right-click menu closed");
+        h.key(egui::Key::ArrowDown);
+        h.frame(Vec::new());
+        assert_eq!((h.app.selected, h.app.marked.len()), (1, 3), "the arrow with File open");
+        let a = cell(&h, 1);
+        click(&mut h, a, egui::PointerButton::Primary);
+        assert!(!egui::Popup::is_any_open(&h.ctx), "the click closes File");
+        assert_eq!((h.app.selected, h.app.marked.len()), (1, 3), "the click outside File reached the grid");
+    }
+
+    #[test]
+    fn what_is_outside_a_menu() {
+        use egui::Order;
+        assert!(outside_menu(Some(Order::Background), false), "the grid, the tree, the bars");
+        assert!(outside_menu(Some(Order::Middle), false), "a dialog");
+        assert!(outside_menu(None, false));
+        assert!(!outside_menu(Some(Order::Foreground), false), "the menu, a submenu, a list");
+        assert!(!outside_menu(Some(Order::Tooltip), false));
+        assert!(!outside_menu(Some(Order::Background), true), "the bar of the menus");
     }
 }
