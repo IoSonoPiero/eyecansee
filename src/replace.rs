@@ -261,12 +261,19 @@ async fn swap<W: Future<Output = Result<(), source::Error>>>(op: &Store, path: &
 }
 
 /// The original leaves its name and waits as `old`. To the system trash it goes now with its own
-/// name (restoring it from there gives it back), `old` being a second name of it.
+/// name (restoring it from there gives it back), `old` being a second name of it. If the trash
+/// refuses it while it is still there, the second name just made goes again (#202): left, it was
+/// taken for what a save cut short leaves, and shown as "a (2).jpg" at every try.
 async fn leave(op: &Store, path: &str, old: &str, how: source::Deletion, strict: bool) -> Result<(), source::Error> {
     match how {
         source::Deletion::SystemTrash => {
             op.link_or_copy(path, old).await?;
-            op.delete(path, how).await.map_err(|e| if strict { trash_failed(e) } else { e })
+            let r = op.delete(path, how).await;
+            if r.is_err() && op.exists(path).await {
+                let gone = op.delete(old, source::Deletion::Permanent).await;
+                log!("save {path:?}: refused by the trash, second name {old:?} removed: {gone:?}");
+            }
+            r.map_err(|e| if strict { trash_failed(e) } else { e })
         }
         _ => op.rename(path, source::name(old)).await.map(|_| ()),
     }
@@ -452,13 +459,15 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
-    /// Audit 2.11: Save over a file whose original goes to the system trash, when the trash
-    /// refuses it (here: the trash of this run's data folder cannot be made). The save fails, and
-    /// the original stays, as it should; but the second name made for it is taken for the leftover
-    /// of an older save and shown as "a (2).jpg", one more at every try.
+    /// Audit 2.11 (#202): Save over a file whose original goes to the system trash, when the trash
+    /// refuses it (here: the trash of this run's data folder cannot be made). The save fails and
+    /// the original stays; the second name made for it goes too. Before, it was taken for the
+    /// leftover of an older save and shown as "a (2).jpg", one more at every try.
     #[test]
-    #[ignore = "audit 2.11: not fixed yet"]
     fn audit_2_11_trash_refused_leaves_a_copy() {
+        if crate::audit_family_1::own_folder("replace::tests::audit_2_11_trash_refused_leaves_a_copy") {
+            return;
+        }
         let run = crate::audit_family_1::guard();
         let data = std::path::PathBuf::from(std::env::var("XDG_DATA_HOME").unwrap());
         // The system trash of this run, never the user's: a file where its folder should be.
