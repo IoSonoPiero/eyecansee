@@ -340,11 +340,20 @@ fn keep_segments(from: &[u8], mut out: Vec<u8>, all: bool) -> Vec<u8> {
         // The extended XMP is in the main packet of `out`, or in segments of its own there.
         .filter(|&(m, s, e)| !(m == 0xE1 && from[s + 4..e].starts_with(crate::meta_write::JPEG_XMP_EXT)))
         .filter(|&s| !have.contains(&key(from, s)))
-        .flat_map(|(_, s, e)| from[s..e].to_vec())
+        .flat_map(|(m, s, e)| match from[s + 4..e].strip_prefix(crate::meta_write::JPEG_PHOTOSHOP) {
+            // The Photoshop block without the original's thumbnails, none if nothing else (#219).
+            Some(irb) if m == 0xED => crate::meta_write::fit_irb(irb).map_or_else(Vec::new, |x| segment_of(0xED, &[crate::meta_write::JPEG_PHOTOSHOP, &x].concat())),
+            _ => from[s..e].to_vec(),
+        })
         .collect();
     let at = segments(&out).into_iter().take_while(|&(m, ..)| (0xE0..=0xEF).contains(&m)).last().map_or(2, |(_, _, e)| e);
     out.splice(at..at, missing);
     out
+}
+
+/// A JPEG segment: marker, length, `body`.
+fn segment_of(marker: u8, body: &[u8]) -> Vec<u8> {
+    [&[0xFF, marker][..], &((body.len() + 2) as u16).to_be_bytes(), body].concat()
 }
 
 /// The segments before the coded data: marker, start (at 0xFF) and end.
@@ -706,6 +715,20 @@ pub(crate) mod tests {
         let _ = set_xmp_length(&mut b, 123_456);
         let s = segments(&b);
         assert_eq!(s.iter().map(|x| x.0).collect::<Vec<_>>(), [0xE1, 0xFE], "segments after the XMP lost");
+    }
+
+    /// The original's Photoshop block holds only thumbnails: the photo written again has none,
+    /// and that block is not put back with its thumbnails (#219).
+    #[test]
+    fn photoshop_thumbnails_not_put_back() {
+        let mut file = sample(64, 32);
+        // The IPTC resource (1028) made a thumbnail (1033) of the same size.
+        let at = file.windows(6).position(|w| w == b"8BIM\x04\x04").unwrap();
+        file[at + 5] = 0x09;
+        let img = crate::decode::decode_full(&file, "a.jpg").unwrap().resize_exact(32, 16, image::imageops::FilterType::Triangle);
+        let out = resized(&file, img, Turn::default(), None, &Options::default(), None).unwrap();
+        let p = parts(&out).expect("still Ultra HDR");
+        assert!(segments(&out[..p.gain]).iter().all(|s| s.0 != 0xED), "the old Photoshop block is back");
     }
 
     #[test]
