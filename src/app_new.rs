@@ -111,6 +111,7 @@ impl App {
             title: String::new(),
             help: help::Guide::default(),
             tip: None,
+            first_start: None,
             about: false,
             clip: None,
             paste_to: None,
@@ -176,7 +177,8 @@ impl App {
         if let Some((title, text)) = crate::gpu_start::notice() {
             let (title, text) = (app.i18n.t(title), app.i18n.t(text));
             app.notice = Some(crate::save_dialogs::Notice { warning: true, ..crate::save_dialogs::Notice::new(title, text) });
-        } else {
+        } else if !app.first_start_at_start(arg.is_some()) {
+            // The first-start window (#212) and the tip are never shown one after the other.
             app.tip_at_start(arg.is_some());
         }
         match (arg, last) {

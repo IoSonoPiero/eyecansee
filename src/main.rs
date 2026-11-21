@@ -14,6 +14,7 @@ macro_rules! log {
 }
 
 mod actions;
+mod addons_ui;
 mod address;
 mod audio_convert;
 mod audio_job;
@@ -63,6 +64,7 @@ mod encoders;
 mod engine;
 mod fault;
 mod first_start;
+mod first_start_ui;
 mod ffmpeg;
 mod ffmpeg_ask;
 mod ffmpeg_files;
@@ -470,6 +472,8 @@ struct App {
     help: help::Guide,
     /// The tip at startup shown, by its place in `tips::TIPS` (issue #113).
     tip: Option<tips::Open>,
+    /// The first-start window (#212), while open.
+    first_start: Option<first_start_ui::Open>,
     about: bool,
     /// App icon for the About window, made the first time it opens.
     about_icon: Option<TextureHandle>,

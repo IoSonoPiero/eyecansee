@@ -105,6 +105,24 @@ pub fn main_button(ui: &egui::Ui, text: String) -> egui::Button<'static> {
     egui::Button::new(egui::RichText::new(text).color(Color32::WHITE).strong()).fill(solid(ui.visuals()))
 }
 
+/// A card inside a window (a group of choices on the first-start window, the row of an add-on):
+/// the panels' fill on the window's white, a thin edge, rounded as the windows.
+pub fn card(v: &Visuals) -> egui::Frame {
+    egui::Frame::new().fill(v.panel_fill).stroke(v.widgets.noninteractive.bg_stroke).corner_radius(v.window_corner_radius).inner_margin(12)
+}
+
+/// A card that is chosen (an add-on ticked): the fill of the selected tile, the accent at its edge.
+pub fn card_chosen(v: &Visuals) -> egui::Frame {
+    card(v).fill(tile_selected(v)).stroke(Stroke::new(1.0, accent(v)))
+}
+
+/// A theme's colours for its small picture (the first-start window): the grid, the panels, the
+/// status bar, the edge.
+pub fn sample(dark: bool) -> [Color32; 4] {
+    let (p, v) = if dark { (&DARK, self::dark()) } else { (&LIGHT, light()) };
+    [p.canvas, v.panel_fill, p.solid, p.tile_stroke]
+}
+
 /// Dark red behind `alert_button`'s white text: 7.5:1. The red before (#C62828) was 5.6:1 on
 /// paper, but its thin letters, blended into the red at their edges, read pink.
 const ALERT_RED: Color32 = Color32::from_rgb(0xA5, 0x1C, 0x1C);

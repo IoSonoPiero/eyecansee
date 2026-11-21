@@ -260,21 +260,33 @@ fn general_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, languages: &[(&
     }
 }
 
-/// The language, as in Options > General and on the first-start window's welcome page (#212).
+/// The language, as in Options > General.
 pub(crate) fn language_rows(ui: &mut egui::Ui, language: &mut Option<String>, i18n: &I18n, languages: &[(&'static str, String)]) {
     ui.label(i18n.t("opt-language"));
-    ui.radio_value(language, None, i18n.t("opt-language-system"));
-    for (code, name) in languages {
-        ui.radio_value(language, Some(code.to_string()), name);
+    for (value, name) in language_choices(i18n, languages) {
+        ui.radio_value(language, value, name);
     }
 }
 
-/// The colors, as in Options > Look and on the first-start window's welcome page (#212).
+/// The languages to choose from, in Options > General and on the first-start window's welcome
+/// page (#212): what the settings keep, and its name. "Same as the system" first.
+pub(crate) fn language_choices(i18n: &I18n, languages: &[(&'static str, String)]) -> Vec<(Option<String>, String)> {
+    let system = (None, i18n.t("opt-language-system"));
+    std::iter::once(system).chain(languages.iter().map(|(code, name)| (Some(code.to_string()), name.clone()))).collect()
+}
+
+/// The colors, as in Options > Look.
 pub(crate) fn theme_rows(ui: &mut egui::Ui, theme: &mut ThemeChoice, i18n: &I18n) {
     ui.label(i18n.t("opt-theme"));
-    ui.radio_value(theme, ThemeChoice::System, i18n.t("opt-theme-system"));
-    ui.radio_value(theme, ThemeChoice::Light, i18n.t("opt-theme-light"));
-    ui.radio_value(theme, ThemeChoice::Dark, i18n.t("opt-theme-dark"));
+    for (value, name) in theme_choices(i18n) {
+        ui.radio_value(theme, value, name);
+    }
+}
+
+/// The colors to choose from, in Options > Look and on the first-start window's welcome page
+/// (#212).
+pub(crate) fn theme_choices(i18n: &I18n) -> [(ThemeChoice, String); 3] {
+    [(ThemeChoice::System, i18n.t("opt-theme-system")), (ThemeChoice::Light, i18n.t("opt-theme-light")), (ThemeChoice::Dark, i18n.t("opt-theme-dark"))]
 }
 
 fn look_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {

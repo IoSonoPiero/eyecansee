@@ -67,6 +67,7 @@ impl App {
         }
         crate::browser::menu_keys(ctx);
         self.options_esc(ctx);
+        self.first_start_esc(ctx);
         // "Save in another format" and the duplicates cover the window: the keys must not reach the grid under them.
         if self.convert.is_none() && self.editor.is_none() && self.show.is_none() && !self.dup_page_shown() {
             self.global_keys(ctx);
@@ -230,6 +231,7 @@ impl App {
         self.update_window(ctx);
         self.options_window(ctx);
         self.tip_window(ctx);
+        self.first_start_window(ctx);
         if let Some(a) = self.act.take() {
             self.run(ctx, a);
         }

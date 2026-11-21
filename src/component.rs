@@ -300,11 +300,13 @@ pub struct Addon {
     /// same rule as the red buttons); none where there is no such copy.
     pub system: Option<fn() -> crate::engine::Status>,
     /// Versions to choose from, for example two fonts of different size: none uses it yet.
+    #[expect(dead_code, reason = "room for the PDF engine's fonts (#212); no add-on has variants yet")]
     pub variants: &'static [Variant],
 }
 
 /// One of the versions of an add-on to choose from (`Addon::variants`).
 #[derive(Clone, Copy)]
+#[expect(dead_code, reason = "no add-on has variants yet (#212)")]
 pub struct Variant {
     /// Fluent id of its name.
     pub name: &'static str,

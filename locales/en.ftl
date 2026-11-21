@@ -710,6 +710,26 @@ addon-ffmpeg = FFmpeg
 addon-ffmpeg-about = Converts videos and saves the turned ones.
 addon-cad = CAD engine
 addon-cad-about = Opens the STEP, IGES and BREP models of CAD programs.
+addon-download = Download
+addon-update = Update
+addon-downloaded = Downloaded.
+addon-older = A newer version is available.
+addon-on-system = Already on this computer: { $version }.
+addon-system-only = Not downloaded: Tools > Options… > Video says to use the system's only.
+first-start-welcome = Welcome to EyeCanSee
+first-start-welcome-text = Choose your language and colors.
+first-start-welcome-later = In Tools > Options… you can change them at any time.
+first-start-addons = Add-ons
+first-start-addons-text = These parts are large and not everybody needs them.
+    Tick the ones you want to download now.
+first-start-addons-later = The others are offered the first time they are needed.
+    They are always in Tools > Options… > Add-ons.
+first-start-count = { $n } of { $of }
+first-start-back = Back
+first-start-next = Next
+first-start-skip = Skip
+first-start-download = Download
+first-start-done = Done
 convert-file-size = { $size } on disk
 convert-ratio = { $percent }% of the original
 convert-format = Format
