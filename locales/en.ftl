@@ -667,6 +667,18 @@ model-export-count = { $n ->
 model-export-format = Format:
 model-export-where = Each copy goes next to its model, with the same name; a name already taken gets " (2)".
 model-export-ok = Export
+model-export-again-title = { $n ->
+    [one] Model exported with a change
+   *[other] Models exported with a change
+}
+model-export-again-why = { $n ->
+    [one] It placed one of its parts more than once in its hierarchy, which glTF does not allow.
+   *[other] They placed one of their parts more than once in their hierarchy, which glTF does not allow.
+}
+model-export-again-kept = { $n ->
+    [one] The new file has that part only once.
+   *[other] The new files have that part only once.
+}
 hint-model = Arrows or drag: rotate | Shift+drag: move | Wheel, + and −: zoom | 0: starting view | M: measure | S: section | Space, Page Down: next | Backspace, Page Up: previous | Home, End: first, last | Ctrl+Shift+S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
 hint-edit-select = Click: select an object | Drag: move it | Drag a corner or an end: resize (Shift: a box keeps its proportions; a pasted piece keeps them, Shift frees them) | Drag the round handle above the object: rotate it (Shift: 15° at a time) | Double click on a text or bubble: change its letters | Del: delete | Ctrl+C: copy the result | Esc: let go of the object
 hint-edit-marquee = Drag: choose a part | Shift+drag: a square | Ctrl+C: copy the part | Ctrl+X: cut it | Ctrl+V: paste as an object | Click or Esc: let go of the part

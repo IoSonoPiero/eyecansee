@@ -261,7 +261,6 @@ impl App {
     /// name and a free one if taken (also by another of them: `a.stl` and `a.obj` to GLB).
     pub(crate) fn export_model(&mut self, path: Option<String>, kind: crate::model_export::Kind) {
         let paths = self.files_chosen(path).into_iter().filter(|p| crate::model::is_model(p));
-        self.export_said.clear();
         let Some(loader) = &self.loader else { return };
         let mut taken: std::collections::HashMap<String, std::collections::HashSet<String>> = Default::default();
         let mut jobs = Vec::new();
@@ -279,41 +278,64 @@ impl App {
             log!("export {path:?} as {to:?}");
             jobs.push((path, to));
         }
+        self.export_said.start(jobs.len());
         loader.export_models(jobs, kind);
     }
 
-    /// The exported model: said in the status bar for a while, the folder read again.
+    /// The exported model: said in the status bar for a while, the folder read again. A glTF that
+    /// placed a part more than once is said in one message once the whole export is done (#179):
+    /// a line in the status bar stayed on the other files (Piero, 21/11).
     pub(crate) fn on_exported(&mut self, ctx: &egui::Context, r: Result<(String, String, Vec<&'static str>), String>) {
+        let mut said = None;
         let text = match &r {
             Ok((to, from, notes)) => {
                 self.relist(crate::source::parent(to));
-                self.export_notes(from, notes);
+                if !notes.is_empty() {
+                    log!("export {from:?}: said of the new file {notes:?}");
+                }
+                said = notes.contains(&crate::model_gltf::NODE_AGAIN).then(|| crate::source::name(from).to_string());
                 self.i18n.t_args("status-exported", &[("name", crate::source::name(to))])
             }
             Err(e) => self.i18n.t_args("export-failed", &[("error", &self.i18n.load_error(e))]),
         };
         self.status_note = Some(text);
         self.note_until = Some(ctx.input(|i| i.time) + 6.0);
-    }
-
-    /// What the model `from` had that its new file has otherwise (#179): a yellow line in the
-    /// status bar, as Save as… has one on its page (the export window is closed by then). The
-    /// lines stay until the next export or another folder: a status note goes after 6 seconds,
-    /// or at the next model exported.
-    fn export_notes(&mut self, from: &str, notes: &[&'static str]) {
-        if notes.is_empty() {
-            return;
-        }
-        log!("export {from:?}: said of the new file {notes:?}");
-        self.export_said.extend(crate::model::saved_lines(&self.i18n, crate::source::name(from), notes));
-    }
-
-    /// The lines of `export_notes`, each on its own row above the status bar's own.
-    pub(crate) fn export_said_rows(&self, ui: &mut egui::Ui) {
-        for line in &self.export_said {
-            ui.label(crate::theme::alert(line.clone()));
+        if let Some(names) = self.export_said.done(said) {
+            self.notice = Some(export_notice(&self.i18n, &names));
         }
     }
+}
+
+/// The models of an export still to come, and the names of those whose glTF placed a part more
+/// than once in its hierarchy (#179): said all together when the last one is done.
+#[derive(Default)]
+pub(crate) struct ExportSaid {
+    left: usize,
+    names: Vec<String>,
+}
+
+impl ExportSaid {
+    /// `n` models more to export; with an export still running, one message at the end of both.
+    pub(crate) fn start(&mut self, n: usize) {
+        self.left += n;
+    }
+
+    /// A model exported, or not; the names to say (`said`, the model's if it placed a part more
+    /// than once) once it was the last.
+    pub(crate) fn done(&mut self, said: Option<String>) -> Option<Vec<String>> {
+        self.left = self.left.saturating_sub(1);
+        self.names.extend(said);
+        (self.left == 0 && !self.names.is_empty()).then(|| std::mem::take(&mut self.names))
+    }
+}
+
+/// The message at the end of an export whose glTF models placed a part more than once: one
+/// sentence a line, then their names (`notice_list`: ten, then "and N more", all in Copy).
+pub(crate) fn export_notice(i18n: &crate::i18n::I18n, names: &[String]) -> crate::save_dialogs::Notice {
+    let n = names.len().to_string();
+    let args = [("n", n.as_str())];
+    let intro = format!("{}\n{}", i18n.t_args("model-export-again-why", &args), i18n.t_args("model-export-again-kept", &args));
+    crate::notice_list::notice(i18n, i18n.t_args("model-export-again-title", &args), &intro, names, true)
 }
 
 /// The axes of the file in the top right corner, as CAD programs show them: X red, Y green, Z
@@ -333,5 +355,57 @@ fn axes_corner(painter: &egui::Painter, rect: egui::Rect, axes: [[f32; 3]; 3]) {
         painter.circle_filled(tip, 3.0, color);
         let label = centre + egui::vec2(x, y) * (LEN + 10.0);
         painter.text(label, egui::Align2::CENTER_CENTER, ["X", "Y", "Z"][i], egui::FontId::proportional(14.0), color);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::i18n::I18n;
+
+    /// Three models, the second failed: the names of the first and the third, in their order, only
+    /// once the last is done; an export without any says nothing; a second export started while
+    /// the first runs is said with it, at the end of both.
+    #[test]
+    fn said_at_the_end() {
+        let mut s = ExportSaid::default();
+        s.start(3);
+        assert_eq!(s.done(Some("a.gltf".into())), None);
+        assert_eq!(s.done(None), None);
+        assert_eq!(s.done(Some("c.gltf".into())), Some(vec!["a.gltf".to_string(), "c.gltf".to_string()]));
+        s.start(2);
+        assert_eq!((s.done(None), s.done(None)), (None, None));
+        s.start(1);
+        assert_eq!(s.done(Some("x.gltf".into())), Some(vec!["x.gltf".to_string()]));
+        s.start(2);
+        assert_eq!(s.done(Some("a.gltf".into())), None);
+        s.start(1);
+        assert_eq!(s.done(None), None);
+        assert_eq!(s.done(Some("b.gltf".into())), Some(vec!["a.gltf".to_string(), "b.gltf".to_string()]));
+        // A message more than was waited for leaves nothing behind.
+        assert_eq!(s.done(None), None);
+    }
+
+    /// One model: its name, in the singular; twelve: ten names, then "and 2 more", all in Copy;
+    /// in both languages.
+    #[test]
+    fn one_window_for_all() {
+        let (en, it) = (I18n::new("en"), I18n::new("it"));
+        let one = export_notice(&it, &["nodo_doppio.gltf".to_string()]);
+        assert!(one.warning);
+        assert_eq!(one.title, "Modello esportato con una modifica");
+        let why = "Metteva una sua parte più volte nella gerarchia, cosa che glTF non permette.\nIl file nuovo contiene quella parte una volta sola.";
+        assert_eq!(one.text, format!("{why}\n\n- {}", crate::notice_list::item("nodo_doppio.gltf")));
+        assert_eq!(one.copy.as_deref(), Some(format!("{why}\n\n- nodo_doppio.gltf").as_str()));
+        assert_eq!(export_notice(&en, &["a.gltf".to_string()]).title, "Model exported with a change");
+        let names: Vec<String> = (1..=12).map(|i| format!("m{i}.gltf")).collect();
+        for (i18n, title, more) in [(&en, "Models exported with a change", "and 2 more"), (&it, "Modelli esportati con una modifica", "e altri 2")] {
+            let many = export_notice(i18n, &names);
+            assert_eq!(many.title, title);
+            assert!(many.text.ends_with(&format!("\n\n{more}")) && !many.text.contains("m11"), "{}", many.text);
+            let copy = many.copy.unwrap();
+            assert!(copy.ends_with("- m11.gltf\n- m12.gltf") && !copy.contains(more), "{copy}");
+        }
+        assert!(export_notice(&en, &names).text.starts_with("They placed one of their parts more than once"));
     }
 }

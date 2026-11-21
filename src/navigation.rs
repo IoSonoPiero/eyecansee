@@ -170,7 +170,6 @@ impl App {
         // A file to select belongs to the folder before (the same one sorted again keeps it).
         if dir != self.dir {
             self.select_after = None;
-            self.export_said.clear();
         }
         self.dir = dir;
         self.thumbs.clear();

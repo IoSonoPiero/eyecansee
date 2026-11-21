@@ -666,6 +666,18 @@ model-export-count = { $n ->
 model-export-format = Formato:
 model-export-where = Ogni copia va accanto al suo modello, con lo stesso nome; un nome già preso riceve " (2)".
 model-export-ok = Esporta
+model-export-again-title = { $n ->
+    [one] Modello esportato con una modifica
+   *[other] Modelli esportati con una modifica
+}
+model-export-again-why = { $n ->
+    [one] Metteva una sua parte più volte nella gerarchia, cosa che glTF non permette.
+   *[other] Mettevano una loro parte più volte nella gerarchia, cosa che glTF non permette.
+}
+model-export-again-kept = { $n ->
+    [one] Il file nuovo contiene quella parte una volta sola.
+   *[other] I file nuovi contengono quella parte una volta sola.
+}
 hint-model = Frecce o trascinare: ruotare | Maiusc+trascinare: spostare | Rotellina, + e −: zoom | 0: vista di partenza | M: misura | S: sezione | Spazio, Pag↓: successivo | Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl+Maiusc+S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
 hint-edit-select = Clic: seleziona un oggetto | Trascinare: lo sposta | Trascinare un angolo o un capo: ridimensiona (Maiusc: un riquadro mantiene le proporzioni; un pezzo incollato le mantiene, Maiusc le libera) | Trascinare la maniglia tonda sopra l'oggetto: lo ruota (Maiusc: a scatti di 15°) | Doppio clic su un testo o un fumetto: cambia le lettere | Canc: elimina | Ctrl+C: copia il risultato | Esc: lascia l'oggetto
 hint-edit-marquee = Trascinare: sceglie una zona | Maiusc+trascinare: un quadrato | Ctrl+C: copia la zona | Ctrl+X: la taglia | Ctrl+V: incolla come oggetto | Clic o Esc: lascia la zona
