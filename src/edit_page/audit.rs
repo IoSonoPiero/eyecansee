@@ -17,11 +17,14 @@ fn editor(h: &mut Harness, name: &str) {
     h.until(|app| app.editor.as_ref().is_some_and(|w| matches!(w.original, Some(Ok(_))) && w.history.is_some()), "the image in the editor");
 }
 
-/// Audit 5.2: a change made while the save is being prepared (seconds on a phone or a server)
-/// is not in the file, but counts as saved: Save is greyed out and closing asks nothing.
+/// Audit 5.2 (#199): a change made while the save is being prepared (seconds on a phone or a
+/// server) is not in the file, and until 0.77.0 counted as saved: Save greyed out, closing asked
+/// nothing. Now it stays to save.
 #[test]
-#[ignore = "audit 5.2: not fixed yet"]
 fn audit_5_2_change_during_the_preparation_counts_as_saved() {
+    if crate::audit_family_1::own_folder("edit_page::save::audit::audit_5_2_change_during_the_preparation_counts_as_saved") {
+        return;
+    }
     let dir = folder("five-two", &["a.png"]);
     let mut h = Harness::new(&dir);
     editor(&mut h, "a.png");
@@ -43,6 +46,30 @@ fn audit_5_2_change_during_the_preparation_counts_as_saved() {
     eprintln!("objects on the page {}, in the file {written}; something to save: {}; folder {names:?}", w.doc.objects.len(), w.changed());
     assert!(w.doc.objects.len() > written, "the change made during the preparation is not in the file");
     assert!(w.changed(), "the change not in the file counts as saved");
+}
+
+/// The other side of 5.2 (#199): nothing changed while the save is prepared, nothing left to
+/// save once it is confirmed.
+#[test]
+fn audit_5_2_no_change_during_the_preparation_leaves_nothing_to_save() {
+    if crate::audit_family_1::own_folder("edit_page::save::audit::audit_5_2_no_change_during_the_preparation_leaves_nothing_to_save") {
+        return;
+    }
+    let dir = folder("five-two-still", &["a.png"]);
+    let mut h = Harness::new(&dir);
+    editor(&mut h, "a.png");
+    h.app.editor.as_mut().unwrap().doc.objects.push(cover(-2.0, [255, 0, 0]));
+    h.key_with(egui::Key::S, egui::Modifiers::COMMAND);
+    h.until(|app| app.editor.as_ref().is_some_and(|w| w.ready.is_some()), "the confirmation");
+    h.key(enter());
+    h.until(|app| app.saving.is_empty() && app.editor.as_ref().is_some_and(|w| w.ready.is_none()), "the copy written");
+    for _ in 0..5 {
+        h.frame(Vec::new());
+    }
+    let w = h.app.editor.as_ref().unwrap();
+    assert!(!w.changed(), "the document written counts as saved");
+    let copies = std::fs::read_dir(&dir).unwrap().flatten().filter(|e| e.file_name().to_string_lossy().starts_with("a (")).count();
+    assert_eq!(copies, 1, "the copy written");
 }
 
 /// Audit 5.1: Save as… on the editor's image, cancelled with Esc before its result is made. The

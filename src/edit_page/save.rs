@@ -353,10 +353,12 @@ impl App {
                 });
                 w.ready = None;
                 // Saved: closing asks nothing until something changes again (the page stays
-                // open after an overwrite too, user 2026-11-06).
+                // open after an overwrite too, user 2026-11-06). What counts as saved is the
+                // document written (`p.doc`, as at the click): a change made while the save was
+                // prepared stays to save (audit 5.2, #199).
                 if let Some(h) = &mut w.history {
                     h.push(w.doc.clone());
-                    h.saved();
+                    h.saved(p.doc.clone());
                 }
             }
             Some(false) => {
@@ -703,7 +705,7 @@ mod tests {
         let mut h = crate::edit::history::History::new(Doc::new(64, 48, None));
         w.doc.objects.push(cover(0.0));
         h.push(w.doc.clone());
-        h.saved();
+        h.saved(w.doc.clone());
         (w.history, w.closing) = (Some(h), closing);
         w.copy.start("p/a (edited).jpg".into());
         w

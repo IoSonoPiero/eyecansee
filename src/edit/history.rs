@@ -67,9 +67,11 @@ impl History {
         self.saved.as_ref() != Some(self.doc())
     }
 
-    /// The document shown was just saved (a copy): the page stays open, nothing more to save.
-    pub fn saved(&mut self) {
-        self.saved = Some(self.doc().clone());
+    /// `doc` was just saved (a copy, or over the original): the page stays open, nothing more to
+    /// save while it is the one shown. The document written, not the one shown now: a change made
+    /// while the save was prepared is still to save (audit 5.2, #199).
+    pub fn saved(&mut self, doc: Doc) {
+        self.saved = Some(doc);
     }
 
     /// The save failed: nothing counts as saved, closing asks again.
@@ -179,7 +181,7 @@ mod tests {
         let mut h = History::new(crate::edit::doc::tests::sample());
         h.apply(|d| d.angle = 7.0);
         assert!(h.changed());
-        h.saved();
+        h.saved(h.doc().clone());
         assert!(!h.changed());
         h.undo();
         assert!(h.changed());
