@@ -21,6 +21,7 @@ fn editor(h: &mut Harness, name: &str) {
 /// server) is not in the file, and until 0.77.0 counted as saved: Save greyed out, closing asked
 /// nothing. Now it stays to save.
 #[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
 fn audit_5_2_change_during_the_preparation_counts_as_saved() {
     if crate::audit_family_1::own_folder("edit_page::save::audit::audit_5_2_change_during_the_preparation_counts_as_saved") {
         return;
@@ -51,6 +52,7 @@ fn audit_5_2_change_during_the_preparation_counts_as_saved() {
 /// The other side of 5.2 (#199): nothing changed while the save is prepared, nothing left to
 /// save once it is confirmed.
 #[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
 fn audit_5_2_no_change_during_the_preparation_leaves_nothing_to_save() {
     if crate::audit_family_1::own_folder("edit_page::save::audit::audit_5_2_no_change_during_the_preparation_leaves_nothing_to_save") {
         return;
@@ -78,6 +80,7 @@ fn audit_5_2_no_change_during_the_preparation_leaves_nothing_to_save() {
 /// objects already merged in, so that every following save applied them twice. Now it carries
 /// the number of the Save as… page, closed: it is dropped.
 #[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
 fn audit_5_1_save_as_cancelled_becomes_the_editors_photo() {
     if crate::audit_family_1::own_folder("edit_page::save::audit::audit_5_1_save_as_cancelled_becomes_the_editors_photo") {
         return;
@@ -118,6 +121,7 @@ fn audit_5_1_save_as_cancelled_becomes_the_editors_photo() {
 /// or a server it takes seconds) goes to no page opened after it, editor or Save as…, whatever
 /// its file. The late answer is sent as the loader would, with the number of the page closed.
 #[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
 fn audit_5_1_b_a_late_picture_goes_to_no_other_page() {
     if crate::audit_family_1::own_folder("edit_page::save::audit::audit_5_1_b_a_late_picture_goes_to_no_other_page") {
         return;
@@ -164,6 +168,7 @@ fn late(h: &mut Harness, msg: crate::loader::Msg) {
 /// what the picture loses (encoded again…), nothing on the video, which the viewer's Save refuses
 /// to lose (`save-extra`). Now it has a line for the video. The original goes to the trash.
 #[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
 fn audit_5_11_overwrite_drops_the_video_without_a_word() {
     if crate::audit_family_1::own_folder("edit_page::save::audit::audit_5_11_overwrite_drops_the_video_without_a_word") {
         return;
