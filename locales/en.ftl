@@ -732,6 +732,12 @@ first-start-next = Next
 first-start-skip = Skip
 first-start-download = Download
 first-start-done = Done
+first-start-leave = { $n ->
+    [one] You chose 1 add-on but did not download it.
+   *[other] You chose { $n } add-ons but did not download them.
+}
+first-start-leave-download = Download and close
+first-start-leave-close = Close without downloading
 convert-file-size = { $size } on disk
 convert-ratio = { $percent }% of the original
 convert-format = Format

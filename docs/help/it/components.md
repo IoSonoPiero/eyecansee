@@ -22,7 +22,7 @@ Passando sopra un pulsante rosso si legge che cos'è il componente e quanto pesa
 
 ## Al primo avvio e nelle opzioni
 
-La prima volta che EyeCanSee si avvia, dopo la pagina in cui scegli la lingua e i colori, una pagina elenca i componenti, una scheda ciascuno con a cosa serve e quanto pesa. Niente è spuntato: fai clic sulle schede di quelli che vuoi e premi **Scarica**, oppure **Fine** per andare avanti senza. Ogni scaricamento mostra l'avanzamento nella sua scheda e continua anche dopo aver chiuso la finestra. Un componente già presente su questo computer ha un segno verde. La finestra torna da sola solo quando una versione nuova di EyeCanSee porta un componente nuovo, e allora mostra solo quello.
+La prima volta che EyeCanSee si avvia, dopo la pagina in cui scegli la lingua e i colori, una pagina elenca i componenti, una scheda ciascuno con a cosa serve e quanto pesa. Niente è spuntato: fai clic sulle schede di quelli che vuoi e premi **Scarica**, oppure **Fine** per andare avanti senza. Se chiudi la pagina con delle schede spuntate e non scaricate, EyeCanSee prima chiede: **Scarica e chiudi**, **Chiudi senza scaricare**, oppure **Indietro** per tornare alla pagina. Ogni scaricamento mostra l'avanzamento nella sua scheda e continua anche dopo aver chiuso la finestra. Un componente già presente su questo computer ha un segno verde. La finestra torna da sola solo quando una versione nuova di EyeCanSee porta un componente nuovo, e allora mostra solo quello.
 
 La stessa lista è sempre in **Strumenti > Opzioni… > Componenti aggiuntivi**, con **Scarica** o **Aggiorna** su ogni componente (vedi [Opzioni](options.md)).
 

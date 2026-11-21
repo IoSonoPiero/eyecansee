@@ -43,6 +43,18 @@ enum State {
     Failed(String),
 }
 
+impl State {
+    /// No download under way and none arrived: one can start (again, after one that failed).
+    fn idle(&self) -> bool {
+        matches!(self, State::Idle | State::Failed(_))
+    }
+}
+
+/// The download of a row is under way or has arrived: its card has no box to tick any more.
+pub(crate) fn started(dl: &Slot) -> bool {
+    !state(dl).idle()
+}
+
 fn state(dl: &Slot) -> State {
     let Some(d) = dl else { return State::Idle };
     match d.result.lock().unwrap().clone() {
@@ -67,7 +79,7 @@ enum Right {
 /// The box or the button only where there is something to download and no download under way;
 /// the green mark when it is here, downloaded or on the system.
 fn right(have: &Have, state: &State, control: &Control) -> Right {
-    let can = offers(have) && matches!(state, State::Idle | State::Failed(_));
+    let can = offers(have) && state.idle();
     match control {
         Control::Tick(ticked) if can => Right::Tick(**ticked),
         Control::Button if can => Right::Button(if *have == Have::Older { "addon-update" } else { "addon-download" }),

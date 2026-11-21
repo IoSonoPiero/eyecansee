@@ -730,6 +730,12 @@ first-start-next = Avanti
 first-start-skip = Salta
 first-start-download = Scarica
 first-start-done = Fine
+first-start-leave = { $n ->
+    [one] Hai scelto 1 componente ma non l'hai scaricato.
+   *[other] Hai scelto { $n } componenti ma non li hai scaricati.
+}
+first-start-leave-download = Scarica e chiudi
+first-start-leave-close = Chiudi senza scaricare
 convert-file-size = { $size } su disco
 convert-ratio = { $percent }% dell'originale
 convert-format = Formato

@@ -1,12 +1,14 @@
 //! The first-start window (#212), drawn: the welcome page (logo, language, colors) and the
 //! add-ons page, with "1 of 2", Back, Next and Skip; on the last page Download and Done (Piero,
-//! 21/11). Which pages it shows and what closing it remembers: `first_start.rs`.
+//! 21/11). Closing the add-ons page with cards ticked and not downloaded asks first (Piero,
+//! 22/11). Which pages it shows, what closing it remembers and when it asks: `first_start.rs`.
 
 use eframe::egui;
 
 use crate::App;
 use crate::component::{Addon, Have};
-use crate::first_start::{Page, Plan};
+use crate::downloads::Downloads;
+use crate::first_start::{Answer, Card, Page, Plan};
 use crate::settings::ThemeChoice;
 
 /// Width of the window.
@@ -28,6 +30,8 @@ const CHOICE: f32 = 30.0;
 const CHOICES: f32 = 3.0;
 /// Least size of the buttons at the bottom.
 const BUTTON: egui::Vec2 = egui::vec2(88.0, 30.0);
+/// Width of the question on closing; wider when its buttons need it.
+const ASK: f32 = 460.0;
 
 /// The window open.
 pub(crate) struct Open {
@@ -37,6 +41,9 @@ pub(crate) struct Open {
     rows: Vec<(Addon, Have, bool)>,
     /// The kinds downloading at the last frame: when one ends, where they are is read again.
     running: Vec<&'static str>,
+    /// Closing was asked on the add-ons page with ticked cards not downloaded: the question is
+    /// open over the window.
+    asking: bool,
 }
 
 /// What a button at the bottom does.
@@ -54,7 +61,28 @@ impl Open {
         // Debug only, for the screenshots of the second page: `EYECANSEE_FIRST_START_PAGE=2`.
         let page = std::env::var("EYECANSEE_FIRST_START_PAGE").ok().filter(|_| cfg!(debug_assertions)).and_then(|p| p.parse::<usize>().ok());
         let page = page.map_or(0, |p| p.saturating_sub(1).min(plan.pages.len() - 1));
-        Open { plan, page, rows, running: Vec::new() }
+        Open { plan, page, rows, running: Vec::new(), asking: false }
+    }
+
+    /// The question on closing is open: Enter and Esc are its own (`App::asking`).
+    pub(crate) fn asking(&self) -> bool {
+        self.asking
+    }
+
+    /// The ticked cards that closing now would leave behind (`first_start::waiting`).
+    fn waiting(&self, downloads: &Downloads) -> Vec<&'static str> {
+        let card = |(a, have, ticked): &(Addon, Have, bool)| {
+            let kind = a.component.kind;
+            Card { kind, ticked: *ticked, offers: crate::addons_ui::offers(have), started: crate::addons_ui::started(downloads.get(kind)) }
+        };
+        crate::first_start::waiting(&self.rows.iter().map(card).collect::<Vec<_>>())
+    }
+
+    /// Done, Skip or Esc: true when the window closes now. On the add-ons page with ticked cards
+    /// not downloaded it stays, and the question opens.
+    fn leave(&mut self, downloads: &Downloads) -> bool {
+        self.asking = self.plan.pages[self.page] == Page::Addons && !self.waiting(downloads).is_empty();
+        !self.asking
     }
 }
 
@@ -73,19 +101,55 @@ impl App {
         true
     }
 
-    /// Before the pages read the keys: Esc closes the window, as Skip.
+    /// Before the pages read the keys: Esc closes the window, as Skip and Done. With the question
+    /// on closing open Esc is the question's (Back): it comes as `key_answer`, not here.
     pub(crate) fn first_start_esc(&mut self, ctx: &egui::Context) {
-        if self.first_start.is_some() && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
-            log!("first start: closed with Esc");
-            self.first_start_close();
+        if self.first_start.as_ref().is_some_and(|open| !open.asking) && ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+            log!("first start: Esc");
+            self.first_start_leave();
         }
     }
 
-    fn first_start_close(&mut self) {
-        if let Some(open) = self.first_start.take() {
-            crate::first_start::closed(&mut self.settings, &open.plan);
-            self.settings.save();
+    /// Done, Skip or Esc: the window closes, and remembers (`first_start::closed`). From the
+    /// add-ons page with ticked cards not downloaded the question comes first (`first_start_ask`).
+    fn first_start_leave(&mut self) {
+        let Some(open) = &mut self.first_start else { return };
+        if !open.leave(&self.downloads) {
+            log!("first start: closing asked with {:?} ticked and not downloaded", open.waiting(&self.downloads));
+            return;
         }
+        log!("first start: closed");
+        crate::first_start::closed(&mut self.settings, &open.plan);
+        self.settings.save();
+        self.first_start = None;
+    }
+
+    /// The question when closing would leave ticked cards not downloaded: Download and close
+    /// (Enter too), Close without downloading, or Back to the page with its ticks (Esc too). The
+    /// downloads start as Download starts them, and go on after the window is closed.
+    fn first_start_ask(&mut self, ctx: &egui::Context) {
+        let Some(open) = self.first_start.as_mut().filter(|open| open.asking) else { return };
+        let waiting = open.waiting(&self.downloads);
+        let t = |id| self.i18n.t(id);
+        let question = Question {
+            icons: open.rows.iter().filter(|r| waiting.contains(&r.0.component.kind)).map(|r| r.0.icon).collect(),
+            title: t("first-start-addons"),
+            text: self.i18n.t_args("first-start-leave", &[("n", &waiting.len().to_string())]),
+            buttons: [(t("first-start-back"), Answer::Back), (t("first-start-leave-close"), Answer::Close), (t("first-start-leave-download"), Answer::Download)],
+        };
+        // Enter is the main button, Esc is Back.
+        let keys = crate::confirm::answer(ctx, &mut self.key_answer, ASK_ID).map(|enter| if enter { Answer::Download } else { Answer::Back });
+        let Some(answer) = ask(ctx, &question).or(keys) else { return };
+        open.asking = false;
+        log!("first start: {answer:?} answered");
+        let Some(start) = crate::first_start::answered(&mut self.settings, &open.plan, waiting, answer) else { return };
+        for (a, ..) in open.rows.iter().filter(|r| start.contains(&r.0.component.kind)) {
+            if self.downloads.start(a.component, ctx) {
+                log!("first start: downloading {}", a.component.kind);
+            }
+        }
+        self.settings.save();
+        self.first_start = None;
     }
 
     /// The window, while open.
@@ -102,12 +166,10 @@ impl App {
             Some(Press::Back) => self.first_start_turn(-1),
             Some(Press::Next) => self.first_start_turn(1),
             Some(Press::Download) => self.first_start_download(ctx),
-            Some(Press::Close) => {
-                log!("first start: closed");
-                self.first_start_close();
-            }
+            Some(Press::Close) => self.first_start_leave(),
             None => {}
         }
+        self.first_start_ask(ctx);
     }
 
     fn first_start_turn(&mut self, by: isize) {
@@ -327,8 +389,9 @@ struct Button {
 
 /// The buttons of page `n` of `of`, from the left: Skip and Next, or Back, Download and Done on
 /// the last page (Piero, 21/11: Skip there would be Done).
-/// The main one is Next, then Done; with an add-on ticked it is Download, so that Done does not
-/// leave the ticks behind unnoticed (a choice of the redesign, not yet seen by Piero).
+/// The main one is Next, then Done; with an add-on ticked it is Download (a choice of the
+/// redesign, not yet seen by Piero), and Done then asks before leaving the ticks behind
+/// (`Open::leave`).
 fn buttons(n: usize, of: usize, ticked: bool) -> Vec<Button> {
     let button = |text, press, enabled, main| Button { text, press, enabled, main };
     let mut all = Vec::new();
@@ -377,6 +440,66 @@ fn footer(ui: &mut egui::Ui, open: &Open, i18n: &crate::i18n::I18n) -> Option<Pr
         });
     });
     press
+}
+
+/// The modal of the question on closing: Enter and Esc reach it by this name (`confirm::answer`).
+const ASK_ID: &str = "first-start-leave";
+
+/// What the question on closing shows: the icons of the add-ons chosen and not downloaded, its
+/// title and sentence, and its buttons from the left, the last one the main one.
+struct Question {
+    icons: Vec<crate::icons::Icon>,
+    title: String,
+    text: String,
+    buttons: [(String, Answer); 3],
+}
+
+/// The question on closing, over the window and of its family: the icons of the add-ons chosen,
+/// the title and the sentence in the middle, and the band of the buttons, Back at its left, the
+/// two that close at its right. As wide as its buttons need in any language: no text is cut.
+/// The button pressed.
+fn ask(ctx: &egui::Context, q: &Question) -> Option<Answer> {
+    let mut answer = None;
+    let frame = egui::Frame::popup(&ctx.global_style()).inner_margin(0);
+    egui::Modal::new(egui::Id::unique(ASK_ID)).frame(frame).show(ctx, |ui| {
+        // Air at the sides of the long texts of its buttons, and at least some between Back and
+        // the other two.
+        ui.spacing_mut().button_padding.x = 12.0;
+        let buttons: f32 = q.buttons.iter().map(|b| crate::theme::hint_width(ui, &b.0).max(BUTTON.x)).sum();
+        ui.set_width(ASK.max(buttons + 2.0 * ui.spacing().item_spacing.x + 24.0 + 2.0 * f32::from(SIDE)));
+        ui.spacing_mut().item_spacing.y = 0.0;
+        egui::Frame::new().inner_margin(egui::Margin::symmetric(SIDE, 0)).show(ui, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(26.0);
+                let (side, gap) = (40.0, 10.0);
+                let (row, _) = ui.allocate_exact_size(egui::vec2(q.icons.len() as f32 * (side + gap) - gap, side), egui::Sense::hover());
+                for (i, icon) in q.icons.iter().enumerate() {
+                    let at = row.min + egui::vec2(i as f32 * (side + gap), 0.0);
+                    crate::icons::paint(ui.painter(), *icon, egui::Rect::from_min_size(at, egui::Vec2::splat(side)));
+                }
+                ui.add_space(16.0);
+                ui.label(title(q.title.clone()).size(18.0));
+                ui.add_space(8.0);
+                ui.add(egui::Label::new(&q.text).wrap());
+                ui.add_space(26.0);
+            });
+        });
+        let [back, close, main] = &q.buttons;
+        band(ui, |ui| {
+            if ui.add(egui::Button::new(&back.0).min_size(BUTTON)).clicked() {
+                answer = Some(back.1);
+            }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                if ui.add(crate::theme::main_button(ui, main.0.clone()).min_size(BUTTON)).clicked() {
+                    answer = Some(main.1);
+                }
+                if ui.add(egui::Button::new(&close.0).min_size(BUTTON)).clicked() {
+                    answer = Some(close.1);
+                }
+            });
+        });
+    });
+    answer
 }
 
 /// One dot a page, the one shown in the accent.
@@ -429,6 +552,74 @@ mod tests {
             });
             assert_eq!(language.as_deref(), wanted);
         }
+    }
+
+    /// The sentence of the question says how many add-ons were chosen, one or more, in both
+    /// languages.
+    #[test]
+    fn the_question_counts_the_addons() {
+        let say = |lang: &str, n: usize| crate::i18n::I18n::new(lang).t_args("first-start-leave", &[("n", &n.to_string())]);
+        assert_eq!(say("en", 1), "You chose 1 add-on but did not download it.");
+        assert_eq!(say("en", 3), "You chose 3 add-ons but did not download them.");
+        assert_eq!(say("it", 1), "Hai scelto 1 componente ma non l'hai scaricato.");
+        assert_eq!(say("it", 2), "Hai scelto 2 componenti ma non li hai scaricati.");
+    }
+
+    /// Enter and Esc are the question's while it is open over the window, not the window's
+    /// (`confirm::answer` gives them to the modal on top).
+    #[test]
+    fn the_keys_go_to_the_question_on_top() {
+        use crate::addons_ui::tests::{click, headless};
+        let (ctx, area) = headless();
+        let button = |text: &str, answer| (text.to_string(), answer);
+        let question = Question {
+            icons: vec![crate::icons::Icon::Folder],
+            title: "Add-ons".into(),
+            text: "You chose 1 add-on but did not download it.".into(),
+            buttons: [button("Back", Answer::Back), button("Close without downloading", Answer::Close), button("Download and close", Answer::Download)],
+        };
+        let mut pressed = None;
+        // A click away from both: no button is pressed.
+        click(&ctx, area.min + egui::vec2(2.0, 2.0), |ui| {
+            egui::Modal::new(egui::Id::unique("first-start")).show(ui.ctx(), |ui| ui.label("the window"));
+            pressed = pressed.or(ask(ui.ctx(), &question));
+        });
+        assert_eq!(pressed, None);
+        assert_eq!(crate::confirm::answer(&ctx, &mut Some(false), "first-start"), None, "not the window under it");
+        assert_eq!(crate::confirm::answer(&ctx, &mut Some(false), ASK_ID), Some(false), "Esc");
+        assert_eq!(crate::confirm::answer(&ctx, &mut Some(true), ASK_ID), Some(true), "Enter");
+    }
+
+    /// Done, Skip and Esc close at once with nothing ticked; with a card ticked and not
+    /// downloaded the add-ons page asks first, the welcome page closes as before. A tick whose
+    /// download is under way, or on an add-on already here, does not ask; one whose download
+    /// failed does.
+    #[test]
+    fn closing_asks_with_ticks_not_downloaded() {
+        let rows: Vec<_> = crate::component::addons().into_iter().map(|a| (a, Have::Missing, false)).collect();
+        let Some(kind) = rows.first().map(|r| r.0.component.kind) else { return };
+        let plan = Plan { pages: vec![Page::Welcome, Page::Addons], addons: rows.iter().map(|r| r.0.component.kind).collect() };
+        let mut open = Open { plan, page: 1, rows, running: Vec::new(), asking: false };
+        let mut downloads = Downloads::default();
+        assert!(open.leave(&downloads), "nothing ticked");
+        open.rows[0].2 = true;
+        assert!(!open.leave(&downloads) && open.asking(), "a card ticked, not downloaded");
+        assert_eq!(open.waiting(&downloads), [kind]);
+        open.page = 0;
+        assert!(open.leave(&downloads) && !open.asking(), "the welcome page closes as before");
+        open.page = 1;
+        open.rows[0].1 = Have::Downloaded;
+        assert!(open.leave(&downloads), "already downloaded");
+        open.rows[0].1 = Have::OnSystem("1".into());
+        assert!(open.leave(&downloads), "already on the system");
+        open.rows[0].1 = Have::Missing;
+        let download = std::sync::Arc::new(crate::component::Download::default());
+        *downloads.slot(kind).unwrap() = Some(download.clone());
+        assert!(open.leave(&downloads), "its download is under way");
+        *download.result.lock().unwrap() = Some(Ok(()));
+        assert!(open.leave(&downloads), "its download has arrived");
+        *download.result.lock().unwrap() = Some(Err("x".into()));
+        assert!(!open.leave(&downloads), "its download failed: ticked again, it waits");
     }
 
     /// Skip and Next on the first page; Back, Download and Done on the last, without Back when
