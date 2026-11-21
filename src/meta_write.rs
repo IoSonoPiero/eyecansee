@@ -161,7 +161,8 @@ fn raw_profile(name: &str, data: &[u8]) -> String {
 /// `png` with the XMP (iTXt "XML:com.adobe.xmp", uncompressed as the XMP specification asks) and
 /// the Photoshop block with the IPTC (zTXt "Raw profile type iptc") before its image data.
 pub fn png_chunks(png: Vec<u8>, xmp: Option<&[u8]>, irb: Option<&[u8]>) -> Vec<u8> {
-    let Some(at) = png.windows(4).position(|w| w == b"IDAT").map(|p| p - 4) else { return png };
+    // Chunks walked: the bytes "IDAT" may be inside an EXIF, a profile or a text before it (#219).
+    let Some(at) = crate::encode::density::png_chunks(&png).into_iter().find(|(_, kind, _)| *kind == b"IDAT").map(|(at, ..)| at) else { return png };
     let mut extra = Vec::new();
     if let Some(xmp) = xmp {
         chunk(&mut extra, b"iTXt", &[b"XML:com.adobe.xmp\0\0\0\0\0", xmp].concat());
@@ -633,6 +634,25 @@ mod tests {
         assert_eq!(d.xmp_metadata().unwrap().unwrap(), b"<x:xmpmeta/>");
         let x = read(&out, Some(&mut d));
         assert_eq!(x.irb, Some(irb));
+        assert_eq!(crate::decode::decode_full(&out, "x.png").unwrap().width(), 4);
+    }
+
+    /// The bytes "IDAT" inside a chunk before the image data (a text, an EXIF, a profile) are
+    /// not the image data: XMP and IPTC go before the real one, the PNG stays whole (#219).
+    #[test]
+    fn png_chunks_walked_not_searched() {
+        use image::ImageDecoder;
+        let mut png = Vec::new();
+        image::DynamicImage::ImageRgb8(image::RgbImage::new(4, 3)).write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let at = png.windows(4).position(|w| w == b"IDAT").unwrap() - 4;
+        let mut text = Vec::new();
+        chunk(&mut text, b"tEXt", b"Comment\0an IDAT in the words");
+        png.splice(at..at, text);
+        let irb = irb_of_iim(&crate::xmp::tests::iim(&[(116, "© Ann")]));
+        let out = png_chunks(png, Some(b"<x:xmpmeta/>"), Some(&irb));
+        let mut d = image::codecs::png::PngDecoder::new(Cursor::new(&out)).unwrap();
+        assert_eq!(d.xmp_metadata().unwrap().as_deref(), Some(&b"<x:xmpmeta/>"[..]));
+        assert_eq!(read(&out, Some(&mut d)).irb, Some(irb));
         assert_eq!(crate::decode::decode_full(&out, "x.png").unwrap().width(), 4);
     }
 

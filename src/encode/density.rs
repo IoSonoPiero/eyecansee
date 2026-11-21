@@ -134,7 +134,7 @@ pub fn to_jfif(d: Density) -> jfif::Density {
 }
 
 /// The chunks of a PNG up to its first IDAT (included): where each starts, its kind and data.
-fn png_chunks(png: &[u8]) -> Vec<(usize, &[u8], &[u8])> {
+pub(crate) fn png_chunks(png: &[u8]) -> Vec<(usize, &[u8], &[u8])> {
     let mut v = Vec::new();
     if !png.starts_with(b"\x89PNG\r\n\x1a\n") {
         return v;
