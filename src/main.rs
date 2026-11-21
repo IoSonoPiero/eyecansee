@@ -90,6 +90,7 @@ mod menu;
 mod messages;
 mod notice_list;
 mod meta;
+mod meta_read;
 mod measure_model;
 mod measure_view;
 mod meta_panel;

@@ -11,10 +11,11 @@ use std::time::{Duration, Instant};
 
 use crate::source::{self, Store};
 
-/// What the metadata panel reads of a picture: its sidecar and the file whole.
-async fn panel(op: &Store, path: &str) {
-    let _ = crate::sidecar::read(op, path).await;
-    let _ = op.read(path).await.map(|b| crate::meta::read_file(&b, path));
+/// What the metadata panel reads of a picture, as `Loader::load_meta`: its sidecar and the
+/// parts of the file with the metadata (`meta_read`).
+async fn panel(op: &Store, path: &str, size: u64) {
+    let sidecar = crate::sidecar::read(op, path).await;
+    let _ = crate::meta_read::read(op, path, size).await.map(|b| crate::meta::read_file_with(&b, path, sidecar.as_ref()));
 }
 
 fn is_picture(path: &str) -> bool {
@@ -89,7 +90,7 @@ fn reading_times_live() {
             let m = timed(move || {
                 let (op, path) = (o.clone(), p.clone());
                 async move {
-                    panel(&op, &path).await;
+                    panel(&op, &path, size).await;
                 }
             })
             .await;

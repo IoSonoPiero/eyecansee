@@ -640,7 +640,7 @@ impl Loader {
                 video_meta(&op, &path).await
             } else {
                 let sidecar = crate::sidecar::read(&op, &path).await;
-                match op.read(&path).await {
+                match crate::meta_read::read(&op, &path, file.size).await {
                     Ok(bytes) => tokio::task::spawn_blocking(move || crate::meta::read_file_with(&bytes, &path, sidecar.as_ref())).await.map_err(|e| e.to_string()),
                     Err((_, detail)) => Err(detail),
                 }
