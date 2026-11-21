@@ -52,10 +52,12 @@ impl App {
             Ok(c) => c,
             // In the error bar, to close and to copy, as every error: it was a line in the status
             // bar that went after eight seconds.
+            // The drawing that did not open is said as the viewer says it, the library's text
+            // under it as the detail (`I18n::compare_failed`); the log has it as before.
             Err(e) => {
-                log!("compare: ERROR {e}");
+                log!("compare: ERROR {}", e.replace('\u{1}', ": "));
                 (self.status_note, self.note_until) = (None, None);
-                self.error = Some(self.i18n.t_args("compare-failed", &[("error", &e)]));
+                self.error = Some(self.i18n.compare_failed(&e));
                 return;
             }
         };

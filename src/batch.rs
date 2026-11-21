@@ -336,10 +336,13 @@ fn drawing(bytes: &[u8], name: &str, job: &Job, drawn: Drawn, sibling: crate::mo
     let side = match drawn {
         Drawn::Cad(_) if !crate::cad_convert::can_convert(name) => return Err((SKIP_NOT_AUTOCAD, name.to_string())),
         Drawn::Cad(to) => {
+            use crate::cad_convert::Refused;
             return match crate::cad_convert::convert_checked(bytes, name, to) {
                 Ok(data) => Ok((ext(name, to.ext()), data)),
-                Err((Some(e), _)) => Err(failed(e)),
-                Err((None, lost)) => Err((SKIP_WOULD_LOSE, format!("{name} ({lost})"))),
+                // A drawing that does not open is said as everywhere, not with its library's text.
+                Err(Refused::NotRead(e)) => Err(crate::fault::not_opened(name, e)),
+                Err(Refused::NotMade(e)) => Err(failed(e)),
+                Err(Refused::WouldLose(lost)) => Err((SKIP_WOULD_LOSE, format!("{name} ({lost})"))),
             };
         }
         Drawn::Svg => {
@@ -1197,6 +1200,12 @@ mod tests {
         let (name, data) = convert(dxf, "plan.dxf", &job).unwrap();
         assert_eq!((name.as_str(), crate::cad::read(&data, "x.dwg").unwrap().items.len()), ("plan.dwg", 1));
         assert_eq!(convert(b"IN;PU0,0;PD100,100;", "p.plt", &job).unwrap_err().0, SKIP_NOT_AUTOCAD);
+        // A drawing that does not open (a text file renamed, R13 of 2026-11-21) is said as by
+        // the other exports: its name and the library's text apart, for the summary.
+        let (id, detail) = convert(b"Questo non e un disegno DWG.\n", "rotto.dwg", &Job { drawing: Some(Drawn::Cad(crate::cad_convert::Target::Dxf)), ..Default::default() }).unwrap_err();
+        assert!(id == crate::fault::NOT_OPENED && detail.starts_with("rotto.dwg\u{1}"), "{id} {detail}");
+        let (shown, copied) = crate::batch_summary::item(&crate::i18n::I18n::new("it"), id, &detail, false);
+        assert!(crate::save_dialogs::plain(&shown) == "Impossibile aprire rotto.dwg" && copied.len() > shown.len(), "{shown} / {copied}");
     }
 
     #[test]

@@ -612,7 +612,9 @@ menu-measure = Measure
 menu-compare = Compare drawings
 compare-off = Choose two CAD drawings in the grid to compare them
 compare-reading = Comparing the drawings…
-compare-failed = The drawings could not be compared: { $error }
+compare-failed =
+    The drawings could not be compared
+    { $error }
 compare-both = In both
 compare-only = Only in { $name }
 compare-status = Compared with { $name }: { $n ->

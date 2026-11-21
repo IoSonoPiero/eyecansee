@@ -90,7 +90,8 @@ pub enum Msg {
     /// A 3D model saved in another 3D format: the new file's path, the model's, and what was
     /// read differently from the model (`Mesh::warnings`, #179); or the model's path and why not.
     Exported(Result<(String, String, Vec<&'static str>), (String, String)>),
-    /// Two CAD drawings compared (`Loader::compare_drawings`).
+    /// Two CAD drawings compared (`Loader::compare_drawings`); or the name of the one that did
+    /// not open and why, `name\u{1}raw` (said by `I18n::compare_failed`).
     Compared(Result<crate::cad_compare::Compared, String>),
     /// "Save" from the viewer, before the confirmation: the image, the turn, and the file to write
     /// with whether it lost quality (encoded again), or an error (`SKIPPED`: not saveable over itself).
@@ -488,7 +489,7 @@ impl Loader {
                 match r {
                     Ok(d) => read.push(Arc::new(d)),
                     Err(e) => {
-                        let _ = tx.send(Msg::Compared(Err(format!("{}: {e}", crate::source::name(path)))));
+                        let _ = tx.send(Msg::Compared(Err(format!("{}\u{1}{e}", crate::source::name(path)))));
                         ctx.request_repaint();
                         return;
                     }

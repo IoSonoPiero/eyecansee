@@ -403,9 +403,10 @@ mod tests {
         let mut h = Harness::new(&folder("failures", &["a.png"]));
         h.app.status_note = Some(h.app.i18n.t("compare-reading"));
         h.app.note_until = Some(1e9);
-        h.app.tx.send(Msg::Compared(Err("a.dwg: not a drawing".into()))).unwrap();
+        h.app.tx.send(Msg::Compared(Err("a.dwg\u{1}not a drawing".into()))).unwrap();
         h.frame(Vec::new());
-        assert_eq!(h.app.error, Some(h.app.i18n.t_args("compare-failed", &[("error", "a.dwg: not a drawing")])));
+        assert_eq!(h.app.error, Some(h.app.i18n.t_args("compare-failed", &[("error", &h.app.i18n.cannot_load("a.dwg", "not a drawing"))])));
+        assert_eq!(bar_parts(h.app.error.as_deref().unwrap()).detail, ["(not a drawing)"]);
         assert!(h.app.status_note.is_none() && h.app.note_until.is_none(), "the note of the comparison stays");
         h.app.error = None;
         let a = h.app.files()[0].path.clone();

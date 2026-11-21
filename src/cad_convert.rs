@@ -36,17 +36,28 @@ fn document(bytes: &[u8], name: &str) -> Result<CadDocument, String> {
     }
 }
 
+/// Why `convert_checked` gave no file.
+#[derive(Debug, PartialEq)]
+pub enum Refused {
+    /// The original does not open: the library's text (said as a file that does not open).
+    NotRead(String),
+    /// The new file could not be written or read back: the library's text.
+    NotMade(String),
+    /// The new file would show less than the original: what would be lost.
+    WouldLose(String),
+}
+
 /// As `convert`, read back and compared with the original: refused when it shows less than the
-/// original (`Err(None)`, with what would be lost), since `acadrust` drops some things on the way
-/// (layouts of DXF files saved as DWG, some table cells; 84 of 102 real drawings came out the
-/// same, 2026-11-02). More is accepted: a DWG's tables showed more of themselves as DXF.
-pub fn convert_checked(bytes: &[u8], name: &str, to: Target) -> Result<Vec<u8>, (Option<String>, String)> {
-    let before = crate::cad::read(bytes, name).map_err(|e| (Some(e), String::new()))?;
-    let out = convert(bytes, name, to).map_err(|e| (Some(e), String::new()))?;
-    let after = crate::cad::read(&out, &format!("x.{}", to.ext())).map_err(|e| (Some(e), String::new()))?;
+/// original (`Refused::WouldLose`), since `acadrust` drops some things on the way (layouts of DXF
+/// files saved as DWG, some table cells; 84 of 102 real drawings came out the same, 2026-11-02).
+/// More is accepted: a DWG's tables showed more of themselves as DXF.
+pub fn convert_checked(bytes: &[u8], name: &str, to: Target) -> Result<Vec<u8>, Refused> {
+    let before = crate::cad::read(bytes, name).map_err(Refused::NotRead)?;
+    let out = convert(bytes, name, to).map_err(Refused::NotMade)?;
+    let after = crate::cad::read(&out, &format!("x.{}", to.ext())).map_err(Refused::NotMade)?;
     let (items, sheets) = ((before.items.len(), after.items.len()), (before.sheets.len(), after.sheets.len()));
     if items.1 < items.0 || sheets.1 < sheets.0 {
-        return Err((None, format!("{} → {} elements, {} → {} layouts", items.0, items.1, sheets.0, sheets.1)));
+        return Err(Refused::WouldLose(format!("{} → {} elements, {} → {} layouts", items.0, items.1, sheets.0, sheets.1)));
     }
     Ok(out)
 }

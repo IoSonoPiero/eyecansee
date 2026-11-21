@@ -164,6 +164,17 @@ const BRIEF: [&str; 7] = [
     SERVER_CUT,
 ];
 
+/// A sentence and, apart, a library's text: the text under the sentence as its detail, in
+/// brackets on a line of its own (`error_bar::with_detail`); as it is when it has more lines or
+/// its own brackets.
+fn under((sentence, apart): (String, Option<String>)) -> String {
+    match apart {
+        Some(raw) if !raw.contains('\n') && !raw.starts_with('(') => format!("{sentence}\n({raw})"),
+        Some(raw) => format!("{sentence}\n{raw}"),
+        None => sentence,
+    }
+}
+
 impl I18n {
     /// The text of an error, said plainly when its detail is recognised (`recognise`); its raw
     /// text goes to the log.
@@ -210,11 +221,27 @@ impl I18n {
     /// "Cannot open x": why said plainly under it when it is known, otherwise the library's text
     /// as the detail, in brackets on its own line, as `error_bar::with_detail` puts it.
     pub(crate) fn cannot_load(&self, file: &str, e: &str) -> String {
-        match self.cannot_load_apart(file, e) {
-            (sentence, Some(raw)) if !raw.contains('\n') && !raw.starts_with('(') => format!("{sentence}\n({raw})"),
-            (sentence, Some(raw)) => format!("{sentence}\n{raw}"),
-            (sentence, None) => sentence,
-        }
+        under(self.cannot_load_apart(file, e))
+    }
+
+    /// `not_opened` in one text, as `cannot_load`: the sentence, and the library's text under it
+    /// as the detail. For an error about a file that did not open said in the error bar (two
+    /// drawings that could not be compared, `compare_failed`).
+    pub(crate) fn not_opened_told(&self, name: &str, raw: &str) -> String {
+        under(self.not_opened(name, raw))
+    }
+
+    /// Why two drawings were not compared (`e`: the name of the one that did not open and the
+    /// text of its library, `name\u{1}raw`, or what else went wrong), for the error bar: the
+    /// drawing said as the viewer says a file that does not open, the library's text under it as
+    /// the detail, not in the sentence ("…: rotto.dwg: Unsupported CAD version: "Questo"", R13
+    /// of 2026-11-21).
+    pub(crate) fn compare_failed(&self, e: &str) -> String {
+        let why = match e.split_once('\u{1}') {
+            Some((name, raw)) => self.not_opened_told(name, raw),
+            None => under((String::new(), Some(e.trim().to_string()))).trim_start().to_string(),
+        };
+        self.t_args("compare-failed", &[("error", &why)])
     }
 
     /// `cannot_load` in two parts: the sentence, with why said plainly under it when it is
@@ -319,6 +346,28 @@ mod tests {
             let t = format!("replace, context: {{ path: a.jpg }} => in use (os error {code})");
             assert_eq!(recognise(&t), Some((Kind::InUse, Some("a.jpg".into()))), "{code}");
         }
+    }
+
+    /// Compare drawings on a text file renamed `.dwg` (R13 of 2026-11-21), with the error as the
+    /// CAD library gives it: the bar says that the drawings were not compared and which one did
+    /// not open, as the viewer says it; the library's English stays out of the sentence, under
+    /// it as the detail. A drawing that is gone is said plainly; an error without a file too.
+    #[test]
+    fn drawings_not_compared() {
+        let none: crate::model::Sibling = &|_| None;
+        let Err(raw) = crate::cad::read_with(b"Questo non e un disegno DWG.\nFile di testo rinominato per la prova.\n", "rotto.dwg", none) else { panic!("a text file read as a drawing") };
+        for (lang, lead, open) in [("it", "Non è stato possibile confrontare i disegni", "Impossibile aprire rotto.dwg"), ("en", "The drawings could not be compared", "Cannot open rotto.dwg")] {
+            let i18n = I18n::new(lang);
+            let text = i18n.compare_failed(&format!("rotto.dwg\u{1}{raw}"));
+            assert_eq!(text, format!("{lead}\n{open}\n({raw})"));
+            assert_eq!(text, format!("{lead}\n{}", i18n.cannot_load("rotto.dwg", &raw)), "as the viewer says it");
+            let p = crate::error_bar::bar_parts(&text);
+            assert_eq!((p.lead, p.rest, p.lines, p.detail), (lead, "", vec![open], vec![format!("({raw})").as_str()]));
+            assert_eq!(i18n.compare_failed("task 7 panicked"), format!("{lead}\n(task 7 panicked)"));
+        }
+        let gone = "NotFound (permanent) at read, context: { service: fs, path: disegni/a.dxf } => entry not found";
+        let it = I18n::new("it");
+        assert_eq!(it.compare_failed(&format!("a.dxf\u{1}{gone}")), format!("Non è stato possibile confrontare i disegni\n{}", it.fault(Kind::NotFound, Some("a.dxf"))));
     }
 
     #[test]

@@ -611,7 +611,9 @@ menu-measure = Misura
 menu-compare = Confronta disegni
 compare-off = Scegli due disegni CAD nella griglia per confrontarli
 compare-reading = Confronto i disegni…
-compare-failed = Non è stato possibile confrontare i disegni: { $error }
+compare-failed =
+    Non è stato possibile confrontare i disegni
+    { $error }
 compare-both = In tutti e due
 compare-only = Solo in { $name }
 compare-status = Confrontato con { $name }: { $n ->
