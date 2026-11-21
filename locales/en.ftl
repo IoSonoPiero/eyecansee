@@ -172,6 +172,7 @@ transfer-links-kept = { $n ->
    *[other] { $n } links to folders skipped: they were not moved, and stay where they were with the folders that hold them.
 }
 transfer-links-why = A link to a folder on an FTP server, or one that leads back into the folders copied, is left out.
+
     More in the guide (F1).
 error-move-same-item = What it would replace is this same item, reached in another way: { $detail }
     The move stopped, and the item stayed as it was.

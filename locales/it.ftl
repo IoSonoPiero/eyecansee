@@ -171,6 +171,7 @@ transfer-links-kept = { $n ->
    *[other] { $n } collegamenti a cartelle saltati: non sono stati spostati e restano dov'erano, con le cartelle che li contengono.
 }
 transfer-links-why = Un collegamento a una cartella su un server FTP, o uno che riporta dentro le cartelle copiate, resta fuori.
+
     Altro nella guida (F1).
 error-name-too-long = Il nome è troppo lungo per il telefono: { $detail } caratteri, mentre un telefono ne accetta al massimo 254 (un'emoji conta per due).
     Accorcialo e riprova; non è stato copiato niente.
