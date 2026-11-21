@@ -12,30 +12,31 @@ use std::time::{Duration, Instant};
 use crate::source::{self, Store};
 
 /// What the metadata panel reads of a picture: its sidecar and the file whole.
-async fn panel(op: &Store, path: &str) -> u64 {
+async fn panel(op: &Store, path: &str) {
     let _ = crate::sidecar::read(op, path).await;
-    op.read(path).await.map_or(0, |b| crate::meta::read_file(&b, path).is_some() as u64)
+    let _ = op.read(path).await.map(|b| crate::meta::read_file(&b, path));
 }
 
 fn is_picture(path: &str) -> bool {
     !crate::decode::is_played(path) && !crate::model::is_model(path) && !crate::cad::is_cad(path) && crate::decode::is_image(path)
 }
 
-/// The median time of three runs of `f`, the bytes and the reads of the last.
-async fn timed<F: std::future::Future>(mut f: impl FnMut() -> F) -> (Duration, u64, u64) {
+/// The median time of three runs of `f`, the bytes and the reads of the last; `None` when it
+/// panicked (on the runtime's only thread, as the counters).
+async fn timed<F: std::future::Future<Output = ()> + Send + 'static>(mut f: impl FnMut() -> F) -> Option<(Duration, u64, u64)> {
     let mut times = Vec::new();
     let (mut bytes, mut reads) = (0, 0);
     for _ in 0..3 {
         source::BYTES_READ.with(|n| n.set(0));
         source::READS.with(|n| n.set(0));
         let t = Instant::now();
-        f().await;
+        tokio::spawn(f()).await.ok()?;
         times.push(t.elapsed());
         bytes = source::BYTES_READ.with(std::cell::Cell::get);
         reads = source::READS.with(std::cell::Cell::get);
     }
     times.sort();
-    (times[1], bytes, reads)
+    Some((times[1], bytes, reads))
 }
 
 /// Every picture under `dir`, with its size.
@@ -76,10 +77,24 @@ fn reading_times_live() {
         };
         println!("file\tMB\tviewer ms\tviewer MB\tviewer reads\tpanel ms\tpanel MB\tpanel reads");
         for (path, size) in pictures(&op, &dir).await {
-            let v = timed(|| async { let _ = crate::view_memory::read(&op, &path, Some(size), crate::view_memory::Use::View, false).await; }).await;
-            let p = timed(|| async { panel(&op, &path).await; }).await;
-            let mb = |b: u64| format!("{:.2}", b as f64 / 1e6);
-            println!("{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}", path.rsplit('/').next().unwrap(), mb(size), v.0.as_millis(), mb(v.1), v.2, p.0.as_millis(), mb(p.1), p.2);
+            let (o, p) = (op.clone(), path.clone());
+            let v = timed(move || {
+                let (op, path) = (o.clone(), p.clone());
+                async move {
+                    let _ = crate::view_memory::read(&op, &path, Some(size), crate::view_memory::Use::View, false).await;
+                }
+            })
+            .await;
+            let (o, p) = (op.clone(), path.clone());
+            let m = timed(move || {
+                let (op, path) = (o.clone(), p.clone());
+                async move {
+                    panel(&op, &path).await;
+                }
+            })
+            .await;
+            let row = |r: Option<(Duration, u64, u64)>| r.map_or("panic\t\t".into(), |(t, b, n)| format!("{}\t{:.2}\t{n}", t.as_millis(), b as f64 / 1e6));
+            println!("{}\t{:.2}\t{}\t{}", path.rsplit('/').next().unwrap(), size as f64 / 1e6, row(v), row(m));
         }
         if sent {
             op.delete(&dir, source::Deletion::Permanent).await.unwrap();
