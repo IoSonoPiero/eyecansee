@@ -576,7 +576,7 @@ mod tests {
         let (it, en) = (crate::i18n::I18n::new("it"), crate::i18n::I18n::new("en"));
         let one = super::links_notice(&it, false, "/home/p/arrivo/", &["collegamenti/self".to_string()]);
         assert_eq!(one.title, "Copia finita");
-        let sentences = "1 collegamento a una cartella saltato: non è stato copiato.\nUn collegamento a una cartella su un server FTP, o uno che riporta dentro le cartelle copiate, resta fuori.\nAltro nella guida (F1).";
+        let sentences = "1 collegamento a una cartella saltato: non è stato copiato.\nUn collegamento a una cartella su un server FTP, o uno che riporta dentro le cartelle copiate, resta fuori.\n\nAltro nella guida (F1).";
         assert_eq!(one.text, format!("In {}\n{sentences}\n\n- {}", md("/home/p/arrivo/"), md("collegamenti/self")));
         assert!(one.warning && one.save_as.is_none());
         assert_eq!(one.help, Some("help:copy-move"));
@@ -585,7 +585,7 @@ mod tests {
         let odd = "/p/a*b `c` **d**\\e/";
         let moved = super::links_notice(&en, true, odd, &links);
         assert_eq!(moved.title, "Move finished");
-        let start = "12 links to folders skipped: they were not moved, and stay where they were with the folders that hold them.\nA link to a folder on an FTP server, or one that leads back into the folders copied, is left out.\nMore in the guide (F1).\n\n";
+        let start = "12 links to folders skipped: they were not moved, and stay where they were with the folders that hold them.\nA link to a folder on an FTP server, or one that leads back into the folders copied, is left out.\n\nMore in the guide (F1).\n\n";
         assert!(moved.text.starts_with(&format!("To {}\n{start}- {}\n", md(odd), md("a/link_1"))), "{}", moved.text);
         assert!(moved.text.ends_with("\n\nand 2 more") && moved.text.matches("\n- ").count() == 10, "{}", moved.text);
         let copy = moved.copy.unwrap();
