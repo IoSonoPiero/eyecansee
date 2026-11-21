@@ -62,6 +62,7 @@ mod eyedropper;
 mod encoders;
 mod engine;
 mod fault;
+mod first_start;
 mod ffmpeg;
 mod ffmpeg_ask;
 mod ffmpeg_files;
