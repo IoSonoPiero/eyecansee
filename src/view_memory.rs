@@ -68,7 +68,7 @@ fn jpeg(bytes: &[u8], what: Use) -> Option<(u64, u64)> {
     if h.is_lossless || matches!(h.colorspace, Colorspace::CMYK | Colorspace::YCCK) {
         return Some((times(px * 3, JPEG_WHOLE), px));
     }
-    let factor = crate::decode::jpeg_factor(h.width.max(h.height), MAX_SIDE, false);
+    let factor = crate::decode::jpeg_factor(h.width.max(h.height), MAX_SIDE);
     let read = factor.scale(h.width) as u64 * factor.scale(h.height) as u64;
     Some((times(read * 3, JPEG_WHOLE).saturating_add(coefficients), read))
 }

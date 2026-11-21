@@ -208,7 +208,7 @@ fn run(kind: Kind, bytes: &[u8], name: &str) -> Result<DynamicImage> {
 /// (#177): the viewer showed it at that size anyway, and whole a JPEG of 512 megapixels took 1.5
 /// GB; a lossless one, which cannot be reduced while read, is read whole.
 pub fn decode(bytes: &[u8], name: &str) -> std::result::Result<ColorImage, String> {
-    let turbo = bytes.starts_with(&[0xFF, 0xD8, 0xFF]).then(|| jpeg_scaled_sized(bytes, MAX_SIDE, false).or_else(|_| jpeg_scaled_sized(bytes, u32::MAX, false)).ok()).flatten();
+    let turbo = bytes.starts_with(&[0xFF, 0xD8, 0xFF]).then(|| jpeg_scaled_sized(bytes, MAX_SIDE).or_else(|_| jpeg_scaled_sized(bytes, u32::MAX)).ok()).flatten();
     let (img, own) = match turbo {
         Some((img, own)) => (img, Some(own)),
         None => (decode_any(bytes, name)?, None),
@@ -336,20 +336,21 @@ fn with_image(bytes: &[u8], name: &str) -> Result<DynamicImage> {
 }
 
 /// JPEG decoded with libjpeg-turbo at the smallest scale (from 1/8 up) whose long side is
-/// still ≥ `side`. CMYK and the like fail and fall back to normal decoding.
+/// still ≥ `side`, never above its own size. CMYK and the like fail and fall back to normal
+/// decoding.
 fn jpeg_scaled(bytes: &[u8], side: u32) -> Result<DynamicImage> {
-    jpeg_scaled_sized(bytes, side, true).map(|(img, _)| img)
+    jpeg_scaled_sized(bytes, side).map(|(img, _)| img)
 }
 
-/// `jpeg_scaled`, with the picture's own size, upright. Not `enlarge`d: at most its own size.
-fn jpeg_scaled_sized(bytes: &[u8], side: u32, enlarge: bool) -> Result<(DynamicImage, [u32; 2])> {
+/// `jpeg_scaled`, with the picture's own size, upright.
+fn jpeg_scaled_sized(bytes: &[u8], side: u32) -> Result<(DynamicImage, [u32; 2])> {
     let mut dec = turbojpeg::Decompressor::new()?;
     // Defence against progressive JPEGs crafted to stall the decoder (files from FTP, phones, cloud).
     dec.set_scan_limit(500)?;
     let header = dec.read_header(bytes)?;
     // The declared size, also when decoded smaller: libjpeg-turbo still reads every block.
     crate::pixel_limit::check(header.width as u64, header.height as u64)?;
-    let factor = jpeg_factor(header.width.max(header.height), side, enlarge);
+    let factor = jpeg_factor(header.width.max(header.height), side);
     dec.set_scaling_factor(factor)?;
     let size = header.scaled(factor);
     let mut out = turbojpeg::Image {
@@ -375,10 +376,11 @@ fn jpeg_scaled_sized(bytes: &[u8], side: u32, enlarge: bool) -> Result<(DynamicI
 }
 
 /// The smallest scale libjpeg-turbo reads a JPEG whose long side is `long` at (from 1/8 up) for
-/// a long side still ≥ `side`; above 1 (up to 2) only when `enlarge`.
-pub(crate) fn jpeg_factor(long: usize, side: u32, enlarge: bool) -> turbojpeg::ScalingFactor {
+/// a long side still ≥ `side`, at most 1: libjpeg-turbo can also enlarge (up to 2/1), which made
+/// the thumbnails of small JPEGs softer than those of the same pictures in PNG (#220).
+pub(crate) fn jpeg_factor(long: usize, side: u32) -> turbojpeg::ScalingFactor {
     let mut factors = turbojpeg::Decompressor::supported_scaling_factors();
-    factors.retain(|f| enlarge || f.num() <= f.denom());
+    factors.retain(|f| f.num() <= f.denom());
     factors.sort_by_key(|f| f.num() * 1000 / f.denom());
     factors.into_iter().find(|f| f.scale(long) >= side as usize).unwrap_or(turbojpeg::ScalingFactor::ONE)
 }
@@ -887,6 +889,26 @@ pub(crate) mod tests {
         let lossless = crate::encode::Original::with_meta(DynamicImage::ImageRgb8(image::RgbImage::new(8200, 4)), &[]).encode(&o).unwrap();
         let shown = decode(&lossless, "a.jpg").unwrap();
         assert_eq!((shown.size, own_size(&shown)), ([8192, 4], Some([8200, 4])));
+    }
+
+    /// The thumbnail of a JPEG smaller than the thumbnail is the picture at its own size, as a
+    /// PNG's: libjpeg-turbo can also read a JPEG enlarged (9/8 up to 2/1), and a 200 × 150 one
+    /// came out read at 275 × 207 and brought back to 256 × 192, softer (audit 3.16, #220). A
+    /// larger JPEG is still read reduced, and read whole it keeps its own size.
+    #[test]
+    fn small_jpeg_thumbnail_not_enlarged() {
+        let jpeg = |w: u32, h: u32| {
+            let img = image::RgbImage::from_fn(w, h, |x, y| image::Rgb([(x * 7 % 256) as u8, (y * 5 % 256) as u8, if (x / 9 + y / 9) % 2 == 0 { 220 } else { 30 }]));
+            let pixels = turbojpeg::Image { pixels: img.as_raw().as_slice(), width: w as usize, pitch: w as usize * 3, height: h as usize, format: turbojpeg::PixelFormat::RGB };
+            turbojpeg::Compressor::new().unwrap().compress_to_vec(pixels).unwrap()
+        };
+        let mut png = Vec::new();
+        DynamicImage::ImageRgb8(image::RgbImage::new(200, 150)).write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let size = |img: DynamicImage| (img.width(), img.height());
+        assert_eq!(size(thumbnail(&png, "small.png", 256).unwrap()), (200, 150));
+        assert_eq!(size(thumbnail(&jpeg(200, 150), "small.jpg", 256).unwrap()), (200, 150));
+        assert_eq!(size(thumbnail(&jpeg(1024, 768), "large.jpg", 256).unwrap()), (256, 192));
+        assert_eq!(size(decode_full(&jpeg(200, 150), "small.jpg").unwrap()), (200, 150));
     }
 
     /// What the guide's known limits say: of an animation and of a TIFF with more pages the
