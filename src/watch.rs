@@ -9,7 +9,7 @@ use crate::loader::Msg;
 use crate::{App, source};
 
 /// How long the "file removed" note stays in the status bar.
-const NOTE_SECS: f64 = 10.0;
+pub(crate) const NOTE_SECS: f64 = 10.0;
 /// Seconds without events from a phone before its open folder is read again (`phone_events`).
 const PHONE_QUIET_SECS: f64 = 3.0;
 

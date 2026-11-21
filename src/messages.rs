@@ -165,7 +165,9 @@ impl App {
             return;
         }
         if r.is_ok() && crate::mtp::taken_from_gvfs() {
+            // Something to know once, not a state: it goes after a while (Piero, 21/11/2026).
             self.status_note = Some(self.i18n.t("status-taken-from-gvfs"));
+            self.note_until = Some(ctx.input(|i| i.time) + crate::watch::NOTE_SECS);
         }
         if dir == self.dir
             && let Some(start) = self.start.take()
