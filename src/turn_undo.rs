@@ -26,6 +26,13 @@ impl Steps {
         self.ahead.clear();
     }
 
+    /// `old` renamed `new`: its steps follow it.
+    pub fn renamed(&mut self, old: &str, new: &str) {
+        if self.path == old {
+            self.path = new.to_string();
+        }
+    }
+
     /// The turn to show after Ctrl+Z on `path`, now turned `now`.
     pub fn undo(&mut self, path: &str, now: Turn) -> Option<Turn> {
         let step = self.back.last().copied().filter(|s| path == self.path && s.1 == now);

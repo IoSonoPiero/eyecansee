@@ -9,8 +9,13 @@ use crate::source::{self, File};
 use crate::{App, devices, settings};
 
 impl App {
-    /// Opens an address (path or URL). If it fails, stays on the current source.
+    /// Opens an address (path or URL). If it fails, stays on the current source. The image in the
+    /// viewer with turns not saved is asked about first (audit 1.5, #198: an address typed in the
+    /// bar dropped them, and the image opened next in the same place showed them).
     pub(crate) fn open_source(&mut self, ctx: &egui::Context, address: &str) {
+        if self.viewing.is_some() && self.hold_for_turn(crate::save_dialogs::After::Open(address.to_string())) {
+            return;
+        }
         // A server while the saved ones are locked: the master password first (they may hold its
         // password and key).
         if crate::servers::locked() && crate::vault_page::remote(address) {
@@ -95,8 +100,12 @@ impl App {
     }
 
     /// Opens an address from outside (command line, another instance); a temporary copy made by
-    /// Windows is said so in the status bar (issue #47).
+    /// Windows is said so in the status bar (issue #47). Turns not saved in the viewer are asked
+    /// about first, as by `open_source`.
     pub(crate) fn open_outside(&mut self, ctx: &egui::Context, address: &str) {
+        if self.viewing.is_some() && self.hold_for_turn(crate::save_dialogs::After::Outside(address.to_string())) {
+            return;
+        }
         let address = self.outside_address(address);
         self.open_source(ctx, &address);
         if source::windows_temp_copy(&address) {
@@ -137,6 +146,8 @@ impl App {
         let Err((id @ ("error-device-busy" | "error-use-mount"), detail)) = r else { return false };
         let Some(mounted) = self.mounted_twin() else { return false };
         let note = (*id == "error-use-mount").then(|| self.i18n.t_args("status-through-mount", &[("detail", detail)]));
+        // The phone cannot be read directly: its turns not saved could not be saved there.
+        self.turn = Default::default();
         self.open_source(ctx, &format!("{mounted}{dir}"));
         self.status_note = note;
         true
@@ -179,6 +190,10 @@ impl App {
         self.meta_asked = None;
         self.retry_at = None;
         self.viewing = None;
+        // The viewer's turns and zoom belong to the image of the folder left: by position, they
+        // went to the image opened next at the same place (audit 1.5, #198).
+        self.turn = Default::default();
+        self.zoom_of = None;
         self.start = None;
         let dir = self.dir.clone();
         self.request_listing(&dir);
@@ -209,6 +224,7 @@ impl App {
         log!("refresh");
         let viewing = self.viewing;
         let path = viewing.and_then(|i| self.files().get(i)).map(|f| f.path.clone());
+        let view = (self.zoom_of, self.turn, self.zoom);
         let old = self.listings.remove(&self.dir);
         self.listings.clear();
         let dir = self.dir.clone();
@@ -217,6 +233,8 @@ impl App {
             self.listings.insert(self.dir.clone(), old);
             self.viewing = Some(i);
             self.start = Some(path);
+            // The same image: its zoom and turns not saved stay.
+            (self.zoom_of, self.turn, self.zoom) = view;
         }
     }
 
@@ -290,13 +308,17 @@ impl App {
     }
 
     /// Changes the sort order: re-sorts the listings already read and restarts from the current
-    /// folder (thumbnails and selection are by position), keeping the same image selected.
+    /// folder (thumbnails and selection are by position), keeping the same image selected. From
+    /// the viewer, the viewer stays on its image, with its zoom and turns not saved: they went to
+    /// the image sorted into its place, and Save wrote that one turned (audit 1.5, #198).
     pub(crate) fn set_sort(&mut self, by: settings::SortBy, desc: bool) {
         self.settings.sort_by = by;
         self.settings.sort_desc = desc;
         self.settings.save();
         let selected = self.cursor.then(|| self.selected.checked_sub(self.listing_dirs())).flatten();
         let path = selected.and_then(|i| self.files().get(i)).map(|f| f.path.clone());
+        let viewed = self.viewing.and_then(|i| self.files().get(i)).map(|f| f.path.clone());
+        let view = (self.turn, self.zoom);
         for l in self.listings.values_mut().flatten() {
             l.sort_files(by, desc);
         }
@@ -307,6 +329,13 @@ impl App {
             self.selected = self.listing_dirs() + i;
             self.cursor = true;
             self.scroll_to_selected = true;
+        }
+        if let Some(path) = viewed
+            && let Some(i) = self.files().iter().position(|f| f.path == path)
+        {
+            self.viewing = Some(i);
+            self.zoom_of = Some(i);
+            (self.turn, self.zoom) = view;
         }
     }
 

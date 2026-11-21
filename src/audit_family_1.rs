@@ -197,29 +197,43 @@ fn settle(h: &mut Harness) {
     }
 }
 
-/// Audit 1.5: how the viewer was left with a.png turned and not saved. `leave` leaves it as the
-/// user would; then the first image of what is shown opens, as a double click would.
-/// Prints and returns: asked before leaving, the turn lost, the turn carried to another image.
-fn audit_1_5_leave(name: &str, leave: impl FnOnce(&mut Harness, &Path)) -> (bool, bool, Option<String>) {
-    audit_1_5_leave_then(name, leave, |_, _| {})
-}
-
-/// `audit_1_5_leave`, then `after` with the folder of a.png when the turn was carried.
-fn audit_1_5_leave_then(name: &str, leave: impl FnOnce(&mut Harness, &Path), after: impl FnOnce(&mut Harness, &Path)) -> (bool, bool, Option<String>) {
-    let a = folder(&format!("{name}-a"), &["a.png", "b.png"]);
-    let b = folder(&format!("{name}-b"), &["c.png", "d.png"]);
+/// The viewer on a.png of the folder `name` (with b.png), turned and not saved.
+fn turned_in_viewer(name: &str) -> (PathBuf, Harness) {
+    let a = folder(name, &["a.png", "b.png"]);
     let mut h = Harness::new(&a);
     h.app.activate(0);
     h.until(|app| app.zoom_of == Some(0), "a.png shown");
     h.app.act = Some(crate::actions::Act::Transform(crate::transform::Op::Cw, None));
     h.frame(Vec::new());
     assert!(h.app.turn_unsaved(), "a.png turned, not saved");
+    (a, h)
+}
+
+/// The path of the image in the viewer.
+fn viewed(h: &Harness) -> Option<String> {
+    h.app.viewing.and_then(|i| h.app.files().get(i)).map(|f| f.path.clone())
+}
+
+/// Save from the viewer, confirmed with Enter, until `file` is written turned (8 x 6 → 6 x 8).
+fn save_turned(h: &mut Harness, file: &Path) {
+    h.app.act = Some(crate::actions::Act::Save);
+    h.until(|app| app.save_ready.is_some(), "the confirmation of Save");
+    h.key(enter());
+    h.until(|app| app.saving.is_empty() && image::image_dimensions(file).is_ok_and(|d| d != (8, 6)), "the image written turned");
+    h.until(|app| !app.turn_unsaved(), "the turn saved, not shown again over the image saved");
+}
+
+/// Audit 1.5: how the viewer was left with a.png turned and not saved. `leave` leaves it as the
+/// user would; then the first image of what is shown opens, as a double click would.
+/// Prints and returns: asked before leaving, the turn carried to another image.
+fn audit_1_5_leave(name: &str, leave: impl FnOnce(&mut Harness, &Path)) -> (bool, Option<String>) {
+    let (_, mut h) = turned_in_viewer(&format!("{name}-a"));
+    let b = folder(&format!("{name}-b"), &["c.png", "d.png"]);
     leave(&mut h, &b);
     for _ in 0..5 {
         h.frame(Vec::new());
     }
     let asked = h.app.after_turn.is_some();
-    let lost = !asked && h.app.viewing.is_none() && h.app.turn.is_none();
     let mut carried = None;
     if !asked {
         h.until(|app| !app.files().is_empty(), "a listing");
@@ -228,52 +242,108 @@ fn audit_1_5_leave_then(name: &str, leave: impl FnOnce(&mut Harness, &Path), aft
         let shown = h.app.files()[0].path.clone();
         if !shown.ends_with("a.png") && h.app.turn_unsaved() {
             carried = Some(shown);
-            after(&mut h, &a);
         }
     }
-    eprintln!("{name}: asked {asked}, turn lost {lost}, turn carried to {carried:?}");
-    (asked, lost, carried)
+    eprintln!("{name}: asked {asked}, turn carried to {carried:?}");
+    (asked, carried)
 }
 
 /// Audit 1.5 (a): an address typed in the address bar with the viewer open (what Enter in the
-/// bar does, `toolbar_end.rs`).
+/// bar does, `toolbar_end.rs`). Fixed (#198): `open_source` asks first.
 #[test]
-#[ignore = "audit 1.5: not fixed yet"]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
 fn audit_1_5_a_typed_address_drops_the_turn() {
-    let (asked, _, carried) = audit_1_5_leave("one-five-typed", |h, b| {
+    if own_folder("audit_family_1::audit_1_5_a_typed_address_drops_the_turn") {
+        return;
+    }
+    let (asked, carried) = audit_1_5_leave("one-five-typed", |h, b| {
         let address = crate::navigation::typed_address(&format!("{}/", b.display()));
         h.app.open_source(&h.ctx.clone(), &address);
     });
     assert!(asked && carried.is_none(), "turn not asked about (carried to {carried:?})");
 }
 
-/// Audit 1.5 (b): View > Sort by from the viewer (here: name, descending).
+/// Audit 1.5 (b): View > Sort by from the viewer (here: name, descending) moved the turn of a.png
+/// to b.png, sorted into its place, and Save wrote b.png turned. Fixed (#198): the viewer stays
+/// on a.png with its turn, and Save writes a.png.
 #[test]
-#[ignore = "audit 1.5: not fixed yet"]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
 fn audit_1_5_b_sort_from_the_viewer_moves_the_turn() {
-    let mut saved = None;
-    let (asked, _, carried) = audit_1_5_leave_then("one-five-sort", |h, _| h.app.set_sort(crate::settings::SortBy::Name, true), |h, dir| {
-        // Save, confirmed with Enter: b.png, never turned, is written turned.
-        h.app.act = Some(crate::actions::Act::Save);
-        h.until(|app| app.save_ready.is_some(), "the confirmation of Save");
-        h.key(enter());
-        let file = dir.join("b.png");
-        h.until(|app| app.saving.is_empty() && image::image_dimensions(&file).is_ok_and(|d| d != (8, 6)), "b.png written turned");
-        saved = image::image_dimensions(&file).ok();
-    });
-    eprintln!("b.png after Save: {saved:?} (it was 8 x 6)");
-    assert!(asked && carried.is_none(), "turn not asked about (carried to {carried:?}, saved as {saved:?})");
+    if own_folder("audit_family_1::audit_1_5_b_sort_from_the_viewer_moves_the_turn") {
+        return;
+    }
+    let (dir, mut h) = turned_in_viewer("one-five-sort");
+    h.app.set_sort(crate::settings::SortBy::Name, true);
+    for _ in 0..5 {
+        h.frame(Vec::new());
+    }
+    let shown = viewed(&h);
+    eprintln!("after the sort: viewer on {shown:?} (place {:?}, zoom of {:?}), turn not saved {}", h.app.viewing, h.app.zoom_of, h.app.turn_unsaved());
+    assert!(shown.as_deref().is_some_and(|p| p.ends_with("a.png")), "the viewer left a.png: {shown:?}");
+    assert!(h.app.turn_unsaved() && h.app.zoom_of == h.app.viewing, "the turn of a.png was dropped by the sort");
+    save_turned(&mut h, &dir.join("a.png"));
+    let b = image::image_dimensions(dir.join("b.png")).ok();
+    eprintln!("a.png after Save: {:?}; b.png: {b:?} (both were 8 x 6)", image::image_dimensions(dir.join("a.png")).ok());
+    assert_eq!(b, Some((8, 6)), "b.png, never turned, was written turned");
 }
 
 /// Audit 1.5 (c): an address handed over by another start of EyeCanSee (a double click in the
-/// file manager), as `single::listen` sends it.
+/// file manager), as `single::listen` sends it. Fixed (#198): asked first.
 #[test]
-#[ignore = "audit 1.5: not fixed yet"]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
 fn audit_1_5_c_address_from_outside_drops_the_turn() {
-    let (asked, _, carried) = audit_1_5_leave("one-five-outside", |h, b| {
+    if own_folder("audit_family_1::audit_1_5_c_address_from_outside_drops_the_turn") {
+        return;
+    }
+    let (asked, carried) = audit_1_5_leave("one-five-outside", |h, b| {
         h.app.tx.send(crate::loader::Msg::Open(format!("{}/", b.display()))).unwrap();
     });
     assert!(asked && carried.is_none(), "turn not asked about (carried to {carried:?})");
+}
+
+/// #198, the other side of the rename: the file shown is written again under the same name (a
+/// save tried again from the files kept) and selected; its new listing must not keep the turn
+/// over the new content, as it keeps it over a file renamed.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn a_file_shown_written_again_drops_the_turn() {
+    if own_folder("audit_family_1::a_file_shown_written_again_drops_the_turn") {
+        return;
+    }
+    let (dir, mut h) = turned_in_viewer("written-again");
+    let a = viewed(&h).unwrap();
+    image::DynamicImage::new_rgb8(30, 20).save(dir.join("a.png")).unwrap();
+    h.app.select_after = Some(a);
+    h.app.relist(h.app.dir.clone());
+    h.until(|app| app.listing_pending.is_empty(), "the folder read again");
+    for _ in 0..5 {
+        h.frame(Vec::new());
+    }
+    eprintln!("after a.png written again: viewer on {:?}, turn not saved {}", viewed(&h), h.app.turn_unsaved());
+    assert!(!h.app.turn_unsaved(), "the turn stayed over a.png written again");
+}
+
+/// Audit 1.5 (d), #198: F2 in the viewer renames the image shown (a.png to z.png, which sorts it
+/// after b.png). The viewer follows it with its turn not saved, and Save writes z.png turned.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn audit_1_5_d_rename_keeps_the_turn() {
+    if own_folder("audit_family_1::audit_1_5_d_rename_keeps_the_turn") {
+        return;
+    }
+    let (dir, mut h) = turned_in_viewer("one-five-rename");
+    let a = viewed(&h).unwrap();
+    h.app.loader.as_ref().unwrap().rename(a, "z.png".into());
+    h.until(|app| app.files().iter().any(|f| f.path.ends_with("z.png")) && app.listing_pending.is_empty(), "the folder read again");
+    for _ in 0..5 {
+        h.frame(Vec::new());
+    }
+    let shown = viewed(&h);
+    eprintln!("after the rename: viewer on {shown:?} (place {:?}, zoom of {:?}), turn not saved {}", h.app.viewing, h.app.zoom_of, h.app.turn_unsaved());
+    assert!(shown.as_deref().is_some_and(|p| p.ends_with("z.png")), "the viewer did not follow the image renamed: {shown:?}");
+    assert!(h.app.turn_unsaved() && h.app.zoom_of == h.app.viewing, "the turn was dropped by the rename");
+    save_turned(&mut h, &dir.join("z.png"));
+    assert_eq!(image::image_dimensions(dir.join("b.png")).ok(), Some((8, 6)), "b.png, never turned, was written turned");
 }
 
 /// Audit 2.3: names that come from a server or a phone are not checked. A server lists, in a

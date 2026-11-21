@@ -20,7 +20,7 @@ They work on pictures, and the three rotations on videos too (see below); on 3D 
 
 **Ctrl+Z** takes back the last turn or flip not saved yet, **Ctrl+Y** (or **Ctrl+Shift+Z**) does it again. Back as it is on disk, the picture is no longer marked as changed.
 
-If you leave the picture without saving (another picture, back to the grid, a bookmark, closing EyeCanSee), EyeCanSee asks first: **Save…**, **Save as…**, **Don't save**, or **Cancel** to stay on the picture.
+If you leave the picture without saving (another picture, back to the grid, a bookmark, an address typed in the bar or opened from the file manager, closing EyeCanSee), EyeCanSee asks first: **Save…**, **Save as…**, **Don't save**, or **Cancel** to stay on the picture. Changing the sort order or renaming the picture does not leave it: the viewer stays on it, with its changes.
 
 ## In the grid
 

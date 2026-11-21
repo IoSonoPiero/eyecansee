@@ -585,6 +585,8 @@ impl App {
         self.devices = d;
         if unplugged || gone {
             log!("device with the open folder unplugged");
+            // Gone with the device: its turns not saved cannot be saved any more.
+            self.turn = Default::default();
             let home = std::env::home_dir().map_or(".".into(), |h| h.to_string_lossy().into_owned());
             self.open_source(ctx, &home);
         }

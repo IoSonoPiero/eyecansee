@@ -20,7 +20,7 @@ Funzionano sulle foto, e le tre rotazioni anche sui video (vedi sotto); su model
 
 **Ctrl+Z** annulla l'ultima rotazione o riflessione non ancora salvata, **Ctrl+Y** (o **Ctrl+Maiusc+Z**) la rifà. Tornata com'è sul disco, la foto non è più segnata come modificata.
 
-Se lasci la foto senza salvare (un'altra foto, ritorno alla griglia, un segnalibro, chiusura di EyeCanSee), EyeCanSee chiede prima: **Salva…**, **Salva come…**, **Non salvare**, oppure **Annulla** per restare sulla foto.
+Se lasci la foto senza salvare (un'altra foto, ritorno alla griglia, un segnalibro, un indirizzo scritto nella barra o aperto dal gestore dei file, chiusura di EyeCanSee), EyeCanSee chiede prima: **Salva…**, **Salva come…**, **Non salvare**, oppure **Annulla** per restare sulla foto. Cambiare l'ordinamento o rinominare la foto non la lascia: il visore resta sulla foto, con le sue modifiche.
 
 ## Nella griglia
 

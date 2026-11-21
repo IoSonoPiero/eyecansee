@@ -42,6 +42,15 @@ impl App {
         if dir == self.dir {
             self.select_after = Some(new.to_string());
         }
+        // The listing has the new name until it is read again: the viewer on the file renamed (F2)
+        // follows it there with its zoom and turns not saved (`swap_listing`), as do the thumbnail
+        // and Ctrl+Z. They were dropped, or went to the image that took its place (audit 1.5, #198).
+        if let Some(Ok(l)) = self.listings.get_mut(&dir)
+            && let Some(f) = l.files.iter_mut().find(|f| f.path == old)
+        {
+            f.path = new.to_string();
+        }
+        self.turn_steps.renamed(old, new);
         if old.ends_with('/') {
             self.listings.retain(|k, _| !k.starts_with(old));
             if self.dir.starts_with(old) {
@@ -110,7 +119,10 @@ impl App {
         self.scroll_to_selected |= made.is_some();
         // The viewer goes to that file: what was just saved is what is shown.
         let copy = made.and_then(|m| m.checked_sub(ndirs));
-        if self.viewing.is_some() && copy.is_some() {
+        // A file saved (a copy, or the one shown written again) is shown as it is; the file shown,
+        // renamed and otherwise unchanged (same size and date), keeps its turns.
+        let unchanged = self.viewing.and_then(|v| moved.get(&v).copied());
+        if self.viewing.is_some() && copy.is_some() && copy != unchanged {
             self.turn = Default::default();
         }
         self.viewing = self.viewing.filter(|_| n > 0).map(|v| copy.unwrap_or_else(|| file_at(v).unwrap_or(v.min(n - 1))));

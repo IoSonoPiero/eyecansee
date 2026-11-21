@@ -16,8 +16,11 @@ pub(crate) enum After {
     Quit,
     /// A bookmark, by its place in the list (`App::open_bookmark`).
     Bookmark(usize),
-    /// Open the folder of the summary at the end of a conversion (`batch_summary`): its address.
+    /// Open the folder of the summary at the end of a conversion (`batch_summary`), or an address
+    /// typed or chosen (`App::open_source`).
     Open(String),
+    /// An address from outside: another start of EyeCanSee, the file manager (`App::open_outside`).
+    Outside(String),
 }
 
 /// Answers to "save the changes?" before leaving the image.
@@ -55,6 +58,7 @@ impl App {
             After::Quit => ctx.send_viewport_cmd(egui::ViewportCommand::Close),
             After::Bookmark(i) => self.open_bookmark(ctx, i),
             After::Open(address) => self.open_source(ctx, &address),
+            After::Outside(address) => self.open_outside(ctx, &address),
         }
     }
 
