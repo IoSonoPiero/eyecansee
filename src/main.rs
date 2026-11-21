@@ -191,6 +191,8 @@ mod zoom;
 mod zoom_bar;
 #[cfg(test)]
 mod help_check;
+#[cfg(test)]
+mod test_app;
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
