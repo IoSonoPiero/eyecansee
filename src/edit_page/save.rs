@@ -262,7 +262,7 @@ impl App {
     }
 
     /// What the copy (or the file written over the original, `over`) loses, a line each: encoded
-    /// again, fewer bits, highlights cut.
+    /// again, fewer bits, highlights cut, the video of a motion photo, a depth map (#201).
     fn losses(&self, s: &Plan, over: bool) -> String {
         let mut ids = Vec::new();
         if s.lossy {
@@ -275,6 +275,12 @@ impl App {
         }
         if s.hdr_lost {
             ids.push(if over { "edit-over-loss-ultra-hdr" } else { "edit-loss-ultra-hdr" });
+        }
+        if s.beyond.video {
+            ids.push(if over { "edit-over-loss-video" } else { "edit-loss-video" });
+        }
+        if s.beyond.pictures {
+            ids.push(if over { "edit-over-loss-pictures" } else { "edit-loss-pictures" });
         }
         ids.iter().map(|id| format!("\n\n{}", self.i18n.t(id))).collect()
     }

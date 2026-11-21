@@ -47,6 +47,23 @@ pub fn turns_whole(b: &[u8]) -> bool {
     is(b) || motion_parts(b).is_some()
 }
 
+/// The file carries a video after its picture (a Motion Photo, a MicroVideo): an MP4 or MOV
+/// (`ftyp` box) where its XMP or Samsung's trailer says, after the gain map of an Ultra HDR photo,
+/// or after the end of a photo without MPF. An edit that is more than a turn writes the photo
+/// alone: the editor's confirmation says the video goes (#201).
+pub fn has_video(b: &[u8]) -> bool {
+    crate::motion::video_start(b).is_some() || parts(b).is_some_and(|p| p.video) || motion_parts(b).is_some()
+}
+
+/// The MPF segment lists pictures that are not the photo's previews: a depth map, the other
+/// shots of a stereo or multi-angle photo, a gain map. Types of the MP entries (CIPA DC-007):
+/// 0x030000 the primary picture, 0x010001 and 0x010002 large thumbnails (the previews cameras
+/// add, which every save leaves out); the others are pictures of their own.
+pub fn other_pictures(b: &[u8]) -> bool {
+    let Some(m) = mpf(b) else { return false };
+    (0..m.images).any(|k| read_u32(b, m.table + 16 * k, m.little).is_some_and(|attr| !matches!(attr & 0x00FF_FFFF, 0x03_0000 | 0x01_0001 | 0x01_0002)))
+}
+
 /// A Motion Photo without a gain map (Pixel and Samsung phones, the "MVIMG" files): the photo,
 /// then after its end the video (an MP4 or MOV: a `ftyp` box, and a video track that
 /// `mp4::turned` can turn), maybe with the maker's data around it (Samsung). Where the photo

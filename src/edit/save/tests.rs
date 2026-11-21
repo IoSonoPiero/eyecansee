@@ -888,3 +888,92 @@ fn filters_by_the_empty_corners() {
         }
     }
 }
+
+/// The plan of `bytes` (`name`) with a cover box, or only turned, metadata kept as `keep`.
+fn planned(bytes: &[u8], name: &str, cover: bool, keep: Keep) -> Plan {
+    let original = Original::with_meta_of(crate::decode::decode_full(bytes, name).unwrap(), bytes, name);
+    let (w, h) = original.image.dimensions();
+    let mut doc = Doc::new(w, h, None);
+    if cover {
+        doc.objects.push(cover_at(0.0, 0.0, 8.0, 8.0));
+    } else {
+        doc.turned(Op::Cw);
+    }
+    plan_keeping(&doc, &original, bytes, name, "edited", &[], keep).unwrap()
+}
+
+/// A JPEG with an MPF segment listing pictures of the MP types `types` (the table only, no
+/// picture after it: what the confirmation reads is the table).
+fn with_mpf(types: &[u32]) -> Vec<u8> {
+    let plain = file(&motif(), Format::Jpeg, false);
+    let len = (types.len() * 16) as u32;
+    let mut tiff = [&b"II*\0"[..], &8u32.to_le_bytes(), &1u16.to_le_bytes(), &0xB002u16.to_le_bytes(), &7u16.to_le_bytes(), &len.to_le_bytes(), &26u32.to_le_bytes(), &0u32.to_le_bytes()].concat();
+    for t in types {
+        tiff.extend([&t.to_le_bytes()[..], &[0; 12]].concat());
+    }
+    let body = [&b"MPF\0"[..], &tiff].concat();
+    [&plain[..2], &[0xFF, 0xE2], &((body.len() + 2) as u16).to_be_bytes(), &body, &plain[2..]].concat()
+}
+
+/// Issue #201: the confirmation says what the file made leaves out besides the picture. A Motion
+/// Photo's video when the photo is written again (the real ones only turned keep it:
+/// `beyond_phone_samples`); pictures of their own in
+/// the MPF (a depth map), not the previews; an item of Google's container other than the photo,
+/// the gain map and the video; never the gain map of an Ultra HDR photo, which stays or is said
+/// by `hdr_lost`.
+#[test]
+fn beyond_the_picture() {
+    let none = Beyond::default();
+    let plain = file(&motif(), Format::Jpeg, false);
+    assert_eq!(planned(&plain, "a.jpg", true, Keep::All).beyond, none);
+    assert_eq!(planned(&file(&motif(), Format::Png, false), "a.png", true, Keep::All).beyond, none);
+
+    let thumb = file(&DynamicImage::ImageRgb8(RgbImage::from_pixel(16, 12, Rgb([9, 9, 9]))), Format::Jpeg, false);
+    let motion = motion_photo(&motif(), &thumb);
+    let video = Beyond { video: true, pictures: false };
+    assert_eq!(planned(&motion, "a.jpg", true, Keep::All).beyond, video, "edited");
+    // Its MPF segment (empty) keeps it from being turned whole: written again even only turned.
+    assert_eq!(planned(&motion, "a.jpg", false, Keep::All).beyond, video, "only turned, not whole");
+
+    let pictures = Beyond { video: false, pictures: true };
+    assert_eq!(planned(&with_mpf(&[0x03_0000, 0x00_0000]), "a.jpg", true, Keep::All).beyond, pictures, "a depth map in the MPF");
+    assert_eq!(planned(&with_mpf(&[0x03_0000, 0x02_0002]), "a.jpg", true, Keep::All).beyond, pictures, "a stereo shot");
+    assert_eq!(planned(&with_mpf(&[0x03_0000, 0x01_0001, 0x01_0002]), "a.jpg", true, Keep::All).beyond, none, "previews only");
+
+    let xmp = b"http://ns.adobe.com/xap/1.0/\0<x:xmpmeta xmlns:x=\"adobe:ns:meta/\"><Container:Item Item:Semantic=\"Primary\"/><Container:Item Item:Semantic=\"Depth\" Item:Length=\"6\"/></x:xmpmeta>";
+    let depth = [&plain[..2], &[0xFF, 0xE1], &((xmp.len() + 2) as u16).to_be_bytes(), &xmp[..], &plain[2..], b"DEPTH!"].concat();
+    assert_eq!(planned(&depth, "a.jpg", true, Keep::All).beyond, pictures, "a depth map in Google's container");
+    assert_eq!(planned(&depth[..depth.len() - 6], "a.jpg", true, Keep::All).beyond, none, "named, but nothing after the photo");
+
+    let hdr = crate::ultrahdr::tests::sample(64, 32);
+    assert_eq!(planned(&hdr, "a.jpg", true, Keep::All).beyond, none, "Ultra HDR kept");
+    let p = planned(&hdr, "a.jpg", true, Keep::Nothing);
+    assert!(p.hdr_lost && p.beyond == none, "the gain map said as HDR lost, not as a picture");
+}
+
+/// The phone photos of the test files (as `phone_samples`): a video found where there is one,
+/// not in the Pixel 8 photo marked as a Motion Photo without one; no picture of its own besides
+/// gain maps; nothing lost when only turned with all the metadata, the video lost without.
+#[test]
+#[ignore]
+fn beyond_phone_samples() {
+    let dir = std::env::var_os("EYECANSEE_PHONE_SAMPLES").map_or_else(|| std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("notes/test-files/online/telefono"), std::path::PathBuf::from);
+    let cases = [
+        ("motion_photo.jpeg", true),
+        ("apple_gainmap_new.jpg", false),
+        ("microvideo.jpeg", true),
+        ("MVIMG_20230506_130332.jpg", true),
+        ("MVIMG_20260114_132249.jpg", true),
+        ("PXL_20250327_052203484.MP.jpg", true),
+        ("PXL_20260314_181325626.MP.jpg", false),
+    ];
+    for (name, video) in cases {
+        let bytes = std::fs::read(dir.join(name)).unwrap_or_else(|e| panic!("{name} in {}: {e} (test-files/scarica.sh online-telefono)", dir.display()));
+        let beyond = planned(&bytes, name, true, Keep::All).beyond;
+        println!("{name}: {beyond:?}");
+        assert_eq!(beyond, Beyond { video, pictures: false }, "{name}");
+        // Only turned, with all the metadata: turned whole, the video with it.
+        assert_eq!(planned(&bytes, name, false, Keep::All).beyond, Beyond::default(), "{name}: only turned");
+        assert_eq!(planned(&bytes, name, false, Keep::Nothing).beyond.video, video, "{name}: turned without metadata, written again");
+    }
+}

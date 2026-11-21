@@ -1016,6 +1016,8 @@ edit-loss-lossy = La copia viene **ricodificata** e può perdere un po' di quali
 edit-loss-8bit = La copia ha **8 bit per colore**, l'originale di più: l'originale resta com'è, per ciò che li richiede.
 edit-loss-hdr = La copia è un PNG a 16 bit: ciò che nell'originale è **più luminoso del bianco** viene tagliato.
 edit-loss-ultra-hdr = Senza metadati la copia non è più **Ultra HDR**: niente tiene la sua parte HDR.
+edit-loss-video = La copia non ha il **video**: la foto in movimento resta solo nell'originale.
+edit-loss-pictures = La copia è la sola foto: la **mappa di profondità** o le altre immagini che l'originale contiene restano solo nell'originale.
 edit-overwrite-trash = **{ $name }** viene sostituito dall'immagine modificata.
 
     L'originale va **nel cestino**.
@@ -1026,6 +1028,8 @@ edit-over-loss-lossy = Il file nuovo viene **ricodificato** e può perdere un po
 edit-over-loss-8bit = Il file nuovo ha **8 bit per colore**, l'originale di più.
 edit-over-loss-hdr = Il file nuovo ha 16 bit per colore: ciò che nell'originale è **più luminoso del bianco** viene tagliato.
 edit-over-loss-ultra-hdr = Senza metadati il file nuovo non è più **Ultra HDR**: niente tiene la sua parte HDR.
+edit-over-loss-video = Il file nuovo non ha il **video**: la foto in movimento diventa una foto ferma.
+edit-over-loss-pictures = Il file nuovo è la sola foto: la **mappa di profondità** o le altre immagini che l'originale contiene non vengono tenute.
 edit-leave = Le modifiche a **{ $name }** non sono salvate.
 
     { "**" }Salva** crea una copia accanto all'originale.

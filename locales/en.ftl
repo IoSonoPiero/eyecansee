@@ -1017,6 +1017,8 @@ edit-loss-lossy = The copy is **encoded again** and may lose a little quality.
 edit-loss-8bit = The copy has **8 bits per colour**, the original more: the original stays as it is, for what needs them.
 edit-loss-hdr = The copy is a 16-bit PNG: what is **brighter than white** in the original is cut.
 edit-loss-ultra-hdr = Without metadata the copy is no longer **Ultra HDR**: nothing holds its HDR part.
+edit-loss-video = The copy has no **video**: the motion photo stays only in the original.
+edit-loss-pictures = The copy is the photo alone: the **depth map** or the other pictures the original carries stay only in the original.
 edit-overwrite-trash = **{ $name }** is replaced by the edited image.
 
     The original goes **to the trash**.
@@ -1027,6 +1029,8 @@ edit-over-loss-lossy = The new file is **encoded again** and may lose a little q
 edit-over-loss-8bit = The new file has **8 bits per colour**, the original more.
 edit-over-loss-hdr = The new file has 16 bits per colour: what is **brighter than white** in the original is cut.
 edit-over-loss-ultra-hdr = Without metadata the new file is no longer **Ultra HDR**: nothing holds its HDR part.
+edit-over-loss-video = The new file has no **video**: the motion photo becomes a still photo.
+edit-over-loss-pictures = The new file is the photo alone: the **depth map** or the other pictures the original carries are not kept.
 edit-leave = The changes to **{ $name }** are not saved.
 
     { "**" }Save** makes a copy next to the original.

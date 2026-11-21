@@ -49,6 +49,44 @@ pub struct Plan {
     pub data: Option<Vec<u8>>,
     /// An Ultra HDR photo saved without its metadata: nothing holds its HDR part any more (#55).
     pub hdr_lost: bool,
+    /// What the original carries besides its picture that the file made does not keep (#201).
+    pub beyond: Beyond,
+}
+
+/// The parts of a phone photo besides its picture that a save written from the picture leaves
+/// out, for a line each in the confirmation (#201): the video of a Motion Photo or a MicroVideo,
+/// and pictures of their own (a depth map, the other shots of a stereo photo). Not the previews,
+/// which every save leaves out, nor the gain map of an Ultra HDR photo (`Plan::hdr_lost`).
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+pub struct Beyond {
+    pub video: bool,
+    pub pictures: bool,
+}
+
+impl Beyond {
+    /// What a JPEG written from the picture alone leaves out of `bytes`; `hdr`: its gain map is
+    /// written again (an Ultra HDR photo kept as one), and then only a video goes.
+    fn of(bytes: &[u8], name: &str, hdr: bool) -> Beyond {
+        if Format::of_file(name) != Some(Format::Jpeg) {
+            return Beyond::default();
+        }
+        let video = crate::ultrahdr::has_video(bytes);
+        let pictures = !hdr && !crate::ultrahdr::is(bytes) && (crate::ultrahdr::other_pictures(bytes) || container_others(bytes));
+        Beyond { video, pictures }
+    }
+}
+
+/// Items of the XMP container directory (Google's format) other than the photo, its gain map and
+/// the video of a Motion Photo (a depth map, for one), with something after the photo's end.
+fn container_others(b: &[u8]) -> bool {
+    const KEY: &[u8] = b"Item:Semantic=\"";
+    let head = &b[..b.len().min(256 << 10)];
+    let after = crate::save_back::jpeg_end(b).is_some_and(|(end, _)| b[end..].iter().any(|&x| x != 0));
+    after && head.windows(KEY.len()).enumerate().filter(|(_, w)| *w == KEY).any(|(at, _)| {
+        let value = &head[at + KEY.len()..];
+        let value = &value[..value.iter().position(|&c| c == b'"').unwrap_or(value.len())];
+        !matches!(value, b"Primary" | b"GainMap" | b"MotionPhoto")
+    })
 }
 
 /// `save`'s choices without making the file: the confirmation shows at once, the file is made
@@ -69,17 +107,17 @@ pub fn plan_keeping(doc: &Doc, original: &Original, bytes: &[u8], name: &str, wo
     let size = photo_size(doc, original);
     if keep == Keep::All && same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes)) {
         let (data, lossy) = crate::save_back::turned_file_beside(bytes, name, doc.turn, original.sidecar.as_deref())?;
-        return Ok(Plan { name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept, data: Some(data), hdr_lost: false });
+        return Ok(Plan { name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept, data: Some(data), hdr_lost: false, beyond: Beyond::default() });
     }
     let hdr = same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes);
     if hdr && keep != Keep::Nothing {
-        return Ok(Plan { name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept, data: None, hdr_lost: false });
+        return Ok(Plan { name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept, data: None, hdr_lost: false, beyond: Beyond::of(bytes, name, true) });
     }
     let (float, deep) = (is_float(&original.image), is_deep(&original.image));
     let format = target(name, float, will_be_transparent(doc, &original.image, size));
     let lossy = matches!(format, Format::Jpeg | Format::Avif | Format::Gif) || (format == Format::Webp && !bytes.windows(4).any(|w| w == b"VP8L"));
     let ext = if same.is_some() { None } else { Some(format.ext()) };
-    Ok(Plan { name: copy_name(name, ext, word, taken), lossy, depth: depth(float, deep, format), data: None, hdr_lost: hdr })
+    Ok(Plan { name: copy_name(name, ext, word, taken), lossy, depth: depth(float, deep, format), data: None, hdr_lost: hdr, beyond: Beyond::of(bytes, name, false) })
 }
 
 /// The edited image will have transparent pixels: the original has some, or the empty corners

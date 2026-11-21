@@ -108,13 +108,15 @@ fn audit_5_1_save_as_cancelled_becomes_the_editors_photo() {
     assert!(std::sync::Arc::ptr_eq(&now, &read), "the photo of the editor is now the result of Save as… (middle pixel {px:?})");
 }
 
-/// Audit 5.11: Overwrite on a Motion Photo (a photo with its video after the picture). The file
-/// written is the picture alone, as the guide says, but the confirmation lists only what the
-/// picture loses (encoded again…): nothing on the video, which the viewer's Save refuses to lose
-/// (`save-extra`). The original goes to the trash, so it can be had back.
+/// Audit 5.11 (#201): Overwrite on a Motion Photo (a photo with its video after the picture). The
+/// file written is the picture alone, as the guide says; until 0.77.0 the confirmation listed only
+/// what the picture loses (encoded again…), nothing on the video, which the viewer's Save refuses
+/// to lose (`save-extra`). Now it has a line for the video. The original goes to the trash.
 #[test]
-#[ignore = "audit 5.11: not fixed yet"]
 fn audit_5_11_overwrite_drops_the_video_without_a_word() {
+    if crate::audit_family_1::own_folder("edit_page::save::audit::audit_5_11_overwrite_drops_the_video_without_a_word") {
+        return;
+    }
     let dir = crate::audit_family_1::guard().join("five-eleven");
     std::fs::create_dir_all(&dir).unwrap();
     let img = image::DynamicImage::ImageRgb8(image::RgbImage::from_fn(64, 48, |x, y| image::Rgb([(x * 4) as u8, (y * 5) as u8, 90])));
@@ -131,6 +133,7 @@ fn audit_5_11_overwrite_drops_the_video_without_a_word() {
     h.until(|app| app.editor.as_ref().is_some_and(|w| w.ready.is_some()), "the confirmation");
     let p = h.app.editor.as_ref().unwrap().ready.as_ref().unwrap().0.clone();
     assert!(p.over, "Overwrite");
+    assert!(p.plan.beyond.video, "the video found");
     let losses = h.app.losses(&p.plan, true);
     let said = ["video", "motion", "depth"].iter().any(|w| losses.to_lowercase().contains(w));
     h.key(enter());
