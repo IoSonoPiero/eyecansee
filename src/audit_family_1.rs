@@ -312,24 +312,23 @@ fn audit_2_3_a_name_from_a_server_writes_outside_the_folder() {
 /// keeps the paths, relative to the source; it stays open, and the deletion goes to the source
 /// open now. Here a server whose folder has the same path as one of the computer (a disk of
 /// copies has the same folders): the computer's file goes.
+///
+/// Fixed (#197): another place closes the windows of the place left (`leave_source`).
+/// Off Windows: there the computer's folders are not under "/".
 #[test]
-#[ignore = "audit 1.4: not fixed yet"]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
 fn audit_1_4_deletion_goes_to_the_source_opened_meanwhile() {
-    let local = folder("one-four", &["a.png"]);
-    let png = std::fs::read(local.join("a.png")).unwrap();
-    let abs = local.display().to_string();
-    let mut tree = fake_ftp::Tree::default();
-    tree.folder(&abs, &[("a.png", &png)]);
-    let (target, tree) = fake_ftp::start(tree);
-    let opened = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| Harness::open(&format!("ftp://tester:x@127.0.0.1:{}{abs}/", target.port))));
-    let Ok(mut h) = opened else { panic!("server saw {:?}", tree.lock().unwrap().log) };
-    assert!(h.app.base.starts_with("ftp://"), "on the server: {}", h.app.base);
+    if own_folder("audit_family_1::audit_1_4_deletion_goes_to_the_source_opened_meanwhile") {
+        return;
+    }
+    let (local, tree, mut h) = on_a_server_like_the_computer("one-four");
     let a = h.app.files()[0].path.clone();
     h.app.ask_delete_paths(vec![a.clone()], false, None);
     h.frame(Vec::new());
-    h.app.tx.send(crate::loader::Msg::Open(format!("{abs}/"))).unwrap();
+    h.app.tx.send(crate::loader::Msg::Open(format!("{}/", local.display()))).unwrap();
     h.until(|app| app.base == "/", "the computer's folder opened");
     eprintln!("deletion of {a:?} still asked on {:?}: {}", h.app.base, h.app.delete_confirm.is_some());
+    assert!(h.app.delete_confirm.is_none(), "the deletion asked on the server is still open over the computer's folder");
     h.key(enter());
     for _ in 0..20 {
         h.frame(Vec::new());
@@ -339,6 +338,43 @@ fn audit_1_4_deletion_goes_to_the_source_opened_meanwhile() {
     let server_deleted = tree.lock().unwrap().log.iter().any(|l| l.starts_with("DELE") || l.starts_with("RNFR"));
     eprintln!("after Enter: the computer's a.png gone {gone}; the server asked to delete or move {server_deleted}; {:?}", std::fs::read_dir(&local).unwrap().flatten().map(|e| e.file_name()).collect::<Vec<_>>());
     assert!(!gone, "the computer's a.png went: the deletion was asked for the server's");
+    assert!(!server_deleted, "the server's a.png went: the question should have closed");
+}
+
+/// A server whose folder has the same path as `name`, a folder of the computer with a.png in it:
+/// the app opened on the server's.
+fn on_a_server_like_the_computer(name: &str) -> (PathBuf, std::sync::Arc<std::sync::Mutex<fake_ftp::Tree>>, Harness) {
+    let local = folder(name, &["a.png"]);
+    let png = std::fs::read(local.join("a.png")).unwrap();
+    let abs = local.display().to_string();
+    let mut tree = fake_ftp::Tree::default();
+    tree.folder(&abs, &[("a.png", &png)]);
+    let (target, tree) = fake_ftp::start(tree);
+    let opened = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| Harness::open(&format!("ftp://tester:x@127.0.0.1:{}{abs}/", target.port))));
+    let Ok(h) = opened else { panic!("server saw {:?}", tree.lock().unwrap().log) };
+    assert!(h.app.base.starts_with("ftp://"), "on the server: {}", h.app.base);
+    (local, tree, h)
+}
+
+/// #197, the other windows: the duplicates closes (its search stops) and Save in another format
+/// stays on the server's image, in the server's place, when the computer's folder opens.
+#[test]
+#[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+fn another_place_closes_the_windows_of_the_place_left() {
+    if own_folder("audit_family_1::another_place_closes_the_windows_of_the_place_left") {
+        return;
+    }
+    let (local, _tree, mut h) = on_a_server_like_the_computer("another-place");
+    let a = h.app.files()[0].path.clone();
+    h.app.open_duplicates(None);
+    h.app.open_convert(Some(a));
+    h.frame(Vec::new());
+    assert!(h.app.duplicates.is_some() && h.app.convert.is_some(), "the duplicates and Save in another format open");
+    h.app.tx.send(crate::loader::Msg::Open(format!("{}/", local.display()))).unwrap();
+    h.until(|app| app.base == "/", "the computer's folder opened");
+    assert!(h.app.duplicates.is_none(), "the duplicates of the server stayed over the computer's folder");
+    let place = h.app.convert.as_ref().and_then(|w| w.place.as_ref()).map(|p| p.base.clone());
+    assert!(place.as_deref().is_some_and(|b| b.starts_with("ftp://")), "Save in another format not kept on the server: {place:?}");
 }
 
 /// Audit 2.1 on a real phone (`EYECANSEE_MTP=<serial>`): a folder of our own, made by the test in

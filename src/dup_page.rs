@@ -39,6 +39,13 @@ impl Window {
         self.groups.is_some()
     }
 
+    /// The search under way, if any, stops: the window goes.
+    pub fn stop(self) {
+        if let Some(p) = self.progress {
+            p.cancel.store(true, Ordering::Relaxed);
+        }
+    }
+
     /// Still asking or searching: a modal, answered by Enter and Esc.
     pub fn asking(&self) -> bool {
         self.groups.is_none()

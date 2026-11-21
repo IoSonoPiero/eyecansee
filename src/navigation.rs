@@ -24,6 +24,9 @@ impl App {
         };
         match opened {
             Ok(s) => {
+                if s.base != self.base {
+                    self.leave_source();
+                }
                 if !self.base.is_empty() {
                     self.last_dirs.insert(self.base.clone(), format!("{}{}", self.base, self.dir));
                 }
@@ -49,6 +52,36 @@ impl App {
                 self.error = Some(self.i18n.error(id, &detail));
                 self.address = self.display(&self.dir);
             }
+        }
+    }
+
+    /// Another place opens (an address from outside, a device unplugged, a phone through its
+    /// mount): the windows that act on paths of the place left close, or their action went to the
+    /// new place with the same paths (audit 1.4, #197: a deletion asked on a server sent the
+    /// computer's file of the same path to the trash). Save in another format stays on its image,
+    /// in the place left, as from the editor; a conversion already started has its own place.
+    fn leave_source(&mut self) {
+        log!("another place: closing the windows of {:?}", without_password(&self.base));
+        self.stop_delete_check();
+        self.delete_confirm = None;
+        self.restore_conflict = None;
+        self.restore_queue.clear();
+        self.paste_ask = None;
+        self.batch_turn = None;
+        self.rename = None;
+        self.new_folder = None;
+        self.model_export = None;
+        (self.save_ready, self.after_save, self.after_turn, self.ffmpeg_ask) = (None, None, None, None);
+        if let Some(w) = self.duplicates.take() {
+            w.stop();
+        }
+        if self.batch.as_ref().is_some_and(crate::batch_page::Window::asking) {
+            self.batch = None;
+        }
+        if let (Some(w), Some(loader)) = (&mut self.convert, &self.loader)
+            && w.place.is_none()
+        {
+            w.place = Some(crate::edit_page::Place { store: loader.store(), base: self.base.clone() });
         }
     }
 
