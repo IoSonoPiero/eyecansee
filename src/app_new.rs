@@ -19,6 +19,7 @@ impl App {
     pub(crate) fn new(ctx: &egui::Context, settings: Settings, arg: Option<String>) -> Self {
         ctx.set_fonts(fonts());
         help_icons::install(ctx);
+        no_quit_key(ctx);
         let (tx, rx) = mpsc::channel();
         let mut app = Self {
             i18n: I18n::detect(settings.language.as_deref()),
@@ -215,3 +216,32 @@ impl App {
         app
     }
 }
+
+/// egui closes the application by itself on Ctrl+Q (Cmd+Q on a Mac), as its default
+/// `quit_shortcuts`: EyeCanSee has no such key, and it was pressed by mistake next to Ctrl+A and
+/// Ctrl+W (Piero, 21/11/2026). Out only from File > Exit, the window's ✕ or the system's Alt+F4.
+pub(crate) fn no_quit_key(ctx: &egui::Context) {
+    ctx.options_mut(|o| o.quit_shortcuts.clear());
+}
+
+#[cfg(test)]
+mod tests {
+    use eframe::egui;
+
+    /// Ctrl+Q asks egui to close the window by default; after `no_quit_key` it does not.
+    #[test]
+    fn ctrl_q_does_not_quit() {
+        let closes = |ctx: &egui::Context| {
+            let key = egui::Event::Key { key: egui::Key::Q, physical_key: None, pressed: true, repeat: false, modifiers: egui::Modifiers::COMMAND };
+            let input = egui::RawInput { events: vec![key], ..Default::default() };
+            let mut out = ctx.run_ui(input, |_| {});
+            out.textures_delta.clear();
+            out.viewport_output.values().any(|v| v.commands.iter().any(|c| matches!(c, egui::ViewportCommand::Close)))
+        };
+        assert!(closes(&egui::Context::default()), "egui's own Ctrl+Q, the reason for no_quit_key");
+        let ctx = egui::Context::default();
+        super::no_quit_key(&ctx);
+        assert!(!closes(&ctx));
+    }
+}
+
