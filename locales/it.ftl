@@ -51,6 +51,7 @@ error-host-changed = La chiave di { $detail } è cambiata: non è quella registr
     Se il server è stato reinstallato, togli la sua riga vecchia da known_hosts.
 error-server-silent = Il server { $detail } non risponde: controlla che sia acceso e raggiungibile, poi riprova.
 error-server-cut = Il server ha smesso di inviare "{ $name }" prima della fine.
+error-server-cut-brief = il server ha smesso di inviarlo prima della fine
 host-ask =
     { "**" }Primo collegamento a { $host }.**
 
@@ -162,58 +163,40 @@ transfer-removing = Tolgo gli originali
 transfer-removed = { $n } di { $total } file tolti da dove erano
 transfer-copied = Copia finita
 transfer-moved = Spostamento finito
-transfer-links-skipped = { $n ->
-    [one] 1 collegamento a una cartella saltato: non è stato copiato.
-   *[other] { $n } collegamenti a cartelle saltati: non sono stati copiati.
+transfer-copy-stopped = Copia interrotta
+transfer-move-stopped = Spostamento interrotto
+transfer-links-heading = { $n ->
+    [one] 1 collegamento a una cartella saltato:
+   *[other] { $n } collegamenti a cartelle saltati:
 }
-transfer-links-kept = { $n ->
-    [one] 1 collegamento a una cartella saltato: non è stato spostato e resta dov'era, con la cartella che lo contiene.
-   *[other] { $n } collegamenti a cartelle saltati: non sono stati spostati e restano dov'erano, con le cartelle che li contengono.
-}
-transfer-links-why = Un collegamento a una cartella su un server FTP, o uno che riporta dentro le cartelle copiate, resta fuori.
-
-    Altro nella guida (F1).
+transfer-links-why = Un collegamento a una cartella su un server FTP, o che riporta dentro le cartelle copiate, non viene copiato.
+transfer-links-why-moved = Un collegamento a una cartella su un server FTP, o che riporta dentro le cartelle copiate, resta dov'era, con la cartella che lo contiene.
+notice-guide = Altro nella guida (F1).
 error-name-too-long = Il nome è troppo lungo per il telefono: { $detail } caratteri, mentre un telefono ne accetta al massimo 254 (un'emoji conta per due).
     Accorcialo e riprova; non è stato copiato niente.
-name-refused-title = { $n ->
-    [one] File non copiato
-   *[other] File non copiati
+name-refused-heading = { $n ->
+    [one] 1 file non copiato per il nome:
+   *[other] { $n } file non copiati per il nome:
 }
 name-refused-why = { $n ->
-    [one] Il suo nome non va bene su questo computer.
-   *[other] Il loro nome non va bene su questo computer.
+    [one] Il suo nome non va bene su questo computer: è rimasto dove era.
+   *[other] Il loro nome non va bene su questo computer: sono rimasti dove erano.
 }
-name-refused-stayed = { $n ->
-    [one] È rimasto dove era.
-   *[other] Sono rimasti dove erano.
-}
-move-left-title = { $n ->
-    [one] Elemento non spostato
-   *[other] Elementi non spostati
+move-left-heading = { $n ->
+    [one] 1 elemento non spostato:
+   *[other] { $n } elementi non spostati:
 }
 move-left-why = { $n ->
-    [one] È arrivato durante lo spostamento, o qui non si vede, e non è stato copiato.
-   *[other] Sono arrivati durante lo spostamento, o qui non si vedono, e non sono stati copiati.
+    [one] È arrivato durante lo spostamento, o qui non si vede: è rimasto dove era, con la sua cartella.
+   *[other] Sono arrivati durante lo spostamento, o qui non si vedono: sono rimasti dove erano, con le loro cartelle.
 }
-move-left-stayed = { $n ->
-    [one] È rimasto dove era, con la sua cartella.
-   *[other] Sono rimasti dove erano, con le loro cartelle.
-}
-copy-failed-title = { $n ->
-    [one] File non copiato
-   *[other] File non copiati
+copy-failed-heading = { $n ->
+    [one] 1 file non letto:
+   *[other] { $n } file non letti:
 }
 copy-failed-why = { $n ->
-    [one] Non è stato possibile leggerlo.
-   *[other] Non è stato possibile leggerli.
-}
-copy-failed-stayed = { $n ->
-    [one] È rimasto dove era.
-   *[other] Sono rimasti dove erano.
-}
-list-first-why = { $n ->
-    [one] { $why }
-   *[other] Il primo: { $why }
+    [one] Non è stato copiato: è rimasto dove era.
+   *[other] Non sono stati copiati: sono rimasti dove erano.
 }
 list-more = { $n ->
     [one] e un altro
@@ -603,6 +586,13 @@ error-glb-cut = Il file è incompleto{ $detail }
 # { $expected }, { $actual }: sizes ("12.4 MB"), the one the file's header gives and the file's.
 error-glb-cut-sizes = Il file è incompleto{ $detail }: dovrebbe essere di { $expected } ma è di { $actual }.
     Forse lo scaricamento o la copia si è interrotta: prova a scaricarlo o copiarlo di nuovo.
+# A few words after a file's name in the list of a message ("a.gltf: manca il file a.bin"): no capital, no full stop.
+error-gltf-bin-missing-brief = manca il file { $detail }
+error-gltf-bin-outside-brief = i dati sono fuori dalla cartella del modello ({ $detail })
+error-gltf-data-damaged-brief = i dati scritti dentro il file sono rovinati
+error-glb-incomplete-brief = manca il blocco con i dati
+error-glb-cut-brief = il file è incompleto
+error-glb-cut-sizes-brief = il file è incompleto
 # The keys of the viewer, under the status bar.
 hint-cad = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | Ctrl+L: livelli | M: misura | N, Maiusc+N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: successivo | ←, Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl+Maiusc+S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
 hint-cad-layouts = Rotellina, + e −: zoom | Trascinare: spostare | 0: tutto il disegno | L, Maiusc+L: layout successivo, precedente | Ctrl+L: livelli | M: misura | N, Maiusc+N: modifica successiva, precedente di un confronto | →, Spazio, Pag↓: file successivo | ←, Backspace, Pag↑: file precedente | Inizio, Fine: primo, ultimo file | Ctrl+Maiusc+S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
@@ -666,25 +656,18 @@ model-export-count = { $n ->
 model-export-format = Formato:
 model-export-where = Ogni copia va accanto al suo modello, con lo stesso nome; un nome già preso riceve " (2)".
 model-export-ok = Esporta
-model-export-failed-title = { $n ->
-    [one] Modello non esportato
-   *[other] Modelli non esportati
+model-export-done-title = Esportazione finita
+model-export-failed-heading = { $n ->
+    [one] 1 modello non esportato:
+   *[other] { $n } modelli non esportati:
 }
-model-export-failed-why = { $n ->
-    [one] Non è stato possibile esportarlo.
-   *[other] Non è stato possibile esportarli.
-}
-model-export-again-title = { $n ->
-    [one] Modello esportato con una modifica
-   *[other] Modelli esportati con una modifica
+model-export-again-heading = { $n ->
+    [one] 1 modello esportato con una modifica:
+   *[other] { $n } modelli esportati con una modifica:
 }
 model-export-again-why = { $n ->
-    [one] Metteva una sua parte più volte nella gerarchia, cosa che glTF non permette.
-   *[other] Mettevano una loro parte più volte nella gerarchia, cosa che glTF non permette.
-}
-model-export-again-kept = { $n ->
-    [one] Il file nuovo contiene quella parte una volta sola.
-   *[other] I file nuovi contengono quella parte una volta sola.
+    [one] Metteva una sua parte più volte nella gerarchia, cosa che glTF non permette: nel file nuovo c'è una volta sola.
+   *[other] Mettevano una loro parte più volte nella gerarchia, cosa che glTF non permette: nei file nuovi c'è una volta sola.
 }
 hint-model = Frecce o trascinare: ruotare | Maiusc+trascinare: spostare | Rotellina, + e −: zoom | 0: vista di partenza | M: misura | S: sezione | Spazio, Pag↓: successivo | Backspace, Pag↑: precedente | Inizio, Fine: primo, ultimo | Ctrl+Maiusc+S: salva come immagine | F2: rinomina | Canc: elimina | F11: schermo intero | Esc: indietro
 hint-edit-select = Clic: seleziona un oggetto | Trascinare: lo sposta | Trascinare un angolo o un capo: ridimensiona (Maiusc: un riquadro mantiene le proporzioni; un pezzo incollato le mantiene, Maiusc le libera) | Trascinare la maniglia tonda sopra l'oggetto: lo ruota (Maiusc: a scatti di 15°) | Doppio clic su un testo o un fumetto: cambia le lettere | Canc: elimina | Ctrl+C: copia il risultato | Esc: lascia l'oggetto
@@ -712,6 +695,7 @@ cad-engine-ask = Per aprire i modelli STEP, IGES e BREP dei programmi CAD EyeCan
 cad-engine-download = Scarica il motore CAD
 cad-engine-button = Scarica il motore CAD ({ $size })
 cad-engine-missing = Manca il motore CAD.
+cad-engine-missing-brief = manca il motore CAD
 convert-file-size = { $size } su disco
 convert-ratio = { $percent }% dell'originale
 convert-format = Formato
@@ -1160,6 +1144,16 @@ fault-bad-name = { $known ->
     [yes] Il nome "{ $name }" lì non è accettato: è troppo lungo o ha caratteri che questo disco non permette.
    *[no] Il nome lì non è accettato: è troppo lungo o ha caratteri che questo disco non permette.
 }
+# As the sentences above, in a few words after a file's name in the list of a message.
+fault-denied-brief = accesso negato
+fault-read-only-brief = disco o cartella in sola lettura
+fault-no-space-brief = sul disco non c'è più spazio
+fault-no-space-replace-brief = sul disco non c'è abbastanza spazio
+fault-too-large-brief = troppo grande per questo disco
+fault-not-found-brief = non c'è più
+fault-exists-brief = lì c'è già un elemento con questo nome
+fault-in-use-brief = in uso da un altro programma
+fault-bad-name-brief = nome non accettato lì
 ## Titles of the message and confirmation windows.
 save-title = Salva sopra l'originale
 save-not-possible = Impossibile salvare sopra l'originale
@@ -1251,7 +1245,14 @@ batch-turn-videos = I **video** non vengono ricodificati: cambia solo la rotazio
 off-video-flip = Un video qui si può solo ruotare: per rifletterlo usa Converti….
 batch-animated = I file **animati**, **multipagina**, le **foto in movimento** e le foto con una **mappa di profondità** (i ritratti di alcuni telefoni) vengono saltati: salvandoci sopra quelle parti andrebbero perse.
     Le foto Ultra HDR vengono ruotate insieme alla loro mappa HDR, e al loro video se sono anche foto in movimento.
-batch-skipped-names = Saltate perché animate, multipagina, foto in movimento o con una mappa di profondità:
+batch-skipped-heading = { $n ->
+    [one] 1 immagine saltata:
+   *[other] { $n } immagini saltate:
+}
+batch-skipped-why = { $n ->
+    [one] È animata, multipagina, una foto in movimento o con una mappa di profondità: Salva non la riscrive.
+   *[other] Sono animate, multipagina, foto in movimento o con una mappa di profondità: Salva non le riscrive.
+}
 # $op is the id of the menu item of the change (tf-…).
 batch-done-title = { $what ->
     [videos] { $n ->

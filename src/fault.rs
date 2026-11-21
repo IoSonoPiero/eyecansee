@@ -153,6 +153,17 @@ const NAMED: [&str; 9] = [
     crate::model_gltf::OUTSIDE_BIN,
 ];
 
+/// Ids with a sentence of a few words (`<id>-brief`), for the lists of the messages (`I18n::brief`).
+const BRIEF: [&str; 7] = [
+    crate::model_gltf::MISSING_BIN,
+    crate::model_gltf::OUTSIDE_BIN,
+    crate::model_gltf::DAMAGED_INSIDE,
+    crate::model_gltf::INCOMPLETE,
+    crate::model_gltf::CUT,
+    crate::model_gltf::CUT_SIZES,
+    SERVER_CUT,
+];
+
 impl I18n {
     /// The text of an error, said plainly when its detail is recognised (`recognise`); its raw
     /// text goes to the log.
@@ -227,6 +238,25 @@ impl I18n {
             return (self.fault(kind, Some(file.as_deref().unwrap_or(name))), None);
         }
         self.cannot_load_apart(name, raw)
+    }
+
+    /// Why, in a few words, to go after a file's name in a list of a message (`notice_list`: "a.gltf:
+    /// the file a.bin is missing"), for the errors that have such words (`BRIEF`) and for what
+    /// the system said (`recognise`). `None`: the list has the name alone, Copy the whole text.
+    pub(crate) fn brief(&self, id: &str, detail: &str) -> Option<String> {
+        if BRIEF.contains(&id) {
+            return Some(self.t_args(&format!("{id}-brief"), &[("detail", detail)]));
+        }
+        recognise(detail).map(|(kind, _)| self.t(&format!("{}-brief", kind.id())))
+    }
+
+    /// `brief`, of a failed load as the loader gives it (`load_error`).
+    pub(crate) fn brief_load(&self, e: &str) -> Option<String> {
+        match e.split_once('\u{1}') {
+            _ if e == crate::occt::MISSING => Some(self.t("cad-engine-missing-brief")),
+            Some((id, detail)) => self.brief(id, detail),
+            None => self.brief("", e),
+        }
     }
 
     /// `error`, to go in a message window's Markdown (`save_dialogs::notice_text`).

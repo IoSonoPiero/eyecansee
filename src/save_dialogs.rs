@@ -448,7 +448,9 @@ pub(crate) fn plain(text: &str) -> String {
 }
 
 /// Text of a message window: paragraphs apart, `**bold**`, lines starting with "- " as a list,
-/// `\` before a punctuation mark to keep it as it is (`md`).
+/// `\` before a punctuation mark to keep it as it is (`md`). Every item of every list has its
+/// bullet and its text at the same place, and the lines of an item that wraps stay under its
+/// first, right of the bullet (Piero, 21/11: two lists in a window did not look alike).
 pub(crate) fn notice_text(ui: &mut egui::Ui, text: &str) {
     let font = egui::TextStyle::Body.resolve(ui.style());
     let bold = egui::FontId::new(font.size, egui::FontFamily::Name(BOLD.into()));
@@ -467,17 +469,22 @@ pub(crate) fn notice_text(ui: &mut egui::Ui, text: &str) {
         }
         for line in paragraph.lines() {
             let mut job = egui::text::LayoutJob::default();
-            let line = match line.strip_prefix("- ") {
-                Some(item) => {
-                    job.append("•  ", 8.0, format(Look::Plain));
-                    item
-                }
-                None => line,
-            };
-            for (run, look) in spans(line) {
+            let item = line.strip_prefix("- ");
+            for (run, look) in spans(item.unwrap_or(line)) {
                 job.append(&run, 0.0, format(look));
             }
-            ui.add(egui::Label::new(job).wrap());
+            if item.is_none() {
+                ui.add(egui::Label::new(job).wrap());
+                continue;
+            }
+            // A row no taller than its text: the lines of a list as close as those of a paragraph.
+            ui.allocate_ui_with_layout(egui::vec2(ui.available_width(), 0.0), egui::Layout::left_to_right(egui::Align::Min), |ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                ui.add_space(8.0);
+                ui.add(egui::Label::new(egui::text::LayoutJob::single_section("•".into(), format(Look::Plain))));
+                ui.add_space(8.0);
+                ui.add(egui::Label::new(job).wrap());
+            });
         }
     }
 }
@@ -572,6 +579,49 @@ mod tests {
     fn markdown_escape() {
         assert_eq!(super::md("a_b*c.jpg"), r"a\_b\*c\.jpg");
         assert_eq!(super::md("foto è"), "foto è");
+    }
+
+    /// Where each line of text of `shapes` was drawn: its words, its left edge, and the left edge
+    /// of each of its rows.
+    fn drawn(shapes: &[eframe::egui::Shape], out: &mut Vec<(String, f32, Vec<f32>)>) {
+        for s in shapes {
+            match s {
+                eframe::egui::Shape::Vec(v) => drawn(v, out),
+                eframe::egui::Shape::Text(t) => out.push((t.galley.text().to_string(), t.pos.x, t.galley.rows.iter().map(|r| t.pos.x + r.rect().left()).collect())),
+                _ => {}
+            }
+        }
+    }
+
+    /// A message with two lists drawn through egui with the app's fonts (Piero, 21/11: the two
+    /// lists of a message were not indented alike): every bullet at the same place, every item's
+    /// text at the same place right of it, also the rows of an item that wraps and "and N more";
+    /// headings and sentences at the left edge, the heading in bold.
+    #[test]
+    fn lists_drawn_alike() {
+        use eframe::egui;
+        let long = "a-name-long-enough.gltf: with a reason that goes on and on until the line of the window ends and it has to wrap";
+        let text = format!("In the folder\n\n**3 models not exported:**\n- {}\n- {}\n- and 1 more\n\n**1 model changed:**\nA sentence under it.\n- {}", super::md("b.glb"), super::md(long), super::md("c.gltf"));
+        let ctx = egui::Context::default();
+        ctx.set_fonts(crate::fonts::fonts());
+        let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(1280.0, 800.0))), ..Default::default() };
+        let mut lines = Vec::new();
+        for _ in 0..3 {
+            let mut out = ctx.run_ui(input.clone(), |ui| super::message(ui.ctx(), "t", super::Head { title: "Export finished", warning: true }, &text, "Copy", |_| {}));
+            out.textures_delta.clear();
+            lines.clear();
+            drawn(&out.shapes.iter().map(|c| c.shape.clone()).collect::<Vec<_>>(), &mut lines);
+        }
+        let at = |words: &str| lines.iter().find(|(t, ..)| t == words).unwrap_or_else(|| panic!("{words:?} not drawn: {lines:?}")).clone();
+        let bullets: Vec<f32> = lines.iter().filter(|(t, ..)| t == "•").map(|(_, x, _)| *x).collect();
+        assert_eq!(bullets.len(), 4, "{lines:?}");
+        assert!(bullets.iter().all(|x| *x == bullets[0]), "bullets not in line: {bullets:?}");
+        let items = [at("b.glb"), at(long), at("and 1 more"), at("c.gltf")];
+        assert!(items.iter().all(|(_, x, _)| *x == items[0].1 && *x > bullets[0] + 8.0), "items not in line: {items:?}");
+        let rows = &items[1].2;
+        assert!(rows.len() > 1 && rows.iter().all(|x| (*x - items[0].1).abs() < 0.5), "the rows of an item that wraps: {rows:?}");
+        let (left, heading) = (at("In the folder").1, at("3 models not exported:").1);
+        assert!(left < bullets[0] && heading == left && at("1 model changed:").1 == left && at("A sentence under it.").1 == left, "{lines:?}");
     }
 
     /// Copy takes the text as it reads: no `**`, no `\` before a punctuation mark.

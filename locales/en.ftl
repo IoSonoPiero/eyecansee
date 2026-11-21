@@ -52,6 +52,7 @@ error-host-changed = The key of { $detail } has changed: it is not the one recor
     If the server was reinstalled, remove its old line from known_hosts.
 error-server-silent = The server { $detail } does not answer: check that it is on and reachable, then try again.
 error-server-cut = The server stopped sending "{ $name }" before its end.
+error-server-cut-brief = the server stopped sending it before its end
 host-ask =
     { "**" }First connection to { $host }.**
 
@@ -163,17 +164,15 @@ transfer-removing = Removing the originals
 transfer-removed = { $n } of { $total } files removed from where they were
 transfer-copied = Copy finished
 transfer-moved = Move finished
-transfer-links-skipped = { $n ->
-    [one] 1 link to a folder skipped: it was not copied.
-   *[other] { $n } links to folders skipped: they were not copied.
+transfer-copy-stopped = Copy stopped
+transfer-move-stopped = Move stopped
+transfer-links-heading = { $n ->
+    [one] 1 link to a folder skipped:
+   *[other] { $n } links to folders skipped:
 }
-transfer-links-kept = { $n ->
-    [one] 1 link to a folder skipped: it was not moved, and stays where it was with the folder that holds it.
-   *[other] { $n } links to folders skipped: they were not moved, and stay where they were with the folders that hold them.
-}
-transfer-links-why = A link to a folder on an FTP server, or one that leads back into the folders copied, is left out.
-
-    More in the guide (F1).
+transfer-links-why = A link to a folder on an FTP server, or one that leads back into the folders copied, is not copied.
+transfer-links-why-moved = A link to a folder on an FTP server, or one that leads back into the folders copied, stays where it was, with the folder that holds it.
+notice-guide = More in the guide (F1).
 error-move-same-item = What it would replace is this same item, reached in another way: { $detail }
     The move stopped, and the item stayed as it was.
 error-move-not-told = It cannot be told whether what it would replace is this same item: { $detail }
@@ -181,45 +180,29 @@ error-move-not-told = It cannot be told whether what it would replace is this sa
 error-paste-inside = A folder cannot go inside itself: { $detail }
 error-name-too-long = The name is too long for the phone: { $detail } characters, while a phone takes at most 254 (an emoji counts as two).
     Shorten it and try again; nothing was copied.
-name-refused-title = { $n ->
-    [one] File not copied
-   *[other] Files not copied
+name-refused-heading = { $n ->
+    [one] 1 file not copied for its name:
+   *[other] { $n } files not copied for their names:
 }
 name-refused-why = { $n ->
-    [one] Its name is not valid on this computer.
-   *[other] Their name is not valid on this computer.
+    [one] Its name is not valid on this computer: it stayed where it was.
+   *[other] Their names are not valid on this computer: they stayed where they were.
 }
-name-refused-stayed = { $n ->
-    [one] It stayed where it was.
-   *[other] They stayed where they were.
-}
-move-left-title = { $n ->
-    [one] Item not moved
-   *[other] Items not moved
+move-left-heading = { $n ->
+    [one] 1 item not moved:
+   *[other] { $n } items not moved:
 }
 move-left-why = { $n ->
-    [one] It arrived during the move, or it is not shown here, so it was not copied.
-   *[other] They arrived during the move, or they are not shown here, so they were not copied.
+    [one] It arrived during the move, or it is not shown here: it stayed where it was, with its folder.
+   *[other] They arrived during the move, or they are not shown here: they stayed where they were, with their folders.
 }
-move-left-stayed = { $n ->
-    [one] It stayed where it was, with its folder.
-   *[other] They stayed where they were, with their folders.
-}
-copy-failed-title = { $n ->
-    [one] File not copied
-   *[other] Files not copied
+copy-failed-heading = { $n ->
+    [one] 1 file not read:
+   *[other] { $n } files not read:
 }
 copy-failed-why = { $n ->
-    [one] It could not be read.
-   *[other] They could not be read.
-}
-copy-failed-stayed = { $n ->
-    [one] It stayed where it was.
-   *[other] They stayed where they were.
-}
-list-first-why = { $n ->
-    [one] { $why }
-   *[other] The first: { $why }
+    [one] It was not copied: it stayed where it was.
+   *[other] They were not copied: they stayed where they were.
 }
 list-more = { $n ->
     [one] and 1 more
@@ -604,6 +587,13 @@ error-glb-cut = The file is incomplete{ $detail }
 # { $expected }, { $actual }: sizes ("12.4 MB"), the one the file's header gives and the file's.
 error-glb-cut-sizes = The file is incomplete{ $detail }: it should be { $expected } but it is { $actual }.
     Perhaps the download or the copy stopped: try downloading or copying it again.
+# A few words after a file's name in the list of a message ("a.gltf: the file a.bin is missing"): no capital, no full stop.
+error-gltf-bin-missing-brief = the file { $detail } is missing
+error-gltf-bin-outside-brief = the data is outside the model's folder ({ $detail })
+error-gltf-data-damaged-brief = the data written inside the file is damaged
+error-glb-incomplete-brief = the block with the data is missing
+error-glb-cut-brief = the file is incomplete
+error-glb-cut-sizes-brief = the file is incomplete
 # The keys of the viewer, under the status bar.
 hint-cad = Wheel, + and −: zoom | Drag: move | 0: whole drawing | Ctrl+L: layers | M: measure | N, Shift+N: next, previous change of a comparison | →, Space, Page Down: next | ←, Backspace, Page Up: previous | Home, End: first, last | Ctrl+Shift+S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
 hint-cad-layouts = Wheel, + and −: zoom | Drag: move | 0: whole drawing | L, Shift+L: next, previous layout | Ctrl+L: layers | M: measure | N, Shift+N: next, previous change of a comparison | →, Space, Page Down: next file | ←, Backspace, Page Up: previous file | Home, End: first, last file | Ctrl+Shift+S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
@@ -667,25 +657,18 @@ model-export-count = { $n ->
 model-export-format = Format:
 model-export-where = Each copy goes next to its model, with the same name; a name already taken gets " (2)".
 model-export-ok = Export
-model-export-failed-title = { $n ->
-    [one] Model not exported
-   *[other] Models not exported
+model-export-done-title = Export finished
+model-export-failed-heading = { $n ->
+    [one] 1 model not exported:
+   *[other] { $n } models not exported:
 }
-model-export-failed-why = { $n ->
-    [one] It could not be exported.
-   *[other] They could not be exported.
-}
-model-export-again-title = { $n ->
-    [one] Model exported with a change
-   *[other] Models exported with a change
+model-export-again-heading = { $n ->
+    [one] 1 model exported with a change:
+   *[other] { $n } models exported with a change:
 }
 model-export-again-why = { $n ->
-    [one] It placed one of its parts more than once in its hierarchy, which glTF does not allow.
-   *[other] They placed one of their parts more than once in their hierarchy, which glTF does not allow.
-}
-model-export-again-kept = { $n ->
-    [one] The new file has that part only once.
-   *[other] The new files have that part only once.
+    [one] It placed one of its parts more than once in its hierarchy, which glTF does not allow: the new file has it only once.
+   *[other] They placed one of their parts more than once in their hierarchy, which glTF does not allow: the new files have it only once.
 }
 hint-model = Arrows or drag: rotate | Shift+drag: move | Wheel, + and −: zoom | 0: starting view | M: measure | S: section | Space, Page Down: next | Backspace, Page Up: previous | Home, End: first, last | Ctrl+Shift+S: save as an image | F2: rename | Del: delete | F11: full screen | Esc: back
 hint-edit-select = Click: select an object | Drag: move it | Drag a corner or an end: resize (Shift: a box keeps its proportions; a pasted piece keeps them, Shift frees them) | Drag the round handle above the object: rotate it (Shift: 15° at a time) | Double click on a text or bubble: change its letters | Del: delete | Ctrl+C: copy the result | Esc: let go of the object
@@ -713,6 +696,7 @@ cad-engine-ask = To open STEP, IGES and BREP models of CAD programs EyeCanSee ne
 cad-engine-download = Download the CAD engine
 cad-engine-button = Download the CAD engine ({ $size })
 cad-engine-missing = The CAD engine is missing.
+cad-engine-missing-brief = the CAD engine is missing
 convert-file-size = { $size } on disk
 convert-ratio = { $percent }% of the original
 convert-format = Format
@@ -1161,6 +1145,16 @@ fault-bad-name = { $known ->
     [yes] The name "{ $name }" is not accepted there: it is too long, or has characters this disk does not allow.
    *[no] The name is not accepted there: it is too long, or has characters this disk does not allow.
 }
+# As the sentences above, in a few words after a file's name in the list of a message.
+fault-denied-brief = access denied
+fault-read-only-brief = read-only disk or folder
+fault-no-space-brief = no space left on the disk
+fault-no-space-replace-brief = not enough space on the disk
+fault-too-large-brief = too large for this disk
+fault-not-found-brief = no longer there
+fault-exists-brief = an item with this name is already there
+fault-in-use-brief = in use by another program
+fault-bad-name-brief = name not accepted there
 ## Titles of the message and confirmation windows.
 save-title = Save over the original
 save-not-possible = Cannot save over the original
@@ -1252,7 +1246,14 @@ batch-turn-videos = **Videos** are not encoded again: only the rotation that pla
 off-video-flip = A video can only be rotated here: to flip it, use Convert….
 batch-animated = **Animated** and **multi-page** images, **motion photos** and photos with a **depth map** (the portrait photos of some phones) are skipped: saving over them would lose those parts.
     Ultra HDR photos are rotated with their HDR map, and with their video when they are motion photos too.
-batch-skipped-names = Left out, because they are animated, have several pages, are motion photos or carry a depth map:
+batch-skipped-heading = { $n ->
+    [one] 1 picture left out:
+   *[other] { $n } pictures left out:
+}
+batch-skipped-why = { $n ->
+    [one] It is animated, has several pages, is a motion photo or carries a depth map: Save does not write it again.
+   *[other] They are animated, have several pages, are motion photos or carry a depth map: Save does not write them again.
+}
 # $op is the id of the menu item of the change (tf-…).
 batch-done-title = { $what ->
     [videos] { $n ->

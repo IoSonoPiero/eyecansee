@@ -532,13 +532,7 @@ impl App {
             let title = self.i18n.t_args("batch-done-title", &args);
             let text = self.i18n.t_args("batch-done", &args);
             let (skipped, large) = (std::mem::take(&mut self.skipped), std::mem::take(&mut self.skipped_large));
-            self.notice = Some(if skipped.is_empty() && large.is_empty() {
-                Notice::new(title, text)
-            } else {
-                // At most ten names a list, all of them in Copy (`notice_list`).
-                let too_large = self.i18n.t_args("summary-too-large", &[("n", &large.len().to_string())]);
-                crate::notice_list::notice_lists(&self.i18n, title, &text, &[(self.i18n.t("batch-skipped-names"), skipped), (too_large, large)])
-            });
+            self.notice = Some(crate::notice_list::turned(&self.i18n, title, &text, &skipped, &large));
         }
     }
 
