@@ -284,9 +284,9 @@ impl App {
 
     /// The exported model: its new name in the status bar for a while, the folder read again. What
     /// needs reading is said in one message once the whole export is done (`ExportSaid`): a model
-    /// not exported, with why (it was a line in the status bar that went after six seconds, and
-    /// with several models only the last one's), and a glTF that placed a part more than once
-    /// (#179: a line in the status bar stayed on the other files, Piero, 21/11).
+    /// not exported (it was a line in the status bar that went after six seconds, and with
+    /// several models only the last one's), and a glTF that placed a part more than once (#179:
+    /// a line in the status bar stayed on the other files, Piero, 21/11).
     pub(crate) fn on_exported(&mut self, ctx: &egui::Context, r: Result<(String, String, Vec<&'static str>), (String, String)>) {
         let (mut again, mut failed) = (None, None);
         match &r {
@@ -301,7 +301,7 @@ impl App {
             }
             Err((from, e)) => {
                 log!("export {from:?}: ERROR {e}");
-                failed = Some((crate::source::name(from).to_string(), self.i18n.load_error(e)));
+                failed = Some((crate::source::name(from).to_string(), e.clone()));
             }
         }
         if let Some(said) = self.export_said.done(again, failed) {
@@ -318,8 +318,8 @@ pub(crate) struct ExportSaid {
     said: Said,
 }
 
-/// What the end of an export says: the models not exported, each with why, and the names of
-/// those whose glTF placed a part more than once in its hierarchy (#179).
+/// What the end of an export says: the models not exported, each with its error as the loader
+/// gave it, and the names of those whose glTF placed a part more than once in its hierarchy (#179).
 #[derive(Default, Debug, PartialEq)]
 pub(crate) struct Said {
     pub(crate) failed: Vec<(String, String)>,
@@ -342,13 +342,17 @@ impl ExportSaid {
     }
 }
 
-/// The message at the end of an export with something to say, one sentence a line, then the
-/// names (`notice_list`: ten, then "and N more", all in Copy): the models not exported, with why
-/// the first was not, and the glTF models that placed a part more than once; both in one window.
+/// The message at the end of an export with something to say, one sentence a line, then a list
+/// (`notice_list`: ten lines, then "and N more", all in Copy): the models not exported, each as
+/// the viewer and the summary of Convert… say a file that does not open ("Cannot open x: why",
+/// the library's text only in Copy: `batch_summary::item`), and the names of the glTF models
+/// that placed a part more than once; both in one window.
 pub(crate) fn export_notice(i18n: &crate::i18n::I18n, said: &Said) -> Option<crate::save_dialogs::Notice> {
-    let failed = said.failed.first().map(|(_, why)| {
-        let names: Vec<String> = said.failed.iter().map(|(name, _)| name.clone()).collect();
-        crate::notice_list::counted_why(i18n, "model-export-failed-title", &["model-export-failed-why", "list-first-why"], &crate::save_dialogs::md(why), &names)
+    let failed = (!said.failed.is_empty()).then(|| {
+        let n = said.failed.len().to_string();
+        let args = [("n", n.as_str())];
+        let (lines, whole): (Vec<String>, Vec<String>) = said.failed.iter().map(|(name, e)| crate::batch_summary::item(i18n, crate::fault::NOT_OPENED, &format!("{name}\u{1}{e}"), false)).unzip();
+        crate::notice_list::notice_items(i18n, i18n.t_args("model-export-failed-title", &args), &i18n.t_args("model-export-failed-why", &args), &lines, &whole, true)
     });
     let again = (!said.again.is_empty()).then(|| crate::notice_list::counted(i18n, "model-export-again-title", &["model-export-again-why", "model-export-again-kept"], &said.again));
     [failed, again].into_iter().flatten().reduce(crate::notice_list::joined)
@@ -431,23 +435,37 @@ mod tests {
     }
 
     /// A model not exported is said in the message at the end, to close and to copy, not in a
-    /// line of the status bar that goes by itself: its name and why, as it reads (a `*` in the
-    /// reason stays); several: why the first; with models exported with a change, in one window.
+    /// line of the status bar that goes by itself. Each model as the viewer says a file that does
+    /// not open: a glTF without its data file, an engine that is missing, a folder that cannot be
+    /// written, with the errors as the loader gives them; the text of a library is not shown, and
+    /// Copy has it. Twelve: ten lines, "and 2 more", all in Copy; with models exported with a
+    /// change, one window.
     #[test]
     fn not_exported_told() {
         let (en, it) = (I18n::new("en"), I18n::new("it"));
-        let failed = |n: usize| (1..=n).map(|i| (format!("m{i}.step"), format!("reason *{i}*"))).collect::<Vec<_>>();
-        let one = export_notice(&it, &Said { failed: failed(1), again: Vec::new() }).unwrap();
+        let said = |errors: &[(&str, String)]| Said { failed: errors.iter().map(|(n, e)| (n.to_string(), e.clone())).collect(), again: Vec::new() };
+        let no_bin = format!("{}\u{1}dati.bin", crate::model_gltf::MISSING_BIN);
+        let denied = "PermissionDenied (permanent) at write, context: { service_operation: OpenForWrite, service: fs, path: m/c.stl, size: 84, written: 0 } => permission denied, source: Permission denied (os error 13)".to_string();
+        let one = export_notice(&it, &said(&[("a*.gltf", no_bin.clone())])).unwrap();
         assert!(one.warning);
         assert_eq!(one.title, "Modello non esportato");
-        assert_eq!(one.text, format!("Non è stato possibile esportarlo.\n{}\n\n- {}", crate::save_dialogs::md("reason *1*"), crate::notice_list::item("m1.step")));
-        assert_eq!(one.copy.as_deref(), Some("Non è stato possibile esportarlo.\nreason *1*\n\n- m1.step"));
-        let many = export_notice(&en, &Said { failed: failed(12), again: vec!["a.gltf".into()] }).unwrap();
-        assert_eq!(many.title, "Models not exported");
-        assert!(many.text.starts_with(&format!("They could not be exported.\nThe first: {}\n\n- ", crate::save_dialogs::md("reason *1*"))), "{}", many.text);
-        assert!(many.text.contains("\n\nand 2 more\n\nModel exported with a change\n\nIt placed one of its parts"), "{}", many.text);
-        let copy = many.copy.unwrap();
-        assert!(copy.contains("\n- m12.step\n\nModel exported with a change\n\n") && copy.ends_with("\n\n- a.gltf") && !copy.contains("reason *2*"), "{copy}");
-        assert_eq!(export_notice(&it, &Said { failed: failed(2), again: Vec::new() }).unwrap().title, "Modelli non esportati");
+        assert_eq!(crate::save_dialogs::plain(&one.text), "Non è stato possibile esportarlo.\n\n- Impossibile aprire a*.gltf: Manca il file con i dati del modello: dati.bin");
+        assert_eq!(one.copy.as_deref(), Some("Non è stato possibile esportarlo.\n\n- Impossibile aprire a*.gltf: Manca il file con i dati del modello: dati.bin"));
+        assert!(one.text.contains("a\\*"), "{}", one.text);
+        let four = export_notice(&en, &said(&[("a.gltf", no_bin), ("b.glb", "unexpected end of file".into()), ("c.step", denied), ("d.step", crate::occt::MISSING.into())])).unwrap();
+        assert_eq!(four.title, "Models not exported");
+        let lines: Vec<String> = crate::save_dialogs::plain(&four.text).lines().map(str::to_string).collect();
+        assert_eq!(lines[..2], ["They could not be exported.", ""]);
+        assert_eq!(lines[2], "- Cannot open a.gltf: The file with the model's data is missing: dati.bin");
+        assert_eq!(lines[3], "- Cannot open b.glb");
+        assert!(lines[4].starts_with("- ") && lines[4].contains("c.stl") && !lines[4].contains("PermissionDenied"), "{}", lines[4]);
+        assert_eq!(lines[5], format!("- Cannot open d.step: {}", en.t("cad-engine-missing")));
+        let copy = four.copy.unwrap();
+        assert!(copy.contains("\n- Cannot open b.glb (unexpected end of file)\n") && !four.text.contains("unexpected"), "{copy}");
+        let many: Vec<(String, String)> = (1..=12).map(|i| (format!("m{i}.glb"), "cut".to_string())).collect();
+        let both = export_notice(&en, &Said { failed: many, again: vec!["a.gltf".into()] }).unwrap();
+        assert!(both.text.contains("\n\nand 2 more\n\nModel exported with a change\n\nIt placed one of its parts") && !both.text.contains("m11"), "{}", both.text);
+        let copy = both.copy.unwrap();
+        assert!(copy.contains("\n- Cannot open m12.glb (cut)\n\nModel exported with a change\n\n") && copy.ends_with("\n\n- a.gltf"), "{copy}");
     }
 }

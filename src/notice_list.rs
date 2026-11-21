@@ -45,8 +45,14 @@ pub(crate) fn copied(intro: &str, lists: &[(&str, &[String])]) -> String {
 /// (`shortened`); Copy takes them all (`copied`).
 pub(crate) fn notice(i18n: &I18n, title: String, intro: &str, names: &[String], warning: bool) -> Notice {
     let items: Vec<String> = names.iter().map(|n| item(n)).collect();
-    let text = format!("{intro}\n\n{}", shortened(i18n, &items));
-    Notice { copy: Some(copied(intro, &[("", &items)])), warning, ..Notice::new(title, text) }
+    notice_items(i18n, title, intro, &items, &items, warning)
+}
+
+/// As `notice`, with the lines of the list as they are shown (`items`, Markdown, one line each)
+/// and as Copy takes them (`whole`: a file that does not open with the library's text too).
+pub(crate) fn notice_items(i18n: &I18n, title: String, intro: &str, items: &[String], whole: &[String], warning: bool) -> Notice {
+    let text = format!("{intro}\n\n{}", shortened(i18n, items));
+    Notice { copy: Some(copied(intro, &[("", whole)])), warning, ..Notice::new(title, text) }
 }
 
 /// A warning about `names` whose words go by how many they are (`$n`): the title `title`, the

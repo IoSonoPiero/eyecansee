@@ -96,7 +96,7 @@ fn groups(i18n: &I18n, failed: &[(&'static str, String)], preset: bool) -> Vec<G
 /// A file left out as a line of its group (`md`), and as Copy takes it: the name, or the error
 /// said plainly; a file that could not be decoded as the viewer says it ("Cannot open x"), the
 /// library's text only in Copy (and in the log, `batch_done`).
-fn item(i18n: &I18n, id: &str, detail: &str, names: bool) -> (String, String) {
+pub(crate) fn item(i18n: &I18n, id: &str, detail: &str, names: bool) -> (String, String) {
     // One line each in the list: a reason said on several lines is joined again.
     let line = |text: &str| md(text).replace('\n', " ");
     match detail.split_once('\u{1}').filter(|_| id == NOT_OPENED) {
