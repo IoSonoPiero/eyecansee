@@ -188,15 +188,28 @@ impl I18n {
     }
 
     /// "Cannot open x": why said plainly under it when it is known, otherwise the library's text
-    /// as the detail, in brackets on its own line (`error_bar::with_detail`).
+    /// as the detail, in brackets on its own line, as `error_bar::with_detail` puts it.
     pub(crate) fn cannot_load(&self, file: &str, e: &str) -> String {
+        match self.cannot_load_apart(file, e) {
+            (sentence, Some(raw)) if !raw.contains('\n') && !raw.starts_with('(') => format!("{sentence}\n({raw})"),
+            (sentence, Some(raw)) => format!("{sentence}\n{raw}"),
+            (sentence, None) => sentence,
+        }
+    }
+
+    /// `cannot_load` in two parts: the sentence, with why said plainly under it when it is
+    /// known, and apart the library's text when it is not.
+    fn cannot_load_apart(&self, file: &str, e: &str) -> (String, Option<String>) {
         let said = self.load_error(e);
-        let text = self.t_args("cannot-load", &[("file", file), ("error", &said)]);
-        if said == e { crate::error_bar::with_detail(&text, e) } else { text }
+        if said != e {
+            return (self.t_args("cannot-load", &[("file", file), ("error", &said)]), None);
+        }
+        let sentence = self.t_args("cannot-load", &[("file", file), ("error", "")]).trim_end().to_string();
+        (sentence, Some(e.trim().to_string()).filter(|raw| !raw.is_empty()))
     }
 
     /// The file `name` that could not be decoded, with the library's text `raw` (`NOT_OPENED`):
-    /// the viewer's sentence (`cannot_load`, "Cannot open x"), and apart the library's text, for
+    /// the viewer's sentence (`cannot_load_apart`, "Cannot open x"), and apart the library's text, for
     /// Copy and the log ("Error: No decoder found, model '', …" said nothing to the user, 21/11).
     /// A reason the system gave (no permission, a full disk) is said plainly, as everywhere.
     pub(crate) fn not_opened(&self, name: &str, raw: &str) -> (String, Option<String>) {
@@ -204,12 +217,7 @@ impl I18n {
             log!("error {NOT_OPENED}, said as {kind:?}: {raw}");
             return (self.fault(kind, Some(file.as_deref().unwrap_or(name))), None);
         }
-        let said = self.load_error(raw);
-        if said != raw {
-            return (self.t_args("cannot-load", &[("file", name), ("error", &said)]), None);
-        }
-        let sentence = self.t_args("cannot-load", &[("file", name), ("error", "")]).trim_end().to_string();
-        (sentence, Some(raw.trim().to_string()).filter(|d| !d.is_empty()))
+        self.cannot_load_apart(name, raw)
     }
 
     /// `error`, to go in a message window's Markdown (`save_dialogs::notice_text`).

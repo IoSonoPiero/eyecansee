@@ -103,6 +103,11 @@ fn item(i18n: &I18n, id: &str, detail: &str, names: bool) -> (String, String) {
         _ if names => (md(detail), md(detail)),
         Some((name, raw)) => {
             let (sentence, apart) = i18n.not_opened(name, raw);
+            // "Cannot open x" and the reason said under it: one sentence on one line.
+            let sentence = match sentence.split_once('\n') {
+                Some((open, why)) if !open.ends_with(['.', ':', '!', '?']) => format!("{open}: {why}"),
+                _ => sentence,
+            };
             let copied = apart.map_or_else(|| line(&sentence), |raw| line(&format!("{sentence} ({raw})")));
             (line(&sentence), copied)
         }
@@ -288,7 +293,7 @@ mod tests {
         let (sentence, apart) = en.not_opened("p.dwg", crate::occt::MISSING);
         assert_eq!((sentence.as_str(), apart), ("Cannot open p.dwg\nThe CAD engine is missing.", None));
         let g = groups(&en, &[crate::fault::not_opened("p.dwg", crate::occt::MISSING)], false);
-        assert_eq!((g[0].items[0].as_str(), g[0].copied[0].as_str()), ("Cannot open p\\.dwg The CAD engine is missing\\.", "Cannot open p\\.dwg The CAD engine is missing\\."));
+        assert_eq!((g[0].items[0].as_str(), g[0].copied[0].as_str()), ("Cannot open p\\.dwg\\: The CAD engine is missing\\.", "Cannot open p\\.dwg\\: The CAD engine is missing\\."));
     }
 
     /// Copy takes every file left out, also those of a group shown folded, under their headings.
