@@ -37,7 +37,7 @@ Fai doppio clic su una miniatura, oppure selezionala e premi **Invio**: la foto 
 
 ## Aiuto
 
-Premi **F1** in qualunque momento: questa guida si apre sulla pagina di ciò che stai facendo. Premi di nuovo **F1** per chiuderla, oppure premi **Esc** due volte di seguito col puntatore sopra la guida; quando la guida è sopra una finestra, per esempio un messaggio, basta un solo **Esc**. **Aiuto > Guida** apre l'elenco di tutte le pagine.
+Premi **F1** in qualunque momento: questa guida si apre sulla pagina di ciò che stai facendo. Premi di nuovo **F1** per chiuderla, oppure premi **Esc** due volte di seguito col puntatore sopra la guida; quando la guida è sopra una finestra, per esempio un messaggio, due **Esc** la chiudono ovunque sia il puntatore, e la finestra resta aperta. **Aiuto > Guida** apre l'elenco di tutte le pagine.
 
 Il campo in alto a sinistra cerca in tutte le pagine ed è già pronto quando la guida si apre: un risultato apre la sua pagina con le parole trovate evidenziate. L'evidenziazione segue il campo, e ![Svuota la ricerca](icon://x) lo svuota.
 

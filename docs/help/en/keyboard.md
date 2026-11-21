@@ -7,8 +7,7 @@ Every key of EyeCanSee, by place. The menus show the key next to each item, and 
 | Key | Action |
 |---|---|
 | F1 | Open this guide on the page about what you are doing; again to close it |
-| Esc twice, quickly | Close this guide, with the pointer on it or while typing in its search field (one Esc only leaves the field) |
-| Esc | Close this guide when it is over a window, a message for instance: the window stays open |
+| Esc twice, quickly | Close this guide, with the pointer on it or while typing in its search field (one Esc only leaves the field). Over a window, a message for instance, wherever the pointer is: the window stays open |
 
 ## In the grid and the viewer
 
@@ -20,7 +19,7 @@ Every key of EyeCanSee, by place. The menus show the key next to each item, and 
 | Ctrl+Z, Ctrl+Y | In the viewer: undo, redo a turn or flip not saved |
 | Ctrl+Shift+D | Bookmarks: the list opens; ↓ enters it, Enter opens the bookmark chosen (see [Bookmarks](bookmarks.md)) |
 
-In the windows that tell how an operation went, **Enter** or **Esc** closes them; in those that ask for a choice, **Enter** confirms and **Esc** cancels. Two exceptions: a deletion that includes a folder (there Enter cancels too) and turning or flipping pictures in the grid (Enter does not confirm). With this guide open over the window, **Esc** closes the guide first and **Enter** does not answer the window.
+In the windows that tell how an operation went, **Enter** or **Esc** closes them; in those that ask for a choice, **Enter** confirms and **Esc** cancels. Two exceptions: a deletion that includes a folder (there Enter cancels too) and turning or flipping pictures in the grid (Enter does not confirm). With this guide open over the window, **Esc** goes to the guide first (two close it, as everywhere), **Enter** does not answer the window, and what you type in the search field of the guide stays there.
 
 ## In the grid
 
