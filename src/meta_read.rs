@@ -166,11 +166,14 @@ impl Sparse {
 }
 
 /// `Plan` from a walk: what it still needs, or what to skip.
-pub(crate) fn plan_of(needs: Vec<Range<usize>>, skip: Result<Vec<Range<usize>>, Stop>) -> Plan {
+pub(crate) fn plan_of(mut needs: Vec<Range<usize>>, skip: Result<Vec<Range<usize>>, Stop>) -> Plan {
     match skip {
         Err(Stop::Whole) => Plan::Whole,
-        _ if !needs.is_empty() => Plan::Need(needs),
-        Err(Stop::Need(r)) => Plan::Need(vec![r]),
+        Err(Stop::Need(r)) => {
+            needs.push(r);
+            Plan::Need(needs)
+        }
+        Ok(_) if !needs.is_empty() => Plan::Need(needs),
         Ok(skip) => Plan::Skip(skip),
     }
 }
@@ -324,5 +327,7 @@ async fn fetch(op: &Store, path: &str, s: &mut Sparse, ranges: Vec<Range<usize>>
     Some(())
 }
 
+#[cfg(test)]
+mod plan_tests;
 #[cfg(test)]
 mod tests;

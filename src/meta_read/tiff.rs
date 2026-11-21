@@ -116,8 +116,9 @@ pub(crate) fn walk(s: &Sparse, base: usize, d: &Dialect, needs: &mut Vec<Range<u
 /// leads to other data), and it is left as it is, read.
 const ENTRIES: usize = 1000;
 
-/// The entries of the directory at `at`, its size noted in `found`, and the next directory.
-fn entries(s: &Sparse, (base, at): (usize, usize), little: bool, found: &mut Found) -> Result<(Vec<Entry>, usize), Stop> {
+/// The entries of the directory at `at`, its size and the values it holds noted in `found` (but
+/// a JPEG of `d.jpegs`, a picture), and the next directory.
+fn entries(s: &Sparse, (base, at): (usize, usize), little: bool, d: &Dialect, found: &mut Found) -> Result<(Vec<Entry>, usize), Stop> {
     let n = s.u16(at, little)? as usize;
     if n > ENTRIES {
         return Ok((Vec::new(), 0));
@@ -131,7 +132,7 @@ fn entries(s: &Sparse, (base, at): (usize, usize), little: bool, found: &mut Fou
         let (tag, kind, count) = (s.u16(e, little)?, s.u16(e + 2, little)?, s.u32(e + 4, little)? as usize);
         let Some(size) = unit(kind).and_then(|u| u.checked_mul(count)) else { continue };
         let value = if size <= 4 { e + 8 } else { base + s.u32(e + 8, little)? as usize };
-        if size > 4 {
+        if size > 4 && !d.jpegs.contains(&tag) {
             found.structure.push(value..value.saturating_add(size).min(s.len()));
         }
         out.push(Entry { tag, kind, count, value });
@@ -147,7 +148,7 @@ type Next = (Option<usize>, Vec<usize>);
 /// those is not followed: the EXIF reader does not either, and a Mamiya MEF has it pointing into
 /// its pixels.
 fn directory(s: &Sparse, (base, at, main): (usize, usize, bool), little: bool, d: &Dialect, found: &mut Found, needs: &mut Vec<Range<usize>>) -> Result<Next, Stop> {
-    let (entries, next_ifd) = entries(s, (base, at), little, found)?;
+    let (entries, next_ifd) = entries(s, (base, at), little, d, found)?;
     let next = (main && next_ifd != 0).then_some(base + next_ifd);
     let mut inner = Vec::new();
     let get = |tag: u16| entries.iter().find(|e| e.tag == tag);

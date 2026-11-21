@@ -5,7 +5,7 @@
 
 use std::ops::Range;
 
-use super::{FIRST, Plan, Sparse, Stop, coded, noted, plan_of, tiff};
+use super::{FIRST, Plan, Sparse, Stop, coded, plan_of, tiff};
 
 pub(super) fn plan_raf(s: &Sparse) -> Plan {
     let mut needs = Vec::new();
@@ -18,18 +18,14 @@ fn raf(s: &Sparse, needs: &mut Vec<Range<usize>>) -> Result<Vec<Range<usize>>, S
         return Err(Stop::Whole);
     }
     let at = |i: usize| s.u32(i, false).map(|v| v as usize);
-    let (jpeg, jpeg_len, cfa, cfa_len) = (at(84)?, at(88)?, at(100)?, at(104)?);
+    let (jpeg, jpeg_len, cfa) = (at(84)?, at(88)?, at(100)?);
     let mut skip = Vec::new();
     skip.extend(coded(s, jpeg..jpeg.saturating_add(jpeg_len).min(s.len()), needs)?);
     if cfa == 0 || cfa >= s.len() {
-        return Ok(skip);
+        return Err(Stop::Whole);
     }
-    // Older cameras have the pixels themselves there.
-    match noted(s.take(cfa, 4), needs)? {
-        Some(b"II*\0" | b"MM\0*") => skip.extend(noted(tiff::walk(s, cfa, &tiff::FUJI, needs), needs)?.unwrap_or_default()),
-        Some(_) => skip.push((cfa + FIRST).min(s.len())..cfa.saturating_add(cfa_len).min(s.len())),
-        None => {}
-    }
+    // Older cameras have the pixels themselves there: no such file was tried, read whole.
+    skip.extend(tiff::walk(s, cfa, &tiff::FUJI, needs)?);
     Ok(skip)
 }
 

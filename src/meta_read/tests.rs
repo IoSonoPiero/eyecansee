@@ -140,6 +140,26 @@ fn each_format_written_from_its_pieces() {
     }
 }
 
+/// A JPEG XL in its container, its codestream (a red pixel, from libjxl) made long, with EXIF and
+/// XMP boxes after it.
+#[test]
+fn jxl_boxes_after_the_codestream() {
+    const RED: &str = "ff0a0010fc64020013880200c000b59f200000152aa38c1bbc9cebf9f24387c5b48deb0c6db56d610963b3bd30484838838d8b04df9ca591690624a29204";
+    let code: Vec<u8> = (0..RED.len()).step_by(2).map(|i| u8::from_str_radix(&RED[i..i + 2], 16).unwrap()).collect();
+    let boxed = |kind: &[u8], content: &[u8]| [&((content.len() + 8) as u32).to_be_bytes()[..], kind, content].concat();
+    let long = [code, vec![0; 300_000]].concat();
+    let bytes = [
+        b"\0\0\0\x0CJXL \r\n\x87\n".to_vec(),
+        boxed(b"ftyp", b"jxl \0\0\0\0jxl "),
+        boxed(b"jxlc", &long),
+        boxed(b"Exif", &[&[0u8; 4][..], &exif_block()].concat()),
+        boxed(b"xml ", XMP.as_bytes()),
+    ]
+    .concat();
+    same_from_pieces("a.jxl", &bytes);
+    assert!(panel(&bytes, "a.jxl", None).contains("A test picture"));
+}
+
 #[cfg(feature = "magick")]
 #[test]
 fn psd_from_its_resources() {
@@ -266,6 +286,8 @@ fn same_as_whole_live() {
     }
     files.sort();
     let (mut wrong, mut whole) = (Vec::new(), 0);
+    // By extension: files, and those of which the plan with the small first read left bytes unread.
+    let mut tried: std::collections::BTreeMap<String, (usize, usize)> = std::collections::BTreeMap::new();
     println!("file\tMB\tpanel reads\tpanel MB\tpieces");
     rt().block_on(async {
         for p in files {
@@ -284,6 +306,11 @@ fn same_as_whole_live() {
             }
             whole += usize::from(shape[0] == "whole");
             source::BYTES_READ.with(|n| n.set(0));
+            let some = pieces(&op, &path, bytes.len() as u64, STRESS).await.is_some() && source::BYTES_READ.with(std::cell::Cell::get) < bytes.len() as u64;
+            let ext = path.rsplit('.').next().unwrap_or_default().to_lowercase();
+            let t = tried.entry(ext).or_default();
+            *t = (t.0 + 1, t.1 + usize::from(some));
+            source::BYTES_READ.with(|n| n.set(0));
             source::READS.with(|n| n.set(0));
             read(&op, &path, bytes.len() as u64).await.unwrap();
             let (reads, read_bytes) = (source::READS.with(std::cell::Cell::get), source::BYTES_READ.with(std::cell::Cell::get));
@@ -292,5 +319,8 @@ fn same_as_whole_live() {
         }
     });
     println!("read whole by the panel's plan: {whole}");
+    for (ext, (files, some)) in tried {
+        println!("{ext}: {files} files, {some} with bytes not read");
+    }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
 }

@@ -15,7 +15,7 @@ use super::{PADDING, Plan, Sparse, Stop, coded, merged, plan_of};
 const CODED: [&[u8; 4]; 9] = [b"hvc1", b"hvt1", b"lhv1", b"av01", b"avc1", b"jpeg", b"j2k1", b"vvc1", b"unci"];
 
 /// The start of a JPEG XL codestream kept: its headers, the colour profile in them.
-const CODESTREAM_START: usize = 64 << 10;
+pub(super) const CODESTREAM_START: usize = 64 << 10;
 
 /// Boxes walked at most at the top of a file.
 const MOST: usize = 4096;
@@ -143,8 +143,9 @@ fn jxl(s: &Sparse) -> Result<Vec<Range<usize>>, Stop> {
     if s.take(0, 12)? != b"\0\0\0\x0CJXL \r\n\x87\n" {
         return Err(Stop::Whole);
     }
-    let mut skip = Vec::new();
-    let mut first = true;
+    // The codestream's start may be split over boxes (libjxl writes its first part before the
+    // metadata boxes, the rest after them).
+    let (mut skip, mut left) = (Vec::new(), CODESTREAM_START);
     for b in children(s, 0, s.len())? {
         // Partial codestreams start with their index.
         let data = match &b.kind {
@@ -152,8 +153,8 @@ fn jxl(s: &Sparse) -> Result<Vec<Range<usize>>, Stop> {
             b"jxlp" => b.content + 4,
             _ => continue,
         };
-        let from = if first { data + CODESTREAM_START } else { data };
-        first = false;
+        let from = data.saturating_add(left).min(b.end);
+        left -= from.saturating_sub(data).min(left);
         if from < b.end {
             skip.push(from..b.end);
         }

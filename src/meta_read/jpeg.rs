@@ -34,8 +34,10 @@ fn walk(s: &Sparse, needs: &mut Vec<Range<usize>>) -> Result<Vec<Range<usize>>, 
 pub(crate) type Segments = Vec<(u8, usize, usize)>;
 
 /// The segments of the JPEG starting at `at` (marker, start, end), and where its coded data
-/// starts: after the header of its first scan (as `ultrahdr::segments`, the EXIF reader and the
-/// decoders stop there), or at its end.
+/// starts: after the header of its first scan (`ultrahdr::segments` and the decoders stop there;
+/// the EXIF reader goes on looking for markers, but a photo has its EXIF before). A JPEG that
+/// is not so (bytes between its segments, which the EXIF reader passes over, an end before the
+/// first scan) is read whole.
 pub(crate) fn head(s: &Sparse, at: usize) -> Result<(usize, Segments), Stop> {
     if s.take(at, 2)? != [0xFF, 0xD8] {
         return Err(Stop::Whole);
@@ -45,21 +47,18 @@ pub(crate) fn head(s: &Sparse, at: usize) -> Result<(usize, Segments), Stop> {
     loop {
         let b = s.take(i, 2)?;
         if b[0] != 0xFF {
-            return Ok((i, segments));
+            return Err(Stop::Whole);
         }
         match b[1] {
             // Fill bytes before a marker.
             0xFF => i += 1,
             // Markers without a length.
             0x01 | 0xD0..=0xD7 => i += 2,
-            0xD9 => return Ok((i + 2, segments)),
+            0x00 | 0xD8 | 0xD9 => return Err(Stop::Whole),
             marker => {
                 let len = s.u16(i + 2, false)? as usize;
                 let end = i + 2 + len;
-                if len < 2 {
-                    return Ok((i + 4, segments));
-                }
-                if end > s.len() {
+                if len < 2 || end > s.len() {
                     return Err(Stop::Whole);
                 }
                 s.at(i..end)?;
