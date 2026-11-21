@@ -4,6 +4,54 @@
 use super::{TRASH_DIR, android_trashed, is_trash, leftover};
 use crate::decode::is_media;
 use crate::settings::SortBy;
+use std::cmp::Ordering;
+
+/// The order of names wherever they are listed (the grid, the tree, the lists of the messages;
+/// Piero, 21/11: "img10" came before "img2"): capitals and small letters together, numbers by
+/// their value ("photo2" before "photo10"), and a name before the same name with something
+/// added in front of its extension ("model.gltf" before "model-02.gltf"). Paths are compared
+/// folder by folder. Two names that differ only in capitals, or in the zeros in front of a
+/// number, always come in the same order (that of their characters).
+pub fn natural(a: &str, b: &str) -> Ordering {
+    let (mut x, mut y) = (a.split('/'), b.split('/'));
+    loop {
+        let (p, q) = match (x.next(), y.next()) {
+            (Some(p), Some(q)) => (p, q),
+            (p, q) => return p.is_some().cmp(&q.is_some()).then_with(|| a.cmp(b)),
+        };
+        let ((p, p_ext), (q, q_ext)) = (apart(p), apart(q));
+        let order = runs(p, q).then_with(|| runs(p_ext, q_ext));
+        if order != Ordering::Equal {
+            return order;
+        }
+    }
+}
+
+/// A name and its extension; the dot of a hidden name (".git") is not that of an extension.
+fn apart(name: &str) -> (&str, &str) {
+    name.rfind('.').filter(|&i| i > 0).map_or((name, ""), |i| (&name[..i], &name[i + 1..]))
+}
+
+/// `natural` on a piece of a name: character by character without their case, a run of digits
+/// as the number it writes.
+fn runs(mut a: &str, mut b: &str) -> Ordering {
+    loop {
+        let (Some(c), Some(d)) = (a.chars().next(), b.chars().next()) else { return a.len().cmp(&b.len()) };
+        let order = if c.is_ascii_digit() && d.is_ascii_digit() {
+            let digits = |s: &str| s.find(|c: char| !c.is_ascii_digit()).unwrap_or(s.len());
+            let (m, n) = (digits(a), digits(b));
+            let (p, q) = (a[..m].trim_start_matches('0'), b[..n].trim_start_matches('0'));
+            (a, b) = (&a[m..], &b[n..]);
+            p.len().cmp(&q.len()).then_with(|| p.cmp(q))
+        } else {
+            (a, b) = (&a[c.len_utf8()..], &b[d.len_utf8()..]);
+            c.to_lowercase().cmp(d.to_lowercase())
+        };
+        if order != Ordering::Equal {
+            return order;
+        }
+    }
+}
 
 #[derive(Default, Clone)]
 pub struct Listing {
@@ -60,27 +108,26 @@ impl Listing {
         }
     }
 
-    // ponytail: plain alphabetical order, "img10" before "img2"; natural sort if it bothers anyone
-    /// Also takes the trash folder out of `dirs`, into `trash`.
+    /// Folders and files by name (`natural`). Also takes the trash folder out of `dirs`, into
+    /// `trash`.
     pub fn sort(&mut self) {
         if let Some(i) = self.dirs.iter().position(|d| is_trash(d)) {
             self.trash = Some(self.dirs.remove(i));
         }
-        self.dirs.sort_by_key(|n| n.to_lowercase());
-        self.files.sort_by_key(|f| f.path.to_lowercase());
+        self.dirs.sort_by(|a, b| natural(a, b));
+        self.files.sort_by(|a, b| natural(&a.path, &b.path));
     }
 
-    /// Images in the order chosen by the user; ties broken by name. Those without a date (or with
-    /// zero size) go last, in descending order too.
+    /// Images in the order chosen by the user; ties broken by name (`natural`). Those without a
+    /// date (or with zero size) go last, in descending order too.
     pub fn sort_files(&mut self, by: SortBy, desc: bool) {
-        use std::cmp::Ordering;
-        let name = |f: &File| f.path.to_lowercase();
+        let name = |a: &File, b: &File| natural(&a.path, &b.path);
         let ext = |f: &File| f.path.rsplit_once('.').map(|(_, e)| e.to_lowercase()).unwrap_or_default();
         let date = |f: &File| crate::human::parse_modified(&f.modified);
         self.files.sort_by(|a, b| {
             let flip = |o: Ordering| if desc { o.reverse() } else { o };
             let primary = match by {
-                SortBy::Name => flip(name(a).cmp(&name(b))),
+                SortBy::Name => flip(name(a, b)),
                 SortBy::Type => flip(ext(a).cmp(&ext(b))),
                 SortBy::Size => (a.size == 0).cmp(&(b.size == 0)).then(flip(a.size.cmp(&b.size))),
                 SortBy::Date => match (date(a), date(b)) {
@@ -88,7 +135,7 @@ impl Listing {
                     (x, y) => x.is_none().cmp(&y.is_none()),
                 },
             };
-            primary.then_with(|| name(a).cmp(&name(b)))
+            primary.then_with(|| name(a, b))
         });
     }
 }
@@ -120,6 +167,52 @@ mod tests {
         assert_eq!(names(&l), ["b.png", "c.jpg", "A.jpg"]);
         l.sort_files(SortBy::Type, false);
         assert_eq!(names(&l), ["A.jpg", "c.jpg", "b.png"]);
+    }
+
+    /// Names as people read them (Piero, 21/11): numbers by their value, capitals and small
+    /// letters together, a name before the same name with something added in front of its
+    /// extension; whatever order they come in, also the names that differ only in capitals or in
+    /// the zeros in front of a number.
+    #[test]
+    fn names_in_natural_order() {
+        fn sorted<'a>(names: &[&'a str]) -> Vec<&'a str> {
+            let mut v: Vec<&str> = names.to_vec();
+            v.sort_by(|a, b| natural(a, b));
+            let mut back: Vec<&str> = names.iter().rev().copied().collect();
+            back.sort_by(|a, b| natural(a, b));
+            assert_eq!(v, back, "the order depends on how they came");
+            v
+        }
+        assert_eq!(sorted(&["foto10.jpg", "foto2.jpg", "Foto1.jpg", "foto.jpg"]), ["foto.jpg", "Foto1.jpg", "foto2.jpg", "foto10.jpg"]);
+        assert_eq!(sorted(&["nodo-doppio-10.gltf", "nodo-doppio-02.gltf", "nodo-doppio.gltf", "nodo-doppio-3.gltf"]), ["nodo-doppio.gltf", "nodo-doppio-02.gltf", "nodo-doppio-3.gltf", "nodo-doppio-10.gltf"]);
+        assert_eq!(sorted(&["foto (2).jpg", "foto.png", "foto.jpg", "B.jpg", "a.JPG"]), ["a.JPG", "B.jpg", "foto.jpg", "foto.png", "foto (2).jpg"]);
+        // The same name but for capitals or zeros: always in the same order.
+        assert_eq!(sorted(&["a.jpg", "A.jpg", "img02.jpg", "img2.jpg", "IMG2.jpg"]), ["A.jpg", "a.jpg", "IMG2.jpg", "img02.jpg", "img2.jpg"]);
+        // Numbers longer than any integer, and those of an extension or of a folder's version.
+        assert_eq!(sorted(&["a100000000000000000000000.jpg", "a99999999999999999999999.jpg", "v1.10/", "v1.2/"]), ["a99999999999999999999999.jpg", "a100000000000000000000000.jpg", "v1.2/", "v1.10/"]);
+        // Paths folder by folder; a hidden name first, its dot not an extension's.
+        assert_eq!(sorted(&["p/10/a.jpg", "p/9/b.jpg", "p/9/a.jpg", "p/.git/", "p/a/"]), ["p/.git/", "p/9/a.jpg", "p/9/b.jpg", "p/10/a.jpg", "p/a/"]);
+        assert_eq!(natural("a.jpg", "a.jpg"), Ordering::Equal);
+    }
+
+    /// The grid and the tree use it: by name, and by name among files of the same date, size or
+    /// type, also in descending order.
+    #[test]
+    fn listing_in_natural_order() {
+        let f = |path: &str, size, modified: &str| File { path: path.into(), size, modified: modified.into() };
+        let dirs = ["p/Viaggio 10/", "p/viaggio 2/", "p/Viaggio 1/"].map(String::from).to_vec();
+        let files = vec![f("p/img10.jpg", 5, "2026-01-01T00:00:00Z"), f("p/IMG2.jpg", 5, "2026-01-01T00:00:00Z"), f("p/img1.png", 5, "2026-01-01T00:00:00Z"), f("p/a.jpg", 9, "2026-02-01T00:00:00Z")];
+        let mut l = Listing { dirs, files, ..Default::default() };
+        let names = |l: &Listing| l.files.iter().map(|f| f.path.trim_start_matches("p/").to_string()).collect::<Vec<_>>();
+        l.sort();
+        assert_eq!(l.dirs, ["p/Viaggio 1/", "p/viaggio 2/", "p/Viaggio 10/"]);
+        assert_eq!(names(&l), ["a.jpg", "img1.png", "IMG2.jpg", "img10.jpg"]);
+        l.sort_files(SortBy::Name, true);
+        assert_eq!(names(&l), ["img10.jpg", "IMG2.jpg", "img1.png", "a.jpg"]);
+        for (by, desc, want) in [(SortBy::Date, false, ["img1.png", "IMG2.jpg", "img10.jpg", "a.jpg"]), (SortBy::Date, true, ["a.jpg", "img1.png", "IMG2.jpg", "img10.jpg"]), (SortBy::Size, false, ["img1.png", "IMG2.jpg", "img10.jpg", "a.jpg"]), (SortBy::Size, true, ["a.jpg", "img1.png", "IMG2.jpg", "img10.jpg"]), (SortBy::Type, false, ["a.jpg", "IMG2.jpg", "img10.jpg", "img1.png"])] {
+            l.sort_files(by, desc);
+            assert_eq!(names(&l), want, "{} desc {desc}", by.label());
+        }
     }
 
     #[test]

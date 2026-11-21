@@ -772,7 +772,7 @@ async fn first_unseen(op: &Store, dirs: &[String], stop: &std::sync::atomic::Ato
             return Err(("error-cancelled", String::new()));
         }
         let mut unseen = op.list(d).await?.unseen;
-        unseen.sort_by_key(|n| (n.starts_with('.'), n.to_lowercase()));
+        unseen.sort_by(|a, b| a.starts_with('.').cmp(&b.starts_with('.')).then_with(|| source::natural(a, b)));
         if let Some(n) = unseen.into_iter().next() {
             return Ok(Some((n, d.clone())));
         }

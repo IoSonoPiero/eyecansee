@@ -30,7 +30,7 @@ All'inizio ogni gruppo tiene la prima copia e segna le altre. **Ordine** decide 
 
 - **Data, dalla più vecchia** (quello predefinito): al minuto, come si vede; a parità di data, il percorso più corto.
 - **Nome più corto**: le copie di solito hanno qualcosa in più nel nome, come "foto copia.jpg" o "foto (2).jpg", così l'originale resta anche quando le date sono uguali.
-- **Percorso**: ordine alfabetico di cartella e nome.
+- **Percorso**: ordine di cartella e nome, come nella griglia (`foto2` prima di `foto10`).
 
 **Tieni la prima**, **Tieni l'ultima** e **Tienile tutte** segnano tutti i gruppi in una volta; poi puoi cambiare le singole caselle.
 

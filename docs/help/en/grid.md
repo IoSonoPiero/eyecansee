@@ -29,7 +29,7 @@ When you enter a folder, nothing is selected: the first arrow you press selects 
 
 The drop-down list next to the address bar chooses the order: **Name**, **Modification date**, **Size** or **Type** (the file extension). The button next to it turns the order round: ![Ascending order](icon://arrow-up-narrow-wide) **Ascending order** or ![Descending order](icon://arrow-down-wide-narrow) **Descending order**. The same choices are in **View > Sort by**.
 
-Folders always come first, by name. Sorting by date, files without a date go to the end. EyeCanSee remembers your choice.
+Folders always come first, by name. Names are sorted without telling capitals from small letters, and with numbers by their value: `photo2` comes before `photo10`, and `photo.jpg` before `photo (2).jpg`. Files of the same date, size or type are in order of name. Sorting by date, files without a date go to the end. EyeCanSee remembers your choice.
 
 ## Which files to show
 

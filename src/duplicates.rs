@@ -64,7 +64,7 @@ impl Group {
         match by {
             Order::Date => both.sort_by_key(|(f, _)| date_key(f)),
             Order::Name => both.sort_by_key(|(f, _)| (crate::source::name(&f.path).chars().count(), date_key(f))),
-            Order::Path => both.sort_by(|a, b| a.0.path.cmp(&b.0.path)),
+            Order::Path => both.sort_by(|a, b| crate::source::natural(&a.0.path, &b.0.path)),
         }
         (self.files, self.delete) = both.into_iter().unzip();
     }
@@ -144,7 +144,7 @@ pub async fn find(op: &Store, dir: &str, sub: bool, p: &Progress) -> Result<Vec<
         }
         groups.extend(by_hash.into_values().filter(|g| g.len() > 1).map(Group::new));
     }
-    groups.sort_by(|a, b| a.files[0].path.cmp(&b.files[0].path));
+    groups.sort_by(|a, b| crate::source::natural(&a.files[0].path, &b.files[0].path));
     Ok(groups)
 }
 

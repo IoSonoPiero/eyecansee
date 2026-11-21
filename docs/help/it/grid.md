@@ -29,7 +29,7 @@ Entrando in una cartella non è selezionato niente: la prima freccia che premi s
 
 La tendina accanto alla barra degli indirizzi sceglie l'ordine: **Nome**, **Data di modifica**, **Dimensione** o **Tipo** (l'estensione del file). Il pulsante accanto inverte l'ordine: ![Ordine crescente](icon://arrow-up-narrow-wide) **Ordine crescente** o ![Ordine decrescente](icon://arrow-down-wide-narrow) **Ordine decrescente**. Le stesse scelte sono in **Visualizza > Ordina per**.
 
-Le cartelle vengono sempre prima, in ordine di nome. Ordinando per data, i file senza data vanno in fondo. EyeCanSee si ricorda la scelta.
+Le cartelle vengono sempre prima, in ordine di nome. I nomi sono ordinati senza distinguere maiuscole e minuscole e con i numeri secondo il loro valore: `foto2` viene prima di `foto10`, e `foto.jpg` prima di `foto (2).jpg`. A parità di data, dimensione o tipo, i file sono in ordine di nome. Ordinando per data, i file senza data vanno in fondo. EyeCanSee si ricorda la scelta.
 
 ## Quali file mostrare
 

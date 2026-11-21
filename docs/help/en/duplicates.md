@@ -30,7 +30,7 @@ At the start every group keeps its first copy and marks the others. **Order** de
 
 - **Date, oldest first** (the default): to the minute, as shown; with the same date, the shorter path.
 - **Shortest name**: copies usually have something added to the name, such as "photo copy.jpg" or "photo (2).jpg", so the original stays even when the dates are the same.
-- **Path**: alphabetical order of folder and name.
+- **Path**: order of folder and name, as in the grid (`photo2` before `photo10`).
 
 **Keep the first**, **Keep the last** and **Keep all** mark every group at once; then you can change single boxes.
 
