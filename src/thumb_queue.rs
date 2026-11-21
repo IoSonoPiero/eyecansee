@@ -258,7 +258,7 @@ async fn generate(op: &Store, base: &str, file: File, wanted: impl Fn() -> bool)
         return Err(crate::occt::MISSING.into());
     }
     let picture = !crate::model::is_model(&file.path) && !crate::cad::is_cad(&file.path);
-    let bytes = if picture { read_picture(op, &file, thumb_memory::budget()).await? } else { op.read(&file.path).await.map_err(|(_, detail)| detail)? };
+    let bytes = if picture { read_picture(op, &file, thumb_memory::budget()).await? } else { op.read(&file.path).await.map_err(|(_, detail)| not_tried(detail))? };
     let (bytes, memory) = if picture { reserved(op, &file.path, bytes, thumb_memory::budget(), wanted).await? } else { (bytes, None) };
     let base = base.to_string();
     let (sibling, local) = (siblings(op.clone(), file.path.clone()), crate::occt::local(op, &file.path));
@@ -283,7 +283,7 @@ async fn generate(op: &Store, base: &str, file: File, wanted: impl Fn() -> bool)
         Ok(decode::to_color_image(img))
     })
     .await
-    .unwrap_or_else(|e| Err(e.to_string()))
+    .unwrap_or_else(|e| Err(not_tried(e)))
 }
 
 /// A picture's bytes, unless it is too large for the memory (`thumb_memory::TOO_LARGE`): told
@@ -296,7 +296,7 @@ async fn read_picture(op: &Store, file: &File, budget: &Budget) -> Result<Vec<u8
     match crate::view_memory::read_unless_too_large(op, path, Some(file.size), too_large).await {
         Ok(bytes) => Ok(bytes),
         Err(NotRead::TooLarge(_)) => Err(thumb_memory::TOO_LARGE.into()),
-        Err(NotRead::Failed((_, detail))) => Err(detail),
+        Err(NotRead::Failed((_, detail))) => Err(not_tried(detail)),
     }
 }
 
@@ -312,7 +312,7 @@ async fn reserved(op: &Store, path: &str, bytes: Vec<u8>, budget: &Budget, wante
         (bytes, need)
     })
     .await
-    .map_err(|e| e.to_string())?;
+    .map_err(not_tried)?;
     if budget.too_large(need) {
         log!("thumbnail of {path}: not made, {} MiB is over half the RAM", need >> 20);
         return Err(thumb_memory::TOO_LARGE.into());
@@ -329,14 +329,23 @@ async fn reserved(op: &Store, path: &str, bytes: Vec<u8>, budget: &Budget, wante
     }
     let bytes = match kept {
         Some(bytes) => bytes,
-        None => op.read(path).await.map_err(|(_, detail)| detail)?,
+        None => op.read(path).await.map_err(|(_, detail)| not_tried(detail))?,
     };
     Ok((bytes, memory))
 }
 
 /// A thumbnail of a folder no longer open, given up after its wait for memory (never shown: its
 /// generation is an old one).
-const NOT_WANTED: &str = "thumbnail no longer wanted";
+pub(crate) const NOT_WANTED: &str = "thumbnail no longer wanted";
+
+/// Before the error of a thumbnail whose picture never reached its decoder, or whose decoding
+/// was cut short: a file not read (a busy phone, a server gone), a task stopped. It says nothing
+/// of whether the picture opens (`slideshow::thumb_says_unreadable`).
+pub(crate) const NOT_TRIED: &str = "thumbnail: picture not tried: ";
+
+fn not_tried(detail: impl std::fmt::Display) -> String {
+    format!("{NOT_TRIED}{detail}")
+}
 
 /// Compares the saved thumbnails with the current folders, read again with the same listing that
 /// created them (so size and date have the same format). File gone: thumbnail deleted. File

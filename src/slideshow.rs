@@ -156,7 +156,48 @@ pub fn show_list(files: &[String], chosen: &[String], current: Option<&str>) -> 
     (paths, at)
 }
 
+/// Does a thumbnail's `error` say that its picture cannot be opened? Only the decoder's own
+/// verdict does: not a picture too large for the memory (#177, the viewer may open it anyway), one
+/// not tried (`thumb_queue::NOT_TRIED`: a file not read, maybe later), one no longer wanted, an
+/// engine to download.
+pub fn thumb_says_unreadable(error: &str) -> bool {
+    let not_said = [crate::thumb_memory::TOO_LARGE, crate::thumb_queue::NOT_WANTED, crate::video_read::NO_ENGINE, crate::occt::MISSING];
+    !not_said.contains(&error) && !error.starts_with(crate::thumb_queue::NOT_TRIED)
+}
+
+/// Is the slideshow's picture at `path` already known not to open, from the viewer (`full`) or its
+/// thumbnail (`thumb`)? What the viewer read wins: opened, it opens; an error counts as in the
+/// slideshow (`show_pass_unreadable`), not one too large for the memory. A video plays without its
+/// still; nothing read yet is not known.
+pub fn known_unreadable(path: &str, full: Option<Result<(), &str>>, thumb: Option<Result<(), &str>>) -> bool {
+    if crate::decode::is_played(path) {
+        return false;
+    }
+    match full {
+        Some(Ok(())) => false,
+        Some(Err(e)) if crate::view_memory::need_of(e).is_none() => true,
+        _ => matches!(thumb, Some(Err(e)) if thumb_says_unreadable(e)),
+    }
+}
+
+/// Every one of `paths` already known not to open (`bad`): the slideshow does not start (Piero,
+/// 21/11/2026: it went to full screen for an instant, only to stop).
+pub fn none_opens(paths: &[String], bad: impl Fn(&str) -> bool) -> bool {
+    !paths.is_empty() && paths.iter().all(|p| bad(p))
+}
+
+/// How a picture was read (`App::full`, `App::thumbs`), without the picture.
+fn outcome(read: Option<&Result<Picture, String>>) -> Option<Result<(), &str>> {
+    read.map(|r| r.as_ref().map(|_| ()).map_err(String::as_str))
+}
+
 impl App {
+    /// The picture at `path` (one of `files`) already known not to open (`known_unreadable`).
+    fn known_unreadable_in(&self, files: &[String], path: &str) -> bool {
+        let Some(i) = files.iter().position(|f| f == path) else { return false };
+        known_unreadable(path, outcome(self.full.get(&i)), outcome(self.thumbs.get(&i)))
+    }
+
     /// From the menus: the marked pictures and videos from the first, or every picture and video
     /// of the folder from the chosen one.
     pub(crate) fn start_show(&mut self, ctx: &egui::Context, path: Option<String>) {
@@ -167,6 +208,12 @@ impl App {
         if paths.is_empty() {
             // View > Slideshow is off then; from elsewhere nothing happens.
             log!("slideshow: no pictures or videos");
+            return;
+        }
+        // The grid shows them all broken: said at once, without going to full screen.
+        if none_opens(&paths, |p| self.known_unreadable_in(&files, p)) {
+            log!("slideshow: none of its {} images opens, not started", paths.len());
+            self.error = Some(self.i18n.t("show-none-readable"));
             return;
         }
         log!("slideshow: {} images from {at}", paths.len());
@@ -527,6 +574,39 @@ mod tests {
         assert_eq!(past_unreadable(0, 3, true, false, bad(&[0, 1, 2]), false), Skip::NoneReadable);
         assert_eq!(past_unreadable(0, 1, true, true, bad(&[0]), false), Skip::NoneReadable);
         assert_eq!(past_unreadable(0, 1, false, false, bad(&[0]), false), Skip::NoneReadable);
+    }
+
+    /// Only what the decoder said, or the viewer, makes a picture known not to open; the slideshow
+    /// does not start only when every one of its files is known so (Piero, 21/11/2026).
+    #[test]
+    fn known_not_to_open_before_the_start() {
+        let damaged = "The image format could not be determined";
+        let busy = format!("{}device busy", crate::thumb_queue::NOT_TRIED);
+        // Thumbnails: the decoder's verdict counts; too large, not tried, not wanted, no engine do not.
+        assert!(thumb_says_unreadable(damaged));
+        for e in [crate::thumb_memory::TOO_LARGE, &busy, crate::thumb_queue::NOT_WANTED, crate::video_read::NO_ENGINE, crate::occt::MISSING] {
+            assert!(!thumb_says_unreadable(e), "{e}");
+        }
+        let photo = "a/broken.jpg";
+        assert!(known_unreadable(photo, None, Some(Err(damaged))));
+        assert!(!known_unreadable(photo, None, Some(Err(crate::thumb_memory::TOO_LARGE))));
+        assert!(!known_unreadable(photo, None, Some(Err(&busy))));
+        assert!(!known_unreadable(photo, None, Some(Ok(()))));
+        // No thumbnail yet: not known.
+        assert!(!known_unreadable(photo, None, None));
+        // The viewer: opened wins over a failed thumbnail; its error counts, unless too large.
+        assert!(!known_unreadable(photo, Some(Ok(())), Some(Err(damaged))));
+        assert!(known_unreadable(photo, Some(Err("damaged")), None));
+        let too_large = crate::view_memory::error(6 << 30);
+        assert!(!known_unreadable(photo, Some(Err(&too_large)), None));
+        // A video whose still failed may still play.
+        assert!(!known_unreadable("a/clip.mp4", Some(Err("damaged")), Some(Err(damaged))));
+
+        let paths: Vec<String> = ["a/1.jpg", "a/2.jpg", "a/3.jpg"].map(String::from).into();
+        assert!(none_opens(&paths, |_| true));
+        // One not known yet (its thumbnail to come): it starts, and passes over the broken ones.
+        assert!(!none_opens(&paths, |p| p != "a/2.jpg"));
+        assert!(!none_opens(&[], |_| true));
     }
 
     #[test]
