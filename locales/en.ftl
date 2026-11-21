@@ -212,13 +212,13 @@ copy-failed-why = { $n ->
     [one] It could not be read.
    *[other] They could not be read.
 }
-copy-failed-first = { $n ->
-    [one] { $why }
-   *[other] The first: { $why }
-}
 copy-failed-stayed = { $n ->
     [one] It stayed where it was.
    *[other] They stayed where they were.
+}
+list-first-why = { $n ->
+    [one] { $why }
+   *[other] The first: { $why }
 }
 list-more = { $n ->
     [one] and 1 more

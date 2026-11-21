@@ -53,10 +53,22 @@ pub(crate) fn notice(i18n: &I18n, title: String, intro: &str, names: &[String], 
 /// sentences `lines` (Fluent ids) one a line, then the names (`notice`). The names a copy left
 /// out, what a move left in its folders, the models exported with a change.
 pub(crate) fn counted(i18n: &I18n, title: &str, lines: &[&str], names: &[String]) -> Notice {
+    counted_why(i18n, title, lines, "", names)
+}
+
+/// `counted`, with why the first of `names` failed (`why`, Markdown) for the sentence
+/// "list-first-why" among `lines`: the files a copy could not read.
+pub(crate) fn counted_why(i18n: &I18n, title: &str, lines: &[&str], why: &str, names: &[String]) -> Notice {
     let n = names.len().to_string();
-    let args = [("n", n.as_str())];
+    let args = [("n", n.as_str()), ("why", why)];
     let intro = lines.iter().map(|id| i18n.t_args(id, &args)).collect::<Vec<_>>().join("\n");
     notice(i18n, i18n.t_args(title, &args), &intro, names, true)
+}
+
+/// Two messages of the end of the same work in one window: the second under its title.
+pub(crate) fn joined(a: Notice, b: Notice) -> Notice {
+    let copy = format!("{}\n\n{}\n\n{}", a.copy.as_ref().unwrap_or(&a.text), b.title, b.copy.as_ref().unwrap_or(&b.text));
+    Notice { text: format!("{}\n\n{}\n\n{}", a.text, md(&b.title), b.text), copy: Some(copy), help: a.help.or(b.help), ..a }
 }
 
 /// As `notice`, with several lists of names, each under its heading, the empty ones left out:

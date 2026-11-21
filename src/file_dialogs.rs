@@ -514,13 +514,9 @@ pub(crate) fn left_notice(i18n: &crate::i18n::I18n, names: &[String]) -> Notice 
 /// The message at the end of a copy that could not read some files (L17 of 2026-11-21): the rest
 /// was copied, these stayed where they were; why the first was not read, said plainly.
 pub(crate) fn failed_notice(i18n: &crate::i18n::I18n, failed: &[(String, source::Error)]) -> Notice {
-    let n = failed.len().to_string();
-    let args = [("n", n.as_str())];
     let (id, detail) = &failed[0].1;
-    let why = i18n.t_args("copy-failed-first", &[("n", n.as_str()), ("why", &i18n.error_md(id, detail))]);
-    let intro = format!("{}\n{why}\n{}", i18n.t_args("copy-failed-why", &args), i18n.t_args("copy-failed-stayed", &args));
     let names: Vec<String> = failed.iter().map(|(path, _)| path.clone()).collect();
-    crate::notice_list::notice(i18n, i18n.t_args("copy-failed-title", &args), &intro, &names, true)
+    crate::notice_list::counted_why(i18n, "copy-failed-title", &["copy-failed-why", "list-first-why", "copy-failed-stayed"], &i18n.error_md(id, detail), &names)
 }
 
 /// The message at the end of a copy (`cut`: a move) into `to` that worked and left links to
@@ -548,13 +544,7 @@ pub(crate) fn transfer_notice(i18n: &crate::i18n::I18n, cut: bool, to: &str, r: 
     let refused = (!names.is_empty()).then(|| refused_notice(i18n, &names));
     let left = (!left.is_empty()).then(|| left_notice(i18n, &left));
     let failed = (!failed.is_empty()).then(|| failed_notice(i18n, &failed));
-    [links, refused, left, failed].into_iter().flatten().reduce(joined)
-}
-
-/// Two messages of the end of a copy in one window: the second under its title.
-fn joined(a: Notice, b: Notice) -> Notice {
-    let copy = format!("{}\n\n{}\n\n{}", a.copy.as_ref().unwrap_or(&a.text), b.title, b.copy.as_ref().unwrap_or(&b.text));
-    Notice { text: format!("{}\n\n{}\n\n{}", a.text, crate::save_dialogs::md(&b.title), b.text), copy: Some(copy), help: a.help.or(b.help), ..a }
+    [links, refused, left, failed].into_iter().flatten().reduce(crate::notice_list::joined)
 }
 
 #[cfg(test)]
@@ -716,7 +706,7 @@ mod tests {
         let en = super::left_notice(&crate::i18n::I18n::new("en"), &["a.jpg".into(), "b.jpg".into()]);
         assert_eq!(en.title, "Items not moved");
         assert!(en.text.starts_with("They arrived during the move, or they are not shown here, so they were not copied.\nThey stayed where they were, with their folders.\n\n"), "{}", en.text);
-        let both = super::joined(super::refused_notice(&it, &["album/a:b.jpg".to_string()]), one);
+        let both = crate::notice_list::joined(super::refused_notice(&it, &["album/a:b.jpg".to_string()]), one);
         assert_eq!(both.title, "File non copiato");
         assert!(both.text.contains("\n\nElemento non spostato\n\nÈ arrivato") && both.text.ends_with(&md("DCIM/Camera/late.jpg")), "{}", both.text);
         let copy = both.copy.unwrap();
