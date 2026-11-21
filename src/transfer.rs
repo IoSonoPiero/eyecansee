@@ -363,6 +363,16 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
         }
         lists.push(list);
     }
+    // A move between sources that would replace an item, or merge a folder into one, first tells
+    // whether that item is the original itself, reached in another way (#195): nothing is written
+    // over it, not even once (L8 of 2026-11-21: told only after the copy, the file was written
+    // over itself). All of them before anything is copied; not a folder that stays anyway, with
+    // an item left out for its name.
+    if clip.cut && !same {
+        for (src, dest, _, _) in copies.iter().filter(|c| c.2 && !c.0.is_empty() && !left_below(&c.0, p)) {
+            originals::not_the_same(&clip.op, src, to, dest).await?;
+        }
+    }
     // Counted as the files chosen: a photo with its sidecars is one.
     let files = || lists.iter().zip(&copies).flat_map(|(l, c)| &l[..l.len() - c.3.len()]).filter(|(s, _, _)| !s.ends_with('/'));
     p.files_total.store(files().count(), Ordering::Relaxed);
@@ -380,9 +390,6 @@ async fn paste(clip: &Clip, to: &Store, to_base: &str, to_dir: &str, choices: &H
         // own left behind); of a folder only what was copied (`originals`). A folder with an item
         // left out because of its name stays whole.
         if clip.cut && !left_below(src, p) {
-            if item.2 && !same {
-                originals::not_the_same(&clip.op, src, to, &item.1).await?;
-            }
             for (s, _, _) in sides {
                 clip.op.delete(s, Deletion::Permanent).await?;
             }
@@ -1294,8 +1301,9 @@ mod tests {
 
     /// #195: a move onto itself between two sources whose real places cannot be compared (here two
     /// local ones with the comparison off, as a server through SFTP and through FTP), answered
-    /// Replace or Merge: the copy goes over itself, and the original must not then be deleted as
-    /// such. The move stops, saying so; everything stays.
+    /// Replace or Merge: the original must not be deleted as such, nor written over itself first
+    /// (L8 of 2026-11-21: content intact, its time changed). The move stops before the copy,
+    /// saying so; everything stays as it was, the same files with the same times.
     #[test]
     fn move_onto_itself_where_places_are_not_known() {
         let rt = tokio::runtime::Runtime::new().unwrap();
@@ -1306,6 +1314,17 @@ mod tests {
         std::fs::write(dir.join("Photos/sub/b.jpg"), b"the only b").unwrap();
         let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap());
         let replace = HashMap::from([("Photos/a.jpg".to_string(), Choice::Replace), ("Photos/sub/".to_string(), Choice::Replace)]);
+        // Each file as it is: the same file (inode) and the same time.
+        let stamp = |f: &str| {
+            let m = std::fs::metadata(dir.join(f)).unwrap();
+            #[cfg(unix)]
+            let id = std::os::unix::fs::MetadataExt::ino(&m);
+            #[cfg(not(unix))]
+            let id = 0;
+            (id, m.modified().unwrap())
+        };
+        let before = [stamp("Photos/a.jpg"), stamp("Photos/sub/b.jpg")];
+        std::thread::sleep(std::time::Duration::from_millis(20));
         COMPARE_PLACES.with(|c| c.set(false));
         rt.block_on(async {
             for item in ["Photos/a.jpg", "Photos/sub/"] {
@@ -1319,6 +1338,7 @@ mod tests {
         COMPARE_PLACES.with(|c| c.set(true));
         assert_eq!(std::fs::read(dir.join("Photos/a.jpg")).unwrap(), b"the only copy");
         assert_eq!(std::fs::read(dir.join("Photos/sub/b.jpg")).unwrap(), b"the only b");
+        assert_eq!([stamp("Photos/a.jpg"), stamp("Photos/sub/b.jpg")], before, "not written over itself");
         let mut names: Vec<String> = std::fs::read_dir(dir.join("Photos")).unwrap().map(|e| e.unwrap().file_name().to_string_lossy().into_owned()).collect();
         names.sort();
         assert_eq!(names, ["a.jpg", "sub"], "nothing left aside");

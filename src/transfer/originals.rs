@@ -9,12 +9,13 @@ use std::sync::atomic::Ordering;
 use super::Progress;
 use crate::source::{Deletion, Error, NOT_FOUND, Store, name, parent};
 
-/// Before the original `src` of an item that replaced or merged into `dest` of another source is
-/// deleted: whether the two are one and the same, reached in two ways where the real places cannot
-/// be compared (the same server through SFTP and FTP, a NAS through gvfs and SFTP; #195). The
-/// original steps aside under a hidden name for a moment: if `dest` goes with it, they are one,
-/// the original gets its name back and the move stops, saying so; written over itself, it would
-/// have been deleted as the original. A source that cannot rename stops too: it cannot be told.
+/// Before the original `src` of a move is copied over `dest` of another source, replacing it or
+/// merging into it (`paste`, before anything is written): whether the two are one and the same,
+/// reached in two ways where the real places cannot be compared (the same server through SFTP and
+/// FTP, a NAS through gvfs and SFTP; #195). The original steps aside under a hidden name for a
+/// moment: if `dest` goes with it, they are one, the original gets its name back and the move
+/// stops, saying so; copied over itself, it would have been written over and then deleted as the
+/// original. A source that cannot rename stops too: it cannot be told.
 pub(super) async fn not_the_same(from: &Store, src: &str, to: &Store, dest: &str) -> Result<(), Error> {
     let own = name(src);
     let aside = from.rename(src, &format!(".{own}.eyecansee-moving")).await.map_err(|e| {
