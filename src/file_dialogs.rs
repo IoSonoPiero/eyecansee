@@ -157,33 +157,9 @@ impl App {
         }
         let Some((p, cut, base, dest)) = &self.transfer else { return };
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
-        let (done, total) = (p.done.load(Ordering::Relaxed), p.total.load(Ordering::Relaxed));
-        let (files, files_total) = (p.files.load(Ordering::Relaxed), p.files_total.load(Ordering::Relaxed));
-        let found = p.found.load(Ordering::Relaxed);
-        // Until the copy starts it is still looking inside the folders, even with nothing found yet.
-        let counts = if p.started.get().is_none() {
-            self.i18n.t_args("transfer-looking", &[("n", &found.to_string())])
-        } else {
-            self.i18n.t_args("transfer-counts", &[
-            ("n", &files.to_string()),
-            ("total", &files_total.to_string()),
-            ("done", &self.human_size(done)),
-            ("size", &self.human_size(total)),
-        ])
-        };
-        // The speed of the last seconds, the time left from the average since the copy started;
-        // the first second gives no meaningful estimate.
-        let left = p.started.get().map(|t| t.elapsed().as_secs_f64()).filter(|&secs| secs >= 1.0 && done > 0).map(|secs| {
-            let average = done as f64 / secs;
-            let speed = p.recent.lock().unwrap().speed(secs, done).unwrap_or(average);
-            self.i18n.t_args("transfer-left", &[
-                ("percent", &(done * 100 / total.max(1)).to_string()),
-                ("speed", &self.human_size(speed as u64)),
-                ("time", &human_time((total.saturating_sub(done) as f64 / average) as u64)),
-            ])
-        });
+        let phase = p.phase();
+        let (current, counts, left) = self.transfer_lines(p, &phase);
         let to = self.i18n.t_args("transfer-to", &[("dir", &shown(base, dest))]);
-        let current = p.current.lock().unwrap().clone();
         let cancelling = p.cancel.load(Ordering::Relaxed);
         egui::Window::new(self.i18n.t(if *cut { "transfer-moving" } else { "transfer-copying" }))
             .collapsible(false)
@@ -194,18 +170,49 @@ impl App {
                 ui.add(egui::Label::new(egui::RichText::new(current).strong()).truncate());
                 ui.add(egui::Label::new(to).truncate());
                 ui.label(counts);
-                ui.label(left.unwrap_or_default());
+                ui.label(left);
                 // Accent fill on a grey track: the default (selection blue on white) hid the empty part.
                 ui.scope(|ui| {
                     ui.visuals_mut().extreme_bg_color = ui.visuals().widgets.inactive.bg_fill;
                     let fill = theme::accent(ui.visuals());
-                    let fraction = if total > 0 { done as f32 / total as f32 } else { 0.0 };
-                    ui.add(egui::ProgressBar::new(fraction).fill(fill).desired_height(16.0).show_percentage());
+                    ui.add(egui::ProgressBar::new(phase.fraction()).fill(fill).desired_height(16.0).show_percentage());
                 });
                 if ui.add_enabled(!cancelling, egui::Button::new(self.i18n.t("delete-no"))).clicked() {
                     p.cancel.store(true, Ordering::Relaxed);
                 }
             });
+    }
+
+    /// The lines of the copy box (`transfer_window`) for `phase`: what it is on (the file copied),
+    /// the counts, and the speed with the time left, which only a copy has.
+    fn transfer_lines(&self, p: &transfer::Progress, phase: &transfer::Phase) -> (String, String, String) {
+        match *phase {
+            // Until the copy starts it is still looking inside the folders, even with nothing found yet.
+            transfer::Phase::Looking(found) => (p.current.lock().unwrap().clone(), self.i18n.t_args("transfer-looking", &[("n", &found.to_string())]), String::new()),
+            transfer::Phase::Removing { removed, total } => {
+                (self.i18n.t("transfer-removing"), self.i18n.t_args("transfer-removed", &[("n", &removed.to_string()), ("total", &total.to_string())]), String::new())
+            }
+            transfer::Phase::Copying { files, files_total, done, total } => {
+                let counts = self.i18n.t_args("transfer-counts", &[
+                    ("n", &files.to_string()),
+                    ("total", &files_total.to_string()),
+                    ("done", &self.human_size(done)),
+                    ("size", &self.human_size(total)),
+                ]);
+                // The speed of the last seconds, the time left from the average since the copy
+                // started; the first second gives no meaningful estimate.
+                let left = p.started.get().map(|t| t.elapsed().as_secs_f64()).filter(|&secs| secs >= 1.0 && done > 0).map(|secs| {
+                    let average = done as f64 / secs;
+                    let speed = p.recent.lock().unwrap().speed(secs, done).unwrap_or(average);
+                    self.i18n.t_args("transfer-left", &[
+                        ("percent", &(done * 100 / total.max(1)).to_string()),
+                        ("speed", &self.human_size(speed as u64)),
+                        ("time", &human_time((total.saturating_sub(done) as f64 / average) as u64)),
+                    ])
+                });
+                (p.current.lock().unwrap().clone(), counts, left.unwrap_or_default())
+            }
+        }
     }
 
     /// The copy box once the copy has ended with links to folders left out (#183): how many, in

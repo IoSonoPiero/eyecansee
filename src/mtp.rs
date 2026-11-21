@@ -389,6 +389,12 @@ impl Phone {
         if dir.is_empty() {
             return Ok(self.storages().await?.iter().map(|(n, _)| n.clone()).collect());
         }
+        Ok(self.objects(dir).await?.into_iter().map(|(n, _)| n).collect())
+    }
+
+    /// Everything in a folder (not the top of the phone), one entry per object: its name, and
+    /// whether it is a folder. MTP can hold two objects with one name, which `names` tells as one.
+    pub async fn objects(&self, dir: &str) -> Result<Vec<(String, bool)>, Error> {
         let (storage, handle) = self.locate(dir).await?;
         let objects = self.queued("names", dir, storage.list_objects(handle)).await.map_err(error)?;
         let mut handles = self.handles.lock().unwrap();
@@ -399,7 +405,8 @@ impl Phone {
             .map(|o| {
                 let slash = if o.is_folder() { "/" } else { "" };
                 handles.insert(format!("{dir}{}{slash}", o.filename), o.handle);
-                o.filename
+                let folder = o.is_folder();
+                (o.filename, folder)
             })
             .collect())
     }

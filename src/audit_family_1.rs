@@ -501,6 +501,115 @@ fn audit_2_1_phone_move_deletes_a_photo_taken_meanwhile() {
     });
 }
 
+/// Measure on a real phone (`EYECANSEE_MTP=<serial>`), after the #194 fix: a folder of our own,
+/// `Pictures/prove-078-misura` (300 files of 250 kB, as a folder of small photos), moved to this
+/// computer: how long the copy takes, and how long the originals then take to go. Then the folder
+/// is written again and moved with a photo arriving in it: the photo stays, with its folder. The
+/// test makes and removes only its own folder, whatever happens; it stops if the folder is already
+/// there. Run it with a long timeout (`run.sh <name> 600 0`): an upload cut short blocks the phone.
+#[test]
+#[ignore = "measure (#194): needs the phone, EYECANSEE_MTP=<serial>"]
+fn phone_move_of_300_files_timed() {
+    use std::sync::atomic::{AtomicBool, Ordering::Relaxed};
+    use std::time::{Duration, Instant};
+
+    use crate::source::{Deletion, Store};
+    use crate::transfer::{Clip, Progress, run};
+    const FILES: usize = 300;
+    let run_dir = guard();
+    let serial = std::env::var("EYECANSEE_MTP").expect("EYECANSEE_MTP not set");
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    let phone = Store::Mtp(crate::mtp::Phone::shared(&serial));
+    let pc_dir = run_dir.join("pc");
+    let pc_store = |dir: &Path| {
+        std::fs::create_dir_all(dir).unwrap();
+        Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(dir.to_str().unwrap())).unwrap())
+    };
+    let pc = pc_store(&pc_dir);
+    rt.block_on(async {
+        let storage = phone.list("").await.unwrap().dirs[0].clone();
+        let pictures = format!("{storage}Pictures/");
+        assert!(!phone.names(&pictures).await.unwrap().contains("prove-078-misura"), "the test folder is already on the phone: left as it is");
+        let folder = format!("{pictures}prove-078-misura/");
+        let fill = async || -> Result<Duration, crate::source::Error> {
+            let t = Instant::now();
+            phone.create_dir(&folder).await?;
+            for i in 0..FILES {
+                crate::replace::write_whole(&phone, &format!("{folder}IMG_{i:03}.jpg"), vec![i as u8; 250_000]).await?;
+            }
+            Ok(t.elapsed())
+        };
+        let measured = async {
+            let written = fill().await?;
+            let clip = Clip { op: phone.clone(), base: format!("mtp://{serial}/"), paths: vec![folder.clone()], cut: true, text: String::new() };
+            let p = Progress::default();
+            let ended = AtomicBool::new(false);
+            // When the last file was copied: the originals go after that.
+            let watch = async {
+                while !ended.load(Relaxed) && (p.started.get().is_none() || p.files.load(Relaxed) < p.files_total.load(Relaxed)) {
+                    tokio::time::sleep(Duration::from_millis(2)).await;
+                }
+                Instant::now()
+            };
+            let moving = async {
+                let none = std::collections::HashMap::new();
+                let r = run(&clip, &pc, "/", "", &none, &p).await;
+                ended.store(true, Relaxed);
+                r
+            };
+            let t = Instant::now();
+            let ((_, moved), copied_at) = tokio::join!(moving, watch);
+            let end = Instant::now();
+            let started = p.started.get().copied().unwrap_or(end);
+            let still = phone.names(&pictures).await?.contains("prove-078-misura");
+            let copied = std::fs::read_dir(pc_dir.join("prove-078-misura")).map(|d| d.count()).unwrap_or(0);
+            eprintln!(
+                "written in {written:.1?}; move {moved:?} in {:.2?}: looking {:.2?}, copy {:.2?}, originals {:.2?}; folder still on the phone: {still}; {copied} files copied",
+                end - t,
+                started.saturating_duration_since(t),
+                copied_at.saturating_duration_since(started),
+                end.saturating_duration_since(copied_at)
+            );
+            // Again, with a photo arriving in the folder once the copy started: it stays on the
+            // phone, with its folder, and what was copied goes file by file.
+            let late_kept = !still && {
+                let written = fill().await?;
+                eprintln!("written again in {written:.1?}");
+                moved_with_a_late_photo(&clip, &pc_store(&run_dir.join("pc2"))).await
+            };
+            Ok::<_, crate::source::Error>(moved.is_ok() && copied == FILES && !still && late_kept)
+        };
+        let ok = measured.await;
+        // Our folder goes in any case.
+        if phone.names(&pictures).await.map(|n| n.contains("prove-078-misura")).unwrap_or(true) {
+            let r = phone.delete(&folder, Deletion::Permanent).await;
+            eprintln!("test folder removed at the end: {r:?}");
+        }
+        assert!(!phone.names(&pictures).await.unwrap().contains("prove-078-misura"), "the test folder is still on the phone");
+        assert_eq!(ok, Ok(true), "the move did not go as it should");
+    });
+}
+
+/// The folder of `clip` moved to `pc` with a photo arriving in it once the copy started (in
+/// `phone_move_of_300_files_timed`): whether the photo stayed on the phone, alone in its folder.
+async fn moved_with_a_late_photo(clip: &crate::transfer::Clip, pc: &crate::source::Store) -> bool {
+    use std::time::{Duration, Instant};
+    let p = crate::transfer::Progress::default();
+    let folder = &clip.paths[0];
+    let late = async {
+        while p.started.get().is_none() {
+            tokio::time::sleep(Duration::from_millis(2)).await;
+        }
+        crate::replace::write_whole(&clip.op, &format!("{folder}IMG_late.jpg"), b"taken while moving".to_vec()).await
+    };
+    let t = Instant::now();
+    let none = std::collections::HashMap::new();
+    let ((_, moved), wrote) = tokio::join!(crate::transfer::run(clip, pc, "/", "", &none, &p), late);
+    let on_phone = clip.op.names(folder).await.unwrap_or_default();
+    eprintln!("with a photo arriving: move {moved:?} in {:.2?}, photo written {wrote:?}; on the phone {on_phone:?}; named {:?}", t.elapsed(), p.left.lock().unwrap());
+    wrote.is_ok() && on_phone.len() == 1 && on_phone.contains("IMG_late.jpg")
+}
+
 /// A folder for the tests of 2.4 and 2.5, which need no app: under the system's temporary
 /// folder, new for every run. The two tests fail on Windows (NTFS) and pass elsewhere: on Linux
 /// they check the rest of the path (the fake server, the names, the paste).

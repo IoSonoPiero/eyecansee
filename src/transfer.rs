@@ -93,6 +93,52 @@ pub struct Progress {
     /// arrived while it ran, or a folder holding what cannot be seen. They stay, with their
     /// folders, and a message at the end of the copy names them (#194).
     pub left: Mutex<Vec<String>>,
+    /// While a move removes the originals of a folder it copied (`originals::delete`): how many
+    /// files are to go, and how many went. 0 when not removing: the copy goes on, or it ended.
+    pub removing: AtomicUsize,
+    pub removed: AtomicUsize,
+}
+
+/// What the copy box shows (`Progress::phase`).
+#[derive(Debug, PartialEq)]
+pub enum Phase {
+    /// Looking inside the folders, before the copy: items found.
+    Looking(usize),
+    /// Copying: files and bytes, copied and in all.
+    Copying { files: usize, files_total: usize, done: u64, total: u64 },
+    /// Removing the originals of a folder moved: files gone and to go. No bytes move then, so
+    /// no speed and no time left (#194: a speed falling to nothing showed at 100%).
+    Removing { removed: usize, total: usize },
+}
+
+impl Phase {
+    /// The part of the bar filled: bytes copied, or originals removed.
+    pub fn fraction(&self) -> f32 {
+        let part = |n: u64, of: u64| if of > 0 { n as f32 / of as f32 } else { 0.0 };
+        match *self {
+            Phase::Looking(_) => 0.0,
+            Phase::Copying { done, total, .. } => part(done, total),
+            Phase::Removing { removed, total } => part(removed as u64, total as u64),
+        }
+    }
+}
+
+impl Progress {
+    pub fn phase(&self) -> Phase {
+        let removing = self.removing.load(Ordering::Relaxed);
+        if removing > 0 {
+            return Phase::Removing { removed: self.removed.load(Ordering::Relaxed).min(removing), total: removing };
+        }
+        if self.started.get().is_none() {
+            return Phase::Looking(self.found.load(Ordering::Relaxed));
+        }
+        Phase::Copying {
+            files: self.files.load(Ordering::Relaxed),
+            files_total: self.files_total.load(Ordering::Relaxed),
+            done: self.done.load(Ordering::Relaxed),
+            total: self.total.load(Ordering::Relaxed),
+        }
+    }
 }
 
 /// Bytes copied over the last `SPAN` seconds: the speed of the moment, as a system network meter
@@ -642,6 +688,29 @@ mod tests {
         assert!(!pastes_items(true, Some(copied), copied));
         assert!(!pastes_items(false, None, copied));
         assert!(!pastes_items(false, Some(copied), "some text copied elsewhere"));
+    }
+
+    /// The copy box: looking, then copying (bytes on the bar), then removing the originals of a
+    /// folder moved (files on the bar, no bytes), then copying again (the next item of the move).
+    #[test]
+    fn phases_of_the_box() {
+        let p = Progress::default();
+        p.found.store(7, Ordering::Relaxed);
+        assert_eq!(p.phase(), Phase::Looking(7));
+        assert_eq!(p.phase().fraction(), 0.0);
+        p.files_total.store(4, Ordering::Relaxed);
+        p.total.store(400, Ordering::Relaxed);
+        let _ = p.started.set(Instant::now());
+        p.files.store(4, Ordering::Relaxed);
+        p.done.store(400, Ordering::Relaxed);
+        assert_eq!(p.phase(), Phase::Copying { files: 4, files_total: 4, done: 400, total: 400 });
+        assert_eq!(p.phase().fraction(), 1.0);
+        p.removing.store(4, Ordering::Relaxed);
+        p.removed.store(1, Ordering::Relaxed);
+        assert_eq!(p.phase(), Phase::Removing { removed: 1, total: 4 });
+        assert_eq!(p.phase().fraction(), 0.25);
+        p.removing.store(0, Ordering::Relaxed);
+        assert!(matches!(p.phase(), Phase::Copying { .. }));
     }
 
     /// The speed of the last 4 seconds, not of the whole copy.
