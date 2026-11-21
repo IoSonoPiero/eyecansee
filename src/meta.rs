@@ -271,8 +271,9 @@ pub fn write_exif(fields: &[exif::Field], little: bool) -> Option<Vec<u8>> {
 
 /// The EXIF (TIFF data, as `exif_chunk`) of a file being written, made to fit its pixels: the
 /// sizes (ImageWidth/Length, PixelX/YDimension) set to `w` × `h` and the thumbnail taken out,
-/// with its bytes zeroed: it showed the original, the part cropped away included. In place, so
-/// the offsets of everything else (the MakerNote too) stay right. A broken EXIF is left as it is.
+/// with its bytes zeroed: it showed the original, the part cropped away included (only a JPEG or
+/// a single strip, outside the directories). In place, so the offsets of everything else (the
+/// MakerNote too) stay right. A broken EXIF is left as it is.
 pub fn fit_exif(t: &mut [u8], w: u32, h: u32) {
     let little = match t.get(..4) {
         Some(b"II*\0") => true,
@@ -303,12 +304,15 @@ pub fn fit_exif(t: &mut [u8], w: u32, h: u32) {
     };
     let Some(ifd0) = u32_at(t, 4) else { return };
     let Some((tags, next)) = entries(t, ifd0) else { return };
+    // The directories read: a thumbnail's bytes are blanked only outside them.
+    let mut dirs = vec![ifd0..next + 4];
     for (tag, e) in tags {
         match tag {
             0x0100 => set(t, e, w),
             0x0101 => set(t, e, h),
             0x8769 => {
-                let Some((exif, _)) = u32_at(t, e + 8).and_then(|at| entries(t, at)) else { continue };
+                let Some((at, (exif, end))) = u32_at(t, e + 8).and_then(|at| Some((at, entries(t, at)?))) else { continue };
+                dirs.push(at..end + 4);
                 for (tag, e) in exif {
                     match tag {
                         0xA002 => set(t, e, w),
@@ -323,13 +327,19 @@ pub fn fit_exif(t: &mut [u8], w: u32, h: u32) {
     // IFD1, the thumbnail: its picture (JPEG, or one strip) and the directory zeroed, unlinked.
     let Some(ifd1) = u32_at(t, next).filter(|&at| at != 0) else { return };
     if let Some((tags, end)) = entries(t, ifd1) {
-        // One value, SHORT or LONG (strips can be either).
+        dirs.push(ifd1..end + 4);
+        // A single value, SHORT or LONG (strips can be either). With several strips the value is
+        // the place of a table, not a strip: nothing is blanked (#219).
         let value = |t: &[u8], tag| {
             let &(_, e) = tags.iter().find(|&&(x, _)| x == tag)?;
+            if u32_at(t, e + 4)? != 1 {
+                return None;
+            }
             if u16_at(t, e + 2)? == 3 { u16_at(t, e + 8).map(usize::from) } else { u32_at(t, e + 8) }
         };
         for (start, len) in [(0x0201, 0x0202), (0x0111, 0x0117)] {
             if let (Some(s), Some(l)) = (value(t, start), value(t, len))
+                && !dirs.iter().any(|d| s < d.end && d.start < s.saturating_add(l))
                 && let Some(d) = t.get_mut(s..s.saturating_add(l))
             {
                 d.fill(0);
@@ -1053,5 +1063,34 @@ mod tests {
         assert!(has(super::read_file_with(&sparse, "a.jxl", None), "meta-xmp-rating", "4 / 5"));
         let plain = Original::with_meta_of(crate::decode::decode_full(&JXL_SRGB, "a.jxl").unwrap(), &JXL_SRGB, "a.jxl");
         assert!(!plain.has_meta());
+    }
+
+    /// A thumbnail in two strips: its two values are the places of the tables of offsets and
+    /// lengths, not a strip. Nothing outside the thumbnail is blanked (#219): the maker's name
+    /// written after those tables stays.
+    #[test]
+    fn thumbnail_in_strips_blanks_nothing_else() {
+        // Big-endian TIFF: IFD0 (Make) at 8, IFD1 at 26 with StripOffsets and StripByteCounts of
+        // two LONGs each (tables at 56 and 64), the Make at 72, the two strips from 84.
+        let entry = |tag: u16, kind: u16, count: u32, value: u32| [&tag.to_be_bytes()[..], &kind.to_be_bytes(), &count.to_be_bytes(), &value.to_be_bytes()].concat();
+        let mut t = b"MM\0*".to_vec();
+        t.extend(8u32.to_be_bytes());
+        t.extend(1u16.to_be_bytes());
+        t.extend(entry(0x010F, 2, 12, 72));
+        t.extend(26u32.to_be_bytes());
+        t.extend(2u16.to_be_bytes());
+        t.extend(entry(0x0111, 4, 2, 56));
+        t.extend(entry(0x0117, 4, 2, 64));
+        t.extend(0u32.to_be_bytes());
+        for v in [84u32, 104, 20, 20] {
+            t.extend(v.to_be_bytes());
+        }
+        t.extend(b"Camera Make\0");
+        t.extend([7; 40]);
+        super::fit_exif(&mut t, 10, 10);
+        assert_eq!(&t[72..84], b"Camera Make\0");
+        let exif = exif::Reader::new().read_raw(t).unwrap();
+        assert_eq!(exif.get_field(Tag::Make, In::PRIMARY).map(|f| f.display_value().to_string()), Some("\"Camera Make\"".into()));
+        assert!(exif.fields().all(|f| f.ifd_num != In::THUMBNAIL));
     }
 }
