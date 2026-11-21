@@ -44,6 +44,8 @@ libloading = "0.8.9"
 # IPTC digest of a TIFF (meta_write::tiff_iptc); already compiled for rawler and russh.
 md5 = "0.8.1"
 jxl-oxide = { version = "0.12.6", features = ["image"] }
+# The compressed metadata boxes ("brob") of a JPEG XL (meta::jxl_box); already compiled for jxl-oxide.
+brotli-decompressor = "5.0.3"
 libheif-rs = { version = "3.0.0", optional = true }
 magick_rust = { version = "2.1.1", optional = true }
 mtp-rs = "0.38.1"

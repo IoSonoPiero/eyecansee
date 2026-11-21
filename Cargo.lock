@@ -2221,6 +2221,7 @@ dependencies = [
  "arboard",
  "argon2 0.5.3",
  "base64",
+ "brotli-decompressor",
  "bytes",
  "draco-oxide-core",
  "draco-oxide-decoder",

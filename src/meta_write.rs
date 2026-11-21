@@ -357,7 +357,35 @@ pub fn read(bytes: &[u8], d: Option<&mut dyn image::ImageDecoder>) -> Extra {
     if x.xmp.is_none() && bytes.get(4..8) == Some(b"ftyp") {
         (x.xmp, x.icc) = heif(bytes);
     }
+    // JPEG XL, which `image` does not read (#213).
+    if bytes.starts_with(b"\0\0\0\x0CJXL ") || bytes.starts_with(&[0xFF, 0x0A]) {
+        (x.exif, x.xmp, x.icc) = (crate::meta::jxl_exif(bytes), crate::meta::jxl_xmp(bytes), jxl_icc(bytes));
+    }
     x
+}
+
+/// The colour profile of a JPEG XL's pixels as jxl-oxide decodes them: the file's own, or one
+/// made from the colour space it names (Display P3, Rec. 2100…). None for plain sRGB pixels, as
+/// for a picture without a profile, and for CMYK, which is decoded to sRGB. Only the codestream's
+/// header is read.
+fn jxl_icc(bytes: &[u8]) -> Option<Vec<u8>> {
+    use jxl_oxide::{InitializeResult, JxlImage};
+    const SRGB_CICP: [u8; 4] = [1, 13, 0, 1];
+    let mut uninit = JxlImage::builder().build_uninit();
+    let (mut at, mut end) = (0, 0);
+    let image = loop {
+        end = (end + 4096).min(bytes.len());
+        let used = uninit.feed_bytes(&bytes[at..end]).ok()?;
+        at += used;
+        match uninit.try_init().ok()? {
+            InitializeResult::Initialized(image) => break image,
+            InitializeResult::NeedMoreData(u) => uninit = u,
+        }
+        if end == bytes.len() && used == 0 {
+            return None;
+        }
+    };
+    (!image.pixel_format().has_black() && image.rendered_cicp() != Some(SRGB_CICP)).then(|| image.rendered_icc())
 }
 
 /// The colour profile of a GIMP file (XCF), kept by GIMP as the "icc-profile" parasite among the

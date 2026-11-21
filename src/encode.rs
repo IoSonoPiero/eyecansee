@@ -303,7 +303,7 @@ impl Original {
             return Original { density, ..Original::upright(image, raw.exif, raw.icc, xmp, x.irb) };
         }
         // As found in the formats `image` reads (JPEG, PNG, WebP, TIFF), then in the file itself
-        // (`meta_write::read`), then from ImageMagick for the formats it reads.
+        // (`meta_write::read`, JPEG XL too), then from ImageMagick for the formats it reads.
         let mut d = ImageReader::new(Cursor::new(bytes)).with_guessed_format().ok().and_then(|r| r.into_decoder().ok());
         let (exif, icc) = d.as_mut().map(|d| (d.exif_metadata().ok().flatten(), d.icc_profile().ok().flatten())).unwrap_or_default();
         let mut x = crate::meta_write::read(bytes, d.as_mut().map(|d| d as &mut dyn ImageDecoder));
@@ -311,7 +311,7 @@ impl Original {
             let m = crate::decode::magick_meta(bytes);
             x = crate::meta_write::Extra { xmp: x.xmp.or(m.xmp), irb: x.irb.or(m.irb), icc: x.icc.or(m.icc), exif: x.exif.or(m.exif) };
         }
-        let exif = exif.or(x.exif).or_else(|| crate::meta::exif_chunk(bytes)).or_else(|| crate::meta::jxl_exif(bytes));
+        let exif = exif.or(x.exif).or_else(|| crate::meta::exif_chunk(bytes));
         // The sidecar's position in the EXIF too, as for a RAW photo: one place in the copy.
         let exif = match (exif, place) {
             (Some(e), Some(p)) => Some(crate::exif_place::placed(&e, p).unwrap_or(e)),
@@ -821,8 +821,8 @@ pub(crate) mod tests {
         let exif = crate::meta::write_exif(&fields, false).unwrap();
         let icc = include_bytes!("../assets/icc/AdobeCompat-v2.icc").to_vec();
         let xmp = br#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/" crs:Exposure2012="+0.50"/></rdf:RDF></x:xmpmeta>"#.to_vec();
-        // Large enough that `image` hands out a TIFF's profile: it takes one only up to about a
-        // 32nd of the pixel data.
+        // Large enough that `image` hands out a TIFF's profile: it gives none when the profile is
+        // not much smaller than the pixel data.
         let image = DynamicImage::ImageRgb16(image::ImageBuffer::new(64, 48));
         let made = Original { exif: Some(exif), icc: Some(icc.clone()), xmp: Some(xmp), ..Original::with_meta(image.clone(), &[]) };
         let tiff = made.encode(&Options { format: Format::Tiff, ..Default::default() }).unwrap();
@@ -849,29 +849,29 @@ pub(crate) mod tests {
         };
         let (rgb, cmyk, gray) = (space(b"RGB "), space(b"CMYK"), space(b"GRAY"));
         let back = |file: &[u8]| Original::with_meta(DynamicImage::new_rgb8(1, 1), file).icc;
-        let to = |f: Format| Options { format: f, ..Default::default() };
+        let to = |f: Format| Options { format: f, avif_speed: 10, ..Default::default() };
         // A CMYK JPEG with its profile in APP2, as Photoshop writes it.
         let mut c = turbojpeg::Compressor::new().unwrap();
         c.set_subsamp(turbojpeg::Subsamp::None).unwrap();
-        let ink = vec![40u8; 16 * 16 * 4];
-        let mut jpeg = c.compress_to_vec(turbojpeg::Image { pixels: ink.as_slice(), width: 16, pitch: 16 * 4, height: 16, format: turbojpeg::PixelFormat::CMYK }).unwrap();
+        let ink = vec![40u8; 160 * 160 * 4];
+        let mut jpeg = c.compress_to_vec(turbojpeg::Image { pixels: ink.as_slice(), width: 160, pitch: 160 * 4, height: 160, format: turbojpeg::PixelFormat::CMYK }).unwrap();
         let body = [&b"ICC_PROFILE\0\x01\x01"[..], &cmyk].concat();
         jpeg.splice(2..2, [&[0xFF, 0xE2][..], &(body.len() as u16 + 2).to_be_bytes(), &body].concat());
         let original = Original::with_meta(crate::decode::decode_full(&jpeg, "a.jpg").unwrap(), &jpeg);
         assert_eq!(original.icc.as_ref(), Some(&cmyk));
-        for f in [Format::Png, Format::Jpeg, Format::Webp, Format::Tiff] {
+        for f in [Format::Png, Format::Jpeg, Format::Webp, Format::Avif, Format::Tiff] {
             assert_eq!(back(&original.encode(&to(f)).unwrap()), None, "CMYK in {f:?}");
         }
         // A grey picture with a grey profile: kept in a grey PNG, TIFF or JPEG, not in an RGB file.
-        // Large enough that `image` hands out a TIFF's profile: it takes one only up to about a
-        // 32nd of the pixel data.
+        // Large enough that `image` hands out a TIFF's profile: it gives none when the profile is
+        // not much smaller than the pixel data.
         let grey = Original { icc: Some(gray.clone()), ..Original::with_meta(DynamicImage::new_luma8(160, 160), &[]) };
         for f in [Format::Png, Format::Tiff] {
             assert_eq!(back(&grey.encode(&to(f)).unwrap()).as_ref(), Some(&gray), "grey in {f:?}");
         }
         let grey_jpeg = Options { chroma: Chroma::Grey, ..to(Format::Jpeg) };
         assert_eq!(back(&grey.encode(&grey_jpeg).unwrap()).as_ref(), Some(&gray), "grey JPEG");
-        for f in [Format::Webp, Format::Jpeg] {
+        for f in [Format::Webp, Format::Avif, Format::Jpeg] {
             assert_eq!(back(&grey.encode(&to(f)).unwrap()), None, "grey in {f:?}");
         }
         // An RGB profile stays in an RGB file.
