@@ -298,14 +298,14 @@ impl App {
 impl App {
     /// "Save in another format" from the viewer on a layout, or on a drawing with layers chosen in
     /// the panel: what is shown. `false` for the model as the file has it.
-    pub(crate) fn convert_sheet(&mut self, path: &str) -> bool {
+    pub(crate) fn convert_sheet(&mut self, path: &str, asked: u64) -> bool {
         if self.viewing.is_none() || (self.cad_sheet(path) == 0 && self.cad_change(path) == 0) {
             return false;
         }
         let Some(drawing) = self.cad_drawn(path) else { return false };
         let Some(loader) = &self.loader else { return false };
         let size = self.files().iter().find(|f| f.path == path).map_or(0, |f| f.size);
-        loader.drawing_original(drawing, size);
+        loader.drawing_original(asked, drawing, size);
         true
     }
 }

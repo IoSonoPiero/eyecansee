@@ -55,9 +55,8 @@ impl App {
                 Msg::Open(address) => self.on_open(ctx, address),
                 Msg::Home(base, r) => self.on_home(base, r),
                 // Shown in a window only when asked from the Help menu (the window is open).
-                // The editor's own image; with Save in another format open over it, the result
-                // the editor handed to it.
-                Msg::Original(r) if self.editor.is_some() && self.convert.is_none() => self.editor_original(ctx, r),
+                // To the page that asked for it, the editor or Save as… (#200).
+                Msg::Original(asked, r) => self.on_original(ctx, asked, r),
                 Msg::EditCopy(img) => self.on_edit_copy(ctx, img),
                 Msg::EditPicked(r) => self.on_edit_picked(ctx, r),
                 Msg::ClipImage(r) => self.on_clip_image(ctx, r),
@@ -70,7 +69,6 @@ impl App {
                 Msg::Motion(path, video) => {
                     self.motion.read.insert(path, video);
                 }
-                Msg::Original(r) => self.convert_original(ctx, r),
                 Msg::EditPrepared(path, r) => self.on_edit_prepared(path, r),
                 Msg::EditWritten(path, mark, over) => self.on_edit_written(path, mark, over),
                 Msg::Encoded(generation, r) => self.convert_encoded(ctx, generation, r),

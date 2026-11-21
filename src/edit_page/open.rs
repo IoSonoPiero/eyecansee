@@ -106,10 +106,10 @@ impl App {
             return;
         }
         let Some(loader) = &self.loader else { return };
-        loader.load_original(path.clone(), true, false);
         // From the viewer: as it is shown there.
         let turn = if self.viewing.is_some() { self.turn } else { Turn::default() };
-        let mut w = Window::new(path, turn, tool);
+        let mut w = Window::new(path.clone(), turn, tool);
+        loader.load_original(w.asked, path, true, false);
         let store = loader.store();
         w.remote = crate::kept::remote(&store).then_some(if matches!(store, crate::source::Store::Mtp(_)) { "edit-remote-phone" } else { "edit-remote-server" });
         // Every save goes where the image is, whatever the grid opens meanwhile.

@@ -127,7 +127,7 @@ pub(crate) async fn original(op: &Store, path: &str, at: f64, image: Receiver<Rg
 impl App {
     /// Save as… on the video in the viewer: paused, its frame asked to the player, with the time
     /// it shows; `None` when `path` is not the video playing.
-    pub(crate) fn convert_frame(&mut self, path: &str) -> Option<f64> {
+    pub(crate) fn convert_frame(&mut self, path: &str, asked: u64) -> Option<f64> {
         let player = self.player_of(path)?;
         player.pause();
         let at = player.position();
@@ -139,7 +139,7 @@ impl App {
             turn.apply(&mut image);
             let _ = tx.send(image.into_rgba8());
         });
-        self.loader.as_ref()?.frame_original(path.to_string(), at, rx);
+        self.loader.as_ref()?.frame_original(asked, path.to_string(), at, rx);
         Some(at)
     }
 }

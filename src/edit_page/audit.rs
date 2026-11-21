@@ -72,13 +72,16 @@ fn audit_5_2_no_change_during_the_preparation_leaves_nothing_to_save() {
     assert_eq!(copies, 1, "the copy written");
 }
 
-/// Audit 5.1: Save as… on the editor's image, cancelled with Esc before its result is made. The
-/// result, which carries no path nor number, goes to the editor (`Msg::Original` with Save in
-/// another format closed) and takes the place of the photo read: objects already merged in, so
-/// that every following save applies them twice.
+/// Audit 5.1 (#200): Save as… on the editor's image, cancelled with Esc before its result is
+/// made. Until 0.77.0 the result, which carried no path nor number, went to the editor
+/// (`Msg::Original` with Save in another format closed) and took the place of the photo read:
+/// objects already merged in, so that every following save applied them twice. Now it carries
+/// the number of the Save as… page, closed: it is dropped.
 #[test]
-#[ignore = "audit 5.1: not fixed yet"]
 fn audit_5_1_save_as_cancelled_becomes_the_editors_photo() {
+    if crate::audit_family_1::own_folder("edit_page::save::audit::audit_5_1_save_as_cancelled_becomes_the_editors_photo") {
+        return;
+    }
     let dir = crate::audit_family_1::guard().join("five-one");
     std::fs::create_dir_all(&dir).unwrap();
     // Large enough that the result of Save as… takes a moment to make.
@@ -92,20 +95,68 @@ fn audit_5_1_save_as_cancelled_becomes_the_editors_photo() {
     // Ctrl+Shift+S, then Esc at once.
     h.key_with(egui::Key::S, egui::Modifiers::COMMAND | egui::Modifiers::SHIFT);
     assert!(h.app.convert.is_some(), "Save as… open");
+    let dropped = crate::convert::dropped();
     h.key(egui::Key::Escape);
     let closed_before = h.app.convert.is_none() && h.app.editor.as_ref().unwrap().full.as_ref().is_some_and(|f| std::sync::Arc::ptr_eq(f, &read));
     eprintln!("Save as… closed with Esc before its result came: {closed_before}");
     assert!(closed_before, "race lost (the result came first): run again");
     let start = std::time::Instant::now();
-    while start.elapsed().as_secs() < 10 && h.app.editor.as_ref().unwrap().full.as_ref().is_some_and(|f| std::sync::Arc::ptr_eq(f, &read)) {
+    // Until the result came and went to no page, or it took the editor's photo.
+    while start.elapsed().as_secs() < 10 && crate::convert::dropped() == dropped && h.app.editor.as_ref().unwrap().full.as_ref().is_some_and(|f| std::sync::Arc::ptr_eq(f, &read)) {
         h.frame(Vec::new());
         std::thread::sleep(std::time::Duration::from_millis(50));
     }
+    assert!(crate::convert::dropped() > dropped || !std::sync::Arc::ptr_eq(h.app.editor.as_ref().unwrap().full.as_ref().unwrap(), &read), "the result of Save as… never came");
     let w = h.app.editor.as_ref().unwrap();
     let now = w.full.clone().unwrap();
     let px = now.image.to_rgb8().get_pixel(2000, 1500).0;
     eprintln!("after {:.1?}: the editor's photo replaced {}, its middle pixel {px:?} (read: [128, 128, 128]); objects on the page {} (before the cover {side})", start.elapsed(), !std::sync::Arc::ptr_eq(&now, &read), w.doc.objects.len());
     assert!(std::sync::Arc::ptr_eq(&now, &read), "the photo of the editor is now the result of Save as… (middle pixel {px:?})");
+}
+
+/// Audit 5.1, scenario B (#200): the picture asked for a page closed before it came (on a phone
+/// or a server it takes seconds) goes to no page opened after it, editor or Save as…, whatever
+/// its file. The late answer is sent as the loader would, with the number of the page closed.
+#[test]
+fn audit_5_1_b_a_late_picture_goes_to_no_other_page() {
+    if crate::audit_family_1::own_folder("edit_page::save::audit::audit_5_1_b_a_late_picture_goes_to_no_other_page") {
+        return;
+    }
+    let dir = folder("five-one-b", &["a.png", "b.png"]);
+    let mut h = Harness::new(&dir);
+    let red = || {
+        let image = image::DynamicImage::ImageRgb8(image::RgbImage::from_pixel(8, 6, image::Rgb([255, 0, 0])));
+        let preview = crate::decode::preview(&image);
+        Ok((std::sync::Arc::new(crate::encode::Original::with_meta(image, &[])), preview, 0))
+    };
+    // The editor on a.png, closed, opened again on b.png; a.png's picture comes late.
+    editor(&mut h, "a.png");
+    let old = h.app.editor.as_ref().unwrap().asked;
+    h.app.editor = None;
+    editor(&mut h, "b.png");
+    let read = h.app.editor.as_ref().unwrap().full.clone().unwrap();
+    late(&mut h, crate::loader::Msg::Original(old, red()));
+    assert!(std::sync::Arc::ptr_eq(h.app.editor.as_ref().unwrap().full.as_ref().unwrap(), &read), "the editor's photo replaced by a late one");
+    // Save as… on b.png, closed and opened again; the late answer of the first.
+    h.app.editor = None;
+    let b = h.app.files().iter().find(|f| f.path.ends_with("b.png")).unwrap().path.clone();
+    h.app.open_convert(Some(b.clone()));
+    // Its own picture read first: the only one dropped is the one sent below.
+    h.until(|app| app.convert.as_ref().is_some_and(|w| w.read().is_some()), "the picture of Save as…");
+    let old = h.app.convert.as_ref().unwrap().asked;
+    h.app.convert = None;
+    h.app.open_convert(Some(b));
+    h.until(|app| app.convert.as_ref().is_some_and(|w| w.read().is_some()), "the picture of Save as…");
+    let read = h.app.convert.as_ref().unwrap().read().unwrap().clone();
+    late(&mut h, crate::loader::Msg::Original(old, red()));
+    assert!(std::sync::Arc::ptr_eq(h.app.convert.as_ref().unwrap().read().unwrap(), &read), "Save as…'s picture replaced by a late one");
+}
+
+/// `msg` sent as from the loader, and frames until the app has dropped it.
+fn late(h: &mut Harness, msg: crate::loader::Msg) {
+    let dropped = crate::convert::dropped();
+    h.app.tx.send(msg).unwrap();
+    h.until(|_| crate::convert::dropped() > dropped, "the late picture dropped");
 }
 
 /// Audit 5.11 (#201): Overwrite on a Motion Photo (a photo with its video after the picture). The

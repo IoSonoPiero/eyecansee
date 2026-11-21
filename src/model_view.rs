@@ -144,13 +144,13 @@ impl App {
 
     /// "Save in another format" from the viewer on a model: the picture as shown, at least
     /// `SHOT_SIDE` on the long side. `false` if no model is open.
-    pub(crate) fn convert_model(&mut self, path: &str) -> bool {
+    pub(crate) fn convert_model(&mut self, path: &str, asked: u64) -> bool {
         let Some((viewed, mesh)) = self.viewed_mesh().filter(|(p, _)| p == path) else { return false };
         let Some(loader) = &self.loader else { return false };
         let [w, h] = self.model.size.map(|v| v.max(1) as f32);
         let k = (SHOT_SIDE / w.max(h)).max(1.0);
         let size = self.files().iter().find(|f| f.path == viewed).map_or(0, |f| f.size);
-        loader.model_original(mesh, self.model.view, [(w * k) as u32, (h * k) as u32], size);
+        loader.model_original(asked, mesh, self.model.view, [(w * k) as u32, (h * k) as u32], size);
         true
     }
 

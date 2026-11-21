@@ -67,8 +67,9 @@ pub enum Msg {
     Pasted(Vec<String>, Result<(), source::Error>),
     /// Outcome of `update::check`: a newer version downloaded and checked, up to date, or an error.
     Update(Result<Option<crate::update::Ready>, String>),
-    /// "Save in another format": the original decoded, its preview and file size.
-    Original(Result<(Arc<crate::encode::Original>, ColorImage, u64), String>),
+    /// The picture of a page (Save in another format, the editor), with the number it was asked
+    /// with (`convert::ask`): the original decoded, its preview and file size.
+    Original(u64, Result<(Arc<crate::encode::Original>, ColorImage, u64), String>),
     /// The editor's result for the clipboard.
     EditCopy(ColorImage),
     /// The colour the editor's eyedropper took from the screen (`eyedropper::pick`).
@@ -368,7 +369,7 @@ impl Loader {
     /// `edit`: for the editor, which does not take animations and files of several pages
     /// (`edit_page::ANIMATED`). A picture too large for the memory is not decoded (over 32 MB not
     /// read past the header that tells so), unless `anyway` now or before: the page asks first.
-    pub fn load_original(&self, path: String, edit: bool, anyway: bool) {
+    pub fn load_original(&self, asked: u64, path: String, edit: bool, anyway: bool) {
         let (op, tx, ctx, anyway) = (self.op.clone(), self.tx.clone(), self.ctx.clone(), crate::view_memory::anyway(&self.base, &path, anyway));
         self.rt.spawn(async move {
             let (sibling, local) = (siblings(op.clone(), path.clone()), crate::occt::local(&op, &path));
@@ -396,13 +397,13 @@ impl Loader {
                 .unwrap_or_else(|e| Err(e.to_string())),
                 Err(e) => Err(e.message(|(_, detail)| detail)),
             };
-            let _ = tx.send(Msg::Original(r));
+            let _ = tx.send(Msg::Original(asked, r));
             ctx.request_repaint();
         });
     }
 
     /// A layout of a CAD drawing, as the viewer shows it, for "Save in another format".
-    pub fn drawing_original(&self, drawing: Arc<crate::cad::Drawing>, file_size: u64) {
+    pub fn drawing_original(&self, asked: u64, drawing: Arc<crate::cad::Drawing>, file_size: u64) {
         let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
         self.rt.spawn_blocking(move || {
             let r = decode::cad_render(&drawing, decode::CAD_SIDE, None).map(|img| {
@@ -410,13 +411,13 @@ impl Loader {
                 let preview = decode::preview(&image);
                 (Arc::new(crate::encode::Original::with_meta(image, &[])), preview, file_size)
             });
-            let _ = tx.send(Msg::Original(r));
+            let _ = tx.send(Msg::Original(asked, r));
             ctx.request_repaint();
         });
     }
 
     /// The 3D model in the viewer as the camera shows it, for "Save in another format" (as `load_original`).
-    pub fn model_original(&self, mesh: Arc<crate::model::Mesh>, view: crate::render3d::View, size: [u32; 2], file_size: u64) {
+    pub fn model_original(&self, asked: u64, mesh: Arc<crate::model::Mesh>, view: crate::render3d::View, size: [u32; 2], file_size: u64) {
         let (tx, ctx) = (self.tx.clone(), self.ctx.clone());
         self.rt.spawn_blocking(move || {
             // Opaque: no note about transparency in the window.
@@ -424,21 +425,21 @@ impl Loader {
             let preview = decode::preview(&image);
             let mut original = crate::encode::Original::with_meta(image, &[]);
             original.notes = mesh.warnings.clone();
-            let _ = tx.send(Msg::Original(Ok((Arc::new(original), preview, file_size))));
+            let _ = tx.send(Msg::Original(asked, Ok((Arc::new(original), preview, file_size))));
             ctx.request_repaint();
         });
     }
 
     /// The frame of a paused video (#16), sent by the player to `image`, as the original of
     /// Save as…, with the video's metadata (`video_frame::original`).
-    pub fn frame_original(&self, path: String, at: f64, image: std::sync::mpsc::Receiver<image::RgbaImage>) {
+    pub fn frame_original(&self, asked: u64, path: String, at: f64, image: std::sync::mpsc::Receiver<image::RgbaImage>) {
         let (op, tx, ctx) = (self.op.clone(), self.tx.clone(), self.ctx.clone());
         self.rt.spawn(async move {
             let r = crate::video_frame::original(&op, &path, at, image).await;
             if let Err(e) = &r {
                 log!("frame of {path:?}: ERROR {e}");
             }
-            let _ = tx.send(Msg::Original(r));
+            let _ = tx.send(Msg::Original(asked, r));
             ctx.request_repaint();
         });
     }

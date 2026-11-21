@@ -288,14 +288,14 @@ pub(crate) fn asked<T>(original: Option<&Result<T, String>>) -> Option<u64> {
 impl App {
     /// Over a page (the editor with `edit`, Save as…) whose picture was not read as too large for
     /// the memory, the question: Open anyway reads it again whatever it needs, Cancel closes the
-    /// page (`false`).
-    pub(crate) fn big_picture_page<T>(&mut self, ctx: &egui::Context, original: &mut Option<Result<T, String>>, path: &str, edit: bool) -> bool {
+    /// page (`false`). Asked again with the page's number (`number`, #200).
+    pub(crate) fn big_picture_page<T>(&mut self, ctx: &egui::Context, original: &mut Option<Result<T, String>>, (path, number): (&str, u64), edit: bool) -> bool {
         let Some(need) = asked(original.as_ref()) else { return true };
         match self.big_picture_ask(ctx, need) {
             Some(true) => {
                 *original = None;
                 if let Some(loader) = &self.loader {
-                    loader.load_original(path.to_string(), edit, true);
+                    loader.load_original(number, path.to_string(), edit, true);
                 }
                 true
             }

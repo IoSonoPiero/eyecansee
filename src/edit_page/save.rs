@@ -376,12 +376,14 @@ impl App {
     }
 
     /// "Save in another format" with the result (objects too), made in the background
-    /// (`Msg::Original`, to it and not to the page: `messages.rs`); `true` once opened. The
+    /// (`Msg::Original` with its number, to it and not to the page: `convert::on_original`, #200);
+    /// `true` once opened. The
     /// picture alone, but an Ultra HDR photo saved there as JPEG stays one, its gain map edited
     /// as the photo (#66): for that the file is read, if no save read it yet.
     pub(super) fn rotate_save_as(&mut self, ctx: &egui::Context, w: &Window) -> bool {
         let Some(Ok((original, _, size))) = &w.original else { return false };
-        let (original, doc, size, tx, ctx) = (original.clone(), w.doc.clone(), *size, self.tx.clone(), ctx.clone());
+        let convert = w.save_as_page(self.viewing.is_some());
+        let (original, doc, size, tx, ctx, asked) = (original.clone(), w.doc.clone(), *size, self.tx.clone(), ctx.clone(), convert.asked);
         let jpeg = crate::encode::Format::of_file(&w.path) == Some(crate::encode::Format::Jpeg);
         let (store, path, bytes) = (w.place.as_ref().map(|p| p.store.clone()).filter(|_| jpeg), w.path.clone(), w.bytes.clone());
         self.rt.spawn(async move {
@@ -400,12 +402,12 @@ impl App {
                 (o, preview)
             });
             if let Ok((o, preview)) = made.await
-                && tx.send(crate::loader::Msg::Original(Ok((Arc::new(o), preview, size)))).is_ok()
+                && tx.send(crate::loader::Msg::Original(asked, Ok((Arc::new(o), preview, size)))).is_ok()
             {
                 ctx.request_repaint();
             }
         });
-        self.convert = Some(w.save_as_page(self.viewing.is_some()));
+        self.convert = Some(convert);
         true
     }
 

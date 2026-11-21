@@ -252,6 +252,9 @@ pub struct Window {
     saving_as: bool,
     /// A new image (File > New image…): no file yet, its Save is Save as….
     new: bool,
+    /// The number of the picture this page asked for (`convert::ask`): another is not its own
+    /// (#200).
+    pub(crate) asked: u64,
 }
 
 impl Window {
@@ -259,6 +262,7 @@ impl Window {
         // JPEG has no transparency: white there, transparent elsewhere.
         let transparent = Format::of_file(&path) != Some(Format::Jpeg);
         Window {
+            asked: crate::convert::ask(),
             path,
             place: None,
             original: None,
@@ -644,7 +648,7 @@ impl App {
             open = false;
         } else {
             open &= self.edit_not_ready(ui, &w);
-            open &= self.big_picture_page(ui.ctx(), &mut w.original, &w.path, true);
+            open &= self.big_picture_page(ui.ctx(), &mut w.original, (&w.path, w.asked), true);
         }
         // Closing (Esc, ✕, Close) with changes not saved: asked first.
         if !open && w.changed() && w.ready.is_none() {

@@ -62,6 +62,25 @@ pub struct Window {
     /// The frame of a video (#16): its time in seconds. Like a new image, no file of its own to
     /// compare sizes with; the viewer stays on the video once it is saved.
     frame: Option<f64>,
+    /// The number of the picture this page asked for (`ask`): another is not its own (#200).
+    pub(crate) asked: u64,
+}
+
+/// A number for a picture asked for a page (the editor, Save as…), sent back with it in
+/// `Msg::Original`: a picture asked for a page closed meanwhile goes to no other (#200; until
+/// 0.77.0 the result of Save as… cancelled became the editor's photo).
+pub(crate) fn ask() -> u64 {
+    static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+    NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed)
+}
+
+/// Pictures dropped because no page open asked for them: the tests wait for one.
+#[cfg(test)]
+static DROPPED: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+#[cfg(test)]
+pub(crate) fn dropped() -> u64 {
+    DROPPED.load(std::sync::atomic::Ordering::Relaxed)
 }
 
 impl Window {
@@ -98,7 +117,14 @@ impl Window {
             picker: None,
             from_viewer: false,
             frame: None,
+            asked: ask(),
         }
+    }
+
+    /// The picture read, for the tests.
+    #[cfg(test)]
+    pub(crate) fn read(&self) -> Option<&Arc<Original>> {
+        self.original.as_ref().and_then(|o| o.as_ref().ok()).map(|(o, ..)| o)
     }
 }
 
@@ -106,18 +132,18 @@ impl crate::App {
     pub(crate) fn open_convert(&mut self, path: Option<String>) {
         let Some(path) = path.or_else(|| self.target()).filter(|p| !p.ends_with('/')) else { return };
         // A video in the viewer: its frame, paused (already turned as shown).
+        let mut w = Window::new(path.clone());
         let frame = if crate::decode::is_played(&path) {
-            let Some(at) = self.convert_frame(&path) else { return };
+            let Some(at) = self.convert_frame(&path, w.asked) else { return };
             Some(at)
         } else {
             None
         };
         // A 3D model in the viewer: its picture as shown.
-        if frame.is_none() && !self.convert_model(&path) && !self.convert_sheet(&path) {
+        if frame.is_none() && !self.convert_model(&path, w.asked) && !self.convert_sheet(&path, w.asked) {
             let Some(loader) = &self.loader else { return };
-            loader.load_original(path.clone(), false, false);
+            loader.load_original(w.asked, path, false, false);
         }
-        let mut w = Window::new(path);
         if let Some(at) = frame {
             w.frame = Some(at);
             w.name = crate::video_frame::frame_name(crate::source::name(&w.path), at, w.options.format);
@@ -151,6 +177,20 @@ impl crate::App {
             let halves = crate::mipmap::picture_halves(&preview);
             (original, Picture::new(ctx, "convert-original", preview, halves), size)
         }));
+    }
+
+    /// A picture read for a page (`Msg::Original`): to the one that asked for it (`asked`), Save
+    /// as… or the editor; one asked for a page closed since goes to none (#200).
+    pub(crate) fn on_original(&mut self, ctx: &egui::Context, asked: u64, r: Result<(Arc<Original>, ColorImage, u64), String>) {
+        if self.convert.as_ref().is_some_and(|w| w.asked == asked) {
+            self.convert_original(ctx, r);
+        } else if self.editor.as_ref().is_some_and(|w| w.asked == asked) {
+            self.editor_original(ctx, r);
+        } else {
+            log!("picture {asked} dropped: its page is closed");
+            #[cfg(test)]
+            DROPPED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
     }
 
     pub(crate) fn convert_encoded(&mut self, ctx: &egui::Context, generation: u64, r: Result<(Arc<Vec<u8>>, Option<ColorImage>), String>) {
@@ -269,7 +309,7 @@ impl crate::App {
             }
         }
         self.convert_pick(ctx, &mut w);
-        open &= self.big_picture_page(ctx, &mut w.original, &w.path, false);
+        open &= self.big_picture_page(ctx, &mut w.original, (&w.path, w.asked), false);
         // Taken out while drawn (it needs the rest of the app), put back unless closed.
         if open {
             self.convert = Some(w);
