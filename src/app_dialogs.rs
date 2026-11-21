@@ -94,7 +94,7 @@ impl App {
     }
 
     /// After the Options window: what a changed setting needs at once, then the settings saved.
-    fn options_changed(&mut self, ctx: &egui::Context, before: &Settings) {
+    pub(crate) fn options_changed(&mut self, ctx: &egui::Context, before: &Settings) {
         if self.settings.language != before.language {
             log!("language {:?}", self.settings.language);
             self.i18n = I18n::detect(self.settings.language.as_deref());
@@ -251,11 +251,7 @@ fn general_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, languages: &[(&
     ui.radio_value(&mut s.window_start, WindowStart::Maximized, t("opt-window-maximized"));
     ui.radio_value(&mut s.window_start, WindowStart::Remember, t("opt-window-remember"));
     ui.add_space(6.0);
-    ui.label(t("opt-language"));
-    ui.radio_value(&mut s.language, None, t("opt-language-system"));
-    for (code, name) in languages {
-        ui.radio_value(&mut s.language, Some(code.to_string()), name);
-    }
+    language_rows(ui, &mut s.language, i18n, languages);
     // The Flatpak and the Fedora package are updated by the system; the Store copy asks the Store
     // (`update::Kind::Store`).
     if !crate::update::by_system() {
@@ -264,12 +260,26 @@ fn general_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n, languages: &[(&
     }
 }
 
+/// The language, as in Options > General and on the first-start window's welcome page (#212).
+pub(crate) fn language_rows(ui: &mut egui::Ui, language: &mut Option<String>, i18n: &I18n, languages: &[(&'static str, String)]) {
+    ui.label(i18n.t("opt-language"));
+    ui.radio_value(language, None, i18n.t("opt-language-system"));
+    for (code, name) in languages {
+        ui.radio_value(language, Some(code.to_string()), name);
+    }
+}
+
+/// The colors, as in Options > Look and on the first-start window's welcome page (#212).
+pub(crate) fn theme_rows(ui: &mut egui::Ui, theme: &mut ThemeChoice, i18n: &I18n) {
+    ui.label(i18n.t("opt-theme"));
+    ui.radio_value(theme, ThemeChoice::System, i18n.t("opt-theme-system"));
+    ui.radio_value(theme, ThemeChoice::Light, i18n.t("opt-theme-light"));
+    ui.radio_value(theme, ThemeChoice::Dark, i18n.t("opt-theme-dark"));
+}
+
 fn look_tab(ui: &mut egui::Ui, s: &mut Settings, i18n: &I18n) {
     let t = |id| i18n.t(id);
-    ui.label(t("opt-theme"));
-    ui.radio_value(&mut s.theme, ThemeChoice::System, t("opt-theme-system"));
-    ui.radio_value(&mut s.theme, ThemeChoice::Light, t("opt-theme-light"));
-    ui.radio_value(&mut s.theme, ThemeChoice::Dark, t("opt-theme-dark"));
+    theme_rows(ui, &mut s.theme, i18n);
     ui.add_space(6.0);
     ui.checkbox(&mut s.smooth, t("opt-smooth")).on_hover_text(t("opt-smooth-hint"));
     ui.add_enabled_ui(s.smooth, |ui| {
