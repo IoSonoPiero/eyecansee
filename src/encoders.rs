@@ -41,7 +41,8 @@ pub(crate) fn jpeg(img: &DynamicImage, o: &Options, b: &Blocks) -> Result<Vec<u8
 
 /// After SOI (and the JFIF APP0, which must come first): APP1 "Exif", APP1 XMP and those of its
 /// extended part, the profile in
-/// APP2 "ICC_PROFILE" pieces of at most 65519 bytes, APP13 Photoshop with the IPTC. EXIF, XMP or
+/// APP2 "ICC_PROFILE" pieces of at most 65519 bytes, APP13 Photoshop with the IPTC, then the
+/// comments of a JPEG original. EXIF, XMP or
 /// Photoshop block too big for one segment is left out.
 fn jpeg_meta(file: Vec<u8>, b: &Blocks) -> Vec<u8> {
     if !file.starts_with(&[0xFF, 0xD8]) {
@@ -75,6 +76,10 @@ fn jpeg_meta(file: Vec<u8>, b: &Blocks) -> Vec<u8> {
     }
     if let Some(irb) = b.irb.as_deref().filter(|x| x.len() <= 65533 - JPEG_PHOTOSHOP.len()) {
         segment(0xED, &[JPEG_PHOTOSHOP, irb]);
+    }
+    // The comments of a JPEG written again as JPEG (#218).
+    for c in b.jpeg_comments.iter().filter(|c| c.len() <= 65533) {
+        segment(0xFE, &[c]);
     }
     out.extend_from_slice(&file[at..]);
     out

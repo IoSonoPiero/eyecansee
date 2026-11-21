@@ -6,6 +6,7 @@
 pub mod density;
 pub mod jfif;
 pub mod jpeg_quality;
+pub mod texts;
 use std::io::Cursor;
 
 use image::codecs::{bmp, farbfeld, gif, hdr, ico, openexr, png, pnm, qoi, tga};
@@ -259,6 +260,8 @@ pub struct Original {
     /// What was read differently from a 3D model's file (`Mesh::warnings`): Save as… says the
     /// new file has it so (#179). Not written into the file.
     pub notes: Vec<&'static str>,
+    /// The texts of a PNG and its colour chunks, the comments of a JPEG or a GIF (#218).
+    texts: texts::Texts,
 }
 
 /// The metadata of a file being written, made to fit its pixels (`Original::blocks`).
@@ -271,6 +274,11 @@ pub(crate) struct Blocks {
     /// The original's pixel density, turned with the pixels; each encoder writes it where its
     /// format keeps it (the EXIF already has it).
     pub density: Option<density::Density>,
+    /// The text chunks of a PNG for a PNG, its colour chunks (`texts::Texts`).
+    pub png_text: Vec<([u8; 4], Vec<u8>)>,
+    pub png_color: Vec<([u8; 4], Vec<u8>)>,
+    /// The comments of a JPEG for a JPEG.
+    pub jpeg_comments: Vec<Vec<u8>>,
 }
 
 impl Original {
@@ -324,7 +332,8 @@ impl Original {
         }
         let density = density::read(bytes, exif.as_deref(), x.irb.as_deref());
         let sidecar = sidecar.map(<[u8]>::to_vec);
-        Original { xmp_ext, jpeg: jpeg_quality::of(bytes), density, sidecar, ..Original::upright(image, exif, icc.or(x.icc), x.xmp, x.irb) }
+        let texts = texts::read(bytes);
+        Original { xmp_ext, jpeg: jpeg_quality::of(bytes), density, sidecar, texts, ..Original::upright(image, exif, icc.or(x.icc), x.xmp, x.irb) }
     }
 
     /// A picture made here (a video's frame, #16) with the EXIF made for it.
@@ -337,7 +346,7 @@ impl Original {
         if let Some(chunk) = &mut exif {
             let _ = Orientation::remove_from_exif_chunk(chunk);
         }
-        Original { image, exif, icc, xmp, irb, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None, notes: Vec::new() }
+        Original { image, exif, icc, xmp, irb, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None, notes: Vec::new(), texts: texts::Texts::default() }
     }
 
     /// For a picture written without what followed it in the file (Motion Photo video, Ultra HDR
@@ -351,7 +360,8 @@ impl Original {
     /// `image` with this one's metadata, without copying these pixels (the editor's Resize).
     pub fn with_image(&self, image: DynamicImage) -> Original {
         let (exif, icc, xmp, irb, xmp_ext) = (self.exif.clone(), self.icc.clone(), self.xmp.clone(), self.irb.clone(), self.xmp_ext.clone());
-        Original { image, exif, icc, xmp, irb, xmp_ext, jpeg: self.jpeg, density: self.density, hdr: self.hdr.clone(), sidecar: self.sidecar.clone(), notes: self.notes.clone() }
+        let texts = self.texts.clone();
+        Original { image, exif, icc, xmp, irb, xmp_ext, jpeg: self.jpeg, density: self.density, hdr: self.hdr.clone(), sidecar: self.sidecar.clone(), notes: self.notes.clone(), texts }
     }
 
     /// The pixels were turned by `turn` after this was made (the editor, Convert and resize):
@@ -366,7 +376,7 @@ impl Original {
     /// Has something "Keep the metadata" keeps: a pixel density alone counts too, so that it can
     /// be left out.
     pub fn has_meta(&self) -> bool {
-        self.exif.is_some() || self.icc.is_some() || self.xmp.is_some() || self.irb.is_some() || self.density.is_some()
+        self.exif.is_some() || self.icc.is_some() || self.xmp.is_some() || self.irb.is_some() || self.density.is_some() || !self.texts.is_empty()
     }
 
     /// "Keep the metadata" for a `format` file: whether it can be changed (something of this
@@ -388,10 +398,13 @@ impl Original {
     /// (they showed the original), the Camera Raw settings of the XMP marked as already in the
     /// pixels (`xmp::fix`). As `keep` says (#55): without the place, the GPS of the EXIF and the
     /// place in the XMP and the IPTC go (an XMP that cannot be read goes whole); with nothing, only
-    /// the colour profile stays, which the picture needs to look right.
+    /// the colour profile stays, which the picture needs to look right (and the colour chunks of
+    /// a PNG, #218). The texts of a PNG and the comments of a JPEG stay in a file of the same
+    /// format, and go into the XMP of the others (`texts::Texts::for_xmp`).
     fn blocks(&self, format: Format, w: u32, h: u32, sideways: bool, keep: Keep) -> Blocks {
+        let png_color = self.texts.png_color.clone();
         if keep == Keep::Nothing {
-            return Blocks { icc: self.icc.clone(), ..Blocks::default() };
+            return Blocks { icc: self.icc.clone(), png_color, ..Blocks::default() };
         }
         let no_place = keep == Keep::NoPlace;
         let mut exif = self.exif.clone();
@@ -412,8 +425,10 @@ impl Original {
         // The extended XMP of a JPEG joins the main packet, fitted and without the place as it; a
         // JPEG written splits it again when it is too large for one segment (`xmp_ext::split`).
         let ext = crate::meta_write::xmp_ext_packet(&self.xmp_ext);
-        let xmp = if no_place { crate::xmp::fit_without_place(self.xmp.as_deref(), w, h, iim, ext.as_deref()) } else { crate::xmp::fit_with(self.xmp.as_deref(), w, h, iim, ext.as_deref()) };
-        Blocks { exif, icc: self.icc.clone(), xmp, irb, density }
+        let fields = self.texts.for_xmp(format);
+        let xmp = if no_place { crate::xmp::fit_without_place(self.xmp.as_deref(), w, h, iim, ext.as_deref(), fields) } else { crate::xmp::fit_with(self.xmp.as_deref(), w, h, iim, ext.as_deref(), fields) };
+        let (png_text, jpeg_comments) = (self.texts.png_text.clone(), self.texts.jpeg_comments.clone());
+        Blocks { exif, icc: self.icc.clone(), xmp, irb, density, png_text, png_color, jpeg_comments }
     }
 
     /// The file as it would be saved.
@@ -458,6 +473,8 @@ impl Original {
                 }
                 img.write_with_encoder(e).map_err(|e| e.to_string())?;
                 let file = crate::meta_write::png_chunks(out.into_inner(), b.xmp.as_deref(), b.irb.as_deref());
+                // The colour chunks only without a profile: the profile says it all.
+                let file = texts::set_png(file, &b.png_text, if b.icc.is_none() { &b.png_color } else { &[] });
                 return Ok(match b.density {
                     Some(d) => density::set_png(file, d),
                     None => file,
@@ -602,7 +619,7 @@ pub(crate) mod tests {
         let xmp = crate::xmp::tests::SAMPLE.as_bytes().to_vec();
         let iim = crate::xmp::tests::iim(&[(80, "Ann"), (90, "Québec")]);
         let irb = [crate::meta_write::resource(1036, &[1; 9]), crate::meta_write::irb_of_iim(&iim)].concat();
-        let original = Original { image: DynamicImage::ImageRgba8(img), exif: Some(exif.clone()), icc: Some(icc.clone()), xmp: Some(xmp), irb: Some(irb), xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None, notes: Vec::new() };
+        let original = Original { image: DynamicImage::ImageRgba8(img), exif: Some(exif.clone()), icc: Some(icc.clone()), xmp: Some(xmp), irb: Some(irb), xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None, notes: Vec::new(), texts: texts::Texts::default() };
         let d = Options::default();
         let variants = [
             Options { format: Format::Jpeg, ..d },
@@ -784,7 +801,7 @@ pub(crate) mod tests {
         for little in [false, true] {
             let mut exif = Cursor::new(Vec::new());
             w.write(&mut exif, little).unwrap();
-            let original = Original { image: DynamicImage::new_rgb8(8, 6), exif: Some(exif.into_inner()), icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None, notes: Vec::new() };
+            let original = Original { image: DynamicImage::new_rgb8(8, 6), exif: Some(exif.into_inner()), icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None, notes: Vec::new(), texts: texts::Texts::default() };
             let bytes = original.encode(&Options { format: Format::Tiff, ..Default::default() }).unwrap();
             let back = exif::Reader::new().read_from_container(&mut Cursor::new(&bytes)).unwrap();
             for f in &fields {
@@ -799,7 +816,7 @@ pub(crate) mod tests {
     /// formats only "Save as…" writes are not saved back over an original.
     #[test]
     fn ico_and_save_back() {
-        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None, notes: Vec::new() };
+        let original = Original { image: DynamicImage::ImageRgb8(image::RgbImage::new(600, 300)), exif: None, icc: None, xmp: None, irb: None, xmp_ext: Vec::new(), jpeg: None, density: None, hdr: None, sidecar: None, notes: Vec::new(), texts: texts::Texts::default() };
         let bytes = original.encode(&Options { format: Format::Ico, ..Default::default() }).unwrap();
         let back = crate::decode::decode_full(&bytes, "x.ico").unwrap();
         assert_eq!((back.width(), back.height()), (256, 128));
@@ -878,6 +895,75 @@ pub(crate) mod tests {
         let colour = Original { icc: Some(rgb.clone()), ..Original::with_meta(DynamicImage::new_rgb8(160, 160), &[]) };
         for f in [Format::Png, Format::Jpeg, Format::Webp, Format::Tiff] {
             assert_eq!(back(&colour.encode(&to(f)).unwrap()).as_ref(), Some(&rgb), "RGB in {f:?}");
+        }
+    }
+
+    /// Every chunk of a PNG up to IEND: kind and data.
+    pub(crate) fn png_all_chunks(png: &[u8]) -> Vec<([u8; 4], Vec<u8>)> {
+        let mut v = Vec::new();
+        let mut i = 8;
+        while let Some(head) = png.get(i..i + 8) {
+            let len = u32::from_be_bytes([head[0], head[1], head[2], head[3]]) as usize;
+            v.push((head[4..8].try_into().unwrap(), png[i + 8..i + 8 + len].to_vec()));
+            i += 12 + len;
+        }
+        v
+    }
+
+    /// A PNG with the texts a program writes (a title in tEXt, a description compressed in zTXt,
+    /// an author in UTF-8 in iTXt, a copyright, the parameters of an image generator) and a gamma
+    /// chunk, without a colour profile.
+    pub(crate) fn png_with_texts() -> Vec<u8> {
+        let mut png = Vec::new();
+        DynamicImage::ImageRgb8(image::RgbImage::new(8, 6)).write_to(&mut Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        let mut z = flate2::write::ZlibEncoder::new(Vec::new(), flate2::Compression::default());
+        std::io::Write::write_all(&mut z, b"A walk by the sea").unwrap();
+        let mut extra = Vec::new();
+        crate::meta_write::chunk(&mut extra, b"gAMA", &45455u32.to_be_bytes());
+        crate::meta_write::chunk(&mut extra, b"tEXt", b"Title\0Sea \xe0 l'aube");
+        crate::meta_write::chunk(&mut extra, b"zTXt", &[&b"Description\0\0"[..], &z.finish().unwrap()].concat());
+        crate::meta_write::chunk(&mut extra, b"iTXt", "Author\0\0\0it\0Autore\0Zoë Rossi".as_bytes());
+        crate::meta_write::chunk(&mut extra, b"tEXt", b"Copyright\0CC BY 4.0");
+        crate::meta_write::chunk(&mut extra, b"tEXt", b"parameters\0a lighthouse, steps 30");
+        crate::meta_write::chunk(&mut extra, b"tEXt", b"Comment\0made at dawn");
+        let at = png.windows(4).position(|w| w == b"IDAT").unwrap() - 4;
+        png.splice(at..at, extra);
+        png
+    }
+
+    /// The texts of a PNG and its gamma reach a PNG made from it as they were, and the XMP of
+    /// the other formats as title, author, description, copyright and comment (#218). A JPEG's
+    /// comment stays in a JPEG written again, and goes into the XMP of the other formats, as a
+    /// GIF's.
+    #[test]
+    fn texts_and_comments_kept() {
+        let png = png_with_texts();
+        let original = Original::with_meta(crate::decode::decode_full(&png, "x.png").unwrap(), &png);
+        let copy = original.encode(&Options { format: Format::Png, ..Default::default() }).unwrap();
+        let kept = png_all_chunks(&copy);
+        for c in png_all_chunks(&png).into_iter().filter(|(k, _)| matches!(k, b"gAMA" | b"tEXt" | b"zTXt" | b"iTXt")) {
+            assert!(kept.contains(&c), "{} {:?} not in the copy", String::from_utf8_lossy(&c.0), String::from_utf8_lossy(&c.1));
+        }
+        for format in [Format::Jpeg, Format::Webp, Format::Tiff, Format::Avif] {
+            let file = original.encode(&Options { format, ..Default::default() }).unwrap();
+            let xmp = Original::with_meta(DynamicImage::new_rgb8(1, 1), &file).xmp.map(|x| String::from_utf8(x).unwrap()).unwrap_or_default();
+            for text in ["<dc:title><rdf:Alt><rdf:li xml:lang=\"x-default\">Sea à l&apos;aube</rdf:li>", "<dc:creator><rdf:Seq><rdf:li>Zoë Rossi</rdf:li>", ">A walk by the sea</rdf:li>", ">CC BY 4.0</rdf:li>", "<exif:UserComment><rdf:Alt><rdf:li xml:lang=\"x-default\">made at dawn</rdf:li>"] {
+                assert!(xmp.contains(text), "{format:?}: {text} not in {xmp}");
+            }
+        }
+        let mut jpeg = Vec::new();
+        DynamicImage::ImageRgb8(image::RgbImage::new(8, 6)).write_to(&mut Cursor::new(&mut jpeg), image::ImageFormat::Jpeg).unwrap();
+        let jpeg = [&jpeg[..2], &[0xFF, 0xFE, 0, 8], b"a note", &jpeg[2..]].concat();
+        let again = Original::with_meta(crate::decode::decode_full(&jpeg, "x.jpg").unwrap(), &jpeg).encode(&Options::default()).unwrap();
+        assert!(crate::ultrahdr::segments(&again).iter().any(|&(m, s, e)| m == 0xFE && &again[s + 4..e] == b"a note"), "the comment is lost");
+        let mut gif = Vec::new();
+        DynamicImage::ImageRgb8(image::RgbImage::new(8, 6)).write_to(&mut Cursor::new(&mut gif), image::ImageFormat::Gif).unwrap();
+        let end = gif.len() - 1;
+        gif.splice(end..end, [&[0x21, 0xFE, 7][..], b"a frame", &[0]].concat());
+        for (file, name, comment) in [(jpeg, "x.jpg", "a note"), (gif, "x.gif", "a frame")] {
+            let other = Original::with_meta(crate::decode::decode_full(&file, name).unwrap(), &file).encode(&Options { format: Format::Png, ..Default::default() }).unwrap();
+            let xmp = Original::with_meta(DynamicImage::new_rgb8(1, 1), &other).xmp.map(|x| String::from_utf8(x).unwrap()).unwrap_or_default();
+            assert!(xmp.contains(&format!("<exif:UserComment><rdf:Alt><rdf:li xml:lang=\"x-default\">{comment}</rdf:li>")), "{name}: {xmp}");
         }
     }
 }

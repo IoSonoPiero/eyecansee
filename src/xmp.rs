@@ -3,12 +3,15 @@
 //! XMP thumbnail and the description of a Motion Photo's video (never written again) taken out,
 //! the Camera Raw / Lightroom settings (`crs:`) marked as already in the pixels (`fix`),
 //! everything else (author, copyright, licence, descriptions, keywords…) kept as it was. For WebP and AVIF, which have no place for IPTC, the IPTC fields go into the
-//! XMP as Adobe and the IPTC Core map them, when the XMP does not have them already.
+//! XMP as Adobe and the IPTC Core map them, when the XMP does not have them already; so do the
+//! texts of a PNG and the comments of a JPEG or a GIF in a file of another format (#218).
 
 use quick_xml::Writer;
 use quick_xml::events::{BytesStart, BytesText, Event};
 use quick_xml::name::{PrefixDeclaration, ResolveResult};
 use quick_xml::reader::NsReader;
+
+use crate::encode::texts::Field;
 
 pub(crate) const CRS: &str = "http://ns.adobe.com/camera-raw-settings/1.0/";
 const XAP: &str = "http://ns.adobe.com/xap/1.0/";
@@ -108,24 +111,26 @@ const EMPTY: &str = "<?xpacket begin=\"\u{feff}\" id=\"W5M0MpCehiHzreSzNTczkc9d\
 /// with the fields of the IPTC-IIM `iim` it does not have. A packet that is not well-formed XML is
 /// returned as it was.
 pub fn fit(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>) -> Option<Vec<u8>> {
-    fit_with(xmp, w, h, iim, None)
+    fit_with(xmp, w, h, iim, None, &[])
 }
 
 /// As `fit`, with the descriptions of the extended XMP `ext` of a JPEG (`meta_write::xmp_ext_packet`)
 /// put into the main packet (a JPEG splits it again when it is too large: `xmp_ext::split`); if
-/// that cannot be read, the main packet alone.
-pub fn fit_with(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&[u8]>) -> Option<Vec<u8>> {
-    fit_how(xmp, w, h, iim, ext, How::default())
+/// that cannot be read, the main packet alone. The `texts` of a PNG, a JPEG or a GIF (#218) are
+/// added as the IPTC fields, after them.
+pub fn fit_with(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&[u8]>, texts: &[(Field, String)]) -> Option<Vec<u8>> {
+    fit_how(xmp, w, h, (iim, texts), ext, How::default())
 }
 
 /// As `fit_with`, without the place (#55): a packet that is not well-formed XML goes whole, since
 /// what it holds cannot be told.
-pub fn fit_without_place(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&[u8]>) -> Option<Vec<u8>> {
-    fit_how(xmp, w, h, iim, ext, How { no_place: true, ..How::default() })
+pub fn fit_without_place(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&[u8]>, texts: &[(Field, String)]) -> Option<Vec<u8>> {
+    fit_how(xmp, w, h, (iim, texts), ext, How { no_place: true, ..How::default() })
 }
 
-fn fit_how(xmp: Option<&[u8]>, w: u32, h: u32, iim: Option<&[u8]>, ext: Option<&[u8]>, how: How) -> Option<Vec<u8>> {
-    let props = iim.map(iim_props).unwrap_or_default();
+fn fit_how(xmp: Option<&[u8]>, w: u32, h: u32, (iim, texts): (Option<&[u8]>, &[(Field, String)]), ext: Option<&[u8]>, how: How) -> Option<Vec<u8>> {
+    let mut props = iim.map(iim_props).unwrap_or_default();
+    add_texts(&mut props, texts);
     let xmp = xmp.map(without_video_item);
     let xmp = match xmp.as_deref() {
         Some(x) => x,
@@ -350,7 +355,8 @@ enum Kind {
 
 #[derive(PartialEq, Debug)]
 struct Prop {
-    dc: bool,
+    /// "dc", "photoshop" or "exif".
+    prefix: &'static str,
     name: &'static str,
     kind: Kind,
     values: Vec<String>,
@@ -395,22 +401,52 @@ fn iim_props(iim: &[u8]) -> Vec<Prop> {
         match props.iter_mut().find(|p| p.name == name) {
             Some(p) if matches!(kind, Kind::Seq | Kind::Bag) => p.values.push(text),
             Some(_) => {}
-            None => props.push(Prop { dc, name, kind, values: vec![text] }),
+            None => props.push(Prop { prefix: if dc { "dc" } else { "photoshop" }, name, kind, values: vec![text] }),
         }
     }
     props
 }
 
+/// The texts of a PNG, a JPEG or a GIF (#218) as properties, after those of the IPTC: title,
+/// authors, description and copyright in Dublin Core, the comment as exif:UserComment. A
+/// property the IPTC already gives stays the IPTC's.
+fn add_texts(props: &mut Vec<Prop>, texts: &[(Field, String)]) {
+    let from_iptc = props.len();
+    for (field, text) in texts {
+        let (prefix, name, kind) = match field {
+            Field::Title => ("dc", "title", Kind::Alt),
+            Field::Author => ("dc", "creator", Kind::Seq),
+            Field::Description => ("dc", "description", Kind::Alt),
+            Field::Copyright => ("dc", "rights", Kind::Alt),
+            Field::Comment => ("exif", "UserComment", Kind::Alt),
+        };
+        match props.iter().position(|p| p.prefix == prefix && p.name == name) {
+            Some(at) if at >= from_iptc && kind == Kind::Seq => props[at].values.push(text.clone()),
+            Some(_) => {}
+            None => props.push(Prop { prefix, name, kind, values: vec![text.clone()] }),
+        }
+    }
+}
+
+/// The namespace of a property's prefix (`Prop`).
+fn namespace(prefix: &str) -> &'static str {
+    match prefix {
+        "dc" => DC,
+        "photoshop" => PHOTOSHOP,
+        _ => EXIF,
+    }
+}
+
 /// An `rdf:Description` with the IPTC fields the XMP does not have yet (empty if none).
 fn description(props: &[Prop], seen: &[(String, String)]) -> String {
-    let missing: Vec<&Prop> = props.iter().filter(|p| !seen.iter().any(|(ns, l)| ns == if p.dc { DC } else { PHOTOSHOP } && l == p.name)).collect();
+    let missing: Vec<&Prop> = props.iter().filter(|p| !seen.iter().any(|(ns, l)| ns == namespace(p.prefix) && l == p.name)).collect();
     if missing.is_empty() {
         return String::new();
     }
     let esc = |s: &str| quick_xml::escape::escape(s).into_owned();
-    let mut d = format!("<rdf:Description rdf:about=\"\" xmlns:dc=\"{DC}\" xmlns:photoshop=\"{PHOTOSHOP}\">");
+    let mut d = format!("<rdf:Description rdf:about=\"\" xmlns:dc=\"{DC}\" xmlns:photoshop=\"{PHOTOSHOP}\" xmlns:exif=\"{EXIF}\">");
     for p in missing {
-        let name = format!("{}:{}", if p.dc { "dc" } else { "photoshop" }, p.name);
+        let name = format!("{}:{}", p.prefix, p.name);
         let items = |tag: &str, lang: &str| format!("<rdf:{tag}>{}</rdf:{tag}>", p.values.iter().map(|v| format!("<rdf:li{lang}>{}</rdf:li>", esc(v))).collect::<String>());
         let inner = match p.kind {
             Kind::Text => esc(&p.values[0]),
