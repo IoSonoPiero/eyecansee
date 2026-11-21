@@ -532,7 +532,7 @@ pub(crate) fn md(s: &str) -> String {
 }
 
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     /// The message at the end says what was turned (#125): pictures, videos or both, in every
     /// language and number.
     #[test]
@@ -583,7 +583,7 @@ mod tests {
 
     /// Where each line of text of `shapes` was drawn: its words, its left edge, and the left edge
     /// of each of its rows.
-    fn drawn(shapes: &[eframe::egui::Shape], out: &mut Vec<(String, f32, Vec<f32>)>) {
+    pub(crate) fn drawn(shapes: &[eframe::egui::Shape], out: &mut Vec<(String, f32, Vec<f32>)>) {
         for s in shapes {
             match s {
                 eframe::egui::Shape::Vec(v) => drawn(v, out),

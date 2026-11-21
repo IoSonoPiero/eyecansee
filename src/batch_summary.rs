@@ -178,7 +178,7 @@ impl App {
                 ui.add_space(8.0);
                 // Hundreds of files left out: the window stays within the screen.
                 let max = ctx.content_rect().height() * 0.45;
-                egui::ScrollArea::vertical().max_height(max).auto_shrink([false, true]).show(ui, |ui| s.groups.iter().for_each(|g| group_ui(ui, g)));
+                egui::ScrollArea::vertical().max_height(max).auto_shrink([false, true]).show(ui, |ui| s.groups.iter().for_each(|g| group_ui(ui, g, None)));
             }
             ui.add_space(8.0);
             ui.horizontal(|ui| {
@@ -214,12 +214,13 @@ impl App {
 }
 
 /// A group: its heading in bold, as the headings of the other messages (`notice_list`), and the
-/// files; folded when long, its files then in line with those of the other groups.
-fn group_ui(ui: &mut egui::Ui, g: &Group) {
+/// files; folded when long, its files then in line with those of the other groups. `open`: a
+/// folded group held open or closed, whatever was clicked (`None` in the window: as clicked).
+fn group_ui(ui: &mut egui::Ui, g: &Group, open: Option<bool>) {
     let items: String = g.items.iter().map(|i| format!("- {i}\n")).collect();
     let heading = egui::RichText::new(&g.heading).family(egui::FontFamily::Name(crate::BOLD.into()));
     if g.items.len() > FOLD {
-        egui::CollapsingHeader::new(heading).default_open(false).show_unindented(ui, |ui| notice_text(ui, &items));
+        egui::CollapsingHeader::new(heading).default_open(false).open(open).show_unindented(ui, |ui| notice_text(ui, &items));
     } else {
         ui.add(egui::Label::new(heading).wrap());
         notice_text(ui, &items);
@@ -303,6 +304,34 @@ mod tests {
         assert_eq!((sentence.as_str(), apart), ("Cannot open p.dwg\nThe CAD engine is missing.", None));
         let g = groups(&en, &[crate::fault::not_opened("p.dwg", crate::occt::MISSING)], false);
         assert_eq!((g[0].items[0].as_str(), g[0].copied[0].as_str()), ("Cannot open p\\.dwg\\: The CAD engine is missing\\.", "Cannot open p\\.dwg\\: The CAD engine is missing\\."));
+    }
+
+    /// Two groups drawn through egui with the app's fonts, one folded (more than five files) and
+    /// opened: the files of both in line, bullets and names, as in the other messages; the
+    /// headings in the bold of the messages.
+    #[test]
+    fn groups_drawn_alike() {
+        let group = |heading: &str, n: usize| Group { heading: heading.into(), items: (1..=n).map(|i| md(&format!("{heading}-{i}.jpg"))).collect(), copied: Vec::new() };
+        let (short, long) = (group("short", 2), group("long", FOLD + 2));
+        let ctx = egui::Context::default();
+        ctx.set_fonts(crate::fonts::fonts());
+        let mut lines = Vec::new();
+        for frame in 0..6 {
+            let input = egui::RawInput { screen_rect: Some(egui::Rect::from_min_size(egui::Pos2::ZERO, egui::vec2(800.0, 600.0))), time: Some(frame as f64), ..Default::default() };
+            let mut out = ctx.run_ui(input, |ui| {
+                group_ui(ui, &short, None);
+                group_ui(ui, &long, Some(true));
+            });
+            out.textures_delta.clear();
+            lines.clear();
+            crate::save_dialogs::tests::drawn(&out.shapes.iter().map(|c| c.shape.clone()).collect::<Vec<_>>(), &mut lines);
+        }
+        let at = |words: &str| lines.iter().find(|(t, ..)| t == words).unwrap_or_else(|| panic!("{words:?} not drawn: {lines:?}")).1;
+        let bullets: Vec<f32> = lines.iter().filter(|(t, ..)| t == "•").map(|(_, x, _)| *x).collect();
+        assert_eq!(bullets.len(), FOLD + 4, "{lines:?}");
+        assert!(bullets.iter().all(|x| *x == bullets[0]), "bullets not in line: {bullets:?}");
+        assert!(at("short-1.jpg") == at("long-1.jpg") && at("long-7.jpg") == at("short-2.jpg") && at("short-1.jpg") > bullets[0], "{lines:?}");
+        assert!(at("short") < bullets[0], "{lines:?}");
     }
 
     /// Copy takes every file left out, also those of a group shown folded, under their headings.
