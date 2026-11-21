@@ -573,6 +573,9 @@ pub struct Progress {
     pub listed: AtomicUsize,
     /// Images left out or failed: Fluent id and detail.
     pub failed: Mutex<Vec<(&'static str, String)>>,
+    /// Names of the copies without audio saved without the camera's preview, which could not be
+    /// written into them (#216).
+    pub no_preview: Mutex<Vec<String>>,
     pub finished: AtomicBool,
     /// Bytes of the originals of the files saved, and of the new files (the summary at the end).
     pub bytes_before: AtomicU64,

@@ -1571,6 +1571,10 @@ summary-errors = { $n ->
     [one] 1 errore:
    *[other] { $n } errori:
 }
+summary-no-preview = { $n ->
+    [one] 1 copia salvata senza l'anteprima della videocamera, che non si è potuta scrivere:
+   *[other] { $n } copie salvate senza l'anteprima della videocamera, che non si è potuta scrivere:
+}
 summary-open-folder = Apri la cartella
 summary-open-covered = Chiudi prima la pagina davanti: le miniature sono sotto.
 drawing-title = Esporta disegno

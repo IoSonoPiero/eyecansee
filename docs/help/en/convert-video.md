@@ -46,7 +46,7 @@ It is for videos only: a photo already has its metadata inside its file, so a pl
 
 **Tools > Copy without audio…** and **Tools > Save the audio to a file…** (also in the right-click menu) open a short window on the videos chosen, where you only choose the destination, then click **Copy** (or **Save** for the audio). At first it is next to the originals.
 
-- **Copy without audio** makes a new video, the same as the original but without its audio. The picture and the other tracks (subtitles, chapters) are copied as they are, with the metadata. The new file gets a free name, for example `video (2).mp4`.
+- **Copy without audio** makes a new video, the same as the original but without its audio. The picture and the other tracks (subtitles, chapters) are copied as they are, with the metadata. The new file gets a free name, for example `video (2).mp4`. The preview stored by the camera inside a video (a dashcam's) goes into the new file too; when it cannot be written there (a full disk), the copy is made again without it, and the summary at the end names that copy.
 - **Save the audio to a file** writes each audio track into a file of its own, copied as it is: AAC as `.m4a`, Opus as `.opus`, MP3 as `.mp3`, FLAC as `.flac`, Vorbis as `.ogg`, AC-3 as `.ac3`, E-AC-3 as `.eac3`, AMR as `.amr`, uncompressed audio mostly as `.wav`, the rarer ones as `.mka`. A video with two tracks gives `video.m4a` and `video-2.m4a`. For another format (for example MP3 from AAC), use Convert… on the new file (see below).
 
 A video without audio is left out and named at the end.

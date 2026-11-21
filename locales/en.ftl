@@ -1573,6 +1573,10 @@ summary-errors = { $n ->
     [one] 1 error:
    *[other] { $n } errors:
 }
+summary-no-preview = { $n ->
+    [one] 1 copy saved without the preview stored by the camera, which could not be written into it:
+   *[other] { $n } copies saved without the preview stored by the camera, which could not be written into them:
+}
 summary-open-folder = Open the folder
 summary-open-covered = Close the page in front first: the thumbnails are under it.
 drawing-title = Export drawing

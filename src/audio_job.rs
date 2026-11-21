@@ -145,37 +145,66 @@ async fn write(program: &Path, input: &Input, (out, dest): (&Store, &str), job: 
     let outputs: Vec<Output> = names.iter().map(|n| Output::new(out, format!("{dest}{n}"), n)).collect();
     let paths: Vec<String> = outputs.iter().map(|o| o.file.to_string_lossy().into_owned()).collect();
     let source = input.file.to_string_lossy().into_owned();
+    // With the data tracks, unless FFmpeg could not copy them.
+    let mut data = true;
     let mut r = match job {
-        AudioJob::Strip => input.ffmpeg(program, strip_args(&source, &paths[0], true)).await,
+        AudioJob::Strip => input.ffmpeg(program, strip_args(&source, &paths[0], data)).await,
         AudioJob::Extract => input.ffmpeg(program, extract_args(&source, &paths)).await,
     };
     if job == AudioJob::Strip && r.is_err() && !input.cancelled() {
         log!("ffmpeg: again without the data tracks");
-        r = input.ffmpeg(program, strip_args(&source, &paths[0], false)).await;
+        data = false;
+        r = input.ffmpeg(program, strip_args(&source, &paths[0], data)).await;
     }
+    let mut without_preview = false;
     if r.is_ok() && job == AudioJob::Strip {
-        preview(&input.file, &outputs[0], thumb, put).await;
+        (r, without_preview) = with_preview(program, input, &outputs[0], (&source, data), thumb, put).await;
     }
     send(out, &outputs, &input.phases, r.map_err(Err), Err).await?;
+    if without_preview {
+        input.phases.p.no_preview.lock().unwrap().push(names[0].clone());
+    }
     taken.extend(names);
     Ok(outputs.iter().map(|o| o.to.clone()).collect())
 }
 
-/// The video without its audio: the camera's preview, which FFmpeg leaves out, copied from the
-/// original. With it the thumbnail is the same picture as the original's, read from the file;
-/// without it, a frame of the video.
-async fn preview(original: &Path, output: &Output, thumb: Option<(u64, Vec<u8>)>, put: PutPreview) {
-    let (original, to) = (original.to_path_buf(), output.file.clone());
-    let copied = tokio::task::spawn_blocking(move || put(&original, &to)).await;
-    match &copied {
-        Ok(Ok(true)) => log!("ffmpeg: the camera's preview copied into {}", output.to),
-        Ok(Err(e)) => log!("ffmpeg: the camera's preview not copied: {e}"),
-        _ => {}
+/// The video without its audio, made by FFmpeg from `source` into `output` (with the data tracks
+/// when `data`): the camera's preview put in (`preview`) and the thumbnail kept. A write of the
+/// preview that fails may leave the copy cut off half way (a full disk): the copy is made again
+/// without the preview, and `true` says so (#216). The result is that of FFmpeg's new run.
+async fn with_preview(program: &Path, input: &Input, output: &Output, (source, data): (&str, bool), thumb: Option<(u64, Vec<u8>)>, put: PutPreview) -> (Result<(), String>, bool) {
+    let (copied, without) = match preview(&input.file, output, put).await {
+        Ok(copied) => (copied, false),
+        Err(e) => {
+            log!("ffmpeg: the camera's preview not copied ({e}): the copy made again without it");
+            (false, true)
+        }
+    };
+    let r = if without { input.ffmpeg(program, strip_args(source, &output.file.to_string_lossy(), data)).await } else { Ok(()) };
+    if r.is_ok() {
+        keep_thumb(output, thumb, copied).await;
     }
+    (r, without)
+}
+
+/// The camera's preview, which FFmpeg leaves out, copied by `put` from the original into the
+/// video without its audio; `false` when there was none to copy.
+async fn preview(original: &Path, output: &Output, put: PutPreview) -> Result<bool, String> {
+    let (original, to) = (original.to_path_buf(), output.file.clone());
+    let copied = tokio::task::spawn_blocking(move || put(&original, &to)).await.map_err(|e| e.to_string())?.map_err(|e| e.to_string())?;
+    if copied {
+        log!("ffmpeg: the camera's preview copied into {}", output.to);
+    }
+    Ok(copied)
+}
+
+/// The thumbnail of the video without its audio: the original's, the same pictures; without it,
+/// the camera's preview read from the file when `copied`, otherwise a frame of the video.
+async fn keep_thumb(output: &Output, thumb: Option<(u64, Vec<u8>)>, copied: bool) {
     let size = std::fs::metadata(&output.file).map(|m| m.len());
     match (thumb, size) {
         (Some((_, data)), Ok(size)) => crate::thumbcache::keep(&output.to, size, data),
-        _ if !matches!(copied, Ok(Ok(true))) => keep_thumbnail(&output.to, &output.file).await,
+        _ if !copied => keep_thumbnail(&output.to, &output.file).await,
         _ => {}
     }
 }
@@ -241,6 +270,99 @@ mod tests {
             assert_eq!(op.read("out/v-name.m4a").await.unwrap(), b"the video");
         });
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    /// What the test of a full disk writes into: only where it runs (Unix, it needs a script).
+    #[cfg(unix)]
+    mod full {
+        use std::path::Path;
+
+        /// A file whose writes stop after `left` more bytes, as on a disk that fills up.
+        struct Filling {
+            f: std::fs::File,
+            left: usize,
+        }
+
+        impl std::io::Read for Filling {
+            fn read(&mut self, b: &mut [u8]) -> std::io::Result<usize> {
+                self.f.read(b)
+            }
+        }
+
+        impl std::io::Seek for Filling {
+            fn seek(&mut self, to: std::io::SeekFrom) -> std::io::Result<u64> {
+                self.f.seek(to)
+            }
+        }
+
+        impl std::io::Write for Filling {
+            fn write(&mut self, b: &[u8]) -> std::io::Result<usize> {
+                if self.left == 0 {
+                    return Err(std::io::Error::new(std::io::ErrorKind::StorageFull, "no space left on device"));
+                }
+                let n = self.f.write(&b[..b.len().min(self.left)])?;
+                self.left -= n;
+                Ok(n)
+            }
+            fn flush(&mut self) -> std::io::Result<()> {
+                self.f.flush()
+            }
+        }
+
+        impl crate::mp4::Rewritten for Filling {
+            fn set_len(&mut self, len: u64) -> std::io::Result<()> {
+                self.f.set_len(len)
+            }
+        }
+
+        /// `mp4::copy_preview` on a disk that is full after 20 more bytes.
+        pub(super) fn full_disk(original: &Path, copy: &Path) -> std::io::Result<bool> {
+            crate::mp4::copy_preview_with(original, copy, |path| Ok(Filling { f: std::fs::OpenOptions::new().read(true).write(true).open(path)?, left: 20 }))
+        }
+    }
+
+    /// Copy without audio of a camera's video with its own preview, when the disk fills up while
+    /// the preview is written into the copy: the job delivered the copy with its `moov` cut off
+    /// half way, a video that does not play, as saved (audit 3.8, #216). A script stands for
+    /// FFmpeg: it lists one audio track, and writes the copy as FFmpeg does, `moov` last and
+    /// without the preview.
+    #[cfg(unix)]
+    #[test]
+    fn preview_not_written_leaves_a_whole_video() {
+        use crate::mp4::tests::mp4_box;
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("eyecansee-audio-job-preview-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join("out")).unwrap();
+        let (ftyp, mdat, trak) = (mp4_box(b"ftyp", b"isomisom"), mp4_box(b"mdat", &[7; 100]), mp4_box(b"trak", &[1; 20]));
+        let thmb = mp4_box(b"udta", &mp4_box(b"thmb", &[0xFF, 0xD8, 0xFF, 0xE0, 1, 2, 3, 4]));
+        let camera = mp4_box(b"moov", &[mp4_box(b"mvhd", &[0; 12]), trak.clone(), thmb].concat());
+        std::fs::write(dir.join("cam.mp4"), [ftyp.clone(), camera, mdat.clone()].concat()).unwrap();
+        let made = [ftyp, mdat, mp4_box(b"moov", &[mp4_box(b"mvhd", &[0; 12]), trak].concat())].concat();
+        let moov_at = made.len() - 8 - 12 - 8 - 28;
+        std::fs::write(dir.join("made.mp4"), &made).unwrap();
+        let script = dir.join("ffmpeg");
+        let text = format!("#!/bin/sh\nfor a; do last=$a; done\nif [ $# -le 3 ]; then echo '  Stream #0:1: Audio: aac (LC)' >&2; exit 1; fi\ncp '{}' \"$last\"\n", dir.join("made.mp4").display());
+        std::fs::write(&script, text).unwrap();
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let op = Store::Dal(opendal::Operator::new(opendal::services::Fs::default().root(&dir.to_string_lossy())).unwrap());
+        let p = Arc::new(Progress::default());
+        let r = tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let input = Input::fetch(&op, "cam.mp4", (&op, "out/"), &p).await.unwrap();
+            write(&script, &input, (&op, "out/"), AudioJob::Strip, &mut HashSet::new(), None, full::full_disk).await
+        });
+        let delivered = std::fs::read(dir.join("out").join("cam.mp4")).ok();
+        std::fs::remove_dir_all(&dir).unwrap();
+        // Saved: the copy is whole, as FFmpeg made it, without the preview. Or not saved at all.
+        match r {
+            Ok(saved) => {
+                assert_eq!(saved, ["out/cam.mp4"]);
+                assert_eq!(*p.no_preview.lock().unwrap(), ["cam.mp4"], "the summary names it");
+                let delivered = delivered.unwrap();
+                let moov = crate::mp4::box_header(&delivered[moov_at..]);
+                assert!(delivered == made, "a broken copy delivered as saved: its moov {moov:?} in {} bytes left", delivered.len() - moov_at);
+            }
+            Err(e) => assert!(delivered.is_none(), "{e:?}: the broken copy left in the folder"),
+        }
     }
 
     /// The jobs that copy the streams (both audio jobs and "Same as the original") on

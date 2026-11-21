@@ -23,6 +23,9 @@ pub(crate) struct Outcome<'a> {
     pub(crate) total: usize,
     /// Files left out: Fluent id of the reason, and detail (the name, or the error).
     pub(crate) failed: &'a [(&'static str, String)],
+    /// Copies without audio saved without the camera's preview, which could not be written into
+    /// them: their names (#216).
+    pub(crate) no_preview: &'a [String],
     /// Resize with a preset: its own words for a format not written (it has no format to choose).
     pub(crate) preset: bool,
     /// The destination, as the address bar shows it.
@@ -149,10 +152,20 @@ pub(crate) fn summary(i18n: &I18n, title: &str, o: &Outcome, open: String) -> Su
         after.push(i18n.t_args("summary-sizes", &[("before", &size(before)), ("after", &size(now)), ("percent", &percent)]));
     }
     let text = format!("{}\n\n{}", lines.join("\n"), after.join("\n"));
-    let groups = groups(i18n, o.failed, o.preset);
+    let mut groups = groups(i18n, o.failed, o.preset);
+    groups.extend(no_preview(i18n, o.no_preview));
     let lists: Vec<(&str, &[String])> = groups.iter().map(|g| (g.heading.as_str(), g.copied.as_slice())).collect();
     let copy = crate::notice_list::copied(&text, &lists);
     Summary { title: i18n.t(title), text, groups, open: (o.saved > 0).then_some(open), copy }
+}
+
+/// The copies saved without the camera's preview, as a group after those left out: they are
+/// saved, but the user should know their thumbnail is a frame of the video (#216).
+fn no_preview(i18n: &I18n, names: &[String]) -> Option<Group> {
+    let mut names: Vec<&String> = names.iter().collect();
+    names.sort_by(|a, b| crate::source::natural(a, b));
+    let items: Vec<String> = names.iter().map(|n| md(n)).collect();
+    (!items.is_empty()).then(|| Group { heading: i18n.t_args("summary-no-preview", &[("n", &items.len().to_string())]), copied: items.clone(), items })
 }
 
 impl App {
@@ -233,7 +246,7 @@ mod tests {
     use super::*;
 
     fn outcome<'a>(failed: &'a [(&'static str, String)], saved: usize, done: usize, total: usize) -> Outcome<'a> {
-        Outcome { saved, done, total, failed, preset: false, folder: "/p/converted", took: Duration::from_secs(75), sizes: Some((4 << 20, 1 << 20)) }
+        Outcome { saved, done, total, failed, no_preview: &[], preset: false, folder: "/p/converted", took: Duration::from_secs(75), sizes: Some((4 << 20, 1 << 20)) }
     }
 
     /// One line per outcome with its count, none for a count of zero; the time and the sizes.
@@ -384,5 +397,25 @@ mod tests {
                 assert!(!g[0].heading.contains("summary-"), "{lang} {id}: {}", g[0].heading);
             }
         }
+    }
+
+    /// Copies without audio saved without the camera's preview (#216): a group of their own after
+    /// those left out, in the order of their names, and in what Copy takes; none without them.
+    #[test]
+    fn copies_without_the_preview() {
+        for lang in ["en", "it"] {
+            let i18n = I18n::new(lang);
+            let names = ["v10 (2).mp4".to_string(), "v9 (2).mp4".to_string()];
+            let failed = [("skip-not-video", "p.jpg".to_string())];
+            let s = summary(&i18n, "batch-title", &Outcome { no_preview: &names, ..outcome(&failed, 2, 3, 3) }, String::new());
+            assert_eq!(s.groups.len(), 2);
+            let g = &s.groups[1];
+            assert_eq!(g.items, [md("v9 (2).mp4"), md("v10 (2).mp4")], "{lang}");
+            assert!(!g.heading.contains("summary-") && g.heading.starts_with('2'), "{lang}: {}", g.heading);
+            assert!(s.copy.contains(&g.heading) && s.copy.contains("v10 (2).mp4"), "{lang}: {}", s.copy);
+            assert_eq!(summary(&i18n, "batch-title", &outcome(&failed, 2, 3, 3), String::new()).groups.len(), 1);
+        }
+        let one = summary(&I18n::new("en"), "batch-title", &Outcome { no_preview: &["v (2).mp4".into()], ..outcome(&[], 1, 1, 1) }, String::new());
+        assert_eq!(one.groups[0].heading, "1 copy saved without the preview stored by the camera, which could not be written into it:");
     }
 }
