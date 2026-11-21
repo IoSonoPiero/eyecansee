@@ -613,7 +613,11 @@ impl App {
         for name in &no_preview {
             log!("batch: saved without the camera's preview: {name}");
         }
-        let outcome = Outcome { saved, done, total, failed: &failed, no_preview: &no_preview, preset: w.preset, folder: &w.dest.0, took, sizes: p.sizes() };
+        let left_out_meta = std::mem::take(&mut *p.left_out_meta.lock().unwrap());
+        for (_, detail) in &left_out_meta {
+            log!("batch: saved without metadata too large for a JPEG: {detail}");
+        }
+        let outcome = Outcome { saved, done, total, failed: &failed, no_preview: &no_preview, left_out_meta: &left_out_meta, preset: w.preset, folder: &w.dest.0, took, sizes: p.sizes() };
         let mut s = summary(&self.i18n, self.batch_titles(w).0, &outcome, w.dest.0.clone());
         // Saved in the folder on screen: Open the folder would open it again.
         if w.dest.1.as_ref() == Some(&self.dir) {

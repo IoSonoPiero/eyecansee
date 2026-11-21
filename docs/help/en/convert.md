@@ -77,7 +77,7 @@ A box at the bottom right shows how many files are done, a bar and the file unde
 
 At the end a summary, titled with the command, says:
 
-- how many files were saved, and where; how many were left out; how many were not done, when you stopped the work (a count of zero is not shown);
+- how many files were saved, and where; how many were saved as JPEG without a part of their metadata (EXIF, XMP or IPTC) too large for it, each named in a group with that part in brackets; how many were left out; how many were not done, when you stopped the work (a count of zero is not shown);
 - how long it took and, when files were saved, their size on disk before and after, with the percentage;
 - the files left out, grouped by reason (another kind of file, a format EyeCanSee cannot write, already of that size, animated or with several pages, too large for the memory of this computer, FFmpeg missing, an error), each group with its file names, in order. A group of more than five files is folded: click its line to open it. The list scrolls when it is long. ![Copy the message](icon://copy) at the right of the buttons copies the summary with every file left out, also those of the groups folded.
 - after them, for **Copy without audio**, the copies saved without the preview stored by the camera, which could not be written into them (see [Converting videos](convert-video.md)).

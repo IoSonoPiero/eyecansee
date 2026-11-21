@@ -416,7 +416,13 @@ impl Original {
         }
         let density = self.density.map(|d| if sideways { d.swapped() } else { d });
         if let Some(d) = density {
-            exif = density::set_exif(exif, d, matches!(format, Format::Webp | Format::Avif));
+            let with = density::set_exif(exif.clone(), d, matches!(format, Format::Webp | Format::Avif));
+            // A JPEG's EXIF that its new directory makes too large (#217): first without the
+            // thumbnail's bytes at its end, which the directory would follow (`meta::without_tail`).
+            exif = match with {
+                Some(e) if format == Format::Jpeg && e.len() > crate::meta::JPEG_EXIF_MAX => density::set_exif(exif.map(crate::meta::without_tail), d, false),
+                with => with,
+            };
         }
         let irb = self.irb.as_deref().and_then(crate::meta_write::fit_irb);
         let irb = if no_place { irb.and_then(|i| crate::meta_write::irb_without_place(&i)) } else { irb };
@@ -429,6 +435,18 @@ impl Original {
         let xmp = if no_place { crate::xmp::fit_without_place(self.xmp.as_deref(), w, h, iim, ext.as_deref(), fields) } else { crate::xmp::fit_with(self.xmp.as_deref(), w, h, iim, ext.as_deref(), fields) };
         let (png_text, jpeg_comments) = (self.texts.png_text.clone(), self.texts.jpeg_comments.clone());
         Blocks { exif, icc: self.icc.clone(), xmp, irb, density, png_text, png_color, jpeg_comments }
+    }
+
+    /// What a file written with `o` leaves out of this original's metadata, too large for a
+    /// JPEG's segments (#217); nothing for the other formats. Known before encoding: the
+    /// metadata do not need the pixels.
+    pub fn left_out(&self, o: &Options) -> encoders::LeftOut {
+        if o.format != Format::Jpeg || o.meta == Keep::Nothing {
+            return encoders::LeftOut::default();
+        }
+        let (w, h) = (self.image.width(), self.image.height());
+        let (w, h) = if o.turn.sideways() { (h, w) } else { (w, h) };
+        encoders::jpeg_left_out(&self.blocks(Format::Jpeg, w, h, o.turn.sideways(), o.meta))
     }
 
     /// The file as it would be saved.
@@ -965,5 +983,127 @@ pub(crate) mod tests {
             let xmp = Original::with_meta(DynamicImage::new_rgb8(1, 1), &other).xmp.map(|x| String::from_utf8(x).unwrap()).unwrap_or_default();
             assert!(xmp.contains(&format!("<exif:UserComment><rdf:Alt><rdf:li xml:lang=\"x-default\">{comment}</rdf:li>")), "{name}: {xmp}");
         }
+    }
+    /// An EXIF with the camera, the date, a GPS position, a maker note that can move (Apple's) of
+    /// `note` bytes and, if `thumb` is not 0, a thumbnail of `thumb` bytes.
+    pub(crate) fn large_exif(note: usize, thumb: usize) -> Vec<u8> {
+        large_exif_of(b"Apple iOS\0\0\x01MM", note, thumb)
+    }
+
+    /// As `large_exif`, with a maker note that begins with `maker`.
+    pub(crate) fn large_exif_of(maker: &[u8], note: usize, thumb: usize) -> Vec<u8> {
+        use exif::{Field, In, Tag, Value};
+        let mut w = exif::experimental::Writer::new();
+        let maker = [maker, &vec![7; note]].concat();
+        let fields = [
+            Field { tag: Tag::Make, ifd_num: In::PRIMARY, value: Value::Ascii(vec![b"Maker".to_vec()]) },
+            Field { tag: Tag::DateTimeOriginal, ifd_num: In::PRIMARY, value: Value::Ascii(vec![b"2024:01:02 03:04:05".to_vec()]) },
+            Field { tag: Tag::GPSLatitudeRef, ifd_num: In::PRIMARY, value: Value::Ascii(vec![b"N".to_vec()]) },
+            Field { tag: Tag::GPSLatitude, ifd_num: In::PRIMARY, value: Value::Rational(vec![(45, 1).into(), (0, 1).into(), (0, 1).into()]) },
+            Field { tag: Tag::MakerNote, ifd_num: In::PRIMARY, value: Value::Undefined(maker, 0) },
+        ];
+        fields.iter().for_each(|f| w.push_field(f));
+        let thumbnail = [&[0xFF, 0xD8][..], &vec![1; thumb.saturating_sub(4)], &[0xFF, 0xD9]].concat();
+        if thumb > 0 {
+            w.set_jpeg(&thumbnail, In::THUMBNAIL);
+        }
+        let mut out = Cursor::new(Vec::new());
+        w.write(&mut out, false).unwrap();
+        out.into_inner()
+    }
+
+    /// An EXIF too large for a JPEG segment (64 KB) is made smaller, not left out (#217): first
+    /// without its thumbnail, then without the maker note; the camera, the date and the GPS
+    /// stay, and without the place the GPS goes as ever. So for an EXIF at the limit that the
+    /// pixel density makes larger.
+    #[test]
+    fn large_exif_in_a_jpeg() {
+        use exif::{In, Tag};
+        let jpeg = |exif: Vec<u8>, density: Option<density::Density>, meta: Keep| {
+            let original = Original { density, ..Original::upright(DynamicImage::new_rgb8(8, 6), Some(exif), None, None, None) };
+            let file = original.encode(&Options { meta, ..Default::default() }).unwrap();
+            exif::Reader::new().read_from_container(&mut Cursor::new(&file)).ok()
+        };
+        let has = |e: &exif::Exif, tag| e.get_field(tag, In::PRIMARY).is_some();
+        let with_thumbnail = large_exif(60_000, 10_000);
+        assert!(with_thumbnail.len() > 70_000);
+        let e = jpeg(with_thumbnail, None, Keep::All).expect("EXIF left out");
+        assert!(has(&e, Tag::Make) && has(&e, Tag::DateTimeOriginal) && has(&e, Tag::GPSLatitude) && has(&e, Tag::MakerNote));
+        assert!(e.fields().all(|f| f.ifd_num != In::THUMBNAIL));
+        let without = large_exif(70_000, 0);
+        let e = jpeg(without.clone(), None, Keep::All).expect("EXIF left out");
+        assert!(has(&e, Tag::Make) && has(&e, Tag::DateTimeOriginal) && has(&e, Tag::GPSLatitude) && !has(&e, Tag::MakerNote));
+        let e = jpeg(without, None, Keep::NoPlace).expect("EXIF left out");
+        assert!(has(&e, Tag::Make) && !has(&e, Tag::GPSLatitude));
+        // At the limit with a small thumbnail; the density adds a directory after it.
+        let mut note = 65_000;
+        let at_limit = loop {
+            let e = large_exif(note, 300);
+            if e.len() >= 65_520 {
+                break e;
+            }
+            note += 65_520 - e.len();
+        };
+        assert!(at_limit.len() <= 65_527);
+        let dpi = density::Density::new(density::Unit::Inch, (300, 1), (300, 1));
+        let mut fitted = at_limit.clone();
+        crate::meta::fit_exif(&mut fitted, 8, 6);
+        assert!(density::set_exif(Some(fitted), dpi.unwrap(), false).unwrap().len() > 65_527, "the density no longer makes it too large");
+        let e = jpeg(at_limit, dpi, Keep::All).expect("EXIF left out");
+        assert!(has(&e, Tag::Make) && has(&e, Tag::MakerNote) && has(&e, Tag::XResolution));
+    }
+    /// An EXIF with a caption of `len` letters: it cannot be made smaller.
+    pub(crate) fn caption_exif(len: usize) -> Vec<u8> {
+        use exif::{Field, In, Tag, Value};
+        let mut w = exif::experimental::Writer::new();
+        let caption = Field { tag: Tag::ImageDescription, ifd_num: In::PRIMARY, value: Value::Ascii(vec![vec![b'a'; len]]) };
+        w.push_field(&caption);
+        let mut exif = Cursor::new(Vec::new());
+        w.write(&mut exif, false).unwrap();
+        exif.into_inner()
+    }
+
+    /// What cannot fit even made smaller is said before the file is written, for a JPEG only
+    /// and never when nothing is kept: a caption of 70 KB, an XMP that is not XML of 70 KB, a
+    /// Photoshop block of 70 KB.
+    #[test]
+    fn too_large_said() {
+        use crate::encoders::LeftOut;
+        let irb = crate::meta_write::irb_of_iim(&vec![0x1C; 70_000]);
+        let original = Original::upright(DynamicImage::new_rgb8(8, 6), Some(caption_exif(70_000)), None, Some(vec![b'<'; 70_000]), Some(irb));
+        let jpeg = Options::default();
+        assert_eq!(original.left_out(&jpeg), LeftOut { exif: true, xmp: true, iptc: true });
+        assert_eq!(original.left_out(&jpeg).parts(), "EXIF, XMP, IPTC");
+        assert_eq!(original.left_out(&Options { meta: Keep::Nothing, ..jpeg }), LeftOut::default());
+        assert_eq!(original.left_out(&Options { format: Format::Png, ..jpeg }), LeftOut::default());
+        let small = Original::upright(DynamicImage::new_rgb8(8, 6), Some(large_exif(70_000, 0)), None, None, None);
+        assert!(!small.left_out(&jpeg).any());
+    }
+    /// A maker note that cannot move (Canon's and most others count from the start of the EXIF)
+    /// stays when the thumbnail's bytes at the end are enough (#217): left out, not moved, also
+    /// when the pixel density adds its directory to an EXIF at the limit.
+    #[test]
+    fn fixed_maker_note_kept_in_a_jpeg() {
+        use exif::{In, Tag};
+        let jpeg = |exif: Vec<u8>, density: Option<density::Density>| {
+            let original = Original { density, ..Original::upright(DynamicImage::new_rgb8(8, 6), Some(exif), None, None, None) };
+            let file = original.encode(&Options::default()).unwrap();
+            exif::Reader::new().read_from_container(&mut Cursor::new(&file)).expect("EXIF left out")
+        };
+        let note = |e: &exif::Exif| e.get_field(Tag::MakerNote, In::PRIMARY).is_some();
+        let with_thumbnail = large_exif_of(b"Canon", 60_000, 10_000);
+        assert!(with_thumbnail.len() > 70_000);
+        let e = jpeg(with_thumbnail, None);
+        assert!(note(&e) && e.fields().all(|f| f.ifd_num != In::THUMBNAIL));
+        let mut size = 65_000;
+        let at_limit = loop {
+            let e = large_exif_of(b"Canon", size, 300);
+            if e.len() >= 65_520 {
+                break e;
+            }
+            size += 65_520 - e.len();
+        };
+        let e = jpeg(at_limit, density::Density::new(density::Unit::Inch, (300, 1), (300, 1)));
+        assert!(note(&e) && e.get_field(Tag::XResolution, In::PRIMARY).is_some());
     }
 }

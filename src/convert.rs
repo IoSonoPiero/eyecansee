@@ -37,6 +37,8 @@ pub struct Window {
     pub generation: u64,
     busy: bool,
     result: Option<Encoded>,
+    /// What the file shown leaves out of the original's metadata, too large for a JPEG (#217).
+    left_out: crate::encoders::LeftOut,
     name: String,
     /// 100%: one image pixel per screen pixel, moved by dragging (`pan` = centre, in image pixels).
     actual: bool,
@@ -104,6 +106,7 @@ impl Window {
             generation: 0,
             busy: false,
             result: None,
+            left_out: Default::default(),
             name,
             actual: false,
             pan: egui::Vec2::ZERO,
@@ -202,6 +205,10 @@ impl crate::App {
         if let Err(e) = &r {
             log!("{}", failed_line(&format!("save as: {} encoding", w.options.format.ext()), &w.path, "", e));
         }
+        w.left_out = match (&w.original, w.encoded_with) {
+            (Some(Ok((original, ..))), Some(o)) => left_out(original, &o),
+            _ => Default::default(),
+        };
         w.result = Some(r.map(|(bytes, preview)| (bytes, preview.map(|p| {
             let halves = crate::mipmap::picture_halves(&p);
             Picture::new(ctx, "convert-result", p, halves)
@@ -433,6 +440,10 @@ impl crate::App {
                 for line in crate::model::saved_lines(i18n, crate::source::name(&w.path), &original.0.notes) {
                     ui.label(crate::theme::alert(line));
                 }
+                // Metadata too large for a JPEG (#217), for the file made with the options shown.
+                if w.left_out.any() && !w.busy && w.encoded_with == Some(w.options) {
+                    ui.label(crate::theme::alert(i18n.t_args("convert-meta-too-large", &[("parts", &w.left_out.parts())])));
+                }
                 // The folder and the name belong to the new image, so they sit on its side.
                 ui.add_space(6.0);
                 folder::folder_row(ui, w, i18n, folder);
@@ -562,6 +573,15 @@ fn saved_size((w, h): (u32, u32), o: &Options) -> (u32, u32) {
     let ratio = f64::min(side / f64::from(w), side / f64::from(h));
     let fit = |s: u32| ((f64::from(s) * ratio).round() as u32).max(1);
     (fit(w), fit(h))
+}
+
+/// What the file Save writes leaves out of the original's metadata, too large for a JPEG (#217);
+/// nothing for an Ultra HDR photo kept so, which gets back the original's own segments.
+fn left_out(original: &Original, o: &Options) -> crate::encoders::LeftOut {
+    match &original.hdr {
+        Some(_) if keeps_hdr(o) => Default::default(),
+        _ => original.left_out(o),
+    }
 }
 
 /// Only a JPEG with its metadata holds the gain map and the XMP that describes it.

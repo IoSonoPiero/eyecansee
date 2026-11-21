@@ -51,6 +51,8 @@ pub struct Plan {
     pub hdr_lost: bool,
     /// What the original carries besides its picture that the file made does not keep (#201).
     pub beyond: Beyond,
+    /// The metadata of the original a JPEG has no room for (#217).
+    pub meta_left_out: crate::encoders::LeftOut,
 }
 
 /// The parts of a phone photo besides its picture that a save written from the picture leaves
@@ -107,17 +109,19 @@ pub fn plan_keeping(doc: &Doc, original: &Original, bytes: &[u8], name: &str, wo
     let size = photo_size(doc, original);
     if keep == Keep::All && same.is_some() && only_turned(doc, size) && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes)) {
         let (data, lossy) = crate::save_back::turned_file_beside(bytes, name, doc.turn, original.sidecar.as_deref())?;
-        return Ok(Plan { name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept, data: Some(data), hdr_lost: false, beyond: Beyond::default() });
+        return Ok(Plan { name: copy_name(name, None, word, taken), lossy, depth: Depth::Kept, data: Some(data), hdr_lost: false, beyond: Beyond::default(), meta_left_out: Default::default() });
     }
     let hdr = same == Some(Format::Jpeg) && crate::ultrahdr::is(bytes);
     if hdr && keep != Keep::Nothing {
-        return Ok(Plan { name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept, data: None, hdr_lost: false, beyond: Beyond::of(bytes, name, true) });
+        return Ok(Plan { name: copy_name(name, None, word, taken), lossy: true, depth: Depth::Kept, data: None, hdr_lost: false, beyond: Beyond::of(bytes, name, true), meta_left_out: Default::default() });
     }
     let (float, deep) = (is_float(&original.image), is_deep(&original.image));
     let format = target(name, float, will_be_transparent(doc, &original.image, size));
     let lossy = matches!(format, Format::Jpeg | Format::Avif | Format::Gif) || (format == Format::Webp && !bytes.windows(4).any(|w| w == b"VP8L"));
     let ext = if same.is_some() { None } else { Some(format.ext()) };
-    Ok(Plan { name: copy_name(name, ext, word, taken), lossy, depth: depth(float, deep, format), data: None, hdr_lost: hdr, beyond: Beyond::of(bytes, name, false) })
+    // The metadata alone, without these pixels: as `save_keeping` writes them (`Original::alone`).
+    let meta_left_out = original.with_image(DynamicImage::new_rgb8(1, 1)).alone().left_out(&Options { format, meta: keep, ..Options::default() });
+    Ok(Plan { name: copy_name(name, ext, word, taken), lossy, depth: depth(float, deep, format), data: None, hdr_lost: hdr, beyond: Beyond::of(bytes, name, false), meta_left_out })
 }
 
 /// The edited image will have transparent pixels: the original has some, or the empty corners

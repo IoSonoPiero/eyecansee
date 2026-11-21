@@ -138,7 +138,7 @@ fn with_maker_note(exif: &Exif) -> Option<Vec<u8>> {
 }
 
 /// The largest EXIF block a JPEG holds: one segment, less its length and "Exif\0\0".
-const JPEG_EXIF_MAX: usize = 65533 - 6;
+pub(crate) const JPEG_EXIF_MAX: usize = 65533 - 6;
 
 /// A maker note (the camera maker's own data) that stays right written at another place of a new
 /// EXIF: its offsets count from its own start, or it has none. Recognised by how it begins, as
@@ -348,6 +348,79 @@ pub fn fit_exif(t: &mut [u8], w: u32, h: u32) {
         t[ifd1..end + 4].fill(0);
     }
     put(t, next, [0; 4]);
+}
+
+/// An EXIF made to fit a JPEG segment (#217), changed only when it is too large: first without
+/// the bytes of the thumbnail `fit_exif` unlinked, when they are at its end (`without_tail`: nothing
+/// moves, the fields read back the same); then written again (`with_maker_note`), without the thumbnail,
+/// with a maker note that can move and, if still too large, without it. `None` when it does not
+/// fit even so: the JPEG goes without it, and says so (`encoders::LeftOut`).
+pub fn fit_jpeg_exif(t: Vec<u8>) -> Option<Vec<u8>> {
+    if t.len() <= JPEG_EXIF_MAX {
+        return Some(t);
+    }
+    let t = without_tail(t);
+    if t.len() <= JPEG_EXIF_MAX {
+        return Some(t);
+    }
+    with_maker_note(&lenient(|r| r.read_raw(t))?).filter(|e| e.len() <= JPEG_EXIF_MAX)
+}
+
+/// The EXIF without what follows its directories and their values (`used_end`): the bytes of
+/// the thumbnail `fit_exif` unlinked, when they are at its end. Only when the fields read back
+/// the same; otherwise as it was.
+pub fn without_tail(t: Vec<u8>) -> Vec<u8> {
+    let read = |t: &[u8]| lenient(|r| r.read_raw(t.to_vec()));
+    let fields = |e: &Exif| e.fields().map(|f| format!("{:?} {:?} {:?}", f.tag, f.ifd_num, f.value)).collect::<Vec<_>>();
+    let Some(end) = used_end(&t).filter(|&end| end < t.len()) else { return t };
+    match (read(&t), read(&t[..end])) {
+        (Some(before), Some(after)) if fields(&after) == fields(&before) => t[..end].to_vec(),
+        _ => t,
+    }
+}
+
+/// Where the data of an EXIF end: its directories (main, EXIF, GPS, interoperability) and their
+/// values. `None` when it cannot be told, or a thumbnail is still linked (its data are not values).
+fn used_end(t: &[u8]) -> Option<usize> {
+    let little = match t.get(..4)? {
+        b"II*\0" => true,
+        b"MM\0*" => false,
+        _ => return None,
+    };
+    let u16_at = |i: usize| t.get(i..i + 2).map(|b| if little { u16::from_le_bytes([b[0], b[1]]) } else { u16::from_be_bytes([b[0], b[1]]) });
+    let u32_at = |i: usize| t.get(i..i + 4).map(|b| if little { u32::from_le_bytes([b[0], b[1], b[2], b[3]]) } else { u32::from_be_bytes([b[0], b[1], b[2], b[3]]) } as usize);
+    let ifd0 = u32_at(4)?;
+    let (mut end, mut todo, mut seen) = (8, vec![ifd0], Vec::new());
+    while let Some(at) = todo.pop() {
+        // A directory named twice (a loop) or too many: not an EXIF to cut.
+        if seen.contains(&at) || seen.len() > 8 {
+            return None;
+        }
+        seen.push(at);
+        let n = u16_at(at)? as usize;
+        let next = at + 2 + 12 * n;
+        if at == ifd0 && u32_at(next)? != 0 {
+            return None;
+        }
+        end = end.max(next + 4);
+        for e in (0..n).map(|k| at + 2 + 12 * k) {
+            let size: usize = match u16_at(e + 2)? {
+                1 | 2 | 6 | 7 => 1,
+                3 | 8 => 2,
+                4 | 9 | 11 | 13 => 4,
+                5 | 10 | 12 => 8,
+                _ => return None,
+            };
+            let len = size.checked_mul(u32_at(e + 4)?)?;
+            if len > 4 {
+                end = end.max(u32_at(e + 8)?.checked_add(len)?);
+            }
+            if matches!(u16_at(e)?, 0x8769 | 0x8825 | 0xA005) {
+                todo.push(u32_at(e + 8)?);
+            }
+        }
+    }
+    (end <= t.len()).then_some(end)
 }
 
 /// The panel for an image: its EXIF if any, and always what the header says (format, size,

@@ -977,3 +977,18 @@ fn beyond_phone_samples() {
         assert_eq!(planned(&bytes, name, false, Keep::Nothing).beyond.video, video, "{name}: turned without metadata, written again");
     }
 }
+
+/// A copy written as JPEG says before it is made what of the original's metadata it has no room
+/// for (#217); with no metadata kept, nothing.
+#[test]
+fn meta_too_large_said_in_the_plan() {
+    let mut jpeg = Vec::new();
+    motif().write_to(&mut Cursor::new(&mut jpeg), image::ImageFormat::Jpeg).unwrap();
+    let original = Original::with_exif(motif(), Some(crate::encode::tests::caption_exif(70_000)));
+    let mut doc = Doc::new(64, 48, None);
+    doc.objects.push(cover_at(0.0, 0.0, 8.0, 8.0));
+    let left = |keep| plan_keeping(&doc, &original, &jpeg, "x.jpg", "edited", &[], keep).unwrap().meta_left_out;
+    assert_eq!(left(Keep::All).parts(), "EXIF");
+    assert!(!left(Keep::Nothing).any());
+    assert!(!plan_keeping(&doc, &Original::with_exif(motif(), None), &jpeg, "x.jpg", "edited", &[], Keep::All).unwrap().meta_left_out.any());
+}

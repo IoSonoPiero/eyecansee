@@ -39,11 +39,60 @@ pub(crate) fn jpeg(img: &DynamicImage, o: &Options, b: &Blocks) -> Result<Vec<u8
     Ok(jpeg_meta(file, b))
 }
 
+/// What a JPEG leaves out of the metadata it is given, too large for its segments even made
+/// smaller (#217): said in the summary of Convert and in the question of the editor's save.
+#[derive(Clone, Copy, Default, PartialEq, Eq, Debug)]
+pub struct LeftOut {
+    pub exif: bool,
+    pub xmp: bool,
+    /// The Photoshop block, with the IPTC.
+    pub iptc: bool,
+}
+
+impl LeftOut {
+    pub fn any(self) -> bool {
+        self.exif || self.xmp || self.iptc
+    }
+
+    /// The names of what is left out, as the user knows them ("EXIF, IPTC"): the same in every
+    /// language.
+    pub fn parts(self) -> String {
+        let names = [(self.exif, "EXIF"), (self.xmp, "XMP"), (self.iptc, "IPTC")];
+        names.iter().filter(|(on, _)| *on).map(|(_, n)| *n).collect::<Vec<_>>().join(", ")
+    }
+}
+
+/// The metadata a JPEG holds of its `Blocks`, each made to fit its segments (`jpeg_parts`).
+struct JpegParts<'a> {
+    exif: Option<Vec<u8>>,
+    /// The bodies of the XMP segments.
+    xmp: Vec<Vec<u8>>,
+    irb: Option<&'a [u8]>,
+    /// What does not fit even so.
+    left: LeftOut,
+}
+
+/// The EXIF, the bodies of the XMP segments and the Photoshop block a JPEG holds of `b`, each made
+/// to fit its segments, and what does not fit even so.
+fn jpeg_parts(b: &Blocks) -> JpegParts<'_> {
+    let exif = b.exif.clone().and_then(crate::meta::fit_jpeg_exif);
+    // Too large for one segment: the main packet and its extended part (`xmp_ext`).
+    let xmp = b.xmp.as_deref().map(crate::meta_write::jpeg_xmp_segments).unwrap_or_default();
+    let irb = b.irb.as_deref().filter(|x| x.len() <= 65533 - JPEG_PHOTOSHOP.len());
+    let left = LeftOut { exif: b.exif.is_some() && exif.is_none(), xmp: b.xmp.is_some() && xmp.is_empty(), iptc: b.irb.is_some() && irb.is_none() };
+    JpegParts { exif, xmp, irb, left }
+}
+
+/// What a JPEG written with `b` leaves out (`jpeg_parts`).
+pub(crate) fn jpeg_left_out(b: &Blocks) -> LeftOut {
+    jpeg_parts(b).left
+}
+
 /// After SOI (and the JFIF APP0, which must come first): APP1 "Exif", APP1 XMP and those of its
 /// extended part, the profile in
 /// APP2 "ICC_PROFILE" pieces of at most 65519 bytes, APP13 Photoshop with the IPTC, then the
-/// comments of a JPEG original. EXIF, XMP or
-/// Photoshop block too big for one segment is left out.
+/// comments of a JPEG original. EXIF, XMP or Photoshop block too big for one segment is made
+/// smaller (`jpeg_parts`), or left out.
 fn jpeg_meta(file: Vec<u8>, b: &Blocks) -> Vec<u8> {
     if !file.starts_with(&[0xFF, 0xD8]) {
         return file;
@@ -61,11 +110,11 @@ fn jpeg_meta(file: Vec<u8>, b: &Blocks) -> Vec<u8> {
             out.extend_from_slice(p);
         }
     };
-    if let Some(exif) = b.exif.as_deref().filter(|e| e.len() <= 65533 - 6) {
-        segment(0xE1, &[b"Exif\0\0", exif]);
+    let JpegParts { exif, xmp, irb, .. } = jpeg_parts(b);
+    if let Some(exif) = exif {
+        segment(0xE1, &[b"Exif\0\0", &exif]);
     }
-    // Too large for one segment: the main packet and its extended part (`xmp_ext`).
-    for body in b.xmp.as_deref().map(crate::meta_write::jpeg_xmp_segments).unwrap_or_default() {
+    for body in xmp {
         segment(0xE1, &[&body]);
     }
     if let Some(icc) = &b.icc {
@@ -74,7 +123,7 @@ fn jpeg_meta(file: Vec<u8>, b: &Blocks) -> Vec<u8> {
             segment(0xE2, &[b"ICC_PROFILE\0", &[i as u8 + 1, pieces.len() as u8], piece]);
         }
     }
-    if let Some(irb) = b.irb.as_deref().filter(|x| x.len() <= 65533 - JPEG_PHOTOSHOP.len()) {
+    if let Some(irb) = irb {
         segment(0xED, &[JPEG_PHOTOSHOP, irb]);
     }
     // The comments of a JPEG written again as JPEG (#218).

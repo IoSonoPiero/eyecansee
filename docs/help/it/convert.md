@@ -77,7 +77,7 @@ Un riquadro in basso a destra mostra quanti file sono pronti, una barra e il fil
 
 Alla fine un riepilogo, con il nome del comando come titolo, dice:
 
-- quanti file sono stati salvati e dove; quanti sono rimasti fuori; quanti non sono stati fatti, se hai fermato il lavoro (un numero zero non compare);
+- quanti file sono stati salvati e dove; quanti sono stati salvati in JPEG senza una parte dei loro metadati (EXIF, XMP o IPTC) troppo grande per starci, ciascuno nominato in un gruppo con quella parte tra parentesi; quanti sono rimasti fuori; quanti non sono stati fatti, se hai fermato il lavoro (un numero zero non compare);
 - quanto tempo ci è voluto e, se sono stati salvati dei file, il loro peso su disco prima e dopo, con la percentuale;
 - i file rimasti fuori, divisi per motivo (un altro tipo di file, un formato che EyeCanSee non sa scrivere, già di quella misura, animati o con più pagine, troppo grandi per la memoria di questo computer, FFmpeg mancante, un errore), ogni gruppo con i nomi dei suoi file, in ordine. Un gruppo di più di cinque file è chiuso: fai clic sulla sua riga per aprirlo. Se l'elenco è lungo, scorre. ![Copia il messaggio](icon://copy) a destra dei pulsanti copia il riepilogo con tutti i file rimasti fuori, anche quelli dei gruppi chiusi.
 - dopo di loro, per **Copia senza audio**, le copie salvate senza l'anteprima della videocamera, che non si è potuta scrivere (vedi [Convertire i video](convert-video.md)).

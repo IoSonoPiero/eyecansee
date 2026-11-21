@@ -13,6 +13,7 @@ use image::imageops::FilterType;
 use serde::{Deserialize, Serialize};
 
 use crate::encode::{self, Format, Options};
+use crate::encoders::LeftOut;
 use crate::meta_strip::Keep;
 use crate::source::{self, Store};
 use crate::transform::Turn;
@@ -239,23 +240,29 @@ pub const SKIP_NOT_AUTOCAD: &str = "drawing-skip-not-autocad";
 pub const SKIP_WOULD_LOSE: &str = "drawing-skip-would-lose";
 /// Over half the RAM once decoded (`view_memory`): left out, not asked about (Piero, 20/11/2026).
 pub const SKIP_TOO_LARGE: &str = "batch-skip-too-large";
+/// Saved, but its EXIF, XMP or IPTC was too large for a JPEG (#217).
+pub const META_TOO_LARGE: &str = "batch-meta-too-large";
 
 /// The file `bytes` (named `name`) after the job: the new name, without the folder, and its
 /// content. `Err((id, detail))`: a Fluent id with the name or the error.
 #[cfg(test)]
 pub fn convert(bytes: &[u8], name: &str, job: &Job) -> Result<(String, Vec<u8>), (&'static str, String)> {
-    convert_with(bytes, name, job, &|_| None, None)
+    convert_with(bytes, name, job, &|_| None, None).map(|(name, data, _)| (name, data))
 }
 
+/// A file made by the job: its name, its content, and what its metadata left out, too large for
+/// a JPEG (#217).
+pub type Made = (String, Vec<u8>, LeftOut);
+
 /// Like `convert`, reading the files next to a 3D model or a CAD drawing through `sibling`; a RAW
-/// photo's copy has the XMP of its `sidecar` (#24).
-pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::Sibling, sidecar: Option<&[u8]>) -> Result<(String, Vec<u8>), (&'static str, String)> {
+/// photo's copy has the XMP of its `sidecar` (#24). Also says what a JPEG made leaves out.
+pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::Sibling, sidecar: Option<&[u8]>) -> Result<Made, (&'static str, String)> {
     if let Some(drawn) = job.drawing {
-        return drawing(bytes, name, job, drawn, sibling);
+        return drawing(bytes, name, job, drawn, sibling).map(|(name, data)| (name, data, LeftOut::default()));
     }
     // Copy with the metadata: the picture as it is, everything in it kept.
     if job.does_nothing() {
-        return Ok((name.to_string(), bytes.to_vec()));
+        return Ok((name.to_string(), bytes.to_vec(), LeftOut::default()));
     }
     if job.format.is_none() && !encode::saves_back(name) {
         return Err((SKIP_FORMAT, name.to_string()));
@@ -267,7 +274,7 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
         && (crate::save_back::can_turn_in_place(bytes, name) || crate::ultrahdr::turns_whole(bytes))
         && let Ok((data, _)) = crate::save_back::turned_file_beside(bytes, name, job.turn, sidecar)
     {
-        return Ok((job.named(name.to_string(), false), data));
+        return Ok((job.named(name.to_string(), false), data, LeftOut::default()));
     }
     let mut image = crate::decode::decode_full_with(bytes, name, sibling).map_err(|e| match e.split_once('\u{1}') {
         Some((_, size)) if crate::pixel_limit::is_too_large(&e) => (crate::pixel_limit::TOO_LARGE, format!("{name}, {size}")),
@@ -295,12 +302,12 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     if (w, h) != (image.width(), image.height()) {
         image = image.resize_exact(w, h, job.filter.kind());
     }
-    encoded(bytes, name, job, image, cut, sidecar).map(|(out, data)| (job.named(out, resized), data))
+    encoded(bytes, name, job, image, cut, sidecar).map(|(out, data, left)| (job.named(out, resized), data, left))
 }
 
 /// The picture `image` made from `bytes` (named `name`, cut by `cut`, with the XMP of the RAW
 /// photo's `sidecar`) written as `job` asks: the new name, without its tag, and the content.
-fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut: Option<(u32, u32, u32, u32)>, sidecar: Option<&[u8]>) -> Result<(String, Vec<u8>), (&'static str, String)> {
+fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut: Option<(u32, u32, u32, u32)>, sidecar: Option<&[u8]>) -> Result<Made, (&'static str, String)> {
     let failed = |e: String| ("batch-failed", format!("{name}: {e}"));
     // An Ultra HDR photo written as JPEG with its metadata stays Ultra HDR, its gain map turned
     // and resized with it (#65); without metadata there is nothing to hold the gain map.
@@ -310,24 +317,19 @@ fn encoded(bytes: &[u8], name: &str, job: &Job, image: image::DynamicImage, cut:
             None => (name.to_string(), crate::encode::jpeg_quality::like(bytes, Options::default())),
             Some(f) => (with_ext(name, f), Options { format: f, turn: Turn::default(), ..job.options }),
         };
-        return Ok((out, crate::ultrahdr::resized(bytes, image, job.turn, cut, &options, sidecar).map_err(failed)?));
+        return Ok((out, crate::ultrahdr::resized(bytes, image, job.turn, cut, &options, sidecar).map_err(failed)?, LeftOut::default()));
     }
     // Encoded again, the file is the picture alone: the XMP of a gain map or a motion photo
     // video it no longer has goes (`Original::alone`).
-    match job.format {
+    let (out, options) = match job.format {
         // As "Save" writes them, at the original's quality (which would refuse a phone JPEG: it
         // writes over the original).
-        None if Format::of_file(name) == Some(Format::Jpeg) => {
-            let options = crate::encode::jpeg_quality::like(bytes, Options::default());
-            Ok((name.to_string(), encode::Original::with_meta_beside(image, bytes, name, sidecar).alone().turned(job.turn).encode(&options).map_err(failed)?))
-        }
-        None => crate::save_back::encoded_beside(bytes, name, image, sidecar).map(|(data, _)| (name.to_string(), data)).map_err(|_| (SKIP_INSIDE, name.to_string())),
-        Some(format) => {
-            let options = Options { format, turn: Turn::default(), ..job.options };
-            let data = encode::Original::with_meta_beside(image, bytes, name, sidecar).alone().turned(job.turn).encode(&options).map_err(failed)?;
-            Ok((with_ext(name, format), data))
-        }
-    }
+        None if Format::of_file(name) == Some(Format::Jpeg) => (name.to_string(), crate::encode::jpeg_quality::like(bytes, Options::default())),
+        None => return crate::save_back::encoded_beside(bytes, name, image, sidecar).map(|(data, _)| (name.to_string(), data, LeftOut::default())).map_err(|_| (SKIP_INSIDE, name.to_string())),
+        Some(format) => (with_ext(name, format), Options { format, turn: Turn::default(), ..job.options }),
+    };
+    let original = encode::Original::with_meta_beside(image, bytes, name, sidecar).alone().turned(job.turn);
+    Ok((out, original.encode(&options).map_err(failed)?, original.left_out(&options)))
 }
 
 /// A CAD drawing as `drawn` says; its pictures read through `sibling`.
@@ -576,6 +578,9 @@ pub struct Progress {
     /// Names of the copies without audio saved without the camera's preview, which could not be
     /// written into them (#216).
     pub no_preview: Mutex<Vec<String>>,
+    /// Images saved as JPEG without a part of their metadata, too large for it (#217): the id
+    /// `META_TOO_LARGE` and the name with what was left out.
+    pub left_out_meta: Mutex<Vec<(&'static str, String)>>,
     pub finished: AtomicBool,
     /// Bytes of the originals of the files saved, and of the new files (the summary at the end).
     pub bytes_before: AtomicU64,
@@ -699,25 +704,33 @@ pub async fn run(op: &Store, paths: Vec<String>, to: Dest, job: Job, p: Arc<Prog
             p.done.fetch_add(1, Ordering::Relaxed);
             continue;
         }
-        match picture(op, &path, name, &job).await {
-            Ok((new_name, data, before)) => {
-                let new_name = source::free_name(&taken, &new_name);
-                let to = format!("{dest}{new_name}");
-                let after = data.len() as u64;
-                match crate::replace::write_whole(&out, &to, data).await {
-                    Ok(()) => {
-                        taken.insert(new_name);
-                        p.sized(Some(before), Some(after));
-                        p.saved.lock().unwrap().push(to);
-                    }
-                    Err(e) => p.failed.lock().unwrap().push(e),
-                }
-            }
+        match picture(op, &path, name.clone(), &job).await {
+            Ok(made) => saved_picture(&p, (&out, &dest, &mut taken), &name, made).await,
             Err(e) => p.failed.lock().unwrap().push(e),
         }
         p.done.fetch_add(1, Ordering::Relaxed);
     }
     p.finished.store(true, Ordering::Relaxed);
+}
+
+/// The picture `name` made by the job (new name, content, size of the original, what a JPEG
+/// left out) written into `dest` of `out` under a name not `taken`, and counted in `p`.
+async fn saved_picture(p: &Progress, (out, dest, taken): (&Store, &str, &mut HashSet<String>), name: &str, (new_name, data, before, left): (String, Vec<u8>, u64, LeftOut)) {
+    let new_name = source::free_name(taken, &new_name);
+    let to = format!("{dest}{new_name}");
+    let after = data.len() as u64;
+    match crate::replace::write_whole(out, &to, data).await {
+        Ok(()) => {
+            taken.insert(new_name);
+            p.sized(Some(before), Some(after));
+            p.saved.lock().unwrap().push(to);
+            // Saved, without what a JPEG has no room for (#217): the summary says it.
+            if left.any() {
+                p.left_out_meta.lock().unwrap().push((META_TOO_LARGE, format!("{name} ({})", left.parts())));
+            }
+        }
+        Err(e) => p.failed.lock().unwrap().push(e),
+    }
 }
 
 /// The job decodes its pictures at full resolution: not Copy with the metadata, nor Export
@@ -750,7 +763,7 @@ fn too_large(job: &Job, (bytes, size, name): (&[u8], u64, &str), ram: u64) -> Op
 
 /// The picture at `path` (named `name`) after `job`, with its photo's sidecar (#24) and the
 /// layers shown of a drawing: the new name, the content and the size of the original.
-async fn picture(op: &Store, path: &str, name: String, job: &Job) -> Result<(String, Vec<u8>, u64), (&'static str, String)> {
+async fn picture(op: &Store, path: &str, name: String, job: &Job) -> Result<(String, Vec<u8>, u64, LeftOut), (&'static str, String)> {
     let bytes = match decodes(job) {
         true => read_decoded(op, path, job).await.map_err(|e| match e {
             crate::view_memory::NotRead::TooLarge(_) => (SKIP_TOO_LARGE, name.clone()),
@@ -763,7 +776,7 @@ async fn picture(op: &Store, path: &str, name: String, job: &Job) -> Result<(Str
     let (sibling, local) = (crate::loader::siblings(op.clone(), path.to_string()), crate::occt::local(op, path));
     let sidecar = crate::sidecar::read(op, path).await.map(|s| s.xmp);
     let made = tokio::task::spawn_blocking(move || crate::occt::from_file(local, || convert_with(&bytes, &name, &job, &sibling, sidecar.as_deref()))).await.unwrap_or_else(|e| Err(("batch-failed", e.to_string())));
-    made.map(|(name, data)| (name, data, before))
+    made.map(|(name, data, left)| (name, data, before, left))
 }
 
 #[cfg(test)]
@@ -791,7 +804,7 @@ mod tests {
                 let sidecar = crate::sidecar::names(&path).into_iter().find_map(|p| std::fs::read(&p).ok().filter(|x| crate::sidecar::belongs(&path, &p, crate::sidecar::sidecar_for(x).as_deref(), false)));
                 match super::convert_with(&bytes, &name, &super::Job { format: Some(format), ..Default::default() }, &|_| None, sidecar.as_deref()) {
                     // The original's extension kept in the name: a.miff and a.psb do not overwrite each other.
-                    Ok((new, data)) => std::fs::write(format!("{out}/{name}.{}", new.rsplit_once('.').unwrap().1), data).unwrap(),
+                    Ok((new, data, _)) => std::fs::write(format!("{out}/{name}.{}", new.rsplit_once('.').unwrap().1), data).unwrap(),
                     Err(e) => println!("{name} -> {format:?}: {e:?}"),
                 }
             }
@@ -1235,5 +1248,20 @@ mod tests {
         assert_eq!(typed_name(".hidden", Format::Png), ".hidden.png");
         assert_eq!(typed_name("foto.JPEG", Format::Jpeg), "foto.JPEG");
         assert_eq!(typed_name("v1.2", Format::Webp), "v1.2");
+    }
+    /// A picture converted to JPEG whose EXIF has no room in it is saved, and said (#217); the
+    /// same picture to PNG keeps it.
+    #[test]
+    fn meta_too_large_for_a_jpeg_said() {
+        use image::ImageEncoder;
+        let mut png = Vec::new();
+        let mut e = image::codecs::png::PngEncoder::new(&mut png);
+        e.set_exif_metadata(crate::encode::tests::caption_exif(70_000)).unwrap();
+        e.write_image(&[90; 8 * 6 * 3], 8, 6, image::ExtendedColorType::Rgb8).unwrap();
+        let to = |format| convert_with(&png, "a.png", &Job { format: Some(format), ..Job::default() }, &|_| None, None).unwrap();
+        let (name, jpeg, left) = to(Format::Jpeg);
+        assert_eq!((name.as_str(), left.parts().as_str()), ("a.jpg", "EXIF"));
+        assert_eq!(crate::decode::decode_full(&jpeg, "a.jpg").unwrap().width(), 8);
+        assert!(!to(Format::Png).2.any());
     }
 }

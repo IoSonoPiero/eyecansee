@@ -69,6 +69,7 @@ The choice starts again on **All** each time the page opens.
 - The **resolution** (for example the 600 dpi of a scan) is part of the metadata: with **None** the file is saved without it, also when the original has nothing else.
 - The orientation is set to upright, since the saved pixels are already turned, and the sizes written inside are those of the new image.
 - Left out: the small previews that cameras store inside the file and the video of a motion photo, which the new file does not have; the Lightroom and Camera Raw settings of a RAW file, which EyeCanSee does not use when it develops it. Those of other photos stay, marked as already applied, also with **All but the place**; with **None** they go, as the maker note does.
+- A JPEG holds at most 64 KB of EXIF and 64 KB of IPTC, and an XMP larger than that only when it can be split: an EXIF too large loses first the thumbnail of the original and then, if needed, the maker note, so that the camera, the date and the place stay. What does not fit even so is left out, and a line under **Metadata** says which part.
 - An **Ultra HDR** phone photo stays HDR when you save it as JPEG with the metadata, also from the editor: its HDR part is turned, cropped and covered together with the photo. Without the place it stays HDR too. In another format, or with **None**, it loses its HDR, and the page tells you before you save.
 
 ## Things to know

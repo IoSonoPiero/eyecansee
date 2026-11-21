@@ -262,7 +262,8 @@ impl App {
     }
 
     /// What the copy (or the file written over the original, `over`) loses, a line each: encoded
-    /// again, fewer bits, highlights cut, the video of a motion photo, a depth map (#201).
+    /// again, fewer bits, highlights cut, the video of a motion photo, a depth map (#201), the
+    /// metadata a JPEG has no room for (#217).
     fn losses(&self, s: &Plan, over: bool) -> String {
         let mut ids = Vec::new();
         if s.lossy {
@@ -282,7 +283,13 @@ impl App {
         if s.beyond.pictures {
             ids.push(if over { "edit-over-loss-pictures" } else { "edit-loss-pictures" });
         }
-        ids.iter().map(|id| format!("\n\n{}", self.i18n.t(id))).collect()
+        let mut text: String = ids.iter().map(|id| format!("\n\n{}", self.i18n.t(id))).collect();
+        // Metadata too large for a JPEG (#217).
+        if s.meta_left_out.any() {
+            let id = if over { "edit-over-loss-meta" } else { "edit-loss-meta" };
+            text += &format!("\n\n{}", self.i18n.t_args(id, &[("parts", &s.meta_left_out.parts())]));
+        }
+        text
     }
 
     /// The confirmation: the copy's name, or over the original with where the original goes
