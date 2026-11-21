@@ -26,7 +26,12 @@ pub(crate) fn dir_in(base: &std::path::Path) -> PathBuf {
 fn db_path() -> Option<&'static PathBuf> {
     static PATH: OnceLock<Option<PathBuf>> = OnceLock::new();
     PATH.get_or_init(|| {
-        let base = if cfg!(windows) {
+        // Tests never open the user's cache: one of their own for each run of the test binary.
+        // Opening the user's wrote its WAL at every `cargo test`, and a test saved a row there
+        // (2026-11-21). ponytail: left in the temporary folder, which the system clears.
+        let base = if cfg!(test) {
+            Some(std::env::temp_dir().join(format!("eyecansee-test-cache-{}", std::process::id())))
+        } else if cfg!(windows) {
             std::env::var_os("LOCALAPPDATA").map(PathBuf::from)
         } else {
             std::env::var_os("XDG_CACHE_HOME")
