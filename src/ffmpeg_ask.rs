@@ -41,7 +41,8 @@ impl App {
             return false;
         }
         log!("ffmpeg asked for: {:?}", crate::ffmpeg::status());
-        self.downloads.ask_ffmpeg = None;
+        // One started from the Convert window and still under way is shown here, not started again.
+        crate::downloads::forget_ended(&mut self.downloads.ffmpeg);
         self.ffmpeg_ask = Some(Ask { then });
         true
     }
@@ -51,7 +52,7 @@ impl App {
         if self.ffmpeg_ask.is_none() {
             return;
         }
-        let download = &mut self.downloads.ask_ffmpeg;
+        let download = &mut self.downloads.ffmpeg;
         let (id, offered) = text_of(&crate::ffmpeg::status());
         let component = crate::component::FFMPEG.filter(|_| offered);
         let size = component.map_or(String::new(), |c| format!("{} MB", c.size / 1_000_000));

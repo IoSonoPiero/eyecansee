@@ -478,7 +478,7 @@ impl App {
             crate::theme::title(ui, title);
             ui.add_space(6.0);
             notice_text(ui, &intro);
-            answer = form_ui(ui, &mut form, &mut self.downloads.convert_ffmpeg, &self.i18n);
+            answer = form_ui(ui, &mut form, &mut self.downloads.ffmpeg, &self.i18n);
         });
         log_size(ctx, shown.response.rect);
         if form.picker.is_some() {
