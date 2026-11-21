@@ -462,7 +462,9 @@ mod tests {
     /// Audit 2.11 (#202): Save over a file whose original goes to the system trash, when the trash
     /// refuses it (here: the trash of this run's data folder cannot be made). The save fails and
     /// the original stays; the second name made for it goes too. Before, it was taken for the
-    /// leftover of an older save and shown as "a (2).jpg", one more at every try.
+    /// leftover of an older save and shown as "a (2).jpg", one more at every try. Linux only: the
+    /// trash of the run is the one of `XDG_DATA_HOME`; on Windows the Recycle Bin is the computer's.
+    #[cfg(target_os = "linux")]
     #[test]
     fn audit_2_11_trash_refused_leaves_a_copy() {
         if crate::audit_family_1::own_folder("replace::tests::audit_2_11_trash_refused_leaves_a_copy") {
