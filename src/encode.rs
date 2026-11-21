@@ -291,9 +291,10 @@ impl Original {
     /// added to the file's own, its values first, as digiKam reads it (`xmp::with_sidecar`).
     pub fn with_meta_beside(image: DynamicImage, bytes: &[u8], name: &str, sidecar: Option<&[u8]>) -> Original {
         // RAW: the EXIF of every maker (`raw_meta`), the profile of the decoded pixels, the XMP,
-        // the IPTC where it is in a TIFF tag.
+        // the IPTC where it is in a TIFF tag. Only for a RAW file by its name, as it is decoded:
+        // rawler also takes for a RAW a TIFF with a camera's make and model (#215).
         let place = sidecar.map(crate::xmp_fields::read).and_then(|f| Some((f.gps?, f.altitude)));
-        if let Some(raw) = crate::raw_meta::read_placed(bytes, place) {
+        if let Some(raw) = crate::decode::is_raw(name).then(|| crate::raw_meta::read_placed(bytes, place)).flatten() {
             let x = crate::meta_write::read(bytes, None);
             let density = density::read(bytes, raw.exif.as_deref(), x.irb.as_deref());
             // Its Camera Raw settings (and darktable's history) are not in the pixels EyeCanSee
@@ -798,5 +799,29 @@ pub(crate) mod tests {
         for name in ["a.ico", "a.tga", "a.pnm", "a.exr", "a.hdr", "a.ff"] {
             assert_eq!(Format::of_file(name), None, "{name}");
         }
+    }
+
+    /// A TIFF (not a RAW file) with the make and model of a camera rawler knows keeps its own
+    /// colour profile and XMP when saved (#215): it is not taken for a RAW file by its content.
+    #[test]
+    fn camera_tiff_is_not_raw() {
+        let fields = [(exif::Tag::Make, "Hasselblad"), (exif::Tag::Model, "Hasselblad X1D")].map(|(tag, v)| exif::Field { tag, ifd_num: exif::In::PRIMARY, value: exif::Value::Ascii(vec![v.as_bytes().to_vec()]) });
+        let exif = crate::meta::write_exif(&fields, false).unwrap();
+        let icc = include_bytes!("../assets/icc/AdobeCompat-v2.icc").to_vec();
+        let xmp = br#"<x:xmpmeta xmlns:x="adobe:ns:meta/"><rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#"><rdf:Description rdf:about="" xmlns:crs="http://ns.adobe.com/camera-raw-settings/1.0/" crs:Exposure2012="+0.50"/></rdf:RDF></x:xmpmeta>"#.to_vec();
+        // Large enough that `image` hands out its profile (its memory limit follows the image size).
+        let image = DynamicImage::ImageRgb16(image::ImageBuffer::new(64, 48));
+        let made = Original { exif: Some(exif), icc: Some(icc.clone()), xmp: Some(xmp), ..Original::with_meta(image.clone(), &[]) };
+        let tiff = made.encode(&Options { format: Format::Tiff, ..Default::default() }).unwrap();
+        let own = crate::meta_write::read(&tiff, None).xmp.unwrap();
+        assert!(String::from_utf8_lossy(&own).contains("crs:Exposure2012"));
+        // rawler takes it for a Hasselblad 3FR.
+        assert!(crate::raw_meta::read(&tiff).is_some());
+        let mut dd = ImageReader::new(Cursor::new(&tiff)).with_guessed_format().unwrap().into_decoder();
+        std::fs::write(std::env::temp_dir().join("dbg215.tif"), &tiff).unwrap();
+        eprintln!("DEBUG {:?}", dd.as_mut().map(|d| d.icc_profile().map(|i| i.map(|i| i.len()))).map_err(|e| e.to_string()));
+        let saved = Original::with_meta_beside(image, &tiff, "a.tif", None);
+        assert_eq!(saved.icc, Some(icc));
+        assert_eq!(saved.xmp, Some(own));
     }
 }

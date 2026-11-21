@@ -632,7 +632,7 @@ mod tests {
             let (w, h) = (img.width(), img.height());
             out("crop", &ext, crate::save_back::encoded_back(&bytes, &name, img.crop_imm(w / 10, h / 10, w * 7 / 10, h * 7 / 10)).map(|r| r.0));
             out("turn", &ext, crate::save_back::turned_file(&bytes, &name, crate::transform::Turn::default().then(crate::transform::Op::Cw)).map(|r| r.0));
-            let half = Original::with_meta(img.resize(w / 2, h / 2, image::imageops::FilterType::Triangle), &bytes);
+            let half = Original::with_meta_of(img.resize(w / 2, h / 2, image::imageops::FilterType::Triangle), &bytes, &name);
             for f in [Format::Jpeg, Format::Png, Format::Webp, Format::Tiff, Format::Avif] {
                 out("to", f.ext(), half.encode(&Options { format: f, ..Default::default() }));
             }
