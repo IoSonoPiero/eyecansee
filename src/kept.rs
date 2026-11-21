@@ -142,6 +142,17 @@ async fn send_in(root: Option<PathBuf>, store: &Store, base: &str, path: &str, d
     }
 }
 
+/// The text of the window of a kept image (Markdown): its name, the error said plainly, that the
+/// original is as it was, and the folder on this computer that holds the changed image; and that
+/// folder.
+fn kept_text(i18n: &crate::i18n::I18n, k: &Kept) -> (String, String) {
+    let place = if k.store.is_none() { "kept-failed-phone" } else { "kept-failed-server" };
+    let (id, detail) = &k.error;
+    let folder = k.file.parent().unwrap_or(&k.file).display().to_string();
+    let text = i18n.t_args(place, &[("name", &crate::save_dialogs::md(source::name(&k.path))), ("error", &i18n.error_md(id, detail)), ("folder", &format!("**{}**", crate::save_dialogs::md(&folder)))]);
+    (text, folder)
+}
+
 #[derive(Clone, Copy)]
 enum Choice {
     Retry,
@@ -158,19 +169,27 @@ impl App {
         self.on_replaced(ctx, path, Err(error));
     }
 
-    /// The first kept image: what happened, where it is, and what can be done.
+    /// The first kept image: what happened, where it is, and what can be done. A message as the
+    /// others that say something failed: the warning triangle, and Copy (it was drawn as a
+    /// question, without them; the error is what a report needs).
     pub(crate) fn kept_window(&mut self, ctx: &egui::Context) {
         let Some(k) = self.kept.first().cloned() else { return };
-        let place = if k.store.is_none() { "kept-failed-phone" } else { "kept-failed-server" };
-        let (id, detail) = &k.error;
-        let error = self.i18n.error_md(id, detail);
-        let folder = k.file.parent().unwrap_or(&k.file).display().to_string();
-        let text = self.i18n.t_args(place, &[("name", &crate::save_dialogs::md(source::name(&k.path))), ("error", &error), ("folder", &format!("**{}**", crate::save_dialogs::md(&folder)))]);
+        let (text, folder) = kept_text(&self.i18n, &k);
         let t = |id| self.i18n.t(id);
         // Esc closes; Enter does nothing here (it must not choose one of the actions).
-        let choices = vec![(t("kept-retry"), self.loader.is_some(), Choice::Retry), (t("menu-save-copy"), true, Choice::SaveAs), (t("kept-open-folder"), true, Choice::Folder)];
-        let keys = crate::confirm::answer(ctx, &mut self.key_answer, "kept").and_then(|enter| (!enter).then_some(None));
-        match crate::confirm::choose(ctx, "kept", 480.0, (t("kept-title"), text), choices, t("notice-close"), keys) {
+        let mut answer = crate::confirm::answer(ctx, &mut self.key_answer, "kept").and_then(|enter| (!enter).then_some(None));
+        let choices = [(t("kept-retry"), self.loader.is_some(), Some(Choice::Retry)), (t("menu-save-copy"), true, Some(Choice::SaveAs)), (t("kept-open-folder"), true, Some(Choice::Folder)), (t("notice-close"), true, None)];
+        let head = crate::save_dialogs::Head { title: &t("kept-title"), warning: true };
+        crate::save_dialogs::message(ctx, "kept", head, &text, &t("notice-copy"), |ui| {
+            ui.horizontal(|ui| {
+                for (label, enabled, choice) in choices {
+                    if ui.add_enabled(enabled, egui::Button::new(label)).clicked() {
+                        answer = Some(choice);
+                    }
+                }
+            });
+        });
+        match answer {
             Some(Some(Choice::Retry)) => {
                 self.kept.remove(0);
                 if let Some(loader) = &self.loader {
@@ -259,6 +278,50 @@ fn open_folder(folder: &Path) {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
+
+    /// The window of a kept image: the name, the error, the folder that holds it; Copy takes it
+    /// as it reads, the error and the folder too (a name or a folder with `*` or `_` as they are).
+    #[test]
+    fn kept_window_text() {
+        let it = crate::i18n::I18n::new("it");
+        let file = PathBuf::from("/home/p/.local/share/eyecansee/edits/a_b.jpg-1f/a_b.jpg");
+        let k = Kept { store: None, base: "mtp://phone/".into(), path: "DCIM/a*b.jpg".into(), file, how: source::Deletion::Permanent, send: Send::Replace, error: ("error-detail", "timeout".into()) };
+        let (text, folder) = kept_text(&it, &k);
+        assert_eq!(folder, "/home/p/.local/share/eyecansee/edits/a_b.jpg-1f");
+        assert!(text.starts_with(&format!("**{}** non è stato salvato sul telefono: ", crate::save_dialogs::md("a*b.jpg"))), "{text}");
+        let copy = crate::save_dialogs::plain(&text);
+        assert!(copy.starts_with("a*b.jpg non è stato salvato sul telefono: ") && copy.contains("timeout") && copy.ends_with(&folder), "{copy}");
+        assert!(copy.contains("L'originale sul telefono è intatto."), "{copy}");
+    }
+
+    /// In the app (no screen): the window of a kept image is as wide as the other messages in both
+    /// languages (its four buttons fit in a row, with room for Copy at the right), Enter leaves
+    /// it open and Esc closes it.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn kept_window_fits() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("kept::tests::kept_window_fits") {
+            return;
+        }
+        let mut h = Harness::new(&folder("kept-window", &["a.png"]));
+        let file = PathBuf::from("/home/p/.local/share/eyecansee/edits/a.png-1f/a.png");
+        let kept = Kept { store: None, base: "mtp://phone/".into(), path: "DCIM/a.png".into(), file, how: source::Deletion::Permanent, send: Send::Replace, error: ("error-detail", "timeout".into()) };
+        for lang in ["en", "it"] {
+            h.app.i18n = crate::i18n::I18n::new(lang);
+            h.app.kept = vec![kept.clone()];
+            for _ in 0..3 {
+                h.frame(Vec::new());
+            }
+            let rect = h.ctx.memory(|m| m.area_rect(egui::Id::unique("kept"))).expect("no window for the kept image");
+            // 460 points of text and buttons at most, and the window's margins (477.5 in all).
+            assert!(rect.width() >= 320.0 && rect.width() <= 480.0, "{lang}: the window is {} points wide", rect.width());
+            h.key(egui::Key::Enter);
+            assert_eq!(h.app.kept.len(), 1, "{lang}: Enter closed the window");
+            h.key(egui::Key::Escape);
+            assert!(h.app.kept.is_empty(), "{lang}: Esc did not close the window");
+        }
+    }
 
     /// A kept image: in its own folder under the data folder, with where it was going; the same
     /// image gets the same folder, another image another; `forget` removes it, and nothing outside.
