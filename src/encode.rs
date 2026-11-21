@@ -865,9 +865,6 @@ pub(crate) mod tests {
         assert!(String::from_utf8_lossy(&own).contains("crs:Exposure2012"));
         // rawler takes it for a Hasselblad 3FR.
         assert!(crate::raw_meta::read(&tiff).is_some());
-        let mut dd = ImageReader::new(Cursor::new(&tiff)).with_guessed_format().unwrap().into_decoder();
-        std::fs::write(std::env::temp_dir().join("dbg215.tif"), &tiff).unwrap();
-        eprintln!("DEBUG {:?}", dd.as_mut().map(|d| d.icc_profile().map(|i| i.map(|i| i.len()))).map_err(|e| e.to_string()));
         let saved = Original::with_meta_beside(image, &tiff, "a.tif", None);
         assert_eq!(saved.icc, Some(icc));
         assert_eq!(saved.xmp, Some(own));
