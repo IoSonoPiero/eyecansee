@@ -272,7 +272,7 @@ pub fn convert_with(bytes: &[u8], name: &str, job: &Job, sibling: crate::model::
     let mut image = crate::decode::decode_full_with(bytes, name, sibling).map_err(|e| match e.split_once('\u{1}') {
         Some((_, size)) if crate::pixel_limit::is_too_large(&e) => (crate::pixel_limit::TOO_LARGE, format!("{name}, {size}")),
         Some((id, file)) if crate::model_gltf::is_error(id) => crate::model_gltf::convert_error(id, file, name),
-        _ => ("batch-failed", format!("{name}: {e}")),
+        _ => crate::fault::not_opened(name, e),
     })?;
     // The other frames of an animation, the other pages would be lost. After decoding, so that
     // a file that is not an image says so. A phone JPEG (HDR gain map, motion photo video) is
@@ -343,12 +343,12 @@ fn drawing(bytes: &[u8], name: &str, job: &Job, drawn: Drawn, sibling: crate::mo
             };
         }
         Drawn::Svg => {
-            let d = shown(crate::cad::read_with(bytes, name, sibling).map_err(failed)?, job);
+            let d = shown(crate::cad::read_with(bytes, name, sibling).map_err(|e| crate::fault::not_opened(name, e))?, job);
             return Ok((ext(name, "svg"), d.svg(crate::decode::CAD_SIDE, 1.0).map_err(failed)?.into_bytes()));
         }
         Drawn::Side(side) => side,
     };
-    let d = shown(crate::cad::read_with(bytes, name, sibling).map_err(failed)?, job);
+    let d = shown(crate::cad::read_with(bytes, name, sibling).map_err(|e| crate::fault::not_opened(name, e))?, job);
     let image = image::DynamicImage::ImageRgba8(crate::decode::cad_render(&d, side, None).map_err(failed)?);
     let format = job.format.unwrap_or(Format::Png);
     let options = Options { format, turn: Turn::default(), ..job.options };
@@ -1073,7 +1073,7 @@ mod tests {
         let (_, data) = convert(&jpeg, "q.jpg", &job).unwrap();
         assert_eq!(Some(data), crate::transform::jpeg_lossless(&jpeg, job.turn));
         // Not an image.
-        assert_eq!(convert(b"nothing", "c.jpg", &Job::default()).unwrap_err().0, "batch-failed");
+        assert_eq!(convert(b"nothing", "c.jpg", &Job::default()).unwrap_err().0, crate::fault::NOT_OPENED);
     }
 
     /// JPEG chosen in the window: the quality set there wins over the original's; Same as the

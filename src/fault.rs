@@ -10,6 +10,15 @@ use crate::i18n::I18n;
 use crate::save_dialogs::md;
 use crate::source::{self, NOT_FOUND};
 
+/// The error of a file that could not be decoded (Convert…, Resize…): with `name\u{1}raw`
+/// (`not_opened`), said as the viewer says it (`I18n::not_opened`).
+pub(crate) const NOT_OPENED: &str = "batch-not-opened";
+
+/// The error of the file `name` that could not be decoded, with the library's text `e`.
+pub(crate) fn not_opened(name: &str, e: impl std::fmt::Display) -> (&'static str, String) {
+    (NOT_OPENED, format!("{name}\u{1}{e}"))
+}
+
 /// What went wrong, as the user can act on it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Kind {
@@ -147,6 +156,9 @@ impl I18n {
         if let Some(text) = crate::model_gltf::cut_text(self, id, detail) {
             return text;
         }
+        if let Some((name, raw)) = detail.split_once('\u{1}').filter(|_| id == NOT_OPENED) {
+            return self.not_opened(name, raw).0;
+        }
         // A detail sent with its own id (`id\u{1}detail`): a picture too large (`pixel_limit`).
         if let Some((inner, d)) = detail.split_once('\u{1}').filter(|(i, _)| crate::pixel_limit::is_too_large(i)) {
             let plain = self.t_args(inner, &[("detail", d)]);
@@ -181,6 +193,23 @@ impl I18n {
         let said = self.load_error(e);
         let text = self.t_args("cannot-load", &[("file", file), ("error", &said)]);
         if said == e { crate::error_bar::with_detail(&text, e) } else { text }
+    }
+
+    /// The file `name` that could not be decoded, with the library's text `raw` (`NOT_OPENED`):
+    /// the viewer's sentence (`cannot_load`, "Cannot open x"), and apart the library's text, for
+    /// Copy and the log ("Error: No decoder found, model '', …" said nothing to the user, 21/11).
+    /// A reason the system gave (no permission, a full disk) is said plainly, as everywhere.
+    pub(crate) fn not_opened(&self, name: &str, raw: &str) -> (String, Option<String>) {
+        if let Some((kind, file)) = recognise(raw) {
+            log!("error {NOT_OPENED}, said as {kind:?}: {raw}");
+            return (self.fault(kind, Some(file.as_deref().unwrap_or(name))), None);
+        }
+        let said = self.load_error(raw);
+        if said != raw {
+            return (self.t_args("cannot-load", &[("file", name), ("error", &said)]), None);
+        }
+        let sentence = self.t_args("cannot-load", &[("file", name), ("error", "")]).trim_end().to_string();
+        (sentence, Some(raw.trim().to_string()).filter(|d| !d.is_empty()))
     }
 
     /// `error`, to go in a message window's Markdown (`save_dialogs::notice_text`).

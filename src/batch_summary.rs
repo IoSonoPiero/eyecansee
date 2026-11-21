@@ -11,6 +11,7 @@ use eframe::egui;
 use crate::App;
 use crate::audio_convert::SKIP_AUDIO;
 use crate::batch::{SKIP_FORMAT, SKIP_INSIDE, SKIP_NOT_AUTOCAD, SKIP_SAME_SIZE, SKIP_TOO_LARGE, SKIP_VIDEO, SKIP_WOULD_LOSE};
+use crate::fault::NOT_OPENED;
 use crate::i18n::I18n;
 use crate::save_dialogs::{Head, copy_button, md, notice_text};
 
@@ -50,6 +51,9 @@ pub(crate) struct Group {
     pub(crate) heading: String,
     /// The names, or for errors the error of each file, as a message line (`md`).
     pub(crate) items: Vec<String>,
+    /// The items as Copy takes them: a file that could not be decoded with the library's text
+    /// too, in brackets, for a report.
+    pub(crate) copied: Vec<String>,
 }
 
 /// A group with more files than this is shown folded.
@@ -74,17 +78,39 @@ fn group_of(id: &str, preset: bool) -> (&'static str, bool) {
 
 /// The files left out by reason, in the order the reasons first came.
 fn groups(i18n: &I18n, failed: &[(&'static str, String)], preset: bool) -> Vec<Group> {
-    let mut out: Vec<(&'static str, Vec<String>)> = Vec::new();
+    let mut out: Vec<(&'static str, Vec<String>, Vec<String>)> = Vec::new();
     for (id, detail) in failed {
         let (heading, names) = group_of(id, preset);
-        // One line each in the list: a reason said on several lines is joined again.
-        let item = if names { md(detail) } else { i18n.error_md(id, detail).replace('\n', " ") };
-        match out.iter_mut().find(|(h, _)| *h == heading) {
-            Some((_, items)) => items.push(item),
-            None => out.push((heading, vec![item])),
+        let (item, copied) = item(i18n, id, detail, names);
+        match out.iter_mut().find(|(h, ..)| *h == heading) {
+            Some((_, items, all)) => {
+                items.push(item);
+                all.push(copied);
+            }
+            None => out.push((heading, vec![item], vec![copied])),
         }
     }
-    out.into_iter().map(|(id, items)| Group { heading: i18n.t_args(id, &[("n", &items.len().to_string())]), items }).collect()
+    out.into_iter().map(|(id, items, copied)| Group { heading: i18n.t_args(id, &[("n", &items.len().to_string())]), items, copied }).collect()
+}
+
+/// A file left out as a line of its group (`md`), and as Copy takes it: the name, or the error
+/// said plainly; a file that could not be decoded as the viewer says it ("Cannot open x"), the
+/// library's text only in Copy (and in the log, `batch_done`).
+fn item(i18n: &I18n, id: &str, detail: &str, names: bool) -> (String, String) {
+    // One line each in the list: a reason said on several lines is joined again.
+    let line = |text: &str| md(text).replace('\n', " ");
+    match detail.split_once('\u{1}').filter(|_| id == NOT_OPENED) {
+        _ if names => (md(detail), md(detail)),
+        Some((name, raw)) => {
+            let (sentence, apart) = i18n.not_opened(name, raw);
+            let copied = apart.map_or_else(|| line(&sentence), |raw| line(&format!("{sentence} ({raw})")));
+            (line(&sentence), copied)
+        }
+        None => {
+            let item = i18n.error_md(id, detail).replace('\n', " ");
+            (item.clone(), item)
+        }
+    }
 }
 
 /// The window for `o`, titled with the Fluent id `title` (that of the command); `open` the
@@ -112,7 +138,7 @@ pub(crate) fn summary(i18n: &I18n, title: &str, o: &Outcome, open: String) -> Su
     }
     let text = format!("{}\n\n{}", lines.join("\n"), after.join("\n"));
     let groups = groups(i18n, o.failed, o.preset);
-    let lists: Vec<(&str, &[String])> = groups.iter().map(|g| (g.heading.as_str(), g.items.as_slice())).collect();
+    let lists: Vec<(&str, &[String])> = groups.iter().map(|g| (g.heading.as_str(), g.copied.as_slice())).collect();
     let copy = crate::notice_list::copied(&text, &lists);
     Summary { title: i18n.t(title), text, groups, open: (o.saved > 0).then_some(open), copy }
 }
@@ -215,6 +241,54 @@ mod tests {
         assert_eq!(summary(&i18n, "batch-title", &outcome(&[], 3, 3, 3), String::new()).copy, "3 files saved in /p/converted.\n\nIt took 1 min 15 s.\nSize: 4.0 MB before, 1.0 MB after (25%).");
         let it = summary(&I18n::new("it"), "batch-title", &outcome(&[], 2, 2, 2), String::new());
         assert!(it.text.starts_with("**2 file** salvati in \\/p\\/converted.\n\nCi è voluto 1 min 15 s.\nDimensione: 4,0 MB prima, 1,0 MB dopo (25%)."), "{}", it.text);
+    }
+
+    /// The files that do not decode, as Convert… leaves them out: a RAW photo full of zeros and
+    /// a PNG cut in half, one with a name to escape.
+    fn not_decoded() -> Vec<(&'static str, String)> {
+        let noise = image::RgbImage::from_fn(64, 64, |x, y| image::Rgb([(x * 7 + y * 13) as u8, (x * y) as u8, (x ^ y) as u8]));
+        let mut png = Vec::new();
+        noise.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).unwrap();
+        png.truncate(png.len() / 2);
+        let job = crate::batch::Job { format: Some(crate::encode::Format::Jpeg), ..Default::default() };
+        [(vec![0; 4096], "huge.cr3"), (png, "a_b*.png")].iter().map(|(bytes, name)| crate::batch::convert(bytes, name, &job).unwrap_err()).collect()
+    }
+
+    /// A file that does not decode is said as the viewer says it (`cannot_load`, the same words):
+    /// "Cannot open x" in the list, the library's text only in Copy; in both languages.
+    #[test]
+    fn not_opened_as_the_viewer() {
+        let failed = not_decoded();
+        for lang in ["en", "it"] {
+            let i18n = I18n::new(lang);
+            let s = summary(&i18n, "batch-title", &outcome(&failed, 0, 2, 2), String::new());
+            assert_eq!((s.groups.len(), s.groups[0].heading.as_str()), (1, if lang == "en" { "2 errors:" } else { "2 errori:" }));
+            for ((id, detail), (item, copied)) in failed.iter().zip(s.groups[0].items.iter().zip(&s.groups[0].copied)) {
+                assert_eq!(*id, NOT_OPENED);
+                let (name, raw) = detail.split_once('\u{1}').unwrap();
+                let (sentence, apart) = i18n.not_opened(name, raw);
+                assert_eq!(i18n.cannot_load(name, raw), format!("{sentence}\n({})", apart.as_deref().unwrap()), "the viewer's words");
+                assert_eq!(crate::save_dialogs::plain(item), sentence);
+                assert!(sentence.contains(name) && !sentence.contains(raw.trim()), "{sentence}");
+                assert_eq!(crate::save_dialogs::plain(copied), format!("{sentence} ({})", raw.trim()));
+                assert!(s.copy.contains(&format!("- {sentence} ({})", raw.trim())), "{}", s.copy);
+            }
+        }
+        assert_eq!(I18n::new("it").not_opened("huge.cr3", "Error: x").0, "Impossibile aprire huge.cr3");
+        assert_eq!(I18n::new("en").not_opened("huge.cr3", "Error: x").0, "Cannot open huge.cr3");
+    }
+
+    /// What the system said is said plainly, as before (`fault`), with the file's name; a reason
+    /// the program translates (the CAD engine missing) stays in the sentence.
+    #[test]
+    fn not_opened_said_plainly() {
+        let en = I18n::new("en");
+        #[cfg(unix)]
+        assert_eq!(en.not_opened("a.png", "Permission denied (os error 13)"), (en.fault(crate::fault::Kind::Denied, Some("a.png")), None));
+        let (sentence, apart) = en.not_opened("p.dwg", crate::occt::MISSING);
+        assert_eq!((sentence.as_str(), apart), ("Cannot open p.dwg\nThe CAD engine is missing.", None));
+        let g = groups(&en, &[crate::fault::not_opened("p.dwg", crate::occt::MISSING)], false);
+        assert_eq!((g[0].items[0].as_str(), g[0].copied[0].as_str()), ("Cannot open p\\.dwg The CAD engine is missing\\.", "Cannot open p\\.dwg The CAD engine is missing\\."));
     }
 
     /// Copy takes every file left out, also those of a group shown folded, under their headings.
