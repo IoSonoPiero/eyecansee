@@ -997,7 +997,7 @@ mod tests {
             let mut left = p.links_skipped.lock().unwrap().clone();
             left.sort();
             assert_eq!(left, ["move/keep/back", "move/out/again"]);
-            assert_eq!(crate::transfer::links_to_say(&r, &p), Some(2));
+            assert_eq!(crate::transfer::links_to_say(&r, &p).map(|l| l.len()), Some(2));
             assert_eq!(std::fs::read(dir.join("dest/move/a.jpg")).unwrap(), b"not a jpeg");
             assert_eq!(std::fs::read(dir.join("dest/move/sub/b.jpg")).unwrap(), b"not a jpeg");
             assert_eq!(std::fs::read(dir.join("dest/move/out/a.jpg")).unwrap(), b"not a jpeg");

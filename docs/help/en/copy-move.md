@@ -16,7 +16,8 @@ To paste straight into a folder without opening it, right-click it (in the grid 
 - Copied items get a blue badge ![Copied](icon://color-copied) in the corner of their cell; cut items an orange one with scissors ![Cut](icon://color-cut), and they fade. The status bar says how many are waiting for Ctrl+V.
 - During the copy a box at the bottom right shows the file being copied, the destination folder, how many files and how much data are done, the percentage, the speed of the last seconds and the time left. With many folders it first says how many items it found while looking inside them.
 - The destination folder fills while the copy runs.
-- If links to folders on a server were left out (see [Known limits](limits.md)), at the end the box stays and says how many, until you click **Close**. A link left out is not copied; in a move it is not deleted either: only what was copied goes, so the link stays where it was, and so do the folders that hold it.
+- When the copy ends the box goes. If something was left out, one message says what; with nothing to say, no window opens.
+- If links to folders on a server were left out (see [Known limits](limits.md)), a message at the end says how many and names them (the first ten, then how many more; ![Copy the message](icon://copy) copies every name). A link left out is not copied; in a move it is not deleted either: only what was copied goes, so the link stays where it was, and so do the folders that hold it.
 - A file that cannot be read (a server that stops sending it, a file that went away meanwhile) is left out and the copy goes on with the others. At the end a message names the files not copied and says why the first was not read; in a move they stay where they were, with their folders. If the source itself cannot be reached any more (a server gone, a phone unplugged), the copy stops there.
 
 ## When a name is already there

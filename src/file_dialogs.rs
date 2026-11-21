@@ -69,7 +69,6 @@ impl App {
         let progress = Arc::new(transfer::Progress::default());
         loader.paste(clip.clone(), dir.clone(), choices, progress.clone());
         self.transfer = Some((progress, clip.cut, self.base.clone(), dir));
-        self.transfer_end = None;
         // One paste per copy (chosen by the user): the clip, and its badges, go.
         self.clip = None;
     }
@@ -215,31 +214,6 @@ impl App {
         }
     }
 
-    /// The copy box once the copy has ended with links to folders left out (#183): how many, in
-    /// the same place, until Close.
-    pub(crate) fn transfer_end_window(&mut self, ctx: &egui::Context) {
-        let Some((cut, base, dest, n)) = &self.transfer_end else { return };
-        let title = self.i18n.t(if *cut { "transfer-moved" } else { "transfer-copied" });
-        let to = self.i18n.t_args("transfer-to", &[("dir", &shown(base, dest))]);
-        let skipped = self.i18n.t_args(if *cut { "transfer-links-kept" } else { "transfer-links-skipped" }, &[("n", &n.to_string())]);
-        let (why, close) = (self.i18n.t("transfer-links-why"), self.i18n.t("notice-close"));
-        let mut closed = false;
-        egui::Window::new(title)
-            .collapsible(false)
-            .resizable(false)
-            .anchor(egui::Align2::RIGHT_BOTTOM, egui::vec2(-16.0, -40.0))
-            .show(ctx, |ui| {
-                ui.set_width(360.0);
-                ui.add(egui::Label::new(to).truncate());
-                ui.label(egui::RichText::new(skipped).strong());
-                ui.label(why);
-                closed = ui.button(close).clicked();
-            });
-        if closed {
-            self.transfer_end = None;
-        }
-    }
-
     pub(crate) fn ask_delete(&mut self, path: Option<String>, permanent: bool) {
         // Not while a deletion runs: a click repeated while waiting landed on the next item
         // (Download/Pipe, 2026-10-22).
@@ -373,19 +347,14 @@ impl App {
         self.delete_check = None;
     }
 
-    /// The message at the end of a copy that left items out for their name (`refused_notice`),
-    /// a move that left in its folders what it did not copy (`left_notice`), or a copy that could
-    /// not read some files (`failed_notice`), unless it was cancelled; all in one when more happened.
-    pub(crate) fn tell_refused(&mut self, p: &transfer::Progress, cancelled: bool) {
-        if cancelled || self.quit_after_transfer {
+    /// The message at the end of a copy or a move into `to` (as the address bar shows it) that
+    /// has something to say (`transfer_notice`), in place of the copy box; none when the program
+    /// closes after the copy.
+    pub(crate) fn tell_transfer(&mut self, p: &transfer::Progress, cut: bool, to: &str, r: &Result<(), source::Error>) {
+        if self.quit_after_transfer {
             return;
         }
-        let (names, left, failed) = (p.refused.lock().unwrap(), p.left.lock().unwrap(), p.failed.lock().unwrap());
-        let refused = (!names.is_empty()).then(|| refused_notice(&self.i18n, &names));
-        let left = (!left.is_empty()).then(|| left_notice(&self.i18n, &left));
-        let failed = (!failed.is_empty()).then(|| failed_notice(&self.i18n, &failed));
-        let all = [refused, left, failed].into_iter().flatten().reduce(joined);
-        self.notice = all.or(self.notice.take());
+        self.notice = transfer_notice(&self.i18n, cut, to, r, p).or(self.notice.take());
     }
 
     pub(crate) fn ask_rename(&mut self, path: Option<String>) {
@@ -554,10 +523,38 @@ pub(crate) fn failed_notice(i18n: &crate::i18n::I18n, failed: &[(String, source:
     crate::notice_list::notice(i18n, i18n.t_args("copy-failed-title", &args), &intro, &names, true)
 }
 
+/// The message at the end of a copy (`cut`: a move) into `to` that worked and left links to
+/// folders out (#183), as the other messages of its end: where it went, how many links and what
+/// became of them, why, and that the guide says more (F1 opens that page, `Notice::help`); then
+/// the links, as walked (`notice_list`). It was the copy box staying, without Copy (Piero, 21/11).
+pub(crate) fn links_notice(i18n: &crate::i18n::I18n, cut: bool, to: &str, links: &[String]) -> Notice {
+    let to = i18n.t_args("transfer-to", &[("dir", &crate::save_dialogs::md(&crate::address::without_password(to)))]);
+    let said = i18n.t_args(if cut { "transfer-links-kept" } else { "transfer-links-skipped" }, &[("n", &links.len().to_string())]);
+    let intro = format!("{to}\n{said}\n{}", i18n.t("transfer-links-why"));
+    let title = i18n.t(if cut { "transfer-moved" } else { "transfer-copied" });
+    Notice { help: Some("help:copy-move"), ..crate::notice_list::notice(i18n, title, &intro, links, true) }
+}
+
+/// What the end of a copy (`cut`: a move) into `to` has to say, all in one window: the links to
+/// folders left out (`links_notice`, only when the copy worked), the items left out for their
+/// name (`refused_notice`), what a move left in its folders (`left_notice`), the files not read
+/// (`failed_notice`). `None` with nothing to say, or when it was cancelled: the copy box just goes.
+pub(crate) fn transfer_notice(i18n: &crate::i18n::I18n, cut: bool, to: &str, r: &Result<(), source::Error>, p: &transfer::Progress) -> Option<Notice> {
+    if r.as_ref().is_err_and(|(id, _)| *id == "error-cancelled") {
+        return None;
+    }
+    let links = transfer::links_to_say(r, p).map(|links| links_notice(i18n, cut, to, &links));
+    let (names, left, failed) = (p.refused.lock().unwrap(), p.left.lock().unwrap(), p.failed.lock().unwrap());
+    let refused = (!names.is_empty()).then(|| refused_notice(i18n, &names));
+    let left = (!left.is_empty()).then(|| left_notice(i18n, &left));
+    let failed = (!failed.is_empty()).then(|| failed_notice(i18n, &failed));
+    [links, refused, left, failed].into_iter().flatten().reduce(joined)
+}
+
 /// Two messages of the end of a copy in one window: the second under its title.
 fn joined(a: Notice, b: Notice) -> Notice {
     let copy = format!("{}\n\n{}\n\n{}", a.copy.as_ref().unwrap_or(&a.text), b.title, b.copy.as_ref().unwrap_or(&b.text));
-    Notice { text: format!("{}\n\n{}\n\n{}", a.text, crate::save_dialogs::md(&b.title), b.text), copy: Some(copy), ..a }
+    Notice { text: format!("{}\n\n{}\n\n{}", a.text, crate::save_dialogs::md(&b.title), b.text), copy: Some(copy), help: a.help.or(b.help), ..a }
 }
 
 #[cfg(test)]
@@ -578,6 +575,103 @@ mod tests {
         assert_eq!(two.title, "Files not copied");
         assert!(two.text.starts_with("They could not be read.\nThe first: "), "{}", two.text);
         assert!(!two.text.contains("early eof") && two.text.matches("\n- ").count() == 2, "{}", two.text);
+    }
+
+    /// The end of a copy that left links to folders out (#183; L17 of 2026-11-21: it was the copy
+    /// box staying, without Copy): a message as the others, with the sentences the box had, the
+    /// links named, and the page F1 opens; a move and the plural; the folder as it is, also with
+    /// what Markdown would take for its own, and Copy gives it back plain; no password shown.
+    #[test]
+    fn links_left_out_told() {
+        let (it, en) = (crate::i18n::I18n::new("it"), crate::i18n::I18n::new("en"));
+        let one = super::links_notice(&it, false, "/home/p/arrivo/", &["collegamenti/self".to_string()]);
+        assert_eq!(one.title, "Copia finita");
+        let sentences = "1 collegamento a una cartella saltato: non è stato copiato.\nUn collegamento a una cartella su un server FTP, o uno che riporta dentro le cartelle copiate, resta fuori.\nAltro nella guida (F1).";
+        assert_eq!(one.text, format!("In {}\n{sentences}\n\n- {}", md("/home/p/arrivo/"), md("collegamenti/self")));
+        assert!(one.warning && one.save_as.is_none());
+        assert_eq!(one.help, Some("help:copy-move"));
+        assert_eq!(one.copy.as_deref(), Some(format!("In /home/p/arrivo/\n{sentences}\n\n- collegamenti/self").as_str()));
+        let links: Vec<String> = (1..=12).map(|i| format!("a/link_{i}")).collect();
+        let odd = "/p/a*b `c` **d**\\e/";
+        let moved = super::links_notice(&en, true, odd, &links);
+        assert_eq!(moved.title, "Move finished");
+        let start = "12 links to folders skipped: they were not moved, and stay where they were with the folders that hold them.\nA link to a folder on an FTP server, or one that leads back into the folders copied, is left out.\nMore in the guide (F1).\n\n";
+        assert!(moved.text.starts_with(&format!("To {}\n{start}- {}\n", md(odd), md("a/link_1"))), "{}", moved.text);
+        assert!(moved.text.ends_with("\n\nand 2 more") && moved.text.matches("\n- ").count() == 10, "{}", moved.text);
+        let copy = moved.copy.unwrap();
+        assert!(copy.starts_with(&format!("To {odd}\n{start}- a/link_1\n")) && copy.ends_with("\n- a/link_12") && !copy.contains("more"), "{copy}");
+        assert_eq!(crate::save_dialogs::plain(&moved.text).lines().next(), Some(format!("To {odd}").as_str()));
+        let server = super::links_notice(&it, false, "ftp://u:secret@host/in/", &links);
+        assert!(server.text.starts_with(&format!("In {}\n", md("ftp://u:***@host/in/"))) && !server.copy.unwrap().contains("secret"), "{}", server.text);
+        assert!(super::links_notice(&it, true, "/a/", &links).text.contains("\n12 collegamenti a cartelle saltati: non sono stati spostati e restano dov'erano, con le cartelle che li contengono.\n"));
+    }
+
+    /// What the end of a copy says (`transfer_notice`). Nothing to say, or cancelled: no window,
+    /// the copy box just goes. Links only when the copy worked (the log has them otherwise); the
+    /// names left out and the files not read after an error too. All in one window, the links
+    /// first, with their page for F1.
+    #[test]
+    fn end_of_a_copy_in_one_message() {
+        let it = crate::i18n::I18n::new("it");
+        let (cancelled, stopped) = (Err(("error-cancelled", String::new())), Err(("error-too-deep", "a/".to_string())));
+        let p = crate::transfer::Progress::default();
+        let end = |cut: bool, r: &Result<(), crate::source::Error>| super::transfer_notice(&it, cut, "/arrivo/", r, &p);
+        assert!(end(false, &Ok(())).is_none() && end(true, &Ok(())).is_none());
+        assert!(end(false, &stopped).is_none() && end(false, &cancelled).is_none());
+        p.links_skipped.lock().unwrap().push("c/self".into());
+        let links = end(false, &Ok(())).unwrap();
+        assert_eq!((links.title.as_str(), links.help), ("Copia finita", Some("help:copy-move")));
+        assert_eq!(end(true, &Ok(())).unwrap().title, "Spostamento finito");
+        assert!(end(false, &stopped).is_none() && end(false, &cancelled).is_none());
+        p.refused.lock().unwrap().push("c/a:b.jpg".into());
+        p.failed.lock().unwrap().push(("c/x.jpg".into(), ("error-detail", "timeout".into())));
+        let all = end(false, &Ok(())).unwrap();
+        assert_eq!((all.title.as_str(), all.help, all.warning), ("Copia finita", Some("help:copy-move"), true));
+        let parts: Vec<&str> = all.text.split("\n\nFile non copiato\n\n").collect();
+        assert_eq!(parts.len(), 3, "{}", all.text);
+        assert!(parts[0].ends_with(&format!("Altro nella guida (F1).\n\n- {}", md("c/self"))), "{}", all.text);
+        assert!(parts[1].starts_with("Il suo nome non va bene su questo computer.") && parts[2].starts_with("Non è stato possibile leggerlo."), "{}", all.text);
+        let copy = all.copy.unwrap();
+        assert!(copy.starts_with("In /arrivo/\n1 collegamento") && copy.contains("\n\n- c/self\n\nFile non copiato\n\nIl suo nome") && copy.ends_with("\n\n- c/x.jpg"), "{copy}");
+        // The copy stopped at an error (said in the error bar): the links are not said, the rest is.
+        let after_error = end(false, &stopped).unwrap();
+        assert_eq!((after_error.title.as_str(), after_error.help), ("File non copiato", None));
+        assert!(!after_error.text.contains("collegament") && after_error.text.contains("\n\nFile non copiato\n\nNon è stato possibile leggerlo."), "{}", after_error.text);
+        assert!(end(false, &cancelled).is_none());
+    }
+
+    /// In the app (no screen): a copy that ends with nothing to say takes its box away and opens
+    /// no window; one that left a link out opens the message in place of the box, F1 gives the
+    /// page on copying while it is up, and Enter closes it.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn copy_box_goes_and_the_message_comes() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("file_dialogs::tests::copy_box_goes_and_the_message_comes") {
+            return;
+        }
+        let mut h = Harness::new(&folder("copy-end", &["a.jpg"]));
+        let end = |h: &mut Harness, links: &[&str]| {
+            let p = std::sync::Arc::new(crate::transfer::Progress::default());
+            p.links_skipped.lock().unwrap().extend(links.iter().map(|l| l.to_string()));
+            h.app.transfer = Some((p, false, h.app.base.clone(), h.app.dir.clone()));
+            h.frame(Vec::new());
+            assert_eq!(h.app.help_spot(&h.ctx), "help:copy-move", "the copy box is up");
+            h.app.tx.send(crate::loader::Msg::Pasted(Vec::new(), Ok(()))).unwrap();
+            h.frame(Vec::new());
+            h.frame(Vec::new());
+            assert!(h.app.transfer.is_none(), "the copy box stays");
+        };
+        end(&mut h, &[]);
+        assert!(h.app.notice.is_none() && h.app.error.is_none(), "a window after a copy with nothing to say");
+        assert_ne!(h.app.help_spot(&h.ctx), "help:copy-move");
+        end(&mut h, &["collegamenti/self"]);
+        let n = h.app.notice.clone().expect("no message for the link left out");
+        let said = h.app.i18n.t_args("transfer-links-skipped", &[("n", "1")]);
+        assert!(n.warning && n.title == h.app.i18n.t("transfer-copied") && n.text.contains(&said) && n.text.ends_with(&md("collegamenti/self")), "{}", n.text);
+        assert_eq!(h.app.help_spot(&h.ctx), "help:copy-move");
+        h.key(eframe::egui::Key::Enter);
+        assert!(h.app.notice.is_none(), "Enter does not close the message");
     }
 
     /// The message of the names left out of a copy: singular and plural, one sentence a line, the

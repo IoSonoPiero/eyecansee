@@ -362,9 +362,7 @@ impl App {
             p.looked.lock().unwrap(),
             p.links_skipped.lock().unwrap().len()
         );
-        if !self.quit_after_transfer {
-            self.transfer_end = crate::transfer::links_to_say(&r, &p).map(|n| (cut, base.clone(), dir.clone(), n));
-        }
+        let to = crate::navigation::shown(&base, &dir);
         if base == self.base {
             for path in &gone {
                 self.remove_item(path, false);
@@ -388,7 +386,8 @@ impl App {
             }
             self.relist(dir);
         }
-        self.tell_refused(&p, r.as_ref().is_err_and(|(id, _)| *id == "error-cancelled"));
+        // The copy box is gone (`transfer` taken): what is left to say, in a message.
+        self.tell_transfer(&p, cut, &to, &r);
         if let Err((id, detail)) = r
             && id != "error-cancelled"
         {

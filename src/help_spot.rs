@@ -39,7 +39,7 @@ impl App {
             self.restore_conflict.is_some().then_some("help:delete"),
             self.new_image.is_some().then_some("help:new-image"),
             (self.new_folder.is_some() || self.rename.is_some()).then_some("help:rename"),
-            (self.transfer.is_some() || self.transfer_end.is_some() || pasting).then_some("help:copy-move"),
+            (self.transfer.is_some() || pasting).then_some("help:copy-move"),
             self.unlock.is_some().then_some("help:passwords"),
             self.bookmarks.configuring.then_some("help:bookmarks"),
             self.server_manager.is_some().then_some("help:server-manager"),
@@ -47,7 +47,9 @@ impl App {
             self.host_ask.then_some("help:servers"),
             self.kiod_ask.then_some("help:phone"),
             self.kept.first().map(|k| if k.store.is_none() { "help:phone" } else { "help:servers" }),
-            // A notice has no page: F1 gives the one of what is under it.
+            // A notice that names a page of the guide (the end of a copy) gives it; the others
+            // have no page: F1 gives the one of what is under them.
+            self.notice.as_ref().and_then(|n| n.help),
             (self.batch_turn.is_some() || self.save_ready.is_some() || self.after_turn.is_some()).then_some("help:rotate"),
             self.delete_confirm.is_some().then_some("help:delete"),
             self.batch_summary.is_some().then_some("help:convert"),

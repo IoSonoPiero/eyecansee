@@ -796,7 +796,7 @@ mod tests {
             let mut left = p.links_skipped.lock().unwrap().clone();
             left.sort();
             assert_eq!(left, ["move/keep/back", "move/out"]);
-            assert_eq!(crate::transfer::links_to_say(&r, &p), Some(2));
+            assert_eq!(crate::transfer::links_to_say(&r, &p).map(|l| l.len()), Some(2));
             assert_eq!(std::fs::read(dir.join("dest/move/a.jpg")).unwrap(), b"not a jpeg");
             assert_eq!(std::fs::read(dir.join("dest/move/sub/b.jpg")).unwrap(), b"not a jpeg");
             assert!(dir.join("dest/move/keep").is_dir() && !dir.join("dest/move/out").exists());
@@ -832,7 +832,7 @@ mod tests {
             assert_eq!(r, Ok(()));
             assert_eq!(copied, ["due.jpg", "uno.jpg", "zeta.jpg"].map(String::from).into());
             assert_eq!(*p.links_skipped.lock().unwrap(), ["links/self"]);
-            assert_eq!(crate::transfer::links_to_say(&r, &p), Some(1));
+            assert_eq!(crate::transfer::links_to_say(&r, &p).map(|l| l.len()), Some(1));
             assert_eq!(std::fs::read(dir.join("links/zeta.jpg")).unwrap(), std::fs::read(dir.join("links/uno.jpg")).unwrap());
         });
         let _ = std::fs::remove_dir_all(&dir);

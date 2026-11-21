@@ -500,9 +500,6 @@ struct App {
     paste_ask: Option<PasteAsk>,
     /// Copy running: progress, move, source (`base`) and folder where it goes.
     transfer: Option<(Arc<transfer::Progress>, bool, String, String)>,
-    /// Copy ended with links to folders left out (#183): move, source, folder and how many, shown
-    /// in the copy box until Close.
-    transfer_end: Option<(bool, String, String, usize)>,
     /// When the folders filled by the copy were last read again.
     touched_at: f64,
     /// Items whose deletion is under way, for the status bar.

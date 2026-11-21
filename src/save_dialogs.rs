@@ -298,7 +298,7 @@ impl App {
     /// A message that needs reading (Markdown: names in bold, lists), with "Save as…" for the
     /// open image when it helps.
     pub(crate) fn notice_window(&mut self, ctx: &egui::Context) {
-        let Some(Notice { title, mut text, save_as, warning, copy: mut whole }) = self.notice.clone() else { return };
+        let Some(Notice { title, mut text, save_as, warning, copy: mut whole, .. }) = self.notice.clone() else { return };
         let (copy, close_label) = (self.i18n.t("menu-save-copy"), self.i18n.t("notice-close"));
         if save_as.is_some() {
             let hint = self.i18n.t("save-as-hint");
@@ -371,11 +371,15 @@ pub(crate) struct Notice {
     /// What Copy takes when it is more than the text shows (every name of a list cut short,
     /// `notice_list`); `None`: the text.
     pub(crate) copy: Option<String>,
+    /// The page of the guide that says more, when the message names it ("More in the guide
+    /// (F1)."): F1 opens it while the message is up (`help_spot`). `None`: the page of what is
+    /// under the message.
+    pub(crate) help: Option<&'static str>,
 }
 
 impl Notice {
     pub(crate) fn new(title: String, text: String) -> Self {
-        Notice { title, text, save_as: None, warning: false, copy: None }
+        Notice { title, text, save_as: None, warning: false, copy: None, help: None }
     }
 }
 

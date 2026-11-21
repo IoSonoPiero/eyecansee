@@ -288,9 +288,9 @@ fn keep_thumbnail(thumb: Option<(u64, Vec<u8>)>, dest: &str, size: Option<u64>) 
 
 /// Links to folders left out of a copy that worked, to say at its end (#183); `None` when there
 /// are none, or when the copy failed or was cancelled (the log has them then).
-pub fn links_to_say(r: &Result<(), Error>, p: &Progress) -> Option<usize> {
-    let n = p.links_skipped.lock().unwrap().len();
-    (r.is_ok() && n > 0).then_some(n)
+pub fn links_to_say(r: &Result<(), Error>, p: &Progress) -> Option<Vec<String>> {
+    let links = p.links_skipped.lock().unwrap();
+    (r.is_ok() && !links.is_empty()).then(|| links.clone())
 }
 
 /// Copies (or moves) the clip into `to_dir`. Returns the source items that went away (moved),
@@ -718,7 +718,7 @@ mod tests {
         let p = Progress::default();
         assert_eq!(links_to_say(&Ok(()), &p), None);
         p.links_skipped.lock().unwrap().extend(["a/l1", "a/l2", "a/b/l3"].map(String::from));
-        assert_eq!(links_to_say(&Ok(()), &p), Some(3));
+        assert_eq!(links_to_say(&Ok(()), &p), Some(["a/l1", "a/l2", "a/b/l3"].map(String::from).to_vec()));
         assert_eq!(links_to_say(&Err(("error-cancelled", String::new())), &p), None);
         assert_eq!(links_to_say(&Err(("error-too-deep", "a/".into())), &p), None);
     }

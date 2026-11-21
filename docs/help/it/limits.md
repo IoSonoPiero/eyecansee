@@ -41,7 +41,7 @@ Che cosa EyeCanSee non fa ancora, o fa solo in parte. L'elenco aggiornato dei pr
 - FTPS: un server che vuole che la connessione dei dati riprenda la sessione TLS di quella di controllo può non mandare mai i dati.
 - SFTP: ProxyJump e ProxyCommand di `~/.ssh/config` non sono supportati.
 - Incollare su un server FTP che non distingue le maiuscole (per esempio un server Windows): un nome che cambia solo nelle maiuscole da uno che c'è ("IMG_001.JPG" e "img_001.jpg") non viene preso per lo stesso nome, quindi EyeCanSee non chiede, e il file che c'è viene sovrascritto. FTP mostra i nomi solo come sono.
-- Copia di una cartella da un server: su FTP un collegamento a una cartella resta fuori, perché FTP non dice dove porta; su SFTP si copia solo se porta fuori dalle cartelle già copiate, mai alla cartella stessa, a una cartella sopra o a una dentro. In uno spostamento un collegamento rimasto fuori resta dov'era, con le cartelle che lo contengono. A fine copia il suo riquadro dice quanti collegamenti sono rimasti fuori (vedi [Copiare e spostare](copy-move.md)).
+- Copia di una cartella da un server: su FTP un collegamento a una cartella resta fuori, perché FTP non dice dove porta; su SFTP si copia solo se porta fuori dalle cartelle già copiate, mai alla cartella stessa, a una cartella sopra o a una dentro. In uno spostamento un collegamento rimasto fuori resta dov'era, con le cartelle che lo contengono. A fine copia un messaggio dice quanti collegamenti sono rimasti fuori, e li nomina (vedi [Copiare e spostare](copy-move.md)).
 
 ## Modelli 3D e disegni CAD
 
