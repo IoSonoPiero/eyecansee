@@ -202,6 +202,10 @@ list-more = { $n ->
     [one] e un altro
    *[other] e altri { $n }
 }
+list-more-images = { $n ->
+    [one] e un'altra
+   *[other] e altre { $n }
+}
 error-copy-not-made = Il telefono non ha fatto la copia di { $detail }: l'originale non è stato toccato.
 error-move-same-item = Quello che sostituirebbe è questo stesso elemento, raggiunto da un'altra strada: { $detail }
     Lo spostamento si è fermato, e l'elemento è rimasto com'era.

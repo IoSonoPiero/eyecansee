@@ -19,11 +19,12 @@ pub(crate) fn item(name: &str) -> String {
 }
 
 /// `items` (Markdown, one line each) as a list, the first `LISTED`, then "and N more" as its last
-/// item, in line with the names.
-pub(crate) fn shortened(i18n: &I18n, items: &[String]) -> String {
+/// item, in line with the names, said with the Fluent id `more_id` (`list-more`, or
+/// `list-more-images` where the names are pictures: "e altre 5" in Italian).
+pub(crate) fn shortened(i18n: &I18n, items: &[String], more_id: &str) -> String {
     let mut lines: Vec<String> = items.iter().take(LISTED).map(|i| format!("- {i}")).collect();
     if let Some(more) = items.len().checked_sub(LISTED).filter(|&more| more > 0) {
-        lines.push(format!("- {}", i18n.t_args("list-more", &[("n", &more.to_string())])));
+        lines.push(format!("- {}", i18n.t_args(more_id, &[("n", &more.to_string())])));
     }
     lines.join("\n")
 }
@@ -65,6 +66,8 @@ pub(crate) struct Part {
     why: String,
     /// In the order of the names.
     entries: Vec<Entry>,
+    /// The Fluent id of "and N more" (`shortened`).
+    more: &'static str,
 }
 
 impl Part {
@@ -74,7 +77,7 @@ impl Part {
         let n = entries.len().to_string();
         let say = |id: &str| if id.is_empty() { String::new() } else { i18n.t_args(id, &[("n", n.as_str())]) };
         entries.sort_by(|a, b| crate::source::natural(&a.name, &b.name));
-        Part { heading: say(heading), why: say(why), entries }
+        Part { heading: say(heading), why: say(why), entries, more: "list-more" }
     }
 
     /// `of`, about names alone.
@@ -101,7 +104,7 @@ pub(crate) fn told(i18n: &I18n, title: String, intro: &str, parts: Vec<Part>) ->
     }
     let shown = parts.iter().map(|p| {
         let lines: Vec<String> = p.entries.iter().map(Entry::shown).collect();
-        format!("{}\n{}", p.head(true), shortened(i18n, &lines))
+        format!("{}\n{}", p.head(true), shortened(i18n, &lines, p.more))
     });
     let text = Some(intro.to_string()).filter(|i| !i.is_empty()).into_iter().chain(shown).collect::<Vec<_>>().join("\n\n");
     // Copy takes its lines as plain text: the Markdown of a name is put back for `copied`.
@@ -122,7 +125,9 @@ pub(crate) fn with_guide(i18n: &I18n, told: Notice, page: &'static str) -> Notic
 /// with the pictures it left out: those that cannot be saved over themselves (`skipped`:
 /// animated, with several pages…) and those too large for the memory (`large`, #177).
 pub(crate) fn turned(i18n: &I18n, title: String, done: &str, skipped: &[String], large: &[String]) -> Notice {
-    told(i18n, title, done, vec![Part::named(i18n, "batch-skipped-heading", "batch-skipped-why", skipped), Part::named(i18n, "summary-too-large", "", large)])
+    // Pictures: "e altre 5" in Italian, not "e altri 5" (Piero, 21/11).
+    let pictures = |heading, why, names| Part { more: "list-more-images", ..Part::named(i18n, heading, why, names) };
+    told(i18n, title, done, vec![pictures("batch-skipped-heading", "batch-skipped-why", skipped), pictures("summary-too-large", "", large)])
 }
 
 #[cfg(test)]
@@ -139,15 +144,19 @@ mod tests {
     fn ten_then_more() {
         let (en, it) = (I18n::new("en"), I18n::new("it"));
         let items = |n: usize| names(n).iter().map(|s| item(s)).collect::<Vec<_>>();
-        let ten = shortened(&en, &items(10));
+        let ten = shortened(&en, &items(10), "list-more");
         assert_eq!(ten.lines().count(), 10);
         assert!(ten.ends_with(&format!("- {}", md("dir_10/a*10.jpg"))) && !ten.contains("more"), "{ten}");
-        assert_eq!(shortened(&en, &items(11)).matches("\n- ").count(), 10);
-        assert!(shortened(&en, &items(11)).ends_with(&format!("- {}\n- and 1 more", md("dir_10/a*10.jpg"))));
-        assert!(shortened(&en, &items(15)).ends_with("\n- and 5 more"));
-        assert!(shortened(&it, &items(11)).ends_with("\n- e un altro"));
-        assert!(shortened(&it, &items(15)).ends_with("\n- e altri 5"));
-        assert_eq!(shortened(&it, &[]), "");
+        assert_eq!(shortened(&en, &items(11), "list-more").matches("\n- ").count(), 10);
+        assert!(shortened(&en, &items(11), "list-more").ends_with(&format!("- {}\n- and 1 more", md("dir_10/a*10.jpg"))));
+        assert!(shortened(&en, &items(15), "list-more").ends_with("\n- and 5 more"));
+        assert!(shortened(&it, &items(11), "list-more").ends_with("\n- e un altro"));
+        assert!(shortened(&it, &items(15), "list-more").ends_with("\n- e altri 5"));
+        assert_eq!(shortened(&it, &[], "list-more"), "");
+        // Pictures: feminine in Italian, the same in English.
+        assert!(shortened(&it, &items(11), "list-more-images").ends_with("\n- e un'altra"));
+        assert!(shortened(&it, &items(15), "list-more-images").ends_with("\n- e altre 5"));
+        assert!(shortened(&en, &items(15), "list-more-images").ends_with("\n- and 5 more"));
     }
 
     /// Copy takes the lists under a heading each, with every item, as the summary of Convert…
@@ -177,6 +186,9 @@ mod tests {
         let one = turned(&en, String::new(), "x", &["a.gif".into()], &[]);
         assert_eq!(plain(&one.text), "x\n\n1 picture left out:\nIt is animated, has several pages, is a motion photo or carries a depth map: Save does not write it again.\n- a.gif");
         assert_eq!(plain(&turned(&en, String::new(), "x", &["a.gif".into(), "b.gif".into()], &[]).text).lines().nth(3), Some("They are animated, have several pages, are motion photos or carry a depth map: Save does not write them again."));
+        // Pictures in Italian: "e altre", "e un'altra" (Piero, 21/11).
+        assert!(turned(&it, String::new(), "x", &names(15), &names(11)).text.ends_with("\n- e un'altra"));
+        assert!(turned(&it, String::new(), "x", &names(15), &[]).text.ends_with("\n- e altre 5"));
         let none = turned(&en, "Rotated".into(), "**3** done.", &[], &[]);
         assert!(!none.warning && none.copy.is_none() && none.text == "**3** done.");
     }

@@ -208,6 +208,11 @@ list-more = { $n ->
     [one] and 1 more
    *[other] and { $n } more
 }
+# The same, in a list of pictures ("immagini" is feminine in Italian).
+list-more-images = { $n ->
+    [one] and 1 more
+   *[other] and { $n } more
+}
 error-copy-not-made = The phone did not make the copy of { $detail }: the original was left as it was.
 error-cancelled = Cancelled.
 error-too-deep = Too many folders one inside another, so the copy stopped: { $detail }
