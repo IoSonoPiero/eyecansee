@@ -133,6 +133,13 @@ pub fn passage(now: f64, since: f64, secs: f64) -> f32 {
     ((now - since) / FADE_SECS.min(secs / 2.0)).clamp(0.0, 1.0) as f32
 }
 
+/// When the picture shown started (`since`), now that it is `reading` or not: its time and its
+/// passage start once it is there. A picture opened anyway before is read only once shown (never
+/// prepared in advance, `view_memory::Wanted`): it was passed over while still being read.
+pub fn started(since: f64, now: f64, reading: bool) -> f64 {
+    if reading { now } else { since }
+}
+
 /// A picture or a video: 3D models, CAD drawings and audio files stay out of the slideshow
 /// (looked at closely, not in passing).
 pub fn in_show(path: &str) -> bool {
@@ -239,7 +246,9 @@ impl App {
         self.show_hints(ui, rect, now);
         self.show_skipped(ui, rect, now);
         let next_ready = next.is_some_and(|i| self.full.contains_key(&i));
+        let reading = video.is_none() && cur.is_some_and(|i| !self.full.contains_key(&i));
         let s = self.show.as_mut().unwrap();
+        s.since = started(s.since, now, reading);
         s.shown |= played || cur_tex.is_some();
         // Until the new one is there the old one stays (after a picture passed over too).
         if t >= 1.0 && (played || cur_tex.is_some()) {
@@ -464,6 +473,13 @@ mod tests {
         // Larger than the screen, both are reduced the same.
         let big = Vec2::new(5120.0, 1440.0);
         assert_eq!((fit(room, big, false), fit(room, big, true)), (0.5, 0.5));
+    }
+
+    /// The time of a picture still being read does not run: it starts when the picture is there.
+    #[test]
+    fn time_from_the_picture_read() {
+        assert_eq!(started(10.0, 25.0, true), 25.0);
+        assert_eq!(started(10.0, 25.0, false), 10.0);
     }
 
     #[test]
