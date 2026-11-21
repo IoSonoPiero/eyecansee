@@ -408,6 +408,13 @@ mod tests {
             return;
         }
         let mut h = menu_over_all("menu-keys");
+        // Delete, Tab and Ctrl+X stay out, before an arrow gives the keyboard to an item: the
+        // selection is neither asked to delete, nor moved to the tree, nor cut.
+        h.key(egui::Key::Delete);
+        h.key(egui::Key::Tab);
+        h.frame(vec![egui::Event::Cut]);
+        h.frame(Vec::new());
+        assert!(!h.app.asking() && h.app.focus == crate::Focus::Grid && h.app.clip.is_none(), "Delete, Tab or Ctrl+X with the menu open");
         for key in [egui::Key::ArrowRight, egui::Key::ArrowDown, egui::Key::End, egui::Key::Home] {
             h.key(key);
             h.frame(Vec::new());
@@ -475,6 +482,30 @@ mod tests {
         click(&mut h, a, egui::PointerButton::Primary);
         assert!(!egui::Popup::is_any_open(&h.ctx), "the click closes File");
         assert_eq!((h.app.selected, h.app.marked.len()), (1, 3), "the click outside File reached the grid");
+    }
+
+    /// In the viewer the arrows of the right-click menu no longer go to the next picture.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn arrows_with_the_menu_of_the_viewer_stay_on_the_picture() {
+        if own_folder("browser::tests::arrows_with_the_menu_of_the_viewer_stay_on_the_picture") {
+            return;
+        }
+        let mut h = Harness::new(&folder("menu-viewer", &["a.png", "b.png", "c.png"]));
+        h.app.viewing = Some(0);
+        for _ in 0..5 {
+            h.frame(Vec::new());
+        }
+        click(&mut h, egui::pos2(500.0, 400.0), egui::PointerButton::Secondary);
+        assert!(egui::Popup::is_any_open(&h.ctx), "the menu of the viewer open");
+        h.key(egui::Key::ArrowRight);
+        h.key(egui::Key::ArrowDown);
+        h.frame(Vec::new());
+        assert_eq!(h.app.viewing, Some(0), "the arrows with the menu open");
+        h.key(egui::Key::Escape);
+        h.key(egui::Key::ArrowRight);
+        h.frame(Vec::new());
+        assert_eq!(h.app.viewing, Some(1), "the arrow with no menu open");
     }
 
     #[test]
