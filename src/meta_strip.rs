@@ -99,11 +99,13 @@ pub fn iim_without_place(iim: &[u8]) -> Vec<u8> {
             let Some(b) = iim.get(i + 5..i + 5 + k) else { break };
             (5 + k, b.iter().fold(0usize, |v, &x| v << 8 | usize::from(x)))
         };
-        let Some(whole) = iim.get(i..i + head + len) else { break };
+        // An extended length is up to eight bytes, up to the largest number.
+        let Some(next) = (i + head).checked_add(len) else { break };
+        let Some(whole) = iim.get(i..next) else { break };
         if !(record == 2 && IIM_PLACE.contains(&dataset)) {
             out.extend_from_slice(whole);
         }
-        i += head + len;
+        i = next;
     }
     out
 }

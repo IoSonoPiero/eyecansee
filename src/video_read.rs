@@ -87,7 +87,8 @@ where
         let header = read(at, end.checked_sub(at)?.min(16)).await?;
         let (k, len) = crate::mp4::box_header(&header)?;
         let len = if len == 0 { end - at } else { len };
-        if at + len > end {
+        // The size comes from the file, up to the largest 64-bit number.
+        if at.checked_add(len)? > end {
             return None;
         }
         if &k == kind {
