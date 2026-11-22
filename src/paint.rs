@@ -109,9 +109,14 @@ pub fn squeeze(window: egui::Vec2, monitor: egui::Vec2) -> egui::Vec2 {
     egui::vec2(window.x / monitor.x.max(1.0), window.y / monitor.y.max(1.0))
 }
 
+/// What the pictures are squeezed by now (`set_squeeze`): 1 but in the frames before full screen.
+pub fn squeeze_now(ctx: &egui::Context) -> egui::Vec2 {
+    ctx.data(|d| d.get_temp::<egui::Vec2>(egui::Id::unique("squeeze"))).unwrap_or(egui::Vec2::splat(1.0))
+}
+
 /// A picture on the four corners (position, point of the texture), clockwise from the top left.
 fn quad(painter: &egui::Painter, id: egui::TextureId, corners: [(egui::Pos2, egui::Pos2); 4], tint: egui::Color32) {
-    let by = painter.ctx().data(|d| d.get_temp::<egui::Vec2>(egui::Id::unique("squeeze"))).unwrap_or(egui::Vec2::splat(1.0));
+    let by = squeeze_now(painter.ctx());
     let mut mesh = egui::Mesh::with_texture(id);
     for (pos, uv) in corners {
         mesh.vertices.push(egui::epaint::Vertex { pos: (pos.to_vec2() * by).to_pos2(), uv, color: tint });

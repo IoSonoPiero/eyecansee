@@ -1,0 +1,8 @@
+# A 360° panorama in the viewer: Lake panorama (8192 x 4096) seen from inside, turned a little
+# by dragging, with the Flat picture button at the bottom left.
+open /home/demo/Pictures/Panoramas
+width 1000
+2 open Lake panorama.jpg
+5 drag 700 500 560 330
+7 shot
+7.5 end

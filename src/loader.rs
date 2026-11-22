@@ -83,6 +83,8 @@ pub enum Msg {
     Frames(String, Arc<crate::frames::Sequence>),
     /// The video of a Motion Photo read by the viewer (`motion::video_start`), to play it there.
     Motion(String, Arc<Vec<u8>>),
+    /// The part of the sphere a 360° panorama read by the viewer covers (`pano::detect`, #188).
+    Pano(String, crate::pano::Pano),
     /// The image encoded with the options of `generation`, and the encoded file decoded back
     /// (`None`: no decoder for that format in this build).
     Encoded(u64, Result<(Arc<Vec<u8>>, Option<ColorImage>), String>),
@@ -702,6 +704,9 @@ impl Loader {
                             }
                             if let Some(start) = crate::motion::video_start(&bytes) {
                                 let _ = tx.send(Msg::Motion(path.clone(), Arc::new(bytes[start..].to_vec())));
+                            }
+                            if let Some(pano) = crate::pano::detect(&bytes) {
+                                let _ = tx.send(Msg::Pano(path.clone(), pano));
                             }
                             return decode::decode(&bytes, &path);
                         }

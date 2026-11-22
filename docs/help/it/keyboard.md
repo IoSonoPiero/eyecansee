@@ -71,6 +71,7 @@ Nel blocco **Dispositivi**: ↓ e ↑ cambiano dispositivo (↓ su un dispositiv
 | Spazio (su un'animazione) | La mette in pausa e la fa ripartire |
 | Spazio (su una foto in movimento) | Riproduce il suo video |
 | Pagina giù, Pagina su (su un TIFF con più pagine) | Pagina successiva, precedente |
+| P (su un panorama a 360°) | Foto piatta, e di nuovo la vista a 360° |
 | Esc | Torna alla griglia (a schermo intero prima esce dallo schermo intero) |
 | + e − (o la rotellina del mouse) | Ingrandisce e rimpicciolisce |
 | 0 | Adatta l'immagine alla finestra |

@@ -139,6 +139,7 @@ impl App {
             animated: Default::default(),
             frames: Default::default(),
             motion: Default::default(),
+            pano: Default::default(),
             duplicates: None,
             batch: None,
             batch_form: None,

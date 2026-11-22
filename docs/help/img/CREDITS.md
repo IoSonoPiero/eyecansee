@@ -28,6 +28,15 @@ In `Pictures/Holiday`, on a phone in `DCIM/EyeCanSee-guida` (the `phone` picture
 | Wilder Kaiser.jpg | Bernie Kohl | PD | [Going am Wilden Kaiser Panorama 2011-01-29.jpg](https://commons.wikimedia.org/wiki/File:Going_am_Wilden_Kaiser_Panorama_2011-01-29.jpg) |
 | Wilderness.jpg | David Marcu | CC0 | [Alone in the unspoilt wilderness (Unsplash).jpg](https://commons.wikimedia.org/wiki/File:Alone_in_the_unspoilt_wilderness_(Unsplash).jpg) |
 
+## 360° panoramas
+
+In `Pictures/Panoramas`, for the 360° view of the viewer. With their Photo Sphere tags (`GPano`), which make the viewer show them as a sphere.
+
+| Name in the pictures | Author | Licence | Source |
+|---|---|---|---|
+| Lake panorama.jpg | Daanvr | CC0 | [Drone sphere De IJzeren Vrouw, Den Bosch 2023 1 of 4.jpg](https://commons.wikimedia.org/wiki/File:Drone_sphere_De_IJzeren_Vrouw,_Den_Bosch_2023_1_of_4.jpg), 8192 × 4096, the Photo Sphere tags added |
+| Drone sphere.jpg | Daanvr | CC0 | [Drone sphere De IJzeren Vrouw, Den Bosch 2023 3 of 4.jpg](https://commons.wikimedia.org/wiki/File:Drone_sphere_De_IJzeren_Vrouw,_Den_Bosch_2023_3_of_4.jpg), 8192 × 4096, the Photo Sphere tags added |
+
 ## Videos
 
 In `Videos` and `Pictures/Holiday`, from Wikimedia Commons.

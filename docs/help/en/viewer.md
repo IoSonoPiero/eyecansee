@@ -36,6 +36,19 @@ A TIFF with several pages (a scanned document, a fax) opens on its first page. *
 
 A motion photo (Google Pixel, Samsung, Xiaomi and other phones) carries a short video recorded with the photo. The viewer shows the photo with a **Play motion** button at the bottom; the button or **Space** plays the video once, with the bar of a [video](video.md), then the photo comes back. The video needs the video engine, as all videos do.
 
+## 360° panoramas
+
+A 360° panorama (from a drone, a phone or a 360° camera) is a photo of all that is around the camera, unrolled into a picture twice as wide as it is tall. When the file says so (the Google Photo Sphere tags in its metadata, which most cameras and apps write), the viewer shows it from inside, as if you stood where it was taken:
+
+![A 360° panorama in the viewer](../img/viewer-360.webp)
+
+- Drag to look around. The **mouse wheel**, **+** and **−** zoom in and out (the wheel as set in [Options](options.md), and always with **Ctrl**); **0** goes back to the first view, **1** shows the middle at 100%. The percentage in the status bar is that of the middle of the view.
+- A partial panorama (not the whole way round, or not up to the top and the bottom) shows only what it covers, and the view stops at its edges.
+- **P**, or **Flat picture** at the bottom left, shows the picture flat, as any other photo; **P** or **360° view** shows it as a sphere again. The choice holds for the panoramas you open next, until EyeCanSee is closed.
+- Rotated (**Rotate**), or while measuring, a panorama is shown flat. The thumbnails, the slideshow, saving, copying and the editor always use the flat picture.
+
+A panorama larger than 8192 pixels is shown reduced to 8192 (see Very large pictures above): zooming in a lot shows no more detail.
+
 ## Zooming
 
 - The **mouse wheel** zooms in and out around the pointer; **+** and **−** around the middle of the window. On a touchpad, pinch.

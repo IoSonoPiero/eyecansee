@@ -40,6 +40,11 @@ cp "$(dirname "$0")/Flat.dxf" "$D/Documents/Drawings/"
 # A photo with its real place for the metadata panel: a phone's raw file from raw.pixls.us (CC0),
 # above Lake Garda, with the GPS position, altitude and date the phone wrote.
 cp "$FILES/formati/RAW/Google - Pixel 6 Pro - 16bit (4-3).dng" "$H/Lake Garda.dng"
+# Two 360° panoramas taken by drones, with their Photo Sphere tags (GPano), for the 360° view, both
+# from Wikimedia Commons (CC0).
+mkdir -p "$D/Pictures/Panoramas"
+cp "$FILES/panorami/drone-den-bosch-1-360.jpg" "$D/Pictures/Panoramas/Lake panorama.jpg"
+cp "$FILES/panorami/drone-den-bosch-360.jpg" "$D/Pictures/Panoramas/Drone sphere.jpg"
 # One date for all, as if copied from the camera after a holiday (the copies a day later).
 find "$D" "$WORK/disks" -type f -exec touch -d "2025-07-14 18:30" {} +
 find "$D/Pictures/Phone backup" -type f -exec touch -d "2025-07-15 09:12" {} +

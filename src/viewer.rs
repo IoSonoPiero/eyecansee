@@ -92,6 +92,8 @@ impl App {
         self.frames_keys(ctx);
         // Space on a Motion Photo plays its video, which then has the keys of a video.
         self.motion_keys(ctx);
+        // P on a 360° panorama: the flat picture, and back.
+        self.pano_keys(ctx);
         // On a video Space plays and pauses, as in a player.
         let video = self.viewing_video() || self.playing_motion();
         // On a 3D model the arrows turn it.
@@ -243,6 +245,7 @@ impl App {
         self.model.cad.keep_only(&paths);
         self.frames.read.retain(|p, _| paths.contains(&p));
         self.motion.read.retain(|p, _| paths.contains(&p));
+        self.pano.read.retain(|p, _| paths.contains(&p));
     }
 
     pub(crate) fn viewer(&mut self, ui: &mut egui::Ui, current: usize) {
@@ -270,9 +273,12 @@ impl App {
             let tex = tex.clone();
             let rect = ui.available_rect_before_wrap();
             let response = ui.allocate_rect(rect, egui::Sense::click_and_drag());
-            self.zoom_view(ui, &response, &tex, current);
+            if !self.pano_view(ui, &response, &tex, current) {
+                self.zoom_view(ui, &response, &tex, current);
+            }
             self.frames_bar(ui, rect);
             self.motion_bar(ui, rect);
+            self.pano_bar(ui, rect);
             // While measuring a double click closes an area.
             if response.double_clicked() && !self.model.measure.on {
                 self.close_viewer();

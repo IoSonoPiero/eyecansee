@@ -154,6 +154,8 @@ mod new_folder;
 mod new_image;
 mod off;
 mod paint;
+mod pano;
+mod pano_view;
 mod presets;
 mod psd;
 mod render3d;
@@ -477,6 +479,8 @@ struct App {
     frames: frames_view::State,
     /// Videos of Motion Photos, played in the viewer.
     motion: motion_view::State,
+    /// 360° panoramas, shown as a sphere in the viewer (#188).
+    pano: pano_view::State,
     /// Find duplicates: the search and its results page.
     duplicates: Option<dup_page::Window>,
     /// Convert and resize several images: the choices, then the work.

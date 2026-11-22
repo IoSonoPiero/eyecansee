@@ -49,12 +49,12 @@ images![
     [
         "trash-strip", "phone", "bookmarks-menu", "cad", "convert", "convert-video", "devices", "duplicates", "editor", "editor-crop",
         "editor-props", "metadata-panel", "model-3d", "new-image", "open-location", "options", "save-as", "server-manager",
-        "side-panel", "start", "tips", "video", "viewer",
+        "side-panel", "start", "tips", "video", "viewer", "viewer-360",
     ],
     "it": [
         "trash-strip", "phone", "bookmarks-menu", "cad", "convert", "convert-video", "devices", "duplicates", "editor", "editor-crop",
         "editor-props", "metadata-panel", "model-3d", "new-image", "open-location", "options", "save-as", "server-manager",
-        "side-panel", "start", "tips", "video", "viewer",
+        "side-panel", "start", "tips", "video", "viewer", "viewer-360",
     ],
 ];
 

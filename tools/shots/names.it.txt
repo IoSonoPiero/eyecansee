@@ -8,6 +8,7 @@ Holiday	Vacanze
 Mountains	Montagne
 Flowers	Fiori
 Phone backup	Copia del telefono
+Panoramas	Panorami
 3D models	Modelli 3D
 Drawings	Disegni
 Photos	Foto

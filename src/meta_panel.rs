@@ -464,6 +464,8 @@ impl App {
         Some(match () {
             _ if crate::cad::is_cad(path) => if self.cad_has_sheets(current) { "hint-cad-layouts" } else { "hint-cad" },
             _ if crate::decode::is_played(path) => "hint-video",
+            // A 360° panorama seen from inside (#188).
+            _ if self.sphere_shown() => "hint-pano",
             _ => "hint-image",
         })
     }

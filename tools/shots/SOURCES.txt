@@ -17,6 +17,14 @@ same photos and Bees on flowers.webm into DCIM/EyeCanSee-guida on the phone. Lak
 the GPS position the phone wrote): the Google Pixel 6 Pro file of raw.pixls.us, CC0, in the test
 files as formati/RAW/Google - Pixel 6 Pro - 16bit (4-3).dng.
 
+360° panoramas (Pictures/Panoramas, the 360° view): Lake panorama.jpg, "Drone sphere De IJzeren
+Vrouw, Den Bosch 2023 1 of 4.jpg" by Daanvr, CC0, from Wikimedia Commons
+(https://commons.wikimedia.org/wiki/File:Drone_sphere_De_IJzeren_Vrouw,_Den_Bosch_2023_1_of_4.jpg),
+8192 x 4096, with the Photo Sphere tags added by exiftool; Drone sphere.jpg, "Drone sphere De IJzeren Vrouw, Den Bosch 2023 3 of 4.jpg"
+by Daanvr, CC0, from Wikimedia Commons
+(https://commons.wikimedia.org/wiki/File:Drone_sphere_De_IJzeren_Vrouw,_Den_Bosch_2023_3_of_4.jpg),
+8192 x 4096, with the Photo Sphere tags added by exiftool. In the test files in panorami/.
+
 3D models (Documents/3D models): Avocado.glb, Lantern.glb, ToyCar.glb from the Khronos glTF
 Sample Assets (https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models), CC0 1.0
 as their LICENSE.md files say.

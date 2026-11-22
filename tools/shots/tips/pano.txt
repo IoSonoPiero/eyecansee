@@ -1,0 +1,7 @@
+# Tip "360° panoramas": Drone sphere in the viewer, seen from inside, with the Flat picture button.
+open /home/demo/Pictures/Panoramas
+width 640
+2 open Drone sphere.jpg
+5 drag 700 500 600 380
+7 shot pano 0 96 1200 675
+7.5 end

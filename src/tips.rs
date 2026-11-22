@@ -48,11 +48,11 @@ macro_rules! pictures {
 pictures![
     [
         "welcome", "help", "right-click", "phone", "servers", "viewer", "video", "editor", "cover", "resize", "convert-video",
-        "bookmarks", "metadata", "models", "duplicates", "trash", "details", "slideshow", "addons",
+        "bookmarks", "metadata", "models", "duplicates", "trash", "details", "slideshow", "addons", "pano",
     ],
     "it": [
         "welcome", "help", "right-click", "phone", "servers", "resize", "convert-video", "bookmarks", "metadata", "duplicates",
-        "trash", "details", "addons",
+        "trash", "details", "addons", "pano",
     ],
 ];
 
@@ -83,6 +83,7 @@ pub(crate) const TIPS: &[Tip] = &[
     tip("details", "options"),
     tip("slideshow", "slideshow"),
     tip("addons", "components"),
+    tip("pano", "viewer"),
 ];
 
 /// Today, as days since 1970 in UTC.
