@@ -175,6 +175,41 @@ mod tests {
         assert_eq!(h.doc().objects, before);
     }
 
+    /// The history holds at most 256 MB of pixels (pasted pieces, previews; a buffer shared by
+    /// many steps counted once) and 1000 steps; the oldest go first, one step back always stays.
+    /// It had no limit: a large piece pasted and turned ten times was about half a gigabyte kept
+    /// until the page closed (audit 5.9). The pieces are not filled in: no memory is used.
+    #[test]
+    fn history_has_a_ceiling() {
+        use crate::edit::doc::Pixels;
+        let piece = |side| Obj { shape: Shape::Patch { area: Area { centre: Pt::new(0.0, 0.0), w: 10.0, h: 10.0, rot: 0.0 }, pixels: Pixels::new(image::RgbaImage::new(side, side)), mirrored: false }, style: Style::default() };
+        // Each step a new piece of 16 MB.
+        let mut h = History::new(Doc::new(100, 80, None));
+        for _ in 0..20 {
+            h.apply(|d| d.objects = vec![piece(2048)]);
+        }
+        assert!(h.states.len() <= 16 && h.can_undo(), "{} steps kept", h.states.len());
+        // One piece shared by every step: counted once, only the number of steps limits them.
+        let mut h = History::new(Doc::new(100, 80, None));
+        h.apply(|d| d.objects = vec![piece(2048)]);
+        for i in 0..1005 {
+            h.apply(|d| d.angle = i as f32 + 1.0);
+        }
+        assert_eq!(h.states.len(), 1001);
+        assert_eq!((h.doc().angle, h.doc().objects.len()), (1005.0, 1));
+        while h.can_undo() {
+            h.undo();
+        }
+        assert_eq!(h.doc().angle, 5.0, "the oldest steps gone");
+        // A piece larger than all of it alone: one step back still.
+        let mut h = History::new(Doc::new(100, 80, None));
+        h.apply(|d| d.objects = vec![piece(9000)]);
+        h.apply(|d| d.objects = vec![piece(9000)]);
+        assert_eq!(h.states.len(), 2);
+        h.undo();
+        assert!(!h.can_undo() && h.doc().objects.len() == 1);
+    }
+
     /// Saved: nothing to save until something changes again; undone past the save, again.
     #[test]
     fn saved_is_unchanged() {
