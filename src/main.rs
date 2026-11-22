@@ -639,6 +639,8 @@ impl eframe::App for App {
     }
 
     fn on_exit(&mut self) {
+        // First: a start from now on must not hand its address to a copy closing (#192).
+        self.single = None;
         // Always saved, so if "remember" is chosen later there is already a size.
         if self.loader.is_some() {
             self.settings.last_location = Some(self.display(&self.dir));

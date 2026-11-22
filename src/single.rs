@@ -2,17 +2,23 @@
 //! not reach it. The first instance listens on a local socket (Linux: abstract Unix socket,
 //! Windows: named pipe) from the start of `main`, before its window is made, so starts close
 //! together find it (one process per file chosen in a file manager); a later one hands it the
-//! address to open and exits. The addresses wait in a channel until the window takes them.
+//! address to open and exits once the window of that copy has taken it (#192). A copy whose
+//! window does not take it in time does not count: the new start opens its own window.
 //! `EYECANSEE_MULTI=1` turns this off for one process (see `multi`).
+//!
+//! The exchange: the start sends the address and a line end; the copy answers `wait` while its
+//! window is not made yet (then the start waits longer), then `ok` once the window took it, `no`
+//! if it did not in time, `again` if the copy is closing or busy (the start tries again). A copy
+//! of 0.77.0 or before closes without a word once it read the address: taken, as then.
 
 use std::io::{BufRead, BufReader, Read, Write};
-use std::sync::atomic::{AtomicUsize, Ordering};
-use std::sync::mpsc::{self, Receiver, Sender};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::mpsc::{self, Receiver, RecvTimeoutError, Sender, SyncSender};
 use std::sync::{Arc, OnceLock};
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use eframe::egui::Context;
-use interprocess::local_socket::{GenericNamespaced, Listener, ListenerOptions, Name, Stream, prelude::*};
+use interprocess::local_socket::{GenericNamespaced, Listener, ListenerNonblockingMode, ListenerOptions, Name, Stream, prelude::*};
 
 use crate::App;
 use crate::loader::Msg;
@@ -22,10 +28,32 @@ const LONGEST: u64 = 64 * 1024;
 /// A connection that sends nothing is dropped after this. Named pipes have no time limits: there
 /// it only keeps its own thread until the other side closes it.
 const READ: Duration = Duration::from_secs(2);
-/// Connections read at once; more are dropped.
-const AT_ONCE: usize = 16;
-/// Hand-over and listening tried in turn: the name can be taken between the two.
-const ATTEMPTS: usize = 5;
+/// Connections served at once; more are told `again`.
+const AT_ONCE: usize = 64;
+/// Hand-over and listening tried in turn: the name can be taken between the two, or a copy
+/// closing lets it go.
+const ATTEMPTS: usize = 10;
+/// Before trying again after `again`.
+const PAUSE: Duration = Duration::from_millis(100);
+/// How long the copy waits for its window less than the start waits for the answer, so its `no`
+/// arrives in time.
+const MARGIN: Duration = Duration::from_millis(500);
+/// How long the copy waits for the first answer and the ack of the window (`answer`), and for
+/// the ack once it said `wait` (`starting`).
+#[derive(Clone, Copy)]
+struct Times {
+    answer: Duration,
+    starting: Duration,
+}
+
+/// D2 (#192): 2-3 s for a copy running. 10 s for one still making its window: not measured, to be
+/// compared with a cold start on Windows.
+const TIMES: Times = Times { answer: Duration::from_secs(3), starting: Duration::from_secs(10) };
+
+const WAIT: &str = "wait";
+const OK: &str = "ok";
+const NO: &str = "no";
+const AGAIN: &str = "again";
 
 /// One name per user: abstract sockets and named pipes are visible to every user of the computer.
 /// `socket`: `socket()`, or a name of a test's own.
@@ -65,8 +93,8 @@ pub enum Start {
     Listening(Inbox),
     /// Neither (`EYECANSEE_MULTI`, a screenshot, a name that could not be made): a window of its own.
     Alone,
-    /// A window of its own next to a copy that holds the name but did not take the address
-    /// (another user's, on Linux): that copy may be using its files.
+    /// A window of its own next to a copy that holds the name but did not take the address in
+    /// time, or is another user's (Linux): that copy may be using its files.
     NextTo,
 }
 
@@ -83,13 +111,18 @@ pub fn start(address: &str) -> Start {
 /// `start` on `socket`. Two starts at once both find nobody: one makes the name, the other finds
 /// it taken and hands its address over to it (audit 1.10).
 fn start_on(socket: &str, address: &str) -> Start {
+    start_within(socket, address, TIMES)
+}
+
+fn start_within(socket: &str, address: &str, times: Times) -> Start {
     for attempt in 1..=ATTEMPTS {
-        match hand_over_to(socket, address) {
+        match hand_over_within(socket, address, times) {
             Handover::Done => return Start::HandedOver,
-            Handover::Foreign => return Start::NextTo,
+            Handover::Silent | Handover::Foreign => return Start::NextTo,
+            Handover::Again => std::thread::sleep(PAUSE),
             Handover::Nobody => {}
         }
-        match listen_on(socket) {
+        match listen_within(socket, times) {
             Ok(inbox) => return Start::Listening(inbox),
             Err(e) => log!("single instance: {e} (attempt {attempt})"),
         }
@@ -103,52 +136,155 @@ enum Handover {
     Done,
     /// Nobody listens: this start may become the copy.
     Nobody,
+    /// The copy is closing, or busy: try again.
+    Again,
+    /// No answer in time (#192): the window of that copy does not work.
+    Silent,
     /// The name is another user's (Linux): nothing is sent to it.
     Foreign,
 }
 
-/// `address` given to the copy listening on `socket`.
-fn hand_over_to(socket: &str, address: &str) -> Handover {
-    let Some(stream) = ns_name(socket).and_then(|n| Stream::connect(n).ok()) else { return Handover::Nobody };
-    if !same_user_as_me(&stream) {
-        log!("single instance: {socket} is another user's");
-        return Handover::Foreign;
-    }
-    if (&stream).write_all(format!("{address}\n").as_bytes()).is_ok() { Handover::Done } else { Handover::Nobody }
+/// What the thread of `deliver` says.
+enum Step {
+    /// The copy is making its window: the start waits `Times::starting`.
+    Wait,
+    End(Handover),
 }
 
-/// This copy listens: the addresses handed over wait here until the window takes them
-/// (`App::answer_handed`), also those that came before it was made.
-pub struct Inbox {
-    rx: Receiver<String>,
+/// `address` given to the copy listening on `socket`, within `TIMES` (#192).
+#[cfg(test)]
+fn hand_over_to(socket: &str, address: &str) -> Handover {
+    hand_over_within(socket, address, TIMES)
+}
+
+/// The whole exchange in a thread of its own, so connecting (on Windows with no time limit),
+/// writing and reading never hold the start longer than `times`. Late, the thread sends nothing
+/// more: this start has opened its own window.
+fn hand_over_within(socket: &str, address: &str, times: Times) -> Handover {
+    let (tx, rx) = mpsc::channel();
+    let late = Arc::new(AtomicBool::new(false));
+    let (socket, address, gave_up) = (socket.to_owned(), address.to_owned(), Arc::clone(&late));
+    crate::logging::spawn_named("single-hand-over", move || deliver(&socket, &address, &gave_up, &tx));
+    let mut until = Instant::now() + times.answer;
+    loop {
+        match rx.recv_timeout(until.saturating_duration_since(Instant::now())) {
+            Ok(Step::Wait) => until = Instant::now() + times.starting,
+            Ok(Step::End(handover)) => return handover,
+            Err(_) => {
+                late.store(true, Ordering::SeqCst);
+                log!("single instance: no answer in time");
+                return Handover::Silent;
+            }
+        }
+    }
+}
+
+fn deliver(socket: &str, address: &str, late: &AtomicBool, tx: &Sender<Step>) {
+    let end = |handover| drop(tx.send(Step::End(handover)));
+    let Some(Ok(conn)) = ns_name(socket).map(Stream::connect) else { return end(Handover::Nobody) };
+    if !same_user_as_me(&conn) {
+        log!("single instance: {socket} is another user's");
+        return end(Handover::Foreign);
+    }
+    if late.load(Ordering::SeqCst) {
+        return;
+    }
+    if (&conn).write_all(format!("{address}\n").as_bytes()).is_err() {
+        return end(Handover::Again);
+    }
+    for line in BufReader::new((&conn).take(LONGEST)).lines() {
+        match line.as_deref() {
+            Ok(WAIT) => drop(tx.send(Step::Wait)),
+            Ok(OK) => return end(Handover::Done),
+            Ok(NO) => return end(Handover::Silent),
+            // `again`, or the connection broken.
+            _ => return end(Handover::Again),
+        }
+    }
+    // Closed without a word: a copy of 0.77.0 or before, which took it as it read it.
+    end(Handover::Done);
+}
+
+/// An address handed over, and where the window says it took it.
+struct Handed {
+    address: String,
+    taken: SyncSender<()>,
+}
+
+/// What the listening threads and the window share.
+struct Shared {
     /// The window, once made: woken when an address arrives.
-    ctx: Arc<OnceLock<Context>>,
+    ctx: OnceLock<Context>,
+    /// The window has taken the addresses once (`Inbox::take`): no more `wait` (D9).
+    running: AtomicBool,
+    /// Closing (`Inbox` dropped): the listening stops.
+    closing: AtomicBool,
+    busy: AtomicUsize,
+    times: Times,
+}
+
+/// This copy listens: the addresses handed over wait here, each start with its connection open,
+/// until the window takes them (`App::answer_handed`), also those that came before it was made.
+/// Dropped, it stops listening first, so a copy still closing does not catch the next starts.
+pub struct Inbox {
+    rx: Receiver<Handed>,
+    shared: Arc<Shared>,
+    socket: String,
+    /// The listening thread let the name go.
+    stopped: Receiver<()>,
 }
 
 impl Inbox {
-    /// The addresses waiting.
+    /// The addresses waiting, each said taken to its start; those whose start no longer waits are
+    /// left (it opened its own window).
     fn take(&self) -> Vec<String> {
-        self.rx.try_iter().collect()
+        self.shared.running.store(true, Ordering::SeqCst);
+        self.rx.try_iter().filter(|h| h.taken.send(()).is_ok()).map(|h| h.address).collect()
+    }
+}
+
+impl Drop for Inbox {
+    fn drop(&mut self) {
+        self.shared.closing.store(true, Ordering::SeqCst);
+        // `accept` is waiting: a connection of its own wakes it.
+        let socket = self.socket.clone();
+        crate::logging::spawn_named("single-stop", move || drop(ns_name(&socket).map(Stream::connect)));
+        if self.stopped.recv_timeout(Duration::from_secs(1)).is_err() {
+            log!("single instance: still listening after 1 s");
+        }
     }
 }
 
 /// Listens on `socket`; `Err` when the name is taken (or cannot be made).
+#[cfg(test)]
 fn listen_on(socket: &str) -> std::io::Result<Inbox> {
+    listen_within(socket, TIMES)
+}
+
+fn listen_within(socket: &str, times: Times) -> std::io::Result<Inbox> {
     let name = ns_name(socket).ok_or_else(|| std::io::Error::other("no name"))?;
     let listener = ListenerOptions::new().name(name).create_sync()?;
     let (tx, rx) = mpsc::channel();
-    let ctx = Arc::new(OnceLock::new());
-    let wake = Arc::clone(&ctx);
-    crate::logging::spawn_named("single-listen", move || accept_all(&listener, &tx, &wake));
-    Ok(Inbox { rx, ctx })
+    let (stop, stopped) = mpsc::channel();
+    let shared = Arc::new(Shared { ctx: OnceLock::new(), running: AtomicBool::new(false), closing: AtomicBool::new(false), busy: AtomicUsize::new(0), times });
+    let both = Arc::clone(&shared);
+    crate::logging::spawn_named("single-listen", move || {
+        accept_all(&listener, &tx, &both);
+        drop(listener);
+        let _ = stop.send(());
+    });
+    Ok(Inbox { rx, shared, socket: socket.to_owned(), stopped })
 }
 
-/// Each connection read by a thread of its own, so one that sends nothing stops no other.
-fn accept_all(listener: &Listener, tx: &Sender<String>, ctx: &Arc<OnceLock<Context>>) {
-    let busy = Arc::new(AtomicUsize::new(0));
+/// Each connection served by a thread of its own, so one that sends nothing stops no other.
+fn accept_all(listener: &Listener, tx: &Sender<Handed>, shared: &Arc<Shared>) {
     let mut errors = 0;
     loop {
-        let conn = match listener.accept() {
+        let conn = listener.accept();
+        if shared.closing.load(Ordering::SeqCst) {
+            return let_go(listener, conn.ok());
+        }
+        let conn = match conn {
             Ok(conn) => conn,
             Err(e) => {
                 errors += 1;
@@ -161,20 +297,27 @@ fn accept_all(listener: &Listener, tx: &Sender<String>, ctx: &Arc<OnceLock<Conte
             }
         };
         errors = 0;
-        if busy.fetch_add(1, Ordering::SeqCst) >= AT_ONCE {
-            busy.fetch_sub(1, Ordering::SeqCst);
+        if shared.busy.fetch_add(1, Ordering::SeqCst) >= AT_ONCE {
+            shared.busy.fetch_sub(1, Ordering::SeqCst);
+            say(&conn, AGAIN);
             continue;
         }
-        let (tx, ctx, busy) = (tx.clone(), Arc::clone(ctx), Arc::clone(&busy));
-        crate::logging::spawn_named("single-read", move || {
-            if let Some(address) = take_in(&conn) {
-                let _ = tx.send(address);
-                if let Some(ctx) = ctx.get() {
-                    ctx.request_repaint();
-                }
-            }
-            busy.fetch_sub(1, Ordering::SeqCst);
+        let (tx, shared) = (tx.clone(), Arc::clone(shared));
+        crate::logging::spawn_named("single-serve", move || {
+            serve(&conn, &tx, &shared);
+            shared.busy.fetch_sub(1, Ordering::SeqCst);
         });
+    }
+}
+
+/// Closing: the starts already connected are told `again` (left waiting, they would take the
+/// close for a copy of 0.77.0 that took the address), so that they try again once the name is free.
+fn let_go(listener: &Listener, first: Option<Stream>) {
+    first.iter().for_each(|conn| say(conn, AGAIN));
+    if listener.set_nonblocking(ListenerNonblockingMode::Accept).is_ok() {
+        while let Ok(conn) = listener.accept() {
+            say(&conn, AGAIN);
+        }
     }
 }
 
@@ -182,6 +325,40 @@ fn accept_all(listener: &Listener, tx: &Sender<String>, ctx: &Arc<OnceLock<Conte
 /// row the listening stops (`None`).
 fn pause_after(errors: u32) -> Option<Duration> {
     (errors < 50).then(|| Duration::from_millis(100 * u64::from(errors.min(10))))
+}
+
+/// One start: its address to the window, and the window's answer back, in time (#192).
+fn serve(conn: &Stream, tx: &Sender<Handed>, shared: &Shared) {
+    let Some(address) = take_in(conn) else { return say(conn, NO) };
+    // `wait` only before the window has taken anything (D9): a window stuck later gets no more time.
+    let starting = !shared.running.load(Ordering::SeqCst);
+    if starting {
+        say(conn, WAIT);
+    }
+    let (taken, answer) = mpsc::sync_channel(1);
+    if shared.closing.load(Ordering::SeqCst) || tx.send(Handed { address, taken }).is_err() {
+        return say(conn, AGAIN);
+    }
+    if let Some(ctx) = shared.ctx.get() {
+        ctx.request_repaint();
+    }
+    let times = shared.times;
+    let wait = if starting { times.starting } else { times.answer };
+    match answer.recv_timeout(wait.saturating_sub(MARGIN)) {
+        Ok(()) => say(conn, OK),
+        // The inbox dropped: closing.
+        Err(RecvTimeoutError::Disconnected) => say(conn, AGAIN),
+        Err(RecvTimeoutError::Timeout) => {
+            log!("single instance: the window did not take an address in time");
+            say(conn, NO);
+        }
+    }
+}
+
+/// One line of the answer; a start that no longer reads it (late, or of 0.77.0 or before) is no
+/// matter.
+fn say(conn: &Stream, line: &str) {
+    let _ = writeln!(&*conn, "{line}");
 }
 
 /// The address a connection sends, if it is this user's (Linux) and sends one line, not too long,
@@ -217,7 +394,8 @@ fn same_user_as_me(conn: &Stream) -> bool {
     same_user(conn.peer_creds().ok().and_then(|c| c.euid()), unsafe { libc::geteuid() })
 }
 
-/// Windows: the named pipe is made with the default rights, which let other users only read it.
+/// Windows: the named pipe is made with the default rights, which give other users read access
+/// only (Microsoft's documentation of `CreateNamedPipe`).
 #[cfg(windows)]
 fn same_user_as_me(_: &Stream) -> bool {
     true
@@ -232,7 +410,7 @@ impl App {
     /// The listening started in `main`, taken by the window.
     pub(crate) fn with_single(mut self, ctx: &Context, inbox: Option<Inbox>) -> Self {
         if let Some(inbox) = &inbox {
-            let _ = inbox.ctx.set(ctx.clone());
+            let _ = inbox.shared.ctx.set(ctx.clone());
             ctx.request_repaint();
         }
         self.single = inbox;
@@ -240,7 +418,7 @@ impl App {
     }
 
     /// Every pass, also with the window hidden (`App::logic`): the addresses handed over go to the
-    /// window as `Msg::Open`.
+    /// window as `Msg::Open`, and their starts are told so (#192).
     pub(crate) fn answer_handed(&mut self, ctx: &Context) {
         let Some(inbox) = &self.single else { return };
         for address in inbox.take() {
@@ -276,6 +454,14 @@ mod tests {
         all
     }
 
+    /// `hand_over_to` in a thread: it waits for the window, which the test plays (`arrived`).
+    fn handing(socket: &str, address: &str) -> std::sync::mpsc::Receiver<Handover> {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let (socket, address) = (socket.to_owned(), address.to_owned());
+        std::thread::spawn(move || tx.send(super::hand_over_to(&socket, &address)));
+        rx
+    }
+
     /// Audit 1.10: a connection that sends nothing stopped the listening, and every later start
     /// handed its address to nobody.
     #[test]
@@ -283,8 +469,9 @@ mod tests {
         let socket = test_socket("silent");
         let inbox = super::listen_on(&socket).unwrap();
         let _silent = Stream::connect(super::ns_name(&socket).unwrap()).unwrap();
-        assert_eq!(super::hand_over_to(&socket, "/next"), Handover::Done);
+        let handed = handing(&socket, "/next");
         assert_eq!(arrived(&inbox, 1), ["/next"]);
+        assert_eq!(handed.recv_timeout(Duration::from_secs(10)), Ok(Handover::Done));
     }
 
     /// Audit 1.10: a connection was read with no limit; one longer than `LONGEST` is dropped,
@@ -298,13 +485,15 @@ mod tests {
         let _ = long.write_all(&vec![b'a'; 1 << 20]);
         let _ = long.write_all(b"\n");
         drop(long);
-        assert_eq!(super::hand_over_to(&socket, "/next"), Handover::Done);
+        let handed = handing(&socket, "/next");
         let first = arrived(&inbox, 1);
         assert_eq!(first, ["/next"], "{} bytes arrived first", first.first().map_or(0, String::len));
+        assert_eq!(handed.recv_timeout(Duration::from_secs(10)), Ok(Handover::Done));
     }
 
     /// Audit 1.10: starts at the same moment (a file manager starts one per file chosen) all
     /// missed each other and opened a window each; now one listens and the others hand over.
+    /// The window of the one listening comes 0.3 s later: the others wait for it (D9).
     #[test]
     fn starts_at_once_give_one_copy() {
         for round in 0..10 {
@@ -315,15 +504,21 @@ mod tests {
                     let (socket, gate) = (socket.clone(), gate.clone());
                     std::thread::spawn(move || {
                         gate.wait();
-                        super::start_on(&socket, &format!("/{i}"))
+                        match super::start_on(&socket, &format!("/{i}")) {
+                            Start::Listening(inbox) => {
+                                std::thread::sleep(Duration::from_millis(300));
+                                Some(arrived(&inbox, 5))
+                            }
+                            Start::HandedOver => None,
+                            _ => panic!("round {round}: start {i} opened a window of its own"),
+                        }
                     })
                 })
                 .collect();
-            let ends: Vec<Start> = starts.into_iter().map(|s| s.join().unwrap()).collect();
-            let inboxes: Vec<&Inbox> = ends.iter().filter_map(|e| if let Start::Listening(i) = e { Some(i) } else { None }).collect();
-            let handed = ends.iter().filter(|e| matches!(e, Start::HandedOver)).count();
-            assert_eq!((inboxes.len(), handed), (1, 5), "round {round}: one copy listens, the others hand over");
-            assert_eq!(arrived(inboxes[0], 5).len(), 5, "round {round}");
+            let ends: Vec<_> = starts.into_iter().map(|s| s.join().unwrap()).collect();
+            let windows: Vec<_> = ends.into_iter().flatten().collect();
+            assert_eq!(windows.len(), 1, "round {round}: one copy listens, the others hand over");
+            assert_eq!(windows[0].len(), 5, "round {round}");
         }
     }
 
@@ -332,11 +527,13 @@ mod tests {
     #[test]
     fn a_copy_that_does_not_answer_is_not_handed_over() {
         let socket = test_socket("mute");
-        let _inbox = super::listen_on(&socket).unwrap();
+        let inbox = super::listen_on(&socket).unwrap();
+        // Its window ran once, then got stuck: no more `wait` (D9).
+        assert!(inbox.take().is_empty());
         let start = Instant::now();
         assert_ne!(super::hand_over_to(&socket, "/x"), Handover::Done);
         assert!(matches!(super::start_on(&socket, "/x"), Start::NextTo));
-        assert!(start.elapsed() < Duration::from_secs(20), "{:?}", start.elapsed());
+        assert!(start.elapsed() < Duration::from_secs(9), "{:?}", start.elapsed());
     }
 
     /// #192: a name nobody accepts on: the new start waited with no limit (Windows), or handed
@@ -365,11 +562,61 @@ mod tests {
     fn a_copy_that_answers_takes_it() {
         let socket = test_socket("answers");
         let inbox = super::listen_on(&socket).unwrap();
-        let (tx, rx) = std::sync::mpsc::channel();
-        let s = socket.clone();
-        std::thread::spawn(move || tx.send(super::hand_over_to(&s, "/z")));
+        let handed = handing(&socket, "/z");
         assert_eq!(arrived(&inbox, 1), ["/z"]);
-        assert_eq!(rx.recv_timeout(Duration::from_secs(10)), Ok(Handover::Done));
+        assert_eq!(handed.recv_timeout(Duration::from_secs(10)), Ok(Handover::Done));
+    }
+
+    /// D9: a copy that says `wait` and never `ok`: the start opens its own window in time.
+    #[test]
+    fn a_copy_that_only_says_wait() {
+        let socket = test_socket("waits");
+        let fake = interprocess::local_socket::ListenerOptions::new().name(super::ns_name(&socket).unwrap()).create_sync().unwrap();
+        std::thread::spawn(move || {
+            let conns: Vec<_> = fake.incoming().take(1).flatten().collect();
+            for conn in &conns {
+                assert!(super::read_address(conn).is_some());
+                super::say(conn, super::WAIT);
+            }
+            std::thread::sleep(Duration::from_secs(30));
+        });
+        let times = super::Times { answer: Duration::from_millis(500), starting: Duration::from_secs(1) };
+        let start = Instant::now();
+        assert!(matches!(super::start_within(&socket, "/w", times), Start::NextTo));
+        let took = start.elapsed();
+        assert!(took >= Duration::from_secs(1) && took < Duration::from_secs(10), "{took:?}");
+    }
+
+    /// A copy of 0.77.0 or before reads the address and closes without a word: handed over, as
+    /// then.
+    #[test]
+    fn a_copy_of_before_takes_it() {
+        let socket = test_socket("old");
+        let old = interprocess::local_socket::ListenerOptions::new().name(super::ns_name(&socket).unwrap()).create_sync().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            for conn in old.incoming().take(1).flatten() {
+                let _ = tx.send(super::read_address(&conn));
+            }
+        });
+        assert_eq!(super::hand_over_to(&socket, "/old"), Handover::Done);
+        assert_eq!(rx.recv_timeout(Duration::from_secs(10)), Ok(Some("/old".to_string())));
+    }
+
+    /// A copy closing while a start waits for its window: the start tries again, and becomes the
+    /// copy once the name is free.
+    #[test]
+    fn a_start_waiting_on_a_copy_closing_becomes_the_copy() {
+        let socket = test_socket("closes");
+        let inbox = super::listen_on(&socket).unwrap();
+        let s = socket.clone();
+        let start = std::thread::spawn(move || super::start_on(&s, "/c"));
+        let at = Instant::now();
+        while inbox.shared.busy.load(std::sync::atomic::Ordering::SeqCst) == 0 && at.elapsed() < Duration::from_secs(10) {
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        drop(inbox);
+        assert!(matches!(start.join().unwrap(), Start::Listening(_)));
     }
 
     /// One line, not too long, without its end; anything else is no address.
