@@ -20,7 +20,7 @@ La barra delle proprietà ha tre pulsanti, che hanno anche il loro tasto:
 
 ## Incollare da un altro programma
 
-**Ctrl + V** incolla anche un'immagine copiata in un altro programma. Va al centro del risultato, grande al massimo quattro quinti, come oggetto da spostare, ridimensionare e ruotare. Se dopo aver copiato una zona qui hai copiato qualcosa in un altro programma, viene incollata quell'immagine. Se non c'è un'immagine da incollare, lo dice la barra di stato.
+**Ctrl + V** incolla anche un'immagine copiata in un altro programma. Va al centro del risultato, grande al massimo quattro quinti, come oggetto da spostare, ridimensionare e ruotare. Se dopo aver copiato una zona qui hai copiato qualcosa in un altro programma, viene incollata quell'immagine. Se non c'è un'immagine da incollare, lo dice la barra di stato. Un'immagine con un lato più lungo di 20.000 pixel non si incolla: un messaggio ne dice la misura.
 
 ## Ruotare, riflettere e misurare un pezzo incollato
 

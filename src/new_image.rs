@@ -57,6 +57,15 @@ const PRESETS: [(&str, f32, f32, Unit); 10] = [
 /// No side longer, as Selection and the decoders allow.
 pub(crate) const MAX_SIDE: u32 = 20_000;
 
+/// At most this many pixels (200 megapixels, 800 MB in memory, made at once): 20 000 × 20 000 was
+/// 1.6 GB, and a mistake with the units brings there (4.15 a).
+const MAX_PIXELS: u64 = 200_000_000;
+
+/// More pixels than a new image may have.
+fn too_many((w, h): (u32, u32)) -> bool {
+    u64::from(w) * u64::from(h) > MAX_PIXELS
+}
+
 /// The size in pixels of `w` × `h` in `unit`, at `dpi` dots per inch for the units of length; at
 /// least a pixel, at most `MAX_SIDE`.
 pub fn pixels(w: f32, h: f32, unit: Unit, dpi: f32) -> (u32, u32) {
@@ -192,12 +201,20 @@ fn new_image_form(ui: &mut egui::Ui, f: &mut Form, i18n: &I18n) -> Option<Answer
         ui.end_row();
     });
     let (w, h) = pixels(f.w, f.h, f.unit, f.dpi);
+    let big = too_many((w, h));
     ui.add_space(6.0);
-    ui.weak(i18n.t_args("new-pixels", &[("w", &w.to_string()), ("h", &h.to_string())]));
+    let (ws, hs) = (w.to_string(), h.to_string());
+    let too_big = i18n.t_args("new-too-big", &[("w", &ws), ("h", &hs), ("mp", &(u64::from(w) * u64::from(h) / 1_000_000).to_string()), ("max", &(MAX_PIXELS / 1_000_000).to_string())]);
+    if big {
+        crate::error_bar::hint(ui, &too_big);
+    } else {
+        ui.weak(i18n.t_args("new-pixels", &[("w", &ws), ("h", &hs)]));
+    }
     ui.add_space(6.0);
     let mut answer = None;
     ui.horizontal(|ui| {
-        if ui.add(crate::theme::main_button(ui, t("new-create"))).clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter)) {
+        let create = ui.add_enabled(!big, crate::theme::main_button(ui, t("new-create"))).on_disabled_hover_text(&too_big);
+        if !big && (create.clicked() || ui.input(|i| i.key_pressed(egui::Key::Enter))) {
             answer = Some(Answer::Create);
         }
         if ui.button(t("delete-no")).clicked() || ui.input(|i| i.key_pressed(egui::Key::Escape)) {

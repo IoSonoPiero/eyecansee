@@ -27,7 +27,7 @@ With this tool the whole image is shown, with the crop frame over it and the par
 - **Image only**: the largest crop with no empty corners. It follows the rotation, and it is what you get at first.
 - **Whole image**: all of the rotated image, with empty corners.
 
-The size of the result is in the status bar.
+The size of the result is in the status bar. The crop stops at 20,000 pixels a side (or at the size of a larger photo), and the status bar says so.
 
 ## Empty corners
 

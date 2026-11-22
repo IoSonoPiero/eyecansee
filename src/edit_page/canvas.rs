@@ -343,7 +343,9 @@ fn mouse(ui: &egui::Ui, w: &mut Window, response: &egui::Response, view: &View, 
                 w.follow = Follow::Manual;
             }
             Grab::Side(sx, sy) => {
-                w.doc.crop = resized(start, sx, sy, view.image(p), w.ratio());
+                let capped;
+                (w.doc.crop, capped) = resized(start, sx, sy, view.image(p), w.ratio(), w.crop_most());
+                w.crop_capped |= capped;
                 w.follow = Follow::Manual;
             }
         }
@@ -683,8 +685,9 @@ fn wheel(ui: &egui::Ui, w: &mut Window, view: &View, rect: Rect, turn: bool) {
 }
 
 /// `start` with the side or corner (`sx`, `sy`) moved to `p`, the opposite one staying where it
-/// was; with `ratio`, the proportions kept (only corners then). At least a pixel.
-fn resized(start: Crop, sx: i8, sy: i8, p: Vec2, ratio: Option<f32>) -> Crop {
+/// was; with `ratio`, the proportions kept (only corners then). At least a pixel, at most `most`
+/// (`resize::crop_most`), and whether it stopped there.
+fn resized(start: Crop, sx: i8, sy: i8, p: Vec2, ratio: Option<f32>, most: (f32, f32)) -> (Crop, bool) {
     let (mut l, mut r) = (start.cx - start.w / 2.0, start.cx + start.w / 2.0);
     let (mut t, mut b) = (start.cy - start.h / 2.0, start.cy + start.h / 2.0);
     match sx {
@@ -697,13 +700,16 @@ fn resized(start: Crop, sx: i8, sy: i8, p: Vec2, ratio: Option<f32>) -> Crop {
         -1 => t = p.y.min(b - 1.0),
         _ => {}
     }
+    let (mut w, mut h) = (r - l, b - t);
     if let Some(ratio) = ratio {
-        let (mut w, mut h) = (r - l, b - t);
         if w / h > ratio { h = w / ratio } else { w = h * ratio }
+    }
+    let (w, h, capped) = crate::edit::resize::capped((w, h), most, ratio.is_some());
+    if ratio.is_some() || capped {
         if sx == 1 { r = l + w } else { l = r - w }
         if sy == 1 { b = t + h } else { t = b - h }
     }
-    Crop { cx: (l + r) / 2.0, cy: (t + b) / 2.0, w: r - l, h: b - t }
+    (Crop { cx: (l + r) / 2.0, cy: (t + b) / 2.0, w: r - l, h: b - t }, capped)
 }
 
 #[cfg(test)]
@@ -714,12 +720,13 @@ mod tests {
     fn resize() {
         let start = Crop::centred(100.0, 50.0);
         // Right side out by 20: the left one stays.
-        assert_eq!(resized(start, 1, 0, egui::vec2(70.0, 0.0), None), Crop { cx: 10.0, cy: 0.0, w: 120.0, h: 50.0 });
+        let most = (20_000.0, 20_000.0);
+        assert_eq!(resized(start, 1, 0, egui::vec2(70.0, 0.0), None, most), (Crop { cx: 10.0, cy: 0.0, w: 120.0, h: 50.0 }, false));
         // Top left corner with 1:1: square, the bottom right corner stays.
-        let sq = resized(start, -1, -1, egui::vec2(-40.0, -40.0), Some(1.0));
+        let (sq, _) = resized(start, -1, -1, egui::vec2(-40.0, -40.0), Some(1.0), most);
         assert_eq!((sq.w, sq.h, sq.cx + sq.w / 2.0, sq.cy + sq.h / 2.0), (90.0, 90.0, 50.0, 25.0));
         // Past the opposite side: a pixel wide, not turned inside out.
-        assert_eq!(resized(start, 1, 0, egui::vec2(-500.0, 0.0), None).w, 1.0);
+        assert_eq!(resized(start, 1, 0, egui::vec2(-500.0, 0.0), None, most).0.w, 1.0);
     }
 
     /// The crop stops at the largest side (20 000 pixels, or the photo's own side when it is
@@ -731,9 +738,10 @@ mod tests {
         use crate::edit::doc::Doc;
         let max = crate::edit::resize::MAX_SIDE as f32;
         let start = Crop::centred(100.0, 50.0);
-        let far = resized(start, 1, 0, egui::vec2(60_000.0, 0.0), None);
+        let (far, capped) = resized(start, 1, 0, egui::vec2(60_000.0, 0.0), None, (max, max));
+        assert!(capped);
         assert_eq!((far.w, far.h, far.cx - far.w / 2.0), (max, 50.0, -50.0), "the left side stays");
-        let both = resized(start, -1, -1, egui::vec2(-90_000.0, -90_000.0), Some(2.0));
+        let (both, _) = resized(start, -1, -1, egui::vec2(-90_000.0, -90_000.0), Some(2.0), (max, max));
         assert!(both.w <= max && both.h <= max && (both.w / both.h - 2.0).abs() < 1e-3, "{both:?}");
         assert_eq!((both.cx + both.w / 2.0, both.cy + both.h / 2.0), (50.0, 25.0), "the bottom right corner stays");
         // All of a photo of 20 000 × 2000 straightened by 10°: 20 043 across.
@@ -748,11 +756,13 @@ mod tests {
         (w.follow, w.doc.angle) = (Follow::Whole, 10.0);
         w.refit();
         assert!(w.doc.crop.w <= max && w.doc.crop.h <= max, "{:?}", w.doc.crop);
+        assert!(std::mem::take(&mut w.crop_capped), "the status bar says it");
         // A photo larger than that keeps all of itself.
         photo(&mut w, 21_000, 10);
         (w.follow, w.doc.angle) = (Follow::Whole, 0.0);
         w.refit();
         assert_eq!(w.doc.crop.pixels(), (21_000, 10));
+        assert!(!w.crop_capped);
     }
 
     /// Issue #103: a click outside the result with Text, Step numbers or Stamps places nothing and

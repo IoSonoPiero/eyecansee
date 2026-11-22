@@ -203,6 +203,11 @@ impl App {
         if let Some(c) = w.just_picked.take() {
             w.note = Some((i18n.t_args("edit-picked", &[("codes", &crate::eyedropper::codes(c).replace('\n', " · "))]), ui.input(|i| i.time) + 8.0));
         }
+        // The crop stopped at its largest size.
+        if std::mem::take(&mut w.crop_capped) {
+            let (mw, mh) = w.crop_most();
+            w.note = Some((i18n.t_args("edit-crop-max", &[("w", &(mw as u32).to_string()), ("h", &(mh as u32).to_string())]), ui.input(|i| i.time) + 6.0));
+        }
         // A copy too large for other programs (X11), once "Copied" is shown.
         if !w.copying
             && let Some(n) = w.too_big.as_ref().and_then(|r| r.try_recv().ok())

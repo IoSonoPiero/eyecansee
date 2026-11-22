@@ -20,7 +20,7 @@ Nel visore **Nuova immagine…** è grigia e **Ctrl + N** non fa niente: prima t
 - ![Scambia larghezza e altezza](icon://arrow-left-right) scambia larghezza e altezza, per l'orizzontale o il verticale.
 - **Risoluzione**: per le misure in millimetri, centimetri o pollici, quanti punti per pollice. Sotto, la finestra mostra quanti pixel fanno. All'inizio è A4 a 300 dpi.
 
-Nessun lato può superare i 20.000 pixel.
+Nessun lato può superare i 20.000 pixel, e un'immagine ha al massimo 200 megapixel (per esempio 20.000 × 10.000): oltre, **Crea** è spento e la finestra dice perché.
 
 ## Sfondo
 

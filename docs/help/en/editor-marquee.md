@@ -20,7 +20,7 @@ The properties bar has three buttons, also on the keyboard:
 
 ## Pasting from another program
 
-**Ctrl + V** also pastes an image copied in another program. It goes in the middle of the result, at most four fifths of its size, as an object you can move, resize and rotate. If you copied something in another program after copying a part here, that image is pasted instead. When there is no image to paste, the status bar says so.
+**Ctrl + V** also pastes an image copied in another program. It goes in the middle of the result, at most four fifths of its size, as an object you can move, resize and rotate. If you copied something in another program after copying a part here, that image is pasted instead. When there is no image to paste, the status bar says so. An image with a side longer than 20,000 pixels is not pasted: a message gives its size.
 
 ## Turning, flipping and sizing a pasted piece
 

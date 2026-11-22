@@ -127,6 +127,12 @@ impl App {
                 (crate::edit::doc::Area { centre: Pt::new(a.centre.x + step, a.centre.y + step), ..*a }, p.clone())
             }
             (None, Some(img)) => {
+                let [iw, ih] = img.size;
+                if !crate::edit::resize::fits(iw, ih) {
+                    let max = crate::edit::resize::MAX_SIDE.to_string();
+                    self.error = Some(self.i18n.t_args("edit-paste-too-big", &[("w", &iw.to_string()), ("h", &ih.to_string()), ("max", &max)]));
+                    return;
+                }
                 let Some(patch) = clipboard_patch(w, &img) else { return };
                 patch
             }
@@ -150,8 +156,11 @@ impl App {
 }
 
 /// An image from the clipboard of another program as a patch: in the middle of the result, at
-/// most 80% of it.
+/// most 80% of it. `None` for one larger than the editor takes (audit 5.10).
 fn clipboard_patch(w: &super::Window, img: &ColorImage) -> Option<(crate::edit::doc::Area, crate::edit::doc::Pixels)> {
+    if !crate::edit::resize::fits(img.size[0], img.size[1]) {
+        return None;
+    }
     let rgba: Vec<u8> = img.pixels.iter().flat_map(|c| c.to_srgba_unmultiplied()).collect();
     let image = image::RgbaImage::from_raw(img.size[0] as u32, img.size[1] as u32, rgba)?;
     let c = w.doc.crop;

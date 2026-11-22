@@ -18,6 +18,31 @@ pub const MAX_SIDE: u32 = crate::new_image::MAX_SIDE;
 /// As Convert and resize.
 pub const MAX_PERCENT: u32 = 1000;
 
+/// The largest crop of an image of `iw` × `ih` as it stands: `MAX_SIDE` a side, or the image's
+/// own side when it is larger, so a photo is never cut by the limit (audit 5.10).
+pub fn crop_most(iw: f32, ih: f32) -> (f32, f32) {
+    (iw.max(MAX_SIDE as f32), ih.max(MAX_SIDE as f32))
+}
+
+/// `w` × `h` no larger than `most`: both by the same factor when the proportions are kept
+/// (`keep`), else each side alone; and whether it was larger.
+pub fn capped((w, h): (f32, f32), most: (f32, f32), keep: bool) -> (f32, f32, bool) {
+    match () {
+        _ if w <= most.0 && h <= most.1 => (w, h, false),
+        _ if keep => {
+            let k = (most.0 / w).min(most.1 / h);
+            (w * k, h * k, true)
+        }
+        _ => (w.min(most.0), h.min(most.1), true),
+    }
+}
+
+/// An image of `w` × `h` pixels pasted from another program fits in the editor: no side longer
+/// than `MAX_SIDE`.
+pub fn fits(w: usize, h: usize) -> bool {
+    w.max(h) <= MAX_SIDE as usize
+}
+
 /// The photo of the document: the original's pixels (upright as read, before the flips and
 /// turns) resampled to `w` × `h` with `filter`.
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]

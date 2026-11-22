@@ -191,6 +191,8 @@ pub struct Window {
     /// On X11, the size of the copy just made when it is too large for other programs, worked
     /// out aside (`clip::watch_size`); the status bar says it.
     too_big: Option<std::sync::mpsc::Receiver<usize>>,
+    /// The crop just stopped at its largest size (`resize::crop_most`): the status bar says it.
+    crop_capped: bool,
     /// How many times the previews of the filters were made: the objects are drawn again then.
     filters_made: u64,
     /// What the lenses' previews were made with (`photo::hiders_key`).
@@ -294,6 +296,7 @@ impl Window {
             clip: None,
             pasted: false,
             too_big: None,
+            crop_capped: false,
             filters_made: 0,
             hiders: 0,
             keys_open: false,
@@ -360,13 +363,19 @@ impl Window {
         Some(if self.swapped { 1.0 / r } else { r })
     }
 
+    /// The largest the crop may be (`resize::crop_most`).
+    fn crop_most(&self) -> (f32, f32) {
+        let (iw, ih) = self.size();
+        crate::edit::resize::crop_most(iw, ih)
+    }
+
     fn refit(&mut self) {
         let (iw, ih) = self.size();
         // Free proportions: those of the image as it stands after the nearest quarter turn (at 90°
         // the image's own ones cut a strip off it).
         let angle = self.doc.angle;
         let upright = if (angle / 90.0).round() as i32 % 2 != 0 { ih / iw } else { iw / ih };
-        self.doc.crop = match self.follow {
+        let crop = match self.follow {
             Follow::Inside => rotate::inside(iw, ih, angle, self.ratio().unwrap_or(upright)),
             Follow::Whole => {
                 let (bw, bh) = rotate::bounds(iw, ih, angle);
@@ -375,6 +384,10 @@ impl Window {
             }
             Follow::Manual => self.ratio().map_or(self.doc.crop, |r| self.doc.crop.fit(r)),
         };
+        // The whole of a large image straightened can be larger than the editor takes.
+        let (w, h, capped) = crate::edit::resize::capped((crop.w, crop.h), self.crop_most(), true);
+        self.doc.crop = Crop { w, h, ..crop };
+        self.crop_capped |= capped;
     }
 
     /// The height the properties bar keeps: the tallest it has been at this window width, so a
