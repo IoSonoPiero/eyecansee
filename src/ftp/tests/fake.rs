@@ -12,10 +12,11 @@
 //! - `/cut/`: `a.jpg`, `b.jpg`, which the server stops sending before its end, and `c.jpg`.
 //!
 //! Files are measured (SIZE), read (RETR) and deleted (DELE), folders deleted only when empty
-//! (RMD), as a real server does. It has no MLSD (as vsftpd) but in `GO`: the client falls back to
+//! (RMD), as a real server does. A file sent (STOR) is kept apart, by its path (`Seen::stored`),
+//! whatever the folder; DELE removes it. It has no MLSD (as vsftpd) but in `GO`: the client falls back to
 //! LIST, whose Unix lines describe the links.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::{Arc, Mutex};
@@ -80,6 +81,10 @@ pub struct Seen {
     pub listed: Mutex<Vec<String>>,
     /// Real folder and name of each item deleted.
     removed: Mutex<HashSet<(String, String)>>,
+    /// The path of every STOR, in order.
+    pub stors: Mutex<Vec<String>>,
+    /// The files sent and not deleted, by path, with what arrived of them.
+    pub stored: Mutex<HashMap<String, Vec<u8>>>,
 }
 
 impl Seen {
@@ -169,6 +174,9 @@ impl Seen {
 
     /// DELE of a file or a link, RMD of an empty folder: whether it went.
     fn delete(&self, path: &str, folder: bool) -> bool {
+        if !folder && self.stored.lock().unwrap().remove(path).is_some() {
+            return true;
+        }
         let Some((dir, name)) = self.split(path) else { return false };
         let empty = || self.listing(path).is_some_and(|l| l.is_empty());
         let deletable = match self.item(&dir, name) {
@@ -248,6 +256,18 @@ fn session(control: TcpStream, seen: &Seen) -> std::io::Result<()> {
                     say(&format!("550 Issue during transfer: read {path}: {why}"))?
                 }
                 _ => say("550 no such file")?,
+            },
+            "STOR" => match data.take() {
+                Some(listener) => {
+                    seen.stors.lock().unwrap().push(path.to_string());
+                    say("150 send it")?;
+                    let (mut from, _) = listener.accept()?;
+                    let mut got = Vec::new();
+                    std::io::Read::read_to_end(&mut from, &mut got)?;
+                    seen.stored.lock().unwrap().insert(path.to_string(), got);
+                    say("226 received")?
+                }
+                None => say("425 no data connection")?,
             },
             "SIZE" => match seen.content(path).map(<[u8]>::len).or_else(|| seen.broken(path)) {
                 Some(size) => say(&format!("213 {size}"))?,

@@ -1012,4 +1012,29 @@ mod tests {
         });
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    /// Audit 2.8: chunks of an upload that end with an error (a phone unplugged, Cancel) are not
+    /// a connection lost: one STOR only, with idle connections in the pool that stay there, the
+    /// error of the chunks in the result, nothing left on the server.
+    #[test]
+    fn audit_2_8_error_of_the_chunks_is_not_a_lost_connection() {
+        let (target, seen) = fake::start();
+        let server = super::Server::shared(target);
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            // Two connections at once: two idle ones in the pool after.
+            let (a, b) = tokio::join!(server.size("loop/a.jpg"), server.size("move/a.jpg"));
+            assert!(a.is_ok() && b.is_ok(), "{a:?} {b:?}");
+            assert_eq!(server.idle.lock().unwrap().len(), 2);
+            let (tx, rx) = tokio::sync::mpsc::channel(4);
+            tx.send(Ok(bytes::Bytes::from_static(b"half"))).await.unwrap();
+            tx.send(Err(std::io::Error::other("the phone was unplugged"))).await.unwrap();
+            drop(tx);
+            let r = server.write_chunks("loop/new.jpg", rx).await;
+            let stors = seen.stors.lock().unwrap().clone();
+            assert!(r.as_ref().is_err_and(|e| e.1.contains("the phone was unplugged")), "{r:?}");
+            assert_eq!(stors, ["/loop/new.jpg"], "tried again on other connections");
+            assert!(seen.stored.lock().unwrap().is_empty(), "the half file is left");
+            assert_eq!(server.idle.lock().unwrap().len(), 2, "connections thrown away");
+        });
+    }
 }
