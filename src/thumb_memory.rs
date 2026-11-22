@@ -181,6 +181,11 @@ impl Budget {
         Self::of(bytes, bytes.saturating_mul(4))
     }
 
+    /// `bytes` to share among files being read (`thumb_queue::reading`); its RAM is not used.
+    pub fn shared_by_reads(bytes: u64) -> Self {
+        Self::of(bytes, ram())
+    }
+
     fn of(bytes: u64, ram: u64) -> Self {
         let total = u32::try_from(bytes / MIB).unwrap_or(u32::MAX).max(1);
         let ledger = Ledger { free: total, next: 0, queue: VecDeque::new() };

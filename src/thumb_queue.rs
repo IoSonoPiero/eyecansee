@@ -258,6 +258,11 @@ async fn generate(op: &Store, base: &str, file: File, wanted: impl Fn() -> bool)
         return Err(crate::occt::MISSING.into());
     }
     let picture = !crate::model::is_model(&file.path) && !crate::cad::is_cad(&file.path);
+    // Given back once the thumbnail is made and its bytes are gone.
+    let _reading = reading().reserve(file.size).await;
+    if !wanted() {
+        return Err(NOT_WANTED.into());
+    }
     let bytes = if picture { read_picture(op, &file, thumb_memory::budget()).await? } else { op.read(&file.path).await.map_err(|(_, detail)| not_tried(detail))? };
     #[cfg(test)]
     let _held = tests::Held::new(base, file.size);
@@ -286,6 +291,15 @@ async fn generate(op: &Store, base: &str, file: File, wanted: impl Fn() -> bool)
     })
     .await
     .unwrap_or_else(|e| Err(not_tried(e)))
+}
+
+/// The files read whole by the thumbnails at the same time, by the size listed: at most 1 GiB, a
+/// larger one alone (audit 2.18). Before, every worker (one per logical processor on a disk) read
+/// its whole file at once: a folder of scans or models of 1-2 GB each put up to 32 of them in
+/// memory together. #177's budget, for the decoding, comes after it and never before.
+fn reading() -> &'static Budget {
+    static READING: std::sync::LazyLock<Budget> = std::sync::LazyLock::new(|| Budget::shared_by_reads(1 << 30));
+    &READING
 }
 
 /// A picture's bytes, unless it is too large for the memory (`thumb_memory::TOO_LARGE`): told
