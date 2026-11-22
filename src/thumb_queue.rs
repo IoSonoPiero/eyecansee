@@ -259,6 +259,8 @@ async fn generate(op: &Store, base: &str, file: File, wanted: impl Fn() -> bool)
     }
     let picture = !crate::model::is_model(&file.path) && !crate::cad::is_cad(&file.path);
     let bytes = if picture { read_picture(op, &file, thumb_memory::budget()).await? } else { op.read(&file.path).await.map_err(|(_, detail)| not_tried(detail))? };
+    #[cfg(test)]
+    let _held = tests::Held::new(base, file.size);
     let (bytes, memory) = if picture { reserved(op, &file.path, bytes, thumb_memory::budget(), wanted).await? } else { (bytes, None) };
     let base = base.to_string();
     let (sibling, local) = (siblings(op.clone(), file.path.clone()), crate::occt::local(op, &file.path));
@@ -387,8 +389,38 @@ pub(crate) async fn maintain(op: &Store, base: &str) {
 }
 
 #[cfg(test)]
-mod tests {
+pub(super) mod tests {
     use super::*;
+
+    /// The files the thumbnails of a test (its own `base`) hold in memory, by their listed size:
+    /// after every change, the bytes and the files held at that moment.
+    pub(super) static HELD: Mutex<Vec<(String, u64, usize)>> = Mutex::new(Vec::new());
+
+    /// A file's bytes held by `generate`, from its read to the end of its thumbnail.
+    pub(super) struct Held {
+        base: String,
+        size: u64,
+    }
+
+    impl Held {
+        pub(super) fn new(base: &str, size: u64) -> Self {
+            Self::change(base, |(bytes, files)| (bytes + size, files + 1));
+            Held { base: base.to_string(), size }
+        }
+
+        fn change(base: &str, f: impl Fn((u64, usize)) -> (u64, usize)) {
+            let mut held = HELD.lock().unwrap();
+            let now = held.iter().rev().find(|h| h.0 == base).map_or((0, 0), |h| (h.1, h.2));
+            let (bytes, files) = f(now);
+            held.push((base.to_string(), bytes, files));
+        }
+    }
+
+    impl Drop for Held {
+        fn drop(&mut self) {
+            Self::change(&self.base, |(bytes, files)| (bytes - self.size, files - 1));
+        }
+    }
 
     /// Polls `fut` for about half a second: it must still be waiting.
     async fn still_waiting<F: std::future::Future + Unpin>(fut: &mut F) {
