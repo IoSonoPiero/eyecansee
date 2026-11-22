@@ -30,7 +30,7 @@ pub fn read(bytes: &[u8], zipped: bool, sibling: Sibling, unpacked: &crate::mode
         }
     }
     let z_up = doc.descendants().find(|n| n.has_tag_name_local("up_axis")).and_then(|n| n.text()).is_some_and(|t| t.trim() == "Z_UP");
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(crate::model_limit::READ_WHOLE);
     // In a ZAE the pictures are in the zip, by their path or just their name.
     let in_zip = |name: &str| {
         use std::io::Read;

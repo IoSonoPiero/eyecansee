@@ -613,6 +613,8 @@ error-model-too-many-triangles = Il modello ha più di { $max } milioni di trian
         [stl] i file STL
         [stl-text] i file STL in testo
         [glb] i file GLB
+        [gltf] i file glTF
+        [three-ds] i file 3DS
        *[other] i modelli 3D
     } con più di { $max } milioni di triangoli{ $format ->
         [other] .

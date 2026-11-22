@@ -79,8 +79,8 @@ pub fn read(bytes: &[u8], sibling: Sibling, unpacked: &crate::model_3mf::Unpacke
     if let Some(e) = cut(bytes) {
         return Err(e);
     }
-    // A GLB by its first bytes, also when its data is first made plain; a .gltf as the others.
-    let limit = if bytes.starts_with(b"glTF") { crate::model_limit::GLB } else { crate::model_limit::OTHER };
+    // A GLB by its first bytes, also when its data is first made plain.
+    let limit = if bytes.starts_with(b"glTF") { crate::model_limit::GLB } else { crate::model_limit::GLTF };
     match crate::model_gltf_unpack::plain(bytes, sibling, unpacked)? {
         Some(glb) => read_plain(&glb, sibling, limit),
         None => read_plain(bytes, sibling, limit),

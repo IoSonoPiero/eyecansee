@@ -23,7 +23,7 @@ const RINGS: usize = 16;
 
 pub fn read(bytes: &[u8], sibling: Sibling, unpacked: &Unpacked) -> Result<Mesh, String> {
     let scene = crate::model_vrml::parse(bytes, unpacked)?;
-    let mut b = Builder::default();
+    let mut b = Builder::up_to(crate::model_limit::READ_WHOLE);
     let mut w = Walk { b: &mut b, sibling, unpacked, visits: 0, inlined: HashMap::new(), reads: 0, lines: Vec::new(), points: Vec::new() };
     w.node(&scene, &IDENTITY, 0)?;
     let (lines, points) = (std::mem::take(&mut w.lines), std::mem::take(&mut w.points));
@@ -109,7 +109,7 @@ impl Walk<'_, '_> {
         });
         if let Some(g) = n.children().find(|g| matches!(g.kind.as_str(), "IndexedLineSet" | "LineSet" | "PointSet")) {
             self.line_set(g, m, color);
-            return crate::model_lines::fits(self.lines.len() + self.points.len(), crate::model_limit::OTHER);
+            return crate::model_lines::fits(self.lines.len() + self.points.len(), crate::model_limit::READ_WHOLE);
         }
         let Some(part) = n.children().find_map(geometry) else { return Ok(()) };
         let part = part?;
@@ -399,8 +399,8 @@ fn extrusion(n: &SceneNode) -> Result<Part, String> {
         spine = vec![[0.0; 3], [0.0, 1.0, 0.0]];
     }
     // Two triangles per section point at each spine point: a small file can name billions.
-    if (cs.len() as u64).saturating_mul(spine.len() as u64).saturating_mul(2) > crate::model_limit::OTHER.max as u64 {
-        return Err(crate::model_limit::OTHER.error());
+    if (cs.len() as u64).saturating_mul(spine.len() as u64).saturating_mul(2) > crate::model_limit::READ_WHOLE.max as u64 {
+        return Err(crate::model_limit::READ_WHOLE.error());
     }
     let orient = n.nums("orientation").as_chunks::<4>().0;
     let last = spine.len() - 1;
