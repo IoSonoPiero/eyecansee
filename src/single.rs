@@ -18,7 +18,9 @@ use std::sync::{Arc, OnceLock};
 use std::time::{Duration, Instant};
 
 use eframe::egui::Context;
-use interprocess::local_socket::{GenericNamespaced, Listener, ListenerNonblockingMode, ListenerOptions, Name, Stream, prelude::*};
+#[cfg(unix)]
+use interprocess::local_socket::ListenerNonblockingMode;
+use interprocess::local_socket::{GenericNamespaced, Listener, ListenerOptions, Name, Stream, prelude::*};
 
 use crate::App;
 use crate::loader::Msg;
@@ -312,13 +314,18 @@ fn accept_all(listener: &Listener, tx: &Sender<Handed>, shared: &Arc<Shared>) {
 
 /// Closing: the starts already connected are told `again` (left waiting, they would take the
 /// close for a copy of 0.77.0 that took the address), so that they try again once the name is free.
+/// Linux: also those still waiting to be accepted. Not on Windows, where a nonblocking `accept`
+/// is not tried: a start that connected in that instant reads the close as taken [Unverified].
 fn let_go(listener: &Listener, first: Option<Stream>) {
     first.iter().for_each(|conn| say(conn, AGAIN));
+    #[cfg(unix)]
     if listener.set_nonblocking(ListenerNonblockingMode::Accept).is_ok() {
-        while let Ok(conn) = listener.accept() {
+        for conn in std::iter::from_fn(|| listener.accept().ok()).take(AT_ONCE) {
             say(&conn, AGAIN);
         }
     }
+    #[cfg(windows)]
+    let _ = listener;
 }
 
 /// `accept` failing again and again: a pause that grows, so it does not spin, and after 50 in a
@@ -617,6 +624,34 @@ mod tests {
         }
         drop(inbox);
         assert!(matches!(start.join().unwrap(), Start::Listening(_)));
+    }
+
+    /// The whole way in the app: the listening kept by the window (as `with_single` does), the address
+    /// taken in `App::logic` (`answer_handed`), opened as `Msg::Open`, and the start told `ok`.
+    #[test]
+    #[cfg_attr(windows, ignore = "the app without a screen not tried on Windows yet")]
+    fn the_window_takes_the_address() {
+        use crate::audit_family_1::{Harness, folder, own_folder};
+        if own_folder("single::tests::the_window_takes_the_address") {
+            return;
+        }
+        let other = folder("single-other", &["b.png"]);
+        let mut h = Harness::new(&folder("single-first", &["a.png"]));
+        let socket = test_socket("window");
+        let inbox = super::listen_on(&socket).unwrap();
+        let _ = inbox.shared.ctx.set(h.ctx.clone());
+        h.app.single = Some(inbox);
+        let target = format!("{}/", other.display());
+        let handed = handing(&socket, &target);
+        let start = Instant::now();
+        let mut answer = None;
+        while answer.is_none() && start.elapsed() < Duration::from_secs(10) {
+            eframe::App::logic(&mut h.app, &h.ctx.clone(), &mut eframe::Frame::_new_kittest());
+            h.frame(Vec::new());
+            answer = handed.try_recv().ok();
+        }
+        assert_eq!(answer, Some(Handover::Done));
+        h.until(|a| a.dir.trim_end_matches('/').ends_with("single-other"), "the folder handed over opened");
     }
 
     /// One line, not too long, without its end; anything else is no address.
